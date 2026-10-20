@@ -83,6 +83,13 @@ function mount() {
       load: async () => { const r = await bridge('GET', `${storyPath}/drafts`); if (!r.ok) throw new Error(r.error); return r.body; },
       act: async (chapter, index, action) => { const r = await bridge('POST', `${storyPath}/drafts`, { chapter, index, action }); if (!r.ok) throw new Error(r.error); return r.body; },
     },
+    freshness: async () => { const r = await bridge('GET', `${storyPath}/freshness`); if (!r.ok) throw new Error(r.error); return r.body; },
+    requestUpdate: async (base) => {
+      const pr = prOfLocation();
+      const r = await bridge('POST', '/api/builds', { repo: `${pr.owner}/${pr.repo}`, number: pr.number, url: `https://github.com/${pr.owner}/${pr.repo}/pull/${pr.number}`, requested_at: new Date().toISOString(), mode: 'update', base_sha: base });
+      if (!r.ok) throw new Error(r.error);
+      return r.body;
+    },
     status: async () => {
       const r = await bridge('GET', `/api/status?story=${encodeURIComponent(storyId)}`);
       if (r.ok) return r.body;

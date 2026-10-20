@@ -48,6 +48,9 @@
  *                  it rejects with err.code 'down', 'token' or 'old' when the bridge can't say. Drives the status light.
  *   drafts         {load(), act(chapter, index, action)}: each returns a Promise of {drafts: [{chapter, index, status:
  *                  'draft'|'posted'|'pending', dismissed, url}], error}. action is posted, unposted, dismiss or restore.
+ *   freshness()    returns a Promise of {state: 'current'|'stale'|'unknown'|'n/a', story_head, current_head, newer,
+ *                  changed_files, chapters_touched, error}: is the story up to date with the PR's latest commit?
+ *   requestUpdate(base_sha) asks for the story to be updated from that commit (a build request, mode 'update')
  *   host           name of the page that owns the diff, for messages ("GitHub")
  *   commentsTitle  heading for the chapter's drafted comments ("Draft comments")
  */
@@ -184,6 +187,12 @@ export function storyOverlay(INPUT, opts = {}) {
   #${NS} .prs-health ul { list-style: none; margin: 0; padding: 0; }
   #${NS} .prs-health li { padding: 1px 0; }
   #${NS} .prs-health .prs-hok { color: var(--c-ok); } #${NS} .prs-health .prs-hwarn { color: var(--c-warn); } #${NS} .prs-health .prs-herr { color: var(--c-err); }
+  #${NS} .prs-fresh { flex-basis: 100%; font-size: 12px; }
+  #${NS} .prs-fresh:empty { display: none; }
+  #${NS} .prs-fresh.prs-stale { color: var(--c-warn); }
+  #${NS} .prs-fresh button { margin-left: 6px; }
+  #${NS} .prs-changed { font-size: 11px; color: var(--c-warn); margin-left: 4px; white-space: nowrap; }
+  #${NS} .prs-touched { font-size: 11px; color: var(--c-warn); margin-left: 4px; }
   #${NS} .prs-askhint { padding: 6px 10px 0; font-size: 12px; color: var(--c-warn); background: var(--c-subtle); border-top: 1px solid var(--c-border); }
   #${NS} .prs-askhint code { font-size: 11px; }
   #${NS} .prs-progress { margin: 0 0 10px; padding: 4px 8px; font-size: 12px; color: var(--c-muted); border-left: 3px solid var(--c-border); }
@@ -577,7 +586,7 @@ export function storyOverlay(INPUT, opts = {}) {
       <button class="prs-next" title="Next step">Next &rarr;</button>
       <button class="prs-close" title="Remove the overlay and show every file">&times;</button>
     </div>
-    <div class="prs-note"><span class="prs-count-note"></span><div class="prs-health" hidden></div><span class="prs-msg"></span></div>
+    <div class="prs-note"><span class="prs-count-note"></span><div class="prs-health" hidden></div><div class="prs-fresh"></div><span class="prs-msg"></span></div>
     <div class="prs-body"></div>
     <div class="prs-askhint" hidden></div>
     <form class="prs-ask${opts.ask ? '' : ' prs-off'}">
@@ -794,6 +803,7 @@ export function storyOverlay(INPUT, opts = {}) {
     renderQuestions();
     renderViewed();
     refreshDrafts(false);
+    renderFresh();
     $('.prs-body').scrollTop = 0;
   }
 
@@ -1074,6 +1084,44 @@ export function storyOverlay(INPUT, opts = {}) {
     healthTimer = setInterval(() => { if (document.visibilityState === 'visible') refreshHealth(); }, 10000);
   } else $('.prs-light').hidden = true;
 
+  // ---------- is the story up to date with the PR's latest commit?
+  let fresh = null;
+  let freshTimer = 0;
+  const sha7 = (x) => String(x || '').slice(0, 7);
+  async function refreshFresh() {
+    if (!opts.freshness) return;
+    try { fresh = await opts.freshness(); } catch (e) { fresh = { state: 'unknown', error: e && e.message }; }
+    renderFresh();
+  }
+  function renderFresh() {
+    const box = $('.prs-fresh');
+    for (const el of panel.querySelectorAll('.prs-changed, .prs-touched')) el.remove();
+    box.classList.remove('prs-stale');
+    if (!fresh || fresh.state === 'n/a') { box.innerHTML = ''; return; }
+    if (fresh.state === 'current') { box.innerHTML = `<span class="prs-why">Up to date with ${esc(sha7(fresh.story_head))}</span>`; return; }
+    if (fresh.state === 'unknown') { box.innerHTML = fresh.error ? `<span class="prs-why" title="${esc(fresh.error)}">Can't tell whether the story is up to date</span>` : ''; return; }
+    box.classList.add('prs-stale');
+    const n = fresh.newer;
+    const what = fresh.rewritten ? 'the PR was rebased or force-pushed since' : n != null ? `the PR has ${n} newer commit${n === 1 ? '' : 's'}` : 'the PR has newer commits';
+    const files = (fresh.changed_files || []).length;
+    box.innerHTML = `Story is for ${esc(sha7(fresh.story_head))}; ${what}${files ? ` (${files} file${files === 1 ? '' : 's'} changed${fresh.chapters_touched.length ? `, in chapter${fresh.chapters_touched.length > 1 ? 's' : ''} ${fresh.chapters_touched.join(', ')}` : ''})` : ''}.`
+      + (opts.requestUpdate ? `<button class="prs-update" title="Ask a Claude session to update the story from ${esc(sha7(fresh.story_head))} to the latest commit">Update story</button>` : '');
+    const upd = box.querySelector('.prs-update');
+    if (upd) upd.onclick = async () => {
+      upd.disabled = true;
+      try { await opts.requestUpdate(fresh.story_head); upd.textContent = 'Update asked for'; message('Asked for an update. A Claude session picks it up from the inbox.'); } catch (e) { upd.disabled = false; message(`Couldn't ask for an update: ${e && e.message ? e.message : e}`); }
+    };
+    // mark what changed since the story: the files, and the chapters that list them
+    const changed = new Set(fresh.changed_files || []);
+    for (const li of panel.querySelectorAll('ul.prs-files > li[data-file]')) {
+      if (changed.has(li.getAttribute('data-file'))) li.querySelector('code').insertAdjacentHTML('afterend', '<span class="prs-changed" title="Changed in a commit after the one the story was told from">changed since story</span>');
+    }
+    if (!inBackstory()) for (const li of panel.querySelectorAll('ol.prs-map li[data-n]')) {
+      if ((fresh.chapters_touched || []).includes(Number(li.getAttribute('data-n')))) li.insertAdjacentHTML('beforeend', '<span class="prs-touched" title="A file here changed after the story was told">• changed since</span>');
+    }
+  }
+  if (opts.freshness) freshTimer = setInterval(() => { if (document.visibilityState === 'visible') refreshFresh(); }, 60000);
+
   // ---------- drafted comments: posted, in his pending review, dismissed, or still a draft
   let draftRows = [];
   let draftError = null;
@@ -1151,7 +1199,7 @@ export function storyOverlay(INPUT, opts = {}) {
   }
   let draftTimer = 0;
   if (opts.drafts) draftTimer = setInterval(() => { if (document.visibilityState === 'visible') refreshDrafts(true); }, 60000);
-  const onFocusDrafts = () => refreshDrafts(true);
+  const onFocusDrafts = () => { refreshDrafts(true); refreshFresh(); };
   window.addEventListener('focus', onFocusDrafts);
 
   // ---------- where Eric is: the step and the file at the top of the screen
@@ -1255,6 +1303,7 @@ export function storyOverlay(INPUT, opts = {}) {
     clearTimeout(flashTimer);
     clearInterval(healthTimer);
     clearInterval(draftTimer);
+    clearInterval(freshTimer);
     window.removeEventListener('focus', onFocusDrafts);
     settleToken++;
     clearInterval(qaTimer);
@@ -1280,6 +1329,7 @@ export function storyOverlay(INPUT, opts = {}) {
   renderBody();
   if (Number.isFinite(init.bodyScroll)) $('.prs-body').scrollTop = init.bodyScroll; // a live redraw keeps your place
   refreshDrafts(true);
+  refreshFresh();
   apply();
   observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-pressed'] });
   reportPosition();
