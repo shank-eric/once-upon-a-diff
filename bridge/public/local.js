@@ -291,7 +291,7 @@ async function poll() {
     if (editing) return; // don't redraw under a note being written
     story = await api('GET', S);
     render();
-    if (!hidden) mount(overlay ? { ...overlay.state } : lastUi);
+    if (!hidden) mount(overlay ? { ...overlay.state, bodyScroll: overlay.bodyScroll } : lastUi);
   } catch { /* bridge restarting */ }
 }
 
@@ -310,5 +310,6 @@ async function start() {
   else mount(lastUi);
   window.__diffStoryLocal = { get story() { return story; }, get overlay() { return overlay; } };
   setInterval(poll, 5000);
+  window.addEventListener('focus', poll); // a comment drafted in the terminal shows up as soon as you come back
 }
 start();

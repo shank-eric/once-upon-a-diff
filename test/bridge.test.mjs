@@ -247,3 +247,32 @@ describe('local stories', () => {
     assert.deepEqual(logged.map(e => e.action), ['added', 'updated', 'deleted']);
   });
 });
+
+describe('drafted comments', () => {
+  test('a comment lands in the chapter, in the served copy and its pr-story source, once', async () => {
+    const home = tmp('home');
+    const src = tmp('scratch');
+    githubStory(src);
+    githubStory(path.join(home, 'acme-widgets-7'));
+    writeJson(path.join(home, 'acme-widgets-7', 'meta.json'), { kind: 'github', repo: 'acme/widgets', number: 7, source: src });
+    const b = await startBridge({ home });
+    try {
+      const v1 = (await b.call('GET', '/api/stories/acme-widgets-7/version')).body.version;
+      await new Promise(r => setTimeout(r, 20));
+      const c = { chapter: 2, path: 'src/b.js', line: 4, body: 'Could you confirm this handles an empty list?' };
+      const r = await b.call('POST', '/api/stories/acme-widgets-7/comments', c);
+      assert.equal(r.status, 200);
+      assert.equal(r.body.added, true);
+      assert.equal(r.body.files.length, 2);
+      const again = await b.call('POST', '/api/stories/acme-widgets-7/comments', c);
+      assert.equal(again.body.added, false, 'the same comment twice is kept once');
+      const data = (await b.call('GET', '/api/stories/acme-widgets-7')).body;
+      assert.deepEqual(data.chapters[1].comments, [{ path: 'src/b.js', line: 4, body: c.body }]);
+      const fromSrc = JSON.parse(readFileSync(path.join(src, 'chapters.json'), 'utf8'));
+      assert.equal(fromSrc.chapters[1].comments.length, 1, 'the pr-story source gets it too, so the next render keeps it');
+      assert.notEqual((await b.call('GET', '/api/stories/acme-widgets-7/version')).body.version, v1, 'the panel sees a new version');
+      assert.equal((await b.call('POST', '/api/stories/acme-widgets-7/comments', { chapter: 9, body: 'x' })).status, 400);
+      assert.equal((await b.call('POST', '/api/stories/acme-widgets-7/comments', { chapter: 1, body: ' ' })).status, 400);
+    } finally { await b.close(); }
+  });
+});
