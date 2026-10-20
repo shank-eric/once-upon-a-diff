@@ -7,11 +7,12 @@ import { getSettings } from './shared/settings.js';
 
 const METHODS = new Set(['GET', 'POST']);
 
-async function callBridge({ method = 'GET', path, body }) {
+async function callBridge({ method = 'GET', path, body }, override) {
   if (!METHODS.has(method) || typeof path !== 'string' || !/^\/api\/[A-Za-z0-9._~%/?=&-]*$/.test(path) || path.includes('..')) {
     return { ok: false, status: 0, error: 'bad request' };
   }
-  const { port, token } = await getSettings();
+  // the options page can test the values in its form before they're saved
+  const { port, token } = override || (await getSettings());
   if (!token) return { ok: false, status: 0, error: 'not-configured' };
   try {
     const res = await fetch(`http://127.0.0.1:${Number(port)}${path}`, {
@@ -32,7 +33,10 @@ async function callBridge({ method = 'GET', path, body }) {
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (sender.id !== chrome.runtime.id || !msg || msg.type !== 'bridge') return false;
-  callBridge(msg).then(sendResponse);
+  // only the extension's own pages (the options page) may pass unsaved settings; content scripts run on github.com
+  const ownPage = typeof sender.url === 'string' && sender.url.startsWith(chrome.runtime.getURL(''));
+  const s = ownPage && msg.settings && typeof msg.settings === 'object' ? { port: Number(msg.settings.port), token: String(msg.settings.token || '') } : null;
+  callBridge(msg, s).then(sendResponse);
   return true;
 });
 
