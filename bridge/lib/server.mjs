@@ -20,6 +20,7 @@ import { StoryStore, readMeta, refreshLocal, storyVersion } from './stories.mjs'
 import { Inbox, newId } from './inbox.mjs';
 import { Builds } from './builds.mjs';
 import { addComment } from './comments.mjs';
+import { freshness, currentHead } from './freshness.mjs';
 import { stateKeyOf, readMarks, mark, draftStatus, githubComments, forgetComments } from './drafts.mjs';
 import { addToPendingReview } from './review.mjs';
 import { statusOf, answerContext, runAutoAnswer } from './health.mjs';
@@ -157,9 +158,16 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
           const number = Number(x.number);
           const hits = statusCache.list.filter(s => s.kind === 'github' && String(s.repo).toLowerCase() === repo.toLowerCase() && Number(s.number) === number);
           const b = statusCache.builds[`${repo.toLowerCase()}#${number}`] || null;
-          if (hits.length) return { repo, number, state: 'ready', story: hits.sort((a, c) => Number(c.version) - Number(a.version))[0].id };
+          if (hits.length) {
+            const id = hits.sort((a, c) => Number(c.version) - Number(a.version))[0].id;
+            return { repo, number, state: 'ready', story: id, story_head: readMeta(stories.dirOf(id)).head_oid || null, updating: !!(b && b.status === 'pending' && b.mode === 'update') };
+          }
           return { repo, number, state: b && b.status === 'pending' ? 'building' : 'none', request: b };
         });
+        // is each story up to date? (the PR's head, read-only gh, cached 60s; only for PRs that have a story)
+        await Promise.all(results.filter(r => r.state === 'ready' && r.story_head).map(async r => {
+          try { const head = await currentHead(r.repo, r.number); r.current_head = head; r.stale = head !== r.story_head; } catch { r.stale = null; }
+        }));
         return send(200, { results });
       }
       if (p === '/api/builds/status' && req.method === 'GET') {
@@ -167,8 +175,9 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
         const number = url.searchParams.get('number');
         const hit = stories.find(repo, number);
         let b = builds.get(repo, number);
-        if (hit && b && b.status === 'pending') b = builds.done(b.id, { story: hit.id }); // the story turned up
-        if (hit) return send(200, { state: 'ready', story: hit.id, version: hit.version, title: hit.title, request: b });
+        // the story turned up (for an update: its head moved off the one it was asked to update from)
+        if (hit && b && b.status === 'pending' && !(b.mode === 'update' && readMeta(stories.dirOf(hit.id)).head_oid === b.base_sha)) b = builds.done(b.id, { story: hit.id });
+        if (hit) return send(200, { state: 'ready', story: hit.id, version: hit.version, title: hit.title, request: b, updating: !!(b && b.status === 'pending' && b.mode === 'update') });
         if (b && b.status === 'pending') return send(200, { state: 'building', request: b });
         return send(200, { state: 'none', request: b });
       }
@@ -217,6 +226,7 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
         }
         return send(200, q);
       }
+      if (what === 'freshness' && req.method === 'GET') return send(200, await freshness(meta, stories.load(id).chapters));
       if (what === 'drafts') {
         // what's become of each drafted comment: posted, in his pending review, dismissed, or still a draft.
         // Read-only on GitHub, except action 'review', which adds the draft to his pending review (never submitted).

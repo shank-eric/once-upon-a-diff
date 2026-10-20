@@ -102,6 +102,13 @@ It looks again after any click or change on the page, so Refined GitHub's batch 
 
 The page makes one batched lookup (`POST /api/stories/status-many`, cached 5s), and the badges come back after GitHub or Refined GitHub redraws the list. While a badge says Building…, the page looks again every 15s. With no bridge running, the list stays as GitHub draws it.
 
+**Is the story up to date?** A story records the PR head it was told from: pr-story's `pr.json` `headRefOid`, copied into `meta.json` as `head_oid`. The bridge reads the PR's current head and compares the two with read-only `gh api` calls, cached for 60s.
+
+- When they match, the panel header says "Up to date with abc1234".
+- When they don't, it says "Story is for abc1234; the PR has N newer commits", with the files changed since and the chapters that list them. Those files get "changed since story" in the files list, and those chapters a mark in the Steps list.
+- **Update story** sends a build request with `mode: 'update'` and the old head (`base_sha`). It stays pending until the story's head moves.
+- PR-list badges say "Story · out of date" or "Story · updating…".
+
 ### Story ready, Building, Build story
 
 Every PR Files changed page gets a small status control in the bottom-right corner, shown whenever the panel isn't:

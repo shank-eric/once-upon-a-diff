@@ -57,6 +57,8 @@ export function readMeta(dir) {
       out.number ||= pr.number;
       out.url ||= pr.url;
       out.pr_title ||= pr.title;
+      out.head_oid ||= pr.headRefOid || null; // the commit the story was told from
+      out.base_oid ||= pr.baseRefOid || null;
     }
     if (map && typeof map.pr === 'string' && !out.repo) {
       const m = /^(.+)#(\d+)$/.exec(map.pr);

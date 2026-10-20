@@ -1,0 +1,59 @@
+/**
+ * Is a PR story up to date with the PR's latest commit? The story's meta
+ * says which head it was told from (pr-story's pr.json headRefOid). The
+ * bridge reads the PR's current head and, when it differs, what changed
+ * between the two, with read-only `gh api` GETs cached for 60s:
+ *   repos/{o}/{r}/pulls/{n}                       head.sha
+ *   repos/{o}/{r}/compare/{story head}...{head}   commits and files since
+ */
+import { execFile } from 'node:child_process';
+
+const TTL_MS = 60000;
+const cache = new Map();
+
+function gh(args) {
+  const env = { ...process.env };
+  delete env.GITHUB_TOKEN;
+  return new Promise((resolve, reject) => {
+    execFile(process.env.DIFF_STORY_GH || 'gh', ['api', ...args], { env, timeout: 20000, maxBuffer: 32 * 1024 * 1024 }, (err, stdout, stderr) => {
+      if (err) reject(new Error((stderr || err.message).trim().split('\n')[0]));
+      else resolve(JSON.parse(stdout));
+    });
+  });
+}
+async function cached(key, fn) {
+  const hit = cache.get(key);
+  if (hit && Date.now() - hit.at < TTL_MS) return hit.value;
+  const value = await fn();
+  cache.set(key, { at: Date.now(), value });
+  return value;
+}
+export const clearFreshness = () => cache.clear();
+
+export const currentHead = (repo, number) => cached(`head ${repo}#${number}`.toLowerCase(), async () => (await gh([`repos/${repo}/pulls/${Number(number)}`])).head.sha);
+
+/**
+ * {state: 'current'|'stale'|'unknown', story_head, current_head, newer, rewritten, changed_files, chapters_touched, error}
+ * chapters_touched: the chapters that list a file changed since the story's head.
+ */
+export async function freshness(meta, chapters) {
+  const story = meta.head_oid || null;
+  if (meta.kind !== 'github' || !meta.repo || !meta.number) return { state: 'n/a' };
+  if (!story) return { state: 'unknown', story_head: null, error: "the story doesn't say which commit it was told from (re-render it with pr-story)" };
+  let head;
+  try { head = await currentHead(meta.repo, meta.number); } catch (e) { return { state: 'unknown', story_head: story, error: `couldn't read the PR's head with gh: ${e.message}` }; }
+  if (head === story) return { state: 'current', story_head: story, current_head: head, newer: 0, changed_files: [], chapters_touched: [] };
+  let cmp;
+  try { cmp = await cached(`cmp ${meta.repo} ${story} ${head}`, () => gh([`repos/${meta.repo}/compare/${story}...${head}`])); } catch (e) {
+    return { state: 'stale', story_head: story, current_head: head, newer: null, changed_files: [], chapters_touched: [], error: `couldn't compare the commits: ${e.message}` };
+  }
+  const changed = (cmp.files || []).map(f => f.filename);
+  const set = new Set(changed);
+  const touched = chapters.map((ch, i) => ((ch.files || []).some(f => set.has(typeof f === 'string' ? f : f.rel)) ? i + 1 : 0)).filter(Boolean);
+  return {
+    state: 'stale', story_head: story, current_head: head,
+    newer: Number.isFinite(cmp.ahead_by) ? cmp.ahead_by : (cmp.commits || []).length,
+    rewritten: cmp.status === 'diverged' || cmp.status === 'behind', // a force-push or rebase since the story
+    changed_files: changed, chapters_touched: touched,
+  };
+}

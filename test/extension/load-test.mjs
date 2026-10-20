@@ -46,7 +46,13 @@ if (rels.length < 2) throw new Error(`${PR} has ${rels.length} files; pick a PR 
 const half = Math.ceil(rels.length / 2);
 const home = tmp('ext-home');
 const id = `${owner}-${repo}-${number}`;
-writeJson(path.join(home, id, 'meta.json'), { kind: 'github', repo: `${owner}/${repo}`, number: +number });
+// the story was told from an older head ('a' x 40); the fake gh says the PR is now at 'b' x 40, with one file changed
+const OLD = 'a'.repeat(40);
+const NEW = 'b'.repeat(40);
+writeJson(path.join(home, id, 'meta.json'), { kind: 'github', repo: `${owner}/${repo}`, number: +number, head_oid: OLD });
+const extra = path.join(home, 'fake-gh-extra.json');
+writeJson(extra, { [`repos/${owner}/${repo}/pulls/${number}`]: { head: { sha: NEW } }, [`repos/${owner}/${repo}/compare/${OLD}...${NEW}`]: { status: 'ahead', ahead_by: 2, files: [{ filename: rels[rels.length - 1] }] } });
+process.env.DIFF_STORY_FAKE_GH_EXTRA = extra;
 writeJson(path.join(home, id, 'chapters.json'), {
   title: `Test story for ${PR}`, overview: `### Overview\n\nA test story with ${rels.length} files.`,
   chapters: [
@@ -118,6 +124,10 @@ try {
     await page.waitForTimeout(2500); // lazy-loaded diffs
     const note = () => page.locator('#dsm-panel .prs-count-note').textContent();
     check(/Overview/.test(await note()), `/${view}: starts at the Overview: "${await note()}"`);
+    await page.waitForTimeout(800);
+    const fr = await page.locator('#dsm-panel .prs-fresh').textContent();
+    check(/Story is for aaaaaaa; the PR has 2 newer commits \(1 file changed, in chapter 2\)/.test(fr), `/${view}: an out-of-date story says so: "${fr}"`);
+    check((await page.locator('#dsm-panel ol.prs-map li[data-n="2"] .prs-touched').count()) === 1, `/${view}: the chapter touched since is marked in the Steps list`);
     await page.waitForTimeout(500);
     check((await page.locator('#dsm-panel .prs-light[data-level="warn"]').count()) === 1, `/${view}: the status light is amber with no Claude listening: "${(await page.locator('#dsm-panel .prs-light').getAttribute('title') || '').split('\n')[0]}"`);
     check(/No Claude session is listening/.test(await page.locator('#dsm-panel .prs-askhint').textContent()), `/${view}: the Ask box says questions will wait`);
@@ -162,6 +172,12 @@ try {
     await page.locator('#dsm-panel ol.prs-map li[data-n="0"]').click();
     await page.waitForTimeout(300);
   }
+
+  // Update story sends a build request with mode 'update' and the story's head
+  await page.locator('#dsm-panel .prs-update').click();
+  await page.waitForTimeout(600);
+  const upd = readFileSync(path.join(home, 'inbox.jsonl'), 'utf8').trim().split('\n').map(JSON.parse).find((e) => e.type === 'build_request' && e.mode === 'update');
+  check(!!upd && upd.base_sha === OLD && upd.number === +number, 'Update story asks for an update from the story\'s head');
 
   // question, from the GitHub page
   await page.locator('#dsm-panel .prs-ask textarea').fill('Why two halves?');
@@ -228,7 +244,7 @@ try {
   const byKey = new Map(badges.map((x) => [x.key, x.text]));
   const k = (n) => `${owner}/${repo}#${n}`.toLowerCase();
   check(badges.length >= 5, `the PR list gets a badge per PR (${badges.length})`);
-  if (byKey.has(k(number))) check(/Story/.test(byKey.get(k(number))), `the PR with a story says "Story": "${byKey.get(k(number))}"`);
+  if (byKey.has(k(number))) check(/Story · updating/.test(byKey.get(k(number))), `the PR whose story is being updated says so: "${byKey.get(k(number))}"`);
   else process.stdout.write(`note: #${number} isn't on the first page of the list, so its "Story" badge wasn't checked\n`);
   check([...byKey.values()].some((t) => /Build story/.test(t)), 'PRs without a story say "Build story"');
   const target = badges.find((x) => /Build story/.test(x.text));

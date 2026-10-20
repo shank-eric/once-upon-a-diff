@@ -41,7 +41,7 @@ export class Builds {
   pending() { return Object.values(this.all()).filter(b => b.status === 'pending'); }
 
   /** A new request, or the pending one already there for that PR. Throws on a bad repo or number. The URL is always rebuilt from them. */
-  request({ repo, number, requested_at }) {
+  request({ repo, number, requested_at, mode, base_sha }) {
     if (!REPO_RE.test(String(repo || ''))) throw Object.assign(new Error('bad repo'), { status: 400 });
     const n = Number(number);
     if (!Number.isInteger(n) || n < 1) throw Object.assign(new Error('bad number'), { status: 400 });
@@ -51,10 +51,11 @@ export class Builds {
     const key = buildKey(repo, n);
     if (all[key] && all[key].status === 'pending') return all[key];
     const at = Number.isFinite(Date.parse(requested_at)) ? new Date(requested_at).toISOString() : new Date().toISOString();
-    const b = { id: newId('b'), repo, number: n, url: prUrl, requested_at: at, status: 'pending' };
+    const update = mode === 'update' && /^[0-9a-f]{7,40}$/.test(String(base_sha || ''));
+    const b = { id: newId('b'), repo, number: n, url: prUrl, requested_at: at, status: 'pending', ...(update ? { mode: 'update', base_sha } : {}) };
     all[key] = b;
     this.save(all);
-    this.inbox.append({ type: 'build_request', id: b.id, repo, number: n, url: prUrl, requested_at: at, text: `Build a story for ${repo}#${n}: ${prUrl}` });
+    this.inbox.append({ type: 'build_request', id: b.id, repo, number: n, url: prUrl, requested_at: at, ...(update ? { mode: 'update', base_sha, text: `Update the story for ${repo}#${n} (told from ${base_sha.slice(0, 7)}) to the PR's latest commit: ${prUrl}` } : { text: `Build a story for ${repo}#${n}: ${prUrl}` }) });
     if (this.autoBuild) this.run(b);
     return b;
   }
