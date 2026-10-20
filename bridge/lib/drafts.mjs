@@ -114,6 +114,8 @@ export async function githubComments(repo, number) {
   return value;
 }
 export const clearCache = () => { cache.clear(); login = null; };
+/** Drop one PR's cached comments, e.g. right after adding one to the pending review. */
+export const forgetComments = (repo, number) => { cache.delete(`${repo}#${number}`.toLowerCase()); };
 
 // ---------- his own calls, kept by the bridge
 function file(home, key) {
