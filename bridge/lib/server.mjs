@@ -18,6 +18,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { StoryStore, readMeta, refreshLocal, storyVersion } from './stories.mjs';
 import { Inbox, newId } from './inbox.mjs';
+import { Builds } from './builds.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.resolve(HERE, '../public');
@@ -67,10 +68,11 @@ const int = v => (Number.isFinite(+v) ? Math.trunc(+v) : null);
  * @param {{home: string, token: string, roots?: string[], scratch?: boolean|string[]}} opts
  * @returns {http.Server} call .listen(port, '127.0.0.1')
  */
-export function createBridge({ home, token, roots, scratch = true }) {
+export function createBridge({ home, token, roots, scratch = true, autoBuild = null }) {
   if (!token) throw new Error('the bridge needs a token');
   const stories = new StoryStore({ home, roots, scratch });
   const inbox = new Inbox(home);
+  const builds = new Builds(home, inbox, { autoBuild });
   const lastPosition = new Map();
 
   const server = http.createServer(async (req, res) => {
@@ -118,6 +120,19 @@ export function createBridge({ home, token, roots, scratch = true }) {
         const hit = stories.find(url.searchParams.get('repo') || '', url.searchParams.get('number'));
         if (!hit) throw new HttpError(404, 'no story for that PR');
         return send(200, { id: hit.id, version: hit.version, title: hit.title });
+      }
+      // build requests: the page's "Build story" button, and the state it shows (ready, building or none)
+      if (p === '/api/builds' && req.method === 'GET') return send(200, { pending: builds.pending() });
+      if (p === '/api/builds' && req.method === 'POST') return send(200, { state: 'building', request: builds.request(body) });
+      if (p === '/api/builds/status' && req.method === 'GET') {
+        const repo = url.searchParams.get('repo') || '';
+        const number = url.searchParams.get('number');
+        const hit = stories.find(repo, number);
+        let b = builds.get(repo, number);
+        if (hit && b && b.status === 'pending') b = builds.done(b.id, { story: hit.id }); // the story turned up
+        if (hit) return send(200, { state: 'ready', story: hit.id, version: hit.version, title: hit.title, request: b });
+        if (b && b.status === 'pending') return send(200, { state: 'building', request: b });
+        return send(200, { state: 'none', request: b });
       }
       if (p === '/api/answers' && req.method === 'POST') {
         const q = inbox.questions().find(x => x.id === body.question);
@@ -213,6 +228,7 @@ export function createBridge({ home, token, roots, scratch = true }) {
   });
   server.stories = stories;
   server.inbox = inbox;
+  server.builds = builds;
   return server;
 }
 

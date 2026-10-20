@@ -10,6 +10,7 @@
  * bridge on 127.0.0.1.
  */
 import { storyOverlay } from '../shared/overlay.js';
+import { statusControl } from './status.js';
 
 const PR_PATH = /^\/([^/]+)\/([^/]+)\/pull\/(\d+)\/(changes|files)(?:\/|$)/;
 const PANEL_ID = 'diff-story-panel';
@@ -68,6 +69,7 @@ function mount() {
       cur.overlay = null;
       cur.ui = { ...cur.ui, hidden: true };
       saveUi(key, cur.ui);
+      refreshStatus();
       toast('Story hidden. Click the Diff Story Mode toolbar button (or Alt+Shift+S) to bring it back.');
     },
     ask: async q => {
@@ -103,8 +105,18 @@ async function sync() {
     unmount();
     cur = { ...pr, id: null, version: null, data: null, ui: {}, overlay: null, status: 'loading' };
     const mine = cur;
-    const found = await bridge('GET', `/api/stories/find?repo=${encodeURIComponent(`${pr.owner}/${pr.repo}`)}&number=${pr.number}`);
+    const q = `repo=${encodeURIComponent(`${pr.owner}/${pr.repo}`)}&number=${pr.number}`;
+    const found = await bridge('GET', `/api/stories/find?${q}`);
     if (cur !== mine) return;
+    if (!found.ok && found.status === 404) {
+      // no story: is one being built?
+      const st = await bridge('GET', `/api/builds/status?${q}`);
+      if (cur !== mine) return;
+      cur.build = st.ok ? st.body.request : null;
+      cur.status = st.ok && st.body.state === 'building' ? 'building' : 'none';
+      if (st.ok && st.body.state === 'ready') { cur = null; return; } // it turned up in between; the next tick picks it up
+      return;
+    }
     if (!found.ok) { cur.status = found.error || `HTTP ${found.status}`; return; }
     const data = await fetchStory(found.body.id);
     if (cur !== mine || !data) return;
@@ -116,7 +128,46 @@ async function sync() {
     mount();
   } finally {
     syncing = false;
+    refreshStatus();
   }
+}
+
+// ---------- the status control: story ready / building / build story
+const status = statusControl({
+  onOpen: () => {
+    if (!cur || !cur.data) return;
+    cur.ui = { ...cur.ui, hidden: false };
+    mount();
+    saveUi(cur.key, cur.ui);
+    refreshStatus();
+  },
+  onBuild: () => requestBuild(),
+});
+
+function refreshStatus() {
+  if (!alive() || !cur || !prOfLocation()) return status.set('hidden');
+  if (cur.data) return status.set(cur.overlay && document.getElementById(PANEL_ID) ? 'hidden' : 'ready');
+  if (cur.status === 'building') return status.set('building', { requested_at: cur.build && cur.build.requested_at });
+  if (cur.status === 'none') {
+    const failed = cur.build && cur.build.status === 'failed' ? 'Last build failed.' : '';
+    return status.set('none', { note: failed });
+  }
+  if (cur.status === 'unreachable') return status.set('offline', { note: 'Story bridge offline' });
+  if (/HTTP 401|token/.test(cur.status || '')) return status.set('offline', { note: 'Story bridge rejected the token' });
+  return status.set('hidden'); // loading, or not set up yet
+}
+
+async function requestBuild() {
+  const pr = prOfLocation();
+  if (!pr || !cur || cur.key !== pr.key) return;
+  const mine = cur;
+  const r = await bridge('POST', '/api/builds', {
+    repo: `${pr.owner}/${pr.repo}`, number: pr.number, url: `https://github.com/${pr.owner}/${pr.repo}/pull/${pr.number}`, requested_at: new Date().toISOString(),
+  });
+  if (cur !== mine) return;
+  if (r.ok) { cur.status = 'building'; cur.build = r.body.request; lastRetry = Date.now(); }
+  else toast(r.status === 404 ? 'This bridge is older than the Build story button. Restart it: diff-story serve' : `Couldn't ask the bridge: ${r.error}`);
+  refreshStatus();
 }
 
 /** When chapters.json changes on disk (Claude filled in a chapter), redraw in place. */
@@ -124,8 +175,9 @@ let lastRetry = 0;
 async function checkForUpdates() {
   if (!cur || document.visibilityState !== 'visible') return;
   if (!cur.id) {
-    // no story yet, or no bridge yet: look again every 10s, since a story can be published while the page is open
-    if (cur.status !== 'loading' && Date.now() - lastRetry > 10000) {
+    // poll only while a build is pending (every 10s), or slowly while the bridge is down (every 30s)
+    const every = cur.status === 'building' ? 10000 : cur.status === 'unreachable' ? 30000 : 0;
+    if (every && Date.now() - lastRetry > every) {
       lastRetry = Date.now();
       cur = null;
       sync();
@@ -166,6 +218,7 @@ async function toggle() {
     mount();
   }
   saveUi(cur.key, cur.ui);
+  refreshStatus();
 }
 
 function toast(text) {
@@ -194,8 +247,13 @@ setInterval(() => {
   if (!alive()) return;
   if (location.href !== lastHref) { lastHref = location.href; sync(); }
   else if (cur && cur.data && !cur.ui.hidden && !document.getElementById(PANEL_ID)) sync();
+  else if (cur && !document.getElementById('diff-story-status')) refreshStatus(); // GitHub swapped out <body>
 }, 700);
 for (const ev of ['turbo:load', 'turbo:render', 'popstate', 'pageshow']) window.addEventListener(ev, () => sync());
+// coming back to a tab with no story: look once (another tab may have asked for a build, or the story may be done)
+document.addEventListener('visibilitychange', () => {
+  if (alive() && document.visibilityState === 'visible' && cur && !cur.data && cur.status !== 'loading') { cur = null; sync(); }
+});
 setInterval(() => { if (alive()) checkForUpdates(); }, 5000);
 lastHref = location.href;
 sync();
