@@ -13,6 +13,8 @@
  *   diff-story wait    [--story ID] [--type question,build_request] [--consumer NAME] [--timeout SECONDS] [--json]
  *                                                                  block until a question or build request arrives, print it, exit (for a background task);
  *                                                                  a consumer's first wait starts from now
+ *   diff-story comment --story ID --chapter N [--path P --line L] (--body-file F | --body T)
+ *                                                                  add a drafted comment to a chapter's Draft comments (never posted)
  *   diff-story doctor  [--port N]                                  is everything connected? a pass/fail list with fixes
  *   diff-story builds                                              pending "Build story" requests from the extension
  *   diff-story done    <build id | owner/repo#N> [--failed] [--note TEXT]   finish one (a story turning up finishes it too)
@@ -33,6 +35,7 @@ import { StoryStore, readMeta } from '../lib/stories.mjs';
 import { createLocalStory, slug } from '../lib/local.mjs';
 import { Inbox } from '../lib/inbox.mjs';
 import { Builds } from '../lib/builds.mjs';
+import { addComment } from '../lib/comments.mjs';
 import { beat } from '../lib/health.mjs';
 import { doctor } from '../lib/doctor.mjs';
 import { findBackstory, briefOf } from '../lib/backstory.mjs';
@@ -190,6 +193,19 @@ const COMMANDS = {
         setTimeout(() => { w.close(); resolve(); }, 2000);
       });
     }
+  },
+
+  comment(home, cfg, opts) {
+    const body = opts['body-file'] ? readFileSync(opts['body-file'], 'utf8') : typeof opts.body === 'string' ? opts.body : '';
+    if (!opts.story || !opts.chapter || !body.trim()) throw new Error('usage: diff-story comment --story ID --chapter N [--path P --line L] (--body-file F | --body T)');
+    const store = new StoryStore({ home, roots: opts.root.length ? opts.root : cfg.roots, scratch: true });
+    const dir = store.dirOf(opts.story);
+    if (!dir) throw new Error(`no story ${opts.story} (see: diff-story list)`);
+    let meta = {};
+    try { meta = JSON.parse(readFileSync(path.join(dir, 'meta.json'), 'utf8')); } catch { meta = {}; }
+    const r = addComment(dir, meta, { chapter: opts.chapter, path: typeof opts.path === 'string' ? opts.path : '', line: opts.line, body });
+    if (r.added) new Inbox(home).append({ type: 'comment', story: opts.story, chapter: r.chapter, comment: r.comment });
+    out(`${r.added ? 'Added to' : 'Already in'} chapter ${r.chapter}'s draft comments (${r.files.join(', ')}). The panel shows it within a few seconds.`);
   },
 
   async doctor(home, cfg, opts) {

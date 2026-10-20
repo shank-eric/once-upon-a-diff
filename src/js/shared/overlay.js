@@ -1170,6 +1170,7 @@ export function storyOverlay(INPUT, opts = {}) {
   setWidth(Number.isFinite(init.width) ? state.width : Math.min(state.width, Math.round(window.innerWidth * 0.4)));
   setCollapsed(state.collapsed);
   renderBody();
+  if (Number.isFinite(init.bodyScroll)) $('.prs-body').scrollTop = init.bodyScroll; // a live redraw keeps your place
   apply();
   observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-pressed'] });
   reportPosition();
@@ -1178,6 +1179,7 @@ export function storyOverlay(INPUT, opts = {}) {
     destroy, go, setView, apply, scrollToLine, scrollToFile, refreshQuestions, setCollapsed, state, data: INPUT,
     get seen() { return seen; },
     get health() { return health; },
+    get bodyScroll() { return $('.prs-body').scrollTop; },
     refreshHealth,
     summary() {
       const label = inBackstory()

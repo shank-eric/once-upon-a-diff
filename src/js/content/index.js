@@ -198,7 +198,7 @@ async function checkForUpdates() {
   cur.data = data;
   cur.version = data.version;
   if (cur.overlay) {
-    cur.ui = { ...cur.overlay.state, hidden: false };
+    cur.ui = { ...cur.overlay.state, hidden: false, bodyScroll: cur.overlay.bodyScroll };
     mount();
   }
 }
@@ -257,7 +257,10 @@ setInterval(() => {
 }, 700);
 for (const ev of ['turbo:load', 'turbo:render', 'popstate', 'pageshow']) window.addEventListener(ev, () => sync());
 // coming back to a tab with no story: look once (another tab may have asked for a build, or the story may be done)
+// a comment drafted in the terminal shows up as soon as you come back to the tab
+window.addEventListener('focus', () => { if (alive() && cur && cur.id) checkForUpdates(); });
 document.addEventListener('visibilitychange', () => {
+  if (alive() && document.visibilityState === 'visible' && cur && cur.id) checkForUpdates();
   if (alive() && document.visibilityState === 'visible' && cur && !cur.data && cur.status !== 'loading') { cur = null; sync(); }
 });
 setInterval(() => { if (alive()) checkForUpdates(); }, 5000);

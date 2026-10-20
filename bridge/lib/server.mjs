@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 import { StoryStore, readMeta, refreshLocal, storyVersion } from './stories.mjs';
 import { Inbox, newId } from './inbox.mjs';
 import { Builds } from './builds.mjs';
+import { addComment } from './comments.mjs';
 import { statusOf, answerContext, runAutoAnswer } from './health.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -198,6 +199,14 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
           });
         }
         return send(200, q);
+      }
+      if (what === 'comments' && req.method === 'POST') {
+        // a comment drafted in Q&A lands in the chapter's Draft comments (never posted anywhere)
+        let raw = {};
+        try { raw = JSON.parse(readFileSync(path.join(dir, 'meta.json'), 'utf8')); } catch { raw = {}; }
+        const r = addComment(dir, raw, body);
+        if (r.added) inbox.append({ type: 'comment', id: newId('c'), ...ctx, chapter: r.chapter, comment: r.comment });
+        return send(200, r);
       }
       if (what === 'position' && req.method === 'POST') {
         const pos = { step: int(body.step), chapter: str(body.chapter, 300), file: str(body.file, 1000), url: str(body.url, 2000) };
