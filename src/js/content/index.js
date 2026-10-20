@@ -125,7 +125,7 @@ async function checkForUpdates() {
   if (!cur || document.visibilityState !== 'visible') return;
   if (!cur.id) {
     // no story yet, or no bridge yet: look again every 10s, since a story can be published while the page is open
-    if (cur.status !== 'loading' && cur.status !== 'not-configured' && Date.now() - lastRetry > 10000) {
+    if (cur.status !== 'loading' && Date.now() - lastRetry > 10000) {
       lastRetry = Date.now();
       cur = null;
       sync();
@@ -181,6 +181,10 @@ function toast(text) {
 if (alive()) {
   chrome.runtime.onMessage.addListener(msg => {
     if (msg && msg.type === 'toggle') toggle();
+  });
+  // a tab opened before the port and token were saved looks again as soon as they are
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.settings && cur && !cur.data) { cur = null; sync(); }
   });
 }
 

@@ -75,6 +75,12 @@ try {
   const extId = new URL(sw.url()).host;
   check(/^[a-p]{32}$/.test(extId), `extension loaded (${extId})`);
 
+  // 0. a PR tab opened before the extension is set up
+  const early = await context.newPage();
+  await early.goto(`https://github.com/${owner}/${repo}/pull/${number}/files`, { waitUntil: 'domcontentloaded' });
+  await early.waitForTimeout(2000);
+  check((await early.locator('#diff-story-panel').count()) === 0, 'no panel before the port and token are set');
+
   // 1. options page
   const opt = await context.newPage();
   await opt.goto(`chrome-extension://${extId}/html/options.html`);
@@ -84,6 +90,9 @@ try {
   await opt.waitForSelector('#status.ok >> text=Connected', { timeout: 5000 }).catch(() => {});
   check(/Connected to the bridge/.test(await opt.textContent('#status')), `options page saves settings and reaches the bridge: "${await opt.textContent('#status')}"`);
   await opt.close();
+  const late = await early.waitForSelector('#diff-story-panel', { state: 'attached', timeout: 5000 }).catch(() => null);
+  check(!!late, 'a tab opened before setup shows the panel once the settings are saved, without a reload');
+  await early.close();
 
   // 2. GitHub
   const page = await context.newPage();
