@@ -17,6 +17,14 @@
  * the chapters. A story map at the top of a chapter's narrative, before its
  * "Chapter N" heading, is moved to the Overview.
  *
+ * Backstory (optional, from the Claude Code sessions that made the change):
+ * the result story always leads. A chapter's backstory is a collapsed
+ * "Backstory" section under its narrative, a file row gets a small "why" link
+ * that opens its "How it got here", and the Overview has the summary. A
+ * secondary "Backstory view" switches the whole panel to the chronological
+ * telling (one step per moment of work, diff filtered to its files). The
+ * journey story is the default; the view is remembered only once switched.
+ *
  * Selectors (checked against github.com 2026-10-20):
  *   /changes  file:   [role=region][id="diff-<sha256(path)>"], wrapped by a
  *                     one-child div inside [data-testid=progressive-diffs-list]
@@ -30,8 +38,8 @@
  *   fallback  file:   a header (h3, [class*=file-name], .file-info a) whose text is the path
  *
  * opts (all optional):
- *   initial        {n, all, collapsed, width} to start from (a saved step)
- *   onState(s)     called with {n, all, collapsed, width} whenever they change
+ *   initial        {n, all, collapsed, width, view, bn} to start from (a saved step; bn is the backstory view's step)
+ *   onState(s)     called with {n, all, collapsed, width, view, bn} whenever they change
  *   onPosition(p)  called with {step, chapter, file} when the step or the file at the top of the screen changes (debounced)
  *   onClose()      called after the x button removes the panel
  *   ask(q)         send a question {text, step, chapter, file}; returns a Promise
@@ -70,6 +78,7 @@ export function storyOverlay(INPUT, opts = {}) {
   DATA.chapters.forEach((ch, i) => ch.files.forEach((f) => { if (!f.partial && finishedIn[f.rel] == null) finishedIn[f.rel] = i + 1; }));
   const chaptersOf = (rel) => DATA.chapters.map((c, i) => (c.files.some((f) => f.rel === rel) ? i + 1 : 0)).filter(Boolean);
   function status(rel, n) {
+    if (inBackstory()) return null;
     const e = n && DATA.chapters[n - 1].files.find((f) => f.rel === rel);
     if (!e) return null;
     const fin = finishedIn[rel];
@@ -78,16 +87,44 @@ export function storyOverlay(INPUT, opts = {}) {
     return { kind: 'mark', text: 'Mark viewed', short: 'mark viewed' };
   }
 
+  // ---------- backstory: the chronological view's steps, one per moment of work
+  const BS = DATA.backstory && typeof DATA.backstory === 'object' ? DATA.backstory : null;
+  const TIMELINE = BS && Array.isArray(BS.timeline) ? BS.timeline.filter((t) => t && (t.title || t.text)) : [];
+  const BS_CH = TIMELINE.map((t, i) => ({
+    title: `${i + 1}. ${t.title || 'Work'}`,
+    narrative: '',
+    entry: t,
+    files: (t.files || []).filter((rel) => allPaths.has(rel)).map((rel) => {
+      const rs = (t.lines && t.lines[rel]) || [];
+      const e = { rel, partial: false, note: null };
+      if (rs.length) e.lines = rs.slice(0, 4).map(([a, b]) => ({ side: 'R', start: a, end: b || a, label: 'changed here' }));
+      return e;
+    }),
+    comments: [],
+  }));
+
   const init = opts.initial || {};
-  const start = Number.isFinite(init.n) ? init.n : Number.isFinite(DATA.start) ? DATA.start : 0;
+  const startView = init.view === 'backstory' && BS_CH.length ? 'backstory' : 'story';
+  const storyStart = Number.isFinite(init.n) ? init.n : Number.isFinite(DATA.start) ? DATA.start : 0;
+  const bsStart = Number.isFinite(init.bn) ? init.bn : 0;
+  const clampN = (n, view) => Math.min(Math.max(0, n), (view === 'backstory' ? BS_CH : DATA.chapters).length);
   const state = {
-    n: Math.min(Math.max(0, start), DATA.chapters.length),
+    view: startView,
+    n: clampN(startView === 'backstory' ? bsStart : storyStart, startView), // the step in the view on screen
+    other: clampN(startView === 'backstory' ? storyStart : bsStart, startView === 'backstory' ? 'story' : 'backstory'), // the step kept for the other view
     all: !!init.all,
     collapsed: !!init.collapsed,
     width: Number.isFinite(init.width) ? init.width : 460,
   };
-  const saveState = () => { if (opts.onState) opts.onState({ n: state.n, all: state.all, collapsed: state.collapsed, width: state.width }); };
-  const chapter = () => (state.n ? DATA.chapters[state.n - 1] : null);
+  const inBackstory = () => state.view === 'backstory';
+  const steps = () => (inBackstory() ? BS_CH : DATA.chapters);
+  const saveState = () => {
+    if (!opts.onState) return;
+    const sn = inBackstory() ? state.other : state.n;
+    const bn = inBackstory() ? state.n : state.other;
+    opts.onState({ n: sn, bn, view: state.view, all: state.all, collapsed: state.collapsed, width: state.width });
+  };
+  const chapter = () => (state.n ? steps()[state.n - 1] : null);
   const inChapter = () => new Set(state.n ? chapter().files.map((f) => f.rel) : allRels);
 
   // ---------- styles (Primer variables, so GitHub's light/dark theme carries over)
@@ -170,6 +207,26 @@ export function storyOverlay(INPUT, opts = {}) {
   #${NS} .prs-qa .prs-qmeta { font-size: 11px; color: var(--c-muted); }
   #${NS} .prs-qa .prs-a { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--c-border); }
   #${NS} .prs-qa .prs-wait { margin-top: 4px; font-size: 12px; color: var(--c-muted); font-style: italic; }
+  #${NS} details.prs-backstory { margin: 14px 0 10px; border: 1px solid var(--c-border); border-radius: 6px; background: var(--c-subtle); }
+  #${NS} details.prs-backstory > summary { cursor: pointer; padding: 5px 10px; font-size: 12px; font-weight: 600; color: var(--c-muted); list-style: none; }
+  #${NS} details.prs-backstory > summary::-webkit-details-marker { display: none; }
+  #${NS} details.prs-backstory > summary::before { content: '▸ '; }
+  #${NS} details.prs-backstory[open] > summary::before { content: '▾ '; }
+  #${NS} details.prs-backstory > summary .prs-sub { font-weight: 400; }
+  #${NS} details.prs-backstory > .prs-bs-body { padding: 0 10px 8px; font-size: 13px; }
+  #${NS} ol.prs-bs-steps { list-style: none; margin: 4px 0 0; padding: 0; }
+  #${NS} ol.prs-bs-steps > li { padding: 3px 0; border-top: 1px dashed var(--c-border); }
+  #${NS} ol.prs-bs-steps > li:first-child { border-top: 0; }
+  #${NS} .prs-bs-at { color: var(--c-muted); font-size: 11px; margin-right: 4px; white-space: nowrap; }
+  #${NS} button.prs-sess { font-size: 11px; padding: 0 5px; border-radius: 9px; color: var(--c-muted); background: transparent; margin-left: 2px; }
+  #${NS} button.prs-linkish { border: 0; background: none; padding: 0 2px; color: var(--c-muted); font-size: 11px; text-decoration: underline dotted; }
+  #${NS} button.prs-linkish:hover { color: var(--c-accent); }
+  #${NS} .prs-whybox { margin: 4px 0 2px 12px; padding: 6px 8px; border-left: 2px solid var(--c-border); font-size: 12px; }
+  #${NS} .prs-whybox p { margin: 0 0 4px; }
+  #${NS} .prs-view { margin-left: auto; }
+  #${NS} .prs-bs-banner { margin: 10px 0 0; padding: 6px 10px; border-radius: 6px; background: var(--c-subtle); color: var(--c-muted); font-size: 12px; }
+  #${NS} .prs-bs-banner button { font-size: 12px; }
+  #${NS} blockquote.prs-asked { margin: 4px 0 8px; font-style: italic; }
   #${NS} .prs-ask { border-top: 1px solid var(--c-border); padding: 8px 10px; display: flex; gap: 6px; align-items: flex-end; background: var(--c-subtle); }
   #${NS} .prs-ask textarea { flex: 1; min-height: 34px; max-height: 160px; resize: vertical; font: inherit; font-size: 13px; color: var(--c-fg);
     background: var(--c-bg); border: 1px solid var(--c-border); border-radius: 6px; padding: 5px 8px; }
@@ -285,6 +342,50 @@ export function storyOverlay(INPUT, opts = {}) {
     }
     flushPara(); closeLists();
     return html;
+  }
+
+  // ---------- backstory pieces
+  const fmtAt = (iso) => {
+    const d = iso ? new Date(iso) : null;
+    return d && !Number.isNaN(d.getTime()) ? d.toLocaleString([], { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+  };
+  const sessions = new Map(((BS && BS.sessions) || []).map((x) => [x.id, x]));
+  /** "session d5c52a31 · turn 7 · agent": copies the resume command when clicked. */
+  function sessionRef(x) {
+    if (!x || !x.session) return '';
+    const sid = String(x.session);
+    const label = [`session ${sid.slice(0, 8)}`, x.turn != null ? `turn ${x.turn}` : '', x.agent ? String(x.agent) : ''].filter(Boolean).join(' · ');
+    const full = (sessions.get(sid) || {}).id || sid;
+    return `<button class="prs-sess" data-copy-text="${esc(`claude --resume ${full}`)}" title="${esc(`Claude Code session ${full}${x.turn != null ? `, turn ${x.turn}` : ''}. Click to copy the resume command.`)}">${esc(label)}</button>`;
+  }
+  function stepsHtml(list) {
+    const items = (list || []).filter((x) => x && x.text);
+    if (!items.length) return '';
+    return `<ol class="prs-bs-steps">${items.map((x) => `<li>${x.at ? `<span class="prs-bs-at">${esc(fmtAt(x.at))}</span>` : ''}${inline(x.text)} ${sessionRef(x)}</li>`).join('')}</ol>`;
+  }
+  /** A collapsed "Backstory" section: a short summary, then dated steps. */
+  function backstoryBlock(b, extra = '') {
+    if (!b || (!b.summary && !(b.steps || []).length && !extra)) return '';
+    return `<details class="prs-backstory"><summary>Backstory <span class="prs-sub">· how it got here</span></summary><div class="prs-bs-body">`
+      + `${b.summary ? `<div class="prs-md">${markdown(b.summary)}</div>` : ''}${stepsHtml(b.steps)}${extra}</div></details>`;
+  }
+  /** A file's "How it got here": its own note, else the backstory moments that touched it. */
+  function fileBackstory(f) {
+    const own = f.backstory && (f.backstory.text || (f.backstory.steps || []).length) ? f.backstory : null;
+    const lineNotes = (f.lines || []).filter((l) => l.backstory).map((l) => ({ text: `${l.side === 'L' ? 'old ' : ''}line${l.end !== l.start ? `s ${l.start}–${l.end}` : ` ${l.start}`}: ${l.backstory}` }));
+    // with its own note, the moments that touched the file only name themselves; without one, each says what it did
+    const moments = TIMELINE.filter((t) => (t.files || []).includes(f.rel))
+      .map((t) => ({ at: t.at, text: `**${t.title}**${t.text && !own ? `: ${firstSentence(t.text)}` : ''}`, session: t.session, turn: t.turn, agent: t.agent }));
+    if (!own && !lineNotes.length && !moments.length) return '';
+    const steps = own && (own.steps || []).length ? own.steps : moments;
+    return `${own && own.text ? `<p>${inline(own.text)}</p>` : ''}${lineNotes.map((l) => `<p>${inline(l.text)}</p>`).join('')}${stepsHtml(steps)}`;
+  }
+  const firstSentence = (t) => { const m = /^[\s\S]*?[.!?](\s|$)/.exec(String(t).replace(/\n+/g, ' ')); return (m ? m[0] : String(t)).trim().slice(0, 240); };
+  /** The backstory view's text for one moment. */
+  function momentHtml(ch) {
+    const t = ch.entry;
+    return `<h3>${esc(ch.title)}</h3><p>${t.at ? `<span class="prs-bs-at">${esc(fmtAt(t.at))}</span>` : ''}${sessionRef(t)}</p>`
+      + `${t.asked ? `<blockquote class="prs-asked">${inline(t.asked)}</blockquote>` : ''}${t.text ? markdown(t.text) : ''}`;
   }
 
   // ---------- finding files, lines and viewed state on the page (read only)
@@ -446,16 +547,25 @@ export function storyOverlay(INPUT, opts = {}) {
   function renderNote() {
     const total = DATA.files.length;
     let html;
+    const unit = inBackstory() ? 'step' : 'chapter';
     if (state.n === 0) {
-      html = `<span>Overview: all <b>${total}</b> files, ${DATA.chapters.length} chapters</span>`;
+      html = inBackstory()
+        ? `<span>Backstory: all <b>${total}</b> files, ${BS_CH.length} step${BS_CH.length === 1 ? '' : 's'}</span>`
+        : `<span>Overview: all <b>${total}</b> files, ${DATA.chapters.length} chapters</span>`;
     } else {
       const n = chapter().files.length;
       const extra = seen.missing.length && !state.all ? ` <span title="${esc(seen.missing.join('\n'))}">(${seen.missing.length} not loaded on the page yet)</span>` : '';
       html = state.all
-        ? `<span>Showing all <b>${total}</b> files. Chapter ${state.n}'s ${n} are listed below.</span> <button class="prs-all" aria-pressed="true">Chapter files only</button>`
-        : `<span>Showing <b>${n}</b> of <b>${total}</b> files, chapter ${state.n}${extra}</span> <button class="prs-all" aria-pressed="false">Show all files</button>`;
+        ? `<span>Showing all <b>${total}</b> files. ${unit[0].toUpperCase() + unit.slice(1)} ${state.n}'s ${n} are listed below.</span> <button class="prs-all" aria-pressed="true">${unit[0].toUpperCase() + unit.slice(1)} files only</button>`
+        : `<span>Showing <b>${n}</b> of <b>${total}</b> files, ${unit} ${state.n}${extra}</span> <button class="prs-all" aria-pressed="false">Show all files</button>`;
     }
+    // the backstory view is secondary: a small link, not a button of equal weight
+    if (BS_CH.length) html += inBackstory()
+      ? ' <button class="prs-linkish prs-view" data-view="story" title="Back to the story of the result">Back to the story</button>'
+      : ' <button class="prs-linkish prs-view" data-view="backstory" title="Switch the panel to how it got here, step by step from the Claude Code sessions">Backstory view</button>';
     $('.prs-count-note').innerHTML = html;
+    const viewBtn = $('.prs-count-note .prs-view');
+    if (viewBtn) viewBtn.onclick = () => setView(viewBtn.getAttribute('data-view'));
     const all = $('.prs-all');
     if (all) all.onclick = () => { state.all = !state.all; saveState(); apply(); };
     for (const li of panel.querySelectorAll('ul.prs-files > li[data-file]')) li.classList.toggle('prs-missing', seen.missing.includes(li.getAttribute('data-file')));
@@ -469,35 +579,62 @@ export function storyOverlay(INPUT, opts = {}) {
 
   function fileItem(f, n) {
     const st = status(f.rel, n);
-    const why = n === 0
-      ? `chapter${chaptersOf(f.rel).length > 1 ? 's' : ''} ${chaptersOf(f.rel).join(', ')}`
-      : `${st ? st.text : ''}${f.partial && st && st.kind !== 'later' && f.note ? ` (here: ${f.note})` : ''}`;
+    const chs = chaptersOf(f.rel);
+    const why = inBackstory()
+      ? (chs.length ? `story chapter${chs.length > 1 ? 's' : ''} ${chs.join(', ')}` : '')
+      : n === 0
+        ? `chapter${chs.length > 1 ? 's' : ''} ${chs.join(', ')}`
+        : `${st ? st.text : ''}${f.partial && st && st.kind !== 'later' && f.note ? ` (here: ${f.note})` : ''}`;
+    // "why": the file's How it got here, collapsed under the row
+    const story = !inBackstory() && n ? DATA.chapters[n - 1].files.find((x) => x.rel === f.rel) || f : f;
+    const how = inBackstory() ? '' : fileBackstory(story);
+    const whyLink = how ? ` <button class="prs-linkish prs-whylink" aria-expanded="false" title="How it got here">why</button>` : '';
+    const whyBox = how ? `<div class="prs-whybox" hidden>${how}</div>` : '';
     const lines = (f.lines || []).map((l) => {
       const side = l.side === 'L' ? 'L' : 'R';
       const range = `${side === 'L' ? 'old ' : ''}line${l.end && l.end !== l.start ? `s ${l.start}–${l.end}` : ` ${l.start}`}`;
       return `<li><span ${refAttrs(f.rel, { side, start: l.start, end: l.end || l.start })}>${range}</span>${l.label ? ` ${esc(l.label)}` : ''}</li>`;
     }).join('');
-    return `<li data-file="${esc(f.rel)}"><code ${refAttrs(f.rel, null)}>${esc(f.rel)}</code><span class="prs-viewed" data-viewed-for="${esc(f.rel)}"></span>`
-      + `${why ? `<span class="prs-why${st ? ` prs-st-${st.kind}` : ''}">${esc(why)}</span>` : ''}${lines ? `<ul class="prs-lines">${lines}</ul>` : ''}</li>`;
+    return `<li data-file="${esc(f.rel)}"><code ${refAttrs(f.rel, null)}>${esc(f.rel)}</code><span class="prs-viewed" data-viewed-for="${esc(f.rel)}"></span>${whyLink}`
+      + `${why ? `<span class="prs-why${st ? ` prs-st-${st.kind}` : ''}">${esc(why)}</span>` : ''}${lines ? `<ul class="prs-lines">${lines}</ul>` : ''}${whyBox}</li>`;
+  }
+
+  function sessionsHtml() {
+    if (!sessions.size) return '';
+    const items = [...sessions.values()].map((x) => `<li>${esc(x.label || x.title || x.id.slice(0, 8))} ${sessionRef({ session: x.id })}</li>`).join('');
+    return `<p class="prs-bs-at">From ${sessions.size} Claude Code session${sessions.size === 1 ? '' : 's'}:</p><ul>${items}</ul>`;
   }
 
   function renderBody() {
     const ch = chapter();
-    const steps = [`<li data-n="0" class="${state.n === 0 ? 'prs-current' : ''}">Overview <span class="prs-count">(${DATA.files.length})</span></li>`]
-      .concat(DATA.chapters.map((c, i) => `<li data-n="${i + 1}" class="${i + 1 === state.n ? 'prs-current' : ''}">${i + 1}. ${esc(c.title.replace(/^Chapter \d+:\s*/, ''))} <span class="prs-count">(${c.files.length})</span></li>`)).join('');
-    $('.prs-title').textContent = ch ? ch.title : `Overview: ${DATA.pr.title || ''}`;
+    const bsv = inBackstory();
+    const list = steps();
+    const stepList = [`<li data-n="0" class="${state.n === 0 ? 'prs-current' : ''}">${bsv ? 'How it got here' : 'Overview'} <span class="prs-count">(${DATA.files.length})</span></li>`]
+      .concat(list.map((c, i) => `<li data-n="${i + 1}" class="${i + 1 === state.n ? 'prs-current' : ''}">${bsv ? '' : `${i + 1}. `}${esc(c.title.replace(/^Chapter \d+:\s*/, ''))} <span class="prs-count">(${c.files.length})</span></li>`)).join('');
+    $('.prs-title').textContent = bsv ? `Backstory: ${ch ? ch.title.replace(/^\d+\.\s*/, '') : 'how it got here'}` : ch ? ch.title : `Overview: ${DATA.pr.title || ''}`;
     $('.prs-title').title = $('.prs-title').textContent;
     $('.prs-prev').disabled = state.n === 0;
-    $('.prs-next').disabled = state.n === DATA.chapters.length;
+    $('.prs-next').disabled = state.n === list.length;
     pilled = new Set();
     let body;
-    if (!ch) {
+    if (bsv) {
+      linkScope = ch ? ch.files.map((f) => f.rel) : allRels;
+      const banner = '<div class="prs-bs-banner">Backstory view: how this got here, in the order it happened. <button class="prs-linkish" data-view="story">Back to the story</button></div>';
+      const intro = ch
+        ? momentHtml(ch)
+        : `${BS.summary ? markdown(BS.summary) : '<p class="prs-empty">No summary written yet.</p>'}${sessionsHtml()}`;
+      const files = (ch ? ch.files : DATA.files).map((f) => fileItem(f, state.n)).join('');
+      const head = ch ? `Files changed in this step (${ch.files.length})` : `All files (${DATA.files.length})`;
+      body = `${banner}<div class="prs-md">${intro}</div><h2 class="prs-h">${head}</h2>`
+        + `<ul class="prs-files">${files || '<li class="prs-empty">No files of the diff in this step.</li>'}</ul>`;
+    } else if (!ch) {
       linkScope = allRels;
       const intro = overviewMd
         ? markdown(overviewMd)
         : `${DATA.summary ? `<p>${inline(DATA.summary)}</p>` : ''}${DATA.plan ? `<p>${inline(DATA.plan)}</p>` : ''}`;
       const files = DATA.files.map((f) => fileItem(f, 0)).join('');
-      body = `<div class="prs-md">${intro}</div><h2 class="prs-h">All files (${DATA.files.length})</h2><ul class="prs-files">${files}</ul>`;
+      const bsTop = BS && (BS.summary || sessions.size) ? backstoryBlock({ summary: BS.summary }, sessionsHtml()) : '';
+      body = `<div class="prs-md">${intro}</div>${bsTop}<h2 class="prs-h">All files (${DATA.files.length})</h2><ul class="prs-files">${files}</ul>`;
     } else {
       linkScope = ch.files.map((f) => f.rel);
       const story = ch.narrative
@@ -511,11 +648,11 @@ export function storyOverlay(INPUT, opts = {}) {
         return `<div class="prs-comment"><div class="prs-where"><span>${where}</span><button class="prs-copy" data-i="${i}">Copy</button></div><pre>${esc(c.body)}</pre></div>`;
       }).join('');
       const files = ch.files.map((f) => fileItem(f, state.n)).join('');
-      body = `<div class="prs-md">${story}</div>
+      body = `<div class="prs-md">${story}</div>${backstoryBlock(ch.backstory)}
         ${comments ? `<h2 class="prs-h">${esc(COMMENTS_TITLE)}</h2>${comments}` : ''}
         <h2 class="prs-h">Files in this chapter (${ch.files.length})</h2><ul class="prs-files">${files}</ul>`;
     }
-    $('.prs-body').innerHTML = `<h2 class="prs-h">Steps</h2><ol class="prs-map">${steps}</ol>${body}<div class="prs-questions"></div>`;
+    $('.prs-body').innerHTML = `<h2 class="prs-h">${bsv ? 'Backstory steps' : 'Steps'}</h2><ol class="prs-map">${stepList}</ol>${body}<div class="prs-questions"></div>`;
     renderQuestions();
     $('.prs-body').scrollTop = 0;
   }
@@ -526,6 +663,16 @@ export function storyOverlay(INPUT, opts = {}) {
     if (step) return go(Number(step.getAttribute('data-n')));
     const copyBtn = e.target.closest('.prs-copy');
     if (copyBtn) return copy(chapter().comments[Number(copyBtn.getAttribute('data-i'))].body, copyBtn);
+    const textBtn = e.target.closest('[data-copy-text]');
+    if (textBtn) return copyText(textBtn.getAttribute('data-copy-text'), textBtn);
+    const viewBtn = e.target.closest('[data-view]');
+    if (viewBtn) return setView(viewBtn.getAttribute('data-view'));
+    const whyBtn = e.target.closest('.prs-whylink');
+    if (whyBtn) {
+      const box = whyBtn.closest('li').querySelector('.prs-whybox');
+      if (box) { box.hidden = !box.hidden; whyBtn.setAttribute('aria-expanded', String(!box.hidden)); }
+      return;
+    }
     const ref = e.target.closest('[data-rel]');
     if (!ref) return;
     const rel = ref.getAttribute('data-rel');
@@ -533,8 +680,26 @@ export function storyOverlay(INPUT, opts = {}) {
     else scrollToFile(rel);
   });
 
+  /** Switch between the story (the default) and the backstory view. Only an explicit switch gets here, so only then is the view saved. */
+  function setView(view) {
+    const next = view === 'backstory' && BS_CH.length ? 'backstory' : 'story';
+    if (next === state.view) return;
+    const keep = state.n;
+    state.view = next;
+    state.n = clampN(state.other, next);
+    state.other = keep;
+    state.all = false;
+    message('');
+    saveState();
+    renderBody();
+    apply();
+    reportPosition();
+    if (state.n === 0) window.scrollTo({ top: 0 });
+    else if (chapter().files[0]) scrollToFile(chapter().files[0].rel, true);
+  }
+
   function go(n) {
-    if (n < 0 || n > DATA.chapters.length) return;
+    if (n < 0 || n > steps().length) return;
     state.n = n;
     state.all = false;
     message('');
@@ -605,6 +770,13 @@ export function storyOverlay(INPUT, opts = {}) {
     };
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(() => done(true), fallback);
     else fallback();
+  }
+
+  function copyText(text, btn) {
+    const was = btn.textContent;
+    const done = (ok) => { btn.textContent = ok ? 'copied' : text; setTimeout(() => { btn.textContent = was; }, ok ? 1200 : 4000); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(() => done(true), () => done(false));
+    else done(false);
   }
 
   function setWidth(w) {
@@ -682,7 +854,7 @@ export function storyOverlay(INPUT, opts = {}) {
     clearTimeout(posTimer);
     posTimer = setTimeout(() => {
       topFile = fileAtTop();
-      const p = { step: state.n, chapter: chapter() ? chapter().title : 'Overview', file: topFile };
+      const p = { step: inBackstory() ? null : state.n, chapter: stepLabel(), file: topFile };
       const key = JSON.stringify(p);
       if (key === lastPos) return;
       lastPos = key;
@@ -696,7 +868,10 @@ export function storyOverlay(INPUT, opts = {}) {
   let questions = [];
   let qaTimer = 0;
   let qaTick = 0;
-  const forStep = (q) => state.n === 0 || q.step === state.n;
+  const stepLabel = () => (inBackstory() ? `Backstory: ${chapter() ? chapter().title : 'How it got here'}` : chapter() ? chapter().title : 'Overview');
+  const forStep = (q) => (inBackstory()
+    ? String(q.chapter || '') === stepLabel() || (state.n === 0 && /^Backstory/.test(String(q.chapter || '')))
+    : !/^Backstory/.test(String(q.chapter || '')) && (state.n === 0 || q.step === state.n));
   function renderQuestions() {
     const box = $('.prs-questions');
     if (!box) return;
@@ -737,7 +912,7 @@ export function storyOverlay(INPUT, opts = {}) {
     const btn = askForm.querySelector('button');
     btn.disabled = true;
     try {
-      await opts.ask({ text, step: state.n, chapter: chapter() ? chapter().title : 'Overview', file: topFile || fileAtTop() });
+      await opts.ask({ text, step: inBackstory() ? null : state.n, chapter: stepLabel(), file: topFile || fileAtTop() });
       askText.value = '';
       message('Sent to the bridge inbox.');
       await refreshQuestions();
@@ -780,10 +955,12 @@ export function storyOverlay(INPUT, opts = {}) {
   reportPosition();
 
   const api = {
-    destroy, go, apply, scrollToLine, scrollToFile, refreshQuestions, setCollapsed, state, data: INPUT,
+    destroy, go, setView, apply, scrollToLine, scrollToFile, refreshQuestions, setCollapsed, state, data: INPUT,
     get seen() { return seen; },
     summary() {
-      const label = state.n ? `chapter ${state.n} of ${DATA.chapters.length}` : `overview (${DATA.chapters.length} chapters)`;
+      const label = inBackstory()
+        ? (state.n ? `backstory step ${state.n} of ${BS_CH.length}` : `backstory overview (${BS_CH.length} steps)`)
+        : state.n ? `chapter ${state.n} of ${DATA.chapters.length}` : `overview (${DATA.chapters.length} chapters)`;
       return `diff story: ${label}, ${seen.shown} of ${inChapter().size} files found on the page (${seen.found} file blocks seen, ${DATA.files.length} in the diff)`;
     },
   };

@@ -49,6 +49,27 @@ This builds `git diff <base> <head>` into `~/.diff-story/local-<repo>-<branch>/`
 - **The page follows the branch.** Amend or add a commit and the page redraws with the new diff within ≈5 seconds.
 - Without `--chapters`, you get one chapter per top-level folder as a starting point. Any file a story doesn't place lands in a last "Not in a chapter yet" step, so nothing is hidden from every step.
 
+## Backstory: how it got here
+
+The story leads with the result: how a user meets the code. When the commits were made in Claude Code sessions, the panel can also show how they got that way, kept short and collapsed:
+
+- Each chapter shows its narrative first, then a collapsed **Backstory** section with a short summary and dated steps.
+- File rows get a small **why** link that expands that file's "How it got here", including notes on specific lines.
+- The Overview has the backstory summary and the sessions it came from.
+- A small **Backstory view** link switches the whole panel to the chronological telling: one step per moment of work (what was asked, what changed, the checks), with the diff filtered to that step's files. **Back to the story** returns. The journey story is the default, and the view is remembered per story only after you switch it.
+- A session chip (`session d5c52a31 · turn 7 · agent`) copies `claude --resume <id>`.
+
+To find the sessions behind a commit range:
+
+```bash
+diff-story backstory --repo <checkout> --base <ref> [--head HEAD] -o backstory.json --brief > backstory-brief.json
+diff-story local --repo <checkout> --base <ref> --chapters chapters.json --backstory backstory.json
+```
+
+It scans `~/.claude/projects` (main and subagent transcripts) for ones that mention a checkout of the repo (any worktree) or a commit SHA in the range, then reads each candidate with [session-story](https://github.com/nalaj/session-story)'s extractor through its CLI (`story.mjs extract --no-chain`, `~/.claude/skills/session-story` or `SESSION_STORY_DIR`). A session counts only if, in the commits' time window, it edited a file of the diff, ran a `git commit` whose subject or printed SHA is in the range, or ran a write-ish script naming a diff file. Lint, test and build runs count only beside that work and only in the checkout where it happened. Each edit's and commit's added lines are found in the final diff, which gives line ranges. From the raw transcripts it also takes what was said (prompts, Larmor voice), the task and messages the main session sent each agent, and the agents' hand-back reports. With no match (a PR someone else wrote, say) it writes `found: false` and the story has no backstory.
+
+`backstory.json` holds the evidence and a draft `timeline`. The story writer (the pr-story skill) puts the real text in `chapters.json`: a top-level `backstory` (`summary`, `sessions`, `timeline`), each chapter's `backstory` (`summary`, `steps`), a file entry's `backstory.text` and a line's `backstory`. When `chapters.json` has no timeline, the bridge uses the draft.
+
 ## Story folders
 
 ```
@@ -59,6 +80,7 @@ This builds `git diff <base> <head>` into `~/.diff-story/local-<repo>-<branch>/`
   state/<story id>/                 ui.json, position.json, viewed.json, notes.json
   <owner>-<repo>-<N>/               chapters.json, file-map.json, meta.json   (from pr-story)
   local-<repo>-<branch>/            chapters.json, meta.json, local.diff      (from diff-story local)
+                                    backstory.json in either, when there is one
 ```
 
 The bridge also lists pr-story scratch folders (`/private/tmp/claude-<uid>/*/*/scratchpad/pr-story/*/`). `--root DIR` (repeatable) replaces the home folder as the place to look, and `--no-scratch` skips the scratch folders. When two folders hold the same PR, the most recently changed one wins.
@@ -166,6 +188,7 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
 - hiding the panel and toggling it back
 - that the GitHub page itself makes no calls to the bridge
 - the local page: diff, filter, Viewed, a note, and coming back after a reload
+- the options page's Test connection before Save, and the Backstory section and view on a PR
 
 ## Layout
 

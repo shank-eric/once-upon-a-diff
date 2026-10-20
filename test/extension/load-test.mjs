@@ -49,9 +49,13 @@ writeJson(path.join(home, id, 'meta.json'), { kind: 'github', repo: `${owner}/${
 writeJson(path.join(home, id, 'chapters.json'), {
   title: `Test story for ${PR}`, overview: `### Overview\n\nA test story with ${rels.length} files.`,
   chapters: [
-    { title: 'Chapter 1: First half', narrative: `### Chapter 1: First half\n\nStarts with \`${rels[0]}\`.`, files: rels.slice(0, half) },
+    {
+      title: 'Chapter 1: First half', narrative: `### Chapter 1: First half\n\nStarts with \`${rels[0]}\`.`, files: rels.slice(0, half),
+      backstory: { summary: 'Made in a test session.', steps: [{ at: '2026-10-20T19:00:00Z', text: 'Asked for it', session: 'test-session', turn: 1 }] },
+    },
     { title: 'Chapter 2: Second half', narrative: '### Chapter 2: Second half', files: rels.slice(half) },
   ],
+  backstory: { summary: 'A test backstory.', sessions: [{ id: 'test-session', label: 'Test session' }], timeline: [{ at: '2026-10-20T19:00:00Z', title: 'The first change', text: 'Did it.', files: [rels[1]], session: 'test-session', turn: 1 }] },
 });
 // a local story too
 const { repo: lrepo, base } = localRepo();
@@ -86,6 +90,9 @@ try {
   await opt.goto(`chrome-extension://${extId}/html/options.html`);
   await opt.fill('#port', String(port));
   await opt.fill('#token', TOKEN);
+  await opt.click('#test');
+  await opt.waitForSelector('#status.ok >> text=Connected', { timeout: 5000 }).catch(() => {});
+  check(/^Connected to the bridge/.test(await opt.textContent('#status')), `Test connection uses the unsaved form values: "${await opt.textContent('#status')}"`);
   await opt.click('button[type=submit]');
   await opt.waitForSelector('#status.ok >> text=Connected', { timeout: 5000 }).catch(() => {});
   check(/Connected to the bridge/.test(await opt.textContent('#status')), `options page saves settings and reaches the bridge: "${await opt.textContent('#status')}"`);
@@ -110,6 +117,15 @@ try {
     check(/Overview/.test(await note()), `/${view}: starts at the Overview: "${await note()}"`);
     await page.locator('#dsm-panel .prs-next').click();
     await page.waitForTimeout(800);
+    if (view === 'files') {
+      const bs = page.locator('#dsm-panel details.prs-backstory');
+      check((await bs.count()) === 1 && (await bs.getAttribute('open')) === null, `/${view}: chapter 1 has a collapsed Backstory under its narrative`);
+      await page.locator('#dsm-panel .prs-view[data-view=backstory]').click();
+      await page.waitForTimeout(600);
+      check(/step 1/.test(await note()) || /Backstory/.test(await page.locator('#dsm-panel .prs-title').textContent()), `/${view}: the Backstory view link switches the panel: "${(await note()).trim()}"`);
+      await page.locator('#dsm-panel .prs-view[data-view=story]').click();
+      await page.waitForTimeout(600);
+    }
     const n1 = await note();
     const hidden = await page.locator('[data-dsm-hidden]').count();
     check(/chapter 1/.test(n1), `/${view}: Next goes to chapter 1: "${n1.trim()}"`);

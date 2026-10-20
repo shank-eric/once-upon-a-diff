@@ -34,7 +34,7 @@ export function defaultChapters(rels, title) {
   };
 }
 
-export function createLocalStory({ home, repo, base, head = 'HEAD', chapters, id, title }) {
+export function createLocalStory({ home, repo, base, head = 'HEAD', chapters, backstory, id, title }) {
   const top = topLevel(repo);
   revParse(top, base); // fail early on a bad ref
   revParse(top, head);
@@ -59,6 +59,7 @@ export function createLocalStory({ home, repo, base, head = 'HEAD', chapters, id
   const rels = [...diff.keys()];
   const chaptersFile = path.join(dir, 'chapters.json');
   if (chapters) copyFileSync(path.resolve(chapters), chaptersFile);
+  if (backstory) copyFileSync(path.resolve(backstory), path.join(dir, 'backstory.json'));
   else if (!existsSync(chaptersFile)) writeFileSync(chaptersFile, JSON.stringify(defaultChapters(rels, meta.title), null, 2));
 
   const plan = JSON.parse(readFileSync(chaptersFile, 'utf8'));
