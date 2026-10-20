@@ -92,6 +92,16 @@ The panel reads each file's state from the page's own Viewed toggle, and never c
 
 It looks again after any click or change on the page, so Refined GitHub's batch mark-viewed helpers are picked up too. Moving on with files left gives a gentle note, not a block. The "Files in this chapter" list starts folded, with a one-line summary ("6 files · 4 to mark viewed · 2 come back later"). Whether it's open is remembered per story.
 
+**Where "Mark viewed" goes.** A file is marked viewed in the last chapter that lists it. Every earlier chapter that lists it says "Leave unviewed: comes back in chapter N", whether or not that listing is flagged partial. The viewed progress and the "viewed early" warning follow the same rule, and so does pr-story's `file-map.json` (`finished_in`).
+
+**On PR lists.** A repo's `/pulls`, the global `/pulls` and PR search results get a small badge after each PR's title:
+
+- **Story** opens the PR's Files changed tab, where the panel docks.
+- **Building…** means a story was asked for and isn't there yet.
+- **Build story** sends the same build request as the PR page's button.
+
+The page makes one batched lookup (`POST /api/stories/status-many`, cached 5s), and the badges come back after GitHub or Refined GitHub redraws the list. While a badge says Building…, the page looks again every 15s. With no bridge running, the list stays as GitHub draws it.
+
 ### Story ready, Building, Build story
 
 Every PR Files changed page gets a small status control in the bottom-right corner, shown whenever the panel isn't:

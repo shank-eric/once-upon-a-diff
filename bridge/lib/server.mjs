@@ -77,6 +77,7 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
   const stories = new StoryStore({ home, roots, scratch });
   const inbox = new Inbox(home);
   const builds = new Builds(home, inbox, { autoBuild });
+  let statusCache = null; // PR-list lookups, kept 5s
   // the last time the extension talked to us, for `diff-story doctor` and the status light
   let extensionSeen = null;
   let extensionWritten = 0;
@@ -146,7 +147,21 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
       }
       // build requests: the page's "Build story" button, and the state it shows (ready, building or none)
       if (p === '/api/builds' && req.method === 'GET') return send(200, { pending: builds.pending() });
-      if (p === '/api/builds' && req.method === 'POST') return send(200, { state: 'building', request: builds.request(body) });
+      if (p === '/api/builds' && req.method === 'POST') { statusCache = null; return send(200, { state: 'building', request: builds.request(body) }); }
+      if (p === '/api/stories/status-many' && req.method === 'POST') {
+        // PR lists: ready / building / none for many PRs in one call
+        const prs = Array.isArray(body.prs) ? body.prs.slice(0, 200) : [];
+        if (!statusCache || Date.now() - statusCache.at > 5000) statusCache = { at: Date.now(), list: stories.list(), builds: builds.all() };
+        const results = prs.map(x => {
+          const repo = String(x.repo || '');
+          const number = Number(x.number);
+          const hits = statusCache.list.filter(s => s.kind === 'github' && String(s.repo).toLowerCase() === repo.toLowerCase() && Number(s.number) === number);
+          const b = statusCache.builds[`${repo.toLowerCase()}#${number}`] || null;
+          if (hits.length) return { repo, number, state: 'ready', story: hits.sort((a, c) => Number(c.version) - Number(a.version))[0].id };
+          return { repo, number, state: b && b.status === 'pending' ? 'building' : 'none', request: b };
+        });
+        return send(200, { results });
+      }
       if (p === '/api/builds/status' && req.method === 'GET') {
         const repo = url.searchParams.get('repo') || '';
         const number = url.searchParams.get('number');

@@ -54,7 +54,8 @@ writeJson(path.join(home, id, 'chapters.json'), {
       title: 'Chapter 1: First half', narrative: `### Chapter 1: First half\n\nStarts with \`${rels[0]}\`.`, files: rels.slice(0, half),
       backstory: { summary: 'Made in a test session.', steps: [{ at: '2026-10-20T19:00:00Z', text: 'Asked for it', session: 'test-session', turn: 1 }] },
     },
-    { title: 'Chapter 2: Second half', narrative: '### Chapter 2: Second half', files: rels.slice(half) },
+    // rels[0] is listed plainly in both chapters, with no partial flag: it's marked viewed in chapter 2, the last one
+    { title: 'Chapter 2: Second half', narrative: '### Chapter 2: Second half', files: [...rels.slice(half), rels[0]] },
   ],
   backstory: { summary: 'A test backstory.', sessions: [{ id: 'test-session', label: 'Test session' }], timeline: [{ at: '2026-10-20T19:00:00Z', title: 'The first change', text: 'Did it.', files: [rels[1]], session: 'test-session', turn: 1 }] },
 });
@@ -135,6 +136,10 @@ try {
     const hidden = await page.locator('[data-dsm-hidden]').count();
     check(/chapter 1/.test(n1), `/${view}: Next goes to chapter 1: "${n1.trim()}"`);
     check(hidden > 0, `/${view}: other chapter's files and tree rows are hidden (${hidden} elements)`);
+    if (view === 'files') {
+      const row = await page.locator(`#dsm-panel li[data-file="${rels[0]}"] .prs-why`).textContent();
+      check(/Leave unviewed: comes back in chapter 2/.test(row), `/${view}: a file listed in two chapters says "comes back" in the first, not "Mark viewed": "${row}"`);
+    }
     check((await page.locator('[hidden][data-dsm-hid]').count()) > 0, `/${view}: hidden files also carry the hidden attribute (for Refined GitHub's alt-click mark-viewed)`);
     // what Refined GitHub's j/k does: set the hash to the next file in page order, hidden or not
     const jumped = await page.evaluate(async ([inCh, outCh, chapterOne]) => {
@@ -213,6 +218,29 @@ try {
   check(!!built, 'when the story turns up, the panel opens by itself (polling every 10s while Building)');
   check((await nb.locator('#diff-story-status').count()) === 0, 'and the status control goes away');
   await nb.close();
+
+  // PR list badges: Story / Building… / Build story, one batched lookup
+  const list = await context.newPage();
+  await list.goto(`https://github.com/${owner}/${repo}/pulls?q=is%3Apr+is%3Amerged`, { waitUntil: 'domcontentloaded' });
+  await list.waitForSelector('[data-dsm-badge]', { state: 'attached', timeout: 15000 }).catch(() => null);
+  await list.waitForTimeout(1500);
+  const badges = await list.evaluate(() => [...document.querySelectorAll('[data-dsm-badge]')].map((h) => ({ key: h.getAttribute('data-dsm-badge'), text: h.shadowRoot.textContent.replace(/\s+/g, ' ').trim().replace(/^.*\}\s*/s, '') })));
+  const byKey = new Map(badges.map((x) => [x.key, x.text]));
+  const k = (n) => `${owner}/${repo}#${n}`.toLowerCase();
+  check(badges.length >= 5, `the PR list gets a badge per PR (${badges.length})`);
+  if (byKey.has(k(number))) check(/Story/.test(byKey.get(k(number))), `the PR with a story says "Story": "${byKey.get(k(number))}"`);
+  else process.stdout.write(`note: #${number} isn't on the first page of the list, so its "Story" badge wasn't checked\n`);
+  check([...byKey.values()].some((t) => /Build story/.test(t)), 'PRs without a story say "Build story"');
+  const target = badges.find((x) => /Build story/.test(x.text));
+  if (target) {
+    await list.locator(`[data-dsm-badge="${target.key}"] button[data-act=build]`).click();
+    await list.waitForTimeout(800);
+    check(/Building/.test(await list.locator(`[data-dsm-badge="${target.key}"]`).evaluate((h) => h.shadowRoot.textContent)), 'clicking Build story on the list shows Building…');
+    const n = Number(target.key.split('#')[1]);
+    check(readFileSync(path.join(home, 'inbox.jsonl'), 'utf8').includes(`"number":${n}`), 'and sends the same build request as the PR page');
+  }
+  await shot(list, 'pr-list');
+  await list.close();
 
   // 3. local page
   beat(home, 'load-test', 'waiting');

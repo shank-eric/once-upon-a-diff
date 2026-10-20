@@ -11,6 +11,7 @@
  */
 import { storyOverlay } from '../shared/overlay.js';
 import { statusControl } from './status.js';
+import { initList } from './list.js';
 
 const PR_PATH = /^\/([^/]+)\/([^/]+)\/pull\/(\d+)\/(changes|files)(?:\/|$)/;
 const PANEL_ID = 'diff-story-panel';
@@ -270,3 +271,4 @@ document.addEventListener('visibilitychange', () => {
 setInterval(() => { if (alive()) checkForUpdates(); }, 5000);
 lastHref = location.href;
 sync();
+initList(); // story badges on PR lists
