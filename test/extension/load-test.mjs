@@ -221,7 +221,21 @@ try {
   const ln = await lp.locator('#dsm-panel .prs-count-note').textContent();
   check(/Showing 1 of 3/.test(ln), `local page filters to chapter 1: "${ln.trim()}"`);
   check(/Fix before push/.test(await lp.locator('#dsm-panel .prs-body').textContent()), 'local page labels drafted comments "Fix before push"');
-  await lp.locator('#dsm-panel code[data-start]').first().click().catch(() => {});
+  // a line jump whose target moves after the first scroll (as when GitHub renders the files it passes) still ends on the line
+  const settled = await lp.evaluate(async () => {
+    const link = document.getElementById('diff-story-panel').shadowRoot.querySelector('.prs-comment code[data-start]');
+    link.click();
+    await new Promise(r => setTimeout(r, 60));
+    const spacer = document.createElement('div');
+    spacer.style.height = '3000px';
+    document.querySelector('.ds-files').prepend(spacer);
+    await new Promise(r => setTimeout(r, 2600));
+    const row = document.querySelector('tr[data-dsm-flash]');
+    const top = row ? row.getBoundingClientRect().top : null;
+    spacer.remove();
+    return { top, h: innerHeight };
+  });
+  check(settled.top !== null && settled.top > 0 && settled.top < settled.h, `a line jump re-scrolls when the page grows under it, and keeps the highlight (row at ${settled.top && Math.round(settled.top)}px)`);
   await lp.locator('.ds-file-wrap:not([data-dsm-hidden]) .ds-viewed').first().click();
   await lp.waitForTimeout(400);
   const viewed = JSON.parse(readFileSync(path.join(home, 'state', local.id, 'viewed.json'), 'utf8'));
