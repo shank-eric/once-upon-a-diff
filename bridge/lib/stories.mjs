@@ -69,7 +69,7 @@ export function readMeta(dir) {
 }
 
 export function storyVersion(dir) {
-  const files = ['chapters.json', 'file-map.json', 'meta.json', 'local.diff'];
+  const files = ['chapters.json', 'file-map.json', 'meta.json', 'local.diff', 'backstory.json'];
   return String(Math.max(...files.map(f => mtime(path.join(dir, f)))));
 }
 
@@ -138,6 +138,7 @@ export class StoryStore {
     const chapters = (plan.chapters || []).map(ch => ({
       title: ch.title || '', headline: ch.headline || '', scenario: ch.scenario || '', summary: ch.summary || '',
       narrative: ch.narrative || '',
+      backstory: backstoryOf(ch.backstory),
       files: (ch.files || []).map(entryOf),
       comments: (ch.comments || []).map(c => ({ path: c.path || '', line: c.line || 0, body: c.body || '' })),
     }));
@@ -161,6 +162,7 @@ export class StoryStore {
       overview: plan.overview || '', summary: plan.summary || '', plan: plan.plan || '',
       files: rels.map(rel => ({ rel, sha: pathSha(rel) })),
       chapters,
+      backstory: storyBackstory(plan.backstory, readJson(path.join(dir, 'backstory.json'), null)),
     };
     if (meta.kind === 'local') {
       const viewed = this.readState(id, 'viewed.json', {});
@@ -186,8 +188,54 @@ export class StoryStore {
 export function entryOf(e) {
   if (typeof e === 'string') return { rel: e, partial: false, note: null };
   const out = { rel: e.rel, partial: !!e.partial, note: e.note || null };
-  if (Array.isArray(e.lines) && e.lines.length) out.lines = e.lines.map(l => ({ side: l.side === 'L' ? 'L' : 'R', start: +l.start, end: +(l.end || l.start), label: l.label || '' }));
+  if (Array.isArray(e.lines) && e.lines.length) {
+    out.lines = e.lines.map(l => {
+      const line = { side: l.side === 'L' ? 'L' : 'R', start: +l.start, end: +(l.end || l.start), label: l.label || '' };
+      if (typeof l.backstory === 'string' && l.backstory) line.backstory = l.backstory;
+      return line;
+    });
+  }
+  const bs = backstoryOf(e.backstory);
+  if (bs) out.backstory = bs;
   return out;
+}
+
+// ---------- backstory: optional, always secondary to the result story
+const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
+const turnOf = t => (t !== null && t !== '' && Number.isFinite(+t) ? +t : null);
+const stepOf = s => (s && typeof s === 'object'
+  ? { at: str(s.at, 40) || null, text: str(s.text, 2000), session: str(s.session, 80) || null, turn: turnOf(s.turn), agent: str(s.agent, 80) || null }
+  : null);
+
+/** A chapter's or a file's backstory: {summary|text, steps: [{at, text, session, turn, agent}]}. A string is a summary. */
+export function backstoryOf(b) {
+  if (!b) return null;
+  if (typeof b === 'string') return { summary: b, text: b, steps: [] };
+  if (typeof b !== 'object') return null;
+  const out = { summary: str(b.summary, 4000), text: str(b.text || b.summary, 4000), steps: (Array.isArray(b.steps) ? b.steps : []).map(stepOf).filter(s => s && s.text) };
+  return out.summary || out.text || out.steps.length ? out : null;
+}
+
+/**
+ * The story-level backstory: chapters.json's `backstory` ({summary, sessions, timeline}),
+ * with the timeline and sessions falling back to the draft in backstory.json
+ * (written by `diff-story backstory`) when the story doesn't give its own.
+ */
+export function storyBackstory(plan, found) {
+  const p = plan && typeof plan === 'object' ? plan : typeof plan === 'string' ? { summary: plan } : {};
+  const f = found && found.found ? found : null;
+  const momentLines = id => {
+    const m = f && f.moments ? f.moments.find(x => x.id === id) : null;
+    return m ? m.lines : null;
+  };
+  const timeline = (Array.isArray(p.timeline) && p.timeline.length ? p.timeline : f && Array.isArray(f.timeline) ? f.timeline : []).map(t => ({
+    ...stepOf(t), title: str(t.title, 200), asked: str(t.asked, 1000),
+    files: Array.isArray(t.files) ? t.files.filter(x => typeof x === 'string') : [],
+    lines: t.lines && typeof t.lines === 'object' ? t.lines : momentLines(t.moment) || {},
+  })).filter(t => t.title || t.text);
+  const sessions = (Array.isArray(p.sessions) && p.sessions.length ? p.sessions : f ? f.sessions : []).map(x => ({ id: str(x.id, 80), label: str(x.label || x.title, 200) })).filter(x => x.id);
+  const summary = str(p.summary, 6000);
+  return summary || timeline.length || sessions.length ? { summary, sessions, timeline } : null;
 }
 
 function loadDiff(dir, meta) {

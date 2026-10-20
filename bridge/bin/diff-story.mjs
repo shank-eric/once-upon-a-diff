@@ -6,7 +6,7 @@
  *   diff-story setup                                               print the port and token to paste into the extension's options
  *   diff-story token   [--rotate]                                  print (or replace) the token
  *   diff-story list                                                stories the bridge can serve
- *   diff-story local   --repo DIR --base REF [--head REF] [--chapters FILE] [--id ID] [--title T] [--no-open]
+ *   diff-story local   --repo DIR --base REF [--head REF] [--chapters FILE] [--backstory FILE] [--id ID] [--title T] [--no-open]
  *                                                                  story over local commits, served at /local/<id>/
  *   diff-story publish --dir DIR [--id ID]                         copy a pr-story folder into ~/.diff-story/<owner>-<repo>-<N>/
  *   diff-story inbox   [--story ID] [--type question,note,...] [--unread] [--consumer NAME] [--json]
@@ -15,6 +15,9 @@
  *                                                                  a consumer's first wait starts from now
  *   diff-story answer  --question ID (--text T | --file F)          answer a question; the panel shows it
  *   diff-story notes   --story ID [--json]                         fix-before-push notes for a local story
+ *   diff-story backstory --repo DIR --base REF [--head REF] [-o FILE] [--brief] [--since ISO] [--until ISO] [--exclude-agent ID]...
+ *                                                                  find the Claude Code sessions that made these commits (session-story's
+ *                                                                  extractor) and write the evidence for a story's "How it got here" notes
  *
  * DIFF_STORY_HOME moves ~/.diff-story.
  */
@@ -26,17 +29,20 @@ import { createBridge } from '../lib/server.mjs';
 import { StoryStore, readMeta } from '../lib/stories.mjs';
 import { createLocalStory, slug } from '../lib/local.mjs';
 import { Inbox } from '../lib/inbox.mjs';
+import { findBackstory, briefOf } from '../lib/backstory.mjs';
 
 function parseArgs(argv) {
   const [command, ...rest] = argv;
   const opts = { root: [] };
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
+    if (a === '-o') { opts.o = rest[++i]; continue; }
     if (!a.startsWith('--')) continue;
     const key = a.slice(2);
     const next = rest[i + 1];
     const value = next !== undefined && !next.startsWith('--') ? (i++, next) : true;
     if (key === 'root') opts.root.push(value);
+    else if (key === 'exclude-agent') (opts.excludeAgents ||= []).push(value);
     else opts[key] = value;
   }
   return { command, opts };
@@ -104,7 +110,7 @@ const COMMANDS = {
 
   async local(home, cfg, opts) {
     if (!opts.repo || !opts.base) throw new Error('usage: diff-story local --repo DIR --base REF [--head REF] [--chapters FILE]');
-    const made = createLocalStory({ home, repo: path.resolve(opts.repo), base: opts.base, head: opts.head || 'HEAD', chapters: opts.chapters, id: opts.id, title: opts.title });
+    const made = createLocalStory({ home, repo: path.resolve(opts.repo), base: opts.base, head: opts.head || 'HEAD', chapters: opts.chapters, backstory: opts.backstory, id: opts.id, title: opts.title });
     process.stderr.write(`Story ${made.id}: ${made.files} files, ${made.chapters} chapters (${made.dir})\n`);
     if (made.unplaced.length) process.stderr.write(`  ${made.unplaced.length} files aren't in a chapter; they show in a last "Not in a chapter yet" step\n`);
     if (made.unknown.length) process.stderr.write(`  ${made.unknown.length} chapter files aren't in the diff and are skipped: ${made.unknown.join(', ')}\n`);
@@ -125,7 +131,7 @@ const COMMANDS = {
     const id = opts.id || slug(`${meta.repo.replace('/', '-')}-${meta.number}`);
     const dest = path.join(home, id);
     mkdirSync(dest, { recursive: true });
-    for (const f of ['chapters.json', 'file-map.json']) if (existsSync(path.join(src, f))) copyFileSync(path.join(src, f), path.join(dest, f));
+    for (const f of ['chapters.json', 'file-map.json', 'backstory.json']) if (existsSync(path.join(src, f))) copyFileSync(path.join(src, f), path.join(dest, f));
     writeFileSync(path.join(dest, 'meta.json'), JSON.stringify({ kind: 'github', repo: meta.repo, number: meta.number, url: meta.url, pr_title: meta.pr_title || null, source: src, published_at: new Date().toISOString() }, null, 2));
     out(dest);
   },
@@ -171,6 +177,21 @@ const COMMANDS = {
     if (!q) throw new Error(`no question ${opts.question}`);
     const a = inbox.append({ type: 'answer', question: q.id, story: q.story, text: String(text).trim() });
     out(a.id);
+  },
+
+  backstory(home, cfg, opts) {
+    if (!opts.repo || !opts.base) throw new Error('usage: diff-story backstory --repo DIR --base REF [--head REF] [-o FILE] [--brief]');
+    const b = findBackstory({
+      repo: path.resolve(opts.repo), base: opts.base, head: opts.head || 'HEAD', since: opts.since, until: opts.until,
+      excludeAgents: opts.excludeAgents, work: opts.work, log: s => process.stderr.write(s + '\n'),
+    });
+    const file = opts.o || opts.out;
+    if (file) writeFileSync(path.resolve(file), JSON.stringify(b, null, 2));
+    process.stderr.write(b.found
+      ? `Backstory: ${b.moments.length} moments in ${b.sessions.length} session(s); ${Object.keys(b.files).length - b.unmatched.length} of ${Object.keys(b.files).length} files matched, `
+        + `${b.commits.filter(c => c.made_in).length} of ${b.commits.length} commits${file ? ` (${file})` : ''}\n`
+      : `No backstory: ${b.reason || 'no Claude Code session made these changes'}\n`);
+    if (opts.brief || !file) out(JSON.stringify(opts.brief ? briefOf(b) : b, null, 2));
   },
 
   notes(home, cfg, opts) {

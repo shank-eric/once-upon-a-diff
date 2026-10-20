@@ -143,7 +143,10 @@ export function createBridge({ home, token, roots, scratch = true }) {
       }
       if (what === 'ui') {
         if (req.method === 'GET') return send(200, stories.readState(id, 'ui.json', {}));
-        const ui = { n: int(body.n) ?? 0, all: !!body.all, collapsed: !!body.collapsed, width: int(body.width), hidden: !!body.hidden, at: new Date().toISOString() };
+        const ui = {
+          n: int(body.n) ?? 0, bn: int(body.bn) ?? 0, view: body.view === 'backstory' ? 'backstory' : 'story',
+          all: !!body.all, collapsed: !!body.collapsed, width: int(body.width), hidden: !!body.hidden, at: new Date().toISOString(),
+        };
         stories.writeState(id, 'ui.json', ui);
         return send(200, ui);
       }
