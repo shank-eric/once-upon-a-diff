@@ -79,7 +79,9 @@ export function storyOverlay(INPUT, opts = {}) {
 
   // ---------- where each file is finished, and what to tell Eric about it
   const finishedIn = {};
-  DATA.chapters.forEach((ch, i) => ch.files.forEach((f) => { if (!f.partial && finishedIn[f.rel] == null) finishedIn[f.rel] = i + 1; }));
+  // A file is marked viewed in the LAST chapter that lists it, whether or not the earlier listings say partial.
+  // Every earlier chapter says "Leave unviewed: comes back in chapter N".
+  DATA.chapters.forEach((ch, i) => ch.files.forEach((f) => { finishedIn[f.rel] = i + 1; }));
   const chaptersOf = (rel) => DATA.chapters.map((c, i) => (c.files.some((f) => f.rel === rel) ? i + 1 : 0)).filter(Boolean);
   function status(rel, n) {
     if (inBackstory()) return null;
@@ -87,7 +89,7 @@ export function storyOverlay(INPUT, opts = {}) {
     if (!e) return null;
     const fin = finishedIn[rel];
     if (fin != null && fin < n) return { kind: 'done', text: `Already finished in chapter ${fin}`, short: `done in ch ${fin}` };
-    if (e.partial && fin != null && fin > n) return { kind: 'later', text: `Leave unviewed: comes back in chapter ${fin}${e.note ? ` (${e.note})` : ''}`, short: `back in ch ${fin}` };
+    if (fin != null && fin > n) return { kind: 'later', text: `Leave unviewed: comes back in chapter ${fin}${e.note ? ` (${e.note})` : ''}`, short: `back in ch ${fin}` };
     return { kind: 'mark', text: 'Mark viewed', short: 'mark viewed' };
   }
 

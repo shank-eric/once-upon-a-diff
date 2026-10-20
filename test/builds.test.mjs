@@ -76,3 +76,17 @@ test('autoBuild is off unless enabled, and runs an argv command (no shell) with 
   assert.equal(readFileSync(out, 'utf8'), 'https://github.com/acme/widgets/pull/7; echo hi 7', 'the argument is passed as is, not run by a shell');
   assert.ok(existsSync(path.join(home, 'builds', `${b.id}.log`)));
 });
+
+test('PR lists get ready / building / none for many PRs in one call', async () => {
+  const home = tmp('home');
+  githubStory(path.join(home, 'acme-widgets-7'));
+  const b = await startBridge({ home });
+  try {
+    await b.call('POST', '/api/builds', { repo: 'acme/gadgets', number: 3 });
+    const r = await b.call('POST', '/api/stories/status-many', { prs: [{ repo: 'ACME/widgets', number: 7 }, { repo: 'acme/gadgets', number: 3 }, { repo: 'acme/gadgets', number: 4 }] });
+    assert.equal(r.status, 200);
+    assert.deepEqual(r.body.results.map(x => x.state), ['ready', 'building', 'none']);
+    assert.equal(r.body.results[0].story, 'acme-widgets-7');
+    assert.equal((await b.call('POST', '/api/stories/status-many', { prs: 'nope' })).body.results.length, 0);
+  } finally { await b.close(); }
+});
