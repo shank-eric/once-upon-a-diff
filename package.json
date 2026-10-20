@@ -1,0 +1,28 @@
+{
+  "name": "diff-story-mode",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A code-review story in a side panel on top of a diff: a Chrome extension for GitHub PRs, plus a local bridge that also serves local commits",
+  "packageManager": "yarn@3.6.0",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "bin": {
+    "diff-story": "bridge/bin/diff-story.mjs"
+  },
+  "scripts": {
+    "bridge": "node bridge/bin/diff-story.mjs serve",
+    "icons": "node scripts/make-icons.mjs",
+    "js:lint": "eslint './src/**/*.js' './bridge/**/*.{js,mjs}' './test/**/*.mjs' './scripts/**/*.mjs'",
+    "js:lint:fix": "eslint './src/**/*.js' './bridge/**/*.{js,mjs}' './test/**/*.mjs' './scripts/**/*.mjs' --fix",
+    "test": "node --test test/*.test.mjs",
+    "test:extension": "node test/extension/load-test.mjs"
+  },
+  "devDependencies": {
+    "eslint": "^8.6.0",
+    "eslint-config-prettier": "^8.7.0",
+    "eslint-plugin-import": "^2.25.4",
+    "playwright-core": "1.64.0"
+  }
+}
