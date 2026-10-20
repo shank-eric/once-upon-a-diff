@@ -20,6 +20,7 @@ import { StoryStore, readMeta, refreshLocal, storyVersion } from './stories.mjs'
 import { Inbox, newId } from './inbox.mjs';
 import { Builds } from './builds.mjs';
 import { addComment } from './comments.mjs';
+import { stateKeyOf, readMarks, mark, draftStatus, githubComments } from './drafts.mjs';
 import { statusOf, answerContext, runAutoAnswer } from './health.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -199,6 +200,22 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
           });
         }
         return send(200, q);
+      }
+      if (what === 'drafts') {
+        // what's become of each drafted comment: posted, in his pending review, dismissed, or still a draft (read-only on GitHub)
+        const key = stateKeyOf(id, meta);
+        const data = stories.load(id);
+        if (req.method === 'POST') {
+          const c = data.chapters[int(body.chapter) - 1] && data.chapters[int(body.chapter) - 1].comments[int(body.index)];
+          if (!c) throw new HttpError(404, 'no such draft');
+          mark(home, key, String(body.action || ''), c);
+        }
+        let ghc = null;
+        let error = null;
+        if (meta.kind === 'github' && meta.repo && meta.number) {
+          try { ghc = await githubComments(meta.repo, meta.number); } catch (e) { error = `couldn't read the PR's comments with gh: ${e.message}`; }
+        }
+        return send(200, { drafts: draftStatus(data.chapters, readMarks(home, key), ghc), login: ghc ? ghc.login : null, checked_at: new Date().toISOString(), error });
       }
       if (what === 'comments' && req.method === 'POST') {
         // a comment drafted in Q&A lands in the chapter's Draft comments (never posted anywhere)

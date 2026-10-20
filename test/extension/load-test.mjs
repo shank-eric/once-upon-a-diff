@@ -64,6 +64,7 @@ const lchapters = path.join(tmp('lch'), 'chapters.json');
 writeJson(lchapters, { title: 'Local test', chapters: [{ title: 'Chapter 1: One', narrative: '### Chapter 1: One\n\nStarts with `one.txt`.', files: ['one.txt', { rel: 'lib/two.js', partial: true, note: 'the export' }], comments: [{ path: 'one.txt', line: 2, body: 'Fix B' }] }, { title: 'Chapter 2: The rest', files: ['lib/two.js', 'gone.txt'] }] });
 const local = createLocalStory({ home, repo: lrepo, base, head: 'HEAD', chapters: lchapters });
 
+process.env.DIFF_STORY_GH = path.join(ROOT, 'test', 'fixtures', 'fake-gh.mjs'); // no real GitHub calls from the test bridge
 const bridge = await startBridge({ home });
 const port = bridge.server.address().port;
 
@@ -229,6 +230,23 @@ try {
   const ln = await lp.locator('#dsm-panel .prs-count-note').textContent();
   check(/Showing 2 of 3/.test(ln), `local page filters to chapter 1: "${ln.trim()}"`);
   check(/Fix before push/.test(await lp.locator('#dsm-panel .prs-body').textContent()), 'local page labels drafted comments "Fix before push"');
+  // drafts: Mark posted hides it behind "Show posted", Dismiss behind "Show dismissed", and both come back
+  await lp.waitForTimeout(400);
+  const drafts = () => lp.locator('#dsm-panel .prs-drafts').textContent();
+  await lp.locator('#dsm-panel .prs-comment [data-draft-act="posted"]').click();
+  await lp.waitForTimeout(400);
+  check(await lp.locator('#dsm-panel .prs-comment[data-i="0"]').isHidden() && /Show posted \(1\)/.test(await drafts()) && /0 to post · 1 posted/.test(await drafts()), `Mark posted hides the draft and counts it: "${(await lp.locator('#dsm-panel .prs-draftsum').textContent())}"`);
+  await lp.locator('#dsm-panel [data-draft-show="showPosted"]').click();
+  check(/Posted ✓ \(you marked it\)/.test(await drafts()), 'Show posted shows it as a "Posted ✓" row');
+  await lp.locator('#dsm-panel .prs-comment [data-draft-act="unposted"]').click();
+  await lp.waitForTimeout(400);
+  await lp.locator('#dsm-panel .prs-comment [data-draft-act="dismiss"]').click();
+  await lp.waitForTimeout(400);
+  check(await lp.locator('#dsm-panel .prs-comment[data-i="0"]').isHidden() && /Show dismissed \(1\)/.test(await drafts()), 'Dismiss hides it behind "Show dismissed"');
+  await lp.locator('#dsm-panel [data-draft-show="showDismissed"]').click();
+  await lp.locator('#dsm-panel .prs-comment [data-draft-act="restore"]').click();
+  await lp.waitForTimeout(400);
+  check(await lp.locator('#dsm-panel .prs-comment[data-i="0"] pre').isVisible(), 'Restore brings the draft back');
   const prog = () => lp.locator('#dsm-panel .prs-progress').textContent();
   check(/0 of 1 marked viewed.*still to mark: one\.txt/.test(await prog()), `chapter progress lists what's left: "${await prog()}"`);
   check(await lp.evaluate(() => { const r = document.getElementById('diff-story-panel').shadowRoot; const p = r.querySelector('.prs-progress'); return !!p && p.closest('.prs-body') && p.previousElementSibling && p.previousElementSibling.tagName === 'H3'; }), 'the tracker sits right under the chapter heading, not at the top of the panel');
