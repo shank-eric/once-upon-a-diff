@@ -20,7 +20,8 @@ import { StoryStore, readMeta, refreshLocal, storyVersion } from './stories.mjs'
 import { Inbox, newId } from './inbox.mjs';
 import { Builds } from './builds.mjs';
 import { addComment } from './comments.mjs';
-import { stateKeyOf, readMarks, mark, draftStatus, githubComments } from './drafts.mjs';
+import { stateKeyOf, readMarks, mark, draftStatus, githubComments, forgetComments } from './drafts.mjs';
+import { addToPendingReview } from './review.mjs';
 import { statusOf, answerContext, runAutoAnswer } from './health.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -202,20 +203,29 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
         return send(200, q);
       }
       if (what === 'drafts') {
-        // what's become of each drafted comment: posted, in his pending review, dismissed, or still a draft (read-only on GitHub)
+        // what's become of each drafted comment: posted, in his pending review, dismissed, or still a draft.
+        // Read-only on GitHub, except action 'review', which adds the draft to his pending review (never submitted).
         const key = stateKeyOf(id, meta);
         const data = stories.load(id);
+        let added = null;
         if (req.method === 'POST') {
           const c = data.chapters[int(body.chapter) - 1] && data.chapters[int(body.chapter) - 1].comments[int(body.index)];
           if (!c) throw new HttpError(404, 'no such draft');
-          mark(home, key, String(body.action || ''), c);
+          if (body.action === 'review') {
+            if (meta.kind !== 'github' || !meta.repo || !meta.number) throw new HttpError(400, 'only PR stories have a GitHub review');
+            try { added = await addToPendingReview(meta.repo, meta.number, c); } catch (e) { throw new HttpError(e.status || 502, `couldn't add it to your review: ${e.message}`); }
+            forgetComments(meta.repo, meta.number);
+            inbox.append({ type: 'review_comment', id: newId('r'), ...ctx, chapter: int(body.chapter), path: c.path, line: c.line, url: added.url, started: added.started });
+          } else {
+            mark(home, key, String(body.action || ''), c);
+          }
         }
         let ghc = null;
         let error = null;
         if (meta.kind === 'github' && meta.repo && meta.number) {
           try { ghc = await githubComments(meta.repo, meta.number); } catch (e) { error = `couldn't read the PR's comments with gh: ${e.message}`; }
         }
-        return send(200, { drafts: draftStatus(data.chapters, readMarks(home, key), ghc), login: ghc ? ghc.login : null, checked_at: new Date().toISOString(), error });
+        return send(200, { drafts: draftStatus(data.chapters, readMarks(home, key), ghc), login: ghc ? ghc.login : null, checked_at: new Date().toISOString(), error, added });
       }
       if (what === 'comments' && req.method === 'POST') {
         // a comment drafted in Q&A lands in the chapter's Draft comments (never posted anywhere)

@@ -1084,7 +1084,15 @@ export function storyOverlay(INPUT, opts = {}) {
     renderDrafts();
   }
   async function draftAct(i, action) {
-    try { const r = await opts.drafts.act(state.n, i, action); draftRows = r.drafts || draftRows; draftError = r.error || null; draftsAt = Date.now(); } catch (e) { message(`Couldn't save that: ${e && e.message ? e.message : e}`); }
+    const btn = action === 'review' && $(`.prs-comment[data-i="${i}"] [data-draft-act="review"]`);
+    if (btn) { btn.disabled = true; btn.textContent = 'Adding…'; }
+    try {
+      const r = await opts.drafts.act(state.n, i, action);
+      draftRows = r.drafts || draftRows; draftError = r.error || null; draftsAt = Date.now();
+      if (action === 'review' && r.added) message(`Added to your pending review${r.added.started ? ' (started a new one)' : ''}. Nobody else sees it until you submit the review.`);
+    } catch (e) {
+      message(`${action === 'review' ? '' : 'Couldn\'t save that: '}${e && e.message ? e.message : e}`);
+    }
     renderDrafts();
   }
   function renderDrafts() {
@@ -1125,6 +1133,10 @@ export function storyOverlay(INPUT, opts = {}) {
       } else {
         add('dismiss', 'Dismiss', 'Not a comment you want: hide it, and don\'t suggest it again');
         add('posted', 'Mark posted', 'You posted this (or your own version of it)');
+        const c = (chapter().comments || [])[Number(el.getAttribute('data-i'))];
+        if (HOST === 'GitHub' && c && c.path && Number(c.line) > 0) {
+          add('review', 'Add to my review', 'Adds it to your pending review on GitHub. Only you can see it until you submit the review yourself.');
+        }
       }
     }
     const left = rows.length ? rows.length - posted - pending - dismissed : box.querySelectorAll('.prs-comment[data-i]').length;
