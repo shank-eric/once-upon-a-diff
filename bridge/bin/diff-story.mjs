@@ -10,9 +10,11 @@
  *                                                                  story over local commits, served at /local/<id>/
  *   diff-story publish --dir DIR [--id ID]                         copy a pr-story folder into ~/.diff-story/<owner>-<repo>-<N>/
  *   diff-story inbox   [--story ID] [--type question,note,...] [--unread] [--consumer NAME] [--json]
- *   diff-story wait    [--story ID] [--type question] [--consumer NAME] [--timeout SECONDS] [--json]
- *                                                                  block until something new arrives, print it, exit (for a background task);
+ *   diff-story wait    [--story ID] [--type question,build_request] [--consumer NAME] [--timeout SECONDS] [--json]
+ *                                                                  block until a question or build request arrives, print it, exit (for a background task);
  *                                                                  a consumer's first wait starts from now
+ *   diff-story builds                                              pending "Build story" requests from the extension
+ *   diff-story done    <build id | owner/repo#N> [--failed] [--note TEXT]   finish one (a story turning up finishes it too)
  *   diff-story answer  --question ID (--text T | --file F)          answer a question; the panel shows it
  *   diff-story notes   --story ID [--json]                         fix-before-push notes for a local story
  *   diff-story backstory --repo DIR --base REF [--head REF] [-o FILE] [--brief] [--since ISO] [--until ISO] [--exclude-agent ID]...
@@ -29,6 +31,7 @@ import { createBridge } from '../lib/server.mjs';
 import { StoryStore, readMeta } from '../lib/stories.mjs';
 import { createLocalStory, slug } from '../lib/local.mjs';
 import { Inbox } from '../lib/inbox.mjs';
+import { Builds } from '../lib/builds.mjs';
 import { findBackstory, briefOf } from '../lib/backstory.mjs';
 
 function parseArgs(argv) {
@@ -37,7 +40,7 @@ function parseArgs(argv) {
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
     if (a === '-o') { opts.o = rest[++i]; continue; }
-    if (!a.startsWith('--')) continue;
+    if (!a.startsWith('--')) { (opts._ ||= []).push(a); continue; }
     const key = a.slice(2);
     const next = rest[i + 1];
     const value = next !== undefined && !next.startsWith('--') ? (i++, next) : true;
@@ -61,7 +64,8 @@ async function probe(port, token) {
 function serve(home, cfg, opts) {
   const port = Number(opts.port || cfg.port);
   const roots = opts.root.length ? opts.root.map(r => path.resolve(r)) : cfg.roots && cfg.roots.length ? cfg.roots : undefined;
-  const server = createBridge({ home, token: cfg.token, roots, scratch: !opts['no-scratch'] });
+  const server = createBridge({ home, token: cfg.token, roots, scratch: !opts['no-scratch'], autoBuild: cfg.autoBuild || null });
+  if (cfg.autoBuild && cfg.autoBuild.enabled) process.stderr.write(`diff-story bridge: autoBuild is on: ${JSON.stringify(cfg.autoBuild.command)}\n`);
   return new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(port, '127.0.0.1', () => {
@@ -74,6 +78,8 @@ function serve(home, cfg, opts) {
 function describe(e) {
   const where = [e.story, e.chapter || (e.step != null ? `step ${e.step}` : ''), e.file].filter(Boolean).join(' · ');
   if (e.type === 'question') return `[${et(e.at)}] question ${e.id} (${where})\n${e.text}`;
+  if (e.type === 'build_request') return `[${et(e.at)}] build request ${e.id}: ${e.repo}#${e.number} ${e.url}`;
+  if (e.type === 'build_done') return `[${et(e.at)}] build ${e.build} ${e.status} (${e.repo}#${e.number})${e.story ? ` story ${e.story}` : ''}${e.note ? `: ${e.note}` : ''}`;
   if (e.type === 'answer') return `[${et(e.at)}] answer to ${e.question}\n${e.text}`;
   if (e.type === 'note') return `[${et(e.at)}] note ${e.action} (${e.story}) ${e.note.path}${e.note.line ? `:${e.note.side === 'L' ? 'L' : ''}${e.note.line}` : ''}${e.note.done ? ' [done]' : ''}\n${e.note.body}`;
   if (e.type === 'position') return `[${et(e.at)}] position (${where})`;
@@ -145,7 +151,7 @@ const COMMANDS = {
   async wait(home, cfg, opts) {
     const inbox = new Inbox(home);
     const consumer = opts.consumer || 'default';
-    const want = { ...opts, type: opts.type || 'question' };
+    const want = { ...opts, type: opts.type || 'question,build_request' };
     const deadline = opts.timeout ? Date.now() + Number(opts.timeout) * 1000 : Infinity;
     if (!existsSync(inbox.file)) writeFileSync(inbox.file, '', { mode: 0o600 });
     // a reader new to the inbox starts from now, not from every old question
@@ -157,6 +163,7 @@ const COMMANDS = {
           if (opts.json) { out(JSON.stringify(e)); continue; }
           out(describe(e));
           if (e.type === 'question') out(`Answer with: diff-story answer --question ${e.id} --text "…"`);
+          if (e.type === 'build_request') out(`Write the story (pr-story renders and publishes it), then: diff-story done ${e.id}`);
           out('');
         }
         return;
@@ -167,6 +174,20 @@ const COMMANDS = {
         setTimeout(() => { w.close(); resolve(); }, 2000);
       });
     }
+  },
+
+  builds(home) {
+    const pending = new Builds(home, new Inbox(home)).pending();
+    if (!pending.length) return out('No pending build requests.');
+    for (const b of pending) out(`${b.id}\t${b.repo}#${b.number}\t${et(b.requested_at)}\t${b.url}`);
+  },
+
+  done(home, cfg, opts) {
+    const id = (opts._ || [])[0] || opts.id;
+    if (!id) throw new Error('usage: diff-story done <build id | owner/repo#N> [--failed] [--note TEXT]');
+    const b = new Builds(home, new Inbox(home)).done(id, { failed: !!opts.failed, note: typeof opts.note === 'string' ? opts.note : null });
+    if (!b) throw new Error(`no build request ${id}`);
+    out(`${b.id} ${b.status} (${b.repo}#${b.number})`);
   },
 
   answer(home, cfg, opts) {

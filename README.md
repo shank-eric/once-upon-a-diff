@@ -36,6 +36,24 @@ An alias saves typing: `alias diff-story="node ~/Development/SideProjects/diff-s
 
 When Claude rewrites `chapters.json`, the panel redraws within ≈5 seconds without losing its step.
 
+### Story ready, Building, Build story
+
+Every PR Files changed page gets a small status control in the bottom-right corner, shown whenever the panel isn't:
+
+- **Story ready · Read it** opens the panel. You see it when a story exists and the panel is hidden.
+- **Building story · asked 5:44 PM** means someone asked for a story and it isn't there yet. While it's Building, the page asks the bridge every ≈10 seconds, and when the story turns up the panel opens by itself. That's the only polling a page without a story does.
+- **No story yet · Build story** asks for one. The extension sends `{repo, number, url, requested_at}` to the bridge, which appends a `build_request` line to the inbox and keeps a pending marker in `~/.diff-story/builds.json`. Every tab on that PR then shows Building.
+
+A Claude session fulfils the request. `diff-story wait` hands it build requests the same way as questions, and `diff-story builds` lists the pending ones. The session writes the story with the pr-story skill, whose `render` publishes it. The request then counts as done as soon as the bridge sees the story, or the session can say so with `diff-story done <id>` (`--failed --note "…"` if it can't be done). The × on the control hides it until the page reloads. The control is the extension's own button in its own shadow root, and it never clicks anything of GitHub's.
+
+**autoBuild (off).** The bridge can run a command for each new request itself. It's off unless `~/.diff-story/config.json` turns it on:
+
+```json
+"autoBuild": { "enabled": true, "command": ["claude", "-p", "/pr-story {url}"], "cwd": "~/Development" }
+```
+
+The command is an argv array and is never run through a shell. `{url}`, `{repo}` and `{number}` in its arguments are replaced. The values are also in `DIFF_STORY_URL`, `DIFF_STORY_REPO`, `DIFF_STORY_NUMBER` and `DIFF_STORY_BUILD`. Output goes to `~/.diff-story/builds/<id>.log`, and a non-zero exit marks the request failed. Restart the bridge after changing it. It's left off because it runs a Claude session without anyone at the keyboard. Whether that's wanted, and with what permissions, is Eric's call.
+
 ## Local mode: commits before you push
 
 ```bash
@@ -108,10 +126,12 @@ The bridge also checks each request:
 | `POST /api/stories/:id/position` | `{step, chapter, file}`, written to `position.json`, and to the inbox when it changes |
 | `GET`/`POST /api/stories/:id/questions` | ask a question, or list them with their answers |
 | `POST /api/answers` | `{question, text}` |
+| `GET /api/builds/status?repo=O/R&number=N` | `ready`, `building` or `none`, with the request if there is one (it marks a pending request done when the story has turned up) |
+| `GET`/`POST /api/builds` | list pending build requests, or ask for one: `{repo, number, url, requested_at}` |
 | `POST /api/stories/:id/viewed` | local stories: `{path, viewed}` |
 | `POST /api/stories/:id/notes[/:note]` | local stories: add `{path, side, line, body}`, or update `{done}`, `{body}` or `{delete: true}` |
 
-The other commands are `list`, `token --rotate`, `publish --dir`, `inbox`, `wait`, `answer` and `notes`. Run `diff-story` with no arguments to see them all.
+The other commands are `list`, `token --rotate`, `publish --dir`, `inbox`, `wait`, `answer`, `notes`, `builds` and `done`. Run `diff-story` with no arguments to see them all.
 
 ## Q&A relay
 

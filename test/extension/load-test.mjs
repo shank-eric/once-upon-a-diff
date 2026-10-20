@@ -171,6 +171,7 @@ try {
   await page.locator('#dsm-panel .prs-close').click();
   await page.waitForTimeout(300);
   check((await page.locator('#diff-story-panel').count()) === 0 && (await page.locator('[data-dsm-hidden]').count()) === 0, 'x removes the panel and every filter');
+  check(/Story ready/.test((await page.locator('#diff-story-status .dss').textContent().catch(() => '')) || ''), 'with the panel hidden, the status control says "Story ready"');
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(4000);
   check((await page.locator('#diff-story-panel').count()) === 0, 'a hidden panel stays hidden after a reload');
@@ -183,6 +184,30 @@ try {
   await page.waitForTimeout(1500);
   check((await page.locator('#diff-story-panel').count()) === 1, 'the toolbar toggle brings it back');
   check(pageBridgeCalls.length === 0, `the GitHub page itself makes no calls to the bridge (${pageBridgeCalls.length}); the service worker does`);
+
+  // the status control on a PR with no story: Build story -> Building -> the story turns up -> panel
+  const NOSTORY = Number(arg('no-story-pr', 10298));
+  const nb = await context.newPage();
+  await nb.goto(`https://github.com/${owner}/${repo}/pull/${NOSTORY}/files`, { waitUntil: 'domcontentloaded' });
+  await nb.waitForSelector('#diff-story-status', { state: 'attached', timeout: 10000 }).catch(() => null);
+  const pill = () => nb.locator('#diff-story-status .dss').textContent().catch(() => '');
+  check(/No story yet/.test(await pill()), `a PR with no story shows "No story yet" with Build story: "${(await pill()).trim()}"`);
+  await nb.locator('#diff-story-status button[data-act=build]').click();
+  await nb.waitForTimeout(800);
+  check(/Building story/.test(await pill()), `clicking Build story shows Building with the time: "${(await pill()).trim()}"`);
+  const breq = readFileSync(path.join(home, 'inbox.jsonl'), 'utf8').trim().split('\n').map(JSON.parse).find(e => e.type === 'build_request' && e.number === NOSTORY);
+  check(!!breq && breq.url === `https://github.com/${owner}/${repo}/pull/${NOSTORY}`, 'the build request lands in the inbox');
+  const other = await context.newPage();
+  await other.goto(`https://github.com/${owner}/${repo}/pull/${NOSTORY}/files`, { waitUntil: 'domcontentloaded' });
+  await other.waitForSelector('#diff-story-status', { state: 'attached', timeout: 10000 }).catch(() => null);
+  check(/Building story/.test(await other.locator('#diff-story-status .dss').textContent().catch(() => '')), 'another tab on that PR shows Building too');
+  await other.close();
+  writeJson(path.join(home, `${owner}-${repo}-${NOSTORY}`, 'meta.json'), { kind: 'github', repo: `${owner}/${repo}`, number: NOSTORY });
+  writeJson(path.join(home, `${owner}-${repo}-${NOSTORY}`, 'chapters.json'), { title: 'Built', chapters: [{ title: 'Chapter 1: All', files: ['readme.md'] }] });
+  const built = await nb.waitForSelector('#diff-story-panel', { state: 'attached', timeout: 15000 }).catch(() => null);
+  check(!!built, 'when the story turns up, the panel opens by itself (polling every 10s while Building)');
+  check((await nb.locator('#diff-story-status').count()) === 0, 'and the status control goes away');
+  await nb.close();
 
   // 3. local page
   const lp = await context.newPage();
