@@ -53,7 +53,8 @@ function unmount() {
 function mount() {
   if (!cur || !cur.data || cur.ui.hidden) return;
   const { key } = cur;
-  const storyPath = `/api/stories/${encodeURIComponent(cur.id)}`;
+  const storyId = cur.id;
+  const storyPath = `/api/stories/${encodeURIComponent(storyId)}`;
   if (cur.overlay) cur.overlay.destroy();
   cur.overlay = storyOverlay(cur.data, {
     initial: cur.ui,
@@ -76,6 +77,11 @@ function mount() {
       const r = await bridge('POST', `${storyPath}/questions`, { ...q, url: location.href });
       if (!r.ok) throw new Error(r.error === 'unreachable' ? 'the bridge is not running' : r.error);
       return r.body;
+    },
+    status: async () => {
+      const r = await bridge('GET', `/api/status?story=${encodeURIComponent(storyId)}`);
+      if (r.ok) return r.body;
+      throw Object.assign(new Error(r.error), { code: r.status === 401 ? 'token' : r.status === 404 ? 'old' : 'down' });
     },
     loadQuestions: async () => {
       const r = await bridge('GET', `${storyPath}/questions`);

@@ -13,6 +13,7 @@
  *   diff-story wait    [--story ID] [--type question,build_request] [--consumer NAME] [--timeout SECONDS] [--json]
  *                                                                  block until a question or build request arrives, print it, exit (for a background task);
  *                                                                  a consumer's first wait starts from now
+ *   diff-story doctor  [--port N]                                  is everything connected? a pass/fail list with fixes
  *   diff-story builds                                              pending "Build story" requests from the extension
  *   diff-story done    <build id | owner/repo#N> [--failed] [--note TEXT]   finish one (a story turning up finishes it too)
  *   diff-story answer  --question ID (--text T | --file F)          answer a question; the panel shows it
@@ -24,7 +25,7 @@
  * DIFF_STORY_HOME moves ~/.diff-story.
  */
 import { execFile } from 'node:child_process';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync, watch } from 'node:fs';
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync, watch } from 'node:fs';
 import path from 'node:path';
 import { homeDir, loadConfig, saveConfig, newToken } from '../lib/config.mjs';
 import { createBridge } from '../lib/server.mjs';
@@ -32,6 +33,8 @@ import { StoryStore, readMeta } from '../lib/stories.mjs';
 import { createLocalStory, slug } from '../lib/local.mjs';
 import { Inbox } from '../lib/inbox.mjs';
 import { Builds } from '../lib/builds.mjs';
+import { beat } from '../lib/health.mjs';
+import { doctor } from '../lib/doctor.mjs';
 import { findBackstory, briefOf } from '../lib/backstory.mjs';
 
 function parseArgs(argv) {
@@ -64,12 +67,20 @@ async function probe(port, token) {
 function serve(home, cfg, opts) {
   const port = Number(opts.port || cfg.port);
   const roots = opts.root.length ? opts.root.map(r => path.resolve(r)) : cfg.roots && cfg.roots.length ? cfg.roots : undefined;
-  const server = createBridge({ home, token: cfg.token, roots, scratch: !opts['no-scratch'], autoBuild: cfg.autoBuild || null });
-  if (cfg.autoBuild && cfg.autoBuild.enabled) process.stderr.write(`diff-story bridge: autoBuild is on: ${JSON.stringify(cfg.autoBuild.command)}\n`);
+  // the bridge keeps its own log in <home>/bridge.log, for `diff-story doctor`
+  const logFile = path.join(home, 'bridge.log');
+  const log = line => {
+    const text = `${new Date().toISOString()} ${line}\n`;
+    process.stderr.write(`diff-story bridge: ${line}\n`);
+    try { appendFileSync(logFile, text, { mode: 0o600 }); } catch { /* the log is a convenience */ }
+  };
+  const server = createBridge({ home, token: cfg.token, roots, scratch: !opts['no-scratch'], autoBuild: cfg.autoBuild || null, autoAnswer: cfg.autoAnswer || null, log });
+  if (cfg.autoBuild && cfg.autoBuild.enabled) log(`autoBuild is on: ${JSON.stringify(cfg.autoBuild.command)}`);
+  if (cfg.autoAnswer && cfg.autoAnswer.enabled) log(`autoAnswer is on: ${JSON.stringify(cfg.autoAnswer.command)}`);
   return new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(port, '127.0.0.1', () => {
-      process.stderr.write(`diff-story bridge on http://127.0.0.1:${port} (stories: ${server.stories.list().length}, inbox: ${server.inbox.file})\n`);
+      log(`listening on http://127.0.0.1:${port}, pid ${process.pid} (stories: ${server.stories.list().length}, inbox: ${server.inbox.file})`);
       resolve(server);
     });
   });
@@ -156,9 +167,14 @@ const COMMANDS = {
     if (!existsSync(inbox.file)) writeFileSync(inbox.file, '', { mode: 0o600 });
     // a reader new to the inbox starts from now, not from every old question
     if (!existsSync(inbox.cursorFile(consumer))) inbox.setCursor(consumer, statSync(inbox.file).size);
+    // the heartbeat the panel's "Claude listening" light reads
+    beat(home, consumer, 'waiting');
+    const hb = setInterval(() => beat(home, consumer, 'waiting'), 5000);
     for (;;) {
       const entries = filterEntries(inbox.unread(consumer, { advance: true }), want);
       if (entries.length) {
+        clearInterval(hb);
+        beat(home, consumer, 'handling', { question: entries[0].id });
         for (const e of entries) {
           if (opts.json) { out(JSON.stringify(e)); continue; }
           out(describe(e));
@@ -168,12 +184,17 @@ const COMMANDS = {
         }
         return;
       }
-      if (Date.now() > deadline) { process.exitCode = 2; return; }
+      if (Date.now() > deadline) { clearInterval(hb); process.exitCode = 2; return; }
       await new Promise(resolve => {
         const w = watch(inbox.file, () => { w.close(); resolve(); });
         setTimeout(() => { w.close(); resolve(); }, 2000);
       });
     }
+  },
+
+  async doctor(home, cfg, opts) {
+    const ok = await doctor(home, cfg, { port: opts.port, out });
+    if (!ok) process.exitCode = 1;
   },
 
   builds(home) {

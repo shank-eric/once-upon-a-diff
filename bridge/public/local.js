@@ -168,6 +168,9 @@ function mount(initial) {
     onClose: () => { overlay = null; hidden = true; api('POST', `${S}/ui`, { ...lastUi, hidden: true }).catch(() => {}); showReopen(); },
     ask: q => api('POST', `${S}/questions`, { ...q, url: location.href }),
     loadQuestions: () => api('GET', `${S}/questions`).then(r => r.questions),
+    status: () => api('GET', `/api/status?story=${encodeURIComponent(BOOT.story)}`).catch(err => {
+      throw Object.assign(err, { code: /token/.test(err.message) ? 'token' : /HTTP 404|not found/.test(err.message) ? 'old' : 'down' });
+    }),
   });
 }
 function showReopen() {
