@@ -61,7 +61,7 @@ writeJson(path.join(home, id, 'chapters.json'), {
 // a local story too
 const { repo: lrepo, base } = localRepo();
 const lchapters = path.join(tmp('lch'), 'chapters.json');
-writeJson(lchapters, { title: 'Local test', chapters: [{ title: 'Chapter 1: One', files: ['one.txt'], comments: [{ path: 'one.txt', line: 2, body: 'Fix B' }] }, { title: 'Chapter 2: The rest', files: ['lib/two.js', 'gone.txt'] }] });
+writeJson(lchapters, { title: 'Local test', chapters: [{ title: 'Chapter 1: One', narrative: '### Chapter 1: One\n\nStarts with `one.txt`.', files: ['one.txt', { rel: 'lib/two.js', partial: true, note: 'the export' }], comments: [{ path: 'one.txt', line: 2, body: 'Fix B' }] }, { title: 'Chapter 2: The rest', files: ['lib/two.js', 'gone.txt'] }] });
 const local = createLocalStory({ home, repo: lrepo, base, head: 'HEAD', chapters: lchapters });
 
 const bridge = await startBridge({ home });
@@ -227,10 +227,11 @@ try {
   await lp.locator('#dsm-panel .prs-next').click();
   await lp.waitForTimeout(400);
   const ln = await lp.locator('#dsm-panel .prs-count-note').textContent();
-  check(/Showing 1 of 3/.test(ln), `local page filters to chapter 1: "${ln.trim()}"`);
+  check(/Showing 2 of 3/.test(ln), `local page filters to chapter 1: "${ln.trim()}"`);
   check(/Fix before push/.test(await lp.locator('#dsm-panel .prs-body').textContent()), 'local page labels drafted comments "Fix before push"');
   const prog = () => lp.locator('#dsm-panel .prs-progress').textContent();
   check(/0 of 1 marked viewed.*still to mark: one\.txt/.test(await prog()), `chapter progress lists what's left: "${await prog()}"`);
+  check(await lp.evaluate(() => { const r = document.getElementById('diff-story-panel').shadowRoot; const p = r.querySelector('.prs-progress'); return !!p && p.closest('.prs-body') && p.previousElementSibling && p.previousElementSibling.tagName === 'H3'; }), 'the tracker sits right under the chapter heading, not at the top of the panel');
   check((await lp.locator('#dsm-panel details.prs-filesbox[open]').count()) === 0, 'Files in this chapter starts folded');
   check(/1 to mark viewed/.test(await lp.locator('#dsm-panel details.prs-filesbox summary').textContent()), `the folded list has a summary: "${(await lp.locator('#dsm-panel details.prs-filesbox summary').textContent()).trim()}"`);
   await lp.locator('#dsm-panel .prs-next').click();
@@ -255,14 +256,30 @@ try {
     return { top, h: innerHeight };
   });
   check(settled.top !== null && settled.top > 0 && settled.top < settled.h, `a line jump re-scrolls when the page grows under it, and keeps the highlight (row at ${settled.top && Math.round(settled.top)}px)`);
-  await lp.locator('.ds-file-wrap:not([data-dsm-hidden]) .ds-viewed').first().click();
+  // viewed too early: two.js comes back in chapter 2, gone.txt is only chapter 2's
+  await lp.locator('.ds-file[data-path="lib/two.js"] .ds-viewed').click();
+  await lp.waitForTimeout(500);
+  const earlyText = () => lp.locator('#dsm-panel .prs-early-box').textContent();
+  check(/two\.js is marked viewed, but chapter 2 covers more of it/.test(await earlyText()), `marking a "comes back later" file viewed warns in the chapter: "${await earlyText()}"`);
+  check(/⚠ viewed early/.test(await lp.locator('#dsm-panel li[data-file="lib/two.js"] .prs-viewed').textContent()), 'and on its file row');
+  await lp.locator('#dsm-panel .prs-all').click();
+  await lp.waitForTimeout(300);
+  await lp.locator('.ds-file[data-path="gone.txt"] .ds-viewed').click();
+  await lp.waitForTimeout(500);
+  check(/gone\.txt is marked viewed early: it belongs to chapter 2/.test(await earlyText()), 'a later chapter\'s file viewed early is flagged too');
+  await lp.locator('.ds-file[data-path="gone.txt"] .ds-viewed').click();
+  await lp.locator('.ds-file[data-path="lib/two.js"] .ds-viewed').click();
+  await lp.locator('#dsm-panel .prs-all').click();
+  await lp.waitForTimeout(500);
+  check((await earlyText()) === '', 'unmarking them clears the warning');
+  await lp.locator('.ds-file[data-path="one.txt"] .ds-viewed').click();
   await lp.waitForTimeout(400);
   const viewed = JSON.parse(readFileSync(path.join(home, 'state', local.id, 'viewed.json'), 'utf8'));
   check(!!viewed['one.txt'], 'clicking Viewed on the local page is kept by the bridge');
   check(/✓ viewed/.test(await lp.locator('#dsm-panel .prs-files').textContent()), 'the panel sees the local Viewed toggle');
   check(/✓ All 1 marked viewed/.test(await prog()), `ticking the last one completes the chapter: "${await prog()}"`);
   check((await lp.locator('#dsm-panel .prs-stepprog.prs-done[data-prog-for="1"]').count()) === 1, 'the Steps list shows a check on chapter 1');
-  await lp.locator('.ds-viewed[aria-pressed=true]').click(); // unfold again to reach a line
+  await lp.locator('.ds-file[data-path="one.txt"] .ds-viewed').click(); // unfold again to reach a line
   await lp.locator('td.ds-num[data-line-anchor$="R2"]').first().click();
   await lp.locator('.ds-note-form textarea').fill('Lower-case B');
   await lp.locator('.ds-note-form button[type=submit]').click();
