@@ -115,6 +115,7 @@ export function storyOverlay(INPUT, opts = {}) {
     all: !!init.all,
     collapsed: !!init.collapsed,
     width: Number.isFinite(init.width) ? init.width : 460,
+    filesOpen: !!init.filesOpen, // the "Files in this chapter" list starts folded
   };
   const inBackstory = () => state.view === 'backstory';
   const steps = () => (inBackstory() ? BS_CH : DATA.chapters);
@@ -122,7 +123,7 @@ export function storyOverlay(INPUT, opts = {}) {
     if (!opts.onState) return;
     const sn = inBackstory() ? state.other : state.n;
     const bn = inBackstory() ? state.n : state.other;
-    opts.onState({ n: sn, bn, view: state.view, all: state.all, collapsed: state.collapsed, width: state.width });
+    opts.onState({ n: sn, bn, view: state.view, all: state.all, collapsed: state.collapsed, width: state.width, filesOpen: state.filesOpen });
   };
   const chapter = () => (state.n ? steps()[state.n - 1] : null);
   const inChapter = () => new Set(state.n ? chapter().files.map((f) => f.rel) : allRels);
@@ -166,6 +167,18 @@ export function storyOverlay(INPUT, opts = {}) {
     display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   #${NS} .prs-note b { color: var(--c-fg); }
   #${NS} .prs-msg { flex-basis: 100%; color: var(--c-warn); }
+  #${NS} .prs-progress { flex-basis: 100%; }
+  #${NS} .prs-progress:empty { display: none; }
+  #${NS} .prs-progress .prs-done { color: var(--c-ok); font-weight: 600; }
+  #${NS} .prs-progress b { color: var(--c-fg); }
+  #${NS} .prs-stepprog { font-size: 11px; color: var(--c-muted); margin-left: 4px; }
+  #${NS} .prs-stepprog.prs-done { color: var(--c-ok); }
+  #${NS} details.prs-filesbox > summary { cursor: pointer; list-style: none; margin: 18px 0 6px; }
+  #${NS} details.prs-filesbox > summary::-webkit-details-marker { display: none; }
+  #${NS} details.prs-filesbox > summary .prs-h { display: inline; margin: 0; }
+  #${NS} details.prs-filesbox > summary::before { content: "▸ "; color: var(--c-muted); font-size: 11px; }
+  #${NS} details.prs-filesbox[open] > summary::before { content: "▾ "; }
+  #${NS} details.prs-filesbox > summary .prs-sum { font-size: 12px; color: var(--c-muted); margin-left: 6px; }
   #${NS} .prs-msg:empty { display: none; }
   #${NS} .prs-body { flex: 1; overflow: auto; padding: 4px 16px 24px; }
   #${NS} h2.prs-h { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--c-muted); margin: 18px 0 6px; }
@@ -423,13 +436,13 @@ export function storyOverlay(INPUT, opts = {}) {
     return document.querySelector(`[data-line-anchor="${id}"]`) || document.getElementById(id);
   }
   /** true/false from the file header's Viewed toggle, or null when it can't tell. Never clicks it. */
-  function isViewed(rel) {
-    const b = blockOf(rel);
+  function isViewed(rel, blocks) {
+    const b = blocks ? blocks.get(rel) : blockOf(rel);
     if (!b) return null;
     const btn = [...b.el.querySelectorAll('button[aria-pressed]')].find((x) => /^\s*viewed\s*$/i.test(x.textContent));
     if (btn) return btn.getAttribute('aria-pressed') === 'true';
     const cb = b.el.querySelector('input.js-reviewed-checkbox');
-    return cb ? cb.checked : null;
+    return cb ? cb.checked : 'none'; // the file is on the page but has no Viewed toggle (logged out, say)
   }
 
   /** File-tree rows: [{rel|dir, el}]. */
@@ -529,7 +542,7 @@ export function storyOverlay(INPUT, opts = {}) {
       <button class="prs-next" title="Next step">Next &rarr;</button>
       <button class="prs-close" title="Remove the overlay and show every file">&times;</button>
     </div>
-    <div class="prs-note"><span class="prs-count-note"></span><span class="prs-msg"></span></div>
+    <div class="prs-note"><span class="prs-count-note"></span><div class="prs-progress" aria-live="polite"></div><span class="prs-msg"></span></div>
     <div class="prs-body"></div>
     <form class="prs-ask${opts.ask ? '' : ' prs-off'}">
       <textarea placeholder="Ask about this step (Cmd+Enter sends it to the bridge inbox)" rows="1" aria-label="Question"></textarea>
@@ -570,12 +583,62 @@ export function storyOverlay(INPUT, opts = {}) {
     if (all) all.onclick = () => { state.all = !state.all; saveState(); apply(); };
     for (const li of panel.querySelectorAll('ul.prs-files > li[data-file]')) li.classList.toggle('prs-missing', seen.missing.includes(li.getAttribute('data-file')));
   }
+  // ---------- viewed progress: which of a chapter's "Mark viewed" files are ticked
+  // Read from the page's own Viewed toggle (GitHub's, or the local page's), never clicked.
+  // Files that come back in a later chapter, or were finished in an earlier one, don't count.
+  function progressOf(n, blocks) {
+    const due = DATA.chapters[n - 1].files.filter((f) => { const st = status(f.rel, n); return st && st.kind === 'mark'; }).map((f) => f.rel);
+    const marks = due.map((rel) => ({ rel, v: isViewed(rel, blocks) }));
+    return {
+      due: due.length, viewed: marks.filter((x) => x.v === true).length, unviewed: marks.filter((x) => x.v === false).map((x) => x.rel),
+      unknown: marks.filter((x) => x.v == null).map((x) => x.rel), noToggle: marks.length > 0 && marks.every((x) => x.v === 'none' || x.v == null) && marks.some((x) => x.v === 'none'),
+    };
+  }
+  const short = (rel) => rel.split('/').pop();
   function renderViewed() {
+    const blocks = new Map(fileBlocks().map((b) => [b.rel, b]));
     for (const el of panel.querySelectorAll('[data-viewed-for]')) {
-      const v = isViewed(el.getAttribute('data-viewed-for'));
+      const v = isViewed(el.getAttribute('data-viewed-for'), blocks);
       el.textContent = v ? '✓ viewed' : '';
     }
+    const box = $('.prs-progress');
+    if (inBackstory()) { box.innerHTML = ''; return; }
+    const all = DATA.chapters.map((c, i) => progressOf(i + 1, blocks));
+    if (all.some((p) => p.noToggle) && !all.some((p) => p.viewed || p.unviewed.length)) { box.innerHTML = ''; return; } // no Viewed toggles on this page to read
+    for (const el of panel.querySelectorAll('[data-prog-for]')) {
+      const p = all[Number(el.getAttribute('data-prog-for')) - 1];
+      if (!p || !p.due || p.noToggle) { el.textContent = ''; continue; }
+      const complete = p.viewed === p.due;
+      el.textContent = complete ? '✓' : `${p.viewed}/${p.due}`;
+      el.classList.toggle('prs-done', complete);
+      el.title = complete ? 'Every file to mark viewed here is ticked' : `${p.viewed} of ${p.due} marked viewed`;
+    }
+    const linkList = (rels) => rels.map((rel) => `<code data-rel="${esc(rel)}" title="Scroll to ${esc(rel)}">${esc(short(rel))}</code>`).join(', ');
+    if (state.n === 0) {
+      const due = all.reduce((a, p) => a + p.due, 0);
+      const viewed = all.reduce((a, p) => a + p.viewed, 0);
+      const left = all.map((p, i) => ({ p, i })).filter(({ p }) => p.viewed < p.due).map(({ i }) => i + 1);
+      box.innerHTML = !due ? '' : viewed === due
+        ? `<span class="prs-done">✓ All ${due} files marked viewed</span>`
+        : `<b>${viewed} of ${due}</b> files marked viewed${left.length ? ` · chapter${left.length > 1 ? 's' : ''} ${left.join(', ')} still ${left.length > 1 ? 'have' : 'has'} some to go` : ''}`;
+      return;
+    }
+    const p = all[state.n - 1];
+    if (!p || !p.due) { box.innerHTML = '<span>Nothing to mark viewed in this chapter</span>'; return; }
+    if (p.viewed === p.due) { box.innerHTML = `<span class="prs-done">✓ All ${p.due} marked viewed</span>`; return; }
+    box.innerHTML = `<b>${p.viewed} of ${p.due}</b> marked viewed`
+      + (p.unviewed.length ? ` · still to mark: ${linkList(p.unviewed)}` : '')
+      + (p.unknown.length ? ` · ${p.unknown.length} not loaded yet` : '');
   }
+  $('.prs-note').addEventListener('click', (e) => {
+    const ref = e.target.closest('[data-rel]');
+    if (ref) scrollToFile(ref.getAttribute('data-rel'));
+  });
+  // Classic /files ticks a checkbox (no attribute change), and Refined GitHub's batch
+  // helpers click many toggles at once, so also look again shortly after any click or change.
+  const recheck = () => { setTimeout(renderViewed, 300); setTimeout(renderViewed, 1200); };
+  document.addEventListener('change', recheck, true);
+  document.addEventListener('click', recheck, true);
 
   function fileItem(f, n) {
     const st = status(f.rel, n);
@@ -605,12 +668,22 @@ export function storyOverlay(INPUT, opts = {}) {
     return `<p class="prs-bs-at">From ${sessions.size} Claude Code session${sessions.size === 1 ? '' : 's'}:</p><ul>${items}</ul>`;
   }
 
+  /** "4 to mark viewed · 2 come back later · 1 already finished" for chapter n. */
+  function filesSummary(n) {
+    const kinds = { mark: 0, later: 0, done: 0 };
+    for (const f of DATA.chapters[n - 1].files) { const st = status(f.rel, n); if (st) kinds[st.kind]++; }
+    return [kinds.mark && `${kinds.mark} to mark viewed`, kinds.later && `${kinds.later} come${kinds.later === 1 ? 's' : ''} back later`, kinds.done && `${kinds.done} already finished`].filter(Boolean).join(' · ');
+  }
+  function filesBox(title, summary, items) {
+    return `<details class="prs-filesbox"${state.filesOpen ? ' open' : ''}><summary><h2 class="prs-h">${esc(title)}</h2>${summary ? `<span class="prs-sum">${esc(summary)}</span>` : ''}</summary><ul class="prs-files">${items}</ul></details>`;
+  }
+
   function renderBody() {
     const ch = chapter();
     const bsv = inBackstory();
     const list = steps();
     const stepList = [`<li data-n="0" class="${state.n === 0 ? 'prs-current' : ''}">${bsv ? 'How it got here' : 'Overview'} <span class="prs-count">(${DATA.files.length})</span></li>`]
-      .concat(list.map((c, i) => `<li data-n="${i + 1}" class="${i + 1 === state.n ? 'prs-current' : ''}">${bsv ? '' : `${i + 1}. `}${esc(c.title.replace(/^Chapter \d+:\s*/, ''))} <span class="prs-count">(${c.files.length})</span></li>`)).join('');
+      .concat(list.map((c, i) => `<li data-n="${i + 1}" class="${i + 1 === state.n ? 'prs-current' : ''}">${bsv ? '' : `${i + 1}. `}${esc(c.title.replace(/^Chapter \d+:\s*/, ''))} <span class="prs-count">(${c.files.length})</span>${bsv ? '' : `<span class="prs-stepprog" data-prog-for="${i + 1}"></span>`}</li>`)).join('');
     $('.prs-title').textContent = bsv ? `Backstory: ${ch ? ch.title.replace(/^\d+\.\s*/, '') : 'how it got here'}` : ch ? ch.title : `Overview: ${DATA.pr.title || ''}`;
     $('.prs-title').title = $('.prs-title').textContent;
     $('.prs-prev').disabled = state.n === 0;
@@ -634,7 +707,7 @@ export function storyOverlay(INPUT, opts = {}) {
         : `${DATA.summary ? `<p>${inline(DATA.summary)}</p>` : ''}${DATA.plan ? `<p>${inline(DATA.plan)}</p>` : ''}`;
       const files = DATA.files.map((f) => fileItem(f, 0)).join('');
       const bsTop = BS && (BS.summary || sessions.size) ? backstoryBlock({ summary: BS.summary }, sessionsHtml()) : '';
-      body = `<div class="prs-md">${intro}</div>${bsTop}<h2 class="prs-h">All files (${DATA.files.length})</h2><ul class="prs-files">${files}</ul>`;
+      body = `<div class="prs-md">${intro}</div>${bsTop}${filesBox(`All files (${DATA.files.length})`, `${DATA.chapters.length} chapters`, files)}`;
     } else {
       linkScope = ch.files.map((f) => f.rel);
       const story = ch.narrative
@@ -650,10 +723,13 @@ export function storyOverlay(INPUT, opts = {}) {
       const files = ch.files.map((f) => fileItem(f, state.n)).join('');
       body = `<div class="prs-md">${story}</div>${backstoryBlock(ch.backstory)}
         ${comments ? `<h2 class="prs-h">${esc(COMMENTS_TITLE)}</h2>${comments}` : ''}
-        <h2 class="prs-h">Files in this chapter (${ch.files.length})</h2><ul class="prs-files">${files}</ul>`;
+        ${filesBox(`Files in this chapter (${ch.files.length})`, filesSummary(state.n), files)}`;
     }
     $('.prs-body').innerHTML = `<h2 class="prs-h">${bsv ? 'Backstory steps' : 'Steps'}</h2><ol class="prs-map">${stepList}</ol>${body}<div class="prs-questions"></div>`;
+    const fbox = $('.prs-body details.prs-filesbox');
+    if (fbox) fbox.addEventListener('toggle', () => { if (state.filesOpen !== fbox.open) { state.filesOpen = fbox.open; saveState(); } });
     renderQuestions();
+    renderViewed();
     $('.prs-body').scrollTop = 0;
   }
 
@@ -700,6 +776,8 @@ export function storyOverlay(INPUT, opts = {}) {
 
   function go(n) {
     if (n < 0 || n > steps().length) return;
+    const from = state.n;
+    const left = !inBackstory() && from > 0 && n > from ? progressOf(from, new Map(fileBlocks().map((b) => [b.rel, b]))).unviewed : [];
     state.n = n;
     state.all = false;
     message('');
@@ -709,6 +787,7 @@ export function storyOverlay(INPUT, opts = {}) {
     reportPosition();
     if (n === 0) window.scrollTo({ top: 0 });
     else if (chapter().files[0]) scrollToFile(chapter().files[0].rel, true);
+    if (left.length) message(`Chapter ${from} still has ${left.length} to mark viewed: ${left.map(short).join(', ')}. No rush: Prev goes back, or tick them later.`);
   }
 
   // Highlight rows for a few seconds. GitHub's React view can swap a row for a new
@@ -981,6 +1060,8 @@ export function storyOverlay(INPUT, opts = {}) {
     style.remove();
     document.documentElement.classList.remove(HOST_ID + '-docked');
     document.documentElement.style.removeProperty('--dsm-w');
+    document.removeEventListener('change', recheck, true);
+    document.removeEventListener('click', recheck, true);
     if (window.__diffStoryOverlay === api) delete window.__diffStoryOverlay;
   }
 

@@ -16,7 +16,7 @@
  * PLAYWRIGHT_BROWSERS_PATH picks where Playwright's Chromium lives
  * (node node_modules/playwright-core/cli.js install chromium).
  */
-/* global location, document */ // used inside page.evaluate
+/* global location, document, innerHeight */ // used inside page.evaluate
 import { chromium } from 'playwright-core';
 import path from 'node:path';
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -221,6 +221,17 @@ try {
   const ln = await lp.locator('#dsm-panel .prs-count-note').textContent();
   check(/Showing 1 of 3/.test(ln), `local page filters to chapter 1: "${ln.trim()}"`);
   check(/Fix before push/.test(await lp.locator('#dsm-panel .prs-body').textContent()), 'local page labels drafted comments "Fix before push"');
+  const prog = () => lp.locator('#dsm-panel .prs-progress').textContent();
+  check(/0 of 1 marked viewed.*still to mark: one\.txt/.test(await prog()), `chapter progress lists what's left: "${await prog()}"`);
+  check((await lp.locator('#dsm-panel details.prs-filesbox[open]').count()) === 0, 'Files in this chapter starts folded');
+  check(/1 to mark viewed/.test(await lp.locator('#dsm-panel details.prs-filesbox summary').textContent()), `the folded list has a summary: "${(await lp.locator('#dsm-panel details.prs-filesbox summary').textContent()).trim()}"`);
+  await lp.locator('#dsm-panel .prs-next').click();
+  await lp.waitForTimeout(300);
+  check(/Chapter 1 still has 1 to mark viewed: one\.txt/.test(await lp.locator('#dsm-panel .prs-msg').textContent()), 'moving on with files left gives a gentle note');
+  await lp.locator('#dsm-panel .prs-prev').click();
+  await lp.waitForTimeout(300);
+  await lp.locator('#dsm-panel details.prs-filesbox summary').click();
+  await lp.waitForTimeout(300);
   // a line jump whose target moves after the first scroll (as when GitHub renders the files it passes) still ends on the line
   const settled = await lp.evaluate(async () => {
     const link = document.getElementById('diff-story-panel').shadowRoot.querySelector('.prs-comment code[data-start]');
@@ -241,6 +252,8 @@ try {
   const viewed = JSON.parse(readFileSync(path.join(home, 'state', local.id, 'viewed.json'), 'utf8'));
   check(!!viewed['one.txt'], 'clicking Viewed on the local page is kept by the bridge');
   check(/✓ viewed/.test(await lp.locator('#dsm-panel .prs-files').textContent()), 'the panel sees the local Viewed toggle');
+  check(/✓ All 1 marked viewed/.test(await prog()), `ticking the last one completes the chapter: "${await prog()}"`);
+  check((await lp.locator('#dsm-panel .prs-stepprog.prs-done[data-prog-for="1"]').count()) === 1, 'the Steps list shows a check on chapter 1');
   await lp.locator('.ds-viewed[aria-pressed=true]').click(); // unfold again to reach a line
   await lp.locator('td.ds-num[data-line-anchor$="R2"]').first().click();
   await lp.locator('.ds-note-form textarea').fill('Lower-case B');
@@ -253,6 +266,7 @@ try {
   await lp.waitForSelector('#diff-story-panel', { state: 'attached', timeout: 5000 });
   await lp.waitForTimeout(300);
   check(/chapter 1/.test(await lp.locator('#dsm-panel .prs-count-note').textContent()), 'local page comes back on chapter 1 after a reload');
+  check((await lp.locator('#dsm-panel details.prs-filesbox[open]').count()) === 1, 'an opened files list stays open after a reload');
   check((await lp.locator('.ds-note-row').count()) === 1, 'the note is still on the line after a reload');
   check(errors.length === 0, `no page errors on the local page${errors.length ? `: ${errors.join('; ')}` : ''}`);
 } finally {

@@ -36,6 +36,15 @@ An alias saves typing: `alias diff-story="node ~/Development/SideProjects/diff-s
 
 When Claude rewrites `chapters.json`, the panel redraws within ≈5 seconds without losing its step.
 
+**Viewed progress.** Each chapter's header says how many of its "Mark viewed" files are ticked, for example "3 of 4 marked viewed · still to mark: a.tsx". The file names are jump links, and the line changes to "✓ All 4 marked viewed" when you're done. Files that come back in a later chapter, or were finished in an earlier one, don't count against it. The Steps list shows each chapter's count, or ✓ when it's complete. The Overview shows the overall count.
+
+The panel reads each file's state from the page's own Viewed toggle, and never clicks it:
+
+- on GitHub, the header toggle's `aria-pressed` (or the checkbox on classic `/files`)
+- on the local page, the bridge-kept toggle
+
+It looks again after any click or change on the page, so Refined GitHub's batch mark-viewed helpers are picked up too. Moving on with files left gives a gentle note, not a block. The "Files in this chapter" list starts folded, with a one-line summary ("6 files · 4 to mark viewed · 2 come back later"). Whether it's open is remembered per story.
+
 ### Story ready, Building, Build story
 
 Every PR Files changed page gets a small status control in the bottom-right corner, shown whenever the panel isn't:
