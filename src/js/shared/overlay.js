@@ -711,32 +711,66 @@ export function storyOverlay(INPUT, opts = {}) {
     else if (chapter().files[0]) scrollToFile(chapter().files[0].rel, true);
   }
 
-  function flash(els) {
-    for (const el of els) el.setAttribute('data-dsm-flash', '');
-    setTimeout(() => { for (const el of els) el.removeAttribute('data-dsm-flash'); }, 2500);
+  // Highlight rows for a few seconds. GitHub's React view can swap a row for a new
+  // element as it renders around the scroll, so the rows are found again (getEls) each time.
+  let flashTimer = 0;
+  let flashing = () => [];
+  function flash(getEls) {
+    const find = typeof getEls === 'function' ? getEls : () => getEls;
+    for (const el of document.querySelectorAll('[data-dsm-flash]')) el.removeAttribute('data-dsm-flash');
+    flashing = find;
+    for (const el of find()) el.setAttribute('data-dsm-flash', '');
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => { flashing = () => []; for (const el of document.querySelectorAll('[data-dsm-flash]')) el.removeAttribute('data-dsm-flash'); }, 4000);
   }
+  const spot = (frac) => (frac ? window.innerHeight * frac : 72);
   function scrollTo(el, frac) {
-    const top = el.getBoundingClientRect().top + window.scrollY - (frac ? window.innerHeight * frac : 72);
+    const top = el.getBoundingClientRect().top + window.scrollY - spot(frac);
     window.scrollTo({ top: Math.max(0, top) });
+  }
+  // A long jump makes GitHub render the files it passes, which pushes the target
+  // down after the first scroll. So look again for ≈2s and scroll back onto it,
+  // until it holds still or Eric scrolls himself.
+  let settleToken = 0;
+  function settle(getEl, frac) {
+    const token = ++settleToken;
+    let mine = true;
+    const off = () => { mine = false; };
+    const events = ['wheel', 'touchstart', 'keydown', 'mousedown'];
+    const opts = { passive: true, capture: true };
+    for (const ev of events) window.addEventListener(ev, off, opts);
+    // (the mousedown of the click that started this has already happened, so only a new one stops it)
+    const steps = [80, 200, 400, 700, 1100, 1600, 2200];
+    steps.forEach((t, i) => setTimeout(() => {
+      const last = i === steps.length - 1;
+      if (token === settleToken && mine) {
+        const el = getEl();
+        if (el && Math.abs(el.getBoundingClientRect().top - spot(frac)) > 24) scrollTo(el, frac);
+        for (const r of flashing()) if (!r.hasAttribute('data-dsm-flash')) r.setAttribute('data-dsm-flash', '');
+      }
+      if (last) for (const ev of events) window.removeEventListener(ev, off, opts);
+    }, t));
   }
   function scrollToFile(rel, quiet) {
     const b = blockOf(rel);
     if (!b) { if (!quiet) message(`${rel} isn't loaded on the page yet. Scroll the diff and try again.`); return false; }
     scrollTo(b.el);
-    if (!quiet) flash([b.el]);
+    if (!quiet) flash(() => { const x = blockOf(rel); return x ? [x.el] : []; });
+    settle(() => { const x = blockOf(rel); return x && x.el; });
     return true;
   }
   /** Scroll a line range into view and highlight it. Never expands a hunk or a collapsed file. */
   function scrollToLine(rel, side, startLine, endLine) {
     let target = lineCell(rel, side, startLine);
     let note = '';
+    let at = startLine;
     if (!target) {
       // nearest line GitHub has rendered for this file and side
       const prefix = `diff-${pathToSha.get(rel)}${side}`;
       const near = [...document.querySelectorAll(`[data-line-anchor^="${prefix}"]`)]
         .map((c) => ({ c, n: +c.getAttribute('data-line-anchor').slice(prefix.length) }))
         .filter((x) => x.n > 0).sort((a, b) => Math.abs(a.n - startLine) - Math.abs(b.n - startLine))[0];
-      if (near) { target = near.c; note = `Line ${startLine} isn't in the diff ${HOST} shows, so this is the nearest line, ${near.n}. ${HOST}'s expand arrows above it show more.`; }
+      if (near) { target = near.c; at = near.n; note = `Line ${startLine} isn't in the diff ${HOST} shows, so this is the nearest line, ${near.n}. ${HOST}'s expand arrows above it show more.`; }
     }
     if (!target) {
       scrollToFile(rel, true);
@@ -744,13 +778,18 @@ export function storyOverlay(INPUT, opts = {}) {
       return false;
     }
     const rowOf = (c) => c.closest('tr') || c;
+    const rowsNow = () => {
+      const rows = [];
+      for (let n = startLine; n <= Math.max(startLine, endLine || startLine) && n < startLine + 400; n++) {
+        const c = lineCell(rel, side, n);
+        if (c && !rows.includes(rowOf(c))) rows.push(rowOf(c));
+      }
+      if (!rows.length) { const c = lineCell(rel, side, at); if (c) rows.push(rowOf(c)); }
+      return rows;
+    };
     scrollTo(rowOf(target), 0.25);
-    const rows = [];
-    for (let n = startLine; n <= Math.max(startLine, endLine || startLine) && n < startLine + 400; n++) {
-      const c = lineCell(rel, side, n);
-      if (c && !rows.includes(rowOf(c))) rows.push(rowOf(c));
-    }
-    flash(rows.length ? rows : [rowOf(target)]);
+    flash(rowsNow);
+    settle(() => { const c = lineCell(rel, side, at); return c && rowOf(c); }, 0.25);
     message(note);
     return true;
   }
@@ -931,6 +970,8 @@ export function storyOverlay(INPUT, opts = {}) {
     clearTimeout(pending);
     clearTimeout(msgTimer);
     clearTimeout(posTimer);
+    clearTimeout(flashTimer);
+    settleToken++;
     clearInterval(qaTimer);
     window.removeEventListener('resize', onResize);
     window.removeEventListener('scroll', onScroll);
