@@ -44,6 +44,8 @@
  *   onClose()      called after the x button removes the panel
  *   ask(q)         send a question {text, step, chapter, file}; returns a Promise
  *   loadQuestions() returns a Promise of [{id, at, step, text, file, answers: [{at, text}]}]
+ *   status()       returns a Promise of the bridge's /api/status ({bridge, story, listening, autoBuild, autoAnswer});
+ *                  it rejects with err.code 'down', 'token' or 'old' when the bridge can't say. Drives the status light.
  *   host           name of the page that owns the diff, for messages ("GitHub")
  *   commentsTitle  heading for the chapter's drafted comments ("Draft comments")
  */
@@ -144,7 +146,7 @@ export function storyOverlay(INPUT, opts = {}) {
   #${NS}:focus { outline: none; }
   #${NS} { --c-bg: var(--bgColor-default, #fff); --c-fg: var(--fgColor-default, #1f2328); --c-muted: var(--fgColor-muted, #59636e);
     --c-border: var(--borderColor-default, #d1d9e0); --c-subtle: var(--bgColor-muted, #f6f8fa); --c-accent: var(--fgColor-accent, #0969da);
-    --c-accent-bg: var(--bgColor-accent-muted, #ddf4ff); --c-ok: var(--fgColor-success, #1a7f37); --c-warn: var(--fgColor-attention, #9a6700);
+    --c-accent-bg: var(--bgColor-accent-muted, #ddf4ff); --c-ok: var(--fgColor-success, #1a7f37); --c-warn: var(--fgColor-attention, #9a6700); --c-err: var(--fgColor-danger, #d1242f);
     position: fixed; top: 0; right: 0; bottom: 0; width: var(--dsm-w); z-index: 99; box-sizing: border-box;
     background: var(--c-bg); color: var(--c-fg); border-left: 1px solid var(--c-border);
     font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
@@ -152,7 +154,7 @@ export function storyOverlay(INPUT, opts = {}) {
   @media (prefers-color-scheme: dark) { #${NS} { --c-bg: var(--bgColor-default, #0d1117); --c-fg: var(--fgColor-default, #f0f6fc);
     --c-muted: var(--fgColor-muted, #9198a1); --c-border: var(--borderColor-default, #3d444d); --c-subtle: var(--bgColor-muted, #151b23);
     --c-accent: var(--fgColor-accent, #4493f8); --c-accent-bg: var(--bgColor-accent-muted, #388bfd1a);
-    --c-ok: var(--fgColor-success, #3fb950); --c-warn: var(--fgColor-attention, #d29922); } }
+    --c-ok: var(--fgColor-success, #3fb950); --c-warn: var(--fgColor-attention, #d29922); --c-err: var(--fgColor-danger, #f85149); } }
   #${NS} * { box-sizing: border-box; }
   #${NS} .prs-grip { position: absolute; left: -4px; top: 0; bottom: 0; width: 8px; cursor: col-resize; }
   #${NS} .prs-grip:hover, #${NS}.prs-dragging .prs-grip { background: var(--c-accent); opacity: .35; }
@@ -168,6 +170,17 @@ export function storyOverlay(INPUT, opts = {}) {
   #${NS} .prs-note b { color: var(--c-fg); }
   #${NS} .prs-msg { flex-basis: 100%; color: var(--c-warn); }
   #${NS} .prs-progress { flex-basis: 100%; }
+  #${NS} button.prs-light { border: 0; background: none; padding: 2px 4px; }
+  #${NS} .prs-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--c-muted); vertical-align: middle; }
+  #${NS} .prs-light[data-level="ok"] .prs-dot { background: var(--c-ok); }
+  #${NS} .prs-light[data-level="warn"] .prs-dot { background: var(--c-warn); }
+  #${NS} .prs-light[data-level="error"] .prs-dot { background: var(--c-err); }
+  #${NS} .prs-health { flex-basis: 100%; margin: 2px 0; padding: 6px 8px; border: 1px solid var(--c-border); border-radius: 6px; background: var(--c-bg); }
+  #${NS} .prs-health ul { list-style: none; margin: 0; padding: 0; }
+  #${NS} .prs-health li { padding: 1px 0; }
+  #${NS} .prs-health .prs-hok { color: var(--c-ok); } #${NS} .prs-health .prs-hwarn { color: var(--c-warn); } #${NS} .prs-health .prs-herr { color: var(--c-err); }
+  #${NS} .prs-askhint { padding: 6px 10px 0; font-size: 12px; color: var(--c-warn); background: var(--c-subtle); border-top: 1px solid var(--c-border); }
+  #${NS} .prs-askhint code { font-size: 11px; }
   #${NS} .prs-progress:empty { display: none; }
   #${NS} .prs-progress .prs-done { color: var(--c-ok); font-weight: 600; }
   #${NS} .prs-progress b { color: var(--c-fg); }
@@ -536,14 +549,16 @@ export function storyOverlay(INPUT, opts = {}) {
   panel.innerHTML = `
     <div class="prs-grip" title="Drag to resize"></div>
     <div class="prs-bar">
+      <button class="prs-light" title="Checking the connection…" aria-label="Connection status" aria-expanded="false"><span class="prs-dot"></span></button>
       <button class="prs-toggle" title="Collapse or expand the story panel">Hide story</button>
       <button class="prs-prev" title="Previous step">&larr; Prev</button>
       <span class="prs-title"></span>
       <button class="prs-next" title="Next step">Next &rarr;</button>
       <button class="prs-close" title="Remove the overlay and show every file">&times;</button>
     </div>
-    <div class="prs-note"><span class="prs-count-note"></span><div class="prs-progress" aria-live="polite"></div><span class="prs-msg"></span></div>
+    <div class="prs-note"><span class="prs-count-note"></span><div class="prs-health" hidden></div><div class="prs-progress" aria-live="polite"></div><span class="prs-msg"></span></div>
     <div class="prs-body"></div>
+    <div class="prs-askhint" hidden></div>
     <form class="prs-ask${opts.ask ? '' : ' prs-off'}">
       <textarea placeholder="Ask about this step (Cmd+Enter sends it to the bridge inbox)" rows="1" aria-label="Question"></textarea>
       <button type="submit">Ask</button>
@@ -951,6 +966,56 @@ export function storyOverlay(INPUT, opts = {}) {
   }
   window.addEventListener('hashchange', onHashChange);
 
+  // ---------- the status light: bridge, story, a Claude session listening
+  let health = null;
+  let healthTimer = 0;
+  function healthChecks(h, err) {
+    if (err) {
+      const why = err.code === 'token' ? ['The bridge rejected the token', 'Copy it again from diff-story setup into the extension options']
+        : err.code === 'old' ? ['The bridge is older than this panel', 'Restart it: diff-story serve']
+          : ['The bridge isn\'t reachable', 'Start it: diff-story serve'];
+      return { level: 'error', checks: [{ ok: false, bad: true, name: 'Bridge', detail: why[0], fix: why[1] }] };
+    }
+    const checks = [{ ok: true, name: 'Bridge', detail: `reachable, token accepted (${h.bridge.version})` }];
+    if (h.story) checks.push({ ok: h.story.ok, name: 'Story', detail: h.story.ok ? `found (${h.story.id})` : 'not found for this page' });
+    const l = h.listening || {};
+    checks.push(l.ok
+      ? { ok: true, name: 'Claude listening', detail: (l.consumers || []).map((c) => `${c.consumer}${c.state === 'handling' ? ', answering a question' : ''}`).join(', ') }
+      : { ok: false, name: 'Claude listening', detail: 'no Claude session is listening; questions will wait in the inbox', fix: l.start || 'diff-story wait --consumer pr-story' });
+    if (h.autoBuild && h.autoBuild.enabled) checks.push({ ok: true, name: 'autoBuild', detail: 'on' });
+    if (h.autoAnswer && h.autoAnswer.enabled) checks.push({ ok: true, name: 'autoAnswer', detail: 'on: questions get an answer from the configured command' });
+    const listening = l.ok || (h.autoAnswer && h.autoAnswer.enabled);
+    return { level: !listening || (h.story && !h.story.ok) ? 'warn' : 'ok', checks, listening };
+  }
+  function renderHealth(res) {
+    const btn = $('.prs-light');
+    btn.setAttribute('data-level', res.level);
+    btn.title = res.checks.map((c) => `${c.ok ? '✓' : c.bad ? '✗' : '!'} ${c.name}: ${c.detail}`).join('\n') + '\n(click for details)';
+    $('.prs-health').innerHTML = `<ul>${res.checks.map((c) => `<li><span class="${c.ok ? 'prs-hok' : c.bad ? 'prs-herr' : 'prs-hwarn'}">${c.ok ? '✓' : c.bad ? '✗' : '!'}</span> <b>${esc(c.name)}</b>: ${esc(c.detail)}${c.fix ? `<br><span class="prs-why">${esc(c.fix.replace(/^In a Claude Code session, run as a background task: /, 'In Claude Code, run as a background task: '))}</span>` : ''}</li>`).join('')}</ul>`;
+    const hint = $('.prs-askhint');
+    const showHint = opts.ask && res.level !== 'ok' && !res.listening;
+    hint.hidden = !showHint;
+    if (showHint) {
+      hint.innerHTML = res.level === 'error'
+        ? `${esc(res.checks[0].detail)}. Questions can't be sent until it's back.`
+        : 'No Claude session is listening; questions will wait. Start one in Claude Code as a background task: <code>diff-story wait --consumer pr-story</code>';
+    }
+  }
+  async function refreshHealth() {
+    if (!opts.status) return;
+    try { health = healthChecks(await opts.status()); } catch (err) { health = healthChecks(null, err || {}); }
+    renderHealth(health);
+  }
+  $('.prs-light').addEventListener('click', () => {
+    const box = $('.prs-health');
+    box.hidden = !box.hidden;
+    $('.prs-light').setAttribute('aria-expanded', String(!box.hidden));
+  });
+  if (opts.status) {
+    refreshHealth();
+    healthTimer = setInterval(() => { if (document.visibilityState === 'visible') refreshHealth(); }, 10000);
+  } else $('.prs-light').hidden = true;
+
   // ---------- where Eric is: the step and the file at the top of the screen
   let posTimer = 0;
   let lastPos = '';
@@ -1032,7 +1097,7 @@ export function storyOverlay(INPUT, opts = {}) {
     try {
       await opts.ask({ text, step: inBackstory() ? null : state.n, chapter: stepLabel(), file: topFile || fileAtTop() });
       askText.value = '';
-      message('Sent to the bridge inbox.');
+      message(health && !health.listening ? 'Queued in the bridge inbox. No Claude session is listening yet, so it will wait.' : 'Sent to the bridge inbox.');
       await refreshQuestions();
     } catch (err) {
       message(`Couldn't send the question: ${err && err.message ? err.message : err}`);
@@ -1050,6 +1115,7 @@ export function storyOverlay(INPUT, opts = {}) {
     clearTimeout(msgTimer);
     clearTimeout(posTimer);
     clearTimeout(flashTimer);
+    clearInterval(healthTimer);
     settleToken++;
     clearInterval(qaTimer);
     window.removeEventListener('resize', onResize);
@@ -1079,6 +1145,8 @@ export function storyOverlay(INPUT, opts = {}) {
   const api = {
     destroy, go, setView, apply, scrollToLine, scrollToFile, refreshQuestions, setCollapsed, state, data: INPUT,
     get seen() { return seen; },
+    get health() { return health; },
+    refreshHealth,
     summary() {
       const label = inBackstory()
         ? (state.n ? `backstory step ${state.n} of ${BS_CH.length}` : `backstory overview (${BS_CH.length} steps)`)

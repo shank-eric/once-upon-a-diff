@@ -12,13 +12,14 @@
  *   - no CORS headers, so other web pages can't read anything it says
  */
 import http from 'node:http';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { StoryStore, readMeta, refreshLocal, storyVersion } from './stories.mjs';
 import { Inbox, newId } from './inbox.mjs';
 import { Builds } from './builds.mjs';
+import { statusOf, answerContext, runAutoAnswer } from './health.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.resolve(HERE, '../public');
@@ -68,11 +69,21 @@ const int = v => (Number.isFinite(+v) ? Math.trunc(+v) : null);
  * @param {{home: string, token: string, roots?: string[], scratch?: boolean|string[]}} opts
  * @returns {http.Server} call .listen(port, '127.0.0.1')
  */
-export function createBridge({ home, token, roots, scratch = true, autoBuild = null }) {
+export function createBridge({ home, token, roots, scratch = true, autoBuild = null, autoAnswer = null, log = (line) => process.stderr.write(`diff-story bridge: ${line}\n`) }) {
   if (!token) throw new Error('the bridge needs a token');
   const stories = new StoryStore({ home, roots, scratch });
   const inbox = new Inbox(home);
   const builds = new Builds(home, inbox, { autoBuild });
+  // the last time the extension talked to us, for `diff-story doctor` and the status light
+  let extensionSeen = null;
+  let extensionWritten = 0;
+  const seeExtension = (origin) => {
+    extensionSeen = { at: new Date().toISOString(), origin };
+    if (Date.now() - extensionWritten > 30000) {
+      extensionWritten = Date.now();
+      try { writeFileSync(path.join(home, 'extension-seen.json'), JSON.stringify(extensionSeen)); } catch { /* not worth failing a request over */ }
+    }
+  };
   const lastPosition = new Map();
 
   const server = http.createServer(async (req, res) => {
@@ -108,6 +119,7 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
       if (!p.startsWith('/api/')) throw new HttpError(404, 'not found');
       const auth = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '') || req.headers['x-diff-story-token'];
       if (!sameToken(auth, token)) throw new HttpError(401, 'missing or wrong token');
+      if (origin && origin.startsWith('chrome-extension://')) seeExtension(origin);
       let body = {};
       if (req.method === 'POST') {
         if (!/^application\/json\b/i.test(String(req.headers['content-type'] || ''))) throw new HttpError(415, 'send application/json');
@@ -115,6 +127,14 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
       } else if (req.method !== 'GET') throw new HttpError(405, 'GET or POST only');
 
       if (p === '/api/health') return send(200, { ok: true, name: 'diff-story-bridge', version: VERSION });
+      if (p === '/api/status' && req.method === 'GET') {
+        // the panel's status light: bridge, story, a Claude session listening, autoBuild and autoAnswer
+        const sid = url.searchParams.get('story');
+        let story;
+        if (sid) story = stories.dirOf(sid) ? sid : null;
+        else if (url.searchParams.get('repo')) { const hit = stories.find(url.searchParams.get('repo'), url.searchParams.get('number')); story = hit ? hit.id : null; }
+        return send(200, statusOf({ home, version: VERSION, story, autoBuild, autoAnswer, extensionSeen }));
+      }
       if (p === '/api/stories' && req.method === 'GET') return send(200, { stories: stories.list().map(({ dir, ...s }) => s) });
       if (p === '/api/stories/find' && req.method === 'GET') {
         const hit = stories.find(url.searchParams.get('repo') || '', url.searchParams.get('number'));
@@ -170,6 +190,13 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
         const text = str(body.text, 8000);
         if (!text || !text.trim()) throw new HttpError(400, 'text is required');
         const q = inbox.append({ type: 'question', id: newId('q'), ...ctx, step: int(body.step), chapter: str(body.chapter, 300), file: str(body.file, 1000), text: text.trim(), url: str(body.url, 2000) });
+        if (autoAnswer && autoAnswer.enabled) {
+          runAutoAnswer({
+            home, autoAnswer, question: q, context: answerContext(stories.load(id), dir, q),
+            onAnswer: (answer) => inbox.append({ type: 'answer', id: newId('a'), question: q.id, story: id, text: answer, by: 'autoAnswer' }),
+            onFail: (why) => log(`autoAnswer for ${q.id}: ${why}`),
+          });
+        }
         return send(200, q);
       }
       if (what === 'position' && req.method === 'POST') {
@@ -222,7 +249,7 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
       throw new HttpError(404, 'not found');
     } catch (err) {
       const status = err.status || 500;
-      if (status === 500) process.stderr.write(`diff-story bridge: ${err.stack || err}\n`);
+      if (status === 500) log(err.stack || String(err));
       if (!res.headersSent) send(status, { error: err.message || String(err) });
     }
   });

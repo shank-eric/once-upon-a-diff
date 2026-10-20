@@ -23,6 +23,7 @@ import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, writeJson, TOKEN, startBridge, localRepo } from '../helpers.mjs';
 import { createLocalStory } from '../../bridge/lib/local.mjs';
+import { beat } from '../../bridge/lib/health.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const EXT = path.join(ROOT, 'src');
@@ -115,6 +116,9 @@ try {
     await page.waitForTimeout(2500); // lazy-loaded diffs
     const note = () => page.locator('#dsm-panel .prs-count-note').textContent();
     check(/Overview/.test(await note()), `/${view}: starts at the Overview: "${await note()}"`);
+    await page.waitForTimeout(500);
+    check((await page.locator('#dsm-panel .prs-light[data-level="warn"]').count()) === 1, `/${view}: the status light is amber with no Claude listening: "${(await page.locator('#dsm-panel .prs-light').getAttribute('title') || '').split('\n')[0]}"`);
+    check(/No Claude session is listening/.test(await page.locator('#dsm-panel .prs-askhint').textContent()), `/${view}: the Ask box says questions will wait`);
     await page.locator('#dsm-panel .prs-next').click();
     await page.waitForTimeout(800);
     if (view === 'files') {
@@ -210,12 +214,16 @@ try {
   await nb.close();
 
   // 3. local page
+  beat(home, 'load-test', 'waiting');
   const lp = await context.newPage();
   const errors = [];
   lp.on('pageerror', e => errors.push(e.message));
   await lp.goto(`http://127.0.0.1:${port}/local/${local.id}/`);
   await lp.waitForSelector('#diff-story-panel', { state: 'attached', timeout: 5000 });
   check((await lp.locator('[role=region][id^="diff-"]').count()) === 3, 'local page draws 3 file regions');
+  await lp.waitForTimeout(500);
+  check((await lp.locator('#dsm-panel .prs-light[data-level="ok"]').count()) === 1, `the status light is green with a listener: "${(await lp.locator('#dsm-panel .prs-light').getAttribute('title') || '').replace(/\n/g, ' | ')}"`);
+  check(await lp.locator('#dsm-panel .prs-askhint').isHidden(), 'and the Ask box has no warning');
   await lp.locator('#dsm-panel .prs-next').click();
   await lp.waitForTimeout(400);
   const ln = await lp.locator('#dsm-panel .prs-count-note').textContent();

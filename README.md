@@ -26,6 +26,32 @@ You need Node 20 or newer. The bridge has no runtime dependencies. `yarn install
 
 An alias saves typing: `alias diff-story="node ~/Development/SideProjects/diff-story-mode/bridge/bin/diff-story.mjs"`. The rest of this README uses `diff-story`.
 
+## Is it set up?
+
+There are two quick ways to check.
+
+**The light in the panel header.** It's the dot left of "Hide story". Hover it for a summary, or click it for details and fixes.
+
+- **Green:** the bridge is reachable and accepts the token, the story was found, and a Claude session is listening for questions.
+- **Amber:** everything works, but no Claude session is listening. The Ask box still queues questions and says they'll wait. To start a listener, run `diff-story wait --consumer pr-story` as a background task in Claude Code. The pr-story skill does that while it tells a story. Amber also covers a story that isn't found.
+- **Red:** the bridge is down, too old for the panel, or rejects the token.
+
+The details also say whether autoBuild or autoAnswer is on.
+
+"Listening" is a heartbeat. `diff-story wait` writes `~/.diff-story/listeners/<consumer>.json` every ≈5s, and a beat under 15s old from a live process counts. After `wait` hands a question over, the listener counts for up to 10 minutes as "answering", until the session starts the next wait.
+
+**`diff-story doctor`.** It prints PASS, WARN or FAIL for each of these, with a fix for anything that isn't passing:
+
+- the config and token
+- the bridge process and port, and whether the bridge accepts the token
+- when the extension last talked to the bridge (the bridge notes it)
+- the story root and the stories it can serve
+- live listeners and pending build requests
+- the autoBuild and autoAnswer settings, and whether their commands are on `PATH`
+- the tail of `~/.diff-story/bridge.log`
+
+It exits 1 when something fails.
+
 ## Using it on a PR
 
 1. Make a story with the pr-story skill. Its `render` step copies `chapters.json` and `file-map.json` to `~/.diff-story/<owner>-<repo>-<N>/`, and you can also run `pr-story.mjs publish --dir <D>`. The bridge also reads pr-story's scratch folders directly.
@@ -54,6 +80,14 @@ Every PR Files changed page gets a small status control in the bottom-right corn
 - **No story yet · Build story** asks for one. The extension sends `{repo, number, url, requested_at}` to the bridge, which appends a `build_request` line to the inbox and keeps a pending marker in `~/.diff-story/builds.json`. Every tab on that PR then shows Building.
 
 A Claude session fulfils the request. `diff-story wait` hands it build requests the same way as questions, and `diff-story builds` lists the pending ones. The session writes the story with the pr-story skill, whose `render` publishes it. The request then counts as done as soon as the bridge sees the story, or the session can say so with `diff-story done <id>` (`--failed --note "…"` if it can't be done). The × on the control hides it until the page reloads. The control is the extension's own button in its own shadow root, and it never clicks anything of GitHub's.
+
+**autoAnswer (off).** Like autoBuild, this is a bridge setting that's off unless `config.json` turns it on. When it's on, each new question runs a command, and whatever the command prints on stdout (exit 0) becomes the answer in the panel:
+
+```json
+"autoAnswer": { "enabled": true, "command": ["claude", "-p", "Answer this code-review question in a few sentences, using the story and diff in {context}: {question}"], "timeout_s": 600 }
+```
+
+Like autoBuild, the command is an argv array and is never run through a shell. `{question}`, `{context}`, `{story}` and `{id}` in its arguments are replaced. `{context}` is a JSON file with the story's overview, the asked-about chapter's narrative, files and drafted comments, and that chapter's diff when the bridge has one. Logs go to `~/.diff-story/answers/`. It's off for the same reason as autoBuild: it runs Claude without anyone at the keyboard. Whether to turn it on is Eric's call. With autoAnswer on and no listener, the light still counts questions as handled.
 
 **autoBuild (off).** The bridge can run a command for each new request itself. It's off unless `~/.diff-story/config.json` turns it on:
 
