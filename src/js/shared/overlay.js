@@ -46,6 +46,8 @@
  *   loadQuestions() returns a Promise of [{id, at, step, text, file, answers: [{at, text}]}]
  *   status()       returns a Promise of the bridge's /api/status ({bridge, story, listening, autoBuild, autoAnswer});
  *                  it rejects with err.code 'down', 'token' or 'old' when the bridge can't say. Drives the status light.
+ *   drafts         {load(), act(chapter, index, action)}: each returns a Promise of {drafts: [{chapter, index, status:
+ *                  'draft'|'posted'|'pending', dismissed, url}], error}. action is posted, unposted, dismiss or restore.
  *   host           name of the page that owns the diff, for messages ("GitHub")
  *   commentsTitle  heading for the chapter's drafted comments ("Draft comments")
  */
@@ -118,6 +120,8 @@ export function storyOverlay(INPUT, opts = {}) {
     collapsed: !!init.collapsed,
     width: Number.isFinite(init.width) ? init.width : 460,
     filesOpen: !!init.filesOpen, // the "Files in this chapter" list starts folded
+    showPosted: !!init.showPosted, // posted and dismissed drafts start hidden
+    showDismissed: !!init.showDismissed,
   };
   const inBackstory = () => state.view === 'backstory';
   const steps = () => (inBackstory() ? BS_CH : DATA.chapters);
@@ -125,7 +129,7 @@ export function storyOverlay(INPUT, opts = {}) {
     if (!opts.onState) return;
     const sn = inBackstory() ? state.other : state.n;
     const bn = inBackstory() ? state.n : state.other;
-    opts.onState({ n: sn, bn, view: state.view, all: state.all, collapsed: state.collapsed, width: state.width, filesOpen: state.filesOpen });
+    opts.onState({ n: sn, bn, view: state.view, all: state.all, collapsed: state.collapsed, width: state.width, filesOpen: state.filesOpen, showPosted: state.showPosted, showDismissed: state.showDismissed });
   };
   const chapter = () => (state.n ? steps()[state.n - 1] : null);
   const inChapter = () => new Set(state.n ? chapter().files.map((f) => f.rel) : allRels);
@@ -224,6 +228,16 @@ export function storyOverlay(INPUT, opts = {}) {
   #${NS} .prs-viewed { color: var(--c-ok); font-size: 12px; margin-left: 4px; white-space: nowrap; }
   #${NS} .prs-viewed:empty { display: none; }
   #${NS} .prs-comment { margin: 0 0 12px; }
+  #${NS} .prs-comment.prs-c-done { margin: 0 0 6px; padding: 4px 8px; border: 1px dashed var(--c-border); border-radius: 6px; font-size: 12px; color: var(--c-muted); }
+  #${NS} .prs-comment.prs-c-done pre, #${NS} .prs-comment.prs-c-done .prs-copy { display: none; }
+  #${NS} .prs-comment.prs-c-pending { border-color: var(--c-warn); }
+  #${NS} .prs-cstate { font-size: 12px; color: var(--c-muted); margin-top: 2px; }
+  #${NS} .prs-cstate .prs-ok { color: var(--c-ok); font-weight: 600; }
+  #${NS} .prs-cstate .prs-pend { color: var(--c-warn); font-weight: 600; }
+  #${NS} .prs-draftsum { text-transform: none; letter-spacing: 0; font-weight: 400; }
+  #${NS} .prs-drafttoggles { margin: -2px 0 6px; }
+  #${NS} .prs-drafttoggles:empty { display: none; }
+  #${NS} .prs-cbtns button + button { margin-left: 4px; }
   #${NS} .prs-comment .prs-where { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; color: var(--c-muted); margin-bottom: 4px; }
   #${NS} ul.prs-files { list-style: none; padding: 0; margin: 0; font-size: 12px; }
   #${NS} ul.prs-files > li { padding: 4px 0; border-bottom: 1px solid var(--c-border); }
@@ -756,11 +770,11 @@ export function storyOverlay(INPUT, opts = {}) {
         const ref = !general && resolveRef(c.path);
         const name = ref ? `<code ${refAttrs(ref.rel, { side: 'R', start: c.line, end: c.line })}>${esc(c.path)}</code>` : `<code>${esc(c.path)}</code>`;
         const where = general ? 'General PR comment' : `On ${name} line ${c.line}`;
-        return `<div class="prs-comment"><div class="prs-where"><span>${where}</span><button class="prs-copy" data-i="${i}">Copy</button></div><pre>${esc(c.body)}</pre></div>`;
+        return `<div class="prs-comment" data-i="${i}"><div class="prs-where"><span>${where}</span><span class="prs-cbtns"><button class="prs-copy" data-i="${i}">Copy</button></span></div><pre>${esc(c.body)}</pre><div class="prs-cstate" hidden></div></div>`;
       }).join('');
       const files = ch.files.map((f) => fileItem(f, state.n)).join('');
       body = `<div class="prs-md">${story}</div>${backstoryBlock(ch.backstory)}
-        ${comments ? `<h2 class="prs-h">${esc(COMMENTS_TITLE)}</h2>${comments}` : ''}
+        ${comments ? `<div class="prs-drafts"><h2 class="prs-h">${esc(COMMENTS_TITLE)} <span class="prs-draftsum"></span></h2><div class="prs-drafttoggles"></div>${comments}</div>` : ''}
         ${filesBox(`Files in this chapter (${ch.files.length})`, filesSummary(state.n), files)}`;
     }
     $('.prs-body').innerHTML = `<h2 class="prs-h">${bsv ? 'Backstory steps' : 'Steps'}</h2><ol class="prs-map">${stepList}</ol>${body}<div class="prs-questions"></div>`;
@@ -777,6 +791,7 @@ export function storyOverlay(INPUT, opts = {}) {
     if (fbox) fbox.addEventListener('toggle', () => { if (state.filesOpen !== fbox.open) { state.filesOpen = fbox.open; saveState(); } });
     renderQuestions();
     renderViewed();
+    refreshDrafts(false);
     $('.prs-body').scrollTop = 0;
   }
 
@@ -786,6 +801,15 @@ export function storyOverlay(INPUT, opts = {}) {
     if (step) return go(Number(step.getAttribute('data-n')));
     const copyBtn = e.target.closest('.prs-copy');
     if (copyBtn) return copy(chapter().comments[Number(copyBtn.getAttribute('data-i'))].body, copyBtn);
+    const actBtn = e.target.closest('[data-draft-act]');
+    if (actBtn) return draftAct(Number(actBtn.closest('.prs-comment').getAttribute('data-i')), actBtn.getAttribute('data-draft-act'));
+    const showBtn = e.target.closest('[data-draft-show]');
+    if (showBtn) {
+      const k = showBtn.getAttribute('data-draft-show');
+      state[k] = !state[k];
+      saveState();
+      return renderDrafts();
+    }
     const textBtn = e.target.closest('[data-copy-text]');
     if (textBtn) return copyText(textBtn.getAttribute('data-copy-text'), textBtn);
     const viewBtn = e.target.closest('[data-view]');
@@ -1048,6 +1072,74 @@ export function storyOverlay(INPUT, opts = {}) {
     healthTimer = setInterval(() => { if (document.visibilityState === 'visible') refreshHealth(); }, 10000);
   } else $('.prs-light').hidden = true;
 
+  // ---------- drafted comments: posted, in his pending review, dismissed, or still a draft
+  let draftRows = [];
+  let draftError = null;
+  let draftsAt = 0;
+  async function refreshDrafts(force) {
+    if (!opts.drafts || inBackstory()) return;
+    if (!force && Date.now() - draftsAt < 10000) return renderDrafts();
+    draftsAt = Date.now();
+    try { const r = await opts.drafts.load(); draftRows = r.drafts || []; draftError = r.error || null; } catch (e) { draftError = e && e.message; }
+    renderDrafts();
+  }
+  async function draftAct(i, action) {
+    try { const r = await opts.drafts.act(state.n, i, action); draftRows = r.drafts || draftRows; draftError = r.error || null; draftsAt = Date.now(); } catch (e) { message(`Couldn't save that: ${e && e.message ? e.message : e}`); }
+    renderDrafts();
+  }
+  function renderDrafts() {
+    const box = $('.prs-drafts');
+    if (!box || !state.n || inBackstory()) return;
+    const rows = draftRows.filter((r) => r.chapter === state.n);
+    const by = new Map(rows.map((r) => [r.index, r]));
+    let posted = 0; let pending = 0; let dismissed = 0;
+    for (const el of box.querySelectorAll('.prs-comment[data-i]')) {
+      const r = by.get(Number(el.getAttribute('data-i'))) || { status: 'draft', dismissed: false };
+      const st = el.querySelector('.prs-cstate');
+      const btns = el.querySelector('.prs-cbtns');
+      for (const b of btns.querySelectorAll('[data-draft-act]')) b.remove();
+      el.classList.remove('prs-c-done', 'prs-c-pending');
+      el.hidden = false;
+      st.hidden = true;
+      const link = r.url ? ` · <a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">view on GitHub</a>` : '';
+      const add = (act, label, title) => btns.insertAdjacentHTML('afterbegin', `<button data-draft-act="${act}" title="${esc(title)}">${label}</button>`);
+      if (r.dismissed) {
+        dismissed++;
+        el.classList.add('prs-c-done');
+        el.hidden = !state.showDismissed;
+        st.hidden = false;
+        st.innerHTML = 'Dismissed. It won\'t be suggested again for this PR.';
+        add('restore', 'Restore', 'Bring this draft back');
+      } else if (r.status === 'posted') {
+        posted++;
+        el.classList.add('prs-c-done');
+        el.hidden = !state.showPosted;
+        st.hidden = false;
+        st.innerHTML = `<span class="prs-ok">Posted ✓</span>${r.source === 'manual' ? ' (you marked it)' : ''}${link}`;
+        add('unposted', 'Unmark', r.source === 'manual' ? 'Mark it as not posted' : 'Not the same comment? Show it as a draft again');
+      } else if (r.status === 'pending') {
+        pending++;
+        el.classList.add('prs-c-done', 'prs-c-pending');
+        st.hidden = false;
+        st.innerHTML = `<span class="prs-pend">In your pending review</span>, not submitted yet${link}`;
+      } else {
+        add('dismiss', 'Dismiss', 'Not a comment you want: hide it, and don\'t suggest it again');
+        add('posted', 'Mark posted', 'You posted this (or your own version of it)');
+      }
+    }
+    const left = rows.length ? rows.length - posted - pending - dismissed : box.querySelectorAll('.prs-comment[data-i]').length;
+    box.querySelector('.prs-draftsum').textContent = rows.length ? `(${[`${left} to post`, posted && `${posted} posted`, pending && `${pending} pending`, dismissed && `${dismissed} dismissed`].filter(Boolean).join(' · ')})` : '';
+    box.querySelector('.prs-drafttoggles').innerHTML = [
+      posted ? `<button class="prs-linkish" data-draft-show="showPosted">${state.showPosted ? 'Hide' : 'Show'} posted (${posted})</button>` : '',
+      dismissed ? `<button class="prs-linkish" data-draft-show="showDismissed">${state.showDismissed ? 'Hide' : 'Show'} dismissed (${dismissed})</button>` : '',
+      draftError ? `<span class="prs-why" title="${esc(draftError)}">Couldn't check GitHub for posted comments; Mark posted still works.</span>` : '',
+    ].filter(Boolean).join(' ');
+  }
+  let draftTimer = 0;
+  if (opts.drafts) draftTimer = setInterval(() => { if (document.visibilityState === 'visible') refreshDrafts(true); }, 60000);
+  const onFocusDrafts = () => refreshDrafts(true);
+  window.addEventListener('focus', onFocusDrafts);
+
   // ---------- where Eric is: the step and the file at the top of the screen
   let posTimer = 0;
   let lastPos = '';
@@ -1148,6 +1240,8 @@ export function storyOverlay(INPUT, opts = {}) {
     clearTimeout(posTimer);
     clearTimeout(flashTimer);
     clearInterval(healthTimer);
+    clearInterval(draftTimer);
+    window.removeEventListener('focus', onFocusDrafts);
     settleToken++;
     clearInterval(qaTimer);
     window.removeEventListener('resize', onResize);
@@ -1171,6 +1265,7 @@ export function storyOverlay(INPUT, opts = {}) {
   setCollapsed(state.collapsed);
   renderBody();
   if (Number.isFinite(init.bodyScroll)) $('.prs-body').scrollTop = init.bodyScroll; // a live redraw keeps your place
+  refreshDrafts(true);
   apply();
   observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-pressed'] });
   reportPosition();

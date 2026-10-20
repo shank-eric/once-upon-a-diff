@@ -78,6 +78,10 @@ function mount() {
       if (!r.ok) throw new Error(r.error === 'unreachable' ? 'the bridge is not running' : r.error);
       return r.body;
     },
+    drafts: {
+      load: async () => { const r = await bridge('GET', `${storyPath}/drafts`); if (!r.ok) throw new Error(r.error); return r.body; },
+      act: async (chapter, index, action) => { const r = await bridge('POST', `${storyPath}/drafts`, { chapter, index, action }); if (!r.ok) throw new Error(r.error); return r.body; },
+    },
     status: async () => {
       const r = await bridge('GET', `/api/status?story=${encodeURIComponent(storyId)}`);
       if (r.ok) return r.body;
