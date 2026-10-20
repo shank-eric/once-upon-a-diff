@@ -169,7 +169,6 @@ export function storyOverlay(INPUT, opts = {}) {
     display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
   #${NS} .prs-note b { color: var(--c-fg); }
   #${NS} .prs-msg { flex-basis: 100%; color: var(--c-warn); }
-  #${NS} .prs-progress { flex-basis: 100%; }
   #${NS} button.prs-light { border: 0; background: none; padding: 2px 4px; }
   #${NS} .prs-dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--c-muted); vertical-align: middle; }
   #${NS} .prs-light[data-level="ok"] .prs-dot { background: var(--c-ok); }
@@ -181,7 +180,13 @@ export function storyOverlay(INPUT, opts = {}) {
   #${NS} .prs-health .prs-hok { color: var(--c-ok); } #${NS} .prs-health .prs-hwarn { color: var(--c-warn); } #${NS} .prs-health .prs-herr { color: var(--c-err); }
   #${NS} .prs-askhint { padding: 6px 10px 0; font-size: 12px; color: var(--c-warn); background: var(--c-subtle); border-top: 1px solid var(--c-border); }
   #${NS} .prs-askhint code { font-size: 11px; }
+  #${NS} .prs-progress { margin: 0 0 10px; padding: 4px 8px; font-size: 12px; color: var(--c-muted); border-left: 3px solid var(--c-border); }
   #${NS} .prs-progress:empty { display: none; }
+  #${NS} .prs-progress.prs-complete { border-left-color: var(--c-ok); }
+  #${NS} .prs-early-box { margin: 0 0 10px; padding: 6px 8px; font-size: 12px; border: 1px solid var(--c-warn); border-radius: 6px; }
+  #${NS} .prs-early-box:empty { display: none; }
+  #${NS} .prs-early-box p { margin: 0 0 3px; }
+  #${NS} .prs-viewed.prs-early { color: var(--c-warn); }
   #${NS} .prs-progress .prs-done { color: var(--c-ok); font-weight: 600; }
   #${NS} .prs-progress b { color: var(--c-fg); }
   #${NS} .prs-stepprog { font-size: 11px; color: var(--c-muted); margin-left: 4px; }
@@ -556,7 +561,7 @@ export function storyOverlay(INPUT, opts = {}) {
       <button class="prs-next" title="Next step">Next &rarr;</button>
       <button class="prs-close" title="Remove the overlay and show every file">&times;</button>
     </div>
-    <div class="prs-note"><span class="prs-count-note"></span><div class="prs-health" hidden></div><div class="prs-progress" aria-live="polite"></div><span class="prs-msg"></span></div>
+    <div class="prs-note"><span class="prs-count-note"></span><div class="prs-health" hidden></div><span class="prs-msg"></span></div>
     <div class="prs-body"></div>
     <div class="prs-askhint" hidden></div>
     <form class="prs-ask${opts.ask ? '' : ' prs-off'}">
@@ -612,11 +617,28 @@ export function storyOverlay(INPUT, opts = {}) {
   const short = (rel) => rel.split('/').pop();
   function renderViewed() {
     const blocks = new Map(fileBlocks().map((b) => [b.rel, b]));
+    // viewed too early: a file whose last chapter is still to come (it comes back later, or it's only a later chapter's), never one already finished
+    const n0 = inBackstory() ? 0 : state.n;
+    const earlyFor = (rel) => n0 > 0 && finishedIn[rel] != null && finishedIn[rel] > n0;
     for (const el of panel.querySelectorAll('[data-viewed-for]')) {
-      const v = isViewed(el.getAttribute('data-viewed-for'), blocks);
-      el.textContent = v ? '✓ viewed' : '';
+      const rel = el.getAttribute('data-viewed-for');
+      const v = isViewed(rel, blocks);
+      const early = v === true && earlyFor(rel);
+      el.textContent = v === true ? (early ? '⚠ viewed early' : '✓ viewed') : '';
+      el.classList.toggle('prs-early', early);
+      el.title = early ? `Marked viewed, but chapter ${finishedIn[rel]} covers more of it. You may want to unmark it until then.` : '';
+    }
+    const earlyBox = $('.prs-early-box');
+    if (earlyBox) {
+      const inCh = n0 ? new Set(chapter().files.map((f) => f.rel)) : new Set();
+      const early = n0 ? allRels.filter((rel) => earlyFor(rel) && isViewed(rel, blocks) === true) : [];
+      earlyBox.innerHTML = early.map((rel) => (inCh.has(rel)
+        ? `<p>⚠ <code data-rel="${esc(rel)}">${esc(short(rel))}</code> is marked viewed, but chapter ${finishedIn[rel]} covers more of it. You may want to unmark it until then.</p>`
+        : `<p>⚠ <code>${esc(short(rel))}</code> is marked viewed early: it belongs to chapter ${finishedIn[rel]}. You may want to unmark it until then.</p>`)).join('');
     }
     const box = $('.prs-progress');
+    if (!box) return;
+    box.classList.remove('prs-complete');
     if (inBackstory()) { box.innerHTML = ''; return; }
     const all = DATA.chapters.map((c, i) => progressOf(i + 1, blocks));
     if (all.some((p) => p.noToggle) && !all.some((p) => p.viewed || p.unviewed.length)) { box.innerHTML = ''; return; } // no Viewed toggles on this page to read
@@ -633,6 +655,7 @@ export function storyOverlay(INPUT, opts = {}) {
       const due = all.reduce((a, p) => a + p.due, 0);
       const viewed = all.reduce((a, p) => a + p.viewed, 0);
       const left = all.map((p, i) => ({ p, i })).filter(({ p }) => p.viewed < p.due).map(({ i }) => i + 1);
+      box.classList.toggle('prs-complete', !!due && viewed === due);
       box.innerHTML = !due ? '' : viewed === due
         ? `<span class="prs-done">✓ All ${due} files marked viewed</span>`
         : `<b>${viewed} of ${due}</b> files marked viewed${left.length ? ` · chapter${left.length > 1 ? 's' : ''} ${left.join(', ')} still ${left.length > 1 ? 'have' : 'has'} some to go` : ''}`;
@@ -640,7 +663,7 @@ export function storyOverlay(INPUT, opts = {}) {
     }
     const p = all[state.n - 1];
     if (!p || !p.due) { box.innerHTML = '<span>Nothing to mark viewed in this chapter</span>'; return; }
-    if (p.viewed === p.due) { box.innerHTML = `<span class="prs-done">✓ All ${p.due} marked viewed</span>`; return; }
+    if (p.viewed === p.due) { box.classList.add('prs-complete'); box.innerHTML = `<span class="prs-done">✓ All ${p.due} marked viewed</span>`; return; }
     box.innerHTML = `<b>${p.viewed} of ${p.due}</b> marked viewed`
       + (p.unviewed.length ? ` · still to mark: ${linkList(p.unviewed)}` : '')
       + (p.unknown.length ? ` · ${p.unknown.length} not loaded yet` : '');
@@ -741,6 +764,15 @@ export function storyOverlay(INPUT, opts = {}) {
         ${filesBox(`Files in this chapter (${ch.files.length})`, filesSummary(state.n), files)}`;
     }
     $('.prs-body').innerHTML = `<h2 class="prs-h">${bsv ? 'Backstory steps' : 'Steps'}</h2><ol class="prs-map">${stepList}</ol>${body}<div class="prs-questions"></div>`;
+    if (!bsv) {
+      // the viewed tracker sits right under the chapter's (or the Overview's) first heading
+      const md = $('.prs-body .prs-md');
+      const holder = document.createElement('div');
+      holder.innerHTML = '<div class="prs-progress" aria-live="polite"></div><div class="prs-early-box" role="status"></div>';
+      const head = md && md.querySelector(':scope > h1, :scope > h2, :scope > h3, :scope > h4');
+      if (head) head.after(...holder.childNodes);
+      else if (md) md.prepend(...holder.childNodes);
+    }
     const fbox = $('.prs-body details.prs-filesbox');
     if (fbox) fbox.addEventListener('toggle', () => { if (state.filesOpen !== fbox.open) { state.filesOpen = fbox.open; saveState(); } });
     renderQuestions();
