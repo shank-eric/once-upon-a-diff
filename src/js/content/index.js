@@ -132,6 +132,10 @@ async function sync() {
       const st = await bridge('GET', `/api/builds/status?${q}`);
       if (cur !== mine) return;
       cur.build = st.ok ? st.body.request : null;
+      // is anyone there to build it? (the status light's listening check)
+      const ls = await bridge('GET', '/api/status');
+      if (cur !== mine) return;
+      cur.listening = ls.ok ? ls.body.listening : null;
       cur.status = st.ok && st.body.state === 'building' ? 'building' : 'none';
       if (st.ok && st.body.state === 'ready') { cur = null; return; } // it turned up in between; the next tick picks it up
       return;
@@ -166,10 +170,11 @@ const status = statusControl({
 function refreshStatus() {
   if (!alive() || !cur || !prOfLocation()) return status.set('hidden');
   if (cur.data) return status.set(cur.overlay && document.getElementById(PANEL_ID) ? 'hidden' : 'ready');
-  if (cur.status === 'building') return status.set('building', { requested_at: cur.build && cur.build.requested_at });
+  const prompt = cur.listening && !cur.listening.ok ? cur.listening.prompt : null;
+  if (cur.status === 'building') return status.set('building', { requested_at: cur.build && cur.build.requested_at, prompt });
   if (cur.status === 'none') {
     const failed = cur.build && cur.build.status === 'failed' ? 'Last build failed.' : '';
-    return status.set('none', { note: failed });
+    return status.set('none', { note: failed, prompt });
   }
   if (cur.status === 'unreachable') return status.set('offline', { note: 'Story bridge offline' });
   if (/HTTP 401|token/.test(cur.status || '')) return status.set('offline', { note: 'Story bridge rejected the token' });

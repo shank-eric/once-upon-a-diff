@@ -38,6 +38,38 @@ export class Builds {
   save(all) { writeFileSync(this.file, JSON.stringify(all, null, 2)); }
 
   get(repo, number) { return this.all()[buildKey(repo, number)] || null; }
+
+  /** Build ids already handed to a `diff-story wait` consumer, kept in <home>/cursors/<consumer>.builds.json. */
+  handedFile(consumer) { return path.join(this.home, 'cursors', `${consumer}.builds.json`); }
+  handed(consumer) {
+    try { return new Set(JSON.parse(readFileSync(this.handedFile(consumer), 'utf8')).ids || []); } catch { return new Set(); }
+  }
+  markHanded(consumer, ids) {
+    if (!ids.length) return;
+    const pendingIds = new Set(this.pending().map(b => b.id));
+    const keep = [...this.handed(consumer)].filter(id => pendingIds.has(id)); // finished ones drop out
+    mkdirSync(path.dirname(this.handedFile(consumer)), { recursive: true });
+    writeFileSync(this.handedFile(consumer), JSON.stringify({ ids: [...new Set([...keep, ...ids])], at: new Date().toISOString() }));
+  }
+
+  /**
+   * The build requests a wait should hand over: new ones from the inbox, plus pending requests this consumer
+   * was never given (asked before it first waited, or before its inbox cursor). Each goes to a consumer once,
+   * and finished ones are skipped.
+   */
+  toHand(consumer, inboxEntries) {
+    const pending = new Map(this.pending().map(b => [b.id, b]));
+    const handed = this.handed(consumer);
+    const fresh = inboxEntries.filter(e => e.type === 'build_request' && pending.has(e.id) && !handed.has(e.id));
+    const seen = new Set(fresh.map(e => e.id));
+    const backlog = [...pending.values()].filter(b => !handed.has(b.id) && !seen.has(b.id))
+      .sort((a, b) => Date.parse(a.requested_at) - Date.parse(b.requested_at))
+      .map(b => ({
+        type: 'build_request', id: b.id, at: b.requested_at, repo: b.repo, number: b.number, url: b.url, requested_at: b.requested_at,
+        ...(b.mode === 'update' ? { mode: 'update', base_sha: b.base_sha } : {}), text: `Build a story for ${b.repo}#${b.number}: ${b.url}`, backlog: true,
+      }));
+    return [...backlog, ...fresh];
+  }
   pending() { return Object.values(this.all()).filter(b => b.status === 'pending'); }
 
   /** A new request, or the pending one already there for that PR. Throws on a bad repo or number. The URL is always rebuilt from them. */

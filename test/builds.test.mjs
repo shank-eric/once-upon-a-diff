@@ -2,6 +2,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
+import { execFile } from 'node:child_process';
 import { tmp, githubStory, startBridge } from './helpers.mjs';
 import { Builds } from '../bridge/lib/builds.mjs';
 import { Inbox } from '../bridge/lib/inbox.mjs';
@@ -89,4 +90,37 @@ test('PR lists get ready / building / none for many PRs in one call', async () =
     assert.equal(r.body.results[0].story, 'acme-widgets-7');
     assert.equal((await b.call('POST', '/api/stories/status-many', { prs: 'nope' })).body.results.length, 0);
   } finally { await b.close(); }
+});
+
+describe('diff-story wait hands over build requests asked before it started', () => {
+  const BIN = path.resolve(path.dirname(new URL(import.meta.url).pathname), '../bridge/bin/diff-story.mjs');
+  const wait = (home, consumer) => new Promise(resolve => {
+    execFile(process.execPath, [BIN, 'wait', '--type', 'question,build_request', '--consumer', consumer, '--timeout', '1', '--json'],
+      { env: { ...process.env, DIFF_STORY_HOME: home } }, (err, stdout) => resolve({ code: err ? err.code : 0, entries: stdout.trim() ? stdout.trim().split('\n').map(JSON.parse) : [] }));
+  });
+
+  test('a new consumer gets the pending backlog once, finished ones are skipped, and a new request still comes through', async () => {
+    const home = tmp('home');
+    const builds = new Builds(home, new Inbox(home));
+    const a = builds.request({ repo: 'acme/widgets', number: 1 });
+    const c = builds.request({ repo: 'acme/widgets', number: 2 });
+    const d = builds.request({ repo: 'acme/gadgets', number: 3 });
+    builds.done(c.id);
+
+    const first = await wait(home, 'fresh');
+    assert.equal(first.code, 0);
+    assert.deepEqual(first.entries.map(e => e.id), [a.id, d.id], 'pending ones, oldest first; the done one is skipped');
+    assert.ok(first.entries.every(e => e.type === 'build_request' && e.url.startsWith('https://github.com/')));
+
+    const again = await wait(home, 'fresh');
+    assert.equal(again.code, 2, 'nothing new: it times out instead of handing them over twice');
+
+    const e = builds.request({ repo: 'acme/widgets', number: 9 });
+    const next = await wait(home, 'fresh');
+    assert.deepEqual(next.entries.map(x => x.id), [e.id], 'a request made since comes through once, not again from the backlog');
+    assert.equal((await wait(home, 'fresh')).code, 2);
+
+    const other = await wait(home, 'another');
+    assert.deepEqual(other.entries.map(x => x.id).sort(), [a.id, d.id, e.id].sort(), 'each consumer gets its own backlog');
+  });
 });
