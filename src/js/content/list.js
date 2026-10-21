@@ -6,6 +6,8 @@
  * the PR page's button). One batched bridge call per page. The badges are our
  * own buttons in their own shadow roots; nothing of GitHub's is clicked.
  */
+import { copyWithFeedback } from './copy.js';
+
 const ATTR = 'data-dsm-badge';
 const PR_HREF = /^\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/;
 const alive = () => !!(globalThis.chrome && chrome.runtime && chrome.runtime.id);
@@ -31,6 +33,7 @@ const CSS = `
   .b.ready { color: var(--fgColor-success, #1a7f37); border-color: var(--fgColor-success, #1a7f37); }
   .b.stale { color: var(--fgColor-attention, #9a6700); border-color: var(--fgColor-attention, #9a6700); }
   .b.building { cursor: default; }
+  .b.copy { margin-left: 4px; }
   .b.building:hover { color: var(--fgColor-muted, #59636e); border-color: var(--borderColor-default, #d1d9e0); }
   .spin { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid currentColor; border-top-color: transparent; animation: s .9s linear infinite; }
   @keyframes s { to { transform: rotate(360deg); } }
@@ -60,6 +63,9 @@ function prLinks() {
 }
 
 const results = new Map(); // "owner/repo#n" -> {state, story, request}
+let listening = null; // from status-many: is a Claude session there to pick build requests up?
+const COPY = '<button class="b copy" data-act="copy" title="No Claude session is listening for build requests. Copy a prompt to paste into a Claude Code session, which then builds stories and answers questions">Copy prompt for Claude</button>';
+const copyBtn = () => (listening && !listening.ok && listening.prompt ? COPY : '');
 const keyOf = (repo, number) => `${repo}#${number}`.toLowerCase();
 
 function badgeFor(item) {
@@ -84,12 +90,20 @@ function render(item) {
   if (r.state === 'ready' && r.updating) slot.innerHTML = `<a class="b building" href="${href}" title="An update to the latest commit was asked for"><span class="spin"></span>Story · updating…</a>`;
   else if (r.state === 'ready' && r.stale) slot.innerHTML = `<a class="b stale" href="${href}" title="The story is for ${String(r.story_head).slice(0, 7)}; the PR has newer commits (${String(r.current_head).slice(0, 7)})">Story · out of date</a>`;
   else if (r.state === 'ready') slot.innerHTML = `<a class="b ready" href="${href}" title="Open the story on Files changed${r.story_head ? ` (up to date with ${String(r.story_head).slice(0, 7)})` : ''}">Story</a>`;
-  else if (r.state === 'building') slot.innerHTML = `<span class="b building" title="A story was asked for${r.request && r.request.requested_at ? ` at ${new Date(r.request.requested_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}"><span class="spin"></span>Building…</span>`;
-  else slot.innerHTML = `<button class="b" data-act="build" title="Ask a Claude session to write a story for this PR">Build story</button>`;
+  else if (r.state === 'building') slot.innerHTML = `<span class="b building" title="A story was asked for${r.request && r.request.requested_at ? ` at ${new Date(r.request.requested_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}"><span class="spin"></span>Building…</span>${copyBtn()}`;
+  else slot.innerHTML = `<button class="b" data-act="build" title="Ask a Claude session to write a story for this PR">Build story</button>${copyBtn()}`;
 }
 
 async function onClick(e, item) {
-  const b = e.composedPath()[0].closest && e.composedPath()[0].closest('[data-act="build"]');
+  const target = e.composedPath()[0];
+  const c = target.closest && target.closest('[data-act="copy"]');
+  if (c) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (listening && listening.prompt) copyWithFeedback(listening.prompt, c, c.getRootNode());
+    return;
+  }
+  const b = target.closest && target.closest('[data-act="build"]');
   if (!b) return; // the Story link is a plain link
   e.preventDefault();
   e.stopPropagation();
@@ -112,6 +126,7 @@ async function scan(force) {
       const r = await bridge('POST', '/api/stories/status-many', { prs: need.slice(0, 200).map(i => ({ repo: i.repo, number: i.number })) });
       if (!r.ok) return; // no bridge, no badges: the list stays as GitHub draws it
       for (const x of r.body.results) results.set(keyOf(x.repo, x.number), x);
+      if (r.body.listening) listening = r.body.listening;
       lastAsk = Date.now();
     }
     for (const i of items) render(i);

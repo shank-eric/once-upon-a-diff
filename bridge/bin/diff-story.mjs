@@ -175,8 +175,15 @@ const COMMANDS = {
     // the heartbeat the panel's "Claude listening" light reads
     beat(home, consumer, 'waiting');
     const hb = setInterval(() => beat(home, consumer, 'waiting'), 5000);
+    // build requests also come from builds.json, so ones asked before this consumer started aren't missed
+    const builds = !opts.story && want.type.split(',').includes('build_request') ? new Builds(home, inbox) : null;
     for (;;) {
-      const entries = filterEntries(inbox.unread(consumer, { advance: true }), want);
+      let entries = filterEntries(inbox.unread(consumer, { advance: true }), want);
+      if (builds) {
+        const handing = builds.toHand(consumer, entries);
+        entries = [...entries.filter(e => e.type !== 'build_request'), ...handing];
+        builds.markHanded(consumer, handing.map(e => e.id));
+      }
       if (entries.length) {
         clearInterval(hb);
         beat(home, consumer, 'handling', { question: entries[0].id });

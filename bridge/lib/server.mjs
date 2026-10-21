@@ -24,7 +24,7 @@ import { addComment } from './comments.mjs';
 import { freshness, currentHead } from './freshness.mjs';
 import { stateKeyOf, readMarks, mark, draftStatus, githubComments, forgetComments } from './drafts.mjs';
 import { addToPendingReview } from './review.mjs';
-import { statusOf, answerContext, runAutoAnswer } from './health.mjs';
+import { statusOf, listeningOf, answerContext, runAutoAnswer } from './health.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.resolve(HERE, '../public');
@@ -175,7 +175,8 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
         await Promise.all(results.filter(r => r.state === 'ready' && r.story_head).map(async r => {
           try { const head = await currentHead(r.repo, r.number); r.current_head = head; r.stale = head !== r.story_head; } catch { r.stale = null; }
         }));
-        return send(200, { results });
+        // whether anyone will pick a build request up, for the badges' "Copy prompt for Claude"
+        return send(200, { results, listening: listeningOf(home) });
       }
       if (p === '/api/builds/status' && req.method === 'GET') {
         const repo = url.searchParams.get('repo') || '';

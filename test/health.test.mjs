@@ -80,26 +80,32 @@ test('doctor passes the bridge when it is up', async () => {
   } finally { await b.close(); }
 });
 
-test("the panel's Copy prompt for Claude: the wait command for this story, and how to answer", async () => {
-  const p = listenPrompt('local-x', 'diff-story');
-  assert.equal(p.command, 'diff-story wait --story local-x --type question --consumer pr-story');
-  assert.match(p.prompt, /^Run `diff-story wait --story local-x --type question --consumer pr-story` as a background task\./);
+test('Copy prompt for Claude: one wait for questions and build requests, and how to answer and build', async () => {
+  const p = listenPrompt('diff-story');
+  assert.equal(p.command, 'diff-story wait --type question,build_request --consumer pr-story');
+  assert.match(p.prompt, /^Run `diff-story wait --type question,build_request --consumer pr-story` as a background task, and start it again each time it exits\./);
   assert.match(p.prompt, /`diff-story answer --question <id> --text "<answer>"`/);
-  assert.match(p.prompt, /start the wait again/);
+  assert.match(p.prompt, /\/pr-story <PR url>/);
+  assert.match(p.prompt, /`diff-story done <id>`/);
 
   assert.equal(cliCommand(true), 'diff-story');
   const full = cliCommand(false);
   assert.ok(full.startsWith(process.execPath), 'off PATH it names node by full path');
   assert.match(full, /\/bridge\/bin\/diff-story\.mjs$/);
-  assert.match(listenPrompt('s', full).command, /diff-story\.mjs wait --story s /);
+  assert.match(listenPrompt(full).prompt, /diff-story\.mjs done <id>/);
 
   const home = tmp('home');
   githubStory(path.join(home, 'acme-widgets-7'));
   const b = await startBridge({ home });
   try {
     const l = (await b.call('GET', '/api/status?story=acme-widgets-7')).body.listening;
-    assert.match(l.command, /wait --story acme-widgets-7 --type question --consumer pr-story$/);
+    assert.match(l.command, /wait --type question,build_request --consumer pr-story$/);
     assert.ok(l.prompt.includes(l.command));
-    assert.equal((await b.call('GET', '/api/status')).body.listening.prompt, undefined, 'no story, no prompt');
+    assert.equal((await b.call('GET', '/api/status')).body.listening.command, l.command, 'the same prompt with no story, for Build story');
+    const many = (await b.call('POST', '/api/stories/status-many', { prs: [{ repo: 'acme/widgets', number: 7 }] })).body;
+    assert.equal(many.listening.ok, false, 'PR-list badges learn whether anyone is listening');
+    assert.equal(many.listening.prompt, l.prompt);
+    beat(home, 'pr-story');
+    assert.equal((await b.call('POST', '/api/stories/status-many', { prs: [] })).body.listening.ok, true);
   } finally { await b.close(); }
 });

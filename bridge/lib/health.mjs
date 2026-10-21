@@ -69,12 +69,29 @@ export function cliCommand(found = cliCache ?? (cliCache = onPath('diff-story'))
   return found ? 'diff-story' : `${shq(process.execPath)} ${shq(BIN)}`;
 }
 
-/** The panel's "Copy prompt for Claude": paste it into a Claude Code session to have it answer this story's questions. */
-export function listenPrompt(story, cli = cliCommand()) {
-  const wait = `${cli} wait --story ${story} --type question --consumer pr-story`;
+/**
+ * "Copy prompt for Claude" (the Ask box, the PR page's Build story, PR-list badges): one prompt to paste into
+ * a Claude Code session that has it answer questions and build stories for every story and PR.
+ */
+export function listenPrompt(cli = cliCommand()) {
+  const wait = `${cli} wait --type question,build_request --consumer pr-story`;
   return {
     command: wait,
-    prompt: `Run \`${wait}\` as a background task. Each time it exits with a question, answer it here and with \`${cli} answer --question <id> --text "<answer>"\`, then start the wait again. Keep going until I say stop.`,
+    prompt: `Run \`${wait}\` as a background task, and start it again each time it exits. For a question, answer it here and with \`${cli} answer --question <id> --text "<answer>"\`. `
+      + `For a build request, build the story with /pr-story <PR url> (it publishes to ~/.diff-story), then run \`${cli} done <id>\`. Keep going until I say stop.`,
+  };
+}
+
+/** Is a Claude session listening, and the prompt that starts one. */
+export function listeningOf(home) {
+  const ls = listeners(home);
+  const live = ls.filter(l => l.live);
+  return {
+    ok: live.length > 0,
+    consumers: live.map(l => ({ consumer: l.consumer, state: l.state, age_s: l.age_s })),
+    last_seen: ls[0] ? ls[0].at : null,
+    start: 'In a Claude Code session, run as a background task: diff-story wait --consumer pr-story',
+    ...listenPrompt(),
   };
 }
 
@@ -82,18 +99,10 @@ const onOff = cfg => (cfg && cfg.enabled ? { enabled: true, command: cfg.command
 
 /** What the panel's status light shows. */
 export function statusOf({ home, version, story, autoBuild, autoAnswer, extensionSeen }) {
-  const ls = listeners(home);
-  const live = ls.filter(l => l.live);
   return {
     bridge: { ok: true, version },
     story: story === undefined ? null : { ok: !!story, id: story || null },
-    listening: {
-      ok: live.length > 0,
-      consumers: live.map(l => ({ consumer: l.consumer, state: l.state, age_s: l.age_s })),
-      last_seen: ls[0] ? ls[0].at : null,
-      start: 'In a Claude Code session, run as a background task: diff-story wait --consumer pr-story',
-      ...(story ? listenPrompt(story) : {}),
-    },
+    listening: listeningOf(home),
     autoBuild: onOff(autoBuild),
     autoAnswer: onOff(autoAnswer),
     extension_seen: extensionSeen || null,
