@@ -57,11 +57,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   // only the extension's own pages (the options page) may pass unsaved settings; content scripts run on github.com
   const ownPage =
     typeof sender.url === 'string' && sender.url.startsWith(chrome.runtime.getURL(''));
-  const s =
+  const unsaved =
     ownPage && msg.settings && typeof msg.settings === 'object'
       ? { port: Number(msg.settings.port), token: String(msg.settings.token || '') }
       : null;
-  callBridge(msg, s).then(sendResponse);
+  callBridge(msg, unsaved).then(sendResponse);
   return true;
 });
 
