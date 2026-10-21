@@ -70,8 +70,11 @@ test('autoBuild is off unless enabled, and runs an argv command (no shell) with 
   const off = new Builds(home, new Inbox(home), { autoBuild: { enabled: false, command: ['node', '-e', 'process.exit(9)'] } });
   assert.equal(off.autoBuild, null);
   const out = path.join(home, 'ran.txt');
+  // write then rename, so ran.txt never exists half-written (writeFileSync creates it empty first)
+  const [o, t] = [JSON.stringify(out), JSON.stringify(`${out}.tmp`)];
+  const script = `const fs = require('fs'); fs.writeFileSync(${t}, process.argv[1] + ' ' + process.env.DIFF_STORY_NUMBER); fs.renameSync(${t}, ${o})`;
   const builds = new Builds(home, new Inbox(home), {
-    autoBuild: { enabled: true, command: [process.execPath, '-e', `require('fs').writeFileSync(${JSON.stringify(out)}, process.argv[1] + ' ' + process.env.DIFF_STORY_NUMBER)`, '{url}; echo hi'] },
+    autoBuild: { enabled: true, command: [process.execPath, '-e', script, '{url}; echo hi'] },
   });
   const b = builds.request({ repo: 'acme/widgets', number: 7 });
   for (let i = 0; i < 50 && !existsSync(out); i++) await new Promise(r => setTimeout(r, 50));
