@@ -9,7 +9,7 @@ A code-review story (an overview, then chapters) in a side panel docked on top o
 
 The two work the same way and read the same `chapters.json` (pr-story's format). The panel comes back on the same step after a reload, after GitHub's in-page navigation, and when the story on disk changes.
 
-The panel is a port of the pr-story skill's GitHub overlay (`~/.claude/skills/pr-story/bin/overlay.js`). It has the same Overview step, the same per-file "Mark viewed / Leave unviewed: comes back in chapter N / Already finished" status, and the same file and line jumps. It adds a saved step, an Ask box, and a shadow root so the page's CSS can't reach it.
+The panel is a port of the pr-story skill's GitHub overlay (`skills/pr-story/bin/overlay.js`). It has the same Overview step, the same per-file "Mark viewed / Leave unviewed: comes back in chapter N / Already finished" status, and the same file and line jumps. It adds a saved step, an Ask box, and a shadow root so the page's CSS can't reach it.
 
 ## Installing
 
@@ -30,6 +30,11 @@ You need Node 20 or newer. The bridge has no runtime dependencies. `yarn install
    ln -s "$PWD/skills/diff-story-listen" ~/.claude/skills/diff-story-listen
    ```
    Start a new Claude Code session to pick it up. See [Listening from Claude Code](#listening-from-claude-code).
+6. Install the `pr-story` skill the same way. It builds the PR stories the listener is asked for, and finds this repo through the link:
+   ```bash
+   ln -s "$PWD/skills/pr-story" ~/.claude/skills/pr-story
+   ```
+   Its `render` step needs [session-story](https://github.com/nalaj/session-story), pinned at `b432256`, at `~/.claude/skills/session-story` (or `SESSION_STORY_DIR`).
 
 An alias saves typing: `alias diff-story="node ~/Development/SideProjects/diff-story-mode/bridge/bin/diff-story.mjs"`. The rest of this README uses `diff-story`.
 
