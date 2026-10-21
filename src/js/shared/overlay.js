@@ -6,13 +6,17 @@
  *     the same DOM shapes as GitHub's /changes page
  *
  * It adds a side panel, hides other chapters' files with display:none and
- * scrolls the page. It never clicks the host page's Viewed, comment, review or
- * approve controls, never submits the host page's forms and makes no network
- * calls itself. The only host controls it clicks are expand controls, and only
- * when the reviewer clicks a file or line link in the panel: the file's own expand
- * toggle if it's collapsed (Viewed and large files collapse), "Load diff", then
- * the hunk expanders until the line is on the page. GitHub fetches the lines
- * with the page's own settings, so ?w=1 holds. Saving the step, reporting position and sending
+ * scrolls the page. It never clicks the host page's comment, review or approve
+ * controls, never submits the host page's forms and makes no network calls
+ * itself. It clicks only two kinds of host control, and only on the reviewer's
+ * own click in the panel:
+ *   - expand controls, from a file or line link: the file's own expand toggle if
+ *     it's collapsed (Viewed and large files collapse), "Load diff", then the hunk
+ *     expanders until the line is on the page. GitHub fetches the lines with the
+ *     page's own settings, so ?w=1 holds.
+ *   - one file's own Viewed toggle, from that file's "Mark viewed" button (or its
+ *     "Viewed ✓", which unticks it). One click, one file: nothing ticks Viewed on
+ *     its own, on a step change, in bulk or for any other file. Saving the step, reporting position and sending
  * questions all go through callbacks the caller passes in `opts`, and the
  * caller decides where they go (the extension sends them to the bridge
  * through its service worker).
@@ -39,7 +43,7 @@
  *   /changes  file:   [role=region][id="diff-<sha256(path)>"], wrapped by a
  *                     one-child div inside [data-testid=progressive-diffs-list]
  *             line:   [data-line-anchor="diff-<sha>R<n>"] (L<n> for removed lines)
- *             viewed: header button[aria-pressed] whose text is "Viewed" (read only)
+ *             viewed: header button[aria-pressed] whose text is "Viewed" (clicked only by Mark viewed)
  *             tree:   [role=tree] [role=treeitem], id = file or folder path
  *             expand: header button labelled "Expand file" (aria-labelledby) when collapsed;
  *                     hunk rows hold td.diff-hunk-cell and button[data-direction=up|down|all];
@@ -47,7 +51,7 @@
  *                     "Expand all lines: <path>" (.js-expand-all-difflines-button) opens the file
  *   /files    file:   copilot-diff-entry[data-file-path] or .file[data-tagsearch-path]
  *             line:   #diff-<sha>R<n>
- *             viewed: input.js-reviewed-checkbox (read only)
+ *             viewed: input.js-reviewed-checkbox (clicked only by Mark viewed)
  *             tree:   file-tree li[data-tree-entry-type] with a[href="#diff-<sha>"]
  *             expand: .file-header .js-details-target "Toggle diff contents" [aria-expanded=false];
  *                     tr.js-expandable-line holds a.js-expand "Expand Up|Down|All"
@@ -118,7 +122,7 @@ export function chapterKeyOf(ch) {
 }
 export const READ_MS = 30000;
 /**
- * Where each file is marked viewed: the LAST chapter that lists it (earlier ones say "comes back in chapter N"),
+ * Where each file is marked viewed: the LAST chapter that lists it (earlier ones leave it untagged),
  * except that a "Since you read it" chapter (one with `since`) finishes its files, the newest (first) one winning.
  */
 export function finishedInOf(chapters) {
@@ -131,18 +135,15 @@ const PILL_MARK = /\u0001(\d+)\u0001/g;
 const pillMarker = (i) => `\u0001${i}\u0001`;
 /**
  * Fills a chapter story's pill markers (pillMarker(i) for the i-th file mention, marks[i] its file) in reading order:
- * a file's last mention gets pillFor(rel, false), its first (when there's more than one) pillFor(rel, true), the rest nothing.
+ * a file's last mention gets pillFor(rel), every earlier mention nothing.
  */
 export function placePills(html, marks, pillFor) {
-  const first = new Map();
   const last = new Map();
-  marks.forEach((rel, i) => { if (!first.has(rel)) first.set(rel, i); last.set(rel, i); });
+  marks.forEach((rel, i) => { last.set(rel, i); });
   return String(html).replace(PILL_MARK, (m, k) => {
     const i = Number(k);
     const rel = marks[i];
-    if (rel == null) return '';
-    if (last.get(rel) === i) return pillFor(rel, false);
-    return first.get(rel) === i ? pillFor(rel, true) : '';
+    return rel != null && last.get(rel) === i ? pillFor(rel) : '';
   });
 }
 export { pillMarker };
@@ -275,7 +276,7 @@ export function storyOverlay(INPUT, opts = {}) {
 
   // ---------- where each file is finished, and what to tell the reviewer about it
   // A file is marked viewed in the LAST chapter that lists it, whether or not the earlier listings say partial,
-  // or in the "Since you read it" chapter that lists it. Every earlier chapter says "Leave unviewed: comes back in chapter N".
+  // or in the "Since you read it" chapter that lists it. Every earlier chapter leaves it untagged: no pill, no status line.
   const finishedIn = finishedInOf(DATA.chapters);
   const chaptersOf = (rel) => DATA.chapters.map((c, i) => (c.files.some((f) => f.rel === rel) ? i + 1 : 0)).filter(Boolean);
   function status(rel, n) {
@@ -284,7 +285,7 @@ export function storyOverlay(INPUT, opts = {}) {
     if (!e) return null;
     const fin = finishedIn[rel];
     if (fin != null && fin < n) return { kind: 'done', text: `Already finished in ${chName(fin)}`, short: `done in ${chShort(fin)}` };
-    if (fin != null && fin > n) return { kind: 'later', text: `Leave unviewed: comes back in ${chName(fin)}${e.note ? ` (${e.note})` : ''}`, short: `back in ${chShort(fin)}` };
+    if (fin != null && fin > n) return { kind: 'later', text: '', short: '' }; // shown as nothing: it isn't this chapter's to mark
     return { kind: 'mark', text: 'Mark viewed', short: 'mark viewed' };
   }
 
@@ -450,7 +451,9 @@ export function storyOverlay(INPUT, opts = {}) {
   #${NS} [data-rel] { color: var(--c-accent); cursor: pointer; }
   #${NS} [data-rel]:hover { text-decoration: underline; }
   #${NS} .prs-pill { font-size: 11px; padding: 0 5px; border-radius: 9px; border: 1px solid currentColor; margin-left: 3px; white-space: nowrap; }
-  #${NS} .prs-pill.prs-more { color: var(--c-muted); border-style: dashed; }
+  #${NS} button.prs-mark { font-size: 11px; line-height: 16px; padding: 0 7px; border-radius: 9px; border: 1px solid currentColor; background: var(--c-bg); cursor: pointer; margin-left: 3px; white-space: nowrap; }
+  #${NS} button.prs-mark:hover { background: var(--c-subtle); }
+  #${NS} ul.prs-files button.prs-mark { margin: 2px 0 0; }
   #${NS} .prs-st-mark { color: var(--c-ok); } #${NS} .prs-st-later { color: var(--c-warn); } #${NS} .prs-st-done, #${NS} .prs-st-viewed { color: var(--c-muted); }
   #${NS} .prs-viewed { color: var(--c-ok); font-size: 12px; margin-left: 4px; white-space: nowrap; }
   #${NS} .prs-viewed:empty { display: none; }
@@ -545,8 +548,9 @@ export function storyOverlay(INPUT, opts = {}) {
   }
   /**
    * The status pill on a file's mention. While a chapter's story is drawn (pillMarks set), each mention leaves a
-   * marker, and placePills() puts the pill on the file's LAST mention in reading order. Elsewhere (an answer), it
-   * goes on the first mention of a file the story didn't pill.
+   * marker, and placePills() puts the pill on the file's LAST mention in reading order; earlier mentions get nothing.
+   * Elsewhere (an answer), it goes on the first mention of a file the story didn't pill. A file this chapter finishes
+   * gets the Mark viewed button; one a later chapter finishes gets nothing.
    */
   let pillMarks = null;
   function pill(rel) {
@@ -556,14 +560,17 @@ export function storyOverlay(INPUT, opts = {}) {
     pilled.add(rel);
     return pillHtml(rel);
   }
-  function pillHtml(rel, earlier) {
+  function pillHtml(rel) {
     const st = status(rel, state.n);
-    if (!st) return '';
-    if (earlier) return st.kind === 'mark' ? '<span class="prs-pill prs-more" title="Mark it viewed at its last mention: this chapter comes back to it below">more below</span>' : '';
-    const mark = st.kind === 'mark' ? ` data-mark-for="${esc(rel)}" data-mark-short="1"` : ''; // renderViewed says "viewed ✓" once it's ticked
-    return `<span class="prs-pill prs-st-${st.kind}"${mark} title="${esc(st.text)}">${esc(st.short)}</span>`;
+    if (!st || st.kind === 'later') return '';
+    if (st.kind === 'mark') return markButton(rel, true);
+    return `<span class="prs-pill prs-st-${st.kind}" title="${esc(st.text)}">${esc(st.short)}</span>`;
   }
-  /** A chapter's story with its pill markers filled in: the status on each file's last mention, "more below" on its first. */
+  /** The Mark viewed button for a file this chapter finishes. renderViewed keeps its label in step with the file's Viewed toggle. */
+  function markButton(rel, short) {
+    return `<button type="button" class="prs-mark prs-st-mark" data-mark-for="${esc(rel)}"${short ? ' data-mark-short="1"' : ''} title="Tick ${esc(rel)}'s Viewed checkbox">${short ? 'mark viewed' : 'Mark viewed'}</button>`;
+  }
+  /** A chapter's story with its pill markers filled in: the status on each file's last mention, nothing on the earlier ones. */
   function storyWithPills(draw) {
     const marks = [];
     pillMarks = marks;
@@ -735,14 +742,33 @@ export function storyOverlay(INPUT, opts = {}) {
     // /changes anchors an unchanged line by its new number only; its old one is in data-diff-line-key
     return document.querySelector(`table[data-diff-anchor="diff-${sha}"] .diff-line-number-neutral[data-diff-line-key*="-l:${n}-"]`);
   }
+  /** A file block's own Viewed toggle: /changes' (and the local page's) header button, or classic /files' checkbox. */
+  const viewedToggleIn = (el) => [...el.querySelectorAll('button[aria-pressed]')].find((x) => /^\s*viewed\s*$/i.test(x.textContent))
+    || el.querySelector('input.js-reviewed-checkbox') || null;
   /** true/false from the file header's Viewed toggle, or null when it can't tell. Never clicks it. */
   function isViewed(rel, blocks) {
     const b = blocks ? blocks.get(rel) : blockOf(rel);
     if (!b) return null;
-    const btn = [...b.el.querySelectorAll('button[aria-pressed]')].find((x) => /^\s*viewed\s*$/i.test(x.textContent));
-    if (btn) return btn.getAttribute('aria-pressed') === 'true';
-    const cb = b.el.querySelector('input.js-reviewed-checkbox');
-    return cb ? cb.checked : 'none'; // the file is on the page but has no Viewed toggle (logged out, say)
+    const t = viewedToggleIn(b.el);
+    if (!t) return 'none'; // the file is on the page but has no Viewed toggle (logged out, say)
+    return t.matches('input') ? t.checked : t.getAttribute('aria-pressed') === 'true';
+  }
+  /**
+   * The one place the panel clicks a Viewed toggle: the reviewer clicked this file's Mark viewed button (or its
+   * "Viewed ✓", to untick it). It clicks that file's own toggle once, as if the reviewer had, and GitHub (or the
+   * local page) does the rest, collapse included. Nothing else calls it: no step change, redraw or batch.
+   */
+  function toggleViewed(rel) {
+    const b = blockOf(rel);
+    const t = b && viewedToggleIn(b.el);
+    if (!t) {
+      message(b ? `${short(rel)} has no Viewed checkbox on this page.` : `${short(rel)} isn't loaded on the page yet. Scrolling to it: click Mark viewed again once it shows.`);
+      if (!b) jumpTo(rel);
+      return;
+    }
+    if (t.disabled) { message(`${HOST} isn't letting ${short(rel)} be marked viewed right now.`); return; }
+    t.click();
+    recheck();
   }
 
   // ---------- expand controls: clicked only from a file or line link in the panel (see jumpTo)
@@ -978,7 +1004,7 @@ export function storyOverlay(INPUT, opts = {}) {
     for (const li of panel.querySelectorAll('ul.prs-files > li[data-file]')) li.classList.toggle('prs-missing', seen.missing.includes(li.getAttribute('data-file')));
   }
   // ---------- viewed progress: which of a chapter's "Mark viewed" files are ticked
-  // Read from the page's own Viewed toggle (GitHub's, or the local page's), never clicked.
+  // Read from the page's own Viewed toggle (GitHub's, or the local page's). Only toggleViewed clicks it, on a Mark viewed click.
   // Files that come back in a later chapter, or were finished in an earlier one, don't count.
   function progressOf(n, blocks) {
     const due = DATA.chapters[n - 1].files.filter((f) => { const st = status(f.rel, n); return st && st.kind === 'mark'; }).map((f) => f.rel);
@@ -1000,18 +1026,20 @@ export function storyOverlay(INPUT, opts = {}) {
       const rel = el.getAttribute('data-viewed-for');
       const v = isViewed(rel, blocks);
       const early = v === true && earlyFor(rel);
-      const tagged = !!el.parentElement && !!el.parentElement.querySelector(':scope > [data-mark-for]'); // its "Viewed ✓" tag says it
+      const tagged = !!el.parentElement && !!el.parentElement.querySelector(':scope > .prs-why > [data-mark-for]'); // its "Viewed ✓" button says it
       el.textContent = v === true ? (early ? '⚠ viewed early' : tagged ? '' : '✓ viewed') : '';
       el.classList.toggle('prs-early', early);
       el.title = early ? `Marked viewed, but ${chName(finishedIn[rel])} covers more of it. You may want to unmark it until then.` : '';
     }
-    // the tag on a file this chapter finishes: "Mark viewed" until its Viewed toggle is on, then "Viewed ✓"
+    // the button on a file this chapter finishes: "Mark viewed" until its Viewed toggle is on, then "Viewed ✓" (a click unticks it)
     for (const el of panel.querySelectorAll('[data-mark-for]')) {
-      const on = isViewed(el.getAttribute('data-mark-for'), blocks) === true;
-      el.textContent = el.hasAttribute('data-mark-short') ? (on ? 'viewed ✓' : 'mark viewed') : `${on ? 'Viewed ✓' : 'Mark viewed'}${el.getAttribute('data-mark-rest') || ''}`;
+      const rel = el.getAttribute('data-mark-for');
+      const on = isViewed(rel, blocks) === true;
+      el.textContent = el.hasAttribute('data-mark-short') ? (on ? 'viewed ✓' : 'mark viewed') : (on ? 'Viewed ✓' : 'Mark viewed');
       el.classList.toggle('prs-st-viewed', on);
       el.classList.toggle('prs-st-mark', !on);
-      if (el.hasAttribute('data-mark-short')) el.title = on ? 'Viewed' : 'Mark viewed';
+      el.setAttribute('aria-pressed', String(on));
+      el.title = on ? `Viewed. Click to untick ${rel}'s Viewed checkbox` : `Tick ${rel}'s Viewed checkbox`;
     }
     const earlyBox = $('.prs-early-box');
     if (earlyBox) {
@@ -1075,10 +1103,13 @@ export function storyOverlay(INPUT, opts = {}) {
       ? (chs.length ? `story chapter${chs.length > 1 ? 's' : ''} ${chList(chs)}` : '')
       : n === 0
         ? `chapter${chs.length > 1 ? 's' : ''} ${chList(chs)}`
-        : `${st ? st.text : ''}${f.partial && st && st.kind !== 'later' && f.note ? ` (here: ${f.note})` : ''}`;
-    // a file this chapter finishes: renderViewed swaps "Mark viewed" for "Viewed ✓" while its Viewed toggle is on
-    const markRest = !inBackstory() && n && st && st.kind === 'mark' ? why.slice(st.text.length) : null;
-    const markAttrs = markRest != null ? ` data-mark-for="${esc(f.rel)}" data-mark-rest="${esc(markRest)}"` : '';
+        : st && st.kind === 'later'
+          ? (f.partial && f.note ? `here: ${f.note}` : '') // a later chapter finishes it: no tag here
+          : `${st ? st.text : ''}${f.partial && st && f.note ? ` (here: ${f.note})` : ''}`;
+    // a file this chapter finishes: a Mark viewed button, which renderViewed turns into "Viewed ✓" while its Viewed toggle is on
+    const mark = !inBackstory() && n && st && st.kind === 'mark';
+    const whyHtml = mark ? `${markButton(f.rel)}${esc(why.slice(st.text.length))}` : esc(why);
+    const whyKind = st && st.kind !== 'later' ? ` prs-st-${st.kind}` : '';
     // "why": the file's How it got here, collapsed under the row
     const story = !inBackstory() && n ? DATA.chapters[n - 1].files.find((x) => x.rel === f.rel) || f : f;
     const how = inBackstory() ? '' : fileBackstory(story);
@@ -1090,7 +1121,7 @@ export function storyOverlay(INPUT, opts = {}) {
       return `<li><span ${refAttrs(f.rel, { side, start: l.start, end: l.end || l.start })}>${range}</span>${l.label ? ` ${esc(l.label)}` : ''}</li>`;
     }).join('');
     return `<li data-file="${esc(f.rel)}"><code ${refAttrs(f.rel, null)}>${esc(f.rel)}</code><span class="prs-viewed" data-viewed-for="${esc(f.rel)}"></span>${whyLink}`
-      + `${why ? `<span class="prs-why${st ? ` prs-st-${st.kind}` : ''}"${markAttrs}>${esc(why)}</span>` : ''}${lines ? `<ul class="prs-lines">${lines}</ul>` : ''}${whyBox}</li>`;
+      + `${why ? `<span class="prs-why${whyKind}">${whyHtml}</span>` : ''}${lines ? `<ul class="prs-lines">${lines}</ul>` : ''}${whyBox}</li>`;
   }
 
   function sessionsHtml() {
@@ -1218,6 +1249,8 @@ export function storyOverlay(INPUT, opts = {}) {
     const gotoBtn = e.target.closest('[data-goto]');
     if (gotoBtn) return go(Number(gotoBtn.getAttribute('data-goto')));
     if (e.target.closest('[data-draft-reload]')) return reloadPage();
+    const markBtn = e.target.closest('button[data-mark-for]');
+    if (markBtn) return toggleViewed(markBtn.getAttribute('data-mark-for'));
     const actBtn = e.target.closest('[data-draft-act]');
     if (actBtn) { const el = actBtn.closest('.prs-comment'); return draftAct(Number(el.getAttribute('data-n')), Number(el.getAttribute('data-i')), actBtn.getAttribute('data-draft-act')); }
     const showBtn = e.target.closest('[data-draft-show]');

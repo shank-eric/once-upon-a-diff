@@ -94,7 +94,7 @@ Put it in your shell profile. The rest of this guide uses `diff-story`. Run it w
 Then, in the panel:
 
 - **Prev and Next** (or the Steps list) filter the diff to one chapter. **Show all files** undoes the filter.
-- **Mark viewed.** In each chapter, a file tagged **Mark viewed** is one this chapter finishes, so tick GitHub's own Viewed checkbox for it. A file that comes back later says "Leave unviewed: comes back in chapter N". The panel follows the checkboxes and counts your progress, and never ticks them itself.
+- **Mark viewed.** In each chapter, a file with a **Mark viewed** button is one this chapter finishes. Click the button (or GitHub's own Viewed checkbox, which is the same thing) and it becomes **Viewed ✓**; click that to untick it. A file a later chapter finishes has no button yet. The panel follows the checkboxes and counts your progress, and only ever ticks one when you click its button.
 - **Ask.** Type a question and press **Cmd+Enter**. The listening session answers it from the story and the code, and the answer shows under the question.
 - **Draft comments.** Comments Claude drafts show in the chapter's Draft comments. On a line comment, **Add to my review** puts it in your pending GitHub review (starting one if needed) and never submits it. **Mark posted** and **Dismiss** keep track of the rest.
 - **Hide whitespace** is GitHub's own setting, and the extension remembers it across PRs. On GitHub, use GitHub's own split view. The local page (step 10) has its own **Hide whitespace** and **Unified / Split** in its header.
