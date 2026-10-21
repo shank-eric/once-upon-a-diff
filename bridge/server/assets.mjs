@@ -13,6 +13,8 @@ const SHARED = path.resolve(HERE, '../../src/js/shared');
 const SCRIPT = 'text/javascript; charset=utf-8';
 /** The panel's modules and the shared helpers, served from src/js/shared/<folder>/ for the local page. */
 const SHARED_MODULE = /^\/assets\/(panel|util)\/([a-z0-9-]+\.js)$/;
+/** The local page's own modules, from bridge/public/local/. */
+const LOCAL_MODULE = /^\/assets\/local\/([a-z0-9-]+\.js)$/;
 
 const ASSETS = {
   '/assets/overlay.js': [path.join(SHARED, 'overlay.js'), SCRIPT],
@@ -31,10 +33,13 @@ export function assetFor(pathname) {
     return [readFileSync(file), type];
   }
   const sharedModule = SHARED_MODULE.exec(pathname);
-  if (!sharedModule) {
+  const localModule = LOCAL_MODULE.exec(pathname);
+  if (!sharedModule && !localModule) {
     return null;
   }
-  const file = path.join(SHARED, sharedModule[1], sharedModule[2]);
+  const file = sharedModule
+    ? path.join(SHARED, sharedModule[1], sharedModule[2])
+    : path.join(PUBLIC, 'local', localModule[1]);
   if (!existsSync(file)) {
     throw new HttpError(404, 'no such module');
   }

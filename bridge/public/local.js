@@ -1,637 +1,185 @@
 /*
  * The bridge's local page: a diff of local commits drawn with the same DOM
- * shapes as GitHub's /changes page (file regions with id diff-<sha256(path)>,
- * line cells with data-line-anchor, a role=tree file list, a Viewed toggle
- * with aria-pressed), so the very same story panel runs on it unchanged.
+ * shapes as GitHub's /changes page (local/diff-view.js), so the very same
+ * story panel runs on it unchanged (local/mount.js).
  *
  * Here the page owns the review state that GitHub would own: Viewed toggles
- * and line notes go to the bridge, and notes are "fix before push" items.
+ * and line notes go to the bridge, and notes are "fix before push" items
+ * (local/notes.js). Other chapters' lines in a shared file fold away
+ * (local/folds.js). This module draws the page, handles its clicks, and
+ * follows the story and the commits.
  */
-import { storyOverlay, chapterNumbers } from '/assets/overlay.js';
-import { splitRows } from '/assets/split.js';
-import { highlightFile, LIMITS } from '/assets/syntax.js';
-import { claimsOf, narrowRows } from '/assets/narrow.js';
 import { escapeHtml } from '/assets/util/html.js';
+import { page, api, STORY_PATH } from '/assets/local/page.js';
+import { treeHtml, fileHtml, headerHtml, resetHighlightBudget } from '/assets/local/diff-view.js';
+import { placeNotes, openEditor } from '/assets/local/notes.js';
+import { openFold, openRun, forgetNarrowing } from '/assets/local/folds.js';
+import { mount, remount, showReopen } from '/assets/local/mount.js';
 
-const BOOT = JSON.parse(document.getElementById('ds-boot').textContent);
-const S = `/api/stories/${encodeURIComponent(BOOT.story)}`;
+const POLL_MS = 5000;
 const app = document.getElementById('ds-app');
-
-async function api(method, p, body) {
-  const r = await fetch(p, {
-    method,
-    cache: 'no-store',
-    headers: {
-      Authorization: `Bearer ${BOOT.token}`,
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const json = await r.json().catch(() => ({}));
-  if (!r.ok) {
-    throw new Error(json.error || `HTTP ${r.status}`);
-  }
-  return json;
-}
-
-let story = null;
-let overlay = null;
-let hidden = false;
-let lastUi = {};
-const isSplit = () => !!story && story.local.diff_view === 'split';
-const cols = () => (isSplit() ? 4 : 3);
-
-// ---------- syntax highlighting (highlight.js, vendored and served by the bridge; the page works without it)
-let hljs = null;
-const hlCache = new Map(); // rel|hash|whitespace -> per hunk, per line HTML (or null: drawn plain)
-let hlBudget = 0;
-function highlighted(f) {
-  const key = `${f.rel}|${f.hash}|${story.local.hide_whitespace}`;
-  if (hlCache.has(key)) {
-    return hlCache.get(key);
-  }
-  const lines = f.hunks.reduce((n, h) => n + h.lines.length, 0);
-  if (hlBudget + lines > LIMITS.pageLines) {
-    return null;
-  } // past the page's budget, the rest is plain (and not cached, so a smaller diff gets it)
-  hlBudget += lines;
-  const hl = highlightFile(f, hljs);
-  hlCache.set(key, hl);
-  return hl;
-}
-const codeHtml = (hl, hi, i, text) =>
-  hl && hl[hi] && hl[hi][i] != null ? hl[hi][i] : escapeHtml(text); // unified: old no., new no., code. split: old no., old code, new no., new code
-
-// ---------- the diff
-function treeHtml(rels) {
-  const root = { dirs: new Map(), files: [] };
-  for (const rel of rels) {
-    const parts = rel.split('/');
-    let node = root;
-    for (let i = 0; i < parts.length - 1; i++) {
-      const key = parts.slice(0, i + 1).join('/');
-      if (!node.dirs.has(key)) {
-        node.dirs.set(key, { name: parts[i], dirs: new Map(), files: [] });
-      }
-      node = node.dirs.get(key);
-    }
-    node.files.push(rel);
-  }
-  const draw = (node, depth) => {
-    let html = '';
-    for (const [key, dir] of [...node.dirs].sort()) {
-      // fold single-folder chains into one row, as GitHub does
-      let k = key;
-      let d = dir;
-      let label = dir.name;
-      while (d.files.length === 0 && d.dirs.size === 1) {
-        const [nk, nd] = [...d.dirs][0];
-        k = nk;
-        label += '/' + nd.name;
-        d = nd;
-      }
-      html += `<div role="treeitem" aria-expanded="true" id="${escapeHtml(k)}" class="ds-tree-dir"><div class="ds-tree-label" style="padding-left:${8 + depth * 12}px">${escapeHtml(label)}</div><div role="group">${draw(d, depth + 1)}</div></div>`;
-    }
-    for (const rel of node.files.sort()) {
-      html += `<div role="treeitem" id="${escapeHtml(rel)}" class="ds-tree-file" data-goto="${escapeHtml(rel)}" style="padding-left:${8 + depth * 12}px">${escapeHtml(rel.split('/').pop())}</div>`;
-    }
-    return html;
-  };
-  return draw(root, 0);
-}
-
-const numCell = (f, side, num, extra = '') =>
-  `<td class="ds-num${extra}" data-line-anchor="diff-${f.sha}${side}${num}" data-side="${side}" data-line="${num}" title="Add a fix-before-push note">${num}</td>`;
-const SIGN = { ctx: ' ', del: '-', add: '+' };
-
-/** GitHub's split view: four cells a row, old on the left and new on the right, the same line anchors as unified. */
-function splitHtml(f) {
-  let html = '';
-  const hl = highlighted(f);
-  f.hunks.forEach((h, hi) => {
-    html += `<tr class="ds-hunk"><td class="ds-num"></td><td class="ds-code" colspan="3">@@ -${h.oldStart},${h.oldLines} +${h.newStart},${h.newLines} @@ ${escapeHtml(h.header || '')}</td></tr>`;
-    for (const r of splitRows(h)) {
-      if (r.info) {
-        html += `<tr class="ds-info"><td class="ds-num"></td><td class="ds-code" colspan="3">${escapeHtml(r.info)}</td></tr>`;
-        continue;
-      }
-      const half = (side, x, right) =>
-        x
-          ? `${numCell(f, side, x.num, ` ds-n-${x.kind}${right ? ' ds-rnum' : ''}`)}<td class="ds-code ds-c-${x.kind}"><span class="ds-sign">${SIGN[x.kind]}</span>${codeHtml(hl, hi, x.i, x.text)}</td>`
-          : `<td class="ds-num ds-n-empty${right ? ' ds-rnum' : ''}"></td><td class="ds-code ds-c-empty"></td>`;
-      html += `<tr class="ds-line ds-pair">${half('L', r.left, false)}${half('R', r.right, true)}</tr>`;
-    }
-  });
-  return html;
-}
-
-function rowsHtml(f) {
-  if (f.binary) {
-    return `<tr class="ds-info"><td colspan="${cols()}">Binary file</td></tr>`;
-  }
-  if (f.whitespace_only) {
-    return `<tr class="ds-info"><td colspan="${cols()}">Only whitespace changes, hidden. Turn off Hide whitespace to see them.</td></tr>`;
-  }
-  if (!f.hunks.length) {
-    return `<tr class="ds-info"><td colspan="${cols()}">${f.kind === 'renamed' ? 'Renamed without changes' : 'No changed lines'}</td></tr>`;
-  }
-  if (isSplit()) {
-    return splitHtml(f);
-  }
-  let html = '';
-  const hl = highlighted(f);
-  f.hunks.forEach((h, hi) => {
-    html += `<tr class="ds-hunk"><td class="ds-num"></td><td class="ds-num"></td><td class="ds-code">@@ -${h.oldStart},${h.oldLines} +${h.newStart},${h.newLines} @@ ${escapeHtml(h.header || '')}</td></tr>`;
-    let o = h.oldStart;
-    let n = h.newStart;
-    h.lines.forEach((line, i) => {
-      const sign = line[0];
-      const text =
-        sign === ' ' || sign === '-' || sign === '+'
-          ? codeHtml(hl, hi, i, line.slice(1))
-          : escapeHtml(line.slice(1));
-      const cell = (side, num) => numCell(f, side, num);
-      if (sign === ' ') {
-        html += `<tr class="ds-line ds-ctx">${cell('L', o)}${cell('R', n)}<td class="ds-code"><span class="ds-sign"> </span>${text}</td></tr>`;
-        o++;
-        n++;
-      } else if (sign === '-') {
-        html += `<tr class="ds-line ds-del">${cell('L', o)}<td class="ds-num"></td><td class="ds-code"><span class="ds-sign">-</span>${text}</td></tr>`;
-        o++;
-      } else if (sign === '+') {
-        html += `<tr class="ds-line ds-add"><td class="ds-num"></td>${cell('R', n)}<td class="ds-code"><span class="ds-sign">+</span>${text}</td></tr>`;
-        n++;
-      } else {
-        html += `<tr class="ds-info"><td class="ds-num"></td><td class="ds-num"></td><td class="ds-code">${text}</td></tr>`;
-      }
-    });
-  });
-  return html;
-}
-
-const colsHtml = () =>
-  isSplit()
-    ? '<col class="ds-col-num"><col><col class="ds-col-num"><col>'
-    : '<col class="ds-col-num"><col class="ds-col-num"><col>';
-
-function fileHtml(f) {
-  const kind =
-    f.kind === 'renamed' && f.renamed_from
-      ? `renamed from ${f.renamed_from}`
-      : f.kind === 'modified'
-        ? ''
-        : f.kind;
-  return `<div class="ds-file-wrap"><section role="region" class="ds-file${f.viewed ? ' ds-folded' : ''}" id="diff-${f.sha}" data-path="${escapeHtml(f.rel)}" aria-label="${escapeHtml(f.rel)}">
-    <header class="ds-file-head">
-      <button class="ds-fold" type="button" aria-label="Fold or unfold this file" aria-expanded="${!f.viewed}"></button>
-      <code class="ds-path">${escapeHtml(f.rel)}</code>
-      ${kind ? `<span class="ds-kind">${escapeHtml(kind)}</span>` : ''}
-      ${f.whitespace_only ? '<span class="ds-kind" title="Hide whitespace is on">whitespace only</span>' : ''}
-      <span class="ds-stat"><span class="ds-plus">+${f.stats.added}</span> <span class="ds-minus">−${f.stats.removed}</span></span>
-      ${f.viewed_changed ? '<span class="ds-changed" title="You marked this viewed, and its diff has changed since">changed since viewed</span>' : ''}
-      <button class="ds-viewed" type="button" aria-pressed="${f.viewed ? 'true' : 'false'}">Viewed</button>
-    </header>
-    <div class="ds-file-body"><table class="ds-diff${isSplit() ? ' ds-split' : ''}"><colgroup>${colsHtml()}</colgroup><tbody>${rowsHtml(f)}</tbody></table></div>
-  </section></div>`;
-}
-
-function headerHtml() {
-  const l = story.local;
-  const added = l.files.reduce((n, f) => n + f.stats.added, 0);
-  const removed = l.files.reduce((n, f) => n + f.stats.removed, 0);
-  const open = l.notes.filter((n) => !n.done).length;
-  return `<header class="ds-top">
-    <div class="ds-top-main">
-      <h1>${escapeHtml(story.title)}</h1>
-      <div class="ds-muted">${escapeHtml(l.repo)} · <code>${escapeHtml(l.base)}</code> ${escapeHtml(l.base_oid.slice(0, 9))} → <code>${escapeHtml(l.head)}</code> ${escapeHtml(l.head_oid.slice(0, 9))}${l.branch ? ` · ${escapeHtml(l.branch)}` : ''} · ${l.commits.length} commit${l.commits.length === 1 ? '' : 's'} · ${l.files.length} files <span class="ds-plus">+${added}</span> <span class="ds-minus">−${removed}</span></div>
-    </div>
-    <div class="ds-view" role="group" aria-label="Diff view"><button type="button" data-diff-view="unified" aria-pressed="${!isSplit()}">Unified</button><button type="button" data-diff-view="split" aria-pressed="${isSplit()}">Split</button></div>
-    <label class="ds-ws" title="Draw the diff with git diff -w, like GitHub's Hide whitespace. Remembered for every local story."><input type="checkbox" class="ds-ws-toggle"${l.hide_whitespace ? ' checked' : ''}> Hide whitespace</label>
-    <button type="button" class="ds-notes-toggle" aria-expanded="false">Fix before push: ${open} open</button>
-  </header>
-  <section class="ds-notes-list" hidden></section>`;
-}
-
-function notesListHtml() {
-  const notes = story.local.notes;
-  if (!notes.length) {
-    return '<p class="ds-muted">No fix-before-push notes yet. Click a line number in the diff to add one.</p>';
-  }
-  return `<ul>${notes.map((n) => `<li class="${n.done ? 'ds-done' : ''}"><label><input type="checkbox" data-note-done="${escapeHtml(n.id)}"${n.done ? ' checked' : ''}> <a href="#" data-note-goto="${escapeHtml(n.id)}"><code>${escapeHtml(n.path)}${n.line ? `:${n.side === 'L' ? 'L' : ''}${n.line}` : ''}</code></a></label> ${escapeHtml(n.body)}</li>`).join('')}</ul>
-    <p class="ds-muted">Also in the terminal: <code>diff-story notes --story ${escapeHtml(story.id)}</code></p>`;
-}
-
-function noteRow(n, away) {
-  return `<tr class="ds-note-row" data-note="${escapeHtml(n.id)}"><td colspan="${cols()}"><div class="ds-note${n.done ? ' ds-done' : ''}">
-    <div class="ds-note-head"><b>Fix before push</b><span class="ds-muted">${escapeHtml(new Date(n.at).toLocaleString())}</span>
-      ${away ? `<span class="ds-muted">on ${n.side === 'L' ? 'L' : ''}${n.line}, a line this diff doesn't draw${story.local.hide_whitespace ? ' with whitespace hidden' : ''}</span>` : ''}
-      <label><input type="checkbox" data-note-done="${escapeHtml(n.id)}"${n.done ? ' checked' : ''}> done</label>
-      <button type="button" data-note-delete="${escapeHtml(n.id)}">Delete</button></div>
-    <div class="ds-note-body">${escapeHtml(n.body)}</div></div></td></tr>`;
-}
-
-function placeNotes() {
-  for (const el of document.querySelectorAll('.ds-note-row')) {
-    el.remove();
-  }
-  for (const n of story.local.notes) {
-    const f = story.local.files.find((x) => x.rel === n.path);
-    if (!f) {
-      continue;
-    }
-    const cell =
-      n.line && document.querySelector(`[data-line-anchor="diff-${f.sha}${n.side}${n.line}"]`);
-    const row = cell ? cell.closest('tr') : document.querySelector(`#diff-${f.sha} tbody tr`);
-    if (row) {
-      row.insertAdjacentHTML('afterend', noteRow(n, !!n.line && !cell));
-    }
-  }
-  const open = story.local.notes.filter((n) => !n.done).length;
-  const btn = document.querySelector('.ds-notes-toggle');
-  if (btn) {
-    btn.textContent = `Fix before push: ${open} open`;
-  }
-  const list = document.querySelector('.ds-notes-list');
-  if (list) {
-    list.innerHTML = notesListHtml();
-  }
-}
-
-// ---------- a chapter's own lines: what other chapters tell in a shared file folds away (narrow.js)
-let narrowedFor = null; // the step the tables are narrowed for; render() clears it
-const rowModel = (tr) => {
-  if (tr.classList.contains('ds-hunk')) {
-    return { type: 'hunk' };
-  }
-  if (tr.classList.contains('ds-note-row') || tr.classList.contains('ds-note-edit')) {
-    return { type: 'note' };
-  }
-  if (!tr.classList.contains('ds-line')) {
-    return { type: 'info' };
-  }
-  const num = (side) => {
-    const c = tr.querySelector(`td[data-side="${side}"]`);
-    return c ? Number(c.getAttribute('data-line')) : null;
-  };
-  return {
-    type: 'line',
-    L: num('L'),
-    R: num('R'),
-    add: tr.classList.contains('ds-add') || !!tr.querySelector('td.ds-n-add'),
-  };
-};
-function stepName(s) {
-  const nums = chapterNumbers(story.chapters);
-  return nums[s - 1] != null
-    ? `chapter ${nums[s - 1]}`
-    : `“${String(story.chapters[s - 1].title || 'Since you read it').replace(/:.*$/, '')}”`;
-}
-function unnarrow(root = document) {
-  for (const el of root.querySelectorAll('tr.ds-narrow')) {
-    el.remove();
-  }
-  for (const el of root.querySelectorAll('tr.ds-out')) {
-    el.classList.remove('ds-out');
-  }
-}
-/** Called by the panel after each filter pass. Only a new step (or a redraw) changes the tables, so the folds the reviewer opens stay open. */
-function narrow({ n, view, all }) {
-  const key = `${view}|${n}|${all}`;
-  if (key === narrowedFor) {
-    return;
-  }
-  narrowedFor = key;
-  unnarrow();
-  if (all || !n || view !== 'story') {
-    return;
-  }
-  const claims = claimsOf(story.chapters);
-  for (const section of document.querySelectorAll('.ds-file')) {
-    const rel = section.getAttribute('data-path');
-    const trs = [...section.querySelectorAll('tbody > tr')];
-    const { hidden, runs } = narrowRows(trs.map(rowModel), claims, rel, n);
-    trs.forEach((tr, i) => tr.classList.toggle('ds-out', hidden[i]));
-    for (const r of runs) {
-      const lines = trs
-        .slice(r.from, r.to + 1)
-        .filter((tr) => tr.classList.contains('ds-line')).length;
-      const who = r.steps.length
-        ? `told in ${r.steps.map(stepName).join(', ')}`
-        : 'from other chapters';
-      trs[r.from].insertAdjacentHTML(
-        'beforebegin',
-        `<tr class="ds-narrow"><td colspan="${cols()}">⋯ ${lines} line${lines === 1 ? '' : 's'} ${escapeHtml(who)}<button type="button" data-narrow-open>Show</button></td></tr>`,
-      );
-    }
-  }
-}
-/** Open the fold that holds a row (a jump to one of its lines). */
-function openFold(tr) {
-  let fold = tr.previousElementSibling;
-  while (fold && fold.classList.contains('ds-out')) {
-    fold = fold.previousElementSibling;
-  }
-  if (fold && fold.classList.contains('ds-narrow')) {
-    openRun(fold);
-  }
-}
-function openRun(fold) {
-  for (
-    let tr = fold.nextElementSibling;
-    tr && tr.classList.contains('ds-out');
-    tr = tr.nextElementSibling
-  ) {
-    tr.classList.remove('ds-out');
-  }
-  fold.remove();
-}
-/** A jump from the panel to a file or its lines: unfold the file (Viewed files fold) and open the folds that hold the lines. Viewed stays as it is. */
-function reveal(rel, side, start, end) {
-  const f = story.local.files.find((x) => x.rel === rel);
-  if (!f) {
-    return;
-  }
-  const section = document.getElementById(`diff-${f.sha}`);
-  if (section && section.classList.contains('ds-folded')) {
-    section.classList.remove('ds-folded');
-    section.querySelector('.ds-fold')?.setAttribute('aria-expanded', 'true');
-  }
-  if (!side || !Number.isFinite(start)) {
-    return;
-  }
-  for (let n = start; n <= Math.max(start, end || start) && n < start + 400; n++) {
-    const cell = document.querySelector(`[data-line-anchor="diff-${f.sha}${side}${n}"]`);
-    const tr = cell && cell.closest('tr');
-    if (tr && tr.classList.contains('ds-out')) {
-      openFold(tr);
-    }
-  }
-}
 
 function render() {
   const keep = window.scrollY;
-  narrowedFor = null;
-  hlBudget = 0;
-  app.innerHTML = `${headerHtml()}<div class="ds-layout"><nav class="ds-tree" role="tree" aria-label="Changed files">${treeHtml(story.local.files.map((f) => f.rel))}</nav>
-    <main class="ds-files">${story.local.files.map(fileHtml).join('')}</main></div>`;
+  forgetNarrowing();
+  resetHighlightBudget();
+  const { files } = page.story.local;
+  app.innerHTML = `${headerHtml()}<div class="ds-layout"><nav class="ds-tree" role="tree" aria-label="Changed files">${treeHtml(files.map((file) => file.rel))}</nav>
+    <main class="ds-files">${files.map(fileHtml).join('')}</main></div>`;
   placeNotes();
   window.scrollTo({ top: keep });
 }
 
-// ---------- the panel, the same one the extension puts on GitHub
-const panelData = () => ({ ...story, local: undefined });
-function mount(initial) {
-  if (overlay) {
-    overlay.destroy();
+const fileByRel = (rel) => page.story.local.files.find((file) => file.rel === rel);
+
+async function toggleViewed(button) {
+  const section = button.closest('.ds-file');
+  const rel = section.getAttribute('data-path');
+  const nowViewed = button.getAttribute('aria-pressed') !== 'true';
+  button.setAttribute('aria-pressed', String(nowViewed));
+  section.classList.toggle('ds-folded', nowViewed);
+  section.querySelector('.ds-fold').setAttribute('aria-expanded', String(!nowViewed));
+  section.querySelector('.ds-changed')?.remove();
+  const file = fileByRel(rel);
+  if (file) {
+    file.viewed = nowViewed;
+    file.viewed_changed = false;
   }
-  removeReopen();
-  overlay = storyOverlay(panelData(), {
-    initial,
-    host: 'this page',
-    commentsTitle: 'Fix before push (drafted)',
-    onState: (s) => {
-      lastUi = { ...s, hidden: false };
-      api('POST', `${S}/ui`, lastUi).catch(() => {});
-    },
-    onFilter: narrow,
-    reveal,
-    onPosition: (p) => api('POST', `${S}/position`, { ...p, url: location.href }).catch(() => {}),
-    reads: () => api('GET', `${S}/read`),
-    onRead: (r) => api('POST', `${S}/read`, r), // the bridge records the range's head commit with it
-    onClose: () => {
-      overlay = null;
-      hidden = true;
-      narrowedFor = null;
-      unnarrow();
-      api('POST', `${S}/ui`, { ...lastUi, hidden: true }).catch(() => {});
-      showReopen();
-    },
-    ask: (q) => api('POST', `${S}/questions`, { ...q, url: location.href }),
-    loadQuestions: () => api('GET', `${S}/questions`).then((r) => r.questions),
-    drafts: {
-      load: () => api('GET', `${S}/drafts`),
-      act: async (chapter, index, action) => {
-        if (action !== 'fix') {
-          return api('POST', `${S}/drafts`, { chapter, index, action });
-        }
-        // Add to fix before push: the bridge makes the draft a note (once), which joins the checklist and the diff
-        const note = await api('POST', `${S}/notes`, { chapter, index });
-        story.local.notes = [...story.local.notes.filter((n) => n.id !== note.id), note];
-        placeNotes();
-        return api('GET', `${S}/drafts`);
-      },
-    },
-    status: () =>
-      api('GET', `/api/status?story=${encodeURIComponent(BOOT.story)}`).catch((err) => {
-        throw Object.assign(err, {
-          code: /token/.test(err.message)
-            ? 'token'
-            : /HTTP 404|not found/.test(err.message)
-              ? 'old'
-              : 'down',
-        });
-      }),
-  });
-}
-function showReopen() {
-  removeReopen();
-  const b = document.createElement('button');
-  b.className = 'ds-reopen';
-  b.type = 'button';
-  b.textContent = 'Show story';
-  b.onclick = () => {
-    hidden = false;
-    mount({ ...lastUi });
-  };
-  document.body.appendChild(b);
-}
-function removeReopen() {
-  document.querySelector('.ds-reopen')?.remove();
+  try {
+    await api('POST', `${STORY_PATH}/viewed`, { path: rel, viewed: nowViewed });
+  } catch (err) {
+    alert(`Couldn't save: ${err.message}`);
+  }
+  if (nowViewed && section.getBoundingClientRect().top < 0) {
+    section.scrollIntoView();
+  }
 }
 
-// ---------- clicks on the diff: Viewed, fold, notes, tree
-document.addEventListener('click', async (e) => {
-  const t = e.target;
-  if (t.closest('#diff-story-panel')) {
+async function deleteNote(button) {
+  const id = button.getAttribute('data-note-delete');
+  await api('POST', `${STORY_PATH}/notes/${encodeURIComponent(id)}`, { delete: true });
+  page.story.local.notes = page.story.local.notes.filter((note) => note.id !== id);
+  placeNotes();
+}
+
+function goToNote(link) {
+  const row = document.querySelector(
+    `.ds-note-row[data-note="${CSS.escape(link.getAttribute('data-note-goto'))}"]`,
+  );
+  if (!row) {
     return;
   }
-  const viewedBtn = t.closest('.ds-viewed');
-  if (viewedBtn) {
-    const section = viewedBtn.closest('.ds-file');
-    const rel = section.getAttribute('data-path');
-    const on = viewedBtn.getAttribute('aria-pressed') !== 'true';
-    viewedBtn.setAttribute('aria-pressed', String(on));
-    section.classList.toggle('ds-folded', on);
-    section.querySelector('.ds-fold').setAttribute('aria-expanded', String(!on));
-    section.querySelector('.ds-changed')?.remove();
-    const f = story.local.files.find((x) => x.rel === rel);
-    if (f) {
-      f.viewed = on;
-      f.viewed_changed = false;
-    }
-    try {
-      await api('POST', `${S}/viewed`, { path: rel, viewed: on });
-    } catch (err) {
-      alert(`Couldn't save: ${err.message}`);
-    }
-    if (on) {
-      const top = section.getBoundingClientRect().top;
-      if (top < 0) {
-        section.scrollIntoView();
-      }
-    }
+  row.closest('.ds-file').classList.remove('ds-folded');
+  if (row.classList.contains('ds-out')) {
+    openFold(row);
+  }
+  window.scrollTo({
+    top: row.getBoundingClientRect().top + window.scrollY - window.innerHeight / 3,
+  });
+}
+
+// ---------- clicks on the diff: Viewed, fold, notes, tree (the panel handles its own)
+document.addEventListener('click', async (event) => {
+  const target = event.target;
+  if (target.closest('#diff-story-panel')) {
     return;
   }
-  const view = t.closest('[data-diff-view]');
+  const viewedButton = target.closest('.ds-viewed');
+  if (viewedButton) {
+    return toggleViewed(viewedButton);
+  }
+  const view = target.closest('[data-diff-view]');
   if (view) {
     const want = view.getAttribute('data-diff-view');
-    if (want !== story.local.diff_view) {
+    if (want !== page.story.local.diff_view) {
       setPref({ diffView: want }, 'the diff view');
     }
     return;
   }
-  const fold = t.closest('.ds-fold');
+  const fold = target.closest('.ds-fold');
   if (fold) {
-    const section = fold.closest('.ds-file');
-    const folded = section.classList.toggle('ds-folded');
+    const folded = fold.closest('.ds-file').classList.toggle('ds-folded');
     fold.setAttribute('aria-expanded', String(!folded));
     return;
   }
-  const go = t.closest('[data-goto]');
-  if (go) {
-    const f = story.local.files.find((x) => x.rel === go.getAttribute('data-goto'));
-    const el = f && document.getElementById(`diff-${f.sha}`);
+  const treeFile = target.closest('[data-goto]');
+  if (treeFile) {
+    const file = fileByRel(treeFile.getAttribute('data-goto'));
+    const el = file && document.getElementById(`diff-${file.sha}`);
     if (el) {
       window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 60 });
     }
     return;
   }
-  const narrowBtn = t.closest('[data-narrow-open]');
-  if (narrowBtn) {
-    openRun(narrowBtn.closest('tr'));
+  const narrowButton = target.closest('[data-narrow-open]');
+  if (narrowButton) {
+    openRun(narrowButton.closest('tr'));
     return;
   }
-  const num = t.closest('td.ds-num[data-line-anchor]');
-  if (num) {
-    return openEditor(num);
+  const lineNumber = target.closest('td.ds-num[data-line-anchor]');
+  if (lineNumber) {
+    return openEditor(lineNumber);
   }
-  const cancel = t.closest('[data-editor-cancel]');
+  const cancel = target.closest('[data-editor-cancel]');
   if (cancel) {
     cancel.closest('tr').remove();
     return;
   }
-  const del = t.closest('[data-note-delete]');
-  if (del) {
-    await api('POST', `${S}/notes/${encodeURIComponent(del.getAttribute('data-note-delete'))}`, {
-      delete: true,
-    });
-    story.local.notes = story.local.notes.filter(
-      (n) => n.id !== del.getAttribute('data-note-delete'),
-    );
-    placeNotes();
+  const deleteButton = target.closest('[data-note-delete]');
+  if (deleteButton) {
+    return deleteNote(deleteButton);
+  }
+  const noteLink = target.closest('[data-note-goto]');
+  if (noteLink) {
+    event.preventDefault();
+    goToNote(noteLink);
     return;
   }
-  const gotoNote = t.closest('[data-note-goto]');
-  if (gotoNote) {
-    e.preventDefault();
-    const row = document.querySelector(
-      `.ds-note-row[data-note="${CSS.escape(gotoNote.getAttribute('data-note-goto'))}"]`,
-    );
-    if (row) {
-      row.closest('.ds-file').classList.remove('ds-folded');
-      if (row.classList.contains('ds-out')) {
-        openFold(row);
-      }
-      window.scrollTo({
-        top: row.getBoundingClientRect().top + window.scrollY - window.innerHeight / 3,
-      });
-    }
-    return;
-  }
-  const toggle = t.closest('.ds-notes-toggle');
+  const toggle = target.closest('.ds-notes-toggle');
   if (toggle) {
     const list = document.querySelector('.ds-notes-list');
     list.hidden = !list.hidden;
     toggle.setAttribute('aria-expanded', String(!list.hidden));
   }
 });
+
 /** Hide whitespace and Unified/Split: saved by the bridge for every story, then the diff is redrawn under the panel. */
 async function setPref(patch, what) {
   try {
     await api('POST', '/api/prefs', patch);
-    story = await api('GET', S);
+    page.story = await api('GET', STORY_PATH);
     render();
-    if (!hidden) {
-      mount(overlay ? { ...overlay.state, bodyScroll: overlay.bodyScroll } : lastUi);
-    }
+    remount();
   } catch (err) {
     alert(`Couldn't change ${what}: ${err.message}`);
     render();
   }
 }
-const setHideWhitespace = (on) => {
+
+function setHideWhitespace(hide) {
   const box = document.querySelector('.ds-ws-toggle');
   if (box) {
     box.disabled = true;
   }
-  return setPref({ hideWhitespace: on }, 'Hide whitespace');
-};
+  return setPref({ hideWhitespace: hide }, 'Hide whitespace');
+}
 
-document.addEventListener('change', async (e) => {
-  const ws = e.target.closest('.ds-ws-toggle');
-  if (ws) {
-    return setHideWhitespace(ws.checked);
+document.addEventListener('change', async (event) => {
+  const whitespaceBox = event.target.closest('.ds-ws-toggle');
+  if (whitespaceBox) {
+    return setHideWhitespace(whitespaceBox.checked);
   }
-  const box = e.target.closest('[data-note-done]');
+  const box = event.target.closest('[data-note-done]');
   if (!box) {
     return;
   }
   const id = box.getAttribute('data-note-done');
-  const n = await api('POST', `${S}/notes/${encodeURIComponent(id)}`, { done: box.checked });
-  story.local.notes = story.local.notes.map((x) => (x.id === id ? n : x));
+  const updated = await api('POST', `${STORY_PATH}/notes/${encodeURIComponent(id)}`, {
+    done: box.checked,
+  });
+  page.story.local.notes = page.story.local.notes.map((note) => (note.id === id ? updated : note));
   placeNotes();
 });
-
-function openEditor(cell) {
-  const row = cell.closest('tr');
-  if (row.nextElementSibling && row.nextElementSibling.classList.contains('ds-note-edit')) {
-    return row.nextElementSibling.querySelector('textarea').focus();
-  }
-  const side = cell.getAttribute('data-side');
-  const line = Number(cell.getAttribute('data-line'));
-  const rel = cell.closest('.ds-file').getAttribute('data-path');
-  row.insertAdjacentHTML(
-    'afterend',
-    `<tr class="ds-note-edit"><td colspan="${cols()}"><form class="ds-note-form">
-    <div class="ds-muted">Fix before push on <code>${escapeHtml(rel)}:${side === 'L' ? 'L' : ''}${line}</code></div>
-    <textarea rows="3" placeholder="What to fix before pushing"></textarea>
-    <div><button type="submit">Add note</button> <button type="button" data-editor-cancel>Cancel</button></div></form></td></tr>`,
-  );
-  const form = row.nextElementSibling.querySelector('form');
-  const ta = form.querySelector('textarea');
-  ta.focus();
-  ta.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter' && (ev.metaKey || ev.ctrlKey)) {
-      ev.preventDefault();
-      form.requestSubmit();
-    }
-  });
-  form.addEventListener('submit', async (ev) => {
-    ev.preventDefault();
-    const body = ta.value.trim();
-    if (!body) {
-      return;
-    }
-    try {
-      const note = await api('POST', `${S}/notes`, { path: rel, side, line, body });
-      story.local.notes.push(note);
-      form.closest('tr').remove();
-      placeNotes();
-    } catch (err) {
-      alert(`Couldn't save the note: ${err.message}`);
-    }
-  });
-}
 
 // ---------- follow the story and the commits: when chapters.json changes or the head moves, redraw
 async function poll() {
@@ -639,53 +187,50 @@ async function poll() {
     return;
   }
   try {
-    const { version } = await api('GET', `${S}/version`);
-    if (version === story.version) {
+    const { version } = await api('GET', `${STORY_PATH}/version`);
+    if (version === page.story.version) {
       return;
     }
-    const editing = document.querySelector('.ds-note-edit');
-    if (editing) {
-      return;
-    } // don't redraw under a note being written
-    story = await api('GET', S);
+    if (document.querySelector('.ds-note-edit')) {
+      return; // don't redraw under a note being written
+    }
+    page.story = await api('GET', STORY_PATH);
     render();
-    if (!hidden) {
-      mount(overlay ? { ...overlay.state, bodyScroll: overlay.bodyScroll } : lastUi);
-    }
+    remount();
   } catch {
     /* bridge restarting */
   }
 }
 
 async function start() {
-  hljs = await import('/assets/highlight.mjs').then(
-    (m) => m.default,
+  page.hljs = await import('/assets/highlight.mjs').then(
+    (module) => module.default,
     () => null,
   );
   try {
-    story = await api('GET', S);
+    page.story = await api('GET', STORY_PATH);
   } catch (err) {
     app.innerHTML = `<p class="ds-error">Couldn't load the story: ${escapeHtml(err.message)}</p>`;
     return;
   }
-  document.title = story.title;
-  lastUi = await api('GET', `${S}/ui`).catch(() => ({}));
+  document.title = page.story.title;
+  page.lastUi = await api('GET', `${STORY_PATH}/ui`).catch(() => ({}));
   render();
-  hidden = !!lastUi.hidden;
-  if (hidden) {
+  page.hidden = !!page.lastUi.hidden;
+  if (page.hidden) {
     showReopen();
   } else {
-    mount(lastUi);
+    mount(page.lastUi);
   }
   window.__diffStoryLocal = {
     get story() {
-      return story;
+      return page.story;
     },
     get overlay() {
-      return overlay;
+      return page.overlay;
     },
   };
-  setInterval(poll, 5000);
+  setInterval(poll, POLL_MS);
   window.addEventListener('focus', poll); // a comment drafted in the terminal shows up as soon as you come back
 }
 start();

@@ -14,8 +14,8 @@
  */
 export function splitRows(hunk) {
   const rows = [];
-  let o = hunk.oldStart;
-  let n = hunk.newStart;
+  let oldLine = hunk.oldStart;
+  let newLine = hunk.newStart;
   let dels = [];
   let adds = [];
   const flush = () => {
@@ -32,14 +32,14 @@ export function splitRows(hunk) {
       if (adds.length) {
         flush();
       } // a removal after additions starts a new pairing
-      dels.push({ num: o++, text, kind: 'del', i });
+      dels.push({ num: oldLine++, text, kind: 'del', i });
     } else if (sign === '+') {
-      adds.push({ num: n++, text, kind: 'add', i });
+      adds.push({ num: newLine++, text, kind: 'add', i });
     } else if (sign === ' ') {
       flush();
       rows.push({
-        left: { num: o++, text, kind: 'ctx', i },
-        right: { num: n++, text, kind: 'ctx', i },
+        left: { num: oldLine++, text, kind: 'ctx', i },
+        right: { num: newLine++, text, kind: 'ctx', i },
       });
     } else {
       flush();
