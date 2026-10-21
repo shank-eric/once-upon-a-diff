@@ -9,7 +9,7 @@
  * network calls of its own: everything goes through the service worker to the
  * bridge on 127.0.0.1.
  */
-import { storyOverlay } from '../shared/overlay.js';
+import { storyOverlay, rangeStepOf } from '../shared/overlay.js';
 import { statusControl } from './status.js';
 import { initList } from './list.js';
 import { initConversation } from './convo.js';
@@ -59,8 +59,12 @@ function mount() {
   const storyId = cur.id;
   const storyPath = `/api/stories/${encodeURIComponent(storyId)}`;
   if (cur.overlay) cur.overlay.destroy();
+  // GitHub's diff of one "Since you read it" chapter's commits opens on that chapter, once per page
+  const range = rangeStepOf(cur.data.chapters, location.pathname);
+  const onRange = range && cur.rangeFor !== location.pathname;
+  if (onRange) cur.rangeFor = location.pathname;
   cur.overlay = storyOverlay(cur.data, {
-    initial: cur.ui,
+    initial: onRange ? { ...cur.ui, n: range, all: false, view: 'story' } : cur.ui,
     host: 'GitHub',
     onState: s => {
       if (!cur || cur.key !== key) return;
