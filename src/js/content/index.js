@@ -15,32 +15,14 @@ import { initList } from './list.js';
 import { initConversation } from './convo.js';
 import { decide, filesPage, seen, prefsStore } from './whitespace.js';
 import { stepOfHash } from './tag.js';
+import { filesChangedPr } from '../shared/util/github-paths.js';
+import { callBridge, extensionAlive } from './bridge.js';
 
-const PR_PATH = /^\/([^/]+)\/([^/]+)\/pull\/(\d+)\/(changes|files)(?:\/|$)/;
 const PANEL_ID = 'diff-story-panel';
-const alive = () => !!(globalThis.chrome && chrome.runtime && chrome.runtime.id);
-
-async function bridge(method, path, body) {
-  if (!alive()) {
-    return { ok: false, status: 0, error: 'extension reloaded' };
-  }
-  try {
-    return (
-      (await chrome.runtime.sendMessage({ type: 'bridge', method, path, body })) || {
-        ok: false,
-        status: 0,
-        error: 'no answer',
-      }
-    );
-  } catch (e) {
-    return { ok: false, status: 0, error: 'extension reloaded' };
-  }
-}
-
 // ---------- saved panel state per PR: {n, all, collapsed, width, hidden}
 const uiKey = (key) => `ui:${key}`;
 async function loadUi(key) {
-  if (!alive()) {
+  if (!extensionAlive()) {
     return {};
   }
   try {
@@ -50,7 +32,7 @@ async function loadUi(key) {
   }
 }
 async function saveUi(key, ui) {
-  if (!alive()) {
+  if (!extensionAlive()) {
     return;
   }
   try {
@@ -65,15 +47,7 @@ let cur = null; // {key, owner, repo, number, id, version, data, ui, overlay, st
 let syncing = false;
 
 function prOfLocation() {
-  const m = PR_PATH.exec(location.pathname);
-  return m
-    ? {
-        owner: m[1],
-        repo: m[2],
-        number: Number(m[3]),
-        key: `${m[1]}/${m[2]}#${m[3]}`.toLowerCase(),
-      }
-    : null;
+  return filesChangedPr(location.pathname);
 }
 
 function unmount() {
@@ -119,10 +93,10 @@ function mount() {
       cur.ui = { ...s, hidden: false };
       saveUi(key, cur.ui);
     },
-    onPosition: (p) => bridge('POST', `${storyPath}/position`, { ...p, url: location.href }),
+    onPosition: (p) => callBridge('POST', `${storyPath}/position`, { ...p, url: location.href }),
     // a chapter they read (stayed on, or ticked every file of), with the PR head it was read at
     onRead: async (r) => {
-      const x = await bridge('POST', `${storyPath}/read`, r);
+      const x = await callBridge('POST', `${storyPath}/read`, r);
       if (!x.ok) {
         throw new Error(x.error);
       }
@@ -140,7 +114,7 @@ function mount() {
       );
     },
     ask: async (q) => {
-      const r = await bridge('POST', `${storyPath}/questions`, { ...q, url: location.href });
+      const r = await callBridge('POST', `${storyPath}/questions`, { ...q, url: location.href });
       if (!r.ok) {
         throw new Error(r.error === 'unreachable' ? 'the bridge is not running' : r.error);
       }
@@ -152,14 +126,14 @@ function mount() {
     }, // only when the reviewer clicks Reload page
     drafts: {
       load: async () => {
-        const r = await bridge('GET', `${storyPath}/drafts`);
+        const r = await callBridge('GET', `${storyPath}/drafts`);
         if (!r.ok) {
           throw new Error(r.error);
         }
         return r.body;
       },
       act: async (chapter, index, action) => {
-        const r = await bridge('POST', `${storyPath}/drafts`, { chapter, index, action });
+        const r = await callBridge('POST', `${storyPath}/drafts`, { chapter, index, action });
         if (!r.ok) {
           throw new Error(r.error);
         }
@@ -167,14 +141,14 @@ function mount() {
       },
     },
     reads: async () => {
-      const r = await bridge('GET', `${storyPath}/read`);
+      const r = await callBridge('GET', `${storyPath}/read`);
       if (!r.ok) {
         throw new Error(r.error);
       }
       return r.body;
     },
     freshness: async () => {
-      const r = await bridge('GET', `${storyPath}/freshness`);
+      const r = await callBridge('GET', `${storyPath}/freshness`);
       if (!r.ok) {
         throw new Error(r.error);
       }
@@ -182,7 +156,7 @@ function mount() {
     },
     requestUpdate: async (base, { retell = false } = {}) => {
       const pr = prOfLocation();
-      const r = await bridge('POST', '/api/builds', {
+      const r = await callBridge('POST', '/api/builds', {
         repo: `${pr.owner}/${pr.repo}`,
         number: pr.number,
         url: `https://github.com/${pr.owner}/${pr.repo}/pull/${pr.number}`,
@@ -197,7 +171,7 @@ function mount() {
       return r.body;
     },
     status: async () => {
-      const r = await bridge('GET', `/api/status?story=${encodeURIComponent(storyId)}`);
+      const r = await callBridge('GET', `/api/status?story=${encodeURIComponent(storyId)}`);
       if (r.ok) {
         return r.body;
       }
@@ -206,7 +180,7 @@ function mount() {
       });
     },
     loadQuestions: async () => {
-      const r = await bridge('GET', `${storyPath}/questions`);
+      const r = await callBridge('GET', `${storyPath}/questions`);
       if (!r.ok) {
         throw new Error(r.error);
       }
@@ -216,13 +190,13 @@ function mount() {
 }
 
 async function fetchStory(id) {
-  const r = await bridge('GET', `/api/stories/${encodeURIComponent(id)}`);
+  const r = await callBridge('GET', `/api/stories/${encodeURIComponent(id)}`);
   return r.ok ? r.body : null;
 }
 
 /** Bring the page in line with the URL: mount, keep, or remove the panel. */
 async function sync() {
-  if (syncing || !alive()) {
+  if (syncing || !extensionAlive()) {
     return;
   }
   syncing = true;
@@ -244,19 +218,19 @@ async function sync() {
     cur = { ...pr, id: null, version: null, data: null, ui: {}, overlay: null, status: 'loading' };
     const mine = cur;
     const q = `repo=${encodeURIComponent(`${pr.owner}/${pr.repo}`)}&number=${pr.number}`;
-    const found = await bridge('GET', `/api/stories/find?${q}`);
+    const found = await callBridge('GET', `/api/stories/find?${q}`);
     if (cur !== mine) {
       return;
     }
     if (!found.ok && found.status === 404) {
       // no story: is one being built?
-      const st = await bridge('GET', `/api/builds/status?${q}`);
+      const st = await callBridge('GET', `/api/builds/status?${q}`);
       if (cur !== mine) {
         return;
       }
       cur.build = st.ok ? st.body.request : null;
       // is a session listening for this repo to build it? (the status light's check, per repo)
-      const ls = await bridge('GET', `/api/status?${q}`);
+      const ls = await callBridge('GET', `/api/status?${q}`);
       if (cur !== mine) {
         return;
       }
@@ -307,7 +281,7 @@ const status = statusControl({
 });
 
 function refreshStatus() {
-  if (!alive() || !cur || !prOfLocation()) {
+  if (!extensionAlive() || !cur || !prOfLocation()) {
     return status.set('hidden');
   }
   if (cur.data) {
@@ -342,7 +316,7 @@ async function requestBuild() {
     return;
   }
   const mine = cur;
-  const r = await bridge('POST', '/api/builds', {
+  const r = await callBridge('POST', '/api/builds', {
     repo: `${pr.owner}/${pr.repo}`,
     number: pr.number,
     url: `https://github.com/${pr.owner}/${pr.repo}/pull/${pr.number}`,
@@ -386,7 +360,7 @@ async function checkForUpdates() {
     }
     return;
   }
-  const r = await bridge('GET', `/api/stories/${encodeURIComponent(cur.id)}/version`);
+  const r = await callBridge('GET', `/api/stories/${encodeURIComponent(cur.id)}/version`);
   if (!r.ok || !cur || r.body.version === cur.version) {
     return;
   }
@@ -436,9 +410,9 @@ async function toggle() {
 
 // ---------- Hide whitespace: GitHub's ?w=1, remembered in the bridge's prefs.json (the local page's setting too)
 const prefs = prefsStore({
-  call: bridge,
+  call: callBridge,
   load: async () => {
-    if (!alive()) {
+    if (!extensionAlive()) {
       return null;
     }
     try {
@@ -448,7 +422,7 @@ const prefs = prefsStore({
     }
   },
   store: async (v) => {
-    if (!alive()) {
+    if (!extensionAlive()) {
       return;
     }
     try {
@@ -477,7 +451,7 @@ const session = {
   },
 };
 async function whitespaceCheck() {
-  if (!alive()) {
+  if (!extensionAlive()) {
     return;
   }
   const href = location.href;
@@ -518,7 +492,7 @@ function toast(text) {
   setTimeout(() => el.remove(), 5000);
 }
 
-if (alive()) {
+if (extensionAlive()) {
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg && msg.type === 'toggle') {
       toggle();
@@ -536,7 +510,7 @@ if (alive()) {
 // GitHub navigates without reloading (Turbo and React routes), so watch the URL as well as the usual events
 let lastHref = '';
 setInterval(() => {
-  if (!alive()) {
+  if (!extensionAlive()) {
     return;
   }
   if (location.href !== lastHref) {
@@ -555,16 +529,16 @@ for (const ev of ['turbo:load', 'turbo:render', 'popstate', 'pageshow']) {
 // coming back to a tab with no story: look once (another tab may have asked for a build, or the story may be done)
 // a comment drafted in the terminal shows up as soon as you come back to the tab
 window.addEventListener('focus', () => {
-  if (alive() && cur && cur.id) {
+  if (extensionAlive() && cur && cur.id) {
     checkForUpdates();
   }
 });
 document.addEventListener('visibilitychange', () => {
-  if (alive() && document.visibilityState === 'visible' && cur && cur.id) {
+  if (extensionAlive() && document.visibilityState === 'visible' && cur && cur.id) {
     checkForUpdates();
   }
   if (
-    alive() &&
+    extensionAlive() &&
     document.visibilityState === 'visible' &&
     cur &&
     !cur.data &&
@@ -575,7 +549,7 @@ document.addEventListener('visibilitychange', () => {
   }
 });
 setInterval(() => {
-  if (alive()) {
+  if (extensionAlive()) {
     checkForUpdates();
   }
 }, 5000);

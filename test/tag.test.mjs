@@ -1,12 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  tagFor,
-  tagHtml,
-  requestFor,
-  missingListeners,
-  conversationPr,
-} from '../src/js/content/tag.js';
+import { tagFor, tagHtml, requestFor, missingListeners } from '../src/js/content/tag.js';
+import { conversationPr } from '../src/js/shared/util/github-paths.js';
 
 const pr = { repo: 'octo-org/api-server', number: 42 };
 
@@ -94,15 +89,15 @@ test('the notice lists only the repos with no listener', () => {
 });
 
 test('the Conversation tab is /owner/repo/pull/N and nothing after it', () => {
-  assert.deepEqual(conversationPr({ pathname: '/octo-org/api-server/pull/42' }), pr);
-  assert.deepEqual(conversationPr({ pathname: '/octo-org/api-server/pull/42/' }), pr);
+  assert.deepEqual(conversationPr('/octo-org/api-server/pull/42'), pr);
+  assert.deepEqual(conversationPr('/octo-org/api-server/pull/42/'), pr);
   for (const p of [
     '/octo-org/api-server/pull/42/files',
     '/octo-org/api-server/pull/42/changes',
     '/octo-org/api-server/pull/42/commits',
     '/octo-org/api-server/pulls',
   ]) {
-    assert.equal(conversationPr({ pathname: p }), null, p);
+    assert.equal(conversationPr(p), null, p);
   }
 });
 

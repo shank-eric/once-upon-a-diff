@@ -14,21 +14,9 @@
  *
  * No DOM or chrome.* here, so node can test it.
  */
-
-const at = (iso) => {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? ''
-    : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-};
-const sha7 = (x) => String(x || '').slice(0, 7);
-
-/** A PR's Conversation tab: /owner/repo/pull/N with nothing after it. */
-export const CONVO_PATH = /^\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/;
-export function conversationPr(loc) {
-  const m = CONVO_PATH.exec(loc.pathname);
-  return m ? { repo: `${m[1]}/${m[2]}`, number: Number(m[3]) } : null;
-}
+import { escapeHtml } from '../shared/util/html.js';
+import { shortSha } from '../shared/util/text.js';
+import { clockTime } from '../shared/util/time.js';
 
 /**
  * What the tag shows and does, from a status-many result.
@@ -37,7 +25,8 @@ export function conversationPr(loc) {
  */
 export function tagFor(r, { repo, number }) {
   const href = `https://github.com/${repo}/pull/${number}/changes`;
-  const asked = r && r.request && r.request.requested_at ? ` at ${at(r.request.requested_at)}` : '';
+  const asked =
+    r && r.request && r.request.requested_at ? ` at ${clockTime(r.request.requested_at)}` : '';
   if (!r || r.state === 'none' || !r.state) {
     return {
       kind: 'button',
@@ -92,7 +81,7 @@ export function tagFor(r, { repo, number }) {
       cls: 'stale',
       label,
       title:
-        `Update (new commits): you've read ${all ? 'the story' : `${rd.read} of its ${rd.total} chapters`}, and the PR has moved on from ${sha7(r.story_head)} to ${sha7(r.current_head)}. ` +
+        `Update (new commits): you've read ${all ? 'the story' : `${rd.read} of its ${rd.total} chapters`}, and the PR has moved on from ${shortSha(r.story_head)} to ${shortSha(r.current_head)}. ` +
         'Adds a "Since you read it" chapter for the new commits, first, and keeps the chapters you read.',
       alt: {
         act: 'retell',
@@ -110,7 +99,7 @@ export function tagFor(r, { repo, number }) {
       cls: 'stale',
       label: 'Story out of date · Update',
       title:
-        `Update (new commits): the story is for ${sha7(r.story_head)} and the PR has newer commits (${sha7(r.current_head)}). ` +
+        `Update (new commits): the story is for ${shortSha(r.story_head)} and the PR has newer commits (${shortSha(r.current_head)}). ` +
         'Adds a "Since you read it" chapter for them, first, and keeps the chapters you read.',
       alt: {
         act: 'retell',
@@ -120,7 +109,7 @@ export function tagFor(r, { repo, number }) {
       },
     };
   }
-  const upTo = r.story_head ? ` (up to date with ${sha7(r.story_head)})` : '';
+  const upTo = r.story_head ? ` (up to date with ${shortSha(r.story_head)})` : '';
   if (all) {
     return {
       kind: 'link',
@@ -203,24 +192,17 @@ export const TAG_CSS = `
   @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
 `;
 
-const esc = (s) =>
-  String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-
 /** The tag's HTML, for a shadow root that has TAG_CSS. */
 export function tagHtml(t) {
-  const inner = `${t.spin ? '<span class="spin"></span>' : ''}${esc(t.label)}`;
+  const inner = `${t.spin ? '<span class="spin"></span>' : ''}${escapeHtml(t.label)}`;
   if (t.kind === 'link') {
-    return `<a class="b ${t.cls}" href="${esc(t.href)}" title="${esc(t.title)}">${inner}</a>`;
+    return `<a class="b ${t.cls}" href="${escapeHtml(t.href)}" title="${escapeHtml(t.title)}">${inner}</a>`;
   }
   const alt = t.alt
-    ? `<button class="alt" data-act="${t.alt.act}" title="${esc(t.alt.title)}">${esc(t.alt.label)}</button>`
+    ? `<button class="alt" data-act="${t.alt.act}" title="${escapeHtml(t.alt.title)}">${escapeHtml(t.alt.label)}</button>`
     : '';
   if (t.kind === 'button') {
-    return `<button class="b ${t.cls}" data-act="${t.act}" title="${esc(t.title)}">${inner}</button>${alt}`;
+    return `<button class="b ${t.cls}" data-act="${t.act}" title="${escapeHtml(t.title)}">${inner}</button>${alt}`;
   }
-  return `<span class="b ${t.cls}" title="${esc(t.title)}" aria-live="polite">${inner}</span>`;
+  return `<span class="b ${t.cls}" title="${escapeHtml(t.title)}" aria-live="polite">${inner}</span>`;
 }

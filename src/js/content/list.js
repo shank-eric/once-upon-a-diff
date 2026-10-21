@@ -9,42 +9,11 @@
  */
 import { tagFor, tagHtml, requestFor, missingListeners, TAG_CSS } from './tag.js';
 import { listenNotice } from './notice.js';
+import { isPullListPage } from '../shared/util/github-paths.js';
+import { callBridge, extensionAlive } from './bridge.js';
 
 const ATTR = 'data-dsm-badge';
 const PR_HREF = /^\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/;
-const alive = () => !!(globalThis.chrome && chrome.runtime && chrome.runtime.id);
-
-async function bridge(method, path, body) {
-  if (!alive()) {
-    return { ok: false, status: 0, error: 'extension reloaded' };
-  }
-  try {
-    return (
-      (await chrome.runtime.sendMessage({ type: 'bridge', method, path, body })) || {
-        ok: false,
-        status: 0,
-      }
-    );
-  } catch (e) {
-    return { ok: false, status: 0, error: 'extension reloaded' };
-  }
-}
-
-export function isListPage(loc = location) {
-  if (/^\/[^/]+\/[^/]+\/pulls\/?$/.test(loc.pathname) || /^\/pulls\/?$/.test(loc.pathname)) {
-    return true;
-  }
-  if (/^\/search\/?$/.test(loc.pathname)) {
-    return (
-      /^(pullrequests|issues)$/i.test(new URLSearchParams(loc.search).get('type') || '') ||
-      /\bis:pr\b/.test(new URLSearchParams(loc.search).get('q') || '')
-    );
-  }
-  if (/^\/[^/]+\/[^/]+\/issues\/?$/.test(loc.pathname)) {
-    return /\bis:pr\b/.test(new URLSearchParams(loc.search).get('q') || '');
-  }
-  return false;
-}
 
 /** Title links to PRs on the page, one per row: [{a, row, repo, number}] */
 function prLinks() {
@@ -125,7 +94,7 @@ async function onClick(e, item) {
   e.stopPropagation();
   b.disabled = true;
   const t = tagFor(results.get(keyOf(item.repo, item.number)), item);
-  const r = await bridge(
+  const r = await callBridge(
     'POST',
     '/api/builds',
     requestFor(t, item, { retell: b.getAttribute('data-act') === 'retell' }),
@@ -147,7 +116,7 @@ async function onClick(e, item) {
 let scanning = false;
 let lastAsk = 0;
 async function scan(force) {
-  if (scanning || !alive() || !isListPage()) {
+  if (scanning || !extensionAlive() || !isPullListPage(location)) {
     return;
   }
   scanning = true;
@@ -155,7 +124,7 @@ async function scan(force) {
     const items = prLinks();
     const need = items.filter((i) => force || !results.has(keyOf(i.repo, i.number)));
     if (need.length) {
-      const r = await bridge('POST', '/api/stories/status-many', {
+      const r = await callBridge('POST', '/api/stories/status-many', {
         prs: need.slice(0, 200).map((i) => ({ repo: i.repo, number: i.number })),
       });
       if (!r.ok) {
@@ -207,7 +176,7 @@ export function initList() {
     }
   });
   const start = () => {
-    if (isListPage()) {
+    if (isPullListPage(location)) {
       observer.observe(document.body, { childList: true, subtree: true });
       scan(false);
     } else {
@@ -216,7 +185,7 @@ export function initList() {
     }
   };
   setInterval(() => {
-    if (!alive()) {
+    if (!extensionAlive()) {
       return;
     }
     if (location.href !== lastHref) {
@@ -224,7 +193,11 @@ export function initList() {
       start();
     }
     // while something is queued or building, look again every 15s
-    else if (isListPage() && [...results.values()].some(inFlight) && Date.now() - lastAsk > 15000) {
+    else if (
+      isPullListPage(location) &&
+      [...results.values()].some(inFlight) &&
+      Date.now() - lastAsk > 15000
+    ) {
       for (const [k, v] of results) {
         if (inFlight(v)) {
           results.delete(k);
@@ -234,7 +207,7 @@ export function initList() {
     }
   }, 1000);
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && isListPage()) {
+    if (document.visibilityState === 'visible' && isPullListPage(location)) {
       results.clear();
       scan(true);
     }

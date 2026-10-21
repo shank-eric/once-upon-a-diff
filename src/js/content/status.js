@@ -6,6 +6,8 @@
  * its own shadow root, so it never touches GitHub's controls or styles.
  */
 import { copyWithFeedback } from './copy.js';
+import { escapeHtml } from '../shared/util/html.js';
+import { clockTime } from '../shared/util/time.js';
 
 const HOST_ID = 'diff-story-status';
 
@@ -35,18 +37,6 @@ const BUILD =
 const copyTitle = (prompt, how, info) =>
   `No Claude session is listening${info.repo ? ` for ${info.repo}` : ''}. Copies ${prompt}. ${how}` +
   (info.details ? `\n\nWithout the diff-story-listen skill: ${info.details}` : '');
-const esc = (s) =>
-  String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-const time = (iso) => {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? ''
-    : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
-};
 
 /** @param {{onOpen: () => void, onBuild: () => void}} handlers */
 export function statusControl({ onOpen, onBuild }) {
@@ -110,7 +100,7 @@ export function statusControl({ onOpen, onBuild }) {
         : 'Paste it into Claude Code.';
     const copy =
       prompt && (state === 'queued' || state === 'building' || state === 'none')
-        ? `<button data-act="copy" title="${esc(copyTitle(prompt, how, info))}">Copy prompt for Claude</button>`
+        ? `<button data-act="copy" title="${escapeHtml(copyTitle(prompt, how, info))}">Copy prompt for Claude</button>`
         : '';
     root.setAttribute('data-state', state);
     const close =
@@ -119,13 +109,13 @@ export function statusControl({ onOpen, onBuild }) {
     if (state === 'ready') {
       root.innerHTML = `<span class="label">Story ready</span><button data-act="open" title="Show the story panel">Read it</button>${close}`;
     } else if (state === 'queued') {
-      root.innerHTML = `<span class="label">Story queued <span class="muted">· asked ${esc(time(info.requested_at))}${who}</span></span>${copy}${close}`;
+      root.innerHTML = `<span class="label">Story queued <span class="muted">· asked ${escapeHtml(clockTime(info.requested_at))}${who}</span></span>${copy}${close}`;
     } else if (state === 'building') {
-      root.innerHTML = `<span class="spin" aria-hidden="true"></span><span class="label">Building story <span class="muted">· asked ${esc(time(info.requested_at))}</span></span>${close}`;
+      root.innerHTML = `<span class="spin" aria-hidden="true"></span><span class="label">Building story <span class="muted">· asked ${escapeHtml(clockTime(info.requested_at))}</span></span>${close}`;
     } else if (state === 'none') {
-      root.innerHTML = `<span class="label">${info.note ? `<span class="muted">${esc(info.note)}</span> ` : ''}No story yet</span>${BUILD}${copy}${close}`;
+      root.innerHTML = `<span class="label">${info.note ? `<span class="muted">${escapeHtml(info.note)}</span> ` : ''}No story yet</span>${BUILD}${copy}${close}`;
     } else {
-      root.innerHTML = `<span class="label muted">${esc(info.note || 'Story bridge offline')}</span>${close}`;
+      root.innerHTML = `<span class="label muted">${escapeHtml(info.note || 'Story bridge offline')}</span>${close}`;
     }
   }
   return { set, remove };

@@ -20,14 +20,13 @@ import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { newId } from './inbox.mjs';
-import { sameRepo } from './repos.mjs';
+import { sameRepo, REPO_RE } from './repos.mjs';
+import { shortSha } from '../../src/js/shared/util/text.js';
 import { readerOf } from './config.mjs';
 
 export const CLAIM_FRESH_MS = 30 * 60 * 1000;
 
-const REPO_RE = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
 export const buildKey = (repo, number) => `${String(repo).toLowerCase()}#${Number(number)}`;
-const sha7 = (x) => String(x || '').slice(0, 7);
 
 /**
  * What a request asks for, in a line for the inbox and `wait`. An update is an addendum by default: one new
@@ -40,11 +39,11 @@ export function buildText(b, reader = "the reviewer's") {
     return `Build a story for ${pr}: ${b.url}`;
   }
   if (b.retell) {
-    return `Re-tell the story for ${pr} from scratch at the PR's latest commit (it was told from ${sha7(b.base_sha)}): ${b.url}`;
+    return `Re-tell the story for ${pr} from scratch at the PR's latest commit (it was told from ${shortSha(b.base_sha)}): ${b.url}`;
   }
   const since = b.since_sha || b.base_sha;
   const why = b.since_source === 'read' ? `, where ${reader} reading stopped` : '';
-  return `Update the story for ${pr} (told from ${sha7(b.base_sha)}): put a "Since you read it" chapter first for ${sha7(since)}..the PR's head${why}, and keep the other chapters: ${b.url}`;
+  return `Update the story for ${pr} (told from ${shortSha(b.base_sha)}): put a "Since you read it" chapter first for ${shortSha(since)}..the PR's head${why}, and keep the other chapters: ${b.url}`;
 }
 /** One line on an update: an addendum from where, or a re-tell. */
 export function updateOf(b, reader = "the reviewer's") {
@@ -52,12 +51,12 @@ export function updateOf(b, reader = "the reviewer's") {
     return '';
   }
   if (b.retell) {
-    return `re-tell from scratch (the story was told from ${sha7(b.base_sha)})`;
+    return `re-tell from scratch (the story was told from ${shortSha(b.base_sha)})`;
   }
   const reads = b.reads || [];
   const since = b.since_sha || b.base_sha;
   return (
-    `update: "Since you read it" from ${sha7(since)}` +
+    `update: "Since you read it" from ${shortSha(since)}` +
     (b.since_source === 'read'
       ? ` (where ${reader} reading stopped; ${reads.length} chapter${reads.length === 1 ? '' : 's'} read)`
       : " (the story's old head; no chapters read)")
