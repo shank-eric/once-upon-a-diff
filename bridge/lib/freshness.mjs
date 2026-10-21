@@ -60,24 +60,52 @@ export async function newerCount(repo, from, to) {
 
 export const currentHead = (repo, number) => cached(`head ${repo}#${number}`.toLowerCase(), async () => (await gh([`repos/${repo}/pulls/${Number(number)}`])).head.sha);
 
+const fileOf = f => (typeof f === 'string' ? f : f.rel);
+const sameSha = (a, b) => !!a && !!b && (a.startsWith(b) || b.startsWith(a));
+
 /**
- * {state: 'current'|'stale'|'unknown', story_head, current_head, newer, rewritten, changed_files, chapters_touched, error}
- * chapters_touched: the chapters that list a file changed since the story's head.
+ * An update that rewrote the story in place, with no "Since you read it" chapter for it: the last build for the PR was
+ * a finished update from an older commit, and no chapter covers that range. Then the panel can still say what's new,
+ * from GitHub's compare of the old head with the story's. Null when there's nothing to say or gh can't tell.
+ * @returns {Promise<{from, to, newer, retold, at, changed_files, chapters_touched}|null>}
  */
-export async function freshness(meta, chapters) {
+export async function updatedInPlace(meta, chapters, lastBuild) {
+  const b = lastBuild;
+  const story = meta.head_oid;
+  if (!b || b.status !== 'done' || b.mode !== 'update' || !/^[0-9a-f]{7,40}$/.test(String(b.base_sha || '')) || !story || sameSha(b.base_sha, story)) return null;
+  if (chapters.some(ch => ch.since && sameSha(ch.since.to, story))) return null; // a "Since you read it" chapter tells it
+  let cmp;
+  try { cmp = await cached(`cmp ${meta.repo} ${b.base_sha} ${story}`, () => gh([`repos/${meta.repo}/compare/${b.base_sha}...${story}`])); } catch { return null; }
+  if (cmp.status === 'diverged' || cmp.status === 'behind') return null; // a rebase: the range diff wouldn't mean much
+  const changed = (cmp.files || []).map(f => f.filename);
+  const set = new Set(changed);
+  return {
+    from: b.base_sha, to: story, retold: !!b.retell, at: b.done_at || null,
+    newer: Number.isFinite(cmp.ahead_by) ? cmp.ahead_by : (cmp.commits || []).length,
+    changed_files: changed,
+    chapters_touched: chapters.map((ch, i) => ((ch.files || []).some(f => set.has(fileOf(f))) ? i + 1 : 0)).filter(Boolean),
+  };
+}
+
+/**
+ * {state: 'current'|'stale'|'unknown', story_head, current_head, newer, rewritten, changed_files, chapters_touched, updated, error}
+ * chapters_touched: the chapters that list a file changed since the story's head.
+ * updated: on a current story, updatedInPlace() for the PR's last build (`lastBuild`, from builds.json), or null.
+ */
+export async function freshness(meta, chapters, { lastBuild = null } = {}) {
   const story = meta.head_oid || null;
   if (meta.kind !== 'github' || !meta.repo || !meta.number) return { state: 'n/a' };
   if (!story) return { state: 'unknown', story_head: null, error: "the story doesn't say which commit it was told from (re-render it with pr-story)" };
   let head;
   try { head = await currentHead(meta.repo, meta.number); } catch (e) { return { state: 'unknown', story_head: story, error: `couldn't read the PR's head with gh: ${e.message}` }; }
-  if (head === story) return { state: 'current', story_head: story, current_head: head, newer: 0, changed_files: [], chapters_touched: [] };
+  if (head === story) return { state: 'current', story_head: story, current_head: head, newer: 0, changed_files: [], chapters_touched: [], updated: await updatedInPlace(meta, chapters, lastBuild) };
   let cmp;
   try { cmp = await cached(`cmp ${meta.repo} ${story} ${head}`, () => gh([`repos/${meta.repo}/compare/${story}...${head}`])); } catch (e) {
     return { state: 'stale', story_head: story, current_head: head, newer: null, changed_files: [], chapters_touched: [], error: `couldn't compare the commits: ${e.message}` };
   }
   const changed = (cmp.files || []).map(f => f.filename);
   const set = new Set(changed);
-  const touched = chapters.map((ch, i) => ((ch.files || []).some(f => set.has(typeof f === 'string' ? f : f.rel)) ? i + 1 : 0)).filter(Boolean);
+  const touched = chapters.map((ch, i) => ((ch.files || []).some(f => set.has(fileOf(f))) ? i + 1 : 0)).filter(Boolean);
   return {
     state: 'stale', story_head: story, current_head: head,
     newer: Number.isFinite(cmp.ahead_by) ? cmp.ahead_by : (cmp.commits || []).length,

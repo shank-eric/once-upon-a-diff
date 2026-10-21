@@ -58,7 +58,9 @@
  *   reloadPage()   reloads the page, keeping the panel's step and scroll; offered on a draft just added to the review
  *   pageAt         when this page loaded, in ms (performance.timeOrigin); a draft added after it isn't on the page yet
  *   freshness()    returns a Promise of {state: 'current'|'stale'|'unknown'|'n/a', story_head, current_head, newer,
- *                  changed_files, chapters_touched, error}: is the story up to date with the PR's latest commit?
+ *                  changed_files, chapters_touched, updated, error}: is the story up to date with the PR's latest commit?
+ *                  updated ({from, to, newer, retold, changed_files, chapters_touched}) is a current story's last update
+ *                  when it has no "Since you read it" chapter, so the panel can still say what's new
  *   requestUpdate(base_sha, {retell}) asks for the story to be updated from that commit (a build request, mode 'update'):
  *                  by default a "Since you read it" chapter for the new commits, or with retell a whole new story
  *   onRead(r)      called with {chapter (its key), step, title, reason: 'time'|'viewed'|'inferred', seconds, head_sha} when Eric
@@ -1305,7 +1307,7 @@ export function storyOverlay(INPUT, opts = {}) {
     for (const el of panel.querySelectorAll('.prs-changed, .prs-touched')) el.remove();
     box.classList.remove('prs-stale');
     if (!fresh || fresh.state === 'n/a') { box.innerHTML = ''; return; }
-    if (fresh.state === 'current') { box.innerHTML = `<span class="prs-why">Up to date with ${esc(sha7(fresh.story_head))}</span>`; return; }
+    if (fresh.state === 'current') { box.innerHTML = updatedHtml(fresh) || `<span class="prs-why">Up to date with ${esc(sha7(fresh.story_head))}</span>`; markUpdated(fresh.updated); return; }
     if (fresh.state === 'unknown') { box.innerHTML = fresh.error ? `<span class="prs-why" title="${esc(fresh.error)}">Can't tell whether the story is up to date</span>` : ''; return; }
     box.classList.add('prs-stale');
     const n = fresh.newer;
@@ -1337,6 +1339,33 @@ export function storyOverlay(INPUT, opts = {}) {
     }
     if (!inBackstory()) for (const li of panel.querySelectorAll('ol.prs-map li[data-n]')) {
       if ((fresh.chapters_touched || []).includes(Number(li.getAttribute('data-n')))) li.insertAdjacentHTML('beforeend', '<span class="prs-touched" title="A file here changed after the story was told">• changed since</span>');
+    }
+  }
+  /**
+   * A story updated in place (no "Since you read it" chapter for the update): say so at the top, with what the new
+   * commits changed and a link to GitHub's diff of just them, so what's new stays apart from what he'd seen.
+   */
+  function updatedHtml(f) {
+    const u = f && f.updated;
+    if (!u) return '';
+    const n = u.newer;
+    const commits = n != null ? `${n} new commit${n === 1 ? '' : 's'}` : 'New commits';
+    const files = (u.changed_files || []).length;
+    const touched = u.chapters_touched || [];
+    const url = HOST === 'GitHub' ? rangeUrl(DATA.pr && DATA.pr.url, u) : null;
+    const how = u.retold ? 're-told from scratch' : 'updated in place, with no “Since you read it” chapter';
+    return `<b>${esc(commits)} since ${esc(sha7(u.from))}</b>: the story was ${how}${files ? `. They changed ${files} file${files === 1 ? '' : 's'}${touched.length ? `, in ${touched.map(chName).join(', ')}` : ''}` : ''}.`
+      + (url ? ` <a href="${esc(url)}" title="GitHub's Files changed for ${esc(sha7(u.from))}..${esc(sha7(u.to))} only">See just what's new on GitHub</a>` : '')
+      + ` <span class="prs-why">Up to date with ${esc(sha7(f.story_head))}</span>`;
+  }
+  function markUpdated(u) {
+    if (!u) return;
+    const changed = new Set(u.changed_files || []);
+    for (const li of panel.querySelectorAll('ul.prs-files > li[data-file]')) {
+      if (changed.has(li.getAttribute('data-file'))) li.querySelector('code').insertAdjacentHTML('afterend', `<span class="prs-changed" title="Changed in ${esc(sha7(u.from))}..${esc(sha7(u.to))}, the commits the last update brought in">new since ${esc(sha7(u.from))}</span>`);
+    }
+    if (!inBackstory()) for (const li of panel.querySelectorAll('ol.prs-map li[data-n]')) {
+      if ((u.chapters_touched || []).includes(Number(li.getAttribute('data-n')))) li.insertAdjacentHTML('beforeend', `<span class="prs-touched" title="A file here changed in ${esc(sha7(u.from))}..${esc(sha7(u.to))}, the commits the last update brought in">• updated</span>`);
     }
   }
   if (opts.freshness || opts.reads) freshTimer = setInterval(() => { if (document.visibilityState === 'visible') { refreshFresh(); refreshReads(); } }, 60000);
