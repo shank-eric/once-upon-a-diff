@@ -26,10 +26,10 @@ import {
   renameSync,
   rmdirSync,
   statSync,
-  writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
 import { checkoutFor } from './repos.mjs';
+import { readJson, writeJson } from './util/json-file.mjs';
 
 export const STORY_FOLDER = '.diff-story';
 const EXCLUDE_LINE = `/${STORY_FOLDER}/`;
@@ -88,11 +88,7 @@ export function excludeStories(dir) {
 // ---------- the index
 const indexFile = (home) => path.join(home, 'stories.json');
 export function readIndex(home) {
-  try {
-    return JSON.parse(readFileSync(indexFile(home), 'utf8')) || {};
-  } catch {
-    return {};
-  }
+  return readJson(indexFile(home), {}) || {};
 }
 export function indexStory(home, id, dir) {
   const all = readIndex(home);
@@ -101,7 +97,7 @@ export function indexStory(home, id, dir) {
   }
   all[id] = dir;
   mkdirSync(home, { recursive: true });
-  writeFileSync(indexFile(home), JSON.stringify(all, null, 2));
+  writeJson(indexFile(home), all);
 }
 
 /** The folder a new story goes in: <checkout>/.diff-story/<id>, made and excluded, or <home>/<id>. */
@@ -133,14 +129,6 @@ export function moveStory(from, to) {
   }
   rmdirSync(from);
 }
-
-const readJson = (f) => {
-  try {
-    return JSON.parse(readFileSync(f, 'utf8'));
-  } catch {
-    return null;
-  }
-};
 
 /** Where a story in <home> belongs, or null to leave it there. */
 function homeFor(home, dir) {

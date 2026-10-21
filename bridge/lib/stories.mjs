@@ -29,16 +29,10 @@ import { readIndex, adoptHomeStories, STORY_FOLDER } from './place.mjs';
 import { readCheckouts } from './repos.mjs';
 import { chapterKey, SHA_RE } from './reads.mjs';
 import { addTextRefs } from './refs.mjs';
+import { readJson, writeJson } from './util/json-file.mjs';
 
 export const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/;
 
-const readJson = (file, fallback = null) => {
-  try {
-    return JSON.parse(readFileSync(file, 'utf8'));
-  } catch {
-    return fallback;
-  }
-};
 const mtime = (file) => {
   try {
     return statSync(file).mtimeMs;
@@ -219,7 +213,7 @@ export class StoryStore {
     return readJson(path.join(this.stateDir(id), name), fallback);
   }
   writeState(id, name, value) {
-    writeFileSync(path.join(this.stateDir(id), name), JSON.stringify(value, null, 2));
+    writeJson(path.join(this.stateDir(id), name), value);
   }
 
   /** The story as the panel takes it (the overlay's data), plus the diff and bridge state for a local story. */

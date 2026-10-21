@@ -15,7 +15,7 @@
  * DIFF_STORY_NUMBER:
  *   "autoBuild": {"enabled": true, "command": ["claude", "-p", "/pr-story {url}"], "cwd": "~/Development"}
  */
-import { existsSync, mkdirSync, openSync, readFileSync, writeFileSync, closeSync } from 'node:fs';
+import { existsSync, mkdirSync, openSync, closeSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -23,6 +23,7 @@ import { newId } from './inbox.mjs';
 import { sameRepo, REPO_RE } from './repos.mjs';
 import { shortSha } from '../../src/js/shared/util/text.js';
 import { readerOf } from './config.mjs';
+import { readJson, writeJson } from './util/json-file.mjs';
 
 export const CLAIM_FRESH_MS = 30 * 60 * 1000;
 
@@ -85,14 +86,10 @@ export class Builds {
   }
 
   all() {
-    try {
-      return JSON.parse(readFileSync(this.file, 'utf8'));
-    } catch {
-      return {};
-    }
+    return readJson(this.file, {});
   }
   save(all) {
-    writeFileSync(this.file, JSON.stringify(all, null, 2));
+    writeJson(this.file, all);
   }
 
   get(repo, number) {
