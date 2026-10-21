@@ -58,6 +58,7 @@ a { color: var(--fgColor-accent); }
 .ds-top { position: sticky; top: 0; z-index: 5; display: flex; gap: 12px; align-items: center; padding: 8px 16px; background: var(--bgColor-muted); border-bottom: 1px solid var(--borderColor-default); }
 .ds-top-main { flex: 1; min-width: 0; }
 .ds-top-main .ds-muted { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ds-ws { display: flex; gap: 4px; align-items: center; font-size: 12px; white-space: nowrap; cursor: pointer; }
 .ds-top h1 { font-size: 16px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ds-notes-list { padding: 8px 16px; border-bottom: 1px solid var(--borderColor-default); }
 .ds-notes-list ul { margin: 0; padding-left: 0; list-style: none; }

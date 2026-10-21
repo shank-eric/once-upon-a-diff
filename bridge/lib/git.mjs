@@ -10,8 +10,13 @@ export function branchName(repo) {
   try { return git(repo, ['symbolic-ref', '--quiet', '--short', 'HEAD']).trim(); } catch { return null; }
 }
 
-/** The diff between two commits, as `git diff base head` prints it (renames found, no colour, no external diff tools). */
-export const diffText = (repo, baseOid, headOid) => git(repo, ['-c', 'core.quotePath=false', 'diff', '--no-color', '--no-ext-diff', '--find-renames', baseOid, headOid]);
+/**
+ * The diff between two commits, as `git diff base head` prints it (renames found, no colour, no external diff tools).
+ * `ignoreWhitespace` adds -w (--ignore-all-space), GitHub's "Hide whitespace": a file whose only changes are whitespace drops out.
+ */
+export const diffText = (repo, baseOid, headOid, { ignoreWhitespace = false } = {}) => git(repo, [
+  '-c', 'core.quotePath=false', 'diff', '--no-color', '--no-ext-diff', '--find-renames', ...(ignoreWhitespace ? ['--ignore-all-space'] : []), baseOid, headOid,
+]);
 
 export function commitsBetween(repo, baseOid, headOid) {
   const out = git(repo, ['log', '--format=%H%x09%cI%x09%s', `${baseOid}..${headOid}`]).trim();
