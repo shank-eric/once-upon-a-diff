@@ -7,6 +7,8 @@
  *   repos/{o}/{r}/compare/{story head}...{head}   commits and files since
  */
 import { execFile } from 'node:child_process';
+import { diffText } from './git.mjs';
+import { parseUnifiedDiff } from './diff.mjs';
 
 const TTL_MS = 60000;
 const cache = new Map();
@@ -29,6 +31,26 @@ async function cached(key, fn) {
   return value;
 }
 export const clearFreshness = () => cache.clear();
+
+/** A patch's hunks, old side: [{oldStart, oldLines}] */
+const hunksOf = patch => [...String(patch || '').matchAll(/^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@/gm)].map(m => ({ oldStart: +m[1], oldLines: m[2] === undefined ? 1 : +m[2] }));
+const KIND = { added: 'created', removed: 'deleted', renamed: 'renamed' };
+
+/**
+ * What changed from `sha` to the story's head: Map(path at `sha` -> {kind, hunks: [{oldStart, oldLines}]}).
+ * A PR story asks gh's compare (read-only, cached 60s); a local story asks git. Throws when it can't tell.
+ */
+export async function changesSince(meta, sha) {
+  const out = new Map();
+  if (!sha || !meta.head_oid || sha === meta.head_oid) return out;
+  if (meta.kind === 'local') {
+    for (const f of parseUnifiedDiff(diffText(meta.repo_path, sha, meta.head_oid)).values()) out.set(f.renamed_from || f.rel, { kind: f.kind, hunks: f.hunks.map(h => ({ oldStart: h.oldStart, oldLines: h.oldLines })) });
+    return out;
+  }
+  const cmp = await cached(`cmp ${meta.repo} ${sha} ${meta.head_oid}`, () => gh([`repos/${meta.repo}/compare/${sha}...${meta.head_oid}`]));
+  for (const f of cmp.files || []) out.set(f.previous_filename || f.filename, { kind: KIND[f.status] || 'modified', hunks: hunksOf(f.patch) });
+  return out;
+}
 
 export const currentHead = (repo, number) => cached(`head ${repo}#${number}`.toLowerCase(), async () => (await gh([`repos/${repo}/pulls/${Number(number)}`])).head.sha);
 

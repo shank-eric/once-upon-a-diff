@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson, localRepo } from './helpers.mjs';
 import { chapterKey, noteRead, readReads, sinceOf } from '../bridge/lib/reads.mjs';
@@ -81,5 +81,58 @@ test('a local story records the head commit of its range', async () => {
     const r = (await b.call('POST', `/api/stories/${made.id}/read`, { chapter: story.chapters[0].key, step: 1, reason: 'time' })).body;
     assert.equal(r.head_sha, story.local.head_oid);
     assert.equal(r.story_head, story.local.head_oid);
+  } finally { await b.close(); }
+});
+
+test('chapters he read are marked when a newer commit changed their files, and drafts on a changed line', async () => {
+  const { changedSinceRead } = await import('../bridge/lib/reads.mjs');
+  const chapters = [
+    { key: 'since-x', since: { from: A, to: B }, files: [{ rel: 'src/a.js' }], comments: [{ path: 'src/a.js', line: 5, body: 'new' }] },
+    { key: 'start', files: [{ rel: 'src/a.js' }], comments: [{ path: 'src/a.js', line: 12, body: 'on a changed line' }, { path: 'src/a.js', line: 40, body: 'far away' }, { path: '(general)', line: 0, body: 'general' }] },
+    { key: 'finish', files: [{ rel: 'src/b.js' }], comments: [{ path: 'src/b.js', line: 3, body: 'file renamed' }] },
+    { key: 'unread', files: [{ rel: 'src/a.js' }] },
+  ];
+  const reads = { start: { story_head: A }, finish: { story_head: A }, 'since-x': { story_head: B } };
+  const changes = new Map([[A, new Map([['src/a.js', { kind: 'modified', hunks: [{ oldStart: 10, oldLines: 7 }] }], ['src/b.js', { kind: 'renamed', hunks: [] }]])]]);
+  const r = changedSinceRead(chapters, reads, changes, B);
+  assert.deepEqual(r.changed, [{ step: 2, chapter: 'start', since: A, files: ['src/a.js'] }, { step: 3, chapter: 'finish', since: A, files: ['src/b.js'] }], 'not the addendum, not a chapter never read');
+  assert.deepEqual(r.stale_comments.map(c => [c.step, c.index]), [[2, 0], [3, 0]]);
+  assert.deepEqual(changedSinceRead(chapters, { start: { story_head: B } }, changes, B), { changed: [], stale_comments: [] }, 'read at the story head: nothing to mark');
+});
+
+test('GET /read compares the commit each chapter was read at with the story head (gh for a PR)', async () => {
+  clearFreshness();
+  const home = tmp('home');
+  const dir = path.join(home, 'acme-widgets-7');
+  githubStory(dir);
+  writeJson(path.join(dir, 'meta.json'), { kind: 'github', repo: 'acme/widgets', number: 7, head_oid: B });
+  const extra = path.join(home, 'gh-extra.json');
+  writeJson(extra, { [`repos/acme/widgets/compare/${A}...${B}`]: { status: 'ahead', ahead_by: 1, files: [{ filename: 'src/a.js', status: 'modified', patch: '@@ -1,4 +1,5 @@\n a\n-b\n+B\n+C\n c' }] } });
+  process.env.DIFF_STORY_FAKE_GH_EXTRA = extra;
+  noteRead(home, 'pr-acme-widgets-7', 'start', { head_sha: A, story_head: A });
+  const b = await startBridge({ home });
+  try {
+    const r = (await b.call('GET', '/api/stories/acme-widgets-7/read')).body;
+    assert.equal(r.error, null);
+    assert.deepEqual(r.changed, [{ step: 1, chapter: 'start', since: A, files: ['src/a.js'] }]);
+    assert.deepEqual(r.stale_comments.map(c => [c.step, c.index, c.line]), [[1, 0, 2]], 'the drafted comment on line 2 sits in the changed hunk');
+  } finally { delete process.env.DIFF_STORY_FAKE_GH_EXTRA; await b.close(); }
+});
+
+test('a local story compares with git', async () => {
+  const { git } = await import('./helpers.mjs');
+  const home = tmp('home');
+  const { repo, base } = localRepo();
+  const made = createLocalStory({ home, repo, base, head: 'HEAD', id: 'local-y' });
+  const b = await startBridge({ home });
+  try {
+    const story = (await b.call('GET', `/api/stories/${made.id}`)).body;
+    const ch = story.chapters.find(c => c.files.some(f => f.rel === 'one.txt'));
+    await b.call('POST', `/api/stories/${made.id}/read`, { chapter: ch.key, reason: 'time' });
+    writeFileSync(path.join(repo, 'one.txt'), 'a\nB\nc\nd\ne\n');
+    git(repo, 'commit', '-q', '-am', 'more one');
+    const r = (await b.call('GET', `/api/stories/${made.id}/read`)).body;
+    assert.deepEqual(r.changed.map(c => c.files), [['one.txt']]);
+    assert.notEqual(r.story_head, r.reads[ch.key].head_sha, 'the story followed the branch');
   } finally { await b.close(); }
 });

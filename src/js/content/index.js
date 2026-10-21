@@ -92,6 +92,7 @@ function mount() {
       load: async () => { const r = await bridge('GET', `${storyPath}/drafts`); if (!r.ok) throw new Error(r.error); return r.body; },
       act: async (chapter, index, action) => { const r = await bridge('POST', `${storyPath}/drafts`, { chapter, index, action }); if (!r.ok) throw new Error(r.error); return r.body; },
     },
+    reads: async () => { const r = await bridge('GET', `${storyPath}/read`); if (!r.ok) throw new Error(r.error); return r.body; },
     freshness: async () => { const r = await bridge('GET', `${storyPath}/freshness`); if (!r.ok) throw new Error(r.error); return r.body; },
     requestUpdate: async (base, { retell = false } = {}) => {
       const pr = prOfLocation();
