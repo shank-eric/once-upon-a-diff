@@ -4,9 +4,9 @@ import path from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { tmp, githubStory, startBridge } from './helpers.mjs';
-import { Builds, CLAIM_FRESH_MS } from '../bridge/lib/builds.mjs';
+import { Builds, CLAIM_FRESH_MS } from '../bridge/inbox/builds.mjs';
 import { beat } from '../bridge/lib/health.mjs';
-import { Inbox } from '../bridge/lib/inbox.mjs';
+import { Inbox } from '../bridge/inbox/inbox.mjs';
 
 const inboxLines = (home) =>
   readFileSync(path.join(home, 'inbox.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);

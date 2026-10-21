@@ -19,9 +19,9 @@ export function parseUnifiedDiff(text) {
   for (const line of String(text).split('\n')) {
     if (line.startsWith('diff --git ')) {
       close();
-      const m = /^diff --git a\/(.+) b\/(.+)$/.exec(line);
+      const names = /^diff --git a\/(.+) b\/(.+)$/.exec(line);
       cur = {
-        rel: m ? m[2] : line.slice(11),
+        rel: names ? names[2] : line.slice(11),
         kind: 'modified',
         stats: { added: 0, removed: 0 },
         hunks: [],
@@ -52,14 +52,14 @@ export function parseUnifiedDiff(text) {
       cur.binary = true;
       continue;
     }
-    const h = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$/.exec(line);
-    if (h) {
+    const hunkHeader = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$/.exec(line);
+    if (hunkHeader) {
       hunk = {
-        oldStart: +h[1],
-        oldLines: h[2] === undefined ? 1 : +h[2],
-        newStart: +h[3],
-        newLines: h[4] === undefined ? 1 : +h[4],
-        header: h[5].trim(),
+        oldStart: +hunkHeader[1],
+        oldLines: hunkHeader[2] === undefined ? 1 : +hunkHeader[2],
+        newStart: +hunkHeader[3],
+        newLines: hunkHeader[4] === undefined ? 1 : +hunkHeader[4],
+        header: hunkHeader[5].trim(),
         lines: [],
       };
       cur.hunks.push(hunk);

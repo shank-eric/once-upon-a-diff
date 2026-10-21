@@ -28,7 +28,7 @@
  *                                                                  extractor) and write the evidence for a story's "How it got here" notes
  *
  * DIFF_STORY_HOME moves ~/.diff-story. Personal settings (display name, time zone, checkout folders,
- * opener, gh token handling) are optional keys in its config.json: see readSettings in lib/config.mjs.
+ * opener, gh token handling) are optional keys in its config.json: see readSettings in config/settings.mjs.
  */
 import { execFile } from 'node:child_process';
 import {
@@ -49,18 +49,18 @@ import {
   formatTime,
   openArgv,
   readerOf,
-} from '../lib/config.mjs';
+} from '../config/settings.mjs';
 import { createBridge } from '../lib/server.mjs';
 import { StoryStore, readMeta } from '../lib/stories.mjs';
 import { createLocalStory, slug } from '../lib/local.mjs';
 import { storyDirFor } from '../lib/place.mjs';
-import { Inbox } from '../lib/inbox.mjs';
-import { Builds, updateOf } from '../lib/builds.mjs';
+import { Inbox } from '../inbox/inbox.mjs';
+import { Builds, updateOf } from '../inbox/builds.mjs';
 import { addComment } from '../lib/comments.mjs';
 import { stateKeyOf, readMarks, draftStatus, githubComments } from '../lib/drafts.mjs';
 import { beat } from '../lib/health.mjs';
-import { REPO_RE, sameRepo, repoOfCheckout, seenCheckout } from '../lib/repos.mjs';
-import { topLevel } from '../lib/git.mjs';
+import { REPO_RE, sameRepo, repoOfCheckout, seenCheckout } from '../config/repos.mjs';
+import { topLevel } from '../util/git.mjs';
 import { doctor } from '../lib/doctor.mjs';
 import { findBackstory, briefOf } from '../lib/backstory.mjs';
 

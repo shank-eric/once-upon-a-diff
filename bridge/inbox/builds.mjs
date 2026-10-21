@@ -20,10 +20,10 @@ import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { newId } from './inbox.mjs';
-import { sameRepo, REPO_RE } from './repos.mjs';
+import { sameRepo, REPO_RE } from '../config/repos.mjs';
 import { shortSha } from '../../src/js/shared/util/text.js';
-import { readerOf } from './config.mjs';
-import { readJson, writeJson } from './util/json-file.mjs';
+import { readerOf } from '../config/settings.mjs';
+import { readJson, writeJson } from '../util/json-file.mjs';
 
 export const CLAIM_FRESH_MS = 30 * 60 * 1000;
 
@@ -34,46 +34,46 @@ export const buildKey = (repo, number) => `${String(repo).toLowerCase()}#${Numbe
  * "Since you read it" chapter for since_sha..the PR's head, first, with the other chapters kept. retell asks for a
  * whole new story (a rebase, or a big rework).
  */
-export function buildText(b, reader = "the reviewer's") {
-  const pr = `${b.repo}#${b.number}`;
-  if (b.mode !== 'update') {
-    return `Build a story for ${pr}: ${b.url}`;
+export function buildText(build, reader = "the reviewer's") {
+  const pr = `${build.repo}#${build.number}`;
+  if (build.mode !== 'update') {
+    return `Build a story for ${pr}: ${build.url}`;
   }
-  if (b.retell) {
-    return `Re-tell the story for ${pr} from scratch at the PR's latest commit (it was told from ${shortSha(b.base_sha)}): ${b.url}`;
+  if (build.retell) {
+    return `Re-tell the story for ${pr} from scratch at the PR's latest commit (it was told from ${shortSha(build.base_sha)}): ${build.url}`;
   }
-  const since = b.since_sha || b.base_sha;
-  const why = b.since_source === 'read' ? `, where ${reader} reading stopped` : '';
-  return `Update the story for ${pr} (told from ${shortSha(b.base_sha)}): put a "Since you read it" chapter first for ${shortSha(since)}..the PR's head${why}, and keep the other chapters: ${b.url}`;
+  const since = build.since_sha || build.base_sha;
+  const why = build.since_source === 'read' ? `, where ${reader} reading stopped` : '';
+  return `Update the story for ${pr} (told from ${shortSha(build.base_sha)}): put a "Since you read it" chapter first for ${shortSha(since)}..the PR's head${why}, and keep the other chapters: ${build.url}`;
 }
 /** One line on an update: an addendum from where, or a re-tell. */
-export function updateOf(b, reader = "the reviewer's") {
-  if (b.mode !== 'update') {
+export function updateOf(build, reader = "the reviewer's") {
+  if (build.mode !== 'update') {
     return '';
   }
-  if (b.retell) {
-    return `re-tell from scratch (the story was told from ${shortSha(b.base_sha)})`;
+  if (build.retell) {
+    return `re-tell from scratch (the story was told from ${shortSha(build.base_sha)})`;
   }
-  const reads = b.reads || [];
-  const since = b.since_sha || b.base_sha;
+  const reads = build.reads || [];
+  const since = build.since_sha || build.base_sha;
   return (
     `update: "Since you read it" from ${shortSha(since)}` +
-    (b.since_source === 'read'
+    (build.since_source === 'read'
       ? ` (where ${reader} reading stopped; ${reads.length} chapter${reads.length === 1 ? '' : 's'} read)`
       : " (the story's old head; no chapters read)")
   );
 }
 /** The update fields a request carries to `wait` and `builds --json`. */
-const updateFields = (b) =>
-  b.mode === 'update'
+const updateFields = (build) =>
+  build.mode === 'update'
     ? {
         mode: 'update',
-        base_sha: b.base_sha,
-        retell: !!b.retell,
-        since_sha: b.since_sha || b.base_sha,
-        since_source: b.since_source || 'story',
-        reads: b.reads || [],
-        story: b.story || null,
+        base_sha: build.base_sha,
+        retell: !!build.retell,
+        since_sha: build.since_sha || build.base_sha,
+        since_source: build.since_source || 'story',
+        reads: build.reads || [],
+        story: build.story || null,
       }
     : {};
 
@@ -96,7 +96,7 @@ export class Builds {
     return this.all()[buildKey(repo, number)] || null;
   }
   pending() {
-    return Object.values(this.all()).filter((b) => b.status === 'pending');
+    return Object.values(this.all()).filter((build) => build.status === 'pending');
   }
 
   /**
@@ -105,19 +105,22 @@ export class Builds {
    * diff-story-listen skill runs as it starts each build) claims or refreshes it. A claim with no refresh for
    * CLAIM_FRESH_MS goes back to queued, and the next wait hands it out again.
    */
-  stateOf(b, now = Date.now()) {
-    if (!b) {
+  stateOf(build, now = Date.now()) {
+    if (!build) {
       return 'none';
     }
-    if (b.status !== 'pending') {
-      return b.status;
+    if (build.status !== 'pending') {
+      return build.status;
     }
-    const t = Math.max(Date.parse(b.claimed_at || '') || 0, Date.parse(b.started_at || '') || 0);
-    return t && now - t < CLAIM_FRESH_MS ? 'building' : 'queued';
+    const since = Math.max(
+      Date.parse(build.claimed_at || '') || 0,
+      Date.parse(build.started_at || '') || 0,
+    );
+    return since && now - since < CLAIM_FRESH_MS ? 'building' : 'queued';
   }
   /** The request with its state, for the pages. */
-  view(b) {
-    return b ? { ...b, state: this.stateOf(b) } : null;
+  view(build) {
+    return build ? { ...build, state: this.stateOf(build) } : null;
   }
 
   claim(idOrKey, consumer, { start = false } = {}) {
@@ -146,20 +149,20 @@ export class Builds {
    */
   toHand(consumer, { repo = null } = {}) {
     const queued = this.pending()
-      .filter((b) => this.stateOf(b) === 'queued' && (!repo || sameRepo(b.repo, repo)))
-      .sort((a, b) => Date.parse(a.requested_at) - Date.parse(b.requested_at));
-    return queued.map((b) => {
-      this.claim(b.id, consumer);
+      .filter((build) => this.stateOf(build) === 'queued' && (!repo || sameRepo(build.repo, repo)))
+      .sort((first, second) => Date.parse(first.requested_at) - Date.parse(second.requested_at));
+    return queued.map((build) => {
+      this.claim(build.id, consumer);
       return {
         type: 'build_request',
-        id: b.id,
-        at: b.requested_at,
-        repo: b.repo,
-        number: b.number,
-        url: b.url,
-        requested_at: b.requested_at,
-        ...updateFields(b),
-        text: buildText(b, readerOf(this.home)),
+        id: build.id,
+        at: build.requested_at,
+        repo: build.repo,
+        number: build.number,
+        url: build.url,
+        requested_at: build.requested_at,
+        ...updateFields(build),
+        text: buildText(build, readerOf(this.home)),
       };
     });
   }
@@ -173,14 +176,14 @@ export class Builds {
     if (!REPO_RE.test(String(repo || ''))) {
       throw Object.assign(new Error('bad repo'), { status: 400 });
     }
-    const n = Number(number);
-    if (!Number.isInteger(n) || n < 1) {
+    const prNumber = Number(number);
+    if (!Number.isInteger(prNumber) || prNumber < 1) {
       throw Object.assign(new Error('bad number'), { status: 400 });
     }
-    const want = `https://github.com/${repo}/pull/${n}`;
+    const want = `https://github.com/${repo}/pull/${prNumber}`;
     const prUrl = want; // always this PR's own URL, whatever the page sent
     const all = this.all();
-    const key = buildKey(repo, n);
+    const key = buildKey(repo, prNumber);
     const update = mode === 'update' && /^[0-9a-f]{7,40}$/.test(String(base_sha || ''));
     const old = all[key];
     if (old && old.status === 'pending') {
@@ -201,7 +204,7 @@ export class Builds {
         type: 'build_request',
         id: old.id,
         repo,
-        number: n,
+        number: prNumber,
         url: prUrl,
         requested_at: old.requested_at,
         ...updateFields(all[key]),
@@ -209,49 +212,49 @@ export class Builds {
       });
       return all[key];
     }
-    const at = Number.isFinite(Date.parse(requested_at))
+    const requestedAt = Number.isFinite(Date.parse(requested_at))
       ? new Date(requested_at).toISOString()
       : new Date().toISOString();
     const where =
       update && since
         ? {
             ...(since.since_sha ? { since_sha: since.since_sha, since_source: since.source } : {}),
-            reads: (since.read || []).map((r) => ({
-              chapter: r.chapter,
-              title: r.title,
-              sha: r.sha,
-              at: r.at,
+            reads: (since.read || []).map((read) => ({
+              chapter: read.chapter,
+              title: read.title,
+              sha: read.sha,
+              at: read.at,
             })),
             ...(since.story ? { story: since.story } : {}),
           }
         : {};
-    const b = {
+    const build = {
       id: newId('b'),
       repo,
-      number: n,
+      number: prNumber,
       url: prUrl,
-      requested_at: at,
+      requested_at: requestedAt,
       status: 'pending',
       ...(update
         ? { mode: 'update', base_sha, ...(retell ? { retell: true } : {}), ...where }
         : {}),
     };
-    all[key] = b;
+    all[key] = build;
     this.save(all);
     this.inbox.append({
       type: 'build_request',
-      id: b.id,
+      id: build.id,
       repo,
-      number: n,
+      number: prNumber,
       url: prUrl,
-      requested_at: at,
-      ...updateFields(b),
-      text: buildText(b, readerOf(this.home)),
+      requested_at: requestedAt,
+      ...updateFields(build),
+      text: buildText(build, readerOf(this.home)),
     });
     if (this.autoBuild) {
-      this.run(b);
+      this.run(build);
     }
-    return b;
+    return build;
   }
 
   /** Mark a request finished, by id or by repo#number. */
@@ -285,22 +288,22 @@ export class Builds {
   }
 
   /** autoBuild: run the configured command for one request, detached, output in <home>/builds/<id>.log. */
-  run(b) {
+  run(build) {
     const cmd = this.autoBuild.command;
-    if (!Array.isArray(cmd) || !cmd.length || !cmd.every((a) => typeof a === 'string')) {
+    if (!Array.isArray(cmd) || !cmd.length || !cmd.every((arg) => typeof arg === 'string')) {
       process.stderr.write(
         'diff-story: autoBuild.command must be an array of strings; not running it\n',
       );
       return;
     }
-    const fill = (a) =>
-      a
-        .replace(/\{url\}/g, b.url)
-        .replace(/\{repo\}/g, b.repo)
-        .replace(/\{number\}/g, String(b.number));
+    const fill = (arg) =>
+      arg
+        .replace(/\{url\}/g, build.url)
+        .replace(/\{repo\}/g, build.repo)
+        .replace(/\{number\}/g, String(build.number));
     const dir = path.join(this.home, 'builds');
     mkdirSync(dir, { recursive: true });
-    const log = openSync(path.join(dir, `${b.id}.log`), 'a');
+    const log = openSync(path.join(dir, `${build.id}.log`), 'a');
     const cwd = this.autoBuild.cwd
       ? this.autoBuild.cwd.replace(/^~(?=\/|$)/, os.homedir())
       : os.homedir();
@@ -311,18 +314,18 @@ export class Builds {
         stdio: ['ignore', log, log],
         env: {
           ...process.env,
-          DIFF_STORY_URL: b.url,
-          DIFF_STORY_REPO: b.repo,
-          DIFF_STORY_NUMBER: String(b.number),
-          DIFF_STORY_BUILD: b.id,
+          DIFF_STORY_URL: build.url,
+          DIFF_STORY_REPO: build.repo,
+          DIFF_STORY_NUMBER: String(build.number),
+          DIFF_STORY_BUILD: build.id,
         },
       });
       child.on('error', (err) => {
-        this.done(b.id, { failed: true, note: `autoBuild could not start: ${err.message}` });
+        this.done(build.id, { failed: true, note: `autoBuild could not start: ${err.message}` });
       });
       child.on('exit', (code) => {
-        if (code && this.get(b.repo, b.number)?.status === 'pending') {
-          this.done(b.id, { failed: true, note: `autoBuild exited ${code}` });
+        if (code && this.get(build.repo, build.number)?.status === 'pending') {
+          this.done(build.id, { failed: true, note: `autoBuild exited ${code}` });
         }
       });
       child.unref();

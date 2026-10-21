@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { tmp, writeJson, localRepo } from './helpers.mjs';
 import { lineRefsOf, addTextRefs, REF_NOTE } from '../bridge/lib/refs.mjs';
-import { pathSha } from '../bridge/lib/diff.mjs';
+import { pathSha } from '../bridge/util/diff.mjs';
 import { StoryStore } from '../bridge/lib/stories.mjs';
 import { createLocalStory } from '../bridge/lib/local.mjs';
 import { finishedInOf } from '../src/js/shared/overlay.js';

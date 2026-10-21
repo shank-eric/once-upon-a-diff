@@ -10,7 +10,7 @@
  * Runs `gh api graphql` as the logged-in gh user (GITHUB_TOKEN is dropped first when
  * config.json sets gh_unset_github_token).
  */
-import { runGh } from './util/gh.mjs';
+import { runGh } from '../util/gh.mjs';
 
 async function graphql(query, variables) {
   const args = ['api', 'graphql', '-f', `query=${query}`];

@@ -16,7 +16,7 @@
  *
  * The pr-story skill's `build` applies the same rule to file-map.json.
  */
-import { pathSha } from './diff.mjs';
+import { pathSha } from '../util/diff.mjs';
 
 export const REF_NOTE = 'its lines are pointed at in the text';
 const REF_LABEL = 'pointed at in the text';

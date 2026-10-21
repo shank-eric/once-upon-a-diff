@@ -4,7 +4,7 @@
  * gh in tests.
  */
 import { execFile } from 'node:child_process';
-import { ghEnv } from '../config.mjs';
+import { ghEnv } from '../config/settings.mjs';
 
 /** The gh binary: DIFF_STORY_GH when set (the tests' fake gh), else gh on PATH. */
 export const ghBinary = () => process.env.DIFF_STORY_GH || 'gh';

@@ -40,9 +40,9 @@ export const diffText = (repo, baseOid, headOid, { ignoreWhitespace = false } = 
 export function commitsBetween(repo, baseOid, headOid) {
   const out = git(repo, ['log', '--format=%H%x09%cI%x09%s', `${baseOid}..${headOid}`]).trim();
   return out
-    ? out.split('\n').map((l) => {
-        const [sha, at, subject] = l.split('\t');
-        return { sha, at, subject };
+    ? out.split('\n').map((line) => {
+        const [sha, committedAt, subject] = line.split('\t');
+        return { sha, at: committedAt, subject };
       })
     : [];
 }

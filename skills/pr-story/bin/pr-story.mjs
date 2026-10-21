@@ -606,9 +606,9 @@ async function cmdRender(opts) {
       out,
     ];
     try {
-      argv = (await import(pathToFileURL(path.join(DSM, 'bridge/lib/config.mjs')).href)).openArgv(
-        out,
-      );
+      argv = (
+        await import(pathToFileURL(path.join(DSM, 'bridge/config/settings.mjs')).href)
+      ).openArgv(out);
     } catch {
       /* no Diff Story Mode beside it */
     }
