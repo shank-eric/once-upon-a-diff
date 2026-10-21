@@ -12,6 +12,7 @@
 import { storyOverlay } from '../shared/overlay.js';
 import { statusControl } from './status.js';
 import { initList } from './list.js';
+import { decide, filesPage, seen, prefsStore } from './whitespace.js';
 
 const PR_PATH = /^\/([^/]+)\/([^/]+)\/pull\/(\d+)\/(changes|files)(?:\/|$)/;
 const PANEL_ID = 'diff-story-panel';
@@ -239,6 +240,37 @@ async function toggle() {
   refreshStatus();
 }
 
+// ---------- Hide whitespace: GitHub's ?w=1, remembered in the bridge's prefs.json (the local page's setting too)
+const prefs = prefsStore({
+  call: bridge,
+  load: async () => { if (!alive()) return null; try { return (await chrome.storage.local.get('prefs')).prefs || null; } catch (e) { return null; } },
+  store: async v => { if (!alive()) return; try { await chrome.storage.local.set({ prefs: v }); } catch (e) { /* extension reloaded */ } },
+});
+const W_PREV = 'diff-story:w-prev';
+const W_REDIRECT = 'diff-story:w-redirect';
+const session = {
+  get: k => { try { return JSON.parse(sessionStorage.getItem(k)); } catch (e) { return null; } },
+  set: (k, v) => { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage blocked */ } },
+};
+async function whitespaceCheck() {
+  if (!alive()) return;
+  const href = location.href;
+  const prev = session.get(W_PREV);
+  session.set(W_PREV, seen(href));
+  const page = filesPage(href);
+  if (!page) return;
+  const d = decide({ href, prev, pref: await prefs.read(), redirect: session.get(W_REDIRECT) });
+  if (d.action === 'save') return prefs.write(d.value);
+  if (d.action !== 'redirect' || location.href !== href) return;
+  session.set(W_REDIRECT, { from: href, at: Date.now() });
+  // keep the panel's step and scroll across the reload
+  if (cur && cur.key === page.key && cur.overlay) {
+    cur.ui = { ...cur.overlay.state, hidden: false, bodyScroll: cur.overlay.bodyScroll };
+    await saveUi(cur.key, cur.ui);
+  }
+  location.replace(d.url);
+}
+
 function toast(text) {
   const el = document.createElement('div');
   el.textContent = text;
@@ -263,7 +295,7 @@ if (alive()) {
 let lastHref = '';
 setInterval(() => {
   if (!alive()) return;
-  if (location.href !== lastHref) { lastHref = location.href; sync(); }
+  if (location.href !== lastHref) { lastHref = location.href; whitespaceCheck().catch(() => {}); sync(); }
   else if (cur && cur.data && !cur.ui.hidden && !document.getElementById(PANEL_ID)) sync();
   else if (cur && !document.getElementById('diff-story-status')) refreshStatus(); // GitHub swapped out <body>
 }, 700);
@@ -277,5 +309,5 @@ document.addEventListener('visibilitychange', () => {
 });
 setInterval(() => { if (alive()) checkForUpdates(); }, 5000);
 lastHref = location.href;
-sync();
+whitespaceCheck().catch(() => {}).finally(sync); // a ?w=1 reload, if any, comes before the panel docks
 initList(); // story badges on PR lists
