@@ -184,7 +184,7 @@ A Claude session fulfils the request. `diff-story wait` hands it build requests 
 "autoAnswer": { "enabled": true, "command": ["claude", "-p", "Answer this code-review question in a few sentences, using the story and diff in {context}: {question}"], "timeout_s": 600 }
 ```
 
-Like autoBuild, the command is an argv array and is never run through a shell. `{question}`, `{context}`, `{story}` and `{id}` in its arguments are replaced. `{context}` is a JSON file with the story's overview, the asked-about chapter's narrative, files and drafted comments, and that chapter's diff when the bridge has one. Logs go to `~/.diff-story/answers/`. It's off for the same reason as autoBuild: it runs Claude without anyone at the keyboard. Whether to turn it on is Eric's call. With autoAnswer on and no listener, the light still counts questions as handled.
+Like autoBuild, the command is an argv array and is never run through a shell. `{question}`, `{context}`, `{story}` and `{id}` in its arguments are replaced. `{context}` is a JSON file with the story's overview, the asked-about chapter's narrative, files and drafted comments, and that chapter's diff when the bridge has one. Logs go to `~/.diff-story/answers/`. It's off for the same reason as autoBuild: it runs Claude without anyone at the keyboard. Whether to turn it on is your call. With autoAnswer on and no listener, the light still counts questions as handled.
 
 **autoBuild (off).** The bridge can run a command for each new request itself. It's off unless `~/.diff-story/config.json` turns it on:
 
@@ -192,7 +192,7 @@ Like autoBuild, the command is an argv array and is never run through a shell. `
 "autoBuild": { "enabled": true, "command": ["claude", "-p", "/pr-story {url}"], "cwd": "~/Development" }
 ```
 
-The command is an argv array and is never run through a shell. `{url}`, `{repo}` and `{number}` in its arguments are replaced. The values are also in `DIFF_STORY_URL`, `DIFF_STORY_REPO`, `DIFF_STORY_NUMBER` and `DIFF_STORY_BUILD`. Output goes to `~/.diff-story/builds/<id>.log`, and a non-zero exit marks the request failed. Restart the bridge after changing it. It's left off because it runs a Claude session without anyone at the keyboard. Whether that's wanted, and with what permissions, is Eric's call.
+The command is an argv array and is never run through a shell. `{url}`, `{repo}` and `{number}` in its arguments are replaced. The values are also in `DIFF_STORY_URL`, `DIFF_STORY_REPO`, `DIFF_STORY_NUMBER` and `DIFF_STORY_BUILD`. Output goes to `~/.diff-story/builds/<id>.log`, and a non-zero exit marks the request failed. Restart the bridge after changing it. It's left off because it runs a Claude session without anyone at the keyboard. Whether that's wanted, and with what permissions, is your call.
 
 ## Local mode: commits before you push
 
