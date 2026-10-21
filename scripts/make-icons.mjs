@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 /** Draws src/icons/icon{16,48,128}.png: a diff (green and red lines) with the story panel docked on the right. No dependencies. */
+/* eslint-disable id-length -- pixel math: x, y, the r, g, b, a channels and the corners x0..y1 are the usual names */
 import { deflateSync } from 'node:zlib';
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -7,27 +8,27 @@ import { fileURLToPath } from 'node:url';
 
 const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src/icons');
 
-const CRC = new Int32Array(256).map((_, n) => {
-  let c = n;
+const CRC = new Int32Array(256).map((_, index) => {
+  let crc = index;
   for (let k = 0; k < 8; k++) {
-    c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    crc = crc & 1 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
   }
-  return c;
+  return crc;
 });
 const crc32 = (buf) => {
-  let c = -1;
-  for (const b of buf) {
-    c = CRC[(c ^ b) & 0xff] ^ (c >>> 8);
+  let crc = -1;
+  for (const byte of buf) {
+    crc = CRC[(crc ^ byte) & 0xff] ^ (crc >>> 8);
   }
-  return (c ^ -1) >>> 0;
+  return (crc ^ -1) >>> 0;
 };
 function chunk(type, data) {
   const len = Buffer.alloc(4);
   len.writeUInt32BE(data.length);
-  const td = Buffer.concat([Buffer.from(type), data]);
+  const typeAndData = Buffer.concat([Buffer.from(type), data]);
   const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(crc32(td));
-  return Buffer.concat([len, td, crc]);
+  crc.writeUInt32BE(crc32(typeAndData));
+  return Buffer.concat([len, typeAndData, crc]);
 }
 function png(size, rgba) {
   const ihdr = Buffer.alloc(13);
@@ -76,21 +77,21 @@ const inside = (x, y, [x0, y0, x1, y1, r]) => {
 
 for (const size of [16, 48, 128]) {
   const buf = Buffer.alloc(size * size * 4);
-  const ss = 4;
+  const samples = 4;
   for (let py = 0; py < size; py++) {
     for (let px = 0; px < size; px++) {
       let r = 0,
         g = 0,
         b = 0,
         a = 0;
-      for (let sy = 0; sy < ss; sy++) {
-        for (let sx = 0; sx < ss; sx++) {
-          const x = (px + (sx + 0.5) / ss) / size,
-            y = (py + (sy + 0.5) / ss) / size;
+      for (let sy = 0; sy < samples; sy++) {
+        for (let sx = 0; sx < samples; sx++) {
+          const x = (px + (sx + 0.5) / samples) / size,
+            y = (py + (sy + 0.5) / samples) / size;
           let col = null;
-          for (const s of SHAPES) {
-            if (inside(x, y, s)) {
-              col = s[5];
+          for (const shape of SHAPES) {
+            if (inside(x, y, shape)) {
+              col = shape[5];
             }
           }
           if (col) {
@@ -106,7 +107,7 @@ for (const size of [16, 48, 128]) {
         buf[i] = r / a;
         buf[i + 1] = g / a;
         buf[i + 2] = b / a;
-        buf[i + 3] = (255 * a) / (ss * ss);
+        buf[i + 3] = (255 * a) / (samples * samples);
       }
     }
   }

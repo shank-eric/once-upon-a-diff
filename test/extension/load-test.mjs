@@ -28,11 +28,15 @@ import { beat } from '../../bridge/listeners/listeners.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const EXT = path.join(ROOT, 'src');
 const args = process.argv.slice(2);
-const arg = (name, dflt) => {
+/** --name's value, true for a bare --name, or the fallback when it isn't given. */
+const arg = (name, fallback) => {
   const i = args.indexOf(`--${name}`);
-  return i < 0 ? dflt : args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : true;
+  if (i < 0) {
+    return fallback;
+  }
+  return args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : true;
 };
-const PR = arg('pr', 'refined-github/refined-github#10280');
+const PR_REF = arg('pr', 'refined-github/refined-github#10280');
 const SHOTS = arg('shots', null);
 if (SHOTS) {
   mkdirSync(SHOTS, { recursive: true });
@@ -52,17 +56,17 @@ const shot = async (page, name) => {
 };
 
 // ---------- a story for a public PR, made from its real file list
-const [, owner, repo, number] = /^([^/]+)\/([^#]+)#(\d+)$/.exec(PR);
+const [, owner, repo, number] = /^([^/]+)\/([^#]+)#(\d+)$/.exec(PR_REF);
 const res = await fetch(
   `https://api.github.com/repos/${owner}/${repo}/pulls/${number}/files?per_page=100`,
   { headers: { Accept: 'application/vnd.github+json' } },
 );
 if (!res.ok) {
-  throw new Error(`GitHub API ${res.status} for ${PR}`);
+  throw new Error(`GitHub API ${res.status} for ${PR_REF}`);
 }
-const rels = (await res.json()).map((f) => f.filename);
+const rels = (await res.json()).map((file) => file.filename);
 if (rels.length < 2) {
-  throw new Error(`${PR} has ${rels.length} files; pick a PR with at least 2`);
+  throw new Error(`${PR_REF} has ${rels.length} files; pick a PR with at least 2`);
 }
 const half = Math.ceil(rels.length / 2);
 const home = tmp('ext-home');
@@ -87,7 +91,7 @@ writeJson(extra, {
 });
 process.env.DIFF_STORY_FAKE_GH_EXTRA = extra;
 writeJson(path.join(home, id, 'chapters.json'), {
-  title: `Test story for ${PR}`,
+  title: `Test story for ${PR_REF}`,
   overview: `### Overview\n\nA test story with ${rels.length} files.`,
   chapters: [
     {
@@ -153,11 +157,11 @@ const context = await chromium.launchPersistentContext(profile, {
   args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`],
 });
 try {
-  let [sw] = context.serviceWorkers();
-  if (!sw) {
-    sw = await context.waitForEvent('serviceworker');
+  let [worker] = context.serviceWorkers();
+  if (!worker) {
+    worker = await context.waitForEvent('serviceworker');
   }
-  const extId = new URL(sw.url()).host;
+  const extId = new URL(worker.url()).host;
   check(/^[a-p]{32}$/.test(extId), `extension loaded (${extId})`);
 
   // 0. a PR tab opened before the extension is set up
@@ -201,9 +205,9 @@ try {
   // 2. GitHub
   const page = await context.newPage();
   const pageBridgeCalls = [];
-  page.on('request', (r) => {
-    if (r.url().startsWith('http://127.0.0.1')) {
-      pageBridgeCalls.push(r.url());
+  page.on('request', (request) => {
+    if (request.url().startsWith('http://127.0.0.1')) {
+      pageBridgeCalls.push(request.url());
     }
   });
   for (const view of ['files', 'changes']) {
@@ -222,10 +226,12 @@ try {
     const note = () => page.locator('#dsm-panel .prs-count-note').textContent();
     check(/Overview/.test(await note()), `/${view}: starts at the Overview: "${await note()}"`);
     await page.waitForTimeout(800);
-    const fr = await page.locator('#dsm-panel .prs-fresh').textContent();
+    const freshText = await page.locator('#dsm-panel .prs-fresh').textContent();
     check(
-      /Story is for aaaaaaa; the PR has 2 newer commits \(1 file changed, in chapter 2\)/.test(fr),
-      `/${view}: an out-of-date story says so: "${fr}"`,
+      /Story is for aaaaaaa; the PR has 2 newer commits \(1 file changed, in chapter 2\)/.test(
+        freshText,
+      ),
+      `/${view}: an out-of-date story says so: "${freshText}"`,
     );
     check(
       (await page.locator('#dsm-panel ol.prs-map li[data-n="2"] .prs-touched').count()) === 1,
@@ -245,9 +251,9 @@ try {
     await page.locator('#dsm-panel .prs-next').click();
     await page.waitForTimeout(800);
     if (view === 'files') {
-      const bs = page.locator('#dsm-panel details.prs-backstory');
+      const backstoryBox = page.locator('#dsm-panel details.prs-backstory');
       check(
-        (await bs.count()) === 1 && (await bs.getAttribute('open')) === null,
+        (await backstoryBox.count()) === 1 && (await backstoryBox.getAttribute('open')) === null,
         `/${view}: chapter 1 has a collapsed Backstory under its narrative`,
       );
       await page.locator('#dsm-panel .prs-view[data-view=backstory]').click();
@@ -260,9 +266,12 @@ try {
       await page.locator('#dsm-panel .prs-view[data-view=story]').click();
       await page.waitForTimeout(600);
     }
-    const n1 = await note();
+    const chapterOneNote = await note();
     const hidden = await page.locator('[data-dsm-hidden]').count();
-    check(/chapter 1/.test(n1), `/${view}: Next goes to chapter 1: "${n1.trim()}"`);
+    check(
+      /chapter 1/.test(chapterOneNote),
+      `/${view}: Next goes to chapter 1: "${chapterOneNote.trim()}"`,
+    );
     check(
       hidden > 0,
       `/${view}: other chapter's files and tree rows are hidden (${hidden} elements)`,
@@ -278,14 +287,14 @@ try {
     }
     // logged out there's no Viewed checkbox: Mark viewed says so and clicks nothing
     const markTry = await page.evaluate(async (rel) => {
-      const r = document.getElementById('diff-story-panel').shadowRoot;
-      const btn = r.querySelector(`li[data-file="${CSS.escape(rel)}"] button[data-mark-for]`);
+      const root = document.getElementById('diff-story-panel').shadowRoot;
+      const btn = root.querySelector(`li[data-file="${CSS.escape(rel)}"] button[data-mark-for]`);
       if (!btn) {
         return null;
       }
       btn.click();
       await new Promise((res) => setTimeout(res, 200));
-      return { label: btn.textContent, msg: r.querySelector('.prs-msg').textContent };
+      return { label: btn.textContent, msg: root.querySelector('.prs-msg').textContent };
     }, rels[1]);
     check(
       !!markTry &&
@@ -296,12 +305,12 @@ try {
     // with a Viewed toggle in the file's header (GitHub's shape when logged in), Mark viewed clicks that one toggle, and Viewed ✓ unclicks it
     const markLive = await page.evaluate(
       async ([rel, view]) => {
-        const r = document.getElementById('diff-story-panel').shadowRoot;
-        const btn = r.querySelector(`li[data-file="${CSS.escape(rel)}"] button[data-mark-for]`);
+        const root = document.getElementById('diff-story-panel').shadowRoot;
+        const btn = root.querySelector(`li[data-file="${CSS.escape(rel)}"] button[data-mark-for]`);
         const sha = [
           ...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rel))),
         ]
-          .map((x) => x.toString(16).padStart(2, '0'))
+          .map((byte) => byte.toString(16).padStart(2, '0'))
           .join('');
         const block =
           view === 'files'
@@ -333,17 +342,17 @@ try {
           clicks++;
         });
         block.prepend(toggle);
-        const on = () =>
+        const listening = () =>
           toggle.matches('input') ? toggle.checked : toggle.getAttribute('aria-pressed') === 'true';
         const wait = () => new Promise((res) => setTimeout(res, 500));
         await wait();
-        const before = { label: btn.textContent, on: on(), clicks };
+        const before = { label: btn.textContent, on: listening(), clicks };
         btn.click();
         await wait();
-        const ticked = { label: btn.textContent, on: on(), clicks };
+        const ticked = { label: btn.textContent, on: listening(), clicks };
         btn.click();
         await wait();
-        const unticked = { label: btn.textContent, on: on(), clicks };
+        const unticked = { label: btn.textContent, on: listening(), clicks };
         toggle.remove();
         return { before, ticked, unticked };
       },
@@ -377,14 +386,14 @@ try {
     // what Refined GitHub's j/k does: set the hash to the next file in page order, hidden or not
     const jumped = await page.evaluate(
       async ([inCh, outCh, chapterOne]) => {
-        const sha = async (s) =>
-          [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))]
-            .map((b) => b.toString(16).padStart(2, '0'))
+        const sha = async (text) =>
+          [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))]
+            .map((byte) => byte.toString(16).padStart(2, '0'))
             .join('');
         location.replace('#diff-' + (await sha(inCh)));
-        await new Promise((r) => setTimeout(r, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
         location.replace('#diff-' + (await sha(outCh)));
-        await new Promise((r) => setTimeout(r, 300));
+        await new Promise((resolve) => setTimeout(resolve, 300));
         const ch1 = await Promise.all(chapterOne.map(sha));
         const msg = document
           .querySelector('#diff-story-panel')
@@ -430,15 +439,15 @@ try {
   const inbox = existsSync(path.join(home, 'inbox.jsonl'))
     ? readFileSync(path.join(home, 'inbox.jsonl'), 'utf8').trim().split('\n').map(JSON.parse)
     : [];
-  const q = inbox.find((e) => e.type === 'question' && e.text === 'Why two halves?');
-  check(!!q && q.story === id, 'a question from the panel lands in the inbox');
+  const question = inbox.find((e) => e.type === 'question' && e.text === 'Why two halves?');
+  check(!!question && question.story === id, 'a question from the panel lands in the inbox');
   check(
     inbox.some((e) => e.type === 'position' && e.story === id),
     'the position lands in the inbox',
   );
-  if (q) {
+  if (question) {
     await bridge.call('POST', '/api/answers', {
-      question: q.id,
+      question: question.id,
       text: 'Because **two** chapters.',
     });
     await page.waitForTimeout(4500);
@@ -472,7 +481,7 @@ try {
     'a hidden panel stays hidden after a reload',
   );
   await page.bringToFront();
-  await sw.evaluate(async () => {
+  await worker.evaluate(async () => {
     // what a toolbar click does: send 'toggle' to the active tab
     const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     await chrome.tabs.sendMessage(tab.id, { type: 'toggle' });
@@ -489,15 +498,15 @@ try {
 
   // the status control on a PR with no story: Build story -> Building -> the story turns up -> panel
   const NOSTORY = Number(arg('no-story-pr', 10298));
-  const nb = await context.newPage();
-  await nb.goto(`https://github.com/${owner}/${repo}/pull/${NOSTORY}/files`, {
+  const newPage = await context.newPage();
+  await newPage.goto(`https://github.com/${owner}/${repo}/pull/${NOSTORY}/files`, {
     waitUntil: 'domcontentloaded',
   });
-  await nb
+  await newPage
     .waitForSelector('#diff-story-status', { state: 'attached', timeout: 10000 })
     .catch(() => null);
   const pill = () =>
-    nb
+    newPage
       .locator('#diff-story-status .dss')
       .textContent()
       .catch(() => '');
@@ -505,8 +514,8 @@ try {
     /No story yet/.test(await pill()),
     `a PR with no story shows "No story yet" with Build story: "${(await pill()).trim()}"`,
   );
-  await nb.locator('#diff-story-status button[data-act=build]').click();
-  await nb.waitForTimeout(800);
+  await newPage.locator('#diff-story-status button[data-act=build]').click();
+  await newPage.waitForTimeout(800);
   check(
     /Story queued · asked/.test(await pill()),
     `clicking Build story shows it queued (no session has claimed it yet) with the time: "${(await pill()).trim()}"`,
@@ -546,15 +555,18 @@ try {
     title: 'Built',
     chapters: [{ title: 'Chapter 1: All', files: ['readme.md'] }],
   });
-  const built = await nb
+  const built = await newPage
     .waitForSelector('#diff-story-panel', { state: 'attached', timeout: 15000 })
     .catch(() => null);
   check(
     !!built,
     'when the story turns up, the panel opens by itself (polling every 10s while queued)',
   );
-  check((await nb.locator('#diff-story-status').count()) === 0, 'and the status control goes away');
-  await nb.close();
+  check(
+    (await newPage.locator('#diff-story-status').count()) === 0,
+    'and the status control goes away',
+  );
+  await newPage.close();
 
   // PR list tags: one per PR (Story / Queued / Building… / Build story), one batched lookup, and a notice per repo with no listener
   const list = await context.newPage();
@@ -566,16 +578,16 @@ try {
     .catch(() => null);
   await list.waitForTimeout(1500);
   const badges = await list.evaluate(() =>
-    [...document.querySelectorAll('[data-dsm-badge]')].map((h) => ({
-      key: h.getAttribute('data-dsm-badge'),
-      text: h.shadowRoot.textContent
+    [...document.querySelectorAll('[data-dsm-badge]')].map((host) => ({
+      key: host.getAttribute('data-dsm-badge'),
+      text: host.shadowRoot.textContent
         .replace(/\s+/g, ' ')
         .trim()
         .replace(/^.*\}\s*/s, ''),
     })),
   );
-  const byKey = new Map(badges.map((x) => [x.key, x.text]));
-  const k = (n) => `${owner}/${repo}#${n}`.toLowerCase();
+  const byKey = new Map(badges.map((badge) => [badge.key, badge.text]));
+  const k = (number) => `${owner}/${repo}#${number}`.toLowerCase();
   check(badges.length >= 5, `the PR list gets a badge per PR (${badges.length})`);
   if (byKey.has(k(number))) {
     check(
@@ -588,10 +600,10 @@ try {
     );
   }
   check(
-    [...byKey.values()].some((t) => /Build story/.test(t)),
+    [...byKey.values()].some((text) => /Build story/.test(text)),
     'PRs without a story say "Build story"',
   );
-  const target = badges.find((x) => /Build story/.test(x.text));
+  const target = badges.find((badge) => /Build story/.test(badge.text));
   if (target) {
     await list.locator(`[data-dsm-badge="${target.key}"] button[data-act=build]`).click();
     await list.waitForTimeout(800);
@@ -599,25 +611,25 @@ try {
       /Queued/.test(
         await list
           .locator(`[data-dsm-badge="${target.key}"]`)
-          .evaluate((h) => h.shadowRoot.textContent),
+          .evaluate((host) => host.shadowRoot.textContent),
       ),
       'clicking Build story on the list shows Queued',
     );
     check(
       (await list
         .locator(`[data-dsm-badge="${target.key}"]`)
-        .evaluate((h) => h.shadowRoot.querySelectorAll('.b').length)) === 1,
+        .evaluate((host) => host.shadowRoot.querySelectorAll('.b').length)) === 1,
       'one tag per row',
     );
-    const n = Number(target.key.split('#')[1]);
+    const number = Number(target.key.split('#')[1]);
     check(
-      readFileSync(path.join(home, 'inbox.jsonl'), 'utf8').includes(`"number":${n}`),
+      readFileSync(path.join(home, 'inbox.jsonl'), 'utf8').includes(`"number":${number}`),
       'and sends the same build request as the PR page',
     );
   }
   const noticeText = await list
     .locator('#diff-story-listen-notice')
-    .evaluate((h) => h.shadowRoot.textContent)
+    .evaluate((host) => host.shadowRoot.textContent)
     .catch(() => '');
   check(
     new RegExp(`No session listening for ${owner}/${repo}`, 'i').test(noticeText) &&
@@ -637,10 +649,10 @@ try {
     .catch(() => null);
   const convoTag = await convo
     .locator('[data-dsm-convo]')
-    .evaluate((h) => ({
-      text: h.shadowRoot.textContent,
-      tags: h.shadowRoot.querySelectorAll('.b').length,
-      href: (h.shadowRoot.querySelector('a') || {}).href || '',
+    .evaluate((host) => ({
+      text: host.shadowRoot.textContent,
+      tags: host.shadowRoot.querySelectorAll('.b').length,
+      href: (host.shadowRoot.querySelector('a') || {}).href || '',
     }))
     .catch(() => null);
   check(
@@ -681,21 +693,21 @@ try {
     files: [rels[rels.length - 1]],
   });
   writeJson(path.join(home, id, 'chapters.json'), plan);
-  const sp = await context.newPage();
-  await sp.goto(`https://github.com/${owner}/${repo}/pull/${number}/files`, {
+  const sincePage = await context.newPage();
+  await sincePage.goto(`https://github.com/${owner}/${repo}/pull/${number}/files`, {
     waitUntil: 'domcontentloaded',
   });
-  await sp.waitForSelector('#diff-story-panel', { state: 'attached', timeout: 15000 });
-  await sp.locator('#dsm-panel ol.prs-map li[data-n="0"]').click();
-  const stepsText = await sp.locator('#dsm-panel ol.prs-map').textContent();
+  await sincePage.waitForSelector('#diff-story-panel', { state: 'attached', timeout: 15000 });
+  await sincePage.locator('#dsm-panel ol.prs-map li[data-n="0"]').click();
+  const stepsText = await sincePage.locator('#dsm-panel ol.prs-map').textContent();
   check(
     /New Since you read it: new commits/.test(stepsText) &&
       /1\. First half/.test(stepsText) &&
       /2\. Second half/.test(stepsText),
     `the Steps list shows it as New and keeps the old numbers: "${stepsText.replace(/\s+/g, ' ').trim()}"`,
   );
-  await sp.locator('#dsm-panel ol.prs-map li[data-n="1"]').click();
-  const rangeHref = await sp
+  await sincePage.locator('#dsm-panel ol.prs-map li[data-n="1"]').click();
+  const rangeHref = await sincePage
     .locator('#dsm-panel .prs-since a')
     .getAttribute('href')
     .catch(() => null);
@@ -704,51 +716,56 @@ try {
       `https://github.com/${owner}/${repo}/pull/${number}/files/${since.from}..${since.to}`,
     `it links GitHub's diff of just its commits (${rangeHref})`,
   );
-  await sp.locator('#dsm-panel ol.prs-map li[data-n="2"]').click();
+  await sincePage.locator('#dsm-panel ol.prs-map li[data-n="2"]').click();
   check(
     /Already finished in “Since you read it”/.test(
-      await sp.locator('#dsm-panel .prs-body').textContent(),
+      await sincePage.locator('#dsm-panel .prs-body').textContent(),
     ) || !rels.slice(0, half).includes(rels[rels.length - 1]),
     'a file it lists is finished there, not in the old chapter',
   );
-  await sp.locator('#dsm-panel ol.prs-map li[data-n="3"]').click();
+  await sincePage.locator('#dsm-panel ol.prs-map li[data-n="3"]').click();
   check(
     /Already finished in “Since you read it”/.test(
-      await sp.locator('#dsm-panel details.prs-filesbox').textContent(),
+      await sincePage.locator('#dsm-panel details.prs-filesbox').textContent(),
     ),
     'the old chapter that listed it says it was finished in "Since you read it"',
   );
-  await sp.goto(rangeHref, { waitUntil: 'domcontentloaded' });
-  await sp.waitForSelector('#diff-story-panel', { state: 'attached', timeout: 15000 });
-  await sp.waitForTimeout(1500);
+  await sincePage.goto(rangeHref, { waitUntil: 'domcontentloaded' });
+  await sincePage.waitForSelector('#diff-story-panel', { state: 'attached', timeout: 15000 });
+  await sincePage.waitForTimeout(1500);
   check(
-    /“Since you read it”/.test(await sp.locator('#dsm-panel .prs-count-note').textContent()) &&
+    /“Since you read it”/.test(
+      await sincePage.locator('#dsm-panel .prs-count-note').textContent(),
+    ) &&
       /You're on GitHub's diff of just these commits/.test(
-        await sp.locator('#dsm-panel .prs-since').textContent(),
+        await sincePage.locator('#dsm-panel .prs-since').textContent(),
       ),
-    `GitHub's diff of those commits opens on that chapter: "${(await sp.locator('#dsm-panel .prs-count-note').textContent()).trim()}"`,
+    `GitHub's diff of those commits opens on that chapter: "${(await sincePage.locator('#dsm-panel .prs-count-note').textContent()).trim()}"`,
   );
-  await sp.close();
+  await sincePage.close();
 
   // 3. local page
   beat(home, 'load-test', 'waiting');
-  const lp = await context.newPage();
+  const localPage = await context.newPage();
   const errors = [];
-  lp.on('pageerror', (e) => errors.push(e.message));
-  await lp.goto(`http://127.0.0.1:${port}/local/${local.id}/`);
-  await lp.waitForSelector('#diff-story-panel', { state: 'attached', timeout: 5000 });
+  localPage.on('pageerror', (e) => errors.push(e.message));
+  await localPage.goto(`http://127.0.0.1:${port}/local/${local.id}/`);
+  await localPage.waitForSelector('#diff-story-panel', { state: 'attached', timeout: 5000 });
   check(
-    (await lp.locator('[role=region][id^="diff-"]').count()) === 3,
+    (await localPage.locator('[role=region][id^="diff-"]').count()) === 3,
     'local page draws 3 file regions',
   );
-  await lp.waitForTimeout(500);
+  await localPage.waitForTimeout(500);
   check(
-    (await lp.locator('#dsm-panel .prs-light[data-level="ok"]').count()) === 1,
-    `the status light is green with a listener: "${((await lp.locator('#dsm-panel .prs-light').getAttribute('title')) || '').replace(/\n/g, ' | ')}"`,
+    (await localPage.locator('#dsm-panel .prs-light[data-level="ok"]').count()) === 1,
+    `the status light is green with a listener: "${((await localPage.locator('#dsm-panel .prs-light').getAttribute('title')) || '').replace(/\n/g, ' | ')}"`,
   );
-  check(await lp.locator('#dsm-panel .prs-askhint').isHidden(), 'and the Ask box has no warning');
+  check(
+    await localPage.locator('#dsm-panel .prs-askhint').isHidden(),
+    'and the Ask box has no warning',
+  );
   // the Overview lists every chapter's drafts, grouped by chapter, with their actions
-  const allc = lp.locator('#dsm-panel details.prs-allc');
+  const allc = localPage.locator('#dsm-panel details.prs-allc');
   check(
     (await allc.count()) === 1 && (await allc.getAttribute('open')) !== null,
     'the Overview lists all drafted comments, open when there are few',
@@ -764,101 +781,101 @@ try {
     "each shows its state and its chapter's actions",
   );
   await allc.locator('[data-draft-act="posted"]').click();
-  await lp.waitForTimeout(400);
+  await localPage.waitForTimeout(400);
   check(/Show posted \(1\)/.test(await allc.textContent()), 'Mark posted works from the Overview');
   await allc.locator('[data-draft-act="unposted"]').dispatchEvent('click'); // its row is folded behind Show posted
-  await lp.waitForTimeout(400);
-  await lp.locator('#dsm-panel .prs-next').click();
-  await lp.waitForTimeout(400);
-  const ln = await lp.locator('#dsm-panel .prs-count-note').textContent();
-  check(/Showing 2 of 3/.test(ln), `local page filters to chapter 1: "${ln.trim()}"`);
+  await localPage.waitForTimeout(400);
+  await localPage.locator('#dsm-panel .prs-next').click();
+  await localPage.waitForTimeout(400);
+  const localNote = await localPage.locator('#dsm-panel .prs-count-note').textContent();
+  check(/Showing 2 of 3/.test(localNote), `local page filters to chapter 1: "${localNote.trim()}"`);
   check(
-    /Fix before push/.test(await lp.locator('#dsm-panel .prs-body').textContent()),
+    /Fix before push/.test(await localPage.locator('#dsm-panel .prs-body').textContent()),
     'local page labels drafted comments "Fix before push"',
   );
   // drafts: Mark posted hides it behind "Show posted", Dismiss behind "Show dismissed", and both come back
-  await lp.waitForTimeout(400);
-  const drafts = () => lp.locator('#dsm-panel .prs-drafts').textContent();
-  await lp.locator('#dsm-panel .prs-comment [data-draft-act="posted"]').click();
-  await lp.waitForTimeout(400);
+  await localPage.waitForTimeout(400);
+  const drafts = () => localPage.locator('#dsm-panel .prs-drafts').textContent();
+  await localPage.locator('#dsm-panel .prs-comment [data-draft-act="posted"]').click();
+  await localPage.waitForTimeout(400);
   check(
-    (await lp.locator('#dsm-panel .prs-comment[data-i="0"]').isHidden()) &&
+    (await localPage.locator('#dsm-panel .prs-comment[data-i="0"]').isHidden()) &&
       /Show posted \(1\)/.test(await drafts()) &&
       /0 to post · 1 posted/.test(await drafts()),
-    `Mark posted hides the draft and counts it: "${await lp.locator('#dsm-panel .prs-draftsum').textContent()}"`,
+    `Mark posted hides the draft and counts it: "${await localPage.locator('#dsm-panel .prs-draftsum').textContent()}"`,
   );
-  await lp.locator('#dsm-panel [data-draft-show="showPosted"]').click();
+  await localPage.locator('#dsm-panel [data-draft-show="showPosted"]').click();
   check(
     /Posted ✓ \(you marked it\)/.test(await drafts()),
     'Show posted shows it as a "Posted ✓" row',
   );
-  await lp.locator('#dsm-panel .prs-comment [data-draft-act="unposted"]').click();
-  await lp.waitForTimeout(400);
-  await lp.locator('#dsm-panel .prs-comment [data-draft-act="dismiss"]').click();
-  await lp.waitForTimeout(400);
+  await localPage.locator('#dsm-panel .prs-comment [data-draft-act="unposted"]').click();
+  await localPage.waitForTimeout(400);
+  await localPage.locator('#dsm-panel .prs-comment [data-draft-act="dismiss"]').click();
+  await localPage.waitForTimeout(400);
   check(
-    (await lp.locator('#dsm-panel .prs-comment[data-i="0"]').isHidden()) &&
+    (await localPage.locator('#dsm-panel .prs-comment[data-i="0"]').isHidden()) &&
       /Show dismissed \(1\)/.test(await drafts()),
     'Dismiss hides it behind "Show dismissed"',
   );
-  await lp.locator('#dsm-panel [data-draft-show="showDismissed"]').click();
-  await lp.locator('#dsm-panel .prs-comment [data-draft-act="restore"]').click();
-  await lp.waitForTimeout(400);
+  await localPage.locator('#dsm-panel [data-draft-show="showDismissed"]').click();
+  await localPage.locator('#dsm-panel .prs-comment [data-draft-act="restore"]').click();
+  await localPage.waitForTimeout(400);
   check(
-    await lp.locator('#dsm-panel .prs-comment[data-i="0"] pre').isVisible(),
+    await localPage.locator('#dsm-panel .prs-comment[data-i="0"] pre').isVisible(),
     'Restore brings the draft back',
   );
-  const prog = () => lp.locator('#dsm-panel .prs-progress').textContent();
+  const prog = () => localPage.locator('#dsm-panel .prs-progress').textContent();
   check(
     /0 of 1 marked viewed.*still to mark: one\.txt/.test(await prog()),
     `chapter progress lists what's left: "${await prog()}"`,
   );
   check(
-    await lp.evaluate(() => {
-      const r = document.getElementById('diff-story-panel').shadowRoot;
-      const p = r.querySelector('.prs-progress');
+    await localPage.evaluate(() => {
+      const root = document.getElementById('diff-story-panel').shadowRoot;
+      const progress = root.querySelector('.prs-progress');
       return (
-        !!p &&
-        p.closest('.prs-body') &&
-        p.previousElementSibling &&
-        p.previousElementSibling.tagName === 'H3'
+        !!progress &&
+        progress.closest('.prs-body') &&
+        progress.previousElementSibling &&
+        progress.previousElementSibling.tagName === 'H3'
       );
     }),
     'the tracker sits right under the chapter heading, not at the top of the panel',
   );
   check(
-    (await lp.locator('#dsm-panel details.prs-filesbox[open]').count()) === 0,
+    (await localPage.locator('#dsm-panel details.prs-filesbox[open]').count()) === 0,
     'Files in this chapter starts folded',
   );
   check(
     /1 to mark viewed/.test(
-      await lp.locator('#dsm-panel details.prs-filesbox summary').textContent(),
+      await localPage.locator('#dsm-panel details.prs-filesbox summary').textContent(),
     ),
-    `the folded list has a summary: "${(await lp.locator('#dsm-panel details.prs-filesbox summary').textContent()).trim()}"`,
+    `the folded list has a summary: "${(await localPage.locator('#dsm-panel details.prs-filesbox summary').textContent()).trim()}"`,
   );
-  await lp.locator('#dsm-panel .prs-next').click();
-  await lp.waitForTimeout(300);
+  await localPage.locator('#dsm-panel .prs-next').click();
+  await localPage.waitForTimeout(300);
   check(
     /Chapter 1 still has 1 to mark viewed: one\.txt/.test(
-      await lp.locator('#dsm-panel .prs-msg').textContent(),
+      await localPage.locator('#dsm-panel .prs-msg').textContent(),
     ),
     'moving on with files left gives a gentle note',
   );
-  await lp.locator('#dsm-panel .prs-prev').click();
-  await lp.waitForTimeout(300);
-  await lp.locator('#dsm-panel details.prs-filesbox summary').click();
-  await lp.waitForTimeout(300);
+  await localPage.locator('#dsm-panel .prs-prev').click();
+  await localPage.waitForTimeout(300);
+  await localPage.locator('#dsm-panel details.prs-filesbox summary').click();
+  await localPage.waitForTimeout(300);
   // a line jump whose target moves after the first scroll (as when GitHub renders the files it passes) still ends on the line
-  const settled = await lp.evaluate(async () => {
+  const settled = await localPage.evaluate(async () => {
     const link = document
       .getElementById('diff-story-panel')
       .shadowRoot.querySelector('.prs-comment code[data-start]');
     link.click();
-    await new Promise((r) => setTimeout(r, 60));
+    await new Promise((resolve) => setTimeout(resolve, 60));
     const spacer = document.createElement('div');
     spacer.style.height = '3000px';
     document.querySelector('.ds-files').prepend(spacer);
-    await new Promise((r) => setTimeout(r, 2600));
+    await new Promise((resolve) => setTimeout(resolve, 2600));
     const row = document.querySelector('tr[data-dsm-flash]');
     const top = row ? row.getBoundingClientRect().top : null;
     spacer.remove();
@@ -869,39 +886,39 @@ try {
     `a line jump re-scrolls when the page grows under it, and keeps the highlight (row at ${settled.top && Math.round(settled.top)}px)`,
   );
   // viewed too early: two.js comes back in chapter 2, gone.txt is only chapter 2's
-  await lp.locator('.ds-file[data-path="lib/two.js"] .ds-viewed').click();
-  await lp.waitForTimeout(500);
-  const earlyText = () => lp.locator('#dsm-panel .prs-early-box').textContent();
+  await localPage.locator('.ds-file[data-path="lib/two.js"] .ds-viewed').click();
+  await localPage.waitForTimeout(500);
+  const earlyText = () => localPage.locator('#dsm-panel .prs-early-box').textContent();
   check(
     /two\.js is marked viewed, but chapter 2 covers more of it/.test(await earlyText()),
     `marking a "comes back later" file viewed warns in the chapter: "${await earlyText()}"`,
   );
-  const twoRow = await lp.locator('#dsm-panel li[data-file="lib/two.js"]').textContent();
+  const twoRow = await localPage.locator('#dsm-panel li[data-file="lib/two.js"]').textContent();
   check(
     !/comes back|Leave unviewed|Mark viewed/i.test(twoRow) && /here: the export/.test(twoRow),
     `a file a later chapter finishes has no tag, just its note: "${twoRow}"`,
   );
   check(
     /⚠ viewed early/.test(
-      await lp.locator('#dsm-panel li[data-file="lib/two.js"] .prs-viewed').textContent(),
+      await localPage.locator('#dsm-panel li[data-file="lib/two.js"] .prs-viewed').textContent(),
     ),
     'and on its file row',
   );
-  await lp.locator('#dsm-panel .prs-all').click();
-  await lp.waitForTimeout(300);
-  await lp.locator('.ds-file[data-path="gone.txt"] .ds-viewed').click();
-  await lp.waitForTimeout(500);
+  await localPage.locator('#dsm-panel .prs-all').click();
+  await localPage.waitForTimeout(300);
+  await localPage.locator('.ds-file[data-path="gone.txt"] .ds-viewed').click();
+  await localPage.waitForTimeout(500);
   check(
     /gone\.txt is marked viewed early: it belongs to chapter 2/.test(await earlyText()),
     "a later chapter's file viewed early is flagged too",
   );
-  await lp.locator('.ds-file[data-path="gone.txt"] .ds-viewed').click();
-  await lp.locator('.ds-file[data-path="lib/two.js"] .ds-viewed').click();
-  await lp.locator('#dsm-panel .prs-all').click();
-  await lp.waitForTimeout(500);
+  await localPage.locator('.ds-file[data-path="gone.txt"] .ds-viewed').click();
+  await localPage.locator('.ds-file[data-path="lib/two.js"] .ds-viewed').click();
+  await localPage.locator('#dsm-panel .prs-all').click();
+  await localPage.waitForTimeout(500);
   check((await earlyText()) === '', 'unmarking them clears the warning');
   // the narrative's Mark viewed goes on a file's last mention in the chapter only; earlier mentions carry nothing
-  const onePills = await lp
+  const onePills = await localPage
     .locator('#dsm-panel .prs-md [data-mark-for], #dsm-panel .prs-md .prs-pill')
     .allTextContents();
   check(
@@ -909,12 +926,13 @@ try {
     `one.txt's button is on its last mention, nothing on the earlier ones: ${JSON.stringify(onePills)}`,
   );
   check(
-    !/more below/.test(await lp.locator('#dsm-panel .prs-body').textContent()),
+    !/more below/.test(await localPage.locator('#dsm-panel .prs-body').textContent()),
     'no "more below" anywhere',
   );
-  const oneTag = () => lp.locator('#dsm-panel li[data-file="one.txt"] .prs-why').textContent();
+  const oneTag = () =>
+    localPage.locator('#dsm-panel li[data-file="one.txt"] .prs-why').textContent();
   const oneToggle = () =>
-    lp.locator('.ds-file[data-path="one.txt"] .ds-viewed').getAttribute('aria-pressed');
+    localPage.locator('.ds-file[data-path="one.txt"] .ds-viewed').getAttribute('aria-pressed');
   const viewedJson = () =>
     existsSync(path.join(home, 'state', local.id, 'viewed.json'))
       ? JSON.parse(readFileSync(path.join(home, 'state', local.id, 'viewed.json'), 'utf8'))
@@ -925,30 +943,31 @@ try {
       !viewedJson()['one.txt'],
     `a file the chapter finishes has a Mark viewed button, and nothing ticked it: "${await oneTag()}"`,
   );
-  await lp.locator('#dsm-panel li[data-file="one.txt"] button[data-mark-for]').click();
-  await lp.waitForTimeout(500);
+  await localPage.locator('#dsm-panel li[data-file="one.txt"] button[data-mark-for]').click();
+  await localPage.waitForTimeout(500);
   check(
     /^Viewed ✓/.test(await oneTag()) && (await oneToggle()) === 'true',
     `clicking Mark viewed ticks the file's own Viewed toggle and says Viewed ✓: "${await oneTag()}"`,
   );
   check(
-    await lp
+    await localPage
       .locator('.ds-file[data-path="one.txt"]')
       .evaluate((el) => el.classList.contains('ds-folded')),
     'and the page folds the file, as its own Viewed click does',
   );
   check(
-    JSON.stringify(await lp.locator('#dsm-panel .prs-md [data-mark-for]').allTextContents()) ===
-      JSON.stringify(['viewed ✓']),
+    JSON.stringify(
+      await localPage.locator('#dsm-panel .prs-md [data-mark-for]').allTextContents(),
+    ) === JSON.stringify(['viewed ✓']),
     "the narrative's button follows it",
   );
   check(!!viewedJson()['one.txt'], 'the bridge keeps the Viewed that Mark viewed set');
   check(
-    (await lp.locator('.ds-viewed[aria-pressed="true"]').count()) === 1,
+    (await localPage.locator('.ds-viewed[aria-pressed="true"]').count()) === 1,
     'Mark viewed ticked only that file',
   );
   check(
-    (await lp
+    (await localPage
       .locator('#dsm-panel li[data-file="one.txt"] .prs-why button.prs-st-viewed')
       .count()) === 1,
     'the panel sees the local Viewed toggle',
@@ -958,10 +977,10 @@ try {
     `ticking the last one completes the chapter: "${await prog()}"`,
   );
   check(
-    (await lp.locator('#dsm-panel .prs-stepprog.prs-done[data-prog-for="1"]').count()) === 1,
+    (await localPage.locator('#dsm-panel .prs-stepprog.prs-done[data-prog-for="1"]').count()) === 1,
     'the Steps list shows a check on chapter 1',
   );
-  await lp.waitForTimeout(500);
+  await localPage.waitForTimeout(500);
   const reads = existsSync(path.join(home, 'state', local.id, 'read.json'))
     ? JSON.parse(readFileSync(path.join(home, 'state', local.id, 'read.json'), 'utf8'))
     : {};
@@ -969,30 +988,30 @@ try {
     !!reads.one && reads.one.reason === 'viewed' && /^[0-9a-f]{40}$/.test(reads.one.head_sha || ''),
     `ticking a chapter's last file records it as read, with the range's head (${JSON.stringify(reads.one || null)})`,
   );
-  await lp.locator('#dsm-panel .prs-md button[data-mark-for="one.txt"]').click(); // "viewed ✓" unticks it (and the page unfolds it, to reach a line)
-  await lp.waitForTimeout(500);
+  await localPage.locator('#dsm-panel .prs-md button[data-mark-for="one.txt"]').click(); // "viewed ✓" unticks it (and the page unfolds it, to reach a line)
+  await localPage.waitForTimeout(500);
   check(
     (await oneToggle()) === 'false' &&
       !viewedJson()['one.txt'] &&
       /^Mark viewed/.test(await oneTag()),
     `clicking Viewed ✓ unticks it: "${await oneTag()}"`,
   );
-  await lp.locator('td.ds-num[data-line-anchor$="R2"]').first().click();
-  await lp.locator('.ds-note-form textarea').fill('Lower-case B');
-  await lp.locator('.ds-note-form button[type=submit]').click();
-  await lp.waitForTimeout(400);
+  await localPage.locator('td.ds-num[data-line-anchor$="R2"]').first().click();
+  await localPage.locator('.ds-note-form textarea').fill('Lower-case B');
+  await localPage.locator('.ds-note-form button[type=submit]').click();
+  await localPage.waitForTimeout(400);
   const notes = JSON.parse(readFileSync(path.join(home, 'state', local.id, 'notes.json'), 'utf8'));
   check(notes.length === 1 && notes[0].line === 2, 'a fix-before-push note is kept by the bridge');
   // Add to fix before push: the drafted comment becomes a note, and the draft says it's there
-  await lp.locator('#dsm-panel .prs-drafts .prs-comment [data-draft-act="fix"]').click();
-  await lp.waitForTimeout(500);
-  const fixState = await lp
+  await localPage.locator('#dsm-panel .prs-drafts .prs-comment [data-draft-act="fix"]').click();
+  await localPage.waitForTimeout(500);
+  const fixState = await localPage
     .locator('#dsm-panel .prs-drafts .prs-comment .prs-cstate')
     .first()
     .textContent();
   check(
     /In fix before push · Jump to line 2/.test(fixState) &&
-      (await lp.locator('#dsm-panel .prs-drafts [data-draft-act="fix"]').count()) === 0,
+      (await localPage.locator('#dsm-panel .prs-drafts [data-draft-act="fix"]').count()) === 0,
     `Add to fix before push turns the draft into "In fix before push": "${fixState}"`,
   );
   const fixNotes = JSON.parse(
@@ -1000,32 +1019,34 @@ try {
   );
   check(
     fixNotes.length === 2 &&
-      fixNotes.some((x) => x.body === 'Fix B' && x.draft && x.path === 'one.txt' && x.line === 2),
+      fixNotes.some(
+        (note) => note.body === 'Fix B' && note.draft && note.path === 'one.txt' && note.line === 2,
+      ),
     'it is a real note on that line',
   );
   check(
-    /Fix B/.test(await lp.locator('.ds-notes-list').textContent()) &&
-      /2 open/.test(await lp.locator('.ds-notes-toggle').textContent()),
+    /Fix B/.test(await localPage.locator('.ds-notes-list').textContent()) &&
+      /2 open/.test(await localPage.locator('.ds-notes-toggle').textContent()),
     "and it shows in the page's checklist",
   );
-  await shot(lp, 'local-chapter1');
-  await lp.reload();
-  await lp.waitForSelector('#diff-story-panel', { state: 'attached', timeout: 5000 });
-  await lp.waitForTimeout(300);
+  await shot(localPage, 'local-chapter1');
+  await localPage.reload();
+  await localPage.waitForSelector('#diff-story-panel', { state: 'attached', timeout: 5000 });
+  await localPage.waitForTimeout(300);
   check(
-    /chapter 1/.test(await lp.locator('#dsm-panel .prs-count-note').textContent()),
+    /chapter 1/.test(await localPage.locator('#dsm-panel .prs-count-note').textContent()),
     'local page comes back on chapter 1 after a reload',
   );
   check(
-    (await lp.locator('#dsm-panel details.prs-filesbox[open]').count()) === 1,
+    (await localPage.locator('#dsm-panel details.prs-filesbox[open]').count()) === 1,
     'an opened files list stays open after a reload',
   );
   check(
-    (await lp.locator('.ds-note-row').count()) === 2,
+    (await localPage.locator('.ds-note-row').count()) === 2,
     'the notes (his own and the added draft) are still on the line after a reload',
   );
   check(
-    /In fix before push/.test(await lp.locator('#dsm-panel .prs-drafts').textContent()),
+    /In fix before push/.test(await localPage.locator('#dsm-panel .prs-drafts').textContent()),
     'and the draft still says In fix before push',
   );
   check(

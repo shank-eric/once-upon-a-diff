@@ -34,34 +34,34 @@ test('a local story lives in the checkout it diffs, kept out of git by .git/info
   assert.equal(exclude(repo).match(/\.diff-story/g).length, 1, 'the exclude line is added once');
   assert.ok(!existsSync(path.join(home, made.id)), 'nothing in ~/.diff-story but state');
   assert.equal(readIndex(home)[made.id], made.dir, 'the index maps the id to its folder');
-  const b = await startBridge({ home });
+  const bridge = await startBridge({ home });
   try {
-    assert.equal((await b.call('GET', `/api/stories/${made.id}`)).body.kind, 'local');
-    await b.call('POST', `/api/stories/${made.id}/viewed`, { path: 'one.txt', viewed: true });
+    assert.equal((await bridge.call('GET', `/api/stories/${made.id}`)).body.kind, 'local');
+    await bridge.call('POST', `/api/stories/${made.id}/viewed`, { path: 'one.txt', viewed: true });
     assert.ok(
       existsSync(path.join(home, 'state', made.id, 'viewed.json')),
       'state stays in ~/.diff-story',
     );
   } finally {
-    await b.close();
+    await bridge.close();
   }
 });
 
 test("in a worktree, the story goes in the worktree and the exclude in the repo's common git dir", () => {
   const home = tmp('home');
   const { repo, base } = localRepo();
-  const wt = path.join(tmp('wts'), 'feature-two');
-  git(repo, 'worktree', 'add', '-q', '-b', 'two', wt);
-  const made = createLocalStory({ home, repo: wt, base, head: 'HEAD' });
-  assert.equal(realpathSync(path.dirname(path.dirname(made.dir))), realpathSync(wt));
-  assert.equal(status(wt), '');
+  const worktree = path.join(tmp('wts'), 'feature-two');
+  git(repo, 'worktree', 'add', '-q', '-b', 'two', worktree);
+  const made = createLocalStory({ home, repo: worktree, base, head: 'HEAD' });
+  assert.equal(realpathSync(path.dirname(path.dirname(made.dir))), realpathSync(worktree));
+  assert.equal(status(worktree), '');
   assert.equal(status(repo), '');
   assert.match(
     exclude(repo),
     /\/\.diff-story\//,
     'one exclude covers the checkout and its worktrees',
   );
-  assert.equal(realpathSync(mainCheckout(wt)), realpathSync(repo));
+  assert.equal(realpathSync(mainCheckout(worktree)), realpathSync(repo));
 });
 
 test('a PR story published to ~/.diff-story moves into the repo checkout once it is known, and a new render follows', () => {

@@ -24,7 +24,7 @@ test('picks the language by extension or file name', () => {
   assert.equal(langOf('styles/a.SCSS'), 'scss');
   assert.equal(langOf('README'), null);
   assert.equal(langOf('.env'), null);
-  for (const l of [
+  for (const line of [
     'typescript',
     'javascript',
     'json',
@@ -37,7 +37,7 @@ test('picks the language by extension or file name', () => {
     'xml',
     'erb',
   ]) {
-    assert.ok(hljs.getLanguage(l), `${l} is vendored`);
+    assert.ok(hljs.getLanguage(line), `${line} is vendored`);
   }
 });
 
@@ -98,12 +98,12 @@ test('escapes code, and leaves big files, minified lines and unknown languages p
 });
 
 test('the bridge serves highlight.js and the highlighter, with no CDN in the page', async () => {
-  const b = await startBridge({ home: tmp('home') });
+  const bridge = await startBridge({ home: tmp('home') });
   try {
-    for (const p of ['/assets/highlight.mjs', '/assets/syntax.js']) {
-      const r = await b.call('GET', p);
-      assert.equal(r.status, 200);
-      assert.match(r.headers.get('content-type'), /javascript/);
+    for (const path of ['/assets/highlight.mjs', '/assets/syntax.js']) {
+      const response = await bridge.call('GET', path);
+      assert.equal(response.status, 200);
+      assert.match(response.headers.get('content-type'), /javascript/);
     }
     const local = readFileSync(new URL('../bridge/public/local.js', import.meta.url), 'utf8');
     assert.ok(
@@ -111,6 +111,6 @@ test('the bridge serves highlight.js and the highlighter, with no CDN in the pag
       'local.js loads nothing from the network',
     );
   } finally {
-    await b.close();
+    await bridge.close();
   }
 });

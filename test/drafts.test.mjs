@@ -90,42 +90,42 @@ test('posted, pending (his unsubmitted review), dismissed and manual marks are f
       },
     ],
   });
-  const b = await startBridge({ home });
+  const bridge = await startBridge({ home });
   try {
-    const st = (await b.call('GET', '/api/stories/acme-widgets-7/drafts')).body;
-    assert.equal(st.error, null);
-    assert.equal(st.login, 'octocat');
+    const state = (await bridge.call('GET', '/api/stories/acme-widgets-7/drafts')).body;
+    assert.equal(state.error, null);
+    assert.equal(state.login, 'octocat');
     assert.deepEqual(
-      st.drafts.map((d) => d.status),
+      state.drafts.map((draft) => draft.status),
       ['posted', 'pending', 'draft', 'draft'],
     );
-    assert.equal(st.drafts[0].url, 'https://github.com/acme/widgets/pull/7#discussion_r1');
+    assert.equal(state.drafts[0].url, 'https://github.com/acme/widgets/pull/7#discussion_r1');
 
-    let r = (
-      await b.call('POST', '/api/stories/acme-widgets-7/drafts', {
+    let result = (
+      await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
         chapter: 1,
         index: 3,
         action: 'dismiss',
       })
     ).body;
-    assert.equal(r.drafts[3].dismissed, true);
-    r = (
-      await b.call('POST', '/api/stories/acme-widgets-7/drafts', {
+    assert.equal(result.drafts[3].dismissed, true);
+    result = (
+      await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
         chapter: 1,
         index: 2,
         action: 'posted',
       })
     ).body;
-    assert.equal(r.drafts[2].status, 'posted');
-    assert.equal(r.drafts[2].source, 'manual');
-    r = (
-      await b.call('POST', '/api/stories/acme-widgets-7/drafts', {
+    assert.equal(result.drafts[2].status, 'posted');
+    assert.equal(result.drafts[2].source, 'manual');
+    result = (
+      await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
         chapter: 1,
         index: 0,
         action: 'unposted',
       })
     ).body;
-    assert.equal(r.drafts[0].status, 'draft', 'Unmark wins over a wrong match');
+    assert.equal(result.drafts[0].status, 'draft', 'Unmark wins over a wrong match');
 
     // a regenerated story, comments reordered and the dismissed one reworded a little, keeps the calls (they're kept per PR)
     writeJson(file, {
@@ -145,24 +145,24 @@ test('posted, pending (his unsubmitted review), dismissed and manual marks are f
         },
       ],
     });
-    r = (await b.call('GET', '/api/stories/acme-widgets-7/drafts')).body;
+    result = (await bridge.call('GET', '/api/stories/acme-widgets-7/drafts')).body;
     assert.equal(
-      r.drafts[0].dismissed,
+      result.drafts[0].dismissed,
       true,
       'a regenerated story does not suggest a dismissed comment again',
     );
-    assert.equal(r.drafts[1].status, 'draft');
-    r = (
-      await b.call('POST', '/api/stories/acme-widgets-7/drafts', {
+    assert.equal(result.drafts[1].status, 'draft');
+    result = (
+      await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
         chapter: 1,
         index: 0,
         action: 'restore',
       })
     ).body;
-    assert.equal(r.drafts[0].dismissed, false);
+    assert.equal(result.drafts[0].dismissed, false);
     assert.equal(
       (
-        await b.call('POST', '/api/stories/acme-widgets-7/drafts', {
+        await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
           chapter: 1,
           index: 0,
           action: 'post-it',
@@ -171,7 +171,7 @@ test('posted, pending (his unsubmitted review), dismissed and manual marks are f
       400,
     );
   } finally {
-    await b.close();
+    await bridge.close();
   }
 });
 
@@ -181,20 +181,20 @@ test('without gh, posted detection says why and manual marks still work', async 
   process.env.DIFF_STORY_GH = '/nonexistent/gh';
   const home = tmp('home');
   githubStory(path.join(home, 'acme-widgets-7'));
-  const b = await startBridge({ home });
+  const bridge = await startBridge({ home });
   try {
-    const st = (await b.call('GET', '/api/stories/acme-widgets-7/drafts')).body;
-    assert.match(st.error, /couldn't read the PR's comments/);
-    const r = (
-      await b.call('POST', '/api/stories/acme-widgets-7/drafts', {
+    const state = (await bridge.call('GET', '/api/stories/acme-widgets-7/drafts')).body;
+    assert.match(state.error, /couldn't read the PR's comments/);
+    const result = (
+      await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
         chapter: 1,
         index: 0,
         action: 'posted',
       })
     ).body;
-    assert.equal(r.drafts[0].status, 'posted');
+    assert.equal(result.drafts[0].status, 'posted');
   } finally {
-    await b.close();
+    await bridge.close();
     process.env.DIFF_STORY_GH = saved;
   }
 });

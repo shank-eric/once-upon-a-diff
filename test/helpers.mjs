@@ -85,8 +85,8 @@ export async function startBridge(opts) {
   const server = createBridge({ token: TOKEN, scratch: false, ...opts });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
-  const call = async (method, p, body, headers = {}) => {
-    const res = await fetch(base + p, {
+  const call = async (method, path, body, headers = {}) => {
+    const res = await fetch(base + path, {
       method,
       headers: {
         Authorization: `Bearer ${TOKEN}`,

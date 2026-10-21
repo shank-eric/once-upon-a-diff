@@ -2,15 +2,18 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { claimsOf, narrowRows } from '../bridge/public/narrow.js';
 
-const ctx = (L, R) => ({ type: 'line', L, R, add: false });
-const del = (L) => ({ type: 'line', L, R: null, add: false });
-const add = (R) => ({ type: 'line', L: null, R, add: true });
+const ctx = (oldLine, newLine) => ({ type: 'line', L: oldLine, R: newLine, add: false });
+const del = (oldLine) => ({ type: 'line', L: oldLine, R: null, add: false });
+const add = (newLine) => ({ type: 'line', L: null, R: newLine, add: true });
 const hunk = { type: 'hunk' };
 const shown = (rows, res) =>
   rows
-    .map((r, i) =>
-      res.hidden[i] ? null : r.type === 'line' ? `${r.L ?? '-'}/${r.R ?? '-'}` : r.type,
-    )
+    .map((row, i) => {
+      if (res.hidden[i]) {
+        return null;
+      }
+      return row.type === 'line' ? `${row.L ?? '-'}/${row.R ?? '-'}` : row.type;
+    })
     .filter(Boolean);
 
 // one file two chapters share, as in a story whose chapter 2 is one block of chapter 1's file
@@ -39,8 +42,8 @@ const rows = [
 ];
 
 test('a chapter folds the lines another chapter tells, and lines no range covers go to the file’s first chapter', () => {
-  const r1 = narrowRows(rows, claims, 'a.js', 1);
-  assert.deepEqual(shown(rows, r1), [
+  const first = narrowRows(rows, claims, 'a.js', 1);
+  assert.deepEqual(shown(rows, first), [
     'hunk',
     '1/1',
     '-/2',
@@ -53,34 +56,34 @@ test('a chapter folds the lines another chapter tells, and lines no range covers
     '11/13',
   ]);
   assert.deepEqual(
-    r1.runs.map((x) => [x.from, x.to, x.steps]),
+    first.runs.map((run) => [run.from, run.to, run.steps]),
     [[10, 14, [2]]],
     'all of hunk 3, header too, folds into one run, told in chapter 2',
   );
-  const r2 = narrowRows(rows, claims, 'a.js', 2);
-  assert.deepEqual(shown(rows, r2), ['hunk', '18/20', '19/-', '20/-', '21/21']);
+  const second = narrowRows(rows, claims, 'a.js', 2);
+  assert.deepEqual(shown(rows, second), ['hunk', '18/20', '19/-', '20/-', '21/21']);
   assert.deepEqual(
-    r2.runs.map((x) => [x.from, x.to, x.steps]),
+    second.runs.map((run) => [run.from, run.to, run.steps]),
     [[0, 9, [1]]],
     'hunks 1 and 2 fold into one run, told in chapter 1',
   );
 });
 
 test('a removal goes with the lines that replace it, and a pure removal with the lines around it', () => {
-  const r2 = narrowRows(rows, claims, 'a.js', 2);
-  assert.equal(r2.hidden[6], true, 'the removed line 10 is replaced by chapter 1’s added 11');
-  assert.equal(r2.hidden[12], false, 'removed 19 and 20 sit between chapter 2’s lines');
+  const second = narrowRows(rows, claims, 'a.js', 2);
+  assert.equal(second.hidden[6], true, 'the removed line 10 is replaced by chapter 1’s added 11');
+  assert.equal(second.hidden[12], false, 'removed 19 and 20 sit between chapter 2’s lines');
 });
 
 test('no narrowing for a chapter that lists the file whole, the Overview, or a file the chapter doesn’t list', () => {
-  for (const n of [3, 0]) {
+  for (const step of [3, 0]) {
     assert.ok(
-      narrowRows(rows, claims, 'a.js', n).hidden.every((h) => !h),
-      `step ${n}`,
+      narrowRows(rows, claims, 'a.js', step).hidden.every((hidden) => !hidden),
+      `step ${step}`,
     );
   }
-  assert.ok(narrowRows([ctx(1, 1)], claims, 'b.js', 1).hidden.every((h) => !h));
-  assert.ok(narrowRows(rows, claims, 'a.js', 1).hidden.some((h) => h));
+  assert.ok(narrowRows([ctx(1, 1)], claims, 'b.js', 1).hidden.every((hidden) => !hidden));
+  assert.ok(narrowRows(rows, claims, 'a.js', 1).hidden.some((hidden) => hidden));
 });
 
 test('a "Since you read it" chapter isn’t where uncovered lines go', () => {

@@ -5,7 +5,7 @@
 import { appendFileSync } from 'node:fs';
 
 const args = process.argv.slice(2);
-const query = (args.find((a) => a.startsWith('query=')) || '').slice('query='.length);
+const query = (args.find((arg) => arg.startsWith('query=')) || '').slice('query='.length);
 if (process.env.FAKE_GH_LOG) {
   appendFileSync(process.env.FAKE_GH_LOG, JSON.stringify(args) + '\n');
 }

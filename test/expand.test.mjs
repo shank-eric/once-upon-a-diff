@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { expandDirOf, expandStep, EXPAND_ALL_FAR } from '../src/js/shared/overlay.js';
 
 const gap = (...dirs) => ({ gap: dirs });
-const at = (...ns) => ns.map((n) => ({ n }));
+const drawn = (...lines) => lines.map((line) => ({ n: line }));
 
 describe('expand controls: which way one opens', () => {
   test("from /changes' data-direction, or the label when there's none", () => {
@@ -24,13 +24,13 @@ describe('expand controls: which way one opens', () => {
 // HUNK[up 64] 64..89 HUNK[all 89-96] 96..104 HUNK[all 104-113] 113..140 HUNK[down 140, up 162] 162..167
 const file = [
   gap('up'),
-  ...at(64, 65, 66, 67, 88, 89),
+  ...drawn(64, 65, 66, 67, 88, 89),
   gap('all'),
-  ...at(96, 97, 104),
+  ...drawn(96, 97, 104),
   gap('all'),
-  ...at(113, 114, 140),
+  ...drawn(113, 114, 140),
   gap('down', 'up'),
-  ...at(162, 167),
+  ...drawn(162, 167),
 ];
 
 describe('expand controls: the next one to click for a line', () => {
@@ -43,13 +43,13 @@ describe('expand controls: the next one to click for a line', () => {
     assert.equal(expandStep(file, 110).dir, 'all');
   });
   test('a long gap opens from whichever side is nearer the line', () => {
-    const i = file.findIndex((r, k) => r.gap && k > 12);
+    const i = file.findIndex((row, k) => row.gap && k > 12);
     assert.deepEqual(expandStep(file, 145), { at: i, dir: 'down', far: 5 });
     assert.deepEqual(expandStep(file, 160), { at: i, dir: 'up', far: 2 });
     assert.equal(expandStep(file, 151).dir, 'down', 'the middle goes down');
   });
   test('a line past the last hunk opens downward', () => {
-    const tail = [gap('up'), ...at(10, 20), gap('down')];
+    const tail = [gap('up'), ...drawn(10, 20), gap('down')];
     assert.deepEqual(expandStep(tail, 400), { at: 3, dir: 'down', far: 380 });
     assert.ok(
       expandStep(tail, 400).far > EXPAND_ALL_FAR,
@@ -65,8 +65,8 @@ describe('expand controls: the next one to click for a line', () => {
     );
   });
   test('a hunk row with no controls left, or only the wrong one, is a dead end', () => {
-    assert.equal(expandStep([gap(), ...at(30, 31)], 5), null);
-    assert.deepEqual(expandStep([...at(1, 2), gap('down')], 9), { at: 2, dir: 'down', far: 7 });
+    assert.equal(expandStep([gap(), ...drawn(30, 31)], 5), null);
+    assert.deepEqual(expandStep([...drawn(1, 2), gap('down')], 9), { at: 2, dir: 'down', far: 7 });
   });
   test('rows with no number on the wanted side (added rows, on the old side) are skipped over', () => {
     const old = [

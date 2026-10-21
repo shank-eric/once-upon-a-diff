@@ -32,12 +32,12 @@ test('a half-written last line waits for the next read', () => {
 
 test('answers attach to their questions', () => {
   const inbox = new Inbox(tmp('inbox'));
-  const q = inbox.append({ type: 'question', story: 's', text: 'why?' });
+  const question = inbox.append({ type: 'question', story: 's', text: 'why?' });
   inbox.append({ type: 'question', story: 'other', text: 'elsewhere' });
-  inbox.append({ type: 'answer', question: q.id, story: 's', text: 'because' });
-  const qs = inbox.questions('s');
-  assert.equal(qs.length, 1);
-  assert.equal(qs[0].answers[0].text, 'because');
+  inbox.append({ type: 'answer', question: question.id, story: 's', text: 'because' });
+  const questions = inbox.questions('s');
+  assert.equal(questions.length, 1);
+  assert.equal(questions[0].answers[0].text, 'because');
 });
 
 test('parses a unified diff', () => {
@@ -58,10 +58,10 @@ test('parses a unified diff', () => {
       'rename to new.js',
     ].join('\n'),
   );
-  const x = diff.get('x.js');
-  assert.deepEqual(x.stats, { added: 2, removed: 1 });
-  assert.equal(x.hunks[0].header, 'fn()');
+  const file = diff.get('x.js');
+  assert.deepEqual(file.stats, { added: 2, removed: 1 });
+  assert.equal(file.hunks[0].header, 'fn()');
   assert.equal(diff.get('new.js').kind, 'renamed');
   assert.equal(diff.get('new.js').renamed_from, 'old.js');
-  assert.notEqual(x.hash, diff.get('new.js').hash);
+  assert.notEqual(file.hash, diff.get('new.js').hash);
 });

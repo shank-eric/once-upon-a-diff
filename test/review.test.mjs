@@ -15,7 +15,7 @@ const fake = path.join(
 );
 chmodSync(fake, 0o755);
 
-function withFake(env, fn) {
+function withFake(env, run) {
   const saved = {
     gh: process.env.DIFF_STORY_GH,
     log: process.env.FAKE_GH_LOG,
@@ -30,44 +30,44 @@ function withFake(env, fn) {
     delete process.env.FAKE_GH_PENDING;
   }
   const restore = () => {
-    for (const [k, v] of [
+    for (const [k, value] of [
       ['DIFF_STORY_GH', saved.gh],
       ['FAKE_GH_LOG', saved.log],
       ['FAKE_GH_PENDING', saved.pending],
     ]) {
-      if (v === undefined) {
+      if (value === undefined) {
         delete process.env[k];
       } else {
-        process.env[k] = v;
+        process.env[k] = value;
       }
     }
   };
-  return fn(() =>
+  return run(() =>
     readFileSync(log, 'utf8')
       .trim()
       .split('\n')
-      .map((l) => JSON.parse(l)),
+      .map((line) => JSON.parse(line)),
   ).finally(restore);
 }
-const queryOf = (call) => call.find((a) => a.startsWith('query='));
+const queryOf = (call) => call.find((arg) => arg.startsWith('query='));
 
 test('starts a pending review when none exists, then adds the thread; never submits', () =>
   withFake({}, async (calls) => {
-    const r = await addToPendingReview('acme/widgets', 7, {
+    const result = await addToPendingReview('acme/widgets', 7, {
       path: 'src/a.js',
       line: 12,
       body: 'Could you confirm this?',
     });
-    assert.equal(r.started, true);
-    assert.equal(r.review, 'PRR_new');
-    assert.match(r.url, /discussion_r1/);
-    const qs = calls().map(queryOf);
-    assert.equal(qs.length, 3);
-    assert.ok(qs[1].includes('addPullRequestReview('));
-    for (const q of qs) {
+    assert.equal(result.started, true);
+    assert.equal(result.review, 'PRR_new');
+    assert.match(result.url, /discussion_r1/);
+    const queries = calls().map(queryOf);
+    assert.equal(queries.length, 3);
+    assert.ok(queries[1].includes('addPullRequestReview('));
+    for (const query of queries) {
       assert.ok(
         !/submitPullRequestReview|event:|APPROVE|REQUEST_CHANGES|addPullRequestReviewComment|addComment\(/.test(
-          q,
+          query,
         ),
         'nothing that submits or posts',
       );
@@ -76,13 +76,13 @@ test('starts a pending review when none exists, then adds the thread; never subm
 
 test('reuses his existing pending review and sends RIGHT side by default', () =>
   withFake({ pending: true }, async (calls) => {
-    const r = await addToPendingReview('acme/widgets', 7, {
+    const result = await addToPendingReview('acme/widgets', 7, {
       path: 'src/a.js',
       line: 12,
       body: 'x',
     });
-    assert.equal(r.started, false);
-    assert.equal(r.review, 'PRR_old');
+    assert.equal(result.started, false);
+    assert.equal(result.review, 'PRR_old');
     const thread = calls()[1];
     assert.ok(thread.includes('review=PRR_old'));
     assert.ok(thread.includes('side=RIGHT'));
@@ -103,7 +103,7 @@ test('general comments and empty drafts are refused without calling gh', () =>
 // ---------- after Add to my review: the panel's "added" state, kept by the bridge until the page shows it
 const fakeAll = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fake-gh.mjs');
 chmodSync(fakeAll, 0o755);
-function withBridgeGh(env, fn) {
+function withBridgeGh(env, run) {
   const keys = [
     'DIFF_STORY_GH',
     'FAKE_GH_GRAPHQL',
@@ -122,7 +122,7 @@ function withBridgeGh(env, fn) {
     delete process.env.FAKE_GH_FAIL;
   }
   return Promise.resolve()
-    .then(fn)
+    .then(run)
     .finally(() => {
       for (const k of keys) {
         if (saved[k] === undefined) {
@@ -155,16 +155,16 @@ test('a draft added to the review is kept as added across calls and a bridge res
     clearCache();
     const home = tmp('home');
     prStory(home);
-    let b = await startBridge({ home });
+    let bridge = await startBridge({ home });
     try {
-      const r = await b.call('POST', '/api/stories/acme-widgets-7/drafts', {
+      const response = await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
         chapter: 1,
         index: 0,
         action: 'review',
       });
-      assert.equal(r.status, 200, r.text);
-      assert.equal(r.body.added.url, 'https://github.com/acme/widgets/pull/7#discussion_r1');
-      const row = r.body.drafts[0];
+      assert.equal(response.status, 200, response.text);
+      assert.equal(response.body.added.url, 'https://github.com/acme/widgets/pull/7#discussion_r1');
+      const row = response.body.drafts[0];
       assert.equal(
         row.status,
         'draft',
@@ -172,9 +172,9 @@ test('a draft added to the review is kept as added across calls and a bridge res
       );
       assert.equal(row.added.url, 'https://github.com/acme/widgets/pull/7#discussion_r1');
       assert.ok(Date.parse(row.added.at) > 0);
-      assert.equal(r.body.drafts[1].added, null);
+      assert.equal(response.body.drafts[1].added, null);
       // a second click (or another tab) doesn't put a second copy in the review
-      const again = await b.call('POST', '/api/stories/acme-widgets-7/drafts', {
+      const again = await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
         chapter: 1,
         index: 0,
         action: 'review',
@@ -182,27 +182,27 @@ test('a draft added to the review is kept as added across calls and a bridge res
       assert.equal(again.status, 409);
       assert.match(again.body.error, /already in your pending review/);
     } finally {
-      await b.close();
+      await bridge.close();
     }
 
-    b = await startBridge({ home }); // the bridge restarted
+    bridge = await startBridge({ home }); // the bridge restarted
     try {
-      let st = (await b.call('GET', '/api/stories/acme-widgets-7/drafts')).body;
-      assert.ok(st.drafts[0].added, 'still added after a restart');
-      st = (
-        await b.call('POST', '/api/stories/acme-widgets-7/drafts', {
+      let state = (await bridge.call('GET', '/api/stories/acme-widgets-7/drafts')).body;
+      assert.ok(state.drafts[0].added, 'still added after a restart');
+      state = (
+        await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
           chapter: 1,
           index: 0,
           action: 'settle',
         })
       ).body;
       assert.equal(
-        st.drafts[0].added,
+        state.drafts[0].added,
         null,
         'settle drops the mark once the page or gh shows the comment',
       );
     } finally {
-      await b.close();
+      await bridge.close();
     }
   }));
 
@@ -211,36 +211,36 @@ test('when GitHub refuses, the error comes back and nothing is marked added', ()
     clearCache();
     const home = tmp('home');
     prStory(home);
-    const b = await startBridge({ home });
+    const bridge = await startBridge({ home });
     try {
-      const r = await b.call('POST', '/api/stories/acme-widgets-7/drafts', {
+      const response = await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
         chapter: 1,
         index: 0,
         action: 'review',
       });
-      assert.equal(r.status, 502);
+      assert.equal(response.status, 502);
       assert.match(
-        r.body.error,
+        response.body.error,
         /couldn't add it to your review: GraphQL: Line could not be resolved/,
       );
-      const st = (await b.call('GET', '/api/stories/acme-widgets-7/drafts')).body;
-      assert.equal(st.drafts[0].added, null);
+      const state = (await bridge.call('GET', '/api/stories/acme-widgets-7/drafts')).body;
+      assert.equal(state.drafts[0].added, null);
       assert.equal(
-        st.drafts[0].status,
+        state.drafts[0].status,
         'draft',
         'still a draft, so Add to my review is offered again',
       );
     } finally {
-      await b.close();
+      await bridge.close();
     }
   }));
 
 test('the panel shows an added draft until gh matches it on a page loaded after the add, or it turns up on the page', () => {
-  const at = '2026-10-21T15:00:00.000Z';
-  const t = Date.parse(at);
-  const added = { at, url: 'u', started: false };
-  const before = { pageAt: t - 60000 };
-  const after = { pageAt: t + 60000 };
+  const addedAt = '2026-10-21T15:00:00.000Z';
+  const addedMillis = Date.parse(addedAt);
+  const added = { at: addedAt, url: 'u', started: false };
+  const before = { pageAt: addedMillis - 60000 };
+  const after = { pageAt: addedMillis + 60000 };
   assert.deepEqual(draftView({ status: 'draft', dismissed: false, added }, before), {
     show: 'added',
     settle: false,
