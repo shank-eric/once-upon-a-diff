@@ -7,9 +7,10 @@
  * Here the page owns the review state that GitHub would own: Viewed toggles
  * and line notes go to the bridge, and notes are "fix before push" items.
  */
-import { storyOverlay } from '/assets/overlay.js';
+import { storyOverlay, chapterNumbers } from '/assets/overlay.js';
 import { splitRows } from '/assets/split.js';
 import { highlightFile, LIMITS } from '/assets/syntax.js';
+import { claimsOf, narrowRows } from '/assets/narrow.js';
 
 const BOOT = JSON.parse(document.getElementById('ds-boot').textContent);
 const S = `/api/stories/${encodeURIComponent(BOOT.story)}`;
@@ -195,8 +196,66 @@ function placeNotes() {
   if (list) list.innerHTML = notesListHtml();
 }
 
+// ---------- a chapter's own lines: what other chapters tell in a shared file folds away (narrow.js)
+let narrowedFor = null; // the step the tables are narrowed for; render() clears it
+const rowModel = tr => {
+  if (tr.classList.contains('ds-hunk')) return { type: 'hunk' };
+  if (tr.classList.contains('ds-note-row') || tr.classList.contains('ds-note-edit')) return { type: 'note' };
+  if (!tr.classList.contains('ds-line')) return { type: 'info' };
+  const num = side => { const c = tr.querySelector(`td[data-side="${side}"]`); return c ? Number(c.getAttribute('data-line')) : null; };
+  return { type: 'line', L: num('L'), R: num('R'), add: tr.classList.contains('ds-add') || !!tr.querySelector('td.ds-n-add') };
+};
+function stepName(s) {
+  const nums = chapterNumbers(story.chapters);
+  return nums[s - 1] != null ? `chapter ${nums[s - 1]}` : `“${String(story.chapters[s - 1].title || 'Since you read it').replace(/:.*$/, '')}”`;
+}
+function unnarrow(root = document) {
+  for (const el of root.querySelectorAll('tr.ds-narrow')) el.remove();
+  for (const el of root.querySelectorAll('tr.ds-out')) el.classList.remove('ds-out');
+}
+/** Called by the panel after each filter pass. Only a new step (or a redraw) changes the tables, so the folds Eric opens stay open. */
+function narrow({ n, view, all }) {
+  const key = `${view}|${n}|${all}`;
+  if (key === narrowedFor) return;
+  narrowedFor = key;
+  unnarrow();
+  if (all || !n || view !== 'story') return;
+  const claims = claimsOf(story.chapters);
+  for (const section of document.querySelectorAll('.ds-file')) {
+    const rel = section.getAttribute('data-path');
+    const trs = [...section.querySelectorAll('tbody > tr')];
+    const { hidden, runs } = narrowRows(trs.map(rowModel), claims, rel, n);
+    trs.forEach((tr, i) => tr.classList.toggle('ds-out', hidden[i]));
+    for (const r of runs) {
+      const lines = trs.slice(r.from, r.to + 1).filter(tr => tr.classList.contains('ds-line')).length;
+      const who = r.steps.length ? `told in ${r.steps.map(stepName).join(', ')}` : 'from other chapters';
+      trs[r.from].insertAdjacentHTML('beforebegin', `<tr class="ds-narrow"><td colspan="${cols()}">⋯ ${lines} line${lines === 1 ? '' : 's'} ${esc(who)}<button type="button" data-narrow-open>Show</button></td></tr>`);
+    }
+  }
+}
+/** Open the fold that holds a row (a jump to one of its lines). */
+function openFold(tr) {
+  let fold = tr.previousElementSibling;
+  while (fold && fold.classList.contains('ds-out')) fold = fold.previousElementSibling;
+  if (fold && fold.classList.contains('ds-narrow')) openRun(fold);
+}
+function openRun(fold) {
+  for (let tr = fold.nextElementSibling; tr && tr.classList.contains('ds-out'); tr = tr.nextElementSibling) tr.classList.remove('ds-out');
+  fold.remove();
+}
+function reveal(rel, side, start, end) {
+  const f = story.local.files.find(x => x.rel === rel);
+  if (!f) return;
+  for (let n = start; n <= Math.max(start, end) && n < start + 400; n++) {
+    const cell = document.querySelector(`[data-line-anchor="diff-${f.sha}${side}${n}"]`);
+    const tr = cell && cell.closest('tr');
+    if (tr && tr.classList.contains('ds-out')) openFold(tr);
+  }
+}
+
 function render() {
   const keep = window.scrollY;
+  narrowedFor = null;
   hlBudget = 0;
   app.innerHTML = `${headerHtml()}<div class="ds-layout"><nav class="ds-tree" role="tree" aria-label="Changed files">${treeHtml(story.local.files.map(f => f.rel))}</nav>
     <main class="ds-files">${story.local.files.map(fileHtml).join('')}</main></div>`;
@@ -214,10 +273,12 @@ function mount(initial) {
     host: 'this page',
     commentsTitle: 'Fix before push (drafted)',
     onState: s => { lastUi = { ...s, hidden: false }; api('POST', `${S}/ui`, lastUi).catch(() => {}); },
+    onFilter: narrow,
+    reveal,
     onPosition: p => api('POST', `${S}/position`, { ...p, url: location.href }).catch(() => {}),
     reads: () => api('GET', `${S}/read`),
     onRead: r => api('POST', `${S}/read`, r), // the bridge records the range's head commit with it
-    onClose: () => { overlay = null; hidden = true; api('POST', `${S}/ui`, { ...lastUi, hidden: true }).catch(() => {}); showReopen(); },
+    onClose: () => { overlay = null; hidden = true; narrowedFor = null; unnarrow(); api('POST', `${S}/ui`, { ...lastUi, hidden: true }).catch(() => {}); showReopen(); },
     ask: q => api('POST', `${S}/questions`, { ...q, url: location.href }),
     loadQuestions: () => api('GET', `${S}/questions`).then(r => r.questions),
     drafts: {
@@ -282,6 +343,8 @@ document.addEventListener('click', async e => {
     if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 60 });
     return;
   }
+  const narrowBtn = t.closest('[data-narrow-open]');
+  if (narrowBtn) { openRun(narrowBtn.closest('tr')); return; }
   const num = t.closest('td.ds-num[data-line-anchor]');
   if (num) return openEditor(num);
   const cancel = t.closest('[data-editor-cancel]');
@@ -297,7 +360,7 @@ document.addEventListener('click', async e => {
   if (gotoNote) {
     e.preventDefault();
     const row = document.querySelector(`.ds-note-row[data-note="${CSS.escape(gotoNote.getAttribute('data-note-goto'))}"]`);
-    if (row) { row.closest('.ds-file').classList.remove('ds-folded'); window.scrollTo({ top: row.getBoundingClientRect().top + window.scrollY - window.innerHeight / 3 }); }
+    if (row) { row.closest('.ds-file').classList.remove('ds-folded'); if (row.classList.contains('ds-out')) openFold(row); window.scrollTo({ top: row.getBoundingClientRect().top + window.scrollY - window.innerHeight / 3 }); }
     return;
   }
   const toggle = t.closest('.ds-notes-toggle');

@@ -56,6 +56,8 @@
  *                  'draft'|'posted'|'pending', dismissed, url, added}], error}. action is posted, unposted, dismiss,
  *                  restore, review (Add to my review) or settle (an added draft has shown up, see draftView).
  *   reloadPage()   reloads the page, keeping the panel's step and scroll; offered on a draft just added to the review
+ *   onFilter(f)    called after each filter pass with {n, view, all}; the local page folds other chapters' lines with it
+ *   reveal(rel, side, start, end)  called before a jump to lines, so a page that folds lines can open them
  *   pageAt         when this page loaded, in ms (performance.timeOrigin); a draft added after it isn't on the page yet
  *   freshness()    returns a Promise of {state: 'current'|'stale'|'unknown'|'n/a', story_head, current_head, newer,
  *                  changed_files, chapters_touched, updated, error}: is the story up to date with the PR's latest commit?
@@ -440,15 +442,23 @@ export function storyOverlay(INPUT, opts = {}) {
   // `Combobox/component.tsx`, or a basename, among the files on screen in this
   // step. An ambiguous name goes to the first match in chapter order. A
   // `path:40`, `path:40-58` or `path:L12` suffix makes it a line reference.
+  // A bare `:40-58` is a line in the file named last before it in the step,
+  // or in the step's only file; it's drawn with that file's name in front.
   let linkScope = allRels;
   let pilled = new Set();
+  let lastRef = null;
   function resolveRef(text) {
     let t = unesc(text).trim().replace(/^\.\//, '');
     let line = null;
     const lm = /^(.*?):([LR])?(\d+)(?:-[LR]?(\d+))?$/.exec(t);
     if (lm) { t = lm[1]; line = { side: lm[2] || 'R', start: +lm[3], end: +(lm[4] || lm[3]) }; }
+    if (!t && line) {
+      const rel = lastRef && linkScope.includes(lastRef) ? lastRef : linkScope.length === 1 ? linkScope[0] : null;
+      return rel ? { rel, line, bare: true } : null;
+    }
     if (!t || /\s/.test(t) || !/[./]/.test(t)) return null;
     const rel = linkScope.find((r) => r === t) || linkScope.find((r) => r.endsWith('/' + t));
+    if (rel) lastRef = rel;
     return rel ? { rel, line } : null;
   }
   function refAttrs(rel, line) {
@@ -476,6 +486,7 @@ export function storyOverlay(INPUT, opts = {}) {
         const hit = /#diff-([0-9a-f]{64})(?:([LR])(\d+)(?:-[LR]?(\d+))?)?$/.exec(url);
         const rel = hit && shaToPath.get(hit[1]);
         if (rel && linkScope.includes(rel)) {
+          lastRef = rel;
           const line = hit[3] ? { side: hit[2], start: +hit[3], end: +(hit[4] || hit[3]) } : null;
           return `<span ${refAttrs(rel, line)}>${text}</span>${pill(rel)}`;
         }
@@ -483,7 +494,9 @@ export function storyOverlay(INPUT, opts = {}) {
       });
     return s.replace(/\u0000(\d+)\u0000/g, (m, i) => {
       const ref = resolveRef(codes[i]);
-      return ref ? `<code ${refAttrs(ref.rel, ref.line)}>${codes[i]}</code>${pill(ref.rel)}` : `<code>${codes[i]}</code>`;
+      if (!ref) return `<code>${codes[i]}</code>`;
+      const label = ref.bare ? `${esc(ref.rel.split('/').pop())}${codes[i]}` : codes[i];
+      return `<code ${refAttrs(ref.rel, ref.line)}>${label}</code>${pill(ref.rel)}`;
     });
   }
   function markdown(src) {
@@ -685,6 +698,7 @@ export function storyOverlay(INPUT, opts = {}) {
     seen = { found: blocks.length, shown: [...want].filter((p) => onPage.has(p)).length, missing: [...want].filter((p) => !onPage.has(p)) };
     renderNote();
     renderViewed();
+    if (opts.onFilter) opts.onFilter({ n: state.n, view: state.view, all: showAll });
   }
   function unhideAll() {
     for (const el of document.querySelectorAll('[data-dsm-hidden], [data-dsm-flash]')) { el.removeAttribute('data-dsm-hidden'); el.removeAttribute('data-dsm-flash'); }
@@ -917,6 +931,7 @@ export function storyOverlay(INPUT, opts = {}) {
     $('.prs-prev').disabled = state.n === 0;
     $('.prs-next').disabled = state.n === list.length;
     pilled = new Set();
+    lastRef = null;
     let body;
     if (bsv) {
       linkScope = ch ? ch.files.map((f) => f.rel) : allRels;
@@ -1094,6 +1109,7 @@ export function storyOverlay(INPUT, opts = {}) {
   }
   /** Scroll a line range into view and highlight it. Never expands a hunk or a collapsed file. */
   function scrollToLine(rel, side, startLine, endLine) {
+    if (opts.reveal) opts.reveal(rel, side, startLine, endLine || startLine);
     let target = lineCell(rel, side, startLine);
     let note = '';
     let at = startLine;
