@@ -364,6 +364,7 @@ Diff Story Mode doesn't need Refined GitHub and doesn't use anything it adds to 
 yarn test              # bridge unit tests (node --test)
 yarn lint              # ESLint (cached); yarn lint:fix fixes what it can
 yarn format:check      # Prettier's check (100 columns); yarn format rewrites
+yarn lint:sh           # shellcheck over the pr-story skill's shell scripts
 yarn test:extension    # loads src/ into a throwaway Playwright Chromium, never your own Chrome
 yarn test:expand       # the same Chromium: panel links expand collapsed files and hunks on /files and /changes
 yarn icons             # redraws src/icons
