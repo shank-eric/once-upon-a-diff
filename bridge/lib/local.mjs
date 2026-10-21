@@ -1,14 +1,17 @@
 /**
  * Local mode: a story over a local commit range instead of a GitHub PR. The
- * story folder holds meta.json (repo, refs), local.diff (remade whenever the
+ * story lives in the checkout (or worktree) it diffs, at <top>/.diff-story/<id>/,
+ * kept out of git by .git/info/exclude (place.mjs). The folder holds meta.json (repo, refs), local.diff (remade whenever the
  * refs move) and chapters.json in pr-story's format, so the same panel and
  * the same chapters work on either.
  */
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { topLevel, revParse, branchName } from './git.mjs';
 import { parseUnifiedDiff } from './diff.mjs';
 import { refreshLocal, entryOf, ID_RE } from './stories.mjs';
+import { storyDirFor, moveStory, STORY_FOLDER } from './place.mjs';
+import { repoOfCheckout, seenCheckout } from './repos.mjs';
 
 export const slug = s => String(s).replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 100);
 
@@ -42,8 +45,12 @@ export function createLocalStory({ home, repo, base, head = 'HEAD', chapters, ba
   const name = path.basename(top);
   id = id || slug(`local-${name}-${branch || head}`);
   if (!ID_RE.test(id)) throw new Error(`bad story id: ${id}`);
-  const dir = path.join(home, id);
-  mkdirSync(dir, { recursive: true });
+  // a story made before stories moved into checkouts comes along
+  const inRepo = path.join(top, STORY_FOLDER, id);
+  if (!existsSync(inRepo) && existsSync(path.join(home, id, 'meta.json'))) moveStory(path.join(home, id), inRepo);
+  const dir = storyDirFor(home, id, { checkout: top });
+  const origin = repoOfCheckout(top);
+  if (origin) seenCheckout(home, origin, top);
   const metaFile = path.join(dir, 'meta.json');
   const old = existsSync(metaFile) ? JSON.parse(readFileSync(metaFile, 'utf8')) : {};
   const sameRange = old.repo_path === top && old.base === base && old.head === head;
