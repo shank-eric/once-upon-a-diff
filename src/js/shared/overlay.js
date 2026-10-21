@@ -364,11 +364,15 @@ export function storyOverlay(INPUT, opts = {}) {
   #${NS} .prs-progress b { color: var(--c-fg); }
   #${NS} .prs-stepprog { font-size: 11px; color: var(--c-muted); margin-left: 4px; }
   #${NS} .prs-stepprog.prs-done { color: var(--c-ok); }
-  #${NS} details.prs-filesbox > summary { cursor: pointer; list-style: none; margin: 18px 0 6px; }
-  #${NS} details.prs-filesbox > summary::-webkit-details-marker { display: none; }
-  #${NS} details.prs-filesbox > summary .prs-h { display: inline; margin: 0; }
-  #${NS} details.prs-filesbox > summary::before { content: "▸ "; color: var(--c-muted); font-size: 11px; }
-  #${NS} details.prs-filesbox[open] > summary::before { content: "▾ "; }
+  #${NS} details.prs-filesbox > summary, #${NS} details.prs-allc > summary { cursor: pointer; list-style: none; margin: 18px 0 6px; }
+  #${NS} details.prs-filesbox > summary::-webkit-details-marker, #${NS} details.prs-allc > summary::-webkit-details-marker { display: none; }
+  #${NS} details.prs-filesbox > summary .prs-h, #${NS} details.prs-allc > summary .prs-h { display: inline; margin: 0; }
+  #${NS} details.prs-filesbox > summary::before, #${NS} details.prs-allc > summary::before { content: "▸ "; color: var(--c-muted); font-size: 11px; }
+  #${NS} details.prs-filesbox[open] > summary::before, #${NS} details.prs-allc[open] > summary::before { content: "▾ "; }
+  #${NS} .prs-allc .prs-cgh { font-size: 12px; font-weight: 600; margin: 10px 0 4px; }
+  #${NS} .prs-allc .prs-comment { margin-bottom: 8px; }
+  #${NS} .prs-allc .prs-comment pre { max-height: 5.5em; overflow: auto; }
+  #${NS} .prs-cstate .prs-cdraft { font-weight: 600; }
   #${NS} details.prs-filesbox > summary .prs-sum { font-size: 12px; color: var(--c-muted); margin-left: 6px; }
   #${NS} .prs-msg:empty { display: none; }
   #${NS} .prs-body { flex: 1; overflow: auto; padding: 4px 16px 24px; }
@@ -974,6 +978,27 @@ export function storyOverlay(INPUT, opts = {}) {
     return `<div class="prs-since"><b>${esc(what)}</b>, ${esc(sha7(ch.since.from))}..${esc(sha7(ch.since.to))}. This step shows only the files they touched.${esc(rest)}${link}</div>`;
   }
 
+  /** One drafted comment, with its step and index: renderDrafts adds its state and its buttons. */
+  function commentHtml(c, n, i) {
+    const general = !c.line || /^\(/.test(c.path || '');
+    const ref = !general && resolveRef(c.path);
+    const name = ref ? `<code ${refAttrs(ref.rel, { side: c.side === 'L' ? 'L' : 'R', start: c.line, end: c.line })}>${esc(c.path)}:${esc(c.line)}</code>` : `<code>${esc(c.path)}${general ? '' : `:${esc(c.line)}`}</code>`;
+    const where = general ? 'General PR comment' : `On ${name}`;
+    return `<div class="prs-comment" data-n="${n}" data-i="${i}"><div class="prs-where"><span>${where}</span><span class="prs-cbtns"><button class="prs-copy">Copy</button></span></div><pre>${esc(c.body)}</pre><div class="prs-cstate" hidden></div></div>`;
+  }
+  const ALL_COMMENTS_OPEN = 4; // more drafts than this and the Overview's list starts folded
+  /** The Overview's list of every chapter's drafted comments, grouped by chapter, each with its chapter's actions. */
+  function allCommentsHtml() {
+    const groups = DATA.chapters.map((ch, k) => ({ n: k + 1, ch, cs: ch.comments || [] })).filter((g) => g.cs.length);
+    const total = groups.reduce((a, g) => a + g.cs.length, 0);
+    if (!total) return '';
+    const items = groups.map((g) => `<div class="prs-cgroup" data-group="${g.n}"><h3 class="prs-cgh"><button class="prs-linkish" data-goto="${g.n}">${esc(cap(chName(g.n)))}</button>: ${esc(String(g.ch.title || '').replace(/^Chapter \d+:\s*/, ''))}</h3>`
+      + `${g.cs.map((c, i) => commentHtml(c, g.n, i)).join('')}</div>`).join('');
+    const open = state.allCommentsOpen != null ? state.allCommentsOpen : total <= ALL_COMMENTS_OPEN;
+    return `<details class="prs-drafts prs-allc"${open ? ' open' : ''}><summary><h2 class="prs-h">${esc(COMMENTS_TITLE)}: all chapters (${total}) <span class="prs-draftsum"></span></h2></summary>`
+      + `<div class="prs-drafttoggles"></div>${items}</details>`;
+  }
+
   function renderBody() {
     const ch = chapter();
     const bsv = inBackstory();
@@ -1004,19 +1029,13 @@ export function storyOverlay(INPUT, opts = {}) {
         : `${DATA.summary ? `<p>${inline(DATA.summary)}</p>` : ''}${DATA.plan ? `<p>${inline(DATA.plan)}</p>` : ''}`;
       const files = DATA.files.map((f) => fileItem(f, 0)).join('');
       const bsTop = BS && (BS.summary || sessions.size) ? backstoryBlock({ summary: BS.summary }, sessionsHtml()) : '';
-      body = `<div class="prs-md">${intro}</div>${bsTop}${filesBox(`All files (${DATA.files.length})`, `${DATA.chapters.length} chapters`, files)}`;
+      body = `<div class="prs-md">${intro}</div>${bsTop}${allCommentsHtml()}${filesBox(`All files (${DATA.files.length})`, `${DATA.chapters.length} chapters`, files)}`;
     } else {
       linkScope = ch.files.map((f) => f.rel);
       const story = storyWithPills(() => (ch.narrative
         ? markdown(ch.narrative)
         : `${ch.headline ? `<p><strong>${inline(ch.headline)}</strong></p>` : ''}${ch.scenario ? `<p>The scenario: ${inline(ch.scenario)}</p>` : ''}${ch.summary ? `<p>${inline(ch.summary)}</p>` : ''}<p class="prs-empty">This chapter's story isn't written yet.</p>`));
-      const comments = (ch.comments || []).map((c, i) => {
-        const general = !c.line || /^\(/.test(c.path || '');
-        const ref = !general && resolveRef(c.path);
-        const name = ref ? `<code ${refAttrs(ref.rel, { side: 'R', start: c.line, end: c.line })}>${esc(c.path)}</code>` : `<code>${esc(c.path)}</code>`;
-        const where = general ? 'General PR comment' : `On ${name} line ${c.line}`;
-        return `<div class="prs-comment" data-i="${i}"><div class="prs-where"><span>${where}</span><span class="prs-cbtns"><button class="prs-copy" data-i="${i}">Copy</button></span></div><pre>${esc(c.body)}</pre><div class="prs-cstate" hidden></div></div>`;
-      }).join('');
+      const comments = (ch.comments || []).map((c, i) => commentHtml(c, state.n, i)).join('');
       const files = ch.files.map((f) => fileItem(f, state.n)).join('');
       body = `${sinceBanner(ch)}<div class="prs-md">${story}</div>${backstoryBlock(ch.backstory)}
         ${comments ? `<div class="prs-drafts"><h2 class="prs-h">${esc(COMMENTS_TITLE)} <span class="prs-draftsum"></span></h2><div class="prs-drafttoggles"></div>${comments}</div>` : ''}
@@ -1032,6 +1051,8 @@ export function storyOverlay(INPUT, opts = {}) {
       if (head) head.after(...holder.childNodes);
       else if (md) md.prepend(...holder.childNodes);
     }
+    const cbox = $('.prs-body details.prs-allc');
+    if (cbox) cbox.addEventListener('toggle', () => { state.allCommentsOpen = cbox.open; });
     const fbox = $('.prs-body details.prs-filesbox');
     if (fbox) fbox.addEventListener('toggle', () => { if (state.filesOpen !== fbox.open) { state.filesOpen = fbox.open; saveState(); } });
     renderQuestions();
@@ -1047,10 +1068,12 @@ export function storyOverlay(INPUT, opts = {}) {
     const step = e.target.closest('ol.prs-map li[data-n]');
     if (step) return go(Number(step.getAttribute('data-n')));
     const copyBtn = e.target.closest('.prs-copy');
-    if (copyBtn) return copy(chapter().comments[Number(copyBtn.getAttribute('data-i'))].body, copyBtn);
+    if (copyBtn) { const el = copyBtn.closest('.prs-comment'); return copy(DATA.chapters[Number(el.getAttribute('data-n')) - 1].comments[Number(el.getAttribute('data-i'))].body, copyBtn); }
+    const gotoBtn = e.target.closest('[data-goto]');
+    if (gotoBtn) return go(Number(gotoBtn.getAttribute('data-goto')));
     if (e.target.closest('[data-draft-reload]')) return reloadPage();
     const actBtn = e.target.closest('[data-draft-act]');
-    if (actBtn) return draftAct(Number(actBtn.closest('.prs-comment').getAttribute('data-i')), actBtn.getAttribute('data-draft-act'));
+    if (actBtn) { const el = actBtn.closest('.prs-comment'); return draftAct(Number(el.getAttribute('data-n')), Number(el.getAttribute('data-i')), actBtn.getAttribute('data-draft-act')); }
     const showBtn = e.target.closest('[data-draft-show]');
     if (showBtn) {
       const k = showBtn.getAttribute('data-draft-show');
@@ -1476,12 +1499,12 @@ export function storyOverlay(INPUT, opts = {}) {
     renderDrafts();
   }
   const rowKey = (n, i) => { const r = draftRows.find((x) => x.chapter === n && x.index === i); return r && r.key ? r.key : `${n}:${i}`; };
-  async function draftAct(i, action) {
-    const btn = action === 'review' && $(`.prs-comment[data-i="${i}"] [data-draft-act="review"]`);
+  async function draftAct(n, i, action) {
+    const btn = action === 'review' && $(`.prs-comment[data-n="${n}"][data-i="${i}"] [data-draft-act="review"]`);
     if (btn) { btn.disabled = true; btn.textContent = 'Adding…'; }
-    const key = rowKey(state.n, i);
+    const key = rowKey(n, i);
     try {
-      const r = await opts.drafts.act(state.n, i, action);
+      const r = await opts.drafts.act(n, i, action);
       draftRows = r.drafts || draftRows; draftError = r.error || null; draftsAt = Date.now();
       if (action === 'review') reviewErrors.delete(key);
       if (action === 'review' && r.added) message(`Added to your pending review${r.added.started ? ' (started a new one)' : ''}. Nobody else sees it until you submit the review.`);
@@ -1506,18 +1529,20 @@ export function storyOverlay(INPUT, opts = {}) {
   }
   function renderDrafts() {
     const box = $('.prs-drafts');
-    if (!box || !state.n || inBackstory()) return;
-    const rows = draftRows.filter((r) => r.chapter === state.n);
-    const by = new Map(rows.map((r) => [r.index, r]));
+    if (!box || inBackstory()) return;
+    const overview = !state.n; // the Overview lists every chapter's drafts
+    const rows = draftRows.filter((r) => (overview ? DATA.chapters[r.chapter - 1] && (DATA.chapters[r.chapter - 1].comments || [])[r.index] : r.chapter === state.n));
+    const by = new Map(rows.map((r) => [`${r.chapter}:${r.index}`, r]));
     let posted = 0; let pending = 0; let dismissed = 0;
     for (const el of box.querySelectorAll('.prs-comment[data-i]')) {
+      const n = Number(el.getAttribute('data-n'));
       const i = Number(el.getAttribute('data-i'));
-      const r = by.get(i) || { status: 'draft', dismissed: false };
-      const c = (chapter().comments || [])[i];
+      const r = by.get(`${n}:${i}`) || { status: 'draft', dismissed: false };
+      const c = ((DATA.chapters[n - 1] || {}).comments || [])[i];
       const v = draftView(r, { pageAt: PAGE_AT, onPage: !!r.added && commentOnPage(c) });
       if (v.settle && r.key && !settling.has(r.key) && opts.drafts) {
         settling.add(r.key);
-        opts.drafts.act(state.n, i, 'settle').then((x) => { draftRows = x.drafts || draftRows; renderDrafts(); }, () => settling.delete(r.key));
+        opts.drafts.act(n, i, 'settle').then((x) => { draftRows = x.drafts || draftRows; renderDrafts(); }, () => settling.delete(r.key));
       }
       const st = el.querySelector('.prs-cstate');
       const btns = el.querySelector('.prs-cbtns');
@@ -1558,12 +1583,13 @@ export function storyOverlay(INPUT, opts = {}) {
         st.innerHTML = `<span class="prs-pend">In your pending review</span>, on ${esc(c ? c.path : '')} line ${esc(c ? c.line : '')}${jump}${gh}`
           + `<span class="prs-cnote">GitHub shows it after a reload.${reload}</span>`;
       } else {
-        if (staleDraft(state.n, i)) { st.hidden = false; st.innerHTML = '<span class="prs-cstale">May be out of date: a newer commit changed this line after you read the chapter.</span>'; }
+        if (staleDraft(n, i)) { st.hidden = false; st.innerHTML = '<span class="prs-cstale">May be out of date: a newer commit changed this line after you read the chapter.</span>'; }
+        else if (overview) { st.hidden = false; st.innerHTML = '<span class="prs-cdraft">Draft</span>, not posted'; }
         add('dismiss', 'Dismiss', 'Not a comment you want: hide it, and don\'t suggest it again');
         add('posted', 'Mark posted', 'You posted this (or your own version of it)');
         if (HOST === 'GitHub' && c && c.path && Number(c.line) > 0) {
           add('review', 'Add to my review', 'Adds it to your pending review on GitHub. Only you can see it until you submit the review yourself.');
-          const err = reviewErrors.get(r.key || `${state.n}:${i}`);
+          const err = reviewErrors.get(r.key || `${n}:${i}`);
           if (err) { st.hidden = false; st.innerHTML = `<span class="prs-cerr">${esc(err)}</span>`; }
         }
       }
