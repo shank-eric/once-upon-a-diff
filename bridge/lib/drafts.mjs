@@ -24,13 +24,12 @@
  * the panel shows the draft as added until a reload, a match from gh or the
  * page itself confirms it. A confirmed mark is dropped ("settle").
  */
-import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
-import { ghEnv } from './config.mjs';
+import { runGh } from './util/gh.mjs';
+import { readJson, writeJson } from './util/json-file.mjs';
 
-const GH = () => process.env.DIFF_STORY_GH || 'gh';
 const TTL_MS = 60000;
 const LINE_SLACK = 3;
 export const SIMILAR = 0.75; // drafts get edited before posting: a lightly reworded real one scored 0.80 against its draft
@@ -111,21 +110,7 @@ export function bestMatch(draft, comments) {
 }
 
 function gh(args) {
-  const env = ghEnv();
-  return new Promise((resolve, reject) => {
-    execFile(
-      GH(),
-      ['api', ...args],
-      { env, timeout: 20000, maxBuffer: 32 * 1024 * 1024 },
-      (err, stdout, stderr) => {
-        if (err) {
-          reject(new Error((stderr || err.message).trim().split('\n')[0]));
-        } else {
-          resolve(stdout);
-        }
-      },
-    );
-  });
+  return runGh(['api', ...args]);
 }
 const ghJson = async (args) => {
   const out = await gh(args);
@@ -205,14 +190,10 @@ function file(home, key) {
 }
 const EMPTY = () => ({ posted: [], unposted: [], dismissed: [], added: [] });
 export function readMarks(home, key) {
-  try {
-    return { ...EMPTY(), ...JSON.parse(readFileSync(file(home, key), 'utf8')) };
-  } catch {
-    return EMPTY();
-  }
+  return { ...EMPTY(), ...readJson(file(home, key), {}) };
 }
 function writeMarks(home, key, marks) {
-  writeFileSync(file(home, key), JSON.stringify(marks, null, 2));
+  writeJson(file(home, key), marks);
 }
 
 const entryOf = (draft) => ({

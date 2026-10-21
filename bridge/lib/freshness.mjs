@@ -6,30 +6,15 @@
  *   repos/{o}/{r}/pulls/{n}                       head.sha
  *   repos/{o}/{r}/compare/{story head}...{head}   commits and files since
  */
-import { execFile } from 'node:child_process';
 import { diffText } from './git.mjs';
 import { parseUnifiedDiff } from './diff.mjs';
-import { ghEnv } from './config.mjs';
+import { runGh } from './util/gh.mjs';
 
 const TTL_MS = 60000;
 const cache = new Map();
 
-function gh(args) {
-  const env = ghEnv();
-  return new Promise((resolve, reject) => {
-    execFile(
-      process.env.DIFF_STORY_GH || 'gh',
-      ['api', ...args],
-      { env, timeout: 20000, maxBuffer: 32 * 1024 * 1024 },
-      (err, stdout, stderr) => {
-        if (err) {
-          reject(new Error((stderr || err.message).trim().split('\n')[0]));
-        } else {
-          resolve(JSON.parse(stdout));
-        }
-      },
-    );
-  });
+async function gh(args) {
+  return JSON.parse(await runGh(['api', ...args]));
 }
 async function cached(key, fn) {
   const hit = cache.get(key);

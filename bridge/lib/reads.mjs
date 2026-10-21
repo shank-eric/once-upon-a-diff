@@ -22,8 +22,9 @@
  * "Since you read it" chapter (that chapter caught them up), and falling back
  * to the commit the story was told from.
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import path from 'node:path';
+import { readJson, writeJson } from './util/json-file.mjs';
 
 export const READ_MIN_SECONDS = 30;
 /** time: they stayed on it; viewed: they ticked its last file; inferred: its files were all Viewed already when the panel opened (a review before read tracking, or with the panel closed) */
@@ -49,12 +50,8 @@ function file(home, key) {
   return path.join(dir, 'read.json');
 }
 export function readReads(home, key) {
-  try {
-    const v = JSON.parse(readFileSync(file(home, key), 'utf8'));
-    return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
-  } catch {
-    return {};
-  }
+  const reads = readJson(file(home, key), {});
+  return reads && typeof reads === 'object' && !Array.isArray(reads) ? reads : {};
 }
 
 /** Record (or refresh) one chapter's read. A later read of the same chapter replaces the earlier one. */
@@ -81,7 +78,7 @@ export function noteRead(
     step: Number.isFinite(+step) ? Math.trunc(+step) : null,
     ...(Number.isFinite(+seconds) && seconds !== null ? { seconds: Math.round(+seconds) } : {}),
   };
-  writeFileSync(file(home, key), JSON.stringify(all, null, 2));
+  writeJson(file(home, key), all);
   return all[chapter];
 }
 

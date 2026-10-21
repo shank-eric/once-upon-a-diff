@@ -9,16 +9,11 @@
  * comment is written to both: the folder the bridge serves, and the
  * meta.json `source` folder when there is one.
  */
-import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { writeJsonAtomic } from './util/json-file.mjs';
 
 const fail = (status, message) => Object.assign(new Error(message), { status });
-
-function writeJsonAtomic(file, value) {
-  const tmp = `${file}.${process.pid}.tmp`;
-  writeFileSync(tmp, JSON.stringify(value, null, 2));
-  renameSync(tmp, file);
-}
 
 /** @returns {{chapter, comment, added, files}} */
 export function addComment(dir, meta, { chapter, path: rel, line, body }) {

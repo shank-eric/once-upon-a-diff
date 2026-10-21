@@ -10,39 +10,24 @@
  * Runs `gh api graphql` as the logged-in gh user (GITHUB_TOKEN is dropped first when
  * config.json sets gh_unset_github_token).
  */
-import { execFile } from 'node:child_process';
-import { ghEnv } from './config.mjs';
+import { runGh } from './util/gh.mjs';
 
-const GH = () => process.env.DIFF_STORY_GH || 'gh';
-
-function graphql(query, vars) {
-  const env = ghEnv();
+async function graphql(query, variables) {
   const args = ['api', 'graphql', '-f', `query=${query}`];
-  for (const [k, v] of Object.entries(vars)) {
-    args.push(typeof v === 'number' ? '-F' : '-f', `${k}=${v}`);
+  for (const [name, value] of Object.entries(variables)) {
+    args.push(typeof value === 'number' ? '-F' : '-f', `${name}=${value}`);
   }
-  return new Promise((resolve, reject) => {
-    execFile(
-      GH(),
-      args,
-      { env, timeout: 30000, maxBuffer: 8 * 1024 * 1024 },
-      (err, stdout, stderr) => {
-        if (err) {
-          return reject(new Error((stderr || err.message).trim().split('\n')[0]));
-        }
-        let out;
-        try {
-          out = JSON.parse(stdout);
-        } catch {
-          return reject(new Error("gh returned something that isn't JSON"));
-        }
-        if (out.errors && out.errors.length) {
-          return reject(new Error(out.errors.map((e) => e.message).join('; ')));
-        }
-        resolve(out.data);
-      },
-    );
-  });
+  const stdout = await runGh(args, { timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
+  let out;
+  try {
+    out = JSON.parse(stdout);
+  } catch {
+    throw new Error("gh returned something that isn't JSON");
+  }
+  if (out.errors && out.errors.length) {
+    throw new Error(out.errors.map((e) => e.message).join('; '));
+  }
+  return out.data;
 }
 
 const FIND = `query($owner: String!, $name: String!, $number: Int!) {
