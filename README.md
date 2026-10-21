@@ -23,6 +23,11 @@ You need Node 20 or newer. The bridge has no runtime dependencies. `yarn install
    ```bash
    node bridge/bin/diff-story.mjs serve     # or: yarn bridge
    ```
+5. Install the `diff-story-listen` Claude Code skill by linking it into your skills folder. If `~/.claude/skills` is itself a link, `ln` puts it in the folder the link points at, which is what you want:
+   ```bash
+   ln -s "$PWD/skills/diff-story-listen" ~/.claude/skills/diff-story-listen
+   ```
+   Start a new Claude Code session to pick it up. See [Listening from Claude Code](#listening-from-claude-code).
 
 An alias saves typing: `alias diff-story="node ~/Development/SideProjects/diff-story-mode/bridge/bin/diff-story.mjs"`. The rest of this README uses `diff-story`.
 
@@ -51,6 +56,25 @@ The details also say whether autoBuild or autoAnswer is on.
 - the tail of `~/.diff-story/bridge.log`
 
 It exits 1 when something fails.
+
+## Listening from Claude Code
+
+`skills/diff-story-listen/SKILL.md` is a Claude Code skill that makes a session one repo's listener. Open Claude Code in the repo's checkout and type, or paste from **Copy prompt for Claude**:
+
+```
+/diff-story-listen EverFi/furnace
+```
+
+`/diff-story-listen --story <id>` listens for one story, for a local story with no GitHub origin. The session then:
+
+1. Finds the CLI: `diff-story` on `PATH`, else `node <repo>/bridge/bin/diff-story.mjs`, with `<repo>` from the `DIFF_STORY_MODE` env var, `repo_dir` in `~/.diff-story/config.json` (both read only by the skill), or the folder the skill is linked from.
+2. Runs `diff-story doctor`, and says how to start the bridge if it's down.
+3. Runs `diff-story wait --repo EverFi/furnace --type question,build_request --consumer repo-everfi-furnace` as a background task, which keeps the light green for every story and PR in that repo. It starts the wait again after each event.
+4. Answers each Ask-box question from the story's chapters and the code in the checkout, briefly, with `diff-story answer`.
+5. Claims each Build story request with `diff-story builds --start <id>` (the badge says Building), builds and publishes the story with the pr-story skill, and finishes it with `diff-story done <id>`.
+6. Stops when you say so.
+
+It never posts to GitHub, marks files viewed or pushes. Comments it drafts go to the panel's Draft comments only. Run one listener per repo, each in its own session.
 
 ## Using it on a PR
 
@@ -304,6 +328,7 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
   - `js/background.js` is the only code that makes network calls, and only to `127.0.0.1`.
   - `js/shared/overlay.js` is the panel, shared with the local page.
 - `bridge/`: the CLI (`bin/diff-story.mjs`), the server and story code (`lib/`), and the local page (`public/`).
+- `skills/diff-story-listen/`: the Claude Code skill behind **Copy prompt for Claude**.
 - `test/`: unit tests and `extension/load-test.mjs`.
 
 ## Credits
