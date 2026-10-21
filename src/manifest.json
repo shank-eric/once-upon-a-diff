@@ -48,6 +48,8 @@
     {
       "resources": [
         "js/content/*",
+        "js/content/pages/*",
+        "js/content/ui/*",
         "js/shared/*",
         "js/shared/util/*",
         "js/shared/panel/*"

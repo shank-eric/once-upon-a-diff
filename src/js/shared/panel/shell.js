@@ -3,6 +3,7 @@
  * (status light, Hide story, Prev, Next, close), the note line, the body and
  * the Ask box, plus the message line, docking width and collapse.
  */
+import { stopKeyEvents } from '../util/dom.js';
 import { documentCss, panelCss } from './styles.js';
 
 const MARKUP = (withAsk) => `
@@ -107,11 +108,7 @@ export function createShell(context) {
   window.addEventListener('resize', onResize);
 
   /** Keep the host page's keyboard shortcuts out of the panel while typing. */
-  function isolateKeys() {
-    for (const type of ['keydown', 'keypress', 'keyup']) {
-      root.addEventListener(type, (event) => event.stopPropagation());
-    }
-  }
+  const isolateKeys = () => stopKeyEvents(root);
 
   /** Put the panel on the page and dock it. */
   function mount() {

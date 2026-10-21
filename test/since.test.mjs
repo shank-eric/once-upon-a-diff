@@ -9,7 +9,7 @@ import { Builds, buildText } from '../bridge/lib/builds.mjs';
 import { Inbox } from '../bridge/lib/inbox.mjs';
 import { noteRead } from '../bridge/lib/reads.mjs';
 import { clearFreshness } from '../bridge/lib/freshness.mjs';
-import { tagFor, tagHtml, requestFor } from '../src/js/content/tag.js';
+import { tagFor, tagHtml, requestFor } from '../src/js/content/ui/story-tag.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 process.env.DIFF_STORY_GH = path.join(HERE, 'fixtures', 'fake-gh.mjs');

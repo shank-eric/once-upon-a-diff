@@ -14,20 +14,22 @@
  *
  * No DOM or chrome.* here, so node can test it.
  */
-import { escapeHtml } from '../shared/util/html.js';
-import { shortSha } from '../shared/util/text.js';
-import { clockTime } from '../shared/util/time.js';
+import { escapeHtml } from '../../shared/util/html.js';
+import { shortSha } from '../../shared/util/text.js';
+import { clockTime } from '../../shared/util/time.js';
 
 /**
  * What the tag shows and does, from a status-many result.
  * @returns {{kind: 'link'|'button'|'progress', cls: string, label: string, title: string, href?: string, act?: 'build'|'update', spin?: boolean, base?: string,
  *   alt?: {act: 'retell', label: string, title: string}}}
  */
-export function tagFor(r, { repo, number }) {
+export function tagFor(result, { repo, number }) {
   const href = `https://github.com/${repo}/pull/${number}/changes`;
   const asked =
-    r && r.request && r.request.requested_at ? ` at ${clockTime(r.request.requested_at)}` : '';
-  if (!r || r.state === 'none' || !r.state) {
+    result && result.request && result.request.requested_at
+      ? ` at ${clockTime(result.request.requested_at)}`
+      : '';
+  if (!result || result.state === 'none' || !result.state) {
     return {
       kind: 'button',
       act: 'build',
@@ -36,7 +38,7 @@ export function tagFor(r, { repo, number }) {
       title: 'Ask a Claude session to write a story for this PR',
     };
   }
-  if (r.state === 'queued') {
+  if (result.state === 'queued') {
     return {
       kind: 'progress',
       cls: 'queued',
@@ -44,7 +46,7 @@ export function tagFor(r, { repo, number }) {
       title: `A story was asked for${asked}. No session has taken it yet.`,
     };
   }
-  if (r.state === 'building') {
+  if (result.state === 'building') {
     return {
       kind: 'progress',
       cls: 'building',
@@ -53,8 +55,8 @@ export function tagFor(r, { repo, number }) {
       title: `A Claude session is building the story (asked for${asked})`,
     };
   }
-  if (r.updating) {
-    return r.update_state === 'building'
+  if (result.updating) {
+    return result.update_state === 'building'
       ? {
           kind: 'progress',
           cls: 'building',
@@ -69,19 +71,19 @@ export function tagFor(r, { repo, number }) {
           title: 'An update to the latest commit was asked for. No session has taken it yet.',
         };
   }
-  const rd = r.reads && r.reads.total ? r.reads : null;
-  const all = !!rd && rd.read >= rd.total;
-  if (r.stale && rd && rd.read) {
-    const n = Number.isFinite(r.newer) ? r.newer : null;
-    const label = `${all ? 'Read' : `${rd.read} of ${rd.total} read`} · ${n != null ? `${n} new commit${n === 1 ? '' : 's'}` : 'new commits'} · Update`;
+  const readCount = result.reads && result.reads.total ? result.reads : null;
+  const all = !!readCount && readCount.read >= readCount.total;
+  if (result.stale && readCount && readCount.read) {
+    const newer = Number.isFinite(result.newer) ? result.newer : null;
+    const label = `${all ? 'Read' : `${readCount.read} of ${readCount.total} read`} · ${newer != null ? `${newer} new commit${newer === 1 ? '' : 's'}` : 'new commits'} · Update`;
     return {
       kind: 'button',
       act: 'update',
-      base: r.story_head,
+      base: result.story_head,
       cls: 'stale',
       label,
       title:
-        `Update (new commits): you've read ${all ? 'the story' : `${rd.read} of its ${rd.total} chapters`}, and the PR has moved on from ${shortSha(r.story_head)} to ${shortSha(r.current_head)}. ` +
+        `Update (new commits): you've read ${all ? 'the story' : `${readCount.read} of its ${readCount.total} chapters`}, and the PR has moved on from ${shortSha(result.story_head)} to ${shortSha(result.current_head)}. ` +
         'Adds a "Since you read it" chapter for the new commits, first, and keeps the chapters you read.',
       alt: {
         act: 'retell',
@@ -91,15 +93,15 @@ export function tagFor(r, { repo, number }) {
       },
     };
   }
-  if (r.stale) {
+  if (result.stale) {
     return {
       kind: 'button',
       act: 'update',
-      base: r.story_head,
+      base: result.story_head,
       cls: 'stale',
       label: 'Story out of date · Update',
       title:
-        `Update (new commits): the story is for ${shortSha(r.story_head)} and the PR has newer commits (${shortSha(r.current_head)}). ` +
+        `Update (new commits): the story is for ${shortSha(result.story_head)} and the PR has newer commits (${shortSha(result.current_head)}). ` +
         'Adds a "Since you read it" chapter for them, first, and keeps the chapters you read.',
       alt: {
         act: 'retell',
@@ -109,24 +111,24 @@ export function tagFor(r, { repo, number }) {
       },
     };
   }
-  const upTo = r.story_head ? ` (up to date with ${shortSha(r.story_head)})` : '';
+  const upTo = result.story_head ? ` (up to date with ${shortSha(result.story_head)})` : '';
   if (all) {
     return {
       kind: 'link',
       href,
       cls: 'read',
       label: 'Read',
-      title: `You've read all ${rd.total} chapters${upTo}. Opens the story on Files changed.`,
+      title: `You've read all ${readCount.total} chapters${upTo}. Opens the story on Files changed.`,
     };
   }
-  if (rd && rd.read) {
-    // the panel opens on the step a #dsm-step-N hash names (content/index.js)
+  if (readCount && readCount.read) {
+    // the panel opens on the step a #dsm-step-N hash names (pages/files-changed.js)
     return {
       kind: 'link',
-      href: rd.next ? `${href}#dsm-step-${rd.next}` : href,
+      href: readCount.next ? `${href}#dsm-step-${readCount.next}` : href,
       cls: 'ready',
-      label: `Story · ${rd.read} of ${rd.total} read`,
-      title: `You've read ${rd.read} of ${rd.total} chapters${upTo}. Opens the first one you haven't read.`,
+      label: `Story · ${readCount.read} of ${readCount.total} read`,
+      title: `You've read ${readCount.read} of ${readCount.total} chapters${upTo}. Opens the first one you haven't read.`,
     };
   }
   return {
@@ -140,8 +142,8 @@ export function tagFor(r, { repo, number }) {
 
 /** The step a Files changed URL's #dsm-step-N hash asks the panel to open on, or null. */
 export function stepOfHash(hash) {
-  const m = /^#dsm-step-(\d{1,3})$/.exec(String(hash || ''));
-  return m ? Number(m[1]) : null;
+  const match = /^#dsm-step-(\d{1,3})$/.exec(String(hash || ''));
+  return match ? Number(match[1]) : null;
 }
 
 /** The build request a button tag sends. retell: the stale tag's "Re-tell" was clicked. */
@@ -163,12 +165,12 @@ export function requestFor(tag, { repo, number }, { retell = false } = {}) {
  */
 export function missingListeners(listening) {
   return Object.entries(listening || {})
-    .filter(([, l]) => l && !l.ok && l.prompt)
-    .map(([repo, l]) => ({
+    .filter(([, listener]) => listener && !listener.ok && listener.prompt)
+    .map(([repo, listener]) => ({
       repo,
-      prompt: l.prompt,
-      details: l.details || '',
-      checkout: l.checkout || null,
+      prompt: listener.prompt,
+      details: listener.details || '',
+      checkout: listener.checkout || null,
     }));
 }
 
@@ -193,16 +195,16 @@ export const TAG_CSS = `
 `;
 
 /** The tag's HTML, for a shadow root that has TAG_CSS. */
-export function tagHtml(t) {
-  const inner = `${t.spin ? '<span class="spin"></span>' : ''}${escapeHtml(t.label)}`;
-  if (t.kind === 'link') {
-    return `<a class="b ${t.cls}" href="${escapeHtml(t.href)}" title="${escapeHtml(t.title)}">${inner}</a>`;
+export function tagHtml(tag) {
+  const inner = `${tag.spin ? '<span class="spin"></span>' : ''}${escapeHtml(tag.label)}`;
+  if (tag.kind === 'link') {
+    return `<a class="b ${tag.cls}" href="${escapeHtml(tag.href)}" title="${escapeHtml(tag.title)}">${inner}</a>`;
   }
-  const alt = t.alt
-    ? `<button class="alt" data-act="${t.alt.act}" title="${escapeHtml(t.alt.title)}">${escapeHtml(t.alt.label)}</button>`
+  const alt = tag.alt
+    ? `<button class="alt" data-act="${tag.alt.act}" title="${escapeHtml(tag.alt.title)}">${escapeHtml(tag.alt.label)}</button>`
     : '';
-  if (t.kind === 'button') {
-    return `<button class="b ${t.cls}" data-act="${t.act}" title="${escapeHtml(t.title)}">${inner}</button>${alt}`;
+  if (tag.kind === 'button') {
+    return `<button class="b ${tag.cls}" data-act="${tag.act}" title="${escapeHtml(tag.title)}">${inner}</button>${alt}`;
   }
-  return `<span class="b ${t.cls}" title="${escapeHtml(t.title)}" aria-live="polite">${inner}</span>`;
+  return `<span class="b ${tag.cls}" title="${escapeHtml(tag.title)}" aria-live="polite">${inner}</span>`;
 }

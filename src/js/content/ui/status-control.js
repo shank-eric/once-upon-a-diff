@@ -6,8 +6,9 @@
  * its own shadow root, so it never touches GitHub's controls or styles.
  */
 import { copyWithFeedback } from './copy.js';
-import { escapeHtml } from '../shared/util/html.js';
-import { clockTime } from '../shared/util/time.js';
+import { escapeHtml } from '../../shared/util/html.js';
+import { stopKeyEvents } from '../../shared/util/dom.js';
+import { clockTime } from '../../shared/util/time.js';
 
 const HOST_ID = 'diff-story-status';
 
@@ -53,27 +54,25 @@ export function statusControl({ onOpen, onBuild }) {
     const shadow = host.attachShadow({ mode: 'open' });
     shadow.innerHTML = `<style>${CSS}</style><div class="dss" role="status"></div>`;
     root = shadow.querySelector('.dss');
-    root.addEventListener('click', (e) => {
-      const b = e.target.closest('button[data-act]');
-      if (!b) {
+    root.addEventListener('click', (event) => {
+      const button = event.target.closest('button[data-act]');
+      if (!button) {
         return;
       }
-      const act = b.getAttribute('data-act');
+      const act = button.getAttribute('data-act');
       if (act === 'open') {
         onOpen();
       } else if (act === 'build') {
-        b.disabled = true;
+        button.disabled = true;
         onBuild();
       } else if (act === 'copy') {
-        copyWithFeedback(prompt, b, root);
+        copyWithFeedback(prompt, button, root);
       } else if (act === 'dismiss') {
         dismissed = true;
         remove();
       }
     });
-    for (const type of ['keydown', 'keypress', 'keyup']) {
-      root.addEventListener(type, (e) => e.stopPropagation());
-    }
+    stopKeyEvents(root);
     document.body.appendChild(host);
   }
   function remove() {
@@ -93,11 +92,12 @@ export function statusControl({ onOpen, onBuild }) {
     }
     ensure();
     prompt = info.prompt || '';
-    const how = info.checkout
-      ? `Start Claude Code in ${info.checkout} and paste it.`
-      : info.repo
-        ? `Start Claude Code in your ${info.repo} checkout and paste it.`
-        : 'Paste it into Claude Code.';
+    let how = 'Paste it into Claude Code.';
+    if (info.checkout) {
+      how = `Start Claude Code in ${info.checkout} and paste it.`;
+    } else if (info.repo) {
+      how = `Start Claude Code in your ${info.repo} checkout and paste it.`;
+    }
     const copy =
       prompt && (state === 'queued' || state === 'building' || state === 'none')
         ? `<button data-act="copy" title="${escapeHtml(copyTitle(prompt, how, info))}">Copy prompt for Claude</button>`

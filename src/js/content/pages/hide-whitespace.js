@@ -11,9 +11,10 @@
  *     and becomes the setting
  *   - w=1 dropping off the same page means GitHub's toggle was turned off
  *
- * No chrome.* or DOM here, so the rules can be tested in node.
+ * No chrome.* here, and the rules touch no DOM, so they can be tested in node.
+ * createWhitespaceCheck reads location only when it runs.
  */
-import { filesChangedPr } from '../shared/util/github-paths.js';
+import { filesChangedPr } from '../../shared/util/github-paths.js';
 
 export const REDIRECT_GUARD_MS = 15000;
 
@@ -25,22 +26,22 @@ export function filesPage(href) {
 
 /** true for ?w=1, false for ?w=0, null when the URL doesn't say. */
 export function wOf(href) {
-  const v = new URL(href).searchParams.get('w');
-  if (v === null) {
+  const value = new URL(href).searchParams.get('w');
+  if (value === null) {
     return null;
   }
-  return v === '1' || v === 'true';
+  return value === '1' || value === 'true';
 }
 
 /** The same URL (hash kept) with ?w=1, or without w. */
-export function withW(href, on) {
-  const u = new URL(href);
-  if (on) {
-    u.searchParams.set('w', '1');
+export function withW(href, hide) {
+  const url = new URL(href);
+  if (hide) {
+    url.searchParams.set('w', '1');
   } else {
-    u.searchParams.delete('w');
+    url.searchParams.delete('w');
   }
-  return u.toString();
+  return url.toString();
 }
 
 /** What this tab last saw, kept in sessionStorage so it outlives a full reload. */
@@ -51,7 +52,7 @@ export const seen = (href) => {
 
 /**
  * What to do on a page.
- * @param {{href: string, prev: object|null, pref: boolean, redirect: {from: string, at: number}|null, now?: number}} o
+ * @param {{href: string, prev: object|null, pref: boolean, redirect: {from: string, at: number}|null, now?: number}} page
  *   prev is `seen()` of the page before this one in the same tab; redirect is our last ?w=1 reload.
  * @returns {{action: 'none'} | {action: 'save', value: boolean} | {action: 'redirect', url: string}}
  */
@@ -60,9 +61,9 @@ export function decide({ href, prev, pref, redirect, now = Date.now() }) {
   if (!page) {
     return { action: 'none' };
   }
-  const w = wOf(href);
-  if (w !== null) {
-    return w === pref ? { action: 'none' } : { action: 'save', value: w };
+  const hidden = wOf(href);
+  if (hidden !== null) {
+    return hidden === pref ? { action: 'none' } : { action: 'save', value: hidden };
   }
   // the URL doesn't say. On the same page that just had w=1, GitHub's toggle was turned off.
   const samePage = !!prev && prev.key === page.key && prev.view === page.view;
@@ -83,33 +84,70 @@ export function decide({ href, prev, pref, redirect, now = Date.now() }) {
  * The setting, from the bridge when it answers, else the chrome.storage copy.
  * A change made while the bridge was down is marked dirty and sent once it's back.
  * @param {{call: (method: string, path: string, body?: object) => Promise<{ok: boolean, body: any}>,
- *          load: () => Promise<object|null>, store: (v: object) => Promise<void>}} io
+ *          load: () => Promise<object|null>, store: (value: object) => Promise<void>}} io
  */
 export function prefsStore({ call, load, store }) {
   return {
     async read() {
       const copy = (await load()) || {};
-      const r = await call('GET', '/api/prefs');
-      if (!r.ok) {
+      const answer = await call('GET', '/api/prefs');
+      if (!answer.ok) {
         return !!copy.hideWhitespace;
       }
-      if (copy.dirty && !!copy.hideWhitespace !== !!r.body.hideWhitespace) {
-        const w = await call('POST', '/api/prefs', { hideWhitespace: !!copy.hideWhitespace });
-        if (w.ok) {
-          await store({ hideWhitespace: !!w.body.hideWhitespace });
-          return !!w.body.hideWhitespace;
+      if (copy.dirty && !!copy.hideWhitespace !== !!answer.body.hideWhitespace) {
+        const written = await call('POST', '/api/prefs', { hideWhitespace: !!copy.hideWhitespace });
+        if (written.ok) {
+          await store({ hideWhitespace: !!written.body.hideWhitespace });
+          return !!written.body.hideWhitespace;
         }
         return !!copy.hideWhitespace;
       }
-      await store({ hideWhitespace: !!r.body.hideWhitespace });
-      return !!r.body.hideWhitespace;
+      await store({ hideWhitespace: !!answer.body.hideWhitespace });
+      return !!answer.body.hideWhitespace;
     },
-    async write(on) {
-      const r = await call('POST', '/api/prefs', { hideWhitespace: !!on });
+    async write(hide) {
+      const answer = await call('POST', '/api/prefs', { hideWhitespace: !!hide });
       await store(
-        r.ok ? { hideWhitespace: !!r.body.hideWhitespace } : { hideWhitespace: !!on, dirty: true },
+        answer.ok
+          ? { hideWhitespace: !!answer.body.hideWhitespace }
+          : { hideWhitespace: !!hide, dirty: true },
       );
-      return r.ok;
+      return answer.ok;
     },
+  };
+}
+
+const PREV_KEY = 'diff-story:w-prev';
+const REDIRECT_KEY = 'diff-story:w-redirect';
+
+/**
+ * The check the router runs on every URL change: remember the page, then save a w the URL says or reload once
+ * with ?w=1. keepPanelPlace(key) saves the panel's place before that reload.
+ * @param {{prefs: ReturnType<typeof prefsStore>, session: {get, set}, keepPanelPlace: (key: string) => Promise<void>}} io
+ */
+export function createWhitespaceCheck({ prefs, session, keepPanelPlace }) {
+  return async function whitespaceCheck() {
+    const href = location.href;
+    const prev = session.get(PREV_KEY);
+    session.set(PREV_KEY, seen(href));
+    const page = filesPage(href);
+    if (!page) {
+      return;
+    }
+    const decision = decide({
+      href,
+      prev,
+      pref: await prefs.read(),
+      redirect: session.get(REDIRECT_KEY),
+    });
+    if (decision.action === 'save') {
+      return prefs.write(decision.value);
+    }
+    if (decision.action !== 'redirect' || location.href !== href) {
+      return;
+    }
+    session.set(REDIRECT_KEY, { from: href, at: Date.now() });
+    await keepPanelPlace(page.key);
+    location.replace(decision.url);
   };
 }
