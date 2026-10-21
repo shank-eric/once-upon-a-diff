@@ -276,7 +276,10 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
         }
         return send(200, q);
       }
-      if (what === 'freshness' && req.method === 'GET') return send(200, await freshness(meta, stories.load(id).chapters));
+      if (what === 'freshness' && req.method === 'GET') {
+        const lastBuild = meta.kind === 'github' && meta.repo && meta.number ? builds.get(meta.repo, meta.number) : null;
+        return send(200, await freshness(meta, stories.load(id).chapters, { lastBuild }));
+      }
       if (what === 'drafts') {
         // what's become of each drafted comment: posted, in his pending review, dismissed, or still a draft.
         // Read-only on GitHub, except action 'review', which adds the draft to his pending review (never submitted).

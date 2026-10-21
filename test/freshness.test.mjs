@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson } from './helpers.mjs';
 import { clearFreshness } from '../bridge/lib/freshness.mjs';
@@ -58,5 +59,34 @@ test('an update request stays pending until the story moves off the old head', a
     st = (await b.call('GET', '/api/builds/status?repo=acme/widgets&number=7')).body;
     assert.equal(st.updating, false);
     assert.equal(st.request.status, 'done');
+  } finally { await b.close(); }
+});
+
+test('a story updated in place says what the update brought in; one with a "Since you read it" chapter does not', async () => {
+  clearFreshness();
+  const home = tmp('home');
+  story(home, B);
+  const done = { id: 'b_1', repo: 'acme/widgets', number: 7, url: 'https://github.com/acme/widgets/pull/7', status: 'done', mode: 'update', base_sha: A, since_sha: A, done_at: '2026-10-21T19:20:01Z' };
+  writeJson(path.join(home, 'builds.json'), { 'acme/widgets#7': done });
+  const b = await startBridge({ home });
+  try {
+    let f = (await b.call('GET', '/api/stories/acme-widgets-7/freshness')).body;
+    assert.equal(f.state, 'current');
+    assert.deepEqual([f.updated.from, f.updated.to, f.updated.newer, f.updated.retold], [A, B, 2, false]);
+    assert.deepEqual(f.updated.changed_files, ['src/b.js']);
+    assert.deepEqual(f.updated.chapters_touched, [2]);
+    // the same update told as a "Since you read it" chapter: that chapter says it, so no note
+    const dir = path.join(home, 'acme-widgets-7');
+    const plan = JSON.parse(readFileSync(path.join(dir, 'chapters.json'), 'utf8'));
+    plan.chapters.unshift({ key: 'since-a-b', title: 'Since you read it: 2 new commits', since: { from: A, to: B, commits: 2 }, files: ['src/b.js'] });
+    writeJson(path.join(dir, 'chapters.json'), plan);
+    f = (await b.call('GET', '/api/stories/acme-widgets-7/freshness')).body;
+    assert.equal(f.updated, null);
+    // a first build (not an update) has nothing to say either
+    writeJson(path.join(home, 'builds.json'), { 'acme/widgets#7': { ...done, mode: undefined } });
+    plan.chapters.shift();
+    writeJson(path.join(dir, 'chapters.json'), plan);
+    f = (await b.call('GET', '/api/stories/acme-widgets-7/freshness')).body;
+    assert.equal(f.updated, null);
   } finally { await b.close(); }
 });
