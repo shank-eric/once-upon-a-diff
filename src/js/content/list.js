@@ -64,8 +64,7 @@ function prLinks() {
 
 const results = new Map(); // "owner/repo#n" -> {state, story, request}
 let listening = null; // from status-many: is a Claude session there to pick build requests up?
-const COPY = '<button class="b copy" data-act="copy" title="No Claude session is listening for build requests. Copy a prompt to paste into a Claude Code session, which then builds stories and answers questions">Copy prompt for Claude</button>';
-const copyBtn = () => (listening && !listening.ok && listening.prompt ? COPY : '');
+const copyBtn = () => ''; // the list-level notice says who isn't listening (per repo)
 const keyOf = (repo, number) => `${repo}#${number}`.toLowerCase();
 
 function badgeFor(item) {
@@ -90,7 +89,7 @@ function render(item) {
   if (r.state === 'ready' && r.updating) slot.innerHTML = `<a class="b building" href="${href}" title="An update to the latest commit was asked for"><span class="spin"></span>Story · updating…</a>`;
   else if (r.state === 'ready' && r.stale) slot.innerHTML = `<a class="b stale" href="${href}" title="The story is for ${String(r.story_head).slice(0, 7)}; the PR has newer commits (${String(r.current_head).slice(0, 7)})">Story · out of date</a>`;
   else if (r.state === 'ready') slot.innerHTML = `<a class="b ready" href="${href}" title="Open the story on Files changed${r.story_head ? ` (up to date with ${String(r.story_head).slice(0, 7)})` : ''}">Story</a>`;
-  else if (r.state === 'building') slot.innerHTML = `<span class="b building" title="A story was asked for${r.request && r.request.requested_at ? ` at ${new Date(r.request.requested_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}"><span class="spin"></span>Building…</span>${copyBtn()}`;
+  else if (r.state === 'building' || r.state === 'queued') slot.innerHTML = `<span class="b building" title="A story was asked for${r.request && r.request.requested_at ? ` at ${new Date(r.request.requested_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}">${r.state === 'building' ? '<span class="spin"></span>Building…' : 'Queued'}</span>${copyBtn()}`;
   else slot.innerHTML = `<button class="b" data-act="build" title="Ask a Claude session to write a story for this PR">Build story</button>${copyBtn()}`;
 }
 

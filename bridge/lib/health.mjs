@@ -7,7 +7,8 @@
  * question over ({state: 'handling'}), because the Claude session is busy
  * answering until it starts the next wait. A listener counts as live when a
  * waiting beat is under 15s old and its process is alive, or a handling beat
- * is under 10 minutes old.
+ * is under 10 minutes old. A beat also says what the wait covers: {repo} for
+ * `wait --repo`, {story} for `wait --story`, neither for a wait that takes everything.
  *
  * autoAnswer (off unless config.json turns it on) runs a command for each new
  * question. It's an argv array, never run through a shell. {question},
@@ -23,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import path from 'node:path';
 import { parseUnifiedDiff } from './diff.mjs';
+import { sameRepo, checkoutFor, tilde } from './repos.mjs';
 
 export const WAITING_FRESH_MS = 15000;
 export const HANDLING_FRESH_MS = 10 * 60 * 1000;
@@ -48,7 +50,7 @@ export function listeners(home, now = Date.now()) {
       const l = JSON.parse(readFileSync(path.join(dir, f), 'utf8'));
       const age = now - Date.parse(l.at);
       const live = l.state === 'handling' ? age < HANDLING_FRESH_MS : age < WAITING_FRESH_MS && alive(l.pid);
-      out.push({ consumer: l.consumer, state: l.state, at: l.at, age_s: Math.round(age / 1000), live, question: l.question || null });
+      out.push({ consumer: l.consumer, state: l.state, at: l.at, age_s: Math.round(age / 1000), live, question: l.question || null, repo: l.repo || null, story: l.story || null });
     } catch { /* a half-written beat; skip it */ }
   }
   return out.sort((a, b) => a.age_s - b.age_s);
@@ -70,39 +72,48 @@ export function cliCommand(found = cliCache ?? (cliCache = onPath('diff-story'))
 }
 
 /**
- * "Copy prompt for Claude" (the Ask box, the PR page's Build story, PR-list badges): one prompt to paste into
- * a Claude Code session that has it answer questions and build stories for every story and PR.
+ * "Copy prompt for Claude": one line for the diff-story-listen skill (skills/diff-story-listen), naming the repo,
+ * plus the long form for a session without the skill.
  */
-export function listenPrompt(cli = cliCommand()) {
-  const wait = `${cli} wait --type question,build_request --consumer pr-story`;
+export function listenPrompt({ repo = null, story = null, checkout = null } = {}, cli = cliCommand()) {
+  const arg = repo ? ` ${repo}` : story ? ` --story ${story}` : '';
+  const wait = `${cli} wait${repo ? ` --repo ${repo}` : story ? ` --story ${story}` : ''}`;
+  const where = checkout ? `In ${tilde(checkout)}, run` : repo ? `In your checkout of ${repo}, run` : 'Run';
   return {
+    repo, checkout: checkout ? tilde(checkout) : null,
+    prompt: `/diff-story-listen${arg}`,
     command: wait,
-    prompt: `Run \`${wait}\` as a background task, and start it again each time it exits. For a question, answer it here and with \`${cli} answer --question <id> --text "<answer>"\`. `
-      + `For a build request, build the story with /pr-story <PR url> (it publishes to ~/.diff-story), then run \`${cli} done <id>\`. Keep going until I say stop.`,
+    details: `${where} \`${wait}\` as a background task, and start it again each time it exits. For a question, answer it and run \`${cli} answer --question <id> --text "<answer>"\`. `
+      + `For a build request, run \`${cli} builds --start <id>\`, build the story with /pr-story <PR url>, then run \`${cli} done <id>\`. Keep going until I say stop.`,
   };
 }
 
-/** Is a Claude session listening, and the prompt that starts one. */
-export function listeningOf(home) {
+/**
+ * Is a Claude session listening for this page, and the prompt that starts one. A wait with no --repo or --story
+ * covers everything, a --repo wait covers that repo's stories and PRs, and a --story wait that story.
+ */
+export function listeningOf(home, { repo = null, story = null } = {}) {
   const ls = listeners(home);
-  const live = ls.filter(l => l.live);
+  const covers = l => (!l.repo && !l.story) || (repo && sameRepo(l.repo, repo)) || (story && l.story === story);
+  const live = ls.filter(l => l.live && covers(l));
   return {
     ok: live.length > 0,
-    consumers: live.map(l => ({ consumer: l.consumer, state: l.state, age_s: l.age_s })),
+    consumers: live.map(l => ({ consumer: l.consumer, state: l.state, age_s: l.age_s, repo: l.repo })),
     last_seen: ls[0] ? ls[0].at : null,
-    start: 'In a Claude Code session, run as a background task: diff-story wait --consumer pr-story',
-    ...listenPrompt(),
+    start: repo ? `In Claude Code, in your checkout of ${repo}: /diff-story-listen ${repo}` : 'In Claude Code: /diff-story-listen',
+    ...listenPrompt({ repo, story: repo ? null : story, checkout: checkoutFor(home, repo) }),
   };
 }
 
 const onOff = cfg => (cfg && cfg.enabled ? { enabled: true, command: cfg.command || null } : { enabled: false });
 
 /** What the panel's status light shows. */
-export function statusOf({ home, version, story, autoBuild, autoAnswer, extensionSeen }) {
+export function statusOf({ home, version, story, repo = null, autoBuild, autoAnswer, extensionSeen }) {
   return {
     bridge: { ok: true, version },
     story: story === undefined ? null : { ok: !!story, id: story || null },
-    listening: listeningOf(home),
+    listening: listeningOf(home, { repo, story: story || null }),
+    repo,
     autoBuild: onOff(autoBuild),
     autoAnswer: onOff(autoAnswer),
     extension_seen: extensionSeen || null,
