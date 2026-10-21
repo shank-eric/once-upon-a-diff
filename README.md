@@ -123,9 +123,10 @@ It looks again after any click or change on the page, so Refined GitHub's batch 
 
 **On PR lists and a PR's Conversation tab.** A repo's `/pulls`, the global `/pulls` and PR search results get one tag after each PR's title, and a PR's Conversation tab gets the same tag next to its title. The tag is the control:
 
-- **Story** opens the PR's Files changed tab, where the panel docks.
+- **Story** opens the PR's Files changed tab, where the panel docks. Once you've read some of it, it says **Story · 2 of 5 read** and opens on the first chapter you haven't read (Files changed`#dsm-step-N`). Once you've read every chapter, it's a muted **Read**.
+- **Read · 3 new commits · Update** (or "2 of 5 read · …") means you've read the story and the PR has moved on. Update asks for a "Since you read it" chapter, and the small **Re-tell** beside it asks for a new story.
 - **Build story** sends the same build request as the PR page's button.
-- **Story out of date · Update** asks for an update to the PR's latest commit: a "Since you read it" chapter for the new commits (see [Since you read it](#since-you-read-it)). The small **Re-tell** beside it asks for a whole new story instead.
+- **Story out of date · Update**, on a story you haven't read, asks for an update to the PR's latest commit: a "Since you read it" chapter for the new commits (see [Since you read it](#since-you-read-it)). The small **Re-tell** beside it asks for a whole new story instead.
 - **Queued** means a story was asked for and no Claude session has taken it yet. **Building…** means a session has claimed it. Neither can be clicked. An update shows as **Update queued** or **Updating…**.
 
 When no session is listening for a repo on the page, one notice at the bottom right says "No session listening for owner/name", with **Copy prompt for Claude** and, when the bridge knows one, the checkout to start Claude Code in. It's said once for the page, not on each row.

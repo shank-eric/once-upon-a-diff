@@ -135,3 +135,38 @@ test('GitHub\'s diff of a "Since you read it" chapter\'s commits opens on that c
   assert.equal(rangeUrl('https://github.com/acme/widgets/pull/7', { from: A, to: B }), `https://github.com/acme/widgets/pull/7/files/${A}..${B}`);
   assert.equal(rangeUrl(null, { from: A, to: B }), null, 'a local story has no GitHub link');
 });
+
+test('the PR-list tag says how much of the story he has read', () => {
+  const pr = { repo: 'acme/widgets', number: 7 };
+  const href = 'https://github.com/acme/widgets/pull/7/changes';
+  const t = r => tagFor({ state: 'ready', story_head: A, ...r }, pr);
+  assert.deepEqual([t({ reads: { read: 0, total: 5, next: 1 } }).label, t({}).label], ['Story', 'Story'], 'unread');
+  const part = t({ reads: { read: 2, total: 5, next: 3 } });
+  assert.deepEqual([part.kind, part.label, part.href], ['link', 'Story · 2 of 5 read', `${href}#dsm-step-3`], 'partly read: to the first unread chapter');
+  const all = t({ reads: { read: 5, total: 5, next: null } });
+  assert.deepEqual([all.kind, all.label, all.cls, all.href], ['link', 'Read', 'read', href]);
+  const moved = t({ reads: { read: 5, total: 5, next: null }, stale: true, current_head: B, newer: 3 });
+  assert.deepEqual([moved.kind, moved.act, moved.label, moved.base, moved.alt.act], ['button', 'update', 'Read · 3 new commits · Update', A, 'retell']);
+  assert.equal(t({ reads: { read: 1, total: 5, next: 2 }, stale: true, newer: 1 }).label, '1 of 5 read · 1 new commit · Update');
+  assert.equal(t({ reads: { read: 0, total: 5, next: 1 }, stale: true }).label, 'Story out of date · Update', 'unread but stale is as before');
+  assert.equal(tagFor({ state: 'ready', reads: { read: 5, total: 5 }, updating: true, update_state: 'queued' }, pr).label, 'Update queued', 'queued and building win');
+  for (const r of [part, all, moved]) assert.equal((tagHtml(r).match(/<(a|button|span) class="b/g) || []).length, 1, 'one tag');
+});
+
+test('status-many reports reads and, when the PR moved on, how many new commits', async () => {
+  clearFreshness();
+  const home = tmp('home');
+  story(home);
+  noteRead(home, 'pr-acme-widgets-7', 'start', { story_head: A });
+  const b = await startBridge({ home });
+  try {
+    let r = (await b.call('POST', '/api/stories/status-many', { prs: [{ repo: 'acme/widgets', number: 7 }] })).body.results[0];
+    assert.deepEqual(r.reads, { read: 1, total: 3, next: 2 });
+    assert.deepEqual([r.stale, r.newer], [true, 2], 'the fake PR is at B, two commits on');
+    noteRead(home, 'pr-acme-widgets-7', 'finish', { story_head: A });
+    noteRead(home, 'pr-acme-widgets-7', 'not in a chapter yet', { story_head: A });
+    await new Promise(res => setTimeout(res, 5100)); // status-many caches 5s
+    r = (await b.call('POST', '/api/stories/status-many', { prs: [{ repo: 'acme/widgets', number: 7 }] })).body.results[0];
+    assert.equal(tagFor(r, { repo: 'acme/widgets', number: 7 }).label, 'Read · 2 new commits · Update');
+  } finally { await b.close(); }
+});

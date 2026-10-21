@@ -52,6 +52,12 @@ export async function changesSince(meta, sha) {
   return out;
 }
 
+/** How many commits `to` is ahead of `from` (gh compare, read-only, cached 60s with freshness's), or null. */
+export async function newerCount(repo, from, to) {
+  const cmp = await cached(`cmp ${repo} ${from} ${to}`, () => gh([`repos/${repo}/compare/${from}...${to}`]));
+  return Number.isFinite(cmp.ahead_by) ? cmp.ahead_by : Array.isArray(cmp.commits) ? cmp.commits.length : null;
+}
+
 export const currentHead = (repo, number) => cached(`head ${repo}#${number}`.toLowerCase(), async () => (await gh([`repos/${repo}/pulls/${Number(number)}`])).head.sha);
 
 /**
