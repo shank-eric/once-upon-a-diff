@@ -90,6 +90,27 @@ test('done by id or by repo#number; failed requests show as failed', () => {
   assert.equal(builds.done('nope'), null);
 });
 
+test('status-many settles a pending build once its story turns up, as builds/status does', async () => {
+  const home = tmp('home');
+  const builds = new Builds(home, new Inbox(home));
+  const request = builds.request({ repo: 'acme/widgets', number: 7 });
+  githubStory(path.join(home, 'acme-widgets-7'));
+  const bridge = await startBridge({ home });
+  try {
+    const response = await bridge.call('POST', '/api/stories/status-many', {
+      prs: [{ repo: 'acme/widgets', number: 7 }],
+    });
+    assert.equal(response.body.results[0].state, 'ready');
+    assert.equal(response.body.results[0].updating, false);
+    const settled = new Builds(home, new Inbox(home)).get('acme/widgets', 7);
+    assert.equal(settled.id, request.id);
+    assert.equal(settled.status, 'done');
+    assert.equal(settled.story, 'acme-widgets-7');
+  } finally {
+    await bridge.close();
+  }
+});
+
 test('PR lists get ready / queued / building / none for many PRs in one call, and who is listening per repo', async () => {
   const home = tmp('home');
   githubStory(path.join(home, 'acme-widgets-7'));
