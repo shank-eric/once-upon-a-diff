@@ -32,13 +32,17 @@ node bridge/bin/diff-story.mjs setup
 
 The first run creates `~/.diff-story/config.json` (mode 600) with a port, 4823 by default, and a random token. It prints both. You'll paste them into the extension in step 5.
 
-### 4. Start the bridge and leave it running
+### 4. Start the bridge (optional)
+
+You can let the agent start this for you if you want. You don't have to start this directly. When `/diff-story-listen` (step 9) finds no bridge running, it starts one in the background that keeps running after the session ends. Any Claude Code session you ask will do the same.
+
+To start it yourself instead:
 
 ```bash
 yarn bridge
 ```
 
-That's the same as `node bridge/bin/diff-story.mjs serve`. It listens on `127.0.0.1` only. Keep it in a terminal tab you leave open. The repo has no login item or launch agent, so after a reboot you start it again.
+That's the same as `node bridge/bin/diff-story.mjs serve`. Keep it in a terminal tab you leave open. Either way it listens on `127.0.0.1` only, and the repo has no login item or launch agent, so after a reboot it needs starting again (by you or the skill).
 
 ### 5. Load the extension
 
@@ -88,7 +92,7 @@ Put it in your shell profile. The rest of this guide uses `diff-story`. Run it w
 1. Open a PR's **Files changed** tab. With no story yet, a small control at the bottom right says **No story yet · Build story**.
 2. Click **Build story**. With no Claude session listening for that repo, it changes to **Story queued · no session listening**, with a **Copy prompt for Claude** button. (On PR lists and a PR's Conversation tab, the same thing shows as a "No session listening for owner/name" notice.)
 3. Click **Copy prompt for Claude**. It copies one line, `/diff-story-listen owner/repo`.
-4. Open Claude Code in your local checkout of that repo and paste the line. The session checks the bridge, says it's listening, and waits in the background. The control turns to **Building story**.
+4. Open Claude Code in your local checkout of that repo and paste the line. The session checks the bridge (starting it if it isn't running), says it's listening, and waits in the background. The control turns to **Building story**.
 5. When the story is written, the panel opens on the page by itself, at the Overview step.
 
 Then, in the panel:

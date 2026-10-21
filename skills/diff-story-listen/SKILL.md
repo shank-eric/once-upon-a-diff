@@ -47,7 +47,17 @@ That's `diff-story` on `PATH`, then the `DIFF_STORY_MODE` env var (the diff-stor
 <dsm> doctor
 ```
 
-- If the bridge FAILs, tell the user to start it with `<dsm> serve` in a terminal, and offer once to run it here as a background task. Questions and build requests queue in `~/.diff-story/inbox.jsonl` while it's down, so the wait below still works, but the panel can't send anything new until it's up.
+- If the `Bridge` line FAILs with **nothing is listening on 127.0.0.1:<port>**, start the bridge yourself and wait for it to answer. `<dsm words>` is `<dsm>` as separate words, like `node /path/to/bridge/bin/diff-story.mjs` or `diff-story`:
+  ```bash
+  node -e 'require("child_process").spawn(process.argv[1], process.argv.slice(2), { detached: true, stdio: "ignore" }).unref()' <dsm words> serve
+  h="${DIFF_STORY_HOME:-$HOME/.diff-story}"; curl -sf --retry 10 --retry-delay 1 --retry-connrefused -H "Authorization: Bearer $(jq -r .token "$h/config.json")" "http://127.0.0.1:$(jq -r '.port // 4823' "$h/config.json")/api/health"
+  ```
+  The bridge serves the panel, local pages and other sessions, so it has to outlive this one. A `run_in_background` task ends with this session, and `nohup … &` only ignores the hangup, so the bridge could still go down with this shell's process group. The detached spawn gives it its own session and process group. It writes its own log to `~/.diff-story/bridge.log`.
+  When curl prints `{"ok":true,"name":"diff-story-bridge",…}`, run `<dsm> doctor` again, say in one line that you started the bridge (with its pid) and that it keeps running after this session, and carry on. If curl gives up, show the end of `bridge.log` and stop.
+- If the `Bridge` line FAILs any other way, don't start a second bridge. Say what doctor found and its fix in one line, and stop:
+  - **port … is taken by pid …** or **something else answers on port …**: another program has the port. Stop that program, or set another `port` in `~/.diff-story/config.json` and in the extension options.
+  - **rejects this config's token**: a bridge started with an older token is running. Restart it.
+- Questions and build requests queue in `~/.diff-story/inbox.jsonl` while the bridge is down, so nothing asked before it came up is lost.
 - Check this session's folder is a checkout of the repo: `git remote get-url origin` should name `owner/repo`. If it doesn't, say so in one line and ask the user to open the session in that checkout. Don't go looking for or cloning another copy.
 
 Then say in one line that you're listening for `owner/repo`, and that they can say "stop" at any time.
