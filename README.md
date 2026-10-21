@@ -362,12 +362,14 @@ Diff Story Mode doesn't need Refined GitHub and doesn't use anything it adds to 
 
 ```bash
 yarn test              # bridge unit tests (node --test)
-yarn lint              # ESLint, then Prettier's check
-yarn format            # Prettier over the repo (100 columns)
+yarn lint              # ESLint (cached); yarn lint:fix fixes what it can
+yarn format:check      # Prettier's check (100 columns); yarn format rewrites
 yarn test:extension    # loads src/ into a throwaway Playwright Chromium, never your own Chrome
 yarn test:expand       # the same Chromium: panel links expand collapsed files and hunks on /files and /changes
 yarn icons             # redraws src/icons
 ```
+
+A pre-commit hook (husky and lint-staged, installed by `yarn install`) runs ESLint and Prettier's check on the staged JavaScript.
 
 `test:extension` needs Playwright's Chromium:
 
