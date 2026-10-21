@@ -60,6 +60,42 @@
           }
         ]
       }
+    },
+    {
+      "files": [
+        "src/js/**/*.js"
+      ],
+      "rules": {
+        "id-length": [
+          "error",
+          {
+            "min": 3,
+            "properties": "never",
+            "exceptions": [
+              "_",
+              "$",
+              "e",
+              "i",
+              "j",
+              "k",
+              "id",
+              "ok",
+              "fs",
+              "el",
+              "pr"
+            ]
+          }
+        ],
+        "no-nested-ternary": "error",
+        "no-sequences": "error",
+        "no-unused-expressions": [
+          "error",
+          {
+            "allowShortCircuit": false,
+            "allowTernary": false
+          }
+        ]
+      }
     }
   ],
   "rules": {

@@ -35,17 +35,17 @@ async function test(prefix = '') {
     `${prefix}Connected to the bridge ${health.body.version}. ${stories.length} stor${stories.length === 1 ? 'y' : 'ies'}:`,
     true,
   );
-  for (const s of stories) {
-    const li = document.createElement('li');
-    li.textContent = `${s.title} (${s.kind === 'local' ? 'local commits' : `${s.repo}#${s.number}`})`;
-    $('stories').appendChild(li);
+  for (const story of stories) {
+    const item = document.createElement('li');
+    item.textContent = `${story.title} (${story.kind === 'local' ? 'local commits' : `${story.repo}#${story.number}`})`;
+    $('stories').appendChild(item);
   }
 }
 
 async function init() {
-  const s = await getSettings();
-  $('port').value = s.port;
-  $('token').value = s.token;
+  const settings = await getSettings();
+  $('port').value = settings.port;
+  $('token').value = settings.token;
   $('settings').addEventListener('submit', async (e) => {
     e.preventDefault();
     await setSettings(formSettings());
