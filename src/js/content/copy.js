@@ -4,8 +4,13 @@
  */
 export async function copyText(text, root) {
   try {
-    if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); return true; }
-  } catch (e) { /* fall back below */ }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (e) {
+    /* fall back below */
+  }
   const ta = document.createElement('textarea');
   ta.value = text;
   ta.setAttribute('readonly', '');
@@ -13,7 +18,11 @@ export async function copyText(text, root) {
   (root || document.body).appendChild(ta);
   ta.select();
   let ok = false;
-  try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+  try {
+    ok = document.execCommand('copy');
+  } catch (e) {
+    ok = false;
+  }
   ta.remove();
   return ok;
 }
@@ -23,7 +32,11 @@ export async function copyWithFeedback(text, btn, root) {
   const was = btn.textContent;
   const ok = await copyText(text, root);
   btn.textContent = ok ? 'Copied' : "Couldn't copy";
-  if (!ok) btn.title = text;
-  setTimeout(() => { btn.textContent = was; }, 1500);
+  if (!ok) {
+    btn.title = text;
+  }
+  setTimeout(() => {
+    btn.textContent = was;
+  }, 1500);
   return ok;
 }

@@ -17,12 +17,26 @@
  */
 export function claimsOf(chapters) {
   const home = {};
-  (chapters || []).forEach((ch, i) => { if (!ch.since) for (const f of ch.files || []) if (!(f.rel in home)) home[f.rel] = i + 1; });
-  const steps = (chapters || []).map(ch => {
+  (chapters || []).forEach((ch, i) => {
+    if (!ch.since) {
+      for (const f of ch.files || []) {
+        if (!(f.rel in home)) {
+          home[f.rel] = i + 1;
+        }
+      }
+    }
+  });
+  const steps = (chapters || []).map((ch) => {
     const out = {};
     for (const f of ch.files || []) {
-      const ls = (f.lines || []).filter(l => l && Number.isFinite(+l.start));
-      out[f.rel] = ls.length ? ls.map(l => ({ side: l.side === 'L' ? 'L' : 'R', start: +l.start, end: +(l.end || l.start) })) : null;
+      const ls = (f.lines || []).filter((l) => l && Number.isFinite(+l.start));
+      out[f.rel] = ls.length
+        ? ls.map((l) => ({
+            side: l.side === 'L' ? 'L' : 'R',
+            start: +l.start,
+            end: +(l.end || l.start),
+          }))
+        : null;
     }
     return out;
   });
@@ -32,14 +46,18 @@ export function claimsOf(chapters) {
 /** The steps (1-based) whose ranges for rel cover side:num. */
 function stepsAt(claims, rel, side, num) {
   const out = new Set();
-  if (num == null) return out;
+  if (num == null) {
+    return out;
+  }
   claims.steps.forEach((byRel, i) => {
     const rs = byRel[rel];
-    if (rs && rs.some(r => r.side === side && num >= r.start && num <= r.end)) out.add(i + 1);
+    if (rs && rs.some((r) => r.side === side && num >= r.start && num <= r.end)) {
+      out.add(i + 1);
+    }
   });
   return out;
 }
-const union = (...sets) => new Set(sets.flatMap(s => [...s]));
+const union = (...sets) => new Set(sets.flatMap((s) => [...s]));
 
 /**
  * rows: [{type: 'hunk'} | {type: 'line', L, R, add} | {type: 'note'} | {type: 'info'}] in table order,
@@ -50,48 +68,95 @@ const union = (...sets) => new Set(sets.flatMap(s => [...s]));
 export function narrowRows(rows, claims, rel, n) {
   const hidden = rows.map(() => false);
   const own = claims.steps[n - 1] && claims.steps[n - 1][rel];
-  if (!own) return { hidden, runs: [] };
+  if (!own) {
+    return { hidden, runs: [] };
+  }
   // each line row's claiming steps: by its new line, and by its old line
-  const at = rows.map(r => (r.type === 'line' ? union(stepsAt(claims, rel, 'R', r.R), stepsAt(claims, rel, 'L', r.L)) : null));
+  const at = rows.map((r) =>
+    r.type === 'line'
+      ? union(stepsAt(claims, rel, 'R', r.R), stepsAt(claims, rel, 'L', r.L))
+      : null,
+  );
   // a removed line with no new number goes with what replaced it, or, for a pure removal, with the lines on both sides
-  const isNew = r => r && r.type === 'line' && r.R != null;
+  const isNew = (r) => r && r.type === 'line' && r.R != null;
   rows.forEach((r, i) => {
-    if (r.type !== 'line' || r.R != null) return;
+    if (r.type !== 'line' || r.R != null) {
+      return;
+    }
     let next = i + 1;
-    while (rows[next] && rows[next].type === 'line' && rows[next].R == null) next++;
+    while (rows[next] && rows[next].type === 'line' && rows[next].R == null) {
+      next++;
+    }
     let prev = i - 1;
-    while (rows[prev] && rows[prev].type === 'line' && rows[prev].R == null) prev--;
+    while (rows[prev] && rows[prev].type === 'line' && rows[prev].R == null) {
+      prev--;
+    }
     const after = isNew(rows[next]) ? at[next] : new Set();
     const before = isNew(rows[prev]) ? at[prev] : new Set();
     at[i] = union(at[i], isNew(rows[next]) && rows[next].add ? after : union(before, after));
   });
   const home = claims.home[rel];
-  rows.forEach((r, i) => { if (r.type === 'line' && !at[i].size && home) at[i].add(home); });
-  rows.forEach((r, i) => { if (r.type === 'line') hidden[i] = at[i].size > 0 && !at[i].has(n); });
+  rows.forEach((r, i) => {
+    if (r.type === 'line' && !at[i].size && home) {
+      at[i].add(home);
+    }
+  });
+  rows.forEach((r, i) => {
+    if (r.type === 'line') {
+      hidden[i] = at[i].size > 0 && !at[i].has(n);
+    }
+  });
   // a note stays, and so does the line it's on
   rows.forEach((r, i) => {
-    if (r.type !== 'note') return;
+    if (r.type !== 'note') {
+      return;
+    }
     let j = i - 1;
-    while (rows[j] && rows[j].type === 'note') j--;
-    if (rows[j] && rows[j].type === 'line') hidden[j] = false;
+    while (rows[j] && rows[j].type === 'note') {
+      j--;
+    }
+    if (rows[j] && rows[j].type === 'line') {
+      hidden[j] = false;
+    }
   });
   // an info row (no newline at end of file) goes with the line before it, a hunk header with its lines when they all go
-  rows.forEach((r, i) => { if (r.type === 'info' && i > 0 && rows[i - 1].type === 'line') hidden[i] = hidden[i - 1]; });
   rows.forEach((r, i) => {
-    if (r.type !== 'hunk') return;
+    if (r.type === 'info' && i > 0 && rows[i - 1].type === 'line') {
+      hidden[i] = hidden[i - 1];
+    }
+  });
+  rows.forEach((r, i) => {
+    if (r.type !== 'hunk') {
+      return;
+    }
     let j = i + 1;
     let any = false;
     let all = true;
-    for (; rows[j] && rows[j].type !== 'hunk'; j++) if (rows[j].type === 'line') { any = true; all = all && hidden[j]; }
+    for (; rows[j] && rows[j].type !== 'hunk'; j++) {
+      if (rows[j].type === 'line') {
+        any = true;
+        all = all && hidden[j];
+      }
+    }
     hidden[i] = any && all;
   });
   const runs = [];
   let cur = null;
   rows.forEach((r, i) => {
-    if (!hidden[i]) { cur = null; return; }
-    if (!cur) { cur = { from: i, to: i, steps: new Set() }; runs.push(cur); }
+    if (!hidden[i]) {
+      cur = null;
+      return;
+    }
+    if (!cur) {
+      cur = { from: i, to: i, steps: new Set() };
+      runs.push(cur);
+    }
     cur.to = i;
-    if (at[i]) for (const s of at[i]) cur.steps.add(s);
+    if (at[i]) {
+      for (const s of at[i]) {
+        cur.steps.add(s);
+      }
+    }
   });
-  return { hidden, runs: runs.map(x => ({ ...x, steps: [...x.steps].sort((a, b) => a - b) })) };
+  return { hidden, runs: runs.map((x) => ({ ...x, steps: [...x.steps].sort((a, b) => a - b) })) };
 }

@@ -29,14 +29,23 @@ const CSS = `
   @media (prefers-reduced-motion: reduce) { .dss .spin { animation: none; } }
 `;
 
-const BUILD = '<button data-act="build" title="Ask a Claude session to write a story for this PR">Build story</button>';
+const BUILD =
+  '<button data-act="build" title="Ask a Claude session to write a story for this PR">Build story</button>';
 /** The Copy prompt button's hover: what it copies, where to paste it, and the long form for a session without the skill. */
-const copyTitle = (prompt, how, info) => `No Claude session is listening${info.repo ? ` for ${info.repo}` : ''}. Copies ${prompt}. ${how}`
-  + (info.details ? `\n\nWithout the diff-story-listen skill: ${info.details}` : '');
-const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const time = iso => {
+const copyTitle = (prompt, how, info) =>
+  `No Claude session is listening${info.repo ? ` for ${info.repo}` : ''}. Copies ${prompt}. ${how}` +
+  (info.details ? `\n\nWithout the diff-story-listen skill: ${info.details}` : '');
+const esc = (s) =>
+  String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+const time = (iso) => {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return Number.isNaN(d.getTime())
+    ? ''
+    : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 };
 
 /** @param {{onOpen: () => void, onBuild: () => void}} handlers */
@@ -46,26 +55,41 @@ export function statusControl({ onOpen, onBuild }) {
   let dismissed = false;
   let prompt = '';
   function ensure() {
-    if (host && document.body.contains(host)) return;
+    if (host && document.body.contains(host)) {
+      return;
+    }
     host = document.createElement('div');
     host.id = HOST_ID;
     const shadow = host.attachShadow({ mode: 'open' });
     shadow.innerHTML = `<style>${CSS}</style><div class="dss" role="status"></div>`;
     root = shadow.querySelector('.dss');
-    root.addEventListener('click', e => {
+    root.addEventListener('click', (e) => {
       const b = e.target.closest('button[data-act]');
-      if (!b) return;
+      if (!b) {
+        return;
+      }
       const act = b.getAttribute('data-act');
-      if (act === 'open') onOpen();
-      else if (act === 'build') { b.disabled = true; onBuild(); }
-      else if (act === 'copy') copyWithFeedback(prompt, b, root);
-      else if (act === 'dismiss') { dismissed = true; remove(); }
+      if (act === 'open') {
+        onOpen();
+      } else if (act === 'build') {
+        b.disabled = true;
+        onBuild();
+      } else if (act === 'copy') {
+        copyWithFeedback(prompt, b, root);
+      } else if (act === 'dismiss') {
+        dismissed = true;
+        remove();
+      }
     });
-    for (const type of ['keydown', 'keypress', 'keyup']) root.addEventListener(type, e => e.stopPropagation());
+    for (const type of ['keydown', 'keypress', 'keyup']) {
+      root.addEventListener(type, (e) => e.stopPropagation());
+    }
     document.body.appendChild(host);
   }
   function remove() {
-    if (host) host.remove();
+    if (host) {
+      host.remove();
+    }
     host = null;
     root = null;
   }
@@ -74,20 +98,35 @@ export function statusControl({ onOpen, onBuild }) {
    * info: {requested_at, note, prompt, details, repo, checkout} (prompt: no Claude session is listening for this repo)
    */
   function set(state, info = {}) {
-    if (state === 'hidden' || dismissed) return remove();
+    if (state === 'hidden' || dismissed) {
+      return remove();
+    }
     ensure();
     prompt = info.prompt || '';
-    const how = info.checkout ? `Start Claude Code in ${info.checkout} and paste it.` : info.repo ? `Start Claude Code in your ${info.repo} checkout and paste it.` : 'Paste it into Claude Code.';
-    const copy = prompt && (state === 'queued' || state === 'building' || state === 'none')
-      ? `<button data-act="copy" title="${esc(copyTitle(prompt, how, info))}">Copy prompt for Claude</button>` : '';
+    const how = info.checkout
+      ? `Start Claude Code in ${info.checkout} and paste it.`
+      : info.repo
+        ? `Start Claude Code in your ${info.repo} checkout and paste it.`
+        : 'Paste it into Claude Code.';
+    const copy =
+      prompt && (state === 'queued' || state === 'building' || state === 'none')
+        ? `<button data-act="copy" title="${esc(copyTitle(prompt, how, info))}">Copy prompt for Claude</button>`
+        : '';
     root.setAttribute('data-state', state);
-    const close = '<button class="x" data-act="dismiss" title="Hide this until the page reloads" aria-label="Hide">×</button>';
+    const close =
+      '<button class="x" data-act="dismiss" title="Hide this until the page reloads" aria-label="Hide">×</button>';
     const who = prompt ? ' · no session listening' : ' · waiting for a session to take it';
-    if (state === 'ready') root.innerHTML = `<span class="label">Story ready</span><button data-act="open" title="Show the story panel">Read it</button>${close}`;
-    else if (state === 'queued') root.innerHTML = `<span class="label">Story queued <span class="muted">· asked ${esc(time(info.requested_at))}${who}</span></span>${copy}${close}`;
-    else if (state === 'building') root.innerHTML = `<span class="spin" aria-hidden="true"></span><span class="label">Building story <span class="muted">· asked ${esc(time(info.requested_at))}</span></span>${close}`;
-    else if (state === 'none') root.innerHTML = `<span class="label">${info.note ? `<span class="muted">${esc(info.note)}</span> ` : ''}No story yet</span>${BUILD}${copy}${close}`;
-    else root.innerHTML = `<span class="label muted">${esc(info.note || 'Story bridge offline')}</span>${close}`;
+    if (state === 'ready') {
+      root.innerHTML = `<span class="label">Story ready</span><button data-act="open" title="Show the story panel">Read it</button>${close}`;
+    } else if (state === 'queued') {
+      root.innerHTML = `<span class="label">Story queued <span class="muted">· asked ${esc(time(info.requested_at))}${who}</span></span>${copy}${close}`;
+    } else if (state === 'building') {
+      root.innerHTML = `<span class="spin" aria-hidden="true"></span><span class="label">Building story <span class="muted">· asked ${esc(time(info.requested_at))}</span></span>${close}`;
+    } else if (state === 'none') {
+      root.innerHTML = `<span class="label">${info.note ? `<span class="muted">${esc(info.note)}</span> ` : ''}No story yet</span>${BUILD}${copy}${close}`;
+    } else {
+      root.innerHTML = `<span class="label muted">${esc(info.note || 'Story bridge offline')}</span>${close}`;
+    }
   }
   return { set, remove };
 }

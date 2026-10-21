@@ -26,7 +26,12 @@ const CSS = `
   .x { border: 0; background: none; padding: 0 4px; color: var(--fgColor-muted, #59636e); align-self: flex-start; }
   code { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
 `;
-const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const esc = (s) =>
+  String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 
 export function listenNotice() {
   let host = null;
@@ -34,10 +39,19 @@ export function listenNotice() {
   let dismissed = false;
   let rows = [];
   let lastHtml = '';
-  function remove() { if (host) host.remove(); host = null; root = null; lastHtml = ''; }
+  function remove() {
+    if (host) {
+      host.remove();
+    }
+    host = null;
+    root = null;
+    lastHtml = '';
+  }
   /** @param {Array<{repo, prompt, details, checkout}>} missing, from tag.js's missingListeners */
   function set(missing) {
-    if (dismissed || !missing.length) return remove();
+    if (dismissed || !missing.length) {
+      return remove();
+    }
     rows = missing;
     if (!host || !document.body.contains(host)) {
       host = document.createElement('div');
@@ -45,25 +59,48 @@ export function listenNotice() {
       const shadow = host.attachShadow({ mode: 'open' });
       shadow.innerHTML = `<style>${CSS}</style><div class="n" role="status"></div>`;
       root = shadow.querySelector('.n');
-      root.addEventListener('click', e => {
+      root.addEventListener('click', (e) => {
         const b = e.target.closest('button[data-i], button.x');
-        if (!b) return;
-        if (b.classList.contains('x')) { dismissed = true; remove(); return; }
+        if (!b) {
+          return;
+        }
+        if (b.classList.contains('x')) {
+          dismissed = true;
+          remove();
+          return;
+        }
         const m = rows[Number(b.getAttribute('data-i'))];
-        if (m) copyWithFeedback(m.prompt, b, b.getRootNode());
+        if (m) {
+          copyWithFeedback(m.prompt, b, b.getRootNode());
+        }
       });
-      for (const t of ['keydown', 'keypress', 'keyup']) root.addEventListener(t, e => e.stopPropagation());
+      for (const t of ['keydown', 'keypress', 'keyup']) {
+        root.addEventListener(t, (e) => e.stopPropagation());
+      }
       document.body.appendChild(host);
     }
     const shown = missing.slice(0, MAX);
-    const html = shown.map((m, i) => {
-      const how = m.checkout ? `Start Claude Code in ${m.checkout} and paste ${m.prompt}.` : `Start Claude Code in your ${m.repo} checkout and paste ${m.prompt}.`;
-      const title = `${how}${m.details ? `\n\nWithout the diff-story-listen skill: ${m.details}` : ''}`;
-      return `<div class="row"><span>No session listening for <b>${esc(m.repo)}</b>${m.checkout ? ` <span class="muted">· ${esc(m.checkout)}</span>` : ''}</span>`
-        + `<button data-i="${i}" title="${esc(title)}">Copy prompt for Claude</button></div>`;
-    }).join('') + (missing.length > MAX ? `<div class="muted">and ${missing.length - MAX} more repos</div>` : '');
+    const html =
+      shown
+        .map((m, i) => {
+          const how = m.checkout
+            ? `Start Claude Code in ${m.checkout} and paste ${m.prompt}.`
+            : `Start Claude Code in your ${m.repo} checkout and paste ${m.prompt}.`;
+          const title = `${how}${m.details ? `\n\nWithout the diff-story-listen skill: ${m.details}` : ''}`;
+          return (
+            `<div class="row"><span>No session listening for <b>${esc(m.repo)}</b>${m.checkout ? ` <span class="muted">· ${esc(m.checkout)}</span>` : ''}</span>` +
+            `<button data-i="${i}" title="${esc(title)}">Copy prompt for Claude</button></div>`
+          );
+        })
+        .join('') +
+      (missing.length > MAX
+        ? `<div class="muted">and ${missing.length - MAX} more repos</div>`
+        : '');
     const next = `<div class="row" style="align-items:flex-start"><div style="flex:1">${html}</div><button class="x" title="Hide until the page reloads" aria-label="Hide">×</button></div>`;
-    if (next !== lastHtml) { lastHtml = next; root.innerHTML = next; } // redrawn only when it changes, so "Copied" stays put
+    if (next !== lastHtml) {
+      lastHtml = next;
+      root.innerHTML = next;
+    } // redrawn only when it changes, so "Copied" stays put
   }
   return { set, remove };
 }

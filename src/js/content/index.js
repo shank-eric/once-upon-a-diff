@@ -21,23 +21,43 @@ const PANEL_ID = 'diff-story-panel';
 const alive = () => !!(globalThis.chrome && chrome.runtime && chrome.runtime.id);
 
 async function bridge(method, path, body) {
-  if (!alive()) return { ok: false, status: 0, error: 'extension reloaded' };
+  if (!alive()) {
+    return { ok: false, status: 0, error: 'extension reloaded' };
+  }
   try {
-    return (await chrome.runtime.sendMessage({ type: 'bridge', method, path, body })) || { ok: false, status: 0, error: 'no answer' };
+    return (
+      (await chrome.runtime.sendMessage({ type: 'bridge', method, path, body })) || {
+        ok: false,
+        status: 0,
+        error: 'no answer',
+      }
+    );
   } catch (e) {
     return { ok: false, status: 0, error: 'extension reloaded' };
   }
 }
 
 // ---------- saved panel state per PR: {n, all, collapsed, width, hidden}
-const uiKey = key => `ui:${key}`;
+const uiKey = (key) => `ui:${key}`;
 async function loadUi(key) {
-  if (!alive()) return {};
-  try { return (await chrome.storage.local.get(uiKey(key)))[uiKey(key)] || {}; } catch (e) { return {}; }
+  if (!alive()) {
+    return {};
+  }
+  try {
+    return (await chrome.storage.local.get(uiKey(key)))[uiKey(key)] || {};
+  } catch (e) {
+    return {};
+  }
 }
 async function saveUi(key, ui) {
-  if (!alive()) return;
-  try { await chrome.storage.local.set({ [uiKey(key)]: ui }); } catch (e) { /* extension reloaded */ }
+  if (!alive()) {
+    return;
+  }
+  try {
+    await chrome.storage.local.set({ [uiKey(key)]: ui });
+  } catch (e) {
+    /* extension reloaded */
+  }
 }
 
 // ---------- one PR page at a time
@@ -46,76 +66,150 @@ let syncing = false;
 
 function prOfLocation() {
   const m = PR_PATH.exec(location.pathname);
-  return m ? { owner: m[1], repo: m[2], number: Number(m[3]), key: `${m[1]}/${m[2]}#${m[3]}`.toLowerCase() } : null;
+  return m
+    ? {
+        owner: m[1],
+        repo: m[2],
+        number: Number(m[3]),
+        key: `${m[1]}/${m[2]}#${m[3]}`.toLowerCase(),
+      }
+    : null;
 }
 
 function unmount() {
-  if (cur && cur.overlay) cur.overlay.destroy();
-  if (cur) cur.overlay = null;
+  if (cur && cur.overlay) {
+    cur.overlay.destroy();
+  }
+  if (cur) {
+    cur.overlay = null;
+  }
 }
 
 function mount() {
-  if (!cur || !cur.data || cur.ui.hidden) return;
+  if (!cur || !cur.data || cur.ui.hidden) {
+    return;
+  }
   const { key } = cur;
   const storyId = cur.id;
   const storyPath = `/api/stories/${encodeURIComponent(storyId)}`;
-  if (cur.overlay) cur.overlay.destroy();
+  if (cur.overlay) {
+    cur.overlay.destroy();
+  }
   // GitHub's diff of one "Since you read it" chapter's commits opens on that chapter, once per page
   const range = rangeStepOf(cur.data.chapters, location.pathname);
   const onRange = range && cur.rangeFor !== location.pathname;
-  if (onRange) cur.rangeFor = location.pathname;
+  if (onRange) {
+    cur.rangeFor = location.pathname;
+  }
   // a PR-list "Story · 2 of 5 read" tag links Files changed#dsm-step-N: open on the first unread chapter, once
   const hashStep = stepOfHash(location.hash);
-  const onHash = !onRange && hashStep && hashStep <= cur.data.chapters.length && cur.hashFor !== location.href;
-  if (onHash) cur.hashFor = location.href;
+  const onHash =
+    !onRange && hashStep && hashStep <= cur.data.chapters.length && cur.hashFor !== location.href;
+  if (onHash) {
+    cur.hashFor = location.href;
+  }
   const jump = onRange ? range : onHash ? hashStep : null;
   cur.overlay = storyOverlay(cur.data, {
     initial: jump ? { ...cur.ui, n: jump, all: false, view: 'story' } : cur.ui,
     host: 'GitHub',
-    onState: s => {
-      if (!cur || cur.key !== key) return;
+    onState: (s) => {
+      if (!cur || cur.key !== key) {
+        return;
+      }
       cur.ui = { ...s, hidden: false };
       saveUi(key, cur.ui);
     },
-    onPosition: p => bridge('POST', `${storyPath}/position`, { ...p, url: location.href }),
+    onPosition: (p) => bridge('POST', `${storyPath}/position`, { ...p, url: location.href }),
     // a chapter they read (stayed on, or ticked every file of), with the PR head it was read at
-    onRead: async r => { const x = await bridge('POST', `${storyPath}/read`, r); if (!x.ok) throw new Error(x.error); },
+    onRead: async (r) => {
+      const x = await bridge('POST', `${storyPath}/read`, r);
+      if (!x.ok) {
+        throw new Error(x.error);
+      }
+    },
     onClose: () => {
-      if (!cur || cur.key !== key) return;
+      if (!cur || cur.key !== key) {
+        return;
+      }
       cur.overlay = null;
       cur.ui = { ...cur.ui, hidden: true };
       saveUi(key, cur.ui);
       refreshStatus();
-      toast('Story hidden. Click the Diff Story Mode toolbar button (or Alt+Shift+S) to bring it back.');
+      toast(
+        'Story hidden. Click the Diff Story Mode toolbar button (or Alt+Shift+S) to bring it back.',
+      );
     },
-    ask: async q => {
+    ask: async (q) => {
       const r = await bridge('POST', `${storyPath}/questions`, { ...q, url: location.href });
-      if (!r.ok) throw new Error(r.error === 'unreachable' ? 'the bridge is not running' : r.error);
+      if (!r.ok) {
+        throw new Error(r.error === 'unreachable' ? 'the bridge is not running' : r.error);
+      }
       return r.body;
     },
-    reloadPage: async () => { await keepPanelPlace(); location.reload(); }, // only when the reviewer clicks Reload page
+    reloadPage: async () => {
+      await keepPanelPlace();
+      location.reload();
+    }, // only when the reviewer clicks Reload page
     drafts: {
-      load: async () => { const r = await bridge('GET', `${storyPath}/drafts`); if (!r.ok) throw new Error(r.error); return r.body; },
-      act: async (chapter, index, action) => { const r = await bridge('POST', `${storyPath}/drafts`, { chapter, index, action }); if (!r.ok) throw new Error(r.error); return r.body; },
+      load: async () => {
+        const r = await bridge('GET', `${storyPath}/drafts`);
+        if (!r.ok) {
+          throw new Error(r.error);
+        }
+        return r.body;
+      },
+      act: async (chapter, index, action) => {
+        const r = await bridge('POST', `${storyPath}/drafts`, { chapter, index, action });
+        if (!r.ok) {
+          throw new Error(r.error);
+        }
+        return r.body;
+      },
     },
-    reads: async () => { const r = await bridge('GET', `${storyPath}/read`); if (!r.ok) throw new Error(r.error); return r.body; },
-    freshness: async () => { const r = await bridge('GET', `${storyPath}/freshness`); if (!r.ok) throw new Error(r.error); return r.body; },
+    reads: async () => {
+      const r = await bridge('GET', `${storyPath}/read`);
+      if (!r.ok) {
+        throw new Error(r.error);
+      }
+      return r.body;
+    },
+    freshness: async () => {
+      const r = await bridge('GET', `${storyPath}/freshness`);
+      if (!r.ok) {
+        throw new Error(r.error);
+      }
+      return r.body;
+    },
     requestUpdate: async (base, { retell = false } = {}) => {
       const pr = prOfLocation();
       const r = await bridge('POST', '/api/builds', {
-        repo: `${pr.owner}/${pr.repo}`, number: pr.number, url: `https://github.com/${pr.owner}/${pr.repo}/pull/${pr.number}`, requested_at: new Date().toISOString(), mode: 'update', base_sha: base, ...(retell ? { retell: true } : {}),
+        repo: `${pr.owner}/${pr.repo}`,
+        number: pr.number,
+        url: `https://github.com/${pr.owner}/${pr.repo}/pull/${pr.number}`,
+        requested_at: new Date().toISOString(),
+        mode: 'update',
+        base_sha: base,
+        ...(retell ? { retell: true } : {}),
       });
-      if (!r.ok) throw new Error(r.error);
+      if (!r.ok) {
+        throw new Error(r.error);
+      }
       return r.body;
     },
     status: async () => {
       const r = await bridge('GET', `/api/status?story=${encodeURIComponent(storyId)}`);
-      if (r.ok) return r.body;
-      throw Object.assign(new Error(r.error), { code: r.status === 401 ? 'token' : r.status === 404 ? 'old' : 'down' });
+      if (r.ok) {
+        return r.body;
+      }
+      throw Object.assign(new Error(r.error), {
+        code: r.status === 401 ? 'token' : r.status === 404 ? 'old' : 'down',
+      });
     },
     loadQuestions: async () => {
       const r = await bridge('GET', `${storyPath}/questions`);
-      if (!r.ok) throw new Error(r.error);
+      if (!r.ok) {
+        throw new Error(r.error);
+      }
       return r.body.questions;
     },
   });
@@ -128,14 +222,22 @@ async function fetchStory(id) {
 
 /** Bring the page in line with the URL: mount, keep, or remove the panel. */
 async function sync() {
-  if (syncing || !alive()) return;
+  if (syncing || !alive()) {
+    return;
+  }
   syncing = true;
   try {
     const pr = prOfLocation();
-    if (!pr) { unmount(); cur = null; return; }
+    if (!pr) {
+      unmount();
+      cur = null;
+      return;
+    }
     if (cur && cur.key === pr.key) {
       // GitHub can swap out <body> on in-page navigation, which takes the panel with it
-      if (cur.data && !cur.ui.hidden && (!cur.overlay || !document.getElementById(PANEL_ID))) mount();
+      if (cur.data && !cur.ui.hidden && (!cur.overlay || !document.getElementById(PANEL_ID))) {
+        mount();
+      }
       return;
     }
     unmount();
@@ -143,24 +245,41 @@ async function sync() {
     const mine = cur;
     const q = `repo=${encodeURIComponent(`${pr.owner}/${pr.repo}`)}&number=${pr.number}`;
     const found = await bridge('GET', `/api/stories/find?${q}`);
-    if (cur !== mine) return;
+    if (cur !== mine) {
+      return;
+    }
     if (!found.ok && found.status === 404) {
       // no story: is one being built?
       const st = await bridge('GET', `/api/builds/status?${q}`);
-      if (cur !== mine) return;
+      if (cur !== mine) {
+        return;
+      }
       cur.build = st.ok ? st.body.request : null;
       // is a session listening for this repo to build it? (the status light's check, per repo)
       const ls = await bridge('GET', `/api/status?${q}`);
-      if (cur !== mine) return;
+      if (cur !== mine) {
+        return;
+      }
       cur.listening = ls.ok ? ls.body.listening : null;
       // queued: asked for, no session has it yet. building: a session claimed it.
-      cur.status = st.ok && (st.body.state === 'queued' || st.body.state === 'building') ? st.body.state : 'none';
-      if (st.ok && st.body.state === 'ready') { cur = null; return; } // it turned up in between; the next tick picks it up
+      cur.status =
+        st.ok && (st.body.state === 'queued' || st.body.state === 'building')
+          ? st.body.state
+          : 'none';
+      if (st.ok && st.body.state === 'ready') {
+        cur = null;
+        return;
+      } // it turned up in between; the next tick picks it up
       return;
     }
-    if (!found.ok) { cur.status = found.error || `HTTP ${found.status}`; return; }
+    if (!found.ok) {
+      cur.status = found.error || `HTTP ${found.status}`;
+      return;
+    }
     const data = await fetchStory(found.body.id);
-    if (cur !== mine || !data) return;
+    if (cur !== mine || !data) {
+      return;
+    }
     cur.id = found.body.id;
     cur.version = data.version;
     cur.data = data;
@@ -176,7 +295,9 @@ async function sync() {
 // ---------- the status control: story ready / building / build story
 const status = statusControl({
   onOpen: () => {
-    if (!cur || !cur.data) return;
+    if (!cur || !cur.data) {
+      return;
+    }
     cur.ui = { ...cur.ui, hidden: false };
     mount();
     saveUi(cur.key, cur.ui);
@@ -186,41 +307,78 @@ const status = statusControl({
 });
 
 function refreshStatus() {
-  if (!alive() || !cur || !prOfLocation()) return status.set('hidden');
-  if (cur.data) return status.set(cur.overlay && document.getElementById(PANEL_ID) ? 'hidden' : 'ready');
+  if (!alive() || !cur || !prOfLocation()) {
+    return status.set('hidden');
+  }
+  if (cur.data) {
+    return status.set(cur.overlay && document.getElementById(PANEL_ID) ? 'hidden' : 'ready');
+  }
   const l = cur.listening && !cur.listening.ok ? cur.listening : null;
   const prompt = l ? l.prompt : null;
   const more = l ? { details: l.details, repo: l.repo, checkout: l.checkout } : {};
-  if (cur.status === 'queued' || cur.status === 'building') return status.set(cur.status, { requested_at: cur.build && cur.build.requested_at, prompt, ...more });
+  if (cur.status === 'queued' || cur.status === 'building') {
+    return status.set(cur.status, {
+      requested_at: cur.build && cur.build.requested_at,
+      prompt,
+      ...more,
+    });
+  }
   if (cur.status === 'none') {
     const failed = cur.build && cur.build.status === 'failed' ? 'Last build failed.' : '';
     return status.set('none', { note: failed, prompt, ...more });
   }
-  if (cur.status === 'unreachable') return status.set('offline', { note: 'Story bridge offline' });
-  if (/HTTP 401|token/.test(cur.status || '')) return status.set('offline', { note: 'Story bridge rejected the token' });
+  if (cur.status === 'unreachable') {
+    return status.set('offline', { note: 'Story bridge offline' });
+  }
+  if (/HTTP 401|token/.test(cur.status || '')) {
+    return status.set('offline', { note: 'Story bridge rejected the token' });
+  }
   return status.set('hidden'); // loading, or not set up yet
 }
 
 async function requestBuild() {
   const pr = prOfLocation();
-  if (!pr || !cur || cur.key !== pr.key) return;
+  if (!pr || !cur || cur.key !== pr.key) {
+    return;
+  }
   const mine = cur;
   const r = await bridge('POST', '/api/builds', {
-    repo: `${pr.owner}/${pr.repo}`, number: pr.number, url: `https://github.com/${pr.owner}/${pr.repo}/pull/${pr.number}`, requested_at: new Date().toISOString(),
+    repo: `${pr.owner}/${pr.repo}`,
+    number: pr.number,
+    url: `https://github.com/${pr.owner}/${pr.repo}/pull/${pr.number}`,
+    requested_at: new Date().toISOString(),
   });
-  if (cur !== mine) return;
-  if (r.ok) { cur.status = r.body.state === 'building' ? 'building' : 'queued'; cur.build = r.body.request; lastRetry = Date.now(); }
-  else toast(r.status === 404 ? 'This bridge is older than the Build story button. Restart it: diff-story serve' : `Couldn't ask the bridge: ${r.error}`);
+  if (cur !== mine) {
+    return;
+  }
+  if (r.ok) {
+    cur.status = r.body.state === 'building' ? 'building' : 'queued';
+    cur.build = r.body.request;
+    lastRetry = Date.now();
+  } else {
+    toast(
+      r.status === 404
+        ? 'This bridge is older than the Build story button. Restart it: diff-story serve'
+        : `Couldn't ask the bridge: ${r.error}`,
+    );
+  }
   refreshStatus();
 }
 
 /** When chapters.json changes on disk (Claude filled in a chapter), redraw in place. */
 let lastRetry = 0;
 async function checkForUpdates() {
-  if (!cur || document.visibilityState !== 'visible') return;
+  if (!cur || document.visibilityState !== 'visible') {
+    return;
+  }
   if (!cur.id) {
     // poll only while a build is pending (every 10s), or slowly while the bridge is down (every 30s)
-    const every = cur.status === 'queued' || cur.status === 'building' ? 10000 : cur.status === 'unreachable' ? 30000 : 0;
+    const every =
+      cur.status === 'queued' || cur.status === 'building'
+        ? 10000
+        : cur.status === 'unreachable'
+          ? 30000
+          : 0;
     if (every && Date.now() - lastRetry > every) {
       lastRetry = Date.now();
       cur = null;
@@ -229,10 +387,14 @@ async function checkForUpdates() {
     return;
   }
   const r = await bridge('GET', `/api/stories/${encodeURIComponent(cur.id)}/version`);
-  if (!r.ok || !cur || r.body.version === cur.version) return;
+  if (!r.ok || !cur || r.body.version === cur.version) {
+    return;
+  }
   const mine = cur;
   const data = await fetchStory(cur.id);
-  if (cur !== mine || !data) return;
+  if (cur !== mine || !data) {
+    return;
+  }
   cur.data = data;
   cur.version = data.version;
   if (cur.overlay) {
@@ -243,14 +405,21 @@ async function checkForUpdates() {
 
 async function toggle() {
   const pr = prOfLocation();
-  if (!pr) return toast('Diff Story Mode works on a pull request\'s Files changed page.');
+  if (!pr) {
+    return toast("Diff Story Mode works on a pull request's Files changed page.");
+  }
   if (!cur || cur.key !== pr.key || !cur.data) {
     await sync();
     if (!cur || !cur.data) {
-      const why = !cur ? '' : cur.status === 'not-configured' ? 'Set the bridge port and token in the extension options first.'
-        : cur.status === 'unreachable' ? 'The bridge isn\'t running. Start it with: diff-story serve'
-          : /HTTP 401|token/.test(cur.status) ? 'The bridge rejected the token. Copy it again from: diff-story setup'
-            : 'The bridge has no story for this PR.';
+      const why = !cur
+        ? ''
+        : cur.status === 'not-configured'
+          ? 'Set the bridge port and token in the extension options first.'
+          : cur.status === 'unreachable'
+            ? "The bridge isn't running. Start it with: diff-story serve"
+            : /HTTP 401|token/.test(cur.status)
+              ? 'The bridge rejected the token. Copy it again from: diff-story setup'
+              : 'The bridge has no story for this PR.';
       return toast(why || 'No story for this PR.');
     }
   }
@@ -268,25 +437,63 @@ async function toggle() {
 // ---------- Hide whitespace: GitHub's ?w=1, remembered in the bridge's prefs.json (the local page's setting too)
 const prefs = prefsStore({
   call: bridge,
-  load: async () => { if (!alive()) return null; try { return (await chrome.storage.local.get('prefs')).prefs || null; } catch (e) { return null; } },
-  store: async v => { if (!alive()) return; try { await chrome.storage.local.set({ prefs: v }); } catch (e) { /* extension reloaded */ } },
+  load: async () => {
+    if (!alive()) {
+      return null;
+    }
+    try {
+      return (await chrome.storage.local.get('prefs')).prefs || null;
+    } catch (e) {
+      return null;
+    }
+  },
+  store: async (v) => {
+    if (!alive()) {
+      return;
+    }
+    try {
+      await chrome.storage.local.set({ prefs: v });
+    } catch (e) {
+      /* extension reloaded */
+    }
+  },
 });
 const W_PREV = 'diff-story:w-prev';
 const W_REDIRECT = 'diff-story:w-redirect';
 const session = {
-  get: k => { try { return JSON.parse(sessionStorage.getItem(k)); } catch (e) { return null; } },
-  set: (k, v) => { try { sessionStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage blocked */ } },
+  get: (k) => {
+    try {
+      return JSON.parse(sessionStorage.getItem(k));
+    } catch (e) {
+      return null;
+    }
+  },
+  set: (k, v) => {
+    try {
+      sessionStorage.setItem(k, JSON.stringify(v));
+    } catch (e) {
+      /* storage blocked */
+    }
+  },
 };
 async function whitespaceCheck() {
-  if (!alive()) return;
+  if (!alive()) {
+    return;
+  }
   const href = location.href;
   const prev = session.get(W_PREV);
   session.set(W_PREV, seen(href));
   const page = filesPage(href);
-  if (!page) return;
+  if (!page) {
+    return;
+  }
   const d = decide({ href, prev, pref: await prefs.read(), redirect: session.get(W_REDIRECT) });
-  if (d.action === 'save') return prefs.write(d.value);
-  if (d.action !== 'redirect' || location.href !== href) return;
+  if (d.action === 'save') {
+    return prefs.write(d.value);
+  }
+  if (d.action !== 'redirect' || location.href !== href) {
+    return;
+  }
   session.set(W_REDIRECT, { from: href, at: Date.now() });
   await keepPanelPlace(page.key);
   location.replace(d.url);
@@ -304,40 +511,77 @@ function toast(text) {
   const el = document.createElement('div');
   el.textContent = text;
   el.setAttribute('role', 'status');
-  el.style.cssText = 'position:fixed;right:16px;bottom:16px;z-index:100;max-width:360px;padding:8px 12px;border-radius:6px;font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;'
-    + 'background:var(--bgColor-emphasis,#25292e);color:var(--fgColor-onEmphasis,#fff);box-shadow:0 4px 12px rgba(0,0,0,.2)';
+  el.style.cssText =
+    'position:fixed;right:16px;bottom:16px;z-index:100;max-width:360px;padding:8px 12px;border-radius:6px;font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;' +
+    'background:var(--bgColor-emphasis,#25292e);color:var(--fgColor-onEmphasis,#fff);box-shadow:0 4px 12px rgba(0,0,0,.2)';
   document.body.appendChild(el);
   setTimeout(() => el.remove(), 5000);
 }
 
 if (alive()) {
-  chrome.runtime.onMessage.addListener(msg => {
-    if (msg && msg.type === 'toggle') toggle();
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg && msg.type === 'toggle') {
+      toggle();
+    }
   });
   // a tab opened before the port and token were saved looks again as soon as they are
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes.settings && cur && !cur.data) { cur = null; sync(); }
+    if (area === 'local' && changes.settings && cur && !cur.data) {
+      cur = null;
+      sync();
+    }
   });
 }
 
 // GitHub navigates without reloading (Turbo and React routes), so watch the URL as well as the usual events
 let lastHref = '';
 setInterval(() => {
-  if (!alive()) return;
-  if (location.href !== lastHref) { lastHref = location.href; whitespaceCheck().catch(() => {}); sync(); }
-  else if (cur && cur.data && !cur.ui.hidden && !document.getElementById(PANEL_ID)) sync();
-  else if (cur && !document.getElementById('diff-story-status')) refreshStatus(); // GitHub swapped out <body>
+  if (!alive()) {
+    return;
+  }
+  if (location.href !== lastHref) {
+    lastHref = location.href;
+    whitespaceCheck().catch(() => {});
+    sync();
+  } else if (cur && cur.data && !cur.ui.hidden && !document.getElementById(PANEL_ID)) {
+    sync();
+  } else if (cur && !document.getElementById('diff-story-status')) {
+    refreshStatus();
+  } // GitHub swapped out <body>
 }, 700);
-for (const ev of ['turbo:load', 'turbo:render', 'popstate', 'pageshow']) window.addEventListener(ev, () => sync());
+for (const ev of ['turbo:load', 'turbo:render', 'popstate', 'pageshow']) {
+  window.addEventListener(ev, () => sync());
+}
 // coming back to a tab with no story: look once (another tab may have asked for a build, or the story may be done)
 // a comment drafted in the terminal shows up as soon as you come back to the tab
-window.addEventListener('focus', () => { if (alive() && cur && cur.id) checkForUpdates(); });
-document.addEventListener('visibilitychange', () => {
-  if (alive() && document.visibilityState === 'visible' && cur && cur.id) checkForUpdates();
-  if (alive() && document.visibilityState === 'visible' && cur && !cur.data && cur.status !== 'loading') { cur = null; sync(); }
+window.addEventListener('focus', () => {
+  if (alive() && cur && cur.id) {
+    checkForUpdates();
+  }
 });
-setInterval(() => { if (alive()) checkForUpdates(); }, 5000);
+document.addEventListener('visibilitychange', () => {
+  if (alive() && document.visibilityState === 'visible' && cur && cur.id) {
+    checkForUpdates();
+  }
+  if (
+    alive() &&
+    document.visibilityState === 'visible' &&
+    cur &&
+    !cur.data &&
+    cur.status !== 'loading'
+  ) {
+    cur = null;
+    sync();
+  }
+});
+setInterval(() => {
+  if (alive()) {
+    checkForUpdates();
+  }
+}, 5000);
 lastHref = location.href;
-whitespaceCheck().catch(() => {}).finally(sync); // a ?w=1 reload, if any, comes before the panel docks
+whitespaceCheck()
+  .catch(() => {})
+  .finally(sync); // a ?w=1 reload, if any, comes before the panel docks
 initList(); // story badges on PR lists
 initConversation(); // the story tag on a PR's Conversation tab

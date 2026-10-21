@@ -25,10 +25,15 @@ const REF_LABEL = 'pointed at in the text';
 function parseCode(code) {
   const t = String(code).trim().replace(/^\.\//, '');
   const m = /^(.*?):([LR])?(\d+)(?:-[LR]?(\d+))?$/.exec(t);
-  if (!m) return { name: t, line: null };
+  if (!m) {
+    return { name: t, line: null };
+  }
   const start = +m[3];
   const end = +(m[4] || m[3]);
-  return { name: m[1], line: { side: m[2] || 'R', start: Math.min(start, end), end: Math.max(start, end) } };
+  return {
+    name: m[1],
+    line: { side: m[2] || 'R', start: Math.min(start, end), end: Math.max(start, end) },
+  };
 }
 
 /**
@@ -40,51 +45,75 @@ function parseCode(code) {
  * @param {string[]} rels every file in the story
  */
 export function lineRefsOf(text, listed, rels) {
-  const bySha = new Map(rels.map(rel => [pathSha(rel), rel]));
-  const find = (name, scope) => scope.find(r => r === name) || scope.filter(r => r.endsWith('/' + name));
-  const resolve = name => {
-    if (!name || /\s/.test(name) || !/[./]/.test(name)) return null;
+  const bySha = new Map(rels.map((rel) => [pathSha(rel), rel]));
+  const find = (name, scope) =>
+    scope.find((r) => r === name) || scope.filter((r) => r.endsWith('/' + name));
+  const resolve = (name) => {
+    if (!name || /\s/.test(name) || !/[./]/.test(name)) {
+      return null;
+    }
     const own = find(name, listed);
-    if (typeof own === 'string') return own;
-    if (own.length) return own[0];
+    if (typeof own === 'string') {
+      return own;
+    }
+    if (own.length) {
+      return own[0];
+    }
     const any = find(name, rels);
-    if (typeof any === 'string') return any;
+    if (typeof any === 'string') {
+      return any;
+    }
     return any.length === 1 ? any[0] : null;
   };
   const out = new Map();
   const add = (rel, line) => {
-    if (!out.has(rel)) out.set(rel, []);
+    if (!out.has(rel)) {
+      out.set(rel, []);
+    }
     const ls = out.get(rel);
-    if (!ls.some(l => l.side === line.side && l.start === line.start && l.end === line.end)) ls.push(line);
+    if (!ls.some((l) => l.side === line.side && l.start === line.start && l.end === line.end)) {
+      ls.push(line);
+    }
   };
   let last = null;
   const src = String(text || '').replace(/```[\s\S]*?```/g, ' '); // code blocks aren't references
   const re = /`([^`\n]+)`|\[[^\]]*\]\((https?:[^)\s]+)\)/g;
-  for (let m; (m = re.exec(src)); ) {
+  for (let m; (m = re.exec(src));) {
     if (m[2]) {
       const hit = /#diff-([0-9a-f]{64})(?:([LR])(\d+)(?:-[LR]?(\d+))?)?$/.exec(m[2]);
       const rel = hit && bySha.get(hit[1]);
-      if (!rel) continue;
+      if (!rel) {
+        continue;
+      }
       last = rel;
-      if (hit[3]) add(rel, { side: hit[2], start: +hit[3], end: +(hit[4] || hit[3]) });
+      if (hit[3]) {
+        add(rel, { side: hit[2], start: +hit[3], end: +(hit[4] || hit[3]) });
+      }
       continue;
     }
     const { name, line } = parseCode(m[1]);
     if (!name) {
       const rel = last || (listed.length === 1 ? listed[0] : null);
-      if (rel && line) add(rel, line);
+      if (rel && line) {
+        add(rel, line);
+      }
       continue;
     }
     const rel = resolve(name);
-    if (!rel) continue;
+    if (!rel) {
+      continue;
+    }
     last = rel;
-    if (line) add(rel, line);
+    if (line) {
+      add(rel, line);
+    }
   }
   return [...out].map(([rel, lines]) => ({ rel, lines }));
 }
 
 /** The text of a chapter the panel draws as markdown. */
-const textOf = ch => [ch.headline, ch.scenario, ch.summary, ch.narrative].filter(Boolean).join('\n\n');
+const textOf = (ch) =>
+  [ch.headline, ch.scenario, ch.summary, ch.narrative].filter(Boolean).join('\n\n');
 
 /**
  * Adds, to each chapter (but "Since you read it" ones), the files its text points at lines of and doesn't list.
@@ -92,11 +121,21 @@ const textOf = ch => [ch.headline, ch.scenario, ch.summary, ch.narrative].filter
  */
 export function addTextRefs(chapters, rels) {
   for (const ch of chapters) {
-    if (ch.since) continue;
-    const listed = ch.files.map(f => f.rel);
+    if (ch.since) {
+      continue;
+    }
+    const listed = ch.files.map((f) => f.rel);
     for (const { rel, lines } of lineRefsOf(textOf(ch), listed, rels)) {
-      if (listed.includes(rel)) continue;
-      ch.files.push({ rel, partial: true, note: REF_NOTE, ref: true, lines: lines.map(l => ({ ...l, label: REF_LABEL })) });
+      if (listed.includes(rel)) {
+        continue;
+      }
+      ch.files.push({
+        rel,
+        partial: true,
+        note: REF_NOTE,
+        ref: true,
+        lines: lines.map((l) => ({ ...l, label: REF_LABEL })),
+      });
     }
   }
   return chapters;

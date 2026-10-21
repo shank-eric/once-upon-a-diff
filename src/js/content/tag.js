@@ -15,11 +15,13 @@
  * No DOM or chrome.* here, so node can test it.
  */
 
-const at = iso => {
+const at = (iso) => {
   const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  return Number.isNaN(d.getTime())
+    ? ''
+    : d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 };
-const sha7 = x => String(x || '').slice(0, 7);
+const sha7 = (x) => String(x || '').slice(0, 7);
 
 /** A PR's Conversation tab: /owner/repo/pull/N with nothing after it. */
 export const CONVO_PATH = /^\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/;
@@ -36,13 +38,47 @@ export function conversationPr(loc) {
 export function tagFor(r, { repo, number }) {
   const href = `https://github.com/${repo}/pull/${number}/changes`;
   const asked = r && r.request && r.request.requested_at ? ` at ${at(r.request.requested_at)}` : '';
-  if (!r || r.state === 'none' || !r.state) return { kind: 'button', act: 'build', cls: '', label: 'Build story', title: 'Ask a Claude session to write a story for this PR' };
-  if (r.state === 'queued') return { kind: 'progress', cls: 'queued', label: 'Queued', title: `A story was asked for${asked}. No session has taken it yet.` };
-  if (r.state === 'building') return { kind: 'progress', cls: 'building', label: 'Building…', spin: true, title: `A Claude session is building the story (asked for${asked})` };
+  if (!r || r.state === 'none' || !r.state) {
+    return {
+      kind: 'button',
+      act: 'build',
+      cls: '',
+      label: 'Build story',
+      title: 'Ask a Claude session to write a story for this PR',
+    };
+  }
+  if (r.state === 'queued') {
+    return {
+      kind: 'progress',
+      cls: 'queued',
+      label: 'Queued',
+      title: `A story was asked for${asked}. No session has taken it yet.`,
+    };
+  }
+  if (r.state === 'building') {
+    return {
+      kind: 'progress',
+      cls: 'building',
+      label: 'Building…',
+      spin: true,
+      title: `A Claude session is building the story (asked for${asked})`,
+    };
+  }
   if (r.updating) {
     return r.update_state === 'building'
-      ? { kind: 'progress', cls: 'building', label: 'Updating…', spin: true, title: 'A Claude session is updating the story to the latest commit' }
-      : { kind: 'progress', cls: 'queued', label: 'Update queued', title: 'An update to the latest commit was asked for. No session has taken it yet.' };
+      ? {
+          kind: 'progress',
+          cls: 'building',
+          label: 'Updating…',
+          spin: true,
+          title: 'A Claude session is updating the story to the latest commit',
+        }
+      : {
+          kind: 'progress',
+          cls: 'queued',
+          label: 'Update queued',
+          title: 'An update to the latest commit was asked for. No session has taken it yet.',
+        };
   }
   const rd = r.reads && r.reads.total ? r.reads : null;
   const all = !!rd && rd.read >= rd.total;
@@ -50,27 +86,67 @@ export function tagFor(r, { repo, number }) {
     const n = Number.isFinite(r.newer) ? r.newer : null;
     const label = `${all ? 'Read' : `${rd.read} of ${rd.total} read`} · ${n != null ? `${n} new commit${n === 1 ? '' : 's'}` : 'new commits'} · Update`;
     return {
-      kind: 'button', act: 'update', base: r.story_head, cls: 'stale', label,
-      title: `Update (new commits): you've read ${all ? 'the story' : `${rd.read} of its ${rd.total} chapters`}, and the PR has moved on from ${sha7(r.story_head)} to ${sha7(r.current_head)}. `
-        + 'Adds a "Since you read it" chapter for the new commits, first, and keeps the chapters you read.',
-      alt: { act: 'retell', label: 'Re-tell', title: 'Re-tell from scratch: a whole new story at the latest commit, for a rebase or a big rework' },
+      kind: 'button',
+      act: 'update',
+      base: r.story_head,
+      cls: 'stale',
+      label,
+      title:
+        `Update (new commits): you've read ${all ? 'the story' : `${rd.read} of its ${rd.total} chapters`}, and the PR has moved on from ${sha7(r.story_head)} to ${sha7(r.current_head)}. ` +
+        'Adds a "Since you read it" chapter for the new commits, first, and keeps the chapters you read.',
+      alt: {
+        act: 'retell',
+        label: 'Re-tell',
+        title:
+          'Re-tell from scratch: a whole new story at the latest commit, for a rebase or a big rework',
+      },
     };
   }
   if (r.stale) {
     return {
-      kind: 'button', act: 'update', base: r.story_head, cls: 'stale', label: 'Story out of date · Update',
-      title: `Update (new commits): the story is for ${sha7(r.story_head)} and the PR has newer commits (${sha7(r.current_head)}). `
-        + 'Adds a "Since you read it" chapter for them, first, and keeps the chapters you read.',
-      alt: { act: 'retell', label: 'Re-tell', title: 'Re-tell from scratch: a whole new story at the latest commit, for a rebase or a big rework' },
+      kind: 'button',
+      act: 'update',
+      base: r.story_head,
+      cls: 'stale',
+      label: 'Story out of date · Update',
+      title:
+        `Update (new commits): the story is for ${sha7(r.story_head)} and the PR has newer commits (${sha7(r.current_head)}). ` +
+        'Adds a "Since you read it" chapter for them, first, and keeps the chapters you read.',
+      alt: {
+        act: 'retell',
+        label: 'Re-tell',
+        title:
+          'Re-tell from scratch: a whole new story at the latest commit, for a rebase or a big rework',
+      },
     };
   }
   const upTo = r.story_head ? ` (up to date with ${sha7(r.story_head)})` : '';
-  if (all) return { kind: 'link', href, cls: 'read', label: 'Read', title: `You've read all ${rd.total} chapters${upTo}. Opens the story on Files changed.` };
+  if (all) {
+    return {
+      kind: 'link',
+      href,
+      cls: 'read',
+      label: 'Read',
+      title: `You've read all ${rd.total} chapters${upTo}. Opens the story on Files changed.`,
+    };
+  }
   if (rd && rd.read) {
     // the panel opens on the step a #dsm-step-N hash names (content/index.js)
-    return { kind: 'link', href: rd.next ? `${href}#dsm-step-${rd.next}` : href, cls: 'ready', label: `Story · ${rd.read} of ${rd.total} read`, title: `You've read ${rd.read} of ${rd.total} chapters${upTo}. Opens the first one you haven't read.` };
+    return {
+      kind: 'link',
+      href: rd.next ? `${href}#dsm-step-${rd.next}` : href,
+      cls: 'ready',
+      label: `Story · ${rd.read} of ${rd.total} read`,
+      title: `You've read ${rd.read} of ${rd.total} chapters${upTo}. Opens the first one you haven't read.`,
+    };
   }
-  return { kind: 'link', href, cls: 'ready', label: 'Story', title: `Open the story on Files changed${upTo}` };
+  return {
+    kind: 'link',
+    href,
+    cls: 'ready',
+    label: 'Story',
+    title: `Open the story on Files changed${upTo}`,
+  };
 }
 
 /** The step a Files changed URL's #dsm-step-N hash asks the panel to open on, or null. */
@@ -81,8 +157,15 @@ export function stepOfHash(hash) {
 
 /** The build request a button tag sends. retell: the stale tag's "Re-tell" was clicked. */
 export function requestFor(tag, { repo, number }, { retell = false } = {}) {
-  const body = { repo, number, url: `https://github.com/${repo}/pull/${number}`, requested_at: new Date().toISOString() };
-  return tag.act === 'update' && tag.base ? { ...body, mode: 'update', base_sha: tag.base, ...(retell ? { retell: true } : {}) } : body;
+  const body = {
+    repo,
+    number,
+    url: `https://github.com/${repo}/pull/${number}`,
+    requested_at: new Date().toISOString(),
+  };
+  return tag.act === 'update' && tag.base
+    ? { ...body, mode: 'update', base_sha: tag.base, ...(retell ? { retell: true } : {}) }
+    : body;
 }
 
 /**
@@ -90,7 +173,14 @@ export function requestFor(tag, { repo, number }, { retell = false } = {}) {
  * @param {Record<string, {ok: boolean, prompt?: string, details?: string, checkout?: string}>} listening by repo
  */
 export function missingListeners(listening) {
-  return Object.entries(listening || {}).filter(([, l]) => l && !l.ok && l.prompt).map(([repo, l]) => ({ repo, prompt: l.prompt, details: l.details || '', checkout: l.checkout || null }));
+  return Object.entries(listening || {})
+    .filter(([, l]) => l && !l.ok && l.prompt)
+    .map(([repo, l]) => ({
+      repo,
+      prompt: l.prompt,
+      details: l.details || '',
+      checkout: l.checkout || null,
+    }));
 }
 
 export const TAG_CSS = `
@@ -113,13 +203,24 @@ export const TAG_CSS = `
   @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
 `;
 
-const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const esc = (s) =>
+  String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 
 /** The tag's HTML, for a shadow root that has TAG_CSS. */
 export function tagHtml(t) {
   const inner = `${t.spin ? '<span class="spin"></span>' : ''}${esc(t.label)}`;
-  if (t.kind === 'link') return `<a class="b ${t.cls}" href="${esc(t.href)}" title="${esc(t.title)}">${inner}</a>`;
-  const alt = t.alt ? `<button class="alt" data-act="${t.alt.act}" title="${esc(t.alt.title)}">${esc(t.alt.label)}</button>` : '';
-  if (t.kind === 'button') return `<button class="b ${t.cls}" data-act="${t.act}" title="${esc(t.title)}">${inner}</button>${alt}`;
+  if (t.kind === 'link') {
+    return `<a class="b ${t.cls}" href="${esc(t.href)}" title="${esc(t.title)}">${inner}</a>`;
+  }
+  const alt = t.alt
+    ? `<button class="alt" data-act="${t.alt.act}" title="${esc(t.alt.title)}">${esc(t.alt.label)}</button>`
+    : '';
+  if (t.kind === 'button') {
+    return `<button class="b ${t.cls}" data-act="${t.act}" title="${esc(t.title)}">${inner}</button>${alt}`;
+  }
   return `<span class="b ${t.cls}" title="${esc(t.title)}" aria-live="polite">${inner}</span>`;
 }

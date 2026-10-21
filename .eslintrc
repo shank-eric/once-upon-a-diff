@@ -17,12 +17,49 @@
   },
   "overrides": [
     {
-      "files": ["bridge/**/*.mjs", "test/**/*.mjs", "scripts/**/*.mjs"],
-      "env": { "node": true, "browser": false }
+      "files": [
+        "bridge/**/*.mjs",
+        "test/**/*.mjs",
+        "scripts/**/*.mjs"
+      ],
+      "env": {
+        "node": true,
+        "browser": false
+      }
     },
     {
-      "files": ["bridge/public/*.js"],
-      "env": { "browser": true, "webextensions": false }
+      "files": [
+        "bridge/public/*.js"
+      ],
+      "env": {
+        "browser": true,
+        "webextensions": false
+      }
+    },
+    {
+      "files": [
+        "skills/**/*.mjs"
+      ],
+      "env": {
+        "node": true,
+        "browser": false
+      }
+    },
+    {
+      "files": [
+        "skills/pr-story/bin/overlay.js"
+      ],
+      "parserOptions": {
+        "sourceType": "script"
+      },
+      "rules": {
+        "no-unused-vars": [
+          "error",
+          {
+            "varsIgnorePattern": "^prStoryOverlay$"
+          }
+        ]
+      }
     }
   ],
   "rules": {
@@ -40,11 +77,56 @@
     ],
     "no-param-reassign": "off",
     "no-undef": "error",
-    "no-unused-vars": ["error", { "ignoreRestSiblings": true }],
-    "quotes": ["error", "single", { "avoidEscape": true, "allowTemplateLiterals": true }],
+    "no-unused-vars": [
+      "error",
+      {
+        "ignoreRestSiblings": true
+      }
+    ],
+    "quotes": [
+      "error",
+      "single",
+      {
+        "avoidEscape": true,
+        "allowTemplateLiterals": true
+      }
+    ],
     "radix": [
       "error",
       "as-needed"
+    ],
+    "curly": [
+      "error",
+      "all"
+    ],
+    "no-nested-ternary": "warn",
+    "no-sequences": "warn",
+    "no-unused-expressions": [
+      "warn",
+      {
+        "allowShortCircuit": false,
+        "allowTernary": false
+      }
+    ],
+    "id-length": [
+      "warn",
+      {
+        "min": 3,
+        "properties": "never",
+        "exceptions": [
+          "_",
+          "$",
+          "e",
+          "i",
+          "j",
+          "k",
+          "id",
+          "ok",
+          "fs",
+          "el",
+          "pr"
+        ]
+      }
     ]
   }
 }
