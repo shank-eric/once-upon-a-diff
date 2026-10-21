@@ -14,6 +14,10 @@ test('one tag per PR, and the tag is the control', () => {
   const none = tagFor({ state: 'none' }, pr);
   assert.deepEqual([none.kind, none.act, none.label], ['button', 'build', 'Build story']);
   assert.equal(tagFor(null, pr).act, 'build', 'no answer yet reads as none');
+  assert.match(
+    tagFor({ state: 'none', request: { status: 'failed' } }, pr).title,
+    /The last build failed/,
+  );
   const stale = tagFor(
     { state: 'ready', stale: true, story_head: 'abc1234', current_head: 'def5678' },
     pr,

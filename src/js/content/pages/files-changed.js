@@ -3,9 +3,10 @@
  * (through the service worker) whether there's a story for this PR and, if
  * so, docks the story panel. It re-applies the panel after a reload, after
  * GitHub's in-page navigation, and when the story on disk changes, starting
- * from the step saved for this PR. Without a story it shows the status
- * control (Build story, Queued, Building…). It also keeps GitHub's Hide
- * whitespace (?w=1) in step with the saved setting.
+ * from the step saved for this PR. Whenever the panel isn't showing, the PR's
+ * story tag sits by the title, as on the Conversation tab (ui/pr-tags.js):
+ * Story opens the panel, Build story or Update asks for one. It also keeps
+ * GitHub's Hide whitespace (?w=1) in step with the saved setting.
  *
  * It never clicks GitHub's controls, never submits GitHub's forms and makes no
  * network calls of its own: everything goes through the service worker to the
@@ -15,20 +16,17 @@ import { storyOverlay, rangeStepOf } from '../../shared/overlay.js';
 import { filesChangedPr } from '../../shared/util/github-paths.js';
 import { callBridge, extensionAlive } from '../bridge.js';
 import { loadPanelUi, savePanelUi, loadPrefsCopy, storePrefsCopy, tabSession } from '../storage.js';
-import { statusControl } from '../ui/status-control.js';
-import { stepOfHash } from '../ui/story-tag.js';
+import { createPrTags, titleElement } from '../ui/pr-tags.js';
+import { requestFor, stepOfHash } from '../ui/story-tag.js';
 import { toast } from '../ui/toast.js';
 import { createWhitespaceCheck, prefsStore } from './hide-whitespace.js';
 
 const PANEL_ID = 'diff-story-panel';
-const STATUS_ID = 'diff-story-status';
+const TAG_ATTR = 'data-dsm-files';
 const UPDATE_POLL_MS = 5000;
-const BUILD_POLL_MS = 10000;
-const OFFLINE_POLL_MS = 30000;
 
 const panelOnPage = () => !!document.getElementById(PANEL_ID);
 const prOfLocation = () => filesChangedPr(location.pathname);
-const prUrl = (pr) => `https://github.com/${pr.owner}/${pr.repo}/pull/${pr.number}`;
 /** The bridge's answer body, or an Error with its message. */
 async function bodyOf(answerPromise) {
   const answer = await answerPromise;
@@ -39,10 +37,10 @@ async function bodyOf(answerPromise) {
 }
 
 export function createFilesChangedPage() {
-  // one PR page at a time: {key, owner, repo, number, id, version, data, ui, overlay, status, build, listening}
+  // one PR page at a time: {key, owner, repo, number, pr, id, version, data, ui, overlay, status}
   let current = null;
   let syncing = false;
-  let lastRetry = 0;
+  const tags = createPrTags({ attr: TAG_ATTR, onStory: () => openPanel() });
 
   function unmount() {
     if (current && current.overlay) {
@@ -95,7 +93,7 @@ export function createFilesChangedPage() {
         current.overlay = null;
         current.ui = { ...current.ui, hidden: true };
         savePanelUi(key, current.ui);
-        refreshStatus();
+        tagAfterPanel();
         toast(
           'Story hidden. Click the Diff Story Mode toolbar button (or Alt+Shift+S) to bring it back.',
         );
@@ -124,20 +122,14 @@ export function createFilesChangedPage() {
       },
       reads: () => bodyOf(callBridge('GET', `${storyPath}/read`)),
       freshness: () => bodyOf(callBridge('GET', `${storyPath}/freshness`)),
-      requestUpdate: (base, { retell = false } = {}) => {
-        const pr = prOfLocation();
-        return bodyOf(
-          callBridge('POST', '/api/builds', {
-            repo: `${pr.owner}/${pr.repo}`,
-            number: pr.number,
-            url: prUrl(pr),
-            requested_at: new Date().toISOString(),
-            mode: 'update',
-            base_sha: base,
-            ...(retell ? { retell: true } : {}),
-          }),
-        );
-      },
+      requestUpdate: (base, { retell = false } = {}) =>
+        bodyOf(
+          callBridge(
+            'POST',
+            '/api/builds',
+            requestFor({ act: 'update', base }, current.pr, { retell }),
+          ),
+        ),
       status: async () => {
         const answer = await callBridge('GET', `/api/status?story=${encodeURIComponent(storyId)}`);
         if (answer.ok) {
@@ -175,27 +167,6 @@ export function createFilesChangedPage() {
     return answer.ok ? answer.body : null;
   }
 
-  /** No story for this PR: is one being built, and is a session listening for the repo to build it? */
-  async function lookForBuild(mine, query) {
-    const build = await callBridge('GET', `/api/builds/status?${query}`);
-    if (current !== mine) {
-      return;
-    }
-    current.build = build.ok ? build.body.request : null;
-    // is a session listening for this repo to build it? (the status light's check, per repo)
-    const listen = await callBridge('GET', `/api/status?${query}`);
-    if (current !== mine) {
-      return;
-    }
-    current.listening = listen.ok ? listen.body.listening : null;
-    // queued: asked for, no session has it yet. building: a session claimed it.
-    const inFlight = build.ok && (build.body.state === 'queued' || build.body.state === 'building');
-    current.status = inFlight ? build.body.state : 'none';
-    if (build.ok && build.body.state === 'ready') {
-      current = null; // it turned up in between; the next tick picks it up
-    }
-  }
-
   /** Bring the page in line with the URL: mount, keep, or remove the panel. */
   async function sync() {
     if (syncing || !extensionAlive()) {
@@ -219,6 +190,7 @@ export function createFilesChangedPage() {
       unmount();
       current = {
         ...pr,
+        pr: { repo: `${pr.owner}/${pr.repo}`, number: pr.number },
         id: null,
         version: null,
         data: null,
@@ -227,24 +199,24 @@ export function createFilesChangedPage() {
         status: 'loading',
       };
       const mine = current;
-      const query = `repo=${encodeURIComponent(`${pr.owner}/${pr.repo}`)}&number=${pr.number}`;
-      const found = await callBridge('GET', `/api/stories/find?${query}`);
+      const answer = await tags.look([current.pr], { force: true });
       if (current !== mine) {
         return;
       }
-      if (!found.ok && found.status === 404) {
-        await lookForBuild(mine, query);
+      if (!answer.ok) {
+        current.status = answer.error || `HTTP ${answer.status}`;
         return;
       }
-      if (!found.ok) {
-        current.status = found.error || `HTTP ${found.status}`;
+      const result = tags.resultOf(current.pr);
+      if (!result || result.state !== 'ready' || !result.story) {
+        current.status = (result && result.state) || 'none'; // none, queued or building
         return;
       }
-      const data = await fetchStory(found.body.id);
+      const data = await fetchStory(result.story);
       if (current !== mine || !data) {
         return;
       }
-      current.id = found.body.id;
+      current.id = result.story;
       current.version = data.version;
       current.data = data;
       current.ui = await loadPanelUi(pr.key);
@@ -252,83 +224,61 @@ export function createFilesChangedPage() {
       mount();
     } finally {
       syncing = false;
-      refreshStatus();
+      refreshTag();
     }
   }
 
-  // ---------- the status control: story ready / building / build story
-  const status = statusControl({
-    onOpen: () => {
-      if (!current || !current.data) {
+  /** The tag by the title whenever the panel isn't showing, and the notice when no session is listening. */
+  function refreshTag() {
+    const host = document.querySelector(`[${TAG_ATTR}]`);
+    const show =
+      extensionAlive() &&
+      current &&
+      prOfLocation() &&
+      tags.resultOf(current.pr) &&
+      !(current.overlay && panelOnPage());
+    if (!show) {
+      host?.remove();
+      tags.hideNotice();
+      return;
+    }
+    let tag = host;
+    if (tag && tag.getAttribute(TAG_ATTR) !== current.key) {
+      tag.remove();
+      tag = null;
+    }
+    if (!tag) {
+      const title = titleElement();
+      if (!title) {
         return;
       }
-      current.ui = { ...current.ui, hidden: false };
-      mount();
-      savePanelUi(current.key, current.ui);
-      refreshStatus();
-    },
-    onBuild: () => requestBuild(),
-  });
-
-  function refreshStatus() {
-    if (!extensionAlive() || !current || !prOfLocation()) {
-      return status.set('hidden');
+      tag = tags.hostFor(current.pr);
+      title.after(tag);
     }
-    if (current.data) {
-      return status.set(current.overlay && panelOnPage() ? 'hidden' : 'ready');
-    }
-    const listener = current.listening && !current.listening.ok ? current.listening : null;
-    const prompt = listener ? listener.prompt : null;
-    const more = listener
-      ? { details: listener.details, repo: listener.repo, checkout: listener.checkout }
-      : {};
-    if (current.status === 'queued' || current.status === 'building') {
-      return status.set(current.status, {
-        requested_at: current.build && current.build.requested_at,
-        prompt,
-        ...more,
-      });
-    }
-    if (current.status === 'none') {
-      const failed = current.build && current.build.status === 'failed' ? 'Last build failed.' : '';
-      return status.set('none', { note: failed, prompt, ...more });
-    }
-    if (current.status === 'unreachable') {
-      return status.set('offline', { note: 'Story bridge offline' });
-    }
-    if (/HTTP 401|token/.test(current.status || '')) {
-      return status.set('offline', { note: 'Story bridge rejected the token' });
-    }
-    return status.set('hidden'); // loading, or not set up yet
+    tags.show(tag, current.pr);
+    tags.showNotice([current.pr.repo]);
   }
 
-  async function requestBuild() {
-    const pr = prOfLocation();
-    if (!pr || !current || current.key !== pr.key) {
-      return;
-    }
+  /** The panel went away: the tag shows again, as the bridge has it now (the panel may have asked for an update). */
+  async function tagAfterPanel() {
+    refreshTag();
     const mine = current;
-    const answer = await callBridge('POST', '/api/builds', {
-      repo: `${pr.owner}/${pr.repo}`,
-      number: pr.number,
-      url: prUrl(pr),
-      requested_at: new Date().toISOString(),
-    });
-    if (current !== mine) {
+    const answer = await tags.look([mine.pr], { force: true });
+    if (answer.ok && current === mine) {
+      refreshTag();
+    }
+  }
+
+  /** The tag's Story: show the panel again, from the story as it is now. */
+  async function openPanel() {
+    if (!current || !current.data) {
       return;
     }
-    if (answer.ok) {
-      current.status = answer.body.state === 'building' ? 'building' : 'queued';
-      current.build = answer.body.request;
-      lastRetry = Date.now();
-    } else {
-      toast(
-        answer.status === 404
-          ? 'This bridge is older than the Build story button. Restart it: diff-story serve'
-          : `Couldn't ask the bridge: ${answer.error}`,
-      );
-    }
-    refreshStatus();
+    await checkForUpdates();
+    current.ui = { ...current.ui, hidden: false };
+    mount();
+    savePanelUi(current.key, current.ui);
+    refreshTag();
   }
 
   /** When chapters.json changes on disk (Claude filled in a chapter), redraw in place. */
@@ -337,18 +287,6 @@ export function createFilesChangedPage() {
       return;
     }
     if (!current.id) {
-      // poll only while a build is pending (every 10s), or slowly while the bridge is down (every 30s)
-      let every = 0;
-      if (current.status === 'queued' || current.status === 'building') {
-        every = BUILD_POLL_MS;
-      } else if (current.status === 'unreachable') {
-        every = OFFLINE_POLL_MS;
-      }
-      if (every && Date.now() - lastRetry > every) {
-        lastRetry = Date.now();
-        current = null;
-        sync();
-      }
       return;
     }
     const answer = await callBridge(
@@ -407,12 +345,13 @@ export function createFilesChangedPage() {
     if (current.overlay && panelOnPage()) {
       current.ui = { ...current.overlay.state, hidden: true };
       unmount();
+      tagAfterPanel();
     } else {
       current.ui = { ...current.ui, hidden: false };
       mount();
+      refreshTag();
     }
     savePanelUi(current.key, current.ui);
-    refreshStatus();
   }
 
   /** Before a reload of our own: save the panel's step and scroll, so it comes back where it was. */
@@ -439,17 +378,30 @@ export function createFilesChangedPage() {
     }
   };
 
-  /** Every URL change, tick and navigation event, from the router. */
+  /** Every URL change, tick, navigation event and coming back to the tab, from the router. */
   function route({ navigated, reason }) {
     if (navigated) {
       whitespaceCheck().catch(() => {});
       sync();
     } else if (reason === 'event') {
       sync();
+    } else if (reason === 'back' && current && current.id) {
+      checkForUpdates(); // a comment drafted in the terminal shows up as soon as you come back to the tab
+    } else if (reason === 'back' && current && current.status !== 'loading') {
+      current = null; // no story yet: look again (another tab may have asked for one, or it may be done)
+      sync();
     } else if (current && current.data && !current.ui.hidden && !panelOnPage()) {
       sync();
-    } else if (current && !document.getElementById(STATUS_ID)) {
-      refreshStatus(); // GitHub swapped out <body>
+    } else if (
+      current &&
+      !current.data &&
+      current.status !== 'loading' &&
+      tags.due([current.pr]).length
+    ) {
+      current = null; // queued or building (every 10s), or the bridge is down (every 30s)
+      sync();
+    } else if (current && tags.resultOf(current.pr) && !document.querySelector(`[${TAG_ATTR}]`)) {
+      refreshTag(); // GitHub swapped out <body> or redrew the header
     }
   }
 
@@ -469,23 +421,6 @@ export function createFilesChangedPage() {
         }
       });
     }
-    // a comment drafted in the terminal shows up as soon as you come back to the tab
-    window.addEventListener('focus', () => {
-      if (extensionAlive() && current && current.id) {
-        checkForUpdates();
-      }
-    });
-    // coming back to a tab with no story: look once (another tab may have asked for a build, or the story may be done)
-    document.addEventListener('visibilitychange', () => {
-      const back = extensionAlive() && document.visibilityState === 'visible' && current;
-      if (back && current.id) {
-        checkForUpdates();
-      }
-      if (back && !current.data && current.status !== 'loading') {
-        current = null;
-        sync();
-      }
-    });
     setInterval(() => {
       if (extensionAlive()) {
         checkForUpdates();

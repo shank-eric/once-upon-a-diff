@@ -30,12 +30,13 @@ export function tagFor(result, { repo, number }) {
       ? ` at ${clockTime(result.request.requested_at)}`
       : '';
   if (!result || result.state === 'none' || !result.state) {
+    const failed = result && result.request && result.request.status === 'failed';
     return {
       kind: 'button',
       act: 'build',
       cls: '',
       label: 'Build story',
-      title: 'Ask a Claude session to write a story for this PR',
+      title: `Ask a Claude session to write a story for this PR${failed ? '. The last build failed.' : ''}`,
     };
   }
   if (result.state === 'queued') {
