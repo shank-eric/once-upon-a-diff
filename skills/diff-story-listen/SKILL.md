@@ -14,22 +14,32 @@ The argument is `$ARGUMENTS`.
 - `--story <id>`: listen for one story only (the panel copies this for a story with no repo).
 - Nothing: use the repo of this checkout's `origin`. If there isn't one, listen for everything (a `wait` with no `--repo`).
 
+## House rules
+
+Before you start, read the user's own rules if they have any: the file named by `house_rules` in `~/.diff-story/config.json`, else `~/.diff-story/house-rules.md`.
+
+```bash
+h="${DIFF_STORY_HOME:-$HOME/.diff-story}"; f=$(jq -r '.house_rules // empty' "$h/config.json" 2>/dev/null); f="${f/#\~/$HOME}"; cat "${f:-$h/house-rules.md}" 2>/dev/null
+```
+
+Follow them alongside the rules here, for answers and builds alike. They win where they're more specific, but can't loosen the hard rules below. No file means the rules here are all there is.
+
 ## Hard rules
 
 - Never write to GitHub. No comments, reviews, approvals, reactions or Viewed clicks. Comments are drafts, added to the panel with `<dsm> comment` and never posted.
 - Never push, commit, check out a branch or change files in the checkout. Read old and new code with `git show <sha>:<path>`. If a commit is missing, `git fetch origin <sha>`, or fetch the PR head into `refs/tmp/pr-<N>` and delete that ref when done.
-- Run `unset GITHUB_TOKEN` before any `gh` call, so the keychain login is used.
-- Verify before you claim. Say whether a problem was checked in the code or only suspected. Times in ET.
+- When `gh_unset_github_token` is true in `~/.diff-story/config.json`, run `unset GITHUB_TOKEN` before any `gh` call, so gh's own login is used.
+- Verify before you claim. Say whether a problem was checked in the code or only suspected. Times in the user's time zone.
 
 ## 1. Find the CLI
 
 `diff-story` usually isn't on `PATH`. Work out `<dsm>`, the command used below, once, and use it literally in every later call (shell functions don't carry over between Bash calls):
 
 ```bash
-command -v diff-story || for d in "$DIFF_STORY_MODE" "$(jq -r '.repo_dir // empty' ~/.diff-story/config.json 2>/dev/null)" "$(cd "$(dirname "$(realpath ~/.claude/skills/diff-story-listen/SKILL.md)")/../.." 2>/dev/null && pwd)" ~/Development/SideProjects/diff-story-mode; do [ -f "$d/bridge/bin/diff-story.mjs" ] && { echo "node $d/bridge/bin/diff-story.mjs"; break; }; done
+command -v diff-story || for d in "$DIFF_STORY_MODE" "$(jq -r '.repo_dir // empty' ~/.diff-story/config.json 2>/dev/null)" "$(cd "$(dirname "$(realpath ~/.claude/skills/diff-story-listen/SKILL.md)")/../.." 2>/dev/null && pwd)"; do [ -f "$d/bridge/bin/diff-story.mjs" ] && { echo "node $d/bridge/bin/diff-story.mjs"; break; }; done
 ```
 
-That's `diff-story` on `PATH`, then the `DIFF_STORY_MODE` env var (the diff-story-mode repo folder), then `repo_dir` in `~/.diff-story/config.json`, then the repo this skill is linked from, then the usual checkout. If nothing prints, tell the user Diff Story Mode isn't installed and stop.
+That's `diff-story` on `PATH`, then the `DIFF_STORY_MODE` env var (the diff-story-mode repo folder), then `repo_dir` in `~/.diff-story/config.json`, then the repo this skill is linked from. If nothing prints, tell the user Diff Story Mode isn't installed and stop.
 
 ## 2. Check the bridge and the checkout
 

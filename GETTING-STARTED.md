@@ -69,7 +69,7 @@ ln -s "$PWD/skills/pr-story" ~/.claude/skills/pr-story
 It finds this repo through the link, so the checkout can live anywhere. Two things to know:
 
 - **It needs session-story.** pr-story's `render` draws its page with [session-story](https://github.com/nalaj/session-story) (public, MIT), pinned at `b432256`, at `~/.claude/skills/session-story` (or `SESSION_STORY_DIR`). Without it `render` fails before it publishes, so Build story doesn't finish.
-- **It's written for Eric's setup.** It names him and follows his work rules, like drafting comments and never posting them. It works for anyone, but reads that way.
+- **You can give it your own rules.** It's generic: it drafts comments and never posts them. Rules about your own setup (where checkouts live, how to name people, the voice for comments) go in `~/.diff-story/house-rules.md`, which the skills read when it's there. See [Personal settings](README.md#personal-settings).
 
 What works without pr-story: local mode (step 10, which makes its own starting chapters), the panel and its Ask box on any story you have, and the listener answering questions. What doesn't: Build story on a PR, and a story's update after new commits.
 
@@ -113,7 +113,7 @@ This tells the story of `git diff <base> HEAD` (`--head` picks another end) on a
 
 Each story lives in the checkout it's about, in a hidden `.diff-story/` folder. Git ignores that folder through the checkout's `.git/info/exclude`, which is local and never committed, so `git status` stays clean. Everything else, like your config, preferences, the question inbox and what you've read, is in `~/.diff-story` (`DIFF_STORY_HOME` moves it).
 
-The bridge learns where your checkouts are from local stories and from where a listener runs. Otherwise it looks under `~/Development/<name>` (`DIFF_STORY_DEV_DIR` changes that).
+The bridge learns where your checkouts are from local stories and from where a listener runs. Otherwise it looks under `~/Development/<name>` (`checkout_dirs` in `~/.diff-story/config.json` or `DIFF_STORY_DEV_DIR` changes that).
 
 ## When something's off
 
