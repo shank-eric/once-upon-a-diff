@@ -33,7 +33,7 @@ There are two quick ways to check.
 **The light in the panel header.** It's the dot left of "Hide story". Hover it for a summary, or click it for details and fixes.
 
 - **Green:** the bridge is reachable and accepts the token, the story was found, and a Claude session is listening for questions.
-- **Amber:** everything works, but no Claude session is listening. The Ask box still queues questions and says they'll wait. To start a listener, run `diff-story wait --consumer pr-story` as a background task in Claude Code. The pr-story skill does that while it tells a story. Amber also covers a story that isn't found.
+- **Amber:** everything works, but no Claude session is listening. The Ask box still queues questions and says they'll wait. To start a listener, run `diff-story wait --consumer pr-story` as a background task in Claude Code. The pr-story skill does that while it tells a story. Under the Ask box, **Copy prompt for Claude** copies a prompt to paste into any Claude Code session. It has the session wait for this story's questions in the background (`wait --story <id> --type question --consumer pr-story`), answer each one with `diff-story answer`, and start waiting again. When `diff-story` isn't on the bridge's `PATH`, the commands name node and `bridge/bin/diff-story.mjs` by full path. Amber also covers a story that isn't found.
 - **Red:** the bridge is down, too old for the panel, or rejects the token.
 
 The details also say whether autoBuild or autoAnswer is on.

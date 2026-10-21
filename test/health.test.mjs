@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { tmp, githubStory, startBridge } from './helpers.mjs';
-import { beat, listeners } from '../bridge/lib/health.mjs';
+import { beat, listeners, cliCommand, listenPrompt } from '../bridge/lib/health.mjs';
 import { doctor } from '../bridge/lib/doctor.mjs';
 
 test('a fresh waiting beat counts as listening, a stale one or a dead process does not, and a handling beat lasts longer', () => {
@@ -77,5 +77,29 @@ test('doctor passes the bridge when it is up', async () => {
     const lines = [];
     await doctor(home, { token: 'test-token-0123456789abcdef', port: b.server.address().port }, { out: l => lines.push(l) });
     assert.match(lines.join('\n'), /PASS\s+Bridge: running on 127\.0\.0\.1:\d+, version/);
+  } finally { await b.close(); }
+});
+
+test("the panel's Copy prompt for Claude: the wait command for this story, and how to answer", async () => {
+  const p = listenPrompt('local-x', 'diff-story');
+  assert.equal(p.command, 'diff-story wait --story local-x --type question --consumer pr-story');
+  assert.match(p.prompt, /^Run `diff-story wait --story local-x --type question --consumer pr-story` as a background task\./);
+  assert.match(p.prompt, /`diff-story answer --question <id> --text "<answer>"`/);
+  assert.match(p.prompt, /start the wait again/);
+
+  assert.equal(cliCommand(true), 'diff-story');
+  const full = cliCommand(false);
+  assert.ok(full.startsWith(process.execPath), 'off PATH it names node by full path');
+  assert.match(full, /\/bridge\/bin\/diff-story\.mjs$/);
+  assert.match(listenPrompt('s', full).command, /diff-story\.mjs wait --story s /);
+
+  const home = tmp('home');
+  githubStory(path.join(home, 'acme-widgets-7'));
+  const b = await startBridge({ home });
+  try {
+    const l = (await b.call('GET', '/api/status?story=acme-widgets-7')).body.listening;
+    assert.match(l.command, /wait --story acme-widgets-7 --type question --consumer pr-story$/);
+    assert.ok(l.prompt.includes(l.command));
+    assert.equal((await b.call('GET', '/api/status')).body.listening.prompt, undefined, 'no story, no prompt');
   } finally { await b.close(); }
 });

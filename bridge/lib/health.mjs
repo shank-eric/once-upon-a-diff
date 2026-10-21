@@ -18,7 +18,8 @@
  *   "autoAnswer": {"enabled": true, "command": ["claude", "-p", "Answer this review question using {context}: {question}"]}
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import path from 'node:path';
 import { parseUnifiedDiff } from './diff.mjs';
@@ -53,6 +54,30 @@ export function listeners(home, now = Date.now()) {
   return out.sort((a, b) => a.age_s - b.age_s);
 }
 
+/** Is cmd runnable as typed (a path that exists, or a name on PATH)? */
+export function onPath(cmd) {
+  if (!cmd) return false;
+  if (cmd.includes('/')) return existsSync(cmd);
+  try { execFileSync('/usr/bin/which', [cmd], { stdio: 'ignore' }); return true; } catch { return false; }
+}
+
+const BIN = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../bin/diff-story.mjs');
+const shq = s => (/^[A-Za-z0-9_./:=@%+-]+$/.test(s) ? s : `'${String(s).replace(/'/g, "'\\''")}'`);
+let cliCache = null;
+/** How to run the CLI from a shell: `diff-story` when it's on PATH, else node and the script by full path. */
+export function cliCommand(found = cliCache ?? (cliCache = onPath('diff-story'))) {
+  return found ? 'diff-story' : `${shq(process.execPath)} ${shq(BIN)}`;
+}
+
+/** The panel's "Copy prompt for Claude": paste it into a Claude Code session to have it answer this story's questions. */
+export function listenPrompt(story, cli = cliCommand()) {
+  const wait = `${cli} wait --story ${story} --type question --consumer pr-story`;
+  return {
+    command: wait,
+    prompt: `Run \`${wait}\` as a background task. Each time it exits with a question, answer it here and with \`${cli} answer --question <id> --text "<answer>"\`, then start the wait again. Keep going until I say stop.`,
+  };
+}
+
 const onOff = cfg => (cfg && cfg.enabled ? { enabled: true, command: cfg.command || null } : { enabled: false });
 
 /** What the panel's status light shows. */
@@ -67,6 +92,7 @@ export function statusOf({ home, version, story, autoBuild, autoAnswer, extensio
       consumers: live.map(l => ({ consumer: l.consumer, state: l.state, age_s: l.age_s })),
       last_seen: ls[0] ? ls[0].at : null,
       start: 'In a Claude Code session, run as a background task: diff-story wait --consumer pr-story',
+      ...(story ? listenPrompt(story) : {}),
     },
     autoBuild: onOff(autoBuild),
     autoAnswer: onOff(autoAnswer),
