@@ -362,7 +362,8 @@ Diff Story Mode doesn't need Refined GitHub and doesn't use anything it adds to 
 
 ```bash
 yarn test              # bridge unit tests (node --test)
-yarn js:lint
+yarn lint              # ESLint, then Prettier's check
+yarn format            # Prettier over the repo (100 columns)
 yarn test:extension    # loads src/ into a throwaway Playwright Chromium, never your own Chrome
 yarn test:expand       # the same Chromium: panel links expand collapsed files and hunks on /files and /changes
 yarn icons             # redraws src/icons
@@ -386,16 +387,27 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
 
 `test:expand` uses `refined-github/refined-github#10298` and checks that line links above, between and past its hunks, on both sides, and file and line links into a collapsed file open and highlight their target, with no expanding on a step change, `?w=1` kept and no Viewed toggle touched. Logged out, GitHub sends `/changes` to `/files`, so the React `/changes` DOM is checked by hand.
 
-## Layout
+## Code layout
 
 - `src/`: the extension, which is the folder to load unpacked.
-  - `js/content/index.js` finds the story and mounts the panel.
   - `js/background.js` is the only code that makes network calls, and only to `127.0.0.1`.
-  - `js/shared/overlay.js` is the panel, shared with the local page.
-- `bridge/`: the CLI (`bin/diff-story.mjs`), the server and story code (`lib/`), and the local page (`public/`).
+  - `js/content/index.js` routes by page kind: Files changed, Conversation, PR list, or other.
+    - `bridge.js` sends bridge calls through the service worker. `storage.js` keeps the panel's state per PR and the Hide whitespace copy.
+    - `pages/files-changed.js` docks the panel and runs the status control. `pages/hide-whitespace.js` keeps `?w=1` in step with the setting.
+    - `pages/conversation.js` and `pages/pull-list.js` put the story tag by a PR's title.
+    - `ui/` holds the pieces they share: `story-tag.js` (what a tag says), `tag-host.js`, `listen-notice.js`, `status-control.js`, `copy.js` and `toast.js`.
+  - `js/shared/overlay.js` is the panel's entry, shared with the local page. It builds one context and wires the modules in `js/shared/panel/`:
+    - `story-model.js`: chapters, numbers and where each file is finished. `panel-state.js`: the saved step and layout.
+    - `shell.js` and `styles.js`: the frame, toolbar and CSS. `body.js`: the step on screen. `navigation.js`: Prev, Next and the view switch.
+    - `host-page.js`: finding files, lines and toggles on `/changes`, `/files` and the local page. `filter.js`, `expand.js` and `scroll.js`: hiding, opening and jumping.
+    - `file-refs.js` and `markdown.js`: the story's text and its jump links. `file-list.js` and `backstory-views.js`: the file rows and the backstory.
+    - `viewed.js`, `reading.js`, `drafts.js`, `freshness.js`, `status-light.js` and `questions.js`: Viewed progress, read tracking, drafted comments, story freshness, the status light and the Ask box.
+  - `js/shared/util/`: helpers for the panel, the content scripts, the local page and the bridge (escaping, short SHAs, times, the clipboard, GitHub paths, key isolation).
+- `bridge/`: the CLI (`bin/diff-story.mjs`), the server and story code (`lib/`, with Node-only helpers for `gh` and JSON files in `lib/util/`), and the local page (`public/`).
 - `skills/diff-story-listen/`: the Claude Code skill behind **Copy prompt for Claude**.
 - `skills/pr-story/`: the Claude Code skill that writes PR stories. Both skills read your house rules (see [Personal settings](#personal-settings)).
 - `test/`: unit tests, `extension/load-test.mjs` and `extension/expand-test.mjs`.
+- `docs/structure-proposal.md`: where the rest of the repo's layout could go next.
 
 ## Credits
 
