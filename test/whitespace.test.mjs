@@ -69,7 +69,7 @@ describe('GitHub Hide whitespace: the saved setting', () => {
       const prefs = prefsStore({ call, ...s });
       assert.equal(await prefs.read(), false);
       assert.equal(await prefs.write(true), true);
-      assert.deepEqual((await b.call('GET', '/api/prefs')).body, { hideWhitespace: true });
+      assert.deepEqual((await b.call('GET', '/api/prefs')).body, { hideWhitespace: true, diffView: 'unified' });
       assert.deepEqual(s.box.v, { hideWhitespace: true });
     } finally { await b.close(); }
   });

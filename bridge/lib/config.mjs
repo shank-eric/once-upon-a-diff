@@ -3,7 +3,7 @@
  *
  *   ~/.diff-story/                 DIFF_STORY_HOME overrides it
  *     config.json                  {port, token, roots}, mode 600
- *     prefs.json                   page settings that hold across stories and restarts, such as {hideWhitespace}
+ *     prefs.json                   page settings that hold across stories and restarts: {hideWhitespace, diffView}
  *     inbox.jsonl                  questions, positions, notes and answers, one JSON object a line
  *     cursors/<consumer>.json      how far each reader (a Claude session, a hook) has read the inbox
  *     state/<story id>/            what the bridge records per story: ui.json, position.json, viewed.json, notes.json
@@ -53,19 +53,20 @@ export function saveConfig(cfg, home = homeDir()) {
 
 /**
  * Page settings the bridge keeps for every story, read on each request so a change needs no restart.
- * Only known keys are kept: {hideWhitespace: boolean}.
+ * Only known keys are kept: {hideWhitespace: boolean, diffView: 'unified' | 'split'}.
  */
-export const PREF_DEFAULTS = Object.freeze({ hideWhitespace: false });
+export const PREF_DEFAULTS = Object.freeze({ hideWhitespace: false, diffView: 'unified' });
 
 export function readPrefs(home = homeDir()) {
   let saved = {};
   try { saved = JSON.parse(readFileSync(path.join(home, 'prefs.json'), 'utf8')) || {}; } catch { saved = {}; }
-  return { ...PREF_DEFAULTS, hideWhitespace: saved.hideWhitespace === true };
+  return { ...PREF_DEFAULTS, hideWhitespace: saved.hideWhitespace === true, diffView: saved.diffView === 'split' ? 'split' : 'unified' };
 }
 
 export function writePrefs(patch, home = homeDir()) {
   const next = { ...readPrefs(home) };
   if ('hideWhitespace' in patch) next.hideWhitespace = patch.hideWhitespace === true;
+  if ('diffView' in patch) next.diffView = patch.diffView === 'split' ? 'split' : 'unified';
   mkdirSync(home, { recursive: true, mode: 0o700 });
   writeFileSync(path.join(home, 'prefs.json'), JSON.stringify(next, null, 2) + '\n');
   return next;
