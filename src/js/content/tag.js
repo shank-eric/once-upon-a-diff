@@ -2,7 +2,8 @@
  * The one story tag a PR gets, on PR lists and on the PR's Conversation tab.
  * The tag is the control:
  *   ready      "Story", a link to Files changed, where the panel docks
- *   stale      "Story out of date · Update", asks for an update to the PR's latest commit
+ *   stale      "Story out of date · Update", asks for an update to the PR's latest commit: a "Since you read it"
+ *              chapter for the new commits (Update (new commits)), or with its small "Re-tell" a whole new story
  *   none       "Build story", asks for one
  *   queued     "Queued", asked for and no session has it yet (not clickable)
  *   building   "Building…", a session claimed it (not clickable)
@@ -26,7 +27,8 @@ export function conversationPr(loc) {
 
 /**
  * What the tag shows and does, from a status-many result.
- * @returns {{kind: 'link'|'button'|'progress', cls: string, label: string, title: string, href?: string, act?: 'build'|'update', spin?: boolean, base?: string}}
+ * @returns {{kind: 'link'|'button'|'progress', cls: string, label: string, title: string, href?: string, act?: 'build'|'update', spin?: boolean, base?: string,
+ *   alt?: {act: 'retell', label: string, title: string}}}
  */
 export function tagFor(r, { repo, number }) {
   const href = `https://github.com/${repo}/pull/${number}/changes`;
@@ -42,16 +44,18 @@ export function tagFor(r, { repo, number }) {
   if (r.stale) {
     return {
       kind: 'button', act: 'update', base: r.story_head, cls: 'stale', label: 'Story out of date · Update',
-      title: `The story is for ${sha7(r.story_head)} and the PR has newer commits (${sha7(r.current_head)}). Click to ask for an update.`,
+      title: `Update (new commits): the story is for ${sha7(r.story_head)} and the PR has newer commits (${sha7(r.current_head)}). `
+        + 'Adds a "Since you read it" chapter for them, first, and keeps the chapters you read.',
+      alt: { act: 'retell', label: 'Re-tell', title: 'Re-tell from scratch: a whole new story at the latest commit, for a rebase or a big rework' },
     };
   }
   return { kind: 'link', href, cls: 'ready', label: 'Story', title: `Open the story on Files changed${r.story_head ? ` (up to date with ${sha7(r.story_head)})` : ''}` };
 }
 
-/** The build request a button tag sends. */
-export function requestFor(tag, { repo, number }) {
+/** The build request a button tag sends. retell: the stale tag's "Re-tell" was clicked. */
+export function requestFor(tag, { repo, number }, { retell = false } = {}) {
   const body = { repo, number, url: `https://github.com/${repo}/pull/${number}`, requested_at: new Date().toISOString() };
-  return tag.act === 'update' && tag.base ? { ...body, mode: 'update', base_sha: tag.base } : body;
+  return tag.act === 'update' && tag.base ? { ...body, mode: 'update', base_sha: tag.base, ...(retell ? { retell: true } : {}) } : body;
 }
 
 /**
@@ -72,7 +76,10 @@ export const TAG_CSS = `
   .b.stale { color: var(--fgColor-attention, #9a6700); border-color: var(--fgColor-attention, #9a6700); }
   .b.queued, .b.building { cursor: default; }
   .b.queued:hover, .b.building:hover { color: var(--fgColor-muted, #59636e); border-color: var(--borderColor-default, #d1d9e0); }
-  .b[disabled] { opacity: .6; cursor: default; }
+  .b[disabled], .alt[disabled] { opacity: .6; cursor: default; }
+  .alt { font: 11px/18px -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; margin-left: 3px; padding: 0 2px; border: 0;
+    background: none; color: var(--fgColor-muted, #59636e); text-decoration: underline dotted; cursor: pointer; }
+  .alt:hover { color: var(--fgColor-accent, #0969da); }
   .spin { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid currentColor; border-top-color: transparent; animation: s .9s linear infinite; }
   @keyframes s { to { transform: rotate(360deg); } }
   @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
@@ -84,6 +91,7 @@ const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').re
 export function tagHtml(t) {
   const inner = `${t.spin ? '<span class="spin"></span>' : ''}${esc(t.label)}`;
   if (t.kind === 'link') return `<a class="b ${t.cls}" href="${esc(t.href)}" title="${esc(t.title)}">${inner}</a>`;
-  if (t.kind === 'button') return `<button class="b ${t.cls}" data-act="${t.act}" title="${esc(t.title)}">${inner}</button>`;
+  const alt = t.alt ? `<button class="alt" data-act="${t.alt.act}" title="${esc(t.alt.title)}">${esc(t.alt.label)}</button>` : '';
+  if (t.kind === 'button') return `<button class="b ${t.cls}" data-act="${t.act}" title="${esc(t.title)}">${inner}</button>${alt}`;
   return `<span class="b ${t.cls}" title="${esc(t.title)}" aria-live="polite">${inner}</span>`;
 }

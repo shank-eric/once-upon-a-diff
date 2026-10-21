@@ -71,7 +71,7 @@ It exits 1 when something fails.
 2. Runs `diff-story doctor`, and says how to start the bridge if it's down.
 3. Runs `diff-story wait --repo octo-org/api --type question,build_request --consumer repo-octo-org-api` as a background task, which keeps the light green for every story and PR in that repo. It starts the wait again after each event.
 4. Answers each Ask-box question from the story's chapters and the code in the checkout, briefly, with `diff-story answer`.
-5. Claims each Build story request with `diff-story builds --start <id>` (the badge says Building), builds and publishes the story with the pr-story skill, and finishes it with `diff-story done <id>`.
+5. Claims each Build story request with `diff-story builds --start <id>` (the badge says Building), builds and publishes the story with the pr-story skill, and finishes it with `diff-story done <id>`. An update gets a "Since you read it" chapter, unless it asks for a re-tell.
 6. Stops when you say so.
 
 It never posts to GitHub, marks files viewed or pushes. Comments it drafts go to the panel's Draft comments only. Run one listener per repo, each in its own session.
@@ -125,7 +125,7 @@ It looks again after any click or change on the page, so Refined GitHub's batch 
 
 - **Story** opens the PR's Files changed tab, where the panel docks.
 - **Build story** sends the same build request as the PR page's button.
-- **Story out of date · Update** asks for an update to the PR's latest commit.
+- **Story out of date · Update** asks for an update to the PR's latest commit: a "Since you read it" chapter for the new commits (see [Since you read it](#since-you-read-it)). The small **Re-tell** beside it asks for a whole new story instead.
 - **Queued** means a story was asked for and no Claude session has taken it yet. **Building…** means a session has claimed it. Neither can be clicked. An update shows as **Update queued** or **Updating…**.
 
 When no session is listening for a repo on the page, one notice at the bottom right says "No session listening for owner/name", with **Copy prompt for Claude** and, when the bridge knows one, the checkout to start Claude Code in. It's said once for the page, not on each row.
@@ -138,8 +138,17 @@ The page makes one batched lookup (`POST /api/stories/status-many`, cached 5s), 
 
 - When they match, the panel header says "Up to date with abc1234".
 - When they don't, it says "Story is for abc1234; the PR has N newer commits", with the files changed since and the chapters that list them. Those files get "changed since story" in the files list, and those chapters a mark in the Steps list.
-- **Update story** sends a build request with `mode: 'update'` and the old head (`base_sha`). It stays pending until the story's head moves.
-- PR-list and Conversation tags say "Story out of date · Update", then "Update queued" or "Updating…".
+- **Update (new commits)** sends a build request with `mode: 'update'` and the old head (`base_sha`). **Re-tell from scratch** sends the same with `retell: true`, for a rebase or a big rework (the panel suggests it when the PR was rebased). While no session has taken it, clicking the other one switches it. It stays pending until the story's head moves.
+- PR-list and Conversation tags say "Story out of date · Update" with a small "Re-tell", then "Update queued" or "Updating…".
+
+### Since you read it
+
+When a PR gets a few new commits after you've read its story, an update adds one chapter instead of telling the whole story again:
+
+- The bridge works out where your reading stopped: the commit you read your earliest chapter at (from `read.json`, above), counting only reads after the newest "Since you read it" chapter you read, since that one caught you up. With nothing read, it's the commit the story was told from. The build request carries it as `since_sha`, with `since_source` (`read` or `story`), the `reads` and the story id. `diff-story builds` prints it under each update ("update: "Since you read it" from abc1234 (where his reading stopped; 3 chapters read)"), `builds --json` and `wait --json` include the fields, and the inbox line's text says what to write.
+- The pr-story skill writes one chapter for `since_sha..` the PR's head, puts it first, and keeps the other chapters as they were. It has `since: {from, to, commits}` in `chapters.json` and lists the files those commits touched.
+- The panel doesn't number "Since you read it" chapters. The Steps list shows them as **New**, and the chapters after them keep the numbers you read them with, so their "comes back in chapter N" lines still hold. A file a "Since you read it" chapter lists is marked viewed there (the newest one wins), since you've read the chapters after it. Its other chapters say "Already finished in “Since you read it”". pr-story's `file-map.json` follows the same rule.
+- A rebase past `since_sha`, or a request with `retell`, gets a new story from scratch. Drafts' posted and dismissed marks are kept per PR either way.
 
 ### Story ready, Building, Build story
 

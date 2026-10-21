@@ -84,7 +84,7 @@ async function onClick(e, item) {
   e.stopPropagation();
   b.disabled = true;
   const t = tagFor(results.get(keyOf(item.repo, item.number)), item);
-  const r = await bridge('POST', '/api/builds', requestFor(t, item));
+  const r = await bridge('POST', '/api/builds', requestFor(t, item, { retell: b.getAttribute('data-act') === 'retell' }));
   if (r.ok) {
     const prev = results.get(keyOf(item.repo, item.number)) || {};
     results.set(keyOf(item.repo, item.number), t.act === 'update'

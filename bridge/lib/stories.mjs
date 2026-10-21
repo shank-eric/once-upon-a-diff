@@ -19,7 +19,7 @@ import { revParse, diffText, commitsBetween } from './git.mjs';
 import { scratchBases, readPrefs } from './config.mjs';
 import { readIndex, adoptHomeStories, STORY_FOLDER } from './place.mjs';
 import { readCheckouts } from './repos.mjs';
-import { chapterKey } from './reads.mjs';
+import { chapterKey, SHA_RE } from './reads.mjs';
 
 export const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/;
 
@@ -159,6 +159,7 @@ export class StoryStore {
       backstory: backstoryOf(ch.backstory),
       files: (ch.files || []).map(entryOf),
       comments: (ch.comments || []).map(c => ({ path: c.path || '', line: c.line || 0, body: c.body || '' })),
+      ...(sinceOfChapter(ch.since) ? { since: sinceOfChapter(ch.since) } : {}),
     }));
     // a local diff is the truth: a file that has left it (say, reverted) leaves its chapters too
     if (diff) for (const ch of chapters) ch.files = ch.files.filter(f => diff.has(f.rel));
@@ -211,6 +212,15 @@ export class StoryStore {
     }
     return data;
   }
+}
+
+/**
+ * A "Since you read it" chapter's `since`: {from, to, commits}, the commits it tells (from..to).
+ * The panel numbers chapters after it, puts "Mark viewed" on its files, and links GitHub's diff of just that range.
+ */
+export function sinceOfChapter(s) {
+  if (!s || typeof s !== 'object' || !SHA_RE.test(String(s.from || '')) || !SHA_RE.test(String(s.to || ''))) return null;
+  return { from: s.from, to: s.to, commits: Number.isInteger(s.commits) && s.commits >= 0 ? s.commits : null };
 }
 
 export function entryOf(e) {

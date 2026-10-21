@@ -75,14 +75,14 @@ The event gives the question id, the story id, the chapter or step, the file it 
 
 ## 5. A build request
 
-The event gives the build id, `owner/repo#N` and the PR URL. A request with `mode: "update"` and `base_sha` asks to bring an existing story up to the PR's latest commit.
+The event gives the build id, `owner/repo#N` and the PR URL. A request with `mode: "update"` asks to bring an existing story up to the PR's latest commit. It also has `base_sha` (the commit the story was told from), `since_sha` (where the user's reading stopped, from the chapters they read) and `retell` (true when they asked for a new story from scratch).
 
 1. Claim it, which moves its badge from Queued to Building:
    ```bash
    <dsm> builds --start <build id> --consumer repo-<owner>-<name>
    ```
 2. Start the wait again (step 3).
-3. Build the story with the pr-story skill (`~/.claude/skills/pr-story/SKILL.md`, as `/pr-story <PR url>`): gather, plan the chapters, backstory when there is one, and render. Write every chapter's narrative and draft comments up front, since the panel shows the whole story. Don't tell it chapter by chapter in chat. For an update, follow pr-story's update path: read `git diff <base_sha>..<new head>`, revise only the chapters it touches, and keep the rest and the drafts' posted and dismissed marks.
+3. Build the story with the pr-story skill (`~/.claude/skills/pr-story/SKILL.md`, as `/pr-story <PR url>`): gather, plan the chapters, backstory when there is one, and render. Write every chapter's narrative and draft comments up front, since the panel shows the whole story. Don't tell it chapter by chapter in chat. For an update, follow pr-story's "Since you read it" path: one new chapter, first, for `git diff <since_sha>..<new head>`, with the other chapters kept as they are. Re-tell from scratch only when `retell` is true or the PR was rebased past `since_sha`.
 4. `render` publishes the story to `~/.diff-story/`, and the PR page opens the panel on its own.
 5. Mark it done: `<dsm> done <build id>`. If it couldn't be built, `<dsm> done <build id> --failed --note "<one line why>"`.
 6. On a long build, run `builds --start` again every ≈20 minutes so the claim stays fresh and the request isn't handed out a second time.

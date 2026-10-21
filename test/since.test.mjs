@@ -1,0 +1,124 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import { readFileSync } from 'node:fs';
+import { execFile } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { tmp, githubStory, startBridge, writeJson } from './helpers.mjs';
+import { Builds, buildText } from '../bridge/lib/builds.mjs';
+import { Inbox } from '../bridge/lib/inbox.mjs';
+import { noteRead } from '../bridge/lib/reads.mjs';
+import { clearFreshness } from '../bridge/lib/freshness.mjs';
+import { tagFor, tagHtml, requestFor } from '../src/js/content/tag.js';
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+process.env.DIFF_STORY_GH = path.join(HERE, 'fixtures', 'fake-gh.mjs');
+const BIN = path.resolve(HERE, '../bridge/bin/diff-story.mjs');
+const A = 'a'.repeat(40);
+const B = 'b'.repeat(40);
+const inbox = home => readFileSync(path.join(home, 'inbox.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+const cli = (home, args) => new Promise(resolve => {
+  execFile(process.execPath, [BIN, ...args], { env: { ...process.env, DIFF_STORY_HOME: home } }, (err, stdout, stderr) => resolve({ code: err ? err.code : 0, stdout, stderr }));
+});
+
+function story(home, head = A) {
+  const dir = path.join(home, 'acme-widgets-7');
+  githubStory(dir);
+  writeJson(path.join(dir, 'meta.json'), { kind: 'github', repo: 'acme/widgets', number: 7, head_oid: head });
+  return dir;
+}
+
+test('an update asks for a "Since you read it" chapter from where his reading stopped', async () => {
+  clearFreshness();
+  const home = tmp('home');
+  story(home);
+  const C = 'c'.repeat(40);
+  noteRead(home, 'pr-acme-widgets-7', 'finish', { head_sha: C, story_head: C, title: 'Chapter 2: Finish' });
+  await new Promise(r => setTimeout(r, 5));
+  noteRead(home, 'pr-acme-widgets-7', 'start', { head_sha: A, story_head: A, title: 'Chapter 1: Start' });
+  const b = await startBridge({ home });
+  try {
+    const r = (await b.call('POST', '/api/builds', { repo: 'acme/widgets', number: 7, mode: 'update', base_sha: A })).body.request;
+    assert.deepEqual([r.mode, r.since_sha, r.since_source, r.story, !!r.retell], ['update', C, 'read', 'acme-widgets-7', false], 'the earliest read was chapter 2, at C');
+    assert.deepEqual(r.reads.map(x => x.chapter).sort(), ['finish', 'start']);
+    const line = inbox(home).find(e => e.type === 'build_request');
+    assert.equal(line.since_sha, C);
+    assert.match(line.text, /"Since you read it" chapter first for ccccccc\.\.the PR's head, where Eric's reading stopped/);
+    // the wait hands it over with the same fields
+    const w = await cli(home, ['wait', '--timeout', '1', '--json', '--repo', 'acme/widgets']);
+    const e = JSON.parse(w.stdout.trim().split('\n')[0]);
+    assert.deepEqual([e.mode, e.since_sha, e.retell, e.story], ['update', C, false, 'acme-widgets-7']);
+    const listed = await cli(home, ['builds']);
+    assert.match(listed.stdout, /update: "Since you read it" from ccccccc \(where his reading stopped; 2 chapters read\)/);
+    assert.equal(JSON.parse((await cli(home, ['builds', '--json'])).stdout)[0].since_sha, C);
+  } finally { await b.close(); }
+});
+
+test('with nothing read, an update starts from the story head; Re-tell asks for a new story', async () => {
+  clearFreshness();
+  const home = tmp('home');
+  story(home);
+  const b = await startBridge({ home });
+  try {
+    const r = (await b.call('POST', '/api/builds', { repo: 'acme/widgets', number: 7, mode: 'update', base_sha: A })).body.request;
+    assert.deepEqual([r.since_sha, r.since_source, r.reads.length], [A, 'story', 0]);
+    // still queued: Re-tell from scratch replaces it, and Update (new commits) puts it back
+    const re = (await b.call('POST', '/api/builds', { repo: 'acme/widgets', number: 7, mode: 'update', base_sha: A, retell: true })).body.request;
+    assert.equal(re.id, r.id, 'the same request');
+    assert.equal(re.retell, true);
+    assert.match(inbox(home).filter(e => e.type === 'build_request').at(-1).text, /^Re-tell the story for acme\/widgets#7 from scratch/);
+    assert.equal((await b.call('POST', '/api/builds', { repo: 'acme/widgets', number: 7, mode: 'update', base_sha: A })).body.request.retell, undefined);
+  } finally { await b.close(); }
+});
+
+test('once a session has claimed an update, a second click does not change it', () => {
+  const home = tmp('home');
+  const builds = new Builds(home, new Inbox(home));
+  const r = builds.request({ repo: 'acme/widgets', number: 7, mode: 'update', base_sha: A, since: { since_sha: A, source: 'story', read: [] } });
+  builds.claim(r.id, 'repo-acme-widgets', { start: true });
+  assert.equal(builds.request({ repo: 'acme/widgets', number: 7, mode: 'update', base_sha: A, retell: true }).retell, undefined);
+  assert.equal(buildText({ repo: 'acme/widgets', number: 7, url: 'u' }), 'Build a story for acme/widgets#7: u');
+});
+
+test('the stories carry a chapter\'s since range through to the panel', async () => {
+  const home = tmp('home');
+  const dir = story(home, B);
+  const plan = JSON.parse(readFileSync(path.join(dir, 'chapters.json'), 'utf8'));
+  plan.chapters.unshift({ key: 'since-aaaaaaa-bbbbbbb', title: 'Since you read it: 2 new commits', since: { from: A, to: B, commits: 2 }, files: ['src/b.js'] });
+  plan.chapters.push({ title: 'Chapter 3: Bad range', since: { from: 'nope', to: B }, files: ['README.md'] });
+  writeJson(path.join(dir, 'chapters.json'), plan);
+  const b = await startBridge({ home });
+  try {
+    const s = (await b.call('GET', '/api/stories/acme-widgets-7')).body;
+    assert.deepEqual(s.chapters[0].since, { from: A, to: B, commits: 2 });
+    assert.equal(s.chapters[0].key, 'since-aaaaaaa-bbbbbbb');
+    assert.equal(s.chapters[1].since, undefined);
+    assert.equal(s.chapters[3].since, undefined, 'a range that is not two commits is dropped');
+  } finally { await b.close(); }
+});
+
+test('the out-of-date tag offers Update (new commits) and Re-tell from scratch', () => {
+  const pr = { repo: 'acme/widgets', number: 7 };
+  const t = tagFor({ state: 'ready', stale: true, story_head: A, current_head: B }, pr);
+  assert.equal(t.alt.act, 'retell');
+  const html = tagHtml(t);
+  assert.match(html, /^<button class="b stale" data-act="update"[^>]*>Story out of date · Update<\/button><button class="alt" data-act="retell"/);
+  assert.match(t.title, /^Update \(new commits\)/);
+  assert.match(t.alt.title, /^Re-tell from scratch/);
+  assert.equal(requestFor(t, pr).retell, undefined);
+  assert.deepEqual([requestFor(t, pr, { retell: true }).mode, requestFor(t, pr, { retell: true }).retell], ['update', true]);
+  assert.equal(requestFor(tagFor({ state: 'none' }, pr), pr, { retell: true }).retell, undefined, 'only an update can be a re-tell');
+});
+
+test('"Since you read it" chapters finish their files and are not numbered', async () => {
+  const { finishedInOf, chapterNumbers } = await import('../src/js/shared/overlay.js');
+  const chapters = [
+    { title: 'Since you read it: 1 new commit', since: { from: B, to: 'c'.repeat(40) }, files: [{ rel: 'src/a.js' }] },
+    { title: 'Since you read it: 2 new commits', since: { from: A, to: B }, files: [{ rel: 'src/a.js' }, { rel: 'src/b.js' }] },
+    { title: 'Chapter 1: Start', files: [{ rel: 'src/a.js' }] },
+    { title: 'Chapter 2: Finish', files: [{ rel: 'src/a.js' }, { rel: 'src/b.js' }, { rel: 'src/c.js' }] },
+  ];
+  assert.deepEqual(chapterNumbers(chapters), [null, null, 1, 2], 'the chapters he read keep their numbers');
+  assert.deepEqual(finishedInOf(chapters), { 'src/a.js': 1, 'src/b.js': 2, 'src/c.js': 4 }, 'the newest addendum wins; untouched files finish where they did');
+  assert.deepEqual(finishedInOf(chapters.slice(2)), { 'src/a.js': 2, 'src/b.js': 2, 'src/c.js': 2 }, 'without one, the last chapter that lists a file');
+});
