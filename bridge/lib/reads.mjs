@@ -2,7 +2,9 @@
  * What Eric has read: one record per chapter, with the commit that was
  * current when he read it. The panel reports a read when he leaves a chapter
  * he spent real time on (READ_MIN_SECONDS, counted only while the tab is
- * showing), or when he has marked all its files viewed.
+ * showing), or when he has marked all its files viewed. A chapter whose files
+ * were all Viewed already when the panel opened, with no record here, counts
+ * too (reason 'inferred'): he reviewed it before reads were tracked.
  *
  *   <home>/state/<key>/read.json   {<chapter key>: {head_sha, story_head, at, reason, title, step}}
  *
@@ -24,6 +26,8 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 export const READ_MIN_SECONDS = 30;
+/** time: he stayed on it; viewed: he ticked its last file; inferred: its files were all Viewed already when the panel opened (a review before read tracking, or with the panel closed) */
+export const READ_REASONS = ['time', 'viewed', 'inferred'];
 export const SHA_RE = /^[0-9a-f]{7,40}$/;
 
 /** A chapter's stable key: its own `key`, else its title without "Chapter N:", lowercased. */
@@ -48,7 +52,7 @@ export function noteRead(home, key, chapter, { head_sha = null, story_head = nul
     head_sha: SHA_RE.test(String(head_sha || '')) ? head_sha : null,
     story_head: SHA_RE.test(String(story_head || '')) ? story_head : null,
     at: new Date().toISOString(),
-    reason: reason === 'viewed' ? 'viewed' : 'time',
+    reason: READ_REASONS.includes(reason) ? reason : 'time',
     title: String(title || '').slice(0, 300),
     step: Number.isFinite(+step) ? Math.trunc(+step) : null,
     ...(Number.isFinite(+seconds) && seconds !== null ? { seconds: Math.round(+seconds) } : {}),

@@ -61,8 +61,9 @@
  *                  changed_files, chapters_touched, error}: is the story up to date with the PR's latest commit?
  *   requestUpdate(base_sha, {retell}) asks for the story to be updated from that commit (a build request, mode 'update'):
  *                  by default a "Since you read it" chapter for the new commits, or with retell a whole new story
- *   onRead(r)      called with {chapter (its key), step, title, reason: 'time'|'viewed', seconds, head_sha} when Eric
- *                  leaves a chapter he spent READ_MS on (counted while the tab shows), or ticks the last of its files viewed
+ *   onRead(r)      called with {chapter (its key), step, title, reason: 'time'|'viewed'|'inferred', seconds, head_sha} when Eric
+ *                  leaves a chapter he spent READ_MS on (counted while the tab shows), or ticks the last of its files viewed,
+ *                  or ('inferred') the page already had all its files Viewed and read.json has no record of it
  *   readAfterMs    how long counts as reading a chapter (READ_MS, 30s)
  *   reads()        returns a Promise of the bridge's GET /read: {reads, since, changed: [{step, files}],
  *                  stale_comments: [{step, index}]}: what changed in chapters he read, after he read them
@@ -133,6 +134,27 @@ export const rangeUrl = (prUrl, since) => (prUrl && since ? `${String(prUrl).rep
 export function chapterNumbers(chapters) {
   let k = 0;
   return chapters.map((ch) => (ch.since ? null : ++k));
+}
+/**
+ * Chapters he reviewed before the panel tracked reads (or with the panel closed): every file the chapter marks
+ * viewed was already Viewed the first time this page could see all of them, and read.json has no record of it.
+ * Only that first look counts, so ticking a later chapter's files while reading an earlier one doesn't read it.
+ * @param {{due: number, viewed: number, unknown: string[], noToggle: boolean}[]} progress progressOf() per step
+ * @param {object|null} readInfo the bridge's GET /read; nothing is inferred until it has loaded
+ * @param {Map<number, boolean>} firstLook step -> complete at the first look; filled in here
+ * @returns {number[]} the steps to record as read
+ */
+export function inferReadSteps(chapters, progress, readInfo, firstLook) {
+  if (!readInfo || !readInfo.reads) return [];
+  const out = [];
+  progress.forEach((p, i) => {
+    const n = i + 1;
+    if (firstLook.has(n) || !p || !p.due || p.noToggle || p.unknown.length) return; // not loaded on the page yet: look again later
+    const complete = p.viewed === p.due;
+    firstLook.set(n, complete);
+    if (complete && !readInfo.reads[chapterKeyOf(chapters[i])]) out.push(n);
+  });
+  return out;
 }
 /**
  * The steps whose chapter he's read (read.json has its key) and that haven't changed since he read them. A file
@@ -788,6 +810,7 @@ export function storyOverlay(INPUT, opts = {}) {
     if (inBackstory()) { box.innerHTML = ''; return; }
     const all = DATA.chapters.map((c, i) => progressOf(i + 1, blocks));
     if (all.some((p) => p.noToggle) && !all.some((p) => p.viewed || p.unviewed.length)) { box.innerHTML = ''; return; } // no Viewed toggles on this page to read
+    for (const n of inferReadSteps(DATA.chapters, all, readInfo, firstLook)) sendRead(n, 'inferred');
     for (const el of panel.querySelectorAll('[data-prog-for]')) {
       const p = all[Number(el.getAttribute('data-prog-for')) - 1];
       if (!p || !p.due || p.noToggle) { el.textContent = ''; continue; }
@@ -1463,6 +1486,7 @@ export function storyOverlay(INPUT, opts = {}) {
   const READ_AFTER = Number.isFinite(opts.readAfterMs) ? opts.readAfterMs : READ_MS;
   const readSent = new Set(); // "<key> <reason>": each at most once per panel
   const completeSeen = new Map(); // chapter -> were all its files viewed when last looked at
+  const firstLook = new Map(); // chapter -> were all its files already viewed the first time the page showed them all (inferReadSteps)
   let readClock = { n: 0, ms: 0, from: 0 };
   const showing = () => document.visibilityState === 'visible';
   function readStart() { readClock = { n: inBackstory() ? 0 : state.n, ms: 0, from: showing() ? Date.now() : 0 }; }
@@ -1475,7 +1499,7 @@ export function storyOverlay(INPUT, opts = {}) {
     if (readSent.has(once)) return;
     readSent.add(once);
     const head = DATA.kind === 'local' ? null : (fresh && fresh.current_head) || null; // the bridge asks gh when the panel doesn't know
-    const seconds = readClock.n === n ? Math.round(readElapsed() / 1000) : null;
+    const seconds = reason !== 'inferred' && readClock.n === n ? Math.round(readElapsed() / 1000) : null;
     try { Promise.resolve(opts.onRead({ chapter: key, step: n, title: ch.title, reason, seconds, head_sha: head })).then(refreshReads, () => readSent.delete(once)); } catch (e) { readSent.delete(once); }
   }
   function readLeave() { if (readClock.n > 0 && readElapsed() >= READ_AFTER) sendRead(readClock.n, 'time'); }
