@@ -9,8 +9,9 @@ import { StoryStore } from './stories.mjs';
 import { listeners, onPath } from './health.mjs';
 import { Builds } from './builds.mjs';
 import { Inbox } from './inbox.mjs';
+import { formatTime } from './config.mjs';
 
-const et = iso => (iso ? new Date(iso).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' ET' : '');
+const et = iso => formatTime(iso);
 
 function listenerPid(port) {
   try {
