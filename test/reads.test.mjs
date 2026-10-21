@@ -1,0 +1,85 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import path from 'node:path';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { tmp, githubStory, startBridge, writeJson, localRepo } from './helpers.mjs';
+import { chapterKey, noteRead, readReads, sinceOf } from '../bridge/lib/reads.mjs';
+import { chapterKeyOf } from '../src/js/shared/overlay.js';
+import { clearFreshness } from '../bridge/lib/freshness.mjs';
+import { createLocalStory } from '../bridge/lib/local.mjs';
+
+process.env.DIFF_STORY_GH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fake-gh.mjs');
+const A = 'a'.repeat(40);
+const B = 'b'.repeat(40);
+const C = 'c'.repeat(40);
+const inbox = home => readFileSync(path.join(home, 'inbox.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+
+test('a chapter keeps its key when a chapter goes in front of it', () => {
+  assert.equal(chapterKey({ title: 'Chapter 2: Finish' }), 'finish');
+  assert.equal(chapterKey({ title: 'Chapter 3: Finish' }), 'finish', 'renumbering keeps the key');
+  assert.equal(chapterKey({ title: 'Since you read it', key: 'since-abc1234-def5678' }), 'since-abc1234-def5678');
+  for (const ch of [{ title: 'Chapter 1:  The  Start' }, { title: 'Overview of it' }, { key: ' k ', title: 'x' }]) assert.equal(chapterKeyOf(ch), chapterKey(ch), 'the panel and the bridge agree');
+});
+
+test('a later read of a chapter replaces the earlier one', () => {
+  const home = tmp('home');
+  noteRead(home, 'pr-acme-widgets-7', 'start', { head_sha: A, story_head: A, title: 'Chapter 1: Start', step: 1, seconds: 42 });
+  noteRead(home, 'pr-acme-widgets-7', 'start', { head_sha: B, story_head: B, reason: 'viewed', title: 'Chapter 1: Start', step: 1 });
+  const r = readReads(home, 'pr-acme-widgets-7');
+  assert.deepEqual(Object.keys(r), ['start']);
+  assert.equal(r.start.head_sha, B);
+  assert.equal(r.start.reason, 'viewed');
+  assert.equal(noteRead(home, 'k', 'x', { head_sha: 'not a sha' }).head_sha, null);
+});
+
+test('an update starts from the earliest chapter read, after the newest "Since you read it" he read', () => {
+  const chapters = [{ key: 'since-b', title: 'Since you read it', since: { from: A, to: B } }, { key: 'start', title: 'Chapter 1: Start' }, { key: 'finish', title: 'Chapter 2: Finish' }];
+  const at = s => new Date(Date.parse('2026-10-21T15:00:00Z') + s * 1000).toISOString();
+  assert.deepEqual(sinceOf({}, chapters, A), { since_sha: A, source: 'story', chapter: null, at: null, read: [] }, 'nothing read: from the story head');
+  assert.equal(sinceOf({}, chapters, null).since_sha, null);
+  const reads = { start: { story_head: A, head_sha: A, at: at(0) }, finish: { story_head: B, head_sha: B, at: at(10) } };
+  assert.equal(sinceOf(reads, chapters, C).since_sha, A, 'the earliest read');
+  assert.equal(sinceOf({ ...reads, 'since-b': { story_head: B, at: at(5) } }, chapters, C).since_sha, B, 'reading the addendum caught him up to its commit');
+  assert.equal(sinceOf({ gone: { story_head: A, at: at(0) } }, chapters, C).since_sha, C, 'a chapter that is no longer in the story does not count');
+  assert.equal(sinceOf({ start: { story_head: A, head_sha: B, at: at(0) } }, chapters, C).since_sha, A, 'a stale story was read: what it told him, not the head he saw');
+});
+
+test('the bridge records a read with the PR head, and lists them', async () => {
+  clearFreshness();
+  const home = tmp('home');
+  const dir = path.join(home, 'acme-widgets-7');
+  githubStory(dir);
+  writeJson(path.join(dir, 'meta.json'), { kind: 'github', repo: 'acme/widgets', number: 7, head_oid: A });
+  const b = await startBridge({ home });
+  try {
+    const story = (await b.call('GET', '/api/stories/acme-widgets-7')).body;
+    assert.deepEqual(story.chapters.map(c => c.key), ['start', 'finish', 'not in a chapter yet'], 'README.md is placed nowhere');
+    // the panel didn't know the head: the bridge asks gh (the fake PR is at B), and keeps the story's own head too
+    const r = await b.call('POST', '/api/stories/acme-widgets-7/read', { chapter: 'start', step: 1, reason: 'time', seconds: 95 });
+    assert.equal(r.status, 200);
+    assert.deepEqual([r.body.head_sha, r.body.story_head, r.body.reason, r.body.seconds, r.body.title], [B, A, 'time', 95, 'Chapter 1: Start']);
+    const seen = (await b.call('POST', '/api/stories/acme-widgets-7/read', { chapter: 'finish', step: 2, reason: 'viewed', head_sha: C })).body;
+    assert.equal(seen.head_sha, C, 'the head the panel saw wins');
+    assert.equal((await b.call('POST', '/api/stories/acme-widgets-7/read', { chapter: 'nope' })).status, 404);
+    const saved = JSON.parse(readFileSync(path.join(home, 'state', 'pr-acme-widgets-7', 'read.json'), 'utf8'));
+    assert.deepEqual(Object.keys(saved), ['start', 'finish'], 'kept per PR, like drafts.json');
+    assert.deepEqual(inbox(home).filter(e => e.type === 'read').map(e => [e.chapter, e.head_sha]), [['start', B], ['finish', C]]);
+    const list = (await b.call('GET', '/api/stories/acme-widgets-7/read')).body;
+    assert.deepEqual(Object.keys(list.reads), ['start', 'finish']);
+    assert.equal(list.since.since_sha, A, 'chapter 1 was read first, against the story told from A');
+  } finally { await b.close(); }
+});
+
+test('a local story records the head commit of its range', async () => {
+  const home = tmp('home');
+  const { repo, base } = localRepo();
+  const made = createLocalStory({ home, repo, base, head: 'HEAD', id: 'local-x' });
+  const b = await startBridge({ home });
+  try {
+    const story = (await b.call('GET', `/api/stories/${made.id}`)).body;
+    const r = (await b.call('POST', `/api/stories/${made.id}/read`, { chapter: story.chapters[0].key, step: 1, reason: 'time' })).body;
+    assert.equal(r.head_sha, story.local.head_oid);
+    assert.equal(r.story_head, story.local.head_oid);
+  } finally { await b.close(); }
+});

@@ -68,6 +68,8 @@ function mount() {
       saveUi(key, cur.ui);
     },
     onPosition: p => bridge('POST', `${storyPath}/position`, { ...p, url: location.href }),
+    // a chapter he read (stayed on, or ticked every file of), with the PR head it was read at
+    onRead: async r => { const x = await bridge('POST', `${storyPath}/read`, r); if (!x.ok) throw new Error(x.error); },
     onClose: () => {
       if (!cur || cur.key !== key) return;
       cur.overlay = null;

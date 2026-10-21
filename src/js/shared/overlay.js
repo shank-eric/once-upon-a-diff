@@ -54,6 +54,9 @@
  *   freshness()    returns a Promise of {state: 'current'|'stale'|'unknown'|'n/a', story_head, current_head, newer,
  *                  changed_files, chapters_touched, error}: is the story up to date with the PR's latest commit?
  *   requestUpdate(base_sha) asks for the story to be updated from that commit (a build request, mode 'update')
+ *   onRead(r)      called with {chapter (its key), step, title, reason: 'time'|'viewed', seconds, head_sha} when Eric
+ *                  leaves a chapter he spent READ_MS on (counted while the tab shows), or ticks the last of its files viewed
+ *   readAfterMs    how long counts as reading a chapter (READ_MS, 30s)
  *   host           name of the page that owns the diff, for messages ("GitHub")
  *   commentsTitle  heading for the chapter's drafted comments ("Draft comments")
  */
@@ -83,6 +86,12 @@ export function shownIn(texts, body) {
   if (want.length < 8) return false;
   return texts.some((t) => plainText(t).includes(want));
 }
+/** A chapter's stable key, as the bridge's read.json uses it: its `key`, else its title without "Chapter N:". */
+export function chapterKeyOf(ch) {
+  if (ch && typeof ch.key === 'string' && ch.key.trim()) return ch.key.trim().slice(0, 200);
+  return String((ch && ch.title) || '').replace(/^\s*chapter\s+\d+\s*[:.–—-]\s*/i, '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 200);
+}
+export const READ_MS = 30000;
 // kept across panel re-renders on this page: a failed Add to my review, and adds already settled
 const reviewErrors = new Map();
 const settling = new Set();
@@ -729,6 +738,10 @@ export function storyOverlay(INPUT, opts = {}) {
       return;
     }
     const p = all[state.n - 1];
+    // ticking the last of a chapter's files counts as reading it (only a change seen here, not a chapter already complete on load)
+    const complete = !!(p && p.due && p.viewed === p.due);
+    if (complete && completeSeen.get(state.n) === false) sendRead(state.n, 'viewed');
+    completeSeen.set(state.n, complete);
     if (!p || !p.due) { box.innerHTML = '<span>Nothing to mark viewed in this chapter</span>'; return; }
     if (p.viewed === p.due) { box.classList.add('prs-complete'); box.innerHTML = `<span class="prs-done">✓ All ${p.due} marked viewed</span>`; return; }
     box.innerHTML = `<b>${p.viewed} of ${p.due}</b> marked viewed`
@@ -886,11 +899,13 @@ export function storyOverlay(INPUT, opts = {}) {
   function setView(view) {
     const next = view === 'backstory' && BS_CH.length ? 'backstory' : 'story';
     if (next === state.view) return;
+    readLeave();
     const keep = state.n;
     state.view = next;
     state.n = clampN(state.other, next);
     state.other = keep;
     state.all = false;
+    readStart();
     message('');
     saveState();
     renderBody();
@@ -904,8 +919,10 @@ export function storyOverlay(INPUT, opts = {}) {
     if (n < 0 || n > steps().length) return;
     const from = state.n;
     const left = !inBackstory() && from > 0 && n > from ? progressOf(from, new Map(fileBlocks().map((b) => [b.rel, b]))).unviewed : [];
+    if (n !== from) readLeave();
     state.n = n;
     state.all = false;
+    if (n !== from) readStart();
     message('');
     saveState();
     renderBody();
@@ -1320,6 +1337,36 @@ export function storyOverlay(INPUT, opts = {}) {
   const onFocusDrafts = () => { refreshDrafts(true); refreshFresh(); };
   window.addEventListener('focus', onFocusDrafts);
 
+  // ---------- what Eric has read: a chapter he stayed on for READ_MS (while the tab showed), or ticked every file of
+  const READ_AFTER = Number.isFinite(opts.readAfterMs) ? opts.readAfterMs : READ_MS;
+  const readSent = new Set(); // "<key> <reason>": each at most once per panel
+  const completeSeen = new Map(); // chapter -> were all its files viewed when last looked at
+  let readClock = { n: 0, ms: 0, from: 0 };
+  const showing = () => document.visibilityState === 'visible';
+  function readStart() { readClock = { n: inBackstory() ? 0 : state.n, ms: 0, from: showing() ? Date.now() : 0 }; }
+  const readElapsed = () => readClock.ms + (readClock.from ? Date.now() - readClock.from : 0);
+  function sendRead(n, reason) {
+    const ch = DATA.chapters[n - 1];
+    if (!opts.onRead || !ch) return;
+    const key = chapterKeyOf(ch);
+    const once = `${key} ${reason}`;
+    if (readSent.has(once)) return;
+    readSent.add(once);
+    const head = DATA.kind === 'local' ? null : (fresh && fresh.current_head) || null; // the bridge asks gh when the panel doesn't know
+    const seconds = readClock.n === n ? Math.round(readElapsed() / 1000) : null;
+    try { Promise.resolve(opts.onRead({ chapter: key, step: n, title: ch.title, reason, seconds, head_sha: head })).catch(() => readSent.delete(once)); } catch (e) { readSent.delete(once); }
+  }
+  function readLeave() { if (readClock.n > 0 && readElapsed() >= READ_AFTER) sendRead(readClock.n, 'time'); }
+  // switching tabs stops the clock, and counts as leaving
+  const onReadVisibility = () => {
+    if (showing()) { if (!readClock.from) readClock.from = Date.now(); return; }
+    readClock.ms = readElapsed();
+    readClock.from = 0;
+    readLeave();
+  };
+  document.addEventListener('visibilitychange', onReadVisibility);
+  window.addEventListener('pagehide', readLeave);
+
   // ---------- where Eric is: the step and the file at the top of the screen
   let posTimer = 0;
   let lastPos = '';
@@ -1414,6 +1461,9 @@ export function storyOverlay(INPUT, opts = {}) {
   for (const type of ['keydown', 'keypress', 'keyup']) panel.addEventListener(type, (e) => e.stopPropagation());
 
   function destroy() {
+    readLeave();
+    document.removeEventListener('visibilitychange', onReadVisibility);
+    window.removeEventListener('pagehide', readLeave);
     observer.disconnect();
     clearTimeout(pending);
     clearTimeout(msgTimer);
@@ -1448,12 +1498,13 @@ export function storyOverlay(INPUT, opts = {}) {
   if (Number.isFinite(init.bodyScroll)) $('.prs-body').scrollTop = init.bodyScroll; // a live redraw keeps your place
   refreshDrafts(true);
   refreshFresh();
+  readStart();
   apply();
   observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-pressed'] });
   reportPosition();
 
   const api = {
-    destroy, go, setView, apply, scrollToLine, scrollToFile, refreshQuestions, setCollapsed, state, data: INPUT,
+    destroy, go, setView, apply, scrollToLine, scrollToFile, refreshQuestions, setCollapsed, state, data: INPUT, readLeave,
     get seen() { return seen; },
     get health() { return health; },
     get bodyScroll() { return $('.prs-body').scrollTop; },

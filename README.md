@@ -132,6 +132,8 @@ When no session is listening for a repo on the page, one notice at the bottom ri
 
 The page makes one batched lookup (`POST /api/stories/status-many`, cached 5s), and the tags come back after GitHub or Refined GitHub redraws the list or the PR header. While a tag says Queued or Building…, the page looks again every 15s. With no bridge running, the list stays as GitHub draws it.
 
+**What you've read.** The panel records a chapter as read when you leave it after 30 seconds on it (counted only while the tab is showing, and switching tabs counts as leaving), or when you tick the last of its files viewed there. Each record is kept per PR in `~/.diff-story/state/pr-<owner>-<repo>-<N>/read.json` as `{<chapter key>: {head_sha, story_head, at, reason}}`, and goes to the inbox as a `read` line. `head_sha` is the PR's head at the time: the panel sends the one it got from the freshness check, and the bridge asks gh (read-only) when it doesn't have one. `story_head` is the commit the story was told from, which is the same unless the story was already out of date. A local story records its range's head commit. A chapter's key is its `key` in `chapters.json`, or else its title without "Chapter N:", so a chapter put in front of it doesn't change it. `GET /api/stories/:id/read` lists them.
+
 **Is the story up to date?** A story records the PR head it was told from: pr-story's `pr.json` `headRefOid`, copied into `meta.json` as `head_oid`. The bridge reads the PR's current head and compares the two with read-only `gh api` calls, cached for 60s.
 
 - When they match, the panel header says "Up to date with abc1234".
@@ -221,6 +223,7 @@ Stories live in the repo they're about, in a hidden `.diff-story/` folder in its
   builds.json                       build requests, queued or building
   cursors/<consumer>.json           how far each reader has read the inbox
   state/<story id>/                 ui.json, position.json, viewed.json, notes.json
+  state/pr-<owner>-<repo>-<N>/      drafts.json, read.json (per PR, so a regenerated story keeps them)
   <story id>/                       a story whose repo has no known checkout
 ```
 
@@ -250,6 +253,7 @@ The bridge also checks each request:
 | `GET /api/stories/:id/version` | changes when the story or (for local) the commits change |
 | `GET`/`POST /api/stories/:id/ui` | the panel's step, width, collapsed and hidden state (the local page uses this, and the extension keeps its own in `chrome.storage`) |
 | `POST /api/stories/:id/position` | `{step, chapter, file}`, written to `position.json`, and to the inbox when it changes |
+| `GET`/`POST /api/stories/:id/read` | the chapters you've read, each with the commit it was read at, and where an update would start (`since`); or record one: `{chapter, step, reason, seconds, head_sha}` |
 | `GET`/`POST /api/stories/:id/questions` | ask a question, or list them with their answers |
 | `POST /api/answers` | `{question, text}` |
 | `GET /api/builds/status?repo=O/R&number=N` | `ready`, `building` or `none`, with the request if there is one (it marks a pending request done when the story has turned up) |

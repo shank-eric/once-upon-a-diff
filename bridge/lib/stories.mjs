@@ -19,6 +19,7 @@ import { revParse, diffText, commitsBetween } from './git.mjs';
 import { scratchBases, readPrefs } from './config.mjs';
 import { readIndex, adoptHomeStories, STORY_FOLDER } from './place.mjs';
 import { readCheckouts } from './repos.mjs';
+import { chapterKey } from './reads.mjs';
 
 export const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/;
 
@@ -152,6 +153,7 @@ export class StoryStore {
     const map = readJson(path.join(dir, 'file-map.json'), null);
     const rels = map && map.files ? Object.keys(map.files) : diff ? [...diff.keys()] : [];
     const chapters = (plan.chapters || []).map(ch => ({
+      key: chapterKey(ch), // what read.json records a read under
       title: ch.title || '', headline: ch.headline || '', scenario: ch.scenario || '', summary: ch.summary || '',
       narrative: ch.narrative || '',
       backstory: backstoryOf(ch.backstory),
@@ -166,6 +168,7 @@ export class StoryStore {
     const unplaced = rels.filter(rel => !placed.has(rel));
     if (unplaced.length) {
       chapters.push({
+        key: 'not in a chapter yet',
         title: `Chapter ${chapters.length + 1}: Not in a chapter yet`, headline: '', scenario: '', summary: '',
         narrative: `### Chapter ${chapters.length + 1}: Not in a chapter yet\n\nThe story doesn't place these ${unplaced.length} files. They're here so nothing in the diff is missed.`,
         files: unplaced.map(rel => ({ rel, partial: false, note: null })), comments: [], auto: true,
