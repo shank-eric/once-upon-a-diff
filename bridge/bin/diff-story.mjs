@@ -240,7 +240,7 @@ const COMMANDS = {
     if (opts.json) return out(JSON.stringify(rows, null, 2));
     for (const r of rows) {
       const c = data.chapters[r.chapter - 1].comments[r.index];
-      out(`ch ${r.chapter} #${r.index + 1}  ${r.dismissed ? 'dismissed' : r.status}${r.source === 'manual' ? ' (marked)' : ''}  ${c.path}${c.line ? `:${c.line}` : ''}  ${c.body.replace(/\s+/g, ' ').slice(0, 70)}${r.url ? `  ${r.url}` : ''}`);
+      out(`ch ${r.chapter} #${r.index + 1}  ${r.dismissed ? 'dismissed' : r.status === 'draft' && r.added ? 'added to your review' : r.status}${r.source === 'manual' ? ' (marked)' : ''}  ${c.path}${c.line ? `:${c.line}` : ''}  ${c.body.replace(/\s+/g, ' ').slice(0, 70)}${r.url ? `  ${r.url}` : ''}`);
     }
   },
 

@@ -47,19 +47,53 @@
  *   status()       returns a Promise of the bridge's /api/status ({bridge, story, listening, autoBuild, autoAnswer});
  *                  it rejects with err.code 'down', 'token' or 'old' when the bridge can't say. Drives the status light.
  *   drafts         {load(), act(chapter, index, action)}: each returns a Promise of {drafts: [{chapter, index, status:
- *                  'draft'|'posted'|'pending', dismissed, url}], error}. action is posted, unposted, dismiss or restore.
+ *                  'draft'|'posted'|'pending', dismissed, url, added}], error}. action is posted, unposted, dismiss,
+ *                  restore, review (Add to my review) or settle (an added draft has shown up, see draftView).
+ *   reloadPage()   reloads the page, keeping the panel's step and scroll; offered on a draft just added to the review
+ *   pageAt         when this page loaded, in ms (performance.timeOrigin); a draft added after it isn't on the page yet
  *   freshness()    returns a Promise of {state: 'current'|'stale'|'unknown'|'n/a', story_head, current_head, newer,
  *                  changed_files, chapters_touched, error}: is the story up to date with the PR's latest commit?
  *   requestUpdate(base_sha) asks for the story to be updated from that commit (a build request, mode 'update')
  *   host           name of the page that owns the diff, for messages ("GitHub")
  *   commentsTitle  heading for the chapter's drafted comments ("Draft comments")
  */
+// ---------- drafts added to his pending review (no DOM here, so node tests can use these)
+/**
+ * How the panel shows one draft row from the bridge: 'dismissed', 'posted', 'pending', 'added' or 'draft'.
+ * 'added' is Add to my review's own state: it's in his pending review, but GitHub doesn't redraw an open
+ * Files changed page for that, so this page doesn't show it yet. It turns into the usual posted or pending
+ * display once gh matches it on a page loaded after the add, or the comment turns up on the page (onPage).
+ * settle: the add is confirmed, so the bridge can drop its `added` mark.
+ */
+export function draftView(row, { pageAt = 0, onPage = false } = {}) {
+  const r = row || { status: 'draft', dismissed: false };
+  if (r.dismissed) return { show: 'dismissed', settle: false };
+  const known = r.status === 'posted' || r.status === 'pending' ? r.status : 'draft';
+  if (!r.added) return { show: known, settle: false };
+  const github = r.source === 'github';
+  if (r.status === 'posted') return { show: 'posted', settle: github };
+  if (github && r.status === 'pending' && pageAt > (Date.parse(r.added.at) || 0)) return { show: 'pending', settle: true };
+  if (onPage) return { show: 'pending', settle: false };
+  return { show: 'added', settle: false };
+}
+const plainText = (t) => String(t || '').toLowerCase().replace(/```[a-z]*\n?/g, ' ').replace(/\]\([^)]*\)/g, ' ').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+/** Does one of these comment texts on the page (rendered markdown) show this draft's body? */
+export function shownIn(texts, body) {
+  const want = plainText(body).slice(0, 160);
+  if (want.length < 8) return false;
+  return texts.some((t) => plainText(t).includes(want));
+}
+// kept across panel re-renders on this page: a failed Add to my review, and adds already settled
+const reviewErrors = new Map();
+const settling = new Set();
+
 export function storyOverlay(INPUT, opts = {}) {
   const HOST_ID = 'diff-story-panel'; // the element on the page; the panel itself lives in its shadow root
   const NS = 'dsm-panel';
   if (window.__diffStoryOverlay) window.__diffStoryOverlay.destroy();
   const DATA = JSON.parse(JSON.stringify(INPUT));
   const HOST = opts.host || 'GitHub';
+  const PAGE_AT = Number.isFinite(opts.pageAt) ? opts.pageAt : (globalThis.performance && performance.timeOrigin) || Date.now();
   const COMMENTS_TITLE = opts.commentsTitle || 'Draft comments';
 
   const shaToPath = new Map(DATA.files.map((f) => [f.sha, f.rel]));
@@ -248,6 +282,9 @@ export function storyOverlay(INPUT, opts = {}) {
   #${NS} .prs-cstate { font-size: 12px; color: var(--c-muted); margin-top: 2px; }
   #${NS} .prs-cstate .prs-ok { color: var(--c-ok); font-weight: 600; }
   #${NS} .prs-cstate .prs-pend { color: var(--c-warn); font-weight: 600; }
+  #${NS} .prs-cstate .prs-cerr { color: var(--c-err); }
+  #${NS} .prs-cstate .prs-cnote { display: block; }
+  #${NS} .prs-cstate button.prs-linkish { font-size: 12px; }
   #${NS} .prs-draftsum { text-transform: none; letter-spacing: 0; font-weight: 400; }
   #${NS} .prs-drafttoggles { margin: -2px 0 6px; }
   #${NS} .prs-drafttoggles:empty { display: none; }
@@ -561,8 +598,10 @@ export function storyOverlay(INPUT, opts = {}) {
   const insideLine = (n) => { const e = n.nodeType === 1 ? n : n.parentElement; return !!(e && e.closest('td, .diff-text-inner, .blob-code-inner')); };
   const observer = new MutationObserver((muts) => {
     if (muts.every((m) => m.target === host || host.contains(m.target) || (m.type === 'childList' && insideLine(m.target)))) return;
-    if (!pending) pending = setTimeout(() => { pending = 0; apply(); }, 150);
+    if (!pending) pending = setTimeout(() => { pending = 0; apply(); if (waitingOnPage()) renderDrafts(); }, 150);
   });
+  // a draft added to the review shows as pending as soon as its comment turns up on the page
+  const waitingOnPage = () => !!state.n && !inBackstory() && draftRows.some((r) => r.chapter === state.n && r.added);
 
   // ---------- the panel
   const style = document.createElement('style');
@@ -816,6 +855,7 @@ export function storyOverlay(INPUT, opts = {}) {
     if (step) return go(Number(step.getAttribute('data-n')));
     const copyBtn = e.target.closest('.prs-copy');
     if (copyBtn) return copy(chapter().comments[Number(copyBtn.getAttribute('data-i'))].body, copyBtn);
+    if (e.target.closest('[data-draft-reload]')) return reloadPage();
     const actBtn = e.target.closest('[data-draft-act]');
     if (actBtn) return draftAct(Number(actBtn.closest('.prs-comment').getAttribute('data-i')), actBtn.getAttribute('data-draft-act'));
     const showBtn = e.target.closest('[data-draft-show]');
@@ -1175,17 +1215,34 @@ export function storyOverlay(INPUT, opts = {}) {
     try { const r = await opts.drafts.load(); draftRows = r.drafts || []; draftError = r.error || null; } catch (e) { draftError = e && e.message; }
     renderDrafts();
   }
+  const rowKey = (n, i) => { const r = draftRows.find((x) => x.chapter === n && x.index === i); return r && r.key ? r.key : `${n}:${i}`; };
   async function draftAct(i, action) {
     const btn = action === 'review' && $(`.prs-comment[data-i="${i}"] [data-draft-act="review"]`);
     if (btn) { btn.disabled = true; btn.textContent = 'Adding…'; }
+    const key = rowKey(state.n, i);
     try {
       const r = await opts.drafts.act(state.n, i, action);
       draftRows = r.drafts || draftRows; draftError = r.error || null; draftsAt = Date.now();
+      if (action === 'review') reviewErrors.delete(key);
       if (action === 'review' && r.added) message(`Added to your pending review${r.added.started ? ' (started a new one)' : ''}. Nobody else sees it until you submit the review.`);
     } catch (e) {
-      message(`${action === 'review' ? '' : 'Couldn\'t save that: '}${e && e.message ? e.message : e}`);
+      const why = e && e.message ? e.message : String(e);
+      if (action === 'review') reviewErrors.set(key, why); // shown on the draft, which keeps its buttons
+      else message(`Couldn't save that: ${why}`);
     }
     renderDrafts();
+  }
+  function reloadPage() {
+    if (opts.reloadPage) opts.reloadPage();
+  }
+  /** Is this line draft's comment on the page yet? Read only: it looks for its text in the file's comments. */
+  function commentOnPage(c) {
+    if (!c || !c.path || !(Number(c.line) > 0)) return false;
+    const ref = resolveRef(c.path);
+    const block = ref && blockOf(ref.rel);
+    if (!block) return false;
+    const texts = [...block.el.querySelectorAll('.comment-body, .js-comment-body, .markdown-body, [data-testid="markdown-body"]')].map((el) => el.textContent);
+    return shownIn(texts, c.body);
   }
   function renderDrafts() {
     const box = $('.prs-drafts');
@@ -1194,7 +1251,14 @@ export function storyOverlay(INPUT, opts = {}) {
     const by = new Map(rows.map((r) => [r.index, r]));
     let posted = 0; let pending = 0; let dismissed = 0;
     for (const el of box.querySelectorAll('.prs-comment[data-i]')) {
-      const r = by.get(Number(el.getAttribute('data-i'))) || { status: 'draft', dismissed: false };
+      const i = Number(el.getAttribute('data-i'));
+      const r = by.get(i) || { status: 'draft', dismissed: false };
+      const c = (chapter().comments || [])[i];
+      const v = draftView(r, { pageAt: PAGE_AT, onPage: !!r.added && commentOnPage(c) });
+      if (v.settle && r.key && !settling.has(r.key) && opts.drafts) {
+        settling.add(r.key);
+        opts.drafts.act(state.n, i, 'settle').then((x) => { draftRows = x.drafts || draftRows; renderDrafts(); }, () => settling.delete(r.key));
+      }
       const st = el.querySelector('.prs-cstate');
       const btns = el.querySelector('.prs-cbtns');
       for (const b of btns.querySelectorAll('[data-draft-act]')) b.remove();
@@ -1203,31 +1267,43 @@ export function storyOverlay(INPUT, opts = {}) {
       st.hidden = true;
       const link = r.url ? ` · <a href="${esc(r.url)}" target="_blank" rel="noopener noreferrer">view on GitHub</a>` : '';
       const add = (act, label, title) => btns.insertAdjacentHTML('afterbegin', `<button data-draft-act="${act}" title="${esc(title)}">${label}</button>`);
-      if (r.dismissed) {
+      if (v.show === 'dismissed') {
         dismissed++;
         el.classList.add('prs-c-done');
         el.hidden = !state.showDismissed;
         st.hidden = false;
         st.innerHTML = 'Dismissed. It won\'t be suggested again for this PR.';
         add('restore', 'Restore', 'Bring this draft back');
-      } else if (r.status === 'posted') {
+      } else if (v.show === 'posted') {
         posted++;
         el.classList.add('prs-c-done');
         el.hidden = !state.showPosted;
         st.hidden = false;
         st.innerHTML = `<span class="prs-ok">Posted ✓</span>${r.source === 'manual' ? ' (you marked it)' : ''}${link}`;
         add('unposted', 'Unmark', r.source === 'manual' ? 'Mark it as not posted' : 'Not the same comment? Show it as a draft again');
-      } else if (r.status === 'pending') {
+      } else if (v.show === 'pending') {
         pending++;
         el.classList.add('prs-c-done', 'prs-c-pending');
         st.hidden = false;
-        st.innerHTML = `<span class="prs-pend">In your pending review</span>, not submitted yet${link}`;
+        st.innerHTML = `<span class="prs-pend">In your pending review</span>, not submitted yet${link || (r.added && r.added.url ? ` · <a href="${esc(r.added.url)}" target="_blank" rel="noopener noreferrer">view on GitHub</a>` : '')}`;
+      } else if (v.show === 'added') {
+        // Add to my review worked, but this page won't show the comment until it's reloaded
+        pending++;
+        el.classList.add('prs-c-done', 'prs-c-pending');
+        st.hidden = false;
+        const ref = c && resolveRef(c.path);
+        const jump = ref ? ` · <button class="prs-linkish" ${refAttrs(ref.rel, { side: c.side === 'L' ? 'L' : 'R', start: Number(c.line), end: Number(c.line) })}>Jump to line ${esc(c.line)}</button>` : '';
+        const gh = r.added.url ? ` · <a href="${esc(r.added.url)}" target="_blank" rel="noopener noreferrer">view on GitHub</a>` : '';
+        const reload = opts.reloadPage ? ' <button class="prs-linkish" data-draft-reload title="Reloads this page. The panel stays on this chapter.">Reload page</button>' : '';
+        st.innerHTML = `<span class="prs-pend">In your pending review</span>, on ${esc(c ? c.path : '')} line ${esc(c ? c.line : '')}${jump}${gh}`
+          + `<span class="prs-cnote">GitHub shows it after a reload.${reload}</span>`;
       } else {
         add('dismiss', 'Dismiss', 'Not a comment you want: hide it, and don\'t suggest it again');
         add('posted', 'Mark posted', 'You posted this (or your own version of it)');
-        const c = (chapter().comments || [])[Number(el.getAttribute('data-i'))];
         if (HOST === 'GitHub' && c && c.path && Number(c.line) > 0) {
           add('review', 'Add to my review', 'Adds it to your pending review on GitHub. Only you can see it until you submit the review yourself.');
+          const err = reviewErrors.get(r.key || `${state.n}:${i}`);
+          if (err) { st.hidden = false; st.innerHTML = `<span class="prs-cerr">${esc(err)}</span>`; }
         }
       }
     }

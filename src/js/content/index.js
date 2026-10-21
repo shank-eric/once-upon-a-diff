@@ -81,6 +81,7 @@ function mount() {
       if (!r.ok) throw new Error(r.error === 'unreachable' ? 'the bridge is not running' : r.error);
       return r.body;
     },
+    reloadPage: async () => { await keepPanelPlace(); location.reload(); }, // only when Eric clicks Reload page
     drafts: {
       load: async () => { const r = await bridge('GET', `${storyPath}/drafts`); if (!r.ok) throw new Error(r.error); return r.body; },
       act: async (chapter, index, action) => { const r = await bridge('POST', `${storyPath}/drafts`, { chapter, index, action }); if (!r.ok) throw new Error(r.error); return r.body; },
@@ -272,12 +273,16 @@ async function whitespaceCheck() {
   if (d.action === 'save') return prefs.write(d.value);
   if (d.action !== 'redirect' || location.href !== href) return;
   session.set(W_REDIRECT, { from: href, at: Date.now() });
-  // keep the panel's step and scroll across the reload
-  if (cur && cur.key === page.key && cur.overlay) {
+  await keepPanelPlace(page.key);
+  location.replace(d.url);
+}
+
+/** Before a reload of our own: save the panel's step and scroll, so it comes back where it was. */
+async function keepPanelPlace(key = cur && cur.key) {
+  if (cur && cur.key === key && cur.overlay) {
     cur.ui = { ...cur.overlay.state, hidden: false, bodyScroll: cur.overlay.bodyScroll };
     await saveUi(cur.key, cur.ui);
   }
-  location.replace(d.url);
 }
 
 function toast(text) {

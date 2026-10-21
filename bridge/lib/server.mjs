@@ -23,7 +23,7 @@ import { Inbox, newId } from './inbox.mjs';
 import { Builds } from './builds.mjs';
 import { addComment } from './comments.mjs';
 import { freshness, currentHead } from './freshness.mjs';
-import { stateKeyOf, readMarks, mark, draftStatus, githubComments, forgetComments } from './drafts.mjs';
+import { stateKeyOf, readMarks, mark, draftStatus, githubComments, forgetComments, addedMark, noteAdded } from './drafts.mjs';
 import { addToPendingReview } from './review.mjs';
 import { statusOf, listeningOf, answerContext, runAutoAnswer } from './health.mjs';
 
@@ -265,7 +265,10 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
           if (!c) throw new HttpError(404, 'no such draft');
           if (body.action === 'review') {
             if (meta.kind !== 'github' || !meta.repo || !meta.number) throw new HttpError(400, 'only PR stories have a GitHub review');
+            // once is enough: a second click (or another tab) would put a second copy in the review
+            if (addedMark(readMarks(home, key), c)) throw new HttpError(409, 'it\'s already in your pending review');
             try { added = await addToPendingReview(meta.repo, meta.number, c); } catch (e) { throw new HttpError(e.status || 502, `couldn't add it to your review: ${e.message}`); }
+            noteAdded(home, key, c, added); // the panel shows it as added until the page or gh shows it
             forgetComments(meta.repo, meta.number);
             inbox.append({ type: 'review_comment', id: newId('r'), ...ctx, chapter: int(body.chapter), path: c.path, line: c.line, url: added.url, started: added.started });
           } else {

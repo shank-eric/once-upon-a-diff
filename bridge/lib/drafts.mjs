@@ -17,7 +17,12 @@
  * the bridge in <home>/state/<key>/drafts.json, where the key is the PR (so a
  * re-rendered or regenerated story keeps them) or the local story's id.
  * Dismissals match by path, line and text too, so a regenerated story doesn't
- * suggest the same comment again. Nothing is ever written to GitHub.
+ * suggest the same comment again. Nothing is ever written to GitHub here.
+ *
+ * "Add to my review" (review.mjs, the one write to GitHub) leaves an `added`
+ * mark here too: GitHub doesn't redraw an open Files changed page for it, so
+ * the panel shows the draft as added until a reload, a match from gh or the
+ * page itself confirms it. A confirmed mark is dropped ("settle").
  */
 import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -123,36 +128,56 @@ function file(home, key) {
   mkdirSync(dir, { recursive: true });
   return path.join(dir, 'drafts.json');
 }
+const EMPTY = () => ({ posted: [], unposted: [], dismissed: [], added: [] });
 export function readMarks(home, key) {
-  try { return { posted: [], unposted: [], dismissed: [], ...JSON.parse(readFileSync(file(home, key), 'utf8')) }; } catch { return { posted: [], unposted: [], dismissed: [] }; }
+  try { return { ...EMPTY(), ...JSON.parse(readFileSync(file(home, key), 'utf8')) }; } catch { return EMPTY(); }
 }
 function writeMarks(home, key, marks) { writeFileSync(file(home, key), JSON.stringify(marks, null, 2)); }
 
-/** action: posted | unposted | dismiss | restore, for one draft {path, line, body}. */
+const entryOf = draft => ({ path: draft.path || '', line: Number(draft.line) || 0, body: String(draft.body || ''), at: new Date().toISOString() });
+const sameAs = entry => e => bestMatch(entry, [{ ...e, path: isGeneral(e) ? null : e.path }]) !== null;
+
+/** action: posted | unposted | dismiss | restore | settle (drop an `added` mark once it's confirmed), for one draft {path, line, body}. */
 export function mark(home, key, action, draft) {
   const marks = readMarks(home, key);
-  const entry = { path: draft.path || '', line: Number(draft.line) || 0, body: String(draft.body || ''), at: new Date().toISOString() };
-  const same = e => bestMatch(entry, [{ ...e, path: isGeneral(e) ? null : e.path }]) !== null;
+  const entry = entryOf(draft);
+  const same = sameAs(entry);
   const drop = list => list.filter(e => !same(e));
   if (action === 'posted') { marks.posted = [...drop(marks.posted), entry]; marks.unposted = drop(marks.unposted); }
   else if (action === 'unposted') { marks.unposted = [...drop(marks.unposted), entry]; marks.posted = drop(marks.posted); }
   else if (action === 'dismiss') marks.dismissed = [...drop(marks.dismissed), entry];
   else if (action === 'restore') marks.dismissed = drop(marks.dismissed);
-  else throw Object.assign(new Error('action must be posted, unposted, dismiss or restore'), { status: 400 });
+  else if (action === 'settle') marks.added = drop(marks.added);
+  else throw Object.assign(new Error('action must be posted, unposted, dismiss, restore or settle'), { status: 400 });
   writeMarks(home, key, marks);
   return marks;
 }
 
+/** The `added` mark for a draft, if Add to my review already put it in his pending review. */
+export const addedMark = (marks, draft) => (marks.added || []).find(sameAs(entryOf(draft))) || null;
+
+/** Add to my review worked: remember it until the page, or gh after a reload, shows it. */
+export function noteAdded(home, key, draft, added = {}) {
+  const marks = readMarks(home, key);
+  const entry = { ...entryOf(draft), side: draft.side === 'L' ? 'L' : 'R', url: added.url || null, started: !!added.started };
+  marks.added = [...marks.added.filter(e => !sameAs(entry)(e)), entry];
+  writeMarks(home, key, marks);
+  return entry;
+}
+
 /**
  * Status of every draft in the story's chapters:
- * [{chapter, index, key, status: 'draft'|'posted'|'pending', dismissed, source, url, score}]
+ * [{chapter, index, key, status: 'draft'|'posted'|'pending', dismissed, source, url, score, added}]
+ * added is {at, url, started} while an Add to my review is waiting to show on the page, else null.
  */
 export function draftStatus(chapters, marks, gh = null) {
   const asPosted = list => list.map(e => ({ ...e, path: isGeneral(e) ? null : e.path }));
   const out = [];
   chapters.forEach((ch, ci) => (ch.comments || []).forEach((c, i) => {
     const d = { path: c.path || '', line: Number(c.line) || 0, body: c.body || '' };
+    const add = bestMatch(d, asPosted(marks.added || []));
     const row = { chapter: ci + 1, index: i, key: draftKey(d), status: 'draft', dismissed: !!bestMatch(d, asPosted(marks.dismissed)), source: null, url: null, score: null };
+    row.added = add ? { at: add.at, url: add.url || null, started: !!add.started } : null;
     const unmarked = bestMatch(d, asPosted(marks.unposted));
     const manual = bestMatch(d, asPosted(marks.posted));
     const auto = gh && !unmarked ? bestMatch(d, gh.comments) : null;

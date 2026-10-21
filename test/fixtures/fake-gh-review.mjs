@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // A stand-in for `gh api graphql`: logs each call to $FAKE_GH_LOG and answers the
-// three queries review.mjs makes. Set FAKE_GH_PENDING=1 to pretend a pending review exists.
+// three queries review.mjs makes. Set FAKE_GH_PENDING=1 to pretend a pending review exists,
+// FAKE_GH_FAIL=1 to have GitHub refuse the thread.
 import { appendFileSync } from 'node:fs';
 
 const args = process.argv.slice(2);
@@ -15,6 +16,9 @@ if (query.includes('reviews(states: PENDING')) {
   };
 } else if (query.includes('addPullRequestReview(')) {
   data = { addPullRequestReview: { pullRequestReview: { id: 'PRR_new', state: 'PENDING' } } };
+} else if (query.includes('addPullRequestReviewThread') && process.env.FAKE_GH_FAIL) {
+  process.stderr.write('GraphQL: Line could not be resolved\n');
+  process.exit(1);
 } else if (query.includes('addPullRequestReviewThread')) {
   data = { addPullRequestReviewThread: { thread: { id: 'T_1', comments: { nodes: [{ url: 'https://github.com/acme/widgets/pull/7#discussion_r1' }] } } } };
 } else {
