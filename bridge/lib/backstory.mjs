@@ -30,7 +30,7 @@
  * extractor's output.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { parseUnifiedDiff } from './diff.mjs';
@@ -168,8 +168,43 @@ function sessionCwd(file) {
 
 // ---------- session-story's extractor, through its CLI
 
-export function extractSession({ sessionStory, session, cwd, claudeDir, work }) {
+// A message from another Claude Code session (SendMessage across sessions) starts a turn like a
+// prompt, but the harness records it as a meta user record, so session-story's extractor skips it.
+// A session driven only by such messages would come out with no turns at all.
+const isPeer = r => r && r.type === 'user' && r.isMeta && r.origin && r.origin.kind === 'peer';
+const peerText = r => String(r.origin.body || textOf(r.message && r.message.content) || '').trim();
+
+/**
+ * The Claude dir to hand the extractor for this candidate. When the main transcript has peer
+ * messages, a copy goes in the scratch folder with each one written as a plain prompt (its
+ * body), and the session's folder (subagents, tool results) is linked beside it.
+ */
+function extractorClaudeDir({ claudeDir, project, session, transcript, work }) {
+  const lines = readFileSync(transcript, 'utf8').split('\n');
+  let peers = 0;
+  const out = lines.map(line => {
+    if (!line.includes('"peer"')) return line;
+    let r;
+    try { r = JSON.parse(line); } catch { return line; }
+    if (!isPeer(r)) return line;
+    peers++;
+    const { isMeta, ...rest } = r;
+    void isMeta;
+    return JSON.stringify({ ...rest, message: { ...(r.message || {}), role: 'user', content: peerText(r) } });
+  });
+  if (!peers) return claudeDir;
+  const dir = path.join(work, 'claude', project);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(path.join(dir, `${session}.jsonl`), out.join('\n'));
+  const folder = path.join(claudeDir, project, session);
+  const link = path.join(dir, session);
+  if (existsSync(folder) && !existsSync(link)) symlinkSync(folder, link);
+  return path.join(work, 'claude');
+}
+
+export function extractSession({ sessionStory, session, cwd, claudeDir, work, project, transcript }) {
   mkdirSync(work, { recursive: true });
+  if (project && transcript) claudeDir = extractorClaudeDir({ claudeDir, project, session, transcript, work });
   const out = path.join(work, `${session}.json`);
   execFileSync('node', [path.join(sessionStory, 'bin', 'story.mjs'), 'extract', '--session', session, '--cwd', cwd, '--claude-dir', claudeDir, '--no-chain', '-o', out], { stdio: ['ignore', 'ignore', 'pipe'], cwd, maxBuffer: 64 * 1024 * 1024 });
   return JSON.parse(readFileSync(out, 'utf8'));
@@ -193,10 +228,11 @@ const isNoise = t => !t || /^\(silence\)$/i.test(t) || /^MCP tool "larmor\/liste
 /** Main transcript: what Eric said, what Claude said aloud, and what the main session sent agents. */
 function mainContext(file) {
   const names = new Map(); // tool_use id -> tool name
-  const ctx = { heard: [], spoke: [], spawned: [], sent: [], prompts: [] };
+  const ctx = { heard: [], spoke: [], spawned: [], sent: [], prompts: [], peers: [] };
   for (const r of records(file)) {
     const at = r.timestamp;
     const c = r.message && r.message.content;
+    if (isPeer(r)) { ctx.peers.push({ at, from: r.origin.name || 'another session', text: peerText(r) }); continue; }
     if (r.type === 'user' && !r.isMeta && typeof c === 'string' && !/^<(command|local-command|system-reminder)/.test(c.trim())) ctx.prompts.push({ at, text: c.trim() });
     if (!Array.isArray(c)) continue;
     for (const b of c) {
@@ -259,7 +295,10 @@ function agentContext(file) {
 // ---------- evidence from the extractor's story
 
 const COMMIT_RE = /\bgit\b(?:\s+-C\s+\S+)?(?:\s+-c\s+\S+)*\s+commit\b/;
-const WRITE_RE = /\bsed\s+-i|\bperl\s+-p?i|\bpython3?\b[^|]*<<|\bnode\b[^|]*-e|--fix\b|--write\b|\bgit\s+(apply|checkout|restore)\b|\btee\b|>\s*["']?[\w./-]+\.(js|jsx|ts|tsx|mjs|json|md|scss|css|rb|yml)\b/;
+const WRITE_RE = /\bsed\s+-i|\bperl\s+-p?i|\bpython3?\b[^|]*<<|\bnode\s+(?:-\S+\s+)*(?:-e|--eval|-p|--print)\s|--fix\b|--write\b|\bgit\s+(apply|checkout|restore)\b/;
+// a redirect or tee counts only when it writes to a file of the diff, not to a scratch file or a log
+const REDIRECT_RE = /(?:>>?|\btee\s+(?:-a\s+)?)\s*["']?([^\s"';&|<>]+)/g;
+const isWrite = (cmd, rels) => WRITE_RE.test(cmd) || [...cmd.matchAll(REDIRECT_RE)].some(m => rels.some(rel => m[1] === rel || m[1].endsWith('/' + rel) || (rel.includes('/') && m[1].endsWith(rel.split('/').slice(-2).join('/')))));
 
 function evidenceFromStory(story, range, win, index) {
   const home = r => (r.startsWith(HOME) ? '~' + r.slice(HOME.length) : r);
@@ -310,11 +349,11 @@ function evidenceFromStory(story, range, win, index) {
         if (hits.length) continue;
       }
       const bare = cmd.replace(/^(cd [^;&]+(&&|;)\s*)+/, '').replace(/^(export [^;&]+(&&|;)\s*|unset [^;&]+(&&|;)\s*)+/, '');
-      if (['test', 'lint', 'build'].includes(b.category) && !WRITE_RE.test(cmd) && !/^(git|gh)\b/.test(bare)) {
+      if (['test', 'lint', 'build'].includes(b.category) && !isWrite(cmd, named) && !/^(git|gh)\b/.test(bare)) {
         ev.push({ type: 'check', at: b.at, turn: t.index, agent, category: b.category, ok: b.ok, command: clip(cmd.replace(/^cd [^;&]+(&&|;)\s*/, ''), 220), rels: named });
         continue;
       }
-      if (WRITE_RE.test(cmd) && (named.length || /\.py\b|<<'?PY/.test(cmd))) ev.push({ type: 'shell', at: b.at, turn: t.index, agent, command: clip(cmd.replace(/^cd [^;&]+(&&|;)\s*/, ''), 220), rels: named, ok: b.ok });
+      if (isWrite(cmd, named) && (named.length || /\.py\b|<<'?PY/.test(cmd))) ev.push({ type: 'shell', at: b.at, turn: t.index, agent, command: clip(cmd.replace(/^cd [^;&]+(&&|;)\s*/, ''), 220), rels: named, ok: b.ok });
       else ev.push({ type: 'look', at: b.at, turn: t.index, agent, rels: named });
     }
   }
@@ -353,7 +392,7 @@ export function findBackstory(opts) {
   const moments = [];
   for (const c of cands) {
     let story;
-    try { story = extractSession({ sessionStory, session: c.session, cwd: c.cwd, claudeDir, work }); } catch (e) {
+    try { story = extractSession({ sessionStory, session: c.session, cwd: c.cwd, claudeDir, work, project: c.project, transcript: c.transcript }); } catch (e) {
       log(`  ${c.session.slice(0, 8)}: the extractor failed (${String(e.stderr || e.message).trim().split('\n').pop()})`);
       continue;
     }
@@ -411,6 +450,9 @@ export function findBackstory(opts) {
       } else {
         for (const h of main.heard) if (near(h.at, 6 * MIN, MIN / 2)) asks.push({ at: h.at, via: 'voice', who: 'Eric', text: clip(h.text, 500) });
         for (const p of main.prompts) if (near(p.at, 10 * MIN, 0)) asks.push({ at: p.at, via: 'prompt', who: 'Eric', text: clip(p.text, 500) });
+        // a message from another session: the one that started this turn, and any that came in during it
+        const turnAt = turn ? ms(turn.at) : NaN;
+        for (const p of main.peers) if (near(p.at, 10 * MIN, 0) || (ms(p.at) >= turnAt - 5000 && ms(p.at) <= to)) asks.push({ at: p.at, via: 'peer', who: p.from, text: clip(p.text, 900) });
         for (const s of main.spoke) if (near(s.at, 5 * MIN, 2 * MIN)) spoke.push({ at: s.at, text: clip(s.text, 500) });
       }
       const dedupe = arr => arr.filter((x, i) => arr.findIndex(y => y.text === x.text) === i).sort((a, b) => ms(a.at) - ms(b.at));
