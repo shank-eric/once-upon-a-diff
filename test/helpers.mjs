@@ -2,7 +2,7 @@ import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
-import { createBridge } from '../bridge/lib/server.mjs';
+import { createBridge } from '../bridge/server/index.mjs';
 
 export const tmp = (name) => mkdtempSync(path.join(os.tmpdir(), `diff-story-${name}-`));
 // tests never look in (or move stories into) the real ~/Development checkouts

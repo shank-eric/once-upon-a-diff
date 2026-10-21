@@ -50,7 +50,7 @@ import {
   openArgv,
   readerOf,
 } from '../config/settings.mjs';
-import { createBridge } from '../lib/server.mjs';
+import { createBridge } from '../server/index.mjs';
 import { StoryStore, readMeta } from '../lib/stories.mjs';
 import { createLocalStory, slug } from '../lib/local.mjs';
 import { storyDirFor } from '../lib/place.mjs';
