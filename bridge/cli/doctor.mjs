@@ -6,7 +6,7 @@ import { existsSync, readFileSync, statSync, accessSync, constants } from 'node:
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { StoryStore } from '../stories/store.mjs';
-import { listeners, onPath } from '../listeners/listeners.mjs';
+import { listeners } from '../listeners/listeners.mjs';
 import { Builds } from '../inbox/builds.mjs';
 import { Inbox } from '../inbox/inbox.mjs';
 import { formatTime } from '../config/settings.mjs';
@@ -174,31 +174,12 @@ export async function doctor(
     );
   }
 
-  // autoBuild and autoAnswer
-  for (const key of ['autoBuild', 'autoAnswer']) {
-    const command = cfg[key];
-    if (!command || !command.enabled) {
-      add('PASS', key, 'off');
-      continue;
-    }
-    const good =
-      Array.isArray(command.command) && command.command.length && onPath(command.command[0]);
-    add(
-      good ? 'PASS' : 'FAIL',
-      key,
-      `on: ${JSON.stringify(command.command)}`,
-      good ? null : `"${key}.command" must be an argv array whose first item is on PATH`,
-    );
-  }
-
   // the bridge log
   const logFile = path.join(home, 'bridge.log');
   const tail = existsSync(logFile)
     ? readFileSync(logFile, 'utf8').trim().split('\n').slice(-8)
     : [];
-  const errors = tail.filter((line) =>
-    /error|Error|EADDRINUSE|autoAnswer for|autoBuild could/.test(line),
-  );
+  const errors = tail.filter((line) => /error|Error|EADDRINUSE/.test(line));
   add(
     errors.length ? 'WARN' : 'PASS',
     'Bridge log',

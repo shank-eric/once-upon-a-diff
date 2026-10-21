@@ -60,22 +60,10 @@ export function healthChecks(health, err) {
       fix: listening.start || 'diff-story wait --consumer pr-story',
     });
   }
-  if (health.autoBuild && health.autoBuild.enabled) {
-    checks.push({ ok: true, name: 'autoBuild', detail: 'on' });
-  }
-  const autoAnswer = health.autoAnswer && health.autoAnswer.enabled;
-  if (autoAnswer) {
-    checks.push({
-      ok: true,
-      name: 'autoAnswer',
-      detail: 'on: questions get an answer from the configured command',
-    });
-  }
-  const answered = listening.ok || autoAnswer;
   return {
-    level: !answered || (health.story && !health.story.ok) ? 'warn' : 'ok',
+    level: !listening.ok || (health.story && !health.story.ok) ? 'warn' : 'ok',
     checks,
-    listening: answered,
+    listening: listening.ok,
     prompt: listening.prompt || null,
     details: listening.details || null,
     repo: listening.repo || null,

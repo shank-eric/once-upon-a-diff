@@ -45,7 +45,7 @@ test('a fresh waiting beat counts as listening, a stale one or a dead process do
   );
 });
 
-test('/api/status reports the bridge, the story, listening, and autoBuild/autoAnswer off', async () => {
+test('/api/status reports the bridge, the story and listening', async () => {
   const home = tmp('home');
   githubStory(path.join(home, 'acme-widgets-7'));
   const bridge = await startBridge({ home });
@@ -55,8 +55,6 @@ test('/api/status reports the bridge, the story, listening, and autoBuild/autoAn
     assert.deepEqual(status.story, { ok: true, id: 'acme-widgets-7' });
     assert.equal(status.listening.ok, false);
     assert.match(status.listening.start, /diff-story-listen/);
-    assert.deepEqual(status.autoBuild, { enabled: false });
-    assert.deepEqual(status.autoAnswer, { enabled: false });
     assert.equal((await bridge.call('GET', '/api/status?story=nope')).body.story.ok, false);
     beat(home, 'pr-story');
     status = (await bridge.call('GET', '/api/status?repo=acme/widgets&number=7')).body;
@@ -79,32 +77,6 @@ test('/api/status reports the bridge, the story, listening, and autoBuild/autoAn
   }
 });
 
-test("autoAnswer, when on, answers a question from the command's stdout with the chapter context", async () => {
-  const home = tmp('home');
-  githubStory(path.join(home, 'acme-widgets-7'));
-  const script = `const c = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')); process.stdout.write('Chapter: ' + c.chapter.title + '; asked: ' + c.question.text)`;
-  const bridge = await startBridge({
-    home,
-    autoAnswer: { enabled: true, command: [process.execPath, '-e', script, '{context}'] },
-  });
-  try {
-    assert.equal((await bridge.call('GET', '/api/status')).body.autoAnswer.enabled, true);
-    const question = (
-      await bridge.call('POST', '/api/stories/acme-widgets-7/questions', { text: 'why?', step: 1 })
-    ).body;
-    let answers = [];
-    for (let i = 0; i < 60 && !answers.length; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 50));
-      answers = (
-        await bridge.call('GET', '/api/stories/acme-widgets-7/questions')
-      ).body.questions.find((entry) => entry.id === question.id).answers;
-    }
-    assert.equal(answers[0].text, 'Chapter: Chapter 1: Start; asked: why?');
-  } finally {
-    await bridge.close();
-  }
-});
-
 test('doctor reports a missing bridge as failing, with the fix', async () => {
   const home = tmp('home');
   const lines = [];
@@ -114,7 +86,6 @@ test('doctor reports a missing bridge as failing, with the fix', async () => {
   assert.match(text, /FAIL\s+Bridge: nothing is listening on 127\.0\.0\.1:1/);
   assert.match(text, /fix: Start it: diff-story serve/);
   assert.match(text, /WARN\s+Claude listening/);
-  assert.match(text, /PASS\s+autoBuild: off/);
 });
 
 test('doctor passes the bridge when it is up', async () => {

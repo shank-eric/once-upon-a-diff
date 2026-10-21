@@ -8,7 +8,7 @@ import { storyRepo, REPO_RE } from '../../config/repos.mjs';
 import { statusOf } from '../../listeners/listeners.mjs';
 import { readMeta } from '../../stories/meta.mjs';
 
-/** The status light: bridge, story, a Claude session listening, autoBuild and autoAnswer. */
+/** The status light: bridge, story, and a Claude session listening. */
 function status({ app, url, send }) {
   // listeners are per repo, so this also works out the page's repo: the story's, or ?repo=
   const storyId = url.searchParams.get('story');
@@ -26,19 +26,8 @@ function status({ app, url, send }) {
     const hit = app.stories.find(queryRepo, url.searchParams.get('number'));
     story = hit ? hit.id : null;
   }
-  const { home, version, autoBuild, autoAnswer } = app;
-  return send(
-    200,
-    statusOf({
-      home,
-      version,
-      story,
-      repo,
-      autoBuild,
-      autoAnswer,
-      extensionSeen: app.extensionSeen,
-    }),
-  );
+  const { home, version } = app;
+  return send(200, statusOf({ home, version, story, repo, extensionSeen: app.extensionSeen }));
 }
 
 export const statusRoutes = [

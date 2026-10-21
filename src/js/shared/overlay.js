@@ -32,7 +32,7 @@
  *   onClose()      called after the x button removes the panel
  *   ask(q)         send a question {text, step, chapter, file}; returns a Promise
  *   loadQuestions() returns a Promise of [{id, at, step, text, file, answers: [{at, text}]}]
- *   status()       returns a Promise of the bridge's /api/status ({bridge, story, listening, autoBuild, autoAnswer});
+ *   status()       returns a Promise of the bridge's /api/status ({bridge, story, listening});
  *                  it rejects with err.code 'down', 'token' or 'old' when the bridge can't say. Drives the status light.
  *   drafts         {load(), act(chapter, index, action)}: each returns a Promise of {drafts: [{chapter, index, status:
  *                  'draft'|'posted'|'pending', dismissed, url, added}], error}. action is posted, unposted, dismiss,

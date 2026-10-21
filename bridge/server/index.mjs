@@ -68,8 +68,6 @@ export function createBridge({
   token,
   roots,
   scratch = true,
-  autoBuild = null,
-  autoAnswer = null,
   log = (line) => process.stderr.write(`diff-story bridge: ${line}\n`),
 }) {
   if (!token) {
@@ -82,9 +80,7 @@ export function createBridge({
     version: VERSION,
     stories,
     inbox,
-    builds: new Builds(home, inbox, { autoBuild }),
-    autoBuild,
-    autoAnswer,
+    builds: new Builds(home, inbox),
     log,
     statusCache: null, // PR-list lookups, kept 5s
     extensionSeen: null, // the last time the extension talked to us, for `diff-story doctor` and the status light

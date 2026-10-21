@@ -47,16 +47,8 @@ export function serve(home, cfg, opts) {
     token: cfg.token,
     roots: rootsOf(cfg, opts),
     scratch: !opts['no-scratch'],
-    autoBuild: cfg.autoBuild || null,
-    autoAnswer: cfg.autoAnswer || null,
     log,
   });
-  if (cfg.autoBuild && cfg.autoBuild.enabled) {
-    log(`autoBuild is on: ${JSON.stringify(cfg.autoBuild.command)}`);
-  }
-  if (cfg.autoAnswer && cfg.autoAnswer.enabled) {
-    log(`autoAnswer is on: ${JSON.stringify(cfg.autoAnswer.command)}`);
-  }
   return new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(port, '127.0.0.1', () => {

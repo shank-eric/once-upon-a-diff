@@ -48,8 +48,6 @@ There are two quick ways to check.
 - **Amber:** everything works, but no Claude session is listening for this page's repo. The Ask box still queues questions and says they'll wait. Listeners are per repo: a session that runs `diff-story wait --repo owner/name` takes questions and build requests for that repo's stories and PRs, and nothing else. A wait with no `--repo` takes everything, and `--story <id>` still works for one story. Under the Ask box, and beside **Build story**, **Copy prompt for Claude** copies one line, `/diff-story-listen owner/name`, for the diff-story-listen skill. The page says which checkout to start Claude Code in when the bridge knows one, and **show details** (or the button's hover) gives the long form for a session without the skill. The bridge learns a repo's checkout from local stories and from where `wait --repo` was run (`~/.diff-story/checkouts.json`), and otherwise looks for `~/Development/<name>` with that origin.
 - **Red:** the bridge is down, too old for the panel, or rejects the token.
 
-The details also say whether autoBuild or autoAnswer is on.
-
 "Listening" is a heartbeat. `diff-story wait` writes `~/.diff-story/listeners/<consumer>.json` every ≈5s, and a beat under 15s old from a live process counts. After `wait` hands a question over, the listener counts for up to 10 minutes as "answering", until the session starts the next wait.
 
 **`diff-story doctor`.** It prints PASS, WARN or FAIL for each of these, with a fix for anything that isn't passing:
@@ -59,7 +57,6 @@ The details also say whether autoBuild or autoAnswer is on.
 - when the extension last talked to the bridge (the bridge notes it)
 - the story root and the stories it can serve
 - live listeners and pending build requests
-- the autoBuild and autoAnswer settings, and whether their commands are on `PATH`
 - the tail of `~/.diff-story/bridge.log`
 
 It exits 1 when something fails.
@@ -177,22 +174,6 @@ Every PR Files changed page gets a small status control in the bottom-right corn
 - **No story yet · Build story** asks for one. The extension sends `{repo, number, url, requested_at}` to the bridge, which appends a `build_request` line to the inbox and keeps a pending marker in `~/.diff-story/builds.json`. Every tab on that PR then shows it as queued.
 
 A Claude session fulfils the request. `diff-story wait` hands it build requests from `builds.json`, oldest first, whenever they were asked, so a listener started after the request still gets it. Each request goes to one listener at a time. `diff-story builds` lists the pending ones as queued or building. The session writes the story with the pr-story skill, whose `render` publishes it. The request then counts as done as soon as the bridge sees the story, or the session can say so with `diff-story done <id>` (`--failed --note "…"` if it can't be done). The × on the control hides it until the page reloads. The control is the extension's own button in its own shadow root, and it never clicks anything of GitHub's.
-
-**autoAnswer (off).** Like autoBuild, this is a bridge setting that's off unless `config.json` turns it on. When it's on, each new question runs a command, and whatever the command prints on stdout (exit 0) becomes the answer in the panel:
-
-```json
-"autoAnswer": { "enabled": true, "command": ["claude", "-p", "Answer this code-review question in a few sentences, using the story and diff in {context}: {question}"], "timeout_s": 600 }
-```
-
-Like autoBuild, the command is an argv array and is never run through a shell. `{question}`, `{context}`, `{story}` and `{id}` in its arguments are replaced. `{context}` is a JSON file with the story's overview, the asked-about chapter's narrative, files and drafted comments, and that chapter's diff when the bridge has one. Logs go to `~/.diff-story/answers/`. It's off for the same reason as autoBuild: it runs Claude without anyone at the keyboard. Whether to turn it on is your call. With autoAnswer on and no listener, the light still counts questions as handled.
-
-**autoBuild (off).** The bridge can run a command for each new request itself. It's off unless `~/.diff-story/config.json` turns it on:
-
-```json
-"autoBuild": { "enabled": true, "command": ["claude", "-p", "/pr-story {url}"], "cwd": "~/Development" }
-```
-
-The command is an argv array and is never run through a shell. `{url}`, `{repo}` and `{number}` in its arguments are replaced. The values are also in `DIFF_STORY_URL`, `DIFF_STORY_REPO`, `DIFF_STORY_NUMBER` and `DIFF_STORY_BUILD`. Output goes to `~/.diff-story/builds/<id>.log`, and a non-zero exit marks the request failed. Restart the bridge after changing it. It's left off because it runs a Claude session without anyone at the keyboard. Whether that's wanted, and with what permissions, is your call.
 
 ## Local mode: commits before you push
 
@@ -412,7 +393,7 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
   - `stories/`: finding story folders (`store.mjs`, `placement.mjs`), reading them (`meta.mjs`, `chapters.mjs`, `story-data.mjs`, `text-refs.mjs`, `backstory-notes.mjs`), local stories (`local-story.mjs`, `local-diff.mjs`), read tracking (`reads.mjs`) and drafted comments (`comments.mjs`).
   - `github/`: what asks `gh` (read-only, except Add to my review): freshness, drafts and the pending review.
   - `backstory/`: `diff-story backstory`, from the commit range and the Claude Code transcripts to moments and a timeline.
-  - `inbox/` (the inbox and build requests), `listeners/` (who's listening, autoAnswer), `config/` (settings, prefs, repos and checkouts) and `util/` (gh, git, diffs, JSON files).
+  - `inbox/` (the inbox and build requests), `listeners/` (who's listening), `config/` (settings, prefs, repos and checkouts) and `util/` (gh, git, diffs, JSON files).
   - `public/`: the local page. `local.js` draws it and handles its clicks; `local/` holds the diff view, notes, folds and the panel mount, next to `split.js`, `narrow.js` and `syntax.js`.
 - `skills/diff-story-listen/`: the Claude Code skill behind **Copy prompt for Claude**.
 - `skills/pr-story/`: the Claude Code skill that writes PR stories. Both skills read your house rules (see [Personal settings](#personal-settings)).
