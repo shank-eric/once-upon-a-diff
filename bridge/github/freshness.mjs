@@ -13,15 +13,15 @@ import { runGh } from '../util/gh.mjs';
 const TTL_MS = 60000;
 const cache = new Map();
 
-async function gh(args) {
+async function ghApiJson(args) {
   return JSON.parse(await runGh(['api', ...args]));
 }
-async function cached(key, fn) {
+async function cached(key, compute) {
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < TTL_MS) {
     return hit.value;
   }
-  const value = await fn();
+  const value = await compute();
   cache.set(key, { at: Date.now(), value });
   return value;
 }
@@ -29,9 +29,9 @@ export const clearFreshness = () => cache.clear();
 
 /** A patch's hunks, old side: [{oldStart, oldLines}] */
 const hunksOf = (patch) =>
-  [...String(patch || '').matchAll(/^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@/gm)].map((m) => ({
-    oldStart: +m[1],
-    oldLines: m[2] === undefined ? 1 : +m[2],
+  [...String(patch || '').matchAll(/^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@/gm)].map((match) => ({
+    oldStart: +match[1],
+    oldLines: match[2] === undefined ? 1 : +match[2],
   }));
 const KIND = { added: 'created', removed: 'deleted', renamed: 'renamed' };
 
@@ -45,46 +45,46 @@ export async function changesSince(meta, sha) {
     return out;
   }
   if (meta.kind === 'local') {
-    for (const f of parseUnifiedDiff(diffText(meta.repo_path, sha, meta.head_oid)).values()) {
-      out.set(f.renamed_from || f.rel, {
-        kind: f.kind,
-        hunks: f.hunks.map((h) => ({ oldStart: h.oldStart, oldLines: h.oldLines })),
+    for (const file of parseUnifiedDiff(diffText(meta.repo_path, sha, meta.head_oid)).values()) {
+      out.set(file.renamed_from || file.rel, {
+        kind: file.kind,
+        hunks: file.hunks.map((hunk) => ({ oldStart: hunk.oldStart, oldLines: hunk.oldLines })),
       });
     }
     return out;
   }
   const cmp = await cached(`cmp ${meta.repo} ${sha} ${meta.head_oid}`, () =>
-    gh([`repos/${meta.repo}/compare/${sha}...${meta.head_oid}`]),
+    ghApiJson([`repos/${meta.repo}/compare/${sha}...${meta.head_oid}`]),
   );
-  for (const f of cmp.files || []) {
-    out.set(f.previous_filename || f.filename, {
-      kind: KIND[f.status] || 'modified',
-      hunks: hunksOf(f.patch),
+  for (const file of cmp.files || []) {
+    out.set(file.previous_filename || file.filename, {
+      kind: KIND[file.status] || 'modified',
+      hunks: hunksOf(file.patch),
     });
   }
   return out;
 }
 
 /** How many commits `to` is ahead of `from` (gh compare, read-only, cached 60s with freshness's), or null. */
-export async function newerCount(repo, from, to) {
-  const cmp = await cached(`cmp ${repo} ${from} ${to}`, () =>
-    gh([`repos/${repo}/compare/${from}...${to}`]),
+export async function newerCount(repo, from, toSha) {
+  const cmp = await cached(`cmp ${repo} ${from} ${toSha}`, () =>
+    ghApiJson([`repos/${repo}/compare/${from}...${toSha}`]),
   );
-  return Number.isFinite(cmp.ahead_by)
-    ? cmp.ahead_by
-    : Array.isArray(cmp.commits)
-      ? cmp.commits.length
-      : null;
+  if (Number.isFinite(cmp.ahead_by)) {
+    return cmp.ahead_by;
+  }
+  return Array.isArray(cmp.commits) ? cmp.commits.length : null;
 }
 
 export const currentHead = (repo, number) =>
   cached(
     `head ${repo}#${number}`.toLowerCase(),
-    async () => (await gh([`repos/${repo}/pulls/${Number(number)}`])).head.sha,
+    async () => (await ghApiJson([`repos/${repo}/pulls/${Number(number)}`])).head.sha,
   );
 
-const fileOf = (f) => (typeof f === 'string' ? f : f.rel);
-const sameSha = (a, b) => !!a && !!b && (a.startsWith(b) || b.startsWith(a));
+const fileOf = (file) => (typeof file === 'string' ? file : file.rel);
+const sameSha = (first, second) =>
+  !!first && !!second && (first.startsWith(second) || second.startsWith(first));
 
 /**
  * An update that rewrote the story in place, with no "Since you read it" chapter for it: the last build for the PR was
@@ -93,25 +93,25 @@ const sameSha = (a, b) => !!a && !!b && (a.startsWith(b) || b.startsWith(a));
  * @returns {Promise<{from, to, newer, retold, at, changed_files, chapters_touched}|null>}
  */
 export async function updatedInPlace(meta, chapters, lastBuild) {
-  const b = lastBuild;
+  const build = lastBuild;
   const story = meta.head_oid;
   if (
-    !b ||
-    b.status !== 'done' ||
-    b.mode !== 'update' ||
-    !/^[0-9a-f]{7,40}$/.test(String(b.base_sha || '')) ||
+    !build ||
+    build.status !== 'done' ||
+    build.mode !== 'update' ||
+    !/^[0-9a-f]{7,40}$/.test(String(build.base_sha || '')) ||
     !story ||
-    sameSha(b.base_sha, story)
+    sameSha(build.base_sha, story)
   ) {
     return null;
   }
-  if (chapters.some((ch) => ch.since && sameSha(ch.since.to, story))) {
+  if (chapters.some((chapter) => chapter.since && sameSha(chapter.since.to, story))) {
     return null;
   } // a "Since you read it" chapter tells it
   let cmp;
   try {
-    cmp = await cached(`cmp ${meta.repo} ${b.base_sha} ${story}`, () =>
-      gh([`repos/${meta.repo}/compare/${b.base_sha}...${story}`]),
+    cmp = await cached(`cmp ${meta.repo} ${build.base_sha} ${story}`, () =>
+      ghApiJson([`repos/${meta.repo}/compare/${build.base_sha}...${story}`]),
     );
   } catch {
     return null;
@@ -119,17 +119,19 @@ export async function updatedInPlace(meta, chapters, lastBuild) {
   if (cmp.status === 'diverged' || cmp.status === 'behind') {
     return null;
   } // a rebase: the range diff wouldn't mean much
-  const changed = (cmp.files || []).map((f) => f.filename);
+  const changed = (cmp.files || []).map((file) => file.filename);
   const set = new Set(changed);
   return {
-    from: b.base_sha,
+    from: build.base_sha,
     to: story,
-    retold: !!b.retell,
-    at: b.done_at || null,
+    retold: !!build.retell,
+    at: build.done_at || null,
     newer: Number.isFinite(cmp.ahead_by) ? cmp.ahead_by : (cmp.commits || []).length,
     changed_files: changed,
     chapters_touched: chapters
-      .map((ch, i) => ((ch.files || []).some((f) => set.has(fileOf(f))) ? i + 1 : 0))
+      .map((chapter, i) =>
+        (chapter.files || []).some((file) => set.has(fileOf(file))) ? i + 1 : 0,
+      )
       .filter(Boolean),
   };
 }
@@ -175,7 +177,7 @@ export async function freshness(meta, chapters, { lastBuild = null } = {}) {
   let cmp;
   try {
     cmp = await cached(`cmp ${meta.repo} ${story} ${head}`, () =>
-      gh([`repos/${meta.repo}/compare/${story}...${head}`]),
+      ghApiJson([`repos/${meta.repo}/compare/${story}...${head}`]),
     );
   } catch (e) {
     return {
@@ -188,10 +190,10 @@ export async function freshness(meta, chapters, { lastBuild = null } = {}) {
       error: `couldn't compare the commits: ${e.message}`,
     };
   }
-  const changed = (cmp.files || []).map((f) => f.filename);
+  const changed = (cmp.files || []).map((file) => file.filename);
   const set = new Set(changed);
   const touched = chapters
-    .map((ch, i) => ((ch.files || []).some((f) => set.has(fileOf(f))) ? i + 1 : 0))
+    .map((chapter, i) => ((chapter.files || []).some((file) => set.has(fileOf(file))) ? i + 1 : 0))
     .filter(Boolean);
   return {
     state: 'stale',

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson, localRepo } from './helpers.mjs';
 import { chapterKey, noteRead, readReads, sinceOf } from '../bridge/lib/reads.mjs';
 import { chapterKeyOf, readStepsOf, inferReadSteps } from '../src/js/shared/overlay.js';
-import { clearFreshness } from '../bridge/lib/freshness.mjs';
+import { clearFreshness } from '../bridge/github/freshness.mjs';
 import { createLocalStory } from '../bridge/lib/local.mjs';
 
 process.env.DIFF_STORY_GH = path.join(

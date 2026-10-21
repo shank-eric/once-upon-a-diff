@@ -8,7 +8,7 @@ import { tmp, githubStory, startBridge, writeJson } from './helpers.mjs';
 import { Builds, buildText } from '../bridge/inbox/builds.mjs';
 import { Inbox } from '../bridge/inbox/inbox.mjs';
 import { noteRead } from '../bridge/lib/reads.mjs';
-import { clearFreshness } from '../bridge/lib/freshness.mjs';
+import { clearFreshness } from '../bridge/github/freshness.mjs';
 import { tagFor, tagHtml, requestFor } from '../src/js/content/ui/story-tag.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));

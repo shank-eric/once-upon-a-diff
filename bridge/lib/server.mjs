@@ -22,7 +22,7 @@ import { storyRepo, seenCheckout, REPO_RE } from '../config/repos.mjs';
 import { Inbox, newId } from '../inbox/inbox.mjs';
 import { Builds } from '../inbox/builds.mjs';
 import { addComment } from './comments.mjs';
-import { freshness, currentHead, changesSince, newerCount } from './freshness.mjs';
+import { freshness, currentHead, changesSince, newerCount } from '../github/freshness.mjs';
 import {
   stateKeyOf,
   readMarks,
@@ -33,9 +33,10 @@ import {
   addedMark,
   noteAdded,
   draftKey,
-} from './drafts.mjs';
-import { addToPendingReview } from './review.mjs';
-import { statusOf, listeningOf, answerContext, runAutoAnswer } from './health.mjs';
+} from '../github/drafts.mjs';
+import { addToPendingReview } from '../github/review.mjs';
+import { statusOf, listeningOf } from '../listeners/listeners.mjs';
+import { answerContext, runAutoAnswer } from '../listeners/auto-answer.mjs';
 import { escapeHtml } from '../../src/js/shared/util/html.js';
 import { readReads, noteRead, sinceOf, readSha, changedSinceRead, SHA_RE } from './reads.mjs';
 

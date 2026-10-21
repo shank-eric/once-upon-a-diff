@@ -4,7 +4,7 @@ import path from 'node:path';
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { tmp, githubStory, startBridge, git } from './helpers.mjs';
 import os from 'node:os';
-import { beat, listeners, cliCommand, listenPrompt } from '../bridge/lib/health.mjs';
+import { beat, listeners, cliCommand, listenPrompt } from '../bridge/listeners/listeners.mjs';
 import {
   repoOfCheckout,
   repoOfRemote,
