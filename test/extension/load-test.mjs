@@ -16,7 +16,7 @@
  * PLAYWRIGHT_BROWSERS_PATH picks where Playwright's Chromium lives
  * (node node_modules/playwright-core/cli.js install chromium).
  */
-/* global location, document, innerHeight */ // used inside page.evaluate
+/* global location, document, innerHeight, CSS */ // used inside page.evaluate
 import { chromium } from 'playwright-core';
 import path from 'node:path';
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -147,9 +147,58 @@ try {
     check(/chapter 1/.test(n1), `/${view}: Next goes to chapter 1: "${n1.trim()}"`);
     check(hidden > 0, `/${view}: other chapter's files and tree rows are hidden (${hidden} elements)`);
     if (view === 'files') {
-      const row = await page.locator(`#dsm-panel li[data-file="${rels[0]}"] .prs-why`).textContent();
-      check(/Leave unviewed: comes back in chapter 2/.test(row), `/${view}: a file listed in two chapters says "comes back" in the first, not "Mark viewed": "${row}"`);
+      const row = await page.locator(`#dsm-panel li[data-file="${rels[0]}"]`).textContent();
+      check(!/comes back|Leave unviewed|Mark viewed/i.test(row) && (await page.locator(`#dsm-panel li[data-file="${rels[0]}"] [data-mark-for]`).count()) === 0, `/${view}: a file listed in two chapters has no tag in the first: "${row}"`);
     }
+    // logged out there's no Viewed checkbox: Mark viewed says so and clicks nothing
+    const markTry = await page.evaluate(async (rel) => {
+      const r = document.getElementById('diff-story-panel').shadowRoot;
+      const btn = r.querySelector(`li[data-file="${CSS.escape(rel)}"] button[data-mark-for]`);
+      if (!btn) return null;
+      btn.click();
+      await new Promise((res) => setTimeout(res, 200));
+      return { label: btn.textContent, msg: r.querySelector('.prs-msg').textContent };
+    }, rels[1]);
+    check(!!markTry && markTry.label === 'Mark viewed' && /no Viewed checkbox|isn't loaded/.test(markTry.msg), `/${view}: Mark viewed is a button, and logged out it says there's nothing to tick: ${JSON.stringify(markTry)}`);
+    // with a Viewed toggle in the file's header (GitHub's shape when logged in), Mark viewed clicks that one toggle, and Viewed ✓ unclicks it
+    const markLive = await page.evaluate(async ([rel, view]) => {
+      const r = document.getElementById('diff-story-panel').shadowRoot;
+      const btn = r.querySelector(`li[data-file="${CSS.escape(rel)}"] button[data-mark-for]`);
+      const sha = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rel)))].map((x) => x.toString(16).padStart(2, '0')).join('');
+      const block = view === 'files'
+        ? document.querySelector(`copilot-diff-entry[data-file-path="${CSS.escape(rel)}"], .file[data-tagsearch-path="${CSS.escape(rel)}"]`)
+        : document.getElementById(`diff-${sha}`);
+      if (!btn || !block) return { btn: !!btn, block: !!block };
+      let clicks = 0;
+      let toggle;
+      if (view === 'files') {
+        toggle = document.createElement('input');
+        toggle.type = 'checkbox';
+        toggle.className = 'js-reviewed-checkbox';
+      } else {
+        toggle = document.createElement('button');
+        toggle.textContent = 'Viewed';
+        toggle.setAttribute('aria-pressed', 'false');
+        toggle.addEventListener('click', () => toggle.setAttribute('aria-pressed', String(toggle.getAttribute('aria-pressed') !== 'true')));
+      }
+      toggle.addEventListener('click', () => { clicks++; });
+      block.prepend(toggle);
+      const on = () => (toggle.matches('input') ? toggle.checked : toggle.getAttribute('aria-pressed') === 'true');
+      const wait = () => new Promise((res) => setTimeout(res, 500));
+      await wait();
+      const before = { label: btn.textContent, on: on(), clicks };
+      btn.click();
+      await wait();
+      const ticked = { label: btn.textContent, on: on(), clicks };
+      btn.click();
+      await wait();
+      const unticked = { label: btn.textContent, on: on(), clicks };
+      toggle.remove();
+      return { before, ticked, unticked };
+    }, [rels[1], view]);
+    check(!!markLive.before && !markLive.before.on && markLive.before.clicks === 0 && markLive.before.label === 'Mark viewed', `/${view}: nothing ticks the toggle before a click: ${JSON.stringify(markLive.before || markLive)}`);
+    check(!!markLive.ticked && markLive.ticked.on && markLive.ticked.clicks === 1 && markLive.ticked.label === 'Viewed ✓', `/${view}: Mark viewed clicks that file's Viewed toggle once and says Viewed ✓: ${JSON.stringify(markLive.ticked)}`);
+    check(!!markLive.unticked && !markLive.unticked.on && markLive.unticked.clicks === 2 && markLive.unticked.label === 'Mark viewed', `/${view}: Viewed ✓ unticks it: ${JSON.stringify(markLive.unticked)}`);
     check((await page.locator('[hidden][data-dsm-hid]').count()) > 0, `/${view}: hidden files also carry the hidden attribute (for Refined GitHub's alt-click mark-viewed)`);
     // what Refined GitHub's j/k does: set the hash to the next file in page order, hidden or not
     const jumped = await page.evaluate(async ([inCh, outCh, chapterOne]) => {
@@ -374,6 +423,8 @@ try {
   await lp.waitForTimeout(500);
   const earlyText = () => lp.locator('#dsm-panel .prs-early-box').textContent();
   check(/two\.js is marked viewed, but chapter 2 covers more of it/.test(await earlyText()), `marking a "comes back later" file viewed warns in the chapter: "${await earlyText()}"`);
+  const twoRow = await lp.locator('#dsm-panel li[data-file="lib/two.js"]').textContent();
+  check(!/comes back|Leave unviewed|Mark viewed/i.test(twoRow) && /here: the export/.test(twoRow), `a file a later chapter finishes has no tag, just its note: "${twoRow}"`);
   check(/⚠ viewed early/.test(await lp.locator('#dsm-panel li[data-file="lib/two.js"] .prs-viewed').textContent()), 'and on its file row');
   await lp.locator('#dsm-panel .prs-all').click();
   await lp.waitForTimeout(300);
@@ -385,23 +436,30 @@ try {
   await lp.locator('#dsm-panel .prs-all').click();
   await lp.waitForTimeout(500);
   check((await earlyText()) === '', 'unmarking them clears the warning');
-  // the narrative's pill goes on a file's last mention in the chapter; the first says "more below"
-  const onePills = await lp.locator('#dsm-panel .prs-md .prs-pill').allTextContents();
-  check(JSON.stringify(onePills) === JSON.stringify(['more below', 'mark viewed']), `the pill is on one.txt's last mention, "more below" on its first: ${JSON.stringify(onePills)}`);
+  // the narrative's Mark viewed goes on a file's last mention in the chapter only; earlier mentions carry nothing
+  const onePills = await lp.locator('#dsm-panel .prs-md [data-mark-for], #dsm-panel .prs-md .prs-pill').allTextContents();
+  check(JSON.stringify(onePills) === JSON.stringify(['mark viewed']), `one.txt's button is on its last mention, nothing on the earlier ones: ${JSON.stringify(onePills)}`);
+  check(!/more below/.test(await lp.locator('#dsm-panel .prs-body').textContent()), 'no "more below" anywhere');
   const oneTag = () => lp.locator('#dsm-panel li[data-file="one.txt"] .prs-why').textContent();
-  check(/^Mark viewed/.test(await oneTag()), `a file the chapter finishes says Mark viewed while it isn't: "${await oneTag()}"`);
-  await lp.locator('.ds-file[data-path="one.txt"] .ds-viewed').click();
-  await lp.waitForTimeout(400);
-  check(/^Viewed ✓/.test(await oneTag()), `and Viewed ✓ once it's ticked: "${await oneTag()}"`);
-  const viewed = JSON.parse(readFileSync(path.join(home, 'state', local.id, 'viewed.json'), 'utf8'));
-  check(!!viewed['one.txt'], 'clicking Viewed on the local page is kept by the bridge');
-  check((await lp.locator('#dsm-panel li[data-file="one.txt"] .prs-why.prs-st-viewed').count()) === 1, 'the panel sees the local Viewed toggle');
+  const oneToggle = () => lp.locator('.ds-file[data-path="one.txt"] .ds-viewed').getAttribute('aria-pressed');
+  const viewedJson = () => (existsSync(path.join(home, 'state', local.id, 'viewed.json')) ? JSON.parse(readFileSync(path.join(home, 'state', local.id, 'viewed.json'), 'utf8')) : {});
+  check(/^Mark viewed/.test(await oneTag()) && (await oneToggle()) === 'false' && !viewedJson()['one.txt'], `a file the chapter finishes has a Mark viewed button, and nothing ticked it: "${await oneTag()}"`);
+  await lp.locator('#dsm-panel li[data-file="one.txt"] button[data-mark-for]').click();
+  await lp.waitForTimeout(500);
+  check(/^Viewed ✓/.test(await oneTag()) && (await oneToggle()) === 'true', `clicking Mark viewed ticks the file's own Viewed toggle and says Viewed ✓: "${await oneTag()}"`);
+  check(await lp.locator('.ds-file[data-path="one.txt"]').evaluate((el) => el.classList.contains('ds-folded')), 'and the page folds the file, as its own Viewed click does');
+  check(JSON.stringify(await lp.locator('#dsm-panel .prs-md [data-mark-for]').allTextContents()) === JSON.stringify(['viewed ✓']), 'the narrative\'s button follows it');
+  check(!!viewedJson()['one.txt'], 'the bridge keeps the Viewed that Mark viewed set');
+  check((await lp.locator('.ds-viewed[aria-pressed="true"]').count()) === 1, 'Mark viewed ticked only that file');
+  check((await lp.locator('#dsm-panel li[data-file="one.txt"] .prs-why button.prs-st-viewed').count()) === 1, 'the panel sees the local Viewed toggle');
   check(/✓ All 1 marked viewed/.test(await prog()), `ticking the last one completes the chapter: "${await prog()}"`);
   check((await lp.locator('#dsm-panel .prs-stepprog.prs-done[data-prog-for="1"]').count()) === 1, 'the Steps list shows a check on chapter 1');
   await lp.waitForTimeout(500);
   const reads = existsSync(path.join(home, 'state', local.id, 'read.json')) ? JSON.parse(readFileSync(path.join(home, 'state', local.id, 'read.json'), 'utf8')) : {};
   check(!!reads.one && reads.one.reason === 'viewed' && /^[0-9a-f]{40}$/.test(reads.one.head_sha || ''), `ticking a chapter's last file records it as read, with the range's head (${JSON.stringify(reads.one || null)})`);
-  await lp.locator('.ds-file[data-path="one.txt"] .ds-viewed').click(); // unfold again to reach a line
+  await lp.locator('#dsm-panel .prs-md button[data-mark-for="one.txt"]').click(); // "viewed ✓" unticks it (and the page unfolds it, to reach a line)
+  await lp.waitForTimeout(500);
+  check((await oneToggle()) === 'false' && !viewedJson()['one.txt'] && /^Mark viewed/.test(await oneTag()), `clicking Viewed ✓ unticks it: "${await oneTag()}"`);
   await lp.locator('td.ds-num[data-line-anchor$="R2"]').first().click();
   await lp.locator('.ds-note-form textarea').fill('Lower-case B');
   await lp.locator('.ds-note-form button[type=submit]').click();
