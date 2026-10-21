@@ -18,7 +18,8 @@
     "js:lint": "eslint './src/**/*.js' './bridge/**/*.{js,mjs}' './test/**/*.mjs' './scripts/**/*.mjs'",
     "js:lint:fix": "eslint './src/**/*.js' './bridge/**/*.{js,mjs}' './test/**/*.mjs' './scripts/**/*.mjs' --fix",
     "test": "node --test test/*.test.mjs",
-    "test:extension": "node test/extension/load-test.mjs"
+    "test:extension": "node test/extension/load-test.mjs",
+    "test:expand": "node test/extension/expand-test.mjs"
   },
   "devDependencies": {
     "eslint": "^8.6.0",

@@ -6,9 +6,13 @@
  *     the same DOM shapes as GitHub's /changes page
  *
  * It adds a side panel, hides other chapters' files with display:none and
- * scrolls the page. It never clicks the host page's controls (Viewed, expand,
- * comment, review, approve), never submits the host page's forms and makes no
- * network calls itself. Saving the step, reporting position and sending
+ * scrolls the page. It never clicks the host page's Viewed, comment, review or
+ * approve controls, never submits the host page's forms and makes no network
+ * calls itself. The only host controls it clicks are expand controls, and only
+ * when Eric clicks a file or line link in the panel: the file's own expand
+ * toggle if it's collapsed (Viewed and large files collapse), "Load diff", then
+ * the hunk expanders until the line is on the page. GitHub fetches the lines
+ * with the page's own settings, so ?w=1 holds. Saving the step, reporting position and sending
  * questions all go through callbacks the caller passes in `opts`, and the
  * caller decides where they go (the extension sends them to the bridge
  * through its service worker).
@@ -37,10 +41,16 @@
  *             line:   [data-line-anchor="diff-<sha>R<n>"] (L<n> for removed lines)
  *             viewed: header button[aria-pressed] whose text is "Viewed" (read only)
  *             tree:   [role=tree] [role=treeitem], id = file or folder path
+ *             expand: header button labelled "Expand file" (aria-labelledby) when collapsed;
+ *                     hunk rows hold td.diff-hunk-cell and button[data-direction=up|down|all];
+ *                     a context row's old line is only in data-diff-line-key (b:N-l:N-r:N);
+ *                     "Expand all lines: <path>" (.js-expand-all-difflines-button) opens the file
  *   /files    file:   copilot-diff-entry[data-file-path] or .file[data-tagsearch-path]
  *             line:   #diff-<sha>R<n>
  *             viewed: input.js-reviewed-checkbox (read only)
  *             tree:   file-tree li[data-tree-entry-type] with a[href="#diff-<sha>"]
+ *             expand: .file-header .js-details-target "Toggle diff contents" [aria-expanded=false];
+ *                     tr.js-expandable-line holds a.js-expand "Expand Up|Down|All"
  *   fallback  file:   a header (h3, [class*=file-name], .file-info a) whose text is the path
  *
  * opts (all optional):
@@ -57,7 +67,7 @@
  *                  restore, review (Add to my review) or settle (an added draft has shown up, see draftView).
  *   reloadPage()   reloads the page, keeping the panel's step and scroll; offered on a draft just added to the review
  *   onFilter(f)    called after each filter pass with {n, view, all}; the local page folds other chapters' lines with it
- *   reveal(rel, side, start, end)  called before a jump to lines, so a page that folds lines can open them
+ *   reveal(rel, side, start, end)  called before a jump to a file (rel only) or lines, so a page that folds files or lines can open them
  *   pageAt         when this page loaded, in ms (performance.timeOrigin); a draft added after it isn't on the page yet
  *   freshness()    returns a Promise of {state: 'current'|'stale'|'unknown'|'n/a', story_head, current_head, newer,
  *                  changed_files, chapters_touched, updated, error}: is the story up to date with the PR's latest commit?
@@ -190,6 +200,48 @@ export function readStepsOf(chapters, readInfo) {
   const changed = new Set(((readInfo && readInfo.changed) || []).map((c) => c.step));
   return new Set(chapters.map((ch, i) => (reads[chapterKeyOf(ch)] && !changed.has(i + 1) ? i + 1 : 0)).filter(Boolean));
 }
+
+// ---------- expanding a file's diff to a line (no DOM here, so node tests can use these)
+/** Which way an expand control opens: 'up', 'down' or 'all', from data-direction or its label ("Expand Up", "Expand file down from line 82"). */
+export function expandDirOf(direction, label) {
+  const d = String(direction || '').toLowerCase();
+  if (d === 'up' || d === 'down' || d === 'all') return d;
+  const l = String(label || '').toLowerCase();
+  if (/\bup\b/.test(l)) return 'up';
+  if (/\bdown\b/.test(l)) return 'down';
+  if (/\ball\b|\bfrom line \d+ to line\b/.test(l)) return 'all';
+  return null;
+}
+/**
+ * The next expand control to click to bring `line` into a file's diff.
+ * rows is the file's table in page order: {gap: ['up', 'down', 'all']} for a hunk row
+ * (the expand controls it has, maybe none), or {n} for a drawn row (n is its line number
+ * on the wanted side, or null when it has none there, like an added row on the old side).
+ * Returns {at, dir, far}: the gap row's index, the control, and how far the line is from
+ * the drawn line that control opens from. null when no gap holds the line.
+ */
+export function expandStep(rows, line) {
+  for (let i = 0; i < rows.length; i++) {
+    const dirs = rows[i].gap;
+    if (!dirs) continue;
+    let before = 0;
+    for (let j = i - 1; j >= 0; j--) if (!rows[j].gap && rows[j].n != null) { before = rows[j].n; break; }
+    let after = Infinity;
+    for (let j = i + 1; j < rows.length; j++) if (!rows[j].gap && rows[j].n != null) { after = rows[j].n; break; }
+    if (!(before < line && line < after)) continue;
+    if (dirs.includes('all')) return { at: i, dir: 'all', far: Math.min(line - before, after - line) };
+    const up = dirs.includes('up');
+    const down = dirs.includes('down');
+    if (!up && !down) return null;
+    // "down" opens the lines under the drawn line above the gap, "up" the lines over the one below it
+    const dir = up && down ? (line - before <= after - line ? 'down' : 'up') : up ? 'up' : 'down';
+    return { at: i, dir, far: dir === 'up' ? after - line : line - before };
+  }
+  return null;
+}
+/** A line farther than this from the nearest drawn line opens the whole file in one click, where the page has a button for that. */
+export const EXPAND_ALL_FAR = 60;
+
 // kept across panel re-renders on this page: a failed Add to my review, and adds already settled
 const reviewErrors = new Map();
 const settling = new Set();
@@ -675,8 +727,13 @@ export function storyOverlay(INPUT, opts = {}) {
   }
   const blockOf = (rel) => fileBlocks().find((x) => x.rel === rel);
   function lineCell(rel, side, n) {
-    const id = `diff-${pathToSha.get(rel)}${side}${n}`;
-    return document.querySelector(`[data-line-anchor="${id}"]`) || document.getElementById(id);
+    const sha = pathToSha.get(rel);
+    const id = `diff-${sha}${side}${n}`;
+    // /changes puts the anchor of the line before a gap on its hunk row too, so that one doesn't count
+    const cell = [...document.querySelectorAll(`[data-line-anchor="${id}"]`)].find((c) => !c.closest('.diff-hunk-cell')) || document.getElementById(id);
+    if (cell || side !== 'L') return cell;
+    // /changes anchors an unchanged line by its new number only; its old one is in data-diff-line-key
+    return document.querySelector(`table[data-diff-anchor="diff-${sha}"] .diff-line-number-neutral[data-diff-line-key*="-l:${n}-"]`);
   }
   /** true/false from the file header's Viewed toggle, or null when it can't tell. Never clicks it. */
   function isViewed(rel, blocks) {
@@ -686,6 +743,94 @@ export function storyOverlay(INPUT, opts = {}) {
     if (btn) return btn.getAttribute('aria-pressed') === 'true';
     const cb = b.el.querySelector('input.js-reviewed-checkbox');
     return cb ? cb.checked : 'none'; // the file is on the page but has no Viewed toggle (logged out, say)
+  }
+
+  // ---------- expand controls: clicked only from a file or line link in the panel (see jumpTo)
+  const labelOf = (el) => {
+    const ids = (el.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean);
+    const by = ids.map((x) => { const t = document.getElementById(x); return t ? t.textContent : ''; }).join(' ').trim();
+    return (el.getAttribute('aria-label') || by || el.getAttribute('title') || '').trim();
+  };
+  /** Never a Viewed toggle, a checkbox or anything that submits: those aren't ours to click. */
+  const safe = (el) => !!el && el.isConnected && !el.hasAttribute('aria-pressed') && !el.matches('input, [type="submit"], .js-reviewed-toggle, .js-reviewed-checkbox') && !el.closest('#' + HOST_ID);
+  /** The file's own expand toggle while it's collapsed, else null. */
+  function collapsedToggle(el) {
+    for (const b of el.querySelectorAll('button')) if (/^expand file$/i.test(labelOf(b)) && safe(b)) return b; // /changes
+    for (const b of el.querySelectorAll('.file-header .js-details-target[aria-expanded="false"]')) if (/toggle diff contents/i.test(labelOf(b)) && safe(b)) return b; // /files
+    return null;
+  }
+  /** "Load diff", on a large or generated file GitHub doesn't draw until asked. */
+  const loadDiffButton = (el) => [...el.querySelectorAll('button')].find((b) => /^\s*load diff\s*$/i.test(b.textContent) && safe(b)) || null;
+  /** /changes' "Expand all lines: <path>" header button, which draws the whole file. */
+  const expandAllButton = (el) => [...el.querySelectorAll('button')].find((b) => (b.classList.contains('js-expand-all-difflines-button') || /^expand all lines\b/i.test(labelOf(b))) && safe(b)) || null;
+  const LINE_ID = /^diff-([0-9a-f]{64})([LR])(\d+)$/;
+  /** One row of a file's table, for expandStep: {gap, els} for a hunk row, else {n} on that side. */
+  function rowModel(tr, sha, side) {
+    const ctl = [...tr.querySelectorAll('button[data-direction], .js-expand')];
+    if (ctl.length || tr.matches('.js-expandable-line') || tr.querySelector('.diff-hunk-cell, .blob-code-hunk')) {
+      const els = {};
+      for (const c of ctl) { const d = expandDirOf(c.getAttribute('data-direction'), labelOf(c)); if (d && !els[d] && safe(c)) els[d] = c; }
+      return { gap: Object.keys(els), els };
+    }
+    let n = null;
+    for (const c of tr.querySelectorAll('[data-line-anchor], td[id^="diff-"]')) {
+      const m = LINE_ID.exec(c.getAttribute('data-line-anchor') || c.id);
+      if (m && m[1] === sha && m[2] === side) { n = +m[3]; break; }
+    }
+    if (n == null && side === 'L') {
+      const k = tr.querySelector('.diff-line-number-neutral[data-diff-line-key]');
+      const m = k && /(?:^|-)l:(\d+)(?:-|$)/.exec(k.getAttribute('data-diff-line-key'));
+      if (m) n = +m[1];
+    }
+    return { n };
+  }
+  const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+  async function waitFor(test, ms) {
+    for (const end = Date.now() + ms; Date.now() < end; await pause(100)) { const v = test(); if (v) return v; }
+    return test();
+  }
+  const drawn = (c) => !!c && c.getClientRects().length > 0;
+  let expandToken = 0;
+  /**
+   * Open a file (and, with a line, the hunks around it) until the line is drawn.
+   * Clicks only the file's expand toggle, Load diff and hunk expanders, so Viewed stays as it is.
+   * Resolves to true when the file (or line) is on the page, false when it can't get there.
+   */
+  async function expandTo(rel, side, line) {
+    const token = ++expandToken;
+    const live = () => token === expandToken && host.isConnected;
+    const sha = pathToSha.get(rel);
+    let b = blockOf(rel);
+    if (!b || !sha) return false;
+    const toggle = collapsedToggle(b.el);
+    if (toggle) {
+      toggle.click();
+      await waitFor(() => { const x = blockOf(rel); return x && !collapsedToggle(x.el) && x.el.querySelector('tr'); }, 6000);
+    }
+    b = blockOf(rel);
+    const load = b && loadDiffButton(b.el);
+    if (live() && load) {
+      load.click();
+      await waitFor(() => { const x = blockOf(rel); return x && !loadDiffButton(x.el) && x.el.querySelector('tr'); }, 10000);
+    }
+    if (line == null) return live();
+    for (let i = 0; i < 40 && live(); i++) {
+      if (drawn(lineCell(rel, side, line))) return true;
+      b = blockOf(rel);
+      if (!b) return false;
+      const trs = [...b.el.querySelectorAll('tr')];
+      const rows = trs.map((tr) => rowModel(tr, sha, side));
+      const step = expandStep(rows, line);
+      if (!step) return false;
+      const all = step.far > EXPAND_ALL_FAR ? expandAllButton(b.el) : null;
+      const ctl = all || rows[step.at].els[step.dir];
+      if (!safe(ctl)) return false;
+      const was = labelOf(ctl);
+      ctl.click();
+      const moved = await waitFor(() => { const x = blockOf(rel); return x && (!ctl.isConnected || x.el.querySelectorAll('tr').length !== trs.length || labelOf(ctl) !== was); }, 8000);
+      if (!moved) return false;
+    }
+    return live() && drawn(lineCell(rel, side, line));
   }
 
   /** File-tree rows: [{rel|dir, el}]. */
@@ -915,7 +1060,7 @@ export function storyOverlay(INPUT, opts = {}) {
   }
   $('.prs-note').addEventListener('click', (e) => {
     const ref = e.target.closest('[data-rel]');
-    if (ref) scrollToFile(ref.getAttribute('data-rel'));
+    if (ref) jumpTo(ref.getAttribute('data-rel'));
   });
   // Classic /files ticks a checkbox (no attribute change), and Refined GitHub's batch
   // helpers click many toggles at once, so also look again shortly after any click or change.
@@ -1095,8 +1240,8 @@ export function storyOverlay(INPUT, opts = {}) {
     const ref = e.target.closest('[data-rel]');
     if (!ref) return;
     const rel = ref.getAttribute('data-rel');
-    if (ref.hasAttribute('data-start')) scrollToLine(rel, ref.getAttribute('data-side') || 'R', +ref.getAttribute('data-start'), +ref.getAttribute('data-end'));
-    else scrollToFile(rel);
+    const start = +ref.getAttribute('data-start');
+    jumpTo(rel, ref.hasAttribute('data-start') ? { side: ref.getAttribute('data-side') || 'R', start, end: +ref.getAttribute('data-end') || start } : null);
   });
 
   /** Switch between the story (the default) and the backstory view. Only an explicit switch gets here, so only then is the view saved. */
@@ -1185,23 +1330,45 @@ export function storyOverlay(INPUT, opts = {}) {
     settle(() => { const x = blockOf(rel); return x && x.el; });
     return true;
   }
-  /** Scroll a line range into view and highlight it. Never expands a hunk or a collapsed file. */
+  /**
+   * A click on a file or line link in the panel: open the file if it's collapsed (or
+   * not drawn until asked) and the hunks around the line, then scroll and highlight.
+   * Only this expands anything, never a step change or a page change on its own.
+   */
+  async function jumpTo(rel, line) {
+    if (opts.reveal) { if (line) opts.reveal(rel, line.side, line.start, line.end); else opts.reveal(rel); }
+    const b = blockOf(rel);
+    const ready = !b || (!collapsedToggle(b.el) && !loadDiffButton(b.el) && (!line || drawn(lineCell(rel, line.side, line.start))));
+    if (!ready) {
+      message(`Opening ${short(rel)}${line ? ` at line ${line.start}` : ''}…`);
+      scrollToFile(rel, true);
+      const token = expandToken + 1; // expandTo takes this one
+      await expandTo(rel, line ? line.side : null, line ? line.start : null);
+      if (token !== expandToken || !host.isConnected) return; // a newer click took over, or the panel closed
+      message('');
+    }
+    if (line) scrollToLine(rel, line.side, line.start, line.end);
+    else scrollToFile(rel);
+  }
+  /** Scroll a line range into view and highlight it. jumpTo expands the file and hunks first. */
   function scrollToLine(rel, side, startLine, endLine) {
     if (opts.reveal) opts.reveal(rel, side, startLine, endLine || startLine);
     let target = lineCell(rel, side, startLine);
+    if (!drawn(target)) target = null;
     let note = '';
     let at = startLine;
     if (!target) {
-      // nearest line GitHub has rendered for this file and side
+      // nearest line the page has drawn for this file and side
       const prefix = `diff-${pathToSha.get(rel)}${side}`;
       const near = [...document.querySelectorAll(`[data-line-anchor^="${prefix}"]`)]
+        .filter((c) => !c.closest('.diff-hunk-cell') && drawn(c))
         .map((c) => ({ c, n: +c.getAttribute('data-line-anchor').slice(prefix.length) }))
         .filter((x) => x.n > 0).sort((a, b) => Math.abs(a.n - startLine) - Math.abs(b.n - startLine))[0];
-      if (near) { target = near.c; at = near.n; note = `Line ${startLine} isn't in the diff ${HOST} shows, so this is the nearest line, ${near.n}. ${HOST}'s expand arrows above it show more.`; }
+      if (near) { target = near.c; at = near.n; note = `Line ${startLine} isn't in the diff ${HOST} can show, so this is the nearest line, ${near.n}.`; }
     }
     if (!target) {
       scrollToFile(rel, true);
-      message(`Line ${startLine} of ${rel.split('/').pop()} isn't on the page. The file may be collapsed (Viewed files collapse) or not loaded. Expand it in ${HOST}, then click again.`);
+      message(`Line ${startLine} of ${short(rel)} isn't on the page, and the file wouldn't open. Scroll to it, open it in ${HOST}, then click again.`);
       return false;
     }
     const rowOf = (c) => c.closest('tr') || c;
@@ -1757,6 +1924,7 @@ export function storyOverlay(INPUT, opts = {}) {
     clearInterval(freshTimer);
     window.removeEventListener('focus', onFocusDrafts);
     settleToken++;
+    expandToken++;
     clearInterval(qaTimer);
     window.removeEventListener('resize', onResize);
     window.removeEventListener('scroll', onScroll);
@@ -1788,7 +1956,7 @@ export function storyOverlay(INPUT, opts = {}) {
   reportPosition();
 
   const api = {
-    destroy, go, setView, apply, scrollToLine, scrollToFile, refreshQuestions, setCollapsed, state, data: INPUT, readLeave,
+    destroy, go, setView, apply, scrollToLine, scrollToFile, jumpTo, refreshQuestions, setCollapsed, state, data: INPUT, readLeave,
     get seen() { return seen; },
     get health() { return health; },
     get bodyScroll() { return $('.prs-body').scrollTop; },

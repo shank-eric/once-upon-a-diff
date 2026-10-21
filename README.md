@@ -92,6 +92,8 @@ It never posts to GitHub, marks files viewed or pushes. Comments it drafts go to
 5. **Hide whitespace is remembered.** It's the same setting as the local page's (`prefs.json` through the bridge, with a copy in `chrome.storage` for when the bridge is down). When it's on, opening a PR's Files changed page without `?w=` reloads it once with `?w=1`, keeping the hash and the panel's step. Turning GitHub's own whitespace setting on or off there (`w=1`, `w=0`, or `w=1` dropping off the same page) saves the new choice. If GitHub drops the `w=1` it was sent, the page isn't reloaded again for 15 seconds, so it can't loop.
 6. Type a question in the Ask box and press **Cmd+Enter**. The question goes to the bridge inbox, and the answer shows under it once a Claude session replies (see [Q&A relay](#qa-relay)).
 
+**File and line links open what they point at.** Clicking a file name or a `path:40-58` line link in the panel scrolls to it and highlights it. If GitHub has the file collapsed (Viewed files and large ones collapse), the click expands it with the file's own toggle, or **Load diff**, and expanding never unmarks Viewed. For a line outside the hunks GitHub drew, it clicks GitHub's expand arrows above or below the hunk until the line is on the page (or **Expand all lines** when the line is far away), on `/changes` and classic `/files` alike. GitHub fetches those lines with the page's own settings, so `?w=1` stays and nothing reloads. This happens only when you click a link: changing steps, reloads and redraws never expand anything, and the panel never clicks Viewed, comment or review controls. A line that isn't in the file at all jumps to the nearest drawn line and says so.
+
 When Claude rewrites `chapters.json`, the panel redraws within ≈5 seconds, or as soon as you come back to the tab. It keeps its step and its scroll position.
 
 **Posted, pending and dismissed drafts.** Each draft comment shows what's become of it. There are four states:
@@ -206,7 +208,7 @@ This builds `git diff <base> <head>` into `~/.diff-story/local-<repo>-<branch>/`
 - **Unified / Split**, in the page header, switches between one column and GitHub's side-by-side view, with old lines on the left and new on the right, lined up. Line numbers on either side take notes, and line jumps, Viewed and the panel work the same in both. It's saved in `prefs.json` too, so it holds for every local story.
 - **Syntax highlighting** colors the diff in both views, picked by file extension: TypeScript and TSX, JavaScript, JSON, Ruby and ERB, YAML, CSS and SCSS, Markdown, shell, and HTML/XML. Each hunk's old and new sides are highlighted as whole pieces of code, so a template string or block comment that runs over several lines is colored right. A hunk that starts partway into a comment can still come out wrong. Files over 3,000 diff lines, minified lines and anything past 20,000 lines on a page stay plain, so big diffs stay quick. highlight.js is vendored in `bridge/public/vendor/` (`yarn vendor` remakes it from the pinned dev dependency), so the bridge still has no runtime dependencies and the page loads nothing from a CDN.
 - **Hide whitespace**, in the page header, draws the diff with `git diff -w`, like GitHub's setting of the same name. Unlike GitHub's, it's remembered: the bridge keeps it in `~/.diff-story/prefs.json`, so it holds for every local story and across reloads and bridge restarts. A file whose only changes are whitespace stays listed, marked "whitespace only". Viewed marks and "changed since viewed" are always checked against the full diff, so turning it on or off never flips them. A whitespace-only edit after you mark a file viewed still counts as a change. A note or a story line on a line the `-w` diff doesn't draw sits at the top of its file (notes say so), or the panel jumps to the nearest drawn line.
-- **A chapter shows its own lines.** When chapters that share a file give `lines` ranges, each chapter folds the lines another chapter tells behind a row that says which chapter (**Show** opens it, and a jump to a line opens its fold). Lines no range covers show in the first chapter that lists the file. A chapter that lists the file without ranges, the Overview and **Show all files** draw all of it. GitHub's page can't be redrawn this way, so there the panel filters by file only.
+- **A chapter shows its own lines.** When chapters that share a file give `lines` ranges, each chapter folds the lines another chapter tells behind a row that says which chapter (**Show** opens it, and a link to one of its lines opens it too, along with the file if it's folded). Lines no range covers show in the first chapter that lists the file. A chapter that lists the file without ranges, the Overview and **Show all files** draw all of it. GitHub's page can't be redrawn this way, so there the panel filters by file only.
 - Without `--chapters`, you get one chapter per top-level folder as a starting point. Any file a story doesn't place lands in a last "Not in a chapter yet" step, so nothing is hidden from every step.
 
 ## Backstory: how it got here
@@ -347,6 +349,7 @@ Diff Story Mode doesn't need Refined GitHub and doesn't use anything it adds to 
 yarn test              # bridge unit tests (node --test)
 yarn js:lint
 yarn test:extension    # loads src/ into a throwaway Playwright Chromium, never your own Chrome
+yarn test:expand       # the same Chromium: panel links expand collapsed files and hunks on /files and /changes
 yarn icons             # redraws src/icons
 ```
 
@@ -366,6 +369,8 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
 - the local page: diff, filter, Viewed, a note, and coming back after a reload
 - the options page's Test connection before Save, and the Backstory section and view on a PR
 
+`test:expand` uses `refined-github/refined-github#10298` and checks that line links above, between and past its hunks, on both sides, and file and line links into a collapsed file open and highlight their target, with no expanding on a step change, `?w=1` kept and no Viewed toggle touched. Logged out, GitHub sends `/changes` to `/files`, so the React `/changes` DOM is checked by hand.
+
 ## Layout
 
 - `src/`: the extension, which is the folder to load unpacked.
@@ -374,7 +379,7 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
   - `js/shared/overlay.js` is the panel, shared with the local page.
 - `bridge/`: the CLI (`bin/diff-story.mjs`), the server and story code (`lib/`), and the local page (`public/`).
 - `skills/diff-story-listen/`: the Claude Code skill behind **Copy prompt for Claude**.
-- `test/`: unit tests and `extension/load-test.mjs`.
+- `test/`: unit tests, `extension/load-test.mjs` and `extension/expand-test.mjs`.
 
 ## Credits
 
