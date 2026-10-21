@@ -7,6 +7,7 @@
 import { escapeHtml } from '../util/html.js';
 import { refAttrs } from './file-refs.js';
 
+// eslint-disable-next-line no-control-regex -- the placeholder markers are control characters on purpose
 const CODE_MARK = /\u0000(\d+)\u0000/g;
 // a link to one of the PR's files (and lines) on GitHub: #diff-<sha256>, maybe R12 or L3-L9
 const DIFF_LINK = /#diff-([0-9a-f]{64})(?:([LR])(\d+)(?:-[LR]?(\d+))?)?$/;

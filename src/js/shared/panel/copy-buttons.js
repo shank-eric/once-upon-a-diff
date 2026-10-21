@@ -16,7 +16,7 @@ function selectText(element) {
 
 /** A drafted comment's Copy: the clipboard, else selecting the comment's text and execCommand. */
 export function copyComment(text, button) {
-  const done = (ok) => {
+  const showResult = (ok) => {
     button.textContent = ok ? 'Copied' : 'Select and copy';
     setTimeout(() => {
       button.textContent = 'Copy';
@@ -24,17 +24,17 @@ export function copyComment(text, button) {
   };
   writeClipboard(text).then((ok) => {
     if (ok) {
-      done(true);
+      showResult(true);
       return;
     }
     selectText(button.closest('.prs-comment').querySelector('pre'));
     let copied = false;
     try {
       copied = document.execCommand('copy');
-    } catch (e) {
+    } catch {
       copied = false;
     }
-    done(copied);
+    showResult(copied);
   });
 }
 

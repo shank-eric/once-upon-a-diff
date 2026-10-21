@@ -252,6 +252,7 @@ function prStoryOverlay(INPUT) {
         }
         return `<a href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`;
       });
+    // eslint-disable-next-line no-control-regex -- the placeholder markers are control characters on purpose
     return source.replace(/\u0000(\d+)\u0000/g, (match, i) => {
       const ref = resolveRef(codes[i]);
       return ref
@@ -639,7 +640,10 @@ function prStoryOverlay(INPUT) {
       linkScope = current.files.map((file) => file.rel);
       const story = current.narrative
         ? markdown(current.narrative)
-        : `${current.headline ? `<p><strong>${inline(current.headline)}</strong></p>` : ''}${current.scenario ? `<p>The scenario: ${inline(current.scenario)}</p>` : ''}${current.summary ? `<p>${inline(current.summary)}</p>` : ''}<p class="prs-empty">This chapter's story isn't written yet.</p>`;
+        : `${current.headline ? `<p><strong>${inline(current.headline)}</strong></p>` : ''}` +
+          `${current.scenario ? `<p>The scenario: ${inline(current.scenario)}</p>` : ''}` +
+          `${current.summary ? `<p>${inline(current.summary)}</p>` : ''}` +
+          `<p class="prs-empty">This chapter's story isn't written yet.</p>`;
       const comments = (current.comments || [])
         .map((comment, i) => {
           const general = !comment.line || /^\(/.test(comment.path || '');
@@ -778,7 +782,7 @@ function prStoryOverlay(INPUT) {
   }
 
   function copy(text, btn) {
-    const done = (ok) => {
+    const showResult = (ok) => {
       btn.textContent = ok ? 'Copied' : 'Select and copy';
       setTimeout(() => {
         btn.textContent = 'Copy';
@@ -794,13 +798,13 @@ function prStoryOverlay(INPUT) {
       let ok = false;
       try {
         ok = document.execCommand('copy');
-      } catch (e) {
+      } catch {
         ok = false;
       }
-      done(ok);
+      showResult(ok);
     };
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(() => done(true), fallback);
+      navigator.clipboard.writeText(text).then(() => showResult(true), fallback);
     } else {
       fallback();
     }

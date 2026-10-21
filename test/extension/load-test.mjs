@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Loads the unpacked extension into a throwaway Chromium (Playwright's, in a
  * temp profile; never your own Chrome) and checks it end to end against a
@@ -16,7 +15,7 @@
  * PLAYWRIGHT_BROWSERS_PATH picks where Playwright's Chromium lives
  * (node node_modules/playwright-core/cli.js install chromium).
  */
-/* global location, document, innerHeight, CSS */ // used inside page.evaluate
+/* global chrome */ // the service worker's, inside worker.evaluate
 import { chromium } from 'playwright-core';
 import path from 'node:path';
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
@@ -293,7 +292,7 @@ try {
         return null;
       }
       btn.click();
-      await new Promise((res) => setTimeout(res, 200));
+      await new Promise((resolve) => setTimeout(resolve, 200));
       return { label: btn.textContent, msg: root.querySelector('.prs-msg').textContent };
     }, rels[1]);
     check(
@@ -344,7 +343,7 @@ try {
         block.prepend(toggle);
         const listening = () =>
           toggle.matches('input') ? toggle.checked : toggle.getAttribute('aria-pressed') === 'true';
-        const wait = () => new Promise((res) => setTimeout(res, 500));
+        const wait = () => new Promise((resolve) => setTimeout(resolve, 500));
         await wait();
         const before = { label: btn.textContent, on: listening(), clicks };
         btn.click();

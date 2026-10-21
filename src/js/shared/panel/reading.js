@@ -100,7 +100,7 @@ export function createReading(context) {
       Promise.resolve(
         opts.onRead({ chapter: key, step, title: chapter.title, reason, seconds, head_sha: head }),
       ).then(refresh, () => sent.delete(once));
-    } catch (e) {
+    } catch {
       sent.delete(once);
     }
   }
@@ -148,7 +148,7 @@ export function createReading(context) {
     }
     try {
       info = await opts.reads();
-    } catch (e) {
+    } catch {
       return; // the bridge may be down; the marks just don't show
     }
     render();

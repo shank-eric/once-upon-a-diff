@@ -15,7 +15,7 @@ export async function loadPanelUi(prKey) {
   }
   try {
     return (await chrome.storage.local.get(panelUiKey(prKey)))[panelUiKey(prKey)] || {};
-  } catch (e) {
+  } catch {
     return {};
   }
 }
@@ -26,7 +26,7 @@ export async function savePanelUi(prKey, panelUi) {
   }
   try {
     await chrome.storage.local.set({ [panelUiKey(prKey)]: panelUi });
-  } catch (e) {
+  } catch {
     /* extension reloaded */
   }
 }
@@ -38,7 +38,7 @@ export async function loadPrefsCopy() {
   }
   try {
     return (await chrome.storage.local.get('prefs')).prefs || null;
-  } catch (e) {
+  } catch {
     return null;
   }
 }
@@ -49,7 +49,7 @@ export async function storePrefsCopy(value) {
   }
   try {
     await chrome.storage.local.set({ prefs: value });
-  } catch (e) {
+  } catch {
     /* extension reloaded */
   }
 }
@@ -59,14 +59,14 @@ export const tabSession = {
   get: (key) => {
     try {
       return JSON.parse(sessionStorage.getItem(key));
-    } catch (e) {
+    } catch {
       return null;
     }
   },
   set: (key, value) => {
     try {
       sessionStorage.setItem(key, JSON.stringify(value));
-    } catch (e) {
+    } catch {
       /* storage blocked */
     }
   },

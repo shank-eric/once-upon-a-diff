@@ -379,7 +379,7 @@ test('status-many reports reads and, when the PR moved on, how many new commits'
     );
     noteRead(home, 'pr-acme-widgets-7', 'finish', { story_head: SHA_A });
     noteRead(home, 'pr-acme-widgets-7', 'not in a chapter yet', { story_head: SHA_A });
-    await new Promise((res) => setTimeout(res, 5100)); // status-many caches 5s
+    await new Promise((resolve) => setTimeout(resolve, 5100)); // status-many caches 5s
     result = (
       await bridge.call('POST', '/api/stories/status-many', {
         prs: [{ repo: 'acme/widgets', number: 7 }],

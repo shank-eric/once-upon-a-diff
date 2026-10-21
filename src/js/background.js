@@ -36,7 +36,7 @@ async function callBridge({ method = 'GET', path, body }, override) {
     let json = null;
     try {
       json = JSON.parse(text);
-    } catch (e) {
+    } catch {
       json = null;
     }
     return {
@@ -45,7 +45,7 @@ async function callBridge({ method = 'GET', path, body }, override) {
       body: json,
       error: res.ok ? null : (json && json.error) || `HTTP ${res.status}`,
     };
-  } catch (e) {
+  } catch {
     return { ok: false, status: 0, error: 'unreachable' };
   }
 }

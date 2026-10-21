@@ -18,7 +18,7 @@ export async function callBridge(method, path, body) {
   try {
     const answer = await chrome.runtime.sendMessage({ type: 'bridge', method, path, body });
     return answer || { ok: false, status: 0, error: 'no answer' };
-  } catch (e) {
+  } catch {
     return { ok: false, status: 0, error: 'extension reloaded' };
   }
 }

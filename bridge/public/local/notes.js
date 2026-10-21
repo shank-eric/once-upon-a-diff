@@ -18,7 +18,10 @@ function notesListHtml() {
   const items = notes
     .map(
       (note) =>
-        `<li class="${note.done ? 'ds-done' : ''}"><label><input type="checkbox" data-note-done="${escapeHtml(note.id)}"${note.done ? ' checked' : ''}> <a href="#" data-note-goto="${escapeHtml(note.id)}"><code>${escapeHtml(placeOf(note))}</code></a></label> ${escapeHtml(note.body)}</li>`,
+        `<li class="${note.done ? 'ds-done' : ''}"><label>` +
+        `<input type="checkbox" data-note-done="${escapeHtml(note.id)}"${note.done ? ' checked' : ''}> ` +
+        `<a href="#" data-note-goto="${escapeHtml(note.id)}"><code>${escapeHtml(placeOf(note))}</code></a></label> ` +
+        `${escapeHtml(note.body)}</li>`,
     )
     .join('');
   return `<ul>${items}</ul>

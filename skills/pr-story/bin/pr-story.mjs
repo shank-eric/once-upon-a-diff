@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * pr-story: a pull request told as a story, chapter by chapter, with the
  * pinned session-story renderer drawing the page (diffs per chapter).

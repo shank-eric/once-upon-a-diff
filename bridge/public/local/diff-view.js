@@ -68,7 +68,10 @@ export function treeHtml(rels) {
         label += '/' + nextFolder.name;
         folder = nextFolder;
       }
-      html += `<div role="treeitem" aria-expanded="true" id="${escapeHtml(folderKey)}" class="ds-tree-dir"><div class="ds-tree-label" style="padding-left:${8 + depth * 12}px">${escapeHtml(label)}</div><div role="group">${draw(folder, depth + 1)}</div></div>`;
+      html +=
+        `<div role="treeitem" aria-expanded="true" id="${escapeHtml(folderKey)}" class="ds-tree-dir">` +
+        `<div class="ds-tree-label" style="padding-left:${8 + depth * 12}px">${escapeHtml(label)}</div>` +
+        `<div role="group">${draw(folder, depth + 1)}</div></div>`;
     }
     for (const rel of node.files.sort()) {
       html += `<div role="treeitem" id="${escapeHtml(rel)}" class="ds-tree-file" data-goto="${escapeHtml(rel)}" style="padding-left:${8 + depth * 12}px">${escapeHtml(rel.split('/').pop())}</div>`;
@@ -178,6 +181,16 @@ export function fileHtml(file) {
   </section></div>`;
 }
 
+/** "repo · base abc1234 → head def5678 · branch" */
+const rangeHtml = (local) =>
+  `${escapeHtml(local.repo)} · <code>${escapeHtml(local.base)}</code> ${escapeHtml(local.base_oid.slice(0, 9))}` +
+  ` → <code>${escapeHtml(local.head)}</code> ${escapeHtml(local.head_oid.slice(0, 9))}` +
+  `${local.branch ? ` · ${escapeHtml(local.branch)}` : ''}`;
+/** "3 commits · 4 files +10 −2" */
+const sizeHtml = (local, added, removed) =>
+  `${local.commits.length} commit${local.commits.length === 1 ? '' : 's'} · ${local.files.length} files ` +
+  `<span class="ds-plus">+${added}</span> <span class="ds-minus">−${removed}</span>`;
+
 /** The top bar: the range, its size, the diff view, Hide whitespace and the notes toggle. */
 export function headerHtml() {
   const { story } = page;
@@ -188,7 +201,7 @@ export function headerHtml() {
   return `<header class="ds-top">
     <div class="ds-top-main">
       <h1>${escapeHtml(story.title)}</h1>
-      <div class="ds-muted">${escapeHtml(local.repo)} · <code>${escapeHtml(local.base)}</code> ${escapeHtml(local.base_oid.slice(0, 9))} → <code>${escapeHtml(local.head)}</code> ${escapeHtml(local.head_oid.slice(0, 9))}${local.branch ? ` · ${escapeHtml(local.branch)}` : ''} · ${local.commits.length} commit${local.commits.length === 1 ? '' : 's'} · ${local.files.length} files <span class="ds-plus">+${added}</span> <span class="ds-minus">−${removed}</span></div>
+      <div class="ds-muted">${rangeHtml(local)} · ${sizeHtml(local, added, removed)}</div>
     </div>
     <div class="ds-view" role="group" aria-label="Diff view"><button type="button" data-diff-view="unified" aria-pressed="${!isSplit()}">Unified</button><button type="button" data-diff-view="split" aria-pressed="${isSplit()}">Split</button></div>
     <label class="ds-ws" title="Draw the diff with git diff -w, like GitHub's Hide whitespace. Remembered for every local story."><input type="checkbox" class="ds-ws-toggle"${local.hide_whitespace ? ' checked' : ''}> Hide whitespace</label>

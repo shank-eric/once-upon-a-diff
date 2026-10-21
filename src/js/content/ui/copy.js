@@ -17,7 +17,7 @@ export async function copyText(text, root) {
   let ok = false;
   try {
     ok = document.execCommand('copy');
-  } catch (e) {
+  } catch {
     ok = false;
   }
   textarea.remove();
