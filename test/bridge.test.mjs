@@ -398,6 +398,7 @@ describe('Unified / Split on local stories', () => {
         assert.equal(data.local.diff_view, 'split', 'survives a restart');
       } finally { await b2.close(); }
       assert.equal((await b.call('GET', '/assets/split.js')).status, 200);
+      assert.equal((await b.call('GET', '/assets/narrow.js')).status, 200);
     } finally { await b.close(); }
   });
 });
