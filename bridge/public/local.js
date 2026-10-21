@@ -215,6 +215,7 @@ function mount(initial) {
     commentsTitle: 'Fix before push (drafted)',
     onState: s => { lastUi = { ...s, hidden: false }; api('POST', `${S}/ui`, lastUi).catch(() => {}); },
     onPosition: p => api('POST', `${S}/position`, { ...p, url: location.href }).catch(() => {}),
+    reads: () => api('GET', `${S}/read`),
     onRead: r => api('POST', `${S}/read`, r), // the bridge records the range's head commit with it
     onClose: () => { overlay = null; hidden = true; api('POST', `${S}/ui`, { ...lastUi, hidden: true }).catch(() => {}); showReopen(); },
     ask: q => api('POST', `${S}/questions`, { ...q, url: location.href }),

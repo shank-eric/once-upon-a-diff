@@ -61,6 +61,35 @@ export function noteRead(home, key, chapter, { head_sha = null, story_head = nul
 export const readSha = r => (r && (r.story_head || r.head_sha)) || null;
 
 /**
+ * Since he read them: the chapters (other than "Since you read it" ones) whose files changed after the commit he
+ * read them at, and the drafted comments whose line changed. `changes` is Map(sha -> changesSince(meta, sha)).
+ * A comment counts when its line falls in a changed hunk's old side (git's 3 lines of context give some slack),
+ * or its file was deleted or renamed.
+ * @returns {{changed: {step, chapter, since, files}[], stale_comments: {step, index, path, line, since}[]}}
+ */
+export function changedSinceRead(chapters, reads, changes, storyHead) {
+  const changed = [];
+  const stale = [];
+  (chapters || []).forEach((ch, i) => {
+    if (ch.since) return;
+    const key = ch.key || chapterKey(ch);
+    const sha = readSha(reads && reads[key]);
+    const diff = sha && sha !== storyHead ? changes.get(sha) : null;
+    if (!diff || !diff.size) return;
+    const files = (ch.files || []).map(f => f.rel).filter(rel => diff.has(rel));
+    if (files.length) changed.push({ step: i + 1, chapter: key, since: sha, files });
+    (ch.comments || []).forEach((c, index) => {
+      const f = c.path && Number(c.line) > 0 ? diff.get(c.path) : null;
+      if (!f) return;
+      const line = Number(c.line);
+      const hit = f.kind === 'deleted' || f.kind === 'renamed' || f.hunks.some(h => line >= h.oldStart && line < h.oldStart + Math.max(h.oldLines, 1));
+      if (hit) stale.push({ step: i + 1, index, path: c.path, line, since: sha });
+    });
+  });
+  return { changed, stale_comments: stale };
+}
+
+/**
  * Where an update should start.
  * @param {object} reads read.json
  * @param {{key: string, title: string, since?: object}[]} chapters the story's chapters as stories.load gives them

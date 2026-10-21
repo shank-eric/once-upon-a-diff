@@ -64,6 +64,8 @@
  *   onRead(r)      called with {chapter (its key), step, title, reason: 'time'|'viewed', seconds, head_sha} when Eric
  *                  leaves a chapter he spent READ_MS on (counted while the tab shows), or ticks the last of its files viewed
  *   readAfterMs    how long counts as reading a chapter (READ_MS, 30s)
+ *   reads()        returns a Promise of the bridge's GET /read: {reads, since, changed: [{step, files}],
+ *                  stale_comments: [{step, index}]}: what changed in chapters he read, after he read them
  *   host           name of the page that owns the diff, for messages ("GitHub")
  *   commentsTitle  heading for the chapter's drafted comments ("Draft comments")
  */
@@ -287,6 +289,8 @@ export function storyOverlay(INPUT, opts = {}) {
   #${NS} .prs-fresh button { margin-left: 6px; }
   #${NS} .prs-changed { font-size: 11px; color: var(--c-warn); margin-left: 4px; white-space: nowrap; }
   #${NS} .prs-touched { font-size: 11px; color: var(--c-warn); margin-left: 4px; }
+  #${NS} .prs-readchg { font-size: 11px; color: var(--c-warn); margin-left: 4px; white-space: nowrap; }
+  #${NS} .prs-cstate .prs-cstale { color: var(--c-warn); }
   #${NS} .prs-new { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--c-accent); border: 1px solid currentColor; border-radius: 9px; padding: 0 5px; }
   #${NS} .prs-since { margin: 10px 0; padding: 6px 10px; border-left: 3px solid var(--c-accent); background: var(--c-accent-bg); border-radius: 0 6px 6px 0; font-size: 12px; }
   #${NS} .prs-askhint { padding: 6px 10px 0; font-size: 12px; color: var(--c-warn); background: var(--c-subtle); border-top: 1px solid var(--c-border); }
@@ -928,6 +932,7 @@ export function storyOverlay(INPUT, opts = {}) {
     renderViewed();
     refreshDrafts(false);
     renderFresh();
+    renderReads();
     $('.prs-body').scrollTop = 0;
   }
 
@@ -1299,7 +1304,30 @@ export function storyOverlay(INPUT, opts = {}) {
       if ((fresh.chapters_touched || []).includes(Number(li.getAttribute('data-n')))) li.insertAdjacentHTML('beforeend', '<span class="prs-touched" title="A file here changed after the story was told">• changed since</span>');
     }
   }
-  if (opts.freshness) freshTimer = setInterval(() => { if (document.visibilityState === 'visible') refreshFresh(); }, 60000);
+  if (opts.freshness || opts.reads) freshTimer = setInterval(() => { if (document.visibilityState === 'visible') { refreshFresh(); refreshReads(); } }, 60000);
+
+  // ---------- chapters he read that changed after he read them (the bridge compares the commit he read them at with the story's)
+  let readInfo = null;
+  async function refreshReads() {
+    if (!opts.reads) return;
+    try { readInfo = await opts.reads(); } catch (e) { return; } // the bridge may be down; the marks just don't show
+    renderReads();
+    renderDrafts();
+  }
+  function renderReads() {
+    for (const el of panel.querySelectorAll('.prs-readchg')) el.remove();
+    if (!readInfo || inBackstory()) return;
+    const by = new Map((readInfo.changed || []).map((c) => [c.step, c]));
+    for (const li of panel.querySelectorAll('ol.prs-map li[data-n]')) {
+      const c = by.get(Number(li.getAttribute('data-n')));
+      if (c) li.insertAdjacentHTML('beforeend', `<span class="prs-readchg" title="${esc(`Changed after you read it (at ${sha7(c.since)}): ${c.files.join(', ')}`)}">• changed since you read</span>`);
+    }
+    const here = state.n && by.get(state.n);
+    if (here) for (const li of panel.querySelectorAll('ul.prs-files > li[data-file]')) {
+      if (here.files.includes(li.getAttribute('data-file'))) li.querySelector('code').insertAdjacentHTML('afterend', `<span class="prs-readchg" title="A newer commit changed it after you read this chapter at ${esc(sha7(here.since))}">changed since you read</span>`);
+    }
+  }
+  const staleDraft = (n, i) => !!readInfo && (readInfo.stale_comments || []).some((c) => c.step === n && c.index === i);
 
   // ---------- drafted comments: posted, in his pending review, dismissed, or still a draft
   let draftRows = [];
@@ -1395,6 +1423,7 @@ export function storyOverlay(INPUT, opts = {}) {
         st.innerHTML = `<span class="prs-pend">In your pending review</span>, on ${esc(c ? c.path : '')} line ${esc(c ? c.line : '')}${jump}${gh}`
           + `<span class="prs-cnote">GitHub shows it after a reload.${reload}</span>`;
       } else {
+        if (staleDraft(state.n, i)) { st.hidden = false; st.innerHTML = '<span class="prs-cstale">May be out of date: a newer commit changed this line after you read the chapter.</span>'; }
         add('dismiss', 'Dismiss', 'Not a comment you want: hide it, and don\'t suggest it again');
         add('posted', 'Mark posted', 'You posted this (or your own version of it)');
         if (HOST === 'GitHub' && c && c.path && Number(c.line) > 0) {
@@ -1414,7 +1443,7 @@ export function storyOverlay(INPUT, opts = {}) {
   }
   let draftTimer = 0;
   if (opts.drafts) draftTimer = setInterval(() => { if (document.visibilityState === 'visible') refreshDrafts(true); }, 60000);
-  const onFocusDrafts = () => { refreshDrafts(true); refreshFresh(); };
+  const onFocusDrafts = () => { refreshDrafts(true); refreshFresh(); refreshReads(); };
   window.addEventListener('focus', onFocusDrafts);
 
   // ---------- what Eric has read: a chapter he stayed on for READ_MS (while the tab showed), or ticked every file of
@@ -1434,7 +1463,7 @@ export function storyOverlay(INPUT, opts = {}) {
     readSent.add(once);
     const head = DATA.kind === 'local' ? null : (fresh && fresh.current_head) || null; // the bridge asks gh when the panel doesn't know
     const seconds = readClock.n === n ? Math.round(readElapsed() / 1000) : null;
-    try { Promise.resolve(opts.onRead({ chapter: key, step: n, title: ch.title, reason, seconds, head_sha: head })).catch(() => readSent.delete(once)); } catch (e) { readSent.delete(once); }
+    try { Promise.resolve(opts.onRead({ chapter: key, step: n, title: ch.title, reason, seconds, head_sha: head })).then(refreshReads, () => readSent.delete(once)); } catch (e) { readSent.delete(once); }
   }
   function readLeave() { if (readClock.n > 0 && readElapsed() >= READ_AFTER) sendRead(readClock.n, 'time'); }
   // switching tabs stops the clock, and counts as leaving
@@ -1578,6 +1607,7 @@ export function storyOverlay(INPUT, opts = {}) {
   if (Number.isFinite(init.bodyScroll)) $('.prs-body').scrollTop = init.bodyScroll; // a live redraw keeps your place
   refreshDrafts(true);
   refreshFresh();
+  refreshReads();
   readStart();
   apply();
   observer.observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['aria-pressed'] });

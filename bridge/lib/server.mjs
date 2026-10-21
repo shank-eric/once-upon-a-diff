@@ -22,11 +22,11 @@ import { storyRepo, seenCheckout, REPO_RE } from './repos.mjs';
 import { Inbox, newId } from './inbox.mjs';
 import { Builds } from './builds.mjs';
 import { addComment } from './comments.mjs';
-import { freshness, currentHead } from './freshness.mjs';
+import { freshness, currentHead, changesSince } from './freshness.mjs';
 import { stateKeyOf, readMarks, mark, draftStatus, githubComments, forgetComments, addedMark, noteAdded } from './drafts.mjs';
 import { addToPendingReview } from './review.mjs';
 import { statusOf, listeningOf, answerContext, runAutoAnswer } from './health.mjs';
-import { readReads, noteRead, sinceOf, SHA_RE } from './reads.mjs';
+import { readReads, noteRead, sinceOf, readSha, changedSinceRead, SHA_RE } from './reads.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.resolve(HERE, '../public');
@@ -331,7 +331,13 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
           return send(200, { chapter, ...rec });
         }
         const reads = readReads(home, key);
-        return send(200, { reads, since: sinceOf(reads, data.chapters, now.head_oid || null), story_head: now.head_oid || null });
+        // what changed after he read each chapter: one compare per commit he read at (gh, cached; or git for a local story)
+        const changes = new Map();
+        let error = null;
+        for (const sha of new Set(Object.values(reads).map(readSha).filter(Boolean))) {
+          try { changes.set(sha, await changesSince(now, sha)); } catch (e) { error = `couldn't compare ${sha.slice(0, 7)} with the story's head: ${e.message}`; }
+        }
+        return send(200, { reads, since: sinceOf(reads, data.chapters, now.head_oid || null), story_head: now.head_oid || null, ...changedSinceRead(data.chapters, reads, changes, now.head_oid || null), error });
       }
       if (what === 'viewed' && req.method === 'POST') {
         if (meta.kind !== 'local') throw new HttpError(400, 'viewed files are kept by GitHub for PR stories');
