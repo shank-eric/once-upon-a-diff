@@ -99,9 +99,11 @@ When Claude rewrites `chapters.json`, the panel redraws within ≈5 seconds, or 
 - **Posted ✓**, with a link to the posted comment. These are hidden by default behind "Show posted (N)".
 - **In your pending review**, for a comment in a review you haven't submitted yet. These stay visible, marked as not submitted.
 - **Dismissed**, for a draft you don't want. Dismiss hides it behind "Show dismissed (N)", and Restore brings it back.
-- **A draft**, with **Mark posted** and **Dismiss** buttons, and on a line comment **Add to my review**.
+- **A draft**, with **Mark posted** and **Dismiss** buttons, and on a line comment **Add to my review** (on the local page, **Add to fix before push**).
 
 **Add to my review** puts a line draft into your pending review on GitHub, starting one if you have none. It never submits the review. GitHub doesn't redraw an open Files changed page for that, so the draft switches to "In your pending review" with the file and line, a jump link, "GitHub shows it after a reload" and a **Reload page** button. The page only reloads when you click it, and the panel comes back on the same step. The bridge keeps this state in `drafts.json`, so it lasts through re-renders, reloads and bridge restarts. Once gh finds the comment after a reload, or it shows up on the page, it becomes the usual pending (or posted) row. If GitHub refuses, the error shows on the draft and its buttons stay. A draft that's already in your review can't be added twice.
+
+**Add to fix before push** is the local page's counterpart. It makes a line draft a real fix-before-push note on that file and line, through the bridge's notes API, so it's in the page's checklist and in `diff-story notes`. The draft then says "In fix before push" (with "done ✓" once you tick the note) and a jump to the line. A draft that's already a note can't be added twice.
 
 The chapter's comments heading counts each state, for example "(2 to post · 1 posted · 1 pending)".
 
