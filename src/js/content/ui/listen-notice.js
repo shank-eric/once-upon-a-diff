@@ -8,7 +8,8 @@
  * GitHub's page and posts nothing.
  */
 import { copyWithFeedback } from './copy.js';
-import { escapeHtml } from '../shared/util/html.js';
+import { escapeHtml } from '../../shared/util/html.js';
+import { stopKeyEvents } from '../../shared/util/dom.js';
 
 const HOST_ID = 'diff-story-listen-notice';
 const MAX = 3;
@@ -54,36 +55,34 @@ export function listenNotice() {
       const shadow = host.attachShadow({ mode: 'open' });
       shadow.innerHTML = `<style>${CSS}</style><div class="n" role="status"></div>`;
       root = shadow.querySelector('.n');
-      root.addEventListener('click', (e) => {
-        const b = e.target.closest('button[data-i], button.x');
-        if (!b) {
+      root.addEventListener('click', (event) => {
+        const button = event.target.closest('button[data-i], button.x');
+        if (!button) {
           return;
         }
-        if (b.classList.contains('x')) {
+        if (button.classList.contains('x')) {
           dismissed = true;
           remove();
           return;
         }
-        const m = rows[Number(b.getAttribute('data-i'))];
-        if (m) {
-          copyWithFeedback(m.prompt, b, b.getRootNode());
+        const missingRow = rows[Number(button.getAttribute('data-i'))];
+        if (missingRow) {
+          copyWithFeedback(missingRow.prompt, button, button.getRootNode());
         }
       });
-      for (const t of ['keydown', 'keypress', 'keyup']) {
-        root.addEventListener(t, (e) => e.stopPropagation());
-      }
+      stopKeyEvents(root);
       document.body.appendChild(host);
     }
     const shown = missing.slice(0, MAX);
     const html =
       shown
-        .map((m, i) => {
-          const how = m.checkout
-            ? `Start Claude Code in ${m.checkout} and paste ${m.prompt}.`
-            : `Start Claude Code in your ${m.repo} checkout and paste ${m.prompt}.`;
-          const title = `${how}${m.details ? `\n\nWithout the diff-story-listen skill: ${m.details}` : ''}`;
+        .map((missingRow, i) => {
+          const how = missingRow.checkout
+            ? `Start Claude Code in ${missingRow.checkout} and paste ${missingRow.prompt}.`
+            : `Start Claude Code in your ${missingRow.repo} checkout and paste ${missingRow.prompt}.`;
+          const title = `${how}${missingRow.details ? `\n\nWithout the diff-story-listen skill: ${missingRow.details}` : ''}`;
           return (
-            `<div class="row"><span>No session listening for <b>${escapeHtml(m.repo)}</b>${m.checkout ? ` <span class="muted">· ${escapeHtml(m.checkout)}</span>` : ''}</span>` +
+            `<div class="row"><span>No session listening for <b>${escapeHtml(missingRow.repo)}</b>${missingRow.checkout ? ` <span class="muted">· ${escapeHtml(missingRow.checkout)}</span>` : ''}</span>` +
             `<button data-i="${i}" title="${escapeHtml(title)}">Copy prompt for Claude</button></div>`
           );
         })
