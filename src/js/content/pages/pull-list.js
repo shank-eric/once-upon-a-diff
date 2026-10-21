@@ -8,14 +8,10 @@
  * own shadow roots; nothing of GitHub's is clicked.
  */
 import { conversationPr, isPullListPage, prKey } from '../../shared/util/github-paths.js';
-import { callBridge, extensionAlive } from '../bridge.js';
-import { listenNotice } from '../ui/listen-notice.js';
-import { tagFor, tagHtml, requestFor, missingListeners } from '../ui/story-tag.js';
-import { createTagHost, showTag, clickedTagButton } from '../ui/tag-host.js';
+import { extensionAlive } from '../bridge.js';
+import { createPrTags } from '../ui/pr-tags.js';
 
 const ATTR = 'data-dsm-badge';
-const MAX_PER_CALL = 200;
-const LOOK_AGAIN_MS = 15000;
 const DEBOUNCE_MS = 300;
 // the PR's title link, as classic lists, the new React lists and search results mark it
 const TITLE_LINK =
@@ -54,96 +50,36 @@ function prLinks() {
   return out;
 }
 
-const inFlight = (result) =>
-  result.state === 'queued' || result.state === 'building' || !!result.updating;
-
 export function createPullListPage() {
-  const results = new Map(); // "owner/repo#n" -> {state, story, request}
-  let listening = {}; // repo -> {ok, prompt, details, checkout}, from status-many
-  const notice = listenNotice();
-  const keyOf = (item) => prKey(item.repo, item.number);
+  const tags = createPrTags({ attr: ATTR });
   let scanning = false;
-  let lastAsk = 0;
   let pending = 0;
 
-  function tagHostFor(item) {
-    let host = item.row.querySelector(`[${ATTR}="${keyOf(item)}"]`);
+  function render(item) {
+    let host = item.row.querySelector(`[${ATTR}="${prKey(item.repo, item.number)}"]`);
     if (!host) {
-      host = createTagHost(ATTR, keyOf(item), (event) => onClick(event, item));
+      host = tags.hostFor(item);
       item.link.after(host);
     }
-    return host;
+    tags.show(host, item);
   }
 
-  function render(item) {
-    const result = results.get(keyOf(item));
-    if (!result) {
-      return;
-    }
-    showTag(tagHostFor(item), tagHtml(tagFor(result, item)));
-  }
-
-  async function onClick(event, item) {
-    const button = clickedTagButton(event);
-    if (!button) {
-      return; // the Story link is a plain link
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    button.disabled = true;
-    const tag = tagFor(results.get(keyOf(item)), item);
-    const retell = button.getAttribute('data-act') === 'retell';
-    const answer = await callBridge('POST', '/api/builds', requestFor(tag, item, { retell }));
-    if (answer.ok) {
-      const previous = results.get(keyOf(item)) || {};
-      results.set(
-        keyOf(item),
-        tag.act === 'update'
-          ? {
-              ...previous,
-              updating: true,
-              update_state: answer.body.state,
-              request: answer.body.request,
-            }
-          : { state: answer.body.state, request: answer.body.request },
-      );
-    } else {
-      button.disabled = false;
-    }
-    render(item);
-  }
-
-  async function scan(force) {
+  /** Tags every PR on the page, looking up the ones it doesn't know yet (force: all of them; only: just these, again). */
+  async function scan({ force = false, only = null } = {}) {
     if (scanning || !extensionAlive() || !isPullListPage(location)) {
       return;
     }
     scanning = true;
     try {
       const items = prLinks();
-      const need = items.filter((item) => force || !results.has(keyOf(item)));
-      if (need.length) {
-        const answer = await callBridge('POST', '/api/stories/status-many', {
-          prs: need
-            .slice(0, MAX_PER_CALL)
-            .map((item) => ({ repo: item.repo, number: item.number })),
-        });
-        if (!answer.ok) {
-          return; // no bridge, no badges: the list stays as GitHub draws it
-        }
-        for (const result of answer.body.results) {
-          results.set(prKey(result.repo, result.number), result);
-        }
-        if (answer.body.listening) {
-          listening = { ...listening, ...answer.body.listening };
-        }
-        lastAsk = Date.now();
+      const answer = await tags.look(only || items, { force: force || !!only });
+      if (!answer.ok) {
+        return; // no bridge, no badges: the list stays as GitHub draws it
       }
       for (const item of items) {
         render(item);
       }
-      const onPage = new Set(items.map((item) => item.repo.toLowerCase()));
-      const here = Object.entries(listening).filter(([repo]) => onPage.has(repo.toLowerCase()));
-      notice.set(missingListeners(Object.fromEntries(here)));
+      tags.showNotice(items.map((item) => item.repo));
     } finally {
       scanning = false;
     }
@@ -163,7 +99,7 @@ export function createPullListPage() {
     if (!pending) {
       pending = setTimeout(() => {
         pending = 0;
-        scan(false);
+        scan();
       }, DEBOUNCE_MS);
     }
   });
@@ -172,41 +108,28 @@ export function createPullListPage() {
   function enterOrLeave(onList) {
     if (onList) {
       observer.observe(document.body, { childList: true, subtree: true });
-      scan(false);
+      scan();
     } else {
       observer.disconnect();
-      notice.remove();
+      tags.hideNotice();
     }
   }
 
   /** Every tick and navigation, from the router. */
-  function route({ kind, navigated }) {
+  function route({ kind, navigated, reason }) {
     if (navigated) {
       enterOrLeave(kind === 'list');
-      return;
-    }
-    // while something is queued or building, look again every 15s
-    if (
-      kind === 'list' &&
-      [...results.values()].some(inFlight) &&
-      Date.now() - lastAsk > LOOK_AGAIN_MS
-    ) {
-      for (const [key, result] of results) {
-        if (inFlight(result)) {
-          results.delete(key);
-        }
+    } else if (kind === 'list' && reason === 'back') {
+      scan({ force: true }); // back on the tab: another tab or a session may have moved things on
+    } else if (kind === 'list' && !scanning) {
+      const again = tags.due();
+      if (again.length) {
+        scan({ only: again });
       }
-      scan(false);
     }
   }
 
   function start() {
-    document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible' && isPullListPage(location)) {
-        results.clear();
-        scan(true);
-      }
-    });
     enterOrLeave(isPullListPage(location));
   }
 

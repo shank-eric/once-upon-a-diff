@@ -434,14 +434,15 @@ try {
       (await page.locator('[data-dsm-hidden]').count()) === 0,
     'x removes the panel and every filter',
   );
+  const filesTag = (tab) =>
+    tab
+      .locator('[data-dsm-files]')
+      .evaluate((host) => host.shadowRoot.textContent.replace(/^.*\}\s*/s, '').trim())
+      .catch(() => '');
+  await page.waitForTimeout(300);
   check(
-    /Story ready/.test(
-      (await page
-        .locator('#diff-story-status .dss')
-        .textContent()
-        .catch(() => '')) || '',
-    ),
-    'with the panel hidden, the status control says "Story ready"',
+    /Update queued|Updating/.test(await filesTag(page)),
+    `with the panel hidden, the story tag by the title says what the lists say: "${await filesTag(page)}"`,
   );
   await page.reload({ waitUntil: 'domcontentloaded' });
   await page.waitForTimeout(4000);
@@ -465,29 +466,32 @@ try {
     `the GitHub page itself makes no calls to the bridge (${pageBridgeCalls.length}); the service worker does`,
   );
 
-  // the status control on a PR with no story: Build story -> Building -> the story turns up -> panel
+  // the story tag on a PR with no story: Build story -> Queued -> the story turns up -> panel
   const NOSTORY = Number(arg('no-story-pr', 10298));
   const newPage = await context.newPage();
   await newPage.goto(`https://github.com/${owner}/${repo}/pull/${NOSTORY}/files`, {
     waitUntil: 'domcontentloaded',
   });
   await newPage
-    .waitForSelector('#diff-story-status', { state: 'attached', timeout: 10000 })
+    .waitForSelector('[data-dsm-files]', { state: 'attached', timeout: 10000 })
     .catch(() => null);
-  const pill = () =>
-    newPage
-      .locator('#diff-story-status .dss')
-      .textContent()
-      .catch(() => '');
   check(
-    /No story yet/.test(await pill()),
-    `a PR with no story shows "No story yet" with Build story: "${(await pill()).trim()}"`,
+    /Build story/.test(await filesTag(newPage)),
+    `a PR with no story shows Build story by the title: "${await filesTag(newPage)}"`,
   );
-  await newPage.locator('#diff-story-status button[data-act=build]').click();
+  await newPage.locator('[data-dsm-files] button[data-act=build]').click();
   await newPage.waitForTimeout(800);
   check(
-    /Story queued · asked/.test(await pill()),
-    `clicking Build story shows it queued (no session has claimed it yet) with the time: "${(await pill()).trim()}"`,
+    /Queued/.test(await filesTag(newPage)),
+    `clicking Build story shows it queued (no session has claimed it yet): "${await filesTag(newPage)}"`,
+  );
+  const listenText = await newPage
+    .locator('#diff-story-listen-notice')
+    .evaluate((host) => host.shadowRoot.textContent)
+    .catch(() => '');
+  check(
+    new RegExp(`No session listening for ${owner}/${repo}`, 'i').test(listenText),
+    'and the page says no session is listening for the repo',
   );
   const breq = buildRequests().find((build) => build.number === NOSTORY);
   check(
@@ -499,17 +503,9 @@ try {
     waitUntil: 'domcontentloaded',
   });
   await other
-    .waitForSelector('#diff-story-status', { state: 'attached', timeout: 10000 })
+    .waitForSelector('[data-dsm-files]', { state: 'attached', timeout: 10000 })
     .catch(() => null);
-  check(
-    /Story queued/.test(
-      await other
-        .locator('#diff-story-status .dss')
-        .textContent()
-        .catch(() => ''),
-    ),
-    'another tab on that PR shows it queued too',
-  );
+  check(/Queued/.test(await filesTag(other)), 'another tab on that PR shows it queued too');
   await other.close();
   writeJson(path.join(home, `${owner}-${repo}-${NOSTORY}`, 'meta.json'), {
     kind: 'github',
@@ -525,11 +521,27 @@ try {
     .catch(() => null);
   check(
     !!built,
-    'when the story turns up, the panel opens by itself (polling every 10s while queued)',
+    'when the story turns up, the panel opens by itself (looking again every 10s while queued)',
   );
   check(
-    (await newPage.locator('#diff-story-status').count()) === 0,
-    'and the status control goes away',
+    (await newPage.locator('[data-dsm-files]').count()) === 0 &&
+      (await newPage.locator('#diff-story-listen-notice').count()) === 0,
+    'and the tag and the notice go away',
+  );
+  await newPage.locator('#dsm-panel .prs-close').click();
+  await newPage.waitForTimeout(300);
+  check(
+    /^Story$/.test(await filesTag(newPage)),
+    `with the panel closed, the tag says Story: "${await filesTag(newPage)}"`,
+  );
+  await newPage
+    .locator('[data-dsm-files]')
+    .evaluate((host) => host.shadowRoot.querySelector('a').click());
+  await newPage.waitForTimeout(800);
+  check(
+    (await newPage.locator('#diff-story-panel').count()) === 1 &&
+      new URL(newPage.url()).pathname.endsWith(`/pull/${NOSTORY}/files`),
+    'and clicking it brings the panel back on this page',
   );
   await newPage.close();
 

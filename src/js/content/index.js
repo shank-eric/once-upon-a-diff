@@ -9,7 +9,8 @@
  * GitHub navigates without reloading (Turbo and React routes), so the router
  * watches the URL as well as the usual navigation events, and tells every
  * page what kind of page this is now: a page that isn't the current one takes
- * its elements off. Each page also keeps its own slower polls.
+ * its elements off. Its tick (while the tab shows) is the pages' clock for
+ * looking again, and coming back to the tab is one 'back' for all of them.
  */
 import { pageKindOf } from '../shared/util/github-paths.js';
 import { extensionAlive } from './bridge.js';
@@ -18,14 +19,19 @@ import { createConversationPage } from './pages/conversation.js';
 import { createPullListPage } from './pages/pull-list.js';
 
 const TICK_MS = 700;
+const BACK_MS = 1000; // focus and visibilitychange both fire on coming back: one 'back' for the two
 const NAVIGATION_EVENTS = ['turbo:load', 'turbo:render', 'popstate', 'pageshow'];
 
 const pages = [createFilesChangedPage(), createPullListPage(), createConversationPage()];
 let lastHref = location.href;
+let lastBack = 0;
 
-/** reason: 'tick' (the URL watch) or 'event' (a navigation event); navigated: the URL changed since the last look. */
+/**
+ * reason: 'tick' (the URL watch, while the tab shows), 'event' (a navigation event) or 'back' (the tab got focus or
+ * showed again); navigated: the URL changed since the last look.
+ */
 function route(reason) {
-  if (!extensionAlive()) {
+  if (!extensionAlive() || (reason === 'tick' && document.visibilityState !== 'visible')) {
     return;
   }
   const navigated = location.href !== lastHref;
@@ -40,6 +46,14 @@ setInterval(() => route('tick'), TICK_MS);
 for (const type of NAVIGATION_EVENTS) {
   window.addEventListener(type, () => route('event'));
 }
+const back = () => {
+  if (document.visibilityState === 'visible' && Date.now() - lastBack > BACK_MS) {
+    lastBack = Date.now();
+    route('back');
+  }
+};
+window.addEventListener('focus', back);
+document.addEventListener('visibilitychange', back);
 for (const page of pages) {
   page.start();
 }
