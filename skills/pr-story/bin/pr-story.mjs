@@ -1,36 +1,26 @@
 /**
- * pr-story: a pull request told as a story, chapter by chapter, with the
- * pinned session-story renderer drawing the page (diffs per chapter).
+ * pr-story: a pull request told as a story, chapter by chapter, for Diff
+ * Story Mode's panel.
  *
  * Works on a folder that bin/gather.sh filled (pr.json, pr.diff,
- * threads.json, checks.json, viewed.tsv). Only `viewed --refresh` makes a
- * network call, and that one is a read (bin/viewed.sh).
+ * threads.json, checks.json, viewed.tsv). It makes no network calls.
  *
  *   pr-story.mjs brief   --dir D                 what Claude reads to plan: files, commits, reviews, threads, CI, viewed
- *   pr-story.mjs build   --dir D                 D/chapters.json -> D/story.json + D/file-map.json; fails if a file is unplaced
- *   pr-story.mjs render  --dir D [--open]        validate + render with the pinned renderer to D/pr-story.html
- *   pr-story.mjs viewed  --dir D --through N [--refresh]   viewed-files check at a chapter break
- *   pr-story.mjs links   --dir D --chapter N [--view files|changes]   GitHub URLs for chapter N's files (GitHub mode)
- *   pr-story.mjs handoff --dir D --chapter N     D/chapter-N.md, a brief for another Claude session
+ *   pr-story.mjs build   --dir D [--no-bridge]   D/chapters.json -> D/file-map.json, then publish; fails if a file is unplaced
  *   pr-story.mjs overlay --dir D [--chapter N] [--out FILE]   JS snippet: story panel + chapter filter on the PR page (GitHub mode); no --chapter starts at the Overview
- *   pr-story.mjs publish --dir D                 copy the story to ~/.diff-story/<owner>-<repo>-<N>/ for Diff Story Mode (render does this too)
+ *   pr-story.mjs publish --dir D                 copy the story to ~/.diff-story/<owner>-<repo>-<N>/ for Diff Story Mode (build does this too)
  *   pr-story.mjs backstory --dir D [--repo CHECKOUT]   find the Claude Code sessions that made the PR's commits (Diff Story Mode's
  *                                                matcher over session-story's extractor): D/backstory.json + D/backstory-brief.json
- *
- * The renderer is never modified. SESSION_STORY_DIR overrides where it lives.
  */
 import { readFile, writeFile, mkdir, copyFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { execFileSync, execFile } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const RENDERER_DIR =
-  process.env.SESSION_STORY_DIR || path.join(os.homedir(), '.claude/skills/session-story');
-const PINNED_SHA = 'b432256';
 // This skill ships in the Diff Story Mode repo (skills/pr-story/bin), and Node
 // resolves the skill link, so the repo is three folders up.
 const DSM = process.env.DIFF_STORY_MODE_DIR || path.resolve(HERE, '../../..');
@@ -114,31 +104,6 @@ export function parseUnifiedDiff(text) {
     }
   }
   return files;
-}
-
-const LANG = {
-  ts: 'typescript',
-  tsx: 'typescript',
-  js: 'javascript',
-  jsx: 'javascript',
-  mjs: 'javascript',
-  cjs: 'javascript',
-  json: 'json',
-  yml: 'yaml',
-  yaml: 'yaml',
-  md: 'markdown',
-  rb: 'ruby',
-  erb: 'erb',
-  scss: 'scss',
-  css: 'css',
-  sh: 'bash',
-  py: 'python',
-  sql: 'sql',
-  html: 'html',
-};
-function language(rel) {
-  const ext = rel.includes('.') ? rel.split('.').pop() : '';
-  return LANG[ext] ?? null;
 }
 
 async function readJson(file, fallback) {
@@ -391,14 +356,6 @@ function buildMap(chapters, diff) {
   return { files, chapters: perChapter, problems };
 }
 
-function chapterReply(chapter) {
-  let text = chapter.narrative || '';
-  for (const comment of chapter.comments || []) {
-    text += `\n\n**Suggested comment on \`${comment.path}\`${comment.line ? ` line ${comment.line}` : ''}:**\n\n\`\`\`\n${comment.body}\n\`\`\``;
-  }
-  return text.trim();
-}
-
 async function cmdBuild(opts) {
   const dir = opts.dir;
   const { pr, diff } = await load(dir);
@@ -408,127 +365,11 @@ async function cmdBuild(opts) {
   if (map.problems.length && !opts['allow-missing']) {
     throw new Error(`file placement:\n  - ${map.problems.join('\n  - ')}`);
   }
-
-  const turns = chapters.map((chapter, i) => {
-    const index = i + 1;
-    const edits = (chapter.files || [])
-      .map(entryOf)
-      .filter((e) => diff.has(e.rel))
-      .map((e) => {
-        const file = diff.get(e.rel);
-        return {
-          id: `ch${index}:${e.rel}`,
-          tool: 'PR',
-          file: e.rel,
-          rel: e.rel,
-          outside_cwd: false,
-          kind: file.kind,
-          result: 'ok',
-          error: null,
-          hunks: file.hunks,
-          stats: file.stats,
-        };
-      });
-    const reply = chapterReply(chapter);
-    const held = map.chapters[i].partial.map(
-      (part) => `${part.rel} (finished in chapter ${part.finished_in})`,
-    );
-    let summary = chapter.summary || '';
-    if (held.length && !chapter.summary_has_partials) {
-      summary += ` Partly covered here: ${held.join(', ')}.`;
-    }
-    return {
-      index,
-      id: `chapter-${index}`,
-      at: null,
-      prompt: chapter.scenario ? `${chapter.title}\n\n${chapter.scenario}` : chapter.title,
-      summary: summary.trim(),
-      answer: chapter.answer || null,
-      replies: reply ? [{ at: null, text: reply }] : [],
-      edits,
-      bash: [],
-      errors: [],
-      skills: [],
-      plan: null,
-    };
-  });
-
-  const all = [...diff.values()];
-  const files = all.map((file) => ({
-    rel: file.rel,
-    language: language(file.rel),
-    outside_cwd: false,
-    turns: map.files[file.rel].chapters,
-    churn: map.files[file.rel].chapters.length > 1,
-    stats: file.stats,
-  }));
-  const created = pr.createdAt ? Date.parse(pr.createdAt) : null;
-  const ended = pr.mergedAt || pr.closedAt || null;
-  const blind = [
-    "Each chapter shows the PR's net diff for its files, as fetched, not what each commit looked like.",
-  ];
-  const split = files.filter((file) => file.churn).length;
-  if (split) {
-    blind.push(
-      `${split} files appear in more than one chapter; each shows the whole file diff and the chapter text says which part it covers.`,
-    );
-  }
-  if (map.problems.length) {
-    blind.push(...map.problems);
-  }
-
-  const repo = repoOf(pr);
-  const story = {
-    schema_version: 1,
-    kind: 'pr',
-    session: {
-      id: `pr-${repo.replace('/', '-')}-${pr.number}`,
-      chain: [],
-      cwd: `${repo}#${pr.number}`,
-      git_branch: `${pr.headRefName} → ${pr.baseRefName}`,
-      title: plan.title || clip(pr.title, 60),
-      ai_title: pr.title,
-      started_at: pr.createdAt || null,
-      ended_at: ended,
-      duration_ms: created && ended ? Math.max(0, Date.parse(ended) - created) : 0,
-      summary: plan.summary || '',
-      blind_spots: blind,
-    },
-    turns,
-    files,
-    totals: {
-      turns: turns.length,
-      files: all.length,
-      added: all.reduce((sum, file) => sum + file.stats.added, 0),
-      removed: all.reduce((sum, file) => sum + file.stats.removed, 0),
-      edits: turns.reduce((sum, turn) => sum + turn.edits.length, 0),
-    },
-    report: {
-      plan: plan.plan || '',
-      decisions: plan.decisions || [],
-      outcome: plan.outcome || (pr.state === 'MERGED' ? 'completed' : 'partial'),
-      outcome_note: plan.outcome_note || null,
-      dependencies: { manifests: [], installs: [], config_files: [] },
-      git: {
-        branch: pr.headRefName,
-        start_commit: pr.baseRefOid || null,
-        end_commit: pr.headRefOid || null,
-        commits: (pr.commits || []).map((commit) => ({
-          sha: commit.oid,
-          subject: commit.messageHeadline,
-          turn: null,
-        })),
-        status: null,
-      },
-    },
-    generator: { name: 'pr-story', version: '1.0.0', renderer: `session-story@${PINNED_SHA}` },
-  };
-  await writeFile(path.join(dir, 'story.json'), JSON.stringify(story, null, 2));
   await writeFile(
     path.join(dir, 'file-map.json'),
     JSON.stringify(
       {
-        pr: `${repo}#${pr.number}`,
+        pr: `${repoOf(pr)}#${pr.number}`,
         mode: plan.mode || 'journey',
         files: map.files,
         chapters: map.chapters,
@@ -537,80 +378,13 @@ async function cmdBuild(opts) {
       2,
     ),
   );
+  const all = [...diff.values()];
+  const placed =
+    all.length - Object.values(map.files).filter((file) => !file.chapters.length).length;
   const partials = Object.values(map.files).filter((file) => file.partial_in.length).length;
   process.stderr.write(
-    `Wrote story.json and file-map.json: ${turns.length} chapters, ${all.length} files, ${all.length - Object.values(map.files).filter((file) => !file.chapters.length).length} placed, ${partials} partial\n`,
+    `Wrote file-map.json: ${chapters.length} chapters, ${all.length} files, ${placed} placed, ${partials} partial\n`,
   );
-}
-
-/**
- * "Turn" -> "chapter" in what the reader sees: whole text nodes that are only
- * a turn label ("Turn 3", "6 turns", "turns"), tooltip and aria labels.
- * Scripts, styles and class names are left alone.
- */
-export function relabel(html) {
-  const word = (label) =>
-    ({ Turn: 'Chapter', turn: 'chapter', Turns: 'Chapters', turns: 'chapters' })[label];
-  return html
-    .split(/(<script\b[\s\S]*?<\/script>|<style\b[\s\S]*?<\/style>)/)
-    .map((part, i) => {
-      if (i % 2) {
-        return part;
-      }
-      return part
-        .replace(
-          />(\s*)(Turns?|turns?)(\s+\d+\s*)</g,
-          (match, before, label, after) => `>${before}${word(label)}${after}<`,
-        )
-        .replace(
-          />(\s*\d+\s+)(turns?)(\s*)</g,
-          (match, before, label, after) => `>${before}${word(label)}${after}<`,
-        )
-        .replace(
-          />(\s*)(Turns|turns)(\s*)</g,
-          (match, before, label, after) => `>${before}${word(label)}${after}<`,
-        )
-        .replace(/(title|aria-label)="Turn (\d+)/g, '$1="Chapter $2')
-        .replace(/aria-label="([^"]*?)\bturns?\b/g, (match) =>
-          match.replace(/\bturn(s?)\b(?=[^"]*$)/, 'chapter$1'),
-        );
-    })
-    .join('');
-}
-
-async function cmdRender(opts) {
-  const dir = opts.dir;
-  const storyMjs = path.join(RENDERER_DIR, 'bin/story.mjs');
-  const pinned = path.join(RENDERER_DIR, 'PINNED.txt');
-  const pinText = existsSync(pinned) ? await readFile(pinned, 'utf8') : '';
-  if (!pinText.includes(PINNED_SHA)) {
-    process.stderr.write(
-      `warning: ${RENDERER_DIR} is not the pinned session-story ${PINNED_SHA}\n`,
-    );
-  }
-  const storyJson = path.join(dir, 'story.json');
-  const out = path.join(dir, 'pr-story.html');
-  execFileSync('node', [storyMjs, 'validate', storyJson, '--strict'], { stdio: 'inherit' });
-  execFileSync('node', [storyMjs, 'render', storyJson, '-o', out], { stdio: 'inherit' });
-  // Relabel the header for a PR. This edits the rendered page, not the renderer.
-  let html = await readFile(out, 'utf8');
-  // Both swaps are exact strings from the pinned page; if a renderer update
-  // changes them they just stop applying.
-  html = relabel(html.replace('<span>Session story</span>', '<span>PR story</span>'));
-  await writeFile(out, html);
-  if (opts.open) {
-    // open_command in ~/.diff-story/config.json, else the platform's opener (Diff Story Mode's config/settings.mjs)
-    let argv = [{ darwin: 'open', win32: 'explorer' }[process.platform] || 'xdg-open', out];
-    try {
-      argv = (
-        await import(pathToFileURL(path.join(DSM, 'bridge/config/settings.mjs')).href)
-      ).openArgv(out);
-    } catch {
-      /* no Diff Story Mode beside it */
-    }
-    execFile(argv[0], argv.slice(1), () => {});
-  }
-  process.stderr.write(`Page: ${out}${opts.open ? ' (opened)' : ''}\n`);
   if (!opts['no-bridge']) {
     await cmdPublish(opts);
   }
@@ -731,134 +505,10 @@ async function cmdBackstory(opts) {
   process.stderr.write(`Brief: ${path.join(dir, 'backstory-brief.json')}\n`);
 }
 
-/** Viewed-files check at a chapter break: what should be ticked by now. */
-async function cmdViewed(opts) {
-  const dir = opts.dir;
-  const map = await readJson(path.join(dir, 'file-map.json'));
-  if (opts.refresh) {
-    const pr = await readJson(path.join(dir, 'pr.json'));
-    const tsv = execFileSync(path.join(HERE, 'viewed.sh'), [String(pr.number), repoOf(pr)], {
-      encoding: 'utf8',
-    });
-    await writeFile(path.join(dir, 'viewed.tsv'), tsv);
-  }
-  const viewed = await readViewed(dir);
-  const through = Number(opts.through);
-  const rels = Object.keys(map.files);
-  const isViewed = (rel) => viewed.get(rel) === 'VIEWED';
-  const due = rels.filter(
-    (rel) => map.files[rel].finished_in !== null && map.files[rel].finished_in <= through,
-  );
-  const result = {
-    through_chapter: through,
-    viewed: rels.filter(isViewed).length,
-    total: rels.length,
-    missed: due
-      .filter((rel) => !isViewed(rel))
-      .map((rel) => ({
-        rel,
-        finished_in: map.files[rel].finished_in,
-        state: viewed.get(rel) || 'UNKNOWN',
-      })),
-    held_partials: rels
-      .filter(
-        (rel) =>
-          map.files[rel].chapters.some((chapterNumber) => chapterNumber <= through) &&
-          map.files[rel].finished_in > through,
-      )
-      .map((rel) => ({ rel, finished_in: map.files[rel].finished_in, viewed: isViewed(rel) })),
-    ahead: rels
-      .filter(
-        (rel) =>
-          isViewed(rel) &&
-          map.files[rel].finished_in > through &&
-          !map.files[rel].chapters.some((chapterNumber) => chapterNumber <= through),
-      )
-      .map((rel) => ({ rel, finished_in: map.files[rel].finished_in })),
-  };
-  process.stdout.write(JSON.stringify(result, null, 2) + '\n');
-}
-
 /**
  * GitHub "Files changed" anchors are diff- + sha256 of the file path. `view`
  * is the PR tab: "files" (classic) or "changes" (the newer review UI).
  */
-export function fileUrl(prUrl, rel, view = 'changes') {
-  return `${prUrl}/${view}#diff-${createHash('sha256').update(rel).digest('hex')}`;
-}
-
-async function chapterOf(dir, step) {
-  const plan = await readJson(path.join(dir, 'chapters.json'));
-  const chapter = plan.chapters[step - 1];
-  if (!chapter) {
-    throw new Error(`no chapter ${step}`);
-  }
-  return { plan, ch: chapter };
-}
-
-/** GitHub mode: where to point the browser for chapter N. Prints only. */
-async function cmdLinks(opts) {
-  const dir = opts.dir;
-  const pr = await readJson(path.join(dir, 'pr.json'));
-  const step = Number(opts.chapter);
-  const { ch: chapter } = await chapterOf(dir, step);
-  const view = opts.view === 'files' ? 'files' : 'changes';
-  const links = (chapter.files || [])
-    .map(entryOf)
-    .map((e) => ({ rel: e.rel, partial: e.partial, url: fileUrl(pr.url, e.rel, view) }));
-  process.stdout.write(
-    JSON.stringify(
-      { chapter: step, title: chapter.title, tab: `${pr.url}/${view}`, links },
-      null,
-      2,
-    ) + '\n',
-  );
-}
-
-/**
- * A chapter brief for another Claude session (the Chrome side panel, or a
- * fresh terminal): the story map, this chapter's text, its files and the
- * drafted comments. Writes D/chapter-N.md and prints the path.
- */
-async function cmdHandoff(opts) {
-  const dir = opts.dir;
-  const pr = await readJson(path.join(dir, 'pr.json'));
-  const step = Number(opts.chapter);
-  const { plan, ch: chapter } = await chapterOf(dir, step);
-  const map = plan.chapters
-    .map(
-      (other, i) =>
-        `${i + 1}. ${other.title.replace(/^Chapter \d+: /, '')}${i + 1 === step ? ' (this chapter)' : ''}`,
-    )
-    .join('\n');
-  const files = (chapter.files || [])
-    .map(entryOf)
-    .map((e) => `- ${e.rel}${e.partial ? ' (partly, finished later)' : ''}`)
-    .join('\n');
-  const markdown = [
-    `# ${pr.title} (${repoOf(pr)}#${pr.number})`,
-    '',
-    `${pr.url}`,
-    '',
-    'You are helping a reviewer walk through this PR as a story. Answer questions about this chapter from the diff on the page. Do not click Viewed, comment, approve or submit anything.',
-    '',
-    '## Story map',
-    map,
-    '',
-    (chapter.narrative || '').startsWith('#') ? '' : `## ${chapter.title}`,
-    chapter.scenario ? `Scenario: ${chapter.scenario}` : '',
-    '',
-    chapter.narrative || chapter.summary || '',
-    '',
-    '## Files in this chapter',
-    files,
-    '',
-  ].join('\n');
-  const out = path.join(dir, `chapter-${step}.md`);
-  await writeFile(out, markdown);
-  process.stdout.write(out + '\n');
-}
-
 /**
  * GitHub overlay: a self-contained JS snippet (bin/overlay.js plus every
  * chapter's data) to run in the PR's /changes page. It docks the story in a
@@ -907,10 +557,6 @@ async function cmdOverlay(opts) {
 const COMMANDS = {
   brief: cmdBrief,
   build: cmdBuild,
-  render: cmdRender,
-  viewed: cmdViewed,
-  links: cmdLinks,
-  handoff: cmdHandoff,
   overlay: cmdOverlay,
   publish: cmdPublish,
   backstory: cmdBackstory,
@@ -919,7 +565,7 @@ const { command, opts } = parseArgs(process.argv.slice(2));
 const run = COMMANDS[command];
 if (!run || !opts.dir) {
   process.stderr.write(
-    'usage: pr-story.mjs <brief|build|render|viewed|links|handoff|overlay|publish|backstory> --dir <scratch-dir> [--open] [--no-bridge] [--through N] [--refresh] [--chapter N] [--view files|changes] [--out FILE]\n',
+    'usage: pr-story.mjs <brief|build|overlay|publish|backstory> --dir <scratch-dir> [--no-bridge] [--chapter N] [--out FILE]\n',
   );
   process.exitCode = 1;
 } else {

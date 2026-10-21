@@ -103,7 +103,7 @@ The event gives the build id, `owner/repo#N` and the PR URL. A request with `mod
    ```
 2. Start the wait again (step 3).
 3. Build the story with the pr-story skill (`../pr-story/SKILL.md` beside this skill in the repo, linked in as `~/.claude/skills/pr-story`, as `/pr-story <PR url>`): gather, plan the chapters, backstory when there is one, and render. Write every chapter's narrative and draft comments up front, since the panel shows the whole story. Don't tell it chapter by chapter in chat. For an update, follow pr-story's "Since you read it" path: one new chapter, first, for `git diff <since_sha>..<new head>`, with the other chapters kept as they are. Re-tell from scratch only when `retell` is true or the PR was rebased past `since_sha`.
-4. `render` publishes the story to `~/.diff-story/`, and the PR page opens the panel on its own.
+4. `build` publishes the story to `~/.diff-story/`, and the PR page opens the panel on its own.
 5. Mark it done: `<dsm> done <build id>`. If it couldn't be built, `<dsm> done <build id> --failed --note "<one line why>"`.
 6. On a long build, run `builds --start` again every ≈20 minutes so the claim stays fresh and the request isn't handed out a second time.
 7. In chat, say one line: which PR, its chapter and file counts, and that it's on the page.

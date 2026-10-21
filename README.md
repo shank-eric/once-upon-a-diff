@@ -34,7 +34,6 @@ You need Node 24 or newer, the current LTS (`.nvmrc` says 24). The bridge has no
    ```bash
    ln -s "$PWD/skills/pr-story" ~/.claude/skills/pr-story
    ```
-   Its `render` step needs [session-story](https://github.com/nalaj/session-story), pinned at `b432256`, at `~/.claude/skills/session-story` (or `SESSION_STORY_DIR`).
 
 An alias saves typing: `alias diff-story="node /path/to/diff-story-mode/bridge/bin/diff-story.mjs"`. The rest of this README uses `diff-story`.
 
@@ -82,7 +81,7 @@ It never posts to GitHub, marks files viewed or pushes. Comments it drafts go to
 
 ## Using it on a PR
 
-1. Make a story with the pr-story skill. Its `render` step copies `chapters.json` and `file-map.json` to `~/.diff-story/<owner>-<repo>-<N>/`, and you can also run `pr-story.mjs publish --dir <D>`. The bridge also reads pr-story's scratch folders directly.
+1. Make a story with the pr-story skill. Its `build` step copies `chapters.json` and `file-map.json` to `~/.diff-story/<owner>-<repo>-<N>/`, and you can also run `pr-story.mjs publish --dir <D>`. The bridge also reads pr-story's scratch folders directly.
 2. Open the PR's **Files changed** tab. The panel docks on the right at the Overview step.
 3. Prev and Next (or the Steps list) filter the diff to a chapter. "Show all files" undoes the filter.
 4. To hide the panel, use **Hide story** (it collapses to a strip) or **×** (it goes away and that's remembered for the PR). The toolbar button or **Alt+Shift+S** shows or hides it.
@@ -112,7 +111,7 @@ How the bridge decides:
 
 - **Posted and pending come from GitHub.** The bridge reads your own comments with read-only `gh api` GETs, with `GITHUB_TOKEN` unset so the keychain login is used, and caches them for 60s. It reads the PR's review comments, its reviews (a PENDING one is your unsubmitted review, read along with its comments) and its general comments.
 - **Matching is fuzzy, because you often edit a draft before posting.** A draft matches a comment of yours on the same file within 3 lines, or a general draft a general comment, when the text is at least 0.75 similar.
-- **Your own calls override it.** Mark posted, Unmark, Dismiss and Add to my review are kept by the bridge per PR, in `~/.diff-story/state/pr-<owner>-<repo>-<N>/drafts.json`. Re-renders and regenerated stories keep them, and a dismissed comment matched by path, line and text isn't suggested again.
+- **Your own calls override it.** Mark posted, Unmark, Dismiss and Add to my review are kept by the bridge per PR, in `~/.diff-story/state/pr-<owner>-<repo>-<N>/drafts.json`. Rebuilt and regenerated stories keep them, and a dismissed comment matched by path, line and text isn't suggested again.
 - **Local mode has only the manual buttons.**
 - `diff-story drafts --story <id>` lists every draft's state.
 
@@ -173,7 +172,7 @@ Every PR Files changed page gets a small status control in the bottom-right corn
 - **Story queued · asked 5:44 PM** means someone asked for a story and no session has taken it yet. It says when no session is listening for the repo, with **Copy prompt for Claude**. **Building story** means a session claimed it: `diff-story wait` claims each request it hands over, and `diff-story builds --start <id>` claims it or refreshes the claim. A claim with no refresh for 30 minutes goes back to Queued, and the next wait hands it out again. While a request is queued or building, the page asks the bridge every ≈10 seconds, and when the story turns up the panel opens by itself. That's the only polling a page without a story does.
 - **No story yet · Build story** asks for one. The extension sends `{repo, number, url, requested_at}` to the bridge, which appends a `build_request` line to the inbox and keeps a pending marker in `~/.diff-story/builds.json`. Every tab on that PR then shows it as queued.
 
-A Claude session fulfils the request. `diff-story wait` hands it build requests from `builds.json`, oldest first, whenever they were asked, so a listener started after the request still gets it. Each request goes to one listener at a time. `diff-story builds` lists the pending ones as queued or building. The session writes the story with the pr-story skill, whose `render` publishes it. The request then counts as done as soon as the bridge sees the story, or the session can say so with `diff-story done <id>` (`--failed --note "…"` if it can't be done). The × on the control hides it until the page reloads. The control is the extension's own button in its own shadow root, and it never clicks anything of GitHub's.
+A Claude session fulfils the request. `diff-story wait` hands it build requests from `builds.json`, oldest first, whenever they were asked, so a listener started after the request still gets it. Each request goes to one listener at a time. `diff-story builds` lists the pending ones as queued or building. The session writes the story with the pr-story skill, whose `build` publishes it. The request then counts as done as soon as the bridge sees the story, or the session can say so with `diff-story done <id>` (`--failed --note "…"` if it can't be done). The × on the control hides it until the page reloads. The control is the extension's own button in its own shadow root, and it never clicks anything of GitHub's.
 
 ## Local mode: commits before you push
 
@@ -236,7 +235,7 @@ Stories live in the repo they're about, in a hidden `.diff-story/` folder in its
   <story id>/                       a story whose repo has no known checkout
 ```
 
-The bridge learns a repo's checkout from local stories, from where `diff-story wait --repo` was run, and from `<dir>/<name>` for each folder in `checkout_dirs` (default `~/Development`, see [Personal settings](#personal-settings)) when its origin is that repo. pr-story's `render` still publishes to `~/.diff-story/<owner>-<repo>-<N>/`. The bridge moves a story from there into its checkout once it knows the checkout, and a later render follows it the same way. Stories made before this moved the same way the first time the bridge saw them. One whose checkout isn't known stays readable in `~/.diff-story`.
+The bridge learns a repo's checkout from local stories, from where `diff-story wait --repo` was run, and from `<dir>/<name>` for each folder in `checkout_dirs` (default `~/Development`, see [Personal settings](#personal-settings)) when its origin is that repo. pr-story's `build` still publishes to `~/.diff-story/<owner>-<repo>-<N>/`. The bridge moves a story from there into its checkout once it knows the checkout, and a later build follows it the same way. Stories made before this moved the same way the first time the bridge saw them. One whose checkout isn't known stays readable in `~/.diff-story`.
 
 The bridge also lists pr-story scratch folders (`/private/tmp/claude-<uid>/*/*/scratchpad/pr-story/*/`). `--root DIR` (repeatable) replaces the home folder as the place to look, and `--no-scratch` skips the scratch folders. When two folders hold the same PR, the most recently changed one wins.
 
@@ -281,7 +280,7 @@ The other commands are `list`, `token --rotate`, `publish --dir`, `inbox`, `wait
 | `display_name` | Your name in the lines the bridge writes for Claude ("where Sam's reading stopped") | "the reviewer's" |
 | `time_zone`, `time_zone_label` | An IANA zone for the times the CLI prints, and a label for it (`"America/New_York"`, `"ET"`) | the system's zone and its short name |
 | `checkout_dirs` | Folders to look in for a repo's checkout, as `<dir>/<name>` (the bridge) or up to four levels down (pr-story's `gather.sh`) | `["~/Development"]`, or `DIFF_STORY_DEV_DIR` |
-| `open_command` | The argv that opens a URL or file (`diff-story local`, pr-story's `render --open`) | `open` on macOS, `xdg-open` on Linux, `explorer` on Windows |
+| `open_command` | The argv that opens a URL or file (`diff-story local`) | `open` on macOS, `xdg-open` on Linux, `explorer` on Windows |
 | `gh_unset_github_token` | `true` drops `GITHUB_TOKEN` before every `gh` call, for when that variable holds a token that shouldn't be used (gh then uses its own login) | `false` |
 | `house_rules` | A Markdown file of your own rules that the pr-story and diff-story-listen skills read and follow | `~/.diff-story/house-rules.md` |
 
@@ -403,7 +402,6 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
 ## Credits
 
 - The panel started as the pr-story skill's GitHub overlay.
-- The pr-story skill renders its chat-mode pages with [session-story](https://github.com/nalaj/session-story) (MIT, © 2026 Nenad Alajbegovic), pinned at `b432256`. Diff Story Mode's local page is its own simple diff view and copies no session-story code.
 
 ## License
 

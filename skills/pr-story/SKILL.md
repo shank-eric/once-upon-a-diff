@@ -1,13 +1,13 @@
 ---
 name: pr-story
-description: Tell the story of a GitHub pull request one chapter at a time, with Q&A between chapters, either in a side panel injected into the PR's GitHub page (filtered to the chapter's files) or in chat with a session-story page. Every changed file is placed in a chapter, viewed-files are checked at chapter breaks, and review comments are drafted paste-ready, never posted. Use when the user asks for the story of a PR, to walk them through a PR, or to guide a review "so I've seen every file", or types /pr-story.
+description: Tell the story of a GitHub pull request one chapter at a time, with Q&A between chapters, in Diff Story Mode's side panel on the PR's GitHub page (filtered to the chapter's files). Every changed file is placed in a chapter, and review comments are drafted paste-ready, never posted. Use when the user asks for the story of a PR, to walk them through a PR, or to guide a review "so I've seen every file", or types /pr-story.
 ---
 
 # PR story
 
-The reviewer (the user) reads a chapter, asks questions, says "next". When they're reviewing in GitHub (they have the PR open, or ask to do it there), the default is the overlay in "GitHub mode" below: the chapter's story sits in a panel on the PR page, the diff is filtered to that chapter's files, and Q&A happens by voice or chat. Otherwise the story is told in chat, and the pinned session-story renderer draws each chapter as a turn with its files' diffs (steps 4 and 5). Planning (steps 1 to 3) and finishing (step 6) are the same either way.
+The reviewer (the user) reads a chapter, asks questions, says "next". The chapter's story sits in Diff Story Mode's panel on the PR page, the diff is filtered to that chapter's files, and Q&A happens in the panel's Ask box, by voice or in chat. Without Diff Story Mode, the overlay in "GitHub mode" below injects the same panel for one page.
 
-`<skill>` is this folder, `skills/pr-story` in the Diff Story Mode repo, linked in as `~/.claude/skills/pr-story`. `<dsm-repo>` is that checkout: `$(cd "$(dirname "$(realpath ~/.claude/skills/pr-story/SKILL.md)")/../.." && pwd)`. `<dsm>` is `node <dsm-repo>/bridge/bin/diff-story.mjs`, the Diff Story Mode CLI. `<renderer>` is `~/.claude/skills/session-story`, pinned at b432256. Never modify the renderer. `pr-story.mjs` only calls it.
+`<skill>` is this folder, `skills/pr-story` in the Diff Story Mode repo, linked in as `~/.claude/skills/pr-story`. `<dsm-repo>` is that checkout: `$(cd "$(dirname "$(realpath ~/.claude/skills/pr-story/SKILL.md)")/../.." && pwd)`. `<dsm>` is `node <dsm-repo>/bridge/bin/diff-story.mjs`, the Diff Story Mode CLI.
 
 ## House rules
 
@@ -71,18 +71,16 @@ That's the file named by `house_rules` in `~/.diff-story/config.json`, else `~/.
      - `backstory.timeline`: the chronological "Backstory view", one entry per moment that matters (start from `backstory.json`'s draft `timeline` and rewrite `title`, `asked` and `text`; keep `moment` so its line ranges carry over).
    - Keep it supporting: no backstory in `narrative`, no chapter longer for it. A chapter's narrative should read the same with the backstory collapsed.
 
-4. **Render.**
+4. **Build and publish.**
    ```bash
    node <skill>/bin/pr-story.mjs build --dir <D>
-   node <skill>/bin/pr-story.mjs render --dir <D> --open
    ```
-   `build` writes `story.json` and `file-map.json` (file → chapters, partial_in, finished_in). `render` validates with the pinned renderer, writes `<D>/pr-story.html` with `-o`, relabels the header as a PR story and opens it. Fill in each chapter's `narrative`, `comments` and `answer` as you tell it, then build and render again without `--open` (the reviewer reloads the page).
+   `build` writes `file-map.json` (file → chapters, partial_in, finished_in) and publishes the story for Diff Story Mode (`--no-bridge` skips that). Fill in each chapter's `narrative`, `comments` and `answer` as you tell it, then build again: the panel picks it up within a few seconds.
 
-5. **Tell the story,** one chapter per reply. The first reply is the story map, then chapter 1.
+5. **Tell the story,** one chapter per step. The panel shows the chapter, so the chat reply for a step is one line ("Chapter 2 is up in the panel: …" plus its headline).
    - **Answer questions in place** from the diff and the code, checking the old code or CI where it matters. Stay on the chapter until they say "next".
    - **Backstory in chat:** only when they ask why or how something got here. Answer from the chapter's backstory and the brief, citing session and turn.
-   - **At each chapter break,** when they say they've ticked files (or ask "did I miss any?"), run `node <skill>/bin/pr-story.mjs viewed --dir <D> --through <N> --refresh`. Report the count viewed, any `missed` files (a `DISMISSED` file was viewed and has changed since), and which partials are still held. Don't nag about files viewed ahead.
-   - **Offer comments** in fenced blocks, flush left, one per thread, naming the file and line to put it on. Never post them. When Diff Story Mode is in use, also add every comment drafted in conversation (chat, voice or a panel question) to the panel: write the body to a file and run `<dsm> comment --story <id> --chapter <N> --path <file> --line <L> --body-file <f>` (no `--path`/`--line` for a general comment). It appends to the chapter's `comments` in both the published copy and `<D>/chapters.json`, so a later render keeps it, and the panel's Draft comments show it within a few seconds. Do both: the fenced block in chat and the command. Before drafting comments for a PR that already has a story, run `<dsm> drafts --story <id>`. It lists each draft as posted, pending (in the reviewer's unsubmitted review), dismissed or still a draft. Don't re-suggest a dismissed or posted one. Dismissals are kept per PR by the bridge, so `render` and a regenerated story keep them.
+   - **Offer comments** in fenced blocks, flush left, one per thread, naming the file and line to put it on. Never post them. When Diff Story Mode is in use, also add every comment drafted in conversation (chat, voice or a panel question) to the panel: write the body to a file and run `<dsm> comment --story <id> --chapter <N> --path <file> --line <L> --body-file <f>` (no `--path`/`--line` for a general comment). It appends to the chapter's `comments` in both the published copy and `<D>/chapters.json`, so a later render keeps it, and the panel's Draft comments show it within a few seconds. Do both: the fenced block in chat and the command. Before drafting comments for a PR that already has a story, run `<dsm> drafts --story <id>`. It lists each draft as posted, pending (in the reviewer's unsubmitted review), dismissed or still a draft. Don't re-suggest a dismissed or posted one. Dismissals are kept per PR by the bridge, so a rebuilt or regenerated story keeps them.
 
 6. **Finish.** After the last chapter: every file accounted for (for example, 74 of 74 placed and 70 viewed), any still unviewed, and "Your comments, in priority order" with file and line for each. If the PR is mergeable, say whether you'd lean approve, comment or request changes, and that it's their call.
 
@@ -108,8 +106,8 @@ If a voice mode is on (for example Larmor), speak the chapter's `headline` and o
 Diff Story Mode (`<dsm-repo>`, an unpacked Chrome extension plus a local bridge) shows this same panel on the PR's /changes or /files page by itself. It survives reloads and in-page navigation, remembers the step per PR, and picks up each re-render within ≈5s. When it's installed and its bridge is running, use it instead of injecting the overlay with `javascript_tool`.
 
 1. **Check the bridge.** `curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $(jq -r .token ~/.diff-story/config.json)" "http://127.0.0.1:$(jq -r .port ~/.diff-story/config.json)/api/health"` prints 200 when it's up. If it isn't, ask the reviewer once whether to start it (`<dsm> serve`, as a background task) or use the overlay below.
-2. **Publish.** `render` copies `chapters.json`, `file-map.json` and `backstory.json` to `~/.diff-story/<owner>-<repo>-<N>/` with a `meta.json` (`publish --dir <D>` does just that step, `--no-bridge` skips it). The bridge also reads the scratch folders directly. The chat reply for a step is one line, as in GitHub mode.
-3. **Questions from the panel.** The panel's Ask box appends to `~/.diff-story/inbox.jsonl`. While telling the story, keep `<dsm> wait --consumer pr-story` running as a background task. When it exits it has printed a question (id, chapter, file, text). Answer it in chat as usual, also run `<dsm> answer --question <id> --file <answer.md>` so the answer shows under the question in the panel, then start the wait again. The wait also returns `build_request` lines: the reviewer clicked "Build story" on a PR that has none. Tell them in one line, and run this skill on that URL if they say so (or already asked for it in this session). `render` publishes the story, and the bridge then marks the request done and the page opens the panel by itself. If it can't be built, `<dsm> done <id> --failed --note "…"`. `<dsm> builds` lists pending requests. A request with `mode: 'update'` means the story is out of date: follow "Updating a story" below. The new `head_oid` finishes the request.
+2. **Publish.** `build` copies `chapters.json`, `file-map.json` and `backstory.json` to `~/.diff-story/<owner>-<repo>-<N>/` with a `meta.json` (`publish --dir <D>` does just that step, `--no-bridge` skips it). The bridge also reads the scratch folders directly.
+3. **Questions from the panel.** The panel's Ask box appends to `~/.diff-story/inbox.jsonl`. While telling the story, keep `<dsm> wait --consumer pr-story` running as a background task. When it exits it has printed a question (id, chapter, file, text). Answer it in chat as usual, also run `<dsm> answer --question <id> --file <answer.md>` so the answer shows under the question in the panel, then start the wait again. The wait also returns `build_request` lines: the reviewer clicked "Build story" on a PR that has none. Tell them in one line, and run this skill on that URL if they say so (or already asked for it in this session). `build` publishes the story, and the bridge then marks the request done and the page opens the panel by itself. If it can't be built, `<dsm> done <id> --failed --note "…"`. `<dsm> builds` lists pending requests. A request with `mode: 'update'` means the story is out of date: follow "Updating a story" below. The new `head_oid` finishes the request.
 4. **Where they are.** `~/.diff-story/state/<story id>/position.json` has the step and the file at the top of their screen, and the inbox has a `position` line each time it changes. Use it when they say "this one" or "here".
 5. **Local commits.** For a story about commits that aren't pushed, `<dsm> local --repo <checkout> --base <ref> --head HEAD --chapters <D>/chapters.json --backstory <D>/backstory.json --no-open` serves the same chapters over the local diff at `http://127.0.0.1:<port>/local/<id>/` and opens it. Viewed toggles and "fix before push" notes there are kept by the bridge (`<dsm> notes --story <id>`), and comments in `chapters.json` show as "Fix before push". Place every file, as for a PR. Any that aren't placed land in a last "Not in a chapter yet" step.
 
@@ -134,7 +132,7 @@ An update request (`mode: 'update'`) carries `base_sha` (the commit the story wa
    - Draft comments about the new commits go on this chapter.
 3. **Keep every earlier chapter as it is,** byte for byte: title (with its "Chapter N:"), `key`, narrative, files, lines and comments. Don't renumber them. The panel doesn't number "Since you read it" chapters, so the old chapters keep the numbers the reviewer read them with, and chapter numbers in their text stay right. Only two things change: a file the new commits deleted or renamed leaves its old chapter (it's in the new one), and a file they added goes only in the new one. Old line ranges may now be a few lines off, and the panel jumps to the nearest shown line, so leave them.
 4. An earlier "Since you read it" chapter stays where it is, after the new one.
-5. `build`, `render`, and say in one line which commits the new chapter covers.
+5. `build`, and say in one line which commits the new chapter covers.
 
 **Re-tell from scratch** instead when the request has `retell: true` (the reviewer clicked "Re-tell from scratch"), when `git merge-base --is-ancestor <since_sha> <new head>` fails (a rebase or force-push), or when the new commits rework most of the PR. Plan it as a new story (steps 2 to 4). The bridge keeps the drafts' posted and dismissed marks per PR, so they carry over. Say in one line why it was re-told.
 
@@ -154,17 +152,14 @@ The snippet makes no network calls, never clicks GitHub controls (Viewed, expand
 3. Write `overview`, each chapter's `narrative`, `comments` and `lines` into `chapters.json` before injecting, since the panel shows exactly what's there. The chat reply for a step is then one line ("Chapter 2 is up in the panel: …" plus its headline), not the chapter text.
 4. Inject: `node <skill>/bin/pr-story.mjs overlay --dir <D> --out <D>/overlay.js` (starts at the Overview, or `--chapter N`), then pass that file's contents as `javascript_tool` text. It returns how many of the step's files it found on the page. Re-inject (it replaces itself) after editing the story. To re-run newer `overlay.js` code on the data already in the page, define `prStoryOverlay` again and call `prStoryOverlay(window.__prStoryOverlay.data)`.
 5. Check with `get_page_text` when it matters: only the chapter's files should appear. If the count is short, GitHub may not have loaded those diffs yet (the panel says how many), and scrolling or a moment's wait fixes it.
-6. Viewed state for the chapter-break check comes from the API (`viewed --refresh`), as in step 5 of the main flow.
 
 **How it finds files.** On `/changes` each file is `[role=region][id="diff-<sha256 of path>"]` (its one-child wrapper is what gets hidden), a line is `[data-line-anchor="diff-<sha>R<n>"]` (`L<n>` for removed lines), the Viewed toggle is a header `button[aria-pressed]` reading "Viewed", and file-tree rows are `[role=treeitem]` whose `id` is the path. Classic `/files` uses `copilot-diff-entry[data-file-path]` or `.file[data-tagsearch-path]` and `file-tree` rows linking `#diff-<sha>`. If none of those match, it falls back to a header whose text is the path. A MutationObserver re-filters as GitHub lazy-loads diffs. GitHub's DOM changes without notice, so if the panel says 0 files found, read the page's DOM, fix the selectors in `bin/overlay.js` and re-inject.
-
-`links --dir <D> --chapter <N>` still prints per-file `/changes#diff-<sha>` URLs, and `handoff` still writes `<D>/chapter-N.md` for the Chrome side panel, for when they ask for them.
 
 Before driving the reviewer's Chrome for the first time in a session, say so in one line, since they see it happen.
 
 ## Files
 
 - `bin/gather.sh`: read-only `gh` fetch into the scratch folder.
-- `bin/viewed.sh`: the gh user's viewed state per file (GraphQL `viewerViewedState`).
-- `bin/pr-story.mjs`: `brief`, `build`, `render`, `viewed`, `links`, `handoff`, `overlay`, `publish`, `backstory`.
+- `bin/viewed.sh`: the gh user's viewed state per file (GraphQL `viewerViewedState`), for `brief`.
+- `bin/pr-story.mjs`: `brief`, `build`, `overlay`, `publish`, `backstory`.
 - `bin/overlay.js`: the GitHub overlay that `overlay` wraps with the story data. It doesn't show backstory; Diff Story Mode does. Diff Story Mode's `src/js/shared/overlay.js` is a port of it (module export, shadow DOM, saved step, Ask box), so carry selector fixes across.
