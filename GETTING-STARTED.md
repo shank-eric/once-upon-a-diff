@@ -58,14 +58,18 @@ ln -s "$PWD/skills/diff-story-listen" ~/.claude/skills/diff-story-listen
 
 It's a link, so a `git pull` updates the skill too. The skill finds the `diff-story` command through that link, so it doesn't need the alias in step 8. Start a new Claude Code session to pick it up.
 
-### 7. Get the pr-story skill (the gap)
+### 7. Install the pr-story skill
 
-Building a story for a PR needs a second skill, **pr-story**, and it is not in this repo. It lives in Eric's own Claude config. The listener hands every Build story request to it ("build and publish the story with the pr-story skill"), and its `render` step is what publishes the story where the bridge finds it. Without it, Build story requests sit there with nothing to build them.
+Building a story for a PR needs a second skill, **pr-story**, which also ships in `skills/`. The listener hands every Build story request to it, and its `render` step is what publishes the story where the bridge finds it. Link it the same way, from the repo root:
 
-What you'd need, as things stand:
+```bash
+ln -s "$PWD/skills/pr-story" ~/.claude/skills/pr-story
+```
 
-- **A copy of pr-story from Eric**, at `~/.claude/skills/pr-story`. It's written for Eric's own setup: it names him, refers to his folders and work rules, and expects this repo at `~/Development/SideProjects/diff-story-mode` (its `DIFF_STORY_MODE_DIR` env var moves that).
-- **session-story**, which pr-story's `render` calls. It's public ([nalaj/session-story](https://github.com/nalaj/session-story), MIT), pinned at `b432256`, and expected at `~/.claude/skills/session-story` (or `SESSION_STORY_DIR`).
+It finds this repo through the link, so the checkout can live anywhere. Two things to know:
+
+- **It needs session-story.** pr-story's `render` draws its page with [session-story](https://github.com/nalaj/session-story) (public, MIT), pinned at `b432256`, at `~/.claude/skills/session-story` (or `SESSION_STORY_DIR`). Without it `render` fails before it publishes, so Build story doesn't finish.
+- **It's written for Eric's setup.** It names him and follows his work rules, like drafting comments and never posting them. It works for anyone, but reads that way.
 
 What works without pr-story: local mode (step 10, which makes its own starting chapters), the panel and its Ask box on any story you have, and the listener answering questions. What doesn't: Build story on a PR, and a story's update after new commits.
 
