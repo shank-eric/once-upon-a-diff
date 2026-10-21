@@ -22,7 +22,7 @@ cd diff-story-mode
 yarn
 ```
 
-The bridge has no runtime dependencies, so `yarn` is only for tests and lint. The repo carries its own Yarn 3 (`.yarn/releases`), which any `yarn` on your PATH hands off to. If you don't have `yarn` at all, `corepack enable` gets you one.
+The bridge has no runtime dependencies, so `yarn` is only for tests and lint. The repo uses Yarn 4 and carries its own copy (`.yarn/releases`), which any `yarn` on your PATH hands off to. If you don't have `yarn` at all, run `corepack enable` once. Corepack ships with Node 20, and it reads the `packageManager` field in `package.json` to fetch the same Yarn 4.
 
 ### 3. Make the bridge's config
 
