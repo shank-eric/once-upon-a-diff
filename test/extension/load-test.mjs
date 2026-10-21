@@ -22,7 +22,7 @@ import path from 'node:path';
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, writeJson, TOKEN, startBridge, localRepo } from '../helpers.mjs';
-import { createLocalStory } from '../../bridge/lib/local.mjs';
+import { createLocalStory } from '../../bridge/stories/local-story.mjs';
 import { beat } from '../../bridge/listeners/listeners.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');

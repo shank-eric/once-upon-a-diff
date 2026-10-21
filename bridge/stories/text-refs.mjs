@@ -23,16 +23,16 @@ const REF_LABEL = 'pointed at in the text';
 
 /** One backticked reference: {name, line} (name '' for a bare `:45`), or null. */
 function parseCode(code) {
-  const t = String(code).trim().replace(/^\.\//, '');
-  const m = /^(.*?):([LR])?(\d+)(?:-[LR]?(\d+))?$/.exec(t);
-  if (!m) {
-    return { name: t, line: null };
+  const name = String(code).trim().replace(/^\.\//, '');
+  const match = /^(.*?):([LR])?(\d+)(?:-[LR]?(\d+))?$/.exec(name);
+  if (!match) {
+    return { name: name, line: null };
   }
-  const start = +m[3];
-  const end = +(m[4] || m[3]);
+  const start = +match[3];
+  const end = +(match[4] || match[3]);
   return {
-    name: m[1],
-    line: { side: m[2] || 'R', start: Math.min(start, end), end: Math.max(start, end) },
+    name: match[1],
+    line: { side: match[2] || 'R', start: Math.min(start, end), end: Math.max(start, end) },
   };
 }
 
@@ -47,7 +47,7 @@ function parseCode(code) {
 export function lineRefsOf(text, listed, rels) {
   const bySha = new Map(rels.map((rel) => [pathSha(rel), rel]));
   const find = (name, scope) =>
-    scope.find((r) => r === name) || scope.filter((r) => r.endsWith('/' + name));
+    scope.find((rel) => rel === name) || scope.filter((rel) => rel.endsWith('/' + name));
   const resolve = (name) => {
     if (!name || /\s/.test(name) || !/[./]/.test(name)) {
       return null;
@@ -70,17 +70,22 @@ export function lineRefsOf(text, listed, rels) {
     if (!out.has(rel)) {
       out.set(rel, []);
     }
-    const ls = out.get(rel);
-    if (!ls.some((l) => l.side === line.side && l.start === line.start && l.end === line.end)) {
-      ls.push(line);
+    const known = out.get(rel);
+    if (
+      !known.some(
+        (existing) =>
+          existing.side === line.side && existing.start === line.start && existing.end === line.end,
+      )
+    ) {
+      known.push(line);
     }
   };
   let last = null;
   const src = String(text || '').replace(/```[\s\S]*?```/g, ' '); // code blocks aren't references
-  const re = /`([^`\n]+)`|\[[^\]]*\]\((https?:[^)\s]+)\)/g;
-  for (let m; (m = re.exec(src));) {
-    if (m[2]) {
-      const hit = /#diff-([0-9a-f]{64})(?:([LR])(\d+)(?:-[LR]?(\d+))?)?$/.exec(m[2]);
+  const pattern = /`([^`\n]+)`|\[[^\]]*\]\((https?:[^)\s]+)\)/g;
+  for (let match; (match = pattern.exec(src));) {
+    if (match[2]) {
+      const hit = /#diff-([0-9a-f]{64})(?:([LR])(\d+)(?:-[LR]?(\d+))?)?$/.exec(match[2]);
       const rel = hit && bySha.get(hit[1]);
       if (!rel) {
         continue;
@@ -91,7 +96,7 @@ export function lineRefsOf(text, listed, rels) {
       }
       continue;
     }
-    const { name, line } = parseCode(m[1]);
+    const { name, line } = parseCode(match[1]);
     if (!name) {
       const rel = last || (listed.length === 1 ? listed[0] : null);
       if (rel && line) {
@@ -112,29 +117,31 @@ export function lineRefsOf(text, listed, rels) {
 }
 
 /** The text of a chapter the panel draws as markdown. */
-const textOf = (ch) =>
-  [ch.headline, ch.scenario, ch.summary, ch.narrative].filter(Boolean).join('\n\n');
+const textOf = (chapter) =>
+  [chapter.headline, chapter.scenario, chapter.summary, chapter.narrative]
+    .filter(Boolean)
+    .join('\n\n');
 
 /**
  * Adds, to each chapter (but "Since you read it" ones), the files its text points at lines of and doesn't list.
  * Changes the chapters in place and returns them. Entries are entryOf()'s shape plus `ref: true`.
  */
 export function addTextRefs(chapters, rels) {
-  for (const ch of chapters) {
-    if (ch.since) {
+  for (const chapter of chapters) {
+    if (chapter.since) {
       continue;
     }
-    const listed = ch.files.map((f) => f.rel);
-    for (const { rel, lines } of lineRefsOf(textOf(ch), listed, rels)) {
+    const listed = chapter.files.map((file) => file.rel);
+    for (const { rel, lines } of lineRefsOf(textOf(chapter), listed, rels)) {
       if (listed.includes(rel)) {
         continue;
       }
-      ch.files.push({
+      chapter.files.push({
         rel,
         partial: true,
         note: REF_NOTE,
         ref: true,
-        lines: lines.map((l) => ({ ...l, label: REF_LABEL })),
+        lines: lines.map((line) => ({ ...line, label: REF_LABEL })),
       });
     }
   }

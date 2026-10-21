@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { tmp, startBridge, localRepo, writeJson } from './helpers.mjs';
-import { createLocalStory } from '../bridge/lib/local.mjs';
+import { createLocalStory } from '../bridge/stories/local-story.mjs';
 import { relOfDraft } from '../bridge/server/index.mjs';
 import { draftView } from '../src/js/shared/overlay.js';
 

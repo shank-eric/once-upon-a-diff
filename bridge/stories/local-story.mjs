@@ -9,27 +9,33 @@ import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { topLevel, revParse, branchName } from '../util/git.mjs';
 import { parseUnifiedDiff } from '../util/diff.mjs';
-import { refreshLocal, entryOf, ID_RE } from './stories.mjs';
-import { storyDirFor, moveStory, STORY_FOLDER } from './place.mjs';
+import { refreshLocal } from './local-diff.mjs';
+import { entryOf } from './chapters.mjs';
+import { ID_RE } from './meta.mjs';
+import { storyDirFor, moveStory, STORY_FOLDER } from './placement.mjs';
 import { repoOfCheckout, seenCheckout } from '../config/repos.mjs';
 
-export const slug = (s) =>
-  String(s)
+export const slug = (text) =>
+  String(text)
     .replace(/[^A-Za-z0-9._-]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 100);
+
+const WORKSPACE_FOLDERS = ['apps', 'libs', 'packages', 'tools', 'services'];
+/** A file's group: its package in a monorepo (apps/x), else its top-level folder, else (root). */
+function groupOf(rel) {
+  const parts = rel.split('/');
+  if (parts.length > 2 && WORKSPACE_FOLDERS.includes(parts[0])) {
+    return parts.slice(0, 2).join('/');
+  }
+  return parts.length > 1 ? parts[0] : '(root)';
+}
 
 /** One chapter per top-level folder: a starting point until a real story is written. */
 export function defaultChapters(rels, title) {
   const groups = new Map();
   for (const rel of rels) {
-    const parts = rel.split('/');
-    const key =
-      parts.length > 2 && ['apps', 'libs', 'packages', 'tools', 'services'].includes(parts[0])
-        ? parts.slice(0, 2).join('/')
-        : parts.length > 1
-          ? parts[0]
-          : '(root)';
+    const key = groupOf(rel);
     if (!groups.has(key)) {
       groups.set(key, []);
     }
@@ -109,14 +115,14 @@ export function createLocalStory({
 
   const plan = JSON.parse(readFileSync(chaptersFile, 'utf8'));
   const placed = new Set(
-    (plan.chapters || []).flatMap((ch) => (ch.files || []).map((e) => entryOf(e).rel)),
+    (plan.chapters || []).flatMap((chapter) => (chapter.files || []).map((e) => entryOf(e).rel)),
   );
   return {
     id,
     dir,
     files: rels.length,
     chapters: (plan.chapters || []).length,
-    unplaced: rels.filter((r) => !placed.has(r)),
-    unknown: [...placed].filter((r) => !diff.has(r)),
+    unplaced: rels.filter((rel) => !placed.has(rel)),
+    unknown: [...placed].filter((rel) => !diff.has(rel)),
   };
 }

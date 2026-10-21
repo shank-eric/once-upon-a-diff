@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson } from './helpers.mjs';
 import { Builds, buildText } from '../bridge/inbox/builds.mjs';
 import { Inbox } from '../bridge/inbox/inbox.mjs';
-import { noteRead } from '../bridge/lib/reads.mjs';
+import { noteRead } from '../bridge/stories/reads.mjs';
 import { clearFreshness } from '../bridge/github/freshness.mjs';
 import { tagFor, tagHtml, requestFor } from '../src/js/content/ui/story-tag.js';
 

@@ -17,7 +17,7 @@ const fail = (status, message) => Object.assign(new Error(message), { status });
 
 /** @returns {{chapter, comment, added, files}} */
 export function addComment(dir, meta, { chapter, path: rel, line, body }) {
-  const n = Number(chapter);
+  const step = Number(chapter);
   const text = typeof body === 'string' ? body.trim() : '';
   if (!text) {
     throw fail(400, 'the comment body is empty');
@@ -39,22 +39,22 @@ export function addComment(dir, meta, { chapter, path: rel, line, body }) {
   const files = [];
   targets.forEach((file, i) => {
     const plan = JSON.parse(readFileSync(file, 'utf8'));
-    const ch = Array.isArray(plan.chapters) ? plan.chapters[n - 1] : null;
-    if (!Number.isInteger(n) || !ch) {
+    const target = Array.isArray(plan.chapters) ? plan.chapters[step - 1] : null;
+    if (!Number.isInteger(step) || !target) {
       if (i === 0) {
         throw fail(400, `no chapter ${chapter} (the story has ${(plan.chapters || []).length})`);
       }
       return; // the source copy doesn't match; leave it alone
     }
-    ch.comments = Array.isArray(ch.comments) ? ch.comments : [];
-    const dup = ch.comments.some(
-      (c) =>
-        c.path === comment.path &&
-        Number(c.line || 0) === comment.line &&
-        String(c.body).trim() === comment.body,
+    target.comments = Array.isArray(target.comments) ? target.comments : [];
+    const dup = target.comments.some(
+      (existing) =>
+        existing.path === comment.path &&
+        Number(existing.line || 0) === comment.line &&
+        String(existing.body).trim() === comment.body,
     );
     if (!dup) {
-      ch.comments.push(comment);
+      target.comments.push(comment);
       writeJsonAtomic(file, plan);
       if (i === 0) {
         added = true;
@@ -62,5 +62,5 @@ export function addComment(dir, meta, { chapter, path: rel, line, body }) {
     }
     files.push(file);
   });
-  return { chapter: n, comment, added, files };
+  return { chapter: step, comment, added, files };
 }

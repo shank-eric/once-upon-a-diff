@@ -4,11 +4,16 @@ import path from 'node:path';
 import { existsSync, readFileSync, writeFileSync, realpathSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { tmp, git, localRepo, githubStory, writeJson, startBridge } from './helpers.mjs';
-import { createLocalStory } from '../bridge/lib/local.mjs';
-import { StoryStore } from '../bridge/lib/stories.mjs';
+import { createLocalStory } from '../bridge/stories/local-story.mjs';
+import { StoryStore } from '../bridge/stories/store.mjs';
 import { seenCheckout } from '../bridge/config/repos.mjs';
-import { mainCheckout, excludeStories, readIndex, adoptHomeStories } from '../bridge/lib/place.mjs';
-import { isStoryDir } from '../bridge/lib/stories.mjs';
+import {
+  mainCheckout,
+  excludeStories,
+  readIndex,
+  adoptHomeStories,
+} from '../bridge/stories/placement.mjs';
+import { isStoryDir } from '../bridge/stories/meta.mjs';
 
 const BIN = path.resolve(
   path.dirname(new URL(import.meta.url).pathname),

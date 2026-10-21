@@ -3,9 +3,9 @@
  * story (POST /api/builds), `diff-story builds` lists them, and a PR page
  * asks how its request stands (GET /api/builds/status).
  */
-import { readMeta } from '../../lib/stories.mjs';
+import { readMeta } from '../../stories/meta.mjs';
 import { stateKeyOf } from '../../github/drafts.mjs';
-import { readReads, sinceOf, SHA_RE } from '../../lib/reads.mjs';
+import { readReads, sinceOf, SHA_RE } from '../../stories/reads.mjs';
 
 /** An update starts where the reviewer's reading stopped (read.json), so the story can add one "Since you read it" chapter. */
 function sinceOfUpdate(app, body) {
