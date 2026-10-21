@@ -13,7 +13,7 @@ The panel is a port of the pr-story skill's GitHub overlay (`skills/pr-story/bin
 
 ## Installing
 
-You need Node 20 or newer. The bridge has no runtime dependencies. `yarn install` only fetches eslint, playwright-core and highlight.js (vendored into `bridge/public/vendor/`) for development. The repo uses Yarn 4, kept in `.yarn/releases` and named in `package.json`'s `packageManager`. Any `yarn` hands off to it, and `corepack enable` gets you a `yarn` if you have none.
+You need Node 24 or newer, the current LTS (`.nvmrc` says 24). The bridge has no runtime dependencies. `yarn install` only fetches eslint, playwright-core and highlight.js (vendored into `bridge/public/vendor/`) for development. The repo uses Yarn 4, kept in `.yarn/releases` and named in `package.json`'s `packageManager`. Any `yarn` hands off to it, and `corepack enable` gets you a `yarn` if you have none.
 
 1. Print the bridge's port and token. This also creates `~/.diff-story/config.json` with a random token:
    ```bash

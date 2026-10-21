@@ -8,7 +8,7 @@ This guide takes you from nothing to your first story. The [README](README.md) h
 
 ### 1. Check you have what it needs
 
-- **Node 20 or newer** (`node --version`). The repo's `.nvmrc` says 20.
+- **Node 24 or newer** (`node --version`), the current LTS. The repo's `.nvmrc` says 24.
 - **Claude Code**, signed in.
 - **The GitHub CLI, logged in.** Run `gh auth status`. The bridge uses gh to check whether a story is up to date and which of your drafted comments you've posted. It runs gh with `GITHUB_TOKEN` unset, so it uses your keychain login, not a token in your environment.
 - **Chrome** (or another Chromium browser that loads unpacked extensions).
@@ -22,7 +22,7 @@ cd diff-story-mode
 yarn
 ```
 
-The bridge has no runtime dependencies, so `yarn` is only for tests and lint. The repo uses Yarn 4 and carries its own copy (`.yarn/releases`), which any `yarn` on your PATH hands off to. If you don't have `yarn` at all, run `corepack enable` once. Corepack ships with Node 20, and it reads the `packageManager` field in `package.json` to fetch the same Yarn 4.
+The bridge has no runtime dependencies, so `yarn` is only for tests and lint. The repo uses Yarn 4 and carries its own copy (`.yarn/releases`), which any `yarn` on your PATH hands off to. If you don't have `yarn` at all, run `corepack enable` once. Corepack ships with Node 24, and it reads the `packageManager` field in `package.json` to fetch the same Yarn 4.
 
 ### 3. Make the bridge's config
 
