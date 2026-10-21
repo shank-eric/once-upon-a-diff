@@ -25,6 +25,18 @@ function readSummary(app, id) {
   };
 }
 
+/**
+ * Has the story finished its pending build request? It has turned up, and for an update its head has moved off
+ * the commit it was asked to update from. The same rule as GET /api/builds/status, so a PR list or a tag polling
+ * status-many settles the request too.
+ */
+export function storyFinishes(app, id, build) {
+  if (!build || build.status !== 'pending') {
+    return false;
+  }
+  return !(build.mode === 'update' && readMeta(app.stories.dirOf(id)).head_oid === build.base_sha);
+}
+
 /** One PR's line: its newest story when it has one, else its build request's state. */
 function prStatus(app, cache, { repo: rawRepo, number: rawNumber }) {
   const repo = String(rawRepo || '');
@@ -35,12 +47,17 @@ function prStatus(app, cache, { repo: rawRepo, number: rawNumber }) {
       String(story.repo).toLowerCase() === repo.toLowerCase() &&
       Number(story.number) === number,
   );
-  const build = app.builds.view(cache.builds[`${repo.toLowerCase()}#${number}`] || null);
-  const pending = !!(build && build.status === 'pending');
+  let build = app.builds.view(cache.builds[`${repo.toLowerCase()}#${number}`] || null);
   if (!hits.length) {
+    const pending = !!(build && build.status === 'pending');
     return { repo, number, state: pending ? build.state : 'none', request: build };
   }
   const id = hits.sort((first, second) => Number(second.version) - Number(first.version))[0].id;
+  if (storyFinishes(app, id, build)) {
+    build = app.builds.view(app.builds.done(build.id, { story: id }));
+    app.statusCache = null;
+  }
+  const pending = !!(build && build.status === 'pending');
   const updating = pending && build.mode === 'update';
   return {
     repo,
