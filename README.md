@@ -119,20 +119,23 @@ It looks again after any click or change on the page, so Refined GitHub's batch 
 
 **Where "Mark viewed" goes.** A file is marked viewed in the last chapter that lists it. Every earlier chapter that lists it says "Leave unviewed: comes back in chapter N", whether or not that listing is flagged partial. The viewed progress and the "viewed early" warning follow the same rule, and so does pr-story's `file-map.json` (`finished_in`).
 
-**On PR lists.** A repo's `/pulls`, the global `/pulls` and PR search results get a small badge after each PR's title:
+**On PR lists and a PR's Conversation tab.** A repo's `/pulls`, the global `/pulls` and PR search results get one tag after each PR's title, and a PR's Conversation tab gets the same tag next to its title. The tag is the control:
 
 - **Story** opens the PR's Files changed tab, where the panel docks.
-- **Queued** means a story was asked for and no Claude session has taken it yet. **Building…** means a session has claimed it.
 - **Build story** sends the same build request as the PR page's button.
+- **Story out of date · Update** asks for an update to the PR's latest commit.
+- **Queued** means a story was asked for and no Claude session has taken it yet. **Building…** means a session has claimed it. Neither can be clicked. An update shows as **Update queued** or **Updating…**.
 
-The page makes one batched lookup (`POST /api/stories/status-many`, cached 5s), and the badges come back after GitHub or Refined GitHub redraws the list. While a badge says Building…, the page looks again every 15s. With no bridge running, the list stays as GitHub draws it.
+When no session is listening for a repo on the page, one notice at the bottom right says "No session listening for owner/name", with **Copy prompt for Claude** and, when the bridge knows one, the checkout to start Claude Code in. It's said once for the page, not on each row.
+
+The page makes one batched lookup (`POST /api/stories/status-many`, cached 5s), and the tags come back after GitHub or Refined GitHub redraws the list or the PR header. While a tag says Queued or Building…, the page looks again every 15s. With no bridge running, the list stays as GitHub draws it.
 
 **Is the story up to date?** A story records the PR head it was told from: pr-story's `pr.json` `headRefOid`, copied into `meta.json` as `head_oid`. The bridge reads the PR's current head and compares the two with read-only `gh api` calls, cached for 60s.
 
 - When they match, the panel header says "Up to date with abc1234".
 - When they don't, it says "Story is for abc1234; the PR has N newer commits", with the files changed since and the chapters that list them. Those files get "changed since story" in the files list, and those chapters a mark in the Steps list.
 - **Update story** sends a build request with `mode: 'update'` and the old head (`base_sha`). It stays pending until the story's head moves.
-- PR-list badges say "Story · out of date" or "Story · updating…".
+- PR-list and Conversation tags say "Story out of date · Update", then "Update queued" or "Updating…".
 
 ### Story ready, Building, Build story
 

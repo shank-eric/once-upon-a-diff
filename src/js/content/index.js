@@ -12,6 +12,7 @@
 import { storyOverlay } from '../shared/overlay.js';
 import { statusControl } from './status.js';
 import { initList } from './list.js';
+import { initConversation } from './convo.js';
 import { decide, filesPage, seen, prefsStore } from './whitespace.js';
 
 const PR_PATH = /^\/([^/]+)\/([^/]+)\/pull\/(\d+)\/(changes|files)(?:\/|$)/;
@@ -319,3 +320,4 @@ setInterval(() => { if (alive()) checkForUpdates(); }, 5000);
 lastHref = location.href;
 whitespaceCheck().catch(() => {}).finally(sync); // a ?w=1 reload, if any, comes before the panel docks
 initList(); // story badges on PR lists
+initConversation(); // the story tag on a PR's Conversation tab

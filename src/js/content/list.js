@@ -1,12 +1,14 @@
 /*
- * PR lists (a repo's /pulls, the global /pulls, and PR search results): a
- * small badge after each PR's title saying whether it has a story. "Story"
- * opens the PR's Files changed tab, where the panel docks; "Building…" means
- * one was asked for; "Build story" asks for one (the same build request as
- * the PR page's button). One batched bridge call per page. The badges are our
- * own buttons in their own shadow roots; nothing of GitHub's is clicked.
+ * PR lists (a repo's /pulls, the global /pulls, and PR search results): one
+ * story tag after each PR's title, and the tag is the control (tag.js): Story
+ * opens Files changed, Build story or Update asks for one, Queued and
+ * Building… show progress. Whether a session is listening is said once for
+ * the page, per repo, by the notice (notice.js). One batched bridge call per
+ * page. The tags are our own elements in their own shadow roots; nothing of
+ * GitHub's is clicked.
  */
-import { copyWithFeedback } from './copy.js';
+import { tagFor, tagHtml, requestFor, missingListeners, TAG_CSS } from './tag.js';
+import { listenNotice } from './notice.js';
 
 const ATTR = 'data-dsm-badge';
 const PR_HREF = /^\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/;
@@ -24,21 +26,6 @@ export function isListPage(loc = location) {
   return false;
 }
 
-const CSS = `
-  :host { all: initial; display: inline-block; vertical-align: middle; margin-left: 6px; }
-  .b { font: 500 11px/18px -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; display: inline-flex; align-items: center; gap: 4px;
-    padding: 0 7px; border-radius: 999px; border: 1px solid var(--borderColor-default, #d1d9e0); color: var(--fgColor-muted, #59636e);
-    background: var(--bgColor-default, #fff); cursor: pointer; text-decoration: none; white-space: nowrap; }
-  .b:hover { color: var(--fgColor-accent, #0969da); border-color: var(--fgColor-accent, #0969da); }
-  .b.ready { color: var(--fgColor-success, #1a7f37); border-color: var(--fgColor-success, #1a7f37); }
-  .b.stale { color: var(--fgColor-attention, #9a6700); border-color: var(--fgColor-attention, #9a6700); }
-  .b.building { cursor: default; }
-  .b.copy { margin-left: 4px; }
-  .b.building:hover { color: var(--fgColor-muted, #59636e); border-color: var(--borderColor-default, #d1d9e0); }
-  .spin { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid currentColor; border-top-color: transparent; animation: s .9s linear infinite; }
-  @keyframes s { to { transform: rotate(360deg); } }
-  @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
-`;
 
 /** Title links to PRs on the page, one per row: [{a, row, repo, number}] */
 function prLinks() {
@@ -63,8 +50,8 @@ function prLinks() {
 }
 
 const results = new Map(); // "owner/repo#n" -> {state, story, request}
-let listening = null; // from status-many: is a Claude session there to pick build requests up?
-const copyBtn = () => ''; // the list-level notice says who isn't listening (per repo)
+let listening = {}; // repo -> {ok, prompt, details, checkout}, from status-many
+const notice = listenNotice();
 const keyOf = (repo, number) => `${repo}#${number}`.toLowerCase();
 
 function badgeFor(item) {
@@ -73,7 +60,7 @@ function badgeFor(item) {
     host = document.createElement('span');
     host.setAttribute(ATTR, keyOf(item.repo, item.number));
     const shadow = host.attachShadow({ mode: 'open' });
-    shadow.innerHTML = `<style>${CSS}</style><span class="slot"></span>`;
+    shadow.innerHTML = `<style>${TAG_CSS}</style><span class="slot"></span>`;
     shadow.addEventListener('click', e => onClick(e, item));
     for (const t of ['keydown', 'keypress', 'keyup']) shadow.addEventListener(t, e => e.stopPropagation());
     item.a.after(host);
@@ -85,31 +72,25 @@ function render(item) {
   const r = results.get(keyOf(item.repo, item.number));
   if (!r) return;
   const slot = badgeFor(item).shadowRoot.querySelector('.slot');
-  const href = `https://github.com/${item.repo}/pull/${item.number}/changes`;
-  if (r.state === 'ready' && r.updating) slot.innerHTML = `<a class="b building" href="${href}" title="An update to the latest commit was asked for"><span class="spin"></span>Story · updating…</a>`;
-  else if (r.state === 'ready' && r.stale) slot.innerHTML = `<a class="b stale" href="${href}" title="The story is for ${String(r.story_head).slice(0, 7)}; the PR has newer commits (${String(r.current_head).slice(0, 7)})">Story · out of date</a>`;
-  else if (r.state === 'ready') slot.innerHTML = `<a class="b ready" href="${href}" title="Open the story on Files changed${r.story_head ? ` (up to date with ${String(r.story_head).slice(0, 7)})` : ''}">Story</a>`;
-  else if (r.state === 'building' || r.state === 'queued') slot.innerHTML = `<span class="b building" title="A story was asked for${r.request && r.request.requested_at ? ` at ${new Date(r.request.requested_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : ''}">${r.state === 'building' ? '<span class="spin"></span>Building…' : 'Queued'}</span>${copyBtn()}`;
-  else slot.innerHTML = `<button class="b" data-act="build" title="Ask a Claude session to write a story for this PR">Build story</button>${copyBtn()}`;
+  const html = tagHtml(tagFor(r, item));
+  if (slot.innerHTML !== html) slot.innerHTML = html;
 }
 
 async function onClick(e, item) {
   const target = e.composedPath()[0];
-  const c = target.closest && target.closest('[data-act="copy"]');
-  if (c) {
-    e.preventDefault();
-    e.stopPropagation();
-    if (listening && listening.prompt) copyWithFeedback(listening.prompt, c, c.getRootNode());
-    return;
-  }
-  const b = target.closest && target.closest('[data-act="build"]');
+  const b = target.closest && target.closest('button[data-act]');
   if (!b) return; // the Story link is a plain link
   e.preventDefault();
   e.stopPropagation();
   b.disabled = true;
-  const r = await bridge('POST', '/api/builds', { repo: item.repo, number: item.number, url: `https://github.com/${item.repo}/pull/${item.number}`, requested_at: new Date().toISOString() });
-  if (r.ok) results.set(keyOf(item.repo, item.number), { state: 'building', request: r.body.request });
-  else b.disabled = false;
+  const t = tagFor(results.get(keyOf(item.repo, item.number)), item);
+  const r = await bridge('POST', '/api/builds', requestFor(t, item));
+  if (r.ok) {
+    const prev = results.get(keyOf(item.repo, item.number)) || {};
+    results.set(keyOf(item.repo, item.number), t.act === 'update'
+      ? { ...prev, updating: true, update_state: r.body.state, request: r.body.request }
+      : { state: r.body.state, request: r.body.request });
+  } else b.disabled = false;
   render(item);
 }
 
@@ -125,14 +106,18 @@ async function scan(force) {
       const r = await bridge('POST', '/api/stories/status-many', { prs: need.slice(0, 200).map(i => ({ repo: i.repo, number: i.number })) });
       if (!r.ok) return; // no bridge, no badges: the list stays as GitHub draws it
       for (const x of r.body.results) results.set(keyOf(x.repo, x.number), x);
-      if (r.body.listening) listening = r.body.listening;
+      if (r.body.listening) listening = { ...listening, ...r.body.listening };
       lastAsk = Date.now();
     }
     for (const i of items) render(i);
+    const onPage = new Set(items.map(i => i.repo.toLowerCase()));
+    notice.set(missingListeners(Object.fromEntries(Object.entries(listening).filter(([repo]) => onPage.has(repo.toLowerCase())))));
   } finally {
     scanning = false;
   }
 }
+
+const inFlight = r => r.state === 'queued' || r.state === 'building' || !!r.updating;
 
 export function initList() {
   let lastHref = location.href;
@@ -142,13 +127,13 @@ export function initList() {
     if (muts.every(m => m.target.nodeType === 1 && m.target.closest && m.target.closest(`[${ATTR}]`))) return;
     if (!pending) pending = setTimeout(() => { pending = 0; scan(false); }, 300);
   });
-  const start = () => { if (isListPage()) { observer.observe(document.body, { childList: true, subtree: true }); scan(false); } else observer.disconnect(); };
+  const start = () => { if (isListPage()) { observer.observe(document.body, { childList: true, subtree: true }); scan(false); } else { observer.disconnect(); notice.remove(); } };
   setInterval(() => {
     if (!alive()) return;
     if (location.href !== lastHref) { lastHref = location.href; start(); }
-    // while something is building, look again every 15s
-    else if (isListPage() && [...results.values()].some(r => r.state === 'building') && Date.now() - lastAsk > 15000) {
-      for (const [k, v] of results) if (v.state === 'building') results.delete(k);
+    // while something is queued or building, look again every 15s
+    else if (isListPage() && [...results.values()].some(inFlight) && Date.now() - lastAsk > 15000) {
+      for (const [k, v] of results) if (inFlight(v)) results.delete(k);
       scan(false);
     }
   }, 1000);
