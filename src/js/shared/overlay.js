@@ -134,6 +134,16 @@ export function chapterNumbers(chapters) {
   let k = 0;
   return chapters.map((ch) => (ch.since ? null : ++k));
 }
+/**
+ * The steps whose chapter he's read (read.json has its key) and that haven't changed since he read them. A file
+ * such a chapter finishes isn't "viewed early" from an earlier chapter: he's been through it already.
+ * @param {object|null} readInfo the bridge's GET /read: {reads, changed: [{step}]}
+ */
+export function readStepsOf(chapters, readInfo) {
+  const reads = (readInfo && readInfo.reads) || {};
+  const changed = new Set(((readInfo && readInfo.changed) || []).map((c) => c.step));
+  return new Set(chapters.map((ch, i) => (reads[chapterKeyOf(ch)] && !changed.has(i + 1) ? i + 1 : 0)).filter(Boolean));
+}
 // kept across panel re-renders on this page: a failed Add to my review, and adds already settled
 const reviewErrors = new Map();
 const settling = new Set();
@@ -751,9 +761,11 @@ export function storyOverlay(INPUT, opts = {}) {
   const short = (rel) => rel.split('/').pop();
   function renderViewed() {
     const blocks = new Map(fileBlocks().map((b) => [b.rel, b]));
-    // viewed too early: a file whose last chapter is still to come (it comes back later, or it's only a later chapter's), never one already finished
+    // viewed too early: a file whose last chapter is still to come (it comes back later, or it's only a later chapter's), never one already finished,
+    // and never one whose last chapter he's already read (a review done earlier, or before read tracking)
     const n0 = inBackstory() ? 0 : state.n;
-    const earlyFor = (rel) => n0 > 0 && finishedIn[rel] != null && finishedIn[rel] > n0;
+    const readSteps = readStepsOf(DATA.chapters, readInfo);
+    const earlyFor = (rel) => n0 > 0 && finishedIn[rel] != null && finishedIn[rel] > n0 && !readSteps.has(finishedIn[rel]);
     for (const el of panel.querySelectorAll('[data-viewed-for]')) {
       const rel = el.getAttribute('data-viewed-for');
       const v = isViewed(rel, blocks);
@@ -1312,6 +1324,7 @@ export function storyOverlay(INPUT, opts = {}) {
     if (!opts.reads) return;
     try { readInfo = await opts.reads(); } catch (e) { return; } // the bridge may be down; the marks just don't show
     renderReads();
+    renderViewed(); // "viewed early" depends on which chapters he's read
     renderDrafts();
   }
   function renderReads() {

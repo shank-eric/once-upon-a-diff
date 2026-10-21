@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson, localRepo } from './helpers.mjs';
 import { chapterKey, noteRead, readReads, sinceOf } from '../bridge/lib/reads.mjs';
-import { chapterKeyOf } from '../src/js/shared/overlay.js';
+import { chapterKeyOf, readStepsOf } from '../src/js/shared/overlay.js';
 import { clearFreshness } from '../bridge/lib/freshness.mjs';
 import { createLocalStory } from '../bridge/lib/local.mjs';
 
@@ -135,4 +135,12 @@ test('a local story compares with git', async () => {
     assert.deepEqual(r.changed.map(c => c.files), [['one.txt']]);
     assert.notEqual(r.story_head, r.reads[ch.key].head_sha, 'the story followed the branch');
   } finally { await b.close(); }
+});
+
+test('a chapter he has read, and that has not changed since, does not make its files "viewed early"', () => {
+  const chapters = [{ title: 'Chapter 1: Logging in' }, { title: 'Chapter 2: The task' }, { title: 'Chapter 3: Dependencies and CI' }];
+  assert.deepEqual([...readStepsOf(chapters, null)], [], 'nothing known: no chapter counts as read');
+  const reads = { 'dependencies and ci': { head_sha: A, story_head: A, at: '2026-10-21T19:28:03Z' }, 'the task': { head_sha: A, story_head: A, at: '2026-10-21T19:39:20Z' } };
+  assert.deepEqual([...readStepsOf(chapters, { reads })].sort(), [2, 3]);
+  assert.deepEqual([...readStepsOf(chapters, { reads, changed: [{ step: 3, files: ['yarn.lock'] }] })], [2], 'a chapter that changed after he read it is due again');
 });
