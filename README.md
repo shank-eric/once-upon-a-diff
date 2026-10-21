@@ -1,5 +1,7 @@
 # Diff Story Mode
 
+New here? [GETTING-STARTED.md](GETTING-STARTED.md) walks you through setup and your first story.
+
 A code-review story (an overview, then chapters) in a side panel docked on top of a diff, with the diff filtered to each chapter's files. It works in two places:
 
 - **GitHub PRs.** An unpacked Chrome extension docks the panel on a pull request's `/changes` or `/files` page whenever a story exists for that PR.
