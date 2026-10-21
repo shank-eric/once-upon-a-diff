@@ -106,6 +106,9 @@ Steps 1 to 5 are independent of each other and could go in any order. Steps 6 an
 ## Status
 
 - Done: steps 1 to 5 (names in `bridge/`, `server/`, `backstory/`, `stories/`, `cli/`), 8 (`public/local/`), 10 (leftover names), and the naming rules are errors everywhere.
-- Step 6, partly: the skill uses the bridge's `entryOf`. Its `parseUnifiedDiff` and `textRefsOf` stay, because the bridge's versions would change the skill's `story.json` (renamed files, "No newline" lines, anchored diff links) and so its chat-mode page.
-- Step 7 is open: retiring the skill's `bin/overlay.js` snippet is a product call (see the options in the hand-off report).
+- Step 6, partly: the skill uses the bridge's `entryOf`. Its `parseUnifiedDiff` and `textRefsOf` stay, because the bridge's versions would change the skill's `story.json`, and so its chat-mode page: renamed files would say "renamed" instead of "modified", hunks would keep "\\ No newline at end of file" lines, and only diff links that end at the line anchor would count. The options are to keep the copies, to switch and accept those differences, or to give the bridge's parser a mode that matches the skill's.
+- Step 7 is open, since it's a product call rather than a refactor. `bin/overlay.js` is what GitHub mode injects without the extension, and it never clicks GitHub's controls. Chat mode doesn't use it. The options:
+  1. Keep it as the no-install fallback, and carry selector fixes across by hand.
+  2. Build the snippet from `src/js/shared/panel/` when `pr-story.mjs overlay` runs. The snippet would then expand files and offer Mark viewed, so the skill's "never clicks GitHub's controls" rule would change, unless the panel grows a switch that turns those off.
+  3. Retire GitHub mode's snippet and the `overlay` command, and point GitHub mode at Diff Story Mode only.
 - Step 9 renamed the tests and scripts but kept the test tree and `load-test.mjs` as they are.
