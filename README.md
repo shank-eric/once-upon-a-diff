@@ -11,7 +11,7 @@ The panel is a port of the pr-story skill's GitHub overlay (`~/.claude/skills/pr
 
 ## Installing
 
-You need Node 20 or newer. The bridge has no runtime dependencies. `yarn install` only fetches eslint and playwright-core for development.
+You need Node 20 or newer. The bridge has no runtime dependencies. `yarn install` only fetches eslint, playwright-core and highlight.js (vendored into `bridge/public/vendor/`) for development.
 
 1. Print the bridge's port and token. This also creates `~/.diff-story/config.json` with a random token:
    ```bash
@@ -148,6 +148,7 @@ This builds `git diff <base> <head>` into `~/.diff-story/local-<repo>-<branch>/`
 - **Comments become "fix before push" notes.** Click a line number to add a note. Notes are listed under "Fix before push" at the top, can be ticked done, and go to the inbox. `diff-story notes --story <id>` prints them as a checklist. Comments drafted in `chapters.json` show in the panel as "Fix before push (drafted)".
 - **The page follows the branch.** Amend or add a commit and the page redraws with the new diff within ≈5 seconds.
 - **Unified / Split**, in the page header, switches between one column and GitHub's side-by-side view, with old lines on the left and new on the right, lined up. Line numbers on either side take notes, and line jumps, Viewed and the panel work the same in both. It's saved in `prefs.json` too, so it holds for every local story.
+- **Syntax highlighting** colors the diff in both views, picked by file extension: TypeScript and TSX, JavaScript, JSON, Ruby and ERB, YAML, CSS and SCSS, Markdown, shell, and HTML/XML. Each hunk's old and new sides are highlighted as whole pieces of code, so a template string or block comment that runs over several lines is colored right. A hunk that starts partway into a comment can still come out wrong. Files over 3,000 diff lines, minified lines and anything past 20,000 lines on a page stay plain, so big diffs stay quick. highlight.js is vendored in `bridge/public/vendor/` (`yarn vendor` remakes it from the pinned dev dependency), so the bridge still has no runtime dependencies and the page loads nothing from a CDN.
 - **Hide whitespace**, in the page header, draws the diff with `git diff -w`, like GitHub's setting of the same name. Unlike GitHub's, it's remembered: the bridge keeps it in `~/.diff-story/prefs.json`, so it holds for every local story and across reloads and bridge restarts. A file whose only changes are whitespace stays listed, marked "whitespace only". Viewed marks and "changed since viewed" are always checked against the full diff, so turning it on or off never flips them. A whitespace-only edit after you mark a file viewed still counts as a change. A note or a story line on a line the `-w` diff doesn't draw sits at the top of its file (notes say so), or the panel jumps to the nearest drawn line.
 - Without `--chapters`, you get one chapter per top-level folder as a starting point. Any file a story doesn't place lands in a last "Not in a chapter yet" step, so nothing is hidden from every step.
 

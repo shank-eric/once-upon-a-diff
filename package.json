@@ -14,6 +14,7 @@
   "scripts": {
     "bridge": "node bridge/bin/diff-story.mjs serve",
     "icons": "node scripts/make-icons.mjs",
+    "vendor": "node scripts/vendor-hljs.mjs",
     "js:lint": "eslint './src/**/*.js' './bridge/**/*.{js,mjs}' './test/**/*.mjs' './scripts/**/*.mjs'",
     "js:lint:fix": "eslint './src/**/*.js' './bridge/**/*.{js,mjs}' './test/**/*.mjs' './scripts/**/*.mjs' --fix",
     "test": "node --test test/*.test.mjs",
@@ -23,6 +24,7 @@
     "eslint": "^8.6.0",
     "eslint-config-prettier": "^8.7.0",
     "eslint-plugin-import": "^2.25.4",
+    "highlight.js": "11.11.1",
     "playwright-core": "1.64.0"
   }
 }

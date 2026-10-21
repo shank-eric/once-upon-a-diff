@@ -466,6 +466,7 @@ __metadata:
     eslint: ^8.6.0
     eslint-config-prettier: ^8.7.0
     eslint-plugin-import: ^2.25.4
+    highlight.js: 11.11.1
     playwright-core: 1.64.0
   bin:
     diff-story: bridge/bin/diff-story.mjs
@@ -1084,6 +1085,13 @@ __metadata:
   dependencies:
     function-bind: ^1.1.2
   checksum: 4bd8f916b629e06324853593ffbdd45e200022952a85ad0c967f3bd4c2e4c7e1f9a9766fbe6186f60bd394e0afc73e719730caa1da15cd9bd832b7cdf53fd26c
+  languageName: node
+  linkType: hard
+
+"highlight.js@npm:11.11.1":
+  version: 11.11.1
+  resolution: "highlight.js@npm:11.11.1"
+  checksum: 841ddd329a92be123a61ef4051698f824c3575deef588fbb810bd638f1575ddc96b7bdd925b97c05a29276bb119dfcb8e5bcb0acb31c86249371bf046e131d72
   languageName: node
   linkType: hard
 

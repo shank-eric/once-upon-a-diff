@@ -9,8 +9,8 @@
 
 /**
  * @param {{oldStart: number, newStart: number, lines: string[]}} hunk
- * @returns {Array<{left: {num: number, text: string, kind: 'ctx'|'del'}|null, right: {num: number, text: string, kind: 'ctx'|'add'}|null}
- *   | {info: string}>}
+ * @returns {Array<{left: {num, text, kind: 'ctx'|'del', i}|null, right: {num, text, kind: 'ctx'|'add', i}|null} | {info: string}>}
+ *   i is the line's index in hunk.lines, for its highlighted HTML.
  */
 export function splitRows(hunk) {
   const rows = [];
@@ -23,22 +23,22 @@ export function splitRows(hunk) {
     dels = [];
     adds = [];
   };
-  for (const line of hunk.lines) {
+  hunk.lines.forEach((line, i) => {
     const sign = line[0];
     const text = line.slice(1);
     if (sign === '-') {
       if (adds.length) flush(); // a removal after additions starts a new pairing
-      dels.push({ num: o++, text, kind: 'del' });
+      dels.push({ num: o++, text, kind: 'del', i });
     } else if (sign === '+') {
-      adds.push({ num: n++, text, kind: 'add' });
+      adds.push({ num: n++, text, kind: 'add', i });
     } else if (sign === ' ') {
       flush();
-      rows.push({ left: { num: o++, text, kind: 'ctx' }, right: { num: n++, text, kind: 'ctx' } });
+      rows.push({ left: { num: o++, text, kind: 'ctx', i }, right: { num: n++, text, kind: 'ctx', i } });
     } else {
       flush();
       rows.push({ info: line });
     }
-  }
+  });
   flush();
   return rows;
 }
