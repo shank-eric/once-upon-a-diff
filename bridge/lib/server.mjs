@@ -26,6 +26,7 @@ import { freshness, currentHead } from './freshness.mjs';
 import { stateKeyOf, readMarks, mark, draftStatus, githubComments, forgetComments, addedMark, noteAdded } from './drafts.mjs';
 import { addToPendingReview } from './review.mjs';
 import { statusOf, listeningOf, answerContext, runAutoAnswer } from './health.mjs';
+import { readReads, noteRead, sinceOf, SHA_RE } from './reads.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.resolve(HERE, '../public');
@@ -298,6 +299,26 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
         lastPosition.set(id, key);
         inbox.append({ type: 'position', id: newId('p'), ...ctx, ...pos });
         return send(200, { ok: true, logged: true });
+      }
+      if (what === 'read') {
+        // what Eric has read, per chapter, with the commit current at the time (reads.mjs)
+        const key = stateKeyOf(id, meta);
+        const data = stories.load(id);
+        const now = meta.kind === 'local' ? readMeta(dir) : meta; // load() follows a local story's branch
+        if (req.method === 'POST') {
+          const chapter = str(body.chapter, 200);
+          const ch = data.chapters.find(c => c.key === chapter);
+          if (!ch) throw new HttpError(404, 'no chapter with that key');
+          // the PR's head: the panel says what it saw, else ask gh (read-only, cached 60s); a local story's is its head commit
+          let head = SHA_RE.test(String(body.head_sha || '')) ? body.head_sha : null;
+          if (!head && now.kind === 'github' && now.repo && now.number) { try { head = await currentHead(now.repo, now.number); } catch { head = null; } }
+          if (!head) head = now.head_oid || null;
+          const rec = noteRead(home, key, chapter, { head_sha: head, story_head: now.head_oid || head, reason: body.reason, title: ch.title, step: int(body.step), seconds: body.seconds });
+          inbox.append({ type: 'read', id: newId('rd'), ...ctx, chapter, step: rec.step, title: rec.title, head_sha: rec.head_sha, story_head: rec.story_head, reason: rec.reason });
+          return send(200, { chapter, ...rec });
+        }
+        const reads = readReads(home, key);
+        return send(200, { reads, since: sinceOf(reads, data.chapters, now.head_oid || null), story_head: now.head_oid || null });
       }
       if (what === 'viewed' && req.method === 'POST') {
         if (meta.kind !== 'local') throw new HttpError(400, 'viewed files are kept by GitHub for PR stories');
