@@ -1,19 +1,19 @@
 /**
- * What's become of each drafted comment: posted on GitHub, waiting in Eric's
- * pending review, dismissed by him, or still a draft.
+ * What's become of each drafted comment: posted on GitHub, waiting in the
+ * reviewer's pending review, dismissed by them, or still a draft.
  *
  * Posted and pending come from read-only `gh api` GETs (as the logged-in gh
- * user, with GITHUB_TOKEN unset so the keychain login is used), cached for
+ * user, with GITHUB_TOKEN unset when config.json asks for it), cached for
  * 60s:
  *   repos/{o}/{r}/pulls/{n}/comments                 posted review comments
- *   repos/{o}/{r}/pulls/{n}/reviews                  reviews (a PENDING one is his unsubmitted review)
+ *   repos/{o}/{r}/pulls/{n}/reviews                  reviews (a PENDING one is their unsubmitted review)
  *   repos/{o}/{r}/pulls/{n}/reviews/{id}/comments    that pending review's comments
  *   repos/{o}/{r}/issues/{n}/comments                general PR comments
- * A draft matches a comment of his on the same file within 3 lines (or a
+ * A draft matches a comment of theirs on the same file within 3 lines (or a
  * general draft a general comment) whose text is at least 0.75 similar, since
- * he often edits a draft before posting it.
+ * a draft is often edited before it's posted.
  *
- * "Mark posted" / "Unmark" and "Dismiss" / "Restore" are his calls, kept by
+ * "Mark posted" / "Unmark" and "Dismiss" / "Restore" are the reviewer's calls, kept by
  * the bridge in <home>/state/<key>/drafts.json, where the key is the PR (so a
  * re-rendered or regenerated story keeps them) or the local story's id.
  * Dismissals match by path, line and text too, so a regenerated story doesn't
@@ -28,11 +28,12 @@ import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { ghEnv } from './config.mjs';
 
 const GH = () => process.env.DIFF_STORY_GH || 'gh';
 const TTL_MS = 60000;
 const LINE_SLACK = 3;
-export const SIMILAR = 0.75; // he edits drafts before posting: #6943's pending Combobox comment scores 0.80 against its draft
+export const SIMILAR = 0.75; // drafts get edited before posting: a lightly reworded real one scored 0.80 against its draft
 
 export const stateKeyOf = (id, meta) => (meta && meta.kind === 'github' && meta.repo && meta.number ? `pr-${meta.repo.replace('/', '-')}-${meta.number}`.toLowerCase() : id);
 export const draftKey = c => createHash('sha1').update(`${c.path || ''}\n${Number(c.line) || 0}\n${normalize(c.body)}`).digest('hex').slice(0, 12);
@@ -74,8 +75,7 @@ export function bestMatch(draft, comments) {
 }
 
 function gh(args) {
-  const env = { ...process.env };
-  delete env.GITHUB_TOKEN; // the keychain login has repo scope; GITHUB_TOKEN here is a yarn-only token
+  const env = ghEnv();
   return new Promise((resolve, reject) => {
     execFile(GH(), ['api', ...args], { env, timeout: 20000, maxBuffer: 32 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) reject(new Error((stderr || err.message).trim().split('\n')[0]));
@@ -91,7 +91,7 @@ const ghJson = async args => {
 
 let login = null;
 const cache = new Map();
-/** Eric's comments on a PR: [{state: 'posted'|'pending', path, line, body, url}], cached 60s. */
+/** The gh user's comments on a PR: [{state: 'posted'|'pending', path, line, body, url}], cached 60s. */
 export async function githubComments(repo, number) {
   const key = `${repo}#${number}`.toLowerCase();
   const hit = cache.get(key);
@@ -122,7 +122,7 @@ export const clearCache = () => { cache.clear(); login = null; };
 /** Drop one PR's cached comments, e.g. right after adding one to the pending review. */
 export const forgetComments = (repo, number) => { cache.delete(`${repo}#${number}`.toLowerCase()); };
 
-// ---------- his own calls, kept by the bridge
+// ---------- the reviewer's own calls, kept by the bridge
 function file(home, key) {
   const dir = path.join(home, 'state', key);
   mkdirSync(dir, { recursive: true });
@@ -153,7 +153,7 @@ export function mark(home, key, action, draft) {
   return marks;
 }
 
-/** The `added` mark for a draft, if Add to my review already put it in his pending review. */
+/** The `added` mark for a draft, if Add to my review already put it in their pending review. */
 export const addedMark = (marks, draft) => (marks.added || []).find(sameAs(entryOf(draft))) || null;
 
 /** Add to my review worked: remember it until the page, or gh after a reload, shows it. */

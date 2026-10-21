@@ -26,7 +26,7 @@ import { execFileSync, execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import os from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const RENDERER_DIR = process.env.SESSION_STORY_DIR || path.join(os.homedir(), '.claude/skills/session-story');
@@ -202,7 +202,7 @@ function buildMap(chapters, diff) {
     }
   });
   // a "Since you read it" chapter (one with `since`, put first by a story update) finishes its files, though the
-  // chapters he already read follow it; the newest (first) one wins (Diff Story Mode reads the same rule)
+  // chapters they already read follow it; the newest (first) one wins (Diff Story Mode reads the same rule)
   for (let i = chapters.length - 1; i >= 0; i--) {
     if (!chapters[i].since) continue;
     for (const raw of chapters[i].files || []) { const f = files[entryOf(raw).rel]; if (f) f.finished_in = i + 1; }
@@ -353,7 +353,12 @@ async function cmdRender(opts) {
   // changes them they just stop applying.
   html = relabel(html.replace('<span>Session story</span>', '<span>PR story</span>'));
   await writeFile(out, html);
-  if (opts.open) execFile('open', [out], () => {});
+  if (opts.open) {
+    // open_command in ~/.diff-story/config.json, else the platform's opener (Diff Story Mode's config.mjs)
+    let argv = [process.platform === 'darwin' ? 'open' : process.platform === 'win32' ? 'explorer' : 'xdg-open', out];
+    try { argv = (await import(pathToFileURL(path.join(DSM, 'bridge/lib/config.mjs')).href)).openArgv(out); } catch { /* no Diff Story Mode beside it */ }
+    execFile(argv[0], argv.slice(1), () => {});
+  }
   process.stderr.write(`Page: ${out}${opts.open ? ' (opened)' : ''}\n`);
   if (!opts['no-bridge']) await cmdPublish(opts);
 }

@@ -10,6 +10,7 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { readSettings } from './config.mjs';
 
 export const REPO_RE = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
 export const sameRepo = (a, b) => !!a && !!b && String(a).toLowerCase() === String(b).toLowerCase();
@@ -54,15 +55,16 @@ export function seenCheckout(home, repo, dir) {
 }
 
 /**
- * Where to work on a repo: the checkout the bridge has seen, else ~/Development/<name> (or
- * ~/Development/Foundry|SDK/<name>) when its origin is that repo, else null. DIFF_STORY_DEV_DIR moves ~/Development.
+ * Where to work on a repo: the checkout the bridge has seen, else <dir>/<name> for each of config.json's
+ * checkout_dirs (default ~/Development) when its origin is that repo, else null. DIFF_STORY_DEV_DIR overrides them.
  */
-export function checkoutFor(home, repo, { dev = process.env.DIFF_STORY_DEV_DIR || path.join(os.homedir(), 'Development') } = {}) {
+export function checkoutFor(home, repo, { dev } = {}) {
   if (!repo) return null;
   const seen = readAll(home)[repo.toLowerCase()];
   if (seen && existsSync(seen)) return seen;
   const name = repo.split('/')[1];
-  for (const dir of [path.join(dev, name), path.join(dev, 'Foundry', name), path.join(dev, 'SDK', name)]) {
+  const dirs = dev ? [dev] : readSettings(home).checkoutDirs;
+  for (const dir of dirs.map(d => path.join(d, name))) {
     if (existsSync(dir) && sameRepo(repoOfCheckout(dir), repo)) return dir;
   }
   return null;

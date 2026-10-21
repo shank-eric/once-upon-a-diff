@@ -2,7 +2,8 @@
  * Where the bridge keeps things, and its port and token.
  *
  *   ~/.diff-story/                 DIFF_STORY_HOME overrides it
- *     config.json                  {port, token, roots}, mode 600
+ *     config.json                  {port, token, roots, ...personal settings (readSettings)}, mode 600
+ *     house-rules.md               optional: your own rules, which the skills read and follow
  *     prefs.json                   page settings that hold across stories and restarts: {hideWhitespace, diffView}
  *     inbox.jsonl                  questions, positions, notes and answers, one JSON object a line
  *     cursors/<consumer>.json      how far each reader (a Claude session, a hook) has read the inbox
@@ -42,6 +43,60 @@ export function loadConfig(home = homeDir()) {
   if (!cfg.port) { cfg.port = DEFAULT_PORT; changed = true; }
   if (changed) saveConfig(cfg, home);
   return cfg;
+}
+
+/**
+ * Optional personal settings in config.json, all off or neutral by default:
+ *   display_name            the reviewer's name in lines the bridge writes for Claude ("where Sam's reading stopped")
+ *   time_zone               an IANA zone for times the CLI prints (default: the system's), time_zone_label its label
+ *   checkout_dirs           folders to look in for a repo's checkout (default ["~/Development"]; DIFF_STORY_DEV_DIR overrides)
+ *   open_command            argv to open a URL or file, e.g. ["open"] (default: open, xdg-open or start by platform)
+ *   gh_unset_github_token   true to drop GITHUB_TOKEN before calling gh, so gh's own (keychain) login is used
+ *   house_rules             a Markdown file of your own rules the skills load (default ~/.diff-story/house-rules.md)
+ * Read without creating config.json, so a missing file just means the defaults.
+ */
+export function readSettings(home = homeDir()) {
+  let cfg = {};
+  try { cfg = JSON.parse(readFileSync(path.join(home, 'config.json'), 'utf8')) || {}; } catch { cfg = {}; }
+  const expand = p => (p.startsWith('~/') ? path.join(os.homedir(), p.slice(2)) : p);
+  const dirs = Array.isArray(cfg.checkout_dirs) ? cfg.checkout_dirs.filter(d => typeof d === 'string' && d).map(expand) : [];
+  return {
+    displayName: typeof cfg.display_name === 'string' && cfg.display_name.trim() ? cfg.display_name.trim() : null,
+    timeZone: typeof cfg.time_zone === 'string' && cfg.time_zone ? cfg.time_zone : undefined,
+    timeZoneLabel: typeof cfg.time_zone_label === 'string' ? cfg.time_zone_label : null,
+    checkoutDirs: process.env.DIFF_STORY_DEV_DIR ? [process.env.DIFF_STORY_DEV_DIR] : dirs.length ? dirs : [path.join(os.homedir(), 'Development')],
+    openCommand: Array.isArray(cfg.open_command) && cfg.open_command.length ? cfg.open_command.map(String) : null,
+    unsetGithubToken: cfg.gh_unset_github_token === true,
+  };
+}
+
+/** "Sam's" with a display_name, else "the reviewer's". */
+export function readerOf(home = homeDir()) {
+  const name = readSettings(home).displayName;
+  return name ? `${name}'s` : "the reviewer's";
+}
+
+/** The environment for a gh call: GITHUB_TOKEN dropped only when config.json asks for it. */
+export function ghEnv(home = homeDir(), base = process.env) {
+  const env = { ...base };
+  if (readSettings(home).unsetGithubToken) delete env.GITHUB_TOKEN;
+  return env;
+}
+
+/** argv that opens a URL or file: open_command, else the platform's usual opener. */
+export function openArgv(target, home = homeDir()) {
+  const cmd = readSettings(home).openCommand
+    || (process.platform === 'darwin' ? ['open'] : process.platform === 'win32' ? ['explorer'] : ['xdg-open']);
+  return [...cmd, target];
+}
+
+/** A time for the CLI's lines, in time_zone (default the system's), labelled time_zone_label or the zone's short name. */
+export function formatTime(iso, home = homeDir()) {
+  if (!iso) return '';
+  const { timeZone, timeZoneLabel } = readSettings(home);
+  const opts = { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone };
+  if (timeZoneLabel !== null) return new Date(iso).toLocaleString('en-US', opts) + (timeZoneLabel ? ` ${timeZoneLabel}` : '');
+  return new Date(iso).toLocaleString('en-US', { ...opts, timeZoneName: 'short' });
 }
 
 export function saveConfig(cfg, home = homeDir()) {

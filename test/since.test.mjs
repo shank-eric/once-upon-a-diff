@@ -28,7 +28,7 @@ function story(home, head = A) {
   return dir;
 }
 
-test('an update asks for a "Since you read it" chapter from where his reading stopped', async () => {
+test('an update asks for a "Since you read it" chapter from where the reading stopped', async () => {
   clearFreshness();
   const home = tmp('home');
   story(home);
@@ -43,13 +43,16 @@ test('an update asks for a "Since you read it" chapter from where his reading st
     assert.deepEqual(r.reads.map(x => x.chapter).sort(), ['finish', 'start']);
     const line = inbox(home).find(e => e.type === 'build_request');
     assert.equal(line.since_sha, C);
-    assert.match(line.text, /"Since you read it" chapter first for ccccccc\.\.the PR's head, where Eric's reading stopped/);
+    assert.match(line.text, /"Since you read it" chapter first for ccccccc\.\.the PR's head, where the reviewer's reading stopped/);
     // the wait hands it over with the same fields
     const w = await cli(home, ['wait', '--timeout', '1', '--json', '--repo', 'acme/widgets']);
     const e = JSON.parse(w.stdout.trim().split('\n')[0]);
     assert.deepEqual([e.mode, e.since_sha, e.retell, e.story], ['update', C, false, 'acme-widgets-7']);
     const listed = await cli(home, ['builds']);
-    assert.match(listed.stdout, /update: "Since you read it" from ccccccc \(where his reading stopped; 2 chapters read\)/);
+    assert.match(listed.stdout, /update: "Since you read it" from ccccccc \(where the reviewer's reading stopped; 2 chapters read\)/);
+    // display_name in config.json names the reviewer
+    writeJson(path.join(home, 'config.json'), { ...JSON.parse(readFileSync(path.join(home, 'config.json'), 'utf8')), display_name: 'Sam' });
+    assert.match((await cli(home, ['builds'])).stdout, /\(where Sam's reading stopped; 2 chapters read\)/);
     assert.equal(JSON.parse((await cli(home, ['builds', '--json'])).stdout)[0].since_sha, C);
   } finally { await b.close(); }
 });

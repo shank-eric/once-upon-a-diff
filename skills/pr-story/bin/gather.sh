@@ -5,9 +5,12 @@
 #   gather.sh <number|url> [owner/repo] -o <dir>
 #
 # Writes pr.json, pr.diff, comments.json, threads.json, checks.json,
-# viewed.tsv and checkouts.txt (local clones of the repo under ~/Development).
+# viewed.tsv and checkouts.txt (local clones of the repo under the checkout folders:
+# DIFF_STORY_DEV_DIR, else checkout_dirs in ~/.diff-story/config.json, else ~/Development).
 set -euo pipefail
-unset GITHUB_TOKEN   # the yarn-only token shadows the keychain login
+CONFIG="${DIFF_STORY_HOME:-$HOME/.diff-story}/config.json"
+# gh_unset_github_token: true in config.json drops GITHUB_TOKEN so gh uses its own (keychain) login
+[ "$(jq -r '.gh_unset_github_token // false' "$CONFIG" 2>/dev/null)" = true ] && unset GITHUB_TOKEN
 
 PR="" REPO="" OUT=""
 while [ $# -gt 0 ]; do
@@ -47,7 +50,13 @@ gh pr checks "$PR" -R "$REPO" --json name,state,bucket,workflow,link > "$OUT/che
 # Local checkouts whose origin is this repo, newest base-branch commit first.
 BASE=$(jq -r .baseRefName "$OUT/pr.json")
 : > "$OUT/checkouts.txt"
-for g in $(find "$HOME/Development" -maxdepth 4 -name .git -not -path '*/node_modules/*' 2>/dev/null); do
+if [ -n "${DIFF_STORY_DEV_DIR:-}" ]; then ROOTS=("$DIFF_STORY_DEV_DIR")
+else
+  ROOTS=()
+  while IFS= read -r r; do [ -n "$r" ] && ROOTS+=("${r/#\~/$HOME}"); done < <(jq -r '.checkout_dirs // [] | .[]' "$CONFIG" 2>/dev/null || true)
+  [ ${#ROOTS[@]} -gt 0 ] || ROOTS=("$HOME/Development")
+fi
+for g in $(find "${ROOTS[@]}" -maxdepth 4 -name .git -not -path '*/node_modules/*' 2>/dev/null | sort -u); do
   d=$(dirname "$g")
   url=$(git -C "$d" remote get-url origin 2>/dev/null || true)
   case "$url" in *[:/]"$REPO"|*[:/]"$REPO".git)
@@ -55,7 +64,7 @@ for g in $(find "$HOME/Development" -maxdepth 4 -name .git -not -path '*/node_mo
     echo "$when	$d" >> "$OUT/checkouts.txt" ;;
   esac
 done
-sort -r -o "$OUT/checkouts.txt" "$OUT/checkouts.txt"
+sort -r -u -o "$OUT/checkouts.txt" "$OUT/checkouts.txt"
 
 echo "Gathered $REPO#$PR into $OUT"
 echo "Local checkouts (origin/$BASE last commit, path):"; sed 's/^/  /' "$OUT/checkouts.txt"
