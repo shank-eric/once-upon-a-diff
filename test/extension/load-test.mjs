@@ -68,7 +68,7 @@ writeJson(path.join(home, id, 'chapters.json'), {
 // a local story too
 const { repo: lrepo, base } = localRepo();
 const lchapters = path.join(tmp('lch'), 'chapters.json');
-writeJson(lchapters, { title: 'Local test', chapters: [{ title: 'Chapter 1: One', narrative: '### Chapter 1: One\n\nStarts with `one.txt`.', files: ['one.txt', { rel: 'lib/two.js', partial: true, note: 'the export' }], comments: [{ path: 'one.txt', line: 2, body: 'Fix B' }] }, { title: 'Chapter 2: The rest', files: ['lib/two.js', 'gone.txt'] }] });
+writeJson(lchapters, { title: 'Local test', chapters: [{ title: 'Chapter 1: One', narrative: '### Chapter 1: One\n\nStarts with `one.txt`.\n\n1. Then `one.txt:2` and `:3`.\n\n**Files to mark viewed:** `one.txt`.', files: ['one.txt', { rel: 'lib/two.js', partial: true, note: 'the export' }], comments: [{ path: 'one.txt', line: 2, body: 'Fix B' }] }, { title: 'Chapter 2: The rest', files: ['lib/two.js', 'gone.txt'] }] });
 const local = createLocalStory({ home, repo: lrepo, base, head: 'HEAD', chapters: lchapters });
 
 process.env.DIFF_STORY_GH = path.join(ROOT, 'test', 'fixtures', 'fake-gh.mjs'); // no real GitHub calls from the test bridge
@@ -375,6 +375,9 @@ try {
   await lp.locator('#dsm-panel .prs-all').click();
   await lp.waitForTimeout(500);
   check((await earlyText()) === '', 'unmarking them clears the warning');
+  // the narrative's pill goes on a file's last mention in the chapter; the first says "more below"
+  const onePills = await lp.locator('#dsm-panel .prs-md .prs-pill').allTextContents();
+  check(JSON.stringify(onePills) === JSON.stringify(['more below', 'mark viewed']), `the pill is on one.txt's last mention, "more below" on its first: ${JSON.stringify(onePills)}`);
   const oneTag = () => lp.locator('#dsm-panel li[data-file="one.txt"] .prs-why').textContent();
   check(/^Mark viewed/.test(await oneTag()), `a file the chapter finishes says Mark viewed while it isn't: "${await oneTag()}"`);
   await lp.locator('.ds-file[data-path="one.txt"] .ds-viewed').click();

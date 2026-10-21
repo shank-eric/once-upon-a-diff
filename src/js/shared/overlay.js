@@ -116,6 +116,25 @@ export function finishedInOf(chapters) {
   for (let i = chapters.length - 1; i >= 0; i--) if (chapters[i].since) (chapters[i].files || []).forEach((f) => { fin[f.rel] = i + 1; });
   return fin;
 }
+const PILL_MARK = /\u0001(\d+)\u0001/g;
+const pillMarker = (i) => `\u0001${i}\u0001`;
+/**
+ * Fills a chapter story's pill markers (pillMarker(i) for the i-th file mention, marks[i] its file) in reading order:
+ * a file's last mention gets pillFor(rel, false), its first (when there's more than one) pillFor(rel, true), the rest nothing.
+ */
+export function placePills(html, marks, pillFor) {
+  const first = new Map();
+  const last = new Map();
+  marks.forEach((rel, i) => { if (!first.has(rel)) first.set(rel, i); last.set(rel, i); });
+  return String(html).replace(PILL_MARK, (m, k) => {
+    const i = Number(k);
+    const rel = marks[i];
+    if (rel == null) return '';
+    if (last.get(rel) === i) return pillFor(rel, false);
+    return first.get(rel) === i ? pillFor(rel, true) : '';
+  });
+}
+export { pillMarker };
 /** GitHub's diff of a commit range in a PR: /owner/repo/pull/N/files/<from>..<to> (or /changes/…). {from, to} or null. */
 export function rangeOfPath(pathname) {
   const m = /^\/[^/]+\/[^/]+\/pull\/\d+\/(?:files|changes)\/([0-9a-f]{7,40})\.\.([0-9a-f]{7,40})\/?$/.exec(String(pathname || ''));
@@ -374,6 +393,7 @@ export function storyOverlay(INPUT, opts = {}) {
   #${NS} [data-rel] { color: var(--c-accent); cursor: pointer; }
   #${NS} [data-rel]:hover { text-decoration: underline; }
   #${NS} .prs-pill { font-size: 11px; padding: 0 5px; border-radius: 9px; border: 1px solid currentColor; margin-left: 3px; white-space: nowrap; }
+  #${NS} .prs-pill.prs-more { color: var(--c-muted); border-style: dashed; }
   #${NS} .prs-st-mark { color: var(--c-ok); } #${NS} .prs-st-later { color: var(--c-warn); } #${NS} .prs-st-done, #${NS} .prs-st-viewed { color: var(--c-muted); }
   #${NS} .prs-viewed { color: var(--c-ok); font-size: 12px; margin-left: 4px; white-space: nowrap; }
   #${NS} .prs-viewed:empty { display: none; }
@@ -466,14 +486,34 @@ export function storyOverlay(INPUT, opts = {}) {
     const a = `data-rel="${esc(rel)}" title="Scroll to ${esc(rel)}${where}"`;
     return line ? `${a} data-side="${line.side}" data-start="${line.start}" data-end="${line.end}"` : a;
   }
-  /** The status pill after a file's first mention in a chapter. */
+  /**
+   * The status pill on a file's mention. While a chapter's story is drawn (pillMarks set), each mention leaves a
+   * marker, and placePills() puts the pill on the file's LAST mention in reading order. Elsewhere (an answer), it
+   * goes on the first mention of a file the story didn't pill.
+   */
+  let pillMarks = null;
   function pill(rel) {
-    if (!state.n || pilled.has(rel)) return '';
+    if (!state.n) return '';
+    if (pillMarks) return pillMarker(pillMarks.push(rel) - 1);
+    if (pilled.has(rel)) return '';
     pilled.add(rel);
+    return pillHtml(rel);
+  }
+  function pillHtml(rel, earlier) {
     const st = status(rel, state.n);
     if (!st) return '';
+    if (earlier) return st.kind === 'mark' ? '<span class="prs-pill prs-more" title="Mark it viewed at its last mention: this chapter comes back to it below">more below</span>' : '';
     const mark = st.kind === 'mark' ? ` data-mark-for="${esc(rel)}" data-mark-short="1"` : ''; // renderViewed says "viewed ✓" once it's ticked
     return `<span class="prs-pill prs-st-${st.kind}"${mark} title="${esc(st.text)}">${esc(st.short)}</span>`;
+  }
+  /** A chapter's story with its pill markers filled in: the status on each file's last mention, "more below" on its first. */
+  function storyWithPills(draw) {
+    const marks = [];
+    pillMarks = marks;
+    let html;
+    try { html = draw(); } finally { pillMarks = null; }
+    for (const rel of marks) pilled.add(rel);
+    return placePills(html, marks, pillHtml);
   }
 
   // ---------- tiny markdown (escape first, then a block pass and an inline pass)
@@ -967,9 +1007,9 @@ export function storyOverlay(INPUT, opts = {}) {
       body = `<div class="prs-md">${intro}</div>${bsTop}${filesBox(`All files (${DATA.files.length})`, `${DATA.chapters.length} chapters`, files)}`;
     } else {
       linkScope = ch.files.map((f) => f.rel);
-      const story = ch.narrative
+      const story = storyWithPills(() => (ch.narrative
         ? markdown(ch.narrative)
-        : `${ch.headline ? `<p><strong>${inline(ch.headline)}</strong></p>` : ''}${ch.scenario ? `<p>The scenario: ${inline(ch.scenario)}</p>` : ''}${ch.summary ? `<p>${inline(ch.summary)}</p>` : ''}<p class="prs-empty">This chapter's story isn't written yet.</p>`;
+        : `${ch.headline ? `<p><strong>${inline(ch.headline)}</strong></p>` : ''}${ch.scenario ? `<p>The scenario: ${inline(ch.scenario)}</p>` : ''}${ch.summary ? `<p>${inline(ch.summary)}</p>` : ''}<p class="prs-empty">This chapter's story isn't written yet.</p>`));
       const comments = (ch.comments || []).map((c, i) => {
         const general = !c.line || /^\(/.test(c.path || '');
         const ref = !general && resolveRef(c.path);
