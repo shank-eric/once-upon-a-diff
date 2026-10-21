@@ -243,10 +243,17 @@ function openRun(fold) {
   for (let tr = fold.nextElementSibling; tr && tr.classList.contains('ds-out'); tr = tr.nextElementSibling) tr.classList.remove('ds-out');
   fold.remove();
 }
+/** A jump from the panel to a file or its lines: unfold the file (Viewed files fold) and open the folds that hold the lines. Viewed stays as it is. */
 function reveal(rel, side, start, end) {
   const f = story.local.files.find(x => x.rel === rel);
   if (!f) return;
-  for (let n = start; n <= Math.max(start, end) && n < start + 400; n++) {
+  const section = document.getElementById(`diff-${f.sha}`);
+  if (section && section.classList.contains('ds-folded')) {
+    section.classList.remove('ds-folded');
+    section.querySelector('.ds-fold')?.setAttribute('aria-expanded', 'true');
+  }
+  if (!side || !Number.isFinite(start)) return;
+  for (let n = start; n <= Math.max(start, end || start) && n < start + 400; n++) {
     const cell = document.querySelector(`[data-line-anchor="diff-${f.sha}${side}${n}"]`);
     const tr = cell && cell.closest('tr');
     if (tr && tr.classList.contains('ds-out')) openFold(tr);
