@@ -18,15 +18,7 @@ export function createQuestions(context) {
   let pollCount = 0;
 
   /** Is this question about the step on screen (any story step on the Overview)? */
-  function forStep(question) {
-    const asked = String(question.chapter || '');
-    if (context.inBackstory()) {
-      return (
-        asked === context.navigation.stepLabel() || (state.n === 0 && /^Backstory/.test(asked))
-      );
-    }
-    return !/^Backstory/.test(asked) && (state.n === 0 || question.step === state.n);
-  }
+  const forStep = (question) => state.n === 0 || question.step === state.n;
 
   function render() {
     const box = $('.prs-questions');
@@ -105,7 +97,7 @@ export function createQuestions(context) {
     try {
       await opts.ask({
         text,
-        step: context.inBackstory() ? null : state.n,
+        step: state.n,
         chapter: context.navigation.stepLabel(),
         file: context.navigation.topFile || context.page.fileAtTop(),
       });

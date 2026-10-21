@@ -153,7 +153,7 @@ export function createViewedTracker(context) {
     const blocks = page.blocksByPath();
     // viewed too early: a file whose last chapter is still to come (it comes back later, or it's only a later chapter's), never one already finished,
     // and never one whose last chapter they've already read (a review done earlier, or before read tracking)
-    const step = context.inBackstory() ? 0 : state.n;
+    const step = state.n;
     const readSteps = readStepsOf(data.chapters, context.reading.info);
     const earlyFor = (rel) =>
       step > 0 &&
@@ -167,10 +167,6 @@ export function createViewedTracker(context) {
       return;
     }
     box.classList.remove('prs-complete');
-    if (context.inBackstory()) {
-      box.innerHTML = '';
-      return;
-    }
     const all = data.chapters.map((chapter, index) => progressOf(index + 1, blocks));
     if (
       all.some((progress) => progress.noToggle) &&

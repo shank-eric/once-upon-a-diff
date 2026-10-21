@@ -140,7 +140,7 @@ export function createDrafts(context) {
   }
 
   async function refresh(force) {
-    if (!opts.drafts || context.inBackstory()) {
+    if (!opts.drafts) {
       return;
     }
     if (!force && Date.now() - loadedAt < REFRESH_MS) {
@@ -220,8 +220,7 @@ export function createDrafts(context) {
   }
 
   /** A draft added to the review shows as pending as soon as its comment turns up on the page. */
-  const waitingOnPage = () =>
-    !!state.n && !context.inBackstory() && rows.some((row) => row.chapter === state.n && row.added);
+  const waitingOnPage = () => !!state.n && rows.some((row) => row.chapter === state.n && row.added);
 
   /** Draws one draft's state and buttons. Returns what it shows, for the counts. */
   function renderComment(el, row, comment, step, index) {
@@ -339,7 +338,7 @@ export function createDrafts(context) {
 
   function render() {
     const box = $('.prs-drafts');
-    if (!box || context.inBackstory()) {
+    if (!box) {
       return;
     }
     const overview = !state.n; // the Overview lists every chapter's drafts

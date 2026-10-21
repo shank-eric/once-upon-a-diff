@@ -4,7 +4,6 @@
  * for any file of the diff no chapter places.
  */
 import { chapterKey, SHA_RE } from './reads.mjs';
-import { backstoryOf } from './backstory-notes.mjs';
 
 /**
  * A "Since you read it" chapter's `since`: {from, to, commits}, the commits it tells (from..to).
@@ -26,29 +25,19 @@ export function sinceOfChapter(since) {
   };
 }
 
-/** A chapter's file entry: a path, or {rel, partial, note, lines, backstory}. */
+/** A chapter's file entry: a path, or {rel, partial, note, lines}. */
 export function entryOf(entry) {
   if (typeof entry === 'string') {
     return { rel: entry, partial: false, note: null };
   }
   const out = { rel: entry.rel, partial: !!entry.partial, note: entry.note || null };
   if (Array.isArray(entry.lines) && entry.lines.length) {
-    out.lines = entry.lines.map((range) => {
-      const line = {
-        side: range.side === 'L' ? 'L' : 'R',
-        start: +range.start,
-        end: +(range.end || range.start),
-        label: range.label || '',
-      };
-      if (typeof range.backstory === 'string' && range.backstory) {
-        line.backstory = range.backstory;
-      }
-      return line;
-    });
-  }
-  const backstory = backstoryOf(entry.backstory);
-  if (backstory) {
-    out.backstory = backstory;
+    out.lines = entry.lines.map((range) => ({
+      side: range.side === 'L' ? 'L' : 'R',
+      start: +range.start,
+      end: +(range.end || range.start),
+      label: range.label || '',
+    }));
   }
   return out;
 }
@@ -64,7 +53,6 @@ export function chaptersOf(plan) {
       scenario: chapter.scenario || '',
       summary: chapter.summary || '',
       narrative: chapter.narrative || '',
-      backstory: backstoryOf(chapter.backstory),
       files: (chapter.files || []).map(entryOf),
       comments: (chapter.comments || []).map((comment) => ({
         path: comment.path || '',

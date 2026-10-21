@@ -37,7 +37,7 @@ That's the file named by `house_rules` in `~/.diff-story/config.json`, else `~/.
    ```
    This writes `pr.json`, `pr.diff`, `threads.json` (review threads with resolved/outdated), `checks.json`, `viewed.tsv` and `checkouts.txt` (local clones, freshest first). Read `brief.json`, not the raw diff, then read the diff and old code file by file as you plan. If `gh pr diff` fails on a huge PR, make `pr.diff` from the local checkout with `git diff <base-oid>...<head-oid>`.
 
-2. **Plan chapters.** Tell it as a user journey unless the reviewer asks for chronological ("in order", "commit by commit", "how it got here"). Don't ask. **The result comes first:** each chapter tells how a user meets the code as it's built, not how it was written. History only supports that, in the backstory fields below (step 3), and never leads a narrative. Write `<D>/chapters.json`:
+2. **Plan chapters.** Tell it as a user journey unless the reviewer asks for chronological ("in order", "commit by commit", "how it got here"). Don't ask. **The result comes first:** each chapter tells how a user meets the code as it's built, not how it was written. Write `<D>/chapters.json`:
    ```json
    {"mode": "journey", "title": "≤60 chars", "summary": "≤240 chars", "plan": "2-4 sentences",
     "overview": "markdown: what the PR is for, the story map, where it stands",
@@ -53,36 +53,19 @@ That's the file named by `house_rules` in `~/.diff-story/config.json`, else `~/.
    - Tests go in the chapter of the code they test. Lockfiles and config go where they first matter.
    - `build` fails unless every PR file is in a chapter and every partial is finished somewhere.
    - **The story map goes in `overview`,** not at the top of chapter 1's `narrative`. Each `narrative` starts at its own `### Chapter N: …` heading. (The overlay moves a story map it finds before that heading to the Overview, but write it in the right place.)
-   - **Backstory fields** (all optional, filled in step 3): top-level `backstory` `{summary, sessions: [{id, label}], timeline: [{at, title, asked, text, files, session, turn, agent, moment}]}`, each chapter's `backstory` `{summary, steps: [{at, text, session, turn, agent}]}`, a file entry's `backstory` `{text}` and a `lines` entry's `backstory` (a short string).
    - **Line references.** For the key hunks a chapter discusses, add 2-4 `lines` ranges to that chapter's file entries, with real line numbers read from `pr.diff` (`R` is the new side, `L` the old side for removed lines) and a short label. In the narrative, write file mentions in backticks (a path, a unique suffix or a basename) and line mentions as `` `path:40` `` or `` `path:40-58` `` (`path:L12` for an old-side line). Only lines inside the diff's hunks are on the page, so point at changed or nearby context lines.
 
-3. **Backstory, when the commits were made in Claude Code.** Find the sessions behind the commits and fill the backstory fields from them:
-   ```bash
-   node <skill>/bin/pr-story.mjs backstory --dir <D>          # a PR (needs its commits in a local checkout)
-   <dsm> backstory --repo <checkout> --base <ref> -o <D>/backstory.json --brief > <D>/backstory-brief.json   # local commits
-   ```
-   - **How it matches.** It scans `~/.claude/projects` (main and subagent transcripts) for ones that mention a checkout of the repo or a commit SHA, reads each with session-story's extractor (its CLI, `extract --no-chain`, never modified), and keeps a session only if, in the time window, it edited a file of the diff, ran a `git commit` whose subject or SHA is in the range, or ran a write-ish script on a diff file. Checks (lint, tests, builds) count only beside that work, in the checkout it happened in. Added lines are matched to the final diff for line ranges. From the raw transcripts it adds what the user said (prompts and Larmor voice), the task and messages the main session sent each agent, and the agents' hand-back reports.
-   - **Read `backstory-brief.json`,** not `backstory.json`. Each moment is one turn of one agent (or the main session) with its asks, reports, edits, commits and checks. Pass `--exclude-agent <id>` for your own agent if you ran in that session.
-   - **When `found` is false** (a PR written by someone else, or commits made outside Claude Code), skip this step and write no backstory fields. Say so in one line, nothing more.
-   - **What to write.** Short, plain, past tense, hedged where the transcript is thin. Quote the user briefly (one sentence, their words). Say the decisions and their reasons, the alternatives considered, and the review rounds and checks (for example "the `++` audit found all nine safe, nothing reverted"). Times in the reviewer's time zone. Every step carries `session` and `turn` (and `agent` for an agent's work) so the panel can link to it.
-     - `backstory.summary`: 2-4 sentences for the Overview: who made it, in which session, the asks that shaped it.
-     - Chapter `backstory`: a 1-3 sentence summary of how this chapter's code got its shape, then 2-4 dated steps.
-     - File `backstory.text`: one or two sentences on files with a real reason behind them (a disable comment, a suspected bug left alone, a change the user asked for). Line `backstory`: a few words on a specific line. Leave mechanical files bare; the panel falls back to the moments that touched them.
-     - `backstory.timeline`: the chronological "Backstory view", one entry per moment that matters (start from `backstory.json`'s draft `timeline` and rewrite `title`, `asked` and `text`; keep `moment` so its line ranges carry over).
-   - Keep it supporting: no backstory in `narrative`, no chapter longer for it. A chapter's narrative should read the same with the backstory collapsed.
-
-4. **Build and publish.**
+3. **Build and publish.**
    ```bash
    node <skill>/bin/pr-story.mjs build --dir <D>
    ```
    `build` writes `file-map.json` (file → chapters, partial_in, finished_in) and publishes the story for Diff Story Mode (`--no-bridge` skips that). Fill in each chapter's `narrative`, `comments` and `answer` as you tell it, then build again: the panel picks it up within a few seconds.
 
-5. **Tell the story,** one chapter per step. The panel shows the chapter, so the chat reply for a step is one line ("Chapter 2 is up in the panel: …" plus its headline).
+4. **Tell the story,** one chapter per step. The panel shows the chapter, so the chat reply for a step is one line ("Chapter 2 is up in the panel: …" plus its headline).
    - **Answer questions in place** from the diff and the code, checking the old code or CI where it matters. Stay on the chapter until they say "next".
-   - **Backstory in chat:** only when they ask why or how something got here. Answer from the chapter's backstory and the brief, citing session and turn.
    - **Offer comments** in fenced blocks, flush left, one per thread, naming the file and line to put it on. Never post them. When Diff Story Mode is in use, also add every comment drafted in conversation (chat, voice or a panel question) to the panel: write the body to a file and run `<dsm> comment --story <id> --chapter <N> --path <file> --line <L> --body-file <f>` (no `--path`/`--line` for a general comment). It appends to the chapter's `comments` in both the published copy and `<D>/chapters.json`, so a later render keeps it, and the panel's Draft comments show it within a few seconds. Do both: the fenced block in chat and the command. Before drafting comments for a PR that already has a story, run `<dsm> drafts --story <id>`. It lists each draft as posted, pending (in the reviewer's unsubmitted review), dismissed or still a draft. Don't re-suggest a dismissed or posted one. Dismissals are kept per PR by the bridge, so a rebuilt or regenerated story keeps them.
 
-6. **Finish.** After the last chapter: every file accounted for (for example, 74 of 74 placed and 70 viewed), any still unviewed, and "Your comments, in priority order" with file and line for each. If the PR is mergeable, say whether you'd lean approve, comment or request changes, and that it's their call.
+5. **Finish.** After the last chapter: every file accounted for (for example, 74 of 74 placed and 70 viewed), any still unviewed, and "Your comments, in priority order" with file and line for each. If the PR is mergeable, say whether you'd lean approve, comment or request changes, and that it's their call.
 
 ## How the story sounds
 
@@ -106,12 +89,10 @@ If a voice mode is on (for example Larmor), speak the chapter's `headline` and o
 Diff Story Mode (`<dsm-repo>`, an unpacked Chrome extension plus a local bridge) shows this same panel on the PR's /changes or /files page by itself. It survives reloads and in-page navigation, remembers the step per PR, and picks up each re-render within ≈5s. When it's installed and its bridge is running, use it instead of injecting the overlay with `javascript_tool`.
 
 1. **Check the bridge.** `curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $(jq -r .token ~/.diff-story/config.json)" "http://127.0.0.1:$(jq -r .port ~/.diff-story/config.json)/api/health"` prints 200 when it's up. If it isn't, ask the reviewer once whether to start it (`<dsm> serve`, as a background task) or use the overlay below.
-2. **Publish.** `build` copies `chapters.json`, `file-map.json` and `backstory.json` to `~/.diff-story/<owner>-<repo>-<N>/` with a `meta.json` (`publish --dir <D>` does just that step, `--no-bridge` skips it). The bridge also reads the scratch folders directly.
+2. **Publish.** `build` copies `chapters.json` and `file-map.json` to `~/.diff-story/<owner>-<repo>-<N>/` with a `meta.json` (`publish --dir <D>` does just that step, `--no-bridge` skips it). The bridge also reads the scratch folders directly.
 3. **Questions from the panel.** The panel's Ask box appends to `~/.diff-story/inbox.jsonl`. While telling the story, keep `<dsm> wait --consumer pr-story` running as a background task. When it exits it has printed a question (id, chapter, file, text). Answer it in chat as usual, also run `<dsm> answer --question <id> --file <answer.md>` so the answer shows under the question in the panel, then start the wait again. The wait also returns `build_request` lines: the reviewer clicked "Build story" on a PR that has none. Tell them in one line, and run this skill on that URL if they say so (or already asked for it in this session). `build` publishes the story, and the bridge then marks the request done and the page opens the panel by itself. If it can't be built, `<dsm> done <id> --failed --note "…"`. `<dsm> builds` lists pending requests. A request with `mode: 'update'` means the story is out of date: follow "Updating a story" below. The new `head_oid` finishes the request.
 4. **Where they are.** `~/.diff-story/state/<story id>/position.json` has the step and the file at the top of their screen, and the inbox has a `position` line each time it changes. Use it when they say "this one" or "here".
-5. **Local commits.** For a story about commits that aren't pushed, `<dsm> local --repo <checkout> --base <ref> --head HEAD --chapters <D>/chapters.json --backstory <D>/backstory.json --no-open` serves the same chapters over the local diff at `http://127.0.0.1:<port>/local/<id>/` and opens it. Viewed toggles and "fix before push" notes there are kept by the bridge (`<dsm> notes --story <id>`), and comments in `chapters.json` show as "Fix before push". Place every file, as for a PR. Any that aren't placed land in a last "Not in a chapter yet" step.
-
-6. **Backstory in the panel.** Each chapter shows its narrative first, then a collapsed "Backstory" section. File rows with a backstory (their own, or moments that touched them) get a small "why" link that expands under the row. The Overview has the summary and the sessions, and a small "Backstory view" link switches the whole panel to the timeline, one step per moment with the diff filtered to its files. The journey story is always the default. The view is remembered per story only after the reviewer switches it. Clicking a session chip copies `claude --resume <id>`.
+5. **Local commits.** For a story about commits that aren't pushed, `<dsm> local --repo <checkout> --base <ref> --head HEAD --chapters <D>/chapters.json --no-open` serves the same chapters over the local diff at `http://127.0.0.1:<port>/local/<id>/` and opens it. Viewed toggles and "fix before push" notes there are kept by the bridge (`<dsm> notes --story <id>`), and comments in `chapters.json` show as "Fix before push". Place every file, as for a PR. Any that aren't placed land in a last "Not in a chapter yet" step.
 
 The extension keeps the overlay's rules, with two additions, both only on the reviewer's own click in its panel: a file or line link may click GitHub's expand controls to open the target, and a file's Mark viewed button (or its "Viewed ✓") clicks that one file's own Viewed toggle. In a chapter, only the files it finishes get that button. Earlier chapters leave a file untagged. It never clicks comment or review controls, submits nothing, and talks only to the bridge on 127.0.0.1. Hiding the panel (its × or the toolbar button) is remembered per PR.
 
@@ -134,7 +115,7 @@ An update request (`mode: 'update'`) carries `base_sha` (the commit the story wa
 4. An earlier "Since you read it" chapter stays where it is, after the new one.
 5. `build`, and say in one line which commits the new chapter covers.
 
-**Re-tell from scratch** instead when the request has `retell: true` (the reviewer clicked "Re-tell from scratch"), when `git merge-base --is-ancestor <since_sha> <new head>` fails (a rebase or force-push), or when the new commits rework most of the PR. Plan it as a new story (steps 2 to 4). The bridge keeps the drafts' posted and dismissed marks per PR, so they carry over. Say in one line why it was re-told.
+**Re-tell from scratch** instead when the request has `retell: true` (the reviewer clicked "Re-tell from scratch"), when `git merge-base --is-ancestor <since_sha> <new head>` fails (a rebase or force-push), or when the new commits rework most of the PR. Plan it as a new story (steps 2 and 3). The bridge keeps the drafts' posted and dismissed marks per PR, so they carry over. Say in one line why it was re-told.
 
 ## GitHub mode: the story on the PR page (default in GitHub)
 
@@ -161,5 +142,5 @@ Before driving the reviewer's Chrome for the first time in a session, say so in 
 
 - `bin/gather.sh`: read-only `gh` fetch into the scratch folder.
 - `bin/viewed.sh`: the gh user's viewed state per file (GraphQL `viewerViewedState`), for `brief`.
-- `bin/pr-story.mjs`: `brief`, `build`, `overlay`, `publish`, `backstory`.
-- `bin/overlay.js`: the GitHub overlay that `overlay` wraps with the story data. It doesn't show backstory; Diff Story Mode does. Diff Story Mode's `src/js/shared/overlay.js` is a port of it (module export, shadow DOM, saved step, Ask box), so carry selector fixes across.
+- `bin/pr-story.mjs`: `brief`, `build`, `overlay`, `publish`.
+- `bin/overlay.js`: the GitHub overlay that `overlay` wraps with the story data. Diff Story Mode's `src/js/shared/overlay.js` is a port of it (module export, shadow DOM, saved step, Ask box), so carry selector fixes across.

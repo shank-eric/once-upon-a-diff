@@ -68,11 +68,9 @@ export function createFreshness(context) {
         item.querySelector('code').insertAdjacentHTML('afterend', fileTag);
       }
     }
-    if (!context.inBackstory()) {
-      for (const item of shell.root.querySelectorAll('ol.prs-map li[data-n]')) {
-        if ((chaptersTouched || []).includes(Number(item.getAttribute('data-n')))) {
-          item.insertAdjacentHTML('beforeend', stepTag);
-        }
+    for (const item of shell.root.querySelectorAll('ol.prs-map li[data-n]')) {
+      if ((chaptersTouched || []).includes(Number(item.getAttribute('data-n')))) {
+        item.insertAdjacentHTML('beforeend', stepTag);
       }
     }
   }

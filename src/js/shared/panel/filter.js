@@ -98,42 +98,28 @@ export function createFilter(context) {
     renderNote();
     context.viewed.render();
     if (opts.onFilter) {
-      opts.onFilter({ n: state.n, view: state.view, all: showAll });
+      opts.onFilter({ n: state.n, all: showAll });
     }
   }
 
-  /** The note under the toolbar: how many files show, Show all files, and the view switch. */
+  /** The note under the toolbar: how many files show, and Show all files. */
   function renderNote() {
     const total = data.files.length;
     let html;
-    const unit = context.inBackstory() ? 'step' : 'chapter';
     if (state.n === 0) {
-      const stepCount = story.backstorySteps.length;
-      html = context.inBackstory()
-        ? `<span>Backstory: all <b>${total}</b> files, ${stepCount} step${stepCount === 1 ? '' : 's'}</span>`
-        : `<span>Overview: all <b>${total}</b> files, ${data.chapters.length} chapters</span>`;
+      html = `<span>Overview: all <b>${total}</b> files, ${data.chapters.length} chapters</span>`;
     } else {
       const count = context.chapter().files.length;
       const extra =
         seen.missing.length && !state.all
           ? ` <span title="${escapeHtml(seen.missing.join('\n'))}">(${seen.missing.length} not loaded on the page yet)</span>`
           : '';
-      const here = context.inBackstory() ? `${unit} ${state.n}` : story.chapterName(state.n);
+      const here = story.chapterName(state.n);
       html = state.all
-        ? `<span>Showing all <b>${total}</b> files. ${capitalize(here)}'s ${count} are listed below.</span> <button class="prs-all" aria-pressed="true">${capitalize(unit)} files only</button>`
+        ? `<span>Showing all <b>${total}</b> files. ${capitalize(here)}'s ${count} are listed below.</span> <button class="prs-all" aria-pressed="true">Chapter files only</button>`
         : `<span>Showing <b>${count}</b> of <b>${total}</b> files, ${here}${extra}</span> <button class="prs-all" aria-pressed="false">Show all files</button>`;
     }
-    // the backstory view is secondary: a small link, not a button of equal weight
-    if (story.backstorySteps.length) {
-      html += context.inBackstory()
-        ? ' <button class="prs-linkish prs-view" data-view="story" title="Back to the story of the result">Back to the story</button>'
-        : ' <button class="prs-linkish prs-view" data-view="backstory" title="Switch the panel to how it got here, step by step from the Claude Code sessions">Backstory view</button>';
-    }
     $('.prs-count-note').innerHTML = html;
-    const viewButton = $('.prs-count-note .prs-view');
-    if (viewButton) {
-      viewButton.onclick = () => context.navigation.setView(viewButton.getAttribute('data-view'));
-    }
     const allButton = $('.prs-all');
     if (allButton) {
       allButton.onclick = () => {

@@ -36,7 +36,6 @@ async function local(home, cfg, opts) {
     base: opts.base,
     head: opts.head || 'HEAD',
     chapters: opts.chapters,
-    backstory: opts.backstory,
     id: opts.id,
     title: opts.title,
   });
@@ -80,7 +79,7 @@ function publish(home, cfg, opts) {
   const id = opts.id || slug(`${meta.repo.replace('/', '-')}-${meta.number}`);
   // into the repo's checkout (.diff-story/<id>, kept out of git) when the bridge knows it, else ~/.diff-story/<id>
   const dest = storyDirFor(home, id, { repo: meta.repo });
-  for (const name of ['chapters.json', 'file-map.json', 'backstory.json']) {
+  for (const name of ['chapters.json', 'file-map.json']) {
     if (existsSync(path.join(source, name))) {
       copyFileSync(path.join(source, name), path.join(dest, name));
     }
@@ -115,7 +114,7 @@ export const storyCommands = [
   {
     name: 'local',
     usage: [
-      '  diff-story local   --repo DIR --base REF [--head REF] [--chapters FILE] [--backstory FILE] [--id ID] [--title T] [--no-open]',
+      '  diff-story local   --repo DIR --base REF [--head REF] [--chapters FILE] [--id ID] [--title T] [--no-open]',
       '                                                                 story over local commits, served at /local/<id>/',
     ],
     run: local,

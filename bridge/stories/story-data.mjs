@@ -1,6 +1,6 @@
 /*
  * A story as the panel takes it (the overlay's data): its chapters and
- * files, the story-level backstory, and for a local story the diff and the
+ * files, and for a local story the diff and the
  * bridge's state (viewed files, notes).
  */
 import path from 'node:path';
@@ -9,7 +9,6 @@ import { readPrefs } from '../config/settings.mjs';
 import { readJson } from '../util/json-file.mjs';
 import { readMeta, storyVersion, localVersion } from './meta.mjs';
 import { chaptersOf, addLeftoverChapter } from './chapters.mjs';
-import { storyBackstory } from './backstory-notes.mjs';
 import { addTextRefs } from './text-refs.mjs';
 import { loadDiff, refreshLocal, diffIgnoringWhitespace, localFilesOf } from './local-diff.mjs';
 
@@ -65,7 +64,6 @@ export function storyData(store, id, dir) {
     plan: plan.plan || '',
     files: rels.map((rel) => ({ rel, sha: pathSha(rel) })),
     chapters,
-    backstory: storyBackstory(plan.backstory, readJson(path.join(dir, 'backstory.json'), null)),
   };
   if (meta.kind === 'local') {
     const viewed = store.readState(id, 'viewed.json', {});

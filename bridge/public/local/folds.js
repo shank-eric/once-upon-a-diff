@@ -56,14 +56,14 @@ export function unnarrow(root = document) {
 }
 
 /** Called by the panel after each filter pass. Only a new step (or a redraw) changes the tables, so the folds the reviewer opens stay open. */
-export function narrow({ n: step, view, all }) {
-  const key = `${view}|${step}|${all}`;
+export function narrow({ n: step, all }) {
+  const key = `${step}|${all}`;
   if (key === narrowedFor) {
     return;
   }
   narrowedFor = key;
   unnarrow();
-  if (all || !step || view !== 'story') {
+  if (all || !step) {
     return;
   }
   const claims = claimsOf(page.story.chapters);

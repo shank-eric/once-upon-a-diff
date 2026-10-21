@@ -1,10 +1,10 @@
 /*
  * The panel's body for the step on screen: the step list, then the
- * Overview, a chapter, or a backstory moment, with its drafted comments, its
- * files and its questions. One click handler serves everything in it.
+ * Overview or a chapter, with its drafted comments, its files and its
+ * questions. One click handler serves everything in it.
  */
 import { escapeHtml } from '../util/html.js';
-import { copyButtonText, copyComment } from './copy-buttons.js';
+import { copyComment } from './copy-buttons.js';
 
 const stripChapterPrefix = (title) => title.replace(/^Chapter \d+:\s*/, '');
 
@@ -16,55 +16,19 @@ export function createBody(context) {
   const files = context.fileList;
 
   function stepListHtml() {
-    const inBackstory = context.inBackstory();
-    const overview = `<li data-n="0" class="${state.n === 0 ? 'prs-current' : ''}">${inBackstory ? 'How it got here' : 'Overview'} <span class="prs-count">(${data.files.length})</span></li>`;
+    const overview = `<li data-n="0" class="${state.n === 0 ? 'prs-current' : ''}">Overview <span class="prs-count">(${data.files.length})</span></li>`;
     const steps = context.steps().map((step, index) => {
       const number = index + 1;
-      let prefix = '';
-      if (!inBackstory) {
-        prefix = story.isNew(number)
-          ? '<span class="prs-new">New</span> '
-          : `${story.chapterNumber(number)}. `;
-      }
-      const progress = inBackstory
-        ? ''
-        : `<span class="prs-stepprog" data-prog-for="${number}"></span>`;
+      const prefix = story.isNew(number)
+        ? '<span class="prs-new">New</span> '
+        : `${story.chapterNumber(number)}. `;
+      const progress = `<span class="prs-stepprog" data-prog-for="${number}"></span>`;
       return `<li data-n="${number}" class="${number === state.n ? 'prs-current' : ''}">${prefix}${escapeHtml(stripChapterPrefix(step.title))} <span class="prs-count">(${step.files.length})</span>${progress}</li>`;
     });
     return [overview].concat(steps).join('');
   }
 
-  function titleText(chapter) {
-    if (context.inBackstory()) {
-      return `Backstory: ${chapter ? chapter.title.replace(/^\d+\.\s*/, '') : 'how it got here'}`;
-    }
-    return chapter ? chapter.title : `Overview: ${data.pr.title || ''}`;
-  }
-
-  function backstoryStepHtml(step) {
-    context.refs.startStep(step ? step.files.map((file) => file.rel) : story.allRels);
-    const banner =
-      '<div class="prs-bs-banner">Backstory view: how this got here, in the order it happened. <button class="prs-linkish" data-view="story">Back to the story</button></div>';
-    let intro;
-    if (step) {
-      intro = context.backstory.momentHtml(step);
-    } else {
-      const summary = story.backstory.summary
-        ? markdown(story.backstory.summary)
-        : '<p class="prs-empty">No summary written yet.</p>';
-      intro = `${summary}${context.backstory.sessionsHtml()}`;
-    }
-    const items = (step ? step.files : data.files)
-      .map((file) => files.fileItem(file, state.n))
-      .join('');
-    const head = step
-      ? `Files changed in this step (${step.files.length})`
-      : `All files (${data.files.length})`;
-    return (
-      `${banner}<div class="prs-md">${intro}</div><h2 class="prs-h">${head}</h2>` +
-      `<ul class="prs-files">${items || '<li class="prs-empty">No files of the diff in this step.</li>'}</ul>`
-    );
-  }
+  const titleText = (chapter) => (chapter ? chapter.title : `Overview: ${data.pr.title || ''}`);
 
   function overviewHtml() {
     context.refs.startStep(story.allRels);
@@ -72,15 +36,7 @@ export function createBody(context) {
       ? markdown(story.overviewMarkdown)
       : `${data.summary ? `<p>${inline(data.summary)}</p>` : ''}${data.plan ? `<p>${inline(data.plan)}</p>` : ''}`;
     const items = data.files.map((file) => files.fileItem(file, 0)).join('');
-    const backstory = story.backstory;
-    const backstoryTop =
-      backstory && (backstory.summary || story.sessions.size)
-        ? context.backstory.backstoryBlock(
-            { summary: backstory.summary },
-            context.backstory.sessionsHtml(),
-          )
-        : '';
-    return `<div class="prs-md">${intro}</div>${backstoryTop}${context.drafts.allCommentsHtml()}${files.filesBox(`All files (${data.files.length})`, `${data.chapters.length} chapters`, items)}`;
+    return `<div class="prs-md">${intro}</div>${context.drafts.allCommentsHtml()}${files.filesBox(`All files (${data.files.length})`, `${data.chapters.length} chapters`, items)}`;
   }
 
   function chapterHtml(chapter) {
@@ -99,7 +55,7 @@ export function createBody(context) {
     // the comments resolve their file names after the story and before the file list, as references do in reading order
     const comments = context.drafts.chapterCommentsHtml(chapter);
     const items = chapter.files.map((file) => files.fileItem(file, state.n)).join('');
-    return `${context.freshness.sinceBanner(chapter)}<div class="prs-md">${storyHtml}</div>${context.backstory.backstoryBlock(chapter.backstory)}
+    return `${context.freshness.sinceBanner(chapter)}<div class="prs-md">${storyHtml}</div>
         ${comments}
         ${files.filesBox(`Files in this chapter (${chapter.files.length})`, files.filesSummary(state.n), items)}`;
   }
@@ -121,25 +77,15 @@ export function createBody(context) {
 
   function render() {
     const chapter = context.chapter();
-    const inBackstory = context.inBackstory();
     $('.prs-title').textContent = titleText(chapter);
     $('.prs-title').title = $('.prs-title').textContent;
     $('.prs-prev').disabled = state.n === 0;
     $('.prs-next').disabled = state.n === context.steps().length;
     const stepList = stepListHtml();
-    let body;
-    if (inBackstory) {
-      body = backstoryStepHtml(chapter);
-    } else if (!chapter) {
-      body = overviewHtml();
-    } else {
-      body = chapterHtml(chapter);
-    }
+    const body = chapter ? chapterHtml(chapter) : overviewHtml();
     $('.prs-body').innerHTML =
-      `<h2 class="prs-h">${inBackstory ? 'Backstory steps' : 'Steps'}</h2><ol class="prs-map">${stepList}</ol>${body}<div class="prs-questions"></div>`;
-    if (!inBackstory) {
-      placeProgress();
-    }
+      `<h2 class="prs-h">Steps</h2><ol class="prs-map">${stepList}</ol>${body}<div class="prs-questions"></div>`;
+    placeProgress();
     const commentsBox = $('.prs-body details.prs-allc');
     if (commentsBox) {
       commentsBox.addEventListener('toggle', () => {
@@ -203,23 +149,6 @@ export function createBody(context) {
       state[key] = !state[key];
       context.saveState();
       return context.drafts.render();
-    }
-    const textButton = target.closest('[data-copy-text]');
-    if (textButton) {
-      return copyButtonText(textButton.getAttribute('data-copy-text'), textButton);
-    }
-    const viewButton = target.closest('[data-view]');
-    if (viewButton) {
-      return context.navigation.setView(viewButton.getAttribute('data-view'));
-    }
-    const whyButton = target.closest('.prs-whylink');
-    if (whyButton) {
-      const box = whyButton.closest('li').querySelector('.prs-whybox');
-      if (box) {
-        box.hidden = !box.hidden;
-        whyButton.setAttribute('aria-expanded', String(!box.hidden));
-      }
-      return;
     }
     const ref = target.closest('[data-rel]');
     if (!ref) {

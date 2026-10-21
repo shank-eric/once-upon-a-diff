@@ -165,7 +165,7 @@ export function createFilesChangedPage() {
     }
     const jump = jumpStep();
     current.overlay = storyOverlay(current.data, {
-      initial: jump ? { ...current.ui, n: jump, all: false, view: 'story' } : current.ui,
+      initial: jump ? { ...current.ui, n: jump, all: false } : current.ui,
       ...panelOptions(current.key, current.id),
     });
   }

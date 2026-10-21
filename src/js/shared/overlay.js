@@ -26,8 +26,8 @@
  * others through it at call time, so no module imports another's state.
  *
  * opts (all optional):
- *   initial        {n, all, collapsed, width, view, bn} to start from (a saved step; bn is the backstory view's step)
- *   onState(s)     called with {n, all, collapsed, width, view, bn} whenever they change
+ *   initial        {n, all, collapsed, width} to start from (a saved step)
+ *   onState(s)     called with {n, all, collapsed, width} whenever they change
  *   onPosition(p)  called with {step, chapter, file} when the step or the file at the top of the screen changes (debounced)
  *   onClose()      called after the x button removes the panel
  *   ask(q)         send a question {text, step, chapter, file}; returns a Promise
@@ -38,7 +38,7 @@
  *                  'draft'|'posted'|'pending', dismissed, url, added}], error}. action is posted, unposted, dismiss,
  *                  restore, review (Add to my review) or settle (an added draft has shown up, see draftView).
  *   reloadPage()   reloads the page, keeping the panel's step and scroll; offered on a draft just added to the review
- *   onFilter(f)    called after each filter pass with {n, view, all}; the local page folds other chapters' lines with it
+ *   onFilter(f)    called after each filter pass with {n, all}; the local page folds other chapters' lines with it
  *   reveal(rel, side, start, end)  called before a jump to a file (rel only) or lines, so a page that folds files or lines can open them
  *   pageAt         when this page loaded, in ms (performance.timeOrigin); a draft added after it isn't on the page yet
  *   freshness()    returns a Promise of {state: 'current'|'stale'|'unknown'|'n/a', story_head, current_head, newer,
@@ -58,12 +58,11 @@
  */
 
 import { createStoryModel } from './panel/story-model.js';
-import { createPanelState, clampStep, stateHelpers } from './panel/panel-state.js';
+import { createPanelState, stateHelpers } from './panel/panel-state.js';
 import { createShell } from './panel/shell.js';
 import { createHostPage } from './panel/host-page.js';
 import { createFileRefs } from './panel/file-refs.js';
 import { createMarkdown } from './panel/markdown.js';
-import { createBackstoryViews } from './panel/backstory-views.js';
 import { createExpander } from './panel/expand.js';
 import { createFilter } from './panel/filter.js';
 import { createViewedTracker } from './panel/viewed.js';
@@ -107,7 +106,6 @@ export function storyOverlay(input, opts = {}) {
       ? opts.pageAt
       : (globalThis.performance && performance.timeOrigin) || Date.now(),
     commentsTitle: opts.commentsTitle || 'Draft comments',
-    clampStep: (step, view) => clampStep(story, step, view),
   };
   Object.assign(context, stateHelpers(context));
   const { state } = context;
@@ -123,7 +121,6 @@ export function storyOverlay(input, opts = {}) {
   context.shell = createShell(context);
   context.refs = createFileRefs(context);
   context.markdown = createMarkdown(context);
-  context.backstory = createBackstoryViews(context);
   context.expander = createExpander(context);
   context.filter = createFilter(context);
   context.viewed = createViewedTracker(context);
@@ -201,7 +198,6 @@ export function storyOverlay(input, opts = {}) {
   const api = {
     destroy,
     go: context.navigation.go,
-    setView: context.navigation.setView,
     apply: context.filter.apply,
     scrollToLine: context.scroll.scrollToLine,
     scrollToFile: context.scroll.scrollToFile,
@@ -222,18 +218,10 @@ export function storyOverlay(input, opts = {}) {
     },
     refreshHealth: context.statusLight.refresh,
     summary() {
-      const stepCount = story.backstorySteps.length;
       const chapterCount = story.data.chapters.length;
-      let label;
-      if (context.inBackstory()) {
-        label = state.n
-          ? `backstory step ${state.n} of ${stepCount}`
-          : `backstory overview (${stepCount} steps)`;
-      } else {
-        label = state.n
-          ? `chapter ${state.n} of ${chapterCount}`
-          : `overview (${chapterCount} chapters)`;
-      }
+      const label = state.n
+        ? `chapter ${state.n} of ${chapterCount}`
+        : `overview (${chapterCount} chapters)`;
       const seen = context.filter.seen;
       return `diff story: ${label}, ${seen.shown} of ${context.inChapter().size} files found on the page (${seen.found} file blocks seen, ${story.data.files.length} in the diff)`;
     },
