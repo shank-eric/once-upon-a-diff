@@ -98,6 +98,8 @@ When Claude rewrites `chapters.json`, the panel redraws within ≈5 seconds, or 
 
 The chapter's comments heading counts each state, for example "(2 to post · 1 posted · 1 pending)".
 
+The Overview lists every chapter's drafted comments in one place, grouped by chapter, each with its file:line, its state (draft, in your pending review, posted, dismissed or may be out of date) and the same buttons it has in its chapter. A chapter's name jumps to it. The list starts open with up to 4 drafts and folded with more. The local page does the same for its "Fix before push (drafted)" items.
+
 How the bridge decides:
 
 - **Posted and pending come from GitHub.** The bridge reads your own comments with read-only `gh api` GETs, with `GITHUB_TOKEN` unset so the keychain login is used, and caches them for 60s. It reads the PR's review comments, its reviews (a PENDING one is your unsubmitted review, read along with its comments) and its general comments.

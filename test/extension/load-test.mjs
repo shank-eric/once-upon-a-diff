@@ -310,6 +310,16 @@ try {
   await lp.waitForTimeout(500);
   check((await lp.locator('#dsm-panel .prs-light[data-level="ok"]').count()) === 1, `the status light is green with a listener: "${(await lp.locator('#dsm-panel .prs-light').getAttribute('title') || '').replace(/\n/g, ' | ')}"`);
   check(await lp.locator('#dsm-panel .prs-askhint').isHidden(), 'and the Ask box has no warning');
+  // the Overview lists every chapter's drafts, grouped by chapter, with their actions
+  const allc = lp.locator('#dsm-panel details.prs-allc');
+  check((await allc.count()) === 1 && (await allc.getAttribute('open')) !== null, 'the Overview lists all drafted comments, open when there are few');
+  check(/Chapter 1/.test(await allc.locator('.prs-cgh').first().textContent()) && /one\.txt:2/.test(await allc.locator('.prs-where').first().textContent()), `grouped by chapter, with file:line: "${(await allc.locator('.prs-where').first().textContent()).trim()}"`);
+  check(/Draft, not posted/.test(await allc.locator('.prs-cstate').first().textContent()) && (await allc.locator('[data-draft-act="dismiss"]').count()) === 1, 'each shows its state and its chapter\'s actions');
+  await allc.locator('[data-draft-act="posted"]').click();
+  await lp.waitForTimeout(400);
+  check(/Show posted \(1\)/.test(await allc.textContent()), 'Mark posted works from the Overview');
+  await allc.locator('[data-draft-act="unposted"]').dispatchEvent('click'); // its row is folded behind Show posted
+  await lp.waitForTimeout(400);
   await lp.locator('#dsm-panel .prs-next').click();
   await lp.waitForTimeout(400);
   const ln = await lp.locator('#dsm-panel .prs-count-note').textContent();
