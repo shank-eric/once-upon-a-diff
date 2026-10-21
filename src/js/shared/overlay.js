@@ -374,7 +374,7 @@ export function storyOverlay(INPUT, opts = {}) {
   #${NS} [data-rel] { color: var(--c-accent); cursor: pointer; }
   #${NS} [data-rel]:hover { text-decoration: underline; }
   #${NS} .prs-pill { font-size: 11px; padding: 0 5px; border-radius: 9px; border: 1px solid currentColor; margin-left: 3px; white-space: nowrap; }
-  #${NS} .prs-st-mark { color: var(--c-ok); } #${NS} .prs-st-later { color: var(--c-warn); } #${NS} .prs-st-done { color: var(--c-muted); }
+  #${NS} .prs-st-mark { color: var(--c-ok); } #${NS} .prs-st-later { color: var(--c-warn); } #${NS} .prs-st-done, #${NS} .prs-st-viewed { color: var(--c-muted); }
   #${NS} .prs-viewed { color: var(--c-ok); font-size: 12px; margin-left: 4px; white-space: nowrap; }
   #${NS} .prs-viewed:empty { display: none; }
   #${NS} .prs-comment { margin: 0 0 12px; }
@@ -471,7 +471,9 @@ export function storyOverlay(INPUT, opts = {}) {
     if (!state.n || pilled.has(rel)) return '';
     pilled.add(rel);
     const st = status(rel, state.n);
-    return st ? `<span class="prs-pill prs-st-${st.kind}" title="${esc(st.text)}">${esc(st.short)}</span>` : '';
+    if (!st) return '';
+    const mark = st.kind === 'mark' ? ` data-mark-for="${esc(rel)}" data-mark-short="1"` : ''; // renderViewed says "viewed ✓" once it's ticked
+    return `<span class="prs-pill prs-st-${st.kind}"${mark} title="${esc(st.text)}">${esc(st.short)}</span>`;
   }
 
   // ---------- tiny markdown (escape first, then a block pass and an inline pass)
@@ -808,9 +810,18 @@ export function storyOverlay(INPUT, opts = {}) {
       const rel = el.getAttribute('data-viewed-for');
       const v = isViewed(rel, blocks);
       const early = v === true && earlyFor(rel);
-      el.textContent = v === true ? (early ? '⚠ viewed early' : '✓ viewed') : '';
+      const tagged = !!el.parentElement && !!el.parentElement.querySelector(':scope > [data-mark-for]'); // its "Viewed ✓" tag says it
+      el.textContent = v === true ? (early ? '⚠ viewed early' : tagged ? '' : '✓ viewed') : '';
       el.classList.toggle('prs-early', early);
       el.title = early ? `Marked viewed, but ${chName(finishedIn[rel])} covers more of it. You may want to unmark it until then.` : '';
+    }
+    // the tag on a file this chapter finishes: "Mark viewed" until its Viewed toggle is on, then "Viewed ✓"
+    for (const el of panel.querySelectorAll('[data-mark-for]')) {
+      const on = isViewed(el.getAttribute('data-mark-for'), blocks) === true;
+      el.textContent = el.hasAttribute('data-mark-short') ? (on ? 'viewed ✓' : 'mark viewed') : `${on ? 'Viewed ✓' : 'Mark viewed'}${el.getAttribute('data-mark-rest') || ''}`;
+      el.classList.toggle('prs-st-viewed', on);
+      el.classList.toggle('prs-st-mark', !on);
+      if (el.hasAttribute('data-mark-short')) el.title = on ? 'Viewed' : 'Mark viewed';
     }
     const earlyBox = $('.prs-early-box');
     if (earlyBox) {
@@ -875,6 +886,9 @@ export function storyOverlay(INPUT, opts = {}) {
       : n === 0
         ? `chapter${chs.length > 1 ? 's' : ''} ${chList(chs)}`
         : `${st ? st.text : ''}${f.partial && st && st.kind !== 'later' && f.note ? ` (here: ${f.note})` : ''}`;
+    // a file this chapter finishes: renderViewed swaps "Mark viewed" for "Viewed ✓" while its Viewed toggle is on
+    const markRest = !inBackstory() && n && st && st.kind === 'mark' ? why.slice(st.text.length) : null;
+    const markAttrs = markRest != null ? ` data-mark-for="${esc(f.rel)}" data-mark-rest="${esc(markRest)}"` : '';
     // "why": the file's How it got here, collapsed under the row
     const story = !inBackstory() && n ? DATA.chapters[n - 1].files.find((x) => x.rel === f.rel) || f : f;
     const how = inBackstory() ? '' : fileBackstory(story);
@@ -886,7 +900,7 @@ export function storyOverlay(INPUT, opts = {}) {
       return `<li><span ${refAttrs(f.rel, { side, start: l.start, end: l.end || l.start })}>${range}</span>${l.label ? ` ${esc(l.label)}` : ''}</li>`;
     }).join('');
     return `<li data-file="${esc(f.rel)}"><code ${refAttrs(f.rel, null)}>${esc(f.rel)}</code><span class="prs-viewed" data-viewed-for="${esc(f.rel)}"></span>${whyLink}`
-      + `${why ? `<span class="prs-why${st ? ` prs-st-${st.kind}` : ''}">${esc(why)}</span>` : ''}${lines ? `<ul class="prs-lines">${lines}</ul>` : ''}${whyBox}</li>`;
+      + `${why ? `<span class="prs-why${st ? ` prs-st-${st.kind}` : ''}"${markAttrs}>${esc(why)}</span>` : ''}${lines ? `<ul class="prs-lines">${lines}</ul>` : ''}${whyBox}</li>`;
   }
 
   function sessionsHtml() {

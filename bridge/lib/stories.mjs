@@ -20,6 +20,7 @@ import { scratchBases, readPrefs } from './config.mjs';
 import { readIndex, adoptHomeStories, STORY_FOLDER } from './place.mjs';
 import { readCheckouts } from './repos.mjs';
 import { chapterKey, SHA_RE } from './reads.mjs';
+import { addTextRefs } from './refs.mjs';
 
 export const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/;
 
@@ -164,6 +165,8 @@ export class StoryStore {
     // a local diff is the truth: a file that has left it (say, reverted) leaves its chapters too
     if (diff) for (const ch of chapters) ch.files = ch.files.filter(f => diff.has(f.rel));
     for (const ch of chapters) for (const f of ch.files) if (!rels.includes(f.rel)) rels.push(f.rel);
+    // a chapter whose text points at a file's lines tells that file too, so the last one to do it finishes it (refs.mjs)
+    addTextRefs(chapters, rels);
     // anything in the diff that no chapter places goes in a last chapter, so no file is hidden from every step
     const placed = new Set(chapters.flatMap(ch => ch.files.map(f => f.rel)));
     const unplaced = rels.filter(rel => !placed.has(rel));

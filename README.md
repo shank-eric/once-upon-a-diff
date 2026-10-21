@@ -119,7 +119,9 @@ The panel reads each file's state from the page's own Viewed toggle, and never c
 
 It looks again after any click or change on the page, so Refined GitHub's batch mark-viewed helpers are picked up too. Moving on with files left gives a gentle note, not a block. The "Files in this chapter" list starts folded, with a one-line summary ("6 files · 4 to mark viewed · 2 come back later"). Whether it's open is remembered per story.
 
-**Where "Mark viewed" goes.** A file is marked viewed in the last chapter that lists it. Every earlier chapter that lists it says "Leave unviewed: comes back in chapter N", whether or not that listing is flagged partial. The viewed progress and the "viewed early" warning follow the same rule, and so does pr-story's `file-map.json` (`finished_in`).
+**Where "Mark viewed" goes.** A file is marked viewed in the last chapter that tells it. A chapter tells a file by listing it, or by pointing at its lines in its text: `path:45`, `path:40-58`, a bare `:45` after the file is named, or a link to the file's diff with a line anchor. A file a chapter points at without listing it joins that chapter's file list (and its filter) as a partial entry, "its lines are pointed at in the text", with those lines. A name with no line doesn't count, and neither does anything in a code block. Every earlier chapter says "Leave unviewed: comes back in chapter N", whether or not that listing is flagged partial. The viewed progress and the "viewed early" warning follow the same rule, and so does pr-story's `file-map.json` (`finished_in`).
+
+In its finishing chapter a file's tag says **Mark viewed** until its Viewed toggle (GitHub's or the local page's) is on, then **Viewed ✓**, muted. It follows the toggle live, and so does the small pill after the file's first mention in the text.
 
 **On PR lists and a PR's Conversation tab.** A repo's `/pulls`, the global `/pulls` and PR search results get one tag after each PR's title, and a PR's Conversation tab gets the same tag next to its title. The tag is the control:
 
