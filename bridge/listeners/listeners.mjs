@@ -157,26 +157,13 @@ export function listeningOf(home, { repo = null, story = null } = {}) {
   };
 }
 
-const onOff = (cfg) =>
-  cfg && cfg.enabled ? { enabled: true, command: cfg.command || null } : { enabled: false };
-
 /** What the panel's status light shows. */
-export function statusOf({
-  home,
-  version,
-  story,
-  repo = null,
-  autoBuild,
-  autoAnswer,
-  extensionSeen,
-}) {
+export function statusOf({ home, version, story, repo = null, extensionSeen }) {
   return {
     bridge: { ok: true, version },
     story: story === undefined ? null : { ok: !!story, id: story || null },
     listening: listeningOf(home, { repo, story: story || null }),
     repo,
-    autoBuild: onOff(autoBuild),
-    autoAnswer: onOff(autoAnswer),
     extension_seen: extensionSeen || null,
   };
 }

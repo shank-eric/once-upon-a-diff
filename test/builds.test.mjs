@@ -1,7 +1,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { tmp, githubStory, startBridge } from './helpers.mjs';
 import { Builds, CLAIM_FRESH_MS } from '../bridge/inbox/builds.mjs';
@@ -88,31 +88,6 @@ test('done by id or by repo#number; failed requests show as failed', () => {
   assert.equal(builds.done('ACME/b#2', { failed: true, note: 'no checkout' }).status, 'failed');
   assert.equal(builds.pending().length, 0);
   assert.equal(builds.done('nope'), null);
-});
-
-test('autoBuild is off unless enabled, and runs an argv command (no shell) with the PR filled in', async () => {
-  const home = tmp('home');
-  const off = new Builds(home, new Inbox(home), {
-    autoBuild: { enabled: false, command: ['node', '-e', 'process.exit(9)'] },
-  });
-  assert.equal(off.autoBuild, null);
-  const out = path.join(home, 'ran.txt');
-  // write then rename, so ran.txt never exists half-written (writeFileSync creates it empty first)
-  const [outJson, tempJson] = [JSON.stringify(out), JSON.stringify(`${out}.tmp`)];
-  const script = `const fs = require('fs'); fs.writeFileSync(${tempJson}, process.argv[1] + ' ' + process.env.DIFF_STORY_NUMBER); fs.renameSync(${tempJson}, ${outJson})`;
-  const builds = new Builds(home, new Inbox(home), {
-    autoBuild: { enabled: true, command: [process.execPath, '-e', script, '{url}; echo hi'] },
-  });
-  const build = builds.request({ repo: 'acme/widgets', number: 7 });
-  for (let i = 0; i < 50 && !existsSync(out); i++) {
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  assert.equal(
-    readFileSync(out, 'utf8'),
-    'https://github.com/acme/widgets/pull/7; echo hi 7',
-    'the argument is passed as is, not run by a shell',
-  );
-  assert.ok(existsSync(path.join(home, 'builds', `${build.id}.log`)));
 });
 
 test('PR lists get ready / queued / building / none for many PRs in one call, and who is listening per repo', async () => {

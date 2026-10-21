@@ -7,17 +7,7 @@
  * pending marker in <home>/builds.json, so every tab on that PR shows
  * Building. A request is finished by `diff-story done <id>`, or by the story
  * turning up (the status call notices and marks it done).
- *
- * autoBuild (off unless config.json says otherwise) runs a command for each
- * new request. The command is an argv array and is never run through a
- * shell. {url}, {repo} and {number} in its arguments are replaced, and the
- * same values are in the environment as DIFF_STORY_URL, DIFF_STORY_REPO and
- * DIFF_STORY_NUMBER:
- *   "autoBuild": {"enabled": true, "command": ["claude", "-p", "/pr-story {url}"], "cwd": "~/Development"}
  */
-import { existsSync, mkdirSync, openSync, closeSync } from 'node:fs';
-import { spawn } from 'node:child_process';
-import os from 'node:os';
 import path from 'node:path';
 import { newId } from './inbox.mjs';
 import { sameRepo, REPO_RE } from '../config/repos.mjs';
@@ -78,10 +68,9 @@ const updateFields = (build) =>
     : {};
 
 export class Builds {
-  constructor(home, inbox, { autoBuild } = {}) {
+  constructor(home, inbox) {
     this.home = home;
     this.inbox = inbox;
-    this.autoBuild = autoBuild && autoBuild.enabled ? autoBuild : null;
     this.file = path.join(home, 'builds.json');
   }
 
@@ -251,9 +240,6 @@ export class Builds {
       ...updateFields(build),
       text: buildText(build, readerOf(this.home)),
     });
-    if (this.autoBuild) {
-      this.run(build);
-    }
     return build;
   }
 
@@ -285,52 +271,5 @@ export class Builds {
       note,
     });
     return all[key];
-  }
-
-  /** autoBuild: run the configured command for one request, detached, output in <home>/builds/<id>.log. */
-  run(build) {
-    const cmd = this.autoBuild.command;
-    if (!Array.isArray(cmd) || !cmd.length || !cmd.every((arg) => typeof arg === 'string')) {
-      process.stderr.write(
-        'diff-story: autoBuild.command must be an array of strings; not running it\n',
-      );
-      return;
-    }
-    const fill = (arg) =>
-      arg
-        .replace(/\{url\}/g, build.url)
-        .replace(/\{repo\}/g, build.repo)
-        .replace(/\{number\}/g, String(build.number));
-    const dir = path.join(this.home, 'builds');
-    mkdirSync(dir, { recursive: true });
-    const log = openSync(path.join(dir, `${build.id}.log`), 'a');
-    const cwd = this.autoBuild.cwd
-      ? this.autoBuild.cwd.replace(/^~(?=\/|$)/, os.homedir())
-      : os.homedir();
-    try {
-      const child = spawn(cmd[0], cmd.slice(1).map(fill), {
-        cwd: existsSync(cwd) ? cwd : os.homedir(),
-        detached: true,
-        stdio: ['ignore', log, log],
-        env: {
-          ...process.env,
-          DIFF_STORY_URL: build.url,
-          DIFF_STORY_REPO: build.repo,
-          DIFF_STORY_NUMBER: String(build.number),
-          DIFF_STORY_BUILD: build.id,
-        },
-      });
-      child.on('error', (err) => {
-        this.done(build.id, { failed: true, note: `autoBuild could not start: ${err.message}` });
-      });
-      child.on('exit', (code) => {
-        if (code && this.get(build.repo, build.number)?.status === 'pending') {
-          this.done(build.id, { failed: true, note: `autoBuild exited ${code}` });
-        }
-      });
-      child.unref();
-    } finally {
-      closeSync(log);
-    }
   }
 }
