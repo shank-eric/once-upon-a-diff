@@ -22,14 +22,14 @@ import {
   rmSync,
 } from 'node:fs';
 import path from 'node:path';
-import { parseUnifiedDiff, pathSha } from './diff.mjs';
-import { revParse, diffText, commitsBetween } from './git.mjs';
-import { scratchBases, readPrefs } from './config.mjs';
+import { parseUnifiedDiff, pathSha } from '../util/diff.mjs';
+import { revParse, diffText, commitsBetween } from '../util/git.mjs';
+import { scratchBases, readPrefs } from '../config/settings.mjs';
 import { readIndex, adoptHomeStories, STORY_FOLDER } from './place.mjs';
-import { readCheckouts } from './repos.mjs';
+import { readCheckouts } from '../config/repos.mjs';
 import { chapterKey, SHA_RE } from './reads.mjs';
 import { addTextRefs } from './refs.mjs';
-import { readJson, writeJson } from './util/json-file.mjs';
+import { readJson, writeJson } from '../util/json-file.mjs';
 
 export const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/;
 

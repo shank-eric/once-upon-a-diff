@@ -27,8 +27,8 @@
 import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
-import { runGh } from './util/gh.mjs';
-import { readJson, writeJson } from './util/json-file.mjs';
+import { runGh } from '../util/gh.mjs';
+import { readJson, writeJson } from '../util/json-file.mjs';
 
 const TTL_MS = 60000;
 const LINE_SLACK = 3;

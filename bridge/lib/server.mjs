@@ -17,10 +17,10 @@ import { timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { StoryStore, readMeta, refreshLocal, storyVersion, localVersion } from './stories.mjs';
-import { readPrefs, writePrefs } from './config.mjs';
-import { storyRepo, seenCheckout, REPO_RE } from './repos.mjs';
-import { Inbox, newId } from './inbox.mjs';
-import { Builds } from './builds.mjs';
+import { readPrefs, writePrefs } from '../config/settings.mjs';
+import { storyRepo, seenCheckout, REPO_RE } from '../config/repos.mjs';
+import { Inbox, newId } from '../inbox/inbox.mjs';
+import { Builds } from '../inbox/builds.mjs';
 import { addComment } from './comments.mjs';
 import { freshness, currentHead, changesSince, newerCount } from './freshness.mjs';
 import {

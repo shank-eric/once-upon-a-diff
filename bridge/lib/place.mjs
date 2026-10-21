@@ -28,8 +28,8 @@ import {
   statSync,
 } from 'node:fs';
 import path from 'node:path';
-import { checkoutFor } from './repos.mjs';
-import { readJson, writeJson } from './util/json-file.mjs';
+import { checkoutFor } from '../config/repos.mjs';
+import { readJson, writeJson } from '../util/json-file.mjs';
 
 export const STORY_FOLDER = '.diff-story';
 const EXCLUDE_LINE = `/${STORY_FOLDER}/`;

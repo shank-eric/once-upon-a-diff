@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { readdirSync, writeFileSync } from 'node:fs';
 import { tmp } from './helpers.mjs';
-import { readJson, writeJson, writeJsonAtomic } from '../bridge/lib/util/json-file.mjs';
-import { runGh } from '../bridge/lib/util/gh.mjs';
+import { readJson, writeJson, writeJsonAtomic } from '../bridge/util/json-file.mjs';
+import { runGh } from '../bridge/util/gh.mjs';
 
 test('JSON files: a fallback for a missing or broken file, pretty output, no temp file left', () => {
   const dir = tmp('json-file');

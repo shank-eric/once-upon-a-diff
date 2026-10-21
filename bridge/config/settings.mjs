@@ -57,6 +57,16 @@ export function loadConfig(home = homeDir()) {
   return cfg;
 }
 
+/** The folders to look for checkouts in: DIFF_STORY_DEV_DIR (tests), else checkout_dirs, else ~/Development. */
+function checkoutDirsOf(dirs) {
+  if (process.env.DIFF_STORY_DEV_DIR) {
+    return [process.env.DIFF_STORY_DEV_DIR];
+  }
+  return dirs.length ? dirs : [path.join(os.homedir(), 'Development')];
+}
+
+const PLATFORM_OPENER = { darwin: ['open'], win32: ['explorer'] };
+
 /**
  * Optional personal settings in config.json, all off or neutral by default:
  *   display_name            the reviewer's name in lines the bridge writes for Claude ("where Sam's reading stopped")
@@ -74,9 +84,10 @@ export function readSettings(home = homeDir()) {
   } catch {
     cfg = {};
   }
-  const expand = (p) => (p.startsWith('~/') ? path.join(os.homedir(), p.slice(2)) : p);
+  const expand = (dirPath) =>
+    dirPath.startsWith('~/') ? path.join(os.homedir(), dirPath.slice(2)) : dirPath;
   const dirs = Array.isArray(cfg.checkout_dirs)
-    ? cfg.checkout_dirs.filter((d) => typeof d === 'string' && d).map(expand)
+    ? cfg.checkout_dirs.filter((dir) => typeof dir === 'string' && dir).map(expand)
     : [];
   return {
     displayName:
@@ -85,11 +96,7 @@ export function readSettings(home = homeDir()) {
         : null,
     timeZone: typeof cfg.time_zone === 'string' && cfg.time_zone ? cfg.time_zone : undefined,
     timeZoneLabel: typeof cfg.time_zone_label === 'string' ? cfg.time_zone_label : null,
-    checkoutDirs: process.env.DIFF_STORY_DEV_DIR
-      ? [process.env.DIFF_STORY_DEV_DIR]
-      : dirs.length
-        ? dirs
-        : [path.join(os.homedir(), 'Development')],
+    checkoutDirs: checkoutDirsOf(dirs),
     openCommand:
       Array.isArray(cfg.open_command) && cfg.open_command.length
         ? cfg.open_command.map(String)
@@ -115,13 +122,7 @@ export function ghEnv(home = homeDir(), base = process.env) {
 
 /** argv that opens a URL or file: open_command, else the platform's usual opener. */
 export function openArgv(target, home = homeDir()) {
-  const cmd =
-    readSettings(home).openCommand ||
-    (process.platform === 'darwin'
-      ? ['open']
-      : process.platform === 'win32'
-        ? ['explorer']
-        : ['xdg-open']);
+  const cmd = readSettings(home).openCommand || PLATFORM_OPENER[process.platform] || ['xdg-open'];
   return [...cmd, target];
 }
 

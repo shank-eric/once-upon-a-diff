@@ -4,7 +4,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { tmp, githubStory, startBridge, TOKEN, localRepo, git, writeJson } from './helpers.mjs';
-import { pathSha } from '../bridge/lib/diff.mjs';
+import { pathSha } from '../bridge/util/diff.mjs';
 import { createLocalStory } from '../bridge/lib/local.mjs';
 import { StoryStore } from '../bridge/lib/stories.mjs';
 

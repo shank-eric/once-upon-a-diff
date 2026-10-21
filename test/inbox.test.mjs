@@ -2,8 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
 import { tmp } from './helpers.mjs';
-import { Inbox } from '../bridge/lib/inbox.mjs';
-import { parseUnifiedDiff } from '../bridge/lib/diff.mjs';
+import { Inbox } from '../bridge/inbox/inbox.mjs';
+import { parseUnifiedDiff } from '../bridge/util/diff.mjs';
 
 test('readers keep their own cursor', () => {
   const inbox = new Inbox(tmp('inbox'));

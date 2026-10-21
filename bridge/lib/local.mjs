@@ -7,11 +7,11 @@
  */
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { topLevel, revParse, branchName } from './git.mjs';
-import { parseUnifiedDiff } from './diff.mjs';
+import { topLevel, revParse, branchName } from '../util/git.mjs';
+import { parseUnifiedDiff } from '../util/diff.mjs';
 import { refreshLocal, entryOf, ID_RE } from './stories.mjs';
 import { storyDirFor, moveStory, STORY_FOLDER } from './place.mjs';
-import { repoOfCheckout, seenCheckout } from './repos.mjs';
+import { repoOfCheckout, seenCheckout } from '../config/repos.mjs';
 
 export const slug = (s) =>
   String(s)

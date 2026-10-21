@@ -323,7 +323,7 @@ It blocks until a new question arrives, then prints the question and exits. A co
 1. **A `UserPromptSubmit` hook.** It would run `diff-story inbox --unread --consumer hook --type question`, and anything it prints would be added to the prompt's context. Questions typed in the panel would then reach the session with your next message, even if no wait is running. It's cheap, but it only fires when you send a prompt.
 2. **A small MCP server (`diff-story mcp`, not written yet).** It would read the same inbox and cursors, and offer tools: `next_question` (blocking, with a timeout), `answer`, `current_position` and `fix_before_push_notes`. If Claude Code's MCP servers can push messages into a live session, it could also deliver each question the moment it's asked. That needs checking against the current Claude Code docs before building.
 
-Both read `inbox.jsonl` the way `wait` does. The format is described at the top of `bridge/lib/inbox.mjs`.
+Both read `inbox.jsonl` the way `wait` does. The format is described at the top of `bridge/inbox/inbox.mjs`.
 
 ## Refined GitHub
 

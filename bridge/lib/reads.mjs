@@ -24,7 +24,7 @@
  */
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
-import { readJson, writeJson } from './util/json-file.mjs';
+import { readJson, writeJson } from '../util/json-file.mjs';
 
 export const READ_MIN_SECONDS = 30;
 /** time: they stayed on it; viewed: they ticked its last file; inferred: its files were all Viewed already when the panel opened (a review before read tracking, or with the panel closed) */

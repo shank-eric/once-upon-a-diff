@@ -61,11 +61,11 @@ export class Inbox {
       return { entries: [], offset };
     }
     const buf = Buffer.alloc(size - offset);
-    const fd = openSync(this.file, 'r');
+    const descriptor = openSync(this.file, 'r');
     try {
-      readSync(fd, buf, 0, buf.length, offset);
+      readSync(descriptor, buf, 0, buf.length, offset);
     } finally {
-      closeSync(fd);
+      closeSync(descriptor);
     }
     const text = buf.toString('utf8');
     const end = text.lastIndexOf('\n') + 1; // leave a half-written last line for next time
@@ -89,11 +89,11 @@ export class Inbox {
 
   /** Questions for a story, oldest first, each with its answers. */
   questions(story) {
-    const qs = new Map();
+    const byId = new Map();
     const answers = [];
     for (const e of this.all()) {
       if (e.type === 'question' && (!story || e.story === story)) {
-        qs.set(e.id, {
+        byId.set(e.id, {
           id: e.id,
           at: e.at,
           story: e.story,
@@ -107,12 +107,12 @@ export class Inbox {
         answers.push(e);
       }
     }
-    for (const a of answers) {
-      if (qs.has(a.question)) {
-        qs.get(a.question).answers.push({ id: a.id, at: a.at, text: a.text });
+    for (const answer of answers) {
+      if (byId.has(answer.question)) {
+        byId.get(answer.question).answers.push({ id: answer.id, at: answer.at, text: answer.text });
       }
     }
-    return [...qs.values()];
+    return [...byId.values()];
   }
 
   cursorFile(consumer) {

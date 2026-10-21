@@ -41,7 +41,7 @@ import {
 } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { parseUnifiedDiff } from './diff.mjs';
+import { parseUnifiedDiff } from '../util/diff.mjs';
 
 const git = (repo, args) =>
   execFileSync('git', ['-C', repo, ...args], {

@@ -23,8 +23,8 @@ import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import os from 'node:os';
 import path from 'node:path';
-import { parseUnifiedDiff } from './diff.mjs';
-import { sameRepo, checkoutFor, tilde } from './repos.mjs';
+import { parseUnifiedDiff } from '../util/diff.mjs';
+import { sameRepo, checkoutFor, tilde } from '../config/repos.mjs';
 
 export const WAITING_FRESH_MS = 15000;
 export const HANDLING_FRESH_MS = 10 * 60 * 1000;

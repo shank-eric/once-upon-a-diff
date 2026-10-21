@@ -11,7 +11,7 @@
  */
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { writeJsonAtomic } from './util/json-file.mjs';
+import { writeJsonAtomic } from '../util/json-file.mjs';
 
 const fail = (status, message) => Object.assign(new Error(message), { status });
 

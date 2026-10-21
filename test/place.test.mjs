@@ -6,7 +6,7 @@ import { execFile } from 'node:child_process';
 import { tmp, git, localRepo, githubStory, writeJson, startBridge } from './helpers.mjs';
 import { createLocalStory } from '../bridge/lib/local.mjs';
 import { StoryStore } from '../bridge/lib/stories.mjs';
-import { seenCheckout } from '../bridge/lib/repos.mjs';
+import { seenCheckout } from '../bridge/config/repos.mjs';
 import { mainCheckout, excludeStories, readIndex, adoptHomeStories } from '../bridge/lib/place.mjs';
 import { isStoryDir } from '../bridge/lib/stories.mjs';
 

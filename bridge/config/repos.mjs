@@ -10,17 +10,18 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { readSettings } from './config.mjs';
+import { readSettings } from './settings.mjs';
 
 export const REPO_RE = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
-export const sameRepo = (a, b) => !!a && !!b && String(a).toLowerCase() === String(b).toLowerCase();
+export const sameRepo = (first, second) =>
+  !!first && !!second && String(first).toLowerCase() === String(second).toLowerCase();
 
 /** owner/name from a GitHub remote URL (https or ssh), else null. */
 export function repoOfRemote(url) {
-  const m = /github\.com[:/]([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/.exec(
+  const match = /github\.com[:/]([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/.exec(
     String(url || '').trim(),
   );
-  return m ? `${m[1]}/${m[2]}` : null;
+  return match ? `${match[1]}/${match[2]}` : null;
 }
 
 const byDir = new Map();
@@ -102,7 +103,7 @@ export function checkoutFor(home, repo, { dev } = {}) {
   }
   const name = repo.split('/')[1];
   const dirs = dev ? [dev] : readSettings(home).checkoutDirs;
-  for (const dir of dirs.map((d) => path.join(d, name))) {
+  for (const dir of dirs.map((base) => path.join(base, name))) {
     if (existsSync(dir) && sameRepo(repoOfCheckout(dir), repo)) {
       return dir;
     }

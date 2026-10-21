@@ -6,9 +6,9 @@
  *   repos/{o}/{r}/pulls/{n}                       head.sha
  *   repos/{o}/{r}/compare/{story head}...{head}   commits and files since
  */
-import { diffText } from './git.mjs';
-import { parseUnifiedDiff } from './diff.mjs';
-import { runGh } from './util/gh.mjs';
+import { diffText } from '../util/git.mjs';
+import { parseUnifiedDiff } from '../util/diff.mjs';
+import { runGh } from '../util/gh.mjs';
 
 const TTL_MS = 60000;
 const cache = new Map();
