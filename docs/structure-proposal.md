@@ -112,3 +112,4 @@ Steps 1 to 5 are independent of each other and could go in any order. Steps 6 an
   2. Build the snippet from `src/js/shared/panel/` when `pr-story.mjs overlay` runs. The snippet would then expand files and offer Mark viewed, so the skill's "never clicks GitHub's controls" rule would change, unless the panel grows a switch that turns those off.
   3. Retire GitHub mode's snippet and the `overlay` command, and point GitHub mode at Diff Story Mode only.
 - Step 9 renamed the tests and scripts but kept the test tree and `load-test.mjs` as they are.
+- Since then, autoBuild, autoAnswer, chat mode and the backstory were cut (see git history), so the `backstory/` folder and its rows above are gone.

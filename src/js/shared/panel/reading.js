@@ -76,7 +76,7 @@ export function createReading(context) {
   const showing = () => document.visibilityState === 'visible';
 
   function start() {
-    clock = { step: context.inBackstory() ? 0 : state.n, ms: 0, from: showing() ? Date.now() : 0 };
+    clock = { step: state.n, ms: 0, from: showing() ? Date.now() : 0 };
   }
   const elapsed = () => clock.ms + (clock.from ? Date.now() - clock.from : 0);
 
@@ -159,7 +159,7 @@ export function createReading(context) {
     for (const el of shell.root.querySelectorAll('.prs-readchg')) {
       el.remove();
     }
-    if (!info || context.inBackstory()) {
+    if (!info) {
       return;
     }
     const byStep = new Map((info.changed || []).map((change) => [change.step, change]));

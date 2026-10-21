@@ -1,6 +1,6 @@
 /*
  * The story as the panel reads it: chapters and their numbers, where each
- * file is finished (marked viewed), and the backstory view's steps. No DOM
+ * file is finished (marked viewed). No DOM
  * here, so node tests can use it.
  *
  * Steps: 0 is the Overview (story map, every file, no filter), then 1..N are
@@ -73,31 +73,6 @@ function takeStoryMap(data) {
   return overview;
 }
 
-/** The backstory view's steps, one per moment of work, shaped like chapters. */
-function backstoryStepsOf(timeline, allPaths) {
-  return timeline.map((moment, index) => ({
-    title: `${index + 1}. ${moment.title || 'Work'}`,
-    narrative: '',
-    entry: moment,
-    files: (moment.files || [])
-      .filter((rel) => allPaths.has(rel))
-      .map((rel) => {
-        const ranges = (moment.lines && moment.lines[rel]) || [];
-        const entry = { rel, partial: false, note: null };
-        if (ranges.length) {
-          entry.lines = ranges.slice(0, 4).map(([start, end]) => ({
-            side: 'R',
-            start,
-            end: end || start,
-            label: 'changed here',
-          }));
-        }
-        return entry;
-      }),
-    comments: [],
-  }));
-}
-
 /**
  * The panel's read-only view of a story (a deep copy of the input, with the story map moved to the Overview).
  * Steps are 1-based chapter indexes; 0 is the Overview.
@@ -151,16 +126,6 @@ export function createStoryModel(input) {
     return { kind: 'mark', text: 'Mark viewed', short: 'mark viewed' };
   }
 
-  // the backstory: the chronological view's steps, one per moment of work
-  const backstory = data.backstory && typeof data.backstory === 'object' ? data.backstory : null;
-  const timeline =
-    backstory && Array.isArray(backstory.timeline)
-      ? backstory.timeline.filter((moment) => moment && (moment.title || moment.text))
-      : [];
-  const sessions = new Map(
-    ((backstory && backstory.sessions) || []).map((session) => [session.id, session]),
-  );
-
   return {
     data,
     shaToPath,
@@ -176,9 +141,5 @@ export function createStoryModel(input) {
     chapterList,
     chaptersOf,
     statusIn,
-    backstory,
-    timeline,
-    backstorySteps: backstoryStepsOf(timeline, allPaths),
-    sessions,
   };
 }

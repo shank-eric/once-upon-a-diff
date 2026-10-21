@@ -9,12 +9,9 @@
  *   pr-story.mjs build   --dir D [--no-bridge]   D/chapters.json -> D/file-map.json, then publish; fails if a file is unplaced
  *   pr-story.mjs overlay --dir D [--chapter N] [--out FILE]   JS snippet: story panel + chapter filter on the PR page (GitHub mode); no --chapter starts at the Overview
  *   pr-story.mjs publish --dir D                 copy the story to ~/.diff-story/<owner>-<repo>-<N>/ for Diff Story Mode (build does this too)
- *   pr-story.mjs backstory --dir D [--repo CHECKOUT]   find the Claude Code sessions that made the PR's commits (Diff Story Mode's
- *                                                matcher over session-story's extractor): D/backstory.json + D/backstory-brief.json
  */
 import { readFile, writeFile, mkdir, copyFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import os from 'node:os';
@@ -410,7 +407,7 @@ async function cmdPublish(opts) {
     `${repo.replace('/', '-')}-${pr.number}`.replace(/[^A-Za-z0-9._-]+/g, '-'),
   );
   await mkdir(dest, { recursive: true });
-  for (const name of ['chapters.json', 'file-map.json', 'backstory.json']) {
+  for (const name of ['chapters.json', 'file-map.json']) {
     if (existsSync(path.join(dir, name))) {
       await copyFile(path.join(dir, name), path.join(dest, name));
     }
@@ -434,75 +431,6 @@ async function cmdPublish(opts) {
     ),
   );
   process.stderr.write(`Diff Story Mode: ${dest}\n`);
-}
-
-/**
- * Backstory: the Claude Code sessions that made this PR's commits, if any.
- * Needs the commits in a local checkout (the first in checkouts.txt, or
- * --repo). A PR nobody made in Claude Code, or one whose commits aren't
- * local, gets backstory.json with found: false, and the story goes on without it.
- */
-async function cmdBackstory(opts) {
-  const dir = opts.dir;
-  const pr = await readJson(path.join(dir, 'pr.json'));
-  const out = path.join(dir, 'backstory.json');
-  const skip = async (reason) => {
-    await writeFile(
-      out,
-      JSON.stringify(
-        { found: false, reason, sessions: [], moments: [], files: {}, timeline: [] },
-        null,
-        2,
-      ),
-    );
-    process.stderr.write(`No backstory: ${reason}\n`);
-  };
-  const cli = path.join(DSM, 'bridge/bin/diff-story.mjs');
-  if (!existsSync(cli)) {
-    return skip(`Diff Story Mode isn't at ${DSM}`);
-  }
-  let repo = opts.repo;
-  if (!repo && existsSync(path.join(dir, 'checkouts.txt'))) {
-    repo = ((await readFile(path.join(dir, 'checkouts.txt'), 'utf8')).split('\n')[0] || '').split(
-      '\t',
-    )[1];
-  }
-  if (!repo) {
-    return skip('no local checkout of the repo');
-  }
-  const has = (oid) => {
-    try {
-      execFileSync('git', ['-C', repo, 'cat-file', '-e', `${oid}^{commit}`], { stdio: 'ignore' });
-      return true;
-    } catch {
-      return false;
-    }
-  };
-  if (!has(pr.baseRefOid) || !has(pr.headRefOid)) {
-    return skip(
-      `the PR's commits aren't in ${repo} (fetch the head into refs/tmp/pr-${pr.number} first if they were made here)`,
-    );
-  }
-  const brief = execFileSync(
-    'node',
-    [
-      cli,
-      'backstory',
-      '--repo',
-      repo,
-      '--base',
-      pr.baseRefOid,
-      '--head',
-      pr.headRefOid,
-      '-o',
-      out,
-      '--brief',
-      ...(opts['exclude-agent'] ? ['--exclude-agent', opts['exclude-agent']] : []),
-    ],
-    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'], maxBuffer: 64 * 1024 * 1024 },
-  );
-  await writeFile(path.join(dir, 'backstory-brief.json'), brief);
-  process.stderr.write(`Brief: ${path.join(dir, 'backstory-brief.json')}\n`);
 }
 
 /**
@@ -559,13 +487,12 @@ const COMMANDS = {
   build: cmdBuild,
   overlay: cmdOverlay,
   publish: cmdPublish,
-  backstory: cmdBackstory,
 };
 const { command, opts } = parseArgs(process.argv.slice(2));
 const run = COMMANDS[command];
 if (!run || !opts.dir) {
   process.stderr.write(
-    'usage: pr-story.mjs <brief|build|overlay|publish|backstory> --dir <scratch-dir> [--no-bridge] [--chapter N] [--out FILE]\n',
+    'usage: pr-story.mjs <brief|build|overlay|publish> --dir <scratch-dir> [--no-bridge] [--chapter N] [--out FILE]\n',
   );
   process.exitCode = 1;
 } else {

@@ -191,27 +191,6 @@ This builds `git diff <base> <head>` into `~/.diff-story/local-<repo>-<branch>/`
 - **A chapter shows its own lines.** When chapters that share a file give `lines` ranges, each chapter folds the lines another chapter tells behind a row that says which chapter (**Show** opens it, and a link to one of its lines opens it too, along with the file if it's folded). Lines no range covers show in the first chapter that lists the file. A chapter that lists the file without ranges, the Overview and **Show all files** draw all of it. GitHub's page can't be redrawn this way, so there the panel filters by file only.
 - Without `--chapters`, you get one chapter per top-level folder as a starting point. Any file a story doesn't place lands in a last "Not in a chapter yet" step, so nothing is hidden from every step.
 
-## Backstory: how it got here
-
-The story leads with the result: how a user meets the code. When the commits were made in Claude Code sessions, the panel can also show how they got that way, kept short and collapsed:
-
-- Each chapter shows its narrative first, then a collapsed **Backstory** section with a short summary and dated steps.
-- File rows get a small **why** link that expands that file's "How it got here", including notes on specific lines.
-- The Overview has the backstory summary and the sessions it came from.
-- A small **Backstory view** link switches the whole panel to the chronological telling: one step per moment of work (what was asked, what changed, the checks), with the diff filtered to that step's files. **Back to the story** returns. The journey story is the default, and the view is remembered per story only after you switch it.
-- A session chip (`session d5c52a31 · turn 7 · agent`) copies `claude --resume <id>`.
-
-To find the sessions behind a commit range:
-
-```bash
-diff-story backstory --repo <checkout> --base <ref> [--head HEAD] -o backstory.json --brief > backstory-brief.json
-diff-story local --repo <checkout> --base <ref> --chapters chapters.json --backstory backstory.json
-```
-
-It scans `~/.claude/projects` (main and subagent transcripts) for ones that mention a checkout of the repo (any worktree) or a commit SHA in the range, then reads each candidate with [session-story](https://github.com/nalaj/session-story)'s extractor through its CLI (`story.mjs extract --no-chain`, `~/.claude/skills/session-story` or `SESSION_STORY_DIR`). A session counts only if, in the commits' time window, it edited a file of the diff, ran a `git commit` whose subject or printed SHA is in the range, or ran a write-ish script naming a diff file. Lint, test and build runs count only beside that work and only in the checkout where it happened. Each edit's and commit's added lines are found in the final diff, which gives line ranges. A session whose turns were started by messages from another Claude Code session counts too: those messages are meta records the extractor skips, so it reads a scratch copy where they're prompts. From the raw transcripts it also takes what was said (prompts, Larmor voice, those messages), the task and messages the main session sent each agent, and the agents' hand-back reports. With no match (a PR someone else wrote, say) it writes `found: false` and the story has no backstory.
-
-`backstory.json` holds the evidence and a draft `timeline`. The story writer (the pr-story skill) puts the real text in `chapters.json`: a top-level `backstory` (`summary`, `sessions`, `timeline`), each chapter's `backstory` (`summary`, `steps`), a file entry's `backstory.text` and a line's `backstory`. When `chapters.json` has no timeline, the bridge uses the draft.
-
 ## Story folders
 
 Stories live in the repo they're about, in a hidden `.diff-story/` folder in its local checkout. Git ignores that folder through the checkout's `.git/info/exclude`, which is local and never committed. So there's no `.gitignore` change, `git status` stays clean, and `git add .` can't pick it up. A worktree shares its repo's exclude file.
@@ -220,7 +199,6 @@ Stories live in the repo they're about, in a hidden `.diff-story/` folder in its
 <checkout or worktree>/.diff-story/
   local-<repo>-<branch>/            chapters.json, meta.json, local.diff      (from diff-story local, in the worktree it diffs)
   <owner>-<repo>-<N>/               chapters.json, file-map.json, meta.json   (a PR story, in the repo's main checkout)
-                                    backstory.json in either, when there is one
 
 ~/.diff-story/                      (DIFF_STORY_HOME moves it)
   config.json                       {port, token}, mode 600
@@ -366,7 +344,7 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
 - hiding the panel and toggling it back
 - that the GitHub page itself makes no calls to the bridge
 - the local page: diff, filter, Viewed, a note, and coming back after a reload
-- the options page's Test connection before Save, and the Backstory section and view on a PR
+- the options page's Test connection before Save
 
 `test:expand` uses `refined-github/refined-github#10298` and checks that line links above, between and past its hunks, on both sides, and file and line links into a collapsed file open and highlight their target, with no expanding on a step change, `?w=1` kept and no Viewed toggle touched. Logged out, GitHub sends `/changes` to `/files`, so the React `/changes` DOM is checked by hand.
 
@@ -381,17 +359,16 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
     - `ui/` holds the pieces they share: `story-tag.js` (what a tag says), `tag-host.js`, `listen-notice.js`, `status-control.js`, `copy.js` and `toast.js`.
   - `js/shared/overlay.js` is the panel's entry, shared with the local page. It builds one context and wires the modules in `js/shared/panel/`:
     - `story-model.js`: chapters, numbers and where each file is finished. `panel-state.js`: the saved step and layout.
-    - `shell.js` and `styles.js`: the frame, toolbar and CSS. `body.js`: the step on screen. `navigation.js`: Prev, Next and the view switch.
+    - `shell.js` and `styles.js`: the frame, toolbar and CSS. `body.js`: the step on screen. `navigation.js`: Prev, Next and the step list.
     - `host-page.js`: finding files, lines and toggles on `/changes`, `/files` and the local page. `filter.js`, `expand.js` and `scroll.js`: hiding, opening and jumping.
-    - `file-refs.js` and `markdown.js`: the story's text and its jump links. `file-list.js` and `backstory-views.js`: the file rows and the backstory.
+    - `file-refs.js` and `markdown.js`: the story's text and its jump links. `file-list.js`: the file rows.
     - `viewed.js`, `reading.js`, `drafts.js`, `freshness.js`, `status-light.js` and `questions.js`: Viewed progress, read tracking, drafted comments, story freshness, the status light and the Ask box.
   - `js/shared/util/`: helpers for the panel, the content scripts, the local page and the bridge (escaping, short SHAs, times, the clipboard, GitHub paths, key isolation).
 - `bridge/`: the bridge and its CLI.
   - `bin/diff-story.mjs` runs `cli/index.mjs`, a table of commands in `cli/commands/` (bridge, stories, inbox, drafts, builds, checks) that also builds the help. `cli/doctor.mjs` is `diff-story doctor`.
   - `server/index.mjs` is the HTTP server: its guards, then a route table. The routes are in `server/routes/` by area; `pages.mjs` and `assets.mjs` serve the HTML pages and the scripts.
-  - `stories/`: finding story folders (`store.mjs`, `placement.mjs`), reading them (`meta.mjs`, `chapters.mjs`, `story-data.mjs`, `text-refs.mjs`, `backstory-notes.mjs`), local stories (`local-story.mjs`, `local-diff.mjs`), read tracking (`reads.mjs`) and drafted comments (`comments.mjs`).
+  - `stories/`: finding story folders (`store.mjs`, `placement.mjs`), reading them (`meta.mjs`, `chapters.mjs`, `story-data.mjs`, `text-refs.mjs`), local stories (`local-story.mjs`, `local-diff.mjs`), read tracking (`reads.mjs`) and drafted comments (`comments.mjs`).
   - `github/`: what asks `gh` (read-only, except Add to my review): freshness, drafts and the pending review.
-  - `backstory/`: `diff-story backstory`, from the commit range and the Claude Code transcripts to moments and a timeline.
   - `inbox/` (the inbox and build requests), `listeners/` (who's listening), `config/` (settings, prefs, repos and checkouts) and `util/` (gh, git, diffs, JSON files).
   - `public/`: the local page. `local.js` draws it and handles its clicks; `local/` holds the diff view, notes, folds and the panel mount, next to `split.js`, `narrow.js` and `syntax.js`.
 - `skills/diff-story-listen/`: the Claude Code skill behind **Copy prompt for Claude**.

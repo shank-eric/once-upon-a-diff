@@ -1,14 +1,13 @@
 /*
- * The panel's own state: the view (the story or the backstory), the step in
- * it, and the panel's layout. The caller saves it through opts.onState and
- * passes it back as opts.initial, so its field names are part of the panel's
- * contract: {n, bn, view, all, collapsed, width, filesOpen, showPosted, showDismissed}.
+ * The panel's own state: the step and the panel's layout. The caller saves
+ * it through opts.onState and passes it back as opts.initial, so its field
+ * names are part of the panel's contract:
+ * {n, all, collapsed, width, filesOpen, showPosted, showDismissed}.
  */
 
-/** The step clamped to the view's steps (0 is the Overview). */
-export function clampStep(story, step, view) {
-  const count = (view === 'backstory' ? story.backstorySteps : story.data.chapters).length;
-  return Math.min(Math.max(0, step), count);
+/** The step clamped to the story's steps (0 is the Overview). */
+export function clampStep(story, step) {
+  return Math.min(Math.max(0, step), story.data.chapters.length);
 }
 
 function storyStartOf(story, initial) {
@@ -20,17 +19,8 @@ function storyStartOf(story, initial) {
 
 /** The state to start from: a saved one (opts.initial), else the story's start step. */
 export function createPanelState(story, initial) {
-  const startView =
-    initial.view === 'backstory' && story.backstorySteps.length ? 'backstory' : 'story';
-  const storyStart = storyStartOf(story, initial);
-  const backstoryStart = Number.isFinite(initial.bn) ? initial.bn : 0;
-  const otherView = startView === 'backstory' ? 'story' : 'backstory';
   return {
-    view: startView,
-    // the step in the view on screen
-    n: clampStep(story, startView === 'backstory' ? backstoryStart : storyStart, startView),
-    // the step kept for the other view
-    other: clampStep(story, startView === 'backstory' ? storyStart : backstoryStart, otherView),
+    n: clampStep(story, storyStartOf(story, initial)),
     all: !!initial.all,
     collapsed: !!initial.collapsed,
     width: Number.isFinite(initial.width) ? initial.width : 460,
@@ -43,23 +33,18 @@ export function createPanelState(story, initial) {
 /** The questions the rest of the panel asks of the state, and saving it through opts.onState. */
 export function stateHelpers(context) {
   const { story, state, opts } = context;
-  const inBackstory = () => state.view === 'backstory';
-  const steps = () => (inBackstory() ? story.backstorySteps : story.data.chapters);
+  const steps = () => story.data.chapters;
   const chapter = () => (state.n ? steps()[state.n - 1] : null);
   const inChapter = () =>
     new Set(state.n ? chapter().files.map((file) => file.rel) : story.allRels);
-  /** A file's status in chapter `step` of the story; none in the backstory view. */
-  const fileStatus = (rel, step) => (inBackstory() ? null : story.statusIn(rel, step));
+  /** A file's status in chapter `step`. */
+  const fileStatus = (rel, step) => story.statusIn(rel, step);
   function saveState() {
     if (!opts.onState) {
       return;
     }
-    const storyStep = inBackstory() ? state.other : state.n;
-    const backstoryStep = inBackstory() ? state.n : state.other;
     opts.onState({
-      n: storyStep,
-      bn: backstoryStep,
-      view: state.view,
+      n: state.n,
       all: state.all,
       collapsed: state.collapsed,
       width: state.width,
@@ -68,5 +53,5 @@ export function stateHelpers(context) {
       showDismissed: state.showDismissed,
     });
   }
-  return { inBackstory, steps, chapter, inChapter, fileStatus, saveState };
+  return { steps, chapter, inChapter, fileStatus, saveState };
 }

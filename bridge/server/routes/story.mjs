@@ -37,8 +37,6 @@ function panelState({ app, req, body, send }, story) {
   }
   const saved = {
     n: toInt(body.n) ?? 0,
-    bn: toInt(body.bn) ?? 0,
-    view: body.view === 'backstory' ? 'backstory' : 'story',
     all: !!body.all,
     collapsed: !!body.collapsed,
     width: toInt(body.width),

@@ -3,27 +3,11 @@ import assert from 'node:assert/strict';
 import { parseArgs } from '../bridge/cli/args.mjs';
 import { usageText, commandNames } from '../bridge/cli/index.mjs';
 
-test('the CLI parses flags, repeats, -o and bare words', () => {
-  const { command, opts } = parseArgs([
-    'backstory',
-    '--repo',
-    'x',
-    '--brief',
-    '--exclude-agent',
-    'a1',
-    '--exclude-agent',
-    'a2',
-    '-o',
-    'out.json',
-    'word',
-    '--root',
-    'r1',
-  ]);
-  assert.equal(command, 'backstory');
+test('the CLI parses flags, --root and bare words', () => {
+  const { command, opts } = parseArgs(['local', 'word', '--repo', 'x', '--brief', '--root', 'r1']);
+  assert.equal(command, 'local');
   assert.equal(opts.repo, 'x');
   assert.equal(opts.brief, true);
-  assert.deepEqual(opts.excludeAgents, ['a1', 'a2']);
-  assert.equal(opts.o, 'out.json');
   assert.deepEqual(opts._, ['word']);
   assert.deepEqual(opts.root, ['r1']);
 });

@@ -97,12 +97,6 @@ writeJson(path.join(home, id, 'chapters.json'), {
       title: 'Chapter 1: First half',
       narrative: `### Chapter 1: First half\n\nStarts with \`${rels[0]}\`.`,
       files: rels.slice(0, half),
-      backstory: {
-        summary: 'Made in a test session.',
-        steps: [
-          { at: '2026-10-20T19:00:00Z', text: 'Asked for it', session: 'test-session', turn: 1 },
-        ],
-      },
     },
     // rels[0] is listed plainly in both chapters, with no partial flag: it's marked viewed in chapter 2, the last one
     {
@@ -111,20 +105,6 @@ writeJson(path.join(home, id, 'chapters.json'), {
       files: [...rels.slice(half), rels[0]],
     },
   ],
-  backstory: {
-    summary: 'A test backstory.',
-    sessions: [{ id: 'test-session', label: 'Test session' }],
-    timeline: [
-      {
-        at: '2026-10-20T19:00:00Z',
-        title: 'The first change',
-        text: 'Did it.',
-        files: [rels[1]],
-        session: 'test-session',
-        turn: 1,
-      },
-    ],
-  },
 });
 // a local story too
 const { repo: lrepo, base } = localRepo();
@@ -249,22 +229,6 @@ try {
     );
     await page.locator('#dsm-panel .prs-next').click();
     await page.waitForTimeout(800);
-    if (view === 'files') {
-      const backstoryBox = page.locator('#dsm-panel details.prs-backstory');
-      check(
-        (await backstoryBox.count()) === 1 && (await backstoryBox.getAttribute('open')) === null,
-        `/${view}: chapter 1 has a collapsed Backstory under its narrative`,
-      );
-      await page.locator('#dsm-panel .prs-view[data-view=backstory]').click();
-      await page.waitForTimeout(600);
-      check(
-        /step 1/.test(await note()) ||
-          /Backstory/.test(await page.locator('#dsm-panel .prs-title').textContent()),
-        `/${view}: the Backstory view link switches the panel: "${(await note()).trim()}"`,
-      );
-      await page.locator('#dsm-panel .prs-view[data-view=story]').click();
-      await page.waitForTimeout(600);
-    }
     const chapterOneNote = await note();
     const hidden = await page.locator('[data-dsm-hidden]').count();
     check(

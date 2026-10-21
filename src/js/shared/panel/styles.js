@@ -147,26 +147,8 @@ export const panelCss = (panelId) => `
   #${panelId} .prs-qa .prs-qmeta { font-size: 11px; color: var(--c-muted); }
   #${panelId} .prs-qa .prs-a { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--c-border); }
   #${panelId} .prs-qa .prs-wait { margin-top: 4px; font-size: 12px; color: var(--c-muted); font-style: italic; }
-  #${panelId} details.prs-backstory { margin: 14px 0 10px; border: 1px solid var(--c-border); border-radius: 6px; background: var(--c-subtle); }
-  #${panelId} details.prs-backstory > summary { cursor: pointer; padding: 5px 10px; font-size: 12px; font-weight: 600; color: var(--c-muted); list-style: none; }
-  #${panelId} details.prs-backstory > summary::-webkit-details-marker { display: none; }
-  #${panelId} details.prs-backstory > summary::before { content: '▸ '; }
-  #${panelId} details.prs-backstory[open] > summary::before { content: '▾ '; }
-  #${panelId} details.prs-backstory > summary .prs-sub { font-weight: 400; }
-  #${panelId} details.prs-backstory > .prs-bs-body { padding: 0 10px 8px; font-size: 13px; }
-  #${panelId} ol.prs-bs-steps { list-style: none; margin: 4px 0 0; padding: 0; }
-  #${panelId} ol.prs-bs-steps > li { padding: 3px 0; border-top: 1px dashed var(--c-border); }
-  #${panelId} ol.prs-bs-steps > li:first-child { border-top: 0; }
-  #${panelId} .prs-bs-at { color: var(--c-muted); font-size: 11px; margin-right: 4px; white-space: nowrap; }
-  #${panelId} button.prs-sess { font-size: 11px; padding: 0 5px; border-radius: 9px; color: var(--c-muted); background: transparent; margin-left: 2px; }
   #${panelId} button.prs-linkish { border: 0; background: none; padding: 0 2px; color: var(--c-muted); font-size: 11px; text-decoration: underline dotted; }
   #${panelId} button.prs-linkish:hover { color: var(--c-accent); }
-  #${panelId} .prs-whybox { margin: 4px 0 2px 12px; padding: 6px 8px; border-left: 2px solid var(--c-border); font-size: 12px; }
-  #${panelId} .prs-whybox p { margin: 0 0 4px; }
-  #${panelId} .prs-view { margin-left: auto; }
-  #${panelId} .prs-bs-banner { margin: 10px 0 0; padding: 6px 10px; border-radius: 6px; background: var(--c-subtle); color: var(--c-muted); font-size: 12px; }
-  #${panelId} .prs-bs-banner button { font-size: 12px; }
-  #${panelId} blockquote.prs-asked { margin: 4px 0 8px; font-style: italic; }
   #${panelId} .prs-ask { border-top: 1px solid var(--c-border); padding: 8px 10px; display: flex; gap: 6px; align-items: flex-end; background: var(--c-subtle); }
   #${panelId} .prs-ask textarea { flex: 1; min-height: 34px; max-height: 160px; resize: vertical; font: inherit; font-size: 13px; color: var(--c-fg);
     background: var(--c-bg); border: 1px solid var(--c-border); border-radius: 6px; padding: 5px 8px; }

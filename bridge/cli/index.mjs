@@ -40,7 +40,6 @@ const HELP_ORDER = [
   'done',
   'answer',
   'notes',
-  'backstory',
 ];
 
 /** Every command the table has, and the help's order, so a test can check they match. */

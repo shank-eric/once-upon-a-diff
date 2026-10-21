@@ -55,7 +55,7 @@ export function readMeta(dir) {
 }
 
 export function storyVersion(dir) {
-  const files = ['chapters.json', 'file-map.json', 'meta.json', 'local.diff', 'backstory.json'];
+  const files = ['chapters.json', 'file-map.json', 'meta.json', 'local.diff'];
   return String(Math.max(...files.map((name) => modifiedAt(path.join(dir, name)))));
 }
 
