@@ -90,6 +90,7 @@ That's the file named by `house_rules` in `~/.diff-story/config.json`, else `~/.
 
 - **Story map first.** One short paragraph on what the PR is for, then a numbered map: each chapter's bold title and the files it covers, with the total file count.
 - **Chapter shape.** `### Chapter N: title`, then "The scenario: …" in a sentence. Then numbered steps that follow what happens, with nested bullets for branches and checks. Name each file in backticks the moment the flow reaches it and say what it does in plain words.
+- **Follow the calls.** Open each chapter at the entry point the code flows from (the function its callers reach first), say what it does and where it lives, then follow its calls outward, helpers after the code that calls them. Give every function the text names a `` `file:line` `` reference, since a bare name like `getAffectedSourceFiles` doesn't link.
 - **Then what you checked.** Against the old code ("I compared these against the old scripts"), against prod or CI logs, against the other repo. Say what holds up.
 - **Questions worth asking.** "One question worth asking" or "What to raise in this chapter", numbered, each with the reason, then the paste-ready comment. Mark nits as optional: "Not worth a comment unless you're already writing one on that file."
 - **Files to mark viewed,** grouped by directory, with partials called out ("`report.ts` comes back in chapter 4, so leave it unticked until then if you'd rather") and "Still held: …".
