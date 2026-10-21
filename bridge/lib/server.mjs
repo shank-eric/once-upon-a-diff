@@ -16,7 +16,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { StoryStore, readMeta, refreshLocal, storyVersion } from './stories.mjs';
+import { StoryStore, readMeta, refreshLocal, storyVersion, localVersion } from './stories.mjs';
+import { readPrefs, writePrefs } from './config.mjs';
 import { Inbox, newId } from './inbox.mjs';
 import { Builds } from './builds.mjs';
 import { addComment } from './comments.mjs';
@@ -140,6 +141,11 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
         else if (url.searchParams.get('repo')) { const hit = stories.find(url.searchParams.get('repo'), url.searchParams.get('number')); story = hit ? hit.id : null; }
         return send(200, statusOf({ home, version: VERSION, story, autoBuild, autoAnswer, extensionSeen }));
       }
+      // page settings kept across stories and restarts (the local page's Hide whitespace)
+      if (p === '/api/prefs') {
+        if (req.method === 'GET') return send(200, readPrefs(home));
+        return send(200, writePrefs(body, home));
+      }
       if (p === '/api/stories' && req.method === 'GET') return send(200, { stories: stories.list().map(({ dir, ...s }) => s) });
       if (p === '/api/stories/find' && req.method === 'GET') {
         const hit = stories.find(url.searchParams.get('repo') || '', url.searchParams.get('number'));
@@ -200,7 +206,10 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
 
       if (!what && req.method === 'GET') return send(200, stories.load(id));
       if (what === 'version' && req.method === 'GET') {
-        if (meta.kind === 'local') refreshLocal(dir, JSON.parse(readFileSync(path.join(dir, 'meta.json'), 'utf8')));
+        if (meta.kind === 'local') {
+          refreshLocal(dir, JSON.parse(readFileSync(path.join(dir, 'meta.json'), 'utf8')));
+          return send(200, { version: localVersion(dir, readPrefs(home)) });
+        }
         return send(200, { version: storyVersion(dir) });
       }
       if (what === 'ui') {

@@ -3,6 +3,7 @@
  *
  *   ~/.diff-story/                 DIFF_STORY_HOME overrides it
  *     config.json                  {port, token, roots}, mode 600
+ *     prefs.json                   page settings that hold across stories and restarts, such as {hideWhitespace}
  *     inbox.jsonl                  questions, positions, notes and answers, one JSON object a line
  *     cursors/<consumer>.json      how far each reader (a Claude session, a hook) has read the inbox
  *     state/<story id>/            what the bridge records per story: ui.json, position.json, viewed.json, notes.json
@@ -48,4 +49,24 @@ export function saveConfig(cfg, home = homeDir()) {
   const file = path.join(home, 'config.json');
   writeFileSync(file, JSON.stringify(cfg, null, 2) + '\n', { mode: 0o600 });
   chmodSync(file, 0o600);
+}
+
+/**
+ * Page settings the bridge keeps for every story, read on each request so a change needs no restart.
+ * Only known keys are kept: {hideWhitespace: boolean}.
+ */
+export const PREF_DEFAULTS = Object.freeze({ hideWhitespace: false });
+
+export function readPrefs(home = homeDir()) {
+  let saved = {};
+  try { saved = JSON.parse(readFileSync(path.join(home, 'prefs.json'), 'utf8')) || {}; } catch { saved = {}; }
+  return { ...PREF_DEFAULTS, hideWhitespace: saved.hideWhitespace === true };
+}
+
+export function writePrefs(patch, home = homeDir()) {
+  const next = { ...readPrefs(home) };
+  if ('hideWhitespace' in patch) next.hideWhitespace = patch.hideWhitespace === true;
+  mkdirSync(home, { recursive: true, mode: 0o700 });
+  writeFileSync(path.join(home, 'prefs.json'), JSON.stringify(next, null, 2) + '\n');
+  return next;
 }

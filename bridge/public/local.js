@@ -66,6 +66,7 @@ function treeHtml(rels) {
 
 function rowsHtml(f) {
   if (f.binary) return '<tr class="ds-info"><td colspan="3">Binary file</td></tr>';
+  if (f.whitespace_only) return '<tr class="ds-info"><td colspan="3">Only whitespace changes, hidden. Turn off Hide whitespace to see them.</td></tr>';
   if (!f.hunks.length) return `<tr class="ds-info"><td colspan="3">${f.kind === 'renamed' ? 'Renamed without changes' : 'No changed lines'}</td></tr>`;
   let html = '';
   for (const h of f.hunks) {
@@ -92,6 +93,7 @@ function fileHtml(f) {
       <button class="ds-fold" type="button" aria-label="Fold or unfold this file" aria-expanded="${!f.viewed}"></button>
       <code class="ds-path">${esc(f.rel)}</code>
       ${kind ? `<span class="ds-kind">${esc(kind)}</span>` : ''}
+      ${f.whitespace_only ? '<span class="ds-kind" title="Hide whitespace is on">whitespace only</span>' : ''}
       <span class="ds-stat"><span class="ds-plus">+${f.stats.added}</span> <span class="ds-minus">−${f.stats.removed}</span></span>
       ${f.viewed_changed ? '<span class="ds-changed" title="You marked this viewed, and its diff has changed since">changed since viewed</span>' : ''}
       <button class="ds-viewed" type="button" aria-pressed="${f.viewed ? 'true' : 'false'}">Viewed</button>
@@ -110,6 +112,7 @@ function headerHtml() {
       <h1>${esc(story.title)}</h1>
       <div class="ds-muted">${esc(l.repo)} · <code>${esc(l.base)}</code> ${esc(l.base_oid.slice(0, 9))} → <code>${esc(l.head)}</code> ${esc(l.head_oid.slice(0, 9))}${l.branch ? ` · ${esc(l.branch)}` : ''} · ${l.commits.length} commit${l.commits.length === 1 ? '' : 's'} · ${l.files.length} files <span class="ds-plus">+${added}</span> <span class="ds-minus">−${removed}</span></div>
     </div>
+    <label class="ds-ws" title="Draw the diff with git diff -w, like GitHub's Hide whitespace. Remembered for every local story."><input type="checkbox" class="ds-ws-toggle"${l.hide_whitespace ? ' checked' : ''}> Hide whitespace</label>
     <button type="button" class="ds-notes-toggle" aria-expanded="false">Fix before push: ${open} open</button>
   </header>
   <section class="ds-notes-list" hidden></section>`;
@@ -122,9 +125,10 @@ function notesListHtml() {
     <p class="ds-muted">Also in the terminal: <code>diff-story notes --story ${esc(story.id)}</code></p>`;
 }
 
-function noteRow(n) {
+function noteRow(n, away) {
   return `<tr class="ds-note-row" data-note="${esc(n.id)}"><td colspan="3"><div class="ds-note${n.done ? ' ds-done' : ''}">
     <div class="ds-note-head"><b>Fix before push</b><span class="ds-muted">${esc(new Date(n.at).toLocaleString())}</span>
+      ${away ? `<span class="ds-muted">on ${n.side === 'L' ? 'L' : ''}${n.line}, a line this diff doesn't draw${story.local.hide_whitespace ? ' with whitespace hidden' : ''}</span>` : ''}
       <label><input type="checkbox" data-note-done="${esc(n.id)}"${n.done ? ' checked' : ''}> done</label>
       <button type="button" data-note-delete="${esc(n.id)}">Delete</button></div>
     <div class="ds-note-body">${esc(n.body)}</div></div></td></tr>`;
@@ -137,7 +141,7 @@ function placeNotes() {
     if (!f) continue;
     const cell = n.line && document.querySelector(`[data-line-anchor="diff-${f.sha}${n.side}${n.line}"]`);
     const row = cell ? cell.closest('tr') : document.querySelector(`#diff-${f.sha} tbody tr`);
-    if (row) row.insertAdjacentHTML('afterend', noteRow(n));
+    if (row) row.insertAdjacentHTML('afterend', noteRow(n, !!n.line && !cell));
   }
   const open = story.local.notes.filter(n => !n.done).length;
   const btn = document.querySelector('.ds-notes-toggle');
@@ -249,7 +253,23 @@ document.addEventListener('click', async e => {
     toggle.setAttribute('aria-expanded', String(!list.hidden));
   }
 });
+async function setHideWhitespace(on) {
+  const box = document.querySelector('.ds-ws-toggle');
+  if (box) box.disabled = true;
+  try {
+    await api('POST', '/api/prefs', { hideWhitespace: on });
+    story = await api('GET', S);
+    render();
+    if (!hidden) mount(overlay ? { ...overlay.state, bodyScroll: overlay.bodyScroll } : lastUi);
+  } catch (err) {
+    alert(`Couldn't change Hide whitespace: ${err.message}`);
+    if (box) { box.checked = !on; box.disabled = false; }
+  }
+}
+
 document.addEventListener('change', async e => {
+  const ws = e.target.closest('.ds-ws-toggle');
+  if (ws) return setHideWhitespace(ws.checked);
   const box = e.target.closest('[data-note-done]');
   if (!box) return;
   const id = box.getAttribute('data-note-done');

@@ -276,3 +276,93 @@ describe('drafted comments', () => {
     } finally { await b.close(); }
   });
 });
+
+describe('Hide whitespace on local stories', () => {
+  let home, repo, base, id, b;
+  const file = (body, rel) => body.local.files.find(f => f.rel === rel);
+  before(async () => {
+    home = tmp('home');
+    repo = tmp('repo');
+    git(repo, 'init', '-q', '-b', 'ws');
+    writeFileSync(path.join(repo, 'indent.js'), 'if (x) {\ny();\n}\n');
+    writeFileSync(path.join(repo, 'mixed.js'), 'const a = 1;\nconst b = 2;\n');
+    git(repo, 'add', '.');
+    git(repo, 'commit', '-q', '-m', 'base');
+    base = git(repo, 'rev-parse', 'HEAD');
+    writeFileSync(path.join(repo, 'indent.js'), 'if (x) {\n  y();\n}\n'); // whitespace only
+    writeFileSync(path.join(repo, 'mixed.js'), 'const a  =  1;\nconst b = 3;\n'); // one whitespace line, one real change
+    git(repo, 'commit', '-q', '-am', 'reindent and change b');
+    id = createLocalStory({ home, repo, base, head: 'HEAD' }).id;
+    b = await startBridge({ home });
+  });
+  after(() => b.close());
+
+  test('is off by default, and the setting is saved in prefs.json, not per story', async () => {
+    assert.deepEqual((await b.call('GET', '/api/prefs')).body, { hideWhitespace: false });
+    const before = (await b.call('GET', `/api/stories/${id}`)).body;
+    assert.equal(before.local.hide_whitespace, false);
+    assert.deepEqual(file(before, 'mixed.js').stats, { added: 2, removed: 2 });
+    assert.equal(file(before, 'indent.js').hunks.length, 1);
+
+    assert.deepEqual((await b.call('POST', '/api/prefs', { hideWhitespace: true, junk: 1 })).body, { hideWhitespace: true });
+    assert.deepEqual(JSON.parse(readFileSync(path.join(home, 'prefs.json'), 'utf8')), { hideWhitespace: true });
+    await b.call('POST', '/api/prefs', { hideWhitespace: false });
+  });
+
+  test('draws the -w diff but keeps every file, its hash and its viewed mark', async () => {
+    assert.equal((await b.call('POST', `/api/stories/${id}/viewed`, { path: 'indent.js', viewed: true })).status, 200);
+    assert.equal((await b.call('POST', `/api/stories/${id}/viewed`, { path: 'mixed.js', viewed: true })).status, 200);
+    const full = (await b.call('GET', `/api/stories/${id}`)).body;
+    const v1 = (await b.call('GET', `/api/stories/${id}/version`)).body.version;
+
+    await b.call('POST', '/api/prefs', { hideWhitespace: true });
+    const v2 = (await b.call('GET', `/api/stories/${id}/version`)).body.version;
+    assert.notEqual(v1, v2, 'a page polling the version redraws when the setting changes');
+    const hid = (await b.call('GET', `/api/stories/${id}`)).body;
+    assert.equal(hid.local.hide_whitespace, true);
+    assert.equal(hid.version, v2);
+    assert.deepEqual(hid.local.files.map(f => f.rel), full.local.files.map(f => f.rel), 'a whitespace-only file stays listed');
+    const indent = file(hid, 'indent.js');
+    assert.equal(indent.whitespace_only, true);
+    assert.deepEqual(indent.hunks, []);
+    assert.deepEqual(indent.stats, { added: 0, removed: 0 });
+    assert.deepEqual(file(hid, 'mixed.js').stats, { added: 1, removed: 1 });
+    assert.equal(file(hid, 'mixed.js').whitespace_only, false);
+    for (const f of hid.local.files) {
+      assert.equal(f.hash, file(full, f.rel).hash, `${f.rel} keeps the full diff's hash`);
+      assert.equal(f.viewed, true, `${f.rel} stays viewed`);
+      assert.equal(f.viewed_changed, false, `${f.rel} isn't "changed since viewed"`);
+    }
+
+    await b.call('POST', '/api/prefs', { hideWhitespace: false });
+    const back = (await b.call('GET', `/api/stories/${id}`)).body;
+    assert.equal(back.version, v1);
+    assert.ok(back.local.files.every(f => f.viewed));
+  });
+
+  test('outlives a bridge restart and holds for other stories', async () => {
+    await b.call('POST', '/api/prefs', { hideWhitespace: true });
+    const other = createLocalStory({ home, repo, base, head: 'HEAD', id: 'local-other' }).id;
+    const b2 = await startBridge({ home });
+    try {
+      assert.deepEqual((await b2.call('GET', '/api/prefs')).body, { hideWhitespace: true });
+      assert.equal((await b2.call('GET', `/api/stories/${other}`)).body.local.hide_whitespace, true);
+    } finally {
+      await b2.close();
+      await b.call('POST', '/api/prefs', { hideWhitespace: false });
+    }
+  });
+
+  test('remakes the -w diff when the branch moves', async () => {
+    await b.call('POST', '/api/prefs', { hideWhitespace: true });
+    assert.equal(file((await b.call('GET', `/api/stories/${id}`)).body, 'indent.js').whitespace_only, true);
+    writeFileSync(path.join(repo, 'indent.js'), 'if (x) {\n  y();\n  z();\n}\n');
+    git(repo, 'commit', '-q', '-am', 'call z');
+    await new Promise(r => setTimeout(r, 20));
+    const indent = file((await b.call('GET', `/api/stories/${id}`)).body, 'indent.js');
+    assert.equal(indent.whitespace_only, false);
+    assert.deepEqual(indent.stats, { added: 1, removed: 0 });
+    assert.equal(indent.viewed_changed, true, 'a real change after viewing still shows');
+    await b.call('POST', '/api/prefs', { hideWhitespace: false });
+  });
+});

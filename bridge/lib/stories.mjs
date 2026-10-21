@@ -10,11 +10,11 @@
  *   1. <home> itself (~/.diff-story/<owner>-<repo>-<N>/, local-*), or the --root folders
  *   2. pr-story's scratch folders, newest first
  */
-import { existsSync, readdirSync, readFileSync, statSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { parseUnifiedDiff, pathSha } from './diff.mjs';
 import { revParse, diffText, commitsBetween } from './git.mjs';
-import { scratchBases } from './config.mjs';
+import { scratchBases, readPrefs } from './config.mjs';
 
 export const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/;
 
@@ -74,6 +74,12 @@ export function storyVersion(dir) {
   const files = ['chapters.json', 'file-map.json', 'meta.json', 'local.diff', 'backstory.json'];
   return String(Math.max(...files.map(f => mtime(path.join(dir, f)))));
 }
+
+/**
+ * A local story's version also says whether whitespace is hidden, so a page that polls it redraws
+ * when the setting changes in another tab.
+ */
+export const localVersion = (dir, prefs) => storyVersion(dir) + (prefs && prefs.hideWhitespace ? '-w' : '');
 
 export class StoryStore {
   /** @param {{home: string, roots?: string[], scratch?: boolean|string[]}} opts */
@@ -157,8 +163,9 @@ export class StoryStore {
         files: unplaced.map(rel => ({ rel, partial: false, note: null })), comments: [], auto: true,
       });
     }
+    const prefs = meta.kind === 'local' ? readPrefs(this.home) : null;
     const data = {
-      id, kind: meta.kind, version: storyVersion(dir),
+      id, kind: meta.kind, version: meta.kind === 'local' ? localVersion(dir, prefs) : storyVersion(dir),
       pr: { repo: meta.repo || null, number: meta.number || null, title: meta.pr_title || meta.title, url: meta.url || null },
       title: meta.title,
       overview: plan.overview || '', summary: plan.summary || '', plan: plan.plan || '',
@@ -168,15 +175,22 @@ export class StoryStore {
     };
     if (meta.kind === 'local') {
       const viewed = this.readState(id, 'viewed.json', {});
+      // Hide whitespace changes what's drawn (hunks, stats) but not what a file is: the file list and the
+      // hash that viewed marks are checked against always come from the full diff, so the toggle never flips them.
+      const shown = prefs.hideWhitespace ? diffIgnoringWhitespace(dir, meta) : null;
       data.local = {
+        hide_whitespace: !!shown,
         repo: meta.repo_path, base: meta.base, head: meta.head, base_oid: meta.base_oid, head_oid: meta.head_oid, branch: meta.branch || null,
         commits: meta.commits || [],
         files: rels.map(rel => {
           const f = diff && diff.get(rel);
           const v = viewed[rel];
+          const w = shown && f && !f.binary ? shown.get(rel) || { stats: { added: 0, removed: 0 }, hunks: [] } : null;
+          const drawn = w || f;
           return {
-            rel, sha: pathSha(rel), kind: f ? f.kind : 'modified', stats: f ? f.stats : { added: 0, removed: 0 }, hunks: f ? f.hunks : [],
+            rel, sha: pathSha(rel), kind: f ? f.kind : 'modified', stats: drawn ? drawn.stats : { added: 0, removed: 0 }, hunks: drawn ? drawn.hunks : [],
             renamed_from: f && f.renamed_from ? f.renamed_from : null, binary: !!(f && f.binary), hash: f ? f.hash : null,
+            whitespace_only: !!(w && f.hunks.length && !w.hunks.length),
             viewed: !!(v && f && v.hash === f.hash), viewed_changed: !!(v && f && v.hash !== f.hash),
           };
         }),
@@ -240,6 +254,19 @@ export function storyBackstory(plan, found) {
   return summary || timeline.length || sessions.length ? { summary, sessions, timeline } : null;
 }
 
+/**
+ * The same range with -w, for Hide whitespace. Made the first time it's wanted and kept in local-w.diff
+ * until the refs move (refreshLocal removes it). Null when git can't make it, so the full diff is drawn.
+ */
+export function diffIgnoringWhitespace(dir, meta) {
+  const file = path.join(dir, 'local-w.diff');
+  if (!existsSync(file)) {
+    if (!meta.repo_path || !meta.base_oid || !meta.head_oid) return null;
+    try { writeFileSync(file, diffText(meta.repo_path, meta.base_oid, meta.head_oid, { ignoreWhitespace: true })); } catch { return null; }
+  }
+  return parseUnifiedDiff(readFileSync(file, 'utf8'));
+}
+
 function loadDiff(dir, meta) {
   const file = ['local.diff', 'pr.diff'].map(f => path.join(dir, f)).find(f => existsSync(f));
   if (!file) return null;
@@ -262,6 +289,7 @@ export function refreshLocal(dir, meta) {
   }
   if (baseOid === meta.base_oid && headOid === meta.head_oid && existsSync(path.join(dir, 'local.diff'))) return meta;
   writeFileSync(path.join(dir, 'local.diff'), diffText(meta.repo_path, baseOid, headOid));
+  rmSync(path.join(dir, 'local-w.diff'), { force: true }); // remade for the new range when Hide whitespace wants it
   const next = { ...meta, base_oid: baseOid, head_oid: headOid, commits: commitsBetween(meta.repo_path, baseOid, headOid), updated_at: new Date().toISOString() };
   writeFileSync(path.join(dir, 'meta.json'), JSON.stringify(next, null, 2));
   return next;
