@@ -164,7 +164,20 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
       }
       // build requests: the page's "Build story" button, and the state it shows (ready, building or none)
       if (p === '/api/builds' && req.method === 'GET') return send(200, { pending: builds.pending().map(b => builds.view(b)) });
-      if (p === '/api/builds' && req.method === 'POST') { statusCache = null; const b = builds.view(builds.request(body)); return send(200, { state: b.state, request: b }); }
+      if (p === '/api/builds' && req.method === 'POST') {
+        statusCache = null;
+        // an update starts where his reading stopped (read.json), so the story can add one "Since you read it" chapter
+        const hit = body.mode === 'update' ? stories.find(String(body.repo || ''), body.number) : null;
+        let since = null;
+        if (hit) {
+          const hdir = stories.dirOf(hit.id);
+          const hmeta = readMeta(hdir);
+          const told = SHA_RE.test(String(body.base_sha || '')) ? body.base_sha : hmeta.head_oid || null;
+          since = { ...sinceOf(readReads(home, stateKeyOf(hit.id, hmeta)), stories.load(hit.id).chapters, told), story: hit.id };
+        }
+        const b = builds.view(builds.request({ ...body, retell: body.retell === true, since }));
+        return send(200, { state: b.state, request: b });
+      }
       if (p === '/api/stories/status-many' && req.method === 'POST') {
         // PR lists: ready / building / none for many PRs in one call
         const prs = Array.isArray(body.prs) ? body.prs.slice(0, 200) : [];

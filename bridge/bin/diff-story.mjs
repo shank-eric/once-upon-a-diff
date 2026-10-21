@@ -18,7 +18,8 @@
  *                                                                  add a drafted comment to a chapter's Draft comments (never posted)
  *   diff-story drafts  --story ID [--json]                         each drafted comment: draft, posted, in your pending review, or dismissed
  *   diff-story doctor  [--port N]                                  is everything connected? a pass/fail list with fixes
- *   diff-story builds  [--start ID]                                pending "Build story" requests, queued or building; --start claims one as it's built
+ *   diff-story builds  [--start ID] [--json]                       pending "Build story" requests, queued or building, and for an update where
+ *                                                                  Eric's reading stopped (since); --start claims one as it's built
  *   diff-story done    <build id | owner/repo#N> [--failed] [--note TEXT]   finish one (a story turning up finishes it too)
  *   diff-story answer  --question ID (--text T | --file F)          answer a question; the panel shows it
  *   diff-story notes   --story ID [--json]                         fix-before-push notes for a local story
@@ -37,7 +38,7 @@ import { StoryStore, readMeta } from '../lib/stories.mjs';
 import { createLocalStory, slug } from '../lib/local.mjs';
 import { storyDirFor } from '../lib/place.mjs';
 import { Inbox } from '../lib/inbox.mjs';
-import { Builds } from '../lib/builds.mjs';
+import { Builds, updateOf } from '../lib/builds.mjs';
 import { addComment } from '../lib/comments.mjs';
 import { stateKeyOf, readMarks, draftStatus, githubComments } from '../lib/drafts.mjs';
 import { beat } from '../lib/health.mjs';
@@ -98,7 +99,7 @@ function serve(home, cfg, opts) {
 function describe(e) {
   const where = [e.story, e.chapter || (e.step != null ? `step ${e.step}` : ''), e.file].filter(Boolean).join(' · ');
   if (e.type === 'question') return `[${et(e.at)}] question ${e.id} (${where})\n${e.text}`;
-  if (e.type === 'build_request') return `[${et(e.at)}] build request ${e.id}: ${e.repo}#${e.number} ${e.url}`;
+  if (e.type === 'build_request') return `[${et(e.at)}] build request ${e.id}: ${e.repo}#${e.number} ${e.url}${e.mode === 'update' ? `\n${updateOf(e)}` : ''}\n${e.text || ''}`.trimEnd();
   if (e.type === 'build_done') return `[${et(e.at)}] build ${e.build} ${e.status} (${e.repo}#${e.number})${e.story ? ` story ${e.story}` : ''}${e.note ? `: ${e.note}` : ''}`;
   if (e.type === 'answer') return `[${et(e.at)}] answer to ${e.question}\n${e.text}`;
   if (e.type === 'note') return `[${et(e.at)}] note ${e.action} (${e.story}) ${e.note.path}${e.note.line ? `:${e.note.side === 'L' ? 'L' : ''}${e.note.line}` : ''}${e.note.done ? ' [done]' : ''}\n${e.note.body}`;
@@ -201,6 +202,7 @@ const COMMANDS = {
           out(describe(e));
           if (e.type === 'question') out(`Answer with: diff-story answer --question ${e.id} --text "…"`);
           if (e.type === 'build_request') out(`Run diff-story builds --start ${e.id}, write the story (pr-story renders and publishes it), then: diff-story done ${e.id}`);
+          if (e.type === 'build_request' && e.mode === 'update' && !e.retell) out(`It's an update: follow pr-story's "Since you read it" path from ${e.since_sha}, unless the PR was rebased past it.`);
           out('');
         }
         return;
@@ -258,8 +260,9 @@ const COMMANDS = {
       return out(`${b.id} building (${b.repo}#${b.number})`);
     }
     const pending = builds.pending();
+    if (opts.json) return out(JSON.stringify(pending.map(b => builds.view(b)), null, 2));
     if (!pending.length) return out('No pending build requests.');
-    for (const b of pending) out(`${b.id}\t${builds.stateOf(b)}\t${b.repo}#${b.number}\t${et(b.requested_at)}\t${b.url}`);
+    for (const b of pending) out(`${b.id}\t${builds.stateOf(b)}\t${b.repo}#${b.number}\t${et(b.requested_at)}\t${b.url}${b.mode === 'update' ? `\n\t${updateOf(b)}` : ''}`);
   },
 
   done(home, cfg, opts) {

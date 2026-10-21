@@ -17,6 +17,12 @@
  * the chapters. A story map at the top of a chapter's narrative, before its
  * "Chapter N" heading, is moved to the Overview.
  *
+ * "Since you read it" chapters (a chapter with `since: {from, to}`) tell the
+ * commits that came after Eric read the story, and come first. They aren't
+ * numbered: the chapters after them keep the numbers they were read with. A
+ * file one of them lists is marked viewed there (the newest one wins), since
+ * the chapters after it were already read.
+ *
  * Backstory (optional, from the Claude Code sessions that made the change):
  * the result story always leads. A chapter's backstory is a collapsed
  * "Backstory" section under its narrative, a file row gets a small "why" link
@@ -53,7 +59,8 @@
  *   pageAt         when this page loaded, in ms (performance.timeOrigin); a draft added after it isn't on the page yet
  *   freshness()    returns a Promise of {state: 'current'|'stale'|'unknown'|'n/a', story_head, current_head, newer,
  *                  changed_files, chapters_touched, error}: is the story up to date with the PR's latest commit?
- *   requestUpdate(base_sha) asks for the story to be updated from that commit (a build request, mode 'update')
+ *   requestUpdate(base_sha, {retell}) asks for the story to be updated from that commit (a build request, mode 'update'):
+ *                  by default a "Since you read it" chapter for the new commits, or with retell a whole new story
  *   onRead(r)      called with {chapter (its key), step, title, reason: 'time'|'viewed', seconds, head_sha} when Eric
  *                  leaves a chapter he spent READ_MS on (counted while the tab shows), or ticks the last of its files viewed
  *   readAfterMs    how long counts as reading a chapter (READ_MS, 30s)
@@ -92,6 +99,21 @@ export function chapterKeyOf(ch) {
   return String((ch && ch.title) || '').replace(/^\s*chapter\s+\d+\s*[:.–—-]\s*/i, '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 200);
 }
 export const READ_MS = 30000;
+/**
+ * Where each file is marked viewed: the LAST chapter that lists it (earlier ones say "comes back in chapter N"),
+ * except that a "Since you read it" chapter (one with `since`) finishes its files, the newest (first) one winning.
+ */
+export function finishedInOf(chapters) {
+  const fin = {};
+  chapters.forEach((ch, i) => (ch.files || []).forEach((f) => { fin[f.rel] = i + 1; }));
+  for (let i = chapters.length - 1; i >= 0; i--) if (chapters[i].since) (chapters[i].files || []).forEach((f) => { fin[f.rel] = i + 1; });
+  return fin;
+}
+/** Each step's chapter number, or null for a "Since you read it" chapter: those aren't numbered, so the rest keep the numbers they were read with. */
+export function chapterNumbers(chapters) {
+  let k = 0;
+  return chapters.map((ch) => (ch.since ? null : ++k));
+}
 // kept across panel re-renders on this page: a failed Add to my review, and adds already settled
 const reviewErrors = new Map();
 const settling = new Set();
@@ -124,20 +146,31 @@ export function storyOverlay(INPUT, opts = {}) {
   }
 
   // ---------- where each file is finished, and what to tell Eric about it
-  const finishedIn = {};
-  // A file is marked viewed in the LAST chapter that lists it, whether or not the earlier listings say partial.
-  // Every earlier chapter says "Leave unviewed: comes back in chapter N".
-  DATA.chapters.forEach((ch, i) => ch.files.forEach((f) => { finishedIn[f.rel] = i + 1; }));
+  // A file is marked viewed in the LAST chapter that lists it, whether or not the earlier listings say partial,
+  // or in the "Since you read it" chapter that lists it. Every earlier chapter says "Leave unviewed: comes back in chapter N".
+  const finishedIn = finishedInOf(DATA.chapters);
   const chaptersOf = (rel) => DATA.chapters.map((c, i) => (c.files.some((f) => f.rel === rel) ? i + 1 : 0)).filter(Boolean);
   function status(rel, n) {
     if (inBackstory()) return null;
     const e = n && DATA.chapters[n - 1].files.find((f) => f.rel === rel);
     if (!e) return null;
     const fin = finishedIn[rel];
-    if (fin != null && fin < n) return { kind: 'done', text: `Already finished in chapter ${fin}`, short: `done in ch ${fin}` };
-    if (fin != null && fin > n) return { kind: 'later', text: `Leave unviewed: comes back in chapter ${fin}${e.note ? ` (${e.note})` : ''}`, short: `back in ch ${fin}` };
+    if (fin != null && fin < n) return { kind: 'done', text: `Already finished in ${chName(fin)}`, short: `done in ${chShort(fin)}` };
+    if (fin != null && fin > n) return { kind: 'later', text: `Leave unviewed: comes back in ${chName(fin)}${e.note ? ` (${e.note})` : ''}`, short: `back in ${chShort(fin)}` };
     return { kind: 'mark', text: 'Mark viewed', short: 'mark viewed' };
   }
+
+  // ---------- chapter numbers: "Since you read it" chapters aren't numbered, so the others keep the numbers they were read with
+  const NUMBERS = chapterNumbers(DATA.chapters);
+  const isNew = (n) => !!(DATA.chapters[n - 1] && DATA.chapters[n - 1].since);
+  const chNo = (n) => NUMBERS[n - 1];
+  const newTitle = (n) => String(DATA.chapters[n - 1].title || 'Since you read it').replace(/:.*$/, '').trim();
+  /** "chapter 3", or "Since you read it" for a new-commits chapter */
+  const chName = (n) => (isNew(n) ? `“${newTitle(n)}”` : `chapter ${chNo(n)}`);
+  const chShort = (n) => (isNew(n) ? 'new' : `ch ${chNo(n)}`);
+  const chList = (ns) => ns.map((n) => (isNew(n) ? 'new' : chNo(n))).join(', ');
+  const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+  const sha7 = (x) => String(x || '').slice(0, 7);
 
   // ---------- backstory: the chronological view's steps, one per moment of work
   const BS = DATA.backstory && typeof DATA.backstory === 'object' ? DATA.backstory : null;
@@ -236,6 +269,8 @@ export function storyOverlay(INPUT, opts = {}) {
   #${NS} .prs-fresh button { margin-left: 6px; }
   #${NS} .prs-changed { font-size: 11px; color: var(--c-warn); margin-left: 4px; white-space: nowrap; }
   #${NS} .prs-touched { font-size: 11px; color: var(--c-warn); margin-left: 4px; }
+  #${NS} .prs-new { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--c-accent); border: 1px solid currentColor; border-radius: 9px; padding: 0 5px; }
+  #${NS} .prs-since { margin: 10px 0; padding: 6px 10px; border-left: 3px solid var(--c-accent); background: var(--c-accent-bg); border-radius: 0 6px 6px 0; font-size: 12px; }
   #${NS} .prs-askhint { padding: 6px 10px 0; font-size: 12px; color: var(--c-warn); background: var(--c-subtle); border-top: 1px solid var(--c-border); }
   #${NS} .prs-askhint code { font-size: 11px; }
   #${NS} .prs-askhint .prs-copyprompt { margin-left: 4px; }
@@ -664,9 +699,10 @@ export function storyOverlay(INPUT, opts = {}) {
     } else {
       const n = chapter().files.length;
       const extra = seen.missing.length && !state.all ? ` <span title="${esc(seen.missing.join('\n'))}">(${seen.missing.length} not loaded on the page yet)</span>` : '';
+      const here = inBackstory() ? `${unit} ${state.n}` : chName(state.n);
       html = state.all
-        ? `<span>Showing all <b>${total}</b> files. ${unit[0].toUpperCase() + unit.slice(1)} ${state.n}'s ${n} are listed below.</span> <button class="prs-all" aria-pressed="true">${unit[0].toUpperCase() + unit.slice(1)} files only</button>`
-        : `<span>Showing <b>${n}</b> of <b>${total}</b> files, ${unit} ${state.n}${extra}</span> <button class="prs-all" aria-pressed="false">Show all files</button>`;
+        ? `<span>Showing all <b>${total}</b> files. ${cap(here)}'s ${n} are listed below.</span> <button class="prs-all" aria-pressed="true">${unit[0].toUpperCase() + unit.slice(1)} files only</button>`
+        : `<span>Showing <b>${n}</b> of <b>${total}</b> files, ${here}${extra}</span> <button class="prs-all" aria-pressed="false">Show all files</button>`;
     }
     // the backstory view is secondary: a small link, not a button of equal weight
     if (BS_CH.length) html += inBackstory()
@@ -702,15 +738,15 @@ export function storyOverlay(INPUT, opts = {}) {
       const early = v === true && earlyFor(rel);
       el.textContent = v === true ? (early ? '⚠ viewed early' : '✓ viewed') : '';
       el.classList.toggle('prs-early', early);
-      el.title = early ? `Marked viewed, but chapter ${finishedIn[rel]} covers more of it. You may want to unmark it until then.` : '';
+      el.title = early ? `Marked viewed, but ${chName(finishedIn[rel])} covers more of it. You may want to unmark it until then.` : '';
     }
     const earlyBox = $('.prs-early-box');
     if (earlyBox) {
       const inCh = n0 ? new Set(chapter().files.map((f) => f.rel)) : new Set();
       const early = n0 ? allRels.filter((rel) => earlyFor(rel) && isViewed(rel, blocks) === true) : [];
       earlyBox.innerHTML = early.map((rel) => (inCh.has(rel)
-        ? `<p>⚠ <code data-rel="${esc(rel)}">${esc(short(rel))}</code> is marked viewed, but chapter ${finishedIn[rel]} covers more of it. You may want to unmark it until then.</p>`
-        : `<p>⚠ <code>${esc(short(rel))}</code> is marked viewed early: it belongs to chapter ${finishedIn[rel]}. You may want to unmark it until then.</p>`)).join('');
+        ? `<p>⚠ <code data-rel="${esc(rel)}">${esc(short(rel))}</code> is marked viewed, but ${chName(finishedIn[rel])} covers more of it. You may want to unmark it until then.</p>`
+        : `<p>⚠ <code>${esc(short(rel))}</code> is marked viewed early: it belongs to ${chName(finishedIn[rel])}. You may want to unmark it until then.</p>`)).join('');
     }
     const box = $('.prs-progress');
     if (!box) return;
@@ -734,7 +770,7 @@ export function storyOverlay(INPUT, opts = {}) {
       box.classList.toggle('prs-complete', !!due && viewed === due);
       box.innerHTML = !due ? '' : viewed === due
         ? `<span class="prs-done">✓ All ${due} files marked viewed</span>`
-        : `<b>${viewed} of ${due}</b> files marked viewed${left.length ? ` · chapter${left.length > 1 ? 's' : ''} ${left.join(', ')} still ${left.length > 1 ? 'have' : 'has'} some to go` : ''}`;
+        : `<b>${viewed} of ${due}</b> files marked viewed${left.length ? ` · ${left.map(chName).join(', ')} still ${left.length > 1 ? 'have' : 'has'} some to go` : ''}`;
       return;
     }
     const p = all[state.n - 1];
@@ -762,9 +798,9 @@ export function storyOverlay(INPUT, opts = {}) {
     const st = status(f.rel, n);
     const chs = chaptersOf(f.rel);
     const why = inBackstory()
-      ? (chs.length ? `story chapter${chs.length > 1 ? 's' : ''} ${chs.join(', ')}` : '')
+      ? (chs.length ? `story chapter${chs.length > 1 ? 's' : ''} ${chList(chs)}` : '')
       : n === 0
-        ? `chapter${chs.length > 1 ? 's' : ''} ${chs.join(', ')}`
+        ? `chapter${chs.length > 1 ? 's' : ''} ${chList(chs)}`
         : `${st ? st.text : ''}${f.partial && st && st.kind !== 'later' && f.note ? ` (here: ${f.note})` : ''}`;
     // "why": the file's How it got here, collapsed under the row
     const story = !inBackstory() && n ? DATA.chapters[n - 1].files.find((x) => x.rel === f.rel) || f : f;
@@ -796,12 +832,21 @@ export function storyOverlay(INPUT, opts = {}) {
     return `<details class="prs-filesbox"${state.filesOpen ? ' open' : ''}><summary><h2 class="prs-h">${esc(title)}</h2>${summary ? `<span class="prs-sum">${esc(summary)}</span>` : ''}</summary><ul class="prs-files">${items}</ul></details>`;
   }
 
+  /** At the top of a "Since you read it" chapter: which commits it covers, and that the rest is as he read it. */
+  function sinceBanner(ch) {
+    if (!ch || !ch.since) return '';
+    const n = ch.since.commits;
+    const what = `${n != null ? `${n} commit${n === 1 ? '' : 's'}` : 'The commits'} since you read the story`;
+    const rest = DATA.chapters.some((c) => !c.since) ? ' The chapters after this one are as you read them.' : '';
+    return `<div class="prs-since"><b>${esc(what)}</b>, ${esc(sha7(ch.since.from))}..${esc(sha7(ch.since.to))}. This step shows only the files they touched.${esc(rest)}</div>`;
+  }
+
   function renderBody() {
     const ch = chapter();
     const bsv = inBackstory();
     const list = steps();
     const stepList = [`<li data-n="0" class="${state.n === 0 ? 'prs-current' : ''}">${bsv ? 'How it got here' : 'Overview'} <span class="prs-count">(${DATA.files.length})</span></li>`]
-      .concat(list.map((c, i) => `<li data-n="${i + 1}" class="${i + 1 === state.n ? 'prs-current' : ''}">${bsv ? '' : `${i + 1}. `}${esc(c.title.replace(/^Chapter \d+:\s*/, ''))} <span class="prs-count">(${c.files.length})</span>${bsv ? '' : `<span class="prs-stepprog" data-prog-for="${i + 1}"></span>`}</li>`)).join('');
+      .concat(list.map((c, i) => `<li data-n="${i + 1}" class="${i + 1 === state.n ? 'prs-current' : ''}">${bsv ? '' : isNew(i + 1) ? '<span class="prs-new">New</span> ' : `${chNo(i + 1)}. `}${esc(c.title.replace(/^Chapter \d+:\s*/, ''))} <span class="prs-count">(${c.files.length})</span>${bsv ? '' : `<span class="prs-stepprog" data-prog-for="${i + 1}"></span>`}</li>`)).join('');
     $('.prs-title').textContent = bsv ? `Backstory: ${ch ? ch.title.replace(/^\d+\.\s*/, '') : 'how it got here'}` : ch ? ch.title : `Overview: ${DATA.pr.title || ''}`;
     $('.prs-title').title = $('.prs-title').textContent;
     $('.prs-prev').disabled = state.n === 0;
@@ -839,7 +884,7 @@ export function storyOverlay(INPUT, opts = {}) {
         return `<div class="prs-comment" data-i="${i}"><div class="prs-where"><span>${where}</span><span class="prs-cbtns"><button class="prs-copy" data-i="${i}">Copy</button></span></div><pre>${esc(c.body)}</pre><div class="prs-cstate" hidden></div></div>`;
       }).join('');
       const files = ch.files.map((f) => fileItem(f, state.n)).join('');
-      body = `<div class="prs-md">${story}</div>${backstoryBlock(ch.backstory)}
+      body = `${sinceBanner(ch)}<div class="prs-md">${story}</div>${backstoryBlock(ch.backstory)}
         ${comments ? `<div class="prs-drafts"><h2 class="prs-h">${esc(COMMENTS_TITLE)} <span class="prs-draftsum"></span></h2><div class="prs-drafttoggles"></div>${comments}</div>` : ''}
         ${filesBox(`Files in this chapter (${ch.files.length})`, filesSummary(state.n), files)}`;
     }
@@ -930,7 +975,7 @@ export function storyOverlay(INPUT, opts = {}) {
     reportPosition();
     if (n === 0) window.scrollTo({ top: 0 });
     else if (chapter().files[0]) scrollToFile(chapter().files[0].rel, true);
-    if (left.length) message(`Chapter ${from} still has ${left.length} to mark viewed: ${left.map(short).join(', ')}. No rush: Prev goes back, or tick them later.`);
+    if (left.length) message(`${cap(chName(from))} still has ${left.length} to mark viewed: ${left.map(short).join(', ')}. No rush: Prev goes back, or tick them later.`);
   }
 
   // Highlight rows for a few seconds. GitHub's React view can swap a row for a new
@@ -1109,7 +1154,7 @@ export function storyOverlay(INPUT, opts = {}) {
       return;
     }
     const where = chaptersOf(rel);
-    message(`${rel.split('/').pop()} isn't in this chapter${where.length ? ` (it's in chapter ${where.join(', ')})` : ''}, and there's no chapter file past it.`);
+    message(`${rel.split('/').pop()} isn't in this chapter${where.length ? ` (it's in ${where.map(chName).join(', ')})` : ''}, and there's no chapter file past it.`);
   }
   window.addEventListener('hashchange', onHashChange);
 
@@ -1186,7 +1231,6 @@ export function storyOverlay(INPUT, opts = {}) {
   // ---------- is the story up to date with the PR's latest commit?
   let fresh = null;
   let freshTimer = 0;
-  const sha7 = (x) => String(x || '').slice(0, 7);
   async function refreshFresh() {
     if (!opts.freshness) return;
     try { fresh = await opts.freshness(); } catch (e) { fresh = { state: 'unknown', error: e && e.message }; }
@@ -1203,12 +1247,24 @@ export function storyOverlay(INPUT, opts = {}) {
     const n = fresh.newer;
     const what = fresh.rewritten ? 'the PR was rebased or force-pushed since' : n != null ? `the PR has ${n} newer commit${n === 1 ? '' : 's'}` : 'the PR has newer commits';
     const files = (fresh.changed_files || []).length;
-    box.innerHTML = `Story is for ${esc(sha7(fresh.story_head))}; ${what}${files ? ` (${files} file${files === 1 ? '' : 's'} changed${fresh.chapters_touched.length ? `, in chapter${fresh.chapters_touched.length > 1 ? 's' : ''} ${fresh.chapters_touched.join(', ')}` : ''})` : ''}.`
-      + (opts.requestUpdate ? `<button class="prs-update" title="Ask a Claude session to update the story from ${esc(sha7(fresh.story_head))} to the latest commit">Update story</button>` : '');
-    const upd = box.querySelector('.prs-update');
-    if (upd) upd.onclick = async () => {
-      upd.disabled = true;
-      try { await opts.requestUpdate(fresh.story_head); upd.textContent = 'Update asked for'; message('Asked for an update. A Claude session picks it up from the inbox.'); } catch (e) { upd.disabled = false; message(`Couldn't ask for an update: ${e && e.message ? e.message : e}`); }
+    const touched = fresh.chapters_touched || [];
+    box.innerHTML = `Story is for ${esc(sha7(fresh.story_head))}; ${what}${files ? ` (${files} file${files === 1 ? '' : 's'} changed${touched.length ? `, in ${touched.map(chName).join(', ')}` : ''})` : ''}.`
+      + (opts.requestUpdate
+        ? `<button class="prs-update" data-retell="0" title="Adds a “Since you read it” chapter for the new commits, first, and keeps the chapters you read">Update (new commits)</button>`
+          + `<button class="prs-update" data-retell="1" title="A whole new story at the latest commit, for a rebase or a big rework">Re-tell from scratch</button>`
+          + (fresh.rewritten ? '<span class="prs-why">It was rebased, so a re-tell is likely the better fit.</span>' : '')
+        : '');
+    for (const upd of box.querySelectorAll('.prs-update')) upd.onclick = async () => {
+      const retell = upd.getAttribute('data-retell') === '1';
+      for (const b of box.querySelectorAll('.prs-update')) b.disabled = true;
+      try {
+        await opts.requestUpdate(fresh.story_head, { retell });
+        upd.textContent = retell ? 'Re-tell asked for' : 'Update asked for';
+        message(retell ? 'Asked for a new story from scratch. A Claude session picks it up from the inbox.' : 'Asked for a “Since you read it” chapter for the new commits. A Claude session picks it up from the inbox.');
+      } catch (e) {
+        for (const b of box.querySelectorAll('.prs-update')) b.disabled = false;
+        message(`Couldn't ask for an update: ${e && e.message ? e.message : e}`);
+      }
     };
     // mark what changed since the story: the files, and the chapters that list them
     const changed = new Set(fresh.changed_files || []);

@@ -77,7 +77,7 @@ export function initConversation() {
     e.stopPropagation();
     b.disabled = true;
     const t = tagFor(result, pr);
-    const r = await bridge('POST', '/api/builds', requestFor(t, pr));
+    const r = await bridge('POST', '/api/builds', requestFor(t, pr, { retell: b.getAttribute('data-act') === 'retell' }));
     if (r.ok) {
       result = t.act === 'update' ? { ...result, updating: true, update_state: r.body.state, request: r.body.request } : { state: r.body.state, request: r.body.request };
       render();
