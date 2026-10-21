@@ -21,7 +21,7 @@ You need Node 20 or newer. The bridge has no runtime dependencies. `yarn install
    ```
 2. In Chrome, go to `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick this repo's `src/` folder.
 3. The options page opens on install. If it doesn't, go to Details → Extension options. Paste the port and token, then click **Save** and **Test connection**.
-4. Start the bridge and leave it running:
+4. Start the bridge and leave it running, or skip this and let `/diff-story-listen` start it for you:
    ```bash
    node bridge/bin/diff-story.mjs serve     # or: yarn bridge
    ```
@@ -75,7 +75,7 @@ It exits 1 when something fails.
 `/diff-story-listen --story <id>` listens for one story, for a local story with no GitHub origin. The session then:
 
 1. Finds the CLI: `diff-story` on `PATH`, else `node <repo>/bridge/bin/diff-story.mjs`, with `<repo>` from the `DIFF_STORY_MODE` env var, `repo_dir` in `~/.diff-story/config.json` (both read only by the skill), or the folder the skill is linked from.
-2. Runs `diff-story doctor`, and says how to start the bridge if it's down.
+2. Runs `diff-story doctor`. If nothing is listening on the bridge's port, it starts the bridge detached, so it keeps running after the session ends, and waits for it to answer. If something else has the port, it says so and stops.
 3. Runs `diff-story wait --repo octo-org/web-app --type question,build_request --consumer repo-octo-org-web-app` as a background task, which keeps the light green for every story and PR in that repo. It starts the wait again after each event.
 4. Answers each Ask-box question from the story's chapters and the code in the checkout, briefly, with `diff-story answer`.
 5. Claims each Build story request with `diff-story builds --start <id>` (the badge says Building), builds and publishes the story with the pr-story skill, and finishes it with `diff-story done <id>`. An update gets a "Since you read it" chapter, unless it asks for a re-tell.
