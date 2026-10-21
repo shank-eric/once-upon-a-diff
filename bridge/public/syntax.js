@@ -67,16 +67,16 @@ export function splitHtmlLines(html) {
   const open = [];
   let cur = '';
   let last = 0;
-  const re = /(<span class="[^"]*">)|(<\/span>)|(\n)/g;
-  for (let m = re.exec(html); m; m = re.exec(html)) {
-    cur += html.slice(last, m.index);
-    last = re.lastIndex;
-    if (m[1]) {
-      open.push(m[1]);
-      cur += m[1];
-    } else if (m[2]) {
+  const pattern = /(<span class="[^"]*">)|(<\/span>)|(\n)/g;
+  for (let match = pattern.exec(html); match; match = pattern.exec(html)) {
+    cur += html.slice(last, match.index);
+    last = pattern.lastIndex;
+    if (match[1]) {
+      open.push(match[1]);
+      cur += match[1];
+    } else if (match[2]) {
       open.pop();
-      cur += m[2];
+      cur += match[2];
     } else {
       lines.push(cur + '</span>'.repeat(open.length));
       cur = open.join('');
@@ -107,12 +107,12 @@ export function hunkHtml(hunk, highlight) {
   });
   const out = new Array(hunk.lines.length).fill(null);
   for (const key of ['new', 'old']) {
-    const s = sides[key];
-    if (!s.idx.length) {
+    const sideLines = sides[key];
+    if (!sideLines.idx.length) {
       continue;
     }
-    const html = splitHtmlLines(highlight(s.text.join('\n')));
-    s.idx.forEach((i, k) => {
+    const html = splitHtmlLines(highlight(sideLines.text.join('\n')));
+    sideLines.idx.forEach((i, k) => {
       if (out[i] === null) {
         out[i] = html[k] ?? null;
       }
@@ -132,16 +132,19 @@ export function highlightFile(file, hljs) {
   if (!hljs || !lang || !hljs.getLanguage(lang)) {
     return null;
   }
-  let n = 0;
-  for (const h of file.hunks) {
-    n += h.lines.length;
-    if (n > LIMITS.fileLines || h.lines.some((l) => l.length > LIMITS.lineLength)) {
+  let count = 0;
+  for (const hunk of file.hunks) {
+    count += hunk.lines.length;
+    if (count > LIMITS.fileLines || hunk.lines.some((line) => line.length > LIMITS.lineLength)) {
       return null;
     }
   }
   try {
-    return file.hunks.map((h) =>
-      hunkHtml(h, (code) => hljs.highlight(code, { language: lang, ignoreIllegals: true }).value),
+    return file.hunks.map((hunk) =>
+      hunkHtml(
+        hunk,
+        (code) => hljs.highlight(code, { language: lang, ignoreIllegals: true }).value,
+      ),
     );
   } catch (e) {
     return null;
