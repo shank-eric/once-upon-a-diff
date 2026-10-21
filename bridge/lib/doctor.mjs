@@ -6,7 +6,7 @@ import { existsSync, readFileSync, statSync, accessSync, constants } from 'node:
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { StoryStore } from './stories.mjs';
-import { listeners, onPath } from './health.mjs';
+import { listeners, onPath } from '../listeners/listeners.mjs';
 import { Builds } from '../inbox/builds.mjs';
 import { Inbox } from '../inbox/inbox.mjs';
 import { formatTime } from '../config/settings.mjs';

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson } from './helpers.mjs';
-import { clearFreshness } from '../bridge/lib/freshness.mjs';
+import { clearFreshness } from '../bridge/github/freshness.mjs';
 
 process.env.DIFF_STORY_GH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),

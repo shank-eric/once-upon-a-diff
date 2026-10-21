@@ -76,17 +76,17 @@ export async function addToPendingReview(repo, number, draft) {
     throw Object.assign(new Error(`couldn't find ${repo}#${number}`), { status: 404 });
   }
   const mine = (pr.reviews.nodes || []).find(
-    (r) => r.author && r.author.login === found.viewer.login,
+    (pending) => pending.author && pending.author.login === found.viewer.login,
   );
   let review = mine && mine.id;
   let started = false;
   if (!review) {
-    const s = await graphql(START, { pr: pr.id });
-    review = s.addPullRequestReview.pullRequestReview.id;
+    const created = await graphql(START, { pr: pr.id });
+    review = created.addPullRequestReview.pullRequestReview.id;
     started = true;
   }
   const side = draft.side === 'L' ? 'LEFT' : 'RIGHT';
-  const t = await graphql(THREAD, {
+  const added = await graphql(THREAD, {
     review,
     path: draft.path,
     line: Number(draft.line),
@@ -94,6 +94,7 @@ export async function addToPendingReview(repo, number, draft) {
     body,
   });
   const node =
-    t.addPullRequestReviewThread.thread && t.addPullRequestReviewThread.thread.comments.nodes[0];
+    added.addPullRequestReviewThread.thread &&
+    added.addPullRequestReviewThread.thread.comments.nodes[0];
   return { review, started, url: node ? node.url : null };
 }

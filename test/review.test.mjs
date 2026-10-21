@@ -4,8 +4,8 @@ import path from 'node:path';
 import { readFileSync, chmodSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson } from './helpers.mjs';
-import { addToPendingReview } from '../bridge/lib/review.mjs';
-import { clearCache } from '../bridge/lib/drafts.mjs';
+import { addToPendingReview } from '../bridge/github/review.mjs';
+import { clearCache } from '../bridge/github/drafts.mjs';
 import { draftView, shownIn } from '../src/js/shared/overlay.js';
 
 const fake = path.join(

@@ -38,9 +38,9 @@ export const stateKeyOf = (id, meta) =>
   meta && meta.kind === 'github' && meta.repo && meta.number
     ? `pr-${meta.repo.replace('/', '-')}-${meta.number}`.toLowerCase()
     : id;
-export const draftKey = (c) =>
+export const draftKey = (comment) =>
   createHash('sha1')
-    .update(`${c.path || ''}\n${Number(c.line) || 0}\n${normalize(c.body)}`)
+    .update(`${comment.path || ''}\n${Number(comment.line) || 0}\n${normalize(comment.body)}`)
     .digest('hex')
     .slice(0, 12);
 
@@ -54,66 +54,72 @@ export function normalize(text) {
     .trim();
 }
 /** 0..1: Dice similarity of character trigrams, or 1 when one text contains the other. */
-export function similarity(a, b) {
-  const x = normalize(a);
-  const y = normalize(b);
-  if (!x || !y) {
+export function similarity(first, second) {
+  const left = normalize(first);
+  const right = normalize(second);
+  if (!left || !right) {
     return 0;
   }
-  if (x === y || (x.length > 20 && y.includes(x)) || (y.length > 20 && x.includes(y))) {
+  if (
+    left === right ||
+    (left.length > 20 && right.includes(left)) ||
+    (right.length > 20 && left.includes(right))
+  ) {
     return 1;
   }
-  const grams = (s) => {
-    const m = new Map();
-    for (let i = 0; i < s.length - 2; i++) {
-      const g = s.slice(i, i + 3);
-      m.set(g, (m.get(g) || 0) + 1);
+  const grams = (text) => {
+    const counts = new Map();
+    for (let i = 0; i < text.length - 2; i++) {
+      const gram = text.slice(i, i + 3);
+      counts.set(gram, (counts.get(gram) || 0) + 1);
     }
-    return m;
+    return counts;
   };
-  const A = grams(x);
-  const B = grams(y);
+  const leftGrams = grams(left);
+  const rightGrams = grams(right);
   let both = 0;
-  for (const [g, n] of A) {
-    both += Math.min(n, B.get(g) || 0);
+  for (const [gram, count] of leftGrams) {
+    both += Math.min(count, rightGrams.get(gram) || 0);
   }
   const total =
-    [...A.values()].reduce((s, n) => s + n, 0) + [...B.values()].reduce((s, n) => s + n, 0);
+    [...leftGrams.values()].reduce((sum, count) => sum + count, 0) +
+    [...rightGrams.values()].reduce((sum, count) => sum + count, 0);
   return total ? (2 * both) / total : 0;
 }
 
-const isGeneral = (c) => !Number(c.line) || /^\(/.test(c.path || '') || !c.path;
+const isGeneral = (comment) =>
+  !Number(comment.line) || /^\(/.test(comment.path || '') || !comment.path;
 const samePath = (draft, posted) =>
   draft === posted || posted.endsWith('/' + draft) || draft.endsWith('/' + posted);
 /** The best match for a draft among comments [{path, line, body, ...}], or null. */
 export function bestMatch(draft, comments) {
   let best = null;
-  for (const p of comments) {
-    if (isGeneral(draft) !== !p.path) {
+  for (const posted of comments) {
+    if (isGeneral(draft) !== !posted.path) {
       continue;
     }
-    if (p.path) {
-      if (!samePath(draft.path, p.path)) {
+    if (posted.path) {
+      if (!samePath(draft.path, posted.path)) {
         continue;
       }
-      const line = Number(p.line || p.original_line || 0);
+      const line = Number(posted.line || posted.original_line || 0);
       if (line && Math.abs(line - Number(draft.line)) > LINE_SLACK) {
         continue;
       }
     }
-    const score = similarity(draft.body, p.body);
+    const score = similarity(draft.body, posted.body);
     if (score >= SIMILAR && (!best || score > best.score)) {
-      best = { ...p, score };
+      best = { ...posted, score };
     }
   }
   return best;
 }
 
-function gh(args) {
+function ghApi(args) {
   return runGh(['api', ...args]);
 }
 const ghJson = async (args) => {
-  const out = await gh(args);
+  const out = await ghApi(args);
   // --paginate prints one JSON array per page
   return JSON.parse(`[${out.trim().replace(/\]\s*\[/g, '],[')}]`).flat();
 };
@@ -128,7 +134,7 @@ export async function githubComments(repo, number) {
     return hit.value;
   }
   if (!login) {
-    login = JSON.parse(await gh(['user'])).login;
+    login = JSON.parse(await ghApi(['user'])).login;
   }
   const base = `repos/${repo}/pulls/${Number(number)}`;
   const [reviewComments, reviews, issueComments] = await Promise.all([
@@ -136,37 +142,46 @@ export async function githubComments(repo, number) {
     ghJson([`${base}/reviews?per_page=100`, '--paginate']),
     ghJson([`repos/${repo}/issues/${Number(number)}/comments?per_page=100`, '--paginate']),
   ]);
-  const mine = (x) => x && x.user && x.user.login === login;
+  const mine = (item) => item && item.user && item.user.login === login;
   const out = [];
-  for (const c of reviewComments.filter(mine)) {
+  for (const comment of reviewComments.filter(mine)) {
     out.push({
       state: 'posted',
-      path: c.path,
-      line: c.line || c.original_line || 0,
-      body: c.body,
-      url: c.html_url,
+      path: comment.path,
+      line: comment.line || comment.original_line || 0,
+      body: comment.body,
+      url: comment.html_url,
     });
   }
-  for (const c of issueComments.filter(mine)) {
-    out.push({ state: 'posted', path: null, line: 0, body: c.body, url: c.html_url });
+  for (const comment of issueComments.filter(mine)) {
+    out.push({ state: 'posted', path: null, line: 0, body: comment.body, url: comment.html_url });
   }
-  for (const r of reviews.filter(mine)) {
-    if (r.state === 'PENDING') {
-      const pending = await ghJson([`${base}/reviews/${r.id}/comments?per_page=100`, '--paginate']);
-      for (const c of pending) {
+  for (const review of reviews.filter(mine)) {
+    if (review.state === 'PENDING') {
+      const pending = await ghJson([
+        `${base}/reviews/${review.id}/comments?per_page=100`,
+        '--paginate',
+      ]);
+      for (const comment of pending) {
         out.push({
           state: 'pending',
-          path: c.path,
-          line: c.line || c.original_line || 0,
-          body: c.body,
-          url: r.html_url || null,
+          path: comment.path,
+          line: comment.line || comment.original_line || 0,
+          body: comment.body,
+          url: review.html_url || null,
         });
       }
-      if (r.body) {
-        out.push({ state: 'pending', path: null, line: 0, body: r.body, url: r.html_url || null });
+      if (review.body) {
+        out.push({
+          state: 'pending',
+          path: null,
+          line: 0,
+          body: review.body,
+          url: review.html_url || null,
+        });
       }
-    } else if (r.body) {
-      out.push({ state: 'posted', path: null, line: 0, body: r.body, url: r.html_url });
+    } else if (review.body) {
+      out.push({ state: 'posted', path: null, line: 0, body: review.body, url: review.html_url });
     }
   }
   const value = { login, comments: out };
@@ -255,32 +270,36 @@ export function noteAdded(home, key, draft, added = {}) {
  * added is {at, url, started} while an Add to my review is waiting to show on the page, else null.
  * fix is {id, done, path, side, line}, the fix-before-push note a local story's draft became, else null.
  */
-export function draftStatus(chapters, marks, gh = null, notes = null) {
+export function draftStatus(chapters, marks, github = null, notes = null) {
   const asPosted = (list) => list.map((e) => ({ ...e, path: isGeneral(e) ? null : e.path }));
   const out = [];
-  chapters.forEach((ch, ci) =>
-    (ch.comments || []).forEach((c, i) => {
-      const d = { path: c.path || '', line: Number(c.line) || 0, body: c.body || '' };
-      const add = bestMatch(d, asPosted(marks.added || []));
+  chapters.forEach((chapter, chapterIndex) =>
+    (chapter.comments || []).forEach((comment, i) => {
+      const draft = {
+        path: comment.path || '',
+        line: Number(comment.line) || 0,
+        body: comment.body || '',
+      };
+      const add = bestMatch(draft, asPosted(marks.added || []));
       const row = {
-        chapter: ci + 1,
+        chapter: chapterIndex + 1,
         index: i,
-        key: draftKey(d),
+        key: draftKey(draft),
         status: 'draft',
-        dismissed: !!bestMatch(d, asPosted(marks.dismissed)),
+        dismissed: !!bestMatch(draft, asPosted(marks.dismissed)),
         source: null,
         url: null,
         score: null,
       };
       row.added = add ? { at: add.at, url: add.url || null, started: !!add.started } : null;
       // a local story's draft that Add to fix before push made into a note
-      const note = notes ? notes.find((n) => n.draft === row.key) : null;
+      const note = notes ? notes.find((note) => note.draft === row.key) : null;
       row.fix = note
         ? { id: note.id, done: !!note.done, path: note.path, side: note.side, line: note.line }
         : null;
-      const unmarked = bestMatch(d, asPosted(marks.unposted));
-      const manual = bestMatch(d, asPosted(marks.posted));
-      const auto = gh && !unmarked ? bestMatch(d, gh.comments) : null;
+      const unmarked = bestMatch(draft, asPosted(marks.unposted));
+      const manual = bestMatch(draft, asPosted(marks.posted));
+      const auto = github && !unmarked ? bestMatch(draft, github.comments) : null;
       if (auto) {
         Object.assign(row, {
           status: auto.state,
