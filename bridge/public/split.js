@@ -19,7 +19,9 @@ export function splitRows(hunk) {
   let dels = [];
   let adds = [];
   const flush = () => {
-    for (let i = 0; i < Math.max(dels.length, adds.length); i++) rows.push({ left: dels[i] || null, right: adds[i] || null });
+    for (let i = 0; i < Math.max(dels.length, adds.length); i++) {
+      rows.push({ left: dels[i] || null, right: adds[i] || null });
+    }
     dels = [];
     adds = [];
   };
@@ -27,13 +29,18 @@ export function splitRows(hunk) {
     const sign = line[0];
     const text = line.slice(1);
     if (sign === '-') {
-      if (adds.length) flush(); // a removal after additions starts a new pairing
+      if (adds.length) {
+        flush();
+      } // a removal after additions starts a new pairing
       dels.push({ num: o++, text, kind: 'del', i });
     } else if (sign === '+') {
       adds.push({ num: n++, text, kind: 'add', i });
     } else if (sign === ' ') {
       flush();
-      rows.push({ left: { num: o++, text, kind: 'ctx', i }, right: { num: n++, text, kind: 'ctx', i } });
+      rows.push({
+        left: { num: o++, text, kind: 'ctx', i },
+        right: { num: n++, text, kind: 'ctx', i },
+      });
     } else {
       flush();
       rows.push({ info: line });

@@ -15,16 +15,27 @@ import { claimsOf, narrowRows } from '/assets/narrow.js';
 const BOOT = JSON.parse(document.getElementById('ds-boot').textContent);
 const S = `/api/stories/${encodeURIComponent(BOOT.story)}`;
 const app = document.getElementById('ds-app');
-const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+const esc = (s) =>
+  String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 
 async function api(method, p, body) {
   const r = await fetch(p, {
-    method, cache: 'no-store',
-    headers: { Authorization: `Bearer ${BOOT.token}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    method,
+    cache: 'no-store',
+    headers: {
+      Authorization: `Bearer ${BOOT.token}`,
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
   const json = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(json.error || `HTTP ${r.status}`);
+  if (!r.ok) {
+    throw new Error(json.error || `HTTP ${r.status}`);
+  }
   return json;
 }
 
@@ -41,9 +52,13 @@ const hlCache = new Map(); // rel|hash|whitespace -> per hunk, per line HTML (or
 let hlBudget = 0;
 function highlighted(f) {
   const key = `${f.rel}|${f.hash}|${story.local.hide_whitespace}`;
-  if (hlCache.has(key)) return hlCache.get(key);
+  if (hlCache.has(key)) {
+    return hlCache.get(key);
+  }
   const lines = f.hunks.reduce((n, h) => n + h.lines.length, 0);
-  if (hlBudget + lines > LIMITS.pageLines) return null; // past the page's budget, the rest is plain (and not cached, so a smaller diff gets it)
+  if (hlBudget + lines > LIMITS.pageLines) {
+    return null;
+  } // past the page's budget, the rest is plain (and not cached, so a smaller diff gets it)
   hlBudget += lines;
   const hl = highlightFile(f, hljs);
   hlCache.set(key, hl);
@@ -59,7 +74,9 @@ function treeHtml(rels) {
     let node = root;
     for (let i = 0; i < parts.length - 1; i++) {
       const key = parts.slice(0, i + 1).join('/');
-      if (!node.dirs.has(key)) node.dirs.set(key, { name: parts[i], dirs: new Map(), files: [] });
+      if (!node.dirs.has(key)) {
+        node.dirs.set(key, { name: parts[i], dirs: new Map(), files: [] });
+      }
       node = node.dirs.get(key);
     }
     node.files.push(rel);
@@ -73,7 +90,9 @@ function treeHtml(rels) {
       let label = dir.name;
       while (d.files.length === 0 && d.dirs.size === 1) {
         const [nk, nd] = [...d.dirs][0];
-        k = nk; label += '/' + nd.name; d = nd;
+        k = nk;
+        label += '/' + nd.name;
+        d = nd;
       }
       html += `<div role="treeitem" aria-expanded="true" id="${esc(k)}" class="ds-tree-dir"><div class="ds-tree-label" style="padding-left:${8 + depth * 12}px">${esc(label)}</div><div role="group">${draw(d, depth + 1)}</div></div>`;
     }
@@ -85,7 +104,8 @@ function treeHtml(rels) {
   return draw(root, 0);
 }
 
-const numCell = (f, side, num, extra = '') => `<td class="ds-num${extra}" data-line-anchor="diff-${f.sha}${side}${num}" data-side="${side}" data-line="${num}" title="Add a fix-before-push note">${num}</td>`;
+const numCell = (f, side, num, extra = '') =>
+  `<td class="ds-num${extra}" data-line-anchor="diff-${f.sha}${side}${num}" data-side="${side}" data-line="${num}" title="Add a fix-before-push note">${num}</td>`;
 const SIGN = { ctx: ' ', del: '-', add: '+' };
 
 /** GitHub's split view: four cells a row, old on the left and new on the right, the same line anchors as unified. */
@@ -95,10 +115,14 @@ function splitHtml(f) {
   f.hunks.forEach((h, hi) => {
     html += `<tr class="ds-hunk"><td class="ds-num"></td><td class="ds-code" colspan="3">@@ -${h.oldStart},${h.oldLines} +${h.newStart},${h.newLines} @@ ${esc(h.header || '')}</td></tr>`;
     for (const r of splitRows(h)) {
-      if (r.info) { html += `<tr class="ds-info"><td class="ds-num"></td><td class="ds-code" colspan="3">${esc(r.info)}</td></tr>`; continue; }
-      const half = (side, x, right) => (x
-        ? `${numCell(f, side, x.num, ` ds-n-${x.kind}${right ? ' ds-rnum' : ''}`)}<td class="ds-code ds-c-${x.kind}"><span class="ds-sign">${SIGN[x.kind]}</span>${codeHtml(hl, hi, x.i, x.text)}</td>`
-        : `<td class="ds-num ds-n-empty${right ? ' ds-rnum' : ''}"></td><td class="ds-code ds-c-empty"></td>`);
+      if (r.info) {
+        html += `<tr class="ds-info"><td class="ds-num"></td><td class="ds-code" colspan="3">${esc(r.info)}</td></tr>`;
+        continue;
+      }
+      const half = (side, x, right) =>
+        x
+          ? `${numCell(f, side, x.num, ` ds-n-${x.kind}${right ? ' ds-rnum' : ''}`)}<td class="ds-code ds-c-${x.kind}"><span class="ds-sign">${SIGN[x.kind]}</span>${codeHtml(hl, hi, x.i, x.text)}</td>`
+          : `<td class="ds-num ds-n-empty${right ? ' ds-rnum' : ''}"></td><td class="ds-code ds-c-empty"></td>`;
       html += `<tr class="ds-line ds-pair">${half('L', r.left, false)}${half('R', r.right, true)}</tr>`;
     }
   });
@@ -106,10 +130,18 @@ function splitHtml(f) {
 }
 
 function rowsHtml(f) {
-  if (f.binary) return `<tr class="ds-info"><td colspan="${cols()}">Binary file</td></tr>`;
-  if (f.whitespace_only) return `<tr class="ds-info"><td colspan="${cols()}">Only whitespace changes, hidden. Turn off Hide whitespace to see them.</td></tr>`;
-  if (!f.hunks.length) return `<tr class="ds-info"><td colspan="${cols()}">${f.kind === 'renamed' ? 'Renamed without changes' : 'No changed lines'}</td></tr>`;
-  if (isSplit()) return splitHtml(f);
+  if (f.binary) {
+    return `<tr class="ds-info"><td colspan="${cols()}">Binary file</td></tr>`;
+  }
+  if (f.whitespace_only) {
+    return `<tr class="ds-info"><td colspan="${cols()}">Only whitespace changes, hidden. Turn off Hide whitespace to see them.</td></tr>`;
+  }
+  if (!f.hunks.length) {
+    return `<tr class="ds-info"><td colspan="${cols()}">${f.kind === 'renamed' ? 'Renamed without changes' : 'No changed lines'}</td></tr>`;
+  }
+  if (isSplit()) {
+    return splitHtml(f);
+  }
   let html = '';
   const hl = highlighted(f);
   f.hunks.forEach((h, hi) => {
@@ -118,21 +150,41 @@ function rowsHtml(f) {
     let n = h.newStart;
     h.lines.forEach((line, i) => {
       const sign = line[0];
-      const text = sign === ' ' || sign === '-' || sign === '+' ? codeHtml(hl, hi, i, line.slice(1)) : esc(line.slice(1));
+      const text =
+        sign === ' ' || sign === '-' || sign === '+'
+          ? codeHtml(hl, hi, i, line.slice(1))
+          : esc(line.slice(1));
       const cell = (side, num) => numCell(f, side, num);
-      if (sign === ' ') { html += `<tr class="ds-line ds-ctx">${cell('L', o)}${cell('R', n)}<td class="ds-code"><span class="ds-sign"> </span>${text}</td></tr>`; o++; n++; }
-      else if (sign === '-') { html += `<tr class="ds-line ds-del">${cell('L', o)}<td class="ds-num"></td><td class="ds-code"><span class="ds-sign">-</span>${text}</td></tr>`; o++; }
-      else if (sign === '+') { html += `<tr class="ds-line ds-add"><td class="ds-num"></td>${cell('R', n)}<td class="ds-code"><span class="ds-sign">+</span>${text}</td></tr>`; n++; }
-      else html += `<tr class="ds-info"><td class="ds-num"></td><td class="ds-num"></td><td class="ds-code">${text}</td></tr>`;
+      if (sign === ' ') {
+        html += `<tr class="ds-line ds-ctx">${cell('L', o)}${cell('R', n)}<td class="ds-code"><span class="ds-sign"> </span>${text}</td></tr>`;
+        o++;
+        n++;
+      } else if (sign === '-') {
+        html += `<tr class="ds-line ds-del">${cell('L', o)}<td class="ds-num"></td><td class="ds-code"><span class="ds-sign">-</span>${text}</td></tr>`;
+        o++;
+      } else if (sign === '+') {
+        html += `<tr class="ds-line ds-add"><td class="ds-num"></td>${cell('R', n)}<td class="ds-code"><span class="ds-sign">+</span>${text}</td></tr>`;
+        n++;
+      } else {
+        html += `<tr class="ds-info"><td class="ds-num"></td><td class="ds-num"></td><td class="ds-code">${text}</td></tr>`;
+      }
     });
   });
   return html;
 }
 
-const colsHtml = () => (isSplit() ? '<col class="ds-col-num"><col><col class="ds-col-num"><col>' : '<col class="ds-col-num"><col class="ds-col-num"><col>');
+const colsHtml = () =>
+  isSplit()
+    ? '<col class="ds-col-num"><col><col class="ds-col-num"><col>'
+    : '<col class="ds-col-num"><col class="ds-col-num"><col>';
 
 function fileHtml(f) {
-  const kind = f.kind === 'renamed' && f.renamed_from ? `renamed from ${f.renamed_from}` : f.kind === 'modified' ? '' : f.kind;
+  const kind =
+    f.kind === 'renamed' && f.renamed_from
+      ? `renamed from ${f.renamed_from}`
+      : f.kind === 'modified'
+        ? ''
+        : f.kind;
   return `<div class="ds-file-wrap"><section role="region" class="ds-file${f.viewed ? ' ds-folded' : ''}" id="diff-${f.sha}" data-path="${esc(f.rel)}" aria-label="${esc(f.rel)}">
     <header class="ds-file-head">
       <button class="ds-fold" type="button" aria-label="Fold or unfold this file" aria-expanded="${!f.viewed}"></button>
@@ -151,7 +203,7 @@ function headerHtml() {
   const l = story.local;
   const added = l.files.reduce((n, f) => n + f.stats.added, 0);
   const removed = l.files.reduce((n, f) => n + f.stats.removed, 0);
-  const open = l.notes.filter(n => !n.done).length;
+  const open = l.notes.filter((n) => !n.done).length;
   return `<header class="ds-top">
     <div class="ds-top-main">
       <h1>${esc(story.title)}</h1>
@@ -166,8 +218,10 @@ function headerHtml() {
 
 function notesListHtml() {
   const notes = story.local.notes;
-  if (!notes.length) return '<p class="ds-muted">No fix-before-push notes yet. Click a line number in the diff to add one.</p>';
-  return `<ul>${notes.map(n => `<li class="${n.done ? 'ds-done' : ''}"><label><input type="checkbox" data-note-done="${esc(n.id)}"${n.done ? ' checked' : ''}> <a href="#" data-note-goto="${esc(n.id)}"><code>${esc(n.path)}${n.line ? `:${n.side === 'L' ? 'L' : ''}${n.line}` : ''}</code></a></label> ${esc(n.body)}</li>`).join('')}</ul>
+  if (!notes.length) {
+    return '<p class="ds-muted">No fix-before-push notes yet. Click a line number in the diff to add one.</p>';
+  }
+  return `<ul>${notes.map((n) => `<li class="${n.done ? 'ds-done' : ''}"><label><input type="checkbox" data-note-done="${esc(n.id)}"${n.done ? ' checked' : ''}> <a href="#" data-note-goto="${esc(n.id)}"><code>${esc(n.path)}${n.line ? `:${n.side === 'L' ? 'L' : ''}${n.line}` : ''}</code></a></label> ${esc(n.body)}</li>`).join('')}</ul>
     <p class="ds-muted">Also in the terminal: <code>diff-story notes --story ${esc(story.id)}</code></p>`;
 }
 
@@ -181,45 +235,80 @@ function noteRow(n, away) {
 }
 
 function placeNotes() {
-  for (const el of document.querySelectorAll('.ds-note-row')) el.remove();
-  for (const n of story.local.notes) {
-    const f = story.local.files.find(x => x.rel === n.path);
-    if (!f) continue;
-    const cell = n.line && document.querySelector(`[data-line-anchor="diff-${f.sha}${n.side}${n.line}"]`);
-    const row = cell ? cell.closest('tr') : document.querySelector(`#diff-${f.sha} tbody tr`);
-    if (row) row.insertAdjacentHTML('afterend', noteRow(n, !!n.line && !cell));
+  for (const el of document.querySelectorAll('.ds-note-row')) {
+    el.remove();
   }
-  const open = story.local.notes.filter(n => !n.done).length;
+  for (const n of story.local.notes) {
+    const f = story.local.files.find((x) => x.rel === n.path);
+    if (!f) {
+      continue;
+    }
+    const cell =
+      n.line && document.querySelector(`[data-line-anchor="diff-${f.sha}${n.side}${n.line}"]`);
+    const row = cell ? cell.closest('tr') : document.querySelector(`#diff-${f.sha} tbody tr`);
+    if (row) {
+      row.insertAdjacentHTML('afterend', noteRow(n, !!n.line && !cell));
+    }
+  }
+  const open = story.local.notes.filter((n) => !n.done).length;
   const btn = document.querySelector('.ds-notes-toggle');
-  if (btn) btn.textContent = `Fix before push: ${open} open`;
+  if (btn) {
+    btn.textContent = `Fix before push: ${open} open`;
+  }
   const list = document.querySelector('.ds-notes-list');
-  if (list) list.innerHTML = notesListHtml();
+  if (list) {
+    list.innerHTML = notesListHtml();
+  }
 }
 
 // ---------- a chapter's own lines: what other chapters tell in a shared file folds away (narrow.js)
 let narrowedFor = null; // the step the tables are narrowed for; render() clears it
-const rowModel = tr => {
-  if (tr.classList.contains('ds-hunk')) return { type: 'hunk' };
-  if (tr.classList.contains('ds-note-row') || tr.classList.contains('ds-note-edit')) return { type: 'note' };
-  if (!tr.classList.contains('ds-line')) return { type: 'info' };
-  const num = side => { const c = tr.querySelector(`td[data-side="${side}"]`); return c ? Number(c.getAttribute('data-line')) : null; };
-  return { type: 'line', L: num('L'), R: num('R'), add: tr.classList.contains('ds-add') || !!tr.querySelector('td.ds-n-add') };
+const rowModel = (tr) => {
+  if (tr.classList.contains('ds-hunk')) {
+    return { type: 'hunk' };
+  }
+  if (tr.classList.contains('ds-note-row') || tr.classList.contains('ds-note-edit')) {
+    return { type: 'note' };
+  }
+  if (!tr.classList.contains('ds-line')) {
+    return { type: 'info' };
+  }
+  const num = (side) => {
+    const c = tr.querySelector(`td[data-side="${side}"]`);
+    return c ? Number(c.getAttribute('data-line')) : null;
+  };
+  return {
+    type: 'line',
+    L: num('L'),
+    R: num('R'),
+    add: tr.classList.contains('ds-add') || !!tr.querySelector('td.ds-n-add'),
+  };
 };
 function stepName(s) {
   const nums = chapterNumbers(story.chapters);
-  return nums[s - 1] != null ? `chapter ${nums[s - 1]}` : `“${String(story.chapters[s - 1].title || 'Since you read it').replace(/:.*$/, '')}”`;
+  return nums[s - 1] != null
+    ? `chapter ${nums[s - 1]}`
+    : `“${String(story.chapters[s - 1].title || 'Since you read it').replace(/:.*$/, '')}”`;
 }
 function unnarrow(root = document) {
-  for (const el of root.querySelectorAll('tr.ds-narrow')) el.remove();
-  for (const el of root.querySelectorAll('tr.ds-out')) el.classList.remove('ds-out');
+  for (const el of root.querySelectorAll('tr.ds-narrow')) {
+    el.remove();
+  }
+  for (const el of root.querySelectorAll('tr.ds-out')) {
+    el.classList.remove('ds-out');
+  }
 }
 /** Called by the panel after each filter pass. Only a new step (or a redraw) changes the tables, so the folds the reviewer opens stay open. */
 function narrow({ n, view, all }) {
   const key = `${view}|${n}|${all}`;
-  if (key === narrowedFor) return;
+  if (key === narrowedFor) {
+    return;
+  }
   narrowedFor = key;
   unnarrow();
-  if (all || !n || view !== 'story') return;
+  if (all || !n || view !== 'story') {
+    return;
+  }
   const claims = claimsOf(story.chapters);
   for (const section of document.querySelectorAll('.ds-file')) {
     const rel = section.getAttribute('data-path');
@@ -227,36 +316,59 @@ function narrow({ n, view, all }) {
     const { hidden, runs } = narrowRows(trs.map(rowModel), claims, rel, n);
     trs.forEach((tr, i) => tr.classList.toggle('ds-out', hidden[i]));
     for (const r of runs) {
-      const lines = trs.slice(r.from, r.to + 1).filter(tr => tr.classList.contains('ds-line')).length;
-      const who = r.steps.length ? `told in ${r.steps.map(stepName).join(', ')}` : 'from other chapters';
-      trs[r.from].insertAdjacentHTML('beforebegin', `<tr class="ds-narrow"><td colspan="${cols()}">⋯ ${lines} line${lines === 1 ? '' : 's'} ${esc(who)}<button type="button" data-narrow-open>Show</button></td></tr>`);
+      const lines = trs
+        .slice(r.from, r.to + 1)
+        .filter((tr) => tr.classList.contains('ds-line')).length;
+      const who = r.steps.length
+        ? `told in ${r.steps.map(stepName).join(', ')}`
+        : 'from other chapters';
+      trs[r.from].insertAdjacentHTML(
+        'beforebegin',
+        `<tr class="ds-narrow"><td colspan="${cols()}">⋯ ${lines} line${lines === 1 ? '' : 's'} ${esc(who)}<button type="button" data-narrow-open>Show</button></td></tr>`,
+      );
     }
   }
 }
 /** Open the fold that holds a row (a jump to one of its lines). */
 function openFold(tr) {
   let fold = tr.previousElementSibling;
-  while (fold && fold.classList.contains('ds-out')) fold = fold.previousElementSibling;
-  if (fold && fold.classList.contains('ds-narrow')) openRun(fold);
+  while (fold && fold.classList.contains('ds-out')) {
+    fold = fold.previousElementSibling;
+  }
+  if (fold && fold.classList.contains('ds-narrow')) {
+    openRun(fold);
+  }
 }
 function openRun(fold) {
-  for (let tr = fold.nextElementSibling; tr && tr.classList.contains('ds-out'); tr = tr.nextElementSibling) tr.classList.remove('ds-out');
+  for (
+    let tr = fold.nextElementSibling;
+    tr && tr.classList.contains('ds-out');
+    tr = tr.nextElementSibling
+  ) {
+    tr.classList.remove('ds-out');
+  }
   fold.remove();
 }
 /** A jump from the panel to a file or its lines: unfold the file (Viewed files fold) and open the folds that hold the lines. Viewed stays as it is. */
 function reveal(rel, side, start, end) {
-  const f = story.local.files.find(x => x.rel === rel);
-  if (!f) return;
+  const f = story.local.files.find((x) => x.rel === rel);
+  if (!f) {
+    return;
+  }
   const section = document.getElementById(`diff-${f.sha}`);
   if (section && section.classList.contains('ds-folded')) {
     section.classList.remove('ds-folded');
     section.querySelector('.ds-fold')?.setAttribute('aria-expanded', 'true');
   }
-  if (!side || !Number.isFinite(start)) return;
+  if (!side || !Number.isFinite(start)) {
+    return;
+  }
   for (let n = start; n <= Math.max(start, end || start) && n < start + 400; n++) {
     const cell = document.querySelector(`[data-line-anchor="diff-${f.sha}${side}${n}"]`);
     const tr = cell && cell.closest('tr');
-    if (tr && tr.classList.contains('ds-out')) openFold(tr);
+    if (tr && tr.classList.contains('ds-out')) {
+      openFold(tr);
+    }
   }
 }
 
@@ -264,7 +376,7 @@ function render() {
   const keep = window.scrollY;
   narrowedFor = null;
   hlBudget = 0;
-  app.innerHTML = `${headerHtml()}<div class="ds-layout"><nav class="ds-tree" role="tree" aria-label="Changed files">${treeHtml(story.local.files.map(f => f.rel))}</nav>
+  app.innerHTML = `${headerHtml()}<div class="ds-layout"><nav class="ds-tree" role="tree" aria-label="Changed files">${treeHtml(story.local.files.map((f) => f.rel))}</nav>
     <main class="ds-files">${story.local.files.map(fileHtml).join('')}</main></div>`;
   placeNotes();
   window.scrollTo({ top: keep });
@@ -273,35 +385,56 @@ function render() {
 // ---------- the panel, the same one the extension puts on GitHub
 const panelData = () => ({ ...story, local: undefined });
 function mount(initial) {
-  if (overlay) overlay.destroy();
+  if (overlay) {
+    overlay.destroy();
+  }
   removeReopen();
   overlay = storyOverlay(panelData(), {
     initial,
     host: 'this page',
     commentsTitle: 'Fix before push (drafted)',
-    onState: s => { lastUi = { ...s, hidden: false }; api('POST', `${S}/ui`, lastUi).catch(() => {}); },
+    onState: (s) => {
+      lastUi = { ...s, hidden: false };
+      api('POST', `${S}/ui`, lastUi).catch(() => {});
+    },
     onFilter: narrow,
     reveal,
-    onPosition: p => api('POST', `${S}/position`, { ...p, url: location.href }).catch(() => {}),
+    onPosition: (p) => api('POST', `${S}/position`, { ...p, url: location.href }).catch(() => {}),
     reads: () => api('GET', `${S}/read`),
-    onRead: r => api('POST', `${S}/read`, r), // the bridge records the range's head commit with it
-    onClose: () => { overlay = null; hidden = true; narrowedFor = null; unnarrow(); api('POST', `${S}/ui`, { ...lastUi, hidden: true }).catch(() => {}); showReopen(); },
-    ask: q => api('POST', `${S}/questions`, { ...q, url: location.href }),
-    loadQuestions: () => api('GET', `${S}/questions`).then(r => r.questions),
+    onRead: (r) => api('POST', `${S}/read`, r), // the bridge records the range's head commit with it
+    onClose: () => {
+      overlay = null;
+      hidden = true;
+      narrowedFor = null;
+      unnarrow();
+      api('POST', `${S}/ui`, { ...lastUi, hidden: true }).catch(() => {});
+      showReopen();
+    },
+    ask: (q) => api('POST', `${S}/questions`, { ...q, url: location.href }),
+    loadQuestions: () => api('GET', `${S}/questions`).then((r) => r.questions),
     drafts: {
       load: () => api('GET', `${S}/drafts`),
       act: async (chapter, index, action) => {
-        if (action !== 'fix') return api('POST', `${S}/drafts`, { chapter, index, action });
+        if (action !== 'fix') {
+          return api('POST', `${S}/drafts`, { chapter, index, action });
+        }
         // Add to fix before push: the bridge makes the draft a note (once), which joins the checklist and the diff
         const note = await api('POST', `${S}/notes`, { chapter, index });
-        story.local.notes = [...story.local.notes.filter(n => n.id !== note.id), note];
+        story.local.notes = [...story.local.notes.filter((n) => n.id !== note.id), note];
         placeNotes();
         return api('GET', `${S}/drafts`);
       },
     },
-    status: () => api('GET', `/api/status?story=${encodeURIComponent(BOOT.story)}`).catch(err => {
-      throw Object.assign(err, { code: /token/.test(err.message) ? 'token' : /HTTP 404|not found/.test(err.message) ? 'old' : 'down' });
-    }),
+    status: () =>
+      api('GET', `/api/status?story=${encodeURIComponent(BOOT.story)}`).catch((err) => {
+        throw Object.assign(err, {
+          code: /token/.test(err.message)
+            ? 'token'
+            : /HTTP 404|not found/.test(err.message)
+              ? 'old'
+              : 'down',
+        });
+      }),
   });
 }
 function showReopen() {
@@ -310,15 +443,22 @@ function showReopen() {
   b.className = 'ds-reopen';
   b.type = 'button';
   b.textContent = 'Show story';
-  b.onclick = () => { hidden = false; mount({ ...lastUi }); };
+  b.onclick = () => {
+    hidden = false;
+    mount({ ...lastUi });
+  };
   document.body.appendChild(b);
 }
-function removeReopen() { document.querySelector('.ds-reopen')?.remove(); }
+function removeReopen() {
+  document.querySelector('.ds-reopen')?.remove();
+}
 
 // ---------- clicks on the diff: Viewed, fold, notes, tree
-document.addEventListener('click', async e => {
+document.addEventListener('click', async (e) => {
   const t = e.target;
-  if (t.closest('#diff-story-panel')) return;
+  if (t.closest('#diff-story-panel')) {
+    return;
+  }
   const viewedBtn = t.closest('.ds-viewed');
   if (viewedBtn) {
     const section = viewedBtn.closest('.ds-file');
@@ -328,19 +468,30 @@ document.addEventListener('click', async e => {
     section.classList.toggle('ds-folded', on);
     section.querySelector('.ds-fold').setAttribute('aria-expanded', String(!on));
     section.querySelector('.ds-changed')?.remove();
-    const f = story.local.files.find(x => x.rel === rel);
-    if (f) { f.viewed = on; f.viewed_changed = false; }
-    try { await api('POST', `${S}/viewed`, { path: rel, viewed: on }); } catch (err) { alert(`Couldn't save: ${err.message}`); }
+    const f = story.local.files.find((x) => x.rel === rel);
+    if (f) {
+      f.viewed = on;
+      f.viewed_changed = false;
+    }
+    try {
+      await api('POST', `${S}/viewed`, { path: rel, viewed: on });
+    } catch (err) {
+      alert(`Couldn't save: ${err.message}`);
+    }
     if (on) {
       const top = section.getBoundingClientRect().top;
-      if (top < 0) section.scrollIntoView();
+      if (top < 0) {
+        section.scrollIntoView();
+      }
     }
     return;
   }
   const view = t.closest('[data-diff-view]');
   if (view) {
     const want = view.getAttribute('data-diff-view');
-    if (want !== story.local.diff_view) setPref({ diffView: want }, 'the diff view');
+    if (want !== story.local.diff_view) {
+      setPref({ diffView: want }, 'the diff view');
+    }
     return;
   }
   const fold = t.closest('.ds-fold');
@@ -352,29 +503,53 @@ document.addEventListener('click', async e => {
   }
   const go = t.closest('[data-goto]');
   if (go) {
-    const f = story.local.files.find(x => x.rel === go.getAttribute('data-goto'));
+    const f = story.local.files.find((x) => x.rel === go.getAttribute('data-goto'));
     const el = f && document.getElementById(`diff-${f.sha}`);
-    if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 60 });
+    if (el) {
+      window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 60 });
+    }
     return;
   }
   const narrowBtn = t.closest('[data-narrow-open]');
-  if (narrowBtn) { openRun(narrowBtn.closest('tr')); return; }
+  if (narrowBtn) {
+    openRun(narrowBtn.closest('tr'));
+    return;
+  }
   const num = t.closest('td.ds-num[data-line-anchor]');
-  if (num) return openEditor(num);
+  if (num) {
+    return openEditor(num);
+  }
   const cancel = t.closest('[data-editor-cancel]');
-  if (cancel) { cancel.closest('tr').remove(); return; }
+  if (cancel) {
+    cancel.closest('tr').remove();
+    return;
+  }
   const del = t.closest('[data-note-delete]');
   if (del) {
-    await api('POST', `${S}/notes/${encodeURIComponent(del.getAttribute('data-note-delete'))}`, { delete: true });
-    story.local.notes = story.local.notes.filter(n => n.id !== del.getAttribute('data-note-delete'));
+    await api('POST', `${S}/notes/${encodeURIComponent(del.getAttribute('data-note-delete'))}`, {
+      delete: true,
+    });
+    story.local.notes = story.local.notes.filter(
+      (n) => n.id !== del.getAttribute('data-note-delete'),
+    );
     placeNotes();
     return;
   }
   const gotoNote = t.closest('[data-note-goto]');
   if (gotoNote) {
     e.preventDefault();
-    const row = document.querySelector(`.ds-note-row[data-note="${CSS.escape(gotoNote.getAttribute('data-note-goto'))}"]`);
-    if (row) { row.closest('.ds-file').classList.remove('ds-folded'); if (row.classList.contains('ds-out')) openFold(row); window.scrollTo({ top: row.getBoundingClientRect().top + window.scrollY - window.innerHeight / 3 }); }
+    const row = document.querySelector(
+      `.ds-note-row[data-note="${CSS.escape(gotoNote.getAttribute('data-note-goto'))}"]`,
+    );
+    if (row) {
+      row.closest('.ds-file').classList.remove('ds-folded');
+      if (row.classList.contains('ds-out')) {
+        openFold(row);
+      }
+      window.scrollTo({
+        top: row.getBoundingClientRect().top + window.scrollY - window.innerHeight / 3,
+      });
+    }
     return;
   }
   const toggle = t.closest('.ds-notes-toggle');
@@ -390,68 +565,107 @@ async function setPref(patch, what) {
     await api('POST', '/api/prefs', patch);
     story = await api('GET', S);
     render();
-    if (!hidden) mount(overlay ? { ...overlay.state, bodyScroll: overlay.bodyScroll } : lastUi);
+    if (!hidden) {
+      mount(overlay ? { ...overlay.state, bodyScroll: overlay.bodyScroll } : lastUi);
+    }
   } catch (err) {
     alert(`Couldn't change ${what}: ${err.message}`);
     render();
   }
 }
-const setHideWhitespace = on => { const box = document.querySelector('.ds-ws-toggle'); if (box) box.disabled = true; return setPref({ hideWhitespace: on }, 'Hide whitespace'); };
+const setHideWhitespace = (on) => {
+  const box = document.querySelector('.ds-ws-toggle');
+  if (box) {
+    box.disabled = true;
+  }
+  return setPref({ hideWhitespace: on }, 'Hide whitespace');
+};
 
-document.addEventListener('change', async e => {
+document.addEventListener('change', async (e) => {
   const ws = e.target.closest('.ds-ws-toggle');
-  if (ws) return setHideWhitespace(ws.checked);
+  if (ws) {
+    return setHideWhitespace(ws.checked);
+  }
   const box = e.target.closest('[data-note-done]');
-  if (!box) return;
+  if (!box) {
+    return;
+  }
   const id = box.getAttribute('data-note-done');
   const n = await api('POST', `${S}/notes/${encodeURIComponent(id)}`, { done: box.checked });
-  story.local.notes = story.local.notes.map(x => (x.id === id ? n : x));
+  story.local.notes = story.local.notes.map((x) => (x.id === id ? n : x));
   placeNotes();
 });
 
 function openEditor(cell) {
   const row = cell.closest('tr');
-  if (row.nextElementSibling && row.nextElementSibling.classList.contains('ds-note-edit')) return row.nextElementSibling.querySelector('textarea').focus();
+  if (row.nextElementSibling && row.nextElementSibling.classList.contains('ds-note-edit')) {
+    return row.nextElementSibling.querySelector('textarea').focus();
+  }
   const side = cell.getAttribute('data-side');
   const line = Number(cell.getAttribute('data-line'));
   const rel = cell.closest('.ds-file').getAttribute('data-path');
-  row.insertAdjacentHTML('afterend', `<tr class="ds-note-edit"><td colspan="${cols()}"><form class="ds-note-form">
+  row.insertAdjacentHTML(
+    'afterend',
+    `<tr class="ds-note-edit"><td colspan="${cols()}"><form class="ds-note-form">
     <div class="ds-muted">Fix before push on <code>${esc(rel)}:${side === 'L' ? 'L' : ''}${line}</code></div>
     <textarea rows="3" placeholder="What to fix before pushing"></textarea>
-    <div><button type="submit">Add note</button> <button type="button" data-editor-cancel>Cancel</button></div></form></td></tr>`);
+    <div><button type="submit">Add note</button> <button type="button" data-editor-cancel>Cancel</button></div></form></td></tr>`,
+  );
   const form = row.nextElementSibling.querySelector('form');
   const ta = form.querySelector('textarea');
   ta.focus();
-  ta.addEventListener('keydown', ev => { if (ev.key === 'Enter' && (ev.metaKey || ev.ctrlKey)) { ev.preventDefault(); form.requestSubmit(); } });
-  form.addEventListener('submit', async ev => {
+  ta.addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter' && (ev.metaKey || ev.ctrlKey)) {
+      ev.preventDefault();
+      form.requestSubmit();
+    }
+  });
+  form.addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const body = ta.value.trim();
-    if (!body) return;
+    if (!body) {
+      return;
+    }
     try {
       const note = await api('POST', `${S}/notes`, { path: rel, side, line, body });
       story.local.notes.push(note);
       form.closest('tr').remove();
       placeNotes();
-    } catch (err) { alert(`Couldn't save the note: ${err.message}`); }
+    } catch (err) {
+      alert(`Couldn't save the note: ${err.message}`);
+    }
   });
 }
 
 // ---------- follow the story and the commits: when chapters.json changes or the head moves, redraw
 async function poll() {
-  if (document.visibilityState !== 'visible') return;
+  if (document.visibilityState !== 'visible') {
+    return;
+  }
   try {
     const { version } = await api('GET', `${S}/version`);
-    if (version === story.version) return;
+    if (version === story.version) {
+      return;
+    }
     const editing = document.querySelector('.ds-note-edit');
-    if (editing) return; // don't redraw under a note being written
+    if (editing) {
+      return;
+    } // don't redraw under a note being written
     story = await api('GET', S);
     render();
-    if (!hidden) mount(overlay ? { ...overlay.state, bodyScroll: overlay.bodyScroll } : lastUi);
-  } catch { /* bridge restarting */ }
+    if (!hidden) {
+      mount(overlay ? { ...overlay.state, bodyScroll: overlay.bodyScroll } : lastUi);
+    }
+  } catch {
+    /* bridge restarting */
+  }
 }
 
 async function start() {
-  hljs = await import('/assets/highlight.mjs').then(m => m.default, () => null);
+  hljs = await import('/assets/highlight.mjs').then(
+    (m) => m.default,
+    () => null,
+  );
   try {
     story = await api('GET', S);
   } catch (err) {
@@ -462,9 +676,19 @@ async function start() {
   lastUi = await api('GET', `${S}/ui`).catch(() => ({}));
   render();
   hidden = !!lastUi.hidden;
-  if (hidden) showReopen();
-  else mount(lastUi);
-  window.__diffStoryLocal = { get story() { return story; }, get overlay() { return overlay; } };
+  if (hidden) {
+    showReopen();
+  } else {
+    mount(lastUi);
+  }
+  window.__diffStoryLocal = {
+    get story() {
+      return story;
+    },
+    get overlay() {
+      return overlay;
+    },
+  };
   setInterval(poll, 5000);
   window.addEventListener('focus', poll); // a comment drafted in the terminal shows up as soon as you come back
 }

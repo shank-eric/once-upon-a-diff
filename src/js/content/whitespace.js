@@ -26,20 +26,25 @@ export function filesPage(href) {
 /** true for ?w=1, false for ?w=0, null when the URL doesn't say. */
 export function wOf(href) {
   const v = new URL(href).searchParams.get('w');
-  if (v === null) return null;
+  if (v === null) {
+    return null;
+  }
   return v === '1' || v === 'true';
 }
 
 /** The same URL (hash kept) with ?w=1, or without w. */
 export function withW(href, on) {
   const u = new URL(href);
-  if (on) u.searchParams.set('w', '1');
-  else u.searchParams.delete('w');
+  if (on) {
+    u.searchParams.set('w', '1');
+  } else {
+    u.searchParams.delete('w');
+  }
   return u.toString();
 }
 
 /** What this tab last saw, kept in sessionStorage so it outlives a full reload. */
-export const seen = href => {
+export const seen = (href) => {
   const page = filesPage(href);
   return page ? { ...page, w: wOf(href) } : { key: null };
 };
@@ -52,15 +57,25 @@ export const seen = href => {
  */
 export function decide({ href, prev, pref, redirect, now = Date.now() }) {
   const page = filesPage(href);
-  if (!page) return { action: 'none' };
+  if (!page) {
+    return { action: 'none' };
+  }
   const w = wOf(href);
-  if (w !== null) return w === pref ? { action: 'none' } : { action: 'save', value: w };
+  if (w !== null) {
+    return w === pref ? { action: 'none' } : { action: 'save', value: w };
+  }
   // the URL doesn't say. On the same page that just had w=1, GitHub's toggle was turned off.
   const samePage = !!prev && prev.key === page.key && prev.view === page.view;
-  if (samePage && prev.w === true) return pref ? { action: 'save', value: false } : { action: 'none' };
-  if (!pref) return { action: 'none' };
+  if (samePage && prev.w === true) {
+    return pref ? { action: 'save', value: false } : { action: 'none' };
+  }
+  if (!pref) {
+    return { action: 'none' };
+  }
   // we already reloaded this URL with w=1 and came back without it: GitHub dropped it, so don't loop
-  if (redirect && redirect.from === href && now - redirect.at < REDIRECT_GUARD_MS) return { action: 'none' };
+  if (redirect && redirect.from === href && now - redirect.at < REDIRECT_GUARD_MS) {
+    return { action: 'none' };
+  }
   return { action: 'redirect', url: withW(href, true) };
 }
 
@@ -75,10 +90,15 @@ export function prefsStore({ call, load, store }) {
     async read() {
       const copy = (await load()) || {};
       const r = await call('GET', '/api/prefs');
-      if (!r.ok) return !!copy.hideWhitespace;
+      if (!r.ok) {
+        return !!copy.hideWhitespace;
+      }
       if (copy.dirty && !!copy.hideWhitespace !== !!r.body.hideWhitespace) {
         const w = await call('POST', '/api/prefs', { hideWhitespace: !!copy.hideWhitespace });
-        if (w.ok) { await store({ hideWhitespace: !!w.body.hideWhitespace }); return !!w.body.hideWhitespace; }
+        if (w.ok) {
+          await store({ hideWhitespace: !!w.body.hideWhitespace });
+          return !!w.body.hideWhitespace;
+        }
         return !!copy.hideWhitespace;
       }
       await store({ hideWhitespace: !!r.body.hideWhitespace });
@@ -86,7 +106,9 @@ export function prefsStore({ call, load, store }) {
     },
     async write(on) {
       const r = await call('POST', '/api/prefs', { hideWhitespace: !!on });
-      await store(r.ok ? { hideWhitespace: !!r.body.hideWhitespace } : { hideWhitespace: !!on, dirty: true });
+      await store(
+        r.ok ? { hideWhitespace: !!r.body.hideWhitespace } : { hideWhitespace: !!on, dirty: true },
+      );
       return r.ok;
     },
   };

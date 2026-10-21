@@ -36,12 +36,24 @@ export function loadConfig(home = homeDir()) {
   const file = path.join(home, 'config.json');
   let cfg = {};
   if (existsSync(file)) {
-    try { cfg = JSON.parse(readFileSync(file, 'utf8')); } catch { cfg = {}; }
+    try {
+      cfg = JSON.parse(readFileSync(file, 'utf8'));
+    } catch {
+      cfg = {};
+    }
   }
   let changed = false;
-  if (!cfg.token) { cfg.token = newToken(); changed = true; }
-  if (!cfg.port) { cfg.port = DEFAULT_PORT; changed = true; }
-  if (changed) saveConfig(cfg, home);
+  if (!cfg.token) {
+    cfg.token = newToken();
+    changed = true;
+  }
+  if (!cfg.port) {
+    cfg.port = DEFAULT_PORT;
+    changed = true;
+  }
+  if (changed) {
+    saveConfig(cfg, home);
+  }
   return cfg;
 }
 
@@ -57,15 +69,31 @@ export function loadConfig(home = homeDir()) {
  */
 export function readSettings(home = homeDir()) {
   let cfg = {};
-  try { cfg = JSON.parse(readFileSync(path.join(home, 'config.json'), 'utf8')) || {}; } catch { cfg = {}; }
-  const expand = p => (p.startsWith('~/') ? path.join(os.homedir(), p.slice(2)) : p);
-  const dirs = Array.isArray(cfg.checkout_dirs) ? cfg.checkout_dirs.filter(d => typeof d === 'string' && d).map(expand) : [];
+  try {
+    cfg = JSON.parse(readFileSync(path.join(home, 'config.json'), 'utf8')) || {};
+  } catch {
+    cfg = {};
+  }
+  const expand = (p) => (p.startsWith('~/') ? path.join(os.homedir(), p.slice(2)) : p);
+  const dirs = Array.isArray(cfg.checkout_dirs)
+    ? cfg.checkout_dirs.filter((d) => typeof d === 'string' && d).map(expand)
+    : [];
   return {
-    displayName: typeof cfg.display_name === 'string' && cfg.display_name.trim() ? cfg.display_name.trim() : null,
+    displayName:
+      typeof cfg.display_name === 'string' && cfg.display_name.trim()
+        ? cfg.display_name.trim()
+        : null,
     timeZone: typeof cfg.time_zone === 'string' && cfg.time_zone ? cfg.time_zone : undefined,
     timeZoneLabel: typeof cfg.time_zone_label === 'string' ? cfg.time_zone_label : null,
-    checkoutDirs: process.env.DIFF_STORY_DEV_DIR ? [process.env.DIFF_STORY_DEV_DIR] : dirs.length ? dirs : [path.join(os.homedir(), 'Development')],
-    openCommand: Array.isArray(cfg.open_command) && cfg.open_command.length ? cfg.open_command.map(String) : null,
+    checkoutDirs: process.env.DIFF_STORY_DEV_DIR
+      ? [process.env.DIFF_STORY_DEV_DIR]
+      : dirs.length
+        ? dirs
+        : [path.join(os.homedir(), 'Development')],
+    openCommand:
+      Array.isArray(cfg.open_command) && cfg.open_command.length
+        ? cfg.open_command.map(String)
+        : null,
     unsetGithubToken: cfg.gh_unset_github_token === true,
   };
 }
@@ -79,23 +107,34 @@ export function readerOf(home = homeDir()) {
 /** The environment for a gh call: GITHUB_TOKEN dropped only when config.json asks for it. */
 export function ghEnv(home = homeDir(), base = process.env) {
   const env = { ...base };
-  if (readSettings(home).unsetGithubToken) delete env.GITHUB_TOKEN;
+  if (readSettings(home).unsetGithubToken) {
+    delete env.GITHUB_TOKEN;
+  }
   return env;
 }
 
 /** argv that opens a URL or file: open_command, else the platform's usual opener. */
 export function openArgv(target, home = homeDir()) {
-  const cmd = readSettings(home).openCommand
-    || (process.platform === 'darwin' ? ['open'] : process.platform === 'win32' ? ['explorer'] : ['xdg-open']);
+  const cmd =
+    readSettings(home).openCommand ||
+    (process.platform === 'darwin'
+      ? ['open']
+      : process.platform === 'win32'
+        ? ['explorer']
+        : ['xdg-open']);
   return [...cmd, target];
 }
 
 /** A time for the CLI's lines, in time_zone (default the system's), labelled time_zone_label or the zone's short name. */
 export function formatTime(iso, home = homeDir()) {
-  if (!iso) return '';
+  if (!iso) {
+    return '';
+  }
   const { timeZone, timeZoneLabel } = readSettings(home);
   const opts = { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone };
-  if (timeZoneLabel !== null) return new Date(iso).toLocaleString('en-US', opts) + (timeZoneLabel ? ` ${timeZoneLabel}` : '');
+  if (timeZoneLabel !== null) {
+    return new Date(iso).toLocaleString('en-US', opts) + (timeZoneLabel ? ` ${timeZoneLabel}` : '');
+  }
   return new Date(iso).toLocaleString('en-US', { ...opts, timeZoneName: 'short' });
 }
 
@@ -114,14 +153,26 @@ export const PREF_DEFAULTS = Object.freeze({ hideWhitespace: false, diffView: 'u
 
 export function readPrefs(home = homeDir()) {
   let saved = {};
-  try { saved = JSON.parse(readFileSync(path.join(home, 'prefs.json'), 'utf8')) || {}; } catch { saved = {}; }
-  return { ...PREF_DEFAULTS, hideWhitespace: saved.hideWhitespace === true, diffView: saved.diffView === 'split' ? 'split' : 'unified' };
+  try {
+    saved = JSON.parse(readFileSync(path.join(home, 'prefs.json'), 'utf8')) || {};
+  } catch {
+    saved = {};
+  }
+  return {
+    ...PREF_DEFAULTS,
+    hideWhitespace: saved.hideWhitespace === true,
+    diffView: saved.diffView === 'split' ? 'split' : 'unified',
+  };
 }
 
 export function writePrefs(patch, home = homeDir()) {
   const next = { ...readPrefs(home) };
-  if ('hideWhitespace' in patch) next.hideWhitespace = patch.hideWhitespace === true;
-  if ('diffView' in patch) next.diffView = patch.diffView === 'split' ? 'split' : 'unified';
+  if ('hideWhitespace' in patch) {
+    next.hideWhitespace = patch.hideWhitespace === true;
+  }
+  if ('diffView' in patch) {
+    next.diffView = patch.diffView === 'split' ? 'split' : 'unified';
+  }
   mkdirSync(home, { recursive: true, mode: 0o700 });
   writeFileSync(path.join(home, 'prefs.json'), JSON.stringify(next, null, 2) + '\n');
   return next;

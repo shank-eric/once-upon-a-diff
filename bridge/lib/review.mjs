@@ -18,15 +18,30 @@ const GH = () => process.env.DIFF_STORY_GH || 'gh';
 function graphql(query, vars) {
   const env = ghEnv();
   const args = ['api', 'graphql', '-f', `query=${query}`];
-  for (const [k, v] of Object.entries(vars)) args.push(typeof v === 'number' ? '-F' : '-f', `${k}=${v}`);
+  for (const [k, v] of Object.entries(vars)) {
+    args.push(typeof v === 'number' ? '-F' : '-f', `${k}=${v}`);
+  }
   return new Promise((resolve, reject) => {
-    execFile(GH(), args, { env, timeout: 30000, maxBuffer: 8 * 1024 * 1024 }, (err, stdout, stderr) => {
-      if (err) return reject(new Error((stderr || err.message).trim().split('\n')[0]));
-      let out;
-      try { out = JSON.parse(stdout); } catch { return reject(new Error('gh returned something that isn\'t JSON')); }
-      if (out.errors && out.errors.length) return reject(new Error(out.errors.map(e => e.message).join('; ')));
-      resolve(out.data);
-    });
+    execFile(
+      GH(),
+      args,
+      { env, timeout: 30000, maxBuffer: 8 * 1024 * 1024 },
+      (err, stdout, stderr) => {
+        if (err) {
+          return reject(new Error((stderr || err.message).trim().split('\n')[0]));
+        }
+        let out;
+        try {
+          out = JSON.parse(stdout);
+        } catch {
+          return reject(new Error("gh returned something that isn't JSON"));
+        }
+        if (out.errors && out.errors.length) {
+          return reject(new Error(out.errors.map((e) => e.message).join('; ')));
+        }
+        resolve(out.data);
+      },
+    );
   });
 }
 
@@ -56,17 +71,28 @@ const THREAD = `mutation($review: ID!, $path: String!, $line: Int!, $side: DiffS
  */
 export async function addToPendingReview(repo, number, draft) {
   const [owner, name] = String(repo).split('/');
-  if (!owner || !name) throw Object.assign(new Error('the story has no repo'), { status: 400 });
+  if (!owner || !name) {
+    throw Object.assign(new Error('the story has no repo'), { status: 400 });
+  }
   if (!draft.path || !(Number(draft.line) > 0)) {
-    throw Object.assign(new Error('only line comments can go into a review; copy this one instead'), { status: 400 });
+    throw Object.assign(
+      new Error('only line comments can go into a review; copy this one instead'),
+      { status: 400 },
+    );
   }
   const body = String(draft.body || '').trim();
-  if (!body) throw Object.assign(new Error('the draft is empty'), { status: 400 });
+  if (!body) {
+    throw Object.assign(new Error('the draft is empty'), { status: 400 });
+  }
 
   const found = await graphql(FIND, { owner, name, number: Number(number) });
   const pr = found.repository && found.repository.pullRequest;
-  if (!pr) throw Object.assign(new Error(`couldn't find ${repo}#${number}`), { status: 404 });
-  const mine = (pr.reviews.nodes || []).find(r => r.author && r.author.login === found.viewer.login);
+  if (!pr) {
+    throw Object.assign(new Error(`couldn't find ${repo}#${number}`), { status: 404 });
+  }
+  const mine = (pr.reviews.nodes || []).find(
+    (r) => r.author && r.author.login === found.viewer.login,
+  );
   let review = mine && mine.id;
   let started = false;
   if (!review) {
@@ -75,7 +101,14 @@ export async function addToPendingReview(repo, number, draft) {
     started = true;
   }
   const side = draft.side === 'L' ? 'LEFT' : 'RIGHT';
-  const t = await graphql(THREAD, { review, path: draft.path, line: Number(draft.line), side, body });
-  const node = t.addPullRequestReviewThread.thread && t.addPullRequestReviewThread.thread.comments.nodes[0];
+  const t = await graphql(THREAD, {
+    review,
+    path: draft.path,
+    line: Number(draft.line),
+    side,
+    body,
+  });
+  const node =
+    t.addPullRequestReviewThread.thread && t.addPullRequestReviewThread.thread.comments.nodes[0];
   return { review, started, url: node ? node.url : null };
 }
