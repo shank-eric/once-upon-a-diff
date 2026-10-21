@@ -23,7 +23,7 @@ import { Inbox, newId } from './inbox.mjs';
 import { Builds } from './builds.mjs';
 import { addComment } from './comments.mjs';
 import { freshness, currentHead, changesSince, newerCount } from './freshness.mjs';
-import { stateKeyOf, readMarks, mark, draftStatus, githubComments, forgetComments, addedMark, noteAdded } from './drafts.mjs';
+import { stateKeyOf, readMarks, mark, draftStatus, githubComments, forgetComments, addedMark, noteAdded, draftKey } from './drafts.mjs';
 import { addToPendingReview } from './review.mjs';
 import { statusOf, listeningOf, answerContext, runAutoAnswer } from './health.mjs';
 import { readReads, noteRead, sinceOf, readSha, changedSinceRead, SHA_RE } from './reads.mjs';
@@ -307,7 +307,8 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
         if (meta.kind === 'github' && meta.repo && meta.number) {
           try { ghc = await githubComments(meta.repo, meta.number); } catch (e) { error = `couldn't read the PR's comments with gh: ${e.message}`; }
         }
-        return send(200, { drafts: draftStatus(data.chapters, readMarks(home, key), ghc), login: ghc ? ghc.login : null, checked_at: new Date().toISOString(), error, added });
+        const notes = meta.kind === 'local' ? stories.readState(id, 'notes.json', []) : null;
+        return send(200, { drafts: draftStatus(data.chapters, readMarks(home, key), ghc, notes), login: ghc ? ghc.login : null, checked_at: new Date().toISOString(), error, added });
       }
       if (what === 'comments' && req.method === 'POST') {
         // a comment drafted in Q&A lands in the chapter's Draft comments (never posted anywhere)
@@ -382,6 +383,21 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
           inbox.append({ type: 'note', ...ctx, action: 'updated', note: notes[i] });
           return send(200, notes[i]);
         }
+        if (body.chapter != null && body.index != null) {
+          // Add to fix before push: a drafted comment from the story becomes a note, once
+          const data = stories.load(id);
+          const c = data.chapters[int(body.chapter) - 1] && data.chapters[int(body.chapter) - 1].comments[int(body.index)];
+          if (!c) throw new HttpError(404, 'no such draft');
+          const rel = relOfDraft(c.path, data.local.files.map(f => f.rel));
+          if (!rel || !(int(c.line) > 0)) throw new HttpError(400, 'only a draft on a line of a file in the diff can go in fix before push');
+          const key = draftKey(c);
+          if (notes.some(n => n.draft === key)) throw new HttpError(409, 'it\'s already in fix before push');
+          const note = { id: newId('n'), at: new Date().toISOString(), path: rel, side: c.side === 'L' ? 'L' : 'R', line: int(c.line), body: str(c.body, 8000).trim(), done: false, draft: key, chapter: int(body.chapter) };
+          notes.push(note);
+          stories.writeState(id, 'notes.json', notes);
+          inbox.append({ type: 'note', ...ctx, action: 'added', from_draft: true, note });
+          return send(200, note);
+        }
         const text = str(body.body, 8000);
         if (!text || !text.trim()) throw new HttpError(400, 'body is required');
         const note = { id: newId('n'), at: new Date().toISOString(), path: str(body.path, 1000), side: body.side === 'L' ? 'L' : 'R', line: int(body.line), body: text.trim(), done: false };
@@ -428,3 +444,11 @@ function localPage(id, meta, token) {
 <body class="ds-local"><div id="ds-app"><p class="ds-muted ds-loading">Loading the story…</p></div></body></html>`;
 }
 
+/** The diff file a drafted comment's path names: the path itself, or the one file it's a suffix of (`Combobox/component.tsx`). */
+export function relOfDraft(name, rels) {
+  const t = String(name || '').trim().replace(/^\.\//, '');
+  if (!t) return null;
+  if (rels.includes(t)) return t;
+  const hits = rels.filter(r => r.endsWith('/' + t));
+  return hits.length === 1 ? hits[0] : null;
+}

@@ -167,10 +167,11 @@ export function noteAdded(home, key, draft, added = {}) {
 
 /**
  * Status of every draft in the story's chapters:
- * [{chapter, index, key, status: 'draft'|'posted'|'pending', dismissed, source, url, score, added}]
+ * [{chapter, index, key, status: 'draft'|'posted'|'pending', dismissed, source, url, score, added, fix}]
  * added is {at, url, started} while an Add to my review is waiting to show on the page, else null.
+ * fix is {id, done, path, side, line}, the fix-before-push note a local story's draft became, else null.
  */
-export function draftStatus(chapters, marks, gh = null) {
+export function draftStatus(chapters, marks, gh = null, notes = null) {
   const asPosted = list => list.map(e => ({ ...e, path: isGeneral(e) ? null : e.path }));
   const out = [];
   chapters.forEach((ch, ci) => (ch.comments || []).forEach((c, i) => {
@@ -178,6 +179,9 @@ export function draftStatus(chapters, marks, gh = null) {
     const add = bestMatch(d, asPosted(marks.added || []));
     const row = { chapter: ci + 1, index: i, key: draftKey(d), status: 'draft', dismissed: !!bestMatch(d, asPosted(marks.dismissed)), source: null, url: null, score: null };
     row.added = add ? { at: add.at, url: add.url || null, started: !!add.started } : null;
+    // a local story's draft that Add to fix before push made into a note
+    const note = notes ? notes.find(n => n.draft === row.key) : null;
+    row.fix = note ? { id: note.id, done: !!note.done, path: note.path, side: note.side, line: note.line } : null;
     const unmarked = bestMatch(d, asPosted(marks.unposted));
     const manual = bestMatch(d, asPosted(marks.posted));
     const auto = gh && !unmarked ? bestMatch(d, gh.comments) : null;

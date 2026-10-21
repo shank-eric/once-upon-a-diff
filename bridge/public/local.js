@@ -283,7 +283,14 @@ function mount(initial) {
     loadQuestions: () => api('GET', `${S}/questions`).then(r => r.questions),
     drafts: {
       load: () => api('GET', `${S}/drafts`),
-      act: (chapter, index, action) => api('POST', `${S}/drafts`, { chapter, index, action }),
+      act: async (chapter, index, action) => {
+        if (action !== 'fix') return api('POST', `${S}/drafts`, { chapter, index, action });
+        // Add to fix before push: the bridge makes the draft a note (once), which joins the checklist and the diff
+        const note = await api('POST', `${S}/notes`, { chapter, index });
+        story.local.notes = [...story.local.notes.filter(n => n.id !== note.id), note];
+        placeNotes();
+        return api('GET', `${S}/drafts`);
+      },
     },
     status: () => api('GET', `/api/status?story=${encodeURIComponent(BOOT.story)}`).catch(err => {
       throw Object.assign(err, { code: /token/.test(err.message) ? 'token' : /HTTP 404|not found/.test(err.message) ? 'old' : 'down' });

@@ -76,7 +76,7 @@
  */
 // ---------- drafts added to his pending review (no DOM here, so node tests can use these)
 /**
- * How the panel shows one draft row from the bridge: 'dismissed', 'posted', 'pending', 'added' or 'draft'.
+ * How the panel shows one draft row from the bridge: 'dismissed', 'fix', 'posted', 'pending', 'added' or 'draft'.
  * 'added' is Add to my review's own state: it's in his pending review, but GitHub doesn't redraw an open
  * Files changed page for that, so this page doesn't show it yet. It turns into the usual posted or pending
  * display once gh matches it on a page loaded after the add, or the comment turns up on the page (onPage).
@@ -85,6 +85,7 @@
 export function draftView(row, { pageAt = 0, onPage = false } = {}) {
   const r = row || { status: 'draft', dismissed: false };
   if (r.dismissed) return { show: 'dismissed', settle: false };
+  if (r.fix) return { show: 'fix', settle: false }; // a local story's draft that's now a fix-before-push note
   const known = r.status === 'posted' || r.status === 'pending' ? r.status : 'draft';
   if (!r.added) return { show: known, settle: false };
   const github = r.source === 'github';
@@ -1500,17 +1501,17 @@ export function storyOverlay(INPUT, opts = {}) {
   }
   const rowKey = (n, i) => { const r = draftRows.find((x) => x.chapter === n && x.index === i); return r && r.key ? r.key : `${n}:${i}`; };
   async function draftAct(n, i, action) {
-    const btn = action === 'review' && $(`.prs-comment[data-n="${n}"][data-i="${i}"] [data-draft-act="review"]`);
+    const btn = (action === 'review' || action === 'fix') && $(`.prs-comment[data-n="${n}"][data-i="${i}"] [data-draft-act="${action}"]`);
     if (btn) { btn.disabled = true; btn.textContent = 'Adding…'; }
     const key = rowKey(n, i);
     try {
       const r = await opts.drafts.act(n, i, action);
       draftRows = r.drafts || draftRows; draftError = r.error || null; draftsAt = Date.now();
-      if (action === 'review') reviewErrors.delete(key);
+      if (action === 'review' || action === 'fix') reviewErrors.delete(key);
       if (action === 'review' && r.added) message(`Added to your pending review${r.added.started ? ' (started a new one)' : ''}. Nobody else sees it until you submit the review.`);
     } catch (e) {
       const why = e && e.message ? e.message : String(e);
-      if (action === 'review') reviewErrors.set(key, why); // shown on the draft, which keeps its buttons
+      if (action === 'review' || action === 'fix') reviewErrors.set(key, why); // shown on the draft, which keeps its buttons
       else message(`Couldn't save that: ${why}`);
     }
     renderDrafts();
@@ -1533,7 +1534,7 @@ export function storyOverlay(INPUT, opts = {}) {
     const overview = !state.n; // the Overview lists every chapter's drafts
     const rows = draftRows.filter((r) => (overview ? DATA.chapters[r.chapter - 1] && (DATA.chapters[r.chapter - 1].comments || [])[r.index] : r.chapter === state.n));
     const by = new Map(rows.map((r) => [`${r.chapter}:${r.index}`, r]));
-    let posted = 0; let pending = 0; let dismissed = 0;
+    let posted = 0; let pending = 0; let dismissed = 0; let fixed = 0;
     for (const el of box.querySelectorAll('.prs-comment[data-i]')) {
       const n = Number(el.getAttribute('data-n'));
       const i = Number(el.getAttribute('data-i'));
@@ -1559,6 +1560,12 @@ export function storyOverlay(INPUT, opts = {}) {
         st.hidden = false;
         st.innerHTML = 'Dismissed. It won\'t be suggested again for this PR.';
         add('restore', 'Restore', 'Bring this draft back');
+      } else if (v.show === 'fix') {
+        fixed++;
+        el.classList.add('prs-c-done', 'prs-c-pending');
+        st.hidden = false;
+        const jump = `<button class="prs-linkish" ${refAttrs(r.fix.path, { side: r.fix.side === 'L' ? 'L' : 'R', start: Number(r.fix.line), end: Number(r.fix.line) })}>Jump to line ${esc(r.fix.line)}</button>`;
+        st.innerHTML = `<span class="prs-pend">In fix before push</span>${r.fix.done ? ' · <span class="prs-ok">done ✓</span>' : ''} · ${jump}`;
       } else if (v.show === 'posted') {
         posted++;
         el.classList.add('prs-c-done');
@@ -1587,6 +1594,11 @@ export function storyOverlay(INPUT, opts = {}) {
         else if (overview) { st.hidden = false; st.innerHTML = '<span class="prs-cdraft">Draft</span>, not posted'; }
         add('dismiss', 'Dismiss', 'Not a comment you want: hide it, and don\'t suggest it again');
         add('posted', 'Mark posted', 'You posted this (or your own version of it)');
+        if (DATA.kind === 'local' && c && c.path && Number(c.line) > 0) {
+          add('fix', 'Add to fix before push', 'Makes it a fix-before-push note on its line, in the checklist and in `diff-story notes`');
+          const err = reviewErrors.get(r.key || `${n}:${i}`);
+          if (err) { st.hidden = false; st.innerHTML = `<span class="prs-cerr">${esc(err)}</span>`; }
+        }
         if (HOST === 'GitHub' && c && c.path && Number(c.line) > 0) {
           add('review', 'Add to my review', 'Adds it to your pending review on GitHub. Only you can see it until you submit the review yourself.');
           const err = reviewErrors.get(r.key || `${n}:${i}`);
@@ -1594,8 +1606,8 @@ export function storyOverlay(INPUT, opts = {}) {
         }
       }
     }
-    const left = rows.length ? rows.length - posted - pending - dismissed : box.querySelectorAll('.prs-comment[data-i]').length;
-    box.querySelector('.prs-draftsum').textContent = rows.length ? `(${[`${left} to post`, posted && `${posted} posted`, pending && `${pending} pending`, dismissed && `${dismissed} dismissed`].filter(Boolean).join(' · ')})` : '';
+    const left = rows.length ? rows.length - posted - pending - dismissed - fixed : box.querySelectorAll('.prs-comment[data-i]').length;
+    box.querySelector('.prs-draftsum').textContent = rows.length ? `(${[`${left} to post`, fixed && `${fixed} in fix before push`, posted && `${posted} posted`, pending && `${pending} pending`, dismissed && `${dismissed} dismissed`].filter(Boolean).join(' · ')})` : '';
     box.querySelector('.prs-drafttoggles').innerHTML = [
       posted ? `<button class="prs-linkish" data-draft-show="showPosted">${state.showPosted ? 'Hide' : 'Show'} posted (${posted})</button>` : '',
       dismissed ? `<button class="prs-linkish" data-draft-show="showDismissed">${state.showDismissed ? 'Hide' : 'Show'} dismissed (${dismissed})</button>` : '',

@@ -408,13 +408,22 @@ try {
   await lp.waitForTimeout(400);
   const notes = JSON.parse(readFileSync(path.join(home, 'state', local.id, 'notes.json'), 'utf8'));
   check(notes.length === 1 && notes[0].line === 2, 'a fix-before-push note is kept by the bridge');
+  // Add to fix before push: the drafted comment becomes a note, and the draft says it's there
+  await lp.locator('#dsm-panel .prs-drafts .prs-comment [data-draft-act="fix"]').click();
+  await lp.waitForTimeout(500);
+  const fixState = await lp.locator('#dsm-panel .prs-drafts .prs-comment .prs-cstate').first().textContent();
+  check(/In fix before push · Jump to line 2/.test(fixState) && (await lp.locator('#dsm-panel .prs-drafts [data-draft-act="fix"]').count()) === 0, `Add to fix before push turns the draft into "In fix before push": "${fixState}"`);
+  const fixNotes = JSON.parse(readFileSync(path.join(home, 'state', local.id, 'notes.json'), 'utf8'));
+  check(fixNotes.length === 2 && fixNotes.some(x => x.body === 'Fix B' && x.draft && x.path === 'one.txt' && x.line === 2), 'it is a real note on that line');
+  check(/Fix B/.test(await lp.locator('.ds-notes-list').textContent()) && /2 open/.test(await lp.locator('.ds-notes-toggle').textContent()), 'and it shows in the page\'s checklist');
   await shot(lp, 'local-chapter1');
   await lp.reload();
   await lp.waitForSelector('#diff-story-panel', { state: 'attached', timeout: 5000 });
   await lp.waitForTimeout(300);
   check(/chapter 1/.test(await lp.locator('#dsm-panel .prs-count-note').textContent()), 'local page comes back on chapter 1 after a reload');
   check((await lp.locator('#dsm-panel details.prs-filesbox[open]').count()) === 1, 'an opened files list stays open after a reload');
-  check((await lp.locator('.ds-note-row').count()) === 1, 'the note is still on the line after a reload');
+  check((await lp.locator('.ds-note-row').count()) === 2, 'the notes (his own and the added draft) are still on the line after a reload');
+  check(/In fix before push/.test(await lp.locator('#dsm-panel .prs-drafts').textContent()), 'and the draft still says In fix before push');
   check(errors.length === 0, `no page errors on the local page${errors.length ? `: ${errors.join('; ')}` : ''}`);
 } finally {
   await context.close();
