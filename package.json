@@ -17,6 +17,7 @@
     "vendor": "node scripts/vendor-hljs.mjs",
     "lint": "eslint . --cache --cache-strategy content",
     "lint:fix": "eslint . --fix",
+    "lint:sh": "shellcheck skills/pr-story/bin/*.sh",
     "lint-staged": "./node_modules/.bin/lint-staged",
     "format": "prettier --cache --cache-location=.prettiercache --write .",
     "format:check": "prettier --cache --cache-location=.prettiercache --check .",
@@ -37,7 +38,8 @@
     "husky": "9.1.7",
     "lint-staged": "16.4.0",
     "playwright-core": "1.64.0",
-    "prettier": "3.9.9"
+    "prettier": "3.9.9",
+    "shellcheck": "3.1.0"
   },
   "lint-staged": {
     "*.{js,mjs}": [

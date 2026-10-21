@@ -37,6 +37,7 @@ fi
 
 gh api --paginate "repos/$REPO/pulls/$PR/comments" --jq '.[]' | jq -s . > "$OUT/comments.json"
 
+# shellcheck disable=SC2016 # $owner, $name and $pr are GraphQL variables, not the shell's
 gh api graphql -F owner="$OWNER" -F name="$NAME" -F pr="$PR" -f query='
 query($owner:String!,$name:String!,$pr:Int!){repository(owner:$owner,name:$name){pullRequest(number:$pr){
   reviewThreads(first:100){nodes{isResolved isOutdated path line originalLine
