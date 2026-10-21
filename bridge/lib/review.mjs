@@ -1,22 +1,22 @@
 /**
- * Add a drafted comment to Eric's pending review on a PR, through GitHub's API.
+ * Add a drafted comment to the reviewer's pending review on a PR, through GitHub's API.
  *
- * Eric approved this on 2026-10-20 as the one write to GitHub: a comment goes into
- * his *pending* review (visible only to him until he submits it). It never submits
- * a review, never posts a standalone comment, never approves, and never touches
- * Viewed. If he has no pending review yet, one is started without an event, which
+ * This is the one write to GitHub, and only on a click of Add to my review: a comment goes
+ * into the reviewer's *pending* review (visible only to them until they submit it). It never
+ * submits a review, never posts a standalone comment, never approves, and never touches
+ * Viewed. If there's no pending review yet, one is started without an event, which
  * GitHub keeps as PENDING.
  *
- * Runs `gh api graphql` as the logged-in gh user, with GITHUB_TOKEN removed from the
- * environment (the keychain login has repo scope; GITHUB_TOKEN here is a yarn-only token).
+ * Runs `gh api graphql` as the logged-in gh user (GITHUB_TOKEN is dropped first when
+ * config.json sets gh_unset_github_token).
  */
 import { execFile } from 'node:child_process';
+import { ghEnv } from './config.mjs';
 
 const GH = () => process.env.DIFF_STORY_GH || 'gh';
 
 function graphql(query, vars) {
-  const env = { ...process.env };
-  delete env.GITHUB_TOKEN;
+  const env = ghEnv();
   const args = ['api', 'graphql', '-f', `query=${query}`];
   for (const [k, v] of Object.entries(vars)) args.push(typeof v === 'number' ? '-F' : '-f', `${k}=${v}`);
   return new Promise((resolve, reject) => {

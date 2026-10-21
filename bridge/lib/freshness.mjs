@@ -9,13 +9,13 @@
 import { execFile } from 'node:child_process';
 import { diffText } from './git.mjs';
 import { parseUnifiedDiff } from './diff.mjs';
+import { ghEnv } from './config.mjs';
 
 const TTL_MS = 60000;
 const cache = new Map();
 
 function gh(args) {
-  const env = { ...process.env };
-  delete env.GITHUB_TOKEN;
+  const env = ghEnv();
   return new Promise((resolve, reject) => {
     execFile(process.env.DIFF_STORY_GH || 'gh', ['api', ...args], { env, timeout: 20000, maxBuffer: 32 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) reject(new Error((stderr || err.message).trim().split('\n')[0]));

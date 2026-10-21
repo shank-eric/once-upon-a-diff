@@ -19,7 +19,7 @@
  *   diff-story drafts  --story ID [--json]                         each drafted comment: draft, posted, in your pending review, or dismissed
  *   diff-story doctor  [--port N]                                  is everything connected? a pass/fail list with fixes
  *   diff-story builds  [--start ID] [--json]                       pending "Build story" requests, queued or building, and for an update where
- *                                                                  Eric's reading stopped (since); --start claims one as it's built
+ *                                                                  the reviewer's reading stopped (since); --start claims one as it's built
  *   diff-story done    <build id | owner/repo#N> [--failed] [--note TEXT]   finish one (a story turning up finishes it too)
  *   diff-story answer  --question ID (--text T | --file F)          answer a question; the panel shows it
  *   diff-story notes   --story ID [--json]                         fix-before-push notes for a local story
@@ -27,12 +27,13 @@
  *                                                                  find the Claude Code sessions that made these commits (session-story's
  *                                                                  extractor) and write the evidence for a story's "How it got here" notes
  *
- * DIFF_STORY_HOME moves ~/.diff-story.
+ * DIFF_STORY_HOME moves ~/.diff-story. Personal settings (display name, time zone, checkout folders,
+ * opener, gh token handling) are optional keys in its config.json: see readSettings in lib/config.mjs.
  */
 import { execFile } from 'node:child_process';
 import { appendFileSync, copyFileSync, existsSync, readFileSync, statSync, writeFileSync, watch } from 'node:fs';
 import path from 'node:path';
-import { homeDir, loadConfig, saveConfig, newToken } from '../lib/config.mjs';
+import { homeDir, loadConfig, saveConfig, newToken, formatTime, openArgv, readerOf } from '../lib/config.mjs';
 import { createBridge } from '../lib/server.mjs';
 import { StoryStore, readMeta } from '../lib/stories.mjs';
 import { createLocalStory, slug } from '../lib/local.mjs';
@@ -65,7 +66,7 @@ function parseArgs(argv) {
 }
 
 const out = s => process.stdout.write(s + '\n');
-const et = iso => (iso ? new Date(iso).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' ET' : '');
+const et = iso => formatTime(iso);
 
 async function probe(port, token) {
   try {
@@ -99,7 +100,7 @@ function serve(home, cfg, opts) {
 function describe(e) {
   const where = [e.story, e.chapter || (e.step != null ? `step ${e.step}` : ''), e.file].filter(Boolean).join(' · ');
   if (e.type === 'question') return `[${et(e.at)}] question ${e.id} (${where})\n${e.text}`;
-  if (e.type === 'build_request') return `[${et(e.at)}] build request ${e.id}: ${e.repo}#${e.number} ${e.url}${e.mode === 'update' ? `\n${updateOf(e)}` : ''}\n${e.text || ''}`.trimEnd();
+  if (e.type === 'build_request') return `[${et(e.at)}] build request ${e.id}: ${e.repo}#${e.number} ${e.url}${e.mode === 'update' ? `\n${updateOf(e, readerOf())}` : ''}\n${e.text || ''}`.trimEnd();
   if (e.type === 'build_done') return `[${et(e.at)}] build ${e.build} ${e.status} (${e.repo}#${e.number})${e.story ? ` story ${e.story}` : ''}${e.note ? `: ${e.note}` : ''}`;
   if (e.type === 'answer') return `[${et(e.at)}] answer to ${e.question}\n${e.text}`;
   if (e.type === 'note') return `[${et(e.at)}] note ${e.action} (${e.story}) ${e.note.path}${e.note.line ? `:${e.note.side === 'L' ? 'L' : ''}${e.note.line}` : ''}${e.note.done ? ' [done]' : ''}\n${e.note.body}`;
@@ -147,7 +148,7 @@ const COMMANDS = {
     if (!running && !opts['no-serve']) await serve(home, cfg, { ...opts, port });
     else if (!running) process.stderr.write(`No bridge on port ${port}. Start one with: diff-story serve\n`);
     out(url);
-    if (!opts['no-open']) execFile('open', [url], () => {});
+    if (!opts['no-open']) { const [cmd, ...args] = openArgv(url, home); execFile(cmd, args, () => {}); }
   },
 
   publish(home, cfg, opts) {
@@ -262,7 +263,7 @@ const COMMANDS = {
     const pending = builds.pending();
     if (opts.json) return out(JSON.stringify(pending.map(b => builds.view(b)), null, 2));
     if (!pending.length) return out('No pending build requests.');
-    for (const b of pending) out(`${b.id}\t${builds.stateOf(b)}\t${b.repo}#${b.number}\t${et(b.requested_at)}\t${b.url}${b.mode === 'update' ? `\n\t${updateOf(b)}` : ''}`);
+    for (const b of pending) out(`${b.id}\t${builds.stateOf(b)}\t${b.repo}#${b.number}\t${et(b.requested_at)}\t${b.url}${b.mode === 'update' ? `\n\t${updateOf(b, readerOf(home))}` : ''}`);
   },
 
   done(home, cfg, opts) {

@@ -21,6 +21,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { newId } from './inbox.mjs';
 import { sameRepo } from './repos.mjs';
+import { readerOf } from './config.mjs';
 
 export const CLAIM_FRESH_MS = 30 * 60 * 1000;
 
@@ -33,22 +34,22 @@ const sha7 = x => String(x || '').slice(0, 7);
  * "Since you read it" chapter for since_sha..the PR's head, first, with the other chapters kept. retell asks for a
  * whole new story (a rebase, or a big rework).
  */
-export function buildText(b) {
+export function buildText(b, reader = "the reviewer's") {
   const pr = `${b.repo}#${b.number}`;
   if (b.mode !== 'update') return `Build a story for ${pr}: ${b.url}`;
   if (b.retell) return `Re-tell the story for ${pr} from scratch at the PR's latest commit (it was told from ${sha7(b.base_sha)}): ${b.url}`;
   const since = b.since_sha || b.base_sha;
-  const why = b.since_source === 'read' ? `, where Eric's reading stopped` : '';
+  const why = b.since_source === 'read' ? `, where ${reader} reading stopped` : '';
   return `Update the story for ${pr} (told from ${sha7(b.base_sha)}): put a "Since you read it" chapter first for ${sha7(since)}..the PR's head${why}, and keep the other chapters: ${b.url}`;
 }
 /** One line on an update: an addendum from where, or a re-tell. */
-export function updateOf(b) {
+export function updateOf(b, reader = "the reviewer's") {
   if (b.mode !== 'update') return '';
   if (b.retell) return `re-tell from scratch (the story was told from ${sha7(b.base_sha)})`;
   const reads = b.reads || [];
   const since = b.since_sha || b.base_sha;
   return `update: "Since you read it" from ${sha7(since)}`
-    + (b.since_source === 'read' ? ` (where his reading stopped; ${reads.length} chapter${reads.length === 1 ? '' : 's'} read)` : ' (the story\'s old head; no chapters read)');
+    + (b.since_source === 'read' ? ` (where ${reader} reading stopped; ${reads.length} chapter${reads.length === 1 ? '' : 's'} read)` : ' (the story\'s old head; no chapters read)');
 }
 /** The update fields a request carries to `wait` and `builds --json`. */
 const updateFields = b => (b.mode === 'update' ? {
@@ -108,7 +109,7 @@ export class Builds {
       this.claim(b.id, consumer);
       return {
         type: 'build_request', id: b.id, at: b.requested_at, repo: b.repo, number: b.number, url: b.url, requested_at: b.requested_at,
-        ...updateFields(b), text: buildText(b),
+        ...updateFields(b), text: buildText(b, readerOf(this.home)),
       };
     });
   }
@@ -116,7 +117,7 @@ export class Builds {
   /**
    * A new request, or the pending one already there for that PR. Throws on a bad repo or number. The URL is always rebuilt from them.
    * An update can carry `retell` (a whole new story instead of a "Since you read it" chapter) and `since` (sinceOf() in reads.mjs,
-   * plus the story id): where Eric's reading stopped. A queued update can still switch between the two.
+   * plus the story id): where the reviewer's reading stopped. A queued update can still switch between the two.
    */
   request({ repo, number, requested_at, mode, base_sha, retell = false, since = null }) {
     if (!REPO_RE.test(String(repo || ''))) throw Object.assign(new Error('bad repo'), { status: 400 });
@@ -135,7 +136,7 @@ export class Builds {
       delete next.retell;
       all[key] = { ...next, ...(retell ? { retell: true } : {}) };
       this.save(all);
-      this.inbox.append({ type: 'build_request', id: old.id, repo, number: n, url: prUrl, requested_at: old.requested_at, ...updateFields(all[key]), text: buildText(all[key]) });
+      this.inbox.append({ type: 'build_request', id: old.id, repo, number: n, url: prUrl, requested_at: old.requested_at, ...updateFields(all[key]), text: buildText(all[key], readerOf(this.home)) });
       return all[key];
     }
     const at = Number.isFinite(Date.parse(requested_at)) ? new Date(requested_at).toISOString() : new Date().toISOString();
@@ -147,7 +148,7 @@ export class Builds {
     const b = { id: newId('b'), repo, number: n, url: prUrl, requested_at: at, status: 'pending', ...(update ? { mode: 'update', base_sha, ...(retell ? { retell: true } : {}), ...where } : {}) };
     all[key] = b;
     this.save(all);
-    this.inbox.append({ type: 'build_request', id: b.id, repo, number: n, url: prUrl, requested_at: at, ...updateFields(b), text: buildText(b) });
+    this.inbox.append({ type: 'build_request', id: b.id, repo, number: n, url: prUrl, requested_at: at, ...updateFields(b), text: buildText(b, readerOf(this.home)) });
     if (this.autoBuild) this.run(b);
     return b;
   }
