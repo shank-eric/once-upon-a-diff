@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { tmp, startBridge, localRepo, writeJson } from './helpers.mjs';
 import { createLocalStory } from '../bridge/lib/local.mjs';
-import { relOfDraft } from '../bridge/lib/server.mjs';
+import { relOfDraft } from '../bridge/server/index.mjs';
 import { draftView } from '../src/js/shared/overlay.js';
 
 test('Add to fix before push makes a local draft a note, once, and the draft says so', async () => {
