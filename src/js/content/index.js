@@ -14,6 +14,7 @@ import { statusControl } from './status.js';
 import { initList } from './list.js';
 import { initConversation } from './convo.js';
 import { decide, filesPage, seen, prefsStore } from './whitespace.js';
+import { stepOfHash } from './tag.js';
 
 const PR_PATH = /^\/([^/]+)\/([^/]+)\/pull\/(\d+)\/(changes|files)(?:\/|$)/;
 const PANEL_ID = 'diff-story-panel';
@@ -63,8 +64,13 @@ function mount() {
   const range = rangeStepOf(cur.data.chapters, location.pathname);
   const onRange = range && cur.rangeFor !== location.pathname;
   if (onRange) cur.rangeFor = location.pathname;
+  // a PR-list "Story · 2 of 5 read" tag links Files changed#dsm-step-N: open on the first unread chapter, once
+  const hashStep = stepOfHash(location.hash);
+  const onHash = !onRange && hashStep && hashStep <= cur.data.chapters.length && cur.hashFor !== location.href;
+  if (onHash) cur.hashFor = location.href;
+  const jump = onRange ? range : onHash ? hashStep : null;
   cur.overlay = storyOverlay(cur.data, {
-    initial: onRange ? { ...cur.ui, n: range, all: false, view: 'story' } : cur.ui,
+    initial: jump ? { ...cur.ui, n: jump, all: false, view: 'story' } : cur.ui,
     host: 'GitHub',
     onState: s => {
       if (!cur || cur.key !== key) return;

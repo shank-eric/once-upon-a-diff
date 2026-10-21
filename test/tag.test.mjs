@@ -52,3 +52,9 @@ test('the Conversation tab is /owner/repo/pull/N and nothing after it', () => {
   assert.deepEqual(conversationPr({ pathname: '/octo-org/api/pull/3058/' }), pr);
   for (const p of ['/octo-org/api/pull/3058/files', '/octo-org/api/pull/3058/changes', '/octo-org/api/pull/3058/commits', '/octo-org/api/pulls']) assert.equal(conversationPr({ pathname: p }), null, p);
 });
+
+test('a #dsm-step-N hash names the step to open on', async () => {
+  const { stepOfHash } = await import('../src/js/content/tag.js');
+  assert.equal(stepOfHash('#dsm-step-3'), 3);
+  for (const h of ['', '#diff-abc', '#dsm-step-', '#dsm-step-x']) assert.equal(stepOfHash(h), null, h);
+});

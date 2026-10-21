@@ -220,7 +220,7 @@ try {
   check(/No story yet/.test(await pill()), `a PR with no story shows "No story yet" with Build story: "${(await pill()).trim()}"`);
   await nb.locator('#diff-story-status button[data-act=build]').click();
   await nb.waitForTimeout(800);
-  check(/Building story/.test(await pill()), `clicking Build story shows Building with the time: "${(await pill()).trim()}"`);
+  check(/Story queued · asked/.test(await pill()), `clicking Build story shows it queued (no session has claimed it yet) with the time: "${(await pill()).trim()}"`);
   const breq = readFileSync(path.join(home, 'inbox.jsonl'), 'utf8').trim().split('\n').map(JSON.parse).find(e => e.type === 'build_request' && e.number === NOSTORY);
   check(!!breq && breq.url === `https://github.com/${owner}/${repo}/pull/${NOSTORY}`, 'the build request lands in the inbox');
   const other = await context.newPage();

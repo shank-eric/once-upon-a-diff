@@ -22,7 +22,7 @@ import { storyRepo, seenCheckout, REPO_RE } from './repos.mjs';
 import { Inbox, newId } from './inbox.mjs';
 import { Builds } from './builds.mjs';
 import { addComment } from './comments.mjs';
-import { freshness, currentHead, changesSince } from './freshness.mjs';
+import { freshness, currentHead, changesSince, newerCount } from './freshness.mjs';
 import { stateKeyOf, readMarks, mark, draftStatus, githubComments, forgetComments, addedMark, noteAdded } from './drafts.mjs';
 import { addToPendingReview } from './review.mjs';
 import { statusOf, listeningOf, answerContext, runAutoAnswer } from './health.mjs';
@@ -96,6 +96,13 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
     }
   };
   const lastPosition = new Map();
+  /** How much of a story he's read, for the PR-list tag: {read, total, next} (next: the first unread step, or null). */
+  const readSummary = (id) => {
+    const reads = readReads(home, stateKeyOf(id, readMeta(stories.dirOf(id))));
+    const done = stories.load(id).chapters.map(c => !!reads[c.key]);
+    const next = done.indexOf(false);
+    return { read: done.filter(Boolean).length, total: done.length, next: next < 0 ? null : next + 1 };
+  };
 
   const server = http.createServer(async (req, res) => {
     const send = (status, body, type = 'application/json; charset=utf-8', extra = {}) => {
@@ -190,13 +197,15 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
           const pending = !!(b && b.status === 'pending');
           if (hits.length) {
             const id = hits.sort((a, c) => Number(c.version) - Number(a.version))[0].id;
-            return { repo, number, state: 'ready', story: id, story_head: readMeta(stories.dirOf(id)).head_oid || null, updating: pending && b.mode === 'update', update_state: pending && b.mode === 'update' ? b.state : null };
+            return { repo, number, state: 'ready', story: id, story_head: readMeta(stories.dirOf(id)).head_oid || null, updating: pending && b.mode === 'update', update_state: pending && b.mode === 'update' ? b.state : null, reads: readSummary(id) };
           }
           return { repo, number, state: pending ? b.state : 'none', request: b };
         });
         // is each story up to date? (the PR's head, read-only gh, cached 60s; only for PRs that have a story)
         await Promise.all(results.filter(r => r.state === 'ready' && r.story_head).map(async r => {
           try { const head = await currentHead(r.repo, r.number); r.current_head = head; r.stale = head !== r.story_head; } catch { r.stale = null; }
+          // read, and new commits since: how many, for "Read · 3 new commits · Update"
+          if (r.stale && r.reads && r.reads.read) { try { r.newer = await newerCount(r.repo, r.story_head, r.current_head); } catch { r.newer = null; } }
         }));
         // is anyone listening for each repo on the page? (the list's "No session listening for owner/name" notice)
         const repos = [...new Map(results.map(r => [r.repo.toLowerCase(), r.repo])).values()];
