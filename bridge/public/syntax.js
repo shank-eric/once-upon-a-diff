@@ -146,7 +146,7 @@ export function highlightFile(file, hljs) {
         (code) => hljs.highlight(code, { language: lang, ignoreIllegals: true }).value,
       ),
     );
-  } catch (e) {
+  } catch {
     return null;
   }
 }

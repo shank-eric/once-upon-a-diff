@@ -75,7 +75,7 @@ export function createQuestions(context) {
       if (changed) {
         render();
       }
-    } catch (e) {
+    } catch {
       /* the bridge may be down; try again on the next tick */
     }
   }

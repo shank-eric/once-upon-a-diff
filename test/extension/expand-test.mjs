@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Loads the unpacked extension into a throwaway Chromium (as load-test.mjs
  * does) and checks that a file or line link in the panel opens what it points
@@ -12,7 +11,6 @@
  *
  *   node test/extension/expand-test.mjs [--headed] [--shots DIR]
  */
-/* global document */ // used inside page.evaluate
 import { chromium } from 'playwright-core';
 import path from 'node:path';
 import { mkdirSync } from 'node:fs';
@@ -209,7 +207,7 @@ try {
           return false;
         }
         toggle.click();
-        await new Promise((res) => setTimeout(res, 800));
+        await new Promise((resolve) => setTimeout(resolve, 800));
         return [...block.querySelectorAll('tr')].every((row) => !row.getClientRects().length);
       }, rel);
     check(await collapse(TSX), `/${view}: the test collapses ${TSX} with GitHub's toggle`);

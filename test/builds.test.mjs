@@ -264,7 +264,7 @@ describe('diff-story wait hands over build requests, queued until claimed', () =
 
     // questions carry their story's repo; a wait's cursor starts from now, so ask after it starts
     const waiting = wait(home, '--repo', 'octo-org/api-server', '--type', 'question');
-    await new Promise((res) => setTimeout(res, 300));
+    await new Promise((resolve) => setTimeout(resolve, 300));
     inbox.append({
       type: 'question',
       id: 'q_other',

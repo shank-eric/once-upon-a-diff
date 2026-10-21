@@ -15,8 +15,8 @@
     "bridge": "node bridge/bin/diff-story.mjs serve",
     "icons": "node scripts/make-icons.mjs",
     "vendor": "node scripts/vendor-hljs.mjs",
-    "js:lint": "eslint './src/**/*.js' './bridge/**/*.{js,mjs}' './test/**/*.mjs' './scripts/**/*.mjs' './skills/**/*.{js,mjs}'",
-    "js:lint:fix": "eslint './src/**/*.js' './bridge/**/*.{js,mjs}' './test/**/*.mjs' './scripts/**/*.mjs' './skills/**/*.{js,mjs}' --fix",
+    "js:lint": "eslint .",
+    "js:lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "yarn js:lint && yarn format:check",
@@ -25,9 +25,13 @@
     "test:expand": "node test/extension/expand-test.mjs"
   },
   "devDependencies": {
-    "eslint": "^8.6.0",
-    "eslint-config-prettier": "^8.7.0",
-    "eslint-plugin-import": "^2.25.4",
+    "@eslint/js": "9.39.5",
+    "eslint": "9.39.5",
+    "eslint-config-prettier": "10.1.8",
+    "eslint-plugin-import": "2.32.0",
+    "eslint-plugin-n": "17.24.0",
+    "eslint-plugin-promise": "7.3.0",
+    "globals": "17.13.0",
     "highlight.js": "11.11.1",
     "playwright-core": "1.64.0",
     "prettier": "3.9.9"

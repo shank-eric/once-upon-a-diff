@@ -14,6 +14,7 @@
 import { escapeHtml, unescapeHtml } from '../util/html.js';
 import { markViewedButton } from './viewed.js';
 
+// eslint-disable-next-line no-control-regex -- the placeholder markers are control characters on purpose
 const PILL_MARK = /\u0001(\d+)\u0001/g;
 /** The marker left in a chapter story's html for its index-th file mention. */
 export const pillMarker = (index) => `\u0001${index}\u0001`;
