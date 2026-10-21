@@ -5,7 +5,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson, localRepo } from './helpers.mjs';
 import { chapterKey, noteRead, readReads, sinceOf } from '../bridge/lib/reads.mjs';
-import { chapterKeyOf, readStepsOf } from '../src/js/shared/overlay.js';
+import { chapterKeyOf, readStepsOf, inferReadSteps } from '../src/js/shared/overlay.js';
 import { clearFreshness } from '../bridge/lib/freshness.mjs';
 import { createLocalStory } from '../bridge/lib/local.mjs';
 
@@ -143,4 +143,25 @@ test('a chapter he has read, and that has not changed since, does not make its f
   const reads = { 'dependencies and ci': { head_sha: A, story_head: A, at: '2026-10-21T19:28:03Z' }, 'the task': { head_sha: A, story_head: A, at: '2026-10-21T19:39:20Z' } };
   assert.deepEqual([...readStepsOf(chapters, { reads })].sort(), [2, 3]);
   assert.deepEqual([...readStepsOf(chapters, { reads, changed: [{ step: 3, files: ['yarn.lock'] }] })], [2], 'a chapter that changed after he read it is due again');
+});
+
+test('a chapter whose files were all Viewed when the page first showed them counts as read, once', () => {
+  const chapters = [{ title: 'Chapter 1: Logging in' }, { title: 'Chapter 2: The task' }, { title: 'Chapter 3: Dependencies and CI' }];
+  const p = (due, viewed, unknown = []) => ({ due, viewed, unknown, noToggle: false });
+  const look = new Map();
+  assert.deepEqual(inferReadSteps(chapters, [p(2, 2), p(3, 3), p(3, 3)], null, look), [], 'nothing until read.json has loaded');
+  assert.equal(look.size, 0);
+  const readInfo = { reads: { 'the task': { head_sha: A, at: '2026-10-21T19:39:20Z' } } };
+  assert.deepEqual(inferReadSteps(chapters, [p(2, 2), p(3, 3), p(3, 2, ['yarn.lock'])], readInfo, look), [1], 'chapter 2 is already read; chapter 3 is not all loaded yet');
+  assert.deepEqual(inferReadSteps(chapters, [p(2, 2), p(3, 3), p(3, 3)], readInfo, look), [3], 'chapter 3 once its files load');
+  assert.deepEqual(inferReadSteps(chapters, [p(2, 2), p(3, 3), p(3, 3)], readInfo, look), [], 'each chapter is looked at once');
+  const fresh = new Map();
+  assert.deepEqual(inferReadSteps(chapters, [p(2, 0), p(0, 0), p(3, 1)], { reads: {} }, fresh), [], 'not all Viewed, or nothing to view: not read');
+  assert.deepEqual(inferReadSteps(chapters, [p(2, 2), p(0, 0), p(3, 3)], { reads: {} }, fresh), [], 'ticking them all later is not the first look');
+});
+
+test('an inferred read is kept with its reason', () => {
+  const home = tmp('home');
+  assert.equal(noteRead(home, 'k', 'start', { head_sha: A, story_head: A, reason: 'inferred' }).reason, 'inferred');
+  assert.equal(noteRead(home, 'k', 'start', { head_sha: A, reason: 'made up' }).reason, 'time');
 });
