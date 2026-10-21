@@ -18,6 +18,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { StoryStore, readMeta, refreshLocal, storyVersion, localVersion } from './stories.mjs';
 import { readPrefs, writePrefs } from './config.mjs';
+import { storyRepo, seenCheckout, REPO_RE } from './repos.mjs';
 import { Inbox, newId } from './inbox.mjs';
 import { Builds } from './builds.mjs';
 import { addComment } from './comments.mjs';
@@ -138,11 +139,16 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
       if (p === '/api/health') return send(200, { ok: true, name: 'diff-story-bridge', version: VERSION });
       if (p === '/api/status' && req.method === 'GET') {
         // the panel's status light: bridge, story, a Claude session listening, autoBuild and autoAnswer
+        // listeners are per repo, so this also works out the page's repo: the story's, or ?repo=
         const sid = url.searchParams.get('story');
+        const qrepo = REPO_RE.test(url.searchParams.get('repo') || '') ? url.searchParams.get('repo') : null;
         let story;
-        if (sid) story = stories.dirOf(sid) ? sid : null;
-        else if (url.searchParams.get('repo')) { const hit = stories.find(url.searchParams.get('repo'), url.searchParams.get('number')); story = hit ? hit.id : null; }
-        return send(200, statusOf({ home, version: VERSION, story, autoBuild, autoAnswer, extensionSeen }));
+        let repo = qrepo;
+        if (sid) {
+          story = stories.dirOf(sid) ? sid : null;
+          if (story) repo = storyRepo(readMeta(stories.dirOf(sid))) || qrepo;
+        } else if (qrepo && url.searchParams.get('number')) { const hit = stories.find(qrepo, url.searchParams.get('number')); story = hit ? hit.id : null; }
+        return send(200, statusOf({ home, version: VERSION, story, repo, autoBuild, autoAnswer, extensionSeen }));
       }
       // page settings kept across stories and restarts (the local page's Hide whitespace)
       if (p === '/api/prefs') {
@@ -156,8 +162,8 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
         return send(200, { id: hit.id, version: hit.version, title: hit.title });
       }
       // build requests: the page's "Build story" button, and the state it shows (ready, building or none)
-      if (p === '/api/builds' && req.method === 'GET') return send(200, { pending: builds.pending() });
-      if (p === '/api/builds' && req.method === 'POST') { statusCache = null; return send(200, { state: 'building', request: builds.request(body) }); }
+      if (p === '/api/builds' && req.method === 'GET') return send(200, { pending: builds.pending().map(b => builds.view(b)) });
+      if (p === '/api/builds' && req.method === 'POST') { statusCache = null; const b = builds.view(builds.request(body)); return send(200, { state: b.state, request: b }); }
       if (p === '/api/stories/status-many' && req.method === 'POST') {
         // PR lists: ready / building / none for many PRs in one call
         const prs = Array.isArray(body.prs) ? body.prs.slice(0, 200) : [];
@@ -166,19 +172,22 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
           const repo = String(x.repo || '');
           const number = Number(x.number);
           const hits = statusCache.list.filter(s => s.kind === 'github' && String(s.repo).toLowerCase() === repo.toLowerCase() && Number(s.number) === number);
-          const b = statusCache.builds[`${repo.toLowerCase()}#${number}`] || null;
+          const b = builds.view(statusCache.builds[`${repo.toLowerCase()}#${number}`] || null);
+          const pending = !!(b && b.status === 'pending');
           if (hits.length) {
             const id = hits.sort((a, c) => Number(c.version) - Number(a.version))[0].id;
-            return { repo, number, state: 'ready', story: id, story_head: readMeta(stories.dirOf(id)).head_oid || null, updating: !!(b && b.status === 'pending' && b.mode === 'update') };
+            return { repo, number, state: 'ready', story: id, story_head: readMeta(stories.dirOf(id)).head_oid || null, updating: pending && b.mode === 'update', update_state: pending && b.mode === 'update' ? b.state : null };
           }
-          return { repo, number, state: b && b.status === 'pending' ? 'building' : 'none', request: b };
+          return { repo, number, state: pending ? b.state : 'none', request: b };
         });
         // is each story up to date? (the PR's head, read-only gh, cached 60s; only for PRs that have a story)
         await Promise.all(results.filter(r => r.state === 'ready' && r.story_head).map(async r => {
           try { const head = await currentHead(r.repo, r.number); r.current_head = head; r.stale = head !== r.story_head; } catch { r.stale = null; }
         }));
-        // whether anyone will pick a build request up, for the badges' "Copy prompt for Claude"
-        return send(200, { results, listening: listeningOf(home) });
+        // is anyone listening for each repo on the page? (the list's "No session listening for owner/name" notice)
+        const repos = [...new Map(results.map(r => [r.repo.toLowerCase(), r.repo])).values()];
+        const listening = Object.fromEntries(repos.map(r => [r, listeningOf(home, { repo: r })]));
+        return send(200, { results, listening });
       }
       if (p === '/api/builds/status' && req.method === 'GET') {
         const repo = url.searchParams.get('repo') || '';
@@ -187,8 +196,10 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
         let b = builds.get(repo, number);
         // the story turned up (for an update: its head moved off the one it was asked to update from)
         if (hit && b && b.status === 'pending' && !(b.mode === 'update' && readMeta(stories.dirOf(hit.id)).head_oid === b.base_sha)) b = builds.done(b.id, { story: hit.id });
-        if (hit) return send(200, { state: 'ready', story: hit.id, version: hit.version, title: hit.title, request: b, updating: !!(b && b.status === 'pending' && b.mode === 'update') });
-        if (b && b.status === 'pending') return send(200, { state: 'building', request: b });
+        b = builds.view(b);
+        const pending = !!(b && b.status === 'pending');
+        if (hit) return send(200, { state: 'ready', story: hit.id, version: hit.version, title: hit.title, request: b, updating: pending && b.mode === 'update', update_state: pending && b.mode === 'update' ? b.state : null });
+        if (pending) return send(200, { state: b.state, request: b }); // queued (no session has it yet) or building
         return send(200, { state: 'none', request: b });
       }
       if (p === '/api/answers' && req.method === 'POST') {
@@ -206,9 +217,12 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
       if (!dir) throw new HttpError(404, 'no story with that id');
       const meta = readMeta(dir);
       const what = m[2] || '';
-      const ctx = { story: id, kind: meta.kind, title: meta.title };
+      const ctx = { story: id, kind: meta.kind, title: meta.title, repo: storyRepo(meta) }; // the repo, for `wait --repo`
 
-      if (!what && req.method === 'GET') return send(200, stories.load(id));
+      if (!what && req.method === 'GET') {
+        if (meta.kind === 'local' && ctx.repo) seenCheckout(home, ctx.repo, meta.repo_path); // where to tell a listener to work from
+        return send(200, stories.load(id));
+      }
       if (what === 'version' && req.method === 'GET') {
         if (meta.kind === 'local') {
           refreshLocal(dir, JSON.parse(readFileSync(path.join(dir, 'meta.json'), 'utf8')));

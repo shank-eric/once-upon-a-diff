@@ -20,6 +20,9 @@ import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { newId } from './inbox.mjs';
+import { sameRepo } from './repos.mjs';
+
+export const CLAIM_FRESH_MS = 30 * 60 * 1000;
 
 const REPO_RE = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
 export const buildKey = (repo, number) => `${String(repo).toLowerCase()}#${Number(number)}`;
@@ -38,39 +41,50 @@ export class Builds {
   save(all) { writeFileSync(this.file, JSON.stringify(all, null, 2)); }
 
   get(repo, number) { return this.all()[buildKey(repo, number)] || null; }
+  pending() { return Object.values(this.all()).filter(b => b.status === 'pending'); }
 
-  /** Build ids already handed to a `diff-story wait` consumer, kept in <home>/cursors/<consumer>.builds.json. */
-  handedFile(consumer) { return path.join(this.home, 'cursors', `${consumer}.builds.json`); }
-  handed(consumer) {
-    try { return new Set(JSON.parse(readFileSync(this.handedFile(consumer), 'utf8')).ids || []); } catch { return new Set(); }
+  /**
+   * A pending request is "queued" until a listener claims it, then "building" while the claim is fresh.
+   * `diff-story wait` claims each request it hands over, and `diff-story builds --start <id>` (which the
+   * diff-story-listen skill runs as it starts each build) claims or refreshes it. A claim with no refresh for
+   * CLAIM_FRESH_MS goes back to queued, and the next wait hands it out again.
+   */
+  stateOf(b, now = Date.now()) {
+    if (!b) return 'none';
+    if (b.status !== 'pending') return b.status;
+    const t = Math.max(Date.parse(b.claimed_at || '') || 0, Date.parse(b.started_at || '') || 0);
+    return t && now - t < CLAIM_FRESH_MS ? 'building' : 'queued';
   }
-  markHanded(consumer, ids) {
-    if (!ids.length) return;
-    const pendingIds = new Set(this.pending().map(b => b.id));
-    const keep = [...this.handed(consumer)].filter(id => pendingIds.has(id)); // finished ones drop out
-    mkdirSync(path.dirname(this.handedFile(consumer)), { recursive: true });
-    writeFileSync(this.handedFile(consumer), JSON.stringify({ ids: [...new Set([...keep, ...ids])], at: new Date().toISOString() }));
+  /** The request with its state, for the pages. */
+  view(b) { return b ? { ...b, state: this.stateOf(b) } : null; }
+
+  claim(idOrKey, consumer, { start = false } = {}) {
+    const all = this.all();
+    const key = Object.keys(all).find(k => all[k].id === idOrKey || k === String(idOrKey).toLowerCase());
+    if (!key || all[key].status !== 'pending') return null;
+    const now = new Date().toISOString();
+    all[key] = { ...all[key], claimed_by: consumer || all[key].claimed_by || 'cli', claimed_at: now, ...(start ? { started_at: now } : {}) };
+    this.save(all);
+    return all[key];
   }
 
   /**
-   * The build requests a wait should hand over: new ones from the inbox, plus pending requests this consumer
-   * was never given (asked before it first waited, or before its inbox cursor). Each goes to a consumer once,
-   * and finished ones are skipped.
+   * The build requests a wait should hand over: queued ones (never claimed, or a claim gone stale) for its repo,
+   * or every repo when it has no --repo, oldest first. They come from builds.json, so ones asked before the
+   * consumer started waiting aren't missed. Each is claimed for the consumer, so another listener doesn't get it too.
    */
-  toHand(consumer, inboxEntries) {
-    const pending = new Map(this.pending().map(b => [b.id, b]));
-    const handed = this.handed(consumer);
-    const fresh = inboxEntries.filter(e => e.type === 'build_request' && pending.has(e.id) && !handed.has(e.id));
-    const seen = new Set(fresh.map(e => e.id));
-    const backlog = [...pending.values()].filter(b => !handed.has(b.id) && !seen.has(b.id))
-      .sort((a, b) => Date.parse(a.requested_at) - Date.parse(b.requested_at))
-      .map(b => ({
+  toHand(consumer, { repo = null } = {}) {
+    const queued = this.pending().filter(b => this.stateOf(b) === 'queued' && (!repo || sameRepo(b.repo, repo)))
+      .sort((a, b) => Date.parse(a.requested_at) - Date.parse(b.requested_at));
+    return queued.map(b => {
+      this.claim(b.id, consumer);
+      return {
         type: 'build_request', id: b.id, at: b.requested_at, repo: b.repo, number: b.number, url: b.url, requested_at: b.requested_at,
-        ...(b.mode === 'update' ? { mode: 'update', base_sha: b.base_sha } : {}), text: `Build a story for ${b.repo}#${b.number}: ${b.url}`, backlog: true,
-      }));
-    return [...backlog, ...fresh];
+        ...(b.mode === 'update' ? { mode: 'update', base_sha: b.base_sha } : {}),
+        text: b.mode === 'update' ? `Update the story for ${b.repo}#${b.number} (told from ${String(b.base_sha).slice(0, 7)}) to the PR's latest commit: ${b.url}` : `Build a story for ${b.repo}#${b.number}: ${b.url}`,
+      };
+    });
   }
-  pending() { return Object.values(this.all()).filter(b => b.status === 'pending'); }
 
   /** A new request, or the pending one already there for that PR. Throws on a bad repo or number. The URL is always rebuilt from them. */
   request({ repo, number, requested_at, mode, base_sha }) {

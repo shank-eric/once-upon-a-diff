@@ -30,6 +30,9 @@ const CSS = `
 `;
 
 const BUILD = '<button data-act="build" title="Ask a Claude session to write a story for this PR">Build story</button>';
+/** The Copy prompt button's hover: what it copies, where to paste it, and the long form for a session without the skill. */
+const copyTitle = (prompt, how, info) => `No Claude session is listening${info.repo ? ` for ${info.repo}` : ''}. Copies ${prompt}. ${how}`
+  + (info.details ? `\n\nWithout the diff-story-listen skill: ${info.details}` : '');
 const esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 const time = iso => {
   const d = new Date(iso);
@@ -66,17 +69,23 @@ export function statusControl({ onOpen, onBuild }) {
     host = null;
     root = null;
   }
-  /** state: ready | building | none | offline | hidden. info: {requested_at, note, prompt} (prompt: no Claude session is listening) */
+  /**
+   * state: ready | queued | building | none | offline | hidden.
+   * info: {requested_at, note, prompt, details, repo, checkout} (prompt: no Claude session is listening for this repo)
+   */
   function set(state, info = {}) {
     if (state === 'hidden' || dismissed) return remove();
     ensure();
     prompt = info.prompt || '';
-    const copy = prompt && (state === 'building' || state === 'none')
-      ? '<button data-act="copy" title="No Claude session is listening for build requests. Copy a prompt to paste into a Claude Code session, which then builds stories and answers questions">Copy prompt for Claude</button>' : '';
+    const how = info.checkout ? `Start Claude Code in ${info.checkout} and paste it.` : info.repo ? `Start Claude Code in your ${info.repo} checkout and paste it.` : 'Paste it into Claude Code.';
+    const copy = prompt && (state === 'queued' || state === 'building' || state === 'none')
+      ? `<button data-act="copy" title="${esc(copyTitle(prompt, how, info))}">Copy prompt for Claude</button>` : '';
     root.setAttribute('data-state', state);
     const close = '<button class="x" data-act="dismiss" title="Hide this until the page reloads" aria-label="Hide">×</button>';
+    const who = prompt ? ' · no session listening' : ' · waiting for a session to take it';
     if (state === 'ready') root.innerHTML = `<span class="label">Story ready</span><button data-act="open" title="Show the story panel">Read it</button>${close}`;
-    else if (state === 'building') root.innerHTML = `<span class="spin" aria-hidden="true"></span><span class="label">Building story <span class="muted">· asked ${esc(time(info.requested_at))}${prompt ? ' · nobody is listening' : ''}</span></span>${copy}${close}`;
+    else if (state === 'queued') root.innerHTML = `<span class="label">Story queued <span class="muted">· asked ${esc(time(info.requested_at))}${who}</span></span>${copy}${close}`;
+    else if (state === 'building') root.innerHTML = `<span class="spin" aria-hidden="true"></span><span class="label">Building story <span class="muted">· asked ${esc(time(info.requested_at))}</span></span>${close}`;
     else if (state === 'none') root.innerHTML = `<span class="label">${info.note ? `<span class="muted">${esc(info.note)}</span> ` : ''}No story yet</span>${BUILD}${copy}${close}`;
     else root.innerHTML = `<span class="label muted">${esc(info.note || 'Story bridge offline')}</span>${close}`;
   }

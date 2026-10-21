@@ -132,11 +132,12 @@ async function sync() {
       const st = await bridge('GET', `/api/builds/status?${q}`);
       if (cur !== mine) return;
       cur.build = st.ok ? st.body.request : null;
-      // is anyone there to build it? (the status light's listening check)
-      const ls = await bridge('GET', '/api/status');
+      // is a session listening for this repo to build it? (the status light's check, per repo)
+      const ls = await bridge('GET', `/api/status?${q}`);
       if (cur !== mine) return;
       cur.listening = ls.ok ? ls.body.listening : null;
-      cur.status = st.ok && st.body.state === 'building' ? 'building' : 'none';
+      // queued: asked for, no session has it yet. building: a session claimed it.
+      cur.status = st.ok && (st.body.state === 'queued' || st.body.state === 'building') ? st.body.state : 'none';
       if (st.ok && st.body.state === 'ready') { cur = null; return; } // it turned up in between; the next tick picks it up
       return;
     }
@@ -170,11 +171,13 @@ const status = statusControl({
 function refreshStatus() {
   if (!alive() || !cur || !prOfLocation()) return status.set('hidden');
   if (cur.data) return status.set(cur.overlay && document.getElementById(PANEL_ID) ? 'hidden' : 'ready');
-  const prompt = cur.listening && !cur.listening.ok ? cur.listening.prompt : null;
-  if (cur.status === 'building') return status.set('building', { requested_at: cur.build && cur.build.requested_at, prompt });
+  const l = cur.listening && !cur.listening.ok ? cur.listening : null;
+  const prompt = l ? l.prompt : null;
+  const more = l ? { details: l.details, repo: l.repo, checkout: l.checkout } : {};
+  if (cur.status === 'queued' || cur.status === 'building') return status.set(cur.status, { requested_at: cur.build && cur.build.requested_at, prompt, ...more });
   if (cur.status === 'none') {
     const failed = cur.build && cur.build.status === 'failed' ? 'Last build failed.' : '';
-    return status.set('none', { note: failed, prompt });
+    return status.set('none', { note: failed, prompt, ...more });
   }
   if (cur.status === 'unreachable') return status.set('offline', { note: 'Story bridge offline' });
   if (/HTTP 401|token/.test(cur.status || '')) return status.set('offline', { note: 'Story bridge rejected the token' });
@@ -189,7 +192,7 @@ async function requestBuild() {
     repo: `${pr.owner}/${pr.repo}`, number: pr.number, url: `https://github.com/${pr.owner}/${pr.repo}/pull/${pr.number}`, requested_at: new Date().toISOString(),
   });
   if (cur !== mine) return;
-  if (r.ok) { cur.status = 'building'; cur.build = r.body.request; lastRetry = Date.now(); }
+  if (r.ok) { cur.status = r.body.state === 'building' ? 'building' : 'queued'; cur.build = r.body.request; lastRetry = Date.now(); }
   else toast(r.status === 404 ? 'This bridge is older than the Build story button. Restart it: diff-story serve' : `Couldn't ask the bridge: ${r.error}`);
   refreshStatus();
 }
@@ -200,7 +203,7 @@ async function checkForUpdates() {
   if (!cur || document.visibilityState !== 'visible') return;
   if (!cur.id) {
     // poll only while a build is pending (every 10s), or slowly while the bridge is down (every 30s)
-    const every = cur.status === 'building' ? 10000 : cur.status === 'unreachable' ? 30000 : 0;
+    const every = cur.status === 'queued' || cur.status === 'building' ? 10000 : cur.status === 'unreachable' ? 30000 : 0;
     if (every && Date.now() - lastRetry > every) {
       lastRetry = Date.now();
       cur = null;

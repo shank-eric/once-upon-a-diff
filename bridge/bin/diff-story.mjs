@@ -10,14 +10,15 @@
  *                                                                  story over local commits, served at /local/<id>/
  *   diff-story publish --dir DIR [--id ID]                         copy a pr-story folder into ~/.diff-story/<owner>-<repo>-<N>/
  *   diff-story inbox   [--story ID] [--type question,note,...] [--unread] [--consumer NAME] [--json]
- *   diff-story wait    [--story ID] [--type question,build_request] [--consumer NAME] [--timeout SECONDS] [--json]
+ *   diff-story wait    [--repo OWNER/NAME | --story ID] [--type question,build_request] [--consumer NAME] [--timeout SECONDS] [--json]
  *                                                                  block until a question or build request arrives, print it, exit (for a background task);
- *                                                                  a consumer's first wait starts from now
+ *                                                                  --repo takes both for that repo's stories and PRs; a consumer's first wait starts from now,
+ *                                                                  but queued build requests are handed over whenever they were asked
  *   diff-story comment --story ID --chapter N [--path P --line L] (--body-file F | --body T)
  *                                                                  add a drafted comment to a chapter's Draft comments (never posted)
  *   diff-story drafts  --story ID [--json]                         each drafted comment: draft, posted, in your pending review, or dismissed
  *   diff-story doctor  [--port N]                                  is everything connected? a pass/fail list with fixes
- *   diff-story builds                                              pending "Build story" requests from the extension
+ *   diff-story builds  [--start ID]                                pending "Build story" requests, queued or building; --start claims one as it's built
  *   diff-story done    <build id | owner/repo#N> [--failed] [--note TEXT]   finish one (a story turning up finishes it too)
  *   diff-story answer  --question ID (--text T | --file F)          answer a question; the panel shows it
  *   diff-story notes   --story ID [--json]                         fix-before-push notes for a local story
@@ -39,6 +40,8 @@ import { Builds } from '../lib/builds.mjs';
 import { addComment } from '../lib/comments.mjs';
 import { stateKeyOf, readMarks, draftStatus, githubComments } from '../lib/drafts.mjs';
 import { beat } from '../lib/health.mjs';
+import { REPO_RE, sameRepo, repoOfCheckout, seenCheckout } from '../lib/repos.mjs';
+import { topLevel } from '../lib/git.mjs';
 import { doctor } from '../lib/doctor.mjs';
 import { findBackstory, briefOf } from '../lib/backstory.mjs';
 
@@ -104,7 +107,7 @@ function describe(e) {
 
 function filterEntries(entries, opts) {
   const types = opts.type ? String(opts.type).split(',') : null;
-  return entries.filter(e => (!types || types.includes(e.type)) && (!opts.story || e.story === opts.story));
+  return entries.filter(e => (!types || types.includes(e.type)) && (!opts.story || e.story === opts.story) && (!opts.repo || sameRepo(e.repo, opts.repo)));
 }
 
 const COMMANDS = {
@@ -166,32 +169,37 @@ const COMMANDS = {
 
   async wait(home, cfg, opts) {
     const inbox = new Inbox(home);
-    const consumer = opts.consumer || 'default';
+    if (opts.repo && !REPO_RE.test(String(opts.repo))) throw new Error('usage: diff-story wait --repo owner/name');
+    // one listener per repo: its own cursor and heartbeat unless --consumer says otherwise
+    const consumer = opts.consumer || (opts.repo ? `repo-${String(opts.repo).toLowerCase().replace('/', '-')}` : 'default');
+    if (opts.repo) {
+      // a wait run from the repo's checkout tells the bridge where that checkout is, for the next prompt
+      try { const top = topLevel(process.cwd()); if (sameRepo(repoOfCheckout(top), opts.repo)) seenCheckout(home, opts.repo, top); } catch { /* not in a checkout */ }
+    }
+    const scope = { ...(opts.repo ? { repo: String(opts.repo) } : {}), ...(opts.story ? { story: String(opts.story) } : {}) };
     const want = { ...opts, type: opts.type || 'question,build_request' };
     const deadline = opts.timeout ? Date.now() + Number(opts.timeout) * 1000 : Infinity;
     if (!existsSync(inbox.file)) writeFileSync(inbox.file, '', { mode: 0o600 });
     // a reader new to the inbox starts from now, not from every old question
     if (!existsSync(inbox.cursorFile(consumer))) inbox.setCursor(consumer, statSync(inbox.file).size);
     // the heartbeat the panel's "Claude listening" light reads
-    beat(home, consumer, 'waiting');
-    const hb = setInterval(() => beat(home, consumer, 'waiting'), 5000);
-    // build requests also come from builds.json, so ones asked before this consumer started aren't missed
+    beat(home, consumer, 'waiting', scope);
+    const hb = setInterval(() => beat(home, consumer, 'waiting', scope), 5000);
+    try { await waitLoop(); } finally { clearInterval(hb); } // an error mustn't leave the heartbeat running
+    async function waitLoop() {
+    // build requests come from builds.json (queued ones, claimed as they're handed over), so none are missed or given twice
     const builds = !opts.story && want.type.split(',').includes('build_request') ? new Builds(home, inbox) : null;
     for (;;) {
-      let entries = filterEntries(inbox.unread(consumer, { advance: true }), want);
-      if (builds) {
-        const handing = builds.toHand(consumer, entries);
-        entries = [...entries.filter(e => e.type !== 'build_request'), ...handing];
-        builds.markHanded(consumer, handing.map(e => e.id));
-      }
+      let entries = filterEntries(inbox.unread(consumer, { advance: true }), want).filter(e => e.type !== 'build_request');
+      if (builds) entries = [...entries, ...builds.toHand(consumer, { repo: opts.repo || null })];
       if (entries.length) {
         clearInterval(hb);
-        beat(home, consumer, 'handling', { question: entries[0].id });
+        beat(home, consumer, 'handling', { ...scope, question: entries[0].id });
         for (const e of entries) {
           if (opts.json) { out(JSON.stringify(e)); continue; }
           out(describe(e));
           if (e.type === 'question') out(`Answer with: diff-story answer --question ${e.id} --text "…"`);
-          if (e.type === 'build_request') out(`Write the story (pr-story renders and publishes it), then: diff-story done ${e.id}`);
+          if (e.type === 'build_request') out(`Run diff-story builds --start ${e.id}, write the story (pr-story renders and publishes it), then: diff-story done ${e.id}`);
           out('');
         }
         return;
@@ -201,6 +209,7 @@ const COMMANDS = {
         const w = watch(inbox.file, () => { w.close(); resolve(); });
         setTimeout(() => { w.close(); resolve(); }, 2000);
       });
+    }
     }
   },
 
@@ -239,10 +248,17 @@ const COMMANDS = {
     if (!ok) process.exitCode = 1;
   },
 
-  builds(home) {
-    const pending = new Builds(home, new Inbox(home)).pending();
+  builds(home, cfg, opts) {
+    const builds = new Builds(home, new Inbox(home));
+    if (opts.start) {
+      // the session says it's building this one now: the badges move from Queued to Building
+      const b = builds.claim(String(opts.start), opts.consumer || 'cli', { start: true });
+      if (!b) throw new Error(`no pending build request ${opts.start}`);
+      return out(`${b.id} building (${b.repo}#${b.number})`);
+    }
+    const pending = builds.pending();
     if (!pending.length) return out('No pending build requests.');
-    for (const b of pending) out(`${b.id}\t${b.repo}#${b.number}\t${et(b.requested_at)}\t${b.url}`);
+    for (const b of pending) out(`${b.id}\t${builds.stateOf(b)}\t${b.repo}#${b.number}\t${et(b.requested_at)}\t${b.url}`);
   },
 
   done(home, cfg, opts) {
