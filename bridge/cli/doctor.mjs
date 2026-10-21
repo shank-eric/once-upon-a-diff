@@ -11,7 +11,7 @@ import { Builds } from '../inbox/builds.mjs';
 import { Inbox } from '../inbox/inbox.mjs';
 import { formatTime } from '../config/settings.mjs';
 
-const et = (iso) => formatTime(iso);
+const localTime = (iso) => formatTime(iso);
 
 function listenerPid(port) {
   try {
@@ -34,7 +34,7 @@ function listenerPid(port) {
 export async function doctor(
   home,
   cfg,
-  { port: portOpt, out = (s) => process.stdout.write(s + '\n') } = {},
+  { port: portOpt, out = (text) => process.stdout.write(text + '\n') } = {},
 ) {
   const port = Number(portOpt || cfg.port);
   const results = [];
@@ -58,11 +58,11 @@ export async function doctor(
   const proc = listenerPid(port);
   let health = null;
   try {
-    const r = await fetch(`http://127.0.0.1:${port}/api/health`, {
+    const response = await fetch(`http://127.0.0.1:${port}/api/health`, {
       headers: { Authorization: `Bearer ${cfg.token}` },
       signal: AbortSignal.timeout(2000),
     });
-    health = { status: r.status, body: await r.json().catch(() => null) };
+    health = { status: response.status, body: await response.json().catch(() => null) };
   } catch {
     health = null;
   }
@@ -106,7 +106,7 @@ export async function doctor(
     seen = null;
   }
   if (seen) {
-    add('PASS', 'Extension', `last talked to the bridge ${et(seen.at)} (${seen.origin})`);
+    add('PASS', 'Extension', `last talked to the bridge ${localTime(seen.at)} (${seen.origin})`);
   } else {
     add(
       'WARN',
@@ -127,7 +127,7 @@ export async function doctor(
       list.length
         ? `${list.length}: ${list
             .slice(0, 6)
-            .map((s) => s.id)
+            .map((story) => story.id)
             .join(', ')}${list.length > 6 ? ', …' : ''}`
         : `none under ${home} or pr-story's scratch folders`,
       list.length
@@ -144,20 +144,22 @@ export async function doctor(
   }
 
   // a Claude session listening for questions
-  const ls = listeners(home);
-  const live = ls.filter((l) => l.live);
+  const all = listeners(home);
+  const live = all.filter((listener) => listener.live);
   if (live.length) {
     add(
       'PASS',
       'Claude listening',
-      live.map((l) => `${l.consumer} (${l.state}, ${l.age_s}s ago)`).join(', '),
+      live
+        .map((listener) => `${listener.consumer} (${listener.state}, ${listener.age_s}s ago)`)
+        .join(', '),
     );
   } else {
     add(
       'WARN',
       'Claude listening',
-      ls.length
-        ? `no live listener; last was ${ls[0].consumer} ${et(ls[0].at)}`
+      all.length
+        ? `no live listener; last was ${all[0].consumer} ${localTime(all[0].at)}`
         : 'no Claude session has ever listened',
       'In a Claude Code session, run as a background task: diff-story wait --consumer pr-story. Until then, questions wait in the inbox.',
     );
@@ -167,23 +169,24 @@ export async function doctor(
     add(
       'WARN',
       'Build requests',
-      `${pending.length} pending: ${pending.map((b) => `${b.repo}#${b.number}`).join(', ')}`,
+      `${pending.length} pending: ${pending.map((build) => `${build.repo}#${build.number}`).join(', ')}`,
       'A listening Claude session picks them up; or list them with: diff-story builds',
     );
   }
 
   // autoBuild and autoAnswer
   for (const key of ['autoBuild', 'autoAnswer']) {
-    const c = cfg[key];
-    if (!c || !c.enabled) {
+    const command = cfg[key];
+    if (!command || !command.enabled) {
       add('PASS', key, 'off');
       continue;
     }
-    const good = Array.isArray(c.command) && c.command.length && onPath(c.command[0]);
+    const good =
+      Array.isArray(command.command) && command.command.length && onPath(command.command[0]);
     add(
       good ? 'PASS' : 'FAIL',
       key,
-      `on: ${JSON.stringify(c.command)}`,
+      `on: ${JSON.stringify(command.command)}`,
       good ? null : `"${key}.command" must be an argv array whose first item is on PATH`,
     );
   }
@@ -193,8 +196,8 @@ export async function doctor(
   const tail = existsSync(logFile)
     ? readFileSync(logFile, 'utf8').trim().split('\n').slice(-8)
     : [];
-  const errors = tail.filter((l) =>
-    /error|Error|EADDRINUSE|autoAnswer for|autoBuild could/.test(l),
+  const errors = tail.filter((line) =>
+    /error|Error|EADDRINUSE|autoAnswer for|autoBuild could/.test(line),
   );
   add(
     errors.length ? 'WARN' : 'PASS',
@@ -205,20 +208,20 @@ export async function doctor(
     errors.length ? 'See the lines below' : null,
   );
 
-  for (const r of results) {
-    out(`${r.level.padEnd(4)}  ${r.name}: ${r.detail}`);
-    if (r.fix) {
-      out(`      fix: ${r.fix}`);
+  for (const result of results) {
+    out(`${result.level.padEnd(4)}  ${result.name}: ${result.detail}`);
+    if (result.fix) {
+      out(`      fix: ${result.fix}`);
     }
   }
   if (tail.length) {
     out('\nbridge.log (last lines):');
-    for (const l of tail) {
-      out(`  ${l}`);
+    for (const line of tail) {
+      out(`  ${line}`);
     }
   }
-  const fails = results.filter((r) => r.level === 'FAIL').length;
-  const warns = results.filter((r) => r.level === 'WARN').length;
+  const fails = results.filter((result) => result.level === 'FAIL').length;
+  const warns = results.filter((result) => result.level === 'WARN').length;
   out(
     `\n${fails ? `${fails} failing` : 'Nothing failing'}${warns ? `, ${warns} to look at` : ''}.`,
   );

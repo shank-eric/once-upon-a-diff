@@ -11,7 +11,7 @@ import {
   checkoutFor,
   seenCheckout,
 } from '../bridge/config/repos.mjs';
-import { doctor } from '../bridge/lib/doctor.mjs';
+import { doctor } from '../bridge/cli/doctor.mjs';
 
 test('a fresh waiting beat counts as listening, a stale one or a dead process does not, and a handling beat lasts longer', () => {
   const home = tmp('home');
