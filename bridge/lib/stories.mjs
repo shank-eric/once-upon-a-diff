@@ -76,10 +76,10 @@ export function storyVersion(dir) {
 }
 
 /**
- * A local story's version also says whether whitespace is hidden, so a page that polls it redraws
- * when the setting changes in another tab.
+ * A local story's version also says whether whitespace is hidden and which diff view is on, so a page
+ * that polls it redraws when a setting changes in another tab.
  */
-export const localVersion = (dir, prefs) => storyVersion(dir) + (prefs && prefs.hideWhitespace ? '-w' : '');
+export const localVersion = (dir, prefs) => storyVersion(dir) + (prefs && prefs.hideWhitespace ? '-w' : '') + (prefs && prefs.diffView === 'split' ? '-s' : '');
 
 export class StoryStore {
   /** @param {{home: string, roots?: string[], scratch?: boolean|string[]}} opts */
@@ -180,6 +180,7 @@ export class StoryStore {
       const shown = prefs.hideWhitespace ? diffIgnoringWhitespace(dir, meta) : null;
       data.local = {
         hide_whitespace: !!shown,
+        diff_view: prefs.diffView,
         repo: meta.repo_path, base: meta.base, head: meta.head, base_oid: meta.base_oid, head_oid: meta.head_oid, branch: meta.branch || null,
         commits: meta.commits || [],
         files: rels.map(rel => {

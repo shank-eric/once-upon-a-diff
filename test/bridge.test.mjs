@@ -298,14 +298,14 @@ describe('Hide whitespace on local stories', () => {
   after(() => b.close());
 
   test('is off by default, and the setting is saved in prefs.json, not per story', async () => {
-    assert.deepEqual((await b.call('GET', '/api/prefs')).body, { hideWhitespace: false });
+    assert.deepEqual((await b.call('GET', '/api/prefs')).body, { hideWhitespace: false, diffView: 'unified' });
     const before = (await b.call('GET', `/api/stories/${id}`)).body;
     assert.equal(before.local.hide_whitespace, false);
     assert.deepEqual(file(before, 'mixed.js').stats, { added: 2, removed: 2 });
     assert.equal(file(before, 'indent.js').hunks.length, 1);
 
-    assert.deepEqual((await b.call('POST', '/api/prefs', { hideWhitespace: true, junk: 1 })).body, { hideWhitespace: true });
-    assert.deepEqual(JSON.parse(readFileSync(path.join(home, 'prefs.json'), 'utf8')), { hideWhitespace: true });
+    assert.deepEqual((await b.call('POST', '/api/prefs', { hideWhitespace: true, junk: 1 })).body, { hideWhitespace: true, diffView: 'unified' });
+    assert.deepEqual(JSON.parse(readFileSync(path.join(home, 'prefs.json'), 'utf8')), { hideWhitespace: true, diffView: 'unified' });
     await b.call('POST', '/api/prefs', { hideWhitespace: false });
   });
 
@@ -345,7 +345,7 @@ describe('Hide whitespace on local stories', () => {
     const other = createLocalStory({ home, repo, base, head: 'HEAD', id: 'local-other' }).id;
     const b2 = await startBridge({ home });
     try {
-      assert.deepEqual((await b2.call('GET', '/api/prefs')).body, { hideWhitespace: true });
+      assert.deepEqual((await b2.call('GET', '/api/prefs')).body, { hideWhitespace: true, diffView: 'unified' });
       assert.equal((await b2.call('GET', `/api/stories/${other}`)).body.local.hide_whitespace, true);
     } finally {
       await b2.close();
@@ -364,5 +364,40 @@ describe('Hide whitespace on local stories', () => {
     assert.deepEqual(indent.stats, { added: 1, removed: 0 });
     assert.equal(indent.viewed_changed, true, 'a real change after viewing still shows');
     await b.call('POST', '/api/prefs', { hideWhitespace: false });
+  });
+});
+
+describe('Unified / Split on local stories', () => {
+  test('the view is saved in prefs.json beside Hide whitespace, and changes only how the diff is drawn', async () => {
+    const home = tmp('home');
+    const { repo, base } = localRepo();
+    const { id } = createLocalStory({ home, repo, base, head: 'HEAD' });
+    const b = await startBridge({ home });
+    try {
+      let data = (await b.call('GET', `/api/stories/${id}`)).body;
+      assert.equal(data.local.diff_view, 'unified');
+      await b.call('POST', `/api/stories/${id}/viewed`, { path: 'one.txt', viewed: true });
+      const v1 = (await b.call('GET', `/api/stories/${id}/version`)).body.version;
+
+      assert.deepEqual((await b.call('POST', '/api/prefs', { diffView: 'split' })).body, { hideWhitespace: false, diffView: 'split' });
+      assert.deepEqual((await b.call('POST', '/api/prefs', { hideWhitespace: true })).body, { hideWhitespace: true, diffView: 'split' }, 'one setting leaves the other alone');
+      assert.deepEqual(JSON.parse(readFileSync(path.join(home, 'prefs.json'), 'utf8')), { hideWhitespace: true, diffView: 'split' });
+      const v2 = (await b.call('GET', `/api/stories/${id}/version`)).body.version;
+      assert.notEqual(v1, v2, 'other tabs redraw');
+      const split = (await b.call('GET', `/api/stories/${id}`)).body;
+      assert.equal(split.local.diff_view, 'split');
+      assert.equal(split.local.hide_whitespace, true);
+      assert.equal(split.local.files.find(f => f.rel === 'one.txt').viewed, true, 'viewed holds across the view change');
+      assert.deepEqual(split.local.files.map(f => f.hash), data.local.files.map(f => f.hash));
+
+      assert.equal((await b.call('POST', '/api/prefs', { diffView: 'sideways' })).body.diffView, 'unified', 'anything else is unified');
+      const b2 = await startBridge({ home });
+      try {
+        await b2.call('POST', '/api/prefs', { diffView: 'split' });
+        data = (await b2.call('GET', `/api/stories/${id}`)).body;
+        assert.equal(data.local.diff_view, 'split', 'survives a restart');
+      } finally { await b2.close(); }
+      assert.equal((await b.call('GET', '/assets/split.js')).status, 200);
+    } finally { await b.close(); }
   });
 });

@@ -58,6 +58,11 @@ a { color: var(--fgColor-accent); }
 .ds-top { position: sticky; top: 0; z-index: 5; display: flex; gap: 12px; align-items: center; padding: 8px 16px; background: var(--bgColor-muted); border-bottom: 1px solid var(--borderColor-default); }
 .ds-top-main { flex: 1; min-width: 0; }
 .ds-top-main .ds-muted { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ds-view { display: flex; }
+.ds-view button { border-radius: 0; }
+.ds-view button:first-child { border-radius: 6px 0 0 6px; }
+.ds-view button:last-child { border-radius: 0 6px 6px 0; margin-left: -1px; }
+.ds-view button[aria-pressed="true"] { background: var(--bgColor-accent-muted); border-color: var(--fgColor-accent); position: relative; }
 .ds-ws { display: flex; gap: 4px; align-items: center; font-size: 12px; white-space: nowrap; cursor: pointer; }
 .ds-top h1 { font-size: 16px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ds-notes-list { padding: 8px 16px; border-bottom: 1px solid var(--borderColor-default); }
@@ -102,6 +107,12 @@ a { color: var(--fgColor-accent); }
 .ds-add .ds-num { background: var(--ds-add-num); }
 .ds-del .ds-code { background: var(--ds-del-bg); }
 .ds-del .ds-num { background: var(--ds-del-num); }
+.ds-split .ds-c-del { background: var(--ds-del-bg); }
+.ds-split .ds-n-del { background: var(--ds-del-num); }
+.ds-split .ds-c-add { background: var(--ds-add-bg); }
+.ds-split .ds-n-add { background: var(--ds-add-num); }
+.ds-split .ds-c-empty, .ds-split .ds-n-empty { background: var(--bgColor-muted); }
+.ds-split .ds-rnum { border-left: 1px solid var(--borderColor-default); }
 .ds-hunk td { background: var(--ds-hunk-bg); color: var(--fgColor-muted); }
 .ds-info td { color: var(--fgColor-muted); font-style: italic; }
 

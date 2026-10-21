@@ -147,6 +147,7 @@ This builds `git diff <base> <head>` into `~/.diff-story/local-<repo>-<branch>/`
 - **Viewed** toggles are kept by the bridge. A file whose diff changes after you marked it shows as "changed since viewed" and is unviewed again.
 - **Comments become "fix before push" notes.** Click a line number to add a note. Notes are listed under "Fix before push" at the top, can be ticked done, and go to the inbox. `diff-story notes --story <id>` prints them as a checklist. Comments drafted in `chapters.json` show in the panel as "Fix before push (drafted)".
 - **The page follows the branch.** Amend or add a commit and the page redraws with the new diff within ≈5 seconds.
+- **Unified / Split**, in the page header, switches between one column and GitHub's side-by-side view, with old lines on the left and new on the right, lined up. Line numbers on either side take notes, and line jumps, Viewed and the panel work the same in both. It's saved in `prefs.json` too, so it holds for every local story.
 - **Hide whitespace**, in the page header, draws the diff with `git diff -w`, like GitHub's setting of the same name. Unlike GitHub's, it's remembered: the bridge keeps it in `~/.diff-story/prefs.json`, so it holds for every local story and across reloads and bridge restarts. A file whose only changes are whitespace stays listed, marked "whitespace only". Viewed marks and "changed since viewed" are always checked against the full diff, so turning it on or off never flips them. A whitespace-only edit after you mark a file viewed still counts as a change. A note or a story line on a line the `-w` diff doesn't draw sits at the top of its file (notes say so), or the panel jumps to the nearest drawn line.
 - Without `--chapters`, you get one chapter per top-level folder as a starting point. Any file a story doesn't place lands in a last "Not in a chapter yet" step, so nothing is hidden from every step.
 
@@ -176,7 +177,7 @@ It scans `~/.claude/projects` (main and subagent transcripts) for ones that ment
 ```
 ~/.diff-story/                      (DIFF_STORY_HOME moves it)
   config.json                       {port, token}, mode 600
-  prefs.json                        page settings for every story, such as {hideWhitespace}
+  prefs.json                        page settings for every story: {hideWhitespace, diffView}
   inbox.jsonl                       questions, answers, positions, notes
   cursors/<consumer>.json           how far each reader has read the inbox
   state/<story id>/                 ui.json, position.json, viewed.json, notes.json
@@ -202,7 +203,7 @@ The bridge also checks each request:
 | Call | What it does |
 |---|---|
 | `GET /api/health` | `{ok, version}` |
-| `GET`/`POST /api/prefs` | page settings kept for every story: `{hideWhitespace}` |
+| `GET`/`POST /api/prefs` | page settings kept for every story: `{hideWhitespace, diffView}` (`unified` or `split`) |
 | `GET /api/stories` | every story it can serve |
 | `GET /api/stories/find?repo=O/R&number=N` | the story for a PR, if any |
 | `GET /api/stories/:id` | the panel's data, plus the diff, viewed files and notes for a local story |

@@ -8,6 +8,7 @@
  * and line notes go to the bridge, and notes are "fix before push" items.
  */
 import { storyOverlay } from '/assets/overlay.js';
+import { splitRows } from '/assets/split.js';
 
 const BOOT = JSON.parse(document.getElementById('ds-boot').textContent);
 const S = `/api/stories/${encodeURIComponent(BOOT.story)}`;
@@ -29,6 +30,8 @@ let story = null;
 let overlay = null;
 let hidden = false;
 let lastUi = {};
+const isSplit = () => !!story && story.local.diff_view === 'split';
+const cols = () => (isSplit() ? 4 : 3); // unified: old no., new no., code. split: old no., old code, new no., new code
 
 // ---------- the diff
 function treeHtml(rels) {
@@ -64,10 +67,30 @@ function treeHtml(rels) {
   return draw(root, 0);
 }
 
+const numCell = (f, side, num, extra = '') => `<td class="ds-num${extra}" data-line-anchor="diff-${f.sha}${side}${num}" data-side="${side}" data-line="${num}" title="Add a fix-before-push note">${num}</td>`;
+const SIGN = { ctx: ' ', del: '-', add: '+' };
+
+/** GitHub's split view: four cells a row, old on the left and new on the right, the same line anchors as unified. */
+function splitHtml(f) {
+  let html = '';
+  for (const h of f.hunks) {
+    html += `<tr class="ds-hunk"><td class="ds-num"></td><td class="ds-code" colspan="3">@@ -${h.oldStart},${h.oldLines} +${h.newStart},${h.newLines} @@ ${esc(h.header || '')}</td></tr>`;
+    for (const r of splitRows(h)) {
+      if (r.info) { html += `<tr class="ds-info"><td class="ds-num"></td><td class="ds-code" colspan="3">${esc(r.info)}</td></tr>`; continue; }
+      const half = (side, x, right) => (x
+        ? `${numCell(f, side, x.num, ` ds-n-${x.kind}${right ? ' ds-rnum' : ''}`)}<td class="ds-code ds-c-${x.kind}"><span class="ds-sign">${SIGN[x.kind]}</span>${esc(x.text)}</td>`
+        : `<td class="ds-num ds-n-empty${right ? ' ds-rnum' : ''}"></td><td class="ds-code ds-c-empty"></td>`);
+      html += `<tr class="ds-line ds-pair">${half('L', r.left, false)}${half('R', r.right, true)}</tr>`;
+    }
+  }
+  return html;
+}
+
 function rowsHtml(f) {
-  if (f.binary) return '<tr class="ds-info"><td colspan="3">Binary file</td></tr>';
-  if (f.whitespace_only) return '<tr class="ds-info"><td colspan="3">Only whitespace changes, hidden. Turn off Hide whitespace to see them.</td></tr>';
-  if (!f.hunks.length) return `<tr class="ds-info"><td colspan="3">${f.kind === 'renamed' ? 'Renamed without changes' : 'No changed lines'}</td></tr>`;
+  if (f.binary) return `<tr class="ds-info"><td colspan="${cols()}">Binary file</td></tr>`;
+  if (f.whitespace_only) return `<tr class="ds-info"><td colspan="${cols()}">Only whitespace changes, hidden. Turn off Hide whitespace to see them.</td></tr>`;
+  if (!f.hunks.length) return `<tr class="ds-info"><td colspan="${cols()}">${f.kind === 'renamed' ? 'Renamed without changes' : 'No changed lines'}</td></tr>`;
+  if (isSplit()) return splitHtml(f);
   let html = '';
   for (const h of f.hunks) {
     html += `<tr class="ds-hunk"><td class="ds-num"></td><td class="ds-num"></td><td class="ds-code">@@ -${h.oldStart},${h.oldLines} +${h.newStart},${h.newLines} @@ ${esc(h.header || '')}</td></tr>`;
@@ -76,7 +99,7 @@ function rowsHtml(f) {
     for (const line of h.lines) {
       const sign = line[0];
       const text = esc(line.slice(1));
-      const cell = (side, num) => `<td class="ds-num" data-line-anchor="diff-${f.sha}${side}${num}" data-side="${side}" data-line="${num}" title="Add a fix-before-push note">${num}</td>`;
+      const cell = (side, num) => numCell(f, side, num);
       if (sign === ' ') { html += `<tr class="ds-line ds-ctx">${cell('L', o)}${cell('R', n)}<td class="ds-code"><span class="ds-sign"> </span>${text}</td></tr>`; o++; n++; }
       else if (sign === '-') { html += `<tr class="ds-line ds-del">${cell('L', o)}<td class="ds-num"></td><td class="ds-code"><span class="ds-sign">-</span>${text}</td></tr>`; o++; }
       else if (sign === '+') { html += `<tr class="ds-line ds-add"><td class="ds-num"></td>${cell('R', n)}<td class="ds-code"><span class="ds-sign">+</span>${text}</td></tr>`; n++; }
@@ -85,6 +108,8 @@ function rowsHtml(f) {
   }
   return html;
 }
+
+const colsHtml = () => (isSplit() ? '<col class="ds-col-num"><col><col class="ds-col-num"><col>' : '<col class="ds-col-num"><col class="ds-col-num"><col>');
 
 function fileHtml(f) {
   const kind = f.kind === 'renamed' && f.renamed_from ? `renamed from ${f.renamed_from}` : f.kind === 'modified' ? '' : f.kind;
@@ -98,7 +123,7 @@ function fileHtml(f) {
       ${f.viewed_changed ? '<span class="ds-changed" title="You marked this viewed, and its diff has changed since">changed since viewed</span>' : ''}
       <button class="ds-viewed" type="button" aria-pressed="${f.viewed ? 'true' : 'false'}">Viewed</button>
     </header>
-    <div class="ds-file-body"><table class="ds-diff"><colgroup><col class="ds-col-num"><col class="ds-col-num"><col></colgroup><tbody>${rowsHtml(f)}</tbody></table></div>
+    <div class="ds-file-body"><table class="ds-diff${isSplit() ? ' ds-split' : ''}"><colgroup>${colsHtml()}</colgroup><tbody>${rowsHtml(f)}</tbody></table></div>
   </section></div>`;
 }
 
@@ -112,6 +137,7 @@ function headerHtml() {
       <h1>${esc(story.title)}</h1>
       <div class="ds-muted">${esc(l.repo)} · <code>${esc(l.base)}</code> ${esc(l.base_oid.slice(0, 9))} → <code>${esc(l.head)}</code> ${esc(l.head_oid.slice(0, 9))}${l.branch ? ` · ${esc(l.branch)}` : ''} · ${l.commits.length} commit${l.commits.length === 1 ? '' : 's'} · ${l.files.length} files <span class="ds-plus">+${added}</span> <span class="ds-minus">−${removed}</span></div>
     </div>
+    <div class="ds-view" role="group" aria-label="Diff view"><button type="button" data-diff-view="unified" aria-pressed="${!isSplit()}">Unified</button><button type="button" data-diff-view="split" aria-pressed="${isSplit()}">Split</button></div>
     <label class="ds-ws" title="Draw the diff with git diff -w, like GitHub's Hide whitespace. Remembered for every local story."><input type="checkbox" class="ds-ws-toggle"${l.hide_whitespace ? ' checked' : ''}> Hide whitespace</label>
     <button type="button" class="ds-notes-toggle" aria-expanded="false">Fix before push: ${open} open</button>
   </header>
@@ -126,7 +152,7 @@ function notesListHtml() {
 }
 
 function noteRow(n, away) {
-  return `<tr class="ds-note-row" data-note="${esc(n.id)}"><td colspan="3"><div class="ds-note${n.done ? ' ds-done' : ''}">
+  return `<tr class="ds-note-row" data-note="${esc(n.id)}"><td colspan="${cols()}"><div class="ds-note${n.done ? ' ds-done' : ''}">
     <div class="ds-note-head"><b>Fix before push</b><span class="ds-muted">${esc(new Date(n.at).toLocaleString())}</span>
       ${away ? `<span class="ds-muted">on ${n.side === 'L' ? 'L' : ''}${n.line}, a line this diff doesn't draw${story.local.hide_whitespace ? ' with whitespace hidden' : ''}</span>` : ''}
       <label><input type="checkbox" data-note-done="${esc(n.id)}"${n.done ? ' checked' : ''}> done</label>
@@ -214,6 +240,12 @@ document.addEventListener('click', async e => {
     }
     return;
   }
+  const view = t.closest('[data-diff-view]');
+  if (view) {
+    const want = view.getAttribute('data-diff-view');
+    if (want !== story.local.diff_view) setPref({ diffView: want }, 'the diff view');
+    return;
+  }
   const fold = t.closest('.ds-fold');
   if (fold) {
     const section = fold.closest('.ds-file');
@@ -253,19 +285,19 @@ document.addEventListener('click', async e => {
     toggle.setAttribute('aria-expanded', String(!list.hidden));
   }
 });
-async function setHideWhitespace(on) {
-  const box = document.querySelector('.ds-ws-toggle');
-  if (box) box.disabled = true;
+/** Hide whitespace and Unified/Split: saved by the bridge for every story, then the diff is redrawn under the panel. */
+async function setPref(patch, what) {
   try {
-    await api('POST', '/api/prefs', { hideWhitespace: on });
+    await api('POST', '/api/prefs', patch);
     story = await api('GET', S);
     render();
     if (!hidden) mount(overlay ? { ...overlay.state, bodyScroll: overlay.bodyScroll } : lastUi);
   } catch (err) {
-    alert(`Couldn't change Hide whitespace: ${err.message}`);
-    if (box) { box.checked = !on; box.disabled = false; }
+    alert(`Couldn't change ${what}: ${err.message}`);
+    render();
   }
 }
+const setHideWhitespace = on => { const box = document.querySelector('.ds-ws-toggle'); if (box) box.disabled = true; return setPref({ hideWhitespace: on }, 'Hide whitespace'); };
 
 document.addEventListener('change', async e => {
   const ws = e.target.closest('.ds-ws-toggle');
@@ -284,7 +316,7 @@ function openEditor(cell) {
   const side = cell.getAttribute('data-side');
   const line = Number(cell.getAttribute('data-line'));
   const rel = cell.closest('.ds-file').getAttribute('data-path');
-  row.insertAdjacentHTML('afterend', `<tr class="ds-note-edit"><td colspan="3"><form class="ds-note-form">
+  row.insertAdjacentHTML('afterend', `<tr class="ds-note-edit"><td colspan="${cols()}"><form class="ds-note-form">
     <div class="ds-muted">Fix before push on <code>${esc(rel)}:${side === 'L' ? 'L' : ''}${line}</code></div>
     <textarea rows="3" placeholder="What to fix before pushing"></textarea>
     <div><button type="submit">Add note</button> <button type="button" data-editor-cancel>Cancel</button></div></form></td></tr>`);
