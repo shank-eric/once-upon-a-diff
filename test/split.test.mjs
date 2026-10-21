@@ -20,3 +20,8 @@ test('only added or only removed lines, and the no-newline marker', () => {
     ['- | add1', '- | add2', 'info \\ No newline at end of file']);
   assert.deepEqual(splitRows({ oldStart: 3, newStart: 2, lines: ['-gone'] }).map(pair), ['del3 | -']);
 });
+
+test('each side keeps its line index in the hunk, for its highlighted HTML', () => {
+  const rows = splitRows({ oldStart: 1, newStart: 1, lines: [' a', '-b', '+B'] });
+  assert.deepEqual(rows.map(r => [r.left && r.left.i, r.right && r.right.i]), [[0, 0], [1, 2]]);
+});

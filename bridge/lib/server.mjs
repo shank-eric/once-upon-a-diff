@@ -35,6 +35,8 @@ const ASSETS = {
   '/assets/overlay.js': [OVERLAY, 'text/javascript; charset=utf-8'],
   '/assets/local.js': [path.join(PUBLIC, 'local.js'), 'text/javascript; charset=utf-8'],
   '/assets/split.js': [path.join(PUBLIC, 'split.js'), 'text/javascript; charset=utf-8'],
+  '/assets/syntax.js': [path.join(PUBLIC, 'syntax.js'), 'text/javascript; charset=utf-8'],
+  '/assets/highlight.mjs': [path.join(PUBLIC, 'vendor/highlight.mjs'), 'text/javascript; charset=utf-8'],
   '/assets/local.css': [path.join(PUBLIC, 'local.css'), 'text/css; charset=utf-8'],
 };
 

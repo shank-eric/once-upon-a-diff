@@ -9,6 +9,7 @@
  */
 import { storyOverlay } from '/assets/overlay.js';
 import { splitRows } from '/assets/split.js';
+import { highlightFile, LIMITS } from '/assets/syntax.js';
 
 const BOOT = JSON.parse(document.getElementById('ds-boot').textContent);
 const S = `/api/stories/${encodeURIComponent(BOOT.story)}`;
@@ -31,7 +32,23 @@ let overlay = null;
 let hidden = false;
 let lastUi = {};
 const isSplit = () => !!story && story.local.diff_view === 'split';
-const cols = () => (isSplit() ? 4 : 3); // unified: old no., new no., code. split: old no., old code, new no., new code
+const cols = () => (isSplit() ? 4 : 3);
+
+// ---------- syntax highlighting (highlight.js, vendored and served by the bridge; the page works without it)
+let hljs = null;
+const hlCache = new Map(); // rel|hash|whitespace -> per hunk, per line HTML (or null: drawn plain)
+let hlBudget = 0;
+function highlighted(f) {
+  const key = `${f.rel}|${f.hash}|${story.local.hide_whitespace}`;
+  if (hlCache.has(key)) return hlCache.get(key);
+  const lines = f.hunks.reduce((n, h) => n + h.lines.length, 0);
+  if (hlBudget + lines > LIMITS.pageLines) return null; // past the page's budget, the rest is plain (and not cached, so a smaller diff gets it)
+  hlBudget += lines;
+  const hl = highlightFile(f, hljs);
+  hlCache.set(key, hl);
+  return hl;
+}
+const codeHtml = (hl, hi, i, text) => (hl && hl[hi] && hl[hi][i] != null ? hl[hi][i] : esc(text)); // unified: old no., new no., code. split: old no., old code, new no., new code
 
 // ---------- the diff
 function treeHtml(rels) {
@@ -73,16 +90,17 @@ const SIGN = { ctx: ' ', del: '-', add: '+' };
 /** GitHub's split view: four cells a row, old on the left and new on the right, the same line anchors as unified. */
 function splitHtml(f) {
   let html = '';
-  for (const h of f.hunks) {
+  const hl = highlighted(f);
+  f.hunks.forEach((h, hi) => {
     html += `<tr class="ds-hunk"><td class="ds-num"></td><td class="ds-code" colspan="3">@@ -${h.oldStart},${h.oldLines} +${h.newStart},${h.newLines} @@ ${esc(h.header || '')}</td></tr>`;
     for (const r of splitRows(h)) {
       if (r.info) { html += `<tr class="ds-info"><td class="ds-num"></td><td class="ds-code" colspan="3">${esc(r.info)}</td></tr>`; continue; }
       const half = (side, x, right) => (x
-        ? `${numCell(f, side, x.num, ` ds-n-${x.kind}${right ? ' ds-rnum' : ''}`)}<td class="ds-code ds-c-${x.kind}"><span class="ds-sign">${SIGN[x.kind]}</span>${esc(x.text)}</td>`
+        ? `${numCell(f, side, x.num, ` ds-n-${x.kind}${right ? ' ds-rnum' : ''}`)}<td class="ds-code ds-c-${x.kind}"><span class="ds-sign">${SIGN[x.kind]}</span>${codeHtml(hl, hi, x.i, x.text)}</td>`
         : `<td class="ds-num ds-n-empty${right ? ' ds-rnum' : ''}"></td><td class="ds-code ds-c-empty"></td>`);
       html += `<tr class="ds-line ds-pair">${half('L', r.left, false)}${half('R', r.right, true)}</tr>`;
     }
-  }
+  });
   return html;
 }
 
@@ -92,20 +110,21 @@ function rowsHtml(f) {
   if (!f.hunks.length) return `<tr class="ds-info"><td colspan="${cols()}">${f.kind === 'renamed' ? 'Renamed without changes' : 'No changed lines'}</td></tr>`;
   if (isSplit()) return splitHtml(f);
   let html = '';
-  for (const h of f.hunks) {
+  const hl = highlighted(f);
+  f.hunks.forEach((h, hi) => {
     html += `<tr class="ds-hunk"><td class="ds-num"></td><td class="ds-num"></td><td class="ds-code">@@ -${h.oldStart},${h.oldLines} +${h.newStart},${h.newLines} @@ ${esc(h.header || '')}</td></tr>`;
     let o = h.oldStart;
     let n = h.newStart;
-    for (const line of h.lines) {
+    h.lines.forEach((line, i) => {
       const sign = line[0];
-      const text = esc(line.slice(1));
+      const text = sign === ' ' || sign === '-' || sign === '+' ? codeHtml(hl, hi, i, line.slice(1)) : esc(line.slice(1));
       const cell = (side, num) => numCell(f, side, num);
       if (sign === ' ') { html += `<tr class="ds-line ds-ctx">${cell('L', o)}${cell('R', n)}<td class="ds-code"><span class="ds-sign"> </span>${text}</td></tr>`; o++; n++; }
       else if (sign === '-') { html += `<tr class="ds-line ds-del">${cell('L', o)}<td class="ds-num"></td><td class="ds-code"><span class="ds-sign">-</span>${text}</td></tr>`; o++; }
       else if (sign === '+') { html += `<tr class="ds-line ds-add"><td class="ds-num"></td>${cell('R', n)}<td class="ds-code"><span class="ds-sign">+</span>${text}</td></tr>`; n++; }
       else html += `<tr class="ds-info"><td class="ds-num"></td><td class="ds-num"></td><td class="ds-code">${text}</td></tr>`;
-    }
-  }
+    });
+  });
   return html;
 }
 
@@ -178,6 +197,7 @@ function placeNotes() {
 
 function render() {
   const keep = window.scrollY;
+  hlBudget = 0;
   app.innerHTML = `${headerHtml()}<div class="ds-layout"><nav class="ds-tree" role="tree" aria-label="Changed files">${treeHtml(story.local.files.map(f => f.rel))}</nav>
     <main class="ds-files">${story.local.files.map(fileHtml).join('')}</main></div>`;
   placeNotes();
@@ -352,6 +372,7 @@ async function poll() {
 }
 
 async function start() {
+  hljs = await import('/assets/highlight.mjs').then(m => m.default, () => null);
   try {
     story = await api('GET', S);
   } catch (err) {

@@ -17,6 +17,9 @@
   --ds-del-num: #ffcecb;
   --ds-hunk-bg: #ddf4ff;
   --ds-del-fg: #cf222e;
+  /* syntax colours: GitHub's, picked to read on its added and removed line backgrounds */
+  --hl-keyword: #cf222e; --hl-string: #0a3069; --hl-comment: #59636e; --hl-constant: #0550ae;
+  --hl-entity: #6639ba; --hl-type: #953800; --hl-tag: #116329;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -36,6 +39,8 @@
     --ds-del-num: #f851494d;
     --ds-hunk-bg: #388bfd1a;
     --ds-del-fg: #f85149;
+    --hl-keyword: #ff7b72; --hl-string: #a5d6ff; --hl-comment: #9198a1; --hl-constant: #79c0ff;
+    --hl-entity: #d2a8ff; --hl-type: #ffa657; --hl-tag: #7ee787;
   }
 }
 * { box-sizing: border-box; }
@@ -127,3 +132,15 @@ a { color: var(--fgColor-accent); }
 @media (max-width: 900px) {
   .ds-tree { display: none; }
 }
+
+/* highlight.js tokens (bridge/public/syntax.js) */
+.ds-code .hljs-keyword, .ds-code .hljs-doctag, .ds-code .hljs-meta .hljs-keyword, .ds-code .hljs-template-tag, .ds-code .hljs-template-variable, .ds-code .hljs-type.hljs-variable-language { color: var(--hl-keyword); }
+.ds-code .hljs-string, .ds-code .hljs-regexp, .ds-code .hljs-meta .hljs-string { color: var(--hl-string); }
+.ds-code .hljs-comment, .ds-code .hljs-code, .ds-code .hljs-formula { color: var(--hl-comment); }
+.ds-code .hljs-number, .ds-code .hljs-literal, .ds-code .hljs-attr, .ds-code .hljs-attribute, .ds-code .hljs-variable, .ds-code .hljs-selector-attr,
+.ds-code .hljs-selector-class, .ds-code .hljs-selector-id, .ds-code .hljs-operator, .ds-code .hljs-meta, .ds-code .hljs-symbol, .ds-code .hljs-link { color: var(--hl-constant); }
+.ds-code .hljs-title, .ds-code .hljs-title.function_, .ds-code .hljs-title.class_, .ds-code .hljs-section { color: var(--hl-entity); }
+.ds-code .hljs-built_in, .ds-code .hljs-type, .ds-code .hljs-params, .ds-code .hljs-property, .ds-code .hljs-variable.language_ { color: var(--hl-type); }
+.ds-code .hljs-name, .ds-code .hljs-selector-tag, .ds-code .hljs-quote, .ds-code .hljs-selector-pseudo, .ds-code .hljs-bullet { color: var(--hl-tag); }
+.ds-code .hljs-section, .ds-code .hljs-strong { font-weight: 600; }
+.ds-code .hljs-emphasis { font-style: italic; }
