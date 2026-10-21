@@ -92,7 +92,9 @@ When Claude rewrites `chapters.json`, the panel redraws within ≈5 seconds, or 
 - **Posted ✓**, with a link to the posted comment. These are hidden by default behind "Show posted (N)".
 - **In your pending review**, for a comment in a review you haven't submitted yet. These stay visible, marked as not submitted.
 - **Dismissed**, for a draft you don't want. Dismiss hides it behind "Show dismissed (N)", and Restore brings it back.
-- **A draft**, with **Mark posted** and **Dismiss** buttons.
+- **A draft**, with **Mark posted** and **Dismiss** buttons, and on a line comment **Add to my review**.
+
+**Add to my review** puts a line draft into your pending review on GitHub, starting one if you have none. It never submits the review. GitHub doesn't redraw an open Files changed page for that, so the draft switches to "In your pending review" with the file and line, a jump link, "GitHub shows it after a reload" and a **Reload page** button. The page only reloads when you click it, and the panel comes back on the same step. The bridge keeps this state in `drafts.json`, so it lasts through re-renders, reloads and bridge restarts. Once gh finds the comment after a reload, or it shows up on the page, it becomes the usual pending (or posted) row. If GitHub refuses, the error shows on the draft and its buttons stay. A draft that's already in your review can't be added twice.
 
 The chapter's comments heading counts each state, for example "(2 to post · 1 posted · 1 pending)".
 
@@ -100,11 +102,11 @@ How the bridge decides:
 
 - **Posted and pending come from GitHub.** The bridge reads your own comments with read-only `gh api` GETs, with `GITHUB_TOKEN` unset so the keychain login is used, and caches them for 60s. It reads the PR's review comments, its reviews (a PENDING one is your unsubmitted review, read along with its comments) and its general comments.
 - **Matching is fuzzy, because you often edit a draft before posting.** A draft matches a comment of yours on the same file within 3 lines, or a general draft a general comment, when the text is at least 0.75 similar.
-- **Your own calls override it.** Mark posted, Unmark and Dismiss are kept by the bridge per PR, in `~/.diff-story/state/pr-<owner>-<repo>-<N>/drafts.json`. Re-renders and regenerated stories keep them, and a dismissed comment matched by path, line and text isn't suggested again.
+- **Your own calls override it.** Mark posted, Unmark, Dismiss and Add to my review are kept by the bridge per PR, in `~/.diff-story/state/pr-<owner>-<repo>-<N>/drafts.json`. Re-renders and regenerated stories keep them, and a dismissed comment matched by path, line and text isn't suggested again.
 - **Local mode has only the manual buttons.**
 - `diff-story drafts --story <id>` lists every draft's state.
 
-Nothing is written to GitHub.
+Add to my review is the only write to GitHub. Everything else here is read-only.
 
 **Comments drafted in Q&A** go into the panel's Draft comments, whether they come from chat, voice or the Ask box. To add one, run `diff-story comment --story <id> --chapter N --path <file> --line L --body-file <f>`, or `POST /api/stories/:id/comments`. It appends to that chapter's `comments` in `chapters.json`, both in the copy the bridge serves and in its pr-story source folder, so the next render keeps it. Adding the same comment twice keeps one copy. Nothing is posted to GitHub.
 
