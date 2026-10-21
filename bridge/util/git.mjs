@@ -1,7 +1,8 @@
 /** Read-only git calls for local mode: rev-parse, the branch name and the diff. */
 import { execFileSync } from 'node:child_process';
 
-const git = (repo, args) =>
+/** Runs git in a checkout and returns stdout (throws on a non-zero exit). */
+export const runGit = (repo, args) =>
   execFileSync('git', ['-C', repo, ...args], {
     encoding: 'utf8',
     maxBuffer: 256 * 1024 * 1024,
@@ -9,12 +10,12 @@ const git = (repo, args) =>
   });
 
 export const revParse = (repo, ref) =>
-  git(repo, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]).trim();
-export const topLevel = (repo) => git(repo, ['rev-parse', '--show-toplevel']).trim();
+  runGit(repo, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]).trim();
+export const topLevel = (repo) => runGit(repo, ['rev-parse', '--show-toplevel']).trim();
 
 export function branchName(repo) {
   try {
-    return git(repo, ['symbolic-ref', '--quiet', '--short', 'HEAD']).trim();
+    return runGit(repo, ['symbolic-ref', '--quiet', '--short', 'HEAD']).trim();
   } catch {
     return null;
   }
@@ -25,7 +26,7 @@ export function branchName(repo) {
  * `ignoreWhitespace` adds -w (--ignore-all-space), GitHub's "Hide whitespace": a file whose only changes are whitespace drops out.
  */
 export const diffText = (repo, baseOid, headOid, { ignoreWhitespace = false } = {}) =>
-  git(repo, [
+  runGit(repo, [
     '-c',
     'core.quotePath=false',
     'diff',
@@ -38,7 +39,7 @@ export const diffText = (repo, baseOid, headOid, { ignoreWhitespace = false } = 
   ]);
 
 export function commitsBetween(repo, baseOid, headOid) {
-  const out = git(repo, ['log', '--format=%H%x09%cI%x09%s', `${baseOid}..${headOid}`]).trim();
+  const out = runGit(repo, ['log', '--format=%H%x09%cI%x09%s', `${baseOid}..${headOid}`]).trim();
   return out
     ? out.split('\n').map((line) => {
         const [sha, committedAt, subject] = line.split('\t');

@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { tmp, git, writeJson, startBridge } from './helpers.mjs';
-import { findBackstory, defaultSessionStory } from '../bridge/lib/backstory.mjs';
+import { findBackstory, defaultSessionStory } from '../bridge/backstory/index.mjs';
 import { createLocalStory } from '../bridge/lib/local.mjs';
 import { StoryStore, backstoryOf, storyBackstory } from '../bridge/lib/stories.mjs';
 

@@ -62,7 +62,7 @@ import { beat } from '../listeners/listeners.mjs';
 import { REPO_RE, sameRepo, repoOfCheckout, seenCheckout } from '../config/repos.mjs';
 import { topLevel } from '../util/git.mjs';
 import { doctor } from '../lib/doctor.mjs';
-import { findBackstory, briefOf } from '../lib/backstory.mjs';
+import { findBackstory, briefOf } from '../backstory/index.mjs';
 
 function parseArgs(argv) {
   const [command, ...rest] = argv;
