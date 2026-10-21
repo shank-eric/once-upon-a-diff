@@ -11,16 +11,11 @@ import { storyOverlay, chapterNumbers } from '/assets/overlay.js';
 import { splitRows } from '/assets/split.js';
 import { highlightFile, LIMITS } from '/assets/syntax.js';
 import { claimsOf, narrowRows } from '/assets/narrow.js';
+import { escapeHtml } from '/assets/util/html.js';
 
 const BOOT = JSON.parse(document.getElementById('ds-boot').textContent);
 const S = `/api/stories/${encodeURIComponent(BOOT.story)}`;
 const app = document.getElementById('ds-app');
-const esc = (s) =>
-  String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 
 async function api(method, p, body) {
   const r = await fetch(p, {
@@ -64,7 +59,8 @@ function highlighted(f) {
   hlCache.set(key, hl);
   return hl;
 }
-const codeHtml = (hl, hi, i, text) => (hl && hl[hi] && hl[hi][i] != null ? hl[hi][i] : esc(text)); // unified: old no., new no., code. split: old no., old code, new no., new code
+const codeHtml = (hl, hi, i, text) =>
+  hl && hl[hi] && hl[hi][i] != null ? hl[hi][i] : escapeHtml(text); // unified: old no., new no., code. split: old no., old code, new no., new code
 
 // ---------- the diff
 function treeHtml(rels) {
@@ -94,10 +90,10 @@ function treeHtml(rels) {
         label += '/' + nd.name;
         d = nd;
       }
-      html += `<div role="treeitem" aria-expanded="true" id="${esc(k)}" class="ds-tree-dir"><div class="ds-tree-label" style="padding-left:${8 + depth * 12}px">${esc(label)}</div><div role="group">${draw(d, depth + 1)}</div></div>`;
+      html += `<div role="treeitem" aria-expanded="true" id="${escapeHtml(k)}" class="ds-tree-dir"><div class="ds-tree-label" style="padding-left:${8 + depth * 12}px">${escapeHtml(label)}</div><div role="group">${draw(d, depth + 1)}</div></div>`;
     }
     for (const rel of node.files.sort()) {
-      html += `<div role="treeitem" id="${esc(rel)}" class="ds-tree-file" data-goto="${esc(rel)}" style="padding-left:${8 + depth * 12}px">${esc(rel.split('/').pop())}</div>`;
+      html += `<div role="treeitem" id="${escapeHtml(rel)}" class="ds-tree-file" data-goto="${escapeHtml(rel)}" style="padding-left:${8 + depth * 12}px">${escapeHtml(rel.split('/').pop())}</div>`;
     }
     return html;
   };
@@ -113,10 +109,10 @@ function splitHtml(f) {
   let html = '';
   const hl = highlighted(f);
   f.hunks.forEach((h, hi) => {
-    html += `<tr class="ds-hunk"><td class="ds-num"></td><td class="ds-code" colspan="3">@@ -${h.oldStart},${h.oldLines} +${h.newStart},${h.newLines} @@ ${esc(h.header || '')}</td></tr>`;
+    html += `<tr class="ds-hunk"><td class="ds-num"></td><td class="ds-code" colspan="3">@@ -${h.oldStart},${h.oldLines} +${h.newStart},${h.newLines} @@ ${escapeHtml(h.header || '')}</td></tr>`;
     for (const r of splitRows(h)) {
       if (r.info) {
-        html += `<tr class="ds-info"><td class="ds-num"></td><td class="ds-code" colspan="3">${esc(r.info)}</td></tr>`;
+        html += `<tr class="ds-info"><td class="ds-num"></td><td class="ds-code" colspan="3">${escapeHtml(r.info)}</td></tr>`;
         continue;
       }
       const half = (side, x, right) =>
@@ -145,7 +141,7 @@ function rowsHtml(f) {
   let html = '';
   const hl = highlighted(f);
   f.hunks.forEach((h, hi) => {
-    html += `<tr class="ds-hunk"><td class="ds-num"></td><td class="ds-num"></td><td class="ds-code">@@ -${h.oldStart},${h.oldLines} +${h.newStart},${h.newLines} @@ ${esc(h.header || '')}</td></tr>`;
+    html += `<tr class="ds-hunk"><td class="ds-num"></td><td class="ds-num"></td><td class="ds-code">@@ -${h.oldStart},${h.oldLines} +${h.newStart},${h.newLines} @@ ${escapeHtml(h.header || '')}</td></tr>`;
     let o = h.oldStart;
     let n = h.newStart;
     h.lines.forEach((line, i) => {
@@ -153,7 +149,7 @@ function rowsHtml(f) {
       const text =
         sign === ' ' || sign === '-' || sign === '+'
           ? codeHtml(hl, hi, i, line.slice(1))
-          : esc(line.slice(1));
+          : escapeHtml(line.slice(1));
       const cell = (side, num) => numCell(f, side, num);
       if (sign === ' ') {
         html += `<tr class="ds-line ds-ctx">${cell('L', o)}${cell('R', n)}<td class="ds-code"><span class="ds-sign"> </span>${text}</td></tr>`;
@@ -185,11 +181,11 @@ function fileHtml(f) {
       : f.kind === 'modified'
         ? ''
         : f.kind;
-  return `<div class="ds-file-wrap"><section role="region" class="ds-file${f.viewed ? ' ds-folded' : ''}" id="diff-${f.sha}" data-path="${esc(f.rel)}" aria-label="${esc(f.rel)}">
+  return `<div class="ds-file-wrap"><section role="region" class="ds-file${f.viewed ? ' ds-folded' : ''}" id="diff-${f.sha}" data-path="${escapeHtml(f.rel)}" aria-label="${escapeHtml(f.rel)}">
     <header class="ds-file-head">
       <button class="ds-fold" type="button" aria-label="Fold or unfold this file" aria-expanded="${!f.viewed}"></button>
-      <code class="ds-path">${esc(f.rel)}</code>
-      ${kind ? `<span class="ds-kind">${esc(kind)}</span>` : ''}
+      <code class="ds-path">${escapeHtml(f.rel)}</code>
+      ${kind ? `<span class="ds-kind">${escapeHtml(kind)}</span>` : ''}
       ${f.whitespace_only ? '<span class="ds-kind" title="Hide whitespace is on">whitespace only</span>' : ''}
       <span class="ds-stat"><span class="ds-plus">+${f.stats.added}</span> <span class="ds-minus">−${f.stats.removed}</span></span>
       ${f.viewed_changed ? '<span class="ds-changed" title="You marked this viewed, and its diff has changed since">changed since viewed</span>' : ''}
@@ -206,8 +202,8 @@ function headerHtml() {
   const open = l.notes.filter((n) => !n.done).length;
   return `<header class="ds-top">
     <div class="ds-top-main">
-      <h1>${esc(story.title)}</h1>
-      <div class="ds-muted">${esc(l.repo)} · <code>${esc(l.base)}</code> ${esc(l.base_oid.slice(0, 9))} → <code>${esc(l.head)}</code> ${esc(l.head_oid.slice(0, 9))}${l.branch ? ` · ${esc(l.branch)}` : ''} · ${l.commits.length} commit${l.commits.length === 1 ? '' : 's'} · ${l.files.length} files <span class="ds-plus">+${added}</span> <span class="ds-minus">−${removed}</span></div>
+      <h1>${escapeHtml(story.title)}</h1>
+      <div class="ds-muted">${escapeHtml(l.repo)} · <code>${escapeHtml(l.base)}</code> ${escapeHtml(l.base_oid.slice(0, 9))} → <code>${escapeHtml(l.head)}</code> ${escapeHtml(l.head_oid.slice(0, 9))}${l.branch ? ` · ${escapeHtml(l.branch)}` : ''} · ${l.commits.length} commit${l.commits.length === 1 ? '' : 's'} · ${l.files.length} files <span class="ds-plus">+${added}</span> <span class="ds-minus">−${removed}</span></div>
     </div>
     <div class="ds-view" role="group" aria-label="Diff view"><button type="button" data-diff-view="unified" aria-pressed="${!isSplit()}">Unified</button><button type="button" data-diff-view="split" aria-pressed="${isSplit()}">Split</button></div>
     <label class="ds-ws" title="Draw the diff with git diff -w, like GitHub's Hide whitespace. Remembered for every local story."><input type="checkbox" class="ds-ws-toggle"${l.hide_whitespace ? ' checked' : ''}> Hide whitespace</label>
@@ -221,17 +217,17 @@ function notesListHtml() {
   if (!notes.length) {
     return '<p class="ds-muted">No fix-before-push notes yet. Click a line number in the diff to add one.</p>';
   }
-  return `<ul>${notes.map((n) => `<li class="${n.done ? 'ds-done' : ''}"><label><input type="checkbox" data-note-done="${esc(n.id)}"${n.done ? ' checked' : ''}> <a href="#" data-note-goto="${esc(n.id)}"><code>${esc(n.path)}${n.line ? `:${n.side === 'L' ? 'L' : ''}${n.line}` : ''}</code></a></label> ${esc(n.body)}</li>`).join('')}</ul>
-    <p class="ds-muted">Also in the terminal: <code>diff-story notes --story ${esc(story.id)}</code></p>`;
+  return `<ul>${notes.map((n) => `<li class="${n.done ? 'ds-done' : ''}"><label><input type="checkbox" data-note-done="${escapeHtml(n.id)}"${n.done ? ' checked' : ''}> <a href="#" data-note-goto="${escapeHtml(n.id)}"><code>${escapeHtml(n.path)}${n.line ? `:${n.side === 'L' ? 'L' : ''}${n.line}` : ''}</code></a></label> ${escapeHtml(n.body)}</li>`).join('')}</ul>
+    <p class="ds-muted">Also in the terminal: <code>diff-story notes --story ${escapeHtml(story.id)}</code></p>`;
 }
 
 function noteRow(n, away) {
-  return `<tr class="ds-note-row" data-note="${esc(n.id)}"><td colspan="${cols()}"><div class="ds-note${n.done ? ' ds-done' : ''}">
-    <div class="ds-note-head"><b>Fix before push</b><span class="ds-muted">${esc(new Date(n.at).toLocaleString())}</span>
+  return `<tr class="ds-note-row" data-note="${escapeHtml(n.id)}"><td colspan="${cols()}"><div class="ds-note${n.done ? ' ds-done' : ''}">
+    <div class="ds-note-head"><b>Fix before push</b><span class="ds-muted">${escapeHtml(new Date(n.at).toLocaleString())}</span>
       ${away ? `<span class="ds-muted">on ${n.side === 'L' ? 'L' : ''}${n.line}, a line this diff doesn't draw${story.local.hide_whitespace ? ' with whitespace hidden' : ''}</span>` : ''}
-      <label><input type="checkbox" data-note-done="${esc(n.id)}"${n.done ? ' checked' : ''}> done</label>
-      <button type="button" data-note-delete="${esc(n.id)}">Delete</button></div>
-    <div class="ds-note-body">${esc(n.body)}</div></div></td></tr>`;
+      <label><input type="checkbox" data-note-done="${escapeHtml(n.id)}"${n.done ? ' checked' : ''}> done</label>
+      <button type="button" data-note-delete="${escapeHtml(n.id)}">Delete</button></div>
+    <div class="ds-note-body">${escapeHtml(n.body)}</div></div></td></tr>`;
 }
 
 function placeNotes() {
@@ -324,7 +320,7 @@ function narrow({ n, view, all }) {
         : 'from other chapters';
       trs[r.from].insertAdjacentHTML(
         'beforebegin',
-        `<tr class="ds-narrow"><td colspan="${cols()}">⋯ ${lines} line${lines === 1 ? '' : 's'} ${esc(who)}<button type="button" data-narrow-open>Show</button></td></tr>`,
+        `<tr class="ds-narrow"><td colspan="${cols()}">⋯ ${lines} line${lines === 1 ? '' : 's'} ${escapeHtml(who)}<button type="button" data-narrow-open>Show</button></td></tr>`,
       );
     }
   }
@@ -607,7 +603,7 @@ function openEditor(cell) {
   row.insertAdjacentHTML(
     'afterend',
     `<tr class="ds-note-edit"><td colspan="${cols()}"><form class="ds-note-form">
-    <div class="ds-muted">Fix before push on <code>${esc(rel)}:${side === 'L' ? 'L' : ''}${line}</code></div>
+    <div class="ds-muted">Fix before push on <code>${escapeHtml(rel)}:${side === 'L' ? 'L' : ''}${line}</code></div>
     <textarea rows="3" placeholder="What to fix before pushing"></textarea>
     <div><button type="submit">Add note</button> <button type="button" data-editor-cancel>Cancel</button></div></form></td></tr>`,
   );
@@ -669,7 +665,7 @@ async function start() {
   try {
     story = await api('GET', S);
   } catch (err) {
-    app.innerHTML = `<p class="ds-error">Couldn't load the story: ${esc(err.message)}</p>`;
+    app.innerHTML = `<p class="ds-error">Couldn't load the story: ${escapeHtml(err.message)}</p>`;
     return;
   }
   document.title = story.title;

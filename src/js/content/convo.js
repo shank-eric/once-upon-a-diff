@@ -5,27 +5,12 @@
  * GitHub redraws the header or navigates in the page, looks again every 15s
  * while a story is queued or building, and only reads from GitHub's page.
  */
-import { conversationPr, tagFor, tagHtml, requestFor, missingListeners, TAG_CSS } from './tag.js';
+import { conversationPr } from '../shared/util/github-paths.js';
+import { tagFor, tagHtml, requestFor, missingListeners, TAG_CSS } from './tag.js';
 import { listenNotice } from './notice.js';
+import { callBridge, extensionAlive } from './bridge.js';
 
 const ATTR = 'data-dsm-convo';
-const alive = () => !!(globalThis.chrome && chrome.runtime && chrome.runtime.id);
-async function bridge(method, path, body) {
-  if (!alive()) {
-    return { ok: false, status: 0, error: 'extension reloaded' };
-  }
-  try {
-    return (
-      (await chrome.runtime.sendMessage({ type: 'bridge', method, path, body })) || {
-        ok: false,
-        status: 0,
-      }
-    );
-  } catch (e) {
-    return { ok: false, status: 0, error: 'extension reloaded' };
-  }
-}
-
 /** The PR title on the classic and the React PR pages. */
 function titleEl() {
   return document.querySelector(
@@ -89,7 +74,7 @@ export function initConversation() {
     busy = true;
     const mine = pr;
     try {
-      const r = await bridge('POST', '/api/stories/status-many', {
+      const r = await callBridge('POST', '/api/stories/status-many', {
         prs: [{ repo: pr.repo, number: pr.number }],
       });
       if (pr !== mine || !r.ok) {
@@ -114,7 +99,7 @@ export function initConversation() {
     e.stopPropagation();
     b.disabled = true;
     const t = tagFor(result, pr);
-    const r = await bridge(
+    const r = await callBridge(
       'POST',
       '/api/builds',
       requestFor(t, pr, { retell: b.getAttribute('data-act') === 'retell' }),
@@ -131,10 +116,10 @@ export function initConversation() {
   }
 
   function follow() {
-    if (!alive()) {
+    if (!extensionAlive()) {
       return;
     }
-    const now = conversationPr(location);
+    const now = conversationPr(location.pathname);
     const key = now ? `${now.repo}#${now.number}`.toLowerCase() : null;
     if (!now) {
       if (pr) {

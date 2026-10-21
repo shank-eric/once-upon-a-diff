@@ -12,7 +12,7 @@
  *   - no CORS headers, so other web pages can't read anything it says
  */
 import http from 'node:http';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { timingSafeEqual } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -36,11 +36,15 @@ import {
 } from './drafts.mjs';
 import { addToPendingReview } from './review.mjs';
 import { statusOf, listeningOf, answerContext, runAutoAnswer } from './health.mjs';
+import { escapeHtml } from '../../src/js/shared/util/html.js';
 import { readReads, noteRead, sinceOf, readSha, changedSinceRead, SHA_RE } from './reads.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.resolve(HERE, '../public');
-const OVERLAY = path.resolve(HERE, '../../src/js/shared/overlay.js');
+const SHARED = path.resolve(HERE, '../../src/js/shared');
+const OVERLAY = path.join(SHARED, 'overlay.js');
+/** The panel's modules and the shared helpers, served from src/js/shared/<folder>/ for the local page. */
+const SHARED_MODULE = /^\/assets\/(panel|util)\/([a-z0-9-]+\.js)$/;
 export const VERSION = JSON.parse(
   readFileSync(path.resolve(HERE, '../../package.json'), 'utf8'),
 ).version;
@@ -59,12 +63,6 @@ const ASSETS = {
 };
 
 const MAX_BODY = 256 * 1024;
-const esc = (s) =>
-  String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -189,6 +187,14 @@ export function createBridge({
       if (req.method === 'GET' && ASSETS[p]) {
         const [file, type] = ASSETS[p];
         return send(200, readFileSync(file), type);
+      }
+      const sharedModule = SHARED_MODULE.exec(p);
+      if (req.method === 'GET' && sharedModule) {
+        const file = path.join(SHARED, sharedModule[1], sharedModule[2]);
+        if (!existsSync(file)) {
+          throw new HttpError(404, 'no such module');
+        }
+        return send(200, readFileSync(file), 'text/javascript; charset=utf-8');
       }
       if (req.method === 'GET' && (p === '/' || p === '/index.html')) {
         return send(200, indexPage(stories.list()), 'text/html; charset=utf-8', pageHeaders());
@@ -794,7 +800,7 @@ function indexPage(list) {
             ? `${s.url}/changes`
             : null;
       const where = s.kind === 'local' ? 'local commits' : s.repo ? `${s.repo}#${s.number}` : '';
-      return `<li>${href ? `<a href="${esc(href)}"${s.kind === 'local' ? '' : ' target="_blank" rel="noopener noreferrer"'}>${esc(s.title)}</a>` : esc(s.title)} <span class="ds-muted">${esc(where)} · ${esc(s.id)}</span></li>`;
+      return `<li>${href ? `<a href="${escapeHtml(href)}"${s.kind === 'local' ? '' : ' target="_blank" rel="noopener noreferrer"'}>${escapeHtml(s.title)}</a>` : escapeHtml(s.title)} <span class="ds-muted">${escapeHtml(where)} · ${escapeHtml(s.id)}</span></li>`;
     })
     .join('');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -806,7 +812,7 @@ function indexPage(list) {
 function localPage(id, meta, token) {
   const boot = JSON.stringify({ story: id, token }).replace(/</g, '\\u003c');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${esc(meta.title)}</title><link rel="stylesheet" href="/assets/local.css">
+<title>${escapeHtml(meta.title)}</title><link rel="stylesheet" href="/assets/local.css">
 <script type="application/json" id="ds-boot">${boot}</script>
 <script type="module" src="/assets/local.js"></script></head>
 <body class="ds-local"><div id="ds-app"><p class="ds-muted ds-loading">Loading the story…</p></div></body></html>`;

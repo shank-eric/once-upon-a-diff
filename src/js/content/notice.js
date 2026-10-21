@@ -8,6 +8,7 @@
  * GitHub's page and posts nothing.
  */
 import { copyWithFeedback } from './copy.js';
+import { escapeHtml } from '../shared/util/html.js';
 
 const HOST_ID = 'diff-story-listen-notice';
 const MAX = 3;
@@ -26,12 +27,6 @@ const CSS = `
   .x { border: 0; background: none; padding: 0 4px; color: var(--fgColor-muted, #59636e); align-self: flex-start; }
   code { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
 `;
-const esc = (s) =>
-  String(s ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 
 export function listenNotice() {
   let host = null;
@@ -88,8 +83,8 @@ export function listenNotice() {
             : `Start Claude Code in your ${m.repo} checkout and paste ${m.prompt}.`;
           const title = `${how}${m.details ? `\n\nWithout the diff-story-listen skill: ${m.details}` : ''}`;
           return (
-            `<div class="row"><span>No session listening for <b>${esc(m.repo)}</b>${m.checkout ? ` <span class="muted">· ${esc(m.checkout)}</span>` : ''}</span>` +
-            `<button data-i="${i}" title="${esc(title)}">Copy prompt for Claude</button></div>`
+            `<div class="row"><span>No session listening for <b>${escapeHtml(m.repo)}</b>${m.checkout ? ` <span class="muted">· ${escapeHtml(m.checkout)}</span>` : ''}</span>` +
+            `<button data-i="${i}" title="${escapeHtml(title)}">Copy prompt for Claude</button></div>`
           );
         })
         .join('') +

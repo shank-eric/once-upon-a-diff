@@ -13,14 +13,14 @@
  *
  * No chrome.* or DOM here, so the rules can be tested in node.
  */
+import { filesChangedPr } from '../shared/util/github-paths.js';
 
-const PR_FILES = /^\/([^/]+)\/([^/]+)\/pull\/(\d+)\/(changes|files)(?:\/|$)/;
 export const REDIRECT_GUARD_MS = 15000;
 
 /** {key, view} for a PR's Files changed page (view is 'changes' or 'files'), else null. */
 export function filesPage(href) {
-  const m = PR_FILES.exec(new URL(href).pathname);
-  return m ? { key: `${m[1]}/${m[2]}#${m[3]}`.toLowerCase(), view: m[4] } : null;
+  const pr = filesChangedPr(new URL(href).pathname);
+  return pr ? { key: pr.key, view: pr.view } : null;
 }
 
 /** true for ?w=1, false for ?w=0, null when the URL doesn't say. */

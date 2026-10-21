@@ -48,7 +48,9 @@
     {
       "resources": [
         "js/content/*",
-        "js/shared/*"
+        "js/shared/*",
+        "js/shared/util/*",
+        "js/shared/panel/*"
       ],
       "matches": [
         "https://github.com/*"
