@@ -109,6 +109,24 @@ export function finishedInOf(chapters) {
   for (let i = chapters.length - 1; i >= 0; i--) if (chapters[i].since) (chapters[i].files || []).forEach((f) => { fin[f.rel] = i + 1; });
   return fin;
 }
+/** GitHub's diff of a commit range in a PR: /owner/repo/pull/N/files/<from>..<to> (or /changes/…). {from, to} or null. */
+export function rangeOfPath(pathname) {
+  const m = /^\/[^/]+\/[^/]+\/pull\/\d+\/(?:files|changes)\/([0-9a-f]{7,40})\.\.([0-9a-f]{7,40})\/?$/.exec(String(pathname || ''));
+  return m ? { from: m[1], to: m[2] } : null;
+}
+const sameSha = (a, b) => !!a && !!b && (a.startsWith(b) || b.startsWith(a));
+/** The step (1-based) of the "Since you read it" chapter for the range this page shows, or null. */
+export function rangeStepOf(chapters, pathname) {
+  const r = rangeOfPath(pathname);
+  if (!r) return null;
+  const i = chapters.findIndex((ch) => ch.since && sameSha(ch.since.from, r.from) && sameSha(ch.since.to, r.to));
+  return i < 0 ? null : i + 1;
+}
+/**
+ * The link to GitHub's diff of just a chapter's commits. /files/<from>..<to> loads as is, logged in or out
+ * (checked 2026-10-21); /changes/<from>..<to> redirects there when logged out.
+ */
+export const rangeUrl = (prUrl, since) => (prUrl && since ? `${String(prUrl).replace(/\/+$/, '')}/files/${since.from}..${since.to}` : null);
 /** Each step's chapter number, or null for a "Since you read it" chapter: those aren't numbered, so the rest keep the numbers they were read with. */
 export function chapterNumbers(chapters) {
   let k = 0;
@@ -838,7 +856,13 @@ export function storyOverlay(INPUT, opts = {}) {
     const n = ch.since.commits;
     const what = `${n != null ? `${n} commit${n === 1 ? '' : 's'}` : 'The commits'} since you read the story`;
     const rest = DATA.chapters.some((c) => !c.since) ? ' The chapters after this one are as you read them.' : '';
-    return `<div class="prs-since"><b>${esc(what)}</b>, ${esc(sha7(ch.since.from))}..${esc(sha7(ch.since.to))}. This step shows only the files they touched.${esc(rest)}</div>`;
+    // GitHub's diff of just these commits (the filter here shows the files they touched, but each file's whole PR diff)
+    const url = HOST === 'GitHub' ? rangeUrl(DATA.pr && DATA.pr.url, ch.since) : null;
+    const here = url && rangeStepOf([ch], location.pathname) === 1;
+    const link = !url ? '' : here
+      ? ` You're on GitHub's diff of just these commits. <a href="${esc(`${DATA.pr.url}/files`)}">All of the PR's changes</a>`
+      : ` <a href="${esc(url)}" title="GitHub's Files changed for ${esc(sha7(ch.since.from))}..${esc(sha7(ch.since.to))} only">See just these commits' changes on GitHub</a>`;
+    return `<div class="prs-since"><b>${esc(what)}</b>, ${esc(sha7(ch.since.from))}..${esc(sha7(ch.since.to))}. This step shows only the files they touched.${esc(rest)}${link}</div>`;
   }
 
   function renderBody() {

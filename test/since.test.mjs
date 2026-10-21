@@ -122,3 +122,16 @@ test('"Since you read it" chapters finish their files and are not numbered', asy
   assert.deepEqual(finishedInOf(chapters), { 'src/a.js': 1, 'src/b.js': 2, 'src/c.js': 4 }, 'the newest addendum wins; untouched files finish where they did');
   assert.deepEqual(finishedInOf(chapters.slice(2)), { 'src/a.js': 2, 'src/b.js': 2, 'src/c.js': 2 }, 'without one, the last chapter that lists a file');
 });
+
+test('GitHub\'s diff of a "Since you read it" chapter\'s commits opens on that chapter', async () => {
+  const { rangeOfPath, rangeStepOf, rangeUrl } = await import('../src/js/shared/overlay.js');
+  const chapters = [{ title: 'Since you read it', since: { from: A, to: B } }, { title: 'Chapter 1: Start' }];
+  assert.deepEqual(rangeOfPath(`/acme/widgets/pull/7/files/${A}..${B}`), { from: A, to: B });
+  assert.deepEqual(rangeOfPath('/acme/widgets/pull/7/changes/aaaaaaa..bbbbbbb/'), { from: 'aaaaaaa', to: 'bbbbbbb' });
+  for (const p of ['/acme/widgets/pull/7/files', '/acme/widgets/pull/7/changes', `/acme/widgets/pull/7/commits/${A}`]) assert.equal(rangeOfPath(p), null, p);
+  assert.equal(rangeStepOf(chapters, '/acme/widgets/pull/7/files/aaaaaaa..bbbbbbb'), 1, 'short SHAs match the full ones');
+  assert.equal(rangeStepOf(chapters, `/acme/widgets/pull/7/files/${B}..${A}`), null);
+  assert.equal(rangeStepOf(chapters, '/acme/widgets/pull/7/files'), null);
+  assert.equal(rangeUrl('https://github.com/acme/widgets/pull/7', { from: A, to: B }), `https://github.com/acme/widgets/pull/7/files/${A}..${B}`);
+  assert.equal(rangeUrl(null, { from: A, to: B }), null, 'a local story has no GitHub link');
+});
