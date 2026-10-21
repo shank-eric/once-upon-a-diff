@@ -375,11 +375,14 @@ try {
   await lp.locator('#dsm-panel .prs-all').click();
   await lp.waitForTimeout(500);
   check((await earlyText()) === '', 'unmarking them clears the warning');
+  const oneTag = () => lp.locator('#dsm-panel li[data-file="one.txt"] .prs-why').textContent();
+  check(/^Mark viewed/.test(await oneTag()), `a file the chapter finishes says Mark viewed while it isn't: "${await oneTag()}"`);
   await lp.locator('.ds-file[data-path="one.txt"] .ds-viewed').click();
   await lp.waitForTimeout(400);
+  check(/^Viewed ✓/.test(await oneTag()), `and Viewed ✓ once it's ticked: "${await oneTag()}"`);
   const viewed = JSON.parse(readFileSync(path.join(home, 'state', local.id, 'viewed.json'), 'utf8'));
   check(!!viewed['one.txt'], 'clicking Viewed on the local page is kept by the bridge');
-  check(/✓ viewed/.test(await lp.locator('#dsm-panel .prs-files').textContent()), 'the panel sees the local Viewed toggle');
+  check((await lp.locator('#dsm-panel li[data-file="one.txt"] .prs-why.prs-st-viewed').count()) === 1, 'the panel sees the local Viewed toggle');
   check(/✓ All 1 marked viewed/.test(await prog()), `ticking the last one completes the chapter: "${await prog()}"`);
   check((await lp.locator('#dsm-panel .prs-stepprog.prs-done[data-prog-for="1"]').count()) === 1, 'the Steps list shows a check on chapter 1');
   await lp.waitForTimeout(500);
