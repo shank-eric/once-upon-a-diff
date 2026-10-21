@@ -173,11 +173,11 @@ try {
     await page.waitForTimeout(300);
   }
 
-  // Update story sends a build request with mode 'update' and the story's head
-  await page.locator('#dsm-panel .prs-update').click();
+  // Update (new commits) sends a build request with mode 'update', the story's head, and where his reading stopped (nothing read: the story's head)
+  await page.locator('#dsm-panel .prs-update[data-retell="0"]').click();
   await page.waitForTimeout(600);
   const upd = readFileSync(path.join(home, 'inbox.jsonl'), 'utf8').trim().split('\n').map(JSON.parse).find((e) => e.type === 'build_request' && e.mode === 'update');
-  check(!!upd && upd.base_sha === OLD && upd.number === +number, 'Update story asks for an update from the story\'s head');
+  check(!!upd && upd.base_sha === OLD && upd.number === +number && upd.since_sha === OLD && !upd.retell, 'Update (new commits) asks for a "Since you read it" chapter from the story\'s head');
 
   // question, from the GitHub page
   await page.locator('#dsm-panel .prs-ask textarea').fill('Why two halves?');
@@ -273,6 +273,32 @@ try {
   check((await convo.locator('[data-dsm-convo]').count()) === 0, 'and only on the Conversation tab');
   await convo.close();
 
+  // a "Since you read it" chapter first: not numbered, the chapters he read keep their numbers, and it links GitHub's diff of its commits
+  const commits = await (await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls/${number}/commits`, { headers: { Accept: 'application/vnd.github+json' } })).json();
+  const since = { from: commits[0].sha, to: commits[commits.length - 1].sha, commits: commits.length - 1 };
+  const plan = JSON.parse(readFileSync(path.join(home, id, 'chapters.json'), 'utf8'));
+  plan.chapters.unshift({ key: 'since-test', title: 'Since you read it: new commits', since, narrative: '### Since you read it\n\nThe new commits.', files: [rels[rels.length - 1]] });
+  writeJson(path.join(home, id, 'chapters.json'), plan);
+  const sp = await context.newPage();
+  await sp.goto(`https://github.com/${owner}/${repo}/pull/${number}/files`, { waitUntil: 'domcontentloaded' });
+  await sp.waitForSelector('#diff-story-panel', { state: 'attached', timeout: 15000 });
+  await sp.locator('#dsm-panel ol.prs-map li[data-n="0"]').click();
+  const stepsText = await sp.locator('#dsm-panel ol.prs-map').textContent();
+  check(/New Since you read it: new commits/.test(stepsText) && /1\. First half/.test(stepsText) && /2\. Second half/.test(stepsText), `the Steps list shows it as New and keeps the old numbers: "${stepsText.replace(/\s+/g, ' ').trim()}"`);
+  await sp.locator('#dsm-panel ol.prs-map li[data-n="1"]').click();
+  const rangeHref = await sp.locator('#dsm-panel .prs-since a').getAttribute('href').catch(() => null);
+  check(rangeHref === `https://github.com/${owner}/${repo}/pull/${number}/files/${since.from}..${since.to}`, `it links GitHub's diff of just its commits (${rangeHref})`);
+  await sp.locator('#dsm-panel ol.prs-map li[data-n="2"]').click();
+  check(/Already finished in “Since you read it”/.test(await sp.locator('#dsm-panel .prs-body').textContent()) || !rels.slice(0, half).includes(rels[rels.length - 1]), 'a file it lists is finished there, not in the old chapter');
+  await sp.locator('#dsm-panel ol.prs-map li[data-n="3"]').click();
+  check(/Already finished in “Since you read it”/.test(await sp.locator('#dsm-panel details.prs-filesbox').textContent()), 'the old chapter that listed it says it was finished in "Since you read it"');
+  await sp.goto(rangeHref, { waitUntil: 'domcontentloaded' });
+  await sp.waitForSelector('#diff-story-panel', { state: 'attached', timeout: 15000 });
+  await sp.waitForTimeout(1500);
+  check(/“Since you read it”/.test(await sp.locator('#dsm-panel .prs-count-note').textContent()) && /You're on GitHub's diff of just these commits/.test(await sp.locator('#dsm-panel .prs-since').textContent()),
+    `GitHub's diff of those commits opens on that chapter: "${(await sp.locator('#dsm-panel .prs-count-note').textContent()).trim()}"`);
+  await sp.close();
+
   // 3. local page
   beat(home, 'load-test', 'waiting');
   const lp = await context.newPage();
@@ -356,6 +382,9 @@ try {
   check(/✓ viewed/.test(await lp.locator('#dsm-panel .prs-files').textContent()), 'the panel sees the local Viewed toggle');
   check(/✓ All 1 marked viewed/.test(await prog()), `ticking the last one completes the chapter: "${await prog()}"`);
   check((await lp.locator('#dsm-panel .prs-stepprog.prs-done[data-prog-for="1"]').count()) === 1, 'the Steps list shows a check on chapter 1');
+  await lp.waitForTimeout(500);
+  const reads = existsSync(path.join(home, 'state', local.id, 'read.json')) ? JSON.parse(readFileSync(path.join(home, 'state', local.id, 'read.json'), 'utf8')) : {};
+  check(!!reads.one && reads.one.reason === 'viewed' && /^[0-9a-f]{40}$/.test(reads.one.head_sha || ''), `ticking a chapter's last file records it as read, with the range's head (${JSON.stringify(reads.one || null)})`);
   await lp.locator('.ds-file[data-path="one.txt"] .ds-viewed').click(); // unfold again to reach a line
   await lp.locator('td.ds-num[data-line-anchor$="R2"]').first().click();
   await lp.locator('.ds-note-form textarea').fill('Lower-case B');
