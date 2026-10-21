@@ -195,6 +195,8 @@ export function storyOverlay(INPUT, opts = {}) {
   #${NS} .prs-touched { font-size: 11px; color: var(--c-warn); margin-left: 4px; }
   #${NS} .prs-askhint { padding: 6px 10px 0; font-size: 12px; color: var(--c-warn); background: var(--c-subtle); border-top: 1px solid var(--c-border); }
   #${NS} .prs-askhint code { font-size: 11px; }
+  #${NS} .prs-askhint .prs-copyprompt { margin-left: 4px; }
+  #${NS} .prs-askhint .prs-prompt { white-space: pre-wrap; word-break: break-all; font-size: 11px; margin: 4px 0 0; color: var(--c-fg); }
   #${NS} .prs-progress { margin: 0 0 10px; padding: 4px 8px; font-size: 12px; color: var(--c-muted); border-left: 3px solid var(--c-border); }
   #${NS} .prs-progress:empty { display: none; }
   #${NS} .prs-progress.prs-complete { border-left-color: var(--c-ok); }
@@ -973,6 +975,25 @@ export function storyOverlay(INPUT, opts = {}) {
     else fallback();
   }
 
+  /** Copies the listen prompt; if the clipboard says no, shows it selected so Cmd+C works. */
+  function copyPrompt(text, btn, pre) {
+    const done = (ok) => {
+      btn.textContent = ok ? 'Copied' : 'Select and copy';
+      if (!ok && pre) {
+        pre.textContent = text;
+        pre.hidden = false;
+        const range = document.createRange();
+        range.selectNodeContents(pre);
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      }
+      setTimeout(() => { btn.textContent = 'Copy prompt for Claude'; }, 1500);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(() => done(true), () => done(false));
+    else done(false);
+  }
+
   function copyText(text, btn) {
     const was = btn.textContent;
     const done = (ok) => { btn.textContent = ok ? 'copied' : text; setTimeout(() => { btn.textContent = was; }, ok ? 1200 : 4000); };
@@ -1053,7 +1074,7 @@ export function storyOverlay(INPUT, opts = {}) {
     if (h.autoBuild && h.autoBuild.enabled) checks.push({ ok: true, name: 'autoBuild', detail: 'on' });
     if (h.autoAnswer && h.autoAnswer.enabled) checks.push({ ok: true, name: 'autoAnswer', detail: 'on: questions get an answer from the configured command' });
     const listening = l.ok || (h.autoAnswer && h.autoAnswer.enabled);
-    return { level: !listening || (h.story && !h.story.ok) ? 'warn' : 'ok', checks, listening };
+    return { level: !listening || (h.story && !h.story.ok) ? 'warn' : 'ok', checks, listening, prompt: l.prompt || null };
   }
   function renderHealth(res) {
     const btn = $('.prs-light');
@@ -1064,9 +1085,18 @@ export function storyOverlay(INPUT, opts = {}) {
     const showHint = opts.ask && res.level !== 'ok' && !res.listening;
     hint.hidden = !showHint;
     if (showHint) {
-      hint.innerHTML = res.level === 'error'
+      const html = res.level === 'error'
         ? `${esc(res.checks[0].detail)}. Questions can't be sent until it's back.`
-        : 'No Claude session is listening; questions will wait. Start one in Claude Code as a background task: <code>diff-story wait --consumer pr-story</code>';
+        : res.prompt
+          ? 'No Claude session is listening; questions will wait. Paste this into a Claude Code session to start one: <button type="button" class="prs-copyprompt">Copy prompt for Claude</button><pre class="prs-prompt" hidden></pre>'
+          : 'No Claude session is listening; questions will wait. Start one in Claude Code as a background task: <code>diff-story wait --consumer pr-story</code>';
+      // redrawn every 10s, so only when it changes (a "Copied" label stays put)
+      if (hint.getAttribute('data-html') !== html + (res.prompt || '')) {
+        hint.setAttribute('data-html', html + (res.prompt || ''));
+        hint.innerHTML = html;
+        const btn = hint.querySelector('.prs-copyprompt');
+        if (btn) btn.onclick = () => copyPrompt(res.prompt, btn, hint.querySelector('.prs-prompt'));
+      }
     }
   }
   async function refreshHealth() {

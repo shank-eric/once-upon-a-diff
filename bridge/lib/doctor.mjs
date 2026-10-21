@@ -6,17 +6,11 @@ import { existsSync, readFileSync, statSync, accessSync, constants } from 'node:
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { StoryStore } from './stories.mjs';
-import { listeners } from './health.mjs';
+import { listeners, onPath } from './health.mjs';
 import { Builds } from './builds.mjs';
 import { Inbox } from './inbox.mjs';
 
 const et = iso => (iso ? new Date(iso).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' ET' : '');
-
-function onPath(cmd) {
-  if (!cmd) return false;
-  if (cmd.includes('/')) return existsSync(cmd);
-  try { execFileSync('/usr/bin/which', [cmd], { stdio: 'ignore' }); return true; } catch { return false; }
-}
 
 function listenerPid(port) {
   try {
