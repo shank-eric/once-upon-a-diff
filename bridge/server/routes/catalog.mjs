@@ -3,11 +3,11 @@
  * PR lists' batched status (ready, building or none, read progress, out of
  * date, and who's listening per repo).
  */
-import { readMeta } from '../../lib/stories.mjs';
+import { readMeta } from '../../stories/meta.mjs';
 import { stateKeyOf } from '../../github/drafts.mjs';
 import { currentHead, newerCount } from '../../github/freshness.mjs';
 import { listeningOf } from '../../listeners/listeners.mjs';
-import { readReads } from '../../lib/reads.mjs';
+import { readReads } from '../../stories/reads.mjs';
 import { HttpError } from '../request.mjs';
 
 const MAX_PRS = 200;

@@ -32,11 +32,11 @@ export const READ_REASONS = ['time', 'viewed', 'inferred'];
 export const SHA_RE = /^[0-9a-f]{7,40}$/;
 
 /** A chapter's stable key: its own `key`, else its title without "Chapter N:", lowercased. */
-export function chapterKey(ch) {
-  if (ch && typeof ch.key === 'string' && ch.key.trim()) {
-    return ch.key.trim().slice(0, 200);
+export function chapterKey(chapter) {
+  if (chapter && typeof chapter.key === 'string' && chapter.key.trim()) {
+    return chapter.key.trim().slice(0, 200);
   }
-  return String((ch && ch.title) || '')
+  return String((chapter && chapter.title) || '')
     .replace(/^\s*chapter\s+\d+\s*[:.–—-]\s*/i, '')
     .trim()
     .toLowerCase()
@@ -83,7 +83,7 @@ export function noteRead(
 }
 
 /** The commit a read stands for: what the story told them (story_head), else the PR head they saw. */
-export const readSha = (r) => (r && (r.story_head || r.head_sha)) || null;
+export const readSha = (read) => (read && (read.story_head || read.head_sha)) || null;
 
 /**
  * Since they read them: the chapters (other than "Since you read it" ones) whose files changed after the commit they
@@ -95,32 +95,34 @@ export const readSha = (r) => (r && (r.story_head || r.head_sha)) || null;
 export function changedSinceRead(chapters, reads, changes, storyHead) {
   const changed = [];
   const stale = [];
-  (chapters || []).forEach((ch, i) => {
-    if (ch.since) {
+  (chapters || []).forEach((chapter, i) => {
+    if (chapter.since) {
       return;
     }
-    const key = ch.key || chapterKey(ch);
+    const key = chapter.key || chapterKey(chapter);
     const sha = readSha(reads && reads[key]);
     const diff = sha && sha !== storyHead ? changes.get(sha) : null;
     if (!diff || !diff.size) {
       return;
     }
-    const files = (ch.files || []).map((f) => f.rel).filter((rel) => diff.has(rel));
+    const files = (chapter.files || []).map((file) => file.rel).filter((rel) => diff.has(rel));
     if (files.length) {
       changed.push({ step: i + 1, chapter: key, since: sha, files });
     }
-    (ch.comments || []).forEach((c, index) => {
-      const f = c.path && Number(c.line) > 0 ? diff.get(c.path) : null;
-      if (!f) {
+    (chapter.comments || []).forEach((comment, index) => {
+      const file = comment.path && Number(comment.line) > 0 ? diff.get(comment.path) : null;
+      if (!file) {
         return;
       }
-      const line = Number(c.line);
+      const line = Number(comment.line);
       const hit =
-        f.kind === 'deleted' ||
-        f.kind === 'renamed' ||
-        f.hunks.some((h) => line >= h.oldStart && line < h.oldStart + Math.max(h.oldLines, 1));
+        file.kind === 'deleted' ||
+        file.kind === 'renamed' ||
+        file.hunks.some(
+          (hunk) => line >= hunk.oldStart && line < hunk.oldStart + Math.max(hunk.oldLines, 1),
+        );
       if (hit) {
-        stale.push({ step: i + 1, index, path: c.path, line, since: sha });
+        stale.push({ step: i + 1, index, path: comment.path, line, since: sha });
       }
     });
   });
@@ -135,22 +137,29 @@ export function changedSinceRead(chapters, reads, changes, storyHead) {
  * @returns {{since_sha: string|null, source: 'read'|'story'|null, chapter: string|null, at: string|null, read: {chapter, title, sha, at}[]}}
  */
 export function sinceOf(reads, chapters, fallback = null) {
-  const keys = new Map((chapters || []).map((ch) => [ch.key || chapterKey(ch), ch]));
-  const read = Object.entries(reads || {})
-    .filter(([k, r]) => keys.has(k) && r && readSha(r) && Number.isFinite(Date.parse(r.at)))
-    .map(([k, r]) => ({
+  const keys = new Map(
+    (chapters || []).map((chapter) => [chapter.key || chapterKey(chapter), chapter]),
+  );
+  const entries = Object.entries(reads || {})
+    .filter(
+      ([k, read]) => keys.has(k) && read && readSha(read) && Number.isFinite(Date.parse(read.at)),
+    )
+    .map(([k, read]) => ({
       chapter: k,
-      title: r.title || keys.get(k).title || k,
-      sha: readSha(r),
-      at: r.at,
+      title: read.title || keys.get(k).title || k,
+      sha: readSha(read),
+      at: read.at,
       addendum: !!keys.get(k).since,
     }));
   // reading the newest "Since you read it" chapter caught them up to its commit, so older reads don't count
-  const cutoff = Math.max(0, ...read.filter((r) => r.addendum).map((r) => Date.parse(r.at)));
-  const counted = read
-    .filter((r) => Date.parse(r.at) >= cutoff)
-    .sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
-  const list = read.map(({ addendum, ...r }) => r);
+  const cutoff = Math.max(
+    0,
+    ...entries.filter((read) => read.addendum).map((read) => Date.parse(read.at)),
+  );
+  const counted = entries
+    .filter((read) => Date.parse(read.at) >= cutoff)
+    .sort((first, second) => Date.parse(first.at) - Date.parse(second.at));
+  const list = entries.map(({ addendum, ...rest }) => rest);
   if (counted.length) {
     return {
       since_sha: counted[0].sha,
@@ -160,6 +169,12 @@ export function sinceOf(reads, chapters, fallback = null) {
       read: list,
     };
   }
-  const fb = SHA_RE.test(String(fallback || '')) ? fallback : null;
-  return { since_sha: fb, source: fb ? 'story' : null, chapter: null, at: null, read: list };
+  const fallbackSha = SHA_RE.test(String(fallback || '')) ? fallback : null;
+  return {
+    since_sha: fallbackSha,
+    source: fallbackSha ? 'story' : null,
+    chapter: null,
+    at: null,
+    read: list,
+  };
 }

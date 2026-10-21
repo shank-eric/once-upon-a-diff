@@ -6,7 +6,7 @@
 import { readPrefs, writePrefs } from '../../config/settings.mjs';
 import { storyRepo, REPO_RE } from '../../config/repos.mjs';
 import { statusOf } from '../../listeners/listeners.mjs';
-import { readMeta } from '../../lib/stories.mjs';
+import { readMeta } from '../../stories/meta.mjs';
 
 /** The status light: bridge, story, a Claude session listening, autoBuild and autoAnswer. */
 function status({ app, url, send }) {

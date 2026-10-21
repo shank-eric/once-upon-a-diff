@@ -9,7 +9,8 @@ import { readPrefs } from '../../config/settings.mjs';
 import { seenCheckout } from '../../config/repos.mjs';
 import { newId } from '../../inbox/inbox.mjs';
 import { freshness } from '../../github/freshness.mjs';
-import { refreshLocal, storyVersion, localVersion } from '../../lib/stories.mjs';
+import { refreshLocal } from '../../stories/local-diff.mjs';
+import { storyVersion, localVersion } from '../../stories/meta.mjs';
 import { clipText, toInt } from '../request.mjs';
 
 function load({ app, send }, story) {

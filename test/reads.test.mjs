@@ -4,10 +4,10 @@ import path from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson, localRepo } from './helpers.mjs';
-import { chapterKey, noteRead, readReads, sinceOf } from '../bridge/lib/reads.mjs';
+import { chapterKey, noteRead, readReads, sinceOf } from '../bridge/stories/reads.mjs';
 import { chapterKeyOf, readStepsOf, inferReadSteps } from '../src/js/shared/overlay.js';
 import { clearFreshness } from '../bridge/github/freshness.mjs';
-import { createLocalStory } from '../bridge/lib/local.mjs';
+import { createLocalStory } from '../bridge/stories/local-story.mjs';
 
 process.env.DIFF_STORY_GH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -185,7 +185,7 @@ test('a local story records the head commit of its range', async () => {
 });
 
 test('chapters he read are marked when a newer commit changed their files, and drafts on a changed line', async () => {
-  const { changedSinceRead } = await import('../bridge/lib/reads.mjs');
+  const { changedSinceRead } = await import('../bridge/stories/reads.mjs');
   const chapters = [
     {
       key: 'since-x',

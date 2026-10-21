@@ -8,7 +8,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { newId } from '../../inbox/inbox.mjs';
-import { addComment } from '../../lib/comments.mjs';
+import { addComment } from '../../stories/comments.mjs';
 import {
   stateKeyOf,
   readMarks,

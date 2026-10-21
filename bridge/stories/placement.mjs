@@ -71,8 +71,10 @@ export function excludeStories(dir) {
     text
       .split('\n')
       .some(
-        (l) =>
-          l.trim() === EXCLUDE_LINE || l.trim() === `${STORY_FOLDER}/` || l.trim() === STORY_FOLDER,
+        (line) =>
+          line.trim() === EXCLUDE_LINE ||
+          line.trim() === `${STORY_FOLDER}/` ||
+          line.trim() === STORY_FOLDER,
       )
   ) {
     return true;
@@ -116,11 +118,11 @@ export function storyDirFor(home, id, { checkout = null, repo = null } = {}) {
 }
 
 /** Move a story folder's files into another folder (newer files win: what's moving is the latest render), then remove the empty one. */
-export function moveStory(from, to) {
-  mkdirSync(to, { recursive: true });
+export function moveStory(from, target) {
+  mkdirSync(target, { recursive: true });
   for (const name of readdirSync(from)) {
     const src = path.join(from, name);
-    const dest = path.join(to, name);
+    const dest = path.join(target, name);
     if (statSync(src).isDirectory() && existsSync(dest)) {
       moveStory(src, dest);
       continue;
@@ -143,8 +145,8 @@ function homeFor(home, dir) {
       repo = pr.url.split('/').slice(3, 5).join('/');
     }
   }
-  const co = repo ? checkoutFor(home, repo) : null;
-  return co ? mainCheckout(co) : null;
+  const checkout = repo ? checkoutFor(home, repo) : null;
+  return checkout ? mainCheckout(checkout) : null;
 }
 
 let lastAdopt = 0;
@@ -160,12 +162,12 @@ export function adoptHomeStories(home, { isStoryDir, force = false } = {}) {
   const moved = [];
   let entries = [];
   try {
-    entries = readdirSync(home, { withFileTypes: true }).filter((d) => d.isDirectory());
+    entries = readdirSync(home, { withFileTypes: true }).filter((entry) => entry.isDirectory());
   } catch {
     return moved;
   }
-  for (const d of entries) {
-    const from = path.join(home, d.name);
+  for (const entry of entries) {
+    const from = path.join(home, entry.name);
     if (!isStoryDir(from)) {
       continue;
     }
@@ -173,11 +175,11 @@ export function adoptHomeStories(home, { isStoryDir, force = false } = {}) {
     if (!top || !excludeStories(top)) {
       continue;
     }
-    const to = path.join(top, STORY_FOLDER, d.name);
+    const target = path.join(top, STORY_FOLDER, entry.name);
     try {
-      moveStory(from, to);
-      indexStory(home, d.name, to);
-      moved.push({ id: d.name, from, to });
+      moveStory(from, target);
+      indexStory(home, entry.name, target);
+      moved.push({ id: entry.name, from, to: target });
     } catch {
       /* leave it readable where it is */
     }

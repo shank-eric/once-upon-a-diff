@@ -2,7 +2,7 @@
  * What the reviewer has read, per chapter, with the commit current at the
  * time (POST), and what changed after they read each chapter (GET).
  */
-import { readMeta } from '../../lib/stories.mjs';
+import { readMeta } from '../../stories/meta.mjs';
 import { stateKeyOf } from '../../github/drafts.mjs';
 import { currentHead, changesSince } from '../../github/freshness.mjs';
 import { newId } from '../../inbox/inbox.mjs';
@@ -13,7 +13,7 @@ import {
   readSha,
   changedSinceRead,
   SHA_RE,
-} from '../../lib/reads.mjs';
+} from '../../stories/reads.mjs';
 import { HttpError, clipText, toInt } from '../request.mjs';
 
 /** The PR's head: the panel says what it saw, else ask gh (read-only, cached 60s); a local story's is its head commit. */

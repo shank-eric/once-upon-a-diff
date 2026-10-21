@@ -5,8 +5,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { tmp, git, writeJson, startBridge } from './helpers.mjs';
 import { findBackstory, defaultSessionStory } from '../bridge/backstory/index.mjs';
-import { createLocalStory } from '../bridge/lib/local.mjs';
-import { StoryStore, backstoryOf, storyBackstory } from '../bridge/lib/stories.mjs';
+import { createLocalStory } from '../bridge/stories/local-story.mjs';
+import { StoryStore } from '../bridge/stories/store.mjs';
+import { backstoryOf, storyBackstory } from '../bridge/stories/backstory-notes.mjs';
 
 const slug = (cwd) => cwd.replace(/[^A-Za-z0-9]/g, '-');
 

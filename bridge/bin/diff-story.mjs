@@ -51,12 +51,13 @@ import {
   readerOf,
 } from '../config/settings.mjs';
 import { createBridge } from '../server/index.mjs';
-import { StoryStore, readMeta } from '../lib/stories.mjs';
-import { createLocalStory, slug } from '../lib/local.mjs';
-import { storyDirFor } from '../lib/place.mjs';
+import { StoryStore } from '../stories/store.mjs';
+import { readMeta } from '../stories/meta.mjs';
+import { createLocalStory, slug } from '../stories/local-story.mjs';
+import { storyDirFor } from '../stories/placement.mjs';
 import { Inbox } from '../inbox/inbox.mjs';
 import { Builds, updateOf } from '../inbox/builds.mjs';
-import { addComment } from '../lib/comments.mjs';
+import { addComment } from '../stories/comments.mjs';
 import { stateKeyOf, readMarks, draftStatus, githubComments } from '../github/drafts.mjs';
 import { beat } from '../listeners/listeners.mjs';
 import { REPO_RE, sameRepo, repoOfCheckout, seenCheckout } from '../config/repos.mjs';
