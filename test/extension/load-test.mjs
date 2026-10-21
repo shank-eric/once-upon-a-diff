@@ -226,16 +226,16 @@ try {
   const other = await context.newPage();
   await other.goto(`https://github.com/${owner}/${repo}/pull/${NOSTORY}/files`, { waitUntil: 'domcontentloaded' });
   await other.waitForSelector('#diff-story-status', { state: 'attached', timeout: 10000 }).catch(() => null);
-  check(/Building story/.test(await other.locator('#diff-story-status .dss').textContent().catch(() => '')), 'another tab on that PR shows Building too');
+  check(/Story queued/.test(await other.locator('#diff-story-status .dss').textContent().catch(() => '')), 'another tab on that PR shows it queued too');
   await other.close();
   writeJson(path.join(home, `${owner}-${repo}-${NOSTORY}`, 'meta.json'), { kind: 'github', repo: `${owner}/${repo}`, number: NOSTORY });
   writeJson(path.join(home, `${owner}-${repo}-${NOSTORY}`, 'chapters.json'), { title: 'Built', chapters: [{ title: 'Chapter 1: All', files: ['readme.md'] }] });
   const built = await nb.waitForSelector('#diff-story-panel', { state: 'attached', timeout: 15000 }).catch(() => null);
-  check(!!built, 'when the story turns up, the panel opens by itself (polling every 10s while Building)');
+  check(!!built, 'when the story turns up, the panel opens by itself (polling every 10s while queued)');
   check((await nb.locator('#diff-story-status').count()) === 0, 'and the status control goes away');
   await nb.close();
 
-  // PR list badges: Story / Building… / Build story, one batched lookup
+  // PR list tags: one per PR (Story / Queued / Building… / Build story), one batched lookup, and a notice per repo with no listener
   const list = await context.newPage();
   await list.goto(`https://github.com/${owner}/${repo}/pulls?q=is%3Apr+is%3Amerged`, { waitUntil: 'domcontentloaded' });
   await list.waitForSelector('[data-dsm-badge]', { state: 'attached', timeout: 15000 }).catch(() => null);
@@ -244,19 +244,34 @@ try {
   const byKey = new Map(badges.map((x) => [x.key, x.text]));
   const k = (n) => `${owner}/${repo}#${n}`.toLowerCase();
   check(badges.length >= 5, `the PR list gets a badge per PR (${badges.length})`);
-  if (byKey.has(k(number))) check(/Story · updating/.test(byKey.get(k(number))), `the PR whose story is being updated says so: "${byKey.get(k(number))}"`);
+  if (byKey.has(k(number))) check(/Update queued|Updating/.test(byKey.get(k(number))), `the PR whose story is being updated says so: "${byKey.get(k(number))}"`);
   else process.stdout.write(`note: #${number} isn't on the first page of the list, so its "Story" badge wasn't checked\n`);
   check([...byKey.values()].some((t) => /Build story/.test(t)), 'PRs without a story say "Build story"');
   const target = badges.find((x) => /Build story/.test(x.text));
   if (target) {
     await list.locator(`[data-dsm-badge="${target.key}"] button[data-act=build]`).click();
     await list.waitForTimeout(800);
-    check(/Building/.test(await list.locator(`[data-dsm-badge="${target.key}"]`).evaluate((h) => h.shadowRoot.textContent)), 'clicking Build story on the list shows Building…');
+    check(/Queued/.test(await list.locator(`[data-dsm-badge="${target.key}"]`).evaluate((h) => h.shadowRoot.textContent)), 'clicking Build story on the list shows Queued');
+    check((await list.locator(`[data-dsm-badge="${target.key}"]`).evaluate((h) => h.shadowRoot.querySelectorAll('.b').length)) === 1, 'one tag per row');
     const n = Number(target.key.split('#')[1]);
     check(readFileSync(path.join(home, 'inbox.jsonl'), 'utf8').includes(`"number":${n}`), 'and sends the same build request as the PR page');
   }
+  const noticeText = await list.locator('#diff-story-listen-notice').evaluate((h) => h.shadowRoot.textContent).catch(() => '');
+  check(new RegExp(`No session listening for ${owner}/${repo}`, 'i').test(noticeText) && /Copy prompt for Claude/.test(noticeText), 'the list says once that no session is listening for the repo, with Copy prompt for Claude');
   await shot(list, 'pr-list');
   await list.close();
+
+  // the PR's Conversation tab: the same single tag next to the title, and the same notice
+  const convo = await context.newPage();
+  await convo.goto(`https://github.com/${owner}/${repo}/pull/${NOSTORY}`, { waitUntil: 'domcontentloaded' });
+  await convo.waitForSelector('[data-dsm-convo]', { state: 'attached', timeout: 15000 }).catch(() => null);
+  const convoTag = await convo.locator('[data-dsm-convo]').evaluate((h) => ({ text: h.shadowRoot.textContent, tags: h.shadowRoot.querySelectorAll('.b').length, href: (h.shadowRoot.querySelector('a') || {}).href || '' })).catch(() => null);
+  check(!!convoTag && /Story/.test(convoTag.text) && convoTag.tags === 1, `the Conversation tab gets one story tag by the title (${convoTag && convoTag.text})`);
+  check(!!convoTag && convoTag.href === `https://github.com/${owner}/${repo}/pull/${NOSTORY}/changes`, 'and Story links to Files changed, where the panel docks');
+  await convo.goto(`https://github.com/${owner}/${repo}/pull/${number}/files`, { waitUntil: 'domcontentloaded' });
+  await convo.waitForTimeout(1500);
+  check((await convo.locator('[data-dsm-convo]').count()) === 0, 'and only on the Conversation tab');
+  await convo.close();
 
   // 3. local page
   beat(home, 'load-test', 'waiting');
