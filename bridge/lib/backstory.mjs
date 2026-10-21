@@ -450,9 +450,10 @@ export function findBackstory(opts) {
       } else {
         for (const h of main.heard) if (near(h.at, 6 * MIN, MIN / 2)) asks.push({ at: h.at, via: 'voice', who: 'Eric', text: clip(h.text, 500) });
         for (const p of main.prompts) if (near(p.at, 10 * MIN, 0)) asks.push({ at: p.at, via: 'prompt', who: 'Eric', text: clip(p.text, 500) });
-        // a message from another session: the one that started this turn, and any that came in during it
-        const turnAt = turn ? ms(turn.at) : NaN;
-        for (const p of main.peers) if (near(p.at, 10 * MIN, 0) || (ms(p.at) >= turnAt - 5000 && ms(p.at) <= to)) asks.push({ at: p.at, via: 'peer', who: p.from, text: clip(p.text, 900) });
+        // a message from another session: the one that started this turn, and any that came in during it.
+        // Earlier ones started their own turns (often a read-only question), so they aren't this moment's ask.
+        const turnAt = turn ? ms(turn.at) : from - 10 * MIN;
+        for (const p of main.peers) if (ms(p.at) >= turnAt - 5000 && ms(p.at) <= to) asks.push({ at: p.at, via: 'peer', who: p.from, text: clip(p.text, 900) });
         for (const s of main.spoke) if (near(s.at, 5 * MIN, 2 * MIN)) spoke.push({ at: s.at, text: clip(s.text, 500) });
       }
       const dedupe = arr => arr.filter((x, i) => arr.findIndex(y => y.text === x.text) === i).sort((a, b) => ms(a.at) - ms(b.at));
