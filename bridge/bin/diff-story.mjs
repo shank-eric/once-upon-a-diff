@@ -8,7 +8,7 @@
  *   diff-story list                                                stories the bridge can serve
  *   diff-story local   --repo DIR --base REF [--head REF] [--chapters FILE] [--backstory FILE] [--id ID] [--title T] [--no-open]
  *                                                                  story over local commits, served at /local/<id>/
- *   diff-story publish --dir DIR [--id ID]                         copy a pr-story folder into ~/.diff-story/<owner>-<repo>-<N>/
+ *   diff-story publish --dir DIR [--id ID]                         copy a pr-story folder into <checkout>/.diff-story/<owner>-<repo>-<N>/ (or ~/.diff-story/)
  *   diff-story inbox   [--story ID] [--type question,note,...] [--unread] [--consumer NAME] [--json]
  *   diff-story wait    [--repo OWNER/NAME | --story ID] [--type question,build_request] [--consumer NAME] [--timeout SECONDS] [--json]
  *                                                                  block until a question or build request arrives, print it, exit (for a background task);
@@ -29,12 +29,13 @@
  * DIFF_STORY_HOME moves ~/.diff-story.
  */
 import { execFile } from 'node:child_process';
-import { appendFileSync, copyFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync, watch } from 'node:fs';
+import { appendFileSync, copyFileSync, existsSync, readFileSync, statSync, writeFileSync, watch } from 'node:fs';
 import path from 'node:path';
 import { homeDir, loadConfig, saveConfig, newToken } from '../lib/config.mjs';
 import { createBridge } from '../lib/server.mjs';
 import { StoryStore, readMeta } from '../lib/stories.mjs';
 import { createLocalStory, slug } from '../lib/local.mjs';
+import { storyDirFor } from '../lib/place.mjs';
 import { Inbox } from '../lib/inbox.mjs';
 import { Builds } from '../lib/builds.mjs';
 import { addComment } from '../lib/comments.mjs';
@@ -154,8 +155,8 @@ const COMMANDS = {
     const meta = readMeta(src);
     if (!meta.repo || !meta.number) throw new Error(`${src} doesn't say which PR it is (no pr.json or file-map.json)`);
     const id = opts.id || slug(`${meta.repo.replace('/', '-')}-${meta.number}`);
-    const dest = path.join(home, id);
-    mkdirSync(dest, { recursive: true });
+    // into the repo's checkout (.diff-story/<id>, kept out of git) when the bridge knows it, else ~/.diff-story/<id>
+    const dest = storyDirFor(home, id, { repo: meta.repo });
     for (const f of ['chapters.json', 'file-map.json', 'backstory.json']) if (existsSync(path.join(src, f))) copyFileSync(path.join(src, f), path.join(dest, f));
     writeFileSync(path.join(dest, 'meta.json'), JSON.stringify({ kind: 'github', repo: meta.repo, number: meta.number, url: meta.url, pr_title: meta.pr_title || null, source: src, published_at: new Date().toISOString() }, null, 2));
     out(dest);

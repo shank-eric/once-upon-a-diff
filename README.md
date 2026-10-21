@@ -202,17 +202,27 @@ It scans `~/.claude/projects` (main and subagent transcripts) for ones that ment
 
 ## Story folders
 
+Stories live in the repo they're about, in a hidden `.diff-story/` folder in its local checkout. Git ignores that folder through the checkout's `.git/info/exclude`, which is local and never committed. So there's no `.gitignore` change, `git status` stays clean, and `git add .` can't pick it up. A worktree shares its repo's exclude file.
+
 ```
+<checkout or worktree>/.diff-story/
+  local-<repo>-<branch>/            chapters.json, meta.json, local.diff      (from diff-story local, in the worktree it diffs)
+  <owner>-<repo>-<N>/               chapters.json, file-map.json, meta.json   (a PR story, in the repo's main checkout)
+                                    backstory.json in either, when there is one
+
 ~/.diff-story/                      (DIFF_STORY_HOME moves it)
   config.json                       {port, token}, mode 600
   prefs.json                        page settings for every story: {hideWhitespace, diffView}
+  stories.json                      the index: story id -> folder
+  checkouts.json                    repo -> the checkout the bridge has seen
   inbox.jsonl                       questions, answers, positions, notes
+  builds.json                       build requests, queued or building
   cursors/<consumer>.json           how far each reader has read the inbox
   state/<story id>/                 ui.json, position.json, viewed.json, notes.json
-  <owner>-<repo>-<N>/               chapters.json, file-map.json, meta.json   (from pr-story)
-  local-<repo>-<branch>/            chapters.json, meta.json, local.diff      (from diff-story local)
-                                    backstory.json in either, when there is one
+  <story id>/                       a story whose repo has no known checkout
 ```
+
+The bridge learns a repo's checkout from local stories, from where `diff-story wait --repo` was run, and from `~/Development/<name>` (or `~/Development/Services|SDK/<name>`) when its origin is that repo. pr-story's `render` still publishes to `~/.diff-story/<owner>-<repo>-<N>/`. The bridge moves a story from there into its checkout once it knows the checkout, and a later render follows it the same way. Stories made before this moved the same way the first time the bridge saw them. One whose checkout isn't known stays readable in `~/.diff-story`.
 
 The bridge also lists pr-story scratch folders (`/private/tmp/claude-<uid>/*/*/scratchpad/pr-story/*/`). `--root DIR` (repeatable) replaces the home folder as the place to look, and `--no-scratch` skips the scratch folders. When two folders hold the same PR, the most recently changed one wins.
 

@@ -7,14 +7,18 @@
  * the panel's step) goes under <home>/state/<story id>/.
  *
  * Roots, searched in order (the first story with a given id wins):
- *   1. <home> itself (~/.diff-story/<owner>-<repo>-<N>/, local-*), or the --root folders
- *   2. pr-story's scratch folders, newest first
+ *   1. stories in repo checkouts (<checkout>/.diff-story/<id>/): the index, then each known checkout's folder
+ *   2. <home> itself (~/.diff-story/<owner>-<repo>-<N>/, local-*), or the --root folders
+ *   3. pr-story's scratch folders, newest first
+ * Stories that land in <home> (pr-story's render publishes there) move into their checkout once it's known (place.mjs).
  */
 import { existsSync, readdirSync, readFileSync, statSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { parseUnifiedDiff, pathSha } from './diff.mjs';
 import { revParse, diffText, commitsBetween } from './git.mjs';
 import { scratchBases, readPrefs } from './config.mjs';
+import { readIndex, adoptHomeStories, STORY_FOLDER } from './place.mjs';
+import { readCheckouts } from './repos.mjs';
 
 export const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/;
 
@@ -22,7 +26,7 @@ const readJson = (file, fallback = null) => {
   try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return fallback; }
 };
 const mtime = file => { try { return statSync(file).mtimeMs; } catch { return 0; } };
-const isStoryDir = dir => existsSync(path.join(dir, 'chapters.json')) && ['file-map.json', 'meta.json', 'pr.json'].some(f => existsSync(path.join(dir, f)));
+export const isStoryDir = dir => existsSync(path.join(dir, 'chapters.json')) && ['file-map.json', 'meta.json', 'pr.json'].some(f => existsSync(path.join(dir, f)));
 
 function childDirs(dir) {
   try {
@@ -83,10 +87,11 @@ export const localVersion = (dir, prefs) => storyVersion(dir) + (prefs && prefs.
 
 export class StoryStore {
   /** @param {{home: string, roots?: string[], scratch?: boolean|string[]}} opts */
-  constructor({ home, roots, scratch = true }) {
+  constructor({ home, roots, scratch = true, adopt = true }) {
     this.home = home;
     this.roots = roots && roots.length ? roots : [home];
     this.scratch = scratch;
+    this.adopt = adopt && !(roots && roots.length); // --root folders are someone else's: read them in place
   }
 
   /** [{id, dir}] in priority order, ids unique. */
@@ -96,6 +101,9 @@ export class StoryStore {
       const id = path.basename(dir);
       if (ID_RE.test(id) && !seen.has(id)) seen.set(id, dir);
     };
+    if (this.adopt) adoptHomeStories(this.home, { isStoryDir });
+    for (const dir of Object.values(readIndex(this.home))) if (typeof dir === 'string' && isStoryDir(dir)) add(dir);
+    for (const co of Object.values(readCheckouts(this.home))) for (const dir of childDirs(path.join(co, STORY_FOLDER))) if (isStoryDir(dir)) add(dir);
     for (const root of this.roots) for (const dir of childDirs(root)) if (isStoryDir(dir)) add(dir);
     if (this.scratch) for (const dir of scratchStoryDirs(Array.isArray(this.scratch) ? this.scratch : undefined)) add(dir);
     return [...seen].map(([id, dir]) => ({ id, dir }));

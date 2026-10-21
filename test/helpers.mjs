@@ -5,6 +5,8 @@ import path from 'node:path';
 import { createBridge } from '../bridge/lib/server.mjs';
 
 export const tmp = name => mkdtempSync(path.join(os.tmpdir(), `diff-story-${name}-`));
+// tests never look in (or move stories into) the real ~/Development checkouts
+process.env.DIFF_STORY_DEV_DIR = mkdtempSync(path.join(os.tmpdir(), 'diff-story-dev-'));
 export const TOKEN = 'test-token-0123456789abcdef';
 
 export function writeJson(file, value) {

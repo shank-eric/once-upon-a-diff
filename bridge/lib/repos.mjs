@@ -40,6 +40,8 @@ export function storyRepo(meta) {
 
 const file = home => path.join(home, 'checkouts.json');
 const readAll = home => { try { return JSON.parse(readFileSync(file(home), 'utf8')) || {}; } catch { return {}; } };
+/** {repo: checkout} the bridge has seen. */
+export const readCheckouts = home => readAll(home);
 
 /** Note where a repo's checkout is (from a local story, or a listener's working folder). */
 export function seenCheckout(home, repo, dir) {
@@ -53,9 +55,9 @@ export function seenCheckout(home, repo, dir) {
 
 /**
  * Where to work on a repo: the checkout the bridge has seen, else ~/Development/<name> (or
- * ~/Development/*\/<name>) when its origin is that repo, else null.
+ * ~/Development/Services|SDK/<name>) when its origin is that repo, else null. DIFF_STORY_DEV_DIR moves ~/Development.
  */
-export function checkoutFor(home, repo, { dev = path.join(os.homedir(), 'Development') } = {}) {
+export function checkoutFor(home, repo, { dev = process.env.DIFF_STORY_DEV_DIR || path.join(os.homedir(), 'Development') } = {}) {
   if (!repo) return null;
   const seen = readAll(home)[repo.toLowerCase()];
   if (seen && existsSync(seen)) return seen;
