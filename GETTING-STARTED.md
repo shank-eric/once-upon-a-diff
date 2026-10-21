@@ -64,15 +64,14 @@ It's a link, so a `git pull` updates the skill too. The skill finds the `diff-st
 
 ### 7. Install the pr-story skill
 
-Building a story for a PR needs a second skill, **pr-story**, which also ships in `skills/`. The listener hands every Build story request to it, and its `render` step is what publishes the story where the bridge finds it. Link it the same way, from the repo root:
+Building a story for a PR needs a second skill, **pr-story**, which also ships in `skills/`. The listener hands every Build story request to it, and its `build` step is what publishes the story where the bridge finds it. Link it the same way, from the repo root:
 
 ```bash
 ln -s "$PWD/skills/pr-story" ~/.claude/skills/pr-story
 ```
 
-It finds this repo through the link, so the checkout can live anywhere. Two things to know:
+It finds this repo through the link, so the checkout can live anywhere.
 
-- **It needs session-story.** pr-story's `render` draws its page with [session-story](https://github.com/nalaj/session-story) (public, MIT), pinned at `b432256`, at `~/.claude/skills/session-story` (or `SESSION_STORY_DIR`). Without it `render` fails before it publishes, so Build story doesn't finish.
 - **You can give it your own rules.** It's generic: it drafts comments and never posts them. Rules about your own setup (where checkouts live, how to name people, the voice for comments) go in `~/.diff-story/house-rules.md`, which the skills read when it's there. See [Personal settings](README.md#personal-settings).
 
 What works without pr-story: local mode (step 10, which makes its own starting chapters), the panel and its Ask box on any story you have, and the listener answering questions. What doesn't: Build story on a PR, and a story's update after new commits.
