@@ -42,14 +42,14 @@ test('one tag per PR, and the tag is the control', () => {
 
 test('the HTML is one element: a link, a button, or a span', () => {
   const count = (html) => (html.match(/<(a|button|span) class="b/g) || []).length;
-  for (const r of [
+  for (const result of [
     { state: 'ready' },
     { state: 'none' },
     { state: 'queued' },
     { state: 'building' },
     { state: 'ready', stale: true, story_head: 'a' },
   ]) {
-    assert.equal(count(tagHtml(tagFor(r, pr))), 1, JSON.stringify(r));
+    assert.equal(count(tagHtml(tagFor(result, pr))), 1, JSON.stringify(result));
   }
   assert.match(tagHtml(tagFor({ state: 'queued' }, pr)), /^<span /);
   assert.match(tagHtml(tagFor({ state: 'none' }, pr)), /^<button [^>]*data-act="build"/);
@@ -68,7 +68,7 @@ test('Build story sends a build request, and Update sends an update from the sto
 });
 
 test('the notice lists only the repos with no listener', () => {
-  const m = missingListeners({
+  const missing = missingListeners({
     'octo-org/api-server': {
       ok: false,
       prompt: '/diff-story-listen octo-org/api-server',
@@ -77,7 +77,7 @@ test('the notice lists only the repos with no listener', () => {
     },
     'octo-org/web-app': { ok: true, prompt: '/diff-story-listen octo-org/web-app' },
   });
-  assert.deepEqual(m, [
+  assert.deepEqual(missing, [
     {
       repo: 'octo-org/api-server',
       prompt: '/diff-story-listen octo-org/api-server',
@@ -91,20 +91,20 @@ test('the notice lists only the repos with no listener', () => {
 test('the Conversation tab is /owner/repo/pull/N and nothing after it', () => {
   assert.deepEqual(conversationPr('/octo-org/api-server/pull/42'), pr);
   assert.deepEqual(conversationPr('/octo-org/api-server/pull/42/'), pr);
-  for (const p of [
+  for (const pathname of [
     '/octo-org/api-server/pull/42/files',
     '/octo-org/api-server/pull/42/changes',
     '/octo-org/api-server/pull/42/commits',
     '/octo-org/api-server/pulls',
   ]) {
-    assert.equal(conversationPr(p), null, p);
+    assert.equal(conversationPr(pathname), null, pathname);
   }
 });
 
 test('a #dsm-step-N hash names the step to open on', async () => {
   const { stepOfHash } = await import('../src/js/content/ui/story-tag.js');
   assert.equal(stepOfHash('#dsm-step-3'), 3);
-  for (const h of ['', '#diff-abc', '#dsm-step-', '#dsm-step-x']) {
-    assert.equal(stepOfHash(h), null, h);
+  for (const hash of ['', '#diff-abc', '#dsm-step-', '#dsm-step-x']) {
+    assert.equal(stepOfHash(hash), null, hash);
   }
 });

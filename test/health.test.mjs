@@ -33,13 +33,13 @@ test('a fresh waiting beat counts as listening, a stale one or a dead process do
     }),
   );
   assert.equal(
-    listeners(home).find((l) => l.consumer === 'gone').live,
+    listeners(home).find((listener) => listener.consumer === 'gone').live,
     false,
     'a dead process is not listening',
   );
   beat(home, 'busy', 'handling', { question: 'q_1' });
   assert.equal(
-    listeners(home, Date.now() + 5 * 60000).find((l) => l.consumer === 'busy').live,
+    listeners(home, Date.now() + 5 * 60000).find((listener) => listener.consumer === 'busy').live,
     true,
     'answering counts for a while',
   );
@@ -48,25 +48,26 @@ test('a fresh waiting beat counts as listening, a stale one or a dead process do
 test('/api/status reports the bridge, the story, listening, and autoBuild/autoAnswer off', async () => {
   const home = tmp('home');
   githubStory(path.join(home, 'acme-widgets-7'));
-  const b = await startBridge({ home });
+  const bridge = await startBridge({ home });
   try {
-    let st = (await b.call('GET', '/api/status?story=acme-widgets-7')).body;
-    assert.equal(st.bridge.ok, true);
-    assert.deepEqual(st.story, { ok: true, id: 'acme-widgets-7' });
-    assert.equal(st.listening.ok, false);
-    assert.match(st.listening.start, /diff-story-listen/);
-    assert.deepEqual(st.autoBuild, { enabled: false });
-    assert.deepEqual(st.autoAnswer, { enabled: false });
-    assert.equal((await b.call('GET', '/api/status?story=nope')).body.story.ok, false);
+    let status = (await bridge.call('GET', '/api/status?story=acme-widgets-7')).body;
+    assert.equal(status.bridge.ok, true);
+    assert.deepEqual(status.story, { ok: true, id: 'acme-widgets-7' });
+    assert.equal(status.listening.ok, false);
+    assert.match(status.listening.start, /diff-story-listen/);
+    assert.deepEqual(status.autoBuild, { enabled: false });
+    assert.deepEqual(status.autoAnswer, { enabled: false });
+    assert.equal((await bridge.call('GET', '/api/status?story=nope')).body.story.ok, false);
     beat(home, 'pr-story');
-    st = (await b.call('GET', '/api/status?repo=acme/widgets&number=7')).body;
-    assert.equal(st.listening.ok, true);
-    assert.equal(st.story.id, 'acme-widgets-7');
+    status = (await bridge.call('GET', '/api/status?repo=acme/widgets&number=7')).body;
+    assert.equal(status.listening.ok, true);
+    assert.equal(status.story.id, 'acme-widgets-7');
     assert.equal(
-      (await b.call('GET', '/api/status', undefined, { Authorization: 'Bearer wrong' })).status,
+      (await bridge.call('GET', '/api/status', undefined, { Authorization: 'Bearer wrong' }))
+        .status,
       401,
     );
-    await b.call('GET', '/api/health', undefined, {
+    await bridge.call('GET', '/api/health', undefined, {
       Origin: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop',
     });
     assert.ok(
@@ -74,7 +75,7 @@ test('/api/status reports the bridge, the story, listening, and autoBuild/autoAn
       'the bridge notes when the extension talks to it',
     );
   } finally {
-    await b.close();
+    await bridge.close();
   }
 });
 
@@ -82,32 +83,32 @@ test("autoAnswer, when on, answers a question from the command's stdout with the
   const home = tmp('home');
   githubStory(path.join(home, 'acme-widgets-7'));
   const script = `const c = JSON.parse(require('fs').readFileSync(process.argv[1], 'utf8')); process.stdout.write('Chapter: ' + c.chapter.title + '; asked: ' + c.question.text)`;
-  const b = await startBridge({
+  const bridge = await startBridge({
     home,
     autoAnswer: { enabled: true, command: [process.execPath, '-e', script, '{context}'] },
   });
   try {
-    assert.equal((await b.call('GET', '/api/status')).body.autoAnswer.enabled, true);
-    const q = (
-      await b.call('POST', '/api/stories/acme-widgets-7/questions', { text: 'why?', step: 1 })
+    assert.equal((await bridge.call('GET', '/api/status')).body.autoAnswer.enabled, true);
+    const question = (
+      await bridge.call('POST', '/api/stories/acme-widgets-7/questions', { text: 'why?', step: 1 })
     ).body;
     let answers = [];
     for (let i = 0; i < 60 && !answers.length; i++) {
-      await new Promise((r) => setTimeout(r, 50));
-      answers = (await b.call('GET', '/api/stories/acme-widgets-7/questions')).body.questions.find(
-        (x) => x.id === q.id,
-      ).answers;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      answers = (
+        await bridge.call('GET', '/api/stories/acme-widgets-7/questions')
+      ).body.questions.find((entry) => entry.id === question.id).answers;
     }
     assert.equal(answers[0].text, 'Chapter: Chapter 1: Start; asked: why?');
   } finally {
-    await b.close();
+    await bridge.close();
   }
 });
 
 test('doctor reports a missing bridge as failing, with the fix', async () => {
   const home = tmp('home');
   const lines = [];
-  const ok = await doctor(home, { token: 't', port: 1 }, { out: (l) => lines.push(l) });
+  const ok = await doctor(home, { token: 't', port: 1 }, { out: (line) => lines.push(line) });
   assert.equal(ok, false);
   const text = lines.join('\n');
   assert.match(text, /FAIL\s+Bridge: nothing is listening on 127\.0\.0\.1:1/);
@@ -118,30 +119,30 @@ test('doctor reports a missing bridge as failing, with the fix', async () => {
 
 test('doctor passes the bridge when it is up', async () => {
   const home = tmp('home');
-  const b = await startBridge({ home });
+  const bridge = await startBridge({ home });
   try {
     const lines = [];
     await doctor(
       home,
-      { token: 'test-token-0123456789abcdef', port: b.server.address().port },
-      { out: (l) => lines.push(l) },
+      { token: 'test-token-0123456789abcdef', port: bridge.server.address().port },
+      { out: (line) => lines.push(line) },
     );
     assert.match(lines.join('\n'), /PASS\s+Bridge: running on 127\.0\.0\.1:\d+, version/);
   } finally {
-    await b.close();
+    await bridge.close();
   }
 });
 
 test('Copy prompt for Claude: one short skill line naming the repo, with the long form behind it', async () => {
-  const p = listenPrompt(
+  const prompt = listenPrompt(
     { repo: 'octo-org/api-server', checkout: path.join(os.homedir(), 'Development', 'api-server') },
     'diff-story',
   );
-  assert.equal(p.prompt, '/diff-story-listen octo-org/api-server');
-  assert.equal(p.command, 'diff-story wait --repo octo-org/api-server');
-  assert.equal(p.checkout, '~/Development/api-server');
+  assert.equal(prompt.prompt, '/diff-story-listen octo-org/api-server');
+  assert.equal(prompt.command, 'diff-story wait --repo octo-org/api-server');
+  assert.equal(prompt.checkout, '~/Development/api-server');
   assert.match(
-    p.details,
+    prompt.details,
     /^In ~\/Development\/api-server, run `diff-story wait --repo octo-org\/api-server` as a background task/,
   );
   for (const bit of [
@@ -150,7 +151,7 @@ test('Copy prompt for Claude: one short skill line naming the repo, with the lon
     '/pr-story <PR url>',
     'diff-story done <id>',
   ]) {
-    assert.ok(p.details.includes(bit), bit);
+    assert.ok(prompt.details.includes(bit), bit);
   }
   assert.equal(
     listenPrompt({ story: 'local-x' }, 'diff-story').prompt,
@@ -169,23 +170,23 @@ test('Copy prompt for Claude: one short skill line naming the repo, with the lon
 
   const home = tmp('home');
   githubStory(path.join(home, 'acme-widgets-7'));
-  const b = await startBridge({ home });
+  const bridge = await startBridge({ home });
   try {
-    let st = (await b.call('GET', '/api/status?story=acme-widgets-7')).body;
-    assert.equal(st.repo, 'acme/widgets', "the page's repo comes from its story");
-    assert.equal(st.listening.prompt, '/diff-story-listen acme/widgets');
+    let status = (await bridge.call('GET', '/api/status?story=acme-widgets-7')).body;
+    assert.equal(status.repo, 'acme/widgets', "the page's repo comes from its story");
+    assert.equal(status.listening.prompt, '/diff-story-listen acme/widgets');
     beat(home, 'repo-acme-gadgets', 'waiting', { repo: 'acme/gadgets' });
     assert.equal(
-      (await b.call('GET', '/api/status?story=acme-widgets-7')).body.listening.ok,
+      (await bridge.call('GET', '/api/status?story=acme-widgets-7')).body.listening.ok,
       false,
       "another repo's listener doesn't count",
     );
     beat(home, 'repo-acme-widgets', 'waiting', { repo: 'ACME/Widgets' });
-    st = (await b.call('GET', '/api/status?repo=acme/widgets&number=99')).body;
-    assert.equal(st.listening.ok, true, 'a PR page with no story, by ?repo=');
-    assert.equal(st.listening.consumers[0].repo, 'ACME/Widgets');
+    status = (await bridge.call('GET', '/api/status?repo=acme/widgets&number=99')).body;
+    assert.equal(status.listening.ok, true, 'a PR page with no story, by ?repo=');
+    assert.equal(status.listening.consumers[0].repo, 'ACME/Widgets');
   } finally {
-    await b.close();
+    await bridge.close();
   }
 });
 
@@ -199,11 +200,11 @@ test('the checkout to work from: one the bridge has seen, else ~/Development/<na
   assert.equal(repoOfCheckout(repo), 'octo-org/api-server');
   assert.equal(checkoutFor(home, 'octo-org/api-server', { dev }), repo);
   assert.equal(checkoutFor(home, 'octo-org/nope', { dev }), null);
-  const wt = tmp('wt');
-  seenCheckout(home, 'octo-org/api-server', wt);
+  const worktree = tmp('wt');
+  seenCheckout(home, 'octo-org/api-server', worktree);
   assert.equal(
     checkoutFor(home, 'octo-org/api-server', { dev }),
-    wt,
+    worktree,
     'a seen checkout comes first',
   );
   assert.equal(repoOfRemote('https://github.com/octo-org/web-app.git'), 'octo-org/web-app');

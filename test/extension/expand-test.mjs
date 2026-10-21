@@ -22,9 +22,13 @@ import { tmp, writeJson, TOKEN, startBridge } from '../helpers.mjs';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const EXT = path.join(ROOT, 'src');
 const args = process.argv.slice(2);
-const arg = (name, dflt) => {
+/** --name's value, true for a bare --name, or the fallback when it isn't given. */
+const arg = (name, fallback) => {
   const i = args.indexOf(`--${name}`);
-  return i < 0 ? dflt : args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : true;
+  if (i < 0) {
+    return fallback;
+  }
+  return args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : true;
 };
 const SHOTS = arg('shots', null);
 if (SHOTS) {
@@ -74,11 +78,11 @@ const context = await chromium.launchPersistentContext(tmp('expand-profile'), {
   args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`],
 });
 try {
-  let [sw] = context.serviceWorkers();
-  if (!sw) {
-    sw = await context.waitForEvent('serviceworker');
+  let [worker] = context.serviceWorkers();
+  if (!worker) {
+    worker = await context.waitForEvent('serviceworker');
   }
-  const extId = new URL(sw.url()).host;
+  const extId = new URL(worker.url()).host;
   const opt = await context.newPage();
   await opt.goto(`chrome-extension://${extId}/html/options.html`);
   await opt.fill('#port', String(port));
@@ -104,11 +108,11 @@ try {
     }
     await page.waitForTimeout(2500);
     const rowsOf = (rel) =>
-      page.evaluate(async (r) => {
+      page.evaluate(async (rel) => {
         const sha = [
-          ...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(r))),
+          ...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rel))),
         ]
-          .map((b) => b.toString(16).padStart(2, '0'))
+          .map((byte) => byte.toString(16).padStart(2, '0'))
           .join('');
         return document.querySelectorAll(`[data-line-anchor^="diff-${sha}"], td[id^="diff-${sha}"]`)
           .length;
@@ -120,8 +124,10 @@ try {
             ...document.querySelectorAll(
               'button[aria-pressed="true"], input.js-reviewed-checkbox:checked',
             ),
-          ].filter((b) =>
-            /viewed/i.test(b.textContent + (b.getAttribute('aria-label') || '') + b.className),
+          ].filter((button) =>
+            /viewed/i.test(
+              button.textContent + (button.getAttribute('aria-label') || '') + button.className,
+            ),
           ).length,
       );
     const viewed0 = await viewedNow();
@@ -134,39 +140,39 @@ try {
     );
 
     // the row the panel highlights holds the line it was asked for
-    const flashed = (side, n) =>
+    const flashed = (side, line) =>
       page.evaluate(
-        ([s, k]) =>
-          [...document.querySelectorAll('tr[data-dsm-flash]')].some((tr) => {
+        ([side, k]) =>
+          [...document.querySelectorAll('tr[data-dsm-flash]')].some((row) => {
             if (
-              [...tr.querySelectorAll('[data-line-anchor], td[id^="diff-"]')].some((c) =>
-                new RegExp(`^diff-[0-9a-f]{64}${s}${k}$`).test(
-                  c.getAttribute('data-line-anchor') || c.id,
+              [...row.querySelectorAll('[data-line-anchor], td[id^="diff-"]')].some((cell) =>
+                new RegExp(`^diff-[0-9a-f]{64}${side}${k}$`).test(
+                  cell.getAttribute('data-line-anchor') || cell.id,
                 ),
               )
             ) {
               return true;
             }
             return (
-              s === 'L' &&
-              [...tr.querySelectorAll('[data-diff-line-key]')].some((c) =>
-                c.getAttribute('data-diff-line-key').includes(`-l:${k}-`),
+              side === 'L' &&
+              [...row.querySelectorAll('[data-diff-line-key]')].some((cell) =>
+                cell.getAttribute('data-diff-line-key').includes(`-l:${k}-`),
               )
             );
           }),
-        [side, n],
+        [side, line],
       );
-    const click = async (sel, side, n, what) => {
+    const click = async (sel, side, line, what) => {
       await page.locator(`#dsm-panel .prs-body ${sel}`).first().click();
       let ok = false;
       for (let i = 0; i < 60 && !ok; i++) {
         await page.waitForTimeout(500);
-        ok = await flashed(side, n);
+        ok = await flashed(side, line);
       }
       const msg = (await page.locator('#dsm-panel .prs-msg').textContent()).trim();
       check(ok, `/${view}: ${what} is opened and highlighted${msg ? ` ("${msg}")` : ''}`);
       if (SHOTS && !ok) {
-        await page.screenshot({ path: path.join(SHOTS, `expand-${view}-${n}.png`) });
+        await page.screenshot({ path: path.join(SHOTS, `expand-${view}-${line}.png`) });
       }
     };
     await click('code[data-start="10"]', 'R', 10, 'a line above the first hunk (TSX:10)');
@@ -178,32 +184,33 @@ try {
 
     // collapse the .tsx with its own toggle (as Viewed would), then a line link opens it again
     const collapse = async (rel) =>
-      page.evaluate(async (r) => {
+      page.evaluate(async (rel) => {
         const sha = [
-          ...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(r))),
+          ...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rel))),
         ]
-          .map((b) => b.toString(16).padStart(2, '0'))
+          .map((byte) => byte.toString(16).padStart(2, '0'))
           .join('');
         const block = document.getElementById(`diff-${sha}`);
-        const label = (b) =>
+        const label = (button) =>
           (
-            b.getAttribute('aria-label') ||
-            (b.getAttribute('aria-labelledby') || '')
+            button.getAttribute('aria-label') ||
+            (button.getAttribute('aria-labelledby') || '')
               .split(' ')
-              .map((x) => document.getElementById(x)?.textContent || '')
+              .map((id) => document.getElementById(id)?.textContent || '')
               .join(' ')
           ).trim();
-        const t = [...block.querySelectorAll('button')].find(
-          (b) =>
-            /^collapse file$/i.test(label(b)) ||
-            (/toggle diff contents/i.test(label(b)) && b.getAttribute('aria-expanded') === 'true'),
+        const toggle = [...block.querySelectorAll('button')].find(
+          (button) =>
+            /^collapse file$/i.test(label(button)) ||
+            (/toggle diff contents/i.test(label(button)) &&
+              button.getAttribute('aria-expanded') === 'true'),
         );
-        if (!t) {
+        if (!toggle) {
           return false;
         }
-        t.click();
+        toggle.click();
         await new Promise((res) => setTimeout(res, 800));
-        return [...block.querySelectorAll('tr')].every((tr) => !tr.getClientRects().length);
+        return [...block.querySelectorAll('tr')].every((row) => !row.getClientRects().length);
       }, rel);
     check(await collapse(TSX), `/${view}: the test collapses ${TSX} with GitHub's toggle`);
     await click('code[data-start="150"]', 'R', 150, 'a line in a collapsed file');
@@ -215,7 +222,7 @@ try {
     const flashedOpen = () =>
       page.evaluate(() =>
         [...document.querySelectorAll('[data-dsm-flash]')].some((el) =>
-          [...el.querySelectorAll('tr')].some((tr) => tr.getClientRects().length),
+          [...el.querySelectorAll('tr')].some((row) => row.getClientRects().length),
         ),
       );
     let open = false;

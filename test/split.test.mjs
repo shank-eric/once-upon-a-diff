@@ -2,10 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { splitRows } from '../bridge/public/split.js';
 
-const pair = (r) =>
-  r.info
-    ? `info ${r.info}`
-    : `${r.left ? `${r.left.kind}${r.left.num}` : '-'} | ${r.right ? `${r.right.kind}${r.right.num}` : '-'}`;
+const pair = (row) =>
+  row.info
+    ? `info ${row.info}`
+    : `${row.left ? `${row.left.kind}${row.left.num}` : '-'} | ${row.right ? `${row.right.kind}${row.right.num}` : '-'}`;
 
 test('pairs a run of removed lines with the added run after it, old left and new right', () => {
   const rows = splitRows({ oldStart: 10, newStart: 20, lines: [' a', '-b', '-c', '+B', ' d'] });
@@ -43,7 +43,7 @@ test('only added or only removed lines, and the no-newline marker', () => {
 test('each side keeps its line index in the hunk, for its highlighted HTML', () => {
   const rows = splitRows({ oldStart: 1, newStart: 1, lines: [' a', '-b', '+B'] });
   assert.deepEqual(
-    rows.map((r) => [r.left && r.left.i, r.right && r.right.i]),
+    rows.map((row) => [row.left && row.left.i, row.right && row.right.i]),
     [
       [0, 0],
       [1, 2],

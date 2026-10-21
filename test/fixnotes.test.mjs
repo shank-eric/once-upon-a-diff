@@ -24,58 +24,73 @@ test('Add to fix before push makes a local draft a note, once, and the draft say
     ],
   });
   const made = createLocalStory({ home, repo, base, head: 'HEAD', chapters });
-  const b = await startBridge({ home });
+  const bridge = await startBridge({ home });
   try {
-    const S = `/api/stories/${made.id}`;
-    let drafts = (await b.call('GET', `${S}/drafts`)).body.drafts;
+    const storyPath = `/api/stories/${made.id}`;
+    let drafts = (await bridge.call('GET', `${storyPath}/drafts`)).body.drafts;
     assert.equal(drafts[0].fix, null);
-    const n = await b.call('POST', `${S}/notes`, { chapter: 1, index: 1 });
-    assert.equal(n.status, 200);
+    const note = await bridge.call('POST', `${storyPath}/notes`, { chapter: 1, index: 1 });
+    assert.equal(note.status, 200);
     assert.deepEqual(
-      [n.body.path, n.body.side, n.body.line, n.body.body, n.body.done, n.body.chapter],
+      [
+        note.body.path,
+        note.body.side,
+        note.body.line,
+        note.body.body,
+        note.body.done,
+        note.body.chapter,
+      ],
       ['lib/two.js', 'R', 1, 'Name it', false, 1],
       "the draft's name resolves to the diff file",
     );
     assert.equal(
-      (await b.call('POST', `${S}/notes`, { chapter: 1, index: 1 })).status,
+      (await bridge.call('POST', `${storyPath}/notes`, { chapter: 1, index: 1 })).status,
       409,
       'a second add is refused',
     );
     assert.equal(
-      (await b.call('POST', `${S}/notes`, { chapter: 1, index: 2 })).status,
+      (await bridge.call('POST', `${storyPath}/notes`, { chapter: 1, index: 2 })).status,
       400,
       'a general comment has no line to go on',
     );
-    assert.equal((await b.call('POST', `${S}/notes`, { chapter: 1, index: 9 })).status, 404);
-    const notes = (await b.call('GET', S)).body.local.notes;
+    assert.equal(
+      (await bridge.call('POST', `${storyPath}/notes`, { chapter: 1, index: 9 })).status,
+      404,
+    );
+    const notes = (await bridge.call('GET', storyPath)).body.local.notes;
     assert.deepEqual(
-      notes.map((x) => x.body),
+      notes.map((note) => note.body),
       ['Name it'],
       'it is a real note, in the checklist',
     );
-    drafts = (await b.call('GET', `${S}/drafts`)).body.drafts;
+    drafts = (await bridge.call('GET', `${storyPath}/drafts`)).body.drafts;
     assert.deepEqual(drafts[1].fix, {
-      id: n.body.id,
+      id: note.body.id,
       done: false,
       path: 'lib/two.js',
       side: 'R',
       line: 1,
     });
     assert.equal(drafts[0].fix, null);
-    await b.call('POST', `${S}/notes/${n.body.id}`, { done: true });
+    await bridge.call('POST', `${storyPath}/notes/${note.body.id}`, { done: true });
     assert.equal(
-      (await b.call('GET', `${S}/drafts`)).body.drafts[1].fix.done,
+      (await bridge.call('GET', `${storyPath}/drafts`)).body.drafts[1].fix.done,
       true,
       'ticking the note shows on the draft',
     );
     assert.equal(
-      (await b.call('POST', `${S}/drafts`, { chapter: 1, index: 0, action: 'dismiss' })).body
-        .drafts[0].dismissed,
+      (
+        await bridge.call('POST', `${storyPath}/drafts`, {
+          chapter: 1,
+          index: 0,
+          action: 'dismiss',
+        })
+      ).body.drafts[0].dismissed,
       true,
       'Dismiss works as on GitHub',
     );
   } finally {
-    await b.close();
+    await bridge.close();
   }
 });
 

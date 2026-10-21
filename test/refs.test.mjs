@@ -121,7 +121,7 @@ test("the bridge adds referenced files to a GitHub story's chapters", () => {
   });
   const data = new StoryStore({ home, scratch: false }).load('acme-widgets-8');
   assert.deepEqual(
-    data.chapters[1].files.map((f) => [f.rel, !!f.ref]),
+    data.chapters[1].files.map((file) => [file.rel, !!file.ref]),
     [
       ['src/b.js', false],
       ['src/a.js', true],
@@ -146,7 +146,7 @@ test("the bridge adds referenced files to a local story's chapters", () => {
   });
   const data = new StoryStore({ home, scratch: false }).load(made.id);
   assert.ok(
-    data.chapters[1].files.some((f) => f.rel === 'one.txt' && f.ref),
+    data.chapters[1].files.some((file) => file.rel === 'one.txt' && file.ref),
     'one.txt joins chapter 2',
   );
   assert.equal(finishedInOf(data.chapters)['one.txt'], 2);

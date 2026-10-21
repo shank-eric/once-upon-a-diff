@@ -11,7 +11,7 @@ import { escapeHtml, unescapeHtml } from '../src/js/shared/util/html.js';
 import { shortSha, baseName, plural, capitalize } from '../src/js/shared/util/text.js';
 import { clockTime, shortDateTime } from '../src/js/shared/util/time.js';
 
-const at = (url) => {
+const locationOf = (url) => {
   const parsed = new URL(url, 'https://github.com');
   return { pathname: parsed.pathname, search: parsed.search };
 };
@@ -30,18 +30,18 @@ test('a PR Files changed path, on /changes, /files and below them', () => {
 });
 
 test('the page kind the content script routes on', () => {
-  assert.equal(pageKindOf(at('/acme/widgets/pull/7/files')), 'files');
-  assert.equal(pageKindOf(at('/acme/widgets/pull/7')), 'conversation');
-  assert.equal(pageKindOf(at('/acme/widgets/pull/7/commits')), 'other');
-  assert.equal(pageKindOf(at('/acme/widgets/pulls')), 'list');
-  assert.equal(pageKindOf(at('/pulls')), 'list');
-  assert.equal(pageKindOf(at('/search?q=is%3Apr+author%3Ame')), 'list');
-  assert.equal(pageKindOf(at('/search?type=pullrequests&q=x')), 'list');
-  assert.equal(pageKindOf(at('/search?q=x')), 'other');
-  assert.equal(pageKindOf(at('/acme/widgets/issues?q=is%3Apr')), 'list');
-  assert.equal(pageKindOf(at('/acme/widgets/issues')), 'other');
+  assert.equal(pageKindOf(locationOf('/acme/widgets/pull/7/files')), 'files');
+  assert.equal(pageKindOf(locationOf('/acme/widgets/pull/7')), 'conversation');
+  assert.equal(pageKindOf(locationOf('/acme/widgets/pull/7/commits')), 'other');
+  assert.equal(pageKindOf(locationOf('/acme/widgets/pulls')), 'list');
+  assert.equal(pageKindOf(locationOf('/pulls')), 'list');
+  assert.equal(pageKindOf(locationOf('/search?q=is%3Apr+author%3Ame')), 'list');
+  assert.equal(pageKindOf(locationOf('/search?type=pullrequests&q=x')), 'list');
+  assert.equal(pageKindOf(locationOf('/search?q=x')), 'other');
+  assert.equal(pageKindOf(locationOf('/acme/widgets/issues?q=is%3Apr')), 'list');
+  assert.equal(pageKindOf(locationOf('/acme/widgets/issues')), 'other');
   assert.deepEqual(conversationPr('/acme/widgets/pull/7/'), { repo: 'acme/widgets', number: 7 });
-  assert.equal(isPullListPage(at('/acme/widgets')), false);
+  assert.equal(isPullListPage(locationOf('/acme/widgets')), false);
   assert.deepEqual(rangeOfPath('/acme/widgets/pull/7/changes/abc1234..def5678'), {
     from: 'abc1234',
     to: 'def5678',
