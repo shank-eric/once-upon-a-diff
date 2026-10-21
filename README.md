@@ -403,11 +403,18 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
     - `file-refs.js` and `markdown.js`: the story's text and its jump links. `file-list.js` and `backstory-views.js`: the file rows and the backstory.
     - `viewed.js`, `reading.js`, `drafts.js`, `freshness.js`, `status-light.js` and `questions.js`: Viewed progress, read tracking, drafted comments, story freshness, the status light and the Ask box.
   - `js/shared/util/`: helpers for the panel, the content scripts, the local page and the bridge (escaping, short SHAs, times, the clipboard, GitHub paths, key isolation).
-- `bridge/`: the CLI (`bin/diff-story.mjs`), the server and story code (`lib/`, with Node-only helpers for `gh` and JSON files in `lib/util/`), and the local page (`public/`).
+- `bridge/`: the bridge and its CLI.
+  - `bin/diff-story.mjs` runs `cli/index.mjs`, a table of commands in `cli/commands/` (bridge, stories, inbox, drafts, builds, checks) that also builds the help. `cli/doctor.mjs` is `diff-story doctor`.
+  - `server/index.mjs` is the HTTP server: its guards, then a route table. The routes are in `server/routes/` by area; `pages.mjs` and `assets.mjs` serve the HTML pages and the scripts.
+  - `stories/`: finding story folders (`store.mjs`, `placement.mjs`), reading them (`meta.mjs`, `chapters.mjs`, `story-data.mjs`, `text-refs.mjs`, `backstory-notes.mjs`), local stories (`local-story.mjs`, `local-diff.mjs`), read tracking (`reads.mjs`) and drafted comments (`comments.mjs`).
+  - `github/`: what asks `gh` (read-only, except Add to my review): freshness, drafts and the pending review.
+  - `backstory/`: `diff-story backstory`, from the commit range and the Claude Code transcripts to moments and a timeline.
+  - `inbox/` (the inbox and build requests), `listeners/` (who's listening, autoAnswer), `config/` (settings, prefs, repos and checkouts) and `util/` (gh, git, diffs, JSON files).
+  - `public/`: the local page. `local.js` draws it and handles its clicks; `local/` holds the diff view, notes, folds and the panel mount, next to `split.js`, `narrow.js` and `syntax.js`.
 - `skills/diff-story-listen/`: the Claude Code skill behind **Copy prompt for Claude**.
 - `skills/pr-story/`: the Claude Code skill that writes PR stories. Both skills read your house rules (see [Personal settings](#personal-settings)).
 - `test/`: unit tests, `extension/load-test.mjs` and `extension/expand-test.mjs`.
-- `docs/structure-proposal.md`: where the rest of the repo's layout could go next.
+- `docs/structure-proposal.md`: how the repo got to this layout, and what's still open.
 
 ## Credits
 
