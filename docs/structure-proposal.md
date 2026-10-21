@@ -1,6 +1,6 @@
 # Structure proposal
 
-Where the repo's layout stands after the panel and content-script pass, what still feels cramped, and a way to get the rest into shape in small steps that change no behavior. Nothing below the "Done" section has been started: each step waits for a go-ahead.
+Where the repo's layout stood after the panel and content-script pass, what felt cramped, and the order to fix the rest in small steps that change no behavior. Eric approved it, and steps 1 to 6 and 8 to 10 are done; see "Status" at the end. The README's Code layout describes the result.
 
 Line counts are after `yarn format` (Prettier at 100 columns), so they run about 1.6 times the pre-format counts.
 
@@ -102,3 +102,10 @@ Each step is its own commit, keeps `yarn test`, `yarn test:extension`, `yarn tes
 10. **Rename the leftovers** (`health.mjs`, `refs.mjs`) once the folders above exist, so each name says what its folder and file hold.
 
 Steps 1 to 5 are independent of each other and could go in any order. Steps 6 and 7 need a decision about the skill first.
+
+## Status
+
+- Done: steps 1 to 5 (names in `bridge/`, `server/`, `backstory/`, `stories/`, `cli/`), 8 (`public/local/`), 10 (leftover names), and the naming rules are errors everywhere.
+- Step 6, partly: the skill uses the bridge's `entryOf`. Its `parseUnifiedDiff` and `textRefsOf` stay, because the bridge's versions would change the skill's `story.json` (renamed files, "No newline" lines, anchored diff links) and so its chat-mode page.
+- Step 7 is open: retiring the skill's `bin/overlay.js` snippet is a product call (see the options in the hand-off report).
+- Step 9 renamed the tests and scripts but kept the test tree and `load-test.mjs` as they are.

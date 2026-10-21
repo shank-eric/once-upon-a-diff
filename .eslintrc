@@ -60,43 +60,6 @@
           }
         ]
       }
-    },
-    {
-      "files": [
-        "src/js/**/*.js"
-      ],
-      "rules": {
-        "id-length": [
-          "error",
-          {
-            "min": 3,
-            "properties": "never",
-            "exceptions": [
-              "_",
-              "$",
-              "e",
-              "i",
-              "j",
-              "k",
-              "id",
-              "ok",
-              "fs",
-              "os",
-              "el",
-              "pr"
-            ]
-          }
-        ],
-        "no-nested-ternary": "error",
-        "no-sequences": "error",
-        "no-unused-expressions": [
-          "error",
-          {
-            "allowShortCircuit": false,
-            "allowTernary": false
-          }
-        ]
-      }
     }
   ],
   "rules": {
@@ -136,17 +99,17 @@
       "error",
       "all"
     ],
-    "no-nested-ternary": "warn",
-    "no-sequences": "warn",
+    "no-nested-ternary": "error",
+    "no-sequences": "error",
     "no-unused-expressions": [
-      "warn",
+      "error",
       {
         "allowShortCircuit": false,
         "allowTernary": false
       }
     ],
     "id-length": [
-      "warn",
+      "error",
       {
         "min": 3,
         "properties": "never",
