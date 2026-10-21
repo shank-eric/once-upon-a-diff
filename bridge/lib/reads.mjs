@@ -1,32 +1,32 @@
 /**
- * What Eric has read: one record per chapter, with the commit that was
- * current when he read it. The panel reports a read when he leaves a chapter
- * he spent real time on (READ_MIN_SECONDS, counted only while the tab is
- * showing), or when he has marked all its files viewed. A chapter whose files
+ * What the reviewer has read: one record per chapter, with the commit that was
+ * current when they read it. The panel reports a read when they leave a chapter
+ * they spent real time on (READ_MIN_SECONDS, counted only while the tab is
+ * showing), or when they've marked all its files viewed. A chapter whose files
  * were all Viewed already when the panel opened, with no record here, counts
- * too (reason 'inferred'): he reviewed it before reads were tracked.
+ * too (reason 'inferred'): they reviewed it before reads were tracked.
  *
  *   <home>/state/<key>/read.json   {<chapter key>: {head_sha, story_head, at, reason, title, step}}
  *
  * <key> is the PR (pr-<owner>-<repo>-<N>, as drafts.json uses), so a
  * re-rendered or regenerated story keeps them, or a local story's id.
- *   head_sha    the PR's head when he read it (from the panel, else gh), or a local story's head commit
+ *   head_sha    the PR's head when they read it (from the panel, else gh), or a local story's head commit
  *   story_head  the commit the story was told from at the time; the same as head_sha unless the story was out of date
  *
  * A chapter's key is its `key` in chapters.json, else its title without the
  * "Chapter N:" prefix, so putting a new chapter first doesn't change the
  * others' keys.
  *
- * sinceOf() works out where a story update should start: the story head he
- * read the earliest chapter at, ignoring reads made before he read the newest
- * "Since you read it" chapter (that chapter caught him up), and falling back
+ * sinceOf() works out where a story update should start: the story head they
+ * read the earliest chapter at, ignoring reads made before they read the newest
+ * "Since you read it" chapter (that chapter caught them up), and falling back
  * to the commit the story was told from.
  */
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
 export const READ_MIN_SECONDS = 30;
-/** time: he stayed on it; viewed: he ticked its last file; inferred: its files were all Viewed already when the panel opened (a review before read tracking, or with the panel closed) */
+/** time: they stayed on it; viewed: they ticked its last file; inferred: its files were all Viewed already when the panel opened (a review before read tracking, or with the panel closed) */
 export const READ_REASONS = ['time', 'viewed', 'inferred'];
 export const SHA_RE = /^[0-9a-f]{7,40}$/;
 
@@ -61,11 +61,11 @@ export function noteRead(home, key, chapter, { head_sha = null, story_head = nul
   return all[chapter];
 }
 
-/** The commit a read stands for: what the story told him (story_head), else the PR head he saw. */
+/** The commit a read stands for: what the story told them (story_head), else the PR head they saw. */
 export const readSha = r => (r && (r.story_head || r.head_sha)) || null;
 
 /**
- * Since he read them: the chapters (other than "Since you read it" ones) whose files changed after the commit he
+ * Since they read them: the chapters (other than "Since you read it" ones) whose files changed after the commit they
  * read them at, and the drafted comments whose line changed. `changes` is Map(sha -> changesSince(meta, sha)).
  * A comment counts when its line falls in a changed hunk's old side (git's 3 lines of context give some slack),
  * or its file was deleted or renamed.
@@ -105,7 +105,7 @@ export function sinceOf(reads, chapters, fallback = null) {
   const read = Object.entries(reads || {})
     .filter(([k, r]) => keys.has(k) && r && readSha(r) && Number.isFinite(Date.parse(r.at)))
     .map(([k, r]) => ({ chapter: k, title: r.title || keys.get(k).title || k, sha: readSha(r), at: r.at, addendum: !!keys.get(k).since }));
-  // reading the newest "Since you read it" chapter caught him up to its commit, so older reads don't count
+  // reading the newest "Since you read it" chapter caught them up to its commit, so older reads don't count
   const cutoff = Math.max(0, ...read.filter(r => r.addendum).map(r => Date.parse(r.at)));
   const counted = read.filter(r => Date.parse(r.at) >= cutoff).sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
   const list = read.map(({ addendum, ...r }) => r);

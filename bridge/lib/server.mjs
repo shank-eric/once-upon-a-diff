@@ -97,7 +97,7 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
     }
   };
   const lastPosition = new Map();
-  /** How much of a story he's read, for the PR-list tag: {read, total, next} (next: the first unread step, or null). */
+  /** How much of a story they've read, for the PR-list tag: {read, total, next} (next: the first unread step, or null). */
   const readSummary = (id) => {
     const reads = readReads(home, stateKeyOf(id, readMeta(stories.dirOf(id))));
     const done = stories.load(id).chapters.map(c => !!reads[c.key]);
@@ -174,7 +174,7 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
       if (p === '/api/builds' && req.method === 'GET') return send(200, { pending: builds.pending().map(b => builds.view(b)) });
       if (p === '/api/builds' && req.method === 'POST') {
         statusCache = null;
-        // an update starts where his reading stopped (read.json), so the story can add one "Since you read it" chapter
+        // an update starts where the reviewer's reading stopped (read.json), so the story can add one "Since you read it" chapter
         const hit = body.mode === 'update' ? stories.find(String(body.repo || ''), body.number) : null;
         let since = null;
         if (hit) {
@@ -282,8 +282,8 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
         return send(200, await freshness(meta, stories.load(id).chapters, { lastBuild }));
       }
       if (what === 'drafts') {
-        // what's become of each drafted comment: posted, in his pending review, dismissed, or still a draft.
-        // Read-only on GitHub, except action 'review', which adds the draft to his pending review (never submitted).
+        // what's become of each drafted comment: posted, in their pending review, dismissed, or still a draft.
+        // Read-only on GitHub, except action 'review', which adds the draft to their pending review (never submitted).
         const key = stateKeyOf(id, meta);
         const data = stories.load(id);
         let added = null;
@@ -328,7 +328,7 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
         return send(200, { ok: true, logged: true });
       }
       if (what === 'read') {
-        // what Eric has read, per chapter, with the commit current at the time (reads.mjs)
+        // what the reviewer has read, per chapter, with the commit current at the time (reads.mjs)
         const key = stateKeyOf(id, meta);
         const data = stories.load(id);
         const now = meta.kind === 'local' ? readMeta(dir) : meta; // load() follows a local story's branch
@@ -345,7 +345,7 @@ export function createBridge({ home, token, roots, scratch = true, autoBuild = n
           return send(200, { chapter, ...rec });
         }
         const reads = readReads(home, key);
-        // what changed after he read each chapter: one compare per commit he read at (gh, cached; or git for a local story)
+        // what changed after they read each chapter: one compare per commit they read at (gh, cached; or git for a local story)
         const changes = new Map();
         let error = null;
         for (const sha of new Set(Object.values(reads).map(readSha).filter(Boolean))) {

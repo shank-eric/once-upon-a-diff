@@ -213,7 +213,7 @@ function unnarrow(root = document) {
   for (const el of root.querySelectorAll('tr.ds-narrow')) el.remove();
   for (const el of root.querySelectorAll('tr.ds-out')) el.classList.remove('ds-out');
 }
-/** Called by the panel after each filter pass. Only a new step (or a redraw) changes the tables, so the folds Eric opens stay open. */
+/** Called by the panel after each filter pass. Only a new step (or a redraw) changes the tables, so the folds the reviewer opens stay open. */
 function narrow({ n, view, all }) {
   const key = `${view}|${n}|${all}`;
   if (key === narrowedFor) return;

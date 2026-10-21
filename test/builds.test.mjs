@@ -163,19 +163,19 @@ describe('diff-story wait hands over build requests, queued until claimed', () =
     const home = tmp('home');
     const inbox = new Inbox(home);
     const builds = new Builds(home, inbox);
-    const mine = builds.request({ repo: 'octo-org/api', number: 1 });
+    const mine = builds.request({ repo: 'octo-org/api-server', number: 1 });
     builds.request({ repo: 'octo-org/web-app', number: 2 });
-    const r = await wait(home, '--repo', 'octo-org/api');
+    const r = await wait(home, '--repo', 'octo-org/api-server');
     assert.deepEqual(r.entries.map(x => x.id), [mine.id], "repo names match whatever their case; other repos' requests stay queued");
     assert.equal(builds.stateOf(builds.get('octo-org/web-app', 2)), 'queued');
-    const beat = JSON.parse(readFileSync(path.join(home, 'listeners', 'repo-octo-org-api.json'), 'utf8'));
-    assert.equal(beat.repo, 'octo-org/api');
+    const beat = JSON.parse(readFileSync(path.join(home, 'listeners', 'repo-octo-org-api-server.json'), 'utf8'));
+    assert.equal(beat.repo, 'octo-org/api-server');
 
     // questions carry their story's repo; a wait's cursor starts from now, so ask after it starts
-    const waiting = wait(home, '--repo', 'octo-org/api', '--type', 'question');
+    const waiting = wait(home, '--repo', 'octo-org/api-server', '--type', 'question');
     await new Promise(res => setTimeout(res, 300));
     inbox.append({ type: 'question', id: 'q_other', story: 's2', repo: 'octo-org/web-app', text: 'not mine' });
-    inbox.append({ type: 'question', id: 'q_mine', story: 's1', repo: 'octo-org/api', text: 'mine' });
+    inbox.append({ type: 'question', id: 'q_mine', story: 's1', repo: 'octo-org/api-server', text: 'mine' });
     assert.deepEqual((await waiting).entries.map(x => x.id), ['q_mine']);
     assert.equal((await cli(home, ['wait', '--repo', 'not a repo'])).code, 1);
   });

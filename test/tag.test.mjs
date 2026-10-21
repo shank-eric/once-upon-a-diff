@@ -2,11 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { tagFor, tagHtml, requestFor, missingListeners, conversationPr } from '../src/js/content/tag.js';
 
-const pr = { repo: 'octo-org/api', number: 3058 };
+const pr = { repo: 'octo-org/api-server', number: 42 };
 
 test('one tag per PR, and the tag is the control', () => {
   const ready = tagFor({ state: 'ready', story: 's', story_head: 'abc1234def' }, pr);
-  assert.deepEqual([ready.kind, ready.label, ready.href], ['link', 'Story', 'https://github.com/octo-org/api/pull/3058/changes']);
+  assert.deepEqual([ready.kind, ready.label, ready.href], ['link', 'Story', 'https://github.com/octo-org/api-server/pull/42/changes']);
   const none = tagFor({ state: 'none' }, pr);
   assert.deepEqual([none.kind, none.act, none.label], ['button', 'build', 'Build story']);
   assert.equal(tagFor(null, pr).act, 'build', 'no answer yet reads as none');
@@ -32,7 +32,7 @@ test('the HTML is one element: a link, a button, or a span', () => {
 
 test('Build story sends a build request, and Update sends an update from the story head', () => {
   const build = requestFor(tagFor({ state: 'none' }, pr), pr);
-  assert.equal(build.url, 'https://github.com/octo-org/api/pull/3058');
+  assert.equal(build.url, 'https://github.com/octo-org/api-server/pull/42');
   assert.equal(build.mode, undefined);
   const upd = requestFor(tagFor({ state: 'ready', stale: true, story_head: 'abc1234' }, pr), pr);
   assert.deepEqual([upd.mode, upd.base_sha], ['update', 'abc1234']);
@@ -40,17 +40,17 @@ test('Build story sends a build request, and Update sends an update from the sto
 
 test('the notice lists only the repos with no listener', () => {
   const m = missingListeners({
-    'octo-org/api': { ok: false, prompt: '/diff-story-listen octo-org/api', details: 'long', checkout: '~/Development/SDK/api' },
+    'octo-org/api-server': { ok: false, prompt: '/diff-story-listen octo-org/api-server', details: 'long', checkout: '~/Development/api-server' },
     'octo-org/web-app': { ok: true, prompt: '/diff-story-listen octo-org/web-app' },
   });
-  assert.deepEqual(m, [{ repo: 'octo-org/api', prompt: '/diff-story-listen octo-org/api', details: 'long', checkout: '~/Development/SDK/api' }]);
+  assert.deepEqual(m, [{ repo: 'octo-org/api-server', prompt: '/diff-story-listen octo-org/api-server', details: 'long', checkout: '~/Development/api-server' }]);
   assert.deepEqual(missingListeners(undefined), []);
 });
 
 test('the Conversation tab is /owner/repo/pull/N and nothing after it', () => {
-  assert.deepEqual(conversationPr({ pathname: '/octo-org/api/pull/3058' }), pr);
-  assert.deepEqual(conversationPr({ pathname: '/octo-org/api/pull/3058/' }), pr);
-  for (const p of ['/octo-org/api/pull/3058/files', '/octo-org/api/pull/3058/changes', '/octo-org/api/pull/3058/commits', '/octo-org/api/pulls']) assert.equal(conversationPr({ pathname: p }), null, p);
+  assert.deepEqual(conversationPr({ pathname: '/octo-org/api-server/pull/42' }), pr);
+  assert.deepEqual(conversationPr({ pathname: '/octo-org/api-server/pull/42/' }), pr);
+  for (const p of ['/octo-org/api-server/pull/42/files', '/octo-org/api-server/pull/42/changes', '/octo-org/api-server/pull/42/commits', '/octo-org/api-server/pulls']) assert.equal(conversationPr({ pathname: p }), null, p);
 });
 
 test('a #dsm-step-N hash names the step to open on', async () => {

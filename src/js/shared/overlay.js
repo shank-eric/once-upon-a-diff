@@ -9,7 +9,7 @@
  * scrolls the page. It never clicks the host page's Viewed, comment, review or
  * approve controls, never submits the host page's forms and makes no network
  * calls itself. The only host controls it clicks are expand controls, and only
- * when Eric clicks a file or line link in the panel: the file's own expand
+ * when the reviewer clicks a file or line link in the panel: the file's own expand
  * toggle if it's collapsed (Viewed and large files collapse), "Load diff", then
  * the hunk expanders until the line is on the page. GitHub fetches the lines
  * with the page's own settings, so ?w=1 holds. Saving the step, reporting position and sending
@@ -22,7 +22,7 @@
  * "Chapter N" heading, is moved to the Overview.
  *
  * "Since you read it" chapters (a chapter with `since: {from, to}`) tell the
- * commits that came after Eric read the story, and come first. They aren't
+ * commits that came after the reviewer read the story, and come first. They aren't
  * numbered: the chapters after them keep the numbers they were read with. A
  * file one of them lists is marked viewed there (the newest one wins), since
  * the chapters after it were already read.
@@ -75,19 +75,19 @@
  *                  when it has no "Since you read it" chapter, so the panel can still say what's new
  *   requestUpdate(base_sha, {retell}) asks for the story to be updated from that commit (a build request, mode 'update'):
  *                  by default a "Since you read it" chapter for the new commits, or with retell a whole new story
- *   onRead(r)      called with {chapter (its key), step, title, reason: 'time'|'viewed'|'inferred', seconds, head_sha} when Eric
- *                  leaves a chapter he spent READ_MS on (counted while the tab shows), or ticks the last of its files viewed,
+ *   onRead(r)      called with {chapter (its key), step, title, reason: 'time'|'viewed'|'inferred', seconds, head_sha} when the reviewer
+ *                  leaves a chapter they spent READ_MS on (counted while the tab shows), or ticks the last of its files viewed,
  *                  or ('inferred') the page already had all its files Viewed and read.json has no record of it
  *   readAfterMs    how long counts as reading a chapter (READ_MS, 30s)
  *   reads()        returns a Promise of the bridge's GET /read: {reads, since, changed: [{step, files}],
- *                  stale_comments: [{step, index}]}: what changed in chapters he read, after he read them
+ *                  stale_comments: [{step, index}]}: what changed in chapters they read, after they read them
  *   host           name of the page that owns the diff, for messages ("GitHub")
  *   commentsTitle  heading for the chapter's drafted comments ("Draft comments")
  */
-// ---------- drafts added to his pending review (no DOM here, so node tests can use these)
+// ---------- drafts added to the reviewer's pending review (no DOM here, so node tests can use these)
 /**
  * How the panel shows one draft row from the bridge: 'dismissed', 'fix', 'posted', 'pending', 'added' or 'draft'.
- * 'added' is Add to my review's own state: it's in his pending review, but GitHub doesn't redraw an open
+ * 'added' is Add to my review's own state: it's in their pending review, but GitHub doesn't redraw an open
  * Files changed page for that, so this page doesn't show it yet. It turns into the usual posted or pending
  * display once gh matches it on a page loaded after the add, or the comment turns up on the page (onPage).
  * settle: the add is confirmed, so the bridge can drop its `added` mark.
@@ -170,7 +170,7 @@ export function chapterNumbers(chapters) {
   return chapters.map((ch) => (ch.since ? null : ++k));
 }
 /**
- * Chapters he reviewed before the panel tracked reads (or with the panel closed): every file the chapter marks
+ * Chapters they reviewed before the panel tracked reads (or with the panel closed): every file the chapter marks
  * viewed was already Viewed the first time this page could see all of them, and read.json has no record of it.
  * Only that first look counts, so ticking a later chapter's files while reading an earlier one doesn't read it.
  * @param {{due: number, viewed: number, unknown: string[], noToggle: boolean}[]} progress progressOf() per step
@@ -191,8 +191,8 @@ export function inferReadSteps(chapters, progress, readInfo, firstLook) {
   return out;
 }
 /**
- * The steps whose chapter he's read (read.json has its key) and that haven't changed since he read them. A file
- * such a chapter finishes isn't "viewed early" from an earlier chapter: he's been through it already.
+ * The steps whose chapter they've read (read.json has its key) and that haven't changed since they read them. A file
+ * such a chapter finishes isn't "viewed early" from an earlier chapter: they've been through it already.
  * @param {object|null} readInfo the bridge's GET /read: {reads, changed: [{step}]}
  */
 export function readStepsOf(chapters, readInfo) {
@@ -273,7 +273,7 @@ export function storyOverlay(INPUT, opts = {}) {
     }
   }
 
-  // ---------- where each file is finished, and what to tell Eric about it
+  // ---------- where each file is finished, and what to tell the reviewer about it
   // A file is marked viewed in the LAST chapter that lists it, whether or not the earlier listings say partial,
   // or in the "Since you read it" chapter that lists it. Every earlier chapter says "Leave unviewed: comes back in chapter N".
   const finishedIn = finishedInOf(DATA.chapters);
@@ -898,7 +898,7 @@ export function storyOverlay(INPUT, opts = {}) {
   }
 
   // GitHub loads and re-renders diffs as you scroll, and flips aria-pressed when
-  // Eric ticks Viewed, so re-filter and refresh the check marks after changes.
+  // The reviewer ticks Viewed, so re-filter and refresh the check marks after changes.
   let pending = 0;
   // Changes inside a diff line (Refined GitHub's show-whitespace and linkify-code wrap text in spans as you scroll) can't add or remove a file, so they don't count.
   const insideLine = (n) => { const e = n.nodeType === 1 ? n : n.parentElement; return !!(e && e.closest('td, .diff-text-inner, .blob-code-inner')); };
@@ -992,7 +992,7 @@ export function storyOverlay(INPUT, opts = {}) {
   function renderViewed() {
     const blocks = new Map(fileBlocks().map((b) => [b.rel, b]));
     // viewed too early: a file whose last chapter is still to come (it comes back later, or it's only a later chapter's), never one already finished,
-    // and never one whose last chapter he's already read (a review done earlier, or before read tracking)
+    // and never one whose last chapter they've already read (a review done earlier, or before read tracking)
     const n0 = inBackstory() ? 0 : state.n;
     const readSteps = readStepsOf(DATA.chapters, readInfo);
     const earlyFor = (rel) => n0 > 0 && finishedIn[rel] != null && finishedIn[rel] > n0 && !readSteps.has(finishedIn[rel]);
@@ -1109,7 +1109,7 @@ export function storyOverlay(INPUT, opts = {}) {
     return `<details class="prs-filesbox"${state.filesOpen ? ' open' : ''}><summary><h2 class="prs-h">${esc(title)}</h2>${summary ? `<span class="prs-sum">${esc(summary)}</span>` : ''}</summary><ul class="prs-files">${items}</ul></details>`;
   }
 
-  /** At the top of a "Since you read it" chapter: which commits it covers, and that the rest is as he read it. */
+  /** At the top of a "Since you read it" chapter: which commits it covers, and that the rest is as they read it. */
   function sinceBanner(ch) {
     if (!ch || !ch.since) return '';
     const n = ch.since.commits;
@@ -1301,7 +1301,7 @@ export function storyOverlay(INPUT, opts = {}) {
   }
   // A long jump makes GitHub render the files it passes, which pushes the target
   // down after the first scroll. So look again for ≈2s and scroll back onto it,
-  // until it holds still or Eric scrolls himself.
+  // until it holds still or the reviewer scrolls.
   let settleToken = 0;
   function settle(getEl, frac) {
     const token = ++settleToken;
@@ -1604,7 +1604,7 @@ export function storyOverlay(INPUT, opts = {}) {
   }
   /**
    * A story updated in place (no "Since you read it" chapter for the update): say so at the top, with what the new
-   * commits changed and a link to GitHub's diff of just them, so what's new stays apart from what he'd seen.
+   * commits changed and a link to GitHub's diff of just them, so what's new stays apart from what they'd seen.
    */
   function updatedHtml(f) {
     const u = f && f.updated;
@@ -1631,13 +1631,13 @@ export function storyOverlay(INPUT, opts = {}) {
   }
   if (opts.freshness || opts.reads) freshTimer = setInterval(() => { if (document.visibilityState === 'visible') { refreshFresh(); refreshReads(); } }, 60000);
 
-  // ---------- chapters he read that changed after he read them (the bridge compares the commit he read them at with the story's)
+  // ---------- chapters they read that changed after they read them (the bridge compares the commit they read them at with the story's)
   let readInfo = null;
   async function refreshReads() {
     if (!opts.reads) return;
     try { readInfo = await opts.reads(); } catch (e) { return; } // the bridge may be down; the marks just don't show
     renderReads();
-    renderViewed(); // "viewed early" depends on which chapters he's read
+    renderViewed(); // "viewed early" depends on which chapters they've read
     renderDrafts();
   }
   function renderReads() {
@@ -1655,7 +1655,7 @@ export function storyOverlay(INPUT, opts = {}) {
   }
   const staleDraft = (n, i) => !!readInfo && (readInfo.stale_comments || []).some((c) => c.step === n && c.index === i);
 
-  // ---------- drafted comments: posted, in his pending review, dismissed, or still a draft
+  // ---------- drafted comments: posted, in their pending review, dismissed, or still a draft
   let draftRows = [];
   let draftError = null;
   let draftsAt = 0;
@@ -1786,7 +1786,7 @@ export function storyOverlay(INPUT, opts = {}) {
   const onFocusDrafts = () => { refreshDrafts(true); refreshFresh(); refreshReads(); };
   window.addEventListener('focus', onFocusDrafts);
 
-  // ---------- what Eric has read: a chapter he stayed on for READ_MS (while the tab showed), or ticked every file of
+  // ---------- what the reviewer has read: a chapter they stayed on for READ_MS (while the tab showed), or ticked every file of
   const READ_AFTER = Number.isFinite(opts.readAfterMs) ? opts.readAfterMs : READ_MS;
   const readSent = new Set(); // "<key> <reason>": each at most once per panel
   const completeSeen = new Map(); // chapter -> were all its files viewed when last looked at
@@ -1817,7 +1817,7 @@ export function storyOverlay(INPUT, opts = {}) {
   document.addEventListener('visibilitychange', onReadVisibility);
   window.addEventListener('pagehide', readLeave);
 
-  // ---------- where Eric is: the step and the file at the top of the screen
+  // ---------- where the reviewer is: the step and the file at the top of the screen
   let posTimer = 0;
   let lastPos = '';
   let topFile = null;

@@ -1,11 +1,11 @@
 /*
  * The one story tag a PR gets, on PR lists and on the PR's Conversation tab.
  * The tag is the control:
- *   ready      "Story", a link to Files changed, where the panel docks; once he's read some of it (read.json),
- *              "Story · 2 of 5 read", linking to the first unread chapter, and "Read" (muted) once he's read it all
+ *   ready      "Story", a link to Files changed, where the panel docks; once they've read some of it (read.json),
+ *              "Story · 2 of 5 read", linking to the first unread chapter, and "Read" (muted) once they've read it all
  *   stale      "Story out of date · Update", asks for an update to the PR's latest commit: a "Since you read it"
  *              chapter for the new commits (Update (new commits)), or with its small "Re-tell" a whole new story
- *   read+new   "Read · 3 new commits · Update" (or "2 of 5 read · …"), with "Re-tell" beside it, when he's read
+ *   read+new   "Read · 3 new commits · Update" (or "2 of 5 read · …"), with "Re-tell" beside it, when they've read
  *              some of it and the PR has moved on
  *   none       "Build story", asks for one
  *   queued     "Queued", asked for and no session has it yet (not clickable)

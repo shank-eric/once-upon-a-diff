@@ -7,7 +7,7 @@
  * GitHub's own setting lives in the URL (?w=1). So:
  *   - arriving on a PR's Files changed page without w, with the setting on,
  *     reloads it once with ?w=1
- *   - a URL that says w=1 or w=0 is Eric's choice (GitHub's toggle, or a link),
+ *   - a URL that says w=1 or w=0 is the reviewer's choice (GitHub's toggle, or a link),
  *     and becomes the setting
  *   - w=1 dropping off the same page means GitHub's toggle was turned off
  *

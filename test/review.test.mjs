@@ -26,7 +26,7 @@ function withFake(env, fn) {
 }
 const queryOf = call => call.find(a => a.startsWith('query='));
 
-test('starts a pending review when Eric has none, then adds the thread; never submits', () => withFake({}, async calls => {
+test('starts a pending review when none exists, then adds the thread; never submits', () => withFake({}, async calls => {
   const r = await addToPendingReview('acme/widgets', 7, { path: 'src/a.js', line: 12, body: 'Could you confirm this?' });
   assert.equal(r.started, true);
   assert.equal(r.review, 'PRR_new');
@@ -143,7 +143,7 @@ test('the panel shows an added draft until gh matches it on a page loaded after 
 
 test("finding the added comment in the page's rendered comments", () => {
   const body = 'Could you confirm what happens with an `empty` list here? See [the docs](https://example.com/x).';
-  assert.ok(shownIn(['Shank-eric Pending', 'Could you confirm what happens with an empty list here? See the docs.'], body));
+  assert.ok(shownIn(['Octocat Pending', 'Could you confirm what happens with an empty list here? See the docs.'], body));
   assert.ok(!shownIn(['Nice tidy-up of the old code.'], body));
   assert.ok(!shownIn(['ok'], 'ok'), 'too short to tell');
 });
