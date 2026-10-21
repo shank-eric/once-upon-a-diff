@@ -35,7 +35,7 @@ test('posted, pending (his unsubmitted review), dismissed and manual marks are f
   try {
     const st = (await b.call('GET', '/api/stories/acme-widgets-7/drafts')).body;
     assert.equal(st.error, null);
-    assert.equal(st.login, 'shank-eric');
+    assert.equal(st.login, 'octocat');
     assert.deepEqual(st.drafts.map(d => d.status), ['posted', 'pending', 'draft', 'draft']);
     assert.equal(st.drafts[0].url, 'https://github.com/acme/widgets/pull/7#discussion_r1');
 

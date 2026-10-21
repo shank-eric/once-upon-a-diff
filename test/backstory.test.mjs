@@ -79,7 +79,7 @@ describe('backstory matcher', () => {
     const m = b.moments[0];
     assert.ok(m.edits.some(e => e.rel === 'app.js'), 'the Edit is evidence');
     assert.deepEqual(m.lines['app.js'], [[1, 1]], 'the edit maps to the new line 1');
-    assert.ok(m.asks.some(a => /dead initializer/.test(a.text)), "Eric's prompt comes along");
+    assert.ok(m.asks.some(a => /dead initializer/.test(a.text)), "the user's prompt comes along");
     assert.deepEqual(b.unmatched, []);
     assert.equal(b.timeline.length, 1);
   });
@@ -127,7 +127,7 @@ describe('backstory in the story data', () => {
       title: 'T', backstory: { summary: 'Made in one session.' },
       chapters: [{
         title: 'Chapter 1: One', narrative: '### Chapter 1: One', backstory: { summary: 'Why', steps: [{ at: '2026-10-20T19:00:00Z', text: 'Asked for it', session: 's1', turn: 3 }, { text: '' }] },
-        files: [{ rel: 'app.js', backstory: { text: 'Eric asked' }, lines: [{ side: 'R', start: 1, label: 'count', backstory: 'was let' }] }],
+        files: [{ rel: 'app.js', backstory: { text: 'the user asked' }, lines: [{ side: 'R', start: 1, label: 'count', backstory: 'was let' }] }],
       }],
     });
     const bsFile = path.join(tmp('bs-file'), 'backstory.json');
@@ -139,7 +139,7 @@ describe('backstory in the story data', () => {
     assert.deepEqual(data.backstory.timeline[0].lines, { 'app.js': [[1, 1]] });
     assert.equal(data.backstory.sessions[0].label, 'A session');
     assert.equal(data.chapters[0].backstory.steps.length, 1, 'empty steps are dropped');
-    assert.equal(data.chapters[0].files[0].backstory.text, 'Eric asked');
+    assert.equal(data.chapters[0].files[0].backstory.text, 'the user asked');
     assert.equal(data.chapters[0].files[0].lines[0].backstory, 'was let');
 
     const b = await startBridge({ home });

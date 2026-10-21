@@ -4,7 +4,7 @@
  * `answer` command appends answers. Each line is a whole JSON object with an
  * `id`, `at` (ISO time), `type` and `story`.
  *
- *   {"type":"question","id":"q_…","story":"EverFi-everfi-frontend-6943","step":2,"chapter":"Chapter 2: …","file":"…","text":"…","url":"…"}
+ *   {"type":"question","id":"q_…","story":"octo-org-web-app-42","step":2,"chapter":"Chapter 2: …","file":"…","text":"…","url":"…"}
  *   {"type":"answer","id":"a_…","question":"q_…","story":"…","text":"markdown"}
  *   {"type":"position","story":"…","step":2,"chapter":"…","file":"…"}
  *   {"type":"note","story":"…","note":{"id":"n_…","path":"…","side":"R","line":12,"body":"…"}}

@@ -22,7 +22,7 @@
  *   4. Lines: the added lines of each edit and of each commit are found in the
  *      final diff's new side, so a moment can point at line ranges.
  *   5. Context the extractor doesn't carry is read from the raw transcripts:
- *      what Eric said (prompts, and voice through Larmor's listen results),
+ *      what the user said (prompts, and voice through Larmor's listen results),
  *      the task and follow-ups the main session sent each agent, the agents'
  *      hand-back reports, and what Claude said aloud, near the evidence only.
  *
@@ -225,7 +225,7 @@ const resultText = b => (typeof b.content === 'string' ? b.content : Array.isArr
 const SAID_RE = /the user said(?: \(by voice\))?:\s*\\?n?\s*\\?"?([\s\S]*?)\\?"?\s*(?:\\n|\n)\s*This will NOT come through/;
 const isNoise = t => !t || /^\(silence\)$/i.test(t) || /^MCP tool "larmor\/listen" is still running/.test(t);
 
-/** Main transcript: what Eric said, what Claude said aloud, and what the main session sent agents. */
+/** Main transcript: what the user said, what Claude said aloud, and what the main session sent agents. */
 function mainContext(file) {
   const names = new Map(); // tool_use id -> tool name
   const ctx = { heard: [], spoke: [], spawned: [], sent: [], prompts: [], peers: [] };
@@ -443,13 +443,13 @@ export function findBackstory(opts) {
         if (agent.ctx.task && near(agent.ctx.task.at, 20 * MIN, 0)) asks.push({ at: agent.ctx.task.at, via: 'task', text: clip(agent.ctx.task.text, 900) });
         for (const s of main.sent) if (name && s.to === name && near(s.at, 20 * MIN, 15 * MIN)) asks.push({ at: s.at, via: 'message', text: clip(s.text, 900) });
         for (const r of agent.ctx.reports) if (near(r.at, 0, 30 * MIN)) reports.push({ at: r.at, text: clip(r.text, 1600) });
-        // what Eric said just before the main session wrote to this agent
+        // what the user said just before the main session wrote to this agent
         const sends = asks.map(a => ms(a.at));
-        for (const h of main.heard) if (sends.some(t => ms(h.at) <= t && ms(h.at) >= t - 3 * MIN)) asks.push({ at: h.at, via: 'voice', who: 'Eric', text: clip(h.text, 500) });
-        for (const p of main.prompts) if (sends.some(t => ms(p.at) <= t && ms(p.at) >= t - 5 * MIN)) asks.push({ at: p.at, via: 'prompt', who: 'Eric', text: clip(p.text, 500) });
+        for (const h of main.heard) if (sends.some(t => ms(h.at) <= t && ms(h.at) >= t - 3 * MIN)) asks.push({ at: h.at, via: 'voice', who: 'user', text: clip(h.text, 500) });
+        for (const p of main.prompts) if (sends.some(t => ms(p.at) <= t && ms(p.at) >= t - 5 * MIN)) asks.push({ at: p.at, via: 'prompt', who: 'user', text: clip(p.text, 500) });
       } else {
-        for (const h of main.heard) if (near(h.at, 6 * MIN, MIN / 2)) asks.push({ at: h.at, via: 'voice', who: 'Eric', text: clip(h.text, 500) });
-        for (const p of main.prompts) if (near(p.at, 10 * MIN, 0)) asks.push({ at: p.at, via: 'prompt', who: 'Eric', text: clip(p.text, 500) });
+        for (const h of main.heard) if (near(h.at, 6 * MIN, MIN / 2)) asks.push({ at: h.at, via: 'voice', who: 'user', text: clip(h.text, 500) });
+        for (const p of main.prompts) if (near(p.at, 10 * MIN, 0)) asks.push({ at: p.at, via: 'prompt', who: 'user', text: clip(p.text, 500) });
         // a message from another session: the one that started this turn, and any that came in during it.
         // Earlier ones started their own turns (often a read-only question), so they aren't this moment's ask.
         const turnAt = turn ? ms(turn.at) : from - 10 * MIN;
@@ -513,7 +513,7 @@ function mergeRanges(rs) {
 /** A first draft of the chronological view, one entry per moment. The story writer rewrites the text. */
 function draftTimeline(moments) {
   return moments.map(m => {
-    const ask = m.asks.find(a => a.who === 'Eric') || m.asks[0];
+    const ask = m.asks.find(a => a.who === 'user') || m.asks[0];
     const did = [
       m.edits.length ? `${m.edits.length} edit${m.edits.length === 1 ? '' : 's'}` : '',
       m.shell.length ? `${m.shell.length} scripted change${m.shell.length === 1 ? '' : 's'}` : '',

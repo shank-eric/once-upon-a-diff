@@ -78,7 +78,7 @@ function mount() {
       saveUi(key, cur.ui);
     },
     onPosition: p => bridge('POST', `${storyPath}/position`, { ...p, url: location.href }),
-    // a chapter he read (stayed on, or ticked every file of), with the PR head it was read at
+    // a chapter they read (stayed on, or ticked every file of), with the PR head it was read at
     onRead: async r => { const x = await bridge('POST', `${storyPath}/read`, r); if (!x.ok) throw new Error(x.error); },
     onClose: () => {
       if (!cur || cur.key !== key) return;
@@ -93,7 +93,7 @@ function mount() {
       if (!r.ok) throw new Error(r.error === 'unreachable' ? 'the bridge is not running' : r.error);
       return r.body;
     },
-    reloadPage: async () => { await keepPanelPlace(); location.reload(); }, // only when Eric clicks Reload page
+    reloadPage: async () => { await keepPanelPlace(); location.reload(); }, // only when the reviewer clicks Reload page
     drafts: {
       load: async () => { const r = await bridge('GET', `${storyPath}/drafts`); if (!r.ok) throw new Error(r.error); return r.body; },
       act: async (chapter, index, action) => { const r = await bridge('POST', `${storyPath}/drafts`, { chapter, index, action }); if (!r.ok) throw new Error(r.error); return r.body; },

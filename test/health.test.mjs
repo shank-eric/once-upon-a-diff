@@ -83,11 +83,11 @@ test('doctor passes the bridge when it is up', async () => {
 });
 
 test('Copy prompt for Claude: one short skill line naming the repo, with the long form behind it', async () => {
-  const p = listenPrompt({ repo: 'EverFi/furnace', checkout: path.join(os.homedir(), 'Development', 'furnace') }, 'diff-story');
-  assert.equal(p.prompt, '/diff-story-listen EverFi/furnace');
-  assert.equal(p.command, 'diff-story wait --repo EverFi/furnace');
-  assert.equal(p.checkout, '~/Development/furnace');
-  assert.match(p.details, /^In ~\/Development\/furnace, run `diff-story wait --repo EverFi\/furnace` as a background task/);
+  const p = listenPrompt({ repo: 'octo-org/api-server', checkout: path.join(os.homedir(), 'Development', 'api-server') }, 'diff-story');
+  assert.equal(p.prompt, '/diff-story-listen octo-org/api-server');
+  assert.equal(p.command, 'diff-story wait --repo octo-org/api-server');
+  assert.equal(p.checkout, '~/Development/api-server');
+  assert.match(p.details, /^In ~\/Development\/api-server, run `diff-story wait --repo octo-org\/api-server` as a background task/);
   for (const bit of ['diff-story answer --question <id>', 'diff-story builds --start <id>', '/pr-story <PR url>', 'diff-story done <id>']) assert.ok(p.details.includes(bit), bit);
   assert.equal(listenPrompt({ story: 'local-x' }, 'diff-story').prompt, '/diff-story-listen --story local-x', '--story still works, for a story with no GitHub repo');
   assert.match(listenPrompt({ repo: 'a/b' }, 'diff-story').details, /^In your checkout of a\/b, run/);
@@ -116,16 +116,16 @@ test('Copy prompt for Claude: one short skill line naming the repo, with the lon
 test('the checkout to work from: one the bridge has seen, else ~/Development/<name> if its origin matches', async () => {
   const home = tmp('home');
   const dev = tmp('dev');
-  const repo = path.join(dev, 'furnace');
+  const repo = path.join(dev, 'api-server');
   mkdirSync(repo);
   git(repo, 'init', '-q');
-  git(repo, 'remote', 'add', 'origin', 'git@github.com:EverFi/furnace.git');
-  assert.equal(repoOfCheckout(repo), 'EverFi/furnace');
-  assert.equal(checkoutFor(home, 'everfi/furnace', { dev }), repo);
-  assert.equal(checkoutFor(home, 'EverFi/nope', { dev }), null);
+  git(repo, 'remote', 'add', 'origin', 'git@github.com:octo-org/api-server.git');
+  assert.equal(repoOfCheckout(repo), 'octo-org/api-server');
+  assert.equal(checkoutFor(home, 'octo-org/api-server', { dev }), repo);
+  assert.equal(checkoutFor(home, 'octo-org/nope', { dev }), null);
   const wt = tmp('wt');
-  seenCheckout(home, 'EverFi/furnace', wt);
-  assert.equal(checkoutFor(home, 'EverFi/furnace', { dev }), wt, 'a seen checkout comes first');
-  assert.equal(repoOfRemote('https://github.com/EverFi/everfi-frontend.git'), 'EverFi/everfi-frontend');
+  seenCheckout(home, 'octo-org/api-server', wt);
+  assert.equal(checkoutFor(home, 'octo-org/api-server', { dev }), wt, 'a seen checkout comes first');
+  assert.equal(repoOfRemote('https://github.com/octo-org/web-app.git'), 'octo-org/web-app');
   assert.equal(repoOfRemote('https://gitlab.com/a/b'), null);
 });

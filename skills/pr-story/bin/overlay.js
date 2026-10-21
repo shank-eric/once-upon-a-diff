@@ -49,7 +49,7 @@ function prStoryOverlay(INPUT) {
     }
   }
 
-  // ---------- where each file is finished, and what to tell Eric about it
+  // ---------- where each file is finished, and what to tell the reviewer about it
   const finishedIn = {};
   DATA.chapters.forEach((ch, i) => ch.files.forEach((f) => { if (!f.partial && finishedIn[f.rel] == null) finishedIn[f.rel] = i + 1; }));
   const chaptersOf = (rel) => DATA.chapters.map((c, i) => (c.files.some((f) => f.rel === rel) ? i + 1 : 0)).filter(Boolean);
@@ -338,7 +338,7 @@ function prStoryOverlay(INPUT) {
   function unhideAll() { for (const el of document.querySelectorAll('[data-prs-hidden], [data-prs-flash]')) { el.removeAttribute('data-prs-hidden'); el.removeAttribute('data-prs-flash'); } }
 
   // GitHub loads and re-renders diffs as you scroll, and flips aria-pressed when
-  // Eric ticks Viewed, so re-filter and refresh the check marks after changes.
+  // The reviewer ticks Viewed, so re-filter and refresh the check marks after changes.
   let pending = 0;
   const observer = new MutationObserver((muts) => {
     if (muts.every((m) => panel.contains(m.target))) return;

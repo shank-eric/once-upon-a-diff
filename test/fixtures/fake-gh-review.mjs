@@ -11,8 +11,8 @@ if (process.env.FAKE_GH_LOG) appendFileSync(process.env.FAKE_GH_LOG, JSON.string
 let data;
 if (query.includes('reviews(states: PENDING')) {
   data = {
-    viewer: { login: 'shank-eric' },
-    repository: { pullRequest: { id: 'PR_1', reviews: { nodes: process.env.FAKE_GH_PENDING ? [{ id: 'PRR_old', author: { login: 'shank-eric' } }] : [{ id: 'PRR_other', author: { login: 'someone-else' } }] } } },
+    viewer: { login: 'octocat' },
+    repository: { pullRequest: { id: 'PR_1', reviews: { nodes: process.env.FAKE_GH_PENDING ? [{ id: 'PRR_old', author: { login: 'octocat' } }] : [{ id: 'PRR_other', author: { login: 'someone-else' } }] } } },
   };
 } else if (query.includes('addPullRequestReview(')) {
   data = { addPullRequestReview: { pullRequestReview: { id: 'PRR_new', state: 'PENDING' } } };

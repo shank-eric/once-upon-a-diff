@@ -8,43 +8,43 @@ import { StoryStore } from '../bridge/lib/stories.mjs';
 import { createLocalStory } from '../bridge/lib/local.mjs';
 import { finishedInOf } from '../src/js/shared/overlay.js';
 
-const RELS = ['libs/hooks/useApiOptions.ts', 'apps/a/TimelineField.tsx', 'apps/a/index.ts', 'apps/b/index.ts', 'apps/a/Scholarships.tsx'];
+const RELS = ['libs/hooks/useOptions.ts', 'apps/a/DateField.tsx', 'apps/a/index.ts', 'apps/b/index.ts', 'apps/a/Orders.tsx'];
 
 test('line references in a chapter\'s text: path:N, ranges, bare :N, and diff links with a line', () => {
   const text = [
-    'A filter joins Status (`Scholarships.tsx:97-108`), then `:68-76` builds the query.',
-    'Optional: `useApiOptions.ts:45` (chapter 2) and `TimelineField.tsx`, named with no line.',
-    `See [the load](https://github.com/o/r/pull/1/changes#diff-${pathSha('apps/a/TimelineField.tsx')}R54).`,
+    'A filter joins Status (`Orders.tsx:97-108`), then `:68-76` builds the query.',
+    'Optional: `useOptions.ts:45` (chapter 2) and `DateField.tsx`, named with no line.',
+    `See [the load](https://github.com/o/r/pull/1/changes#diff-${pathSha('apps/a/DateField.tsx')}R54).`,
     '`index.ts:3` fits two files, so it is skipped. ```\n`apps/b/index.ts:9` in a code block\n```',
   ].join('\n');
-  assert.deepEqual(lineRefsOf(text, ['apps/a/Scholarships.tsx'], RELS), [
-    { rel: 'apps/a/Scholarships.tsx', lines: [{ side: 'R', start: 97, end: 108 }, { side: 'R', start: 68, end: 76 }] },
-    { rel: 'libs/hooks/useApiOptions.ts', lines: [{ side: 'R', start: 45, end: 45 }] },
-    { rel: 'apps/a/TimelineField.tsx', lines: [{ side: 'R', start: 54, end: 54 }] },
+  assert.deepEqual(lineRefsOf(text, ['apps/a/Orders.tsx'], RELS), [
+    { rel: 'apps/a/Orders.tsx', lines: [{ side: 'R', start: 97, end: 108 }, { side: 'R', start: 68, end: 76 }] },
+    { rel: 'libs/hooks/useOptions.ts', lines: [{ side: 'R', start: 45, end: 45 }] },
+    { rel: 'apps/a/DateField.tsx', lines: [{ side: 'R', start: 54, end: 54 }] },
   ]);
   assert.deepEqual(lineRefsOf('`index.ts:3`', ['apps/b/index.ts'], RELS), [{ rel: 'apps/b/index.ts', lines: [{ side: 'R', start: 3, end: 3 }] }], 'the chapter\'s own file settles a basename');
 });
 
 test('a later chapter that points at a file\'s lines finishes it; "Since you read it" chapters only finish what they list', () => {
   const chapters = [
-    { title: 'Chapter 1: Options', narrative: 'The hook (`useApiOptions.ts:12`).', files: [{ rel: 'libs/hooks/useApiOptions.ts', partial: false, note: null }] },
-    { title: 'Chapter 2: Filter', narrative: 'Comments: `Scholarships.tsx:99`, and `useApiOptions.ts:45` (chapter 1).', files: [{ rel: 'apps/a/Scholarships.tsx', partial: false, note: null }] },
-    { title: 'Chapter 3: Tests', narrative: 'The tests name `useApiOptions.ts` but point at no line.', files: [{ rel: 'apps/a/index.ts', partial: false, note: null }] },
+    { title: 'Chapter 1: Options', narrative: 'The hook (`useOptions.ts:12`).', files: [{ rel: 'libs/hooks/useOptions.ts', partial: false, note: null }] },
+    { title: 'Chapter 2: Filter', narrative: 'Comments: `Orders.tsx:99`, and `useOptions.ts:45` (chapter 1).', files: [{ rel: 'apps/a/Orders.tsx', partial: false, note: null }] },
+    { title: 'Chapter 3: Tests', narrative: 'The tests name `useOptions.ts` but point at no line.', files: [{ rel: 'apps/a/index.ts', partial: false, note: null }] },
   ];
-  assert.deepEqual(finishedInOf(chapters)['libs/hooks/useApiOptions.ts'], 1, 'before: only the listing counts');
+  assert.deepEqual(finishedInOf(chapters)['libs/hooks/useOptions.ts'], 1, 'before: only the listing counts');
   addTextRefs(chapters, RELS);
   assert.deepEqual(chapters[1].files[1], {
-    rel: 'libs/hooks/useApiOptions.ts', partial: true, note: REF_NOTE, ref: true,
+    rel: 'libs/hooks/useOptions.ts', partial: true, note: REF_NOTE, ref: true,
     lines: [{ side: 'R', start: 45, end: 45, label: 'pointed at in the text' }],
   });
   assert.equal(chapters[0].files.length, 1, 'a reference to a file the chapter lists adds nothing');
   assert.equal(chapters[2].files.length, 1, 'a name with no line is not a reference');
-  assert.equal(finishedInOf(chapters)['libs/hooks/useApiOptions.ts'], 2, 'after: Mark viewed moves to the last chapter to point at it');
+  assert.equal(finishedInOf(chapters)['libs/hooks/useOptions.ts'], 2, 'after: Mark viewed moves to the last chapter to point at it');
 
-  const since = [{ title: 'Since you read it', since: { from: 'a'.repeat(40), to: 'b'.repeat(40) }, narrative: '`TimelineField.tsx:54`', files: [{ rel: 'apps/a/Scholarships.tsx', partial: false, note: null }] }, ...chapters];
+  const since = [{ title: 'Since you read it', since: { from: 'a'.repeat(40), to: 'b'.repeat(40) }, narrative: '`DateField.tsx:54`', files: [{ rel: 'apps/a/Orders.tsx', partial: false, note: null }] }, ...chapters];
   addTextRefs(since, RELS);
   assert.equal(since[0].files.length, 1, 'a "Since you read it" chapter gets no referenced files');
-  assert.equal(finishedInOf(since)['apps/a/Scholarships.tsx'], 1, 'and still finishes what it lists');
+  assert.equal(finishedInOf(since)['apps/a/Orders.tsx'], 1, 'and still finishes what it lists');
 });
 
 test('the bridge adds referenced files to a GitHub story\'s chapters', () => {

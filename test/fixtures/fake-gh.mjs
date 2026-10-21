@@ -9,7 +9,7 @@ else readOnly();
 function readOnly() {
   if (args[0] !== 'api' || args.some(a => /^-(f|F|X)$|^--(method|field|raw-field|input)$/.test(a))) { process.stderr.write('fake gh: only read-only api calls\n'); process.exit(2); }
   const url = args[1];
-  const me = { login: 'shank-eric' };
+  const me = { login: 'octocat' };
   const other = { login: 'someone' };
   const out = {
     user: me,
