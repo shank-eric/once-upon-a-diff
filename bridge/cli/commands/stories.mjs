@@ -7,18 +7,14 @@ import { copyFileSync, existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { openArgv } from '../../config/settings.mjs';
 import { StoryStore } from '../../stories/store.mjs';
-import { readMeta } from '../../stories/meta.mjs';
+import { readJson } from '../../util/json-file.mjs';
 import { createLocalStory, slug } from '../../stories/local-story.mjs';
 import { storyDirFor } from '../../stories/placement.mjs';
 import { out } from '../output.mjs';
 import { probe, serve } from './bridge.mjs';
 
-function list(home, cfg, opts) {
-  const store = new StoryStore({
-    home,
-    roots: opts.root.length ? opts.root : cfg.roots,
-    scratch: !opts['no-scratch'],
-  });
+function list(home) {
+  const store = new StoryStore({ home });
   for (const story of store.list()) {
     out(
       `${story.id}\t${story.kind}\t${story.repo ? `${story.repo}#${story.number}` : ''}\t${story.title}\t${story.dir}`,
@@ -72,13 +68,14 @@ function publish(home, cfg, opts) {
     throw new Error('usage: diff-story publish --dir <pr-story folder>');
   }
   const source = path.resolve(opts.dir);
-  const meta = readMeta(source);
-  if (!meta.repo || !meta.number) {
-    throw new Error(`${source} doesn't say which PR it is (no pr.json or file-map.json)`);
+  const pr = readJson(path.join(source, 'pr.json'), null);
+  const repo = pr && pr.url ? pr.url.split('/').slice(3, 5).join('/') : null;
+  if (!repo || !pr.number) {
+    throw new Error(`${source} doesn't say which PR it is (no pr.json naming it)`);
   }
-  const id = opts.id || slug(`${meta.repo.replace('/', '-')}-${meta.number}`);
+  const id = opts.id || slug(`${repo.replace('/', '-')}-${pr.number}`);
   // into the repo's checkout (.diff-story/<id>, kept out of git) when the bridge knows it, else ~/.diff-story/<id>
-  const dest = storyDirFor(home, id, { repo: meta.repo });
+  const dest = storyDirFor(home, id, { repo });
   for (const name of ['chapters.json', 'file-map.json']) {
     if (existsSync(path.join(source, name))) {
       copyFileSync(path.join(source, name), path.join(dest, name));
@@ -89,10 +86,12 @@ function publish(home, cfg, opts) {
     JSON.stringify(
       {
         kind: 'github',
-        repo: meta.repo,
-        number: meta.number,
-        url: meta.url,
-        pr_title: meta.pr_title || null,
+        repo,
+        number: pr.number,
+        url: pr.url,
+        pr_title: pr.title || null,
+        head_oid: pr.headRefOid || null, // the commit the story was told from
+        base_oid: pr.baseRefOid || null,
         source,
         published_at: new Date().toISOString(),
       },

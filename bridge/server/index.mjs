@@ -60,20 +60,18 @@ const HTML = 'text/html; charset=utf-8';
 const methodMatches = (route, method) => !route.method || route.method === method;
 
 /**
- * @param {{home: string, token: string, roots?: string[], scratch?: boolean|string[]}} opts
+ * @param {{home: string, token: string, log?: (line: string) => void}} opts
  * @returns {http.Server} call .listen(port, '127.0.0.1')
  */
 export function createBridge({
   home,
   token,
-  roots,
-  scratch = true,
   log = (line) => process.stderr.write(`diff-story bridge: ${line}\n`),
 }) {
   if (!token) {
     throw new Error('the bridge needs a token');
   }
-  const stories = new StoryStore({ home, roots, scratch });
+  const stories = new StoryStore({ home });
   const inbox = new Inbox(home);
   const app = {
     home,

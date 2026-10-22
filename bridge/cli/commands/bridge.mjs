@@ -21,13 +21,6 @@ export async function probe(port, token) {
   }
 }
 
-function rootsOf(cfg, opts) {
-  if (opts.root.length) {
-    return opts.root.map((root) => path.resolve(root));
-  }
-  return cfg.roots && cfg.roots.length ? cfg.roots : undefined;
-}
-
 /** Starts the bridge on 127.0.0.1 and resolves once it listens. */
 export function serve(home, cfg, opts) {
   const port = Number(opts.port || cfg.port);
@@ -45,8 +38,6 @@ export function serve(home, cfg, opts) {
   const server = createBridge({
     home,
     token: cfg.token,
-    roots: rootsOf(cfg, opts),
-    scratch: !opts['no-scratch'],
     log,
   });
   return new Promise((resolve, reject) => {
@@ -64,7 +55,7 @@ export const bridgeCommands = [
   {
     name: 'serve',
     usage: [
-      '  diff-story serve   [--port N] [--root DIR]... [--no-scratch]   run the bridge on 127.0.0.1',
+      '  diff-story serve   [--port N]                                  run the bridge on 127.0.0.1',
     ],
     async run(home, cfg, opts) {
       await serve(home, cfg, opts);

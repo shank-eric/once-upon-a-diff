@@ -8,13 +8,13 @@
  *   pr-story.mjs brief   --dir D                 what Claude reads to plan: files, commits, reviews, threads, CI, viewed
  *   pr-story.mjs build   --dir D [--no-bridge]   D/chapters.json -> D/file-map.json, then publish; fails if a file is unplaced
  *   pr-story.mjs overlay --dir D [--chapter N] [--out FILE]   JS snippet: story panel + chapter filter on the PR page (GitHub mode); no --chapter starts at the Overview
- *   pr-story.mjs publish --dir D                 copy the story to ~/.diff-story/<owner>-<repo>-<N>/ for Diff Story Mode (build does this too)
+ *   pr-story.mjs publish --dir D                 publish the story for Diff Story Mode through `diff-story publish` (build does this too)
  */
-import { readFile, writeFile, mkdir, copyFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
-import os from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -388,48 +388,19 @@ async function cmdBuild(opts) {
 }
 
 /**
- * Diff Story Mode: copy chapters.json and file-map.json, plus a meta.json
- * naming the PR, to where its bridge serves stories
- * (DIFF_STORY_HOME, default ~/.diff-story/<owner>-<repo>-<N>/). The
- * extension then shows the panel on the PR page by itself, and picks up
- * each re-render within a few seconds.
+ * Diff Story Mode: hand the folder to `diff-story publish`, which copies
+ * chapters.json and file-map.json, with a meta.json naming the PR and the
+ * commits it was told from, to where the bridge serves it (the repo's
+ * checkout when it knows one, else DIFF_STORY_HOME). The extension then shows
+ * the panel on the PR page by itself, and picks up each rebuild within a few
+ * seconds.
  */
 async function cmdPublish(opts) {
-  const dir = opts.dir;
-  const pr = await readJson(path.join(dir, 'pr.json'));
-  const repo = repoOf(pr);
-  if (!repo || !pr.number) {
-    throw new Error('pr.json does not name the PR');
-  }
-  const home = process.env.DIFF_STORY_HOME || path.join(os.homedir(), '.diff-story');
-  const dest = path.join(
-    home,
-    `${repo.replace('/', '-')}-${pr.number}`.replace(/[^A-Za-z0-9._-]+/g, '-'),
-  );
-  await mkdir(dest, { recursive: true });
-  for (const name of ['chapters.json', 'file-map.json']) {
-    if (existsSync(path.join(dir, name))) {
-      await copyFile(path.join(dir, name), path.join(dest, name));
-    }
-  }
-  await writeFile(
-    path.join(dest, 'meta.json'),
-    JSON.stringify(
-      {
-        kind: 'github',
-        repo,
-        number: pr.number,
-        url: pr.url,
-        pr_title: pr.title,
-        head_oid: pr.headRefOid || null,
-        base_oid: pr.baseRefOid || null,
-        source: path.resolve(dir),
-        published_at: new Date().toISOString(),
-      },
-      null,
-      2,
-    ),
-  );
+  const dest = execFileSync(
+    process.execPath,
+    [path.join(DSM, 'bridge/bin/diff-story.mjs'), 'publish', '--dir', path.resolve(opts.dir)],
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] },
+  ).trim();
   process.stderr.write(`Diff Story Mode: ${dest}\n`);
 }
 

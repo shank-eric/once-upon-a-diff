@@ -14,8 +14,15 @@ export function writeJson(file, value) {
   writeFileSync(file, JSON.stringify(value, null, 2));
 }
 
-/** A pr-story folder for acme/widgets#7 with two chapters. */
+/** A published story for acme/widgets#7 with two chapters (its pr.json too, so it also serves as a pr-story folder). */
 export function githubStory(dir) {
+  writeJson(path.join(dir, 'meta.json'), {
+    kind: 'github',
+    repo: 'acme/widgets',
+    number: 7,
+    url: 'https://github.com/acme/widgets/pull/7',
+    pr_title: 'Add widgets',
+  });
   writeJson(path.join(dir, 'pr.json'), {
     url: 'https://github.com/acme/widgets/pull/7',
     number: 7,
@@ -82,7 +89,7 @@ export function localRepo() {
 }
 
 export async function startBridge(opts) {
-  const server = createBridge({ token: TOKEN, scratch: false, ...opts });
+  const server = createBridge({ token: TOKEN, ...opts });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${server.address().port}`;
   const call = async (method, path, body, headers = {}) => {

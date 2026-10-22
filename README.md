@@ -81,7 +81,7 @@ It never posts to GitHub, marks files viewed or pushes. Comments it drafts go to
 
 ## Using it on a PR
 
-1. Make a story with the pr-story skill. Its `build` step copies `chapters.json` and `file-map.json` to `~/.diff-story/<owner>-<repo>-<N>/`, and you can also run `pr-story.mjs publish --dir <D>`. The bridge also reads pr-story's scratch folders directly.
+1. Make a story with the pr-story skill. Its `build` step publishes it with `diff-story publish --dir <D>`, which you can also run yourself: `chapters.json`, `file-map.json` and a `meta.json` naming the PR and the commit it was told from go into the repo's checkout (below), or `~/.diff-story/<owner>-<repo>-<N>/` when the bridge knows no checkout.
 2. Open the PR's **Files changed** tab. The panel docks on the right at the Overview step.
 3. Prev and Next (or the Steps list) filter the diff to a chapter. "Show all files" undoes the filter.
 4. To hide the panel, use **Hide story** (it collapses to a strip) or **×** (it goes away and that's remembered for the PR). The toolbar button or **Alt+Shift+S** shows or hides it.
@@ -213,9 +213,7 @@ Stories live in the repo they're about, in a hidden `.diff-story/` folder in its
   <story id>/                       a story whose repo has no known checkout
 ```
 
-The bridge learns a repo's checkout from local stories, from where `diff-story wait --repo` was run, and from `<dir>/<name>` for each folder in `checkout_dirs` (default `~/Development`, see [Personal settings](#personal-settings)) when its origin is that repo. pr-story's `build` still publishes to `~/.diff-story/<owner>-<repo>-<N>/`. The bridge moves a story from there into its checkout once it knows the checkout, and a later build follows it the same way. Stories made before this moved the same way the first time the bridge saw them. One whose checkout isn't known stays readable in `~/.diff-story`.
-
-The bridge also lists pr-story scratch folders (`/private/tmp/claude-<uid>/*/*/scratchpad/pr-story/*/`). `--root DIR` (repeatable) replaces the home folder as the place to look, and `--no-scratch` skips the scratch folders. When two folders hold the same PR, the most recently changed one wins.
+The bridge learns a repo's checkout from local stories, from where `diff-story wait --repo` was run, and from `<dir>/<name>` for each folder in `checkout_dirs` (default `~/Development`, see [Personal settings](#personal-settings)) when its origin is that repo. `diff-story publish` and `diff-story local` are the only ways a story gets there, and each records its folder in `stories.json`. A story whose checkout isn't known goes in `~/.diff-story`, and the bridge reads both. When two folders hold the same PR, the most recently changed one wins.
 
 ## The bridge
 

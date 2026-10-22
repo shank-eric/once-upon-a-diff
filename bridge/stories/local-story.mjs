@@ -12,7 +12,7 @@ import { parseUnifiedDiff } from '../util/diff.mjs';
 import { refreshLocal } from './local-diff.mjs';
 import { entryOf } from './chapters.mjs';
 import { ID_RE } from './meta.mjs';
-import { storyDirFor, moveStory, STORY_FOLDER } from './placement.mjs';
+import { storyDirFor } from './placement.mjs';
 import { repoOfCheckout, seenCheckout } from '../config/repos.mjs';
 
 export const slug = (text) =>
@@ -64,11 +64,6 @@ export function createLocalStory({ home, repo, base, head = 'HEAD', chapters, id
   id = id || slug(`local-${name}-${branch || head}`);
   if (!ID_RE.test(id)) {
     throw new Error(`bad story id: ${id}`);
-  }
-  // a story made before stories moved into checkouts comes along
-  const inRepo = path.join(top, STORY_FOLDER, id);
-  if (!existsSync(inRepo) && existsSync(path.join(home, id, 'meta.json'))) {
-    moveStory(path.join(home, id), inRepo);
   }
   const dir = storyDirFor(home, id, { checkout: top });
   const origin = repoOfCheckout(top);
