@@ -20,7 +20,7 @@ import { chromium } from 'playwright-core';
 import path from 'node:path';
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { tmp, writeJson, TOKEN, startBridge, localRepo } from '../helpers.mjs';
+import { tmp, writeJson, TOKEN, startBridge, localRepo, runCli } from '../helpers.mjs';
 import { createLocalStory } from '../../bridge/stories/local-story.mjs';
 import { beat } from '../../bridge/listeners/listeners.mjs';
 
@@ -412,10 +412,13 @@ try {
   );
   check(!inbox.some((e) => e.type === 'position'), 'and not in the inbox');
   if (question) {
-    await bridge.call('POST', '/api/answers', {
-      question: question.id,
-      text: 'Because **two** chapters.',
-    });
+    await runCli(home, [
+      'answer',
+      '--question',
+      question.id,
+      '--text',
+      'Because **two** chapters.',
+    ]);
     await page.waitForTimeout(4500);
     check(
       /Because two chapters/.test(await page.locator('#dsm-panel .prs-questions').textContent()),

@@ -3,10 +3,20 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import path from 'node:path';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmp, githubStory, startBridge, TOKEN, localRepo, git, writeJson } from './helpers.mjs';
+import {
+  tmp,
+  githubStory,
+  startBridge,
+  TOKEN,
+  localRepo,
+  git,
+  writeJson,
+  runCli,
+} from './helpers.mjs';
 import { pathSha } from '../bridge/util/diff.mjs';
 import { createLocalStory } from '../bridge/stories/local-story.mjs';
 import { StoryStore } from '../bridge/stories/store.mjs';
+import { beat } from '../bridge/listeners/listeners.mjs';
 
 /** A raw request, for headers fetch won't let us set (Host). */
 function raw(base, path, headers) {
@@ -173,11 +183,14 @@ describe('GitHub stories', () => {
       400,
     );
 
-    const answer = await bridge.call('POST', '/api/answers', {
-      question: question.body.id,
-      text: 'Because **chapter 2** finishes it.',
-    });
-    assert.equal(answer.status, 200);
+    const answer = await runCli(home, [
+      'answer',
+      '--question',
+      question.body.id,
+      '--text',
+      'Because **chapter 2** finishes it.',
+    ]);
+    assert.equal(answer.code, 0, answer.stderr);
     const { body } = await bridge.call('GET', '/api/stories/acme-widgets-7/questions');
     const back = body.questions.find((entry) => entry.id === question.body.id);
     assert.equal(back.answers.length, 1);
@@ -392,6 +405,49 @@ describe('local stories', () => {
   });
 });
 
+describe('pulse', () => {
+  test('one call whose fields move when the story, its questions, its drafts or a listener do', async () => {
+    const home = tmp('home');
+    githubStory(path.join(home, 'acme-widgets-7'));
+    const bridge = await startBridge({ home });
+    const pulse = async () => (await bridge.call('GET', '/api/stories/acme-widgets-7/pulse')).body;
+    try {
+      const first = await pulse();
+      assert.deepEqual(Object.keys(first).sort(), [
+        'drafts_rev',
+        'listening',
+        'questions_rev',
+        'version',
+      ]);
+      assert.equal(first.listening, false);
+      assert.deepEqual(await pulse(), first, 'nothing changed, nothing moves');
+
+      const asked = await bridge.call('POST', '/api/stories/acme-widgets-7/questions', {
+        text: 'Why?',
+        step: 1,
+      });
+      const afterQuestion = await pulse();
+      assert.notEqual(afterQuestion.questions_rev, first.questions_rev);
+      await runCli(home, ['answer', '--question', asked.body.id, '--text', 'Because.']);
+      assert.notEqual((await pulse()).questions_rev, afterQuestion.questions_rev);
+
+      await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
+        action: 'dismiss',
+        chapter: 1,
+        index: 0,
+      });
+      const afterDismiss = await pulse();
+      assert.notEqual(afterDismiss.drafts_rev, first.drafts_rev);
+      assert.equal(afterDismiss.version, first.version, 'a mark is not a new story version');
+
+      beat(home, 'pr-story', 'waiting', { repo: 'acme/widgets' });
+      assert.equal((await pulse()).listening, true);
+    } finally {
+      await bridge.close();
+    }
+  });
+});
+
 describe('drafted comments', () => {
   test('a comment lands in the chapter, in the served copy and its pr-story source, once', async () => {
     const home = tmp('home');
@@ -414,12 +470,30 @@ describe('drafted comments', () => {
         line: 4,
         body: 'Could you confirm this handles an empty list?',
       };
-      const response = await bridge.call('POST', '/api/stories/acme-widgets-7/comments', comment);
-      assert.equal(response.status, 200);
-      assert.equal(response.body.added, true);
-      assert.equal(response.body.files.length, 2);
-      const again = await bridge.call('POST', '/api/stories/acme-widgets-7/comments', comment);
-      assert.equal(again.body.added, false, 'the same comment twice is kept once');
+      const add = (args) => runCli(home, ['comment', '--story', 'acme-widgets-7', ...args]);
+      const args = [
+        '--chapter',
+        '2',
+        '--path',
+        comment.path,
+        '--line',
+        '4',
+        '--body',
+        comment.body,
+      ];
+      const response = await add(args);
+      assert.equal(response.code, 0, response.stderr);
+      assert.match(response.stdout, /^Added to chapter 2's draft comments \(.+, .+\)/);
+      const again = await add(args);
+      assert.match(again.stdout, /^Already in/, 'the same comment twice is kept once');
+      assert.equal(
+        readFileSync(path.join(home, 'inbox.jsonl'), 'utf8')
+          .trim()
+          .split('\n')
+          .map(JSON.parse)
+          .filter((e) => e.type === 'comment').length,
+        1,
+      );
       const data = (await bridge.call('GET', '/api/stories/acme-widgets-7')).body;
       assert.deepEqual(data.chapters[1].comments, [
         { path: 'src/b.js', line: 4, body: comment.body },
@@ -435,24 +509,8 @@ describe('drafted comments', () => {
         before,
         'the panel sees a new version',
       );
-      assert.equal(
-        (
-          await bridge.call('POST', '/api/stories/acme-widgets-7/comments', {
-            chapter: 9,
-            body: 'x',
-          })
-        ).status,
-        400,
-      );
-      assert.equal(
-        (
-          await bridge.call('POST', '/api/stories/acme-widgets-7/comments', {
-            chapter: 1,
-            body: ' ',
-          })
-        ).status,
-        400,
-      );
+      assert.notEqual((await add(['--chapter', '9', '--body', 'x'])).code, 0);
+      assert.notEqual((await add(['--chapter', '1', '--body', ' '])).code, 0);
     } finally {
       await bridge.close();
     }

@@ -115,7 +115,7 @@ How the bridge decides:
 
 Add to my review is the only write to GitHub. Everything else here is read-only.
 
-**Comments drafted in Q&A** go into the panel's Draft comments, whether they come from chat, voice or the Ask box. To add one, run `diff-story comment --story <id> --chapter N --path <file> --line L --body-file <f>`, or `POST /api/stories/:id/comments`. It appends to that chapter's `comments` in `chapters.json`, both in the copy the bridge serves and in its pr-story source folder, so the next render keeps it. Adding the same comment twice keeps one copy. Nothing is posted to GitHub.
+**Comments drafted in Q&A** go into the panel's Draft comments, whether they come from chat, voice or the Ask box. To add one, run `diff-story comment --story <id> --chapter N --path <file> --line L --body-file <f>`. It appends to that chapter's `comments` in `chapters.json`, both in the copy the bridge serves and in its pr-story source folder, so the next render keeps it. Adding the same comment twice keeps one copy. Nothing is posted to GitHub.
 
 **Viewed progress.** Each chapter's header says how many of its "Mark viewed" files are ticked, for example "3 of 4 marked viewed · still to mark: a.tsx". The file names are jump links, and the line changes to "✓ All 4 marked viewed" when you're done. Files that come back in a later chapter, or were finished in an earlier one, don't count against it. The Steps list shows each chapter's count, or ✓ when it's complete. The Overview shows the overall count.
 
@@ -233,13 +233,13 @@ The bridge also checks each request:
 | `GET /api/stories/find?repo=O/R&number=N` | the story for a PR, if any |
 | `GET /api/stories/:id` | the panel's data, plus the diff, viewed files and notes for a local story |
 | `GET /api/stories/:id/version` | changes when the story or (for local) the commits change |
+| `GET /api/stories/:id/pulse` | `{version, questions_rev, drafts_rev, listening}`, one poll for what the panel watches. A field changes when that thing does. `drafts_rev` covers the drafts and your marks, not what's on GitHub |
 | `GET`/`POST /api/stories/:id/ui` | the panel's step, width, collapsed and hidden state (the local page uses this, and the extension keeps its own in `chrome.storage`) |
 | `POST /api/stories/:id/position` | `{step, chapter, file}`, written to `state/<id>/position.json` |
 | `GET`/`POST /api/stories/:id/read` | the chapters you've read, each with the commit it was read at, and where an update would start (`since`); or record one: `{chapter, step, reason, seconds, head_sha}` |
-| `GET`/`POST /api/stories/:id/questions` | ask a question, or list them with their answers |
-| `POST /api/answers` | `{question, text}` |
+| `GET`/`POST /api/stories/:id/questions` | ask a question, or list them with their answers (`diff-story answer` adds one) |
 | `GET /api/builds/status?repo=O/R&number=N` | `ready`, `building` or `none`, with the request if there is one (it marks a pending request done when the story has turned up) |
-| `GET`/`POST /api/builds` | list pending build requests, or ask for one: `{repo, number, url, requested_at}` |
+| `POST /api/builds` | ask for a story: `{repo, number, url, requested_at}` (`diff-story builds` lists them) |
 | `POST /api/stories/:id/viewed` | local stories: `{path, viewed}` |
 | `POST /api/stories/:id/notes[/:note]` | local stories: add `{path, side, line, body}`, or update `{done}`, `{body}` or `{delete: true}` |
 

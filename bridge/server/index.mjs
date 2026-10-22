@@ -25,11 +25,11 @@ import { Inbox } from '../inbox/inbox.mjs';
 import { Builds } from '../inbox/builds.mjs';
 import { HttpError, sameToken, readBody } from './request.mjs';
 import { assetFor } from './assets.mjs';
-import { pageHeaders, indexPage, localPage } from './pages.mjs';
+import { pageHeaders, localPage } from './pages.mjs';
 import { statusRoutes } from './routes/status.mjs';
 import { catalogRoutes } from './routes/catalog.mjs';
 import { buildRoutes } from './routes/builds.mjs';
-import { answerRoutes, questionRoutes } from './routes/questions.mjs';
+import { questionRoutes } from './routes/questions.mjs';
 import { storyRoutes } from './routes/story.mjs';
 import { draftRoutes } from './routes/drafts.mjs';
 import { readRoutes } from './routes/reads.mjs';
@@ -43,7 +43,7 @@ export const VERSION = JSON.parse(
 ).version;
 
 /** /api/<path> routes, checked in order. A route with a method answers only that method. */
-const API_ROUTES = [...statusRoutes, ...catalogRoutes, ...buildRoutes, ...answerRoutes];
+const API_ROUTES = [...statusRoutes, ...catalogRoutes, ...buildRoutes];
 /** /api/stories/<id>/<what>[/<sub>] routes, by `what` ('' for the story itself). */
 const STORY_ROUTES = [
   ...storyRoutes,
@@ -104,10 +104,6 @@ export function createBridge({
     const asset = assetFor(pathname);
     if (asset) {
       send(200, asset[0], asset[1]);
-      return true;
-    }
-    if (pathname === '/' || pathname === '/index.html') {
-      send(200, indexPage(stories.list()), HTML, pageHeaders());
       return true;
     }
     const localPath = /^\/local\/([^/]+)\/?$/.exec(pathname);

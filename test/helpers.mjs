@@ -1,8 +1,11 @@
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
-import { execFileSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createBridge } from '../bridge/server/index.mjs';
+
+const BIN = fileURLToPath(new URL('../bridge/bin/diff-story.mjs', import.meta.url));
 
 export const tmp = (name) => mkdtempSync(path.join(os.tmpdir(), `diff-story-${name}-`));
 // tests never look in (or move stories into) the real ~/Development checkouts
@@ -113,3 +116,14 @@ export async function startBridge(opts) {
   };
   return { server, base, call, close: () => new Promise((resolve) => server.close(resolve)) };
 }
+
+/** Runs the diff-story CLI against `home`: {code, stdout, stderr}. */
+export const runCli = (home, args) =>
+  new Promise((resolve) => {
+    execFile(
+      process.execPath,
+      [BIN, ...args],
+      { env: { ...process.env, DIFF_STORY_HOME: home } },
+      (err, stdout, stderr) => resolve({ code: err ? err.code : 0, stdout, stderr }),
+    );
+  });

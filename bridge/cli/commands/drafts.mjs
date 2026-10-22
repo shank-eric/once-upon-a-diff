@@ -9,7 +9,7 @@ import { StoryStore } from '../../stories/store.mjs';
 import { readMeta } from '../../stories/meta.mjs';
 import { addComment } from '../../stories/comments.mjs';
 import { Inbox } from '../../inbox/inbox.mjs';
-import { stateKeyOf, readMarks, draftStatus, githubComments } from '../../github/drafts.mjs';
+import { draftsOf } from '../../github/drafts.mjs';
 import { out, notePlace } from '../output.mjs';
 
 const storeFor = (home) => new StoryStore({ home });
@@ -73,22 +73,15 @@ async function drafts(home, cfg, opts) {
   if (!dir) {
     throw new Error(`no story ${opts.story}`);
   }
-  const meta = readMeta(dir);
-  const data = store.load(opts.story);
-  let github = null;
-  if (meta.kind === 'github') {
-    try {
-      github = await githubComments(meta.repo, meta.number);
-    } catch (e) {
-      process.stderr.write(`gh: ${e.message}\n`);
-    }
+  const { chapters, rows, error } = await draftsOf(home, store, opts.story, readMeta(dir));
+  if (error) {
+    process.stderr.write(`${error}\n`);
   }
-  const rows = draftStatus(data.chapters, readMarks(home, stateKeyOf(opts.story, meta)), github);
   if (opts.json) {
     return out(JSON.stringify(rows, null, 2));
   }
   for (const row of rows) {
-    const draft = data.chapters[row.chapter - 1].comments[row.index];
+    const draft = chapters[row.chapter - 1].comments[row.index];
     out(
       `ch ${row.chapter} #${row.index + 1}  ${stateOf(row)}${row.source === 'manual' ? ' (marked)' : ''}  ${draft.path}${draft.line ? `:${draft.line}` : ''}  ${draft.body.replace(/\s+/g, ' ').slice(0, 70)}${row.url ? `  ${row.url}` : ''}`,
     );

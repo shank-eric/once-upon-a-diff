@@ -2,9 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
-import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { tmp, githubStory, startBridge, writeJson } from './helpers.mjs';
+import { tmp, githubStory, startBridge, writeJson, runCli } from './helpers.mjs';
 import { Builds, buildText } from '../bridge/inbox/builds.mjs';
 import { Inbox } from '../bridge/inbox/inbox.mjs';
 import { noteRead } from '../bridge/stories/reads.mjs';
@@ -13,20 +12,10 @@ import { tagFor, tagHtml, requestFor } from '../src/js/content/ui/story-tag.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 process.env.DIFF_STORY_GH = path.join(HERE, 'fixtures', 'fake-gh.mjs');
-const BIN = path.resolve(HERE, '../bridge/bin/diff-story.mjs');
 const SHA_A = 'a'.repeat(40);
 const SHA_B = 'b'.repeat(40);
 const inbox = (home) =>
   readFileSync(path.join(home, 'inbox.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
-const cli = (home, args) =>
-  new Promise((resolve) => {
-    execFile(
-      process.execPath,
-      [BIN, ...args],
-      { env: { ...process.env, DIFF_STORY_HOME: home } },
-      (err, stdout, stderr) => resolve({ code: err ? err.code : 0, stdout, stderr }),
-    );
-  });
 
 function story(home, head = SHA_A) {
   const dir = path.join(home, 'acme-widgets-7');
@@ -79,13 +68,20 @@ test('an update asks for a "Since you read it" chapter from where the reading st
       /"Since you read it" chapter first for ccccccc\.\.the PR's head, where the reviewer's reading stopped/,
     );
     // the wait hands it over with the same fields
-    const waited = await cli(home, ['wait', '--timeout', '1', '--json', '--repo', 'acme/widgets']);
+    const waited = await runCli(home, [
+      'wait',
+      '--timeout',
+      '1',
+      '--json',
+      '--repo',
+      'acme/widgets',
+    ]);
     const e = JSON.parse(waited.stdout.trim().split('\n')[0]);
     assert.deepEqual(
       [e.mode, e.since_sha, e.retell, e.story],
       ['update', SHA_C, false, 'acme-widgets-7'],
     );
-    const listed = await cli(home, ['builds']);
+    const listed = await runCli(home, ['builds']);
     assert.match(
       listed.stdout,
       /update: "Since you read it" from ccccccc \(where the reviewer's reading stopped; 2 chapters read\)/,
@@ -96,10 +92,10 @@ test('an update asks for a "Since you read it" chapter from where the reading st
       display_name: 'Sam',
     });
     assert.match(
-      (await cli(home, ['builds'])).stdout,
+      (await runCli(home, ['builds'])).stdout,
       /\(where Sam's reading stopped; 2 chapters read\)/,
     );
-    assert.equal(JSON.parse((await cli(home, ['builds', '--json'])).stdout)[0].since_sha, SHA_C);
+    assert.equal(JSON.parse((await runCli(home, ['builds', '--json'])).stdout)[0].since_sha, SHA_C);
   } finally {
     await bridge.close();
   }

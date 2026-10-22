@@ -316,6 +316,37 @@ export function draftStatus(chapters, marks, github = null, notes = null) {
   return out;
 }
 
+/**
+ * Every draft's state for one story, as the panel's Draft comments and
+ * `diff-story drafts` both show it: the reviewer's marks, what gh finds on
+ * the PR, and for a local story the fix-before-push notes its drafts became.
+ * A gh failure comes back as `error` with the rest still filled in.
+ *
+ * @param {string} home
+ * @param {{load: Function, readState: Function}} stories the bridge's StoryStore
+ * @param {string} id
+ * @param {object} meta
+ */
+export async function draftsOf(home, stories, id, meta) {
+  const { chapters } = stories.load(id);
+  let github = null;
+  let error = null;
+  if (meta.kind === 'github' && meta.repo && meta.number) {
+    try {
+      github = await githubComments(meta.repo, meta.number);
+    } catch (e) {
+      error = `couldn't read the PR's comments with gh: ${e.message}`;
+    }
+  }
+  const notes = meta.kind === 'local' ? stories.readState(id, 'notes.json', []) : null;
+  return {
+    chapters,
+    rows: draftStatus(chapters, readMarks(home, stateKeyOf(id, meta)), github, notes),
+    login: github ? github.login : null,
+    error,
+  };
+}
+
 export const hasGh = () =>
   existsSync('/opt/homebrew/bin/gh') ||
   existsSync('/usr/local/bin/gh') ||
