@@ -421,7 +421,6 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
 - `skills/once-upon-listen/`: the Claude Code skill behind **Copy prompt for Claude**.
 - `skills/once-upon/`: the Claude Code skill that writes PR stories. Both skills read your house rules (see [Personal settings](#personal-settings)).
 - `test/`: unit tests, `extension/load-test.mjs` and `extension/expand-test.mjs`.
-- `docs/structure-proposal.md`: how the repo got to this layout, and what's still open.
 
 ## Credits
 
