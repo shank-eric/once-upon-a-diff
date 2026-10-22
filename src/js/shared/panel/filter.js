@@ -13,8 +13,7 @@ import { baseName, capitalize } from '../util/text.js';
  * alt-click "mark all viewed" skips only `[class*=diffTargetable]:not([hidden])`).
  * We only ever remove a `hidden` we added (data-dsm-hid marks it).
  */
-const TARGETS =
-  '[role="region"][id^="diff-"], [class*="diffTargetable"], .js-file, copilot-diff-entry';
+const TARGETS = '[role="region"][id^="diff-"], [class*="diffTargetable"]';
 const DEBOUNCE_MS = 150;
 
 function setHidden(el, hide) {
@@ -58,7 +57,7 @@ function unhideAll() {
 // Changes inside a diff line (Refined GitHub's show-whitespace and linkify-code wrap text in spans as you scroll) can't add or remove a file, so they don't count.
 const insideLine = (node) => {
   const el = node.nodeType === 1 ? node : node.parentElement;
-  return !!(el && el.closest('td, .diff-text-inner, .blob-code-inner'));
+  return !!(el && el.closest('td, .diff-text-inner'));
 };
 
 export function createFilter(context) {
