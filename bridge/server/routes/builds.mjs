@@ -67,12 +67,6 @@ function buildStatus({ app, url, send }) {
 }
 
 export const buildRoutes = [
-  {
-    path: '/api/builds',
-    method: 'GET',
-    handle: ({ app, send }) =>
-      send(200, { pending: app.builds.pending().map((build) => app.builds.view(build)) }),
-  },
   { path: '/api/builds', method: 'POST', handle: requestBuild },
   { path: '/api/builds/status', method: 'GET', handle: buildStatus },
 ];

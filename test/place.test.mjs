@@ -2,17 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
-import { execFile } from 'node:child_process';
-import { tmp, git, localRepo, githubStory, writeJson, startBridge } from './helpers.mjs';
+import { tmp, git, localRepo, githubStory, writeJson, startBridge, runCli } from './helpers.mjs';
 import { createLocalStory } from '../bridge/stories/local-story.mjs';
 import { StoryStore } from '../bridge/stories/store.mjs';
 import { seenCheckout } from '../bridge/config/repos.mjs';
 import { mainCheckout, excludeStories, readIndex } from '../bridge/stories/placement.mjs';
 
-const BIN = path.resolve(
-  path.dirname(new URL(import.meta.url).pathname),
-  '../bridge/bin/diff-story.mjs',
-);
 const status = (repo) => git(repo, 'status', '--porcelain');
 const exclude = (repo) => readFileSync(path.join(repo, '.git', 'info', 'exclude'), 'utf8');
 
@@ -71,14 +66,9 @@ test('diff-story publish writes into the checkout with the commits the story was
     headRefOid: 'b'.repeat(40),
     baseRefOid: 'a'.repeat(40),
   });
-  const out = await new Promise((resolve) =>
-    execFile(
-      process.execPath,
-      [BIN, 'publish', '--dir', src],
-      { env: { ...process.env, DIFF_STORY_HOME: home } },
-      (err, stdout) => resolve(err ? `ERR ${err.message}` : stdout.trim()),
-    ),
-  );
+  const published = await runCli(home, ['publish', '--dir', src]);
+  assert.equal(published.code, 0, published.stderr);
+  const out = published.stdout.trim();
   assert.equal(realpathSync(out), realpathSync(path.join(repo, '.diff-story', 'acme-widgets-7')));
   assert.equal(status(repo), '');
   const meta = JSON.parse(readFileSync(path.join(out, 'meta.json'), 'utf8'));

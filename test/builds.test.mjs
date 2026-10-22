@@ -2,8 +2,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
-import { execFile } from 'node:child_process';
-import { tmp, githubStory, startBridge } from './helpers.mjs';
+import { tmp, githubStory, startBridge, runCli } from './helpers.mjs';
 import { Builds, CLAIM_FRESH_MS } from '../bridge/inbox/builds.mjs';
 import { beat } from '../bridge/listeners/listeners.mjs';
 import { Inbox } from '../bridge/inbox/inbox.mjs';
@@ -45,7 +44,7 @@ describe('build requests', () => {
     assert.equal(reqs.length, 1);
     assert.equal(reqs[0].id, response.body.request.id);
     assert.deepEqual(
-      (await bridge.call('GET', '/api/builds')).body.pending.map((build) => build.id),
+      new Builds(home, new Inbox(home)).pending().map((build) => build.id),
       [response.body.request.id],
     );
   });
@@ -56,7 +55,7 @@ describe('build requests', () => {
     assert.equal(status.body.state, 'ready');
     assert.equal(status.body.story, 'acme-widgets-7');
     assert.equal(status.body.request.status, 'done');
-    assert.equal((await bridge.call('GET', '/api/builds')).body.pending.length, 0);
+    assert.equal(new Builds(home, new Inbox(home)).pending().length, 0);
     assert.ok(
       inboxLines(home).some((e) => e.type === 'build_done' && e.story === 'acme-widgets-7'),
     );
@@ -155,21 +154,8 @@ test('PR lists get ready / queued / building / none for many PRs in one call, an
 });
 
 describe('diff-story wait hands over build requests, queued until claimed', () => {
-  const BIN = path.resolve(
-    path.dirname(new URL(import.meta.url).pathname),
-    '../bridge/bin/diff-story.mjs',
-  );
-  const cli = (home, args) =>
-    new Promise((resolve) => {
-      execFile(
-        process.execPath,
-        [BIN, ...args],
-        { env: { ...process.env, DIFF_STORY_HOME: home } },
-        (err, stdout, stderr) => resolve({ code: err ? err.code : 0, stdout, stderr }),
-      );
-    });
   const wait = async (home, ...args) => {
-    const result = await cli(home, ['wait', '--timeout', '1', '--json', ...args]);
+    const result = await runCli(home, ['wait', '--timeout', '1', '--json', ...args]);
     return {
       code: result.code,
       entries: result.stdout.trim() ? result.stdout.trim().split('\n').map(JSON.parse) : [],
@@ -232,12 +218,12 @@ describe('diff-story wait hands over build requests, queued until claimed', () =
       [request.id],
     );
 
-    const started = await cli(home, ['builds', '--start', request.id]);
+    const started = await runCli(home, ['builds', '--start', request.id]);
     assert.equal(started.code, 0);
     assert.match(started.stdout, /building/);
     assert.ok(builds.get('acme/widgets', 1).started_at);
-    assert.notEqual((await cli(home, ['builds', '--start', 'b_nope'])).code, 0);
-    assert.match((await cli(home, ['builds'])).stdout, /\tbuilding\tacme\/widgets#1\t/);
+    assert.notEqual((await runCli(home, ['builds', '--start', 'b_nope'])).code, 0);
+    assert.match((await runCli(home, ['builds'])).stdout, /\tbuilding\tacme\/widgets#1\t/);
   });
 
   test('--repo takes questions and build requests for that repo only, and beats for that repo', async () => {
@@ -279,6 +265,6 @@ describe('diff-story wait hands over build requests, queued until claimed', () =
       (await waiting).entries.map((entry) => entry.id),
       ['q_mine'],
     );
-    assert.equal((await cli(home, ['wait', '--repo', 'not a repo'])).code, 1);
+    assert.equal((await runCli(home, ['wait', '--repo', 'not a repo'])).code, 1);
   });
 });

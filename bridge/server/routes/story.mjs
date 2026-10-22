@@ -1,13 +1,17 @@
 /*
  * One story: its data (GET /api/stories/<id>), its version (the pages poll it
- * to redraw when chapters.json changes), the panel's saved state (ui), where
- * the reviewer is (position) and whether the story is up to date (freshness).
+ * to redraw when chapters.json changes), its pulse (version plus what else the
+ * panel polls for), the panel's saved state (ui), where the reviewer is
+ * (position) and whether the story is up to date (freshness).
  */
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { readPrefs } from '../../config/settings.mjs';
 import { seenCheckout } from '../../config/repos.mjs';
 import { freshness } from '../../github/freshness.mjs';
+import { readMarks, stateKeyOf } from '../../github/drafts.mjs';
+import { listeningOf } from '../../listeners/listeners.mjs';
 import { refreshLocal } from '../../stories/local-diff.mjs';
 import { storyVersion, localVersion } from '../../stories/meta.mjs';
 import { clipText, toInt } from '../request.mjs';
@@ -19,12 +23,37 @@ function load({ app, send }, story) {
   return send(200, app.stories.load(story.id));
 }
 
-function version({ app, send }, story) {
+/** Changes when chapters.json does, and for a local story when its diff or Hide whitespace does. */
+function versionOf(app, story) {
   if (story.meta.kind === 'local') {
     refreshLocal(story.dir, readMetaFile(story.dir));
-    return send(200, { version: localVersion(story.dir, readPrefs(app.home)) });
+    return localVersion(story.dir, readPrefs(app.home));
   }
-  return send(200, { version: storyVersion(story.dir) });
+  return storyVersion(story.dir);
+}
+
+const version = ({ app, send }, story) => send(200, { version: versionOf(app, story) });
+
+const revOf = (value) =>
+  createHash('sha1').update(JSON.stringify(value)).digest('hex').slice(0, 12);
+
+/**
+ * One cheap call the panel can poll in place of version, questions, status and drafts:
+ * when a field changes, it fetches that one. drafts_rev covers the drafts and the
+ * reviewer's marks, not what gh finds on GitHub, which the panel still checks on its own.
+ */
+function pulse({ app, send }, story) {
+  const questions = app.inbox
+    .questions(story.id)
+    .map((question) => [question.id, question.answers.length]);
+  const comments = app.stories.load(story.id).chapters.map((chapter) => chapter.comments || []);
+  const marks = readMarks(app.home, stateKeyOf(story.id, story.meta));
+  return send(200, {
+    version: versionOf(app, story),
+    questions_rev: revOf(questions),
+    drafts_rev: revOf([comments, marks]),
+    listening: listeningOf(app.home, { repo: story.ref.repo, story: story.id }).ok,
+  });
 }
 
 /** meta.json as written, for the local diff refresh (readMeta fills in defaults). Throws when it's missing or broken. */
@@ -70,6 +99,7 @@ async function storyFreshness({ app, send }, story) {
 export const storyRoutes = [
   { what: '', method: 'GET', handle: load },
   { what: 'version', method: 'GET', handle: version },
+  { what: 'pulse', method: 'GET', handle: pulse },
   { what: 'ui', handle: panelState },
   { what: 'position', method: 'POST', handle: position },
   { what: 'freshness', method: 'GET', handle: storyFreshness },
