@@ -1,20 +1,19 @@
 /**
- * pr-story: a pull request told as a story, chapter by chapter, for Diff
- * Story Mode's panel.
+ * pr-story: a pull request told as a story, chapter by chapter, for PR Story's panel.
  *
  * Works on a folder that bin/gather.sh filled (pr.json, pr.diff,
  * threads.json, checks.json, viewed.tsv). It makes no network calls.
  *
- *   pr-story.mjs brief   --dir D                 what Claude reads to plan: files, commits, reviews, threads, CI, viewed
- *   pr-story.mjs build   --dir D [--no-bridge]   D/chapters.json -> D/file-map.json, then publish; fails if a file is unplaced
- *   pr-story.mjs publish --dir D                 publish the story for Diff Story Mode through `diff-story publish` (build does this too)
+ *   story.mjs brief   --dir D                 what Claude reads to plan: files, commits, reviews, threads, CI, viewed
+ *   story.mjs build   --dir D [--no-bridge]   D/chapters.json -> D/file-map.json, then publish; fails if a file is unplaced
+ *   story.mjs publish --dir D                 publish the story for PR Story through `pr-story publish` (build does this too)
  */
 import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-// This skill ships in the Diff Story Mode repo (skills/pr-story/bin), and Node resolves the skill link, so it
+// This skill ships in the PR Story repo (skills/pr-story/bin), and Node resolves the skill link, so it
 // imports the bridge's and the panel's own helpers from the checkout it's linked from.
 import { parseArgs } from '../../../bridge/cli/args.mjs';
 import { parseUnifiedDiff } from '../../../bridge/util/diff.mjs';
@@ -23,7 +22,7 @@ import { addTextRefs } from '../../../bridge/stories/text-refs.mjs';
 import { finishedInOf } from '../../../src/js/shared/panel/story-model.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const DSM = path.resolve(HERE, '../../..');
+const REPO_ROOT = path.resolve(HERE, '../../..');
 
 async function readJson(file, fallback) {
   if (!existsSync(file)) {
@@ -221,20 +220,20 @@ async function cmdBuild(opts) {
 }
 
 /**
- * Diff Story Mode: hand the folder to `diff-story publish`, which copies
+ * PR Story: hand the folder to `pr-story publish`, which copies
  * chapters.json and file-map.json, with a meta.json naming the PR and the
  * commits it was told from, to where the bridge serves it (the repo's
- * checkout when it knows one, else DIFF_STORY_HOME). The extension then shows
+ * checkout when it knows one, else PR_STORY_HOME). The extension then shows
  * the panel on the PR page by itself, and picks up each rebuild within a few
  * seconds.
  */
 async function cmdPublish(opts) {
   const dest = execFileSync(
     process.execPath,
-    [path.join(DSM, 'bridge/bin/diff-story.mjs'), 'publish', '--dir', path.resolve(opts.dir)],
+    [path.join(REPO_ROOT, 'bridge/bin/pr-story.mjs'), 'publish', '--dir', path.resolve(opts.dir)],
     { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] },
   ).trim();
-  process.stderr.write(`Diff Story Mode: ${dest}\n`);
+  process.stderr.write(`PR Story: ${dest}\n`);
 }
 
 const COMMANDS = {
@@ -246,7 +245,7 @@ const { command, opts } = parseArgs(process.argv.slice(2));
 const run = COMMANDS[command];
 if (!run || !opts.dir) {
   process.stderr.write(
-    'usage: pr-story.mjs <brief|build|publish> --dir <scratch-dir> [--no-bridge]\n',
+    'usage: story.mjs <brief|build|publish> --dir <scratch-dir> [--no-bridge]\n',
   );
   process.exitCode = 1;
 } else {

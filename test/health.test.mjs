@@ -54,7 +54,7 @@ test('/api/status reports the bridge, the story and listening', async () => {
     assert.equal(status.bridge.ok, true);
     assert.deepEqual(status.story, { ok: true, id: 'acme-widgets-7' });
     assert.equal(status.listening.ok, false);
-    assert.match(status.listening.start, /diff-story-listen/);
+    assert.match(status.listening.start, /pr-story-listen/);
     assert.equal((await bridge.call('GET', '/api/status?story=nope')).body.story.ok, false);
     beat(home, 'pr-story');
     status = (await bridge.call('GET', '/api/status?story=acme-widgets-7')).body;
@@ -84,7 +84,7 @@ test('doctor reports a missing bridge as failing, with the fix', async () => {
   assert.equal(ok, false);
   const text = lines.join('\n');
   assert.match(text, /FAIL\s+Bridge: nothing is listening on 127\.0\.0\.1:1/);
-  assert.match(text, /fix: Start it: diff-story serve/);
+  assert.match(text, /fix: Start it: pr-story serve/);
   assert.match(text, /WARN\s+Claude listening/);
 });
 
@@ -107,36 +107,33 @@ test('doctor passes the bridge when it is up', async () => {
 test('Copy prompt for Claude: one short skill line naming the repo, with the long form behind it', async () => {
   const prompt = listenPrompt(
     { repo: 'octo-org/api-server', checkout: path.join(os.homedir(), 'Development', 'api-server') },
-    'diff-story',
+    'pr-story',
   );
-  assert.equal(prompt.prompt, '/diff-story-listen octo-org/api-server');
-  assert.equal(prompt.command, 'diff-story wait --repo octo-org/api-server');
+  assert.equal(prompt.prompt, '/pr-story-listen octo-org/api-server');
+  assert.equal(prompt.command, 'pr-story wait --repo octo-org/api-server');
   assert.equal(prompt.checkout, '~/Development/api-server');
   assert.match(
     prompt.details,
-    /^In ~\/Development\/api-server, run `diff-story wait --repo octo-org\/api-server` as a background task/,
+    /^In ~\/Development\/api-server, run `pr-story wait --repo octo-org\/api-server` as a background task/,
   );
   for (const bit of [
-    'diff-story answer --question <id>',
+    'pr-story answer --question <id>',
     '/pr-story <PR url>',
-    'diff-story done <id> --failed',
+    'pr-story done <id> --failed',
   ]) {
     assert.ok(prompt.details.includes(bit), bit);
   }
   assert.equal(
-    listenPrompt({ story: 'local-x' }, 'diff-story').prompt,
-    '/diff-story-listen --story local-x',
+    listenPrompt({ story: 'local-x' }, 'pr-story').prompt,
+    '/pr-story-listen --story local-x',
     '--story still works, for a story with no GitHub repo',
   );
-  assert.match(
-    listenPrompt({ repo: 'a/b' }, 'diff-story').details,
-    /^In your checkout of a\/b, run/,
-  );
+  assert.match(listenPrompt({ repo: 'a/b' }, 'pr-story').details, /^In your checkout of a\/b, run/);
 
-  assert.equal(cliCommand(true), 'diff-story');
+  assert.equal(cliCommand(true), 'pr-story');
   const full = cliCommand(false);
   assert.ok(full.startsWith(process.execPath), 'off PATH it names node by full path');
-  assert.match(full, /\/bridge\/bin\/diff-story\.mjs$/);
+  assert.match(full, /\/bridge\/bin\/pr-story\.mjs$/);
 
   const home = tmp('home');
   githubStory(path.join(home, 'acme-widgets-7'));
@@ -144,7 +141,7 @@ test('Copy prompt for Claude: one short skill line naming the repo, with the lon
   try {
     let status = (await bridge.call('GET', '/api/status?story=acme-widgets-7')).body;
     assert.equal(status.repo, 'acme/widgets', "the page's repo comes from its story");
-    assert.equal(status.listening.prompt, '/diff-story-listen acme/widgets');
+    assert.equal(status.listening.prompt, '/pr-story-listen acme/widgets');
     beat(home, 'repo-acme-gadgets', 'waiting', { repo: 'acme/gadgets' });
     assert.equal(
       (await bridge.call('GET', '/api/status?story=acme-widgets-7')).body.listening.ok,

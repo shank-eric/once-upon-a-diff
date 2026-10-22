@@ -7,7 +7,7 @@ import { tmp, githubStory, startBridge, writeJson } from './helpers.mjs';
 import { clearFreshness } from '../bridge/github/freshness.mjs';
 import { Builds } from '../bridge/inbox/builds.mjs';
 
-process.env.DIFF_STORY_GH = path.join(
+process.env.PR_STORY_GH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   'fixtures',
   'fake-gh.mjs',

@@ -6,9 +6,9 @@
 #
 # Writes pr.json, pr.diff, threads.json (review comments by thread), checks.json,
 # viewed.tsv and checkouts.txt (local clones of the repo under the checkout folders:
-# DIFF_STORY_DEV_DIR, else checkout_dirs in ~/.diff-story/config.json, else ~/Development).
+# PR_STORY_DEV_DIR, else checkout_dirs in ~/.pr-story/config.json, else ~/Development).
 set -euo pipefail
-CONFIG="${DIFF_STORY_HOME:-$HOME/.diff-story}/config.json"
+CONFIG="${PR_STORY_HOME:-$HOME/.pr-story}/config.json"
 # gh_unset_github_token: true in config.json drops GITHUB_TOKEN so gh uses its own (keychain) login
 [ "$(jq -r '.gh_unset_github_token // false' "$CONFIG" 2>/dev/null)" = true ] && unset GITHUB_TOKEN
 
@@ -49,7 +49,7 @@ gh pr checks "$PR" -R "$REPO" --json name,state,bucket,workflow,link > "$OUT/che
 # Local checkouts whose origin is this repo, newest base-branch commit first.
 BASE=$(jq -r .baseRefName "$OUT/pr.json")
 : > "$OUT/checkouts.txt"
-if [ -n "${DIFF_STORY_DEV_DIR:-}" ]; then ROOTS=("$DIFF_STORY_DEV_DIR")
+if [ -n "${PR_STORY_DEV_DIR:-}" ]; then ROOTS=("$PR_STORY_DEV_DIR")
 else
   ROOTS=()
   while IFS= read -r r; do [ -n "$r" ] && ROOTS+=("${r/#\~/$HOME}"); done < <(jq -r '.checkout_dirs // [] | .[]' "$CONFIG" 2>/dev/null || true)

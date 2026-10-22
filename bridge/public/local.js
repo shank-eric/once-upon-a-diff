@@ -81,7 +81,7 @@ function goToNote(link) {
 // ---------- clicks on the diff: Viewed, fold, notes, tree (the panel handles its own)
 document.addEventListener('click', async (event) => {
   const target = /** @type {Element} */ (event.target);
-  if (target.closest('#diff-story-panel')) {
+  if (target.closest('#pr-story-panel')) {
     return;
   }
   const viewedButton = target.closest('.ds-viewed');
@@ -221,7 +221,7 @@ async function start() {
   } else {
     mount(page.lastUi);
   }
-  window.__diffStoryLocal = {
+  window.__prStoryLocal = {
     get story() {
       return page.story;
     },

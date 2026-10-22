@@ -6,7 +6,7 @@
  * folders. What it records (viewed files, notes, position, the panel's step)
  * goes under <home>/state/<story id>/.
  *
- * A story lives in one place (placement.mjs): <checkout>/.diff-story/<id>/,
+ * A story lives in one place (placement.mjs): <checkout>/.pr-story/<id>/,
  * recorded in the index, or <home>/<id>/ when its repo has no known checkout.
  * The index is read first, so its folder wins for an id.
  */

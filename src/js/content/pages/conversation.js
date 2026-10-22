@@ -9,7 +9,7 @@ import { conversationPr, pageKindOf, prKey } from '../../shared/util/github-path
 import { extensionAlive } from '../bridge.js';
 import { createPrTags, titleElement } from '../ui/pr-tags.js';
 
-const ATTR = 'data-dsm-convo';
+const ATTR = 'data-prs-convo';
 
 export function createConversationPage() {
   const tags = createPrTags({ attr: ATTR });

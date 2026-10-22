@@ -1,9 +1,9 @@
 /*
- * The diff-story CLI: one table of commands, each with its usage lines, so
- * the help text and the commands can't drift apart. bin/diff-story.mjs runs
+ * The pr-story CLI: one table of commands, each with its usage lines, so
+ * the help text and the commands can't drift apart. bin/pr-story.mjs runs
  * main().
  */
-import { homeDir, loadConfig } from '../config/settings.mjs';
+import { homeDir, loadConfig, moveLegacyHome } from '../config/settings.mjs';
 import { parseArgs } from './args.mjs';
 import { bridgeCommands } from './commands/bridge.mjs';
 import { storyCommands } from './commands/stories.mjs';
@@ -49,11 +49,11 @@ export const commandNames = () => ({ table: [...COMMANDS.keys()], help: [...HELP
 export function usageText() {
   const lines = HELP_ORDER.flatMap((name) => COMMANDS.get(name).usage);
   return [
-    'diff-story: the Diff Story Mode bridge and its helpers.',
+    'pr-story: the PR Story bridge and its helpers.',
     '',
     ...lines,
     '',
-    'DIFF_STORY_HOME moves ~/.diff-story. Personal settings (display name, time zone, checkout folders,',
+    'PR_STORY_HOME moves ~/.pr-story. Personal settings (display name, time zone, checkout folders,',
     'opener, gh token handling) are optional keys in its config.json: see readSettings in config/settings.mjs.',
     ' ',
   ].join('\n');
@@ -67,11 +67,15 @@ export function main(argv) {
     process.exitCode = 1;
     return;
   }
+  const moved = moveLegacyHome();
+  if (moved) {
+    process.stderr.write(`pr-story: ${moved}\n`);
+  }
   const home = homeDir();
   Promise.resolve()
     .then(() => entry.run(home, loadConfig(home), opts))
     .catch((err) => {
-      process.stderr.write(`diff-story: ${err.message}\n`);
+      process.stderr.write(`pr-story: ${err.message}\n`);
       process.exitCode = 1;
     });
 }

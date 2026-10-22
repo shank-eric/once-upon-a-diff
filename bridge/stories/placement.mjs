@@ -1,18 +1,18 @@
 /**
- * Where stories live: in a hidden .diff-story/ folder inside the repo's own
+ * Where stories live: in a hidden .pr-story/ folder inside the repo's own
  * checkout, kept out of git by that repo's .git/info/exclude (local-only and
  * never committed, so no .gitignore change and `git status` stays clean).
  *
- *   <worktree>/.diff-story/<id>/         a local story, in the checkout or worktree it diffs
- *   <main checkout>/.diff-story/<id>/    a PR story, in the repo's main checkout (worktrees come and go)
- *   ~/.diff-story/<id>/                  a story whose repo has no known checkout, as before
- *   ~/.diff-story/stories.json           the index: {id: folder}
+ *   <worktree>/.pr-story/<id>/           a local story, in the checkout or worktree it diffs
+ *   <main checkout>/.pr-story/<id>/      a PR story, in the repo's main checkout (worktrees come and go)
+ *   ~/.pr-story/<id>/                    a story whose repo has no known checkout, as before
+ *   ~/.pr-story/stories.json             the index: {id: folder}
  *
- * Everything bridge-wide stays in ~/.diff-story: config, prefs, the inbox,
+ * Everything bridge-wide stays in ~/.pr-story: config, prefs, the inbox,
  * builds, and each story's state (viewed files, notes, the panel's step).
  *
- * Every story gets there one way: `diff-story publish` (which pr-story's
- * build runs) or `diff-story local`, through storyDirFor. The checkout is the
+ * Every story gets there one way: `pr-story publish` (which pr-story's
+ * build runs) or `pr-story local`, through storyDirFor. The checkout is the
  * one the bridge knows for the repo, from local stories, `wait --repo` run in
  * a checkout, checkouts.json, or ~/Development/<name> with that origin.
  */
@@ -22,7 +22,7 @@ import path from 'node:path';
 import { checkoutFor } from '../config/repos.mjs';
 import { readJson, writeJson } from '../util/json-file.mjs';
 
-export const STORY_FOLDER = '.diff-story';
+export const STORY_FOLDER = '.pr-story';
 const EXCLUDE_LINE = `/${STORY_FOLDER}/`;
 const git = (dir, args) =>
   execFileSync('git', ['-C', dir, ...args], {
@@ -43,7 +43,7 @@ export function mainCheckout(dir) {
   return dir;
 }
 
-/** Keep .diff-story/ out of git for this checkout and all its worktrees: one line in the common .git/info/exclude. */
+/** Keep .pr-story/ out of git for this checkout and all its worktrees: one line in the common .git/info/exclude. */
 export function excludeStories(dir) {
   let common;
   try {
@@ -73,7 +73,7 @@ export function excludeStories(dir) {
   mkdirSync(path.dirname(file), { recursive: true });
   appendFileSync(
     file,
-    `${text && !text.endsWith('\n') ? '\n' : ''}# Diff Story Mode's stories (local only)\n${EXCLUDE_LINE}\n`,
+    `${text && !text.endsWith('\n') ? '\n' : ''}# PR Story's stories (local only)\n${EXCLUDE_LINE}\n`,
   );
   return true;
 }
@@ -93,7 +93,7 @@ export function indexStory(home, id, dir) {
   writeJson(indexFile(home), all);
 }
 
-/** The folder a new story goes in: <checkout>/.diff-story/<id>, made and excluded, or <home>/<id>. */
+/** The folder a new story goes in: <checkout>/.pr-story/<id>, made and excluded, or <home>/<id>. */
 export function storyDirFor(home, id, { checkout = null, repo = null } = {}) {
   const top =
     checkout || (repo ? checkoutFor(home, repo) && mainCheckout(checkoutFor(home, repo)) : null);

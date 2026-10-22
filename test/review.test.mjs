@@ -17,12 +17,12 @@ chmodSync(fake, 0o755);
 
 function withFake(env, run) {
   const saved = {
-    gh: process.env.DIFF_STORY_GH,
+    gh: process.env.PR_STORY_GH,
     log: process.env.FAKE_GH_LOG,
     pending: process.env.FAKE_GH_PENDING,
   };
   const log = path.join(tmp('gh'), 'calls.jsonl');
-  process.env.DIFF_STORY_GH = fake;
+  process.env.PR_STORY_GH = fake;
   process.env.FAKE_GH_LOG = log;
   if (env.pending) {
     process.env.FAKE_GH_PENDING = '1';
@@ -31,7 +31,7 @@ function withFake(env, run) {
   }
   const restore = () => {
     for (const [k, value] of [
-      ['DIFF_STORY_GH', saved.gh],
+      ['PR_STORY_GH', saved.gh],
       ['FAKE_GH_LOG', saved.log],
       ['FAKE_GH_PENDING', saved.pending],
     ]) {
@@ -104,15 +104,9 @@ test('general comments and empty drafts are refused without calling gh', () =>
 const fakeAll = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fake-gh.mjs');
 chmodSync(fakeAll, 0o755);
 function withBridgeGh(env, run) {
-  const keys = [
-    'DIFF_STORY_GH',
-    'FAKE_GH_GRAPHQL',
-    'FAKE_GH_FAIL',
-    'FAKE_GH_LOG',
-    'FAKE_GH_PENDING',
-  ];
+  const keys = ['PR_STORY_GH', 'FAKE_GH_GRAPHQL', 'FAKE_GH_FAIL', 'FAKE_GH_LOG', 'FAKE_GH_PENDING'];
   const saved = Object.fromEntries(keys.map((k) => [k, process.env[k]]));
-  process.env.DIFF_STORY_GH = fakeAll;
+  process.env.PR_STORY_GH = fakeAll;
   process.env.FAKE_GH_GRAPHQL = '1';
   delete process.env.FAKE_GH_LOG;
   delete process.env.FAKE_GH_PENDING;

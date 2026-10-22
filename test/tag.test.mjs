@@ -75,16 +75,16 @@ test('the notice lists only the repos with no listener', () => {
   const missing = missingListeners({
     'octo-org/api-server': {
       ok: false,
-      prompt: '/diff-story-listen octo-org/api-server',
+      prompt: '/pr-story-listen octo-org/api-server',
       details: 'long',
       checkout: '~/Development/api-server',
     },
-    'octo-org/web-app': { ok: true, prompt: '/diff-story-listen octo-org/web-app' },
+    'octo-org/web-app': { ok: true, prompt: '/pr-story-listen octo-org/web-app' },
   });
   assert.deepEqual(missing, [
     {
       repo: 'octo-org/api-server',
-      prompt: '/diff-story-listen octo-org/api-server',
+      prompt: '/pr-story-listen octo-org/api-server',
       details: 'long',
       checkout: '~/Development/api-server',
     },
@@ -105,10 +105,10 @@ test('the Conversation tab is /owner/repo/pull/N and nothing after it', () => {
   }
 });
 
-test('a #dsm-step-N hash names the step to open on', async () => {
+test('a #prs-step-N hash names the step to open on', async () => {
   const { stepOfHash } = await import('../src/js/content/ui/story-tag.js');
-  assert.equal(stepOfHash('#dsm-step-3'), 3);
-  for (const hash of ['', '#diff-abc', '#dsm-step-', '#dsm-step-x']) {
+  assert.equal(stepOfHash('#prs-step-3'), 3);
+  for (const hash of ['', '#diff-abc', '#prs-step-', '#prs-step-x']) {
     assert.equal(stepOfHash(hash), null, hash);
   }
 });

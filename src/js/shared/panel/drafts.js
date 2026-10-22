@@ -311,7 +311,7 @@ export function createDrafts(context) {
         addButton(
           'fix',
           'Add to fix before push',
-          'Makes it a fix-before-push note on its line, in the checklist and in `diff-story notes`',
+          'Makes it a fix-before-push note on its line, in the checklist and in `pr-story notes`',
         );
         showError();
       }

@@ -4,16 +4,16 @@
  */
 
 /**
- * The few rules the host page gets, all keyed to the panel's own id, class and data-dsm-* attributes:
+ * The few rules the host page gets, all keyed to the panel's own id, class and data-prs-* attributes:
  * docking (the page's right margin), hiding other chapters' files and flashing a jump's target.
  */
 export const documentCss = (hostId) => `
-  html.${hostId}-docked body { margin-right: var(--dsm-w) !important; }
+  html.${hostId}-docked body { margin-right: var(--prs-w) !important; }
   #${hostId} { all: initial; }
-  [data-dsm-hidden] { display: none !important; }
-  [data-dsm-flash] { outline: 2px solid var(--fgColor-accent, #0969da) !important; outline-offset: 2px; border-radius: 6px; }
-  tr[data-dsm-flash] { outline: none !important; }
-  tr[data-dsm-flash] > td { background-color: var(--bgColor-attention-muted, #fff8c5) !important; box-shadow: inset 0 0 0 9999px rgba(212,167,44,.12); }
+  [data-prs-hidden] { display: none !important; }
+  [data-prs-flash] { outline: 2px solid var(--fgColor-accent, #0969da) !important; outline-offset: 2px; border-radius: 6px; }
+  tr[data-prs-flash] { outline: none !important; }
+  tr[data-prs-flash] > td { background-color: var(--bgColor-attention-muted, #fff8c5) !important; box-shadow: inset 0 0 0 9999px rgba(212,167,44,.12); }
   `;
 
 /** Everything else, inside the panel's shadow root, so the page's CSS (and other extensions') can't reach it, nor it them. */
@@ -23,7 +23,7 @@ export const panelCss = (panelId) => `
   #${panelId} { --c-bg: var(--bgColor-default, #fff); --c-fg: var(--fgColor-default, #1f2328); --c-muted: var(--fgColor-muted, #59636e);
     --c-border: var(--borderColor-default, #d1d9e0); --c-subtle: var(--bgColor-muted, #f6f8fa); --c-accent: var(--fgColor-accent, #0969da);
     --c-accent-bg: var(--bgColor-accent-muted, #ddf4ff); --c-ok: var(--fgColor-success, #1a7f37); --c-warn: var(--fgColor-attention, #9a6700); --c-err: var(--fgColor-danger, #d1242f);
-    position: fixed; top: 0; right: 0; bottom: 0; width: var(--dsm-w); z-index: 99; box-sizing: border-box;
+    position: fixed; top: 0; right: 0; bottom: 0; width: var(--prs-w); z-index: 99; box-sizing: border-box;
     background: var(--c-bg); color: var(--c-fg); border-left: 1px solid var(--c-border);
     font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
     display: flex; flex-direction: column; box-shadow: -4px 0 12px rgba(0,0,0,.08); }

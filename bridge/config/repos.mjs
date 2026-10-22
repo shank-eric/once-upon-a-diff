@@ -1,7 +1,7 @@
 /**
  * Which GitHub repo a story, a checkout or a listener is about, and where the
  * bridge has seen a checkout of each repo. Listeners are scoped per repo
- * (`diff-story wait --repo owner/name`), and the "Copy prompt for Claude"
+ * (`pr-story wait --repo owner/name`), and the "Copy prompt for Claude"
  * prompt says which checkout to work from.
  *
  *   <home>/checkouts.json   {"owner/name": "/path/to/checkout"}, lowercased keys
@@ -91,7 +91,7 @@ export function seenCheckout(home, repo, dir) {
 
 /**
  * Where to work on a repo: the checkout the bridge has seen, else <dir>/<name> for each of config.json's
- * checkout_dirs (default ~/Development) when its origin is that repo, else null. DIFF_STORY_DEV_DIR overrides them.
+ * checkout_dirs (default ~/Development) when its origin is that repo, else null. PR_STORY_DEV_DIR overrides them.
  * @param {string} home
  * @param {string | null} repo
  * @param {{dev?: string}} [opts] a checkout folder to look in instead

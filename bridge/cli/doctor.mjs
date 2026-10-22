@@ -1,5 +1,5 @@
 /**
- * `diff-story doctor`: is everything connected? The config and token, the
+ * `pr-story doctor`: is everything connected? The config and token, the
  * bridge, a Claude session listening, and the extension. Each check prints
  * PASS, WARN or FAIL with what it found and, when it isn't passing, the fix.
  */
@@ -47,7 +47,7 @@ export async function doctor(
   const cfgFile = path.join(home, 'config.json');
   const mode = existsSync(cfgFile) ? (statSync(cfgFile).mode & 0o777).toString(8) : null;
   if (!cfg.token) {
-    add('FAIL', 'Token', 'config.json has no token', 'Run: diff-story setup');
+    add('FAIL', 'Token', 'config.json has no token', 'Run: pr-story setup');
   } else {
     add(
       mode === '600' ? 'PASS' : 'WARN',
@@ -78,7 +78,7 @@ export async function doctor(
       proc
         ? `port ${port} is taken by pid ${proc.pid} (${proc.command}), which didn't answer`
         : `nothing is listening on 127.0.0.1:${port}`,
-      'Start it: diff-story serve (leave it running, or run it with nohup)',
+      'Start it: pr-story serve (leave it running, or run it with nohup)',
     );
   } else if (health.status === 401) {
     add(
@@ -87,7 +87,7 @@ export async function doctor(
       `the bridge on ${port} rejects this config's token${proc ? ` (pid ${proc.pid})` : ''}`,
       'Restart the bridge so it reads config.json again, and paste the same token into the extension options',
     );
-  } else if (health.body && health.body.name === 'diff-story-bridge') {
+  } else if (health.body && health.body.name === 'pr-story-bridge') {
     add(
       'PASS',
       'Bridge',
@@ -139,7 +139,7 @@ export async function doctor(
       all.length
         ? `no live listener; last was ${all[0].consumer} ${localTime(all[0].at)}`
         : 'no Claude session has ever listened',
-      'In Claude Code, in the repo you want to listen for: /diff-story-listen <owner/name>. Until then, questions wait in the inbox.',
+      'In Claude Code, in the repo you want to listen for: /pr-story-listen <owner/name>. Until then, questions wait in the inbox.',
     );
   }
   for (const result of results) {

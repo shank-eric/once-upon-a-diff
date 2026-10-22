@@ -34,10 +34,10 @@ Net, those two helper commits removed 351 lines and added 412, most of the new l
 | `src/js/shared/` | overlay.js, 21 panel modules, 6 util modules, settings.js | 4,344 | The largest module is drafts.js at ≈410 |
 | `src/js/content/` | router, bridge, storage, 4 pages, 6 ui modules | 1,685 | files-changed.js is 500 |
 | `src/js/` other | background.js, options.js, content.js | 145 | |
-| `bridge/bin/diff-story.mjs` | 1 | 633 | 18 commands in one file |
+| `bridge/bin/pr-story.mjs` | 1 | 633 | 18 commands in one file |
 | `bridge/lib/` | 19 modules, util/ | 5,246 | backstory 1,130, server 834, stories 528 |
 | `bridge/public/` | local page: local.js, split, narrow, syntax, css | ≈1,200 | local.js is 691 and still uses short names |
-| `skills/pr-story/bin/` | pr-story.mjs, overlay.js, gather.sh, viewed.sh | ≈1,880 | overlay.js is an older copy of the panel |
+| `skills/pr-story/bin/` | story.mjs, overlay.js, gather.sh, viewed.sh | ≈1,880 | overlay.js is an older copy of the panel |
 | `test/` | 22 unit test files, 2 browser tests, fixtures | 5,656 | load-test.mjs is 1,040 |
 | `scripts/` | make-icons, vendor-hljs | 160 | |
 | Docs | README, GETTING-STARTED, two SKILL.md files | ≈840 | |
@@ -46,10 +46,10 @@ Net, those two helper commits removed 351 lines and added 412, most of the new l
 
 1. **`bridge/lib/server.mjs`.** `createBridge` is one ≈680-line function holding every route, the request guards, the inbox, builds and drafts calls, and the two HTML pages (`indexPage`, `localPage`). Adding a route means reading all of it.
 2. **`bridge/lib/backstory.mjs` (1,130 lines).** Four jobs in one file: reading the commit range, finding candidate Claude Code transcripts, running session-story's extractor, and matching the evidence into a timeline. The file's own `// ----------` headings already mark the seams.
-3. **`bridge/bin/diff-story.mjs` (633 lines).** Argument parsing, the usage text and all 18 commands live in one file, and the usage block at the top has to be kept in step with the code by hand.
+3. **`bridge/bin/pr-story.mjs` (633 lines).** Argument parsing, the usage text and all 18 commands live in one file, and the usage block at the top has to be kept in step with the code by hand.
 4. **`bridge/lib/stories.mjs` (528 lines).** The `StoryStore` class, reading meta and chapters, the backstory normalizer and the local diff refresh are mixed together.
-5. **The skill duplicates the bridge.** `skills/pr-story/bin/pr-story.mjs` has its own `parseUnifiedDiff` (also `bridge/lib/diff.mjs`), `entryOf` (also `stories.mjs`, slightly different: the bridge's keeps backstory notes) and `textRefsOf` (the same rule as `bridge/lib/refs.mjs`, which its comment admits). It already imports `bridge/lib/config.mjs` from the repo, so it could import the rest too.
-6. **`skills/pr-story/bin/overlay.js` (871 lines)** is the panel's ancestor, pasted into the page as a snippet for the skill's "GitHub mode". Every panel fix lands in only one of the two. If Diff Story Mode is now the way to show a story on GitHub, this snippet could go, or be generated from the panel modules with a small bundler step.
+5. **The skill duplicates the bridge.** `skills/pr-story/bin/story.mjs` has its own `parseUnifiedDiff` (also `bridge/lib/diff.mjs`), `entryOf` (also `stories.mjs`, slightly different: the bridge's keeps backstory notes) and `textRefsOf` (the same rule as `bridge/lib/refs.mjs`, which its comment admits). It already imports `bridge/lib/config.mjs` from the repo, so it could import the rest too.
+6. **`skills/pr-story/bin/overlay.js` (871 lines)** is the panel's ancestor, pasted into the page as a snippet for the skill's "GitHub mode". Every panel fix lands in only one of the two. If PR Story is now the way to show a story on GitHub, this snippet could go, or be generated from the panel modules with a small bundler step.
 7. **Short names outside `src/js/`.** ESLint counts ≈530 short names in `bridge/`, ≈300 in `test/`, ≈150 in `skills/` and ≈30 in `scripts/`, plus ≈25 nested ternaries. They're warnings today.
 8. **`bridge/public/local.js` (691 lines)** draws the local page's diff, folds, notes and Viewed state in one module, and keeps its own copy of the panel mount.
 9. **Tests mirror old files, not modules.** `test/extension/load-test.mjs` is one 1,040-line script, and the unit tests are named for features (`since`, `pills`, `refs`) that now map onto specific modules.
@@ -59,7 +59,7 @@ Net, those two helper commits removed 351 lines and added 412, most of the new l
 
 ```text
 bridge/
-  bin/diff-story.mjs            argument parsing and dispatch only
+  bin/pr-story.mjs              argument parsing and dispatch only
   cli/                          one file per command group
     serve.mjs  setup.mjs  stories.mjs  inbox.mjs  builds.mjs  drafts.mjs  doctor.mjs  backstory.mjs
   server/
@@ -78,7 +78,7 @@ bridge/
     local/                      local.js split into diff-view.js  folds.js  notes.js  mount.js
     split.js  narrow.js  syntax.js  local.css  vendor/
 src/js/                         as it is now
-skills/pr-story/bin/            pr-story.mjs importing the bridge's args, diff, chapters and text-refs
+skills/pr-story/bin/            story.mjs importing the bridge's args, diff, chapters and text-refs
 test/
   unit/bridge/  unit/panel/  unit/content/  unit/util/
   browser/extension.mjs  browser/expand.mjs  browser/helpers.mjs
@@ -95,7 +95,7 @@ Each step is its own commit, keeps `yarn test`, `yarn test:extension`, `yarn tes
 3. **Split `backstory.mjs`** along its existing headings. `test/backstory.test.mjs` covers the public `findBackstory` and `briefOf`.
 4. **Split `stories.mjs`** into store, meta, chapters and local diff, and rename `place.mjs` to `stories/placement.mjs`.
 5. **The CLI**: one module per command group under `bridge/cli/`, and the usage text built from a command table so it can't drift.
-6. **The skill imports the bridge's helpers**: `parseUnifiedDiff`, `entryOf` and the text-ref rule from the bridge, dropping its copies. Worth confirming first that the skill is only ever run from this repo's checkout (its `DSM` path assumes so today).
+6. **The skill imports the bridge's helpers**: `parseUnifiedDiff`, `entryOf` and the text-ref rule from the bridge, dropping its copies. Worth confirming first that the skill is only ever run from this repo's checkout (its `REPO_ROOT` path assumes so today).
 7. **Decide the skill's overlay snippet**: retire it, or generate it from `src/js/shared/panel/` at build time. This one is a product call, not a refactor.
 8. **`bridge/public/local.js`**: split into the diff view, folds, notes and the panel mount, with the same naming rules.
 9. **Tests**: move unit tests under `test/unit/<area>/` and split `load-test.mjs` into the options page, the GitHub panel, the PR list and the local page, sharing one browser setup. Then the naming rules for `test/` and `scripts/`.
@@ -106,7 +106,7 @@ Steps 1 to 5 are independent of each other and could go in any order. Steps 6 an
 ## Status
 
 - Done: steps 1 to 5 (names in `bridge/`, `server/`, `backstory/`, `stories/`, `cli/`), 7 (retired), 8 (`public/local/`), 10 (leftover names), and the naming rules are errors everywhere.
-- Step 6: the skill keeps no copies. `pr-story.mjs` imports the bridge's `parseArgs`, `parseUnifiedDiff`, `chaptersOf` and `addTextRefs`, and the panel's `finishedInOf`, so `file-map.json` is placed by the same code the panel uses. With chat mode gone, nothing reads the skill's hunks, so the parser change shows only in `brief`, where a renamed file now says "renamed" instead of "modified". `file-map.json` changes only where the old copy had drifted from the panel: a diff link counts only when it ends at the line anchor, and a chapter whose `since` isn't a valid commit range is placed as an ordinary chapter.
+- Step 6: the skill keeps no copies. `story.mjs` imports the bridge's `parseArgs`, `parseUnifiedDiff`, `chaptersOf` and `addTextRefs`, and the panel's `finishedInOf`, so `file-map.json` is placed by the same code the panel uses. With chat mode gone, nothing reads the skill's hunks, so the parser change shows only in `brief`, where a renamed file now says "renamed" instead of "modified". `file-map.json` changes only where the old copy had drifted from the panel: a diff link counts only when it ends at the line anchor, and a chapter whose `since` isn't a valid commit range is placed as an ordinary chapter.
 - Step 7: we retired the snippet. The skill's `bin/overlay.js`, its `overlay` command and its GitHub mode are gone, so the extension is the only way a story shows on GitHub and panel fixes land in one place. When the bridge or the extension isn't there, the skill now tells the reviewer to set it up (GETTING-STARTED.md) instead of injecting anything.
 - Step 9 renamed the tests and scripts but kept the test tree and `load-test.mjs` as they are.
 - Since then, autoBuild, autoAnswer, chat mode and the backstory were cut (see git history), so the `backstory/` folder and its rows above are gone.

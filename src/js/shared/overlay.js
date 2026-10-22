@@ -1,5 +1,5 @@
 /*
- * Diff Story Mode panel. It started as the pr-story skill's GitHub overlay
+ * PR Story panel. It started as the pr-story skill's GitHub overlay
  * snippet, since retired, and is loaded two ways:
  *   - by the extension's content script on a GitHub PR's /changes or /files page
  *   - by the bridge's local page (bridge/public/local.js), whose diff view uses
@@ -89,8 +89,8 @@ export { placePills, pillMarker } from './panel/file-refs.js';
 export { rangeOfPath, rangeStepOf, rangeUrl } from './panel/freshness.js';
 export { expandDirOf, expandStep, EXPAND_ALL_FAR } from './panel/expand.js';
 
-const HOST_ID = 'diff-story-panel'; // the element on the page; the panel itself lives in its shadow root
-const PANEL_ID = 'dsm-panel';
+const HOST_ID = 'pr-story-panel'; // the element on the page; the panel itself lives in its shadow root
+const PANEL_ID = 'prs-panel';
 // the panel's one clock: a tick every 5s while the tab shows, with one pulse call. Without a pulse, questions take
 // every tick while one waits for its answer (else every 6th) and the status light every 6th (30s). Drafts, freshness
 // and reads look every 12th tick (a minute) either way.
@@ -99,8 +99,8 @@ const STATUS_EVERY = 6;
 const SLOW_EVERY = 12;
 
 export function storyOverlay(input, opts = {}) {
-  if (window.__diffStoryOverlay) {
-    window.__diffStoryOverlay.destroy();
+  if (window.__prStoryOverlay) {
+    window.__prStoryOverlay.destroy();
   }
   const story = createStoryModel(input);
   const initial = opts.initial || {};
@@ -224,8 +224,8 @@ export function storyOverlay(input, opts = {}) {
     context.filter.unhideAll();
     context.shell.unmount();
     context.viewed.destroy();
-    if (window.__diffStoryOverlay === api) {
-      delete window.__diffStoryOverlay;
+    if (window.__prStoryOverlay === api) {
+      delete window.__prStoryOverlay;
     }
   }
   context.destroy = destroy;
@@ -278,9 +278,9 @@ export function storyOverlay(input, opts = {}) {
         ? `chapter ${state.n} of ${chapterCount}`
         : `overview (${chapterCount} chapters)`;
       const seen = context.filter.seen;
-      return `diff story: ${label}, ${seen.shown} of ${context.inChapter().size} files found on the page (${seen.found} file blocks seen, ${story.data.files.length} in the diff)`;
+      return `PR story: ${label}, ${seen.shown} of ${context.inChapter().size} files found on the page (${seen.found} file blocks seen, ${story.data.files.length} in the diff)`;
     },
   };
-  window.__diffStoryOverlay = api;
+  window.__prStoryOverlay = api;
   return api;
 }
