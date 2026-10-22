@@ -69,6 +69,10 @@ if (rels.length < 2) {
 }
 const half = Math.ceil(rels.length / 2);
 const home = tmp('ext-home');
+const buildRequests = () =>
+  existsSync(path.join(home, 'builds.json'))
+    ? Object.values(JSON.parse(readFileSync(path.join(home, 'builds.json'), 'utf8')))
+    : [];
 const id = `${owner}-${repo}-${number}`;
 // the story was told from an older head ('a' x 40); the fake gh says the PR is now at 'b' x 40, with one file changed
 const OLD = 'a'.repeat(40);
@@ -385,11 +389,7 @@ try {
   // Update (new commits) sends a build request with mode 'update', the story's head, and where his reading stopped (nothing read: the story's head)
   await page.locator('#dsm-panel .prs-update[data-retell="0"]').click();
   await page.waitForTimeout(600);
-  const upd = readFileSync(path.join(home, 'inbox.jsonl'), 'utf8')
-    .trim()
-    .split('\n')
-    .map(JSON.parse)
-    .find((e) => e.type === 'build_request' && e.mode === 'update');
+  const upd = buildRequests().find((build) => build.mode === 'update');
   check(
     !!upd && upd.base_sha === OLD && upd.number === +number && upd.since_sha === OLD && !upd.retell,
     'Update (new commits) asks for a "Since you read it" chapter from the story\'s head',
@@ -489,14 +489,10 @@ try {
     /Story queued · asked/.test(await pill()),
     `clicking Build story shows it queued (no session has claimed it yet) with the time: "${(await pill()).trim()}"`,
   );
-  const breq = readFileSync(path.join(home, 'inbox.jsonl'), 'utf8')
-    .trim()
-    .split('\n')
-    .map(JSON.parse)
-    .find((e) => e.type === 'build_request' && e.number === NOSTORY);
+  const breq = buildRequests().find((build) => build.number === NOSTORY);
   check(
     !!breq && breq.url === `https://github.com/${owner}/${repo}/pull/${NOSTORY}`,
-    'the build request lands in the inbox',
+    'the build request lands in builds.json',
   );
   const other = await context.newPage();
   await other.goto(`https://github.com/${owner}/${repo}/pull/${NOSTORY}/files`, {
@@ -592,7 +588,7 @@ try {
     );
     const number = Number(target.key.split('#')[1]);
     check(
-      readFileSync(path.join(home, 'inbox.jsonl'), 'utf8').includes(`"number":${number}`),
+      buildRequests().some((build) => build.number === number && build.status === 'pending'),
       'and sends the same build request as the PR page',
     );
   }

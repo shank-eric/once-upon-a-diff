@@ -4,6 +4,7 @@
  * date, and who's listening per repo).
  */
 import { readMeta } from '../../stories/meta.mjs';
+import { storyFinishes } from '../../inbox/builds.mjs';
 import { stateKeyOf } from '../../github/drafts.mjs';
 import { currentHead, newerCount } from '../../github/freshness.mjs';
 import { listeningOf } from '../../listeners/listeners.mjs';
@@ -25,18 +26,6 @@ function readSummary(app, id) {
   };
 }
 
-/**
- * Has the story finished its pending build request? It has turned up, and for an update its head has moved off
- * the commit it was asked to update from. The same rule as GET /api/builds/status, so a PR list or a tag polling
- * status-many settles the request too.
- */
-export function storyFinishes(app, id, build) {
-  if (!build || build.status !== 'pending') {
-    return false;
-  }
-  return !(build.mode === 'update' && readMeta(app.stories.dirOf(id)).head_oid === build.base_sha);
-}
-
 /** One PR's line: its newest story when it has one, else its build request's state. */
 function prStatus(app, cache, { repo: rawRepo, number: rawNumber }) {
   const repo = String(rawRepo || '');
@@ -53,7 +42,8 @@ function prStatus(app, cache, { repo: rawRepo, number: rawNumber }) {
     return { repo, number, state: pending ? build.state : 'none', request: build };
   }
   const id = hits.sort((first, second) => Number(second.version) - Number(first.version))[0].id;
-  if (storyFinishes(app, id, build)) {
+  // a PR list or a tag polling status-many settles a build request too (storyFinishes, as publish does)
+  if (storyFinishes(build, readMeta(app.stories.dirOf(id)).head_oid)) {
     build = app.builds.view(app.builds.done(build.id, { story: id }));
     app.statusCache = null;
   }

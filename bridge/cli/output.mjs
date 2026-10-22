@@ -24,9 +24,6 @@ export function describe(entry) {
     const update = entry.mode === 'update' ? `\n${updateOf(entry, readerOf())}` : '';
     return `[${when}] build request ${entry.id}: ${entry.repo}#${entry.number} ${entry.url}${update}\n${entry.text || ''}`.trimEnd();
   }
-  if (entry.type === 'build_done') {
-    return `[${when}] build ${entry.build} ${entry.status} (${entry.repo}#${entry.number})${entry.story ? ` story ${entry.story}` : ''}${entry.note ? `: ${entry.note}` : ''}`;
-  }
   if (entry.type === 'answer') {
     return `[${when}] answer to ${entry.question}\n${entry.text}`;
   }

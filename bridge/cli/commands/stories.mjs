@@ -7,6 +7,7 @@ import { copyFileSync, existsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { openArgv } from '../../config/settings.mjs';
 import { StoryStore } from '../../stories/store.mjs';
+import { Builds } from '../../inbox/builds.mjs';
 import { readJson } from '../../util/json-file.mjs';
 import { createLocalStory, slug } from '../../stories/local-story.mjs';
 import { storyDirFor } from '../../stories/placement.mjs';
@@ -99,6 +100,8 @@ function publish(home, cfg, opts) {
       2,
     ),
   );
+  // the story is here, so a Build story or Update request for the PR is done
+  new Builds(home).settle(repo, pr.number, { story: id, head: pr.headRefOid || null });
   out(dest);
 }
 
@@ -122,6 +125,7 @@ export const storyCommands = [
     name: 'publish',
     usage: [
       '  diff-story publish --dir DIR [--id ID]                         copy a pr-story folder into <checkout>/.diff-story/<owner>-<repo>-<N>/ (or ~/.diff-story/)',
+      "                                                                 and finish the PR's build request",
     ],
     run: publish,
   },

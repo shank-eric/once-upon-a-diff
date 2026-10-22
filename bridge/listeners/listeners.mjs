@@ -126,7 +126,7 @@ export function listenPrompt(
     command: wait,
     details:
       `${where} \`${wait}\` as a background task, and start it again each time it exits. For a question, answer it and run \`${cli} answer --question <id> --text "<answer>"\`. ` +
-      `For a build request, run \`${cli} builds --start <id>\`, build the story with /pr-story <PR url>, then run \`${cli} done <id>\`. Keep going until I say stop.`,
+      `For a build request, build the story with /pr-story <PR url>; publishing it finishes the request (run \`${cli} done <id> --failed\` if it can't be built). Keep going until I say stop.`,
   };
 }
 

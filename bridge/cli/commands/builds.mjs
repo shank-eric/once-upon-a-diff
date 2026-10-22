@@ -3,15 +3,14 @@
  * it's built (builds), and finish one (done).
  */
 import { formatTime, readerOf } from '../../config/settings.mjs';
-import { Inbox } from '../../inbox/inbox.mjs';
 import { Builds, updateOf } from '../../inbox/builds.mjs';
 import { out } from '../output.mjs';
 
 function builds(home, cfg, opts) {
-  const requests = new Builds(home, new Inbox(home));
+  const requests = new Builds(home);
   if (opts.start) {
-    // the session says it's building this one now: the badges move from Queued to Building
-    const build = requests.claim(String(opts.start), opts.consumer || 'cli', { start: true });
+    // wait already claimed it; on a long build this keeps the claim fresh, so it isn't handed out again
+    const build = requests.claim(String(opts.start), opts.consumer || null);
     if (!build) {
       throw new Error(`no pending build request ${opts.start}`);
     }
@@ -43,7 +42,7 @@ function done(home, cfg, opts) {
   if (!id) {
     throw new Error('usage: diff-story done <build id | owner/repo#N> [--failed] [--note TEXT]');
   }
-  const build = new Builds(home, new Inbox(home)).done(id, {
+  const build = new Builds(home).done(id, {
     failed: !!opts.failed,
     note: typeof opts.note === 'string' ? opts.note : null,
   });
@@ -58,7 +57,7 @@ export const buildCommands = [
     name: 'builds',
     usage: [
       '  diff-story builds  [--start ID] [--json]                       pending "Build story" requests, queued or building, and for an update where',
-      "                                                                 the reviewer's reading stopped (since); --start claims one as it's built",
+      "                                                                 the reviewer's reading stopped (since); --start refreshes a claim on a long build",
     ],
     run: builds,
   },

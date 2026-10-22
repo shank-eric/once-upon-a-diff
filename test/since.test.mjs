@@ -5,7 +5,6 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson, runCli } from './helpers.mjs';
 import { Builds, buildText } from '../bridge/inbox/builds.mjs';
-import { Inbox } from '../bridge/inbox/inbox.mjs';
 import { noteRead } from '../bridge/stories/reads.mjs';
 import { clearFreshness } from '../bridge/github/freshness.mjs';
 import { tagFor, tagHtml, requestFor } from '../src/js/content/ui/story-tag.js';
@@ -14,8 +13,6 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 process.env.DIFF_STORY_GH = path.join(HERE, 'fixtures', 'fake-gh.mjs');
 const SHA_A = 'a'.repeat(40);
 const SHA_B = 'b'.repeat(40);
-const inbox = (home) =>
-  readFileSync(path.join(home, 'inbox.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
 
 function story(home, head = SHA_A) {
   const dir = path.join(home, 'acme-widgets-7');
@@ -61,10 +58,10 @@ test('an update asks for a "Since you read it" chapter from where the reading st
       'the earliest read was chapter 2, at C',
     );
     assert.deepEqual(result.reads.map((read) => read.chapter).sort(), ['finish', 'start']);
-    const line = inbox(home).find((e) => e.type === 'build_request');
+    const line = new Builds(home).get('acme/widgets', 7);
     assert.equal(line.since_sha, SHA_C);
     assert.match(
-      line.text,
+      buildText(line),
       /"Since you read it" chapter first for ccccccc\.\.the PR's head, where the reviewer's reading stopped/,
     );
     // the wait hands it over with the same fields
@@ -132,9 +129,7 @@ test('with nothing read, an update starts from the story head; Re-tell asks for 
     assert.equal(retold.id, result.id, 'the same request');
     assert.equal(retold.retell, true);
     assert.match(
-      inbox(home)
-        .filter((e) => e.type === 'build_request')
-        .at(-1).text,
+      buildText(new Builds(home).get('acme/widgets', 7)),
       /^Re-tell the story for acme\/widgets#7 from scratch/,
     );
     assert.equal(
@@ -155,7 +150,7 @@ test('with nothing read, an update starts from the story head; Re-tell asks for 
 
 test('once a session has claimed an update, a second click does not change it', () => {
   const home = tmp('home');
-  const builds = new Builds(home, new Inbox(home));
+  const builds = new Builds(home);
   const request = builds.request({
     repo: 'acme/widgets',
     number: 7,
