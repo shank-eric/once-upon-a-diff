@@ -1,6 +1,6 @@
 /*
- * Diff Story Mode panel. Ported from the pr-story GitHub overlay
- * (skills/pr-story/bin/overlay.js), and loaded two ways:
+ * Diff Story Mode panel. It started as the pr-story skill's GitHub overlay
+ * snippet, since retired, and is loaded two ways:
  *   - by the extension's content script on a GitHub PR's /changes or /files page
  *   - by the bridge's local page (bridge/public/local.js), whose diff view uses
  *     the same DOM shapes as GitHub's /changes page

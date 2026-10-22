@@ -81,10 +81,4 @@ export default defineConfig(
     files: ['test/fixtures/*.mjs'],
     rules: { 'n/hashbang': 'off' },
   },
-  {
-    // the pr-story skill's snippet, pasted into a page as a plain script
-    files: ['skills/pr-story/bin/overlay.js'],
-    languageOptions: { sourceType: 'script' },
-    rules: { 'no-unused-vars': ['error', { varsIgnorePattern: '^prStoryOverlay$' }] },
-  },
 );

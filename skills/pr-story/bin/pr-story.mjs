@@ -7,7 +7,6 @@
  *
  *   pr-story.mjs brief   --dir D                 what Claude reads to plan: files, commits, reviews, threads, CI, viewed
  *   pr-story.mjs build   --dir D [--no-bridge]   D/chapters.json -> D/file-map.json, then publish; fails if a file is unplaced
- *   pr-story.mjs overlay --dir D [--chapter N] [--out FILE]   JS snippet: story panel + chapter filter on the PR page (GitHub mode); no --chapter starts at the Overview
  *   pr-story.mjs publish --dir D                 publish the story for Diff Story Mode through `diff-story publish` (build does this too)
  */
 import { readFile, writeFile } from 'node:fs/promises';
@@ -18,8 +17,8 @@ import { fileURLToPath } from 'node:url';
 // This skill ships in the Diff Story Mode repo (skills/pr-story/bin), and Node resolves the skill link, so it
 // imports the bridge's and the panel's own helpers from the checkout it's linked from.
 import { parseArgs } from '../../../bridge/cli/args.mjs';
-import { parseUnifiedDiff, pathSha } from '../../../bridge/util/diff.mjs';
-import { chaptersOf, entryOf } from '../../../bridge/stories/chapters.mjs';
+import { parseUnifiedDiff } from '../../../bridge/util/diff.mjs';
+import { chaptersOf } from '../../../bridge/stories/chapters.mjs';
 import { addTextRefs } from '../../../bridge/stories/text-refs.mjs';
 import { finishedInOf } from '../../../src/js/shared/panel/story-model.js';
 
@@ -238,65 +237,16 @@ async function cmdPublish(opts) {
   process.stderr.write(`Diff Story Mode: ${dest}\n`);
 }
 
-/**
- * GitHub "Files changed" anchors are diff- + sha256 of the file path. `view`
- * is the PR tab: "files" (classic) or "changes" (the newer review UI).
- */
-/**
- * GitHub overlay: a self-contained JS snippet (bin/overlay.js plus every
- * chapter's data) to run in the PR's /changes page. It docks the story in a
- * side panel and hides the other chapters' files. Prints the snippet, or
- * writes it to --out FILE and prints the path.
- */
-async function cmdOverlay(opts) {
-  const dir = opts.dir;
-  const { pr, diff } = await load(dir);
-  const plan = await readJson(path.join(dir, 'chapters.json'));
-  const data = {
-    pr: { repo: repoOf(pr), number: pr.number, title: pr.title, url: pr.url },
-    start: opts.chapter === undefined || opts.chapter === 'overview' ? 0 : Number(opts.chapter),
-    overview: plan.overview || '',
-    summary: plan.summary || '',
-    plan: plan.plan || '',
-    files: [...diff.keys()].map((rel) => ({ rel, sha: pathSha(rel) })),
-    chapters: (plan.chapters || []).map((chapter) => ({
-      title: chapter.title,
-      headline: chapter.headline || '',
-      scenario: chapter.scenario || '',
-      summary: chapter.summary || '',
-      narrative: chapter.narrative || '',
-      files: (chapter.files || []).map(entryOf),
-      comments: (chapter.comments || []).map((comment) => ({
-        path: comment.path || '',
-        line: comment.line || 0,
-        body: comment.body || '',
-      })),
-    })),
-  };
-  if (!(data.start >= 0 && data.start <= data.chapters.length)) {
-    throw new Error(`no chapter ${opts.chapter} (0 or overview is the Overview step)`);
-  }
-  const src = await readFile(path.join(HERE, 'overlay.js'), 'utf8');
-  const snippet = `${src}\nprStoryOverlay(${JSON.stringify(data)});\n`;
-  if (opts.out) {
-    await writeFile(opts.out, snippet);
-    process.stdout.write(opts.out + '\n');
-  } else {
-    process.stdout.write(snippet);
-  }
-}
-
 const COMMANDS = {
   brief: cmdBrief,
   build: cmdBuild,
-  overlay: cmdOverlay,
   publish: cmdPublish,
 };
 const { command, opts } = parseArgs(process.argv.slice(2));
 const run = COMMANDS[command];
 if (!run || !opts.dir) {
   process.stderr.write(
-    'usage: pr-story.mjs <brief|build|overlay|publish> --dir <scratch-dir> [--no-bridge] [--chapter N] [--out FILE]\n',
+    'usage: pr-story.mjs <brief|build|publish> --dir <scratch-dir> [--no-bridge]\n',
   );
   process.exitCode = 1;
 } else {
