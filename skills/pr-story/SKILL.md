@@ -86,7 +86,7 @@ If a voice mode is on (for example Larmor), speak the chapter's `headline` and o
 
 ## Diff Story Mode: the preferred host when it's installed
 
-Diff Story Mode (`<dsm-repo>`, an unpacked Chrome extension plus a local bridge) shows this same panel on the PR's /changes page by itself. It survives reloads and in-page navigation, remembers the step per PR, and picks up each re-render within ≈5s. When it's installed and its bridge is running, use it instead of injecting the overlay with `javascript_tool`.
+Diff Story Mode (`<dsm-repo>`, an unpacked Chrome extension plus a local bridge) shows this same panel on the PR's /changes or /files page by itself. It survives reloads and in-page navigation, remembers the step per PR, and picks up each re-render within ≈5s. When it's installed and its bridge is running, use it instead of injecting the overlay with `javascript_tool`.
 
 1. **Check the bridge.** `curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $(jq -r .token ~/.diff-story/config.json)" "http://127.0.0.1:$(jq -r .port ~/.diff-story/config.json)/api/health"` prints 200 when it's up. If it isn't, ask the reviewer once whether to start it (`<dsm> serve`, as a background task) or use the overlay below.
 2. **Publish.** `build` runs `<dsm> publish --dir <D>`, which copies `chapters.json` and `file-map.json`, with a `meta.json` naming the PR and its head commit, into the repo's checkout (`<checkout>/.diff-story/<owner>-<repo>-<N>/`) or `~/.diff-story/<owner>-<repo>-<N>/` (`publish --dir <D>` does just that step, `--no-bridge` skips it). The bridge reads only published stories, never the scratch folder.
