@@ -5,6 +5,7 @@
 import { formatTime, readerOf } from '../config/settings.mjs';
 import { sameRepo } from '../config/repos.mjs';
 import { updateOf } from '../inbox/builds.mjs';
+import { plural } from '../../shared/util/text.js';
 
 export const out = (text) => process.stdout.write(text + '\n');
 
@@ -37,7 +38,7 @@ export function describe(entry) {
     const what =
       entry.kind === 'local' ? `local story ${entry.story}` : `${entry.repo} ${entry.url}`;
     return [
-      `[${when}] fix request ${entry.id} (${entry.story}): ${notes.length} note${notes.length === 1 ? '' : 's'} to fix before push on ${what}`,
+      `[${when}] fix request ${entry.id} (${entry.story}): ${plural(notes.length, 'note')} to fix before push on ${what}`,
       ...(entry.checkout ? [`checkout: ${entry.checkout}`] : []),
       ...notes,
     ].join('\n');

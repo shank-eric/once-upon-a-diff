@@ -8,6 +8,7 @@
 import { splitRows } from '/assets/split.js';
 import { highlightFile, LIMITS } from '/assets/syntax.js';
 import { escapeHtml } from '/assets/util/html.js';
+import { plural } from '/assets/util/text.js';
 import { page } from './page.js';
 
 export const isSplit = () => !!page.story && page.story.local.diff_view === 'split';
@@ -188,7 +189,7 @@ const rangeHtml = (local) =>
   `${local.branch ? ` · ${escapeHtml(local.branch)}` : ''}`;
 /** "3 commits · 4 files +10 −2" */
 const sizeHtml = (local, added, removed) =>
-  `${local.commits.length} commit${local.commits.length === 1 ? '' : 's'} · ${local.files.length} files ` +
+  `${plural(local.commits.length, 'commit')} · ${plural(local.files.length, 'file')} ` +
   `<span class="ds-plus">+${added}</span> <span class="ds-minus">−${removed}</span>`;
 
 /** The top bar: the range, its size, the diff view, Hide whitespace and the notes toggle. */

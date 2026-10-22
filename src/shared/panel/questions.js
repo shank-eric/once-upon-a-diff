@@ -11,13 +11,11 @@
  * bridge, so they hold after a reload and on the next poll.
  */
 import { escapeHtml } from '../util/html.js';
-import { baseName } from '../util/text.js';
+import { baseName, plural } from '../util/text.js';
 import { shortDateTime } from '../util/time.js';
 
 const SLOW_EVERY = 6; // ticks: 6 x 5s = every 30s with nothing waiting
 const UNDO_MS = 15000;
-
-const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
 
 /** What one mark action does to a question, for drawing it before the bridge answers. */
 const MARK_FIELDS = {

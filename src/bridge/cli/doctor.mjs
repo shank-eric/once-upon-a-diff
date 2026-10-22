@@ -3,11 +3,12 @@
  * bridge, a Claude session listening, and the extension. Each check prints
  * PASS, WARN or FAIL with what it found and, when it isn't passing, the fix.
  */
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { listeners } from '../listeners/listeners.mjs';
 import { formatTime } from '../config/settings.mjs';
+import { readJson } from '../util/json-file.mjs';
 
 const localTime = (iso) => formatTime(iso);
 
@@ -104,12 +105,7 @@ export async function doctor(
 
   // the extension: the bridge records when it last heard from it
   const seenFile = path.join(home, 'extension-seen.json');
-  let seen = null;
-  try {
-    seen = JSON.parse(readFileSync(seenFile, 'utf8'));
-  } catch {
-    seen = null;
-  }
+  const seen = readJson(seenFile);
   if (seen) {
     add('PASS', 'Extension', `last talked to the bridge ${localTime(seen.at)} (${seen.origin})`);
   } else {

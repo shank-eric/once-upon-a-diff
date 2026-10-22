@@ -25,7 +25,8 @@ import { answeringOf, listeners } from '../listeners/listeners.mjs';
 import { readJson, writeJsonAtomic } from '../util/json-file.mjs';
 
 const RECENT_REQUESTS = 10;
-const MAX_BODY = 8000;
+/** The longest a note's text can be. */
+export const MAX_NOTE_BODY = 8000;
 
 /** An error the bridge answers with its HTTP status. */
 const failure = (status, message) => Object.assign(new Error(message), { status });
@@ -36,21 +37,6 @@ export function noteState(note) {
     return 'fixed';
   }
   return note.sent ? 'sent' : 'draft';
-}
-
-/** The diff file a path names: the path itself, or the one file it's a suffix of (`Combobox/component.tsx`). */
-export function relOfDraft(name, rels) {
-  const wanted = String(name || '')
-    .trim()
-    .replace(/^\.\//, '');
-  if (!wanted) {
-    return null;
-  }
-  if (rels.includes(wanted)) {
-    return wanted;
-  }
-  const hits = rels.filter((rel) => rel.endsWith('/' + wanted));
-  return hits.length === 1 ? hits[0] : null;
 }
 
 const fixesFile = (home) => path.join(home, 'fixes.json');
@@ -334,7 +320,7 @@ export function addNote(home, store, story, fields, { inbox = null } = {}) {
     side: fields.side === 'L' ? 'L' : 'R',
     line: fields.line ?? null,
     body: String(fields.body || '')
-      .slice(0, MAX_BODY)
+      .slice(0, MAX_NOTE_BODY)
       .trim(),
     done: false,
     ...(fields.draft ? { draft: fields.draft } : {}),
@@ -387,7 +373,7 @@ export function updateNote(store, story, noteId, changes, { inbox = null } = {})
     note.done = !!changes.done;
   }
   if (typeof changes.body === 'string' && changes.body.trim()) {
-    note.body = changes.body.trim().slice(0, MAX_BODY);
+    note.body = changes.body.trim().slice(0, MAX_NOTE_BODY);
   }
   note.updated_at = new Date().toISOString();
   saveNotes(store, story.id, notes);

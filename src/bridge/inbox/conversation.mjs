@@ -15,15 +15,15 @@
  * story listener is live, and takes it once the story listener is gone. A
  * question already handed to one session, or dismissed, isn't handed to another.
  */
-import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { readJson, writeJsonAtomic } from '../util/json-file.mjs';
+import { stateFile } from '../config/settings.mjs';
 import { ID_RE } from '../stories/meta.mjs';
 import { listeners } from '../listeners/listeners.mjs';
 
 export const QA_ACTIONS = ['dismiss', 'restore', 'collapse', 'expand'];
 
-const marksFile = (home, story) => path.join(home, 'state', story, 'questions.json');
+const marksFile = (home, story) => stateFile(home, story, 'questions.json');
 
 /** The story's {dismissed, collapsed, moved} marks, empty for an unknown or odd id. */
 export function readQaMarks(home, story) {
@@ -45,7 +45,6 @@ export function moveQuestions(home, story, moves) {
   }
   const marks = readQaMarks(home, story);
   Object.assign(marks.moved, moves);
-  mkdirSync(path.dirname(marksFile(home, story)), { recursive: true });
   writeJsonAtomic(marksFile(home, story), marks);
 }
 
@@ -67,7 +66,6 @@ export function markQuestions(home, story, action, ids) {
       delete marks.collapsed[id];
     }
   }
-  mkdirSync(path.dirname(marksFile(home, story)), { recursive: true });
   writeJsonAtomic(marksFile(home, story), marks);
   return marks;
 }

@@ -6,7 +6,7 @@
 import {
   addNote,
   fixesView,
-  relOfDraft,
+  MAX_NOTE_BODY,
   readNotes,
   sendNotes,
   setAutoSend,
@@ -14,6 +14,7 @@ import {
   updateNote,
 } from '../../inbox/fixes.mjs';
 import { draftKey } from '../../github/drafts.mjs';
+import { relOfPath } from '../../util/diff.mjs';
 import { workingOf } from '../../stories/working.mjs';
 import { HttpError, clipText, toInt } from '../request.mjs';
 import { draftOf } from './drafts.mjs';
@@ -29,7 +30,7 @@ function relsOf(app, story) {
 /** Add to fix before push: a drafted comment from the story becomes a note, once. Returns {note, request}. */
 export function noteFromDraft(app, story, body) {
   const comment = draftOf(app.stories.load(story.id).chapters, body);
-  const rel = relOfDraft(comment.path, relsOf(app, story));
+  const rel = relOfPath(comment.path, relsOf(app, story));
   if (!rel || !(toInt(comment.line) > 0)) {
     throw new HttpError(
       400,
@@ -48,7 +49,7 @@ export function noteFromDraft(app, story, body) {
       path: rel,
       side: comment.side,
       line: toInt(comment.line),
-      body: clipText(comment.body, 8000),
+      body: clipText(comment.body, MAX_NOTE_BODY),
       draft: key,
       chapter: toInt(body.chapter),
     },
@@ -64,7 +65,7 @@ function notesRoute({ app, body, send }, story) {
   if (body.chapter != null && body.index != null) {
     return send(200, noteFromDraft(app, story, body).note);
   }
-  const text = clipText(body.body, 8000);
+  const text = clipText(body.body, MAX_NOTE_BODY);
   if (!text || !text.trim()) {
     throw new HttpError(400, 'body is required');
   }

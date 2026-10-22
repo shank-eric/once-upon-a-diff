@@ -4,6 +4,21 @@ import { createHash } from 'node:crypto';
 /** GitHub's "Files changed" anchor for a file is diff- + the sha256 of its path. */
 export const pathSha = (rel) => createHash('sha256').update(rel).digest('hex');
 
+/** The diff file a path names: the path itself, or the one file it's a suffix of (`Combobox/component.tsx`). */
+export function relOfPath(name, rels) {
+  const wanted = String(name || '')
+    .trim()
+    .replace(/^\.\//, '');
+  if (!wanted) {
+    return null;
+  }
+  if (rels.includes(wanted)) {
+    return wanted;
+  }
+  const hits = rels.filter((rel) => rel.endsWith('/' + wanted));
+  return hits.length === 1 ? hits[0] : null;
+}
+
 /**
  * @typedef {{rel: string, kind: string, stats: {added: number, removed: number}, hunks: object[],
  *   renamed_from?: string, binary?: boolean, hash?: string}} DiffFile

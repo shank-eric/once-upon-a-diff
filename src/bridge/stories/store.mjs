@@ -10,10 +10,11 @@
  * recorded in the index, or <home>/<id>/ when its repo has no known checkout.
  * The index is read first, so its folder wins for an id.
  */
-import { readdirSync, mkdirSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { readJson, writeJson } from '../util/json-file.mjs';
 import { readIndex } from './placement.mjs';
+import { stateFile } from '../config/settings.mjs';
 import { ID_RE, isStoryDir, readMeta, storyVersion } from './meta.mjs';
 import { storyData } from './story-data.mjs';
 
@@ -92,16 +93,11 @@ export class StoryStore {
     return hits[0] || null;
   }
 
-  stateDir(id) {
-    const dir = path.join(this.home, 'state', id);
-    mkdirSync(dir, { recursive: true });
-    return dir;
-  }
   readState(id, name, fallback) {
-    return readJson(path.join(this.stateDir(id), name), fallback);
+    return readJson(stateFile(this.home, id, name), fallback);
   }
   writeState(id, name, value) {
-    writeJson(path.join(this.stateDir(id), name), value);
+    writeJson(stateFile(this.home, id, name), value);
   }
 
   /** The story as the panel takes it (the overlay's data), plus the diff and bridge state for a local story. */

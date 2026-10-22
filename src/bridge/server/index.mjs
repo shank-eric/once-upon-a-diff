@@ -36,7 +36,7 @@ import { readRoutes } from './routes/reads.mjs';
 import { localStoryRoutes } from './routes/local-story.mjs';
 import { fixRoutes } from './routes/fixes.mjs';
 
-export { relOfDraft } from '../inbox/fixes.mjs';
+export { relOfPath } from '../util/diff.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const VERSION = JSON.parse(
