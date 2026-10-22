@@ -453,13 +453,7 @@ describe('drafted comments', () => {
     const home = tmp('home');
     const src = tmp('scratch');
     githubStory(src);
-    githubStory(path.join(home, 'acme-widgets-7'));
-    writeJson(path.join(home, 'acme-widgets-7', 'meta.json'), {
-      kind: 'github',
-      repo: 'acme/widgets',
-      number: 7,
-      source: src,
-    });
+    githubStory(path.join(home, 'acme-widgets-7'), { meta: { source: src } });
     const bridge = await startBridge({ home });
     try {
       const before = (await bridge.call('GET', '/api/stories/acme-widgets-7/version')).body.version;

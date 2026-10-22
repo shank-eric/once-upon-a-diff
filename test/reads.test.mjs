@@ -101,13 +101,7 @@ test('the bridge records a read with the PR head, and lists them', async () => {
   clearFreshness();
   const home = tmp('home');
   const dir = path.join(home, 'acme-widgets-7');
-  githubStory(dir);
-  writeJson(path.join(dir, 'meta.json'), {
-    kind: 'github',
-    repo: 'acme/widgets',
-    number: 7,
-    head_oid: SHA_A,
-  });
+  githubStory(dir, { meta: { head_oid: SHA_A } });
   const bridge = await startBridge({ home });
   try {
     const story = (await bridge.call('GET', '/api/stories/acme-widgets-7')).body;
@@ -259,13 +253,7 @@ test('GET /read compares the commit each chapter was read at with the story head
   clearFreshness();
   const home = tmp('home');
   const dir = path.join(home, 'acme-widgets-7');
-  githubStory(dir);
-  writeJson(path.join(dir, 'meta.json'), {
-    kind: 'github',
-    repo: 'acme/widgets',
-    number: 7,
-    head_oid: SHA_B,
-  });
+  githubStory(dir, { meta: { head_oid: SHA_B } });
   const extra = path.join(home, 'gh-extra.json');
   writeJson(extra, {
     [`repos/acme/widgets/compare/${SHA_A}...${SHA_B}`]: {

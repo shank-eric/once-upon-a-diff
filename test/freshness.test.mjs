@@ -16,13 +16,7 @@ const SHA_B = 'b'.repeat(40);
 
 function story(home, head) {
   const dir = path.join(home, 'acme-widgets-7');
-  githubStory(dir);
-  writeJson(path.join(dir, 'meta.json'), {
-    kind: 'github',
-    repo: 'acme/widgets',
-    number: 7,
-    head_oid: head,
-  });
+  githubStory(dir, { meta: { head_oid: head } });
 }
 
 test('a story told from an older head is stale, with the files and chapters changed since', async () => {
@@ -81,12 +75,7 @@ test('an update request stays pending until the story moves off the old head', a
       true,
       'the old story is still there, but an update is on its way',
     );
-    writeJson(path.join(home, 'acme-widgets-7', 'meta.json'), {
-      kind: 'github',
-      repo: 'acme/widgets',
-      number: 7,
-      head_oid: SHA_B,
-    });
+    story(home, SHA_B);
     status = (await bridge.call('GET', '/api/builds/status?repo=acme/widgets&number=7')).body;
     assert.equal(status.updating, false);
     assert.equal(status.request.status, 'done');

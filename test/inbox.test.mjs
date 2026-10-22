@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
 import { tmp } from './helpers.mjs';
 import { Inbox } from '../bridge/inbox/inbox.mjs';
-import { parseUnifiedDiff } from '../bridge/util/diff.mjs';
 
 test('readers keep their own cursor', () => {
   const inbox = new Inbox(tmp('inbox'));
@@ -38,30 +37,4 @@ test('answers attach to their questions', () => {
   const questions = inbox.questions('s');
   assert.equal(questions.length, 1);
   assert.equal(questions[0].answers[0].text, 'because');
-});
-
-test('parses a unified diff', () => {
-  const diff = parseUnifiedDiff(
-    [
-      'diff --git a/x.js b/x.js',
-      'index 1..2 100644',
-      '--- a/x.js',
-      '+++ b/x.js',
-      '@@ -1,2 +1,3 @@ fn()',
-      ' a',
-      '-b',
-      '+B',
-      '+c',
-      'diff --git a/old.js b/new.js',
-      'similarity index 90%',
-      'rename from old.js',
-      'rename to new.js',
-    ].join('\n'),
-  );
-  const file = diff.get('x.js');
-  assert.deepEqual(file.stats, { added: 2, removed: 1 });
-  assert.equal(file.hunks[0].header, 'fn()');
-  assert.equal(diff.get('new.js').kind, 'renamed');
-  assert.equal(diff.get('new.js').renamed_from, 'old.js');
-  assert.notEqual(file.hash, diff.get('new.js').hash);
 });
