@@ -11,7 +11,7 @@
  *   queued     "Queued", asked for and no session has it yet (not clickable)
  *   building   "Building…", a session claimed it (not clickable)
  *   updating   "Update queued" / "Updating…", or "Rebuild queued" / "Rebuilding…" for the panel's Rebuild (not clickable)
- * Who's listening is said once per page, per repo, by the notice (notice.js), not on each tag.
+ * Who's listening is said once per page, per repo, by the notice (listen-notice.js), not on each tag.
  *
  * No DOM or chrome.* here, so node can test it.
  */

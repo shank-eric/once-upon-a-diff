@@ -87,7 +87,6 @@ export function viewedEarlyCheck({ chapters, finishedIn, readInfo, step }) {
 export function createReading(context) {
   const { story, state, opts } = context;
   const { data } = story;
-  const readAfterMs = Number.isFinite(opts.readAfterMs) ? opts.readAfterMs : READ_MS;
   const sent = new Set(); // "<key> <reason>": each at most once per panel
   const completeSeen = new Map(); // chapter -> were all its files viewed when last looked at
   const firstLook = new Map(); // chapter -> were all its files already viewed the first time the page showed them all (inferReadSteps)
@@ -125,9 +124,9 @@ export function createReading(context) {
     }
   }
 
-  /** Leaving the step: it counts as read once they've been on it readAfterMs. */
+  /** Leaving the step: it counts as read once they've been on it READ_MS. */
   function leave() {
-    if (clock.step > 0 && elapsed() >= readAfterMs) {
+    if (clock.step > 0 && elapsed() >= READ_MS) {
       send(clock.step, 'time');
     }
   }

@@ -1,7 +1,7 @@
 /**
  * Local mode: a story over a local commit range instead of a GitHub PR. The
  * story lives in the checkout (or worktree) it diffs, at <top>/.once-upon/<id>/,
- * kept out of git by .git/info/exclude (place.mjs). The folder holds meta.json (repo, refs), local.diff (remade whenever the
+ * kept out of git by .git/info/exclude (placement.mjs). The folder holds meta.json (repo, refs), local.diff (remade whenever the
  * refs move) and chapters.json in once-upon's format, so the same panel and
  * the same chapters work on either.
  */

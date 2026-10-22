@@ -24,7 +24,6 @@ import { sameRepo } from '../config/repos.mjs';
 import { answeringOf, listeners } from '../listeners/listeners.mjs';
 import { readJson, writeJsonAtomic } from '../util/json-file.mjs';
 
-export const NOTE_STATES = ['draft', 'sent', 'fixed'];
 const RECENT_REQUESTS = 10;
 const MAX_BODY = 8000;
 
