@@ -18,13 +18,13 @@ export const forgetNarrowing = () => {
 
 /** One table row, as narrowRows reads it. */
 function rowModel(row) {
-  if (row.classList.contains('ds-hunk')) {
+  if (row.classList.contains('ou-local-hunk')) {
     return { type: 'hunk' };
   }
-  if (row.classList.contains('ds-note-row') || row.classList.contains('ds-note-edit')) {
+  if (row.classList.contains('ou-local-note-row') || row.classList.contains('ou-local-note-edit')) {
     return { type: 'note' };
   }
-  if (!row.classList.contains('ds-line')) {
+  if (!row.classList.contains('ou-local-line')) {
     return { type: 'info' };
   }
   const lineOn = (side) => {
@@ -35,7 +35,7 @@ function rowModel(row) {
     type: 'line',
     L: lineOn('L'),
     R: lineOn('R'),
-    add: row.classList.contains('ds-add') || !!row.querySelector('td.ds-n-add'),
+    add: row.classList.contains('ou-local-add') || !!row.querySelector('td.ou-local-n-add'),
   };
 }
 
@@ -48,11 +48,11 @@ function stepName(step) {
 }
 
 export function unnarrow(root = document) {
-  for (const el of root.querySelectorAll('tr.ds-narrow')) {
+  for (const el of root.querySelectorAll('tr.ou-local-narrow')) {
     el.remove();
   }
-  for (const el of root.querySelectorAll('tr.ds-out')) {
-    el.classList.remove('ds-out');
+  for (const el of root.querySelectorAll('tr.ou-local-out')) {
+    el.classList.remove('ou-local-out');
   }
 }
 
@@ -68,21 +68,21 @@ export function narrow({ n: step, all }) {
     return;
   }
   const claims = claimsOf(page.story.chapters);
-  for (const section of document.querySelectorAll('.ds-file')) {
+  for (const section of document.querySelectorAll('.ou-local-file')) {
     const rel = section.getAttribute('data-path');
     const rows = [...section.querySelectorAll('tbody > tr')];
     const { hidden, runs } = narrowRows(rows.map(rowModel), claims, rel, step);
-    rows.forEach((row, i) => row.classList.toggle('ds-out', hidden[i]));
+    rows.forEach((row, i) => row.classList.toggle('ou-local-out', hidden[i]));
     for (const run of runs) {
       const lines = rows
         .slice(run.from, run.to + 1)
-        .filter((row) => row.classList.contains('ds-line')).length;
+        .filter((row) => row.classList.contains('ou-local-line')).length;
       const who = run.steps.length
         ? `told in ${run.steps.map(stepName).join(', ')}`
         : 'from other chapters';
       rows[run.from].insertAdjacentHTML(
         'beforebegin',
-        `<tr class="ds-narrow"><td colspan="${columnCount()}">⋯ ${plural(lines, 'line')} ${escapeHtml(who)}<button type="button" data-narrow-open>Show</button></td></tr>`,
+        `<tr class="ou-local-narrow"><td colspan="${columnCount()}">⋯ ${plural(lines, 'line')} ${escapeHtml(who)}<button type="button" data-narrow-open>Show</button></td></tr>`,
       );
     }
   }
@@ -92,10 +92,10 @@ export function narrow({ n: step, all }) {
 export function openRun(fold) {
   for (
     let row = fold.nextElementSibling;
-    row && row.classList.contains('ds-out');
+    row && row.classList.contains('ou-local-out');
     row = row.nextElementSibling
   ) {
-    row.classList.remove('ds-out');
+    row.classList.remove('ou-local-out');
   }
   fold.remove();
 }
@@ -103,10 +103,10 @@ export function openRun(fold) {
 /** Open the fold that holds a row (a jump to one of its lines). */
 export function openFold(row) {
   let fold = row.previousElementSibling;
-  while (fold && fold.classList.contains('ds-out')) {
+  while (fold && fold.classList.contains('ou-local-out')) {
     fold = fold.previousElementSibling;
   }
-  if (fold && fold.classList.contains('ds-narrow')) {
+  if (fold && fold.classList.contains('ou-local-narrow')) {
     openRun(fold);
   }
 }
@@ -118,9 +118,9 @@ export function reveal(rel, side, start, end) {
     return;
   }
   const section = document.getElementById(`diff-${file.sha}`);
-  if (section && section.classList.contains('ds-folded')) {
-    section.classList.remove('ds-folded');
-    section.querySelector('.ds-fold')?.setAttribute('aria-expanded', 'true');
+  if (section && section.classList.contains('ou-local-folded')) {
+    section.classList.remove('ou-local-folded');
+    section.querySelector('.ou-local-fold')?.setAttribute('aria-expanded', 'true');
   }
   if (!side || !Number.isFinite(start)) {
     return;
@@ -128,7 +128,7 @@ export function reveal(rel, side, start, end) {
   for (let line = start; line <= Math.max(start, end || start) && line < start + 400; line++) {
     const cell = document.querySelector(`[data-line-anchor="diff-${file.sha}${side}${line}"]`);
     const row = cell && cell.closest('tr');
-    if (row && row.classList.contains('ds-out')) {
+    if (row && row.classList.contains('ou-local-out')) {
       openFold(row);
     }
   }

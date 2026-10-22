@@ -70,12 +70,12 @@ export function treeHtml(rels) {
         folder = nextFolder;
       }
       html +=
-        `<div role="treeitem" aria-expanded="true" id="${escapeHtml(folderKey)}" class="ds-tree-dir">` +
-        `<div class="ds-tree-label" style="padding-left:${8 + depth * 12}px">${escapeHtml(label)}</div>` +
+        `<div role="treeitem" aria-expanded="true" id="${escapeHtml(folderKey)}" class="ou-local-tree-dir">` +
+        `<div class="ou-local-tree-label" style="padding-left:${8 + depth * 12}px">${escapeHtml(label)}</div>` +
         `<div role="group">${draw(folder, depth + 1)}</div></div>`;
     }
     for (const rel of node.files.sort()) {
-      html += `<div role="treeitem" id="${escapeHtml(rel)}" class="ds-tree-file" data-goto="${escapeHtml(rel)}" style="padding-left:${8 + depth * 12}px">${escapeHtml(rel.split('/').pop())}</div>`;
+      html += `<div role="treeitem" id="${escapeHtml(rel)}" class="ou-local-tree-file" data-goto="${escapeHtml(rel)}" style="padding-left:${8 + depth * 12}px">${escapeHtml(rel.split('/').pop())}</div>`;
     }
     return html;
   };
@@ -83,7 +83,7 @@ export function treeHtml(rels) {
 }
 
 const numberCell = (file, side, number, extra = '') =>
-  `<td class="ds-num${extra}" data-line-anchor="diff-${file.sha}${side}${number}" data-side="${side}" data-line="${number}" title="Add a fix-before-push note">${number}</td>`;
+  `<td class="ou-local-num${extra}" data-line-anchor="diff-${file.sha}${side}${number}" data-side="${side}" data-line="${number}" title="Add a fix-before-push note">${number}</td>`;
 const SIGN = { ctx: ' ', del: '-', add: '+' };
 const hunkHeader = (hunk) =>
   `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@ ${escapeHtml(hunk.header || '')}`;
@@ -93,17 +93,24 @@ function splitHtml(file) {
   let html = '';
   const highlights = highlighted(file);
   file.hunks.forEach((hunk, hunkIndex) => {
-    html += `<tr class="ds-hunk"><td class="ds-num"></td><td class="ds-code" colspan="3">${hunkHeader(hunk)}</td></tr>`;
+    html += `<tr class="ou-local-hunk"><td class="ou-local-num"></td><td class="ou-local-code" colspan="3">${hunkHeader(hunk)}</td></tr>`;
     for (const row of splitRows(hunk)) {
       if (row.info) {
-        html += `<tr class="ds-info"><td class="ds-num"></td><td class="ds-code" colspan="3">${escapeHtml(row.info)}</td></tr>`;
+        html += `<tr class="ou-local-info"><td class="ou-local-num"></td><td class="ou-local-code" colspan="3">${escapeHtml(row.info)}</td></tr>`;
         continue;
       }
       const half = (side, cell, right) =>
         cell
-          ? `${numberCell(file, side, cell.num, ` ds-n-${cell.kind}${right ? ' ds-rnum' : ''}`)}<td class="ds-code ds-c-${cell.kind}"><span class="ds-sign">${SIGN[cell.kind]}</span>${codeHtml(highlights, hunkIndex, cell.i, cell.text)}</td>`
-          : `<td class="ds-num ds-n-empty${right ? ' ds-rnum' : ''}"></td><td class="ds-code ds-c-empty"></td>`;
-      html += `<tr class="ds-line ds-pair">${half('L', row.left, false)}${half('R', row.right, true)}</tr>`;
+          ? numberCell(
+              file,
+              side,
+              cell.num,
+              ` ou-local-n-${cell.kind}${right ? ' ou-local-rnum' : ''}`,
+            ) +
+            `<td class="ou-local-code ou-local-c-${cell.kind}"><span class="ou-local-sign">${SIGN[cell.kind]}</span>` +
+            `${codeHtml(highlights, hunkIndex, cell.i, cell.text)}</td>`
+          : `<td class="ou-local-num ou-local-n-empty${right ? ' ou-local-rnum' : ''}"></td><td class="ou-local-code ou-local-c-empty"></td>`;
+      html += `<tr class="ou-local-line ou-local-pair">${half('L', row.left, false)}${half('R', row.right, true)}</tr>`;
     }
   });
   return html;
@@ -113,7 +120,7 @@ function unifiedHtml(file) {
   let html = '';
   const highlights = highlighted(file);
   file.hunks.forEach((hunk, hunkIndex) => {
-    html += `<tr class="ds-hunk"><td class="ds-num"></td><td class="ds-num"></td><td class="ds-code">${hunkHeader(hunk)}</td></tr>`;
+    html += `<tr class="ou-local-hunk"><td class="ou-local-num"></td><td class="ou-local-num"></td><td class="ou-local-code">${hunkHeader(hunk)}</td></tr>`;
     let oldLine = hunk.oldStart;
     let newLine = hunk.newStart;
     hunk.lines.forEach((line, i) => {
@@ -124,17 +131,17 @@ function unifiedHtml(file) {
           : escapeHtml(line.slice(1));
       const cell = (side, number) => numberCell(file, side, number);
       if (sign === ' ') {
-        html += `<tr class="ds-line ds-ctx">${cell('L', oldLine)}${cell('R', newLine)}<td class="ds-code"><span class="ds-sign"> </span>${text}</td></tr>`;
+        html += `<tr class="ou-local-line ou-local-ctx">${cell('L', oldLine)}${cell('R', newLine)}<td class="ou-local-code"><span class="ou-local-sign"> </span>${text}</td></tr>`;
         oldLine++;
         newLine++;
       } else if (sign === '-') {
-        html += `<tr class="ds-line ds-del">${cell('L', oldLine)}<td class="ds-num"></td><td class="ds-code"><span class="ds-sign">-</span>${text}</td></tr>`;
+        html += `<tr class="ou-local-line ou-local-del">${cell('L', oldLine)}<td class="ou-local-num"></td><td class="ou-local-code"><span class="ou-local-sign">-</span>${text}</td></tr>`;
         oldLine++;
       } else if (sign === '+') {
-        html += `<tr class="ds-line ds-add"><td class="ds-num"></td>${cell('R', newLine)}<td class="ds-code"><span class="ds-sign">+</span>${text}</td></tr>`;
+        html += `<tr class="ou-local-line ou-local-add"><td class="ou-local-num"></td>${cell('R', newLine)}<td class="ou-local-code"><span class="ou-local-sign">+</span>${text}</td></tr>`;
         newLine++;
       } else {
-        html += `<tr class="ds-info"><td class="ds-num"></td><td class="ds-num"></td><td class="ds-code">${text}</td></tr>`;
+        html += `<tr class="ou-local-info"><td class="ou-local-num"></td><td class="ou-local-num"></td><td class="ou-local-code">${text}</td></tr>`;
       }
     });
   });
@@ -143,21 +150,21 @@ function unifiedHtml(file) {
 
 function rowsHtml(file) {
   if (file.binary) {
-    return `<tr class="ds-info"><td colspan="${columnCount()}">Binary file</td></tr>`;
+    return `<tr class="ou-local-info"><td colspan="${columnCount()}">Binary file</td></tr>`;
   }
   if (file.whitespace_only) {
-    return `<tr class="ds-info"><td colspan="${columnCount()}">Only whitespace changes, hidden. Turn off Hide whitespace to see them.</td></tr>`;
+    return `<tr class="ou-local-info"><td colspan="${columnCount()}">Only whitespace changes, hidden. Turn off Hide whitespace to see them.</td></tr>`;
   }
   if (!file.hunks.length) {
-    return `<tr class="ds-info"><td colspan="${columnCount()}">${file.kind === 'renamed' ? 'Renamed without changes' : 'No changed lines'}</td></tr>`;
+    return `<tr class="ou-local-info"><td colspan="${columnCount()}">${file.kind === 'renamed' ? 'Renamed without changes' : 'No changed lines'}</td></tr>`;
   }
   return isSplit() ? splitHtml(file) : unifiedHtml(file);
 }
 
 const columnsHtml = () =>
   isSplit()
-    ? '<col class="ds-col-num"><col><col class="ds-col-num"><col>'
-    : '<col class="ds-col-num"><col class="ds-col-num"><col>';
+    ? '<col class="ou-local-col-num"><col><col class="ou-local-col-num"><col>'
+    : '<col class="ou-local-col-num"><col class="ou-local-col-num"><col>';
 
 function kindOf(file) {
   if (file.kind === 'renamed' && file.renamed_from) {
@@ -168,17 +175,17 @@ function kindOf(file) {
 
 export function fileHtml(file) {
   const kind = kindOf(file);
-  return `<div class="ds-file-wrap"><section role="region" class="ds-file${file.viewed ? ' ds-folded' : ''}" id="diff-${file.sha}" data-path="${escapeHtml(file.rel)}" aria-label="${escapeHtml(file.rel)}">
-    <header class="ds-file-head">
-      <button class="ds-fold" type="button" aria-label="Fold or unfold this file" aria-expanded="${!file.viewed}"></button>
-      <code class="ds-path">${escapeHtml(file.rel)}</code>
-      ${kind ? `<span class="ds-kind">${escapeHtml(kind)}</span>` : ''}
-      ${file.whitespace_only ? '<span class="ds-kind" title="Hide whitespace is on">whitespace only</span>' : ''}
-      <span class="ds-stat"><span class="ds-plus">+${file.stats.added}</span> <span class="ds-minus">−${file.stats.removed}</span></span>
-      ${file.viewed_changed ? '<span class="ds-changed" title="You marked this viewed, and its diff has changed since">changed since viewed</span>' : ''}
-      <button class="ds-viewed" type="button" aria-pressed="${file.viewed ? 'true' : 'false'}">Viewed</button>
+  return `<div class="ou-local-file-wrap"><section role="region" class="ou-local-file${file.viewed ? ' ou-local-folded' : ''}" id="diff-${file.sha}" data-path="${escapeHtml(file.rel)}" aria-label="${escapeHtml(file.rel)}">
+    <header class="ou-local-file-head">
+      <button class="ou-local-fold" type="button" aria-label="Fold or unfold this file" aria-expanded="${!file.viewed}"></button>
+      <code class="ou-local-path">${escapeHtml(file.rel)}</code>
+      ${kind ? `<span class="ou-local-kind">${escapeHtml(kind)}</span>` : ''}
+      ${file.whitespace_only ? '<span class="ou-local-kind" title="Hide whitespace is on">whitespace only</span>' : ''}
+      <span class="ou-local-stat"><span class="ou-local-plus">+${file.stats.added}</span> <span class="ou-local-minus">−${file.stats.removed}</span></span>
+      ${file.viewed_changed ? '<span class="ou-local-changed" title="You marked this viewed, and its diff has changed since">changed since viewed</span>' : ''}
+      <button class="ou-local-viewed" type="button" aria-pressed="${file.viewed ? 'true' : 'false'}">Viewed</button>
     </header>
-    <div class="ds-file-body"><table class="ds-diff${isSplit() ? ' ds-split' : ''}"><colgroup>${columnsHtml()}</colgroup><tbody>${rowsHtml(file)}</tbody></table></div>
+    <div class="ou-local-file-body"><table class="ou-local-diff${isSplit() ? ' ou-local-split' : ''}"><colgroup>${columnsHtml()}</colgroup><tbody>${rowsHtml(file)}</tbody></table></div>
   </section></div>`;
 }
 
@@ -190,7 +197,13 @@ const rangeHtml = (local) =>
 /** "3 commits · 4 files +10 −2" */
 const sizeHtml = (local, added, removed) =>
   `${plural(local.commits.length, 'commit')} · ${plural(local.files.length, 'file')} ` +
-  `<span class="ds-plus">+${added}</span> <span class="ds-minus">−${removed}</span>`;
+  `<span class="ou-local-plus">+${added}</span> <span class="ou-local-minus">−${removed}</span>`;
+
+const WS_TITLE =
+  "Draw the diff with git diff -w, like GitHub's Hide whitespace. Remembered for every local story.";
+const viewButtonsHtml = () =>
+  `<button type="button" data-diff-view="unified" aria-pressed="${!isSplit()}">Unified</button>` +
+  `<button type="button" data-diff-view="split" aria-pressed="${isSplit()}">Split</button>`;
 
 /** The top bar: the range, its size, the diff view, Hide whitespace and the notes toggle. */
 export function headerHtml() {
@@ -199,14 +212,14 @@ export function headerHtml() {
   const added = local.files.reduce((sum, file) => sum + file.stats.added, 0);
   const removed = local.files.reduce((sum, file) => sum + file.stats.removed, 0);
   const open = local.notes.filter((note) => !note.done).length;
-  return `<header class="ds-top">
-    <div class="ds-top-main">
+  return `<header class="ou-local-top">
+    <div class="ou-local-top-main">
       <h1>${escapeHtml(story.title)}</h1>
-      <div class="ds-muted">${rangeHtml(local)} · ${sizeHtml(local, added, removed)}</div>
+      <div class="ou-local-muted">${rangeHtml(local)} · ${sizeHtml(local, added, removed)}</div>
     </div>
-    <div class="ds-view" role="group" aria-label="Diff view"><button type="button" data-diff-view="unified" aria-pressed="${!isSplit()}">Unified</button><button type="button" data-diff-view="split" aria-pressed="${isSplit()}">Split</button></div>
-    <label class="ds-ws" title="Draw the diff with git diff -w, like GitHub's Hide whitespace. Remembered for every local story."><input type="checkbox" class="ds-ws-toggle"${local.hide_whitespace ? ' checked' : ''}> Hide whitespace</label>
-    <button type="button" class="ds-notes-toggle" aria-expanded="false">Fix before push: ${open} open</button>
+    <div class="ou-local-view" role="group" aria-label="Diff view">${viewButtonsHtml()}</div>
+    <label class="ou-local-ws" title="${WS_TITLE}"><input type="checkbox" class="ou-local-ws-toggle"${local.hide_whitespace ? ' checked' : ''}> Hide whitespace</label>
+    <button type="button" class="ou-local-notes-toggle" aria-expanded="false">Fix before push: ${open} open</button>
   </header>
-  <section class="ds-notes-list" hidden></section>`;
+  <section class="ou-local-notes-list" hidden></section>`;
 }
