@@ -22,12 +22,12 @@ import path from 'node:path';
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, writeJson, TOKEN, startBridge, localRepo, runCli } from '../helpers.mjs';
-import { createLocalStory } from '../../bridge/stories/local-story.mjs';
-import { beat } from '../../bridge/listeners/listeners.mjs';
-import { Builds } from '../../bridge/inbox/builds.mjs';
+import { createLocalStory } from '../../src/bridge/stories/local-story.mjs';
+import { beat } from '../../src/bridge/listeners/listeners.mjs';
+import { Builds } from '../../src/bridge/inbox/builds.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const EXT = path.join(ROOT, 'src');
+const EXT = path.join(ROOT, 'src/extension');
 const args = process.argv.slice(2);
 /** --name's value, true for a bare --name, or the fallback when it isn't given. */
 const arg = (name, fallback) => {

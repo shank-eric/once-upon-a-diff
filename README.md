@@ -13,17 +13,17 @@ The once-upon skill (`skills/once-upon/`) writes the stories, and this extension
 
 ## Installing
 
-You need Node 24 or newer, the current LTS (`.nvmrc` says 24). The bridge has no runtime dependencies. `yarn install` only fetches eslint, playwright-core and highlight.js (vendored into `bridge/public/vendor/`) for development. The repo uses Yarn 4, kept in `.yarn/releases` and named in `package.json`'s `packageManager`. Any `yarn` hands off to it, and `corepack enable` gets you a `yarn` if you have none.
+You need Node 24 or newer, the current LTS (`.nvmrc` says 24). The bridge has no runtime dependencies. `yarn install` only fetches eslint, playwright-core and highlight.js (vendored into `src/bridge/public/vendor/`) for development. The repo uses Yarn 4, kept in `.yarn/releases` and named in `package.json`'s `packageManager`. Any `yarn` hands off to it, and `corepack enable` gets you a `yarn` if you have none.
 
 1. Print the bridge's port and token. This also creates `~/.once-upon/config.json` with a random token:
    ```bash
-   node bridge/bin/once-upon.mjs setup
+   node src/bridge/bin/once-upon.mjs setup
    ```
-2. In Chrome, go to `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick this repo's `src/` folder.
+2. In Chrome, go to `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick this repo's `src/extension/` folder.
 3. The options page opens on install. If it doesn't, go to Details → Extension options. Paste the port and token, then click **Save** and **Test connection**.
 4. Start the bridge and leave it running, or skip this and let `/once-upon-listen` start it for you:
    ```bash
-   node bridge/bin/once-upon.mjs serve     # or: yarn bridge
+   node src/bridge/bin/once-upon.mjs serve     # or: yarn bridge
    ```
 5. Install the `once-upon-listen` Claude Code skill by linking it into your skills folder. If `~/.claude/skills` is itself a link, `ln` puts it in the folder the link points at, which is what you want:
    ```bash
@@ -35,7 +35,7 @@ You need Node 24 or newer, the current LTS (`.nvmrc` says 24). The bridge has no
    ln -s "$PWD/skills/once-upon" ~/.claude/skills/once-upon
    ```
 
-An alias saves typing: `alias once-upon="node /path/to/once-upon-a-diff/bridge/bin/once-upon.mjs"`. The rest of this README uses `once-upon`.
+An alias saves typing: `alias once-upon="node /path/to/once-upon-a-diff/src/bridge/bin/once-upon.mjs"`. The rest of this README uses `once-upon`.
 
 ## Is it set up?
 
@@ -68,7 +68,7 @@ It exits 1 when something fails.
 
 `/once-upon-listen --story <id>` listens for one story: see [One story, one session](#one-story-one-session). The repo form's session then:
 
-1. Finds the CLI: `once-upon` on `PATH`, else `node <repo>/bridge/bin/once-upon.mjs`, with `<repo>` from the `ONCE_UPON_REPO` env var, `repo_dir` in `~/.once-upon/config.json` (both read only by the skill), or the folder the skill is linked from.
+1. Finds the CLI: `once-upon` on `PATH`, else `node <repo>/src/bridge/bin/once-upon.mjs`, with `<repo>` from the `ONCE_UPON_REPO` env var, `repo_dir` in `~/.once-upon/config.json` (both read only by the skill), or the folder the skill is linked from.
 2. Runs `once-upon doctor`. If nothing is listening on the bridge's port, it starts the bridge detached, so it keeps running after the session ends, and waits for it to answer. If something else has the port, it says so and stops.
 3. Runs `once-upon wait --repo octo-org/web-app --type question,build_request,fix_request --consumer repo-octo-org-web-app` as a background task, which keeps the light green for every story and PR in that repo. It starts the wait again after each event.
 4. Answers each Ask-box question from the story's chapters and the code in the checkout, briefly, with `once-upon answer`.
@@ -227,7 +227,7 @@ This builds `git diff <base> <head>` into `~/.once-upon/local-<repo>-<branch>/`.
 - **Comments become "fix before push" notes.** Click a line number to add a note. Notes are listed under "Fix before push" at the top, can be ticked done, and go to the inbox. The panel's Fix before push box sends them to a Claude session ([above](#fix-before-push-send-notes-to-a-session)). `once-upon notes --story <id>` prints them as a checklist. Comments drafted in `chapters.json` show in the panel as "Fix before push (drafted)".
 - **The page follows the branch.** Amend or add a commit and the page redraws with the new diff within ≈5 seconds.
 - **Unified / Split**, in the page header, switches between one column and GitHub's side-by-side view, with old lines on the left and new on the right, lined up. Line numbers on either side take notes, and line jumps, Viewed and the panel work the same in both. It's saved in `prefs.json` too, so it holds for every local story.
-- **Syntax highlighting** colors the diff in both views, picked by file extension: TypeScript and TSX, JavaScript, JSON, Ruby and ERB, YAML, CSS and SCSS, Markdown, shell, and HTML/XML. Each hunk's old and new sides are highlighted as whole pieces of code, so a template string or block comment that runs over several lines is colored right. A hunk that starts partway into a comment can still come out wrong. Files over 3,000 diff lines, minified lines and anything past 20,000 lines on a page stay plain, so big diffs stay quick. highlight.js is vendored in `bridge/public/vendor/` (`yarn vendor` remakes it from the pinned dev dependency), so the bridge still has no runtime dependencies and the page loads nothing from a CDN.
+- **Syntax highlighting** colors the diff in both views, picked by file extension: TypeScript and TSX, JavaScript, JSON, Ruby and ERB, YAML, CSS and SCSS, Markdown, shell, and HTML/XML. Each hunk's old and new sides are highlighted as whole pieces of code, so a template string or block comment that runs over several lines is colored right. A hunk that starts partway into a comment can still come out wrong. Files over 3,000 diff lines, minified lines and anything past 20,000 lines on a page stay plain, so big diffs stay quick. highlight.js is vendored in `src/bridge/public/vendor/` (`yarn vendor` remakes it from the pinned dev dependency), so the bridge still has no runtime dependencies and the page loads nothing from a CDN.
 - **Hide whitespace**, in the page header, draws the diff with `git diff -w`, like GitHub's setting of the same name. Unlike GitHub's, it's remembered: the bridge keeps it in `~/.once-upon/prefs.json`, so it holds for every local story and across reloads and bridge restarts. A file whose only changes are whitespace stays listed, marked "whitespace only". Viewed marks and "changed since viewed" are always checked against the full diff, so turning it on or off never flips them. A whitespace-only edit after you mark a file viewed still counts as a change. A note or a story line on a line the `-w` diff doesn't draw sits at the top of its file (notes say so), or the panel jumps to the nearest drawn line.
 - **A chapter shows its own lines.** When chapters that share a file give `lines` ranges, each chapter folds the lines another chapter tells behind a row that says which chapter (**Show** opens it, and a link to one of its lines opens it too, along with the file if it's folded). Lines no range covers show in the first chapter that lists the file. A chapter that lists the file without ranges, the Overview and **Show all files** draw all of it. GitHub's page can't be redrawn this way, so there the panel filters by file only.
 - Without `--chapters`, you get one chapter per top-level folder as a starting point. Any file a story doesn't place lands in a last "Not in a chapter yet" step, so nothing is hidden from every step.
@@ -324,7 +324,7 @@ It blocks until a new question on that story arrives, then prints the question a
 1. **A `UserPromptSubmit` hook.** It would run `once-upon inbox --unread --consumer hook --type question`, and anything it prints would be added to the prompt's context. Questions typed in the panel would then reach the session with your next message, even if no wait is running. It's cheap, but it only fires when you send a prompt.
 2. **A small MCP server (`once-upon mcp`, not written yet).** It would read the same inbox and cursors, and offer tools: `next_question` (blocking, with a timeout), `answer`, `current_position` and `fix_before_push_notes`. If Claude Code's MCP servers can push messages into a live session, it could also deliver each question the moment it's asked. That needs checking against the current Claude Code docs before building.
 
-Both read `inbox.jsonl` the way `wait` does. The format is described at the top of `bridge/inbox/inbox.mjs`.
+Both read `inbox.jsonl` the way `wait` does. The format is described at the top of `src/bridge/inbox/inbox.mjs`.
 
 ## Refined GitHub
 
@@ -367,9 +367,9 @@ yarn lint              # ESLint (cached); yarn lint:fix fixes what it can
 yarn format:check      # Prettier's check (100 columns); yarn format rewrites
 yarn lint:sh           # shellcheck over the once-upon skill's shell scripts
 yarn types             # TypeScript's checkJs (JSDoc types, no build step): tsconfig.json for Node, tsconfig.browser.json for the extension and local page
-yarn test:extension    # loads src/ into a throwaway Playwright Chromium, never your own Chrome
+yarn test:extension    # loads src/extension/ into a throwaway Playwright Chromium, never your own Chrome
 yarn test:expand       # the same Chromium: panel links expand collapsed files and hunks on /files and /changes
-yarn icons             # redraws src/icons
+yarn icons             # redraws src/extension/icons
 ```
 
 A pre-commit hook (husky and lint-staged, installed by `yarn install`) runs ESLint and Prettier's check on the staged JavaScript.
@@ -394,14 +394,15 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
 
 ## Code layout
 
-- `src/`: the extension, which is the folder to load unpacked.
-  - `js/background.js` is the only code that makes network calls, and only to `127.0.0.1`.
-  - `js/content/index.js` routes by page kind: Files changed, Conversation, PR list, or other.
+- `src/extension/`: the extension, which is the folder to load unpacked. Its `shared` is a link to `src/shared/`.
+  - `background.js` is the only code that makes network calls, and only to `127.0.0.1`. `settings.js` keeps the bridge's port and token.
+  - `content/index.js` routes by page kind: Files changed, Conversation, PR list, or other.
     - `bridge.js` sends bridge calls through the service worker. `storage.js` keeps the panel's state per PR and the Hide whitespace copy.
     - `pages/files-changed.js` docks the panel and puts the story tag by the title when the panel is hidden. `pages/hide-whitespace.js` keeps `?w=1` in step with the setting.
     - `pages/conversation.js` and `pages/pull-list.js` put the story tag by a PR's title.
     - `ui/` holds the pieces they share: `story-tag.js` (what a tag says), `tag-host.js`, `listen-notice.js`, `pr-tags.js` (the tag controller every PR page shares), `copy.js` and `toast.js`.
-  - `js/shared/overlay.js` is the panel's entry, shared with the local page. It builds one context and wires the modules in `js/shared/panel/`:
+- `src/shared/`: the code the extension and the bridge both use. The bridge serves it to the local page and imports its helpers.
+  - `overlay.js` is the panel's entry, shared with the local page. It builds one context and wires the modules in `panel/`:
     - `story-model.js`: chapters, numbers and where each file is finished. `panel-state.js`: the saved step and layout.
     - `shell.js` and `styles.js`: the frame, toolbar and CSS. `body.js`: the step on screen. `navigation.js`: Prev, Next and the step list.
     - `host-page.js`: finding files, lines and toggles on `/changes`, `/files` and the local page. `filter.js`, `expand.js` and `scroll.js`: hiding, opening and jumping.
@@ -409,8 +410,8 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
     - `review-script.js`: the Overview's Copy as gh script.
     - `viewed.js`, `reading.js`, `drafts.js`, `freshness.js`, `rebuild.js`, `marks.js`, `status-light.js` and `questions.js`: Viewed progress, read tracking, drafted comments, story freshness, Rebuild, the "changed since" marks, the status light and the Ask box.
     - `fixes.js` and `working.js`: Fix before push (Send, Auto-send, each note's state) and the "being changed" marks.
-  - `js/shared/util/`: helpers for the panel, the content scripts, the local page and the bridge (escaping, short SHAs, times, the clipboard, GitHub paths, key isolation).
-- `bridge/`: the bridge and its CLI.
+  - `util/`: helpers for the panel, the content scripts, the local page and the bridge (escaping, SHAs, PR keys, line references, times, the clipboard, GitHub paths, key isolation, the default port).
+- `src/bridge/`: the bridge and its CLI.
   - `bin/once-upon.mjs` runs `cli/index.mjs`, a table of commands in `cli/commands/` (bridge, stories, inbox, drafts, builds, checks, fixes) that also builds the help. `cli/doctor.mjs` is `once-upon doctor`.
   - `server/index.mjs` is the HTTP server: its guards, then a route table. The routes are in `server/routes/` by area; `pages.mjs` and `assets.mjs` serve the HTML pages and the scripts.
   - `stories/`: finding story folders (`store.mjs`, `placement.mjs`), reading them (`meta.mjs`, `chapters.mjs`, `story-data.mjs`, `text-refs.mjs`, `hunk-coverage.mjs`), local stories (`local-story.mjs`, `local-diff.mjs`), read tracking (`reads.mjs`), drafted comments (`comments.mjs`), the rules a Rebuild is published by (`rebuild.mjs`) and "being changed" marks (`working.mjs`).

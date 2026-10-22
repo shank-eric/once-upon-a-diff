@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmp, writeJson } from './helpers.mjs';
-import { scriptDrafts, reviewScript } from '../src/js/shared/panel/review-script.js';
+import { scriptDrafts, reviewScript } from '../src/shared/panel/review-script.js';
 
 const RELS = ['src/a.js', 'lib/b.js'];
 const NASTY = 'It\'s "quoted" $(touch PWNED) `touch PWNED2` $HOME\nONCE_UPON_REVIEW_JSON\n\\n end';

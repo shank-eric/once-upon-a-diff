@@ -110,3 +110,4 @@ Steps 1 to 5 are independent of each other and could go in any order. Steps 6 an
 - Step 7: we retired the snippet. The skill's `bin/overlay.js`, its `overlay` command and its GitHub mode are gone, so the extension is the only way a story shows on GitHub and panel fixes land in one place. When the bridge or the extension isn't there, the skill now tells the reviewer to set it up (GETTING-STARTED.md) instead of injecting anything.
 - Step 9 renamed the tests and scripts but kept the test tree and `load-test.mjs` as they are.
 - Since then, autoBuild, autoAnswer, chat mode and the backstory were cut (see git history), so the `backstory/` folder and its rows above are gone.
+- Later still, the code moved under `src/`: `src/extension/` (the folder to load unpacked), `src/bridge/` (was `bridge/`) and `src/shared/` (was `src/js/shared/`), with `src/extension/shared` a link to `src/shared/`. Paths above are as they were at the time.

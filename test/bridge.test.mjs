@@ -13,10 +13,10 @@ import {
   writeJson,
   runCli,
 } from './helpers.mjs';
-import { pathSha } from '../bridge/util/diff.mjs';
-import { createLocalStory } from '../bridge/stories/local-story.mjs';
-import { StoryStore } from '../bridge/stories/store.mjs';
-import { beat } from '../bridge/listeners/listeners.mjs';
+import { pathSha } from '../src/bridge/util/diff.mjs';
+import { createLocalStory } from '../src/bridge/stories/local-story.mjs';
+import { StoryStore } from '../src/bridge/stories/store.mjs';
+import { beat } from '../src/bridge/listeners/listeners.mjs';
 
 /** A raw request, for headers fetch won't let us set (Host). */
 function raw(base, path, headers) {

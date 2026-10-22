@@ -9,11 +9,11 @@
     ]
   },
   "include": [
-    "bridge/**/*.mjs",
+    "src/bridge/**/*.mjs",
     "skills/**/*.mjs",
     "scripts/**/*.mjs"
   ],
   "exclude": [
-    "bridge/public/vendor"
+    "src/bridge/public/vendor"
   ]
 }

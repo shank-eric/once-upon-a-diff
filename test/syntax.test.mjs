@@ -7,8 +7,8 @@ import {
   hunkHtml,
   highlightFile,
   LIMITS,
-} from '../bridge/public/syntax.js';
-import hljs from '../bridge/public/vendor/highlight.mjs';
+} from '../src/bridge/public/syntax.js';
+import hljs from '../src/bridge/public/vendor/highlight.mjs';
 import { startBridge, tmp } from './helpers.mjs';
 
 const strip = (html) => html.replace(/<[^>]+>/g, '');
@@ -105,7 +105,7 @@ test('the bridge serves highlight.js and the highlighter, with no CDN in the pag
       assert.equal(response.status, 200);
       assert.match(response.headers.get('content-type'), /javascript/);
     }
-    const local = readFileSync(new URL('../bridge/public/local.js', import.meta.url), 'utf8');
+    const local = readFileSync(new URL('../src/bridge/public/local.js', import.meta.url), 'utf8');
     assert.ok(
       !/https?:\/\//.test(local.replace(/\/\/.*$/gm, '')),
       'local.js loads nothing from the network',
