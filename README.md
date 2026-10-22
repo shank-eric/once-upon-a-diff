@@ -9,7 +9,7 @@ A code-review story (an overview, then chapters) in a side panel docked on top o
 
 The two work the same way and read the same `chapters.json` (pr-story's format). The panel comes back on the same step after a reload, after GitHub's in-page navigation, and when the story on disk changes.
 
-The panel is a port of the pr-story skill's GitHub overlay (`skills/pr-story/bin/overlay.js`). It has the same Overview step, the same per-file placement (each file is marked viewed in the last chapter that tells it), and the same file and line jumps. It adds a saved step, an Ask box, and a shadow root so the page's CSS can't reach it.
+The pr-story skill (`skills/pr-story/`) writes the stories, and this extension is the only way they show on GitHub. The panel has an Overview step, per-file placement (each file is marked viewed in the last chapter that tells it), file and line jumps, a saved step, an Ask box, and a shadow root so the page's CSS can't reach it.
 
 ## Installing
 
