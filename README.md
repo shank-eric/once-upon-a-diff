@@ -400,11 +400,11 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
     - `bridge.js` sends bridge calls through the service worker. `storage.js` keeps the panel's state per PR and the Hide whitespace copy.
     - `pages/files-changed.js` docks the panel and puts the story tag by the title when the panel is hidden. `pages/hide-whitespace.js` keeps `?w=1` in step with the setting.
     - `pages/conversation.js` and `pages/pull-list.js` put the story tag by a PR's title.
-    - `ui/` holds the pieces they share: `story-tag.js` (what a tag says), `tag-host.js`, `listen-notice.js`, `pr-tags.js` (the tag controller every PR page shares), `copy.js` and `toast.js`.
+    - `ui/` holds the pieces they share: `story-tag.js` (what a tag says), `tag-host.js`, `listen-notice.js`, `pr-tags.js` (the tag controller every PR page shares), `copy.js` and `toast.js`. Each one with its own shadow root links its CSS from a `.css` file beside it.
 - `src/shared/`: the code the extension and the bridge both use. The bridge serves it to the local page and imports its helpers.
   - `overlay.js` is the panel's entry, shared with the local page. It builds one context and wires the modules in `panel/`:
     - `story-model.js`: chapters, numbers and where each file is finished. `panel-state.js`: the saved step and layout.
-    - `shell.js` and `styles.js`: the frame, toolbar and CSS. `body.js`: the step on screen. `navigation.js`: Prev, Next and the step list.
+    - `shell.js`: the frame and toolbar, with `panel.css` in its shadow root and `page.css` (docking, hiding, flashing) in the page's head. `body.js`: the step on screen. `navigation.js`: Prev, Next and the step list.
     - `host-page.js`: finding files, lines and toggles on `/changes`, `/files` and the local page. `filter.js`, `expand.js` and `scroll.js`: hiding, opening and jumping.
     - `file-refs.js` and `markdown.js`: the story's text and its jump links. `file-list.js`: the file rows.
     - `review-script.js`: the Overview's Copy as gh script.
@@ -413,7 +413,7 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
   - `util/`: helpers for the panel, the content scripts, the local page and the bridge (escaping, SHAs, PR keys, line references, times, the clipboard, GitHub paths, key isolation, the default port).
 - `src/bridge/`: the bridge and its CLI.
   - `bin/once-upon.mjs` runs `cli/index.mjs`, a table of commands in `cli/commands/` (bridge, stories, inbox, drafts, builds, checks, fixes) that also builds the help. `cli/doctor.mjs` is `once-upon doctor`.
-  - `server/index.mjs` is the HTTP server: its guards, then a route table. The routes are in `server/routes/` by area; `pages.mjs` and `assets.mjs` serve the HTML pages and the scripts.
+  - `server/index.mjs` is the HTTP server: its guards, then a route table. The routes are in `server/routes/` by area; `pages.mjs` and `assets.mjs` serve the HTML pages, the scripts and the stylesheets.
   - `stories/`: finding story folders (`store.mjs`, `placement.mjs`), reading them (`meta.mjs`, `chapters.mjs`, `story-data.mjs`, `text-refs.mjs`, `hunk-coverage.mjs`), local stories (`local-story.mjs`, `local-diff.mjs`), read tracking (`reads.mjs`), drafted comments (`comments.mjs`), the rules a Rebuild is published by (`rebuild.mjs`) and "being changed" marks (`working.mjs`).
   - `github/`: what asks `gh` (read-only, except Add to my review): freshness, drafts and the pending review.
   - `inbox/` (the inbox, the conversation's marks and routing, build requests, and fix-before-push notes and fix requests), `listeners/` (who's listening), `config/` (settings, prefs, repos and checkouts) and `util/` (gh, git, diffs, JSON files).

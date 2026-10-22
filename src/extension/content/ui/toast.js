@@ -1,16 +1,22 @@
 /*
- * A short message at the bottom right of GitHub's page, gone after 5s.
+ * A short message at the bottom right of GitHub's page, gone after 5s. Our
+ * own element in its own shadow root, so GitHub's CSS can't reach it.
  */
+import { hideUntilStyled, stylesheetLink } from '../../shared/util/dom.js';
 
 const TOAST_MS = 5000;
+const TOAST_CSS_URL = new URL('./toast.css', import.meta.url).href;
 
 export function toast(text) {
-  const el = document.createElement('div');
-  el.textContent = text;
-  el.setAttribute('role', 'status');
-  el.style.cssText =
-    'position:fixed;right:16px;bottom:16px;z-index:100;max-width:360px;padding:8px 12px;border-radius:6px;font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;' +
-    'background:var(--bgColor-emphasis,#25292e);color:var(--fgColor-onEmphasis,#fff);box-shadow:0 4px 12px rgba(0,0,0,.2)';
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), TOAST_MS);
+  const host = document.createElement('div');
+  const shadow = host.attachShadow({ mode: 'open' });
+  const link = stylesheetLink(TOAST_CSS_URL);
+  const message = document.createElement('div');
+  message.className = 't';
+  message.textContent = text;
+  message.setAttribute('role', 'status');
+  shadow.append(link, message);
+  hideUntilStyled(host, [link]);
+  document.body.appendChild(host);
+  setTimeout(() => host.remove(), TOAST_MS);
 }

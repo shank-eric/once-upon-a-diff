@@ -3,8 +3,7 @@
  * (status light, Hide story, Prev, Next, close), the note line, the body and
  * the Ask box, plus the message line, docking width and collapse.
  */
-import { stopKeyEvents } from '../util/dom.js';
-import { documentCss, panelCss } from './styles.js';
+import { hideUntilStyled, stopKeyEvents, stylesheetLink } from '../util/dom.js';
 
 const MARKUP = (withAsk) => `
     <div class="ou-grip" title="Drag to resize"></div>
@@ -32,14 +31,14 @@ const COLLAPSED_WIDTH = 36;
 
 export function createShell(context) {
   const { hostId, panelId, opts, state } = context;
-  const pageStyle = document.createElement('style');
+  // page.css goes in the page's head, panel.css in the shadow root. Both are next to this module: the extension's
+  // copy on GitHub, the bridge's /assets/panel/ on the local page.
+  const pageStyle = stylesheetLink(new URL('./page.css', import.meta.url).href);
   pageStyle.id = hostId + '-style';
-  pageStyle.textContent = documentCss(hostId);
+  const panelStyle = stylesheetLink(new URL('./panel.css', import.meta.url).href);
   const host = document.createElement('div');
   host.id = hostId;
   const shadow = host.attachShadow({ mode: 'open' });
-  const panelStyle = document.createElement('style');
-  panelStyle.textContent = panelCss(panelId);
   shadow.appendChild(panelStyle);
   const root = document.createElement('aside');
   root.id = panelId;
@@ -128,6 +127,7 @@ export function createShell(context) {
 
   /** Put the panel on the page and dock it. */
   function mount() {
+    hideUntilStyled(host, [pageStyle, panelStyle]);
     document.head.appendChild(pageStyle);
     shadow.appendChild(root);
     document.body.appendChild(host);

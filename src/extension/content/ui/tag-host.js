@@ -4,15 +4,20 @@
  * it and its clicks and keys stay ours. Used on PR lists and the
  * Conversation tab.
  */
-import { stopKeyEvents } from '../../shared/util/dom.js';
-import { TAG_CSS } from './story-tag.js';
+import { hideUntilStyled, stopKeyEvents, stylesheetLink } from '../../shared/util/dom.js';
+
+const TAG_CSS_URL = new URL('./story-tag.css', import.meta.url).href;
 
 /** A new tag host marked attribute=key, calling onClick for clicks inside it. */
 export function createTagHost(attribute, key, onClick) {
   const host = document.createElement('span');
   host.setAttribute(attribute, key);
   const shadow = host.attachShadow({ mode: 'open' });
-  shadow.innerHTML = `<style>${TAG_CSS}</style><span class="slot"></span>`;
+  const link = stylesheetLink(TAG_CSS_URL);
+  const slot = document.createElement('span');
+  slot.className = 'slot';
+  shadow.append(link, slot);
+  hideUntilStyled(host, [link]);
   shadow.addEventListener('click', onClick);
   stopKeyEvents(shadow);
   return host;
