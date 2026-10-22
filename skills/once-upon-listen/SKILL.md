@@ -1,7 +1,7 @@
 ---
 name: once-upon-listen
-description: Listen for one repo's Once Upon a Diff requests from this Claude Code session. Answers questions typed in the panel's Ask box and builds stories asked for with Build story, on any PR or local story in that repo, until told to stop. Use when the user pastes or types /once-upon-listen <owner/repo>, the line the panel's "Copy prompt for Claude" button copies.
-argument-hint: <owner/repo>
+description: Listen for one repo's Once Upon a Diff requests from this Claude Code session, or for one story's questions. Answers questions typed in the panel's Ask box and builds stories asked for with Build story, on any PR or local story in that repo, until told to stop. Use when the user pastes or types /once-upon-listen <owner/repo> or /once-upon-listen --story <id>, the lines the panel's "Copy prompt for Claude" and "Copy prompt for this story" buttons copy.
+argument-hint: <owner/repo> | --story <id|owner/repo#N|PR number> [--consumer <name>]
 ---
 
 # Once Upon a Diff listen
@@ -11,8 +11,11 @@ The panel's **Copy prompt for Claude** button copies `/once-upon-listen <owner/r
 The argument is `$ARGUMENTS`.
 
 - `owner/repo`: listen for that repo.
-- `--story <id>`: listen for one story only (the panel copies this for a story with no repo).
+- `--story <id>`: listen for one story's questions only. The panel's **Copy prompt for this story** copies this, for the session that built the story, and so does the line once-upon's `build` prints. It takes the story id, `owner/repo#N`, a PR URL or a PR number in this checkout. Pass the same value to `wait`, which works out the id.
+- `--consumer <name>`: what the panel calls this session ("Answered by <name>"). The default is `repo-<owner>-<name>` or `story-<id>`.
 - Nothing: use the repo of this checkout's `origin`. If there isn't one, listen for everything (a `wait` with no `--repo`).
+
+**Who gets a question.** A live story listener gets its story's questions. A repo or catch-all listener leaves those alone while the story listener is live, and takes them once it isn't. No question is handed to two sessions, and a question the reviewer dismissed isn't handed over. A story listener gets no build requests: they stay with the repo's listener.
 
 ## House rules
 
@@ -58,9 +61,9 @@ That's `once-upon` on `PATH`, then the `ONCE_UPON_REPO` env var (the once-upon-a
   - **port … is taken by pid …** or **something else answers on port …**: another program has the port. Stop that program, or set another `port` in `~/.once-upon/config.json` and in the extension options.
   - **rejects this config's token**: a bridge started with an older token is running. Restart it.
 - Questions and build requests queue in `~/.once-upon/inbox.jsonl` while the bridge is down, so nothing asked before it came up is lost.
-- Check this session's folder is a checkout of the repo: `git remote get-url origin` should name `owner/repo`. If it doesn't, say so in one line and ask the user to open the session in that checkout. Don't go looking for or cloning another copy.
+- Check this session's folder is a checkout of the repo (for `--story`, the story's repo, from `<cli> list`): `git remote get-url origin` should name `owner/repo`. If it doesn't, say so in one line and ask the user to open the session in that checkout. Don't go looking for or cloning another copy.
 
-Then say in one line that you're listening for `owner/repo`, and that they can say "stop" at any time.
+Then say in one line that you're listening for `owner/repo` (or for the story, and that its questions now come here ahead of the repo's listener), and that they can say "stop" at any time.
 
 ## 3. Wait in the background
 
@@ -70,7 +73,7 @@ Run this with Bash's `run_in_background`:
 <cli> wait --repo <owner/repo> --type question,build_request --consumer repo-<owner>-<name>
 ```
 
-`<owner>-<name>` is lowercased. With `--story <id>`, use `--story <id> --consumer story-<id>`. The wait writes the heartbeat the panel's light reads, blocks until something arrives, prints it and exits. The exit notification wakes this session. Then:
+`<owner>-<name>` is lowercased. With `--story <id>`, run `<cli> wait --story <id> --type question --consumer story-<id>` (or the `--consumer` name you were given), and skip step 5. The wait writes the heartbeat the panel's light reads, blocks until something arrives, prints it and exits. The exit notification wakes this session. Then:
 
 1. Read the task's output. It can hold several events. Handle each one, questions first.
 2. Start the same wait again as soon as you've handled them, or as soon as a build request arrives (step 5), so questions asked during a build still get answered.
@@ -88,7 +91,7 @@ The event gives the question id, the story id, the chapter or step, the file it 
    ```bash
    <cli> answer --question <id> --file <scratchpad>/answer-<id>.md
    ```
-   Use `--text "…"` for a one-liner. The panel shows the answer under the question within a few seconds.
+   Use `--text "…"` for a one-liner. The panel shows the answer under the question within a few seconds, with "Answered by" and the consumer the wait handed it to.
    - Short and plain: lead with the answer, ≈2-6 sentences, a short list only when it helps. Name files and lines as `` `path:40` ``. Hedge where you're unsure.
    - If the answer suggests a review comment, draft it in the user's voice and add it to the chapter's Draft comments with `<cli> comment --story <id> --chapter <N> --path <file> --line <L> --body-file <f>`. Check `<cli> drafts --story <id>` first and don't re-suggest one that's posted or dismissed.
 4. In chat, say one line: the question and that it's answered.
@@ -107,4 +110,4 @@ If a question arrives mid-build, answer it (step 4), then carry on with the buil
 
 ## 6. Stop
 
-When the user says stop (or "stop listening", "that's all"), stop the background wait with TaskStop, finish or mark failed any build you've claimed, and say in one line that the repo has no listener now. The panel's light goes amber within ≈15 seconds.
+When the user says stop (or "stop listening", "that's all"), stop the background wait with TaskStop, finish or mark failed any build you've claimed, and say in one line that the repo has no listener now. The panel's light goes amber within ≈15 seconds. For a story listener, say instead that the story's questions go back to the repo's listener, if one is running.

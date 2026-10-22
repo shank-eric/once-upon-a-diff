@@ -129,7 +129,10 @@ export async function doctor(
       'PASS',
       'Claude listening',
       live
-        .map((listener) => `${listener.consumer} (${listener.state}, ${listener.age_s}s ago)`)
+        .map((listener) => {
+          const covers = listener.story || listener.repo || 'everything';
+          return `${listener.consumer} (${covers}, ${listener.state}, ${listener.age_s}s ago)`;
+        })
         .join(', '),
     );
   } else {

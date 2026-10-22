@@ -3,7 +3,9 @@
  * and is a Claude session listening for questions (opts.status, on the
  * overlay's tick every 30s, and when the tab gets focus again).
  * Clicking it shows the checks. When no session is listening, a hint over the
- * Ask box gives the prompt to paste into Claude Code.
+ * Ask box gives the prompt to paste into Claude Code. A line under it says
+ * which session answers this story, with "Copy prompt for this story" to send
+ * the story's questions to one session (the one that built it) instead.
  *
  * healthChecks has no DOM, so node tests can use it.
  */
@@ -23,7 +25,18 @@ const bridgeProblem = (code) => {
   return ["The bridge isn't reachable", 'Start it: once-upon serve'];
 };
 
-/** {level: 'ok'|'warn'|'error', checks, listening, prompt, details, repo, checkout} from opts.status()'s answer, or its error. */
+/** What a listener covers, after its name. */
+const coverOf = (consumer) => {
+  if (consumer.story) {
+    return ' (this story)';
+  }
+  return consumer.repo ? ' (whole repo)' : '';
+};
+
+/**
+ * {level: 'ok'|'warn'|'error', checks, listening, prompt, details, repo, checkout, answering, storyPrompt} from
+ * opts.status()'s answer, or its error.
+ */
 export function healthChecks(health, err) {
   if (err) {
     const [detail, fix] = bridgeProblem(err.code);
@@ -47,7 +60,7 @@ export function healthChecks(health, err) {
       detail: (listening.consumers || [])
         .map(
           (consumer) =>
-            `${consumer.consumer}${consumer.state === 'handling' ? ', answering a question' : ''}`,
+            `${consumer.consumer}${coverOf(consumer)}${consumer.state === 'handling' ? ', answering a question' : ''}`,
         )
         .join(', '),
     });
@@ -67,6 +80,8 @@ export function healthChecks(health, err) {
     details: listening.details || null,
     repo: listening.repo || null,
     checkout: listening.checkout || null,
+    answering: listening.answering || null,
+    storyPrompt: listening.story_prompt || null,
   };
 }
 
@@ -105,6 +120,32 @@ function askHintHtml(result) {
   );
 }
 
+/** The line under the Ask box: who answers this story's questions, and the prompt that gives them to one session. */
+export function askWhoHtml(result) {
+  if (result.level === 'error') {
+    return '';
+  }
+  const { answering, storyPrompt } = result;
+  let copy = '';
+  if (storyPrompt && storyPrompt.prompt !== result.prompt) {
+    const title =
+      `Copies ${storyPrompt.prompt}. Paste it into the Claude session that built this story: ` +
+      "it answers this story's questions from then on, ahead of the repo's listener.";
+    copy =
+      ` <button type="button" class="ou-copystory" title="${escapeHtml(title)}">Copy prompt for this story</button>` +
+      '<pre class="ou-prompt" hidden></pre>';
+  }
+  if (answering && answering.scope === 'story') {
+    return `Answered by <b>${escapeHtml(answering.consumer)}</b>, the session listening for this story.`;
+  }
+  if (answering) {
+    const cover =
+      answering.scope === 'repo' ? 'listening for the whole repo' : 'listening for everything';
+    return `Answered by <b>${escapeHtml(answering.consumer)}</b> (${cover}).${copy}`;
+  }
+  return copy ? `Or have one session answer just this story:${copy}` : '';
+}
+
 export function createStatusLight(context) {
   const { opts, shell } = context;
   const { $ } = shell;
@@ -123,6 +164,7 @@ export function createStatusLight(context) {
       return `<li><span class="${classOf(check)}">${markOf(check)}</span> <b>${escapeHtml(check.name)}</b>: ${escapeHtml(check.detail)}${fix}</li>`;
     });
     $('.ou-health').innerHTML = `<ul>${rows.join('')}</ul>`;
+    renderWho(result);
     const hint = $('.ou-askhint');
     const showHint = opts.ask && result.level !== 'ok' && !result.listening;
     hint.hidden = !showHint;
@@ -149,6 +191,23 @@ export function createStatusLight(context) {
         more.setAttribute('aria-expanded', String(!long.hidden));
         more.textContent = long.hidden ? 'show details' : 'hide details';
       };
+    }
+  }
+
+  function renderWho(result) {
+    const who = $('.ou-askwho');
+    const html = opts.ask ? askWhoHtml(result) : '';
+    who.hidden = !html;
+    // redrawn only when it changes, so a "Copied" label stays put
+    if (who.getAttribute('data-html') === html) {
+      return;
+    }
+    who.setAttribute('data-html', html);
+    who.innerHTML = html;
+    const copyButton = who.querySelector('.ou-copystory');
+    if (copyButton) {
+      copyButton.onclick = () =>
+        copyPrompt(result.storyPrompt.prompt, copyButton, who.querySelector('.ou-prompt'));
     }
   }
 

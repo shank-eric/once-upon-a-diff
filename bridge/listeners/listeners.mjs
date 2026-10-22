@@ -9,6 +9,7 @@
  * waiting beat is under 15s old and its process is alive, or a handling beat
  * is under 10 minutes old. A beat also says what the wait covers: {repo} for
  * `wait --repo`, {story} for `wait --story`, neither for a wait that takes everything.
+ * A story's own listener answers its questions ahead of a repo's (answeringOf).
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -96,8 +97,8 @@ export function cliCommand(found = cliCache ?? (cliCache = onPath('once-upon')))
 }
 
 /**
- * "Copy prompt for Claude": one line for the once-upon-listen skill (skills/once-upon-listen), naming the repo,
- * plus the long form for a session without the skill.
+ * "Copy prompt for Claude": one line for the once-upon-listen skill (skills/once-upon-listen), naming the repo
+ * (or the one story), plus the long form for a session without the skill. A story's wait takes only its questions.
  */
 export function listenPrompt(
   { repo = null, story = null, checkout = null } = {},
@@ -110,7 +111,7 @@ export function listenPrompt(
     waitFor = ` --repo ${repo}`;
   } else if (story) {
     arg = ` --story ${story}`;
-    waitFor = ` --story ${story}`;
+    waitFor = ` --story ${story} --type question`;
   }
   const wait = `${cli} wait${waitFor}`;
   let where = 'Run';
@@ -119,15 +120,36 @@ export function listenPrompt(
   } else if (repo) {
     where = `In your checkout of ${repo}, run`;
   }
+  const builds = repo
+    ? `For a build request, build the story with /once-upon <PR url>; publishing it finishes the request (run \`${cli} done <id> --failed\` if it can't be built). `
+    : '';
   return {
     repo,
+    story: repo ? null : story,
     checkout: checkout ? tilde(checkout) : null,
     prompt: `/once-upon-listen${arg}`,
     command: wait,
     details:
       `${where} \`${wait}\` as a background task, and start it again each time it exits. For a question, answer it and run \`${cli} answer --question <id> --text "<answer>"\`. ` +
-      `For a build request, build the story with /once-upon <PR url>; publishing it finishes the request (run \`${cli} done <id> --failed\` if it can't be built). Keep going until I say stop.`,
+      `${builds}Keep going until I say stop.`,
   };
+}
+
+/**
+ * Who answers a story's questions now: a live listener for that story, else one for its repo, else a wait that
+ * takes everything. {consumer, scope: 'story'|'repo'|'all'} or null. once-upon wait routes them the same way.
+ */
+export function answeringOf(live, { repo = null, story = null } = {}) {
+  const forStory = story && live.find((listener) => listener.story === story);
+  if (forStory) {
+    return { consumer: forStory.consumer, scope: 'story' };
+  }
+  const forRepo = repo && live.find((listener) => listener.repo && sameRepo(listener.repo, repo));
+  if (forRepo) {
+    return { consumer: forRepo.consumer, scope: 'repo' };
+  }
+  const forAll = live.find((listener) => !listener.repo && !listener.story);
+  return forAll ? { consumer: forAll.consumer, scope: 'all' } : null;
 }
 
 /**
@@ -141,6 +163,7 @@ export function listeningOf(home, { repo = null, story = null } = {}) {
     (repo && sameRepo(listener.repo, repo)) ||
     (story && listener.story === story);
   const live = all.filter((listener) => listener.live && covers(listener));
+  const storyPrompt = story ? listenPrompt({ story }) : null;
   return {
     ok: live.length > 0,
     consumers: live.map((listener) => ({
@@ -148,12 +171,18 @@ export function listeningOf(home, { repo = null, story = null } = {}) {
       state: listener.state,
       age_s: listener.age_s,
       repo: listener.repo,
+      story: listener.story,
     })),
+    answering: answeringOf(live, { repo, story }),
     last_seen: all[0] ? all[0].at : null,
     start: repo
       ? `In Claude Code, in your checkout of ${repo}: /once-upon-listen ${repo}`
       : 'In Claude Code: /once-upon-listen',
     ...listenPrompt({ repo, story: repo ? null : story, checkout: checkoutFor(home, repo) }),
+    // "Copy prompt for this story", for the session that built it
+    story_prompt: storyPrompt
+      ? { prompt: storyPrompt.prompt, command: storyPrompt.command, details: storyPrompt.details }
+      : null,
   };
 }
 

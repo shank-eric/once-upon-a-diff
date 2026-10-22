@@ -31,14 +31,16 @@
  *   onPosition(p)  called with {step, chapter, file} when the step or the file at the top of the screen changes (debounced)
  *   onClose()      called after the x button removes the panel
  *   ask(q)         send a question {text, step, chapter, file}; returns a Promise
- *   loadQuestions() returns a Promise of [{id, at, step, text, file, answers: [{at, text}]}]
+ *   loadQuestions() returns a Promise of [{id, at, step, text, file, dismissed, collapsed, handed_to, answers: [{at, text, by}]}]
+ *   markQuestions(action, ids) saves what the reviewer did with questions: dismiss, restore, collapse, expand, or clear
+ *                  (dismiss every one in the story); returns a Promise of {questions, cleared}
  *   status()       returns a Promise of the bridge's /api/status ({bridge, story, listening});
  *                  it rejects with err.code 'down', 'token' or 'old' when the bridge can't say. Drives the status light.
  *   drafts         {load(), act(chapter, index, action)}: each returns a Promise of {drafts: [{chapter, index, status:
  *                  'draft'|'posted'|'pending', dismissed, url, added}], error}. action is dismiss, restore, review
  *                  (Add to my review), fix (Add to fix before push) or settle (an added draft has shown up, see draftView).
  *   reloadPage()   reloads the page, keeping the panel's step and scroll; offered on a draft just added to the review
- *   pulse()        returns a Promise of the bridge's GET /pulse ({version, questions_rev, drafts_rev, listening}),
+ *   pulse()        returns a Promise of the bridge's GET /pulse ({version, questions_rev, drafts_rev, listening, answering}),
  *                  asked every 5s while the tab shows: the questions, drafts and status light look again only when
  *                  their part changed
  *   onPulse(p)     called with each pulse, so the host can reload the story when its version moved
@@ -185,7 +187,7 @@ export function storyOverlay(input, opts = {}) {
     if (moved('drafts_rev')) {
       context.drafts.refresh(true);
     }
-    if (moved('listening') || moved('down')) {
+    if (moved('listening') || moved('answering') || moved('down')) {
       context.statusLight.refresh();
     }
     last = pulse;
@@ -215,6 +217,7 @@ export function storyOverlay(input, opts = {}) {
     context.reading.destroy();
     context.filter.destroy();
     context.shell.clearMessageTimer();
+    context.questions.destroy();
     context.navigation.destroy();
     context.scroll.destroy();
     clearInterval(tickTimer);

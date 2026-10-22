@@ -60,6 +60,7 @@ export function mount(initial) {
     },
     ask: (question) => api('POST', `${STORY_PATH}/questions`, { ...question, url: location.href }),
     loadQuestions: () => api('GET', `${STORY_PATH}/questions`).then((answer) => answer.questions),
+    markQuestions: (action, ids) => api('POST', `${STORY_PATH}/questions/marks`, { action, ids }),
     drafts: {
       load: () => api('GET', `${STORY_PATH}/drafts`),
       act: (chapter, index, action) =>

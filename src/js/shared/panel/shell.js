@@ -19,6 +19,7 @@ const MARKUP = (withAsk) => `
     <div class="ou-note"><span class="ou-count-note"></span><div class="ou-health" hidden></div><div class="ou-fresh"></div><span class="ou-msg"></span></div>
     <div class="ou-body"></div>
     <div class="ou-askhint" hidden></div>
+    <div class="ou-askwho" hidden></div>
     <form class="ou-ask${withAsk ? '' : ' ou-off'}">
       <textarea placeholder="Ask about this step (Cmd+Enter sends it to the bridge inbox)" rows="1" aria-label="Question"></textarea>
       <button type="submit">Ask</button>

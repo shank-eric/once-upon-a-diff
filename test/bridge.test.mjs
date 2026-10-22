@@ -410,6 +410,7 @@ describe('pulse', () => {
     try {
       const first = await pulse();
       assert.deepEqual(Object.keys(first).sort(), [
+        'answering',
         'drafts_rev',
         'listening',
         'questions_rev',
@@ -438,6 +439,9 @@ describe('pulse', () => {
 
       beat(home, 'once-upon', 'waiting', { repo: 'acme/widgets' });
       assert.equal((await pulse()).listening, true);
+      assert.equal((await pulse()).answering, 'once-upon');
+      beat(home, 'api-10', 'waiting', { story: 'acme-widgets-7' });
+      assert.equal((await pulse()).answering, 'api-10', "the story's own listener answers it");
     } finally {
       await bridge.close();
     }

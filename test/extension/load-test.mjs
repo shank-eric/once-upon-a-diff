@@ -8,7 +8,8 @@
  *      panel docks, filters to a chapter, survives a reload on the same step,
  *      sends a question to the inbox, and hides and comes back on toggle
  *   3. the bridge's local page draws a local diff with the same panel,
- *      filters by chapter, and keeps Viewed and a fix-before-push note
+ *      filters by chapter, keeps Viewed and a fix-before-push note, and its
+ *      Q&A says who answers and keeps collapse, Dismiss and Clear conversation
  *
  *   node test/extension/load-test.mjs [--pr owner/repo#N] [--headed] [--shots DIR]
  *
@@ -1026,6 +1027,99 @@ try {
     (await localPage.locator('[data-ou-flash]').count()) > 0,
     'Enter on a jump link jumps to the file (it flashes)',
   );
+  // Q&A: who answers, Answered by, collapse, Dismiss with Undo, and Clear conversation, all kept by the bridge
+  const askWho = () => localPage.locator('#ou-panel .ou-askwho').textContent();
+  const qaCount = (selector = '.ou-qa') =>
+    localPage.locator(`#ou-panel .ou-questions ${selector}`).count();
+  const reloadPanel = async () => {
+    await localPage.reload();
+    await localPage.waitForSelector('#once-upon-panel', { state: 'attached', timeout: 5000 });
+    await localPage.waitForTimeout(800);
+  };
+  beat(home, 'load-test', 'waiting');
+  await reloadPanel();
+  check(
+    /Answered by load-test \(listening for everything\)/.test(await askWho()),
+    `the line under the Ask box says who answers: "${(await askWho()).trim()}"`,
+  );
+  beat(home, 'api-10', 'waiting', { story: local.id });
+  const storyTook = await localPage
+    .locator('#ou-panel .ou-askwho', {
+      hasText: 'api-10, the session listening for this story',
+    })
+    .waitFor({ timeout: 8000 })
+    .then(() => true)
+    .catch(() => false);
+  check(storyTook, 'a story listener takes over on the next pulse, and the line says so');
+  await localPage.locator('#ou-panel .ou-ask textarea').fill('Why B?');
+  await localPage.locator('#ou-panel .ou-ask button').click();
+  await localPage.waitForTimeout(800);
+  const localQuestion = readFileSync(path.join(home, 'inbox.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map(JSON.parse)
+    .find((entry) => entry.type === 'question' && entry.text === 'Why B?');
+  check(!!localQuestion, 'a question from the local page lands in the inbox');
+  if (localQuestion) {
+    await runCli(home, [
+      'answer',
+      '--question',
+      localQuestion.id,
+      '--text',
+      'Because B.',
+      '--consumer',
+      'api-10',
+    ]);
+    const answeredBy = await localPage
+      .locator('#ou-panel .ou-questions', { hasText: 'Answered by api-10' })
+      .waitFor({ timeout: 7000 })
+      .then(() => true)
+      .catch(() => false);
+    check(answeredBy, 'the answer says which session gave it');
+    await localPage.locator('#ou-panel .ou-questions').scrollIntoViewIfNeeded();
+    await shot(localPage, 'local-qa');
+    await localPage.locator('#ou-panel .ou-qa [data-qa-act="collapse"]').click();
+    check(
+      (await qaCount('.ou-qa-collapsed')) === 1 && (await qaCount('.ou-a')) === 0,
+      'collapse folds an exchange to its question',
+    );
+    await reloadPanel();
+    check((await qaCount('.ou-qa-collapsed')) === 1, 'and it stays collapsed after a reload');
+    await localPage.locator('#ou-panel .ou-qa [data-qa-act="dismiss"]').click();
+    check(
+      (await qaCount()) === 0 &&
+        /Dismissed 1 question/.test(await localPage.locator('#ou-panel .ou-qundo').textContent()),
+      'Dismiss hides it, with Undo',
+    );
+    await localPage.locator('#ou-panel [data-qa-act="undo"]').click();
+    await localPage.waitForTimeout(300);
+    check((await qaCount()) === 1, 'Undo brings it back');
+    await localPage.locator('#ou-panel [data-qa-act="clear"]').click();
+    await localPage.waitForTimeout(300);
+    check(
+      (await qaCount()) === 0 &&
+        /Show dismissed \(1\)/.test(
+          await localPage.locator('#ou-panel .ou-questions').textContent(),
+        ),
+      'Clear conversation dismisses every question, behind Show dismissed',
+    );
+    await reloadPanel();
+    await localPage.waitForTimeout(5500);
+    check(
+      (await qaCount()) === 0 &&
+        /Show dismissed \(1\)/.test(
+          await localPage.locator('#ou-panel .ou-questions').textContent(),
+        ),
+      'a cleared conversation stays cleared after a reload and the next poll',
+    );
+    await localPage.locator('#ou-panel [data-qa-act="show-dismissed"]').click();
+    await localPage.locator('#ou-panel .ou-qa-dismissed [data-qa-act="restore"]').click();
+    await localPage.waitForTimeout(300);
+    check(
+      (await qaCount()) === 1 && (await qaCount('.ou-qa-dismissed')) === 0,
+      'Show dismissed, then Restore, brings one back',
+    );
+  }
   // Claude rewrites chapters.json: the panel's pulse redraws it open, and the page's own poll while it's closed
   const localFile = path.join(local.dir, 'chapters.json');
   const rewrite = (word) => {

@@ -151,6 +151,8 @@ export function createFilesChangedPage() {
       },
       loadQuestions: async () =>
         (await bodyOf(callBridge('GET', `${storyPath}/questions`))).questions,
+      markQuestions: (action, ids) =>
+        bodyOf(callBridge('POST', `${storyPath}/questions/marks`, { action, ids })),
     };
   }
 
