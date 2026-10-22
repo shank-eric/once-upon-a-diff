@@ -421,11 +421,12 @@ try {
       '--text',
       'Because **two** chapters.',
     ]);
-    await page.waitForTimeout(4500);
-    check(
-      /Because two chapters/.test(await page.locator('#dsm-panel .prs-questions').textContent()),
-      'the answer shows in the panel',
-    );
+    const answered = await page
+      .locator('#dsm-panel .prs-questions', { hasText: 'Because two chapters' })
+      .waitFor({ timeout: 6000 })
+      .then(() => true)
+      .catch(() => false);
+    check(answered, 'the answer shows in the panel within a tick (5s)');
   }
 
   // hide with the x, reload, still hidden, toggle brings it back
@@ -518,8 +519,9 @@ try {
     title: 'Built',
     chapters: [{ title: 'Chapter 1: All', files: ['readme.md'] }],
   });
+  // the tag looks again every 10s while queued, and status-many's answers can be 5s old
   const built = await newPage
-    .waitForSelector('#diff-story-panel', { state: 'attached', timeout: 15000 })
+    .waitForSelector('#diff-story-panel', { state: 'attached', timeout: 25000 })
     .catch(() => null);
   check(
     !!built,

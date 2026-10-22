@@ -66,7 +66,6 @@ const settling = new Set();
 
 const ALL_COMMENTS_OPEN = 4; // more drafts than this and the Overview's list starts folded
 const REFRESH_MS = 10000;
-const POLL_MS = 60000;
 const githubLink = (url) =>
   ` · <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">view on GitHub</a>`;
 const lineJump = (rel, side, line) =>
@@ -390,15 +389,6 @@ export function createDrafts(context) {
       .join(' ');
   }
 
-  let pollTimer = 0;
-  if (opts.drafts) {
-    pollTimer = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        refresh(true);
-      }
-    }, POLL_MS);
-  }
-
   return {
     chapterCommentsHtml,
     allCommentsHtml,
@@ -407,6 +397,5 @@ export function createDrafts(context) {
     render,
     reloadPage,
     waitingOnPage,
-    destroy: () => clearInterval(pollTimer),
   };
 }

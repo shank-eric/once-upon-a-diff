@@ -23,7 +23,6 @@ import { createWhitespaceCheck, prefsStore } from './hide-whitespace.js';
 
 const PANEL_ID = 'diff-story-panel';
 const TAG_ATTR = 'data-dsm-files';
-const UPDATE_POLL_MS = 5000;
 
 const panelOnPage = () => !!document.getElementById(PANEL_ID);
 const prOfLocation = () => filesChangedPr(location.pathname);
@@ -142,6 +141,13 @@ export function createFilesChangedPage() {
           code = 'old';
         }
         throw Object.assign(new Error(answer.error), { code });
+      },
+      pulse: () => bodyOf(callBridge('GET', `${storyPath}/pulse`)),
+      // the story changed on disk (Claude filled in a chapter): redraw in place
+      onPulse: (pulse) => {
+        if (current && current.key === key && pulse.version !== current.version) {
+          checkForUpdates(pulse.version);
+        }
       },
       loadQuestions: async () =>
         (await bodyOf(callBridge('GET', `${storyPath}/questions`))).questions,
@@ -281,19 +287,20 @@ export function createFilesChangedPage() {
     refreshTag();
   }
 
-  /** When chapters.json changes on disk (Claude filled in a chapter), redraw in place. */
-  async function checkForUpdates() {
-    if (!current || document.visibilityState !== 'visible') {
+  /** When chapters.json changes on disk (Claude filled in a chapter), redraw in place. version: the pulse's, if known. */
+  async function checkForUpdates(version) {
+    if (!current || !current.id) {
       return;
     }
-    if (!current.id) {
-      return;
+    let now = version;
+    if (now === undefined) {
+      const answer = await callBridge(
+        'GET',
+        `/api/stories/${encodeURIComponent(current.id)}/version`,
+      );
+      now = answer.ok ? answer.body.version : null;
     }
-    const answer = await callBridge(
-      'GET',
-      `/api/stories/${encodeURIComponent(current.id)}/version`,
-    );
-    if (!answer.ok || !current || answer.body.version === current.version) {
+    if (!current || now == null || now === current.version) {
       return;
     }
     const mine = current;
@@ -346,12 +353,10 @@ export function createFilesChangedPage() {
       current.ui = { ...current.overlay.state, hidden: true };
       unmount();
       tagAfterPanel();
+      savePanelUi(current.key, current.ui);
     } else {
-      current.ui = { ...current.ui, hidden: false };
-      mount();
-      refreshTag();
+      await openPanel();
     }
-    savePanelUi(current.key, current.ui);
   }
 
   /** Before a reload of our own: save the panel's step and scroll, so it comes back where it was. */
@@ -385,11 +390,12 @@ export function createFilesChangedPage() {
       sync();
     } else if (reason === 'event') {
       sync();
-    } else if (reason === 'back' && current && current.id) {
-      checkForUpdates(); // a comment drafted in the terminal shows up as soon as you come back to the tab
-    } else if (reason === 'back' && current && current.status !== 'loading') {
-      current = null; // no story yet: look again (another tab may have asked for one, or it may be done)
-      sync();
+    } else if (reason === 'back') {
+      // with a story, the panel's tick looks on focus, and Story or the toolbar button looks before showing it
+      if (current && !current.id && current.status !== 'loading') {
+        current = null; // no story yet: look again (another tab may have asked for one, or it may be done)
+        sync();
+      }
     } else if (current && current.data && !current.ui.hidden && !panelOnPage()) {
       sync();
     } else if (
@@ -421,11 +427,6 @@ export function createFilesChangedPage() {
         }
       });
     }
-    setInterval(() => {
-      if (extensionAlive()) {
-        checkForUpdates();
-      }
-    }, UPDATE_POLL_MS);
     whitespaceCheck()
       .catch(() => {})
       .finally(sync);
