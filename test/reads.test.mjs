@@ -5,7 +5,12 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson, localRepo } from './helpers.mjs';
 import { chapterKey, noteRead, readReads, sinceOf } from '../bridge/stories/reads.mjs';
-import { chapterKeyOf, readStepsOf, inferReadSteps } from '../src/js/shared/overlay.js';
+import {
+  chapterKeyOf,
+  finishedInOf,
+  inferReadSteps,
+  viewedEarlyCheck,
+} from '../src/js/shared/overlay.js';
 import { clearFreshness } from '../bridge/github/freshness.mjs';
 import { createLocalStory } from '../bridge/stories/local-story.mjs';
 
@@ -318,24 +323,77 @@ test('a local story compares with git', async () => {
 
 test('a chapter he has read, and that has not changed since, does not make its files "viewed early"', () => {
   const chapters = [
-    { title: 'Chapter 1: Logging in' },
-    { title: 'Chapter 2: The task' },
-    { title: 'Chapter 3: Dependencies and CI' },
+    { title: 'Chapter 1: Logging in', files: [{ rel: 'login.js' }] },
+    { title: 'Chapter 2: The task', files: [{ rel: 'task.js' }] },
+    { title: 'Chapter 3: Dependencies and CI', files: [{ rel: 'yarn.lock' }, { rel: 'ci.yml' }] },
   ];
-  assert.deepEqual(
-    [...readStepsOf(chapters, null)],
-    [],
-    'nothing known: no chapter counts as read',
-  );
+  const finishedIn = finishedInOf(chapters);
+  const earlyOn = (step, readInfo) =>
+    ['login.js', 'task.js', 'yarn.lock', 'ci.yml'].filter(
+      viewedEarlyCheck({ chapters, finishedIn, readInfo, step }),
+    );
+  assert.deepEqual(earlyOn(1, null), ['task.js', 'yarn.lock', 'ci.yml'], 'nothing read yet');
+  assert.deepEqual(earlyOn(0, null), [], 'nothing is early on the Overview');
   const reads = {
     'dependencies and ci': { head_sha: SHA_A, story_head: SHA_A, at: '2026-10-21T19:28:03Z' },
     'the task': { head_sha: SHA_A, story_head: SHA_A, at: '2026-10-21T19:39:20Z' },
   };
-  assert.deepEqual([...readStepsOf(chapters, { reads })].sort(), [2, 3]);
+  assert.deepEqual(earlyOn(1, { reads }), []);
   assert.deepEqual(
-    [...readStepsOf(chapters, { reads, changed: [{ step: 3, files: ['yarn.lock'] }] })],
-    [2],
-    'a chapter that changed after he read it is due again',
+    earlyOn(1, { reads, changed: [{ step: 3, files: ['yarn.lock'] }] }),
+    ['yarn.lock'],
+    'a file that changed after he read its chapter is due again, and only that file',
+  );
+  assert.deepEqual(
+    earlyOn(1, { reads, changed: [{ step: 3 }] }),
+    ['yarn.lock', 'ci.yml'],
+    'a change that names no files counts for the whole chapter',
+  );
+});
+
+test('a "Since you read it" chapter first does not make the chapters he read "viewed early"', () => {
+  // octo-org/web-app#6943 on 10/22: one new commit changed useFetchOptions.ts, which chapter 2 also lists. The
+  // bridge then reports chapter 2 as changed since he read it, but its other files, still Viewed, are as he read them.
+  const chapters = [
+    {
+      key: 'since-6180a7a-1d8180f',
+      title: 'Since you read it: 1 new commit',
+      since: { from: SHA_A, to: SHA_B, commits: 1 },
+      files: [{ rel: 'useFetchOptions.ts' }],
+    },
+    { title: 'Chapter 1: The timeline select', files: [{ rel: 'DateField.tsx' }] },
+    {
+      title: 'Chapter 2: Where the options come from',
+      files: [{ rel: 'useFetchOptions.ts' }, { rel: 'index.ts' }, { rel: 'useFilterOptions.ts' }],
+    },
+  ];
+  const finishedIn = finishedInOf(chapters);
+  const reads = {
+    'the timeline select': { head_sha: SHA_A, story_head: SHA_A, at: '2026-10-21T20:20:41Z' },
+    'where the options come from': {
+      head_sha: SHA_A,
+      story_head: SHA_A,
+      at: '2026-10-21T19:56:14Z',
+    },
+  };
+  const readInfo = { reads, changed: [{ step: 3, files: ['useFetchOptions.ts'] }] };
+  const all = ['useFetchOptions.ts', 'DateField.tsx', 'index.ts', 'useFilterOptions.ts'];
+  const earlyOn = (step, info) =>
+    all.filter(viewedEarlyCheck({ chapters, finishedIn, readInfo: info, step }));
+  assert.deepEqual(
+    earlyOn(2, readInfo),
+    [],
+    'chapter 1: chapter 2 is read apart from the new file',
+  );
+  assert.deepEqual(
+    earlyOn(1, { reads: {} }),
+    [],
+    'nothing is early on the "Since you read it" step, read or not',
+  );
+  assert.deepEqual(
+    earlyOn(2, { reads: {} }),
+    ['index.ts', 'useFilterOptions.ts'],
+    'an old chapter not read yet still warns from the one before it',
   );
 });
 

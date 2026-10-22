@@ -11,7 +11,7 @@
  */
 import { escapeHtml } from '../util/html.js';
 import { baseName, capitalize } from '../util/text.js';
-import { readStepsOf } from './reading.js';
+import { viewedEarlyCheck } from './reading.js';
 
 /** A file name as a jump link (file-refs.js refAttrs without a line, which can't be imported here without a cycle). */
 const jumpAttrs = (rel) =>
@@ -151,14 +151,14 @@ export function createViewedTracker(context) {
   function render() {
     const blocks = page.blocksByPath();
     // viewed too early: a file whose last chapter is still to come (it comes back later, or it's only a later chapter's), never one already finished,
-    // and never one whose last chapter they've already read (a review done earlier, or before read tracking)
+    // one they've read in its last chapter (a review done earlier, or before read tracking), or any on a "Since you read it" step
     const step = state.n;
-    const readSteps = readStepsOf(data.chapters, context.reading.info);
-    const earlyFor = (rel) =>
-      step > 0 &&
-      story.finishedIn[rel] != null &&
-      story.finishedIn[rel] > step &&
-      !readSteps.has(story.finishedIn[rel]);
+    const earlyFor = viewedEarlyCheck({
+      chapters: data.chapters,
+      finishedIn: story.finishedIn,
+      readInfo: context.reading.info,
+      step,
+    });
     renderFileMarks(blocks, earlyFor);
     renderEarlyBox(blocks, step, earlyFor);
     const box = $('.prs-progress');
