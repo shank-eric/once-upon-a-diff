@@ -19,7 +19,6 @@
  *             tree:   file-tree li[data-tree-entry-type] with a[href="#diff-<sha>"]
  *             expand: .file-header .js-details-target "Toggle diff contents" [aria-expanded=false];
  *                     tr.js-expandable-line holds a.js-expand "Expand Up|Down|All"
- *   fallback  file:   a header (h3, [class*=file-name], .file-info a) whose text is the path
  */
 import { expandDirOf } from './expand.js';
 
@@ -85,25 +84,6 @@ export function createHostPage({ shaToPath, pathToSha, allPaths, hostId, panelId
         el.getAttribute('data-file-path') || el.getAttribute('data-tagsearch-path'),
         el.closest('copilot-diff-entry') || el,
       );
-    }
-    if (!found.size) {
-      for (const el of document.querySelectorAll(
-        'h3, [class*="file-name"], .file-info a, .file-header [title]',
-      )) {
-        const text = (el.getAttribute('title') || el.textContent || '').trim().replace(/‎/g, '');
-        const rel = allPaths.has(text)
-          ? text
-          : [...allPaths].find(
-              (path) => text.endsWith(' → ' + path) || text.endsWith(' -> ' + path),
-            );
-        if (!rel) {
-          continue;
-        }
-        const block = el.closest('[role="region"], .file, copilot-diff-entry');
-        if (block) {
-          add(rel, block.closest('copilot-diff-entry') || outerWrapper(block));
-        }
-      }
     }
     return [...found].map(([el, rel]) => ({ rel, el }));
   }
