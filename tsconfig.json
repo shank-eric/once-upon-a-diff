@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": [
+      "es2023"
+    ],
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "bridge/**/*.mjs",
+    "skills/**/*.mjs",
+    "scripts/**/*.mjs"
+  ],
+  "exclude": [
+    "bridge/public/vendor"
+  ]
+}

@@ -4,9 +4,18 @@ import { createHash } from 'node:crypto';
 /** GitHub's "Files changed" anchor for a file is diff- + the sha256 of its path. */
 export const pathSha = (rel) => createHash('sha256').update(rel).digest('hex');
 
-/** Unified diff -> Map(rel -> {rel, kind, stats, hunks, renamed_from?, hash}). */
+/**
+ * @typedef {{rel: string, kind: string, stats: {added: number, removed: number}, hunks: object[],
+ *   renamed_from?: string, binary?: boolean, hash?: string}} DiffFile
+ */
+
+/**
+ * Unified diff -> Map(rel -> DiffFile).
+ * @returns {Map<string, DiffFile>}
+ */
 export function parseUnifiedDiff(text) {
   const files = new Map();
+  /** @type {DiffFile | null} */
   let cur = null;
   let hunk = null;
   let raw = [];

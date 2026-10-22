@@ -60,8 +60,13 @@ const HTML = 'text/html; charset=utf-8';
 const methodMatches = (route, method) => !route.method || route.method === method;
 
 /**
+ * @typedef {http.Server & {stories: StoryStore, inbox: Inbox, builds: Builds}} Bridge
+ *   the server, with the stores it serves from for the CLI's startup line and the tests
+ */
+
+/**
  * @param {{home: string, token: string, log?: (line: string) => void}} opts
- * @returns {http.Server} call .listen(port, '127.0.0.1')
+ * @returns {Bridge} call .listen(port, '127.0.0.1')
  */
 export function createBridge({
   home,
@@ -175,7 +180,7 @@ export function createBridge({
       res.end(type.startsWith('application/json') ? JSON.stringify(body) : body);
     };
     try {
-      const port = server.address().port;
+      const port = /** @type {import('node:net').AddressInfo} */ (server.address()).port;
       const host = String(req.headers.host || '').toLowerCase();
       if (host !== `127.0.0.1:${port}` && host !== `localhost:${port}`) {
         throw new HttpError(421, 'wrong host');
@@ -220,8 +225,5 @@ export function createBridge({
       }
     }
   });
-  server.stories = stories;
-  server.inbox = inbox;
-  server.builds = app.builds;
-  return server;
+  return Object.assign(server, { stories, inbox, builds: app.builds });
 }

@@ -15,7 +15,8 @@ export async function probe(port, token) {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(1500),
     });
-    return response.ok ? (await response.json()).name === 'diff-story-bridge' : false;
+    const health = /** @type {{name?: string}} */ (await response.json());
+    return response.ok ? health.name === 'diff-story-bridge' : false;
   } catch {
     return false;
   }

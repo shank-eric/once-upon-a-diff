@@ -28,6 +28,7 @@ export const newToken = () => randomBytes(24).toString('base64url');
 export function loadConfig(home = homeDir()) {
   mkdirSync(home, { recursive: true, mode: 0o700 });
   const file = path.join(home, 'config.json');
+  /** @type {{token?: string, port?: number, [key: string]: unknown}} */
   let cfg = {};
   if (existsSync(file)) {
     try {
@@ -126,6 +127,7 @@ export function formatTime(iso, home = homeDir()) {
     return '';
   }
   const { timeZone, timeZoneLabel } = readSettings(home);
+  /** @type {Intl.DateTimeFormatOptions} */
   const opts = { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone };
   if (timeZoneLabel !== null) {
     return new Date(iso).toLocaleString('en-US', opts) + (timeZoneLabel ? ` ${timeZoneLabel}` : '');
