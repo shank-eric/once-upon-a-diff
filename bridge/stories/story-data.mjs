@@ -10,6 +10,7 @@ import { readJson } from '../util/json-file.mjs';
 import { readMeta, storyVersion, localVersion } from './meta.mjs';
 import { chaptersOf, addLeftoverChapter } from './chapters.mjs';
 import { addTextRefs } from './text-refs.mjs';
+import { uncoveredHunks } from './hunk-coverage.mjs';
 import { loadDiff, refreshLocal, diffIgnoringWhitespace, localFilesOf } from './local-diff.mjs';
 
 /** The story's files: file-map.json's, else the diff's. */
@@ -29,7 +30,8 @@ export function storyData(store, id, dir) {
   }
   const plan = readJson(path.join(dir, 'chapters.json'), {}) || {};
   const diff = loadDiff(dir, meta);
-  const rels = relsOf(readJson(path.join(dir, 'file-map.json'), null), diff);
+  const map = readJson(path.join(dir, 'file-map.json'), null);
+  const rels = relsOf(map, diff);
   const chapters = chaptersOf(plan);
   // a local diff is the truth: a file that has left it (say, reverted) leaves its chapters too
   if (diff) {
@@ -46,6 +48,8 @@ export function storyData(store, id, dir) {
   }
   // a chapter whose text points at a file's lines tells that file too, so the last one to do it finishes it (text-refs.mjs)
   addTextRefs(chapters, rels);
+  // hunks no chapter points at: a build allowed to publish with them says so in file-map.json, a local story's diff is here
+  const uncovered = diff ? uncoveredHunks(chapters, diff) : (map && map.uncovered_hunks) || [];
   addLeftoverChapter(chapters, rels);
   const prefs = meta.kind === 'local' ? readPrefs(store.home) : null;
   const data = {
@@ -64,6 +68,7 @@ export function storyData(store, id, dir) {
     plan: plan.plan || '',
     files: rels.map((rel) => ({ rel, sha: pathSha(rel) })),
     chapters,
+    uncovered_hunks: uncovered,
   };
   if (meta.kind === 'local') {
     const viewed = store.readState(id, 'viewed.json', {});

@@ -53,6 +53,7 @@ That's the file named by `house_rules` in `~/.pr-story/config.json`, else `~/.pr
    - **Default order, a hint.** When the journey doesn't settle the order, start with schema, contracts and types, then take each feature through its logic, its call sites and wiring, and its UI, with that feature's tests right after it. Docs go last. The narrative wins whenever it needs a different order.
    - Tests go in the chapter of the code they test. Lockfiles and config go where they first matter.
    - `build` fails unless every PR file is in a chapter and every partial is finished somewhere.
+   - **Every hunk has a home,** not only every file. `build` also fails with "hunks not covered" while a hunk of a file bigger than 40 changed lines has no chapter pointing at a line inside it: a `lines` range, a `` `path:N-M` `` in the narrative or a comment on one of its lines. Listing a file covers it when it's that small, deleted or a lockfile, or when the entry says `"whole": true` because one chapter tells all of it. Fix each one it names before telling the story, usually with a `lines` range in the chapter that tells it (the first build has no narratives yet).
    - **The story map goes in `overview`,** not at the top of chapter 1's `narrative`. Each `narrative` starts at its own `### Chapter N: …` heading. (The panel moves a story map it finds before that heading to the Overview, but write it in the right place.)
    - **Line references.** For the key hunks a chapter discusses, add 2-4 `lines` ranges to that chapter's file entries, with real line numbers read from `pr.diff` (`R` is the new side, `L` the old side for removed lines) and a short label. In the narrative, write file mentions in backticks (a path, a unique suffix or a basename) and line mentions as `` `path:40` `` or `` `path:40-58` `` (`path:L12` for an old-side line). Only lines inside the diff's hunks are on the page, so point at changed or nearby context lines.
 
@@ -60,7 +61,7 @@ That's the file named by `house_rules` in `~/.pr-story/config.json`, else `~/.pr
    ```bash
    node <skill>/bin/story.mjs build --dir <D>
    ```
-   `build` writes `file-map.json` (file → chapters, partial_in, finished_in) and publishes the story for PR Story (`--no-bridge` skips that). Fill in each chapter's `narrative`, `comments` and `answer` as you tell it, then build again: the panel picks it up within a few seconds.
+   `build` writes `file-map.json` (file → chapters, partial_in, finished_in) and publishes the story for PR Story (`--no-bridge` skips that). It refuses to publish while a file is unplaced or a hunk isn't covered (step 2). `--allow-uncovered` publishes anyway, and the panel's Overview then lists those hunks in a quiet note. Keep it for an update to a story that was built before this check. Fill in each chapter's `narrative`, `comments` and `answer` as you tell it, then build again: the panel picks it up within a few seconds.
 
 4. **Tell the story,** one chapter per step. The panel shows the chapter, so the chat reply for a step is one line ("Chapter 2 is up in the panel: …" plus its headline).
    - **Answer questions in place** from the diff and the code, checking the old code or CI where it matters. Stay on the chapter until they say "next".
@@ -132,4 +133,4 @@ An update request (`mode: 'update'`) carries `base_sha` (the commit the story wa
 
 - `bin/gather.sh`: read-only `gh` fetch into the scratch folder.
 - `bin/viewed.sh`: the gh user's viewed state per file (GraphQL `viewerViewedState`), for `brief`.
-- `bin/story.mjs`: `brief`, `build`, `publish`. It reads the diff and places files with the bridge's and the panel's own code from this checkout, so `file-map.json` matches the panel.
+- `bin/story.mjs`: `brief`, `build`, `publish`. It reads the diff and places files with the bridge's and the panel's own code from this checkout, so `file-map.json` matches the panel, and checks hunk coverage with `bridge/stories/hunk-coverage.mjs`.

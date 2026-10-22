@@ -5,7 +5,8 @@
  * threads.json, checks.json, viewed.tsv). It makes no network calls.
  *
  *   story.mjs brief   --dir D                 what Claude reads to plan: files, commits, reviews, threads, CI, viewed
- *   story.mjs build   --dir D [--no-bridge]   D/chapters.json -> D/file-map.json, then publish; fails if a file is unplaced
+ *   story.mjs build   --dir D [--no-bridge]   D/chapters.json -> D/file-map.json, then publish; fails if a file is
+ *                                             unplaced or a hunk is told by no chapter (--allow-uncovered publishes anyway)
  *   story.mjs publish --dir D                 publish the story for PR Story through `pr-story publish` (build does this too)
  */
 import { readFile, writeFile } from 'node:fs/promises';
@@ -19,6 +20,7 @@ import { parseArgs } from '../../../bridge/cli/args.mjs';
 import { parseUnifiedDiff } from '../../../bridge/util/diff.mjs';
 import { chaptersOf } from '../../../bridge/stories/chapters.mjs';
 import { addTextRefs } from '../../../bridge/stories/text-refs.mjs';
+import { uncoveredHunks, SMALL_FILE_LINES } from '../../../bridge/stories/hunk-coverage.mjs';
 import { finishedInOf } from '../../../src/js/shared/panel/story-model.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -164,6 +166,7 @@ function buildMap(plan, diff) {
   if (missing.length) {
     problems.push(`${missing.length} files are in no chapter: ${missing.join(', ')}`);
   }
+  const uncovered = uncoveredHunks(chapters, diff);
   const perChapter = chapters.map((chapter, i) => {
     const step = i + 1;
     return {
@@ -182,7 +185,19 @@ function buildMap(plan, diff) {
         .map((entry) => entry.rel),
     };
   });
-  return { files, chapters: perChapter, problems };
+  return { files, chapters: perChapter, problems, uncovered };
+}
+
+/** The build's report of hunks no chapter tells, with the ways to fix it. */
+function hunksNotCovered(uncovered) {
+  const count = uncovered.reduce((sum, file) => sum + file.hunks.length, 0);
+  const lines = uncovered.map((file) => `  - ${file.hunks.map((hunk) => hunk.ref).join(', ')}`);
+  return [
+    `hunks not covered: ${count} in ${uncovered.length} files (bigger than ${SMALL_FILE_LINES} changed lines) that no chapter points at`,
+    ...lines,
+    'Give the chapter that tells each one a `lines` range on it, a `path:N-M` reference in its narrative or a comment on it,',
+    'or mark the file\'s entry "whole": true where one chapter tells all of it. --allow-uncovered publishes anyway.',
+  ].join('\n');
 }
 
 async function cmdBuild(opts) {
@@ -194,6 +209,9 @@ async function cmdBuild(opts) {
   if (map.problems.length && !opts['allow-missing']) {
     throw new Error(`file placement:\n  - ${map.problems.join('\n  - ')}`);
   }
+  if (map.uncovered.length && !opts['allow-uncovered']) {
+    throw new Error(hunksNotCovered(map.uncovered));
+  }
   await writeFile(
     path.join(dir, 'file-map.json'),
     JSON.stringify(
@@ -202,6 +220,7 @@ async function cmdBuild(opts) {
         mode: plan.mode || 'journey',
         files: map.files,
         chapters: map.chapters,
+        ...(map.uncovered.length ? { uncovered_hunks: map.uncovered } : {}),
       },
       null,
       2,
@@ -211,9 +230,14 @@ async function cmdBuild(opts) {
   const placed =
     all.length - Object.values(map.files).filter((file) => !file.chapters.length).length;
   const partials = Object.values(map.files).filter((file) => file.partial_in.length).length;
+  const hunks = all.reduce((sum, file) => sum + file.hunks.length, 0);
+  const missed = map.uncovered.reduce((sum, file) => sum + file.hunks.length, 0);
   process.stderr.write(
-    `Wrote file-map.json: ${chapters.length} chapters, ${all.length} files, ${placed} placed, ${partials} partial\n`,
+    `Wrote file-map.json: ${chapters.length} chapters, ${all.length} files, ${placed} placed, ${partials} partial, ${hunks - missed} of ${hunks} hunks covered\n`,
   );
+  if (missed) {
+    process.stderr.write(`${hunksNotCovered(map.uncovered)}\n`);
+  }
   if (!opts['no-bridge']) {
     await cmdPublish(opts);
   }
@@ -245,7 +269,7 @@ const { command, opts } = parseArgs(process.argv.slice(2));
 const run = COMMANDS[command];
 if (!run || !opts.dir) {
   process.stderr.write(
-    'usage: story.mjs <brief|build|publish> --dir <scratch-dir> [--no-bridge]\n',
+    'usage: story.mjs <brief|build|publish> --dir <scratch-dir> [--no-bridge] [--allow-uncovered]\n',
   );
   process.exitCode = 1;
 } else {
