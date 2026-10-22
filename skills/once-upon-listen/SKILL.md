@@ -1,6 +1,6 @@
 ---
 name: once-upon-listen
-description: Listen for one repo's Once Upon a Diff requests from this Claude Code session, or for one story's questions. Answers questions typed in the panel's Ask box and builds stories asked for with Build story, on any PR or local story in that repo, until told to stop. Use when the user pastes or types /once-upon-listen <owner/repo> or /once-upon-listen --story <id>, the lines the panel's "Copy prompt for Claude" and "Copy prompt for this story" buttons copy.
+description: Listen for one repo's Once Upon a Diff requests from this Claude Code session, or for one story's questions and rebuilds. Answers questions typed in the panel's Ask box, builds stories asked for with Build story and re-tells ones asked for with Rebuild, on any PR or local story in that repo, until told to stop. Use when the user pastes or types /once-upon-listen <owner/repo> or /once-upon-listen --story <id>, the lines the panel's "Copy prompt for Claude" and "Copy prompt for this story" buttons copy.
 argument-hint: <owner/repo> | --story <id|owner/repo#N|PR number> [--consumer <name>]
 ---
 
@@ -11,11 +11,11 @@ The panel's **Copy prompt for Claude** button copies `/once-upon-listen <owner/r
 The argument is `$ARGUMENTS`.
 
 - `owner/repo`: listen for that repo.
-- `--story <id>`: listen for one story's questions only. The panel's **Copy prompt for this story** copies this, for the session that built the story, and so does the line once-upon's `build` prints. It takes the story id, `owner/repo#N`, a PR URL or a PR number in this checkout. Pass the same value to `wait`, which works out the id.
+- `--story <id>`: listen for one story's questions and its Rebuild requests only. The panel's **Copy prompt for this story** copies this, for the session that built the story, and so does the line once-upon's `build` prints. It takes the story id, `owner/repo#N`, a PR URL or a PR number in this checkout. Pass the same value to `wait`, which works out the id.
 - `--consumer <name>`: what the panel calls this session ("Answered by <name>"). The default is `repo-<owner>-<name>` or `story-<id>`.
 - Nothing: use the repo of this checkout's `origin`. If there isn't one, listen for everything (a `wait` with no `--repo`).
 
-**Who gets a question.** A live story listener gets its story's questions. A repo or catch-all listener leaves those alone while the story listener is live, and takes them once it isn't. No question is handed to two sessions, and a question the reviewer dismissed isn't handed over. A story listener gets no build requests: they stay with the repo's listener.
+**Who gets a question.** A live story listener gets its story's questions, and its Rebuild requests. A repo or catch-all listener leaves those alone while the story listener is live, and takes them once it isn't. No question or request is handed to two sessions, and a question the reviewer dismissed isn't handed over. Build story and Update requests stay with the repo's listener.
 
 ## House rules
 
@@ -73,7 +73,7 @@ Run this with Bash's `run_in_background`:
 <cli> wait --repo <owner/repo> --type question,build_request --consumer repo-<owner>-<name>
 ```
 
-`<owner>-<name>` is lowercased. With `--story <id>`, run `<cli> wait --story <id> --type question --consumer story-<id>` (or the `--consumer` name you were given), and skip step 5. The wait writes the heartbeat the panel's light reads, blocks until something arrives, prints it and exits. The exit notification wakes this session. Then:
+`<owner>-<name>` is lowercased. With `--story <id>`, run `<cli> wait --story <id> --type question,build_request --consumer story-<id>` (or the `--consumer` name you were given). Its build requests are only that story's rebuilds (step 5). The wait writes the heartbeat the panel's light reads, blocks until something arrives, prints it and exits. The exit notification wakes this session. Then:
 
 1. Read the task's output. It can hold several events. Handle each one, questions first.
 2. Start the same wait again as soon as you've handled them, or as soon as a build request arrives (step 5), so questions asked during a build still get answered.
@@ -100,11 +100,13 @@ The event gives the question id, the story id, the chapter or step, the file it 
 
 The event gives the build id, `owner/repo#N` and the PR URL. A request with `mode: "update"` asks to bring an existing story up to the PR's latest commit. It also has `base_sha` (the commit the story was told from), `since_sha` (where the user's reading stopped, from the chapters they read) and `retell` (true when they asked for a new story from scratch).
 
+A request with `mode: "rebuild"` or `"rebuild_from"` is the panel's Rebuild: tell an existing story again because something read wrong. It has `story` (the id to keep), `story_dir` (the published story), `from_step` (rebuild_from: the first chapter to re-tell), `guidance` (the reviewer's "what should change", or null), `told_from`, and `kind`. A local story's request has no PR (`number` is null) but `local: {repo_path, base, head}`. Follow once-upon's "Rebuilding a story" section.
+
 1. The wait claimed it when it handed it over, so its badge already says Building. Start the wait again (step 3).
-2. Build the story with the once-upon skill (`../once-upon/SKILL.md` beside this skill in the repo, linked in as `~/.claude/skills/once-upon`, as `/once-upon <PR url>`): gather, plan the chapters and render. Write every chapter's narrative and draft comments up front, since the panel shows the whole story. Don't tell it chapter by chapter in chat. For an update, follow once-upon's "Since you read it" path: one new chapter, first, for `git diff <since_sha>..<new head>`, with the other chapters kept as they are. Re-tell from scratch only when `retell` is true or the PR was rebased past `since_sha`.
-3. `build` publishes the story, which finishes the request, and the PR page opens the panel on its own. If it couldn't be built, run `<cli> done <build id> --failed --note "<one line why>"`.
+2. Build the story with the once-upon skill (`../once-upon/SKILL.md` beside this skill in the repo, linked in as `~/.claude/skills/once-upon`, as `/once-upon <PR url>`): gather, plan the chapters and render. Write every chapter's narrative and draft comments up front, since the panel shows the whole story. Don't tell it chapter by chapter in chat. For an update, follow once-upon's "Since you read it" path: one new chapter, first, for `git diff <since_sha>..<new head>`, with the other chapters kept as they are. Re-tell from scratch only when `retell` is true or the PR was rebased past `since_sha`. For a rebuild, follow once-upon's "Rebuilding a story".
+3. `build` publishes the story, which finishes the request, and the PR page opens the panel on its own. A rebuild finishes when it's published again (`build` for a PR, `<cli> local … --chapters` for a local story). If it couldn't be built, run `<cli> done <build id> --failed --note "<one line why>"`.
 4. On a long build, run `<cli> builds --start <build id> --consumer repo-<owner>-<name>` every ≈20 minutes so the claim stays fresh and the request isn't handed out a second time.
-5. In chat, say one line: which PR, its chapter and file counts, and that it's on the page.
+5. In chat, say one line: which PR (or local story), its chapter and file counts, and that it's on the page. For a rebuild, add the line publish printed on what it kept.
 
 If a question arrives mid-build, answer it (step 4), then carry on with the build.
 

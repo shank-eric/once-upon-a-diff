@@ -21,8 +21,11 @@ export function describe(entry) {
     return `[${when}] question ${entry.id} (${where})\n${entry.text}`;
   }
   if (entry.type === 'build_request') {
-    const update = entry.mode === 'update' ? `\n${updateOf(entry, readerOf())}` : '';
-    return `[${when}] build request ${entry.id}: ${entry.repo}#${entry.number} ${entry.url}${update}\n${entry.text || ''}`.trimEnd();
+    const update = entry.mode ? `\n${updateOf(entry, readerOf())}` : '';
+    const what = entry.number
+      ? `${entry.repo}#${entry.number} ${entry.url}`
+      : `local story ${entry.story}`;
+    return `[${when}] build request ${entry.id}: ${what}${update}\n${entry.text || ''}`.trimEnd();
   }
   if (entry.type === 'answer') {
     return `[${when}] answer to ${entry.question}\n${entry.text}`;

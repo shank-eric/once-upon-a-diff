@@ -63,6 +63,7 @@ export function listeners(home, now = Date.now()) {
         question: beat.question || null,
         repo: beat.repo || null,
         story: beat.story || null,
+        builds: !!beat.builds,
       });
     } catch {
       /* a half-written beat; skip it */
@@ -98,7 +99,8 @@ export function cliCommand(found = cliCache ?? (cliCache = onPath('once-upon')))
 
 /**
  * "Copy prompt for Claude": one line for the once-upon-listen skill (skills/once-upon-listen), naming the repo
- * (or the one story), plus the long form for a session without the skill. A story's wait takes only its questions.
+ * (or the one story), plus the long form for a session without the skill. A story's wait takes its questions and
+ * its Rebuild requests.
  */
 export function listenPrompt(
   { repo = null, story = null, checkout = null } = {},
@@ -111,7 +113,7 @@ export function listenPrompt(
     waitFor = ` --repo ${repo}`;
   } else if (story) {
     arg = ` --story ${story}`;
-    waitFor = ` --story ${story} --type question`;
+    waitFor = ` --story ${story} --type question,build_request`;
   }
   const wait = `${cli} wait${waitFor}`;
   let where = 'Run';
@@ -120,9 +122,12 @@ export function listenPrompt(
   } else if (repo) {
     where = `In your checkout of ${repo}, run`;
   }
-  const builds = repo
-    ? `For a build request, build the story with /once-upon <PR url>; publishing it finishes the request (run \`${cli} done <id> --failed\` if it can't be built). `
-    : '';
+  let builds = '';
+  if (repo) {
+    builds = `For a build request, build the story with /once-upon <PR url>; publishing it finishes the request (run \`${cli} done <id> --failed\` if it can't be built). `;
+  } else if (story) {
+    builds = `For a build request (the panel's Rebuild), rebuild the story with /once-upon as its "Rebuilding a story" section says; publishing it finishes the request. `;
+  }
   return {
     repo,
     story: repo ? null : story,

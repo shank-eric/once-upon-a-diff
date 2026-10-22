@@ -38,7 +38,7 @@ export function createBody(context) {
       ? markdown(story.overviewMarkdown)
       : `${data.summary ? `<p>${inline(data.summary)}</p>` : ''}${data.plan ? `<p>${inline(data.plan)}</p>` : ''}`;
     const items = data.files.map((file) => files.fileItem(file, 0)).join('');
-    return `<div class="ou-md">${intro}</div>${uncoveredHtml()}${context.drafts.allCommentsHtml()}${files.filesBox(`All files (${data.files.length})`, `${data.chapters.length} chapters`, items)}`;
+    return `<div class="ou-md">${intro}</div>${uncoveredHtml()}${context.drafts.allCommentsHtml()}${files.filesBox(`All files (${data.files.length})`, `${data.chapters.length} chapters`, items)}<div class="ou-rebuild-box"></div>`;
   }
 
   /** A quiet note on the Overview: changed hunks no chapter points at (once-upon's build allowed them), as line links. */
@@ -72,7 +72,8 @@ export function createBody(context) {
     const items = chapter.files.map((file) => files.fileItem(file, state.n)).join('');
     return `${context.freshness.sinceBanner(chapter)}<div class="ou-md">${storyHtml}</div>
         ${comments}
-        ${files.filesBox(`Files in this chapter (${chapter.files.length})`, files.filesSummary(state.n), items)}`;
+        ${files.filesBox(`Files in this chapter (${chapter.files.length})`, files.filesSummary(state.n), items)}
+        <div class="ou-rebuild-box"></div>`;
   }
 
   /** The viewed tracker sits right under the chapter's (or the Overview's) first heading. */
@@ -120,6 +121,7 @@ export function createBody(context) {
     context.viewed.render();
     context.drafts.refresh(false);
     context.freshness.render();
+    context.rebuild.render();
     context.marks.render();
     $('.ou-body').scrollTop = 0;
   }

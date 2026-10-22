@@ -58,6 +58,13 @@ export const panelCss = (panelId) => `
   #${panelId} .ou-fresh:empty { display: none; }
   #${panelId} .ou-fresh.ou-stale { color: var(--c-warn); }
   #${panelId} .ou-fresh button { margin-left: 6px; }
+  #${panelId} .ou-rebuilding { flex-basis: 100%; font-size: 12px; color: var(--c-muted); }
+  #${panelId} .ou-rebuilding.ou-failed { color: var(--c-warn); }
+  #${panelId} .ou-rebuild-box { margin: 12px 0 4px; }
+  #${panelId} .ou-rebuild-box:empty { display: none; }
+  #${panelId} .ou-rebuild-form textarea { box-sizing: border-box; width: 100%; min-height: 54px; resize: vertical; font: inherit; font-size: 13px; color: var(--c-fg);
+    background: var(--c-bg); border: 1px solid var(--c-border); border-radius: 6px; padding: 6px 8px; }
+  #${panelId} .ou-rebuild-btns { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
   #${panelId} .ou-chg { font-size: 11px; color: var(--c-warn); margin-left: 4px; white-space: nowrap; }
   #${panelId} .ou-cstate .ou-cstale { color: var(--c-warn); }
   #${panelId} .ou-new { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--c-accent); border: 1px solid currentColor; border-radius: 9px; padding: 0 5px; }

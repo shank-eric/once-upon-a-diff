@@ -4,7 +4,9 @@
  * task), and answer a question (answer).
  *
  * A story's own wait (`wait --story`) takes that story's questions ahead of a
- * repo-wide one: see the routing rule in ../../inbox/conversation.mjs.
+ * repo-wide one: see the routing rule in ../../inbox/conversation.mjs. With
+ * build_request in its --type, it takes the story's Rebuild requests the same
+ * way (../../inbox/builds.mjs).
  */
 import { existsSync, readFileSync, statSync, watch, writeFileSync } from 'node:fs';
 import { REPO_RE, sameRepo, repoOfCheckout, seenCheckout } from '../../config/repos.mjs';
@@ -124,6 +126,16 @@ function printHandOver(entries, opts) {
         `It's yours (wait claimed it). Write the story: once-upon renders and publishes it, and publishing finishes the request.`,
       );
     }
+    if (entry.type === 'build_request' && entry.mode === 'rebuild') {
+      out(
+        `It's a rebuild: follow once-upon's "Rebuilding a story" path. Re-tell the whole story, keep the id, and publish it again.`,
+      );
+    }
+    if (entry.type === 'build_request' && entry.mode === 'rebuild_from') {
+      out(
+        `It's a rebuild from chapter ${entry.from_step}: follow once-upon's "Rebuilding a story" path. Chapters 1-${entry.from_step - 1} stay exactly as published.`,
+      );
+    }
     if (entry.type === 'build_request' && entry.mode === 'update' && !entry.retell) {
       out(
         `It's an update: follow once-upon's "Since you read it" path from ${entry.since_sha}, unless the PR was rebased past it.`,
@@ -158,11 +170,14 @@ async function wait(home, cfg, opts) {
   if (opts.repo) {
     noteCheckout(home, opts.repo);
   }
+  const want = { ...opts, type: opts.type || 'question,build_request' };
+  const takesBuilds = want.type.split(',').includes('build_request');
   const scope = {
     ...(opts.repo ? { repo: String(opts.repo) } : {}),
     ...(opts.story ? { story: String(opts.story) } : {}),
+    // a story wait that takes build requests gets the story's rebuilds ahead of the repo's wait
+    ...(opts.story && takesBuilds ? { builds: true } : {}),
   };
-  const want = { ...opts, type: opts.type || 'question,build_request' };
   const deadline = opts.timeout ? Date.now() + Number(opts.timeout) * 1000 : Infinity;
   if (!existsSync(messages.file)) {
     writeFileSync(messages.file, '', { mode: 0o600 });
@@ -175,8 +190,7 @@ async function wait(home, cfg, opts) {
   beat(home, consumer, 'waiting', scope);
   const heartbeat = setInterval(() => beat(home, consumer, 'waiting', scope), BEAT_MS);
   // build requests come from builds.json (queued ones, claimed as they're handed over), so none are missed or given twice
-  const builds =
-    !opts.story && want.type.split(',').includes('build_request') ? new Builds(home) : null;
+  const builds = takesBuilds ? new Builds(home) : null;
   try {
     for (;;) {
       const unread = filterEntries(messages.unread(consumer, { advance: true }), want);
@@ -189,7 +203,10 @@ async function wait(home, cfg, opts) {
       );
       let entries = [...questions, ...unread.filter((entry) => entry.type !== 'question')];
       if (builds) {
-        entries = [...entries, ...builds.toHand(consumer, { repo: opts.repo || null })];
+        entries = [
+          ...entries,
+          ...builds.toHand(consumer, { repo: opts.repo || null, story: opts.story || null }),
+        ];
       }
       if (entries.length) {
         clearInterval(heartbeat);
@@ -252,7 +269,8 @@ export const inboxCommands = [
       '  once-upon wait    [--repo OWNER/NAME | --story ID] [--type question,build_request] [--consumer NAME] [--timeout SECONDS] [--json]',
       '                                                                 block until a question or build request arrives, print it, exit (for a background task);',
       "                                                                 --repo takes both for that repo's stories and PRs; --story (an id, owner/name#N, a PR URL",
-      "                                                                 or a PR number here) takes one story's questions, ahead of a --repo wait while it's live;",
+      "                                                                 or a PR number here) takes one story's questions, and with build_request its Rebuild",
+      "                                                                 requests, ahead of a --repo wait while it's live;",
       "                                                                 a consumer's first wait starts from now, but queued build requests are handed over whenever",
       '                                                                 they were asked',
     ],

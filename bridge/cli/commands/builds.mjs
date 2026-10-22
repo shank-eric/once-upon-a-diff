@@ -14,7 +14,9 @@ function builds(home, cfg, opts) {
     if (!build) {
       throw new Error(`no pending build request ${opts.start}`);
     }
-    return out(`${build.id} building (${build.repo}#${build.number})`);
+    return out(
+      `${build.id} building (${build.number ? `${build.repo}#${build.number}` : build.story})`,
+    );
   }
   const pending = requests.pending();
   if (opts.json) {
@@ -30,9 +32,10 @@ function builds(home, cfg, opts) {
     return out('No pending build requests.');
   }
   for (const build of pending) {
-    const update = build.mode === 'update' ? `\n\t${updateOf(build, readerOf(home))}` : '';
+    const update = build.mode ? `\n\t${updateOf(build, readerOf(home))}` : '';
+    const what = build.number ? `${build.repo}#${build.number}` : `story ${build.story}`;
     out(
-      `${build.id}\t${requests.stateOf(build)}\t${build.repo}#${build.number}\t${formatTime(build.requested_at)}\t${build.url}${update}`,
+      `${build.id}\t${requests.stateOf(build)}\t${what}\t${formatTime(build.requested_at)}\t${build.url || build.story_dir || ''}${update}`,
     );
   }
 }
@@ -49,7 +52,9 @@ function done(home, cfg, opts) {
   if (!build) {
     throw new Error(`no build request ${id}`);
   }
-  out(`${build.id} ${build.status} (${build.repo}#${build.number})`);
+  out(
+    `${build.id} ${build.status} (${build.number ? `${build.repo}#${build.number}` : build.story})`,
+  );
 }
 
 export const buildCommands = [

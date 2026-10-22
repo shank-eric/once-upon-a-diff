@@ -5,6 +5,7 @@
  */
 import { readMeta } from '../../stories/meta.mjs';
 import { storyFinishes } from '../../inbox/builds.mjs';
+import { isRebuild } from '../../stories/rebuild.mjs';
 import { stateKeyOf } from '../../github/drafts.mjs';
 import { currentHead, newerCount } from '../../github/freshness.mjs';
 import { listeningOf } from '../../listeners/listeners.mjs';
@@ -47,7 +48,8 @@ function prStatus(app, cache, { repo: rawRepo, number: rawNumber }) {
     app.statusCache = null;
   }
   const pending = !!(build && build.status === 'pending');
-  const updating = pending && build.mode === 'update';
+  // an update or a rebuild of the story there is: the tag says Updating… or Rebuilding…
+  const updating = pending && (build.mode === 'update' || isRebuild(build));
   return {
     repo,
     number,
@@ -56,6 +58,7 @@ function prStatus(app, cache, { repo: rawRepo, number: rawNumber }) {
     story_head: readMeta(app.stories.dirOf(id)).head_oid || null,
     updating,
     update_state: updating ? build.state : null,
+    update_mode: updating ? build.mode : null,
     reads: readSummary(app, id),
   };
 }

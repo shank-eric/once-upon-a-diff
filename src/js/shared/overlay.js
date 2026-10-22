@@ -53,6 +53,9 @@
  *                  when it has no "Since you read it" chapter, so the panel can still say what's new
  *   requestUpdate(base_sha, {retell}) asks for the story to be updated from that commit (a build request, mode 'update'):
  *                  by default a "Since you read it" chapter for the new commits, or with retell a whole new story
+ *   requestRebuild({mode, from_step, guidance}) asks for the story to be told again (a build request, mode 'rebuild',
+ *                  or 'rebuild_from' with from_step: chapters before it stay as they are); returns a Promise of
+ *                  {rebuild}. The pulse's `rebuild` ({state, mode, from_step, requested_at, done_at, note}) says how it stands
  *   onRead(r)      called with {chapter (its key), step, title, reason: 'time'|'viewed'|'inferred', seconds, head_sha} when the reviewer
  *                  leaves a chapter they spent READ_MS on (counted while the tab shows), or ticks the last of its files viewed,
  *                  or ('inferred') the page already had all its files Viewed and read.json has no record of it
@@ -78,6 +81,7 @@ import { createNavigation } from './panel/navigation.js';
 import { createBody } from './panel/body.js';
 import { createStatusLight } from './panel/status-light.js';
 import { createFreshness } from './panel/freshness.js';
+import { createRebuild } from './panel/rebuild.js';
 import { createReading } from './panel/reading.js';
 import { createMarks } from './panel/marks.js';
 import { createDrafts } from './panel/drafts.js';
@@ -89,6 +93,7 @@ export { chapterKeyOf, finishedInOf, chapterNumbers } from './panel/story-model.
 export { READ_MS, inferReadSteps, viewedEarlyCheck } from './panel/reading.js';
 export { placePills, pillMarker } from './panel/file-refs.js';
 export { rangeOfPath, rangeStepOf, rangeUrl } from './panel/freshness.js';
+export { rebuildAsk, rebuildLine } from './panel/rebuild.js';
 export { expandDirOf, expandStep, EXPAND_ALL_FAR } from './panel/expand.js';
 
 const HOST_ID = 'once-upon-panel'; // the element on the page; the panel itself lives in its shadow root
@@ -128,6 +133,7 @@ export function storyOverlay(input, opts = {}) {
     opts.pulse().then(
       (pulse) => {
         last = last || pulse;
+        context.rebuild?.update(pulse.rebuild);
       },
       () => {},
     );
@@ -153,6 +159,7 @@ export function storyOverlay(input, opts = {}) {
   context.body = createBody(context);
   context.statusLight = createStatusLight(context);
   context.freshness = createFreshness(context);
+  context.rebuild = createRebuild(context);
   context.reading = createReading(context);
   context.marks = createMarks(context);
   context.drafts = createDrafts(context);
@@ -189,6 +196,9 @@ export function storyOverlay(input, opts = {}) {
     }
     if (moved('listening') || moved('answering') || moved('down')) {
       context.statusLight.refresh();
+    }
+    if (!pulse.down) {
+      context.rebuild.update(pulse.rebuild);
     }
     last = pulse;
   }

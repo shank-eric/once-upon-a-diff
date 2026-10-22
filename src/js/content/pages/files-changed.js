@@ -129,6 +129,8 @@ export function createFilesChangedPage() {
             requestFor({ act: 'update', base }, current.pr, { retell }),
           ),
         ),
+      // Rebuild story / Rebuild from here: a build request for this story
+      requestRebuild: (ask) => bodyOf(callBridge('POST', `${storyPath}/rebuild`, ask)),
       status: async () => {
         const answer = await callBridge('GET', `/api/status?story=${encodeURIComponent(storyId)}`);
         if (answer.ok) {

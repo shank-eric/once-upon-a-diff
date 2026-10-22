@@ -2,7 +2,8 @@
  * One story: its data (GET /api/stories/<id>), its version (the pages poll it
  * to redraw when chapters.json changes), its pulse (version plus what else the
  * panel polls for), the panel's saved state (ui), where the reviewer is
- * (position) and whether the story is up to date (freshness).
+ * (position), whether the story is up to date (freshness), and its Rebuild
+ * (rebuild: ask for one, or how the last one stands).
  */
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -14,7 +15,7 @@ import { readMarks, stateKeyOf } from '../../github/drafts.mjs';
 import { listeningOf } from '../../listeners/listeners.mjs';
 import { refreshLocal } from '../../stories/local-diff.mjs';
 import { storyVersion, localVersion } from '../../stories/meta.mjs';
-import { clipText, toInt } from '../request.mjs';
+import { HttpError, clipText, toInt } from '../request.mjs';
 import { questionsOf } from './questions.mjs';
 
 function load({ app, send }, story) {
@@ -62,7 +63,51 @@ function pulse({ app, send }, story) {
     listening: listening.ok,
     // who answers this story's questions, so the panel redraws when a story listener takes over from the repo's
     answering: listening.answering ? listening.answering.consumer : null,
+    rebuild: rebuildView(app, story),
   });
+}
+
+/** The story's Rebuild as the panel shows it: {id, mode, from_step, state, requested_at, done_at, note}, or null. */
+function rebuildView(app, story) {
+  const build = app.builds.view(app.builds.rebuildOf(story.id, story.meta));
+  if (!build) {
+    return null;
+  }
+  return {
+    id: build.id,
+    mode: build.mode,
+    from_step: build.from_step || null,
+    state: build.state,
+    requested_at: build.requested_at,
+    claimed_by: build.state === 'building' ? build.claimed_by || null : null,
+    done_at: build.done_at || null,
+    note: build.note || null,
+  };
+}
+
+/**
+ * GET: rebuildView. POST {mode: 'rebuild'|'rebuild_from', from_step, guidance}: the panel's Rebuild story or Rebuild
+ * from here, a build request a listener hands to a Claude session. A request already being built comes back as it is.
+ */
+function rebuild({ app, req, body, send }, story) {
+  if (req.method === 'POST') {
+    const chapters = (app.stories.load(story.id).chapters || []).filter((chapter) => !chapter.auto);
+    if (!chapters.length) {
+      throw new HttpError(400, 'the story has no chapters to rebuild');
+    }
+    app.statusCache = null;
+    app.builds.requestRebuild({
+      story: story.id,
+      meta: story.meta,
+      mode: String(body.mode || ''),
+      from_step: toInt(body.from_step),
+      guidance: clipText(body.guidance, 4000),
+      chapters: chapters.length,
+      story_dir: story.dir,
+      requested_at: body.requested_at,
+    });
+  }
+  return send(200, { rebuild: rebuildView(app, story) });
 }
 
 /** meta.json as written, for the local diff refresh (readMeta fills in defaults). Throws when it's missing or broken. */
@@ -112,4 +157,5 @@ export const storyRoutes = [
   { what: 'ui', handle: panelState },
   { what: 'position', method: 'POST', handle: position },
   { what: 'freshness', method: 'GET', handle: storyFreshness },
+  { what: 'rebuild', handle: rebuild },
 ];

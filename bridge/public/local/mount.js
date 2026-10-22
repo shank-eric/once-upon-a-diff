@@ -68,6 +68,8 @@ export function mount(initial) {
           ? addToFixBeforePush(chapter, index)
           : api('POST', `${STORY_PATH}/drafts`, { chapter, index, action }),
     },
+    // Rebuild story / Rebuild from here: a build request for this story, which `once-upon local` finishes
+    requestRebuild: (ask) => api('POST', `${STORY_PATH}/rebuild`, ask),
     pulse: () => api('GET', `${STORY_PATH}/pulse`),
     // the story or the commits moved: local.js reloads and redraws
     onPulse: (pulse) => {

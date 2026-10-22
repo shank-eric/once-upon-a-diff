@@ -3,7 +3,11 @@
  * reviewer dismissed or collapsed, which session each was handed to, and
  * which listener a question goes to.
  *
- *   <home>/state/<story id>/questions.json   {dismissed: {<question id>: at}, collapsed: {<question id>: true}}
+ *   <home>/state/<story id>/questions.json   {dismissed: {<question id>: at}, collapsed: {<question id>: true},
+ *                                             moved: {<question id>: step}}
+ *
+ * `moved` is where a rebuild put a question asked on a chapter it re-told (0: the Overview), so it shows with the
+ * chapter that tells its file now (../stories/rebuild.mjs).
  *   <home>/handed.json                       {<question id>: {consumer, at}}, written by `once-upon wait`
  *
  * Routing: a question goes to a live listener for its story (`wait --story`)
@@ -21,13 +25,28 @@ export const QA_ACTIONS = ['dismiss', 'restore', 'collapse', 'expand'];
 
 const marksFile = (home, story) => path.join(home, 'state', story, 'questions.json');
 
-/** The story's {dismissed, collapsed} marks, empty for an unknown or odd id. */
+/** The story's {dismissed, collapsed, moved} marks, empty for an unknown or odd id. */
 export function readQaMarks(home, story) {
   if (!ID_RE.test(String(story || ''))) {
-    return { dismissed: {}, collapsed: {} };
+    return { dismissed: {}, collapsed: {}, moved: {} };
   }
   const saved = readJson(marksFile(home, story), {}) || {};
-  return { dismissed: saved.dismissed || {}, collapsed: saved.collapsed || {} };
+  return {
+    dismissed: saved.dismissed || {},
+    collapsed: saved.collapsed || {},
+    moved: saved.moved || {},
+  };
+}
+
+/** A rebuild moved these questions: {<question id>: step}. */
+export function moveQuestions(home, story, moves) {
+  if (!Object.keys(moves).length || !ID_RE.test(String(story || ''))) {
+    return;
+  }
+  const marks = readQaMarks(home, story);
+  Object.assign(marks.moved, moves);
+  mkdirSync(path.dirname(marksFile(home, story)), { recursive: true });
+  writeJsonAtomic(marksFile(home, story), marks);
 }
 
 /** Applies one of QA_ACTIONS to the question ids, and returns the marks. */
@@ -71,12 +90,18 @@ export function noteHanded(home, ids, consumer) {
   writeJsonAtomic(handedFile(home), handed);
 }
 
-/** The story's questions as the panel shows them: each marked dismissed or collapsed, and who it went to. */
+/**
+ * The story's questions as the panel shows them: each marked dismissed or collapsed, and who it went to. A question a
+ * rebuild moved shows on its new step, with the step it was asked on as `asked_on`.
+ */
 export function withMarks(home, story, questions) {
   const marks = readQaMarks(home, story);
   const handed = readHanded(home);
   return questions.map((question) => ({
     ...question,
+    ...(question.id in marks.moved
+      ? { step: marks.moved[question.id], asked_on: question.step ?? null }
+      : {}),
     dismissed: !!marks.dismissed[question.id],
     collapsed: !!marks.collapsed[question.id],
     handed_to: handed[question.id] ? handed[question.id].consumer : null,
