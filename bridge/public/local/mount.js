@@ -67,6 +67,13 @@ export function mount(initial) {
           ? addToFixBeforePush(chapter, index)
           : api('POST', `${STORY_PATH}/drafts`, { chapter, index, action }),
     },
+    pulse: () => api('GET', `${STORY_PATH}/pulse`),
+    // the story or the commits moved: local.js reloads and redraws
+    onPulse: (pulse) => {
+      if (pulse.version !== page.story.version && page.onVersion) {
+        page.onVersion(pulse.version);
+      }
+    },
     status: () =>
       api('GET', `/api/status?story=${encodeURIComponent(STORY_ID)}`).catch(statusError),
   });

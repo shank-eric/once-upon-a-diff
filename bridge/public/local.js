@@ -181,13 +181,11 @@ document.addEventListener('change', async (event) => {
   placeNotes();
 });
 
-// ---------- follow the story and the commits: when chapters.json changes or the head moves, redraw
-async function poll() {
-  if (document.visibilityState !== 'visible') {
-    return;
-  }
+// ---------- follow the story and the commits: when chapters.json changes or the head moves, redraw.
+// The panel's pulse says when (mount.js), and this page polls /version itself only while the panel is closed.
+async function reloadIfChanged(known) {
   try {
-    const { version } = await api('GET', `${STORY_PATH}/version`);
+    const version = known ?? (await api('GET', `${STORY_PATH}/version`)).version;
     if (version === page.story.version) {
       return;
     }
@@ -230,7 +228,13 @@ async function start() {
       return page.overlay;
     },
   };
-  setInterval(poll, POLL_MS);
-  window.addEventListener('focus', poll); // a comment drafted in the terminal shows up as soon as you come back
+  page.onVersion = reloadIfChanged;
+  const pollWhileClosed = () => {
+    if (page.hidden && document.visibilityState === 'visible') {
+      reloadIfChanged();
+    }
+  };
+  setInterval(pollWhileClosed, POLL_MS);
+  window.addEventListener('focus', pollWhileClosed); // the panel's own tick looks on focus while it's open
 }
 start();

@@ -11,9 +11,17 @@ export const STORY_PATH = `/api/stories/${encodeURIComponent(BOOT.story)}`;
 
 /**
  * What the page's modules share: the story (with its local diff), the panel (null while it's closed), whether the
- * reviewer closed it, the panel's last saved state, and highlight.js once it has loaded (null without it).
+ * reviewer closed it, the panel's last saved state, highlight.js once it has loaded (null without it), and
+ * onVersion(version), local.js's reload, for the panel's pulse to call.
  */
-export const page = { story: null, overlay: null, hidden: false, lastUi: {}, hljs: null };
+export const page = {
+  story: null,
+  overlay: null,
+  hidden: false,
+  lastUi: {},
+  hljs: null,
+  onVersion: null,
+};
 
 /** A bridge call with the page's token. Rejects with the bridge's error message. */
 export async function api(method, path, body) {
