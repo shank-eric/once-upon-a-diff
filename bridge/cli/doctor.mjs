@@ -1,14 +1,12 @@
 /**
- * `diff-story doctor`: is everything connected? Each check prints PASS, WARN
- * or FAIL with what it found and, when it isn't passing, the fix.
+ * `diff-story doctor`: is everything connected? The config and token, the
+ * bridge, a Claude session listening, and the extension. Each check prints
+ * PASS, WARN or FAIL with what it found and, when it isn't passing, the fix.
  */
-import { existsSync, readFileSync, statSync, accessSync, constants } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import { StoryStore } from '../stories/store.mjs';
 import { listeners } from '../listeners/listeners.mjs';
-import { Builds } from '../inbox/builds.mjs';
-import { Inbox } from '../inbox/inbox.mjs';
 import { formatTime } from '../config/settings.mjs';
 
 const localTime = (iso) => formatTime(iso);
@@ -116,33 +114,6 @@ export async function doctor(
     );
   }
 
-  // the story root and the stories
-  try {
-    accessSync(home, constants.W_OK);
-    const store = new StoryStore({ home });
-    const list = store.list();
-    add(
-      list.length ? 'PASS' : 'WARN',
-      'Stories',
-      list.length
-        ? `${list.length}: ${list
-            .slice(0, 6)
-            .map((story) => story.id)
-            .join(', ')}${list.length > 6 ? ', …' : ''}`
-        : `none under ${home} or a known checkout`,
-      list.length
-        ? null
-        : 'Make one with the pr-story skill (its render step publishes it), or: diff-story local --repo DIR --base REF',
-    );
-  } catch (e) {
-    add(
-      'FAIL',
-      'Story root',
-      `${home} isn't writable: ${e.message}`,
-      `Check the folder's permissions, or set DIFF_STORY_HOME`,
-    );
-  }
-
   // a Claude session listening for questions
   const all = listeners(home);
   const live = all.filter((listener) => listener.live);
@@ -161,44 +132,13 @@ export async function doctor(
       all.length
         ? `no live listener; last was ${all[0].consumer} ${localTime(all[0].at)}`
         : 'no Claude session has ever listened',
-      'In a Claude Code session, run as a background task: diff-story wait --consumer pr-story. Until then, questions wait in the inbox.',
+      'In Claude Code, in the repo you want to listen for: /diff-story-listen <owner/name>. Until then, questions wait in the inbox.',
     );
   }
-  const pending = new Builds(home, new Inbox(home)).pending();
-  if (pending.length) {
-    add(
-      'WARN',
-      'Build requests',
-      `${pending.length} pending: ${pending.map((build) => `${build.repo}#${build.number}`).join(', ')}`,
-      'A listening Claude session picks them up; or list them with: diff-story builds',
-    );
-  }
-
-  // the bridge log
-  const logFile = path.join(home, 'bridge.log');
-  const tail = existsSync(logFile)
-    ? readFileSync(logFile, 'utf8').trim().split('\n').slice(-8)
-    : [];
-  const errors = tail.filter((line) => /error|Error|EADDRINUSE/.test(line));
-  add(
-    errors.length ? 'WARN' : 'PASS',
-    'Bridge log',
-    tail.length
-      ? `${logFile}, last ${tail.length} lines${errors.length ? `, ${errors.length} look like errors` : ''}`
-      : 'no log yet (the bridge writes one when started with diff-story serve)',
-    errors.length ? 'See the lines below' : null,
-  );
-
   for (const result of results) {
     out(`${result.level.padEnd(4)}  ${result.name}: ${result.detail}`);
     if (result.fix) {
       out(`      fix: ${result.fix}`);
-    }
-  }
-  if (tail.length) {
-    out('\nbridge.log (last lines):');
-    for (const line of tail) {
-      out(`  ${line}`);
     }
   }
   const fails = results.filter((result) => result.level === 'FAIL').length;
