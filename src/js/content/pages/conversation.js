@@ -62,7 +62,10 @@ export function createConversationPage() {
     }
   }
 
-  /** Every tick and navigation, from the router: follow the PR on screen. */
+  /**
+   * Every tick and navigation, from the router: follow the PR on screen.
+   * @param {{kind: string, reason?: string}} where
+   */
   function route({ kind, reason }) {
     const now = kind === 'conversation' ? conversationPr(location.pathname) : null;
     const key = now ? prKey(now.repo, now.number) : null;

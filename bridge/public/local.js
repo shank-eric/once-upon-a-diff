@@ -80,7 +80,7 @@ function goToNote(link) {
 
 // ---------- clicks on the diff: Viewed, fold, notes, tree (the panel handles its own)
 document.addEventListener('click', async (event) => {
-  const target = event.target;
+  const target = /** @type {Element} */ (event.target);
   if (target.closest('#diff-story-panel')) {
     return;
   }
@@ -137,7 +137,7 @@ document.addEventListener('click', async (event) => {
   }
   const toggle = target.closest('.ds-notes-toggle');
   if (toggle) {
-    const list = document.querySelector('.ds-notes-list');
+    const list = /** @type {HTMLElement} */ (document.querySelector('.ds-notes-list'));
     list.hidden = !list.hidden;
     toggle.setAttribute('aria-expanded', String(!list.hidden));
   }
@@ -157,7 +157,7 @@ async function setPref(patch, what) {
 }
 
 function setHideWhitespace(hide) {
-  const box = document.querySelector('.ds-ws-toggle');
+  const box = /** @type {HTMLInputElement|null} */ (document.querySelector('.ds-ws-toggle'));
   if (box) {
     box.disabled = true;
   }
@@ -165,11 +165,12 @@ function setHideWhitespace(hide) {
 }
 
 document.addEventListener('change', async (event) => {
-  const whitespaceBox = event.target.closest('.ds-ws-toggle');
+  const target = /** @type {Element} */ (event.target);
+  const whitespaceBox = /** @type {HTMLInputElement|null} */ (target.closest('.ds-ws-toggle'));
   if (whitespaceBox) {
     return setHideWhitespace(whitespaceBox.checked);
   }
-  const box = event.target.closest('[data-note-done]');
+  const box = /** @type {HTMLInputElement|null} */ (target.closest('[data-note-done]'));
   if (!box) {
     return;
   }

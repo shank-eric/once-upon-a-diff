@@ -112,7 +112,10 @@ export function createShell(context) {
     if (event.key !== 'Enter' && event.key !== ' ') {
       return;
     }
-    const link = event.target instanceof Element ? event.target.closest('[data-rel]') : null;
+    const link =
+      event.target instanceof Element
+        ? /** @type {HTMLElement | null} */ (event.target.closest('[data-rel]'))
+        : null;
     if (link && link === event.target) {
       event.preventDefault();
       link.click();

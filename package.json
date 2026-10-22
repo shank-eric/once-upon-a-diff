@@ -18,7 +18,7 @@
     "lint": "eslint . --cache --cache-strategy content",
     "lint:fix": "eslint . --fix",
     "lint:sh": "shellcheck skills/pr-story/bin/*.sh",
-    "types": "tsc -p tsconfig.json",
+    "types": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json",
     "lint-staged": "./node_modules/.bin/lint-staged",
     "format": "prettier --cache --cache-location=.prettiercache --write .",
     "format:check": "prettier --cache --cache-location=.prettiercache --check .",
@@ -29,6 +29,7 @@
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
+    "@types/chrome": "0.3.4",
     "@types/node": "24.19.1",
     "eslint": "9.39.5",
     "eslint-config-prettier": "10.1.8",

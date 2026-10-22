@@ -56,7 +56,7 @@ export function listenNotice() {
       shadow.innerHTML = `<style>${CSS}</style><div class="n" role="status"></div>`;
       root = shadow.querySelector('.n');
       root.addEventListener('click', (event) => {
-        const button = event.target.closest('button[data-i], button.x');
+        const button = /** @type {Element} */ (event.target).closest('button[data-i], button.x');
         if (!button) {
           return;
         }
