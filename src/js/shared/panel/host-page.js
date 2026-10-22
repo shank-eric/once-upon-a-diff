@@ -1,7 +1,8 @@
 /*
  * Finding files, lines, Viewed toggles and expand controls on the host page:
- * GitHub's /changes and /files, or the local page, whose diff view uses the
- * same DOM shapes as /changes. Read only: nothing here clicks anything.
+ * GitHub's /changes, or the local page, whose diff view uses the same DOM
+ * shapes. Classic /files (where GitHub sends logged-out viewers) isn't read.
+ * Read only: nothing here clicks anything.
  *
  * Selectors (checked against github.com 2026-10-20):
  *   /changes  file:   [role=region][id="diff-<sha256(path)>"], wrapped by a
@@ -13,12 +14,6 @@
  *                     hunk rows hold td.diff-hunk-cell and button[data-direction=up|down|all];
  *                     a context row's old line is only in data-diff-line-key (b:N-l:N-r:N);
  *                     "Expand all lines: <path>" (.js-expand-all-difflines-button) opens the file
- *   /files    file:   copilot-diff-entry[data-file-path] or .file[data-tagsearch-path]
- *             line:   #diff-<sha>R<n>
- *             viewed: input.js-reviewed-checkbox (clicked only by Mark viewed)
- *             tree:   file-tree li[data-tree-entry-type] with a[href="#diff-<sha>"]
- *             expand: .file-header .js-details-target "Toggle diff contents" [aria-expanded=false];
- *                     tr.js-expandable-line holds a.js-expand "Expand Up|Down|All"
  */
 import { expandDirOf } from './expand.js';
 
@@ -74,16 +69,8 @@ export function createHostPage({ shaToPath, pathToSha, allPaths, hostId, panelId
     for (const el of document.querySelectorAll('[id^="diff-"]')) {
       const rel = shaToPath.get(el.id.slice(5));
       if (rel) {
-        add(rel, el.closest('copilot-diff-entry') || outerWrapper(el));
+        add(rel, outerWrapper(el));
       }
-    }
-    for (const el of document.querySelectorAll(
-      'copilot-diff-entry[data-file-path], .file[data-tagsearch-path], .js-file[data-tagsearch-path]',
-    )) {
-      add(
-        el.getAttribute('data-file-path') || el.getAttribute('data-tagsearch-path'),
-        el.closest('copilot-diff-entry') || el,
-      );
     }
     return [...found].map(([el, rel]) => ({ rel, el }));
   }
@@ -99,7 +86,7 @@ export function createHostPage({ shaToPath, pathToSha, allPaths, hostId, panelId
     const cell =
       [...document.querySelectorAll(`[data-line-anchor="${id}"]`)].find(
         (candidate) => !candidate.closest('.diff-hunk-cell'),
-      ) || document.getElementById(id);
+      ) || null;
     if (cell || side !== 'L') {
       return cell;
     }
@@ -109,13 +96,11 @@ export function createHostPage({ shaToPath, pathToSha, allPaths, hostId, panelId
     );
   }
 
-  /** A file block's own Viewed toggle: /changes' (and the local page's) header button, or classic /files' checkbox. */
+  /** A file block's own Viewed toggle: /changes' (and the local page's) header button. */
   const viewedToggleIn = (el) =>
     [...el.querySelectorAll('button[aria-pressed]')].find((button) =>
       /^\s*viewed\s*$/i.test(button.textContent),
-    ) ||
-    el.querySelector('input.js-reviewed-checkbox') ||
-    null;
+    ) || null;
 
   /**
    * true/false from the file header's Viewed toggle, null when the file isn't on the page,
@@ -130,9 +115,7 @@ export function createHostPage({ shaToPath, pathToSha, allPaths, hostId, panelId
     if (!toggle) {
       return 'none';
     }
-    return toggle.matches('input')
-      ? toggle.checked
-      : toggle.getAttribute('aria-pressed') === 'true';
+    return toggle.getAttribute('aria-pressed') === 'true';
   }
 
   /** Never a Viewed toggle, a checkbox or anything that submits: those aren't ours to click. */
@@ -140,22 +123,13 @@ export function createHostPage({ shaToPath, pathToSha, allPaths, hostId, panelId
     !!el &&
     el.isConnected &&
     !el.hasAttribute('aria-pressed') &&
-    !el.matches('input, [type="submit"], .js-reviewed-toggle, .js-reviewed-checkbox') &&
+    !el.matches('input, [type="submit"]') &&
     !el.closest('#' + hostId);
 
   /** The file's own expand toggle while it's collapsed, else null. */
   function collapsedToggle(el) {
-    // /changes
     for (const button of el.querySelectorAll('button')) {
       if (/^expand file$/i.test(labelOf(button)) && isSafeToClick(button)) {
-        return button;
-      }
-    }
-    // /files
-    for (const button of el.querySelectorAll(
-      '.file-header .js-details-target[aria-expanded="false"]',
-    )) {
-      if (/toggle diff contents/i.test(labelOf(button)) && isSafeToClick(button)) {
         return button;
       }
     }
@@ -177,12 +151,8 @@ export function createHostPage({ shaToPath, pathToSha, allPaths, hostId, panelId
 
   /** One row of a file's table, for expandStep: {gap, controls} for a hunk row, else {n} on that side. */
   function rowModel(row, sha, side) {
-    const controls = [...row.querySelectorAll('button[data-direction], .js-expand')];
-    if (
-      controls.length ||
-      row.matches('.js-expandable-line') ||
-      row.querySelector('.diff-hunk-cell, .blob-code-hunk')
-    ) {
+    const controls = [...row.querySelectorAll('button[data-direction]')];
+    if (controls.length || row.querySelector('.diff-hunk-cell')) {
       const byDirection = {};
       for (const control of controls) {
         const direction = expandDirOf(control.getAttribute('data-direction'), labelOf(control));
@@ -193,8 +163,8 @@ export function createHostPage({ shaToPath, pathToSha, allPaths, hostId, panelId
       return { gap: Object.keys(byDirection), controls: byDirection };
     }
     let line = null;
-    for (const cell of row.querySelectorAll('[data-line-anchor], td[id^="diff-"]')) {
-      const match = LINE_ID.exec(cell.getAttribute('data-line-anchor') || cell.id);
+    for (const cell of row.querySelectorAll('[data-line-anchor]')) {
+      const match = LINE_ID.exec(cell.getAttribute('data-line-anchor'));
       if (match && match[1] === sha && match[2] === side) {
         line = +match[3];
         break;
@@ -223,19 +193,6 @@ export function createHostPage({ shaToPath, pathToSha, allPaths, hostId, panelId
         rows.push({ rel: id, el });
       } else if (el.hasAttribute('aria-expanded')) {
         rows.push({ dir: id, el });
-      }
-    }
-    for (const el of document.querySelectorAll(
-      'file-tree li[data-tree-entry-type], .js-tree-node',
-    )) {
-      const link = el.querySelector(
-        ':scope > a[href*="#diff-"], :scope > .ActionList-content[href*="#diff-"]',
-      );
-      const type = el.getAttribute('data-tree-entry-type');
-      if (link && type !== 'directory' && type !== 'root') {
-        rows.push({ rel: shaToPath.get(link.getAttribute('href').split('#diff-')[1]), el });
-      } else if (type === 'directory' || type === 'root') {
-        rows.push({ dir: null, el });
       }
     }
     return rows;

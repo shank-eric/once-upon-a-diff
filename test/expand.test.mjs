@@ -11,11 +11,6 @@ describe('expand controls: which way one opens', () => {
     assert.equal(expandDirOf('all', 'Expand file from line 89 to line 96'), 'all');
     assert.equal(expandDirOf(null, 'Expand file from line 89 to line 96'), 'all');
     assert.equal(expandDirOf(null, 'Expand file down from line 140'), 'down');
-  });
-  test("from classic /files' a.js-expand labels", () => {
-    assert.equal(expandDirOf(null, 'Expand Up'), 'up');
-    assert.equal(expandDirOf(null, 'Expand Down'), 'down');
-    assert.equal(expandDirOf(null, 'Expand All'), 'all');
     assert.equal(expandDirOf(null, 'Collapse file'), null);
   });
 });
