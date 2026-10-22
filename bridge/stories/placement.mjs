@@ -17,7 +17,14 @@
  * a checkout, checkouts.json, or ~/Development/<name> with that origin.
  */
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import { checkoutFor } from '../config/repos.mjs';
 import { readJson, writeJson } from '../util/json-file.mjs';
@@ -91,6 +98,66 @@ export function indexStory(home, id, dir) {
   all[id] = dir;
   mkdirSync(home, { recursive: true });
   writeJson(indexFile(home), all);
+}
+
+/**
+ * One-time move from the old name, per checkout: for each index entry under a
+ * <checkout>/.diff-story/, rename that folder to .pr-story/ (when there's no
+ * .pr-story/ yet), swap the exclude line, and repoint the index. Returns one
+ * line per checkout moved. Safe to delete once no checkout has a .diff-story/ left.
+ */
+export function moveLegacyStoryFolders(home) {
+  const all = readIndex(home);
+  const lines = [];
+  let repointed = false;
+  const legacy = `${path.sep}.diff-story${path.sep}`;
+  for (const [id, dir] of Object.entries(all)) {
+    if (typeof dir !== 'string' || !dir.includes(legacy)) {
+      continue;
+    }
+    const top = dir.slice(0, dir.lastIndexOf(legacy));
+    const oldFolder = path.join(top, '.diff-story');
+    const newFolder = path.join(top, STORY_FOLDER);
+    if (existsSync(oldFolder) && !existsSync(newFolder)) {
+      renameSync(oldFolder, newFolder);
+      swapLegacyExclude(top);
+      excludeStories(top);
+      lines.push(`moved ${oldFolder} to ${newFolder} (the project is PR Story now)`);
+    }
+    const moved = path.join(newFolder, path.basename(dir));
+    if (!existsSync(dir) && existsSync(moved)) {
+      all[id] = moved;
+      repointed = true;
+    }
+  }
+  if (repointed) {
+    writeJson(indexFile(home), all);
+  }
+  return lines;
+}
+
+/** In the common .git/info/exclude, turn the old /.diff-story/ line (and its comment) into the new one. */
+function swapLegacyExclude(dir) {
+  let file;
+  try {
+    file = path.join(
+      git(dir, ['rev-parse', '--path-format=absolute', '--git-common-dir']),
+      'info',
+      'exclude',
+    );
+  } catch {
+    return;
+  }
+  if (!existsSync(file)) {
+    return;
+  }
+  const text = readFileSync(file, 'utf8');
+  const next = text
+    .replace(/^# Diff Story Mode's stories \(local only\)$/m, "# PR Story's stories (local only)")
+    .replace(/^\/?\.diff-story\/?$/m, EXCLUDE_LINE);
+  if (next !== text) {
+    writeFileSync(file, next);
+  }
 }
 
 /** The folder a new story goes in: <checkout>/.pr-story/<id>, made and excluded, or <home>/<id>. */
