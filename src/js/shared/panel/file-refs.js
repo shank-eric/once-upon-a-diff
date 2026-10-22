@@ -35,10 +35,13 @@ export function placePills(html, marks, pillFor) {
   });
 }
 
-/** The data-rel attributes (and data-side/start/end for a line) that make a mention a jump link. */
+/**
+ * The data-rel attributes (and data-side/start/end for a line) that make a mention a jump link. role and tabindex
+ * put it in the tab order, and the shell turns Enter or Space on it into a click.
+ */
 export function refAttrs(rel, line) {
   const where = line ? ` line ${line.start}${line.end !== line.start ? `–${line.end}` : ''}` : '';
-  const attrs = `data-rel="${escapeHtml(rel)}" title="Scroll to ${escapeHtml(rel)}${where}"`;
+  const attrs = `data-rel="${escapeHtml(rel)}" role="link" tabindex="0" title="Scroll to ${escapeHtml(rel)}${where}"`;
   return line
     ? `${attrs} data-side="${line.side}" data-start="${line.start}" data-end="${line.end}"`
     : attrs;

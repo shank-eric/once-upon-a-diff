@@ -107,6 +107,18 @@ export function createShell(context) {
   const onResize = () => setWidth(state.width);
   window.addEventListener('resize', onResize);
 
+  // a jump link is a <code role="link" tabindex="0">: Enter or Space on it does what a click does
+  root.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') {
+      return;
+    }
+    const link = event.target instanceof Element ? event.target.closest('[data-rel]') : null;
+    if (link && link === event.target) {
+      event.preventDefault();
+      link.click();
+    }
+  });
+
   /** Keep the host page's keyboard shortcuts out of the panel while typing. */
   const isolateKeys = () => stopKeyEvents(root);
 

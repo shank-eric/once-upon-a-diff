@@ -13,6 +13,10 @@ import { escapeHtml } from '../util/html.js';
 import { baseName, capitalize } from '../util/text.js';
 import { readStepsOf } from './reading.js';
 
+/** A file name as a jump link (file-refs.js refAttrs without a line, which can't be imported here without a cycle). */
+const jumpAttrs = (rel) =>
+  `data-rel="${escapeHtml(rel)}" role="link" tabindex="0" title="Scroll to ${escapeHtml(rel)}"`;
+
 /** The Mark viewed button for a file this chapter finishes. The tracker keeps its label in step with the file's Viewed toggle. */
 export function markViewedButton(rel, short) {
   const label = short ? 'mark viewed' : 'Mark viewed';
@@ -20,12 +24,7 @@ export function markViewedButton(rel, short) {
 }
 
 const linkList = (rels) =>
-  rels
-    .map(
-      (rel) =>
-        `<code data-rel="${escapeHtml(rel)}" title="Scroll to ${escapeHtml(rel)}">${escapeHtml(baseName(rel))}</code>`,
-    )
-    .join(', ');
+  rels.map((rel) => `<code ${jumpAttrs(rel)}>${escapeHtml(baseName(rel))}</code>`).join(', ');
 
 export function createViewedTracker(context) {
   const { story, state, page, shell } = context;
@@ -105,7 +104,7 @@ export function createViewedTracker(context) {
       .map((rel) => {
         const owner = story.chapterName(story.finishedIn[rel]);
         if (inChapter.has(rel)) {
-          return `<p>⚠ <code data-rel="${escapeHtml(rel)}">${escapeHtml(baseName(rel))}</code> is marked viewed, but ${owner} covers more of it. You may want to unmark it until then.</p>`;
+          return `<p>⚠ <code ${jumpAttrs(rel)}>${escapeHtml(baseName(rel))}</code> is marked viewed, but ${owner} covers more of it. You may want to unmark it until then.</p>`;
         }
         return `<p>⚠ <code>${escapeHtml(baseName(rel))}</code> is marked viewed early: it belongs to ${owner}. You may want to unmark it until then.</p>`;
       })

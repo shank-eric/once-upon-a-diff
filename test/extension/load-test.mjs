@@ -1019,6 +1019,19 @@ try {
     /In fix before push/.test(await localPage.locator('#dsm-panel .prs-drafts').textContent()),
     'and the draft still says In fix before push',
   );
+  // a jump link is reachable by keyboard: Tab focuses it, Enter jumps as a click does
+  const jumpLink = localPage.locator('#dsm-panel .prs-body [data-rel][tabindex="0"]').first();
+  await jumpLink.focus();
+  check(
+    await jumpLink.evaluate((el) => el.getRootNode().activeElement === el),
+    'a file jump link takes focus',
+  );
+  await localPage.keyboard.press('Enter');
+  await localPage.waitForTimeout(300);
+  check(
+    (await localPage.locator('[data-dsm-flash]').count()) > 0,
+    'Enter on a jump link jumps to the file (it flashes)',
+  );
   // Claude rewrites chapters.json: the panel's pulse redraws it open, and the page's own poll while it's closed
   const localFile = path.join(local.dir, 'chapters.json');
   const rewrite = (word) => {
