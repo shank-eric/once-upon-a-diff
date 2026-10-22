@@ -4,12 +4,9 @@
  * bridge on a random port with a temp home:
  *
  *   1. the options page saves the port and token and reaches the bridge
- *   2. on a PR's /changes page (the stand-in from changes-page.mjs, since
- *      logged out GitHub sends /changes to classic /files) the panel docks,
- *      filters to a chapter, marks a file viewed, survives a reload on the same
- *      step, sends a question to the inbox, and hides and comes back on toggle;
- *      on public GitHub, logged out, the story tags, the PR list and the
- *      Conversation tab, and the panel docking on /files
+ *   2. on a public GitHub PR's /files and /changes pages (logged out) the
+ *      panel docks, filters to a chapter, survives a reload on the same step,
+ *      sends a question to the inbox, and hides and comes back on toggle
  *   3. the bridge's local page draws a local diff with the same panel,
  *      filters by chapter, and keeps Viewed and a fix-before-push note
  *
@@ -26,7 +23,6 @@ import { fileURLToPath } from 'node:url';
 import { tmp, writeJson, TOKEN, startBridge, localRepo, runCli } from '../helpers.mjs';
 import { createLocalStory } from '../../bridge/stories/local-story.mjs';
 import { beat } from '../../bridge/listeners/listeners.mjs';
-import { serveChangesPage } from './changes-page.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const EXT = path.join(ROOT, 'src');
@@ -197,172 +193,200 @@ try {
       pageBridgeCalls.push(request.url());
     }
   });
-  // logged out, GitHub sends /changes to classic /files, so /changes is the stand-in from changes-page.mjs
-  await serveChangesPage(
-    page,
-    { owner, repo, number },
-    rels.map((rel) => ({ rel, lines: 12, hunks: [[1, 12]], added: [2] })),
-  );
-  const view = 'changes';
-  await page.goto(`https://github.com/${owner}/${repo}/pull/${number}/${view}`, {
-    waitUntil: 'domcontentloaded',
-  });
-  const host = await page
-    .waitForSelector('#diff-story-panel', { timeout: 15000, state: 'attached' })
-    .catch(() => null);
-  check(!!host, `/${view}: panel docks`);
-  if (!host) {
-    await shot(page, `github-${view}-nopanel`);
-  }
-  await page.waitForTimeout(2500); // lazy-loaded diffs
-  const note = () => page.locator('#dsm-panel .prs-count-note').textContent();
-  check(/Overview/.test(await note()), `/${view}: starts at the Overview: "${await note()}"`);
-  await page.waitForTimeout(800);
-  const freshText = await page.locator('#dsm-panel .prs-fresh').textContent();
-  check(
-    /Story is for aaaaaaa; the PR has 2 newer commits \(1 file changed, in chapter 2\)/.test(
-      freshText,
-    ),
-    `/${view}: an out-of-date story says so: "${freshText}"`,
-  );
-  check(
-    (await page
-      .locator('#dsm-panel ol.prs-map li[data-n="2"] .prs-chg[data-why="story"]')
-      .count()) === 1,
-    `/${view}: the chapter touched since is marked in the Steps list`,
-  );
-  await page.waitForTimeout(500);
-  check(
-    (await page.locator('#dsm-panel .prs-light[data-level="warn"]').count()) === 1,
-    `/${view}: the status light is amber with no Claude listening: "${((await page.locator('#dsm-panel .prs-light').getAttribute('title')) || '').split('\n')[0]}"`,
-  );
-  check(
-    /No Claude session is listening/.test(
-      await page.locator('#dsm-panel .prs-askhint').textContent(),
-    ),
-    `/${view}: the Ask box says questions will wait`,
-  );
-  await page.locator('#dsm-panel .prs-next').click();
-  await page.waitForTimeout(800);
-  const chapterOneNote = await note();
-  const hidden = await page.locator('[data-dsm-hidden]').count();
-  check(
-    /chapter 1/.test(chapterOneNote),
-    `/${view}: Next goes to chapter 1: "${chapterOneNote.trim()}"`,
-  );
-  check(
-    hidden > 0,
-    `/${view}: other chapter's files and tree rows are hidden (${hidden} elements)`,
-  );
-  const twiceRow = await page.locator(`#dsm-panel li[data-file="${rels[0]}"]`).textContent();
-  check(
-    !/comes back|Leave unviewed|Mark viewed/i.test(twiceRow) &&
-      (await page.locator(`#dsm-panel li[data-file="${rels[0]}"] [data-mark-for]`).count()) === 0,
-    `/${view}: a file listed in two chapters has no tag in the first: "${twiceRow}"`,
-  );
-  // Mark viewed clicks that file's own Viewed toggle once, Viewed ✓ unclicks it, and with no toggle it says so
-  const markLive = await page.evaluate(async (rel) => {
-    const root = document.getElementById('diff-story-panel').shadowRoot;
-    const btn = root.querySelector(`li[data-file="${CSS.escape(rel)}"] button[data-mark-for]`);
-    const sha = [
-      ...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rel))),
-    ]
-      .map((byte) => byte.toString(16).padStart(2, '0'))
-      .join('');
-    const toggle = [...document.querySelectorAll(`#diff-${sha} button[aria-pressed]`)].find(
-      (button) => button.textContent === 'Viewed',
-    );
-    if (!btn || !toggle) {
-      return { btn: !!btn, toggle: !!toggle };
+  for (const view of ['files', 'changes']) {
+    const url = `https://github.com/${owner}/${repo}/pull/${number}/${view}`;
+    await page.goto(url, { waitUntil: 'domcontentloaded' });
+    const landed = new URL(page.url()).pathname;
+    const host = await page
+      .waitForSelector('#diff-story-panel', { timeout: 15000, state: 'attached' })
+      .catch(() => null);
+    check(!!host, `/${view}: panel docks (landed on ${landed})`);
+    if (!host) {
+      await shot(page, `github-${view}-nopanel`);
+      continue;
     }
-    let clicks = 0;
-    toggle.addEventListener('click', () => {
-      clicks++;
-    });
-    const isOn = () => toggle.getAttribute('aria-pressed') === 'true';
-    const wait = () => new Promise((resolve) => setTimeout(resolve, 500));
-    const message = () => root.querySelector('.prs-msg').textContent;
-    const parent = toggle.parentElement;
-    toggle.remove();
-    btn.click();
-    await wait();
-    const missing = { label: btn.textContent, msg: message() };
-    parent.append(toggle);
-    await wait();
-    const before = { label: btn.textContent, on: isOn(), clicks };
-    btn.click();
-    await wait();
-    const ticked = { label: btn.textContent, on: isOn(), clicks };
-    btn.click();
-    await wait();
-    const unticked = { label: btn.textContent, on: isOn(), clicks };
-    return { missing, before, ticked, unticked };
-  }, rels[1]);
-  check(
-    !!markLive.missing &&
-      markLive.missing.label === 'Mark viewed' &&
-      /no Viewed checkbox/.test(markLive.missing.msg),
-    `/${view}: Mark viewed is a button, and with no Viewed toggle it says there's nothing to tick: ${JSON.stringify(markLive.missing || markLive)}`,
-  );
-  check(
-    !!markLive.before &&
-      !markLive.before.on &&
-      markLive.before.clicks === 0 &&
-      markLive.before.label === 'Mark viewed',
-    `/${view}: nothing ticks the toggle before a click: ${JSON.stringify(markLive.before)}`,
-  );
-  check(
-    !!markLive.ticked &&
-      markLive.ticked.on &&
-      markLive.ticked.clicks === 1 &&
-      markLive.ticked.label === 'Viewed ✓',
-    `/${view}: Mark viewed clicks that file's Viewed toggle once and says Viewed ✓: ${JSON.stringify(markLive.ticked)}`,
-  );
-  check(
-    !!markLive.unticked &&
-      !markLive.unticked.on &&
-      markLive.unticked.clicks === 2 &&
-      markLive.unticked.label === 'Mark viewed',
-    `/${view}: Viewed ✓ unticks it: ${JSON.stringify(markLive.unticked)}`,
-  );
-  check(
-    (await page.locator('[hidden][data-dsm-hid]').count()) > 0,
-    `/${view}: hidden files also carry the hidden attribute (for Refined GitHub's alt-click mark-viewed)`,
-  );
-  // what Refined GitHub's j/k does: set the hash to the next file in page order, hidden or not
-  const jumped = await page.evaluate(
-    async ([inCh, outCh, chapterOne]) => {
-      const sha = async (text) =>
-        [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))]
+    await page.waitForTimeout(2500); // lazy-loaded diffs
+    const note = () => page.locator('#dsm-panel .prs-count-note').textContent();
+    check(/Overview/.test(await note()), `/${view}: starts at the Overview: "${await note()}"`);
+    await page.waitForTimeout(800);
+    const freshText = await page.locator('#dsm-panel .prs-fresh').textContent();
+    check(
+      /Story is for aaaaaaa; the PR has 2 newer commits \(1 file changed, in chapter 2\)/.test(
+        freshText,
+      ),
+      `/${view}: an out-of-date story says so: "${freshText}"`,
+    );
+    check(
+      (await page
+        .locator('#dsm-panel ol.prs-map li[data-n="2"] .prs-chg[data-why="story"]')
+        .count()) === 1,
+      `/${view}: the chapter touched since is marked in the Steps list`,
+    );
+    await page.waitForTimeout(500);
+    check(
+      (await page.locator('#dsm-panel .prs-light[data-level="warn"]').count()) === 1,
+      `/${view}: the status light is amber with no Claude listening: "${((await page.locator('#dsm-panel .prs-light').getAttribute('title')) || '').split('\n')[0]}"`,
+    );
+    check(
+      /No Claude session is listening/.test(
+        await page.locator('#dsm-panel .prs-askhint').textContent(),
+      ),
+      `/${view}: the Ask box says questions will wait`,
+    );
+    await page.locator('#dsm-panel .prs-next').click();
+    await page.waitForTimeout(800);
+    const chapterOneNote = await note();
+    const hidden = await page.locator('[data-dsm-hidden]').count();
+    check(
+      /chapter 1/.test(chapterOneNote),
+      `/${view}: Next goes to chapter 1: "${chapterOneNote.trim()}"`,
+    );
+    check(
+      hidden > 0,
+      `/${view}: other chapter's files and tree rows are hidden (${hidden} elements)`,
+    );
+    if (view === 'files') {
+      const row = await page.locator(`#dsm-panel li[data-file="${rels[0]}"]`).textContent();
+      check(
+        !/comes back|Leave unviewed|Mark viewed/i.test(row) &&
+          (await page.locator(`#dsm-panel li[data-file="${rels[0]}"] [data-mark-for]`).count()) ===
+            0,
+        `/${view}: a file listed in two chapters has no tag in the first: "${row}"`,
+      );
+    }
+    // logged out there's no Viewed checkbox: Mark viewed says so and clicks nothing
+    const markTry = await page.evaluate(async (rel) => {
+      const root = document.getElementById('diff-story-panel').shadowRoot;
+      const btn = root.querySelector(`li[data-file="${CSS.escape(rel)}"] button[data-mark-for]`);
+      if (!btn) {
+        return null;
+      }
+      btn.click();
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      return { label: btn.textContent, msg: root.querySelector('.prs-msg').textContent };
+    }, rels[1]);
+    check(
+      !!markTry &&
+        markTry.label === 'Mark viewed' &&
+        /no Viewed checkbox|isn't loaded/.test(markTry.msg),
+      `/${view}: Mark viewed is a button, and logged out it says there's nothing to tick: ${JSON.stringify(markTry)}`,
+    );
+    // with a Viewed toggle in the file's header (GitHub's shape when logged in), Mark viewed clicks that one toggle, and Viewed ✓ unclicks it
+    const markLive = await page.evaluate(
+      async ([rel, view]) => {
+        const root = document.getElementById('diff-story-panel').shadowRoot;
+        const btn = root.querySelector(`li[data-file="${CSS.escape(rel)}"] button[data-mark-for]`);
+        const sha = [
+          ...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rel))),
+        ]
           .map((byte) => byte.toString(16).padStart(2, '0'))
           .join('');
-      location.replace('#diff-' + (await sha(inCh)));
-      await new Promise((resolve) => setTimeout(resolve, 100));
-      location.replace('#diff-' + (await sha(outCh)));
-      await new Promise((resolve) => setTimeout(resolve, 300));
-      const ch1 = await Promise.all(chapterOne.map(sha));
-      const msg = document
-        .querySelector('#diff-story-panel')
-        .shadowRoot.querySelector('.prs-msg').textContent;
-      return { inChapter: ch1.includes(location.hash.slice(6, 70)), msg };
-    },
-    [rels[0], rels[half], rels.slice(0, half)],
-  );
-  check(
-    jumped.inChapter || /isn't in this chapter/.test(jumped.msg),
-    `/${view}: a hash jump onto a hidden file moves on to a chapter file, or says why not (${jumped.inChapter ? 'moved' : jumped.msg})`,
-  );
-  await shot(page, `github-${view}-chapter1`);
-  await page.reload({ waitUntil: 'domcontentloaded' });
-  await page.waitForSelector('#diff-story-panel', { timeout: 15000, state: 'attached' });
-  await page.waitForTimeout(1500);
-  check(
-    /chapter 1/.test(await note()),
-    `/${view}: a reload comes back on chapter 1: "${(await note()).trim()}"`,
-  );
-  // back to the Overview, where Update is
-  await page.locator('#dsm-panel ol.prs-map li[data-n="0"]').click();
-  await page.waitForTimeout(300);
+        const block =
+          view === 'files'
+            ? document.querySelector(
+                `copilot-diff-entry[data-file-path="${CSS.escape(rel)}"], .file[data-tagsearch-path="${CSS.escape(rel)}"]`,
+              )
+            : document.getElementById(`diff-${sha}`);
+        if (!btn || !block) {
+          return { btn: !!btn, block: !!block };
+        }
+        let clicks = 0;
+        let toggle;
+        if (view === 'files') {
+          toggle = document.createElement('input');
+          toggle.type = 'checkbox';
+          toggle.className = 'js-reviewed-checkbox';
+        } else {
+          toggle = document.createElement('button');
+          toggle.textContent = 'Viewed';
+          toggle.setAttribute('aria-pressed', 'false');
+          toggle.addEventListener('click', () =>
+            toggle.setAttribute(
+              'aria-pressed',
+              String(toggle.getAttribute('aria-pressed') !== 'true'),
+            ),
+          );
+        }
+        toggle.addEventListener('click', () => {
+          clicks++;
+        });
+        block.prepend(toggle);
+        const listening = () =>
+          toggle.matches('input') ? toggle.checked : toggle.getAttribute('aria-pressed') === 'true';
+        const wait = () => new Promise((resolve) => setTimeout(resolve, 500));
+        await wait();
+        const before = { label: btn.textContent, on: listening(), clicks };
+        btn.click();
+        await wait();
+        const ticked = { label: btn.textContent, on: listening(), clicks };
+        btn.click();
+        await wait();
+        const unticked = { label: btn.textContent, on: listening(), clicks };
+        toggle.remove();
+        return { before, ticked, unticked };
+      },
+      [rels[1], view],
+    );
+    check(
+      !!markLive.before &&
+        !markLive.before.on &&
+        markLive.before.clicks === 0 &&
+        markLive.before.label === 'Mark viewed',
+      `/${view}: nothing ticks the toggle before a click: ${JSON.stringify(markLive.before || markLive)}`,
+    );
+    check(
+      !!markLive.ticked &&
+        markLive.ticked.on &&
+        markLive.ticked.clicks === 1 &&
+        markLive.ticked.label === 'Viewed ✓',
+      `/${view}: Mark viewed clicks that file's Viewed toggle once and says Viewed ✓: ${JSON.stringify(markLive.ticked)}`,
+    );
+    check(
+      !!markLive.unticked &&
+        !markLive.unticked.on &&
+        markLive.unticked.clicks === 2 &&
+        markLive.unticked.label === 'Mark viewed',
+      `/${view}: Viewed ✓ unticks it: ${JSON.stringify(markLive.unticked)}`,
+    );
+    check(
+      (await page.locator('[hidden][data-dsm-hid]').count()) > 0,
+      `/${view}: hidden files also carry the hidden attribute (for Refined GitHub's alt-click mark-viewed)`,
+    );
+    // what Refined GitHub's j/k does: set the hash to the next file in page order, hidden or not
+    const jumped = await page.evaluate(
+      async ([inCh, outCh, chapterOne]) => {
+        const sha = async (text) =>
+          [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))]
+            .map((byte) => byte.toString(16).padStart(2, '0'))
+            .join('');
+        location.replace('#diff-' + (await sha(inCh)));
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        location.replace('#diff-' + (await sha(outCh)));
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        const ch1 = await Promise.all(chapterOne.map(sha));
+        const msg = document
+          .querySelector('#diff-story-panel')
+          .shadowRoot.querySelector('.prs-msg').textContent;
+        return { inChapter: ch1.includes(location.hash.slice(6, 70)), msg };
+      },
+      [rels[0], rels[half], rels.slice(0, half)],
+    );
+    check(
+      jumped.inChapter || /isn't in this chapter/.test(jumped.msg),
+      `/${view}: a hash jump onto a hidden file moves on to a chapter file, or says why not (${jumped.inChapter ? 'moved' : jumped.msg})`,
+    );
+    await shot(page, `github-${view}-chapter1`);
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.waitForSelector('#diff-story-panel', { timeout: 15000, state: 'attached' });
+    await page.waitForTimeout(1500);
+    check(
+      /chapter 1/.test(await note()),
+      `/${view}: a reload comes back on chapter 1: "${(await note()).trim()}"`,
+    );
+    // go back to the Overview for the next view
+    await page.locator('#dsm-panel ol.prs-map li[data-n="0"]').click();
+    await page.waitForTimeout(300);
+  }
 
   // Update (new commits) sends a build request with mode 'update', the story's head, and where his reading stopped (nothing read: the story's head)
   await page.locator('#dsm-panel .prs-update[data-retell="0"]').click();
