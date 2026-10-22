@@ -73,7 +73,7 @@ Run this with Bash's `run_in_background`:
 `<owner>-<name>` is lowercased. With `--story <id>`, use `--story <id> --consumer story-<id>`. The wait writes the heartbeat the panel's light reads, blocks until something arrives, prints it and exits. The exit notification wakes this session. Then:
 
 1. Read the task's output. It can hold several events. Handle each one, questions first.
-2. Start the same wait again as soon as you've handled them, or as soon as a build is claimed (step 5), so questions asked during a build still get answered.
+2. Start the same wait again as soon as you've handled them, or as soon as a build request arrives (step 5), so questions asked during a build still get answered.
 3. Don't poll or sleep. If the wait exits with an error, show it, run `<dsm> doctor`, and start it again once the cause is fixed.
 
 A consumer's first wait starts from now, so old questions aren't handed over again. Queued build requests are handed over whenever they were asked.
@@ -97,16 +97,11 @@ The event gives the question id, the story id, the chapter or step, the file it 
 
 The event gives the build id, `owner/repo#N` and the PR URL. A request with `mode: "update"` asks to bring an existing story up to the PR's latest commit. It also has `base_sha` (the commit the story was told from), `since_sha` (where the user's reading stopped, from the chapters they read) and `retell` (true when they asked for a new story from scratch).
 
-1. Claim it, which moves its badge from Queued to Building:
-   ```bash
-   <dsm> builds --start <build id> --consumer repo-<owner>-<name>
-   ```
-2. Start the wait again (step 3).
-3. Build the story with the pr-story skill (`../pr-story/SKILL.md` beside this skill in the repo, linked in as `~/.claude/skills/pr-story`, as `/pr-story <PR url>`): gather, plan the chapters, backstory when there is one, and render. Write every chapter's narrative and draft comments up front, since the panel shows the whole story. Don't tell it chapter by chapter in chat. For an update, follow pr-story's "Since you read it" path: one new chapter, first, for `git diff <since_sha>..<new head>`, with the other chapters kept as they are. Re-tell from scratch only when `retell` is true or the PR was rebased past `since_sha`.
-4. `build` publishes the story to `~/.diff-story/`, and the PR page opens the panel on its own.
-5. Mark it done: `<dsm> done <build id>`. If it couldn't be built, `<dsm> done <build id> --failed --note "<one line why>"`.
-6. On a long build, run `builds --start` again every ≈20 minutes so the claim stays fresh and the request isn't handed out a second time.
-7. In chat, say one line: which PR, its chapter and file counts, and that it's on the page.
+1. The wait claimed it when it handed it over, so its badge already says Building. Start the wait again (step 3).
+2. Build the story with the pr-story skill (`../pr-story/SKILL.md` beside this skill in the repo, linked in as `~/.claude/skills/pr-story`, as `/pr-story <PR url>`): gather, plan the chapters and render. Write every chapter's narrative and draft comments up front, since the panel shows the whole story. Don't tell it chapter by chapter in chat. For an update, follow pr-story's "Since you read it" path: one new chapter, first, for `git diff <since_sha>..<new head>`, with the other chapters kept as they are. Re-tell from scratch only when `retell` is true or the PR was rebased past `since_sha`.
+3. `build` publishes the story, which finishes the request, and the PR page opens the panel on its own. If it couldn't be built, run `<dsm> done <build id> --failed --note "<one line why>"`.
+4. On a long build, run `<dsm> builds --start <build id> --consumer repo-<owner>-<name>` every ≈20 minutes so the claim stays fresh and the request isn't handed out a second time.
+5. In chat, say one line: which PR, its chapter and file counts, and that it's on the page.
 
 If a question arrives mid-build, answer it (step 4), then carry on with the build.
 

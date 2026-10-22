@@ -2,11 +2,11 @@
  * Build requests: "there's no story for this PR yet, please write one".
  *
  * The extension's Build story button posts {repo, number, url, requested_at}.
- * The bridge appends a `build_request` line to the inbox (so `diff-story
- * wait` hands it to a Claude session, the same way as a question) and keeps a
- * pending marker in <home>/builds.json, so every tab on that PR shows
- * Building. A request is finished by `diff-story done <id>`, or by the story
- * turning up (the status call notices and marks it done).
+ * The bridge keeps the request in <home>/builds.json, the one record of it:
+ * `diff-story wait` hands queued ones to a Claude session as `build_request`
+ * entries, and every tab on that PR shows Queued or Building. A request is
+ * finished by its story turning up (`diff-story publish`, or a status call
+ * that notices the story), or by `diff-story done <id>`.
  */
 import path from 'node:path';
 import { newId } from './inbox.mjs';
@@ -67,10 +67,16 @@ const updateFields = (build) =>
       }
     : {};
 
+/**
+ * Does a story for the PR, told from `head`, finish this request? It does unless the request is an update and the
+ * story is still the one told from the commit it was asked to update from.
+ */
+export const storyFinishes = (build, head) =>
+  !!build && build.status === 'pending' && !(build.mode === 'update' && head === build.base_sha);
+
 export class Builds {
-  constructor(home, inbox) {
+  constructor(home) {
     this.home = home;
-    this.inbox = inbox;
     this.file = path.join(home, 'builds.json');
   }
 
@@ -90,9 +96,9 @@ export class Builds {
 
   /**
    * A pending request is "queued" until a listener claims it, then "building" while the claim is fresh.
-   * `diff-story wait` claims each request it hands over, and `diff-story builds --start <id>` (which the
-   * diff-story-listen skill runs as it starts each build) claims or refreshes it. A claim with no refresh for
-   * CLAIM_FRESH_MS goes back to queued, and the next wait hands it out again.
+   * `diff-story wait` claims each request it hands over. On a long build, `diff-story builds --start <id>`
+   * refreshes the claim. A claim with no refresh for CLAIM_FRESH_MS goes back to queued, and the next wait
+   * hands it out again.
    */
   stateOf(build, now = Date.now()) {
     if (!build) {
@@ -101,10 +107,7 @@ export class Builds {
     if (build.status !== 'pending') {
       return build.status;
     }
-    const since = Math.max(
-      Date.parse(build.claimed_at || '') || 0,
-      Date.parse(build.started_at || '') || 0,
-    );
+    const since = Date.parse(build.claimed_at || '') || 0;
     return since && now - since < CLAIM_FRESH_MS ? 'building' : 'queued';
   }
   /** The request with its state, for the pages. */
@@ -112,7 +115,7 @@ export class Builds {
     return build ? { ...build, state: this.stateOf(build) } : null;
   }
 
-  claim(idOrKey, consumer, { start = false } = {}) {
+  claim(idOrKey, consumer) {
     const all = this.all();
     const key = Object.keys(all).find(
       (k) => all[k].id === idOrKey || k === String(idOrKey).toLowerCase(),
@@ -120,12 +123,10 @@ export class Builds {
     if (!key || all[key].status !== 'pending') {
       return null;
     }
-    const now = new Date().toISOString();
     all[key] = {
       ...all[key],
       claimed_by: consumer || all[key].claimed_by || 'cli',
-      claimed_at: now,
-      ...(start ? { started_at: now } : {}),
+      claimed_at: new Date().toISOString(),
     };
     this.save(all);
     return all[key];
@@ -189,16 +190,6 @@ export class Builds {
       delete next.retell;
       all[key] = { ...next, ...(retell ? { retell: true } : {}) };
       this.save(all);
-      this.inbox.append({
-        type: 'build_request',
-        id: old.id,
-        repo,
-        number: prNumber,
-        url: prUrl,
-        requested_at: old.requested_at,
-        ...updateFields(all[key]),
-        text: buildText(all[key], readerOf(this.home)),
-      });
       return all[key];
     }
     const requestedAt = Number.isFinite(Date.parse(requested_at))
@@ -230,16 +221,6 @@ export class Builds {
     };
     all[key] = build;
     this.save(all);
-    this.inbox.append({
-      type: 'build_request',
-      id: build.id,
-      repo,
-      number: prNumber,
-      url: prUrl,
-      requested_at: requestedAt,
-      ...updateFields(build),
-      text: buildText(build, readerOf(this.home)),
-    });
     return build;
   }
 
@@ -260,16 +241,12 @@ export class Builds {
       note,
     };
     this.save(all);
-    this.inbox.append({
-      type: 'build_done',
-      id: newId('d'),
-      build: all[key].id,
-      repo: all[key].repo,
-      number: all[key].number,
-      status: all[key].status,
-      story,
-      note,
-    });
     return all[key];
+  }
+
+  /** A story for the PR turned up: finish its pending request when storyFinishes says so. Returns the request either way. */
+  settle(repo, number, { story, head = null }) {
+    const build = this.get(repo, number);
+    return storyFinishes(build, head) ? this.done(build.id, { story }) : build;
   }
 }

@@ -6,7 +6,7 @@
 import { readMeta } from '../../stories/meta.mjs';
 import { stateKeyOf } from '../../github/drafts.mjs';
 import { readReads, sinceOf, SHA_RE } from '../../stories/reads.mjs';
-import { storyFinishes } from './catalog.mjs';
+import { storyFinishes } from '../../inbox/builds.mjs';
 
 /** An update starts where the reviewer's reading stopped (read.json), so the story can add one "Since you read it" chapter. */
 function sinceOfUpdate(app, body) {
@@ -43,7 +43,7 @@ function buildStatus({ app, url, send }) {
   const hit = app.stories.find(repo, number);
   let build = app.builds.get(repo, number);
   // the story turned up (for an update: its head moved off the one it was asked to update from)
-  if (hit && storyFinishes(app, hit.id, build)) {
+  if (hit && storyFinishes(build, readMeta(app.stories.dirOf(hit.id)).head_oid)) {
     build = app.builds.done(build.id, { story: hit.id });
   }
   build = app.builds.view(build);

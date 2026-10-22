@@ -58,7 +58,7 @@ function printHandOver(entries, opts) {
     }
     if (entry.type === 'build_request') {
       out(
-        `Run diff-story builds --start ${entry.id}, write the story (pr-story renders and publishes it), then: diff-story done ${entry.id}`,
+        `It's yours (wait claimed it). Write the story: pr-story renders and publishes it, and publishing finishes the request.`,
       );
     }
     if (entry.type === 'build_request' && entry.mode === 'update' && !entry.retell) {
@@ -110,14 +110,10 @@ async function wait(home, cfg, opts) {
   const heartbeat = setInterval(() => beat(home, consumer, 'waiting', scope), BEAT_MS);
   // build requests come from builds.json (queued ones, claimed as they're handed over), so none are missed or given twice
   const builds =
-    !opts.story && want.type.split(',').includes('build_request')
-      ? new Builds(home, messages)
-      : null;
+    !opts.story && want.type.split(',').includes('build_request') ? new Builds(home) : null;
   try {
     for (;;) {
-      let entries = filterEntries(messages.unread(consumer, { advance: true }), want).filter(
-        (entry) => entry.type !== 'build_request',
-      );
+      let entries = filterEntries(messages.unread(consumer, { advance: true }), want);
       if (builds) {
         entries = [...entries, ...builds.toHand(consumer, { repo: opts.repo || null })];
       }

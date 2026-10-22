@@ -1,14 +1,11 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmp, githubStory, startBridge, runCli } from './helpers.mjs';
 import { Builds, CLAIM_FRESH_MS } from '../bridge/inbox/builds.mjs';
 import { beat } from '../bridge/listeners/listeners.mjs';
 import { Inbox } from '../bridge/inbox/inbox.mjs';
-
-const inboxLines = (home) =>
-  readFileSync(path.join(home, 'inbox.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
 
 describe('build requests', () => {
   let bridge, home;
@@ -40,11 +37,9 @@ describe('build requests', () => {
     const status = await bridge.call('GET', statusPath);
     assert.equal(status.body.state, 'queued');
     assert.equal(status.body.request.requested_at, '2026-10-20T21:40:00.000Z');
-    const reqs = inboxLines(home).filter((e) => e.type === 'build_request');
-    assert.equal(reqs.length, 1);
-    assert.equal(reqs[0].id, response.body.request.id);
+    assert.ok(!existsSync(path.join(home, 'inbox.jsonl')), 'builds.json is the one record');
     assert.deepEqual(
-      new Builds(home, new Inbox(home)).pending().map((build) => build.id),
+      new Builds(home).pending().map((build) => build.id),
       [response.body.request.id],
     );
   });
@@ -55,10 +50,8 @@ describe('build requests', () => {
     assert.equal(status.body.state, 'ready');
     assert.equal(status.body.story, 'acme-widgets-7');
     assert.equal(status.body.request.status, 'done');
-    assert.equal(new Builds(home, new Inbox(home)).pending().length, 0);
-    assert.ok(
-      inboxLines(home).some((e) => e.type === 'build_done' && e.story === 'acme-widgets-7'),
-    );
+    assert.equal(new Builds(home).pending().length, 0);
+    assert.equal(new Builds(home).get('acme/widgets', 7).story, 'acme-widgets-7');
   });
 
   test('refuses a bad repo or number', async () => {
@@ -80,7 +73,7 @@ describe('build requests', () => {
 
 test('done by id or by repo#number; failed requests show as failed', () => {
   const home = tmp('home');
-  const builds = new Builds(home, new Inbox(home));
+  const builds = new Builds(home);
   const one = builds.request({ repo: 'acme/a', number: 1 });
   builds.request({ repo: 'acme/b', number: 2 });
   assert.equal(builds.done(one.id).status, 'done');
@@ -89,9 +82,38 @@ test('done by id or by repo#number; failed requests show as failed', () => {
   assert.equal(builds.done('nope'), null);
 });
 
+test('publishing the story finishes its request, and an update only once the head moved', async () => {
+  const home = tmp('home');
+  const src = tmp('scratch');
+  githubStory(src);
+  const builds = new Builds(home);
+  const request = builds.request({ repo: 'acme/widgets', number: 7 });
+  const published = await runCli(home, ['publish', '--dir', src]);
+  assert.equal(published.code, 0, published.stderr);
+  assert.equal(builds.get('acme/widgets', 7).status, 'done');
+  assert.equal(builds.get('acme/widgets', 7).id, request.id);
+
+  const sha = 'c'.repeat(40);
+  const update = builds.request({ repo: 'acme/widgets', number: 7, mode: 'update', base_sha: sha });
+  const prJson = path.join(src, 'pr.json');
+  writeFileSync(
+    prJson,
+    JSON.stringify({ ...JSON.parse(readFileSync(prJson, 'utf8')), headRefOid: sha }),
+  );
+  await runCli(home, ['publish', '--dir', src]);
+  assert.equal(builds.get('acme/widgets', 7).status, 'pending', 'still told from the old head');
+  writeFileSync(
+    prJson,
+    JSON.stringify({ ...JSON.parse(readFileSync(prJson, 'utf8')), headRefOid: 'd'.repeat(40) }),
+  );
+  await runCli(home, ['publish', '--dir', src]);
+  assert.equal(builds.get('acme/widgets', 7).status, 'done');
+  assert.equal(builds.get('acme/widgets', 7).id, update.id);
+});
+
 test('status-many settles a pending build once its story turns up, as builds/status does', async () => {
   const home = tmp('home');
-  const builds = new Builds(home, new Inbox(home));
+  const builds = new Builds(home);
   const request = builds.request({ repo: 'acme/widgets', number: 7 });
   githubStory(path.join(home, 'acme-widgets-7'));
   const bridge = await startBridge({ home });
@@ -101,7 +123,7 @@ test('status-many settles a pending build once its story turns up, as builds/sta
     });
     assert.equal(response.body.results[0].state, 'ready');
     assert.equal(response.body.results[0].updating, false);
-    const settled = new Builds(home, new Inbox(home)).get('acme/widgets', 7);
+    const settled = new Builds(home).get('acme/widgets', 7);
     assert.equal(settled.id, request.id);
     assert.equal(settled.status, 'done');
     assert.equal(settled.story, 'acme-widgets-7');
@@ -118,7 +140,7 @@ test('PR lists get ready / queued / building / none for many PRs in one call, an
     await bridge.call('POST', '/api/builds', { repo: 'acme/gadgets', number: 3 });
     const five = (await bridge.call('POST', '/api/builds', { repo: 'acme/gadgets', number: 5 }))
       .body.request;
-    new Builds(home, new Inbox(home)).claim(five.id, 'repo-acme-gadgets', { start: true });
+    new Builds(home).claim(five.id, 'repo-acme-gadgets');
     const prs = [
       { repo: 'ACME/widgets', number: 7 },
       { repo: 'acme/gadgets', number: 3 },
@@ -164,7 +186,7 @@ describe('diff-story wait hands over build requests, queued until claimed', () =
 
   test('hands over requests asked before it started, once, claiming each so it shows Building', async () => {
     const home = tmp('home');
-    const builds = new Builds(home, new Inbox(home));
+    const builds = new Builds(home);
     const widgetsOne = builds.request({ repo: 'acme/widgets', number: 1 });
     const widgetsTwo = builds.request({ repo: 'acme/widgets', number: 2 });
     const gadgets = builds.request({ repo: 'acme/gadgets', number: 3 });
@@ -201,7 +223,7 @@ describe('diff-story wait hands over build requests, queued until claimed', () =
 
   test('a claim with no refresh goes back to queued and is handed out again; builds --start refreshes it', async () => {
     const home = tmp('home');
-    const builds = new Builds(home, new Inbox(home));
+    const builds = new Builds(home);
     const request = builds.request({ repo: 'acme/widgets', number: 1 });
     await wait(home, '--consumer', 'one');
     const all = builds.all();
@@ -221,7 +243,8 @@ describe('diff-story wait hands over build requests, queued until claimed', () =
     const started = await runCli(home, ['builds', '--start', request.id]);
     assert.equal(started.code, 0);
     assert.match(started.stdout, /building/);
-    assert.ok(builds.get('acme/widgets', 1).started_at);
+    assert.equal(builds.stateOf(builds.get('acme/widgets', 1)), 'building');
+    assert.equal(builds.get('acme/widgets', 1).claimed_by, 'two', 'a refresh keeps who claimed it');
     assert.notEqual((await runCli(home, ['builds', '--start', 'b_nope'])).code, 0);
     assert.match((await runCli(home, ['builds'])).stdout, /\tbuilding\tacme\/widgets#1\t/);
   });
@@ -229,7 +252,7 @@ describe('diff-story wait hands over build requests, queued until claimed', () =
   test('--repo takes questions and build requests for that repo only, and beats for that repo', async () => {
     const home = tmp('home');
     const inbox = new Inbox(home);
-    const builds = new Builds(home, inbox);
+    const builds = new Builds(home);
     const mine = builds.request({ repo: 'octo-org/api-server', number: 1 });
     builds.request({ repo: 'octo-org/web-app', number: 2 });
     const result = await wait(home, '--repo', 'octo-org/api-server');

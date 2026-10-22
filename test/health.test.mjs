@@ -118,9 +118,8 @@ test('Copy prompt for Claude: one short skill line naming the repo, with the lon
   );
   for (const bit of [
     'diff-story answer --question <id>',
-    'diff-story builds --start <id>',
     '/pr-story <PR url>',
-    'diff-story done <id>',
+    'diff-story done <id> --failed',
   ]) {
     assert.ok(prompt.details.includes(bit), bit);
   }
