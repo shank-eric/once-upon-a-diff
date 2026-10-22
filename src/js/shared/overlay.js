@@ -84,7 +84,7 @@ import { createQuestions } from './panel/questions.js';
 // the pure helpers the content script, the local page and the tests use
 export { draftView, shownIn } from './panel/drafts.js';
 export { chapterKeyOf, finishedInOf, chapterNumbers } from './panel/story-model.js';
-export { READ_MS, inferReadSteps, readStepsOf } from './panel/reading.js';
+export { READ_MS, inferReadSteps, viewedEarlyCheck } from './panel/reading.js';
 export { placePills, pillMarker } from './panel/file-refs.js';
 export { rangeOfPath, rangeStepOf, rangeUrl } from './panel/freshness.js';
 export { expandDirOf, expandStep, EXPAND_ALL_FAR } from './panel/expand.js';

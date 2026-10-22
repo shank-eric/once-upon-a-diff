@@ -5,7 +5,7 @@
  * And the bridge's GET /read: the chapters that changed after they read them
  * (marks.js draws those) and the drafts a newer commit made stale.
  *
- * READ_MS, inferReadSteps and readStepsOf have no DOM, so node tests can use them.
+ * READ_MS, inferReadSteps and viewedEarlyCheck have no DOM, so node tests can use them.
  */
 import { chapterKeyOf } from './story-model.js';
 
@@ -46,20 +46,42 @@ export function inferReadSteps(chapters, progress, readInfo, firstLook) {
 }
 
 /**
- * The steps whose chapter they've read (read.json has its key) and that haven't changed since they read them. A file
- * such a chapter finishes isn't "viewed early" from an earlier chapter: they've been through it already.
- * @param {object|null} readInfo the bridge's GET /read: {reads, changed: [{step}]}
+ * Which Viewed files are "viewed early" on `step`: those a later chapter finishes, unless they've read that chapter
+ * (read.json has its key) and the file hasn't changed since. A chapter that changed only in other files, such as one a
+ * "Since you read it" chapter now finishes, still counts as read for the rest. Nothing is early on a "Since you read
+ * it" step: it follows up on chapters they've already been through, wherever it sits.
+ * @param {{chapters: object[], finishedIn: Object<string, number>, readInfo: object|null, step: number}} story
+ *   readInfo is the bridge's GET /read: {reads, changed: [{step, files}]}
+ * @returns {(rel: string) => boolean}
  */
-export function readStepsOf(chapters, readInfo) {
+export function viewedEarlyCheck({ chapters, finishedIn, readInfo, step }) {
   const reads = (readInfo && readInfo.reads) || {};
-  const changed = new Set(((readInfo && readInfo.changed) || []).map((change) => change.step));
-  return new Set(
-    chapters
-      .map((chapter, index) =>
-        reads[chapterKeyOf(chapter)] && !changed.has(index + 1) ? index + 1 : 0,
-      )
-      .filter(Boolean),
+  // step -> the files that changed after they read it (null: the bridge didn't say which, so all of them)
+  const changed = new Map(
+    ((readInfo && readInfo.changed) || []).map((change) => [
+      change.step,
+      Array.isArray(change.files) ? new Set(change.files) : null,
+    ]),
   );
+  const hasRead = (finishStep, rel) => {
+    const chapter = chapters[finishStep - 1];
+    if (!chapter || !reads[chapterKeyOf(chapter)]) {
+      return false;
+    }
+    if (!changed.has(finishStep)) {
+      return true;
+    }
+    const files = changed.get(finishStep);
+    return !!files && !files.has(rel);
+  };
+  const current = chapters[step - 1];
+  return (rel) =>
+    step > 0 &&
+    !!current &&
+    !current.since &&
+    finishedIn[rel] != null &&
+    finishedIn[rel] > step &&
+    !hasRead(finishedIn[rel], rel);
 }
 
 export function createReading(context) {
