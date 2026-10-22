@@ -110,6 +110,7 @@ export const panelCss = (panelId) => `
   #${panelId} a { color: var(--c-accent); }
   #${panelId} [data-rel] { color: var(--c-accent); cursor: pointer; }
   #${panelId} [data-rel]:hover { text-decoration: underline; }
+  #${panelId} [data-rel]:focus-visible { outline: 2px solid var(--c-accent); outline-offset: 1px; text-decoration: underline; }
   #${panelId} .prs-pill { font-size: 11px; padding: 0 5px; border-radius: 9px; border: 1px solid currentColor; margin-left: 3px; white-space: nowrap; }
   #${panelId} button.prs-mark { font-size: 11px; line-height: 16px; padding: 0 7px; border-radius: 9px; border: 1px solid currentColor; background: var(--c-bg); cursor: pointer; margin-left: 3px; white-space: nowrap; }
   #${panelId} button.prs-mark:hover { background: var(--c-subtle); }
