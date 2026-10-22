@@ -73,6 +73,7 @@ import { createBody } from './panel/body.js';
 import { createStatusLight } from './panel/status-light.js';
 import { createFreshness } from './panel/freshness.js';
 import { createReading } from './panel/reading.js';
+import { createMarks } from './panel/marks.js';
 import { createDrafts } from './panel/drafts.js';
 import { createQuestions } from './panel/questions.js';
 
@@ -131,6 +132,7 @@ export function storyOverlay(input, opts = {}) {
   context.statusLight = createStatusLight(context);
   context.freshness = createFreshness(context);
   context.reading = createReading(context);
+  context.marks = createMarks(context);
   context.drafts = createDrafts(context);
   context.questions = createQuestions(context);
   context.shell.isolateKeys();

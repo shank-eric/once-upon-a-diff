@@ -217,7 +217,9 @@ try {
       `/${view}: an out-of-date story says so: "${freshText}"`,
     );
     check(
-      (await page.locator('#dsm-panel ol.prs-map li[data-n="2"] .prs-touched').count()) === 1,
+      (await page
+        .locator('#dsm-panel ol.prs-map li[data-n="2"] .prs-chg[data-why="story"]')
+        .count()) === 1,
       `/${view}: the chapter touched since is marked in the Steps list`,
     );
     await page.waitForTimeout(500);
