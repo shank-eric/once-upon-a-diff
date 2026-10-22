@@ -9,25 +9,11 @@
  */
 import { copyWithFeedback } from './copy.js';
 import { escapeHtml } from '../../shared/util/html.js';
-import { stopKeyEvents } from '../../shared/util/dom.js';
+import { hideUntilStyled, stopKeyEvents, stylesheetLink } from '../../shared/util/dom.js';
 
 const HOST_ID = 'once-upon-listen-notice';
 const MAX = 3;
-const CSS = `
-  :host { all: initial; }
-  .n { position: fixed; right: 16px; bottom: 16px; z-index: 98; max-width: 420px; display: flex; flex-direction: column; gap: 4px;
-    font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
-    color: var(--fgColor-default, #1f2328); background: var(--bgColor-default, #fff); border: 1px solid var(--borderColor-default, #d1d9e0);
-    border-radius: 8px; padding: 6px 8px 6px 10px; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
-  .row { display: flex; align-items: center; gap: 8px; }
-  .row span { flex: 1; min-width: 0; }
-  .muted { color: var(--fgColor-muted, #59636e); }
-  button { font: inherit; color: inherit; background: var(--bgColor-muted, #f6f8fa); border: 1px solid var(--borderColor-default, #d1d9e0);
-    border-radius: 999px; padding: 1px 9px; cursor: pointer; white-space: nowrap; }
-  button:hover { border-color: var(--fgColor-accent, #0969da); color: var(--fgColor-accent, #0969da); }
-  .x { border: 0; background: none; padding: 0 4px; color: var(--fgColor-muted, #59636e); align-self: flex-start; }
-  code { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
-`;
+const NOTICE_CSS_URL = new URL('./listen-notice.css', import.meta.url).href;
 
 export function listenNotice() {
   let host = null;
@@ -53,8 +39,12 @@ export function listenNotice() {
       host = document.createElement('div');
       host.id = HOST_ID;
       const shadow = host.attachShadow({ mode: 'open' });
-      shadow.innerHTML = `<style>${CSS}</style><div class="n" role="status"></div>`;
-      root = shadow.querySelector('.n');
+      const link = stylesheetLink(NOTICE_CSS_URL);
+      root = document.createElement('div');
+      root.className = 'n';
+      root.setAttribute('role', 'status');
+      shadow.append(link, root);
+      hideUntilStyled(host, [link]);
       root.addEventListener('click', (event) => {
         const button = /** @type {Element} */ (event.target).closest('button[data-i], button.x');
         if (!button) {
@@ -90,7 +80,7 @@ export function listenNotice() {
       (missing.length > MAX
         ? `<div class="muted">and ${missing.length - MAX} more repos</div>`
         : '');
-    const next = `<div class="row" style="align-items:flex-start"><div style="flex:1">${html}</div><button class="x" title="Hide until the page reloads" aria-label="Hide">×</button></div>`;
+    const next = `<div class="row top"><div class="lines">${html}</div><button class="x" title="Hide until the page reloads" aria-label="Hide">×</button></div>`;
     if (next !== lastHtml) {
       lastHtml = next;
       root.innerHTML = next;

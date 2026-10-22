@@ -1,0 +1,20 @@
+/*
+ * A story tag's CSS (story-tag.js draws it), linked into each tag's shadow root by tag-host.js.
+ */
+:host { all: initial; display: inline-block; vertical-align: middle; margin-left: 6px; }
+.b { font: 500 11px/18px -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; display: inline-flex; align-items: center; gap: 4px;
+  padding: 0 7px; border-radius: 999px; border: 1px solid var(--borderColor-default, #d1d9e0); color: var(--fgColor-muted, #59636e);
+  background: var(--bgColor-default, #fff); cursor: pointer; text-decoration: none; white-space: nowrap; }
+.b:hover { color: var(--fgColor-accent, #0969da); border-color: var(--fgColor-accent, #0969da); }
+.b.ready { color: var(--fgColor-success, #1a7f37); border-color: var(--fgColor-success, #1a7f37); }
+.b.read { color: var(--fgColor-muted, #59636e); border-color: var(--borderColor-muted, #d1d9e0b3); font-weight: 400; }
+.b.stale { color: var(--fgColor-attention, #9a6700); border-color: var(--fgColor-attention, #9a6700); }
+.b.queued, .b.building { cursor: default; }
+.b.queued:hover, .b.building:hover { color: var(--fgColor-muted, #59636e); border-color: var(--borderColor-default, #d1d9e0); }
+.b[disabled], .alt[disabled] { opacity: .6; cursor: default; }
+.alt { font: 11px/18px -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; margin-left: 3px; padding: 0 2px; border: 0;
+  background: none; color: var(--fgColor-muted, #59636e); text-decoration: underline dotted; cursor: pointer; }
+.alt:hover { color: var(--fgColor-accent, #0969da); }
+.spin { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid currentColor; border-top-color: transparent; animation: s .9s linear infinite; }
+@keyframes s { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }

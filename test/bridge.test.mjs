@@ -334,6 +334,11 @@ describe('local stories', () => {
     assert.match(page.headers.get('content-security-policy'), /script-src 'self'/);
     assert.equal((await bridge.call('GET', '/assets/overlay.js')).status, 200);
     assert.equal((await bridge.call('GET', '/assets/local.js')).status, 200);
+    for (const sheet of ['panel.css', 'page.css']) {
+      const css = await bridge.call('GET', `/assets/panel/${sheet}`);
+      assert.equal(css.status, 200, sheet);
+      assert.match(css.headers.get('content-type'), /^text\/css/);
+    }
   });
 
   test('keeps viewed files, and forgets one when its diff changes', async () => {

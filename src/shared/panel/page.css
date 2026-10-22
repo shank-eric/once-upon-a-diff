@@ -1,0 +1,12 @@
+/*
+ * The few rules the host page gets, linked into its head by shell.js and all keyed to the panel's
+ * own id, class and data-ou-* attributes: docking (the page's right margin), hiding other
+ * chapters' files and flashing a jump's target. #once-upon-panel is overlay.js's HOST_ID.
+ */
+html.once-upon-panel-docked body { margin-right: var(--ou-w) !important; }
+#once-upon-panel { all: initial; }
+[data-ou-hidden] { display: none !important; }
+[data-ou-changing] { opacity: .45; transition: opacity .2s; }
+[data-ou-flash] { outline: 2px solid var(--fgColor-accent, #0969da) !important; outline-offset: 2px; border-radius: 6px; }
+tr[data-ou-flash] { outline: none !important; }
+tr[data-ou-flash] > td { background-color: var(--bgColor-attention-muted, #fff8c5) !important; box-shadow: inset 0 0 0 9999px rgba(212,167,44,.12); }

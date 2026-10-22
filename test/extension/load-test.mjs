@@ -208,6 +208,18 @@ try {
       continue;
     }
     await page.waitForTimeout(2500); // lazy-loaded diffs
+    const look = await page.evaluate(() => {
+      const panelHost = document.getElementById('once-upon-panel');
+      return {
+        position: getComputedStyle(panelHost.shadowRoot.getElementById('ou-panel')).position,
+        visibility: getComputedStyle(panelHost).visibility,
+        margin: getComputedStyle(document.body).marginRight,
+      };
+    });
+    check(
+      look.position === 'fixed' && look.visibility === 'visible' && look.margin !== '0px',
+      `/${view}: panel.css and page.css apply on GitHub (${JSON.stringify(look)})`,
+    );
     const note = () => page.locator('#ou-panel .ou-count-note').textContent();
     check(/Overview/.test(await note()), `/${view}: starts at the Overview: "${await note()}"`);
     await page.waitForTimeout(800);
@@ -442,7 +454,7 @@ try {
   const filesTag = (tab) =>
     tab
       .locator('[data-ou-files]')
-      .evaluate((host) => host.shadowRoot.textContent.replace(/^.*\}\s*/s, '').trim())
+      .evaluate((host) => host.shadowRoot.textContent.trim())
       .catch(() => '');
   await page.waitForTimeout(300);
   check(
@@ -498,6 +510,11 @@ try {
     new RegExp(`No session listening for ${owner}/${repo}`, 'i').test(listenText),
     'and the page says no session is listening for the repo',
   );
+  const noticePosition = await newPage
+    .locator('#once-upon-listen-notice')
+    .evaluate((host) => getComputedStyle(host.shadowRoot.querySelector('.n')).position)
+    .catch(() => '');
+  check(noticePosition === 'fixed', `and the notice has listen-notice.css (${noticePosition})`);
   const breq = buildRequests().find((build) => build.number === NOSTORY);
   check(
     !!breq && breq.url === `https://github.com/${owner}/${repo}/pull/${NOSTORY}`,
@@ -563,15 +580,18 @@ try {
   const badges = await list.evaluate(() =>
     [...document.querySelectorAll('[data-ou-badge]')].map((host) => ({
       key: host.getAttribute('data-ou-badge'),
-      text: host.shadowRoot.textContent
-        .replace(/\s+/g, ' ')
-        .trim()
-        .replace(/^.*\}\s*/s, ''),
+      text: host.shadowRoot.textContent.replace(/\s+/g, ' ').trim(),
+      // story-tag.css applied: the tag is a pill
+      styled: getComputedStyle(host.shadowRoot.querySelector('.b')).borderTopLeftRadius !== '0px',
     })),
   );
   const byKey = new Map(badges.map((badge) => [badge.key, badge.text]));
   const k = (number) => `${owner}/${repo}#${number}`.toLowerCase();
   check(badges.length >= 5, `the PR list gets a badge per PR (${badges.length})`);
+  check(
+    badges.length > 0 && badges.every((badge) => badge.styled),
+    'every badge has story-tag.css (a pill)',
+  );
   if (byKey.has(k(number))) {
     check(
       /Update queued|Updating/.test(byKey.get(k(number))),

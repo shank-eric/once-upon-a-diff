@@ -1,0 +1,18 @@
+/*
+ * The "No session listening" notice's CSS, linked into its shadow root by listen-notice.js.
+ */
+:host { all: initial; }
+.n { position: fixed; right: 16px; bottom: 16px; z-index: 98; max-width: 420px; display: flex; flex-direction: column; gap: 4px;
+  font: 12px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+  color: var(--fgColor-default, #1f2328); background: var(--bgColor-default, #fff); border: 1px solid var(--borderColor-default, #d1d9e0);
+  border-radius: 8px; padding: 6px 8px 6px 10px; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+.row { display: flex; align-items: center; gap: 8px; }
+.row span { flex: 1; min-width: 0; }
+.muted { color: var(--fgColor-muted, #59636e); }
+button { font: inherit; color: inherit; background: var(--bgColor-muted, #f6f8fa); border: 1px solid var(--borderColor-default, #d1d9e0);
+  border-radius: 999px; padding: 1px 9px; cursor: pointer; white-space: nowrap; }
+button:hover { border-color: var(--fgColor-accent, #0969da); color: var(--fgColor-accent, #0969da); }
+.x { border: 0; background: none; padding: 0 4px; color: var(--fgColor-muted, #59636e); align-self: flex-start; }
+code { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.top { align-items: flex-start; }
+.lines { flex: 1; }

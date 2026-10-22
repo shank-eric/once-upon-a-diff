@@ -106,7 +106,7 @@ export { rebuildAsk, rebuildLine } from './panel/rebuild.js';
 export { expandDirOf, expandStep, EXPAND_ALL_FAR } from './panel/expand.js';
 
 const HOST_ID = 'once-upon-panel'; // the element on the page; the panel itself lives in its shadow root
-const PANEL_ID = 'ou-panel';
+const PANEL_ID = 'ou-panel'; // both are spelled out in panel/page.css and panel/panel.css
 // the panel's one clock: a tick every 5s while the tab shows, with one pulse call. Without a pulse, questions take
 // every tick while one waits for its answer (else every 6th) and the status light every 6th (30s). Drafts, freshness
 // and reads look every 12th tick (a minute) either way.
