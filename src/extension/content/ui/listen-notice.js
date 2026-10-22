@@ -43,7 +43,7 @@ export function listenNotice() {
     root = null;
     lastHtml = '';
   }
-  /** @param {Array<{repo, prompt, details, checkout}>} missing, from tag.js's missingListeners */
+  /** @param {Array<{repo, prompt, details, checkout}>} missing, from story-tag.js's missingListeners */
   function set(missing) {
     if (dismissed || !missing.length) {
       return remove();

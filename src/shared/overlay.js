@@ -53,7 +53,6 @@
  *   onPulse(p)     called with each pulse, so the host can reload the story when its version moved
  *   onFilter(f)    called after each filter pass with {n, all}; the local page folds other chapters' lines with it
  *   reveal(rel, side, start, end)  called before a jump to a file (rel only) or lines, so a page that folds files or lines can open them
- *   pageAt         when this page loaded, in ms (performance.timeOrigin); a draft added after it isn't on the page yet
  *   freshness()    returns a Promise of {state: 'current'|'stale'|'unknown'|'n/a', story_head, current_head, newer,
  *                  changed_files, chapters_touched, updated, error}: is the story up to date with the PR's latest commit?
  *                  updated ({from, to, newer, retold, changed_files, chapters_touched}) is a current story's last update
@@ -66,7 +65,6 @@
  *   onRead(r)      called with {chapter (its key), step, title, reason: 'time'|'viewed'|'inferred', seconds, head_sha} when the reviewer
  *                  leaves a chapter they spent READ_MS on (counted while the tab shows), or ticks the last of its files viewed,
  *                  or ('inferred') the page already had all its files Viewed and read.json has no record of it
- *   readAfterMs    how long counts as reading a chapter (READ_MS, 30s)
  *   reads()        returns a Promise of the bridge's GET /read: {reads, since, changed: [{step, files}],
  *                  stale_comments: [{step, index}]}: what changed in chapters they read, after they read them
  *   host           name of the page that owns the diff, for messages ("GitHub")
@@ -130,9 +128,7 @@ export function storyOverlay(input, opts = {}) {
     state: createPanelState(story, initial),
     hostName: opts.host || 'GitHub',
     // when this page loaded: a draft added after it isn't on the page yet
-    pageLoadedAt: Number.isFinite(opts.pageAt)
-      ? opts.pageAt
-      : (globalThis.performance && performance.timeOrigin) || Date.now(),
+    pageLoadedAt: (globalThis.performance && performance.timeOrigin) || Date.now(),
     commentsTitle: opts.commentsTitle || 'Draft comments',
   };
   Object.assign(context, stateHelpers(context));

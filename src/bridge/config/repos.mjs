@@ -67,8 +67,6 @@ const readAll = (home) => {
     return {};
   }
 };
-/** {repo: checkout} the bridge has seen. */
-export const readCheckouts = (home) => readAll(home);
 
 /** Note where a repo's checkout is (from a local story, or a listener's working folder). */
 export function seenCheckout(home, repo, dir) {

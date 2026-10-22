@@ -25,7 +25,7 @@
  * page itself confirms it. A confirmed mark is dropped ("settle").
  */
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync } from 'node:fs';
+import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { runGh } from '../util/gh.mjs';
 import { prKey } from '../../shared/util/github-paths.js';
@@ -347,9 +347,3 @@ export async function draftsOf(home, stories, id, meta) {
     error,
   };
 }
-
-export const hasGh = () =>
-  existsSync('/opt/homebrew/bin/gh') ||
-  existsSync('/usr/local/bin/gh') ||
-  existsSync('/usr/bin/gh') ||
-  !!process.env.ONCE_UPON_GH;
