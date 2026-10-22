@@ -1,5 +1,5 @@
 {
-  "name": "pr-story",
+  "name": "once-upon-a-diff",
   "version": "0.1.0",
   "private": true,
   "description": "A code-review story in a side panel on top of a diff: a Chrome extension for GitHub PRs, plus a local bridge that also serves local commits",
@@ -8,14 +8,16 @@
   "engines": {
     "node": ">=24"
   },
-  "bin": "bridge/bin/pr-story.mjs",
+  "bin": {
+    "once-upon": "bridge/bin/once-upon.mjs"
+  },
   "scripts": {
-    "bridge": "node bridge/bin/pr-story.mjs serve",
+    "bridge": "node bridge/bin/once-upon.mjs serve",
     "icons": "node scripts/make-icons.mjs",
     "vendor": "node scripts/vendor-hljs.mjs",
     "lint": "eslint . --cache --cache-strategy content",
     "lint:fix": "eslint . --fix",
-    "lint:sh": "shellcheck skills/pr-story/bin/*.sh",
+    "lint:sh": "shellcheck skills/once-upon/bin/*.sh",
     "types": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json",
     "lint-staged": "./node_modules/.bin/lint-staged",
     "format": "prettier --cache --cache-location=.prettiercache --write .",

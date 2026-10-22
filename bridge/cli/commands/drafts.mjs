@@ -25,12 +25,12 @@ function comment(home, cfg, opts) {
   const body = bodyOf(opts);
   if (!opts.story || !opts.chapter || !body.trim()) {
     throw new Error(
-      'usage: pr-story comment --story ID --chapter N [--path P --line L] (--body-file F | --body T)',
+      'usage: once-upon comment --story ID --chapter N [--path P --line L] (--body-file F | --body T)',
     );
   }
   const dir = storeFor(home).dirOf(opts.story);
   if (!dir) {
-    throw new Error(`no story ${opts.story} (see: pr-story list)`);
+    throw new Error(`no story ${opts.story} (see: once-upon list)`);
   }
   let meta = {};
   try {
@@ -66,7 +66,7 @@ function stateOf(row) {
 
 async function drafts(home, cfg, opts) {
   if (!opts.story) {
-    throw new Error('usage: pr-story drafts --story ID [--json]');
+    throw new Error('usage: once-upon drafts --story ID [--json]');
   }
   const store = storeFor(home);
   const dir = store.dirOf(opts.story);
@@ -90,7 +90,7 @@ async function drafts(home, cfg, opts) {
 
 function notes(home, cfg, opts) {
   if (!opts.story) {
-    throw new Error('usage: pr-story notes --story ID');
+    throw new Error('usage: once-upon notes --story ID');
   }
   const store = storeFor(home);
   const list = store.readState(opts.story, 'notes.json', []);
@@ -109,7 +109,7 @@ export const draftCommands = [
   {
     name: 'comment',
     usage: [
-      '  pr-story comment --story ID --chapter N [--path P --line L] (--body-file F | --body T)',
+      '  once-upon comment --story ID --chapter N [--path P --line L] (--body-file F | --body T)',
       "                                                                 add a drafted comment to a chapter's Draft comments (never posted)",
     ],
     run: comment,
@@ -117,14 +117,14 @@ export const draftCommands = [
   {
     name: 'drafts',
     usage: [
-      '  pr-story drafts  --story ID [--json]                         each drafted comment: draft, posted, in your pending review, or dismissed',
+      '  once-upon drafts  --story ID [--json]                         each drafted comment: draft, posted, in your pending review, or dismissed',
     ],
     run: drafts,
   },
   {
     name: 'notes',
     usage: [
-      '  pr-story notes   --story ID [--json]                         fix-before-push notes for a local story',
+      '  once-upon notes   --story ID [--json]                         fix-before-push notes for a local story',
     ],
     run: notes,
   },

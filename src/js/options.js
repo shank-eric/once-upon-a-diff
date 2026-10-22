@@ -15,7 +15,7 @@ async function test(prefix = '') {
   $('stories').textContent = '';
   const settings = formSettings();
   if (!settings.token) {
-    return status(`${prefix}Paste the token from pr-story setup, then test.`, false);
+    return status(`${prefix}Paste the token from once-upon setup, then test.`, false);
   }
   const ask = (path) =>
     chrome.runtime.sendMessage({ type: 'bridge', method: 'GET', path, settings });
@@ -23,10 +23,10 @@ async function test(prefix = '') {
   if (!health.ok) {
     const why =
       {
-        unreachable: 'nothing is listening on that port. Is pr-story serve running?',
+        unreachable: 'nothing is listening on that port. Is once-upon serve running?',
         'not-configured': 'paste the token first.',
         'missing or wrong token':
-          'the bridge rejected the token. Copy it again from pr-story setup.',
+          'the bridge rejected the token. Copy it again from once-upon setup.',
       }[health.error] || health.error;
     return status(`${prefix}Couldn't reach the bridge: ${why}`, false);
   }

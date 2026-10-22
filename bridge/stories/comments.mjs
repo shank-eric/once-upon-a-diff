@@ -4,8 +4,8 @@
  * shows them under "Draft comments" on its next refresh. Nothing is posted
  * anywhere.
  *
- * A published PR story (~/.pr-story/<owner>-<repo>-<N>/) is a copy of
- * pr-story's scratch folder, which the next render copies over. So the
+ * A published PR story (~/.once-upon/<owner>-<repo>-<N>/) is a copy of
+ * once-upon's scratch folder, which the next render copies over. So the
  * comment is written to both: the folder the bridge serves, and the
  * meta.json `source` folder when there is one.
  */

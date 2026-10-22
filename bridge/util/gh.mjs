@@ -1,13 +1,13 @@
 /*
  * The one way the bridge runs gh: as the logged-in gh user (ghEnv drops
- * GITHUB_TOKEN when config.json says so), with PR_STORY_GH standing in for
+ * GITHUB_TOKEN when config.json says so), with ONCE_UPON_GH standing in for
  * gh in tests.
  */
 import { execFile } from 'node:child_process';
 import { ghEnv } from '../config/settings.mjs';
 
-/** The gh binary: PR_STORY_GH when set (the tests' fake gh), else gh on PATH. */
-export const ghBinary = () => process.env.PR_STORY_GH || 'gh';
+/** The gh binary: ONCE_UPON_GH when set (the tests' fake gh), else gh on PATH. */
+export const ghBinary = () => process.env.ONCE_UPON_GH || 'gh';
 
 /**
  * Runs gh with these arguments and resolves to its stdout.

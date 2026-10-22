@@ -1,6 +1,6 @@
 /*
  * Stories: list what the bridge can serve, make a local story over commits
- * (local), and publish a pr-story folder where the bridge finds it.
+ * (local), and publish a once-upon folder where the bridge finds it.
  */
 import { execFile } from 'node:child_process';
 import { copyFileSync, existsSync, writeFileSync } from 'node:fs';
@@ -25,7 +25,7 @@ function list(home) {
 
 async function local(home, cfg, opts) {
   if (!opts.repo || !opts.base) {
-    throw new Error('usage: pr-story local --repo DIR --base REF [--head REF] [--chapters FILE]');
+    throw new Error('usage: once-upon local --repo DIR --base REF [--head REF] [--chapters FILE]');
   }
   const made = createLocalStory({
     home,
@@ -55,7 +55,7 @@ async function local(home, cfg, opts) {
   if (!running && !opts['no-serve']) {
     await serve(home, cfg, { ...opts, port });
   } else if (!running) {
-    process.stderr.write(`No bridge on port ${port}. Start one with: pr-story serve\n`);
+    process.stderr.write(`No bridge on port ${port}. Start one with: once-upon serve\n`);
   }
   out(url);
   if (!opts['no-open']) {
@@ -66,7 +66,7 @@ async function local(home, cfg, opts) {
 
 function publish(home, cfg, opts) {
   if (!opts.dir) {
-    throw new Error('usage: pr-story publish --dir <pr-story folder>');
+    throw new Error('usage: once-upon publish --dir <once-upon folder>');
   }
   const source = path.resolve(opts.dir);
   const pr = readJson(path.join(source, 'pr.json'), null);
@@ -75,7 +75,7 @@ function publish(home, cfg, opts) {
     throw new Error(`${source} doesn't say which PR it is (no pr.json naming it)`);
   }
   const id = opts.id || slug(`${repo.replace('/', '-')}-${pr.number}`);
-  // into the repo's checkout (.pr-story/<id>, kept out of git) when the bridge knows it, else ~/.pr-story/<id>
+  // into the repo's checkout (.once-upon/<id>, kept out of git) when the bridge knows it, else ~/.once-upon/<id>
   const dest = storyDirFor(home, id, { repo });
   for (const name of ['chapters.json', 'file-map.json']) {
     if (existsSync(path.join(source, name))) {
@@ -109,14 +109,14 @@ export const storyCommands = [
   {
     name: 'list',
     usage: [
-      '  pr-story list                                                stories the bridge can serve',
+      '  once-upon list                                                stories the bridge can serve',
     ],
     run: list,
   },
   {
     name: 'local',
     usage: [
-      '  pr-story local   --repo DIR --base REF [--head REF] [--chapters FILE] [--id ID] [--title T] [--no-open]',
+      '  once-upon local   --repo DIR --base REF [--head REF] [--chapters FILE] [--id ID] [--title T] [--no-open]',
       '                                                                 story over local commits, served at /local/<id>/',
     ],
     run: local,
@@ -124,7 +124,7 @@ export const storyCommands = [
   {
     name: 'publish',
     usage: [
-      '  pr-story publish --dir DIR [--id ID]                         copy a pr-story folder into <checkout>/.pr-story/<owner>-<repo>-<N>/ (or ~/.pr-story/)',
+      '  once-upon publish --dir DIR [--id ID]                         copy a once-upon folder into <checkout>/.once-upon/<owner>-<repo>-<N>/ (or ~/.once-upon/)',
       "                                                                 and finish the PR's build request",
     ],
     run: publish,

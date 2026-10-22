@@ -10,7 +10,7 @@
  *   {"type":"read","story":"…","chapter":"<chapter key>","step":2,"title":"Chapter 2: …","head_sha":"…","story_head":"…","reason":"time|viewed|inferred"}
  *
  * Readers keep a cursor (a byte offset) under <home>/cursors/<consumer>.json,
- * so `pr-story inbox --unread` and `pr-story wait` only hand over what a
+ * so `once-upon inbox --unread` and `once-upon wait` only hand over what a
  * reader hasn't seen. A later MCP server or hook reads the same file the same way.
  */
 import {

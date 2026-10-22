@@ -48,11 +48,11 @@ export function createFileList(context) {
     const whyHtml = mark
       ? `${markViewedButton(file.rel)}${escapeHtml(why.slice(status.text.length))}`
       : escapeHtml(why);
-    const whyKind = status && status.kind !== 'later' ? ` prs-st-${status.kind}` : '';
+    const whyKind = status && status.kind !== 'later' ? ` ou-st-${status.kind}` : '';
     const lines = lineItems(file);
     return (
-      `<li data-file="${escapeHtml(file.rel)}"><code ${refAttrs(file.rel, null)}>${escapeHtml(file.rel)}</code><span class="prs-viewed" data-viewed-for="${escapeHtml(file.rel)}"></span>` +
-      `${why ? `<span class="prs-why${whyKind}">${whyHtml}</span>` : ''}${lines ? `<ul class="prs-lines">${lines}</ul>` : ''}</li>`
+      `<li data-file="${escapeHtml(file.rel)}"><code ${refAttrs(file.rel, null)}>${escapeHtml(file.rel)}</code><span class="ou-viewed" data-viewed-for="${escapeHtml(file.rel)}"></span>` +
+      `${why ? `<span class="ou-why${whyKind}">${whyHtml}</span>` : ''}${lines ? `<ul class="ou-lines">${lines}</ul>` : ''}</li>`
     );
   }
 
@@ -76,11 +76,11 @@ export function createFileList(context) {
 
   /** The folded list under its heading; it remembers whether it was open (state.filesOpen). */
   function filesBox(title, summary, items) {
-    const summaryHtml = summary ? `<span class="prs-sum">${escapeHtml(summary)}</span>` : '';
+    const summaryHtml = summary ? `<span class="ou-sum">${escapeHtml(summary)}</span>` : '';
     return (
-      `<details class="prs-filesbox"${state.filesOpen ? ' open' : ''}>` +
-      `<summary><h2 class="prs-h">${escapeHtml(title)}</h2>${summaryHtml}</summary>` +
-      `<ul class="prs-files">${items}</ul></details>`
+      `<details class="ou-filesbox"${state.filesOpen ? ' open' : ''}>` +
+      `<summary><h2 class="ou-h">${escapeHtml(title)}</h2>${summaryHtml}</summary>` +
+      `<ul class="ou-files">${items}</ul></details>`
     );
   }
 

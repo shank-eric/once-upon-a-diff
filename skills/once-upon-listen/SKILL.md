@@ -1,12 +1,12 @@
 ---
-name: pr-story-listen
-description: Listen for one repo's PR Story requests from this Claude Code session. Answers questions typed in the panel's Ask box and builds stories asked for with Build story, on any PR or local story in that repo, until told to stop. Use when the user pastes or types /pr-story-listen <owner/repo>, the line the panel's "Copy prompt for Claude" button copies.
+name: once-upon-listen
+description: Listen for one repo's Once Upon a Diff requests from this Claude Code session. Answers questions typed in the panel's Ask box and builds stories asked for with Build story, on any PR or local story in that repo, until told to stop. Use when the user pastes or types /once-upon-listen <owner/repo>, the line the panel's "Copy prompt for Claude" button copies.
 argument-hint: <owner/repo>
 ---
 
-# PR Story listen
+# Once Upon a Diff listen
 
-The panel's **Copy prompt for Claude** button copies `/pr-story-listen <owner/repo>`. The user pastes it into a Claude Code session opened in that repo's checkout. From then on this session is the repo's listener: the panel's light goes green, Ask-box questions on any of the repo's stories come here, and so do Build story requests on any of its PRs. Keep listening until the user says to stop.
+The panel's **Copy prompt for Claude** button copies `/once-upon-listen <owner/repo>`. The user pastes it into a Claude Code session opened in that repo's checkout. From then on this session is the repo's listener: the panel's light goes green, Ask-box questions on any of the repo's stories come here, and so do Build story requests on any of its PRs. Keep listening until the user says to stop.
 
 The argument is `$ARGUMENTS`.
 
@@ -16,10 +16,10 @@ The argument is `$ARGUMENTS`.
 
 ## House rules
 
-Before you start, read the user's own rules if they have any: the file named by `house_rules` in `~/.pr-story/config.json`, else `~/.pr-story/house-rules.md`.
+Before you start, read the user's own rules if they have any: the file named by `house_rules` in `~/.once-upon/config.json`, else `~/.once-upon/house-rules.md`.
 
 ```bash
-h="${PR_STORY_HOME:-$HOME/.pr-story}"; f=$(jq -r '.house_rules // empty' "$h/config.json" 2>/dev/null); f="${f/#\~/$HOME}"; cat "${f:-$h/house-rules.md}" 2>/dev/null
+h="${ONCE_UPON_HOME:-$HOME/.once-upon}"; f=$(jq -r '.house_rules // empty' "$h/config.json" 2>/dev/null); f="${f/#\~/$HOME}"; cat "${f:-$h/house-rules.md}" 2>/dev/null
 ```
 
 Follow them alongside the rules here, for answers and builds alike. They win where they're more specific, but can't loosen the hard rules below. No file means the rules here are all there is.
@@ -28,18 +28,18 @@ Follow them alongside the rules here, for answers and builds alike. They win whe
 
 - Never write to GitHub. No comments, reviews, approvals, reactions or Viewed clicks. Comments are drafts, added to the panel with `<cli> comment` and never posted.
 - Never push, commit, check out a branch or change files in the checkout. Read old and new code with `git show <sha>:<path>`. If a commit is missing, `git fetch origin <sha>`, or fetch the PR head into `refs/tmp/pr-<N>` and delete that ref when done.
-- When `gh_unset_github_token` is true in `~/.pr-story/config.json`, run `unset GITHUB_TOKEN` before any `gh` call, so gh's own login is used.
+- When `gh_unset_github_token` is true in `~/.once-upon/config.json`, run `unset GITHUB_TOKEN` before any `gh` call, so gh's own login is used.
 - Verify before you claim. Say whether a problem was checked in the code or only suspected. Times in the user's time zone.
 
 ## 1. Find the CLI
 
-`pr-story` usually isn't on `PATH`. Work out `<cli>`, the command used below, once, and use it literally in every later call (shell functions don't carry over between Bash calls):
+`once-upon` usually isn't on `PATH`. Work out `<cli>`, the command used below, once, and use it literally in every later call (shell functions don't carry over between Bash calls):
 
 ```bash
-command -v pr-story || for d in "$PR_STORY_REPO" "$(jq -r '.repo_dir // empty' ~/.pr-story/config.json 2>/dev/null)" "$(cd "$(dirname "$(realpath ~/.claude/skills/pr-story-listen/SKILL.md)")/../.." 2>/dev/null && pwd)"; do [ -f "$d/bridge/bin/pr-story.mjs" ] && { echo "node $d/bridge/bin/pr-story.mjs"; break; }; done
+command -v once-upon || for d in "$ONCE_UPON_REPO" "$(jq -r '.repo_dir // empty' ~/.once-upon/config.json 2>/dev/null)" "$(cd "$(dirname "$(realpath ~/.claude/skills/once-upon-listen/SKILL.md)")/../.." 2>/dev/null && pwd)"; do [ -f "$d/bridge/bin/once-upon.mjs" ] && { echo "node $d/bridge/bin/once-upon.mjs"; break; }; done
 ```
 
-That's `pr-story` on `PATH`, then the `PR_STORY_REPO` env var (the pr-story repo folder), then `repo_dir` in `~/.pr-story/config.json`, then the repo this skill is linked from. If nothing prints, tell the user PR Story isn't installed and stop.
+That's `once-upon` on `PATH`, then the `ONCE_UPON_REPO` env var (the once-upon-a-diff checkout), then `repo_dir` in `~/.once-upon/config.json`, then the repo this skill is linked from. If nothing prints, tell the user Once Upon a Diff isn't installed and stop.
 
 ## 2. Check the bridge and the checkout
 
@@ -47,17 +47,17 @@ That's `pr-story` on `PATH`, then the `PR_STORY_REPO` env var (the pr-story repo
 <cli> doctor
 ```
 
-- If the `Bridge` line FAILs with **nothing is listening on 127.0.0.1:<port>**, start the bridge yourself and wait for it to answer. `<cli words>` is `<cli>` as separate words, like `node /path/to/bridge/bin/pr-story.mjs` or `pr-story`:
+- If the `Bridge` line FAILs with **nothing is listening on 127.0.0.1:<port>**, start the bridge yourself and wait for it to answer. `<cli words>` is `<cli>` as separate words, like `node /path/to/bridge/bin/once-upon.mjs` or `once-upon`:
   ```bash
   node -e 'require("child_process").spawn(process.argv[1], process.argv.slice(2), { detached: true, stdio: "ignore" }).unref()' <cli words> serve
-  h="${PR_STORY_HOME:-$HOME/.pr-story}"; curl -sf --retry 10 --retry-delay 1 --retry-connrefused -H "Authorization: Bearer $(jq -r .token "$h/config.json")" "http://127.0.0.1:$(jq -r '.port // 4823' "$h/config.json")/api/health"
+  h="${ONCE_UPON_HOME:-$HOME/.once-upon}"; curl -sf --retry 10 --retry-delay 1 --retry-connrefused -H "Authorization: Bearer $(jq -r .token "$h/config.json")" "http://127.0.0.1:$(jq -r '.port // 4823' "$h/config.json")/api/health"
   ```
-  The bridge serves the panel, local pages and other sessions, so it has to outlive this one. A `run_in_background` task ends with this session, and `nohup … &` only ignores the hangup, so the bridge could still go down with this shell's process group. The detached spawn gives it its own session and process group. It writes its own log to `~/.pr-story/bridge.log`.
-  When curl prints `{"ok":true,"name":"pr-story-bridge",…}`, run `<cli> doctor` again, say in one line that you started the bridge (with its pid) and that it keeps running after this session, and carry on. If curl gives up, show the end of `bridge.log` and stop.
+  The bridge serves the panel, local pages and other sessions, so it has to outlive this one. A `run_in_background` task ends with this session, and `nohup … &` only ignores the hangup, so the bridge could still go down with this shell's process group. The detached spawn gives it its own session and process group. It writes its own log to `~/.once-upon/bridge.log`.
+  When curl prints `{"ok":true,"name":"once-upon-bridge",…}`, run `<cli> doctor` again, say in one line that you started the bridge (with its pid) and that it keeps running after this session, and carry on. If curl gives up, show the end of `bridge.log` and stop.
 - If the `Bridge` line FAILs any other way, don't start a second bridge. Say what doctor found and its fix in one line, and stop:
-  - **port … is taken by pid …** or **something else answers on port …**: another program has the port. Stop that program, or set another `port` in `~/.pr-story/config.json` and in the extension options.
+  - **port … is taken by pid …** or **something else answers on port …**: another program has the port. Stop that program, or set another `port` in `~/.once-upon/config.json` and in the extension options.
   - **rejects this config's token**: a bridge started with an older token is running. Restart it.
-- Questions and build requests queue in `~/.pr-story/inbox.jsonl` while the bridge is down, so nothing asked before it came up is lost.
+- Questions and build requests queue in `~/.once-upon/inbox.jsonl` while the bridge is down, so nothing asked before it came up is lost.
 - Check this session's folder is a checkout of the repo: `git remote get-url origin` should name `owner/repo`. If it doesn't, say so in one line and ask the user to open the session in that checkout. Don't go looking for or cloning another copy.
 
 Then say in one line that you're listening for `owner/repo`, and that they can say "stop" at any time.
@@ -82,7 +82,7 @@ A consumer's first wait starts from now, so old questions aren't handed over aga
 
 The event gives the question id, the story id, the chapter or step, the file it was asked from and the text.
 
-1. Find the story: `<cli> list` prints each story's id and folder. Read `<folder>/chapters.json`: the overview, and the chapter it was asked from (step N is `chapters[N-1]`, step 0 is the Overview). `meta.json` has the PR's `head_oid` and `base_oid`, or a local story's `repo_path`, `base` and `head`. When the question says "this" or "here", `~/.pr-story/state/<story id>/position.json` has the file at the top of the user's screen.
+1. Find the story: `<cli> list` prints each story's id and folder. Read `<folder>/chapters.json`: the overview, and the chapter it was asked from (step N is `chapters[N-1]`, step 0 is the Overview). `meta.json` has the PR's `head_oid` and `base_oid`, or a local story's `repo_path`, `base` and `head`. When the question says "this" or "here", `~/.once-upon/state/<story id>/position.json` has the file at the top of the user's screen.
 2. Read the code it's about in this checkout: the new side with `git show <head_oid>:<path>`, the old side with `git show <base_oid>:<path>`, and callers or tests around it as needed. For a local story the working tree is the new side.
 3. Answer:
    ```bash
@@ -98,7 +98,7 @@ The event gives the question id, the story id, the chapter or step, the file it 
 The event gives the build id, `owner/repo#N` and the PR URL. A request with `mode: "update"` asks to bring an existing story up to the PR's latest commit. It also has `base_sha` (the commit the story was told from), `since_sha` (where the user's reading stopped, from the chapters they read) and `retell` (true when they asked for a new story from scratch).
 
 1. The wait claimed it when it handed it over, so its badge already says Building. Start the wait again (step 3).
-2. Build the story with the pr-story skill (`../pr-story/SKILL.md` beside this skill in the repo, linked in as `~/.claude/skills/pr-story`, as `/pr-story <PR url>`): gather, plan the chapters and render. Write every chapter's narrative and draft comments up front, since the panel shows the whole story. Don't tell it chapter by chapter in chat. For an update, follow pr-story's "Since you read it" path: one new chapter, first, for `git diff <since_sha>..<new head>`, with the other chapters kept as they are. Re-tell from scratch only when `retell` is true or the PR was rebased past `since_sha`.
+2. Build the story with the once-upon skill (`../once-upon/SKILL.md` beside this skill in the repo, linked in as `~/.claude/skills/once-upon`, as `/once-upon <PR url>`): gather, plan the chapters and render. Write every chapter's narrative and draft comments up front, since the panel shows the whole story. Don't tell it chapter by chapter in chat. For an update, follow once-upon's "Since you read it" path: one new chapter, first, for `git diff <since_sha>..<new head>`, with the other chapters kept as they are. Re-tell from scratch only when `retell` is true or the PR was rebased past `since_sha`.
 3. `build` publishes the story, which finishes the request, and the PR page opens the panel on its own. If it couldn't be built, run `<cli> done <build id> --failed --note "<one line why>"`.
 4. On a long build, run `<cli> builds --start <build id> --consumer repo-<owner>-<name>` every ≈20 minutes so the claim stays fresh and the request isn't handed out a second time.
 5. In chat, say one line: which PR, its chapter and file counts, and that it's on the page.

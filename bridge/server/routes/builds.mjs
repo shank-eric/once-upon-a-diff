@@ -1,6 +1,6 @@
 /*
  * Build requests: the pages' "Build story" and "Update" buttons ask for a
- * story (POST /api/builds), and `pr-story builds` lists them. How a
+ * story (POST /api/builds), and `once-upon builds` lists them. How a
  * request stands comes back from status-many (catalog.mjs).
  */
 import { readMeta } from '../../stories/meta.mjs';

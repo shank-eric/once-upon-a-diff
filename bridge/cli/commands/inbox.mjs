@@ -54,16 +54,16 @@ function printHandOver(entries, opts) {
     }
     out(describe(entry));
     if (entry.type === 'question') {
-      out(`Answer with: pr-story answer --question ${entry.id} --text "…"`);
+      out(`Answer with: once-upon answer --question ${entry.id} --text "…"`);
     }
     if (entry.type === 'build_request') {
       out(
-        `It's yours (wait claimed it). Write the story: pr-story renders and publishes it, and publishing finishes the request.`,
+        `It's yours (wait claimed it). Write the story: once-upon renders and publishes it, and publishing finishes the request.`,
       );
     }
     if (entry.type === 'build_request' && entry.mode === 'update' && !entry.retell) {
       out(
-        `It's an update: follow pr-story's "Since you read it" path from ${entry.since_sha}, unless the PR was rebased past it.`,
+        `It's an update: follow once-upon's "Since you read it" path from ${entry.since_sha}, unless the PR was rebased past it.`,
       );
     }
     out('');
@@ -86,7 +86,7 @@ const inboxChange = (file) =>
 async function wait(home, cfg, opts) {
   const messages = new Inbox(home);
   if (opts.repo && !REPO_RE.test(String(opts.repo))) {
-    throw new Error('usage: pr-story wait --repo owner/name');
+    throw new Error('usage: once-upon wait --repo owner/name');
   }
   const consumer = consumerOf(opts);
   if (opts.repo) {
@@ -139,7 +139,7 @@ function answer(home, cfg, opts) {
   const messages = new Inbox(home);
   const text = opts.file ? readFileSync(opts.file, 'utf8') : opts.text;
   if (!opts.question || !text || text === true) {
-    throw new Error('usage: pr-story answer --question ID (--text T | --file F)');
+    throw new Error('usage: once-upon answer --question ID (--text T | --file F)');
   }
   const question = messages.questions().find((entry) => entry.id === opts.question);
   if (!question) {
@@ -158,14 +158,14 @@ export const inboxCommands = [
   {
     name: 'inbox',
     usage: [
-      '  pr-story inbox   [--story ID] [--type question,note,...] [--unread] [--consumer NAME] [--json]',
+      '  once-upon inbox   [--story ID] [--type question,note,...] [--unread] [--consumer NAME] [--json]',
     ],
     run: inbox,
   },
   {
     name: 'wait',
     usage: [
-      '  pr-story wait    [--repo OWNER/NAME | --story ID] [--type question,build_request] [--consumer NAME] [--timeout SECONDS] [--json]',
+      '  once-upon wait    [--repo OWNER/NAME | --story ID] [--type question,build_request] [--consumer NAME] [--timeout SECONDS] [--json]',
       '                                                                 block until a question or build request arrives, print it, exit (for a background task);',
       "                                                                 --repo takes both for that repo's stories and PRs; a consumer's first wait starts from now,",
       '                                                                 but queued build requests are handed over whenever they were asked',
@@ -175,7 +175,7 @@ export const inboxCommands = [
   {
     name: 'answer',
     usage: [
-      '  pr-story answer  --question ID (--text T | --file F)          answer a question; the panel shows it',
+      '  once-upon answer  --question ID (--text T | --file F)          answer a question; the panel shows it',
     ],
     run: answer,
   },

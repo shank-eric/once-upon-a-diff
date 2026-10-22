@@ -15,7 +15,7 @@
  *   - the chapter is a "Since you read it" one, which tells every file its commits touched
  * A file no chapter lists isn't reported here: file placement already says so.
  *
- * The pr-story skill's `build` refuses to publish with uncovered hunks, and
+ * The once-upon skill's `build` refuses to publish with uncovered hunks, and
  * file-map.json carries any it was told to allow, for the panel's Overview.
  */
 import { lineRefsOf, textOf } from './text-refs.mjs';

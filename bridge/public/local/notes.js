@@ -25,7 +25,7 @@ function notesListHtml() {
     )
     .join('');
   return `<ul>${items}</ul>
-    <p class="ds-muted">Also in the terminal: <code>pr-story notes --story ${escapeHtml(page.story.id)}</code></p>`;
+    <p class="ds-muted">Also in the terminal: <code>once-upon notes --story ${escapeHtml(page.story.id)}</code></p>`;
 }
 
 function noteRow(note, away) {

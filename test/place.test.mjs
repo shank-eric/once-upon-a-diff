@@ -15,13 +15,13 @@ test('a local story lives in the checkout it diffs, kept out of git by .git/info
   const home = tmp('home');
   const { repo, base } = localRepo();
   const made = createLocalStory({ home, repo, base, head: 'HEAD' });
-  assert.equal(realpathSync(made.dir), realpathSync(path.join(repo, '.pr-story', made.id)));
+  assert.equal(realpathSync(made.dir), realpathSync(path.join(repo, '.once-upon', made.id)));
   assert.ok(existsSync(path.join(made.dir, 'local.diff')));
   assert.equal(status(repo), '', 'git status stays clean');
-  assert.match(exclude(repo), /^\/\.pr-story\/$/m);
+  assert.match(exclude(repo), /^\/\.once-upon\/$/m);
   createLocalStory({ home, repo, base, head: 'HEAD' });
-  assert.equal(exclude(repo).match(/\.pr-story/g).length, 1, 'the exclude line is added once');
-  assert.ok(!existsSync(path.join(home, made.id)), 'nothing in ~/.pr-story but state');
+  assert.equal(exclude(repo).match(/\.once-upon/g).length, 1, 'the exclude line is added once');
+  assert.ok(!existsSync(path.join(home, made.id)), 'nothing in ~/.once-upon but state');
   assert.equal(readIndex(home)[made.id], made.dir, 'the index maps the id to its folder');
   const bridge = await startBridge({ home });
   try {
@@ -29,7 +29,7 @@ test('a local story lives in the checkout it diffs, kept out of git by .git/info
     await bridge.call('POST', `/api/stories/${made.id}/viewed`, { path: 'one.txt', viewed: true });
     assert.ok(
       existsSync(path.join(home, 'state', made.id, 'viewed.json')),
-      'state stays in ~/.pr-story',
+      'state stays in ~/.once-upon',
     );
   } finally {
     await bridge.close();
@@ -47,13 +47,13 @@ test("in a worktree, the story goes in the worktree and the exclude in the repo'
   assert.equal(status(repo), '');
   assert.match(
     exclude(repo),
-    /\/\.pr-story\//,
+    /\/\.once-upon\//,
     'one exclude covers the checkout and its worktrees',
   );
   assert.equal(realpathSync(mainCheckout(worktree)), realpathSync(repo));
 });
 
-test('pr-story publish writes into the checkout with the commits the story was told from', async () => {
+test('once-upon publish writes into the checkout with the commits the story was told from', async () => {
   const home = tmp('home');
   const { repo } = localRepo();
   seenCheckout(home, 'acme/widgets', repo);
@@ -69,7 +69,7 @@ test('pr-story publish writes into the checkout with the commits the story was t
   const published = await runCli(home, ['publish', '--dir', src]);
   assert.equal(published.code, 0, published.stderr);
   const out = published.stdout.trim();
-  assert.equal(realpathSync(out), realpathSync(path.join(repo, '.pr-story', 'acme-widgets-7')));
+  assert.equal(realpathSync(out), realpathSync(path.join(repo, '.once-upon', 'acme-widgets-7')));
   assert.equal(status(repo), '');
   const meta = JSON.parse(readFileSync(path.join(out, 'meta.json'), 'utf8'));
   assert.equal(meta.head_oid, 'b'.repeat(40), 'the head the story was told from is kept');
@@ -87,7 +87,7 @@ test('pr-story publish writes into the checkout with the commits the story was t
   );
 });
 
-test('the CLI moves an old <checkout>/.diff-story to .pr-story once, with its exclude line and index', async () => {
+test('the CLI moves an old <checkout>/.diff-story to .once-upon once, with its exclude line and index', async () => {
   const home = tmp('home');
   const { repo } = localRepo();
   const old = path.join(repo, '.diff-story', 'acme-widgets-7');
@@ -97,11 +97,31 @@ test('the CLI moves an old <checkout>/.diff-story to .pr-story once, with its ex
   writeFileSync(excludeFile, "# Diff Story Mode's stories (local only)\n/.diff-story/\n");
   writeJson(path.join(home, 'stories.json'), { 'acme-widgets-7': old });
   const first = await runCli(home, ['token']);
-  assert.match(first.stderr, /moved .*\.diff-story to .*\.pr-story/);
-  const moved = path.join(repo, '.pr-story', 'acme-widgets-7');
+  assert.match(first.stderr, /moved .*\.diff-story to .*\.once-upon/);
+  const moved = path.join(repo, '.once-upon', 'acme-widgets-7');
   assert.ok(existsSync(moved) && !existsSync(path.join(repo, '.diff-story')));
   assert.equal(readIndex(home)['acme-widgets-7'], moved);
-  assert.equal(exclude(repo), "# PR Story's stories (local only)\n/.pr-story/\n");
+  assert.equal(exclude(repo), "# Once Upon a Diff's stories (local only)\n/.once-upon/\n");
+  assert.equal(status(repo), '', 'git status stays clean');
+  const second = await runCli(home, ['token']);
+  assert.doesNotMatch(second.stderr, /moved/);
+});
+
+test('the CLI moves an old <checkout>/.pr-story to .once-upon once, with its exclude line and index', async () => {
+  const home = tmp('home');
+  const { repo } = localRepo();
+  const old = path.join(repo, '.pr-story', 'acme-widgets-8');
+  githubStory(old);
+  const excludeFile = path.join(repo, '.git', 'info', 'exclude');
+  mkdirSync(path.dirname(excludeFile), { recursive: true });
+  writeFileSync(excludeFile, "# PR Story's stories (local only)\n/.pr-story/\n");
+  writeJson(path.join(home, 'stories.json'), { 'acme-widgets-8': old });
+  const first = await runCli(home, ['token']);
+  assert.match(first.stderr, /moved .*\.pr-story to .*\.once-upon/);
+  const moved = path.join(repo, '.once-upon', 'acme-widgets-8');
+  assert.ok(existsSync(moved) && !existsSync(path.join(repo, '.pr-story')));
+  assert.equal(readIndex(home)['acme-widgets-8'], moved);
+  assert.equal(exclude(repo), "# Once Upon a Diff's stories (local only)\n/.once-upon/\n");
   assert.equal(status(repo), '', 'git status stays clean');
   const second = await runCli(home, ['token']);
   assert.doesNotMatch(second.stderr, /moved/);

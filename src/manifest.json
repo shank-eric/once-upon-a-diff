@@ -1,5 +1,6 @@
 {
-  "name": "PR Story",
+  "name": "Once Upon a Diff",
+  "short_name": "Once Upon",
   "version": "0.1.0",
   "manifest_version": 3,
   "description": "Shows a code-review story (overview, then chapters) in a side panel on a GitHub pull request, with the diff filtered to each chapter's files",

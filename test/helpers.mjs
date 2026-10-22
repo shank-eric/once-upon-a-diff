@@ -5,11 +5,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createBridge } from '../bridge/server/index.mjs';
 
-const BIN = fileURLToPath(new URL('../bridge/bin/pr-story.mjs', import.meta.url));
+const BIN = fileURLToPath(new URL('../bridge/bin/once-upon.mjs', import.meta.url));
 
-export const tmp = (name) => mkdtempSync(path.join(os.tmpdir(), `pr-story-${name}-`));
+export const tmp = (name) => mkdtempSync(path.join(os.tmpdir(), `once-upon-${name}-`));
 // tests never look in (or move stories into) the real ~/Development checkouts
-process.env.PR_STORY_DEV_DIR = mkdtempSync(path.join(os.tmpdir(), 'pr-story-dev-'));
+process.env.ONCE_UPON_DEV_DIR = mkdtempSync(path.join(os.tmpdir(), 'once-upon-dev-'));
 export const TOKEN = 'test-token-0123456789abcdef';
 
 export function writeJson(file, value) {
@@ -18,8 +18,8 @@ export function writeJson(file, value) {
 }
 
 /**
- * A published story for acme/widgets#7 with two chapters (its pr.json too, so it also serves as a pr-story folder).
- * `meta` adds to or overrides its meta.json, such as the head_oid it was told from or its pr-story `source`.
+ * A published story for acme/widgets#7 with two chapters (its pr.json too, so it also serves as a once-upon folder).
+ * `meta` adds to or overrides its meta.json, such as the head_oid it was told from or its once-upon `source`.
  */
 export function githubStory(dir, { meta = {} } = {}) {
   writeJson(path.join(dir, 'meta.json'), {
@@ -121,13 +121,13 @@ export async function startBridge(opts) {
   return { server, base, call, close: () => new Promise((resolve) => server.close(resolve)) };
 }
 
-/** Runs the pr-story CLI against `home`: {code, stdout, stderr}. */
+/** Runs the once-upon CLI against `home`: {code, stdout, stderr}. */
 export const runCli = (home, args) =>
   new Promise((resolve) => {
     execFile(
       process.execPath,
       [BIN, ...args],
-      { env: { ...process.env, PR_STORY_HOME: home } },
+      { env: { ...process.env, ONCE_UPON_HOME: home } },
       (err, stdout, stderr) => resolve({ code: err ? err.code : 0, stdout, stderr }),
     );
   });

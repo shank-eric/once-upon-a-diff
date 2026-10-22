@@ -62,10 +62,10 @@ export function createFreshness(context) {
     touched.length ? `, in ${touched.map(story.chapterName).join(', ')}` : '';
 
   function wireUpdateButtons(box) {
-    for (const button of box.querySelectorAll('.prs-update')) {
+    for (const button of box.querySelectorAll('.ou-update')) {
       button.onclick = async () => {
         const retell = button.getAttribute('data-retell') === '1';
-        for (const other of box.querySelectorAll('.prs-update')) {
+        for (const other of box.querySelectorAll('.ou-update')) {
           other.disabled = true;
         }
         try {
@@ -77,7 +77,7 @@ export function createFreshness(context) {
               : 'Asked for a “Since you read it” chapter for the new commits. A Claude session picks it up from the inbox.',
           );
         } catch (e) {
-          for (const other of box.querySelectorAll('.prs-update')) {
+          for (const other of box.querySelectorAll('.ou-update')) {
             other.disabled = false;
           }
           shell.message(`Couldn't ask for an update: ${e && e.message ? e.message : e}`);
@@ -87,8 +87,8 @@ export function createFreshness(context) {
   }
 
   function render() {
-    const box = $('.prs-fresh');
-    box.classList.remove('prs-stale');
+    const box = $('.ou-fresh');
+    box.classList.remove('ou-stale');
     if (!fresh || fresh.state === 'n/a') {
       box.innerHTML = '';
       return;
@@ -96,16 +96,16 @@ export function createFreshness(context) {
     if (fresh.state === 'current') {
       box.innerHTML =
         updatedHtml(fresh) ||
-        `<span class="prs-why">Up to date with ${escapeHtml(shortSha(fresh.story_head))}</span>`;
+        `<span class="ou-why">Up to date with ${escapeHtml(shortSha(fresh.story_head))}</span>`;
       return;
     }
     if (fresh.state === 'unknown') {
       box.innerHTML = fresh.error
-        ? `<span class="prs-why" title="${escapeHtml(fresh.error)}">Can't tell whether the story is up to date</span>`
+        ? `<span class="ou-why" title="${escapeHtml(fresh.error)}">Can't tell whether the story is up to date</span>`
         : '';
       return;
     }
-    box.classList.add('prs-stale');
+    box.classList.add('ou-stale');
     const newer = fresh.newer;
     let what = 'the PR has newer commits';
     if (fresh.rewritten) {
@@ -118,10 +118,10 @@ export function createFreshness(context) {
       ? ` (${plural(files, 'file')} changed${inChapters(fresh.chapters_touched || [])})`
       : '';
     const buttons = opts.requestUpdate
-      ? `<button class="prs-update" data-retell="0" title="Adds a “Since you read it” chapter for the new commits, first, and keeps the chapters you read">Update (new commits)</button>` +
-        `<button class="prs-update" data-retell="1" title="A whole new story at the latest commit, for a rebase or a big rework">Re-tell from scratch</button>` +
+      ? `<button class="ou-update" data-retell="0" title="Adds a “Since you read it” chapter for the new commits, first, and keeps the chapters you read">Update (new commits)</button>` +
+        `<button class="ou-update" data-retell="1" title="A whole new story at the latest commit, for a rebase or a big rework">Re-tell from scratch</button>` +
         (fresh.rewritten
-          ? '<span class="prs-why">It was rebased, so a re-tell is likely the better fit.</span>'
+          ? '<span class="ou-why">It was rebased, so a re-tell is likely the better fit.</span>'
           : '')
       : '';
     box.innerHTML = `Story is for ${escapeHtml(shortSha(fresh.story_head))}; ${what}${changed}.${buttons}`;
@@ -152,7 +152,7 @@ export function createFreshness(context) {
       (url
         ? ` <a href="${escapeHtml(url)}" title="GitHub's Files changed for ${range} only">See just what's new on GitHub</a>`
         : '') +
-      ` <span class="prs-why">Up to date with ${escapeHtml(shortSha(freshness.story_head))}</span>`
+      ` <span class="ou-why">Up to date with ${escapeHtml(shortSha(freshness.story_head))}</span>`
     );
   }
 
@@ -177,7 +177,7 @@ export function createFreshness(context) {
     } else if (url) {
       link = ` <a href="${escapeHtml(url)}" title="GitHub's Files changed for ${range} only">See just these commits' changes on GitHub</a>`;
     }
-    return `<div class="prs-since"><b>${escapeHtml(what)}</b>, ${range}. This step shows only the files they touched.${escapeHtml(rest)}${link}</div>`;
+    return `<div class="ou-since"><b>${escapeHtml(what)}</b>, ${range}. This step shows only the files they touched.${escapeHtml(rest)}${link}</div>`;
   }
 
   return {

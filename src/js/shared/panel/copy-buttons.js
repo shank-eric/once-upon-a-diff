@@ -27,7 +27,7 @@ export function copyComment(text, button) {
       showResult(true);
       return;
     }
-    selectText(button.closest('.prs-comment').querySelector('pre'));
+    selectText(button.closest('.ou-comment').querySelector('pre'));
     let copied = false;
     try {
       copied = document.execCommand('copy');

@@ -169,7 +169,7 @@ test('PR lists get ready / queued / building / none for many PRs in one call, an
       'one listening check per repo',
     );
     assert.equal(response.body.listening['acme/gadgets'].ok, false);
-    assert.equal(response.body.listening['acme/gadgets'].prompt, '/pr-story-listen acme/gadgets');
+    assert.equal(response.body.listening['acme/gadgets'].prompt, '/once-upon-listen acme/gadgets');
     beat(home, 'repo-acme-gadgets', 'waiting', { repo: 'acme/gadgets' });
     const listening = (await bridge.call('POST', '/api/stories/status-many', { prs })).body
       .listening;
@@ -185,7 +185,7 @@ test('PR lists get ready / queued / building / none for many PRs in one call, an
   }
 });
 
-describe('pr-story wait hands over build requests, queued until claimed', () => {
+describe('once-upon wait hands over build requests, queued until claimed', () => {
   const wait = async (home, ...args) => {
     const result = await runCli(home, ['wait', '--timeout', '1', '--json', ...args]);
     return {

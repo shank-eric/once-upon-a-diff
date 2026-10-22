@@ -19,7 +19,7 @@ export function createQuestions(context) {
   const forStep = (question) => state.n === 0 || question.step === state.n;
 
   function render() {
-    const box = $('.prs-questions');
+    const box = $('.ou-questions');
     if (!box) {
       return;
     }
@@ -37,17 +37,15 @@ export function createQuestions(context) {
         .filter(Boolean)
         .join(', ');
       const answers = (question.answers || [])
-        .map(
-          (answer) => `<div class="prs-a prs-md">${context.markdown.markdown(answer.text)}</div>`,
-        )
+        .map((answer) => `<div class="ou-a ou-md">${context.markdown.markdown(answer.text)}</div>`)
         .join('');
       return (
-        `<div class="prs-qa"><div class="prs-q">${escapeHtml(question.text)}</div><div class="prs-qmeta">${escapeHtml([when, where].filter(Boolean).join(' · '))}</div>` +
-        `${answers || '<div class="prs-wait">Waiting for an answer from the Claude session</div>'}</div>`
+        `<div class="ou-qa"><div class="ou-q">${escapeHtml(question.text)}</div><div class="ou-qmeta">${escapeHtml([when, where].filter(Boolean).join(' · '))}</div>` +
+        `${answers || '<div class="ou-wait">Waiting for an answer from the Claude session</div>'}</div>`
       );
     });
     box.innerHTML =
-      `<h2 class="prs-h">Questions${state.n ? ' on this step' : ''} (${list.length})</h2>` +
+      `<h2 class="ou-h">Questions${state.n ? ' on this step' : ''} (${list.length})</h2>` +
       items.join('');
   }
 
@@ -79,7 +77,7 @@ export function createQuestions(context) {
   }
   refresh();
 
-  const askForm = $('.prs-ask');
+  const askForm = $('.ou-ask');
   const askText = askForm.querySelector('textarea');
   askForm.addEventListener('submit', async (event) => {
     event.preventDefault();

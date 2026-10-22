@@ -1,30 +1,30 @@
 ---
-name: pr-story
-description: Tell the story of a GitHub pull request one chapter at a time, with Q&A between chapters, in PR Story's side panel on the PR's GitHub page (filtered to the chapter's files). Every changed file is placed in a chapter, and review comments are drafted paste-ready, never posted. Use when the user asks for the story of a PR, to walk them through a PR, or to guide a review "so I've seen every file", or types /pr-story.
+name: once-upon
+description: Tell the story of a GitHub pull request one chapter at a time, with Q&A between chapters, in Once Upon a Diff's side panel on the PR's GitHub page (filtered to the chapter's files). Every changed file is placed in a chapter, and review comments are drafted paste-ready, never posted. Use when the user asks for the story of a PR, to walk them through a PR, or to guide a review "so I've seen every file", or types /once-upon.
 ---
 
-# PR story
+# Once Upon a Diff
 
-The reviewer (the user) reads a chapter, asks questions, says "next". The chapter's story sits in PR Story's panel on the PR page, the diff is filtered to that chapter's files, and Q&A happens in the panel's Ask box, by voice or in chat. PR Story (a Chrome extension plus a local bridge) is the only way a story shows on GitHub, so this skill needs it. Check for it before step 1, as "PR Story" below says, which also covers what to do when it isn't there.
+The reviewer (the user) reads a chapter, asks questions, says "next". The chapter's story sits in Once Upon a Diff's panel on the PR page, the diff is filtered to that chapter's files, and Q&A happens in the panel's Ask box, by voice or in chat. Once Upon a Diff (a Chrome extension plus a local bridge) is the only way a story shows on GitHub, so this skill needs it. Check for it before step 1, as "Once Upon a Diff" below says, which also covers what to do when it isn't there.
 
-`<skill>` is this folder, `skills/pr-story` in the PR Story repo, linked in as `~/.claude/skills/pr-story`. `<pr-story-repo>` is that checkout: `$(cd "$(dirname "$(realpath ~/.claude/skills/pr-story/SKILL.md)")/../.." && pwd)`. `<cli>` is `node <pr-story-repo>/bridge/bin/pr-story.mjs`, the PR Story CLI.
+`<skill>` is this folder, `skills/once-upon` in the Once Upon a Diff repo, linked in as `~/.claude/skills/once-upon`. `<once-upon-repo>` is that checkout: `$(cd "$(dirname "$(realpath ~/.claude/skills/once-upon/SKILL.md)")/../.." && pwd)`. `<cli>` is `node <once-upon-repo>/bridge/bin/once-upon.mjs`, the Once Upon a Diff CLI.
 
 ## House rules
 
 Before step 1, read the reviewer's own rules if they have any:
 
 ```bash
-h="${PR_STORY_HOME:-$HOME/.pr-story}"; f=$(jq -r '.house_rules // empty' "$h/config.json" 2>/dev/null); f="${f/#\~/$HOME}"; cat "${f:-$h/house-rules.md}" 2>/dev/null
+h="${ONCE_UPON_HOME:-$HOME/.once-upon}"; f=$(jq -r '.house_rules // empty' "$h/config.json" 2>/dev/null); f="${f/#\~/$HOME}"; cat "${f:-$h/house-rules.md}" 2>/dev/null
 ```
 
-That's the file named by `house_rules` in `~/.pr-story/config.json`, else `~/.pr-story/house-rules.md`. It lives outside this repo, on the reviewer's machine. Follow it alongside the rules here: it adds rules (where checkouts live, how to name people, a time zone, the voice for comments) and wins where it's more specific. It can't loosen the read-only rule below. If there's no file, the rules here are all there is.
+That's the file named by `house_rules` in `~/.once-upon/config.json`, else `~/.once-upon/house-rules.md`. It lives outside this repo, on the reviewer's machine. Follow it alongside the rules here: it adds rules (where checkouts live, how to name people, a time zone, the voice for comments) and wins where it's more specific. It can't loosen the read-only rule below. If there's no file, the rules here are all there is.
 
 ## Hard rules
 
-- Read-only on GitHub. Never post comments, submit or approve reviews, click Viewed, or push. Comments are drafted in fenced blocks for the reviewer to post. The one place Viewed gets ticked is the reviewer's own click on a file's Mark viewed button in PR Story's panel, which ticks that file's checkbox for them. Claude never clicks it, and nothing ticks it automatically or in bulk.
-- `gh` runs as the reviewer's own gh login. When `gh_unset_github_token` is true in `~/.pr-story/config.json`, every `gh` call runs after `unset GITHUB_TOKEN` (the scripts do this).
+- Read-only on GitHub. Never post comments, submit or approve reviews, click Viewed, or push. Comments are drafted in fenced blocks for the reviewer to post. The one place Viewed gets ticked is the reviewer's own click on a file's Mark viewed button in Once Upon a Diff's panel, which ticks that file's checkbox for them. Claude never clicks it, and nothing ticks it automatically or in bulk.
+- `gh` runs as the reviewer's own gh login. When `gh_unset_github_token` is true in `~/.once-upon/config.json`, every `gh` call runs after `unset GITHUB_TOKEN` (the scripts do this).
 - Read old code from a local checkout (`checkouts.txt`, from the folders in `checkout_dirs`, default `~/Development`) with `git show <base-oid>:<path>`. If the base commit is missing, `git fetch origin <base>` is fine. If you need the PR head, fetch it into `refs/tmp/pr-N` and delete the ref when done. If there's no checkout, ask before cloning.
-- All working files go in `<scratchpad>/pr-story/<repo>-<N>/`, never in a repo. The one copy made elsewhere is the published PR Story copy (below).
+- All working files go in `<scratchpad>/once-upon/<repo>-<N>/`, never in a repo. The one copy made elsewhere is the published Once Upon a Diff copy (below).
 - Name people by their GitHub login unless the house rules say how to look up names. Times in the reviewer's time zone (`time_zone` in the config, else the system's).
 - Verify a claim against code, CI logs or the old code before stating it. Say whether a problem was reproduced or only suspected.
 
@@ -61,7 +61,7 @@ That's the file named by `house_rules` in `~/.pr-story/config.json`, else `~/.pr
    ```bash
    node <skill>/bin/story.mjs build --dir <D>
    ```
-   `build` writes `file-map.json` (file → chapters, partial_in, finished_in) and publishes the story for PR Story (`--no-bridge` skips that). It refuses to publish while a file is unplaced or a hunk isn't covered (step 2). `--allow-uncovered` publishes anyway, and the panel's Overview then lists those hunks in a quiet note. Keep it for an update to a story that was built before this check. Fill in each chapter's `narrative`, `comments` and `answer` as you tell it, then build again: the panel picks it up within a few seconds.
+   `build` writes `file-map.json` (file → chapters, partial_in, finished_in) and publishes the story for Once Upon a Diff (`--no-bridge` skips that). It refuses to publish while a file is unplaced or a hunk isn't covered (step 2). `--allow-uncovered` publishes anyway, and the panel's Overview then lists those hunks in a quiet note. Keep it for an update to a story that was built before this check. Fill in each chapter's `narrative`, `comments` and `answer` as you tell it, then build again: the panel picks it up within a few seconds.
 
 4. **Tell the story,** one chapter per step. The panel shows the chapter, so the chat reply for a step is one line ("Chapter 2 is up in the panel: …" plus its headline).
    - **Answer questions in place** from the diff and the code, checking the old code or CI where it matters. Stay on the chapter until they say "next".
@@ -86,17 +86,17 @@ That's the file named by `house_rules` in `~/.pr-story/config.json`, else `~/.pr
 
 If a voice mode is on (for example Larmor), speak the chapter's `headline` and one line on what to look at, then put the full chapter on screen. Answer spoken questions briefly aloud with detail on screen. Never read paths, code or comment blocks aloud.
 
-## PR Story: where the story shows
+## Once Upon a Diff: where the story shows
 
-PR Story (`<pr-story-repo>`, an unpacked Chrome extension plus a local bridge) shows the story in a side panel on the PR's /changes or /files page by itself. It survives reloads and in-page navigation, remembers the step per PR, follows GitHub's light or dark theme, and picks up each re-render within ≈5s.
+Once Upon a Diff (`<once-upon-repo>`, an unpacked Chrome extension plus a local bridge) shows the story in a side panel on the PR's /changes or /files page by itself. It survives reloads and in-page navigation, remembers the step per PR, follows GitHub's light or dark theme, and picks up each re-render within ≈5s.
 
-1. **Check the bridge.** `curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $(jq -r .token ~/.pr-story/config.json)" "http://127.0.0.1:$(jq -r .port ~/.pr-story/config.json)/api/health"` prints 200 when it's up.
-   - **No `~/.pr-story/config.json`** means PR Story isn't set up. Tell the reviewer in one line that the story needs it, point them to `<pr-story-repo>/GETTING-STARTED.md` (the bridge's config, the extension and the skills), and wait until they say it's ready. Don't tell the story in chat or inject anything into the page instead.
-   - **A config but no 200** means the bridge isn't running. Ask once whether to start it (`<cli> serve`, as a background task) or whether they'll run `yarn bridge` in `<pr-story-repo>` themselves.
+1. **Check the bridge.** `curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $(jq -r .token ~/.once-upon/config.json)" "http://127.0.0.1:$(jq -r .port ~/.once-upon/config.json)/api/health"` prints 200 when it's up.
+   - **No `~/.once-upon/config.json`** means Once Upon a Diff isn't set up. Tell the reviewer in one line that the story needs it, point them to `<once-upon-repo>/GETTING-STARTED.md` (the bridge's config, the extension and the skills), and wait until they say it's ready. Don't tell the story in chat or inject anything into the page instead.
+   - **A config but no 200** means the bridge isn't running. Ask once whether to start it (`<cli> serve`, as a background task) or whether they'll run `yarn bridge` in `<once-upon-repo>` themselves.
    - **The extension.** After the first `build`, the panel should open on the PR page. If it doesn't, `<cli> doctor` says whether the bridge has ever heard from the extension. If it hasn't, the extension isn't loaded or doesn't have the port and token: point them to step 5 of `GETTING-STARTED.md`.
-2. **Publish.** `build` runs `<cli> publish --dir <D>`, which copies `chapters.json` and `file-map.json`, with a `meta.json` naming the PR and its head commit, into the repo's checkout (`<checkout>/.pr-story/<owner>-<repo>-<N>/`) or `~/.pr-story/<owner>-<repo>-<N>/` (`publish --dir <D>` does just that step, `--no-bridge` skips it). The bridge reads only published stories, never the scratch folder.
-3. **Questions from the panel.** The panel's Ask box appends to `~/.pr-story/inbox.jsonl`. While telling the story, keep `<cli> wait --consumer pr-story` running as a background task. When it exits it has printed a question (id, chapter, file, text). Answer it in chat as usual, also run `<cli> answer --question <id> --file <answer.md>` so the answer shows under the question in the panel, then start the wait again. The wait also returns `build_request` lines: the reviewer clicked "Build story" on a PR that has none. Tell them in one line, and run this skill on that URL if they say so (or already asked for it in this session). `build` publishes the story, and the bridge then marks the request done and the page opens the panel by itself. If it can't be built, `<cli> done <id> --failed --note "…"`. `<cli> builds` lists pending requests. A request with `mode: 'update'` means the story is out of date: follow "Updating a story" below. The new `head_oid` finishes the request.
-4. **Where they are.** `~/.pr-story/state/<story id>/position.json` has the step and the file at the top of their screen. Use it when they say "this one" or "here", and read its `step` for the `--chapter N` of a comment drafted in Q&A, so it lands on the chapter they're on.
+2. **Publish.** `build` runs `<cli> publish --dir <D>`, which copies `chapters.json` and `file-map.json`, with a `meta.json` naming the PR and its head commit, into the repo's checkout (`<checkout>/.once-upon/<owner>-<repo>-<N>/`) or `~/.once-upon/<owner>-<repo>-<N>/` (`publish --dir <D>` does just that step, `--no-bridge` skips it). The bridge reads only published stories, never the scratch folder.
+3. **Questions from the panel.** The panel's Ask box appends to `~/.once-upon/inbox.jsonl`. While telling the story, keep `<cli> wait --consumer once-upon` running as a background task. When it exits it has printed a question (id, chapter, file, text). Answer it in chat as usual, also run `<cli> answer --question <id> --file <answer.md>` so the answer shows under the question in the panel, then start the wait again. The wait also returns `build_request` lines: the reviewer clicked "Build story" on a PR that has none. Tell them in one line, and run this skill on that URL if they say so (or already asked for it in this session). `build` publishes the story, and the bridge then marks the request done and the page opens the panel by itself. If it can't be built, `<cli> done <id> --failed --note "…"`. `<cli> builds` lists pending requests. A request with `mode: 'update'` means the story is out of date: follow "Updating a story" below. The new `head_oid` finishes the request.
+4. **Where they are.** `~/.once-upon/state/<story id>/position.json` has the step and the file at the top of their screen. Use it when they say "this one" or "here", and read its `step` for the `--chapter N` of a comment drafted in Q&A, so it lands on the chapter they're on.
 5. **Local commits.** For a story about commits that aren't pushed, `<cli> local --repo <checkout> --base <ref> --head HEAD --chapters <D>/chapters.json --no-open` serves the same chapters over the local diff at `http://127.0.0.1:<port>/local/<id>/` and opens it. Viewed toggles and "fix before push" notes there are kept by the bridge (`<cli> notes --story <id>`), and comments in `chapters.json` show as "Fix before push". Place every file, as for a PR. Any that aren't placed land in a last "Not in a chapter yet" step.
 
 ### What the panel shows

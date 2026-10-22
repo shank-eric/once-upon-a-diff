@@ -7,7 +7,7 @@ import { tmp, writeJson } from './helpers.mjs';
 import { scriptDrafts, reviewScript } from '../src/js/shared/panel/review-script.js';
 
 const RELS = ['src/a.js', 'lib/b.js'];
-const NASTY = 'It\'s "quoted" $(touch PWNED) `touch PWNED2` $HOME\nPR_STORY_REVIEW_JSON\n\\n end';
+const NASTY = 'It\'s "quoted" $(touch PWNED) `touch PWNED2` $HOME\nONCE_UPON_REVIEW_JSON\n\\n end';
 const CHAPTERS = [
   {
     comments: [
@@ -50,7 +50,7 @@ test('only line drafts still to post go in, with full paths and sides', () => {
   const script = reviewScript({ repo: 'acme/widgets', number: 7, ...drafts });
   assert.match(
     script,
-    /^# PR Story: 2 drafted comments on acme\/widgets#7, as one pending review\./,
+    /^# Once Upon a Diff: 2 drafted comments on acme\/widgets#7, as one pending review\./,
   );
   assert.match(script, /# You do: 1 draft is in it already/);
   assert.match(script, /# Left out: 1 general comment/);
@@ -77,7 +77,7 @@ test('the script sends the comments to gh api as JSON on stdin, untouched by the
     env: {
       ...process.env,
       PATH: `${bin}:${process.env.PATH}`,
-      PR_STORY_HOME: home,
+      ONCE_UPON_HOME: home,
       GITHUB_TOKEN: 'not-this-one',
     },
   });

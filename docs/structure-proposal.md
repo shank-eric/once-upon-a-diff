@@ -34,10 +34,10 @@ Net, those two helper commits removed 351 lines and added 412, most of the new l
 | `src/js/shared/` | overlay.js, 21 panel modules, 6 util modules, settings.js | 4,344 | The largest module is drafts.js at ≈410 |
 | `src/js/content/` | router, bridge, storage, 4 pages, 6 ui modules | 1,685 | files-changed.js is 500 |
 | `src/js/` other | background.js, options.js, content.js | 145 | |
-| `bridge/bin/pr-story.mjs` | 1 | 633 | 18 commands in one file |
+| `bridge/bin/once-upon.mjs` | 1 | 633 | 18 commands in one file |
 | `bridge/lib/` | 19 modules, util/ | 5,246 | backstory 1,130, server 834, stories 528 |
 | `bridge/public/` | local page: local.js, split, narrow, syntax, css | ≈1,200 | local.js is 691 and still uses short names |
-| `skills/pr-story/bin/` | story.mjs, overlay.js, gather.sh, viewed.sh | ≈1,880 | overlay.js is an older copy of the panel |
+| `skills/once-upon/bin/` | story.mjs, overlay.js, gather.sh, viewed.sh | ≈1,880 | overlay.js is an older copy of the panel |
 | `test/` | 22 unit test files, 2 browser tests, fixtures | 5,656 | load-test.mjs is 1,040 |
 | `scripts/` | make-icons, vendor-hljs | 160 | |
 | Docs | README, GETTING-STARTED, two SKILL.md files | ≈840 | |
@@ -46,10 +46,10 @@ Net, those two helper commits removed 351 lines and added 412, most of the new l
 
 1. **`bridge/lib/server.mjs`.** `createBridge` is one ≈680-line function holding every route, the request guards, the inbox, builds and drafts calls, and the two HTML pages (`indexPage`, `localPage`). Adding a route means reading all of it.
 2. **`bridge/lib/backstory.mjs` (1,130 lines).** Four jobs in one file: reading the commit range, finding candidate Claude Code transcripts, running session-story's extractor, and matching the evidence into a timeline. The file's own `// ----------` headings already mark the seams.
-3. **`bridge/bin/pr-story.mjs` (633 lines).** Argument parsing, the usage text and all 18 commands live in one file, and the usage block at the top has to be kept in step with the code by hand.
+3. **`bridge/bin/once-upon.mjs` (633 lines).** Argument parsing, the usage text and all 18 commands live in one file, and the usage block at the top has to be kept in step with the code by hand.
 4. **`bridge/lib/stories.mjs` (528 lines).** The `StoryStore` class, reading meta and chapters, the backstory normalizer and the local diff refresh are mixed together.
-5. **The skill duplicates the bridge.** `skills/pr-story/bin/story.mjs` has its own `parseUnifiedDiff` (also `bridge/lib/diff.mjs`), `entryOf` (also `stories.mjs`, slightly different: the bridge's keeps backstory notes) and `textRefsOf` (the same rule as `bridge/lib/refs.mjs`, which its comment admits). It already imports `bridge/lib/config.mjs` from the repo, so it could import the rest too.
-6. **`skills/pr-story/bin/overlay.js` (871 lines)** is the panel's ancestor, pasted into the page as a snippet for the skill's "GitHub mode". Every panel fix lands in only one of the two. If PR Story is now the way to show a story on GitHub, this snippet could go, or be generated from the panel modules with a small bundler step.
+5. **The skill duplicates the bridge.** `skills/once-upon/bin/story.mjs` has its own `parseUnifiedDiff` (also `bridge/lib/diff.mjs`), `entryOf` (also `stories.mjs`, slightly different: the bridge's keeps backstory notes) and `textRefsOf` (the same rule as `bridge/lib/refs.mjs`, which its comment admits). It already imports `bridge/lib/config.mjs` from the repo, so it could import the rest too.
+6. **`skills/once-upon/bin/overlay.js` (871 lines)** is the panel's ancestor, pasted into the page as a snippet for the skill's "GitHub mode". Every panel fix lands in only one of the two. If Once Upon a Diff is now the way to show a story on GitHub, this snippet could go, or be generated from the panel modules with a small bundler step.
 7. **Short names outside `src/js/`.** ESLint counts ≈530 short names in `bridge/`, ≈300 in `test/`, ≈150 in `skills/` and ≈30 in `scripts/`, plus ≈25 nested ternaries. They're warnings today.
 8. **`bridge/public/local.js` (691 lines)** draws the local page's diff, folds, notes and Viewed state in one module, and keeps its own copy of the panel mount.
 9. **Tests mirror old files, not modules.** `test/extension/load-test.mjs` is one 1,040-line script, and the unit tests are named for features (`since`, `pills`, `refs`) that now map onto specific modules.
@@ -59,7 +59,7 @@ Net, those two helper commits removed 351 lines and added 412, most of the new l
 
 ```text
 bridge/
-  bin/pr-story.mjs              argument parsing and dispatch only
+  bin/once-upon.mjs              argument parsing and dispatch only
   cli/                          one file per command group
     serve.mjs  setup.mjs  stories.mjs  inbox.mjs  builds.mjs  drafts.mjs  doctor.mjs  backstory.mjs
   server/
@@ -78,7 +78,7 @@ bridge/
     local/                      local.js split into diff-view.js  folds.js  notes.js  mount.js
     split.js  narrow.js  syntax.js  local.css  vendor/
 src/js/                         as it is now
-skills/pr-story/bin/            story.mjs importing the bridge's args, diff, chapters and text-refs
+skills/once-upon/bin/            story.mjs importing the bridge's args, diff, chapters and text-refs
 test/
   unit/bridge/  unit/panel/  unit/content/  unit/util/
   browser/extension.mjs  browser/expand.mjs  browser/helpers.mjs
