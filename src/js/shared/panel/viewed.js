@@ -201,11 +201,13 @@ export function createViewedTracker(context) {
       (progress.unknown.length ? ` · ${progress.unknown.length} not loaded yet` : '');
   }
 
-  // Refined GitHub's batch helpers click many toggles at once, so also look again shortly after any click.
+  // Classic /files ticks a checkbox (no attribute change), and Refined GitHub's batch
+  // helpers click many toggles at once, so also look again shortly after any click or change.
   const recheck = () => {
     setTimeout(render, 300);
     setTimeout(render, 1200);
   };
+  document.addEventListener('change', recheck, true);
   document.addEventListener('click', recheck, true);
 
   /**
@@ -245,6 +247,7 @@ export function createViewedTracker(context) {
     `${capitalize(story.chapterName(step))} still has ${left.length} to mark viewed: ${left.map(baseName).join(', ')}. No rush: Prev goes back, or tick them later.`;
 
   function destroy() {
+    document.removeEventListener('change', recheck, true);
     document.removeEventListener('click', recheck, true);
   }
 
