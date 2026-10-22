@@ -1,6 +1,7 @@
 /*
- * The panel's copy buttons: a drafted comment's Copy, and the status hint's
- * "Copy prompt for Claude". Each says how it went on the button for a moment.
+ * The panel's copy buttons: a drafted comment's Copy, the Overview's "Copy as
+ * gh script" and the status hint's "Copy prompt for Claude". Each says how it
+ * went on the button for a moment.
  */
 import { writeClipboard } from '../util/clipboard.js';
 
@@ -37,8 +38,9 @@ export function copyComment(text, button) {
   });
 }
 
-/** Copies the listen prompt; if the clipboard says no, shows it selected so Cmd+C works. */
-export function copyPrompt(text, button, pre) {
+/** Copies text; if the clipboard says no, shows it selected in `pre` so Cmd+C works. The button says how it went. */
+export function copyWithFallback(text, button, pre) {
+  const label = (button.dataset.label ||= button.textContent);
   writeClipboard(text).then((ok) => {
     button.textContent = ok ? 'Copied' : 'Select and copy';
     if (!ok && pre) {
@@ -47,7 +49,12 @@ export function copyPrompt(text, button, pre) {
       selectText(pre);
     }
     setTimeout(() => {
-      button.textContent = 'Copy prompt for Claude';
+      button.textContent = label;
     }, 1500);
   });
+}
+
+/** Copies the listen prompt; if the clipboard says no, shows it selected so Cmd+C works. */
+export function copyPrompt(text, button, pre) {
+  copyWithFallback(text, button, pre);
 }
