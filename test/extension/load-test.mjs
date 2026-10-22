@@ -694,7 +694,7 @@ try {
     .catch(() => null);
   check(
     rangeHref ===
-      `https://github.com/${owner}/${repo}/pull/${number}/files/${since.from}..${since.to}`,
+      `https://github.com/${owner}/${repo}/pull/${number}/changes/${since.from}..${since.to}`,
     `it links GitHub's diff of just its commits (${rangeHref})`,
   );
   await sincePage.locator('#dsm-panel ol.prs-map li[data-n="2"]').click();

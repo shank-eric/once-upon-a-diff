@@ -32,11 +32,11 @@ export function rangeStepOf(chapters, pathname) {
 }
 
 /**
- * The link to GitHub's diff of just a chapter's commits. /files/<from>..<to> loads as is, logged in or out
- * (checked 2026-10-21); /changes/<from>..<to> redirects there when logged out.
+ * The link to GitHub's diff of just a chapter's commits. /changes/<from>..<to> loads as is logged in
+ * (checked 2026-10-22) and redirects to /files/<from>..<to> logged out.
  */
 export const rangeUrl = (prUrl, since) =>
-  prUrl && since ? `${String(prUrl).replace(/\/+$/, '')}/files/${since.from}..${since.to}` : null;
+  prUrl && since ? `${String(prUrl).replace(/\/+$/, '')}/changes/${since.from}..${since.to}` : null;
 
 export function createFreshness(context) {
   const { story, opts, shell } = context;
@@ -173,7 +173,7 @@ export function createFreshness(context) {
     const range = `${escapeHtml(shortSha(chapter.since.from))}..${escapeHtml(shortSha(chapter.since.to))}`;
     let link = '';
     if (url && here) {
-      link = ` You're on GitHub's diff of just these commits. <a href="${escapeHtml(`${data.pr.url}/files`)}">All of the PR's changes</a>`;
+      link = ` You're on GitHub's diff of just these commits. <a href="${escapeHtml(`${data.pr.url}/changes`)}">All of the PR's changes</a>`;
     } else if (url) {
       link = ` <a href="${escapeHtml(url)}" title="GitHub's Files changed for ${range} only">See just these commits' changes on GitHub</a>`;
     }
