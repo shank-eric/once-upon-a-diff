@@ -286,7 +286,7 @@ test('GitHub\'s diff of a "Since you read it" chapter\'s commits opens on that c
   assert.equal(rangeStepOf(chapters, '/acme/widgets/pull/7/files'), null);
   assert.equal(
     rangeUrl('https://github.com/acme/widgets/pull/7', { from: SHA_A, to: SHA_B }),
-    `https://github.com/acme/widgets/pull/7/files/${SHA_A}..${SHA_B}`,
+    `https://github.com/acme/widgets/pull/7/changes/${SHA_A}..${SHA_B}`,
   );
   assert.equal(
     rangeUrl(null, { from: SHA_A, to: SHA_B }),
