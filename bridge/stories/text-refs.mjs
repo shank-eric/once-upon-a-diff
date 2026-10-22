@@ -17,24 +17,10 @@
  * The once-upon skill's `build` uses addTextRefs for file-map.json.
  */
 import { pathSha } from '../util/diff.mjs';
+import { parseDiffLink, parseLineRef } from '../../src/js/shared/util/line-refs.js';
 
 export const REF_NOTE = 'its lines are pointed at in the text';
 const REF_LABEL = 'pointed at in the text';
-
-/** One backticked reference: {name, line} (name '' for a bare `:45`), or null. */
-function parseCode(code) {
-  const name = String(code).trim().replace(/^\.\//, '');
-  const match = /^(.*?):([LR])?(\d+)(?:-[LR]?(\d+))?$/.exec(name);
-  if (!match) {
-    return { name: name, line: null };
-  }
-  const start = +match[3];
-  const end = +(match[4] || match[3]);
-  return {
-    name: match[1],
-    line: { side: match[2] || 'R', start: Math.min(start, end), end: Math.max(start, end) },
-  };
-}
 
 /**
  * The files a chapter's text points at lines of: [{rel, lines: [{side, start, end}]}] in order of first mention.
@@ -85,18 +71,18 @@ export function lineRefsOf(text, listed, rels) {
   const pattern = /`([^`\n]+)`|\[[^\]]*\]\((https?:[^)\s]+)\)/g;
   for (let match; (match = pattern.exec(src));) {
     if (match[2]) {
-      const hit = /#diff-([0-9a-f]{64})(?:([LR])(\d+)(?:-[LR]?(\d+))?)?$/.exec(match[2]);
-      const rel = hit && bySha.get(hit[1]);
+      const link = parseDiffLink(match[2]);
+      const rel = link && bySha.get(link.sha);
       if (!rel) {
         continue;
       }
       last = rel;
-      if (hit[3]) {
-        add(rel, { side: hit[2], start: +hit[3], end: +(hit[4] || hit[3]) });
+      if (link.line) {
+        add(rel, link.line);
       }
       continue;
     }
-    const { name, line } = parseCode(match[1]);
+    const { name, line } = parseLineRef(match[1]);
     if (!name) {
       const rel = last || (listed.length === 1 ? listed[0] : null);
       if (rel && line) {

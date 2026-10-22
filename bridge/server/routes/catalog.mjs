@@ -10,6 +10,7 @@ import { stateKeyOf } from '../../github/drafts.mjs';
 import { currentHead, newerCount } from '../../github/freshness.mjs';
 import { listeningOf } from '../../listeners/listeners.mjs';
 import { readReads } from '../../stories/reads.mjs';
+import { prKey } from '../../../src/js/shared/util/github-paths.js';
 
 const MAX_PRS = 200;
 const STATUS_CACHE_MS = 5000;
@@ -36,7 +37,7 @@ function prStatus(app, cache, { repo: rawRepo, number: rawNumber }) {
       String(story.repo).toLowerCase() === repo.toLowerCase() &&
       Number(story.number) === number,
   );
-  let build = app.builds.view(cache.builds[`${repo.toLowerCase()}#${number}`] || null);
+  let build = app.builds.view(cache.builds[prKey(repo, number)] || null);
   if (!hits.length) {
     const pending = !!(build && build.status === 'pending');
     return { repo, number, state: pending ? build.state : 'none', request: build };

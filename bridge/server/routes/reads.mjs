@@ -6,14 +6,8 @@ import { readMeta } from '../../stories/meta.mjs';
 import { stateKeyOf } from '../../github/drafts.mjs';
 import { currentHead, changesSince } from '../../github/freshness.mjs';
 import { newId } from '../../inbox/inbox.mjs';
-import {
-  readReads,
-  noteRead,
-  sinceOf,
-  readSha,
-  changedSinceRead,
-  SHA_RE,
-} from '../../stories/reads.mjs';
+import { readReads, noteRead, sinceOf, readSha, changedSinceRead } from '../../stories/reads.mjs';
+import { SHA_RE } from '../../../src/js/shared/util/text.js';
 import { HttpError, clipText, toInt } from '../request.mjs';
 
 /** The PR's head: the panel says what it saw, else ask gh (read-only, cached 60s); a local story's is its head commit. */

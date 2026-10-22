@@ -4,7 +4,7 @@ import path from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson, localRepo } from './helpers.mjs';
-import { chapterKey, noteRead, readReads, sinceOf } from '../bridge/stories/reads.mjs';
+import { noteRead, readReads, sinceOf } from '../bridge/stories/reads.mjs';
 import {
   chapterKeyOf,
   finishedInOf,
@@ -26,19 +26,14 @@ const inbox = (home) =>
   readFileSync(path.join(home, 'inbox.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
 
 test('a chapter keeps its key when a chapter goes in front of it', () => {
-  assert.equal(chapterKey({ title: 'Chapter 2: Finish' }), 'finish');
-  assert.equal(chapterKey({ title: 'Chapter 3: Finish' }), 'finish', 'renumbering keeps the key');
+  assert.equal(chapterKeyOf({ title: 'Chapter 2: Finish' }), 'finish');
+  assert.equal(chapterKeyOf({ title: 'Chapter 3: Finish' }), 'finish', 'renumbering keeps the key');
   assert.equal(
-    chapterKey({ title: 'Since you read it', key: 'since-abc1234-def5678' }),
+    chapterKeyOf({ title: 'Since you read it', key: 'since-abc1234-def5678' }),
     'since-abc1234-def5678',
   );
-  for (const chapter of [
-    { title: 'Chapter 1:  The  Start' },
-    { title: 'Overview of it' },
-    { key: ' k ', title: 'x' },
-  ]) {
-    assert.equal(chapterKeyOf(chapter), chapterKey(chapter), 'the panel and the bridge agree');
-  }
+  assert.equal(chapterKeyOf({ title: 'Chapter 1:  The  Start' }), 'the start');
+  assert.equal(chapterKeyOf({ key: ' k ', title: 'x' }), 'k');
 });
 
 test('a later read of a chapter replaces the earlier one', () => {

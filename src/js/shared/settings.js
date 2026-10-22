@@ -1,4 +1,4 @@
-export const DEFAULT_PORT = 4823;
+import { DEFAULT_PORT } from './util/bridge-port.js';
 
 /** {port, token} for the bridge, from chrome.storage.local. */
 export async function getSettings() {

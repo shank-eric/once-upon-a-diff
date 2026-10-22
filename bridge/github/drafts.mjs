@@ -28,6 +28,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { runGh } from '../util/gh.mjs';
+import { prKey } from '../../src/js/shared/util/github-paths.js';
 import { readJson, writeJson } from '../util/json-file.mjs';
 import { noteState } from '../inbox/fixes.mjs';
 
@@ -129,7 +130,7 @@ let login = null;
 const cache = new Map();
 /** The gh user's comments on a PR: [{state: 'posted'|'pending', path, line, body, url}], cached 60s. */
 export async function githubComments(repo, number) {
-  const key = `${repo}#${number}`.toLowerCase();
+  const key = prKey(repo, number);
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < TTL_MS) {
     return hit.value;
@@ -195,7 +196,7 @@ export const clearCache = () => {
 };
 /** Drop one PR's cached comments, e.g. right after adding one to the pending review. */
 export const forgetComments = (repo, number) => {
-  cache.delete(`${repo}#${number}`.toLowerCase());
+  cache.delete(prKey(repo, number));
 };
 
 // ---------- the reviewer's own calls, kept by the bridge

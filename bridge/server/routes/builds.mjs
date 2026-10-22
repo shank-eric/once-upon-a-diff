@@ -5,7 +5,8 @@
  */
 import { readMeta } from '../../stories/meta.mjs';
 import { stateKeyOf } from '../../github/drafts.mjs';
-import { readReads, sinceOf, SHA_RE } from '../../stories/reads.mjs';
+import { readReads, sinceOf } from '../../stories/reads.mjs';
+import { SHA_RE } from '../../../src/js/shared/util/text.js';
 
 /** An update starts where the reviewer's reading stopped (read.json), so the story can add one "Since you read it" chapter. */
 function sinceOfUpdate(app, body) {

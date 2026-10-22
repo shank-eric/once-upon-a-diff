@@ -9,6 +9,8 @@
 import { diffText } from '../util/git.mjs';
 import { parseUnifiedDiff } from '../util/diff.mjs';
 import { runGh } from '../util/gh.mjs';
+import { prKey } from '../../src/js/shared/util/github-paths.js';
+import { SHA_RE, sameSha } from '../../src/js/shared/util/text.js';
 
 const TTL_MS = 60000;
 const cache = new Map();
@@ -78,13 +80,11 @@ export async function newerCount(repo, from, toSha) {
 
 export const currentHead = (repo, number) =>
   cached(
-    `head ${repo}#${number}`.toLowerCase(),
+    `head ${prKey(repo, number)}`,
     async () => (await ghApiJson([`repos/${repo}/pulls/${Number(number)}`])).head.sha,
   );
 
 const fileOf = (file) => (typeof file === 'string' ? file : file.rel);
-const sameSha = (first, second) =>
-  !!first && !!second && (first.startsWith(second) || second.startsWith(first));
 
 /**
  * An update that rewrote the story in place, with no "Since you read it" chapter for it: the last build for the PR was
@@ -99,7 +99,7 @@ export async function updatedInPlace(meta, chapters, lastBuild) {
     !build ||
     build.status !== 'done' ||
     build.mode !== 'update' ||
-    !/^[0-9a-f]{7,40}$/.test(String(build.base_sha || '')) ||
+    !SHA_RE.test(String(build.base_sha || '')) ||
     !story ||
     sameSha(build.base_sha, story)
   ) {

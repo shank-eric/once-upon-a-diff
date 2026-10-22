@@ -3,7 +3,8 @@
  * entries, drafted comments and "Since you read it" range, and a last chapter
  * for any file of the diff no chapter places.
  */
-import { chapterKey, SHA_RE } from './reads.mjs';
+import { chapterKeyOf } from '../../src/js/shared/panel/story-model.js';
+import { SHA_RE } from '../../src/js/shared/util/text.js';
 
 /**
  * A "Since you read it" chapter's `since`: {from, to, commits}, the commits it tells (from..to).
@@ -50,7 +51,7 @@ export function chaptersOf(plan) {
   return (plan.chapters || []).map((chapter) => {
     const since = sinceOfChapter(chapter.since);
     return {
-      key: chapterKey(chapter), // what read.json records a read under
+      key: chapterKeyOf(chapter), // what read.json records a read under
       title: chapter.title || '',
       headline: chapter.headline || '',
       scenario: chapter.scenario || '',

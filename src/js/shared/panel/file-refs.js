@@ -12,6 +12,7 @@
  * placePills and pillMarker have no DOM, so node tests can use them.
  */
 import { escapeHtml, unescapeHtml } from '../util/html.js';
+import { parseLineRef } from '../util/line-refs.js';
 import { markViewedButton } from './viewed.js';
 
 // eslint-disable-next-line no-control-regex -- the placeholder markers are control characters on purpose
@@ -47,8 +48,6 @@ export function refAttrs(rel, line) {
     : attrs;
 }
 
-const LINE_SUFFIX = /^(.*?):([LR])?(\d+)(?:-[LR]?(\d+))?$/;
-
 export function createFileRefs(context) {
   const { story, state } = context;
   let linkScope = story.allRels; // the files a name can resolve to: the step's
@@ -69,17 +68,7 @@ export function createFileRefs(context) {
 
   /** {rel, line, bare} for a backticked name that's a file (or a line in one) of this step, else null. */
   function resolveRef(text) {
-    let name = unescapeHtml(text).trim().replace(/^\.\//, '');
-    let line = null;
-    const lineMatch = LINE_SUFFIX.exec(name);
-    if (lineMatch) {
-      name = lineMatch[1];
-      line = {
-        side: lineMatch[2] || 'R',
-        start: +lineMatch[3],
-        end: +(lineMatch[4] || lineMatch[3]),
-      };
-    }
+    const { name, line } = parseLineRef(unescapeHtml(text));
     if (!name && line) {
       let rel = null;
       if (lastRef && linkScope.includes(lastRef)) {
