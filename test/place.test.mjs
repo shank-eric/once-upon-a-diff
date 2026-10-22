@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { tmp, git, localRepo, githubStory, writeJson, startBridge, runCli } from './helpers.mjs';
 import { createLocalStory } from '../src/bridge/stories/local-story.mjs';
 import { StoryStore } from '../src/bridge/stories/store.mjs';
@@ -85,44 +85,4 @@ test('once-upon publish writes into the checkout with the commits the story was 
     false,
     "outside a checkout there's nothing to exclude",
   );
-});
-
-test('the CLI moves an old <checkout>/.diff-story to .once-upon once, with its exclude line and index', async () => {
-  const home = tmp('home');
-  const { repo } = localRepo();
-  const old = path.join(repo, '.diff-story', 'acme-widgets-7');
-  githubStory(old);
-  const excludeFile = path.join(repo, '.git', 'info', 'exclude');
-  mkdirSync(path.dirname(excludeFile), { recursive: true });
-  writeFileSync(excludeFile, "# Diff Story Mode's stories (local only)\n/.diff-story/\n");
-  writeJson(path.join(home, 'stories.json'), { 'acme-widgets-7': old });
-  const first = await runCli(home, ['token']);
-  assert.match(first.stderr, /moved .*\.diff-story to .*\.once-upon/);
-  const moved = path.join(repo, '.once-upon', 'acme-widgets-7');
-  assert.ok(existsSync(moved) && !existsSync(path.join(repo, '.diff-story')));
-  assert.equal(readIndex(home)['acme-widgets-7'], moved);
-  assert.equal(exclude(repo), "# Once Upon a Diff's stories (local only)\n/.once-upon/\n");
-  assert.equal(status(repo), '', 'git status stays clean');
-  const second = await runCli(home, ['token']);
-  assert.doesNotMatch(second.stderr, /moved/);
-});
-
-test('the CLI moves an old <checkout>/.pr-story to .once-upon once, with its exclude line and index', async () => {
-  const home = tmp('home');
-  const { repo } = localRepo();
-  const old = path.join(repo, '.pr-story', 'acme-widgets-8');
-  githubStory(old);
-  const excludeFile = path.join(repo, '.git', 'info', 'exclude');
-  mkdirSync(path.dirname(excludeFile), { recursive: true });
-  writeFileSync(excludeFile, "# PR Story's stories (local only)\n/.pr-story/\n");
-  writeJson(path.join(home, 'stories.json'), { 'acme-widgets-8': old });
-  const first = await runCli(home, ['token']);
-  assert.match(first.stderr, /moved .*\.pr-story to .*\.once-upon/);
-  const moved = path.join(repo, '.once-upon', 'acme-widgets-8');
-  assert.ok(existsSync(moved) && !existsSync(path.join(repo, '.pr-story')));
-  assert.equal(readIndex(home)['acme-widgets-8'], moved);
-  assert.equal(exclude(repo), "# Once Upon a Diff's stories (local only)\n/.once-upon/\n");
-  assert.equal(status(repo), '', 'git status stays clean');
-  const second = await runCli(home, ['token']);
-  assert.doesNotMatch(second.stderr, /moved/);
 });

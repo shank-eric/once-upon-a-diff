@@ -3,9 +3,8 @@
  * the help text and the commands can't drift apart. bin/once-upon.mjs runs
  * main().
  */
-import { homeDir, loadConfig, moveLegacyHome } from '../config/settings.mjs';
+import { homeDir, loadConfig } from '../config/settings.mjs';
 import { parseArgs } from './args.mjs';
-import { moveLegacyStoryFolders } from '../stories/placement.mjs';
 import { bridgeCommands } from './commands/bridge.mjs';
 import { storyCommands } from './commands/stories.mjs';
 import { inboxCommands } from './commands/inbox.mjs';
@@ -72,14 +71,7 @@ export function main(argv) {
     process.exitCode = 1;
     return;
   }
-  const moved = moveLegacyHome();
-  if (moved) {
-    process.stderr.write(`once-upon: ${moved}\n`);
-  }
   const home = homeDir();
-  for (const line of moveLegacyStoryFolders(home)) {
-    process.stderr.write(`once-upon: ${line}\n`);
-  }
   Promise.resolve()
     .then(() => entry.run(home, loadConfig(home), opts))
     .catch((err) => {

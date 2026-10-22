@@ -17,15 +17,7 @@
  * a checkout, checkouts.json, or ~/Development/<name> with that origin.
  */
 import { execFileSync } from 'node:child_process';
-import {
-  appendFileSync,
-  existsSync,
-  mkdirSync,
-  readFileSync,
-  renameSync,
-  writeFileSync,
-} from 'node:fs';
-import os from 'node:os';
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { checkoutFor } from '../config/repos.mjs';
 import { readJson, writeJson } from '../util/json-file.mjs';
@@ -99,78 +91,6 @@ export function indexStory(home, id, dir) {
   all[id] = dir;
   mkdirSync(home, { recursive: true });
   writeJson(indexFile(home), all);
-}
-
-/** The story folder's old names, newest first. */
-const LEGACY_FOLDERS = ['.pr-story', '.diff-story'];
-
-/**
- * One-time move from an old name, per checkout: for each index entry under a
- * <checkout>/.pr-story/ (or .diff-story/), rename that folder to .once-upon/
- * (when there's no .once-upon/ yet), swap the exclude line, and repoint the
- * index. Returns one line per checkout moved. Safe to delete once no checkout
- * has either old folder left.
- */
-export function moveLegacyStoryFolders(home) {
-  const all = readIndex(home);
-  const lines = [];
-  let repointed = false;
-  for (const [id, dir] of Object.entries(all)) {
-    if (typeof dir !== 'string') {
-      continue;
-    }
-    const name = LEGACY_FOLDERS.find((folder) => dir.includes(`${path.sep}${folder}${path.sep}`));
-    if (!name) {
-      continue;
-    }
-    const legacy = `${path.sep}${name}${path.sep}`;
-    const top = dir.slice(0, dir.lastIndexOf(legacy));
-    const oldFolder = path.join(top, name);
-    const newFolder = path.join(top, STORY_FOLDER);
-    // ~/.pr-story itself is the old home, which moveLegacyHome moves (or leaves, under ONCE_UPON_HOME).
-    if (top !== os.homedir() && existsSync(oldFolder) && !existsSync(newFolder)) {
-      renameSync(oldFolder, newFolder);
-      swapLegacyExclude(top);
-      excludeStories(top);
-      lines.push(`moved ${oldFolder} to ${newFolder} (the project is Once Upon a Diff now)`);
-    }
-    const moved = path.join(newFolder, path.basename(dir));
-    if (!existsSync(dir) && existsSync(moved)) {
-      all[id] = moved;
-      repointed = true;
-    }
-  }
-  if (repointed) {
-    writeJson(indexFile(home), all);
-  }
-  return lines;
-}
-
-/** In the common .git/info/exclude, turn an old /.pr-story/ or /.diff-story/ line (and its comment) into the new one. */
-function swapLegacyExclude(dir) {
-  let file;
-  try {
-    file = path.join(
-      git(dir, ['rev-parse', '--path-format=absolute', '--git-common-dir']),
-      'info',
-      'exclude',
-    );
-  } catch {
-    return;
-  }
-  if (!existsSync(file)) {
-    return;
-  }
-  const text = readFileSync(file, 'utf8');
-  const next = text
-    .replace(
-      /^# (?:Diff Story Mode|PR Story)'s stories \(local only\)$/m,
-      "# Once Upon a Diff's stories (local only)",
-    )
-    .replace(/^\/?\.(?:pr|diff)-story\/?$/m, EXCLUDE_LINE);
-  if (next !== text) {
-    writeFileSync(file, next);
-  }
 }
 
 /** The folder a new story goes in: <checkout>/.once-upon/<id>, made and excluded, or <home>/<id>. */

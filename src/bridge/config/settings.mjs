@@ -13,68 +13,13 @@
  *     local-<repo>-<branch>/       a local-commits story made by `once-upon local`
  */
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, chmodSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DEFAULT_PORT } from '../../shared/util/bridge-port.js';
 
 export function homeDir() {
   return process.env.ONCE_UPON_HOME || path.join(os.homedir(), '.once-upon');
-}
-
-/** The folder names this project's home has had, newest first. */
-const LEGACY_HOMES = ['.pr-story', '.diff-story'];
-
-/**
- * One-time move from an old name: ~/.pr-story (or, before that, ~/.diff-story) becomes
- * ~/.once-upon when only the old one exists, and config.json's paths into it follow.
- * Returns a line saying so, or null. Safe to delete once no machine has either left.
- */
-export function moveLegacyHome() {
-  if (process.env.ONCE_UPON_HOME) {
-    return null;
-  }
-  const home = homeDir();
-  const legacy = LEGACY_HOMES.map((name) => path.join(os.homedir(), name)).find((dir) =>
-    existsSync(dir),
-  );
-  if (existsSync(home) || !legacy) {
-    return null;
-  }
-  renameSync(legacy, home);
-  repointConfigPaths(home, legacy);
-  return `moved ${legacy} to ${home} (the project is Once Upon a Diff now)`;
-}
-
-/** In a moved config.json, string settings that pointed into the old home (like house_rules) point into the new one. */
-function repointConfigPaths(home, legacy) {
-  const file = path.join(home, 'config.json');
-  let cfg;
-  try {
-    cfg = JSON.parse(readFileSync(file, 'utf8'));
-  } catch {
-    return;
-  }
-  const oldTilde = `~/${path.basename(legacy)}/`;
-  let changed = false;
-  for (const [key, value] of Object.entries(cfg)) {
-    if (typeof value !== 'string') {
-      continue;
-    }
-    let next = value;
-    if (value.startsWith(oldTilde)) {
-      next = `~/${path.basename(home)}/${value.slice(oldTilde.length)}`;
-    } else if (value.startsWith(legacy + path.sep)) {
-      next = path.join(home, value.slice(legacy.length + 1));
-    }
-    if (next !== value) {
-      cfg[key] = next;
-      changed = true;
-    }
-  }
-  if (changed) {
-    saveConfig(cfg, home);
-  }
 }
 
 export const newToken = () => randomBytes(24).toString('base64url');
