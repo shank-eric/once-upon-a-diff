@@ -1,21 +1,19 @@
 /*
  * Questions: the Ask box sends one through opts.ask (to the bridge inbox),
  * and the step's questions and their answers come back through
- * opts.loadQuestions, every 4s while one is waiting, otherwise every 30s.
+ * opts.loadQuestions on the overlay's tick: every 5s while one is waiting,
+ * otherwise every 30s, and when the tab gets focus again.
  */
 import { escapeHtml } from '../util/html.js';
 import { baseName } from '../util/text.js';
 import { shortDateTime } from '../util/time.js';
 
-const POLL_MS = 4000;
-const SLOW_EVERY = 8; // polls: 8 x 4s = every 30s or so with nothing waiting
+const SLOW_EVERY = 6; // ticks: 6 x 5s = every 30s with nothing waiting
 
 export function createQuestions(context) {
   const { state, opts, shell } = context;
   const { $ } = shell;
   let questions = [];
-  let pollTimer = 0;
-  let pollCount = 0;
 
   /** Is this question about the step on screen (any story step on the Overview)? */
   const forStep = (question) => state.n === 0 || question.step === state.n;
@@ -72,17 +70,14 @@ export function createQuestions(context) {
     }
   }
 
-  function poll() {
-    pollCount++;
+  /** The overlay's tick: every tick while a question waits for its answer, otherwise every SLOW_EVERY. */
+  function poll(ticks) {
     const waiting = questions.some((question) => !(question.answers || []).length);
-    if ((waiting || pollCount % SLOW_EVERY === 0) && document.visibilityState === 'visible') {
+    if (waiting || ticks % SLOW_EVERY === 0) {
       refresh();
     }
   }
-  if (opts.loadQuestions) {
-    refresh();
-    pollTimer = setInterval(poll, POLL_MS);
-  }
+  refresh();
 
   const askForm = $('.prs-ask');
   const askText = askForm.querySelector('textarea');
@@ -122,5 +117,5 @@ export function createQuestions(context) {
     }
   });
 
-  return { render, refresh, destroy: () => clearInterval(pollTimer) };
+  return { render, refresh, poll };
 }

@@ -38,6 +38,10 @@
  *                  'draft'|'posted'|'pending', dismissed, url, added}], error}. action is posted, unposted, dismiss,
  *                  restore, review (Add to my review) or settle (an added draft has shown up, see draftView).
  *   reloadPage()   reloads the page, keeping the panel's step and scroll; offered on a draft just added to the review
+ *   pulse()        returns a Promise of the bridge's GET /pulse ({version, questions_rev, drafts_rev, listening}),
+ *                  asked every 5s while the tab shows: the questions, drafts and status light look again only when
+ *                  their part changed
+ *   onPulse(p)     called with each pulse, so the host can reload the story when its version moved
  *   onFilter(f)    called after each filter pass with {n, all}; the local page folds other chapters' lines with it
  *   reveal(rel, side, start, end)  called before a jump to a file (rel only) or lines, so a page that folds files or lines can open them
  *   pageAt         when this page loaded, in ms (performance.timeOrigin); a draft added after it isn't on the page yet
@@ -87,7 +91,12 @@ export { expandDirOf, expandStep, EXPAND_ALL_FAR } from './panel/expand.js';
 
 const HOST_ID = 'diff-story-panel'; // the element on the page; the panel itself lives in its shadow root
 const PANEL_ID = 'dsm-panel';
-const SLOW_POLL_MS = 60000;
+// the panel's one clock: a tick every 5s while the tab shows, with one pulse call. Without a pulse, questions take
+// every tick while one waits for its answer (else every 6th) and the status light every 6th (30s). Drafts, freshness
+// and reads look every 12th tick (a minute) either way.
+const TICK_MS = 5000;
+const STATUS_EVERY = 6;
+const SLOW_EVERY = 12;
 
 export function storyOverlay(input, opts = {}) {
   if (window.__diffStoryOverlay) {
@@ -110,6 +119,17 @@ export function storyOverlay(input, opts = {}) {
   };
   Object.assign(context, stateHelpers(context));
   const { state } = context;
+
+  // the previous pulse. The first is asked before the parts' first loads, so nothing that changes after them is missed.
+  let last = null;
+  if (opts.pulse) {
+    opts.pulse().then(
+      (pulse) => {
+        last = last || pulse;
+      },
+      () => {},
+    );
+  }
 
   // each module gets the context and reaches the others through it at call time
   context.page = createHostPage({
@@ -137,20 +157,56 @@ export function storyOverlay(input, opts = {}) {
   context.questions = createQuestions(context);
   context.shell.isolateKeys();
 
-  // the bridge's answers that more than one part shows: every minute, and when the tab gets focus again
-  let slowPollTimer = 0;
-  if (opts.freshness || opts.reads) {
-    slowPollTimer = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        context.freshness.refresh();
-        context.reading.refresh();
-      }
-    }, SLOW_POLL_MS);
-  }
-  const onFocus = () => {
-    context.drafts.refresh(true);
+  // every part's look at the bridge, on the tick and when the tab gets focus again (a comment drafted or a session
+  // started in the terminal shows up as soon as you come back). With opts.pulse, one cheap call a tick says which
+  // parts changed; without it, each part looks on its own share of the ticks.
+  let ticks = 0;
+  const slow = () => {
+    context.drafts.refresh(true); // GitHub's posted state isn't in the pulse
     context.freshness.refresh();
     context.reading.refresh();
+  };
+  async function beat() {
+    if (!opts.pulse) {
+      context.questions.poll(ticks);
+      if (ticks % STATUS_EVERY === 0) {
+        context.statusLight.refresh();
+      }
+      return;
+    }
+    const pulse = await opts.pulse().catch(() => ({ down: true }));
+    const moved = (key) => !!last && pulse[key] !== last[key];
+    if (opts.onPulse && !pulse.down) {
+      opts.onPulse(pulse);
+    }
+    if (moved('questions_rev')) {
+      context.questions.refresh();
+    }
+    if (moved('drafts_rev')) {
+      context.drafts.refresh(true);
+    }
+    if (moved('listening') || moved('down')) {
+      context.statusLight.refresh();
+    }
+    last = pulse;
+  }
+  const tickTimer = setInterval(() => {
+    if (document.visibilityState !== 'visible') {
+      return;
+    }
+    ticks++;
+    beat();
+    if (ticks % SLOW_EVERY === 0) {
+      slow();
+    }
+  }, TICK_MS);
+  const onFocus = () => {
+    if (!opts.pulse) {
+      context.questions.refresh();
+      context.statusLight.refresh();
+    }
+    beat();
+    slow();
   };
   window.addEventListener('focus', onFocus);
 
@@ -161,12 +217,9 @@ export function storyOverlay(input, opts = {}) {
     context.shell.clearMessageTimer();
     context.navigation.destroy();
     context.scroll.destroy();
-    context.statusLight.destroy();
-    context.drafts.destroy();
-    clearInterval(slowPollTimer);
+    clearInterval(tickTimer);
     window.removeEventListener('focus', onFocus);
     context.expander.cancel();
-    context.questions.destroy();
     context.shell.stopResizing();
     context.filter.unhideAll();
     context.shell.unmount();

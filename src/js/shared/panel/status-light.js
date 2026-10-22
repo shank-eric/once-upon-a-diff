@@ -1,6 +1,7 @@
 /*
  * The status light in the toolbar: is the bridge there, is there a story,
- * and is a Claude session listening for questions (opts.status, every 10s).
+ * and is a Claude session listening for questions (opts.status, on the
+ * overlay's tick every 30s, and when the tab gets focus again).
  * Clicking it shows the checks. When no session is listening, a hint over the
  * Ask box gives the prompt to paste into Claude Code.
  *
@@ -8,8 +9,6 @@
  */
 import { escapeHtml } from '../util/html.js';
 import { copyPrompt } from './copy-buttons.js';
-
-const POLL_MS = 10000;
 
 const bridgeProblem = (code) => {
   if (code === 'token') {
@@ -110,7 +109,6 @@ export function createStatusLight(context) {
   const { opts, shell } = context;
   const { $ } = shell;
   let health = null;
-  let pollTimer = 0;
 
   function render(result) {
     const light = $('.prs-light');
@@ -132,7 +130,7 @@ export function createStatusLight(context) {
       return;
     }
     const html = askHintHtml(result);
-    // redrawn every 10s, so only when it changes (a "Copied" label stays put)
+    // redrawn on every refresh, so only when it changes (a "Copied" label stays put)
     if (hint.getAttribute('data-html') === html) {
       return;
     }
@@ -173,11 +171,6 @@ export function createStatusLight(context) {
   });
   if (opts.status) {
     refresh();
-    pollTimer = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        refresh();
-      }
-    }, POLL_MS);
   } else {
     $('.prs-light').hidden = true;
   }
@@ -187,6 +180,5 @@ export function createStatusLight(context) {
       return health;
     },
     refresh,
-    destroy: () => clearInterval(pollTimer),
   };
 }
