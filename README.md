@@ -54,9 +54,7 @@ There are two quick ways to check.
 - the config and token
 - the bridge process and port, and whether the bridge accepts the token
 - when the extension last talked to the bridge (the bridge notes it)
-- the story root and the stories it can serve
-- live listeners and pending build requests
-- the tail of `~/.diff-story/bridge.log`
+- live listeners
 
 It exits 1 when something fails.
 
