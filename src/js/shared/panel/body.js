@@ -142,6 +142,10 @@ export function createBody(context) {
     if (gotoButton) {
       return context.navigation.go(Number(gotoButton.getAttribute('data-goto')));
     }
+    const scriptButton = target.closest('[data-draft-script]');
+    if (scriptButton) {
+      return context.drafts.copyScript(scriptButton);
+    }
     if (target.closest('[data-draft-reload]')) {
       return context.drafts.reloadPage();
     }

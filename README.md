@@ -105,6 +105,8 @@ The chapter's comments heading counts each state, for example "(2 to post · 1 p
 
 The Overview lists every chapter's drafted comments in one place, grouped by chapter, each with its file:line, its state (draft, in your pending review, posted, dismissed or may be out of date) and the same buttons it has in its chapter. A chapter's name jumps to it. The list starts open with up to 4 drafts and folded with more. The local page does the same for its "Fix before push (drafted)" items.
 
+**Copy as gh script (N)** sits at the top of that list on a PR, once gh has said what's posted. It copies a shell script that puts the N line drafts still to post into one pending review with `gh api --method POST repos/<owner>/<repo>/pulls/<N>/reviews`, with each comment's path, line and side. Dismissed, posted and already-pending drafts are left out, and so are general comments, which have no line (the script's header says how many). The request has no `event`, so GitHub keeps the review pending until you submit it. The comments go to gh as JSON on stdin through a quoted heredoc, so nothing in a comment reaches the shell, and it runs in a subshell that honors `gh_unset_github_token`. The panel only copies the script and never runs it. GitHub allows one pending review per PR, so if you already have one (say, from Add to my review), submit or delete it first, or keep using Add to my review.
+
 How the bridge decides:
 
 - **Posted and pending come from GitHub.** The bridge reads your own comments with read-only `gh api` GETs, with `GITHUB_TOKEN` unset so the keychain login is used, and caches them for 60s. It reads the PR's review comments, its reviews (a PENDING one is your unsubmitted review, read along with its comments) and its general comments.
@@ -113,7 +115,7 @@ How the bridge decides:
 - **The local page has no GitHub to match**, so its drafts stay drafts until you dismiss them or add them to fix before push.
 - `pr-story drafts --story <id>` lists every draft's state.
 
-Add to my review is the only write to GitHub. Everything else here is read-only.
+Add to my review is the only write to GitHub. Everything else here is read-only, and the gh script is yours to run.
 
 **Comments drafted in Q&A** go into the panel's Draft comments, whether they come from chat, voice or the Ask box. To add one, run `pr-story comment --story <id> --chapter N --path <file> --line L --body-file <f>`. It appends to that chapter's `comments` in `chapters.json`, both in the copy the bridge serves and in its pr-story source folder, so the next render keeps it. Adding the same comment twice keeps one copy. Nothing is posted to GitHub.
 
@@ -361,6 +363,7 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
     - `shell.js` and `styles.js`: the frame, toolbar and CSS. `body.js`: the step on screen. `navigation.js`: Prev, Next and the step list.
     - `host-page.js`: finding files, lines and toggles on `/changes`, `/files` and the local page. `filter.js`, `expand.js` and `scroll.js`: hiding, opening and jumping.
     - `file-refs.js` and `markdown.js`: the story's text and its jump links. `file-list.js`: the file rows.
+    - `review-script.js`: the Overview's Copy as gh script.
     - `viewed.js`, `reading.js`, `drafts.js`, `freshness.js`, `marks.js`, `status-light.js` and `questions.js`: Viewed progress, read tracking, drafted comments, story freshness, the "changed since" marks, the status light and the Ask box.
   - `js/shared/util/`: helpers for the panel, the content scripts, the local page and the bridge (escaping, short SHAs, times, the clipboard, GitHub paths, key isolation).
 - `bridge/`: the bridge and its CLI.

@@ -103,6 +103,7 @@ PR Story (`<pr-story-repo>`, an unpacked Chrome extension plus a local bridge) s
 
 - **Steps.** Step 0 is the Overview: the `overview` markdown (or `summary` and `plan`), every file with its chapters, and no filter. Then one step per chapter.
 - **A chapter step** shows the narrative, the draft comments with Copy buttons and "Files in this chapter", and hides every other chapter's files and file-tree rows ("show all files" undoes it).
+- **Copy as gh script,** in the Overview's list of every draft, copies a shell script that puts the line drafts still to post into one pending review with `gh api`. It only copies. The reviewer runs it if they want to, and the review stays unsubmitted until they submit it.
 - **Jumps.** Backticked file names in the narrative, the file list and the comment headers scroll the page to that file's diff. `path:40-58` mentions, `lines` entries and comment lines scroll to the line and highlight the range. A name matches a file on screen in that step, and an ambiguous one goes to the first match in chapter order. Clicking a file or line link opens a collapsed file (Viewed files collapse) and expands hunks until the line is on the page, without unmarking Viewed or dropping `?w=1`.
 - **What to tick.** Each file says "Mark viewed", "Leave unviewed: comes back in chapter N (…)" or "Already finished in chapter N", from the same placement rules as `file-map.json`. Only the files a chapter finishes get a Mark viewed button there, and the first mention in the narrative carries a small pill with the same status.
 

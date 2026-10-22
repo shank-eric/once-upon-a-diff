@@ -3,13 +3,17 @@
  * with their state from opts.drafts: posted, in the reviewer's pending review,
  * dismissed, a local story's fix-before-push note, or still a draft. The
  * buttons are Copy, Dismiss, Restore, Add to my review (GitHub) and Add to
- * fix before push (a local story). Posted is what gh finds on the PR.
+ * fix before push (a local story), and on a PR's Overview, Copy as gh script
+ * (review-script.js) for every draft still to post. Posted is what gh finds
+ * on the PR.
  *
  * draftView and shownIn have no DOM, so node tests can use them.
  */
 import { escapeHtml } from '../util/html.js';
 import { capitalize } from '../util/text.js';
 import { refAttrs } from './file-refs.js';
+import { copyWithFallback } from './copy-buttons.js';
+import { scriptDrafts, reviewScript } from './review-script.js';
 
 /**
  * How the panel shows one draft row from the bridge: 'dismissed', 'fix', 'posted', 'pending', 'added' or 'draft'.
@@ -66,6 +70,9 @@ const settling = new Set();
 
 const ALL_COMMENTS_OPEN = 4; // more drafts than this and the Overview's list starts folded
 const REFRESH_MS = 10000;
+const SCRIPT_TITLE =
+  'Copies a shell script that puts these line drafts into one pending review with gh api. It only copies: ' +
+  'nothing is posted until you run it, and the review stays unsubmitted until you submit it on GitHub.';
 const githubLink = (url) =>
   ` · <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">view on GitHub</a>`;
 const lineJump = (rel, side, line) =>
@@ -78,6 +85,7 @@ export function createDrafts(context) {
   let rows = [];
   let loadError = null;
   let loadedAt = 0;
+  let checked = false; // the bridge has said what's become of each draft at least once
 
   /** One drafted comment, with its step and index: render adds its state and its buttons. */
   function commentHtml(comment, step, index) {
@@ -134,7 +142,7 @@ export function createDrafts(context) {
     const open = state.allCommentsOpen != null ? state.allCommentsOpen : total <= ALL_COMMENTS_OPEN;
     return (
       `<details class="prs-drafts prs-allc"${open ? ' open' : ''}><summary><h2 class="prs-h">${escapeHtml(context.commentsTitle)}: all chapters (${total}) <span class="prs-draftsum"></span></h2></summary>` +
-      `<div class="prs-drafttoggles"></div>${items}</details>`
+      `<div class="prs-drafttoggles"></div><pre class="prs-script" hidden></pre>${items}</details>`
     );
   }
 
@@ -150,6 +158,7 @@ export function createDrafts(context) {
       const result = await opts.drafts.load();
       rows = result.drafts || [];
       loadError = result.error || null;
+      checked = true;
     } catch (e) {
       loadError = e && e.message;
     }
@@ -192,6 +201,32 @@ export function createDrafts(context) {
       }
     }
     render();
+  }
+
+  /** The PR's line drafts still to post, for Copy as gh script: null where there's no PR or gh hasn't been asked yet. */
+  function scriptable() {
+    const onPr =
+      context.hostName === 'GitHub' && data.kind !== 'local' && data.pr.repo && data.pr.number;
+    if (!onPr || !opts.drafts || !checked || loadError) {
+      return null; // without gh's posted state, the script could post one twice
+    }
+    return scriptDrafts(data.chapters, rows, story.allRels);
+  }
+
+  /** Copy as gh script: copies the script, and nothing else. Running it is the reviewer's call. */
+  function copyScript(button) {
+    const drafts = scriptable();
+    if (!drafts || !drafts.comments.length) {
+      return;
+    }
+    let text;
+    try {
+      text = reviewScript({ repo: data.pr.repo, number: data.pr.number, ...drafts });
+    } catch (e) {
+      shell.message(`Couldn't make the script: ${e.message}`);
+      return;
+    }
+    copyWithFallback(text, button, $('.prs-script'));
   }
 
   function reloadPage() {
@@ -366,7 +401,11 @@ export function createDrafts(context) {
       dismissed && `${dismissed} dismissed`,
     ].filter(Boolean);
     box.querySelector('.prs-draftsum').textContent = shown.length ? `(${summary.join(' · ')})` : '';
+    const forScript = overview ? scriptable() : null;
     box.querySelector('.prs-drafttoggles').innerHTML = [
+      forScript && forScript.comments.length
+        ? `<button class="prs-linkish" data-draft-script title="${SCRIPT_TITLE}">Copy as gh script (${forScript.comments.length})</button>`
+        : '',
       posted
         ? `<button class="prs-linkish" data-draft-show="showPosted">${state.showPosted ? 'Hide' : 'Show'} posted (${posted})</button>`
         : '',
@@ -388,6 +427,7 @@ export function createDrafts(context) {
     act,
     render,
     reloadPage,
+    copyScript,
     waitingOnPage,
   };
 }

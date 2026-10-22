@@ -131,6 +131,7 @@ export const panelCss = (panelId) => `
   #${panelId} .prs-draftsum { text-transform: none; letter-spacing: 0; font-weight: 400; }
   #${panelId} .prs-drafttoggles { margin: -2px 0 6px; }
   #${panelId} .prs-drafttoggles:empty { display: none; }
+  #${panelId} pre.prs-script { max-height: 160px; overflow: auto; font-size: 11px; }
   #${panelId} .prs-cbtns button + button { margin-left: 4px; }
   #${panelId} .prs-comment .prs-where { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12px; color: var(--c-muted); margin-bottom: 4px; }
   #${panelId} ul.prs-files { list-style: none; padding: 0; margin: 0; font-size: 12px; }
