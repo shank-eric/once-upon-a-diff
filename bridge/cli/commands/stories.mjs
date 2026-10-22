@@ -144,6 +144,7 @@ function publish(home, cfg, opts) {
         pr_title: pr.title || null,
         head_oid: pr.headRefOid || null, // the commit the story was told from
         base_oid: pr.baseRefOid || null,
+        head_ref: pr.headRefName || null, // the PR's branch, where a fix request's change goes
         source,
         published_at: new Date().toISOString(),
       },

@@ -70,6 +70,9 @@ test('Add to fix before push makes a local draft a note, once, and the draft say
       path: 'lib/two.js',
       side: 'R',
       line: 1,
+      state: 'draft',
+      sent_to: null,
+      sha: null,
     });
     assert.equal(drafts[0].fix, null);
     await bridge.call('POST', `${storyPath}/notes/${note.body.id}`, { done: true });

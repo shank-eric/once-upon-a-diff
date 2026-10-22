@@ -2,7 +2,8 @@
  * Drafted comments: what's become of each one (posted, in the reviewer's
  * pending review, dismissed, or still a draft), the reviewer's own marks, and
  * Add to my review. Read-only on GitHub, except Add to my review, which adds
- * the draft to their pending review (never submitted). A comment drafted in
+ * the draft to their pending review (never submitted). Add to fix before push
+ * (action fix) makes the draft a note (./fixes.mjs). A comment drafted in
  * Q&A comes in through `once-upon comment`.
  */
 import { newId } from '../../inbox/inbox.mjs';
@@ -17,6 +18,7 @@ import {
 } from '../../github/drafts.mjs';
 import { addToPendingReview } from '../../github/review.mjs';
 import { HttpError, toInt } from '../request.mjs';
+import { noteFromDraft } from './fixes.mjs';
 
 /** The drafted comment a request names by chapter (1-based) and index, else 404. */
 export function draftOf(chapters, body) {
@@ -67,6 +69,8 @@ async function drafts({ app, req, body, send }, story) {
     const comment = draftOf(app.stories.load(story.id).chapters, body);
     if (body.action === 'review') {
       added = await addToReview(app, story, key, comment, body);
+    } else if (body.action === 'fix') {
+      noteFromDraft(app, story, body); // Add to fix before push
     } else {
       mark(app.home, key, String(body.action || ''), comment);
     }

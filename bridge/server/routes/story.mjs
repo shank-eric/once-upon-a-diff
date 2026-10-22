@@ -17,6 +17,8 @@ import { refreshLocal } from '../../stories/local-diff.mjs';
 import { storyVersion, localVersion } from '../../stories/meta.mjs';
 import { HttpError, clipText, toInt } from '../request.mjs';
 import { questionsOf } from './questions.mjs';
+import { fixesView } from '../../inbox/fixes.mjs';
+import { workingOf } from '../../stories/working.mjs';
 
 function load({ app, send }, story) {
   if (story.meta.kind === 'local' && story.ref.repo) {
@@ -43,7 +45,8 @@ const revOf = (value) =>
  * One cheap call the panel can poll in place of version, questions, status and drafts:
  * when a field changes, it fetches that one. questions_rev covers answers, dismissals,
  * collapses and handovers. drafts_rev covers the drafts and the
- * reviewer's marks, not what gh finds on GitHub, which the panel still checks on its own.
+ * reviewer's marks, not what gh finds on GitHub, which the panel still checks on its own. fixes_rev covers
+ * fix before push, and working_rev the "being changed" marks.
  */
 function pulse({ app, send }, story) {
   const questions = questionsOf(app, story).map((question) => [
@@ -64,6 +67,9 @@ function pulse({ app, send }, story) {
     // who answers this story's questions, so the panel redraws when a story listener takes over from the repo's
     answering: listening.answering ? listening.answering.consumer : null,
     rebuild: rebuildView(app, story),
+    // fix before push (notes, Auto-send, requests and who'd get a send) and "being changed" marks
+    fixes_rev: revOf(fixesView(app.home, app.stories, story)),
+    working_rev: revOf(workingOf(app.home, story.id).marks),
   });
 }
 

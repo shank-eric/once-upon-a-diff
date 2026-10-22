@@ -70,12 +70,13 @@ It exits 1 when something fails.
 
 1. Finds the CLI: `once-upon` on `PATH`, else `node <repo>/bridge/bin/once-upon.mjs`, with `<repo>` from the `ONCE_UPON_REPO` env var, `repo_dir` in `~/.once-upon/config.json` (both read only by the skill), or the folder the skill is linked from.
 2. Runs `once-upon doctor`. If nothing is listening on the bridge's port, it starts the bridge detached, so it keeps running after the session ends, and waits for it to answer. If something else has the port, it says so and stops.
-3. Runs `once-upon wait --repo octo-org/web-app --type question,build_request --consumer repo-octo-org-web-app` as a background task, which keeps the light green for every story and PR in that repo. It starts the wait again after each event.
+3. Runs `once-upon wait --repo octo-org/web-app --type question,build_request,fix_request --consumer repo-octo-org-web-app` as a background task, which keeps the light green for every story and PR in that repo. It starts the wait again after each event.
 4. Answers each Ask-box question from the story's chapters and the code in the checkout, briefly, with `once-upon answer`.
 5. Builds each Build story request it's handed (the wait claims it, so the badge says Building) and publishes the story with the once-upon skill, which finishes the request. An update gets a "Since you read it" chapter, unless it asks for a re-tell.
-6. Stops when you say so.
+6. Fixes each fix request it's handed (see [Fix before push](#fix-before-push-send-notes-to-a-session)): it marks the files it's changing, makes one change, commits it as your house rules say and reports the commit.
+7. Stops when you say so.
 
-It never posts to GitHub, marks files viewed or pushes. Comments it drafts go to the panel's Draft comments only. Run one listener per repo, each in its own session.
+It never posts to GitHub, marks files viewed or pushes. Comments it drafts go to the panel's Draft comments only. A fix request is the only time it changes the checkout, and then only on the branch it's on. Run one listener per repo, each in its own session.
 
 ### One story, one session
 
@@ -85,9 +86,9 @@ The session that built a story knows it best, so it can keep answering that stor
 /once-upon-listen --story octo-org-web-app-42
 ```
 
-`--story` takes the story id (`once-upon list`, or the line `build` prints after publishing), `owner/repo#N`, a PR URL, or a bare PR number in the session's checkout. Underneath it's `once-upon wait --story <id> --type question,build_request --consumer story-<id>`. The once-upon skill offers this at the end of a build, and starts it when you've asked it to keep listening.
+`--story` takes the story id (`once-upon list`, or the line `build` prints after publishing), `owner/repo#N`, a PR URL, or a bare PR number in the session's checkout. Underneath it's `once-upon wait --story <id> --type question,build_request,fix_request --consumer story-<id>`. The once-upon skill offers this at the end of a build, and starts it when you've asked it to keep listening.
 
-**The routing rule.** A question goes to a live listener for its story when there is one. A repo-wide or catch-all wait leaves that story's questions alone while the story listener is live, and takes them once it isn't (its beat goes stale, or its process is gone), including any it left waiting. A question handed to one session is never handed to another, and a dismissed one isn't handed over at all. A story listener takes its story's questions and its [Rebuild](#rebuild-story-rebuild-from-here) requests, by the same rule (a story wait started with `--type question` only, as older prompts did, gets no rebuilds, and the repo's listener takes them). Build and update requests still go to the repo's listener. `~/.once-upon/handed.json` records which session each question went to.
+**The routing rule.** A question goes to a live listener for its story when there is one. A repo-wide or catch-all wait leaves that story's questions alone while the story listener is live, and takes them once it isn't (its beat goes stale, or its process is gone), including any it left waiting. A question handed to one session is never handed to another, and a dismissed one isn't handed over at all. A story listener takes its story's questions, its [Rebuild](#rebuild-story-rebuild-from-here) requests and its [fix requests](#fix-before-push-send-notes-to-a-session), by the same rule (a story wait started with `--type question` only, as older prompts did, gets no rebuilds or fix requests, and the repo's listener takes them). Fix requests go only to waits that take them (`fix_request` in `--type`). Build and update requests still go to the repo's listener. `~/.once-upon/handed.json` records which session each question went to.
 
 The panel says who's answering, on the line under the Ask box: "Answered by api-10, the session listening for this story", or the repo listener's name with **Copy prompt for this story**, which copies `/once-upon-listen --story <id>` to paste into the session that built it. Each answer is labelled "Answered by" and the consumer. The name is the wait's `--consumer`, so pass your own (say `--consumer api-10`) to tell sessions apart.
 
@@ -110,11 +111,11 @@ When Claude rewrites `chapters.json`, the panel redraws within ≈5 seconds, or 
 - **Posted ✓**, with a link to the posted comment. These are hidden by default behind "Show posted (N)".
 - **In your pending review**, for a comment in a review you haven't submitted yet. These stay visible, marked as not submitted.
 - **Dismissed**, for a draft you don't want. Dismiss hides it behind "Show dismissed (N)", and Restore brings it back.
-- **A draft**, with a **Dismiss** button, and on a line comment **Add to my review** (on the local page, **Add to fix before push**).
+- **A draft**, with a **Dismiss** button, and on a line comment **Add to fix before push** and (on GitHub) **Add to my review**.
 
 **Add to my review** puts a line draft into your pending review on GitHub, starting one if you have none. It never submits the review. GitHub doesn't redraw an open Files changed page for that, so the draft switches to "In your pending review" with the file and line, a jump link, "GitHub shows it after a reload" and a **Reload page** button. The page only reloads when you click it, and the panel comes back on the same step. The bridge keeps this state in `drafts.json`, so it lasts through re-renders, reloads and bridge restarts. Once gh finds the comment after a reload, or it shows up on the page, it becomes the usual pending (or posted) row. If GitHub refuses, the error shows on the draft and its buttons stay. A draft that's already in your review can't be added twice.
 
-**Add to fix before push** is the local page's counterpart. It makes a line draft a real fix-before-push note on that file and line, through the bridge's notes API, so it's in the page's checklist and in `once-upon notes`. The draft then says "In fix before push" (with "done ✓" once you tick the note) and a jump to the line. A draft that's already a note can't be added twice.
+**Add to fix before push** makes a line draft a fix-before-push note on that file and line instead, for the Claude session working the branch to fix (below), on a PR story and on the local page. The draft then says "In fix before push", then "sent to <session>" or "fixed in <sha>", and a jump to the line. A draft that's already a note can't be added twice.
 
 The chapter's comments heading counts each state, for example "(2 to post · 1 posted · 1 pending)".
 
@@ -131,6 +132,21 @@ How the bridge decides:
 - `once-upon drafts --story <id>` lists every draft's state.
 
 Add to my review is the only write to GitHub. Everything else here is read-only, and the gh script is yours to run.
+
+### Fix before push: send notes to a session
+
+Fix-before-push notes collect as drafts in the panel's **Fix before push** box (every note on the Overview, a chapter's own notes on its step). They come from **Add to fix before push** on a drafted comment, and on the local page from a line number too.
+
+- **Until it's sent, a note can be edited or removed.** Edit and Remove are on each draft note.
+- **Send N notes to <session>** hands every draft note to the Claude session as one request (`fix_request`). It goes to the session listening for that story when one is live, else the repo's listener, by the [routing rule](#one-story-one-session), among waits that take fix requests. The button names that session. With none listening, the request waits for the next one. On a PR story, that's the session working the PR's branch.
+- **Sent notes are locked** and say "Sent to <session>". When the session reports back, they say "Fixed in <sha>" (and are ticked done). A note the change didn't cover comes back as a draft, with why. **Take back** returns a request's notes to the drafts while nobody has reported on it.
+- **Auto-send**, a checkbox in the box (off by default, kept per story), sends each note on its own as it's added.
+
+The session makes one coherent change for the request's notes, commits it (or amends) as your house rules say, never pushes, and reports with `once-upon fixed --request <id> --sha <sha> [--notes <ids>]`, or `--failed --note "<why>"`. The bridge keeps the queue in `~/.once-upon/fixes.json` and the notes in `state/<id>/notes.json`. `once-upon notes --story <id>` prints them with where each has got.
+
+### Being changed
+
+While a session changes code, it says which files (and lines, when it knows) with `once-upon working --story <id> --files <path[:start-end]>,...`. The panel shows "Being changed by <session>" over the steps, marks those files and the chapters that tell them, and dims their blocks on the page. `once-upon working --story <id> --done <sha>` (or `once-upon fixed`) clears it, and the usual "changed since you read it" and new-commits marks take over. A mark expires on its own when its session goes quiet: 30 minutes without another `working` call (running it again with no `--files` keeps it fresh), or as soon as its listener stops beating. It works on PR and local stories, and the marks are kept in `state/<id>/working.json`.
 
 **Comments drafted in Q&A** go into the panel's Draft comments, whether they come from chat, voice or the Ask box. To add one, run `once-upon comment --story <id> --chapter N --path <file> --line L --body-file <f>`. It appends to that chapter's `comments` in `chapters.json`, both in the copy the bridge serves and in its once-upon source folder, so the next render keeps it. Adding the same comment twice keeps one copy. Nothing is posted to GitHub.
 
@@ -208,7 +224,7 @@ once-upon local --repo ~/Development/web-app-worktrees/tidy-up --base 3a669da762
 This builds `git diff <base> <head>` into `~/.once-upon/local-<repo>-<branch>/`. If no bridge is running, it starts one, then opens `http://127.0.0.1:<port>/local/<id>/`. The page draws the diff with the same DOM shapes as GitHub's `/changes` page, so the same panel code runs on it unchanged.
 
 - **Viewed** toggles are kept by the bridge. A file whose diff changes after you marked it shows as "changed since viewed" and is unviewed again.
-- **Comments become "fix before push" notes.** Click a line number to add a note. Notes are listed under "Fix before push" at the top, can be ticked done, and go to the inbox. `once-upon notes --story <id>` prints them as a checklist. Comments drafted in `chapters.json` show in the panel as "Fix before push (drafted)".
+- **Comments become "fix before push" notes.** Click a line number to add a note. Notes are listed under "Fix before push" at the top, can be ticked done, and go to the inbox. The panel's Fix before push box sends them to a Claude session ([above](#fix-before-push-send-notes-to-a-session)). `once-upon notes --story <id>` prints them as a checklist. Comments drafted in `chapters.json` show in the panel as "Fix before push (drafted)".
 - **The page follows the branch.** Amend or add a commit and the page redraws with the new diff within ≈5 seconds.
 - **Unified / Split**, in the page header, switches between one column and GitHub's side-by-side view, with old lines on the left and new on the right, lined up. Line numbers on either side take notes, and line jumps, Viewed and the panel work the same in both. It's saved in `prefs.json` too, so it holds for every local story.
 - **Syntax highlighting** colors the diff in both views, picked by file extension: TypeScript and TSX, JavaScript, JSON, Ruby and ERB, YAML, CSS and SCSS, Markdown, shell, and HTML/XML. Each hunk's old and new sides are highlighted as whole pieces of code, so a template string or block comment that runs over several lines is colored right. A hunk that starts partway into a comment can still come out wrong. Files over 3,000 diff lines, minified lines and anything past 20,000 lines on a page stay plain, so big diffs stay quick. highlight.js is vendored in `bridge/public/vendor/` (`yarn vendor` remakes it from the pinned dev dependency), so the bridge still has no runtime dependencies and the page loads nothing from a CDN.
@@ -232,8 +248,9 @@ Stories live in the repo they're about, in a hidden `.once-upon/` folder in its 
   checkouts.json                    repo -> the checkout the bridge has seen
   inbox.jsonl                       questions, answers, notes
   builds.json                       build requests, queued or building
+  fixes.json                        fix requests: the notes sent to a session, and how each ended
   cursors/<consumer>.json           how far each reader has read the inbox
-  state/<story id>/                 ui.json, position.json, viewed.json, notes.json
+  state/<story id>/                 ui.json, position.json, viewed.json, notes.json, fix-settings.json, working.json
   state/pr-<owner>-<repo>-<N>/      drafts.json, read.json (per PR, so a regenerated story keeps them)
   <story id>/                       a story whose repo has no known checkout
 ```
@@ -261,7 +278,7 @@ The bridge also checks each request:
 | `GET /api/status?story=ID` | the status light: the bridge, the story, and whether a Claude session is listening |
 | `GET /api/stories/:id` | the panel's data, plus the diff, viewed files and notes for a local story |
 | `GET /api/stories/:id/version` | changes when the story or (for local) the commits change |
-| `GET /api/stories/:id/pulse` | `{version, questions_rev, drafts_rev, listening, answering}`, one poll for what the panel watches. A field changes when that thing does. `drafts_rev` covers the drafts and your marks, not what's on GitHub |
+| `GET /api/stories/:id/pulse` | `{version, questions_rev, drafts_rev, fixes_rev, working_rev, listening, answering}`, one poll for what the panel watches. A field changes when that thing does. `drafts_rev` covers the drafts and your marks, not what's on GitHub |
 | `GET`/`POST /api/stories/:id/ui` | the panel's step, width, collapsed and hidden state (the local page uses this, and the extension keeps its own in `chrome.storage`) |
 | `POST /api/stories/:id/position` | `{step, chapter, file}`, written to `state/<id>/position.json` |
 | `GET`/`POST /api/stories/:id/read` | the chapters you've read, each with the commit it was read at, and where an update would start (`since`); or record one: `{chapter, step, reason, seconds, head_sha}` |
@@ -269,9 +286,11 @@ The bridge also checks each request:
 | `POST /api/stories/:id/questions/marks` | `{action, ids}`: `dismiss`, `restore`, `collapse` or `expand` those questions, or `{action: 'clear'}` to dismiss every one (the answer says which, as `cleared`) |
 | `POST /api/builds` | ask for a story: `{repo, number, url, requested_at}` (`once-upon builds` lists them) |
 | `POST /api/stories/:id/viewed` | local stories: `{path, viewed}` |
-| `POST /api/stories/:id/notes[/:note]` | local stories: add `{path, side, line, body}`, or update `{done}`, `{body}` or `{delete: true}` |
+| `POST /api/stories/:id/notes[/:note]` | fix-before-push notes: add `{path, side, line, body}` (or `{chapter, index}`, a drafted comment), or update `{done}`, `{body}` or `{delete: true}`; a sent note only takes `{done}` |
+| `GET`/`POST /api/stories/:id/fixes` | the notes with their state, `auto_send`, who a send goes to (`to`) and the recent requests; or `{action: 'send', ids?}`, `{action: 'auto', on}`, `{action: 'take_back', request}` |
+| `GET /api/stories/:id/working` | the "being changed" marks that still stand, and the last one cleared |
 
-The other commands are `list`, `token --rotate`, `publish --dir`, `inbox`, `wait`, `answer`, `notes`, `builds` and `done`. Run `once-upon` with no arguments to see them all.
+The other commands are `list`, `token --rotate`, `publish --dir`, `inbox`, `wait`, `answer`, `notes`, `working`, `fixed`, `builds` and `done`. Run `once-upon` with no arguments to see them all.
 
 ### Personal settings
 
@@ -389,13 +408,14 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
     - `file-refs.js` and `markdown.js`: the story's text and its jump links. `file-list.js`: the file rows.
     - `review-script.js`: the Overview's Copy as gh script.
     - `viewed.js`, `reading.js`, `drafts.js`, `freshness.js`, `rebuild.js`, `marks.js`, `status-light.js` and `questions.js`: Viewed progress, read tracking, drafted comments, story freshness, Rebuild, the "changed since" marks, the status light and the Ask box.
+    - `fixes.js` and `working.js`: Fix before push (Send, Auto-send, each note's state) and the "being changed" marks.
   - `js/shared/util/`: helpers for the panel, the content scripts, the local page and the bridge (escaping, short SHAs, times, the clipboard, GitHub paths, key isolation).
 - `bridge/`: the bridge and its CLI.
-  - `bin/once-upon.mjs` runs `cli/index.mjs`, a table of commands in `cli/commands/` (bridge, stories, inbox, drafts, builds, checks) that also builds the help. `cli/doctor.mjs` is `once-upon doctor`.
+  - `bin/once-upon.mjs` runs `cli/index.mjs`, a table of commands in `cli/commands/` (bridge, stories, inbox, drafts, builds, checks, fixes) that also builds the help. `cli/doctor.mjs` is `once-upon doctor`.
   - `server/index.mjs` is the HTTP server: its guards, then a route table. The routes are in `server/routes/` by area; `pages.mjs` and `assets.mjs` serve the HTML pages and the scripts.
-  - `stories/`: finding story folders (`store.mjs`, `placement.mjs`), reading them (`meta.mjs`, `chapters.mjs`, `story-data.mjs`, `text-refs.mjs`, `hunk-coverage.mjs`), local stories (`local-story.mjs`, `local-diff.mjs`), read tracking (`reads.mjs`), drafted comments (`comments.mjs`) and the rules a Rebuild is published by (`rebuild.mjs`).
+  - `stories/`: finding story folders (`store.mjs`, `placement.mjs`), reading them (`meta.mjs`, `chapters.mjs`, `story-data.mjs`, `text-refs.mjs`, `hunk-coverage.mjs`), local stories (`local-story.mjs`, `local-diff.mjs`), read tracking (`reads.mjs`), drafted comments (`comments.mjs`), the rules a Rebuild is published by (`rebuild.mjs`) and "being changed" marks (`working.mjs`).
   - `github/`: what asks `gh` (read-only, except Add to my review): freshness, drafts and the pending review.
-  - `inbox/` (the inbox, the conversation's marks and routing, and build requests), `listeners/` (who's listening), `config/` (settings, prefs, repos and checkouts) and `util/` (gh, git, diffs, JSON files).
+  - `inbox/` (the inbox, the conversation's marks and routing, build requests, and fix-before-push notes and fix requests), `listeners/` (who's listening), `config/` (settings, prefs, repos and checkouts) and `util/` (gh, git, diffs, JSON files).
   - `public/`: the local page. `local.js` draws it and handles its clicks; `local/` holds the diff view, notes, folds and the panel mount, next to `split.js`, `narrow.js` and `syntax.js`.
 - `skills/once-upon-listen/`: the Claude Code skill behind **Copy prompt for Claude**.
 - `skills/once-upon/`: the Claude Code skill that writes PR stories. Both skills read your house rules (see [Personal settings](#personal-settings)).

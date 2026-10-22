@@ -1,7 +1,7 @@
 /*
  * Drafted comments and notes from the terminal: add a comment drafted in Q&A
- * to a chapter (comment), list each draft's state (drafts), and a local
- * story's fix-before-push notes (notes).
+ * to a chapter (comment), list each draft's state (drafts), and a story's
+ * fix-before-push notes (notes).
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -88,6 +88,17 @@ async function drafts(home, cfg, opts) {
   }
 }
 
+/** Where a note has got: sent to a session, fixed in a commit, or back from one. */
+function noteSuffix(note) {
+  if (note.fixed) {
+    return `  [fixed in ${note.fixed.sha}]`;
+  }
+  if (note.sent) {
+    return `  [sent to ${note.sent.to || 'the next session'}]`;
+  }
+  return note.returned ? `  [back: ${note.returned.why}]` : '';
+}
+
 function notes(home, cfg, opts) {
   if (!opts.story) {
     throw new Error('usage: once-upon notes --story ID');
@@ -101,7 +112,9 @@ function notes(home, cfg, opts) {
     return out('No fix-before-push notes.');
   }
   for (const note of list) {
-    out(`- [${note.done ? 'x' : ' '}] ${notePlace(note)}: ${note.body.replace(/\n/g, ' ')}`);
+    out(
+      `- [${note.done ? 'x' : ' '}] ${notePlace(note)}: ${note.body.replace(/\n/g, ' ')}${noteSuffix(note)}  (${note.id})`,
+    );
   }
 }
 
@@ -124,7 +137,7 @@ export const draftCommands = [
   {
     name: 'notes',
     usage: [
-      '  once-upon notes   --story ID [--json]                         fix-before-push notes for a local story',
+      '  once-upon notes   --story ID [--json]                         fix-before-push notes: draft, sent to a session, or fixed',
     ],
     run: notes,
   },

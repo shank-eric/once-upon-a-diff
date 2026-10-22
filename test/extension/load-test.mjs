@@ -995,6 +995,56 @@ try {
       /2 open/.test(await localPage.locator('.ds-notes-toggle').textContent()),
     "and it shows in the page's checklist",
   );
+  // Fix before push in the panel: both notes are drafts until Send hands them over as one request
+  const fixBox = () => localPage.locator('#ou-panel .ou-fixes').textContent();
+  check(
+    /Fix before push \(2\)/.test(await fixBox()) &&
+      (await localPage.locator('#ou-panel .ou-fixes [data-fix-act="send"]').textContent()) ===
+        'Send 2 notes',
+    `the panel lists the notes with Send 2 notes: "${await fixBox()}"`,
+  );
+  await localPage.locator('#ou-panel .ou-fixes [data-fix-act="send"]').click();
+  await localPage.waitForTimeout(500);
+  const sentNotes = JSON.parse(
+    readFileSync(path.join(home, 'state', local.id, 'notes.json'), 'utf8'),
+  );
+  const fixRequests = JSON.parse(readFileSync(path.join(home, 'fixes.json'), 'utf8'));
+  check(
+    sentNotes.every((note) => note.sent) && Object.keys(fixRequests).length === 1,
+    'Send makes one fix request of both notes',
+  );
+  check(
+    /2 sent/.test(await fixBox()) &&
+      (await localPage.locator('#ou-panel .ou-fixes [data-fix-act="remove"]').count()) === 0 &&
+      /sent to/.test(await localPage.locator('.ds-note-row').first().textContent()),
+    `sent notes are locked, here and in the diff: "${await fixBox()}"`,
+  );
+  // "being changed": a session's mark dims the file and names it, until it's done
+  const requestId = Object.keys(fixRequests)[0];
+  await runCli(home, [
+    'working',
+    '--request',
+    requestId,
+    '--files',
+    'one.txt:2',
+    '--consumer',
+    'fixer',
+  ]);
+  await localPage.waitForTimeout(6000); // the next pulse
+  check(
+    /Being changed by fixer: one.txt \(line 2\)/.test(
+      await localPage.locator('#ou-panel .ou-working').textContent(),
+    ) && (await localPage.locator('[data-ou-changing="fixer"]').count()) === 1,
+    `a "working" mark shows in the panel and dims the file: "${await localPage.locator('#ou-panel .ou-working').textContent()}"`,
+  );
+  await runCli(home, ['fixed', '--request', requestId, '--sha', 'abc1234', '--consumer', 'fixer']);
+  await localPage.waitForTimeout(6000);
+  check(
+    (await localPage.locator('[data-ou-changing]').count()) === 0 &&
+      /2 fixed/.test(await fixBox()) &&
+      /Fixed in abc1234/.test(await fixBox()),
+    `fixed clears the mark, and the notes say where they were fixed: "${await fixBox()}"`,
+  );
   await shot(localPage, 'local-chapter1');
   await localPage.reload();
   await localPage.waitForSelector('#once-upon-panel', { state: 'attached', timeout: 5000 });
@@ -1012,8 +1062,10 @@ try {
     'the notes (his own and the added draft) are still on the line after a reload',
   );
   check(
-    /In fix before push/.test(await localPage.locator('#ou-panel .ou-drafts').textContent()),
-    'and the draft still says In fix before push',
+    /In fix before push · fixed in abc1234/.test(
+      await localPage.locator('#ou-panel .ou-drafts').textContent(),
+    ),
+    'and the draft still says In fix before push, fixed in its commit',
   );
   // a jump link is reachable by keyboard: Tab focuses it, Enter jumps as a click does
   const jumpLink = localPage.locator('#ou-panel .ou-body [data-rel][tabindex="0"]').first();

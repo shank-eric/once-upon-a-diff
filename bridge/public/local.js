@@ -57,7 +57,12 @@ async function toggleViewed(button) {
 
 async function deleteNote(button) {
   const id = button.getAttribute('data-note-delete');
-  await api('POST', `${STORY_PATH}/notes/${encodeURIComponent(id)}`, { delete: true });
+  try {
+    await api('POST', `${STORY_PATH}/notes/${encodeURIComponent(id)}`, { delete: true });
+  } catch (err) {
+    alert(`Couldn't delete the note: ${err.message}`);
+    return;
+  }
   page.story.local.notes = page.story.local.notes.filter((note) => note.id !== id);
   placeNotes();
 }

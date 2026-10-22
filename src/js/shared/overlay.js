@@ -38,9 +38,16 @@
  *                  it rejects with err.code 'down', 'token' or 'old' when the bridge can't say. Drives the status light.
  *   drafts         {load(), act(chapter, index, action)}: each returns a Promise of {drafts: [{chapter, index, status:
  *                  'draft'|'posted'|'pending', dismissed, url, added}], error}. action is dismiss, restore, review
- *                  (Add to my review), fix (Add to fix before push) or settle (an added draft has shown up, see draftView).
+ *                  (Add to my review), fix (Add to fix before push, on PR and local stories) or settle (an added draft has
+ *                  shown up, see draftView).
+ *   fixes          {load(), act(body), note(id, changes), onChange(view)}: fix before push (panel/fixes.js). load and act
+ *                  (POST .../fixes {action: send|auto|take_back}) return a Promise of {notes, auto_send, to, requests};
+ *                  note(id, {body} | {delete: true}) changes a draft note; onChange(view) is called when they change
+ *   working()      returns a Promise of the bridge's GET /working ({marks: [{consumer, files: [{path, ranges}],
+ *                  started_at, at}]}): the files a Claude session says it's changing, dimmed until it's done
  *   reloadPage()   reloads the page, keeping the panel's step and scroll; offered on a draft just added to the review
- *   pulse()        returns a Promise of the bridge's GET /pulse ({version, questions_rev, drafts_rev, listening, answering}),
+ *   pulse()        returns a Promise of the bridge's GET /pulse ({version, questions_rev, drafts_rev, fixes_rev, working_rev,
+ *                  listening, answering}),
  *                  asked every 5s while the tab shows: the questions, drafts and status light look again only when
  *                  their part changed
  *   onPulse(p)     called with each pulse, so the host can reload the story when its version moved
@@ -86,9 +93,13 @@ import { createReading } from './panel/reading.js';
 import { createMarks } from './panel/marks.js';
 import { createDrafts } from './panel/drafts.js';
 import { createQuestions } from './panel/questions.js';
+import { createFixes } from './panel/fixes.js';
+import { createWorking } from './panel/working.js';
 
 // the pure helpers the content script, the local page and the tests use
 export { draftView, shownIn } from './panel/drafts.js';
+export { fixSummary } from './panel/fixes.js';
+export { changingOf } from './panel/working.js';
 export { chapterKeyOf, finishedInOf, chapterNumbers } from './panel/story-model.js';
 export { READ_MS, inferReadSteps, viewedEarlyCheck } from './panel/reading.js';
 export { placePills, pillMarker } from './panel/file-refs.js';
@@ -163,6 +174,8 @@ export function storyOverlay(input, opts = {}) {
   context.reading = createReading(context);
   context.marks = createMarks(context);
   context.drafts = createDrafts(context);
+  context.fixes = createFixes(context);
+  context.working = createWorking(context);
   context.questions = createQuestions(context);
   context.shell.isolateKeys();
 
@@ -172,6 +185,10 @@ export function storyOverlay(input, opts = {}) {
   let ticks = 0;
   const slow = () => {
     context.drafts.refresh(true); // GitHub's posted state isn't in the pulse
+    if (!opts.pulse) {
+      context.fixes.refresh();
+      context.working.refresh();
+    }
     context.freshness.refresh();
     context.reading.refresh();
   };
@@ -193,6 +210,12 @@ export function storyOverlay(input, opts = {}) {
     }
     if (moved('drafts_rev')) {
       context.drafts.refresh(true);
+    }
+    if (moved('fixes_rev')) {
+      context.fixes.refresh();
+    }
+    if (moved('working_rev')) {
+      context.working.refresh();
     }
     if (moved('listening') || moved('answering') || moved('down')) {
       context.statusLight.refresh();
@@ -228,6 +251,7 @@ export function storyOverlay(input, opts = {}) {
     context.filter.destroy();
     context.shell.clearMessageTimer();
     context.questions.destroy();
+    context.working.destroy();
     context.navigation.destroy();
     context.scroll.destroy();
     clearInterval(tickTimer);
@@ -271,6 +295,7 @@ export function storyOverlay(input, opts = {}) {
     scrollToFile: context.scroll.scrollToFile,
     jumpTo: context.scroll.jumpTo,
     refreshQuestions: context.questions.refresh,
+    refreshFixes: context.fixes.refresh,
     setCollapsed: shell.setCollapsed,
     state,
     data: input,

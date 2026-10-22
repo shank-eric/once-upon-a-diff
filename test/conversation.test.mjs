@@ -201,7 +201,10 @@ describe('one story, one session', () => {
     const home = tmp('home');
     const story = listenPrompt({ story: STORY }, 'once-upon');
     assert.equal(story.prompt, `/once-upon-listen --story ${STORY}`);
-    assert.equal(story.command, `once-upon wait --story ${STORY} --type question,build_request`);
+    assert.equal(
+      story.command,
+      `once-upon wait --story ${STORY} --type question,build_request,fix_request`,
+    );
     assert.match(
       story.details,
       /For a build request \(the panel's Rebuild\)/,

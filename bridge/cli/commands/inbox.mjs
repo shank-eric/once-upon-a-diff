@@ -6,13 +6,15 @@
  * A story's own wait (`wait --story`) takes that story's questions ahead of a
  * repo-wide one: see the routing rule in ../../inbox/conversation.mjs. With
  * build_request in its --type, it takes the story's Rebuild requests the same
- * way (../../inbox/builds.mjs).
+ * way (../../inbox/builds.mjs). Fix requests (fix_request in --type) are
+ * routed the same way too, from the queue in ../../inbox/fixes.mjs.
  */
 import { existsSync, readFileSync, statSync, watch, writeFileSync } from 'node:fs';
 import { REPO_RE, sameRepo, repoOfCheckout, seenCheckout } from '../../config/repos.mjs';
 import { Inbox } from '../../inbox/inbox.mjs';
 import { Builds } from '../../inbox/builds.mjs';
 import { noteHanded, readHanded, routeQuestions } from '../../inbox/conversation.mjs';
+import { fixesToHand } from '../../inbox/fixes.mjs';
 import { beat } from '../../listeners/listeners.mjs';
 import { StoryStore } from '../../stories/store.mjs';
 import { slug } from '../../stories/local-story.mjs';
@@ -110,6 +112,17 @@ function noteCheckout(home, repo) {
   }
 }
 
+/** What a session does with a fix request, after the request itself. */
+function fixGuidance(entry) {
+  const where = entry.kind === 'local' ? 'the local story' : `${entry.repo} PR`;
+  return [
+    `It's yours (wait claimed it). Fix these notes on ${where}${entry.branch ? `, on branch ${entry.branch}` : ''}:`,
+    `1. Say what you'll change: once-upon working --story ${entry.story} --request ${entry.id} --files <path[:start-end]>,...`,
+    '2. Start the wait again, then make one change that addresses the notes, committed as the house rules say. Never push.',
+    `3. Report it: once-upon fixed --request ${entry.id} --sha <sha> [--notes <ids it fixes>] (or --failed --note "<why>").`,
+  ].join('\n');
+}
+
 /** Prints what was handed over, with what to run next. */
 function printHandOver(entries, opts) {
   for (const entry of entries) {
@@ -135,6 +148,9 @@ function printHandOver(entries, opts) {
       out(
         `It's a rebuild from chapter ${entry.from_step}: follow once-upon's "Rebuilding a story" path. Chapters 1-${entry.from_step - 1} stay exactly as published.`,
       );
+    }
+    if (entry.type === 'fix_request') {
+      out(fixGuidance(entry));
     }
     if (entry.type === 'build_request' && entry.mode === 'update' && !entry.retell) {
       out(
@@ -170,13 +186,16 @@ async function wait(home, cfg, opts) {
   if (opts.repo) {
     noteCheckout(home, opts.repo);
   }
-  const want = { ...opts, type: opts.type || 'question,build_request' };
+  const want = { ...opts, type: opts.type || 'question,build_request,fix_request' };
   const takesBuilds = want.type.split(',').includes('build_request');
+  const takesFixes = want.type.split(',').includes('fix_request');
   const scope = {
     ...(opts.repo ? { repo: String(opts.repo) } : {}),
     ...(opts.story ? { story: String(opts.story) } : {}),
     // a story wait that takes build requests gets the story's rebuilds ahead of the repo's wait
     ...(opts.story && takesBuilds ? { builds: true } : {}),
+    // the beat says it takes fix requests, so the panel names this session on Send
+    ...(takesFixes ? { fixes: true } : {}),
   };
   const deadline = opts.timeout ? Date.now() + Number(opts.timeout) * 1000 : Infinity;
   if (!existsSync(messages.file)) {
@@ -201,7 +220,13 @@ async function wait(home, cfg, opts) {
         scope,
         unread.filter((entry) => entry.type === 'question'),
       );
-      let entries = [...questions, ...unread.filter((entry) => entry.type !== 'question')];
+      let entries = [
+        ...questions,
+        ...unread.filter((entry) => entry.type !== 'question' && entry.type !== 'fix_request'),
+      ];
+      if (takesFixes) {
+        entries = [...entries, ...fixesToHand(home, consumer, scope)];
+      }
       if (builds) {
         entries = [
           ...entries,
@@ -266,8 +291,8 @@ export const inboxCommands = [
   {
     name: 'wait',
     usage: [
-      '  once-upon wait    [--repo OWNER/NAME | --story ID] [--type question,build_request] [--consumer NAME] [--timeout SECONDS] [--json]',
-      '                                                                 block until a question or build request arrives, print it, exit (for a background task);',
+      '  once-upon wait    [--repo OWNER/NAME | --story ID] [--type question,build_request,fix_request] [--consumer NAME] [--timeout SECONDS] [--json]',
+      '                                                                 block until a question, build request or fix request arrives, print it, exit (for a background task);',
       "                                                                 --repo takes both for that repo's stories and PRs; --story (an id, owner/name#N, a PR URL",
       "                                                                 or a PR number here) takes one story's questions, and with build_request its Rebuild",
       "                                                                 requests, ahead of a --repo wait while it's live;",

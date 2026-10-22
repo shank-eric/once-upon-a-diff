@@ -29,6 +29,7 @@ import { existsSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { runGh } from '../util/gh.mjs';
 import { readJson, writeJson } from '../util/json-file.mjs';
+import { noteState } from '../inbox/fixes.mjs';
 
 const TTL_MS = 60000;
 const LINE_SLACK = 3;
@@ -286,10 +287,19 @@ export function draftStatus(chapters, marks, github = null, notes = null) {
         score: null,
       };
       row.added = add ? { at: add.at, url: add.url || null, started: !!add.started } : null;
-      // a local story's draft that Add to fix before push made into a note
+      // a draft that Add to fix before push made into a note, and how far that note has got (../inbox/fixes.mjs)
       const note = notes ? notes.find((note) => note.draft === row.key) : null;
       row.fix = note
-        ? { id: note.id, done: !!note.done, path: note.path, side: note.side, line: note.line }
+        ? {
+            id: note.id,
+            done: !!note.done,
+            path: note.path,
+            side: note.side,
+            line: note.line,
+            state: noteState(note),
+            sent_to: note.sent ? note.sent.to : null,
+            sha: note.fixed ? note.fixed.sha : null,
+          }
         : null;
       const auto = github ? bestMatch(draft, github.comments) : null;
       if (auto) {
@@ -309,7 +319,7 @@ export function draftStatus(chapters, marks, github = null, notes = null) {
 /**
  * Every draft's state for one story, as the panel's Draft comments and
  * `once-upon drafts` both show it: the reviewer's marks, what gh finds on
- * the PR, and for a local story the fix-before-push notes its drafts became.
+ * the PR, and the fix-before-push notes its drafts became.
  * A gh failure comes back as `error` with the rest still filled in.
  *
  * @param {string} home
@@ -328,7 +338,7 @@ export async function draftsOf(home, stories, id, meta) {
       error = `couldn't read the PR's comments with gh: ${e.message}`;
     }
   }
-  const notes = meta.kind === 'local' ? stories.readState(id, 'notes.json', []) : null;
+  const notes = stories.readState(id, 'notes.json', []);
   return {
     chapters,
     rows: draftStatus(chapters, readMarks(home, stateKeyOf(id, meta)), github, notes),

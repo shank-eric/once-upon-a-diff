@@ -1,7 +1,8 @@
 /*
- * The panel's body for the step on screen: the step list, then the
- * Overview or a chapter, with its drafted comments, its files and its
- * questions. One click handler serves everything in it.
+ * The panel's body for the step on screen: what's being changed, the step
+ * list, then the Overview or a chapter, with its drafted comments, its fix
+ * before push notes, its files and its questions. One click handler serves
+ * everything in it.
  */
 import { escapeHtml } from '../util/html.js';
 import { copyComment } from './copy-buttons.js';
@@ -38,7 +39,12 @@ export function createBody(context) {
       ? markdown(story.overviewMarkdown)
       : `${data.summary ? `<p>${inline(data.summary)}</p>` : ''}${data.plan ? `<p>${inline(data.plan)}</p>` : ''}`;
     const items = data.files.map((file) => files.fileItem(file, 0)).join('');
-    return `<div class="ou-md">${intro}</div>${uncoveredHtml()}${context.drafts.allCommentsHtml()}${files.filesBox(`All files (${data.files.length})`, `${data.chapters.length} chapters`, items)}<div class="ou-rebuild-box"></div>`;
+    const filesBox = files.filesBox(
+      `All files (${data.files.length})`,
+      `${data.chapters.length} chapters`,
+      items,
+    );
+    return `<div class="ou-md">${intro}</div>${uncoveredHtml()}${context.drafts.allCommentsHtml()}<div class="ou-fixes"></div>${filesBox}<div class="ou-rebuild-box"></div>`;
   }
 
   /** A quiet note on the Overview: changed hunks no chapter points at (once-upon's build allowed them), as line links. */
@@ -71,7 +77,7 @@ export function createBody(context) {
     const comments = context.drafts.chapterCommentsHtml(chapter);
     const items = chapter.files.map((file) => files.fileItem(file, state.n)).join('');
     return `${context.freshness.sinceBanner(chapter)}<div class="ou-md">${storyHtml}</div>
-        ${comments}
+        ${comments}<div class="ou-fixes"></div>
         ${files.filesBox(`Files in this chapter (${chapter.files.length})`, files.filesSummary(state.n), items)}
         <div class="ou-rebuild-box"></div>`;
   }
@@ -100,7 +106,7 @@ export function createBody(context) {
     const stepList = stepListHtml();
     const body = chapter ? chapterHtml(chapter) : overviewHtml();
     $('.ou-body').innerHTML =
-      `<h2 class="ou-h">Steps</h2><ol class="ou-map">${stepList}</ol>${body}<div class="ou-questions"></div>`;
+      `<div class="ou-working"></div><h2 class="ou-h">Steps</h2><ol class="ou-map">${stepList}</ol>${body}<div class="ou-questions"></div>`;
     placeProgress();
     const commentsBox = $('.ou-body details.ou-allc');
     if (commentsBox) {
@@ -123,6 +129,8 @@ export function createBody(context) {
     context.freshness.render();
     context.rebuild.render();
     context.marks.render();
+    context.fixes.render();
+    context.working.render();
     $('.ou-body').scrollTop = 0;
   }
 
@@ -163,6 +171,10 @@ export function createBody(context) {
         Number(comment.getAttribute('data-i')),
         actButton.getAttribute('data-draft-act'),
       );
+    }
+    const fixControl = target.closest('[data-fix-act]');
+    if (fixControl) {
+      return context.fixes.act(fixControl);
     }
     const questionButton = target.closest('[data-qa-act]');
     if (questionButton) {
