@@ -1019,6 +1019,28 @@ try {
     /In fix before push/.test(await localPage.locator('#dsm-panel .prs-drafts').textContent()),
     'and the draft still says In fix before push',
   );
+  // Claude rewrites chapters.json: the panel's pulse redraws it open, and the page's own poll while it's closed
+  const localFile = path.join(local.dir, 'chapters.json');
+  const rewrite = (word) => {
+    const data = JSON.parse(readFileSync(localFile, 'utf8'));
+    data.chapters[0].narrative += `\n\n${word}`;
+    writeJson(localFile, data);
+  };
+  rewrite('Redrawn-open.');
+  await localPage.waitForTimeout(6500);
+  check(
+    /Redrawn-open/.test(await localPage.locator('#dsm-panel .prs-body').textContent()),
+    'the local page redraws an open panel when chapters.json changes (its pulse)',
+  );
+  await localPage.locator('#dsm-panel .prs-close').click();
+  rewrite('Redrawn-closed.');
+  await localPage.waitForTimeout(6500);
+  await localPage.locator('.ds-reopen').click();
+  await localPage.waitForTimeout(300);
+  check(
+    /Redrawn-closed/.test(await localPage.locator('#dsm-panel .prs-body').textContent()),
+    'and picks up a change made while the panel was closed',
+  );
   check(
     errors.length === 0,
     `no page errors on the local page${errors.length ? `: ${errors.join('; ')}` : ''}`,
