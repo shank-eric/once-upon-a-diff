@@ -142,5 +142,5 @@ Before driving the reviewer's Chrome for the first time in a session, say so in 
 
 - `bin/gather.sh`: read-only `gh` fetch into the scratch folder.
 - `bin/viewed.sh`: the gh user's viewed state per file (GraphQL `viewerViewedState`), for `brief`.
-- `bin/pr-story.mjs`: `brief`, `build`, `overlay`, `publish`.
+- `bin/pr-story.mjs`: `brief`, `build`, `overlay`, `publish`. It reads the diff and places files with the bridge's and the panel's own code from this checkout, so `file-map.json` matches the panel.
 - `bin/overlay.js`: the GitHub overlay that `overlay` wraps with the story data. Diff Story Mode's `src/js/shared/overlay.js` is a port of it (module export, shadow DOM, saved step, Ask box), so carry selector fixes across.

@@ -78,7 +78,7 @@ bridge/
     local/                      local.js split into diff-view.js  folds.js  notes.js  mount.js
     split.js  narrow.js  syntax.js  local.css  vendor/
 src/js/                         as it is now
-skills/pr-story/bin/            pr-story.mjs importing bridge/stories/chapters.mjs and bridge/util/diff.mjs
+skills/pr-story/bin/            pr-story.mjs importing the bridge's args, diff, chapters and text-refs
 test/
   unit/bridge/  unit/panel/  unit/content/  unit/util/
   browser/extension.mjs  browser/expand.mjs  browser/helpers.mjs
@@ -106,7 +106,7 @@ Steps 1 to 5 are independent of each other and could go in any order. Steps 6 an
 ## Status
 
 - Done: steps 1 to 5 (names in `bridge/`, `server/`, `backstory/`, `stories/`, `cli/`), 8 (`public/local/`), 10 (leftover names), and the naming rules are errors everywhere.
-- Step 6, partly: the skill uses the bridge's `entryOf`. Its `parseUnifiedDiff` and `textRefsOf` stay, because the bridge's versions would change the skill's `story.json`, and so its chat-mode page: renamed files would say "renamed" instead of "modified", hunks would keep "\\ No newline at end of file" lines, and only diff links that end at the line anchor would count. The options are to keep the copies, to switch and accept those differences, or to give the bridge's parser a mode that matches the skill's.
+- Step 6: the skill keeps no copies. `pr-story.mjs` imports the bridge's `parseArgs`, `parseUnifiedDiff`, `chaptersOf` and `addTextRefs`, and the panel's `finishedInOf`, so `file-map.json` is placed by the same code the panel uses. With chat mode gone, nothing reads the skill's hunks, so the parser change shows only in `brief`, where a renamed file now says "renamed" instead of "modified". `file-map.json` changes only where the old copy had drifted from the panel: a diff link counts only when it ends at the line anchor, and a chapter whose `since` isn't a valid commit range is placed as an ordinary chapter.
 - Step 7 is open, since it's a product call rather than a refactor. `bin/overlay.js` is what GitHub mode injects without the extension, and it never clicks GitHub's controls. Chat mode doesn't use it. The options:
   1. Keep it as the no-install fallback, and carry selector fixes across by hand.
   2. Build the snippet from `src/js/shared/panel/` when `pr-story.mjs overlay` runs. The snippet would then expand files and offer Mark viewed, so the skill's "never clicks GitHub's controls" rule would change, unless the panel grows a switch that turns those off.
