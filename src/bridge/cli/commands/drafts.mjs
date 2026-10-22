@@ -11,6 +11,7 @@ import { addComment } from '../../stories/comments.mjs';
 import { Inbox } from '../../inbox/inbox.mjs';
 import { draftsOf } from '../../github/drafts.mjs';
 import { out, notePlace } from '../output.mjs';
+import { readJson } from '../../util/json-file.mjs';
 
 const storeFor = (home) => new StoryStore({ home });
 
@@ -32,12 +33,7 @@ function comment(home, cfg, opts) {
   if (!dir) {
     throw new Error(`no story ${opts.story} (see: once-upon list)`);
   }
-  let meta = {};
-  try {
-    meta = JSON.parse(readFileSync(path.join(dir, 'meta.json'), 'utf8'));
-  } catch {
-    meta = {};
-  }
+  const meta = readJson(path.join(dir, 'meta.json'), {});
   const result = addComment(dir, meta, {
     chapter: opts.chapter,
     path: typeof opts.path === 'string' ? opts.path : '',

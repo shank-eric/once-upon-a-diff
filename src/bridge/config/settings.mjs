@@ -13,13 +13,21 @@
  *     local-<repo>-<branch>/       a local-commits story made by `once-upon local`
  */
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from 'node:fs';
+import { mkdirSync, writeFileSync, chmodSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DEFAULT_PORT } from '../../shared/util/bridge-port.js';
+import { readJson } from '../util/json-file.mjs';
 
 export function homeDir() {
   return process.env.ONCE_UPON_HOME || path.join(os.homedir(), '.once-upon');
+}
+
+/** One of a story's state files, <home>/state/<key>/<name>, with its folder made. */
+export function stateFile(home, key, name) {
+  const dir = path.join(home, 'state', key);
+  mkdirSync(dir, { recursive: true });
+  return path.join(dir, name);
 }
 
 export const newToken = () => randomBytes(24).toString('base64url');
@@ -29,14 +37,7 @@ export function loadConfig(home = homeDir()) {
   mkdirSync(home, { recursive: true, mode: 0o700 });
   const file = path.join(home, 'config.json');
   /** @type {{token?: string, port?: number, [key: string]: unknown}} */
-  let cfg = {};
-  if (existsSync(file)) {
-    try {
-      cfg = JSON.parse(readFileSync(file, 'utf8'));
-    } catch {
-      cfg = {};
-    }
-  }
+  const cfg = readJson(file, {}) || {};
   let changed = false;
   if (!cfg.token) {
     cfg.token = newToken();
@@ -73,12 +74,7 @@ const PLATFORM_OPENER = { darwin: ['open'], win32: ['explorer'] };
  * Read without creating config.json, so a missing file just means the defaults.
  */
 export function readSettings(home = homeDir()) {
-  let cfg = {};
-  try {
-    cfg = JSON.parse(readFileSync(path.join(home, 'config.json'), 'utf8')) || {};
-  } catch {
-    cfg = {};
-  }
+  const cfg = readJson(path.join(home, 'config.json'), {}) || {};
   const expand = (dirPath) =>
     dirPath.startsWith('~/') ? path.join(os.homedir(), dirPath.slice(2)) : dirPath;
   const dirs = Array.isArray(cfg.checkout_dirs)
@@ -149,12 +145,7 @@ export function saveConfig(cfg, home = homeDir()) {
 export const PREF_DEFAULTS = Object.freeze({ hideWhitespace: false, diffView: 'unified' });
 
 export function readPrefs(home = homeDir()) {
-  let saved = {};
-  try {
-    saved = JSON.parse(readFileSync(path.join(home, 'prefs.json'), 'utf8')) || {};
-  } catch {
-    saved = {};
-  }
+  const saved = readJson(path.join(home, 'prefs.json'), {}) || {};
   return {
     ...PREF_DEFAULTS,
     hideWhitespace: saved.hideWhitespace === true,

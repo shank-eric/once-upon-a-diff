@@ -22,11 +22,11 @@ import {
   readSync,
   closeSync,
   statSync,
-  readFileSync,
   writeFileSync,
 } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
+import { readJson } from '../util/json-file.mjs';
 
 export const newId = (prefix) =>
   `${prefix}_${Date.now().toString(36)}${randomBytes(3).toString('hex')}`;
@@ -126,11 +126,7 @@ export class Inbox {
     return path.join(this.home, 'cursors', `${safe}.json`);
   }
   getCursor(consumer) {
-    try {
-      return JSON.parse(readFileSync(this.cursorFile(consumer), 'utf8')).offset || 0;
-    } catch {
-      return 0;
-    }
+    return readJson(this.cursorFile(consumer), {})?.offset || 0;
   }
   setCursor(consumer, offset) {
     writeFileSync(

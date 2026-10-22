@@ -20,7 +20,7 @@
 import path from 'node:path';
 import { newId } from './inbox.mjs';
 import { sameRepo, REPO_RE } from '../config/repos.mjs';
-import { SHA_RE, shortSha } from '../../shared/util/text.js';
+import { SHA_RE, plural, shortSha } from '../../shared/util/text.js';
 import { prKey } from '../../shared/util/github-paths.js';
 import { readerOf } from '../config/settings.mjs';
 import { readJson, writeJson } from '../util/json-file.mjs';
@@ -92,7 +92,7 @@ export function updateOf(build, reader = "the reviewer's") {
   return (
     `update: "Since you read it" from ${shortSha(since)}` +
     (build.since_source === 'read'
-      ? ` (where ${reader} reading stopped; ${reads.length} chapter${reads.length === 1 ? '' : 's'} read)`
+      ? ` (where ${reader} reading stopped; ${plural(reads.length, 'chapter')} read)`
       : " (the story's old head; no chapters read)")
   );
 }

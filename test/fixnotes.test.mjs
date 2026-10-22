@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { tmp, startBridge, localRepo, writeJson } from './helpers.mjs';
 import { createLocalStory } from '../src/bridge/stories/local-story.mjs';
-import { relOfDraft } from '../src/bridge/server/index.mjs';
+import { relOfPath } from '../src/bridge/server/index.mjs';
 import { draftView } from '../src/shared/overlay.js';
 
 test('Add to fix before push makes a local draft a note, once, and the draft says so', async () => {
@@ -106,9 +106,9 @@ test('a draft in fix before push shows as such, and a dismissed one stays dismis
     draftView({ status: 'draft', dismissed: true, fix: { id: 'n1', done: false } }).show,
     'dismissed',
   );
-  assert.equal(relOfDraft('two.js', ['lib/two.js', 'one.txt']), 'lib/two.js');
+  assert.equal(relOfPath('two.js', ['lib/two.js', 'one.txt']), 'lib/two.js');
   assert.equal(
-    relOfDraft('index.ts', ['a/index.ts', 'b/index.ts']),
+    relOfPath('index.ts', ['a/index.ts', 'b/index.ts']),
     null,
     'an ambiguous name resolves to nothing',
   );

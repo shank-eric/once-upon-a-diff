@@ -21,10 +21,12 @@
 import { chaptersOf, entryOf } from './chapters.mjs';
 import { readReads, retireReads } from './reads.mjs';
 import { chapterKeyOf } from '../../shared/panel/story-model.js';
+import { plural } from '../../shared/util/text.js';
 import { Inbox } from '../inbox/inbox.mjs';
 import { moveQuestions } from '../inbox/conversation.mjs';
 import { addTextRefs } from './text-refs.mjs';
 import { uncoveredHunks, sidesOf } from './hunk-coverage.mjs';
+import { relOfPath } from '../util/diff.mjs';
 
 export const REBUILD_MODES = ['rebuild', 'rebuild_from'];
 export const isRebuild = (build) => !!build && REBUILD_MODES.includes(build.mode);
@@ -117,16 +119,6 @@ const isGeneral = (comment) => !(Number(comment.line) > 0) || /^\(/.test(comment
 const commentId = (comment) =>
   `${comment.path || ''}\n${Number(comment.line) || 0}\n${String(comment.body || '').trim()}`;
 
-/** The diff file a comment's path names: exact, else the one file it's a suffix of. */
-function relOf(name, rels) {
-  const wanted = String(name || '').replace(/^\.\//, '');
-  if (rels.includes(wanted)) {
-    return wanted;
-  }
-  const hits = rels.filter((rel) => rel.endsWith('/' + wanted));
-  return hits.length === 1 ? hits[0] : null;
-}
-
 /** Is the comment's line inside one of the file's hunks (context included), on its side? */
 function onDiffLine(file, comment) {
   const side = comment.side === 'L' ? 'L' : 'R';
@@ -191,7 +183,7 @@ export function carryDrafts(before, after, diff, from = 1) {
         continue;
       }
       present.add(id);
-      const rel = isGeneral(comment) ? null : relOf(comment.path, rels);
+      const rel = isGeneral(comment) ? null : relOfPath(comment.path, rels);
       const maps = isGeneral(comment) || (!!rel && onDiffLine(diff.get(rel), comment));
       const target = after.chapters[homeOf(after, from, chapterKeyOf(chapter), rel, comment)];
       target.comments = Array.isArray(target.comments) ? target.comments : [];
@@ -258,7 +250,6 @@ export function readsToRetire(reads, before, after) {
 export function rebuildNote(build, { carried = 0, unmapped = 0, moved = 0, retired = 0 } = {}) {
   const from = firstRetold(build);
   const what = from > 1 ? `Re-told from chapter ${from}` : 'Re-told the whole story';
-  const plural = (count, word) => `${count} ${word}${count === 1 ? '' : 's'}`;
   const parts = [
     carried ? `kept ${plural(carried, 'draft')}` : '',
     unmapped ? `flagged ${plural(unmapped, 'draft')} whose line left the diff` : '',

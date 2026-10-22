@@ -8,17 +8,16 @@
  * A mark lasts until its session clears it (`working --done`, or `fixed`), and expires when the session goes quiet:
  * no `working` call for MARK_FRESH_MS, or its listener (the wait of the same consumer) stopped beating.
  */
-import path from 'node:path';
-import { mkdirSync } from 'node:fs';
 import { ID_RE } from './meta.mjs';
 import { listeners } from '../listeners/listeners.mjs';
 import { readJson, writeJsonAtomic } from '../util/json-file.mjs';
+import { stateFile } from '../config/settings.mjs';
 
 export const MARK_FRESH_MS = 30 * 60 * 1000;
 const DONE_KEPT = 5;
 const MAX_FILES = 200;
 
-const workingFile = (home, story) => path.join(home, 'state', story, 'working.json');
+const workingFile = (home, story) => stateFile(home, story, 'working.json');
 
 function readWorking(home, story) {
   if (!ID_RE.test(String(story || ''))) {
@@ -29,7 +28,6 @@ function readWorking(home, story) {
 }
 
 function saveWorking(home, story, working) {
-  mkdirSync(path.dirname(workingFile(home, story)), { recursive: true });
   writeJsonAtomic(workingFile(home, story), working);
 }
 

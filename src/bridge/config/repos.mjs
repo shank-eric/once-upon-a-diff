@@ -7,10 +7,11 @@
  *   <home>/checkouts.json   {"owner/name": "/path/to/checkout"}, lowercased keys
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { readSettings } from './settings.mjs';
+import { readJson } from '../util/json-file.mjs';
 
 export const REPO_RE = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
 export const sameRepo = (first, second) =>
@@ -60,13 +61,7 @@ export function storyRepo(meta) {
 }
 
 const file = (home) => path.join(home, 'checkouts.json');
-const readAll = (home) => {
-  try {
-    return JSON.parse(readFileSync(file(home), 'utf8')) || {};
-  } catch {
-    return {};
-  }
-};
+const readAll = (home) => readJson(file(home), {}) || {};
 
 /** Note where a repo's checkout is (from a local story, or a listener's working folder). */
 export function seenCheckout(home, repo, dir) {

@@ -6,6 +6,7 @@
 import { chapterNumbers } from '/assets/overlay.js';
 import { claimsOf, narrowRows } from '/assets/narrow.js';
 import { escapeHtml } from '/assets/util/html.js';
+import { plural } from '/assets/util/text.js';
 import { page } from './page.js';
 import { columnCount } from './diff-view.js';
 
@@ -81,7 +82,7 @@ export function narrow({ n: step, all }) {
         : 'from other chapters';
       rows[run.from].insertAdjacentHTML(
         'beforebegin',
-        `<tr class="ds-narrow"><td colspan="${columnCount()}">⋯ ${lines} line${lines === 1 ? '' : 's'} ${escapeHtml(who)}<button type="button" data-narrow-open>Show</button></td></tr>`,
+        `<tr class="ds-narrow"><td colspan="${columnCount()}">⋯ ${plural(lines, 'line')} ${escapeHtml(who)}<button type="button" data-narrow-open>Show</button></td></tr>`,
       );
     }
   }

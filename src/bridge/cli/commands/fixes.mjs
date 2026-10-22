@@ -12,6 +12,7 @@ import { storyRepo } from '../../config/repos.mjs';
 import { clearMark, parseFiles, setMark } from '../../stories/working.mjs';
 import { storyIdOf } from './inbox.mjs';
 import { out } from '../output.mjs';
+import { plural } from '../../../shared/util/text.js';
 
 const WORKING_USAGE =
   'usage: once-upon working (--story ID | --request F) [--files P[:A-B],... | --done [SHA]] [--consumer NAME]';
@@ -101,7 +102,7 @@ function fixed(home, cfg, opts) {
   out(
     opts.failed
       ? `${id}: not fixed. Its ${request.notes.length} note${request.notes.length === 1 ? ' is' : 's are'} back in the reviewer's drafts.`
-      : `${id}: ${done.fixed.length} note${done.fixed.length === 1 ? '' : 's'} fixed in ${done.sha}${left ? `, ${left} back in the drafts` : ''}. The panel shows it within a few seconds.`,
+      : `${id}: ${plural(done.fixed.length, 'note')} fixed in ${done.sha}${left ? `, ${left} back in the drafts` : ''}. The panel shows it within a few seconds.`,
   );
 }
 

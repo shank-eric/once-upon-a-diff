@@ -14,6 +14,7 @@ import { entryOf } from './chapters.mjs';
 import { ID_RE } from './meta.mjs';
 import { storyDirFor } from './placement.mjs';
 import { repoOfCheckout, seenCheckout } from '../config/repos.mjs';
+import { plural } from '../../shared/util/text.js';
 
 export const slug = (text) =>
   String(text)
@@ -43,7 +44,7 @@ export function defaultChapters(rels, title) {
   }
   const chapters = [...groups].map(([key, files], i) => ({
     title: `Chapter ${i + 1}: ${key}`,
-    summary: `${files.length} file${files.length === 1 ? '' : 's'} under ${key}.`,
+    summary: `${plural(files.length, 'file')} under ${key}.`,
     narrative: '',
     files,
   }));

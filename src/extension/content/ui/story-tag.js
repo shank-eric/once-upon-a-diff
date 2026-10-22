@@ -16,7 +16,7 @@
  * No DOM or chrome.* here, so node can test it.
  */
 import { escapeHtml } from '../../shared/util/html.js';
-import { shortSha } from '../../shared/util/text.js';
+import { plural, shortSha } from '../../shared/util/text.js';
 import { clockTime } from '../../shared/util/time.js';
 
 /**
@@ -93,7 +93,7 @@ export function tagFor(result, { repo, number }) {
   const all = !!readCount && readCount.read >= readCount.total;
   if (result.stale && readCount && readCount.read) {
     const newer = Number.isFinite(result.newer) ? result.newer : null;
-    const label = `${all ? 'Read' : `${readCount.read} of ${readCount.total} read`} · ${newer != null ? `${newer} new commit${newer === 1 ? '' : 's'}` : 'new commits'} · Update`;
+    const label = `${all ? 'Read' : `${readCount.read} of ${readCount.total} read`} · ${newer != null ? plural(newer, 'new commit') : 'new commits'} · Update`;
     return {
       kind: 'button',
       act: 'update',

@@ -25,12 +25,11 @@
  * page itself confirms it. A confirmed mark is dropped ("settle").
  */
 import { createHash } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import path from 'node:path';
 import { runGh } from '../util/gh.mjs';
 import { prKey } from '../../shared/util/github-paths.js';
 import { readJson, writeJson } from '../util/json-file.mjs';
 import { noteState } from '../inbox/fixes.mjs';
+import { stateFile } from '../config/settings.mjs';
 
 const TTL_MS = 60000;
 const LINE_SLACK = 3;
@@ -200,11 +199,7 @@ export const forgetComments = (repo, number) => {
 };
 
 // ---------- the reviewer's own calls, kept by the bridge
-function file(home, key) {
-  const dir = path.join(home, 'state', key);
-  mkdirSync(dir, { recursive: true });
-  return path.join(dir, 'drafts.json');
-}
+const file = (home, key) => stateFile(home, key, 'drafts.json');
 const EMPTY = () => ({ dismissed: [], added: [] });
 export function readMarks(home, key) {
   return { ...EMPTY(), ...readJson(file(home, key), {}) };

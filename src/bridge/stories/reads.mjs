@@ -22,8 +22,7 @@
  * "Since you read it" chapter (that chapter caught them up), and falling back
  * to the commit the story was told from.
  */
-import { mkdirSync } from 'node:fs';
-import path from 'node:path';
+import { stateFile } from '../config/settings.mjs';
 import { readJson, writeJson } from '../util/json-file.mjs';
 import { chapterKeyOf } from '../../shared/panel/story-model.js';
 import { SHA_RE } from '../../shared/util/text.js';
@@ -32,11 +31,7 @@ export const READ_MIN_SECONDS = 30;
 /** time: they stayed on it; viewed: they ticked its last file; inferred: its files were all Viewed already when the panel opened (a review before read tracking, or with the panel closed) */
 export const READ_REASONS = ['time', 'viewed', 'inferred'];
 
-function file(home, key) {
-  const dir = path.join(home, 'state', key);
-  mkdirSync(dir, { recursive: true });
-  return path.join(dir, 'read.json');
-}
+const file = (home, key) => stateFile(home, key, 'read.json');
 export function readReads(home, key) {
   const reads = readJson(file(home, key), {});
   return reads && typeof reads === 'object' && !Array.isArray(reads) ? reads : {};
