@@ -8,7 +8,7 @@
  * expandDirOf and expandStep have no DOM, so node tests can use them.
  */
 
-/** Which way an expand control opens: 'up', 'down' or 'all', from data-direction or its label ("Expand file down from line 82"). */
+/** Which way an expand control opens: 'up', 'down' or 'all', from data-direction or its label ("Expand Up", "Expand file down from line 82"). */
 export function expandDirOf(direction, label) {
   const dataDirection = String(direction || '').toLowerCase();
   if (dataDirection === 'up' || dataDirection === 'down' || dataDirection === 'all') {
