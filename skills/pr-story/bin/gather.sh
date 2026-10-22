@@ -4,7 +4,7 @@
 #
 #   gather.sh <number|url> [owner/repo] -o <dir>
 #
-# Writes pr.json, pr.diff, comments.json, threads.json, checks.json,
+# Writes pr.json, pr.diff, threads.json (review comments by thread), checks.json,
 # viewed.tsv and checkouts.txt (local clones of the repo under the checkout folders:
 # DIFF_STORY_DEV_DIR, else checkout_dirs in ~/.diff-story/config.json, else ~/Development).
 set -euo pipefail
@@ -34,8 +34,6 @@ if ! gh pr diff "$PR" -R "$REPO" > "$OUT/pr.diff" 2> "$OUT/diff.err"; then
   echo "gh pr diff failed (often: diff too large). Build it from a local checkout instead:" >&2
   echo "  git -C <checkout> diff \$(jq -r .baseRefOid $OUT/pr.json)...\$(jq -r .headRefOid $OUT/pr.json) > $OUT/pr.diff" >&2
 fi
-
-gh api --paginate "repos/$REPO/pulls/$PR/comments" --jq '.[]' | jq -s . > "$OUT/comments.json"
 
 # shellcheck disable=SC2016 # $owner, $name and $pr are GraphQL variables, not the shell's
 gh api graphql -F owner="$OWNER" -F name="$NAME" -F pr="$PR" -f query='
