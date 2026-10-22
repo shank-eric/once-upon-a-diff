@@ -88,10 +88,10 @@ Put it in your shell profile. The rest of this guide uses `diff-story`. Run it w
 
 ### 9. Your first PR story
 
-1. Open a PR's **Files changed** tab. With no story yet, a small control at the bottom right says **No story yet · Build story**.
-2. Click **Build story**. With no Claude session listening for that repo, it changes to **Story queued · no session listening**, with a **Copy prompt for Claude** button. (On PR lists and a PR's Conversation tab, the same thing shows as a "No session listening for owner/name" notice.)
+1. Open a PR's **Files changed** tab. With no story yet, a **Build story** tag sits next to the PR title.
+2. Click **Build story**. It changes to **Queued**, and with no Claude session listening for that repo, a notice at the bottom right says "No session listening for owner/name", with a **Copy prompt for Claude** button. PR lists and a PR's Conversation tab show the same tag and notice.
 3. Click **Copy prompt for Claude**. It copies one line, `/diff-story-listen owner/repo`.
-4. Open Claude Code in your local checkout of that repo and paste the line. The session checks the bridge (starting it if it isn't running), says it's listening, and waits in the background. The control turns to **Building story**.
+4. Open Claude Code in your local checkout of that repo and paste the line. The session checks the bridge (starting it if it isn't running), says it's listening, and waits in the background. The tag turns to **Building…**.
 5. When the story is written, the panel opens on the page by itself, at the Overview step.
 
 Then, in the panel:
@@ -99,7 +99,7 @@ Then, in the panel:
 - **Prev and Next** (or the Steps list) filter the diff to one chapter. **Show all files** undoes the filter.
 - **Mark viewed.** In each chapter, a file with a **Mark viewed** button is one this chapter finishes. Click the button (or GitHub's own Viewed checkbox, which is the same thing) and it becomes **Viewed ✓**; click that to untick it. A file a later chapter finishes has no button yet. The panel follows the checkboxes and counts your progress, and only ever ticks one when you click its button.
 - **Ask.** Type a question and press **Cmd+Enter**. The listening session answers it from the story and the code, and the answer shows under the question.
-- **Draft comments.** Comments Claude drafts show in the chapter's Draft comments. On a line comment, **Add to my review** puts it in your pending GitHub review (starting one if needed) and never submits it. **Mark posted** and **Dismiss** keep track of the rest.
+- **Draft comments.** Comments Claude drafts show in the chapter's Draft comments. On a line comment, **Add to my review** puts it in your pending GitHub review (starting one if needed) and never submits it. **Dismiss** hides one you don't want, and a draft you post shows as posted once gh finds it.
 - **Hide whitespace** is GitHub's own setting, and the extension remembers it across PRs. On GitHub, use GitHub's own split view. The local page (step 10) has its own **Hide whitespace** and **Unified / Split** in its header.
 
 Tell the session "stop" when you're done. Run one listener per repo, each in its own session.

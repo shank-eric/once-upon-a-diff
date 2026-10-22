@@ -83,7 +83,7 @@ async function drafts(home, cfg, opts) {
   for (const row of rows) {
     const draft = chapters[row.chapter - 1].comments[row.index];
     out(
-      `ch ${row.chapter} #${row.index + 1}  ${stateOf(row)}${row.source === 'manual' ? ' (marked)' : ''}  ${draft.path}${draft.line ? `:${draft.line}` : ''}  ${draft.body.replace(/\s+/g, ' ').slice(0, 70)}${row.url ? `  ${row.url}` : ''}`,
+      `ch ${row.chapter} #${row.index + 1}  ${stateOf(row)}  ${draft.path}${draft.line ? `:${draft.line}` : ''}  ${draft.body.replace(/\s+/g, ' ').slice(0, 70)}${row.url ? `  ${row.url}` : ''}`,
     );
   }
 }

@@ -95,7 +95,7 @@ When Claude rewrites `chapters.json`, the panel redraws within ≈5 seconds, or 
 - **Posted ✓**, with a link to the posted comment. These are hidden by default behind "Show posted (N)".
 - **In your pending review**, for a comment in a review you haven't submitted yet. These stay visible, marked as not submitted.
 - **Dismissed**, for a draft you don't want. Dismiss hides it behind "Show dismissed (N)", and Restore brings it back.
-- **A draft**, with **Mark posted** and **Dismiss** buttons, and on a line comment **Add to my review** (on the local page, **Add to fix before push**).
+- **A draft**, with a **Dismiss** button, and on a line comment **Add to my review** (on the local page, **Add to fix before push**).
 
 **Add to my review** puts a line draft into your pending review on GitHub, starting one if you have none. It never submits the review. GitHub doesn't redraw an open Files changed page for that, so the draft switches to "In your pending review" with the file and line, a jump link, "GitHub shows it after a reload" and a **Reload page** button. The page only reloads when you click it, and the panel comes back on the same step. The bridge keeps this state in `drafts.json`, so it lasts through re-renders, reloads and bridge restarts. Once gh finds the comment after a reload, or it shows up on the page, it becomes the usual pending (or posted) row. If GitHub refuses, the error shows on the draft and its buttons stay. A draft that's already in your review can't be added twice.
 
@@ -109,8 +109,8 @@ How the bridge decides:
 
 - **Posted and pending come from GitHub.** The bridge reads your own comments with read-only `gh api` GETs, with `GITHUB_TOKEN` unset so the keychain login is used, and caches them for 60s. It reads the PR's review comments, its reviews (a PENDING one is your unsubmitted review, read along with its comments) and its general comments.
 - **Matching is fuzzy, because you often edit a draft before posting.** A draft matches a comment of yours on the same file within 3 lines, or a general draft a general comment, when the text is at least 0.75 similar.
-- **Your own calls override it.** Mark posted, Unmark, Dismiss and Add to my review are kept by the bridge per PR, in `~/.diff-story/state/pr-<owner>-<repo>-<N>/drafts.json`. Rebuilt and regenerated stories keep them, and a dismissed comment matched by path, line and text isn't suggested again.
-- **Local mode has only the manual buttons.**
+- **Your own calls are kept.** Dismiss and Add to my review are kept by the bridge per PR, in `~/.diff-story/state/pr-<owner>-<repo>-<N>/drafts.json`. Rebuilt and regenerated stories keep them, and a dismissed comment matched by path, line and text isn't suggested again.
+- **The local page has no GitHub to match**, so its drafts stay drafts until you dismiss them or add them to fix before push.
 - `diff-story drafts --story <id>` lists every draft's state.
 
 Add to my review is the only write to GitHub. Everything else here is read-only.
@@ -134,13 +134,13 @@ It never clicks that toggle on its own: not on a step change, a reload or a redr
 
 - **Story** opens the PR's Files changed tab, where the panel docks. Once you've read some of it, it says **Story · 2 of 5 read** and opens on the first chapter you haven't read (Files changed`#dsm-step-N`). Once you've read every chapter, it's a muted **Read**.
 - **Read · 3 new commits · Update** (or "2 of 5 read · …") means you've read the story and the PR has moved on. Update asks for a "Since you read it" chapter, and the small **Re-tell** beside it asks for a new story.
-- **Build story** sends the same build request as the PR page's button.
+- **Build story** asks for a story, the same request as on Files changed.
 - **Story out of date · Update**, on a story you haven't read, asks for an update to the PR's latest commit: a "Since you read it" chapter for the new commits (see [Since you read it](#since-you-read-it)). The small **Re-tell** beside it asks for a whole new story instead.
 - **Queued** means a story was asked for and no Claude session has taken it yet. **Building…** means a session has claimed it. Neither can be clicked. An update shows as **Update queued** or **Updating…**.
 
 When no session is listening for a repo on the page, one notice at the bottom right says "No session listening for owner/name", with **Copy prompt for Claude** and, when the bridge knows one, the checkout to start Claude Code in. It's said once for the page, not on each row.
 
-The page makes one batched lookup (`POST /api/stories/status-many`, cached 5s), and the tags come back after GitHub or Refined GitHub redraws the list or the PR header. While a tag says Queued or Building…, the page looks again every 15s. With no bridge running, the list stays as GitHub draws it.
+The page makes one batched lookup (`POST /api/stories/status-many`, cached 5s), and the tags come back after GitHub or Refined GitHub redraws the list or the PR header. While a tag says Queued or Building…, the page looks again every 10s. With no bridge running, the list stays as GitHub draws it.
 
 **What you've read.** The panel records a chapter as read when you leave it after 30 seconds on it (counted only while the tab is showing, and switching tabs counts as leaving), or when you tick the last of its files viewed there. Each record is kept per PR in `~/.diff-story/state/pr-<owner>-<repo>-<N>/read.json` as `{<chapter key>: {head_sha, story_head, at, reason}}`, and goes to the inbox as a `read` line. `head_sha` is the PR's head at the time: the panel sends the one it got from the freshness check, and the bridge asks gh (read-only) when it doesn't have one. `story_head` is the commit the story was told from, which is the same unless the story was already out of date. A local story records its range's head commit. A chapter's key is its `key` in `chapters.json`, or else its title without "Chapter N:", so a chapter put in front of it doesn't change it. `GET /api/stories/:id/read` lists them.
 
@@ -155,7 +155,7 @@ The page makes one batched lookup (`POST /api/stories/status-many`, cached 5s), 
 
 When a PR gets a few new commits after you've read its story, an update adds one chapter instead of telling the whole story again:
 
-- The bridge works out where your reading stopped: the commit you read your earliest chapter at (from `read.json`, above), counting only reads after the newest "Since you read it" chapter you read, since that one caught you up. With nothing read, it's the commit the story was told from. The build request carries it as `since_sha`, with `since_source` (`read` or `story`), the `reads` and the story id. `diff-story builds` prints it under each update ("update: "Since you read it" from abc1234 (where his reading stopped; 3 chapters read)"), `builds --json` and `wait --json` include the fields, and the inbox line's text says what to write.
+- The bridge works out where your reading stopped: the commit you read your earliest chapter at (from `read.json`, above), counting only reads after the newest "Since you read it" chapter you read, since that one caught you up. With nothing read, it's the commit the story was told from. The build request carries it as `since_sha`, with `since_source` (`read` or `story`), the `reads` and the story id. `diff-story builds` prints it under each update ("update: "Since you read it" from abc1234 (where his reading stopped; 3 chapters read)"), `builds --json` and `wait --json` include the fields, and the request `wait` hands over says what to write.
 - The pr-story skill writes one chapter for `since_sha..` the PR's head, puts it first, and keeps the other chapters as they were. It has `since: {from, to, commits}` in `chapters.json` and lists the files those commits touched.
 - The panel doesn't number "Since you read it" chapters. The Steps list shows them as **New**, and the chapters after them keep the numbers you read them with, so the chapter numbers in their text still hold. A file a "Since you read it" chapter lists is marked viewed there (the newest one wins), since you've read the chapters after it. Its other chapters say "Already finished in “Since you read it”". pr-story's `file-map.json` follows the same rule.
 - On a PR, a "Since you read it" chapter starts with which commits it covers and a link to GitHub's diff of just those commits, `/pull/N/files/<from>..<to>`. That form loads logged in or out, and `/changes/<from>..<to>` redirects to it when logged out (checked on a public PR on 2026-10-21). On that page the panel opens on the chapter, once per page load, and the chapter's filter shows only the files those commits touched. A link back to all of the PR's changes replaces it there.
@@ -164,11 +164,11 @@ When a PR gets a few new commits after you've read its story, an update adds one
 
 ### Story ready, Building, Build story
 
-Every PR Files changed page gets a small status control in the bottom-right corner, shown whenever the panel isn't:
+A PR's Files changed tab gets the same story tag as PR lists and the Conversation tab (see **On PR lists and a PR's Conversation tab** above), next to the PR title, whenever the panel isn't showing:
 
-- **Story ready · Read it** opens the panel. You see it when a story exists and the panel is hidden.
-- **Story queued · asked 5:44 PM** means someone asked for a story and no session has taken it yet. It says when no session is listening for the repo, with **Copy prompt for Claude**. **Building story** means a session claimed it: `diff-story wait` claims each request it hands over, and `diff-story builds --start <id>` refreshes the claim on a long build. A claim with no refresh for 30 minutes goes back to Queued, and the next wait hands it out again. While a request is queued or building, the page asks the bridge every ≈10 seconds, and when the story turns up the panel opens by itself. That's the only polling a page without a story does.
-- **No story yet · Build story** asks for one. The extension sends `{repo, number, url, requested_at}` to the bridge, which keeps the request in `~/.diff-story/builds.json`. Every tab on that PR then shows it as queued.
+- **Story** opens the panel again. You see it when a story exists and the panel is hidden.
+- **Queued** means someone asked for a story and no session has taken it yet. When no session is listening for the repo, a notice at the bottom right says so, with **Copy prompt for Claude**. **Building…** means a session claimed it: `diff-story wait` claims each request it hands over, and `diff-story builds --start <id>` refreshes the claim on a long build. A claim with no refresh for 30 minutes goes back to Queued, and the next wait hands it out again. While a request is queued or building, the page asks the bridge every ≈10 seconds, and when the story turns up the panel opens by itself. That's the only polling a page without a story does.
+- **Build story** asks for one. The extension sends `{repo, number, url, requested_at}` to the bridge, which keeps the request in `~/.diff-story/builds.json`. Every tab on that PR then shows it as queued.
 
 A Claude session fulfils the request. `diff-story wait` hands it build requests from `builds.json`, oldest first, whenever they were asked, so a listener started after the request still gets it. Each request goes to one listener at a time. `diff-story builds` lists the pending ones as queued or building. The session writes the story with the pr-story skill, whose `build` publishes it. Publishing finishes the request, and so does the bridge seeing the story turn up. If it can't be built, the session says so with `diff-story done <id> --failed --note "…"`. The × on the control hides it until the page reloads. The control is the extension's own button in its own shadow root, and it never clicks anything of GitHub's.
 
@@ -351,15 +351,15 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
   - `js/background.js` is the only code that makes network calls, and only to `127.0.0.1`.
   - `js/content/index.js` routes by page kind: Files changed, Conversation, PR list, or other.
     - `bridge.js` sends bridge calls through the service worker. `storage.js` keeps the panel's state per PR and the Hide whitespace copy.
-    - `pages/files-changed.js` docks the panel and runs the status control. `pages/hide-whitespace.js` keeps `?w=1` in step with the setting.
+    - `pages/files-changed.js` docks the panel and puts the story tag by the title when the panel is hidden. `pages/hide-whitespace.js` keeps `?w=1` in step with the setting.
     - `pages/conversation.js` and `pages/pull-list.js` put the story tag by a PR's title.
-    - `ui/` holds the pieces they share: `story-tag.js` (what a tag says), `tag-host.js`, `listen-notice.js`, `status-control.js`, `copy.js` and `toast.js`.
+    - `ui/` holds the pieces they share: `story-tag.js` (what a tag says), `tag-host.js`, `listen-notice.js`, `pr-tags.js` (the tag controller every PR page shares), `copy.js` and `toast.js`.
   - `js/shared/overlay.js` is the panel's entry, shared with the local page. It builds one context and wires the modules in `js/shared/panel/`:
     - `story-model.js`: chapters, numbers and where each file is finished. `panel-state.js`: the saved step and layout.
     - `shell.js` and `styles.js`: the frame, toolbar and CSS. `body.js`: the step on screen. `navigation.js`: Prev, Next and the step list.
     - `host-page.js`: finding files, lines and toggles on `/changes`, `/files` and the local page. `filter.js`, `expand.js` and `scroll.js`: hiding, opening and jumping.
     - `file-refs.js` and `markdown.js`: the story's text and its jump links. `file-list.js`: the file rows.
-    - `viewed.js`, `reading.js`, `drafts.js`, `freshness.js`, `status-light.js` and `questions.js`: Viewed progress, read tracking, drafted comments, story freshness, the status light and the Ask box.
+    - `viewed.js`, `reading.js`, `drafts.js`, `freshness.js`, `marks.js`, `status-light.js` and `questions.js`: Viewed progress, read tracking, drafted comments, story freshness, the "changed since" marks, the status light and the Ask box.
   - `js/shared/util/`: helpers for the panel, the content scripts, the local page and the bridge (escaping, short SHAs, times, the clipboard, GitHub paths, key isolation).
 - `bridge/`: the bridge and its CLI.
   - `bin/diff-story.mjs` runs `cli/index.mjs`, a table of commands in `cli/commands/` (bridge, stories, inbox, drafts, builds, checks) that also builds the help. `cli/doctor.mjs` is `diff-story doctor`.

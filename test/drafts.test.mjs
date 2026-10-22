@@ -62,7 +62,7 @@ test('an edited draft still matches what was posted; an unrelated one does not',
   );
 });
 
-test('posted, pending (his unsubmitted review), dismissed and manual marks are four separate things', async () => {
+test('posted, pending (his unsubmitted review), dismissed and draft are separate things', async () => {
   clearCache();
   const home = tmp('home');
   githubStory(path.join(home, 'acme-widgets-7'));
@@ -109,23 +109,18 @@ test('posted, pending (his unsubmitted review), dismissed and manual marks are f
       })
     ).body;
     assert.equal(result.drafts[3].dismissed, true);
-    result = (
-      await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
-        chapter: 1,
-        index: 2,
-        action: 'posted',
-      })
-    ).body;
-    assert.equal(result.drafts[2].status, 'posted');
-    assert.equal(result.drafts[2].source, 'manual');
-    result = (
-      await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
-        chapter: 1,
-        index: 0,
-        action: 'unposted',
-      })
-    ).body;
-    assert.equal(result.drafts[0].status, 'draft', 'Unmark wins over a wrong match');
+    assert.equal(result.drafts[0].status, 'posted', 'a dismiss leaves the others as gh found them');
+    assert.equal(
+      (
+        await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
+          chapter: 1,
+          index: 2,
+          action: 'posted',
+        })
+      ).status,
+      400,
+      'there is no manual Mark posted',
+    );
 
     // a regenerated story, comments reordered and the dismissed one reworded a little, keeps the calls (they're kept per PR)
     writeJson(file, {
@@ -151,7 +146,7 @@ test('posted, pending (his unsubmitted review), dismissed and manual marks are f
       true,
       'a regenerated story does not suggest a dismissed comment again',
     );
-    assert.equal(result.drafts[1].status, 'draft');
+    assert.equal(result.drafts[1].status, 'posted', 'gh still matches the reordered one');
     result = (
       await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
         chapter: 1,
@@ -175,7 +170,7 @@ test('posted, pending (his unsubmitted review), dismissed and manual marks are f
   }
 });
 
-test('without gh, posted detection says why and manual marks still work', async () => {
+test('without gh, posted detection says why and Dismiss still works', async () => {
   clearCache();
   const saved = process.env.DIFF_STORY_GH;
   process.env.DIFF_STORY_GH = '/nonexistent/gh';
@@ -189,10 +184,11 @@ test('without gh, posted detection says why and manual marks still work', async 
       await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
         chapter: 1,
         index: 0,
-        action: 'posted',
+        action: 'dismiss',
       })
     ).body;
-    assert.equal(result.drafts[0].status, 'posted');
+    assert.equal(result.drafts[0].status, 'draft');
+    assert.equal(result.drafts[0].dismissed, true);
   } finally {
     await bridge.close();
     process.env.DIFF_STORY_GH = saved;

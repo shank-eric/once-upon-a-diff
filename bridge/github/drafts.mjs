@@ -13,7 +13,7 @@
  * general draft a general comment) whose text is at least 0.75 similar, since
  * a draft is often edited before it's posted.
  *
- * "Mark posted" / "Unmark" and "Dismiss" / "Restore" are the reviewer's calls, kept by
+ * "Dismiss" / "Restore" is the reviewer's call, kept by
  * the bridge in <home>/state/<key>/drafts.json, where the key is the PR (so a
  * re-rendered or regenerated story keeps them) or the local story's id.
  * Dismissals match by path, line and text too, so a regenerated story doesn't
@@ -203,7 +203,7 @@ function file(home, key) {
   mkdirSync(dir, { recursive: true });
   return path.join(dir, 'drafts.json');
 }
-const EMPTY = () => ({ posted: [], unposted: [], dismissed: [], added: [] });
+const EMPTY = () => ({ dismissed: [], added: [] });
 export function readMarks(home, key) {
   return { ...EMPTY(), ...readJson(file(home, key), {}) };
 }
@@ -220,26 +220,20 @@ const entryOf = (draft) => ({
 const sameAs = (entry) => (e) =>
   bestMatch(entry, [{ ...e, path: isGeneral(e) ? null : e.path }]) !== null;
 
-/** action: posted | unposted | dismiss | restore | settle (drop an `added` mark once it's confirmed), for one draft {path, line, body}. */
+/** action: dismiss | restore | settle (drop an `added` mark once it's confirmed), for one draft {path, line, body}. */
 export function mark(home, key, action, draft) {
   const marks = readMarks(home, key);
   const entry = entryOf(draft);
   const same = sameAs(entry);
   const drop = (list) => list.filter((e) => !same(e));
-  if (action === 'posted') {
-    marks.posted = [...drop(marks.posted), entry];
-    marks.unposted = drop(marks.unposted);
-  } else if (action === 'unposted') {
-    marks.unposted = [...drop(marks.unposted), entry];
-    marks.posted = drop(marks.posted);
-  } else if (action === 'dismiss') {
+  if (action === 'dismiss') {
     marks.dismissed = [...drop(marks.dismissed), entry];
   } else if (action === 'restore') {
     marks.dismissed = drop(marks.dismissed);
   } else if (action === 'settle') {
     marks.added = drop(marks.added);
   } else {
-    throw Object.assign(new Error('action must be posted, unposted, dismiss, restore or settle'), {
+    throw Object.assign(new Error('action must be dismiss, restore or settle'), {
       status: 400,
     });
   }
@@ -297,9 +291,7 @@ export function draftStatus(chapters, marks, github = null, notes = null) {
       row.fix = note
         ? { id: note.id, done: !!note.done, path: note.path, side: note.side, line: note.line }
         : null;
-      const unmarked = bestMatch(draft, asPosted(marks.unposted));
-      const manual = bestMatch(draft, asPosted(marks.posted));
-      const auto = github && !unmarked ? bestMatch(draft, github.comments) : null;
+      const auto = github ? bestMatch(draft, github.comments) : null;
       if (auto) {
         Object.assign(row, {
           status: auto.state,
@@ -307,8 +299,6 @@ export function draftStatus(chapters, marks, github = null, notes = null) {
           url: auto.url,
           score: Math.round(auto.score * 100) / 100,
         });
-      } else if (manual) {
-        Object.assign(row, { status: 'posted', source: 'manual' });
       }
       out.push(row);
     }),
