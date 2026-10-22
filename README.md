@@ -4,7 +4,7 @@ New here? [GETTING-STARTED.md](GETTING-STARTED.md) walks you through setup and y
 
 A code-review story (an overview, then chapters) in a side panel docked on top of a diff, with the diff filtered to each chapter's files. It works in two places:
 
-- **GitHub PRs.** An unpacked Chrome extension docks the panel on a pull request's `/changes` or `/files` page whenever a story exists for that PR.
+- **GitHub PRs.** An unpacked Chrome extension docks the panel on a pull request's `/changes` page whenever a story exists for that PR. Logged out, GitHub sends you to classic `/files` instead: the panel still docks there, but it doesn't read that page's diff.
 - **Local commits.** The bridge serves its own diff page for a local commit range, before anything is pushed, and the same panel runs on it.
 
 The two work the same way and read the same `chapters.json` (pr-story's format). The panel comes back on the same step after a reload, after GitHub's in-page navigation, and when the story on disk changes.
@@ -86,7 +86,7 @@ It never posts to GitHub, marks files viewed or pushes. Comments it drafts go to
 5. **Hide whitespace is remembered.** It's the same setting as the local page's (`prefs.json` through the bridge, with a copy in `chrome.storage` for when the bridge is down). When it's on, opening a PR's Files changed page without `?w=` reloads it once with `?w=1`, keeping the hash and the panel's step. Turning GitHub's own whitespace setting on or off there (`w=1`, `w=0`, or `w=1` dropping off the same page) saves the new choice. If GitHub drops the `w=1` it was sent, the page isn't reloaded again for 15 seconds, so it can't loop.
 6. Type a question in the Ask box and press **Cmd+Enter**. The question goes to the bridge inbox, and the answer shows under it once a Claude session replies (see [Q&A relay](#qa-relay)).
 
-**File and line links open what they point at.** Clicking a file name or a `path:40-58` line link in the panel scrolls to it and highlights it. If GitHub has the file collapsed (Viewed files and large ones collapse), the click expands it with the file's own toggle, or **Load diff**, and expanding never unmarks Viewed. For a line outside the hunks GitHub drew, it clicks GitHub's expand arrows above or below the hunk until the line is on the page (or **Expand all lines** when the line is far away), on `/changes` and classic `/files` alike. GitHub fetches those lines with the page's own settings, so `?w=1` stays and nothing reloads. This happens only when you click a link: changing steps, reloads and redraws never expand anything, and the panel never clicks comment or review controls, or Viewed except through a file's own **Mark viewed** button. A line that isn't in the file at all jumps to the nearest drawn line and says so.
+**File and line links open what they point at.** Clicking a file name or a `path:40-58` line link in the panel scrolls to it and highlights it. If GitHub has the file collapsed (Viewed files and large ones collapse), the click expands it with the file's own toggle, or **Load diff**, and expanding never unmarks Viewed. For a line outside the hunks GitHub drew, it clicks GitHub's expand arrows above or below the hunk until the line is on the page (or **Expand all lines** when the line is far away). GitHub fetches those lines with the page's own settings, so `?w=1` stays and nothing reloads. This happens only when you click a link: changing steps, reloads and redraws never expand anything, and the panel never clicks comment or review controls, or Viewed except through a file's own **Mark viewed** button. A line that isn't in the file at all jumps to the nearest drawn line and says so.
 
 When Claude rewrites `chapters.json`, the panel redraws within ≈5 seconds, or as soon as you come back to the tab. It keeps its step and its scroll position.
 
@@ -121,14 +121,14 @@ Add to my review is the only write to GitHub. Everything else here is read-only.
 
 The panel reads each file's state from the page's own Viewed toggle:
 
-- on GitHub, the header toggle's `aria-pressed` (or the checkbox on classic `/files`)
+- on GitHub, the header toggle's `aria-pressed`
 - on the local page, the bridge-kept toggle
 
-It never clicks that toggle on its own: not on a step change, a reload or a redraw, and never for more than the one file you clicked (see **Mark viewed** below). It looks again after any click or change on the page, so Refined GitHub's batch mark-viewed helpers are picked up too. Moving on with files left gives a gentle note, not a block. The "Files in this chapter" list starts folded, with a one-line summary ("6 files · 4 to mark viewed · 2 come back later"). Whether it's open is remembered per story.
+It never clicks that toggle on its own: not on a step change, a reload or a redraw, and never for more than the one file you clicked (see **Mark viewed** below). It looks again after any click on the page, so Refined GitHub's batch mark-viewed helpers are picked up too. Moving on with files left gives a gentle note, not a block. The "Files in this chapter" list starts folded, with a one-line summary ("6 files · 4 to mark viewed · 2 come back later"). Whether it's open is remembered per story.
 
 **Where "Mark viewed" goes.** A file is marked viewed in the last chapter that tells it. A chapter tells a file by listing it, or by pointing at its lines in its text: `path:45`, `path:40-58`, a bare `:45` after the file is named, or a link to the file's diff with a line anchor. A file a chapter points at without listing it joins that chapter's file list (and its filter) as a partial entry, "its lines are pointed at in the text", with those lines. A name with no line doesn't count, and neither does anything in a code block. Every earlier chapter leaves the file untagged, whether or not that listing is flagged partial: no pill in the text and no status in the file list, only the listing's partial note ("here: …") if it has one. The viewed progress and the "viewed early" warning follow the same rule, and so does pr-story's `file-map.json` (`finished_in`).
 
-**Mark viewed.** In its finishing chapter a file gets a **Mark viewed** button, in the file list and as a small button on the file's last mention in the chapter's text, in reading order (often the closing "Files to mark viewed" line), so you reach it once the chapter is done with the file. Earlier mentions carry nothing. Clicking it ticks that one file's own Viewed checkbox on the page, exactly as if you'd clicked it yourself: GitHub's header toggle on `/changes`, the checkbox on classic `/files`, or the bridge-kept toggle on the local page. GitHub then collapses the file as usual, and a file or line link still expands it again. The button follows the toggle live and turns into **Viewed ✓**, muted. Clicking **Viewed ✓** unticks it the same way. That click is the only time the panel touches Viewed. If the file isn't loaded on the page yet, the click scrolls to it and asks you to click again. Logged out there's no checkbox, so it says so.
+**Mark viewed.** In its finishing chapter a file gets a **Mark viewed** button, in the file list and as a small button on the file's last mention in the chapter's text, in reading order (often the closing "Files to mark viewed" line), so you reach it once the chapter is done with the file. Earlier mentions carry nothing. Clicking it ticks that one file's own Viewed checkbox on the page, exactly as if you'd clicked it yourself: GitHub's header toggle on `/changes`, or the bridge-kept toggle on the local page. GitHub then collapses the file as usual, and a file or line link still expands it again. The button follows the toggle live and turns into **Viewed ✓**, muted. Clicking **Viewed ✓** unticks it the same way. That click is the only time the panel touches Viewed. If the file isn't loaded on the page yet, the click scrolls to it and asks you to click again. With no Viewed toggle on the page, it says so.
 
 **On PR lists and a PR's Conversation tab.** A repo's `/pulls`, the global `/pulls` and PR search results get one tag after each PR's title, and a PR's Conversation tab gets the same tag next to its title. The tag is the control:
 
@@ -291,7 +291,7 @@ Diff Story Mode doesn't need Refined GitHub and doesn't use anything it adds to 
 
 **What could get in the way, and how each is handled**
 
-- **Alt-click Viewed marks every file.** It looks for files that lack a `hidden` attribute, so it would also mark the files the chapter hides. To stop that, hidden files also get `hidden` on their block and on the `diff-…` region, `.js-file` and `[class*=diffTargetable]` inside it. The panel only ever removes a `hidden` it added itself.
+- **Alt-click Viewed marks every file.** It looks for files that lack a `hidden` attribute, so it would also mark the files the chapter hides. To stop that, hidden files also get `hidden` on their block and on the `diff-…` region and `[class*=diffTargetable]` inside it. The panel only ever removes a `hidden` it added itself.
 - **`j`/`k` and "jump to first unviewed file" can land on hidden files.** Both set `#diff-…` to the next file in page order, whether it's hidden or not. When that lands on a file outside the chapter, the panel moves on in the same direction to the next chapter file. If there's none, it says which chapter the file is in. `x` (toggle Viewed on the current file) then acts on a file you can see.
 - **Single-key shortcuts while you read the panel.** The panel can take focus, so clicking anywhere in it moves focus off the page. Key events inside it don't reach the page's listeners, so `j`, `k`, `x`, `y` and GitHub's own hotkeys don't fire while you're in the panel. The extension binds no page keys. Its only key is the Chrome command Alt+Shift+S, and Refined GitHub has no Alt+Shift shortcuts.
 - **show-whitespace and linkify-code** wrap text in spans as lines scroll into view. The panel's DOM watcher ignores changes inside diff lines, so they don't trigger re-filtering. The panel lives in a shadow root, so these features can't rewrite the panel's own `code` and `pre` blocks either.
@@ -310,7 +310,7 @@ Diff Story Mode doesn't need Refined GitHub and doesn't use anything it adds to 
 **Untested**
 
 - Everything above with Refined GitHub actually running.
-- The React `/changes` view while logged in. The test browser is logged out, so `/changes` redirected to `/files`.
+- The real `/changes` page, logged in. The test browser is logged out, and GitHub sends it from `/changes` to `/files`, so the tests use a stand-in drawn with `/changes`' DOM shapes.
 
 ## Development
 
@@ -321,7 +321,7 @@ yarn format:check      # Prettier's check (100 columns); yarn format rewrites
 yarn lint:sh           # shellcheck over the pr-story skill's shell scripts
 yarn types             # TypeScript's checkJs (JSDoc types, no build step): tsconfig.json for Node, tsconfig.browser.json for the extension and local page
 yarn test:extension    # loads src/ into a throwaway Playwright Chromium, never your own Chrome
-yarn test:expand       # the same Chromium: panel links expand collapsed files and hunks on /files and /changes
+yarn test:expand       # the same Chromium: panel links expand collapsed files and hunks on a /changes stand-in
 yarn icons             # redraws src/icons
 ```
 
@@ -336,14 +336,15 @@ PLAYWRIGHT_BROWSERS_PATH=/some/dir node node_modules/playwright-core/cli.js inst
 Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random port with a temporary home, and builds a two-chapter story for a public PR (`--pr owner/repo#N`, default `refined-github/refined-github#10280`). It then checks:
 
 - the options page
-- the panel on `/files` and `/changes`: docking, filtering, coming back after a reload, the `hidden` attribute and hash skipping
+- the panel on a stand-in `/changes` page (`test/extension/changes-page.mjs`, served at the PR's URL): docking, filtering, Mark viewed, coming back after a reload, the `hidden` attribute and hash skipping
+- the panel docking on GitHub's logged-out `/files`
 - a question and its answer
 - hiding the panel and toggling it back
 - that the GitHub page itself makes no calls to the bridge
 - the local page: diff, filter, Viewed, a note, and coming back after a reload
 - the options page's Test connection before Save
 
-`test:expand` uses `refined-github/refined-github#10298` and checks that line links above, between and past its hunks, on both sides, and file and line links into a collapsed file open and highlight their target, with no expanding on a step change, `?w=1` kept and no Viewed toggle touched. Logged out, GitHub sends `/changes` to `/files`, so the React `/changes` DOM is checked by hand.
+`test:expand` draws two files on the stand-in `/changes` page, hunked like `refined-github/refined-github#10298`, and checks that line links above, between and past their hunks, on both sides, and file and line links into a collapsed file open and highlight their target, with no expanding on a step change, `?w=1` kept and no Viewed toggle touched. The stand-in's expanders open lines the way GitHub's do, 20 at a time or a whole short gap. The real `/changes` DOM is checked by hand.
 
 ## Code layout
 
@@ -357,7 +358,7 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
   - `js/shared/overlay.js` is the panel's entry, shared with the local page. It builds one context and wires the modules in `js/shared/panel/`:
     - `story-model.js`: chapters, numbers and where each file is finished. `panel-state.js`: the saved step and layout.
     - `shell.js` and `styles.js`: the frame, toolbar and CSS. `body.js`: the step on screen. `navigation.js`: Prev, Next and the step list.
-    - `host-page.js`: finding files, lines and toggles on `/changes`, `/files` and the local page. `filter.js`, `expand.js` and `scroll.js`: hiding, opening and jumping.
+    - `host-page.js`: finding files, lines and toggles on `/changes` and the local page. `filter.js`, `expand.js` and `scroll.js`: hiding, opening and jumping.
     - `file-refs.js` and `markdown.js`: the story's text and its jump links. `file-list.js`: the file rows.
     - `viewed.js`, `reading.js`, `drafts.js`, `freshness.js`, `marks.js`, `status-light.js` and `questions.js`: Viewed progress, read tracking, drafted comments, story freshness, the "changed since" marks, the status light and the Ask box.
   - `js/shared/util/`: helpers for the panel, the content scripts, the local page and the bridge (escaping, short SHAs, times, the clipboard, GitHub paths, key isolation).
