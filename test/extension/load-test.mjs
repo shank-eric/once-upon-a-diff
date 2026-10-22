@@ -841,7 +841,7 @@ try {
     await new Promise((resolve) => setTimeout(resolve, 60));
     const spacer = document.createElement('div');
     spacer.style.height = '3000px';
-    document.querySelector('.ds-files').prepend(spacer);
+    document.querySelector('.ou-local-files').prepend(spacer);
     await new Promise((resolve) => setTimeout(resolve, 2600));
     const row = document.querySelector('tr[data-ou-flash]');
     const top = row ? row.getBoundingClientRect().top : null;
@@ -853,7 +853,7 @@ try {
     `a line jump re-scrolls when the page grows under it, and keeps the highlight (row at ${settled.top && Math.round(settled.top)}px)`,
   );
   // viewed too early: two.js comes back in chapter 2, gone.txt is only chapter 2's
-  await localPage.locator('.ds-file[data-path="lib/two.js"] .ds-viewed').click();
+  await localPage.locator('.ou-local-file[data-path="lib/two.js"] .ou-local-viewed').click();
   await localPage.waitForTimeout(500);
   const earlyText = () => localPage.locator('#ou-panel .ou-early-box').textContent();
   check(
@@ -873,14 +873,14 @@ try {
   );
   await localPage.locator('#ou-panel .ou-all').click();
   await localPage.waitForTimeout(300);
-  await localPage.locator('.ds-file[data-path="gone.txt"] .ds-viewed').click();
+  await localPage.locator('.ou-local-file[data-path="gone.txt"] .ou-local-viewed').click();
   await localPage.waitForTimeout(500);
   check(
     /gone\.txt is marked viewed early: it belongs to chapter 2/.test(await earlyText()),
     "a later chapter's file viewed early is flagged too",
   );
-  await localPage.locator('.ds-file[data-path="gone.txt"] .ds-viewed').click();
-  await localPage.locator('.ds-file[data-path="lib/two.js"] .ds-viewed').click();
+  await localPage.locator('.ou-local-file[data-path="gone.txt"] .ou-local-viewed').click();
+  await localPage.locator('.ou-local-file[data-path="lib/two.js"] .ou-local-viewed').click();
   await localPage.locator('#ou-panel .ou-all').click();
   await localPage.waitForTimeout(500);
   check((await earlyText()) === '', 'unmarking them clears the warning');
@@ -898,7 +898,9 @@ try {
   );
   const oneTag = () => localPage.locator('#ou-panel li[data-file="one.txt"] .ou-why').textContent();
   const oneToggle = () =>
-    localPage.locator('.ds-file[data-path="one.txt"] .ds-viewed').getAttribute('aria-pressed');
+    localPage
+      .locator('.ou-local-file[data-path="one.txt"] .ou-local-viewed')
+      .getAttribute('aria-pressed');
   const viewedJson = () =>
     existsSync(path.join(home, 'state', local.id, 'viewed.json'))
       ? JSON.parse(readFileSync(path.join(home, 'state', local.id, 'viewed.json'), 'utf8'))
@@ -917,8 +919,8 @@ try {
   );
   check(
     await localPage
-      .locator('.ds-file[data-path="one.txt"]')
-      .evaluate((el) => el.classList.contains('ds-folded')),
+      .locator('.ou-local-file[data-path="one.txt"]')
+      .evaluate((el) => el.classList.contains('ou-local-folded')),
     'and the page folds the file, as its own Viewed click does',
   );
   check(
@@ -929,7 +931,7 @@ try {
   );
   check(!!viewedJson()['one.txt'], 'the bridge keeps the Viewed that Mark viewed set');
   check(
-    (await localPage.locator('.ds-viewed[aria-pressed="true"]').count()) === 1,
+    (await localPage.locator('.ou-local-viewed[aria-pressed="true"]').count()) === 1,
     'Mark viewed ticked only that file',
   );
   check(
@@ -962,9 +964,9 @@ try {
       /^Mark viewed/.test(await oneTag()),
     `clicking Viewed ✓ unticks it: "${await oneTag()}"`,
   );
-  await localPage.locator('td.ds-num[data-line-anchor$="R2"]').first().click();
-  await localPage.locator('.ds-note-form textarea').fill('Lower-case B');
-  await localPage.locator('.ds-note-form button[type=submit]').click();
+  await localPage.locator('td.ou-local-num[data-line-anchor$="R2"]').first().click();
+  await localPage.locator('.ou-local-note-form textarea').fill('Lower-case B');
+  await localPage.locator('.ou-local-note-form button[type=submit]').click();
   await localPage.waitForTimeout(400);
   const notes = JSON.parse(readFileSync(path.join(home, 'state', local.id, 'notes.json'), 'utf8'));
   check(notes.length === 1 && notes[0].line === 2, 'a fix-before-push note is kept by the bridge');
@@ -991,8 +993,8 @@ try {
     'it is a real note on that line',
   );
   check(
-    /Fix B/.test(await localPage.locator('.ds-notes-list').textContent()) &&
-      /2 open/.test(await localPage.locator('.ds-notes-toggle').textContent()),
+    /Fix B/.test(await localPage.locator('.ou-local-notes-list').textContent()) &&
+      /2 open/.test(await localPage.locator('.ou-local-notes-toggle').textContent()),
     "and it shows in the page's checklist",
   );
   // Fix before push in the panel: both notes are drafts until Send hands them over as one request
@@ -1016,7 +1018,7 @@ try {
   check(
     /2 sent/.test(await fixBox()) &&
       (await localPage.locator('#ou-panel .ou-fixes [data-fix-act="remove"]').count()) === 0 &&
-      /sent to/.test(await localPage.locator('.ds-note-row').first().textContent()),
+      /sent to/.test(await localPage.locator('.ou-local-note-row').first().textContent()),
     `sent notes are locked, here and in the diff: "${await fixBox()}"`,
   );
   // "being changed": a session's mark dims the file and names it, until it's done
@@ -1058,7 +1060,7 @@ try {
     'an opened files list stays open after a reload',
   );
   check(
-    (await localPage.locator('.ds-note-row').count()) === 2,
+    (await localPage.locator('.ou-local-note-row').count()) === 2,
     'the notes (his own and the added draft) are still on the line after a reload',
   );
   check(
@@ -1231,7 +1233,7 @@ try {
   await localPage.locator('#ou-panel .ou-close').click();
   rewrite('Redrawn-closed.');
   await localPage.waitForTimeout(6500);
-  await localPage.locator('.ds-reopen').click();
+  await localPage.locator('.ou-local-reopen').click();
   await localPage.waitForTimeout(300);
   check(
     /Redrawn-closed/.test(await localPage.locator('#ou-panel .ou-body').textContent()),

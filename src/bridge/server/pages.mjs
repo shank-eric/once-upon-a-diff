@@ -14,7 +14,7 @@ export function localPage(id, meta, token) {
   const boot = JSON.stringify({ story: id, token }).replace(/</g, '\\u003c');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(meta.title)}</title><link rel="stylesheet" href="/assets/local.css">
-<script type="application/json" id="ds-boot">${boot}</script>
+<script type="application/json" id="ou-local-boot">${boot}</script>
 <script type="module" src="/assets/local.js"></script></head>
-<body class="ds-local"><div id="ds-app"><p class="ds-muted ds-loading">Loading the story…</p></div></body></html>`;
+<body class="ou-local"><div id="ou-local-app"><p class="ou-local-muted ou-local-loading">Loading the story…</p></div></body></html>`;
 }

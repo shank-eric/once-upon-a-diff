@@ -329,7 +329,7 @@ describe('local stories', () => {
   test('serves its page with the token and a strict CSP, and not for GitHub stories', async () => {
     const page = await bridge.call('GET', `/local/${id}/`);
     assert.equal(page.status, 200);
-    assert.match(page.text, /id="ds-boot"/);
+    assert.match(page.text, /id="ou-local-boot"/);
     assert.ok(page.text.includes(TOKEN));
     assert.match(page.headers.get('content-security-policy'), /script-src 'self'/);
     assert.equal((await bridge.call('GET', '/assets/overlay.js')).status, 200);

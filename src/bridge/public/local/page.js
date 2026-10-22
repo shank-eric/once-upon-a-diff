@@ -3,7 +3,7 @@
  * block in the page names the story and carries the token.
  */
 
-const BOOT = JSON.parse(document.getElementById('ds-boot').textContent);
+const BOOT = JSON.parse(document.getElementById('ou-local-boot').textContent);
 
 /** The story id, and its /api/stories/<id> path. */
 export const STORY_ID = BOOT.story;

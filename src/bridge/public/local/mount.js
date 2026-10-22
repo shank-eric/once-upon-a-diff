@@ -107,7 +107,7 @@ export function remount() {
 export function showReopen() {
   removeReopen();
   const button = document.createElement('button');
-  button.className = 'ds-reopen';
+  button.className = 'ou-local-reopen';
   button.type = 'button';
   button.textContent = 'Show story';
   button.onclick = () => {
@@ -118,5 +118,5 @@ export function showReopen() {
 }
 
 function removeReopen() {
-  document.querySelector('.ds-reopen')?.remove();
+  document.querySelector('.ou-local-reopen')?.remove();
 }

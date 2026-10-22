@@ -17,15 +17,15 @@ import { openFold, openRun, forgetNarrowing } from '/assets/local/folds.js';
 import { mount, remount, showReopen } from '/assets/local/mount.js';
 
 const POLL_MS = 5000;
-const app = document.getElementById('ds-app');
+const app = document.getElementById('ou-local-app');
 
 function render() {
   const keep = window.scrollY;
   forgetNarrowing();
   resetHighlightBudget();
   const { files } = page.story.local;
-  app.innerHTML = `${headerHtml()}<div class="ds-layout"><nav class="ds-tree" role="tree" aria-label="Changed files">${treeHtml(files.map((file) => file.rel))}</nav>
-    <main class="ds-files">${files.map(fileHtml).join('')}</main></div>`;
+  app.innerHTML = `${headerHtml()}<div class="ou-local-layout"><nav class="ou-local-tree" role="tree" aria-label="Changed files">${treeHtml(files.map((file) => file.rel))}</nav>
+    <main class="ou-local-files">${files.map(fileHtml).join('')}</main></div>`;
   placeNotes();
   window.scrollTo({ top: keep });
 }
@@ -33,13 +33,13 @@ function render() {
 const fileByRel = (rel) => page.story.local.files.find((file) => file.rel === rel);
 
 async function toggleViewed(button) {
-  const section = button.closest('.ds-file');
+  const section = button.closest('.ou-local-file');
   const rel = section.getAttribute('data-path');
   const nowViewed = button.getAttribute('aria-pressed') !== 'true';
   button.setAttribute('aria-pressed', String(nowViewed));
-  section.classList.toggle('ds-folded', nowViewed);
-  section.querySelector('.ds-fold').setAttribute('aria-expanded', String(!nowViewed));
-  section.querySelector('.ds-changed')?.remove();
+  section.classList.toggle('ou-local-folded', nowViewed);
+  section.querySelector('.ou-local-fold').setAttribute('aria-expanded', String(!nowViewed));
+  section.querySelector('.ou-local-changed')?.remove();
   const file = fileByRel(rel);
   if (file) {
     file.viewed = nowViewed;
@@ -69,13 +69,13 @@ async function deleteNote(button) {
 
 function goToNote(link) {
   const row = document.querySelector(
-    `.ds-note-row[data-note="${CSS.escape(link.getAttribute('data-note-goto'))}"]`,
+    `.ou-local-note-row[data-note="${CSS.escape(link.getAttribute('data-note-goto'))}"]`,
   );
   if (!row) {
     return;
   }
-  row.closest('.ds-file').classList.remove('ds-folded');
-  if (row.classList.contains('ds-out')) {
+  row.closest('.ou-local-file').classList.remove('ou-local-folded');
+  if (row.classList.contains('ou-local-out')) {
     openFold(row);
   }
   window.scrollTo({
@@ -89,7 +89,7 @@ document.addEventListener('click', async (event) => {
   if (target.closest('#once-upon-panel')) {
     return;
   }
-  const viewedButton = target.closest('.ds-viewed');
+  const viewedButton = target.closest('.ou-local-viewed');
   if (viewedButton) {
     return toggleViewed(viewedButton);
   }
@@ -101,9 +101,9 @@ document.addEventListener('click', async (event) => {
     }
     return;
   }
-  const fold = target.closest('.ds-fold');
+  const fold = target.closest('.ou-local-fold');
   if (fold) {
-    const folded = fold.closest('.ds-file').classList.toggle('ds-folded');
+    const folded = fold.closest('.ou-local-file').classList.toggle('ou-local-folded');
     fold.setAttribute('aria-expanded', String(!folded));
     return;
   }
@@ -121,7 +121,7 @@ document.addEventListener('click', async (event) => {
     openRun(narrowButton.closest('tr'));
     return;
   }
-  const lineNumber = target.closest('td.ds-num[data-line-anchor]');
+  const lineNumber = target.closest('td.ou-local-num[data-line-anchor]');
   if (lineNumber) {
     return openEditor(lineNumber);
   }
@@ -140,9 +140,9 @@ document.addEventListener('click', async (event) => {
     goToNote(noteLink);
     return;
   }
-  const toggle = target.closest('.ds-notes-toggle');
+  const toggle = target.closest('.ou-local-notes-toggle');
   if (toggle) {
-    const list = /** @type {HTMLElement} */ (document.querySelector('.ds-notes-list'));
+    const list = /** @type {HTMLElement} */ (document.querySelector('.ou-local-notes-list'));
     list.hidden = !list.hidden;
     toggle.setAttribute('aria-expanded', String(!list.hidden));
   }
@@ -162,7 +162,7 @@ async function setPref(patch, what) {
 }
 
 function setHideWhitespace(hide) {
-  const box = /** @type {HTMLInputElement|null} */ (document.querySelector('.ds-ws-toggle'));
+  const box = /** @type {HTMLInputElement|null} */ (document.querySelector('.ou-local-ws-toggle'));
   if (box) {
     box.disabled = true;
   }
@@ -171,7 +171,9 @@ function setHideWhitespace(hide) {
 
 document.addEventListener('change', async (event) => {
   const target = /** @type {Element} */ (event.target);
-  const whitespaceBox = /** @type {HTMLInputElement|null} */ (target.closest('.ds-ws-toggle'));
+  const whitespaceBox = /** @type {HTMLInputElement|null} */ (
+    target.closest('.ou-local-ws-toggle')
+  );
   if (whitespaceBox) {
     return setHideWhitespace(whitespaceBox.checked);
   }
@@ -195,7 +197,7 @@ async function reloadIfChanged(known) {
     if (version === page.story.version) {
       return;
     }
-    if (document.querySelector('.ds-note-edit')) {
+    if (document.querySelector('.ou-local-note-edit')) {
       return; // don't redraw under a note being written
     }
     page.story = await api('GET', STORY_PATH);
@@ -214,7 +216,7 @@ async function start() {
   try {
     page.story = await api('GET', STORY_PATH);
   } catch (err) {
-    app.innerHTML = `<p class="ds-error">Couldn't load the story: ${escapeHtml(err.message)}</p>`;
+    app.innerHTML = `<p class="ou-local-error">Couldn't load the story: ${escapeHtml(err.message)}</p>`;
     return;
   }
   document.title = page.story.title;
