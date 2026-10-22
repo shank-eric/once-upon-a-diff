@@ -16,8 +16,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, chmodSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-
-export const DEFAULT_PORT = 4823;
+import { DEFAULT_PORT } from '../../src/js/shared/util/bridge-port.js';
 
 export function homeDir() {
   return process.env.ONCE_UPON_HOME || path.join(os.homedir(), '.once-upon');

@@ -5,12 +5,11 @@
  * files become jump links (file-refs.js).
  */
 import { escapeHtml } from '../util/html.js';
+import { parseDiffLink } from '../util/line-refs.js';
 import { refAttrs } from './file-refs.js';
 
 // eslint-disable-next-line no-control-regex -- the placeholder markers are control characters on purpose
 const CODE_MARK = /\u0000(\d+)\u0000/g;
-// a link to one of the PR's files (and lines) on GitHub: #diff-<sha256>, maybe R12 or L3-L9
-const DIFF_LINK = /#diff-([0-9a-f]{64})(?:([LR])(\d+)(?:-[LR]?(\d+))?)?$/;
 const LIST_ITEM = /^(\s*)(\d+[.)]|[-*+])\s+(.*)$/;
 
 export function createMarkdown(context) {
@@ -28,12 +27,11 @@ export function createMarkdown(context) {
       .replace(/(^|[^\w])_([^_\s][^_]*)_(?!\w)/g, '$1<em>$2</em>')
       .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, (match, text, url) => {
         // links to this PR's files (and lines) scroll the page instead of navigating
-        const hit = DIFF_LINK.exec(url);
-        const rel = hit && story.shaToPath.get(hit[1]);
+        const link = parseDiffLink(url);
+        const rel = link && story.shaToPath.get(link.sha);
         if (rel && refs.inScope(rel)) {
           refs.noteMention(rel);
-          const line = hit[3] ? { side: hit[2], start: +hit[3], end: +(hit[4] || hit[3]) } : null;
-          return `<span ${refAttrs(rel, line)}>${text}</span>${refs.pill(rel)}`;
+          return `<span ${refAttrs(rel, link.line)}>${text}</span>${refs.pill(rel)}`;
         }
         return `<a href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`;
       });

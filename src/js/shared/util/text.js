@@ -22,3 +22,11 @@ export function plural(count, noun) {
 export function capitalize(text) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
+
+/** A commit SHA, full or abbreviated to 7 or more characters. */
+export const SHA_RE = /^[0-9a-f]{7,40}$/;
+
+/** Whether two SHAs name the same commit, either one maybe abbreviated. */
+export function sameSha(first, second) {
+  return !!first && !!second && (first.startsWith(second) || second.startsWith(first));
+}

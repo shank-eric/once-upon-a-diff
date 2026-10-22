@@ -19,7 +19,8 @@
  *     aside a read of a chapter whose files changed in the rebuild
  */
 import { chaptersOf, entryOf } from './chapters.mjs';
-import { chapterKey, readReads, retireReads } from './reads.mjs';
+import { readReads, retireReads } from './reads.mjs';
+import { chapterKeyOf } from '../../src/js/shared/panel/story-model.js';
 import { Inbox } from '../inbox/inbox.mjs';
 import { moveQuestions } from '../inbox/conversation.mjs';
 import { addTextRefs } from './text-refs.mjs';
@@ -141,7 +142,7 @@ function homeOf(after, from, oldKey, rel, comment) {
   const retold = after.chapters.map((chapter, index) => ({ chapter, index })).slice(from - 1);
   const entriesOf = ({ chapter }) => (chapter.files || []).map(entryOf);
   const lists = (candidate) => !!rel && entriesOf(candidate).some((entry) => entry.rel === rel);
-  const sameKey = retold.find(({ chapter }) => chapterKey(chapter) === oldKey);
+  const sameKey = retold.find(({ chapter }) => chapterKeyOf(chapter) === oldKey);
   if (sameKey && (!rel || lists(sameKey))) {
     return sameKey.index;
   }
@@ -192,7 +193,7 @@ export function carryDrafts(before, after, diff, from = 1) {
       present.add(id);
       const rel = isGeneral(comment) ? null : relOf(comment.path, rels);
       const maps = isGeneral(comment) || (!!rel && onDiffLine(diff.get(rel), comment));
-      const target = after.chapters[homeOf(after, from, chapterKey(chapter), rel, comment)];
+      const target = after.chapters[homeOf(after, from, chapterKeyOf(chapter), rel, comment)];
       target.comments = Array.isArray(target.comments) ? target.comments : [];
       const { carried, unmapped, ...draft } = comment;
       target.comments.push({ ...draft, ...(maps ? { carried: true } : { unmapped: true }) });
@@ -218,7 +219,7 @@ export function questionMoves(questions, before, after, from = 1) {
       continue;
     }
     const old = (before.chapters || [])[step - 1];
-    const sameKey = old && now.find(({ chapter }) => chapterKey(chapter) === chapterKey(old));
+    const sameKey = old && now.find(({ chapter }) => chapterKeyOf(chapter) === chapterKeyOf(old));
     const tellsFile = ({ chapter }) =>
       rels(chapter).some(
         (rel) => rel === question.file || String(question.file).endsWith('/' + rel),
@@ -244,13 +245,13 @@ export function readsToRetire(reads, before, after) {
       .map((entry) => entryOf(entry).rel)
       .sort()
       .join('\n');
-  const old = new Map((before.chapters || []).map((chapter) => [chapterKey(chapter), chapter]));
+  const old = new Map((before.chapters || []).map((chapter) => [chapterKeyOf(chapter), chapter]));
   return (after.chapters || [])
     .filter((chapter) => {
-      const key = chapterKey(chapter);
+      const key = chapterKeyOf(chapter);
       return reads[key] && (!old.has(key) || filesOf(old.get(key)) !== filesOf(chapter));
     })
-    .map(chapterKey);
+    .map(chapterKeyOf);
 }
 
 /** One line on what a rebuild kept, for the request's note and the panel. */

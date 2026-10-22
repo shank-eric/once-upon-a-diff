@@ -20,7 +20,8 @@
 import path from 'node:path';
 import { newId } from './inbox.mjs';
 import { sameRepo, REPO_RE } from '../config/repos.mjs';
-import { shortSha } from '../../src/js/shared/util/text.js';
+import { SHA_RE, shortSha } from '../../src/js/shared/util/text.js';
+import { prKey } from '../../src/js/shared/util/github-paths.js';
 import { readerOf } from '../config/settings.mjs';
 import { readJson, writeJson } from '../util/json-file.mjs';
 import { listeners } from '../listeners/listeners.mjs';
@@ -29,7 +30,6 @@ import { isRebuild, REBUILD_MODES } from '../stories/rebuild.mjs';
 
 export const CLAIM_FRESH_MS = 30 * 60 * 1000;
 
-export const buildKey = (repo, number) => `${String(repo).toLowerCase()}#${Number(number)}`;
 /** A local story's rebuild, which has no PR to key it by. */
 export const storyKey = (id) => `story:${id}`;
 const MAX_GUIDANCE = 2000;
@@ -145,7 +145,7 @@ export class Builds {
   }
 
   get(repo, number) {
-    return this.all()[buildKey(repo, number)] || null;
+    return this.all()[prKey(repo, Number(number))] || null;
   }
   /** The story's rebuild request (pending or the last one), or null: a PR story's under its PR, a local one's under its id. */
   rebuildOf(id, meta) {
@@ -258,8 +258,8 @@ export class Builds {
     const want = `https://github.com/${repo}/pull/${prNumber}`;
     const prUrl = want; // always this PR's own URL, whatever the page sent
     const all = this.all();
-    const key = buildKey(repo, prNumber);
-    const update = mode === 'update' && /^[0-9a-f]{7,40}$/.test(String(base_sha || ''));
+    const key = prKey(repo, Number(prNumber));
+    const update = mode === 'update' && SHA_RE.test(String(base_sha || ''));
     const old = all[key];
     if (old && old.status === 'pending') {
       // a rebuild asked from the panel stands until it's done
@@ -345,7 +345,7 @@ export class Builds {
       throw bad("the story doesn't say which PR it is");
     }
     const all = this.all();
-    const key = github ? buildKey(meta.repo, meta.number) : storyKey(story);
+    const key = github ? prKey(meta.repo, Number(meta.number)) : storyKey(story);
     const old = all[key];
     if (old && old.status === 'pending' && this.stateOf(old) !== 'queued') {
       return old;

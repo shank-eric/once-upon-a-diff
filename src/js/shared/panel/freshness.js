@@ -8,13 +8,10 @@
  * rangeStepOf and rangeUrl have no DOM, so node tests can use them.
  */
 import { escapeHtml } from '../util/html.js';
-import { plural, shortSha } from '../util/text.js';
+import { plural, sameSha, shortSha } from '../util/text.js';
 import { rangeOfPath } from '../util/github-paths.js';
 
 export { rangeOfPath };
-
-const sameSha = (first, second) =>
-  !!first && !!second && (first.startsWith(second) || second.startsWith(first));
 
 /** The step (1-based) of the "Since you read it" chapter for the range this page shows, or null. */
 export function rangeStepOf(chapters, pathname) {

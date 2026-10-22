@@ -25,24 +25,12 @@
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { readJson, writeJson } from '../util/json-file.mjs';
+import { chapterKeyOf } from '../../src/js/shared/panel/story-model.js';
+import { SHA_RE } from '../../src/js/shared/util/text.js';
 
 export const READ_MIN_SECONDS = 30;
 /** time: they stayed on it; viewed: they ticked its last file; inferred: its files were all Viewed already when the panel opened (a review before read tracking, or with the panel closed) */
 export const READ_REASONS = ['time', 'viewed', 'inferred'];
-export const SHA_RE = /^[0-9a-f]{7,40}$/;
-
-/** A chapter's stable key: its own `key`, else its title without "Chapter N:", lowercased. */
-export function chapterKey(chapter) {
-  if (chapter && typeof chapter.key === 'string' && chapter.key.trim()) {
-    return chapter.key.trim().slice(0, 200);
-  }
-  return String((chapter && chapter.title) || '')
-    .replace(/^\s*chapter\s+\d+\s*[:.–—-]\s*/i, '')
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .slice(0, 200);
-}
 
 function file(home, key) {
   const dir = path.join(home, 'state', key);
@@ -119,7 +107,7 @@ export function changedSinceRead(chapters, reads, changes, storyHead) {
     if (chapter.since) {
       return;
     }
-    const key = chapter.key || chapterKey(chapter);
+    const key = chapter.key || chapterKeyOf(chapter);
     const sha = readSha(reads && reads[key]);
     const diff = sha && sha !== storyHead ? changes.get(sha) : null;
     if (!diff || !diff.size) {
@@ -158,7 +146,7 @@ export function changedSinceRead(chapters, reads, changes, storyHead) {
  */
 export function sinceOf(reads, chapters, fallback = null) {
   const keys = new Map(
-    (chapters || []).map((chapter) => [chapter.key || chapterKey(chapter), chapter]),
+    (chapters || []).map((chapter) => [chapter.key || chapterKeyOf(chapter), chapter]),
   );
   const entries = Object.entries(reads || {})
     .filter(
