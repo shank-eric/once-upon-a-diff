@@ -50,6 +50,7 @@ That's the file named by `house_rules` in `~/.pr-story/config.json`, else `~/.pr
    ```
    - **Journey:** one chapter per thing a user does, in the order they'd do it (install, first command, next command, …). Introduce a shared file where the flow first reaches it. If only part of it is used there, list it as `partial` and list it plainly in the chapter that covers the rest. When a step would run past ≈8 files or ≈300 words, split it into smaller steps (by screen, interaction or layer) rather than letting one chapter grow.
    - **Chronological:** chapter 1 is "before" (the old code), then one chapter per commit or coherent commit group, each review round folded into the chapter after it, and a last "where it stands" chapter. Files are placed in the chapter whose commit last shaped them.
+   - **Default order, a hint.** When the journey doesn't settle the order, start with schema, contracts and types, then take each feature through its logic, its call sites and wiring, and its UI, with that feature's tests right after it. Docs go last. The narrative wins whenever it needs a different order.
    - Tests go in the chapter of the code they test. Lockfiles and config go where they first matter.
    - `build` fails unless every PR file is in a chapter and every partial is finished somewhere.
    - **The story map goes in `overview`,** not at the top of chapter 1's `narrative`. Each `narrative` starts at its own `### Chapter N: …` heading. (The panel moves a story map it finds before that heading to the Overview, but write it in the right place.)
