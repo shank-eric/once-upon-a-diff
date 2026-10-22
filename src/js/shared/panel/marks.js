@@ -78,22 +78,22 @@ export function createMarks(context) {
     const words = WORDING[mark.why];
     const title = where === 'file' ? words.fileTitle(mark) : words.stepTitle(mark);
     const text = where === 'file' ? words.file(mark) : words.step(mark);
-    return `<span class="prs-chg" data-why="${mark.why}" title="${escapeHtml(title)}">${escapeHtml(text)}</span>`;
+    return `<span class="ou-chg" data-why="${mark.why}" title="${escapeHtml(title)}">${escapeHtml(text)}</span>`;
   };
 
   function render() {
-    for (const el of shell.root.querySelectorAll('.prs-chg')) {
+    for (const el of shell.root.querySelectorAll('.ou-chg')) {
       el.remove();
     }
     const marks = marksOf(context.freshness.current, context.reading.info);
-    for (const item of shell.root.querySelectorAll('ol.prs-map li[data-n]')) {
+    for (const item of shell.root.querySelectorAll('ol.ou-map li[data-n]')) {
       const step = Number(item.getAttribute('data-n'));
       for (const mark of marks.filter((candidate) => candidate.steps.includes(step))) {
         item.insertAdjacentHTML('beforeend', tag(mark, 'step'));
       }
     }
     const here = marks.filter((mark) => mark.onlyOn === null || mark.onlyOn === state.n);
-    for (const item of shell.root.querySelectorAll('ul.prs-files > li[data-file]')) {
+    for (const item of shell.root.querySelectorAll('ul.ou-files > li[data-file]')) {
       const rel = item.getAttribute('data-file');
       for (const mark of here.filter((candidate) => candidate.files.includes(rel))) {
         item.querySelector('code').insertAdjacentHTML('afterend', tag(mark, 'file'));

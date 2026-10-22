@@ -16,7 +16,7 @@
  * No DOM here, so node tests can use it.
  */
 const REPO_RE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
-const END = 'PR_STORY_REVIEW_JSON';
+const END = 'ONCE_UPON_REVIEW_JSON';
 
 /** Is it in their pending review already (Add to my review, or gh found it there)? */
 const inPendingReview = (row) =>
@@ -74,7 +74,7 @@ export function scriptDrafts(chapters, rows, rels) {
 }
 
 /**
- * The script itself. It runs in a subshell, so its `unset GITHUB_TOKEN` (when PR Story's config asks for it)
+ * The script itself. It runs in a subshell, so its `unset GITHUB_TOKEN` (when Once Upon a Diff's config asks for it)
  * doesn't touch the reviewer's own shell.
  * @param {{repo: string, number: number, comments: object[], general?: number, inReview?: number}} input
  */
@@ -89,7 +89,7 @@ export function reviewScript({ repo, number, comments, general = 0, inReview = 0
   const payload = JSON.stringify({ comments }, null, 2);
   const count = comments.length === 1 ? '1 drafted comment' : `${comments.length} drafted comments`;
   const notes = [
-    `# PR Story: ${count} on ${repo}#${number}, as one pending review.`,
+    `# Once Upon a Diff: ${count} on ${repo}#${number}, as one pending review.`,
     "# It starts a review in your name and doesn't submit it: nobody else sees it until you submit it on GitHub.",
     '# GitHub allows one pending review per PR, so this fails if you already have one.',
   ];
@@ -106,7 +106,7 @@ export function reviewScript({ repo, number, comments, general = 0, inReview = 0
   return [
     ...notes,
     '(',
-    `  [ "$(jq -r '.gh_unset_github_token // false' "\${PR_STORY_HOME:-$HOME/.pr-story}/config.json" 2>/dev/null)" = true ] && unset GITHUB_TOKEN`,
+    `  [ "$(jq -r '.gh_unset_github_token // false' "\${ONCE_UPON_HOME:-$HOME/.once-upon}/config.json" 2>/dev/null)" = true ] && unset GITHUB_TOKEN`,
     `  gh api --method POST repos/${repo}/pulls/${Number(number)}/reviews --input - --jq '"Pending review started: " + .html_url' <<'${END}'`,
     payload,
     END,

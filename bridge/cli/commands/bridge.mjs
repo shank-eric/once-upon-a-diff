@@ -16,7 +16,7 @@ export async function probe(port, token) {
       signal: AbortSignal.timeout(1500),
     });
     const health = /** @type {{name?: string}} */ (await response.json());
-    return response.ok ? health.name === 'pr-story-bridge' : false;
+    return response.ok ? health.name === 'once-upon-bridge' : false;
   } catch {
     return false;
   }
@@ -25,11 +25,11 @@ export async function probe(port, token) {
 /** Starts the bridge on 127.0.0.1 and resolves once it listens. */
 export function serve(home, cfg, opts) {
   const port = Number(opts.port || cfg.port);
-  // the bridge keeps its own log in <home>/bridge.log, for `pr-story doctor`
+  // the bridge keeps its own log in <home>/bridge.log, for `once-upon doctor`
   const logFile = path.join(home, 'bridge.log');
   const log = (line) => {
     const text = `${new Date().toISOString()} ${line}\n`;
-    process.stderr.write(`pr-story bridge: ${line}\n`);
+    process.stderr.write(`once-upon bridge: ${line}\n`);
     try {
       appendFileSync(logFile, text, { mode: 0o600 });
     } catch {
@@ -56,7 +56,7 @@ export const bridgeCommands = [
   {
     name: 'serve',
     usage: [
-      '  pr-story serve   [--port N]                                  run the bridge on 127.0.0.1',
+      '  once-upon serve   [--port N]                                  run the bridge on 127.0.0.1',
     ],
     async run(home, cfg, opts) {
       await serve(home, cfg, opts);
@@ -65,22 +65,22 @@ export const bridgeCommands = [
   {
     name: 'setup',
     usage: [
-      "  pr-story setup                                               print the port and token to paste into the extension's options",
+      "  once-upon setup                                               print the port and token to paste into the extension's options",
     ],
     run(home, cfg) {
       out(`Bridge port:  ${cfg.port}`);
       out(`Bridge token: ${cfg.token}`);
       out('');
       out(
-        'Paste both into the extension: chrome://extensions → PR Story → Details → Extension options.',
+        'Paste both into the extension: chrome://extensions → Once Upon a Diff → Details → Extension options.',
       );
-      out(`Then run: ${path.relative(process.cwd(), process.argv[1]) || 'pr-story'} serve`);
+      out(`Then run: ${path.relative(process.cwd(), process.argv[1]) || 'once-upon'} serve`);
     },
   },
   {
     name: 'token',
     usage: [
-      '  pr-story token   [--rotate]                                  print (or replace) the token',
+      '  once-upon token   [--rotate]                                  print (or replace) the token',
     ],
     run(home, cfg, opts) {
       if (opts.rotate) {

@@ -1,6 +1,6 @@
 /*
- * The pr-story CLI: one table of commands, each with its usage lines, so
- * the help text and the commands can't drift apart. bin/pr-story.mjs runs
+ * The once-upon CLI: one table of commands, each with its usage lines, so
+ * the help text and the commands can't drift apart. bin/once-upon.mjs runs
  * main().
  */
 import { homeDir, loadConfig, moveLegacyHome } from '../config/settings.mjs';
@@ -50,11 +50,11 @@ export const commandNames = () => ({ table: [...COMMANDS.keys()], help: [...HELP
 export function usageText() {
   const lines = HELP_ORDER.flatMap((name) => COMMANDS.get(name).usage);
   return [
-    'pr-story: the PR Story bridge and its helpers.',
+    'once-upon: the Once Upon a Diff bridge and its helpers.',
     '',
     ...lines,
     '',
-    'PR_STORY_HOME moves ~/.pr-story. Personal settings (display name, time zone, checkout folders,',
+    'ONCE_UPON_HOME moves ~/.once-upon. Personal settings (display name, time zone, checkout folders,',
     'opener, gh token handling) are optional keys in its config.json: see readSettings in config/settings.mjs.',
     ' ',
   ].join('\n');
@@ -70,16 +70,16 @@ export function main(argv) {
   }
   const moved = moveLegacyHome();
   if (moved) {
-    process.stderr.write(`pr-story: ${moved}\n`);
+    process.stderr.write(`once-upon: ${moved}\n`);
   }
   const home = homeDir();
   for (const line of moveLegacyStoryFolders(home)) {
-    process.stderr.write(`pr-story: ${line}\n`);
+    process.stderr.write(`once-upon: ${line}\n`);
   }
   Promise.resolve()
     .then(() => entry.run(home, loadConfig(home), opts))
     .catch((err) => {
-      process.stderr.write(`pr-story: ${err.message}\n`);
+      process.stderr.write(`once-upon: ${err.message}\n`);
       process.exitCode = 1;
     });
 }

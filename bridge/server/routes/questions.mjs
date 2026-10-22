@@ -1,6 +1,6 @@
 /*
  * Questions from the panel's Ask box, with the answers a Claude session gave
- * them (`pr-story answer`).
+ * them (`once-upon answer`).
  */
 import { newId } from '../../inbox/inbox.mjs';
 import { HttpError, clipText, toInt } from '../request.mjs';

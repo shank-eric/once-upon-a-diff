@@ -20,7 +20,7 @@ const jumpAttrs = (rel) =>
 /** The Mark viewed button for a file this chapter finishes. The tracker keeps its label in step with the file's Viewed toggle. */
 export function markViewedButton(rel, short) {
   const label = short ? 'mark viewed' : 'Mark viewed';
-  return `<button type="button" class="prs-mark prs-st-mark" data-mark-for="${escapeHtml(rel)}"${short ? ' data-mark-short="1"' : ''} title="Tick ${escapeHtml(rel)}'s Viewed checkbox">${label}</button>`;
+  return `<button type="button" class="ou-mark ou-st-mark" data-mark-for="${escapeHtml(rel)}"${short ? ' data-mark-short="1"' : ''} title="Tick ${escapeHtml(rel)}'s Viewed checkbox">${label}</button>`;
 }
 
 const linkList = (rels) =>
@@ -60,7 +60,7 @@ export function createViewedTracker(context) {
       // its "Viewed ✓" button says it
       const tagged =
         !!el.parentElement &&
-        !!el.parentElement.querySelector(':scope > .prs-why > [data-mark-for]');
+        !!el.parentElement.querySelector(':scope > .ou-why > [data-mark-for]');
       let text = '';
       if (viewed === true && early) {
         text = '⚠ viewed early';
@@ -68,7 +68,7 @@ export function createViewedTracker(context) {
         text = '✓ viewed';
       }
       el.textContent = text;
-      el.classList.toggle('prs-early', early);
+      el.classList.toggle('ou-early', early);
       el.title = early
         ? `Marked viewed, but ${story.chapterName(story.finishedIn[rel])} covers more of it. You may want to unmark it until then.`
         : '';
@@ -82,8 +82,8 @@ export function createViewedTracker(context) {
       } else {
         el.textContent = isOn ? 'Viewed ✓' : 'Mark viewed';
       }
-      el.classList.toggle('prs-st-viewed', isOn);
-      el.classList.toggle('prs-st-mark', !isOn);
+      el.classList.toggle('ou-st-viewed', isOn);
+      el.classList.toggle('ou-st-mark', !isOn);
       el.setAttribute('aria-pressed', String(isOn));
       el.title = isOn
         ? `Viewed. Click to untick ${rel}'s Viewed checkbox`
@@ -92,7 +92,7 @@ export function createViewedTracker(context) {
   }
 
   function renderEarlyBox(blocks, step, earlyFor) {
-    const earlyBox = $('.prs-early-box');
+    const earlyBox = $('.ou-early-box');
     if (!earlyBox) {
       return;
     }
@@ -120,7 +120,7 @@ export function createViewedTracker(context) {
       }
       const complete = progress.viewed === progress.due;
       el.textContent = complete ? '✓' : `${progress.viewed}/${progress.due}`;
-      el.classList.toggle('prs-done', complete);
+      el.classList.toggle('ou-done', complete);
       el.title = complete
         ? 'Every file to mark viewed here is ticked'
         : `${progress.viewed} of ${progress.due} marked viewed`;
@@ -134,11 +134,11 @@ export function createViewedTracker(context) {
       .map((progress, index) => ({ progress, index }))
       .filter(({ progress }) => progress.viewed < progress.due)
       .map(({ index }) => index + 1);
-    box.classList.toggle('prs-complete', !!due && viewed === due);
+    box.classList.toggle('ou-complete', !!due && viewed === due);
     if (!due) {
       box.innerHTML = '';
     } else if (viewed === due) {
-      box.innerHTML = `<span class="prs-done">✓ All ${due} files marked viewed</span>`;
+      box.innerHTML = `<span class="ou-done">✓ All ${due} files marked viewed</span>`;
     } else {
       const still = left.length
         ? ` · ${left.map(story.chapterName).join(', ')} still ${left.length > 1 ? 'have' : 'has'} some to go`
@@ -161,11 +161,11 @@ export function createViewedTracker(context) {
     });
     renderFileMarks(blocks, earlyFor);
     renderEarlyBox(blocks, step, earlyFor);
-    const box = $('.prs-progress');
+    const box = $('.ou-progress');
     if (!box) {
       return;
     }
-    box.classList.remove('prs-complete');
+    box.classList.remove('ou-complete');
     const all = data.chapters.map((chapter, index) => progressOf(index + 1, blocks));
     if (
       all.some((progress) => progress.noToggle) &&
@@ -191,8 +191,8 @@ export function createViewedTracker(context) {
       return;
     }
     if (progress.viewed === progress.due) {
-      box.classList.add('prs-complete');
-      box.innerHTML = `<span class="prs-done">✓ All ${progress.due} marked viewed</span>`;
+      box.classList.add('ou-complete');
+      box.innerHTML = `<span class="ou-done">✓ All ${progress.due} marked viewed</span>`;
       return;
     }
     box.innerHTML =

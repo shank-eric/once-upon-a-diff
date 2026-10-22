@@ -2,7 +2,7 @@
  * The page-level "No session listening for owner/name" notice, on PR lists
  * and a PR's Conversation tab: one line per repo on the page that has no
  * Claude session listening, each with "Copy prompt for Claude". The prompt is
- * the one-line `/pr-story-listen owner/name`, and its hover gives where to
+ * the one-line `/once-upon-listen owner/name`, and its hover gives where to
  * start Claude Code and the long form for a session without the skill.
  * Our own element in its own shadow root, bottom right. It never touches
  * GitHub's page and posts nothing.
@@ -11,7 +11,7 @@ import { copyWithFeedback } from './copy.js';
 import { escapeHtml } from '../../shared/util/html.js';
 import { stopKeyEvents } from '../../shared/util/dom.js';
 
-const HOST_ID = 'pr-story-listen-notice';
+const HOST_ID = 'once-upon-listen-notice';
 const MAX = 3;
 const CSS = `
   :host { all: initial; }
@@ -80,7 +80,7 @@ export function listenNotice() {
           const how = missingRow.checkout
             ? `Start Claude Code in ${missingRow.checkout} and paste ${missingRow.prompt}.`
             : `Start Claude Code in your ${missingRow.repo} checkout and paste ${missingRow.prompt}.`;
-          const title = `${how}${missingRow.details ? `\n\nWithout the pr-story-listen skill: ${missingRow.details}` : ''}`;
+          const title = `${how}${missingRow.details ? `\n\nWithout the once-upon-listen skill: ${missingRow.details}` : ''}`;
           return (
             `<div class="row"><span>No session listening for <b>${escapeHtml(missingRow.repo)}</b>${missingRow.checkout ? ` <span class="muted">· ${escapeHtml(missingRow.checkout)}</span>` : ''}</span>` +
             `<button data-i="${i}" title="${escapeHtml(title)}">Copy prompt for Claude</button></div>`

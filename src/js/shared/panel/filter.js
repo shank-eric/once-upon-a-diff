@@ -11,18 +11,18 @@ import { baseName, capitalize } from '../util/text.js';
  * A file outside the chapter also gets the standard `hidden` attribute on
  * its block and on the elements other tools look for (Refined GitHub's
  * alt-click "mark all viewed" skips only `[class*=diffTargetable]:not([hidden])`).
- * We only ever remove a `hidden` we added (data-prs-hid marks it).
+ * We only ever remove a `hidden` we added (data-ou-hid marks it).
  */
 const TARGETS =
   '[role="region"][id^="diff-"], [class*="diffTargetable"], .js-file, copilot-diff-entry';
 const DEBOUNCE_MS = 150;
 
 function setHidden(el, hide) {
-  if (hide && !el.hasAttribute('data-prs-hidden')) {
-    el.setAttribute('data-prs-hidden', '');
+  if (hide && !el.hasAttribute('data-ou-hidden')) {
+    el.setAttribute('data-ou-hidden', '');
   }
-  if (!hide && el.hasAttribute('data-prs-hidden')) {
-    el.removeAttribute('data-prs-hidden');
+  if (!hide && el.hasAttribute('data-ou-hidden')) {
+    el.removeAttribute('data-ou-hidden');
   }
 }
 
@@ -34,24 +34,24 @@ function hideBlock(el, hide) {
   for (const target of targets) {
     if (hide && !target.hasAttribute('hidden')) {
       target.setAttribute('hidden', '');
-      target.setAttribute('data-prs-hid', '');
+      target.setAttribute('data-ou-hid', '');
     }
-    if (!hide && target.hasAttribute('data-prs-hid')) {
+    if (!hide && target.hasAttribute('data-ou-hid')) {
       target.removeAttribute('hidden');
-      target.removeAttribute('data-prs-hid');
+      target.removeAttribute('data-ou-hid');
     }
   }
 }
 
 /** Takes every mark the panel put on the page off again. */
 function unhideAll() {
-  for (const el of document.querySelectorAll('[data-prs-hidden], [data-prs-flash]')) {
-    el.removeAttribute('data-prs-hidden');
-    el.removeAttribute('data-prs-flash');
+  for (const el of document.querySelectorAll('[data-ou-hidden], [data-ou-flash]')) {
+    el.removeAttribute('data-ou-hidden');
+    el.removeAttribute('data-ou-flash');
   }
-  for (const el of document.querySelectorAll('[data-prs-hid]')) {
+  for (const el of document.querySelectorAll('[data-ou-hid]')) {
     el.removeAttribute('hidden');
-    el.removeAttribute('data-prs-hid');
+    el.removeAttribute('data-ou-hid');
   }
 }
 
@@ -86,7 +86,7 @@ export function createFilter(context) {
     for (const row of rows.filter((candidate) => !candidate.rel)) {
       const under = row.dir && [...wanted].some((path) => path.startsWith(row.dir + '/'));
       const visibleChild = fileRows.some(
-        (fileRow) => row.el.contains(fileRow.el) && !fileRow.el.hasAttribute('data-prs-hidden'),
+        (fileRow) => row.el.contains(fileRow.el) && !fileRow.el.hasAttribute('data-ou-hidden'),
       );
       setHidden(row.el, !showAll && !under && !visibleChild);
     }
@@ -116,11 +116,11 @@ export function createFilter(context) {
           : '';
       const here = story.chapterName(state.n);
       html = state.all
-        ? `<span>Showing all <b>${total}</b> files. ${capitalize(here)}'s ${count} are listed below.</span> <button class="prs-all" aria-pressed="true">Chapter files only</button>`
-        : `<span>Showing <b>${count}</b> of <b>${total}</b> files, ${here}${extra}</span> <button class="prs-all" aria-pressed="false">Show all files</button>`;
+        ? `<span>Showing all <b>${total}</b> files. ${capitalize(here)}'s ${count} are listed below.</span> <button class="ou-all" aria-pressed="true">Chapter files only</button>`
+        : `<span>Showing <b>${count}</b> of <b>${total}</b> files, ${here}${extra}</span> <button class="ou-all" aria-pressed="false">Show all files</button>`;
     }
-    $('.prs-count-note').innerHTML = html;
-    const allButton = $('.prs-all');
+    $('.ou-count-note').innerHTML = html;
+    const allButton = $('.ou-all');
     if (allButton) {
       allButton.onclick = () => {
         state.all = !state.all;
@@ -128,12 +128,12 @@ export function createFilter(context) {
         apply();
       };
     }
-    for (const item of shell.root.querySelectorAll('ul.prs-files > li[data-file]')) {
-      item.classList.toggle('prs-missing', seen.missing.includes(item.getAttribute('data-file')));
+    for (const item of shell.root.querySelectorAll('ul.ou-files > li[data-file]')) {
+      item.classList.toggle('ou-missing', seen.missing.includes(item.getAttribute('data-file')));
     }
   }
 
-  $('.prs-note').addEventListener('click', (event) => {
+  $('.ou-note').addEventListener('click', (event) => {
     const ref = event.target.closest('[data-rel]');
     if (ref) {
       context.scroll.jumpTo(ref.getAttribute('data-rel'));

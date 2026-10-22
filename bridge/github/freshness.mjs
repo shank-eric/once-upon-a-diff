@@ -1,6 +1,6 @@
 /**
  * Is a PR story up to date with the PR's latest commit? The story's meta
- * says which head it was told from (pr-story's pr.json headRefOid). The
+ * says which head it was told from (once-upon's pr.json headRefOid). The
  * bridge reads the PR's current head and, when it differs, what changed
  * between the two, with read-only `gh api` GETs cached for 60s:
  *   repos/{o}/{r}/pulls/{n}                       head.sha
@@ -150,7 +150,7 @@ export async function freshness(meta, chapters, { lastBuild = null } = {}) {
     return {
       state: 'unknown',
       story_head: null,
-      error: "the story doesn't say which commit it was told from (re-render it with pr-story)",
+      error: "the story doesn't say which commit it was told from (re-render it with once-upon)",
     };
   }
   let head;

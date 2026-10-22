@@ -21,8 +21,8 @@ import { requestFor, stepOfHash } from '../ui/story-tag.js';
 import { toast } from '../ui/toast.js';
 import { createWhitespaceCheck, prefsStore } from './hide-whitespace.js';
 
-const PANEL_ID = 'pr-story-panel';
-const TAG_ATTR = 'data-prs-files';
+const PANEL_ID = 'once-upon-panel';
+const TAG_ATTR = 'data-ou-files';
 
 const panelOnPage = () => !!document.getElementById(PANEL_ID);
 const prOfLocation = () => filesChangedPr(location.pathname);
@@ -50,7 +50,7 @@ export function createFilesChangedPage() {
     }
   }
 
-  /** The step to open on, once per page: a "Since you read it" range's chapter, or a #prs-step-N from a PR-list tag. */
+  /** The step to open on, once per page: a "Since you read it" range's chapter, or a #ou-step-N from a PR-list tag. */
   function jumpStep() {
     // GitHub's diff of one "Since you read it" chapter's commits opens on that chapter, once per page
     const range = rangeStepOf(current.data.chapters, location.pathname);
@@ -58,7 +58,7 @@ export function createFilesChangedPage() {
       current.rangeFor = location.pathname;
       return range;
     }
-    // a PR-list "Story · 2 of 5 read" tag links Files changed#prs-step-N: open on the first unread chapter, once
+    // a PR-list "Story · 2 of 5 read" tag links Files changed#ou-step-N: open on the first unread chapter, once
     const hashStep = stepOfHash(location.hash);
     if (hashStep && hashStep <= current.data.chapters.length && current.hashFor !== location.href) {
       current.hashFor = location.href;
@@ -93,7 +93,9 @@ export function createFilesChangedPage() {
         current.ui = { ...current.ui, hidden: true };
         savePanelUi(key, current.ui);
         tagAfterPanel();
-        toast('Story hidden. Click the PR Story toolbar button (or Alt+Shift+S) to bring it back.');
+        toast(
+          'Story hidden. Click the Once Upon a Diff toolbar button (or Alt+Shift+S) to bring it back.',
+        );
       },
       ask: async (question) => {
         const answer = await callBridge('POST', `${storyPath}/questions`, {
@@ -327,10 +329,10 @@ export function createFilesChangedPage() {
       return 'Set the bridge port and token in the extension options first.';
     }
     if (current.status === 'unreachable') {
-      return "The bridge isn't running. Start it with: pr-story serve";
+      return "The bridge isn't running. Start it with: once-upon serve";
     }
     if (/HTTP 401|token/.test(current.status)) {
-      return 'The bridge rejected the token. Copy it again from: pr-story setup';
+      return 'The bridge rejected the token. Copy it again from: once-upon setup';
     }
     return 'The bridge has no story for this PR.';
   }
@@ -339,7 +341,7 @@ export function createFilesChangedPage() {
   async function toggle() {
     const pr = prOfLocation();
     if (!pr) {
-      return toast("PR Story works on a pull request's Files changed page.");
+      return toast("Once Upon a Diff works on a pull request's Files changed page.");
     }
     if (!current || current.key !== pr.key || !current.data) {
       await sync();

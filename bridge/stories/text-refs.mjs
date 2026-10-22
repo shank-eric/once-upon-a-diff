@@ -14,7 +14,7 @@
  * their commits, which may not have the file, and they already finish what
  * they list.
  *
- * The pr-story skill's `build` uses addTextRefs for file-map.json.
+ * The once-upon skill's `build` uses addTextRefs for file-map.json.
  */
 import { pathSha } from '../util/diff.mjs';
 

@@ -3,10 +3,10 @@
  *
  * The extension's Build story button posts {repo, number, url, requested_at}.
  * The bridge keeps the request in <home>/builds.json, the one record of it:
- * `pr-story wait` hands queued ones to a Claude session as `build_request`
+ * `once-upon wait` hands queued ones to a Claude session as `build_request`
  * entries, and every tab on that PR shows Queued or Building. A request is
- * finished by its story turning up (`pr-story publish`, or a status call
- * that notices the story), or by `pr-story done <id>`.
+ * finished by its story turning up (`once-upon publish`, or a status call
+ * that notices the story), or by `once-upon done <id>`.
  */
 import path from 'node:path';
 import { newId } from './inbox.mjs';
@@ -96,7 +96,7 @@ export class Builds {
 
   /**
    * A pending request is "queued" until a listener claims it, then "building" while the claim is fresh.
-   * `pr-story wait` claims each request it hands over. On a long build, `pr-story builds --start <id>`
+   * `once-upon wait` claims each request it hands over. On a long build, `once-upon builds --start <id>`
    * refreshes the claim. A claim with no refresh for CLAIM_FRESH_MS goes back to queued, and the next wait
    * hands it out again.
    */

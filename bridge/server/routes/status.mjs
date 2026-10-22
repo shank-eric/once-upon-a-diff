@@ -31,7 +31,7 @@ export const statusRoutes = [
   {
     path: '/api/health',
     handle: ({ app, send }) =>
-      send(200, { ok: true, name: 'pr-story-bridge', version: app.version }),
+      send(200, { ok: true, name: 'once-upon-bridge', version: app.version }),
   },
   { path: '/api/status', method: 'GET', handle: status },
   {

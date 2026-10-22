@@ -1,5 +1,5 @@
 /**
- * pr-story: a pull request told as a story, chapter by chapter, for PR Story's panel.
+ * once-upon: a pull request told as a story, chapter by chapter, for Once Upon a Diff's panel.
  *
  * Works on a folder that bin/gather.sh filled (pr.json, pr.diff,
  * threads.json, checks.json, viewed.tsv). It makes no network calls.
@@ -7,14 +7,14 @@
  *   story.mjs brief   --dir D                 what Claude reads to plan: files, commits, reviews, threads, CI, viewed
  *   story.mjs build   --dir D [--no-bridge]   D/chapters.json -> D/file-map.json, then publish; fails if a file is
  *                                             unplaced or a hunk is told by no chapter (--allow-uncovered publishes anyway)
- *   story.mjs publish --dir D                 publish the story for PR Story through `pr-story publish` (build does this too)
+ *   story.mjs publish --dir D                 publish the story for Once Upon a Diff through `once-upon publish` (build does this too)
  */
 import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-// This skill ships in the PR Story repo (skills/pr-story/bin), and Node resolves the skill link, so it
+// This skill ships in the Once Upon a Diff repo (skills/once-upon/bin), and Node resolves the skill link, so it
 // imports the bridge's and the panel's own helpers from the checkout it's linked from.
 import { parseArgs } from '../../../bridge/cli/args.mjs';
 import { parseUnifiedDiff } from '../../../bridge/util/diff.mjs';
@@ -244,20 +244,20 @@ async function cmdBuild(opts) {
 }
 
 /**
- * PR Story: hand the folder to `pr-story publish`, which copies
+ * Once Upon a Diff: hand the folder to `once-upon publish`, which copies
  * chapters.json and file-map.json, with a meta.json naming the PR and the
  * commits it was told from, to where the bridge serves it (the repo's
- * checkout when it knows one, else PR_STORY_HOME). The extension then shows
+ * checkout when it knows one, else ONCE_UPON_HOME). The extension then shows
  * the panel on the PR page by itself, and picks up each rebuild within a few
  * seconds.
  */
 async function cmdPublish(opts) {
   const dest = execFileSync(
     process.execPath,
-    [path.join(REPO_ROOT, 'bridge/bin/pr-story.mjs'), 'publish', '--dir', path.resolve(opts.dir)],
+    [path.join(REPO_ROOT, 'bridge/bin/once-upon.mjs'), 'publish', '--dir', path.resolve(opts.dir)],
     { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] },
   ).trim();
-  process.stderr.write(`PR Story: ${dest}\n`);
+  process.stderr.write(`Once Upon a Diff: ${dest}\n`);
 }
 
 const COMMANDS = {

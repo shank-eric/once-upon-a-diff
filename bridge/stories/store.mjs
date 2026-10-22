@@ -1,12 +1,12 @@
 /**
  * Finding and loading stories.
  *
- * A story is a folder holding chapters.json (pr-story's format) and a
+ * A story is a folder holding chapters.json (once-upon's format) and a
  * meta.json saying what it is a story of. The bridge only reads story
  * folders. What it records (viewed files, notes, position, the panel's step)
  * goes under <home>/state/<story id>/.
  *
- * A story lives in one place (placement.mjs): <checkout>/.pr-story/<id>/,
+ * A story lives in one place (placement.mjs): <checkout>/.once-upon/<id>/,
  * recorded in the index, or <home>/<id>/ when its repo has no known checkout.
  * The index is read first, so its folder wins for an id.
  */

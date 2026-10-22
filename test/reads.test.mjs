@@ -14,7 +14,7 @@ import {
 import { clearFreshness } from '../bridge/github/freshness.mjs';
 import { createLocalStory } from '../bridge/stories/local-story.mjs';
 
-process.env.PR_STORY_GH = path.join(
+process.env.ONCE_UPON_GH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   'fixtures',
   'fake-gh.mjs',
@@ -269,7 +269,7 @@ test('GET /read compares the commit each chapter was read at with the story head
       ],
     },
   });
-  process.env.PR_STORY_FAKE_GH_EXTRA = extra;
+  process.env.ONCE_UPON_FAKE_GH_EXTRA = extra;
   noteRead(home, 'pr-acme-widgets-7', 'start', { head_sha: SHA_A, story_head: SHA_A });
   const bridge = await startBridge({ home });
   try {
@@ -284,7 +284,7 @@ test('GET /read compares the commit each chapter was read at with the story head
       'the drafted comment on line 2 sits in the changed hunk',
     );
   } finally {
-    delete process.env.PR_STORY_FAKE_GH_EXTRA;
+    delete process.env.ONCE_UPON_FAKE_GH_EXTRA;
     await bridge.close();
   }
 });

@@ -2,7 +2,7 @@
  * Is everything connected? Listener heartbeats, and the status the panel's light
  * shows.
  *
- * Heartbeats: `pr-story wait` writes <home>/listeners/<consumer>.json every
+ * Heartbeats: `once-upon wait` writes <home>/listeners/<consumer>.json every
  * ≈5s while it waits ({state: 'waiting'}), and once more when it hands a
  * question over ({state: 'handling'}), because the Claude session is busy
  * answering until it starts the next wait. A listener counts as live when a
@@ -86,17 +86,17 @@ export function onPath(cmd) {
   }
 }
 
-const BIN = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../bin/pr-story.mjs');
+const BIN = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../bin/once-upon.mjs');
 const shq = (word) =>
   /^[A-Za-z0-9_./:=@%+-]+$/.test(word) ? word : `'${String(word).replace(/'/g, "'\\''")}'`;
 let cliCache = null;
-/** How to run the CLI from a shell: `pr-story` when it's on PATH, else node and the script by full path. */
-export function cliCommand(found = cliCache ?? (cliCache = onPath('pr-story'))) {
-  return found ? 'pr-story' : `${shq(process.execPath)} ${shq(BIN)}`;
+/** How to run the CLI from a shell: `once-upon` when it's on PATH, else node and the script by full path. */
+export function cliCommand(found = cliCache ?? (cliCache = onPath('once-upon'))) {
+  return found ? 'once-upon' : `${shq(process.execPath)} ${shq(BIN)}`;
 }
 
 /**
- * "Copy prompt for Claude": one line for the pr-story-listen skill (skills/pr-story-listen), naming the repo,
+ * "Copy prompt for Claude": one line for the once-upon-listen skill (skills/once-upon-listen), naming the repo,
  * plus the long form for a session without the skill.
  */
 export function listenPrompt(
@@ -122,11 +122,11 @@ export function listenPrompt(
   return {
     repo,
     checkout: checkout ? tilde(checkout) : null,
-    prompt: `/pr-story-listen${arg}`,
+    prompt: `/once-upon-listen${arg}`,
     command: wait,
     details:
       `${where} \`${wait}\` as a background task, and start it again each time it exits. For a question, answer it and run \`${cli} answer --question <id> --text "<answer>"\`. ` +
-      `For a build request, build the story with /pr-story <PR url>; publishing it finishes the request (run \`${cli} done <id> --failed\` if it can't be built). Keep going until I say stop.`,
+      `For a build request, build the story with /once-upon <PR url>; publishing it finishes the request (run \`${cli} done <id> --failed\` if it can't be built). Keep going until I say stop.`,
   };
 }
 
@@ -151,8 +151,8 @@ export function listeningOf(home, { repo = null, story = null } = {}) {
     })),
     last_seen: all[0] ? all[0].at : null,
     start: repo
-      ? `In Claude Code, in your checkout of ${repo}: /pr-story-listen ${repo}`
-      : 'In Claude Code: /pr-story-listen',
+      ? `In Claude Code, in your checkout of ${repo}: /once-upon-listen ${repo}`
+      : 'In Claude Code: /once-upon-listen',
     ...listenPrompt({ repo, story: repo ? null : story, checkout: checkoutFor(home, repo) }),
   };
 }

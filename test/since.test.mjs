@@ -10,7 +10,7 @@ import { clearFreshness } from '../bridge/github/freshness.mjs';
 import { tagFor, tagHtml, requestFor } from '../src/js/content/ui/story-tag.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-process.env.PR_STORY_GH = path.join(HERE, 'fixtures', 'fake-gh.mjs');
+process.env.ONCE_UPON_GH = path.join(HERE, 'fixtures', 'fake-gh.mjs');
 const SHA_A = 'a'.repeat(40);
 const SHA_B = 'b'.repeat(40);
 
@@ -307,7 +307,7 @@ test('the PR-list tag says how much of the story he has read', () => {
   const part = tagWith({ reads: { read: 2, total: 5, next: 3 } });
   assert.deepEqual(
     [part.kind, part.label, part.href],
-    ['link', 'Story · 2 of 5 read', `${href}#prs-step-3`],
+    ['link', 'Story · 2 of 5 read', `${href}#ou-step-3`],
     'partly read: to the first unread chapter',
   );
   const all = tagWith({ reads: { read: 5, total: 5, next: null } });

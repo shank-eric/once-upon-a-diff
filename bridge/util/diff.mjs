@@ -1,4 +1,4 @@
-/** Unified diff parsing (the same shape pr-story uses) and GitHub's file anchors. */
+/** Unified diff parsing (the same shape once-upon uses) and GitHub's file anchors. */
 import { createHash } from 'node:crypto';
 
 /** GitHub's "Files changed" anchor for a file is diff- + the sha256 of its path. */

@@ -1,15 +1,15 @@
 /**
  * Where the bridge keeps things, and its port and token.
  *
- *   ~/.pr-story/                   PR_STORY_HOME overrides it
+ *   ~/.once-upon/                   ONCE_UPON_HOME overrides it
  *     config.json                  {port, token, ...personal settings (readSettings)}, mode 600
  *     house-rules.md               optional: your own rules, which the skills read and follow
  *     prefs.json                   page settings that hold across stories and restarts: {hideWhitespace, diffView}
  *     inbox.jsonl                  questions, notes and answers, one JSON object a line
  *     cursors/<consumer>.json      how far each reader (a Claude session, a hook) has read the inbox
  *     state/<story id>/            what the bridge records per story: ui.json, position.json, viewed.json, notes.json
- *     <owner>-<repo>-<N>/          a story pr-story published (chapters.json, file-map.json, meta.json)
- *     local-<repo>-<branch>/       a local-commits story made by `pr-story local`
+ *     <owner>-<repo>-<N>/          a story once-upon published (chapters.json, file-map.json, meta.json)
+ *     local-<repo>-<branch>/       a local-commits story made by `once-upon local`
  */
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync, chmodSync } from 'node:fs';
@@ -19,24 +19,62 @@ import path from 'node:path';
 export const DEFAULT_PORT = 4823;
 
 export function homeDir() {
-  return process.env.PR_STORY_HOME || path.join(os.homedir(), '.pr-story');
+  return process.env.ONCE_UPON_HOME || path.join(os.homedir(), '.once-upon');
 }
 
+/** The folder names this project's home has had, newest first. */
+const LEGACY_HOMES = ['.pr-story', '.diff-story'];
+
 /**
- * One-time move from the old name: ~/.diff-story becomes ~/.pr-story when only the old one exists.
- * Returns a line saying so, or null. Safe to delete once no machine has a ~/.diff-story left.
+ * One-time move from an old name: ~/.pr-story (or, before that, ~/.diff-story) becomes
+ * ~/.once-upon when only the old one exists, and config.json's paths into it follow.
+ * Returns a line saying so, or null. Safe to delete once no machine has either left.
  */
 export function moveLegacyHome() {
-  if (process.env.PR_STORY_HOME) {
+  if (process.env.ONCE_UPON_HOME) {
     return null;
   }
-  const legacy = path.join(os.homedir(), '.diff-story');
   const home = homeDir();
-  if (existsSync(home) || !existsSync(legacy)) {
+  const legacy = LEGACY_HOMES.map((name) => path.join(os.homedir(), name)).find((dir) =>
+    existsSync(dir),
+  );
+  if (existsSync(home) || !legacy) {
     return null;
   }
   renameSync(legacy, home);
-  return `moved ${legacy} to ${home} (the project is PR Story now)`;
+  repointConfigPaths(home, legacy);
+  return `moved ${legacy} to ${home} (the project is Once Upon a Diff now)`;
+}
+
+/** In a moved config.json, string settings that pointed into the old home (like house_rules) point into the new one. */
+function repointConfigPaths(home, legacy) {
+  const file = path.join(home, 'config.json');
+  let cfg;
+  try {
+    cfg = JSON.parse(readFileSync(file, 'utf8'));
+  } catch {
+    return;
+  }
+  const oldTilde = `~/${path.basename(legacy)}/`;
+  let changed = false;
+  for (const [key, value] of Object.entries(cfg)) {
+    if (typeof value !== 'string') {
+      continue;
+    }
+    let next = value;
+    if (value.startsWith(oldTilde)) {
+      next = `~/${path.basename(home)}/${value.slice(oldTilde.length)}`;
+    } else if (value.startsWith(legacy + path.sep)) {
+      next = path.join(home, value.slice(legacy.length + 1));
+    }
+    if (next !== value) {
+      cfg[key] = next;
+      changed = true;
+    }
+  }
+  if (changed) {
+    saveConfig(cfg, home);
+  }
 }
 
 export const newToken = () => randomBytes(24).toString('base64url');
@@ -69,10 +107,10 @@ export function loadConfig(home = homeDir()) {
   return cfg;
 }
 
-/** The folders to look for checkouts in: PR_STORY_DEV_DIR (tests), else checkout_dirs, else ~/Development. */
+/** The folders to look for checkouts in: ONCE_UPON_DEV_DIR (tests), else checkout_dirs, else ~/Development. */
 function checkoutDirsOf(dirs) {
-  if (process.env.PR_STORY_DEV_DIR) {
-    return [process.env.PR_STORY_DEV_DIR];
+  if (process.env.ONCE_UPON_DEV_DIR) {
+    return [process.env.ONCE_UPON_DEV_DIR];
   }
   return dirs.length ? dirs : [path.join(os.homedir(), 'Development')];
 }
@@ -83,10 +121,10 @@ const PLATFORM_OPENER = { darwin: ['open'], win32: ['explorer'] };
  * Optional personal settings in config.json, all off or neutral by default:
  *   display_name            the reviewer's name in lines the bridge writes for Claude ("where Sam's reading stopped")
  *   time_zone               an IANA zone for times the CLI prints (default: the system's), time_zone_label its label
- *   checkout_dirs           folders to look in for a repo's checkout (default ["~/Development"]; PR_STORY_DEV_DIR overrides)
+ *   checkout_dirs           folders to look in for a repo's checkout (default ["~/Development"]; ONCE_UPON_DEV_DIR overrides)
  *   open_command            argv to open a URL or file, e.g. ["open"] (default: open, xdg-open or start by platform)
  *   gh_unset_github_token   true to drop GITHUB_TOKEN before calling gh, so gh's own (keychain) login is used
- *   house_rules             a Markdown file of your own rules the skills load (default ~/.pr-story/house-rules.md)
+ *   house_rules             a Markdown file of your own rules the skills load (default ~/.once-upon/house-rules.md)
  * Read without creating config.json, so a missing file just means the defaults.
  */
 export function readSettings(home = homeDir()) {

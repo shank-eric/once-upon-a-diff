@@ -3,7 +3,7 @@
  * pending review, dismissed, or still a draft), the reviewer's own marks, and
  * Add to my review. Read-only on GitHub, except Add to my review, which adds
  * the draft to their pending review (never submitted). A comment drafted in
- * Q&A comes in through `pr-story comment`.
+ * Q&A comes in through `once-upon comment`.
  */
 import { newId } from '../../inbox/inbox.mjs';
 import {

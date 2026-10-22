@@ -65,7 +65,7 @@ writeJson(path.join(home, id, 'chapters.json'), {
     },
   ],
 });
-process.env.PR_STORY_GH = path.join(ROOT, 'test', 'fixtures', 'fake-gh.mjs');
+process.env.ONCE_UPON_GH = path.join(ROOT, 'test', 'fixtures', 'fake-gh.mjs');
 const bridge = await startBridge({ home });
 const port = bridge.server.address().port;
 
@@ -97,7 +97,7 @@ try {
       waitUntil: 'domcontentloaded',
     });
     const host = await page
-      .waitForSelector('#pr-story-panel', { timeout: 15000, state: 'attached' })
+      .waitForSelector('#once-upon-panel', { timeout: 15000, state: 'attached' })
       .catch(() => null);
     const landed = new URL(page.url()).pathname; // logged out, /changes goes to /files
     check(!!host, `/${view}: panel docks (landed on ${landed})`);
@@ -130,7 +130,7 @@ try {
       );
     const viewed0 = await viewedNow();
     const before = await rowsOf(TSX);
-    await page.locator('#prs-panel .prs-next').click();
+    await page.locator('#ou-panel .ou-next').click();
     await page.waitForTimeout(1500);
     check(
       (await rowsOf(TSX)) === before,
@@ -141,7 +141,7 @@ try {
     const flashed = (side, line) =>
       page.evaluate(
         ([side, k]) =>
-          [...document.querySelectorAll('tr[data-prs-flash]')].some((row) => {
+          [...document.querySelectorAll('tr[data-ou-flash]')].some((row) => {
             if (
               [...row.querySelectorAll('[data-line-anchor], td[id^="diff-"]')].some((cell) =>
                 new RegExp(`^diff-[0-9a-f]{64}${side}${k}$`).test(
@@ -161,13 +161,13 @@ try {
         [side, line],
       );
     const click = async (sel, side, line, what) => {
-      await page.locator(`#prs-panel .prs-body ${sel}`).first().click();
+      await page.locator(`#ou-panel .ou-body ${sel}`).first().click();
       let ok = false;
       for (let i = 0; i < 60 && !ok; i++) {
         await page.waitForTimeout(500);
         ok = await flashed(side, line);
       }
-      const msg = (await page.locator('#prs-panel .prs-msg').textContent()).trim();
+      const msg = (await page.locator('#ou-panel .ou-msg').textContent()).trim();
       check(ok, `/${view}: ${what} is opened and highlighted${msg ? ` ("${msg}")` : ''}`);
       if (SHOTS && !ok) {
         await page.screenshot({ path: path.join(SHOTS, `expand-${view}-${line}.png`) });
@@ -214,12 +214,12 @@ try {
     await click('code[data-start="150"]', 'R', 150, 'a line in a collapsed file');
     check(await collapse(GQL), `/${view}: the test collapses ${GQL} with GitHub's toggle`);
     await page
-      .locator(`#prs-panel .prs-body code[data-rel="${GQL}"]:not([data-start])`)
+      .locator(`#ou-panel .ou-body code[data-rel="${GQL}"]:not([data-start])`)
       .first()
       .click();
     const flashedOpen = () =>
       page.evaluate(() =>
-        [...document.querySelectorAll('[data-prs-flash]')].some((el) =>
+        [...document.querySelectorAll('[data-ou-flash]')].some((el) =>
           [...el.querySelectorAll('tr')].some((row) => row.getClientRects().length),
         ),
       );
@@ -236,7 +236,7 @@ try {
     );
     check((await viewedNow()) === viewed0, `/${view}: no Viewed toggle changed`);
     await page
-      .locator('#prs-panel ol.prs-map li[data-n="0"]')
+      .locator('#ou-panel ol.ou-map li[data-n="0"]')
       .click()
       .catch(() => {});
   }

@@ -251,17 +251,17 @@ describe('story discovery', () => {
     const home = tmp('home');
     const checkout = tmp('checkout');
     githubStory(path.join(home, 'acme-widgets-7'));
-    githubStory(path.join(checkout, '.pr-story', 'acme-widgets-7'));
+    githubStory(path.join(checkout, '.once-upon', 'acme-widgets-7'));
     githubStory(path.join(home, 'widgets-9'));
     writeJson(path.join(home, 'stories.json'), {
-      'acme-widgets-7': path.join(checkout, '.pr-story', 'acme-widgets-7'),
+      'acme-widgets-7': path.join(checkout, '.once-upon', 'acme-widgets-7'),
     });
     const store = new StoryStore({ home });
     const list = store.list();
     assert.deepEqual(list.map((story) => story.id).sort(), ['acme-widgets-7', 'widgets-9']);
     assert.equal(
       list.find((story) => story.id === 'acme-widgets-7').dir,
-      path.join(checkout, '.pr-story', 'acme-widgets-7'),
+      path.join(checkout, '.once-upon', 'acme-widgets-7'),
     );
     assert.ok(store.find('acme/widgets', 7));
   });
@@ -309,7 +309,7 @@ describe('local stories', () => {
   after(() => bridge.close());
 
   test('is named for the repo and branch', () => {
-    assert.match(id, /^local-pr-story-repo-.+-feature$/);
+    assert.match(id, /^local-once-upon-repo-.+-feature$/);
   });
 
   test('serves the diff with hunks, and drops chapter files that are not in it', async () => {
@@ -436,7 +436,7 @@ describe('pulse', () => {
       assert.notEqual(afterDismiss.drafts_rev, first.drafts_rev);
       assert.equal(afterDismiss.version, first.version, 'a mark is not a new story version');
 
-      beat(home, 'pr-story', 'waiting', { repo: 'acme/widgets' });
+      beat(home, 'once-upon', 'waiting', { repo: 'acme/widgets' });
       assert.equal((await pulse()).listening, true);
     } finally {
       await bridge.close();
@@ -445,7 +445,7 @@ describe('pulse', () => {
 });
 
 describe('drafted comments', () => {
-  test('a comment lands in the chapter, in the served copy and its pr-story source, once', async () => {
+  test('a comment lands in the chapter, in the served copy and its once-upon source, once', async () => {
     const home = tmp('home');
     const src = tmp('scratch');
     githubStory(src);
@@ -492,7 +492,7 @@ describe('drafted comments', () => {
       assert.equal(
         fromSrc.chapters[1].comments.length,
         1,
-        'the pr-story source gets it too, so the next render keeps it',
+        'the once-upon source gets it too, so the next render keeps it',
       );
       assert.notEqual(
         (await bridge.call('GET', '/api/stories/acme-widgets-7/version')).body.version,

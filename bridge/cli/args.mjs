@@ -1,5 +1,5 @@
 /*
- * The CLI's argument parsing: `pr-story <command> [--flag value]... [words]`.
+ * The CLI's argument parsing: `once-upon <command> [--flag value]... [words]`.
  * A flag without a value is true; bare words go in opts._.
  */
 

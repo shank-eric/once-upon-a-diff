@@ -10,7 +10,7 @@ import { parseUnifiedDiff } from '../bridge/util/diff.mjs';
 import { chaptersOf } from '../bridge/stories/chapters.mjs';
 import { uncoveredHunks, SMALL_FILE_LINES } from '../bridge/stories/hunk-coverage.mjs';
 
-const STORY = fileURLToPath(new URL('../skills/pr-story/bin/story.mjs', import.meta.url));
+const STORY = fileURLToPath(new URL('../skills/once-upon/bin/story.mjs', import.meta.url));
 const run = promisify(execFile);
 
 /** A modified file's diff with one hunk per [newStart, added] pair, each with a line of context on either side. */
