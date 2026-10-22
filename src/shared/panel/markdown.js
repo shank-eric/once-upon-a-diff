@@ -2,9 +2,10 @@
  * A tiny markdown renderer for the story's text: escape first, then a block
  * pass (code fences, quotes, headings, lists, paragraphs) and an inline pass
  * (code, bold, italics, links). Backticked file names and links to the PR's
- * files become jump links (file-refs.js).
+ * files become jump links (file-refs.js). It works on strings, so html``
+ * isn't used inside; what it returns is raw() markup for html`` to take.
  */
-import { escapeHtml } from '../util/html.js';
+import { escapeHtml, raw } from '../util/html.js';
 import { parseDiffLink } from '../util/line-refs.js';
 import { refAttrs } from './file-refs.js';
 
@@ -35,7 +36,7 @@ export function createMarkdown(context) {
         }
         return `<a href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`;
       });
-    return html.replace(CODE_MARK, (match, index) => {
+    html = html.replace(CODE_MARK, (match, index) => {
       const ref = refs.resolveRef(codes[index]);
       if (!ref) {
         return `<code>${codes[index]}</code>`;
@@ -45,6 +46,7 @@ export function createMarkdown(context) {
         : codes[index];
       return `<code ${refAttrs(ref.rel, ref.line)}>${label}</code>${refs.pill(ref.rel)}`;
     });
+    return raw(html);
   }
 
   function markdown(source) {
@@ -136,7 +138,7 @@ export function createMarkdown(context) {
     }
     flushParagraph();
     closeLists();
-    return html;
+    return raw(html);
   }
 
   return { inline, markdown };

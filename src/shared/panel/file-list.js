@@ -3,7 +3,7 @@
  * each file with its status in this chapter (Mark viewed, done in an earlier
  * chapter, or nothing when a later chapter finishes it) and its line links.
  */
-import { escapeHtml } from '../util/html.js';
+import { html } from '../util/html.js';
 import { refAttrs } from './file-refs.js';
 import { markViewedButton } from './viewed.js';
 
@@ -27,16 +27,14 @@ export function createFileList(context) {
   }
 
   function lineItems(file) {
-    return (file.lines || [])
-      .map((line) => {
-        const side = line.side === 'L' ? 'L' : 'R';
-        const span =
-          line.end && line.end !== line.start ? `s ${line.start}–${line.end}` : ` ${line.start}`;
-        const range = `${side === 'L' ? 'old ' : ''}line${span}`;
-        const attrs = refAttrs(file.rel, { side, start: line.start, end: line.end || line.start });
-        return `<li><span ${attrs}>${range}</span>${line.label ? ` ${escapeHtml(line.label)}` : ''}</li>`;
-      })
-      .join('');
+    return (file.lines || []).map((line) => {
+      const side = line.side === 'L' ? 'L' : 'R';
+      const span =
+        line.end && line.end !== line.start ? `s ${line.start}–${line.end}` : ` ${line.start}`;
+      const range = `${side === 'L' ? 'old ' : ''}line${span}`;
+      const attrs = refAttrs(file.rel, { side, start: line.start, end: line.end || line.start });
+      return html`<li><span ${attrs}>${range}</span>${line.label && ` ${line.label}`}</li>`;
+    });
   }
 
   /** One file's row in step `step`'s list. */
@@ -46,14 +44,13 @@ export function createFileList(context) {
     // a file this chapter finishes: a Mark viewed button, which the viewed tracker turns into "Viewed ✓" while its Viewed toggle is on
     const mark = step && status && status.kind === 'mark';
     const whyHtml = mark
-      ? `${markViewedButton(file.rel)}${escapeHtml(why.slice(status.text.length))}`
-      : escapeHtml(why);
+      ? html`${markViewedButton(file.rel)}${why.slice(status.text.length)}`
+      : why;
     const whyKind = status && status.kind !== 'later' ? ` ou-st-${status.kind}` : '';
     const lines = lineItems(file);
-    return (
-      `<li data-file="${escapeHtml(file.rel)}"><code ${refAttrs(file.rel, null)}>${escapeHtml(file.rel)}</code><span class="ou-viewed" data-viewed-for="${escapeHtml(file.rel)}"></span>` +
-      `${why ? `<span class="ou-why${whyKind}">${whyHtml}</span>` : ''}${lines ? `<ul class="ou-lines">${lines}</ul>` : ''}</li>`
-    );
+    const whyLine = why && html`<span class="ou-why${whyKind}">${whyHtml}</span>`;
+    const lineList = lines.length > 0 && html`<ul class="ou-lines">${lines}</ul>`;
+    return html`<li data-file="${file.rel}"><code ${refAttrs(file.rel, null)}>${file.rel}</code><span class="ou-viewed" data-viewed-for="${file.rel}"></span>${whyLine}${lineList}</li>`;
   }
 
   /** "4 to mark viewed · 2 come back later · 1 already finished" for chapter `step`. */
@@ -76,12 +73,8 @@ export function createFileList(context) {
 
   /** The folded list under its heading; it remembers whether it was open (state.filesOpen). */
   function filesBox(title, summary, items) {
-    const summaryHtml = summary ? `<span class="ou-sum">${escapeHtml(summary)}</span>` : '';
-    return (
-      `<details class="ou-filesbox"${state.filesOpen ? ' open' : ''}>` +
-      `<summary><h2 class="ou-h">${escapeHtml(title)}</h2>${summaryHtml}</summary>` +
-      `<ul class="ou-files">${items}</ul></details>`
-    );
+    const summaryHtml = summary && html`<span class="ou-sum">${summary}</span>`;
+    return html`<details class="ou-filesbox"${state.filesOpen && html` open`}><summary><h2 class="ou-h">${title}</h2>${summaryHtml}</summary><ul class="ou-files">${items}</ul></details>`;
   }
 
   return { fileItem, filesSummary, filesBox };

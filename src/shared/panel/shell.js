@@ -3,9 +3,10 @@
  * (status light, Hide story, Prev, Next, close), the note line, the body and
  * the Ask box, plus the message line, docking width and collapse.
  */
-import { hideUntilStyled, stopKeyEvents, stylesheetLink } from '../util/dom.js';
+import { hideUntilStyled, setHtml, stopKeyEvents, stylesheetLink } from '../util/dom.js';
+import { html } from '../util/html.js';
 
-const MARKUP = (withAsk) => `
+const MARKUP = (withAsk) => html`
     <div class="ou-grip" title="Drag to resize"></div>
     <div class="ou-bar">
       <button class="ou-light" title="Checking the connection…" aria-label="Connection status" aria-expanded="false"><span class="ou-dot"></span></button>
@@ -19,7 +20,7 @@ const MARKUP = (withAsk) => `
     <div class="ou-body"></div>
     <div class="ou-askhint" hidden></div>
     <div class="ou-askwho" hidden></div>
-    <form class="ou-ask${withAsk ? '' : ' ou-off'}">
+    <form class="ou-ask${!withAsk && ' ou-off'}">
       <textarea placeholder="Ask about this step (Cmd+Enter sends it to the bridge inbox)" rows="1" aria-label="Question"></textarea>
       <button type="submit">Ask</button>
     </form>`;
@@ -45,7 +46,7 @@ export function createShell(context) {
   // focusable, so a click anywhere in the panel moves focus off the page and the page's single-key shortcuts (GitHub's, Refined GitHub's j/k/x) don't fire while you read
   root.tabIndex = -1;
   root.setAttribute('aria-label', 'Once Upon a Diff');
-  root.innerHTML = MARKUP(!!opts.ask);
+  setHtml(root, MARKUP(!!opts.ask));
   const $ = (selector) => root.querySelector(selector);
 
   let messageTimer = 0;

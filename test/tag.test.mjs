@@ -58,12 +58,12 @@ test('the HTML is one element: a link, a button, or a span', () => {
     { state: 'building' },
     { state: 'ready', stale: true, story_head: 'a' },
   ]) {
-    assert.equal(count(tagHtml(tagFor(result, pr))), 1, JSON.stringify(result));
+    assert.equal(count(String(tagHtml(tagFor(result, pr)))), 1, JSON.stringify(result));
   }
-  assert.match(tagHtml(tagFor({ state: 'queued' }, pr)), /^<span /);
-  assert.match(tagHtml(tagFor({ state: 'none' }, pr)), /^<button [^>]*data-act="build"/);
+  assert.match(String(tagHtml(tagFor({ state: 'queued' }, pr))), /^<span /);
+  assert.match(String(tagHtml(tagFor({ state: 'none' }, pr))), /^<button [^>]*data-act="build"/);
   assert.ok(
-    !tagHtml({ kind: 'progress', cls: '', label: '<x>', title: '"' }).includes('<x>'),
+    !String(tagHtml({ kind: 'progress', cls: '', label: '<x>', title: '"' })).includes('<x>'),
     'escapes',
   );
 });

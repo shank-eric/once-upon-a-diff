@@ -5,7 +5,8 @@
  */
 import { chapterNumbers } from '/assets/overlay.js';
 import { claimsOf, narrowRows } from '/assets/narrow.js';
-import { escapeHtml } from '/assets/util/html.js';
+import { html } from '/assets/util/html.js';
+import { insertHtml } from '/assets/util/dom.js';
 import { plural } from '/assets/util/text.js';
 import { page } from './page.js';
 import { columnCount } from './diff-view.js';
@@ -80,9 +81,10 @@ export function narrow({ n: step, all }) {
       const who = run.steps.length
         ? `told in ${run.steps.map(stepName).join(', ')}`
         : 'from other chapters';
-      rows[run.from].insertAdjacentHTML(
+      insertHtml(
+        rows[run.from],
         'beforebegin',
-        `<tr class="ou-local-narrow"><td colspan="${columnCount()}">⋯ ${plural(lines, 'line')} ${escapeHtml(who)}<button type="button" data-narrow-open>Show</button></td></tr>`,
+        html`<tr class="ou-local-narrow"><td colspan="${columnCount()}">⋯ ${plural(lines, 'line')} ${who}<button type="button" data-narrow-open>Show</button></td></tr>`,
       );
     }
   }

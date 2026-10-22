@@ -7,7 +7,8 @@
  *
  * marksOf has no DOM, so node tests can use it.
  */
-import { escapeHtml } from '../util/html.js';
+import { html } from '../util/html.js';
+import { insertHtml } from '../util/dom.js';
 import { shortSha } from '../util/text.js';
 
 const range = (mark) => `${shortSha(mark.since)}..${shortSha(mark.until)}`;
@@ -78,7 +79,7 @@ export function createMarks(context) {
     const words = WORDING[mark.why];
     const title = where === 'file' ? words.fileTitle(mark) : words.stepTitle(mark);
     const text = where === 'file' ? words.file(mark) : words.step(mark);
-    return `<span class="ou-chg" data-why="${mark.why}" title="${escapeHtml(title)}">${escapeHtml(text)}</span>`;
+    return html`<span class="ou-chg" data-why="${mark.why}" title="${title}">${text}</span>`;
   };
 
   function render() {
@@ -89,14 +90,14 @@ export function createMarks(context) {
     for (const item of shell.root.querySelectorAll('ol.ou-map li[data-n]')) {
       const step = Number(item.getAttribute('data-n'));
       for (const mark of marks.filter((candidate) => candidate.steps.includes(step))) {
-        item.insertAdjacentHTML('beforeend', tag(mark, 'step'));
+        insertHtml(item, 'beforeend', tag(mark, 'step'));
       }
     }
     const here = marks.filter((mark) => mark.onlyOn === null || mark.onlyOn === state.n);
     for (const item of shell.root.querySelectorAll('ul.ou-files > li[data-file]')) {
       const rel = item.getAttribute('data-file');
       for (const mark of here.filter((candidate) => candidate.files.includes(rel))) {
-        item.querySelector('code').insertAdjacentHTML('afterend', tag(mark, 'file'));
+        insertHtml(item.querySelector('code'), 'afterend', tag(mark, 'file'));
       }
     }
   }

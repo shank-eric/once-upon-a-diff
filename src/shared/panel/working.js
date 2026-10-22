@@ -7,7 +7,8 @@
  *
  * changingOf has no DOM, so node tests can use it.
  */
-import { escapeHtml } from '../util/html.js';
+import { html } from '../util/html.js';
+import { insertHtml, setHtml } from '../util/dom.js';
 import { shortDateTime } from '../util/time.js';
 
 const MAX_FILES_NAMED = 6;
@@ -48,22 +49,15 @@ export function createWorking(context) {
 
   /** One line per session at work, over the step list. */
   function bannerHtml() {
-    return marks
-      .map((mark) => {
-        const files = mark.files.slice(0, MAX_FILES_NAMED).map((file) => {
-          const rel = relOf(file.path, story.allRels);
-          return `<code data-rel="${escapeHtml(rel)}">${escapeHtml(rel)}</code>${escapeHtml(rangesText(file.ranges || []))}`;
-        });
-        const more =
-          mark.files.length > MAX_FILES_NAMED
-            ? ` and ${mark.files.length - MAX_FILES_NAMED} more`
-            : '';
-        return (
-          `<div class="ou-beingchg" role="status">Being changed by <b>${escapeHtml(mark.consumer)}</b>: ${files.join(', ')}${more}` +
-          `<span class="ou-quiet"> · since ${escapeHtml(shortDateTime(mark.started_at))}</span></div>`
-        );
-      })
-      .join('');
+    return marks.map((mark) => {
+      const files = mark.files.slice(0, MAX_FILES_NAMED).map((file, index) => {
+        const rel = relOf(file.path, story.allRels);
+        return html`${index > 0 && ', '}<code data-rel="${rel}">${rel}</code>${rangesText(file.ranges || [])}`;
+      });
+      const more =
+        mark.files.length > MAX_FILES_NAMED && ` and ${mark.files.length - MAX_FILES_NAMED} more`;
+      return html`<div class="ou-beingchg" role="status">Being changed by <b>${mark.consumer}</b>: ${files}${more}<span class="ou-quiet"> · since ${shortDateTime(mark.started_at)}</span></div>`;
+    });
   }
 
   /** Dims the page's blocks of the files being changed (and undims the rest). */
@@ -83,7 +77,7 @@ export function createWorking(context) {
   function render() {
     const box = $('.ou-working');
     if (box) {
-      box.innerHTML = bannerHtml();
+      setHtml(box, bannerHtml());
     }
     const changing = byRel();
     for (const el of shell.root.querySelectorAll('.ou-chgby')) {
@@ -99,9 +93,10 @@ export function createWorking(context) {
       const who = chapter && chapter.files.map((file) => changing[file.rel]).find(Boolean);
       if (who) {
         item.classList.add('ou-changing');
-        item.insertAdjacentHTML(
+        insertHtml(
+          item,
           'beforeend',
-          `<span class="ou-chgby" title="Being changed by ${escapeHtml(who.consumer)}">• being changed</span>`,
+          html`<span class="ou-chgby" title="Being changed by ${who.consumer}">• being changed</span>`,
         );
       }
     }
@@ -109,12 +104,11 @@ export function createWorking(context) {
       const who = changing[item.getAttribute('data-file')];
       if (who) {
         item.classList.add('ou-changing');
-        item
-          .querySelector('code')
-          .insertAdjacentHTML(
-            'afterend',
-            `<span class="ou-chgby">being changed by ${escapeHtml(who.consumer)}${escapeHtml(rangesText(who.ranges))}</span>`,
-          );
+        insertHtml(
+          item.querySelector('code'),
+          'afterend',
+          html`<span class="ou-chgby">being changed by ${who.consumer}${rangesText(who.ranges)}</span>`,
+        );
       }
     }
     dimPage();

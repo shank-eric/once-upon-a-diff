@@ -10,7 +10,8 @@
  * undone for a few seconds. opts.markQuestions saves those marks in the
  * bridge, so they hold after a reload and on the next poll.
  */
-import { escapeHtml } from '../util/html.js';
+import { html } from '../util/html.js';
+import { setHtml } from '../util/dom.js';
 import { baseName, plural } from '../util/text.js';
 import { shortDateTime } from '../util/time.js';
 
@@ -52,16 +53,12 @@ export function createQuestions(context) {
     const answers = question.answers || [];
     if (!answers.length) {
       const from = question.handed_to || 'the Claude session';
-      return `<div class="ou-wait">Waiting for an answer from ${escapeHtml(from)}</div>`;
+      return html`<div class="ou-wait">Waiting for an answer from ${from}</div>`;
     }
-    return answers
-      .map((answer) => {
-        const answeredBy = answer.by
-          ? `<div class="ou-aby">Answered by ${escapeHtml(answer.by)}</div>`
-          : '';
-        return `${answeredBy}<div class="ou-a ou-md">${context.markdown.markdown(answer.text)}</div>`;
-      })
-      .join('');
+    return answers.map((answer) => {
+      const answeredBy = answer.by && html`<div class="ou-aby">Answered by ${answer.by}</div>`;
+      return html`${answeredBy}<div class="ou-a ou-md">${context.markdown.markdown(answer.text)}</div>`;
+    });
   }
 
   function questionHtml(question) {
@@ -85,17 +82,13 @@ export function createQuestions(context) {
       .filter(Boolean)
       .join(' ');
     const toggle = collapsed
-      ? '<button type="button" class="ou-qtoggle" data-qa-act="expand" aria-expanded="false" title="Show the answer">▸</button>'
-      : '<button type="button" class="ou-qtoggle" data-qa-act="collapse" aria-expanded="true" title="Collapse to the question">▾</button>';
+      ? html`<button type="button" class="ou-qtoggle" data-qa-act="expand" aria-expanded="false" title="Show the answer">▸</button>`
+      : html`<button type="button" class="ou-qtoggle" data-qa-act="collapse" aria-expanded="true" title="Collapse to the question">▾</button>`;
     const hide = question.dismissed
-      ? '<button type="button" class="ou-linkish" data-qa-act="restore" title="Bring this question back">Restore</button>'
-      : '<button type="button" class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back.">Dismiss</button>';
-    return (
-      `<div class="${classes}" data-qid="${escapeHtml(question.id)}"><div class="ou-qhead">${toggle}` +
-      `<div class="ou-q">${escapeHtml(question.text)}</div>${hide}</div>` +
-      `<div class="ou-qmeta">${escapeHtml(meta)}</div>` +
-      `${collapsed ? '' : answersHtml(question)}</div>`
-    );
+      ? html`<button type="button" class="ou-linkish" data-qa-act="restore" title="Bring this question back">Restore</button>`
+      : html`<button type="button" class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back.">Dismiss</button>`;
+    const answers = !collapsed && answersHtml(question);
+    return html`<div class="${classes}" data-qid="${question.id}"><div class="ou-qhead">${toggle}<div class="ou-q">${question.text}</div>${hide}</div><div class="ou-qmeta">${meta}</div>${answers}</div>`;
   }
 
   function render() {
@@ -107,27 +100,26 @@ export function createQuestions(context) {
     const open = onStep.filter((question) => !question.dismissed);
     const dismissed = onStep.length - open.length;
     if (!onStep.length && !undo) {
-      box.innerHTML = '';
+      setHtml(box, '');
       return;
     }
     const tools = [
-      questions.some((question) => !question.dismissed)
-        ? '<button type="button" class="ou-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back.">Clear conversation</button>'
-        : '',
-      dismissed
-        ? `<button type="button" class="ou-linkish" data-qa-act="show-dismissed">${showDismissed ? 'Hide' : 'Show'} dismissed (${dismissed})</button>`
-        : '',
-    ]
-      .filter(Boolean)
-      .join(' ');
-    const undoLine = undo
-      ? `<div class="ou-qundo" role="status">${escapeHtml(undo.label)} <button type="button" class="ou-linkish" data-qa-act="undo">Undo</button></div>`
-      : '';
+      questions.some((question) => !question.dismissed) &&
+        html`<button type="button" class="ou-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back.">Clear conversation</button>`,
+      dismissed > 0 &&
+        html`<button type="button" class="ou-linkish" data-qa-act="show-dismissed">${showDismissed ? 'Hide' : 'Show'} dismissed (${dismissed})</button>`,
+    ].filter(Boolean);
+    const toolLine =
+      tools.length > 0 &&
+      html`<div class="ou-qtools">${tools.map((tool, i) => html`${i > 0 && ' '}${tool}`)}</div>`;
+    const undoLine =
+      undo &&
+      html`<div class="ou-qundo" role="status">${undo.label} <button type="button" class="ou-linkish" data-qa-act="undo">Undo</button></div>`;
     const shown = showDismissed ? onStep : open;
-    box.innerHTML =
-      `<h2 class="ou-h">Questions${state.n ? ' on this step' : ''} (${open.length})</h2>` +
-      `${tools ? `<div class="ou-qtools">${tools}</div>` : ''}${undoLine}` +
-      shown.map(questionHtml).join('');
+    setHtml(
+      box,
+      html`<h2 class="ou-h">Questions${state.n ? ' on this step' : ''} (${open.length})</h2>${toolLine}${undoLine}${shown.map(questionHtml)}`,
+    );
   }
 
   /** Marks the questions here at once, then saves the marks in the bridge and takes its list. */

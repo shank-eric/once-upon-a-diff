@@ -9,7 +9,8 @@
  * (local/folds.js). This module draws the page, handles its clicks, and
  * follows the story and the commits.
  */
-import { escapeHtml } from '/assets/util/html.js';
+import { html } from '/assets/util/html.js';
+import { setHtml } from '/assets/util/dom.js';
 import { page, api, STORY_PATH } from '/assets/local/page.js';
 import { treeHtml, fileHtml, headerHtml, resetHighlightBudget } from '/assets/local/diff-view.js';
 import { placeNotes, openEditor } from '/assets/local/notes.js';
@@ -24,8 +25,11 @@ function render() {
   forgetNarrowing();
   resetHighlightBudget();
   const { files } = page.story.local;
-  app.innerHTML = `${headerHtml()}<div class="ou-local-layout"><nav class="ou-local-tree" role="tree" aria-label="Changed files">${treeHtml(files.map((file) => file.rel))}</nav>
-    <main class="ou-local-files">${files.map(fileHtml).join('')}</main></div>`;
+  setHtml(
+    app,
+    html`${headerHtml()}<div class="ou-local-layout"><nav class="ou-local-tree" role="tree" aria-label="Changed files">${treeHtml(files.map((file) => file.rel))}</nav>
+    <main class="ou-local-files">${files.map(fileHtml)}</main></div>`,
+  );
   placeNotes();
   window.scrollTo({ top: keep });
 }
@@ -216,7 +220,7 @@ async function start() {
   try {
     page.story = await api('GET', STORY_PATH);
   } catch (err) {
-    app.innerHTML = `<p class="ou-local-error">Couldn't load the story: ${escapeHtml(err.message)}</p>`;
+    setHtml(app, html`<p class="ou-local-error">Couldn't load the story: ${err.message}</p>`);
     return;
   }
   document.title = page.story.title;

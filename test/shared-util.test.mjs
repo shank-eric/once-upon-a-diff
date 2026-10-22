@@ -1,4 +1,4 @@
-import { test } from 'node:test';
+import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   filesChangedPr,
@@ -7,7 +7,7 @@ import {
   pageKindOf,
   rangeOfPath,
 } from '../src/shared/util/github-paths.js';
-import { escapeHtml, unescapeHtml } from '../src/shared/util/html.js';
+import { escapeHtml, unescapeHtml, html, raw, Html } from '../src/shared/util/html.js';
 import { shortSha, baseName, plural, capitalize } from '../src/shared/util/text.js';
 import { clockTime, shortDateTime } from '../src/shared/util/time.js';
 
@@ -51,7 +51,8 @@ test('the page kind the content script routes on', () => {
 test('the shared text helpers', () => {
   assert.equal(escapeHtml('<a href="x">&</a>'), '&lt;a href=&quot;x&quot;&gt;&amp;&lt;/a&gt;');
   assert.equal(escapeHtml(null), '');
-  assert.equal(unescapeHtml(escapeHtml('a < b & "c"')), 'a < b & "c"');
+  assert.equal(escapeHtml("it's"), 'it&#39;s');
+  assert.equal(unescapeHtml(escapeHtml(`a < b & "c" 'd'`)), `a < b & "c" 'd'`);
   assert.equal(shortSha('0123456789abcdef'), '0123456');
   assert.equal(shortSha(null), '');
   assert.equal(baseName('src/app/main.js'), 'main.js');
@@ -61,4 +62,48 @@ test('the shared text helpers', () => {
   assert.equal(clockTime('not a date'), '');
   assert.equal(shortDateTime(''), '');
   assert.notEqual(shortDateTime('2026-10-21T15:41:00Z'), '');
+});
+
+describe('the html`` tag', () => {
+  const evil = '<img src=x onerror="alert(1)">';
+
+  test('escapes every value, in text and in attributes', () => {
+    const markup = html`<p title="${evil}">${evil} & ${"it's"}</p>`;
+    assert.ok(markup instanceof Html);
+    assert.equal(
+      String(markup),
+      '<p title="&lt;img src=x onerror=&quot;alert(1)&quot;&gt;">&lt;img src=x onerror=&quot;alert(1)&quot;&gt; & it&#39;s</p>',
+    );
+    // a value can't close a quoted attribute and add its own
+    assert.doesNotMatch(String(html`<a href="${'" onclick="x'}">`), /" onclick="/);
+    assert.doesNotMatch(String(html`<a href='${"' onclick='x"}'>`), /' onclick='/);
+  });
+
+  test('puts html`` results and raw() in as is', () => {
+    const inner = html`<b>${'<i>'}</b>`;
+    assert.equal(String(html`<p>${inner}</p>`), '<p><b>&lt;i&gt;</b></p>');
+    assert.equal(String(html`<p>${raw('<em>ok</em>')}</p>`), '<p><em>ok</em></p>');
+    assert.equal(raw(inner), inner, 'raw() of markup is the same markup');
+    assert.equal(String(raw(null)), '');
+  });
+
+  test('joins arrays, escaping their strings and keeping their markup', () => {
+    const items = ['<a>', html`<li>b</li>`, ['<c>', html`<d/>`]];
+    assert.equal(String(html`<ul>${items}</ul>`), '<ul>&lt;a&gt;<li>b</li>&lt;c&gt;<d/></ul>');
+    assert.equal(String(html`<ul>${[]}</ul>`), '<ul></ul>');
+  });
+
+  test('null, undefined and false give nothing; 0 and true are text', () => {
+    assert.equal(String(html`[${null}${undefined}${false}]`), '[]');
+    assert.equal(String(html`[${0}|${true}|${''}]`), '[0|true|]');
+    const [hidden, open] = [false, true];
+    assert.equal(String(html`<p${hidden && html` hidden`}${open && html` open`}>`), '<p open>');
+  });
+
+  test('turns into its markup wherever a string is wanted', () => {
+    const markup = html`<i>${'&'}</i>`;
+    assert.equal(`${markup}`, '<i>&amp;</i>');
+    assert.equal('x' + markup, 'x<i>&amp;</i>');
+    assert.equal(markup.markup, '<i>&amp;</i>');
+  });
 });

@@ -9,7 +9,8 @@
  *
  * draftView and shownIn have no DOM, so node tests can use them.
  */
-import { escapeHtml } from '../util/html.js';
+import { html } from '../util/html.js';
+import { insertHtml, setHtml } from '../util/dom.js';
 import { capitalize } from '../util/text.js';
 import { refAttrs } from './file-refs.js';
 import { copyWithFallback } from './copy-buttons.js';
@@ -74,19 +75,19 @@ const SCRIPT_TITLE =
   'Copies a shell script that puts these line drafts into one pending review with gh api. It only copies: ' +
   'nothing is posted until you run it, and the review stays unsubmitted until you submit it on GitHub.';
 const githubLink = (url) =>
-  ` · <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">view on GitHub</a>`;
+  html` · <a href="${url}" target="_blank" rel="noopener noreferrer">view on GitHub</a>`;
 /** How far a draft's fix-before-push note has got: sent to a session, fixed in a commit, or ticked done. */
 function fixProgress(fix) {
   if (fix.state === 'fixed') {
-    return ` · <span class="ou-ok">fixed in ${escapeHtml(String(fix.sha || '').slice(0, 7))} ✓</span>`;
+    return html` · <span class="ou-ok">fixed in ${String(fix.sha || '').slice(0, 7)} ✓</span>`;
   }
   if (fix.state === 'sent') {
-    return ` · sent to ${escapeHtml(fix.sent_to || 'the next Claude session')}`;
+    return html` · sent to ${fix.sent_to || 'the next Claude session'}`;
   }
-  return fix.done ? ' · <span class="ou-ok">done ✓</span>' : '';
+  return fix.done && html` · <span class="ou-ok">done ✓</span>`;
 }
 const lineJump = (rel, side, line) =>
-  `<button class="ou-linkish" ${refAttrs(rel, { side: side === 'L' ? 'L' : 'R', start: Number(line), end: Number(line) })}>Jump to line ${escapeHtml(line)}</button>`;
+  html`<button class="ou-linkish" ${refAttrs(rel, { side: side === 'L' ? 'L' : 'R', start: Number(line), end: Number(line) })}>Jump to line ${line}</button>`;
 
 export function createDrafts(context) {
   const { story, state, opts, shell } = context;
@@ -108,27 +109,24 @@ export function createDrafts(context) {
         start: comment.line,
         end: comment.line,
       };
-      name = `<code ${refAttrs(ref.rel, line)}>${escapeHtml(comment.path)}:${escapeHtml(comment.line)}</code>`;
+      name = html`<code ${refAttrs(ref.rel, line)}>${comment.path}:${comment.line}</code>`;
     } else {
-      name = `<code>${escapeHtml(comment.path)}${general ? '' : `:${escapeHtml(comment.line)}`}</code>`;
+      name = html`<code>${comment.path}${!general && `:${comment.line}`}</code>`;
     }
-    const where = general ? 'General PR comment' : `On ${name}`;
-    return (
-      `<div class="ou-comment" data-n="${step}" data-i="${index}">` +
-      `<div class="ou-where"><span>${where}</span><span class="ou-cbtns"><button class="ou-copy">Copy</button></span></div>` +
-      `<pre>${escapeHtml(comment.body)}</pre><div class="ou-cstate" hidden></div></div>`
-    );
+    const where = general ? 'General PR comment' : html`On ${name}`;
+    const head = html`<div class="ou-where"><span>${where}</span><span class="ou-cbtns"><button class="ou-copy">Copy</button></span></div>`;
+    return html`<div class="ou-comment" data-n="${step}" data-i="${index}">${head}<pre>${comment.body}</pre><div class="ou-cstate" hidden></div></div>`;
   }
 
   /** A chapter's drafted comments, under their heading. */
   function chapterCommentsHtml(chapter) {
-    const comments = (chapter.comments || [])
-      .map((comment, index) => commentHtml(comment, state.n, index))
-      .join('');
-    if (!comments) {
-      return '';
+    const comments = (chapter.comments || []).map((comment, index) =>
+      commentHtml(comment, state.n, index),
+    );
+    if (!comments.length) {
+      return null;
     }
-    return `<div class="ou-drafts"><h2 class="ou-h">${escapeHtml(context.commentsTitle)} <span class="ou-draftsum"></span></h2><div class="ou-drafttoggles"></div>${comments}</div>`;
+    return html`<div class="ou-drafts"><h2 class="ou-h">${context.commentsTitle} <span class="ou-draftsum"></span></h2><div class="ou-drafttoggles"></div>${comments}</div>`;
   }
 
   /** The Overview's list of every chapter's drafted comments, grouped by chapter, each with its chapter's actions. */
@@ -138,22 +136,19 @@ export function createDrafts(context) {
       .filter((group) => group.comments.length);
     const total = groups.reduce((sum, group) => sum + group.comments.length, 0);
     if (!total) {
-      return '';
+      return null;
     }
-    const items = groups
-      .map(
-        (group) =>
-          `<div class="ou-cgroup" data-group="${group.step}"><h3 class="ou-cgh">` +
-          `<button class="ou-linkish" data-goto="${group.step}">${escapeHtml(capitalize(story.chapterName(group.step)))}</button>: ` +
-          `${escapeHtml(String(group.chapter.title || '').replace(/^Chapter \d+:\s*/, ''))}</h3>` +
-          `${group.comments.map((comment, index) => commentHtml(comment, group.step, index)).join('')}</div>`,
-      )
-      .join('');
+    const items = groups.map((group) => {
+      const name = capitalize(story.chapterName(group.step));
+      const title = String(group.chapter.title || '').replace(/^Chapter \d+:\s*/, '');
+      const comments = group.comments.map((comment, index) =>
+        commentHtml(comment, group.step, index),
+      );
+      return html`<div class="ou-cgroup" data-group="${group.step}"><h3 class="ou-cgh"><button class="ou-linkish" data-goto="${group.step}">${name}</button>: ${title}</h3>${comments}</div>`;
+    });
     const open = state.allCommentsOpen != null ? state.allCommentsOpen : total <= ALL_COMMENTS_OPEN;
-    return (
-      `<details class="ou-drafts ou-allc"${open ? ' open' : ''}><summary><h2 class="ou-h">${escapeHtml(context.commentsTitle)}: all chapters (${total}) <span class="ou-draftsum"></span></h2></summary>` +
-      `<div class="ou-drafttoggles"></div><pre class="ou-script" hidden></pre>${items}</details>`
-    );
+    const summary = html`<summary><h2 class="ou-h">${context.commentsTitle}: all chapters (${total}) <span class="ou-draftsum"></span></h2></summary>`;
+    return html`<details class="ou-drafts ou-allc"${open && html` open`}>${summary}<div class="ou-drafttoggles"></div><pre class="ou-script" hidden></pre>${items}</details>`;
   }
 
   async function refresh(force) {
@@ -293,69 +288,86 @@ export function createDrafts(context) {
     el.classList.remove('ou-c-done', 'ou-c-pending');
     el.hidden = false;
     stateLine.hidden = true;
-    const link = row.url ? githubLink(row.url) : '';
+    const link = row.url && githubLink(row.url);
     const addButton = (action, label, title) =>
-      buttons.insertAdjacentHTML(
+      insertHtml(
+        buttons,
         'afterbegin',
-        `<button data-draft-act="${action}" title="${escapeHtml(title)}">${label}</button>`,
+        html`<button data-draft-act="${action}" title="${title}">${label}</button>`,
       );
     const showError = () => {
       const error = reviewErrors.get(row.key || `${step}:${index}`);
       if (error) {
         stateLine.hidden = false;
-        stateLine.innerHTML = `<span class="ou-cerr">${escapeHtml(error)}</span>`;
+        setHtml(stateLine, html`<span class="ou-cerr">${error}</span>`);
       }
     };
     if (view.show === 'dismissed') {
       el.classList.add('ou-c-done');
       el.hidden = !state.showDismissed;
       stateLine.hidden = false;
-      stateLine.innerHTML = "Dismissed. It won't be suggested again for this PR.";
+      setHtml(stateLine, "Dismissed. It won't be suggested again for this PR.");
       addButton('restore', 'Restore', 'Bring this draft back');
     } else if (view.show === 'fix') {
       el.classList.add('ou-c-done', 'ou-c-pending');
       stateLine.hidden = false;
       const jump = lineJump(row.fix.path, row.fix.side, row.fix.line);
-      stateLine.innerHTML = `<span class="ou-pend">In fix before push</span>${fixProgress(row.fix)} · ${jump}`;
+      setHtml(
+        stateLine,
+        html`<span class="ou-pend">In fix before push</span>${fixProgress(row.fix)} · ${jump}`,
+      );
     } else if (view.show === 'posted') {
       el.classList.add('ou-c-done');
       el.hidden = !state.showPosted;
       stateLine.hidden = false;
-      stateLine.innerHTML = `<span class="ou-ok">Posted ✓</span>${link}`;
+      setHtml(stateLine, html`<span class="ou-ok">Posted ✓</span>${link}`);
     } else if (view.show === 'pending') {
       el.classList.add('ou-c-done', 'ou-c-pending');
       stateLine.hidden = false;
-      const addedLink = row.added && row.added.url ? githubLink(row.added.url) : '';
-      stateLine.innerHTML = `<span class="ou-pend">In your pending review</span>, not submitted yet${link || addedLink}`;
+      const addedLink = row.added && row.added.url && githubLink(row.added.url);
+      setHtml(
+        stateLine,
+        html`<span class="ou-pend">In your pending review</span>, not submitted yet${link || addedLink}`,
+      );
     } else if (view.show === 'added') {
       // Add to my review worked, but this page won't show the comment until it's reloaded
       el.classList.add('ou-c-done', 'ou-c-pending');
       stateLine.hidden = false;
       const ref = comment && context.refs.resolveRef(comment.path);
-      const jump = ref ? ` · ${lineJump(ref.rel, comment.side, comment.line)}` : '';
-      const onGithub = row.added.url ? githubLink(row.added.url) : '';
-      const reload = opts.reloadPage
-        ? ' <button class="ou-linkish" data-draft-reload title="Reloads this page. The panel stays on this chapter.">Reload page</button>'
-        : '';
-      stateLine.innerHTML =
-        `<span class="ou-pend">In your pending review</span>, on ${escapeHtml(comment ? comment.path : '')} line ${escapeHtml(comment ? comment.line : '')}${jump}${onGithub}` +
-        `<span class="ou-cnote">GitHub shows it after a reload.${reload}</span>`;
+      const jump = ref && html` · ${lineJump(ref.rel, comment.side, comment.line)}`;
+      const onGithub = row.added.url && githubLink(row.added.url);
+      const reload =
+        opts.reloadPage &&
+        html` <button class="ou-linkish" data-draft-reload title="Reloads this page. The panel stays on this chapter.">Reload page</button>`;
+      const path = comment ? comment.path : '';
+      const line = comment ? comment.line : '';
+      setHtml(
+        stateLine,
+        html`<span class="ou-pend">In your pending review</span>, on ${path} line ${line}${jump}${onGithub}<span class="ou-cnote">GitHub shows it after a reload.${reload}</span>`,
+      );
     } else {
       const unmapped = !!(comment && comment.unmapped);
       if (unmapped) {
         stateLine.hidden = false;
-        stateLine.innerHTML =
-          '<span class="ou-cstale">Kept from before the rebuild, but its line isn\'t in the diff any more. Check where it belongs before posting it.</span>';
+        setHtml(
+          stateLine,
+          html`<span class="ou-cstale">Kept from before the rebuild, but its line isn't in the diff any more. Check where it belongs before posting it.</span>`,
+        );
       } else if (context.reading.isStaleDraft(step, index)) {
         stateLine.hidden = false;
-        stateLine.innerHTML =
-          '<span class="ou-cstale">May be out of date: a newer commit changed this line after you read the chapter.</span>';
+        setHtml(
+          stateLine,
+          html`<span class="ou-cstale">May be out of date: a newer commit changed this line after you read the chapter.</span>`,
+        );
       } else if (comment && comment.carried) {
         stateLine.hidden = false;
-        stateLine.innerHTML = '<span class="ou-cdraft">Draft</span>, kept from before the rebuild';
+        setHtml(
+          stateLine,
+          html`<span class="ou-cdraft">Draft</span>, kept from before the rebuild`,
+        );
       } else if (!state.n) {
         stateLine.hidden = false;
-        stateLine.innerHTML = '<span class="ou-cdraft">Draft</span>, not posted';
+        setHtml(stateLine, html`<span class="ou-cdraft">Draft</span>, not posted`);
       }
       addButton(
         'dismiss',
@@ -423,22 +435,21 @@ export function createDrafts(context) {
     ].filter(Boolean);
     box.querySelector('.ou-draftsum').textContent = shown.length ? `(${summary.join(' · ')})` : '';
     const forScript = overview ? scriptable() : null;
-    box.querySelector('.ou-drafttoggles').innerHTML = [
-      forScript && forScript.comments.length
-        ? `<button class="ou-linkish" data-draft-script title="${SCRIPT_TITLE}">Copy as gh script (${forScript.comments.length})</button>`
-        : '',
-      posted
-        ? `<button class="ou-linkish" data-draft-show="showPosted">${state.showPosted ? 'Hide' : 'Show'} posted (${posted})</button>`
-        : '',
-      dismissed
-        ? `<button class="ou-linkish" data-draft-show="showDismissed">${state.showDismissed ? 'Hide' : 'Show'} dismissed (${dismissed})</button>`
-        : '',
-      loadError
-        ? `<span class="ou-why" title="${escapeHtml(loadError)}">Couldn't check GitHub for posted comments.</span>`
-        : '',
-    ]
-      .filter(Boolean)
-      .join(' ');
+    const toggles = [
+      forScript &&
+        forScript.comments.length > 0 &&
+        html`<button class="ou-linkish" data-draft-script title="${SCRIPT_TITLE}">Copy as gh script (${forScript.comments.length})</button>`,
+      posted > 0 &&
+        html`<button class="ou-linkish" data-draft-show="showPosted">${state.showPosted ? 'Hide' : 'Show'} posted (${posted})</button>`,
+      dismissed > 0 &&
+        html`<button class="ou-linkish" data-draft-show="showDismissed">${state.showDismissed ? 'Hide' : 'Show'} dismissed (${dismissed})</button>`,
+      loadError &&
+        html`<span class="ou-why" title="${loadError}">Couldn't check GitHub for posted comments.</span>`,
+    ].filter(Boolean);
+    setHtml(
+      box.querySelector('.ou-drafttoggles'),
+      toggles.map((toggle, i) => html`${i > 0 && ' '}${toggle}`),
+    );
   }
 
   return {

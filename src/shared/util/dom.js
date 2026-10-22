@@ -1,7 +1,8 @@
 /*
- * Small DOM helpers shared by the panel and the content scripts' own
- * elements.
+ * Small DOM helpers shared by the panel, the local page and the content
+ * scripts' own elements: key isolation, stylesheets and setting markup.
  */
+import { html } from './html.js';
 
 /** Keeps key events inside our element, so the host page's single-key shortcuts don't fire while typing in it. */
 export function stopKeyEvents(target) {
@@ -36,4 +37,14 @@ export function hideUntilStyled(element, links) {
   );
   const waited = new Promise((resolve) => setTimeout(resolve, STYLESHEET_WAIT_MS));
   Promise.race([Promise.all(loads), waited]).then(() => element.style.removeProperty('visibility'));
+}
+
+/** Puts markup in element in place of its children: html`` markup as is, anything else (a plain string) as text. */
+export function setHtml(element, markup) {
+  element.innerHTML = html`${markup}`.markup;
+}
+
+/** Inserts markup at position ('beforeend', 'afterend'...) the way setHtml does. */
+export function insertHtml(element, position, markup) {
+  element.insertAdjacentHTML(position, html`${markup}`.markup);
 }

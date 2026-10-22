@@ -232,19 +232,23 @@ describe('one story, one session', () => {
       prompt: '/once-upon-listen acme/widgets',
       storyPrompt: { prompt: `/once-upon-listen --story ${STORY}` },
     };
-    const byRepo = askWhoHtml({
-      ...result,
-      answering: { consumer: 'repo-acme-widgets', scope: 'repo' },
-    });
+    const byRepo = String(
+      askWhoHtml({
+        ...result,
+        answering: { consumer: 'repo-acme-widgets', scope: 'repo' },
+      }),
+    );
     assert.match(byRepo, /Answered by <b>repo-acme-widgets<\/b> \(listening for the whole repo\)/);
     assert.match(byRepo, /Copy prompt for this story/);
-    const byStory = askWhoHtml({
-      ...result,
-      answering: { consumer: 'api-10', scope: 'story' },
-    });
+    const byStory = String(
+      askWhoHtml({
+        ...result,
+        answering: { consumer: 'api-10', scope: 'story' },
+      }),
+    );
     assert.match(byStory, /Answered by <b>api-10<\/b>, the session listening for this story/);
     assert.doesNotMatch(byStory, /Copy prompt/);
-    assert.match(askWhoHtml({ ...result, answering: null }), /Copy prompt for this story/);
-    assert.equal(askWhoHtml({ level: 'error' }), '');
+    assert.match(String(askWhoHtml({ ...result, answering: null })), /Copy prompt for this story/);
+    assert.equal(String(askWhoHtml({ level: 'error' })), '');
   });
 });
