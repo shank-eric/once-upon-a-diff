@@ -3,20 +3,20 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { tmp, writeJson, githubStory, startBridge, runCli, localRepo } from './helpers.mjs';
-import { Builds } from '../bridge/inbox/builds.mjs';
-import { Inbox } from '../bridge/inbox/inbox.mjs';
-import { withMarks } from '../bridge/inbox/conversation.mjs';
-import { parseUnifiedDiff } from '../bridge/util/diff.mjs';
-import { noteRead, readReads } from '../bridge/stories/reads.mjs';
-import { createLocalStory } from '../bridge/stories/local-story.mjs';
+import { Builds } from '../src/bridge/inbox/builds.mjs';
+import { Inbox } from '../src/bridge/inbox/inbox.mjs';
+import { withMarks } from '../src/bridge/inbox/conversation.mjs';
+import { parseUnifiedDiff } from '../src/bridge/util/diff.mjs';
+import { noteRead, readReads } from '../src/bridge/stories/reads.mjs';
+import { createLocalStory } from '../src/bridge/stories/local-story.mjs';
 import {
   rebuildProblems,
   carryDrafts,
   questionMoves,
   readsToRetire,
-} from '../bridge/stories/rebuild.mjs';
-import { rebuildAsk, rebuildLine } from '../src/js/shared/panel/rebuild.js';
-import { tagFor } from '../src/js/content/ui/story-tag.js';
+} from '../src/bridge/stories/rebuild.mjs';
+import { rebuildAsk, rebuildLine } from '../src/shared/panel/rebuild.js';
+import { tagFor } from '../src/extension/content/ui/story-tag.js';
 
 const STORY_ID = 'acme-widgets-7';
 const added = (count, word) =>

@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { tmp, writeJson, TOKEN, startBridge } from '../helpers.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const EXT = path.join(ROOT, 'src');
+const EXT = path.join(ROOT, 'src/extension');
 const args = process.argv.slice(2);
 /** --name's value, true for a bare --name, or the fallback when it isn't given. */
 const arg = (name, fallback) => {

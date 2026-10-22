@@ -39,7 +39,7 @@ Follow them alongside the rules here, for answers and builds alike. They win whe
 `once-upon` usually isn't on `PATH`. Work out `<cli>`, the command used below, once, and use it literally in every later call (shell functions don't carry over between Bash calls):
 
 ```bash
-command -v once-upon || for d in "$ONCE_UPON_REPO" "$(jq -r '.repo_dir // empty' ~/.once-upon/config.json 2>/dev/null)" "$(cd "$(dirname "$(realpath ~/.claude/skills/once-upon-listen/SKILL.md)")/../.." 2>/dev/null && pwd)"; do [ -f "$d/bridge/bin/once-upon.mjs" ] && { echo "node $d/bridge/bin/once-upon.mjs"; break; }; done
+command -v once-upon || for d in "$ONCE_UPON_REPO" "$(jq -r '.repo_dir // empty' ~/.once-upon/config.json 2>/dev/null)" "$(cd "$(dirname "$(realpath ~/.claude/skills/once-upon-listen/SKILL.md)")/../.." 2>/dev/null && pwd)"; do [ -f "$d/src/bridge/bin/once-upon.mjs" ] && { echo "node $d/src/bridge/bin/once-upon.mjs"; break; }; done
 ```
 
 That's `once-upon` on `PATH`, then the `ONCE_UPON_REPO` env var (the once-upon-a-diff checkout), then `repo_dir` in `~/.once-upon/config.json`, then the repo this skill is linked from. If nothing prints, tell the user Once Upon a Diff isn't installed and stop.
@@ -50,7 +50,7 @@ That's `once-upon` on `PATH`, then the `ONCE_UPON_REPO` env var (the once-upon-a
 <cli> doctor
 ```
 
-- If the `Bridge` line FAILs with **nothing is listening on 127.0.0.1:<port>**, start the bridge yourself and wait for it to answer. `<cli words>` is `<cli>` as separate words, like `node /path/to/bridge/bin/once-upon.mjs` or `once-upon`:
+- If the `Bridge` line FAILs with **nothing is listening on 127.0.0.1:<port>**, start the bridge yourself and wait for it to answer. `<cli words>` is `<cli>` as separate words, like `node /path/to/src/bridge/bin/once-upon.mjs` or `once-upon`:
   ```bash
   node -e 'require("child_process").spawn(process.argv[1], process.argv.slice(2), { detached: true, stdio: "ignore" }).unref()' <cli words> serve
   h="${ONCE_UPON_HOME:-$HOME/.once-upon}"; curl -sf --retry 10 --retry-delay 1 --retry-connrefused -H "Authorization: Bearer $(jq -r .token "$h/config.json")" "http://127.0.0.1:$(jq -r '.port // 4823' "$h/config.json")/api/health"

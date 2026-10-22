@@ -4,8 +4,8 @@ import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson } from './helpers.mjs';
-import { clearFreshness } from '../bridge/github/freshness.mjs';
-import { Builds } from '../bridge/inbox/builds.mjs';
+import { clearFreshness } from '../src/bridge/github/freshness.mjs';
+import { Builds } from '../src/bridge/inbox/builds.mjs';
 
 process.env.ONCE_UPON_GH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),

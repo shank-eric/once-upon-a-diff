@@ -11,31 +11,33 @@
     ],
     "paths": {
       "/assets/overlay.js": [
-        "./src/js/shared/overlay.js"
+        "./src/shared/overlay.js"
       ],
       "/assets/util/*": [
-        "./src/js/shared/util/*"
+        "./src/shared/util/*"
       ],
       "/assets/panel/*": [
-        "./src/js/shared/panel/*"
+        "./src/shared/panel/*"
       ],
       "/assets/local/*": [
-        "./bridge/public/local/*"
+        "./src/bridge/public/local/*"
       ],
       "/assets/highlight.mjs": [
         "./types/highlight.d.ts"
       ],
       "/assets/*": [
-        "./bridge/public/*"
+        "./src/bridge/public/*"
       ]
     }
   },
   "include": [
-    "src/js/**/*.js",
-    "bridge/public/**/*.js",
+    "src/extension/**/*.js",
+    "src/shared/**/*.js",
+    "src/bridge/public/**/*.js",
     "types/*.d.ts"
   ],
   "exclude": [
-    "bridge/public/vendor"
+    "src/bridge/public/vendor",
+    "src/extension/shared"
   ]
 }

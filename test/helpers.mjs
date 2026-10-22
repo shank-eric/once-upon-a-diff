@@ -3,9 +3,9 @@ import { execFile, execFileSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createBridge } from '../bridge/server/index.mjs';
+import { createBridge } from '../src/bridge/server/index.mjs';
 
-const BIN = fileURLToPath(new URL('../bridge/bin/once-upon.mjs', import.meta.url));
+const BIN = fileURLToPath(new URL('../src/bridge/bin/once-upon.mjs', import.meta.url));
 
 export const tmp = (name) => mkdtempSync(path.join(os.tmpdir(), `once-upon-${name}-`));
 // tests never look in (or move stories into) the real ~/Development checkouts

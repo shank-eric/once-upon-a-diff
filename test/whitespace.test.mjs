@@ -8,7 +8,7 @@ import {
   seen,
   prefsStore,
   REDIRECT_GUARD_MS,
-} from '../src/js/content/pages/hide-whitespace.js';
+} from '../src/extension/content/pages/hide-whitespace.js';
 import { tmp, startBridge } from './helpers.mjs';
 
 const PR_URL = 'https://github.com/acme/widgets/pull/7/changes';

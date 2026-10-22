@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmp, githubStory, startBridge, runCli } from './helpers.mjs';
-import { Builds, CLAIM_FRESH_MS } from '../bridge/inbox/builds.mjs';
-import { beat } from '../bridge/listeners/listeners.mjs';
-import { Inbox } from '../bridge/inbox/inbox.mjs';
+import { Builds, CLAIM_FRESH_MS } from '../src/bridge/inbox/builds.mjs';
+import { beat } from '../src/bridge/listeners/listeners.mjs';
+import { Inbox } from '../src/bridge/inbox/inbox.mjs';
 
 /** acme/widgets#7's line from status-many, as a PR page asks for it. */
 const prStatus = async (bridge) =>

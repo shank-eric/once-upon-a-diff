@@ -6,10 +6,10 @@ import {
   isPullListPage,
   pageKindOf,
   rangeOfPath,
-} from '../src/js/shared/util/github-paths.js';
-import { escapeHtml, unescapeHtml } from '../src/js/shared/util/html.js';
-import { shortSha, baseName, plural, capitalize } from '../src/js/shared/util/text.js';
-import { clockTime, shortDateTime } from '../src/js/shared/util/time.js';
+} from '../src/shared/util/github-paths.js';
+import { escapeHtml, unescapeHtml } from '../src/shared/util/html.js';
+import { shortSha, baseName, plural, capitalize } from '../src/shared/util/text.js';
+import { clockTime, shortDateTime } from '../src/shared/util/time.js';
 
 const locationOf = (url) => {
   const parsed = new URL(url, 'https://github.com');

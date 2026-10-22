@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmp, githubStory, startBridge, runCli, localRepo, writeJson } from './helpers.mjs';
-import { createLocalStory } from '../bridge/stories/local-story.mjs';
-import { beat, listenPrompt } from '../bridge/listeners/listeners.mjs';
-import { readFixes } from '../bridge/inbox/fixes.mjs';
-import { MARK_FRESH_MS, parseFiles, workingOf } from '../bridge/stories/working.mjs';
-import { fixSummary } from '../src/js/shared/panel/fixes.js';
+import { createLocalStory } from '../src/bridge/stories/local-story.mjs';
+import { beat, listenPrompt } from '../src/bridge/listeners/listeners.mjs';
+import { readFixes } from '../src/bridge/inbox/fixes.mjs';
+import { MARK_FRESH_MS, parseFiles, workingOf } from '../src/bridge/stories/working.mjs';
+import { fixSummary } from '../src/shared/panel/fixes.js';
 
 const STORY = 'acme-widgets-7';
 const STORY_PATH = `/api/stories/${STORY}`;

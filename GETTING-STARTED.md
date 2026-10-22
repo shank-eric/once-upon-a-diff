@@ -22,12 +22,14 @@ cd once-upon-a-diff
 yarn
 ```
 
+`src/extension/shared` is a symbolic link to `src/shared/`, so the extension can load the code it shares with the bridge. On Windows, git checks links out as plain text files unless symlinks are on, so clone with `git clone -c core.symlinks=true` (which needs Developer Mode or an admin shell). If you cloned without it, `ls src/extension/shared` shows a one-line file instead of a folder, and the extension won't load.
+
 The bridge has no runtime dependencies, so `yarn` is only for tests and lint. The repo uses Yarn 4 and carries its own copy (`.yarn/releases`), which any `yarn` on your PATH hands off to. If you don't have `yarn` at all, run `corepack enable` once. Corepack ships with Node 24, and it reads the `packageManager` field in `package.json` to fetch the same Yarn 4.
 
 ### 3. Make the bridge's config
 
 ```bash
-node bridge/bin/once-upon.mjs setup
+node src/bridge/bin/once-upon.mjs setup
 ```
 
 The first run creates `~/.once-upon/config.json` (mode 600) with a port, 4823 by default, and a random token. It prints both. You'll paste them into the extension in step 5.
@@ -42,12 +44,12 @@ To start it yourself instead:
 yarn bridge
 ```
 
-That's the same as `node bridge/bin/once-upon.mjs serve`. Keep it in a terminal tab you leave open. Either way it listens on `127.0.0.1` only, and the repo has no login item or launch agent, so after a reboot it needs starting again (by you or the skill).
+That's the same as `node src/bridge/bin/once-upon.mjs serve`. Keep it in a terminal tab you leave open. Either way it listens on `127.0.0.1` only, and the repo has no login item or launch agent, so after a reboot it needs starting again (by you or the skill).
 
 ### 5. Load the extension
 
 1. Go to `chrome://extensions` and turn on **Developer mode**.
-2. Click **Load unpacked** and pick this repo's `src/` folder.
+2. Click **Load unpacked** and pick this repo's `src/extension/` folder.
 3. The options page opens on install. If it doesn't, go to Once Upon a Diff → Details → Extension options.
 4. Paste the port and token from step 3, click **Save**, then **Test connection**.
 
@@ -79,7 +81,7 @@ What works without once-upon: local mode (step 10, which makes its own starting 
 ### 8. Add the `once-upon` alias (optional)
 
 ```bash
-alias once-upon="node /path/to/once-upon-a-diff/bridge/bin/once-upon.mjs"
+alias once-upon="node /path/to/once-upon-a-diff/src/bridge/bin/once-upon.mjs"
 ```
 
 Put it in your shell profile. The rest of this guide uses `once-upon`. Run it with no arguments to see every command.

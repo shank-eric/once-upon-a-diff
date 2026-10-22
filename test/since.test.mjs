@@ -4,10 +4,10 @@ import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson, runCli } from './helpers.mjs';
-import { Builds, buildText } from '../bridge/inbox/builds.mjs';
-import { noteRead } from '../bridge/stories/reads.mjs';
-import { clearFreshness } from '../bridge/github/freshness.mjs';
-import { tagFor, tagHtml, requestFor } from '../src/js/content/ui/story-tag.js';
+import { Builds, buildText } from '../src/bridge/inbox/builds.mjs';
+import { noteRead } from '../src/bridge/stories/reads.mjs';
+import { clearFreshness } from '../src/bridge/github/freshness.mjs';
+import { tagFor, tagHtml, requestFor } from '../src/extension/content/ui/story-tag.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 process.env.ONCE_UPON_GH = path.join(HERE, 'fixtures', 'fake-gh.mjs');
@@ -221,7 +221,7 @@ test('the out-of-date tag offers Update (new commits) and Re-tell from scratch',
 });
 
 test('"Since you read it" chapters finish their files and are not numbered', async () => {
-  const { finishedInOf, chapterNumbers } = await import('../src/js/shared/overlay.js');
+  const { finishedInOf, chapterNumbers } = await import('../src/shared/overlay.js');
   const chapters = [
     {
       title: 'Since you read it: 1 new commit',
@@ -257,7 +257,7 @@ test('"Since you read it" chapters finish their files and are not numbered', asy
 });
 
 test('GitHub\'s diff of a "Since you read it" chapter\'s commits opens on that chapter', async () => {
-  const { rangeOfPath, rangeStepOf, rangeUrl } = await import('../src/js/shared/overlay.js');
+  const { rangeOfPath, rangeStepOf, rangeUrl } = await import('../src/shared/overlay.js');
   const chapters = [
     { title: 'Since you read it', since: { from: SHA_A, to: SHA_B } },
     { title: 'Chapter 1: Start' },

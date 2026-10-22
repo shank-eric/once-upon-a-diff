@@ -1,7 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { tagFor, tagHtml, requestFor, missingListeners } from '../src/js/content/ui/story-tag.js';
-import { conversationPr } from '../src/js/shared/util/github-paths.js';
+import {
+  tagFor,
+  tagHtml,
+  requestFor,
+  missingListeners,
+} from '../src/extension/content/ui/story-tag.js';
+import { conversationPr } from '../src/shared/util/github-paths.js';
 
 const pr = { repo: 'octo-org/api-server', number: 42 };
 
@@ -106,7 +111,7 @@ test('the Conversation tab is /owner/repo/pull/N and nothing after it', () => {
 });
 
 test('a #ou-step-N hash names the step to open on', async () => {
-  const { stepOfHash } = await import('../src/js/content/ui/story-tag.js');
+  const { stepOfHash } = await import('../src/extension/content/ui/story-tag.js');
   assert.equal(stepOfHash('#ou-step-3'), 3);
   for (const hash of ['', '#diff-abc', '#ou-step-', '#ou-step-x']) {
     assert.equal(stepOfHash(hash), null, hash);

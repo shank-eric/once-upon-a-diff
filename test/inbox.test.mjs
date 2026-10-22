@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
 import { tmp } from './helpers.mjs';
-import { Inbox } from '../bridge/inbox/inbox.mjs';
+import { Inbox } from '../src/bridge/inbox/inbox.mjs';
 
 test('readers keep their own cursor', () => {
   const inbox = new Inbox(tmp('inbox'));

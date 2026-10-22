@@ -2,7 +2,8 @@ node_modules/
 build/
 .yarn/
 yarn.lock
-bridge/public/vendor/
+src/bridge/public/vendor/
+src/extension/shared
 *.md
 *.json
 *.css

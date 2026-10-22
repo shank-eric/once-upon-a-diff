@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { expandDirOf, expandStep, EXPAND_ALL_FAR } from '../src/js/shared/overlay.js';
+import { expandDirOf, expandStep, EXPAND_ALL_FAR } from '../src/shared/overlay.js';
 
 const gap = (...dirs) => ({ gap: dirs });
 const drawn = (...lines) => lines.map((line) => ({ n: line }));

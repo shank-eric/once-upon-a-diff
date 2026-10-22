@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { claimsOf, narrowRows } from '../bridge/public/narrow.js';
+import { claimsOf, narrowRows } from '../src/bridge/public/narrow.js';
 
 const ctx = (oldLine, newLine) => ({ type: 'line', L: oldLine, R: newLine, add: false });
 const del = (oldLine) => ({ type: 'line', L: oldLine, R: null, add: false });

@@ -5,10 +5,10 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseArgs } from '../bridge/cli/args.mjs';
-import { usageText, commandNames } from '../bridge/cli/index.mjs';
+import { parseArgs } from '../src/bridge/cli/args.mjs';
+import { usageText, commandNames } from '../src/bridge/cli/index.mjs';
 
-const BIN = fileURLToPath(new URL('../bridge/bin/once-upon.mjs', import.meta.url));
+const BIN = fileURLToPath(new URL('../src/bridge/bin/once-upon.mjs', import.meta.url));
 
 test('the CLI parses flags and bare words', () => {
   const { command, opts } = parseArgs(['local', 'word', '--repo', 'x', '--brief']);

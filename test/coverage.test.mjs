@@ -6,9 +6,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { tmp, writeJson, githubStory, startBridge } from './helpers.mjs';
-import { parseUnifiedDiff } from '../bridge/util/diff.mjs';
-import { chaptersOf } from '../bridge/stories/chapters.mjs';
-import { uncoveredHunks, SMALL_FILE_LINES } from '../bridge/stories/hunk-coverage.mjs';
+import { parseUnifiedDiff } from '../src/bridge/util/diff.mjs';
+import { chaptersOf } from '../src/bridge/stories/chapters.mjs';
+import { uncoveredHunks, SMALL_FILE_LINES } from '../src/bridge/stories/hunk-coverage.mjs';
 
 const STORY = fileURLToPath(new URL('../skills/once-upon/bin/story.mjs', import.meta.url));
 const run = promisify(execFile);

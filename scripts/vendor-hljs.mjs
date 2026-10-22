@@ -27,7 +27,7 @@ const LANGS = [
   'bash',
   'shell',
 ];
-const OUT = path.join(ROOT, 'bridge/public/vendor');
+const OUT = path.join(ROOT, 'src/bridge/public/vendor');
 
 const wrap = (file) =>
   `(() => { const module = { exports: {} }; const exports = module.exports;\n${readFileSync(file, 'utf8')}\nreturn module.exports; })()`;

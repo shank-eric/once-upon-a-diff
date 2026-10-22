@@ -2,11 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { tmp, writeJson, localRepo } from './helpers.mjs';
-import { lineRefsOf, addTextRefs, REF_NOTE } from '../bridge/stories/text-refs.mjs';
-import { pathSha } from '../bridge/util/diff.mjs';
-import { StoryStore } from '../bridge/stories/store.mjs';
-import { createLocalStory } from '../bridge/stories/local-story.mjs';
-import { finishedInOf } from '../src/js/shared/overlay.js';
+import { lineRefsOf, addTextRefs, REF_NOTE } from '../src/bridge/stories/text-refs.mjs';
+import { pathSha } from '../src/bridge/util/diff.mjs';
+import { StoryStore } from '../src/bridge/stories/store.mjs';
+import { createLocalStory } from '../src/bridge/stories/local-story.mjs';
+import { finishedInOf } from '../src/shared/overlay.js';
 
 const RELS = [
   'libs/hooks/useOptions.ts',

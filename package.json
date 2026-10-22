@@ -9,10 +9,10 @@
     "node": ">=24"
   },
   "bin": {
-    "once-upon": "bridge/bin/once-upon.mjs"
+    "once-upon": "src/bridge/bin/once-upon.mjs"
   },
   "scripts": {
-    "bridge": "node bridge/bin/once-upon.mjs serve",
+    "bridge": "node src/bridge/bin/once-upon.mjs serve",
     "icons": "node scripts/make-icons.mjs",
     "vendor": "node scripts/vendor-hljs.mjs",
     "lint": "eslint . --cache --cache-strategy content",

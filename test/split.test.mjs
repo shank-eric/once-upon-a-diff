@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { splitRows } from '../bridge/public/split.js';
+import { splitRows } from '../src/bridge/public/split.js';
 
 const pair = (row) =>
   row.info

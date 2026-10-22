@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmp, githubStory, startBridge, runCli } from './helpers.mjs';
-import { Inbox } from '../bridge/inbox/inbox.mjs';
-import { markQuestions, readHanded } from '../bridge/inbox/conversation.mjs';
-import { beat, listenPrompt, listeningOf } from '../bridge/listeners/listeners.mjs';
-import { storyIdOf } from '../bridge/cli/commands/inbox.mjs';
-import { askWhoHtml } from '../src/js/shared/panel/status-light.js';
+import { Inbox } from '../src/bridge/inbox/inbox.mjs';
+import { markQuestions, readHanded } from '../src/bridge/inbox/conversation.mjs';
+import { beat, listenPrompt, listeningOf } from '../src/bridge/listeners/listeners.mjs';
+import { storyIdOf } from '../src/bridge/cli/commands/inbox.mjs';
+import { askWhoHtml } from '../src/shared/panel/status-light.js';
 
 const STORY = 'acme-widgets-7';
 const PATH = `/api/stories/${STORY}/questions`;

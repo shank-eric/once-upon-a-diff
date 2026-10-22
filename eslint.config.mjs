@@ -13,10 +13,17 @@ import promisePlugin from 'eslint-plugin-promise';
 import eslintPrettierConfig from 'eslint-config-prettier';
 import globals from 'globals';
 
-const NODE_FILES = ['bridge/**/*.mjs', 'skills/**/*.mjs', 'scripts/**/*.mjs', 'test/**/*.mjs'];
+const NODE_FILES = ['src/bridge/**/*.mjs', 'skills/**/*.mjs', 'scripts/**/*.mjs', 'test/**/*.mjs'];
 
 export default defineConfig(
-  globalIgnores(['node_modules/', 'build/', '.yarn/', 'bridge/public/vendor/']),
+  // src/extension/shared is a link to src/shared, so its files are linted once, there
+  globalIgnores([
+    'node_modules/',
+    'build/',
+    '.yarn/',
+    'src/bridge/public/vendor/',
+    'src/extension/shared/',
+  ]),
   eslint.configs.recommended,
   importPlugin.flatConfigs.recommended,
   eslintPrettierConfig,
@@ -60,7 +67,7 @@ export default defineConfig(
   },
   {
     // the extension: browser and chrome.* globals
-    files: ['src/js/**/*.js'],
+    files: ['src/extension/**/*.js'],
     languageOptions: { globals: { ...globals.browser, ...globals.webextensions } },
   },
   {

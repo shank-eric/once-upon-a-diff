@@ -4,14 +4,14 @@ import path from 'node:path';
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { tmp, githubStory, startBridge, git } from './helpers.mjs';
 import os from 'node:os';
-import { beat, listeners, cliCommand, listenPrompt } from '../bridge/listeners/listeners.mjs';
+import { beat, listeners, cliCommand, listenPrompt } from '../src/bridge/listeners/listeners.mjs';
 import {
   repoOfCheckout,
   repoOfRemote,
   checkoutFor,
   seenCheckout,
-} from '../bridge/config/repos.mjs';
-import { doctor } from '../bridge/cli/doctor.mjs';
+} from '../src/bridge/config/repos.mjs';
+import { doctor } from '../src/bridge/cli/doctor.mjs';
 
 test('a fresh waiting beat counts as listening, a stale one or a dead process does not, and a handling beat lasts longer', () => {
   const home = tmp('home');
