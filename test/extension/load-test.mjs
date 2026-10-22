@@ -404,10 +404,13 @@ try {
     : [];
   const question = inbox.find((e) => e.type === 'question' && e.text === 'Why two halves?');
   check(!!question && question.story === id, 'a question from the panel lands in the inbox');
+  const positionFile = path.join(home, 'state', id, 'position.json');
   check(
-    inbox.some((e) => e.type === 'position' && e.story === id),
-    'the position lands in the inbox',
+    existsSync(positionFile) &&
+      Number.isInteger(JSON.parse(readFileSync(positionFile, 'utf8')).step),
+    'the position lands in position.json',
   );
+  check(!inbox.some((e) => e.type === 'position'), 'and not in the inbox');
   if (question) {
     await bridge.call('POST', '/api/answers', {
       question: question.id,

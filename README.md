@@ -203,7 +203,7 @@ Stories live in the repo they're about, in a hidden `.diff-story/` folder in its
   prefs.json                        page settings for every story: {hideWhitespace, diffView}
   stories.json                      the index: story id -> folder
   checkouts.json                    repo -> the checkout the bridge has seen
-  inbox.jsonl                       questions, answers, positions, notes
+  inbox.jsonl                       questions, answers, notes
   builds.json                       build requests, queued or building
   cursors/<consumer>.json           how far each reader has read the inbox
   state/<story id>/                 ui.json, position.json, viewed.json, notes.json
@@ -234,7 +234,7 @@ The bridge also checks each request:
 | `GET /api/stories/:id` | the panel's data, plus the diff, viewed files and notes for a local story |
 | `GET /api/stories/:id/version` | changes when the story or (for local) the commits change |
 | `GET`/`POST /api/stories/:id/ui` | the panel's step, width, collapsed and hidden state (the local page uses this, and the extension keeps its own in `chrome.storage`) |
-| `POST /api/stories/:id/position` | `{step, chapter, file}`, written to `position.json`, and to the inbox when it changes |
+| `POST /api/stories/:id/position` | `{step, chapter, file}`, written to `state/<id>/position.json` |
 | `GET`/`POST /api/stories/:id/read` | the chapters you've read, each with the commit it was read at, and where an update would start (`since`); or record one: `{chapter, step, reason, seconds, head_sha}` |
 | `GET`/`POST /api/stories/:id/questions` | ask a question, or list them with their answers |
 | `POST /api/answers` | `{question, text}` |
@@ -262,7 +262,7 @@ The other commands are `list`, `token --rotate`, `publish --dir`, `inbox`, `wait
 
 ## Q&A relay
 
-Everything the panel sends ends up as one JSON line in `~/.diff-story/inbox.jsonl`. That includes questions, position changes and notes, each with an `id`, a time and the story id. Readers keep their own cursor, so several can read the same file without stepping on each other.
+Questions and notes from the panel each end up as one JSON line in `~/.diff-story/inbox.jsonl`, with an `id`, a time and the story id. Readers keep their own cursor, so several can read the same file without stepping on each other.
 
 **What works today, with no change to Claude Code settings.** A Claude Code session telling the story runs this as a background task:
 

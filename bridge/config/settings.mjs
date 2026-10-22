@@ -5,7 +5,7 @@
  *     config.json                  {port, token, ...personal settings (readSettings)}, mode 600
  *     house-rules.md               optional: your own rules, which the skills read and follow
  *     prefs.json                   page settings that hold across stories and restarts: {hideWhitespace, diffView}
- *     inbox.jsonl                  questions, positions, notes and answers, one JSON object a line
+ *     inbox.jsonl                  questions, notes and answers, one JSON object a line
  *     cursors/<consumer>.json      how far each reader (a Claude session, a hook) has read the inbox
  *     state/<story id>/            what the bridge records per story: ui.json, position.json, viewed.json, notes.json
  *     <owner>-<repo>-<N>/          a story pr-story published (chapters.json, file-map.json, meta.json)

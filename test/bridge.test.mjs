@@ -2,7 +2,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
 import path from 'node:path';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmp, githubStory, startBridge, TOKEN, localRepo, git, writeJson } from './helpers.mjs';
 import { pathSha } from '../bridge/util/diff.mjs';
 import { createLocalStory } from '../bridge/stories/local-story.mjs';
@@ -184,35 +184,22 @@ describe('GitHub stories', () => {
     assert.equal(back.answers[0].text, 'Because **chapter 2** finishes it.');
   });
 
-  test('positions are recorded, and only logged to the inbox when they change', async () => {
+  test('positions are kept in position.json, not the inbox', async () => {
     const pos = { step: 2, chapter: 'Chapter 2: Finish', file: 'src/b.js' };
     assert.equal(
-      (await bridge.call('POST', '/api/stories/acme-widgets-7/position', pos)).body.logged,
-      true,
+      (await bridge.call('POST', '/api/stories/acme-widgets-7/position', pos)).status,
+      200,
     );
-    assert.equal(
-      (await bridge.call('POST', '/api/stories/acme-widgets-7/position', pos)).body.logged,
-      false,
-    );
-    assert.equal(
-      (
-        await bridge.call('POST', '/api/stories/acme-widgets-7/position', {
-          ...pos,
-          file: 'src/a.js',
-        })
-      ).body.logged,
-      true,
-    );
+    await bridge.call('POST', '/api/stories/acme-widgets-7/position', { ...pos, file: 'src/a.js' });
     const saved = JSON.parse(
       readFileSync(path.join(home, 'state', 'acme-widgets-7', 'position.json'), 'utf8'),
     );
     assert.equal(saved.file, 'src/a.js');
-    const positions = readFileSync(path.join(home, 'inbox.jsonl'), 'utf8')
-      .trim()
-      .split('\n')
-      .map(JSON.parse)
-      .filter((e) => e.type === 'position');
-    assert.equal(positions.length, 2);
+    assert.equal(saved.step, 2);
+    const inbox = existsSync(path.join(home, 'inbox.jsonl'))
+      ? readFileSync(path.join(home, 'inbox.jsonl'), 'utf8')
+      : '';
+    assert.ok(!inbox.includes('"position"'));
   });
 
   test('keeps the panel state per story', async () => {
