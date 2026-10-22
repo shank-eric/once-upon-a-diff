@@ -319,7 +319,7 @@ yarn test              # bridge unit tests (node --test)
 yarn lint              # ESLint (cached); yarn lint:fix fixes what it can
 yarn format:check      # Prettier's check (100 columns); yarn format rewrites
 yarn lint:sh           # shellcheck over the pr-story skill's shell scripts
-yarn types             # TypeScript's checkJs over the bridge, skills and scripts (JSDoc types, no build step)
+yarn types             # TypeScript's checkJs (JSDoc types, no build step): tsconfig.json for Node, tsconfig.browser.json for the extension and local page
 yarn test:extension    # loads src/ into a throwaway Playwright Chromium, never your own Chrome
 yarn test:expand       # the same Chromium: panel links expand collapsed files and hunks on /files and /changes
 yarn icons             # redraws src/icons

@@ -1,6 +1,7 @@
 import { getSettings, setSettings } from './shared/settings.js';
 
-const $ = (id) => document.getElementById(id);
+/** The page's elements by id; the form's fields are inputs. */
+const $ = (id) => /** @type {HTMLInputElement} */ (document.getElementById(id));
 
 function status(text, ok) {
   $('status').textContent = text;

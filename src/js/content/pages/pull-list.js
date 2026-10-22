@@ -21,7 +21,9 @@ const TITLE_LINK =
 function prLinks() {
   const out = [];
   const rows = new Set();
-  for (const link of document.querySelectorAll('a[href*="/pull/"]')) {
+  for (const link of /** @type {NodeListOf<HTMLAnchorElement>} */ (
+    document.querySelectorAll('a[href*="/pull/"]')
+  )) {
     if (link.closest(`[${ATTR}]`)) {
       continue;
     }
@@ -90,8 +92,8 @@ export function createPullListPage() {
     const ours = mutations.every(
       (mutation) =>
         mutation.target.nodeType === 1 &&
-        mutation.target.closest &&
-        mutation.target.closest(`[${ATTR}]`),
+        /** @type {Element} */ (mutation.target).closest &&
+        /** @type {Element} */ (mutation.target).closest(`[${ATTR}]`),
     );
     if (ours) {
       return;

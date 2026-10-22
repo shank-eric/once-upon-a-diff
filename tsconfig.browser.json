@@ -1,0 +1,41 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": [
+      "es2023",
+      "dom",
+      "dom.iterable"
+    ],
+    "types": [
+      "chrome"
+    ],
+    "paths": {
+      "/assets/overlay.js": [
+        "./src/js/shared/overlay.js"
+      ],
+      "/assets/util/*": [
+        "./src/js/shared/util/*"
+      ],
+      "/assets/panel/*": [
+        "./src/js/shared/panel/*"
+      ],
+      "/assets/local/*": [
+        "./bridge/public/local/*"
+      ],
+      "/assets/highlight.mjs": [
+        "./types/highlight.d.ts"
+      ],
+      "/assets/*": [
+        "./bridge/public/*"
+      ]
+    }
+  },
+  "include": [
+    "src/js/**/*.js",
+    "bridge/public/**/*.js",
+    "types/*.d.ts"
+  ],
+  "exclude": [
+    "bridge/public/vendor"
+  ]
+}
