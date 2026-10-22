@@ -17,14 +17,18 @@ export function writeJson(file, value) {
   writeFileSync(file, JSON.stringify(value, null, 2));
 }
 
-/** A published story for acme/widgets#7 with two chapters (its pr.json too, so it also serves as a pr-story folder). */
-export function githubStory(dir) {
+/**
+ * A published story for acme/widgets#7 with two chapters (its pr.json too, so it also serves as a pr-story folder).
+ * `meta` adds to or overrides its meta.json, such as the head_oid it was told from or its pr-story `source`.
+ */
+export function githubStory(dir, { meta = {} } = {}) {
   writeJson(path.join(dir, 'meta.json'), {
     kind: 'github',
     repo: 'acme/widgets',
     number: 7,
     url: 'https://github.com/acme/widgets/pull/7',
     pr_title: 'Add widgets',
+    ...meta,
   });
   writeJson(path.join(dir, 'pr.json'), {
     url: 'https://github.com/acme/widgets/pull/7',

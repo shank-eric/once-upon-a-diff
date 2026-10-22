@@ -16,13 +16,7 @@ const SHA_B = 'b'.repeat(40);
 
 function story(home, head = SHA_A) {
   const dir = path.join(home, 'acme-widgets-7');
-  githubStory(dir);
-  writeJson(path.join(dir, 'meta.json'), {
-    kind: 'github',
-    repo: 'acme/widgets',
-    number: 7,
-    head_oid: head,
-  });
+  githubStory(dir, { meta: { head_oid: head } });
   return dir;
 }
 
