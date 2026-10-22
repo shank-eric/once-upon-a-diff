@@ -42,9 +42,10 @@ function parseArgs(argv) {
   return { command, opts };
 }
 
-/** Unified diff -> Map(rel -> {rel, hunks, stats, kind}). */
+/** Unified diff -> Map(rel -> {rel, hunks, stats, kind, renamed_from?}). */
 export function parseUnifiedDiff(text) {
   const files = new Map();
+  /** @type {{rel: string, hunks: object[], stats: {added: number, removed: number}, kind: string, renamed_from?: string} | null} */
   let cur = null;
   let hunk = null;
   for (const line of text.split('\n')) {

@@ -53,6 +53,7 @@ const BLUE = [9, 105, 218],
   GREEN = [46, 160, 67],
   RED = [207, 34, 46],
   PALE = [214, 232, 255];
+/** @type {Array<[number, number, number, number, number, number[]]>} [x0, y0, x1, y1, corner radius, rgb] */
 const SHAPES = [
   [0, 0, 1, 1, 0.2, BLUE],
   [0.12, 0.2, 0.52, 0.3, 0.04, GREEN],
@@ -65,6 +66,7 @@ const SHAPES = [
   [0.66, 0.49, 0.8, 0.54, 0.02, PALE],
   [0.66, 0.6, 0.84, 0.65, 0.02, PALE],
 ];
+/** @type {(x: number, y: number, shape: (typeof SHAPES)[number]) => boolean} */
 const inside = (x, y, [x0, y0, x1, y1, r]) => {
   if (x < x0 || x > x1 || y < y0 || y > y1) {
     return false;

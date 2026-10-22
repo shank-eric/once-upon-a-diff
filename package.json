@@ -18,6 +18,7 @@
     "lint": "eslint . --cache --cache-strategy content",
     "lint:fix": "eslint . --fix",
     "lint:sh": "shellcheck skills/pr-story/bin/*.sh",
+    "types": "tsc -p tsconfig.json",
     "lint-staged": "./node_modules/.bin/lint-staged",
     "format": "prettier --cache --cache-location=.prettiercache --write .",
     "format:check": "prettier --cache --cache-location=.prettiercache --check .",
@@ -28,6 +29,7 @@
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
+    "@types/node": "24.19.1",
     "eslint": "9.39.5",
     "eslint-config-prettier": "10.1.8",
     "eslint-plugin-import": "2.32.0",
@@ -39,7 +41,8 @@
     "lint-staged": "16.4.0",
     "playwright-core": "1.64.0",
     "prettier": "3.9.9",
-    "shellcheck": "3.1.0"
+    "shellcheck": "3.1.0",
+    "typescript": "5.9.3"
   },
   "lint-staged": {
     "*.{js,mjs}": [

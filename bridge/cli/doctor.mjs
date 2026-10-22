@@ -28,7 +28,12 @@ function listenerPid(port) {
   }
 }
 
-/** Runs every check; resolves true when nothing FAILed. */
+/**
+ * Runs every check; resolves true when nothing FAILed.
+ * @param {string} home
+ * @param {{port: number, token: string}} cfg
+ * @param {{port?: number | string, out?: (text: string) => void}} [opts] port overrides the config's
+ */
 export async function doctor(
   home,
   cfg,
@@ -60,7 +65,9 @@ export async function doctor(
       headers: { Authorization: `Bearer ${cfg.token}` },
       signal: AbortSignal.timeout(2000),
     });
-    health = { status: response.status, body: await response.json().catch(() => null) };
+    /** @type {{name?: string, version?: string} | null} */
+    const body = await response.json().catch(() => null);
+    health = { status: response.status, body };
   } catch {
     health = null;
   }

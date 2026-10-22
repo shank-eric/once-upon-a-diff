@@ -92,6 +92,9 @@ export function seenCheckout(home, repo, dir) {
 /**
  * Where to work on a repo: the checkout the bridge has seen, else <dir>/<name> for each of config.json's
  * checkout_dirs (default ~/Development) when its origin is that repo, else null. DIFF_STORY_DEV_DIR overrides them.
+ * @param {string} home
+ * @param {string | null} repo
+ * @param {{dev?: string}} [opts] a checkout folder to look in instead
  */
 export function checkoutFor(home, repo, { dev } = {}) {
   if (!repo) {
