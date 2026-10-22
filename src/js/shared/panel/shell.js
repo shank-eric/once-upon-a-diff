@@ -16,7 +16,7 @@ const MARKUP = (withAsk) => `
       <button class="ou-next" title="Next step">Next &rarr;</button>
       <button class="ou-close" title="Remove the overlay and show every file">&times;</button>
     </div>
-    <div class="ou-note"><span class="ou-count-note"></span><div class="ou-health" hidden></div><div class="ou-fresh"></div><span class="ou-msg"></span></div>
+    <div class="ou-note"><span class="ou-count-note"></span><div class="ou-health" hidden></div><div class="ou-fresh"></div><div class="ou-rebuilding" role="status" hidden></div><span class="ou-msg"></span></div>
     <div class="ou-body"></div>
     <div class="ou-askhint" hidden></div>
     <div class="ou-askwho" hidden></div>

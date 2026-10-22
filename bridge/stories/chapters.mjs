@@ -62,6 +62,9 @@ export function chaptersOf(plan) {
         line: comment.line || 0,
         body: comment.body || '',
         ...(comment.side === 'L' ? { side: 'L' } : {}), // a comment on a removed line
+        // a rebuild kept it from the earlier telling: its line is still in the diff (carried) or isn't (unmapped)
+        ...(comment.carried ? { carried: true } : {}),
+        ...(comment.unmapped ? { unmapped: true } : {}),
       })),
       ...(since ? { since } : {}),
     };

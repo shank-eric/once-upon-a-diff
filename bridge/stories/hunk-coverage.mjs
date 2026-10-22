@@ -25,7 +25,7 @@ const LOCKFILES =
   /(^|\/)(yarn\.lock|package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|Gemfile\.lock|Cargo\.lock|poetry\.lock|composer\.lock|go\.sum|Podfile\.lock|bun\.lockb?)$/;
 
 /** A hunk's lines on each side, context included: {L: {start, end}, R: {start, end}}. An empty side is its one anchor line. */
-function sidesOf(hunk) {
+export function sidesOf(hunk) {
   const span = (start, count) => ({ start, end: start + Math.max(count, 1) - 1 });
   return { L: span(hunk.oldStart, hunk.oldLines), R: span(hunk.newStart, hunk.newLines) };
 }

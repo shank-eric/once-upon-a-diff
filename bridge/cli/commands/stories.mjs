@@ -3,12 +3,15 @@
  * (local), and publish a once-upon folder where the bridge finds it.
  */
 import { execFile } from 'node:child_process';
-import { copyFileSync, existsSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { openArgv } from '../../config/settings.mjs';
 import { StoryStore } from '../../stories/store.mjs';
 import { Builds } from '../../inbox/builds.mjs';
-import { readJson } from '../../util/json-file.mjs';
+import { readJson, writeJsonAtomic } from '../../util/json-file.mjs';
+import { parseUnifiedDiff } from '../../util/diff.mjs';
+import { stateKeyOf } from '../../github/drafts.mjs';
+import { vetRebuild, afterRebuild } from '../../stories/rebuild.mjs';
 import { createLocalStory, slug } from '../../stories/local-story.mjs';
 import { storyDirFor } from '../../stories/placement.mjs';
 import { out } from '../output.mjs';
@@ -23,10 +26,19 @@ function list(home) {
   }
 }
 
+/** The story's pending rebuild request, or null. */
+function pendingRebuild(builds, id, meta) {
+  const build = builds.rebuildOf(id, meta);
+  return build && build.status === 'pending' ? build : null;
+}
+
 async function local(home, cfg, opts) {
   if (!opts.repo || !opts.base) {
     throw new Error('usage: once-upon local --repo DIR --base REF [--head REF] [--chapters FILE]');
   }
+  const builds = new Builds(home);
+  /** @type {{build: object, before: object, after: object, counts: object} | null} */
+  let rebuilt = null;
   const made = createLocalStory({
     home,
     repo: path.resolve(opts.repo),
@@ -35,7 +47,24 @@ async function local(home, cfg, opts) {
     chapters: opts.chapters,
     id: opts.id,
     title: opts.title,
+    // the panel's Rebuild asked for these chapters: they must keep what it keeps and tell the whole diff
+    vet: ({ id, meta, diff, before, after }) => {
+      const build = pendingRebuild(builds, id, meta);
+      if (!build) {
+        return null;
+      }
+      const counts = vetRebuild(build, before, after, diff, {
+        allowUncovered: !!opts['allow-uncovered'],
+      });
+      rebuilt = { build, before, after, counts };
+      return after;
+    },
   });
+  if (rebuilt) {
+    const note = afterRebuild(home, { id: made.id, stateKey: made.id, ...rebuilt });
+    builds.settleStory(made.id, { note });
+    process.stderr.write(`${note}\n`);
+  }
   process.stderr.write(
     `Story ${made.id}: ${made.files} files, ${made.chapters} chapters (${made.dir})\n`,
   );
@@ -75,6 +104,28 @@ function publish(home, cfg, opts) {
     throw new Error(`${source} doesn't say which PR it is (no pr.json naming it)`);
   }
   const id = opts.id || slug(`${repo.replace('/', '-')}-${pr.number}`);
+  const builds = new Builds(home);
+  const meta = { kind: 'github', repo, number: pr.number };
+  const rebuild = pendingRebuild(builds, id, meta);
+  // a rebuild the panel asked for: what was published before, checked against and carried into the new chapters
+  /** @type {{build: object, before: object, after: object, counts: object} | null} */
+  let rebuilt = null;
+  if (rebuild) {
+    const served = new StoryStore({ home }).dirOf(id);
+    const before = (served && readJson(path.join(served, 'chapters.json'), null)) || {};
+    const after = readJson(path.join(source, 'chapters.json'), null);
+    if (!after || !existsSync(path.join(source, 'pr.diff'))) {
+      throw new Error(`${source} needs chapters.json and pr.diff to publish a rebuild`);
+    }
+    const diff = parseUnifiedDiff(readFileSync(path.join(source, 'pr.diff'), 'utf8'));
+    const counts = vetRebuild(rebuild, before, after, diff, {
+      allowUncovered: !!opts['allow-uncovered'],
+    });
+    if (counts.carried || counts.unmapped) {
+      writeJsonAtomic(path.join(source, 'chapters.json'), after); // so the next build keeps them
+    }
+    rebuilt = { build: rebuild, before, after, counts };
+  }
   // into the repo's checkout (.once-upon/<id>, kept out of git) when the bridge knows it, else ~/.once-upon/<id>
   const dest = storyDirFor(home, id, { repo });
   for (const name of ['chapters.json', 'file-map.json']) {
@@ -100,8 +151,18 @@ function publish(home, cfg, opts) {
       2,
     ),
   );
-  // the story is here, so a Build story or Update request for the PR is done
-  new Builds(home).settle(repo, pr.number, { story: id, head: pr.headRefOid || null });
+  let note = null;
+  if (rebuilt) {
+    note = afterRebuild(home, { id, stateKey: stateKeyOf(id, meta), ...rebuilt });
+    process.stderr.write(`${note}\n`);
+  }
+  // the story is here, so a Build story or Update request for the PR is done, and a rebuild with it published again
+  builds.settle(repo, pr.number, {
+    story: id,
+    head: pr.headRefOid || null,
+    published: true,
+    note,
+  });
   out(dest);
 }
 
@@ -116,16 +177,18 @@ export const storyCommands = [
   {
     name: 'local',
     usage: [
-      '  once-upon local   --repo DIR --base REF [--head REF] [--chapters FILE] [--id ID] [--title T] [--no-open]',
-      '                                                                 story over local commits, served at /local/<id>/',
+      '  once-upon local   --repo DIR --base REF [--head REF] [--chapters FILE] [--id ID] [--title T] [--no-open] [--allow-uncovered]',
+      '                                                                 story over local commits, served at /local/<id>/; with a Rebuild',
+      '                                                                 pending, the chapters must keep what it keeps and tell every file and hunk',
     ],
     run: local,
   },
   {
     name: 'publish',
     usage: [
-      '  once-upon publish --dir DIR [--id ID]                         copy a once-upon folder into <checkout>/.once-upon/<owner>-<repo>-<N>/ (or ~/.once-upon/)',
-      "                                                                 and finish the PR's build request",
+      '  once-upon publish --dir DIR [--id ID] [--allow-uncovered]     copy a once-upon folder into <checkout>/.once-upon/<owner>-<repo>-<N>/ (or ~/.once-upon/)',
+      "                                                                 and finish the PR's build request; a Rebuild must keep what it keeps, tell",
+      '                                                                 every file and hunk, and keeps the drafts the new chapters dropped',
     ],
     run: publish,
   },

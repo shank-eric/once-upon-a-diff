@@ -82,6 +82,26 @@ export function noteRead(
   return all[chapter];
 }
 
+/**
+ * Sets aside the reads of these chapter keys, which a rebuild re-told: each moves to "<key> (before the rebuild)", so
+ * the chapter counts as unread and the record stays in read.json. Returns how many moved.
+ */
+export function retireReads(home, key, chapterKeys) {
+  const all = readReads(home, key);
+  const moving = chapterKeys.filter((chapter) => all[chapter]);
+  for (const chapter of moving) {
+    all[`${chapter} (before the rebuild)`] = {
+      ...all[chapter],
+      retired_at: new Date().toISOString(),
+    };
+    delete all[chapter];
+  }
+  if (moving.length) {
+    writeJson(file(home, key), all);
+  }
+  return moving.length;
+}
+
 /** The commit a read stands for: what the story told them (story_head), else the PR head they saw. */
 export const readSha = (read) => (read && (read.story_head || read.head_sha)) || null;
 

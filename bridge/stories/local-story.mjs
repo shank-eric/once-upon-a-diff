@@ -55,7 +55,21 @@ export function defaultChapters(rels, title) {
   };
 }
 
-export function createLocalStory({ home, repo, base, head = 'HEAD', chapters, id, title }) {
+/**
+ * Makes or refreshes a local story. `vet({id, meta, diff, before, after})`, when given, sees the new chapters (from
+ * `chapters`) and the ones they replace before they're written: it throws to refuse them, or returns the chapters to
+ * write instead (null writes them as they are). The written chapters go back to `chapters` too, so a later run keeps them.
+ */
+export function createLocalStory({
+  home,
+  repo,
+  base,
+  head = 'HEAD',
+  chapters,
+  id,
+  title,
+  vet = null,
+}) {
   const top = topLevel(repo);
   revParse(top, base); // fail early on a bad ref
   revParse(top, head);
@@ -91,7 +105,15 @@ export function createLocalStory({ home, repo, base, head = 'HEAD', chapters, id
   const rels = [...diff.keys()];
   const chaptersFile = path.join(dir, 'chapters.json');
   if (chapters) {
-    copyFileSync(path.resolve(chapters), chaptersFile);
+    const after = JSON.parse(readFileSync(path.resolve(chapters), 'utf8'));
+    const before = existsSync(chaptersFile) ? JSON.parse(readFileSync(chaptersFile, 'utf8')) : {};
+    const vetted = vet ? vet({ id, meta, diff, before, after }) : null;
+    if (vetted) {
+      writeFileSync(chaptersFile, JSON.stringify(vetted, null, 2));
+      writeFileSync(path.resolve(chapters), JSON.stringify(vetted, null, 2));
+    } else {
+      copyFileSync(path.resolve(chapters), chaptersFile);
+    }
   }
   if (!existsSync(chaptersFile)) {
     writeFileSync(chaptersFile, JSON.stringify(defaultChapters(rels, meta.title), null, 2));

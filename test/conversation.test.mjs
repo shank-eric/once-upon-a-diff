@@ -201,8 +201,13 @@ describe('one story, one session', () => {
     const home = tmp('home');
     const story = listenPrompt({ story: STORY }, 'once-upon');
     assert.equal(story.prompt, `/once-upon-listen --story ${STORY}`);
-    assert.equal(story.command, `once-upon wait --story ${STORY} --type question`);
-    assert.ok(!story.details.includes('build request'), 'a story listener takes no builds');
+    assert.equal(story.command, `once-upon wait --story ${STORY} --type question,build_request`);
+    assert.match(
+      story.details,
+      /For a build request \(the panel's Rebuild\)/,
+      "a story listener takes the story's rebuilds, and no other builds",
+    );
+    assert.ok(!story.details.includes('/once-upon <PR url>'));
 
     let listening = listeningOf(home, { repo: 'acme/widgets', story: STORY });
     assert.equal(listening.answering, null);

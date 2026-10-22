@@ -328,10 +328,18 @@ export function createDrafts(context) {
         `<span class="ou-pend">In your pending review</span>, on ${escapeHtml(comment ? comment.path : '')} line ${escapeHtml(comment ? comment.line : '')}${jump}${onGithub}` +
         `<span class="ou-cnote">GitHub shows it after a reload.${reload}</span>`;
     } else {
-      if (context.reading.isStaleDraft(step, index)) {
+      const unmapped = !!(comment && comment.unmapped);
+      if (unmapped) {
+        stateLine.hidden = false;
+        stateLine.innerHTML =
+          '<span class="ou-cstale">Kept from before the rebuild, but its line isn\'t in the diff any more. Check where it belongs before posting it.</span>';
+      } else if (context.reading.isStaleDraft(step, index)) {
         stateLine.hidden = false;
         stateLine.innerHTML =
           '<span class="ou-cstale">May be out of date: a newer commit changed this line after you read the chapter.</span>';
+      } else if (comment && comment.carried) {
+        stateLine.hidden = false;
+        stateLine.innerHTML = '<span class="ou-cdraft">Draft</span>, kept from before the rebuild';
       } else if (!state.n) {
         stateLine.hidden = false;
         stateLine.innerHTML = '<span class="ou-cdraft">Draft</span>, not posted';
@@ -341,7 +349,7 @@ export function createDrafts(context) {
         'Dismiss',
         "Not a comment you want: hide it, and don't suggest it again",
       );
-      const onLine = comment && comment.path && Number(comment.line) > 0;
+      const onLine = comment && comment.path && Number(comment.line) > 0 && !unmapped;
       if (data.kind === 'local' && onLine) {
         addButton(
           'fix',

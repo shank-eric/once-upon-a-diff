@@ -10,6 +10,7 @@
  *   none       "Build story", asks for one
  *   queued     "Queued", asked for and no session has it yet (not clickable)
  *   building   "Building…", a session claimed it (not clickable)
+ *   updating   "Update queued" / "Updating…", or "Rebuild queued" / "Rebuilding…" for the panel's Rebuild (not clickable)
  * Who's listening is said once per page, per repo, by the notice (notice.js), not on each tag.
  *
  * No DOM or chrome.* here, so node can test it.
@@ -55,6 +56,22 @@ export function tagFor(result, { repo, number }) {
       spin: true,
       title: `A Claude session is building the story (asked for${asked})`,
     };
+  }
+  if (result.updating && /^rebuild/.test(result.update_mode || '')) {
+    return result.update_state === 'building'
+      ? {
+          kind: 'progress',
+          cls: 'building',
+          label: 'Rebuilding…',
+          spin: true,
+          title: 'A Claude session is rebuilding the story',
+        }
+      : {
+          kind: 'progress',
+          cls: 'queued',
+          label: 'Rebuild queued',
+          title: 'A rebuild of the story was asked for. No session has taken it yet.',
+        };
   }
   if (result.updating) {
     return result.update_state === 'building'

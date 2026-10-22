@@ -414,8 +414,10 @@ describe('pulse', () => {
         'drafts_rev',
         'listening',
         'questions_rev',
+        'rebuild',
         'version',
       ]);
+      assert.equal(first.rebuild, null, 'no rebuild asked for');
       assert.equal(first.listening, false);
       assert.deepEqual(await pulse(), first, 'nothing changed, nothing moves');
 

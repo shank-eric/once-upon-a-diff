@@ -250,12 +250,20 @@ async function cmdBuild(opts) {
  * checkout when it knows one, else ONCE_UPON_HOME). The extension then shows
  * the panel on the PR page by itself, and picks up each rebuild within a few
  * seconds. It also prints the story id, and the line that makes this session
- * the story's own listener.
+ * the story's own listener. While the panel's Rebuild is pending for the story,
+ * publish refuses chapters that change the ones it keeps or leave a file or
+ * hunk untold, and keeps the drafts the new chapters dropped (bridge/stories/rebuild.mjs).
  */
 async function cmdPublish(opts) {
   const dest = execFileSync(
     process.execPath,
-    [path.join(REPO_ROOT, 'bridge/bin/once-upon.mjs'), 'publish', '--dir', path.resolve(opts.dir)],
+    [
+      path.join(REPO_ROOT, 'bridge/bin/once-upon.mjs'),
+      'publish',
+      '--dir',
+      path.resolve(opts.dir),
+      ...(opts['allow-uncovered'] ? ['--allow-uncovered'] : []),
+    ],
     { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] },
   ).trim();
   process.stderr.write(`Once Upon a Diff: ${dest}\n`);

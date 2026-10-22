@@ -85,9 +85,9 @@ The session that built a story knows it best, so it can keep answering that stor
 /once-upon-listen --story octo-org-web-app-42
 ```
 
-`--story` takes the story id (`once-upon list`, or the line `build` prints after publishing), `owner/repo#N`, a PR URL, or a bare PR number in the session's checkout. Underneath it's `once-upon wait --story <id> --type question --consumer story-<id>`. The once-upon skill offers this at the end of a build, and starts it when you've asked it to keep listening.
+`--story` takes the story id (`once-upon list`, or the line `build` prints after publishing), `owner/repo#N`, a PR URL, or a bare PR number in the session's checkout. Underneath it's `once-upon wait --story <id> --type question,build_request --consumer story-<id>`. The once-upon skill offers this at the end of a build, and starts it when you've asked it to keep listening.
 
-**The routing rule.** A question goes to a live listener for its story when there is one. A repo-wide or catch-all wait leaves that story's questions alone while the story listener is live, and takes them once it isn't (its beat goes stale, or its process is gone), including any it left waiting. A question handed to one session is never handed to another, and a dismissed one isn't handed over at all. A story listener takes only questions. Build and update requests still go to the repo's listener. `~/.once-upon/handed.json` records which session each question went to.
+**The routing rule.** A question goes to a live listener for its story when there is one. A repo-wide or catch-all wait leaves that story's questions alone while the story listener is live, and takes them once it isn't (its beat goes stale, or its process is gone), including any it left waiting. A question handed to one session is never handed to another, and a dismissed one isn't handed over at all. A story listener takes its story's questions and its [Rebuild](#rebuild-story-rebuild-from-here) requests, by the same rule (a story wait started with `--type question` only, as older prompts did, gets no rebuilds, and the repo's listener takes them). Build and update requests still go to the repo's listener. `~/.once-upon/handed.json` records which session each question went to.
 
 The panel says who's answering, on the line under the Ask box: "Answered by furnace-10, the session listening for this story", or the repo listener's name with **Copy prompt for this story**, which copies `/once-upon-listen --story <id>` to paste into the session that built it. Each answer is labelled "Answered by" and the consumer. The name is the wait's `--consumer`, so pass your own (say `--consumer furnace-10`) to tell sessions apart.
 
@@ -180,6 +180,14 @@ When a PR gets a few new commits after you've read its story, an update adds one
 - On a PR, a "Since you read it" chapter starts with which commits it covers and a link to GitHub's diff of just those commits, `/pull/N/changes/<from>..<to>`. It loads as is logged in (checked on 2026-10-22), and GitHub redirects it to `/files/<from>..<to>` logged out. On that page the panel opens on the chapter, once per page load, and the chapter's filter shows only the files those commits touched. A link back to all of the PR's changes replaces it there.
 - **Changed since you read.** A chapter you read whose files a newer commit changed gets "• changed since you read" in the Steps list, and those files get the same mark in its files list. A drafted comment there whose line a newer commit changed says "May be out of date". The bridge compares the commit you read each chapter at with the story's head, once per commit (gh's compare, read-only and cached 60s, or git for a local story), and `GET /api/stories/:id/read` returns them as `changed` and `stale_comments`. "Since you read it" chapters and chapters you haven't read aren't marked.
 - A rebase past `since_sha`, or a request with `retell`, gets a new story from scratch. Drafts' posted and dismissed marks are kept per PR either way.
+
+### Rebuild story, Rebuild from here
+
+When a story reads wrong, ask for it again from the panel, on a PR or a local story. **Rebuild story…** sits at the end of the Overview and **Rebuild from here…** at the end of each chapter. Either opens a "What should change?" box (optional), which goes to the Claude session as guidance, and **Queue rebuild** sends `POST /api/stories/:id/rebuild` with `mode: 'rebuild'`, or `mode: 'rebuild_from'` and `from_step` (from chapter 1 is a whole rebuild). The line under the toolbar then says Rebuild queued, Rebuilding…, and Rebuilt (with what was kept) or failed, and the PR tags say "Rebuild queued" or "Rebuilding…".
+
+- It's a build request like Build story's, kept in `builds.json` (by PR, or `story:<id>` for a local story), and handed to the story's own listener while one that takes build requests is live, else to the repo's. It finishes only when the story is published again, by `once-upon publish` or `once-upon local --chapters`.
+- The story keeps its id and URL. **Rebuild from here** keeps chapters 1 to N-1 exactly as published, and re-tells N and the rest. Publishing refuses chapters that change a kept chapter, leave a file of the diff in no chapter, or leave a hunk untold (across the whole story, `--allow-uncovered` aside).
+- Nothing you drafted or asked is dropped. A draft on a re-told chapter that the new chapters don't have is put back, in the chapter that now tells its line or file: kept as is when its line is still in the diff ("kept from before the rebuild"), flagged when it isn't (its Add to my review is held back). A question asked on a re-told chapter moves to the chapter with the same key or the one that now tells its file, else the Overview (`moved` in `questions.json`). A read of a chapter that was re-told over a different set of files is set aside, so that chapter counts as unread. One re-told over the same files keeps it.
 
 ### Story ready, Building, Build story
 
@@ -287,7 +295,7 @@ Questions and notes from the panel each end up as one JSON line in `~/.once-upon
 **What works today, with no change to Claude Code settings.** A Claude Code session telling the story runs this as a background task:
 
 ```bash
-once-upon wait --story <id> --type question
+once-upon wait --story <id> --type question,build_request
 ```
 
 It blocks until a new question on that story arrives, then prints the question and exits. A story's own wait comes before the repo's listener (see [One story, one session](#one-story-one-session)). A consumer's first wait starts from now, not from old questions. The exit wakes the session. Claude answers in chat and runs `once-upon answer --question <id> --file answer.md`, so the answer also shows in the panel under the question. Then it starts the wait again. The once-upon skill's SKILL.md describes this loop.
@@ -380,12 +388,12 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
     - `host-page.js`: finding files, lines and toggles on `/changes`, `/files` and the local page. `filter.js`, `expand.js` and `scroll.js`: hiding, opening and jumping.
     - `file-refs.js` and `markdown.js`: the story's text and its jump links. `file-list.js`: the file rows.
     - `review-script.js`: the Overview's Copy as gh script.
-    - `viewed.js`, `reading.js`, `drafts.js`, `freshness.js`, `marks.js`, `status-light.js` and `questions.js`: Viewed progress, read tracking, drafted comments, story freshness, the "changed since" marks, the status light and the Ask box.
+    - `viewed.js`, `reading.js`, `drafts.js`, `freshness.js`, `rebuild.js`, `marks.js`, `status-light.js` and `questions.js`: Viewed progress, read tracking, drafted comments, story freshness, Rebuild, the "changed since" marks, the status light and the Ask box.
   - `js/shared/util/`: helpers for the panel, the content scripts, the local page and the bridge (escaping, short SHAs, times, the clipboard, GitHub paths, key isolation).
 - `bridge/`: the bridge and its CLI.
   - `bin/once-upon.mjs` runs `cli/index.mjs`, a table of commands in `cli/commands/` (bridge, stories, inbox, drafts, builds, checks) that also builds the help. `cli/doctor.mjs` is `once-upon doctor`.
   - `server/index.mjs` is the HTTP server: its guards, then a route table. The routes are in `server/routes/` by area; `pages.mjs` and `assets.mjs` serve the HTML pages and the scripts.
-  - `stories/`: finding story folders (`store.mjs`, `placement.mjs`), reading them (`meta.mjs`, `chapters.mjs`, `story-data.mjs`, `text-refs.mjs`, `hunk-coverage.mjs`), local stories (`local-story.mjs`, `local-diff.mjs`), read tracking (`reads.mjs`) and drafted comments (`comments.mjs`).
+  - `stories/`: finding story folders (`store.mjs`, `placement.mjs`), reading them (`meta.mjs`, `chapters.mjs`, `story-data.mjs`, `text-refs.mjs`, `hunk-coverage.mjs`), local stories (`local-story.mjs`, `local-diff.mjs`), read tracking (`reads.mjs`), drafted comments (`comments.mjs`) and the rules a Rebuild is published by (`rebuild.mjs`).
   - `github/`: what asks `gh` (read-only, except Add to my review): freshness, drafts and the pending review.
   - `inbox/` (the inbox, the conversation's marks and routing, and build requests), `listeners/` (who's listening), `config/` (settings, prefs, repos and checkouts) and `util/` (gh, git, diffs, JSON files).
   - `public/`: the local page. `local.js` draws it and handles its clicks; `local/` holds the diff view, notes, folds and the panel mount, next to `split.js`, `narrow.js` and `syntax.js`.

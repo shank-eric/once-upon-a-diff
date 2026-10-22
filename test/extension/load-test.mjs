@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { tmp, writeJson, TOKEN, startBridge, localRepo, runCli } from '../helpers.mjs';
 import { createLocalStory } from '../../bridge/stories/local-story.mjs';
 import { beat } from '../../bridge/listeners/listeners.mjs';
+import { Builds } from '../../bridge/inbox/builds.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const EXT = path.join(ROOT, 'src');
@@ -1119,6 +1120,48 @@ try {
       (await qaCount()) === 1 && (await qaCount('.ou-qa-dismissed')) === 0,
       'Show dismissed, then Restore, brings one back',
     );
+  }
+  // Rebuild from here: chapter 2's box asks what should change, queues a rebuild_from request, and the line under the
+  // toolbar follows it to Rebuilt
+  {
+    await localPage.locator('#ou-panel ol.ou-map li[data-n="2"]').click();
+    await localPage.locator('#ou-panel .ou-rebuild-open').click();
+    check(
+      /Chapter 1 stays exactly as it is/.test(
+        await localPage.locator('#ou-panel .ou-rebuild-form').textContent(),
+      ),
+      'Rebuild from here says what it keeps',
+    );
+    await localPage.locator('#ou-panel .ou-rebuild-form textarea').fill('Tell gone.txt first');
+    await localPage.locator('#ou-panel .ou-rebuild-form button[type="submit"]').click();
+    await localPage.waitForTimeout(500);
+    const asked = buildRequests().find((build) => build.story === local.id);
+    check(
+      !!asked &&
+        asked.mode === 'rebuild_from' &&
+        asked.from_step === 2 &&
+        asked.guidance === 'Tell gone.txt first' &&
+        asked.kind === 'local',
+      `Queue rebuild sends a rebuild_from request for chapter 2 with the guidance: ${JSON.stringify(asked && { mode: asked.mode, from_step: asked.from_step, guidance: asked.guidance })}`,
+    );
+    const rebuildLine = () => localPage.locator('#ou-panel .ou-rebuilding').textContent();
+    check(
+      /^Rebuild from chapter 2 queued/.test(await rebuildLine()),
+      `the panel says it's queued: "${await rebuildLine()}"`,
+    );
+    await localPage.locator('#ou-panel ol.ou-map li[data-n="0"]').click();
+    check(
+      (await localPage.locator('#ou-panel .ou-rebuild-open').textContent()) === 'Rebuild queued' &&
+        (await localPage.locator('#ou-panel .ou-rebuild-open').isDisabled()),
+      'and Rebuild story on the Overview waits for it',
+    );
+    new Builds(home).done(asked.id, { note: 'Re-told from chapter 2.' });
+    await localPage.waitForTimeout(6000);
+    check(
+      /^Rebuilt from chapter 2 at .*Re-told from chapter 2\.$/.test(await rebuildLine()),
+      `the pulse brings Rebuilt: "${await rebuildLine()}"`,
+    );
+    await localPage.locator('#ou-panel ol.ou-map li[data-n="1"]').click(); // back where the next checks read
   }
   // Claude rewrites chapters.json: the panel's pulse redraws it open, and the page's own poll while it's closed
   const localFile = path.join(local.dir, 'chapters.json');
