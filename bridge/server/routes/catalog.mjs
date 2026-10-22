@@ -1,7 +1,7 @@
 /*
- * The stories the bridge can serve: the list, finding a PR's story, and the
- * PR lists' batched status (ready, building or none, read progress, out of
- * date, and who's listening per repo).
+ * The stories the bridge can serve: the list, and every PR page's batched
+ * status (ready, building or none, read progress, out of date, and who's
+ * listening per repo).
  */
 import { readMeta } from '../../stories/meta.mjs';
 import { storyFinishes } from '../../inbox/builds.mjs';
@@ -9,7 +9,6 @@ import { stateKeyOf } from '../../github/drafts.mjs';
 import { currentHead, newerCount } from '../../github/freshness.mjs';
 import { listeningOf } from '../../listeners/listeners.mjs';
 import { readReads } from '../../stories/reads.mjs';
-import { HttpError } from '../request.mjs';
 
 const MAX_PRS = 200;
 const STATUS_CACHE_MS = 5000;
@@ -107,20 +106,6 @@ export const catalogRoutes = [
     method: 'GET',
     handle: ({ app, send }) =>
       send(200, { stories: app.stories.list().map(({ dir, ...story }) => story) }),
-  },
-  {
-    path: '/api/stories/find',
-    method: 'GET',
-    handle: ({ app, url, send }) => {
-      const hit = app.stories.find(
-        url.searchParams.get('repo') || '',
-        url.searchParams.get('number'),
-      );
-      if (!hit) {
-        throw new HttpError(404, 'no story for that PR');
-      }
-      return send(200, { id: hit.id, version: hit.version, title: hit.title });
-    },
   },
   { path: '/api/stories/status-many', method: 'POST', handle: statusMany },
 ];

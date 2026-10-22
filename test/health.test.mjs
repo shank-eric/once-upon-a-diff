@@ -57,7 +57,7 @@ test('/api/status reports the bridge, the story and listening', async () => {
     assert.match(status.listening.start, /diff-story-listen/);
     assert.equal((await bridge.call('GET', '/api/status?story=nope')).body.story.ok, false);
     beat(home, 'pr-story');
-    status = (await bridge.call('GET', '/api/status?repo=acme/widgets&number=7')).body;
+    status = (await bridge.call('GET', '/api/status?story=acme-widgets-7')).body;
     assert.equal(status.listening.ok, true);
     assert.equal(status.story.id, 'acme-widgets-7');
     assert.equal(
@@ -152,7 +152,7 @@ test('Copy prompt for Claude: one short skill line naming the repo, with the lon
       "another repo's listener doesn't count",
     );
     beat(home, 'repo-acme-widgets', 'waiting', { repo: 'ACME/Widgets' });
-    status = (await bridge.call('GET', '/api/status?repo=acme/widgets&number=99')).body;
+    status = (await bridge.call('GET', '/api/status?repo=acme/widgets')).body;
     assert.equal(status.listening.ok, true, 'a PR page with no story, by ?repo=');
     assert.equal(status.listening.consumers[0].repo, 'ACME/Widgets');
   } finally {
