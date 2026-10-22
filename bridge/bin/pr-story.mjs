@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * diff-story: the Diff Story Mode bridge and its helpers. `diff-story` with
+ * pr-story: the PR Story bridge and its helpers. `pr-story` with
  * no command prints every command's usage. The commands are in ../cli/.
  */
 import { main } from '../cli/index.mjs';

@@ -11,18 +11,18 @@ import { baseName, capitalize } from '../util/text.js';
  * A file outside the chapter also gets the standard `hidden` attribute on
  * its block and on the elements other tools look for (Refined GitHub's
  * alt-click "mark all viewed" skips only `[class*=diffTargetable]:not([hidden])`).
- * We only ever remove a `hidden` we added (data-dsm-hid marks it).
+ * We only ever remove a `hidden` we added (data-prs-hid marks it).
  */
 const TARGETS =
   '[role="region"][id^="diff-"], [class*="diffTargetable"], .js-file, copilot-diff-entry';
 const DEBOUNCE_MS = 150;
 
 function setHidden(el, hide) {
-  if (hide && !el.hasAttribute('data-dsm-hidden')) {
-    el.setAttribute('data-dsm-hidden', '');
+  if (hide && !el.hasAttribute('data-prs-hidden')) {
+    el.setAttribute('data-prs-hidden', '');
   }
-  if (!hide && el.hasAttribute('data-dsm-hidden')) {
-    el.removeAttribute('data-dsm-hidden');
+  if (!hide && el.hasAttribute('data-prs-hidden')) {
+    el.removeAttribute('data-prs-hidden');
   }
 }
 
@@ -34,24 +34,24 @@ function hideBlock(el, hide) {
   for (const target of targets) {
     if (hide && !target.hasAttribute('hidden')) {
       target.setAttribute('hidden', '');
-      target.setAttribute('data-dsm-hid', '');
+      target.setAttribute('data-prs-hid', '');
     }
-    if (!hide && target.hasAttribute('data-dsm-hid')) {
+    if (!hide && target.hasAttribute('data-prs-hid')) {
       target.removeAttribute('hidden');
-      target.removeAttribute('data-dsm-hid');
+      target.removeAttribute('data-prs-hid');
     }
   }
 }
 
 /** Takes every mark the panel put on the page off again. */
 function unhideAll() {
-  for (const el of document.querySelectorAll('[data-dsm-hidden], [data-dsm-flash]')) {
-    el.removeAttribute('data-dsm-hidden');
-    el.removeAttribute('data-dsm-flash');
+  for (const el of document.querySelectorAll('[data-prs-hidden], [data-prs-flash]')) {
+    el.removeAttribute('data-prs-hidden');
+    el.removeAttribute('data-prs-flash');
   }
-  for (const el of document.querySelectorAll('[data-dsm-hid]')) {
+  for (const el of document.querySelectorAll('[data-prs-hid]')) {
     el.removeAttribute('hidden');
-    el.removeAttribute('data-dsm-hid');
+    el.removeAttribute('data-prs-hid');
   }
 }
 
@@ -86,7 +86,7 @@ export function createFilter(context) {
     for (const row of rows.filter((candidate) => !candidate.rel)) {
       const under = row.dir && [...wanted].some((path) => path.startsWith(row.dir + '/'));
       const visibleChild = fileRows.some(
-        (fileRow) => row.el.contains(fileRow.el) && !fileRow.el.hasAttribute('data-dsm-hidden'),
+        (fileRow) => row.el.contains(fileRow.el) && !fileRow.el.hasAttribute('data-prs-hidden'),
       );
       setHidden(row.el, !showAll && !under && !visibleChild);
     }

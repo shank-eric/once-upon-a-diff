@@ -1,5 +1,5 @@
 {
-  "name": "diff-story-mode",
+  "name": "pr-story",
   "version": "0.1.0",
   "private": true,
   "description": "A code-review story in a side panel on top of a diff: a Chrome extension for GitHub PRs, plus a local bridge that also serves local commits",
@@ -8,11 +8,9 @@
   "engines": {
     "node": ">=24"
   },
-  "bin": {
-    "diff-story": "bridge/bin/diff-story.mjs"
-  },
+  "bin": "bridge/bin/pr-story.mjs",
   "scripts": {
-    "bridge": "node bridge/bin/diff-story.mjs serve",
+    "bridge": "node bridge/bin/pr-story.mjs serve",
     "icons": "node scripts/make-icons.mjs",
     "vendor": "node scripts/vendor-hljs.mjs",
     "lint": "eslint . --cache --cache-strategy content",

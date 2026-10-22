@@ -117,8 +117,8 @@ export function prefsStore({ call, load, store }) {
   };
 }
 
-const PREV_KEY = 'diff-story:w-prev';
-const REDIRECT_KEY = 'diff-story:w-redirect';
+const PREV_KEY = 'pr-story:w-prev';
+const REDIRECT_KEY = 'pr-story:w-redirect';
 
 /**
  * The check the router runs on every URL change: remember the page, then save a w the URL says or reload once

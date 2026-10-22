@@ -123,10 +123,10 @@ export function tagFor(result, { repo, number }) {
     };
   }
   if (readCount && readCount.read) {
-    // the panel opens on the step a #dsm-step-N hash names (pages/files-changed.js)
+    // the panel opens on the step a #prs-step-N hash names (pages/files-changed.js)
     return {
       kind: 'link',
-      href: readCount.next ? `${href}#dsm-step-${readCount.next}` : href,
+      href: readCount.next ? `${href}#prs-step-${readCount.next}` : href,
       cls: 'ready',
       label: `Story · ${readCount.read} of ${readCount.total} read`,
       title: `You've read ${readCount.read} of ${readCount.total} chapters${upTo}. Opens the first one you haven't read.`,
@@ -141,9 +141,9 @@ export function tagFor(result, { repo, number }) {
   };
 }
 
-/** The step a Files changed URL's #dsm-step-N hash asks the panel to open on, or null. */
+/** The step a Files changed URL's #prs-step-N hash asks the panel to open on, or null. */
 export function stepOfHash(hash) {
-  const match = /^#dsm-step-(\d{1,3})$/.exec(String(hash || ''));
+  const match = /^#prs-step-(\d{1,3})$/.exec(String(hash || ''));
   return match ? Number(match[1]) : null;
 }
 

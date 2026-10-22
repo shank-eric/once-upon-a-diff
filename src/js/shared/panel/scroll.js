@@ -21,8 +21,8 @@ export function createScroller(context) {
   let flashTimer = 0;
   let flashing = () => [];
   function clearFlash() {
-    for (const el of document.querySelectorAll('[data-dsm-flash]')) {
-      el.removeAttribute('data-dsm-flash');
+    for (const el of document.querySelectorAll('[data-prs-flash]')) {
+      el.removeAttribute('data-prs-flash');
     }
   }
   function flash(getElements) {
@@ -30,7 +30,7 @@ export function createScroller(context) {
     clearFlash();
     flashing = find;
     for (const el of find()) {
-      el.setAttribute('data-dsm-flash', '');
+      el.setAttribute('data-prs-flash', '');
     }
     clearTimeout(flashTimer);
     flashTimer = setTimeout(() => {
@@ -71,8 +71,8 @@ export function createScroller(context) {
             scrollWindowTo(el, share);
           }
           for (const row of flashing()) {
-            if (!row.hasAttribute('data-dsm-flash')) {
-              row.setAttribute('data-dsm-flash', '');
+            if (!row.hasAttribute('data-prs-flash')) {
+              row.setAttribute('data-prs-flash', '');
             }
           }
         }

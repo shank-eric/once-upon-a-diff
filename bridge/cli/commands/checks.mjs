@@ -1,5 +1,5 @@
 /*
- * `diff-story doctor`: is everything connected?
+ * `pr-story doctor`: is everything connected?
  */
 import { doctor } from '../doctor.mjs';
 import { out } from '../output.mjs';
@@ -15,7 +15,7 @@ export const checkCommands = [
   {
     name: 'doctor',
     usage: [
-      '  diff-story doctor  [--port N]                                  is everything connected? a pass/fail list with fixes',
+      '  pr-story doctor  [--port N]                                  is everything connected? a pass/fail list with fixes',
     ],
     run: runDoctor,
   },

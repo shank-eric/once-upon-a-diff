@@ -71,7 +71,7 @@ const methodMatches = (route, method) => !route.method || route.method === metho
 export function createBridge({
   home,
   token,
-  log = (line) => process.stderr.write(`diff-story bridge: ${line}\n`),
+  log = (line) => process.stderr.write(`pr-story bridge: ${line}\n`),
 }) {
   if (!token) {
     throw new Error('the bridge needs a token');
@@ -86,7 +86,7 @@ export function createBridge({
     builds: new Builds(home),
     log,
     statusCache: null, // PR-list lookups, kept 5s
-    extensionSeen: null, // the last time the extension talked to us, for `diff-story doctor` and the status light
+    extensionSeen: null, // the last time the extension talked to us, for `pr-story doctor` and the status light
   };
   let extensionWritten = 0;
   const seeExtension = (origin) => {
@@ -128,7 +128,7 @@ export function createBridge({
   async function checkApiCall(req, origin) {
     const auth =
       String(req.headers.authorization || '').replace(/^Bearer\s+/i, '') ||
-      req.headers['x-diff-story-token'];
+      req.headers['x-pr-story-token'];
     if (!sameToken(auth, token)) {
       throw new HttpError(401, 'missing or wrong token');
     }

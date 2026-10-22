@@ -63,9 +63,9 @@ function readOnly() {
       files: [{ filename: 'src/b.js' }],
     },
     'repos/acme/gadgets/pulls/3': { head: { sha: 'c'.repeat(40) } },
-    // more fixtures from a test: DIFF_STORY_FAKE_GH_EXTRA is a JSON file of {url: response}
-    ...(process.env.DIFF_STORY_FAKE_GH_EXTRA
-      ? JSON.parse(readFileSync(process.env.DIFF_STORY_FAKE_GH_EXTRA, 'utf8'))
+    // more fixtures from a test: PR_STORY_FAKE_GH_EXTRA is a JSON file of {url: response}
+    ...(process.env.PR_STORY_FAKE_GH_EXTRA
+      ? JSON.parse(readFileSync(process.env.PR_STORY_FAKE_GH_EXTRA, 'utf8'))
       : {}),
   }[url];
   if (out === undefined) {

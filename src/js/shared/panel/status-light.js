@@ -14,13 +14,13 @@ const bridgeProblem = (code) => {
   if (code === 'token') {
     return [
       'The bridge rejected the token',
-      'Copy it again from diff-story setup into the extension options',
+      'Copy it again from pr-story setup into the extension options',
     ];
   }
   if (code === 'old') {
-    return ['The bridge is older than this panel', 'Restart it: diff-story serve'];
+    return ['The bridge is older than this panel', 'Restart it: pr-story serve'];
   }
-  return ["The bridge isn't reachable", 'Start it: diff-story serve'];
+  return ["The bridge isn't reachable", 'Start it: pr-story serve'];
 };
 
 /** {level: 'ok'|'warn'|'error', checks, listening, prompt, details, repo, checkout} from opts.status()'s answer, or its error. */
@@ -56,7 +56,7 @@ export function healthChecks(health, err) {
       ok: false,
       name: 'Claude listening',
       detail: 'no Claude session is listening; questions will wait in the inbox',
-      fix: listening.start || 'diff-story wait --consumer pr-story',
+      fix: listening.start || 'pr-story wait --consumer pr-story',
     });
   }
   return {
@@ -89,7 +89,7 @@ function askHintHtml(result) {
     return `${escapeHtml(result.checks[0].detail)}. Questions can't be sent until it's back.`;
   }
   if (!result.prompt) {
-    return 'No Claude session is listening; questions will wait. Start one in Claude Code as a background task: <code>diff-story wait --consumer pr-story</code>';
+    return 'No Claude session is listening; questions will wait. Start one in Claude Code as a background task: <code>pr-story wait --consumer pr-story</code>';
   }
   const where = result.checkout
     ? `Start Claude Code in <code>${escapeHtml(result.checkout)}</code> and paste`
@@ -101,7 +101,7 @@ function askHintHtml(result) {
     (result.details
       ? ' <button type="button" class="prs-promptmore" aria-expanded="false">show details</button>'
       : '') +
-    `<pre class="prs-prompt" hidden></pre>${result.details ? `<pre class="prs-promptlong" hidden>Without the diff-story-listen skill, paste this instead:\n${escapeHtml(result.details)}</pre>` : ''}`
+    `<pre class="prs-prompt" hidden></pre>${result.details ? `<pre class="prs-promptlong" hidden>Without the pr-story-listen skill, paste this instead:\n${escapeHtml(result.details)}</pre>` : ''}`
   );
 }
 

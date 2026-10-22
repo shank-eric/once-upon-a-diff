@@ -741,31 +741,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"diff-story-mode@workspace:.":
-  version: 0.0.0-use.local
-  resolution: "diff-story-mode@workspace:."
-  dependencies:
-    "@eslint/js": "npm:9.39.5"
-    "@types/chrome": "npm:0.3.4"
-    "@types/node": "npm:24.19.1"
-    eslint: "npm:9.39.5"
-    eslint-config-prettier: "npm:10.1.8"
-    eslint-plugin-import: "npm:2.32.0"
-    eslint-plugin-n: "npm:17.24.0"
-    eslint-plugin-promise: "npm:7.3.0"
-    globals: "npm:17.13.0"
-    highlight.js: "npm:11.11.1"
-    husky: "npm:9.1.7"
-    lint-staged: "npm:16.4.0"
-    playwright-core: "npm:1.64.0"
-    prettier: "npm:3.9.9"
-    shellcheck: "npm:3.1.0"
-    typescript: "npm:5.9.3"
-  bin:
-    diff-story: bridge/bin/diff-story.mjs
-  languageName: unknown
-  linkType: soft
-
 "doctrine@npm:^2.1.0":
   version: 2.1.0
   resolution: "doctrine@npm:2.1.0"
@@ -2334,6 +2309,31 @@ __metadata:
   checksum: 10c0/c810983414142071da1d644662ce4caebce890203eb2bc7bf119f37f3fe5796226e117e6cca146b521921fa6531072674174a3325066ac66fce089a53e1e5196
   languageName: node
   linkType: hard
+
+"pr-story@workspace:.":
+  version: 0.0.0-use.local
+  resolution: "pr-story@workspace:."
+  dependencies:
+    "@eslint/js": "npm:9.39.5"
+    "@types/chrome": "npm:0.3.4"
+    "@types/node": "npm:24.19.1"
+    eslint: "npm:9.39.5"
+    eslint-config-prettier: "npm:10.1.8"
+    eslint-plugin-import: "npm:2.32.0"
+    eslint-plugin-n: "npm:17.24.0"
+    eslint-plugin-promise: "npm:7.3.0"
+    globals: "npm:17.13.0"
+    highlight.js: "npm:11.11.1"
+    husky: "npm:9.1.7"
+    lint-staged: "npm:16.4.0"
+    playwright-core: "npm:1.64.0"
+    prettier: "npm:3.9.9"
+    shellcheck: "npm:3.1.0"
+    typescript: "npm:5.9.3"
+  bin:
+    pr-story: bridge/bin/pr-story.mjs
+  languageName: unknown
+  linkType: soft
 
 "prelude-ls@npm:^1.2.1":
   version: 1.2.1

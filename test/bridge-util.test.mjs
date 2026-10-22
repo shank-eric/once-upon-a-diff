@@ -21,20 +21,20 @@ test('JSON files: a fallback for a missing or broken file, pretty output, no tem
 });
 
 test('runGh: stdout on success, the first line of stderr on failure', async () => {
-  const was = process.env.DIFF_STORY_GH;
+  const was = process.env.PR_STORY_GH;
   try {
-    process.env.DIFF_STORY_GH = '/bin/echo';
+    process.env.PR_STORY_GH = '/bin/echo';
     assert.equal((await runGh(['api', 'user'])).trim(), 'api user');
-    process.env.DIFF_STORY_GH = '/bin/sh';
+    process.env.PR_STORY_GH = '/bin/sh';
     await assert.rejects(
       runGh(['-c', 'echo first >&2; echo second >&2; exit 1']),
       /^Error: first$/,
     );
   } finally {
     if (was === undefined) {
-      delete process.env.DIFF_STORY_GH;
+      delete process.env.PR_STORY_GH;
     } else {
-      process.env.DIFF_STORY_GH = was;
+      process.env.PR_STORY_GH = was;
     }
   }
 });

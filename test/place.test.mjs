@@ -15,13 +15,13 @@ test('a local story lives in the checkout it diffs, kept out of git by .git/info
   const home = tmp('home');
   const { repo, base } = localRepo();
   const made = createLocalStory({ home, repo, base, head: 'HEAD' });
-  assert.equal(realpathSync(made.dir), realpathSync(path.join(repo, '.diff-story', made.id)));
+  assert.equal(realpathSync(made.dir), realpathSync(path.join(repo, '.pr-story', made.id)));
   assert.ok(existsSync(path.join(made.dir, 'local.diff')));
   assert.equal(status(repo), '', 'git status stays clean');
-  assert.match(exclude(repo), /^\/\.diff-story\/$/m);
+  assert.match(exclude(repo), /^\/\.pr-story\/$/m);
   createLocalStory({ home, repo, base, head: 'HEAD' });
-  assert.equal(exclude(repo).match(/\.diff-story/g).length, 1, 'the exclude line is added once');
-  assert.ok(!existsSync(path.join(home, made.id)), 'nothing in ~/.diff-story but state');
+  assert.equal(exclude(repo).match(/\.pr-story/g).length, 1, 'the exclude line is added once');
+  assert.ok(!existsSync(path.join(home, made.id)), 'nothing in ~/.pr-story but state');
   assert.equal(readIndex(home)[made.id], made.dir, 'the index maps the id to its folder');
   const bridge = await startBridge({ home });
   try {
@@ -29,7 +29,7 @@ test('a local story lives in the checkout it diffs, kept out of git by .git/info
     await bridge.call('POST', `/api/stories/${made.id}/viewed`, { path: 'one.txt', viewed: true });
     assert.ok(
       existsSync(path.join(home, 'state', made.id, 'viewed.json')),
-      'state stays in ~/.diff-story',
+      'state stays in ~/.pr-story',
     );
   } finally {
     await bridge.close();
@@ -47,13 +47,13 @@ test("in a worktree, the story goes in the worktree and the exclude in the repo'
   assert.equal(status(repo), '');
   assert.match(
     exclude(repo),
-    /\/\.diff-story\//,
+    /\/\.pr-story\//,
     'one exclude covers the checkout and its worktrees',
   );
   assert.equal(realpathSync(mainCheckout(worktree)), realpathSync(repo));
 });
 
-test('diff-story publish writes into the checkout with the commits the story was told from', async () => {
+test('pr-story publish writes into the checkout with the commits the story was told from', async () => {
   const home = tmp('home');
   const { repo } = localRepo();
   seenCheckout(home, 'acme/widgets', repo);
@@ -69,7 +69,7 @@ test('diff-story publish writes into the checkout with the commits the story was
   const published = await runCli(home, ['publish', '--dir', src]);
   assert.equal(published.code, 0, published.stderr);
   const out = published.stdout.trim();
-  assert.equal(realpathSync(out), realpathSync(path.join(repo, '.diff-story', 'acme-widgets-7')));
+  assert.equal(realpathSync(out), realpathSync(path.join(repo, '.pr-story', 'acme-widgets-7')));
   assert.equal(status(repo), '');
   const meta = JSON.parse(readFileSync(path.join(out, 'meta.json'), 'utf8'));
   assert.equal(meta.head_oid, 'b'.repeat(40), 'the head the story was told from is kept');

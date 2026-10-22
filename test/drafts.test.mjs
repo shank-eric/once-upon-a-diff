@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson } from './helpers.mjs';
 import { similarity, bestMatch, clearCache } from '../bridge/github/drafts.mjs';
 
-process.env.DIFF_STORY_GH = path.join(
+process.env.PR_STORY_GH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   'fixtures',
   'fake-gh.mjs',
@@ -172,8 +172,8 @@ test('posted, pending (his unsubmitted review), dismissed and draft are separate
 
 test('without gh, posted detection says why and Dismiss still works', async () => {
   clearCache();
-  const saved = process.env.DIFF_STORY_GH;
-  process.env.DIFF_STORY_GH = '/nonexistent/gh';
+  const saved = process.env.PR_STORY_GH;
+  process.env.PR_STORY_GH = '/nonexistent/gh';
   const home = tmp('home');
   githubStory(path.join(home, 'acme-widgets-7'));
   const bridge = await startBridge({ home });
@@ -191,6 +191,6 @@ test('without gh, posted detection says why and Dismiss still works', async () =
     assert.equal(result.drafts[0].dismissed, true);
   } finally {
     await bridge.close();
-    process.env.DIFF_STORY_GH = saved;
+    process.env.PR_STORY_GH = saved;
   }
 });

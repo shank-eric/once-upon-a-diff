@@ -40,7 +40,7 @@ function builds(home, cfg, opts) {
 function done(home, cfg, opts) {
   const id = (opts._ || [])[0] || opts.id;
   if (!id) {
-    throw new Error('usage: diff-story done <build id | owner/repo#N> [--failed] [--note TEXT]');
+    throw new Error('usage: pr-story done <build id | owner/repo#N> [--failed] [--note TEXT]');
   }
   const build = new Builds(home).done(id, {
     failed: !!opts.failed,
@@ -56,7 +56,7 @@ export const buildCommands = [
   {
     name: 'builds',
     usage: [
-      '  diff-story builds  [--start ID] [--json]                       pending "Build story" requests, queued or building, and for an update where',
+      '  pr-story builds  [--start ID] [--json]                       pending "Build story" requests, queued or building, and for an update where',
       "                                                                 the reviewer's reading stopped (since); --start refreshes a claim on a long build",
     ],
     run: builds,
@@ -64,7 +64,7 @@ export const buildCommands = [
   {
     name: 'done',
     usage: [
-      '  diff-story done    <build id | owner/repo#N> [--failed] [--note TEXT]   finish one (a story turning up finishes it too)',
+      '  pr-story done    <build id | owner/repo#N> [--failed] [--note TEXT]   finish one (a story turning up finishes it too)',
     ],
     run: done,
   },

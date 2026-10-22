@@ -11,7 +11,7 @@ import { conversationPr, isPullListPage, prKey } from '../../shared/util/github-
 import { extensionAlive } from '../bridge.js';
 import { createPrTags } from '../ui/pr-tags.js';
 
-const ATTR = 'data-dsm-badge';
+const ATTR = 'data-prs-badge';
 const DEBOUNCE_MS = 300;
 // the PR's title link, as classic lists, the new React lists and search results mark it
 const TITLE_LINK =

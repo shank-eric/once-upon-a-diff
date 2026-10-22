@@ -246,7 +246,7 @@ export function createHostPage({ shaToPath, pathToSha, allPaths, hostId, panelId
     const topY = 140;
     let best = null;
     for (const { rel, el } of fileBlocks()) {
-      if (el.hasAttribute('data-dsm-hidden')) {
+      if (el.hasAttribute('data-prs-hidden')) {
         continue;
       }
       const rect = el.getBoundingClientRect();

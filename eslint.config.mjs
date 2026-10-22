@@ -77,7 +77,7 @@ export default defineConfig(
     },
   },
   {
-    // the fake gh the tests point DIFF_STORY_GH at is run as a program, so it keeps its shebang
+    // the fake gh the tests point PR_STORY_GH at is run as a program, so it keeps its shebang
     files: ['test/fixtures/*.mjs'],
     rules: { 'n/hashbang': 'off' },
   },

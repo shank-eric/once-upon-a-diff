@@ -5,11 +5,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createBridge } from '../bridge/server/index.mjs';
 
-const BIN = fileURLToPath(new URL('../bridge/bin/diff-story.mjs', import.meta.url));
+const BIN = fileURLToPath(new URL('../bridge/bin/pr-story.mjs', import.meta.url));
 
-export const tmp = (name) => mkdtempSync(path.join(os.tmpdir(), `diff-story-${name}-`));
+export const tmp = (name) => mkdtempSync(path.join(os.tmpdir(), `pr-story-${name}-`));
 // tests never look in (or move stories into) the real ~/Development checkouts
-process.env.DIFF_STORY_DEV_DIR = mkdtempSync(path.join(os.tmpdir(), 'diff-story-dev-'));
+process.env.PR_STORY_DEV_DIR = mkdtempSync(path.join(os.tmpdir(), 'pr-story-dev-'));
 export const TOKEN = 'test-token-0123456789abcdef';
 
 export function writeJson(file, value) {
@@ -121,13 +121,13 @@ export async function startBridge(opts) {
   return { server, base, call, close: () => new Promise((resolve) => server.close(resolve)) };
 }
 
-/** Runs the diff-story CLI against `home`: {code, stdout, stderr}. */
+/** Runs the pr-story CLI against `home`: {code, stdout, stderr}. */
 export const runCli = (home, args) =>
   new Promise((resolve) => {
     execFile(
       process.execPath,
       [BIN, ...args],
-      { env: { ...process.env, DIFF_STORY_HOME: home } },
+      { env: { ...process.env, PR_STORY_HOME: home } },
       (err, stdout, stderr) => resolve({ code: err ? err.code : 0, stdout, stderr }),
     );
   });

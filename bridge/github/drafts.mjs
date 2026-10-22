@@ -308,7 +308,7 @@ export function draftStatus(chapters, marks, github = null, notes = null) {
 
 /**
  * Every draft's state for one story, as the panel's Draft comments and
- * `diff-story drafts` both show it: the reviewer's marks, what gh finds on
+ * `pr-story drafts` both show it: the reviewer's marks, what gh finds on
  * the PR, and for a local story the fix-before-push notes its drafts became.
  * A gh failure comes back as `error` with the rest still filled in.
  *
@@ -341,4 +341,4 @@ export const hasGh = () =>
   existsSync('/opt/homebrew/bin/gh') ||
   existsSync('/usr/local/bin/gh') ||
   existsSync('/usr/bin/gh') ||
-  !!process.env.DIFF_STORY_GH;
+  !!process.env.PR_STORY_GH;

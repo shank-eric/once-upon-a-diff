@@ -251,17 +251,17 @@ describe('story discovery', () => {
     const home = tmp('home');
     const checkout = tmp('checkout');
     githubStory(path.join(home, 'acme-widgets-7'));
-    githubStory(path.join(checkout, '.diff-story', 'acme-widgets-7'));
+    githubStory(path.join(checkout, '.pr-story', 'acme-widgets-7'));
     githubStory(path.join(home, 'widgets-9'));
     writeJson(path.join(home, 'stories.json'), {
-      'acme-widgets-7': path.join(checkout, '.diff-story', 'acme-widgets-7'),
+      'acme-widgets-7': path.join(checkout, '.pr-story', 'acme-widgets-7'),
     });
     const store = new StoryStore({ home });
     const list = store.list();
     assert.deepEqual(list.map((story) => story.id).sort(), ['acme-widgets-7', 'widgets-9']);
     assert.equal(
       list.find((story) => story.id === 'acme-widgets-7').dir,
-      path.join(checkout, '.diff-story', 'acme-widgets-7'),
+      path.join(checkout, '.pr-story', 'acme-widgets-7'),
     );
     assert.ok(store.find('acme/widgets', 7));
   });
@@ -309,7 +309,7 @@ describe('local stories', () => {
   after(() => bridge.close());
 
   test('is named for the repo and branch', () => {
-    assert.match(id, /^local-diff-story-repo-.+-feature$/);
+    assert.match(id, /^local-pr-story-repo-.+-feature$/);
   });
 
   test('serves the diff with hunks, and drops chapter files that are not in it', async () => {

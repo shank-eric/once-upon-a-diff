@@ -44,7 +44,7 @@ export function createShell(context) {
   root.id = panelId;
   // focusable, so a click anywhere in the panel moves focus off the page and the page's single-key shortcuts (GitHub's, Refined GitHub's j/k/x) don't fire while you read
   root.tabIndex = -1;
-  root.setAttribute('aria-label', 'Diff story');
+  root.setAttribute('aria-label', 'PR Story');
   root.innerHTML = MARKUP(!!opts.ask);
   const $ = (selector) => root.querySelector(selector);
 
@@ -65,7 +65,7 @@ export function createShell(context) {
       Math.min(Math.max(width, MIN_WIDTH), window.innerWidth * MAX_WIDTH_SHARE),
     );
     document.documentElement.style.setProperty(
-      '--dsm-w',
+      '--prs-w',
       (state.collapsed ? COLLAPSED_WIDTH : state.width) + 'px',
     );
   }
@@ -138,7 +138,7 @@ export function createShell(context) {
     host.remove();
     pageStyle.remove();
     document.documentElement.classList.remove(hostId + '-docked');
-    document.documentElement.style.removeProperty('--dsm-w');
+    document.documentElement.style.removeProperty('--prs-w');
   }
 
   return {

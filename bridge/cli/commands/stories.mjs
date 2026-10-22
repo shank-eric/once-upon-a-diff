@@ -25,7 +25,7 @@ function list(home) {
 
 async function local(home, cfg, opts) {
   if (!opts.repo || !opts.base) {
-    throw new Error('usage: diff-story local --repo DIR --base REF [--head REF] [--chapters FILE]');
+    throw new Error('usage: pr-story local --repo DIR --base REF [--head REF] [--chapters FILE]');
   }
   const made = createLocalStory({
     home,
@@ -55,7 +55,7 @@ async function local(home, cfg, opts) {
   if (!running && !opts['no-serve']) {
     await serve(home, cfg, { ...opts, port });
   } else if (!running) {
-    process.stderr.write(`No bridge on port ${port}. Start one with: diff-story serve\n`);
+    process.stderr.write(`No bridge on port ${port}. Start one with: pr-story serve\n`);
   }
   out(url);
   if (!opts['no-open']) {
@@ -66,7 +66,7 @@ async function local(home, cfg, opts) {
 
 function publish(home, cfg, opts) {
   if (!opts.dir) {
-    throw new Error('usage: diff-story publish --dir <pr-story folder>');
+    throw new Error('usage: pr-story publish --dir <pr-story folder>');
   }
   const source = path.resolve(opts.dir);
   const pr = readJson(path.join(source, 'pr.json'), null);
@@ -75,7 +75,7 @@ function publish(home, cfg, opts) {
     throw new Error(`${source} doesn't say which PR it is (no pr.json naming it)`);
   }
   const id = opts.id || slug(`${repo.replace('/', '-')}-${pr.number}`);
-  // into the repo's checkout (.diff-story/<id>, kept out of git) when the bridge knows it, else ~/.diff-story/<id>
+  // into the repo's checkout (.pr-story/<id>, kept out of git) when the bridge knows it, else ~/.pr-story/<id>
   const dest = storyDirFor(home, id, { repo });
   for (const name of ['chapters.json', 'file-map.json']) {
     if (existsSync(path.join(source, name))) {
@@ -109,14 +109,14 @@ export const storyCommands = [
   {
     name: 'list',
     usage: [
-      '  diff-story list                                                stories the bridge can serve',
+      '  pr-story list                                                stories the bridge can serve',
     ],
     run: list,
   },
   {
     name: 'local',
     usage: [
-      '  diff-story local   --repo DIR --base REF [--head REF] [--chapters FILE] [--id ID] [--title T] [--no-open]',
+      '  pr-story local   --repo DIR --base REF [--head REF] [--chapters FILE] [--id ID] [--title T] [--no-open]',
       '                                                                 story over local commits, served at /local/<id>/',
     ],
     run: local,
@@ -124,7 +124,7 @@ export const storyCommands = [
   {
     name: 'publish',
     usage: [
-      '  diff-story publish --dir DIR [--id ID]                         copy a pr-story folder into <checkout>/.diff-story/<owner>-<repo>-<N>/ (or ~/.diff-story/)',
+      '  pr-story publish --dir DIR [--id ID]                         copy a pr-story folder into <checkout>/.pr-story/<owner>-<repo>-<N>/ (or ~/.pr-story/)',
       "                                                                 and finish the PR's build request",
     ],
     run: publish,
