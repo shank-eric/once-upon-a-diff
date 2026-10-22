@@ -110,19 +110,15 @@ describe('GitHub stories', () => {
   });
   after(() => bridge.close());
 
-  test('lists and finds a story by repo and number, case-insensitively', async () => {
+  test('lists stories, and the store finds one by repo and number, case-insensitively', async () => {
     const list = await bridge.call('GET', '/api/stories');
     assert.deepEqual(
       list.body.stories.map((story) => story.id),
       ['acme-widgets-7'],
     );
-    const hit = await bridge.call('GET', '/api/stories/find?repo=ACME/Widgets&number=7');
-    assert.equal(hit.status, 200);
-    assert.equal(hit.body.id, 'acme-widgets-7');
-    assert.equal(
-      (await bridge.call('GET', '/api/stories/find?repo=acme/widgets&number=8')).status,
-      404,
-    );
+    const store = new StoryStore({ home });
+    assert.equal(store.find('ACME/Widgets', 7).id, 'acme-widgets-7');
+    assert.equal(store.find('acme/widgets', 8), null);
   });
 
   test('serves the panel data with GitHub anchors and an extra chapter for unplaced files', async () => {

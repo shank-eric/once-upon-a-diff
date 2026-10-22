@@ -7,6 +7,14 @@ import { Builds, CLAIM_FRESH_MS } from '../bridge/inbox/builds.mjs';
 import { beat } from '../bridge/listeners/listeners.mjs';
 import { Inbox } from '../bridge/inbox/inbox.mjs';
 
+/** acme/widgets#7's line from status-many, as a PR page asks for it. */
+const prStatus = async (bridge) =>
+  (
+    await bridge.call('POST', '/api/stories/status-many', {
+      prs: [{ repo: 'acme/widgets', number: 7 }],
+    })
+  ).body.results[0];
+
 describe('build requests', () => {
   let bridge, home;
   before(async () => {
@@ -16,8 +24,7 @@ describe('build requests', () => {
   after(() => bridge.close());
 
   test('a PR with no story is "none", then "queued" once asked, with one request however often it is asked', async () => {
-    const statusPath = '/api/builds/status?repo=acme/widgets&number=7';
-    assert.equal((await bridge.call('GET', statusPath)).body.state, 'none');
+    assert.equal((await prStatus(bridge)).state, 'none');
     const response = await bridge.call('POST', '/api/builds', {
       repo: 'acme/widgets',
       number: 7,
@@ -34,9 +41,9 @@ describe('build requests', () => {
     assert.equal(response.body.request.requested_at, '2026-10-20T21:40:00.000Z');
     const again = await bridge.call('POST', '/api/builds', { repo: 'acme/widgets', number: 7 });
     assert.equal(again.body.request.id, response.body.request.id);
-    const status = await bridge.call('GET', statusPath);
-    assert.equal(status.body.state, 'queued');
-    assert.equal(status.body.request.requested_at, '2026-10-20T21:40:00.000Z');
+    const status = await prStatus(bridge);
+    assert.equal(status.state, 'queued');
+    assert.equal(status.request.requested_at, '2026-10-20T21:40:00.000Z');
     assert.ok(!existsSync(path.join(home, 'inbox.jsonl')), 'builds.json is the one record');
     assert.deepEqual(
       new Builds(home).pending().map((build) => build.id),
@@ -46,10 +53,13 @@ describe('build requests', () => {
 
   test('turns "ready" when the story turns up, and marks the request done', async () => {
     githubStory(path.join(home, 'acme-widgets-7'));
-    const status = await bridge.call('GET', '/api/builds/status?repo=acme/widgets&number=7');
-    assert.equal(status.body.state, 'ready');
-    assert.equal(status.body.story, 'acme-widgets-7');
-    assert.equal(status.body.request.status, 'done');
+    // status-many keeps its story list for 5s, so look with a fresh bridge
+    await bridge.close();
+    bridge = await startBridge({ home });
+    const status = await prStatus(bridge);
+    assert.equal(status.state, 'ready');
+    assert.equal(status.story, 'acme-widgets-7');
+    assert.equal(new Builds(home).get('acme/widgets', 7).status, 'done');
     assert.equal(new Builds(home).pending().length, 0);
     assert.equal(new Builds(home).get('acme/widgets', 7).story, 'acme-widgets-7');
   });
@@ -111,7 +121,7 @@ test('publishing the story finishes its request, and an update only once the hea
   assert.equal(builds.get('acme/widgets', 7).id, update.id);
 });
 
-test('status-many settles a pending build once its story turns up, as builds/status does', async () => {
+test('status-many settles a pending build once its story turns up', async () => {
   const home = tmp('home');
   const builds = new Builds(home);
   const request = builds.request({ repo: 'acme/widgets', number: 7 });

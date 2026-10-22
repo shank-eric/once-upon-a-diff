@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson } from './helpers.mjs';
 import { clearFreshness } from '../bridge/github/freshness.mjs';
+import { Builds } from '../bridge/inbox/builds.mjs';
 
 process.env.DIFF_STORY_GH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -68,7 +69,13 @@ test('an update request stays pending until the story moves off the old head', a
       base_sha: SHA_A,
     });
     assert.equal(response.body.request.mode, 'update');
-    let status = (await bridge.call('GET', '/api/builds/status?repo=acme/widgets&number=7')).body;
+    const prStatus = async () =>
+      (
+        await bridge.call('POST', '/api/stories/status-many', {
+          prs: [{ repo: 'acme/widgets', number: 7 }],
+        })
+      ).body.results[0];
+    let status = await prStatus();
     assert.equal(status.state, 'ready');
     assert.equal(
       status.updating,
@@ -76,9 +83,9 @@ test('an update request stays pending until the story moves off the old head', a
       'the old story is still there, but an update is on its way',
     );
     story(home, SHA_B);
-    status = (await bridge.call('GET', '/api/builds/status?repo=acme/widgets&number=7')).body;
+    status = await prStatus();
     assert.equal(status.updating, false);
-    assert.equal(status.request.status, 'done');
+    assert.equal(new Builds(home).get('acme/widgets', 7).status, 'done');
   } finally {
     await bridge.close();
   }

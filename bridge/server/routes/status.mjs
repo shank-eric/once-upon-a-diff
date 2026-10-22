@@ -22,9 +22,6 @@ function status({ app, url, send }) {
     if (story) {
       repo = storyRepo(readMeta(app.stories.dirOf(storyId))) || queryRepo;
     }
-  } else if (queryRepo && url.searchParams.get('number')) {
-    const hit = app.stories.find(queryRepo, url.searchParams.get('number'));
-    story = hit ? hit.id : null;
   }
   const { home, version } = app;
   return send(200, statusOf({ home, version, story, repo, extensionSeen: app.extensionSeen }));

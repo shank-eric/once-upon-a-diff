@@ -230,7 +230,8 @@ The bridge also checks each request:
 | `GET /api/health` | `{ok, version}` |
 | `GET`/`POST /api/prefs` | page settings kept for every story: `{hideWhitespace, diffView}` (`unified` or `split`) |
 | `GET /api/stories` | every story it can serve |
-| `GET /api/stories/find?repo=O/R&number=N` | the story for a PR, if any |
+| `POST /api/stories/status-many` | `{prs: [{repo, number}]}`: each PR's story or build request (and settles a request whose story turned up), what's been read, newer commits, and who's listening per repo |
+| `GET /api/status?story=ID` | the status light: the bridge, the story, and whether a Claude session is listening |
 | `GET /api/stories/:id` | the panel's data, plus the diff, viewed files and notes for a local story |
 | `GET /api/stories/:id/version` | changes when the story or (for local) the commits change |
 | `GET /api/stories/:id/pulse` | `{version, questions_rev, drafts_rev, listening}`, one poll for what the panel watches. A field changes when that thing does. `drafts_rev` covers the drafts and your marks, not what's on GitHub |
@@ -238,7 +239,6 @@ The bridge also checks each request:
 | `POST /api/stories/:id/position` | `{step, chapter, file}`, written to `state/<id>/position.json` |
 | `GET`/`POST /api/stories/:id/read` | the chapters you've read, each with the commit it was read at, and where an update would start (`since`); or record one: `{chapter, step, reason, seconds, head_sha}` |
 | `GET`/`POST /api/stories/:id/questions` | ask a question, or list them with their answers (`diff-story answer` adds one) |
-| `GET /api/builds/status?repo=O/R&number=N` | `ready`, `building` or `none`, with the request if there is one (it marks a pending request done when the story has turned up) |
 | `POST /api/builds` | ask for a story: `{repo, number, url, requested_at}` (`diff-story builds` lists them) |
 | `POST /api/stories/:id/viewed` | local stories: `{path, viewed}` |
 | `POST /api/stories/:id/notes[/:note]` | local stories: add `{path, side, line, body}`, or update `{done}`, `{body}` or `{delete: true}` |
