@@ -105,7 +105,7 @@ export function createBody(context) {
     context.viewed.render();
     context.drafts.refresh(false);
     context.freshness.render();
-    context.reading.render();
+    context.marks.render();
     $('.prs-body').scrollTop = 0;
   }
 

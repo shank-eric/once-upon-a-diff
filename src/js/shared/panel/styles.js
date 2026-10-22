@@ -58,9 +58,7 @@ export const panelCss = (panelId) => `
   #${panelId} .prs-fresh:empty { display: none; }
   #${panelId} .prs-fresh.prs-stale { color: var(--c-warn); }
   #${panelId} .prs-fresh button { margin-left: 6px; }
-  #${panelId} .prs-changed { font-size: 11px; color: var(--c-warn); margin-left: 4px; white-space: nowrap; }
-  #${panelId} .prs-touched { font-size: 11px; color: var(--c-warn); margin-left: 4px; }
-  #${panelId} .prs-readchg { font-size: 11px; color: var(--c-warn); margin-left: 4px; white-space: nowrap; }
+  #${panelId} .prs-chg { font-size: 11px; color: var(--c-warn); margin-left: 4px; white-space: nowrap; }
   #${panelId} .prs-cstate .prs-cstale { color: var(--c-warn); }
   #${panelId} .prs-new { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--c-accent); border: 1px solid currentColor; border-radius: 9px; padding: 0 5px; }
   #${panelId} .prs-since { margin: 10px 0; padding: 6px 10px; border-left: 3px solid var(--c-accent); background: var(--c-accent-bg); border-radius: 0 6px 6px 0; font-size: 12px; }

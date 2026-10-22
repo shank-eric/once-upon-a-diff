@@ -2,13 +2,11 @@
  * What the reviewer has read: a chapter they stayed on for READ_MS (counted
  * while the tab shows), or ticked every file of, or (inferred) one whose files
  * the page already had all Viewed. Each goes to opts.onRead once per panel.
- * And, from the bridge's GET /read, the chapters that changed after they read
- * them, marked in the step list and the file list.
+ * And the bridge's GET /read: the chapters that changed after they read them
+ * (marks.js draws those) and the drafts a newer commit made stale.
  *
  * READ_MS, inferReadSteps and readStepsOf have no DOM, so node tests can use them.
  */
-import { escapeHtml } from '../util/html.js';
-import { shortSha } from '../util/text.js';
 import { chapterKeyOf } from './story-model.js';
 
 export const READ_MS = 30000;
@@ -65,7 +63,7 @@ export function readStepsOf(chapters, readInfo) {
 }
 
 export function createReading(context) {
-  const { story, state, opts, shell } = context;
+  const { story, state, opts } = context;
   const { data } = story;
   const readAfterMs = Number.isFinite(opts.readAfterMs) ? opts.readAfterMs : READ_MS;
   const sent = new Set(); // "<key> <reason>": each at most once per panel
@@ -151,40 +149,9 @@ export function createReading(context) {
     } catch {
       return; // the bridge may be down; the marks just don't show
     }
-    render();
+    context.marks.render();
     context.viewed.render(); // "viewed early" depends on which chapters they've read
     context.drafts.render();
-  }
-  function render() {
-    for (const el of shell.root.querySelectorAll('.prs-readchg')) {
-      el.remove();
-    }
-    if (!info) {
-      return;
-    }
-    const byStep = new Map((info.changed || []).map((change) => [change.step, change]));
-    for (const item of shell.root.querySelectorAll('ol.prs-map li[data-n]')) {
-      const change = byStep.get(Number(item.getAttribute('data-n')));
-      if (change) {
-        item.insertAdjacentHTML(
-          'beforeend',
-          `<span class="prs-readchg" title="${escapeHtml(`Changed after you read it (at ${shortSha(change.since)}): ${change.files.join(', ')}`)}">• changed since you read</span>`,
-        );
-      }
-    }
-    const here = state.n && byStep.get(state.n);
-    if (here) {
-      for (const item of shell.root.querySelectorAll('ul.prs-files > li[data-file]')) {
-        if (here.files.includes(item.getAttribute('data-file'))) {
-          item
-            .querySelector('code')
-            .insertAdjacentHTML(
-              'afterend',
-              `<span class="prs-readchg" title="A newer commit changed it after you read this chapter at ${escapeHtml(shortSha(here.since))}">changed since you read</span>`,
-            );
-        }
-      }
-    }
   }
   /** A drafted comment on a line a newer commit changed after they read the chapter. */
   const isStaleDraft = (step, index) =>
@@ -205,7 +172,6 @@ export function createReading(context) {
     noteProgress,
     noteComplete,
     refresh,
-    render,
     isStaleDraft,
     destroy,
   };

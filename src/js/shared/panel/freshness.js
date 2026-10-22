@@ -1,8 +1,8 @@
 /*
  * Is the story up to date with the PR's latest commit (opts.freshness)? A
- * stale story says so under the toolbar, with Update and Re-tell buttons, and
- * marks the files and chapters that changed since. A story updated in place
- * says what the update brought in. And the banner at the top of a "Since you
+ * stale story says so under the toolbar, with Update and Re-tell buttons
+ * (marks.js marks the files and chapters that changed since). A story updated
+ * in place says what the update brought in. And the banner at the top of a "Since you
  * read it" chapter, with a link to GitHub's diff of just its commits.
  *
  * rangeStepOf and rangeUrl have no DOM, so node tests can use them.
@@ -54,26 +54,12 @@ export function createFreshness(context) {
       fresh = { state: 'unknown', error: e && e.message };
     }
     render();
+    context.marks.render();
   }
 
   /** ", in chapter 1, chapter 3" for the chapters that list the changed files */
   const inChapters = (touched) =>
     touched.length ? `, in ${touched.map(story.chapterName).join(', ')}` : '';
-
-  /** Marks the changed files in the file list and the chapters that list them in the step list. */
-  function markChanged(files, chaptersTouched, fileTag, stepTag) {
-    const changed = new Set(files || []);
-    for (const item of shell.root.querySelectorAll('ul.prs-files > li[data-file]')) {
-      if (changed.has(item.getAttribute('data-file'))) {
-        item.querySelector('code').insertAdjacentHTML('afterend', fileTag);
-      }
-    }
-    for (const item of shell.root.querySelectorAll('ol.prs-map li[data-n]')) {
-      if ((chaptersTouched || []).includes(Number(item.getAttribute('data-n')))) {
-        item.insertAdjacentHTML('beforeend', stepTag);
-      }
-    }
-  }
 
   function wireUpdateButtons(box) {
     for (const button of box.querySelectorAll('.prs-update')) {
@@ -102,9 +88,6 @@ export function createFreshness(context) {
 
   function render() {
     const box = $('.prs-fresh');
-    for (const el of shell.root.querySelectorAll('.prs-changed, .prs-touched')) {
-      el.remove();
-    }
     box.classList.remove('prs-stale');
     if (!fresh || fresh.state === 'n/a') {
       box.innerHTML = '';
@@ -114,7 +97,6 @@ export function createFreshness(context) {
       box.innerHTML =
         updatedHtml(fresh) ||
         `<span class="prs-why">Up to date with ${escapeHtml(shortSha(fresh.story_head))}</span>`;
-      markUpdated(fresh.updated);
       return;
     }
     if (fresh.state === 'unknown') {
@@ -144,13 +126,6 @@ export function createFreshness(context) {
       : '';
     box.innerHTML = `Story is for ${escapeHtml(shortSha(fresh.story_head))}; ${what}${changed}.${buttons}`;
     wireUpdateButtons(box);
-    // mark what changed since the story: the files, and the chapters that list them
-    markChanged(
-      fresh.changed_files,
-      fresh.chapters_touched,
-      '<span class="prs-changed" title="Changed in a commit after the one the story was told from">changed since story</span>',
-      '<span class="prs-touched" title="A file here changed after the story was told">• changed since</span>',
-    );
   }
 
   /**
@@ -178,19 +153,6 @@ export function createFreshness(context) {
         ? ` <a href="${escapeHtml(url)}" title="GitHub's Files changed for ${range} only">See just what's new on GitHub</a>`
         : '') +
       ` <span class="prs-why">Up to date with ${escapeHtml(shortSha(freshness.story_head))}</span>`
-    );
-  }
-
-  function markUpdated(updated) {
-    if (!updated) {
-      return;
-    }
-    const range = `${escapeHtml(shortSha(updated.from))}..${escapeHtml(shortSha(updated.to))}`;
-    markChanged(
-      updated.changed_files,
-      updated.chapters_touched,
-      `<span class="prs-changed" title="Changed in ${range}, the commits the last update brought in">new since ${escapeHtml(shortSha(updated.from))}</span>`,
-      `<span class="prs-touched" title="A file here changed in ${range}, the commits the last update brought in">• updated</span>`,
     );
   }
 
