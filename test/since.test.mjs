@@ -201,7 +201,7 @@ test('the out-of-date tag offers Update (new commits) and Re-tell from scratch',
   const pr = { repo: 'acme/widgets', number: 7 };
   const tag = tagFor({ state: 'ready', stale: true, story_head: SHA_A, current_head: SHA_B }, pr);
   assert.equal(tag.alt.act, 'retell');
-  const html = tagHtml(tag);
+  const html = String(tagHtml(tag));
   assert.match(
     html,
     /^<button class="b stale" data-act="update"[^>]*>Story out of date · Update<\/button><button class="alt" data-act="retell"/,
@@ -340,7 +340,11 @@ test('the PR-list tag says how much of the story he has read', () => {
     'queued and building win',
   );
   for (const result of [part, all, moved]) {
-    assert.equal((tagHtml(result).match(/<(a|button|span) class="b/g) || []).length, 1, 'one tag');
+    assert.equal(
+      (String(tagHtml(result)).match(/<(a|button|span) class="b/g) || []).length,
+      1,
+      'one tag',
+    );
   }
 });
 

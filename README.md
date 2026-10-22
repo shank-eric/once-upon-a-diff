@@ -410,7 +410,7 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
     - `review-script.js`: the Overview's Copy as gh script.
     - `viewed.js`, `reading.js`, `drafts.js`, `freshness.js`, `rebuild.js`, `marks.js`, `status-light.js` and `questions.js`: Viewed progress, read tracking, drafted comments, story freshness, Rebuild, the "changed since" marks, the status light and the Ask box.
     - `fixes.js` and `working.js`: Fix before push (Send, Auto-send, each note's state) and the "being changed" marks.
-  - `util/`: helpers for the panel, the content scripts, the local page and the bridge (escaping, SHAs, PR keys, line references, times, the clipboard, GitHub paths, key isolation, the default port).
+  - `util/`: helpers for the panel, the content scripts, the local page and the bridge (escaping and the html`` tag that builds markup, SHAs, PR keys, line references, times, the clipboard, GitHub paths, key isolation, the default port).
 - `src/bridge/`: the bridge and its CLI.
   - `bin/once-upon.mjs` runs `cli/index.mjs`, a table of commands in `cli/commands/` (bridge, stories, inbox, drafts, builds, checks, fixes) that also builds the help. `cli/doctor.mjs` is `once-upon doctor`.
   - `server/index.mjs` is the HTTP server: its guards, then a route table. The routes are in `server/routes/` by area; `pages.mjs` and `assets.mjs` serve the HTML pages, the scripts and the stylesheets.

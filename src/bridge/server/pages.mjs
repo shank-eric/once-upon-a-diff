@@ -2,7 +2,7 @@
  * The bridge's one HTML page: the local page's shell, which loads local.js
  * with the story id and token.
  */
-import { escapeHtml } from '../../shared/util/html.js';
+import { html, raw } from '../../shared/util/html.js';
 
 /** The pages' CSP: only the bridge's own scripts, styles and connections. */
 export const pageHeaders = () => ({
@@ -11,10 +11,11 @@ export const pageHeaders = () => ({
 });
 
 export function localPage(id, meta, token) {
-  const boot = JSON.stringify({ story: id, token }).replace(/</g, '\\u003c');
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>${escapeHtml(meta.title)}</title><link rel="stylesheet" href="/assets/local.css">
+  // the boot JSON goes in as is: with every < written <, it can't end its script element
+  const boot = raw(JSON.stringify({ story: id, token }).replace(/</g, '\\u003c'));
+  return String(html`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${meta.title}</title><link rel="stylesheet" href="/assets/local.css">
 <script type="application/json" id="ou-local-boot">${boot}</script>
 <script type="module" src="/assets/local.js"></script></head>
-<body class="ou-local"><div id="ou-local-app"><p class="ou-local-muted ou-local-loading">Loading the story…</p></div></body></html>`;
+<body class="ou-local"><div id="ou-local-app"><p class="ou-local-muted ou-local-loading">Loading the story…</p></div></body></html>`);
 }

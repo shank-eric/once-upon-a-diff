@@ -9,7 +9,8 @@
  *
  * rebuildAsk and rebuildLine have no DOM, so node tests can use them.
  */
-import { escapeHtml } from '../util/html.js';
+import { html } from '../util/html.js';
+import { setHtml } from '../util/dom.js';
 import { clockTime } from '../util/time.js';
 
 /** How long the panel says a rebuild finished, after it did. */
@@ -57,6 +58,9 @@ export function rebuildLine(rebuild, now = Date.now()) {
   return `Rebuilt ${from || 'the whole story'}${when}.${rebuild.note ? ` ${rebuild.note}` : ''}`;
 }
 
+const GUIDANCE_PLACEHOLDER =
+  'What should change? (optional) For example: chapter 3 tells the save flow backwards';
+
 export function createRebuild(context) {
   const { state, opts, shell } = context;
   const { $ } = shell;
@@ -92,16 +96,12 @@ export function createRebuild(context) {
       label = current.state === 'building' ? 'Rebuilding…' : 'Rebuild queued';
     }
     const open = formFor === step && !pending();
-    const form = open
-      ? `<form class="ou-rebuild-form"><p class="ou-quiet">${escapeHtml(explain(step))}</p>` +
-        `<textarea rows="3" aria-label="What should change" placeholder="What should change? (optional) For example: chapter 3 tells the save flow backwards">${escapeHtml(draft)}</textarea>` +
-        `<div class="ou-rebuild-btns"><button type="submit">Queue rebuild</button>` +
-        `<button type="button" class="ou-linkish" data-rebuild-cancel>Cancel</button></div></form>`
-      : '';
-    const toggle = open
-      ? ''
-      : `<button type="button" class="ou-rebuild-open" title="${escapeHtml(title)}"${pending() ? ' disabled' : ''}>${escapeHtml(label)}</button>`;
-    return `${toggle}${form}`;
+    if (open) {
+      const guidance = html`<textarea rows="3" aria-label="What should change" placeholder="${GUIDANCE_PLACEHOLDER}">${draft}</textarea>`;
+      const buttons = html`<div class="ou-rebuild-btns"><button type="submit">Queue rebuild</button><button type="button" class="ou-linkish" data-rebuild-cancel>Cancel</button></div>`;
+      return html`<form class="ou-rebuild-form"><p class="ou-quiet">${explain(step)}</p>${guidance}${buttons}</form>`;
+    }
+    return html`<button type="button" class="ou-rebuild-open" title="${title}"${pending() && html` disabled`}>${label}</button>`;
   }
 
   function renderStatus() {
@@ -120,11 +120,11 @@ export function createRebuild(context) {
     }
     const chapter = context.chapter();
     if (!opts.requestRebuild || (chapter && chapter.auto)) {
-      box.innerHTML = '';
+      setHtml(box, '');
       return;
     }
     const step = state.n;
-    box.innerHTML = boxHtml(step);
+    setHtml(box, boxHtml(step));
     const openButton = box.querySelector('.ou-rebuild-open');
     if (openButton) {
       openButton.onclick = () => {

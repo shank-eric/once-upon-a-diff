@@ -8,8 +8,8 @@
  * GitHub's page and posts nothing.
  */
 import { copyWithFeedback } from './copy.js';
-import { escapeHtml } from '../../shared/util/html.js';
-import { hideUntilStyled, stopKeyEvents, stylesheetLink } from '../../shared/util/dom.js';
+import { html } from '../../shared/util/html.js';
+import { hideUntilStyled, setHtml, stopKeyEvents, stylesheetLink } from '../../shared/util/dom.js';
 
 const HOST_ID = 'once-upon-listen-notice';
 const MAX = 3;
@@ -64,26 +64,21 @@ export function listenNotice() {
       document.body.appendChild(host);
     }
     const shown = missing.slice(0, MAX);
-    const html =
-      shown
-        .map((missingRow, i) => {
-          const how = missingRow.checkout
-            ? `Start Claude Code in ${missingRow.checkout} and paste ${missingRow.prompt}.`
-            : `Start Claude Code in your ${missingRow.repo} checkout and paste ${missingRow.prompt}.`;
-          const title = `${how}${missingRow.details ? `\n\nWithout the once-upon-listen skill: ${missingRow.details}` : ''}`;
-          return (
-            `<div class="row"><span>No session listening for <b>${escapeHtml(missingRow.repo)}</b>${missingRow.checkout ? ` <span class="muted">· ${escapeHtml(missingRow.checkout)}</span>` : ''}</span>` +
-            `<button data-i="${i}" title="${escapeHtml(title)}">Copy prompt for Claude</button></div>`
-          );
-        })
-        .join('') +
-      (missing.length > MAX
-        ? `<div class="muted">and ${missing.length - MAX} more repos</div>`
-        : '');
-    const next = `<div class="row top"><div class="lines">${html}</div><button class="x" title="Hide until the page reloads" aria-label="Hide">×</button></div>`;
-    if (next !== lastHtml) {
-      lastHtml = next;
-      root.innerHTML = next;
+    const lines = shown.map((missingRow, i) => {
+      const how = missingRow.checkout
+        ? `Start Claude Code in ${missingRow.checkout} and paste ${missingRow.prompt}.`
+        : `Start Claude Code in your ${missingRow.repo} checkout and paste ${missingRow.prompt}.`;
+      const title = `${how}${missingRow.details ? `\n\nWithout the once-upon-listen skill: ${missingRow.details}` : ''}`;
+      const checkout =
+        missingRow.checkout && html` <span class="muted">· ${missingRow.checkout}</span>`;
+      return html`<div class="row"><span>No session listening for <b>${missingRow.repo}</b>${checkout}</span><button data-i="${i}" title="${title}">Copy prompt for Claude</button></div>`;
+    });
+    const more =
+      missing.length > MAX && html`<div class="muted">and ${missing.length - MAX} more repos</div>`;
+    const next = html`<div class="row top"><div class="lines">${lines}${more}</div><button class="x" title="Hide until the page reloads" aria-label="Hide">×</button></div>`;
+    if (String(next) !== lastHtml) {
+      lastHtml = String(next);
+      setHtml(root, next);
     } // redrawn only when it changes, so "Copied" stays put
   }
   return { set, remove };

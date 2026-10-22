@@ -4,7 +4,8 @@
  * and keeps that true while GitHub loads and re-renders diffs. A #diff-<sha>
  * jump to a file outside the chapter steps on to the next file in it.
  */
-import { escapeHtml } from '../util/html.js';
+import { html } from '../util/html.js';
+import { setHtml } from '../util/dom.js';
 import { baseName, capitalize } from '../util/text.js';
 
 /**
@@ -106,21 +107,21 @@ export function createFilter(context) {
   /** The note under the toolbar: how many files show, and Show all files. */
   function renderNote() {
     const total = data.files.length;
-    let html;
+    let note;
     if (state.n === 0) {
-      html = `<span>Overview: all <b>${total}</b> files, ${data.chapters.length} chapters</span>`;
+      note = html`<span>Overview: all <b>${total}</b> files, ${data.chapters.length} chapters</span>`;
     } else {
       const count = context.chapter().files.length;
       const extra =
-        seen.missing.length && !state.all
-          ? ` <span title="${escapeHtml(seen.missing.join('\n'))}">(${seen.missing.length} not loaded on the page yet)</span>`
-          : '';
+        seen.missing.length > 0 &&
+        !state.all &&
+        html` <span title="${seen.missing.join('\n')}">(${seen.missing.length} not loaded on the page yet)</span>`;
       const here = story.chapterName(state.n);
-      html = state.all
-        ? `<span>Showing all <b>${total}</b> files. ${capitalize(here)}'s ${count} are listed below.</span> <button class="ou-all" aria-pressed="true">Chapter files only</button>`
-        : `<span>Showing <b>${count}</b> of <b>${total}</b> files, ${here}${extra}</span> <button class="ou-all" aria-pressed="false">Show all files</button>`;
+      note = state.all
+        ? html`<span>Showing all <b>${total}</b> files. ${capitalize(here)}'s ${count} are listed below.</span> <button class="ou-all" aria-pressed="true">Chapter files only</button>`
+        : html`<span>Showing <b>${count}</b> of <b>${total}</b> files, ${here}${extra}</span> <button class="ou-all" aria-pressed="false">Show all files</button>`;
     }
-    $('.ou-count-note').innerHTML = html;
+    setHtml($('.ou-count-note'), note);
     const allButton = $('.ou-all');
     if (allButton) {
       allButton.onclick = () => {

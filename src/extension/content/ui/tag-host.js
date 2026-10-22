@@ -4,7 +4,7 @@
  * it and its clicks and keys stay ours. Used on PR lists and the
  * Conversation tab.
  */
-import { hideUntilStyled, stopKeyEvents, stylesheetLink } from '../../shared/util/dom.js';
+import { hideUntilStyled, setHtml, stopKeyEvents, stylesheetLink } from '../../shared/util/dom.js';
 
 const TAG_CSS_URL = new URL('./story-tag.css', import.meta.url).href;
 
@@ -23,12 +23,13 @@ export function createTagHost(attribute, key, onClick) {
   return host;
 }
 
-/** Draws the tag's HTML in its host, only when it changed. */
-export function showTag(host, html) {
+/** Draws the tag's html`` markup (story-tag.js tagHtml) in its host, only when it changed. */
+export function showTag(host, tagMarkup) {
   const slot = host.shadowRoot.querySelector('.slot');
-  if (slot.getAttribute('data-html') !== html) {
-    slot.setAttribute('data-html', html);
-    slot.innerHTML = html;
+  const markup = String(tagMarkup);
+  if (slot.getAttribute('data-html') !== markup) {
+    slot.setAttribute('data-html', markup);
+    setHtml(slot, tagMarkup);
   }
 }
 

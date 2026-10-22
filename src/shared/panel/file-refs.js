@@ -9,9 +9,11 @@
  * A bare `:40-58` is a line in the file named last before it in the step,
  * or in the step's only file; it's drawn with that file's name in front.
  *
- * placePills and pillMarker have no DOM, so node tests can use them.
+ * placePills and pillMarker have no DOM, so node tests can use them. The
+ * story's text is built as a string (markdown.js), so the html`` markup
+ * pill() and refAttrs() return turns into its string there.
  */
-import { escapeHtml, unescapeHtml } from '../util/html.js';
+import { html, raw, unescapeHtml } from '../util/html.js';
 import { parseLineRef } from '../util/line-refs.js';
 import { markViewedButton } from './viewed.js';
 
@@ -42,9 +44,9 @@ export function placePills(html, marks, pillFor) {
  */
 export function refAttrs(rel, line) {
   const where = line ? ` line ${line.start}${line.end !== line.start ? `–${line.end}` : ''}` : '';
-  const attrs = `data-rel="${escapeHtml(rel)}" role="link" tabindex="0" title="Scroll to ${escapeHtml(rel)}${where}"`;
+  const attrs = html`data-rel="${rel}" role="link" tabindex="0" title="Scroll to ${rel}${where}"`;
   return line
-    ? `${attrs} data-side="${line.side}" data-start="${line.start}" data-end="${line.end}"`
+    ? html`${attrs} data-side="${line.side}" data-start="${line.start}" data-end="${line.end}"`
     : attrs;
 }
 
@@ -117,22 +119,22 @@ export function createFileRefs(context) {
     if (status.kind === 'mark') {
       return markViewedButton(rel, true);
     }
-    return `<span class="ou-pill ou-st-${status.kind}" title="${escapeHtml(status.text)}">${escapeHtml(status.short)}</span>`;
+    return html`<span class="ou-pill ou-st-${status.kind}" title="${status.text}">${status.short}</span>`;
   }
   /** A chapter's story with its pill markers filled in: the status on each file's last mention, nothing on the earlier ones. */
   function storyWithPills(draw) {
     const marks = [];
     pillMarks = marks;
-    let html;
+    let markup;
     try {
-      html = draw();
+      markup = draw();
     } finally {
       pillMarks = null;
     }
     for (const rel of marks) {
       pilled.add(rel);
     }
-    return placePills(html, marks, pillHtml);
+    return raw(placePills(markup, marks, pillHtml));
   }
 
   return { startStep, inScope, noteMention, resolveRef, pill, storyWithPills };

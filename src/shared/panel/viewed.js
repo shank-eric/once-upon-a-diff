@@ -9,22 +9,25 @@
  * untick it. One click, one file: nothing ticks Viewed on its own, on a step
  * change, in bulk or for any other file.
  */
-import { escapeHtml } from '../util/html.js';
+import { html } from '../util/html.js';
+import { setHtml } from '../util/dom.js';
 import { baseName, capitalize } from '../util/text.js';
 import { viewedEarlyCheck } from './reading.js';
 
 /** A file name as a jump link (file-refs.js refAttrs without a line, which can't be imported here without a cycle). */
 const jumpAttrs = (rel) =>
-  `data-rel="${escapeHtml(rel)}" role="link" tabindex="0" title="Scroll to ${escapeHtml(rel)}"`;
+  html`data-rel="${rel}" role="link" tabindex="0" title="Scroll to ${rel}"`;
 
 /** The Mark viewed button for a file this chapter finishes. The tracker keeps its label in step with the file's Viewed toggle. */
 export function markViewedButton(rel, short) {
   const label = short ? 'mark viewed' : 'Mark viewed';
-  return `<button type="button" class="ou-mark ou-st-mark" data-mark-for="${escapeHtml(rel)}"${short ? ' data-mark-short="1"' : ''} title="Tick ${escapeHtml(rel)}'s Viewed checkbox">${label}</button>`;
+  return html`<button type="button" class="ou-mark ou-st-mark" data-mark-for="${rel}"${short && html` data-mark-short="1"`} title="Tick ${rel}'s Viewed checkbox">${label}</button>`;
 }
 
 const linkList = (rels) =>
-  rels.map((rel) => `<code ${jumpAttrs(rel)}>${escapeHtml(baseName(rel))}</code>`).join(', ');
+  rels.map(
+    (rel, index) => html`${index > 0 && ', '}<code ${jumpAttrs(rel)}>${baseName(rel)}</code>`,
+  );
 
 export function createViewedTracker(context) {
   const { story, state, page, shell } = context;
@@ -100,15 +103,16 @@ export function createViewedTracker(context) {
     const early = step
       ? story.allRels.filter((rel) => earlyFor(rel) && page.isViewed(rel, blocks) === true)
       : [];
-    earlyBox.innerHTML = early
-      .map((rel) => {
+    setHtml(
+      earlyBox,
+      early.map((rel) => {
         const owner = story.chapterName(story.finishedIn[rel]);
         if (inChapter.has(rel)) {
-          return `<p>⚠ <code ${jumpAttrs(rel)}>${escapeHtml(baseName(rel))}</code> is marked viewed, but ${owner} covers more of it. You may want to unmark it until then.</p>`;
+          return html`<p>⚠ <code ${jumpAttrs(rel)}>${baseName(rel)}</code> is marked viewed, but ${owner} covers more of it. You may want to unmark it until then.</p>`;
         }
-        return `<p>⚠ <code>${escapeHtml(baseName(rel))}</code> is marked viewed early: it belongs to ${owner}. You may want to unmark it until then.</p>`;
-      })
-      .join('');
+        return html`<p>⚠ <code>${baseName(rel)}</code> is marked viewed early: it belongs to ${owner}. You may want to unmark it until then.</p>`;
+      }),
+    );
   }
 
   function renderStepProgress(all) {
@@ -136,14 +140,14 @@ export function createViewedTracker(context) {
       .map(({ index }) => index + 1);
     box.classList.toggle('ou-complete', !!due && viewed === due);
     if (!due) {
-      box.innerHTML = '';
+      setHtml(box, '');
     } else if (viewed === due) {
-      box.innerHTML = `<span class="ou-done">✓ All ${due} files marked viewed</span>`;
+      setHtml(box, html`<span class="ou-done">✓ All ${due} files marked viewed</span>`);
     } else {
       const still = left.length
         ? ` · ${left.map(story.chapterName).join(', ')} still ${left.length > 1 ? 'have' : 'has'} some to go`
         : '';
-      box.innerHTML = `<b>${viewed} of ${due}</b> files marked viewed${still}`;
+      setHtml(box, html`<b>${viewed} of ${due}</b> files marked viewed${still}`);
     }
   }
 
@@ -171,7 +175,7 @@ export function createViewedTracker(context) {
       all.some((progress) => progress.noToggle) &&
       !all.some((progress) => progress.viewed || progress.unviewed.length)
     ) {
-      box.innerHTML = ''; // no Viewed toggles on this page to read
+      setHtml(box, ''); // no Viewed toggles on this page to read
       return;
     }
     context.reading.noteProgress(all);
@@ -187,18 +191,21 @@ export function createViewedTracker(context) {
       !!(progress && progress.due && progress.viewed === progress.due),
     );
     if (!progress || !progress.due) {
-      box.innerHTML = '<span>Nothing to mark viewed in this chapter</span>';
+      setHtml(box, html`<span>Nothing to mark viewed in this chapter</span>`);
       return;
     }
     if (progress.viewed === progress.due) {
       box.classList.add('ou-complete');
-      box.innerHTML = `<span class="ou-done">✓ All ${progress.due} marked viewed</span>`;
+      setHtml(box, html`<span class="ou-done">✓ All ${progress.due} marked viewed</span>`);
       return;
     }
-    box.innerHTML =
-      `<b>${progress.viewed} of ${progress.due}</b> marked viewed` +
-      (progress.unviewed.length ? ` · still to mark: ${linkList(progress.unviewed)}` : '') +
-      (progress.unknown.length ? ` · ${progress.unknown.length} not loaded yet` : '');
+    const toMark =
+      progress.unviewed.length > 0 && html` · still to mark: ${linkList(progress.unviewed)}`;
+    const notLoaded = progress.unknown.length > 0 && ` · ${progress.unknown.length} not loaded yet`;
+    setHtml(
+      box,
+      html`<b>${progress.viewed} of ${progress.due}</b> marked viewed${toMark}${notLoaded}`,
+    );
   }
 
   // Classic /files ticks a checkbox (no attribute change), and Refined GitHub's batch

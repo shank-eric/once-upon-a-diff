@@ -4,7 +4,8 @@
  * before push notes, its files and its questions. One click handler serves
  * everything in it.
  */
-import { escapeHtml } from '../util/html.js';
+import { html } from '../util/html.js';
+import { setHtml } from '../util/dom.js';
 import { copyComment } from './copy-buttons.js';
 import { plural } from '../util/text.js';
 
@@ -19,16 +20,16 @@ export function createBody(context) {
   const files = context.fileList;
 
   function stepListHtml() {
-    const overview = `<li data-n="0" class="${state.n === 0 ? 'ou-current' : ''}">Overview <span class="ou-count">(${data.files.length})</span></li>`;
+    const overview = html`<li data-n="0" class="${state.n === 0 ? 'ou-current' : ''}">Overview <span class="ou-count">(${data.files.length})</span></li>`;
     const steps = context.steps().map((step, index) => {
       const number = index + 1;
       const prefix = story.isNew(number)
-        ? '<span class="ou-new">New</span> '
+        ? html`<span class="ou-new">New</span> `
         : `${story.chapterNumber(number)}. `;
-      const progress = `<span class="ou-stepprog" data-prog-for="${number}"></span>`;
-      return `<li data-n="${number}" class="${number === state.n ? 'ou-current' : ''}">${prefix}${escapeHtml(stripChapterPrefix(step.title))} <span class="ou-count">(${step.files.length})</span>${progress}</li>`;
+      const progress = html`<span class="ou-stepprog" data-prog-for="${number}"></span>`;
+      return html`<li data-n="${number}" class="${number === state.n ? 'ou-current' : ''}">${prefix}${stripChapterPrefix(step.title)} <span class="ou-count">(${step.files.length})</span>${progress}</li>`;
     });
-    return [overview].concat(steps).join('');
+    return [overview, ...steps];
   }
 
   const titleText = (chapter) => (chapter ? chapter.title : `Overview: ${data.pr.title || ''}`);
@@ -37,14 +38,14 @@ export function createBody(context) {
     context.refs.startStep(story.allRels);
     const intro = story.overviewMarkdown
       ? markdown(story.overviewMarkdown)
-      : `${data.summary ? `<p>${inline(data.summary)}</p>` : ''}${data.plan ? `<p>${inline(data.plan)}</p>` : ''}`;
-    const items = data.files.map((file) => files.fileItem(file, 0)).join('');
+      : html`${data.summary && html`<p>${inline(data.summary)}</p>`}${data.plan && html`<p>${inline(data.plan)}</p>`}`;
+    const items = data.files.map((file) => files.fileItem(file, 0));
     const filesBox = files.filesBox(
       `All files (${data.files.length})`,
       `${data.chapters.length} chapters`,
       items,
     );
-    return `<div class="ou-md">${intro}</div>${uncoveredHtml()}${context.drafts.allCommentsHtml()}<div class="ou-fixes"></div>${filesBox}<div class="ou-rebuild-box"></div>`;
+    return html`<div class="ou-md">${intro}</div>${uncoveredHtml()}${context.drafts.allCommentsHtml()}<div class="ou-fixes"></div>${filesBox}<div class="ou-rebuild-box"></div>`;
   }
 
   /** A quiet note on the Overview: changed hunks no chapter points at (once-upon's build allowed them), as line links. */
@@ -53,11 +54,11 @@ export function createBody(context) {
       file.hunks.map((hunk) => `\`${hunk.ref}\``),
     );
     if (!refs.length) {
-      return '';
+      return null;
     }
     const shown = refs.slice(0, UNCOVERED_SHOWN).join(', ');
     const more = refs.length > UNCOVERED_SHOWN ? ` and ${refs.length - UNCOVERED_SHOWN} more` : '';
-    return `<p class="ou-quiet ou-uncovered">${inline(`${plural(refs.length, 'changed hunk')} no chapter points at: ${shown}${more}.`)}</p>`;
+    return html`<p class="ou-quiet ou-uncovered">${inline(`${plural(refs.length, 'changed hunk')} no chapter points at: ${shown}${more}.`)}</p>`;
   }
 
   function chapterHtml(chapter) {
@@ -66,17 +67,16 @@ export function createBody(context) {
       if (chapter.narrative) {
         return markdown(chapter.narrative);
       }
-      return (
-        `${chapter.headline ? `<p><strong>${inline(chapter.headline)}</strong></p>` : ''}` +
-        `${chapter.scenario ? `<p>The scenario: ${inline(chapter.scenario)}</p>` : ''}` +
-        `${chapter.summary ? `<p>${inline(chapter.summary)}</p>` : ''}` +
-        `<p class="ou-empty">This chapter's story isn't written yet.</p>`
-      );
+      const headline =
+        chapter.headline && html`<p><strong>${inline(chapter.headline)}</strong></p>`;
+      const scenario = chapter.scenario && html`<p>The scenario: ${inline(chapter.scenario)}</p>`;
+      const summary = chapter.summary && html`<p>${inline(chapter.summary)}</p>`;
+      return html`${headline}${scenario}${summary}<p class="ou-empty">This chapter's story isn't written yet.</p>`;
     });
     // the comments resolve their file names after the story and before the file list, as references do in reading order
     const comments = context.drafts.chapterCommentsHtml(chapter);
-    const items = chapter.files.map((file) => files.fileItem(file, state.n)).join('');
-    return `${context.freshness.sinceBanner(chapter)}<div class="ou-md">${storyHtml}</div>
+    const items = chapter.files.map((file) => files.fileItem(file, state.n));
+    return html`${context.freshness.sinceBanner(chapter)}<div class="ou-md">${storyHtml}</div>
         ${comments}<div class="ou-fixes"></div>
         ${files.filesBox(`Files in this chapter (${chapter.files.length})`, files.filesSummary(state.n), items)}
         <div class="ou-rebuild-box"></div>`;
@@ -86,8 +86,10 @@ export function createBody(context) {
   function placeProgress() {
     const storyBox = $('.ou-body .ou-md');
     const holder = document.createElement('div');
-    holder.innerHTML =
-      '<div class="ou-progress" aria-live="polite"></div><div class="ou-early-box" role="status"></div>';
+    setHtml(
+      holder,
+      html`<div class="ou-progress" aria-live="polite"></div><div class="ou-early-box" role="status"></div>`,
+    );
     const head =
       storyBox && storyBox.querySelector(':scope > h1, :scope > h2, :scope > h3, :scope > h4');
     if (head) {
@@ -105,8 +107,10 @@ export function createBody(context) {
     $('.ou-next').disabled = state.n === context.steps().length;
     const stepList = stepListHtml();
     const body = chapter ? chapterHtml(chapter) : overviewHtml();
-    $('.ou-body').innerHTML =
-      `<div class="ou-working"></div><h2 class="ou-h">Steps</h2><ol class="ou-map">${stepList}</ol>${body}<div class="ou-questions"></div>`;
+    setHtml(
+      $('.ou-body'),
+      html`<div class="ou-working"></div><h2 class="ou-h">Steps</h2><ol class="ou-map">${stepList}</ol>${body}<div class="ou-questions"></div>`,
+    );
     placeProgress();
     const commentsBox = $('.ou-body details.ou-allc');
     if (commentsBox) {

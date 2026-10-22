@@ -15,7 +15,7 @@
  *
  * No DOM or chrome.* here, so node can test it.
  */
-import { escapeHtml } from '../../shared/util/html.js';
+import { html } from '../../shared/util/html.js';
 import { plural, shortSha } from '../../shared/util/text.js';
 import { clockTime } from '../../shared/util/time.js';
 
@@ -194,15 +194,15 @@ export function missingListeners(listening) {
 
 /** The tag's HTML, for a tag host's shadow root (story-tag.css). */
 export function tagHtml(tag) {
-  const inner = `${tag.spin ? '<span class="spin"></span>' : ''}${escapeHtml(tag.label)}`;
+  const inner = html`${tag.spin && html`<span class="spin"></span>`}${tag.label}`;
   if (tag.kind === 'link') {
-    return `<a class="b ${tag.cls}" href="${escapeHtml(tag.href)}" title="${escapeHtml(tag.title)}">${inner}</a>`;
+    return html`<a class="b ${tag.cls}" href="${tag.href}" title="${tag.title}">${inner}</a>`;
   }
-  const alt = tag.alt
-    ? `<button class="alt" data-act="${tag.alt.act}" title="${escapeHtml(tag.alt.title)}">${escapeHtml(tag.alt.label)}</button>`
-    : '';
+  const alt =
+    tag.alt &&
+    html`<button class="alt" data-act="${tag.alt.act}" title="${tag.alt.title}">${tag.alt.label}</button>`;
   if (tag.kind === 'button') {
-    return `<button class="b ${tag.cls}" data-act="${tag.act}" title="${escapeHtml(tag.title)}">${inner}</button>${alt}`;
+    return html`<button class="b ${tag.cls}" data-act="${tag.act}" title="${tag.title}">${inner}</button>${alt}`;
   }
-  return `<span class="b ${tag.cls}" title="${escapeHtml(tag.title)}" aria-live="polite">${inner}</span>`;
+  return html`<span class="b ${tag.cls}" title="${tag.title}" aria-live="polite">${inner}</span>`;
 }

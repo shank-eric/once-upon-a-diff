@@ -10,7 +10,8 @@
  *
  * fixSummary has no DOM, so node tests can use it.
  */
-import { escapeHtml } from '../util/html.js';
+import { html } from '../util/html.js';
+import { setHtml } from '../util/dom.js';
 import { plural, shortSha } from '../util/text.js';
 import { shortDateTime } from '../util/time.js';
 import { refAttrs } from './file-refs.js';
@@ -35,6 +36,7 @@ const AUTO_TITLE =
 const SEND_TITLE =
   'Hands every draft note to the Claude session as one request: it makes one change for them, commits it ' +
   'as your repo rules say and never pushes. Sent notes are locked until it reports back.';
+const TAKE_BACK_TITLE = 'Brings these notes back as drafts, to edit or send again';
 
 export function createFixes(context) {
   const { state, opts, shell } = context;
@@ -61,64 +63,57 @@ export function createFixes(context) {
     const attrs = line
       ? refAttrs(note.path, { side: note.side === 'L' ? 'L' : 'R', start: line, end: line })
       : refAttrs(note.path, null);
-    return `<code ${attrs}>${escapeHtml(where)}</code>`;
+    return html`<code ${attrs}>${where}</code>`;
   }
 
   /** Where the note has got, under its text. */
   function stateHtml(note) {
     if (note.state === 'fixed') {
-      const fixer = note.fixed.by ? ` by ${escapeHtml(note.fixed.by)}` : '';
-      return `<span class="ou-ok">Fixed in ${escapeHtml(shortSha(note.fixed.sha))} ✓</span>${fixer}`;
+      const fixer = note.fixed.by && ` by ${note.fixed.by}`;
+      return html`<span class="ou-ok">Fixed in ${shortSha(note.fixed.sha)} ✓</span>${fixer}`;
     }
     if (note.state === 'sent') {
-      const sentTo = note.sent.to
-        ? escapeHtml(note.sent.to)
-        : 'the next Claude session that listens';
-      return `<span class="ou-pend">Sent to ${sentTo}</span> · ${escapeHtml(shortDateTime(note.sent.at))}`;
+      const sentTo = note.sent.to || 'the next Claude session that listens';
+      return html`<span class="ou-pend">Sent to ${sentTo}</span> · ${shortDateTime(note.sent.at)}`;
     }
     if (note.returned) {
-      const from = note.returned.sha ? ` from ${escapeHtml(shortSha(note.returned.sha))}` : '';
-      return `<span class="ou-cstale">Back${from}: ${escapeHtml(note.returned.why || '')}</span>`;
+      const from = note.returned.sha && ` from ${shortSha(note.returned.sha)}`;
+      return html`<span class="ou-cstale">Back${from}: ${note.returned.why || ''}</span>`;
     }
-    return '<span class="ou-cdraft">Draft</span>, not sent';
+    return html`<span class="ou-cdraft">Draft</span>, not sent`;
   }
 
   function noteHtml(note) {
     const draft = note.state === 'draft';
-    const buttons = draft
-      ? '<button data-fix-act="edit">Edit</button><button data-fix-act="remove">Remove</button>'
-      : '';
+    const buttons =
+      draft &&
+      html`<button data-fix-act="edit">Edit</button><button data-fix-act="remove">Remove</button>`;
     const text =
       editing === note.id
-        ? `<textarea class="ou-fixedit" rows="3">${escapeHtml(note.body)}</textarea>` +
-          '<div class="ou-fixeditbtns"><button data-fix-act="save">Save</button> <button data-fix-act="cancel">Cancel</button></div>'
-        : `<pre>${escapeHtml(note.body)}</pre>`;
-    return (
-      `<div class="ou-comment ou-fixnote ou-fx-${note.state}" data-note-id="${escapeHtml(note.id)}">` +
-      `<div class="ou-where"><span>${placeHtml(note)}</span><span class="ou-cbtns">${buttons}</span></div>` +
-      `${text}<div class="ou-cstate">${stateHtml(note)}</div></div>`
-    );
+        ? html`<textarea class="ou-fixedit" rows="3">${note.body}</textarea><div class="ou-fixeditbtns"><button data-fix-act="save">Save</button> <button data-fix-act="cancel">Cancel</button></div>`
+        : html`<pre>${note.body}</pre>`;
+    const head = html`<div class="ou-where"><span>${placeHtml(note)}</span><span class="ou-cbtns">${buttons}</span></div>`;
+    return html`<div class="ou-comment ou-fixnote ou-fx-${note.state}" data-note-id="${note.id}">${head}${text}<div class="ou-cstate">${stateHtml(note)}</div></div>`;
   }
 
   /** Send, Auto-send, and Take back for each request still with a session. */
   function toolsHtml(summary) {
-    const send = summary.send
-      ? `<button data-fix-act="send" title="${escapeHtml(SEND_TITLE)}">${escapeHtml(summary.send)}</button>`
-      : '';
-    const auto = `<label class="ou-fixauto" title="${escapeHtml(AUTO_TITLE)}"><input type="checkbox" data-fix-act="auto"${view.auto_send ? ' checked' : ''}> Auto-send</label>`;
+    const send =
+      summary.send &&
+      html`<button data-fix-act="send" title="${SEND_TITLE}">${summary.send}</button>`;
+    const auto = html`<label class="ou-fixauto" title="${AUTO_TITLE}"><input type="checkbox" data-fix-act="auto"${view.auto_send && html` checked`}> Auto-send</label>`;
     const takeBack = view.requests
       .filter((request) => request.status === 'pending')
-      .map(
-        (request) =>
-          `<button class="ou-linkish" data-fix-act="take_back" data-request="${escapeHtml(request.id)}" ` +
-          `title="Brings these notes back as drafts, to edit or send again">Take back the ${plural(request.notes.length, 'note')} sent to ${escapeHtml(request.claimed_by || request.to || 'the next session')}</button>`,
-      )
-      .join(' ');
+      .map((request) => {
+        const notes = plural(request.notes.length, 'note');
+        const sentTo = request.claimed_by || request.to || 'the next session';
+        return html` <button class="ou-linkish" data-fix-act="take_back" data-request="${request.id}" title="${TAKE_BACK_TITLE}">Take back the ${notes} sent to ${sentTo}</button>`;
+      });
     const nobody =
-      summary.send && !view.to
-        ? '<div class="ou-quiet">No Claude session takes fix requests for this story yet: a send waits for the next one.</div>'
-        : '';
-    return `<div class="ou-fixtools">${send}${auto}${takeBack ? ` ${takeBack}` : ''}</div>${nobody}`;
+      summary.send &&
+      !view.to &&
+      html`<div class="ou-quiet">No Claude session takes fix requests for this story yet: a send waits for the next one.</div>`;
+    return html`<div class="ou-fixtools">${send}${auto}${takeBack}</div>${nobody}`;
   }
 
   function render() {
@@ -127,7 +122,7 @@ export function createFixes(context) {
       return;
     }
     if (!view || (!view.notes.length && !view.auto_send)) {
-      box.innerHTML = '';
+      setHtml(box, '');
       return;
     }
     // a redraw while a note is being edited keeps what was typed
@@ -136,12 +131,14 @@ export function createFixes(context) {
     const summary = fixSummary(view);
     const notes = shownNotes();
     const elsewhere = view.notes.length - notes.length;
-    const more = elsewhere
-      ? `<div class="ou-quiet">${plural(elsewhere, 'more note')} on other chapters' files (all on the Overview).</div>`
-      : '';
-    box.innerHTML =
-      `<h2 class="ou-h">Fix before push (${view.notes.length}) <span class="ou-draftsum">${summary.counts ? `(${escapeHtml(summary.counts)})` : ''}</span></h2>` +
-      `${toolsHtml(summary)}${notes.map(noteHtml).join('')}${more}`;
+    const more =
+      elsewhere > 0 &&
+      html`<div class="ou-quiet">${plural(elsewhere, 'more note')} on other chapters' files (all on the Overview).</div>`;
+    const counts = summary.counts && `(${summary.counts})`;
+    setHtml(
+      box,
+      html`<h2 class="ou-h">Fix before push (${view.notes.length}) <span class="ou-draftsum">${counts}</span></h2>${toolsHtml(summary)}${notes.map(noteHtml)}${more}`,
+    );
     const textarea = box.querySelector('.ou-fixedit');
     if (textarea) {
       if (typed !== null) {

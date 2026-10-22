@@ -7,7 +7,8 @@
  *
  * rangeStepOf and rangeUrl have no DOM, so node tests can use them.
  */
-import { escapeHtml } from '../util/html.js';
+import { html } from '../util/html.js';
+import { setHtml } from '../util/dom.js';
 import { plural, sameSha, shortSha } from '../util/text.js';
 import { rangeOfPath } from '../util/github-paths.js';
 
@@ -34,6 +35,10 @@ export function rangeStepOf(chapters, pathname) {
  */
 export const rangeUrl = (prUrl, since) =>
   prUrl && since ? `${String(prUrl).replace(/\/+$/, '')}/changes/${since.from}..${since.to}` : null;
+
+const UPDATE_TITLE =
+  'Adds a “Since you read it” chapter for the new commits, first, and keeps the chapters you read';
+const RETELL_TITLE = 'A whole new story at the latest commit, for a rebase or a big rework';
 
 export function createFreshness(context) {
   const { story, opts, shell } = context;
@@ -87,19 +92,23 @@ export function createFreshness(context) {
     const box = $('.ou-fresh');
     box.classList.remove('ou-stale');
     if (!fresh || fresh.state === 'n/a') {
-      box.innerHTML = '';
+      setHtml(box, '');
       return;
     }
     if (fresh.state === 'current') {
-      box.innerHTML =
+      setHtml(
+        box,
         updatedHtml(fresh) ||
-        `<span class="ou-why">Up to date with ${escapeHtml(shortSha(fresh.story_head))}</span>`;
+          html`<span class="ou-why">Up to date with ${shortSha(fresh.story_head)}</span>`,
+      );
       return;
     }
     if (fresh.state === 'unknown') {
-      box.innerHTML = fresh.error
-        ? `<span class="ou-why" title="${escapeHtml(fresh.error)}">Can't tell whether the story is up to date</span>`
-        : '';
+      setHtml(
+        box,
+        fresh.error &&
+          html`<span class="ou-why" title="${fresh.error}">Can't tell whether the story is up to date</span>`,
+      );
       return;
     }
     box.classList.add('ou-stale');
@@ -114,14 +123,13 @@ export function createFreshness(context) {
     const changed = files
       ? ` (${plural(files, 'file')} changed${inChapters(fresh.chapters_touched || [])})`
       : '';
-    const buttons = opts.requestUpdate
-      ? `<button class="ou-update" data-retell="0" title="Adds a “Since you read it” chapter for the new commits, first, and keeps the chapters you read">Update (new commits)</button>` +
-        `<button class="ou-update" data-retell="1" title="A whole new story at the latest commit, for a rebase or a big rework">Re-tell from scratch</button>` +
-        (fresh.rewritten
-          ? '<span class="ou-why">It was rebased, so a re-tell is likely the better fit.</span>'
-          : '')
-      : '';
-    box.innerHTML = `Story is for ${escapeHtml(shortSha(fresh.story_head))}; ${what}${changed}.${buttons}`;
+    const rebased =
+      fresh.rewritten &&
+      html`<span class="ou-why">It was rebased, so a re-tell is likely the better fit.</span>`;
+    const update = html`<button class="ou-update" data-retell="0" title="${UPDATE_TITLE}">Update (new commits)</button>`;
+    const retell = html`<button class="ou-update" data-retell="1" title="${RETELL_TITLE}">Re-tell from scratch</button>`;
+    const buttons = opts.requestUpdate && html`${update}${retell}${rebased}`;
+    setHtml(box, html`Story is for ${shortSha(fresh.story_head)}; ${what}${changed}.${buttons}`);
     wireUpdateButtons(box);
   }
 
@@ -132,7 +140,7 @@ export function createFreshness(context) {
   function updatedHtml(freshness) {
     const updated = freshness && freshness.updated;
     if (!updated) {
-      return '';
+      return null;
     }
     const commits = updated.newer != null ? plural(updated.newer, 'new commit') : 'New commits';
     const files = (updated.changed_files || []).length;
@@ -143,20 +151,17 @@ export function createFreshness(context) {
     const how = updated.retold
       ? 're-told from scratch'
       : 'updated in place, with no “Since you read it” chapter';
-    const range = `${escapeHtml(shortSha(updated.from))}..${escapeHtml(shortSha(updated.to))}`;
-    return (
-      `<b>${escapeHtml(commits)} since ${escapeHtml(shortSha(updated.from))}</b>: the story was ${how}${changed}.` +
-      (url
-        ? ` <a href="${escapeHtml(url)}" title="GitHub's Files changed for ${range} only">See just what's new on GitHub</a>`
-        : '') +
-      ` <span class="ou-why">Up to date with ${escapeHtml(shortSha(freshness.story_head))}</span>`
-    );
+    const range = `${shortSha(updated.from)}..${shortSha(updated.to)}`;
+    const link =
+      url &&
+      html` <a href="${url}" title="GitHub's Files changed for ${range} only">See just what's new on GitHub</a>`;
+    return html`<b>${commits} since ${shortSha(updated.from)}</b>: the story was ${how}${changed}.${link} <span class="ou-why">Up to date with ${shortSha(freshness.story_head)}</span>`;
   }
 
   /** At the top of a "Since you read it" chapter: which commits it covers, and that the rest is as they read it. */
   function sinceBanner(chapter) {
     if (!chapter || !chapter.since) {
-      return '';
+      return null;
     }
     const count = chapter.since.commits;
     const what = `${count != null ? plural(count, 'commit') : 'The commits'} since you read the story`;
@@ -167,14 +172,14 @@ export function createFreshness(context) {
     const url =
       context.hostName === 'GitHub' ? rangeUrl(data.pr && data.pr.url, chapter.since) : null;
     const here = url && rangeStepOf([chapter], location.pathname) === 1;
-    const range = `${escapeHtml(shortSha(chapter.since.from))}..${escapeHtml(shortSha(chapter.since.to))}`;
-    let link = '';
+    const range = `${shortSha(chapter.since.from)}..${shortSha(chapter.since.to)}`;
+    let link = null;
     if (url && here) {
-      link = ` You're on GitHub's diff of just these commits. <a href="${escapeHtml(`${data.pr.url}/changes`)}">All of the PR's changes</a>`;
+      link = html` You're on GitHub's diff of just these commits. <a href="${data.pr.url}/changes">All of the PR's changes</a>`;
     } else if (url) {
-      link = ` <a href="${escapeHtml(url)}" title="GitHub's Files changed for ${range} only">See just these commits' changes on GitHub</a>`;
+      link = html` <a href="${url}" title="GitHub's Files changed for ${range} only">See just these commits' changes on GitHub</a>`;
     }
-    return `<div class="ou-since"><b>${escapeHtml(what)}</b>, ${range}. This step shows only the files they touched.${escapeHtml(rest)}${link}</div>`;
+    return html`<div class="ou-since"><b>${what}</b>, ${range}. This step shows only the files they touched.${rest}${link}</div>`;
   }
 
   return {
