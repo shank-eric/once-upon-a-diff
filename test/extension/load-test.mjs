@@ -761,10 +761,14 @@ try {
       (await allc.locator('[data-draft-act="dismiss"]').count()) === 1,
     "each shows its state and its chapter's actions",
   );
-  await allc.locator('[data-draft-act="posted"]').click();
+  check(
+    (await localPage.locator('#dsm-panel [data-draft-act="posted"]').count()) === 0,
+    'there is no Mark posted: posted is what gh finds',
+  );
+  await allc.locator('[data-draft-act="dismiss"]').click();
   await localPage.waitForTimeout(400);
-  check(/Show posted \(1\)/.test(await allc.textContent()), 'Mark posted works from the Overview');
-  await allc.locator('[data-draft-act="unposted"]').dispatchEvent('click'); // its row is folded behind Show posted
+  check(/Show dismissed \(1\)/.test(await allc.textContent()), 'Dismiss works from the Overview');
+  await allc.locator('[data-draft-act="restore"]').dispatchEvent('click'); // its row is folded behind Show dismissed
   await localPage.waitForTimeout(400);
   await localPage.locator('#dsm-panel .prs-next').click();
   await localPage.waitForTimeout(400);
@@ -774,24 +778,9 @@ try {
     /Fix before push/.test(await localPage.locator('#dsm-panel .prs-body').textContent()),
     'local page labels drafted comments "Fix before push"',
   );
-  // drafts: Mark posted hides it behind "Show posted", Dismiss behind "Show dismissed", and both come back
+  // drafts: Dismiss hides it behind "Show dismissed", and Restore brings it back
   await localPage.waitForTimeout(400);
   const drafts = () => localPage.locator('#dsm-panel .prs-drafts').textContent();
-  await localPage.locator('#dsm-panel .prs-comment [data-draft-act="posted"]').click();
-  await localPage.waitForTimeout(400);
-  check(
-    (await localPage.locator('#dsm-panel .prs-comment[data-i="0"]').isHidden()) &&
-      /Show posted \(1\)/.test(await drafts()) &&
-      /0 to post · 1 posted/.test(await drafts()),
-    `Mark posted hides the draft and counts it: "${await localPage.locator('#dsm-panel .prs-draftsum').textContent()}"`,
-  );
-  await localPage.locator('#dsm-panel [data-draft-show="showPosted"]').click();
-  check(
-    /Posted ✓ \(you marked it\)/.test(await drafts()),
-    'Show posted shows it as a "Posted ✓" row',
-  );
-  await localPage.locator('#dsm-panel .prs-comment [data-draft-act="unposted"]').click();
-  await localPage.waitForTimeout(400);
   await localPage.locator('#dsm-panel .prs-comment [data-draft-act="dismiss"]').click();
   await localPage.waitForTimeout(400);
   check(

@@ -35,8 +35,8 @@
  *   status()       returns a Promise of the bridge's /api/status ({bridge, story, listening});
  *                  it rejects with err.code 'down', 'token' or 'old' when the bridge can't say. Drives the status light.
  *   drafts         {load(), act(chapter, index, action)}: each returns a Promise of {drafts: [{chapter, index, status:
- *                  'draft'|'posted'|'pending', dismissed, url, added}], error}. action is posted, unposted, dismiss,
- *                  restore, review (Add to my review) or settle (an added draft has shown up, see draftView).
+ *                  'draft'|'posted'|'pending', dismissed, url, added}], error}. action is dismiss, restore, review
+ *                  (Add to my review), fix (Add to fix before push) or settle (an added draft has shown up, see draftView).
  *   reloadPage()   reloads the page, keeping the panel's step and scroll; offered on a draft just added to the review
  *   pulse()        returns a Promise of the bridge's GET /pulse ({version, questions_rev, drafts_rev, listening}),
  *                  asked every 5s while the tab shows: the questions, drafts and status light look again only when

@@ -2,8 +2,8 @@
  * Drafted comments: each chapter's, and the Overview's list of all of them,
  * with their state from opts.drafts: posted, in the reviewer's pending review,
  * dismissed, a local story's fix-before-push note, or still a draft. The
- * buttons are Copy, Mark posted, Dismiss, Restore, Add to my review (GitHub)
- * and Add to fix before push (a local story).
+ * buttons are Copy, Dismiss, Restore, Add to my review (GitHub) and Add to
+ * fix before push (a local story). Posted is what gh finds on the PR.
  *
  * draftView and shownIn have no DOM, so node tests can use them.
  */
@@ -273,14 +273,7 @@ export function createDrafts(context) {
       el.classList.add('prs-c-done');
       el.hidden = !state.showPosted;
       stateLine.hidden = false;
-      stateLine.innerHTML = `<span class="prs-ok">Posted ✓</span>${row.source === 'manual' ? ' (you marked it)' : ''}${link}`;
-      addButton(
-        'unposted',
-        'Unmark',
-        row.source === 'manual'
-          ? 'Mark it as not posted'
-          : 'Not the same comment? Show it as a draft again',
-      );
+      stateLine.innerHTML = `<span class="prs-ok">Posted ✓</span>${link}`;
     } else if (view.show === 'pending') {
       el.classList.add('prs-c-done', 'prs-c-pending');
       stateLine.hidden = false;
@@ -313,7 +306,6 @@ export function createDrafts(context) {
         'Dismiss',
         "Not a comment you want: hide it, and don't suggest it again",
       );
-      addButton('posted', 'Mark posted', 'You posted this (or your own version of it)');
       const onLine = comment && comment.path && Number(comment.line) > 0;
       if (data.kind === 'local' && onLine) {
         addButton(
@@ -382,7 +374,7 @@ export function createDrafts(context) {
         ? `<button class="prs-linkish" data-draft-show="showDismissed">${state.showDismissed ? 'Hide' : 'Show'} dismissed (${dismissed})</button>`
         : '',
       loadError
-        ? `<span class="prs-why" title="${escapeHtml(loadError)}">Couldn't check GitHub for posted comments; Mark posted still works.</span>`
+        ? `<span class="prs-why" title="${escapeHtml(loadError)}">Couldn't check GitHub for posted comments.</span>`
         : '',
     ]
       .filter(Boolean)
