@@ -2,7 +2,7 @@
  * Where the bridge keeps things, and its port and token.
  *
  *   ~/.diff-story/                 DIFF_STORY_HOME overrides it
- *     config.json                  {port, token, roots, ...personal settings (readSettings)}, mode 600
+ *     config.json                  {port, token, ...personal settings (readSettings)}, mode 600
  *     house-rules.md               optional: your own rules, which the skills read and follow
  *     prefs.json                   page settings that hold across stories and restarts: {hideWhitespace, diffView}
  *     inbox.jsonl                  questions, positions, notes and answers, one JSON object a line
@@ -20,12 +20,6 @@ export const DEFAULT_PORT = 4823;
 
 export function homeDir() {
   return process.env.DIFF_STORY_HOME || path.join(os.homedir(), '.diff-story');
-}
-
-/** pr-story's scratch layout: /private/tmp/claude-<uid>/<project>/<session>/scratchpad/pr-story/<repo>-<N>/ */
-export function scratchBases() {
-  const uid = typeof process.getuid === 'function' ? process.getuid() : '';
-  return [...new Set([`/private/tmp/claude-${uid}`, path.join(os.tmpdir(), `claude-${uid}`)])];
 }
 
 export const newToken = () => randomBytes(24).toString('base64url');

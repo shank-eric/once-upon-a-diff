@@ -11,22 +11,13 @@
  * Everything bridge-wide stays in ~/.diff-story: config, prefs, the inbox,
  * builds, and each story's state (viewed files, notes, the panel's step).
  *
- * pr-story's render still publishes to ~/.diff-story/<id>/. The bridge adopts
- * a story there (moves its files into the checkout) once it knows where the
- * repo's checkout is, from local stories, `wait --repo` run in a checkout,
- * checkouts.json, or ~/Development/<name> with that origin.
+ * Every story gets there one way: `diff-story publish` (which pr-story's
+ * build runs) or `diff-story local`, through storyDirFor. The checkout is the
+ * one the bridge knows for the repo, from local stories, `wait --repo` run in
+ * a checkout, checkouts.json, or ~/Development/<name> with that origin.
  */
 import { execFileSync } from 'node:child_process';
-import {
-  appendFileSync,
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  renameSync,
-  rmdirSync,
-  statSync,
-} from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { checkoutFor } from '../config/repos.mjs';
 import { readJson, writeJson } from '../util/json-file.mjs';
@@ -115,74 +106,4 @@ export function storyDirFor(home, id, { checkout = null, repo = null } = {}) {
   const dir = path.join(home, id);
   mkdirSync(dir, { recursive: true });
   return dir;
-}
-
-/** Move a story folder's files into another folder (newer files win: what's moving is the latest render), then remove the empty one. */
-export function moveStory(from, target) {
-  mkdirSync(target, { recursive: true });
-  for (const name of readdirSync(from)) {
-    const src = path.join(from, name);
-    const dest = path.join(target, name);
-    if (statSync(src).isDirectory() && existsSync(dest)) {
-      moveStory(src, dest);
-      continue;
-    }
-    renameSync(src, dest);
-  }
-  rmdirSync(from);
-}
-
-/** Where a story in <home> belongs, or null to leave it there. */
-function homeFor(home, dir) {
-  const meta = readJson(path.join(dir, 'meta.json')) || {};
-  if (meta.kind === 'local') {
-    return meta.repo_path && existsSync(meta.repo_path) ? meta.repo_path : null;
-  } // the worktree it diffs
-  let repo = meta.repo;
-  if (!repo) {
-    const pr = readJson(path.join(dir, 'pr.json'));
-    if (pr && pr.url) {
-      repo = pr.url.split('/').slice(3, 5).join('/');
-    }
-  }
-  const checkout = repo ? checkoutFor(home, repo) : null;
-  return checkout ? mainCheckout(checkout) : null;
-}
-
-let lastAdopt = 0;
-/**
- * Move stories sitting in <home> into their repo's checkout, when it's known. Cheap to call often
- * (at most every 2s). Returns [{id, from, to}].
- */
-export function adoptHomeStories(home, { isStoryDir, force = false } = {}) {
-  if (!force && Date.now() - lastAdopt < 2000) {
-    return [];
-  }
-  lastAdopt = Date.now();
-  const moved = [];
-  let entries = [];
-  try {
-    entries = readdirSync(home, { withFileTypes: true }).filter((entry) => entry.isDirectory());
-  } catch {
-    return moved;
-  }
-  for (const entry of entries) {
-    const from = path.join(home, entry.name);
-    if (!isStoryDir(from)) {
-      continue;
-    }
-    const top = homeFor(home, from);
-    if (!top || !excludeStories(top)) {
-      continue;
-    }
-    const target = path.join(top, STORY_FOLDER, entry.name);
-    try {
-      moveStory(from, target);
-      indexStory(home, entry.name, target);
-      moved.push({ id: entry.name, from, to: target });
-    } catch {
-      /* leave it readable where it is */
-    }
-  }
-  return moved;
 }

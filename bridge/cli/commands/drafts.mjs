@@ -12,8 +12,7 @@ import { Inbox } from '../../inbox/inbox.mjs';
 import { stateKeyOf, readMarks, draftStatus, githubComments } from '../../github/drafts.mjs';
 import { out, notePlace } from '../output.mjs';
 
-const storeFor = (home, cfg, opts) =>
-  new StoryStore({ home, roots: opts.root.length ? opts.root : cfg.roots, scratch: true });
+const storeFor = (home) => new StoryStore({ home });
 
 function bodyOf(opts) {
   if (opts['body-file']) {
@@ -29,7 +28,7 @@ function comment(home, cfg, opts) {
       'usage: diff-story comment --story ID --chapter N [--path P --line L] (--body-file F | --body T)',
     );
   }
-  const dir = storeFor(home, cfg, opts).dirOf(opts.story);
+  const dir = storeFor(home).dirOf(opts.story);
   if (!dir) {
     throw new Error(`no story ${opts.story} (see: diff-story list)`);
   }
@@ -69,7 +68,7 @@ async function drafts(home, cfg, opts) {
   if (!opts.story) {
     throw new Error('usage: diff-story drafts --story ID [--json]');
   }
-  const store = storeFor(home, cfg, opts);
+  const store = storeFor(home);
   const dir = store.dirOf(opts.story);
   if (!dir) {
     throw new Error(`no story ${opts.story}`);
@@ -100,7 +99,7 @@ function notes(home, cfg, opts) {
   if (!opts.story) {
     throw new Error('usage: diff-story notes --story ID');
   }
-  const store = new StoryStore({ home, roots: cfg.roots, scratch: false });
+  const store = storeFor(home);
   const list = store.readState(opts.story, 'notes.json', []);
   if (opts.json) {
     return out(JSON.stringify(list, null, 2));

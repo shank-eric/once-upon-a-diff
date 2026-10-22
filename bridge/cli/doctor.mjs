@@ -119,7 +119,7 @@ export async function doctor(
   // the story root and the stories
   try {
     accessSync(home, constants.W_OK);
-    const store = new StoryStore({ home, roots: cfg.roots, scratch: true });
+    const store = new StoryStore({ home });
     const list = store.list();
     add(
       list.length ? 'PASS' : 'WARN',
@@ -129,7 +129,7 @@ export async function doctor(
             .slice(0, 6)
             .map((story) => story.id)
             .join(', ')}${list.length > 6 ? ', …' : ''}`
-        : `none under ${home} or pr-story's scratch folders`,
+        : `none under ${home} or a known checkout`,
       list.length
         ? null
         : 'Make one with the pr-story skill (its render step publishes it), or: diff-story local --repo DIR --base REF',

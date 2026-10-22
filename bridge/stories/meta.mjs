@@ -1,7 +1,7 @@
 /*
- * What a story folder is: whether it is one (chapters.json plus file-map.json,
- * meta.json or pr.json), what it's a story of (readMeta), and its version,
- * which the pages poll to redraw when a file changes.
+ * What a story folder is: whether it is one (chapters.json and meta.json),
+ * what it's a story of (readMeta), and its version, which the pages poll to
+ * redraw when a file changes.
  */
 import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
@@ -19,36 +19,15 @@ export function modifiedAt(file) {
 }
 
 export const isStoryDir = (dir) =>
-  existsSync(path.join(dir, 'chapters.json')) &&
-  ['file-map.json', 'meta.json', 'pr.json'].some((name) => existsSync(path.join(dir, name)));
+  existsSync(path.join(dir, 'chapters.json')) && existsSync(path.join(dir, 'meta.json'));
 
-/** What a story folder is about: {kind, id, repo, number, title, url, ...}. */
+/** What a story folder is about, from its meta.json: {kind, repo, number, title, url, head_oid, ...}. */
 export function readMeta(dir) {
   const meta = readJson(path.join(dir, 'meta.json'), {}) || {};
-  const pr = readJson(path.join(dir, 'pr.json'), null);
-  const map = readJson(path.join(dir, 'file-map.json'), null);
   const plan = readJson(path.join(dir, 'chapters.json'), {}) || {};
   const out = { kind: meta.kind || 'github', ...meta };
-  if (out.kind === 'github') {
-    if (pr && pr.url) {
-      const [owner, repo] = pr.url.split('/').slice(3, 5);
-      out.repo ||= `${owner}/${repo}`;
-      out.number ||= pr.number;
-      out.url ||= pr.url;
-      out.pr_title ||= pr.title;
-      out.head_oid ||= pr.headRefOid || null; // the commit the story was told from
-      out.base_oid ||= pr.baseRefOid || null;
-    }
-    if (map && typeof map.pr === 'string' && !out.repo) {
-      const match = /^(.+)#(\d+)$/.exec(map.pr);
-      if (match) {
-        out.repo = match[1];
-        out.number = +match[2];
-      }
-    }
-    if (out.repo && out.number && !out.url) {
-      out.url = `https://github.com/${out.repo}/pull/${out.number}`;
-    }
+  if (out.kind === 'github' && out.repo && out.number && !out.url) {
+    out.url = `https://github.com/${out.repo}/pull/${out.number}`;
   }
   out.title = plan.title || out.title || out.pr_title || path.basename(dir);
   return out;

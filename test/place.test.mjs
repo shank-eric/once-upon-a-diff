@@ -1,19 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { existsSync, readFileSync, writeFileSync, realpathSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { tmp, git, localRepo, githubStory, writeJson, startBridge } from './helpers.mjs';
 import { createLocalStory } from '../bridge/stories/local-story.mjs';
 import { StoryStore } from '../bridge/stories/store.mjs';
 import { seenCheckout } from '../bridge/config/repos.mjs';
-import {
-  mainCheckout,
-  excludeStories,
-  readIndex,
-  adoptHomeStories,
-} from '../bridge/stories/placement.mjs';
-import { isStoryDir } from '../bridge/stories/meta.mjs';
+import { mainCheckout, excludeStories, readIndex } from '../bridge/stories/placement.mjs';
 
 const BIN = path.resolve(
   path.dirname(new URL(import.meta.url).pathname),
@@ -64,51 +58,19 @@ test("in a worktree, the story goes in the worktree and the exclude in the repo'
   assert.equal(realpathSync(mainCheckout(worktree)), realpathSync(repo));
 });
 
-test('a PR story published to ~/.diff-story moves into the repo checkout once it is known, and a new render follows', () => {
-  const home = tmp('home');
-  const { repo } = localRepo();
-  git(repo, 'remote', 'add', 'origin', 'https://github.com/acme/widgets.git');
-  githubStory(path.join(home, 'acme-widgets-7'));
-  writeJson(path.join(home, 'state', 'acme-widgets-7', 'ui.json'), { n: 2 });
-  const store = new StoryStore({ home, scratch: false });
-  assert.equal(
-    store.dirOf('acme-widgets-7'),
-    path.join(home, 'acme-widgets-7'),
-    'no checkout known: it stays put',
-  );
-
-  seenCheckout(home, 'acme/widgets', repo);
-  adoptHomeStories(home, { isStoryDir, force: true });
-  const inRepo = path.join(realpathSync(repo), '.diff-story', 'acme-widgets-7');
-  assert.ok(existsSync(path.join(inRepo, 'chapters.json')));
-  assert.ok(!existsSync(path.join(home, 'acme-widgets-7')));
-  assert.equal(store.dirOf('acme-widgets-7'), inRepo);
-  assert.equal(status(repo), '');
-  assert.ok(
-    existsSync(path.join(home, 'state', 'acme-widgets-7', 'ui.json')),
-    "its state didn't move",
-  );
-
-  githubStory(path.join(home, 'acme-widgets-7')); // pr-story renders again into ~/.diff-story
-  writeFileSync(
-    path.join(home, 'acme-widgets-7', 'chapters.json'),
-    JSON.stringify({ title: 'Re-rendered', chapters: [] }),
-  );
-  adoptHomeStories(home, { isStoryDir, force: true });
-  assert.equal(
-    JSON.parse(readFileSync(path.join(inRepo, 'chapters.json'), 'utf8')).title,
-    'Re-rendered',
-    'the newer render wins',
-  );
-  assert.ok(!existsSync(path.join(home, 'acme-widgets-7')));
-});
-
-test('diff-story publish writes into the checkout, and --root folders are read in place', async () => {
+test('diff-story publish writes into the checkout with the commits the story was told from', async () => {
   const home = tmp('home');
   const { repo } = localRepo();
   seenCheckout(home, 'acme/widgets', repo);
   const src = tmp('scratch');
   githubStory(src);
+  writeJson(path.join(src, 'pr.json'), {
+    url: 'https://github.com/acme/widgets/pull/7',
+    number: 7,
+    title: 'Add widgets',
+    headRefOid: 'b'.repeat(40),
+    baseRefOid: 'a'.repeat(40),
+  });
   const out = await new Promise((resolve) =>
     execFile(
       process.execPath,
@@ -119,12 +81,15 @@ test('diff-story publish writes into the checkout, and --root folders are read i
   );
   assert.equal(realpathSync(out), realpathSync(path.join(repo, '.diff-story', 'acme-widgets-7')));
   assert.equal(status(repo), '');
-
-  const root = tmp('root');
-  githubStory(path.join(root, 'acme-widgets-8'));
-  const store = new StoryStore({ home, roots: [root], scratch: false });
-  assert.equal(store.dirOf('acme-widgets-8'), path.join(root, 'acme-widgets-8'));
-  assert.ok(existsSync(path.join(root, 'acme-widgets-8')));
+  const meta = JSON.parse(readFileSync(path.join(out, 'meta.json'), 'utf8'));
+  assert.equal(meta.head_oid, 'b'.repeat(40), 'the head the story was told from is kept');
+  assert.equal(meta.base_oid, 'a'.repeat(40));
+  const store = new StoryStore({ home });
+  assert.equal(
+    realpathSync(store.dirOf('acme-widgets-7')),
+    realpathSync(out),
+    'the index finds it',
+  );
   assert.equal(
     excludeStories(tmp('not-a-repo')),
     false,

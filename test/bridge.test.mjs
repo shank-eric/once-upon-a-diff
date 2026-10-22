@@ -251,26 +251,38 @@ describe('GitHub stories', () => {
 });
 
 describe('story discovery', () => {
-  test('finds pr-story scratch folders, and the home copy wins over scratch', () => {
+  test('finds a story in the index or in home, and the indexed folder wins', () => {
     const home = tmp('home');
-    const scratch = tmp('scratch');
-    githubStory(path.join(scratch, 'proj', 'sess', 'scratchpad', 'pr-story', 'widgets-7'));
-    githubStory(path.join(scratch, 'proj', 'sess2', 'scratchpad', 'pr-story', 'acme-widgets-7'));
+    const checkout = tmp('checkout');
     githubStory(path.join(home, 'acme-widgets-7'));
-    const store = new StoryStore({ home, scratch: [scratch] });
+    githubStory(path.join(checkout, '.diff-story', 'acme-widgets-7'));
+    githubStory(path.join(home, 'widgets-9'));
+    writeJson(path.join(home, 'stories.json'), {
+      'acme-widgets-7': path.join(checkout, '.diff-story', 'acme-widgets-7'),
+    });
+    const store = new StoryStore({ home });
     const list = store.list();
-    assert.deepEqual(list.map((story) => story.id).sort(), ['acme-widgets-7', 'widgets-7']);
+    assert.deepEqual(list.map((story) => story.id).sort(), ['acme-widgets-7', 'widgets-9']);
     assert.equal(
       list.find((story) => story.id === 'acme-widgets-7').dir,
-      path.join(home, 'acme-widgets-7'),
+      path.join(checkout, '.diff-story', 'acme-widgets-7'),
     );
     assert.ok(store.find('acme/widgets', 7));
+  });
+  test('a folder with chapters.json but no meta.json is not a story', () => {
+    const home = tmp('home');
+    writeJson(path.join(home, 'scratch-copy', 'chapters.json'), { chapters: [] });
+    writeJson(path.join(home, 'scratch-copy', 'pr.json'), {
+      url: 'https://github.com/a/b/pull/1',
+      number: 1,
+    });
+    assert.deepEqual(new StoryStore({ home }).list(), []);
   });
   test('ignores folders without chapters.json', () => {
     const home = tmp('home');
     writeJson(path.join(home, 'state', 'x', 'ui.json'), {});
     writeJson(path.join(home, 'half', 'meta.json'), { kind: 'github' });
-    assert.deepEqual(new StoryStore({ home, scratch: false }).list(), []);
+    assert.deepEqual(new StoryStore({ home }).list(), []);
   });
 });
 

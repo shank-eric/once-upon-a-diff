@@ -97,10 +97,12 @@ test('a later chapter that points at a file\'s lines finishes it; "Since you rea
 test("the bridge adds referenced files to a GitHub story's chapters", () => {
   const home = tmp('refs-gh');
   const dir = path.join(home, 'acme-widgets-8');
-  writeJson(path.join(dir, 'pr.json'), {
-    url: 'https://github.com/acme/widgets/pull/8',
+  writeJson(path.join(dir, 'meta.json'), {
+    kind: 'github',
+    repo: 'acme/widgets',
     number: 8,
-    title: 'Refs',
+    url: 'https://github.com/acme/widgets/pull/8',
+    pr_title: 'Refs',
   });
   writeJson(path.join(dir, 'file-map.json'), {
     pr: 'acme/widgets#8',
@@ -119,7 +121,7 @@ test("the bridge adds referenced files to a GitHub story's chapters", () => {
       },
     ],
   });
-  const data = new StoryStore({ home, scratch: false }).load('acme-widgets-8');
+  const data = new StoryStore({ home }).load('acme-widgets-8');
   assert.deepEqual(
     data.chapters[1].files.map((file) => [file.rel, !!file.ref]),
     [
@@ -144,7 +146,7 @@ test("the bridge adds referenced files to a local story's chapters", () => {
       },
     ],
   });
-  const data = new StoryStore({ home, scratch: false }).load(made.id);
+  const data = new StoryStore({ home }).load(made.id);
   assert.ok(
     data.chapters[1].files.some((file) => file.rel === 'one.txt' && file.ref),
     'one.txt joins chapter 2',
