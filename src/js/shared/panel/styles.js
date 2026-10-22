@@ -11,6 +11,7 @@ export const documentCss = (hostId) => `
   html.${hostId}-docked body { margin-right: var(--ou-w) !important; }
   #${hostId} { all: initial; }
   [data-ou-hidden] { display: none !important; }
+  [data-ou-changing] { opacity: .45; transition: opacity .2s; }
   [data-ou-flash] { outline: 2px solid var(--fgColor-accent, #0969da) !important; outline-offset: 2px; border-radius: 6px; }
   tr[data-ou-flash] { outline: none !important; }
   tr[data-ou-flash] > td { background-color: var(--bgColor-attention-muted, #fff8c5) !important; box-shadow: inset 0 0 0 9999px rgba(212,167,44,.12); }
@@ -66,6 +67,16 @@ export const panelCss = (panelId) => `
     background: var(--c-bg); border: 1px solid var(--c-border); border-radius: 6px; padding: 6px 8px; }
   #${panelId} .ou-rebuild-btns { display: flex; gap: 8px; align-items: center; margin-top: 6px; }
   #${panelId} .ou-chg { font-size: 11px; color: var(--c-warn); margin-left: 4px; white-space: nowrap; }
+  #${panelId} .ou-beingchg { margin: 8px 0 0; padding: 6px 10px; border-left: 3px solid var(--c-warn); background: var(--c-subtle); border-radius: 0 6px 6px 0; font-size: 12px; }
+  #${panelId} .ou-chgby { font-size: 11px; color: var(--c-warn); margin-left: 4px; white-space: nowrap; }
+  #${panelId} ol.ou-map li.ou-changing, #${panelId} ul.ou-files > li.ou-changing { opacity: .6; }
+  #${panelId} .ou-fixtools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: -2px 0 8px; }
+  #${panelId} .ou-fixauto { font-size: 12px; color: var(--c-muted); display: inline-flex; gap: 4px; align-items: center; }
+  #${panelId} .ou-fixnote.ou-fx-sent { border-left: 3px solid var(--c-warn); padding-left: 8px; }
+  #${panelId} .ou-fixnote.ou-fx-fixed { opacity: .7; }
+  #${panelId} .ou-fixnote.ou-fx-fixed pre { max-height: 3em; overflow: hidden; }
+  #${panelId} .ou-fixedit { width: 100%; font: inherit; font-size: 13px; color: var(--c-fg); background: var(--c-bg); border: 1px solid var(--c-border); border-radius: 6px; padding: 5px 8px; resize: vertical; }
+  #${panelId} .ou-fixeditbtns { margin: 4px 0; }
   #${panelId} .ou-cstate .ou-cstale { color: var(--c-warn); }
   #${panelId} .ou-new { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: var(--c-accent); border: 1px solid currentColor; border-radius: 9px; padding: 0 5px; }
   #${panelId} .ou-since { margin: 10px 0; padding: 6px 10px; border-left: 3px solid var(--c-accent); background: var(--c-accent-bg); border-radius: 0 6px 6px 0; font-size: 12px; }

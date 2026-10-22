@@ -1,21 +1,21 @@
 ---
 name: once-upon-listen
-description: Listen for one repo's Once Upon a Diff requests from this Claude Code session, or for one story's questions and rebuilds. Answers questions typed in the panel's Ask box, builds stories asked for with Build story and re-tells ones asked for with Rebuild, on any PR or local story in that repo, until told to stop. Use when the user pastes or types /once-upon-listen <owner/repo> or /once-upon-listen --story <id>, the lines the panel's "Copy prompt for Claude" and "Copy prompt for this story" buttons copy.
+description: Listen for one repo's Once Upon a Diff requests from this Claude Code session, or for one story's questions, rebuilds and fix requests. Answers questions typed in the panel's Ask box, builds stories asked for with Build story, re-tells ones asked for with Rebuild and fixes the notes sent with Fix before push, on any PR or local story in that repo, until told to stop. Use when the user pastes or types /once-upon-listen <owner/repo> or /once-upon-listen --story <id>, the lines the panel's "Copy prompt for Claude" and "Copy prompt for this story" buttons copy.
 argument-hint: <owner/repo> | --story <id|owner/repo#N|PR number> [--consumer <name>]
 ---
 
 # Once Upon a Diff listen
 
-The panel's **Copy prompt for Claude** button copies `/once-upon-listen <owner/repo>`. The user pastes it into a Claude Code session opened in that repo's checkout. From then on this session is the repo's listener: the panel's light goes green, Ask-box questions on any of the repo's stories come here, and so do Build story requests on any of its PRs. Keep listening until the user says to stop.
+The panel's **Copy prompt for Claude** button copies `/once-upon-listen <owner/repo>`. The user pastes it into a Claude Code session opened in that repo's checkout. From then on this session is the repo's listener: the panel's light goes green, Ask-box questions on any of the repo's stories come here, and so do Build story requests on any of its PRs and fix requests (notes the reviewer sent from the panel's Fix before push). Keep listening until the user says to stop.
 
 The argument is `$ARGUMENTS`.
 
 - `owner/repo`: listen for that repo.
-- `--story <id>`: listen for one story's questions and its Rebuild requests only. The panel's **Copy prompt for this story** copies this, for the session that built the story, and so does the line once-upon's `build` prints. It takes the story id, `owner/repo#N`, a PR URL or a PR number in this checkout. Pass the same value to `wait`, which works out the id.
+- `--story <id>`: listen for one story's questions, Rebuild requests and fix requests only. The panel's **Copy prompt for this story** copies this, for the session that built the story, and so does the line once-upon's `build` prints. It takes the story id, `owner/repo#N`, a PR URL or a PR number in this checkout. Pass the same value to `wait`, which works out the id.
 - `--consumer <name>`: what the panel calls this session ("Answered by <name>"). The default is `repo-<owner>-<name>` or `story-<id>`.
 - Nothing: use the repo of this checkout's `origin`. If there isn't one, listen for everything (a `wait` with no `--repo`).
 
-**Who gets a question.** A live story listener gets its story's questions, and its Rebuild requests. A repo or catch-all listener leaves those alone while the story listener is live, and takes them once it isn't. No question or request is handed to two sessions, and a question the reviewer dismissed isn't handed over. Build story and Update requests stay with the repo's listener.
+**Who gets a question.** A live story listener gets its story's questions, its Rebuild requests and its fix requests. A repo or catch-all listener leaves those alone while the story listener is live, and takes them once it isn't. No question or request is handed to two sessions, and a question the reviewer dismissed isn't handed over. Build story and Update requests stay with the repo's listener.
 
 ## House rules
 
@@ -30,7 +30,7 @@ Follow them alongside the rules here, for answers and builds alike. They win whe
 ## Hard rules
 
 - Never write to GitHub. No comments, reviews, approvals, reactions or Viewed clicks. Comments are drafts, added to the panel with `<cli> comment` and never posted.
-- Never push, commit, check out a branch or change files in the checkout. Read old and new code with `git show <sha>:<path>`. If a commit is missing, `git fetch origin <sha>`, or fetch the PR head into `refs/tmp/pr-<N>` and delete that ref when done.
+- Never push or check out a branch. Don't commit or change files in the checkout, except for a fix request (step 6), and then only on the branch the checkout is already on. Read old and new code with `git show <sha>:<path>`. If a commit is missing, `git fetch origin <sha>`, or fetch the PR head into `refs/tmp/pr-<N>` and delete that ref when done.
 - When `gh_unset_github_token` is true in `~/.once-upon/config.json`, run `unset GITHUB_TOKEN` before any `gh` call, so gh's own login is used.
 - Verify before you claim. Say whether a problem was checked in the code or only suspected. Times in the user's time zone.
 
@@ -70,13 +70,13 @@ Then say in one line that you're listening for `owner/repo` (or for the story, a
 Run this with Bash's `run_in_background`:
 
 ```bash
-<cli> wait --repo <owner/repo> --type question,build_request --consumer repo-<owner>-<name>
+<cli> wait --repo <owner/repo> --type question,build_request,fix_request --consumer repo-<owner>-<name>
 ```
 
-`<owner>-<name>` is lowercased. With `--story <id>`, run `<cli> wait --story <id> --type question,build_request --consumer story-<id>` (or the `--consumer` name you were given). Its build requests are only that story's rebuilds (step 5). The wait writes the heartbeat the panel's light reads, blocks until something arrives, prints it and exits. The exit notification wakes this session. Then:
+`<owner>-<name>` is lowercased. With `--story <id>`, run `<cli> wait --story <id> --type question,build_request,fix_request --consumer story-<id>` (or the `--consumer` name you were given). Its build requests are only that story's rebuilds (step 5). The wait writes the heartbeat the panel's light reads, blocks until something arrives, prints it and exits. The exit notification wakes this session. Then:
 
 1. Read the task's output. It can hold several events. Handle each one, questions first.
-2. Start the same wait again as soon as you've handled them, or as soon as a build request arrives (step 5), so questions asked during a build still get answered.
+2. Start the same wait again as soon as you've handled them, or as soon as a build or fix request arrives (steps 5 and 6), so questions asked during one still get answered.
 3. Don't poll or sleep. If the wait exits with an error, show it, run `<cli> doctor`, and start it again once the cause is fixed.
 
 A consumer's first wait starts from now, so old questions aren't handed over again. Queued build requests are handed over whenever they were asked.
@@ -110,6 +110,19 @@ A request with `mode: "rebuild"` or `"rebuild_from"` is the panel's Rebuild: tel
 
 If a question arrives mid-build, answer it (step 4), then carry on with the build.
 
-## 6. Stop
+## 6. A fix request
 
-When the user says stop (or "stop listening", "that's all"), stop the background wait with TaskStop, finish or mark failed any build you've claimed, and say in one line that the repo has no listener now. The panel's light goes amber within ≈15 seconds. For a story listener, say instead that the story's questions go back to the repo's listener, if one is running.
+The reviewer collected fix-before-push notes in the panel and sent them (**Send N notes**, or Auto-send for one at a time). The event gives the request id, the story, the PR (or the local story's checkout and branch) and each note's id, `path:line` and text. The wait claimed it, so no other session gets it.
+
+1. Check the checkout. For a PR, `git branch --show-current` should be the PR's branch (the event's `branch`, else `gh pr view <N> --json headRefName`). For a local story, it's the event's checkout and branch. If it isn't, don't switch: run `<cli> fixed --request <id> --failed --note "this checkout is on <branch>, not <the PR's>"`, say so in one line, and go back to waiting. Also stop if the tree has changes you didn't make: report it the same way.
+2. Say what you'll change, before editing: `<cli> working --request <id> --files <path[:start-end]>,...` (line ranges when you know them). The panel dims those files and says "Being changed by <consumer>". Then start the wait again (step 3).
+3. Read each note in its chapter (step 4's way of finding the story) and the code around it. Make **one coherent change** that addresses the notes, matching the code around it. Run the checks the house rules or the repo name for the files you touched. On a long change, run `<cli> working --request <id>` every ≈10 minutes so the mark stays fresh, and run it with a new `--files` list if the change spreads.
+4. Commit it as the house rules (and the repo's own rules) say: one new commit, or an amend when they ask for that. Never push. If a note shouldn't be done as written (it's wrong, or it needs a decision), leave it out and say why.
+5. Report: `<cli> fixed --request <id> --sha <sha> --notes <the note ids it fixes> --note "<why for any left out>"` (leave `--notes` off when it fixes all of them). That clears the mark, the panel says "Fixed in <sha>" on each, and notes left out go back to the reviewer's drafts with the why. If nothing could be done, `<cli> fixed --request <id> --failed --note "<why>"`.
+6. In chat, say one line: the sha, which notes it fixes, and any left out.
+
+The same `working` command marks any other change you make to a story's files: `<cli> working --story <id> --files ...` before, and `<cli> working --story <id> --done <sha>` after.
+
+## 7. Stop
+
+When the user says stop (or "stop listening", "that's all"), stop the background wait with TaskStop, finish or mark failed any build you've claimed, report (or `--failed`) any fix request you've claimed, and say in one line that the repo has no listener now. The panel's light goes amber within ≈15 seconds. For a story listener, say instead that the story's questions go back to the repo's listener, if one is running.

@@ -223,7 +223,7 @@ describe('GitHub stories', () => {
     assert.equal(body.width, 500);
   });
 
-  test('viewed and notes are only for local stories', async () => {
+  test('viewed is only for local stories; fix-before-push notes are for PR stories too', async () => {
     assert.equal(
       (
         await bridge.call('POST', '/api/stories/acme-widgets-7/viewed', {
@@ -233,16 +233,13 @@ describe('GitHub stories', () => {
       ).status,
       400,
     );
-    assert.equal(
-      (
-        await bridge.call('POST', '/api/stories/acme-widgets-7/notes', {
-          path: 'src/a.js',
-          line: 1,
-          body: 'x',
-        })
-      ).status,
-      400,
-    );
+    const note = await bridge.call('POST', '/api/stories/acme-widgets-7/notes', {
+      path: 'src/a.js',
+      line: 1,
+      body: 'x',
+    });
+    assert.equal(note.status, 200);
+    assert.equal(note.body.state, 'draft');
   });
 });
 
@@ -412,10 +409,12 @@ describe('pulse', () => {
       assert.deepEqual(Object.keys(first).sort(), [
         'answering',
         'drafts_rev',
+        'fixes_rev',
         'listening',
         'questions_rev',
         'rebuild',
         'version',
+        'working_rev',
       ]);
       assert.equal(first.rebuild, null, 'no rebuild asked for');
       assert.equal(first.listening, false);

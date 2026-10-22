@@ -119,6 +119,14 @@ export function createFilesChangedPage() {
         act: (chapter, index, action) =>
           bodyOf(callBridge('POST', `${storyPath}/drafts`, { chapter, index, action })),
       },
+      // fix before push: notes to send to the session working the PR's branch, and what it says it's changing
+      fixes: {
+        load: () => bodyOf(callBridge('GET', `${storyPath}/fixes`)),
+        act: (body) => bodyOf(callBridge('POST', `${storyPath}/fixes`, body)),
+        note: (noteId, changes) =>
+          bodyOf(callBridge('POST', `${storyPath}/notes/${encodeURIComponent(noteId)}`, changes)),
+      },
+      working: () => bodyOf(callBridge('GET', `${storyPath}/working`)),
       reads: () => bodyOf(callBridge('GET', `${storyPath}/read`)),
       freshness: () => bodyOf(callBridge('GET', `${storyPath}/freshness`)),
       requestUpdate: (base, { retell = false } = {}) =>

@@ -1,9 +1,9 @@
 /*
  * Drafted comments: each chapter's, and the Overview's list of all of them,
  * with their state from opts.drafts: posted, in the reviewer's pending review,
- * dismissed, a local story's fix-before-push note, or still a draft. The
- * buttons are Copy, Dismiss, Restore, Add to my review (GitHub) and Add to
- * fix before push (a local story), and on a PR's Overview, Copy as gh script
+ * dismissed, a fix-before-push note (and whether it's sent or fixed), or still
+ * a draft. The buttons are Copy, Dismiss, Restore, Add to my review (GitHub)
+ * and Add to fix before push (with opts.fixes), and on a PR's Overview, Copy as gh script
  * (review-script.js) for every draft still to post. Posted is what gh finds
  * on the PR.
  *
@@ -28,7 +28,7 @@ export function draftView(row, { pageAt = 0, onPage = false } = {}) {
     return { show: 'dismissed', settle: false };
   }
   if (draft.fix) {
-    return { show: 'fix', settle: false }; // a local story's draft that's now a fix-before-push note
+    return { show: 'fix', settle: false }; // a draft that's now a fix-before-push note
   }
   const known = draft.status === 'posted' || draft.status === 'pending' ? draft.status : 'draft';
   if (!draft.added) {
@@ -75,6 +75,16 @@ const SCRIPT_TITLE =
   'nothing is posted until you run it, and the review stays unsubmitted until you submit it on GitHub.';
 const githubLink = (url) =>
   ` · <a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">view on GitHub</a>`;
+/** How far a draft's fix-before-push note has got: sent to a session, fixed in a commit, or ticked done. */
+function fixProgress(fix) {
+  if (fix.state === 'fixed') {
+    return ` · <span class="ou-ok">fixed in ${escapeHtml(String(fix.sha || '').slice(0, 7))} ✓</span>`;
+  }
+  if (fix.state === 'sent') {
+    return ` · sent to ${escapeHtml(fix.sent_to || 'the next Claude session')}`;
+  }
+  return fix.done ? ' · <span class="ou-ok">done ✓</span>' : '';
+}
 const lineJump = (rel, side, line) =>
   `<button class="ou-linkish" ${refAttrs(rel, { side: side === 'L' ? 'L' : 'R', start: Number(line), end: Number(line) })}>Jump to line ${escapeHtml(line)}</button>`;
 
@@ -186,6 +196,9 @@ export function createDrafts(context) {
       loadedAt = Date.now();
       if (adding) {
         reviewErrors.delete(key);
+      }
+      if (action === 'fix') {
+        context.fixes.refresh(); // it's in Fix before push now
       }
       if (action === 'review' && result.added) {
         shell.message(
@@ -303,7 +316,7 @@ export function createDrafts(context) {
       el.classList.add('ou-c-done', 'ou-c-pending');
       stateLine.hidden = false;
       const jump = lineJump(row.fix.path, row.fix.side, row.fix.line);
-      stateLine.innerHTML = `<span class="ou-pend">In fix before push</span>${row.fix.done ? ' · <span class="ou-ok">done ✓</span>' : ''} · ${jump}`;
+      stateLine.innerHTML = `<span class="ou-pend">In fix before push</span>${fixProgress(row.fix)} · ${jump}`;
     } else if (view.show === 'posted') {
       el.classList.add('ou-c-done');
       el.hidden = !state.showPosted;
@@ -350,11 +363,11 @@ export function createDrafts(context) {
         "Not a comment you want: hide it, and don't suggest it again",
       );
       const onLine = comment && comment.path && Number(comment.line) > 0 && !unmapped;
-      if (data.kind === 'local' && onLine) {
+      if (opts.fixes && onLine) {
         addButton(
           'fix',
           'Add to fix before push',
-          'Makes it a fix-before-push note on its line, in the checklist and in `once-upon notes`',
+          'Makes it a fix-before-push note on its line, to send to the Claude session working the branch with the others',
         );
         showError();
       }

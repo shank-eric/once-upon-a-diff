@@ -97,6 +97,7 @@ export function createFilter(context) {
     };
     renderNote();
     context.viewed.render();
+    context.working.dimPage(); // GitHub re-renders blocks as you scroll
     if (opts.onFilter) {
       opts.onFilter({ n: state.n, all: showAll });
     }

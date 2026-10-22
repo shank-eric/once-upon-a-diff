@@ -8,7 +8,8 @@
  * answering until it starts the next wait. A listener counts as live when a
  * waiting beat is under 15s old and its process is alive, or a handling beat
  * is under 10 minutes old. A beat also says what the wait covers: {repo} for
- * `wait --repo`, {story} for `wait --story`, neither for a wait that takes everything.
+ * `wait --repo`, {story} for `wait --story`, neither for a wait that takes everything, and {fixes: true} when
+ * it takes fix requests (../inbox/fixes.mjs).
  * A story's own listener answers its questions ahead of a repo's (answeringOf).
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -39,6 +40,23 @@ export function beat(home, consumer, state = 'waiting', extra = {}) {
   );
 }
 
+/**
+ * A session still at work on what its wait handed it (`once-upon working`) keeps its handling beat fresh, so its
+ * listener stays live past HANDLING_FRESH_MS. A waiting beat is left alone: that wait writes its own.
+ */
+export function touchHandling(home, consumer) {
+  const safe = String(consumer || 'default').replace(/[^A-Za-z0-9._-]/g, '_');
+  const file = path.join(home, 'listeners', `${safe}.json`);
+  try {
+    const last = JSON.parse(readFileSync(file, 'utf8'));
+    if (last.state === 'handling') {
+      writeFileSync(file, JSON.stringify({ ...last, at: new Date().toISOString() }));
+    }
+  } catch {
+    /* no listener by that name */
+  }
+}
+
 /** [{consumer, state, at, age_s, live}] newest first. */
 export function listeners(home, now = Date.now()) {
   const dir = path.join(home, 'listeners');
@@ -64,6 +82,7 @@ export function listeners(home, now = Date.now()) {
         repo: beat.repo || null,
         story: beat.story || null,
         builds: !!beat.builds,
+        fixes: !!beat.fixes,
       });
     } catch {
       /* a half-written beat; skip it */
@@ -113,7 +132,7 @@ export function listenPrompt(
     waitFor = ` --repo ${repo}`;
   } else if (story) {
     arg = ` --story ${story}`;
-    waitFor = ` --story ${story} --type question,build_request`;
+    waitFor = ` --story ${story} --type question,build_request,fix_request`;
   }
   const wait = `${cli} wait${waitFor}`;
   let where = 'Run';
@@ -128,6 +147,9 @@ export function listenPrompt(
   } else if (story) {
     builds = `For a build request (the panel's Rebuild), rebuild the story with /once-upon as its "Rebuilding a story" section says; publishing it finishes the request. `;
   }
+  const fixes =
+    `For a fix request, make one change that addresses its notes, commit it as my repo rules say, never push, and run \`${cli} fixed --request <id> --sha <sha>\`; ` +
+    `say which files you're changing first with \`${cli} working --story <story> --files <a,b>\`. `;
   return {
     repo,
     story: repo ? null : story,
@@ -136,7 +158,7 @@ export function listenPrompt(
     command: wait,
     details:
       `${where} \`${wait}\` as a background task, and start it again each time it exits. For a question, answer it and run \`${cli} answer --question <id> --text "<answer>"\`. ` +
-      `${builds}Keep going until I say stop.`,
+      `${builds}${fixes}Keep going until I say stop.`,
   };
 }
 

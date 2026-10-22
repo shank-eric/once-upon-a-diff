@@ -12,6 +12,7 @@ import { inboxCommands } from './commands/inbox.mjs';
 import { draftCommands } from './commands/drafts.mjs';
 import { buildCommands } from './commands/builds.mjs';
 import { checkCommands } from './commands/checks.mjs';
+import { fixCommands } from './commands/fixes.mjs';
 
 const COMMANDS = new Map(
   [
@@ -21,6 +22,7 @@ const COMMANDS = new Map(
     ...draftCommands,
     ...buildCommands,
     ...checkCommands,
+    ...fixCommands,
   ].map((command) => [command.name, command]),
 );
 
@@ -41,6 +43,8 @@ const HELP_ORDER = [
   'done',
   'answer',
   'notes',
+  'working',
+  'fixed',
 ];
 
 /** Every command the table has, and the help's order, so a test can check they match. */

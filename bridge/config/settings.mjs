@@ -7,7 +7,8 @@
  *     prefs.json                   page settings that hold across stories and restarts: {hideWhitespace, diffView}
  *     inbox.jsonl                  questions, notes and answers, one JSON object a line
  *     cursors/<consumer>.json      how far each reader (a Claude session, a hook) has read the inbox
- *     state/<story id>/            what the bridge records per story: ui.json, position.json, viewed.json, notes.json
+ *     state/<story id>/            what the bridge records per story: ui.json, position.json, viewed.json, notes.json,
+ *                                  fix-settings.json, working.json
  *     <owner>-<repo>-<N>/          a story once-upon published (chapters.json, file-map.json, meta.json)
  *     local-<repo>-<branch>/       a local-commits story made by `once-upon local`
  */

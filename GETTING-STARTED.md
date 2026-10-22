@@ -101,6 +101,7 @@ Then, in the panel:
 - **Ask.** Type a question and press **Cmd+Enter**. The listening session answers it from the story and the code, and the answer shows under the question with the session that gave it. The line under the Ask box says who's answering. **Copy prompt for this story** copies `/once-upon-listen --story <id>` for the session that built the story, which then answers this story's questions ahead of the repo's listener.
 - **Tidy the questions.** ▾ collapses an exchange to its question, **Dismiss** hides one, and **Clear conversation** hides them all, with **Undo** for a few seconds and **Show dismissed** after that. They stay that way after a reload.
 - **Draft comments.** Comments Claude drafts show in the chapter's Draft comments. On a line comment, **Add to my review** puts it in your pending GitHub review (starting one if needed) and never submits it. **Dismiss** hides one you don't want, and a draft you post shows as posted once gh finds it. On the Overview, **Copy as gh script** copies a script that puts all the line drafts still to post into one pending review with `gh api`. It only copies, and the review isn't submitted until you submit it.
+- **Fix before push.** **Add to fix before push** on a line comment makes it a note for the session to fix instead. Notes collect as drafts you can edit or remove, until **Send N notes to <session>** hands them over as one request. The session makes one change, commits it as your house rules say (never pushing), and the notes then say "Fixed in <sha>". **Auto-send** sends each note as you add it. While a session works, the files it's changing are dimmed with "Being changed by <session>".
 - **Hide whitespace** is GitHub's own setting, and the extension remembers it across PRs. On GitHub, use GitHub's own split view. The local page (step 10) has its own **Hide whitespace** and **Unified / Split** in its header.
 
 Tell the session "stop" when you're done. Run one listener per repo, each in its own session.
@@ -111,7 +112,7 @@ Tell the session "stop" when you're done. Run one listener per repo, each in its
 once-upon local --repo <checkout> --base <ref>
 ```
 
-This tells the story of `git diff <base> HEAD` (`--head` picks another end) on a page the bridge serves, and starts a bridge if none is running. Without `--chapters <file>` you get one chapter per top-level folder as a starting point. The same panel runs on the page. Click a line number to add a "fix before push" note, and `once-upon notes --story <id>` prints them as a checklist. The page redraws when you amend or add a commit.
+This tells the story of `git diff <base> HEAD` (`--head` picks another end) on a page the bridge serves, and starts a bridge if none is running. Without `--chapters <file>` you get one chapter per top-level folder as a starting point. The same panel runs on the page. Click a line number to add a "fix before push" note. The panel's **Fix before push** box sends them to the listening session, and `once-upon notes --story <id>` prints them as a checklist. The page redraws when you amend or add a commit.
 
 ## Where stories live
 

@@ -1,7 +1,7 @@
 /**
  * The bridge: a small HTTP server on 127.0.0.1 that serves stories to the
  * extension and the local page, and writes what the panel sends (questions,
- * position, viewed files, notes) to the inbox and the story's state folder.
+ * position, viewed files, notes, fix requests) to the inbox and the story's state folder.
  *
  * Guard rails:
  *   - binds 127.0.0.1 only, and answers only when the Host header is
@@ -34,8 +34,9 @@ import { storyRoutes } from './routes/story.mjs';
 import { draftRoutes } from './routes/drafts.mjs';
 import { readRoutes } from './routes/reads.mjs';
 import { localStoryRoutes } from './routes/local-story.mjs';
+import { fixRoutes } from './routes/fixes.mjs';
 
-export { relOfDraft } from './routes/local-story.mjs';
+export { relOfDraft } from '../inbox/fixes.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const VERSION = JSON.parse(
@@ -51,6 +52,7 @@ const STORY_ROUTES = [
   ...draftRoutes,
   ...readRoutes,
   ...localStoryRoutes,
+  ...fixRoutes,
 ];
 const STORY_PATH = /^\/api\/stories\/([^/]+)(?:\/([a-z]+)(?:\/([^/]+))?)?$/;
 const EXTENSION_ORIGIN = /^chrome-extension:\/\/[a-p]{32}$/;

@@ -1,7 +1,9 @@
 /*
  * Fix-before-push notes: drawn under their line in the diff (or at the top
  * of the file when the diff doesn't draw that line), listed under the top
- * bar, and written in a small form opened from a line number.
+ * bar, and written in a small form opened from a line number. The panel's
+ * Fix before push sends them to a Claude session; a sent note says where it
+ * went and can't be deleted here.
  */
 import { escapeHtml } from '/assets/util/html.js';
 import { page, api, STORY_PATH } from './page.js';
@@ -9,6 +11,14 @@ import { columnCount } from './diff-view.js';
 
 const placeOf = (note) =>
   `${note.path}${note.line ? `:${note.side === 'L' ? 'L' : ''}${note.line}` : ''}`;
+
+/** Where a note has got, once the panel's Fix before push sent it: '' for a draft. */
+function sentText(note) {
+  if (note.fixed) {
+    return `fixed in ${String(note.fixed.sha || '').slice(0, 7)}`;
+  }
+  return note.sent ? `sent to ${note.sent.to || 'the next Claude session'}` : '';
+}
 
 function notesListHtml() {
   const { notes } = page.story.local;
@@ -21,11 +31,11 @@ function notesListHtml() {
         `<li class="${note.done ? 'ds-done' : ''}"><label>` +
         `<input type="checkbox" data-note-done="${escapeHtml(note.id)}"${note.done ? ' checked' : ''}> ` +
         `<a href="#" data-note-goto="${escapeHtml(note.id)}"><code>${escapeHtml(placeOf(note))}</code></a></label> ` +
-        `${escapeHtml(note.body)}</li>`,
+        `${escapeHtml(note.body)}${sentText(note) ? ` <span class="ds-muted">(${escapeHtml(sentText(note))})</span>` : ''}</li>`,
     )
     .join('');
   return `<ul>${items}</ul>
-    <p class="ds-muted">Also in the terminal: <code>once-upon notes --story ${escapeHtml(page.story.id)}</code></p>`;
+    <p class="ds-muted">Send them to a Claude session from the panel's Fix before push. Also in the terminal: <code>once-upon notes --story ${escapeHtml(page.story.id)}</code></p>`;
 }
 
 function noteRow(note, away) {
@@ -36,7 +46,7 @@ function noteRow(note, away) {
     <div class="ds-note-head"><b>Fix before push</b><span class="ds-muted">${escapeHtml(new Date(note.at).toLocaleString())}</span>
       ${awayNote}
       <label><input type="checkbox" data-note-done="${escapeHtml(note.id)}"${note.done ? ' checked' : ''}> done</label>
-      <button type="button" data-note-delete="${escapeHtml(note.id)}">Delete</button></div>
+      ${sentText(note) ? `<span class="ds-muted">${escapeHtml(sentText(note))}</span>` : `<button type="button" data-note-delete="${escapeHtml(note.id)}">Delete</button>`}</div>
     <div class="ds-note-body">${escapeHtml(note.body)}</div></div></td></tr>`;
 }
 
@@ -106,6 +116,9 @@ export function openEditor(cell) {
       page.story.local.notes.push(note);
       form.closest('tr').remove();
       placeNotes();
+      if (page.overlay) {
+        page.overlay.refreshFixes(); // the panel's Fix before push lists it (and says if Auto-send sent it)
+      }
     } catch (err) {
       alert(`Couldn't save the note: ${err.message}`);
     }

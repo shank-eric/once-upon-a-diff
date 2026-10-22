@@ -30,6 +30,22 @@ export function describe(entry) {
   if (entry.type === 'answer') {
     return `[${when}] answer to ${entry.question}\n${entry.text}`;
   }
+  if (entry.type === 'fix_request') {
+    const notes = (entry.notes || []).map(
+      (note) => `- ${note.id} ${notePlace(note)}: ${note.body}`,
+    );
+    const what =
+      entry.kind === 'local' ? `local story ${entry.story}` : `${entry.repo} ${entry.url}`;
+    return [
+      `[${when}] fix request ${entry.id} (${entry.story}): ${notes.length} note${notes.length === 1 ? '' : 's'} to fix before push on ${what}`,
+      ...(entry.checkout ? [`checkout: ${entry.checkout}`] : []),
+      ...notes,
+    ].join('\n');
+  }
+  if (entry.type === 'fix') {
+    const sha = entry.sha ? ` in ${entry.sha}` : '';
+    return `[${when}] fix request ${entry.request} ${entry.action}${sha} (${entry.story})`;
+  }
   if (entry.type === 'note') {
     return `[${when}] note ${entry.action} (${entry.story}) ${notePlace(entry.note)}${entry.note.done ? ' [done]' : ''}\n${entry.note.body}`;
   }
