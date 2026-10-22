@@ -64,6 +64,10 @@ export const panelCss = (panelId) => `
   #${panelId} .ou-since { margin: 10px 0; padding: 6px 10px; border-left: 3px solid var(--c-accent); background: var(--c-accent-bg); border-radius: 0 6px 6px 0; font-size: 12px; }
   #${panelId} .ou-askhint { padding: 6px 10px 0; font-size: 12px; color: var(--c-warn); background: var(--c-subtle); border-top: 1px solid var(--c-border); }
   #${panelId} .ou-askhint code { font-size: 11px; }
+  #${panelId} .ou-askwho { padding: 6px 10px 0; font-size: 12px; color: var(--c-muted); background: var(--c-subtle); border-top: 1px solid var(--c-border); }
+  #${panelId} .ou-askhint:not([hidden]) + .ou-askwho { border-top: 0; }
+  #${panelId} .ou-askwho .ou-copystory { margin-left: 4px; }
+  #${panelId} .ou-askwho .ou-prompt { white-space: pre-wrap; word-break: break-all; font-size: 11px; margin: 4px 0 0; color: var(--c-fg); }
   #${panelId} .ou-askhint .ou-copyprompt { margin-left: 4px; }
   #${panelId} .ou-askhint .ou-promptmore { border: 0; background: none; padding: 0 2px; color: var(--c-accent, inherit); text-decoration: underline; cursor: pointer; font-size: 11px; }
   #${panelId} .ou-askhint .ou-promptlong, #${panelId} .ou-askhint .ou-prompt { white-space: pre-wrap; word-break: break-all; font-size: 11px; margin: 4px 0 0; color: var(--c-fg); }
@@ -144,9 +148,18 @@ export const panelCss = (panelId) => `
   #${panelId} .ou-empty { color: var(--c-muted); font-style: italic; }
   #${panelId} .ou-quiet { color: var(--c-muted); font-size: 12px; margin: 4px 0 8px; }
   #${panelId} .ou-qa { margin: 0 0 12px; padding: 8px 10px; border: 1px solid var(--c-border); border-radius: 6px; }
-  #${panelId} .ou-qa .ou-q { font-weight: 600; white-space: pre-wrap; }
+  #${panelId} .ou-qa .ou-qhead { display: flex; gap: 4px; align-items: flex-start; }
+  #${panelId} .ou-qa .ou-q { flex: 1; min-width: 0; font-weight: 600; white-space: pre-wrap; }
+  #${panelId} .ou-qa-collapsed { padding: 4px 10px; margin-bottom: 6px; }
+  #${panelId} .ou-qa-collapsed .ou-q { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #${panelId} .ou-qa-dismissed { opacity: .6; }
+  #${panelId} .ou-qa .ou-qtoggle { border: 0; background: none; padding: 0 2px; color: var(--c-muted); font-size: 13px; line-height: 18px; cursor: pointer; }
   #${panelId} .ou-qa .ou-qmeta { font-size: 11px; color: var(--c-muted); }
+  #${panelId} .ou-qa .ou-aby { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--c-border); font-size: 11px; color: var(--c-muted); }
   #${panelId} .ou-qa .ou-a { margin-top: 6px; padding-top: 6px; border-top: 1px dashed var(--c-border); }
+  #${panelId} .ou-qa .ou-aby + .ou-a { margin-top: 2px; padding-top: 0; border-top: 0; }
+  #${panelId} .ou-qtools { margin: -2px 0 8px; }
+  #${panelId} .ou-qundo { margin: 0 0 8px; font-size: 12px; color: var(--c-muted); }
   #${panelId} .ou-qa .ou-wait { margin-top: 4px; font-size: 12px; color: var(--c-muted); font-style: italic; }
   #${panelId} button.ou-linkish { border: 0; background: none; padding: 0 2px; color: var(--c-muted); font-size: 11px; text-decoration: underline dotted; }
   #${panelId} button.ou-linkish:hover { color: var(--c-accent); }
@@ -154,7 +167,7 @@ export const panelCss = (panelId) => `
   #${panelId} .ou-ask textarea { flex: 1; min-height: 34px; max-height: 160px; resize: vertical; font: inherit; font-size: 13px; color: var(--c-fg);
     background: var(--c-bg); border: 1px solid var(--c-border); border-radius: 6px; padding: 5px 8px; }
   #${panelId} .ou-ask.ou-off { display: none; }
-  #${panelId}.ou-collapsed .ou-ask, #${panelId}.ou-collapsed .ou-note, #${panelId}.ou-collapsed .ou-body, #${panelId}.ou-collapsed .ou-grip, #${panelId}.ou-collapsed .ou-bar > :not(.ou-toggle) { display: none; }
+  #${panelId}.ou-collapsed .ou-ask, #${panelId}.ou-collapsed .ou-askwho, #${panelId}.ou-collapsed .ou-note, #${panelId}.ou-collapsed .ou-body, #${panelId}.ou-collapsed .ou-grip, #${panelId}.ou-collapsed .ou-bar > :not(.ou-toggle) { display: none; }
   #${panelId}.ou-collapsed .ou-bar { flex-direction: column; height: 100%; padding: 8px 4px; border: 0; }
   #${panelId}.ou-collapsed .ou-toggle { writing-mode: vertical-rl; padding: 8px 3px; }
   `;

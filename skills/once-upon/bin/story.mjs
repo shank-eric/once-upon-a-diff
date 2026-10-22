@@ -249,7 +249,8 @@ async function cmdBuild(opts) {
  * commits it was told from, to where the bridge serves it (the repo's
  * checkout when it knows one, else ONCE_UPON_HOME). The extension then shows
  * the panel on the PR page by itself, and picks up each rebuild within a few
- * seconds.
+ * seconds. It also prints the story id, and the line that makes this session
+ * the story's own listener.
  */
 async function cmdPublish(opts) {
   const dest = execFileSync(
@@ -258,6 +259,10 @@ async function cmdPublish(opts) {
     { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] },
   ).trim();
   process.stderr.write(`Once Upon a Diff: ${dest}\n`);
+  // this session can keep answering the story's questions, ahead of the repo's listener
+  process.stderr.write(
+    `Story ${path.basename(dest)}. To answer its panel questions from this session: /once-upon-listen --story ${path.basename(dest)}\n`,
+  );
 }
 
 const COMMANDS = {

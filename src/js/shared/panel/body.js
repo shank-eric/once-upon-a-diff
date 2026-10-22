@@ -162,6 +162,10 @@ export function createBody(context) {
         actButton.getAttribute('data-draft-act'),
       );
     }
+    const questionButton = target.closest('[data-qa-act]');
+    if (questionButton) {
+      return context.questions.act(questionButton);
+    }
     const showButton = target.closest('[data-draft-show]');
     if (showButton) {
       const key = showButton.getAttribute('data-draft-show');

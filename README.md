@@ -44,7 +44,7 @@ There are two quick ways to check.
 **The light in the panel header.** It's the dot left of "Hide story". Hover it for a summary, or click it for details and fixes.
 
 - **Green:** the bridge is reachable and accepts the token, the story was found, and a Claude session is listening for questions.
-- **Amber:** everything works, but no Claude session is listening for this page's repo. The Ask box still queues questions and says they'll wait. Listeners are per repo: a session that runs `once-upon wait --repo owner/name` takes questions and build requests for that repo's stories and PRs, and nothing else. A wait with no `--repo` takes everything, and `--story <id>` still works for one story. Under the Ask box, and beside **Build story**, **Copy prompt for Claude** copies one line, `/once-upon-listen owner/name`, for the once-upon-listen skill. The page says which checkout to start Claude Code in when the bridge knows one, and **show details** (or the button's hover) gives the long form for a session without the skill. The bridge learns a repo's checkout from local stories and from where `wait --repo` was run (`~/.once-upon/checkouts.json`), and otherwise looks for `~/Development/<name>` with that origin.
+- **Amber:** everything works, but no Claude session is listening for this page's repo. The Ask box still queues questions and says they'll wait. Listeners are per repo: a session that runs `once-upon wait --repo owner/name` takes questions and build requests for that repo's stories and PRs, and nothing else. A wait with no `--repo` takes everything, and `--story <id>` takes one story's questions ahead of the repo's listener (see [One story, one session](#one-story-one-session)). Under the Ask box, and beside **Build story**, **Copy prompt for Claude** copies one line, `/once-upon-listen owner/name`, for the once-upon-listen skill. The page says which checkout to start Claude Code in when the bridge knows one, and **show details** (or the button's hover) gives the long form for a session without the skill. The bridge learns a repo's checkout from local stories and from where `wait --repo` was run (`~/.once-upon/checkouts.json`), and otherwise looks for `~/Development/<name>` with that origin.
 - **Red:** the bridge is down, too old for the panel, or rejects the token.
 
 "Listening" is a heartbeat. `once-upon wait` writes `~/.once-upon/listeners/<consumer>.json` every ≈5s, and a beat under 15s old from a live process counts. After `wait` hands a question over, the listener counts for up to 10 minutes as "answering", until the session starts the next wait.
@@ -66,7 +66,7 @@ It exits 1 when something fails.
 /once-upon-listen octo-org/web-app
 ```
 
-`/once-upon-listen --story <id>` listens for one story, for a local story with no GitHub origin. The session then:
+`/once-upon-listen --story <id>` listens for one story: see [One story, one session](#one-story-one-session). The repo form's session then:
 
 1. Finds the CLI: `once-upon` on `PATH`, else `node <repo>/bridge/bin/once-upon.mjs`, with `<repo>` from the `ONCE_UPON_REPO` env var, `repo_dir` in `~/.once-upon/config.json` (both read only by the skill), or the folder the skill is linked from.
 2. Runs `once-upon doctor`. If nothing is listening on the bridge's port, it starts the bridge detached, so it keeps running after the session ends, and waits for it to answer. If something else has the port, it says so and stops.
@@ -77,6 +77,20 @@ It exits 1 when something fails.
 
 It never posts to GitHub, marks files viewed or pushes. Comments it drafts go to the panel's Draft comments only. Run one listener per repo, each in its own session.
 
+### One story, one session
+
+The session that built a story knows it best, so it can keep answering that story's questions while a repo listener takes everything else. In that session, run:
+
+```
+/once-upon-listen --story octo-org-web-app-42
+```
+
+`--story` takes the story id (`once-upon list`, or the line `build` prints after publishing), `owner/repo#N`, a PR URL, or a bare PR number in the session's checkout. Underneath it's `once-upon wait --story <id> --type question --consumer story-<id>`. The once-upon skill offers this at the end of a build, and starts it when you've asked it to keep listening.
+
+**The routing rule.** A question goes to a live listener for its story when there is one. A repo-wide or catch-all wait leaves that story's questions alone while the story listener is live, and takes them once it isn't (its beat goes stale, or its process is gone), including any it left waiting. A question handed to one session is never handed to another, and a dismissed one isn't handed over at all. A story listener takes only questions. Build and update requests still go to the repo's listener. `~/.once-upon/handed.json` records which session each question went to.
+
+The panel says who's answering, on the line under the Ask box: "Answered by furnace-10, the session listening for this story", or the repo listener's name with **Copy prompt for this story**, which copies `/once-upon-listen --story <id>` to paste into the session that built it. Each answer is labelled "Answered by" and the consumer. The name is the wait's `--consumer`, so pass your own (say `--consumer furnace-10`) to tell sessions apart.
+
 ## Using it on a PR
 
 1. Make a story with the once-upon skill. Its `build` step publishes it with `once-upon publish --dir <D>`, which you can also run yourself: `chapters.json`, `file-map.json` and a `meta.json` naming the PR and the commit it was told from go into the repo's checkout (below), or `~/.once-upon/<owner>-<repo>-<N>/` when the bridge knows no checkout.
@@ -84,7 +98,8 @@ It never posts to GitHub, marks files viewed or pushes. Comments it drafts go to
 3. Prev and Next (or the Steps list) filter the diff to a chapter. "Show all files" undoes the filter.
 4. To hide the panel, use **Hide story** (it collapses to a strip) or **×** (it goes away and that's remembered for the PR). The toolbar button or **Alt+Shift+S** shows or hides it.
 5. **Hide whitespace is remembered.** It's the same setting as the local page's (`prefs.json` through the bridge, with a copy in `chrome.storage` for when the bridge is down). When it's on, opening a PR's Files changed page without `?w=` reloads it once with `?w=1`, keeping the hash and the panel's step. Turning GitHub's own whitespace setting on or off there (`w=1`, `w=0`, or `w=1` dropping off the same page) saves the new choice. If GitHub drops the `w=1` it was sent, the page isn't reloaded again for 15 seconds, so it can't loop.
-6. Type a question in the Ask box and press **Cmd+Enter**. The question goes to the bridge inbox, and the answer shows under it once a Claude session replies (see [Q&A relay](#qa-relay)).
+6. Type a question in the Ask box and press **Cmd+Enter**. The question goes to the bridge inbox, and the answer shows under it once a Claude session replies (see [Q&A relay](#qa-relay)), labelled with the session that answered.
+7. **Tidy the conversation.** Each exchange has a ▾ to collapse it to its question line (▸ opens it again) and a **Dismiss** to hide it. **Clear conversation**, over the questions, dismisses every question in the story, on every step. After a Dismiss or a Clear, **Undo** shows for 15 seconds, and **Show dismissed (N)** lists them with **Restore** after that. The bridge keeps these marks per story in `state/<id>/questions.json`, so they hold after a reload, in other tabs and on the next poll, and a dismissed question that no session has picked up yet won't be handed to one.
 
 **File and line links open what they point at.** Clicking a file name or a `path:40-58` line link in the panel scrolls to it and highlights it. If GitHub has the file collapsed (Viewed files and large ones collapse), the click expands it with the file's own toggle, or **Load diff**, and expanding never unmarks Viewed. For a line outside the hunks GitHub drew, it clicks GitHub's expand arrows above or below the hunk until the line is on the page (or **Expand all lines** when the line is far away), on `/changes` and classic `/files` alike. GitHub fetches those lines with the page's own settings, so `?w=1` stays and nothing reloads. This happens only when you click a link: changing steps, reloads and redraws never expand anything, and the panel never clicks comment or review controls, or Viewed except through a file's own **Mark viewed** button. A line that isn't in the file at all jumps to the nearest drawn line and says so.
 
@@ -238,11 +253,12 @@ The bridge also checks each request:
 | `GET /api/status?story=ID` | the status light: the bridge, the story, and whether a Claude session is listening |
 | `GET /api/stories/:id` | the panel's data, plus the diff, viewed files and notes for a local story |
 | `GET /api/stories/:id/version` | changes when the story or (for local) the commits change |
-| `GET /api/stories/:id/pulse` | `{version, questions_rev, drafts_rev, listening}`, one poll for what the panel watches. A field changes when that thing does. `drafts_rev` covers the drafts and your marks, not what's on GitHub |
+| `GET /api/stories/:id/pulse` | `{version, questions_rev, drafts_rev, listening, answering}`, one poll for what the panel watches. A field changes when that thing does. `drafts_rev` covers the drafts and your marks, not what's on GitHub |
 | `GET`/`POST /api/stories/:id/ui` | the panel's step, width, collapsed and hidden state (the local page uses this, and the extension keeps its own in `chrome.storage`) |
 | `POST /api/stories/:id/position` | `{step, chapter, file}`, written to `state/<id>/position.json` |
 | `GET`/`POST /api/stories/:id/read` | the chapters you've read, each with the commit it was read at, and where an update would start (`since`); or record one: `{chapter, step, reason, seconds, head_sha}` |
-| `GET`/`POST /api/stories/:id/questions` | ask a question, or list them with their answers (`once-upon answer` adds one) |
+| `GET`/`POST /api/stories/:id/questions` | ask a question, or list them with their answers (`once-upon answer` adds one), each marked `dismissed`, `collapsed` and `handed_to`, and each answer with `by` |
+| `POST /api/stories/:id/questions/marks` | `{action, ids}`: `dismiss`, `restore`, `collapse` or `expand` those questions, or `{action: 'clear'}` to dismiss every one (the answer says which, as `cleared`) |
 | `POST /api/builds` | ask for a story: `{repo, number, url, requested_at}` (`once-upon builds` lists them) |
 | `POST /api/stories/:id/viewed` | local stories: `{path, viewed}` |
 | `POST /api/stories/:id/notes[/:note]` | local stories: add `{path, side, line, body}`, or update `{done}`, `{body}` or `{delete: true}` |
@@ -271,10 +287,10 @@ Questions and notes from the panel each end up as one JSON line in `~/.once-upon
 **What works today, with no change to Claude Code settings.** A Claude Code session telling the story runs this as a background task:
 
 ```bash
-once-upon wait --consumer once-upon
+once-upon wait --story <id> --type question
 ```
 
-It blocks until a new question arrives, then prints the question and exits. A consumer's first wait starts from now, not from old questions. The exit wakes the session. Claude answers in chat and runs `once-upon answer --question <id> --file answer.md`, so the answer also shows in the panel under the question. Then it starts the wait again. The once-upon skill's SKILL.md describes this loop.
+It blocks until a new question on that story arrives, then prints the question and exits. A story's own wait comes before the repo's listener (see [One story, one session](#one-story-one-session)). A consumer's first wait starts from now, not from old questions. The exit wakes the session. Claude answers in chat and runs `once-upon answer --question <id> --file answer.md`, so the answer also shows in the panel under the question. Then it starts the wait again. The once-upon skill's SKILL.md describes this loop.
 
 **Proposed next steps.** Nothing in Claude Code's settings, hooks or MCP config has been changed. These are for you to decide:
 
@@ -371,7 +387,7 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
   - `server/index.mjs` is the HTTP server: its guards, then a route table. The routes are in `server/routes/` by area; `pages.mjs` and `assets.mjs` serve the HTML pages and the scripts.
   - `stories/`: finding story folders (`store.mjs`, `placement.mjs`), reading them (`meta.mjs`, `chapters.mjs`, `story-data.mjs`, `text-refs.mjs`, `hunk-coverage.mjs`), local stories (`local-story.mjs`, `local-diff.mjs`), read tracking (`reads.mjs`) and drafted comments (`comments.mjs`).
   - `github/`: what asks `gh` (read-only, except Add to my review): freshness, drafts and the pending review.
-  - `inbox/` (the inbox and build requests), `listeners/` (who's listening), `config/` (settings, prefs, repos and checkouts) and `util/` (gh, git, diffs, JSON files).
+  - `inbox/` (the inbox, the conversation's marks and routing, and build requests), `listeners/` (who's listening), `config/` (settings, prefs, repos and checkouts) and `util/` (gh, git, diffs, JSON files).
   - `public/`: the local page. `local.js` draws it and handles its clicks; `local/` holds the diff view, notes, folds and the panel mount, next to `split.js`, `narrow.js` and `syntax.js`.
 - `skills/once-upon-listen/`: the Claude Code skill behind **Copy prompt for Claude**.
 - `skills/once-upon/`: the Claude Code skill that writes PR stories. Both skills read your house rules (see [Personal settings](#personal-settings)).

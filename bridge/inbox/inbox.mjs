@@ -5,7 +5,7 @@
  * `id`, `at` (ISO time), `type` and `story`.
  *
  *   {"type":"question","id":"q_…","story":"octo-org-web-app-42","step":2,"chapter":"Chapter 2: …","file":"…","text":"…","url":"…"}
- *   {"type":"answer","id":"a_…","question":"q_…","story":"…","text":"markdown"}
+ *   {"type":"answer","id":"a_…","question":"q_…","story":"…","text":"markdown","by":"<the consumer that answered>"}
  *   {"type":"note","story":"…","note":{"id":"n_…","path":"…","side":"R","line":12,"body":"…"}}
  *   {"type":"read","story":"…","chapter":"<chapter key>","step":2,"title":"Chapter 2: …","head_sha":"…","story_head":"…","reason":"time|viewed|inferred"}
  *
@@ -108,7 +108,12 @@ export class Inbox {
     }
     for (const answer of answers) {
       if (byId.has(answer.question)) {
-        byId.get(answer.question).answers.push({ id: answer.id, at: answer.at, text: answer.text });
+        byId.get(answer.question).answers.push({
+          id: answer.id,
+          at: answer.at,
+          text: answer.text,
+          by: answer.by || null,
+        });
       }
     }
     return [...byId.values()];

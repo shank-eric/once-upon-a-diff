@@ -2,12 +2,19 @@
  * The inbox from the terminal: read it (inbox), wait for the next question or
  * build request (wait, the listener a Claude session runs as a background
  * task), and answer a question (answer).
+ *
+ * A story's own wait (`wait --story`) takes that story's questions ahead of a
+ * repo-wide one: see the routing rule in ../../inbox/conversation.mjs.
  */
 import { existsSync, readFileSync, statSync, watch, writeFileSync } from 'node:fs';
 import { REPO_RE, sameRepo, repoOfCheckout, seenCheckout } from '../../config/repos.mjs';
 import { Inbox } from '../../inbox/inbox.mjs';
 import { Builds } from '../../inbox/builds.mjs';
+import { noteHanded, readHanded, routeQuestions } from '../../inbox/conversation.mjs';
 import { beat } from '../../listeners/listeners.mjs';
+import { StoryStore } from '../../stories/store.mjs';
+import { slug } from '../../stories/local-story.mjs';
+import { readJson, writeJsonAtomic } from '../../util/json-file.mjs';
 import { topLevel } from '../../util/git.mjs';
 import { out, describe, filterEntries } from '../output.mjs';
 
@@ -25,12 +32,68 @@ function inbox(home, cfg, opts) {
   }
 }
 
-/** One listener per repo: its own cursor and heartbeat unless --consumer says otherwise. */
+/** One listener per repo or story: its own cursor and heartbeat unless --consumer says otherwise. */
 function consumerOf(opts) {
   if (opts.consumer) {
     return opts.consumer;
   }
+  if (opts.story) {
+    return `story-${opts.story}`;
+  }
   return opts.repo ? `repo-${String(opts.repo).toLowerCase().replace('/', '-')}` : 'default';
+}
+
+/** The repo of the checkout this runs in, or null. */
+function checkoutRepo() {
+  try {
+    return repoOfCheckout(topLevel(process.cwd()));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * --story's story id. It takes the id itself, a PR (owner/name#N or its URL), or a bare PR number in the repo of
+ * this checkout. A PR's story is the one the bridge has for it, else the id `once-upon publish` will give it.
+ */
+export function storyIdOf(home, value, repoHere = checkoutRepo) {
+  const text = String(value).trim();
+  const pr =
+    /github\.com\/([^/\s]+\/[^/\s]+)\/pull\/(\d+)/.exec(text) ||
+    /^([^/#\s]+\/[^/#\s]+)#(\d+)$/.exec(text);
+  let repo = pr ? pr[1] : null;
+  const number = pr ? pr[2] : /^\d+$/.test(text) && text;
+  if (!number) {
+    return text;
+  }
+  repo ||= repoHere();
+  if (!repo) {
+    throw new Error(`--story ${text}: run it in the repo's checkout, or say owner/name#${text}`);
+  }
+  const found = new StoryStore({ home }).find(repo, number);
+  return found ? found.id : slug(`${repo.replace('/', '-')}-${number}`);
+}
+
+/** Questions a repo-wide wait left to a live story listener, kept beside its cursor to look at again. */
+const deferredFile = (messages, consumer) =>
+  messages.cursorFile(consumer).replace(/\.json$/, '.deferred.json');
+
+/**
+ * This wait's share of the questions: new ones, plus ones it left to a story listener before. Hands back the ones
+ * to take now and remembers the rest.
+ */
+function questionsToTake(home, messages, consumer, scope, fresh) {
+  const file = deferredFile(messages, consumer);
+  const before = readJson(file, []) || [];
+  const earlier = before.length
+    ? messages.all().filter((entry) => entry.type === 'question' && before.includes(entry.id))
+    : [];
+  const { take, defer } = routeQuestions(home, consumer, scope, [...earlier, ...fresh]);
+  const after = defer.map((question) => question.id);
+  if (after.length || before.length) {
+    writeJsonAtomic(file, after);
+  }
+  return take;
 }
 
 /** A wait run from the repo's checkout tells the bridge where that checkout is, for the next prompt. */
@@ -88,6 +151,9 @@ async function wait(home, cfg, opts) {
   if (opts.repo && !REPO_RE.test(String(opts.repo))) {
     throw new Error('usage: once-upon wait --repo owner/name');
   }
+  if (opts.story) {
+    opts = { ...opts, story: storyIdOf(home, opts.story) };
+  }
   const consumer = consumerOf(opts);
   if (opts.repo) {
     noteCheckout(home, opts.repo);
@@ -113,12 +179,25 @@ async function wait(home, cfg, opts) {
     !opts.story && want.type.split(',').includes('build_request') ? new Builds(home) : null;
   try {
     for (;;) {
-      let entries = filterEntries(messages.unread(consumer, { advance: true }), want);
+      const unread = filterEntries(messages.unread(consumer, { advance: true }), want);
+      const questions = questionsToTake(
+        home,
+        messages,
+        consumer,
+        scope,
+        unread.filter((entry) => entry.type === 'question'),
+      );
+      let entries = [...questions, ...unread.filter((entry) => entry.type !== 'question')];
       if (builds) {
         entries = [...entries, ...builds.toHand(consumer, { repo: opts.repo || null })];
       }
       if (entries.length) {
         clearInterval(heartbeat);
+        noteHanded(
+          home,
+          questions.map((question) => question.id),
+          consumer,
+        );
         beat(home, consumer, 'handling', { ...scope, question: entries[0].id });
         printHandOver(entries, opts);
         return;
@@ -145,11 +224,16 @@ function answer(home, cfg, opts) {
   if (!question) {
     throw new Error(`no question ${opts.question}`);
   }
+  // who answered, for the panel: --consumer, else the wait it was handed to
+  const handed = readHanded(home)[question.id];
+  const answeredBy =
+    opts.consumer && opts.consumer !== true ? String(opts.consumer) : handed?.consumer;
   const added = messages.append({
     type: 'answer',
     question: question.id,
     story: question.story,
     text: String(text).trim(),
+    ...(answeredBy ? { by: answeredBy } : {}),
   });
   out(added.id);
 }
@@ -167,15 +251,18 @@ export const inboxCommands = [
     usage: [
       '  once-upon wait    [--repo OWNER/NAME | --story ID] [--type question,build_request] [--consumer NAME] [--timeout SECONDS] [--json]',
       '                                                                 block until a question or build request arrives, print it, exit (for a background task);',
-      "                                                                 --repo takes both for that repo's stories and PRs; a consumer's first wait starts from now,",
-      '                                                                 but queued build requests are handed over whenever they were asked',
+      "                                                                 --repo takes both for that repo's stories and PRs; --story (an id, owner/name#N, a PR URL",
+      "                                                                 or a PR number here) takes one story's questions, ahead of a --repo wait while it's live;",
+      "                                                                 a consumer's first wait starts from now, but queued build requests are handed over whenever",
+      '                                                                 they were asked',
     ],
     run: wait,
   },
   {
     name: 'answer',
     usage: [
-      '  once-upon answer  --question ID (--text T | --file F)          answer a question; the panel shows it',
+      '  once-upon answer  --question ID (--text T | --file F) [--consumer NAME]',
+      '                                                                 answer a question; the panel shows it, and who answered',
     ],
     run: answer,
   },
