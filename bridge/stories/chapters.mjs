@@ -25,12 +25,15 @@ export function sinceOfChapter(since) {
   };
 }
 
-/** A chapter's file entry: a path, or {rel, partial, note, lines}. */
+/** A chapter's file entry: a path, or {rel, partial, note, lines, whole}. */
 export function entryOf(entry) {
   if (typeof entry === 'string') {
     return { rel: entry, partial: false, note: null };
   }
   const out = { rel: entry.rel, partial: !!entry.partial, note: entry.note || null };
+  if (entry.whole) {
+    out.whole = true; // this chapter tells all of the file's hunks (hunk-coverage.mjs)
+  }
   if (Array.isArray(entry.lines) && entry.lines.length) {
     out.lines = entry.lines.map((range) => ({
       side: range.side === 'L' ? 'L' : 'R',
@@ -58,6 +61,7 @@ export function chaptersOf(plan) {
         path: comment.path || '',
         line: comment.line || 0,
         body: comment.body || '',
+        ...(comment.side === 'L' ? { side: 'L' } : {}), // a comment on a removed line
       })),
       ...(since ? { since } : {}),
     };

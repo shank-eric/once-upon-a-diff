@@ -141,6 +141,7 @@ export const panelCss = (panelId) => `
   #${panelId} ul.prs-lines { list-style: none; margin: 2px 0 0 12px; padding: 0; }
   #${panelId} ul.prs-lines li { padding: 1px 0; }
   #${panelId} .prs-empty { color: var(--c-muted); font-style: italic; }
+  #${panelId} .prs-quiet { color: var(--c-muted); font-size: 12px; margin: 4px 0 8px; }
   #${panelId} .prs-qa { margin: 0 0 12px; padding: 8px 10px; border: 1px solid var(--c-border); border-radius: 6px; }
   #${panelId} .prs-qa .prs-q { font-weight: 600; white-space: pre-wrap; }
   #${panelId} .prs-qa .prs-qmeta { font-size: 11px; color: var(--c-muted); }

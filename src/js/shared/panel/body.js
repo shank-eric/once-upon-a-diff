@@ -5,8 +5,10 @@
  */
 import { escapeHtml } from '../util/html.js';
 import { copyComment } from './copy-buttons.js';
+import { plural } from '../util/text.js';
 
 const stripChapterPrefix = (title) => title.replace(/^Chapter \d+:\s*/, '');
+const UNCOVERED_SHOWN = 12; // hunk links in the Overview's note before "and N more"
 
 export function createBody(context) {
   const { story, state, shell } = context;
@@ -36,7 +38,20 @@ export function createBody(context) {
       ? markdown(story.overviewMarkdown)
       : `${data.summary ? `<p>${inline(data.summary)}</p>` : ''}${data.plan ? `<p>${inline(data.plan)}</p>` : ''}`;
     const items = data.files.map((file) => files.fileItem(file, 0)).join('');
-    return `<div class="prs-md">${intro}</div>${context.drafts.allCommentsHtml()}${files.filesBox(`All files (${data.files.length})`, `${data.chapters.length} chapters`, items)}`;
+    return `<div class="prs-md">${intro}</div>${uncoveredHtml()}${context.drafts.allCommentsHtml()}${files.filesBox(`All files (${data.files.length})`, `${data.chapters.length} chapters`, items)}`;
+  }
+
+  /** A quiet note on the Overview: changed hunks no chapter points at (pr-story's build allowed them), as line links. */
+  function uncoveredHtml() {
+    const refs = (data.uncovered_hunks || []).flatMap((file) =>
+      file.hunks.map((hunk) => `\`${hunk.ref}\``),
+    );
+    if (!refs.length) {
+      return '';
+    }
+    const shown = refs.slice(0, UNCOVERED_SHOWN).join(', ');
+    const more = refs.length > UNCOVERED_SHOWN ? ` and ${refs.length - UNCOVERED_SHOWN} more` : '';
+    return `<p class="prs-quiet prs-uncovered">${inline(`${plural(refs.length, 'changed hunk')} no chapter points at: ${shown}${more}.`)}</p>`;
   }
 
   function chapterHtml(chapter) {

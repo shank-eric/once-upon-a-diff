@@ -9,7 +9,7 @@ A code-review story (an overview, then chapters) in a side panel docked on top o
 
 The two work the same way and read the same `chapters.json` (pr-story's format). The panel comes back on the same step after a reload, after GitHub's in-page navigation, and when the story on disk changes.
 
-The pr-story skill (`skills/pr-story/`) writes the stories, and this extension is the only way they show on GitHub. The panel has an Overview step, per-file placement (each file is marked viewed in the last chapter that tells it), file and line jumps, a saved step, an Ask box, and a shadow root so the page's CSS can't reach it.
+The pr-story skill (`skills/pr-story/`) writes the stories, and this extension is the only way they show on GitHub. Its build checks that every changed file is in a chapter and every changed hunk is pointed at by one. The panel has an Overview step, per-file placement (each file is marked viewed in the last chapter that tells it), file and line jumps, a saved step, an Ask box, and a shadow root so the page's CSS can't reach it.
 
 ## Installing
 
@@ -125,6 +125,8 @@ The panel reads each file's state from the page's own Viewed toggle:
 - on the local page, the bridge-kept toggle
 
 It never clicks that toggle on its own: not on a step change, a reload or a redraw, and never for more than the one file you clicked (see **Mark viewed** below). It looks again after any click or change on the page, so Refined GitHub's batch mark-viewed helpers are picked up too. Moving on with files left gives a gentle note, not a block. The "Files in this chapter" list starts folded, with a one-line summary ("6 files · 4 to mark viewed · 2 come back later"). Whether it's open is remembered per story.
+
+**Hunks no chapter points at.** pr-story's `build` won't publish while a changed hunk of a file bigger than 40 changed lines has nothing in any chapter pointing at a line inside it: a `lines` range, a `path:40-58` in the text or a drafted comment. A smaller file, a deleted file or a lockfile is covered by being listed, and so is a file whose entry says `"whole": true`. A story built with `--allow-uncovered` shows the rest as a quiet note on the Overview, as line links. A local story's Overview does the same from its own diff.
 
 **Where "Mark viewed" goes.** A file is marked viewed in the last chapter that tells it. A chapter tells a file by listing it, or by pointing at its lines in its text: `path:45`, `path:40-58`, a bare `:45` after the file is named, or a link to the file's diff with a line anchor. A file a chapter points at without listing it joins that chapter's file list (and its filter) as a partial entry, "its lines are pointed at in the text", with those lines. A name with no line doesn't count, and neither does anything in a code block. Every earlier chapter leaves the file untagged, whether or not that listing is flagged partial: no pill in the text and no status in the file list, only the listing's partial note ("here: …") if it has one. The viewed progress and the "viewed early" warning follow the same rule, and so does pr-story's `file-map.json` (`finished_in`).
 
@@ -364,7 +366,7 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
 - `bridge/`: the bridge and its CLI.
   - `bin/pr-story.mjs` runs `cli/index.mjs`, a table of commands in `cli/commands/` (bridge, stories, inbox, drafts, builds, checks) that also builds the help. `cli/doctor.mjs` is `pr-story doctor`.
   - `server/index.mjs` is the HTTP server: its guards, then a route table. The routes are in `server/routes/` by area; `pages.mjs` and `assets.mjs` serve the HTML pages and the scripts.
-  - `stories/`: finding story folders (`store.mjs`, `placement.mjs`), reading them (`meta.mjs`, `chapters.mjs`, `story-data.mjs`, `text-refs.mjs`), local stories (`local-story.mjs`, `local-diff.mjs`), read tracking (`reads.mjs`) and drafted comments (`comments.mjs`).
+  - `stories/`: finding story folders (`store.mjs`, `placement.mjs`), reading them (`meta.mjs`, `chapters.mjs`, `story-data.mjs`, `text-refs.mjs`, `hunk-coverage.mjs`), local stories (`local-story.mjs`, `local-diff.mjs`), read tracking (`reads.mjs`) and drafted comments (`comments.mjs`).
   - `github/`: what asks `gh` (read-only, except Add to my review): freshness, drafts and the pending review.
   - `inbox/` (the inbox and build requests), `listeners/` (who's listening), `config/` (settings, prefs, repos and checkouts) and `util/` (gh, git, diffs, JSON files).
   - `public/`: the local page. `local.js` draws it and handles its clicks; `local/` holds the diff view, notes, folds and the panel mount, next to `split.js`, `narrow.js` and `syntax.js`.

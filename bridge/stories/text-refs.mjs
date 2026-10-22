@@ -117,7 +117,7 @@ export function lineRefsOf(text, listed, rels) {
 }
 
 /** The text of a chapter the panel draws as markdown. */
-const textOf = (chapter) =>
+export const textOf = (chapter) =>
   [chapter.headline, chapter.scenario, chapter.summary, chapter.narrative]
     .filter(Boolean)
     .join('\n\n');
