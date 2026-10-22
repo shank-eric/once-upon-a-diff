@@ -1,12 +1,11 @@
 /**
  * The inbox: one JSONL file every reader can tail. The bridge appends
- * questions, positions and fix-before-push notes from the panel, and the
+ * questions and fix-before-push notes from the panel, and the
  * `answer` command appends answers. Each line is a whole JSON object with an
  * `id`, `at` (ISO time), `type` and `story`.
  *
  *   {"type":"question","id":"q_…","story":"octo-org-web-app-42","step":2,"chapter":"Chapter 2: …","file":"…","text":"…","url":"…"}
  *   {"type":"answer","id":"a_…","question":"q_…","story":"…","text":"markdown"}
- *   {"type":"position","story":"…","step":2,"chapter":"…","file":"…"}
  *   {"type":"note","story":"…","note":{"id":"n_…","path":"…","side":"R","line":12,"body":"…"}}
  *   {"type":"read","story":"…","chapter":"<chapter key>","step":2,"title":"Chapter 2: …","head_sha":"…","story_head":"…","reason":"time|viewed|inferred"}
  *

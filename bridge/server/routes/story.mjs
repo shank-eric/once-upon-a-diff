@@ -7,7 +7,6 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { readPrefs } from '../../config/settings.mjs';
 import { seenCheckout } from '../../config/repos.mjs';
-import { newId } from '../../inbox/inbox.mjs';
 import { freshness } from '../../github/freshness.mjs';
 import { refreshLocal } from '../../stories/local-diff.mjs';
 import { storyVersion, localVersion } from '../../stories/meta.mjs';
@@ -55,14 +54,8 @@ function position({ app, body, send }, story) {
     file: clipText(body.file, 1000),
     url: clipText(body.url, 2000),
   };
-  const key = JSON.stringify([where.step, where.file]);
   app.stories.writeState(story.id, 'position.json', { ...where, at: new Date().toISOString() });
-  if (app.lastPosition.get(story.id) === key) {
-    return send(200, { ok: true, logged: false });
-  }
-  app.lastPosition.set(story.id, key);
-  app.inbox.append({ type: 'position', id: newId('p'), ...story.ref, ...where });
-  return send(200, { ok: true, logged: true });
+  return send(200, { ok: true });
 }
 
 async function storyFreshness({ app, send }, story) {

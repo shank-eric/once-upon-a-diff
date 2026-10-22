@@ -82,7 +82,6 @@ export function createBridge({
     log,
     statusCache: null, // PR-list lookups, kept 5s
     extensionSeen: null, // the last time the extension talked to us, for `diff-story doctor` and the status light
-    lastPosition: new Map(),
   };
   let extensionWritten = 0;
   const seeExtension = (origin) => {

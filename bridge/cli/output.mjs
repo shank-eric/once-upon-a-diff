@@ -33,9 +33,6 @@ export function describe(entry) {
   if (entry.type === 'note') {
     return `[${when}] note ${entry.action} (${entry.story}) ${notePlace(entry.note)}${entry.note.done ? ' [done]' : ''}\n${entry.note.body}`;
   }
-  if (entry.type === 'position') {
-    return `[${when}] position (${where})`;
-  }
   return `[${when}] ${entry.type} ${JSON.stringify(entry)}`;
 }
 
