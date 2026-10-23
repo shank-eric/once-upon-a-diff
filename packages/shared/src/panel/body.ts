@@ -112,7 +112,7 @@ export function createBody(context: PanelContext) {
     const body = chapter ? chapterHtml(chapter) : overviewHtml();
     setHtml(
       $('.ou-body')!,
-      html`<div class="ou-working"></div><h2 class="ou-h">Steps</h2><ol class="ou-map">${stepList}</ol>${body}<div class="ou-questions"></div>`,
+      html`<div class="ou-working"></div><h2 class="ou-h">Steps</h2><ol class="ou-map">${stepList}</ol>${body}`,
     );
     placeProgress();
     const commentsBox = $<HTMLDetailsElement>('.ou-body details.ou-allc');
@@ -210,6 +210,7 @@ export function createBody(context: PanelContext) {
     context.scroll.jumpTo(rel, line);
   }
   $('.ou-body')!.addEventListener('click', onClick);
+  $('.ou-chatbody')!.addEventListener('click', onClick); // the questions' buttons and their answers' file links
 
   return { render };
 }

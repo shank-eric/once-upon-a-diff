@@ -28,8 +28,8 @@
  * opts:
  *   stylesheets    {page, panel}: the URLs of panel/page.css and panel/panel.css as the host serves them (required)
  * and all optional:
- *   initial        {n, all, collapsed, width} to start from (a saved step)
- *   onState(s)     called with {n, all, collapsed, width} whenever they change
+ *   initial        {n, all, collapsed, width, chatOpen, chatHeight, ...} to start from (a saved step)
+ *   onState(s)     called with {n, all, collapsed, width, chatOpen, chatHeight, ...} whenever they change
  *   onPosition(p)  called with {step, chapter, file} when the step or the file at the top of the screen changes (debounced)
  *   onClose()      called after the x button removes the panel
  *   ask(q)         send a question {text, step, chapter, file}; returns a Promise
@@ -93,6 +93,7 @@ import { createReading } from './panel/reading.ts';
 import { createMarks } from './panel/marks.ts';
 import { createDrafts } from './panel/drafts.ts';
 import { createQuestions } from './panel/questions.ts';
+import { createChatDock } from './panel/chat-dock.ts';
 import { createFixes } from './panel/fixes.ts';
 import { createWorking } from './panel/working.ts';
 import type { Pulse, StoryData } from './types.ts';
@@ -183,6 +184,7 @@ export function storyOverlay(input: StoryData, opts: PanelOptions) {
   context.drafts = createDrafts(context);
   context.fixes = createFixes(context);
   context.working = createWorking(context);
+  context.chatDock = createChatDock(context);
   context.questions = createQuestions(context);
   context.shell.isolateKeys();
 
@@ -258,6 +260,7 @@ export function storyOverlay(input: StoryData, opts: PanelOptions) {
     context.filter.destroy();
     context.shell.clearMessageTimer();
     context.questions.destroy();
+    context.chatDock.destroy();
     context.working.destroy();
     context.navigation.destroy();
     context.scroll.destroy();
@@ -282,6 +285,7 @@ export function storyOverlay(input: StoryData, opts: PanelOptions) {
       : Math.min(state.width, Math.round(window.innerWidth * 0.4)),
   );
   shell.setCollapsed(state.collapsed);
+  context.chatDock.setOpen(state.chatOpen);
   context.body.render();
   if (Number.isFinite(initial.bodyScroll)) {
     shell.$('.ou-body')!.scrollTop = initial.bodyScroll as number; // a live redraw keeps your place

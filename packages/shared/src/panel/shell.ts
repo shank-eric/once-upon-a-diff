@@ -1,7 +1,7 @@
 /*
  * The panel's frame: the host element and its shadow root, the toolbar
  * (status light, Hide story, Prev, Next, close), the note line, the body and
- * the Ask box, plus the message line, docking width and collapse.
+ * the questions dock (chat-dock.ts), plus the message line, docking width and collapse.
  */
 import { hideUntilStyled, setHtml, stopKeyEvents, stylesheetLink } from '../util/dom.ts';
 import { html } from '../util/html.ts';
@@ -19,12 +19,21 @@ const MARKUP = (withAsk: boolean) => html`
     </div>
     <div class="ou-note"><span class="ou-count-note"></span><div class="ou-health" hidden></div><div class="ou-fresh"></div><div class="ou-rebuilding" role="status" hidden></div><span class="ou-msg"></span></div>
     <div class="ou-body"></div>
-    <div class="ou-askhint" hidden></div>
-    <div class="ou-askwho" hidden></div>
-    <form class="ou-ask${!withAsk && ' ou-off'}">
-      <textarea placeholder="Ask about this step (Cmd+Enter sends it to the bridge inbox)" rows="1" aria-label="Question"></textarea>
-      <button type="submit">Ask</button>
-    </form>`;
+    <section class="ou-chat" aria-label="Questions for Claude">
+      <div class="ou-chatgrip" title="Drag to resize"></div>
+      <button type="button" class="ou-chathead" aria-expanded="false" title="Open or close the questions">
+        <span class="ou-chatarrow" aria-hidden="true">▸</span><span class="ou-chatlabel">Ask Claude</span><span class="ou-chatcount"></span>
+      </button>
+      <div class="ou-chatbody"><div class="ou-questions"></div></div>
+      <div class="ou-chatfoot">
+        <div class="ou-askhint" hidden></div>
+        <div class="ou-askwho" hidden></div>
+        <form class="ou-ask${!withAsk && ' ou-off'}">
+          <textarea placeholder="Ask about this step (Cmd+Enter sends it to the bridge inbox)" rows="1" aria-label="Question"></textarea>
+          <button type="submit">Ask</button>
+        </form>
+      </div>
+    </section>`;
 
 const MESSAGE_MS = 8000;
 const MIN_WIDTH = 280;

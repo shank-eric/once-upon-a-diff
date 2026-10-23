@@ -138,6 +138,8 @@ function panelState({ app, req, body, send }: Call, story: ServedStory) {
     width: toInt(body.width),
     hidden: !!body.hidden,
     filesOpen: !!body.filesOpen,
+    chatOpen: !!body.chatOpen,
+    chatHeight: toInt(body.chatHeight),
     at: new Date().toISOString(),
   };
   app.stories.writeState(story.id, 'ui.json', saved);

@@ -1,5 +1,6 @@
 /*
- * Questions: the Ask box sends one through opts.ask (to the bridge inbox),
+ * Questions, in the dock at the bottom of the panel (chat-dock.ts): the Ask
+ * box sends one through opts.ask (to the bridge inbox),
  * and the step's questions and their answers come back through
  * opts.loadQuestions on the overlay's tick: every 5s while one is waiting,
  * otherwise every 30s, and when the tab gets focus again.
@@ -20,6 +21,10 @@ import type { Question, QuestionMark, QuestionMarksAnswer } from '../types.ts';
 const SLOW_EVERY = 6; // ticks: 6 x 5s = every 30s with nothing waiting
 const UNDO_MS = 15000;
 
+/** Every answer to every question, to tell when a new one came in. */
+const answerCount = (list: Question[]) =>
+  list.reduce((total, question) => total + (question.answers || []).length, 0);
+
 /** What one mark action does to a question, for drawing it before the bridge answers. */
 const MARK_FIELDS: Record<QuestionMark, Partial<Question>> = {
   dismiss: { dismissed: true },
@@ -33,6 +38,7 @@ export function createQuestions(context: PanelContext) {
   const { state, opts, shell } = context;
   const { $ } = shell;
   let questions: Question[] = [];
+  let loaded = false; // the first load's answers aren't new
   let showDismissed = false;
   let undo: { label: string; ids: string[] } | null = null; // after a dismissal, until UNDO_MS passes or the next one
   let undoTimer: ReturnType<typeof setTimeout> | 0 = 0;
@@ -94,15 +100,21 @@ export function createQuestions(context: PanelContext) {
   }
 
   function render() {
-    const box = $('.ou-questions');
-    if (!box) {
-      return;
-    }
+    context.chatDock.redraw(draw);
+  }
+
+  function draw() {
+    const box = $('.ou-questions')!;
     const onStep = questions.filter(forStep);
     const open = onStep.filter((question) => !question.dismissed);
     const dismissed = onStep.length - open.length;
+    context.chatDock.setCounts({
+      open: open.length,
+      waiting: open.filter((question) => !(question.answers || []).length).length,
+    });
     if (!onStep.length && !undo) {
-      setHtml(box, '');
+      const empty = state.n ? 'No questions on this step yet.' : 'No questions yet.';
+      setHtml(box, html`<p class="ou-quiet">${empty}</p>`);
       return;
     }
     const tools = [
@@ -118,10 +130,7 @@ export function createQuestions(context: PanelContext) {
       undo &&
       html`<div class="ou-qundo" role="status">${undo.label} <button type="button" class="ou-linkish" data-qa-act="undo">Undo</button></div>`;
     const shown = showDismissed ? onStep : open;
-    setHtml(
-      box,
-      html`<h2 class="ou-h">Questions${state.n ? ' on this step' : ''} (${open.length})</h2>${toolLine}${undoLine}${shown.map(questionHtml)}`,
-    );
+    setHtml(box, html`${toolLine}${undoLine}${shown.map(questionHtml)}`);
   }
 
   /** Marks the questions here at once, then saves the marks in the bridge and takes its list. */
@@ -197,7 +206,11 @@ export function createQuestions(context: PanelContext) {
         return;
       }
       const changed = JSON.stringify(next) !== JSON.stringify(questions);
+      if (loaded && answerCount(next) > answerCount(questions)) {
+        context.chatDock.noteAnswer();
+      }
       questions = next;
+      loaded = true;
       if (changed) {
         render();
       }
@@ -242,6 +255,7 @@ export function createQuestions(context: PanelContext) {
           : 'Sent to the bridge inbox.',
       );
       await refresh();
+      context.chatDock.scrollToLatest();
     } catch (err) {
       shell.message(
         `Couldn't send the question: ${err && (err as Error).message ? (err as Error).message : err}`,
