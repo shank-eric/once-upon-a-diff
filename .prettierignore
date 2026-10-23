@@ -1,5 +1,7 @@
 node_modules/
 build/
+.output/
+.wxt/
 .yarn/
 yarn.lock
 src/bridge/public/vendor/
