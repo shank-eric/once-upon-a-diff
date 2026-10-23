@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node"],
+    "strict": false,
+    "allowJs": true,
+    "checkJs": true
+  },
+  "include": ["bin", "src", "scripts"]
+}

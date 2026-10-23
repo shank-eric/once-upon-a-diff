@@ -1,5 +1,5 @@
 {
-  "name": "once-upon-a-diff",
+  "name": "once-upon-a-diff-workspace",
   "version": "0.1.0",
   "private": true,
   "description": "A code-review story in a side panel on top of a diff: a Chrome extension for GitHub PRs, plus a local bridge that also serves local commits",
@@ -8,31 +8,28 @@
   "engines": {
     "node": ">=24"
   },
-  "bin": {
-    "once-upon": "src/bridge/bin/once-upon.mjs"
-  },
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "bridge": "node src/bridge/bin/once-upon.mjs serve",
-    "dev": "wxt",
-    "build": "wxt build",
-    "zip": "ONCE_UPON_STORE=1 wxt zip",
-    "icons": "node scripts/make-icons.mjs",
-    "vendor": "node scripts/vendor-hljs.mjs",
+    "bridge": "yarn workspace once-upon-a-diff serve",
+    "dev": "yarn workspace @once-upon-a-diff/extension dev",
+    "build": "yarn workspace @once-upon-a-diff/extension build",
+    "zip": "yarn workspace @once-upon-a-diff/extension zip",
     "lint": "eslint . --cache --cache-strategy content",
     "lint:fix": "eslint . --fix",
     "lint:sh": "shellcheck skills/once-upon/bin/*.sh",
-    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json",
+    "typecheck": "yarn workspaces foreach --all --exclude once-upon-a-diff-workspace -v run typecheck && tsc -p tsconfig.json",
     "lint-staged": "./node_modules/.bin/lint-staged",
     "format": "prettier --cache --cache-location=.prettiercache --write .",
     "format:check": "prettier --cache --cache-location=.prettiercache --check .",
-    "postinstall": "husky && wxt prepare",
-    "test": "node --test test/*.test.mjs",
-    "test:extension": "wxt build && node test/extension/load-test.mjs",
-    "test:expand": "wxt build && node test/extension/expand-test.mjs"
+    "postinstall": "husky",
+    "test": "yarn workspaces foreach --all --exclude once-upon-a-diff-workspace -v run test",
+    "test:extension": "yarn workspace @once-upon-a-diff/extension test:extension",
+    "test:expand": "yarn workspace @once-upon-a-diff/extension test:expand"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
-    "@types/chrome": "0.3.4",
     "@types/node": "24.19.1",
     "eslint": "9.39.5",
     "eslint-config-prettier": "10.1.8",
@@ -40,16 +37,12 @@
     "eslint-plugin-n": "17.24.0",
     "eslint-plugin-promise": "7.3.0",
     "globals": "17.13.0",
-    "highlight.js": "11.11.1",
     "husky": "9.1.7",
     "lint-staged": "16.4.0",
-    "playwright-core": "1.64.0",
     "prettier": "3.9.9",
     "shellcheck": "3.1.0",
     "typescript": "5.9.3",
-    "typescript-eslint": "8.71.2",
-    "vite": "8.3.4",
-    "wxt": "0.21.4"
+    "typescript-eslint": "8.71.2"
   },
   "lint-staged": {
     "*.{ts,js,mjs}": [

@@ -265,6 +265,30 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@once-upon-a-diff/extension@workspace:packages/extension":
+  version: 0.0.0-use.local
+  resolution: "@once-upon-a-diff/extension@workspace:packages/extension"
+  dependencies:
+    "@once-upon-a-diff/shared": "workspace:*"
+    "@types/chrome": "npm:0.3.4"
+    "@types/node": "npm:24.19.1"
+    once-upon-a-diff: "workspace:*"
+    playwright-core: "npm:1.64.0"
+    typescript: "npm:5.9.3"
+    vite: "npm:8.3.4"
+    wxt: "npm:0.21.4"
+  languageName: unknown
+  linkType: soft
+
+"@once-upon-a-diff/shared@workspace:*, @once-upon-a-diff/shared@workspace:packages/shared":
+  version: 0.0.0-use.local
+  resolution: "@once-upon-a-diff/shared@workspace:packages/shared"
+  dependencies:
+    "@types/node": "npm:24.19.1"
+    typescript: "npm:5.9.3"
+  languageName: unknown
+  linkType: soft
+
 "@oxc-project/types@npm:=0.155.0":
   version: 0.155.0
   resolution: "@oxc-project/types@npm:0.155.0"
@@ -3395,12 +3419,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"once-upon-a-diff@workspace:.":
+"once-upon-a-diff-workspace@workspace:.":
   version: 0.0.0-use.local
-  resolution: "once-upon-a-diff@workspace:."
+  resolution: "once-upon-a-diff-workspace@workspace:."
   dependencies:
     "@eslint/js": "npm:9.39.5"
-    "@types/chrome": "npm:0.3.4"
     "@types/node": "npm:24.19.1"
     eslint: "npm:9.39.5"
     eslint-config-prettier: "npm:10.1.8"
@@ -3408,18 +3431,25 @@ __metadata:
     eslint-plugin-n: "npm:17.24.0"
     eslint-plugin-promise: "npm:7.3.0"
     globals: "npm:17.13.0"
-    highlight.js: "npm:11.11.1"
     husky: "npm:9.1.7"
     lint-staged: "npm:16.4.0"
-    playwright-core: "npm:1.64.0"
     prettier: "npm:3.9.9"
     shellcheck: "npm:3.1.0"
     typescript: "npm:5.9.3"
     typescript-eslint: "npm:8.71.2"
-    vite: "npm:8.3.4"
-    wxt: "npm:0.21.4"
+  languageName: unknown
+  linkType: soft
+
+"once-upon-a-diff@workspace:*, once-upon-a-diff@workspace:packages/bridge":
+  version: 0.0.0-use.local
+  resolution: "once-upon-a-diff@workspace:packages/bridge"
+  dependencies:
+    "@once-upon-a-diff/shared": "workspace:*"
+    "@types/node": "npm:24.19.1"
+    highlight.js: "npm:11.11.1"
+    typescript: "npm:5.9.3"
   bin:
-    once-upon: src/bridge/bin/once-upon.mjs
+    once-upon: bin/once-upon.mjs
   languageName: unknown
   linkType: soft
 

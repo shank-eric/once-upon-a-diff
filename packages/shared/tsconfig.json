@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "strict": false,
+    "allowJs": true,
+    "checkJs": true
+  },
+  "include": ["src", "types"]
+}

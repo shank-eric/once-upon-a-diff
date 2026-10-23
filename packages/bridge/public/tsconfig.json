@@ -1,0 +1,21 @@
+{
+  "extends": "../../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "strict": false,
+    "allowJs": true,
+    "checkJs": true,
+    "paths": {
+      "/assets/overlay.js": ["../../shared/src/overlay.js"],
+      "/assets/util/*": ["../../shared/src/util/*"],
+      "/assets/panel/*": ["../../shared/src/panel/*"],
+      "/assets/local/*": ["./local/*"],
+      "/assets/highlight.mjs": ["./types/highlight.d.ts"],
+      "/assets/*": ["./*"]
+    }
+  },
+  "include": [".", "../../shared/types"],
+  "exclude": ["vendor"]
+}

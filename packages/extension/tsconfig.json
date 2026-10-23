@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "types": ["chrome"],
+    "strict": false,
+    "allowJs": true,
+    "checkJs": true
+  },
+  "include": ["src", "../shared/types"],
+  "exclude": ["src/entrypoints"]
+}
