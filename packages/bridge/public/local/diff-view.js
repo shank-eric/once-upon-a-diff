@@ -7,8 +7,8 @@
  */
 import { splitRows } from '/assets/split.js';
 import { highlightFile, LIMITS } from '/assets/syntax.js';
-import { html, raw } from '/assets/util/html.js';
-import { plural } from '/assets/util/text.js';
+import { html, raw } from '/assets/util/html.ts';
+import { plural } from '/assets/util/text.ts';
 import { page } from './page.js';
 
 export const isSplit = () => !!page.story && page.story.local.diff_view === 'split';

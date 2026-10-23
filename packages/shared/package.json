@@ -9,7 +9,7 @@
     "node": ">=24"
   },
   "exports": {
-    "./*": "./src/*.js"
+    "./*": "./src/*.ts"
   },
   "scripts": {
     "test": "node --test test/*.test.mjs",

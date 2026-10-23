@@ -9,8 +9,8 @@
  * (local/folds.js). This module draws the page, handles its clicks, and
  * follows the story and the commits.
  */
-import { html } from '/assets/util/html.js';
-import { setHtml } from '/assets/util/dom.js';
+import { html } from '/assets/util/html.ts';
+import { setHtml } from '/assets/util/dom.ts';
 import { page, api, STORY_PATH } from '/assets/local/page.js';
 import { treeHtml, fileHtml, headerHtml, resetHighlightBudget } from '/assets/local/diff-view.js';
 import { placeNotes, openEditor } from '/assets/local/notes.js';

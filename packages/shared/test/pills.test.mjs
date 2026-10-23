@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { placePills, pillMarker } from '../src/overlay.js';
+import { placePills, pillMarker } from '../src/overlay.ts';
 
 test("a file's status pill goes on its last mention in the chapter, and its earlier mentions get nothing", () => {
   // the shape of a chapter that names its task file in bullet 2, twice more in sub-bullets, and in its closing file list

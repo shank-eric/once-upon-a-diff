@@ -1,10 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["es2023", "dom", "dom.iterable"],
-    "strict": false,
-    "allowJs": true,
-    "checkJs": true
+    "lib": ["es2023", "dom", "dom.iterable"]
   },
   "include": ["src", "types"]
 }

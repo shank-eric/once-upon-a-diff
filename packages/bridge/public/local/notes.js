@@ -5,8 +5,8 @@
  * Fix before push sends them to a Claude session; a sent note says where it
  * went and can't be deleted here.
  */
-import { html } from '/assets/util/html.js';
-import { insertHtml, setHtml } from '/assets/util/dom.js';
+import { html } from '/assets/util/html.ts';
+import { insertHtml, setHtml } from '/assets/util/dom.ts';
 import { page, api, STORY_PATH } from './page.js';
 import { columnCount } from './diff-view.js';
 
