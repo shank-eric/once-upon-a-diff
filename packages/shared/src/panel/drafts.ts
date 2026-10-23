@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * Drafted comments: each chapter's, and the Overview's list of all of them,
  * with their state from opts.drafts: posted, in the reviewer's pending review,
@@ -17,6 +15,11 @@ import { capitalize } from '../util/text.ts';
 import { refAttrs } from './file-refs.ts';
 import { copyWithFallback } from './copy-buttons.ts';
 import { scriptDrafts, reviewScript } from './review-script.ts';
+import type { PanelContext } from './context.ts';
+import type { Chapter, DraftAction, DraftComment, DraftFix, DraftRow, Side } from '../types.ts';
+
+/** How a draft shows: see draftView. */
+export type DraftShow = 'dismissed' | 'fix' | 'posted' | 'pending' | 'added' | 'draft';
 
 /**
  * How the panel shows one draft row from the bridge: 'dismissed', 'fix', 'posted', 'pending', 'added' or 'draft'.
@@ -25,7 +28,10 @@ import { scriptDrafts, reviewScript } from './review-script.ts';
  * display once gh matches it on a page loaded after the add, or the comment turns up on the page (onPage).
  * settle: the add is confirmed, so the bridge can drop its `added` mark.
  */
-export function draftView(row, { pageAt = 0, onPage = false } = {}) {
+export function draftView(
+  row: Partial<DraftRow> | null | undefined,
+  { pageAt = 0, onPage = false } = {},
+): { show: DraftShow; settle: boolean } {
   const draft = row || { status: 'draft', dismissed: false };
   if (draft.dismissed) {
     return { show: 'dismissed', settle: false };
@@ -50,7 +56,7 @@ export function draftView(row, { pageAt = 0, onPage = false } = {}) {
   return { show: 'added', settle: false };
 }
 
-const plainText = (text) =>
+const plainText = (text: string | null | undefined) =>
   String(text || '')
     .toLowerCase()
     .replace(/```[a-z]*\n?/g, ' ')
@@ -59,7 +65,7 @@ const plainText = (text) =>
     .trim();
 
 /** Does one of these comment texts on the page (rendered markdown) show this draft's body? */
-export function shownIn(texts, body) {
+export function shownIn(texts: (string | null)[], body: string): boolean {
   const want = plainText(body).slice(0, 160);
   if (want.length < 8) {
     return false;
@@ -68,18 +74,18 @@ export function shownIn(texts, body) {
 }
 
 // kept across panel re-renders on this page: a failed Add to my review, and adds already settled
-const reviewErrors = new Map();
-const settling = new Set();
+const reviewErrors = new Map<string, string>();
+const settling = new Set<string>();
 
 const ALL_COMMENTS_OPEN = 4; // more drafts than this and the Overview's list starts folded
 const REFRESH_MS = 10000;
 const SCRIPT_TITLE =
   'Copies a shell script that puts these line drafts into one pending review with gh api. It only copies: ' +
   'nothing is posted until you run it, and the review stays unsubmitted until you submit it on GitHub.';
-const githubLink = (url) =>
+const githubLink = (url: string) =>
   html` · <a href="${url}" target="_blank" rel="noopener noreferrer">view on GitHub</a>`;
 /** How far a draft's fix-before-push note has got: sent to a session, fixed in a commit, or ticked done. */
-function fixProgress(fix) {
+function fixProgress(fix: DraftFix) {
   if (fix.state === 'fixed') {
     return html` · <span class="ou-ok">fixed in ${String(fix.sha || '').slice(0, 7)} ✓</span>`;
   }
@@ -88,26 +94,26 @@ function fixProgress(fix) {
   }
   return fix.done && html` · <span class="ou-ok">done ✓</span>`;
 }
-const lineJump = (rel, side, line) =>
+const lineJump = (rel: string, side: Side | undefined, line: number) =>
   html`<button class="ou-linkish" ${refAttrs(rel, { side: side === 'L' ? 'L' : 'R', start: Number(line), end: Number(line) })}>Jump to line ${line}</button>`;
 
-export function createDrafts(context) {
+export function createDrafts(context: PanelContext) {
   const { story, state, opts, shell } = context;
   const { data } = story;
   const { $ } = shell;
-  let rows = [];
-  let loadError = null;
+  let rows: DraftRow[] = [];
+  let loadError: string | null = null;
   let loadedAt = 0;
   let checked = false; // the bridge has said what's become of each draft at least once
 
   /** One drafted comment, with its step and index: render adds its state and its buttons. */
-  function commentHtml(comment, step, index) {
+  function commentHtml(comment: DraftComment, step: number, index: number) {
     const general = !comment.line || /^\(/.test(comment.path || '');
     const ref = !general && context.refs.resolveRef(comment.path);
     let name;
     if (ref) {
       const line = {
-        side: comment.side === 'L' ? 'L' : 'R',
+        side: (comment.side === 'L' ? 'L' : 'R') as Side,
         start: comment.line,
         end: comment.line,
       };
@@ -121,7 +127,7 @@ export function createDrafts(context) {
   }
 
   /** A chapter's drafted comments, under their heading. */
-  function chapterCommentsHtml(chapter) {
+  function chapterCommentsHtml(chapter: Chapter) {
     const comments = (chapter.comments || []).map((comment, index) =>
       commentHtml(comment, state.n, index),
     );
@@ -153,7 +159,7 @@ export function createDrafts(context) {
     return html`<details class="ou-drafts ou-allc"${open && html` open`}>${summary}<div class="ou-drafttoggles"></div><pre class="ou-script" hidden></pre>${items}</details>`;
   }
 
-  async function refresh(force) {
+  async function refresh(force: boolean) {
     if (!opts.drafts) {
       return;
     }
@@ -167,27 +173,30 @@ export function createDrafts(context) {
       loadError = result.error || null;
       checked = true;
     } catch (e) {
-      loadError = e && e.message;
+      loadError = (e && (e as Error).message) as string | null;
     }
     render();
   }
 
-  const rowKey = (step, index) => {
+  const rowKey = (step: number, index: number) => {
     const row = rows.find((candidate) => candidate.chapter === step && candidate.index === index);
     return row && row.key ? row.key : `${step}:${index}`;
   };
 
-  async function act(step, index, action) {
+  async function act(step: number, index: number, action: DraftAction) {
     const adding = action === 'review' || action === 'fix';
     const button =
-      adding && $(`.ou-comment[data-n="${step}"][data-i="${index}"] [data-draft-act="${action}"]`);
+      adding &&
+      $<HTMLButtonElement>(
+        `.ou-comment[data-n="${step}"][data-i="${index}"] [data-draft-act="${action}"]`,
+      );
     if (button) {
       button.disabled = true;
       button.textContent = 'Adding…';
     }
     const key = rowKey(step, index);
     try {
-      const result = await opts.drafts.act(step, index, action);
+      const result = await opts.drafts!.act(step, index, action); // its buttons show only with opts.drafts
       rows = result.drafts || rows;
       loadError = result.error || null;
       loadedAt = Date.now();
@@ -203,7 +212,7 @@ export function createDrafts(context) {
         );
       }
     } catch (e) {
-      const why = e && e.message ? e.message : String(e);
+      const why = e && (e as Error).message ? (e as Error).message : String(e);
       if (adding) {
         reviewErrors.set(key, why); // shown on the draft, which keeps its buttons
       } else {
@@ -224,7 +233,7 @@ export function createDrafts(context) {
   }
 
   /** Copy as gh script: copies the script, and nothing else. Running it is the reviewer's call. */
-  function copyScript(button) {
+  function copyScript(button: HTMLElement) {
     const drafts = scriptable();
     if (!drafts || !drafts.comments.length) {
       return;
@@ -233,7 +242,7 @@ export function createDrafts(context) {
     try {
       text = reviewScript({ repo: data.pr.repo, number: data.pr.number, ...drafts });
     } catch (e) {
-      shell.message(`Couldn't make the script: ${e.message}`);
+      shell.message(`Couldn't make the script: ${(e as Error).message}`);
       return;
     }
     copyWithFallback(text, button, $('.ou-script'));
@@ -246,7 +255,7 @@ export function createDrafts(context) {
   }
 
   /** Is this line draft's comment on the page yet? Read only: it looks for its text in the file's comments. */
-  function commentOnPage(comment) {
+  function commentOnPage(comment: DraftComment | undefined) {
     if (!comment || !comment.path || !(Number(comment.line) > 0)) {
       return false;
     }
@@ -267,7 +276,13 @@ export function createDrafts(context) {
   const waitingOnPage = () => !!state.n && rows.some((row) => row.chapter === state.n && row.added);
 
   /** Draws one draft's state and buttons. Returns what it shows, for the counts. */
-  function renderComment(el, row, comment, step, index) {
+  function renderComment(
+    el: HTMLElement,
+    row: DraftRow,
+    comment: DraftComment | undefined,
+    step: number,
+    index: number,
+  ): DraftShow {
     const view = draftView(row, {
       pageAt: context.pageLoadedAt,
       onPage: !!row.added && commentOnPage(comment),
@@ -279,11 +294,11 @@ export function createDrafts(context) {
           rows = result.drafts || rows;
           render();
         },
-        () => settling.delete(row.key),
+        () => settling.delete(row.key as string),
       );
     }
-    const stateLine = el.querySelector('.ou-cstate');
-    const buttons = el.querySelector('.ou-cbtns');
+    const stateLine = el.querySelector<HTMLElement>('.ou-cstate')!;
+    const buttons = el.querySelector('.ou-cbtns')!;
     for (const button of buttons.querySelectorAll('[data-draft-act]')) {
       button.remove();
     }
@@ -291,7 +306,7 @@ export function createDrafts(context) {
     el.hidden = false;
     stateLine.hidden = true;
     const link = row.url && githubLink(row.url);
-    const addButton = (action, label, title) =>
+    const addButton = (action: DraftAction, label: string, title: string) =>
       insertHtml(
         buttons,
         'afterbegin',
@@ -313,10 +328,11 @@ export function createDrafts(context) {
     } else if (view.show === 'fix') {
       el.classList.add('ou-c-done', 'ou-c-pending');
       stateLine.hidden = false;
-      const jump = lineJump(row.fix.path, row.fix.side, row.fix.line);
+      const fix = row.fix as DraftFix; // draftView says 'fix' only with one
+      const jump = lineJump(fix.path, fix.side, fix.line);
       setHtml(
         stateLine,
-        html`<span class="ou-pend">In fix before push</span>${fixProgress(row.fix)} · ${jump}`,
+        html`<span class="ou-pend">In fix before push</span>${fixProgress(fix)} · ${jump}`,
       );
     } else if (view.show === 'posted') {
       el.classList.add('ou-c-done');
@@ -336,8 +352,10 @@ export function createDrafts(context) {
       el.classList.add('ou-c-done', 'ou-c-pending');
       stateLine.hidden = false;
       const ref = comment && context.refs.resolveRef(comment.path);
-      const jump = ref && html` · ${lineJump(ref.rel, comment.side, comment.line)}`;
-      const onGithub = row.added.url && githubLink(row.added.url);
+      const jump =
+        ref &&
+        html` · ${lineJump(ref.rel, (comment as DraftComment).side, (comment as DraftComment).line)}`;
+      const onGithub = row.added!.url && githubLink(row.added!.url); // 'added' means it has one
       const reload =
         opts.reloadPage &&
         html` <button class="ou-linkish" data-draft-reload title="Reloads this page. The panel stays on this chapter.">Reload page</button>`;
@@ -412,16 +430,17 @@ export function createDrafts(context) {
     });
     const byKey = new Map(shown.map((row) => [`${row.chapter}:${row.index}`, row]));
     const counts = { posted: 0, pending: 0, dismissed: 0, fix: 0 };
-    for (const el of box.querySelectorAll('.ou-comment[data-i]')) {
+    for (const el of box.querySelectorAll<HTMLElement>('.ou-comment[data-i]')) {
       const step = Number(el.getAttribute('data-n'));
       const index = Number(el.getAttribute('data-i'));
-      const row = byKey.get(`${step}:${index}`) || { status: 'draft', dismissed: false };
-      const comment = ((data.chapters[step - 1] || {}).comments || [])[index];
+      const row: DraftRow =
+        byKey.get(`${step}:${index}`) || ({ status: 'draft', dismissed: false } as DraftRow);
+      const comment = ((data.chapters[step - 1] || ({} as Partial<Chapter>)).comments || [])[index];
       const show = renderComment(el, row, comment, step, index);
       if (show === 'added') {
         counts.pending++;
       } else if (show in counts) {
-        counts[show]++;
+        counts[show as keyof typeof counts]++;
       }
     }
     const { posted, pending, dismissed, fix: fixed } = counts;
@@ -435,7 +454,7 @@ export function createDrafts(context) {
       pending && `${pending} pending`,
       dismissed && `${dismissed} dismissed`,
     ].filter(Boolean);
-    box.querySelector('.ou-draftsum').textContent = shown.length ? `(${summary.join(' · ')})` : '';
+    box.querySelector('.ou-draftsum')!.textContent = shown.length ? `(${summary.join(' · ')})` : '';
     const forScript = overview ? scriptable() : null;
     const toggles = [
       forScript &&
@@ -449,7 +468,7 @@ export function createDrafts(context) {
         html`<span class="ou-why" title="${loadError}">Couldn't check GitHub for posted comments.</span>`,
     ].filter(Boolean);
     setHtml(
-      box.querySelector('.ou-drafttoggles'),
+      box.querySelector('.ou-drafttoggles')!,
       toggles.map((toggle, i) => html`${i > 0 && ' '}${toggle}`),
     );
   }
@@ -465,3 +484,5 @@ export function createDrafts(context) {
     waitingOnPage,
   };
 }
+
+export type Drafts = ReturnType<typeof createDrafts>;

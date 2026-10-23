@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * "Copy as gh script": the story's line drafts still to post, as one shell
  * script that puts them all into a single pending review with
@@ -17,19 +15,33 @@
  *
  * No DOM here, so node tests can use it.
  */
+import type { DraftComment, DraftRow } from '../types.ts';
+
+/** What the script reads of the bridge's row for a draft. */
+type ScriptRow = Pick<DraftRow, 'chapter' | 'index'> &
+  Partial<Pick<DraftRow, 'status' | 'dismissed' | 'added' | 'fix'>>;
+
+/** One comment in the review: GitHub's names for the sides. */
+export interface ScriptComment {
+  path: string;
+  line: number;
+  side: 'LEFT' | 'RIGHT';
+  body: string;
+}
+
 const REPO_RE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 const END = 'ONCE_UPON_REVIEW_JSON';
 
 /** Is it in their pending review already (Add to my review, or gh found it there)? */
-const inPendingReview = (row) =>
+const inPendingReview = (row: ScriptRow | undefined) =>
   !!row && !row.dismissed && !row.fix && (!!row.added || row.status === 'pending');
 /** Does the panel show it as a draft still to post? The same call as draftView's 'draft'. */
-const stillDraft = (row) =>
+const stillDraft = (row: ScriptRow | undefined) =>
   !row ||
   (!row.dismissed && !row.fix && !row.added && row.status !== 'posted' && row.status !== 'pending');
 
 /** The file a draft names: exact, else the one file it's a path suffix of, else as written. */
-function fullPath(name, rels) {
+function fullPath(name: string, rels: string[]): string {
   const clean = String(name || '').replace(/^\.\//, '');
   if (rels.includes(clean)) {
     return clean;
@@ -40,15 +52,16 @@ function fullPath(name, rels) {
 
 /**
  * What goes in the script, from the chapters' drafts and the bridge's rows for them.
- * @param {object[]} chapters the story's chapters, each with its `comments`
- * @param {object[]} rows the bridge's draft rows ({chapter, index, status, dismissed, added, fix})
- * @param {string[]} rels every file in the story
- * @returns {{comments: {path: string, line: number, side: 'LEFT'|'RIGHT', body: string}[], general: number, inReview: number}}
- *   general: drafts with no line, left out. inReview: drafts already in their pending review.
+ * chapters: the story's chapters, each with its `comments`. rows: the bridge's draft rows. rels: every file in the
+ * story. general: drafts with no line, left out. inReview: drafts already in their pending review.
  */
-export function scriptDrafts(chapters, rows, rels) {
+export function scriptDrafts(
+  chapters: { comments?: Partial<DraftComment>[] }[],
+  rows: ScriptRow[],
+  rels: string[],
+): { comments: ScriptComment[]; general: number; inReview: number } {
   const byKey = new Map(rows.map((row) => [`${row.chapter}:${row.index}`, row]));
-  const out = { comments: [], general: 0, inReview: 0 };
+  const out = { comments: [] as ScriptComment[], general: 0, inReview: 0 };
   chapters.forEach((chapter, chapterIndex) =>
     (chapter.comments || []).forEach((comment, index) => {
       const row = byKey.get(`${chapterIndex + 1}:${index}`);
@@ -78,9 +91,20 @@ export function scriptDrafts(chapters, rows, rels) {
 /**
  * The script itself. It runs in a subshell, so its `unset GITHUB_TOKEN` (when Once Upon a Diff's config asks for it)
  * doesn't touch the reviewer's own shell.
- * @param {{repo: string, number: number, comments: object[], general?: number, inReview?: number}} input
  */
-export function reviewScript({ repo, number, comments, general = 0, inReview = 0 }) {
+export function reviewScript({
+  repo,
+  number,
+  comments,
+  general = 0,
+  inReview = 0,
+}: {
+  repo: string | null;
+  number: number | null;
+  comments: ScriptComment[];
+  general?: number;
+  inReview?: number;
+}): string {
   if (
     !REPO_RE.test(String(repo || '')) ||
     !Number.isInteger(Number(number)) ||

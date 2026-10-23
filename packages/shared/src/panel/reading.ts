@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * What the reviewer has read: a chapter they stayed on for READ_MS (counted
  * while the tab shows), or ticked every file of, or (inferred) one whose files
@@ -10,6 +8,17 @@
  * READ_MS, inferReadSteps and viewedEarlyCheck have no DOM, so node tests can use them.
  */
 import { chapterKeyOf } from './story-model.ts';
+import type { ReadEvent, ReadInfo } from '../types.ts';
+
+/** How one chapter's files to mark viewed stand (viewed.ts progressOf). */
+export interface StepProgress {
+  due: number;
+  viewed: number;
+  unviewed: string[];
+  unknown: string[];
+  noToggle: boolean;
+}
+import type { PanelContext } from './context.ts';
 
 export const READ_MS = 30000;
 
@@ -17,16 +26,19 @@ export const READ_MS = 30000;
  * Chapters they reviewed before the panel tracked reads (or with the panel closed): every file the chapter marks
  * viewed was already Viewed the first time this page could see all of them, and read.json has no record of it.
  * Only that first look counts, so ticking a later chapter's files while reading an earlier one doesn't read it.
- * @param {{due: number, viewed: number, unknown: string[], noToggle: boolean}[]} progress progressOf() per step
- * @param {object|null} readInfo the bridge's GET /read; nothing is inferred until it has loaded
- * @param {Map<number, boolean>} firstLook step -> complete at the first look; filled in here
- * @returns {number[]} the steps to record as read
+ * progress is progressOf() per step; readInfo the bridge's GET /read (nothing is inferred until it has loaded);
+ * firstLook step -> complete at the first look, filled in here. Returns the steps to record as read.
  */
-export function inferReadSteps(chapters, progress, readInfo, firstLook) {
+export function inferReadSteps(
+  chapters: { key?: unknown; title?: unknown }[],
+  progress: (Pick<StepProgress, 'due' | 'viewed' | 'unknown' | 'noToggle'> | null | undefined)[],
+  readInfo: ReadInfo | null,
+  firstLook: Map<number, boolean>,
+): number[] {
   if (!readInfo || !readInfo.reads) {
     return [];
   }
-  const out = [];
+  const out: number[] = [];
   progress.forEach((stepProgress, index) => {
     const step = index + 1;
     if (
@@ -52,20 +64,28 @@ export function inferReadSteps(chapters, progress, readInfo, firstLook) {
  * (read.json has its key) and the file hasn't changed since. A chapter that changed only in other files, such as one a
  * "Since you read it" chapter now finishes, still counts as read for the rest. Nothing is early on a "Since you read
  * it" step: it follows up on chapters they've already been through, wherever it sits.
- * @param {{chapters: object[], finishedIn: Object<string, number>, readInfo: object|null, step: number}} story
- *   readInfo is the bridge's GET /read: {reads, changed: [{step, files}]}
- * @returns {(rel: string) => boolean}
+ * readInfo is the bridge's GET /read: {reads, changed: [{step, files}]}.
  */
-export function viewedEarlyCheck({ chapters, finishedIn, readInfo, step }) {
+export function viewedEarlyCheck({
+  chapters,
+  finishedIn,
+  readInfo,
+  step,
+}: {
+  chapters: { key?: unknown; title?: unknown; since?: unknown }[];
+  finishedIn: Record<string, number>;
+  readInfo: ReadInfo | null;
+  step: number;
+}): (rel: string) => boolean {
   const reads = (readInfo && readInfo.reads) || {};
   // step -> the files that changed after they read it (null: the bridge didn't say which, so all of them)
-  const changed = new Map(
+  const changed = new Map<number, Set<string> | null>(
     ((readInfo && readInfo.changed) || []).map((change) => [
       change.step,
       Array.isArray(change.files) ? new Set(change.files) : null,
     ]),
   );
-  const hasRead = (finishStep, rel) => {
+  const hasRead = (finishStep: number, rel: string) => {
     const chapter = chapters[finishStep - 1];
     if (!chapter || !reads[chapterKeyOf(chapter)]) {
       return false;
@@ -86,14 +106,14 @@ export function viewedEarlyCheck({ chapters, finishedIn, readInfo, step }) {
     !hasRead(finishedIn[rel], rel);
 }
 
-export function createReading(context) {
+export function createReading(context: PanelContext) {
   const { story, state, opts } = context;
   const { data } = story;
   const sent = new Set(); // "<key> <reason>": each at most once per panel
   const completeSeen = new Map(); // chapter -> were all its files viewed when last looked at
   const firstLook = new Map(); // chapter -> were all its files already viewed the first time the page showed them all (inferReadSteps)
   let clock = { step: 0, ms: 0, from: 0 };
-  let info = null; // the bridge's GET /read
+  let info: ReadInfo | null = null; // the bridge's GET /read
   const showing = () => document.visibilityState === 'visible';
 
   function start() {
@@ -101,7 +121,7 @@ export function createReading(context) {
   }
   const elapsed = () => clock.ms + (clock.from ? Date.now() - clock.from : 0);
 
-  function send(step, reason) {
+  function send(step: number, reason: ReadEvent['reason']) {
     const chapter = data.chapters[step - 1];
     if (!opts.onRead || !chapter) {
       return;
@@ -149,13 +169,13 @@ export function createReading(context) {
   window.addEventListener('pagehide', leave);
 
   /** The viewed tracker's progress per chapter: a chapter complete at the page's first look counts as read. */
-  function noteProgress(progress) {
+  function noteProgress(progress: StepProgress[]) {
     for (const step of inferReadSteps(data.chapters, progress, info, firstLook)) {
       send(step, 'inferred');
     }
   }
   /** Ticking the last of a chapter's files counts as reading it, when it's a change seen here. */
-  function noteComplete(step, complete) {
+  function noteComplete(step: number, complete: boolean) {
     if (complete && completeSeen.get(step) === false) {
       send(step, 'viewed');
     }
@@ -177,7 +197,7 @@ export function createReading(context) {
     context.drafts.render();
   }
   /** A drafted comment on a line a newer commit changed after they read the chapter. */
-  const isStaleDraft = (step, index) =>
+  const isStaleDraft = (step: number, index: number) =>
     !!info &&
     (info.stale_comments || []).some((comment) => comment.step === step && comment.index === index);
 
@@ -199,3 +219,5 @@ export function createReading(context) {
     destroy,
   };
 }
+
+export type Reading = ReturnType<typeof createReading>;

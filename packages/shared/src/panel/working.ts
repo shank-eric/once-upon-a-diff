@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * "Being changed": files a Claude session says it's changing (`once-upon working`, usually while it fixes notes
  * sent from Fix before push). A line at the top of the body names the session and the files, the step list and the
@@ -12,11 +10,13 @@
 import { html } from '../util/html.ts';
 import { insertHtml, setHtml } from '../util/dom.ts';
 import { shortDateTime } from '../util/time.ts';
+import type { LineRanges, WorkingMark } from '../types.ts';
+import type { PanelContext } from './context.ts';
 
 const MAX_FILES_NAMED = 6;
 
 /** The story file a mark's path names: the path itself, or the one file it's a suffix of. */
-function relOf(name, rels) {
+function relOf(name: string, rels: string[]): string {
   if (rels.includes(name)) {
     return name;
   }
@@ -25,8 +25,11 @@ function relOf(name, rels) {
 }
 
 /** {<story file>: {consumer, ranges}} for the marks: who's changing each file, and which lines when it said. */
-export function changingOf(marks, rels) {
-  const byRel = {};
+export function changingOf(
+  marks: WorkingMark[] | null | undefined,
+  rels: string[],
+): Record<string, { consumer: string; ranges: LineRanges }> {
+  const byRel: Record<string, { consumer: string; ranges: LineRanges }> = {};
   for (const mark of marks || []) {
     for (const file of mark.files || []) {
       byRel[relOf(file.path, rels)] = { consumer: mark.consumer, ranges: file.ranges || [] };
@@ -35,17 +38,17 @@ export function changingOf(marks, rels) {
   return byRel;
 }
 
-const rangesText = (ranges) =>
+const rangesText = (ranges: LineRanges) =>
   ranges.length
     ? ` (line${ranges.length > 1 || ranges[0][0] !== ranges[0][1] ? 's' : ''} ${ranges
         .map(([start, end]) => (start === end ? `${start}` : `${start}–${end}`))
         .join(', ')})`
     : '';
 
-export function createWorking(context) {
+export function createWorking(context: PanelContext) {
   const { story, opts, shell } = context;
   const { $ } = shell;
-  let marks = [];
+  let marks: WorkingMark[] = [];
 
   const byRel = () => changingOf(marks, story.allRels);
 
@@ -103,11 +106,11 @@ export function createWorking(context) {
       }
     }
     for (const item of shell.root.querySelectorAll('ul.ou-files > li[data-file]')) {
-      const who = changing[item.getAttribute('data-file')];
+      const who = changing[item.getAttribute('data-file') as string];
       if (who) {
         item.classList.add('ou-changing');
         insertHtml(
-          item.querySelector('code'),
+          item.querySelector('code') as Element,
           'afterend',
           html`<span class="ou-chgby">being changed by ${who.consumer}${rangesText(who.ranges)}</span>`,
         );
@@ -140,3 +143,5 @@ export function createWorking(context) {
 
   return { render, refresh, dimPage, destroy };
 }
+
+export type Working = ReturnType<typeof createWorking>;

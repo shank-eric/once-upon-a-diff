@@ -1,13 +1,11 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * Small DOM helpers shared by the panel, the local page and the content
  * scripts' own elements: key isolation, stylesheets and setting markup.
  */
-import { html } from './html.ts';
+import { html, type HtmlValue } from './html.ts';
 
 /** Keeps key events inside our element, so the host page's single-key shortcuts don't fire while typing in it. */
-export function stopKeyEvents(target) {
+export function stopKeyEvents(target: EventTarget): void {
   for (const type of ['keydown', 'keypress', 'keyup']) {
     target.addEventListener(type, (event) => event.stopPropagation());
   }
@@ -17,7 +15,7 @@ export function stopKeyEvents(target) {
 const STYLESHEET_WAIT_MS = 1500;
 
 /** A <link rel="stylesheet"> for href, to put in a shadow root or the document's head. */
-export function stylesheetLink(href) {
+export function stylesheetLink(href: string): HTMLLinkElement {
   const link = document.createElement('link');
   link.rel = 'stylesheet';
   link.href = href;
@@ -28,11 +26,11 @@ export function stylesheetLink(href) {
  * Keeps element hidden until each link has loaded (or failed, or STYLESHEET_WAIT_MS went by), so it never shows
  * unstyled. Call it before the links go on the page: a link starts loading when it's connected.
  */
-export function hideUntilStyled(element, links) {
+export function hideUntilStyled(element: HTMLElement, links: HTMLLinkElement[]): void {
   element.style.visibility = 'hidden';
   const loads = links.map(
     (link) =>
-      new Promise((resolve) => {
+      new Promise<unknown>((resolve) => {
         link.addEventListener('load', resolve, { once: true });
         link.addEventListener('error', resolve, { once: true });
       }),
@@ -42,11 +40,11 @@ export function hideUntilStyled(element, links) {
 }
 
 /** Puts markup in element in place of its children: html`` markup as is, anything else (a plain string) as text. */
-export function setHtml(element, markup) {
+export function setHtml(element: Element, markup: HtmlValue): void {
   element.innerHTML = html`${markup}`.markup;
 }
 
 /** Inserts markup at position ('beforeend', 'afterend'...) the way setHtml does. */
-export function insertHtml(element, position, markup) {
+export function insertHtml(element: Element, position: InsertPosition, markup: HtmlValue): void {
   element.insertAdjacentHTML(position, html`${markup}`.markup);
 }

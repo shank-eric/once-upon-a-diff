@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * File and line references in the story's text, and the status pill on a
  * file's mention.
@@ -18,25 +16,32 @@
 import { html, raw, unescapeHtml } from '../util/html.ts';
 import { parseLineRef } from '../util/line-refs.ts';
 import { markViewedButton } from './viewed.ts';
+import type { LineRef } from '../util/line-refs.ts';
+import type { Html } from '../util/html.ts';
+import type { PanelContext } from './context.ts';
 
 // eslint-disable-next-line no-control-regex -- the placeholder markers are control characters on purpose
 const PILL_MARK = /\u0001(\d+)\u0001/g;
 /** The marker left in a chapter story's html for its index-th file mention. */
-export const pillMarker = (index) => `\u0001${index}\u0001`;
+export const pillMarker = (index: number): string => `\u0001${index}\u0001`;
 
 /**
  * Fills a chapter story's pill markers (pillMarker(i) for the i-th file mention, marks[i] its file) in reading order:
  * a file's last mention gets pillFor(rel), every earlier mention nothing.
  */
-export function placePills(html, marks, pillFor) {
-  const last = new Map();
+export function placePills(
+  html: unknown,
+  marks: (string | null | undefined)[],
+  pillFor: (rel: string) => unknown,
+): string {
+  const last = new Map<string | null | undefined, number>();
   marks.forEach((rel, index) => {
     last.set(rel, index);
   });
   return String(html).replace(PILL_MARK, (marker, indexText) => {
     const index = Number(indexText);
     const rel = marks[index];
-    return rel != null && last.get(rel) === index ? pillFor(rel) : '';
+    return rel != null && last.get(rel) === index ? String(pillFor(rel)) : '';
   });
 }
 
@@ -44,7 +49,7 @@ export function placePills(html, marks, pillFor) {
  * The data-rel attributes (and data-side/start/end for a line) that make a mention a jump link. role and tabindex
  * put it in the tab order, and the shell turns Enter or Space on it into a click.
  */
-export function refAttrs(rel, line) {
+export function refAttrs(rel: string, line: LineRef | null | undefined): Html {
   const where = line ? ` line ${line.start}${line.end !== line.start ? `–${line.end}` : ''}` : '';
   const attrs = html`data-rel="${rel}" role="link" tabindex="0" title="Scroll to ${rel}${where}"`;
   return line
@@ -52,26 +57,26 @@ export function refAttrs(rel, line) {
     : attrs;
 }
 
-export function createFileRefs(context) {
+export function createFileRefs(context: PanelContext) {
   const { story, state } = context;
   let linkScope = story.allRels; // the files a name can resolve to: the step's
   let pilled = new Set(); // files whose pill is already drawn in this step
-  let lastRef = null; // the file a bare `:40` refers to
-  let pillMarks = null; // while a chapter's story is drawn: each file mention, in reading order
+  let lastRef: string | null = null; // the file a bare `:40` refers to
+  let pillMarks: string[] | null = null; // while a chapter's story is drawn: each file mention, in reading order
 
   /** Starts a step's text: names resolve among these files, and no pill is drawn yet. */
-  function startStep(scope) {
+  function startStep(scope: string[]) {
     linkScope = scope;
     pilled = new Set();
     lastRef = null;
   }
-  const inScope = (rel) => linkScope.includes(rel);
-  const noteMention = (rel) => {
+  const inScope = (rel: string) => linkScope.includes(rel);
+  const noteMention = (rel: string) => {
     lastRef = rel;
   };
 
   /** {rel, line, bare} for a backticked name that's a file (or a line in one) of this step, else null. */
-  function resolveRef(text) {
+  function resolveRef(text: string): { rel: string; line: LineRef | null; bare?: boolean } | null {
     const { name, line } = parseLineRef(unescapeHtml(text));
     if (!name && line) {
       let rel = null;
@@ -100,7 +105,7 @@ export function createFileRefs(context) {
    * Elsewhere (an answer), it goes on the first mention of a file the story didn't pill. A file this chapter finishes
    * gets the Mark viewed button; one a later chapter finishes gets nothing.
    */
-  function pill(rel) {
+  function pill(rel: string): Html | string {
     if (!state.n) {
       return '';
     }
@@ -113,7 +118,7 @@ export function createFileRefs(context) {
     pilled.add(rel);
     return pillHtml(rel);
   }
-  function pillHtml(rel) {
+  function pillHtml(rel: string): Html | string {
     const status = context.fileStatus(rel, state.n);
     if (!status || status.kind === 'later') {
       return '';
@@ -124,10 +129,10 @@ export function createFileRefs(context) {
     return html`<span class="ou-pill ou-st-${status.kind}" title="${status.text}">${status.short}</span>`;
   }
   /** A chapter's story with its pill markers filled in: the status on each file's last mention, nothing on the earlier ones. */
-  function storyWithPills(draw) {
-    const marks = [];
+  function storyWithPills(draw: () => Html) {
+    const marks: string[] = [];
     pillMarks = marks;
-    let markup;
+    let markup: Html;
     try {
       markup = draw();
     } finally {
@@ -141,3 +146,5 @@ export function createFileRefs(context) {
 
   return { startStep, inScope, noteMention, resolveRef, pill, storyWithPills };
 }
+
+export type FileRefs = ReturnType<typeof createFileRefs>;

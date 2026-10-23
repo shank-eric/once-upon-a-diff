@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * Questions: the Ask box sends one through opts.ask (to the bridge inbox),
  * and the step's questions and their answers come back through
@@ -16,12 +14,14 @@ import { html } from '../util/html.ts';
 import { setHtml } from '../util/dom.ts';
 import { baseName, plural } from '../util/text.ts';
 import { shortDateTime } from '../util/time.ts';
+import type { PanelContext } from './context.ts';
+import type { Question, QuestionMark, QuestionMarksAnswer } from '../types.ts';
 
 const SLOW_EVERY = 6; // ticks: 6 x 5s = every 30s with nothing waiting
 const UNDO_MS = 15000;
 
 /** What one mark action does to a question, for drawing it before the bridge answers. */
-const MARK_FIELDS = {
+const MARK_FIELDS: Record<QuestionMark, Partial<Question>> = {
   dismiss: { dismissed: true },
   clear: { dismissed: true },
   restore: { dismissed: false },
@@ -29,18 +29,18 @@ const MARK_FIELDS = {
   expand: { collapsed: false },
 };
 
-export function createQuestions(context) {
+export function createQuestions(context: PanelContext) {
   const { state, opts, shell } = context;
   const { $ } = shell;
-  let questions = [];
+  let questions: Question[] = [];
   let showDismissed = false;
-  let undo = null; // {label, ids} after a dismissal, until UNDO_MS passes or the next one
-  let undoTimer = 0;
+  let undo: { label: string; ids: string[] } | null = null; // after a dismissal, until UNDO_MS passes or the next one
+  let undoTimer: ReturnType<typeof setTimeout> | 0 = 0;
 
   /** Is this question about the step on screen (any story step on the Overview)? */
-  const forStep = (question) => state.n === 0 || question.step === state.n;
+  const forStep = (question: Question) => state.n === 0 || question.step === state.n;
 
-  function setUndo(next) {
+  function setUndo(next: { label: string; ids: string[] } | null) {
     clearTimeout(undoTimer);
     undo = next;
     if (next) {
@@ -51,7 +51,7 @@ export function createQuestions(context) {
     }
   }
 
-  function answersHtml(question) {
+  function answersHtml(question: Question) {
     const answers = question.answers || [];
     if (!answers.length) {
       const from = question.handed_to || 'the Claude session';
@@ -63,7 +63,7 @@ export function createQuestions(context) {
     });
   }
 
-  function questionHtml(question) {
+  function questionHtml(question: Question) {
     const when = shortDateTime(question.at);
     const where = [
       state.n === 0 && question.step ? `chapter ${question.step}` : '',
@@ -125,7 +125,7 @@ export function createQuestions(context) {
   }
 
   /** Marks the questions here at once, then saves the marks in the bridge and takes its list. */
-  async function mark(action, ids) {
+  async function mark(action: QuestionMark, ids: string[]): Promise<QuestionMarksAnswer | null> {
     const fields = MARK_FIELDS[action];
     const all = action === 'clear';
     questions = questions.map((question) =>
@@ -143,15 +143,17 @@ export function createQuestions(context) {
       }
       return answer;
     } catch (err) {
-      shell.message(`Couldn't save that: ${err && err.message ? err.message : err}`);
+      shell.message(
+        `Couldn't save that: ${err && (err as Error).message ? (err as Error).message : err}`,
+      );
       await refresh();
       return null;
     }
   }
 
   /** A click on a [data-qa-act] button in the questions box (the body's click handler sends it here). */
-  async function act(button) {
-    const action = button.getAttribute('data-qa-act');
+  async function act(button: Element) {
+    const action = button.getAttribute('data-qa-act') as QuestionMark | 'show-dismissed' | 'undo';
     if (action === 'show-dismissed') {
       showDismissed = !showDismissed;
       render();
@@ -178,7 +180,7 @@ export function createQuestions(context) {
     if (!item || !MARK_FIELDS[action]) {
       return;
     }
-    const id = item.getAttribute('data-qid');
+    const id = item.getAttribute('data-qid') as string;
     if (action === 'dismiss') {
       setUndo({ label: 'Dismissed 1 question.', ids: [id] });
     }
@@ -205,7 +207,7 @@ export function createQuestions(context) {
   }
 
   /** The overlay's tick: every tick while a question waits for its answer, otherwise every SLOW_EVERY. */
-  function poll(ticks) {
+  function poll(ticks: number) {
     const waiting = questions.some(
       (question) => !question.dismissed && !(question.answers || []).length,
     );
@@ -215,15 +217,15 @@ export function createQuestions(context) {
   }
   refresh();
 
-  const askForm = $('.ou-ask');
-  const askText = askForm.querySelector('textarea');
+  const askForm = $<HTMLFormElement>('.ou-ask')!;
+  const askText = askForm.querySelector('textarea') as HTMLTextAreaElement;
   askForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     const text = askText.value.trim();
     if (!text || !opts.ask) {
       return;
     }
-    const button = askForm.querySelector('button');
+    const button = askForm.querySelector('button') as HTMLButtonElement;
     button.disabled = true;
     try {
       await opts.ask({
@@ -241,7 +243,9 @@ export function createQuestions(context) {
       );
       await refresh();
     } catch (err) {
-      shell.message(`Couldn't send the question: ${err && err.message ? err.message : err}`);
+      shell.message(
+        `Couldn't send the question: ${err && (err as Error).message ? (err as Error).message : err}`,
+      );
     } finally {
       button.disabled = false;
     }
@@ -255,3 +259,5 @@ export function createQuestions(context) {
 
   return { render, refresh, poll, act, destroy: () => clearTimeout(undoTimer) };
 }
+
+export type Questions = ReturnType<typeof createQuestions>;

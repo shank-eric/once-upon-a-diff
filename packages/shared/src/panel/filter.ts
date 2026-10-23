@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * The chapter filter: hides other chapters' files (and their file-tree rows)
  * with display:none, says how many of the chapter's files are on the page,
@@ -9,6 +7,8 @@
 import { html } from '../util/html.ts';
 import { setHtml } from '../util/dom.ts';
 import { baseName, capitalize } from '../util/text.ts';
+import type { PanelContext } from './context.ts';
+import type { Chapter } from '../types.ts';
 
 /**
  * A file outside the chapter also gets the standard `hidden` attribute on
@@ -20,7 +20,7 @@ const TARGETS =
   '[role="region"][id^="diff-"], [class*="diffTargetable"], .js-file, copilot-diff-entry';
 const DEBOUNCE_MS = 150;
 
-function setHidden(el, hide) {
+function setHidden(el: Element, hide: boolean): void {
   if (hide && !el.hasAttribute('data-ou-hidden')) {
     el.setAttribute('data-ou-hidden', '');
   }
@@ -29,7 +29,7 @@ function setHidden(el, hide) {
   }
 }
 
-function hideBlock(el, hide) {
+function hideBlock(el: Element, hide: boolean): void {
   setHidden(el, hide);
   const targets = [el, ...el.querySelectorAll(TARGETS)].filter(
     (target, index) => index === 0 || target.matches(TARGETS),
@@ -59,16 +59,20 @@ function unhideAll() {
 }
 
 // Changes inside a diff line (Refined GitHub's show-whitespace and linkify-code wrap text in spans as you scroll) can't add or remove a file, so they don't count.
-const insideLine = (node) => {
-  const el = node.nodeType === 1 ? node : node.parentElement;
+const insideLine = (node: Node) => {
+  const el = node.nodeType === 1 ? (node as Element) : node.parentElement;
   return !!(el && el.closest('td, .diff-text-inner, .blob-code-inner'));
 };
 
-export function createFilter(context) {
+export function createFilter(context: PanelContext) {
   const { story, state, opts, page, shell } = context;
   const { data } = story;
   const { $ } = shell;
-  let seen = { found: 0, shown: 0, missing: [] };
+  let seen: { found: number; shown: number; missing: string[] } = {
+    found: 0,
+    shown: 0,
+    missing: [],
+  };
 
   /** Shows the chapter's files and hides the rest (all of them show on the Overview or with Show all files). */
   function apply() {
@@ -83,7 +87,7 @@ export function createFilter(context) {
     const rows = page.treeRows();
     const fileRows = rows.filter((row) => row.rel);
     for (const row of fileRows) {
-      setHidden(row.el, !showAll && !wanted.has(row.rel));
+      setHidden(row.el, !showAll && !wanted.has(row.rel as string));
     }
     // folders: keep one if a chapter file lives under it or any of its rows is still showing
     for (const row of rows.filter((candidate) => !candidate.rel)) {
@@ -113,7 +117,7 @@ export function createFilter(context) {
     if (state.n === 0) {
       note = html`<span>Overview: all <b>${total}</b> files, ${data.chapters.length} chapters</span>`;
     } else {
-      const count = context.chapter().files.length;
+      const count = (context.chapter() as Chapter).files.length;
       const extra =
         seen.missing.length > 0 &&
         !state.all &&
@@ -123,7 +127,7 @@ export function createFilter(context) {
         ? html`<span>Showing all <b>${total}</b> files. ${capitalize(here)}'s ${count} are listed below.</span> <button class="ou-all" aria-pressed="true">Chapter files only</button>`
         : html`<span>Showing <b>${count}</b> of <b>${total}</b> files, ${here}${extra}</span> <button class="ou-all" aria-pressed="false">Show all files</button>`;
     }
-    setHtml($('.ou-count-note'), note);
+    setHtml($('.ou-count-note')!, note);
     const allButton = $('.ou-all');
     if (allButton) {
       allButton.onclick = () => {
@@ -133,20 +137,23 @@ export function createFilter(context) {
       };
     }
     for (const item of shell.root.querySelectorAll('ul.ou-files > li[data-file]')) {
-      item.classList.toggle('ou-missing', seen.missing.includes(item.getAttribute('data-file')));
+      item.classList.toggle(
+        'ou-missing',
+        seen.missing.includes(item.getAttribute('data-file') as string),
+      );
     }
   }
 
-  $('.ou-note').addEventListener('click', (event) => {
-    const ref = event.target.closest('[data-rel]');
+  $('.ou-note')!.addEventListener('click', (event) => {
+    const ref = (event.target as Element).closest('[data-rel]');
     if (ref) {
-      context.scroll.jumpTo(ref.getAttribute('data-rel'));
+      context.scroll.jumpTo(ref.getAttribute('data-rel') as string);
     }
   });
 
   // GitHub loads and re-renders diffs as you scroll, and flips aria-pressed when
   // the reviewer ticks Viewed, so re-filter and refresh the check marks after changes.
-  let pending = 0;
+  let pending: ReturnType<typeof setTimeout> | 0 = 0;
   const observer = new MutationObserver((mutations) => {
     const ours = mutations.every(
       (mutation) =>
@@ -227,3 +234,5 @@ export function createFilter(context) {
     },
   };
 }
+
+export type Filter = ReturnType<typeof createFilter>;

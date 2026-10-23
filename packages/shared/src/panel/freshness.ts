@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * Is the story up to date with the PR's latest commit (opts.freshness)? A
  * stale story says so under the toolbar, with Update and Re-tell buttons
@@ -13,11 +11,16 @@ import { html } from '../util/html.ts';
 import { setHtml } from '../util/dom.ts';
 import { plural, sameSha, shortSha } from '../util/text.ts';
 import { rangeOfPath } from '../util/github-paths.ts';
+import type { PanelContext } from './context.ts';
+import type { Chapter, Freshness } from '../types.ts';
 
 export { rangeOfPath };
 
 /** The step (1-based) of the "Since you read it" chapter for the range this page shows, or null. */
-export function rangeStepOf(chapters, pathname) {
+export function rangeStepOf(
+  chapters: { since?: { from: string; to: string } }[],
+  pathname: string,
+): number | null {
   const range = rangeOfPath(pathname);
   if (!range) {
     return null;
@@ -35,18 +38,21 @@ export function rangeStepOf(chapters, pathname) {
  * The link to GitHub's diff of just a chapter's commits. /changes/<from>..<to> loads as is logged in
  * (checked 2026-10-22) and redirects to /files/<from>..<to> logged out.
  */
-export const rangeUrl = (prUrl, since) =>
+export const rangeUrl = (
+  prUrl: string | null | undefined,
+  since: { from: string; to: string } | null | undefined,
+): string | null =>
   prUrl && since ? `${String(prUrl).replace(/\/+$/, '')}/changes/${since.from}..${since.to}` : null;
 
 const UPDATE_TITLE =
   'Adds a “Since you read it” chapter for the new commits, first, and keeps the chapters you read';
 const RETELL_TITLE = 'A whole new story at the latest commit, for a rebase or a big rework';
 
-export function createFreshness(context) {
+export function createFreshness(context: PanelContext) {
   const { story, opts, shell } = context;
   const { data } = story;
   const { $ } = shell;
-  let fresh = null;
+  let fresh: Freshness | null = null;
 
   async function refresh() {
     if (!opts.freshness) {
@@ -55,25 +61,25 @@ export function createFreshness(context) {
     try {
       fresh = await opts.freshness();
     } catch (e) {
-      fresh = { state: 'unknown', error: e && e.message };
+      fresh = { state: 'unknown', error: (e && (e as Error).message) as string | null };
     }
     render();
     context.marks.render();
   }
 
   /** ", in chapter 1, chapter 3" for the chapters that list the changed files */
-  const inChapters = (touched) =>
+  const inChapters = (touched: number[]) =>
     touched.length ? `, in ${touched.map(story.chapterName).join(', ')}` : '';
 
-  function wireUpdateButtons(box) {
-    for (const button of box.querySelectorAll('.ou-update')) {
+  function wireUpdateButtons(box: HTMLElement) {
+    for (const button of box.querySelectorAll<HTMLButtonElement>('.ou-update')) {
       button.onclick = async () => {
         const retell = button.getAttribute('data-retell') === '1';
-        for (const other of box.querySelectorAll('.ou-update')) {
+        for (const other of box.querySelectorAll<HTMLButtonElement>('.ou-update')) {
           other.disabled = true;
         }
         try {
-          await opts.requestUpdate(fresh.story_head, { retell });
+          await opts.requestUpdate!(fresh!.story_head, { retell }); // the buttons show only with both
           button.textContent = retell ? 'Re-tell asked for' : 'Update asked for';
           shell.message(
             retell
@@ -81,17 +87,19 @@ export function createFreshness(context) {
               : 'Asked for a “Since you read it” chapter for the new commits. A Claude session picks it up from the inbox.',
           );
         } catch (e) {
-          for (const other of box.querySelectorAll('.ou-update')) {
+          for (const other of box.querySelectorAll<HTMLButtonElement>('.ou-update')) {
             other.disabled = false;
           }
-          shell.message(`Couldn't ask for an update: ${e && e.message ? e.message : e}`);
+          shell.message(
+            `Couldn't ask for an update: ${e && (e as Error).message ? (e as Error).message : e}`,
+          );
         }
       };
     }
   }
 
   function render() {
-    const box = $('.ou-fresh');
+    const box = $('.ou-fresh')!;
     box.classList.remove('ou-stale');
     if (!fresh || fresh.state === 'n/a') {
       setHtml(box, '');
@@ -139,7 +147,7 @@ export function createFreshness(context) {
    * A story updated in place (no "Since you read it" chapter for the update): say so at the top, with what the new
    * commits changed and a link to GitHub's diff of just them, so what's new stays apart from what they'd seen.
    */
-  function updatedHtml(freshness) {
+  function updatedHtml(freshness: Freshness | null) {
     const updated = freshness && freshness.updated;
     if (!updated) {
       return null;
@@ -161,7 +169,7 @@ export function createFreshness(context) {
   }
 
   /** At the top of a "Since you read it" chapter: which commits it covers, and that the rest is as they read it. */
-  function sinceBanner(chapter) {
+  function sinceBanner(chapter: Chapter | null) {
     if (!chapter || !chapter.since) {
       return null;
     }
@@ -193,3 +201,5 @@ export function createFreshness(context) {
     sinceBanner,
   };
 }
+
+export type FreshnessPart = ReturnType<typeof createFreshness>;
