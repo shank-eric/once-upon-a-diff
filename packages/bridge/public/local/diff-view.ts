@@ -236,7 +236,7 @@ export function headerHtml() {
   const local = story.local;
   const added = local.files.reduce((sum, file) => sum + file.stats.added, 0);
   const removed = local.files.reduce((sum, file) => sum + file.stats.removed, 0);
-  const open = local.notes.filter((note) => !note.done).length;
+  // the notes toggle's counts come from placeNotes (notes.ts), which runs after every draw
   return html`<header class="ou-local-top">
     <div class="ou-local-top-main">
       <h1>${story.title}</h1>
@@ -244,7 +244,7 @@ export function headerHtml() {
     </div>
     <div class="ou-local-view" role="group" aria-label="Diff view">${viewButtonsHtml()}</div>
     <label class="ou-local-ws" title="${WS_TITLE}"><input type="checkbox" class="ou-local-ws-toggle"${local.hide_whitespace && html` checked`}> Hide whitespace</label>
-    <button type="button" class="ou-local-notes-toggle" aria-expanded="false">Fix before push: ${open} open</button>
+    <button type="button" class="ou-local-notes-toggle" aria-expanded="false">Fix before push</button>
     <span class="ou-local-pr-holder">${prButtonHtml()}</span>
   </header>
   <section class="ou-local-notes-list" hidden></section>`;
