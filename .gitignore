@@ -9,3 +9,6 @@ test-results/
 !.yarn/releases
 .eslintcache
 .prettiercache
+.output/
+.wxt/
+*.pem

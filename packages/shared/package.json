@@ -1,0 +1,22 @@
+{
+  "name": "@once-upon-a-diff/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Once Upon a Diff's story panel and the helpers the extension and the bridge share",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "test": "node ../bridge/bin/node-version.mjs && node --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.1",
+    "typescript": "5.9.3"
+  }
+}

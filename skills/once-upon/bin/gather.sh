@@ -24,6 +24,9 @@ while [ $# -gt 0 ]; do
 done
 [ -n "$PR" ] && [ -n "$OUT" ] || { echo "usage: gather.sh <number|url> [owner/repo] -o <dir>" >&2; exit 1; }
 [ -n "$REPO" ] || REPO=$(gh repo view --json nameWithOwner -q .nameWithOwner)
+# only owner/name and a number, so nothing here reaches gh as a flag, a file (@path) or another type
+[[ "$REPO" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] || { echo "gather.sh: not an owner/repo: $REPO" >&2; exit 1; }
+[[ "$PR" =~ ^[0-9]+$ ]] || { echo "gather.sh: not a PR number: $PR" >&2; exit 1; }
 OWNER=${REPO%/*} NAME=${REPO#*/}
 mkdir -p "$OUT"
 DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -36,7 +39,7 @@ if ! gh pr diff "$PR" -R "$REPO" > "$OUT/pr.diff" 2> "$OUT/diff.err"; then
 fi
 
 # shellcheck disable=SC2016 # $owner, $name and $pr are GraphQL variables, not the shell's
-gh api graphql -F owner="$OWNER" -F name="$NAME" -F pr="$PR" -f query='
+gh api graphql -f owner="$OWNER" -f name="$NAME" -F pr="$PR" -f query='
 query($owner:String!,$name:String!,$pr:Int!){repository(owner:$owner,name:$name){pullRequest(number:$pr){
   reviewThreads(first:100){nodes{isResolved isOutdated path line originalLine
     comments(first:50){nodes{author{login} createdAt body}}}}}}}' \

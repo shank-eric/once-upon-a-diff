@@ -1,0 +1,34 @@
+{
+  "name": "@once-upon-a-diff/extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Once Upon a Diff Chrome extension: the story panel on GitHub pull requests",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "wxt",
+    "build": "wxt build",
+    "zip": "ONCE_UPON_STORE=1 wxt zip",
+    "icons": "node ../bridge/bin/node-version.mjs && node scripts/make-icons.ts",
+    "postinstall": "wxt prepare",
+    "test": "node ../bridge/bin/node-version.mjs && node --test test/*.test.ts",
+    "test:extension": "node ../bridge/bin/node-version.mjs && wxt build && node test/browser/load-test.ts",
+    "test:expand": "node ../bridge/bin/node-version.mjs && wxt build && node test/browser/expand-test.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p scripts/tsconfig.json && tsc -p test/tsconfig.json"
+  },
+  "dependencies": {
+    "@once-upon-a-diff/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/chrome": "0.3.4",
+    "@types/node": "24.19.1",
+    "once-upon-a-diff": "workspace:*",
+    "playwright-core": "1.64.0",
+    "typescript": "5.9.3",
+    "vite": "8.3.4",
+    "wxt": "0.21.4"
+  }
+}
