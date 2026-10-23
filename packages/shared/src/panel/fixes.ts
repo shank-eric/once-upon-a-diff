@@ -36,7 +36,8 @@ export function fixSummary({ notes, to }: Pick<FixesView, 'notes' | 'to'>): FixS
 }
 
 const AUTO_TITLE =
-  'Sends each note to the Claude session as soon as it is added, instead of waiting for Send. Kept for this story.';
+  'Sends each note to the Claude session as soon as it is added, instead of waiting for Send. Kept for this story. ' +
+  'A note from a drafted comment waits for Send, since Claude wrote it from the PR.';
 const SEND_TITLE =
   'Hands every draft note to the Claude session as one request: it makes one change for them, commits it ' +
   'as your repo rules say and never pushes. Sent notes are locked until it reports back.';
@@ -85,7 +86,12 @@ export function createFixes(context: PanelContext) {
       const from = note.returned.sha && ` from ${shortSha(note.returned.sha)}`;
       return html`<span class="ou-cstale">Back${from}: ${note.returned.why || ''}</span>`;
     }
-    return html`<span class="ou-cdraft">Draft</span>, not sent`;
+    const waits =
+      note.draft &&
+      view &&
+      view.auto_send &&
+      ': Auto-send leaves notes from drafted comments to Send';
+    return html`<span class="ou-cdraft">Draft</span>, not sent${waits}`;
   }
 
   function noteHtml(note: FixNote) {

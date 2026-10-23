@@ -109,7 +109,7 @@ A listener reads PR titles, bodies, diffs and review comments that anyone who ca
   ```
 
   The skills don't need any of these: they check the bridge with `once-upon doctor`, not `curl`. A prefix rule can't tell a GraphQL query from a mutation (`gh api graphql`), so if you can, give listener sessions a `gh` token without write scope.
-- **Fix requests change code.** On a PR's branch the session doesn't run tests or scripts unless you say so in chat, and commits with `--no-verify`, since that branch's hooks are the PR's code.
+- **Fix requests change code.** A fix note that came from a Claude-drafted comment is shown to you in chat, and the session waits for your OK before acting on it. Auto-send never sends one. On a PR's branch the session doesn't run tests or scripts unless you say so in chat, and commits with `--no-verify`, since that branch's hooks are the PR's code.
 
 ### One story, one session
 
@@ -173,7 +173,7 @@ Fix-before-push notes collect as drafts in the panel's **Fix before push** box (
 - **Until it's sent, a note can be edited or removed.** Edit and Remove are on each draft note.
 - **Send N notes to <session>** hands every draft note to the Claude session as one request (`fix_request`). It goes to the session listening for that story when one is live, else the repo's listener, by the [routing rule](#one-story-one-session), among waits that take fix requests. The button names that session. With none listening, the request waits for the next one. On a PR story, that's the session working the PR's branch.
 - **Sent notes are locked** and say "Sent to <session>". When the session reports back, they say "Fixed in <sha>" (and are ticked done). A note the change didn't cover comes back as a draft, with why. **Take back** returns a request's notes to the drafts while nobody has reported on it.
-- **Auto-send**, a checkbox in the box (off by default, kept per story), sends each note on its own as it's added.
+- **Auto-send**, a checkbox in the box (off by default, kept per story), sends each note on its own as it's added. A note that came from a drafted comment waits for Send, since Claude wrote it from the PR, and the listening session asks you in chat before acting on it.
 
 The session makes one coherent change for the request's notes, commits it (or amends) as your house rules say, never pushes, and reports with `once-upon fixed --request <id> --sha <sha> [--notes <ids>]`, or `--failed --note "<why>"`. The bridge keeps the queue in `~/.once-upon/fixes.json` and the notes in `state/<id>/notes.json`. `once-upon notes --story <id>` prints them with where each has got.
 

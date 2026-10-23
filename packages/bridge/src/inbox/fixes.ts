@@ -7,7 +7,7 @@
  *                                                returned?: {request, sha, why, at}}]
  *   <home>/state/<story id>/fix-settings.json  {auto_send}
  *   <home>/fixes.json                           {<request id>: {id, story, repo, kind, title, url, branch, checkout,
- *                                                notes: [{id, path, side, line, body, chapter}], to, requested_at,
+ *                                                notes: [{id, path, side, line, body, chapter, from_draft}], to, requested_at,
  *                                                status, claimed_by, claimed_at, done_at, sha, fixed, why}}
  *
  * A note is a draft until it's sent: it can be edited or removed. Sent, it's locked until the session reports back
@@ -37,6 +37,11 @@ export interface RequestNote {
   line: number;
   body: string;
   chapter: number | null;
+  /**
+   * True when the note came from a drafted comment (Add to fix before push). Claude wrote that text from the PR's
+   * content, so the session confirms it with the user before acting on it, and Auto-send never sends it.
+   */
+  from_draft: boolean;
 }
 
 /** A fix request, as fixes.json keeps it. */
@@ -159,6 +164,7 @@ export function sendNotes(
       line: note.line,
       body: note.body,
       chapter: note.chapter ?? null,
+      from_draft: !!note.draft,
     })),
     to: goTo ? goTo.consumer : null,
     requested_at: now,
@@ -400,7 +406,10 @@ export function fixesView(
   };
 }
 
-/** A new note on the story; it's sent at once when the story's Auto-send is on. Returns {note, request}. */
+/**
+ * A new note on the story; it's sent at once when the story's Auto-send is on, unless it came from a drafted
+ * comment. Returns {note, request}.
+ */
 export function addNote(
   home: string,
   store: StoryStore,
@@ -441,7 +450,8 @@ export function addNote(
     });
   }
   let request: FixRequest | null = null;
-  if (autoSendOf(store, story.id)) {
+  // a note from a drafted comment is Claude's text from the PR, so it waits for the reviewer's own Send
+  if (autoSendOf(store, story.id) && !note.draft) {
     request = sendNotes(home, store, story, { ids: [note.id], inbox });
   }
   const saved = readNotes(store, story.id).find((candidate) => candidate.id === note.id) || note;
