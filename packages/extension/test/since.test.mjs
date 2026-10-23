@@ -7,7 +7,7 @@ import { tmp, githubStory, startBridge, writeJson, runCli } from 'once-upon-a-di
 import { Builds, buildText } from 'once-upon-a-diff/inbox/builds';
 import { noteRead } from 'once-upon-a-diff/stories/reads';
 import { clearFreshness } from 'once-upon-a-diff/github/freshness';
-import { tagFor, tagHtml, requestFor } from '../src/content/ui/story-tag.js';
+import { tagFor, tagHtml, requestFor } from '../src/content/ui/story-tag.ts';
 
 process.env.ONCE_UPON_GH = fileURLToPath(
   import.meta.resolve('once-upon-a-diff/test/fixtures/fake-gh'),

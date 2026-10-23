@@ -51,7 +51,7 @@ export function createNavigation(context: PanelContext) {
   }
 
   // ---------- where the reviewer is: the step and the file at the top of the screen
-  let positionTimer = 0;
+  let positionTimer: ReturnType<typeof setTimeout> | 0 = 0;
   let lastPosition = '';
   let topFile: string | null = null;
   function reportPosition() {

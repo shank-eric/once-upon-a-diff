@@ -1,3 +1,5 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
+// @ts-nocheck
 /*
  * PR lists (a repo's /pulls, the global /pulls, and PR search results): one
  * story tag after each PR's title, and the tag is the control
@@ -8,8 +10,8 @@
  * own shadow roots; nothing of GitHub's is clicked.
  */
 import { conversationPr, isPullListPage, prKey } from '@once-upon-a-diff/shared/util/github-paths';
-import { extensionAlive } from '../bridge.js';
-import { createPrTags } from '../ui/pr-tags.js';
+import { extensionAlive } from '../bridge.ts';
+import { createPrTags } from '../ui/pr-tags.ts';
 
 const ATTR = 'data-ou-badge';
 const DEBOUNCE_MS = 300;
@@ -21,8 +23,8 @@ const TITLE_LINK =
 function prLinks() {
   const out = [];
   const rows = new Set();
-  for (const link of /** @type {NodeListOf<HTMLAnchorElement>} */ (
-    document.querySelectorAll('a[href*="/pull/"]')
+  for (const link of /** @type {NodeListOf<HTMLAnchorElement>} */ document.querySelectorAll(
+    'a[href*="/pull/"]',
   )) {
     if (link.closest(`[${ATTR}]`)) {
       continue;
@@ -92,8 +94,8 @@ export function createPullListPage() {
     const ours = mutations.every(
       (mutation) =>
         mutation.target.nodeType === 1 &&
-        /** @type {Element} */ (mutation.target).closest &&
-        /** @type {Element} */ (mutation.target).closest(`[${ATTR}]`),
+        /** @type {Element} */ mutation.target.closest &&
+        /** @type {Element} */ mutation.target.closest(`[${ATTR}]`),
     );
     if (ours) {
       return;

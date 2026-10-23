@@ -1,3 +1,5 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
+// @ts-nocheck
 /*
  * Hide whitespace on GitHub PR pages, remembered across PRs, reloads and
  * restarts. It's the same setting as the local page's Hide whitespace: the

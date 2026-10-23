@@ -1,3 +1,5 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
+// @ts-nocheck
 /*
  * The page-level "No session listening for owner/name" notice, on PR lists
  * and a PR's Conversation tab: one line per repo on the page that has no
@@ -7,7 +9,7 @@
  * Our own element in its own shadow root, bottom right. It never touches
  * GitHub's page and posts nothing.
  */
-import { copyWithFeedback } from './copy.js';
+import { copyWithFeedback } from './copy.ts';
 import { html } from '@once-upon-a-diff/shared/util/html';
 import {
   hideUntilStyled,
@@ -51,7 +53,7 @@ export function listenNotice() {
       shadow.append(link, root);
       hideUntilStyled(host, [link]);
       root.addEventListener('click', (event) => {
-        const button = /** @type {Element} */ (event.target).closest('button[data-i], button.x');
+        const button = /** @type {Element} */ event.target.closest('button[data-i], button.x');
         if (!button) {
           return;
         }

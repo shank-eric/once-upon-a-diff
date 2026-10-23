@@ -1,3 +1,5 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
+// @ts-nocheck
 /*
  * The one story tag a PR gets, on PR lists and on the PR's Conversation tab.
  * The tag is the control:

@@ -1,10 +1,12 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
+// @ts-nocheck
 /*
  * The only part of the extension that talks to the network, and only to the
  * bridge on http://127.0.0.1:<port>. Content scripts ask it with
  * {type: 'bridge', method, path, body}; GitHub's page CSP doesn't apply here.
  */
 import { defineBackground } from 'wxt/utils/define-background';
-import { getSettings } from '../settings.js';
+import { getSettings } from '../settings.ts';
 
 const METHODS = new Set(['GET', 'POST']);
 

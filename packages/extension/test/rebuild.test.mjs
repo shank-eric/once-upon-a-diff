@@ -23,7 +23,7 @@ import {
   readsToRetire,
 } from 'once-upon-a-diff/stories/rebuild';
 import { rebuildAsk, rebuildLine } from '@once-upon-a-diff/shared/panel/rebuild';
-import { tagFor } from '../src/content/ui/story-tag.js';
+import { tagFor } from '../src/content/ui/story-tag.ts';
 
 const STORY_ID = 'acme-widgets-7';
 const added = (count, word) =>

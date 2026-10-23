@@ -1,3 +1,5 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
+// @ts-nocheck
 /*
  * Where a story tag (story-tag.js) lives on GitHub's page: our own span
  * after the PR's title, with its own shadow root, so GitHub's CSS can't reach

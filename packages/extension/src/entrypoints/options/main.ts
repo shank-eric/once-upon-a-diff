@@ -1,7 +1,9 @@
-import { getSettings, setSettings } from '../../settings.js';
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
+// @ts-nocheck
+import { getSettings, setSettings } from '../../settings.ts';
 
 /** The page's elements by id; the form's fields are inputs. */
-const $ = (id) => /** @type {HTMLInputElement} */ (document.getElementById(id));
+const $ = (id) => /** @type {HTMLInputElement} */ document.getElementById(id);
 
 function status(text, ok) {
   $('status').textContent = text;

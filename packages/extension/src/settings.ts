@@ -1,3 +1,5 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
+// @ts-nocheck
 import { DEFAULT_PORT } from '@once-upon-a-diff/shared/util/bridge-port';
 
 /** {port, token} for the bridge, from chrome.storage.local. */

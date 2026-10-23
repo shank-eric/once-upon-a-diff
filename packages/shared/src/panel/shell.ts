@@ -52,7 +52,7 @@ export function createShell(context: PanelContext) {
   const $ = <T extends HTMLElement = HTMLElement>(selector: string): T | null =>
     root.querySelector<T>(selector);
 
-  let messageTimer = 0;
+  let messageTimer: ReturnType<typeof setTimeout> | 0 = 0;
   /** A line under the toolbar for a few seconds ('' clears it). */
   function message(text: string | null | undefined) {
     clearTimeout(messageTimer);
