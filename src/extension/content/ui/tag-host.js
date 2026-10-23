@@ -4,9 +4,14 @@
  * it and its clicks and keys stay ours. Used on PR lists and the
  * Conversation tab.
  */
-import { hideUntilStyled, setHtml, stopKeyEvents, stylesheetLink } from '../../shared/util/dom.js';
+import {
+  hideUntilStyled,
+  setHtml,
+  stopKeyEvents,
+  stylesheetLink,
+} from '../../../shared/util/dom.js';
 
-const TAG_CSS_URL = new URL('./story-tag.css', import.meta.url).href;
+const TAG_CSS_URL = chrome.runtime.getURL('content/ui/story-tag.css');
 
 /** A new tag host marked attribute=key, calling onClick for clicks inside it. */
 export function createTagHost(attribute, key, onClick) {

@@ -2,10 +2,10 @@
  * A short message at the bottom right of GitHub's page, gone after 5s. Our
  * own element in its own shadow root, so GitHub's CSS can't reach it.
  */
-import { hideUntilStyled, stylesheetLink } from '../../shared/util/dom.js';
+import { hideUntilStyled, stylesheetLink } from '../../../shared/util/dom.js';
 
 const TOAST_MS = 5000;
-const TOAST_CSS_URL = new URL('./toast.css', import.meta.url).href;
+const TOAST_CSS_URL = chrome.runtime.getURL('content/ui/toast.css');
 
 export function toast(text) {
   const host = document.createElement('div');

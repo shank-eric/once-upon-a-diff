@@ -5,7 +5,7 @@
  * GitHub redraws the header or navigates in the page, looks again while a
  * story is queued or building, and only reads from GitHub's page.
  */
-import { conversationPr, pageKindOf, prKey } from '../../shared/util/github-paths.js';
+import { conversationPr, pageKindOf, prKey } from '../../../shared/util/github-paths.js';
 import { extensionAlive } from '../bridge.js';
 import { createPrTags, titleElement } from '../ui/pr-tags.js';
 

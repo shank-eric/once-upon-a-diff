@@ -27,7 +27,7 @@ import { beat } from '../../src/bridge/listeners/listeners.mjs';
 import { Builds } from '../../src/bridge/inbox/builds.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const EXT = path.join(ROOT, 'src/extension');
+const EXT = path.join(ROOT, '.output/chrome-mv3'); // yarn build's output
 const args = process.argv.slice(2);
 /** --name's value, true for a bare --name, or the fallback when it isn't given. */
 const arg = (name, fallback) => {
@@ -147,7 +147,10 @@ try {
     worker = await context.waitForEvent('serviceworker');
   }
   const extId = new URL(worker.url()).host;
-  check(/^[a-p]{32}$/.test(extId), `extension loaded (${extId})`);
+  check(
+    extId === 'faaibhigocihefldbmdgchcnnclalkmo',
+    `extension loaded with its fixed ID (${extId})`,
+  );
 
   // 0. a PR tab opened before the extension is set up
   const early = await context.newPage();
@@ -162,7 +165,7 @@ try {
 
   // 1. options page
   const opt = await context.newPage();
-  await opt.goto(`chrome-extension://${extId}/html/options.html`);
+  await opt.goto(`chrome-extension://${extId}/options.html`);
   await opt.fill('#port', String(port));
   await opt.fill('#token', TOKEN);
   await opt.click('#test');

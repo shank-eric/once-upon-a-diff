@@ -7,7 +7,7 @@
  * listening" notice (listen-notice.js). Each page says where its tags go and
  * when to look.
  */
-import { prKey } from '../../shared/util/github-paths.js';
+import { prKey } from '../../../shared/util/github-paths.js';
 import { callBridge } from '../bridge.js';
 import { listenNotice } from './listen-notice.js';
 import { tagFor, tagHtml, requestFor, missingListeners } from './story-tag.js';

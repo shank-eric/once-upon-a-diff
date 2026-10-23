@@ -25,7 +25,9 @@
  * module wires them together: each gets the shared `context` and reaches the
  * others through it at call time, so no module imports another's state.
  *
- * opts (all optional):
+ * opts:
+ *   stylesheets    {page, panel}: the URLs of panel/page.css and panel/panel.css as the host serves them (required)
+ * and all optional:
  *   initial        {n, all, collapsed, width} to start from (a saved step)
  *   onState(s)     called with {n, all, collapsed, width} whenever they change
  *   onPosition(p)  called with {step, chapter, file} when the step or the file at the top of the screen changes (debounced)

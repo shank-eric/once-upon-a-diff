@@ -38,6 +38,6 @@
   ],
   "exclude": [
     "src/bridge/public/vendor",
-    "src/extension/shared"
+    "src/extension/entrypoints"
   ]
 }

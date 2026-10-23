@@ -40,6 +40,7 @@ export function mount(initial) {
   page.overlay = storyOverlay(panelData(), {
     initial,
     host: 'this page',
+    stylesheets: { page: '/assets/panel/page.css', panel: '/assets/panel/panel.css' },
     commentsTitle: 'Fix before push (drafted)',
     onState: (panelState) => {
       page.lastUi = { ...panelState, hidden: false };

@@ -12,8 +12,8 @@
  * network calls of its own: everything goes through the service worker to the
  * bridge on 127.0.0.1.
  */
-import { storyOverlay, rangeStepOf } from '../../shared/overlay.js';
-import { filesChangedPr } from '../../shared/util/github-paths.js';
+import { storyOverlay, rangeStepOf } from '../../../shared/overlay.js';
+import { filesChangedPr } from '../../../shared/util/github-paths.js';
 import { callBridge, extensionAlive } from '../bridge.js';
 import { loadPanelUi, savePanelUi, loadPrefsCopy, storePrefsCopy, tabSession } from '../storage.js';
 import { createPrTags, titleElement } from '../ui/pr-tags.js';
@@ -72,6 +72,10 @@ export function createFilesChangedPage() {
     const storyPath = `/api/stories/${encodeURIComponent(storyId)}`;
     return {
       host: 'GitHub',
+      stylesheets: {
+        page: chrome.runtime.getURL('panel/page.css'),
+        panel: chrome.runtime.getURL('panel/panel.css'),
+      },
       onState: (panelState) => {
         if (!current || current.key !== key) {
           return;
