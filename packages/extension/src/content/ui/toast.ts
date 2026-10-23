@@ -1,3 +1,5 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
+// @ts-nocheck
 /*
  * A short message at the bottom right of GitHub's page, gone after 5s. Our
  * own element in its own shadow root, so GitHub's CSS can't reach it.

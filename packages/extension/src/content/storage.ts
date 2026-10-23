@@ -1,10 +1,12 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
+// @ts-nocheck
 /*
  * What the content scripts keep in the browser: the panel's state per PR and
  * a copy of the Hide whitespace setting in chrome.storage.local, and small
  * per-tab values in sessionStorage. Every call survives the extension being
  * reloaded under the page (it reads as empty, and writes are dropped).
  */
-import { extensionAlive } from './bridge.js';
+import { extensionAlive } from './bridge.ts';
 
 const panelUiKey = (prKey) => `ui:${prKey}`;
 

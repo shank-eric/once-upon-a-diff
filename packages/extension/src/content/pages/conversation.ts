@@ -1,3 +1,5 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
+// @ts-nocheck
 /*
  * A PR's Conversation tab (/owner/repo/pull/N): the same single story tag as
  * PR lists (ui/pr-tags.js), next to the PR's title, and the page-level
@@ -6,8 +8,8 @@
  * story is queued or building, and only reads from GitHub's page.
  */
 import { conversationPr, pageKindOf, prKey } from '@once-upon-a-diff/shared/util/github-paths';
-import { extensionAlive } from '../bridge.js';
-import { createPrTags, titleElement } from '../ui/pr-tags.js';
+import { extensionAlive } from '../bridge.ts';
+import { createPrTags, titleElement } from '../ui/pr-tags.ts';
 
 const ATTR = 'data-ou-convo';
 

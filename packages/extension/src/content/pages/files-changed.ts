@@ -1,3 +1,5 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
+// @ts-nocheck
 /*
  * A GitHub PR's Files changed page (/changes or /files): asks the bridge
  * (through the service worker) whether there's a story for this PR and, if
@@ -14,12 +16,12 @@
  */
 import { storyOverlay, rangeStepOf } from '@once-upon-a-diff/shared/overlay';
 import { filesChangedPr } from '@once-upon-a-diff/shared/util/github-paths';
-import { callBridge, extensionAlive } from '../bridge.js';
-import { loadPanelUi, savePanelUi, loadPrefsCopy, storePrefsCopy, tabSession } from '../storage.js';
-import { createPrTags, titleElement } from '../ui/pr-tags.js';
-import { requestFor, stepOfHash } from '../ui/story-tag.js';
-import { toast } from '../ui/toast.js';
-import { createWhitespaceCheck, prefsStore } from './hide-whitespace.js';
+import { callBridge, extensionAlive } from '../bridge.ts';
+import { loadPanelUi, savePanelUi, loadPrefsCopy, storePrefsCopy, tabSession } from '../storage.ts';
+import { createPrTags, titleElement } from '../ui/pr-tags.ts';
+import { requestFor, stepOfHash } from '../ui/story-tag.ts';
+import { toast } from '../ui/toast.ts';
+import { createWhitespaceCheck, prefsStore } from './hide-whitespace.ts';
 
 const PANEL_ID = 'once-upon-panel';
 const TAG_ATTR = 'data-ou-files';

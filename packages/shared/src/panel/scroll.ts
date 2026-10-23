@@ -21,7 +21,7 @@ export function createScroller(context: PanelContext) {
 
   // Highlight rows for a few seconds. GitHub's React view can swap a row for a new
   // element as it renders around the scroll, so the rows are found again (getElements) each time.
-  let flashTimer = 0;
+  let flashTimer: ReturnType<typeof setTimeout> | 0 = 0;
   let flashing: () => Element[] = () => [];
   function clearFlash() {
     for (const el of document.querySelectorAll('[data-ou-flash]')) {

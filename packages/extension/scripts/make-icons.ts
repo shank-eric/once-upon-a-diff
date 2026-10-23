@@ -1,3 +1,5 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
+// @ts-nocheck
 /** Draws src/public/icons/icon{16,48,128}.png: a diff (green and red lines) with the story panel docked on the right. No dependencies. */
 /* eslint-disable id-length -- pixel math: x, y, the r, g, b, a channels and the corners x0..y1 are the usual names */
 import { deflateSync } from 'node:zlib';

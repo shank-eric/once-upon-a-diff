@@ -1,3 +1,5 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
+// @ts-nocheck
 /*
  * The story tags on every page that shows them: PR lists, a PR's
  * Conversation tab and its Files changed page. It looks PRs up with one
@@ -8,10 +10,10 @@
  * when to look.
  */
 import { prKey } from '@once-upon-a-diff/shared/util/github-paths';
-import { callBridge } from '../bridge.js';
-import { listenNotice } from './listen-notice.js';
-import { tagFor, tagHtml, requestFor, missingListeners } from './story-tag.js';
-import { createTagHost, showTag, clickedTagButton } from './tag-host.js';
+import { callBridge } from '../bridge.ts';
+import { listenNotice } from './listen-notice.ts';
+import { tagFor, tagHtml, requestFor, missingListeners } from './story-tag.ts';
+import { createTagHost, showTag, clickedTagButton } from './tag-host.ts';
 
 const MAX_PER_CALL = 200;
 const LOOK_AGAIN_MS = 10000; // while a story is queued, building or updating

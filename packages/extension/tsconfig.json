@@ -4,11 +4,7 @@
     "lib": ["es2023", "dom", "dom.iterable"],
     "module": "esnext",
     "moduleResolution": "bundler",
-    "types": ["chrome"],
-    "strict": false,
-    "allowJs": true,
-    "checkJs": true
+    "types": ["chrome"]
   },
-  "include": ["src", "../shared/types"],
-  "exclude": ["src/entrypoints"]
+  "include": ["src", "../shared/types", ".wxt/wxt.d.ts"]
 }

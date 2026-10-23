@@ -1,3 +1,5 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
+// @ts-nocheck
 /*
  * The extension's content script on github.com (started by
  * entrypoints/content.js). It routes by page kind (shared/util/github-paths.js):
@@ -13,10 +15,10 @@
  * looking again, and coming back to the tab is one 'back' for all of them.
  */
 import { pageKindOf } from '@once-upon-a-diff/shared/util/github-paths';
-import { extensionAlive } from './bridge.js';
-import { createFilesChangedPage } from './pages/files-changed.js';
-import { createConversationPage } from './pages/conversation.js';
-import { createPullListPage } from './pages/pull-list.js';
+import { extensionAlive } from './bridge.ts';
+import { createFilesChangedPage } from './pages/files-changed.ts';
+import { createConversationPage } from './pages/conversation.ts';
+import { createPullListPage } from './pages/pull-list.ts';
 
 const TICK_MS = 700;
 const BACK_MS = 1000; // focus and visibilitychange both fire on coming back: one 'back' for the two

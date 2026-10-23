@@ -1,9 +1,11 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
+// @ts-nocheck
 /*
  * The content script on github.com. WXT bundles it with everything it
  * imports; the router and the pages are in ../content/.
  */
 import { defineContentScript } from 'wxt/utils/define-content-script';
-import { startContentScript } from '../content/index.js';
+import { startContentScript } from '../content/index.ts';
 
 export default defineContentScript({
   matches: ['https://github.com/*'],

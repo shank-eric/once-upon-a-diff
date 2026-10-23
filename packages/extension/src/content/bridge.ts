@@ -1,3 +1,5 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
+// @ts-nocheck
 /*
  * The content scripts' one way out: a message to the service worker
  * (background.js), which calls the bridge on 127.0.0.1. GitHub's page never
