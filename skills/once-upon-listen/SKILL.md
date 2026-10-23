@@ -11,7 +11,7 @@ The panel's **Copy prompt for Claude** button copies `/once-upon-listen <owner/r
 The argument is `$ARGUMENTS`.
 
 - `owner/repo`: listen for that repo.
-- `--story <id>`: listen for one story's questions, Rebuild requests and fix requests only. The panel's **Copy prompt for this story** copies this, for the session that built the story, and so does the line once-upon's `build` prints. It takes the story id, `owner/repo#N`, a PR URL or a PR number in this checkout. Pass the same value to `wait`, which works out the id.
+- `--story <id>`: listen for one story's questions, Rebuild requests and fix requests only. The panel's **Copy prompt for this story** copies this, for the session that built the story, and so does the line once-upon's `build` prints. The once-upon skill starts it on its own after it builds a story or opens one's link. It takes the story id, `owner/repo#N`, a PR URL or a PR number in this checkout. Pass the same value to `wait`, which works out the id.
 - `--consumer <name>`: what the panel calls this session ("Answered by <name>"). The default is `repo-<owner>-<name>` or `story-<id>`.
 - Nothing: use the repo of this checkout's `origin`. If there isn't one, listen for everything (a `wait` with no `--repo`).
 
@@ -116,7 +116,7 @@ A request with `mode: "rebuild"` or `"rebuild_from"` is the panel's Rebuild: tel
 
 1. The wait claimed it when it handed it over, so its badge already says Building. Start the wait again (step 3).
 2. Build the story with the once-upon skill (`../once-upon/SKILL.md` beside this skill in the repo, linked in as `~/.claude/skills/once-upon`, as `/once-upon <PR url>`): gather, plan the chapters and render. Write every chapter's narrative and draft comments up front, since the panel shows the whole story. Don't tell it chapter by chapter in chat. For an update, follow once-upon's "Since you read it" path: one new chapter, first, for `git diff <since_sha>..<new head>`, with the other chapters kept as they are. Re-tell from scratch only when `retell` is true or the PR was rebased past `since_sha`. For a rebuild, follow once-upon's "Rebuilding a story".
-3. `build` publishes the story, which finishes the request, and the PR page opens the panel on its own. A rebuild finishes when it's published again (`build` for a PR, `<cli> local … --chapters` for a local story). If it couldn't be built, run `<cli> done <build id> --failed --note "<one line why>"`.
+3. `build` publishes the story, which finishes the request, and the PR page opens the panel on its own. A rebuild finishes when it's published again (`build` for a PR, `<cli> local … --chapters` for a local story). A local story's build or rebuild also hands its PR title and body to the page with `<cli> pr-draft` (once-upon's "The pull request, ready to go"), so its Create pull request button is ready. If it couldn't be built, run `<cli> done <build id> --failed --note "<one line why>"`.
 4. On a long build, run `<cli> builds --start <build id> --consumer repo-<owner>-<name>` every ≈20 minutes so the claim stays fresh and the request isn't handed out a second time.
 5. In chat, say one line: which PR (or local story), its chapter and file counts, and that it's on the page. For a rebuild, add the line publish printed on what it kept.
 
