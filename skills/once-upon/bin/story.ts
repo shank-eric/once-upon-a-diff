@@ -319,7 +319,7 @@ async function cmdPublish(opts: CliOpts) {
   const dest = execFileSync(
     process.execPath,
     [
-      path.join(REPO_ROOT, 'packages/bridge/bin/once-upon.ts'),
+      path.join(REPO_ROOT, 'packages/bridge/bin/once-upon.mjs'),
       'publish',
       '--dir',
       path.resolve(opts.dir as string),

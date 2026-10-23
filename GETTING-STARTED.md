@@ -8,7 +8,7 @@ This guide takes you from nothing to your first story. The [README](README.md) h
 
 ### 1. Check you have what it needs
 
-- **Node 24 or newer** (`node --version`), the current LTS. The repo's `.nvmrc` says 24.
+- **Node 24 or newer** (`node --version`), the current LTS. The repo's `.nvmrc` says 24, so with [fnm](https://github.com/Schniz/fnm) or [nvm](https://github.com/nvm-sh/nvm) it's `fnm use` or `nvm use` in the repo (`fnm install 24` or `nvm install 24` first if you don't have it). The skills look for fnm's or nvm's Node 24 themselves when the shell's `node` is older.
 - **Claude Code**, signed in.
 - **The GitHub CLI, logged in.** Run `gh auth status`. The bridge uses gh to check whether a story is up to date and which of your drafted comments you've posted. It runs gh with `GITHUB_TOKEN` unset, so it uses your keychain login, not a token in your environment.
 - **Chrome** (or another Chromium browser that loads unpacked extensions).
@@ -32,7 +32,7 @@ The repo uses Yarn 4 and carries its own copy (`.yarn/releases`), which any `yar
 ### 3. Make the bridge's config
 
 ```bash
-node packages/bridge/bin/once-upon.ts setup
+node packages/bridge/bin/once-upon.mjs setup
 ```
 
 The first run creates `~/.once-upon/config.json` (mode 600) with a port, 4823 by default, and a random token. It prints both. You'll paste them into the extension in step 5.
@@ -47,7 +47,7 @@ To start it yourself instead:
 yarn bridge
 ```
 
-That's the same as `node packages/bridge/bin/once-upon.ts serve`. Keep it in a terminal tab you leave open. Either way it listens on `127.0.0.1` only, and the repo has no login item or launch agent, so after a reboot it needs starting again (by you or the skill).
+That's the same as `node packages/bridge/bin/once-upon.mjs serve`. Keep it in a terminal tab you leave open. Either way it listens on `127.0.0.1` only, and the repo has no login item or launch agent, so after a reboot it needs starting again (by you or the skill).
 
 ### 5. Load the extension
 
@@ -86,7 +86,7 @@ What works without once-upon: local mode (step 10, which makes its own starting 
 ### 8. Add the `once-upon` alias (optional)
 
 ```bash
-alias once-upon="node /path/to/once-upon-a-diff/packages/bridge/bin/once-upon.ts"
+alias once-upon="node /path/to/once-upon-a-diff/packages/bridge/bin/once-upon.mjs"
 ```
 
 Put it in your shell profile. The rest of this guide uses `once-upon`. Run it with no arguments to see every command.

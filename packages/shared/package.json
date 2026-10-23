@@ -12,7 +12,7 @@
     "./*": "./src/*.ts"
   },
   "scripts": {
-    "test": "node --test test/*.test.ts",
+    "test": "node ../bridge/bin/node-version.mjs && node --test test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json"
   },
   "devDependencies": {

@@ -12,7 +12,7 @@ import type { FileMap } from '../src/stories/story-data.ts';
 import type { StoryData } from '@once-upon-a-diff/shared/types';
 import { uncoveredHunks, SMALL_FILE_LINES } from '../src/stories/hunk-coverage.ts';
 
-const STORY = fileURLToPath(new URL('../../../skills/once-upon/bin/story.ts', import.meta.url));
+const STORY = fileURLToPath(new URL('../../../skills/once-upon/bin/story.mjs', import.meta.url));
 const run = promisify(execFile);
 
 /** A modified file's diff with one hunk per [newStart, added] pair, each with a line of context on either side. */

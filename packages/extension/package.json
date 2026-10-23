@@ -12,11 +12,11 @@
     "dev": "wxt",
     "build": "wxt build",
     "zip": "ONCE_UPON_STORE=1 wxt zip",
-    "icons": "node scripts/make-icons.ts",
+    "icons": "node ../bridge/bin/node-version.mjs && node scripts/make-icons.ts",
     "postinstall": "wxt prepare",
-    "test": "node --test test/*.test.ts",
-    "test:extension": "wxt build && node test/browser/load-test.ts",
-    "test:expand": "wxt build && node test/browser/expand-test.ts",
+    "test": "node ../bridge/bin/node-version.mjs && node --test test/*.test.ts",
+    "test:extension": "node ../bridge/bin/node-version.mjs && wxt build && node test/browser/load-test.ts",
+    "test:expand": "node ../bridge/bin/node-version.mjs && wxt build && node test/browser/expand-test.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p scripts/tsconfig.json && tsc -p test/tsconfig.json"
   },
   "dependencies": {

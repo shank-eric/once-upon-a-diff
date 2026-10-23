@@ -13,19 +13,19 @@ The once-upon skill (`skills/once-upon/`) writes the stories, and this extension
 
 ## Installing
 
-You need Node 24 or newer, the current LTS (`.nvmrc` says 24). The repo is a Yarn workspaces monorepo in TypeScript: `yarn` installs the build and test tools and links the three packages (`packages/shared`, `packages/bridge`, `packages/extension`). The bridge has no runtime dependencies and no build: Node 24 runs its TypeScript directly. The extension is built with WXT. The repo uses Yarn 4, kept in `.yarn/releases` and named in `package.json`'s `packageManager`. Any `yarn` hands off to it, and `corepack enable` gets you a `yarn` if you have none.
+You need Node 24 or newer, the current LTS (`.nvmrc` says 24, so `fnm use` or `nvm use` in the repo picks it). On an older Node the CLI, the skill helper and the package scripts stop with one line saying so. The repo is a Yarn workspaces monorepo in TypeScript: `yarn` installs the build and test tools and links the three packages (`packages/shared`, `packages/bridge`, `packages/extension`). The bridge has no runtime dependencies and no build: Node 24 runs its TypeScript directly. The extension is built with WXT. The repo uses Yarn 4, kept in `.yarn/releases` and named in `package.json`'s `packageManager`. Any `yarn` hands off to it, and `corepack enable` gets you a `yarn` if you have none.
 
 1. Install, build the extension, and print the bridge's port and token. `setup` also creates `~/.once-upon/config.json` with a random token:
    ```bash
    yarn
    yarn build
-   node packages/bridge/bin/once-upon.ts setup
+   node packages/bridge/bin/once-upon.mjs setup
    ```
 2. In Chrome, go to `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick `packages/extension/.output/chrome-mv3`, the folder `yarn build` makes. Its ID is always `faaibhigocihefldbmdgchcnnclalkmo` (the manifest carries a fixed key), so its saved settings survive a rebuild, a reload or a new checkout.
 3. The options page opens on install. If it doesn't, go to Details → Extension options. Paste the port and token, then click **Save** and **Test connection**.
 4. Start the bridge and leave it running, or skip this and let `/once-upon-listen` start it for you:
    ```bash
-   node packages/bridge/bin/once-upon.ts serve     # or: yarn bridge
+   node packages/bridge/bin/once-upon.mjs serve    # or: yarn bridge
    ```
 5. Install the `once-upon-listen` Claude Code skill by linking it into your skills folder. If `~/.claude/skills` is itself a link, `ln` puts it in the folder the link points at, which is what you want:
    ```bash
@@ -37,7 +37,7 @@ You need Node 24 or newer, the current LTS (`.nvmrc` says 24). The repo is a Yar
    ln -s "$PWD/skills/once-upon" ~/.claude/skills/once-upon
    ```
 
-An alias saves typing: `alias once-upon="node /path/to/once-upon-a-diff/packages/bridge/bin/once-upon.ts"`. The rest of this README uses `once-upon`.
+An alias saves typing: `alias once-upon="node /path/to/once-upon-a-diff/packages/bridge/bin/once-upon.mjs"`. The rest of this README uses `once-upon`.
 
 ## Is it set up?
 
@@ -70,7 +70,7 @@ It exits 1 when something fails.
 
 `/once-upon-listen --story <id>` listens for one story: see [One story, one session](#one-story-one-session). The repo form's session then:
 
-1. Finds the CLI: `once-upon` on `PATH`, else `node <repo>/packages/bridge/bin/once-upon.ts`, with `<repo>` from the `ONCE_UPON_REPO` env var, `repo_dir` in `~/.once-upon/config.json` (both read only by the skill), or the folder the skill is linked from.
+1. Finds a Node 24 (the shell's `node`, else fnm's or nvm's) and the CLI: `once-upon` on `PATH`, else `<node> <repo>/packages/bridge/bin/once-upon.mjs`, with `<repo>` from the `ONCE_UPON_REPO` env var, `repo_dir` in `~/.once-upon/config.json` (both read only by the skill), or the folder the skill is linked from.
 2. Runs `once-upon doctor`. If nothing is listening on the bridge's port, it starts the bridge detached, so it keeps running after the session ends, and waits for it to answer. If something else has the port, it says so and stops.
 3. Runs `once-upon wait --repo octo-org/web-app --type question,build_request,fix_request --consumer repo-octo-org-web-app` as a background task, which keeps the light green for every story and PR in that repo. It starts the wait again after each event.
 4. Answers each Ask-box question from the story's chapters and the code in the checkout, briefly, with `once-upon answer`.
@@ -451,7 +451,7 @@ Three Yarn workspaces under `packages/`, all TypeScript (strict), and the skills
     - `fixes.ts` and `working.ts`: Fix before push (Send, Auto-send, each note's state) and the "being changed" marks.
   - `src/util/`: helpers for the panel, the content scripts, the local page and the bridge (escaping and the html`` tag that builds markup, SHAs, PR keys, line references, times, the clipboard, GitHub paths, key isolation, the default port).
 - `packages/bridge/` (`once-upon-a-diff`, bin `once-upon`): the bridge and its CLI. Private for now; the name is free on npm, for an `npx once-upon-a-diff` later.
-  - `bin/once-upon.ts` runs `src/cli/index.ts`, a table of commands in `cli/commands/` (bridge, stories, inbox, drafts, builds, checks, fixes) that also builds the help. `cli/doctor.ts` is `once-upon doctor`.
+  - `bin/once-upon.mjs` (the `once-upon` bin) is plain JavaScript: it checks the Node version (`bin/node-version.mjs`), then loads `bin/once-upon.ts`, which runs `src/cli/index.ts`, a table of commands in `cli/commands/` (bridge, stories, inbox, drafts, builds, checks, fixes) that also builds the help. `cli/doctor.ts` is `once-upon doctor`.
   - `src/server/index.ts` is the HTTP server: its guards, then a route table. The routes are in `server/routes/` by area; `pages.ts` and `assets.ts` serve the HTML pages, the scripts (type-stripped) and the stylesheets.
   - `src/stories/`: finding story folders (`store.ts`, `placement.ts`), reading them (`meta.ts`, `chapters.ts`, `story-data.ts`, `text-refs.ts`, `hunk-coverage.ts`), local stories (`local-story.ts`, `local-diff.ts`), read tracking (`reads.ts`), drafted comments (`comments.ts`), the rules a Rebuild is published by (`rebuild.ts`) and "being changed" marks (`working.ts`).
   - `src/github/`: what asks `gh` (read-only, except Add to my review): freshness, drafts and the pending review.
@@ -468,7 +468,7 @@ Three Yarn workspaces under `packages/`, all TypeScript (strict), and the skills
   - `src/public/icons/` (`yarn workspace @once-upon-a-diff/extension icons` redraws them).
   - `test/`: the unit tests for the tag and Hide whitespace (some against a real bridge), and `browser/load-test.ts` and `browser/expand-test.ts`.
 - `skills/once-upon-listen/`: the Claude Code skill behind **Copy prompt for Claude**.
-- `skills/once-upon/`: the Claude Code skill that writes PR stories. Its `bin/story.ts` imports the bridge's and the panel's code from this checkout. Both skills read your house rules (see [Personal settings](#personal-settings)).
+- `skills/once-upon/`: the Claude Code skill that writes PR stories. Its `bin/story.ts` (run through `bin/story.mjs`, behind the same Node check) imports the bridge's and the panel's code from this checkout. Both skills read your house rules (see [Personal settings](#personal-settings)).
 
 ## Credits
 

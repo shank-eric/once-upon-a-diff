@@ -34,7 +34,7 @@ export type StatusMany = {
   listening: Record<string, ReturnType<typeof listeningOf>>;
 };
 
-const BIN = fileURLToPath(new URL('../bin/once-upon.ts', import.meta.url));
+const BIN = fileURLToPath(new URL('../bin/once-upon.mjs', import.meta.url));
 
 export const tmp = (name: string): string =>
   mkdtempSync(path.join(os.tmpdir(), `once-upon-${name}-`));
