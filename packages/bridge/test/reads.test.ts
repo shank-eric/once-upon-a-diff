@@ -1,12 +1,20 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson, localRepo } from './helpers.ts';
-import { noteRead, readReads, sinceOf } from '../src/stories/reads.ts';
+import {
+  noteRead,
+  readReads,
+  sinceOf,
+  type changedSinceRead as ChangedSinceRead,
+  type ReadRecord,
+  type Reads,
+  type Since,
+} from '../src/stories/reads.ts';
+import type { ReadEntry } from '../src/inbox/inbox.ts';
+import type { Chapter, ReadChange, ReadInfo, StoryData } from '@once-upon-a-diff/shared/types';
 import {
   chapterKeyOf,
   finishedInOf,
@@ -16,6 +24,16 @@ import {
 import { clearFreshness } from '../src/github/freshness.ts';
 import { createLocalStory } from '../src/stories/local-story.ts';
 
+/** POST .../read: the record kept, with its chapter key. */
+type ReadBody = ReadRecord & { chapter: string };
+/** GET .../read: the reads, where an update would start, and what changed since. */
+type ReadsBody = {
+  reads: Reads;
+  since: Since;
+  story_head: string | null;
+  error: string | null;
+} & ReturnType<typeof ChangedSinceRead>;
+
 process.env.ONCE_UPON_GH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
   'fixtures',
@@ -24,8 +42,11 @@ process.env.ONCE_UPON_GH = path.join(
 const SHA_A = 'a'.repeat(40);
 const SHA_B = 'b'.repeat(40);
 const SHA_C = 'c'.repeat(40);
-const inbox = (home) =>
-  readFileSync(path.join(home, 'inbox.jsonl'), 'utf8').trim().split('\n').map(JSON.parse);
+const inbox = (home: string) =>
+  readFileSync(path.join(home, 'inbox.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map(JSON.parse as (line: string) => ReadEntry); // these tests' lines are reads
 
 test('a chapter keeps its key when a chapter goes in front of it', () => {
   assert.equal(chapterKeyOf({ title: 'Chapter 2: Finish' }), 'finish');
@@ -66,8 +87,8 @@ test('an update starts from the earliest chapter read, after the newest "Since y
     { key: 'since-b', title: 'Since you read it', since: { from: SHA_A, to: SHA_B } },
     { key: 'start', title: 'Chapter 1: Start' },
     { key: 'finish', title: 'Chapter 2: Finish' },
-  ];
-  const isoAt = (seconds) =>
+  ] as Chapter[]; // just the fields sinceOf reads
+  const isoAt = (seconds: number) =>
     new Date(Date.parse('2026-10-21T15:00:00Z') + seconds * 1000).toISOString();
   assert.deepEqual(
     sinceOf({}, chapters, SHA_A),
@@ -75,25 +96,32 @@ test('an update starts from the earliest chapter read, after the newest "Since y
     'nothing read: from the story head',
   );
   assert.equal(sinceOf({}, chapters, null).since_sha, null);
-  const reads = {
+  // just the fields sinceOf reads
+  const reads: Record<string, Partial<ReadRecord>> = {
     start: { story_head: SHA_A, head_sha: SHA_A, at: isoAt(0) },
     finish: { story_head: SHA_B, head_sha: SHA_B, at: isoAt(10) },
   };
-  assert.equal(sinceOf(reads, chapters, SHA_C).since_sha, SHA_A, 'the earliest read');
+  assert.equal(sinceOf(reads as Reads, chapters, SHA_C).since_sha, SHA_A, 'the earliest read');
   assert.equal(
-    sinceOf({ ...reads, 'since-b': { story_head: SHA_B, at: isoAt(5) } }, chapters, SHA_C)
-      .since_sha,
+    sinceOf(
+      { ...(reads as Reads), 'since-b': { story_head: SHA_B, at: isoAt(5) } as ReadRecord },
+      chapters,
+      SHA_C,
+    ).since_sha,
     SHA_B,
     'reading the addendum caught him up to its commit',
   );
   assert.equal(
-    sinceOf({ gone: { story_head: SHA_A, at: isoAt(0) } }, chapters, SHA_C).since_sha,
+    sinceOf({ gone: { story_head: SHA_A, at: isoAt(0) } as ReadRecord }, chapters, SHA_C).since_sha,
     SHA_C,
     'a chapter that is no longer in the story does not count',
   );
   assert.equal(
-    sinceOf({ start: { story_head: SHA_A, head_sha: SHA_B, at: isoAt(0) } }, chapters, SHA_C)
-      .since_sha,
+    sinceOf(
+      { start: { story_head: SHA_A, head_sha: SHA_B, at: isoAt(0) } as ReadRecord },
+      chapters,
+      SHA_C,
+    ).since_sha,
     SHA_A,
     'a stale story was read: what it told him, not the head he saw',
   );
@@ -106,14 +134,14 @@ test('the bridge records a read with the PR head, and lists them', async () => {
   githubStory(dir, { meta: { head_oid: SHA_A } });
   const bridge = await startBridge({ home });
   try {
-    const story = (await bridge.call('GET', '/api/stories/acme-widgets-7')).body;
+    const story = (await bridge.call<StoryData>('GET', '/api/stories/acme-widgets-7')).body;
     assert.deepEqual(
       story.chapters.map((chapter) => chapter.key),
       ['start', 'finish', 'not in a chapter yet'],
       'README.md is placed nowhere',
     );
     // the panel didn't know the head: the bridge asks gh (the fake PR is at B), and keeps the story's own head too
-    const response = await bridge.call('POST', '/api/stories/acme-widgets-7/read', {
+    const response = await bridge.call<ReadBody>('POST', '/api/stories/acme-widgets-7/read', {
       chapter: 'start',
       step: 1,
       reason: 'time',
@@ -131,7 +159,7 @@ test('the bridge records a read with the PR head, and lists them', async () => {
       [SHA_B, SHA_A, 'time', 95, 'Chapter 1: Start'],
     );
     const seen = (
-      await bridge.call('POST', '/api/stories/acme-widgets-7/read', {
+      await bridge.call<ReadBody>('POST', '/api/stories/acme-widgets-7/read', {
         chapter: 'finish',
         step: 2,
         reason: 'viewed',
@@ -140,7 +168,8 @@ test('the bridge records a read with the PR head, and lists them', async () => {
     ).body;
     assert.equal(seen.head_sha, SHA_C, 'the head the panel saw wins');
     assert.equal(
-      (await bridge.call('POST', '/api/stories/acme-widgets-7/read', { chapter: 'nope' })).status,
+      (await bridge.call<ReadBody>('POST', '/api/stories/acme-widgets-7/read', { chapter: 'nope' }))
+        .status,
       404,
     );
     const saved = JSON.parse(
@@ -156,7 +185,7 @@ test('the bridge records a read with the PR head, and lists them', async () => {
         ['finish', SHA_C],
       ],
     );
-    const list = (await bridge.call('GET', '/api/stories/acme-widgets-7/read')).body;
+    const list = (await bridge.call<ReadsBody>('GET', '/api/stories/acme-widgets-7/read')).body;
     assert.deepEqual(Object.keys(list.reads), ['start', 'finish']);
     assert.equal(
       list.since.since_sha,
@@ -174,16 +203,16 @@ test('a local story records the head commit of its range', async () => {
   const made = createLocalStory({ home, repo, base, head: 'HEAD', id: 'local-x' });
   const bridge = await startBridge({ home });
   try {
-    const story = (await bridge.call('GET', `/api/stories/${made.id}`)).body;
+    const story = (await bridge.call<StoryData>('GET', `/api/stories/${made.id}`)).body;
     const result = (
-      await bridge.call('POST', `/api/stories/${made.id}/read`, {
+      await bridge.call<ReadBody>('POST', `/api/stories/${made.id}/read`, {
         chapter: story.chapters[0].key,
         step: 1,
         reason: 'time',
       })
     ).body;
-    assert.equal(result.head_sha, story.local.head_oid);
-    assert.equal(result.story_head, story.local.head_oid);
+    assert.equal(result.head_sha, story.local!.head_oid);
+    assert.equal(result.story_head, story.local!.head_oid);
   } finally {
     await bridge.close();
   }
@@ -213,13 +242,16 @@ test('chapters he read are marked when a newer commit changed their files, and d
       comments: [{ path: 'src/b.js', line: 3, body: 'file renamed' }],
     },
     { key: 'unread', files: [{ rel: 'src/a.js' }] },
-  ];
-  const reads = {
+  ] as Chapter[]; // just the fields changedSinceRead reads
+  const reads: Record<string, Partial<ReadRecord>> = {
     start: { story_head: SHA_A },
     finish: { story_head: SHA_A },
     'since-x': { story_head: SHA_B },
   };
-  const changes = new Map([
+  const changes = new Map<
+    string,
+    Map<string, { kind: 'modified' | 'renamed'; hunks: { oldStart: number; oldLines: number }[] }>
+  >([
     [
       SHA_A,
       new Map([
@@ -228,7 +260,7 @@ test('chapters he read are marked when a newer commit changed their files, and d
       ]),
     ],
   ]);
-  const result = changedSinceRead(chapters, reads, changes, SHA_B);
+  const result = changedSinceRead(chapters, reads as Reads, changes, SHA_B);
   assert.deepEqual(
     result.changed,
     [
@@ -245,7 +277,7 @@ test('chapters he read are marked when a newer commit changed their files, and d
     ],
   );
   assert.deepEqual(
-    changedSinceRead(chapters, { start: { story_head: SHA_B } }, changes, SHA_B),
+    changedSinceRead(chapters, { start: { story_head: SHA_B } as ReadRecord }, changes, SHA_B),
     { changed: [], stale_comments: [] },
     'read at the story head: nothing to mark',
   );
@@ -270,7 +302,7 @@ test('GET /read compares the commit each chapter was read at with the story head
   noteRead(home, 'pr-acme-widgets-7', 'start', { head_sha: SHA_A, story_head: SHA_A });
   const bridge = await startBridge({ home });
   try {
-    const result = (await bridge.call('GET', '/api/stories/acme-widgets-7/read')).body;
+    const result = (await bridge.call<ReadsBody>('GET', '/api/stories/acme-widgets-7/read')).body;
     assert.equal(result.error, null);
     assert.deepEqual(result.changed, [
       { step: 1, chapter: 'start', since: SHA_A, files: ['src/a.js'] },
@@ -293,17 +325,17 @@ test('a local story compares with git', async () => {
   const made = createLocalStory({ home, repo, base, head: 'HEAD', id: 'local-y' });
   const bridge = await startBridge({ home });
   try {
-    const story = (await bridge.call('GET', `/api/stories/${made.id}`)).body;
+    const story = (await bridge.call<StoryData>('GET', `/api/stories/${made.id}`)).body;
     const chapter = story.chapters.find((candidate) =>
       candidate.files.some((file) => file.rel === 'one.txt'),
-    );
+    )!;
     await bridge.call('POST', `/api/stories/${made.id}/read`, {
       chapter: chapter.key,
       reason: 'time',
     });
     writeFileSync(path.join(repo, 'one.txt'), 'a\nB\nc\nd\ne\n');
     git(repo, 'commit', '-q', '-am', 'more one');
-    const result = (await bridge.call('GET', `/api/stories/${made.id}/read`)).body;
+    const result = (await bridge.call<ReadsBody>('GET', `/api/stories/${made.id}/read`)).body;
     assert.deepEqual(
       result.changed.map((change) => change.files),
       [['one.txt']],
@@ -325,7 +357,7 @@ test('a chapter he has read, and that has not changed since, does not make its f
     { title: 'Chapter 3: Dependencies and CI', files: [{ rel: 'yarn.lock' }, { rel: 'ci.yml' }] },
   ];
   const finishedIn = finishedInOf(chapters);
-  const earlyOn = (step, readInfo) =>
+  const earlyOn = (step: number, readInfo: ReadInfo | null) =>
     ['login.js', 'task.js', 'yarn.lock', 'ci.yml'].filter(
       viewedEarlyCheck({ chapters, finishedIn, readInfo, step }),
     );
@@ -342,7 +374,7 @@ test('a chapter he has read, and that has not changed since, does not make its f
     'a file that changed after he read its chapter is due again, and only that file',
   );
   assert.deepEqual(
-    earlyOn(1, { reads, changed: [{ step: 3 }] }),
+    earlyOn(1, { reads, changed: [{ step: 3 } as ReadChange] }), // a change that names no files
     ['yarn.lock', 'ci.yml'],
     'a change that names no files counts for the whole chapter',
   );
@@ -375,7 +407,7 @@ test('a "Since you read it" chapter first does not make the chapters he read "vi
   };
   const readInfo = { reads, changed: [{ step: 3, files: ['useApiOptions.ts'] }] };
   const all = ['useApiOptions.ts', 'TimelineField.tsx', 'index.ts', 'useQualifiOptions.ts'];
-  const earlyOn = (step, info) =>
+  const earlyOn = (step: number, info: ReadInfo) =>
     all.filter(viewedEarlyCheck({ chapters, finishedIn, readInfo: info, step }));
   assert.deepEqual(
     earlyOn(2, readInfo),
@@ -400,7 +432,12 @@ test('a chapter whose files were all Viewed when the page first showed them coun
     { title: 'Chapter 2: The task' },
     { title: 'Chapter 3: Dependencies and CI' },
   ];
-  const progress = (due, viewed, unknown = []) => ({ due, viewed, unknown, noToggle: false });
+  const progress = (due: number, viewed: number, unknown: string[] = []) => ({
+    due,
+    viewed,
+    unknown,
+    noToggle: false,
+  });
   const look = new Map();
   assert.deepEqual(
     inferReadSteps(chapters, [progress(2, 2), progress(3, 3), progress(3, 3)], null, look),

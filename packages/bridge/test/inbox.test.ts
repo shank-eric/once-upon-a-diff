@@ -1,10 +1,8 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { appendFileSync } from 'node:fs';
 import { tmp } from './helpers.ts';
-import { Inbox } from '../src/inbox/inbox.ts';
+import { Inbox, type QuestionEntry } from '../src/inbox/inbox.ts';
 
 test('readers keep their own cursor', () => {
   const inbox = new Inbox(tmp('inbox'));
@@ -13,7 +11,7 @@ test('readers keep their own cursor', () => {
   assert.equal(inbox.unread('claude', { advance: true }).length, 0);
   inbox.append({ type: 'question', story: 's', text: 'two' });
   assert.deepEqual(
-    inbox.unread('claude', { advance: true }).map((e) => e.text),
+    inbox.unread('claude', { advance: true }).map((e) => (e as QuestionEntry).text),
     ['two'],
   );
   assert.equal(inbox.unread('hook').length, 2, 'another reader starts from the top');
@@ -26,7 +24,7 @@ test('a half-written last line waits for the next read', () => {
   assert.equal(inbox.unread('c', { advance: true }).length, 1);
   appendFileSync(inbox.file, 'o"}\n');
   assert.deepEqual(
-    inbox.unread('c', { advance: true }).map((e) => e.text),
+    inbox.unread('c', { advance: true }).map((e) => (e as QuestionEntry).text),
     ['two'],
   );
 });

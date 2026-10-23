@@ -1,12 +1,24 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { tmp, writeJson } from 'once-upon-a-diff/test/helpers';
-import { scriptDrafts, reviewScript } from '../src/panel/review-script.ts';
+import { scriptDrafts, reviewScript, type ScriptRow } from '../src/panel/review-script.ts';
+
+// the shared package's tests don't lean on the bridge's helpers
+const tmp = (name: string) => mkdtempSync(path.join(os.tmpdir(), `once-upon-${name}-`));
+function writeJson(file: string, value: unknown) {
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, JSON.stringify(value, null, 2));
+}
 
 const RELS = ['src/a.js', 'lib/b.js'];
 const NASTY = 'It\'s "quoted" $(touch PWNED) `touch PWNED2` $HOME\nONCE_UPON_REVIEW_JSON\n\\n end';
@@ -27,7 +39,7 @@ const CHAPTERS = [
     ],
   },
 ];
-const ROWS = [
+const ROWS: ScriptRow[] = [
   { chapter: 1, index: 0, status: 'draft', dismissed: false },
   { chapter: 2, index: 0, status: 'draft', dismissed: true },
   { chapter: 2, index: 1, status: 'posted', dismissed: false },

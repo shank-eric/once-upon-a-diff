@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /**
  * Loads the unpacked extension into a throwaway Chromium (Playwright's, in a
  * temp profile; never your own Chrome) and checks it end to end against a
@@ -13,13 +11,14 @@
  *      filters by chapter, keeps Viewed and a fix-before-push note, and its
  *      Q&A says who answers and keeps collapse, Dismiss and Clear conversation
  *
- *   node test/extension/load-test.mjs [--pr owner/repo#N] [--headed] [--shots DIR]
+ *   node test/browser/load-test.ts [--pr owner/repo#N] [--headed] [--shots DIR]
  *
  * PLAYWRIGHT_BROWSERS_PATH picks where Playwright's Chromium lives
  * (node node_modules/playwright-core/cli.js install chromium).
  */
 /* global chrome */ // the service worker's, inside worker.evaluate
-import { chromium } from 'playwright-core';
+import { chromium, type Page } from 'playwright-core';
+import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -33,40 +32,42 @@ import {
 } from 'once-upon-a-diff/test/helpers';
 import { createLocalStory } from 'once-upon-a-diff/stories/local-story';
 import { beat } from 'once-upon-a-diff/listeners/listeners';
-import { Builds } from 'once-upon-a-diff/inbox/builds';
+import { Builds, type Build } from 'once-upon-a-diff/inbox/builds';
+import type { InboxEntry, QuestionEntry } from 'once-upon-a-diff/inbox/inbox';
+import type { LocalNote } from '@once-upon-a-diff/shared/types';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const EXT = path.join(ROOT, '.output/chrome-mv3'); // yarn build's output
 const args = process.argv.slice(2);
 /** --name's value, true for a bare --name, or the fallback when it isn't given. */
-const arg = (name, fallback) => {
+const arg = <F>(name: string, fallback: F): string | true | F => {
   const i = args.indexOf(`--${name}`);
   if (i < 0) {
     return fallback;
   }
   return args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : true;
 };
-const PR_REF = arg('pr', 'refined-github/refined-github#10280');
-const SHOTS = arg('shots', null);
+const PR_REF = arg('pr', 'refined-github/refined-github#10280') as string; // --pr takes owner/repo#N
+const SHOTS = arg('shots', null) as string | null; // --shots takes a folder
 if (SHOTS) {
   mkdirSync(SHOTS, { recursive: true });
 }
 
 let failures = 0;
-const check = (ok, what) => {
+const check = (ok: unknown, what: string) => {
   process.stdout.write(`${ok ? 'ok  ' : 'FAIL'} ${what}\n`);
   if (!ok) {
     failures++;
   }
 };
-const shot = async (page, name) => {
+const shot = async (page: Page, name: string) => {
   if (SHOTS) {
     await page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
   }
 };
 
 // ---------- a story for a public PR, made from its real file list
-const [, owner, repo, number] = /^([^/]+)\/([^#]+)#(\d+)$/.exec(PR_REF);
+const [, owner, repo, number] = /^([^/]+)\/([^#]+)#(\d+)$/.exec(PR_REF) as RegExpExecArray;
 const res = await fetch(
   `https://api.github.com/repos/${owner}/${repo}/pulls/${number}/files?per_page=100`,
   { headers: { Accept: 'application/vnd.github+json' } },
@@ -74,7 +75,7 @@ const res = await fetch(
 if (!res.ok) {
   throw new Error(`GitHub API ${res.status} for ${PR_REF}`);
 }
-const rels = (await res.json()).map((file) => file.filename);
+const rels = ((await res.json()) as { filename: string }[]).map((file) => file.filename);
 if (rels.length < 2) {
   throw new Error(`${PR_REF} has ${rels.length} files; pick a PR with at least 2`);
 }
@@ -82,7 +83,9 @@ const half = Math.ceil(rels.length / 2);
 const home = tmp('ext-home');
 const buildRequests = () =>
   existsSync(path.join(home, 'builds.json'))
-    ? Object.values(JSON.parse(readFileSync(path.join(home, 'builds.json'), 'utf8')))
+    ? Object.values(
+        JSON.parse(readFileSync(path.join(home, 'builds.json'), 'utf8')) as Record<string, Build>,
+      )
     : [];
 const id = `${owner}-${repo}-${number}`;
 // the story was told from an older head ('a' x 40); the fake gh says the PR is now at 'b' x 40, with one file changed
@@ -143,7 +146,7 @@ process.env.ONCE_UPON_GH = fileURLToPath(
   import.meta.resolve('once-upon-a-diff/test/fixtures/fake-gh'),
 ); // no real GitHub calls from the test bridge
 const bridge = await startBridge({ home });
-const port = bridge.server.address().port;
+const port = (bridge.server.address() as AddressInfo).port;
 
 const profile = tmp('ext-profile');
 const context = await chromium.launchPersistentContext(profile, {
@@ -223,9 +226,9 @@ try {
     }
     await page.waitForTimeout(2500); // lazy-loaded diffs
     const look = await page.evaluate(() => {
-      const panelHost = document.getElementById('once-upon-panel');
+      const panelHost = document.getElementById('once-upon-panel')!;
       return {
-        position: getComputedStyle(panelHost.shadowRoot.getElementById('ou-panel')).position,
+        position: getComputedStyle(panelHost.shadowRoot!.getElementById('ou-panel')!).position,
         visibility: getComputedStyle(panelHost).visibility,
         margin: getComputedStyle(document.body).marginRight,
       };
@@ -267,7 +270,7 @@ try {
     const hidden = await page.locator('[data-ou-hidden]').count();
     check(
       /chapter 1/.test(chapterOneNote),
-      `/${view}: Next goes to chapter 1: "${chapterOneNote.trim()}"`,
+      `/${view}: Next goes to chapter 1: "${chapterOneNote!.trim()}"`,
     );
     check(
       hidden > 0,
@@ -284,14 +287,16 @@ try {
     }
     // logged out there's no Viewed checkbox: Mark viewed says so and clicks nothing
     const markTry = await page.evaluate(async (rel) => {
-      const root = document.getElementById('once-upon-panel').shadowRoot;
-      const btn = root.querySelector(`li[data-file="${CSS.escape(rel)}"] button[data-mark-for]`);
+      const root = document.getElementById('once-upon-panel')!.shadowRoot!;
+      const btn = root.querySelector<HTMLElement>(
+        `li[data-file="${CSS.escape(rel)}"] button[data-mark-for]`,
+      );
       if (!btn) {
         return null;
       }
       btn.click();
       await new Promise((resolve) => setTimeout(resolve, 200));
-      return { label: btn.textContent, msg: root.querySelector('.ou-msg').textContent };
+      return { label: btn.textContent, msg: root.querySelector('.ou-msg')!.textContent };
     }, rels[1]);
     check(
       !!markTry &&
@@ -302,8 +307,10 @@ try {
     // with a Viewed toggle in the file's header (GitHub's shape when logged in), Mark viewed clicks that one toggle, and Viewed ✓ unclicks it
     const markLive = await page.evaluate(
       async ([rel, view]) => {
-        const root = document.getElementById('once-upon-panel').shadowRoot;
-        const btn = root.querySelector(`li[data-file="${CSS.escape(rel)}"] button[data-mark-for]`);
+        const root = document.getElementById('once-upon-panel')!.shadowRoot!;
+        const btn = root.querySelector<HTMLElement>(
+          `li[data-file="${CSS.escape(rel)}"] button[data-mark-for]`,
+        );
         const sha = [
           ...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rel))),
         ]
@@ -319,7 +326,7 @@ try {
           return { btn: !!btn, block: !!block };
         }
         let clicks = 0;
-        let toggle;
+        let toggle: HTMLInputElement | HTMLButtonElement;
         if (view === 'files') {
           toggle = document.createElement('input');
           toggle.type = 'checkbox';
@@ -340,7 +347,9 @@ try {
         });
         block.prepend(toggle);
         const listening = () =>
-          toggle.matches('input') ? toggle.checked : toggle.getAttribute('aria-pressed') === 'true';
+          toggle.matches('input')
+            ? (toggle as HTMLInputElement).checked
+            : toggle.getAttribute('aria-pressed') === 'true';
         const wait = () => new Promise((resolve) => setTimeout(resolve, 500));
         await wait();
         const before = { label: btn.textContent, on: listening(), clicks };
@@ -382,8 +391,8 @@ try {
     );
     // what Refined GitHub's j/k does: set the hash to the next file in page order, hidden or not
     const jumped = await page.evaluate(
-      async ([inCh, outCh, chapterOne]) => {
-        const sha = async (text) =>
+      async ([inCh, outCh, chapterOne]: [string, string, string[]]) => {
+        const sha = async (text: string) =>
           [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))]
             .map((byte) => byte.toString(16).padStart(2, '0'))
             .join('');
@@ -393,11 +402,11 @@ try {
         await new Promise((resolve) => setTimeout(resolve, 300));
         const ch1 = await Promise.all(chapterOne.map(sha));
         const msg = document
-          .querySelector('#once-upon-panel')
-          .shadowRoot.querySelector('.ou-msg').textContent;
+          .querySelector('#once-upon-panel')!
+          .shadowRoot!.querySelector('.ou-msg')!.textContent;
         return { inChapter: ch1.includes(location.hash.slice(6, 70)), msg };
       },
-      [rels[0], rels[half], rels.slice(0, half)],
+      [rels[0], rels[half], rels.slice(0, half)] as [string, string, string[]],
     );
     check(
       jumped.inChapter || /isn't in this chapter/.test(jumped.msg),
@@ -409,7 +418,7 @@ try {
     await page.waitForTimeout(1500);
     check(
       /chapter 1/.test(await note()),
-      `/${view}: a reload comes back on chapter 1: "${(await note()).trim()}"`,
+      `/${view}: a reload comes back on chapter 1: "${(await note())!.trim()}"`,
     );
     // go back to the Overview for the next view
     await page.locator('#ou-panel ol.ou-map li[data-n="0"]').click();
@@ -430,9 +439,14 @@ try {
   await page.locator('#ou-panel .ou-ask button').click();
   await page.waitForTimeout(800);
   const inbox = existsSync(path.join(home, 'inbox.jsonl'))
-    ? readFileSync(path.join(home, 'inbox.jsonl'), 'utf8').trim().split('\n').map(JSON.parse)
+    ? readFileSync(path.join(home, 'inbox.jsonl'), 'utf8')
+        .trim()
+        .split('\n')
+        .map((line) => JSON.parse(line) as InboxEntry)
     : [];
-  const question = inbox.find((e) => e.type === 'question' && e.text === 'Why two halves?');
+  const question = inbox.find(
+    (e): e is QuestionEntry => e.type === 'question' && e.text === 'Why two halves?',
+  );
   check(!!question && question.story === id, 'a question from the panel lands in the inbox');
   const positionFile = path.join(home, 'state', id, 'position.json');
   check(
@@ -440,7 +454,7 @@ try {
       Number.isInteger(JSON.parse(readFileSync(positionFile, 'utf8')).step),
     'the position lands in position.json',
   );
-  check(!inbox.some((e) => e.type === 'position'), 'and not in the inbox');
+  check(!inbox.some((e) => (e.type as string) === 'position'), 'and not in the inbox');
   if (question) {
     await runCli(home, [
       'answer',
@@ -465,10 +479,10 @@ try {
       (await page.locator('[data-ou-hidden]').count()) === 0,
     'x removes the panel and every filter',
   );
-  const filesTag = (tab) =>
+  const filesTag = (tab: Page) =>
     tab
       .locator('[data-ou-files]')
-      .evaluate((host) => host.shadowRoot.textContent.trim())
+      .evaluate((host) => host.shadowRoot!.textContent!.trim())
       .catch(() => '');
   await page.waitForTimeout(300);
   check(
@@ -485,7 +499,7 @@ try {
   await worker.evaluate(async () => {
     // what a toolbar click does: send 'toggle' to the active tab
     const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
-    await chrome.tabs.sendMessage(tab.id, { type: 'toggle' });
+    await chrome.tabs.sendMessage(tab.id as number, { type: 'toggle' });
   });
   await page.waitForTimeout(1500);
   check(
@@ -518,7 +532,7 @@ try {
   );
   const listenText = await newPage
     .locator('#once-upon-listen-notice')
-    .evaluate((host) => host.shadowRoot.textContent)
+    .evaluate((host) => host.shadowRoot!.textContent)
     .catch(() => '');
   check(
     new RegExp(`No session listening for ${owner}/${repo}`, 'i').test(listenText),
@@ -526,7 +540,7 @@ try {
   );
   const noticePosition = await newPage
     .locator('#once-upon-listen-notice')
-    .evaluate((host) => getComputedStyle(host.shadowRoot.querySelector('.n')).position)
+    .evaluate((host) => getComputedStyle(host.shadowRoot!.querySelector('.n')!).position)
     .catch(() => '');
   check(noticePosition === 'fixed', `and the notice has listen-notice.css (${noticePosition})`);
   const breq = buildRequests().find((build) => build.number === NOSTORY);
@@ -573,7 +587,7 @@ try {
   );
   await newPage
     .locator('[data-ou-files]')
-    .evaluate((host) => host.shadowRoot.querySelector('a').click());
+    .evaluate((host) => host.shadowRoot!.querySelector('a')!.click());
   await newPage.waitForTimeout(800);
   check(
     (await newPage.locator('#once-upon-panel').count()) === 1 &&
@@ -594,13 +608,13 @@ try {
   const badges = await list.evaluate(() =>
     [...document.querySelectorAll('[data-ou-badge]')].map((host) => ({
       key: host.getAttribute('data-ou-badge'),
-      text: host.shadowRoot.textContent.replace(/\s+/g, ' ').trim(),
+      text: host.shadowRoot!.textContent!.replace(/\s+/g, ' ').trim(),
       // story-tag.css applied: the tag is a pill
-      styled: getComputedStyle(host.shadowRoot.querySelector('.b')).borderTopLeftRadius !== '0px',
+      styled: getComputedStyle(host.shadowRoot!.querySelector('.b')!).borderTopLeftRadius !== '0px',
     })),
   );
   const byKey = new Map(badges.map((badge) => [badge.key, badge.text]));
-  const k = (number) => `${owner}/${repo}#${number}`.toLowerCase();
+  const k = (number: number | string) => `${owner}/${repo}#${number}`.toLowerCase();
   check(badges.length >= 5, `the PR list gets a badge per PR (${badges.length})`);
   check(
     badges.length > 0 && badges.every((badge) => badge.styled),
@@ -628,17 +642,17 @@ try {
       /Queued/.test(
         await list
           .locator(`[data-ou-badge="${target.key}"]`)
-          .evaluate((host) => host.shadowRoot.textContent),
+          .evaluate((host) => host.shadowRoot!.textContent),
       ),
       'clicking Build story on the list shows Queued',
     );
     check(
       (await list
         .locator(`[data-ou-badge="${target.key}"]`)
-        .evaluate((host) => host.shadowRoot.querySelectorAll('.b').length)) === 1,
+        .evaluate((host) => host.shadowRoot!.querySelectorAll('.b').length)) === 1,
       'one tag per row',
     );
-    const number = Number(target.key.split('#')[1]);
+    const number = Number(target.key!.split('#')[1]);
     check(
       buildRequests().some((build) => build.number === number && build.status === 'pending'),
       'and sends the same build request as the PR page',
@@ -646,7 +660,7 @@ try {
   }
   const noticeText = await list
     .locator('#once-upon-listen-notice')
-    .evaluate((host) => host.shadowRoot.textContent)
+    .evaluate((host) => host.shadowRoot!.textContent)
     .catch(() => '');
   check(
     new RegExp(`No session listening for ${owner}/${repo}`, 'i').test(noticeText) &&
@@ -667,9 +681,9 @@ try {
   const convoTag = await convo
     .locator('[data-ou-convo]')
     .evaluate((host) => ({
-      text: host.shadowRoot.textContent,
-      tags: host.shadowRoot.querySelectorAll('.b').length,
-      href: (host.shadowRoot.querySelector('a') || {}).href || '',
+      text: host.shadowRoot!.textContent,
+      tags: host.shadowRoot!.querySelectorAll('.b').length,
+      href: (host.shadowRoot!.querySelector('a') || ({} as Partial<HTMLAnchorElement>)).href || '',
     }))
     .catch(() => null);
   check(
@@ -718,7 +732,7 @@ try {
     /New Since you read it: new commits/.test(stepsText) &&
       /1\. First half/.test(stepsText) &&
       /2\. Second half/.test(stepsText),
-    `the Steps list shows it as New and keeps the old numbers: "${stepsText.replace(/\s+/g, ' ').trim()}"`,
+    `the Steps list shows it as New and keeps the old numbers: "${stepsText!.replace(/\s+/g, ' ').trim()}"`,
   );
   await sincePage.locator('#ou-panel ol.ou-map li[data-n="1"]').click();
   const rangeHref = await sincePage
@@ -744,7 +758,7 @@ try {
     ),
     'the old chapter that listed it says it was finished in "Since you read it"',
   );
-  await sincePage.goto(rangeHref, { waitUntil: 'domcontentloaded' });
+  await sincePage.goto(rangeHref as string, { waitUntil: 'domcontentloaded' });
   await sincePage.waitForSelector('#once-upon-panel', { state: 'attached', timeout: 15000 });
   await sincePage.waitForTimeout(1500);
   check(
@@ -752,14 +766,14 @@ try {
       /You're on GitHub's diff of just these commits/.test(
         await sincePage.locator('#ou-panel .ou-since').textContent(),
       ),
-    `GitHub's diff of those commits opens on that chapter: "${(await sincePage.locator('#ou-panel .ou-count-note').textContent()).trim()}"`,
+    `GitHub's diff of those commits opens on that chapter: "${(await sincePage.locator('#ou-panel .ou-count-note').textContent())!.trim()}"`,
   );
   await sincePage.close();
 
   // 3. local page
   beat(home, 'load-test', 'waiting');
   const localPage = await context.newPage();
-  const errors = [];
+  const errors: string[] = [];
   localPage.on('pageerror', (e) => errors.push(e.message));
   await localPage.goto(`http://127.0.0.1:${port}/local/${local.id}/`);
   await localPage.waitForSelector('#once-upon-panel', { state: 'attached', timeout: 5000 });
@@ -785,7 +799,7 @@ try {
   check(
     /Chapter 1/.test(await allc.locator('.ou-cgh').first().textContent()) &&
       /one\.txt:2/.test(await allc.locator('.ou-where').first().textContent()),
-    `grouped by chapter, with file:line: "${(await allc.locator('.ou-where').first().textContent()).trim()}"`,
+    `grouped by chapter, with file:line: "${(await allc.locator('.ou-where').first().textContent())!.trim()}"`,
   );
   check(
     /Draft, not posted/.test(await allc.locator('.ou-cstate').first().textContent()) &&
@@ -804,7 +818,10 @@ try {
   await localPage.locator('#ou-panel .ou-next').click();
   await localPage.waitForTimeout(400);
   const localNote = await localPage.locator('#ou-panel .ou-count-note').textContent();
-  check(/Showing 2 of 3/.test(localNote), `local page filters to chapter 1: "${localNote.trim()}"`);
+  check(
+    /Showing 2 of 3/.test(localNote),
+    `local page filters to chapter 1: "${localNote!.trim()}"`,
+  );
   check(
     /Fix before push/.test(await localPage.locator('#ou-panel .ou-body').textContent()),
     'local page labels drafted comments "Fix before push"',
@@ -833,7 +850,7 @@ try {
   );
   check(
     await localPage.evaluate(() => {
-      const root = document.getElementById('once-upon-panel').shadowRoot;
+      const root = document.getElementById('once-upon-panel')!.shadowRoot!;
       const progress = root.querySelector('.ou-progress');
       return (
         !!progress &&
@@ -852,7 +869,7 @@ try {
     /1 to mark viewed/.test(
       await localPage.locator('#ou-panel details.ou-filesbox summary').textContent(),
     ),
-    `the folded list has a summary: "${(await localPage.locator('#ou-panel details.ou-filesbox summary').textContent()).trim()}"`,
+    `the folded list has a summary: "${(await localPage.locator('#ou-panel details.ou-filesbox summary').textContent())!.trim()}"`,
   );
   await localPage.locator('#ou-panel .ou-next').click();
   await localPage.waitForTimeout(300);
@@ -869,13 +886,13 @@ try {
   // a line jump whose target moves after the first scroll (as when GitHub renders the files it passes) still ends on the line
   const settled = await localPage.evaluate(async () => {
     const link = document
-      .getElementById('once-upon-panel')
-      .shadowRoot.querySelector('.ou-comment code[data-start]');
+      .getElementById('once-upon-panel')!
+      .shadowRoot!.querySelector<HTMLElement>('.ou-comment code[data-start]')!;
     link.click();
     await new Promise((resolve) => setTimeout(resolve, 60));
     const spacer = document.createElement('div');
     spacer.style.height = '3000px';
-    document.querySelector('.ou-local-files').prepend(spacer);
+    document.querySelector('.ou-local-files')!.prepend(spacer);
     await new Promise((resolve) => setTimeout(resolve, 2600));
     const row = document.querySelector('tr[data-ou-flash]');
     const top = row ? row.getBoundingClientRect().top : null;
@@ -1022,7 +1039,8 @@ try {
   check(
     fixNotes.length === 2 &&
       fixNotes.some(
-        (note) => note.body === 'Fix B' && note.draft && note.path === 'one.txt' && note.line === 2,
+        (note: LocalNote) =>
+          note.body === 'Fix B' && note.draft && note.path === 'one.txt' && note.line === 2,
       ),
     'it is a real note on that line',
   );
@@ -1046,7 +1064,7 @@ try {
   );
   const fixRequests = JSON.parse(readFileSync(path.join(home, 'fixes.json'), 'utf8'));
   check(
-    sentNotes.every((note) => note.sent) && Object.keys(fixRequests).length === 1,
+    sentNotes.every((note: LocalNote) => note.sent) && Object.keys(fixRequests).length === 1,
     'Send makes one fix request of both notes',
   );
   check(
@@ -1107,7 +1125,7 @@ try {
   const jumpLink = localPage.locator('#ou-panel .ou-body [data-rel][tabindex="0"]').first();
   await jumpLink.focus();
   check(
-    await jumpLink.evaluate((el) => el.getRootNode().activeElement === el),
+    await jumpLink.evaluate((el) => (el.getRootNode() as ShadowRoot).activeElement === el),
     'a file jump link takes focus',
   );
   await localPage.keyboard.press('Enter');
@@ -1129,7 +1147,7 @@ try {
   await reloadPanel();
   check(
     /Answered by load-test \(listening for everything\)/.test(await askWho()),
-    `the line under the Ask box says who answers: "${(await askWho()).trim()}"`,
+    `the line under the Ask box says who answers: "${(await askWho())!.trim()}"`,
   );
   beat(home, 'furnace-10', 'waiting', { story: local.id });
   const storyTook = await localPage
@@ -1146,7 +1164,7 @@ try {
   const localQuestion = readFileSync(path.join(home, 'inbox.jsonl'), 'utf8')
     .trim()
     .split('\n')
-    .map(JSON.parse)
+    .map((line) => JSON.parse(line) as InboxEntry)
     .find((entry) => entry.type === 'question' && entry.text === 'Why B?');
   check(!!localQuestion, 'a question from the local page lands in the inbox');
   if (localQuestion) {
@@ -1243,7 +1261,7 @@ try {
         (await localPage.locator('#ou-panel .ou-rebuild-open').isDisabled()),
       'and Rebuild story on the Overview waits for it',
     );
-    new Builds(home).done(asked.id, { note: 'Re-told from chapter 2.' });
+    new Builds(home).done(asked!.id, { note: 'Re-told from chapter 2.' });
     await localPage.waitForTimeout(6000);
     check(
       /^Rebuilt from chapter 2 at .*Re-told from chapter 2\.$/.test(await rebuildLine()),
@@ -1253,7 +1271,7 @@ try {
   }
   // Claude rewrites chapters.json: the panel's pulse redraws it open, and the page's own poll while it's closed
   const localFile = path.join(local.dir, 'chapters.json');
-  const rewrite = (word) => {
+  const rewrite = (word: string) => {
     const data = JSON.parse(readFileSync(localFile, 'utf8'));
     data.chapters[0].narrative += `\n\n${word}`;
     writeJson(localFile, data);

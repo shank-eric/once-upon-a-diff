@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -7,6 +5,7 @@ import { tmp, startBridge, localRepo, writeJson } from './helpers.ts';
 import { createLocalStory } from '../src/stories/local-story.ts';
 import { relOfPath } from '../src/server/index.ts';
 import { draftView } from '@once-upon-a-diff/shared/overlay';
+import type { DraftFix, DraftsAnswer, FixNote, StoryData } from '@once-upon-a-diff/shared/types';
 
 test('Add to fix before push makes a local draft a note, once, and the draft says so', async () => {
   const { repo, base } = localRepo();
@@ -29,9 +28,9 @@ test('Add to fix before push makes a local draft a note, once, and the draft say
   const bridge = await startBridge({ home });
   try {
     const storyPath = `/api/stories/${made.id}`;
-    let drafts = (await bridge.call('GET', `${storyPath}/drafts`)).body.drafts;
+    let drafts = (await bridge.call<DraftsAnswer>('GET', `${storyPath}/drafts`)).body.drafts;
     assert.equal(drafts[0].fix, null);
-    const note = await bridge.call('POST', `${storyPath}/notes`, { chapter: 1, index: 1 });
+    const note = await bridge.call<FixNote>('POST', `${storyPath}/notes`, { chapter: 1, index: 1 });
     assert.equal(note.status, 200);
     assert.deepEqual(
       [
@@ -59,13 +58,13 @@ test('Add to fix before push makes a local draft a note, once, and the draft say
       (await bridge.call('POST', `${storyPath}/notes`, { chapter: 1, index: 9 })).status,
       404,
     );
-    const notes = (await bridge.call('GET', storyPath)).body.local.notes;
+    const notes = (await bridge.call<StoryData>('GET', storyPath)).body.local!.notes;
     assert.deepEqual(
       notes.map((note) => note.body),
       ['Name it'],
       'it is a real note, in the checklist',
     );
-    drafts = (await bridge.call('GET', `${storyPath}/drafts`)).body.drafts;
+    drafts = (await bridge.call<DraftsAnswer>('GET', `${storyPath}/drafts`)).body.drafts;
     assert.deepEqual(drafts[1].fix, {
       id: note.body.id,
       done: false,
@@ -79,13 +78,13 @@ test('Add to fix before push makes a local draft a note, once, and the draft say
     assert.equal(drafts[0].fix, null);
     await bridge.call('POST', `${storyPath}/notes/${note.body.id}`, { done: true });
     assert.equal(
-      (await bridge.call('GET', `${storyPath}/drafts`)).body.drafts[1].fix.done,
+      (await bridge.call<DraftsAnswer>('GET', `${storyPath}/drafts`)).body.drafts[1].fix!.done,
       true,
       'ticking the note shows on the draft',
     );
     assert.equal(
       (
-        await bridge.call('POST', `${storyPath}/drafts`, {
+        await bridge.call<DraftsAnswer>('POST', `${storyPath}/drafts`, {
           chapter: 1,
           index: 0,
           action: 'dismiss',
@@ -101,11 +100,13 @@ test('Add to fix before push makes a local draft a note, once, and the draft say
 
 test('a draft in fix before push shows as such, and a dismissed one stays dismissed', () => {
   assert.equal(
-    draftView({ status: 'draft', dismissed: false, fix: { id: 'n1', done: false } }).show,
+    draftView({ status: 'draft', dismissed: false, fix: { id: 'n1', done: false } as DraftFix })
+      .show,
     'fix',
   );
   assert.equal(
-    draftView({ status: 'draft', dismissed: true, fix: { id: 'n1', done: false } }).show,
+    draftView({ status: 'draft', dismissed: true, fix: { id: 'n1', done: false } as DraftFix })
+      .show,
     'dismissed',
   );
   assert.equal(relOfPath('two.js', ['lib/two.js', 'one.txt']), 'lib/two.js');

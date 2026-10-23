@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { placePills, pillMarker } from '../src/overlay.ts';

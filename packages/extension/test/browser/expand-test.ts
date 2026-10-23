@@ -1,7 +1,5 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /**
- * Loads the unpacked extension into a throwaway Chromium (as load-test.mjs
+ * Loads the unpacked extension into a throwaway Chromium (as load-test.ts
  * does) and checks that a file or line link in the panel opens what it points
  * at on a public PR's /files and /changes pages, logged out:
  *
@@ -11,11 +9,12 @@
  *   - a file link, and a line link, into a collapsed file expands it first
  *   - nothing expands on a step change, ?w=1 stays, and no Viewed toggle changes
  *
- *   node test/extension/expand-test.mjs [--headed] [--shots DIR]
+ *   node test/browser/expand-test.ts [--headed] [--shots DIR]
  */
 import { chromium } from 'playwright-core';
 import path from 'node:path';
 import { mkdirSync } from 'node:fs';
+import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { tmp, writeJson, TOKEN, startBridge } from 'once-upon-a-diff/test/helpers';
 
@@ -23,20 +22,20 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..')
 const EXT = path.join(ROOT, '.output/chrome-mv3'); // yarn build's output
 const args = process.argv.slice(2);
 /** --name's value, true for a bare --name, or the fallback when it isn't given. */
-const arg = (name, fallback) => {
+const arg = <F>(name: string, fallback: F): string | true | F => {
   const i = args.indexOf(`--${name}`);
   if (i < 0) {
     return fallback;
   }
   return args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : true;
 };
-const SHOTS = arg('shots', null);
+const SHOTS = arg('shots', null) as string | null; // --shots takes a folder
 if (SHOTS) {
   mkdirSync(SHOTS, { recursive: true });
 }
 
 let failures = 0;
-const check = (ok, what) => {
+const check = (ok: unknown, what: string) => {
   process.stdout.write(`${ok ? 'ok  ' : 'FAIL'} ${what}\n`);
   if (!ok) {
     failures++;
@@ -71,7 +70,7 @@ process.env.ONCE_UPON_GH = fileURLToPath(
   import.meta.resolve('once-upon-a-diff/test/fixtures/fake-gh'),
 );
 const bridge = await startBridge({ home });
-const port = bridge.server.address().port;
+const port = (bridge.server.address() as AddressInfo).port;
 
 const context = await chromium.launchPersistentContext(tmp('expand-profile'), {
   channel: 'chromium',
@@ -94,7 +93,7 @@ try {
   await opt.close();
 
   const page = await context.newPage();
-  const errors = [];
+  const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(e.message));
   for (const view of ['files', 'changes']) {
     await page.goto(`https://github.com/${owner}/${repo}/pull/${number}/${view}?w=1`, {
@@ -109,7 +108,7 @@ try {
       continue;
     }
     await page.waitForTimeout(2500);
-    const rowsOf = (rel) =>
+    const rowsOf = (rel: string) =>
       page.evaluate(async (rel) => {
         const sha = [
           ...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rel))),
@@ -142,7 +141,7 @@ try {
     );
 
     // the row the panel highlights holds the line it was asked for
-    const flashed = (side, line) =>
+    const flashed = (side: string, line: number) =>
       page.evaluate(
         ([side, k]) =>
           [...document.querySelectorAll('tr[data-ou-flash]')].some((row) => {
@@ -158,20 +157,20 @@ try {
             return (
               side === 'L' &&
               [...row.querySelectorAll('[data-diff-line-key]')].some((cell) =>
-                cell.getAttribute('data-diff-line-key').includes(`-l:${k}-`),
+                (cell.getAttribute('data-diff-line-key') as string).includes(`-l:${k}-`),
               )
             );
           }),
-        [side, line],
+        [side, line] as const,
       );
-    const click = async (sel, side, line, what) => {
+    const click = async (sel: string, side: string, line: number, what: string) => {
       await page.locator(`#ou-panel .ou-body ${sel}`).first().click();
       let ok = false;
       for (let i = 0; i < 60 && !ok; i++) {
         await page.waitForTimeout(500);
         ok = await flashed(side, line);
       }
-      const msg = (await page.locator('#ou-panel .ou-msg').textContent()).trim();
+      const msg = (await page.locator('#ou-panel .ou-msg').textContent())!.trim();
       check(ok, `/${view}: ${what} is opened and highlighted${msg ? ` ("${msg}")` : ''}`);
       if (SHOTS && !ok) {
         await page.screenshot({ path: path.join(SHOTS, `expand-${view}-${line}.png`) });
@@ -185,15 +184,15 @@ try {
     await click('code[data-start="15"]', 'R', 15, 'a line past the last hunk (GQL:15)');
 
     // collapse the .tsx with its own toggle (as Viewed would), then a line link opens it again
-    const collapse = async (rel) =>
+    const collapse = async (rel: string) =>
       page.evaluate(async (rel) => {
         const sha = [
           ...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(rel))),
         ]
           .map((byte) => byte.toString(16).padStart(2, '0'))
           .join('');
-        const block = document.getElementById(`diff-${sha}`);
-        const label = (button) =>
+        const block = document.getElementById(`diff-${sha}`) as HTMLElement; // the file is on the page
+        const label = (button: Element) =>
           (
             button.getAttribute('aria-label') ||
             (button.getAttribute('aria-labelledby') || '')

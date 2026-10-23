@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFile } from 'node:child_process';
@@ -9,14 +7,16 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { tmp, writeJson, githubStory, startBridge } from './helpers.ts';
 import { parseUnifiedDiff } from '../src/util/diff.ts';
-import { chaptersOf } from '../src/stories/chapters.ts';
+import { chaptersOf, type Plan, type PlanChapter } from '../src/stories/chapters.ts';
+import type { FileMap } from '../src/stories/story-data.ts';
+import type { StoryData } from '@once-upon-a-diff/shared/types';
 import { uncoveredHunks, SMALL_FILE_LINES } from '../src/stories/hunk-coverage.ts';
 
 const STORY = fileURLToPath(new URL('../../../skills/once-upon/bin/story.ts', import.meta.url));
 const run = promisify(execFile);
 
 /** A modified file's diff with one hunk per [newStart, added] pair, each with a line of context on either side. */
-function modified(rel, hunks) {
+function modified(rel: string, hunks: [number, number][]): string[] {
   const out = [`diff --git a/${rel} b/${rel}`, `--- a/${rel}`, `+++ b/${rel}`];
   for (const [start, added] of hunks) {
     out.push(`@@ -${start},2 +${start},${added + 2} @@`, ' before');
@@ -45,11 +45,16 @@ const DIFF = [
   '',
 ].join('\n');
 
-const chapter = (fields) => ({ title: 'Chapter', narrative: '', comments: [], ...fields });
+const chapter = (fields: PlanChapter): PlanChapter => ({
+  title: 'Chapter',
+  narrative: '',
+  comments: [],
+  ...fields,
+});
 
 test('a hunk is covered by a lines range, a text reference or a comment; a small file by its listing', () => {
   const diff = parseUnifiedDiff(DIFF);
-  assert.ok(diff.get('src/big.js').stats.added > SMALL_FILE_LINES);
+  assert.ok(diff.get('src/big.js')!.stats.added > SMALL_FILE_LINES);
   const plan = {
     chapters: [
       chapter({
@@ -106,7 +111,7 @@ test('"whole": true and a "Since you read it" chapter cover a big file; a file i
   );
 });
 
-function scratch(plan) {
+function scratch(plan: Plan): string {
   const dir = tmp('cover');
   writeFileSync(path.join(dir, 'pr.diff'), DIFF);
   writeJson(path.join(dir, 'pr.json'), {
@@ -132,7 +137,7 @@ test('build refuses a story with hunks not covered, naming them, and --allow-unc
   });
   await assert.rejects(
     run(process.execPath, [STORY, 'build', '--dir', dir, '--no-bridge']),
-    (err) => {
+    (err: Error & { stderr: string }) => {
       assert.match(err.stderr, /hunks not covered: 2 in 1 files/);
       assert.match(err.stderr, /src\/big\.js:100-121, src\/big\.js:200-221/);
       assert.match(err.stderr, /"whole": true/);
@@ -148,9 +153,9 @@ test('build refuses a story with hunks not covered, naming them, and --allow-unc
     '--allow-uncovered',
   ]);
   assert.match(stderr, /3 of 5 hunks covered/);
-  const map = JSON.parse(readFileSync(path.join(dir, 'file-map.json'), 'utf8'));
+  const map: FileMap = JSON.parse(readFileSync(path.join(dir, 'file-map.json'), 'utf8'));
   assert.deepEqual(
-    map.uncovered_hunks[0].hunks.map((hunk) => hunk.ref),
+    map.uncovered_hunks![0].hunks.map((hunk) => hunk.ref),
     ['src/big.js:100-121', 'src/big.js:200-221'],
   );
 });
@@ -161,7 +166,7 @@ test('build passes and writes no uncovered_hunks when every hunk is told', async
   });
   const { stderr } = await run(process.execPath, [STORY, 'build', '--dir', dir, '--no-bridge']);
   assert.match(stderr, /5 of 5 hunks covered/);
-  const map = JSON.parse(readFileSync(path.join(dir, 'file-map.json'), 'utf8'));
+  const map: FileMap = JSON.parse(readFileSync(path.join(dir, 'file-map.json'), 'utf8'));
   assert.equal(map.uncovered_hunks, undefined);
 });
 
@@ -176,7 +181,7 @@ test("the bridge serves a published story's uncovered hunks for the panel's Over
   writeJson(path.join(dir, 'file-map.json'), { ...map, uncovered_hunks: uncovered });
   const bridge = await startBridge({ home });
   try {
-    const { body } = await bridge.call('GET', '/api/stories/acme-widgets-7');
+    const { body } = await bridge.call<StoryData>('GET', '/api/stories/acme-widgets-7');
     assert.deepEqual(body.uncovered_hunks, uncovered);
   } finally {
     await bridge.close();

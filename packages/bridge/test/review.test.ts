@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -9,6 +7,10 @@ import { tmp, githubStory, startBridge, writeJson } from './helpers.ts';
 import { addToPendingReview } from '../src/github/review.ts';
 import { clearCache } from '../src/github/drafts.ts';
 import { draftView, shownIn } from '@once-upon-a-diff/shared/overlay';
+import type { DraftsAnswer } from '@once-upon-a-diff/shared/types';
+
+/** The fake gh's log: each call's arguments. */
+type Calls = () => string[][];
 
 const fake = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -17,7 +19,7 @@ const fake = path.join(
 );
 chmodSync(fake, 0o755);
 
-function withFake(env, run) {
+function withFake(env: { pending?: boolean }, run: (calls: Calls) => Promise<void>): Promise<void> {
   const saved = {
     gh: process.env.ONCE_UPON_GH,
     log: process.env.FAKE_GH_LOG,
@@ -36,7 +38,7 @@ function withFake(env, run) {
       ['ONCE_UPON_GH', saved.gh],
       ['FAKE_GH_LOG', saved.log],
       ['FAKE_GH_PENDING', saved.pending],
-    ]) {
+    ] as [string, string | undefined][]) {
       if (value === undefined) {
         delete process.env[k];
       } else {
@@ -48,10 +50,10 @@ function withFake(env, run) {
     readFileSync(log, 'utf8')
       .trim()
       .split('\n')
-      .map((line) => JSON.parse(line)),
+      .map((line) => JSON.parse(line) as string[]),
   ).finally(restore);
 }
-const queryOf = (call) => call.find((arg) => arg.startsWith('query='));
+const queryOf = (call: string[]) => call.find((arg) => arg.startsWith('query=')) as string;
 
 test('starts a pending review when none exists, then adds the thread; never submits', () =>
   withFake({}, async (calls) => {
@@ -62,7 +64,7 @@ test('starts a pending review when none exists, then adds the thread; never subm
     });
     assert.equal(result.started, true);
     assert.equal(result.review, 'PRR_new');
-    assert.match(result.url, /discussion_r1/);
+    assert.match(result.url as string, /discussion_r1/);
     const queries = calls().map(queryOf);
     assert.equal(queries.length, 3);
     assert.ok(queries[1].includes('addPullRequestReview('));
@@ -105,7 +107,7 @@ test('general comments and empty drafts are refused without calling gh', () =>
 // ---------- after Add to my review: the panel's "added" state, kept by the bridge until the page shows it
 const fakeAll = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fake-gh.ts');
 chmodSync(fakeAll, 0o755);
-function withBridgeGh(env, run) {
+function withBridgeGh(env: { fail?: boolean }, run: () => Promise<void>): Promise<void> {
   const keys = [
     'ONCE_UPON_GH',
     'FAKE_GH_GRAPHQL',
@@ -135,7 +137,7 @@ function withBridgeGh(env, run) {
       }
     });
 }
-function onceUpon(home) {
+function onceUpon(home: string): void {
   githubStory(path.join(home, 'acme-widgets-7'));
   writeJson(path.join(home, 'acme-widgets-7', 'chapters.json'), {
     title: 'Widgets',
@@ -159,40 +161,48 @@ test('a draft added to the review is kept as added across calls and a bridge res
     onceUpon(home);
     let bridge = await startBridge({ home });
     try {
-      const response = await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
-        chapter: 1,
-        index: 0,
-        action: 'review',
-      });
+      const response = await bridge.call<DraftsAnswer>(
+        'POST',
+        '/api/stories/acme-widgets-7/drafts',
+        {
+          chapter: 1,
+          index: 0,
+          action: 'review',
+        },
+      );
       assert.equal(response.status, 200, response.text);
-      assert.equal(response.body.added.url, 'https://github.com/acme/widgets/pull/7#discussion_r1');
+      assert.equal(
+        response.body.added!.url,
+        'https://github.com/acme/widgets/pull/7#discussion_r1',
+      );
       const row = response.body.drafts[0];
       assert.equal(
         row.status,
         'draft',
         "gh doesn't match it in this fixture, so only the added mark says where it went",
       );
-      assert.equal(row.added.url, 'https://github.com/acme/widgets/pull/7#discussion_r1');
-      assert.ok(Date.parse(row.added.at) > 0);
+      assert.equal(row.added!.url, 'https://github.com/acme/widgets/pull/7#discussion_r1');
+      assert.ok(Date.parse(row.added!.at) > 0);
       assert.equal(response.body.drafts[1].added, null);
       // a second click (or another tab) doesn't put a second copy in the review
-      const again = await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
+      const again = await bridge.call<DraftsAnswer>('POST', '/api/stories/acme-widgets-7/drafts', {
         chapter: 1,
         index: 0,
         action: 'review',
       });
       assert.equal(again.status, 409);
-      assert.match(again.body.error, /already in your pending review/);
+      assert.match(again.body.error as string, /already in your pending review/);
     } finally {
       await bridge.close();
     }
 
     bridge = await startBridge({ home }); // the bridge restarted
     try {
-      let state = (await bridge.call('GET', '/api/stories/acme-widgets-7/drafts')).body;
+      let state = (await bridge.call<DraftsAnswer>('GET', '/api/stories/acme-widgets-7/drafts'))
+        .body;
       assert.ok(state.drafts[0].added, 'still added after a restart');
       state = (
-        await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
+        await bridge.call<DraftsAnswer>('POST', '/api/stories/acme-widgets-7/drafts', {
           chapter: 1,
           index: 0,
           action: 'settle',
@@ -215,17 +225,22 @@ test('when GitHub refuses, the error comes back and nothing is marked added', ()
     onceUpon(home);
     const bridge = await startBridge({ home });
     try {
-      const response = await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
-        chapter: 1,
-        index: 0,
-        action: 'review',
-      });
+      const response = await bridge.call<DraftsAnswer>(
+        'POST',
+        '/api/stories/acme-widgets-7/drafts',
+        {
+          chapter: 1,
+          index: 0,
+          action: 'review',
+        },
+      );
       assert.equal(response.status, 502);
       assert.match(
-        response.body.error,
+        response.body.error as string,
         /couldn't add it to your review: GraphQL: Line could not be resolved/,
       );
-      const state = (await bridge.call('GET', '/api/stories/acme-widgets-7/drafts')).body;
+      const state = (await bridge.call<DraftsAnswer>('GET', '/api/stories/acme-widgets-7/drafts'))
+        .body;
       assert.equal(state.drafts[0].added, null);
       assert.equal(
         state.drafts[0].status,

@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -59,10 +57,10 @@ test('parses a unified diff', () => {
       'rename to new.js',
     ].join('\n'),
   );
-  const file = diff.get('x.js');
+  const file = diff.get('x.js')!;
   assert.deepEqual(file.stats, { added: 2, removed: 1 });
   assert.equal(file.hunks[0].header, 'fn()');
-  assert.equal(diff.get('new.js').kind, 'renamed');
-  assert.equal(diff.get('new.js').renamed_from, 'old.js');
-  assert.notEqual(file.hash, diff.get('new.js').hash);
+  assert.equal(diff.get('new.js')!.kind, 'renamed');
+  assert.equal(diff.get('new.js')!.renamed_from, 'old.js');
+  assert.notEqual(file.hash, diff.get('new.js')!.hash);
 });

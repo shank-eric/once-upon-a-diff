@@ -1,20 +1,48 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { execFile, execFileSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createBridge } from '../src/server/index.ts';
+import type { AddressInfo } from 'node:net';
+import { createBridge, type Bridge } from '../src/server/index.ts';
+import type { Build } from '../src/inbox/builds.ts';
+import type { listeningOf } from '../src/listeners/listeners.ts';
+
+/** A build request as the bridge answers with it: the request and its state. */
+export type BuildView = Build & { state: string };
+/** POST /api/builds. */
+export type BuildAnswer = { state: string; request: BuildView };
+/** One PR's line in status-many's answer (catalog.ts). */
+export interface PrLine {
+  repo: string;
+  number: number;
+  state: string;
+  request?: BuildView | null;
+  story?: string;
+  story_head?: string | null;
+  current_head?: string;
+  stale?: boolean | null;
+  newer?: number | null;
+  updating?: boolean;
+  update_state?: string | null;
+  update_mode?: string | null;
+  reads?: { read: number; total: number; next: number | null };
+}
+/** POST /api/stories/status-many: each PR's line, and who's listening for each repo. */
+export type StatusMany = {
+  results: PrLine[];
+  listening: Record<string, ReturnType<typeof listeningOf>>;
+};
 
 const BIN = fileURLToPath(new URL('../bin/once-upon.ts', import.meta.url));
 
-export const tmp = (name) => mkdtempSync(path.join(os.tmpdir(), `once-upon-${name}-`));
+export const tmp = (name: string): string =>
+  mkdtempSync(path.join(os.tmpdir(), `once-upon-${name}-`));
 // tests never look in (or move stories into) the real ~/Development checkouts
 process.env.ONCE_UPON_DEV_DIR = mkdtempSync(path.join(os.tmpdir(), 'once-upon-dev-'));
 export const TOKEN = 'test-token-0123456789abcdef';
 
-export function writeJson(file, value) {
+export function writeJson(file: string, value: unknown): void {
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(file, JSON.stringify(value, null, 2));
 }
@@ -23,7 +51,10 @@ export function writeJson(file, value) {
  * A published story for acme/widgets#7 with two chapters (its pr.json too, so it also serves as a once-upon folder).
  * `meta` adds to or overrides its meta.json, such as the head_oid it was told from or its once-upon `source`.
  */
-export function githubStory(dir, { meta = {} } = {}) {
+export function githubStory(
+  dir: string,
+  { meta = {} }: { meta?: Record<string, unknown> } = {},
+): void {
   writeJson(path.join(dir, 'meta.json'), {
     kind: 'github',
     repo: 'acme/widgets',
@@ -66,7 +97,7 @@ export function githubStory(dir, { meta = {} } = {}) {
   });
 }
 
-export const git = (repo, ...args) =>
+export const git = (repo: string, ...args: string[]): string =>
   execFileSync('git', ['-C', repo, ...args], {
     encoding: 'utf8',
     env: {
@@ -79,7 +110,7 @@ export const git = (repo, ...args) =>
   }).trim();
 
 /** A git repo with a base commit and two commits on top. Returns {repo, base}. */
-export function localRepo() {
+export function localRepo(): { repo: string; base: string } {
   const repo = tmp('repo');
   git(repo, 'init', '-q', '-b', 'feature');
   writeFileSync(path.join(repo, 'one.txt'), 'a\nb\nc\n');
@@ -97,11 +128,17 @@ export function localRepo() {
   return { repo, base };
 }
 
-export async function startBridge(opts) {
-  const server = createBridge({ token: TOKEN, ...opts });
-  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-  const base = `http://127.0.0.1:${server.address().port}`;
-  const call = async (method, path, body, headers = {}) => {
+/** A bridge on a random port with the test token, and `call` for its API: the answer's JSON is T, as the test expects it. */
+export async function startBridge(opts: { home: string; log?: (line: string) => void }) {
+  const server: Bridge = createBridge({ token: TOKEN, ...opts });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const call = async <T = unknown>(
+    method: string,
+    path: string,
+    body?: unknown,
+    headers: Record<string, string> = {},
+  ): Promise<{ status: number; body: T; text: string; headers: Headers }> => {
     const res = await fetch(base + path, {
       method,
       headers: {
@@ -120,11 +157,19 @@ export async function startBridge(opts) {
     }
     return { status: res.status, body: json, text, headers: res.headers };
   };
-  return { server, base, call, close: () => new Promise((resolve) => server.close(resolve)) };
+  return {
+    server,
+    base,
+    call,
+    close: () => new Promise<unknown>((resolve) => server.close(resolve)),
+  };
 }
 
 /** Runs the once-upon CLI against `home`: {code, stdout, stderr}. */
-export const runCli = (home, args) =>
+export const runCli = (
+  home: string,
+  args: string[],
+): Promise<{ code: number | string | null | undefined; stdout: string; stderr: string }> =>
   new Promise((resolve) => {
     execFile(
       process.execPath,
@@ -133,3 +178,6 @@ export const runCli = (home, args) =>
       (err, stdout, stderr) => resolve({ code: err ? err.code : 0, stdout, stderr }),
     );
   });
+
+/** startBridge's bridge, with `call` and `close`. */
+export type TestBridge = Awaited<ReturnType<typeof startBridge>>;

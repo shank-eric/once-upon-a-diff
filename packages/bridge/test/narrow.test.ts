@@ -1,14 +1,17 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { claimsOf, narrowRows } from '../public/narrow.ts';
+import { claimsOf, narrowRows, type NarrowRow } from '../public/narrow.ts';
 
-const ctx = (oldLine, newLine) => ({ type: 'line', L: oldLine, R: newLine, add: false });
-const del = (oldLine) => ({ type: 'line', L: oldLine, R: null, add: false });
-const add = (newLine) => ({ type: 'line', L: null, R: newLine, add: true });
-const hunk = { type: 'hunk' };
-const shown = (rows, res) =>
+const ctx = (oldLine: number, newLine: number): NarrowRow => ({
+  type: 'line',
+  L: oldLine,
+  R: newLine,
+  add: false,
+});
+const del = (oldLine: number): NarrowRow => ({ type: 'line', L: oldLine, R: null, add: false });
+const add = (newLine: number): NarrowRow => ({ type: 'line', L: null, R: newLine, add: true });
+const hunk: NarrowRow = { type: 'hunk' };
+const shown = (rows: NarrowRow[], res: { hidden: boolean[] }) =>
   rows
     .map((row, i) => {
       if (res.hidden[i]) {
@@ -106,9 +109,9 @@ test('a "Since you read it" chapter isn’t where uncovered lines go', () => {
 });
 
 test('a note keeps its line showing, and split rows count both sides', () => {
-  const withNote = [hunk, ctx(19, 20), { type: 'note' }, ctx(20, 21)];
+  const withNote: NarrowRow[] = [hunk, ctx(19, 20), { type: 'note' }, ctx(20, 21)];
   assert.deepEqual(narrowRows(withNote, claims, 'a.js', 1).hidden, [false, false, false, true]);
-  const split = [
+  const split: NarrowRow[] = [
     hunk,
     { type: 'line', L: 10, R: 11, add: true },
     { type: 'line', L: 30, R: 31, add: true },

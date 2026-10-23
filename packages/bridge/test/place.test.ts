@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -9,9 +7,10 @@ import { createLocalStory } from '../src/stories/local-story.ts';
 import { StoryStore } from '../src/stories/store.ts';
 import { seenCheckout } from '../src/config/repos.ts';
 import { mainCheckout, excludeStories, readIndex } from '../src/stories/placement.ts';
+import type { StoryData } from '@once-upon-a-diff/shared/types';
 
-const status = (repo) => git(repo, 'status', '--porcelain');
-const exclude = (repo) => readFileSync(path.join(repo, '.git', 'info', 'exclude'), 'utf8');
+const status = (repo: string) => git(repo, 'status', '--porcelain');
+const exclude = (repo: string) => readFileSync(path.join(repo, '.git', 'info', 'exclude'), 'utf8');
 
 test('a local story lives in the checkout it diffs, kept out of git by .git/info/exclude', async () => {
   const home = tmp('home');
@@ -22,12 +21,15 @@ test('a local story lives in the checkout it diffs, kept out of git by .git/info
   assert.equal(status(repo), '', 'git status stays clean');
   assert.match(exclude(repo), /^\/\.once-upon\/$/m);
   createLocalStory({ home, repo, base, head: 'HEAD' });
-  assert.equal(exclude(repo).match(/\.once-upon/g).length, 1, 'the exclude line is added once');
+  assert.equal(exclude(repo).match(/\.once-upon/g)!.length, 1, 'the exclude line is added once');
   assert.ok(!existsSync(path.join(home, made.id)), 'nothing in ~/.once-upon but state');
   assert.equal(readIndex(home)[made.id], made.dir, 'the index maps the id to its folder');
   const bridge = await startBridge({ home });
   try {
-    assert.equal((await bridge.call('GET', `/api/stories/${made.id}`)).body.kind, 'local');
+    assert.equal(
+      (await bridge.call<StoryData>('GET', `/api/stories/${made.id}`)).body.kind,
+      'local',
+    );
     await bridge.call('POST', `/api/stories/${made.id}/viewed`, { path: 'one.txt', viewed: true });
     assert.ok(
       existsSync(path.join(home, 'state', made.id, 'viewed.json')),
@@ -78,7 +80,7 @@ test('once-upon publish writes into the checkout with the commits the story was 
   assert.equal(meta.base_oid, 'a'.repeat(40));
   const store = new StoryStore({ home });
   assert.equal(
-    realpathSync(store.dirOf('acme-widgets-7')),
+    realpathSync(store.dirOf('acme-widgets-7') as string),
     realpathSync(out),
     'the index finds it',
   );

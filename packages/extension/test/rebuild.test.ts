@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -25,10 +23,17 @@ import {
   readsToRetire,
 } from 'once-upon-a-diff/stories/rebuild';
 import { rebuildAsk, rebuildLine } from '@once-upon-a-diff/shared/panel/rebuild';
-import { tagFor } from '../src/content/ui/story-tag.ts';
+import { tagFor, type StoryStatus } from '../src/content/ui/story-tag.ts';
+import type { Plan, PlanFile } from 'once-upon-a-diff/stories/chapters';
+import type { StoryMeta } from 'once-upon-a-diff/types';
+import type { Listener } from 'once-upon-a-diff/listeners/listeners';
+import type { Pulse, RebuildView } from '@once-upon-a-diff/shared/types';
+
+/** What POST .../rebuild answers. */
+type RebuildAnswer = { rebuild: RebuildView & { id: string } };
 
 const STORY_ID = 'acme-widgets-7';
-const added = (count, word) =>
+const added = (count: number, word: string) =>
   Array.from({ length: count }, (_, i) => `+${word} ${i + 1}`).join('\n');
 
 /**
@@ -68,7 +73,7 @@ const PR_DIFF = [
 const diff = parseUnifiedDiff(PR_DIFF);
 
 /** The story as published before the rebuild: chapter 1 tells a.js, 2 tells b.js and big.js. */
-const published = () => ({
+const published = (): Plan & { chapters: NonNullable<Plan['chapters']> } => ({
   title: 'Widgets',
   overview: 'Story map',
   chapters: [
@@ -100,7 +105,7 @@ const published = () => ({
 });
 
 /** A rebuild from chapter 2: chapter 1 copied as is, chapter 2 split in two, with none of the old drafts. */
-const retoldFromTwo = () => {
+const retoldFromTwo = (): ReturnType<typeof published> => {
   const plan = published();
   plan.chapters = [
     plan.chapters[0],
@@ -174,7 +179,9 @@ describe('the rebuild rules', () => {
       /1 files are in no chapter: src\/b.js/,
     );
     const half = retoldFromTwo();
-    half.chapters[2].files[0].lines = [{ side: 'R', start: 1, end: 27 }];
+    (half.chapters[2].files![0] as Exclude<PlanFile, string>).lines = [
+      { side: 'R', start: 1, end: 27 },
+    ];
     const problems = rebuildProblems(fromTwo, published(), half, diff);
     assert.match(problems.join('\n'), /hunks not covered: src\/big.js:125-151/);
     assert.deepEqual(
@@ -182,7 +189,7 @@ describe('the rebuild rules', () => {
       [],
     );
     const stray = retoldFromTwo();
-    stray.chapters[1].files.push('src/nope.js');
+    stray.chapters[1].files!.push('src/nope.js');
     assert.match(
       rebuildProblems(fromTwo, published(), stray, diff).join('\n'),
       /chapter 2 names src\/nope.js, which is not in the diff/,
@@ -207,7 +214,7 @@ describe('the rebuild rules', () => {
     again.chapters[1].comments = [{ path: 'src/b.js', line: 11, body: 'Is this needed?' }];
     carryDrafts(published(), again, diff, 2);
     assert.equal(
-      again.chapters[1].comments.filter((comment) => comment.body === 'Is this needed?').length,
+      again.chapters[1].comments!.filter((comment) => comment.body === 'Is this needed?').length,
       1,
       'a draft the new chapters kept is not doubled',
     );
@@ -249,32 +256,36 @@ describe('asking for a rebuild', () => {
     const bridge = await startBridge({ home });
     const rebuildPath = `/api/stories/${STORY_ID}/rebuild`;
     try {
-      const whole = await bridge.call('POST', rebuildPath, {
+      const whole = await bridge.call<RebuildAnswer>('POST', rebuildPath, {
         mode: 'rebuild',
         guidance: '  The overview undersells the big file  ',
       });
       assert.equal(whole.status, 200);
       assert.equal(whole.body.rebuild.state, 'queued');
       assert.equal(whole.body.rebuild.mode, 'rebuild');
-      const stored = new Builds(home).get('acme/widgets', 7);
+      const stored = new Builds(home).get('acme/widgets', 7)!;
       assert.equal(stored.story, STORY_ID);
       assert.equal(stored.kind, 'github');
       assert.equal(stored.guidance, 'The overview undersells the big file');
       assert.equal(stored.url, 'https://github.com/acme/widgets/pull/7');
-      assert.ok(stored.story_dir.endsWith(STORY_ID));
+      assert.ok(stored.story_dir!.endsWith(STORY_ID));
 
       // the later click wins while no session has it, under the same id
-      const fromTwo = await bridge.call('POST', rebuildPath, {
+      const fromTwo = await bridge.call<RebuildAnswer>('POST', rebuildPath, {
         mode: 'rebuild_from',
         from_step: 2,
       });
       assert.equal(fromTwo.body.rebuild.id, whole.body.rebuild.id);
       assert.equal(fromTwo.body.rebuild.mode, 'rebuild_from');
       assert.equal(fromTwo.body.rebuild.from_step, 2);
-      assert.equal(new Builds(home).get('acme/widgets', 7).guidance, undefined);
+      assert.equal(new Builds(home).get('acme/widgets', 7)!.guidance, undefined);
       assert.equal(
-        (await bridge.call('POST', rebuildPath, { mode: 'rebuild_from', from_step: 1 })).body
-          .rebuild.mode,
+        (
+          await bridge.call<RebuildAnswer>('POST', rebuildPath, {
+            mode: 'rebuild_from',
+            from_step: 1,
+          })
+        ).body.rebuild.mode,
         'rebuild',
         'from chapter 1 is a whole rebuild',
       );
@@ -284,10 +295,10 @@ describe('asking for a rebuild', () => {
       );
       assert.equal((await bridge.call('POST', rebuildPath, { mode: 'retell' })).status, 400);
 
-      const pulse = (await bridge.call('GET', `/api/stories/${STORY_ID}/pulse`)).body;
-      assert.equal(pulse.rebuild.state, 'queued');
+      const pulse = (await bridge.call<Pulse>('GET', `/api/stories/${STORY_ID}/pulse`)).body;
+      assert.equal(pulse.rebuild!.state, 'queued');
       const status = (
-        await bridge.call('POST', '/api/stories/status-many', {
+        await bridge.call<{ results: StoryStatus[] }>('POST', '/api/stories/status-many', {
           prs: [{ repo: 'acme/widgets', number: 7 }],
         })
       ).body.results[0];
@@ -295,7 +306,7 @@ describe('asking for a rebuild', () => {
       assert.equal(status.updating, true);
       assert.equal(status.update_mode, 'rebuild');
       assert.equal(
-        new Builds(home).get('acme/widgets', 7).status,
+        new Builds(home).get('acme/widgets', 7)!.status,
         'pending',
         'the story being there does not finish a rebuild',
       );
@@ -303,7 +314,10 @@ describe('asking for a rebuild', () => {
 
       // a request a session is building stands
       new Builds(home).claim(whole.body.rebuild.id, 'story-acme-widgets-7');
-      const later = await bridge.call('POST', rebuildPath, { mode: 'rebuild_from', from_step: 2 });
+      const later = await bridge.call<RebuildAnswer>('POST', rebuildPath, {
+        mode: 'rebuild_from',
+        from_step: 2,
+      });
       assert.equal(later.body.rebuild.state, 'building');
       assert.equal(later.body.rebuild.mode, 'rebuild');
       assert.equal(later.body.rebuild.claimed_by, 'story-acme-widgets-7');
@@ -328,7 +342,12 @@ describe('asking for a rebuild', () => {
     noteRead(home, 'pr-acme-widgets-7', 'start', { title: 'Chapter 1: Start', step: 1 });
     noteRead(home, 'pr-acme-widgets-7', 'finish', { title: 'Chapter 2: Finish', step: 2 });
     const builds = new Builds(home);
-    const meta = { kind: 'github', repo: 'acme/widgets', number: 7, head_oid: 'a'.repeat(40) };
+    const meta: StoryMeta = {
+      kind: 'github',
+      repo: 'acme/widgets',
+      number: 7,
+      head_oid: 'a'.repeat(40),
+    };
     const request = builds.requestRebuild({
       story: STORY_ID,
       meta,
@@ -346,7 +365,7 @@ describe('asking for a rebuild', () => {
     assert.match(refused.stderr, /chapter 1 .*changed/);
     const served = path.join(home, STORY_ID, 'chapters.json');
     assert.deepEqual(JSON.parse(readFileSync(served, 'utf8')), published());
-    assert.equal(builds.get('acme/widgets', 7).status, 'pending');
+    assert.equal(builds.get('acme/widgets', 7)!.status, 'pending');
 
     const retold = retoldFromTwo();
     retold.chapters[1].title = 'Chapter 2: Finish'; // the same key, re-told over b.js alone
@@ -354,11 +373,13 @@ describe('asking for a rebuild', () => {
     const ok = await runCli(home, ['publish', '--dir', src]);
     assert.equal(ok.code, 0, ok.stderr);
     assert.match(ok.stderr, /Re-told from chapter 2: kept 2 drafts, flagged 1 draft/);
-    const done = builds.get('acme/widgets', 7);
+    const done = builds.get('acme/widgets', 7)!;
     assert.equal(done.id, request.id);
     assert.equal(done.status, 'done');
-    assert.match(done.note, /moved 1 question/);
-    const now = JSON.parse(readFileSync(served, 'utf8'));
+    assert.match(done.note as string, /moved 1 question/);
+    const now: Plan & { chapters: NonNullable<Plan['chapters']> } = JSON.parse(
+      readFileSync(served, 'utf8'),
+    );
     assert.deepEqual(now.chapters[0], published().chapters[0]);
     assert.equal(now.chapters.length, 3);
     assert.deepEqual(
@@ -395,9 +416,9 @@ describe('a local story', () => {
       const stored = new Builds(home).all()['story:local-rebuild'];
       assert.equal(stored.kind, 'local');
       assert.equal(stored.number, null);
-      assert.equal(path.basename(stored.local.repo_path), path.basename(repo));
-      assert.equal(stored.local.base, base);
-      assert.equal(stored.local.head, 'HEAD');
+      assert.equal(path.basename(stored.local!.repo_path as string), path.basename(repo));
+      assert.equal(stored.local!.base, base);
+      assert.equal(stored.local!.head, 'HEAD');
 
       // the story's own listener takes it while it's live; the catch-all wait leaves it
       const live = [
@@ -443,8 +464,8 @@ describe('a local story', () => {
       assert.equal(result.code, 0, result.stderr);
       assert.match(result.stderr, /Re-told the whole story/);
       assert.equal(new Builds(home).all()['story:local-rebuild'].status, 'done');
-      const pulse = (await bridge.call('GET', `/api/stories/${made.id}/pulse`)).body;
-      assert.equal(pulse.rebuild.state, 'done');
+      const pulse = (await bridge.call<Pulse>('GET', `/api/stories/${made.id}/pulse`)).body;
+      assert.equal(pulse.rebuild!.state, 'done');
     } finally {
       await bridge.close();
     }
@@ -455,11 +476,11 @@ describe('routing a rebuild', () => {
   test("goes to the story's own listener while one that takes build requests is live, else to the repo's", () => {
     const home = tmp('home');
     const builds = new Builds(home);
-    const meta = { kind: 'github', repo: 'acme/widgets', number: 7 };
+    const meta: StoryMeta = { kind: 'github', repo: 'acme/widgets', number: 7 };
     builds.requestRebuild({ story: STORY_ID, meta, mode: 'rebuild', chapters: 2 });
     const plain = builds.request({ repo: 'acme/widgets', number: 8 });
     const storyListener = { consumer: 'story-x', story: STORY_ID, live: true, builds: true };
-    const repoWait = (live) =>
+    const repoWait = (live: Pick<Listener, 'consumer' | 'live' | 'story' | 'builds'>[]) =>
       builds.toHand('repo-acme-widgets', { repo: 'acme/widgets', live }).map((entry) => entry.id);
 
     assert.deepEqual(repoWait([storyListener]), [plain.id], 'the repo wait leaves the rebuild');
@@ -477,7 +498,7 @@ describe('routing a rebuild', () => {
   test('`wait --story` takes the story rebuilds and beats that it does', async () => {
     const home = tmp('home');
     const builds = new Builds(home);
-    const meta = { kind: 'github', repo: 'acme/widgets', number: 7 };
+    const meta: StoryMeta = { kind: 'github', repo: 'acme/widgets', number: 7 };
     const rebuild = builds.requestRebuild({
       story: STORY_ID,
       meta,
@@ -496,7 +517,10 @@ describe('routing a rebuild', () => {
       '1',
       '--json',
     ]);
-    const entries = result.stdout.trim().split('\n').map(JSON.parse);
+    const entries: { id: string; mode?: string; from_step?: number }[] = result.stdout
+      .trim()
+      .split('\n')
+      .map((line) => JSON.parse(line));
     assert.deepEqual(
       entries.map((entry) => [entry.id, entry.mode, entry.from_step]),
       [[rebuild.id, 'rebuild_from', 2]],
@@ -527,7 +551,11 @@ test("the panel's request and status line", () => {
     'Rebuilding the whole story… (story-x)',
   );
   const now = Date.parse('2026-10-22T20:00:00Z');
-  const done = { state: 'done', done_at: '2026-10-22T19:50:00Z', note: 'Re-told the whole story.' };
+  const done: Partial<RebuildView> = {
+    state: 'done',
+    done_at: '2026-10-22T19:50:00Z',
+    note: 'Re-told the whole story.',
+  };
   assert.match(rebuildLine(done, now), /^Rebuilt the whole story at .*Re-told the whole story\.$/);
   assert.equal(rebuildLine(done, now + 60 * 60 * 1000), '', 'an old one says nothing');
   assert.match(

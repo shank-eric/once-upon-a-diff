@@ -1,8 +1,6 @@
 #!/usr/bin/env node
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 // A stand-in for `gh api graphql`: logs each call to $FAKE_GH_LOG and answers the
-// three queries review.mjs makes. Set FAKE_GH_PENDING=1 to pretend a pending review exists,
+// three queries review.ts makes. Set FAKE_GH_PENDING=1 to pretend a pending review exists,
 // FAKE_GH_FAIL=1 to have GitHub refuse the thread.
 import { appendFileSync } from 'node:fs';
 
