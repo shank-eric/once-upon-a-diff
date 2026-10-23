@@ -1,4 +1,4 @@
-import { DEFAULT_PORT } from './shared/util/bridge-port.js';
+import { DEFAULT_PORT } from '../shared/util/bridge-port.js';
 
 /** {port, token} for the bridge, from chrome.storage.local. */
 export async function getSettings() {

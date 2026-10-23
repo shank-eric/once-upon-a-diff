@@ -1,11 +1,14 @@
-/** Draws src/extension/icons/icon{16,48,128}.png: a diff (green and red lines) with the story panel docked on the right. No dependencies. */
+/** Draws src/extension/public/icons/icon{16,48,128}.png: a diff (green and red lines) with the story panel docked on the right. No dependencies. */
 /* eslint-disable id-length -- pixel math: x, y, the r, g, b, a channels and the corners x0..y1 are the usual names */
 import { deflateSync } from 'node:zlib';
 import { writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src/extension/icons');
+const OUT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../src/extension/public/icons',
+);
 
 const CRC = new Int32Array(256).map((_, index) => {
   let crc = index;

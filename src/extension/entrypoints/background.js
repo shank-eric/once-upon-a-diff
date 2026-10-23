@@ -3,7 +3,8 @@
  * bridge on http://127.0.0.1:<port>. Content scripts ask it with
  * {type: 'bridge', method, path, body}; GitHub's page CSP doesn't apply here.
  */
-import { getSettings } from './settings.js';
+import { defineBackground } from 'wxt/utils/define-background';
+import { getSettings } from '../settings.js';
 
 const METHODS = new Set(['GET', 'POST']);
 
@@ -50,38 +51,40 @@ async function callBridge({ method = 'GET', path, body }, override) {
   }
 }
 
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (sender.id !== chrome.runtime.id || !msg || msg.type !== 'bridge') {
-    return false;
-  }
-  // only the extension's own pages (the options page) may pass unsaved settings; content scripts run on github.com
-  const ownPage =
-    typeof sender.url === 'string' && sender.url.startsWith(chrome.runtime.getURL(''));
-  const unsaved =
-    ownPage && msg.settings && typeof msg.settings === 'object'
-      ? { port: Number(msg.settings.port), token: String(msg.settings.token || '') }
-      : null;
-  callBridge(msg, unsaved).then(sendResponse);
-  return true;
-});
+export default defineBackground(() => {
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (sender.id !== chrome.runtime.id || !msg || msg.type !== 'bridge') {
+      return false;
+    }
+    // only the extension's own pages (the options page) may pass unsaved settings; content scripts run on github.com
+    const ownPage =
+      typeof sender.url === 'string' && sender.url.startsWith(chrome.runtime.getURL(''));
+    const unsaved =
+      ownPage && msg.settings && typeof msg.settings === 'object'
+        ? { port: Number(msg.settings.port), token: String(msg.settings.token || '') }
+        : null;
+    callBridge(msg, unsaved).then(sendResponse);
+    return true;
+  });
 
-function toggle(tab) {
-  if (tab && tab.id != null) {
-    chrome.tabs.sendMessage(tab.id, { type: 'toggle' }).catch(() => {});
+  function toggle(tab) {
+    if (tab && tab.id != null) {
+      chrome.tabs.sendMessage(tab.id, { type: 'toggle' }).catch(() => {});
+    }
   }
-}
-chrome.action.onClicked.addListener(toggle);
-chrome.commands.onCommand.addListener(async (command, tab) => {
-  if (command !== 'toggle-panel') {
-    return;
-  }
-  const target = tab || (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
-  toggle(target);
-});
+  chrome.action.onClicked.addListener(toggle);
+  chrome.commands.onCommand.addListener(async (command, tab) => {
+    if (command !== 'toggle-panel') {
+      return;
+    }
+    const target = tab || (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
+    toggle(target);
+  });
 
-chrome.runtime.onInstalled.addListener(async ({ reason }) => {
-  const { token } = await getSettings();
-  if (reason === 'install' && !token) {
-    chrome.runtime.openOptionsPage();
-  }
+  chrome.runtime.onInstalled.addListener(async ({ reason }) => {
+    const { token } = await getSettings();
+    if (reason === 'install' && !token) {
+      chrome.runtime.openOptionsPage();
+    }
+  });
 });

@@ -7,7 +7,7 @@
  * One batched bridge call per page. The tags are our own elements in their
  * own shadow roots; nothing of GitHub's is clicked.
  */
-import { conversationPr, isPullListPage, prKey } from '../../shared/util/github-paths.js';
+import { conversationPr, isPullListPage, prKey } from '../../../shared/util/github-paths.js';
 import { extensionAlive } from '../bridge.js';
 import { createPrTags } from '../ui/pr-tags.js';
 

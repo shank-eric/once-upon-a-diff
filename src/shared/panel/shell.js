@@ -32,11 +32,11 @@ const COLLAPSED_WIDTH = 36;
 
 export function createShell(context) {
   const { hostId, panelId, opts, state } = context;
-  // page.css goes in the page's head, panel.css in the shadow root. Both are next to this module: the extension's
-  // copy on GitHub, the bridge's /assets/panel/ on the local page.
-  const pageStyle = stylesheetLink(new URL('./page.css', import.meta.url).href);
+  // page.css goes in the page's head, panel.css in the shadow root, from where the host says (opts.stylesheets): the
+  // extension's copy on GitHub, the bridge's /assets/panel/ on the local page.
+  const pageStyle = stylesheetLink(opts.stylesheets.page);
   pageStyle.id = hostId + '-style';
-  const panelStyle = stylesheetLink(new URL('./panel.css', import.meta.url).href);
+  const panelStyle = stylesheetLink(opts.stylesheets.panel);
   const host = document.createElement('div');
   host.id = hostId;
   const shadow = host.attachShadow({ mode: 'open' });

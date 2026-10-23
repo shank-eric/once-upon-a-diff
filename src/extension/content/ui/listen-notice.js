@@ -8,12 +8,17 @@
  * GitHub's page and posts nothing.
  */
 import { copyWithFeedback } from './copy.js';
-import { html } from '../../shared/util/html.js';
-import { hideUntilStyled, setHtml, stopKeyEvents, stylesheetLink } from '../../shared/util/dom.js';
+import { html } from '../../../shared/util/html.js';
+import {
+  hideUntilStyled,
+  setHtml,
+  stopKeyEvents,
+  stylesheetLink,
+} from '../../../shared/util/dom.js';
 
 const HOST_ID = 'once-upon-listen-notice';
 const MAX = 3;
-const NOTICE_CSS_URL = new URL('./listen-notice.css', import.meta.url).href;
+const NOTICE_CSS_URL = chrome.runtime.getURL('content/ui/listen-notice.css');
 
 export function listenNotice() {
   let host = null;

@@ -113,7 +113,7 @@ export async function doctor(
       'WARN',
       'Extension',
       'the bridge has never heard from the extension',
-      'chrome://extensions → Load unpacked → src/extension, then in its options paste the port and token and click Test connection',
+      'yarn build, then chrome://extensions → Load unpacked → .output/chrome-mv3, then in its options paste the port and token and click Test connection',
     );
   }
 

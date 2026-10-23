@@ -2,7 +2,7 @@
  * "Copy prompt for Claude" on GitHub pages: the clipboard API, or, if the page
  * won't allow it, a hidden textarea and execCommand inside our own shadow root.
  */
-import { writeClipboard } from '../../shared/util/clipboard.js';
+import { writeClipboard } from '../../../shared/util/clipboard.js';
 
 export async function copyText(text, root) {
   if (await writeClipboard(text)) {

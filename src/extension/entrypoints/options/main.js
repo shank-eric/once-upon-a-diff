@@ -1,4 +1,4 @@
-import { getSettings, setSettings } from './settings.js';
+import { getSettings, setSettings } from '../../settings.js';
 
 /** The page's elements by id; the form's fields are inputs. */
 const $ = (id) => /** @type {HTMLInputElement} */ (document.getElementById(id));

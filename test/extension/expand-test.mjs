@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { tmp, writeJson, TOKEN, startBridge } from '../helpers.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
-const EXT = path.join(ROOT, 'src/extension');
+const EXT = path.join(ROOT, '.output/chrome-mv3'); // yarn build's output
 const args = process.argv.slice(2);
 /** --name's value, true for a bare --name, or the fallback when it isn't given. */
 const arg = (name, fallback) => {
@@ -82,7 +82,7 @@ try {
   }
   const extId = new URL(worker.url()).host;
   const opt = await context.newPage();
-  await opt.goto(`chrome-extension://${extId}/html/options.html`);
+  await opt.goto(`chrome-extension://${extId}/options.html`);
   await opt.fill('#port', String(port));
   await opt.fill('#token', TOKEN);
   await opt.click('button[type=submit]');

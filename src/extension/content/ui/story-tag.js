@@ -15,9 +15,9 @@
  *
  * No DOM or chrome.* here, so node can test it.
  */
-import { html } from '../../shared/util/html.js';
-import { plural, shortSha } from '../../shared/util/text.js';
-import { clockTime } from '../../shared/util/time.js';
+import { html } from '../../../shared/util/html.js';
+import { plural, shortSha } from '../../../shared/util/text.js';
+import { clockTime } from '../../../shared/util/time.js';
 
 /**
  * What the tag shows and does, from a status-many result.

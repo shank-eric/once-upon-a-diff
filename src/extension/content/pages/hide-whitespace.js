@@ -14,7 +14,7 @@
  * No chrome.* here, and the rules touch no DOM, so they can be tested in node.
  * createWhitespaceCheck reads location only when it runs.
  */
-import { filesChangedPr } from '../../shared/util/github-paths.js';
+import { filesChangedPr } from '../../../shared/util/github-paths.js';
 
 export const REDIRECT_GUARD_MS = 15000;
 

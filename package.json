@@ -13,6 +13,9 @@
   },
   "scripts": {
     "bridge": "node src/bridge/bin/once-upon.mjs serve",
+    "dev": "wxt",
+    "build": "wxt build",
+    "zip": "ONCE_UPON_STORE=1 wxt zip",
     "icons": "node scripts/make-icons.mjs",
     "vendor": "node scripts/vendor-hljs.mjs",
     "lint": "eslint . --cache --cache-strategy content",
@@ -22,10 +25,10 @@
     "lint-staged": "./node_modules/.bin/lint-staged",
     "format": "prettier --cache --cache-location=.prettiercache --write .",
     "format:check": "prettier --cache --cache-location=.prettiercache --check .",
-    "postinstall": "husky",
+    "postinstall": "husky && wxt prepare",
     "test": "node --test test/*.test.mjs",
-    "test:extension": "node test/extension/load-test.mjs",
-    "test:expand": "node test/extension/expand-test.mjs"
+    "test:extension": "wxt build && node test/extension/load-test.mjs",
+    "test:expand": "wxt build && node test/extension/expand-test.mjs"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
