@@ -27,6 +27,7 @@ import {
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { readJson } from '../util/json-file.ts';
+import { ownerOnly } from '../config/settings.ts';
 import type { LocalNote } from '@once-upon-a-diff/shared/types';
 
 /** What every inbox line has, and what a story's ref adds (StoryRef). */
@@ -129,7 +130,7 @@ export class Inbox {
   constructor(home: string) {
     this.home = home;
     this.file = path.join(home, 'inbox.jsonl');
-    mkdirSync(home, { recursive: true });
+    ownerOnly(home);
   }
 
   /** Appends the entry with an id (unless it has one) and the time. */

@@ -29,11 +29,21 @@ export function readBody(req: IncomingMessage): Promise<Body> {
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks: Buffer[] = [];
+    // past the limit: stop keeping it and let the rest drain, so the 413 gets out (the server then closes)
+    const tooLarge = () => {
+      req.removeAllListeners('data');
+      req.removeAllListeners('end');
+      req.resume();
+      reject(new HttpError(413, 'body too large'));
+    };
+    if (Number(req.headers['content-length']) > MAX_BODY) {
+      tooLarge();
+      return;
+    }
     req.on('data', (chunk: Buffer) => {
       size += chunk.length;
       if (size > MAX_BODY) {
-        reject(new HttpError(413, 'body too large'));
-        req.destroy();
+        tooLarge();
         return;
       }
       chunks.push(chunk);

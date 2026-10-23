@@ -20,6 +20,7 @@ import { execFileSync } from 'node:child_process';
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { checkoutFor } from '../config/repos.ts';
+import { ownerOnly } from '../config/settings.ts';
 import { readJson, writeJson } from '../util/json-file.ts';
 
 export const STORY_FOLDER = '.once-upon';
@@ -103,6 +104,7 @@ export function storyDirFor(
     checkout ||
     (repo ? checkoutFor(home, repo) && mainCheckout(checkoutFor(home, repo) as string) : null);
   if (top && existsSync(top) && excludeStories(top)) {
+    ownerOnly(path.join(top, STORY_FOLDER)); // PR text and draft comments: the user's alone, whatever the checkout's mode
     const dir = path.join(top, STORY_FOLDER, id);
     mkdirSync(dir, { recursive: true });
     indexStory(home, id, dir);

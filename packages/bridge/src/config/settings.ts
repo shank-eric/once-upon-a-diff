@@ -45,9 +45,23 @@ export function stateFile(home: string, key: string, name: string): string {
 
 export const newToken = () => randomBytes(24).toString('base64url');
 
+/** The extension's ID wherever it's loaded unpacked from: the manifest's fixed key (packages/extension/wxt.config.ts). */
+export const UNPACKED_EXTENSION_ID = 'faaibhigocihefldbmdgchcnnclalkmo';
+const EXTENSION_ID = /^[a-p]{32}$/;
+
+/** Makes the folder if it's missing, and makes it the user's alone (0700) even when it was there already. */
+export function ownerOnly(dir: string): void {
+  mkdirSync(dir, { recursive: true, mode: 0o700 });
+  try {
+    chmodSync(dir, 0o700);
+  } catch {
+    /* not ours to change: leave it */
+  }
+}
+
 /** Reads config.json, creating it (with a fresh random token) the first time. */
 export function loadConfig(home = homeDir()): Config {
-  mkdirSync(home, { recursive: true, mode: 0o700 });
+  ownerOnly(home);
   const file = path.join(home, 'config.json');
   const cfg = readJson<Partial<Config>>(file, {}) || {};
   let changed = false;
@@ -86,6 +100,8 @@ const PLATFORM_OPENER: Partial<Record<NodeJS.Platform, string[]>> = {
  *   open_command            argv to open a URL or file, e.g. ["open"] (default: open, xdg-open or start by platform)
  *   gh_unset_github_token   true to drop GITHUB_TOKEN before calling gh, so gh's own (keychain) login is used
  *   house_rules             a Markdown file of your own rules the skills load (default ~/.once-upon/house-rules.md)
+ *   extension_ids           more extension IDs the bridge answers (a store install, an older unpacked copy); the
+ *                           fixed unpacked ID is always allowed
  * Read without creating config.json, so a missing file just means the defaults.
  */
 export function readSettings(home = homeDir()) {
@@ -108,6 +124,14 @@ export function readSettings(home = homeDir()) {
         ? cfg.open_command.map(String)
         : null,
     unsetGithubToken: cfg.gh_unset_github_token === true,
+    extensionIds: [
+      UNPACKED_EXTENSION_ID,
+      ...(Array.isArray(cfg.extension_ids)
+        ? cfg.extension_ids.filter(
+            (id): id is string => typeof id === 'string' && EXTENSION_ID.test(id),
+          )
+        : []),
+    ],
   };
 }
 
@@ -152,7 +176,7 @@ export function formatTime(iso: string | null | undefined, home = homeDir()): st
 }
 
 export function saveConfig(cfg: Partial<Config>, home = homeDir()): void {
-  mkdirSync(home, { recursive: true, mode: 0o700 });
+  ownerOnly(home);
   const file = path.join(home, 'config.json');
   writeFileSync(file, JSON.stringify(cfg, null, 2) + '\n', { mode: 0o600 });
   chmodSync(file, 0o600);

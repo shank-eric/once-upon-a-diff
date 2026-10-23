@@ -75,7 +75,7 @@ test('/api/status reports the bridge, the story and listening', async () => {
       401,
     );
     await bridge.call('GET', '/api/health', undefined, {
-      Origin: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop',
+      Origin: 'chrome-extension://faaibhigocihefldbmdgchcnnclalkmo',
     });
     assert.ok(
       existsSync(path.join(home, 'extension-seen.json')),
