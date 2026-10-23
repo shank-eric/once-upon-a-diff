@@ -67,6 +67,8 @@ ln -s "$PWD/skills/once-upon-listen" ~/.claude/skills/once-upon-listen
 
 It's a link, so a `git pull` updates the skill too. The skill finds the `once-upon` command through that link, so it doesn't need the alias in step 8. Start a new Claude Code session to pick it up.
 
+A listener reads PR text that anyone who can comment on a PR can write, so don't run it in bypass-permissions mode (`--dangerously-skip-permissions`). Add the deny list in the README's [Keep listener sessions on a short leash](README.md#keep-listener-sessions-on-a-short-leash) to the checkout's `.claude/settings.local.json` or your `~/.claude/settings.json`, so `git push`, `gh` writes, `curl` and WebFetch are refused outright.
+
 ### 7. Install the once-upon skill
 
 Building a story for a PR needs a second skill, **once-upon**, which also ships in `skills/`. The listener hands every Build story request to it, and its `build` step is what publishes the story where the bridge finds it. Link it the same way, from the repo root:
@@ -138,7 +140,7 @@ The bridge learns where your checkouts are from local stories and from where a l
 ## What it never does
 
 - It never posts comments or reviews, never submits a review and never pushes. Add to my review is the only thing that writes to GitHub, and only when you click it, into your own pending review.
-- The listener never commits, checks out a branch or changes files in your checkout. It reads code with `git show`.
+- The listener never checks out a branch or pushes, and never runs a PR's code, tests or scripts unless you say so in chat. It reads code with `git show`. It changes files and commits only for fix-before-push notes you send it, on the branch the checkout is already on.
 - The bridge only listens on `127.0.0.1`, wants the token on every call, and refuses requests from other web pages.
 
 **Data and privacy.** The story is written by Claude Code on your machine. Like any Claude Code session, it reads the PR's diff and code from your local checkout and with gh, and sends what it reads to Claude to write the story and answer questions. Stories, questions and answers stay in `.once-upon/` and `~/.once-upon`. Use it on code you're allowed to share with Claude.
