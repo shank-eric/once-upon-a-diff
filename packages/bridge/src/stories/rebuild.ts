@@ -29,7 +29,6 @@ import { uncoveredHunks, sidesOf } from './hunk-coverage.ts';
 import { relOfPath } from '../util/diff.ts';
 import type { DiffFile } from '@once-upon-a-diff/shared/types';
 import type { Plan, PlanChapter } from './chapters.ts';
-import type { Reads } from './reads.ts';
 
 /** What a rebuild's rules read of its request. */
 type RebuildAskFields = { mode?: string; from_step?: number | null };
@@ -267,7 +266,7 @@ export function questionMoves(
  * The read records to set aside: the keys of chapters the rebuild re-told with a different set of files. A chapter
  * kept as it was, or re-told over the same files, keeps its read.
  */
-export function readsToRetire(reads: Reads, before: Plan, after: Plan): string[] {
+export function readsToRetire(reads: Record<string, unknown>, before: Plan, after: Plan): string[] {
   const filesOf = (chapter: PlanChapter) =>
     (chapter.files || [])
       .map((entry) => entryOf(entry).rel)

@@ -321,7 +321,11 @@ export class Builds {
       repo = null,
       story = null,
       live = null,
-    }: { repo?: string | null; story?: string | null; live?: Listener[] | null } = {},
+    }: {
+      repo?: string | null;
+      story?: string | null;
+      live?: Pick<Listener, 'consumer' | 'live' | 'story' | 'builds'>[] | null;
+    } = {},
   ): BuildRequestEntry[] {
     const storyTakers = (live || listeners(this.home)).filter(
       (listener) =>

@@ -50,7 +50,7 @@ export interface StoryStatus {
   updating?: boolean;
   update_state?: string | null;
   update_mode?: string | null;
-  reads?: { read: number; total: number; next: number | null } | null;
+  reads?: { read: number; total: number; next?: number | null } | null;
 }
 
 /** What a tag shows and does. */
@@ -215,12 +215,23 @@ export function stepOfHash(hash: string | null | undefined): number | null {
   return match ? Number(match[1]) : null;
 }
 
+/** What POST /api/builds takes: a PR, and for an update the commit the story was told from. */
+export interface BuildRequestBody {
+  repo: string;
+  number: number;
+  url: string;
+  requested_at: string;
+  mode?: 'update';
+  base_sha?: string;
+  retell?: boolean;
+}
+
 /** The build request a button tag sends. retell: the stale tag's "Re-tell" was clicked. */
 export function requestFor(
   tag: Pick<Tag, 'act' | 'base'>,
   { repo, number }: PrRef,
   { retell = false } = {},
-) {
+): BuildRequestBody {
   const body = {
     repo,
     number,
@@ -228,7 +239,7 @@ export function requestFor(
     requested_at: new Date().toISOString(),
   };
   return tag.act === 'update' && tag.base
-    ? { ...body, mode: 'update', base_sha: tag.base, ...(retell ? { retell: true } : {}) }
+    ? { ...body, mode: 'update' as const, base_sha: tag.base, ...(retell ? { retell: true } : {}) }
     : body;
 }
 

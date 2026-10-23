@@ -17,9 +17,13 @@
  */
 import type { DraftComment, DraftRow } from '../types.ts';
 
-/** What the script reads of the bridge's row for a draft. */
-type ScriptRow = Pick<DraftRow, 'chapter' | 'index'> &
-  Partial<Pick<DraftRow, 'status' | 'dismissed' | 'added' | 'fix'>>;
+/** What the script reads of the bridge's row for a draft (added and fix only for whether they're there). */
+export type ScriptRow = Pick<DraftRow, 'chapter' | 'index'> & {
+  status?: string;
+  dismissed?: boolean;
+  added?: unknown;
+  fix?: unknown;
+};
 
 /** One comment in the review: GitHub's names for the sides. */
 export interface ScriptComment {
@@ -56,7 +60,7 @@ function fullPath(name: string, rels: string[]): string {
  * story. general: drafts with no line, left out. inReview: drafts already in their pending review.
  */
 export function scriptDrafts(
-  chapters: { comments?: Partial<DraftComment>[] }[],
+  chapters: { comments?: (Omit<Partial<DraftComment>, 'side'> & { side?: string })[] }[],
   rows: ScriptRow[],
   rels: string[],
 ): { comments: ScriptComment[]; general: number; inReview: number } {

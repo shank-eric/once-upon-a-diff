@@ -13,13 +13,13 @@
   },
   "exports": {
     "./*": "./src/*.ts",
-    "./test/*": "./test/*.mjs"
+    "./test/*": "./test/*.ts"
   },
   "scripts": {
     "serve": "node bin/once-upon.ts serve",
     "vendor": "node scripts/vendor-hljs.ts",
-    "test": "node --test test/*.test.mjs",
-    "typecheck": "tsc -p tsconfig.json && tsc -p public/tsconfig.json"
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p public/tsconfig.json && tsc -p test/tsconfig.json"
   },
   "dependencies": {
     "@once-upon-a-diff/shared": "workspace:*"

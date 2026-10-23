@@ -1,0 +1,23 @@
+// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
+// @ts-nocheck
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { parseArgs } from '../src/cli/args.ts';
+import { usageText, commandNames } from '../src/cli/index.ts';
+
+test('the CLI parses flags and bare words', () => {
+  const { command, opts } = parseArgs(['local', 'word', '--repo', 'x', '--brief']);
+  assert.equal(command, 'local');
+  assert.equal(opts.repo, 'x');
+  assert.equal(opts.brief, true);
+  assert.deepEqual(opts._, ['word']);
+});
+
+test('the help lists every command in the table, once', () => {
+  const { table, help } = commandNames();
+  assert.deepEqual([...table].sort(), [...help].sort());
+  const text = usageText();
+  for (const name of table) {
+    assert.match(text, new RegExp(`once-upon ${name}\\b`), name);
+  }
+});
