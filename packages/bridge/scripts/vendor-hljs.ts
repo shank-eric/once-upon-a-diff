@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /**
  * Wraps highlight.js (a dev dependency) into one ES module the bridge serves
  * at /assets/highlight.mjs, so the local page needs no CDN and the bridge no
@@ -31,9 +29,9 @@ const LANGS = [
 ];
 const OUT = path.join(ROOT, 'public/vendor');
 
-const wrap = (file) =>
+const wrap = (file: string) =>
   `(() => { const module = { exports: {} }; const exports = module.exports;\n${readFileSync(file, 'utf8')}\nreturn module.exports; })()`;
-let out = `// highlight.js ${version} (BSD-3-Clause, see highlight.js-LICENSE): core and ${LANGS.join(', ')}.\n// Made by scripts/vendor-hljs.mjs from the npm package. Don't edit by hand.\n`;
+let out = `// highlight.js ${version} (BSD-3-Clause, see highlight.js-LICENSE): core and ${LANGS.join(', ')}.\n// Made by scripts/vendor-hljs.ts from the npm package. Don't edit by hand.\n`;
 out += `const hljs = ${wrap(path.join(PKG, 'lib/core.js'))};\n`;
 for (const lang of LANGS) {
   out += `hljs.registerLanguage('${lang}', ${wrap(path.join(PKG, 'lib/languages', `${lang}.js`))});\n`;

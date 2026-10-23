@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /**
  * "Being changed": a Claude session tells the bridge which of a story's files it's changing (`once-upon working`),
  * and the panel dims them, and the chapters that tell them, until it's done.
@@ -14,22 +12,36 @@ import { ID_RE } from './meta.ts';
 import { listeners } from '../listeners/listeners.ts';
 import { readJson, writeJsonAtomic } from '../util/json-file.ts';
 import { stateFile } from '../config/settings.ts';
+import type { LineRanges, WorkingMark } from '@once-upon-a-diff/shared/types';
+import type { Listener } from '../listeners/listeners.ts';
+
+/** A mark as working.json keeps it. */
+export interface StoredMark extends WorkingMark {
+  files: { path: string; ranges: LineRanges }[];
+  request: string | null;
+}
+
+/** working.json: the standing marks, by consumer, and the last few cleared. */
+interface Working {
+  marks: Record<string, StoredMark>;
+  done: { consumer: string; sha: string | null; files: StoredMark['files']; at: string }[];
+}
 
 export const MARK_FRESH_MS = 30 * 60 * 1000;
 const DONE_KEPT = 5;
 const MAX_FILES = 200;
 
-const workingFile = (home, story) => stateFile(home, story, 'working.json');
+const workingFile = (home: string, story: string) => stateFile(home, story, 'working.json');
 
-function readWorking(home, story) {
+function readWorking(home: string, story: string): Working {
   if (!ID_RE.test(String(story || ''))) {
     return { marks: {}, done: [] };
   }
-  const saved = readJson(workingFile(home, story), {}) || {};
+  const saved = readJson<Partial<Working>>(workingFile(home, story), {}) || {};
   return { marks: saved.marks || {}, done: saved.done || [] };
 }
 
-function saveWorking(home, story, working) {
+function saveWorking(home: string, story: string, working: Working): void {
   writeJsonAtomic(workingFile(home, story), working);
 }
 
@@ -37,8 +49,8 @@ function saveWorking(home, story, working) {
  * `a.js,b.js:10-40,b.js:90` as [{path, ranges}]: files split on commas, each with an optional line or range after a
  * colon. A file named twice keeps every range.
  */
-export function parseFiles(spec) {
-  const byPath = new Map();
+export function parseFiles(spec: unknown): StoredMark['files'] {
+  const byPath = new Map<string, StoredMark['files'][number]>();
   for (const part of String(spec || '').split(',')) {
     const match = /^\s*(.+?)(?::(\d+)(?:-(\d+))?)?\s*$/.exec(part);
     if (!match) {
@@ -51,7 +63,7 @@ export function parseFiles(spec) {
     if (match[2]) {
       const start = Number(match[2]);
       const end = match[3] ? Math.max(start, Number(match[3])) : start;
-      byPath.get(rel).ranges.push([start, end]);
+      byPath.get(rel)!.ranges.push([start, end]);
     }
   }
   return [...byPath.values()].slice(0, MAX_FILES);
@@ -62,7 +74,11 @@ export function parseFiles(spec) {
  * beat after the mark was made and isn't live now. A listener of the same name that went quiet before the mark
  * (an old wait) doesn't count.
  */
-export function markLive(mark, beats, now = Date.now()) {
+export function markLive(
+  mark: Pick<WorkingMark, 'consumer' | 'at' | 'started_at'>,
+  beats: Pick<Listener, 'consumer' | 'live' | 'at'>[],
+  now = Date.now(),
+): boolean {
   if (!(now - Date.parse(mark.at) < MARK_FRESH_MS)) {
     return false;
   }
@@ -75,7 +91,15 @@ export function markLive(mark, beats, now = Date.now()) {
  * Says `consumer` is changing these files of the story (replacing what it said before), or, with no files, that
  * it's still at it (a heartbeat). Returns the mark.
  */
-export function setMark(home, story, consumer, { files = null, request = null } = {}) {
+export function setMark(
+  home: string,
+  story: string,
+  consumer: string,
+  {
+    files = null,
+    request = null,
+  }: { files?: StoredMark['files'] | null; request?: string | null } = {},
+): StoredMark {
   const working = readWorking(home, story);
   const now = new Date().toISOString();
   const before = working.marks[consumer];
@@ -86,7 +110,7 @@ export function setMark(home, story, consumer, { files = null, request = null } 
   }
   working.marks[consumer] = {
     consumer,
-    files: files || before.files,
+    files: files || before.files, // there's one or the other (checked above)
     request: request || (before && before.request) || null,
     started_at: (before && before.started_at) || now,
     at: now,
@@ -99,9 +123,14 @@ export function setMark(home, story, consumer, { files = null, request = null } 
  * Clears `consumer`'s mark, with the commit it ended in. With no mark of its own and exactly one on the story, that
  * one is cleared. Returns the cleared mark, or null when there was none.
  */
-export function clearMark(home, story, consumer, { sha = null } = {}) {
+export function clearMark(
+  home: string,
+  story: string,
+  consumer: string,
+  { sha = null }: { sha?: string | null } = {},
+): StoredMark | null {
   const working = readWorking(home, story);
-  let key = consumer in working.marks ? consumer : null;
+  let key: string | null = consumer in working.marks ? consumer : null;
   if (!key && Object.keys(working.marks).length === 1) {
     key = Object.keys(working.marks)[0];
   }
@@ -120,7 +149,11 @@ export function clearMark(home, story, consumer, { sha = null } = {}) {
 }
 
 /** The story's standing marks, oldest first, and the last one cleared: {marks, last}. */
-export function workingOf(home, story, { beats = null, now = Date.now() } = {}) {
+export function workingOf(
+  home: string,
+  story: string,
+  { beats = null, now = Date.now() }: { beats?: Listener[] | null; now?: number } = {},
+) {
   const working = readWorking(home, story);
   const known = beats || listeners(home, now);
   const marks = Object.values(working.marks)

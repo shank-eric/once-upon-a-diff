@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * A chapter's own lines: what other chapters tell in a shared file folds
  * away (narrow.js), and a jump from the panel opens the file and the folds
@@ -12,15 +10,17 @@ import { insertHtml } from '/assets/util/dom.ts';
 import { plural } from '/assets/util/text.ts';
 import { page } from './page.ts';
 import { columnCount } from './diff-view.ts';
+import type { NarrowRow } from '/assets/narrow.ts';
+import type { Side } from '/assets/types.ts';
 
-let narrowedFor = null; // the step the tables are narrowed for; a redraw clears it
+let narrowedFor: string | null = null; // the step the tables are narrowed for; a redraw clears it
 /** A redraw draws new tables, so the next filter pass narrows them again. */
 export const forgetNarrowing = () => {
   narrowedFor = null;
 };
 
 /** One table row, as narrowRows reads it. */
-function rowModel(row) {
+function rowModel(row: Element): NarrowRow {
   if (row.classList.contains('ou-local-hunk')) {
     return { type: 'hunk' };
   }
@@ -30,7 +30,7 @@ function rowModel(row) {
   if (!row.classList.contains('ou-local-line')) {
     return { type: 'info' };
   }
-  const lineOn = (side) => {
+  const lineOn = (side: Side) => {
     const cell = row.querySelector(`td[data-side="${side}"]`);
     return cell ? Number(cell.getAttribute('data-line')) : null;
   };
@@ -42,7 +42,7 @@ function rowModel(row) {
   };
 }
 
-function stepName(step) {
+function stepName(step: number) {
   const numbers = chapterNumbers(page.story.chapters);
   if (numbers[step - 1] != null) {
     return `chapter ${numbers[step - 1]}`;
@@ -50,7 +50,7 @@ function stepName(step) {
   return `“${String(page.story.chapters[step - 1].title || 'Since you read it').replace(/:.*$/, '')}”`;
 }
 
-export function unnarrow(root = document) {
+export function unnarrow(root: ParentNode = document) {
   for (const el of root.querySelectorAll('tr.ou-local-narrow')) {
     el.remove();
   }
@@ -60,7 +60,7 @@ export function unnarrow(root = document) {
 }
 
 /** Called by the panel after each filter pass. Only a new step (or a redraw) changes the tables, so the folds the reviewer opens stay open. */
-export function narrow({ n: step, all }) {
+export function narrow({ n: step, all }: { n: number; all: boolean }) {
   const key = `${step}|${all}`;
   if (key === narrowedFor) {
     return;
@@ -72,7 +72,7 @@ export function narrow({ n: step, all }) {
   }
   const claims = claimsOf(page.story.chapters);
   for (const section of document.querySelectorAll('.ou-local-file')) {
-    const rel = section.getAttribute('data-path');
+    const rel = section.getAttribute('data-path') as string;
     const rows = [...section.querySelectorAll('tbody > tr')];
     const { hidden, runs } = narrowRows(rows.map(rowModel), claims, rel, step);
     rows.forEach((row, i) => row.classList.toggle('ou-local-out', hidden[i]));
@@ -93,7 +93,7 @@ export function narrow({ n: step, all }) {
 }
 
 /** Open a fold: its rows show and its "⋯ N lines" row goes. */
-export function openRun(fold) {
+export function openRun(fold: Element) {
   for (
     let row = fold.nextElementSibling;
     row && row.classList.contains('ou-local-out');
@@ -105,7 +105,7 @@ export function openRun(fold) {
 }
 
 /** Open the fold that holds a row (a jump to one of its lines). */
-export function openFold(row) {
+export function openFold(row: Element) {
   let fold = row.previousElementSibling;
   while (fold && fold.classList.contains('ou-local-out')) {
     fold = fold.previousElementSibling;
@@ -116,7 +116,7 @@ export function openFold(row) {
 }
 
 /** A jump from the panel to a file or its lines: unfold the file (Viewed files fold) and open the folds that hold the lines. Viewed stays as it is. */
-export function reveal(rel, side, start, end) {
+export function reveal(rel: string, side?: Side, start?: number, end?: number) {
   const file = page.story.local.files.find((candidate) => candidate.rel === rel);
   if (!file) {
     return;
@@ -129,7 +129,8 @@ export function reveal(rel, side, start, end) {
   if (!side || !Number.isFinite(start)) {
     return;
   }
-  for (let line = start; line <= Math.max(start, end || start) && line < start + 400; line++) {
+  // start is a number past the isFinite check
+  for (let line = start!; line <= Math.max(start!, end || start!) && line < start! + 400; line++) {
     const cell = document.querySelector(`[data-line-anchor="diff-${file.sha}${side}${line}"]`);
     const row = cell && cell.closest('tr');
     if (row && row.classList.contains('ou-local-out')) {

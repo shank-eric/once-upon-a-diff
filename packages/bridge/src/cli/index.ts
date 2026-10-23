@@ -1,8 +1,6 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * The once-upon CLI: one table of commands, each with its usage lines, so
- * the help text and the commands can't drift apart. bin/once-upon.mjs runs
+ * the help text and the commands can't drift apart. bin/once-upon.ts runs
  * main().
  */
 import { homeDir, loadConfig } from '../config/settings.ts';
@@ -14,8 +12,9 @@ import { draftCommands } from './commands/drafts.ts';
 import { buildCommands } from './commands/builds.ts';
 import { checkCommands } from './commands/checks.ts';
 import { fixCommands } from './commands/fixes.ts';
+import type { Command } from '../types.ts';
 
-const COMMANDS = new Map(
+const COMMANDS = new Map<string, Command>(
   [
     ...bridgeCommands,
     ...storyCommands,
@@ -53,21 +52,21 @@ export const commandNames = () => ({ table: [...COMMANDS.keys()], help: [...HELP
 
 /** The help text: every command's usage, then where the settings live. */
 export function usageText() {
-  const lines = HELP_ORDER.flatMap((name) => COMMANDS.get(name).usage);
+  const lines = HELP_ORDER.flatMap((name) => (COMMANDS.get(name) as Command).usage);
   return [
     'once-upon: the Once Upon a Diff bridge and its helpers.',
     '',
     ...lines,
     '',
     'ONCE_UPON_HOME moves ~/.once-upon. Personal settings (display name, time zone, checkout folders,',
-    'opener, gh token handling) are optional keys in its config.json: see readSettings in config/settings.mjs.',
+    'opener, gh token handling) are optional keys in its config.json: see readSettings in config/settings.ts.',
     ' ',
   ].join('\n');
 }
 
-export function main(argv) {
+export function main(argv: string[]): void {
   const { command, opts } = parseArgs(argv);
-  const entry = COMMANDS.get(command);
+  const entry = COMMANDS.get(command as string);
   if (!entry) {
     process.stderr.write(usageText() + '\n');
     process.exitCode = 1;
@@ -76,7 +75,7 @@ export function main(argv) {
   const home = homeDir();
   Promise.resolve()
     .then(() => entry.run(home, loadConfig(home), opts))
-    .catch((err) => {
+    .catch((err: Error) => {
       process.stderr.write(`once-upon: ${err.message}\n`);
       process.exitCode = 1;
     });

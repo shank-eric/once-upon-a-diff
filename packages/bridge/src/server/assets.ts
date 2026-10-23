@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * The files the bridge serves without a token: the local page's scripts and
  * CSS, and the panel's modules, stylesheets and shared helpers from the shared
@@ -22,9 +20,9 @@ const STYLESHEET = 'text/css; charset=utf-8';
 /** The panel's modules and stylesheets and the shared helpers, served from the shared package's src/<folder>/ for the local page. */
 const SHARED_MODULE = /^\/assets\/(panel|util)\/([a-z0-9-]+\.(?:ts|css))$/;
 /** The local page's own modules and stylesheets, from public/local/. */
-const LOCAL_MODULE = /^\/assets\/local\/([a-z0-9-]+\.(?:js|ts|css))$/;
+const LOCAL_MODULE = /^\/assets\/local\/([a-z0-9-]+\.(?:ts|css))$/;
 
-const ASSETS = {
+const ASSETS: Record<string, string> = {
   '/assets/overlay.ts': path.join(SHARED, 'overlay.ts'),
   '/assets/local.ts': path.join(PUBLIC, 'local.ts'),
   '/assets/split.ts': path.join(PUBLIC, 'split.ts'),
@@ -35,13 +33,13 @@ const ASSETS = {
 };
 
 /** Each stripped module and the mtime of the file it came from, so an edit shows on the next load. */
-const stripped = new Map();
+const stripped = new Map<string, { mtime: number; code: string }>();
 
 /**
  * A TypeScript module as the browser runs it. node:module's stripTypeScriptTypes is the stripping Node runs the
  * bridge with, but as an API it's still marked experimental, so its one warning is kept out of the bridge's log.
  */
-function strippedModule(file) {
+function strippedModule(file: string): string {
   const mtime = statSync(file).mtimeMs;
   const cached = stripped.get(file);
   if (cached && cached.mtime === mtime) {
@@ -49,7 +47,7 @@ function strippedModule(file) {
   }
   const emitWarning = process.emitWarning;
   process.emitWarning = () => {};
-  let code;
+  let code: string;
   try {
     code = stripTypeScriptTypes(readFileSync(file, 'utf8'));
   } finally {
@@ -60,7 +58,7 @@ function strippedModule(file) {
 }
 
 /** [contents, content type] for one of the files. */
-function served(file) {
+function served(file: string): [string | Buffer, string] {
   if (file.endsWith('.css')) {
     return [readFileSync(file), STYLESHEET];
   }
@@ -68,7 +66,7 @@ function served(file) {
 }
 
 /** [contents, content type] for an asset path, or null when it isn't one. Throws 404 for a missing shared module. */
-export function assetFor(pathname) {
+export function assetFor(pathname: string): [string | Buffer, string] | null {
   if (ASSETS[pathname]) {
     return served(ASSETS[pathname]);
   }
@@ -79,7 +77,7 @@ export function assetFor(pathname) {
   }
   const file = sharedModule
     ? path.join(SHARED, sharedModule[1], sharedModule[2])
-    : path.join(PUBLIC, 'local', localModule[1]);
+    : path.join(PUBLIC, 'local', (localModule as RegExpExecArray)[1]);
   if (!existsSync(file)) {
     throw new HttpError(404, 'no such module');
   }

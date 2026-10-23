@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * Line references in a chapter's text count as the chapter telling that file.
  *
@@ -19,7 +17,8 @@
  * The once-upon skill's `build` uses addTextRefs for file-map.json.
  */
 import { pathSha } from '../util/diff.ts';
-import { parseDiffLink, parseLineRef } from '@once-upon-a-diff/shared/util/line-refs';
+import { parseDiffLink, parseLineRef, type LineRef } from '@once-upon-a-diff/shared/util/line-refs';
+import type { Chapter } from '@once-upon-a-diff/shared/types';
 
 export const REF_NOTE = 'its lines are pointed at in the text';
 const REF_LABEL = 'pointed at in the text';
@@ -28,15 +27,17 @@ const REF_LABEL = 'pointed at in the text';
  * The files a chapter's text points at lines of: [{rel, lines: [{side, start, end}]}] in order of first mention.
  * Names resolve as the panel resolves them: the chapter's own files first (exact path, then a path suffix such as
  * `Combobox/component.tsx` or a basename), then the rest of the PR's files, where a name that fits more than one is skipped.
- * @param {string} text the chapter's markdown
- * @param {string[]} listed the chapter's own files
- * @param {string[]} rels every file in the story
+ * text is the chapter's markdown, listed the chapter's own files, rels every file in the story.
  */
-export function lineRefsOf(text, listed, rels) {
+export function lineRefsOf(
+  text: string,
+  listed: string[],
+  rels: string[],
+): { rel: string; lines: LineRef[] }[] {
   const bySha = new Map(rels.map((rel) => [pathSha(rel), rel]));
-  const find = (name, scope) =>
+  const find = (name: string, scope: string[]) =>
     scope.find((rel) => rel === name) || scope.filter((rel) => rel.endsWith('/' + name));
-  const resolve = (name) => {
+  const resolve = (name: string) => {
     if (!name || /\s/.test(name) || !/[./]/.test(name)) {
       return null;
     }
@@ -53,12 +54,12 @@ export function lineRefsOf(text, listed, rels) {
     }
     return any.length === 1 ? any[0] : null;
   };
-  const out = new Map();
-  const add = (rel, line) => {
+  const out = new Map<string, LineRef[]>();
+  const add = (rel: string, line: LineRef) => {
     if (!out.has(rel)) {
       out.set(rel, []);
     }
-    const known = out.get(rel);
+    const known = out.get(rel)!;
     if (
       !known.some(
         (existing) =>
@@ -68,10 +69,10 @@ export function lineRefsOf(text, listed, rels) {
       known.push(line);
     }
   };
-  let last = null;
+  let last: string | null = null;
   const src = String(text || '').replace(/```[\s\S]*?```/g, ' '); // code blocks aren't references
   const pattern = /`([^`\n]+)`|\[[^\]]*\]\((https?:[^)\s]+)\)/g;
-  for (let match; (match = pattern.exec(src));) {
+  for (let match: RegExpExecArray | null; (match = pattern.exec(src));) {
     if (match[2]) {
       const link = parseDiffLink(match[2]);
       const rel = link && bySha.get(link.sha);
@@ -105,7 +106,9 @@ export function lineRefsOf(text, listed, rels) {
 }
 
 /** The text of a chapter the panel draws as markdown. */
-export const textOf = (chapter) =>
+export const textOf = (
+  chapter: Pick<Chapter, 'headline' | 'scenario' | 'summary' | 'narrative'>,
+): string =>
   [chapter.headline, chapter.scenario, chapter.summary, chapter.narrative]
     .filter(Boolean)
     .join('\n\n');
@@ -114,7 +117,7 @@ export const textOf = (chapter) =>
  * Adds, to each chapter (but "Since you read it" ones), the files its text points at lines of and doesn't list.
  * Changes the chapters in place and returns them. Entries are entryOf()'s shape plus `ref: true`.
  */
-export function addTextRefs(chapters, rels) {
+export function addTextRefs(chapters: Chapter[], rels: string[]): Chapter[] {
   for (const chapter of chapters) {
     if (chapter.since) {
       continue;

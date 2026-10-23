@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * Questions from the panel's Ask box, with the answers a Claude session gave
  * them (`once-upon answer`), and what the reviewer did with them: dismissed
@@ -9,21 +7,22 @@
 import { newId } from '../../inbox/inbox.ts';
 import { QA_ACTIONS, markQuestions, withMarks } from '../../inbox/conversation.ts';
 import { HttpError, clipText, toInt } from '../request.ts';
+import type { App, Call, ServedStory, StoryRoute } from '../../types.ts';
 
 const MAX_IDS = 500;
 
 /** The story's questions, oldest first, each with its answers and marks. */
-export const questionsOf = (app, story) =>
+export const questionsOf = (app: App, story: Pick<ServedStory, 'id'>) =>
   withMarks(app.home, story.id, app.inbox.questions(story.id));
 
 /**
  * POST .../questions/marks {action, ids}: dismiss, restore, collapse or expand those questions. clear dismisses
  * every question the story has that isn't dismissed yet, and says which (`cleared`), so the panel can undo it.
  */
-function mark({ app, body, send }, story) {
+function mark({ app, body, send }: Call, story: ServedStory) {
   const action = String(body.action || '');
-  let ids;
-  let cleared = null;
+  let ids: string[];
+  let cleared: string[] | null = null;
   if (action === 'clear') {
     ids = questionsOf(app, story)
       .filter((question) => !question.dismissed)
@@ -43,7 +42,7 @@ function mark({ app, body, send }, story) {
 }
 
 /** GET: the story's questions and answers. POST: a new question, to the inbox. POST .../marks: see mark. */
-function storyQuestions(call, story) {
+function storyQuestions(call: Call, story: ServedStory) {
   const { app, req, body, send } = call;
   if (story.sub === 'marks' && req.method === 'POST') {
     return mark(call, story);
@@ -71,4 +70,4 @@ function storyQuestions(call, story) {
   return send(200, question);
 }
 
-export const questionRoutes = [{ what: 'questions', handle: storyQuestions }];
+export const questionRoutes: StoryRoute[] = [{ what: 'questions', handle: storyQuestions }];

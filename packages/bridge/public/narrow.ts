@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * The local page's line narrowing: in a chapter, the lines of a file that
  * other chapters tell (their `lines` ranges) fold away behind one row, so a
@@ -13,12 +11,49 @@
  * reads the rows off its tables and applies the result.
  */
 
+/** Lines on one side of a file. */
+interface Range {
+  side: 'L' | 'R';
+  start: number;
+  end: number;
+}
+
+/** What claimsOf reads of a chapter (the story's chapters, or chapters.json's own). */
+interface ClaimChapter {
+  since?: unknown;
+  files?: {
+    rel: string;
+    lines?: ({ side?: string; start: number | string; end?: number | string } | null)[];
+  }[];
+}
+
+/** steps[step - 1]: the ranges each step gives each file (null for the whole file); home[rel]: the step for the rest. */
+export interface Claims {
+  steps: Record<string, Range[] | null>[];
+  home: Record<string, number>;
+}
+
+/** A table row as narrowRows reads it: a line row has its old and new numbers (L, R) and whether it adds (add). */
+export interface NarrowRow {
+  type: 'hunk' | 'note' | 'info' | 'line';
+  L?: number | null;
+  R?: number | null;
+  add?: boolean;
+}
+
+/** A run of hidden rows to fold behind one row, and the steps that tell them. */
+export interface NarrowRun {
+  from: number;
+  to: number;
+  steps: number[];
+}
+
 /**
  * {steps, home}: steps[step - 1] is {rel -> [{side, start, end}] | null}, the ranges each step gives each file
  * (null for "the whole file"), and home[rel] the step that shows the lines no range covers.
  */
-export function claimsOf(chapters) {
-  const home = {};
+export function claimsOf(chapters: ClaimChapter[] | null | undefined): Claims {
+  const home: Record<string, number> = {};
   (chapters || []).forEach((chapter, i) => {
     if (!chapter.since) {
       for (const file of chapter.files || []) {
@@ -29,14 +64,14 @@ export function claimsOf(chapters) {
     }
   });
   const steps = (chapters || []).map((chapter) => {
-    const out = {};
+    const out: Record<string, Range[] | null> = {};
     for (const file of chapter.files || []) {
       const ranges = (file.lines || []).filter((line) => line && Number.isFinite(+line.start));
       out[file.rel] = ranges.length
         ? ranges.map((line) => ({
-            side: line.side === 'L' ? 'L' : 'R',
-            start: +line.start,
-            end: +(line.end || line.start),
+            side: (line!.side === 'L' ? 'L' : 'R') as Range['side'],
+            start: +line!.start,
+            end: +(line!.end || line!.start),
           }))
         : null;
     }
@@ -46,8 +81,13 @@ export function claimsOf(chapters) {
 }
 
 /** The steps (1-based) whose ranges for rel cover side:num. */
-function stepsAt(claims, rel, side, num) {
-  const out = new Set();
+function stepsAt(
+  claims: Claims,
+  rel: string,
+  side: Range['side'],
+  num: number | null | undefined,
+): Set<number> {
+  const out = new Set<number>();
   if (num == null) {
     return out;
   }
@@ -62,7 +102,7 @@ function stepsAt(claims, rel, side, num) {
   });
   return out;
 }
-const union = (...sets) => new Set(sets.flatMap((set) => [...set]));
+const union = (...sets: Set<number>[]) => new Set(sets.flatMap((set) => [...set]));
 
 /**
  * rows: [{type: 'hunk'} | {type: 'line', L, R, add} | {type: 'note'} | {type: 'info'}] in table order,
@@ -70,20 +110,26 @@ const union = (...sets) => new Set(sets.flatMap((set) => [...set]));
  * Returns {hidden: [bool per row], runs: [{from, to, steps: [step]}]}: the runs of hidden rows, each to fold behind one row,
  * with the steps that tell them. Nothing is hidden when step n lists rel without ranges, or doesn't list it.
  */
-export function narrowRows(rows, claims, rel, step) {
+export function narrowRows(
+  rows: NarrowRow[],
+  claims: Claims,
+  rel: string,
+  step: number,
+): { hidden: boolean[]; runs: NarrowRun[] } {
   const hidden = rows.map(() => false);
   const own = claims.steps[step - 1] && claims.steps[step - 1][rel];
   if (!own) {
     return { hidden, runs: [] };
   }
   // each line row's claiming steps: by its new line, and by its old line
-  const claimedBy = rows.map((row) =>
+  // a set for each line row, null for the rest
+  const claimedBy: (Set<number> | null)[] = rows.map((row) =>
     row.type === 'line'
       ? union(stepsAt(claims, rel, 'R', row.R), stepsAt(claims, rel, 'L', row.L))
       : null,
   );
   // a removed line with no new number goes with what replaced it, or, for a pure removal, with the lines on both sides
-  const isNew = (row) => row && row.type === 'line' && row.R != null;
+  const isNew = (row: NarrowRow | undefined) => row && row.type === 'line' && row.R != null;
   rows.forEach((row, i) => {
     if (row.type !== 'line' || row.R != null) {
       return;
@@ -96,22 +142,22 @@ export function narrowRows(rows, claims, rel, step) {
     while (rows[prev] && rows[prev].type === 'line' && rows[prev].R == null) {
       prev--;
     }
-    const after = isNew(rows[next]) ? claimedBy[next] : new Set();
-    const before = isNew(rows[prev]) ? claimedBy[prev] : new Set();
+    const after = isNew(rows[next]) ? claimedBy[next]! : new Set<number>();
+    const before = isNew(rows[prev]) ? claimedBy[prev]! : new Set<number>();
     claimedBy[i] = union(
-      claimedBy[i],
+      claimedBy[i]!,
       isNew(rows[next]) && rows[next].add ? after : union(before, after),
     );
   });
   const home = claims.home[rel];
   rows.forEach((row, i) => {
-    if (row.type === 'line' && !claimedBy[i].size && home) {
-      claimedBy[i].add(home);
+    if (row.type === 'line' && !claimedBy[i]!.size && home) {
+      claimedBy[i]!.add(home);
     }
   });
   rows.forEach((row, i) => {
     if (row.type === 'line') {
-      hidden[i] = claimedBy[i].size > 0 && !claimedBy[i].has(step);
+      hidden[i] = claimedBy[i]!.size > 0 && !claimedBy[i]!.has(step);
     }
   });
   // a note stays, and so does the line it's on
@@ -148,15 +194,15 @@ export function narrowRows(rows, claims, rel, step) {
     }
     hidden[i] = any && all;
   });
-  const runs = [];
-  let cur = null;
+  const runs: { from: number; to: number; steps: Set<number> }[] = [];
+  let cur: { from: number; to: number; steps: Set<number> } | null = null;
   rows.forEach((row, i) => {
     if (!hidden[i]) {
       cur = null;
       return;
     }
     if (!cur) {
-      cur = { from: i, to: i, steps: new Set() };
+      cur = { from: i, to: i, steps: new Set<number>() };
       runs.push(cur);
     }
     cur.to = i;

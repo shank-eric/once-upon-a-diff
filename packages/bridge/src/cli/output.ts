@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * What the CLI prints: a line to stdout, and inbox entries as `inbox` and
  * `wait` show them.
@@ -8,23 +6,34 @@ import { formatTime, readerOf } from '../config/settings.ts';
 import { sameRepo } from '../config/repos.ts';
 import { updateOf } from '../inbox/builds.ts';
 import { plural } from '@once-upon-a-diff/shared/util/text';
+import type { InboxEntry } from '../inbox/inbox.ts';
+import type { Build, BuildRequestEntry } from '../inbox/builds.ts';
+import type { RequestNote } from '../inbox/fixes.ts';
+import type { CliOpts } from '../types.ts';
 
-export const out = (text) => process.stdout.write(text + '\n');
+/** A fix request as `wait` hands it over (fixesToHand). */
+type FixRequestEntry = ReturnType<typeof import('../inbox/fixes.ts').fixesToHand>[number];
+/** What `inbox` and `wait` print: an inbox line, or a request handed over. */
+export type Printable = InboxEntry | BuildRequestEntry | FixRequestEntry;
+
+export const out = (text: string): boolean => process.stdout.write(text + '\n');
 
 /** A note's place: path:line, with L before an old-side line. */
-const notePlace = (note) =>
+const notePlace = (note: Pick<RequestNote, 'path' | 'line' | 'side'>) =>
   `${note.path}${note.line ? `:${note.side === 'L' ? 'L' : ''}${note.line}` : ''}`;
 
 /** One inbox entry, as `inbox` and `wait` print it. */
-export function describe(entry) {
+export function describe(entry: Printable): string {
   const when = formatTime(entry.at);
-  const step = entry.step != null ? `step ${entry.step}` : '';
-  const where = [entry.story, entry.chapter || step, entry.file].filter(Boolean).join(' · ');
+  // the fields a question (or a read, or a review comment) has; other entries leave them out
+  const about = entry as { step?: number | null; chapter?: unknown; file?: string | null };
+  const step = about.step != null ? `step ${about.step}` : '';
+  const where = [entry.story, about.chapter || step, about.file].filter(Boolean).join(' · ');
   if (entry.type === 'question') {
     return `[${when}] question ${entry.id} (${where})\n${entry.text}`;
   }
   if (entry.type === 'build_request') {
-    const update = entry.mode ? `\n${updateOf(entry, readerOf())}` : '';
+    const update = entry.mode ? `\n${updateOf(entry as Partial<Build>, readerOf())}` : '';
     const what = entry.number
       ? `${entry.repo}#${entry.number} ${entry.url}`
       : `local story ${entry.story}`;
@@ -56,7 +65,9 @@ export function describe(entry) {
 }
 
 /** The entries a --type, --story or --repo flag asks for. */
-export function filterEntries(entries, opts) {
+export function filterEntries<
+  E extends { type: string; story?: string | null; repo?: string | null },
+>(entries: E[], opts: CliOpts): E[] {
   const types = opts.type ? String(opts.type).split(',') : null;
   return entries.filter(
     (entry) =>

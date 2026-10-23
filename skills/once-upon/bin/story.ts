@@ -1,15 +1,13 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /**
  * once-upon: a pull request told as a story, chapter by chapter, for Once Upon a Diff's panel.
  *
  * Works on a folder that bin/gather.sh filled (pr.json, pr.diff,
  * threads.json, checks.json, viewed.tsv). It makes no network calls.
  *
- *   story.mjs brief   --dir D                 what Claude reads to plan: files, commits, reviews, threads, CI, viewed
- *   story.mjs build   --dir D [--no-bridge]   D/chapters.json -> D/file-map.json, then publish; fails if a file is
+ *   story.ts brief   --dir D                 what Claude reads to plan: files, commits, reviews, threads, CI, viewed
+ *   story.ts build   --dir D [--no-bridge]   D/chapters.json -> D/file-map.json, then publish; fails if a file is
  *                                             unplaced or a hunk is told by no chapter (--allow-uncovered publishes anyway)
- *   story.mjs publish --dir D                 publish the story for Once Upon a Diff through `once-upon publish` (build does this too)
+ *   story.ts publish --dir D                 publish the story for Once Upon a Diff through `once-upon publish` (build does this too)
  */
 import { readFile, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
@@ -28,19 +26,74 @@ import {
 } from '../../../packages/bridge/src/stories/hunk-coverage.ts';
 import { finishedInOf } from '../../../packages/shared/src/panel/story-model.ts';
 
+import type { DiffFile, UncoveredFile } from '../../../packages/shared/src/types.ts';
+import type { Plan } from '../../../packages/bridge/src/stories/chapters.ts';
+import type { CliOpts } from '../../../packages/bridge/src/types.ts';
+
+/** pr.json, from `gh pr view --json` in gather.sh: just what's read here. */
+interface PrJson {
+  url?: string;
+  number: number;
+  title?: string;
+  author?: { login?: string } | null;
+  baseRefName?: string;
+  headRefName?: string;
+  baseRefOid?: string;
+  headRefOid?: string;
+  state?: string;
+  isDraft?: boolean;
+  reviewDecision?: string;
+  mergeStateStatus?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  mergedAt?: string | null;
+  body?: string;
+  reviewRequests?: { login?: string; name?: string; slug?: string }[];
+  commits?: { oid: string; committedDate: string; messageHeadline: string; messageBody: string }[];
+  reviews?: {
+    author?: { login?: string } | null;
+    state: string;
+    submittedAt: string;
+    body: string;
+  }[];
+}
+
+/** threads.json, from gather.sh. */
+interface Thread {
+  path: string;
+  line: number | null;
+  resolved: boolean;
+  outdated: boolean;
+  posts: { by: string; at: string; body: string }[];
+}
+
+/** checks.json, from `gh pr checks --json`. */
+interface Check {
+  name: string;
+  bucket: string;
+  link?: string;
+}
+
+/** One file's line in file-map.json. */
+interface MapFile {
+  chapters: number[];
+  partial_in: number[];
+  finished_in: number | null;
+}
+
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '../../..');
 
-async function readJson(file, fallback) {
+async function readJson<T>(file: string, fallback?: T): Promise<T> {
   if (!existsSync(file)) {
-    return fallback;
+    return fallback as T;
   }
   return JSON.parse(await readFile(file, 'utf8'));
 }
 
-async function readViewed(dir) {
+async function readViewed(dir: string): Promise<Map<string, string>> {
   const file = path.join(dir, 'viewed.tsv');
-  const out = new Map();
+  const out = new Map<string, string>();
   if (!existsSync(file)) {
     return out;
   }
@@ -53,25 +106,26 @@ async function readViewed(dir) {
   return out;
 }
 
-async function load(dir) {
-  const pr = await readJson(path.join(dir, 'pr.json'));
+async function load(dir: string) {
+  const pr = await readJson<PrJson>(path.join(dir, 'pr.json'));
   const diff = parseUnifiedDiff(await readFile(path.join(dir, 'pr.diff'), 'utf8'));
-  const threads = await readJson(path.join(dir, 'threads.json'), []);
-  const checks = await readJson(path.join(dir, 'checks.json'), []);
+  const threads = await readJson<Thread[]>(path.join(dir, 'threads.json'), []);
+  const checks = await readJson<Check[]>(path.join(dir, 'checks.json'), []);
   const viewed = await readViewed(dir);
   return { pr, diff, threads, checks, viewed };
 }
 
-const repoOf = (pr) => (pr.url || '').split('/').slice(3, 5).join('/');
-const clip = (text, max) => (text && text.length > max ? `${text.slice(0, max)}…` : text);
+const repoOf = (pr: PrJson) => (pr.url || '').split('/').slice(3, 5).join('/');
+const clip = (text: string | undefined, max: number) =>
+  text && text.length > max ? `${text.slice(0, max)}…` : text;
 
-async function cmdBrief(opts) {
-  const { pr, diff, threads, checks, viewed } = await load(opts.dir);
-  const byPath = {};
+async function cmdBrief(opts: CliOpts) {
+  const { pr, diff, threads, checks, viewed } = await load(opts.dir as string);
+  const byPath: Record<string, Thread[]> = {};
   for (const thread of threads) {
     (byPath[thread.path] ||= []).push(thread);
   }
-  const checksByState = {};
+  const checksByState: Record<string, number> = {};
   for (const check of checks) {
     checksByState[check.bucket] = (checksByState[check.bucket] || 0) + 1;
   }
@@ -141,18 +195,18 @@ async function cmdBrief(opts) {
 
 /**
  * Where each file is told and finished, by the panel's own rules: a chapter tells a file by listing it or by pointing
- * at its lines in its text (packages/bridge/src/stories/text-refs.mjs), and finishes it when it's the last chapter to tell it or
+ * at its lines in its text (packages/bridge/src/stories/text-refs.ts), and finishes it when it's the last chapter to tell it or
  * the newest "Since you read it" chapter that lists it (finishedInOf).
  */
-function buildMap(plan, diff) {
+function buildMap(plan: Plan, diff: Map<string, DiffFile>) {
   const rels = [...diff.keys()];
   const chapters = addTextRefs(chaptersOf(plan), rels);
   const finishedIn = finishedInOf(chapters);
-  const files = {};
+  const files: Record<string, MapFile> = {};
   for (const rel of rels) {
     files[rel] = { chapters: [], partial_in: [], finished_in: finishedIn[rel] ?? null };
   }
-  const problems = [];
+  const problems: string[] = [];
   chapters.forEach((chapter, i) => {
     const step = i + 1;
     for (const entry of chapter.files) {
@@ -194,7 +248,7 @@ function buildMap(plan, diff) {
 }
 
 /** The build's report of hunks no chapter tells, with the ways to fix it. */
-function hunksNotCovered(uncovered) {
+function hunksNotCovered(uncovered: UncoveredFile[]): string {
   const count = uncovered.reduce((sum, file) => sum + file.hunks.length, 0);
   const lines = uncovered.map((file) => `  - ${file.hunks.map((hunk) => hunk.ref).join(', ')}`);
   return [
@@ -205,10 +259,12 @@ function hunksNotCovered(uncovered) {
   ].join('\n');
 }
 
-async function cmdBuild(opts) {
-  const dir = opts.dir;
+async function cmdBuild(opts: CliOpts) {
+  const dir = opts.dir as string;
   const { pr, diff } = await load(dir);
-  const plan = await readJson(opts.chapters || path.join(dir, 'chapters.json'));
+  const plan = await readJson<Plan & { mode?: string }>(
+    (opts.chapters as string | undefined) || path.join(dir, 'chapters.json'),
+  );
   const chapters = plan.chapters || [];
   const map = buildMap(plan, diff);
   if (map.problems.length && !opts['allow-missing']) {
@@ -257,16 +313,16 @@ async function cmdBuild(opts) {
  * seconds. It also prints the story id, and the line that makes this session
  * the story's own listener. While the panel's Rebuild is pending for the story,
  * publish refuses chapters that change the ones it keeps or leave a file or
- * hunk untold, and keeps the drafts the new chapters dropped (packages/bridge/src/stories/rebuild.mjs).
+ * hunk untold, and keeps the drafts the new chapters dropped (packages/bridge/src/stories/rebuild.ts).
  */
-async function cmdPublish(opts) {
+async function cmdPublish(opts: CliOpts) {
   const dest = execFileSync(
     process.execPath,
     [
       path.join(REPO_ROOT, 'packages/bridge/bin/once-upon.ts'),
       'publish',
       '--dir',
-      path.resolve(opts.dir),
+      path.resolve(opts.dir as string),
       ...(opts['allow-uncovered'] ? ['--allow-uncovered'] : []),
     ],
     { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] },
@@ -278,20 +334,20 @@ async function cmdPublish(opts) {
   );
 }
 
-const COMMANDS = {
+const COMMANDS: Record<string, (opts: CliOpts) => Promise<void>> = {
   brief: cmdBrief,
   build: cmdBuild,
   publish: cmdPublish,
 };
 const { command, opts } = parseArgs(process.argv.slice(2));
-const run = COMMANDS[command];
+const run = COMMANDS[command as string];
 if (!run || !opts.dir) {
   process.stderr.write(
-    'usage: story.mjs <brief|build|publish> --dir <scratch-dir> [--no-bridge] [--allow-uncovered]\n',
+    'usage: story.ts <brief|build|publish> --dir <scratch-dir> [--no-bridge] [--allow-uncovered]\n',
   );
   process.exitCode = 1;
 } else {
-  run(opts).catch((err) => {
+  run(opts).catch((err: Error) => {
     process.stderr.write(`error: ${err.message}\n`);
     process.exitCode = 1;
   });

@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * /api/health, /api/status (the panel's status light and the PR pages'
  * listener check) and /api/prefs (settings kept across stories, such as Hide
@@ -9,27 +7,28 @@ import { readPrefs, writePrefs } from '../../config/settings.ts';
 import { storyRepo, REPO_RE } from '../../config/repos.ts';
 import { statusOf } from '../../listeners/listeners.ts';
 import { readMeta } from '../../stories/meta.ts';
+import type { ApiRoute, Call } from '../../types.ts';
 
 /** The status light: bridge, story, and a Claude session listening. */
-function status({ app, url, send }) {
+function status({ app, url, send }: Call) {
   // listeners are per repo, so this also works out the page's repo: the story's, or ?repo=
   const storyId = url.searchParams.get('story');
   const queryRepo = REPO_RE.test(url.searchParams.get('repo') || '')
     ? url.searchParams.get('repo')
     : null;
-  let story;
+  let story: string | null | undefined;
   let repo = queryRepo;
   if (storyId) {
     story = app.stories.dirOf(storyId) ? storyId : null;
     if (story) {
-      repo = storyRepo(readMeta(app.stories.dirOf(storyId))) || queryRepo;
+      repo = storyRepo(readMeta(app.stories.dirOf(storyId) as string)) || queryRepo;
     }
   }
   const { home, version } = app;
   return send(200, statusOf({ home, version, story, repo, extensionSeen: app.extensionSeen }));
 }
 
-export const statusRoutes = [
+export const statusRoutes: ApiRoute[] = [
   {
     path: '/api/health',
     handle: ({ app, send }) =>

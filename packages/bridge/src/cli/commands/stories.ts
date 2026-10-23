@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * Stories: list what the bridge can serve, make a local story over commits
  * (local), and publish a once-upon folder where the bridge finds it.
@@ -18,8 +16,30 @@ import { createLocalStory, slug } from '../../stories/local-story.ts';
 import { storyDirFor } from '../../stories/placement.ts';
 import { out } from '../output.ts';
 import { probe, serve } from './bridge.ts';
+import type { Build } from '../../inbox/builds.ts';
+import type { Plan } from '../../stories/chapters.ts';
+import type { Config } from '../../config/settings.ts';
+import type { CliOpts, Command, StoryMeta } from '../../types.ts';
 
-function list(home) {
+/** A rebuild that's being published: its request, the chapters before and after, and the drafts carried over. */
+type Rebuilt = {
+  build: Build;
+  before: Plan;
+  after: Plan;
+  counts: { carried: number; unmapped: number };
+};
+
+/** once-upon's pr.json: just what publish reads. */
+interface PrJson {
+  url?: string;
+  number?: number;
+  title?: string;
+  headRefOid?: string;
+  baseRefOid?: string;
+  headRefName?: string;
+}
+
+function list(home: string) {
   const store = new StoryStore({ home });
   for (const story of store.list()) {
     out(
@@ -29,26 +49,25 @@ function list(home) {
 }
 
 /** The story's pending rebuild request, or null. */
-function pendingRebuild(builds, id, meta) {
+function pendingRebuild(builds: Builds, id: string, meta: StoryMeta): Build | null {
   const build = builds.rebuildOf(id, meta);
   return build && build.status === 'pending' ? build : null;
 }
 
-async function local(home, cfg, opts) {
+async function local(home: string, cfg: Config, opts: CliOpts) {
   if (!opts.repo || !opts.base) {
     throw new Error('usage: once-upon local --repo DIR --base REF [--head REF] [--chapters FILE]');
   }
   const builds = new Builds(home);
-  /** @type {{build: object, before: object, after: object, counts: object} | null} */
-  let rebuilt = null;
+  let rebuilt = null as Rebuilt | null; // set by vet, when it publishes a rebuild
   const made = createLocalStory({
     home,
-    repo: path.resolve(opts.repo),
-    base: opts.base,
-    head: opts.head || 'HEAD',
-    chapters: opts.chapters,
-    id: opts.id,
-    title: opts.title,
+    repo: path.resolve(opts.repo as string),
+    base: opts.base as string,
+    head: (opts.head as string | undefined) || 'HEAD',
+    chapters: opts.chapters as string | undefined,
+    id: opts.id as string | undefined,
+    title: opts.title as string | undefined,
     // the panel's Rebuild asked for these chapters: they must keep what it keeps and tell the whole diff
     vet: ({ id, meta, diff, before, after }) => {
       const build = pendingRebuild(builds, id, meta);
@@ -95,27 +114,27 @@ async function local(home, cfg, opts) {
   }
 }
 
-function publish(home, cfg, opts) {
+function publish(home: string, cfg: Config, opts: CliOpts) {
   if (!opts.dir) {
     throw new Error('usage: once-upon publish --dir <once-upon folder>');
   }
-  const source = path.resolve(opts.dir);
-  const pr = readJson(path.join(source, 'pr.json'), null);
+  const source = path.resolve(opts.dir as string);
+  const pr = readJson<PrJson>(path.join(source, 'pr.json'), null);
   const repo = pr && pr.url ? pr.url.split('/').slice(3, 5).join('/') : null;
-  if (!repo || !pr.number) {
+  if (!repo || !pr!.number) {
     throw new Error(`${source} doesn't say which PR it is (no pr.json naming it)`);
   }
-  const id = opts.id || slug(`${repo.replace('/', '-')}-${pr.number}`);
+  const prJson = pr as PrJson & { number: number }; // named above
+  const id = (opts.id as string | undefined) || slug(`${repo.replace('/', '-')}-${prJson.number}`);
   const builds = new Builds(home);
-  const meta = { kind: 'github', repo, number: pr.number };
+  const meta: StoryMeta = { kind: 'github', repo, number: prJson.number };
   const rebuild = pendingRebuild(builds, id, meta);
   // a rebuild the panel asked for: what was published before, checked against and carried into the new chapters
-  /** @type {{build: object, before: object, after: object, counts: object} | null} */
-  let rebuilt = null;
+  let rebuilt: Rebuilt | null = null;
   if (rebuild) {
     const served = new StoryStore({ home }).dirOf(id);
-    const before = (served && readJson(path.join(served, 'chapters.json'), null)) || {};
-    const after = readJson(path.join(source, 'chapters.json'), null);
+    const before = (served && readJson<Plan>(path.join(served, 'chapters.json'), null)) || {};
+    const after = readJson<Plan>(path.join(source, 'chapters.json'), null);
     if (!after || !existsSync(path.join(source, 'pr.diff'))) {
       throw new Error(`${source} needs chapters.json and pr.diff to publish a rebuild`);
     }
@@ -141,12 +160,12 @@ function publish(home, cfg, opts) {
       {
         kind: 'github',
         repo,
-        number: pr.number,
-        url: pr.url,
-        pr_title: pr.title || null,
-        head_oid: pr.headRefOid || null, // the commit the story was told from
-        base_oid: pr.baseRefOid || null,
-        head_ref: pr.headRefName || null, // the PR's branch, where a fix request's change goes
+        number: prJson.number,
+        url: prJson.url,
+        pr_title: prJson.title || null,
+        head_oid: prJson.headRefOid || null, // the commit the story was told from
+        base_oid: prJson.baseRefOid || null,
+        head_ref: prJson.headRefName || null, // the PR's branch, where a fix request's change goes
         source,
         published_at: new Date().toISOString(),
       },
@@ -160,16 +179,16 @@ function publish(home, cfg, opts) {
     process.stderr.write(`${note}\n`);
   }
   // the story is here, so a Build story or Update request for the PR is done, and a rebuild with it published again
-  builds.settle(repo, pr.number, {
+  builds.settle(repo, prJson.number, {
     story: id,
-    head: pr.headRefOid || null,
+    head: prJson.headRefOid || null,
     published: true,
     note,
   });
   out(dest);
 }
 
-export const storyCommands = [
+export const storyCommands: Command[] = [
   {
     name: 'list',
     usage: [

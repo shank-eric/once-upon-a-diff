@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /**
  * Where stories live: in a hidden .once-upon/ folder inside the repo's own
  * checkout, kept out of git by that repo's .git/info/exclude (local-only and
@@ -26,14 +24,14 @@ import { readJson, writeJson } from '../util/json-file.ts';
 
 export const STORY_FOLDER = '.once-upon';
 const EXCLUDE_LINE = `/${STORY_FOLDER}/`;
-const git = (dir, args) =>
+const git = (dir: string, args: string[]): string =>
   execFileSync('git', ['-C', dir, ...args], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'ignore'],
   }).trim();
 
 /** The main checkout of the repo dir is in (for a worktree, the checkout its .git belongs to), or dir itself. */
-export function mainCheckout(dir) {
+export function mainCheckout(dir: string): string {
   try {
     const common = git(dir, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
     if (path.basename(common) === '.git') {
@@ -46,7 +44,7 @@ export function mainCheckout(dir) {
 }
 
 /** Keep .once-upon/ out of git for this checkout and all its worktrees: one line in the common .git/info/exclude. */
-export function excludeStories(dir) {
+export function excludeStories(dir: string): boolean {
   let common;
   try {
     common = git(dir, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
@@ -81,11 +79,11 @@ export function excludeStories(dir) {
 }
 
 // ---------- the index
-const indexFile = (home) => path.join(home, 'stories.json');
-export function readIndex(home) {
-  return readJson(indexFile(home), {}) || {};
+const indexFile = (home: string) => path.join(home, 'stories.json');
+export function readIndex(home: string): Record<string, string> {
+  return readJson<Record<string, string>>(indexFile(home), {}) || {};
 }
-export function indexStory(home, id, dir) {
+export function indexStory(home: string, id: string, dir: string): void {
   const all = readIndex(home);
   if (all[id] === dir) {
     return;
@@ -96,9 +94,14 @@ export function indexStory(home, id, dir) {
 }
 
 /** The folder a new story goes in: <checkout>/.once-upon/<id>, made and excluded, or <home>/<id>. */
-export function storyDirFor(home, id, { checkout = null, repo = null } = {}) {
+export function storyDirFor(
+  home: string,
+  id: string,
+  { checkout = null, repo = null }: { checkout?: string | null; repo?: string | null } = {},
+): string {
   const top =
-    checkout || (repo ? checkoutFor(home, repo) && mainCheckout(checkoutFor(home, repo)) : null);
+    checkout ||
+    (repo ? checkoutFor(home, repo) && mainCheckout(checkoutFor(home, repo) as string) : null);
   if (top && existsSync(top) && excludeStories(top)) {
     const dir = path.join(top, STORY_FOLDER, id);
     mkdirSync(dir, { recursive: true });

@@ -1,13 +1,14 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /** Unified diff parsing (the same shape once-upon uses) and GitHub's file anchors. */
 import { createHash } from 'node:crypto';
+import type { DiffFile, DiffHunk } from '@once-upon-a-diff/shared/types';
+
+export type { DiffFile, DiffHunk };
 
 /** GitHub's "Files changed" anchor for a file is diff- + the sha256 of its path. */
-export const pathSha = (rel) => createHash('sha256').update(rel).digest('hex');
+export const pathSha = (rel: string): string => createHash('sha256').update(rel).digest('hex');
 
 /** The diff file a path names: the path itself, or the one file it's a suffix of (`Combobox/component.tsx`). */
-export function relOfPath(name, rels) {
+export function relOfPath(name: string | null | undefined, rels: string[]): string | null {
   const wanted = String(name || '')
     .trim()
     .replace(/^\.\//, '');
@@ -21,21 +22,12 @@ export function relOfPath(name, rels) {
   return hits.length === 1 ? hits[0] : null;
 }
 
-/**
- * @typedef {{rel: string, kind: string, stats: {added: number, removed: number}, hunks: object[],
- *   renamed_from?: string, binary?: boolean, hash?: string}} DiffFile
- */
-
-/**
- * Unified diff -> Map(rel -> DiffFile).
- * @returns {Map<string, DiffFile>}
- */
-export function parseUnifiedDiff(text) {
-  const files = new Map();
-  /** @type {DiffFile | null} */
-  let cur = null;
-  let hunk = null;
-  let raw = [];
+/** Unified diff -> Map(rel -> DiffFile). */
+export function parseUnifiedDiff(text: string): Map<string, DiffFile> {
+  const files = new Map<string, DiffFile>();
+  let cur: DiffFile | null = null;
+  let hunk: DiffHunk | null = null;
+  let raw: string[] = [];
   const close = () => {
     if (cur) {
       cur.hash = createHash('sha1').update(raw.join('\n')).digest('hex').slice(0, 16);

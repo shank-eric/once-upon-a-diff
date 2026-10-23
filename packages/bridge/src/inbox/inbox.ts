@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /**
  * The inbox: one JSONL file every reader can tail. The bridge appends
  * questions and fix-before-push notes from the panel, and the
@@ -29,18 +27,113 @@ import {
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { readJson } from '../util/json-file.ts';
+import type { LocalNote } from '@once-upon-a-diff/shared/types';
 
-export const newId = (prefix) =>
+/** What every inbox line has, and what a story's ref adds (StoryRef). */
+interface EntryBase {
+  id: string;
+  at: string;
+  story?: string;
+  kind?: string;
+  title?: string | null;
+  repo?: string | null;
+}
+
+export interface QuestionEntry extends EntryBase {
+  type: 'question';
+  story: string;
+  step: number | null;
+  chapter: string | null;
+  file: string | null;
+  text: string;
+  url?: string | null;
+}
+
+export interface AnswerEntry extends EntryBase {
+  type: 'answer';
+  question: string;
+  text: string;
+  by?: string;
+}
+
+export interface NoteEntry extends EntryBase {
+  type: 'note';
+  action: 'added' | 'updated' | 'deleted';
+  from_draft?: boolean;
+  note: LocalNote;
+}
+
+export interface FixEntry extends EntryBase {
+  type: 'fix';
+  action: 'sent' | 'fixed' | 'failed';
+  request: string;
+  notes: string[];
+  to?: string | null;
+  sha?: string | null;
+  by?: string | null;
+}
+
+export interface ReadEntry extends EntryBase {
+  type: 'read';
+  chapter: string;
+  step: number | null;
+  title: string | null;
+  head_sha: string | null;
+  story_head: string | null;
+  reason: string;
+}
+
+export interface ReviewCommentEntry extends EntryBase {
+  type: 'review_comment';
+  chapter: number | null;
+  path: string;
+  line: number;
+  url?: string | null;
+  started?: boolean;
+}
+
+export interface CommentEntry extends EntryBase {
+  type: 'comment';
+  chapter: number;
+  comment: unknown;
+}
+
+/** One line of inbox.jsonl. */
+export type InboxEntry =
+  | QuestionEntry
+  | AnswerEntry
+  | NoteEntry
+  | FixEntry
+  | ReadEntry
+  | ReviewCommentEntry
+  | CommentEntry;
+
+/** A question with its answers, as the panel and the CLI take it. */
+export interface QuestionWithAnswers {
+  id: string;
+  at: string;
+  story: string;
+  step: number | null;
+  chapter: string | null;
+  file: string | null;
+  text: string;
+  answers: { id: string; at: string; text: string; by: string | null }[];
+}
+
+export const newId = (prefix: string): string =>
   `${prefix}_${Date.now().toString(36)}${randomBytes(3).toString('hex')}`;
 
 export class Inbox {
-  constructor(home) {
+  declare home: string;
+  declare file: string;
+  constructor(home: string) {
     this.home = home;
     this.file = path.join(home, 'inbox.jsonl');
     mkdirSync(home, { recursive: true });
   }
 
-  append(entry) {
+  /** Appends the entry with an id (unless it has one) and the time. */
+  append<E extends { type: string; id?: string }>(entry: E): E & { id: string; at: string } {
     const full = {
       id: entry.id || newId(entry.type ? entry.type[0] : 'e'),
       at: new Date().toISOString(),
@@ -51,7 +144,7 @@ export class Inbox {
   }
 
   /** Entries from byte `offset` on: {entries, offset} where offset is where the next read starts. */
-  readFrom(offset = 0) {
+  readFrom(offset = 0): { entries: InboxEntry[]; offset: number } {
     if (!existsSync(this.file)) {
       return { entries: [], offset: 0 };
     }
@@ -71,7 +164,7 @@ export class Inbox {
     }
     const text = buf.toString('utf8');
     const end = text.lastIndexOf('\n') + 1; // leave a half-written last line for next time
-    const entries = [];
+    const entries: InboxEntry[] = [];
     for (const line of text.slice(0, end).split('\n')) {
       if (!line.trim()) {
         continue;
@@ -85,14 +178,14 @@ export class Inbox {
     return { entries, offset: offset + Buffer.byteLength(text.slice(0, end)) };
   }
 
-  all() {
+  all(): InboxEntry[] {
     return this.readFrom(0).entries;
   }
 
   /** Questions for a story, oldest first, each with its answers. */
-  questions(story) {
-    const byId = new Map();
-    const answers = [];
+  questions(story?: string | null): QuestionWithAnswers[] {
+    const byId = new Map<string, QuestionWithAnswers>();
+    const answers: AnswerEntry[] = [];
     for (const e of this.all()) {
       if (e.type === 'question' && (!story || e.story === story)) {
         byId.set(e.id, {
@@ -111,7 +204,7 @@ export class Inbox {
     }
     for (const answer of answers) {
       if (byId.has(answer.question)) {
-        byId.get(answer.question).answers.push({
+        byId.get(answer.question)!.answers.push({
           id: answer.id,
           at: answer.at,
           text: answer.text,
@@ -122,22 +215,22 @@ export class Inbox {
     return [...byId.values()];
   }
 
-  cursorFile(consumer) {
+  cursorFile(consumer: string | null | undefined): string {
     const safe = String(consumer || 'default').replace(/[^A-Za-z0-9._-]/g, '_');
     mkdirSync(path.join(this.home, 'cursors'), { recursive: true });
     return path.join(this.home, 'cursors', `${safe}.json`);
   }
-  getCursor(consumer) {
-    return readJson(this.cursorFile(consumer), {})?.offset || 0;
+  getCursor(consumer: string | null | undefined): number {
+    return readJson<{ offset?: number }>(this.cursorFile(consumer), {})?.offset || 0;
   }
-  setCursor(consumer, offset) {
+  setCursor(consumer: string | null | undefined, offset: number): void {
     writeFileSync(
       this.cursorFile(consumer),
       JSON.stringify({ offset, at: new Date().toISOString() }),
     );
   }
   /** What `consumer` hasn't read yet. `advance` moves its cursor past it. */
-  unread(consumer, { advance = false } = {}) {
+  unread(consumer: string | null | undefined, { advance = false } = {}): InboxEntry[] {
     const { entries, offset } = this.readFrom(this.getCursor(consumer));
     if (advance) {
       this.setCursor(consumer, offset);

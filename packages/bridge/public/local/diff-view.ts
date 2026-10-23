@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * The diff, drawn with the same DOM shapes as GitHub's /changes page (file
  * regions with id diff-<sha256(path)>, line cells with data-line-anchor, a
@@ -9,25 +7,37 @@
  */
 import { splitRows } from '/assets/split.ts';
 import { highlightFile, LIMITS } from '/assets/syntax.ts';
-import { html, raw } from '/assets/util/html.ts';
+import { html, raw, type Html } from '/assets/util/html.ts';
 import { plural } from '/assets/util/text.ts';
 import { page } from './page.ts';
+import type { DiffHunk, LocalFile, LocalStory, Side } from '/assets/types.ts';
+import type { SplitHalf } from '/assets/split.ts';
+
+/** A file's highlighted lines: per hunk, per line HTML (null for a line drawn plain), or null for a plain file. */
+type Highlights = (string | null)[][] | null;
+
+/** A folder in the file tree. */
+interface TreeNode {
+  name?: string;
+  dirs: Map<string, TreeNode>;
+  files: string[];
+}
 
 export const isSplit = () => !!page.story && page.story.local.diff_view === 'split';
 /** How many columns a row spans. */
 export const columnCount = () => (isSplit() ? 4 : 3);
 
 // ---------- syntax highlighting (highlight.js, vendored and served by the bridge; the page works without it)
-const highlightCache = new Map(); // rel|hash|whitespace -> per hunk, per line HTML (or null: drawn plain)
+const highlightCache = new Map<string, Highlights>(); // rel|hash|whitespace -> per hunk, per line HTML (or null: drawn plain)
 let highlightBudget = 0;
 /** Starts a new page's highlighting budget (a redraw). */
 export const resetHighlightBudget = () => {
   highlightBudget = 0;
 };
-function highlighted(file) {
+function highlighted(file: LocalFile): Highlights {
   const key = `${file.rel}|${file.hash}|${page.story.local.hide_whitespace}`;
   if (highlightCache.has(key)) {
-    return highlightCache.get(key);
+    return highlightCache.get(key) as Highlights;
   }
   const lines = file.hunks.reduce((sum, hunk) => sum + hunk.lines.length, 0);
   if (highlightBudget + lines > LIMITS.pageLines) {
@@ -39,14 +49,14 @@ function highlighted(file) {
   return lineHtml;
 }
 /** A line's code: its highlighted HTML (highlight.js escapes the text) when there is some, else the text. */
-const codeHtml = (highlights, hunkIndex, lineIndex, text) =>
+const codeHtml = (highlights: Highlights, hunkIndex: number, lineIndex: number, text: string) =>
   highlights && highlights[hunkIndex] && highlights[hunkIndex][lineIndex] != null
     ? raw(highlights[hunkIndex][lineIndex])
     : text;
 
 /** The file tree, with single-folder chains folded into one row as GitHub does. */
-export function treeHtml(rels) {
-  const root = { dirs: new Map(), files: [] };
+export function treeHtml(rels: string[]) {
+  const root: TreeNode = { dirs: new Map(), files: [] };
   for (const rel of rels) {
     const parts = rel.split('/');
     let node = root;
@@ -55,17 +65,17 @@ export function treeHtml(rels) {
       if (!node.dirs.has(key)) {
         node.dirs.set(key, { name: parts[i], dirs: new Map(), files: [] });
       }
-      node = node.dirs.get(key);
+      node = node.dirs.get(key) as TreeNode;
     }
     node.files.push(rel);
   }
   // the indent is computed from the depth, so it stays an inline style
-  const indent = (depth) => `padding-left:${8 + depth * 12}px`;
-  const draw = (node, depth) => {
+  const indent = (depth: number) => `padding-left:${8 + depth * 12}px`;
+  const draw = (node: TreeNode, depth: number): Html[][] => {
     const dirs = [...node.dirs].sort().map(([key, dir]) => {
       let folderKey = key;
       let folder = dir;
-      let label = dir.name;
+      let label = dir.name as string;
       while (folder.files.length === 0 && folder.dirs.size === 1) {
         const [nextKey, nextFolder] = [...folder.dirs][0];
         folderKey = nextKey;
@@ -85,15 +95,15 @@ export function treeHtml(rels) {
   return html`${draw(root, 0)}`;
 }
 
-const numberCell = (file, side, number, extra = '') =>
+const numberCell = (file: LocalFile, side: Side, number: number, extra = '') =>
   html`<td class="ou-local-num${extra}" data-line-anchor="diff-${file.sha}${side}${number}" data-side="${side}" data-line="${number}" title="Add a fix-before-push note">${number}</td>`;
 const SIGN = { ctx: ' ', del: '-', add: '+' };
-const hunkHeader = (hunk) =>
+const hunkHeader = (hunk: DiffHunk) =>
   `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@ ${hunk.header || ''}`;
 
 /** GitHub's split view: four cells a row, old on the left and new on the right, the same line anchors as unified. */
-function splitHtml(file) {
-  const rows = [];
+function splitHtml(file: LocalFile) {
+  const rows: Html[] = [];
   const highlights = highlighted(file);
   file.hunks.forEach((hunk, hunkIndex) => {
     rows.push(
@@ -106,7 +116,7 @@ function splitHtml(file) {
         );
         continue;
       }
-      const half = (side, cell, right) => {
+      const half = (side: Side, cell: SplitHalf | null | undefined, right: boolean) => {
         const rightNumber = right ? ' ou-local-rnum' : '';
         if (!cell) {
           return html`<td class="ou-local-num ou-local-n-empty${rightNumber}"></td><td class="ou-local-code ou-local-c-empty"></td>`;
@@ -123,8 +133,8 @@ function splitHtml(file) {
   return rows;
 }
 
-function unifiedHtml(file) {
-  const rows = [];
+function unifiedHtml(file: LocalFile) {
+  const rows: Html[] = [];
   const highlights = highlighted(file);
   file.hunks.forEach((hunk, hunkIndex) => {
     rows.push(
@@ -138,7 +148,7 @@ function unifiedHtml(file) {
         sign === ' ' || sign === '-' || sign === '+'
           ? codeHtml(highlights, hunkIndex, i, line.slice(1))
           : line.slice(1);
-      const cell = (side, number) => numberCell(file, side, number);
+      const cell = (side: Side, number: number) => numberCell(file, side, number);
       if (sign === ' ') {
         rows.push(
           html`<tr class="ou-local-line ou-local-ctx">${cell('L', oldLine)}${cell('R', newLine)}<td class="ou-local-code"><span class="ou-local-sign"> </span>${text}</td></tr>`,
@@ -165,7 +175,7 @@ function unifiedHtml(file) {
   return rows;
 }
 
-function rowsHtml(file) {
+function rowsHtml(file: LocalFile) {
   if (file.binary) {
     return html`<tr class="ou-local-info"><td colspan="${columnCount()}">Binary file</td></tr>`;
   }
@@ -184,14 +194,14 @@ const columnsHtml = () =>
     ? html`<col class="ou-local-col-num"><col><col class="ou-local-col-num"><col>`
     : html`<col class="ou-local-col-num"><col class="ou-local-col-num"><col>`;
 
-function kindOf(file) {
+function kindOf(file: LocalFile) {
   if (file.kind === 'renamed' && file.renamed_from) {
     return `renamed from ${file.renamed_from}`;
   }
   return file.kind === 'modified' ? '' : file.kind;
 }
 
-export function fileHtml(file) {
+export function fileHtml(file: LocalFile) {
   const kind = kindOf(file);
   return html`<div class="ou-local-file-wrap"><section role="region" class="ou-local-file${file.viewed && ' ou-local-folded'}" id="diff-${file.sha}" data-path="${file.rel}" aria-label="${file.rel}">
     <header class="ou-local-file-head">
@@ -207,11 +217,11 @@ export function fileHtml(file) {
   </section></div>`;
 }
 
-/** "repo · base abc1234 → head def5678 · branch" */
-const rangeHtml = (local) =>
-  html`${local.repo} · <code>${local.base}</code> ${local.base_oid.slice(0, 9)} → <code>${local.head}</code> ${local.head_oid.slice(0, 9)}${local.branch && ` · ${local.branch}`}`;
+/** "repo · base abc1234 → head def5678 · branch". The page is drawn once the bridge has made the diff, so both commits are known. */
+const rangeHtml = (local: LocalStory) =>
+  html`${local.repo} · <code>${local.base}</code> ${local.base_oid!.slice(0, 9)} → <code>${local.head}</code> ${local.head_oid!.slice(0, 9)}${local.branch && ` · ${local.branch}`}`;
 /** "3 commits · 4 files +10 −2" */
-const sizeHtml = (local, added, removed) =>
+const sizeHtml = (local: LocalStory, added: number, removed: number) =>
   html`${plural(local.commits.length, 'commit')} · ${plural(local.files.length, 'file')} <span class="ou-local-plus">+${added}</span> <span class="ou-local-minus">−${removed}</span>`;
 
 const WS_TITLE =

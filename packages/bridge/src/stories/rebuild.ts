@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * Rebuilding a story the reviewer already has: the panel's "Rebuild story"
  * (mode 'rebuild', the whole story re-told on the current diff) and "Rebuild
@@ -29,33 +27,41 @@ import { moveQuestions } from '../inbox/conversation.ts';
 import { addTextRefs } from './text-refs.ts';
 import { uncoveredHunks, sidesOf } from './hunk-coverage.ts';
 import { relOfPath } from '../util/diff.ts';
+import type { DiffFile } from '@once-upon-a-diff/shared/types';
+import type { Plan, PlanChapter } from './chapters.ts';
+import type { Reads } from './reads.ts';
+
+/** What a rebuild's rules read of its request. */
+type RebuildAskFields = { mode?: string; from_step?: number | null };
+type PlanComment = NonNullable<PlanChapter['comments']>[number];
 
 export const REBUILD_MODES = ['rebuild', 'rebuild_from'];
-export const isRebuild = (build) => !!build && REBUILD_MODES.includes(build.mode);
+export const isRebuild = (build: { mode?: string } | null | undefined): boolean =>
+  !!build && REBUILD_MODES.includes(build.mode as string);
 
 /** The first step a rebuild re-tells: from_step for rebuild_from, 1 for a whole rebuild. */
-export const firstRetold = (build) =>
+export const firstRetold = (build: RebuildAskFields | null | undefined): number =>
   build && build.mode === 'rebuild_from' && Number(build.from_step) > 1
     ? Number(build.from_step)
     : 1;
 
 /** JSON with sorted keys, so two chapters compare by content whatever order their keys were written in. */
-function canonical(value) {
+function canonical(value: unknown): string {
   if (Array.isArray(value)) {
     return `[${value.map(canonical).join(',')}]`;
   }
   if (value && typeof value === 'object') {
     return `{${Object.keys(value)
       .sort()
-      .map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`)
+      .map((key) => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`)
       .join(',')}}`;
   }
   return JSON.stringify(value ?? null);
 }
 
 /** The kept chapters (1..from-1) that the new plan changed or lost: problem lines. */
-function keptChapterProblems(before, after, from) {
-  const problems = [];
+function keptChapterProblems(before: Plan, after: Plan, from: number): string[] {
+  const problems: string[] = [];
   const old = (before.chapters || []).slice(0, from - 1);
   const now = after.chapters || [];
   old.forEach((chapter, i) => {
@@ -76,11 +82,15 @@ function keptChapterProblems(before, after, from) {
 }
 
 /** Placement and hunk coverage over the whole story: problem lines. */
-function coverageProblems(after, diff, { allowUncovered = false } = {}) {
+function coverageProblems(
+  after: Plan,
+  diff: Map<string, DiffFile>,
+  { allowUncovered = false } = {},
+): string[] {
   const rels = [...diff.keys()];
   const chapters = addTextRefs(chaptersOf(after), rels);
-  const problems = [];
-  const placed = new Set();
+  const problems: string[] = [];
+  const placed = new Set<string>();
   chapters.forEach((chapter, i) => {
     for (const entry of chapter.files) {
       if (!diff.has(entry.rel)) {
@@ -103,13 +113,16 @@ function coverageProblems(after, diff, { allowUncovered = false } = {}) {
 }
 
 /**
- * Why a rebuild can't be published as it is: [] when it can.
- * @param {object} build the pending request ({mode, from_step})
- * @param {object} before chapters.json as published before the rebuild
- * @param {object} after the new chapters.json
- * @param {Map<string, import('../util/diff.ts').DiffFile>} diff the diff the story tells now
+ * Why a rebuild can't be published as it is: [] when it can. build is the pending request ({mode, from_step}), before
+ * chapters.json as published before the rebuild, after the new one, and diff the diff the story tells now.
  */
-export function rebuildProblems(build, before, after, diff, { allowUncovered = false } = {}) {
+export function rebuildProblems(
+  build: RebuildAskFields,
+  before: Plan,
+  after: Plan,
+  diff: Map<string, DiffFile>,
+  { allowUncovered = false } = {},
+): string[] {
   const from = firstRetold(build);
   return [
     ...(from > 1 ? keptChapterProblems(before, after, from) : []),
@@ -117,12 +130,13 @@ export function rebuildProblems(build, before, after, diff, { allowUncovered = f
   ];
 }
 
-const isGeneral = (comment) => !(Number(comment.line) > 0) || /^\(/.test(comment.path || '');
-const commentId = (comment) =>
+const isGeneral = (comment: PlanComment) =>
+  !(Number(comment.line) > 0) || /^\(/.test(comment.path || '');
+const commentId = (comment: PlanComment) =>
   `${comment.path || ''}\n${Number(comment.line) || 0}\n${String(comment.body || '').trim()}`;
 
 /** Is the comment's line inside one of the file's hunks (context included), on its side? */
-function onDiffLine(file, comment) {
+function onDiffLine(file: DiffFile, comment: PlanComment): boolean {
   const side = comment.side === 'L' ? 'L' : 'R';
   const line = Number(comment.line);
   return file.hunks.some((hunk) => {
@@ -132,10 +146,20 @@ function onDiffLine(file, comment) {
 }
 
 /** The re-told chapter a comment belongs in now: index into after.chapters. */
-function homeOf(after, from, oldKey, rel, comment) {
-  const retold = after.chapters.map((chapter, index) => ({ chapter, index })).slice(from - 1);
-  const entriesOf = ({ chapter }) => (chapter.files || []).map(entryOf);
-  const lists = (candidate) => !!rel && entriesOf(candidate).some((entry) => entry.rel === rel);
+function homeOf(
+  after: Plan,
+  from: number,
+  oldKey: string,
+  rel: string | null,
+  comment: PlanComment,
+): number {
+  const retold = (after.chapters as PlanChapter[])
+    .map((chapter, index) => ({ chapter, index }))
+    .slice(from - 1);
+  type Retold = (typeof retold)[number];
+  const entriesOf = ({ chapter }: Retold) => (chapter.files || []).map(entryOf);
+  const lists = (candidate: Retold) =>
+    !!rel && entriesOf(candidate).some((entry) => entry.rel === rel);
   const sameKey = retold.find(({ chapter }) => chapterKeyOf(chapter) === oldKey);
   if (sameKey && (!rel || lists(sameKey))) {
     return sameKey.index;
@@ -167,15 +191,19 @@ function homeOf(after, from, oldKey, rel, comment) {
  * Keeps the drafts of the re-told chapters (from `from` on) that the new chapters dropped. Changes `after` in place.
  * A general draft, or a line draft whose line is still in the diff, is `carried` to the chapter that tells it now;
  * a line draft whose file or line has left the diff is kept too, `unmapped`, for the reviewer to check.
- * @returns {{carried: number, unmapped: number}}
  */
-export function carryDrafts(before, after, diff, from = 1) {
+export function carryDrafts(
+  before: Plan,
+  after: Plan,
+  diff: Map<string, DiffFile>,
+  from = 1,
+): { carried: number; unmapped: number } {
   const rels = [...diff.keys()];
   const present = new Set(
     (after.chapters || []).flatMap((chapter) => (chapter.comments || []).map(commentId)),
   );
   const counts = { carried: 0, unmapped: 0 };
-  if (!(after.chapters || []).length || after.chapters.length < from) {
+  if (!(after.chapters || []).length || (after.chapters as PlanChapter[]).length < from) {
     return counts;
   }
   for (const chapter of (before.chapters || []).slice(from - 1)) {
@@ -186,8 +214,10 @@ export function carryDrafts(before, after, diff, from = 1) {
       }
       present.add(id);
       const rel = isGeneral(comment) ? null : relOfPath(comment.path, rels);
-      const maps = isGeneral(comment) || (!!rel && onDiffLine(diff.get(rel), comment));
-      const target = after.chapters[homeOf(after, from, chapterKeyOf(chapter), rel, comment)];
+      const maps = isGeneral(comment) || (!!rel && onDiffLine(diff.get(rel) as DiffFile, comment));
+      const target = (after.chapters as PlanChapter[])[
+        homeOf(after, from, chapterKeyOf(chapter), rel, comment)
+      ];
       target.comments = Array.isArray(target.comments) ? target.comments : [];
       const { carried, unmapped, ...draft } = comment;
       target.comments.push({ ...draft, ...(maps ? { carried: true } : { unmapped: true }) });
@@ -201,11 +231,15 @@ export function carryDrafts(before, after, diff, from = 1) {
  * Where each question asked on a re-told chapter shows now: {<question id>: step}, 0 for the Overview (which shows
  * every question). The chapter with the same key while it still lists the question's file, else the first re-told
  * one that does, else the one with the same key.
- * @param {{id: string, step: number|null, file: string|null}[]} questions the story's questions
  */
-export function questionMoves(questions, before, after, from = 1) {
-  const moves = {};
-  const rels = (chapter) => (chapter.files || []).map((entry) => entryOf(entry).rel);
+export function questionMoves(
+  questions: { id: string; step: number | null; file: string | null }[],
+  before: Plan,
+  after: Plan,
+  from = 1,
+): Record<string, number> {
+  const moves: Record<string, number> = {};
+  const rels = (chapter: PlanChapter) => (chapter.files || []).map((entry) => entryOf(entry).rel);
   const now = (after.chapters || []).map((chapter, index) => ({ chapter, step: index + 1 }));
   for (const question of questions) {
     const step = Number(question.step);
@@ -214,7 +248,7 @@ export function questionMoves(questions, before, after, from = 1) {
     }
     const old = (before.chapters || [])[step - 1];
     const sameKey = old && now.find(({ chapter }) => chapterKeyOf(chapter) === chapterKeyOf(old));
-    const tellsFile = ({ chapter }) =>
+    const tellsFile = ({ chapter }: { chapter: PlanChapter }) =>
       rels(chapter).some(
         (rel) => rel === question.file || String(question.file).endsWith('/' + rel),
       );
@@ -233,8 +267,8 @@ export function questionMoves(questions, before, after, from = 1) {
  * The read records to set aside: the keys of chapters the rebuild re-told with a different set of files. A chapter
  * kept as it was, or re-told over the same files, keeps its read.
  */
-export function readsToRetire(reads, before, after) {
-  const filesOf = (chapter) =>
+export function readsToRetire(reads: Reads, before: Plan, after: Plan): string[] {
+  const filesOf = (chapter: PlanChapter) =>
     (chapter.files || [])
       .map((entry) => entryOf(entry).rel)
       .sort()
@@ -243,13 +277,16 @@ export function readsToRetire(reads, before, after) {
   return (after.chapters || [])
     .filter((chapter) => {
       const key = chapterKeyOf(chapter);
-      return reads[key] && (!old.has(key) || filesOf(old.get(key)) !== filesOf(chapter));
+      return reads[key] && (!old.has(key) || filesOf(old.get(key)!) !== filesOf(chapter));
     })
     .map(chapterKeyOf);
 }
 
 /** One line on what a rebuild kept, for the request's note and the panel. */
-export function rebuildNote(build, { carried = 0, unmapped = 0, moved = 0, retired = 0 } = {}) {
+export function rebuildNote(
+  build: RebuildAskFields,
+  { carried = 0, unmapped = 0, moved = 0, retired = 0 } = {},
+): string {
   const from = firstRetold(build);
   const what = from > 1 ? `Re-told from chapter ${from}` : 'Re-told the whole story';
   const parts = [
@@ -265,7 +302,13 @@ export function rebuildNote(build, { carried = 0, unmapped = 0, moved = 0, retir
  * Before a rebuild is published: refuses it (throws, with every problem) unless it keeps what it must and tells the
  * whole diff, then carries the dropped drafts into `after`. Returns the counts for afterRebuild.
  */
-export function vetRebuild(build, before, after, diff, { allowUncovered = false } = {}) {
+export function vetRebuild(
+  build: RebuildAskFields,
+  before: Plan,
+  after: Plan,
+  diff: Map<string, DiffFile>,
+  { allowUncovered = false } = {},
+): { carried: number; unmapped: number } {
   const problems = rebuildProblems(build, before, after, diff, { allowUncovered });
   if (problems.length) {
     throw new Error(`this rebuild can't be published:\n  - ${problems.join('\n  - ')}`);
@@ -277,7 +320,24 @@ export function vetRebuild(build, before, after, diff, { allowUncovered = false 
  * Once a rebuild is published: moves the questions asked on re-told chapters and sets aside the reads of chapters
  * re-told over other files. `stateKey` is where the story's read.json lives (stateKeyOf). Returns rebuildNote's line.
  */
-export function afterRebuild(home, { id, stateKey, build, before, after, counts }) {
+export function afterRebuild(
+  home: string,
+  {
+    id,
+    stateKey,
+    build,
+    before,
+    after,
+    counts,
+  }: {
+    id: string;
+    stateKey: string;
+    build: RebuildAskFields;
+    before: Plan;
+    after: Plan;
+    counts: { carried: number; unmapped: number };
+  },
+): string {
   const from = firstRetold(build);
   const moves = questionMoves(new Inbox(home).questions(id), before, after, from);
   moveQuestions(home, id, moves);

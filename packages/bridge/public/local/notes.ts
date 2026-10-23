@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * Fix-before-push notes: drawn under their line in the diff (or at the top
  * of the file when the diff doesn't draw that line), listed under the top
@@ -11,12 +9,13 @@ import { html } from '/assets/util/html.ts';
 import { insertHtml, setHtml } from '/assets/util/dom.ts';
 import { page, api, STORY_PATH } from './page.ts';
 import { columnCount } from './diff-view.ts';
+import type { LocalNote, Side } from '/assets/types.ts';
 
-const placeOf = (note) =>
+const placeOf = (note: LocalNote) =>
   `${note.path}${note.line ? `:${note.side === 'L' ? 'L' : ''}${note.line}` : ''}`;
 
 /** Where a note has got, once the panel's Fix before push sent it: '' for a draft. */
-function sentText(note) {
+function sentText(note: LocalNote) {
   if (note.fixed) {
     return `fixed in ${String(note.fixed.sha || '').slice(0, 7)}`;
   }
@@ -38,7 +37,7 @@ function notesListHtml() {
     <p class="ou-local-muted">Send them to a Claude session from the panel's Fix before push. Also in the terminal: <code>once-upon notes --story ${page.story.id}</code></p>`;
 }
 
-function noteRow(note, away) {
+function noteRow(note: LocalNote, away: boolean) {
   const awayNote =
     away &&
     html`<span class="ou-local-muted">on ${note.side === 'L' ? 'L' : ''}${note.line}, a line this diff doesn't draw${page.story.local.hide_whitespace && ' with whitespace hidden'}</span>`;
@@ -84,14 +83,15 @@ export function placeNotes() {
 }
 
 /** The note form under a line, opened from its line number (focused again if it's already open). */
-export function openEditor(cell) {
-  const row = cell.closest('tr');
+export function openEditor(cell: Element) {
+  // a line number cell, in its row, in its file's section
+  const row = cell.closest('tr') as HTMLTableRowElement;
   if (row.nextElementSibling && row.nextElementSibling.classList.contains('ou-local-note-edit')) {
-    return row.nextElementSibling.querySelector('textarea').focus();
+    return (row.nextElementSibling.querySelector('textarea') as HTMLTextAreaElement).focus();
   }
-  const side = cell.getAttribute('data-side');
+  const side = cell.getAttribute('data-side') as Side;
   const line = Number(cell.getAttribute('data-line'));
-  const rel = cell.closest('.ou-local-file').getAttribute('data-path');
+  const rel = (cell.closest('.ou-local-file') as Element).getAttribute('data-path') as string;
   insertHtml(
     row,
     'afterend',
@@ -100,8 +100,9 @@ export function openEditor(cell) {
     <textarea rows="3" placeholder="What to fix before pushing"></textarea>
     <div><button type="submit">Add note</button> <button type="button" data-editor-cancel>Cancel</button></div></form></td></tr>`,
   );
-  const form = row.nextElementSibling.querySelector('form');
-  const textarea = form.querySelector('textarea');
+  // the form just inserted after the row
+  const form = (row.nextElementSibling as Element).querySelector('form') as HTMLFormElement;
+  const textarea = form.querySelector('textarea') as HTMLTextAreaElement;
   textarea.focus();
   textarea.addEventListener('keydown', (event) => {
     if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
@@ -116,15 +117,20 @@ export function openEditor(cell) {
       return;
     }
     try {
-      const note = await api('POST', `${STORY_PATH}/notes`, { path: rel, side, line, body });
+      const note = await api<LocalNote>('POST', `${STORY_PATH}/notes`, {
+        path: rel,
+        side,
+        line,
+        body,
+      });
       page.story.local.notes.push(note);
-      form.closest('tr').remove();
+      (form.closest('tr') as HTMLTableRowElement).remove();
       placeNotes();
       if (page.overlay) {
         page.overlay.refreshFixes(); // the panel's Fix before push lists it (and says if Auto-send sent it)
       }
     } catch (err) {
-      alert(`Couldn't save the note: ${err.message}`);
+      alert(`Couldn't save the note: ${(err as Error).message}`);
     }
   });
 }

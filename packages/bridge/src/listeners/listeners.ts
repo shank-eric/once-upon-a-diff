@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /**
  * Is everything connected? Listener heartbeats, and the status the panel's light
  * shows.
@@ -11,7 +9,7 @@
  * waiting beat is under 15s old and its process is alive, or a handling beat
  * is under 10 minutes old. A beat also says what the wait covers: {repo} for
  * `wait --repo`, {story} for `wait --story`, neither for a wait that takes everything, and {fixes: true} when
- * it takes fix requests (../inbox/fixes.mjs).
+ * it takes fix requests (../inbox/fixes.ts).
  * A story's own listener answers its questions ahead of a repo's (answeringOf).
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -19,20 +17,53 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { sameRepo, checkoutFor, tilde } from '../config/repos.ts';
+import type { Answering } from '@once-upon-a-diff/shared/types';
+
+/** A listener's last heartbeat, <home>/listeners/<consumer>.json. */
+interface Beat {
+  consumer: string;
+  pid: number;
+  state: 'waiting' | 'handling';
+  at: string;
+  question?: string | null;
+  repo?: string | null;
+  story?: string | null;
+  builds?: boolean;
+  fixes?: boolean;
+}
+
+/** A listener as listeners() reads it: its last beat, and whether it's live. */
+export interface Listener {
+  consumer: string;
+  state: Beat['state'];
+  at: string;
+  age_s: number;
+  live: boolean;
+  question: string | null;
+  repo: string | null;
+  story: string | null;
+  builds: boolean;
+  fixes: boolean;
+}
 
 export const WAITING_FRESH_MS = 15000;
 export const HANDLING_FRESH_MS = 10 * 60 * 1000;
 
-const alive = (pid) => {
+const alive = (pid: number) => {
   try {
     process.kill(pid, 0);
     return true;
   } catch (e) {
-    return e.code === 'EPERM';
+    return (e as NodeJS.ErrnoException).code === 'EPERM';
   }
 };
 
-export function beat(home, consumer, state = 'waiting', extra = {}) {
+export function beat(
+  home: string,
+  consumer: string,
+  state: Beat['state'] = 'waiting',
+  extra: Partial<Beat> = {},
+): void {
   const dir = path.join(home, 'listeners');
   mkdirSync(dir, { recursive: true });
   const safe = String(consumer || 'default').replace(/[^A-Za-z0-9._-]/g, '_');
@@ -46,7 +77,7 @@ export function beat(home, consumer, state = 'waiting', extra = {}) {
  * A session still at work on what its wait handed it (`once-upon working`) keeps its handling beat fresh, so its
  * listener stays live past HANDLING_FRESH_MS. A waiting beat is left alone: that wait writes its own.
  */
-export function touchHandling(home, consumer) {
+export function touchHandling(home: string, consumer: string): void {
   const safe = String(consumer || 'default').replace(/[^A-Za-z0-9._-]/g, '_');
   const file = path.join(home, 'listeners', `${safe}.json`);
   try {
@@ -60,15 +91,15 @@ export function touchHandling(home, consumer) {
 }
 
 /** [{consumer, state, at, age_s, live}] newest first. */
-export function listeners(home, now = Date.now()) {
+export function listeners(home: string, now = Date.now()): Listener[] {
   const dir = path.join(home, 'listeners');
   if (!existsSync(dir)) {
     return [];
   }
-  const out = [];
+  const out: Listener[] = [];
   for (const name of readdirSync(dir).filter((name) => name.endsWith('.json'))) {
     try {
-      const beat = JSON.parse(readFileSync(path.join(dir, name), 'utf8'));
+      const beat: Beat = JSON.parse(readFileSync(path.join(dir, name), 'utf8'));
       const age = now - Date.parse(beat.at);
       const live =
         beat.state === 'handling'
@@ -94,7 +125,7 @@ export function listeners(home, now = Date.now()) {
 }
 
 /** Is cmd runnable as typed (a path that exists, or a name on PATH)? */
-export function onPath(cmd) {
+export function onPath(cmd: string | null | undefined): boolean {
   if (!cmd) {
     return false;
   }
@@ -110,11 +141,11 @@ export function onPath(cmd) {
 }
 
 const BIN = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../bin/once-upon.ts');
-const shq = (word) =>
+const shq = (word: string) =>
   /^[A-Za-z0-9_./:=@%+-]+$/.test(word) ? word : `'${String(word).replace(/'/g, "'\\''")}'`;
-let cliCache = null;
+let cliCache: boolean | null = null;
 /** How to run the CLI from a shell: `once-upon` when it's on PATH, else node and the script by full path. */
-export function cliCommand(found = cliCache ?? (cliCache = onPath('once-upon'))) {
+export function cliCommand(found: boolean = cliCache ?? (cliCache = onPath('once-upon'))): string {
   return found ? 'once-upon' : `${shq(process.execPath)} ${shq(BIN)}`;
 }
 
@@ -124,7 +155,11 @@ export function cliCommand(found = cliCache ?? (cliCache = onPath('once-upon')))
  * its Rebuild requests.
  */
 export function listenPrompt(
-  { repo = null, story = null, checkout = null } = {},
+  {
+    repo = null,
+    story = null,
+    checkout = null,
+  }: { repo?: string | null; story?: string | null; checkout?: string | null } = {},
   cli = cliCommand(),
 ) {
   let arg = '';
@@ -168,7 +203,10 @@ export function listenPrompt(
  * Who answers a story's questions now: a live listener for that story, else one for its repo, else a wait that
  * takes everything. {consumer, scope: 'story'|'repo'|'all'} or null. once-upon wait routes them the same way.
  */
-export function answeringOf(live, { repo = null, story = null } = {}) {
+export function answeringOf(
+  live: Pick<Listener, 'consumer' | 'repo' | 'story'>[],
+  { repo = null, story = null }: { repo?: string | null; story?: string | null } = {},
+): Answering | null {
   const forStory = story && live.find((listener) => listener.story === story);
   if (forStory) {
     return { consumer: forStory.consumer, scope: 'story' };
@@ -185,9 +223,12 @@ export function answeringOf(live, { repo = null, story = null } = {}) {
  * Is a Claude session listening for this page, and the prompt that starts one. A wait with no --repo or --story
  * covers everything, a --repo wait covers that repo's stories and PRs, and a --story wait that story.
  */
-export function listeningOf(home, { repo = null, story = null } = {}) {
+export function listeningOf(
+  home: string,
+  { repo = null, story = null }: { repo?: string | null; story?: string | null } = {},
+) {
   const all = listeners(home);
-  const covers = (listener) =>
+  const covers = (listener: Listener) =>
     (!listener.repo && !listener.story) ||
     (repo && sameRepo(listener.repo, repo)) ||
     (story && listener.story === story);
@@ -216,7 +257,19 @@ export function listeningOf(home, { repo = null, story = null } = {}) {
 }
 
 /** What the panel's status light shows. */
-export function statusOf({ home, version, story, repo = null, extensionSeen }) {
+export function statusOf({
+  home,
+  version,
+  story,
+  repo = null,
+  extensionSeen,
+}: {
+  home: string;
+  version: string;
+  story?: string | null;
+  repo?: string | null;
+  extensionSeen?: { at: string; origin: string } | null;
+}) {
   return {
     bridge: { ok: true, version },
     story: story === undefined ? null : { ok: !!story, id: story || null },

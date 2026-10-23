@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * Build requests from the terminal: list the pending ones and claim one as
  * it's built (builds), and finish one (done).
@@ -7,12 +5,14 @@
 import { formatTime, readerOf } from '../../config/settings.ts';
 import { Builds, updateOf } from '../../inbox/builds.ts';
 import { out } from '../output.ts';
+import type { Config } from '../../config/settings.ts';
+import type { CliOpts, Command } from '../../types.ts';
 
-function builds(home, cfg, opts) {
+function builds(home: string, cfg: Config, opts: CliOpts) {
   const requests = new Builds(home);
   if (opts.start) {
     // wait already claimed it; on a long build this keeps the claim fresh, so it isn't handed out again
-    const build = requests.claim(String(opts.start), opts.consumer || null);
+    const build = requests.claim(String(opts.start), (opts.consumer as string | undefined) || null);
     if (!build) {
       throw new Error(`no pending build request ${opts.start}`);
     }
@@ -42,8 +42,8 @@ function builds(home, cfg, opts) {
   }
 }
 
-function done(home, cfg, opts) {
-  const id = (opts._ || [])[0] || opts.id;
+function done(home: string, cfg: Config, opts: CliOpts) {
+  const id = (opts._ || [])[0] || (opts.id as string | undefined);
   if (!id) {
     throw new Error('usage: once-upon done <build id | owner/repo#N> [--failed] [--note TEXT]');
   }
@@ -59,7 +59,7 @@ function done(home, cfg, opts) {
   );
 }
 
-export const buildCommands = [
+export const buildCommands: Command[] = [
   {
     name: 'builds',
     usage: [

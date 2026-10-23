@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /**
  * Which GitHub repo a story, a checkout or a listener is about, and where the
  * bridge has seen a checkout of each repo. Listeners are scoped per repo
@@ -14,29 +12,30 @@ import os from 'node:os';
 import path from 'node:path';
 import { readSettings } from './settings.ts';
 import { readJson } from '../util/json-file.ts';
+import type { StoryMeta } from '../types.ts';
 
 export const REPO_RE = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
-export const sameRepo = (first, second) =>
+export const sameRepo = (first: unknown, second: unknown): boolean =>
   !!first && !!second && String(first).toLowerCase() === String(second).toLowerCase();
 
 /** owner/name from a GitHub remote URL (https or ssh), else null. */
-export function repoOfRemote(url) {
+export function repoOfRemote(url: string | null | undefined): string | null {
   const match = /github\.com[:/]([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/.exec(
     String(url || '').trim(),
   );
   return match ? `${match[1]}/${match[2]}` : null;
 }
 
-const byDir = new Map();
+const byDir = new Map<string, string | null>();
 /** The GitHub repo a checkout's origin points at, or null. Cached per process. */
-export function repoOfCheckout(dir) {
+export function repoOfCheckout(dir: string | null | undefined): string | null {
   if (!dir) {
     return null;
   }
   if (byDir.has(dir)) {
-    return byDir.get(dir);
+    return byDir.get(dir) as string | null;
   }
-  let repo = null;
+  let repo: string | null = null;
   try {
     repo = repoOfRemote(
       execFileSync('git', ['-C', dir, 'remote', 'get-url', 'origin'], {
@@ -52,7 +51,7 @@ export function repoOfCheckout(dir) {
 }
 
 /** A story's repo: a PR story's own, or a local story's checkout's origin. */
-export function storyRepo(meta) {
+export function storyRepo(meta: StoryMeta | null | undefined): string | null {
   if (!meta) {
     return null;
   }
@@ -62,11 +61,15 @@ export function storyRepo(meta) {
   return meta.repo || null;
 }
 
-const file = (home) => path.join(home, 'checkouts.json');
-const readAll = (home) => readJson(file(home), {}) || {};
+const file = (home: string) => path.join(home, 'checkouts.json');
+const readAll = (home: string) => readJson<Record<string, string>>(file(home), {}) || {};
 
 /** Note where a repo's checkout is (from a local story, or a listener's working folder). */
-export function seenCheckout(home, repo, dir) {
+export function seenCheckout(
+  home: string,
+  repo: string | null | undefined,
+  dir: string | null | undefined,
+): void {
   if (!repo || !dir || !REPO_RE.test(repo)) {
     return;
   }
@@ -87,11 +90,13 @@ export function seenCheckout(home, repo, dir) {
 /**
  * Where to work on a repo: the checkout the bridge has seen, else <dir>/<name> for each of config.json's
  * checkout_dirs (default ~/Development) when its origin is that repo, else null. ONCE_UPON_DEV_DIR overrides them.
- * @param {string} home
- * @param {string | null} repo
- * @param {{dev?: string}} [opts] a checkout folder to look in instead
+ * dev: a checkout folder to look in instead.
  */
-export function checkoutFor(home, repo, { dev } = {}) {
+export function checkoutFor(
+  home: string,
+  repo: string | null | undefined,
+  { dev }: { dev?: string } = {},
+): string | null {
   if (!repo) {
     return null;
   }
@@ -110,5 +115,5 @@ export function checkoutFor(home, repo, { dev } = {}) {
 }
 
 /** ~ for the home folder, so the prompt reads well. */
-export const tilde = (dir) =>
+export const tilde = (dir: string): string =>
   dir && dir.startsWith(os.homedir() + path.sep) ? `~${dir.slice(os.homedir().length)}` : dir;
