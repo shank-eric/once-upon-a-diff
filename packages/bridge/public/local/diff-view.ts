@@ -10,6 +10,7 @@ import { highlightFile, LIMITS } from '/assets/syntax.ts';
 import { html, raw, type Html } from '/assets/util/html.ts';
 import { plural } from '/assets/util/text.ts';
 import { page } from './page.ts';
+import { prButtonHtml } from './pull-request.ts';
 import type { DiffHunk, LocalFile, LocalStory, Side } from '/assets/types.ts';
 import type { SplitHalf } from '/assets/split.ts';
 
@@ -244,6 +245,7 @@ export function headerHtml() {
     <div class="ou-local-view" role="group" aria-label="Diff view">${viewButtonsHtml()}</div>
     <label class="ou-local-ws" title="${WS_TITLE}"><input type="checkbox" class="ou-local-ws-toggle"${local.hide_whitespace && html` checked`}> Hide whitespace</label>
     <button type="button" class="ou-local-notes-toggle" aria-expanded="false">Fix before push: ${open} open</button>
+    <span class="ou-local-pr-holder">${prButtonHtml()}</span>
   </header>
   <section class="ou-local-notes-list" hidden></section>`;
 }
