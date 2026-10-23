@@ -1,24 +1,32 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmp, githubStory, startBridge, runCli } from './helpers.ts';
+import {
+  tmp,
+  githubStory,
+  startBridge,
+  runCli,
+  type BuildAnswer,
+  type StatusMany,
+  type TestBridge,
+} from './helpers.ts';
+import type { Printable } from '../src/cli/output.ts';
 import { Builds, CLAIM_FRESH_MS } from '../src/inbox/builds.ts';
 import { beat } from '../src/listeners/listeners.ts';
 import { Inbox } from '../src/inbox/inbox.ts';
 
 /** acme/widgets#7's line from status-many, as a PR page asks for it. */
-const prStatus = async (bridge) =>
+const prStatus = async (bridge: TestBridge) =>
   (
-    await bridge.call('POST', '/api/stories/status-many', {
+    await bridge.call<StatusMany>('POST', '/api/stories/status-many', {
       prs: [{ repo: 'acme/widgets', number: 7 }],
     })
   ).body.results[0];
 
 describe('build requests', () => {
-  let bridge, home;
+  let bridge: TestBridge;
+  let home: string;
   before(async () => {
     home = tmp('home');
     bridge = await startBridge({ home });
@@ -27,7 +35,7 @@ describe('build requests', () => {
 
   test('a PR with no story is "none", then "queued" once asked, with one request however often it is asked', async () => {
     assert.equal((await prStatus(bridge)).state, 'none');
-    const response = await bridge.call('POST', '/api/builds', {
+    const response = await bridge.call<BuildAnswer>('POST', '/api/builds', {
       repo: 'acme/widgets',
       number: 7,
       url: 'https://evil.example/x',
@@ -41,11 +49,14 @@ describe('build requests', () => {
       'the URL is rebuilt from repo and number',
     );
     assert.equal(response.body.request.requested_at, '2026-10-20T21:40:00.000Z');
-    const again = await bridge.call('POST', '/api/builds', { repo: 'acme/widgets', number: 7 });
+    const again = await bridge.call<BuildAnswer>('POST', '/api/builds', {
+      repo: 'acme/widgets',
+      number: 7,
+    });
     assert.equal(again.body.request.id, response.body.request.id);
     const status = await prStatus(bridge);
     assert.equal(status.state, 'queued');
-    assert.equal(status.request.requested_at, '2026-10-20T21:40:00.000Z');
+    assert.equal(status.request!.requested_at, '2026-10-20T21:40:00.000Z');
     assert.ok(!existsSync(path.join(home, 'inbox.jsonl')), 'builds.json is the one record');
     assert.deepEqual(
       new Builds(home).pending().map((build) => build.id),
@@ -61,23 +72,29 @@ describe('build requests', () => {
     const status = await prStatus(bridge);
     assert.equal(status.state, 'ready');
     assert.equal(status.story, 'acme-widgets-7');
-    assert.equal(new Builds(home).get('acme/widgets', 7).status, 'done');
+    assert.equal(new Builds(home).get('acme/widgets', 7)!.status, 'done');
     assert.equal(new Builds(home).pending().length, 0);
-    assert.equal(new Builds(home).get('acme/widgets', 7).story, 'acme-widgets-7');
+    assert.equal(new Builds(home).get('acme/widgets', 7)!.story, 'acme-widgets-7');
   });
 
   test('refuses a bad repo or number', async () => {
     assert.equal(
-      (await bridge.call('POST', '/api/builds', { repo: 'acme/widgets; rm -rf /', number: 7 }))
+      (
+        await bridge.call<BuildAnswer>('POST', '/api/builds', {
+          repo: 'acme/widgets; rm -rf /',
+          number: 7,
+        })
+      ).status,
+      400,
+    );
+    assert.equal(
+      (await bridge.call<BuildAnswer>('POST', '/api/builds', { repo: 'acme/widgets', number: 'x' }))
         .status,
       400,
     );
     assert.equal(
-      (await bridge.call('POST', '/api/builds', { repo: 'acme/widgets', number: 'x' })).status,
-      400,
-    );
-    assert.equal(
-      (await bridge.call('POST', '/api/builds', { repo: '../../etc', number: 1 })).status,
+      (await bridge.call<BuildAnswer>('POST', '/api/builds', { repo: '../../etc', number: 1 }))
+        .status,
       400,
     );
   });
@@ -88,8 +105,8 @@ test('done by id or by repo#number; failed requests show as failed', () => {
   const builds = new Builds(home);
   const one = builds.request({ repo: 'acme/a', number: 1 });
   builds.request({ repo: 'acme/b', number: 2 });
-  assert.equal(builds.done(one.id).status, 'done');
-  assert.equal(builds.done('ACME/b#2', { failed: true, note: 'no checkout' }).status, 'failed');
+  assert.equal(builds.done(one.id)!.status, 'done');
+  assert.equal(builds.done('ACME/b#2', { failed: true, note: 'no checkout' })!.status, 'failed');
   assert.equal(builds.pending().length, 0);
   assert.equal(builds.done('nope'), null);
 });
@@ -102,8 +119,8 @@ test('publishing the story finishes its request, and an update only once the hea
   const request = builds.request({ repo: 'acme/widgets', number: 7 });
   const published = await runCli(home, ['publish', '--dir', src]);
   assert.equal(published.code, 0, published.stderr);
-  assert.equal(builds.get('acme/widgets', 7).status, 'done');
-  assert.equal(builds.get('acme/widgets', 7).id, request.id);
+  assert.equal(builds.get('acme/widgets', 7)!.status, 'done');
+  assert.equal(builds.get('acme/widgets', 7)!.id, request.id);
 
   const sha = 'c'.repeat(40);
   const update = builds.request({ repo: 'acme/widgets', number: 7, mode: 'update', base_sha: sha });
@@ -113,14 +130,14 @@ test('publishing the story finishes its request, and an update only once the hea
     JSON.stringify({ ...JSON.parse(readFileSync(prJson, 'utf8')), headRefOid: sha }),
   );
   await runCli(home, ['publish', '--dir', src]);
-  assert.equal(builds.get('acme/widgets', 7).status, 'pending', 'still told from the old head');
+  assert.equal(builds.get('acme/widgets', 7)!.status, 'pending', 'still told from the old head');
   writeFileSync(
     prJson,
     JSON.stringify({ ...JSON.parse(readFileSync(prJson, 'utf8')), headRefOid: 'd'.repeat(40) }),
   );
   await runCli(home, ['publish', '--dir', src]);
-  assert.equal(builds.get('acme/widgets', 7).status, 'done');
-  assert.equal(builds.get('acme/widgets', 7).id, update.id);
+  assert.equal(builds.get('acme/widgets', 7)!.status, 'done');
+  assert.equal(builds.get('acme/widgets', 7)!.id, update.id);
 });
 
 test('status-many settles a pending build once its story turns up', async () => {
@@ -130,12 +147,12 @@ test('status-many settles a pending build once its story turns up', async () => 
   githubStory(path.join(home, 'acme-widgets-7'));
   const bridge = await startBridge({ home });
   try {
-    const response = await bridge.call('POST', '/api/stories/status-many', {
+    const response = await bridge.call<StatusMany>('POST', '/api/stories/status-many', {
       prs: [{ repo: 'acme/widgets', number: 7 }],
     });
     assert.equal(response.body.results[0].state, 'ready');
     assert.equal(response.body.results[0].updating, false);
-    const settled = new Builds(home).get('acme/widgets', 7);
+    const settled = new Builds(home).get('acme/widgets', 7)!;
     assert.equal(settled.id, request.id);
     assert.equal(settled.status, 'done');
     assert.equal(settled.story, 'acme-widgets-7');
@@ -149,9 +166,10 @@ test('PR lists get ready / queued / building / none for many PRs in one call, an
   githubStory(path.join(home, 'acme-widgets-7'));
   const bridge = await startBridge({ home });
   try {
-    await bridge.call('POST', '/api/builds', { repo: 'acme/gadgets', number: 3 });
-    const five = (await bridge.call('POST', '/api/builds', { repo: 'acme/gadgets', number: 5 }))
-      .body.request;
+    await bridge.call<BuildAnswer>('POST', '/api/builds', { repo: 'acme/gadgets', number: 3 });
+    const five = (
+      await bridge.call<BuildAnswer>('POST', '/api/builds', { repo: 'acme/gadgets', number: 5 })
+    ).body.request;
     new Builds(home).claim(five.id, 'repo-acme-gadgets');
     const prs = [
       { repo: 'ACME/widgets', number: 7 },
@@ -159,7 +177,7 @@ test('PR lists get ready / queued / building / none for many PRs in one call, an
       { repo: 'acme/gadgets', number: 4 },
       { repo: 'acme/gadgets', number: 5 },
     ];
-    const response = await bridge.call('POST', '/api/stories/status-many', { prs });
+    const response = await bridge.call<StatusMany>('POST', '/api/stories/status-many', { prs });
     assert.equal(response.status, 200);
     assert.deepEqual(
       response.body.results.map((result) => result.state),
@@ -173,13 +191,14 @@ test('PR lists get ready / queued / building / none for many PRs in one call, an
     assert.equal(response.body.listening['acme/gadgets'].ok, false);
     assert.equal(response.body.listening['acme/gadgets'].prompt, '/once-upon-listen acme/gadgets');
     beat(home, 'repo-acme-gadgets', 'waiting', { repo: 'acme/gadgets' });
-    const listening = (await bridge.call('POST', '/api/stories/status-many', { prs })).body
-      .listening;
+    const listening = (await bridge.call<StatusMany>('POST', '/api/stories/status-many', { prs }))
+      .body.listening;
     assert.equal(listening['acme/gadgets'].ok, true);
     assert.equal(listening['ACME/widgets'].ok, false, "a gadgets listener doesn't cover widgets");
     assert.equal(response.body.results[0].story, 'acme-widgets-7');
     assert.equal(
-      (await bridge.call('POST', '/api/stories/status-many', { prs: 'nope' })).body.results.length,
+      (await bridge.call<StatusMany>('POST', '/api/stories/status-many', { prs: 'nope' })).body
+        .results.length,
       0,
     );
   } finally {
@@ -188,11 +207,16 @@ test('PR lists get ready / queued / building / none for many PRs in one call, an
 });
 
 describe('once-upon wait hands over build requests, queued until claimed', () => {
-  const wait = async (home, ...args) => {
+  const wait = async (home: string, ...args: string[]) => {
     const result = await runCli(home, ['wait', '--timeout', '1', '--json', ...args]);
     return {
       code: result.code,
-      entries: result.stdout.trim() ? result.stdout.trim().split('\n').map(JSON.parse) : [],
+      entries: result.stdout.trim()
+        ? result.stdout
+            .trim()
+            .split('\n')
+            .map(JSON.parse as (line: string) => Printable)
+        : [],
     };
   };
 
@@ -217,7 +241,7 @@ describe('once-upon wait hands over build requests, queued until claimed', () =>
       'building',
       'handed over = claimed',
     );
-    assert.equal(builds.get('acme/widgets', 1).claimed_by, 'fresh');
+    assert.equal(builds.get('acme/widgets', 1)!.claimed_by, 'fresh');
 
     assert.equal((await wait(home, '--consumer', 'fresh')).code, 2, 'nothing new: it times out');
     assert.equal(
@@ -256,7 +280,11 @@ describe('once-upon wait hands over build requests, queued until claimed', () =>
     assert.equal(started.code, 0);
     assert.match(started.stdout, /building/);
     assert.equal(builds.stateOf(builds.get('acme/widgets', 1)), 'building');
-    assert.equal(builds.get('acme/widgets', 1).claimed_by, 'two', 'a refresh keeps who claimed it');
+    assert.equal(
+      builds.get('acme/widgets', 1)!.claimed_by,
+      'two',
+      'a refresh keeps who claimed it',
+    );
     assert.notEqual((await runCli(home, ['builds', '--start', 'b_nope'])).code, 0);
     assert.match((await runCli(home, ['builds'])).stdout, /\tbuilding\tacme\/widgets#1\t/);
   });

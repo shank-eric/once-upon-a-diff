@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -9,7 +7,8 @@ import { Inbox } from '../src/inbox/inbox.ts';
 import { markQuestions, readHanded } from '../src/inbox/conversation.ts';
 import { beat, listenPrompt, listeningOf } from '../src/listeners/listeners.ts';
 import { storyIdOf } from '../src/cli/commands/inbox.ts';
-import { askWhoHtml } from '@once-upon-a-diff/shared/panel/status-light';
+import { askWhoHtml, type Health } from '@once-upon-a-diff/shared/panel/status-light';
+import type { Pulse, Question, QuestionMarksAnswer } from '@once-upon-a-diff/shared/types';
 
 const STORY = 'acme-widgets-7';
 const PATH = `/api/stories/${STORY}/questions`;
@@ -19,11 +18,14 @@ describe('clearing, collapsing and dismissing the conversation', () => {
     const home = tmp('home');
     githubStory(path.join(home, STORY));
     const bridge = await startBridge({ home });
-    const listOf = async () => (await bridge.call('GET', PATH)).body.questions;
-    const pulse = async () => (await bridge.call('GET', `/api/stories/${STORY}/pulse`)).body;
+    const listOf = async () =>
+      (await bridge.call<{ questions: Question[] }>('GET', PATH)).body.questions;
+    const pulse = async () => (await bridge.call<Pulse>('GET', `/api/stories/${STORY}/pulse`)).body;
     try {
-      const first = (await bridge.call('POST', PATH, { text: 'One?', step: 1 })).body;
-      const second = (await bridge.call('POST', PATH, { text: 'Two?', step: 2 })).body;
+      const first = (await bridge.call<{ id: string }>('POST', PATH, { text: 'One?', step: 1 }))
+        .body;
+      const second = (await bridge.call<{ id: string }>('POST', PATH, { text: 'Two?', step: 2 }))
+        .body;
       let questions = await listOf();
       assert.deepEqual(
         questions.map((question) => [question.dismissed, question.collapsed]),
@@ -34,7 +36,7 @@ describe('clearing, collapsing and dismissing the conversation', () => {
       );
       const before = (await pulse()).questions_rev;
 
-      const collapsed = await bridge.call('POST', `${PATH}/marks`, {
+      const collapsed = await bridge.call<QuestionMarksAnswer>('POST', `${PATH}/marks`, {
         action: 'collapse',
         ids: [first.id],
       });
@@ -45,14 +47,16 @@ describe('clearing, collapsing and dismissing the conversation', () => {
       await bridge.call('POST', `${PATH}/marks`, { action: 'dismiss', ids: [second.id, 'q_nope'] });
       questions = await listOf();
       assert.equal(questions.length, 2, 'a dismissed question is still listed, marked');
-      assert.equal(questions.find((question) => question.id === second.id).dismissed, true);
-      assert.equal(questions.find((question) => question.id === first.id).collapsed, true);
+      assert.equal(questions.find((question) => question.id === second.id)!.dismissed, true);
+      assert.equal(questions.find((question) => question.id === first.id)!.collapsed, true);
       const saved = JSON.parse(
         readFileSync(path.join(home, 'state', STORY, 'questions.json'), 'utf8'),
       );
       assert.deepEqual(Object.keys(saved.dismissed), [second.id], 'unknown ids are dropped');
 
-      const cleared = await bridge.call('POST', `${PATH}/marks`, { action: 'clear' });
+      const cleared = await bridge.call<QuestionMarksAnswer>('POST', `${PATH}/marks`, {
+        action: 'clear',
+      });
       assert.deepEqual(cleared.body.cleared, [first.id], 'clear names what it dismissed, for Undo');
       assert.ok(cleared.body.questions.every((question) => question.dismissed));
       await bridge.call('POST', `${PATH}/marks`, { action: 'restore', ids: cleared.body.cleared });
@@ -75,7 +79,7 @@ describe('clearing, collapsing and dismissing the conversation', () => {
 });
 
 describe('one story, one session', () => {
-  const wait = async (home, ...args) => {
+  const wait = async (home: string, ...args: string[]) => {
     const result = await runCli(home, [
       'wait',
       '--type',
@@ -92,12 +96,12 @@ describe('one story, one session', () => {
         ? result.stdout
             .trim()
             .split('\n')
-            .map((line) => JSON.parse(line).id)
+            .map((line) => (JSON.parse(line) as { id: string }).id)
         : [],
     };
   };
   /** A listener whose last beat is a minute old, so it no longer counts. */
-  const goStale = (home, consumer, extra) =>
+  const goStale = (home: string, consumer: string, extra: Record<string, unknown>) =>
     writeFileSync(
       path.join(home, 'listeners', `${consumer}.json`),
       JSON.stringify({
@@ -117,7 +121,7 @@ describe('one story, one session', () => {
     // both have waited before, so their cursors are at the top
     inbox.setCursor('repo-acme-widgets', 0);
     inbox.setCursor('api-10', 0);
-    const ask = (id) =>
+    const ask = (id: string) =>
       inbox.append({ type: 'question', id, story: STORY, repo: 'acme/widgets', text: id });
 
     beat(home, 'api-10', 'waiting', { story: STORY });
@@ -177,7 +181,7 @@ describe('one story, one session', () => {
     ]);
     assert.equal(byHand.code, 0, byHand.stderr);
     assert.equal(
-      inbox.questions(STORY).find((question) => question.id === 'q_two').answers[0].by,
+      inbox.questions(STORY).find((question) => question.id === 'q_two')!.answers[0].by,
       'me',
       '--consumer names who answered',
     );
@@ -216,7 +220,7 @@ describe('one story, one session', () => {
 
     let listening = listeningOf(home, { repo: 'acme/widgets', story: STORY });
     assert.equal(listening.answering, null);
-    assert.equal(listening.story_prompt.prompt, `/once-upon-listen --story ${STORY}`);
+    assert.equal(listening.story_prompt!.prompt, `/once-upon-listen --story ${STORY}`);
     beat(home, 'repo-acme-widgets', 'waiting', { repo: 'acme/widgets' });
     listening = listeningOf(home, { repo: 'acme/widgets', story: STORY });
     assert.deepEqual(listening.answering, { consumer: 'repo-acme-widgets', scope: 'repo' });
@@ -224,13 +228,14 @@ describe('one story, one session', () => {
     listening = listeningOf(home, { repo: 'acme/widgets', story: STORY });
     assert.deepEqual(listening.answering, { consumer: 'api-10', scope: 'story' });
     assert.equal(
-      listeningOf(home, { repo: 'acme/widgets', story: 'acme-widgets-8' }).answering.consumer,
+      listeningOf(home, { repo: 'acme/widgets', story: 'acme-widgets-8' }).answering!.consumer,
       'repo-acme-widgets',
       "another story's listener doesn't answer this one",
     );
 
+    // just what askWhoHtml reads of the status light's health
     const result = {
-      level: 'ok',
+      level: 'ok' as const,
       prompt: '/once-upon-listen acme/widgets',
       storyPrompt: { prompt: `/once-upon-listen --story ${STORY}` },
     };
@@ -238,7 +243,7 @@ describe('one story, one session', () => {
       askWhoHtml({
         ...result,
         answering: { consumer: 'repo-acme-widgets', scope: 'repo' },
-      }),
+      } as Health),
     );
     assert.match(byRepo, /Answered by <b>repo-acme-widgets<\/b> \(listening for the whole repo\)/);
     assert.match(byRepo, /Copy prompt for this story/);
@@ -246,11 +251,14 @@ describe('one story, one session', () => {
       askWhoHtml({
         ...result,
         answering: { consumer: 'api-10', scope: 'story' },
-      }),
+      } as Health),
     );
     assert.match(byStory, /Answered by <b>api-10<\/b>, the session listening for this story/);
     assert.doesNotMatch(byStory, /Copy prompt/);
-    assert.match(String(askWhoHtml({ ...result, answering: null })), /Copy prompt for this story/);
-    assert.equal(String(askWhoHtml({ level: 'error' })), '');
+    assert.match(
+      String(askWhoHtml({ ...result, answering: null } as Health)),
+      /Copy prompt for this story/,
+    );
+    assert.equal(String(askWhoHtml({ level: 'error' } as Health)), '');
   });
 });

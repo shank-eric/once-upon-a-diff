@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
@@ -14,14 +12,46 @@ import {
   git,
   writeJson,
   runCli,
+  type TestBridge,
 } from './helpers.ts';
+import type { AddressInfo } from 'node:net';
 import { pathSha } from '../src/util/diff.ts';
 import { createLocalStory } from '../src/stories/local-story.ts';
 import { StoryStore } from '../src/stories/store.ts';
 import { beat } from '../src/listeners/listeners.ts';
+import type { Prefs } from '../src/config/settings.ts';
+import type { InboxEntry, NoteEntry, QuestionEntry } from '../src/inbox/inbox.ts';
+import type {
+  DraftsAnswer,
+  FixNote,
+  LocalFile,
+  LocalStory,
+  Pulse,
+  Question,
+  StoryData,
+} from '@once-upon-a-diff/shared/types';
+
+/** A local story's data: the panel's, with its diff. */
+type LocalData = StoryData & { local: LocalStory };
+/** A story in GET /api/stories. */
+type StoryListItem = Omit<ReturnType<StoryStore['list']>[number], 'dir'>;
+/** The panel's state as POST .../ui saves it. */
+type SavedUi = {
+  n: number;
+  all: boolean;
+  collapsed: boolean;
+  width: number | null;
+  hidden: boolean;
+  filesOpen: boolean;
+  at: string;
+};
 
 /** A raw request, for headers fetch won't let us set (Host). */
-function raw(base, path, headers) {
+function raw(
+  base: string,
+  path: string,
+  headers: Record<string, string>,
+): Promise<{ status: number | undefined; body: string }> {
   const url = new URL(base);
   return new Promise((resolve, reject) => {
     const req = http.request({ host: '127.0.0.1', port: url.port, path: path, headers }, (res) => {
@@ -37,7 +67,7 @@ function raw(base, path, headers) {
 }
 
 describe('bridge guard rails', () => {
-  let bridge;
+  let bridge: TestBridge;
   before(async () => {
     const home = tmp('home');
     githubStory(path.join(home, 'acme-widgets-7'));
@@ -46,7 +76,7 @@ describe('bridge guard rails', () => {
   after(() => bridge.close());
 
   test('binds to 127.0.0.1', () => {
-    assert.equal(bridge.server.address().address, '127.0.0.1');
+    assert.equal((bridge.server.address() as AddressInfo).address, '127.0.0.1');
   });
   test('needs the token for /api', async () => {
     assert.equal(
@@ -58,7 +88,10 @@ describe('bridge guard rails', () => {
         .status,
       401,
     );
-    assert.equal((await bridge.call('GET', '/api/stories')).status, 200);
+    assert.equal(
+      (await bridge.call<{ stories: StoryListItem[] }>('GET', '/api/stories')).status,
+      200,
+    );
   });
   test('refuses a foreign Host header (DNS rebinding)', async () => {
     const response = await raw(bridge.base, '/api/health', {
@@ -94,7 +127,7 @@ describe('bridge guard rails', () => {
     assert.equal(res.status, 415);
   });
   test('sends no CORS headers', async () => {
-    const response = await bridge.call('GET', '/api/stories');
+    const response = await bridge.call<{ stories: StoryListItem[] }>('GET', '/api/stories');
     assert.equal(response.headers.get('access-control-allow-origin'), null);
   });
   test('rejects story ids that try to leave the root', async () => {
@@ -104,7 +137,8 @@ describe('bridge guard rails', () => {
 });
 
 describe('GitHub stories', () => {
-  let bridge, home;
+  let bridge: TestBridge;
+  let home: string;
   before(async () => {
     home = tmp('home');
     githubStory(path.join(home, 'acme-widgets-7'));
@@ -113,7 +147,7 @@ describe('GitHub stories', () => {
   after(() => bridge.close());
 
   test('lists stories, and the store finds one by repo and number, case-insensitively', async () => {
-    const list = await bridge.call('GET', '/api/stories');
+    const list = await bridge.call<{ stories: StoryListItem[] }>('GET', '/api/stories');
     assert.deepEqual(
       list.body.stories.map((story) => story.id),
       ['acme-widgets-7'],
@@ -124,7 +158,7 @@ describe('GitHub stories', () => {
   });
 
   test('serves the panel data with GitHub anchors and an extra chapter for unplaced files', async () => {
-    const { body } = await bridge.call('GET', '/api/stories/acme-widgets-7');
+    const { body } = await bridge.call<StoryData>('GET', '/api/stories/acme-widgets-7');
     assert.equal(body.kind, 'github');
     assert.equal(body.pr.url, 'https://github.com/acme/widgets/pull/7');
     assert.deepEqual(body.files.map((file) => file.rel).sort(), [
@@ -132,7 +166,7 @@ describe('GitHub stories', () => {
       'src/a.js',
       'src/b.js',
     ]);
-    assert.equal(body.files.find((file) => file.rel === 'src/a.js').sha, pathSha('src/a.js'));
+    assert.equal(body.files.find((file) => file.rel === 'src/a.js')!.sha, pathSha('src/a.js'));
     assert.equal(body.chapters.length, 3);
     assert.deepEqual(body.chapters[0].files[0], {
       rel: 'src/a.js',
@@ -149,35 +183,47 @@ describe('GitHub stories', () => {
   });
 
   test('version changes when chapters.json does', async () => {
-    const before = (await bridge.call('GET', '/api/stories/acme-widgets-7/version')).body.version;
+    const before = (
+      await bridge.call<{ version: string }>('GET', '/api/stories/acme-widgets-7/version')
+    ).body.version;
     const file = path.join(home, 'acme-widgets-7', 'chapters.json');
     await new Promise((resolve) => setTimeout(resolve, 20));
     writeFileSync(file, readFileSync(file, 'utf8').replace('Story map', 'Story map, updated'));
-    const after = (await bridge.call('GET', '/api/stories/acme-widgets-7/version')).body.version;
+    const after = (
+      await bridge.call<{ version: string }>('GET', '/api/stories/acme-widgets-7/version')
+    ).body.version;
     assert.notEqual(before, after);
   });
 
   test('questions go to the inbox and come back with their answers', async () => {
-    const question = await bridge.call('POST', '/api/stories/acme-widgets-7/questions', {
-      text: '  Why is a.js split?  ',
-      step: 1,
-      chapter: 'Chapter 1: Start',
-      file: 'src/a.js',
-      url: 'https://github.com/acme/widgets/pull/7/changes',
-    });
+    const question = await bridge.call<QuestionEntry>(
+      'POST',
+      '/api/stories/acme-widgets-7/questions',
+      {
+        text: '  Why is a.js split?  ',
+        step: 1,
+        chapter: 'Chapter 1: Start',
+        file: 'src/a.js',
+        url: 'https://github.com/acme/widgets/pull/7/changes',
+      },
+    );
     assert.equal(question.status, 200);
     assert.match(question.body.id, /^q_/);
     assert.equal(question.body.text, 'Why is a.js split?');
     const lines = readFileSync(path.join(home, 'inbox.jsonl'), 'utf8')
       .trim()
       .split('\n')
-      .map(JSON.parse);
-    const logged = lines.find((e) => e.id === question.body.id);
+      .map(JSON.parse as (line: string) => InboxEntry);
+    const logged = lines.find((e) => e.id === question.body.id) as QuestionEntry;
     assert.equal(logged.type, 'question');
     assert.equal(logged.story, 'acme-widgets-7');
     assert.equal(logged.step, 1);
     assert.equal(
-      (await bridge.call('POST', '/api/stories/acme-widgets-7/questions', { text: ' ' })).status,
+      (
+        await bridge.call<QuestionEntry>('POST', '/api/stories/acme-widgets-7/questions', {
+          text: ' ',
+        })
+      ).status,
       400,
     );
 
@@ -189,10 +235,13 @@ describe('GitHub stories', () => {
       'Because **chapter 2** finishes it.',
     ]);
     assert.equal(answer.code, 0, answer.stderr);
-    const { body } = await bridge.call('GET', '/api/stories/acme-widgets-7/questions');
+    const { body } = await bridge.call<{ questions: Question[] }>(
+      'GET',
+      '/api/stories/acme-widgets-7/questions',
+    );
     const back = body.questions.find((entry) => entry.id === question.body.id);
-    assert.equal(back.answers.length, 1);
-    assert.equal(back.answers[0].text, 'Because **chapter 2** finishes it.');
+    assert.equal(back!.answers.length, 1);
+    assert.equal(back!.answers[0].text, 'Because **chapter 2** finishes it.');
   });
 
   test('positions are kept in position.json, not the inbox', async () => {
@@ -214,12 +263,12 @@ describe('GitHub stories', () => {
   });
 
   test('keeps the panel state per story', async () => {
-    await bridge.call('POST', '/api/stories/acme-widgets-7/ui', {
+    await bridge.call<SavedUi>('POST', '/api/stories/acme-widgets-7/ui', {
       n: 2,
       collapsed: true,
       width: 500,
     });
-    const { body } = await bridge.call('GET', '/api/stories/acme-widgets-7/ui');
+    const { body } = await bridge.call<SavedUi>('GET', '/api/stories/acme-widgets-7/ui');
     assert.equal(body.n, 2);
     assert.equal(body.collapsed, true);
     assert.equal(body.width, 500);
@@ -228,14 +277,14 @@ describe('GitHub stories', () => {
   test('viewed is only for local stories; fix-before-push notes are for PR stories too', async () => {
     assert.equal(
       (
-        await bridge.call('POST', '/api/stories/acme-widgets-7/viewed', {
+        await bridge.call<{ error?: string }>('POST', '/api/stories/acme-widgets-7/viewed', {
           path: 'src/a.js',
           viewed: true,
         })
       ).status,
       400,
     );
-    const note = await bridge.call('POST', '/api/stories/acme-widgets-7/notes', {
+    const note = await bridge.call<FixNote>('POST', '/api/stories/acme-widgets-7/notes', {
       path: 'src/a.js',
       line: 1,
       body: 'x',
@@ -259,7 +308,7 @@ describe('story discovery', () => {
     const list = store.list();
     assert.deepEqual(list.map((story) => story.id).sort(), ['acme-widgets-7', 'widgets-9']);
     assert.equal(
-      list.find((story) => story.id === 'acme-widgets-7').dir,
+      list.find((story) => story.id === 'acme-widgets-7')!.dir,
       path.join(checkout, '.once-upon', 'acme-widgets-7'),
     );
     assert.ok(store.find('acme/widgets', 7));
@@ -282,7 +331,11 @@ describe('story discovery', () => {
 });
 
 describe('local stories', () => {
-  let bridge, home, repo, base, id;
+  let bridge: TestBridge;
+  let home: string;
+  let repo: string;
+  let base: string;
+  let id: string;
   before(async () => {
     home = tmp('home');
     ({ repo, base } = localRepo());
@@ -312,15 +365,15 @@ describe('local stories', () => {
   });
 
   test('serves the diff with hunks, and drops chapter files that are not in it', async () => {
-    const { body } = await bridge.call('GET', `/api/stories/${id}`);
+    const { body } = await bridge.call<LocalData>('GET', `/api/stories/${id}`);
     assert.equal(body.kind, 'local');
     assert.equal(body.local.base_oid, base);
     assert.equal(body.local.commits.length, 2);
-    const one = body.local.files.find((file) => file.rel === 'one.txt');
+    const one = body.local.files.find((file) => file.rel === 'one.txt')!;
     assert.deepEqual(one.stats, { added: 2, removed: 1 });
     assert.equal(one.hunks[0].newStart, 1);
-    assert.equal(body.local.files.find((file) => file.rel === 'gone.txt').kind, 'deleted');
-    assert.equal(body.local.files.find((file) => file.rel === 'lib/two.js').kind, 'created');
+    assert.equal(body.local.files.find((file) => file.rel === 'gone.txt')!.kind, 'deleted');
+    assert.equal(body.local.files.find((file) => file.rel === 'lib/two.js')!.kind, 'created');
     assert.deepEqual(
       body.chapters[1].files.map((file) => file.rel),
       ['lib/two.js'],
@@ -333,49 +386,63 @@ describe('local stories', () => {
     assert.equal(page.status, 200);
     assert.match(page.text, /id="ou-local-boot"/);
     assert.ok(page.text.includes(TOKEN));
-    assert.match(page.headers.get('content-security-policy'), /script-src 'self'/);
+    assert.match(page.headers.get('content-security-policy') as string, /script-src 'self'/);
     assert.equal((await bridge.call('GET', '/assets/overlay.ts')).status, 200);
     assert.equal((await bridge.call('GET', '/assets/local.ts')).status, 200);
     for (const sheet of ['panel.css', 'page.css']) {
       const css = await bridge.call('GET', `/assets/panel/${sheet}`);
       assert.equal(css.status, 200, sheet);
-      assert.match(css.headers.get('content-type'), /^text\/css/);
+      assert.match(css.headers.get('content-type') as string, /^text\/css/);
     }
   });
 
   test('keeps viewed files, and forgets one when its diff changes', async () => {
     assert.equal(
-      (await bridge.call('POST', `/api/stories/${id}/viewed`, { path: 'one.txt', viewed: true }))
-        .status,
+      (
+        await bridge.call<{ path: string; viewed: boolean }>('POST', `/api/stories/${id}/viewed`, {
+          path: 'one.txt',
+          viewed: true,
+        })
+      ).status,
       200,
     );
     assert.equal(
-      (await bridge.call('POST', `/api/stories/${id}/viewed`, { path: 'lib/two.js', viewed: true }))
-        .status,
+      (
+        await bridge.call<{ path: string; viewed: boolean }>('POST', `/api/stories/${id}/viewed`, {
+          path: 'lib/two.js',
+          viewed: true,
+        })
+      ).status,
       200,
     );
     assert.equal(
-      (await bridge.call('POST', `/api/stories/${id}/viewed`, { path: 'nope.txt', viewed: true }))
-        .status,
+      (
+        await bridge.call<{ path: string; viewed: boolean }>('POST', `/api/stories/${id}/viewed`, {
+          path: 'nope.txt',
+          viewed: true,
+        })
+      ).status,
       404,
     );
-    let files = (await bridge.call('GET', `/api/stories/${id}`)).body.local.files;
-    assert.equal(files.find((file) => file.rel === 'one.txt').viewed, true);
+    let files = (await bridge.call<LocalData>('GET', `/api/stories/${id}`)).body.local.files;
+    assert.equal(files.find((file) => file.rel === 'one.txt')!.viewed, true);
 
-    const before = (await bridge.call('GET', `/api/stories/${id}/version`)).body.version;
+    const before = (await bridge.call<{ version: string }>('GET', `/api/stories/${id}/version`))
+      .body.version;
     writeFileSync(path.join(repo, 'one.txt'), 'a\nB\nc\nd\ne\n');
     git(repo, 'commit', '-q', '-am', 'amend one');
     await new Promise((resolve) => setTimeout(resolve, 20));
-    const after = (await bridge.call('GET', `/api/stories/${id}/version`)).body.version;
+    const after = (await bridge.call<{ version: string }>('GET', `/api/stories/${id}/version`)).body
+      .version;
     assert.notEqual(before, after, 'a new commit changes the version');
-    files = (await bridge.call('GET', `/api/stories/${id}`)).body.local.files;
-    assert.equal(files.find((file) => file.rel === 'one.txt').viewed, false);
-    assert.equal(files.find((file) => file.rel === 'one.txt').viewed_changed, true);
-    assert.equal(files.find((file) => file.rel === 'lib/two.js').viewed, true);
+    files = (await bridge.call<LocalData>('GET', `/api/stories/${id}`)).body.local.files;
+    assert.equal(files.find((file) => file.rel === 'one.txt')!.viewed, false);
+    assert.equal(files.find((file) => file.rel === 'one.txt')!.viewed_changed, true);
+    assert.equal(files.find((file) => file.rel === 'lib/two.js')!.viewed, true);
   });
 
   test('fix-before-push notes: add, finish, delete, and each goes to the inbox', async () => {
-    const note = await bridge.call('POST', `/api/stories/${id}/notes`, {
+    const note = await bridge.call<FixNote>('POST', `/api/stories/${id}/notes`, {
       path: 'one.txt',
       side: 'R',
       line: 2,
@@ -383,21 +450,29 @@ describe('local stories', () => {
     });
     assert.equal(note.status, 200);
     assert.equal(note.body.done, false);
-    const done = await bridge.call('POST', `/api/stories/${id}/notes/${note.body.id}`, {
-      done: true,
-    });
+    const done = await bridge.call<FixNote & { deleted?: string; error?: string }>(
+      'POST',
+      `/api/stories/${id}/notes/${note.body.id}`,
+      {
+        done: true,
+      },
+    );
     assert.equal(done.body.done, true);
-    let notes = (await bridge.call('GET', `/api/stories/${id}`)).body.local.notes;
+    let notes = (await bridge.call<LocalData>('GET', `/api/stories/${id}`)).body.local.notes;
     assert.equal(notes.length, 1);
     assert.equal(notes[0].done, true);
-    await bridge.call('POST', `/api/stories/${id}/notes/${note.body.id}`, { delete: true });
-    notes = (await bridge.call('GET', `/api/stories/${id}`)).body.local.notes;
+    await bridge.call<FixNote & { deleted?: string; error?: string }>(
+      'POST',
+      `/api/stories/${id}/notes/${note.body.id}`,
+      { delete: true },
+    );
+    notes = (await bridge.call<LocalData>('GET', `/api/stories/${id}`)).body.local.notes;
     assert.equal(notes.length, 0);
     const logged = readFileSync(path.join(home, 'inbox.jsonl'), 'utf8')
       .trim()
       .split('\n')
-      .map(JSON.parse)
-      .filter((e) => e.type === 'note');
+      .map(JSON.parse as (line: string) => InboxEntry)
+      .filter((e): e is NoteEntry => e.type === 'note');
     assert.deepEqual(
       logged.map((e) => e.action),
       ['added', 'updated', 'deleted'],
@@ -410,7 +485,8 @@ describe('pulse', () => {
     const home = tmp('home');
     githubStory(path.join(home, 'acme-widgets-7'));
     const bridge = await startBridge({ home });
-    const pulse = async () => (await bridge.call('GET', '/api/stories/acme-widgets-7/pulse')).body;
+    const pulse = async () =>
+      (await bridge.call<Pulse>('GET', '/api/stories/acme-widgets-7/pulse')).body;
     try {
       const first = await pulse();
       assert.deepEqual(Object.keys(first).sort(), [
@@ -427,16 +503,20 @@ describe('pulse', () => {
       assert.equal(first.listening, false);
       assert.deepEqual(await pulse(), first, 'nothing changed, nothing moves');
 
-      const asked = await bridge.call('POST', '/api/stories/acme-widgets-7/questions', {
-        text: 'Why?',
-        step: 1,
-      });
+      const asked = await bridge.call<QuestionEntry>(
+        'POST',
+        '/api/stories/acme-widgets-7/questions',
+        {
+          text: 'Why?',
+          step: 1,
+        },
+      );
       const afterQuestion = await pulse();
       assert.notEqual(afterQuestion.questions_rev, first.questions_rev);
       await runCli(home, ['answer', '--question', asked.body.id, '--text', 'Because.']);
       assert.notEqual((await pulse()).questions_rev, afterQuestion.questions_rev);
 
-      await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
+      await bridge.call<DraftsAnswer>('POST', '/api/stories/acme-widgets-7/drafts', {
         action: 'dismiss',
         chapter: 1,
         index: 0,
@@ -464,7 +544,9 @@ describe('drafted comments', () => {
     githubStory(path.join(home, 'acme-widgets-7'), { meta: { source: src } });
     const bridge = await startBridge({ home });
     try {
-      const before = (await bridge.call('GET', '/api/stories/acme-widgets-7/version')).body.version;
+      const before = (
+        await bridge.call<{ version: string }>('GET', '/api/stories/acme-widgets-7/version')
+      ).body.version;
       await new Promise((resolve) => setTimeout(resolve, 20));
       const comment = {
         chapter: 2,
@@ -472,7 +554,8 @@ describe('drafted comments', () => {
         line: 4,
         body: 'Could you confirm this handles an empty list?',
       };
-      const add = (args) => runCli(home, ['comment', '--story', 'acme-widgets-7', ...args]);
+      const add = (args: string[]) =>
+        runCli(home, ['comment', '--story', 'acme-widgets-7', ...args]);
       const args = [
         '--chapter',
         '2',
@@ -492,11 +575,11 @@ describe('drafted comments', () => {
         readFileSync(path.join(home, 'inbox.jsonl'), 'utf8')
           .trim()
           .split('\n')
-          .map(JSON.parse)
+          .map(JSON.parse as (line: string) => InboxEntry)
           .filter((e) => e.type === 'comment').length,
         1,
       );
-      const data = (await bridge.call('GET', '/api/stories/acme-widgets-7')).body;
+      const data = (await bridge.call<StoryData>('GET', '/api/stories/acme-widgets-7')).body;
       assert.deepEqual(data.chapters[1].comments, [
         { path: 'src/b.js', line: 4, body: comment.body },
       ]);
@@ -507,7 +590,8 @@ describe('drafted comments', () => {
         'the once-upon source gets it too, so the next render keeps it',
       );
       assert.notEqual(
-        (await bridge.call('GET', '/api/stories/acme-widgets-7/version')).body.version,
+        (await bridge.call<{ version: string }>('GET', '/api/stories/acme-widgets-7/version')).body
+          .version,
         before,
         'the panel sees a new version',
       );
@@ -520,8 +604,13 @@ describe('drafted comments', () => {
 });
 
 describe('Hide whitespace on local stories', () => {
-  let home, repo, base, id, bridge;
-  const file = (body, rel) => body.local.files.find((entry) => entry.rel === rel);
+  let home: string;
+  let repo: string;
+  let base: string;
+  let id: string;
+  let bridge: TestBridge;
+  const file = (body: LocalData, rel: string) =>
+    body.local.files.find((entry) => entry.rel === rel) as LocalFile; // the tests name files in the diff
   before(async () => {
     home = tmp('home');
     repo = tmp('repo');
@@ -540,17 +629,17 @@ describe('Hide whitespace on local stories', () => {
   after(() => bridge.close());
 
   test('is off by default, and the setting is saved in prefs.json, not per story', async () => {
-    assert.deepEqual((await bridge.call('GET', '/api/prefs')).body, {
+    assert.deepEqual((await bridge.call<Prefs>('GET', '/api/prefs')).body, {
       hideWhitespace: false,
       diffView: 'unified',
     });
-    const before = (await bridge.call('GET', `/api/stories/${id}`)).body;
+    const before = (await bridge.call<LocalData>('GET', `/api/stories/${id}`)).body;
     assert.equal(before.local.hide_whitespace, false);
     assert.deepEqual(file(before, 'mixed.js').stats, { added: 2, removed: 2 });
     assert.equal(file(before, 'indent.js').hunks.length, 1);
 
     assert.deepEqual(
-      (await bridge.call('POST', '/api/prefs', { hideWhitespace: true, junk: 1 })).body,
+      (await bridge.call<Prefs>('POST', '/api/prefs', { hideWhitespace: true, junk: 1 })).body,
       {
         hideWhitespace: true,
         diffView: 'unified',
@@ -560,27 +649,37 @@ describe('Hide whitespace on local stories', () => {
       hideWhitespace: true,
       diffView: 'unified',
     });
-    await bridge.call('POST', '/api/prefs', { hideWhitespace: false });
+    await bridge.call<Prefs>('POST', '/api/prefs', { hideWhitespace: false });
   });
 
   test('draws the -w diff but keeps every file, its hash and its viewed mark', async () => {
     assert.equal(
-      (await bridge.call('POST', `/api/stories/${id}/viewed`, { path: 'indent.js', viewed: true }))
-        .status,
+      (
+        await bridge.call<{ path: string; viewed: boolean }>('POST', `/api/stories/${id}/viewed`, {
+          path: 'indent.js',
+          viewed: true,
+        })
+      ).status,
       200,
     );
     assert.equal(
-      (await bridge.call('POST', `/api/stories/${id}/viewed`, { path: 'mixed.js', viewed: true }))
-        .status,
+      (
+        await bridge.call<{ path: string; viewed: boolean }>('POST', `/api/stories/${id}/viewed`, {
+          path: 'mixed.js',
+          viewed: true,
+        })
+      ).status,
       200,
     );
-    const full = (await bridge.call('GET', `/api/stories/${id}`)).body;
-    const before = (await bridge.call('GET', `/api/stories/${id}/version`)).body.version;
+    const full = (await bridge.call<LocalData>('GET', `/api/stories/${id}`)).body;
+    const before = (await bridge.call<{ version: string }>('GET', `/api/stories/${id}/version`))
+      .body.version;
 
-    await bridge.call('POST', '/api/prefs', { hideWhitespace: true });
-    const after = (await bridge.call('GET', `/api/stories/${id}/version`)).body.version;
+    await bridge.call<Prefs>('POST', '/api/prefs', { hideWhitespace: true });
+    const after = (await bridge.call<{ version: string }>('GET', `/api/stories/${id}/version`)).body
+      .version;
     assert.notEqual(before, after, 'a page polling the version redraws when the setting changes');
-    const hid = (await bridge.call('GET', `/api/stories/${id}`)).body;
+    const hid = (await bridge.call<LocalData>('GET', `/api/stories/${id}`)).body;
     assert.equal(hid.local.hide_whitespace, true);
     assert.equal(hid.version, after);
     assert.deepEqual(
@@ -604,14 +703,14 @@ describe('Hide whitespace on local stories', () => {
       assert.equal(entry.viewed_changed, false, `${entry.rel} isn't "changed since viewed"`);
     }
 
-    await bridge.call('POST', '/api/prefs', { hideWhitespace: false });
-    const back = (await bridge.call('GET', `/api/stories/${id}`)).body;
+    await bridge.call<Prefs>('POST', '/api/prefs', { hideWhitespace: false });
+    const back = (await bridge.call<LocalData>('GET', `/api/stories/${id}`)).body;
     assert.equal(back.version, before);
     assert.ok(back.local.files.every((entry) => entry.viewed));
   });
 
   test('outlives a bridge restart and holds for other stories', async () => {
-    await bridge.call('POST', '/api/prefs', { hideWhitespace: true });
+    await bridge.call<Prefs>('POST', '/api/prefs', { hideWhitespace: true });
     const other = createLocalStory({ home, repo, base, head: 'HEAD', id: 'local-other' }).id;
     const restarted = await startBridge({ home });
     try {
@@ -620,29 +719,34 @@ describe('Hide whitespace on local stories', () => {
         diffView: 'unified',
       });
       assert.equal(
-        (await restarted.call('GET', `/api/stories/${other}`)).body.local.hide_whitespace,
+        (await restarted.call<LocalData>('GET', `/api/stories/${other}`)).body.local
+          .hide_whitespace,
         true,
       );
     } finally {
       await restarted.close();
-      await bridge.call('POST', '/api/prefs', { hideWhitespace: false });
+      await bridge.call<Prefs>('POST', '/api/prefs', { hideWhitespace: false });
     }
   });
 
   test('remakes the -w diff when the branch moves', async () => {
-    await bridge.call('POST', '/api/prefs', { hideWhitespace: true });
+    await bridge.call<Prefs>('POST', '/api/prefs', { hideWhitespace: true });
     assert.equal(
-      file((await bridge.call('GET', `/api/stories/${id}`)).body, 'indent.js').whitespace_only,
+      file((await bridge.call<LocalData>('GET', `/api/stories/${id}`)).body, 'indent.js')
+        .whitespace_only,
       true,
     );
     writeFileSync(path.join(repo, 'indent.js'), 'if (x) {\n  y();\n  z();\n}\n');
     git(repo, 'commit', '-q', '-am', 'call z');
     await new Promise((resolve) => setTimeout(resolve, 20));
-    const indent = file((await bridge.call('GET', `/api/stories/${id}`)).body, 'indent.js');
+    const indent = file(
+      (await bridge.call<LocalData>('GET', `/api/stories/${id}`)).body,
+      'indent.js',
+    );
     assert.equal(indent.whitespace_only, false);
     assert.deepEqual(indent.stats, { added: 1, removed: 0 });
     assert.equal(indent.viewed_changed, true, 'a real change after viewing still shows');
-    await bridge.call('POST', '/api/prefs', { hideWhitespace: false });
+    await bridge.call<Prefs>('POST', '/api/prefs', { hideWhitespace: false });
   });
 });
 
@@ -653,17 +757,24 @@ describe('Unified / Split on local stories', () => {
     const { id } = createLocalStory({ home, repo, base, head: 'HEAD' });
     const bridge = await startBridge({ home });
     try {
-      let data = (await bridge.call('GET', `/api/stories/${id}`)).body;
+      let data = (await bridge.call<LocalData>('GET', `/api/stories/${id}`)).body;
       assert.equal(data.local.diff_view, 'unified');
-      await bridge.call('POST', `/api/stories/${id}/viewed`, { path: 'one.txt', viewed: true });
-      const before = (await bridge.call('GET', `/api/stories/${id}/version`)).body.version;
-
-      assert.deepEqual((await bridge.call('POST', '/api/prefs', { diffView: 'split' })).body, {
-        hideWhitespace: false,
-        diffView: 'split',
+      await bridge.call<{ path: string; viewed: boolean }>('POST', `/api/stories/${id}/viewed`, {
+        path: 'one.txt',
+        viewed: true,
       });
+      const before = (await bridge.call<{ version: string }>('GET', `/api/stories/${id}/version`))
+        .body.version;
+
       assert.deepEqual(
-        (await bridge.call('POST', '/api/prefs', { hideWhitespace: true })).body,
+        (await bridge.call<Prefs>('POST', '/api/prefs', { diffView: 'split' })).body,
+        {
+          hideWhitespace: false,
+          diffView: 'split',
+        },
+      );
+      assert.deepEqual(
+        (await bridge.call<Prefs>('POST', '/api/prefs', { hideWhitespace: true })).body,
         { hideWhitespace: true, diffView: 'split' },
         'one setting leaves the other alone',
       );
@@ -671,13 +782,14 @@ describe('Unified / Split on local stories', () => {
         hideWhitespace: true,
         diffView: 'split',
       });
-      const after = (await bridge.call('GET', `/api/stories/${id}/version`)).body.version;
+      const after = (await bridge.call<{ version: string }>('GET', `/api/stories/${id}/version`))
+        .body.version;
       assert.notEqual(before, after, 'other tabs redraw');
-      const split = (await bridge.call('GET', `/api/stories/${id}`)).body;
+      const split = (await bridge.call<LocalData>('GET', `/api/stories/${id}`)).body;
       assert.equal(split.local.diff_view, 'split');
       assert.equal(split.local.hide_whitespace, true);
       assert.equal(
-        split.local.files.find((entry) => entry.rel === 'one.txt').viewed,
+        split.local.files.find((entry) => entry.rel === 'one.txt')!.viewed,
         true,
         'viewed holds across the view change',
       );
@@ -687,14 +799,14 @@ describe('Unified / Split on local stories', () => {
       );
 
       assert.equal(
-        (await bridge.call('POST', '/api/prefs', { diffView: 'sideways' })).body.diffView,
+        (await bridge.call<Prefs>('POST', '/api/prefs', { diffView: 'sideways' })).body.diffView,
         'unified',
         'anything else is unified',
       );
       const restarted = await startBridge({ home });
       try {
         await restarted.call('POST', '/api/prefs', { diffView: 'split' });
-        data = (await restarted.call('GET', `/api/stories/${id}`)).body;
+        data = (await restarted.call<LocalData>('GET', `/api/stories/${id}`)).body;
         assert.equal(data.local.diff_view, 'split', 'survives a restart');
       } finally {
         await restarted.close();

@@ -1,21 +1,27 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmp, githubStory, startBridge, runCli, localRepo, writeJson } from './helpers.ts';
 import { createLocalStory } from '../src/stories/local-story.ts';
-import { beat, listenPrompt } from '../src/listeners/listeners.ts';
+import { beat, listenPrompt, type Listener } from '../src/listeners/listeners.ts';
 import { readFixes } from '../src/inbox/fixes.ts';
 import { MARK_FRESH_MS, parseFiles, workingOf } from '../src/stories/working.ts';
 import { fixSummary } from '@once-upon-a-diff/shared/panel/fixes';
+import type { DraftsAnswer, FixNote, FixesView, Pulse } from '@once-upon-a-diff/shared/types';
+import type { FixRequest } from '../src/inbox/fixes.ts';
+import type { Printable } from '../src/cli/output.ts';
+
+/** GET or POST .../fixes: fix before push as the panel shows it, and after a send the request it made. */
+type FixesBody = Omit<FixesView, 'sent'> & { sent: FixRequest };
+/** A fix request as `wait` hands it over. */
+type FixRequestEntry = Extract<Printable, { type: 'fix_request' }>;
 
 const STORY = 'acme-widgets-7';
 const STORY_PATH = `/api/stories/${STORY}`;
 
 /** A listener whose last beat is a minute old, so it no longer counts. */
-const goStale = (home, consumer, extra) =>
+const goStale = (home: string, consumer: string, extra: Record<string, unknown>) =>
   writeFileSync(
     path.join(home, 'listeners', `${consumer}.json`),
     JSON.stringify({
@@ -28,15 +34,15 @@ const goStale = (home, consumer, extra) =>
   );
 
 /** One `once-upon wait` that gives up after a second: the fix requests it handed over. */
-async function waitFor(home, ...args) {
+async function waitFor(home: string, ...args: string[]): Promise<FixRequestEntry[]> {
   const result = await runCli(home, ['wait', '--timeout', '1', '--json', ...args]);
   const entries = result.stdout.trim()
     ? result.stdout
         .trim()
         .split('\n')
-        .map((line) => JSON.parse(line))
+        .map((line) => JSON.parse(line) as Printable)
     : [];
-  return entries.filter((entry) => entry.type === 'fix_request');
+  return entries.filter((entry): entry is FixRequestEntry => entry.type === 'fix_request');
 }
 
 describe('fix before push: notes collect as drafts and go to a session as one request', () => {
@@ -46,18 +52,22 @@ describe('fix before push: notes collect as drafts and go to a session as one re
     const bridge = await startBridge({ home });
     try {
       const first = (
-        await bridge.call('POST', `${STORY_PATH}/notes`, { path: 'src/a.js', line: 3, body: 'One' })
+        await bridge.call<FixNote>('POST', `${STORY_PATH}/notes`, {
+          path: 'src/a.js',
+          line: 3,
+          body: 'One',
+        })
       ).body;
       // Add to fix before push on a PR story: the draft (chapter 1's comment) becomes a note
-      const fromDraft = await bridge.call('POST', `${STORY_PATH}/drafts`, {
+      const fromDraft = await bridge.call<DraftsAnswer>('POST', `${STORY_PATH}/drafts`, {
         chapter: 1,
         index: 0,
         action: 'fix',
       });
       assert.equal(fromDraft.status, 200);
-      assert.equal(fromDraft.body.drafts[0].fix.state, 'draft');
+      assert.equal(fromDraft.body.drafts[0].fix!.state, 'draft');
       const removed = (
-        await bridge.call('POST', `${STORY_PATH}/notes`, {
+        await bridge.call<FixNote>('POST', `${STORY_PATH}/notes`, {
           path: 'src/b.js',
           line: 1,
           body: 'Gone',
@@ -65,19 +75,25 @@ describe('fix before push: notes collect as drafts and go to a session as one re
       ).body;
 
       // until it's sent, a note can be edited or removed
-      const edited = await bridge.call('POST', `${STORY_PATH}/notes/${first.id}`, {
-        body: 'One, edited',
-      });
+      const edited = await bridge.call<FixNote & { error?: string }>(
+        'POST',
+        `${STORY_PATH}/notes/${first.id}`,
+        {
+          body: 'One, edited',
+        },
+      );
       assert.equal(edited.body.body, 'One, edited');
-      await bridge.call('POST', `${STORY_PATH}/notes/${removed.id}`, { delete: true });
+      await bridge.call<FixNote & { error?: string }>('POST', `${STORY_PATH}/notes/${removed.id}`, {
+        delete: true,
+      });
 
       beat(home, 'repo-acme-widgets', 'waiting', { repo: 'acme/widgets', fixes: true });
-      let view = (await bridge.call('GET', `${STORY_PATH}/fixes`)).body;
+      let view = (await bridge.call<FixesBody>('GET', `${STORY_PATH}/fixes`)).body;
       assert.equal(view.notes.length, 2);
       assert.equal(view.auto_send, false, 'Auto-send is off by default');
       assert.deepEqual(view.to, { consumer: 'repo-acme-widgets', scope: 'repo' });
 
-      const sent = await bridge.call('POST', `${STORY_PATH}/fixes`, { action: 'send' });
+      const sent = await bridge.call<FixesBody>('POST', `${STORY_PATH}/fixes`, { action: 'send' });
       assert.equal(sent.status, 200);
       const request = readFixes(home)[sent.body.sent.id];
       assert.deepEqual(
@@ -106,30 +122,34 @@ describe('fix before push: notes collect as drafts and go to a session as one re
       );
       view = sent.body;
       assert.deepEqual(
-        view.notes.map((note) => [note.state, note.sent.to]),
+        view.notes.map((note) => [note.state, note.sent!.to]),
         [
           ['sent', 'repo-acme-widgets'],
           ['sent', 'repo-acme-widgets'],
         ],
       );
-      const locked = await bridge.call('POST', `${STORY_PATH}/notes/${first.id}`, { body: 'No' });
+      const locked = await bridge.call<FixNote & { error?: string }>(
+        'POST',
+        `${STORY_PATH}/notes/${first.id}`,
+        { body: 'No' },
+      );
       assert.equal(locked.status, 409, 'a sent note is locked');
-      assert.match(locked.body.error, /with repo-acme-widgets/);
+      assert.match(locked.body.error as string, /with repo-acme-widgets/);
       assert.equal(
-        (await bridge.call('POST', `${STORY_PATH}/fixes`, { action: 'send' })).status,
+        (await bridge.call<FixesBody>('POST', `${STORY_PATH}/fixes`, { action: 'send' })).status,
         400,
         'nothing left to send',
       );
-      const drafts = (await bridge.call('GET', `${STORY_PATH}/drafts`)).body.drafts;
-      assert.equal(drafts[0].fix.state, 'sent');
-      assert.equal(drafts[0].fix.sent_to, 'repo-acme-widgets');
+      const drafts = (await bridge.call<DraftsAnswer>('GET', `${STORY_PATH}/drafts`)).body.drafts;
+      assert.equal(drafts[0].fix!.state, 'sent');
+      assert.equal(drafts[0].fix!.sent_to, 'repo-acme-widgets');
 
       const handed = await waitFor(home, '--repo', 'acme/widgets');
       assert.equal(handed.length, 1);
       assert.equal(handed[0].id, request.id);
       assert.deepEqual(
         handed[0].notes.map((note) => note.id),
-        [first.id, fromDraft.body.drafts[0].fix.id],
+        [first.id, fromDraft.body.drafts[0].fix!.id],
       );
       assert.equal(readFixes(home)[request.id].claimed_by, 'repo-acme-widgets');
       assert.deepEqual(await waitFor(home, '--repo', 'acme/widgets'), [], 'handed over once');
@@ -142,9 +162,14 @@ describe('fix before push: notes collect as drafts and go to a session as one re
     const home = tmp('home');
     githubStory(path.join(home, STORY));
     const bridge = await startBridge({ home });
-    const send = async (body) => {
-      await bridge.call('POST', `${STORY_PATH}/notes`, { path: 'src/a.js', line: 1, body });
-      return (await bridge.call('POST', `${STORY_PATH}/fixes`, { action: 'send' })).body.sent;
+    const send = async (body: string) => {
+      await bridge.call<FixNote>('POST', `${STORY_PATH}/notes`, {
+        path: 'src/a.js',
+        line: 1,
+        body,
+      });
+      return (await bridge.call<FixesBody>('POST', `${STORY_PATH}/fixes`, { action: 'send' })).body
+        .sent;
     };
     try {
       beat(home, 'repo-acme-widgets', 'waiting', { repo: 'acme/widgets', fixes: true });
@@ -210,11 +235,11 @@ describe('fix before push: notes collect as drafts and go to a session as one re
     const home = tmp('home');
     githubStory(path.join(home, STORY));
     const bridge = await startBridge({ home });
-    const pulse = async () => (await bridge.call('GET', `${STORY_PATH}/pulse`)).body;
+    const pulse = async () => (await bridge.call<Pulse>('GET', `${STORY_PATH}/pulse`)).body;
     try {
       const before = (await pulse()).fixes_rev;
       const kept = (
-        await bridge.call('POST', `${STORY_PATH}/notes`, {
+        await bridge.call<FixNote>('POST', `${STORY_PATH}/notes`, {
           path: 'src/a.js',
           line: 1,
           body: 'Kept',
@@ -223,13 +248,13 @@ describe('fix before push: notes collect as drafts and go to a session as one re
       assert.equal(kept.state, 'draft', 'with Auto-send off, a note waits for Send');
       assert.notEqual((await pulse()).fixes_rev, before);
 
-      const turnedOn = await bridge.call('POST', `${STORY_PATH}/fixes`, {
+      const turnedOn = await bridge.call<FixesBody>('POST', `${STORY_PATH}/fixes`, {
         action: 'auto',
         on: true,
       });
       assert.equal(turnedOn.body.auto_send, true);
       const auto = (
-        await bridge.call('POST', `${STORY_PATH}/notes`, {
+        await bridge.call<FixNote>('POST', `${STORY_PATH}/notes`, {
           path: 'src/b.js',
           line: 2,
           body: 'Auto',
@@ -249,9 +274,13 @@ describe('fix before push: notes collect as drafts and go to a session as one re
         true,
         'kept per story',
       );
-      await bridge.call('POST', `${STORY_PATH}/fixes`, { action: 'auto', on: false });
+      await bridge.call<FixesBody>('POST', `${STORY_PATH}/fixes`, { action: 'auto', on: false });
       const later = (
-        await bridge.call('POST', `${STORY_PATH}/notes`, { path: 'src/b.js', line: 3, body: 'Off' })
+        await bridge.call<FixNote>('POST', `${STORY_PATH}/notes`, {
+          path: 'src/b.js',
+          line: 3,
+          body: 'Off',
+        })
       ).body;
       assert.equal(later.state, 'draft');
     } finally {
@@ -263,13 +292,20 @@ describe('fix before push: notes collect as drafts and go to a session as one re
     const home = tmp('home');
     githubStory(path.join(home, STORY));
     const bridge = await startBridge({ home });
-    const add = async (body) =>
-      (await bridge.call('POST', `${STORY_PATH}/notes`, { path: 'src/a.js', line: 1, body })).body;
+    const add = async (body: string) =>
+      (
+        await bridge.call<FixNote>('POST', `${STORY_PATH}/notes`, {
+          path: 'src/a.js',
+          line: 1,
+          body,
+        })
+      ).body;
     try {
       const one = await add('One');
       const two = await add('Two');
-      const request = (await bridge.call('POST', `${STORY_PATH}/fixes`, { action: 'send' })).body
-        .sent;
+      const request = (
+        await bridge.call<FixesBody>('POST', `${STORY_PATH}/fixes`, { action: 'send' })
+      ).body.sent;
       const reported = await runCli(home, [
         'fixed',
         '--request',
@@ -285,33 +321,35 @@ describe('fix before push: notes collect as drafts and go to a session as one re
       ]);
       assert.equal(reported.code, 0, reported.stderr);
       assert.match(reported.stdout, /1 note fixed in abc1234, 1 back in the drafts/);
-      let view = (await bridge.call('GET', `${STORY_PATH}/fixes`)).body;
+      let view = (await bridge.call<FixesBody>('GET', `${STORY_PATH}/fixes`)).body;
       const byId = new Map(view.notes.map((note) => [note.id, note]));
-      assert.equal(byId.get(one.id).state, 'fixed');
-      assert.equal(byId.get(one.id).fixed.sha, 'abc1234');
-      assert.equal(byId.get(one.id).done, true);
-      assert.equal(byId.get(two.id).state, 'draft', 'a note it left is a draft again');
-      assert.equal(byId.get(two.id).returned.why, 'needs a product call');
+      assert.equal(byId.get(one.id)!.state, 'fixed');
+      assert.equal(byId.get(one.id)!.fixed!.sha, 'abc1234');
+      assert.equal(byId.get(one.id)!.done, true);
+      assert.equal(byId.get(two.id)!.state, 'draft', 'a note it left is a draft again');
+      assert.equal(byId.get(two.id)!.returned!.why, 'needs a product call');
       assert.equal(view.requests[0].status, 'done');
       const again = await runCli(home, ['fixed', '--request', request.id, '--sha', 'abc1234']);
       assert.notEqual(again.code, 0, 'a request is reported once');
 
       // take back: the notes come back to edit; the session's late report is refused
-      const second = (await bridge.call('POST', `${STORY_PATH}/fixes`, { action: 'send' })).body
-        .sent;
+      const second = (
+        await bridge.call<FixesBody>('POST', `${STORY_PATH}/fixes`, { action: 'send' })
+      ).body.sent;
       view = (
-        await bridge.call('POST', `${STORY_PATH}/fixes`, {
+        await bridge.call<FixesBody>('POST', `${STORY_PATH}/fixes`, {
           action: 'take_back',
           request: second.id,
         })
       ).body;
-      assert.equal(view.notes.find((note) => note.id === two.id).state, 'draft');
+      assert.equal(view.notes.find((note) => note.id === two.id)!.state, 'draft');
       const late = await runCli(home, ['fixed', '--request', second.id, '--sha', 'def5678']);
       assert.notEqual(late.code, 0);
       assert.match(late.stderr, /took .* back/);
 
-      const third = (await bridge.call('POST', `${STORY_PATH}/fixes`, { action: 'send' })).body
-        .sent;
+      const third = (
+        await bridge.call<FixesBody>('POST', `${STORY_PATH}/fixes`, { action: 'send' })
+      ).body.sent;
       const failed = await runCli(home, [
         'fixed',
         '--request',
@@ -321,9 +359,9 @@ describe('fix before push: notes collect as drafts and go to a session as one re
         'this checkout is on main',
       ]);
       assert.equal(failed.code, 0, failed.stderr);
-      view = (await bridge.call('GET', `${STORY_PATH}/fixes`)).body;
+      view = (await bridge.call<FixesBody>('GET', `${STORY_PATH}/fixes`)).body;
       assert.equal(
-        view.notes.find((note) => note.id === two.id).returned.why,
+        view.notes.find((note) => note.id === two.id)!.returned!.why,
         'this checkout is on main',
       );
       assert.equal(view.requests[0].status, 'failed');
@@ -337,17 +375,21 @@ describe('fix before push: notes collect as drafts and go to a session as one re
   });
 
   test('the panel says what a send does and how far the notes have got', () => {
+    // just the field fixSummary reads of a note
     const notes = [
       { id: 'n1', state: 'draft' },
       { id: 'n2', state: 'draft' },
       { id: 'n3', state: 'sent' },
       { id: 'n4', state: 'fixed' },
-    ];
-    assert.deepEqual(fixSummary({ notes, to: { consumer: 'api-10', scope: 'story' } }), {
-      drafts: 2,
-      send: 'Send 2 notes to api-10',
-      counts: '2 to send · 1 sent · 1 fixed',
-    });
+    ] as FixNote[];
+    assert.deepEqual(
+      fixSummary({ notes, to: { consumer: 'api-10', scope: 'story' } as FixesView['to'] }),
+      {
+        drafts: 2,
+        send: 'Send 2 notes to api-10',
+        counts: '2 to send · 1 sent · 1 fixed',
+      },
+    );
     assert.equal(fixSummary({ notes: notes.slice(0, 1), to: null }).send, 'Send 1 note');
     assert.equal(fixSummary({ notes: notes.slice(2), to: null }).send, null);
   });
@@ -362,8 +404,9 @@ describe('"being changed" marks', () => {
     writeJson(chapters, { chapters: [{ title: 'Chapter 1: One', files: ['one.txt'] }] });
     const local = createLocalStory({ home, repo, base, head: 'HEAD', chapters });
     const bridge = await startBridge({ home });
-    const working = async (id) => (await bridge.call('GET', `/api/stories/${id}/working`)).body;
-    const pulse = async () => (await bridge.call('GET', `${STORY_PATH}/pulse`)).body;
+    const working = async (id: string) =>
+      (await bridge.call<ReturnType<typeof workingOf>>('GET', `/api/stories/${id}/working`)).body;
+    const pulse = async () => (await bridge.call<Pulse>('GET', `${STORY_PATH}/pulse`)).body;
     try {
       const before = (await pulse()).working_rev;
       const marked = await runCli(home, [
@@ -419,7 +462,7 @@ describe('"being changed" marks', () => {
       assert.equal(done.code, 0, done.stderr);
       const after = await working(STORY);
       assert.deepEqual(after.marks, []);
-      assert.equal(after.last.sha, 'abc1234');
+      assert.equal(after.last!.sha, 'abc1234');
 
       // a local story, and `fixed` clearing the mark of the session the request went to
       await bridge.call('POST', `/api/stories/${local.id}/notes`, {
@@ -429,10 +472,10 @@ describe('"being changed" marks', () => {
       });
       beat(home, 'repo-local', 'waiting', { fixes: true });
       const request = (
-        await bridge.call('POST', `/api/stories/${local.id}/fixes`, { action: 'send' })
+        await bridge.call<FixesBody>('POST', `/api/stories/${local.id}/fixes`, { action: 'send' })
       ).body.sent;
       assert.equal(request.kind, 'local');
-      assert.equal(realpathSync(request.checkout), realpathSync(repo));
+      assert.equal(realpathSync(request.checkout as string), realpathSync(repo));
       const handed = await waitFor(home, '--consumer', 'repo-local');
       assert.equal(handed[0].id, request.id);
       await runCli(home, ['working', '--request', request.id, '--files', 'one.txt:2']);
@@ -450,8 +493,8 @@ describe('"being changed" marks', () => {
     const home = tmp('home');
     githubStory(path.join(home, STORY));
     const now = Date.now();
-    const ago = (msAgo) => new Date(now - msAgo).toISOString();
-    const mark = (consumer, msAgo, startedAgo = msAgo) => ({
+    const ago = (msAgo: number) => new Date(now - msAgo).toISOString();
+    const mark = (consumer: string, msAgo: number, startedAgo = msAgo) => ({
       consumer,
       files: [{ path: 'src/a.js', ranges: [] }],
       request: null,
@@ -472,7 +515,7 @@ describe('"being changed" marks', () => {
       { consumer: 'gone', live: false, at: ago(30000) },
       // a wait of the same name that went quiet before the mark: an old one, which doesn't count
       { consumer: 'oldname', live: false, at: ago(3600000) },
-    ];
+    ] as Listener[]; // just what a mark's check reads of a listener
     assert.deepEqual(
       workingOf(home, STORY, { beats, now }).marks.map((kept) => kept.consumer),
       ['fresh', 'oldname'],

@@ -1,10 +1,8 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { splitRows } from '../public/split.ts';
+import { splitRows, type SplitRow } from '../public/split.ts';
 
-const pair = (row) =>
+const pair = (row: SplitRow) =>
   row.info
     ? `info ${row.info}`
     : `${row.left ? `${row.left.kind}${row.left.num}` : '-'} | ${row.right ? `${row.right.kind}${row.right.num}` : '-'}`;
@@ -17,8 +15,8 @@ test('pairs a run of removed lines with the added run after it, old left and new
     'del12 | -',
     'ctx13 | ctx22',
   ]);
-  assert.equal(rows[1].left.text, 'b');
-  assert.equal(rows[1].right.text, 'B');
+  assert.equal(rows[1].left!.text, 'b');
+  assert.equal(rows[1].right!.text, 'B');
 });
 
 test('extra added lines get an empty left cell, and a removal after additions starts a new pair', () => {

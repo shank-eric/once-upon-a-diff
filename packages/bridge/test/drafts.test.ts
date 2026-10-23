@@ -1,11 +1,13 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson } from './helpers.ts';
 import { similarity, bestMatch, clearCache } from '../src/github/drafts.ts';
+import type { DraftsAnswer } from '@once-upon-a-diff/shared/types';
+
+/** GET or POST .../drafts: each draft's state, and the gh user it was checked as. */
+type DraftsBody = DraftsAnswer & { login: string | null };
 
 process.env.ONCE_UPON_GH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -94,7 +96,7 @@ test('posted, pending (his unsubmitted review), dismissed and draft are separate
   });
   const bridge = await startBridge({ home });
   try {
-    const state = (await bridge.call('GET', '/api/stories/acme-widgets-7/drafts')).body;
+    const state = (await bridge.call<DraftsBody>('GET', '/api/stories/acme-widgets-7/drafts')).body;
     assert.equal(state.error, null);
     assert.equal(state.login, 'octocat');
     assert.deepEqual(
@@ -104,7 +106,7 @@ test('posted, pending (his unsubmitted review), dismissed and draft are separate
     assert.equal(state.drafts[0].url, 'https://github.com/acme/widgets/pull/7#discussion_r1');
 
     let result = (
-      await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
+      await bridge.call<DraftsBody>('POST', '/api/stories/acme-widgets-7/drafts', {
         chapter: 1,
         index: 3,
         action: 'dismiss',
@@ -114,7 +116,7 @@ test('posted, pending (his unsubmitted review), dismissed and draft are separate
     assert.equal(result.drafts[0].status, 'posted', 'a dismiss leaves the others as gh found them');
     assert.equal(
       (
-        await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
+        await bridge.call<DraftsBody>('POST', '/api/stories/acme-widgets-7/drafts', {
           chapter: 1,
           index: 2,
           action: 'posted',
@@ -142,7 +144,7 @@ test('posted, pending (his unsubmitted review), dismissed and draft are separate
         },
       ],
     });
-    result = (await bridge.call('GET', '/api/stories/acme-widgets-7/drafts')).body;
+    result = (await bridge.call<DraftsBody>('GET', '/api/stories/acme-widgets-7/drafts')).body;
     assert.equal(
       result.drafts[0].dismissed,
       true,
@@ -150,7 +152,7 @@ test('posted, pending (his unsubmitted review), dismissed and draft are separate
     );
     assert.equal(result.drafts[1].status, 'posted', 'gh still matches the reordered one');
     result = (
-      await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
+      await bridge.call<DraftsBody>('POST', '/api/stories/acme-widgets-7/drafts', {
         chapter: 1,
         index: 0,
         action: 'restore',
@@ -159,7 +161,7 @@ test('posted, pending (his unsubmitted review), dismissed and draft are separate
     assert.equal(result.drafts[0].dismissed, false);
     assert.equal(
       (
-        await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
+        await bridge.call<DraftsBody>('POST', '/api/stories/acme-widgets-7/drafts', {
           chapter: 1,
           index: 0,
           action: 'post-it',
@@ -180,10 +182,10 @@ test('without gh, posted detection says why and Dismiss still works', async () =
   githubStory(path.join(home, 'acme-widgets-7'));
   const bridge = await startBridge({ home });
   try {
-    const state = (await bridge.call('GET', '/api/stories/acme-widgets-7/drafts')).body;
-    assert.match(state.error, /couldn't read the PR's comments/);
+    const state = (await bridge.call<DraftsBody>('GET', '/api/stories/acme-widgets-7/drafts')).body;
+    assert.match(state.error as string, /couldn't read the PR's comments/);
     const result = (
-      await bridge.call('POST', '/api/stories/acme-widgets-7/drafts', {
+      await bridge.call<DraftsBody>('POST', '/api/stories/acme-widgets-7/drafts', {
         chapter: 1,
         index: 0,
         action: 'dismiss',

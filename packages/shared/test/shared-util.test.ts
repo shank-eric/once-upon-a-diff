@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
@@ -13,7 +11,7 @@ import { escapeHtml, unescapeHtml, html, raw, Html } from '../src/util/html.ts';
 import { shortSha, baseName, plural, capitalize } from '../src/util/text.ts';
 import { clockTime, shortDateTime } from '../src/util/time.ts';
 
-const locationOf = (url) => {
+const locationOf = (url: string) => {
   const parsed = new URL(url, 'https://github.com');
   return { pathname: parsed.pathname, search: parsed.search };
 };
@@ -26,7 +24,7 @@ test('a PR Files changed path, on /changes, /files and below them', () => {
     key: 'acme/widgets#7',
     view: 'changes',
   });
-  assert.equal(filesChangedPr('/acme/widgets/pull/7/files/abc1234..def5678').view, 'files');
+  assert.equal(filesChangedPr('/acme/widgets/pull/7/files/abc1234..def5678')!.view, 'files');
   assert.equal(filesChangedPr('/acme/widgets/pull/7'), null);
   assert.equal(filesChangedPr('/acme/widgets/pull/7/filesx'), null);
 });

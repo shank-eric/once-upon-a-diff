@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -9,6 +7,7 @@ import { pathSha } from '../src/util/diff.ts';
 import { StoryStore } from '../src/stories/store.ts';
 import { createLocalStory } from '../src/stories/local-story.ts';
 import { finishedInOf } from '@once-upon-a-diff/shared/overlay';
+import type { Chapter } from '@once-upon-a-diff/shared/types';
 
 const RELS = [
   'libs/hooks/useOptions.ts',
@@ -44,6 +43,7 @@ test("line references in a chapter's text: path:N, ranges, bare :N, and diff lin
 });
 
 test('a later chapter that points at a file\'s lines finishes it; "Since you read it" chapters only finish what they list', () => {
+  // just what addTextRefs and finishedInOf read of a chapter
   const chapters = [
     {
       title: 'Chapter 1: Options',
@@ -60,7 +60,7 @@ test('a later chapter that points at a file\'s lines finishes it; "Since you rea
       narrative: 'The tests name `useOptions.ts` but point at no line.',
       files: [{ rel: 'apps/a/index.ts', partial: false, note: null }],
     },
-  ];
+  ] as Chapter[];
   assert.deepEqual(
     finishedInOf(chapters)['libs/hooks/useOptions.ts'],
     1,
@@ -90,7 +90,7 @@ test('a later chapter that points at a file\'s lines finishes it; "Since you rea
       files: [{ rel: 'apps/a/Orders.tsx', partial: false, note: null }],
     },
     ...chapters,
-  ];
+  ] as Chapter[];
   addTextRefs(since, RELS);
   assert.equal(since[0].files.length, 1, 'a "Since you read it" chapter gets no referenced files');
   assert.equal(finishedInOf(since)['apps/a/Orders.tsx'], 1, 'and still finishes what it lists');
@@ -123,7 +123,7 @@ test("the bridge adds referenced files to a GitHub story's chapters", () => {
       },
     ],
   });
-  const data = new StoryStore({ home }).load('acme-widgets-8');
+  const data = new StoryStore({ home }).load('acme-widgets-8')!;
   assert.deepEqual(
     data.chapters[1].files.map((file) => [file.rel, !!file.ref]),
     [
@@ -148,7 +148,7 @@ test("the bridge adds referenced files to a local story's chapters", () => {
       },
     ],
   });
-  const data = new StoryStore({ home }).load(made.id);
+  const data = new StoryStore({ home }).load(made.id)!;
   assert.ok(
     data.chapters[1].files.some((file) => file.rel === 'one.txt' && file.ref),
     'one.txt joins chapter 2',

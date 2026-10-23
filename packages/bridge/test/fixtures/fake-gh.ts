@@ -1,10 +1,8 @@
 #!/usr/bin/env node
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { readFileSync } from 'node:fs';
 // A stand-in for `gh api` in tests: prints canned JSON for the GETs the bridge makes, and fails anything else.
 const args = process.argv.slice(2);
-// Add to my review's GraphQL calls go to fake-gh-review.mjs, only when a test opts in with FAKE_GH_GRAPHQL=1
+// Add to my review's GraphQL calls go to fake-gh-review.ts, only when a test opts in with FAKE_GH_GRAPHQL=1
 if (process.env.FAKE_GH_GRAPHQL && args[0] === 'api' && args[1] === 'graphql') {
   await import('./fake-gh-review.ts');
 } else {

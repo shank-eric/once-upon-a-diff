@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -9,7 +7,15 @@ import { tmp, githubStory, startBridge, writeJson, runCli } from 'once-upon-a-di
 import { Builds, buildText } from 'once-upon-a-diff/inbox/builds';
 import { noteRead } from 'once-upon-a-diff/stories/reads';
 import { clearFreshness } from 'once-upon-a-diff/github/freshness';
-import { tagFor, tagHtml, requestFor } from '../src/content/ui/story-tag.ts';
+import { tagFor, tagHtml, requestFor, type StoryStatus } from '../src/content/ui/story-tag.ts';
+import type { Build } from 'once-upon-a-diff/inbox/builds';
+import type { StoryData } from '@once-upon-a-diff/shared/types';
+import type { Plan } from 'once-upon-a-diff/stories/chapters';
+
+/** What POST /api/builds answers. */
+type BuildAnswer = { state: string; request: Build };
+/** What status-many answers. */
+type StatusMany = { results: StoryStatus[] };
 
 process.env.ONCE_UPON_GH = fileURLToPath(
   import.meta.resolve('once-upon-a-diff/test/fixtures/fake-gh'),
@@ -17,7 +23,7 @@ process.env.ONCE_UPON_GH = fileURLToPath(
 const SHA_A = 'a'.repeat(40);
 const SHA_B = 'b'.repeat(40);
 
-function story(home, head = SHA_A) {
+function story(home: string, head = SHA_A): string {
   const dir = path.join(home, 'acme-widgets-7');
   githubStory(dir, { meta: { head_oid: head } });
   return dir;
@@ -42,7 +48,7 @@ test('an update asks for a "Since you read it" chapter from where the reading st
   const bridge = await startBridge({ home });
   try {
     const result = (
-      await bridge.call('POST', '/api/builds', {
+      await bridge.call<BuildAnswer>('POST', '/api/builds', {
         repo: 'acme/widgets',
         number: 7,
         mode: 'update',
@@ -54,8 +60,8 @@ test('an update asks for a "Since you read it" chapter from where the reading st
       ['update', SHA_C, 'read', 'acme-widgets-7', false],
       'the earliest read was chapter 2, at C',
     );
-    assert.deepEqual(result.reads.map((read) => read.chapter).sort(), ['finish', 'start']);
-    const line = new Builds(home).get('acme/widgets', 7);
+    assert.deepEqual(result.reads!.map((read) => read.chapter).sort(), ['finish', 'start']);
+    const line = new Builds(home).get('acme/widgets', 7)!;
     assert.equal(line.since_sha, SHA_C);
     assert.match(
       buildText(line),
@@ -102,7 +108,7 @@ test('with nothing read, an update starts from the story head; Re-tell asks for 
   const bridge = await startBridge({ home });
   try {
     const result = (
-      await bridge.call('POST', '/api/builds', {
+      await bridge.call<BuildAnswer>('POST', '/api/builds', {
         repo: 'acme/widgets',
         number: 7,
         mode: 'update',
@@ -110,12 +116,12 @@ test('with nothing read, an update starts from the story head; Re-tell asks for 
       })
     ).body.request;
     assert.deepEqual(
-      [result.since_sha, result.since_source, result.reads.length],
+      [result.since_sha, result.since_source, result.reads!.length],
       [SHA_A, 'story', 0],
     );
     // still queued: Re-tell from scratch replaces it, and Update (new commits) puts it back
     const retold = (
-      await bridge.call('POST', '/api/builds', {
+      await bridge.call<BuildAnswer>('POST', '/api/builds', {
         repo: 'acme/widgets',
         number: 7,
         mode: 'update',
@@ -126,12 +132,12 @@ test('with nothing read, an update starts from the story head; Re-tell asks for 
     assert.equal(retold.id, result.id, 'the same request');
     assert.equal(retold.retell, true);
     assert.match(
-      buildText(new Builds(home).get('acme/widgets', 7)),
+      buildText(new Builds(home).get('acme/widgets', 7)!),
       /^Re-tell the story for acme\/widgets#7 from scratch/,
     );
     assert.equal(
       (
-        await bridge.call('POST', '/api/builds', {
+        await bridge.call<BuildAnswer>('POST', '/api/builds', {
           repo: 'acme/widgets',
           number: 7,
           mode: 'update',
@@ -155,7 +161,7 @@ test('once a session has claimed an update, a second click does not change it', 
     base_sha: SHA_A,
     since: { since_sha: SHA_A, source: 'story', read: [] },
   });
-  builds.claim(request.id, 'repo-acme-widgets', { start: true });
+  builds.claim(request.id, 'repo-acme-widgets');
   assert.equal(
     builds.request({
       repo: 'acme/widgets',
@@ -167,7 +173,7 @@ test('once a session has claimed an update, a second click does not change it', 
     undefined,
   );
   assert.equal(
-    buildText({ repo: 'acme/widgets', number: 7, url: 'u' }),
+    buildText({ repo: 'acme/widgets', number: 7, url: 'u' } as Build),
     'Build a story for acme/widgets#7: u',
   );
 });
@@ -175,7 +181,9 @@ test('once a session has claimed an update, a second click does not change it', 
 test("the stories carry a chapter's since range through to the panel", async () => {
   const home = tmp('home');
   const dir = story(home, SHA_B);
-  const plan = JSON.parse(readFileSync(path.join(dir, 'chapters.json'), 'utf8'));
+  const plan: Plan & { chapters: NonNullable<Plan['chapters']> } = JSON.parse(
+    readFileSync(path.join(dir, 'chapters.json'), 'utf8'),
+  );
   plan.chapters.unshift({
     key: 'since-aaaaaaa-bbbbbbb',
     title: 'Since you read it: 2 new commits',
@@ -190,7 +198,7 @@ test("the stories carry a chapter's since range through to the panel", async () 
   writeJson(path.join(dir, 'chapters.json'), plan);
   const bridge = await startBridge({ home });
   try {
-    const story = (await bridge.call('GET', '/api/stories/acme-widgets-7')).body;
+    const story = (await bridge.call<StoryData>('GET', '/api/stories/acme-widgets-7')).body;
     assert.deepEqual(story.chapters[0].since, { from: SHA_A, to: SHA_B, commits: 2 });
     assert.equal(story.chapters[0].key, 'since-aaaaaaa-bbbbbbb');
     assert.equal(story.chapters[1].since, undefined);
@@ -203,14 +211,14 @@ test("the stories carry a chapter's since range through to the panel", async () 
 test('the out-of-date tag offers Update (new commits) and Re-tell from scratch', () => {
   const pr = { repo: 'acme/widgets', number: 7 };
   const tag = tagFor({ state: 'ready', stale: true, story_head: SHA_A, current_head: SHA_B }, pr);
-  assert.equal(tag.alt.act, 'retell');
+  assert.equal(tag.alt!.act, 'retell');
   const html = String(tagHtml(tag));
   assert.match(
     html,
     /^<button class="b stale" data-act="update"[^>]*>Story out of date · Update<\/button><button class="alt" data-act="retell"/,
   );
   assert.match(tag.title, /^Update \(new commits\)/);
-  assert.match(tag.alt.title, /^Re-tell from scratch/);
+  assert.match(tag.alt!.title, /^Re-tell from scratch/);
   assert.equal(requestFor(tag, pr).retell, undefined);
   assert.deepEqual(
     [requestFor(tag, pr, { retell: true }).mode, requestFor(tag, pr, { retell: true }).retell],
@@ -301,7 +309,8 @@ test('GitHub\'s diff of a "Since you read it" chapter\'s commits opens on that c
 test('the PR-list tag says how much of the story he has read', () => {
   const pr = { repo: 'acme/widgets', number: 7 };
   const href = 'https://github.com/acme/widgets/pull/7/changes';
-  const tagWith = (result) => tagFor({ state: 'ready', story_head: SHA_A, ...result }, pr);
+  const tagWith = (result: StoryStatus) =>
+    tagFor({ state: 'ready', story_head: SHA_A, ...result }, pr);
   assert.deepEqual(
     [tagWith({ reads: { read: 0, total: 5, next: 1 } }).label, tagWith({}).label],
     ['Story', 'Story'],
@@ -322,7 +331,7 @@ test('the PR-list tag says how much of the story he has read', () => {
     newer: 3,
   });
   assert.deepEqual(
-    [moved.kind, moved.act, moved.label, moved.base, moved.alt.act],
+    [moved.kind, moved.act, moved.label, moved.base, moved.alt!.act],
     ['button', 'update', 'Read · 3 new commits · Update', SHA_A, 'retell'],
   );
   assert.equal(
@@ -359,7 +368,7 @@ test('status-many reports reads and, when the PR moved on, how many new commits'
   const bridge = await startBridge({ home });
   try {
     let result = (
-      await bridge.call('POST', '/api/stories/status-many', {
+      await bridge.call<StatusMany>('POST', '/api/stories/status-many', {
         prs: [{ repo: 'acme/widgets', number: 7 }],
       })
     ).body.results[0];
@@ -373,7 +382,7 @@ test('status-many reports reads and, when the PR moved on, how many new commits'
     noteRead(home, 'pr-acme-widgets-7', 'not in a chapter yet', { story_head: SHA_A });
     await new Promise((resolve) => setTimeout(resolve, 5100)); // status-many caches 5s
     result = (
-      await bridge.call('POST', '/api/stories/status-many', {
+      await bridge.call<StatusMany>('POST', '/api/stories/status-many', {
         prs: [{ repo: 'acme/widgets', number: 7 }],
       })
     ).body.results[0];

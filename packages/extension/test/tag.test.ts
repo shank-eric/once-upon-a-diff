@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { tagFor, tagHtml, requestFor, missingListeners } from '../src/content/ui/story-tag.ts';
@@ -47,7 +45,7 @@ test('one tag per PR, and the tag is the control', () => {
 });
 
 test('the HTML is one element: a link, a button, or a span', () => {
-  const count = (html) => (html.match(/<(a|button|span) class="b/g) || []).length;
+  const count = (html: string) => (html.match(/<(a|button|span) class="b/g) || []).length;
   for (const result of [
     { state: 'ready' },
     { state: 'none' },
