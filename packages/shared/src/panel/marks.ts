@@ -59,7 +59,10 @@ const WORDING: Record<
  * steps in the step list and its files in the file list; a read mark's files only on its own step (onlyOn).
  * fresh is opts.freshness()'s answer, reads opts.reads()'s.
  */
-export function marksOf(fresh: Freshness | null, reads: ReadInfo | null): ChangeMark[] {
+export function marksOf(
+  fresh: Freshness | null,
+  reads: Pick<ReadInfo, 'changed'> | null,
+): ChangeMark[] {
   const marks: ChangeMark[] = [];
   const change = (
     why: ChangeMark['why'],

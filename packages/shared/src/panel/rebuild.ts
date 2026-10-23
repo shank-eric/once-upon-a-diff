@@ -35,7 +35,7 @@ export const rebuildPending = (rebuild: RebuildView | null): boolean =>
   !!rebuild && (rebuild.state === 'queued' || rebuild.state === 'building');
 
 /** The status line for the story's rebuild ('' when there's nothing to say). */
-export function rebuildLine(rebuild: RebuildView | null, now = Date.now()): string {
+export function rebuildLine(rebuild: Partial<RebuildView> | null, now = Date.now()): string {
   if (!rebuild) {
     return '';
   }

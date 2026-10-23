@@ -35,7 +35,8 @@ export type Decision =
   { action: 'none' } | { action: 'save'; value: boolean } | { action: 'redirect'; url: string };
 
 /** The bridge's prefs.json, as GET and POST /api/prefs answer. */
-type Prefs = { hideWhitespace?: boolean };
+/** The bridge's prefs.json, as far as GitHub's page goes. */
+export type Prefs = { hideWhitespace?: boolean };
 
 export const REDIRECT_GUARD_MS = 15000;
 

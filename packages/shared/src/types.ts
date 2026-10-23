@@ -416,7 +416,7 @@ export interface Pulse {
 export interface FreshUpdate {
   from: string;
   to: string;
-  newer: number | null;
+  newer?: number | null;
   retold?: boolean;
   /** when the update was done */
   at?: string | null;
