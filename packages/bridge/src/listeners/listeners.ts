@@ -140,7 +140,7 @@ export function onPath(cmd: string | null | undefined): boolean {
   }
 }
 
-const BIN = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../bin/once-upon.ts');
+const BIN = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../bin/once-upon.mjs');
 const shq = (word: string) =>
   /^[A-Za-z0-9_./:=@%+-]+$/.test(word) ? word : `'${String(word).replace(/'/g, "'\\''")}'`;
 let cliCache: boolean | null = null;

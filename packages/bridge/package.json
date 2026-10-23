@@ -9,16 +9,16 @@
     "node": ">=24"
   },
   "bin": {
-    "once-upon": "bin/once-upon.ts"
+    "once-upon": "bin/once-upon.mjs"
   },
   "exports": {
     "./*": "./src/*.ts",
     "./test/*": "./test/*.ts"
   },
   "scripts": {
-    "serve": "node bin/once-upon.ts serve",
-    "vendor": "node scripts/vendor-hljs.ts",
-    "test": "node --test test/*.test.ts",
+    "serve": "node bin/once-upon.mjs serve",
+    "vendor": "node bin/node-version.mjs && node scripts/vendor-hljs.ts",
+    "test": "node bin/node-version.mjs && node --test test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p public/tsconfig.json && tsc -p test/tsconfig.json"
   },
   "dependencies": {

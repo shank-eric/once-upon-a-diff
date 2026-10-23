@@ -95,6 +95,20 @@ test('doctor reports a missing bridge as failing, with the fix', async () => {
   assert.match(text, /FAIL\s+Bridge: nothing is listening on 127\.0\.0\.1:1/);
   assert.match(text, /fix: Start it: once-upon serve/);
   assert.match(text, /WARN\s+Claude listening/);
+  assert.ok(text.includes(`PASS  Node: v${process.versions.node} at ${process.execPath}`));
+});
+
+test('doctor fails a Node older than 24, with the fix', async () => {
+  const lines: string[] = [];
+  const ok = await doctor(
+    tmp('home'),
+    { token: 't', port: 1 },
+    { nodeVersion: '22.15.0', out: (line) => lines.push(line) },
+  );
+  assert.equal(ok, false);
+  const text = lines.join('\n');
+  assert.match(text, /FAIL\s+Node: v22\.15\.0 at .+, needs 24 or newer/);
+  assert.match(text, /fix: Run fnm use or nvm use/);
 });
 
 test('doctor passes the bridge when it is up', async () => {
@@ -168,7 +182,7 @@ test('Copy prompt for Claude: one short skill line naming the repo, with the lon
   assert.equal(cliCommand(true), 'once-upon');
   const full = cliCommand(false);
   assert.ok(full.startsWith(process.execPath), 'off PATH it names node by full path');
-  assert.match(full, /\/bridge\/bin\/once-upon\.ts$/);
+  assert.match(full, /\/bridge\/bin\/once-upon\.mjs$/);
 
   const home = tmp('home');
   githubStory(path.join(home, 'acme-widgets-7'));
