@@ -8,7 +8,7 @@
     "allowJs": true,
     "checkJs": true,
     "paths": {
-      "/assets/overlay.js": ["../../shared/src/overlay.js"],
+      "/assets/overlay.ts": ["../../shared/src/overlay.ts"],
       "/assets/util/*": ["../../shared/src/util/*"],
       "/assets/panel/*": ["../../shared/src/panel/*"],
       "/assets/local/*": ["./local/*"],

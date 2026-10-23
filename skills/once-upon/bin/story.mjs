@@ -24,7 +24,7 @@ import {
   uncoveredHunks,
   SMALL_FILE_LINES,
 } from '../../../packages/bridge/src/stories/hunk-coverage.mjs';
-import { finishedInOf } from '../../../packages/shared/src/panel/story-model.js';
+import { finishedInOf } from '../../../packages/shared/src/panel/story-model.ts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '../../..');

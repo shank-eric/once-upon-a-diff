@@ -3,11 +3,11 @@
  * away (narrow.js), and a jump from the panel opens the file and the folds
  * that hold its lines. Viewed stays as it is.
  */
-import { chapterNumbers } from '/assets/overlay.js';
+import { chapterNumbers } from '/assets/overlay.ts';
 import { claimsOf, narrowRows } from '/assets/narrow.js';
-import { html } from '/assets/util/html.js';
-import { insertHtml } from '/assets/util/dom.js';
-import { plural } from '/assets/util/text.js';
+import { html } from '/assets/util/html.ts';
+import { insertHtml } from '/assets/util/dom.ts';
+import { plural } from '/assets/util/text.ts';
 import { page } from './page.js';
 import { columnCount } from './diff-view.js';
 

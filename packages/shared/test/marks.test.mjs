@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { marksOf } from '../src/panel/marks.js';
+import { marksOf } from '../src/panel/marks.ts';
 
 test('a stale story marks the chapters and files changed since it was told', () => {
   const marks = marksOf(

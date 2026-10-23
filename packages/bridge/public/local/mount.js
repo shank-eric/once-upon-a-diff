@@ -4,7 +4,7 @@
  * questions and its drafts, Add to fix before push makes a note, and the
  * panel's Fix before push sends the notes to a Claude session.
  */
-import { storyOverlay } from '/assets/overlay.js';
+import { storyOverlay } from '/assets/overlay.ts';
 import { page, api, STORY_ID, STORY_PATH } from './page.js';
 import { narrow, reveal, unnarrow, forgetNarrowing } from './folds.js';
 import { placeNotes } from './notes.js';

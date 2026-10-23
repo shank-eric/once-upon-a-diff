@@ -332,7 +332,7 @@ describe('local stories', () => {
     assert.match(page.text, /id="ou-local-boot"/);
     assert.ok(page.text.includes(TOKEN));
     assert.match(page.headers.get('content-security-policy'), /script-src 'self'/);
-    assert.equal((await bridge.call('GET', '/assets/overlay.js')).status, 200);
+    assert.equal((await bridge.call('GET', '/assets/overlay.ts')).status, 200);
     assert.equal((await bridge.call('GET', '/assets/local.js')).status, 200);
     for (const sheet of ['panel.css', 'page.css']) {
       const css = await bridge.call('GET', `/assets/panel/${sheet}`);
