@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * The page-level "No session listening for owner/name" notice, on PR lists
  * and a PR's Conversation tab: one line per repo on the page that has no
@@ -10,6 +8,7 @@
  * GitHub's page and posts nothing.
  */
 import { copyWithFeedback } from './copy.ts';
+import type { MissingListener } from './story-tag.ts';
 import { html } from '@once-upon-a-diff/shared/util/html';
 import {
   hideUntilStyled,
@@ -23,10 +22,10 @@ const MAX = 3;
 const NOTICE_CSS_URL = chrome.runtime.getURL('content/ui/listen-notice.css');
 
 export function listenNotice() {
-  let host = null;
-  let root = null;
+  let host: HTMLDivElement | null = null;
+  let root: HTMLDivElement | null = null;
   let dismissed = false;
-  let rows = [];
+  let rows: MissingListener[] = [];
   let lastHtml = '';
   function remove() {
     if (host) {
@@ -36,8 +35,8 @@ export function listenNotice() {
     root = null;
     lastHtml = '';
   }
-  /** @param {Array<{repo, prompt, details, checkout}>} missing, from story-tag.js's missingListeners */
-  function set(missing) {
+  /** missing: from story-tag.ts's missingListeners */
+  function set(missing: MissingListener[]) {
     if (dismissed || !missing.length) {
       return remove();
     }
@@ -53,7 +52,9 @@ export function listenNotice() {
       shadow.append(link, root);
       hideUntilStyled(host, [link]);
       root.addEventListener('click', (event) => {
-        const button = /** @type {Element} */ event.target.closest('button[data-i], button.x');
+        const button = (event.target as Element).closest<HTMLButtonElement>(
+          'button[data-i], button.x',
+        );
         if (!button) {
           return;
         }
@@ -85,7 +86,7 @@ export function listenNotice() {
     const next = html`<div class="row top"><div class="lines">${lines}${more}</div><button class="x" title="Hide until the page reloads" aria-label="Hide">×</button></div>`;
     if (String(next) !== lastHtml) {
       lastHtml = String(next);
-      setHtml(root, next);
+      setHtml(root as HTMLDivElement, next); // made above when missing
     } // redrawn only when it changes, so "Copied" stays put
   }
   return { set, remove };

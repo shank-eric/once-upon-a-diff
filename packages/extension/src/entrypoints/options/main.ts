@@ -1,11 +1,14 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 import { getSettings, setSettings } from '../../settings.ts';
+import type { BridgeAnswer, BridgeRequest } from '../../content/bridge.ts';
+
+/** What the options page reads of GET /api/health and GET /api/stories. */
+type Health = { version: string };
+type StoryList = { stories?: { title: string; kind: string; repo?: string; number?: number }[] };
 
 /** The page's elements by id; the form's fields are inputs. */
-const $ = (id) => /** @type {HTMLInputElement} */ document.getElementById(id);
+const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
 
-function status(text, ok) {
+function status(text: string, ok: boolean) {
   $('status').textContent = text;
   $('status').className = ok ? 'ok' : 'bad';
 }
@@ -19,21 +22,29 @@ async function test(prefix = '') {
   if (!settings.token) {
     return status(`${prefix}Paste the token from once-upon setup, then test.`, false);
   }
-  const ask = (path) =>
-    chrome.runtime.sendMessage({ type: 'bridge', method: 'GET', path, settings });
-  const health = await ask('/api/health');
+  const ask = <T>(path: string): Promise<BridgeAnswer<T>> =>
+    chrome.runtime.sendMessage({
+      type: 'bridge',
+      method: 'GET',
+      path,
+      settings,
+    } satisfies BridgeRequest);
+  const health = await ask<Health>('/api/health');
   if (!health.ok) {
     const why =
-      {
-        unreachable: 'nothing is listening on that port. Is once-upon serve running?',
-        'not-configured': 'paste the token first.',
-        'missing or wrong token':
-          'the bridge rejected the token. Copy it again from once-upon setup.',
-      }[health.error] || health.error;
+      (
+        {
+          unreachable: 'nothing is listening on that port. Is once-upon serve running?',
+          'not-configured': 'paste the token first.',
+          'missing or wrong token':
+            'the bridge rejected the token. Copy it again from once-upon setup.',
+        } as Record<string, string>
+      )[health.error as string] || health.error;
     return status(`${prefix}Couldn't reach the bridge: ${why}`, false);
   }
-  const list = await ask('/api/stories');
-  const stories = (list.body && list.body.stories) || [];
+  const list = await ask<StoryList>('/api/stories');
+  // a failed list's body is the bridge's error, without stories
+  const stories = ((list.body as StoryList | null) && (list.body as StoryList).stories) || [];
   status(
     `${prefix}Connected to the bridge ${health.body.version}. ${stories.length} stor${stories.length === 1 ? 'y' : 'ies'}:`,
     true,
@@ -47,7 +58,7 @@ async function test(prefix = '') {
 
 async function init() {
   const settings = await getSettings();
-  $('port').value = settings.port;
+  $('port').value = String(settings.port);
   $('token').value = settings.token;
   $('settings').addEventListener('submit', async (e) => {
     e.preventDefault();

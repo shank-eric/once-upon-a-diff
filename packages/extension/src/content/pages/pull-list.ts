@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * PR lists (a repo's /pulls, the global /pulls, and PR search results): one
  * story tag after each PR's title, and the tag is the control
@@ -12,6 +10,14 @@
 import { conversationPr, isPullListPage, prKey } from '@once-upon-a-diff/shared/util/github-paths';
 import { extensionAlive } from '../bridge.ts';
 import { createPrTags } from '../ui/pr-tags.ts';
+import type { PrRef } from '../ui/story-tag.ts';
+import type { Route } from '../index.ts';
+
+/** A PR's title link on the list, and its row. */
+interface PrLink extends PrRef {
+  link: HTMLAnchorElement;
+  row: Element;
+}
 
 const ATTR = 'data-ou-badge';
 const DEBOUNCE_MS = 300;
@@ -20,12 +26,10 @@ const TITLE_LINK =
   '[data-hovercard-type="pull_request"], .js-navigation-open, [data-testid*="title" i], h3 a, [id^="issue_"] a.Link--primary';
 
 /** Title links to PRs on the page, one per row: [{link, row, repo, number}] */
-function prLinks() {
-  const out = [];
-  const rows = new Set();
-  for (const link of /** @type {NodeListOf<HTMLAnchorElement>} */ document.querySelectorAll(
-    'a[href*="/pull/"]',
-  )) {
+function prLinks(): PrLink[] {
+  const out: PrLink[] = [];
+  const rows = new Set<Element>();
+  for (const link of document.querySelectorAll<HTMLAnchorElement>('a[href*="/pull/"]')) {
     if (link.closest(`[${ATTR}]`)) {
       continue;
     }
@@ -44,7 +48,7 @@ function prLinks() {
     }
     const row =
       link.closest('.js-issue-row, [role="listitem"], li, [data-testid*="row" i], tr, article') ||
-      link.parentElement;
+      (link.parentElement as Element);
     if (rows.has(row)) {
       continue;
     }
@@ -57,9 +61,9 @@ function prLinks() {
 export function createPullListPage() {
   const tags = createPrTags({ attr: ATTR });
   let scanning = false;
-  let pending = 0;
+  let pending: ReturnType<typeof setTimeout> | 0 = 0;
 
-  function render(item) {
+  function render(item: PrLink) {
     let host = item.row.querySelector(`[${ATTR}="${prKey(item.repo, item.number)}"]`);
     if (!host) {
       host = tags.hostFor(item);
@@ -69,7 +73,7 @@ export function createPullListPage() {
   }
 
   /** Tags every PR on the page, looking up the ones it doesn't know yet (force: all of them; only: just these, again). */
-  async function scan({ force = false, only = null } = {}) {
+  async function scan({ force = false, only = null as PrRef[] | null } = {}) {
     if (scanning || !extensionAlive() || !isPullListPage(location)) {
       return;
     }
@@ -94,8 +98,8 @@ export function createPullListPage() {
     const ours = mutations.every(
       (mutation) =>
         mutation.target.nodeType === 1 &&
-        /** @type {Element} */ mutation.target.closest &&
-        /** @type {Element} */ mutation.target.closest(`[${ATTR}]`),
+        (mutation.target as Element).closest &&
+        (mutation.target as Element).closest(`[${ATTR}]`),
     );
     if (ours) {
       return;
@@ -109,7 +113,7 @@ export function createPullListPage() {
   });
 
   /** Entering a list page starts watching it; leaving one stops. */
-  function enterOrLeave(onList) {
+  function enterOrLeave(onList: boolean) {
     if (onList) {
       observer.observe(document.body, { childList: true, subtree: true });
       scan();
@@ -120,7 +124,7 @@ export function createPullListPage() {
   }
 
   /** Every tick and navigation, from the router. */
-  function route({ kind, navigated, reason }) {
+  function route({ kind, navigated, reason }: Route) {
     if (navigated) {
       enterOrLeave(kind === 'list');
     } else if (kind === 'list' && reason === 'back') {
