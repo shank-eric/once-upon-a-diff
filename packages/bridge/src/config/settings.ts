@@ -100,6 +100,7 @@ const PLATFORM_OPENER: Partial<Record<NodeJS.Platform, string[]>> = {
  *   open_command            argv to open a URL or file, e.g. ["open"] (default: open, xdg-open or start by platform)
  *   gh_unset_github_token   true to drop GITHUB_TOKEN before calling gh, so gh's own (keychain) login is used
  *   house_rules             a Markdown file of your own rules the skills load (default ~/.once-upon/house-rules.md)
+ *   story_listener_idle_minutes  how long a `wait --story` keeps listening with no page showing its story (default 10)
  *   extension_ids           more extension IDs the bridge answers (a store install, an older unpacked copy); the
  *                           fixed unpacked ID is always allowed
  * Read without creating config.json, so a missing file just means the defaults.
@@ -124,6 +125,10 @@ export function readSettings(home = homeDir()) {
         ? cfg.open_command.map(String)
         : null,
     unsetGithubToken: cfg.gh_unset_github_token === true,
+    storyListenerIdleMinutes:
+      typeof cfg.story_listener_idle_minutes === 'number' && cfg.story_listener_idle_minutes > 0
+        ? cfg.story_listener_idle_minutes
+        : null,
     extensionIds: [
       UNPACKED_EXTENSION_ID,
       ...(Array.isArray(cfg.extension_ids)

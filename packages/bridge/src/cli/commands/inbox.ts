@@ -7,7 +7,9 @@
  * repo-wide one: see the routing rule in ../../inbox/conversation.ts. With
  * build_request in its --type, it takes the story's Rebuild requests the same
  * way (../../inbox/builds.ts). Fix requests (fix_request in --type) are
- * routed the same way too, from the queue in ../../inbox/fixes.ts.
+ * routed the same way too, from the queue in ../../inbox/fixes.ts. A story's
+ * wait also stops itself once no page has shown the story for a while
+ * (../../listeners/auto-stop.ts), unless --no-auto-stop.
  */
 import { existsSync, readFileSync, statSync, watch, writeFileSync } from 'node:fs';
 import { REPO_RE, sameRepo, repoOfCheckout, seenCheckout } from '../../config/repos.ts';
@@ -16,6 +18,7 @@ import { Builds } from '../../inbox/builds.ts';
 import { noteHanded, readHanded, routeQuestions } from '../../inbox/conversation.ts';
 import { fixesToHand } from '../../inbox/fixes.ts';
 import { beat } from '../../listeners/listeners.ts';
+import { idleMsOf, stopReason } from '../../listeners/auto-stop.ts';
 import { StoryStore } from '../../stories/store.ts';
 import { slug } from '../../stories/local-story.ts';
 import { readJson, writeJsonAtomic } from '../../util/json-file.ts';
@@ -152,6 +155,18 @@ function fixGuidance(entry: Extract<Printable, { type: 'fix_request' }>): string
 }
 
 /** Prints what was handed over, with what to run next. */
+/** A story wait that stopped itself: the listener says so and doesn't start it again. */
+function printStopped(story: string, reason: string, opts: CliOpts): void {
+  if (opts.json) {
+    out(JSON.stringify({ type: 'listen_stopped', story, reason, at: new Date().toISOString() }));
+    return;
+  }
+  out(`Stopped listening for ${story}: ${reason}.`);
+  out(
+    "Don't start this wait again. Its questions go to the repo's listener, if one is running, and the panel's Copy prompt for this story starts a story listener again.",
+  );
+}
+
 function printHandOver(entries: Printable[], opts: CliOpts): void {
   for (const entry of entries) {
     if (opts.json) {
@@ -229,6 +244,16 @@ async function wait(home: string, cfg: Config, opts: CliOpts) {
     ...(takesFixes ? { fixes: true } : {}),
   };
   const deadline = opts.timeout ? Date.now() + Number(opts.timeout) * 1000 : Infinity;
+  // a story's wait ends on its own once no page has shown the story for the idle window
+  const autoStop =
+    opts.story && !opts['no-auto-stop']
+      ? {
+          stories: new StoryStore({ home }),
+          story: String(opts.story),
+          startedAt: Date.now(),
+          idleMs: idleMsOf(home),
+        }
+      : null;
   if (!existsSync(messages.file)) {
     writeFileSync(messages.file, '', { mode: 0o600 });
   }
@@ -286,6 +311,12 @@ async function wait(home: string, cfg: Config, opts: CliOpts) {
         process.exitCode = 2;
         return;
       }
+      const reason = autoStop && stopReason({ home, consumer, ...autoStop });
+      if (reason) {
+        clearInterval(heartbeat);
+        printStopped(autoStop!.story, reason, opts);
+        return;
+      }
       await inboxChange(messages.file);
     }
   } finally {
@@ -328,13 +359,14 @@ export const inboxCommands: Command[] = [
   {
     name: 'wait',
     usage: [
-      '  once-upon wait    [--repo OWNER/NAME | --story ID] [--type question,build_request,fix_request] [--consumer NAME] [--timeout SECONDS] [--json]',
+      '  once-upon wait    [--repo OWNER/NAME | --story ID] [--type question,build_request,fix_request] [--consumer NAME] [--timeout SECONDS] [--no-auto-stop] [--json]',
       '                                                                 block until a question, build request or fix request arrives, print it, exit (for a background task);',
       "                                                                 --repo takes both for that repo's stories and PRs; --story (an id, owner/name#N, a PR URL",
       "                                                                 or a PR number here) takes one story's questions, and with build_request its Rebuild",
       "                                                                 requests, ahead of a --repo wait while it's live;",
       "                                                                 a consumer's first wait starts from now, but queued build requests are handed over whenever",
-      '                                                                 they were asked',
+      '                                                                 they were asked; a --story wait stops itself (printing "Stopped listening")',
+      '                                                                 once no page has shown the story for story_listener_idle_minutes (10)',
     ],
     run: wait,
   },
