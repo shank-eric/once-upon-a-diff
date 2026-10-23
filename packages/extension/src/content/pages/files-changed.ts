@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * A GitHub PR's Files changed page (/changes or /files): asks the bridge
  * (through the service worker) whether there's a story for this PR and, if
@@ -22,6 +20,41 @@ import { createPrTags, titleElement } from '../ui/pr-tags.ts';
 import { requestFor, stepOfHash } from '../ui/story-tag.ts';
 import { toast } from '../ui/toast.ts';
 import { createWhitespaceCheck, prefsStore } from './hide-whitespace.ts';
+import type { BridgeAnswer } from '../bridge.ts';
+import type { PanelUi } from '../storage.ts';
+import type { PrRef } from '../ui/story-tag.ts';
+import type { Route } from '../index.ts';
+import type { PanelOptions, StoryOverlay } from '@once-upon-a-diff/shared/overlay';
+import type { FilesChangedPr } from '@once-upon-a-diff/shared/util/github-paths';
+import type {
+  BridgeStatus,
+  DraftsAnswer,
+  FixesView,
+  Freshness,
+  Pulse,
+  Question,
+  QuestionMarksAnswer,
+  ReadInfo,
+  RebuildView,
+  StatusError,
+  StoryData,
+  WorkingMark,
+} from '@once-upon-a-diff/shared/types';
+
+/** The PR page on screen, and its story once the bridge has one. */
+interface CurrentPage extends FilesChangedPr {
+  pr: PrRef;
+  id: string | null;
+  version: string | null;
+  data: StoryData | null;
+  ui: PanelUi;
+  overlay: StoryOverlay | null;
+  status: string;
+  /** the commit-range path whose chapter it opened on, once per page */
+  rangeFor?: string;
+  /** the #ou-step-N URL it opened on, once per page */
+  hashFor?: string;
+}
 
 const PANEL_ID = 'once-upon-panel';
 const TAG_ATTR = 'data-ou-files';
@@ -29,17 +62,17 @@ const TAG_ATTR = 'data-ou-files';
 const panelOnPage = () => !!document.getElementById(PANEL_ID);
 const prOfLocation = () => filesChangedPr(location.pathname);
 /** The bridge's answer body, or an Error with its message. */
-async function bodyOf(answerPromise) {
+async function bodyOf<T>(answerPromise: Promise<BridgeAnswer<T>>): Promise<T> {
   const answer = await answerPromise;
   if (!answer.ok) {
-    throw new Error(answer.error);
+    throw new Error(answer.error as string);
   }
   return answer.body;
 }
 
 export function createFilesChangedPage() {
-  // one PR page at a time: {key, owner, repo, number, pr, id, version, data, ui, overlay, status}
-  let current = null;
+  // one PR page at a time
+  let current: CurrentPage | null = null;
   let syncing = false;
   const tags = createPrTags({ attr: TAG_ATTR, onStory: () => openPanel() });
 
@@ -54,23 +87,28 @@ export function createFilesChangedPage() {
 
   /** The step to open on, once per page: a "Since you read it" range's chapter, or a #ou-step-N from a PR-list tag. */
   function jumpStep() {
-    // GitHub's diff of one "Since you read it" chapter's commits opens on that chapter, once per page
-    const range = rangeStepOf(current.data.chapters, location.pathname);
-    if (range && current.rangeFor !== location.pathname) {
-      current.rangeFor = location.pathname;
+    // only called with a story (mount). GitHub's diff of one "Since you read it" chapter's commits opens on that
+    // chapter, once per page
+    const range = rangeStepOf(current!.data!.chapters, location.pathname);
+    if (range && current!.rangeFor !== location.pathname) {
+      current!.rangeFor = location.pathname;
       return range;
     }
     // a PR-list "Story · 2 of 5 read" tag links Files changed#ou-step-N: open on the first unread chapter, once
     const hashStep = stepOfHash(location.hash);
-    if (hashStep && hashStep <= current.data.chapters.length && current.hashFor !== location.href) {
-      current.hashFor = location.href;
+    if (
+      hashStep &&
+      hashStep <= current!.data!.chapters.length &&
+      current!.hashFor !== location.href
+    ) {
+      current!.hashFor = location.href;
       return hashStep;
     }
     return null;
   }
 
   /** The panel's callbacks, all through the bridge. */
-  function panelOptions(key, storyId) {
+  function panelOptions(key: string, storyId: string): Omit<PanelOptions, 'initial'> {
     const storyPath = `/api/stories/${encodeURIComponent(storyId)}`;
     return {
       host: 'GitHub',
@@ -104,13 +142,13 @@ export function createFilesChangedPage() {
         );
       },
       ask: async (question) => {
-        const answer = await callBridge('POST', `${storyPath}/questions`, {
+        const answer = await callBridge<Question>('POST', `${storyPath}/questions`, {
           ...question,
           url: location.href,
         });
         if (!answer.ok) {
           throw new Error(
-            answer.error === 'unreachable' ? 'the bridge is not running' : answer.error,
+            answer.error === 'unreachable' ? 'the bridge is not running' : (answer.error as string),
           );
         }
         return answer.body;
@@ -121,44 +159,56 @@ export function createFilesChangedPage() {
         location.reload();
       },
       drafts: {
-        load: () => bodyOf(callBridge('GET', `${storyPath}/drafts`)),
+        load: () => bodyOf(callBridge<DraftsAnswer>('GET', `${storyPath}/drafts`)),
         act: (chapter, index, action) =>
-          bodyOf(callBridge('POST', `${storyPath}/drafts`, { chapter, index, action })),
+          bodyOf(
+            callBridge<DraftsAnswer>('POST', `${storyPath}/drafts`, { chapter, index, action }),
+          ),
       },
       // fix before push: notes to send to the session working the PR's branch, and what it says it's changing
       fixes: {
-        load: () => bodyOf(callBridge('GET', `${storyPath}/fixes`)),
-        act: (body) => bodyOf(callBridge('POST', `${storyPath}/fixes`, body)),
+        load: () => bodyOf(callBridge<FixesView>('GET', `${storyPath}/fixes`)),
+        act: (body) => bodyOf(callBridge<FixesView>('POST', `${storyPath}/fixes`, body)),
         note: (noteId, changes) =>
-          bodyOf(callBridge('POST', `${storyPath}/notes/${encodeURIComponent(noteId)}`, changes)),
+          bodyOf(
+            callBridge(
+              'POST',
+              `${storyPath}/notes/${encodeURIComponent(noteId as string)}`,
+              changes,
+            ),
+          ),
       },
-      working: () => bodyOf(callBridge('GET', `${storyPath}/working`)),
-      reads: () => bodyOf(callBridge('GET', `${storyPath}/read`)),
-      freshness: () => bodyOf(callBridge('GET', `${storyPath}/freshness`)),
-      requestUpdate: (base, { retell = false } = {}) =>
+      working: () => bodyOf(callBridge<{ marks?: WorkingMark[] }>('GET', `${storyPath}/working`)),
+      reads: () => bodyOf(callBridge<ReadInfo>('GET', `${storyPath}/read`)),
+      freshness: () => bodyOf(callBridge<Freshness>('GET', `${storyPath}/freshness`)),
+      requestUpdate: (base, { retell = false }: { retell?: boolean } = {}) =>
         bodyOf(
           callBridge(
             'POST',
             '/api/builds',
-            requestFor({ act: 'update', base }, current.pr, { retell }),
+            requestFor({ act: 'update', base }, (current as CurrentPage).pr, { retell }),
           ),
         ),
       // Rebuild story / Rebuild from here: a build request for this story
-      requestRebuild: (ask) => bodyOf(callBridge('POST', `${storyPath}/rebuild`, ask)),
+      requestRebuild: (ask) =>
+        bodyOf(callBridge<{ rebuild?: RebuildView | null }>('POST', `${storyPath}/rebuild`, ask)),
       status: async () => {
-        const answer = await callBridge('GET', `/api/status?story=${encodeURIComponent(storyId)}`);
+        const answer = await callBridge<BridgeStatus>(
+          'GET',
+          `/api/status?story=${encodeURIComponent(storyId)}`,
+        );
         if (answer.ok) {
           return answer.body;
         }
-        let code = 'down';
+        let code: StatusError['code'] = 'down';
         if (answer.status === 401) {
           code = 'token';
         } else if (answer.status === 404) {
           code = 'old';
         }
-        throw Object.assign(new Error(answer.error), { code });
+        throw Object.assign(new Error(answer.error as string), { code });
       },
-      pulse: () => bodyOf(callBridge('GET', `${storyPath}/pulse`)),
+      pulse: () => bodyOf(callBridge<Pulse>('GET', `${storyPath}/pulse`)),
       // the story changed on disk (Claude filled in a chapter): redraw in place
       onPulse: (pulse) => {
         if (current && current.key === key && pulse.version !== current.version) {
@@ -166,9 +216,12 @@ export function createFilesChangedPage() {
         }
       },
       loadQuestions: async () =>
-        (await bodyOf(callBridge('GET', `${storyPath}/questions`))).questions,
+        (await bodyOf(callBridge<{ questions: Question[] }>('GET', `${storyPath}/questions`)))
+          .questions,
       markQuestions: (action, ids) =>
-        bodyOf(callBridge('POST', `${storyPath}/questions/marks`, { action, ids })),
+        bodyOf(
+          callBridge<QuestionMarksAnswer>('POST', `${storyPath}/questions/marks`, { action, ids }),
+        ),
     };
   }
 
@@ -182,12 +235,12 @@ export function createFilesChangedPage() {
     const jump = jumpStep();
     current.overlay = storyOverlay(current.data, {
       initial: jump ? { ...current.ui, n: jump, all: false } : current.ui,
-      ...panelOptions(current.key, current.id),
+      ...panelOptions(current.key, current.id as string), // a story's page has its id
     });
   }
 
-  async function fetchStory(id) {
-    const answer = await callBridge('GET', `/api/stories/${encodeURIComponent(id)}`);
+  async function fetchStory(id: string): Promise<StoryData | null> {
+    const answer = await callBridge<StoryData>('GET', `/api/stories/${encodeURIComponent(id)}`);
     return answer.ok ? answer.body : null;
   }
 
@@ -266,8 +319,9 @@ export function createFilesChangedPage() {
       tags.hideNotice();
       return;
     }
+    // show is false without a current page
     let tag = host;
-    if (tag && tag.getAttribute(TAG_ATTR) !== current.key) {
+    if (tag && tag.getAttribute(TAG_ATTR) !== current!.key) {
       tag.remove();
       tag = null;
     }
@@ -276,18 +330,18 @@ export function createFilesChangedPage() {
       if (!title) {
         return;
       }
-      tag = tags.hostFor(current.pr);
+      tag = tags.hostFor(current!.pr);
       title.after(tag);
     }
-    tags.show(tag, current.pr);
-    tags.showNotice([current.pr.repo]);
+    tags.show(tag, current!.pr);
+    tags.showNotice([current!.pr.repo]);
   }
 
   /** The panel went away: the tag shows again, as the bridge has it now (the panel may have asked for an update). */
   async function tagAfterPanel() {
     refreshTag();
     const mine = current;
-    const answer = await tags.look([mine.pr], { force: true });
+    const answer = await tags.look([mine!.pr], { force: true }); // called while a page is current
     if (answer.ok && current === mine) {
       refreshTag();
     }
@@ -306,13 +360,13 @@ export function createFilesChangedPage() {
   }
 
   /** When chapters.json changes on disk (Claude filled in a chapter), redraw in place. version: the pulse's, if known. */
-  async function checkForUpdates(version) {
+  async function checkForUpdates(version?: string | null) {
     if (!current || !current.id) {
       return;
     }
     let now = version;
     if (now === undefined) {
-      const answer = await callBridge(
+      const answer = await callBridge<{ version: string }>(
         'GET',
         `/api/stories/${encodeURIComponent(current.id)}/version`,
       );
@@ -378,7 +432,7 @@ export function createFilesChangedPage() {
   }
 
   /** Before a reload of our own: save the panel's step and scroll, so it comes back where it was. */
-  async function keepPanelPlace(key = current && current.key) {
+  async function keepPanelPlace(key: string | null = current && current.key) {
     if (current && current.key === key && current.overlay) {
       current.ui = {
         ...current.overlay.state,
@@ -402,7 +456,7 @@ export function createFilesChangedPage() {
   };
 
   /** Every URL change, tick, navigation event and coming back to the tab, from the router. */
-  function route({ navigated, reason }) {
+  function route({ navigated, reason }: Route) {
     if (navigated) {
       whitespaceCheck().catch(() => {});
       sync();

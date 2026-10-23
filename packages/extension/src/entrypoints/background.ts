@@ -1,16 +1,18 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * The only part of the extension that talks to the network, and only to the
  * bridge on http://127.0.0.1:<port>. Content scripts ask it with
  * {type: 'bridge', method, path, body}; GitHub's page CSP doesn't apply here.
  */
 import { defineBackground } from 'wxt/utils/define-background';
-import { getSettings } from '../settings.ts';
+import { getSettings, type BridgeSettings } from '../settings.ts';
+import type { BridgeReply, BridgeRequest } from '../content/bridge.ts';
 
 const METHODS = new Set(['GET', 'POST']);
 
-async function callBridge({ method = 'GET', path, body }, override) {
+async function callBridge(
+  { method = 'GET', path, body }: BridgeRequest,
+  override: BridgeSettings | null,
+): Promise<BridgeReply> {
   if (
     !METHODS.has(method) ||
     typeof path !== 'string' ||
@@ -36,7 +38,7 @@ async function callBridge({ method = 'GET', path, body }, override) {
       body: body !== undefined ? JSON.stringify(body) : undefined,
     });
     const text = await res.text();
-    let json = null;
+    let json: { error?: string } | null = null;
     try {
       json = JSON.parse(text);
     } catch {
@@ -53,8 +55,14 @@ async function callBridge({ method = 'GET', path, body }, override) {
   }
 }
 
+function toggle(tab: chrome.tabs.Tab | undefined) {
+  if (tab && tab.id != null) {
+    chrome.tabs.sendMessage(tab.id, { type: 'toggle' }).catch(() => {});
+  }
+}
+
 export default defineBackground(() => {
-  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  chrome.runtime.onMessage.addListener((msg: BridgeRequest | null, sender, sendResponse) => {
     if (sender.id !== chrome.runtime.id || !msg || msg.type !== 'bridge') {
       return false;
     }
@@ -69,11 +77,6 @@ export default defineBackground(() => {
     return true;
   });
 
-  function toggle(tab) {
-    if (tab && tab.id != null) {
-      chrome.tabs.sendMessage(tab.id, { type: 'toggle' }).catch(() => {});
-    }
-  }
   chrome.action.onClicked.addListener(toggle);
   chrome.commands.onCommand.addListener(async (command, tab) => {
     if (command !== 'toggle-panel') {

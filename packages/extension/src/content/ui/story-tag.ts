@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * The one story tag a PR gets, on PR lists and on the PR's Conversation tab.
  * The tag is the control:
@@ -20,13 +18,64 @@
 import { html } from '@once-upon-a-diff/shared/util/html';
 import { plural, shortSha } from '@once-upon-a-diff/shared/util/text';
 import { clockTime } from '@once-upon-a-diff/shared/util/time';
+import type { Html } from '@once-upon-a-diff/shared/util/html';
+import type { Listening } from '@once-upon-a-diff/shared/types';
 
-/**
- * What the tag shows and does, from a status-many result.
- * @returns {{kind: 'link'|'button'|'progress', cls: string, label: string, title: string, href?: string, act?: 'build'|'update', spin?: boolean, base?: string,
- *   alt?: {act: 'retell', label: string, title: string}}}
- */
-export function tagFor(result, { repo, number }) {
+/** A PR, as the tags know it. */
+export interface PrRef {
+  repo: string;
+  number: number;
+}
+
+/** A build request's state, as status-many and POST /api/builds say it. */
+export interface BuildRequestView {
+  id?: string;
+  status?: string;
+  state?: string;
+  mode?: string;
+  requested_at?: string;
+}
+
+/** One PR's line from POST /api/stories/status-many: its newest story, or its build request's state. */
+export interface StoryStatus {
+  repo?: string;
+  number?: number;
+  state?: 'none' | 'queued' | 'building' | 'ready' | string;
+  request?: BuildRequestView | null;
+  story?: string;
+  story_head?: string | null;
+  current_head?: string | null;
+  stale?: boolean | null;
+  newer?: number | null;
+  updating?: boolean;
+  update_state?: string | null;
+  update_mode?: string | null;
+  reads?: { read: number; total: number; next: number | null } | null;
+}
+
+/** What a tag shows and does. */
+export interface Tag {
+  kind: 'link' | 'button' | 'progress';
+  cls: string;
+  label: string;
+  title: string;
+  href?: string;
+  act?: 'build' | 'update';
+  spin?: boolean;
+  base?: string | null;
+  alt?: { act: 'retell'; label: string; title: string };
+}
+
+/** A "no session listening" line for a repo. */
+export interface MissingListener {
+  repo: string;
+  prompt: string;
+  details: string;
+  checkout: string | null;
+}
+
+/** What the tag shows and does, from a status-many result. */
+export function tagFor(result: StoryStatus | null | undefined, { repo, number }: PrRef): Tag {
   const href = `https://github.com/${repo}/pull/${number}/changes`;
   const asked =
     result && result.request && result.request.requested_at
@@ -94,7 +143,7 @@ export function tagFor(result, { repo, number }) {
   const readCount = result.reads && result.reads.total ? result.reads : null;
   const all = !!readCount && readCount.read >= readCount.total;
   if (result.stale && readCount && readCount.read) {
-    const newer = Number.isFinite(result.newer) ? result.newer : null;
+    const newer = Number.isFinite(result.newer) ? (result.newer as number) : null;
     const label = `${all ? 'Read' : `${readCount.read} of ${readCount.total} read`} · ${newer != null ? plural(newer, 'new commit') : 'new commits'} · Update`;
     return {
       kind: 'button',
@@ -138,7 +187,7 @@ export function tagFor(result, { repo, number }) {
       href,
       cls: 'read',
       label: 'Read',
-      title: `You've read all ${readCount.total} chapters${upTo}. Opens the story on Files changed.`,
+      title: `You've read all ${readCount!.total} chapters${upTo}. Opens the story on Files changed.`, // all says there's one
     };
   }
   if (readCount && readCount.read) {
@@ -161,13 +210,17 @@ export function tagFor(result, { repo, number }) {
 }
 
 /** The step a Files changed URL's #ou-step-N hash asks the panel to open on, or null. */
-export function stepOfHash(hash) {
+export function stepOfHash(hash: string | null | undefined): number | null {
   const match = /^#ou-step-(\d{1,3})$/.exec(String(hash || ''));
   return match ? Number(match[1]) : null;
 }
 
 /** The build request a button tag sends. retell: the stale tag's "Re-tell" was clicked. */
-export function requestFor(tag, { repo, number }, { retell = false } = {}) {
+export function requestFor(
+  tag: Pick<Tag, 'act' | 'base'>,
+  { repo, number }: PrRef,
+  { retell = false } = {},
+) {
   const body = {
     repo,
     number,
@@ -180,22 +233,23 @@ export function requestFor(tag, { repo, number }, { retell = false } = {}) {
 }
 
 /**
- * The page's "no session listening" lines: one per repo on the page whose listener is missing.
- * @param {Record<string, {ok: boolean, prompt?: string, details?: string, checkout?: string}>} listening by repo
+ * The page's "no session listening" lines: one per repo on the page whose listener is missing. listening is by repo.
  */
-export function missingListeners(listening) {
+export function missingListeners(
+  listening: Record<string, Partial<Listening> | null> | null | undefined,
+): MissingListener[] {
   return Object.entries(listening || {})
     .filter(([, listener]) => listener && !listener.ok && listener.prompt)
     .map(([repo, listener]) => ({
       repo,
-      prompt: listener.prompt,
-      details: listener.details || '',
-      checkout: listener.checkout || null,
+      prompt: listener!.prompt as string, // the filter keeps only listeners with a prompt
+      details: listener!.details || '',
+      checkout: listener!.checkout || null,
     }));
 }
 
 /** The tag's HTML, for a tag host's shadow root (story-tag.css). */
-export function tagHtml(tag) {
+export function tagHtml(tag: Tag): Html {
   const inner = html`${tag.spin && html`<span class="spin"></span>`}${tag.label}`;
   if (tag.kind === 'link') {
     return html`<a class="b ${tag.cls}" href="${tag.href}" title="${tag.title}">${inner}</a>`;

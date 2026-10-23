@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * A PR's Conversation tab (/owner/repo/pull/N): the same single story tag as
  * PR lists (ui/pr-tags.js), next to the PR's title, and the page-level
@@ -10,18 +8,20 @@
 import { conversationPr, pageKindOf, prKey } from '@once-upon-a-diff/shared/util/github-paths';
 import { extensionAlive } from '../bridge.ts';
 import { createPrTags, titleElement } from '../ui/pr-tags.ts';
+import type { PrRef } from '../ui/story-tag.ts';
+import type { Route } from '../index.ts';
 
 const ATTR = 'data-ou-convo';
 
 export function createConversationPage() {
   const tags = createPrTags({ attr: ATTR });
-  let pr = null; // {repo, number, key}
+  let pr: (PrRef & { key: string }) | null = null;
   let busy = false;
 
   /** Our tag's host after the title, made (again) when it's missing or is for another PR. */
   function tagHostOnPage() {
     let host = document.querySelector(`[${ATTR}]`);
-    if (host && host.getAttribute(ATTR) !== pr.key) {
+    if (host && host.getAttribute(ATTR) !== pr!.key) {
       host.remove();
       host = null;
     }
@@ -32,7 +32,7 @@ export function createConversationPage() {
     if (!title) {
       return null;
     }
-    host = tags.hostFor(pr);
+    host = tags.hostFor(pr!); // only called with a PR
     title.after(host);
     return host;
   }
@@ -64,11 +64,8 @@ export function createConversationPage() {
     }
   }
 
-  /**
-   * Every tick and navigation, from the router: follow the PR on screen.
-   * @param {{kind: string, reason?: string}} where
-   */
-  function route({ kind, reason }) {
+  /** Every tick and navigation, from the router: follow the PR on screen. */
+  function route({ kind, reason }: Pick<Route, 'kind'> & Partial<Route>) {
     const now = kind === 'conversation' ? conversationPr(location.pathname) : null;
     const key = now ? prKey(now.repo, now.number) : null;
     if (!now) {
@@ -80,12 +77,12 @@ export function createConversationPage() {
       return;
     }
     if (!pr || pr.key !== key || reason === 'back') {
-      pr = { ...now, key };
+      pr = { ...now, key: key as string }; // there's a key with a PR
       look();
       return;
     }
     // GitHub redraws the header: put the tag back
-    if (tags.resultOf(pr) && !document.querySelector(`[${ATTR}="${CSS.escape(key)}"]`)) {
+    if (tags.resultOf(pr) && !document.querySelector(`[${ATTR}="${CSS.escape(key as string)}"]`)) {
       render();
     }
     if (tags.due([pr]).length) {

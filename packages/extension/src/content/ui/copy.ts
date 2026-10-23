@@ -1,12 +1,10 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * "Copy prompt for Claude" on GitHub pages: the clipboard API, or, if the page
  * won't allow it, a hidden textarea and execCommand inside our own shadow root.
  */
 import { writeClipboard } from '@once-upon-a-diff/shared/util/clipboard';
 
-export async function copyText(text, root) {
+export async function copyText(text: string, root?: Node | null): Promise<boolean> {
   if (await writeClipboard(text)) {
     return true;
   }
@@ -27,7 +25,11 @@ export async function copyText(text, root) {
 }
 
 /** Copies and says so on the button for a moment. */
-export async function copyWithFeedback(text, btn, root) {
+export async function copyWithFeedback(
+  text: string,
+  btn: HTMLElement,
+  root?: Node | null,
+): Promise<boolean> {
   const was = btn.textContent;
   const ok = await copyText(text, root);
   btn.textContent = ok ? 'Copied' : "Couldn't copy";

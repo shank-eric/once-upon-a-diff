@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /** Draws src/public/icons/icon{16,48,128}.png: a diff (green and red lines) with the story panel docked on the right. No dependencies. */
 /* eslint-disable id-length -- pixel math: x, y, the r, g, b, a channels and the corners x0..y1 are the usual names */
 import { deflateSync } from 'node:zlib';
@@ -16,14 +14,14 @@ const CRC = new Int32Array(256).map((_, index) => {
   }
   return crc;
 });
-const crc32 = (buf) => {
+const crc32 = (buf: Buffer) => {
   let crc = -1;
   for (const byte of buf) {
     crc = CRC[(crc ^ byte) & 0xff] ^ (crc >>> 8);
   }
   return (crc ^ -1) >>> 0;
 };
-function chunk(type, data) {
+function chunk(type: string, data: Buffer) {
   const len = Buffer.alloc(4);
   len.writeUInt32BE(data.length);
   const typeAndData = Buffer.concat([Buffer.from(type), data]);
@@ -31,7 +29,7 @@ function chunk(type, data) {
   crc.writeUInt32BE(crc32(typeAndData));
   return Buffer.concat([len, typeAndData, crc]);
 }
-function png(size, rgba) {
+function png(size: number, rgba: Buffer) {
   const ihdr = Buffer.alloc(13);
   ihdr.writeUInt32BE(size, 0);
   ihdr.writeUInt32BE(size, 4);
@@ -55,8 +53,9 @@ const BLUE = [9, 105, 218],
   GREEN = [46, 160, 67],
   RED = [207, 34, 46],
   PALE = [214, 232, 255];
-/** @type {Array<[number, number, number, number, number, number[]]>} [x0, y0, x1, y1, corner radius, rgb] */
-const SHAPES = [
+/** [x0, y0, x1, y1, corner radius, rgb] */
+type Shape = [number, number, number, number, number, number[]];
+const SHAPES: Shape[] = [
   [0, 0, 1, 1, 0.2, BLUE],
   [0.12, 0.2, 0.52, 0.3, 0.04, GREEN],
   [0.12, 0.38, 0.44, 0.48, 0.04, RED],
@@ -68,8 +67,7 @@ const SHAPES = [
   [0.66, 0.49, 0.8, 0.54, 0.02, PALE],
   [0.66, 0.6, 0.84, 0.65, 0.02, PALE],
 ];
-/** @type {(x: number, y: number, shape: (typeof SHAPES)[number]) => boolean} */
-const inside = (x, y, [x0, y0, x1, y1, r]) => {
+const inside = (x: number, y: number, [x0, y0, x1, y1, r]: Shape): boolean => {
   if (x < x0 || x > x1 || y < y0 || y > y1) {
     return false;
   }
@@ -91,7 +89,7 @@ for (const size of [16, 48, 128]) {
         for (let sx = 0; sx < samples; sx++) {
           const x = (px + (sx + 0.5) / samples) / size,
             y = (py + (sy + 0.5) / samples) / size;
-          let col = null;
+          let col: number[] | null = null;
           for (const shape of SHAPES) {
             if (inside(x, y, shape)) {
               col = shape[5];
