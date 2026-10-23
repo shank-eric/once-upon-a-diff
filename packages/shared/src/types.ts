@@ -174,6 +174,45 @@ export interface LocalStory {
   notes: LocalNote[];
 }
 
+/** The PR title and body a session handed over for a local story's branch (`once-upon pr-draft`). */
+export interface PrDraft {
+  title: string;
+  body: string;
+  /** the branch the PR goes into, when the session named one */
+  base: string | null;
+  at: string;
+}
+
+/**
+ * Where a local story's branch stands on GitHub, for the page's Create pull request button (GET .../pr):
+ * missing (not pushed yet), same (GitHub has this commit), ahead (new commits to push), diverged (GitHub's copy
+ * has commits this checkout doesn't, so a push would be refused) or unreachable (ls-remote failed).
+ */
+export type PrRemoteState = 'missing' | 'same' | 'ahead' | 'diverged' | 'unreachable';
+
+export interface PrView {
+  /** owner/name, from the checkout's origin; null when origin isn't on GitHub */
+  repo: string | null;
+  /** the story's branch; null on a detached HEAD */
+  branch: string | null;
+  /** the branch the PR goes into: the draft's, else the story's base when it names one, else origin's default */
+  base: string;
+  /** the branch's commit now */
+  head_sha: string | null;
+  remote: { state: PrRemoteState; sha: string | null; error?: string };
+  /** what a push sends, newest first */
+  to_push: LocalCommit[];
+  draft: PrDraft | null;
+  /** the branch's open PR, when gh found one */
+  pull: { number: number; url: string } | null;
+}
+
+/** POST .../pr {action: 'push'}: git's own lines, and the view after it. */
+export interface PrPushAnswer {
+  output: string;
+  view: PrView;
+}
+
 /** A story as the panel takes it (GET /api/stories/<id>). */
 export interface StoryData {
   id: string;

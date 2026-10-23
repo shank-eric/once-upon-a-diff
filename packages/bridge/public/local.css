@@ -145,3 +145,23 @@ a { color: var(--fgColor-accent); }
 .ou-local-code .hljs-name, .ou-local-code .hljs-selector-tag, .ou-local-code .hljs-quote, .ou-local-code .hljs-selector-pseudo, .ou-local-code .hljs-bullet { color: var(--hl-tag); }
 .ou-local-code .hljs-section, .ou-local-code .hljs-strong { font-weight: 600; }
 .ou-local-code .hljs-emphasis { font-style: italic; }
+
+/* Create pull request (local/pull-request.ts) */
+.ou-local-pr-link { font-size: 12px; white-space: nowrap; }
+button.ou-local-pr { white-space: nowrap; }
+#ou-local-pr-box { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 64px); padding: 16px 20px; border: 1px solid var(--borderColor-default); border-radius: 8px; background: var(--bgColor-default); color: var(--fgColor-default); }
+#ou-local-pr-box::backdrop { background: rgba(0, 0, 0, .4); }
+#ou-local-pr-box h2 { font-size: 16px; margin: 0 0 6px; }
+#ou-local-pr-box p { margin: 6px 0; }
+#ou-local-pr-box label { display: block; margin: 10px 0 0; font-size: 12px; font-weight: 600; }
+#ou-local-pr-box input, #ou-local-pr-box textarea { display: block; width: 100%; margin-top: 4px; font: inherit; font-size: 13px; font-weight: 400; color: var(--fgColor-default); background: var(--bgColor-default); border: 1px solid var(--borderColor-default); border-radius: 6px; padding: 5px 8px; }
+#ou-local-pr-box textarea { resize: vertical; font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+#ou-local-pr-box input.ou-local-pr-base { display: inline-block; width: auto; min-width: 10em; margin: 0 0 0 4px; padding: 1px 6px; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.ou-local-pr-standing { margin: 8px 0; padding: 6px 10px; border-left: 3px solid var(--borderColor-default); background: var(--bgColor-muted); border-radius: 0 6px 6px 0; }
+.ou-local-pr-commits { margin: 4px 0 0; padding-left: 18px; max-height: 9em; overflow: auto; font-size: 12px; }
+.ou-local-pr-stop { color: var(--fgColor-attention); }
+.ou-local-pr-ok { color: var(--fgColor-success); }
+.ou-local-pr-output { max-height: 10em; overflow: auto; font: 11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--bgColor-muted); border: 1px solid var(--borderColor-default); border-radius: 6px; padding: 6px 8px; white-space: pre-wrap; }
+.ou-local-pr-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.ou-local-pr-go:not(:disabled) { background: var(--fgColor-success); border-color: var(--fgColor-success); color: #fff; font-weight: 600; }
+.ou-local-pr-go:disabled { opacity: .5; cursor: default; }

@@ -1,5 +1,8 @@
-/** Read-only git calls for local mode: rev-parse, the branch name and the diff. */
-import { execFileSync } from 'node:child_process';
+/**
+ * git calls for local mode: rev-parse, the branch name and the diff, all read-only, plus runGitAsync for the slow
+ * ones that reach origin (ls-remote, and the push behind the page's Create pull request, in stories/pull-request.ts).
+ */
+import { execFile, execFileSync } from 'node:child_process';
 import type { LocalCommit } from '@once-upon-a-diff/shared/types';
 
 /** Runs git in a checkout and returns stdout (throws on a non-zero exit). */
@@ -9,6 +12,35 @@ export const runGit = (repo: string, args: string[]): string =>
     maxBuffer: 256 * 1024 * 1024,
     stdio: ['ignore', 'pipe', 'pipe'],
   });
+
+/**
+ * Runs git in a checkout without blocking the bridge: resolves to {code, stdout, stderr}, never rejects. It never
+ * prompts (GIT_TERMINAL_PROMPT=0), so a missing credential fails instead of hanging.
+ */
+export function runGitAsync(
+  repo: string,
+  args: string[],
+  { timeout = 20000 } = {},
+): Promise<{ code: number; stdout: string; stderr: string }> {
+  return new Promise((resolve) => {
+    execFile(
+      'git',
+      ['-C', repo, ...args],
+      {
+        timeout,
+        maxBuffer: 16 * 1024 * 1024,
+        env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+      },
+      (err, stdout, stderr) => {
+        let code = 0;
+        if (err) {
+          code = typeof err.code === 'number' ? err.code : 1;
+        }
+        resolve({ code, stdout, stderr: stderr || (err ? err.message : '') });
+      },
+    );
+  });
+}
 
 export const revParse = (repo: string, ref: string): string =>
   runGit(repo, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]).trim();

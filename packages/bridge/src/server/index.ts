@@ -7,7 +7,9 @@
  *   - binds 127.0.0.1 only, and answers only when the Host header is
  *     127.0.0.1:<port> or localhost:<port> (no DNS rebinding)
  *   - every /api call needs the token (Authorization: Bearer <token>), or for a local page's own story only,
- *     that story's page key (./page-key.ts), which can't reach other stories, bridge-wide routes or GitHub
+ *     that story's page key (./page-key.ts), which can't reach other stories, bridge-wide routes or GitHub's
+ *     API. Its one way out to GitHub is Create pull request's `git push` of the story's branch, which the page
+ *     sends only from the reviewer's click in its confirm box (routes/pull-request.ts)
  *   - writes must be application/json, and a request with an Origin must come
  *     from this extension (its fixed ID, or one in extension_ids) or from the bridge's own pages
  *   - no CORS headers, so other web pages can't read anything it says
@@ -38,6 +40,7 @@ import { draftRoutes } from './routes/drafts.ts';
 import { readRoutes } from './routes/reads.ts';
 import { localStoryRoutes } from './routes/local-story.ts';
 import { fixRoutes } from './routes/fixes.ts';
+import { pullRequestRoutes } from './routes/pull-request.ts';
 import { UNPACKED_EXTENSION_ID } from '../config/settings.ts';
 import type { ApiRoute, App, Body, Call, Send, StoryRoute } from '../types.ts';
 
@@ -58,6 +61,7 @@ const STORY_ROUTES: StoryRoute[] = [
   ...readRoutes,
   ...localStoryRoutes,
   ...fixRoutes,
+  ...pullRequestRoutes,
   ...storyStatusRoutes,
 ];
 const STORY_PATH = /^\/api\/stories\/([^/]+)(?:\/([a-z]+)(?:\/([^/]+))?)?$/;
@@ -184,7 +188,7 @@ export function createBridge({
     }
     const meta = readMeta(dir);
     const what = match[2] || '';
-    // a page key is only ever handed to a local story's page, and never reaches GitHub (Add to my review)
+    // a page key is only ever handed to a local story's page, and never reaches GitHub's API (Add to my review)
     if (scope && (meta.kind !== 'local' || (what === 'drafts' && call.body.action === 'review'))) {
       throw new HttpError(403, "this page's key can't do that");
     }

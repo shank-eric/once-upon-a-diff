@@ -6,7 +6,8 @@
  * Here the page owns the review state that GitHub would own: Viewed toggles
  * and line notes go to the bridge, and notes are "fix before push" items
  * (local/notes.js). Other chapters' lines in a shared file fold away
- * (local/folds.js). This module draws the page, handles its clicks, and
+ * (local/folds.js). Create pull request pushes the branch and opens GitHub's
+ * compare page, on the reviewer's click (local/pull-request.ts). This module draws the page, handles its clicks, and
  * follows the story and the commits.
  */
 import { html } from '/assets/util/html.ts';
@@ -16,6 +17,7 @@ import { treeHtml, fileHtml, headerHtml, resetHighlightBudget } from '/assets/lo
 import { placeNotes, openEditor } from '/assets/local/notes.ts';
 import { openFold, openRun, forgetNarrowing } from '/assets/local/folds.ts';
 import { mount, remount, showReopen } from '/assets/local/mount.ts';
+import { lookForPull, openPrBox } from '/assets/local/pull-request.ts';
 import type { LocalStoryData } from '/assets/local/page.ts';
 import type { InitialUi } from '/assets/overlay.ts';
 import type { LocalNote } from '/assets/types.ts';
@@ -98,6 +100,9 @@ document.addEventListener('click', async (event) => {
   const target = event.target as Element;
   if (target.closest('#once-upon-panel')) {
     return;
+  }
+  if (target.closest('.ou-local-pr')) {
+    return openPrBox();
   }
   const viewedButton = target.closest('.ou-local-viewed');
   if (viewedButton) {
@@ -259,5 +264,7 @@ async function start() {
   };
   setInterval(pollWhileClosed, POLL_MS);
   window.addEventListener('focus', pollWhileClosed); // the panel's own tick looks on focus while it's open
+  lookForPull(true); // Create pull request turns into Open PR #N once the branch has one
+  window.addEventListener('focus', () => lookForPull());
 }
 start();
