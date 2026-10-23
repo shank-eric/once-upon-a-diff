@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /**
  * The bridge: a small HTTP server on 127.0.0.1 that serves stories to the
  * extension and the local page, and writes what the panel sends (questions,
@@ -16,7 +14,8 @@
  * The routes live in ./routes/, one file per area. Each gets `app` (the
  * stores and settings below) and answers with `send`.
  */
-import http from 'node:http';
+import http, { type IncomingMessage } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -37,18 +36,19 @@ import { draftRoutes } from './routes/drafts.ts';
 import { readRoutes } from './routes/reads.ts';
 import { localStoryRoutes } from './routes/local-story.ts';
 import { fixRoutes } from './routes/fixes.ts';
+import type { ApiRoute, App, Body, Call, Send, StoryRoute } from '../types.ts';
 
 export { relOfPath } from '../util/diff.ts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-export const VERSION = JSON.parse(
+export const VERSION: string = JSON.parse(
   readFileSync(path.resolve(HERE, '../../package.json'), 'utf8'),
 ).version;
 
 /** /api/<path> routes, checked in order. A route with a method answers only that method. */
-const API_ROUTES = [...statusRoutes, ...catalogRoutes, ...buildRoutes];
+const API_ROUTES: ApiRoute[] = [...statusRoutes, ...catalogRoutes, ...buildRoutes];
 /** /api/stories/<id>/<what>[/<sub>] routes, by `what` ('' for the story itself). */
-const STORY_ROUTES = [
+const STORY_ROUTES: StoryRoute[] = [
   ...storyRoutes,
   ...questionRoutes,
   ...draftRoutes,
@@ -61,28 +61,27 @@ const EXTENSION_ORIGIN = /^chrome-extension:\/\/[a-p]{32}$/;
 const SEEN_WRITE_MS = 30000;
 const HTML = 'text/html; charset=utf-8';
 
-const methodMatches = (route, method) => !route.method || route.method === method;
+const methodMatches = (route: { method?: string }, method: string | undefined) =>
+  !route.method || route.method === method;
 
-/**
- * @typedef {http.Server & {stories: StoryStore, inbox: Inbox, builds: Builds}} Bridge
- *   the server, with the stores it serves from for the CLI's startup line and the tests
- */
+/** The server, with the stores it serves from, for the CLI's startup line and the tests. Call .listen(port, '127.0.0.1'). */
+export type Bridge = http.Server & { stories: StoryStore; inbox: Inbox; builds: Builds };
 
-/**
- * @param {{home: string, token: string, log?: (line: string) => void}} opts
- * @returns {Bridge} call .listen(port, '127.0.0.1')
- */
 export function createBridge({
   home,
   token,
   log = (line) => process.stderr.write(`once-upon bridge: ${line}\n`),
-}) {
+}: {
+  home: string;
+  token: string;
+  log?: (line: string) => void;
+}): Bridge {
   if (!token) {
     throw new Error('the bridge needs a token');
   }
   const stories = new StoryStore({ home });
   const inbox = new Inbox(home);
-  const app = {
+  const app: App = {
     home,
     version: VERSION,
     stories,
@@ -93,7 +92,7 @@ export function createBridge({
     extensionSeen: null, // the last time the extension talked to us, for `once-upon doctor` and the status light
   };
   let extensionWritten = 0;
-  const seeExtension = (origin) => {
+  const seeExtension = (origin: string) => {
     app.extensionSeen = { at: new Date().toISOString(), origin };
     if (Date.now() - extensionWritten > SEEN_WRITE_MS) {
       extensionWritten = Date.now();
@@ -106,7 +105,7 @@ export function createBridge({
   };
 
   /** The pages and assets, which need no token. Returns true when it answered. */
-  function servePage(req, pathname, send) {
+  function servePage(req: IncomingMessage, pathname: string, send: Send): boolean {
     if (req.method !== 'GET') {
       return false;
     }
@@ -129,7 +128,7 @@ export function createBridge({
   }
 
   /** The token, then the body: GET, or POST with JSON. */
-  async function checkApiCall(req, origin) {
+  async function checkApiCall(req: IncomingMessage, origin: string | undefined): Promise<Body> {
     const auth =
       String(req.headers.authorization || '').replace(/^Bearer\s+/i, '') ||
       req.headers['x-once-upon-token'];
@@ -152,7 +151,7 @@ export function createBridge({
   }
 
   /** A /api/stories/<id>/... call: the story, then the route for its `what`. */
-  function storyCall(call, match) {
+  function storyCall(call: Call, match: RegExpExecArray) {
     const id = decodeURIComponent(match[1]);
     const dir = stories.dirOf(id);
     if (!dir) {
@@ -173,7 +172,7 @@ export function createBridge({
   }
 
   const server = http.createServer(async (req, res) => {
-    const send = (status, body, type = 'application/json; charset=utf-8', extra = {}) => {
+    const send: Send = (status, body, type = 'application/json; charset=utf-8', extra = {}) => {
       res.writeHead(status, {
         'Content-Type': type,
         'Cache-Control': 'no-store',
@@ -181,15 +180,17 @@ export function createBridge({
         'Referrer-Policy': 'no-referrer',
         ...extra,
       });
-      res.end(type.startsWith('application/json') ? JSON.stringify(body) : body);
+      res.end(
+        type.startsWith('application/json') ? JSON.stringify(body) : (body as string | Buffer),
+      );
     };
     try {
-      const port = /** @type {import('node:net').AddressInfo} */ server.address().port;
+      const port = (server.address() as AddressInfo).port;
       const host = String(req.headers.host || '').toLowerCase();
       if (host !== `127.0.0.1:${port}` && host !== `localhost:${port}`) {
         throw new HttpError(421, 'wrong host');
       }
-      const url = new URL(req.url, `http://127.0.0.1:${port}`);
+      const url = new URL(req.url as string, `http://127.0.0.1:${port}`);
       const pathname = url.pathname;
       const origin = req.headers.origin;
       if (
@@ -207,7 +208,7 @@ export function createBridge({
         throw new HttpError(404, 'not found');
       }
       const body = await checkApiCall(req, origin);
-      const call = { app, req, url, body, send };
+      const call: Call = { app, req, url, body, send };
       const route = API_ROUTES.find(
         (candidate) => candidate.path === pathname && methodMatches(candidate, req.method),
       );
@@ -219,7 +220,8 @@ export function createBridge({
         throw new HttpError(404, 'not found');
       }
       return await storyCall(call, storyMatch);
-    } catch (err) {
+    } catch (caught) {
+      const err = caught as Error & { status?: number };
       const status = err.status || 500;
       if (status === 500) {
         log(err.stack || String(err));

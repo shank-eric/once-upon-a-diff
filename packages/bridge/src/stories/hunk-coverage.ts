@@ -1,11 +1,9 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * Every hunk of the diff should be told by some chapter, not only every file.
  *
  * A chapter covers a hunk when something in it points at a line inside that
  * hunk (its context lines count): a `lines` range on one of its file entries,
- * a line reference in its text (text-refs.mjs: `path:40-58`, `path:L12`, a
+ * a line reference in its text (text-refs.ts: `path:40-58`, `path:L12`, a
  * bare `:45`, a diff link with a line), or a drafted comment on that line.
  * `L` ranges and comments are checked against the hunk's old side, the rest
  * against its new side.
@@ -21,21 +19,33 @@
  * file-map.json carries any it was told to allow, for the panel's Overview.
  */
 import { lineRefsOf, textOf } from './text-refs.ts';
+import type {
+  Chapter,
+  ChapterFile,
+  DiffFile,
+  DiffHunk,
+  LineSpan,
+  Side,
+  UncoveredFile,
+} from '@once-upon-a-diff/shared/types';
 
 export const SMALL_FILE_LINES = 40;
 const LOCKFILES =
   /(^|\/)(yarn\.lock|package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|Gemfile\.lock|Cargo\.lock|poetry\.lock|composer\.lock|go\.sum|Podfile\.lock|bun\.lockb?)$/;
 
 /** A hunk's lines on each side, context included: {L: {start, end}, R: {start, end}}. An empty side is its one anchor line. */
-export function sidesOf(hunk) {
-  const span = (start, count) => ({ start, end: start + Math.max(count, 1) - 1 });
+export function sidesOf(
+  hunk: Pick<DiffHunk, 'oldStart' | 'oldLines' | 'newStart' | 'newLines'>,
+): Record<Side, { start: number; end: number }> {
+  const span = (start: number, count: number) => ({ start, end: start + Math.max(count, 1) - 1 });
   return { L: span(hunk.oldStart, hunk.oldLines), R: span(hunk.newStart, hunk.newLines) };
 }
 
-const overlaps = (range, side) => range.start <= side.end && range.end >= side.start;
+const overlaps = (range: { start: number; end: number }, side: { start: number; end: number }) =>
+  range.start <= side.end && range.end >= side.start;
 
 /** A hunk as a line reference the narrative could use: `path:40-58`, or `path:L12-20` for one that only removes lines. */
-export function hunkRef(rel, hunk) {
+export function hunkRef(rel: string, hunk: DiffHunk): string {
   const removesOnly = hunk.lines.every((line) => !line.startsWith('+'));
   const side = removesOnly ? 'L' : 'R';
   const { start, end } = sidesOf(hunk)[side];
@@ -43,7 +53,7 @@ export function hunkRef(rel, hunk) {
 }
 
 /** Does listing this file, with no line refs, cover all of it? */
-function coveredByListing(file, entry, chapter) {
+function coveredByListing(file: DiffFile, entry: ChapterFile, chapter: Chapter): boolean {
   return (
     !!chapter.since ||
     !!entry.whole ||
@@ -54,7 +64,10 @@ function coveredByListing(file, entry, chapter) {
 }
 
 /** The path a drafted comment names, resolved like a text reference (exact, then a unique suffix), or null. */
-function commentRel(comment, rels) {
+function commentRel(
+  comment: { path?: string; line?: number | string },
+  rels: string[],
+): string | null {
   const name = String(comment.path || '').replace(/^\.\//, '');
   if (!name || !(Number(comment.line) > 0)) {
     return null;
@@ -67,16 +80,15 @@ function commentRel(comment, rels) {
 }
 
 /**
- * The hunks no chapter covers: [{rel, hunks: [{side, start, end, ref}]}] in diff order.
- * @param {object[]} chapters chapters.json's chapters, normalized (chaptersOf), with or without addTextRefs
- * @param {Map<string, import('../util/diff.ts').DiffFile>} diff
+ * The hunks no chapter covers: [{rel, hunks: [{side, start, end, ref}]}] in diff order. chapters are chapters.json's,
+ * normalized (chaptersOf), with or without addTextRefs.
  */
-export function uncoveredHunks(chapters, diff) {
+export function uncoveredHunks(chapters: Chapter[], diff: Map<string, DiffFile>): UncoveredFile[] {
   const rels = [...diff.keys()];
-  const listed = new Set();
-  const whole = new Set();
-  const ranges = new Map(rels.map((rel) => [rel, []]));
-  const addRange = (rel, range) => ranges.get(rel)?.push(range);
+  const listed = new Set<string>();
+  const whole = new Set<string>();
+  const ranges = new Map<string, LineSpan[]>(rels.map((rel) => [rel, []]));
+  const addRange = (rel: string, range: LineSpan) => ranges.get(rel)?.push(range);
   for (const chapter of chapters) {
     if (chapter.auto) {
       continue; // the bridge's "Not in a chapter yet" tells nothing
@@ -107,12 +119,12 @@ export function uncoveredHunks(chapters, diff) {
       }
     }
   }
-  const out = [];
+  const out: UncoveredFile[] = [];
   for (const file of diff.values()) {
     if (!listed.has(file.rel) || whole.has(file.rel) || file.binary || !file.hunks.length) {
       continue;
     }
-    const pointed = ranges.get(file.rel);
+    const pointed = ranges.get(file.rel)!; // every file of the diff has its list
     const missed = file.hunks.filter((hunk) => {
       const sides = sidesOf(hunk);
       return !pointed.some((range) => overlaps(range, sides[range.side === 'L' ? 'L' : 'R']));
@@ -122,7 +134,7 @@ export function uncoveredHunks(chapters, diff) {
         rel: file.rel,
         hunks: missed.map((hunk) => {
           const ref = hunkRef(file.rel, hunk);
-          const side = /:L\d/.test(ref) ? 'L' : 'R';
+          const side: Side = /:L\d/.test(ref) ? 'L' : 'R';
           return { side, ...sidesOf(hunk)[side], ref };
         }),
       });

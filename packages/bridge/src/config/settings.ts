@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /**
  * Where the bridge keeps things, and its port and token.
  *
@@ -21,12 +19,25 @@ import path from 'node:path';
 import { DEFAULT_PORT } from '@once-upon-a-diff/shared/util/bridge-port';
 import { readJson } from '../util/json-file.ts';
 
-export function homeDir() {
+/** config.json: the port and token, and any personal settings (readSettings). */
+export interface Config {
+  token: string;
+  port: number;
+  [key: string]: unknown;
+}
+
+/** The page settings in prefs.json. */
+export interface Prefs {
+  hideWhitespace: boolean;
+  diffView: 'unified' | 'split';
+}
+
+export function homeDir(): string {
   return process.env.ONCE_UPON_HOME || path.join(os.homedir(), '.once-upon');
 }
 
 /** One of a story's state files, <home>/state/<key>/<name>, with its folder made. */
-export function stateFile(home, key, name) {
+export function stateFile(home: string, key: string, name: string): string {
   const dir = path.join(home, 'state', key);
   mkdirSync(dir, { recursive: true });
   return path.join(dir, name);
@@ -35,11 +46,10 @@ export function stateFile(home, key, name) {
 export const newToken = () => randomBytes(24).toString('base64url');
 
 /** Reads config.json, creating it (with a fresh random token) the first time. */
-export function loadConfig(home = homeDir()) {
+export function loadConfig(home = homeDir()): Config {
   mkdirSync(home, { recursive: true, mode: 0o700 });
   const file = path.join(home, 'config.json');
-  /** @type {{token?: string, port?: number, [key: string]: unknown}} */
-  const cfg = readJson(file, {}) || {};
+  const cfg = readJson<Partial<Config>>(file, {}) || {};
   let changed = false;
   if (!cfg.token) {
     cfg.token = newToken();
@@ -52,18 +62,21 @@ export function loadConfig(home = homeDir()) {
   if (changed) {
     saveConfig(cfg, home);
   }
-  return cfg;
+  return cfg as Config; // both filled in above
 }
 
 /** The folders to look for checkouts in: ONCE_UPON_DEV_DIR (tests), else checkout_dirs, else ~/Development. */
-function checkoutDirsOf(dirs) {
+function checkoutDirsOf(dirs: string[]): string[] {
   if (process.env.ONCE_UPON_DEV_DIR) {
     return [process.env.ONCE_UPON_DEV_DIR];
   }
   return dirs.length ? dirs : [path.join(os.homedir(), 'Development')];
 }
 
-const PLATFORM_OPENER = { darwin: ['open'], win32: ['explorer'] };
+const PLATFORM_OPENER: Partial<Record<NodeJS.Platform, string[]>> = {
+  darwin: ['open'],
+  win32: ['explorer'],
+};
 
 /**
  * Optional personal settings in config.json, all off or neutral by default:
@@ -76,11 +89,11 @@ const PLATFORM_OPENER = { darwin: ['open'], win32: ['explorer'] };
  * Read without creating config.json, so a missing file just means the defaults.
  */
 export function readSettings(home = homeDir()) {
-  const cfg = readJson(path.join(home, 'config.json'), {}) || {};
-  const expand = (dirPath) =>
+  const cfg = readJson<Record<string, unknown>>(path.join(home, 'config.json'), {}) || {};
+  const expand = (dirPath: string) =>
     dirPath.startsWith('~/') ? path.join(os.homedir(), dirPath.slice(2)) : dirPath;
   const dirs = Array.isArray(cfg.checkout_dirs)
-    ? cfg.checkout_dirs.filter((dir) => typeof dir === 'string' && dir).map(expand)
+    ? cfg.checkout_dirs.filter((dir): dir is string => typeof dir === 'string' && !!dir).map(expand)
     : [];
   return {
     displayName:
@@ -99,7 +112,7 @@ export function readSettings(home = homeDir()) {
 }
 
 /** "Sam's" with a display_name, else "the reviewer's". */
-export function readerOf(home = homeDir()) {
+export function readerOf(home = homeDir()): string {
   const name = readSettings(home).displayName;
   return name ? `${name}'s` : "the reviewer's";
 }
@@ -114,26 +127,31 @@ export function ghEnv(home = homeDir(), base = process.env) {
 }
 
 /** argv that opens a URL or file: open_command, else the platform's usual opener. */
-export function openArgv(target, home = homeDir()) {
+export function openArgv(target: string, home = homeDir()): string[] {
   const cmd = readSettings(home).openCommand || PLATFORM_OPENER[process.platform] || ['xdg-open'];
   return [...cmd, target];
 }
 
 /** A time for the CLI's lines, in time_zone (default the system's), labelled time_zone_label or the zone's short name. */
-export function formatTime(iso, home = homeDir()) {
+export function formatTime(iso: string | null | undefined, home = homeDir()): string {
   if (!iso) {
     return '';
   }
   const { timeZone, timeZoneLabel } = readSettings(home);
-  /** @type {Intl.DateTimeFormatOptions} */
-  const opts = { month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit', timeZone };
+  const opts: Intl.DateTimeFormatOptions = {
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZone,
+  };
   if (timeZoneLabel !== null) {
     return new Date(iso).toLocaleString('en-US', opts) + (timeZoneLabel ? ` ${timeZoneLabel}` : '');
   }
   return new Date(iso).toLocaleString('en-US', { ...opts, timeZoneName: 'short' });
 }
 
-export function saveConfig(cfg, home = homeDir()) {
+export function saveConfig(cfg: Partial<Config>, home = homeDir()): void {
   mkdirSync(home, { recursive: true, mode: 0o700 });
   const file = path.join(home, 'config.json');
   writeFileSync(file, JSON.stringify(cfg, null, 2) + '\n', { mode: 0o600 });
@@ -144,10 +162,13 @@ export function saveConfig(cfg, home = homeDir()) {
  * Page settings the bridge keeps for every story, read on each request so a change needs no restart.
  * Only known keys are kept: {hideWhitespace: boolean, diffView: 'unified' | 'split'}.
  */
-export const PREF_DEFAULTS = Object.freeze({ hideWhitespace: false, diffView: 'unified' });
+export const PREF_DEFAULTS: Readonly<Prefs> = Object.freeze({
+  hideWhitespace: false,
+  diffView: 'unified',
+});
 
-export function readPrefs(home = homeDir()) {
-  const saved = readJson(path.join(home, 'prefs.json'), {}) || {};
+export function readPrefs(home = homeDir()): Prefs {
+  const saved = readJson<Record<string, unknown>>(path.join(home, 'prefs.json'), {}) || {};
   return {
     ...PREF_DEFAULTS,
     hideWhitespace: saved.hideWhitespace === true,
@@ -155,7 +176,7 @@ export function readPrefs(home = homeDir()) {
   };
 }
 
-export function writePrefs(patch, home = homeDir()) {
+export function writePrefs(patch: Record<string, unknown>, home = homeDir()): Prefs {
   const next = { ...readPrefs(home) };
   if ('hideWhitespace' in patch) {
     next.hideWhitespace = patch.hideWhitespace === true;

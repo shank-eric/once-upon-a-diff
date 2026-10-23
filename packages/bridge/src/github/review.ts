@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /**
  * Add a drafted comment to the reviewer's pending review on a PR, through GitHub's API.
  *
@@ -14,13 +12,13 @@
  */
 import { runGh } from '../util/gh.ts';
 
-async function graphql(query, variables) {
+async function graphql<T>(query: string, variables: Record<string, string | number>): Promise<T> {
   const args = ['api', 'graphql', '-f', `query=${query}`];
   for (const [name, value] of Object.entries(variables)) {
     args.push(typeof value === 'number' ? '-F' : '-f', `${name}=${value}`);
   }
   const stdout = await runGh(args, { timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
-  let out;
+  let out: { data: T; errors?: { message: string }[] };
   try {
     out = JSON.parse(stdout);
   } catch {
@@ -50,13 +48,17 @@ const THREAD = `mutation($review: ID!, $path: String!, $line: Int!, $side: DiffS
   }
 }`;
 
-/**
- * @param {string} repo   "owner/name"
- * @param {number} number PR number
- * @param {{path: string, line: number, side?: 'R'|'L', body: string}} draft
- * @returns {Promise<{review: string, started: boolean, url: string|null}>}
- */
-export async function addToPendingReview(repo, number, draft) {
+/** Adds the draft to the reviewer's pending review on repo ("owner/name") #number, starting one when there's none. */
+export async function addToPendingReview(
+  repo: string,
+  number: number | string,
+  draft: {
+    path?: string | null;
+    line?: number | string | null;
+    side?: string;
+    body?: string | null;
+  },
+): Promise<{ review: string; started: boolean; url: string | null }> {
   const [owner, name] = String(repo).split('/');
   if (!owner || !name) {
     throw Object.assign(new Error('the story has no repo'), { status: 400 });
@@ -72,7 +74,15 @@ export async function addToPendingReview(repo, number, draft) {
     throw Object.assign(new Error('the draft is empty'), { status: 400 });
   }
 
-  const found = await graphql(FIND, { owner, name, number: Number(number) });
+  const found = await graphql<{
+    viewer: { login: string };
+    repository: {
+      pullRequest: {
+        id: string;
+        reviews: { nodes: { id: string; author: { login: string } | null }[] };
+      } | null;
+    } | null;
+  }>(FIND, { owner, name, number: Number(number) });
   const pr = found.repository && found.repository.pullRequest;
   if (!pr) {
     throw Object.assign(new Error(`couldn't find ${repo}#${number}`), { status: 404 });
@@ -83,14 +93,18 @@ export async function addToPendingReview(repo, number, draft) {
   let review = mine && mine.id;
   let started = false;
   if (!review) {
-    const created = await graphql(START, { pr: pr.id });
+    const created = await graphql<{
+      addPullRequestReview: { pullRequestReview: { id: string } };
+    }>(START, { pr: pr.id });
     review = created.addPullRequestReview.pullRequestReview.id;
     started = true;
   }
   const side = draft.side === 'L' ? 'LEFT' : 'RIGHT';
-  const added = await graphql(THREAD, {
+  const added = await graphql<{
+    addPullRequestReviewThread: { thread: { comments: { nodes: { url: string }[] } } | null };
+  }>(THREAD, {
     review,
-    path: draft.path,
+    path: draft.path as string, // checked above
     line: Number(draft.line),
     side,
     body,
@@ -98,5 +112,5 @@ export async function addToPendingReview(repo, number, draft) {
   const node =
     added.addPullRequestReviewThread.thread &&
     added.addPullRequestReviewThread.thread.comments.nodes[0];
-  return { review, started, url: node ? node.url : null };
+  return { review: review as string, started, url: node ? node.url : null };
 }

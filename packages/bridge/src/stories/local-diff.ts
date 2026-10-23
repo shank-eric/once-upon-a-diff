@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * A local story's diff: remade when its refs move (refreshLocal), with a -w
  * copy for Hide whitespace, and the per-file view the local page draws.
@@ -8,12 +6,14 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseUnifiedDiff, pathSha } from '../util/diff.ts';
 import { revParse, diffText, commitsBetween } from '../util/git.ts';
+import type { DiffFile, LocalFile } from '@once-upon-a-diff/shared/types';
+import type { LocalMeta, StoryMeta } from '../types.ts';
 
 /**
  * The same range with -w, for Hide whitespace. Made the first time it's wanted and kept in local-w.diff
  * until the refs move (refreshLocal removes it). Null when git can't make it, so the full diff is drawn.
  */
-export function diffIgnoringWhitespace(dir, meta) {
+export function diffIgnoringWhitespace(dir: string, meta: StoryMeta): Map<string, DiffFile> | null {
   const file = path.join(dir, 'local-w.diff');
   if (!existsSync(file)) {
     if (!meta.repo_path || !meta.base_oid || !meta.head_oid) {
@@ -32,7 +32,7 @@ export function diffIgnoringWhitespace(dir, meta) {
 }
 
 /** The story's diff: local.diff, or pr.diff when GitHub doesn't draw it. Null when there's none to draw. */
-export function loadDiff(dir, meta) {
+export function loadDiff(dir: string, meta: StoryMeta): Map<string, DiffFile> | null {
   const file = ['local.diff', 'pr.diff']
     .map((name) => path.join(dir, name))
     .find((candidate) => existsSync(candidate));
@@ -54,7 +54,7 @@ export function loadDiff(dir, meta) {
  * since the diff was made, remake local.diff. Viewed marks are kept per file
  * diff, so a file whose diff changed shows as unviewed again.
  */
-export function refreshLocal(dir, meta) {
+export function refreshLocal(dir: string, meta: LocalMeta): LocalMeta {
   let baseOid;
   let headOid;
   try {
@@ -88,7 +88,12 @@ export function refreshLocal(dir, meta) {
  * is: the file list and the hash that viewed marks are checked against always come from the full diff, so the
  * toggle never flips them.
  */
-export function localFilesOf(rels, diff, shown, viewed) {
+export function localFilesOf(
+  rels: string[],
+  diff: Map<string, DiffFile> | null,
+  shown: Map<string, DiffFile> | null,
+  viewed: Record<string, { hash?: string }>,
+): LocalFile[] {
   return rels.map((rel) => {
     const file = diff && diff.get(rel);
     const mark = viewed[rel];
@@ -108,7 +113,7 @@ export function localFilesOf(rels, diff, shown, viewed) {
       hash: file ? file.hash : null,
       whitespace_only: !!(
         withoutWhitespace &&
-        file.hunks.length &&
+        file!.hunks.length && // withoutWhitespace is only made for a file of the diff
         !withoutWhitespace.hunks.length
       ),
       viewed: !!(mark && file && mark.hash === file.hash),

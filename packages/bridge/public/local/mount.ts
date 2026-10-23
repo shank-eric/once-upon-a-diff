@@ -1,20 +1,31 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * The story panel on the local page, the same one the extension puts on
  * GitHub, with the page's own callbacks: the bridge keeps its state, its
  * questions and its drafts, Add to fix before push makes a note, and the
  * panel's Fix before push sends the notes to a Claude session.
  */
-import { storyOverlay } from '/assets/overlay.ts';
+import { storyOverlay, type InitialUi } from '/assets/overlay.ts';
+import type {
+  BridgeStatus,
+  DraftsAnswer,
+  FixesView,
+  LocalNote,
+  Question,
+  QuestionMarksAnswer,
+  ReadInfo,
+  RebuildView,
+  Pulse,
+  StatusError,
+  WorkingMark,
+} from '/assets/types.ts';
 import { page, api, STORY_ID, STORY_PATH } from './page.ts';
 import { narrow, reveal, unnarrow, forgetNarrowing } from './folds.ts';
 import { placeNotes } from './notes.ts';
 
 const panelData = () => ({ ...page.story, local: undefined });
 
-function statusError(err) {
-  let code = 'down';
+function statusError(err: Error): never {
+  let code: StatusError['code'] = 'down';
   if (/token/.test(err.message)) {
     code = 'token';
   } else if (/HTTP 404|not found/.test(err.message)) {
@@ -24,17 +35,17 @@ function statusError(err) {
 }
 
 /** Add to fix before push: the bridge makes the draft a note (once), which joins the checklist and the diff. */
-async function addToFixBeforePush(chapter, index) {
-  const note = await api('POST', `${STORY_PATH}/notes`, { chapter, index });
+async function addToFixBeforePush(chapter: number, index: number) {
+  const note = await api<LocalNote>('POST', `${STORY_PATH}/notes`, { chapter, index });
   page.story.local.notes = [
     ...page.story.local.notes.filter((existing) => existing.id !== note.id),
     note,
   ];
   placeNotes();
-  return api('GET', `${STORY_PATH}/drafts`);
+  return api<DraftsAnswer>('GET', `${STORY_PATH}/drafts`);
 }
 
-export function mount(initial) {
+export function mount(initial: InitialUi) {
   if (page.overlay) {
     page.overlay.destroy();
   }
@@ -52,7 +63,7 @@ export function mount(initial) {
     reveal,
     onPosition: (position) =>
       api('POST', `${STORY_PATH}/position`, { ...position, url: location.href }).catch(() => {}),
-    reads: () => api('GET', `${STORY_PATH}/read`),
+    reads: () => api<ReadInfo>('GET', `${STORY_PATH}/read`),
     onRead: (read) => api('POST', `${STORY_PATH}/read`, read), // the bridge records the range's head commit with it
     onClose: () => {
       page.overlay = null;
@@ -63,30 +74,37 @@ export function mount(initial) {
       showReopen();
     },
     ask: (question) => api('POST', `${STORY_PATH}/questions`, { ...question, url: location.href }),
-    loadQuestions: () => api('GET', `${STORY_PATH}/questions`).then((answer) => answer.questions),
-    markQuestions: (action, ids) => api('POST', `${STORY_PATH}/questions/marks`, { action, ids }),
+    loadQuestions: () =>
+      api<{ questions: Question[] }>('GET', `${STORY_PATH}/questions`).then(
+        (answer) => answer.questions,
+      ),
+    markQuestions: (action, ids) =>
+      api<QuestionMarksAnswer>('POST', `${STORY_PATH}/questions/marks`, { action, ids }),
     fixes: {
-      load: () => api('GET', `${STORY_PATH}/fixes`),
-      act: (body) => api('POST', `${STORY_PATH}/fixes`, body),
+      load: () => api<FixesView>('GET', `${STORY_PATH}/fixes`),
+      act: (body) => api<FixesView>('POST', `${STORY_PATH}/fixes`, body),
       note: (noteId, changes) =>
-        api('POST', `${STORY_PATH}/notes/${encodeURIComponent(noteId)}`, changes),
+        // the panel edits only a note it drew, which has an id
+        api('POST', `${STORY_PATH}/notes/${encodeURIComponent(noteId as string)}`, changes),
       // the panel's notes changed (sent, fixed, edited): the diff and the checklist show the same
       onChange: (view) => {
+        // the view's notes are notes.json's, each with its state (shared FixNote leaves out `at`, `done`...)
         page.story.local.notes = view.notes;
         placeNotes();
       },
     },
-    working: () => api('GET', `${STORY_PATH}/working`),
+    working: () => api<{ marks?: WorkingMark[] }>('GET', `${STORY_PATH}/working`),
     drafts: {
-      load: () => api('GET', `${STORY_PATH}/drafts`),
+      load: () => api<DraftsAnswer>('GET', `${STORY_PATH}/drafts`),
       act: (chapter, index, action) =>
         action === 'fix'
           ? addToFixBeforePush(chapter, index)
-          : api('POST', `${STORY_PATH}/drafts`, { chapter, index, action }),
+          : api<DraftsAnswer>('POST', `${STORY_PATH}/drafts`, { chapter, index, action }),
     },
     // Rebuild story / Rebuild from here: a build request for this story, which `once-upon local` finishes
-    requestRebuild: (ask) => api('POST', `${STORY_PATH}/rebuild`, ask),
-    pulse: () => api('GET', `${STORY_PATH}/pulse`),
+    requestRebuild: (ask) =>
+      api<{ rebuild?: RebuildView | null }>('POST', `${STORY_PATH}/rebuild`, ask),
+    pulse: () => api<Pulse>('GET', `${STORY_PATH}/pulse`),
     // the story or the commits moved: local.js reloads and redraws
     onPulse: (pulse) => {
       if (pulse.version !== page.story.version && page.onVersion) {
@@ -94,7 +112,9 @@ export function mount(initial) {
       }
     },
     status: () =>
-      api('GET', `/api/status?story=${encodeURIComponent(STORY_ID)}`).catch(statusError),
+      api<BridgeStatus>('GET', `/api/status?story=${encodeURIComponent(STORY_ID)}`).catch(
+        statusError,
+      ),
   });
 }
 

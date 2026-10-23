@@ -1,9 +1,7 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /**
  * Build requests: "there's no story for this PR yet, please write one", "bring
  * it up to the PR's latest commit" (mode 'update'), and "tell it again"
- * (mode 'rebuild', or 'rebuild_from' with from_step: ../stories/rebuild.mjs).
+ * (mode 'rebuild', or 'rebuild_from' with from_step: ../stories/rebuild.ts).
  *
  * The extension's Build story button posts {repo, number, url, requested_at}.
  * The bridge keeps the request in <home>/builds.json, the one record of it:
@@ -29,21 +27,121 @@ import { readJson, writeJson } from '../util/json-file.ts';
 import { listeners } from '../listeners/listeners.ts';
 import { ID_RE } from '../stories/meta.ts';
 import { isRebuild, REBUILD_MODES } from '../stories/rebuild.ts';
+import type { Listener } from '../listeners/listeners.ts';
+import type { StoryMeta } from '../types.ts';
+
+/** A chapter read before an update was asked for: where the reviewer's reading stopped. */
+export interface BuildRead {
+  chapter: string;
+  title: string | null;
+  sha: string | null;
+  at: string;
+}
+
+/** A build request, as builds.json keeps it (one per PR, or per local story for a rebuild). */
+export interface Build {
+  id: string;
+  repo?: string | null;
+  number: number | null;
+  url: string | null;
+  requested_at: string;
+  status: 'pending' | 'done' | 'failed';
+  mode?: 'update' | 'rebuild' | 'rebuild_from';
+  // an update
+  base_sha?: string;
+  retell?: boolean;
+  since_sha?: string;
+  since_source?: string | null;
+  reads?: BuildRead[];
+  story?: string | null;
+  // a rebuild
+  kind?: 'github' | 'local';
+  from_step?: number;
+  guidance?: string;
+  told_from?: string | null;
+  story_dir?: string | null;
+  local?: { repo_path?: string; base?: string; head?: string };
+  // its claim and how it ended
+  claimed_by?: string;
+  claimed_at?: string;
+  done_at?: string;
+  note?: string | null;
+}
+
+/** Where the reviewer's reading stopped, for an update (sinceOf() in reads.ts, plus the story id). */
+export interface UpdateSince {
+  since_sha?: string | null;
+  source?: string | null;
+  read?: { chapter: string; title: string | null; sha: string | null; at: string }[];
+  story?: string | null;
+}
+
+type BuildState = Build['status'] | 'building' | 'queued' | 'none';
+
+/** A build request as a wait hands it to a session: the request, what it asks in words, and its update or rebuild fields. */
+export interface BuildRequestEntry {
+  type: 'build_request';
+  id: string;
+  at: string;
+  repo?: string | null;
+  number: number | null;
+  url: string | null;
+  requested_at: string;
+  text: string;
+  story?: string | null;
+  mode?: Build['mode'];
+  // an update
+  base_sha?: string;
+  retell?: boolean;
+  since_sha?: string;
+  since_source?: string | null;
+  reads?: BuildRead[];
+  // a rebuild
+  kind?: Build['kind'];
+  from_step?: number;
+  guidance?: string | null;
+  told_from?: string | null;
+  story_dir?: string | null;
+  local?: Build['local'];
+}
+
+/** The Build story or Update button's request, as the page sends it: request() checks each field. */
+export interface BuildAsk {
+  repo: string;
+  number: number | string;
+  requested_at?: string;
+  mode?: string;
+  base_sha?: string;
+  retell?: boolean;
+  since?: UpdateSince | null;
+}
+
+/** A Rebuild, as the panel asks for it (requestRebuild checks it). */
+export interface RebuildRequest {
+  story: string;
+  meta: StoryMeta | null;
+  mode: string;
+  from_step?: unknown;
+  guidance?: unknown;
+  chapters: number;
+  story_dir?: string | null;
+  requested_at?: unknown;
+}
 
 export const CLAIM_FRESH_MS = 30 * 60 * 1000;
 
 /** A local story's rebuild, which has no PR to key it by. */
-export const storyKey = (id) => `story:${id}`;
+export const storyKey = (id: string): string => `story:${id}`;
 const MAX_GUIDANCE = 2000;
 
 /** What a rebuild is of, in words: owner/repo#N, or the local story and its range. */
-const subjectOf = (build) =>
+const subjectOf = (build: Build) =>
   build.number
     ? `${build.repo}#${build.number}`
     : `the local story ${build.story}${build.local ? ` (${build.local.repo_path}, ${build.local.base}..${build.local.head})` : ''}`;
 
 /** A rebuild request in a line: what to keep, what to re-tell, and the reviewer's note on what should change. */
-function rebuildText(build) {
+function rebuildText(build: Build): string {
   const from = Number(build.from_step) || 1;
   const where = build.story_dir ? ` The published story: ${build.story_dir}/chapters.json.` : '';
   const why = build.guidance ? ` What should change: "${build.guidance}"` : '';
@@ -59,7 +157,7 @@ function rebuildText(build) {
  * "Since you read it" chapter for since_sha..the PR's head, first, with the other chapters kept. retell asks for a
  * whole new story (a rebase, or a big rework).
  */
-export function buildText(build, reader = "the reviewer's") {
+export function buildText(build: Build, reader = "the reviewer's"): string {
   const pr = `${build.repo}#${build.number}`;
   if (isRebuild(build)) {
     return rebuildText(build);
@@ -75,7 +173,7 @@ export function buildText(build, reader = "the reviewer's") {
   return `Update the story for ${pr} (told from ${shortSha(build.base_sha)}): put a "Since you read it" chapter first for ${shortSha(since)}..the PR's head${why}, and keep the other chapters: ${build.url}`;
 }
 /** One line on an update: an addendum from where, or a re-tell. */
-export function updateOf(build, reader = "the reviewer's") {
+export function updateOf(build: Partial<Build>, reader = "the reviewer's"): string {
   if (isRebuild(build)) {
     const from = Number(build.from_step) || 1;
     return (
@@ -99,10 +197,10 @@ export function updateOf(build, reader = "the reviewer's") {
   );
 }
 /** The update fields a request carries to `wait` and `builds --json`. */
-const updateFields = (build) =>
+const updateFields = (build: Build) =>
   build.mode === 'update'
     ? {
-        mode: 'update',
+        mode: 'update' as const,
         base_sha: build.base_sha,
         retell: !!build.retell,
         since_sha: build.since_sha || build.base_sha,
@@ -112,7 +210,7 @@ const updateFields = (build) =>
       }
     : {};
 /** The rebuild fields a request carries to `wait` and `builds --json`. */
-const rebuildFields = (build) => ({
+const rebuildFields = (build: Build) => ({
   mode: build.mode,
   story: build.story,
   kind: build.kind || 'github',
@@ -128,43 +226,49 @@ const rebuildFields = (build) => ({
  * story is still the one told from the commit it was asked to update from. A rebuild is finished only by publishing
  * the story again (`published`), not by the story being there.
  */
-export const storyFinishes = (build, head, { published = false } = {}) =>
+export const storyFinishes = (
+  build: Build | null,
+  head: string | null | undefined,
+  { published = false } = {},
+): build is Build =>
   !!build &&
   build.status === 'pending' &&
   (isRebuild(build) ? published : !(build.mode === 'update' && head === build.base_sha));
 
 export class Builds {
-  constructor(home) {
+  declare home: string;
+  declare file: string;
+  constructor(home: string) {
     this.home = home;
     this.file = path.join(home, 'builds.json');
   }
 
-  all() {
-    return readJson(this.file, {});
+  all(): Record<string, Build> {
+    return readJson<Record<string, Build>>(this.file, {}) as Record<string, Build>;
   }
-  save(all) {
+  save(all: Record<string, Build>): void {
     writeJson(this.file, all);
   }
 
-  get(repo, number) {
+  get(repo: string, number: number | string): Build | null {
     return this.all()[prKey(repo, Number(number))] || null;
   }
   /** The story's rebuild request (pending or the last one), or null: a PR story's under its PR, a local one's under its id. */
-  rebuildOf(id, meta) {
+  rebuildOf(id: string, meta: StoryMeta | null): Build | null {
     const build =
       meta && meta.kind === 'github' && meta.repo && meta.number
         ? this.get(meta.repo, meta.number)
         : this.all()[storyKey(id)] || null;
-    return isRebuild(build) && build.story === id ? build : null;
+    return isRebuild(build) && build!.story === id ? build : null;
   }
   /** The key of the request with this id, or this key itself (any case), or null. */
-  keyOf(all, idOrKey) {
+  keyOf(all: Record<string, Build>, idOrKey: string): string | null {
     const wanted = String(idOrKey).toLowerCase();
     return (
       Object.keys(all).find((k) => all[k].id === idOrKey || k.toLowerCase() === wanted) || null
     );
   }
-  pending() {
+  pending(): Build[] {
     return Object.values(this.all()).filter((build) => build.status === 'pending');
   }
 
@@ -174,7 +278,7 @@ export class Builds {
    * refreshes the claim. A claim with no refresh for CLAIM_FRESH_MS goes back to queued, and the next wait
    * hands it out again.
    */
-  stateOf(build, now = Date.now()) {
+  stateOf(build: Build | null, now = Date.now()): BuildState {
     if (!build) {
       return 'none';
     }
@@ -185,11 +289,11 @@ export class Builds {
     return since && now - since < CLAIM_FRESH_MS ? 'building' : 'queued';
   }
   /** The request with its state, for the pages. */
-  view(build) {
+  view(build: Build | null) {
     return build ? { ...build, state: this.stateOf(build) } : null;
   }
 
-  claim(idOrKey, consumer) {
+  claim(idOrKey: string, consumer: string | null): Build | null {
     const all = this.all();
     const key = this.keyOf(all, idOrKey);
     if (!key || all[key].status !== 'pending') {
@@ -211,12 +315,19 @@ export class Builds {
    * A story wait (`story`) takes that story's rebuilds and nothing else. A repo or catch-all wait leaves a rebuild
    * to the story's own listener while one that takes build requests is live (`live`: listeners()).
    */
-  toHand(consumer, { repo = null, story = null, live = null } = {}) {
+  toHand(
+    consumer: string,
+    {
+      repo = null,
+      story = null,
+      live = null,
+    }: { repo?: string | null; story?: string | null; live?: Listener[] | null } = {},
+  ): BuildRequestEntry[] {
     const storyTakers = (live || listeners(this.home)).filter(
       (listener) =>
         listener.live && listener.story && listener.builds && listener.consumer !== consumer,
     );
-    const mine = (build) => {
+    const mine = (build: Build) => {
       if (story) {
         return isRebuild(build) && build.story === story;
       }
@@ -231,7 +342,7 @@ export class Builds {
     return queued.map((build) => {
       this.claim(build.id, consumer);
       return {
-        type: 'build_request',
+        type: 'build_request' as const,
         id: build.id,
         at: build.requested_at,
         repo: build.repo,
@@ -246,10 +357,18 @@ export class Builds {
 
   /**
    * A new request, or the pending one already there for that PR. Throws on a bad repo or number. The URL is always rebuilt from them.
-   * An update can carry `retell` (a whole new story instead of a "Since you read it" chapter) and `since` (sinceOf() in reads.mjs,
+   * An update can carry `retell` (a whole new story instead of a "Since you read it" chapter) and `since` (sinceOf() in reads.ts,
    * plus the story id): where the reviewer's reading stopped. A queued update can still switch between the two.
    */
-  request({ repo, number, requested_at, mode, base_sha, retell = false, since = null }) {
+  request({
+    repo,
+    number,
+    requested_at,
+    mode,
+    base_sha,
+    retell = false,
+    since = null,
+  }: BuildAsk): Build {
     if (!REPO_RE.test(String(repo || ''))) {
       throw Object.assign(new Error('bad repo'), { status: 400 });
     }
@@ -283,8 +402,8 @@ export class Builds {
       this.save(all);
       return all[key];
     }
-    const requestedAt = Number.isFinite(Date.parse(requested_at))
-      ? new Date(requested_at).toISOString()
+    const requestedAt = Number.isFinite(Date.parse(requested_at as string))
+      ? new Date(requested_at as string).toISOString()
       : new Date().toISOString();
     const where =
       update && since
@@ -299,7 +418,7 @@ export class Builds {
             ...(since.story ? { story: since.story } : {}),
           }
         : {};
-    const build = {
+    const build: Build = {
       id: newId('b'),
       repo,
       number: prNumber,
@@ -307,7 +426,7 @@ export class Builds {
       requested_at: requestedAt,
       status: 'pending',
       ...(update
-        ? { mode: 'update', base_sha, ...(retell ? { retell: true } : {}), ...where }
+        ? { mode: 'update' as const, base_sha, ...(retell ? { retell: true } : {}), ...where }
         : {}),
     };
     all[key] = build;
@@ -330,8 +449,8 @@ export class Builds {
     chapters,
     story_dir = null,
     requested_at,
-  }) {
-    const bad = (message) => Object.assign(new Error(message), { status: 400 });
+  }: RebuildRequest): Build {
+    const bad = (message: string) => Object.assign(new Error(message), { status: 400 });
     if (!ID_RE.test(String(story || '')) || !meta) {
       throw bad('bad story');
     }
@@ -347,19 +466,19 @@ export class Builds {
       throw bad("the story doesn't say which PR it is");
     }
     const all = this.all();
-    const key = github ? prKey(meta.repo, Number(meta.number)) : storyKey(story);
+    const key = github ? prKey(meta.repo as string, Number(meta.number)) : storyKey(story);
     const old = all[key];
     if (old && old.status === 'pending' && this.stateOf(old) !== 'queued') {
       return old;
     }
     const note = typeof guidance === 'string' ? guidance.trim().slice(0, MAX_GUIDANCE) : '';
-    const build = {
+    const build: Build = {
       id: old && old.status === 'pending' ? old.id : newId('b'),
       repo: github ? meta.repo : meta.repo || null,
       number: github ? Number(meta.number) : null,
       url: github ? `https://github.com/${meta.repo}/pull/${Number(meta.number)}` : null,
-      requested_at: Number.isFinite(Date.parse(requested_at))
-        ? new Date(requested_at).toISOString()
+      requested_at: Number.isFinite(Date.parse(requested_at as string))
+        ? new Date(requested_at as string).toISOString()
         : new Date().toISOString(),
       status: 'pending',
       mode: from > 1 ? 'rebuild_from' : 'rebuild',
@@ -377,7 +496,14 @@ export class Builds {
   }
 
   /** Mark a request finished, by id or by repo#number (or story:<id>). */
-  done(idOrKey, { story = null, failed = false, note = null } = {}) {
+  done(
+    idOrKey: string,
+    {
+      story = null,
+      failed = false,
+      note = null,
+    }: { story?: string | null; failed?: boolean; note?: string | null } = {},
+  ): Build | null {
     const all = this.all();
     const key = this.keyOf(all, idOrKey);
     if (!key) {
@@ -398,12 +524,21 @@ export class Builds {
    * A story for the PR turned up (or was published again: `published`): finish its pending request when storyFinishes
    * says so. Returns the request either way. `note` says what a rebuild kept.
    */
-  settle(repo, number, { story, head = null, published = false, note = null }) {
+  settle(
+    repo: string,
+    number: number,
+    {
+      story,
+      head = null,
+      published = false,
+      note = null,
+    }: { story: string; head?: string | null; published?: boolean; note?: string | null },
+  ): Build | null {
     const build = this.get(repo, number);
     return storyFinishes(build, head, { published }) ? this.done(build.id, { story, note }) : build;
   }
   /** A local story was written again: finish its pending rebuild. */
-  settleStory(id, { note = null } = {}) {
+  settleStory(id: string, { note = null }: { note?: string | null } = {}): Build | null {
     const build = this.all()[storyKey(id)] || null;
     return storyFinishes(build, null, { published: true })
       ? this.done(build.id, { story: id, note })

@@ -1,9 +1,7 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * What a Claude session tells the panel while it fixes notes: which files it's changing (working, which the panel
- * shows as "Being changed by <session>"), and how a fix request ended (fixed). See ../../inbox/fixes.mjs and
- * ../../stories/working.mjs.
+ * shows as "Being changed by <session>"), and how a fix request ended (fixed). See ../../inbox/fixes.ts and
+ * ../../stories/working.ts.
  */
 import { readMeta } from '../../stories/meta.ts';
 import { StoryStore } from '../../stories/store.ts';
@@ -15,21 +13,29 @@ import { clearMark, parseFiles, setMark } from '../../stories/working.ts';
 import { storyIdOf } from './inbox.ts';
 import { out } from '../output.ts';
 import { plural } from '@once-upon-a-diff/shared/util/text';
+import type { FixRequest } from '../../inbox/fixes.ts';
+import type { Config } from '../../config/settings.ts';
+import type { CliOpts, Command } from '../../types.ts';
 
 const WORKING_USAGE =
   'usage: once-upon working (--story ID | --request F) [--files P[:A-B],... | --done [SHA]] [--consumer NAME]';
 const FIXED_USAGE =
   'usage: once-upon fixed --request F (--sha SHA [--notes N1,N2] | --failed) [--note TEXT] [--consumer NAME]';
 
-const given = (value) => (value && value !== true ? String(value) : null);
+const given = (value: unknown): string | null => (value && value !== true ? String(value) : null);
 
 /**
  * Who the panel says is at work: --consumer, else the wait the request was handed to, else the session that
  * answers the story now.
  */
-function consumerFor(home, opts, story, request) {
+function consumerFor(
+  home: string,
+  opts: CliOpts,
+  story: string,
+  request: FixRequest | null,
+): string {
   if (given(opts.consumer)) {
-    return given(opts.consumer);
+    return given(opts.consumer) as string;
   }
   if (request && request.claimed_by) {
     return request.claimed_by;
@@ -41,7 +47,7 @@ function consumerFor(home, opts, story, request) {
   return goTo ? goTo.consumer : 'a Claude session';
 }
 
-function requestOf(home, id) {
+function requestOf(home: string, id: string): FixRequest {
   const request = readFixes(home)[id];
   if (!request) {
     throw new Error(`no fix request ${id}`);
@@ -49,9 +55,11 @@ function requestOf(home, id) {
   return request;
 }
 
-function working(home, cfg, opts) {
-  const request = given(opts.request) ? requestOf(home, given(opts.request)) : null;
-  const story = given(opts.story) ? storyIdOf(home, opts.story) : request && request.story;
+function working(home: string, cfg: Config, opts: CliOpts) {
+  const request = given(opts.request) ? requestOf(home, given(opts.request) as string) : null;
+  const story = given(opts.story)
+    ? storyIdOf(home, opts.story as string)
+    : request && request.story;
   if (!story) {
     throw new Error(WORKING_USAGE);
   }
@@ -77,7 +85,7 @@ function working(home, cfg, opts) {
   );
 }
 
-function fixed(home, cfg, opts) {
+function fixed(home: string, cfg: Config, opts: CliOpts) {
   const id = given(opts.request);
   if (!id || (!given(opts.sha) && !opts.failed)) {
     throw new Error(FIXED_USAGE);
@@ -86,7 +94,7 @@ function fixed(home, cfg, opts) {
   const consumer = consumerFor(home, opts, request.story, request);
   const store = new StoryStore({ home });
   const noteIds = given(opts.notes)
-    ? given(opts.notes)
+    ? (given(opts.notes) as string)
         .split(',')
         .map((note) => note.trim())
         .filter(Boolean)
@@ -100,15 +108,16 @@ function fixed(home, cfg, opts) {
     inbox: new Inbox(home),
   });
   clearMark(home, request.story, consumer, { sha: given(opts.sha) });
-  const left = request.notes.length - done.fixed.length;
+  const fixedIds = done.fixed as string[]; // a report sets it
+  const left = request.notes.length - fixedIds.length;
   out(
     opts.failed
       ? `${id}: not fixed. Its ${request.notes.length} note${request.notes.length === 1 ? ' is' : 's are'} back in the reviewer's drafts.`
-      : `${id}: ${plural(done.fixed.length, 'note')} fixed in ${done.sha}${left ? `, ${left} back in the drafts` : ''}. The panel shows it within a few seconds.`,
+      : `${id}: ${plural(fixedIds.length, 'note')} fixed in ${done.sha}${left ? `, ${left} back in the drafts` : ''}. The panel shows it within a few seconds.`,
   );
 }
 
-export const fixCommands = [
+export const fixCommands: Command[] = [
   {
     name: 'working',
     usage: [

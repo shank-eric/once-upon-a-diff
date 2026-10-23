@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * Split view for the local page: a hunk's lines as side-by-side rows, old on
  * the left and new on the right, the way GitHub's split diff pairs them. A
@@ -9,18 +7,31 @@
  * No DOM here, so node can test it.
  */
 
-/**
- * @param {{oldStart: number, newStart: number, lines: string[]}} hunk
- * @returns {Array<{left?: {num, text, kind: 'ctx'|'del', i}|null, right?: {num, text, kind: 'ctx'|'add', i}|null, info?: string}>}
- *   a pair of halves (either may be null), or an info line
- *   i is the line's index in hunk.lines, for its highlighted HTML.
- */
-export function splitRows(hunk) {
-  const rows = [];
+/** One side of a split row: its line number, text and kind, and i, its index in hunk.lines (for its highlighted HTML). */
+export interface SplitHalf {
+  num: number;
+  text: string;
+  kind: 'ctx' | 'del' | 'add';
+  i: number;
+}
+
+/** A pair of halves (either may be null), or an info line. */
+export interface SplitRow {
+  left?: SplitHalf | null;
+  right?: SplitHalf | null;
+  info?: string;
+}
+
+export function splitRows(hunk: {
+  oldStart: number;
+  newStart: number;
+  lines: string[];
+}): SplitRow[] {
+  const rows: SplitRow[] = [];
   let oldLine = hunk.oldStart;
   let newLine = hunk.newStart;
-  let dels = [];
-  let adds = [];
+  let dels: SplitHalf[] = [];
+  let adds: SplitHalf[] = [];
   const flush = () => {
     for (let i = 0; i < Math.max(dels.length, adds.length); i++) {
       rows.push({ left: dels[i] || null, right: adds[i] || null });

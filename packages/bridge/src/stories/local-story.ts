@@ -1,9 +1,7 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /**
  * Local mode: a story over a local commit range instead of a GitHub PR. The
  * story lives in the checkout (or worktree) it diffs, at <top>/.once-upon/<id>/,
- * kept out of git by .git/info/exclude (placement.mjs). The folder holds meta.json (repo, refs), local.diff (remade whenever the
+ * kept out of git by .git/info/exclude (placement.ts). The folder holds meta.json (repo, refs), local.diff (remade whenever the
  * refs move) and chapters.json in once-upon's format, so the same panel and
  * the same chapters work on either.
  */
@@ -17,8 +15,20 @@ import { ID_RE } from './meta.ts';
 import { storyDirFor } from './placement.ts';
 import { repoOfCheckout, seenCheckout } from '../config/repos.ts';
 import { plural } from '@once-upon-a-diff/shared/util/text';
+import type { DiffFile } from '@once-upon-a-diff/shared/types';
+import type { LocalMeta, StoryMeta } from '../types.ts';
+import type { Plan, PlanChapter } from './chapters.ts';
 
-export const slug = (text) =>
+/** What vet sees: the story, its diff, and the chapters before and after. */
+export interface VetInput {
+  id: string;
+  meta: StoryMeta;
+  diff: Map<string, DiffFile>;
+  before: Plan;
+  after: Plan;
+}
+
+export const slug = (text: string): string =>
   String(text)
     .replace(/[^A-Za-z0-9._-]+/g, '-')
     .replace(/^-+|-+$/g, '')
@@ -26,7 +36,7 @@ export const slug = (text) =>
 
 const WORKSPACE_FOLDERS = ['apps', 'libs', 'packages', 'tools', 'services'];
 /** A file's group: its package in a monorepo (apps/x), else its top-level folder, else (root). */
-function groupOf(rel) {
+function groupOf(rel: string): string {
   const parts = rel.split('/');
   if (parts.length > 2 && WORKSPACE_FOLDERS.includes(parts[0])) {
     return parts.slice(0, 2).join('/');
@@ -35,14 +45,14 @@ function groupOf(rel) {
 }
 
 /** One chapter per top-level folder: a starting point until a real story is written. */
-export function defaultChapters(rels, title) {
-  const groups = new Map();
+export function defaultChapters(rels: string[], title: string | undefined) {
+  const groups = new Map<string, string[]>();
   for (const rel of rels) {
     const key = groupOf(rel);
     if (!groups.has(key)) {
       groups.set(key, []);
     }
-    groups.get(key).push(rel);
+    groups.get(key)!.push(rel);
   }
   const chapters = [...groups].map(([key, files], i) => ({
     title: `Chapter ${i + 1}: ${key}`,
@@ -72,6 +82,15 @@ export function createLocalStory({
   id,
   title,
   vet = null,
+}: {
+  home: string;
+  repo: string;
+  base: string;
+  head?: string;
+  chapters?: string | null;
+  id?: string | null;
+  title?: string | null;
+  vet?: ((input: VetInput) => Plan | null) | null;
 }) {
   const top = topLevel(repo);
   revParse(top, base); // fail early on a bad ref
@@ -88,9 +107,11 @@ export function createLocalStory({
     seenCheckout(home, origin, top);
   }
   const metaFile = path.join(dir, 'meta.json');
-  const old = existsSync(metaFile) ? JSON.parse(readFileSync(metaFile, 'utf8')) : {};
+  const old: Partial<StoryMeta> = existsSync(metaFile)
+    ? JSON.parse(readFileSync(metaFile, 'utf8'))
+    : {};
   const sameRange = old.repo_path === top && old.base === base && old.head === head;
-  const meta = {
+  const meta: LocalMeta = {
     kind: 'local',
     repo_path: top,
     repo_name: name,
@@ -99,7 +120,10 @@ export function createLocalStory({
     branch,
     base_oid: sameRange ? old.base_oid : null,
     head_oid: sameRange ? old.head_oid : null, // null makes the diff get remade
-    title: title || old.title || `${name}: ${base}..${head}${branch ? ` (${branch})` : ''}`,
+    title:
+      title ||
+      (old.title as string | undefined) ||
+      `${name}: ${base}..${head}${branch ? ` (${branch})` : ''}`,
   };
   writeFileSync(metaFile, JSON.stringify(meta, null, 2));
   refreshLocal(dir, meta);
@@ -108,8 +132,10 @@ export function createLocalStory({
   const rels = [...diff.keys()];
   const chaptersFile = path.join(dir, 'chapters.json');
   if (chapters) {
-    const after = JSON.parse(readFileSync(path.resolve(chapters), 'utf8'));
-    const before = existsSync(chaptersFile) ? JSON.parse(readFileSync(chaptersFile, 'utf8')) : {};
+    const after: Plan = JSON.parse(readFileSync(path.resolve(chapters), 'utf8'));
+    const before: Plan = existsSync(chaptersFile)
+      ? JSON.parse(readFileSync(chaptersFile, 'utf8'))
+      : {};
     const vetted = vet ? vet({ id, meta, diff, before, after }) : null;
     if (vetted) {
       writeFileSync(chaptersFile, JSON.stringify(vetted, null, 2));
@@ -122,9 +148,11 @@ export function createLocalStory({
     writeFileSync(chaptersFile, JSON.stringify(defaultChapters(rels, meta.title), null, 2));
   }
 
-  const plan = JSON.parse(readFileSync(chaptersFile, 'utf8'));
+  const plan: Plan = JSON.parse(readFileSync(chaptersFile, 'utf8'));
   const placed = new Set(
-    (plan.chapters || []).flatMap((chapter) => (chapter.files || []).map((e) => entryOf(e).rel)),
+    (plan.chapters || []).flatMap((chapter: PlanChapter) =>
+      (chapter.files || []).map((e) => entryOf(e).rel),
+    ),
   );
   return {
     id,

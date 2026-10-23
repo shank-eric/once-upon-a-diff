@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /**
  * Drafted comments that come out of Q&A (by voice, chat or the Ask box) go
  * into the story's chapters.json, in the chapter's `comments`, so the panel
@@ -14,11 +12,23 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { writeJsonAtomic } from '../util/json-file.ts';
+import type { DraftComment } from '@once-upon-a-diff/shared/types';
+import type { StoryMeta } from '../types.ts';
+import type { Plan } from './chapters.ts';
 
-const fail = (status, message) => Object.assign(new Error(message), { status });
+const fail = (status: number, message: string) => Object.assign(new Error(message), { status });
 
-/** @returns {{chapter, comment, added, files}} */
-export function addComment(dir, meta, { chapter, path: rel, line, body }) {
+/** Adds a drafted comment to a chapter: {chapter, comment, added, files}. */
+export function addComment(
+  dir: string,
+  meta: StoryMeta | null,
+  {
+    chapter,
+    path: rel,
+    line,
+    body,
+  }: { chapter: unknown; path?: unknown; line?: unknown; body?: unknown },
+): { chapter: number; comment: DraftComment; added: boolean; files: string[] } {
   const step = Number(chapter);
   const text = typeof body === 'string' ? body.trim() : '';
   if (!text) {
@@ -27,7 +37,7 @@ export function addComment(dir, meta, { chapter, path: rel, line, body }) {
   if (text.length > 20000) {
     throw fail(400, 'the comment body is too long');
   }
-  const comment = {
+  const comment: DraftComment = {
     path: typeof rel === 'string' && rel.trim() ? rel.trim().slice(0, 1000) : '(general)',
     line: Number.isInteger(Number(line)) && Number(line) > 0 ? Number(line) : 0,
     body: text,
@@ -38,9 +48,9 @@ export function addComment(dir, meta, { chapter, path: rel, line, body }) {
     targets.push(src);
   }
   let added = false;
-  const files = [];
+  const files: string[] = [];
   targets.forEach((file, i) => {
-    const plan = JSON.parse(readFileSync(file, 'utf8'));
+    const plan: Plan = JSON.parse(readFileSync(file, 'utf8'));
     const target = Array.isArray(plan.chapters) ? plan.chapters[step - 1] : null;
     if (!Number.isInteger(step) || !target) {
       if (i === 0) {

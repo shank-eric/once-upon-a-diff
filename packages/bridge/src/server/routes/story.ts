@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * One story: its data (GET /api/stories/<id>), its version (the pages poll it
  * to redraw when chapters.json changes), its pulse (version plus what else the
@@ -21,8 +19,10 @@ import { HttpError, clipText, toInt } from '../request.ts';
 import { questionsOf } from './questions.ts';
 import { fixesView } from '../../inbox/fixes.ts';
 import { workingOf } from '../../stories/working.ts';
+import type { RebuildView, StoryData } from '@once-upon-a-diff/shared/types';
+import type { App, Call, LocalMeta, ServedStory, StoryRoute } from '../../types.ts';
 
-function load({ app, send }, story) {
+function load({ app, send }: Call, story: ServedStory) {
   if (story.meta.kind === 'local' && story.ref.repo) {
     seenCheckout(app.home, story.ref.repo, story.meta.repo_path); // where to tell a listener to work from
   }
@@ -30,7 +30,7 @@ function load({ app, send }, story) {
 }
 
 /** Changes when chapters.json does, and for a local story when its diff or Hide whitespace does. */
-function versionOf(app, story) {
+function versionOf(app: App, story: ServedStory): string {
   if (story.meta.kind === 'local') {
     refreshLocal(story.dir, readMetaFile(story.dir));
     return localVersion(story.dir, readPrefs(app.home));
@@ -38,9 +38,10 @@ function versionOf(app, story) {
   return storyVersion(story.dir);
 }
 
-const version = ({ app, send }, story) => send(200, { version: versionOf(app, story) });
+const version = ({ app, send }: Call, story: ServedStory) =>
+  send(200, { version: versionOf(app, story) });
 
-const revOf = (value) =>
+const revOf = (value: unknown) =>
   createHash('sha1').update(JSON.stringify(value)).digest('hex').slice(0, 12);
 
 /**
@@ -50,7 +51,7 @@ const revOf = (value) =>
  * reviewer's marks, not what gh finds on GitHub, which the panel still checks on its own. fixes_rev covers
  * fix before push, and working_rev the "being changed" marks.
  */
-function pulse({ app, send }, story) {
+function pulse({ app, send }: Call, story: ServedStory) {
   const questions = questionsOf(app, story).map((question) => [
     question.id,
     question.answers.length,
@@ -59,7 +60,9 @@ function pulse({ app, send }, story) {
     question.handed_to,
   ]);
   const listening = listeningOf(app.home, { repo: story.ref.repo, story: story.id });
-  const comments = app.stories.load(story.id).chapters.map((chapter) => chapter.comments || []);
+  const comments = (app.stories.load(story.id) as StoryData).chapters.map(
+    (chapter) => chapter.comments || [],
+  );
   const marks = readMarks(app.home, stateKeyOf(story.id, story.meta));
   return send(200, {
     version: versionOf(app, story),
@@ -76,16 +79,16 @@ function pulse({ app, send }, story) {
 }
 
 /** The story's Rebuild as the panel shows it: {id, mode, from_step, state, requested_at, done_at, note}, or null. */
-function rebuildView(app, story) {
+function rebuildView(app: App, story: ServedStory): (RebuildView & { id: string }) | null {
   const build = app.builds.view(app.builds.rebuildOf(story.id, story.meta));
   if (!build) {
     return null;
   }
   return {
     id: build.id,
-    mode: build.mode,
+    mode: build.mode as RebuildView['mode'], // rebuildOf finds only rebuilds
     from_step: build.from_step || null,
-    state: build.state,
+    state: build.state as RebuildView['state'],
     requested_at: build.requested_at,
     claimed_by: build.state === 'building' ? build.claimed_by || null : null,
     done_at: build.done_at || null,
@@ -97,9 +100,11 @@ function rebuildView(app, story) {
  * GET: rebuildView. POST {mode: 'rebuild'|'rebuild_from', from_step, guidance}: the panel's Rebuild story or Rebuild
  * from here, a build request a listener hands to a Claude session. A request already being built comes back as it is.
  */
-function rebuild({ app, req, body, send }, story) {
+function rebuild({ app, req, body, send }: Call, story: ServedStory) {
   if (req.method === 'POST') {
-    const chapters = (app.stories.load(story.id).chapters || []).filter((chapter) => !chapter.auto);
+    const chapters = ((app.stories.load(story.id) as StoryData).chapters || []).filter(
+      (chapter) => !chapter.auto,
+    );
     if (!chapters.length) {
       throw new HttpError(400, 'the story has no chapters to rebuild');
     }
@@ -119,9 +124,10 @@ function rebuild({ app, req, body, send }, story) {
 }
 
 /** meta.json as written, for the local diff refresh (readMeta fills in defaults). Throws when it's missing or broken. */
-const readMetaFile = (dir) => JSON.parse(readFileSync(path.join(dir, 'meta.json'), 'utf8'));
+const readMetaFile = (dir: string): LocalMeta =>
+  JSON.parse(readFileSync(path.join(dir, 'meta.json'), 'utf8'));
 
-function panelState({ app, req, body, send }, story) {
+function panelState({ app, req, body, send }: Call, story: ServedStory) {
   if (req.method === 'GET') {
     return send(200, app.stories.readState(story.id, 'ui.json', {}));
   }
@@ -138,7 +144,7 @@ function panelState({ app, req, body, send }, story) {
   return send(200, saved);
 }
 
-function position({ app, body, send }, story) {
+function position({ app, body, send }: Call, story: ServedStory) {
   const where = {
     step: toInt(body.step),
     chapter: clipText(body.chapter, 300),
@@ -149,16 +155,19 @@ function position({ app, body, send }, story) {
   return send(200, { ok: true });
 }
 
-async function storyFreshness({ app, send }, story) {
+async function storyFreshness({ app, send }: Call, story: ServedStory) {
   const { meta } = story;
   const lastBuild =
     meta.kind === 'github' && meta.repo && meta.number
       ? app.builds.get(meta.repo, meta.number)
       : null;
-  return send(200, await freshness(meta, app.stories.load(story.id).chapters, { lastBuild }));
+  return send(
+    200,
+    await freshness(meta, (app.stories.load(story.id) as StoryData).chapters, { lastBuild }),
+  );
 }
 
-export const storyRoutes = [
+export const storyRoutes: StoryRoute[] = [
   { what: '', method: 'GET', handle: load },
   { what: 'version', method: 'GET', handle: version },
   { what: 'pulse', method: 'GET', handle: pulse },

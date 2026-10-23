@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /**
  * `once-upon doctor`: is everything connected? The config and token, the
  * bridge, a Claude session listening, and the extension. Each check prints
@@ -11,10 +9,13 @@ import path from 'node:path';
 import { listeners } from '../listeners/listeners.ts';
 import { formatTime } from '../config/settings.ts';
 import { readJson } from '../util/json-file.ts';
+import type { Config } from '../config/settings.ts';
 
-const localTime = (iso) => formatTime(iso);
+type Level = 'PASS' | 'WARN' | 'FAIL';
 
-function listenerPid(port) {
+const localTime = (iso: string) => formatTime(iso);
+
+function listenerPid(port: number): { pid: string; command: string } | null {
   try {
     const pid = execFileSync('lsof', ['-nP', `-tiTCP:${port}`, '-sTCP:LISTEN'], {
       encoding: 'utf8',
@@ -32,19 +33,20 @@ function listenerPid(port) {
 }
 
 /**
- * Runs every check; resolves true when nothing FAILed.
- * @param {string} home
- * @param {{port: number, token: string}} cfg
- * @param {{port?: number | string, out?: (text: string) => void}} [opts] port overrides the config's
+ * Runs every check; resolves true when nothing FAILed. opts.port overrides the config's.
  */
 export async function doctor(
-  home,
-  cfg,
-  { port: portOpt, out = (text) => process.stdout.write(text + '\n') } = {},
-) {
+  home: string,
+  cfg: Pick<Config, 'port' | 'token'>,
+  {
+    port: portOpt,
+    out = (text) => process.stdout.write(text + '\n'),
+  }: { port?: number | string; out?: (text: string) => unknown } = {},
+): Promise<boolean> {
   const port = Number(portOpt || cfg.port);
-  const results = [];
-  const add = (level, name, detail, fix) => results.push({ level, name, detail, fix });
+  const results: { level: Level; name: string; detail: string; fix?: string | null }[] = [];
+  const add = (level: Level, name: string, detail: string, fix?: string | null) =>
+    results.push({ level, name, detail, fix });
 
   // config and token
   const cfgFile = path.join(home, 'config.json');
@@ -62,14 +64,16 @@ export async function doctor(
 
   // the bridge: process, port, token
   const proc = listenerPid(port);
-  let health = null;
+  let health: { status: number; body: { name?: string; version?: string } | null } | null = null;
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/health`, {
       headers: { Authorization: `Bearer ${cfg.token}` },
       signal: AbortSignal.timeout(2000),
     });
-    /** @type {{name?: string, version?: string} | null} */
-    const body = await response.json().catch(() => null);
+    const body = (await response.json().catch(() => null)) as {
+      name?: string;
+      version?: string;
+    } | null;
     health = { status: response.status, body };
   } catch {
     health = null;
@@ -107,7 +111,7 @@ export async function doctor(
 
   // the extension: the bridge records when it last heard from it
   const seenFile = path.join(home, 'extension-seen.json');
-  const seen = readJson(seenFile);
+  const seen = readJson<{ at: string; origin: string }>(seenFile);
   if (seen) {
     add('PASS', 'Extension', `last talked to the bridge ${localTime(seen.at)} (${seen.origin})`);
   } else {

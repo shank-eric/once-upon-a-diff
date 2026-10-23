@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * Syntax highlighting for the local page's diff. Each hunk's old side
  * (context and removed lines) and new side (context and added lines) is
@@ -12,9 +10,18 @@
  * can test it.
  */
 
+/** What the page uses of highlight.js. */
+export interface Highlighter {
+  getLanguage(name: string): unknown;
+  highlight(
+    code: string,
+    options: { language: string; ignoreIllegals?: boolean },
+  ): { value: string };
+}
+
 export const LIMITS = { fileLines: 3000, lineLength: 1000, pageLines: 20000 };
 
-const BY_EXT = {
+const BY_EXT: Record<string, string> = {
   ts: 'typescript',
   tsx: 'typescript',
   mts: 'typescript',
@@ -43,7 +50,7 @@ const BY_EXT = {
   xml: 'xml',
   svg: 'xml',
 };
-const BY_NAME = {
+const BY_NAME: Record<string, string> = {
   Gemfile: 'ruby',
   Rakefile: 'ruby',
   Guardfile: 'ruby',
@@ -54,8 +61,8 @@ const BY_NAME = {
 };
 
 /** The highlight.js language for a path, by its extension (or a few well-known names), or null. */
-export function langOf(rel) {
-  const name = String(rel).split('/').pop();
+export function langOf(rel: string): string | null {
+  const name = String(rel).split('/').pop() as string;
   if (BY_NAME[name]) {
     return BY_NAME[name];
   }
@@ -64,9 +71,9 @@ export function langOf(rel) {
 }
 
 /** Cuts highlighted HTML (text plus <span class="…"> and </span> only) into lines, each with balanced spans. */
-export function splitHtmlLines(html) {
-  const lines = [];
-  const open = [];
+export function splitHtmlLines(html: string): string[] {
+  const lines: string[] = [];
+  const open: string[] = [];
   let cur = '';
   let last = 0;
   const pattern = /(<span class="[^"]*">)|(<\/span>)|(\n)/g;
@@ -90,12 +97,17 @@ export function splitHtmlLines(html) {
 
 /**
  * One hunk: the highlighted HTML for each of hunk.lines (same index), or null for a line it doesn't cover
- * (the "\ No newline at end of file" marker). Context lines take the new side's colouring.
- * @param {{lines: string[]}} hunk
- * @param {(code: string) => string} highlight returns escaped, highlighted HTML
+ * (the "\ No newline at end of file" marker). Context lines take the new side's colouring. highlight returns
+ * escaped, highlighted HTML.
  */
-export function hunkHtml(hunk, highlight) {
-  const sides = { old: { idx: [], text: [] }, new: { idx: [], text: [] } };
+export function hunkHtml(
+  hunk: { lines: string[] },
+  highlight: (code: string) => string,
+): (string | null)[] {
+  const sides = {
+    old: { idx: [] as number[], text: [] as string[] },
+    new: { idx: [] as number[], text: [] as string[] },
+  };
   hunk.lines.forEach((line, i) => {
     const sign = line[0];
     if (sign === ' ' || sign === '-') {
@@ -107,8 +119,8 @@ export function hunkHtml(hunk, highlight) {
       sides.new.text.push(line.slice(1));
     }
   });
-  const out = new Array(hunk.lines.length).fill(null);
-  for (const key of ['new', 'old']) {
+  const out: (string | null)[] = new Array(hunk.lines.length).fill(null);
+  for (const key of ['new', 'old'] as const) {
     const sideLines = sides[key];
     if (!sideLines.idx.length) {
       continue;
@@ -126,10 +138,11 @@ export function hunkHtml(hunk, highlight) {
 /**
  * A file's hunks highlighted: an array (one per hunk) of arrays (one per line), or null to draw it plain:
  * no known language, too big, a very long (minified) line, or highlight.js not loaded.
- * @param {{rel: string, hunks: Array<{lines: string[]}>}} file
- * @param {object|null} hljs highlight.js
  */
-export function highlightFile(file, hljs) {
+export function highlightFile(
+  file: { rel: string; hunks: { lines: string[] }[] },
+  hljs: Highlighter | null,
+): (string | null)[][] | null {
   const lang = langOf(file.rel);
   if (!hljs || !lang || !hljs.getLanguage(lang)) {
     return null;

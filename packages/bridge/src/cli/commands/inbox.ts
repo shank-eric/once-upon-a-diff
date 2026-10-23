@@ -1,15 +1,13 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * The inbox from the terminal: read it (inbox), wait for the next question or
  * build request (wait, the listener a Claude session runs as a background
  * task), and answer a question (answer).
  *
  * A story's own wait (`wait --story`) takes that story's questions ahead of a
- * repo-wide one: see the routing rule in ../../inbox/conversation.mjs. With
+ * repo-wide one: see the routing rule in ../../inbox/conversation.ts. With
  * build_request in its --type, it takes the story's Rebuild requests the same
- * way (../../inbox/builds.mjs). Fix requests (fix_request in --type) are
- * routed the same way too, from the queue in ../../inbox/fixes.mjs.
+ * way (../../inbox/builds.ts). Fix requests (fix_request in --type) are
+ * routed the same way too, from the queue in ../../inbox/fixes.ts.
  */
 import { existsSync, readFileSync, statSync, watch, writeFileSync } from 'node:fs';
 import { REPO_RE, sameRepo, repoOfCheckout, seenCheckout } from '../../config/repos.ts';
@@ -22,15 +20,23 @@ import { StoryStore } from '../../stories/store.ts';
 import { slug } from '../../stories/local-story.ts';
 import { readJson, writeJsonAtomic } from '../../util/json-file.ts';
 import { topLevel } from '../../util/git.ts';
-import { out, describe, filterEntries } from '../output.ts';
+import { out, describe, filterEntries, type Printable } from '../output.ts';
+import type { QuestionEntry } from '../../inbox/inbox.ts';
+import type { Config } from '../../config/settings.ts';
+import type { CliOpts, Command } from '../../types.ts';
+
+/** What a wait covers: the beat says so, for the status light and the routing. */
+type WaitScope = { repo?: string; story?: string; builds?: boolean; fixes?: boolean };
 
 const BEAT_MS = 5000;
 const POLL_MS = 2000;
 
-function inbox(home, cfg, opts) {
+function inbox(home: string, cfg: Config, opts: CliOpts) {
   const messages = new Inbox(home);
   const entries = filterEntries(
-    opts.unread ? messages.unread(opts.consumer || 'default', { advance: true }) : messages.all(),
+    opts.unread
+      ? messages.unread((opts.consumer as string | undefined) || 'default', { advance: true })
+      : messages.all(),
     opts,
   );
   for (const entry of entries) {
@@ -39,9 +45,9 @@ function inbox(home, cfg, opts) {
 }
 
 /** One listener per repo or story: its own cursor and heartbeat unless --consumer says otherwise. */
-function consumerOf(opts) {
+function consumerOf(opts: CliOpts): string {
   if (opts.consumer) {
-    return opts.consumer;
+    return opts.consumer as string;
   }
   if (opts.story) {
     return `story-${opts.story}`;
@@ -50,7 +56,7 @@ function consumerOf(opts) {
 }
 
 /** The repo of the checkout this runs in, or null. */
-function checkoutRepo() {
+function checkoutRepo(): string | null {
   try {
     return repoOfCheckout(topLevel(process.cwd()));
   } catch {
@@ -62,12 +68,16 @@ function checkoutRepo() {
  * --story's story id. It takes the id itself, a PR (owner/name#N or its URL), or a bare PR number in the repo of
  * this checkout. A PR's story is the one the bridge has for it, else the id `once-upon publish` will give it.
  */
-export function storyIdOf(home, value, repoHere = checkoutRepo) {
+export function storyIdOf(
+  home: string,
+  value: string,
+  repoHere: () => string | null = checkoutRepo,
+): string {
   const text = String(value).trim();
   const pr =
     /github\.com\/([^/\s]+\/[^/\s]+)\/pull\/(\d+)/.exec(text) ||
     /^([^/#\s]+\/[^/#\s]+)#(\d+)$/.exec(text);
-  let repo = pr ? pr[1] : null;
+  let repo: string | null = pr ? pr[1] : null;
   const number = pr ? pr[2] : /^\d+$/.test(text) && text;
   if (!number) {
     return text;
@@ -81,18 +91,28 @@ export function storyIdOf(home, value, repoHere = checkoutRepo) {
 }
 
 /** Questions a repo-wide wait left to a live story listener, kept beside its cursor to look at again. */
-const deferredFile = (messages, consumer) =>
+const deferredFile = (messages: Inbox, consumer: string) =>
   messages.cursorFile(consumer).replace(/\.json$/, '.deferred.json');
 
 /**
  * This wait's share of the questions: new ones, plus ones it left to a story listener before. Hands back the ones
  * to take now and remembers the rest.
  */
-function questionsToTake(home, messages, consumer, scope, fresh) {
+function questionsToTake(
+  home: string,
+  messages: Inbox,
+  consumer: string,
+  scope: WaitScope,
+  fresh: QuestionEntry[],
+): QuestionEntry[] {
   const file = deferredFile(messages, consumer);
-  const before = readJson(file, []) || [];
+  const before = readJson<string[]>(file, []) || [];
   const earlier = before.length
-    ? messages.all().filter((entry) => entry.type === 'question' && before.includes(entry.id))
+    ? messages
+        .all()
+        .filter(
+          (entry): entry is QuestionEntry => entry.type === 'question' && before.includes(entry.id),
+        )
     : [];
   const { take, defer } = routeQuestions(home, consumer, scope, [...earlier, ...fresh]);
   const after = defer.map((question) => question.id);
@@ -103,7 +123,7 @@ function questionsToTake(home, messages, consumer, scope, fresh) {
 }
 
 /** A wait run from the repo's checkout tells the bridge where that checkout is, for the next prompt. */
-function noteCheckout(home, repo) {
+function noteCheckout(home: string, repo: string): void {
   try {
     const top = topLevel(process.cwd());
     if (sameRepo(repoOfCheckout(top), repo)) {
@@ -115,7 +135,7 @@ function noteCheckout(home, repo) {
 }
 
 /** What a session does with a fix request, after the request itself. */
-function fixGuidance(entry) {
+function fixGuidance(entry: Extract<Printable, { type: 'fix_request' }>): string {
   const where = entry.kind === 'local' ? 'the local story' : `${entry.repo} PR`;
   return [
     `It's yours (wait claimed it). Fix these notes on ${where}${entry.branch ? `, on branch ${entry.branch}` : ''}:`,
@@ -126,7 +146,7 @@ function fixGuidance(entry) {
 }
 
 /** Prints what was handed over, with what to run next. */
-function printHandOver(entries, opts) {
+function printHandOver(entries: Printable[], opts: CliOpts): void {
   for (const entry of entries) {
     if (opts.json) {
       out(JSON.stringify(entry));
@@ -148,7 +168,7 @@ function printHandOver(entries, opts) {
     }
     if (entry.type === 'build_request' && entry.mode === 'rebuild_from') {
       out(
-        `It's a rebuild from chapter ${entry.from_step}: follow once-upon's "Rebuilding a story" path. Chapters 1-${entry.from_step - 1} stay exactly as published.`,
+        `It's a rebuild from chapter ${entry.from_step}: follow once-upon's "Rebuilding a story" path. Chapters 1-${(entry.from_step as number) - 1} stay exactly as published.`,
       );
     }
     if (entry.type === 'fix_request') {
@@ -164,8 +184,8 @@ function printHandOver(entries, opts) {
 }
 
 /** Resolves when the inbox file changes, or after POLL_MS. */
-const inboxChange = (file) =>
-  new Promise((resolve) => {
+const inboxChange = (file: string) =>
+  new Promise<void>((resolve) => {
     const watcher = watch(file, () => {
       watcher.close();
       resolve();
@@ -176,22 +196,25 @@ const inboxChange = (file) =>
     }, POLL_MS);
   });
 
-async function wait(home, cfg, opts) {
+async function wait(home: string, cfg: Config, opts: CliOpts) {
   const messages = new Inbox(home);
   if (opts.repo && !REPO_RE.test(String(opts.repo))) {
     throw new Error('usage: once-upon wait --repo owner/name');
   }
   if (opts.story) {
-    opts = { ...opts, story: storyIdOf(home, opts.story) };
+    opts = { ...opts, story: storyIdOf(home, opts.story as string) };
   }
   const consumer = consumerOf(opts);
   if (opts.repo) {
-    noteCheckout(home, opts.repo);
+    noteCheckout(home, opts.repo as string);
   }
-  const want = { ...opts, type: opts.type || 'question,build_request,fix_request' };
+  const want = {
+    ...opts,
+    type: (opts.type as string | undefined) || 'question,build_request,fix_request',
+  };
   const takesBuilds = want.type.split(',').includes('build_request');
   const takesFixes = want.type.split(',').includes('fix_request');
-  const scope = {
+  const scope: WaitScope = {
     ...(opts.repo ? { repo: String(opts.repo) } : {}),
     ...(opts.story ? { story: String(opts.story) } : {}),
     // a story wait that takes build requests gets the story's rebuilds ahead of the repo's wait
@@ -220,11 +243,14 @@ async function wait(home, cfg, opts) {
         messages,
         consumer,
         scope,
-        unread.filter((entry) => entry.type === 'question'),
+        unread.filter((entry): entry is QuestionEntry => entry.type === 'question'),
       );
-      let entries = [
+      let entries: Printable[] = [
         ...questions,
-        ...unread.filter((entry) => entry.type !== 'question' && entry.type !== 'fix_request'),
+        // (fix requests come from fixes.json, not the inbox file)
+        ...unread.filter(
+          (entry) => entry.type !== 'question' && (entry.type as string) !== 'fix_request',
+        ),
       ];
       if (takesFixes) {
         entries = [...entries, ...fixesToHand(home, consumer, scope)];
@@ -232,7 +258,10 @@ async function wait(home, cfg, opts) {
       if (builds) {
         entries = [
           ...entries,
-          ...builds.toHand(consumer, { repo: opts.repo || null, story: opts.story || null }),
+          ...builds.toHand(consumer, {
+            repo: (opts.repo as string | undefined) || null,
+            story: (opts.story as string | undefined) || null,
+          }),
         ];
       }
       if (entries.length) {
@@ -258,9 +287,9 @@ async function wait(home, cfg, opts) {
   }
 }
 
-function answer(home, cfg, opts) {
+function answer(home: string, cfg: Config, opts: CliOpts) {
   const messages = new Inbox(home);
-  const text = opts.file ? readFileSync(opts.file, 'utf8') : opts.text;
+  const text = opts.file ? readFileSync(opts.file as string, 'utf8') : opts.text;
   if (!opts.question || !text || text === true) {
     throw new Error('usage: once-upon answer --question ID (--text T | --file F)');
   }
@@ -282,7 +311,7 @@ function answer(home, cfg, opts) {
   out(added.id);
 }
 
-export const inboxCommands = [
+export const inboxCommands: Command[] = [
   {
     name: 'inbox',
     usage: [
