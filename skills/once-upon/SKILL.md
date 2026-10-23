@@ -7,7 +7,7 @@ description: Tell the story of a GitHub pull request one chapter at a time, with
 
 The reviewer (the user) reads a chapter, asks questions, says "next". The chapter's story sits in Once Upon a Diff's panel on the PR page, the diff is filtered to that chapter's files, and Q&A happens in the panel's Ask box, by voice or in chat. Once Upon a Diff (a Chrome extension plus a local bridge) is the only way a story shows on GitHub, so this skill needs it. Check for it before step 1, as "Once Upon a Diff" below says, which also covers what to do when it isn't there.
 
-`<skill>` is this folder, `skills/once-upon` in the Once Upon a Diff repo, linked in as `~/.claude/skills/once-upon`. `<once-upon-repo>` is that checkout: `$(cd "$(dirname "$(realpath ~/.claude/skills/once-upon/SKILL.md)")/../.." && pwd)`. `<cli>` is `node <once-upon-repo>/src/bridge/bin/once-upon.mjs`, the Once Upon a Diff CLI.
+`<skill>` is this folder, `skills/once-upon` in the Once Upon a Diff repo, linked in as `~/.claude/skills/once-upon`. `<once-upon-repo>` is that checkout: `$(cd "$(dirname "$(realpath ~/.claude/skills/once-upon/SKILL.md)")/../.." && pwd)`. `<cli>` is `node <once-upon-repo>/packages/bridge/bin/once-upon.mjs`, the Once Upon a Diff CLI.
 
 ## House rules
 
@@ -149,4 +149,4 @@ The panel's **Rebuild story…** (Overview) and **Rebuild from here…** (a chap
 
 - `bin/gather.sh`: read-only `gh` fetch into the scratch folder.
 - `bin/viewed.sh`: the gh user's viewed state per file (GraphQL `viewerViewedState`), for `brief`.
-- `bin/story.mjs`: `brief`, `build`, `publish`. It reads the diff and places files with the bridge's and the panel's own code from this checkout, so `file-map.json` matches the panel, and checks hunk coverage with `src/bridge/stories/hunk-coverage.mjs`.
+- `bin/story.mjs`: `brief`, `build`, `publish`. It reads the diff and places files with the bridge's and the panel's own code from this checkout, so `file-map.json` matches the panel, and checks hunk coverage with `packages/bridge/src/stories/hunk-coverage.mjs`.

@@ -16,12 +16,15 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 // This skill ships in the Once Upon a Diff repo (skills/once-upon/bin), and Node resolves the skill link, so it
 // imports the bridge's and the panel's own helpers from the checkout it's linked from.
-import { parseArgs } from '../../../src/bridge/cli/args.mjs';
-import { parseUnifiedDiff } from '../../../src/bridge/util/diff.mjs';
-import { chaptersOf } from '../../../src/bridge/stories/chapters.mjs';
-import { addTextRefs } from '../../../src/bridge/stories/text-refs.mjs';
-import { uncoveredHunks, SMALL_FILE_LINES } from '../../../src/bridge/stories/hunk-coverage.mjs';
-import { finishedInOf } from '../../../src/shared/panel/story-model.js';
+import { parseArgs } from '../../../packages/bridge/src/cli/args.mjs';
+import { parseUnifiedDiff } from '../../../packages/bridge/src/util/diff.mjs';
+import { chaptersOf } from '../../../packages/bridge/src/stories/chapters.mjs';
+import { addTextRefs } from '../../../packages/bridge/src/stories/text-refs.mjs';
+import {
+  uncoveredHunks,
+  SMALL_FILE_LINES,
+} from '../../../packages/bridge/src/stories/hunk-coverage.mjs';
+import { finishedInOf } from '../../../packages/shared/src/panel/story-model.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(HERE, '../../..');
@@ -136,7 +139,7 @@ async function cmdBrief(opts) {
 
 /**
  * Where each file is told and finished, by the panel's own rules: a chapter tells a file by listing it or by pointing
- * at its lines in its text (src/bridge/stories/text-refs.mjs), and finishes it when it's the last chapter to tell it or
+ * at its lines in its text (packages/bridge/src/stories/text-refs.mjs), and finishes it when it's the last chapter to tell it or
  * the newest "Since you read it" chapter that lists it (finishedInOf).
  */
 function buildMap(plan, diff) {
@@ -252,13 +255,13 @@ async function cmdBuild(opts) {
  * seconds. It also prints the story id, and the line that makes this session
  * the story's own listener. While the panel's Rebuild is pending for the story,
  * publish refuses chapters that change the ones it keeps or leave a file or
- * hunk untold, and keeps the drafts the new chapters dropped (src/bridge/stories/rebuild.mjs).
+ * hunk untold, and keeps the drafts the new chapters dropped (packages/bridge/src/stories/rebuild.mjs).
  */
 async function cmdPublish(opts) {
   const dest = execFileSync(
     process.execPath,
     [
-      path.join(REPO_ROOT, 'src/bridge/bin/once-upon.mjs'),
+      path.join(REPO_ROOT, 'packages/bridge/bin/once-upon.mjs'),
       'publish',
       '--dir',
       path.resolve(opts.dir),

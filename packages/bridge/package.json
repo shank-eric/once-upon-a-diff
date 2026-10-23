@@ -1,0 +1,32 @@
+{
+  "name": "once-upon-a-diff",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Once Upon a Diff's local bridge and its CLI (once-upon): serves stories to the extension and the local page, and takes requests for Claude sessions",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "bin": {
+    "once-upon": "bin/once-upon.mjs"
+  },
+  "exports": {
+    "./*": "./src/*.mjs",
+    "./test/*": "./test/*.mjs"
+  },
+  "scripts": {
+    "serve": "node bin/once-upon.mjs serve",
+    "vendor": "node scripts/vendor-hljs.mjs",
+    "test": "node --test test/*.test.mjs",
+    "typecheck": "tsc -p tsconfig.json && tsc -p public/tsconfig.json"
+  },
+  "dependencies": {
+    "@once-upon-a-diff/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.1",
+    "highlight.js": "11.11.1",
+    "typescript": "5.9.3"
+  }
+}

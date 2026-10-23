@@ -15,23 +15,22 @@ import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 const NODE_FILES = [
-  'src/bridge/**/*.{ts,mjs}',
+  'packages/bridge/**/*.{ts,mjs}',
+  'packages/*/scripts/**/*.{ts,mjs}',
+  'packages/*/test/**/*.{ts,mjs}',
+  'packages/*/*.config.{ts,mjs}',
   'skills/**/*.{ts,mjs}',
-  'scripts/**/*.{ts,mjs}',
-  'test/**/*.{ts,mjs}',
   '*.config.{ts,mjs}',
 ];
-const LOCAL_PAGE = 'src/bridge/public/**';
+const LOCAL_PAGE = 'packages/bridge/public/**';
 
 export default defineConfig(
   globalIgnores([
-    'node_modules/',
-    'build/',
-    '.output/',
-    '.wxt/',
+    '**/node_modules/',
+    '**/.output/',
+    '**/.wxt/',
     '.yarn/',
-    'src/bridge/public/vendor/',
-    'src/extension/shared/',
+    'packages/bridge/public/vendor/',
   ]),
   eslint.configs.recommended,
   importPlugin.flatConfigs.recommended,
@@ -64,7 +63,7 @@ export default defineConfig(
           exceptions: ['_', '$', 'e', 'i', 'j', 'k', 'id', 'ok', 'fs', 'os', 'el', 'pr'],
         },
       ],
-      'import/extensions': ['error', { ts: 'always', js: 'always', mjs: 'always' }],
+      'import/extensions': ['error', 'always', { ignorePackages: true }],
       'max-len': ['warn', 250],
       'no-nested-ternary': 'error',
       'no-param-reassign': 'off',
@@ -89,7 +88,7 @@ export default defineConfig(
   },
   {
     // the extension: browser and chrome.* globals
-    files: ['src/extension/**/*.{ts,js}'],
+    files: ['packages/extension/src/**/*.{ts,js}'],
     languageOptions: { globals: { ...globals.browser, ...globals.webextensions } },
   },
   {
@@ -108,7 +107,7 @@ export default defineConfig(
   },
   {
     // the fake gh the tests point ONCE_UPON_GH at is run as a program, so it keeps its shebang
-    files: ['test/fixtures/*.{ts,mjs}'],
+    files: ['packages/bridge/test/fixtures/*.{ts,mjs}'],
     rules: { 'n/hashbang': 'off' },
   },
 );
