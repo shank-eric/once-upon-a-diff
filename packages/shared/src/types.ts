@@ -205,6 +205,9 @@ export interface PanelUi {
   filesOpen: boolean;
   showPosted: boolean;
   showDismissed: boolean;
+  /** the questions dock at the bottom is open, and its height */
+  chatOpen: boolean;
+  chatHeight: number;
 }
 
 /** Where the reviewer is: the step and the file at the top of the screen. */

@@ -47,6 +47,7 @@ import type { Drafts } from './drafts.ts';
 import type { Fixes } from './fixes.ts';
 import type { Working } from './working.ts';
 import type { Questions } from './questions.ts';
+import type { ChatDock } from './chat-dock.ts';
 
 /** What the panel's host gives it (see overlay.ts for what each does). */
 export interface PanelOptions {
@@ -124,6 +125,7 @@ export interface PanelContext {
   drafts: Drafts;
   fixes: Fixes;
   working: Working;
+  chatDock: ChatDock;
   questions: Questions;
   destroy(): void;
 }

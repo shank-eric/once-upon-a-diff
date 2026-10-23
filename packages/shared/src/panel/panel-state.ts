@@ -2,7 +2,7 @@
  * The panel's own state: the step and the panel's layout. The caller saves
  * it through opts.onState and passes it back as opts.initial, so its field
  * names are part of the panel's contract:
- * {n, all, collapsed, width, filesOpen, showPosted, showDismissed}.
+ * {n, all, collapsed, width, filesOpen, showPosted, showDismissed, chatOpen, chatHeight}.
  */
 import type { Chapter, PanelUi } from '../types.ts';
 import type { StoryModel } from './story-model.ts';
@@ -38,6 +38,8 @@ export function createPanelState(story: StoryModel, initial: InitialUi): PanelSt
     filesOpen: !!initial.filesOpen, // the "Files in this chapter" list starts folded
     showPosted: !!initial.showPosted, // posted and dismissed drafts start hidden
     showDismissed: !!initial.showDismissed,
+    chatOpen: !!initial.chatOpen, // the questions dock starts closed
+    chatHeight: Number.isFinite(initial.chatHeight) ? (initial.chatHeight as number) : 280,
   };
 }
 
@@ -64,6 +66,8 @@ export function stateHelpers(
       filesOpen: state.filesOpen,
       showPosted: state.showPosted,
       showDismissed: state.showDismissed,
+      chatOpen: state.chatOpen,
+      chatHeight: state.chatHeight,
     });
   }
   return { steps, chapter, inChapter, fileStatus, saveState };
