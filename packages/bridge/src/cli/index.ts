@@ -33,6 +33,7 @@ const HELP_ORDER = [
   'token',
   'list',
   'local',
+  'page',
   'publish',
   'inbox',
   'wait',

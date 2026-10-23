@@ -381,11 +381,11 @@ describe('local stories', () => {
     assert.equal(body.chapters[2].title, 'Chapter 3: Not in a chapter yet');
   });
 
-  test('serves its page with the token and a strict CSP, and not for GitHub stories', async () => {
+  test('serves its page without the token and with a strict CSP, and not for GitHub stories', async () => {
     const page = await bridge.call('GET', `/local/${id}/`);
     assert.equal(page.status, 200);
     assert.match(page.text, /id="ou-local-boot"/);
-    assert.ok(page.text.includes(TOKEN));
+    assert.ok(!page.text.includes(TOKEN), 'the page key comes in the link, not the page');
     assert.match(page.headers.get('content-security-policy') as string, /script-src 'self'/);
     assert.equal((await bridge.call('GET', '/assets/overlay.ts')).status, 200);
     assert.equal((await bridge.call('GET', '/assets/local.ts')).status, 200);

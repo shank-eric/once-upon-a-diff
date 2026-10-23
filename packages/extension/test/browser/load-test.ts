@@ -31,6 +31,7 @@ import {
   runCli,
 } from 'once-upon-a-diff/test/helpers';
 import { createLocalStory } from 'once-upon-a-diff/stories/local-story';
+import { localPageUrl } from 'once-upon-a-diff/server/page-key';
 import { beat } from 'once-upon-a-diff/listeners/listeners';
 import { Builds, type Build } from 'once-upon-a-diff/inbox/builds';
 import type { InboxEntry, QuestionEntry } from 'once-upon-a-diff/inbox/inbox';
@@ -775,7 +776,7 @@ try {
   const localPage = await context.newPage();
   const errors: string[] = [];
   localPage.on('pageerror', (e) => errors.push(e.message));
-  await localPage.goto(`http://127.0.0.1:${port}/local/${local.id}/`);
+  await localPage.goto(localPageUrl(port, local.id, TOKEN));
   await localPage.waitForSelector('#once-upon-panel', { state: 'attached', timeout: 5000 });
   check(
     (await localPage.locator('[role=region][id^="diff-"]').count()) === 3,

@@ -18,7 +18,7 @@ import type {
   StatusError,
   WorkingMark,
 } from '/assets/types.ts';
-import { page, api, STORY_ID, STORY_PATH } from './page.ts';
+import { page, api, pageUrl, STORY_PATH } from './page.ts';
 import { narrow, reveal, unnarrow, forgetNarrowing } from './folds.ts';
 import { placeNotes } from './notes.ts';
 
@@ -62,7 +62,7 @@ export function mount(initial: InitialUi) {
     onFilter: narrow,
     reveal,
     onPosition: (position) =>
-      api('POST', `${STORY_PATH}/position`, { ...position, url: location.href }).catch(() => {}),
+      api('POST', `${STORY_PATH}/position`, { ...position, url: pageUrl() }).catch(() => {}),
     reads: () => api<ReadInfo>('GET', `${STORY_PATH}/read`),
     onRead: (read) => api('POST', `${STORY_PATH}/read`, read), // the bridge records the range's head commit with it
     onClose: () => {
@@ -73,7 +73,7 @@ export function mount(initial: InitialUi) {
       api('POST', `${STORY_PATH}/ui`, { ...page.lastUi, hidden: true }).catch(() => {});
       showReopen();
     },
-    ask: (question) => api('POST', `${STORY_PATH}/questions`, { ...question, url: location.href }),
+    ask: (question) => api('POST', `${STORY_PATH}/questions`, { ...question, url: pageUrl() }),
     loadQuestions: () =>
       api<{ questions: Question[] }>('GET', `${STORY_PATH}/questions`).then(
         (answer) => answer.questions,
@@ -111,10 +111,7 @@ export function mount(initial: InitialUi) {
         page.onVersion(pulse.version);
       }
     },
-    status: () =>
-      api<BridgeStatus>('GET', `/api/status?story=${encodeURIComponent(STORY_ID)}`).catch(
-        statusError,
-      ),
+    status: () => api<BridgeStatus>('GET', `${STORY_PATH}/status`).catch(statusError),
   });
 }
 

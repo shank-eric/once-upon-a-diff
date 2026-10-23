@@ -164,7 +164,7 @@ async function setPref(
   what: string,
 ) {
   try {
-    await api('POST', '/api/prefs', patch);
+    await api('POST', `${STORY_PATH}/prefs`, patch);
     page.story = await api<LocalStoryData>('GET', STORY_PATH);
     render();
     remount();

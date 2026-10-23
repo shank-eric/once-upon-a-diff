@@ -6,7 +6,8 @@
  * Guard rails:
  *   - binds 127.0.0.1 only, and answers only when the Host header is
  *     127.0.0.1:<port> or localhost:<port> (no DNS rebinding)
- *   - every /api call needs the token (Authorization: Bearer <token>)
+ *   - every /api call needs the token (Authorization: Bearer <token>), or for a local page's own story only,
+ *     that story's page key (./page-key.ts), which can't reach other stories, bridge-wide routes or GitHub
  *   - writes must be application/json, and a request with an Origin must come
  *     from the extension or from the bridge's own pages
  *   - no CORS headers, so other web pages can't read anything it says
@@ -27,7 +28,8 @@ import { Builds } from '../inbox/builds.ts';
 import { HttpError, sameToken, readBody } from './request.ts';
 import { assetFor } from './assets.ts';
 import { pageHeaders, localPage } from './pages.ts';
-import { statusRoutes } from './routes/status.ts';
+import { PAGE_KEY_PREFIX, pageKey } from './page-key.ts';
+import { statusRoutes, storyStatusRoutes } from './routes/status.ts';
 import { catalogRoutes } from './routes/catalog.ts';
 import { buildRoutes } from './routes/builds.ts';
 import { questionRoutes } from './routes/questions.ts';
@@ -55,6 +57,7 @@ const STORY_ROUTES: StoryRoute[] = [
   ...readRoutes,
   ...localStoryRoutes,
   ...fixRoutes,
+  ...storyStatusRoutes,
 ];
 const STORY_PATH = /^\/api\/stories\/([^/]+)(?:\/([a-z]+)(?:\/([^/]+))?)?$/;
 const EXTENSION_ORIGIN = /^chrome-extension:\/\/[a-p]{32}$/;
@@ -121,19 +124,37 @@ export function createBridge({
       if (!dir || readMeta(dir).kind !== 'local') {
         throw new HttpError(404, 'no local story with that id');
       }
-      send(200, localPage(id, readMeta(dir), token), HTML, pageHeaders());
+      send(200, localPage(id, readMeta(dir)), HTML, pageHeaders());
       return true;
     }
     return false;
   }
 
-  /** The token, then the body: GET, or POST with JSON. */
-  async function checkApiCall(req: IncomingMessage, origin: string | undefined): Promise<Body> {
-    const auth =
+  /**
+   * The token, then the body: GET, or POST with JSON. Returns the body and the call's scope: null with the bridge's
+   * token, or the one story a local page's key is for.
+   */
+  async function checkApiCall(
+    req: IncomingMessage,
+    pathname: string,
+    origin: string | undefined,
+  ): Promise<{ body: Body; scope: string | null }> {
+    const auth = String(
       String(req.headers.authorization || '').replace(/^Bearer\s+/i, '') ||
-      req.headers['x-once-upon-token'];
+        req.headers['x-once-upon-token'] ||
+        '',
+    );
+    let scope: string | null = null;
     if (!sameToken(auth, token)) {
-      throw new HttpError(401, 'missing or wrong token');
+      if (!auth.startsWith(PAGE_KEY_PREFIX)) {
+        throw new HttpError(401, 'missing or wrong token');
+      }
+      const storyMatch = STORY_PATH.exec(pathname);
+      const id = storyMatch ? decodeURIComponent(storyMatch[1]) : null;
+      if (!id || !sameToken(auth, pageKey(token, id))) {
+        throw new HttpError(403, "this page's key works only for its own story");
+      }
+      scope = id;
     }
     if (origin && origin.startsWith('chrome-extension://')) {
       seeExtension(origin);
@@ -142,16 +163,16 @@ export function createBridge({
       if (!/^application\/json\b/i.test(String(req.headers['content-type'] || ''))) {
         throw new HttpError(415, 'send application/json');
       }
-      return readBody(req);
+      return { body: await readBody(req), scope };
     }
     if (req.method !== 'GET') {
       throw new HttpError(405, 'GET or POST only');
     }
-    return {};
+    return { body: {}, scope };
   }
 
   /** A /api/stories/<id>/... call: the story, then the route for its `what`. */
-  function storyCall(call: Call, match: RegExpExecArray) {
+  function storyCall(call: Call, match: RegExpExecArray, scope: string | null) {
     const id = decodeURIComponent(match[1]);
     const dir = stories.dirOf(id);
     if (!dir) {
@@ -159,6 +180,10 @@ export function createBridge({
     }
     const meta = readMeta(dir);
     const what = match[2] || '';
+    // a page key is only ever handed to a local story's page, and never reaches GitHub (Add to my review)
+    if (scope && (meta.kind !== 'local' || (what === 'drafts' && call.body.action === 'review'))) {
+      throw new HttpError(403, "this page's key can't do that");
+    }
     // ref: what inbox entries say about the story, with the repo for `wait --repo`
     const ref = { story: id, kind: meta.kind, title: meta.title, repo: storyRepo(meta) };
     const story = { id, dir, meta, ref, sub: match[3] };
@@ -207,11 +232,14 @@ export function createBridge({
       if (!pathname.startsWith('/api/')) {
         throw new HttpError(404, 'not found');
       }
-      const body = await checkApiCall(req, origin);
+      const { body, scope } = await checkApiCall(req, pathname, origin);
       const call: Call = { app, req, url, body, send };
-      const route = API_ROUTES.find(
-        (candidate) => candidate.path === pathname && methodMatches(candidate, req.method),
-      );
+      // a page key never reaches the bridge-wide routes, even one whose path looks like a story's
+      const route =
+        !scope &&
+        API_ROUTES.find(
+          (candidate) => candidate.path === pathname && methodMatches(candidate, req.method),
+        );
       if (route) {
         return await route.handle(call);
       }
@@ -219,7 +247,7 @@ export function createBridge({
       if (!storyMatch) {
         throw new HttpError(404, 'not found');
       }
-      return await storyCall(call, storyMatch);
+      return await storyCall(call, storyMatch, scope);
     } catch (caught) {
       const err = caught as Error & { status?: number };
       const status = err.status || 500;
