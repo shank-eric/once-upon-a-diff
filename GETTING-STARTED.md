@@ -14,22 +14,25 @@ This guide takes you from nothing to your first story. The [README](README.md) h
 - **Chrome** (or another Chromium browser that loads unpacked extensions).
 - **A Mac, ideally.** `once-upon local` opens its page with macOS `open`. Elsewhere it still prints the URL for you to open.
 
-### 2. Clone and install
+### 2. Clone, install and build
 
 ```bash
 git clone <repo url> once-upon-a-diff
 cd once-upon-a-diff
 yarn
+yarn build
 ```
 
-`src/extension/shared` is a symbolic link to `src/shared/`, so the extension can load the code it shares with the bridge. On Windows, git checks links out as plain text files unless symlinks are on, so clone with `git clone -c core.symlinks=true` (which needs Developer Mode or an admin shell). If you cloned without it, `ls src/extension/shared` shows a one-line file instead of a folder, and the extension won't load.
+`yarn` installs the tools and links the repo's three packages (shared code, the bridge, the extension). `yarn build` builds the extension into `packages/extension/.output/chrome-mv3`, the folder you load in step 5. The bridge needs no build: Node 24 runs it as it is.
 
-The bridge has no runtime dependencies, so `yarn` is only for tests and lint. The repo uses Yarn 4 and carries its own copy (`.yarn/releases`), which any `yarn` on your PATH hands off to. If you don't have `yarn` at all, run `corepack enable` once. Corepack ships with Node 24, and it reads the `packageManager` field in `package.json` to fetch the same Yarn 4.
+The repo uses Yarn 4 and carries its own copy (`.yarn/releases`), which any `yarn` on your PATH hands off to. If you don't have `yarn` at all, run `corepack enable` once. Corepack ships with Node 24, and it reads the `packageManager` field in `package.json` to fetch the same Yarn 4.
+
+**Just want the extension?** A release zip (`once-upon-a-diff-<version>-chrome.zip`) is the same extension, built. Unzip it somewhere it can stay and load that folder in step 5 instead of building. You still need the clone for the bridge and the skills.
 
 ### 3. Make the bridge's config
 
 ```bash
-node src/bridge/bin/once-upon.mjs setup
+node packages/bridge/bin/once-upon.ts setup
 ```
 
 The first run creates `~/.once-upon/config.json` (mode 600) with a port, 4823 by default, and a random token. It prints both. You'll paste them into the extension in step 5.
@@ -44,12 +47,12 @@ To start it yourself instead:
 yarn bridge
 ```
 
-That's the same as `node src/bridge/bin/once-upon.mjs serve`. Keep it in a terminal tab you leave open. Either way it listens on `127.0.0.1` only, and the repo has no login item or launch agent, so after a reboot it needs starting again (by you or the skill).
+That's the same as `node packages/bridge/bin/once-upon.ts serve`. Keep it in a terminal tab you leave open. Either way it listens on `127.0.0.1` only, and the repo has no login item or launch agent, so after a reboot it needs starting again (by you or the skill).
 
 ### 5. Load the extension
 
 1. Go to `chrome://extensions` and turn on **Developer mode**.
-2. Click **Load unpacked** and pick this repo's `src/extension/` folder.
+2. Click **Load unpacked** and pick this repo's `packages/extension/.output/chrome-mv3` folder (or the unzipped release).
 3. The options page opens on install. If it doesn't, go to Once Upon a Diff → Details → Extension options.
 4. Paste the port and token from step 3, click **Save**, then **Test connection**.
 
@@ -81,7 +84,7 @@ What works without once-upon: local mode (step 10, which makes its own starting 
 ### 8. Add the `once-upon` alias (optional)
 
 ```bash
-alias once-upon="node /path/to/once-upon-a-diff/src/bridge/bin/once-upon.mjs"
+alias once-upon="node /path/to/once-upon-a-diff/packages/bridge/bin/once-upon.ts"
 ```
 
 Put it in your shell profile. The rest of this guide uses `once-upon`. Run it with no arguments to see every command.
@@ -129,7 +132,7 @@ The bridge learns where your checkouts are from local stories and from where a l
   - Green: the bridge works, the story's found, and a session is listening.
   - Amber: everything works, but no session is listening for this repo. Questions wait in a queue.
   - Red: the bridge is down, too old for the panel, or rejects the token.
-- **After a `git pull`**, restart the bridge, reload the extension on `chrome://extensions`, then reload your PR tabs.
+- **After a `git pull`**, run `yarn` and `yarn build`, restart the bridge, reload the extension on `chrome://extensions`, then reload your PR tabs. The extension keeps its settings: its ID doesn't change.
 - **A new token** (`once-upon token --rotate`) means pasting it into the extension's options and restarting the bridge.
 
 ## What it never does
