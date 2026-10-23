@@ -90,6 +90,7 @@ Run this with Bash's `run_in_background`:
 1. Read the task's output. It can hold several events. Handle each one, questions first.
 2. Start the same wait again as soon as you've handled them, or as soon as a build or fix request arrives (steps 5 and 6), so questions asked during one still get answered.
 3. Don't poll or sleep. If the wait exits with an error, show it, run `<cli> doctor`, and start it again once the cause is fixed.
+4. **A story wait ends on its own.** When no page has shown the story for 10 minutes (`story_listener_idle_minutes` in `~/.once-upon/config.json`), a `--story` wait prints "Stopped listening for <story>: <reason>." (with `--json`, a `listen_stopped` event) and exits. That's the story listener's natural end, say once the reviewer has made the PR and closed the tab. Don't start the wait again. Say that line in chat, adding that the story's questions go to the repo's listener if one is running, and that the panel's Copy prompt for this story starts a story listener again. It never stops while you hold the story's fix request or rebuild. A repo wait never stops this way.
 
 A consumer's first wait starts from now, so old questions aren't handed over again. Queued build requests are handed over whenever they were asked.
 

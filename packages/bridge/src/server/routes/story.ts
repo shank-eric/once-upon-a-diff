@@ -13,6 +13,7 @@ import { seenCheckout } from '../../config/repos.ts';
 import { freshness } from '../../github/freshness.ts';
 import { readMarks, stateKeyOf } from '../../github/drafts.ts';
 import { listeningOf } from '../../listeners/listeners.ts';
+import { noteSeen } from '../../listeners/auto-stop.ts';
 import { refreshLocal } from '../../stories/local-diff.ts';
 import { storyVersion, localVersion } from '../../stories/meta.ts';
 import { HttpError, clipText, toInt } from '../request.ts';
@@ -38,8 +39,11 @@ function versionOf(app: App, story: ServedStory): string {
   return storyVersion(story.dir);
 }
 
-const version = ({ app, send }: Call, story: ServedStory) =>
-  send(200, { version: versionOf(app, story) });
+// the local page's own poll while its panel is closed: a page shows the story
+function version({ app, send }: Call, story: ServedStory) {
+  noteSeen(app.stories, story.id);
+  return send(200, { version: versionOf(app, story) });
+}
 
 const revOf = (value: unknown) =>
   createHash('sha1').update(JSON.stringify(value)).digest('hex').slice(0, 12);
@@ -52,6 +56,7 @@ const revOf = (value: unknown) =>
  * fix before push, and working_rev the "being changed" marks.
  */
 function pulse({ app, send }: Call, story: ServedStory) {
+  noteSeen(app.stories, story.id); // a panel shows the story (for a story listener's natural end)
   const questions = questionsOf(app, story).map((question) => [
     question.id,
     question.answers.length,
