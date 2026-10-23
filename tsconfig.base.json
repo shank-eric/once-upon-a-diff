@@ -1,11 +1,16 @@
 {
   "compilerOptions": {
-    "allowJs": true,
-    "checkJs": true,
-    "noEmit": true,
-    "target": "es2022",
+    "target": "es2023",
+    "lib": ["es2023"],
     "module": "nodenext",
     "moduleResolution": "nodenext",
-    "skipLibCheck": true
+    "strict": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": []
   }
 }

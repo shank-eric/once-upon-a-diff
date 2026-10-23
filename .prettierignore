@@ -1,9 +1,10 @@
 node_modules/
 build/
+.output/
+.wxt/
 .yarn/
 yarn.lock
-src/bridge/public/vendor/
-src/extension/shared
+packages/bridge/public/vendor/
 *.md
 *.json
 *.css
