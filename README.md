@@ -13,17 +13,19 @@ The once-upon skill (`skills/once-upon/`) writes the stories, and this extension
 
 ## Installing
 
-You need Node 24 or newer, the current LTS (`.nvmrc` says 24). The bridge has no runtime dependencies. `yarn install` only fetches eslint, playwright-core and highlight.js (vendored into `src/bridge/public/vendor/`) for development. The repo uses Yarn 4, kept in `.yarn/releases` and named in `package.json`'s `packageManager`. Any `yarn` hands off to it, and `corepack enable` gets you a `yarn` if you have none.
+You need Node 24 or newer, the current LTS (`.nvmrc` says 24). The repo is a Yarn workspaces monorepo in TypeScript: `yarn` installs the build and test tools and links the three packages (`packages/shared`, `packages/bridge`, `packages/extension`). The bridge has no runtime dependencies and no build: Node 24 runs its TypeScript directly. The extension is built with WXT. The repo uses Yarn 4, kept in `.yarn/releases` and named in `package.json`'s `packageManager`. Any `yarn` hands off to it, and `corepack enable` gets you a `yarn` if you have none.
 
-1. Print the bridge's port and token. This also creates `~/.once-upon/config.json` with a random token:
+1. Install, build the extension, and print the bridge's port and token. `setup` also creates `~/.once-upon/config.json` with a random token:
    ```bash
-   node src/bridge/bin/once-upon.mjs setup
+   yarn
+   yarn build
+   node packages/bridge/bin/once-upon.ts setup
    ```
-2. In Chrome, go to `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick this repo's `src/extension/` folder.
+2. In Chrome, go to `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick `packages/extension/.output/chrome-mv3`, the folder `yarn build` makes. Its ID is always `faaibhigocihefldbmdgchcnnclalkmo` (the manifest carries a fixed key), so its saved settings survive a rebuild, a reload or a new checkout.
 3. The options page opens on install. If it doesn't, go to Details → Extension options. Paste the port and token, then click **Save** and **Test connection**.
 4. Start the bridge and leave it running, or skip this and let `/once-upon-listen` start it for you:
    ```bash
-   node src/bridge/bin/once-upon.mjs serve     # or: yarn bridge
+   node packages/bridge/bin/once-upon.ts serve     # or: yarn bridge
    ```
 5. Install the `once-upon-listen` Claude Code skill by linking it into your skills folder. If `~/.claude/skills` is itself a link, `ln` puts it in the folder the link points at, which is what you want:
    ```bash
@@ -35,7 +37,7 @@ You need Node 24 or newer, the current LTS (`.nvmrc` says 24). The bridge has no
    ln -s "$PWD/skills/once-upon" ~/.claude/skills/once-upon
    ```
 
-An alias saves typing: `alias once-upon="node /path/to/once-upon-a-diff/src/bridge/bin/once-upon.mjs"`. The rest of this README uses `once-upon`.
+An alias saves typing: `alias once-upon="node /path/to/once-upon-a-diff/packages/bridge/bin/once-upon.ts"`. The rest of this README uses `once-upon`.
 
 ## Is it set up?
 
@@ -68,7 +70,7 @@ It exits 1 when something fails.
 
 `/once-upon-listen --story <id>` listens for one story: see [One story, one session](#one-story-one-session). The repo form's session then:
 
-1. Finds the CLI: `once-upon` on `PATH`, else `node <repo>/src/bridge/bin/once-upon.mjs`, with `<repo>` from the `ONCE_UPON_REPO` env var, `repo_dir` in `~/.once-upon/config.json` (both read only by the skill), or the folder the skill is linked from.
+1. Finds the CLI: `once-upon` on `PATH`, else `node <repo>/packages/bridge/bin/once-upon.ts`, with `<repo>` from the `ONCE_UPON_REPO` env var, `repo_dir` in `~/.once-upon/config.json` (both read only by the skill), or the folder the skill is linked from.
 2. Runs `once-upon doctor`. If nothing is listening on the bridge's port, it starts the bridge detached, so it keeps running after the session ends, and waits for it to answer. If something else has the port, it says so and stops.
 3. Runs `once-upon wait --repo octo-org/web-app --type question,build_request,fix_request --consumer repo-octo-org-web-app` as a background task, which keeps the light green for every story and PR in that repo. It starts the wait again after each event.
 4. Answers each Ask-box question from the story's chapters and the code in the checkout, briefly, with `once-upon answer`.
@@ -227,7 +229,7 @@ This builds `git diff <base> <head>` into `~/.once-upon/local-<repo>-<branch>/`.
 - **Comments become "fix before push" notes.** Click a line number to add a note. Notes are listed under "Fix before push" at the top, can be ticked done, and go to the inbox. The panel's Fix before push box sends them to a Claude session ([above](#fix-before-push-send-notes-to-a-session)). `once-upon notes --story <id>` prints them as a checklist. Comments drafted in `chapters.json` show in the panel as "Fix before push (drafted)".
 - **The page follows the branch.** Amend or add a commit and the page redraws with the new diff within ≈5 seconds.
 - **Unified / Split**, in the page header, switches between one column and GitHub's side-by-side view, with old lines on the left and new on the right, lined up. Line numbers on either side take notes, and line jumps, Viewed and the panel work the same in both. It's saved in `prefs.json` too, so it holds for every local story.
-- **Syntax highlighting** colors the diff in both views, picked by file extension: TypeScript and TSX, JavaScript, JSON, Ruby and ERB, YAML, CSS and SCSS, Markdown, shell, and HTML/XML. Each hunk's old and new sides are highlighted as whole pieces of code, so a template string or block comment that runs over several lines is colored right. A hunk that starts partway into a comment can still come out wrong. Files over 3,000 diff lines, minified lines and anything past 20,000 lines on a page stay plain, so big diffs stay quick. highlight.js is vendored in `src/bridge/public/vendor/` (`yarn vendor` remakes it from the pinned dev dependency), so the bridge still has no runtime dependencies and the page loads nothing from a CDN.
+- **Syntax highlighting** colors the diff in both views, picked by file extension: TypeScript and TSX, JavaScript, JSON, Ruby and ERB, YAML, CSS and SCSS, Markdown, shell, and HTML/XML. Each hunk's old and new sides are highlighted as whole pieces of code, so a template string or block comment that runs over several lines is colored right. A hunk that starts partway into a comment can still come out wrong. Files over 3,000 diff lines, minified lines and anything past 20,000 lines on a page stay plain, so big diffs stay quick. highlight.js is vendored in `packages/bridge/public/vendor/` (`yarn workspace once-upon-a-diff vendor` remakes it from the pinned dev dependency), so the bridge still has no runtime dependencies and the page loads nothing from a CDN.
 - **Hide whitespace**, in the page header, draws the diff with `git diff -w`, like GitHub's setting of the same name. Unlike GitHub's, it's remembered: the bridge keeps it in `~/.once-upon/prefs.json`, so it holds for every local story and across reloads and bridge restarts. A file whose only changes are whitespace stays listed, marked "whitespace only". Viewed marks and "changed since viewed" are always checked against the full diff, so turning it on or off never flips them. A whitespace-only edit after you mark a file viewed still counts as a change. A note or a story line on a line the `-w` diff doesn't draw sits at the top of its file (notes say so), or the panel jumps to the nearest drawn line.
 - **A chapter shows its own lines.** When chapters that share a file give `lines` ranges, each chapter folds the lines another chapter tells behind a row that says which chapter (**Show** opens it, and a link to one of its lines opens it too, along with the file if it's folded). Lines no range covers show in the first chapter that lists the file. A chapter that lists the file without ranges, the Overview and **Show all files** draw all of it. GitHub's page can't be redrawn this way, so there the panel filters by file only.
 - Without `--chapters`, you get one chapter per top-level folder as a starting point. Any file a story doesn't place lands in a last "Not in a chapter yet" step, so nothing is hidden from every step.
@@ -324,7 +326,7 @@ It blocks until a new question on that story arrives, then prints the question a
 1. **A `UserPromptSubmit` hook.** It would run `once-upon inbox --unread --consumer hook --type question`, and anything it prints would be added to the prompt's context. Questions typed in the panel would then reach the session with your next message, even if no wait is running. It's cheap, but it only fires when you send a prompt.
 2. **A small MCP server (`once-upon mcp`, not written yet).** It would read the same inbox and cursors, and offer tools: `next_question` (blocking, with a timeout), `answer`, `current_position` and `fix_before_push_notes`. If Claude Code's MCP servers can push messages into a live session, it could also deliver each question the moment it's asked. That needs checking against the current Claude Code docs before building.
 
-Both read `inbox.jsonl` the way `wait` does. The format is described at the top of `src/bridge/inbox/inbox.mjs`.
+Both read `inbox.jsonl` the way `wait` does. The format is described at the top of `packages/bridge/src/inbox/inbox.ts`.
 
 ## Refined GitHub
 
@@ -361,18 +363,23 @@ Once Upon a Diff doesn't need Refined GitHub and doesn't use anything it adds to
 
 ## Development
 
+[CONTRIBUTING.md](CONTRIBUTING.md) has the day-to-day workflow. The commands, from the repo root:
+
 ```bash
-yarn test              # bridge unit tests (node --test)
+yarn dev               # the extension, rebuilt into packages/extension/.output/chrome-mv3 on each change and reloaded
+yarn build             # the extension, built once
+yarn zip               # the Chrome Web Store zip (no fixed key), in packages/extension/.output/store/
+yarn bridge            # the bridge (Node 24 runs its TypeScript directly; there's no build)
+yarn test              # every package's unit tests (node --test)
+yarn typecheck         # tsc over every package (strict), the local page and the skill helper
 yarn lint              # ESLint (cached); yarn lint:fix fixes what it can
 yarn format:check      # Prettier's check (100 columns); yarn format rewrites
 yarn lint:sh           # shellcheck over the once-upon skill's shell scripts
-yarn types             # TypeScript's checkJs (JSDoc types, no build step): tsconfig.json for Node, tsconfig.browser.json for the extension and local page
-yarn test:extension    # loads src/extension/ into a throwaway Playwright Chromium, never your own Chrome
+yarn test:extension    # builds the extension, then loads it into a throwaway Playwright Chromium, never your own Chrome
 yarn test:expand       # the same Chromium: panel links expand collapsed files and hunks on /files and /changes
-yarn icons             # redraws src/extension/icons
 ```
 
-A pre-commit hook (husky and lint-staged, installed by `yarn install`) runs ESLint and Prettier's check on the staged JavaScript.
+A pre-commit hook (husky and lint-staged, installed by `yarn install`) runs ESLint and Prettier's check on the staged files.
 
 `test:extension` needs Playwright's Chromium:
 
@@ -382,7 +389,7 @@ PLAYWRIGHT_BROWSERS_PATH=/some/dir node node_modules/playwright-core/cli.js inst
 
 Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random port with a temporary home, and builds a two-chapter story for a public PR (`--pr owner/repo#N`, default `refined-github/refined-github#10280`). It then checks:
 
-- the options page
+- the options page, and that the extension loads with its fixed ID
 - the panel on `/files` and `/changes`: docking, filtering, coming back after a reload, the `hidden` attribute and hash skipping
 - a question and its answer
 - hiding the panel and toggling it back
@@ -394,33 +401,38 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
 
 ## Code layout
 
-- `src/extension/`: the extension, which is the folder to load unpacked. Its `shared` is a link to `src/shared/`.
-  - `background.js` is the only code that makes network calls, and only to `127.0.0.1`. `settings.js` keeps the bridge's port and token.
-  - `content/index.js` routes by page kind: Files changed, Conversation, PR list, or other.
-    - `bridge.js` sends bridge calls through the service worker. `storage.js` keeps the panel's state per PR and the Hide whitespace copy.
-    - `pages/files-changed.js` docks the panel and puts the story tag by the title when the panel is hidden. `pages/hide-whitespace.js` keeps `?w=1` in step with the setting.
-    - `pages/conversation.js` and `pages/pull-list.js` put the story tag by a PR's title.
-    - `ui/` holds the pieces they share: `story-tag.js` (what a tag says), `tag-host.js`, `listen-notice.js`, `pr-tags.js` (the tag controller every PR page shares), `copy.js` and `toast.js`. Each one with its own shadow root links its CSS from a `.css` file beside it.
-- `src/shared/`: the code the extension and the bridge both use. The bridge serves it to the local page and imports its helpers.
-  - `overlay.js` is the panel's entry, shared with the local page. It builds one context and wires the modules in `panel/`:
-    - `story-model.js`: chapters, numbers and where each file is finished. `panel-state.js`: the saved step and layout.
-    - `shell.js`: the frame and toolbar, with `panel.css` in its shadow root and `page.css` (docking, hiding, flashing) in the page's head. `body.js`: the step on screen. `navigation.js`: Prev, Next and the step list.
-    - `host-page.js`: finding files, lines and toggles on `/changes`, `/files` and the local page. `filter.js`, `expand.js` and `scroll.js`: hiding, opening and jumping.
-    - `file-refs.js` and `markdown.js`: the story's text and its jump links. `file-list.js`: the file rows.
-    - `review-script.js`: the Overview's Copy as gh script.
-    - `viewed.js`, `reading.js`, `drafts.js`, `freshness.js`, `rebuild.js`, `marks.js`, `status-light.js` and `questions.js`: Viewed progress, read tracking, drafted comments, story freshness, Rebuild, the "changed since" marks, the status light and the Ask box.
-    - `fixes.js` and `working.js`: Fix before push (Send, Auto-send, each note's state) and the "being changed" marks.
-  - `util/`: helpers for the panel, the content scripts, the local page and the bridge (escaping and the html`` tag that builds markup, SHAs, PR keys, line references, times, the clipboard, GitHub paths, key isolation, the default port).
-- `src/bridge/`: the bridge and its CLI.
-  - `bin/once-upon.mjs` runs `cli/index.mjs`, a table of commands in `cli/commands/` (bridge, stories, inbox, drafts, builds, checks, fixes) that also builds the help. `cli/doctor.mjs` is `once-upon doctor`.
-  - `server/index.mjs` is the HTTP server: its guards, then a route table. The routes are in `server/routes/` by area; `pages.mjs` and `assets.mjs` serve the HTML pages, the scripts and the stylesheets.
-  - `stories/`: finding story folders (`store.mjs`, `placement.mjs`), reading them (`meta.mjs`, `chapters.mjs`, `story-data.mjs`, `text-refs.mjs`, `hunk-coverage.mjs`), local stories (`local-story.mjs`, `local-diff.mjs`), read tracking (`reads.mjs`), drafted comments (`comments.mjs`), the rules a Rebuild is published by (`rebuild.mjs`) and "being changed" marks (`working.mjs`).
-  - `github/`: what asks `gh` (read-only, except Add to my review): freshness, drafts and the pending review.
-  - `inbox/` (the inbox, the conversation's marks and routing, build requests, and fix-before-push notes and fix requests), `listeners/` (who's listening), `config/` (settings, prefs, repos and checkouts) and `util/` (gh, git, diffs, JSON files).
-  - `public/`: the local page. `local.js` draws it and handles its clicks; `local/` holds the diff view, notes, folds and the panel mount, next to `split.js`, `narrow.js` and `syntax.js`.
+Three Yarn workspaces under `packages/`, all TypeScript (strict), and the skills at the root. Each package has its own dependencies, tests and tsconfig, extending the root's `tsconfig.base.json`.
+
+- `packages/shared/` (`@once-upon-a-diff/shared`): the code the extension and the bridge both use, imported by name (`@once-upon-a-diff/shared/util/html`). Its `exports` point at the `.ts` sources: WXT bundles them into the extension, Node strips their types for the bridge, and the bridge serves them, type-stripped, to the local page.
+  - `src/types.ts`: the story and the bridge's answers as the panel takes them, the contract between the bridge and the panel.
+  - `src/overlay.ts` is the panel's entry. It builds one context (`panel/context.ts` types it, with the host's options) and wires the modules in `panel/`:
+    - `story-model.ts`: chapters, numbers and where each file is finished. `panel-state.ts`: the saved step and layout.
+    - `shell.ts`: the frame and toolbar, with `panel.css` in its shadow root and `page.css` (docking, hiding, flashing) in the page's head; the host says where it serves them. `body.ts`: the step on screen. `navigation.ts`: Prev, Next and the step list.
+    - `host-page.ts`: finding files, lines and toggles on `/changes`, `/files` and the local page. `filter.ts`, `expand.ts` and `scroll.ts`: hiding, opening and jumping.
+    - `file-refs.ts` and `markdown.ts`: the story's text and its jump links. `file-list.ts`: the file rows.
+    - `review-script.ts`: the Overview's Copy as gh script.
+    - `viewed.ts`, `reading.ts`, `drafts.ts`, `freshness.ts`, `rebuild.ts`, `marks.ts`, `status-light.ts` and `questions.ts`: Viewed progress, read tracking, drafted comments, story freshness, Rebuild, the "changed since" marks, the status light and the Ask box.
+    - `fixes.ts` and `working.ts`: Fix before push (Send, Auto-send, each note's state) and the "being changed" marks.
+  - `src/util/`: helpers for the panel, the content scripts, the local page and the bridge (escaping and the html`` tag that builds markup, SHAs, PR keys, line references, times, the clipboard, GitHub paths, key isolation, the default port).
+- `packages/bridge/` (`once-upon-a-diff`, bin `once-upon`): the bridge and its CLI. Private for now; the name is free on npm, for an `npx once-upon-a-diff` later.
+  - `bin/once-upon.ts` runs `src/cli/index.ts`, a table of commands in `cli/commands/` (bridge, stories, inbox, drafts, builds, checks, fixes) that also builds the help. `cli/doctor.ts` is `once-upon doctor`.
+  - `src/server/index.ts` is the HTTP server: its guards, then a route table. The routes are in `server/routes/` by area; `pages.ts` and `assets.ts` serve the HTML pages, the scripts (type-stripped) and the stylesheets.
+  - `src/stories/`: finding story folders (`store.ts`, `placement.ts`), reading them (`meta.ts`, `chapters.ts`, `story-data.ts`, `text-refs.ts`, `hunk-coverage.ts`), local stories (`local-story.ts`, `local-diff.ts`), read tracking (`reads.ts`), drafted comments (`comments.ts`), the rules a Rebuild is published by (`rebuild.ts`) and "being changed" marks (`working.ts`).
+  - `src/github/`: what asks `gh` (read-only, except Add to my review): freshness, drafts and the pending review.
+  - `src/inbox/` (the inbox, the conversation's marks and routing, build requests, and fix-before-push notes and fix requests), `src/listeners/` (who's listening), `src/config/` (settings, prefs, repos and checkouts), `src/util/` (gh, git, diffs, JSON files) and `src/types.ts` (meta.json, the routes' plumbing, the CLI's options).
+  - `public/`: the local page, with its own browser tsconfig. `local.ts` draws it and handles its clicks; `local/` holds the diff view, notes, folds and the panel mount, next to `split.ts`, `narrow.ts` and `syntax.ts`.
+  - `test/`: its unit tests, their helpers and the fake `gh`.
+- `packages/extension/` (`@once-upon-a-diff/extension`): the extension, built by WXT from `wxt.config.ts` (which writes the manifest) into `.output/chrome-mv3`, the folder to load unpacked.
+  - `src/entrypoints/`: `background.ts` (the only code that makes network calls, and only to `127.0.0.1`), `content.ts` (the content script on github.com) and `options/` (the options page). `src/settings.ts` keeps the bridge's port and token.
+  - `src/content/index.ts` routes by page kind: Files changed, Conversation, PR list, or other.
+    - `bridge.ts` sends bridge calls through the service worker. `storage.ts` keeps the panel's state per PR and the Hide whitespace copy.
+    - `pages/files-changed.ts` docks the panel and puts the story tag by the title when the panel is hidden. `pages/hide-whitespace.ts` keeps `?w=1` in step with the setting.
+    - `pages/conversation.ts` and `pages/pull-list.ts` put the story tag by a PR's title.
+    - `ui/` holds the pieces they share: `story-tag.ts` (what a tag says), `tag-host.ts`, `listen-notice.ts`, `pr-tags.ts` (the tag controller every PR page shares), `copy.ts` and `toast.ts`. Each one with its own shadow root links its CSS from a `.css` file beside it, which the build copies into the extension as is.
+  - `src/public/icons/` (`yarn workspace @once-upon-a-diff/extension icons` redraws them).
+  - `test/`: the unit tests for the tag and Hide whitespace (some against a real bridge), and `browser/load-test.ts` and `browser/expand-test.ts`.
 - `skills/once-upon-listen/`: the Claude Code skill behind **Copy prompt for Claude**.
-- `skills/once-upon/`: the Claude Code skill that writes PR stories. Both skills read your house rules (see [Personal settings](#personal-settings)).
-- `test/`: unit tests, `extension/load-test.mjs` and `extension/expand-test.mjs`.
+- `skills/once-upon/`: the Claude Code skill that writes PR stories. Its `bin/story.ts` imports the bridge's and the panel's code from this checkout. Both skills read your house rules (see [Personal settings](#personal-settings)).
 
 ## Credits
 
