@@ -141,6 +141,6 @@ The bridge learns where your checkouts are from local stories and from where a l
 
 - It never posts comments or reviews, never submits a review and never pushes. Add to my review is the only thing that writes to GitHub, and only when you click it, into your own pending review.
 - The listener never checks out a branch or pushes, and never runs a PR's code, tests or scripts unless you say so in chat. It reads code with `git show`. It changes files and commits only for fix-before-push notes you send it, on the branch the checkout is already on.
-- The bridge only listens on `127.0.0.1`, wants the token on every call, and refuses requests from other web pages.
+- The bridge only listens on `127.0.0.1`, wants the token on every call, and refuses requests from other web pages. A local page gets a key for its own story only, in its link, never the token.
 
 **Data and privacy.** The story is written by Claude Code on your machine. Like any Claude Code session, it reads the PR's diff and code from your local checkout and with gh, and sends what it reads to Claude to write the story and answer questions. Stories, questions and answers stay in `.once-upon/` and `~/.once-upon`. Use it on code you're allowed to share with Claude.

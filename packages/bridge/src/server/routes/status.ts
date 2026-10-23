@@ -7,7 +7,7 @@ import { readPrefs, writePrefs } from '../../config/settings.ts';
 import { storyRepo, REPO_RE } from '../../config/repos.ts';
 import { statusOf } from '../../listeners/listeners.ts';
 import { readMeta } from '../../stories/meta.ts';
-import type { ApiRoute, Call } from '../../types.ts';
+import type { ApiRoute, Call, ServedStory, StoryRoute } from '../../types.ts';
 
 /** The status light: bridge, story, and a Claude session listening. */
 function status({ app, url, send }: Call) {
@@ -28,6 +28,33 @@ function status({ app, url, send }: Call) {
   return send(200, statusOf({ home, version, story, repo, extensionSeen: app.extensionSeen }));
 }
 
+/** GET or POST page settings: what /api/prefs answers. */
+const prefs = ({ app, req, body, send }: Call) =>
+  req.method === 'GET' ? send(200, readPrefs(app.home)) : send(200, writePrefs(body, app.home));
+
+/**
+ * The same status light and page settings under a story's own path, for the local page, whose key reaches only
+ * its story's routes: GET .../status and GET or POST .../prefs.
+ */
+export const storyStatusRoutes: StoryRoute[] = [
+  {
+    what: 'status',
+    method: 'GET',
+    handle: ({ app, send }: Call, story: ServedStory) =>
+      send(
+        200,
+        statusOf({
+          home: app.home,
+          version: app.version,
+          story: story.id,
+          repo: storyRepo(story.meta),
+          extensionSeen: app.extensionSeen,
+        }),
+      ),
+  },
+  { what: 'prefs', handle: prefs },
+];
+
 export const statusRoutes: ApiRoute[] = [
   {
     path: '/api/health',
@@ -38,7 +65,6 @@ export const statusRoutes: ApiRoute[] = [
   {
     // page settings kept across stories and restarts (the local page's Hide whitespace)
     path: '/api/prefs',
-    handle: ({ app, req, body, send }) =>
-      req.method === 'GET' ? send(200, readPrefs(app.home)) : send(200, writePrefs(body, app.home)),
+    handle: prefs,
   },
 ];

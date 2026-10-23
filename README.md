@@ -254,7 +254,7 @@ A Claude session fulfils the request. `once-upon wait` hands it build requests f
 once-upon local --repo ~/Development/web-app-worktrees/tidy-up --base 3a669da7625 --head HEAD --chapters chapters.json
 ```
 
-This builds `git diff <base> <head>` into `~/.once-upon/local-<repo>-<branch>/`. If no bridge is running, it starts one, then opens `http://127.0.0.1:<port>/local/<id>/`. The page draws the diff with the same DOM shapes as GitHub's `/changes` page, so the same panel code runs on it unchanged.
+This builds `git diff <base> <head>` into `~/.once-upon/local-<repo>-<branch>/`. If no bridge is running, it starts one, then opens `http://127.0.0.1:<port>/local/<id>/#key=<page key>`. The key in the link works for that one story only (see [The bridge](#the-bridge)), and `once-upon page --story <id>` prints the link again. The page draws the diff with the same DOM shapes as GitHub's `/changes` page, so the same panel code runs on it unchanged.
 
 - **Viewed** toggles are kept by the bridge. A file whose diff changes after you marked it shows as "changed since viewed" and is unviewed again.
 - **Comments become "fix before push" notes.** Click a line number to add a note. Notes are listed under "Fix before push" at the top, can be ticked done, and go to the inbox. The panel's Fix before push box sends them to a Claude session ([above](#fix-before-push-send-notes-to-a-session)). `once-upon notes --story <id>` prints them as a checklist. Comments drafted in `chapters.json` show in the panel as "Fix before push (drafted)".
@@ -292,7 +292,9 @@ The bridge learns a repo's checkout from local stories, from where `once-upon wa
 
 ## The bridge
 
-`once-upon serve` binds to `127.0.0.1` only. Every `/api` call needs `Authorization: Bearer <token>`.
+`once-upon serve` binds to `127.0.0.1` only. Every `/api` call needs `Authorization: Bearer <token>`, with one exception: a local page uses its story's page key instead.
+
+**The local page never holds the token.** The page the bridge serves at `/local/<id>/` carries only the story id, so fetching it gives nothing away. Its key comes in the link's `#key=` fragment, which the browser never sends to the bridge: an HMAC of the story id under the token, printed by `once-upon local` and `once-upon page --story <id>`. The bridge takes a page key only on that local story's own `/api/stories/<id>/...` routes. It can't read or change another story, reach a bridge-wide route (builds, the story list, prefs, status) or add to a GitHub review. Listeners and the extension use the token as before, and rotating the token changes every page key.
 
 The bridge also checks each request:
 
@@ -323,7 +325,7 @@ The bridge also checks each request:
 | `GET`/`POST /api/stories/:id/fixes` | the notes with their state, `auto_send`, who a send goes to (`to`) and the recent requests; or `{action: 'send', ids?}`, `{action: 'auto', on}`, `{action: 'take_back', request}` |
 | `GET /api/stories/:id/working` | the "being changed" marks that still stand, and the last one cleared |
 
-The other commands are `list`, `token --rotate`, `publish --dir`, `inbox`, `wait`, `answer`, `notes`, `working`, `fixed`, `builds` and `done`. Run `once-upon` with no arguments to see them all.
+The other commands are `list`, `page --story`, `token --rotate`, `publish --dir`, `inbox`, `wait`, `answer`, `notes`, `working`, `fixed`, `builds` and `done`. Run `once-upon` with no arguments to see them all.
 
 ### Personal settings
 

@@ -16,6 +16,7 @@ import { createLocalStory, slug } from '../../stories/local-story.ts';
 import { storyDirFor } from '../../stories/placement.ts';
 import { out } from '../output.ts';
 import { probe, serve } from './bridge.ts';
+import { localPageUrl } from '../../server/page-key.ts';
 import type { Build } from '../../inbox/builds.ts';
 import type { Plan } from '../../stories/chapters.ts';
 import type { Config } from '../../config/settings.ts';
@@ -100,13 +101,29 @@ async function local(home: string, cfg: Config, opts: CliOpts) {
     );
   }
   const port = Number(opts.port || cfg.port);
-  const url = `http://127.0.0.1:${port}/local/${encodeURIComponent(made.id)}/`;
+  const url = localPageUrl(port, made.id, cfg.token);
   const running = await probe(port, cfg.token);
   if (!running && !opts['no-serve']) {
     await serve(home, cfg, { ...opts, port });
   } else if (!running) {
     process.stderr.write(`No bridge on port ${port}. Start one with: once-upon serve\n`);
   }
+  out(url);
+  if (!opts['no-open']) {
+    const [cmd, ...args] = openArgv(url, home);
+    execFile(cmd, args, () => {});
+  }
+}
+
+/** `once-upon page --story ID`: prints (and opens) a local story's page link, with its key. */
+function page(home: string, cfg: Config, opts: CliOpts) {
+  const id = String(opts.story || '');
+  const store = new StoryStore({ home });
+  const story = store.list().find((candidate) => candidate.id === id);
+  if (!story || story.kind !== 'local') {
+    throw new Error(`no local story ${id || '(say --story ID)'}: once-upon list shows them`);
+  }
+  const url = localPageUrl(Number(opts.port || cfg.port), id, cfg.token);
   out(url);
   if (!opts['no-open']) {
     const [cmd, ...args] = openArgv(url, home);
@@ -204,6 +221,13 @@ export const storyCommands: Command[] = [
       '                                                                 pending, the chapters must keep what it keeps and tell every file and hunk',
     ],
     run: local,
+  },
+  {
+    name: 'page',
+    usage: [
+      "  once-upon page    --story ID [--no-open]                      a local story's page link, with the key for that story only",
+    ],
+    run: page,
   },
   {
     name: 'publish',

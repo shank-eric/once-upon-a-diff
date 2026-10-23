@@ -1,6 +1,7 @@
 /*
  * The bridge's one HTML page: the local page's shell, which loads local.js
- * with the story id and token.
+ * with the story id. It carries no token: the page's key for its story comes
+ * in the link's #fragment (./page-key.ts).
  */
 import { html, raw } from '@once-upon-a-diff/shared/util/html';
 
@@ -10,9 +11,9 @@ export const pageHeaders = () => ({
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'",
 });
 
-export function localPage(id: string, meta: { title: string }, token: string): string {
+export function localPage(id: string, meta: { title: string }): string {
   // the boot JSON goes in as is: with every < written <, it can't end its script element
-  const boot = raw(JSON.stringify({ story: id, token }).replace(/</g, '\\u003c'));
+  const boot = raw(JSON.stringify({ story: id }).replace(/</g, '\\u003c'));
   return String(html`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${meta.title}</title><link rel="stylesheet" href="/assets/local.css">
 <script type="application/json" id="ou-local-boot">${boot}</script>
