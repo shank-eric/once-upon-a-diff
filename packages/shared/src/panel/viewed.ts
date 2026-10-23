@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * Viewed progress: which of a chapter's "Mark viewed" files are ticked, read
  * from the page's own Viewed toggle (GitHub's, or the local page's), and the
@@ -15,29 +13,33 @@ import { html } from '../util/html.ts';
 import { setHtml } from '../util/dom.ts';
 import { baseName, capitalize } from '../util/text.ts';
 import { viewedEarlyCheck } from './reading.ts';
+import type { PanelContext } from './context.ts';
+import type { StepProgress } from './reading.ts';
+import type { FileBlock } from './host-page.ts';
+import type { Chapter } from '../types.ts';
 
 /** A file name as a jump link (file-refs.js refAttrs without a line, which can't be imported here without a cycle). */
-const jumpAttrs = (rel) =>
+const jumpAttrs = (rel: string) =>
   html`data-rel="${rel}" role="link" tabindex="0" title="Scroll to ${rel}"`;
 
 /** The Mark viewed button for a file this chapter finishes. The tracker keeps its label in step with the file's Viewed toggle. */
-export function markViewedButton(rel, short) {
+export function markViewedButton(rel: string, short?: boolean) {
   const label = short ? 'mark viewed' : 'Mark viewed';
   return html`<button type="button" class="ou-mark ou-st-mark" data-mark-for="${rel}"${short && html` data-mark-short="1"`} title="Tick ${rel}'s Viewed checkbox">${label}</button>`;
 }
 
-const linkList = (rels) =>
+const linkList = (rels: string[]) =>
   rels.map(
     (rel, index) => html`${index > 0 && ', '}<code ${jumpAttrs(rel)}>${baseName(rel)}</code>`,
   );
 
-export function createViewedTracker(context) {
+export function createViewedTracker(context: PanelContext) {
   const { story, state, page, shell } = context;
   const { data } = story;
   const { $ } = shell;
 
   /** How chapter `step`'s files to mark viewed stand: {due, viewed, unviewed, unknown, noToggle}. */
-  function progressOf(step, blocks) {
+  function progressOf(step: number, blocks: Map<string, FileBlock>): StepProgress {
     const due = data.chapters[step - 1].files
       .filter((file) => {
         const status = context.fileStatus(file.rel, step);
@@ -57,9 +59,9 @@ export function createViewedTracker(context) {
     };
   }
 
-  function renderFileMarks(blocks, earlyFor) {
-    for (const el of shell.root.querySelectorAll('[data-viewed-for]')) {
-      const rel = el.getAttribute('data-viewed-for');
+  function renderFileMarks(blocks: Map<string, FileBlock>, earlyFor: (rel: string) => boolean) {
+    for (const el of shell.root.querySelectorAll<HTMLElement>('[data-viewed-for]')) {
+      const rel = el.getAttribute('data-viewed-for') as string;
       const viewed = page.isViewed(rel, blocks);
       const early = viewed === true && earlyFor(rel);
       // its "Viewed ✓" button says it
@@ -79,8 +81,8 @@ export function createViewedTracker(context) {
         : '';
     }
     // the button on a file this chapter finishes: "Mark viewed" until its Viewed toggle is on, then "Viewed ✓" (a click unticks it)
-    for (const el of shell.root.querySelectorAll('[data-mark-for]')) {
-      const rel = el.getAttribute('data-mark-for');
+    for (const el of shell.root.querySelectorAll<HTMLElement>('[data-mark-for]')) {
+      const rel = el.getAttribute('data-mark-for') as string;
       const isOn = page.isViewed(rel, blocks) === true;
       if (el.hasAttribute('data-mark-short')) {
         el.textContent = isOn ? 'viewed ✓' : 'mark viewed';
@@ -96,12 +98,18 @@ export function createViewedTracker(context) {
     }
   }
 
-  function renderEarlyBox(blocks, step, earlyFor) {
+  function renderEarlyBox(
+    blocks: Map<string, FileBlock>,
+    step: number,
+    earlyFor: (rel: string) => boolean,
+  ) {
     const earlyBox = $('.ou-early-box');
     if (!earlyBox) {
       return;
     }
-    const inChapter = step ? new Set(context.chapter().files.map((file) => file.rel)) : new Set();
+    const inChapter = step
+      ? new Set((context.chapter() as Chapter).files.map((file) => file.rel))
+      : new Set<string>();
     const early = step
       ? story.allRels.filter((rel) => earlyFor(rel) && page.isViewed(rel, blocks) === true)
       : [];
@@ -117,8 +125,8 @@ export function createViewedTracker(context) {
     );
   }
 
-  function renderStepProgress(all) {
-    for (const el of shell.root.querySelectorAll('[data-prog-for]')) {
+  function renderStepProgress(all: StepProgress[]) {
+    for (const el of shell.root.querySelectorAll<HTMLElement>('[data-prog-for]')) {
       const progress = all[Number(el.getAttribute('data-prog-for')) - 1];
       if (!progress || !progress.due || progress.noToggle) {
         el.textContent = '';
@@ -133,7 +141,7 @@ export function createViewedTracker(context) {
     }
   }
 
-  function renderOverviewProgress(box, all) {
+  function renderOverviewProgress(box: HTMLElement, all: StepProgress[]) {
     const due = all.reduce((sum, progress) => sum + progress.due, 0);
     const viewed = all.reduce((sum, progress) => sum + progress.viewed, 0);
     const left = all
@@ -224,7 +232,7 @@ export function createViewedTracker(context) {
    * "Viewed ✓", to untick it). It clicks that file's own toggle once, as if the reviewer had, and GitHub (or the
    * local page) does the rest, collapse included. Nothing else calls it: no step change, redraw or batch.
    */
-  function toggle(rel) {
+  function toggle(rel: string) {
     const block = page.blockOf(rel);
     const viewedToggle = block && page.viewedToggleIn(block.el);
     if (!viewedToggle) {
@@ -249,10 +257,10 @@ export function createViewedTracker(context) {
   }
 
   /** The step's files left to mark viewed, said when they move on from it. */
-  function leftToMark(step) {
+  function leftToMark(step: number): string[] {
     return progressOf(step, page.blocksByPath()).unviewed;
   }
-  const leavingMessage = (step, left) =>
+  const leavingMessage = (step: number, left: string[]) =>
     `${capitalize(story.chapterName(step))} still has ${left.length} to mark viewed: ${left.map(baseName).join(', ')}. No rush: Prev goes back, or tick them later.`;
 
   function destroy() {
@@ -262,3 +270,5 @@ export function createViewedTracker(context) {
 
   return { render, toggle, progressOf, leftToMark, leavingMessage, destroy };
 }
+
+export type ViewedTracker = ReturnType<typeof createViewedTracker>;

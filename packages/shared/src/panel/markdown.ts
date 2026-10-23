@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * A tiny markdown renderer for the story's text: escape first, then a block
  * pass (code fences, quotes, headings, lists, paragraphs) and an inline pass
@@ -10,25 +8,27 @@
 import { escapeHtml, raw } from '../util/html.ts';
 import { parseDiffLink } from '../util/line-refs.ts';
 import { refAttrs } from './file-refs.ts';
+import type { Html } from '../util/html.ts';
+import type { PanelContext } from './context.ts';
 
 // eslint-disable-next-line no-control-regex -- the placeholder markers are control characters on purpose
 const CODE_MARK = /\u0000(\d+)\u0000/g;
 const LIST_ITEM = /^(\s*)(\d+[.)]|[-*+])\s+(.*)$/;
 
-export function createMarkdown(context) {
+export function createMarkdown(context: PanelContext) {
   const { story, refs } = context;
 
-  function inline(source) {
-    const codes = [];
+  function inline(source: string): Html {
+    const codes: string[] = [];
     let html = escapeHtml(source).replace(
       /`([^`]+)`/g,
-      (match, code) => `\u0000${codes.push(code) - 1}\u0000`,
+      (match, code: string) => `\u0000${codes.push(code) - 1}\u0000`,
     );
     html = html
       .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
       .replace(/(^|[^\w*])\*([^*\s][^*]*)\*(?!\w)/g, '$1<em>$2</em>')
       .replace(/(^|[^\w])_([^_\s][^_]*)_(?!\w)/g, '$1<em>$2</em>')
-      .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, (match, text, url) => {
+      .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, (match, text: string, url: string) => {
         // links to this PR's files (and lines) scroll the page instead of navigating
         const link = parseDiffLink(url);
         const rel = link && story.shaToPath.get(link.sha);
@@ -38,7 +38,8 @@ export function createMarkdown(context) {
         }
         return `<a href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`;
       });
-    html = html.replace(CODE_MARK, (match, index) => {
+    html = html.replace(CODE_MARK, (match, indexText: string) => {
+      const index = Number(indexText);
       const ref = refs.resolveRef(codes[index]);
       if (!ref) {
         return `<code>${codes[index]}</code>`;
@@ -51,13 +52,13 @@ export function createMarkdown(context) {
     return raw(html);
   }
 
-  function markdown(source) {
+  function markdown(source: string | null | undefined): Html {
     const lines = String(source || '')
       .replace(/\r/g, '')
       .split('\n');
     let html = '';
-    let paragraph = [];
-    let lists = null; // stack of {type, indent}
+    let paragraph: string[] = [];
+    let lists: { type: 'ol' | 'ul'; indent: number }[] | null = null;
     const flushParagraph = () => {
       if (paragraph.length) {
         html += `<p>${inline(paragraph.join(' '))}</p>`;
@@ -66,7 +67,7 @@ export function createMarkdown(context) {
     };
     const closeLists = (toIndent = -1) => {
       while (lists && lists.length && lists[lists.length - 1].indent > toIndent) {
-        html += `</li></${lists.pop().type}>`;
+        html += `</li></${lists.pop()!.type}>`;
       }
       if (lists && !lists.length) {
         lists = null;
@@ -77,7 +78,7 @@ export function createMarkdown(context) {
       if (/^\s*```/.test(line)) {
         flushParagraph();
         closeLists();
-        const body = [];
+        const body: string[] = [];
         while (++i < lines.length && !/^\s*```/.test(lines[i])) {
           body.push(lines[i]);
         }
@@ -87,7 +88,7 @@ export function createMarkdown(context) {
       if (/^\s*>/.test(line)) {
         flushParagraph();
         closeLists();
-        const body = [];
+        const body: string[] = [];
         while (i < lines.length && /^\s*>/.test(lines[i])) {
           body.push(lines[i++].replace(/^\s*> ?/, ''));
         }
@@ -116,7 +117,7 @@ export function createMarkdown(context) {
           html += '</li><li>';
         } else {
           if (top && top.indent === indent) {
-            html += `</li></${lists.pop().type}>`;
+            html += `</li></${lists.pop()!.type}>`;
           }
           html += `<${type}><li>`;
           lists.push({ type, indent });
@@ -145,3 +146,5 @@ export function createMarkdown(context) {
 
   return { inline, markdown };
 }
+
+export type Markdown = ReturnType<typeof createMarkdown>;

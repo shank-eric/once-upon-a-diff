@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * The panel's frame: the host element and its shadow root, the toolbar
  * (status light, Hide story, Prev, Next, close), the note line, the body and
@@ -7,8 +5,9 @@
  */
 import { hideUntilStyled, setHtml, stopKeyEvents, stylesheetLink } from '../util/dom.ts';
 import { html } from '../util/html.ts';
+import type { PanelContext } from './context.ts';
 
-const MARKUP = (withAsk) => html`
+const MARKUP = (withAsk: boolean) => html`
     <div class="ou-grip" title="Drag to resize"></div>
     <div class="ou-bar">
       <button class="ou-light" title="Checking the connection…" aria-label="Connection status" aria-expanded="false"><span class="ou-dot"></span></button>
@@ -32,7 +31,7 @@ const MIN_WIDTH = 280;
 const MAX_WIDTH_SHARE = 0.7;
 const COLLAPSED_WIDTH = 36;
 
-export function createShell(context) {
+export function createShell(context: PanelContext) {
   const { hostId, panelId, opts, state } = context;
   // page.css goes in the page's head, panel.css in the shadow root, from where the host says (opts.stylesheets): the
   // extension's copy on GitHub, the bridge's /assets/panel/ on the local page.
@@ -49,21 +48,23 @@ export function createShell(context) {
   root.tabIndex = -1;
   root.setAttribute('aria-label', 'Once Upon a Diff');
   setHtml(root, MARKUP(!!opts.ask));
-  const $ = (selector) => root.querySelector(selector);
+  /** The panel's element for selector, or null. The frame's own (.ou-title, .ou-body...) are always there. */
+  const $ = <T extends HTMLElement = HTMLElement>(selector: string): T | null =>
+    root.querySelector<T>(selector);
 
   let messageTimer = 0;
   /** A line under the toolbar for a few seconds ('' clears it). */
-  function message(text) {
+  function message(text: string | null | undefined) {
     clearTimeout(messageTimer);
-    $('.ou-msg').textContent = text || '';
+    $('.ou-msg')!.textContent = text || '';
     if (text) {
       messageTimer = setTimeout(() => {
-        $('.ou-msg').textContent = '';
+        $('.ou-msg')!.textContent = '';
       }, MESSAGE_MS);
     }
   }
 
-  function setWidth(width) {
+  function setWidth(width: number) {
     state.width = Math.round(
       Math.min(Math.max(width, MIN_WIDTH), window.innerWidth * MAX_WIDTH_SHARE),
     );
@@ -72,20 +73,21 @@ export function createShell(context) {
       (state.collapsed ? COLLAPSED_WIDTH : state.width) + 'px',
     );
   }
-  function setCollapsed(collapsed) {
+  function setCollapsed(collapsed: boolean) {
     state.collapsed = collapsed;
     root.classList.toggle('ou-collapsed', collapsed);
-    $('.ou-toggle').textContent = collapsed ? 'Show story' : 'Hide story';
+    $('.ou-toggle')!.textContent = collapsed ? 'Show story' : 'Hide story';
     setWidth(state.width);
   }
 
   // resize by dragging the left edge
-  $('.ou-grip').addEventListener('pointerdown', (event) => {
+  $('.ou-grip')!.addEventListener('pointerdown', (event) => {
     event.preventDefault();
-    const grip = event.currentTarget;
+    const grip = event.currentTarget as HTMLElement;
     grip.setPointerCapture(event.pointerId);
     root.classList.add('ou-dragging');
-    const onPointerMove = (moveEvent) => setWidth(window.innerWidth - moveEvent.clientX);
+    const onPointerMove = (moveEvent: PointerEvent) =>
+      setWidth(window.innerWidth - moveEvent.clientX);
     const onPointerUp = () => {
       context.saveState();
       root.classList.remove('ou-dragging');
@@ -95,13 +97,13 @@ export function createShell(context) {
     grip.addEventListener('pointermove', onPointerMove);
     grip.addEventListener('pointerup', onPointerUp);
   });
-  $('.ou-toggle').onclick = () => {
+  $('.ou-toggle')!.onclick = () => {
     setCollapsed(!state.collapsed);
     context.saveState();
   };
-  $('.ou-prev').onclick = () => context.navigation.go(state.n - 1);
-  $('.ou-next').onclick = () => context.navigation.go(state.n + 1);
-  $('.ou-close').onclick = () => {
+  $('.ou-prev')!.onclick = () => context.navigation.go(state.n - 1);
+  $('.ou-next')!.onclick = () => context.navigation.go(state.n + 1);
+  $('.ou-close')!.onclick = () => {
     context.destroy();
     if (opts.onClose) {
       opts.onClose();
@@ -116,9 +118,7 @@ export function createShell(context) {
       return;
     }
     const link =
-      event.target instanceof Element
-        ? /** @type {HTMLElement | null} */ event.target.closest('[data-rel]')
-        : null;
+      event.target instanceof Element ? event.target.closest<HTMLElement>('[data-rel]') : null;
     if (link && link === event.target) {
       event.preventDefault();
       link.click();
@@ -159,3 +159,5 @@ export function createShell(context) {
     stopResizing: () => window.removeEventListener('resize', onResize),
   };
 }
+
+export type Shell = ReturnType<typeof createShell>;

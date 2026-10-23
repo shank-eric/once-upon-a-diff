@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * Expanding a file's diff to a line. A file or line link in the panel is the
  * only thing that clicks expand controls: the file's own expand toggle if it's
@@ -9,9 +7,19 @@
  *
  * expandDirOf and expandStep have no DOM, so node tests can use them.
  */
+import type { Side } from '../types.ts';
+import type { PanelContext } from './context.ts';
+
+/** Which way an expand control opens. */
+export type ExpandDir = 'up' | 'down' | 'all';
+
+/** A row of a file's table as expandStep reads it: a hunk row with its controls, or a drawn row and its line. */
+export type ExpandRow =
+  | { gap: ExpandDir[]; controls: Partial<Record<ExpandDir, HTMLElement>>; n?: undefined }
+  | { n: number | null; gap?: undefined };
 
 /** Which way an expand control opens: 'up', 'down' or 'all', from data-direction or its label ("Expand Up", "Expand file down from line 82"). */
-export function expandDirOf(direction, label) {
+export function expandDirOf(direction: string | null | undefined, label: string): ExpandDir | null {
   const dataDirection = String(direction || '').toLowerCase();
   if (dataDirection === 'up' || dataDirection === 'down' || dataDirection === 'all') {
     return dataDirection;
@@ -37,7 +45,10 @@ export function expandDirOf(direction, label) {
  * Returns {at, dir, far}: the gap row's index, the control, and how far the line is from
  * the drawn line that control opens from. null when no gap holds the line.
  */
-export function expandStep(rows, line) {
+export function expandStep(
+  rows: { gap?: readonly string[]; n?: number | null }[],
+  line: number,
+): { at: number; dir: ExpandDir; far: number } | null {
   for (let i = 0; i < rows.length; i++) {
     const directions = rows[i].gap;
     if (!directions) {
@@ -46,14 +57,14 @@ export function expandStep(rows, line) {
     let before = 0;
     for (let j = i - 1; j >= 0; j--) {
       if (!rows[j].gap && rows[j].n != null) {
-        before = rows[j].n;
+        before = rows[j].n as number;
         break;
       }
     }
     let after = Infinity;
     for (let j = i + 1; j < rows.length; j++) {
       if (!rows[j].gap && rows[j].n != null) {
-        after = rows[j].n;
+        after = rows[j].n as number;
         break;
       }
     }
@@ -69,7 +80,7 @@ export function expandStep(rows, line) {
       return null;
     }
     // "down" opens the lines under the drawn line above the gap, "up" the lines over the one below it
-    let direction;
+    let direction: 'up' | 'down';
     if (canUp && canDown) {
       direction = line - before <= after - line ? 'down' : 'up';
     } else {
@@ -83,8 +94,8 @@ export function expandStep(rows, line) {
 /** A line farther than this from the nearest drawn line opens the whole file in one click, where the page has a button for that. */
 export const EXPAND_ALL_FAR = 60;
 
-const pause = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
-async function waitFor(test, milliseconds) {
+const pause = (milliseconds: number) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+async function waitFor<T>(test: () => T, milliseconds: number): Promise<T> {
   for (const end = Date.now() + milliseconds; Date.now() < end; await pause(100)) {
     const value = test();
     if (value) {
@@ -95,7 +106,7 @@ async function waitFor(test, milliseconds) {
 }
 
 /** expandTo, for one panel. A newer call (or cancel) makes an older one stop between clicks. */
-export function createExpander(context) {
+export function createExpander(context: PanelContext) {
   const { page } = context;
   let token = 0;
 
@@ -104,7 +115,8 @@ export function createExpander(context) {
    * Clicks only the file's expand toggle, Load diff and hunk expanders, so Viewed stays as it is.
    * Resolves to true when the file (or line) is on the page, false when it can't get there.
    */
-  async function expandTo(rel, side, line) {
+  /** side is null only without a line. */
+  async function expandTo(rel: string, side: Side | null, line: number | null): Promise<boolean> {
     const mine = ++token;
     const live = () => mine === token && context.shell.host.isConnected;
     const sha = context.story.pathToSha.get(rel);
@@ -133,7 +145,7 @@ export function createExpander(context) {
       return live();
     }
     for (let attempt = 0; attempt < 40 && live(); attempt++) {
-      if (page.isDrawn(page.lineCell(rel, side, line))) {
+      if (page.isDrawn(page.lineCell(rel, side as Side, line))) {
         return true;
       }
       block = page.blockOf(rel);
@@ -141,13 +153,14 @@ export function createExpander(context) {
         return false;
       }
       const tableRows = [...block.el.querySelectorAll('tr')];
-      const rows = tableRows.map((row) => page.rowModel(row, sha, side));
+      const rows = tableRows.map((row) => page.rowModel(row, sha, side as Side));
       const step = expandStep(rows, line);
       if (!step) {
         return false;
       }
       const allButton = step.far > EXPAND_ALL_FAR ? page.expandAllButton(block.el) : null;
-      const control = allButton || rows[step.at].controls[step.dir];
+      const gapRow = rows[step.at] as Extract<ExpandRow, { gap: ExpandDir[] }>; // expandStep only stops at a gap
+      const control = allButton || gapRow.controls[step.dir];
       if (!page.isSafeToClick(control)) {
         return false;
       }
@@ -166,7 +179,7 @@ export function createExpander(context) {
         return false;
       }
     }
-    return live() && page.isDrawn(page.lineCell(rel, side, line));
+    return live() && page.isDrawn(page.lineCell(rel, side as Side, line));
   }
 
   return {
@@ -180,3 +193,5 @@ export function createExpander(context) {
     },
   };
 }
+
+export type Expander = ReturnType<typeof createExpander>;

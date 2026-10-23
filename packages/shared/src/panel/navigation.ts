@@ -1,14 +1,13 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * Moving between steps (Prev, Next, the step list), and reporting where the
  * reviewer is (opts.onPosition): the step and the file at the top of the
  * screen, debounced.
  */
-
+import type { Chapter } from '../types.ts';
+import type { PanelContext } from './context.ts';
 const POSITION_DEBOUNCE_MS = 1200;
 
-export function createNavigation(context) {
+export function createNavigation(context: PanelContext) {
   const { state, opts, page, shell } = context;
 
   /** "Chapter 2: …" or "Overview": how questions and positions name the step. */
@@ -18,7 +17,7 @@ export function createNavigation(context) {
   }
 
   /** After a step change: redraw, re-filter, report, and scroll to the step's first file. */
-  function showStep({ restartClock }) {
+  function showStep({ restartClock }: { restartClock: boolean }) {
     if (restartClock) {
       context.reading.start();
     }
@@ -29,12 +28,12 @@ export function createNavigation(context) {
     reportPosition();
     if (state.n === 0) {
       window.scrollTo({ top: 0 });
-    } else if (context.chapter().files[0]) {
-      context.scroll.scrollToFile(context.chapter().files[0].rel, true);
+    } else if ((context.chapter() as Chapter).files[0]) {
+      context.scroll.scrollToFile((context.chapter() as Chapter).files[0].rel, true);
     }
   }
 
-  function goToStep(step) {
+  function goToStep(step: number) {
     if (step < 0 || step > context.steps().length) {
       return;
     }
@@ -54,7 +53,7 @@ export function createNavigation(context) {
   // ---------- where the reviewer is: the step and the file at the top of the screen
   let positionTimer = 0;
   let lastPosition = '';
-  let topFile = null;
+  let topFile: string | null = null;
   function reportPosition() {
     if (!opts.onPosition) {
       return;
@@ -72,7 +71,7 @@ export function createNavigation(context) {
         return;
       }
       lastPosition = key;
-      opts.onPosition(position);
+      opts.onPosition!(position); // checked above, before the timer
     }, POSITION_DEBOUNCE_MS);
   }
   const onScroll = () => reportPosition();
@@ -94,3 +93,5 @@ export function createNavigation(context) {
     destroy,
   };
 }
+
+export type Navigation = ReturnType<typeof createNavigation>;

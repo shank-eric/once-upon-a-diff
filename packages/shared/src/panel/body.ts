@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * The panel's body for the step on screen: what's being changed, the step
  * list, then the Overview or a chapter, with its drafted comments, its fix
@@ -10,11 +8,13 @@ import { html } from '../util/html.ts';
 import { setHtml } from '../util/dom.ts';
 import { copyComment } from './copy-buttons.ts';
 import { plural } from '../util/text.ts';
+import type { PanelContext } from './context.ts';
+import type { Chapter, DraftAction, Side } from '../types.ts';
 
-const stripChapterPrefix = (title) => title.replace(/^Chapter \d+:\s*/, '');
+const stripChapterPrefix = (title: string) => title.replace(/^Chapter \d+:\s*/, '');
 const UNCOVERED_SHOWN = 12; // hunk links in the Overview's note before "and N more"
 
-export function createBody(context) {
+export function createBody(context: PanelContext) {
   const { story, state, shell } = context;
   const { data } = story;
   const { $ } = shell;
@@ -34,7 +34,8 @@ export function createBody(context) {
     return [overview, ...steps];
   }
 
-  const titleText = (chapter) => (chapter ? chapter.title : `Overview: ${data.pr.title || ''}`);
+  const titleText = (chapter: Chapter | null) =>
+    chapter ? chapter.title : `Overview: ${data.pr.title || ''}`;
 
   function overviewHtml() {
     context.refs.startStep(story.allRels);
@@ -63,7 +64,7 @@ export function createBody(context) {
     return html`<p class="ou-quiet ou-uncovered">${inline(`${plural(refs.length, 'changed hunk')} no chapter points at: ${shown}${more}.`)}</p>`;
   }
 
-  function chapterHtml(chapter) {
+  function chapterHtml(chapter: Chapter) {
     context.refs.startStep(chapter.files.map((file) => file.rel));
     const storyHtml = context.refs.storyWithPills(() => {
       if (chapter.narrative) {
@@ -103,24 +104,24 @@ export function createBody(context) {
 
   function render() {
     const chapter = context.chapter();
-    $('.ou-title').textContent = titleText(chapter);
-    $('.ou-title').title = $('.ou-title').textContent;
-    $('.ou-prev').disabled = state.n === 0;
-    $('.ou-next').disabled = state.n === context.steps().length;
+    $('.ou-title')!.textContent = titleText(chapter);
+    $('.ou-title')!.title = $('.ou-title')!.textContent;
+    $<HTMLButtonElement>('.ou-prev')!.disabled = state.n === 0;
+    $<HTMLButtonElement>('.ou-next')!.disabled = state.n === context.steps().length;
     const stepList = stepListHtml();
     const body = chapter ? chapterHtml(chapter) : overviewHtml();
     setHtml(
-      $('.ou-body'),
+      $('.ou-body')!,
       html`<div class="ou-working"></div><h2 class="ou-h">Steps</h2><ol class="ou-map">${stepList}</ol>${body}<div class="ou-questions"></div>`,
     );
     placeProgress();
-    const commentsBox = $('.ou-body details.ou-allc');
+    const commentsBox = $<HTMLDetailsElement>('.ou-body details.ou-allc');
     if (commentsBox) {
       commentsBox.addEventListener('toggle', () => {
         state.allCommentsOpen = commentsBox.open;
       });
     }
-    const filesBox = $('.ou-body details.ou-filesbox');
+    const filesBox = $<HTMLDetailsElement>('.ou-body details.ou-filesbox');
     if (filesBox) {
       filesBox.addEventListener('toggle', () => {
         if (state.filesOpen !== filesBox.open) {
@@ -137,22 +138,22 @@ export function createBody(context) {
     context.marks.render();
     context.fixes.render();
     context.working.render();
-    $('.ou-body').scrollTop = 0;
+    $('.ou-body')!.scrollTop = 0;
   }
 
   /** What a click in the body does, by what was clicked: the first match wins. */
-  function onClick(event) {
-    const target = event.target;
+  function onClick(event: MouseEvent) {
+    const target = event.target as Element;
     const stepItem = target.closest('ol.ou-map li[data-n]');
     if (stepItem) {
       return context.navigation.go(Number(stepItem.getAttribute('data-n')));
     }
     const copyButton = target.closest('.ou-copy');
     if (copyButton) {
-      const comment = copyButton.closest('.ou-comment');
+      const comment = copyButton.closest('.ou-comment') as Element;
       const step = Number(comment.getAttribute('data-n'));
       const index = Number(comment.getAttribute('data-i'));
-      return copyComment(data.chapters[step - 1].comments[index].body, copyButton);
+      return copyComment(data.chapters[step - 1].comments[index].body, copyButton as HTMLElement);
     }
     const gotoButton = target.closest('[data-goto]');
     if (gotoButton) {
@@ -160,27 +161,27 @@ export function createBody(context) {
     }
     const scriptButton = target.closest('[data-draft-script]');
     if (scriptButton) {
-      return context.drafts.copyScript(scriptButton);
+      return context.drafts.copyScript(scriptButton as HTMLElement);
     }
     if (target.closest('[data-draft-reload]')) {
       return context.drafts.reloadPage();
     }
     const markButton = target.closest('button[data-mark-for]');
     if (markButton) {
-      return context.viewed.toggle(markButton.getAttribute('data-mark-for'));
+      return context.viewed.toggle(markButton.getAttribute('data-mark-for') as string);
     }
     const actButton = target.closest('[data-draft-act]');
     if (actButton) {
-      const comment = actButton.closest('.ou-comment');
+      const comment = actButton.closest('.ou-comment') as Element;
       return context.drafts.act(
         Number(comment.getAttribute('data-n')),
         Number(comment.getAttribute('data-i')),
-        actButton.getAttribute('data-draft-act'),
+        actButton.getAttribute('data-draft-act') as DraftAction,
       );
     }
     const fixControl = target.closest('[data-fix-act]');
     if (fixControl) {
-      return context.fixes.act(fixControl);
+      return context.fixes.act(fixControl as HTMLInputElement);
     }
     const questionButton = target.closest('[data-qa-act]');
     if (questionButton) {
@@ -188,7 +189,7 @@ export function createBody(context) {
     }
     const showButton = target.closest('[data-draft-show]');
     if (showButton) {
-      const key = showButton.getAttribute('data-draft-show');
+      const key = showButton.getAttribute('data-draft-show') as 'showPosted' | 'showDismissed';
       state[key] = !state[key];
       context.saveState();
       return context.drafts.render();
@@ -197,18 +198,20 @@ export function createBody(context) {
     if (!ref) {
       return;
     }
-    const rel = ref.getAttribute('data-rel');
-    const start = +ref.getAttribute('data-start');
+    const rel = ref.getAttribute('data-rel') as string;
+    const start = +(ref.getAttribute('data-start') as string);
     const line = ref.hasAttribute('data-start')
       ? {
-          side: ref.getAttribute('data-side') || 'R',
+          side: (ref.getAttribute('data-side') || 'R') as Side,
           start,
-          end: +ref.getAttribute('data-end') || start,
+          end: +(ref.getAttribute('data-end') as string) || start,
         }
       : null;
     context.scroll.jumpTo(rel, line);
   }
-  $('.ou-body').addEventListener('click', onClick);
+  $('.ou-body')!.addEventListener('click', onClick);
 
   return { render };
 }
+
+export type Body = ReturnType<typeof createBody>;

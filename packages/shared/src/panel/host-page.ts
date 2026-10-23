@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * Finding files, lines, Viewed toggles and expand controls on the host page:
  * GitHub's /changes and /files, or the local page, whose diff view uses the
@@ -22,15 +20,33 @@
  *             expand: .file-header .js-details-target "Toggle diff contents" [aria-expanded=false];
  *                     tr.js-expandable-line holds a.js-expand "Expand Up|Down|All"
  */
-import { expandDirOf } from './expand.ts';
+import { expandDirOf, type ExpandDir, type ExpandRow } from './expand.ts';
+import type { Side } from '../types.ts';
+
+/** A file's block on the page: el is what the filter hides. */
+export interface FileBlock {
+  rel: string;
+  el: Element;
+}
+
+/** A file-tree row: a file's (rel) or a folder's (dir, null when the page doesn't say which). */
+export interface TreeRow {
+  rel?: string;
+  dir?: string | null;
+  el: Element;
+}
+
+/** A page control the panel may click. */
+type Clickable = HTMLElement;
 
 const LINE_ID = /^diff-([0-9a-f]{64})([LR])(\d+)$/;
 
 /** Is this element drawn (on the page and not display:none)? */
-export const isDrawn = (element) => !!element && element.getClientRects().length > 0;
+export const isDrawn = (element: Element | null | undefined): boolean =>
+  !!element && element.getClientRects().length > 0;
 
 /** Climb through one-child wrappers, so the gap GitHub leaves between files goes too. */
-function outerWrapper(element) {
+function outerWrapper(element: Element): Element {
   let wrapper = element;
   for (
     let depth = 0;
@@ -46,7 +62,7 @@ function outerWrapper(element) {
 }
 
 /** A control's accessible name: aria-label, the text of its aria-labelledby elements, or its title. */
-export function labelOf(element) {
+export function labelOf(element: Element): string {
   const ids = (element.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean);
   const labelledBy = ids
     .map((id) => {
@@ -64,11 +80,23 @@ export function labelOf(element) {
 }
 
 /** The adapters, for one story's files. */
-export function createHostPage({ shaToPath, pathToSha, allPaths, hostId, panelId }) {
+export function createHostPage({
+  shaToPath,
+  pathToSha,
+  allPaths,
+  hostId,
+  panelId,
+}: {
+  shaToPath: Map<string, string>;
+  pathToSha: Map<string, string>;
+  allPaths: Set<string>;
+  hostId: string;
+  panelId: string;
+}) {
   /** The page's file blocks: [{rel, el}], el being what gets hidden. */
-  function fileBlocks() {
-    const found = new Map();
-    const add = (rel, el) => {
+  function fileBlocks(): FileBlock[] {
+    const found = new Map<Element, string>();
+    const add = (rel: string | null | undefined, el: Element | null) => {
       if (rel && el && allPaths.has(rel) && !found.has(el)) {
         found.set(el, rel);
       }
@@ -89,12 +117,14 @@ export function createHostPage({ shaToPath, pathToSha, allPaths, hostId, panelId
     }
     return [...found].map(([el, rel]) => ({ rel, el }));
   }
-  const blockOf = (rel) => fileBlocks().find((block) => block.rel === rel);
+  const blockOf = (rel: string): FileBlock | undefined =>
+    fileBlocks().find((block) => block.rel === rel);
   /** The page's file blocks by path. */
-  const blocksByPath = () => new Map(fileBlocks().map((block) => [block.rel, block]));
+  const blocksByPath = (): Map<string, FileBlock> =>
+    new Map(fileBlocks().map((block) => [block.rel, block]));
 
   /** The cell for line `line` on `side` ('L' old, 'R' new) of a file, or null. */
-  function lineCell(rel, side, line) {
+  function lineCell(rel: string, side: Side, line: number): Element | null {
     const sha = pathToSha.get(rel);
     const id = `diff-${sha}${side}${line}`;
     // /changes puts the anchor of the line before a gap on its hunk row too, so that one doesn't count
@@ -112,18 +142,18 @@ export function createHostPage({ shaToPath, pathToSha, allPaths, hostId, panelId
   }
 
   /** A file block's own Viewed toggle: /changes' (and the local page's) header button, or classic /files' checkbox. */
-  const viewedToggleIn = (el) =>
-    [...el.querySelectorAll('button[aria-pressed]')].find((button) =>
+  const viewedToggleIn = (el: Element): HTMLButtonElement | HTMLInputElement | null =>
+    [...el.querySelectorAll<HTMLButtonElement>('button[aria-pressed]')].find((button) =>
       /^\s*viewed\s*$/i.test(button.textContent),
     ) ||
-    el.querySelector('input.js-reviewed-checkbox') ||
+    el.querySelector<HTMLInputElement>('input.js-reviewed-checkbox') ||
     null;
 
   /**
    * true/false from the file header's Viewed toggle, null when the file isn't on the page,
    * or 'none' when it is but has no Viewed toggle (logged out, say). Never clicks it.
    */
-  function isViewed(rel, blocks) {
+  function isViewed(rel: string, blocks?: Map<string, FileBlock>): boolean | 'none' | null {
     const block = blocks ? blocks.get(rel) : blockOf(rel);
     if (!block) {
       return null;
@@ -133,12 +163,12 @@ export function createHostPage({ shaToPath, pathToSha, allPaths, hostId, panelId
       return 'none';
     }
     return toggle.matches('input')
-      ? toggle.checked
+      ? (toggle as HTMLInputElement).checked
       : toggle.getAttribute('aria-pressed') === 'true';
   }
 
   /** Never a Viewed toggle, a checkbox or anything that submits: those aren't ours to click. */
-  const isSafeToClick = (el) =>
+  const isSafeToClick = (el: Clickable | null | undefined): el is Clickable =>
     !!el &&
     el.isConnected &&
     !el.hasAttribute('aria-pressed') &&
@@ -146,7 +176,7 @@ export function createHostPage({ shaToPath, pathToSha, allPaths, hostId, panelId
     !el.closest('#' + hostId);
 
   /** The file's own expand toggle while it's collapsed, else null. */
-  function collapsedToggle(el) {
+  function collapsedToggle(el: Element): Clickable | null {
     // /changes
     for (const button of el.querySelectorAll('button')) {
       if (/^expand file$/i.test(labelOf(button)) && isSafeToClick(button)) {
@@ -154,7 +184,7 @@ export function createHostPage({ shaToPath, pathToSha, allPaths, hostId, panelId
       }
     }
     // /files
-    for (const button of el.querySelectorAll(
+    for (const button of el.querySelectorAll<HTMLElement>(
       '.file-header .js-details-target[aria-expanded="false"]',
     )) {
       if (/toggle diff contents/i.test(labelOf(button)) && isSafeToClick(button)) {
@@ -164,12 +194,12 @@ export function createHostPage({ shaToPath, pathToSha, allPaths, hostId, panelId
     return null;
   }
   /** "Load diff", on a large or generated file GitHub doesn't draw until asked. */
-  const loadDiffButton = (el) =>
+  const loadDiffButton = (el: Element): Clickable | null =>
     [...el.querySelectorAll('button')].find(
       (button) => /^\s*load diff\s*$/i.test(button.textContent) && isSafeToClick(button),
     ) || null;
   /** /changes' "Expand all lines: <path>" header button, which draws the whole file. */
-  const expandAllButton = (el) =>
+  const expandAllButton = (el: Element): Clickable | null =>
     [...el.querySelectorAll('button')].find(
       (button) =>
         (button.classList.contains('js-expand-all-difflines-button') ||
@@ -178,23 +208,23 @@ export function createHostPage({ shaToPath, pathToSha, allPaths, hostId, panelId
     ) || null;
 
   /** One row of a file's table, for expandStep: {gap, controls} for a hunk row, else {n} on that side. */
-  function rowModel(row, sha, side) {
-    const controls = [...row.querySelectorAll('button[data-direction], .js-expand')];
+  function rowModel(row: Element, sha: string, side: Side): ExpandRow {
+    const controls = [...row.querySelectorAll<HTMLElement>('button[data-direction], .js-expand')];
     if (
       controls.length ||
       row.matches('.js-expandable-line') ||
       row.querySelector('.diff-hunk-cell, .blob-code-hunk')
     ) {
-      const byDirection = {};
+      const byDirection: Partial<Record<ExpandDir, Clickable>> = {};
       for (const control of controls) {
         const direction = expandDirOf(control.getAttribute('data-direction'), labelOf(control));
         if (direction && !byDirection[direction] && isSafeToClick(control)) {
           byDirection[direction] = control;
         }
       }
-      return { gap: Object.keys(byDirection), controls: byDirection };
+      return { gap: Object.keys(byDirection) as ExpandDir[], controls: byDirection };
     }
-    let line = null;
+    let line: number | null = null;
     for (const cell of row.querySelectorAll('[data-line-anchor], td[id^="diff-"]')) {
       const match = LINE_ID.exec(cell.getAttribute('data-line-anchor') || cell.id);
       if (match && match[1] === sha && match[2] === side) {
@@ -205,7 +235,8 @@ export function createHostPage({ shaToPath, pathToSha, allPaths, hostId, panelId
     if (line == null && side === 'L') {
       const keyCell = row.querySelector('.diff-line-number-neutral[data-diff-line-key]');
       const match =
-        keyCell && /(?:^|-)l:(\d+)(?:-|$)/.exec(keyCell.getAttribute('data-diff-line-key'));
+        keyCell &&
+        /(?:^|-)l:(\d+)(?:-|$)/.exec(keyCell.getAttribute('data-diff-line-key') as string);
       if (match) {
         line = +match[1];
       }
@@ -214,8 +245,8 @@ export function createHostPage({ shaToPath, pathToSha, allPaths, hostId, panelId
   }
 
   /** File-tree rows: [{rel|dir, el}]. */
-  function treeRows() {
-    const rows = [];
+  function treeRows(): TreeRow[] {
+    const rows: TreeRow[] = [];
     for (const el of document.querySelectorAll('[role="tree"] [role="treeitem"]')) {
       if (el.closest('#' + panelId)) {
         continue;
@@ -235,7 +266,10 @@ export function createHostPage({ shaToPath, pathToSha, allPaths, hostId, panelId
       );
       const type = el.getAttribute('data-tree-entry-type');
       if (link && type !== 'directory' && type !== 'root') {
-        rows.push({ rel: shaToPath.get(link.getAttribute('href').split('#diff-')[1]), el });
+        rows.push({
+          rel: shaToPath.get((link.getAttribute('href') as string).split('#diff-')[1]),
+          el,
+        });
       } else if (type === 'directory' || type === 'root') {
         rows.push({ dir: null, el });
       }
@@ -244,9 +278,9 @@ export function createHostPage({ shaToPath, pathToSha, allPaths, hostId, panelId
   }
 
   /** The file at the top of the screen (under GitHub's sticky header), else the next one down that shows. */
-  function fileAtTop() {
+  function fileAtTop(): string | null {
     const topY = 140;
-    let best = null;
+    let best: { rel: string; top: number } | null = null;
     for (const { rel, el } of fileBlocks()) {
       if (el.hasAttribute('data-ou-hidden')) {
         continue;
@@ -283,3 +317,5 @@ export function createHostPage({ shaToPath, pathToSha, allPaths, hostId, panelId
     fileAtTop,
   };
 }
+
+export type HostPage = ReturnType<typeof createHostPage>;

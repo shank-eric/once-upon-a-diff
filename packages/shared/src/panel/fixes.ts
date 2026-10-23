@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * Fix before push: the story's notes, which collect as drafts (Add to fix before push on a drafted comment, or a
  * line note on the local page) until Send N notes to <session> hands them to a Claude session as one fix request.
@@ -17,10 +15,14 @@ import { setHtml } from '../util/dom.ts';
 import { plural, shortSha } from '../util/text.ts';
 import { shortDateTime } from '../util/time.ts';
 import { refAttrs } from './file-refs.ts';
+import type { PanelContext } from './context.ts';
+import type { FixNote, FixesView } from '../types.ts';
+
+type FixSummary = { drafts: number; send: string | null; counts: string };
 
 /** {drafts, send, counts}: how many notes a send takes, its button's label (null with none), and the tally. */
-export function fixSummary({ notes, to }) {
-  const count = (state) => notes.filter((note) => note.state === state).length;
+export function fixSummary({ notes, to }: Pick<FixesView, 'notes' | 'to'>): FixSummary {
+  const count = (state: FixNote['state']) => notes.filter((note) => note.state === state).length;
   const drafts = count('draft');
   const sent = count('sent');
   const fixed = count('fixed');
@@ -40,15 +42,15 @@ const SEND_TITLE =
   'as your repo rules say and never pushes. Sent notes are locked until it reports back.';
 const TAKE_BACK_TITLE = 'Brings these notes back as drafts, to edit or send again';
 
-export function createFixes(context) {
+export function createFixes(context: PanelContext) {
   const { state, opts, shell } = context;
   const { $ } = shell;
-  let view = null; // the bridge's {notes, auto_send, to, requests}
-  let editing = null; // the id of the note whose text is being edited
+  let view: FixesView | null = null; // the bridge's {notes, auto_send, to, requests}
+  let editing: string | null = null; // the id of the note whose text is being edited
   let busy = false;
 
   /** The notes this step lists: every one on the Overview, else the ones on the chapter's files. */
-  function shownNotes() {
+  function shownNotes(): FixNote[] {
     if (!view) {
       return [];
     }
@@ -59,7 +61,7 @@ export function createFixes(context) {
     return view.notes.filter((note) => files.has(note.path));
   }
 
-  function placeHtml(note) {
+  function placeHtml(note: FixNote) {
     const line = Number(note.line) > 0 ? note.line : null;
     const where = `${note.path}${line ? `:${note.side === 'L' ? 'L' : ''}${line}` : ''}`;
     const attrs = line
@@ -69,14 +71,15 @@ export function createFixes(context) {
   }
 
   /** Where the note has got, under its text. */
-  function stateHtml(note) {
+  function stateHtml(note: FixNote) {
+    // a note is fixed when it has `fixed`, sent when it has `sent`
     if (note.state === 'fixed') {
-      const fixer = note.fixed.by && ` by ${note.fixed.by}`;
-      return html`<span class="ou-ok">Fixed in ${shortSha(note.fixed.sha)} ✓</span>${fixer}`;
+      const fixer = note.fixed!.by && ` by ${note.fixed!.by}`;
+      return html`<span class="ou-ok">Fixed in ${shortSha(note.fixed!.sha)} ✓</span>${fixer}`;
     }
     if (note.state === 'sent') {
-      const sentTo = note.sent.to || 'the next Claude session that listens';
-      return html`<span class="ou-pend">Sent to ${sentTo}</span> · ${shortDateTime(note.sent.at)}`;
+      const sentTo = note.sent!.to || 'the next Claude session that listens';
+      return html`<span class="ou-pend">Sent to ${sentTo}</span> · ${shortDateTime(note.sent!.at)}`;
     }
     if (note.returned) {
       const from = note.returned.sha && ` from ${shortSha(note.returned.sha)}`;
@@ -85,7 +88,7 @@ export function createFixes(context) {
     return html`<span class="ou-cdraft">Draft</span>, not sent`;
   }
 
-  function noteHtml(note) {
+  function noteHtml(note: FixNote) {
     const draft = note.state === 'draft';
     const buttons =
       draft &&
@@ -99,12 +102,13 @@ export function createFixes(context) {
   }
 
   /** Send, Auto-send, and Take back for each request still with a session. */
-  function toolsHtml(summary) {
+  function toolsHtml(summary: FixSummary) {
+    // drawn only with the bridge's view
     const send =
       summary.send &&
       html`<button data-fix-act="send" title="${SEND_TITLE}">${summary.send}</button>`;
-    const auto = html`<label class="ou-fixauto" title="${AUTO_TITLE}"><input type="checkbox" data-fix-act="auto"${view.auto_send && html` checked`}> Auto-send</label>`;
-    const takeBack = view.requests
+    const auto = html`<label class="ou-fixauto" title="${AUTO_TITLE}"><input type="checkbox" data-fix-act="auto"${view!.auto_send && html` checked`}> Auto-send</label>`;
+    const takeBack = view!.requests
       .filter((request) => request.status === 'pending')
       .map((request) => {
         const notes = plural(request.notes.length, 'note');
@@ -113,7 +117,7 @@ export function createFixes(context) {
       });
     const nobody =
       summary.send &&
-      !view.to &&
+      !view!.to &&
       html`<div class="ou-quiet">No Claude session takes fix requests for this story yet: a send waits for the next one.</div>`;
     return html`<div class="ou-fixtools">${send}${auto}${takeBack}</div>${nobody}`;
   }
@@ -128,7 +132,7 @@ export function createFixes(context) {
       return;
     }
     // a redraw while a note is being edited keeps what was typed
-    const typing = box.querySelector('.ou-fixedit');
+    const typing = box.querySelector<HTMLTextAreaElement>('.ou-fixedit');
     const typed = typing ? typing.value : null;
     const summary = fixSummary(view);
     const notes = shownNotes();
@@ -141,7 +145,7 @@ export function createFixes(context) {
       box,
       html`<h2 class="ou-h">Fix before push (${view.notes.length}) <span class="ou-draftsum">${counts}</span></h2>${toolsHtml(summary)}${notes.map(noteHtml)}${more}`,
     );
-    const textarea = box.querySelector('.ou-fixedit');
+    const textarea = box.querySelector<HTMLTextAreaElement>('.ou-fixedit');
     if (textarea) {
       if (typed !== null) {
         textarea.value = typed;
@@ -152,7 +156,7 @@ export function createFixes(context) {
   }
 
   /** Takes the bridge's view, redraws, and tells the host (the local page re-places its notes) and the drafts. */
-  function take(next) {
+  function take(next: FixesView | null | undefined) {
     if (!next || !Array.isArray(next.notes)) {
       return;
     }
@@ -162,8 +166,8 @@ export function createFixes(context) {
       return;
     }
     render();
-    if (opts.fixes.onChange) {
-      opts.fixes.onChange(view);
+    if (opts.fixes!.onChange) {
+      opts.fixes!.onChange(view); // the bridge's view only comes through opts.fixes
     }
     context.drafts.refresh(true);
   }
@@ -180,7 +184,7 @@ export function createFixes(context) {
   }
 
   /** A click on a [data-fix-act] control (the body's click handler sends it here). */
-  async function act(control) {
+  async function act(control: HTMLButtonElement | HTMLInputElement) {
     const action = control.getAttribute('data-fix-act');
     const item = control.closest('[data-note-id]');
     const noteId = item ? item.getAttribute('data-note-id') : null;
@@ -204,7 +208,7 @@ export function createFixes(context) {
         );
         take(next);
       } else if (action === 'auto') {
-        take(await opts.fixes.act({ action: 'auto', on: control.checked }));
+        take(await opts.fixes.act({ action: 'auto', on: (control as HTMLInputElement).checked }));
       } else if (action === 'take_back') {
         take(
           await opts.fixes.act({
@@ -216,7 +220,7 @@ export function createFixes(context) {
         await opts.fixes.note(noteId, { delete: true });
         await refresh();
       } else if (action === 'save') {
-        const text = item.querySelector('.ou-fixedit').value.trim();
+        const text = item!.querySelector<HTMLTextAreaElement>('.ou-fixedit')!.value.trim(); // Save is on a note
         if (text) {
           await opts.fixes.note(noteId, { body: text });
         }
@@ -225,7 +229,9 @@ export function createFixes(context) {
         render();
       }
     } catch (err) {
-      shell.message(`Couldn't save that: ${err && err.message ? err.message : err}`);
+      shell.message(
+        `Couldn't save that: ${err && (err as Error).message ? (err as Error).message : err}`,
+      );
       await refresh();
     } finally {
       busy = false;
@@ -237,3 +243,5 @@ export function createFixes(context) {
 
   return { render, refresh, act };
 }
+
+export type Fixes = ReturnType<typeof createFixes>;

@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * What changed since: the marks on the step list and the file list. They
  * come from two of the bridge's answers: freshness (commits after the story
@@ -12,11 +10,27 @@
 import { html } from '../util/html.ts';
 import { insertHtml } from '../util/dom.ts';
 import { shortSha } from '../util/text.ts';
+import type { FreshUpdate, Freshness, ReadInfo } from '../types.ts';
 
-const range = (mark) => `${shortSha(mark.since)}..${shortSha(mark.until)}`;
+/** One "changed since" mark: why, the steps it lights, the files it tags, and the commits. */
+export interface ChangeMark {
+  why: 'story' | 'update' | 'read';
+  steps: number[];
+  files: string[];
+  since: string | null | undefined;
+  until: string | null | undefined;
+  /** a read mark tags its files only on its own step */
+  onlyOn: number | null;
+}
+import type { PanelContext } from './context.ts';
+
+const range = (mark: ChangeMark) => `${shortSha(mark.since)}..${shortSha(mark.until)}`;
 
 /** The wording per why: the file list's tag, the step list's tag, and their hovers. */
-const WORDING = {
+const WORDING: Record<
+  ChangeMark['why'],
+  Record<'file' | 'fileTitle' | 'step' | 'stepTitle', (mark: ChangeMark) => string>
+> = {
   story: {
     file: () => 'changed since story',
     fileTitle: () => 'Changed in a commit after the one the story was told from',
@@ -43,12 +57,16 @@ const WORDING = {
 /**
  * The marks to draw: [{why, steps, files, since, until, onlyOn}], why 'story' | 'update' | 'read'. A mark lights its
  * steps in the step list and its files in the file list; a read mark's files only on its own step (onlyOn).
- * @param {object|null} fresh opts.freshness()'s answer
- * @param {object|null} reads opts.reads()'s answer
+ * fresh is opts.freshness()'s answer, reads opts.reads()'s.
  */
-export function marksOf(fresh, reads) {
-  const marks = [];
-  const change = (why, from, since, until) => ({
+export function marksOf(fresh: Freshness | null, reads: ReadInfo | null): ChangeMark[] {
+  const marks: ChangeMark[] = [];
+  const change = (
+    why: ChangeMark['why'],
+    from: Freshness | FreshUpdate,
+    since: string | null | undefined,
+    until: string | null | undefined,
+  ): ChangeMark => ({
     why,
     steps: from.chapters_touched || [],
     files: from.changed_files || [],
@@ -74,10 +92,10 @@ export function marksOf(fresh, reads) {
   return marks;
 }
 
-export function createMarks(context) {
+export function createMarks(context: PanelContext) {
   const { state, shell } = context;
 
-  const tag = (mark, where) => {
+  const tag = (mark: ChangeMark, where: 'file' | 'step') => {
     const words = WORDING[mark.why];
     const title = where === 'file' ? words.fileTitle(mark) : words.stepTitle(mark);
     const text = where === 'file' ? words.file(mark) : words.step(mark);
@@ -98,11 +116,13 @@ export function createMarks(context) {
     const here = marks.filter((mark) => mark.onlyOn === null || mark.onlyOn === state.n);
     for (const item of shell.root.querySelectorAll('ul.ou-files > li[data-file]')) {
       const rel = item.getAttribute('data-file');
-      for (const mark of here.filter((candidate) => candidate.files.includes(rel))) {
-        insertHtml(item.querySelector('code'), 'afterend', tag(mark, 'file'));
+      for (const mark of here.filter((candidate) => candidate.files.includes(rel as string))) {
+        insertHtml(item.querySelector('code') as Element, 'afterend', tag(mark, 'file'));
       }
     }
   }
 
   return { render };
 }
+
+export type Marks = ReturnType<typeof createMarks>;

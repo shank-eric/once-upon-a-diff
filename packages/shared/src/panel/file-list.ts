@@ -1,24 +1,28 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * The file list: "Files in this chapter" (or the Overview's "All files"),
  * each file with its status in this chapter (Mark viewed, done in an earlier
  * chapter, or nothing when a later chapter finishes it) and its line links.
  */
-import { html } from '../util/html.ts';
+import { html, type HtmlValue } from '../util/html.ts';
 import { refAttrs } from './file-refs.ts';
 import { markViewedButton } from './viewed.ts';
+import type { ChapterLines } from '../types.ts';
+import type { FileStatus } from './story-model.ts';
+import type { PanelContext } from './context.ts';
 
 /** "chapters 1, 3": which chapters list a file. */
-const chaptersLabel = (prefix, steps, list) =>
+/** A row's file: a chapter's entry, or one of the story's files on the Overview. */
+type FileEntry = { rel: string; partial?: boolean; note?: string | null; lines?: ChapterLines[] };
+
+const chaptersLabel = (prefix: string, steps: number[], list: (steps: number[]) => string) =>
   `${prefix}${steps.length > 1 ? 's' : ''} ${list(steps)}`;
 
-export function createFileList(context) {
+export function createFileList(context: PanelContext) {
   const { story, state } = context;
   const { data } = story;
 
   /** The line under the file's name: where it's finished, or what this chapter covers of it. */
-  function whyText(file, step, status) {
+  function whyText(file: FileEntry, step: number, status: FileStatus | null): string {
     if (step === 0) {
       return chaptersLabel('chapter', story.chaptersOf(file.rel), story.chapterList);
     }
@@ -28,7 +32,7 @@ export function createFileList(context) {
     return `${status ? status.text : ''}${file.partial && status && file.note ? ` (here: ${file.note})` : ''}`;
   }
 
-  function lineItems(file) {
+  function lineItems(file: FileEntry) {
     return (file.lines || []).map((line) => {
       const side = line.side === 'L' ? 'L' : 'R';
       const span =
@@ -40,13 +44,13 @@ export function createFileList(context) {
   }
 
   /** One file's row in step `step`'s list. */
-  function fileItem(file, step) {
+  function fileItem(file: FileEntry, step: number) {
     const status = context.fileStatus(file.rel, step);
     const why = whyText(file, step, status);
     // a file this chapter finishes: a Mark viewed button, which the viewed tracker turns into "Viewed ✓" while its Viewed toggle is on
     const mark = step && status && status.kind === 'mark';
     const whyHtml = mark
-      ? html`${markViewedButton(file.rel)}${why.slice(status.text.length)}`
+      ? html`${markViewedButton(file.rel)}${why.slice((status as FileStatus).text.length)}`
       : why;
     const whyKind = status && status.kind !== 'later' ? ` ou-st-${status.kind}` : '';
     const lines = lineItems(file);
@@ -56,7 +60,7 @@ export function createFileList(context) {
   }
 
   /** "4 to mark viewed · 2 come back later · 1 already finished" for chapter `step`. */
-  function filesSummary(step) {
+  function filesSummary(step: number): string {
     const kinds = { mark: 0, later: 0, done: 0 };
     for (const file of data.chapters[step - 1].files) {
       const status = context.fileStatus(file.rel, step);
@@ -74,10 +78,12 @@ export function createFileList(context) {
   }
 
   /** The folded list under its heading; it remembers whether it was open (state.filesOpen). */
-  function filesBox(title, summary, items) {
+  function filesBox(title: string, summary: string, items: HtmlValue[]) {
     const summaryHtml = summary && html`<span class="ou-sum">${summary}</span>`;
     return html`<details class="ou-filesbox"${state.filesOpen && html` open`}><summary><h2 class="ou-h">${title}</h2>${summaryHtml}</summary><ul class="ou-files">${items}</ul></details>`;
   }
 
   return { fileItem, filesSummary, filesBox };
 }
+
+export type FileList = ReturnType<typeof createFileList>;

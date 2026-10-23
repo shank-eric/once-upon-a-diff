@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * Jumping to a file or lines from a link in the panel: open the file if it's
  * collapsed (expand.js), scroll it under GitHub's header, and highlight it
@@ -7,13 +5,16 @@
  * moves the target, so the scroll is settled again for ≈2s.
  */
 import { baseName } from '../util/text.ts';
+import type { PanelContext } from './context.ts';
+import type { Side } from '../types.ts';
+import type { LineRef } from '../util/line-refs.ts';
 
 const FLASH_MS = 4000;
 const SETTLE_DELAYS = [80, 200, 400, 700, 1100, 1600, 2200];
 const SETTLE_SLACK_PX = 24;
 const HEADER_PX = 72;
 
-export function createScroller(context) {
+export function createScroller(context: PanelContext) {
   const { story, opts, page, shell } = context;
   const { message } = shell;
   const host = context.hostName;
@@ -21,13 +22,13 @@ export function createScroller(context) {
   // Highlight rows for a few seconds. GitHub's React view can swap a row for a new
   // element as it renders around the scroll, so the rows are found again (getElements) each time.
   let flashTimer = 0;
-  let flashing = () => [];
+  let flashing: () => Element[] = () => [];
   function clearFlash() {
     for (const el of document.querySelectorAll('[data-ou-flash]')) {
       el.removeAttribute('data-ou-flash');
     }
   }
-  function flash(getElements) {
+  function flash(getElements: Element[] | (() => Element[])) {
     const find = typeof getElements === 'function' ? getElements : () => getElements;
     clearFlash();
     flashing = find;
@@ -42,8 +43,8 @@ export function createScroller(context) {
   }
 
   /** Where on the screen a target goes: under the header, or a share of the window's height. */
-  const spot = (share) => (share ? window.innerHeight * share : HEADER_PX);
-  function scrollWindowTo(el, share) {
+  const spot = (share?: number) => (share ? window.innerHeight * share : HEADER_PX);
+  function scrollWindowTo(el: Element, share?: number) {
     const top = el.getBoundingClientRect().top + window.scrollY - spot(share);
     window.scrollTo({ top: Math.max(0, top) });
   }
@@ -52,7 +53,7 @@ export function createScroller(context) {
   // down after the first scroll. So look again for ≈2s and scroll back onto it,
   // until it holds still or the reviewer scrolls.
   let settleToken = 0;
-  function settle(getElement, share) {
+  function settle(getElement: () => Element | null | undefined, share?: number) {
     const mine = ++settleToken;
     let ours = true;
     const stop = () => {
@@ -87,7 +88,7 @@ export function createScroller(context) {
     );
   }
 
-  function scrollToFile(rel, quiet) {
+  function scrollToFile(rel: string, quiet?: boolean): boolean {
     const block = page.blockOf(rel);
     if (!block) {
       if (!quiet) {
@@ -110,17 +111,20 @@ export function createScroller(context) {
   }
 
   /** The drawn line nearest `line` on this file's side, when the page doesn't have that one. */
-  function nearestDrawnLine(rel, side, line) {
+  function nearestDrawnLine(rel: string, side: Side, line: number) {
     const prefix = `diff-${story.pathToSha.get(rel)}${side}`;
     return [...document.querySelectorAll(`[data-line-anchor^="${prefix}"]`)]
       .filter((cell) => !cell.closest('.diff-hunk-cell') && page.isDrawn(cell))
-      .map((cell) => ({ cell, line: +cell.getAttribute('data-line-anchor').slice(prefix.length) }))
+      .map((cell) => ({
+        cell,
+        line: +(cell.getAttribute('data-line-anchor') as string).slice(prefix.length),
+      }))
       .filter((candidate) => candidate.line > 0)
       .sort((first, second) => Math.abs(first.line - line) - Math.abs(second.line - line))[0];
   }
 
   /** Scroll a line range into view and highlight it. jumpTo expands the file and hunks first. */
-  function scrollToLine(rel, side, startLine, endLine) {
+  function scrollToLine(rel: string, side: Side, startLine: number, endLine?: number): boolean {
     if (opts.reveal) {
       opts.reveal(rel, side, startLine, endLine || startLine);
     }
@@ -145,9 +149,9 @@ export function createScroller(context) {
       );
       return false;
     }
-    const rowOf = (cell) => cell.closest('tr') || cell;
+    const rowOf = (cell: Element) => cell.closest('tr') || cell;
     const rowsNow = () => {
-      const rows = [];
+      const rows: Element[] = [];
       const last = Math.max(startLine, endLine || startLine);
       for (let line = startLine; line <= last && line < startLine + 400; line++) {
         const cell = page.lineCell(rel, side, line);
@@ -178,7 +182,7 @@ export function createScroller(context) {
    * not drawn until asked) and the hunks around the line, then scroll and highlight.
    * Only this expands anything, never a step change or a page change on its own.
    */
-  async function jumpTo(rel, line) {
+  async function jumpTo(rel: string, line?: LineRef | null): Promise<void> {
     if (opts.reveal) {
       if (line) {
         opts.reveal(rel, line.side, line.start, line.end);
@@ -216,3 +220,5 @@ export function createScroller(context) {
 
   return { jumpTo, scrollToFile, scrollToLine, destroy };
 }
+
+export type Scroller = ReturnType<typeof createScroller>;

@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * Once Upon a Diff panel. It started as the once-upon skill's GitHub overlay
  * snippet, since retired, and is loaded two ways:
@@ -97,6 +95,11 @@ import { createDrafts } from './panel/drafts.ts';
 import { createQuestions } from './panel/questions.ts';
 import { createFixes } from './panel/fixes.ts';
 import { createWorking } from './panel/working.ts';
+import type { Pulse, StoryData } from './types.ts';
+import type { PanelContext, PanelOptions } from './panel/context.ts';
+
+export type { PanelContext, PanelOptions } from './panel/context.ts';
+export type { InitialUi } from './panel/panel-state.ts';
 
 // the pure helpers the content script, the local page and the tests use
 export { draftView, shownIn } from './panel/drafts.ts';
@@ -118,12 +121,16 @@ const TICK_MS = 5000;
 const STATUS_EVERY = 6;
 const SLOW_EVERY = 12;
 
-export function storyOverlay(input, opts = {}) {
+/** A pulse, or {down: true} when the bridge didn't answer. */
+type PulseLook = Partial<Pulse> & { down?: boolean };
+
+export function storyOverlay(input: StoryData, opts: PanelOptions) {
   if (window.__onceUponOverlay) {
     window.__onceUponOverlay.destroy();
   }
   const story = createStoryModel(input);
   const initial = opts.initial || {};
+  // the parts go on below, before any of them is called: each reaches the others through it at call time
   const context = {
     hostId: HOST_ID,
     panelId: PANEL_ID,
@@ -134,12 +141,12 @@ export function storyOverlay(input, opts = {}) {
     // when this page loaded: a draft added after it isn't on the page yet
     pageLoadedAt: (globalThis.performance && performance.timeOrigin) || Date.now(),
     commentsTitle: opts.commentsTitle || 'Draft comments',
-  };
+  } as PanelContext;
   Object.assign(context, stateHelpers(context));
   const { state } = context;
 
   // the previous pulse. The first is asked before the parts' first loads, so nothing that changes after them is missed.
-  let last = null;
+  let last: PulseLook | null = null;
   if (opts.pulse) {
     opts.pulse().then(
       (pulse) => {
@@ -200,10 +207,10 @@ export function storyOverlay(input, opts = {}) {
       }
       return;
     }
-    const pulse = await opts.pulse().catch(() => ({ down: true }));
-    const moved = (key) => !!last && pulse[key] !== last[key];
+    const pulse: PulseLook = await opts.pulse().catch(() => ({ down: true }));
+    const moved = (key: keyof PulseLook) => !!last && pulse[key] !== last[key];
     if (opts.onPulse && !pulse.down) {
-      opts.onPulse(pulse);
+      opts.onPulse(pulse as Pulse);
     }
     if (moved('questions_rev')) {
       context.questions.refresh();
@@ -277,7 +284,7 @@ export function storyOverlay(input, opts = {}) {
   shell.setCollapsed(state.collapsed);
   context.body.render();
   if (Number.isFinite(initial.bodyScroll)) {
-    shell.$('.ou-body').scrollTop = initial.bodyScroll; // a live redraw keeps your place
+    shell.$('.ou-body')!.scrollTop = initial.bodyScroll as number; // a live redraw keeps your place
   }
   context.drafts.refresh(true);
   context.freshness.refresh();
@@ -307,7 +314,7 @@ export function storyOverlay(input, opts = {}) {
       return context.statusLight.current;
     },
     get bodyScroll() {
-      return shell.$('.ou-body').scrollTop;
+      return shell.$('.ou-body')!.scrollTop;
     },
     refreshHealth: context.statusLight.refresh,
     summary() {
@@ -322,3 +329,6 @@ export function storyOverlay(input, opts = {}) {
   window.__onceUponOverlay = api;
   return api;
 }
+
+/** What storyOverlay returns: the panel on the page, for its host. */
+export type StoryOverlay = ReturnType<typeof storyOverlay>;

@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * Rebuild: when the story reads wrong, the reviewer asks for it to be told
  * again, all of it ("Rebuild story…" on the Overview) or from the chapter on
@@ -14,12 +12,14 @@
 import { html } from '../util/html.ts';
 import { setHtml } from '../util/dom.ts';
 import { clockTime } from '../util/time.ts';
+import type { PanelContext } from './context.ts';
+import type { RebuildAsk, RebuildView } from '../types.ts';
 
 /** How long the panel says a rebuild finished, after it did. */
 export const DONE_SHOWN_MS = 30 * 60 * 1000;
 
 /** The request for a rebuild asked on `step` (0, the Overview, or 1: the whole story). */
-export function rebuildAsk(step, guidance = '') {
+export function rebuildAsk(step: number, guidance = ''): RebuildAsk {
   const note = String(guidance || '').trim();
   const from = Number(step) > 1 ? Number(step) : 1;
   return {
@@ -31,11 +31,11 @@ export function rebuildAsk(step, guidance = '') {
 }
 
 /** Is the rebuild still to be done? */
-export const rebuildPending = (rebuild) =>
+export const rebuildPending = (rebuild: RebuildView | null): boolean =>
   !!rebuild && (rebuild.state === 'queued' || rebuild.state === 'building');
 
 /** The status line for the story's rebuild ('' when there's nothing to say). */
-export function rebuildLine(rebuild, now = Date.now()) {
+export function rebuildLine(rebuild: RebuildView | null, now = Date.now()): string {
   if (!rebuild) {
     return '';
   }
@@ -63,17 +63,17 @@ export function rebuildLine(rebuild, now = Date.now()) {
 const GUIDANCE_PLACEHOLDER =
   'What should change? (optional) For example: chapter 3 tells the save flow backwards';
 
-export function createRebuild(context) {
+export function createRebuild(context: PanelContext) {
   const { state, opts, shell } = context;
   const { $ } = shell;
-  let current = null; // the pulse's rebuild
-  let formFor = null; // the step whose "what should change" box is open
+  let current: RebuildView | null = null; // the pulse's rebuild
+  let formFor: number | null = null; // the step whose "what should change" box is open
   let draft = ''; // what they typed, kept across redraws
 
   const pending = () => rebuildPending(current);
 
   /** What a rebuild from `step` keeps and re-tells, said before they ask. */
-  function explain(step) {
+  function explain(step: number): string {
     if (step <= 1) {
       return 'A Claude session tells the whole story again on the current diff, at the same link. Drafts whose line is still in the diff are kept, the others are kept and flagged, and questions move to the chapter that tells their file.';
     }
@@ -89,13 +89,13 @@ export function createRebuild(context) {
     return `${kept} Chapter ${step} and the ones after it are told again, and every file and hunk the kept chapters don’t tell still gets a place. Their drafts and questions are kept.${stale}`;
   }
 
-  function boxHtml(step) {
+  function boxHtml(step: number) {
     let label = step ? 'Rebuild from here…' : 'Rebuild story…';
     const title = step
       ? 'Keep the chapters before this one and tell this one and the rest again'
       : 'Tell the whole story again on the current diff';
     if (pending()) {
-      label = current.state === 'building' ? 'Rebuilding…' : 'Rebuild queued';
+      label = (current as RebuildView).state === 'building' ? 'Rebuilding…' : 'Rebuild queued';
     }
     const open = formFor === step && !pending();
     if (open) {
@@ -107,7 +107,7 @@ export function createRebuild(context) {
   }
 
   function renderStatus() {
-    const line = $('.ou-rebuilding');
+    const line = $('.ou-rebuilding')!;
     const text = rebuildLine(current);
     line.textContent = text;
     line.hidden = !text;
@@ -127,7 +127,7 @@ export function createRebuild(context) {
     }
     const step = state.n;
     setHtml(box, boxHtml(step));
-    const openButton = box.querySelector('.ou-rebuild-open');
+    const openButton = box.querySelector<HTMLButtonElement>('.ou-rebuild-open');
     if (openButton) {
       openButton.onclick = () => {
         formFor = step;
@@ -139,11 +139,11 @@ export function createRebuild(context) {
     if (!form) {
       return;
     }
-    const text = form.querySelector('textarea');
+    const text = form.querySelector('textarea') as HTMLTextAreaElement;
     text.oninput = () => {
       draft = text.value;
     };
-    form.querySelector('[data-rebuild-cancel]').onclick = () => {
+    form.querySelector<HTMLButtonElement>('[data-rebuild-cancel]')!.onclick = () => {
       formFor = null;
       render();
     };
@@ -153,13 +153,13 @@ export function createRebuild(context) {
     };
   }
 
-  async function send(step, guidance) {
-    const submit = $('.ou-body .ou-rebuild-form button[type="submit"]');
+  async function send(step: number, guidance: string) {
+    const submit = $<HTMLButtonElement>('.ou-body .ou-rebuild-form button[type="submit"]');
     if (submit) {
       submit.disabled = true;
     }
     try {
-      const answer = await opts.requestRebuild(rebuildAsk(step, guidance));
+      const answer = await opts.requestRebuild!(rebuildAsk(step, guidance)); // the form shows only with it
       formFor = null;
       draft = '';
       current = (answer && answer.rebuild) || current;
@@ -169,13 +169,15 @@ export function createRebuild(context) {
           : 'Asked for a rebuild of the whole story. A Claude session picks it up from the inbox.',
       );
     } catch (e) {
-      shell.message(`Couldn't ask for a rebuild: ${e && e.message ? e.message : e}`);
+      shell.message(
+        `Couldn't ask for a rebuild: ${e && (e as Error).message ? (e as Error).message : e}`,
+      );
     }
     render();
   }
 
   /** The pulse's `rebuild`: redraw when it changed. */
-  function update(next) {
+  function update(next: RebuildView | null | undefined) {
     const value = next || null;
     if (JSON.stringify(value) === JSON.stringify(current)) {
       return;
@@ -192,3 +194,5 @@ export function createRebuild(context) {
     },
   };
 }
+
+export type Rebuild = ReturnType<typeof createRebuild>;

@@ -1,5 +1,3 @@
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment -- typed in the next commit
-// @ts-nocheck
 /*
  * The story as the panel reads it: chapters and their numbers, where each
  * file is finished (marked viewed). No DOM
@@ -15,9 +13,25 @@
  * with. A file one of them lists is marked viewed there (the newest one wins),
  * since the chapters after it were already read.
  */
+import type { StoryData } from '../types.ts';
+
+/** What chapter `step` tells the reviewer about a file it lists. */
+export interface FileStatus {
+  kind: 'done' | 'later' | 'mark';
+  text: string;
+  short: string;
+}
+
+/** Just what the pure helpers read of a chapter, so the bridge can pass chapters.json's own. */
+interface ChapterFiles {
+  files?: { rel: string }[];
+  since?: unknown;
+}
 
 /** A chapter's stable key, as the bridge's read.json uses it: its `key`, else its title without "Chapter N:". */
-export function chapterKeyOf(chapter) {
+export function chapterKeyOf(
+  chapter: { key?: unknown; title?: unknown } | null | undefined,
+): string {
   if (chapter && typeof chapter.key === 'string' && chapter.key.trim()) {
     return chapter.key.trim().slice(0, 200);
   }
@@ -33,8 +47,8 @@ export function chapterKeyOf(chapter) {
  * Where each file is marked viewed: the LAST chapter that lists it (earlier ones leave it untagged),
  * except that a "Since you read it" chapter (one with `since`) finishes its files, the newest (first) one winning.
  */
-export function finishedInOf(chapters) {
-  const finishedIn = {};
+export function finishedInOf(chapters: ChapterFiles[]): Record<string, number> {
+  const finishedIn: Record<string, number> = {};
   chapters.forEach((chapter, index) =>
     (chapter.files || []).forEach((file) => {
       finishedIn[file.rel] = index + 1;
@@ -51,7 +65,7 @@ export function finishedInOf(chapters) {
 }
 
 /** Each step's chapter number, or null for a "Since you read it" chapter: those aren't numbered, so the rest keep the numbers they were read with. */
-export function chapterNumbers(chapters) {
+export function chapterNumbers(chapters: { since?: unknown }[]): (number | null)[] {
   let count = 0;
   return chapters.map((chapter) => (chapter.since ? null : ++count));
 }
@@ -59,7 +73,7 @@ export function chapterNumbers(chapters) {
 const CHAPTER_HEADING = /^#{1,6}\s+Chapter\s+\d+\b/m;
 
 /** Moves a story map at the top of a chapter's narrative to the Overview. Returns the Overview's markdown. */
-function takeStoryMap(data) {
+function takeStoryMap(data: StoryData): string {
   let overview = data.overview || '';
   for (const chapter of data.chapters) {
     const text = chapter.narrative || '';
@@ -69,7 +83,7 @@ function takeStoryMap(data) {
       if (!overview) {
         overview = before.trim();
       }
-      chapter.narrative = text.slice(heading.index);
+      chapter.narrative = text.slice(heading!.index); // a story map only comes before a heading
     }
   }
   return overview;
@@ -79,8 +93,8 @@ function takeStoryMap(data) {
  * The panel's read-only view of a story (a deep copy of the input, with the story map moved to the Overview).
  * Steps are 1-based chapter indexes; 0 is the Overview.
  */
-export function createStoryModel(input) {
-  const data = JSON.parse(JSON.stringify(input));
+export function createStoryModel(input: StoryData) {
+  const data: StoryData = JSON.parse(JSON.stringify(input));
   const shaToPath = new Map(data.files.map((file) => [file.sha, file.rel]));
   const pathToSha = new Map(data.files.map((file) => [file.rel, file.sha]));
   const allPaths = new Set(data.files.map((file) => file.rel));
@@ -91,25 +105,27 @@ export function createStoryModel(input) {
   // or in the "Since you read it" chapter that lists it. Every earlier chapter leaves it untagged: no pill, no status line.
   const finishedIn = finishedInOf(data.chapters);
   const numbers = chapterNumbers(data.chapters);
-  const isNew = (step) => !!(data.chapters[step - 1] && data.chapters[step - 1].since);
-  const chapterNumber = (step) => numbers[step - 1];
-  const newTitle = (step) =>
+  const isNew = (step: number): boolean =>
+    !!(data.chapters[step - 1] && data.chapters[step - 1].since);
+  const chapterNumber = (step: number): number | null => numbers[step - 1];
+  const newTitle = (step: number): string =>
     String(data.chapters[step - 1].title || 'Since you read it')
       .replace(/:.*$/, '')
       .trim();
   /** "chapter 3", or "Since you read it" for a new-commits chapter */
-  const chapterName = (step) =>
+  const chapterName = (step: number): string =>
     isNew(step) ? `“${newTitle(step)}”` : `chapter ${chapterNumber(step)}`;
-  const chapterShortName = (step) => (isNew(step) ? 'new' : `ch ${chapterNumber(step)}`);
-  const chapterList = (steps) =>
+  const chapterShortName = (step: number): string =>
+    isNew(step) ? 'new' : `ch ${chapterNumber(step)}`;
+  const chapterList = (steps: number[]): string =>
     steps.map((step) => (isNew(step) ? 'new' : chapterNumber(step))).join(', ');
-  const chaptersOf = (rel) =>
+  const chaptersOf = (rel: string): number[] =>
     data.chapters
       .map((chapter, index) => (chapter.files.some((file) => file.rel === rel) ? index + 1 : 0))
       .filter(Boolean);
 
   /** What chapter `step` tells the reviewer about a file it lists: mark it viewed here, done earlier, or later's to mark. */
-  function statusIn(rel, step) {
+  function statusIn(rel: string, step: number): FileStatus | null {
     const entry = step && data.chapters[step - 1].files.find((file) => file.rel === rel);
     if (!entry) {
       return null;
@@ -145,3 +161,5 @@ export function createStoryModel(input) {
     statusIn,
   };
 }
+
+export type StoryModel = ReturnType<typeof createStoryModel>;
