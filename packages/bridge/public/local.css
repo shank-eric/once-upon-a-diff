@@ -165,3 +165,11 @@ button.ou-local-pr { white-space: nowrap; }
 .ou-local-pr-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .ou-local-pr-go:not(:disabled) { background: var(--fgColor-success); border-color: var(--fgColor-success); color: #fff; font-weight: 600; }
 .ou-local-pr-go:disabled { opacity: .5; cursor: default; }
+
+/* a fix-before-push note's stage (local/notes.ts) */
+.ou-local-stage { display: inline-block; font-size: 11px; font-weight: 600; line-height: 16px; padding: 0 7px; border-radius: 9px; border: 1px solid currentColor; white-space: nowrap; }
+.ou-local-stage-draft { color: var(--fgColor-muted); }
+.ou-local-stage-queued { color: var(--fgColor-attention); background: var(--bgColor-attention-muted); }
+.ou-local-stage-sent { color: var(--fgColor-accent); background: var(--bgColor-accent-muted); }
+.ou-local-stage-fixed { color: var(--fgColor-success); }
+.ou-local-notes-list .ou-local-note-text { margin: 2px 0 0 22px; }

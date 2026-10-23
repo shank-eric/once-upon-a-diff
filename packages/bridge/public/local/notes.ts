@@ -2,8 +2,9 @@
  * Fix-before-push notes: drawn under their line in the diff (or at the top
  * of the file when the diff doesn't draw that line), listed under the top
  * bar, and written in a small form opened from a line number. The panel's
- * Fix before push sends them to a Claude session; a sent note says where it
- * went and can't be deleted here.
+ * Fix before push sends them to a Claude session. Each note wears its stage
+ * (To send, Queued, Sent, Fixed), the top bar's toggle counts them by stage,
+ * and a sent note can't be deleted here.
  */
 import { html } from '/assets/util/html.ts';
 import { insertHtml, setHtml } from '/assets/util/dom.ts';
@@ -14,12 +15,61 @@ import type { LocalNote, Side } from '/assets/types.ts';
 const placeOf = (note: LocalNote) =>
   `${note.path}${note.line ? `:${note.side === 'L' ? 'L' : ''}${note.line}` : ''}`;
 
-/** Where a note has got, once the panel's Fix before push sent it: '' for a draft. */
-function sentText(note: LocalNote) {
+/** Where a note has got: queued is sent with no session taking it yet, so the next one that listens gets it. */
+type Stage = 'draft' | 'queued' | 'sent' | 'fixed';
+
+const STAGE_LABELS: Record<Stage, string> = {
+  draft: 'To send',
+  queued: 'Queued',
+  sent: 'Sent',
+  fixed: 'Fixed',
+};
+
+function stageOf(note: LocalNote): Stage {
   if (note.fixed) {
-    return `fixed in ${String(note.fixed.sha || '').slice(0, 7)}`;
+    return 'fixed';
   }
-  return note.sent ? `sent to ${note.sent.to || 'the next Claude session'}` : '';
+  if (note.sent) {
+    return note.sent.to ? 'sent' : 'queued';
+  }
+  return 'draft';
+}
+
+/** The stage in words, for after its label. */
+function stageDetail(note: LocalNote): string {
+  if (note.fixed) {
+    return `in ${String(note.fixed.sha || '').slice(0, 7)}`;
+  }
+  if (note.sent) {
+    return note.sent.to
+      ? `to ${note.sent.to}`
+      : 'for the next Claude session that listens on this story';
+  }
+  if (note.returned) {
+    return `came back${note.returned.why ? `: ${note.returned.why}` : ''}`;
+  }
+  return '';
+}
+
+function stageHtml(note: LocalNote) {
+  const stage = stageOf(note);
+  const detail = stageDetail(note);
+  return html`<span class="ou-local-stage ou-local-stage-${stage}">${STAGE_LABELS[stage]}</span>${detail && html` <span class="ou-local-muted">${detail}</span>`}`;
+}
+
+/** The toggle's count of the notes not ticked done, by stage: "Fix before push: 1 queued", "2 to send, 1 sent". */
+export function toggleText(notes: LocalNote[]): string {
+  const open = notes.filter((note) => !note.done);
+  if (!open.length) {
+    return `Fix before push: ${notes.length ? 'all done' : 'none'}`;
+  }
+  const counts = (['draft', 'queued', 'sent', 'fixed'] as Stage[])
+    .map((stage) => {
+      const count = open.filter((note) => stageOf(note) === stage).length;
+      return count ? `${count} ${STAGE_LABELS[stage].toLowerCase()}` : '';
+    })
+    .filter(Boolean);
+  return `Fix before push: ${counts.join(', ')}`;
 }
 
 function notesListHtml() {
@@ -28,10 +78,9 @@ function notesListHtml() {
     return html`<p class="ou-local-muted">No fix-before-push notes yet. Click a line number in the diff to add one.</p>`;
   }
   const items = notes.map((note) => {
-    const sent = sentText(note) && html` <span class="ou-local-muted">(${sentText(note)})</span>`;
     const done = html`<input type="checkbox" data-note-done="${note.id}"${note.done && html` checked`}>`;
     const goto = html`<a href="#" data-note-goto="${note.id}"><code>${placeOf(note)}</code></a>`;
-    return html`<li class="${note.done ? 'ou-local-done' : ''}"><label>${done} ${goto}</label> ${note.body}${sent}</li>`;
+    return html`<li class="${note.done ? 'ou-local-done' : ''}"><label>${done} ${goto}</label> ${stageHtml(note)}<div class="ou-local-note-text">${note.body}</div></li>`;
   });
   return html`<ul>${items}</ul>
     <p class="ou-local-muted">Send them to a Claude session from the panel's Fix before push. Also in the terminal: <code>once-upon notes --story ${page.story.id}</code></p>`;
@@ -41,14 +90,15 @@ function noteRow(note: LocalNote, away: boolean) {
   const awayNote =
     away &&
     html`<span class="ou-local-muted">on ${note.side === 'L' ? 'L' : ''}${note.line}, a line this diff doesn't draw${page.story.local.hide_whitespace && ' with whitespace hidden'}</span>`;
-  const sentOrDelete = sentText(note)
-    ? html`<span class="ou-local-muted">${sentText(note)}</span>`
-    : html`<button type="button" data-note-delete="${note.id}">Delete</button>`;
+  const deleteButton =
+    !note.sent &&
+    !note.fixed &&
+    html`<button type="button" data-note-delete="${note.id}">Delete</button>`;
   return html`<tr class="ou-local-note-row" data-note="${note.id}"><td colspan="${columnCount()}"><div class="ou-local-note${note.done && ' ou-local-done'}">
     <div class="ou-local-note-head"><b>Fix before push</b><span class="ou-local-muted">${new Date(note.at).toLocaleString()}</span>
       ${awayNote}
       <label><input type="checkbox" data-note-done="${note.id}"${note.done && html` checked`}> done</label>
-      ${sentOrDelete}</div>
+      ${stageHtml(note)}${deleteButton}</div>
     <div class="ou-local-note-body">${note.body}</div></div></td></tr>`;
 }
 
@@ -71,10 +121,9 @@ export function placeNotes() {
       insertHtml(row, 'afterend', noteRow(note, !!note.line && !cell));
     }
   }
-  const open = local.notes.filter((note) => !note.done).length;
   const toggle = document.querySelector('.ou-local-notes-toggle');
   if (toggle) {
-    toggle.textContent = `Fix before push: ${open} open`;
+    toggle.textContent = toggleText(local.notes);
   }
   const list = document.querySelector('.ou-local-notes-list');
   if (list) {
