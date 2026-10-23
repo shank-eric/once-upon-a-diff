@@ -4,6 +4,7 @@ import path from 'node:path';
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { tmp, githubStory, startBridge, git } from './helpers.ts';
 import os from 'node:os';
+import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import {
   beat,
@@ -112,6 +113,26 @@ test('doctor passes the bridge when it is up', async () => {
     assert.match(lines.join('\n'), /PASS\s+Bridge: running on 127\.0\.0\.1:\d+, version/);
   } finally {
     await bridge.close();
+  }
+});
+
+test('doctor --wait gives a bridge that was just started time to answer', async () => {
+  const home = tmp('home');
+  const probe = http.createServer();
+  await new Promise<void>((resolve) => probe.listen(0, '127.0.0.1', resolve));
+  const port = (probe.address() as AddressInfo).port;
+  await new Promise((resolve) => probe.close(resolve));
+  const late = http.createServer((_req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.end(JSON.stringify({ ok: true, name: 'once-upon-bridge', version: 'test' }));
+  });
+  setTimeout(() => late.listen(port, '127.0.0.1'), 700);
+  try {
+    const lines: string[] = [];
+    await doctor(home, { token: 't', port }, { wait: 5, out: (line) => lines.push(line) });
+    assert.match(lines.join('\n'), /PASS\s+Bridge: running on 127\.0\.0\.1:\d+, version test/);
+  } finally {
+    await new Promise((resolve) => late.close(resolve));
   }
 });
 

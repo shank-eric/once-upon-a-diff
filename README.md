@@ -78,7 +78,38 @@ It exits 1 when something fails.
 6. Fixes each fix request it's handed (see [Fix before push](#fix-before-push-send-notes-to-a-session)): it marks the files it's changing, makes one change, commits it as your house rules say and reports the commit.
 7. Stops when you say so.
 
-It never posts to GitHub, marks files viewed or pushes. Comments it drafts go to the panel's Draft comments only. A fix request is the only time it changes the checkout, and then only on the branch it's on. Run one listener per repo, each in its own session.
+It never posts to GitHub, marks files viewed or pushes, and never runs the PR's code unless you say so in chat. Comments it drafts go to the panel's Draft comments only. A fix request is the only time it changes the checkout, and then only on the branch it's on. Run one listener per repo, each in its own session.
+
+### Keep listener sessions on a short leash
+
+A listener reads PR titles, bodies, diffs and review comments that anyone who can open a PR or comment on one can write, and it runs for hours with your shell, git and `gh` login. The skills treat all of that as data and tell the session never to run the PR's code, push or write to GitHub, but those are instructions to a model, not a sandbox. So:
+
+- **Never run a listener (or a `/once-upon` build) in bypass-permissions mode** (`--dangerously-skip-permissions`, or `defaultMode: "bypassPermissions"`). Let Claude Code ask before commands the deny list doesn't cover.
+- **Deny the writes outright.** In the checkout's `.claude/settings.local.json` (or your `~/.claude/settings.json`), something like:
+
+  ```json
+  {
+    "permissions": {
+      "deny": [
+        "Bash(git push:*)",
+        "Bash(gh pr review:*)",
+        "Bash(gh pr comment:*)",
+        "Bash(gh pr merge:*)",
+        "Bash(gh pr close:*)",
+        "Bash(gh pr edit:*)",
+        "Bash(gh issue comment:*)",
+        "Bash(gh api -X:*)",
+        "Bash(gh api --method:*)",
+        "Bash(curl:*)",
+        "Bash(wget:*)",
+        "WebFetch"
+      ]
+    }
+  }
+  ```
+
+  The skills don't need any of these: they check the bridge with `once-upon doctor`, not `curl`. A prefix rule can't tell a GraphQL query from a mutation (`gh api graphql`), so if you can, give listener sessions a `gh` token without write scope.
+- **Fix requests change code.** On a PR's branch the session doesn't run tests or scripts unless you say so in chat, and commits with `--no-verify`, since that branch's hooks are the PR's code.
 
 ### One story, one session
 

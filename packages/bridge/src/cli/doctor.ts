@@ -32,6 +32,22 @@ function listenerPid(port: number): { pid: string; command: string } | null {
   }
 }
 
+type Health = { status: number; body: { name?: string; version?: string } | null };
+
+/** The bridge's /api/health answer, or null when nothing answered within 2s. */
+async function fetchHealth(port: number, token: string | undefined): Promise<Health | null> {
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/health`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: AbortSignal.timeout(2000),
+    });
+    const body = (await response.json().catch(() => null)) as Health['body'];
+    return { status: response.status, body };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Runs every check; resolves true when nothing FAILed. opts.port overrides the config's.
  */
@@ -40,8 +56,9 @@ export async function doctor(
   cfg: Pick<Config, 'port' | 'token'>,
   {
     port: portOpt,
+    wait = 0,
     out = (text) => process.stdout.write(text + '\n'),
-  }: { port?: number | string; out?: (text: string) => unknown } = {},
+  }: { port?: number | string; wait?: number; out?: (text: string) => unknown } = {},
 ): Promise<boolean> {
   const port = Number(portOpt || cfg.port);
   const results: { level: Level; name: string; detail: string; fix?: string | null }[] = [];
@@ -63,21 +80,14 @@ export async function doctor(
   }
 
   // the bridge: process, port, token
-  const proc = listenerPid(port);
-  let health: { status: number; body: { name?: string; version?: string } | null } | null = null;
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/health`, {
-      headers: { Authorization: `Bearer ${cfg.token}` },
-      signal: AbortSignal.timeout(2000),
-    });
-    const body = (await response.json().catch(() => null)) as {
-      name?: string;
-      version?: string;
-    } | null;
-    health = { status: response.status, body };
-  } catch {
-    health = null;
+  let health = await fetchHealth(port, cfg.token);
+  // --wait N: a bridge that was just started may not be listening yet
+  const deadline = Date.now() + wait * 1000;
+  while (!health && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    health = await fetchHealth(port, cfg.token);
   }
+  const proc = listenerPid(port);
   if (!health) {
     add(
       'FAIL',
