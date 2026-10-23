@@ -85,7 +85,8 @@ It never posts to GitHub, marks files viewed or pushes, and never runs the PR's 
 A listener reads PR titles, bodies, diffs and review comments that anyone who can open a PR or comment on one can write, and it runs for hours with your shell, git and `gh` login. The skills treat all of that as data and tell the session never to run the PR's code, push or write to GitHub, but those are instructions to a model, not a sandbox. So:
 
 - **Never run a listener (or a `/once-upon` build) in bypass-permissions mode** (`--dangerously-skip-permissions`, or `defaultMode: "bypassPermissions"`). Let Claude Code ask before commands the deny list doesn't cover.
-- **Deny the writes outright.** In the checkout's `.claude/settings.local.json` (or your `~/.claude/settings.json`), something like:
+- **Give listener sessions a `gh` token without write scope, if you can.** It's the only thing that closes `gh api`, which a deny list can't: a prefix rule like `gh api -X:*` doesn't catch `gh api repos/o/r/issues/1/comments -f body=hi`, which POSTs because it has fields, or `-X POST` put after the path, and it can't tell a GraphQL query from a mutation (`gh api graphql`). A read-only fine-grained token in `GH_TOKEN`, in the shell you start the session from, is enough for everything the skills do.
+- **Deny the writes you can name.** In the checkout's `.claude/settings.local.json` (or your `~/.claude/settings.json`), something like:
 
   ```json
   {
@@ -108,8 +109,8 @@ A listener reads PR titles, bodies, diffs and review comments that anyone who ca
   }
   ```
 
-  The skills don't need any of these: they check the bridge with `once-upon doctor`, not `curl`. A prefix rule can't tell a GraphQL query from a mutation (`gh api graphql`), so if you can, give listener sessions a `gh` token without write scope.
-- **Fix requests change code.** A fix note that came from a Claude-drafted comment is shown to you in chat, and the session waits for your OK before acting on it. Auto-send never sends one. On a PR's branch the session doesn't run tests or scripts unless you say so in chat, and commits with `--no-verify`, since that branch's hooks are the PR's code.
+  The skills don't need any of these: they check the bridge with `once-upon doctor`, not `curl`. The `gh api` rules catch only the commands that start that way (above), so they back up the read-only token rather than replace it.
+- **Fix requests change code.** A fix note that came from a Claude-drafted comment is shown to you in chat, and the session waits for your OK before acting on it. Auto-send never sends one. On a PR's branch the session doesn't run tests or scripts unless you say so in chat, and commits with `git -c core.hooksPath=/dev/null commit`, since that branch's hooks are the PR's code. `--no-verify` isn't enough: it skips `pre-commit` and `commit-msg`, but `prepare-commit-msg`, `post-commit` (and `post-rewrite` on an amend) still run, and with husky the hooks path is the PR's own `.husky/`.
 
 ### One story, one session
 
