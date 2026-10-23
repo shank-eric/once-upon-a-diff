@@ -1,10 +1,7 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "types": ["node"],
-    "strict": false,
-    "allowJs": true,
-    "checkJs": true
+    "types": ["node"]
   },
-  "include": ["skills/**/*.mjs"]
+  "include": ["skills/**/*.ts"]
 }

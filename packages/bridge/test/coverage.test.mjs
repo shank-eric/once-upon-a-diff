@@ -6,11 +6,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { tmp, writeJson, githubStory, startBridge } from './helpers.mjs';
-import { parseUnifiedDiff } from '../src/util/diff.mjs';
-import { chaptersOf } from '../src/stories/chapters.mjs';
-import { uncoveredHunks, SMALL_FILE_LINES } from '../src/stories/hunk-coverage.mjs';
+import { parseUnifiedDiff } from '../src/util/diff.ts';
+import { chaptersOf } from '../src/stories/chapters.ts';
+import { uncoveredHunks, SMALL_FILE_LINES } from '../src/stories/hunk-coverage.ts';
 
-const STORY = fileURLToPath(new URL('../../../skills/once-upon/bin/story.mjs', import.meta.url));
+const STORY = fileURLToPath(new URL('../../../skills/once-upon/bin/story.ts', import.meta.url));
 const run = promisify(execFile);
 
 /** A modified file's diff with one hunk per [newStart, added] pair, each with a line of context on either side. */

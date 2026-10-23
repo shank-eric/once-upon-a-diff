@@ -3449,7 +3449,7 @@ __metadata:
     highlight.js: "npm:11.11.1"
     typescript: "npm:5.9.3"
   bin:
-    once-upon: bin/once-upon.mjs
+    once-upon: bin/once-upon.ts
   languageName: unknown
   linkType: soft
 

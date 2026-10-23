@@ -4,9 +4,9 @@ import path from 'node:path';
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { tmp, githubStory, startBridge, git } from './helpers.mjs';
 import os from 'node:os';
-import { beat, listeners, cliCommand, listenPrompt } from '../src/listeners/listeners.mjs';
-import { repoOfCheckout, repoOfRemote, checkoutFor, seenCheckout } from '../src/config/repos.mjs';
-import { doctor } from '../src/cli/doctor.mjs';
+import { beat, listeners, cliCommand, listenPrompt } from '../src/listeners/listeners.ts';
+import { repoOfCheckout, repoOfRemote, checkoutFor, seenCheckout } from '../src/config/repos.ts';
+import { doctor } from '../src/cli/doctor.ts';
 
 test('a fresh waiting beat counts as listening, a stale one or a dead process does not, and a handling beat lasts longer', () => {
   const home = tmp('home');
@@ -131,7 +131,7 @@ test('Copy prompt for Claude: one short skill line naming the repo, with the lon
   assert.equal(cliCommand(true), 'once-upon');
   const full = cliCommand(false);
   assert.ok(full.startsWith(process.execPath), 'off PATH it names node by full path');
-  assert.match(full, /\/bridge\/bin\/once-upon\.mjs$/);
+  assert.match(full, /\/bridge\/bin\/once-upon\.ts$/);
 
   const home = tmp('home');
   githubStory(path.join(home, 'acme-widgets-7'));

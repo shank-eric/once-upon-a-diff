@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { langOf, splitHtmlLines, hunkHtml, highlightFile, LIMITS } from '../public/syntax.js';
+import { langOf, splitHtmlLines, hunkHtml, highlightFile, LIMITS } from '../public/syntax.ts';
 import hljs from '../public/vendor/highlight.mjs';
 import { startBridge, tmp } from './helpers.mjs';
 
@@ -94,12 +94,12 @@ test('escapes code, and leaves big files, minified lines and unknown languages p
 test('the bridge serves highlight.js and the highlighter, with no CDN in the page', async () => {
   const bridge = await startBridge({ home: tmp('home') });
   try {
-    for (const path of ['/assets/highlight.mjs', '/assets/syntax.js']) {
+    for (const path of ['/assets/highlight.mjs', '/assets/syntax.ts']) {
       const response = await bridge.call('GET', path);
       assert.equal(response.status, 200);
       assert.match(response.headers.get('content-type'), /javascript/);
     }
-    const local = readFileSync(new URL('../public/local.js', import.meta.url), 'utf8');
+    const local = readFileSync(new URL('../public/local.ts', import.meta.url), 'utf8');
     assert.ok(
       !/https?:\/\//.test(local.replace(/\/\/.*$/gm, '')),
       'local.js loads nothing from the network',
