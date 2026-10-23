@@ -299,10 +299,12 @@ The bridge learns a repo's checkout from local stories, from where `once-upon wa
 The bridge also checks each request:
 
 - It refuses any request whose `Host` isn't `127.0.0.1:<port>` or `localhost:<port>`, which blocks DNS rebinding.
-- It refuses any `Origin` that isn't the extension or its own pages.
+- It refuses any `Origin` that isn't this extension (its fixed unpacked ID, or one listed in `extension_ids`) or its own pages, so another installed extension can't call it.
 - Writes must be `application/json`.
 - It sends no CORS headers, so other web pages can't read its responses.
 - Its pages are served with a strict CSP.
+- An over-size body (past 256 KB) gets a 413.
+- What it and the CLI write under `~/.once-upon` and a checkout's `.once-upon/` is the user's alone (files 0600, folders 0700), including folders that were there already.
 
 | Call | What it does |
 |---|---|
@@ -339,6 +341,7 @@ The other commands are `list`, `page --story`, `token --rotate`, `publish --dir`
 | `open_command` | The argv that opens a URL or file (`once-upon local`) | `open` on macOS, `xdg-open` on Linux, `explorer` on Windows |
 | `gh_unset_github_token` | `true` drops `GITHUB_TOKEN` before every `gh` call, for when that variable holds a token that shouldn't be used (gh then uses its own login) | `false` |
 | `house_rules` | A Markdown file of your own rules that the once-upon and once-upon-listen skills read and follow | `~/.once-upon/house-rules.md` |
+| `extension_ids` | More extension IDs the bridge answers, such as a Chrome Web Store install or an older unpacked copy. Any other extension is refused | only `faaibhigocihefldbmdgchcnnclalkmo`, the unpacked build's fixed ID |
 
 **House rules** are how you make the skills yours without changing the repo. The skills here are generic: they never post, submit or push, and they draft comments for you to post. Anything about your own setup goes in the house rules file instead: where your checkouts live, how to look up people's names from their GitHub logins, the voice for drafted comments, a past story to model new ones on, things never to run. The skills read it first and follow it alongside their own rules, but it can't loosen the read-only rules.
 

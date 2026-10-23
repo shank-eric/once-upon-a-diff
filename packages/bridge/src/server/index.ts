@@ -9,7 +9,7 @@
  *   - every /api call needs the token (Authorization: Bearer <token>), or for a local page's own story only,
  *     that story's page key (./page-key.ts), which can't reach other stories, bridge-wide routes or GitHub
  *   - writes must be application/json, and a request with an Origin must come
- *     from the extension or from the bridge's own pages
+ *     from this extension (its fixed ID, or one in extension_ids) or from the bridge's own pages
  *   - no CORS headers, so other web pages can't read anything it says
  *
  * The routes live in ./routes/, one file per area. Each gets `app` (the
@@ -38,6 +38,7 @@ import { draftRoutes } from './routes/drafts.ts';
 import { readRoutes } from './routes/reads.ts';
 import { localStoryRoutes } from './routes/local-story.ts';
 import { fixRoutes } from './routes/fixes.ts';
+import { UNPACKED_EXTENSION_ID } from '../config/settings.ts';
 import type { ApiRoute, App, Body, Call, Send, StoryRoute } from '../types.ts';
 
 export { relOfPath } from '../util/diff.ts';
@@ -60,7 +61,6 @@ const STORY_ROUTES: StoryRoute[] = [
   ...storyStatusRoutes,
 ];
 const STORY_PATH = /^\/api\/stories\/([^/]+)(?:\/([a-z]+)(?:\/([^/]+))?)?$/;
-const EXTENSION_ORIGIN = /^chrome-extension:\/\/[a-p]{32}$/;
 const SEEN_WRITE_MS = 30000;
 const HTML = 'text/html; charset=utf-8';
 
@@ -74,11 +74,15 @@ export function createBridge({
   home,
   token,
   log = (line) => process.stderr.write(`once-upon bridge: ${line}\n`),
+  extensionIds = [UNPACKED_EXTENSION_ID],
 }: {
   home: string;
   token: string;
   log?: (line: string) => void;
+  /** the extension IDs whose pages may call it (readSettings' extensionIds) */
+  extensionIds?: string[];
 }): Bridge {
+  const extensionOrigins = new Set(extensionIds.map((id) => `chrome-extension://${id}`));
   if (!token) {
     throw new Error('the bridge needs a token');
   }
@@ -220,11 +224,16 @@ export function createBridge({
       const origin = req.headers.origin;
       if (
         origin &&
-        !EXTENSION_ORIGIN.test(origin) &&
+        !extensionOrigins.has(origin) &&
         origin !== `http://127.0.0.1:${port}` &&
         origin !== `http://localhost:${port}`
       ) {
-        throw new HttpError(403, 'origin not allowed');
+        throw new HttpError(
+          403,
+          origin.startsWith('chrome-extension://')
+            ? `origin not allowed: add ${origin.slice('chrome-extension://'.length)} to extension_ids in ~/.once-upon/config.json if it's your copy of Once Upon a Diff`
+            : 'origin not allowed',
+        );
       }
       if (servePage(req, pathname, send)) {
         return;
@@ -255,7 +264,9 @@ export function createBridge({
         log(err.stack || String(err));
       }
       if (!res.headersSent) {
-        send(status, { error: err.message || String(err) });
+        // a 413's body may still be arriving: close once the answer is out rather than read the rest
+        const extra: Record<string, string> = status === 413 ? { Connection: 'close' } : {};
+        send(status, { error: err.message || String(err) }, undefined, extra);
       }
     }
   });

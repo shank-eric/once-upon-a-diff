@@ -108,11 +108,16 @@ describe('bridge guard rails', () => {
     assert.equal(
       (
         await bridge.call('GET', '/api/health', undefined, {
-          Origin: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop',
+          Origin: 'chrome-extension://faaibhigocihefldbmdgchcnnclalkmo',
         })
       ).status,
       200,
     );
+    const otherExtension = await bridge.call<{ error: string }>('GET', '/api/health', undefined, {
+      Origin: 'chrome-extension://abcdefghijklmnopabcdefghijklmnop',
+    });
+    assert.equal(otherExtension.status, 403, 'another extension, even with the token');
+    assert.match(otherExtension.body.error, /extension_ids/);
     assert.equal(
       (await bridge.call('GET', '/api/health', undefined, { Origin: bridge.base })).status,
       200,
@@ -125,6 +130,31 @@ describe('bridge guard rails', () => {
       body: '{"text":"hi"}',
     });
     assert.equal(res.status, 415);
+  });
+  test('an over-size body gets a 413, not a dropped connection', async () => {
+    const big = JSON.stringify({ text: 'x'.repeat(300 * 1024) });
+    for (const chunked of [false, true]) {
+      const status = await new Promise<number | string>((resolve) => {
+        const req = http.request(`${bridge.base}/api/stories/acme-widgets-7/questions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${TOKEN}`,
+            'Content-Type': 'application/json',
+            ...(chunked ? {} : { 'Content-Length': Buffer.byteLength(big) }),
+          },
+        });
+        req.on('response', (res) => {
+          res.resume();
+          resolve(res.statusCode as number);
+        });
+        req.on('error', (err) => resolve(err.message));
+        for (let offset = 0; offset < big.length; offset += 16 * 1024) {
+          req.write(big.slice(offset, offset + 16 * 1024));
+        }
+        req.end();
+      });
+      assert.equal(status, 413, chunked ? 'chunked' : 'with a Content-Length');
+    }
   });
   test('sends no CORS headers', async () => {
     const response = await bridge.call<{ stories: StoryListItem[] }>('GET', '/api/stories');

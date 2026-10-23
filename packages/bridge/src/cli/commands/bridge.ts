@@ -2,9 +2,9 @@
  * Running the bridge: serve, setup (the port and token for the extension's
  * options) and token.
  */
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, chmodSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import { saveConfig, newToken } from '../../config/settings.ts';
+import { saveConfig, newToken, readSettings } from '../../config/settings.ts';
 import { createBridge } from '../../server/index.ts';
 import { out } from '../output.ts';
 import type { Config } from '../../config/settings.ts';
@@ -34,6 +34,9 @@ export function serve(
   const port = Number(opts.port || cfg.port);
   // the bridge keeps its own log in <home>/bridge.log, for `once-upon doctor`
   const logFile = path.join(home, 'bridge.log');
+  if (existsSync(logFile)) {
+    chmodSync(logFile, 0o600); // an older bridge may have made it readable by others
+  }
   const log = (line: string) => {
     const text = `${new Date().toISOString()} ${line}\n`;
     process.stderr.write(`once-upon bridge: ${line}\n`);
@@ -47,6 +50,7 @@ export function serve(
     home,
     token: cfg.token,
     log,
+    extensionIds: readSettings(home).extensionIds,
   });
   return new Promise((resolve, reject) => {
     server.once('error', reject);

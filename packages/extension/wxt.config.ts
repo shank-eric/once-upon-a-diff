@@ -57,7 +57,12 @@ export default defineConfig({
     },
     icons: { 16: 'icons/icon16.png', 48: 'icons/icon48.png', 128: 'icons/icon128.png' },
     web_accessible_resources: [
-      { resources: Object.keys(LINKED_CSS), matches: ['https://github.com/*'] },
+      // use_dynamic_url: reachable only by a per-session URL, so github.com can't probe the fixed ID to detect the extension
+      {
+        resources: Object.keys(LINKED_CSS),
+        matches: ['https://github.com/*'],
+        use_dynamic_url: true,
+      },
     ],
   },
   hooks: {
