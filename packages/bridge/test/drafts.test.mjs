@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson } from './helpers.mjs';
-import { similarity, bestMatch, clearCache } from '../src/github/drafts.mjs';
+import { similarity, bestMatch, clearCache } from '../src/github/drafts.ts';
 
 process.env.ONCE_UPON_GH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),

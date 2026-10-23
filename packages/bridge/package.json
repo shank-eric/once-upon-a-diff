@@ -9,15 +9,15 @@
     "node": ">=24"
   },
   "bin": {
-    "once-upon": "bin/once-upon.mjs"
+    "once-upon": "bin/once-upon.ts"
   },
   "exports": {
-    "./*": "./src/*.mjs",
+    "./*": "./src/*.ts",
     "./test/*": "./test/*.mjs"
   },
   "scripts": {
-    "serve": "node bin/once-upon.mjs serve",
-    "vendor": "node scripts/vendor-hljs.mjs",
+    "serve": "node bin/once-upon.ts serve",
+    "vendor": "node scripts/vendor-hljs.ts",
     "test": "node --test test/*.test.mjs",
     "typecheck": "tsc -p tsconfig.json && tsc -p public/tsconfig.json"
   },

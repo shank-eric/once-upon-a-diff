@@ -4,15 +4,15 @@ import path from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson, localRepo } from './helpers.mjs';
-import { noteRead, readReads, sinceOf } from '../src/stories/reads.mjs';
+import { noteRead, readReads, sinceOf } from '../src/stories/reads.ts';
 import {
   chapterKeyOf,
   finishedInOf,
   inferReadSteps,
   viewedEarlyCheck,
 } from '@once-upon-a-diff/shared/overlay';
-import { clearFreshness } from '../src/github/freshness.mjs';
-import { createLocalStory } from '../src/stories/local-story.mjs';
+import { clearFreshness } from '../src/github/freshness.ts';
+import { createLocalStory } from '../src/stories/local-story.ts';
 
 process.env.ONCE_UPON_GH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -188,7 +188,7 @@ test('a local story records the head commit of its range', async () => {
 });
 
 test('chapters he read are marked when a newer commit changed their files, and drafts on a changed line', async () => {
-  const { changedSinceRead } = await import('../src/stories/reads.mjs');
+  const { changedSinceRead } = await import('../src/stories/reads.ts');
   const chapters = [
     {
       key: 'since-x',

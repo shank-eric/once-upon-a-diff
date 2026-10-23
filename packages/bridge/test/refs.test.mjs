@@ -2,10 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { tmp, writeJson, localRepo } from './helpers.mjs';
-import { lineRefsOf, addTextRefs, REF_NOTE } from '../src/stories/text-refs.mjs';
-import { pathSha } from '../src/util/diff.mjs';
-import { StoryStore } from '../src/stories/store.mjs';
-import { createLocalStory } from '../src/stories/local-story.mjs';
+import { lineRefsOf, addTextRefs, REF_NOTE } from '../src/stories/text-refs.ts';
+import { pathSha } from '../src/util/diff.ts';
+import { StoryStore } from '../src/stories/store.ts';
+import { createLocalStory } from '../src/stories/local-story.ts';
 import { finishedInOf } from '@once-upon-a-diff/shared/overlay';
 
 const RELS = [

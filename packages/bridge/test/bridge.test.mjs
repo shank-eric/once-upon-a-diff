@@ -13,10 +13,10 @@ import {
   writeJson,
   runCli,
 } from './helpers.mjs';
-import { pathSha } from '../src/util/diff.mjs';
-import { createLocalStory } from '../src/stories/local-story.mjs';
-import { StoryStore } from '../src/stories/store.mjs';
-import { beat } from '../src/listeners/listeners.mjs';
+import { pathSha } from '../src/util/diff.ts';
+import { createLocalStory } from '../src/stories/local-story.ts';
+import { StoryStore } from '../src/stories/store.ts';
+import { beat } from '../src/listeners/listeners.ts';
 
 /** A raw request, for headers fetch won't let us set (Host). */
 function raw(base, path, headers) {
@@ -333,7 +333,7 @@ describe('local stories', () => {
     assert.ok(page.text.includes(TOKEN));
     assert.match(page.headers.get('content-security-policy'), /script-src 'self'/);
     assert.equal((await bridge.call('GET', '/assets/overlay.ts')).status, 200);
-    assert.equal((await bridge.call('GET', '/assets/local.js')).status, 200);
+    assert.equal((await bridge.call('GET', '/assets/local.ts')).status, 200);
     for (const sheet of ['panel.css', 'page.css']) {
       const css = await bridge.call('GET', `/assets/panel/${sheet}`);
       assert.equal(css.status, 200, sheet);
@@ -697,8 +697,8 @@ describe('Unified / Split on local stories', () => {
       } finally {
         await restarted.close();
       }
-      assert.equal((await bridge.call('GET', '/assets/split.js')).status, 200);
-      assert.equal((await bridge.call('GET', '/assets/narrow.js')).status, 200);
+      assert.equal((await bridge.call('GET', '/assets/split.ts')).status, 200);
+      assert.equal((await bridge.call('GET', '/assets/narrow.ts')).status, 200);
     } finally {
       await bridge.close();
     }

@@ -27,6 +27,8 @@ export interface ChapterFile {
   note: string | null;
   /** this chapter tells all of the file's hunks */
   whole?: boolean;
+  /** not listed: the chapter's text points at its lines (the bridge adds these) */
+  ref?: boolean;
   lines?: ChapterLines[];
 }
 
@@ -124,7 +126,7 @@ export interface LocalFile {
   hunks: DiffHunk[];
   renamed_from: string | null;
   binary: boolean;
-  hash: string | null;
+  hash?: string | null;
   /** Hide whitespace is on and the file's changes are all whitespace */
   whitespace_only: boolean;
   viewed: boolean;
@@ -141,11 +143,13 @@ export interface LocalNote {
   line: number;
   body: string;
   done?: boolean;
-  draft?: boolean;
+  /** the drafted comment it came from (Add to fix before push) */
+  draft?: string;
   chapter?: number;
   sent?: { request: string; to: string | null; at: string } | null;
   fixed?: { request: string; sha: string; by?: string | null; at: string } | null;
   returned?: { request: string; sha?: string | null; why?: string | null; at: string } | null;
+  updated_at?: string;
 }
 
 export interface LocalCommit {
@@ -161,8 +165,9 @@ export interface LocalStory {
   repo: string;
   base: string;
   head: string;
-  base_oid: string;
-  head_oid: string;
+  /** null until the bridge has made the diff */
+  base_oid: string | null;
+  head_oid: string | null;
   branch: string | null;
   commits: LocalCommit[];
   files: LocalFile[];
@@ -295,6 +300,7 @@ export interface StatusError extends Error {
 
 /** How far a draft's fix-before-push note has got. */
 export interface DraftFix {
+  id?: string;
   path: string;
   side: Side;
   line: number;
@@ -319,7 +325,9 @@ export interface DraftRow {
   status: 'draft' | 'posted' | 'pending';
   dismissed: boolean;
   url?: string | null;
-  source?: string;
+  source?: string | null;
+  /** how close the matched GitHub comment is, 0..1 */
+  score?: number | null;
   added?: DraftAdded | null;
   fix?: DraftFix | null;
 }
@@ -332,17 +340,9 @@ export interface DraftsAnswer {
   added?: DraftAdded | null;
 }
 
-/** A fix-before-push note. */
-export interface FixNote {
-  id: string;
-  path: string;
-  line: number;
-  side: Side;
-  body: string;
+/** A fix-before-push note: a story's note (notes.json) and how far it has got. */
+export interface FixNote extends LocalNote {
   state: 'draft' | 'sent' | 'fixed';
-  sent?: { to: string | null; at: string; request?: string } | null;
-  fixed?: { sha: string; by?: string | null; at?: string } | null;
-  returned?: { sha?: string | null; why?: string | null; at?: string } | null;
 }
 
 /** A fix request: the notes one Send handed to a session. */
@@ -418,6 +418,8 @@ export interface FreshUpdate {
   to: string;
   newer: number | null;
   retold?: boolean;
+  /** when the update was done */
+  at?: string | null;
   changed_files?: string[];
   chapters_touched?: number[];
 }

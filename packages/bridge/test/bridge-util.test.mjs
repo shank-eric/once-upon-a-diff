@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { readdirSync, writeFileSync } from 'node:fs';
 import { tmp } from './helpers.mjs';
-import { readJson, writeJson, writeJsonAtomic } from '../src/util/json-file.mjs';
-import { runGh } from '../src/util/gh.mjs';
-import { parseUnifiedDiff } from '../src/util/diff.mjs';
+import { readJson, writeJson, writeJsonAtomic } from '../src/util/json-file.ts';
+import { runGh } from '../src/util/gh.ts';
+import { parseUnifiedDiff } from '../src/util/diff.ts';
 
 test('JSON files: a fallback for a missing or broken file, pretty output, no temp file left', () => {
   const dir = tmp('json-file');

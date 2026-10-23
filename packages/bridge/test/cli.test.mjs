@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseArgs } from '../src/cli/args.mjs';
-import { usageText, commandNames } from '../src/cli/index.mjs';
+import { parseArgs } from '../src/cli/args.ts';
+import { usageText, commandNames } from '../src/cli/index.ts';
 
 test('the CLI parses flags and bare words', () => {
   const { command, opts } = parseArgs(['local', 'word', '--repo', 'x', '--brief']);

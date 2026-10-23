@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { tmp, git, localRepo, githubStory, writeJson, startBridge, runCli } from './helpers.mjs';
-import { createLocalStory } from '../src/stories/local-story.mjs';
-import { StoryStore } from '../src/stories/store.mjs';
-import { seenCheckout } from '../src/config/repos.mjs';
-import { mainCheckout, excludeStories, readIndex } from '../src/stories/placement.mjs';
+import { createLocalStory } from '../src/stories/local-story.ts';
+import { StoryStore } from '../src/stories/store.ts';
+import { seenCheckout } from '../src/config/repos.ts';
+import { mainCheckout, excludeStories, readIndex } from '../src/stories/placement.ts';
 
 const status = (repo) => git(repo, 'status', '--porcelain');
 const exclude = (repo) => readFileSync(path.join(repo, '.git', 'info', 'exclude'), 'utf8');

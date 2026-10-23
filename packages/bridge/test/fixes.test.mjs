@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmp, githubStory, startBridge, runCli, localRepo, writeJson } from './helpers.mjs';
-import { createLocalStory } from '../src/stories/local-story.mjs';
-import { beat, listenPrompt } from '../src/listeners/listeners.mjs';
-import { readFixes } from '../src/inbox/fixes.mjs';
-import { MARK_FRESH_MS, parseFiles, workingOf } from '../src/stories/working.mjs';
+import { createLocalStory } from '../src/stories/local-story.ts';
+import { beat, listenPrompt } from '../src/listeners/listeners.ts';
+import { readFixes } from '../src/inbox/fixes.ts';
+import { MARK_FRESH_MS, parseFiles, workingOf } from '../src/stories/working.ts';
 import { fixSummary } from '@once-upon-a-diff/shared/panel/fixes';
 
 const STORY = 'acme-widgets-7';
