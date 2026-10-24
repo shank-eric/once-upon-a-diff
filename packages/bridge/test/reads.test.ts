@@ -381,7 +381,7 @@ test('a chapter he has read, and that has not changed since, does not make its f
 });
 
 test('a "Since you read it" chapter first does not make the chapters he read "viewed early"', () => {
-  // octo-org/web-app#6943 on 10/22: one new commit changed useFetchOptions.ts, which chapter 2 also lists. The
+  // A real PR on 10/22: one new commit changed a file that chapter 2 also lists. The
   // bridge then reports chapter 2 as changed since he read it, but its other files, still Viewed, are as he read them.
   const chapters = [
     {

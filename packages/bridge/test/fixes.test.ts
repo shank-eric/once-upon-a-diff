@@ -185,13 +185,7 @@ describe('fix before push: notes collect as drafts and go to a session as one re
         await waitFor(home, '--repo', 'acme/widgets', '--type', 'question,build_request'),
         [],
       );
-      const storyWait = await waitFor(
-        home,
-        '--story',
-        'acme/widgets#7',
-        '--consumer',
-        'api-10',
-      );
+      const storyWait = await waitFor(home, '--story', 'acme/widgets#7', '--consumer', 'api-10');
       assert.deepEqual(
         storyWait.map((entry) => entry.id),
         [first.id],
@@ -510,13 +504,7 @@ describe('"being changed" marks', () => {
       );
       assert.notEqual((await pulse()).working_rev, before, 'the panel sees it on its pulse');
 
-      const heartbeat = await runCli(home, [
-        'working',
-        '--story',
-        STORY,
-        '--consumer',
-        'api-10',
-      ]);
+      const heartbeat = await runCli(home, ['working', '--story', STORY, '--consumer', 'api-10']);
       assert.equal(heartbeat.code, 0, heartbeat.stderr);
       assert.equal((await working(STORY)).marks[0].files.length, 2, 'a heartbeat keeps the files');
 

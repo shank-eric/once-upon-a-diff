@@ -1,5 +1,5 @@
 /*
- * ESLint 9 flat config with web-app's base presets (recommended,
+ * ESLint 9 flat config with the base presets (recommended,
  * import, promise, n for Node files, prettier) and typescript-eslint's
  * recommended rules, then this repo's own, stricter rules: braces on every
  * block, descriptive names, no nested ternaries, and full file extensions
@@ -46,7 +46,7 @@ export default defineConfig(
     },
     rules: {
       ...promisePlugin.configs.recommended.rules,
-      // web-app's offs
+      // rules turned off
       'promise/catch-or-return': 'off',
       'promise/no-nesting': 'off',
       'promise/always-return': 'off',
@@ -98,7 +98,7 @@ export default defineConfig(
     languageOptions: { globals: { ...globals.node } },
     rules: {
       ...nodePlugin.configs['flat/recommended'].rules,
-      // web-app's offs
+      // rules turned off
       'n/no-extraneous-import': 'off',
       'n/no-missing-import': 'off',
       'n/no-unsupported-features/node-builtins': 'off',
