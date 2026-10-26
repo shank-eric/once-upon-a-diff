@@ -226,7 +226,10 @@ export class TurnStore {
   }
 
   /** The inbox: the turns (at most `limit`), and each repo's counts. */
-  list({ repo, limit = 100 }: { repo?: string | null; limit?: number } = {}): TurnList {
+  list({ repo, limit = 100 }: { repo?: string | null; limit?: number } = {}): Omit<
+    TurnList,
+    'stories'
+  > {
     const everything = this.all();
     const counts = new Map<string, { repo: string; count: number; unreviewed: number }>();
     for (const turn of everything) {

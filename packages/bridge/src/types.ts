@@ -9,6 +9,8 @@ import type { StoryStore } from './stories/store.ts';
 import type { Inbox } from './inbox/inbox.ts';
 import type { Build, Builds } from './inbox/builds.ts';
 import type { TurnStore } from './turns/turns.ts';
+import type { AutoReview } from './turns/auto-review.ts';
+import type { Board } from './board/board.ts';
 import type { Config } from './config/settings.ts';
 
 /** A story folder's meta.json (readMeta fills in kind, title and a PR's url). */
@@ -80,8 +82,16 @@ export interface App {
   builds: Builds;
   /** the review inbox's turns */
   turns: TurnStore;
-  /** page links with their keys: a local story's page, and the review inbox's (optionally for one repo) */
-  links: { story(id: string): string; inbox(repo?: string | null): string };
+  /** the agent board's data */
+  board: Board;
+  /** marks PR stories reviewed in the inbox when GitHub says you have */
+  autoReview: AutoReview;
+  /** page links with their keys: a local story's page, the review inbox's (optionally for one repo and session) and the agent board's */
+  links: {
+    story(id: string): string;
+    inbox(repo?: string | null, session?: string | null, origin?: string): string;
+    board(origin?: string): string;
+  };
   log: (line: string) => void;
   /** PR-list lookups, kept 5s */
   statusCache: {
@@ -109,6 +119,8 @@ export interface ApiRoute {
   what?: string;
   /** the review inbox page's key may call this route too (it takes the bridge's token either way) */
   inboxKey?: boolean;
+  /** the agent board page's key may call this route too */
+  boardKey?: boolean;
   handle(call: Call): unknown;
 }
 

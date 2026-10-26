@@ -96,6 +96,10 @@ const stop = (repo: string, extra: Record<string, unknown> = {}) => ({
   ...extra,
 });
 
+/** The hook's first sight of a session: records the starting tree and posts nothing. */
+const prompt = (repo: string, extra: Record<string, unknown> = {}) =>
+  stop(repo, { hook_event_name: 'UserPromptSubmit', ...extra });
+
 const turnsOf = async (bridge: TestBridge, query = '') =>
   (await bridge.call<TurnList>('GET', `/api/turns${query}`)).body;
 
@@ -103,6 +107,7 @@ test('the hook snapshots a turn, posts it, and leaves the repo alone', async () 
   const { home, bridge } = await bridgeWithConfig();
   const repo = checkout();
   const head = git(repo, 'rev-parse', 'HEAD');
+  await runHook(home, prompt(repo));
   writeFileSync(path.join(repo, 'one.txt'), 'a\nB\nc\n');
   writeFileSync(path.join(repo, 'new.txt'), 'hello\n');
   writeFileSync(path.join(repo, 'ignored.log'), 'noise\n');
@@ -152,6 +157,7 @@ test('the hook snapshots a turn, posts it, and leaves the repo alone', async () 
 test('each turn is compared with the session’s last snapshot', async () => {
   const { home, bridge } = await bridgeWithConfig();
   const repo = checkout();
+  await runHook(home, prompt(repo));
   writeFileSync(path.join(repo, 'one.txt'), 'turn one\n');
   await runHook(home, stop(repo));
   // a turn that changes nothing adds no turn
@@ -171,9 +177,58 @@ test('each turn is compared with the session’s last snapshot', async () => {
     turns[1].files.map((file) => file.path),
     ['one.txt'],
   );
-  // another session starts from HEAD again
+  // another session starts from the tree it first saw, which already has turn one and two in it
+  await runHook(home, prompt(repo, { session_id: 'sess-2' }));
   await runHook(home, stop(repo, { session_id: 'sess-2' }));
-  assert.equal((await turnsOf(bridge)).turns.length, 3);
+  assert.equal((await turnsOf(bridge)).turns.length, 2);
+  writeFileSync(path.join(repo, 'three.txt'), 'sess-2\n');
+  await runHook(home, stop(repo, { session_id: 'sess-2' }));
+  const after = await turnsOf(bridge);
+  assert.equal(after.turns.length, 3);
+  assert.deepEqual(
+    after.turns[0].files.map((file) => file.path),
+    ['three.txt'],
+  );
+  await bridge.close();
+});
+
+test('changes already uncommitted when a session starts are not its turn', async () => {
+  const { home, bridge } = await bridgeWithConfig();
+  const repo = checkout();
+  writeFileSync(path.join(repo, 'one.txt'), 'edited before the session\n');
+  // the starting snapshot is recorded without a turn, and a later prompt doesn't move it
+  await runHook(home, prompt(repo));
+  await runHook(home, prompt(repo));
+  assert.equal((await turnsOf(bridge)).turns.length, 0);
+  writeFileSync(path.join(repo, 'two.txt'), 'the session’s own work\n');
+  await runHook(home, stop(repo));
+  const { turns } = await turnsOf(bridge);
+  assert.equal(turns.length, 1);
+  assert.deepEqual(
+    turns[0].files.map((file) => file.path),
+    ['two.txt'],
+    'one.txt was already edited when the session began',
+  );
+  // a session with nothing else changed leaves the inbox alone
+  await runHook(home, stop(repo));
+  assert.equal((await turnsOf(bridge)).turns.length, 1);
+  await bridge.close();
+});
+
+test('a first Stop with no starting snapshot records one and posts nothing', async () => {
+  const { home, bridge } = await bridgeWithConfig();
+  const repo = checkout();
+  writeFileSync(path.join(repo, 'one.txt'), 'before the hook was wired\n');
+  await runHook(home, stop(repo));
+  assert.equal((await turnsOf(bridge)).turns.length, 0);
+  assert.equal(existsSync(path.join(home, 'turn-baselines', 'sess-1.json')), true);
+  writeFileSync(path.join(repo, 'two.txt'), 'next turn\n');
+  await runHook(home, stop(repo));
+  const { turns } = await turnsOf(bridge);
+  assert.deepEqual(
+    turns.map((turn) => turn.files.map((file) => file.path)),
+    [['two.txt']],
+  );
   await bridge.close();
 });
 
@@ -206,6 +261,7 @@ test('the hook does nothing, quietly, without a bridge, outside a repo, or on ba
 test('a failed post keeps the baseline, so the next turn carries the change', async () => {
   const { home, bridge, port } = await bridgeWithConfig();
   const repo = checkout();
+  await runHook(home, prompt(repo));
   writeFileSync(path.join(repo, 'one.txt'), 'lost post\n');
   // the bridge answers health but refuses the token for the post: a wrong token fails both, so use a repo path it rejects
   writeJson(path.join(home, 'config.json'), { port, token: 'wrong-token' });
@@ -224,6 +280,7 @@ test('a failed post keeps the baseline, so the next turn carries the change', as
 test('the API lists by repo, reads, and marks reviewed; ids and trees are checked', async () => {
   const { home, bridge } = await bridgeWithConfig();
   const repo = checkout();
+  await runHook(home, prompt(repo));
   writeFileSync(path.join(repo, 'one.txt'), 'changed\n');
   await runHook(home, stop(repo));
   const [turn] = (await turnsOf(bridge)).turns;
@@ -283,6 +340,7 @@ test('the API lists by repo, reads, and marks reviewed; ids and trees are checke
 test('the inbox page’s key reaches the turn routes and nothing else', async () => {
   const { home, bridge } = await bridgeWithConfig();
   const repo = checkout();
+  await runHook(home, prompt(repo));
   writeFileSync(path.join(repo, 'one.txt'), 'changed\n');
   await runHook(home, stop(repo));
   const [turn] = (await turnsOf(bridge)).turns;
@@ -323,6 +381,7 @@ test('the inbox page’s key reaches the turn routes and nothing else', async ()
 test('opening a turn makes a local story with the panel’s Ask, and Mark reviewed on its page', async () => {
   const { home, bridge } = await bridgeWithConfig();
   const repo = checkout();
+  await runHook(home, prompt(repo));
   writeFileSync(path.join(repo, 'one.txt'), 'changed\n');
   await runHook(home, stop(repo));
   const [turn] = (await turnsOf(bridge)).turns;
@@ -387,6 +446,7 @@ test('opening a turn makes a local story with the panel’s Ask, and Mark review
 test('a turn too big to keep whole keeps its counts, and files stay owner-only', async () => {
   const { home, bridge } = await bridgeWithConfig();
   const repo = checkout();
+  await runHook(home, prompt(repo));
   writeFileSync(path.join(repo, 'big.txt'), 'x'.repeat(100).concat('\n').repeat(30000)); // ≈ 3 MB
   writeFileSync(path.join(repo, 'small.txt'), 'small\n');
   await runHook(home, stop(repo));
@@ -450,6 +510,9 @@ test('`once-upon review` prints the inbox link', async () => {
   writeJson(path.join(home, 'config.json'), { port: 48999, token: TOKEN });
   const ran = await runCli(home, ['review', '--no-open']);
   assert.equal(ran.code, 0);
-  assert.equal(ran.stdout.trim(), `http://127.0.0.1:48999/inbox/#key=${inboxKey(TOKEN)}`);
+  // on the proxy's name by default, on the bridge's own address with --local
+  assert.equal(ran.stdout.trim(), `https://once-upon.test/inbox/#key=${inboxKey(TOKEN)}`);
   assert.match(ran.stderr, /0 turns to review/);
+  const local = await runCli(home, ['review', '--no-open', '--local']);
+  assert.equal(local.stdout.trim(), `http://127.0.0.1:48999/inbox/#key=${inboxKey(TOKEN)}`);
 });

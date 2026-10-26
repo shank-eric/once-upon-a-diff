@@ -35,6 +35,8 @@ interface Beat {
 /** A listener as listeners() reads it: its last beat, and whether it's live. */
 export interface Listener {
   consumer: string;
+  /** the `once-upon wait` process, whose parent chain leads to the Claude Code session that runs it */
+  pid: number;
   state: Beat['state'];
   at: string;
   age_s: number;
@@ -107,6 +109,7 @@ export function listeners(home: string, now = Date.now()): Listener[] {
           : age < WAITING_FRESH_MS && alive(beat.pid);
       out.push({
         consumer: beat.consumer,
+        pid: beat.pid,
         state: beat.state,
         at: beat.at,
         age_s: Math.round(age / 1000),

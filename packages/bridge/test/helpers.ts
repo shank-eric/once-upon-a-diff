@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AddressInfo } from 'node:net';
 import { createBridge, type Bridge } from '../src/server/index.ts';
+import type { BranchCheck, PrCheck, RequestedCheck } from '../src/turns/auto-review.ts';
 import type { Build } from '../src/inbox/builds.ts';
 import type { listeningOf } from '../src/listeners/listeners.ts';
 
@@ -40,6 +41,8 @@ export const tmp = (name: string): string =>
   mkdtempSync(path.join(os.tmpdir(), `once-upon-${name}-`));
 // tests never look in (or move stories into) the real ~/Development checkouts
 process.env.ONCE_UPON_DEV_DIR = mkdtempSync(path.join(os.tmpdir(), 'once-upon-dev-'));
+// the proxy name is taken as reaching this machine, so no test depends on the machine's DNS
+process.env.ONCE_UPON_NO_HOST_CHECK = '1';
 export const TOKEN = 'test-token-0123456789abcdef';
 
 export function writeJson(file: string, value: unknown): void {
@@ -129,8 +132,21 @@ export function localRepo(): { repo: string; base: string } {
 }
 
 /** A bridge on a random port with the test token, and `call` for its API: the answer's JSON is T, as the test expects it. */
-export async function startBridge(opts: { home: string; log?: (line: string) => void }) {
-  const server: Bridge = createBridge({ token: TOKEN, ...opts });
+export async function startBridge(opts: {
+  home: string;
+  log?: (line: string) => void;
+  checkPr?: PrCheck;
+  checkBranch?: BranchCheck;
+  checkRequested?: RequestedCheck;
+}) {
+  // no test asks GitHub unless it brings its own check
+  const server: Bridge = createBridge({
+    token: TOKEN,
+    checkPr: async () => ({ merged: false, why: null }),
+    checkBranch: async () => null,
+    checkRequested: async () => [],
+    ...opts,
+  });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const call = async <T = unknown>(

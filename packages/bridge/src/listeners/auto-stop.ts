@@ -4,7 +4,9 @@
  * story's seen.json, at most every SEEN_WRITE_MS. A `wait --story` stops itself once no page has shown its story
  * for the idle window (story_listener_idle_minutes in config.json, default 10), counted from when the wait started
  * if no page has shown it since. It never stops while its session has the story's fix request or rebuild in hand.
- * Repo-wide and catch-all waits never stop this way.
+ * A `wait --repo` stops the same way, once no page has shown any of the repo's stories for the idle window
+ * (listen_idle_minutes, default 10), and also when the board's Stop listening asks (a stop request: stopRequest). Both
+ * are logged to <home>/listeners.log. Catch-all waits never stop this way.
  *
  * A tab in the background doesn't pulse, so it counts as no page, the same as a closed one.
  */
@@ -12,6 +14,9 @@ import { readFixes } from '../inbox/fixes.ts';
 import { Builds } from '../inbox/builds.ts';
 import { readSettings } from '../config/settings.ts';
 import { plural } from '@once-upon-a-diff/shared/util/text';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { sameRepo } from '../config/repos.ts';
 import type { StoryStore } from '../stories/store.ts';
 
 export const SEEN_FILE = 'seen.json';
@@ -92,4 +97,106 @@ export function stopReason({
     return null;
   }
   return `no page has shown the story for ${windowText(idleMs)}`;
+}
+
+/** The idle window for a repo's wait: listen_idle_minutes in config.json, else DEFAULT_IDLE_MINUTES. */
+export const repoIdleMsOf = (home: string): number =>
+  (readSettings(home).repoListenerIdleMinutes ?? DEFAULT_IDLE_MINUTES) * 60000;
+
+/** What this listener still has in hand in the repo (a fix request or a build it claimed), or null. */
+function repoInHand(
+  home: string,
+  consumer: string,
+  stories: StoryStore,
+  repo: string,
+): string | null {
+  const storiesOfRepo = new Set(
+    stories
+      .list()
+      .filter((story) => story.repo && sameRepo(story.repo, repo))
+      .map((story) => story.id),
+  );
+  const fixes = Object.values(readFixes(home)).filter(
+    (request) =>
+      request.claimed_by === consumer &&
+      request.status === 'pending' &&
+      (storiesOfRepo.has(request.story) || (request.repo && sameRepo(request.repo, repo))),
+  );
+  if (fixes.length) {
+    return plural(fixes.length, 'fix request');
+  }
+  const building = new Builds(home)
+    .pending()
+    .some((build) => build.claimed_by === consumer && build.repo && sameRepo(build.repo, repo));
+  return building ? 'a build' : null;
+}
+
+/**
+ * Why a repo's listener should stop now, or null: no page has shown any of the repo's stories for the idle window (counted
+ * from when the wait started, if none has since), unless it has a fix request or a build of the repo in hand.
+ */
+export function repoStopReason({
+  home,
+  stories,
+  repo,
+  consumer,
+  startedAt,
+  idleMs,
+  now = Date.now(),
+}: {
+  home: string;
+  stories: StoryStore;
+  repo: string;
+  consumer: string;
+  startedAt: number;
+  idleMs: number;
+  now?: number;
+}): string | null {
+  const seen = stories
+    .list()
+    .filter((story) => story.repo && sameRepo(story.repo, repo))
+    .map((story) => lastSeen(stories, story.id) || 0);
+  const since = Math.max(startedAt, ...seen);
+  if (now - since < idleMs || repoInHand(home, consumer, stories, repo)) {
+    return null;
+  }
+  return `no page has shown one of its stories for ${windowText(idleMs)}`;
+}
+
+const STOPS = 'listener-stops.json';
+
+/** The board's Stop listening: every `wait --repo` for the repo that started before now ends on its next look (within ≈2 s). */
+export function requestStop(home: string, repo: string, now = Date.now()): void {
+  mkdirSync(home, { recursive: true });
+  const file = path.join(home, STOPS);
+  let stops: Record<string, number> = {};
+  try {
+    stops = JSON.parse(readFileSync(file, 'utf8'));
+  } catch {
+    stops = {};
+  }
+  writeFileSync(file, JSON.stringify({ ...stops, [repo.toLowerCase()]: now }, null, 2) + '\n', {
+    mode: 0o600,
+  });
+}
+
+/** Whether a stop was asked for the repo after this wait started. */
+export function stopRequested(home: string, repo: string, startedAt: number): string | null {
+  try {
+    const stops: Record<string, number> = JSON.parse(readFileSync(path.join(home, STOPS), 'utf8'));
+    return (stops[repo.toLowerCase()] ?? 0) >= startedAt ? 'stopped from the board' : null;
+  } catch {
+    return null;
+  }
+}
+
+/** One line in <home>/listeners.log when a listener stops by itself or is stopped. */
+export function logStop(home: string, line: string): void {
+  try {
+    appendFileSync(path.join(home, 'listeners.log'), `${new Date().toISOString()} ${line}\n`, {
+      mode: 0o600,
+    });
+  } catch {
+    /* the stop still happens */
+  }
 }

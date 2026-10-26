@@ -3,9 +3,10 @@
  * and open them, and the reviewer marks them reviewed.
  *
  *   POST /api/turns            add one: {repo_path, base_tree, head_tree, session, branch, at, prompt, summary}
- *   GET  /api/turns            the newest turns and each repo's counts; ?repo=owner/name filters, ?limit=N
+ *   GET  /api/turns            the newest turns, the built PR stories (turns/stories.ts) and each repo's counts;
+ *                              ?repo=owner/name filters, ?limit=N
  *   GET  /api/turns/read       ?id=: one turn and its diff
- *   POST /api/turns/reviewed   {id, reviewed}: mark it (true by default) or unmark it
+ *   POST /api/turns/reviewed   {id, reviewed} or {story, reviewed}: mark a turn or a PR story (true by default) or unmark it
  *   POST /api/turns/open       {id}: make the turn a local story and answer with its page link
  *   GET  /api/turns/link       the inbox page's link (?repo= filters it), for the extension and the CLI
  *
@@ -14,7 +15,9 @@
  */
 import { HttpError, toInt } from '../request.ts';
 import { REPO_RE } from '../../config/repos.ts';
+import { publicOriginOf } from '../address.ts';
 import { storyIdOf, TURN_ID_RE } from '../../turns/turns.ts';
+import { markStoryReviewed, prStories, prStory } from '../../turns/stories.ts';
 import type { ApiRoute, Call } from '../../types.ts';
 
 const MAX_LIMIT = 500;
@@ -37,19 +40,44 @@ async function add({ app, body, send }: Call) {
 function list({ app, url, send }: Call) {
   const repo = url.searchParams.get('repo');
   const limit = toInt(url.searchParams.get('limit'));
-  return send(
-    200,
-    app.turns.list({
-      repo: repo || null,
-      limit: limit && limit > 0 ? Math.min(limit, MAX_LIMIT) : undefined,
-    }),
-  );
+  const turns = app.turns.list({
+    repo: repo || null,
+    limit: limit && limit > 0 ? Math.min(limit, MAX_LIMIT) : undefined,
+  });
+  // the repo menu counts what waits there, turns and PR stories together
+  const repos = new Map(turns.repos.map((entry) => [entry.repo.toLowerCase(), entry]));
+  const everything = prStories(app.stories);
+  // GitHub is asked in the background, a few minutes apart per PR, so this poll answers at once
+  app.autoReview.kick(everything);
+  for (const story of everything) {
+    const entry = repos.get(story.repo.toLowerCase()) || {
+      repo: story.repo,
+      count: 0,
+      unreviewed: 0,
+    };
+    entry.count++;
+    entry.unreviewed += story.reviewed_at ? 0 : 1;
+    repos.set(story.repo.toLowerCase(), entry);
+  }
+  return send(200, {
+    ...turns,
+    repos: [...repos.values()],
+    stories: repo ? prStories(app.stories, { repo }) : everything,
+  });
 }
 
 const read = (call: Call) => call.send(200, turnOf(call, call.url.searchParams.get('id')));
 
 function reviewed(call: Call) {
   const { app, body, send } = call;
+  if (body.story !== undefined) {
+    const story = prStory(app.stories, String(body.story));
+    if (!story) {
+      throw new HttpError(404, 'no PR story with that id');
+    }
+    markStoryReviewed(app.stories, story.id, body.reviewed !== false);
+    return send(200, { story: prStory(app.stories, story.id) });
+  }
   turnOf(call, body.id);
   const turn = app.turns.markReviewed(String(body.id), body.reviewed !== false);
   return send(200, { turn });
@@ -63,9 +91,13 @@ function open(call: Call) {
   return send(200, { story, url: app.links.story(storyIdOf(String(body.id))) });
 }
 
-function link({ app, url, send }: Call) {
+/** The inbox's link: on 127.0.0.1 for the extension's own check, or (`?public=1`) on the proxy's address when it reaches this machine. */
+async function link({ app, url, send }: Call) {
   const repo = url.searchParams.get('repo');
-  return send(200, { url: app.links.inbox(repo && REPO_RE.test(repo) ? repo : null) });
+  const origin = url.searchParams.get('public') ? await publicOriginOf(app.home) : undefined;
+  return send(200, {
+    url: app.links.inbox(repo && REPO_RE.test(repo) ? repo : null, null, origin),
+  });
 }
 
 export const turnRoutes: ApiRoute[] = [

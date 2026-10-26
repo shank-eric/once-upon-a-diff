@@ -5,9 +5,16 @@
 #
 # It snapshots the working tree into a git tree object, through a temporary index (a copy of the real one, so it's
 # quick), with no commit, ref, stash or change to your own index. It compares that tree with this session's last
-# snapshot (the first turn: with HEAD's tree) and, when they differ, posts the two tree ids, the branch, the session,
-# your prompt for the turn (from the transcript) and Claude's last message to the bridge, which makes the diff itself.
+# snapshot and, when they differ, posts the two tree ids, the branch, the session, your prompt for the turn (from
+# the transcript) and Claude's last message to the bridge, which makes the diff itself.
 # The baseline moves on only once the bridge has taken the turn, so a failed post is retried with the next turn.
+#
+# A session's first snapshot is its starting working tree, not HEAD, so changes that were already uncommitted before
+# the session began don't show up as its work. Wire the same script to UserPromptSubmit too: that event only records
+# the starting snapshot (when the session has none yet) and posts nothing, and it fires before the turn's first edit.
+# Without it, the first Stop with no stored baseline records one and posts nothing, so that first turn is lost and
+# anything it changed becomes part of the baseline. That is the trade-off for a session that began before the hook
+# was wired (or while the bridge was down).
 #
 # It never fails a turn: every path ends in exit 0, and it prints nothing. It does nothing outside a git checkout,
 # or when the bridge isn't answering. Needs git, jq and curl.
@@ -16,8 +23,9 @@ umask 077
 
 main() {
   command -v git >/dev/null && command -v jq >/dev/null && command -v curl >/dev/null || return 0
-  local input session transcript cwd summary
+  local input session transcript cwd summary event
   input=$(cat)
+  event=$(jq -r '.hook_event_name // empty' <<<"$input")
   session=$(jq -r '.session_id // empty' <<<"$input")
   transcript=$(jq -r '.transcript_path // empty' <<<"$input")
   cwd=$(jq -r '.cwd // empty' <<<"$input")
@@ -34,7 +42,7 @@ main() {
   bridge() {
     printf 'header = "Authorization: Bearer %s"\n' "$token" | curl -sS -K - --max-time "$1" "${@:2}" 2>/dev/null
   }
-  bridge 1 -f -o /dev/null "http://127.0.0.1:$port/api/health" || return 0
+  bridge 3 -f -o /dev/null "http://127.0.0.1:$port/api/health" || return 0
 
   local top
   top=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null) || return 0
@@ -50,14 +58,14 @@ main() {
   GIT_INDEX_FILE="$scratch/index" git -C "$top" add -A >/dev/null 2>&1 || return 0
   head=$(GIT_INDEX_FILE="$scratch/index" git -C "$top" write-tree 2>/dev/null) || return 0
 
-  # this session's last snapshot of this checkout, else HEAD's tree (else the empty tree, in a repo with no commits)
+  # this session's last snapshot of this checkout; none (or one git no longer has) means this is the session's first sight
   local baselines base
   baselines="$home/turn-baselines"
   mkdir -p "$baselines" && chmod 700 "$baselines" 2>/dev/null
   find "$baselines" -name '*.json' -mtime +14 -delete 2>/dev/null
   base=$(jq -r --arg top "$top" '.[$top].tree // empty' "$baselines/$session.json" 2>/dev/null)
-  if [[ -z "$base" ]] || ! git -C "$top" cat-file -e "$base^{tree}" 2>/dev/null; then
-    base=$(git -C "$top" rev-parse --verify --quiet 'HEAD^{tree}' 2>/dev/null || git -C "$top" hash-object -t tree /dev/null)
+  if [[ -n "$base" ]] && ! git -C "$top" cat-file -e "$base^{tree}" 2>/dev/null; then
+    base=''
   fi
   remember() {
     local file="$baselines/$session.json"
@@ -65,6 +73,13 @@ main() {
     jq --arg top "$top" --arg tree "$head" --arg at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.[$top] = {tree: $tree, at: $at}' "$file" >"$scratch/baseline.json" &&
       mv "$scratch/baseline.json" "$file"
   }
+  # first sight: the starting snapshot is the baseline, and nothing is posted
+  if [[ -z "$base" ]]; then
+    remember
+    return 0
+  fi
+  # UserPromptSubmit and the like only ever set the starting snapshot
+  [[ -z "$event" || "$event" == "Stop" ]] || return 0
   if [[ "$base" == "$head" ]]; then
     remember
     return 0

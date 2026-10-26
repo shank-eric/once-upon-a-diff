@@ -526,6 +526,7 @@ describe('pulse', () => {
         'listening',
         'questions_rev',
         'rebuild',
+        'request',
         'version',
         'working_rev',
       ]);

@@ -214,8 +214,33 @@ export interface Turn {
 /** GET /api/turns: the newest turns first, and each repo's counts for the inbox page's filter. */
 export interface TurnList {
   turns: Turn[];
+  /** each repo's counts, turns and PR stories together */
   repos: { repo: string; count: number; unreviewed: number }[];
+  /** built PR stories waiting for review, newest first, listed beside the turns */
+  stories: InboxStory[];
 }
+
+/** A built PR story in the review inbox: the panel opens on the PR's changes page, and Mark reviewed ticks it off. */
+export interface InboxStory {
+  id: string;
+  repo: string;
+  number: number;
+  title: string;
+  /** the PR's head branch, when the story says */
+  branch: string | null;
+  /** the PR's changes page, where the panel opens */
+  url: string;
+  /** when the story was last built */
+  built_at: string;
+  /** when you last opened or reviewed it: the latest of your reads, where you stopped, and a Mark reviewed (null: never) */
+  seen_at: string | null;
+  reviewed_at: string | null;
+  /** why it is reviewed: marked by hand, or marked by itself because you submitted a review or viewed every file */
+  reviewed_by: ReviewedBy | null;
+}
+
+/** What marked a PR story reviewed. */
+export type ReviewedBy = 'manual' | 'review' | 'all viewed';
 
 /** The PR title and body a session handed over for a local story's branch (`once-upon pr-draft`). */
 export interface PrDraft {
@@ -495,6 +520,18 @@ export interface Pulse {
   listening: boolean;
   answering: string | null;
   rebuild: RebuildView | null;
+  /** a build, update, rebuild or fix request for the story that a session has yet to finish, or null */
+  request: StoryRequest | null;
+}
+
+/** A request a Claude session is to do for a story: queued until a listener takes it, building once one has. */
+export interface StoryRequest {
+  kind: 'build' | 'update' | 'rebuild' | 'fix';
+  state: 'queued' | 'building';
+  requested_at: string;
+  /** who took it, once it is building */
+  claimed_by: string | null;
+  claimed_at: string | null;
 }
 
 /** What a story's last update brought in. */
@@ -535,4 +572,183 @@ export interface ReadInfo {
   since?: unknown;
   changed?: ReadChange[];
   stale_comments?: { step: number; index: number }[];
+}
+
+/** Where a card sits on the agent board (GET /api/board). `error` and `idle` columns show only when a card is in them. */
+export type BoardStatus = 'working' | 'waiting' | 'done' | 'error' | 'idle';
+
+/** The latest progress beat an agent posted: step n of `of`. */
+export interface BoardBeat {
+  n: number;
+  of: number;
+  step: string;
+  note: string;
+}
+
+/** A background agent (a subagent) from the ledger file, inside its parent session's card or on a card of its own. */
+export interface BoardAgent {
+  name: string;
+  /** the ledger's own word for where it stands */
+  state: 'running' | 'waiting' | 'done' | 'failed' | 'stopped';
+  status: BoardStatus;
+  task: string | null;
+  model: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  outcome: string | null;
+  /** still `running` long after it started, with no done line: probably never reported back */
+  stale: boolean;
+  beat: BoardBeat | null;
+}
+
+/** The board's columns, in the order the work moves through them: `error` shows only when a card is in it, and idle cards are a lane of their own. */
+export type BoardColumn =
+  'working' | 'waiting' | 'ready' | 'pr_open' | 'back' | 'done' | 'idle' | 'error';
+
+/** What GitHub says about a PR (one GraphQL query, kept a few minutes). */
+export interface PrInfo {
+  number: number;
+  url: string;
+  title: string;
+  state: 'open' | 'merged' | 'closed';
+  draft: boolean;
+  /** the PR's head branch */
+  branch: string | null;
+  /** who opened it, and whether that is the signed-in gh user (the board shows only PRs you authored) */
+  author: string | null;
+  mine: boolean;
+  /** you are among the reviewers GitHub is waiting on (a team request is not seen) */
+  review_requested: boolean;
+  approvals: number;
+  /** the base branch's required approving reviews, from its protection rule or rulesets when readable (null: none set, or not visible to you) */
+  required: number | null;
+  review: 'approved' | 'changes_requested' | 'review_required' | null;
+  checks: 'success' | 'failure' | 'pending' | null;
+  /** whether the merge button is clickable, and the one thing to say about it: "ready to merge", or what blocks it */
+  merge: { ready: boolean; text: string; tone: 'ok' | 'warn' | 'bad' } | null;
+  merged_at: string | null;
+  /** review threads still open */
+  unresolved: number;
+  /** the signed-in user's latest review, comment or push on it */
+  viewer_at: string | null;
+  /** when someone else last asked something of you: a standing changes-requested review, or an open review thread whose last comment is theirs (people only; no bots, no AI-review comments) */
+  others_at: string | null;
+}
+
+/** A Claude Code session working on a card, as the board knows it. */
+export interface BoardSession {
+  id: string;
+  title: string;
+  cwd: string;
+  branch: string | null;
+  status: BoardStatus;
+  detail: string | null;
+  /** when it entered this status, as far as the bridge knows */
+  since: string | null;
+  /** where the status came from: the terminal's own tab status or Claude Code's registry */
+  source: 'iterm' | 'registry';
+  /** its iTerm tab is known, so `POST /api/board/focus` can bring it to the front */
+  focus: boolean;
+}
+
+/**
+ * One card. kind `work` is a branch or PR with the sessions and agents working on it inside; `session` is a session
+ * that is not on a branch of its own (the default branch, or no repo); `agent` is a ledger agent whose lane tag put it
+ * away from its parent, or whose session is gone.
+ */
+export interface BoardCard {
+  id: string;
+  kind: 'work' | 'session' | 'agent';
+  title: string;
+  repo: string | null;
+  branch: string | null;
+  lane: string;
+  column: BoardColumn;
+  /** the question or status line worth reading at a glance */
+  detail: string | null;
+  /** when the card entered its column, as far as the bridge knows */
+  since: string | null;
+  pr: PrInfo | null;
+  /** the built PR story, when there is one: reviewed, and `unread` when it was built after you last opened or reviewed it */
+  story: { id: string; url: string; reviewed: boolean; unread: boolean } | null;
+  /** a session is building, rebuilding or fixing for it (a claimed request) */
+  building: { kind: StoryRequest['kind']; since: string | null; by: string | null } | null;
+  sessions: BoardSession[];
+  agents: BoardAgent[];
+  /** an agent card's parent session, by title */
+  parent: string | null;
+  /** the session a click on the card brings to the front: its busiest or waiting one, or an agent's parent; null when none is known */
+  focus_session: string | null;
+  /** that session's iTerm tab is known (the control is disabled otherwise) */
+  can_focus: boolean;
+  /** a session is listening for this card's story (its own listener), and which session it is */
+  listening: BoardListening | null;
+  /** Build story, for a card with a session and a branch or PR but no story yet */
+  build: BoardBuild | null;
+  /** what waits for review in the inbox: the sessions' unreviewed turns and the card's unreviewed PR story; the link's filter */
+  inbox: { turns: number; stories: number; session: string | null; repo: string | null } | null;
+}
+
+/** The voice session, pinned above the columns (Larmor's voice mode: src/board/voice.ts). */
+export interface BoardVoice {
+  /** the name it answers to, else its title */
+  name: string;
+  title: string;
+  repo: string | null;
+  lane: string;
+  branch: string | null;
+  status: 'listening' | 'speaking' | 'working' | 'paused' | 'away';
+  since: string | null;
+  /** the agents it started that are running or waiting on you */
+  agents: { running: number; waiting: number };
+  session: string;
+  can_focus: boolean;
+}
+
+/** A session listening for requests, and which session that is. */
+export interface BoardListening {
+  consumer: string;
+  /** the Claude Code session that runs the wait (found from the wait's parent processes), or null when it can't be told */
+  session: string | null;
+  title: string | null;
+  can_focus: boolean;
+}
+
+/** One repo in the Listeners lane: who listens for it now, or when it last had a listener. */
+export interface BoardListenerRepo {
+  repo: string;
+  active:
+    | (BoardListening & {
+        state: 'waiting' | 'handling';
+        /** when the repo went from no listener to this one */
+        since: string | null;
+        /** the last request (question, build or fix) it was handed */
+        last_handled_at: string | null;
+      })
+    | null;
+  last_seen: string | null;
+  /** idle sessions in the repo's checkout that Start listening can type into (their iTerm tab is known) */
+  candidates: { id: string; title: string; status: 'idle' | 'done'; since: string | null }[];
+}
+
+/** What Build story would type, and into which session: null session means every session on the card is busy. */
+export interface BoardBuild {
+  session: string | null;
+  prompt: string;
+  /** why the button is off: "session busy", or that no tab is known */
+  blocked: string | null;
+}
+
+/** GET /api/board: lanes (one per repo, or per lane tag), each with its cards. */
+export interface BoardData {
+  at: string;
+  /** which source gave the sessions' status */
+  status_source: 'iterm' | 'registry';
+  /** something the page should say, such as the terminal's CLI not answering */
+  warning: string | null;
+  /** the voice session when voice mode is on and board_voice_dir names its folder; it is not on a card */
+  voice: BoardVoice | null;
+  /** repos with a listener now, and those that had one in the last week */
+  listeners: BoardListenerRepo[];
+  lanes: { name: string; cards: BoardCard[] }[];
 }

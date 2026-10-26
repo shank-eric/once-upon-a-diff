@@ -92,6 +92,9 @@ const PLATFORM_OPENER: Partial<Record<NodeJS.Platform, string[]>> = {
   win32: ['explorer'],
 };
 
+/** The names the bridge answers when a reverse proxy forwards them (puma-dev's *.test and *.fidev.net). */
+const DEFAULT_HOSTS = ['once-upon.test', 'once-upon.fidev.net'];
+
 /**
  * Optional personal settings in config.json, all off or neutral by default:
  *   display_name            the reviewer's name in lines the bridge writes for Claude ("where Sam's reading stopped")
@@ -100,7 +103,24 @@ const PLATFORM_OPENER: Partial<Record<NodeJS.Platform, string[]>> = {
  *   open_command            argv to open a URL or file, e.g. ["open"] (default: open, xdg-open or start by platform)
  *   gh_unset_github_token   true to drop GITHUB_TOKEN before calling gh, so gh's own (keychain) login is used
  *   house_rules             a Markdown file of your own rules the skills load (default ~/.once-upon/house-rules.md)
+ *   listen_idle_minutes     how long a `wait --repo` keeps listening with no page showing one of the repo's stories (default 10;
+ *                           it logs when it stops, to <home>/listeners.log)
  *   story_listener_idle_minutes  how long a `wait --story` keeps listening with no page showing its story (default 10)
+ *   allowed_hosts           host names the bridge answers besides 127.0.0.1 and localhost (a reverse proxy such as puma-dev
+ *                           forwards the name you typed); only these exact names, which keeps DNS rebinding out
+ *                           (default ["once-upon.test", "once-upon.fidev.net"])
+ *   public_host             the allowed name `once-upon board` and `review` print and open, over https (default: the first
+ *                           allowed host; "" or "none" prints the 127.0.0.1 address)
+ *   board_status_source     "iterm" or "registry": where the agent board reads each session's status (default: iterm when
+ *                           the it2 CLI is found, else registry, Claude Code's own busy/idle)
+ *   board_it2_path          the it2 CLI's path when it isn't on PATH or in iTerm2's app folder
+ *   board_sessions_dir      Claude Code's live-session registry (default $CLAUDE_CONFIG_DIR/sessions or ~/.claude/sessions)
+ *   board_ledger_file       a Markdown file of background-agent lines for the board (see board/ledger.ts); no default, off when unset
+ *   board_progress_file     its progress beats (`- <time> <name> <N>/6 <step>: <note>`); no default, off when unset
+ *   board_voice_dir         Larmor's folder (~/.larmor): when voice mode is on, its session is pinned at the top of the board
+ *                           instead of sitting in a column; read only, off when unset
+ *   board_done_hours        how long a finished agent stays on the board (default 4)
+ *   board_ledger_time_zone  the zone the ledger's times are in when they carry no label like ET (default: the system's)
  *   extension_ids           more extension IDs the bridge answers (a store install, an older unpacked copy); the
  *                           fixed unpacked ID is always allowed
  * Read without creating config.json, so a missing file just means the defaults.
@@ -112,6 +132,19 @@ export function readSettings(home = homeDir()) {
   const dirs = Array.isArray(cfg.checkout_dirs)
     ? cfg.checkout_dirs.filter((dir): dir is string => typeof dir === 'string' && !!dir).map(expand)
     : [];
+  const hostNames = Array.isArray(cfg.allowed_hosts)
+    ? cfg.allowed_hosts.filter(
+        (name): name is string =>
+          typeof name === 'string' && /^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$/.test(name),
+      )
+    : DEFAULT_HOSTS;
+  const allowedHosts = hostNames.map((name) => name.toLowerCase());
+  const wantedHost =
+    typeof cfg.public_host === 'string' ? cfg.public_host.trim().toLowerCase() : null;
+  const publicHost =
+    wantedHost === '' || wantedHost === 'none'
+      ? null
+      : ((wantedHost && allowedHosts.includes(wantedHost) ? wantedHost : allowedHosts[0]) ?? null);
   return {
     displayName:
       typeof cfg.display_name === 'string' && cfg.display_name.trim()
@@ -125,10 +158,59 @@ export function readSettings(home = homeDir()) {
         ? cfg.open_command.map(String)
         : null,
     unsetGithubToken: cfg.gh_unset_github_token === true,
+    repoListenerIdleMinutes:
+      typeof cfg.listen_idle_minutes === 'number' && cfg.listen_idle_minutes > 0
+        ? cfg.listen_idle_minutes
+        : null,
     storyListenerIdleMinutes:
       typeof cfg.story_listener_idle_minutes === 'number' && cfg.story_listener_idle_minutes > 0
         ? cfg.story_listener_idle_minutes
         : null,
+    allowedHosts,
+    publicHost,
+    // named in config.json, so used as set; unset, the default name is used only where it resolves to this machine
+    publicHostSet:
+      wantedHost !== null &&
+      wantedHost !== '' &&
+      wantedHost !== 'none' &&
+      publicHost === wantedHost,
+    board: {
+      statusSource:
+        cfg.board_status_source === 'iterm' || cfg.board_status_source === 'registry'
+          ? (cfg.board_status_source as 'iterm' | 'registry')
+          : null,
+      it2Path:
+        typeof cfg.board_it2_path === 'string' && cfg.board_it2_path
+          ? expand(cfg.board_it2_path)
+          : null,
+      sessionsDir:
+        typeof cfg.board_sessions_dir === 'string' && cfg.board_sessions_dir
+          ? expand(cfg.board_sessions_dir)
+          : path.join(
+              process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'),
+              'sessions',
+            ),
+      ledgerFile:
+        typeof cfg.board_ledger_file === 'string' && cfg.board_ledger_file
+          ? expand(cfg.board_ledger_file)
+          : null,
+      progressFile:
+        typeof cfg.board_progress_file === 'string' && cfg.board_progress_file
+          ? expand(cfg.board_progress_file)
+          : null,
+      voiceDir:
+        typeof cfg.board_voice_dir === 'string' && cfg.board_voice_dir
+          ? expand(cfg.board_voice_dir)
+          : null,
+      doneHours:
+        typeof cfg.board_done_hours === 'number' && cfg.board_done_hours > 0
+          ? cfg.board_done_hours
+          : 4,
+      ledgerTimeZone:
+        typeof cfg.board_ledger_time_zone === 'string' && cfg.board_ledger_time_zone
+          ? cfg.board_ledger_time_zone
+          : undefined,
+    },
     extensionIds: [
       UNPACKED_EXTENSION_ID,
       ...(Array.isArray(cfg.extension_ids)
