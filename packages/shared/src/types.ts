@@ -172,6 +172,49 @@ export interface LocalStory {
   commits: LocalCommit[];
   files: LocalFile[];
   notes: LocalNote[];
+  /** a review inbox turn's story says which turn it is, so the page can offer Mark reviewed */
+  turn?: { id: string; reviewed_at: string | null };
+}
+
+/** One file a review inbox turn changed. omitted: the turn's diff was too big to keep this file's lines. */
+export interface TurnFile {
+  path: string;
+  kind: 'created' | 'modified' | 'deleted' | 'renamed';
+  added: number;
+  removed: number;
+  binary?: boolean;
+  omitted?: boolean;
+}
+
+/** One Claude Code turn in the review inbox (GET /api/turns): what the turn changed, and whether it's been reviewed. */
+export interface Turn {
+  id: string;
+  /** owner/name from the checkout's origin, when it has a GitHub one */
+  repo: string | null;
+  repo_name: string;
+  repo_path: string;
+  branch: string | null;
+  session: string;
+  at: string;
+  /** the working tree's snapshot before the turn and after it (git tree ids) */
+  base_tree: string;
+  head_tree: string;
+  /** what the user asked that turn, from the session's transcript */
+  prompt: string | null;
+  /** Claude's last message of the turn */
+  summary: string | null;
+  files: TurnFile[];
+  added: number;
+  removed: number;
+  /** some files' lines were left out to keep the turn under the size cap */
+  truncated: boolean;
+  reviewed_at: string | null;
+}
+
+/** GET /api/turns: the newest turns first, and each repo's counts for the inbox page's filter. */
+export interface TurnList {
+  turns: Turn[];
+  repos: { repo: string; count: number; unreviewed: number }[];
 }
 
 /** The PR title and body a session handed over for a local story's branch (`once-upon pr-draft`). */

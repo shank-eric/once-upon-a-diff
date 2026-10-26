@@ -8,6 +8,7 @@ import type { LocalCommit } from '@once-upon-a-diff/shared/types';
 import type { StoryStore } from './stories/store.ts';
 import type { Inbox } from './inbox/inbox.ts';
 import type { Build, Builds } from './inbox/builds.ts';
+import type { TurnStore } from './turns/turns.ts';
 import type { Config } from './config/settings.ts';
 
 /** A story folder's meta.json (readMeta fills in kind, title and a PR's url). */
@@ -77,6 +78,10 @@ export interface App {
   stories: StoryStore;
   inbox: Inbox;
   builds: Builds;
+  /** the review inbox's turns */
+  turns: TurnStore;
+  /** page links with their keys: a local story's page, and the review inbox's (optionally for one repo) */
+  links: { story(id: string): string; inbox(repo?: string | null): string };
   log: (line: string) => void;
   /** PR-list lookups, kept 5s */
   statusCache: {
@@ -102,6 +107,8 @@ export interface ApiRoute {
   path: string;
   method?: 'GET' | 'POST';
   what?: string;
+  /** the review inbox page's key may call this route too (it takes the bridge's token either way) */
+  inboxKey?: boolean;
   handle(call: Call): unknown;
 }
 

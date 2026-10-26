@@ -269,6 +269,20 @@ This builds `git diff <base> <head>` into `~/.once-upon/local-<repo>-<branch>/`.
 - Without `--chapters`, you get one chapter per top-level folder as a starting point. Any file a story doesn't place lands in a last "Not in a chapter yet" step, so nothing is hidden from every step.
 - **Create pull request**, in the page header (on a branch), opens a confirm box. It shows where the branch stands on GitHub (`git ls-remote`), the commits a push would send, the base branch, and the PR's title and body, all editable. The once-upon skill drafts the title and body every time it publishes a local story or rebuilds one (from the repo's PR template when it has one) and hands them over with `once-upon pr-draft --story <id> --title T --body-file F [--base BRANCH]`, so the button is ready. Without them, GitHub fills them from the commits. The box's button runs `git push -u origin <branch>` with your own git login when the branch needs it, then opens GitHub's compare page with the title and body filled in, and you make the PR there. It never force-pushes: if GitHub's copy of the branch has commits yours doesn't, the box says so and won't push, and a push is refused if the branch moved after the box opened. A body too long for the link is left out of it, with a **Copy body** button. Once the branch has an open PR (a read-only `gh pr list`), the header shows **Open PR #N** instead. This push, sent only from your click in the box, is the one way the page key reaches GitHub. Nothing runs `gh pr create`.
 
+## Review inbox: Claude Code turns, reviewed later
+
+A Claude Code `Stop` hook hands the bridge what each turn changed, and you review the turns when you like, one at a time, without leaving your terminal's window.
+
+```json
+{ "hooks": { "Stop": [ { "hooks": [ { "type": "command", "command": "/bin/bash /path/to/once-upon-a-diff/skills/once-upon/bin/capture-turn.sh" } ] } ] } }
+```
+
+Add that command to the `Stop` hooks in your Claude Code settings (next to any you already have). `capture-turn.sh` needs `git`, `jq` and `curl`, not Node.
+
+- **Capture.** After a turn, in a git checkout and only while the bridge answers, the script snapshots the working tree into a git tree object through a temporary copy of the index. It makes no commit, ref or stash and doesn't touch your index. It compares that tree with the session's last snapshot (the first turn: with HEAD's tree) and, if they differ, posts the two tree ids, the branch, the session, your prompt for the turn (read from the transcript) and Claude's last message. The bridge makes the diff itself. The script prints nothing and always exits 0. Each session's last snapshot is kept in `~/.once-upon/turn-baselines/` (14 days). Changes that were already uncommitted when a session's first turn ran show in that turn.
+- **Store.** Turns are kept in `~/.once-upon/turns/` (`<id>.json` and `<id>.diff`, owner-only), never sent anywhere. A repo keeps its newest 200, and a turn's diff keeps at most 2 MB (a bigger file keeps its counts but not its lines). The routes are `POST /api/turns`, `GET /api/turns?repo=owner/name`, `GET /api/turns/read?id=`, `POST /api/turns/reviewed` and `POST /api/turns/open`.
+- **Review.** `once-upon review` (or **Open review inbox** on the extension's options page, or Alt+Shift+I) opens the inbox page at `/inbox/#key=…`: the turns newest first, unreviewed ones marked, filtered by repo. **Review** opens the turn as a local story (`turn-<id>`) on the local page: its diff, the panel, **Ask** (answered by a session listening for the repo) and **Mark reviewed** in the header. The inbox page's key, like a local page's, is made from the bridge's token and reaches only the turn routes.
+
 ## Story folders
 
 Stories live in the repo they're about, in a hidden `.once-upon/` folder in its local checkout. Git ignores that folder through the checkout's `.git/info/exclude`, which is local and never committed. So there's no `.gitignore` change, `git status` stays clean, and `git add .` can't pick it up. A worktree shares its repo's exclude file.
@@ -455,10 +469,11 @@ Three Yarn workspaces under `packages/`, all TypeScript (strict), and the skills
     - `fixes.ts` and `working.ts`: Fix before push (Send, Auto-send, each note's state) and the "being changed" marks.
   - `src/util/`: helpers for the panel, the content scripts, the local page and the bridge (escaping and the html`` tag that builds markup, SHAs, PR keys, line references, times, the clipboard, GitHub paths, key isolation, the default port).
 - `packages/bridge/` (`once-upon-a-diff`, bin `once-upon`): the bridge and its CLI. Private for now; the name is free on npm, for an `npx once-upon-a-diff` later.
-  - `bin/once-upon.mjs` (the `once-upon` bin) is plain JavaScript: it checks the Node version (`bin/node-version.mjs`), then loads `bin/once-upon.ts`, which runs `src/cli/index.ts`, a table of commands in `cli/commands/` (bridge, stories, inbox, drafts, builds, checks, fixes) that also builds the help. `cli/doctor.ts` is `once-upon doctor`.
+  - `bin/once-upon.mjs` (the `once-upon` bin) is plain JavaScript: it checks the Node version (`bin/node-version.mjs`), then loads `bin/once-upon.ts`, which runs `src/cli/index.ts`, a table of commands in `cli/commands/` (bridge, stories, inbox, drafts, builds, checks, fixes, turns) that also builds the help. `cli/doctor.ts` is `once-upon doctor`.
   - `src/server/index.ts` is the HTTP server: its guards, then a route table. The routes are in `server/routes/` by area; `pages.ts` and `assets.ts` serve the HTML pages, the scripts (type-stripped) and the stylesheets.
   - `src/stories/`: finding story folders (`store.ts`, `placement.ts`), reading them (`meta.ts`, `chapters.ts`, `story-data.ts`, `text-refs.ts`, `hunk-coverage.ts`), local stories (`local-story.ts`, `local-diff.ts`), read tracking (`reads.ts`), drafted comments (`comments.ts`), the rules a Rebuild is published by (`rebuild.ts`) and "being changed" marks (`working.ts`).
   - `src/github/`: what asks `gh` (read-only, except Add to my review): freshness, drafts and the pending review.
+  - `src/turns/`: the review inbox's turns and how they're kept and turned into a local story.
   - `src/inbox/` (the inbox, the conversation's marks and routing, build requests, and fix-before-push notes and fix requests), `src/listeners/` (who's listening), `src/config/` (settings, prefs, repos and checkouts), `src/util/` (gh, git, diffs, JSON files) and `src/types.ts` (meta.json, the routes' plumbing, the CLI's options).
   - `public/`: the local page, with its own browser tsconfig. `local.ts` draws it and handles its clicks; `local/` holds the diff view, notes, folds and the panel mount, next to `split.ts`, `narrow.ts` and `syntax.ts`.
   - `test/`: its unit tests, their helpers and the fake `gh`.
@@ -472,7 +487,7 @@ Three Yarn workspaces under `packages/`, all TypeScript (strict), and the skills
   - `src/public/icons/` (`yarn workspace @once-upon-a-diff/extension icons` redraws them).
   - `test/`: the unit tests for the tag and Hide whitespace (some against a real bridge), and `browser/load-test.ts` and `browser/expand-test.ts`.
 - `skills/once-upon-listen/`: the Claude Code skill behind **Copy prompt for Claude**.
-- `skills/once-upon/`: the Claude Code skill that writes PR stories. Its `bin/story.ts` (run through `bin/story.mjs`, behind the same Node check) imports the bridge's and the panel's code from this checkout. Both skills read your house rules (see [Personal settings](#personal-settings)).
+- `skills/once-upon/`: the Claude Code skill that writes PR stories, and `bin/capture-turn.sh`, the Stop hook behind the [review inbox](#review-inbox-claude-code-turns-reviewed-later). Its `bin/story.ts` (run through `bin/story.mjs`, behind the same Node check) imports the bridge's and the panel's code from this checkout. Both skills read your house rules (see [Personal settings](#personal-settings)).
 
 ## Credits
 

@@ -15,6 +15,9 @@ function localOnly(story: ServedStory) {
   if (story.meta.kind !== 'local') {
     throw new HttpError(400, 'a PR story already has its pull request');
   }
+  if (story.meta.turn) {
+    throw new HttpError(400, "a review inbox turn isn't pushed from here");
+  }
 }
 
 const draftOf = (app: App, story: ServedStory) =>

@@ -10,6 +10,7 @@
  *     that story's page key (./page-key.ts), which can't reach other stories, bridge-wide routes or GitHub's
  *     API. Its one way out to GitHub is Create pull request's `git push` of the story's branch, which the page
  *     sends only from the reviewer's click in its confirm box (routes/pull-request.ts)
+ *   - the review inbox page's key (./page-key.ts) reaches only the turn routes that allow it (routes/turns.ts)
  *   - writes must be application/json, and a request with an Origin must come
  *     from this extension (its fixed ID, or one in extension_ids) or from the bridge's own pages
  *   - no CORS headers, so other web pages can't read anything it says
@@ -27,10 +28,11 @@ import { readMeta } from '../stories/meta.ts';
 import { storyRepo } from '../config/repos.ts';
 import { Inbox } from '../inbox/inbox.ts';
 import { Builds } from '../inbox/builds.ts';
+import { TurnStore } from '../turns/turns.ts';
 import { HttpError, sameToken, readBody } from './request.ts';
 import { assetFor } from './assets.ts';
-import { pageHeaders, localPage } from './pages.ts';
-import { PAGE_KEY_PREFIX, pageKey } from './page-key.ts';
+import { pageHeaders, localPage, inboxPage } from './pages.ts';
+import { PAGE_KEY_PREFIX, inboxKey, inboxPageUrl, localPageUrl, pageKey } from './page-key.ts';
 import { statusRoutes, storyStatusRoutes } from './routes/status.ts';
 import { catalogRoutes } from './routes/catalog.ts';
 import { buildRoutes } from './routes/builds.ts';
@@ -41,6 +43,7 @@ import { readRoutes } from './routes/reads.ts';
 import { localStoryRoutes } from './routes/local-story.ts';
 import { fixRoutes } from './routes/fixes.ts';
 import { pullRequestRoutes } from './routes/pull-request.ts';
+import { turnRoutes } from './routes/turns.ts';
 import { UNPACKED_EXTENSION_ID } from '../config/settings.ts';
 import type { ApiRoute, App, Body, Call, Send, StoryRoute } from '../types.ts';
 
@@ -52,7 +55,7 @@ export const VERSION: string = JSON.parse(
 ).version;
 
 /** /api/<path> routes, checked in order. A route with a method answers only that method. */
-const API_ROUTES: ApiRoute[] = [...statusRoutes, ...catalogRoutes, ...buildRoutes];
+const API_ROUTES: ApiRoute[] = [...statusRoutes, ...catalogRoutes, ...buildRoutes, ...turnRoutes];
 /** /api/stories/<id>/<what>[/<sub>] routes, by `what` ('' for the story itself). */
 const STORY_ROUTES: StoryRoute[] = [
   ...storyRoutes,
@@ -72,7 +75,12 @@ const methodMatches = (route: { method?: string }, method: string | undefined) =
   !route.method || route.method === method;
 
 /** The server, with the stores it serves from, for the CLI's startup line and the tests. Call .listen(port, '127.0.0.1'). */
-export type Bridge = http.Server & { stories: StoryStore; inbox: Inbox; builds: Builds };
+export type Bridge = http.Server & {
+  stories: StoryStore;
+  inbox: Inbox;
+  builds: Builds;
+  turns: TurnStore;
+};
 
 export function createBridge({
   home,
@@ -92,12 +100,19 @@ export function createBridge({
   }
   const stories = new StoryStore({ home });
   const inbox = new Inbox(home);
+  const turns = new TurnStore(home);
+  const portOf = () => (server.address() as AddressInfo).port;
   const app: App = {
     home,
     version: VERSION,
     stories,
     inbox,
     builds: new Builds(home),
+    turns,
+    links: {
+      story: (id) => localPageUrl(portOf(), id, token),
+      inbox: (repo = null) => inboxPageUrl(portOf(), token, repo),
+    },
     log,
     statusCache: null, // PR-list lookups, kept 5s
     extensionSeen: null, // the last time the extension talked to us, for `once-upon doctor` and the status light
@@ -135,25 +150,33 @@ export function createBridge({
       send(200, localPage(id, readMeta(dir)), HTML, pageHeaders());
       return true;
     }
+    if (/^\/inbox\/?$/.test(pathname)) {
+      send(200, inboxPage(), HTML, pageHeaders());
+      return true;
+    }
     return false;
   }
 
   /**
    * The token, then the body: GET, or POST with JSON. Returns the body and the call's scope: null with the bridge's
-   * token, or the one story a local page's key is for.
+   * token, or the one story a local page's key is for. `inboxOnly` is the review inbox page's key: no story, and
+   * only the routes that allow it.
    */
   async function checkApiCall(
     req: IncomingMessage,
     pathname: string,
     origin: string | undefined,
-  ): Promise<{ body: Body; scope: string | null }> {
+  ): Promise<{ body: Body; scope: string | null; inboxOnly: boolean }> {
     const auth = String(
       String(req.headers.authorization || '').replace(/^Bearer\s+/i, '') ||
         req.headers['x-once-upon-token'] ||
         '',
     );
     let scope: string | null = null;
-    if (!sameToken(auth, token)) {
+    let inboxOnly = false;
+    if (auth.startsWith(PAGE_KEY_PREFIX) && sameToken(auth, inboxKey(token))) {
+      inboxOnly = true;
+    } else if (!sameToken(auth, token)) {
       if (!auth.startsWith(PAGE_KEY_PREFIX)) {
         throw new HttpError(401, 'missing or wrong token');
       }
@@ -171,12 +194,12 @@ export function createBridge({
       if (!/^application\/json\b/i.test(String(req.headers['content-type'] || ''))) {
         throw new HttpError(415, 'send application/json');
       }
-      return { body: await readBody(req), scope };
+      return { body: await readBody(req), scope, inboxOnly };
     }
     if (req.method !== 'GET') {
       throw new HttpError(405, 'GET or POST only');
     }
-    return { body: {}, scope };
+    return { body: {}, scope, inboxOnly };
   }
 
   /** A /api/stories/<id>/... call: the story, then the route for its `what`. */
@@ -245,16 +268,22 @@ export function createBridge({
       if (!pathname.startsWith('/api/')) {
         throw new HttpError(404, 'not found');
       }
-      const { body, scope } = await checkApiCall(req, pathname, origin);
+      const { body, scope, inboxOnly } = await checkApiCall(req, pathname, origin);
       const call: Call = { app, req, url, body, send };
       // a page key never reaches the bridge-wide routes, even one whose path looks like a story's
       const route =
         !scope &&
         API_ROUTES.find(
-          (candidate) => candidate.path === pathname && methodMatches(candidate, req.method),
+          (candidate) =>
+            candidate.path === pathname &&
+            methodMatches(candidate, req.method) &&
+            (!inboxOnly || candidate.inboxKey),
         );
       if (route) {
         return await route.handle(call);
+      }
+      if (inboxOnly) {
+        throw new HttpError(403, "the inbox page's key works only for the inbox's routes");
       }
       const storyMatch = STORY_PATH.exec(pathname);
       if (!storyMatch) {
@@ -274,5 +303,5 @@ export function createBridge({
       }
     }
   });
-  return Object.assign(server, { stories, inbox, builds: app.builds });
+  return Object.assign(server, { stories, inbox, builds: app.builds, turns });
 }
