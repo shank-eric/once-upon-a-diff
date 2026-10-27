@@ -218,6 +218,7 @@ button.ou-local-pr { white-space: nowrap; }
 /* Column colours: iTerm's own for the local states, GitHub's for what lives on GitHub. Each is at least 3:1 against both the page and the card
    background (non-text contrast), light and dark. They colour only a column's header rule and a card's left edge. */
 :root {
+  --ou-board-backlog: #6e7781;  /* neutral, a shade apart from Idle's gray: it is things not started yet */
   --ou-board-working: #cc6d00;  /* iTerm's working orange, darkened to hold 3:1 on white */
   --ou-board-waiting: #5f87ff;  /* iTerm's waiting blue */
   --ou-board-checks: #1b7c83;   /* a teal no other column uses */
@@ -229,6 +230,7 @@ button.ou-local-pr { white-space: nowrap; }
 }
 @media (prefers-color-scheme: dark) {
   :root {
+    --ou-board-backlog: #8b949e;
     --ou-board-working: #ff9500;
     --ou-board-checks: #39c5cf;
     --ou-board-ready: #d29922;
@@ -266,10 +268,25 @@ button.ou-local-pr { white-space: nowrap; }
 .ou-board-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
 .ou-board-actions:empty { display: none; }
 .ou-board-from { padding: 0; border: 0; background: none; color: var(--fgColor-accent); font-size: inherit; text-decoration: underline; cursor: pointer; }
+.ou-board-note { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.ou-board-startline { margin-top: 4px; font-size: 11px; overflow-wrap: anywhere; color: var(--fgColor-muted); }
+.ou-board-add { display: flex; flex-direction: column; gap: 4px; margin: 0 0 10px; }
+.ou-board-add input { font: inherit; font-size: 12px; min-width: 0; color: var(--fgColor-default); background: var(--bgColor-default); border: 1px solid var(--borderColor-default); border-radius: 6px; padding: 4px 8px; }
+.ou-board-add button { align-self: flex-start; }
+.ou-board-add .ou-board-add-repo { align-self: stretch; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ou-board-head button { margin-left: 4px; font-weight: 400; }
+.ou-board-add-actions { display: flex; gap: 6px; }
+.ou-board-c-backlog[draggable="true"] { cursor: grab; }
+.ou-board-drop-before { box-shadow: 0 -2px 0 0 var(--fgColor-accent); }
+.ou-board-drop-after { box-shadow: 0 2px 0 0 var(--fgColor-accent); }
+.ou-board-lane-toggle { display: block; width: 100%; min-width: 0; padding: 0; border: 0; background: none; font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; color: inherit; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ou-board-lane-toggle:hover { color: var(--fgColor-default); }
+.ou-board-lane-count { font-weight: 400; color: var(--fgColor-default); }
 .ou-board-clickable { cursor: pointer; }
 .ou-board-clickable:hover { border-color: var(--fgColor-muted); }
 .ou-board-open { font-size: 12px; padding: 3px 10px; border: 1px solid var(--borderColor-default); border-radius: 6px; text-decoration: none; white-space: nowrap; }
 /* a column's colour, which its header rule and its cards' left edges take (error shares Back to you's red) */
+.ou-board-c-backlog { --ou-board-color: var(--ou-board-backlog); }
 .ou-board-c-working { --ou-board-color: var(--ou-board-working); }
 .ou-board-c-checks { --ou-board-color: var(--ou-board-checks); }
 .ou-board-c-waiting { --ou-board-color: var(--ou-board-waiting); }
@@ -294,7 +311,7 @@ button.ou-board-blank-chip:hover { border-color: var(--fgColor-muted); }
   .ou-board .ou-board-groups { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
   .ou-board-group, .ou-board-cols { display: contents; }
   .ou-board-group-label { display: none; }
-  .ou-board-col.ou-board-empty { display: none; }
+  .ou-board-col.ou-board-empty:not(.ou-board-c-backlog) { display: none; }
   .ou-board-c-waiting { order: 1; }
   .ou-board-c-back { order: 2; }
   .ou-board-c-ready { order: 3; }
@@ -303,11 +320,12 @@ button.ou-board-blank-chip:hover { border-color: var(--fgColor-muted); }
   .ou-board-c-pr_open { order: 6; }
   .ou-board-c-error { order: 7; }
   .ou-board-c-done { order: 8; }
+  .ou-board-c-backlog { order: 9; }
   .ou-board-lane { margin-bottom: 6px; }
   .ou-board-card { padding: 6px 8px; font-size: 13px; }
   .ou-board-meta, .ou-board-sessions, .ou-board-agents { font-size: 12px; }
   .ou-board-chip { line-height: 18px; }
-  .ou-board-card button, .ou-board-open, .ou-board-actions a, .ou-board-focus, .ou-local-top button { min-height: 44px; min-width: 44px; }
+  .ou-board-card button, .ou-board-open, .ou-board-actions a, .ou-board-focus, .ou-local-top button, .ou-board-head button, .ou-board-lane-toggle { min-height: 44px; min-width: 44px; }
   .ou-board-actions { gap: 8px; }
   .ou-local-top { padding: 8px 10px; flex-wrap: wrap; }
   .ou-board-idle-cell { flex: 1 1 100%; }

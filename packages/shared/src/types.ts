@@ -604,7 +604,16 @@ export interface BoardGate {
 
 /** The board's columns, in the order the work moves through them: `error` shows only when a card is in it, and idle cards are a lane of their own. */
 export type BoardColumn =
-  'working' | 'checks' | 'waiting' | 'ready' | 'pr_open' | 'back' | 'done' | 'idle' | 'error';
+  | 'backlog'
+  | 'working'
+  | 'checks'
+  | 'waiting'
+  | 'ready'
+  | 'pr_open'
+  | 'back'
+  | 'done'
+  | 'idle'
+  | 'error';
 
 /** What GitHub says about a PR (one GraphQL query, kept a few minutes). */
 export interface PrInfo {
@@ -664,7 +673,7 @@ export interface BoardSession {
  */
 export interface BoardCard {
   id: string;
-  kind: 'work' | 'session' | 'agent';
+  kind: 'work' | 'session' | 'agent' | 'backlog';
   title: string;
   repo: string | null;
   branch: string | null;
@@ -699,6 +708,17 @@ export interface BoardCard {
   build: BoardBuild | null;
   /** what waits for review in the inbox: the card's unreviewed story; the link's filter */
   inbox: { stories: number; repo: string | null } | null;
+  /** a backlog card's item (the Backlog column: src/board/backlog.ts) */
+  backlog?: {
+    id: string;
+    added_by: string;
+    /** work was started on a branch but no card for it exists yet (shown for a day) */
+    started: { branch: string | null; at: string | null } | null;
+    /** the CLI line to paste into a session to start it */
+    start_line: string;
+  } | null;
+  /** backlog items this work card began as: the work's story and column carry on from here */
+  from_backlog?: { id: string; title: string }[];
 }
 
 /** The voice session, pinned above the columns (Larmor's voice mode: src/board/voice.ts). */

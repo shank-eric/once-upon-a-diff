@@ -31,10 +31,11 @@ const KEY = new URLSearchParams(location.hash.slice(1)).get('key') || '';
 const authed = startAuth(KEY, '/api/board/inbox-link');
 
 /**
- * The columns in the order the work moves through them, in two groups: what is still on this Mac and what is on GitHub.
+ * The columns in the order the work moves through them, from Backlog (kept for later) to Done, in two groups: what is still on this Mac and what is on GitHub.
  * Error appears only when a card is in it; idle cards are a lane along the bottom.
  */
 const COLUMNS: { id: BoardColumn; label: string; group: 'local' | 'github'; always: boolean }[] = [
+  { id: 'backlog', label: 'Backlog', group: 'local', always: true },
   { id: 'working', label: 'Working', group: 'local', always: true },
   { id: 'checks', label: 'Agent checks', group: 'local', always: false },
   { id: 'waiting', label: 'Waiting', group: 'local', always: true },
@@ -62,6 +63,42 @@ function readIdleOpen(): boolean {
   }
 }
 let idleOpen = readIdleOpen();
+
+/**
+ * A repo heading's fold in a column is remembered, as "<column>/<heading>"; localStorage can be missing or blocked, so every
+ * use is wrapped.
+ */
+const COLLAPSED_KEY = 'ou-board-collapsed-lanes';
+function readCollapsed(): Set<string> {
+  try {
+    const saved = JSON.parse(localStorage.getItem(COLLAPSED_KEY) || '[]');
+    return new Set(Array.isArray(saved) ? saved.filter((id) => typeof id === 'string') : []);
+  } catch {
+    return new Set();
+  }
+}
+const collapsed = readCollapsed();
+
+/** The Add panel is closed until asked for (+ Add), and closes after an add or Escape. */
+let addOpen = false;
+/** The board's repo filter: a lane name, '' for All. Remembered; a lane that is gone shows everything. */
+const FILTER_KEY = 'ou-board-filter';
+function readFilter(): string {
+  try {
+    return localStorage.getItem(FILTER_KEY) || '';
+  } catch {
+    return '';
+  }
+}
+let laneFilter = readFilter();
+/** The repo the Add panel's next item is for ('' for none). It stays between adds. */
+let addRepo = '';
+/** The Backlog card being dragged, and the card to put the keyboard back on after an Alt+arrow move. */
+let dragId = '';
+let focusAfter = '';
+
+/** An add is in flight: a second submit waits for it. */
+let adding = false;
 
 async function api<T = unknown>(path: string, body?: unknown): Promise<T> {
   await authed;
@@ -97,6 +134,12 @@ function age(iso: string | null, now: number): string {
     return `${minutes}m`;
   }
   return minutes < 2880 ? `${Math.floor(minutes / 60)}h` : `${Math.floor(minutes / 1440)}d`;
+}
+
+/** "5m ago", or "just now" for the first minute (age() says "now"). */
+function ago(iso: string | null, now: number): string {
+  const time = age(iso, now);
+  return time === 'now' ? 'just now' : time && `${time} ago`;
 }
 
 const AGENT_MARK: Record<BoardAgent['state'], string> = {
@@ -233,7 +276,40 @@ function buildHtml(card: BoardCard) {
   return html`<button type="button" class="ou-board-build" data-build="${build.session}" data-prompt="${build.prompt}"${off} title="${title}">${label}</button>`;
 }
 
+/** A Backlog card: what was kept, who kept it and when, and the line that starts it (to paste into a session). */
+/** The ids of the Backlog cards in a card's lane, in the order the board shows them. */
+function backlogLane(card: BoardCard): string[] {
+  const lane = board?.lanes.find((one) => one.name === card.lane);
+  return (lane?.cards ?? [])
+    .filter((one) => one.column === 'backlog' && one.backlog)
+    .map((one) => (one.backlog as { id: string }).id);
+}
+
+function backlogHtml(card: BoardCard, now: number) {
+  const item = card.backlog;
+  const meta = [
+    card.repo && card.repo.split('/')[1],
+    card.branch,
+    ago(card.since, now) && `added ${ago(card.since, now)}`,
+    item && item.added_by !== 'board' && item.added_by !== 'you' && `by ${item.added_by}`,
+  ].filter(Boolean);
+  return html`<li class="ou-board-card ou-board-c-backlog" data-card="${card.id}" data-backlog-card="${item?.id ?? ''}" data-lane="${card.lane}" draggable="true" tabindex="0" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown">
+    <div class="ou-board-title" title="${card.title}">${card.title}</div>
+    <div class="ou-local-muted ou-board-meta">${meta.join(' · ')}</div>
+    ${card.detail && html`<div class="ou-board-detail ou-board-note" title="${card.detail}">${card.detail}</div>`}
+    ${item?.started && html`<div class="ou-board-chips"><span class="ou-board-chip">started on ${item.started.branch}, no session on it yet</span></div>`}
+    ${item && !item.started && html`<div class="ou-board-startline"><code>${item.start_line}</code></div>`}
+    <div class="ou-board-actions">
+      ${item && !item.started && html`<button type="button" data-backlog-copy="${item.start_line}" title="Copy the line that starts it">Copy start line</button>`}
+      ${item && html`<button type="button" data-backlog-drop="${item.id}" title="Drop it from the backlog (the line stays in the file)">Drop</button>`}
+    </div>
+  </li>`;
+}
+
 function cardHtml(card: BoardCard, now: number) {
+  if (card.kind === 'backlog') {
+    return backlogHtml(card, now);
+  }
   const classes = `${card.can_focus ? ' ou-board-clickable' : ''}`;
   const pr = card.pr;
   const time = age(card.since, now);
@@ -242,7 +318,7 @@ function cardHtml(card: BoardCard, now: number) {
     .join(' · ');
   const prLink =
     pr && html`<a href="${pr.url}" target="_blank" rel="noopener">PR #${pr.number}</a>`;
-  const merged = pr?.state === 'merged' && time ? `merged ${time} ago` : '';
+  const merged = pr?.state === 'merged' && time ? `merged ${ago(card.since, now)}` : '';
   const chips = pr ? prChips(pr) : [];
   const gates = card.agents.filter((agent) => agent.gate).map(gateText);
   // Open story: on a card ready for review, and on a rebuilt local story's card in Back to you, which has no PR link to go by
@@ -258,6 +334,9 @@ function cardHtml(card: BoardCard, now: number) {
     notes.push(
       `${BUILDING_TEXT[card.building.kind]}${card.building.by ? ` (${card.building.by})` : ''}${since && ` · ${since}`}`,
     );
+  }
+  if (card.from_backlog?.length) {
+    notes.push(`from backlog: ${card.from_backlog.map((item) => item.title).join(', ')}`);
   }
   if (card.story?.unread) {
     notes.push('the story has a new version since you last opened it');
@@ -392,8 +471,61 @@ function listenersHtml(repos: BoardListenerRepo[], now: number) {
   return html`<section class="ou-board-listeners" aria-label="Listeners"><h2 class="ou-board-head">Listeners <span class="ou-local-muted">${repos.filter((entry) => entry.active).length}</span></h2><ul>${rows}</ul></section>`;
 }
 
-function render(data: BoardData) {
-  board = data;
+/** A column's header: its name, how many cards it has, and + Add on Backlog. */
+function columnHead(column: { id: BoardColumn; label: string }, total: number) {
+  const add =
+    column.id === 'backlog' &&
+    !addOpen &&
+    html` <button type="button" data-backlog-add-open title="Keep something for later">+ Add</button>`;
+  return html`<h2 class="ou-board-head">${column.label} <span class="ou-local-muted">${total}</span>${add}</h2>`;
+}
+
+/** A repo heading in a column, with the toggle that folds its cards (and the count shown while they are folded). */
+function laneHead(
+  column: { id: BoardColumn; label: string },
+  name: string,
+  total: number,
+  folded: boolean,
+) {
+  const verb = folded ? 'Show' : 'Hide';
+  const count = folded && html` <span class="ou-board-lane-count">${total}</span>`;
+  return html`<h3 class="ou-board-lane-label">
+    <button type="button" class="ou-board-lane-toggle" data-lane-toggle="${column.id}/${name}" aria-expanded="${String(!folded)}"
+      aria-label="${verb} ${name} cards in ${column.label}" title="${verb} the ${name} cards"><span aria-hidden="true">${folded ? '▸' : '▾'}</span> ${name}${count}</button></h3>`;
+}
+
+/** The Backlog column's Add panel: a title, the repo the item is for (a menu in the page's style) and a note. */
+function addFormHtml() {
+  const repo = addRepo ? addRepo.split('/')[1] : 'none';
+  return html`<form class="ou-board-add" data-backlog-add>
+    <input type="text" name="title" data-backlog-title placeholder="Keep something for later" maxlength="200" required aria-label="Backlog item title">
+    <button type="button" class="ou-board-add-repo" data-backlog-repo aria-haspopup="menu" title="The repo the new item is for: its card goes in that repo's lane">Repo: ${repo} ▾</button>
+    <input type="text" name="note" placeholder="Note (optional)" maxlength="1000" aria-label="Note">
+    <div class="ou-board-add-actions"><button type="submit">Add</button> <button type="button" data-backlog-cancel>Cancel</button></div>
+  </form>`;
+}
+
+/** The board narrowed to the filter's lane: its lanes, blank sessions and listeners (a gone lane means All). */
+function filtered(data: BoardData): BoardData {
+  if (!laneFilter || !data.lanes.some((lane) => lane.name === laneFilter)) {
+    return data;
+  }
+  return {
+    ...data,
+    lanes: data.lanes.filter((lane) => lane.name === laneFilter),
+    blank: data.blank.filter((group) => group.name === laneFilter),
+    listeners: data.listeners.filter((entry) => entry.repo.split('/')[1] === laneFilter),
+  };
+}
+
+function render(full: BoardData) {
+  board = full;
+  // a card is being dragged: a redraw would drop it, so the drop (or its end) redraws
+  if (dragId) {
+    return;
+  }
+  const data = filtered(full);
+  const filterOn = data !== full;
   const now = Date.now();
   const cards = data.lanes.flatMap((lane) => lane.cards);
   const columns = COLUMNS.filter(
@@ -421,14 +553,21 @@ function render(data: BoardData) {
         name: lane.name,
         cards: lane.cards
           .filter((card) => card.column === column.id)
-          .sort((first, second) => String(first.since).localeCompare(String(second.since))),
+          // Backlog keeps the order you gave it; the others go by how long they have been there
+          .sort((first, second) =>
+            column.id === 'backlog' ? 0 : String(first.since).localeCompare(String(second.since)),
+          ),
       }))
       .filter((group) => group.cards.length);
     bodyOf.set(
       column.id,
       html`<section class="ou-board-col ou-board-c-${column.id}${count(column.id) ? '' : ' ou-board-empty'}" aria-label="${column.label}">
-      <h2 class="ou-board-head">${column.label} <span class="ou-local-muted">${count(column.id)}</span></h2>
-      ${groups.map((group) => html`<div class="ou-board-lane"><h3 class="ou-board-lane-label">${group.name}</h3><ul class="ou-board-cards">${group.cards.map((card) => cardHtml(card, now))}</ul></div>`)}
+      ${columnHead(column, count(column.id))}
+      ${column.id === 'backlog' && addOpen && addFormHtml()}
+      ${groups.map((group) => {
+        const folded = collapsed.has(`${column.id}/${group.name}`);
+        return html`<div class="ou-board-lane">${laneHead(column, group.name, group.cards.length, folded)}${!folded && html`<ul class="ou-board-cards">${group.cards.map((card) => cardHtml(card, now))}</ul>`}</div>`;
+      })}
     </section>`,
     );
   });
@@ -436,6 +575,7 @@ function render(data: BoardData) {
   const onYou = count('waiting') + count('ready') + count('back');
   document.title = onYou ? `(${onYou}) Agent board` : 'Agent board';
   const summary = [
+    ...(count('backlog') ? [`${count('backlog')} in backlog`] : []),
     `${count('working')} working`,
     `${count('waiting')} waiting`,
     ...(count('checks') ? [`${count('checks')} in agent checks`] : []),
@@ -454,21 +594,19 @@ function render(data: BoardData) {
       : '';
   const markup = html`<header class="ou-local-top">
       <div class="ou-local-top-main"><h1>Agent board</h1><div class="ou-local-muted">${summary}</div></div>
+      <button type="button" data-board-filter aria-haspopup="menu" title="Narrow the whole board to one repo's lane">Repo: ${filterOn ? laneFilter : 'All'} ▾</button>
       <button type="button" data-inbox="">Review inbox</button>
     </header>
     ${data.warning && html`<p class="ou-board-warning">${data.warning}</p>`}
     ${data.voice && voiceHtml(data.voice)}
     <main class="ou-board">
-      ${
-        cards.length
-          ? html`<div class="ou-board-groups">${GROUPS.map((group) =>
-              groupHtml(
-                group,
-                inGroup(group.id).map((column) => bodyOf.get(column.id)),
-              ),
-            )}</div>`
-          : nothing
-      }
+      <div class="ou-board-groups">${GROUPS.map((group) =>
+        groupHtml(
+          group,
+          inGroup(group.id).map((column) => bodyOf.get(column.id)),
+        ),
+      )}</div>
+      ${!cards.length && nothing}
       ${
         (idle.length > 0 || blankCount > 0) &&
         html`<section class="ou-board-idle ou-board-c-idle" aria-label="Idle">
@@ -483,7 +621,28 @@ function render(data: BoardData) {
   const next = String(markup);
   if (next !== last) {
     last = next;
+    // a redraw would empty the Add row while you type in it: keep what is typed, and the focus
+    const typed = [...app.querySelectorAll<HTMLInputElement>('[data-backlog-add] [name]')].map(
+      (field) => [field.name, field.value] as const,
+    );
+    const focused = (document.activeElement as HTMLElement | null)?.closest('[data-backlog-add]')
+      ? (document.activeElement as HTMLInputElement).name
+      : null;
     setHtml(app, markup);
+    for (const [name, value] of typed) {
+      const field = app.querySelector<HTMLInputElement>(`[data-backlog-add] [name="${name}"]`);
+      if (field && value) {
+        field.value = value;
+      }
+    }
+    if (focused) {
+      app.querySelector<HTMLInputElement>(`[data-backlog-add] [name="${focused}"]`)?.focus();
+    }
+    // a card moved with Alt+arrow: keep the keyboard on it
+    if (focusAfter) {
+      app.querySelector<HTMLElement>(`[data-backlog-card="${focusAfter}"]`)?.focus();
+      focusAfter = '';
+    }
   }
 }
 
@@ -560,8 +719,271 @@ async function typeInto(
   }
 }
 
+// Alt+Up or Alt+Down on a focused Backlog card moves it within its lane (the keyboard's way to reorder)
+app.addEventListener('keydown', async (event) => {
+  const card = cardOf(event);
+  if (!event.altKey || !card || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) {
+    return;
+  }
+  event.preventDefault();
+  const id = card.dataset.backlogCard || '';
+  const first = board?.lanes.flatMap((lane) => lane.cards).find((one) => one.backlog?.id === id);
+  const ids = first ? backlogLane(first) : [];
+  const goingUp = event.key === 'ArrowUp';
+  const neighbour = ids[ids.indexOf(id) + (goingUp ? -1 : 1)];
+  const where = neighbour ? placeAmong(ids, id, neighbour, !goingUp) : null;
+  if (where) {
+    focusAfter = id;
+    await moveBacklog(id, where);
+  }
+});
+
+document.addEventListener('keydown', (event) => {
+  // (Escape in the repo menu is the menu's: it handles the key first and marks it, so the panel stays open with its text)
+  if (event.key === 'Escape' && !event.defaultPrevented && addOpen && board) {
+    addOpen = false;
+    last = '';
+    render(board);
+  }
+});
+
+/** Where `dragged` goes in its lane's ids if put before (or after) `target`: before the item now there, or the bottom. */
+function placeAmong(ids: string[], dragged: string, target: string, after: boolean) {
+  const rest = ids.filter((one) => one !== dragged);
+  const slot = rest.indexOf(target) + (after ? 1 : 0);
+  if (rest.indexOf(target) < 0 || slot === ids.indexOf(dragged)) {
+    return null;
+  }
+  return slot >= rest.length ? { edge: 'bottom' } : { before: rest[slot] };
+}
+
+async function moveBacklog(id: string, where: { before: string } | { edge: string }) {
+  try {
+    await api('/api/board/backlog/move', { id, ...where });
+  } catch (err) {
+    alert(`Couldn't move it: ${(err as Error).message}`);
+  }
+  last = '';
+  await refresh();
+}
+
+const cardOf = (event: Event) =>
+  (event.target as Element).closest<HTMLElement>('[data-backlog-card]');
+const clearDrops = () =>
+  app
+    .querySelectorAll('.ou-board-drop-before, .ou-board-drop-after')
+    .forEach((one) => one.classList.remove('ou-board-drop-before', 'ou-board-drop-after'));
+/** Whether the pointer is over a card's lower half, and the card is another one in the dragged card's lane. */
+function dropTarget(event: DragEvent): { card: HTMLElement; after: boolean } | null {
+  const card = cardOf(event);
+  const from = dragId && app.querySelector(`[data-backlog-card="${dragId}"]`);
+  if (!card || !from || card === from || card.dataset.lane !== (from as HTMLElement).dataset.lane) {
+    return null;
+  }
+  const box = card.getBoundingClientRect();
+  return { card, after: event.clientY > box.top + box.height / 2 };
+}
+
+app.addEventListener('dragstart', (event) => {
+  const card = cardOf(event);
+  if (!card) {
+    return;
+  }
+  dragId = card.dataset.backlogCard || '';
+  event.dataTransfer?.setData('text/plain', dragId);
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move';
+  }
+});
+app.addEventListener('dragover', (event) => {
+  const over = dropTarget(event);
+  clearDrops();
+  if (over) {
+    event.preventDefault();
+    over.card.classList.add(over.after ? 'ou-board-drop-after' : 'ou-board-drop-before');
+  }
+});
+app.addEventListener('dragend', () => {
+  dragId = '';
+  clearDrops();
+  if (board) {
+    last = '';
+    render(board);
+  }
+});
+app.addEventListener('drop', async (event) => {
+  const over = dropTarget(event);
+  const dragged = dragId;
+  clearDrops();
+  if (!over || !dragged) {
+    return;
+  }
+  event.preventDefault();
+  dragId = '';
+  const first = board?.lanes
+    .flatMap((lane) => lane.cards)
+    .find((card) => card.backlog?.id === dragged);
+  const where = first
+    ? placeAmong(backlogLane(first), dragged, over.card.dataset.backlogCard || '', over.after)
+    : null;
+  if (where) {
+    await moveBacklog(dragged, where);
+  } else if (board) {
+    last = '';
+    render(board);
+  }
+});
+
+app.addEventListener('submit', async (event) => {
+  const form = (event.target as Element).closest('[data-backlog-add]') as HTMLFormElement | null;
+  if (!form) {
+    return;
+  }
+  event.preventDefault();
+  if (adding) {
+    return;
+  }
+  const field = (name: string) => (form.elements.namedItem(name) as HTMLInputElement).value.trim();
+  const item = {
+    title: field('title'),
+    repo: addRepo || undefined,
+    note: field('note') || undefined,
+  };
+  // cleared before the request goes out, so a redraw while it is out can't bring the text back and invite a second add
+  adding = true;
+  form.reset();
+  try {
+    await api('/api/board/backlog', item);
+    addOpen = false;
+  } catch (err) {
+    const again = (name: string) =>
+      document.querySelector<HTMLInputElement>(`[data-backlog-add] [name="${name}"]`);
+    const title = again('title');
+    const note = again('note');
+    if (title && !title.value) {
+      title.value = item.title;
+    }
+    if (note && !note.value) {
+      note.value = item.note ?? '';
+    }
+    alert(`Couldn't add it: ${(err as Error).message}`);
+  } finally {
+    adding = false;
+  }
+  last = '';
+  await refresh();
+});
+
 app.addEventListener('click', async (event) => {
   const clicked = event.target as Element;
+  const fold = clicked.closest('[data-lane-toggle]');
+  if (fold) {
+    const id = fold.getAttribute('data-lane-toggle') || '';
+    if (!collapsed.delete(id)) {
+      collapsed.add(id);
+    }
+    try {
+      localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...collapsed]));
+    } catch {
+      /* the choice just isn't remembered */
+    }
+    if (board) {
+      last = '';
+      render(board);
+    }
+    return;
+  }
+  if (clicked.closest('[data-backlog-add-open], [data-backlog-cancel]')) {
+    addOpen = !!clicked.closest('[data-backlog-add-open]');
+    if (board) {
+      last = '';
+      render(board);
+      app.querySelector<HTMLInputElement>('[data-backlog-title]')?.focus();
+    }
+    return;
+  }
+  const filterButton = clicked.closest('[data-board-filter]');
+  if (filterButton) {
+    const lanes = board?.lanes ?? [];
+    openMenu(
+      filterButton as HTMLElement,
+      [
+        { value: '', label: 'All', detail: plural(lanes.length, 'lane'), checked: !laneFilter },
+        ...lanes.map((lane) => ({
+          value: lane.name,
+          label: lane.name,
+          detail: plural(lane.cards.length, 'card'),
+          checked: lane.name === laneFilter,
+        })),
+      ],
+      (value) => {
+        laneFilter = value;
+        try {
+          localStorage.setItem(FILTER_KEY, value);
+        } catch {
+          /* the choice just isn't remembered */
+        }
+        if (board) {
+          last = '';
+          render(board);
+        }
+      },
+      { label: 'Show one repo' },
+    );
+    return;
+  }
+  const repoButton = clicked.closest('[data-backlog-repo]');
+  if (repoButton) {
+    const repos = [
+      ...new Set(
+        (board?.lanes ?? [])
+          .flatMap((lane) => lane.cards)
+          .map((card) => card.repo)
+          .filter((repo): repo is string => !!repo),
+      ),
+    ].sort();
+    openMenu(
+      repoButton as HTMLElement,
+      [
+        { value: '', label: 'No repo', detail: 'in the General lane', checked: !addRepo },
+        ...repos.map((repo) => ({
+          value: repo,
+          label: repo.split('/')[1],
+          detail: repo,
+          checked: repo === addRepo,
+        })),
+      ],
+      (value) => {
+        addRepo = value;
+        if (board) {
+          last = '';
+          render(board);
+        }
+      },
+      { label: 'Repo for the new item' },
+    );
+    return;
+  }
+  const drop = clicked.closest('[data-backlog-drop]');
+  if (drop) {
+    try {
+      await api('/api/board/backlog/drop', { id: drop.getAttribute('data-backlog-drop') });
+      last = '';
+      await refresh();
+    } catch (err) {
+      alert(`Couldn't drop it: ${(err as Error).message}`);
+    }
+    return;
+  }
+  const copy = clicked.closest('[data-backlog-copy]');
+  if (copy) {
+    try {
+      await navigator.clipboard.writeText(copy.getAttribute('data-backlog-copy') || '');
+    } catch {
+      alert('Copying was blocked: select the line on the card and copy it.');
+    }
+    return;
+  }
   const build = clicked.closest('[data-build]');
   if (build && !build.hasAttribute('disabled')) {
     await typeInto(

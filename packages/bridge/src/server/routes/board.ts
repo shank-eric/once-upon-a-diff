@@ -10,6 +10,9 @@
  *   POST /api/board/stop-listening  {repo}: end the repo's listener
  *   POST /api/board/focus       {session}: bring that session's iTerm tab to the front (the tab is found server-side)
  *   POST /api/board/open-story  {story}: a local story's page link (a card's Open story), with that story's full key
+ *   POST /api/board/backlog     {title, note?, repo?}: add a backlog item (the Backlog column's Add)
+ *   POST /api/board/backlog/move {id, before | edge}: reorder (before another item's id, or edge top or bottom)
+ *   POST /api/board/backlog/drop {id}: drop one. Start is the CLI's (`once-upon backlog start`), not the page's
  *   GET /api/board/inbox-link   the review inbox page's link, ?repo= for a repo's PR stories, for a card's badge
  *
  * Links only step down in power. The board page's key reaches the board (it types into sessions) and the inbox's link,
@@ -21,6 +24,7 @@ import { readSettings } from '../../config/settings.ts';
 import { publicOriginOf } from '../address.ts';
 import { HttpError } from '../request.ts';
 import { localStory } from '../../review-inbox/stories.ts';
+import type { MoveTo } from '../../board/backlog.ts';
 import type { ApiRoute, Call } from '../../types.ts';
 
 const SESSION_RE = /^[A-Za-z0-9._-]{1,100}$/;
@@ -91,6 +95,46 @@ function openStory({ app, body, send }: Call) {
   return send(200, { url: app.links.story(story.id) });
 }
 
+/** An error from the backlog's checks (a bad repo, a missing title, an unknown item) is the caller's: 400. */
+function asBadRequest<T>(run: () => T): T {
+  try {
+    return run();
+  } catch (err) {
+    throw new HttpError(400, (err as Error).message);
+  }
+}
+
+/** POST {title, note?, repo?}: a new backlog item, by "board". */
+function addBacklog({ app, body, send }: Call) {
+  const item = asBadRequest(() =>
+    app.board.addBacklog({
+      title: String(body.title ?? ''),
+      note: body.note ? String(body.note) : null,
+      repo: body.repo ? String(body.repo) : null,
+      by: 'board',
+    }),
+  );
+  return send(200, { ok: true, id: item.id });
+}
+
+/** POST {id, before | edge}: put a backlog item before another, or at the top or bottom. */
+function moveBacklog({ app, body, send }: Call) {
+  const where: MoveTo = body.before
+    ? { before: String(body.before) }
+    : { edge: body.edge === 'top' ? 'top' : 'bottom' };
+  if (!body.before && body.edge !== 'top' && body.edge !== 'bottom') {
+    throw new HttpError(400, 'before (an item id) or edge (top or bottom) is needed');
+  }
+  asBadRequest(() => app.board.moveBacklog(String(body.id ?? ''), where, 'board'));
+  return send(200, { ok: true });
+}
+
+/** POST {id}: drop a backlog item. The line stays in the file. */
+function dropBacklog({ app, body, send }: Call) {
+  asBadRequest(() => app.board.dropBacklog(String(body.id ?? ''), 'board'));
+  return send(200, { ok: true });
+}
+
 /** POST {repo}: end the repo's listener (its `wait` returns "Stopped listening"). */
 function stopListening({ app, body, send }: Call) {
   app.board.stopListening(String(body.repo || ''));
@@ -102,6 +146,9 @@ export const boardRoutes: ApiRoute[] = [
   { path: '/api/board/stop-listening', method: 'POST', handle: stopListening, boardKey: true },
   { path: '/api/board/focus', method: 'POST', handle: focus, boardKey: true },
   { path: '/api/board/open-story', method: 'POST', handle: openStory, boardKey: true },
+  { path: '/api/board/backlog/move', method: 'POST', handle: moveBacklog, boardKey: true },
+  { path: '/api/board/backlog/drop', method: 'POST', handle: dropBacklog, boardKey: true },
+  { path: '/api/board/backlog', method: 'POST', handle: addBacklog, boardKey: true },
   { path: '/api/board', method: 'GET', handle: data, boardKey: true },
   { path: '/api/board/link', method: 'GET', handle: boardLink, inboxKey: true },
   { path: '/api/board/inbox-link', method: 'GET', handle: inboxLink, boardKey: true },

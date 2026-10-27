@@ -26,6 +26,7 @@ import {
 import { Builds } from '../src/inbox/builds.ts';
 import { Board, liveSessions, noPrWatcher, type PrWatcher } from '../src/board/board.ts';
 import { columnOf, isBackToYou } from '../src/board/columns.ts';
+import { BacklogStore } from '../src/board/backlog.ts';
 import { readVoice, voiceStatus } from '../src/board/voice.ts';
 import { sessionOfPid } from '../src/board/listening.ts';
 import { noteListener, readHistory } from '../src/listeners/history.ts';
@@ -4085,4 +4086,41 @@ test('the board: a local story puts its branch in Ready for your review, or Back
     assert.ok(!cards.some((found) => found.branch === gone), gone);
   }
   assert.equal(cards.length, 4, 'the four above, nothing else');
+});
+
+test('a started backlog item rides on a live session’s card on its new branch, before any PR or story', async () => {
+  const home = tmp('board-backlog-session');
+  const sessions = tmp('board-backlog-sessions');
+  const child = liveChild();
+  after(() => child.stop());
+  const checkout = checkoutOf('widgets', 'feat/new-idea');
+  registry(
+    sessions,
+    child.pid,
+    { cwd: checkout, name: 'idea-one', status: 'busy' },
+    child.procStart,
+  );
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  const store = new BacklogStore(home);
+  const item = store.add({ title: 'The new idea', repo: 'acme/widgets' });
+  const board = () =>
+    new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+      source: registrySource,
+      now: () => NOW,
+    });
+  const find = async () => {
+    const cards = (await board().snapshot()).lanes.flatMap((lane) => lane.cards);
+    return { cards, session: cards.find((found) => found.kind === 'session') as BoardCard };
+  };
+  // not started: a card in Backlog, and the session's card is its own
+  let seen = await find();
+  assert.equal(seen.session.branch, 'feat/new-idea', 'a session card, not a work card');
+  assert.equal(seen.session.from_backlog, undefined);
+  assert.ok(seen.cards.some((found) => found.column === 'backlog'));
+  // started on that branch: no backlog card (not even "no session yet"), and the session's card says where it came from
+  store.start(item.id, { branch: 'feat/new-idea', repo: 'acme/widgets' });
+  seen = await find();
+  assert.deepEqual(seen.session.from_backlog, [{ id: item.id, title: 'The new idea' }]);
+  assert.ok(!seen.cards.some((found) => found.column === 'backlog'));
+  assert.equal(seen.session.column, 'working', 'its column is the session’s own');
 });

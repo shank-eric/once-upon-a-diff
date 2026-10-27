@@ -15,6 +15,7 @@ import { fixCommands } from './commands/fixes.ts';
 import { pullRequestCommands } from './commands/pull-request.ts';
 import { reviewCommands } from './commands/review.ts';
 import { boardCommands } from './commands/board.ts';
+import { backlogCommands } from './commands/backlog.ts';
 import type { Command } from '../types.ts';
 
 const COMMANDS = new Map<string, Command>(
@@ -29,6 +30,7 @@ const COMMANDS = new Map<string, Command>(
     ...pullRequestCommands,
     ...reviewCommands,
     ...boardCommands,
+    ...backlogCommands,
   ].map((command) => [command.name, command]),
 );
 
@@ -42,6 +44,7 @@ const HELP_ORDER = [
   'page',
   'review',
   'board',
+  'backlog',
   'publish',
   'pr-draft',
   'inbox',

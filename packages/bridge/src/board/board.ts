@@ -36,6 +36,8 @@ import { runGitAsync } from '../util/git.ts';
 import { gateOf, readAgents, type LedgerAgent } from './ledger.ts';
 import { BlankSessions } from './blank.ts';
 import { columnOf } from './columns.ts';
+import { BacklogStore, backlogCards } from './backlog.ts';
+import type { AddInput, BacklogItem, MoveTo } from './backlog.ts';
 import { gatedHome, laneForAgent, tiedToParent } from './agent-home.ts';
 import { readVoice, voiceStatus } from './voice.ts';
 import {
@@ -94,7 +96,7 @@ const CACHE_MS = 2000;
 /** A running agent with no done line this long after it started is marked stale. */
 const STALE_MS = 24 * 3600 * 1000;
 /** Branches that are not a unit of work of their own. */
-const DEFAULT_BRANCHES = new Set(['main', 'master', 'develop', 'development', 'trunk']);
+export const DEFAULT_BRANCHES = new Set(['main', 'master', 'develop', 'development', 'trunk']);
 /** A merged PR stays on the board this long. */
 const MERGED_HOURS = 24;
 const BRANCH_CACHE_MS = 10000;
@@ -352,6 +354,7 @@ export class Board {
   /** Bumped when what a build read is out of date, so a build that started before it does not fill the cache. */
   private generation = 0;
   private blank = new BlankSessions();
+  private backlog: BacklogStore;
 
   private home: string;
   private stories: StoryStore;
@@ -380,6 +383,28 @@ export class Board {
     this.review = review;
     this.builds = builds;
     this.options = options;
+    this.backlog = new BacklogStore(home);
+  }
+
+  /** Adds a backlog item (a page's Add), and drops the kept snapshot so the card shows on the next poll. */
+  addBacklog(input: AddInput): BacklogItem {
+    const item = this.backlog.add(input);
+    this.invalidate();
+    return item;
+  }
+
+  /** Moves a backlog item (a card dragged, or its up and down buttons). */
+  moveBacklog(id: string, where: MoveTo, who: string): BacklogItem {
+    const item = this.backlog.move(id, where, who);
+    this.invalidate();
+    return item;
+  }
+
+  /** Drops a backlog item (a card's Drop). */
+  dropBacklog(id: string, who: string): BacklogItem {
+    const item = this.backlog.drop(id, who);
+    this.invalidate();
+    return item;
   }
 
   async snapshot(): Promise<BoardData> {
@@ -839,6 +864,9 @@ export class Board {
         card.build = buildFor(card, idle);
       }
     }
+
+    // the Backlog column: open items, and started ones are marked onto the work cards they became
+    cards.push(...backlogCards(this.backlog.items(), cards, nowMs));
 
     // lanes: one per repo (or lane tag), the cards grouped by the page into columns
     const lanes = new Map<string, { name: string; cards: BoardCard[] }>();
