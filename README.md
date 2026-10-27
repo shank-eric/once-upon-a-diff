@@ -271,9 +271,12 @@ This builds `git diff <base> <head>` into `~/.once-upon/local-<repo>-<branch>/`.
 
 ## Review inbox
 
-The review inbox is a page that lists what waits for your review, for going through it when you like. `once-upon review` (or **Open review inbox** on the extension's options page, or Alt+Shift+I) opens it at `/inbox/#key=…`. It lists nothing yet: the stories it shows come with later changes.
+The review inbox is a page that lists what waits for your review, for going through it when you like. `once-upon review` (or **Open review inbox** on the extension's options page, or Alt+Shift+I) opens it at `/inbox/#key=…`.
 
-The inbox page's key, like a local page's, is made from the bridge's token. It reaches only the inbox routes (`GET /api/inbox`): it can't read or change a story, reach a bridge-wide route or add to a GitHub review. `GET /api/inbox/link` makes the page's link, with the key in the fragment, and takes the bridge's token.
+The inbox page's key, like a local page's, is made from the bridge's token. It reaches only the inbox routes (`GET /api/inbox` and `POST /api/inbox/reviewed`): it can't read or change a story, reach a bridge-wide route or add to a GitHub review. `GET /api/inbox/link` makes the page's link, with the key in the fragment, and takes the bridge's token.
+
+- **PR stories.** Built PR stories (`story.mjs build`, in any checkout the bridge knows) are listed in the inbox, marked **PR story**, newest first with the unreviewed ones marked, for 30 days after they were built, and filtered by repo. **Open PR** goes to the PR's changes page, where the panel opens, and **Mark reviewed** ticks the story off (kept in `~/.once-upon/state/<story id>/reviewed.json`). The page polls every 3 seconds, so new stories show up without a reload.
+- **Auto-marking PR stories.** A PR story is marked reviewed by itself when you have submitted a review on the PR after the story was built (approved, changes requested, or commented with a body: a reply in a thread is stored as a COMMENTED review with no body, so it doesn't count) or every file is marked Viewed on GitHub, checked in the background through a read-only `gh api graphql` at most every 3 minutes per PR. There is one check per PR, kept for that window and applied to every listed story of the PR, so the inbox and the agent board share it. The inbox shows why (`auto: review` or `auto: all viewed`). Mark reviewed and Mark unreviewed still work, and an unmark stays: a story you've marked or unmarked is not auto-marked again. The same check drops a PR story whose PR has merged from the inbox and from the agent board's counts (a PR closed without merging drops once its head branch is deleted, which for a fork PR is the fork's branch, and stays while the branch is there). It runs when the inbox page polls.
 
 ## Story folders
 
@@ -465,6 +468,7 @@ Three Yarn workspaces under `packages/`, all TypeScript (strict), and the skills
   - `src/server/index.ts` is the HTTP server: its guards, then a route table. The routes are in `server/routes/` by area; `pages.ts` and `assets.ts` serve the HTML pages, the scripts (type-stripped) and the stylesheets.
   - `src/stories/`: finding story folders (`store.ts`, `placement.ts`), reading them (`meta.ts`, `chapters.ts`, `story-data.ts`, `text-refs.ts`, `hunk-coverage.ts`), local stories (`local-story.ts`, `local-diff.ts`), read tracking (`reads.ts`), drafted comments (`comments.ts`), the rules a Rebuild is published by (`rebuild.ts`) and "being changed" marks (`working.ts`).
   - `src/github/`: what asks `gh` (read-only, except Add to my review): freshness, drafts and the pending review.
+  - `src/review-inbox/`: the built PR stories the inbox lists, and the background check of GitHub that marks them reviewed.
   - `src/inbox/` (the inbox, the conversation's marks and routing, build requests, and fix-before-push notes and fix requests), `src/listeners/` (who's listening), `src/config/` (settings, prefs, repos and checkouts), `src/util/` (gh, git, diffs, JSON files) and `src/types.ts` (meta.json, the routes' plumbing, the CLI's options).
   - `public/`: the local page, with its own browser tsconfig. `local.ts` draws it and handles its clicks; `local/` holds the diff view, notes, folds and the panel mount, next to `split.ts`, `narrow.ts` and `syntax.ts`.
   - `test/`: its unit tests, their helpers and the fake `gh`.

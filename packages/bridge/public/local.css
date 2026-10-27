@@ -184,3 +184,6 @@ button.ou-local-pr { white-space: nowrap; }
 .ou-inbox-dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--fgColor-accent); }
 .ou-inbox-actions { display: flex; gap: 6px; }
 .ou-inbox-repo { font: inherit; font-size: 12px; max-width: 260px; }
+.ou-inbox-kind { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--fgColor-accent); margin-right: 4px; }
+.ou-inbox-open { font-size: 12px; padding: 3px 10px; border: 1px solid var(--borderColor-default); border-radius: 6px; text-decoration: none; white-space: nowrap; }
+.ou-inbox-open:hover { border-color: var(--fgColor-accent); }

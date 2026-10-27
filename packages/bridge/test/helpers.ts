@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AddressInfo } from 'node:net';
 import { createBridge, type Bridge } from '../src/server/index.ts';
+import type { BranchCheck, PrCheck, RequestedCheck } from '../src/review-inbox/auto-review.ts';
 import type { Build } from '../src/inbox/builds.ts';
 import type { listeningOf } from '../src/listeners/listeners.ts';
 
@@ -129,8 +130,21 @@ export function localRepo(): { repo: string; base: string } {
 }
 
 /** A bridge on a random port with the test token, and `call` for its API: the answer's JSON is T, as the test expects it. */
-export async function startBridge(opts: { home: string; log?: (line: string) => void }) {
-  const server: Bridge = createBridge({ token: TOKEN, ...opts });
+export async function startBridge(opts: {
+  home: string;
+  log?: (line: string) => void;
+  checkPr?: PrCheck;
+  checkBranch?: BranchCheck;
+  checkRequested?: RequestedCheck;
+}) {
+  // no test asks GitHub unless it brings its own check
+  const server: Bridge = createBridge({
+    token: TOKEN,
+    checkPr: async () => ({ merged: false, why: null }),
+    checkBranch: async () => null,
+    checkRequested: async () => [],
+    ...opts,
+  });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   const call = async <T = unknown>(

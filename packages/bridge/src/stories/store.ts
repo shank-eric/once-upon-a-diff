@@ -75,6 +75,7 @@ export class StoryStore {
         repo: meta.repo || null,
         number: meta.number || null,
         url: meta.url || null,
+        head_ref: typeof meta.head_ref === 'string' ? meta.head_ref : null,
         dir,
         version: storyVersion(dir),
       };

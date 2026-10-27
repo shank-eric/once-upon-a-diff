@@ -176,8 +176,33 @@ export interface LocalStory {
 
 /** GET /api/inbox: what waits for review, and each repo's counts for the inbox page's filter. */
 export interface InboxList {
+  /** each repo's counts, PR stories included */
   repos: { repo: string; count: number; unreviewed: number }[];
+  /** built PR stories waiting for review, newest first */
+  stories: InboxStory[];
 }
+
+/** A built PR story in the review inbox: the panel opens on the PR's changes page, and Mark reviewed ticks it off. */
+export interface InboxStory {
+  id: string;
+  repo: string;
+  number: number;
+  title: string;
+  /** the PR's head branch, when the story says */
+  branch: string | null;
+  /** the PR's changes page, where the panel opens */
+  url: string;
+  /** when the story was last built */
+  built_at: string;
+  /** when you last opened or reviewed it: the latest of your reads, where you stopped, and a Mark reviewed (null: never) */
+  seen_at: string | null;
+  reviewed_at: string | null;
+  /** why it is reviewed: marked by hand, or marked by itself because you submitted a review after it was built or viewed every file */
+  reviewed_by: ReviewedBy | null;
+}
+
+/** What marked a PR story reviewed. */
+export type ReviewedBy = 'manual' | 'review' | 'all viewed';
 
 /** The PR title and body a session handed over for a local story's branch (`once-upon pr-draft`). */
 export interface PrDraft {
@@ -497,4 +522,39 @@ export interface ReadInfo {
   since?: unknown;
   changed?: ReadChange[];
   stale_comments?: { step: number; index: number }[];
+}
+
+/** What GitHub says about a PR (one GraphQL query, kept a few minutes). */
+export interface PrInfo {
+  number: number;
+  url: string;
+  title: string;
+  state: 'open' | 'merged' | 'closed';
+  draft: boolean;
+  /** the PR's head branch */
+  branch: string | null;
+  /** who opened it, and whether that is the signed-in gh user (the board shows only PRs you authored) */
+  author: string | null;
+  mine: boolean;
+  /** GitHub is waiting on you by name (a request to a team you are in is not counted, and the review-requested search skips it too) */
+  review_requested: boolean;
+  approvals: number;
+  /** the base branch's required approving reviews, from its protection rule or rulesets when readable (null: none set, or not visible to you) */
+  required: number | null;
+  review: 'approved' | 'changes_requested' | 'review_required' | null;
+  checks: 'success' | 'failure' | 'pending' | null;
+  /** whether the merge button is clickable, and the one thing to say about it: "ready to merge", or what blocks it */
+  merge: { ready: boolean; text: string; tone: 'ok' | 'warn' | 'bad' } | null;
+  merged_at: string | null;
+  /** review threads still open */
+  unresolved: number;
+  /** the signed-in user's latest review, comment or push on it */
+  viewer_at: string | null;
+  /**
+   * when someone else last asked something of you (people only: no bots, no AI-review comments).
+   * On your own PR: a standing changes-requested review, or an open review thread whose last comment is theirs.
+   * On someone else's: only an open review thread you are in whose last comment is theirs. New threads you aren't in,
+   * and other reviewers' changes requested, are not asked of you.
+   */
+  others_at: string | null;
 }

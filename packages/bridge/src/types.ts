@@ -8,6 +8,7 @@ import type { LocalCommit } from '@once-upon-a-diff/shared/types';
 import type { StoryStore } from './stories/store.ts';
 import type { Inbox } from './inbox/inbox.ts';
 import type { Build, Builds } from './inbox/builds.ts';
+import type { AutoReview } from './review-inbox/auto-review.ts';
 import type { Config } from './config/settings.ts';
 
 /** A story folder's meta.json (readMeta fills in kind, title and a PR's url). */
@@ -77,6 +78,8 @@ export interface App {
   stories: StoryStore;
   inbox: Inbox;
   builds: Builds;
+  /** marks PR stories reviewed in the inbox when GitHub says you have */
+  autoReview: AutoReview;
   /** page links with their keys: a local story's page, and the review inbox's (optionally for one repo) */
   links: { story(id: string): string; inbox(repo?: string | null): string };
   log: (line: string) => void;

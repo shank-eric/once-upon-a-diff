@@ -17,8 +17,13 @@ test('the inbox page’s key reaches the inbox routes and nothing else', async (
   const key = inboxKey(TOKEN);
   const listed = await withKey(key, 'GET', '/api/inbox');
   assert.equal(listed.status, 200);
-  assert.deepEqual(listed.body, { repos: [] });
+  assert.deepEqual(listed.body, { repos: [], stories: [] });
   assert.equal((await withKey(key, 'GET', '/api/inbox?repo=acme/widgets')).status, 200);
+  // Mark reviewed is the inbox's too: it gets as far as finding no such story
+  assert.equal(
+    (await withKey(key, 'POST', '/api/inbox/reviewed', { story: 'some-story' })).status,
+    404,
+  );
   // the link, the rest of the API and any story are the token's alone
   for (const [method, route, body] of [
     ['GET', '/api/inbox/link', undefined],

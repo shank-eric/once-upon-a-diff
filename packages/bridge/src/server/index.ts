@@ -44,6 +44,15 @@ import { localStoryRoutes } from './routes/local-story.ts';
 import { fixRoutes } from './routes/fixes.ts';
 import { pullRequestRoutes } from './routes/pull-request.ts';
 import { inboxRoutes } from './routes/inbox.ts';
+import {
+  AutoReview,
+  ghBranchCheck,
+  ghPrCheck,
+  ghRequestedCheck,
+  type BranchCheck,
+  type PrCheck,
+  type RequestedCheck,
+} from '../review-inbox/auto-review.ts';
 import { UNPACKED_EXTENSION_ID } from '../config/settings.ts';
 import type { ApiRoute, App, Body, Call, Send, StoryRoute } from '../types.ts';
 
@@ -75,19 +84,33 @@ const methodMatches = (route: { method?: string }, method: string | undefined) =
   !route.method || route.method === method;
 
 /** The server, with the stores it serves from, for the CLI's startup line and the tests. Call .listen(port, '127.0.0.1'). */
-export type Bridge = http.Server & { stories: StoryStore; inbox: Inbox; builds: Builds };
+export type Bridge = http.Server & {
+  stories: StoryStore;
+  inbox: Inbox;
+  builds: Builds;
+  autoReview: AutoReview;
+};
 
 export function createBridge({
   home,
   token,
   log = (line) => process.stderr.write(`once-upon bridge: ${line}\n`),
   extensionIds = [UNPACKED_EXTENSION_ID],
+  checkPr = ghPrCheck,
+  checkBranch = ghBranchCheck,
+  checkRequested = ghRequestedCheck,
 }: {
   home: string;
   token: string;
   log?: (line: string) => void;
   /** the extension IDs whose pages may call it (readSettings' extensionIds) */
   extensionIds?: string[];
+  /** how the inbox asks GitHub whether you've reviewed a PR (the tests' stand-in) */
+  checkPr?: PrCheck;
+  /** how the board asks GitHub which PR a branch has (the tests' stand-in) */
+  checkBranch?: BranchCheck;
+  /** how the board asks GitHub which PRs wait on your review (the tests' stand-in) */
+  checkRequested?: RequestedCheck;
 }): Bridge {
   const extensionOrigins = new Set(extensionIds.map((id) => `chrome-extension://${id}`));
   if (!token) {
@@ -95,6 +118,7 @@ export function createBridge({
   }
   const stories = new StoryStore({ home });
   const inbox = new Inbox(home);
+  const autoReview = new AutoReview(stories, checkPr, undefined, checkBranch, checkRequested);
   const portOf = () => (server.address() as AddressInfo).port;
   const app: App = {
     home,
@@ -102,6 +126,7 @@ export function createBridge({
     stories,
     inbox,
     builds: new Builds(home),
+    autoReview,
     links: {
       story: (id) => localPageUrl(portOf(), id, token),
       inbox: (repo = null) => inboxPageUrl(portOf(), token, repo),
@@ -299,5 +324,5 @@ export function createBridge({
   // which process is the bridge, and on which port, for `once-upon local` (bridge-file.ts)
   server.once('listening', () => writeBridgeFile(home, portOf(), token));
   server.once('close', () => removeBridgeFile(home));
-  return Object.assign(server, { stories, inbox, builds: app.builds });
+  return Object.assign(server, { stories, inbox, builds: app.builds, autoReview: app.autoReview });
 }
