@@ -9,7 +9,17 @@
  *   - [waiting] sid:<8 hex> [lane:<name>] <name> — 1:40 PM ET, 10/26 — needs <you>: question — notes path
  *
  * [failed] and [stopped] work like [done]. [waiting] is an agent that has finished but whose result needs a decision:
- * the board puts it in the waiting column with the question, until a later [done] or [stopped] line clears it. sid is the first 8 characters of the launching session's id, and the name
+ * the board puts it in the waiting column with the question, until a later [done] or [stopped] line clears it.
+ *
+ * Two more statuses mean the launching session, not you, is the next actor, and put the card in Agent checks:
+ *
+ *   - [plan] sid:<8 hex> [lane:<name>] <name> — 10:30 AM ET, 10/27 — plan ready: <one line> — notes path
+ *   - [fixing] sid:<8 hex> [lane:<name>] review-<x> — 10:55 AM ET, 10/27 — 5 findings — notes path
+ *
+ * [plan] is a build agent stopped at its plan; a later [running] line (plan checked, building) or a [done] clears it.
+ * [fixing] is written under the reviewer's name when the launcher starts on the findings (the first "<n> findings" in
+ * its text is the count); a later [done] under that name clears it. A running agent whose name starts with review- is
+ * a reviewer, which is a gate too, with no line of its own. sid is the first 8 characters of the launching session's id, and the name
  * is a word of letters, digits, dashes and underscores. A lane tag puts the agent on a lane of that name instead of
  * inside its parent's card. The last line with a given sid and name wins. Lines that don't match are skipped.
  *
@@ -17,13 +27,13 @@
  * Both files are read from their tail only, so a long history costs nothing.
  */
 import { closeSync, fstatSync, openSync, readSync } from 'node:fs';
-import type { BoardBeat } from '@once-upon-a-diff/shared/types';
+import type { BoardBeat, BoardGate } from '@once-upon-a-diff/shared/types';
 
 /** One agent as its ledger lines tell it. */
 export interface LedgerAgent {
   sid: string;
   name: string;
-  state: 'running' | 'waiting' | 'done' | 'failed' | 'stopped';
+  state: 'running' | 'waiting' | 'plan' | 'fixing' | 'done' | 'failed' | 'stopped';
   lane: string | null;
   model: string | null;
   task: string | null;
@@ -137,7 +147,7 @@ export function parseLedgerTime(text: string, now: Date, zone?: string): Date | 
 }
 
 const LINE_RE =
-  /^\s*-\s*\[(running|waiting|done|failed|stopped)\]\s+sid:([0-9a-f]{8})\s+(?:lane:([\w.-]+)\s+)?([\w.-]+)\s*(.*)$/;
+  /^\s*-\s*\[(running|waiting|plan|fixing|done|failed|stopped)\]\s+sid:([0-9a-f]{8})\s+(?:lane:([\w.-]+)\s+)?([\w.-]+)\s*(.*)$/;
 
 /** The ledger's agents, one per sid and name, from the lines' text. */
 export function parseLedger(text: string, now: Date, zone?: string): LedgerAgent[] {
@@ -186,6 +196,20 @@ export function parseLedger(text: string, now: Date, zone?: string): LedgerAgent
     agents.set(key, agent);
   }
   return [...agents.values()];
+}
+
+/** The gate an agent is at, or null: its plan to check, findings being fixed, or a reviewer running. The one place for the rule. */
+export function gateOf(agent: Pick<LedgerAgent, 'state' | 'name' | 'outcome'>): BoardGate | null {
+  if (agent.state === 'plan') {
+    return { kind: 'plan', findings: null };
+  }
+  if (agent.state === 'fixing') {
+    const count = /(\d+)\s+findings?\b/i.exec(agent.outcome || '');
+    return { kind: 'fixing', findings: count ? Number(count[1]) : null };
+  }
+  return agent.state === 'running' && /^review-/i.test(agent.name)
+    ? { kind: 'review', findings: null }
+    : null;
 }
 
 const BEAT_RE =

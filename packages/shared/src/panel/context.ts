@@ -74,6 +74,8 @@ export interface PanelOptions {
   working?(): Promise<{ marks?: WorkingMark[] } | null>;
   reloadPage?(): void;
   pulse?(): Promise<Pulse>;
+  /** a hidden tab's slow "still open" signal (see overlay.ts) */
+  stillOpen?(): Promise<unknown>;
   onPulse?(pulse: Pulse): void;
   onFilter?(filter: { n: number; all: boolean }): void;
   reveal?(rel: string, side?: Side, start?: number, end?: number): void;

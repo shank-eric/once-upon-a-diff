@@ -3,6 +3,10 @@
  * own. It rides in the page link's #fragment (`once-upon local` and `once-upon page` print it), which the browser
  * never sends to the bridge, so GET /local/<id>/ hands out nothing. The bridge takes it only on that story's
  * /api/stories/<id>/... routes, and only for a local story (index.ts).
+ *
+ * A story has two keys, and links only step down in power. `pageKey` is the full one: it reads, asks, takes notes and
+ * can push the branch for Create pull request. `viewKey` is the read-only one: the same story under its own label, so
+ * it can't be turned into the full key, and the PR routes refuse it. The inbox hands out only the read-only one.
  */
 import { createHmac } from 'node:crypto';
 
@@ -12,6 +16,49 @@ export const PAGE_KEY_PREFIX = 'page.';
 /** The page key for one story: an HMAC of its id under the bridge's token. */
 export const pageKey = (token: string, story: string): string =>
   PAGE_KEY_PREFIX + createHmac('sha256', token).update(`local-page:${story}`).digest('base64url');
+
+/**
+ * The read-only key for one story: reads, Ask, viewed marks and Fix before push notes (Send too), and nothing else
+ * (`viewKeyMay`), so nothing that writes to GitHub or the branch's remote. Made under its own label, so the full key
+ * can't be got from it. What the review inbox's links carry.
+ */
+export const viewKey = (token: string, story: string): string =>
+  PAGE_KEY_PREFIX + createHmac('sha256', token).update(`local-view:${story}`).digest('base64url');
+
+/**
+ * What the read-only key may reach on its story, by the route's `what` ('' is the story itself) and the methods allowed.
+ * A list of what is allowed, so a route added later is refused to inbox links until someone adds it here:
+ *  - reading the story and its page state: the story, version, pulse, freshness, status, working, prefs, ui, seen,
+ *    position, read marks and the drafted comments with their marks and Add to fix before push
+ *  - Ask: questions
+ *  - Viewed marks: viewed
+ *  - Fix before push: notes, and fixes (the notes' state, Auto-send, Send, Take back)
+ *  - where the branch's PR stands: GET pr, never the POST that pushes
+ * Refused: everything else (rebuild, pr writes, and any route not listed).
+ */
+const VIEW_KEY_MAY: Record<string, readonly string[]> = {
+  '': ['GET'],
+  version: ['GET'],
+  pulse: ['GET'],
+  freshness: ['GET'],
+  status: ['GET'],
+  working: ['GET'],
+  prefs: ['GET', 'POST'],
+  ui: ['GET', 'POST'],
+  seen: ['POST'],
+  position: ['POST'],
+  read: ['GET', 'POST'],
+  drafts: ['GET', 'POST'],
+  questions: ['GET', 'POST'],
+  viewed: ['POST'],
+  notes: ['POST'],
+  fixes: ['GET', 'POST'],
+  pr: ['GET'],
+};
+
+/** Whether the read-only key may make this call on its story (`what` is the route's, '' for the story itself). */
+export const viewKeyMay = (what: string, method: string): boolean =>
+  Object.hasOwn(VIEW_KEY_MAY, what) && VIEW_KEY_MAY[what].includes(method);
 
 /**
  * The review inbox page's key: a token for the inbox page, which reaches the inbox routes (routes/inbox.ts) that
@@ -45,6 +92,11 @@ export const inboxPageUrl = (
 ): string =>
   `${origin}/inbox/#key=${inboxKey(token)}${repo ? `&repo=${encodeURIComponent(repo)}` : ''}`;
 
-/** The local page's link, with its key in the fragment. */
-export const localPageUrl = (port: number, story: string, token: string): string =>
-  `http://127.0.0.1:${port}/local/${encodeURIComponent(story)}/#key=${pageKey(token, story)}`;
+/** The local page's link, with its key in the fragment: the full key, or the read-only one when `readOnly`. */
+export const localPageUrl = (
+  port: number,
+  story: string,
+  token: string,
+  readOnly = false,
+): string =>
+  `http://127.0.0.1:${port}/local/${encodeURIComponent(story)}/#key=${(readOnly ? viewKey : pageKey)(token, story)}`;

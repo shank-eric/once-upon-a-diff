@@ -76,6 +76,10 @@ export class StoryStore {
         number: meta.number || null,
         url: meta.url || null,
         head_ref: typeof meta.head_ref === 'string' ? meta.head_ref : null,
+        /** a local story's: its checkout, the branch, and the turn it is the story of (a story the retired turn capture left, which the inbox skips) */
+        repo_path: typeof meta.repo_path === 'string' ? meta.repo_path : null,
+        branch: typeof meta.branch === 'string' ? meta.branch : null,
+        turn: typeof meta.turn === 'string' ? meta.turn : null,
         dir,
         version: storyVersion(dir),
       };

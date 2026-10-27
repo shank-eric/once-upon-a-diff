@@ -6,6 +6,10 @@
  * it's added, and a request nobody has reported on can be taken back. opts.fixes talks to the bridge:
  * {load(), act(body), note(id, changes), onChange(view)}.
  *
+ * Fix before push is for the viewer's own work: when the bridge says the story can't take new notes (`can_add` false,
+ * a PR that isn't the viewer's), the tools and the draft's Add to fix before push are hidden, and notes already there
+ * are listed as read-only text.
+ *
  * The Overview lists every note; a chapter lists the notes on its files, with the same Send for the whole batch.
  *
  * fixSummary has no DOM, so node tests can use it.
@@ -35,6 +39,10 @@ export function fixSummary({ notes, to }: Pick<FixesView, 'notes' | 'to'>): FixS
   };
 }
 
+/** New notes can be added: not before the bridge's view is in, and not on a PR that isn't the viewer's own. */
+export const takesNotes = (view: Pick<FixesView, 'can_add'> | null): boolean =>
+  !!view && view.can_add !== false;
+
 const AUTO_TITLE =
   'Sends each note to the Claude session as soon as it is added, instead of waiting for Send. Kept for this story. ' +
   'A note from a drafted comment waits for Send, since Claude wrote it from the PR.';
@@ -49,6 +57,8 @@ export function createFixes(context: PanelContext) {
   let view: FixesView | null = null; // the bridge's {notes, auto_send, to, requests}
   let editing: string | null = null; // the id of the note whose text is being edited
   let busy = false;
+
+  const canAdd = () => takesNotes(view);
 
   /** The notes this step lists: every one on the Overview, else the ones on the chapter's files. */
   function shownNotes(): FixNote[] {
@@ -95,12 +105,12 @@ export function createFixes(context: PanelContext) {
   }
 
   function noteHtml(note: FixNote) {
-    const draft = note.state === 'draft';
+    const draft = note.state === 'draft' && canAdd();
     const buttons =
       draft &&
       html`<button data-fix-act="edit">Edit</button><button data-fix-act="remove">Remove</button>`;
     const text =
-      editing === note.id
+      draft && editing === note.id
         ? html`<textarea class="ou-fixedit" rows="3">${note.body}</textarea><div class="ou-fixeditbtns"><button data-fix-act="save">Save</button> <button data-fix-act="cancel">Cancel</button></div>`
         : html`<pre>${note.body}</pre>`;
     const head = html`<div class="ou-where"><span>${placeHtml(note)}</span><span class="ou-cbtns">${buttons}</span></div>`;
@@ -133,7 +143,7 @@ export function createFixes(context: PanelContext) {
     if (!box) {
       return;
     }
-    if (!view || (!view.notes.length && !view.auto_send)) {
+    if (!view || (!view.notes.length && !(view.auto_send && canAdd()))) {
       setHtml(box, '');
       return;
     }
@@ -149,7 +159,7 @@ export function createFixes(context: PanelContext) {
     const counts = summary.counts && `(${summary.counts})`;
     setHtml(
       box,
-      html`<h2 class="ou-h">Fix before push (${view.notes.length}) <span class="ou-draftsum">${counts}</span></h2>${toolsHtml(summary)}${notes.map(noteHtml)}${more}`,
+      html`<h2 class="ou-h">Fix before push (${view.notes.length}) <span class="ou-draftsum">${counts}</span></h2>${canAdd() && toolsHtml(summary)}${notes.map(noteHtml)}${more}`,
     );
     const textarea = box.querySelector<HTMLTextAreaElement>('.ou-fixedit');
     if (textarea) {
@@ -247,7 +257,7 @@ export function createFixes(context: PanelContext) {
 
   refresh();
 
-  return { render, refresh, act };
+  return { render, refresh, act, canAdd };
 }
 
 export type Fixes = ReturnType<typeof createFixes>;

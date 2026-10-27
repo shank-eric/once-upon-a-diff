@@ -3,10 +3,11 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { tmp, startBridge, runCli, localRepo, writeJson } from './helpers.ts';
+import { tmp, startBridge, runCli, localRepo, writeJson, TOKEN } from './helpers.ts';
+import { boardKey, inboxKey, pageKey, viewKey, viewKeyMay } from '../src/server/page-key.ts';
 import { createLocalStory } from '../src/stories/local-story.ts';
 import { namedBase } from '../src/stories/pull-request.ts';
-import type { PrPushAnswer, PrView } from '@once-upon-a-diff/shared/types';
+import type { PrPushAnswer, PrView, StoryData } from '@once-upon-a-diff/shared/types';
 
 const GITHUB_URL = 'https://github.com/acme/widgets.git';
 
@@ -90,6 +91,179 @@ describe('Create pull request on a local story', () => {
       assert.equal(view.draft?.title, 'Add widgets');
       assert.equal(view.draft?.body, '## Summary\n\nWidgets.');
       assert.equal(view.pull, null);
+    } finally {
+      await bridge.close();
+    }
+  });
+
+  test('the read-only key is an allowlist: what it may reach is listed, and anything else is refused by default', () => {
+    const may: [string, string][] = [
+      ['', 'GET'],
+      ['version', 'GET'],
+      ['pulse', 'GET'],
+      ['questions', 'POST'],
+      ['viewed', 'POST'],
+      ['notes', 'POST'],
+      ['fixes', 'GET'],
+      ['fixes', 'POST'],
+      ['pr', 'GET'],
+    ];
+    for (const [what, method] of may) {
+      assert.equal(viewKeyMay(what, method), true, `${method} ${what}`);
+    }
+    const never: [string, string][] = [
+      ['pr', 'POST'],
+      ['pr', 'PUT'],
+      ['', 'POST'],
+      ['rebuild', 'POST'],
+      ['rebuild', 'GET'],
+      ['push', 'POST'],
+      ['viewed', 'GET'],
+      ['notes', 'GET'],
+      ['version', 'POST'],
+      ['someFutureRoute', 'POST'],
+      ['someFutureRoute', 'GET'],
+      ['constructor', 'GET'],
+      ['toString', 'POST'],
+      ['__proto__', 'GET'],
+    ];
+    for (const [what, method] of never) {
+      assert.equal(viewKeyMay(what, method), false, `${method} ${what}`);
+    }
+  });
+
+  test('links only step down: the inbox hands out a read-only key, which reads and asks but never pushes', async () => {
+    const home = tmp('home');
+    const { remote, id } = storyWithOrigin(home);
+    const bridge = await startBridge({ home });
+    const story = `/api/stories/${id}`;
+    const keyOf = (url: string) => url.split('#key=')[1];
+    const withKey = (key: string, method: string, route: string, body?: unknown) =>
+      bridge.call(method, route, body, { Authorization: `Bearer ${key}` });
+    try {
+      // every way the inbox can get a link to the story gives the read-only key, never the full one
+      const opened = await withKey(inboxKey(TOKEN), 'POST', '/api/inbox/open', { story: id });
+      assert.equal(opened.status, 200, opened.text);
+      const read = keyOf((opened.body as { url: string }).url);
+      assert.equal(read, viewKey(TOKEN, id));
+      assert.notEqual(read, pageKey(TOKEN, id), 'not the key that can push');
+      assert.notEqual(viewKey(TOKEN, id), viewKey(TOKEN, 'other'), 'one story each');
+      // the inbox's own key and the board-only routes hand out no story key at all
+      assert.equal(
+        (await withKey(inboxKey(TOKEN), 'POST', '/api/board/open-story', { story: id })).status,
+        403,
+      );
+      assert.equal(
+        (await withKey(read, 'POST', '/api/inbox/open', { story: id })).status,
+        403,
+        'a story key opens nothing',
+      );
+      assert.equal((await withKey(inboxKey(TOKEN), 'GET', `${story}/pr`)).status, 403);
+      assert.equal(
+        (await withKey(inboxKey(TOKEN), 'POST', `${story}/pr`, { action: 'push', head_sha: 'x' }))
+          .status,
+        403,
+        "the inbox's key is no story's key",
+      );
+
+      // the read-only key may look where the branch stands, the same view the full key gets
+      const view = (await withKey(pageKey(TOKEN, id), 'GET', `${story}/pr`)).body as PrView;
+      const looked = await withKey(read, 'GET', `${story}/pr`);
+      assert.equal(looked.status, 200, looked.text);
+      assert.equal((looked.body as PrView).head_sha, view.head_sha);
+      // but refuses every write to the PR routes, and nothing reaches the remote
+      for (const [method, body] of [
+        ['POST', { action: 'push', head_sha: view.head_sha }],
+        ['POST', { action: 'push' }],
+      ] as const) {
+        const refused = await withKey(read, method, `${story}/pr`, body);
+        assert.equal(refused.status, 403, `${method} ${JSON.stringify(body)}`);
+        assert.match((refused.body as { error: string }).error, /read-only/);
+      }
+      assert.equal(
+        (await withKey(read, 'POST', `${story}/drafts`, { chapter: 1, index: 0, action: 'review' }))
+          .status,
+        403,
+        'never Add to my review',
+      );
+      assert.throws(() => git(remote, 'rev-parse', 'refs/heads/feature'), 'nothing was pushed');
+
+      // and the rest of the story's routes work, with the page told it is read-only
+      const data = (await withKey(read, 'GET', story)).body as StoryData;
+      assert.equal(data.read_only, true);
+      assert.equal(
+        ((await withKey(pageKey(TOKEN, id), 'GET', story)).body as StoryData).read_only,
+        undefined,
+        'the full key says nothing of it',
+      );
+      for (const what of ['/pulse', '/version', '/fixes', '/drafts', '/read', '/ui', '/working']) {
+        assert.equal((await withKey(read, 'GET', `${story}${what}`)).status, 200, what);
+      }
+      assert.equal(
+        (await withKey(read, 'POST', `${story}/questions`, { text: 'Why?', step: 1 })).status,
+        200,
+      );
+      assert.equal(
+        (await withKey(read, 'POST', `${story}/viewed`, { path: 'one.txt', viewed: true })).status,
+        200,
+      );
+      assert.equal(
+        (
+          await withKey(read, 'POST', `${story}/notes`, {
+            path: 'one.txt',
+            line: 1,
+            body: 'Rename it',
+          })
+        ).status,
+        200,
+        'a Fix before push note',
+      );
+      assert.equal(
+        (await withKey(read, 'POST', `${story}/fixes`, { action: 'auto', on: false })).status,
+        200,
+      );
+      // Send goes to the session, and take back works: Fix before push is the way the inbox reviews
+      assert.equal(
+        (await withKey(read, 'POST', `${story}/fixes`, { action: 'send' })).status,
+        200,
+        'Send',
+      );
+      // everything not on the allowlist is refused, listed or not: a rebuild request, a route that does not exist yet
+      for (const [method, what] of [
+        ['POST', '/rebuild'],
+        ['GET', '/rebuild'],
+        ['POST', '/later'],
+        ['GET', '/later'],
+      ] as const) {
+        const refused = await withKey(
+          read,
+          method,
+          `${story}${what}`,
+          method === 'POST' ? {} : undefined,
+        );
+        assert.equal(refused.status, 403, `${method} ${what}`);
+        assert.match((refused.body as { error: string }).error, /read-only/);
+      }
+      // the full key still reaches them (a rebuild with no chapters to keep is a 400 from its own check, not a 403)
+      assert.notEqual((await withKey(pageKey(TOKEN, id), 'GET', `${story}/rebuild`)).status, 403);
+      // not another story, a bridge-wide route, or a page of the board's
+      assert.equal((await withKey(read, 'GET', '/api/stories/acme-widgets-7')).status, 403);
+      assert.equal((await withKey(read, 'GET', '/api/stories')).status, 403);
+      assert.equal((await withKey(read, 'GET', '/api/board')).status, 403);
+
+      // the full key, which the board's Open story and `once-upon page` hand out, still pushes
+      const fromBoard = await withKey(boardKey(TOKEN), 'POST', '/api/board/open-story', {
+        story: id,
+      });
+      assert.equal(fromBoard.status, 200, fromBoard.text);
+      const full = keyOf((fromBoard.body as { url: string }).url);
+      assert.equal(full, pageKey(TOKEN, id));
+      const pushed = await withKey(full, 'POST', `${story}/pr`, {
+        action: 'push',
+        head_sha: view.head_sha,
+      });
+      assert.equal(pushed.status, 200, pushed.text);
+      assert.equal(git(remote, 'rev-parse', 'refs/heads/feature'), view.head_sha);
     } finally {
       await bridge.close();
     }

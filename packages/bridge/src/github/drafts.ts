@@ -178,6 +178,28 @@ const ghJson = async (args: string[]): Promise<GhItem[]> => {
 };
 
 let login: string | null = null;
+let loginFailedAt = 0;
+const LOGIN_RETRY_MS = 60000;
+
+/**
+ * The gh user's login (`gh api user`), kept once known. Null when gh can't say; a failure isn't tried again for a
+ * minute, so a poll doesn't wait on gh each time.
+ */
+export async function ghLogin(): Promise<string | null> {
+  if (login) {
+    return login;
+  }
+  if (Date.now() - loginFailedAt < LOGIN_RETRY_MS) {
+    return null;
+  }
+  try {
+    login = JSON.parse(await ghApi(['user'])).login || null;
+  } catch {
+    loginFailedAt = Date.now();
+  }
+  return login;
+}
+
 const cache = new Map<
   string,
   { at: number; value: { login: string; comments: GithubComment[] } }
@@ -262,6 +284,7 @@ export async function githubComments(
 export const clearCache = () => {
   cache.clear();
   login = null;
+  loginFailedAt = 0;
 };
 /** Drop one PR's cached comments, e.g. right after adding one to the pending review. */
 export const forgetComments = (repo: string, number: number | string): void => {

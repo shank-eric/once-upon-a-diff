@@ -56,8 +56,8 @@ export function sessionOfPid(
  * The sessions whose only activity is a listener's wait, which the board shows in the Listeners lane and nowhere else. The
  * wait is a background task, so the terminal calls the session working while it waits; that is not work. A session counts
  * when it has a live wait that is waiting (not one that has handed something over: that session is at work), the
- * registry says it is not in a turn, the tab's background tasks are no more than its waits, and it has no running or
- * waiting ledger agent. Anything else (a build, an answer, another tool running) makes it an ordinary card.
+ * registry says it is not in a turn, the tab's background tasks are no more than its waits, and it has no running, waiting,
+ * plan or fixing ledger agent. Anything else (a build, an answer, another tool running) makes it an ordinary card.
  */
 export function listeningOnly(
   live: LiveSession[],
@@ -82,7 +82,10 @@ export function listeningOnly(
       agents.some(
         (agent) =>
           session.session.startsWith(agent.sid) &&
-          (agent.state === 'running' || agent.state === 'waiting'),
+          (agent.state === 'running' ||
+            agent.state === 'waiting' ||
+            agent.state === 'plan' ||
+            agent.state === 'fixing'),
       )
     ) {
       continue;

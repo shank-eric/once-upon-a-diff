@@ -21,6 +21,8 @@ export interface StoryMeta {
   number?: number | null;
   url?: string | null;
   pr_title?: string;
+  /** the PR author's login, from pr.json when the story was published */
+  pr_author?: string | null;
   head_oid?: string | null;
   head_ref?: string | null;
   /** the once-upon folder it was published from */
@@ -32,6 +34,8 @@ export interface StoryMeta {
   base_oid?: string | null;
   branch?: string | null;
   commits?: LocalCommit[];
+  /** when the story was told (`once-upon local`, a rebuild), not when its diff was last refreshed (`updated_at`) */
+  built_at?: string;
   updated_at?: string;
   [key: string]: unknown;
 }
@@ -85,7 +89,8 @@ export interface App {
   autoReview: AutoReview;
   /** page links with their keys: a local story's page, the review inbox's (optionally for one repo) and the agent board's */
   links: {
-    story(id: string): string;
+    /** a local story's page link; the full key (it can push), or with `readOnly` the one that reads but never pushes */
+    story(id: string, readOnly?: boolean): string;
     inbox(repo?: string | null, origin?: string): string;
     board(origin?: string): string;
     /** the board page's address with no key in it, for a caller that may not be handed the board's key */
@@ -111,6 +116,8 @@ export interface Call {
   send: Send;
   /** which page's key (not the bridge's token) made the call, when one did */
   pageScope?: 'inbox' | 'board' | null;
+  /** a story's read-only key made the call (page-key.ts viewKey): it never reaches the PR routes */
+  readOnly?: boolean;
 }
 
 /** An /api/<path> route. A route with a method answers only that method. */

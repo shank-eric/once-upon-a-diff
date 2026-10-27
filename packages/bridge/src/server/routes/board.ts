@@ -9,6 +9,7 @@
  *                               session's iTerm tab, when the session is at its prompt
  *   POST /api/board/stop-listening  {repo}: end the repo's listener
  *   POST /api/board/focus       {session}: bring that session's iTerm tab to the front (the tab is found server-side)
+ *   POST /api/board/open-story  {story}: a local story's page link (a card's Open story), with that story's full key
  *   GET /api/board/inbox-link   the review inbox page's link, ?repo= for a repo's PR stories, for a card's badge
  *
  * Links only step down in power. The board page's key reaches the board (it types into sessions) and the inbox's link,
@@ -19,6 +20,7 @@ import { REPO_RE } from '../../config/repos.ts';
 import { readSettings } from '../../config/settings.ts';
 import { publicOriginOf } from '../address.ts';
 import { HttpError } from '../request.ts';
+import { localStory } from '../../review-inbox/stories.ts';
 import type { ApiRoute, Call } from '../../types.ts';
 
 const SESSION_RE = /^[A-Za-z0-9._-]{1,100}$/;
@@ -80,6 +82,15 @@ async function type({ app, body, send }: Call) {
   return send(200, { ok: true, typed });
 }
 
+/** POST {story}: the page link of a local story on a card, which has no URL of its own like a PR story's. */
+function openStory({ app, body, send }: Call) {
+  const story = localStory(app.stories, String(body.story || ''));
+  if (!story) {
+    throw new HttpError(404, 'no local story with that id');
+  }
+  return send(200, { url: app.links.story(story.id) });
+}
+
 /** POST {repo}: end the repo's listener (its `wait` returns "Stopped listening"). */
 function stopListening({ app, body, send }: Call) {
   app.board.stopListening(String(body.repo || ''));
@@ -90,6 +101,7 @@ export const boardRoutes: ApiRoute[] = [
   { path: '/api/board/type', method: 'POST', handle: type, boardKey: true },
   { path: '/api/board/stop-listening', method: 'POST', handle: stopListening, boardKey: true },
   { path: '/api/board/focus', method: 'POST', handle: focus, boardKey: true },
+  { path: '/api/board/open-story', method: 'POST', handle: openStory, boardKey: true },
   { path: '/api/board', method: 'GET', handle: data, boardKey: true },
   { path: '/api/board/link', method: 'GET', handle: boardLink, inboxKey: true },
   { path: '/api/board/inbox-link', method: 'GET', handle: inboxLink, boardKey: true },

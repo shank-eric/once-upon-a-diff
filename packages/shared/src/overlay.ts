@@ -52,6 +52,9 @@
  *                  listening, answering}),
  *                  asked every 5s while the tab shows: the questions, drafts and status light look again only when
  *                  their part changed
+ *   stillOpen()    called about once a minute while the tab is hidden (it makes no pulse then): the host tells the bridge the
+ *                  story is still open, so a story listener doesn't stop for a reader with the tab in the background. It does
+ *                  nothing else: freshness, position and the rest wait for the tab to show again
  *   onPulse(p)     called with each pulse, so the host can reload the story when its version moved
  *   onFilter(f)    called after each filter pass with {n, all}; the local page folds other chapters' lines with it
  *   reveal(rel, side, start, end)  called before a jump to a file (rel only) or lines, so a page that folds files or lines can open them
@@ -121,6 +124,8 @@ const PANEL_ID = 'ou-panel'; // both are spelled out in panel/page.css and panel
 const TICK_MS = 5000;
 const STATUS_EVERY = 6;
 const SLOW_EVERY = 12;
+// a hidden tab doesn't tick, but its page is still open: opts.stillOpen says so about once a minute, and nothing else
+const STILL_OPEN_MS = 60000;
 
 /** A pulse, or {down: true} when the bridge didn't answer. */
 type PulseLook = Partial<Pulse> & { down?: boolean };
@@ -246,6 +251,11 @@ export function storyOverlay(input: StoryData, opts: PanelOptions) {
       slow();
     }
   }, TICK_MS);
+  const stillOpenTimer = setInterval(() => {
+    if (opts.stillOpen && document.visibilityState !== 'visible') {
+      Promise.resolve(opts.stillOpen()).catch(() => {});
+    }
+  }, STILL_OPEN_MS);
   const onFocus = () => {
     if (!opts.pulse) {
       context.questions.refresh();
@@ -267,6 +277,7 @@ export function storyOverlay(input: StoryData, opts: PanelOptions) {
     context.navigation.destroy();
     context.scroll.destroy();
     clearInterval(tickTimer);
+    clearInterval(stillOpenTimer);
     window.removeEventListener('focus', onFocus);
     context.expander.cancel();
     context.shell.stopResizing();

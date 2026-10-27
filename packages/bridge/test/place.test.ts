@@ -67,6 +67,7 @@ test('once-upon publish writes into the checkout with the commits the story was 
     url: 'https://github.com/acme/widgets/pull/7',
     number: 7,
     title: 'Add widgets',
+    author: { login: 'octocat' },
     headRefOid: 'b'.repeat(40),
     baseRefOid: 'a'.repeat(40),
   });
@@ -78,6 +79,7 @@ test('once-upon publish writes into the checkout with the commits the story was 
   const meta = JSON.parse(readFileSync(path.join(out, 'meta.json'), 'utf8'));
   assert.equal(meta.head_oid, 'b'.repeat(40), 'the head the story was told from is kept');
   assert.equal(meta.base_oid, 'a'.repeat(40));
+  assert.equal(meta.pr_author, 'octocat', "whose PR it is, for Fix before push's own-PR rule");
   const store = new StoryStore({ home });
   assert.equal(
     realpathSync(store.dirOf('acme-widgets-7') as string),

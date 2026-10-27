@@ -48,3 +48,26 @@ export const localVersion = (dir: string, prefs: Prefs | null): string =>
   storyVersion(dir) +
   (prefs && prefs.hideWhitespace ? '-w' : '') +
   (prefs && prefs.diffView === 'split' ? '-s' : '');
+
+/**
+ * The login of a PR story's author: from its meta.json (`pr_author`, written when it was published), else from the
+ * pr.json beside the story or in the once-upon folder it was published from (a story made before meta.json kept it).
+ * Null when none says.
+ */
+export function prAuthorOf(dir: string, meta: StoryMeta): string | null {
+  if (meta.pr_author) {
+    return meta.pr_author;
+  }
+  for (const folder of [dir, meta.source]) {
+    if (folder) {
+      const pr = readJson<{ author?: { login?: string } | null }>(
+        path.join(folder, 'pr.json'),
+        null,
+      );
+      if (pr && pr.author && pr.author.login) {
+        return pr.author.login;
+      }
+    }
+  }
+  return null;
+}

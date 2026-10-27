@@ -13,12 +13,13 @@ import {
   takeBack,
   updateNote,
 } from '../../inbox/fixes.ts';
-import { draftKey } from '../../github/drafts.ts';
+import { draftKey, ghLogin } from '../../github/drafts.ts';
 import { relOfPath } from '../../util/diff.ts';
 import { workingOf } from '../../stories/working.ts';
+import { prAuthorOf } from '../../stories/meta.ts';
 import { HttpError, clipText, toInt } from '../request.ts';
 import { draftOf } from './drafts.ts';
-import type { StoryData } from '@once-upon-a-diff/shared/types';
+import type { FixesView, StoryData } from '@once-upon-a-diff/shared/types';
 import type { App, Body, Call, ServedStory, StoryRoute } from '../../types.ts';
 
 const MAX_IDS = 500;
@@ -27,6 +28,28 @@ const MAX_IDS = 500;
 function relsOf(app: App, story: ServedStory): string[] {
   const data = app.stories.load(story.id) as StoryData;
   return data.local ? data.local.files.map((file) => file.rel) : data.files.map((file) => file.rel);
+}
+
+/**
+ * Whether the panel offers Fix before push: always on a local story, and on a PR story only when its author is the
+ * bridge's gh user, since fix requests go to the session working the viewer's own branch. When it's off, notes
+ * already there stay readable. An author or a gh login that isn't known counts as not the viewer's.
+ */
+export async function canAddNotes(story: ServedStory): Promise<boolean> {
+  if (story.meta.kind === 'local') {
+    return true;
+  }
+  const author = prAuthorOf(story.dir, story.meta);
+  if (!author) {
+    return false;
+  }
+  const viewer = await ghLogin();
+  return !!viewer && viewer.toLowerCase() === author.toLowerCase();
+}
+
+/** The story's fix-before-push view with whether it can take new notes (`can_add`). */
+export async function fixesViewOf(app: App, story: ServedStory): Promise<FixesView> {
+  return { ...fixesView(app.home, app.stories, story), can_add: await canAddNotes(story) };
 }
 
 /** Add to fix before push: a drafted comment from the story becomes a note, once. Returns {note, request}. */
@@ -87,7 +110,7 @@ function notesRoute({ app, body, send }: Call, story: ServedStory) {
  * POST {action: 'auto', on}: Auto-send on or off. POST {action: 'take_back', request}: a pending request's notes come
  * back as drafts.
  */
-function fixesRoute({ app, req, body, send }: Call, story: ServedStory) {
+async function fixesRoute({ app, req, body, send }: Call, story: ServedStory) {
   let sent = null;
   if (req.method === 'POST') {
     const action = String(body.action || '');
@@ -102,7 +125,7 @@ function fixesRoute({ app, req, body, send }: Call, story: ServedStory) {
       throw new HttpError(400, 'action is one of send, auto, take_back');
     }
   }
-  return send(200, { ...fixesView(app.home, app.stories, story), ...(sent ? { sent } : {}) });
+  return send(200, { ...(await fixesViewOf(app, story)), ...(sent ? { sent } : {}) });
 }
 
 /** GET .../working: the story's "being changed" marks that still stand, and the last one cleared. */

@@ -41,6 +41,7 @@ function redrawButton() {
 
 /** Looks where the branch stands (quietly: the header button only), at most every RECHECK_MS unless forced. */
 export async function lookForPull(force = false) {
+  // a page opened with the read-only key may look (GET), so its Open PR link shows; only pushing is refused
   if (!page.story.local.branch || (!force && Date.now() - lastLook < RECHECK_MS)) {
     return;
   }
@@ -232,6 +233,18 @@ async function submit(form: HTMLFormElement, view: PrView) {
 /** The header button's click: the confirm box, with where the branch stands. */
 export async function openPrBox() {
   const box = boxElement();
+  if (page.story.read_only) {
+    // the inbox's link carries the read-only key, which can't push: say where to open the story, rather than fail on a click
+    setHtml(
+      box,
+      html`<form class="ou-local-pr-form"><h2>Create pull request</h2>
+        <p>This page was opened from the review inbox, whose link can read the story but not push its branch.</p>
+        <p>To push and open the PR, open the story from the agent board (<b>Open story</b>) or run <code>once-upon page --story ${page.story.id}</code>.</p>
+        <div class="ou-local-pr-buttons"><button type="button" data-pr-cancel>Close</button></div></form>`,
+    );
+    box.showModal();
+    return;
+  }
   setHtml(
     box,
     html`<p class="ou-local-muted">Checking where ${page.story.local.branch || 'the branch'} stands on GitHub…</p>`,

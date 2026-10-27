@@ -35,6 +35,7 @@ interface PrJson {
   url?: string;
   number?: number;
   title?: string;
+  author?: { login?: string } | null;
   headRefOid?: string;
   baseRefOid?: string;
   headRefName?: string;
@@ -189,6 +190,7 @@ function publish(home: string, cfg: Config, opts: CliOpts) {
         number: prJson.number,
         url: prJson.url,
         pr_title: prJson.title || null,
+        pr_author: prJson.author?.login || null, // whose PR it is: Fix before push is on only for the viewer's own
         head_oid: prJson.headRefOid || null, // the commit the story was told from
         base_oid: prJson.baseRefOid || null,
         head_ref: prJson.headRefName || null, // the PR's branch, where a fix request's change goes

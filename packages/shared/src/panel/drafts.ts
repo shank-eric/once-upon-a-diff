@@ -395,7 +395,7 @@ export function createDrafts(context: PanelContext) {
         "Not a comment you want: hide it, and don't suggest it again",
       );
       const onLine = comment && comment.path && Number(comment.line) > 0 && !unmapped;
-      if (opts.fixes && onLine) {
+      if (opts.fixes && onLine && context.fixes.canAdd()) {
         addButton(
           'fix',
           'Add to fix before push',

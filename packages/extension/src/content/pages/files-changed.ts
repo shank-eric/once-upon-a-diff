@@ -209,6 +209,8 @@ export function createFilesChangedPage() {
         throw Object.assign(new Error(answer.error as string), { code });
       },
       pulse: () => bodyOf(callBridge<Pulse>('GET', `${storyPath}/pulse`)),
+      // a hidden tab doesn't pulse: this keeps the story's listener from stopping while the page is still open
+      stillOpen: () => callBridge('POST', `${storyPath}/seen`, {}),
       // the story changed on disk (Claude filled in a chapter): redraw in place
       onPulse: (pulse) => {
         if (current && current.key === key && pulse.version !== current.version) {

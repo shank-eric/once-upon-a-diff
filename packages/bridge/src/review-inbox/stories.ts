@@ -4,13 +4,18 @@
  * Open goes to the PR's changes page, where the panel opens. Mark reviewed is the story's own state file,
  * <home>/state/<story id>/reviewed.json: {at, by}, where `by` is manual, review or all viewed (auto-review.ts),
  * and an unmark by hand leaves {at: null, by: manual}, so the file's presence means the reviewer has decided.
+ *
+ * Local stories (`once-upon local`: a branch's story before any PR) are listed beside them (localStories), built in the
+ * same days and kept the same way (reviewed.json, position.json, reads). A story an earlier version made for a turn of the
+ * retired turn capture (its meta names a `turn`) is left out.
  */
-import { REPO_RE, sameRepo } from '../config/repos.ts';
+import path from 'node:path';
+import { REPO_RE, sameRepo, storyRepo } from '../config/repos.ts';
 import { readMeta } from '../stories/meta.ts';
 import { readReads } from '../stories/reads.ts';
 import { stateKeyOf } from '../github/drafts.ts';
 import type { StoryStore } from '../stories/store.ts';
-import type { InboxStory, ReviewedBy } from '@once-upon-a-diff/shared/types';
+import type { InboxLocalStory, InboxStory, ReviewedBy } from '@once-upon-a-diff/shared/types';
 
 /** How long after it was built a PR story stays in the inbox. */
 export const STORY_DAYS = 30;
@@ -80,6 +85,64 @@ export function prStories(
     (first, second) =>
       second.built_at.localeCompare(first.built_at) || first.id.localeCompare(second.id),
   );
+}
+
+/** The local stories (newest first), or only a repo's (owner/name). A story left by the retired turn capture is not one. */
+export function localStories(
+  stories: StoryStore,
+  { repo = null, now = Date.now() }: { repo?: string | null; now?: number } = {},
+): InboxLocalStory[] {
+  const cutoff = now - STORY_DAYS * 24 * 3600 * 1000;
+  const found: InboxLocalStory[] = [];
+  for (const story of stories.list()) {
+    if (story.kind !== 'local' || story.turn) {
+      continue;
+    }
+    const meta = readMeta(story.dir);
+    // when it was told, from meta.json: the folder's newest file time moves whenever a page remakes the diff after
+    // HEAD or the base moves, which is not a rebuild. Stories made before built_at was kept fall back to it.
+    const toldAt = Date.parse(meta.built_at || '');
+    const built = Number.isNaN(toldAt) ? Number(story.version) : toldAt;
+    if (!built || built < cutoff) {
+      continue;
+    }
+    const owner = storyRepo(meta);
+    const repoName =
+      typeof meta.repo_name === 'string' && meta.repo_name
+        ? meta.repo_name
+        : path.basename(story.repo_path || story.dir);
+    // a checkout with no GitHub origin is counted, and picked in the repo menu, under its folder name
+    if (repo && !sameRepo(owner || repoName, repo)) {
+      continue;
+    }
+    const state = stories.readState<{ at?: string | null; by?: ReviewedBy } | null>(
+      story.id,
+      REVIEWED,
+      null,
+    );
+    const reads = readReads(stories.home, stateKeyOf(story.id, meta));
+    const position = stories.readState<{ at?: string } | null>(story.id, 'position.json', null);
+    found.push({
+      id: story.id,
+      repo: owner,
+      repo_name: repoName,
+      title: story.title || story.id,
+      branch: story.branch,
+      built_at: new Date(built).toISOString(),
+      seen_at: latestOf([state?.at, position?.at, ...Object.values(reads).map((read) => read.at)]),
+      reviewed_at: state?.at || null,
+      reviewed_by: state?.at ? state.by || null : null,
+    });
+  }
+  return found.sort(
+    (first, second) =>
+      second.built_at.localeCompare(first.built_at) || first.id.localeCompare(second.id),
+  );
+}
+
+/** One local story by id, or null when the id isn't a listed one's. */
+export function localStory(stories: StoryStore, id: string): InboxLocalStory | null {
+  return localStories(stories).find((story) => story.id === id) || null;
 }
 
 /** A PR the board shows as merged (a story whose PR merged, within `days` of it). */

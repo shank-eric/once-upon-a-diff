@@ -1,8 +1,9 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { tmp, githubStory, startBridge, runCli, writeJson, TOKEN } from './helpers.ts';
+import { pageKey } from '../src/server/page-key.ts';
 import type { Pulse } from '@once-upon-a-diff/shared/types';
 
 const STORY = 'acme-widgets-7';
@@ -105,6 +106,61 @@ describe("a story listener's natural end", () => {
       const pulse = await bridge.call<Pulse>('GET', `/api/stories/${STORY}/pulse`);
       assert.equal(pulse.status, 200);
       assert.equal(existsSync(seenFile(home)), true);
+    } finally {
+      await bridge.close();
+    }
+  });
+
+  test("a hidden tab's still-open signal notes the story as seen, and nothing else", async () => {
+    const home = homeWith(60);
+    const bridge = await startBridge({ home });
+    try {
+      assert.equal(existsSync(seenFile(home)), false);
+      const first = await bridge.call('POST', `/api/stories/${STORY}/seen`, {});
+      assert.equal(first.status, 200, first.text);
+      const seenAt = (): number => Date.parse(JSON.parse(readFileSync(seenFile(home), 'utf8')).at);
+      const before = seenAt();
+      await new Promise((resolve) => setTimeout(resolve, 30));
+      assert.equal((await bridge.call('POST', `/api/stories/${STORY}/seen`, {})).status, 200);
+      assert.ok(seenAt() > before, 'every signal refreshes seen.json');
+      // nothing else moved: no position, no reads, and the story's own files are as they were
+      assert.deepEqual(readdirSync(path.join(home, 'state', STORY)).sort(), ['seen.json']);
+      // it is a story route: another story's key can't send it, a read-only key can
+      assert.equal(
+        (
+          await bridge.call(
+            'POST',
+            `/api/stories/${STORY}/seen`,
+            {},
+            {
+              Authorization: `Bearer ${pageKey(TOKEN, 'other')}`,
+            },
+          )
+        ).status,
+        403,
+      );
+    } finally {
+      await bridge.close();
+    }
+  });
+
+  test("a story wait doesn't stop while a hidden tab keeps sending still-open signals, and stops once they end", async () => {
+    const home = homeWith(2);
+    const bridge = await startBridge({ home });
+    const signal = () => bridge.call('POST', `/api/stories/${STORY}/seen`, {});
+    await signal();
+    const keepOpen = setInterval(signal, 500);
+    try {
+      const running = await storyWait(home, '--timeout', '5');
+      assert.equal(running.code, 2, running.stdout); // ran into --timeout, didn't stop itself
+    } finally {
+      clearInterval(keepOpen);
+    }
+    try {
+      // the tab closed: the signals end and the window runs out
+      const stopped = await storyWait(home, '--timeout', '20');
+      assert.equal(stopped.code, 0, stopped.stderr);
+      assert.match(stopped.stdout, /Stopped listening for acme-widgets-7/);
     } finally {
       await bridge.close();
     }

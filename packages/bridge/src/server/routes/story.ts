@@ -18,17 +18,19 @@ import { refreshLocal } from '../../stories/local-diff.ts';
 import { storyVersion, localVersion } from '../../stories/meta.ts';
 import { HttpError, clipText, toInt } from '../request.ts';
 import { questionsOf } from './questions.ts';
-import { fixesView } from '../../inbox/fixes.ts';
+import { fixesViewOf } from './fixes.ts';
 import { requestFor } from '../../inbox/progress.ts';
 import { workingOf } from '../../stories/working.ts';
 import type { RebuildView, StoryData } from '@once-upon-a-diff/shared/types';
 import type { App, Call, LocalMeta, ServedStory, StoryRoute } from '../../types.ts';
 
-function load({ app, send }: Call, story: ServedStory) {
+function load({ app, send, readOnly }: Call, story: ServedStory) {
   if (story.meta.kind === 'local' && story.ref.repo) {
     seenCheckout(app.home, story.ref.repo, story.meta.repo_path); // where to tell a listener to work from
   }
-  return send(200, app.stories.load(story.id));
+  // a page opened with the story's read-only key says so, so Create pull request can point to where it works
+  const data = app.stories.load(story.id) as StoryData;
+  return send(200, readOnly ? { ...data, read_only: true } : data);
 }
 
 /** Changes when chapters.json does, and for a local story when its diff or Hide whitespace does. */
@@ -46,6 +48,12 @@ function version({ app, send }: Call, story: ServedStory) {
   return send(200, { version: versionOf(app, story) });
 }
 
+// a hidden tab's page is still open: it says so about once a minute, and that is all it does (listeners/auto-stop.ts)
+function seen({ app, send }: Call, story: ServedStory) {
+  noteSeen(app.stories, story.id, Date.now(), 0); // rare by design, so no write throttle
+  return send(200, { ok: true });
+}
+
 const revOf = (value: unknown) =>
   createHash('sha1').update(JSON.stringify(value)).digest('hex').slice(0, 12);
 
@@ -56,7 +64,7 @@ const revOf = (value: unknown) =>
  * reviewer's marks, not what gh finds on GitHub, which the panel still checks on its own. fixes_rev covers
  * fix before push, and working_rev the "being changed" marks.
  */
-function pulse({ app, send }: Call, story: ServedStory) {
+async function pulse({ app, send }: Call, story: ServedStory) {
   noteSeen(app.stories, story.id); // a panel shows the story (for a story listener's natural end)
   const questions = questionsOf(app, story).map((question) => [
     question.id,
@@ -83,8 +91,8 @@ function pulse({ app, send }: Call, story: ServedStory) {
       number: story.meta.kind === 'github' ? story.meta.number : null,
       story: story.id,
     }),
-    // fix before push (notes, Auto-send, requests and who'd get a send) and "being changed" marks
-    fixes_rev: revOf(fixesView(app.home, app.stories, story)),
+    // fix before push (notes, Auto-send, requests, who'd get a send, and whether it takes new notes) and "being changed" marks
+    fixes_rev: revOf(await fixesViewOf(app, story)),
     working_rev: revOf(workingOf(app.home, story.id).marks),
   });
 }
@@ -184,6 +192,7 @@ export const storyRoutes: StoryRoute[] = [
   { what: '', method: 'GET', handle: load },
   { what: 'version', method: 'GET', handle: version },
   { what: 'pulse', method: 'GET', handle: pulse },
+  { what: 'seen', method: 'POST', handle: seen },
   { what: 'ui', handle: panelState },
   { what: 'position', method: 'POST', handle: position },
   { what: 'freshness', method: 'GET', handle: storyFreshness },

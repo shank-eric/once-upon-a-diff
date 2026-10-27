@@ -11,9 +11,14 @@
  *   ledger and progress files   the background agents (ledger.ts)
  *   PR stories                  the built stories (review-inbox/stories.ts): each is a PR, with its branch, and whether you have
  *                               reviewed it. Merged ones stay a day, as Done.
+ *   local stories               a branch's story before any PR (`once-upon local`): on a card of that repo and branch (a
+ *                               branch-only card when nothing else is there, while it waits for review), as its story
+ *                               when the branch has no PR story, with the same Ready and Back to you rules
  *   GitHub, through AutoReview  per PR: approvals, merge state, checks, new comments (review-inbox/auto-review.ts). It is asked in
  *                               the background and the board reads what it has, so a poll never waits for GitHub. A
  *                               session's branch without a story is looked up the same way.
+ *   <projects dir>              each session's transcript, to tell a session with no prompt yet (blank.ts): those are a
+ *                               strip in the Idle lane, not cards
  *
  * The board shows your own work: sessions on this Mac, and PRs you authored (isShown). Columns follow the work to
  * merge (columns.ts). A lane is the repo's name (else the folder's name): the page puts a lane's label right above its
@@ -28,9 +33,10 @@ import path from 'node:path';
 import { readSettings } from '../config/settings.ts';
 import { REPO_RE, lastKnownRepo, repoOfCheckoutAsync, sameRepo } from '../config/repos.ts';
 import { runGitAsync } from '../util/git.ts';
-import { readAgents, type LedgerAgent } from './ledger.ts';
+import { gateOf, readAgents, type LedgerAgent } from './ledger.ts';
+import { BlankSessions } from './blank.ts';
 import { columnOf } from './columns.ts';
-import { laneForAgent, tiedToParent } from './agent-home.ts';
+import { gatedHome, laneForAgent, tiedToParent } from './agent-home.ts';
 import { readVoice, voiceStatus } from './voice.ts';
 import {
   buildFor,
@@ -52,7 +58,7 @@ import {
   type StatusSource,
 } from './sources.ts';
 import { HttpError } from '../server/request.ts';
-import { mergedStories, prStories } from '../review-inbox/stories.ts';
+import { localStories, mergedStories, prStories } from '../review-inbox/stories.ts';
 import { requestFor } from '../inbox/progress.ts';
 import type { Builds } from '../inbox/builds.ts';
 import type { BranchPr } from '../review-inbox/auto-review.ts';
@@ -60,12 +66,14 @@ import type { StoryStore } from '../stories/store.ts';
 import type {
   BoardAgent,
   BoardBeat,
+  BoardBlankSession,
   BoardCard,
   BoardColumn,
   BoardData,
   BoardSession,
   BoardStatus,
   BoardVoice,
+  InboxLocalStory,
   InboxStory,
   PrInfo,
 } from '@once-upon-a-diff/shared/types';
@@ -199,12 +207,17 @@ const NO_PARENT = 'No live session';
 const AGENT_STATUS: Record<LedgerAgent['state'], BoardStatus> = {
   running: 'working',
   waiting: 'waiting',
+  plan: 'working',
+  fixing: 'working',
   done: 'done',
   failed: 'error',
   stopped: 'done',
 };
 
 function agentOf(agent: LedgerAgent, beat: BoardBeat | undefined, now: number): BoardAgent {
+  // still open: running, or at a gate (when it began is the line's time, not the original start)
+  const open = agent.state === 'running' || agent.state === 'plan' || agent.state === 'fixing';
+  const began = agent.state === 'running' ? agent.started : agent.ended || agent.started;
   return {
     name: agent.name,
     state: agent.state,
@@ -214,8 +227,9 @@ function agentOf(agent: LedgerAgent, beat: BoardBeat | undefined, now: number): 
     started_at: agent.started?.toISOString() ?? null,
     ended_at: agent.ended?.toISOString() ?? null,
     outcome: agent.outcome,
-    stale: agent.state === 'running' && !!agent.started && now - agent.started.getTime() > STALE_MS,
+    stale: open && !!began && now - began.getTime() > STALE_MS,
     beat: beat || null,
+    gate: gateOf(agent),
   };
 }
 
@@ -282,12 +296,21 @@ interface Work {
   number: number | null;
   branch: string | null;
   story: InboxStory | null;
+  /** a local story of the branch, for a branch with no PR story: the card's story then */
+  local: InboxLocalStory | null;
   mergedAt: string | null;
   title: string | null;
   /** a story was built for this PR (even one whose PR has since merged) */
   built: boolean;
   sessions: SessionView[];
 }
+
+/** Built after you last opened or reviewed it (never opened: it is ready for review, not back to you). */
+const isUnread = (story: Pick<InboxStory, 'built_at' | 'seen_at'>): boolean =>
+  !!story.seen_at && Date.parse(story.built_at) > Date.parse(story.seen_at);
+
+/** What the board reads of a built story, a PR story's or a local one's. */
+type StoryFacts = Pick<InboxStory, 'id' | 'built_at' | 'reviewed_at' | 'reviewed_by'>;
 
 /** A live session with what the board worked out about it. */
 interface SessionView {
@@ -328,6 +351,7 @@ export class Board {
   private building: Promise<BoardData> | null = null;
   /** Bumped when what a build read is out of date, so a build that started before it does not fill the cache. */
   private generation = 0;
+  private blank = new BlankSessions();
 
   private home: string;
   private stories: StoryStore;
@@ -447,7 +471,8 @@ export class Board {
     this.review.kick(stories);
     const prKey = (repo: string, number: number) => `pr:${repo.toLowerCase()}#${number}`;
     const works = new Map<string, Work>();
-    const start = (work: Omit<Work, 'sessions'>) => works.set(work.key, { ...work, sessions: [] });
+    const start = (work: Omit<Work, 'sessions' | 'local'>) =>
+      works.set(work.key, { ...work, local: null, sessions: [] });
     for (const story of stories) {
       start({
         key: prKey(story.repo, story.number),
@@ -511,9 +536,40 @@ export class Board {
         });
       }
     }
+    // local stories (a branch's story before any PR): the newest per repo and branch goes on that branch's work, or on a
+    // branch-only work of its own; a PR story already on the branch is the card's story, so a local one is not
+    const localStoryList = localStories(this.stories, { now: nowMs });
+    const newestLocal = new Map<string, InboxLocalStory>();
+    for (const local of localStoryList) {
+      if (local.repo && local.branch && !DEFAULT_BRANCHES.has(local.branch)) {
+        const key = `${local.repo.toLowerCase()}@${local.branch}`;
+        newestLocal.set(key, newestLocal.get(key) ?? local);
+      }
+    }
     const branchOfWork = (work: Work) =>
       work.branch ??
       (work.repo && work.number ? this.review.info(work.repo, work.number)?.branch : null);
+    for (const local of newestLocal.values()) {
+      const repo = local.repo as string;
+      const there = [...works.values()].find(
+        (work) => work.repo && sameRepo(work.repo, repo) && branchOfWork(work) === local.branch,
+      );
+      if (!there) {
+        start({
+          key: `branch:${repo.toLowerCase()}@${local.branch}`,
+          repo,
+          number: null,
+          branch: local.branch,
+          story: null,
+          mergedAt: null,
+          title: local.title,
+          built: true,
+        });
+        (works.get(`branch:${repo.toLowerCase()}@${local.branch}`) as Work).local = local;
+      } else if (!there.story && !there.mergedAt) {
+        there.local = local;
+      }
+    }
 
     // a session whose only activity is a listener's wait is shown in the Listeners lane alone, not as a card too
     const waits = listeners(this.home, nowMs).filter((wait) => wait.live);
@@ -525,6 +581,27 @@ export class Board {
     // the voice session is pinned above the columns, so it is on no card (its agents keep theirs)
     const voiceFiles = settings.voiceDir ? readVoice(settings.voiceDir) : null;
     const pin: { found: PinnedVoice | null } = { found: null };
+
+    // sessions with no prompt yet (new, or just cleared) that are at rest and would be cards of their own: the Blank strip
+    const blankIds = new Set<string>();
+    await Promise.all(
+      live.map(async (session) => {
+        const status = known.get(session.session)?.status;
+        const resting =
+          session.status !== 'busy' && (!status || status === 'idle' || status === 'done');
+        const voiced = !!voiceFiles && session.session === voiceFiles.session;
+        if (
+          resting &&
+          !voiced &&
+          !quiet.has(session.session) &&
+          (await this.blank.isBlank(settings.projectsDir, session.session, session.cwd, nowMs))
+        ) {
+          blankIds.add(session.session);
+        }
+      }),
+    );
+    this.blank.keep(new Set(live.map((session) => session.session)));
+    const blankViews: { lane: string; view: BoardSession }[] = [];
 
     // sessions: one on a branch of its own joins that branch's work, the rest are cards of their own
     const sessionCards: BoardCard[] = [];
@@ -569,8 +646,16 @@ export class Board {
         };
         return;
       }
+      // a session standing alone is a card of its own, unless it has had no prompt yet: then it is a chip in the Blank strip
+      const alone = () => {
+        if (blankIds.has(session.session)) {
+          blankViews.push({ lane: laneOf(session.cwd, repo), view: view.card });
+        } else {
+          sessionCards.push(this.sessionCard(session, view, repo));
+        }
+      };
       if (!repo || !branch || DEFAULT_BRANCHES.has(branch)) {
-        sessionCards.push(this.sessionCard(session, view, repo));
+        alone();
         return;
       }
       // sessions share a card only on the same live branch, one that has a PR still open or a story; otherwise the session
@@ -586,7 +671,7 @@ export class Board {
           sameRepo(candidate.repo, repo) &&
           branchOfWork(candidate) === branch &&
           live(candidate) &&
-          (candidate.number || candidate.story),
+          (candidate.number || candidate.story || candidate.local),
       );
       if (!work) {
         const found = this.review.branchPr(repo, branch);
@@ -608,10 +693,18 @@ export class Board {
           work = works.get(key);
         }
       }
+      if (work && !work.number && work.local) {
+        // a branch with a local story and no PR yet, until GitHub says it has one
+        const found = this.review.branchPr(repo, branch);
+        this.review.kickBranch(repo, branch, session.cwd);
+        if (found && found.state === 'open' && !works.has(prKey(repo, found.number))) {
+          work.number = found.number;
+        }
+      }
       if (work && live(work)) {
         work.sessions.push(view);
       } else {
-        sessionCards.push(this.sessionCard(session, view, repo));
+        alone();
       }
     });
     for (const id of this.seen.keys()) {
@@ -641,6 +734,8 @@ export class Board {
       (agent) =>
         agent.state === 'running' ||
         agent.state === 'waiting' ||
+        agent.state === 'plan' ||
+        agent.state === 'fixing' ||
         (agent.ended?.getTime() ?? 0) >= nowMs - settings.doneHours * 3600 * 1000,
     );
     // the lanes already on the board, which an agent's task text can name
@@ -660,9 +755,17 @@ export class Board {
         parent.agents.push(view);
         continue;
       }
-      // an agent gets a card of its own only while it is running or waiting on you; a finished one (done, stopped or
-      // failed) has none, and its result is in its notes
-      if (agent.state !== 'running' && agent.state !== 'waiting') {
+      // an agent at a gate belongs in the card of the branch or PR its task names, wherever its launching session is
+      const home = view.gate
+        ? gatedHome(agent, cards, parent?.lane ?? voiceParent?.lane ?? null)
+        : null;
+      if (home) {
+        home.agents.push(view);
+        continue;
+      }
+      // an agent gets a card of its own only while it is running, at a gate or waiting on you; a finished one (done,
+      // stopped or failed) has none, and its result is in its notes
+      if (agent.state === 'done' || agent.state === 'failed' || agent.state === 'stopped') {
         continue;
       }
       cards.push({
@@ -672,8 +775,11 @@ export class Board {
         repo: null,
         branch: null,
         lane: laneForAgent(agent, knownLanes, parent?.lane ?? voiceParent?.lane ?? null, NO_PARENT),
-        column: AGENT_COLUMN[agent.state],
-        detail: agent.state === 'waiting' ? view.outcome : view.task,
+        column: view.gate ? 'checks' : AGENT_COLUMN[agent.state],
+        detail:
+          agent.state === 'waiting' || view.gate?.kind === 'fixing' || view.gate?.kind === 'plan'
+            ? view.outcome
+            : view.task,
         since: (agent.ended || agent.started)?.toISOString() ?? null,
         pr: null,
         story: null,
@@ -691,7 +797,9 @@ export class Board {
     }
 
     // the columns, now that every card has its sessions and agents
-    const byStory = new Map(stories.map((story) => [story.id, story]));
+    const byStory = new Map<string, StoryFacts>(
+      [...stories, ...localStoryList].map((story) => [story.id, story]),
+    );
     for (const card of cards) {
       if (card.kind !== 'agent') {
         this.place(card, byStory);
@@ -708,6 +816,7 @@ export class Board {
     if (pin.found) {
       sessionViews.set(pin.found.view.id, pin.found.view);
     }
+    blankViews.forEach((item) => sessionViews.set(item.view.id, item.view));
     const idle = new Set(
       [...sessionViews.values()]
         .filter((view) => view.status === 'idle' || view.status === 'done')
@@ -745,6 +854,7 @@ export class Board {
       warning: picked.warning,
       voice: voiceOf(pin.found, voiceFiles, agents, nowMs),
       listeners: listenersLane(waits, listening),
+      blank: blankStrip(blankViews),
       lanes: [...lanes.values()].sort((first, second) => first.name.localeCompare(second.name)),
     };
   }
@@ -863,7 +973,7 @@ export class Board {
   /** A card for a work, or null when there is nothing left to show on it (a PR closed, or merged long ago, with no session). */
   private workCard(work: Work, nowMs: number): BoardCard | null {
     let pr: PrInfo | null = null;
-    let story = work.story;
+    let story: InboxStory | InboxLocalStory | null = work.story ?? work.local;
     if (work.repo && work.number) {
       this.review.kickInfo(work.repo, work.number);
       pr =
@@ -906,7 +1016,12 @@ export class Board {
       pr = null;
       story = null;
     }
-    const known = !!pr && (pr.mine || pr.review_requested || !!story || work.built || !!building);
+    // a local story alone (no session, no PR) is a card only while there is something to review in it
+    const localToReview =
+      !!story && story === work.local && (!story.reviewed_at || isUnread(story));
+    const known =
+      (!!pr && (pr.mine || pr.review_requested || !!story || work.built || !!building)) ||
+      localToReview;
     if (!work.sessions.length && !known) {
       return null;
     }
@@ -928,10 +1043,11 @@ export class Board {
       story: story
         ? {
             id: story.id,
-            url: story.url,
+            kind: 'number' in story ? ('pr' as const) : ('local' as const),
+            url: 'number' in story ? story.url : null,
             reviewed: !!story.reviewed_at,
             // built after you last opened or reviewed it (never opened: it is ready for review, not back to you)
-            unread: !!story.seen_at && Date.parse(story.built_at) > Date.parse(story.seen_at),
+            unread: isUnread(story),
           }
         : null,
       building: building
@@ -948,7 +1064,7 @@ export class Board {
   }
 
   /** Sets a session or work card's column, detail and `since`, once its agents are on it. */
-  private place(card: BoardCard, byStory: Map<string, InboxStory>): void {
+  private place(card: BoardCard, byStory: Map<string, StoryFacts>): void {
     const built = card.story ? byStory.get(card.story.id) : undefined;
     // an auto-mark carries the time the bridge noticed, so only a mark by hand counts as your activity
     const manual =
@@ -977,6 +1093,14 @@ export class Board {
           waitingAgent?.ended_at,
         ]);
         break;
+      case 'checks': {
+        const gated = card.agents.filter((agent) => agent.gate);
+        card.detail = gated.map((agent) => gateText(agent)).join(', ');
+        card.since = earliest(
+          gated.map((agent) => (agent.gate?.kind === 'review' ? agent.started_at : agent.ended_at)),
+        );
+        break;
+      }
       case 'working':
         card.detail = card.building ? BUILDING_TEXT[card.building.kind] : busy?.detail || null;
         card.since = earliest([
@@ -1001,6 +1125,41 @@ export class Board {
   }
 }
 
+/** What a gated agent says it is doing, in a few words. */
+export function gateText(agent: Pick<BoardAgent, 'name' | 'gate'>): string {
+  const gate = agent.gate;
+  if (gate?.kind === 'plan') {
+    return 'plan check';
+  }
+  if (gate?.kind === 'fixing') {
+    return gate.findings === null
+      ? 'fixing'
+      : `fixing ${gate.findings} ${gate.findings === 1 ? 'finding' : 'findings'}`;
+  }
+  return `agent review: ${agent.name}`;
+}
+
+/** The blank sessions grouped by lane (a repo's name, else the folder's), the lanes by name and a lane's sessions by title. */
+function blankStrip(views: { lane: string; view: BoardSession }[]): BoardData['blank'] {
+  const groups = new Map<string, { name: string; sessions: BoardBlankSession[] }>();
+  for (const { lane, view } of views) {
+    const group = groups.get(lane.toLowerCase()) || { name: lane, sessions: [] };
+    group.sessions.push({
+      id: view.id,
+      title: view.title,
+      can_focus: view.focus,
+      since: view.since,
+    });
+    groups.set(lane.toLowerCase(), group);
+  }
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      sessions: group.sessions.sort((first, second) => first.title.localeCompare(second.title)),
+    }))
+    .sort((first, second) => first.name.localeCompare(second.name));
+}
+
 /** What the card says while a session works on the PR's story. */
 const BUILDING_TEXT = {
   build: 'building story',
@@ -1022,6 +1181,8 @@ function focusOf(sessions: BoardSession[]): { focus_session: string | null; can_
 const AGENT_COLUMN: Record<LedgerAgent['state'], BoardColumn> = {
   running: 'working',
   waiting: 'waiting',
+  plan: 'checks',
+  fixing: 'checks',
   done: 'idle',
   failed: 'error',
   stopped: 'idle',

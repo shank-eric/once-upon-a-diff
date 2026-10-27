@@ -41,6 +41,9 @@ export const tmp = (name: string): string =>
   mkdtempSync(path.join(os.tmpdir(), `once-upon-${name}-`));
 // tests never look in (or move stories into) the real ~/Development checkouts
 process.env.ONCE_UPON_DEV_DIR = mkdtempSync(path.join(os.tmpdir(), 'once-upon-dev-'));
+// tests never read the real ~/.claude (the board's registry and transcripts are found under it by default)
+export const CLAUDE_DIR = mkdtempSync(path.join(os.tmpdir(), 'once-upon-claude-'));
+process.env.CLAUDE_CONFIG_DIR = CLAUDE_DIR;
 // the proxy name is taken as reaching this machine, so no test depends on the machine's DNS
 process.env.ONCE_UPON_NO_HOST_CHECK = '1';
 export const TOKEN = 'test-token-0123456789abcdef';

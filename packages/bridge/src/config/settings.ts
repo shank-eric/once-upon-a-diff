@@ -104,8 +104,10 @@ const DEFAULT_HOSTS = ['once-upon.test', 'once-upon.fidev.net'];
  *   gh_unset_github_token   true to drop GITHUB_TOKEN before calling gh, so gh's own (keychain) login is used
  *   house_rules             a Markdown file of your own rules the skills load (default ~/.once-upon/house-rules.md)
  *   listen_idle_minutes     how long a `wait --repo` keeps listening with no page showing one of the repo's stories (default 10;
- *                           it logs when it stops, to <home>/listeners.log)
- *   story_listener_idle_minutes  how long a `wait --story` keeps listening with no page showing its story (default 10)
+ *                           it logs when it stops, to <home>/listeners.log). A page in a background tab still counts: it
+ *                           sends a "still open" signal about once a minute, so only a closed tab runs the window out
+ *   story_listener_idle_minutes  how long a `wait --story` keeps listening with no page showing its story (default 10; a
+ *                           background tab counts as showing it, as above)
  *   allowed_hosts           host names the bridge answers besides 127.0.0.1 and localhost (a reverse proxy such as puma-dev
  *                           forwards the name you typed); only these exact names, which keeps DNS rebinding out
  *                           (default ["once-upon.test", "once-upon.fidev.net"])
@@ -115,6 +117,7 @@ const DEFAULT_HOSTS = ['once-upon.test', 'once-upon.fidev.net'];
  *                           the it2 CLI is found, else registry, Claude Code's own busy/idle)
  *   board_it2_path          the it2 CLI's path when it isn't on PATH or in iTerm2's app folder
  *   board_sessions_dir      Claude Code's live-session registry (default $CLAUDE_CONFIG_DIR/sessions or ~/.claude/sessions)
+ *   board_projects_dir      Claude Code's transcripts, for telling a session with no prompt yet (default $CLAUDE_CONFIG_DIR/projects or ~/.claude/projects)
  *   board_ledger_file       a Markdown file of background-agent lines for the board (see board/ledger.ts); no default, off when unset
  *   board_progress_file     its progress beats (`- <time> <name> <N>/6 <step>: <note>`); no default, off when unset
  *   board_voice_dir         Larmor's folder (~/.larmor): when voice mode is on, its session is pinned at the top of the board
@@ -189,6 +192,13 @@ export function readSettings(home = homeDir()) {
           : path.join(
               process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'),
               'sessions',
+            ),
+      projectsDir:
+        typeof cfg.board_projects_dir === 'string' && cfg.board_projects_dir
+          ? expand(cfg.board_projects_dir)
+          : path.join(
+              process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'),
+              'projects',
             ),
       ledgerFile:
         typeof cfg.board_ledger_file === 'string' && cfg.board_ledger_file

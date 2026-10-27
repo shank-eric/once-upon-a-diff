@@ -410,7 +410,7 @@ export const inboxCommands: Command[] = [
       "                                                                 requests, ahead of a --repo wait while it's live;",
       "                                                                 a consumer's first wait starts from now, but queued build requests are handed over whenever",
       '                                                                 they were asked; a --story wait and a --repo wait stop themselves (printing "Stopped listening")',
-      '                                                                 once no page has shown the story for story_listener_idle_minutes (10)',
+      '                                                                 once no page has shown the story for story_listener_idle_minutes (10; a background tab still counts)',
     ],
     run: wait,
   },

@@ -1,6 +1,6 @@
 /*
  * The agent board page: the Claude Code sessions running now, one card each, in a column for where they stand
- * (working, waiting, done; idle and error when there are any) and a lane for their repo, with the background agents
+ * (working, agent checks, waiting, done; idle and error when there are any, and sessions with no prompt yet as a Blank strip) and a lane for their repo, with the background agents
  * inside their parent's card or, when the ledger gave them a lane, on a card in that lane. The data is
  * GET /api/board (src/board/board.ts), polled every few seconds. The page's key (the link's #key=, which
  * `once-upon board` prints) reaches the board's routes and nothing else.
@@ -14,6 +14,7 @@ import { setHtml } from '/assets/util/dom.ts';
 import { plural } from '/assets/util/text.ts';
 import type {
   BoardAgent,
+  BoardBlankSession,
   BoardCard,
   BoardColumn,
   BoardData,
@@ -35,6 +36,7 @@ const authed = startAuth(KEY, '/api/board/inbox-link');
  */
 const COLUMNS: { id: BoardColumn; label: string; group: 'local' | 'github'; always: boolean }[] = [
   { id: 'working', label: 'Working', group: 'local', always: true },
+  { id: 'checks', label: 'Agent checks', group: 'local', always: false },
   { id: 'waiting', label: 'Waiting', group: 'local', always: true },
   { id: 'ready', label: 'Ready for your review', group: 'local', always: true },
   { id: 'error', label: 'Error', group: 'local', always: false },
@@ -100,15 +102,33 @@ function age(iso: string | null, now: number): string {
 const AGENT_MARK: Record<BoardAgent['state'], string> = {
   running: '●',
   waiting: '?',
+  plan: '…',
+  fixing: '↻',
   done: '✓',
   failed: '✕',
   stopped: '■',
 };
 
+const STATE_NOTE: Partial<Record<BoardAgent['state'], string>> = { plan: 'plan ready' };
+
+/** What an agent at a gate is doing, as a chip: "plan check", "agent review · review-x", "fixing 5 findings". */
+function gateText(agent: BoardAgent): string {
+  const gate = agent.gate;
+  if (gate?.kind === 'plan') {
+    return 'plan check';
+  }
+  if (gate?.kind === 'fixing') {
+    return gate.findings === null ? 'fixing' : `fixing ${plural(gate.findings, 'finding')}`;
+  }
+  return `agent review · ${agent.name}`;
+}
+
 function agentHtml(agent: BoardAgent, now: number) {
   const beat = agent.beat;
   const note =
-    beat && agent.state === 'running' ? `${beat.n}/${beat.of} ${beat.step}` : agent.state;
+    beat && agent.state === 'running'
+      ? `${beat.n}/${beat.of} ${beat.step}`
+      : (STATE_NOTE[agent.state] ?? agent.state);
   const percent = beat ? Math.min(100, Math.round((beat.n / Math.max(1, beat.of)) * 100)) : 0;
   const detail = agent.state === 'running' ? beat?.note || agent.task : agent.outcome || agent.task;
   const time = age(agent.ended_at || agent.started_at, now);
@@ -224,6 +244,10 @@ function cardHtml(card: BoardCard, now: number) {
     pr && html`<a href="${pr.url}" target="_blank" rel="noopener">PR #${pr.number}</a>`;
   const merged = pr?.state === 'merged' && time ? `merged ${time} ago` : '';
   const chips = pr ? prChips(pr) : [];
+  const gates = card.agents.filter((agent) => agent.gate).map(gateText);
+  // Open story: on a card ready for review, and on a rebuilt local story's card in Back to you, which has no PR link to go by
+  const openable =
+    card.column === 'ready' || (card.column === 'back' && !!card.story && !card.story.url);
   const focusTitle = card.can_focus
     ? "Bring this session's iTerm tab to the front"
     : 'No iTerm tab is known for this session';
@@ -252,6 +276,7 @@ function cardHtml(card: BoardCard, now: number) {
     ${notes.map((note) => html`<div class="ou-board-detail">${note}</div>`)}
     ${card.listening && listeningHtml(card.listening)}
     ${card.kind === 'session' && card.detail && html`<div class="ou-board-detail">${card.detail}</div>`}
+    ${gates.length > 0 && html`<div class="ou-board-chips ou-board-gates">${gates.map((text) => html`<span class="ou-board-chip">${text}</span>`)}</div>`}
     ${chips.length > 0 && html`<div class="ou-board-chips">${chips.map((chip) => html`<span class="ou-board-chip">${CHIP_MARK[chip.tone]}${chip.text}</span>`)}</div>`}
     ${card.kind === 'session' && card.sessions[0] && html`<div class="ou-local-muted">${card.sessions[0].status}${card.sessions[0].branch ? ` on ${card.sessions[0].branch}` : ''}</div>`}
     ${list}
@@ -259,10 +284,30 @@ function cardHtml(card: BoardCard, now: number) {
     <div class="ou-board-actions">
       ${card.build && buildHtml(card)}
       ${card.focus_session && html`<button type="button" class="ou-board-focus" data-focus="${card.focus_session}"${!card.can_focus && html` disabled`} title="${focusTitle}">Open in iTerm</button>`}
-      ${card.column === 'ready' && card.story && html`<a class="ou-board-open" href="${card.story.url}" target="_blank" rel="noopener">Open story</a>`}
+      ${openable && card.story?.url && html`<a class="ou-board-open" href="${card.story.url}" target="_blank" rel="noopener">Open story</a>`}
+      ${openable && card.story && !card.story.url && html`<button type="button" class="ou-board-open" data-open-local="${card.story.id}" title="Opens the local story's page">Open story</button>`}
       ${card.inbox && html`<button type="button" data-inbox data-repo="${card.inbox.repo}" title="${inboxTitle(card.inbox)}">${card.inbox.stories} to review</button>`}
     </div>
   </li>`;
+}
+
+/** One place's chip in the Blank strip: a session's tab to the front, or for several in one place a menu of them. */
+function blankChip(group: { name: string; sessions: BoardBlankSession[] }) {
+  const tabs = group.sessions.filter((session) => session.can_focus);
+  const many = group.sessions.length > 1;
+  const label = many ? `${group.name} ×${group.sessions.length}` : group.name;
+  if (!tabs.length) {
+    return html`<span class="ou-board-chip ou-board-blank-chip" title="No iTerm tab is known for ${many ? 'these sessions' : 'this session'}">${label}</span>`;
+  }
+  return many
+    ? html`<button type="button" class="ou-board-chip ou-board-blank-chip" data-blank-group="${group.name}" aria-haspopup="menu" aria-expanded="false" title="Choose a blank session in ${group.name}">${label}</button>`
+    : html`<button type="button" class="ou-board-chip ou-board-blank-chip" data-focus="${tabs[0].id}" title="Bring this blank session's iTerm tab to the front">${label}</button>`;
+}
+
+/** The Blank strip at the bottom of the Idle lane: sessions that have had no prompt yet, one chip per place. */
+function blankHtml(blank: BoardData['blank']) {
+  const count = blank.reduce((sum, group) => sum + group.sessions.length, 0);
+  return html`<div class="ou-board-blank" role="group" aria-label="Blank sessions"><strong>Blank</strong> <span class="ou-local-muted">${count}</span>${blank.map((group) => blankChip(group))}<span class="ou-local-muted">no prompt yet</span></div>`;
 }
 
 /** One of the two groups of columns, headed by where its work is. */
@@ -367,6 +412,7 @@ function render(data: BoardData) {
         String(first.card.since).localeCompare(String(second.card.since)),
     );
   const count = (id: BoardColumn) => cards.filter((card) => card.column === id).length;
+  const blankCount = data.blank.reduce((sum, group) => sum + group.sessions.length, 0);
   // a column lists its cards by lane, the lane's label right above its cards (so the two are never far apart)
   const bodyOf = new Map<string, ReturnType<typeof html>>();
   columns.forEach((column) => {
@@ -392,10 +438,20 @@ function render(data: BoardData) {
   const summary = [
     `${count('working')} working`,
     `${count('waiting')} waiting`,
+    ...(count('checks') ? [`${count('checks')} in agent checks`] : []),
     `${count('ready')} ready for your review`,
     `${count('back')} back to you`,
     `status from ${data.status_source}`,
   ].join(' · ');
+  const nothing =
+    blankCount > 0
+      ? ''
+      : html`<p class="ou-local-muted">No Claude Code sessions are running, and no PRs are waiting.</p>`;
+  const idleRow = html`<ul class="ou-board-idle-row">${idle.map((item) => html`<li class="ou-board-idle-cell"><h3 class="ou-board-lane-label">${item.lane}</h3><ul class="ou-board-cards">${cardHtml(item.card, now)}</ul></li>`)}</ul>`;
+  const toggle =
+    idle.length > 0
+      ? html`<button type="button" data-idle-toggle aria-expanded="${String(idleOpen)}">${idleOpen ? 'Hide' : 'Show'}</button>`
+      : '';
   const markup = html`<header class="ou-local-top">
       <div class="ou-local-top-main"><h1>Agent board</h1><div class="ou-local-muted">${summary}</div></div>
       <button type="button" data-inbox="">Review inbox</button>
@@ -411,13 +467,14 @@ function render(data: BoardData) {
                 inGroup(group.id).map((column) => bodyOf.get(column.id)),
               ),
             )}</div>`
-          : html`<p class="ou-local-muted">No Claude Code sessions are running, and no PRs are waiting.</p>`
+          : nothing
       }
       ${
-        idle.length > 0 &&
+        (idle.length > 0 || blankCount > 0) &&
         html`<section class="ou-board-idle ou-board-c-idle" aria-label="Idle">
-        <h2 class="ou-board-head">Idle <span class="ou-local-muted">${idle.length}</span> <button type="button" data-idle-toggle aria-expanded="${String(idleOpen)}">${idleOpen ? 'Hide' : 'Show'}</button></h2>
-        ${idleOpen && html`<ul class="ou-board-idle-row">${idle.map((item) => html`<li class="ou-board-idle-cell"><h3 class="ou-board-lane-label">${item.lane}</h3><ul class="ou-board-cards">${cardHtml(item.card, now)}</ul></li>`)}</ul>`}
+        <h2 class="ou-board-head">Idle <span class="ou-local-muted">${idle.length + blankCount}</span> ${toggle}</h2>
+        ${idleOpen && idle.length > 0 && idleRow}
+        ${blankCount > 0 && blankHtml(data.blank)}
       </section>`
       }
       ${listenersHtml(data.listeners, now)}
@@ -555,6 +612,36 @@ app.addEventListener('click', async (event) => {
         alert(`Couldn't stop it: ${(err as Error).message}`);
       }
     }
+    return;
+  }
+  const openLocal = clicked.closest('[data-open-local]');
+  if (openLocal) {
+    try {
+      const { url } = await api<{ url: string }>('/api/board/open-story', {
+        story: openLocal.getAttribute('data-open-local'),
+      });
+      window.open(url, '_blank', 'noopener');
+    } catch (err) {
+      alert(`Couldn't open the story: ${(err as Error).message}`);
+    }
+    return;
+  }
+  const blankGroup = clicked.closest('[data-blank-group]');
+  if (blankGroup) {
+    const name = blankGroup.getAttribute('data-blank-group') || '';
+    const group = board?.blank.find((one) => one.name === name);
+    openMenu(
+      blankGroup as HTMLElement,
+      (group?.sessions ?? [])
+        .filter((one) => one.can_focus)
+        .map((one) => ({
+          value: one.id,
+          label: one.title,
+          detail: `blank${one.since ? ` ${age(one.since, Date.now())}` : ''} · ${name}`,
+        })),
+      (id) => void focusSession(id, null),
+      { label: `Blank sessions in ${name}` },
+    );
     return;
   }
   const focus = clicked.closest('[data-focus]');

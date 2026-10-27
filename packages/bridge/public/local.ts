@@ -23,6 +23,8 @@ import type { InitialUi } from '/assets/overlay.ts';
 import type { LocalNote } from '/assets/types.ts';
 
 const POLL_MS = 5000;
+// a hidden tab doesn't poll, but its page is still open: it says so about once a minute (listeners/auto-stop.ts)
+const STILL_OPEN_MS = 60000;
 const app = document.getElementById('ou-local-app') as HTMLElement; // the page's shell has it
 
 function render() {
@@ -264,6 +266,11 @@ async function start() {
   };
   setInterval(pollWhileClosed, POLL_MS);
   window.addEventListener('focus', pollWhileClosed); // the panel's own tick looks on focus while it's open
+  setInterval(() => {
+    if (document.visibilityState !== 'visible') {
+      api('POST', `${STORY_PATH}/seen`, {}).catch(() => {});
+    }
+  }, STILL_OPEN_MS);
   lookForPull(true); // Create pull request turns into Open PR #N once the branch has one
   window.addEventListener('focus', () => lookForPull());
 }

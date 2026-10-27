@@ -2,12 +2,14 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, runCli, localRepo, writeJson } from './helpers.ts';
 import { createLocalStory } from '../src/stories/local-story.ts';
 import { beat, listenPrompt, type Listener } from '../src/listeners/listeners.ts';
 import { readFixes } from '../src/inbox/fixes.ts';
 import { MARK_FRESH_MS, parseFiles, workingOf } from '../src/stories/working.ts';
-import { fixSummary } from '@once-upon-a-diff/shared/panel/fixes';
+import { fixSummary, takesNotes } from '@once-upon-a-diff/shared/panel/fixes';
+import { clearCache } from '../src/github/drafts.ts';
 import type { DraftsAnswer, FixNote, FixesView, Pulse } from '@once-upon-a-diff/shared/types';
 import type { FixRequest } from '../src/inbox/fixes.ts';
 import type { Printable } from '../src/cli/output.ts';
@@ -456,6 +458,104 @@ describe('fix before push: notes collect as drafts and go to a session as one re
     );
     assert.equal(fixSummary({ notes: notes.slice(0, 1), to: null }).send, 'Send 1 note');
     assert.equal(fixSummary({ notes: notes.slice(2), to: null }).send, null);
+  });
+});
+
+describe('fix before push is for the viewer’s own PRs', () => {
+  const FAKE_GH = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'fake-gh.ts'); // its gh user is octocat
+  let ghWas: string | undefined;
+  const useFakeGh = () => {
+    ghWas = process.env.ONCE_UPON_GH;
+    process.env.ONCE_UPON_GH = FAKE_GH;
+    clearCache();
+  };
+  const restoreGh = () => {
+    if (ghWas === undefined) {
+      delete process.env.ONCE_UPON_GH;
+    } else {
+      process.env.ONCE_UPON_GH = ghWas;
+    }
+    clearCache();
+  };
+
+  test('the bridge says whether new notes can be added: a local story always, a PR only when its author is the gh user', async () => {
+    useFakeGh();
+    const home = tmp('home');
+    const authored = (dir: string, login: string | null, meta: Record<string, unknown> = {}) => {
+      githubStory(dir, { meta });
+      writeJson(path.join(dir, 'pr.json'), {
+        url: 'https://github.com/acme/widgets/pull/7',
+        number: 7,
+        ...(login ? { author: { login } } : {}),
+      });
+    };
+    authored(path.join(home, 'mine-7'), 'OctoCat'); // GitHub logins are not case sensitive
+    authored(path.join(home, 'theirs-8'), 'someone', { number: 8 });
+    authored(path.join(home, 'unknown-9'), null, { number: 9 });
+    // published with the author in meta.json (what publish writes now), and with none in meta but one in its source folder
+    githubStory(path.join(home, 'meta-10'), { meta: { number: 10, pr_author: 'octocat' } });
+    const source = tmp('source');
+    writeJson(path.join(source, 'pr.json'), { author: { login: 'octocat' } });
+    githubStory(path.join(home, 'source-11'), { meta: { number: 11, source } });
+    const { repo, base } = localRepo();
+    const chapters = path.join(tmp('ch'), 'chapters.json');
+    writeJson(chapters, { chapters: [{ title: 'Chapter 1: One', files: ['one.txt'] }] });
+    const local = createLocalStory({ home, repo, base, head: 'HEAD', chapters });
+    const bridge = await startBridge({ home });
+    try {
+      const canAdd = async (id: string) =>
+        (await bridge.call<FixesView>('GET', `/api/stories/${id}/fixes`)).body.can_add;
+      assert.equal(await canAdd('mine-7'), true);
+      assert.equal(await canAdd('theirs-8'), false);
+      assert.equal(await canAdd('unknown-9'), false, 'no author known: not shown');
+      assert.equal(await canAdd('meta-10'), true);
+      assert.equal(await canAdd('source-11'), true);
+      assert.equal(await canAdd(local.id), true);
+      // notes already on someone else's PR stay in the view, and a send still reports
+      const note = await bridge.call('POST', '/api/stories/theirs-8/notes', {
+        path: 'src/a.js',
+        line: 1,
+        body: 'old note',
+      });
+      assert.equal(note.status, 200, note.text);
+      const view = (await bridge.call<FixesView>('GET', '/api/stories/theirs-8/fixes')).body;
+      assert.deepEqual([view.can_add, view.notes.map((one) => one.body)], [false, ['old note']]);
+      // the pulse's fixes_rev moves when the answer does, so an open panel redraws
+      const rev = async (id: string) =>
+        (await bridge.call<Pulse>('GET', `/api/stories/${id}/pulse`)).body.fixes_rev;
+      assert.notEqual(await rev('mine-7'), await rev('theirs-8'));
+    } finally {
+      await bridge.close();
+      restoreGh();
+    }
+  });
+
+  test('without a gh login a PR story is not the viewer’s, and the panel shows the tools only once the bridge says so', async () => {
+    const was = process.env.ONCE_UPON_GH;
+    process.env.ONCE_UPON_GH = '/bin/false';
+    clearCache();
+    const home = tmp('home');
+    githubStory(path.join(home, 'mine-7'), { meta: { pr_author: 'octocat' } });
+    const bridge = await startBridge({ home });
+    try {
+      assert.equal(
+        (await bridge.call<FixesView>('GET', '/api/stories/mine-7/fixes')).body.can_add,
+        false,
+      );
+    } finally {
+      await bridge.close();
+      if (was === undefined) {
+        delete process.env.ONCE_UPON_GH;
+      } else {
+        process.env.ONCE_UPON_GH = was;
+      }
+      clearCache();
+    }
+    // the panel's rule: not before the view is in, not when it says no, and an older bridge that says nothing means yes
+    assert.equal(takesNotes(null), false);
+    assert.equal(takesNotes({ can_add: false }), false);
+    assert.equal(takesNotes({ can_add: true }), true);
+    assert.equal(takesNotes({}), true);
   });
 });
 

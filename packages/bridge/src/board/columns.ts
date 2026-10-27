@@ -2,6 +2,9 @@
  * Which column a card goes in: the work moves left to right to merge. The first that fits:
  *
  *   waiting   a session or agent on it is blocked on a question
+ *   checks    an agent on it is at an automated gate (a plan to check, a reviewer running, findings being fixed): the
+ *             launching session is the next actor, not you. Above working, because the session is busy exactly while it
+ *             checks the plan or fixes the findings, and a running reviewer is a running agent
  *   working   a session or agent on it is busy, or a session is building, rebuilding or fixing its story
  *   done      the PR merged (the board drops it a day later)
  *   back      something is on you: its story has a version you haven't opened since it was built (a rebuild, say), or
@@ -20,7 +23,7 @@ import type { BoardAgent, BoardColumn, BoardSession, PrInfo } from '@once-upon-a
 
 export interface ColumnInput {
   sessions: Pick<BoardSession, 'status'>[];
-  agents: Pick<BoardAgent, 'status' | 'state'>[];
+  agents: (Pick<BoardAgent, 'status' | 'state'> & { gate?: BoardAgent['gate'] })[];
   pr: PrInfo | null;
   /**
    * The built PR story: whether you have reviewed it, when you marked it by hand (ms; an auto-mark carries the time the
@@ -55,6 +58,9 @@ export function columnOf(input: ColumnInput): BoardColumn {
     agents.some((agent) => agent.state === 'waiting')
   ) {
     return 'waiting';
+  }
+  if (agents.some((agent) => agent.gate)) {
+    return 'checks';
   }
   if (
     building ||

@@ -8,7 +8,11 @@
  * (listen_idle_minutes, default 10), and also when the board's Stop listening asks (a stop request: stopRequest). Both
  * are logged to <home>/listeners.log. Catch-all waits never stop this way.
  *
- * A tab in the background doesn't pulse, so it counts as no page, the same as a closed one.
+ * A tab in the background doesn't pulse, but its page is still open: while the tab is hidden the panel and the local
+ * page send a slow "still open" signal instead (POST /api/stories/<id>/seen, about once a minute, STILL_OPEN_MS in
+ * shared/src/overlay.ts and bridge/public/local.ts). It does nothing but note the story as seen, so a reader who keeps the
+ * story's tab in the background doesn't lose the listener. Only a closed tab, or a browser that stops its timers, lets
+ * the idle window run out.
  */
 import { readFixes } from '../inbox/fixes.ts';
 import { Builds } from '../inbox/builds.ts';
@@ -26,9 +30,14 @@ export const DEFAULT_IDLE_MINUTES = 10;
 /** When each story's seen.json was last written by this bridge, so a pulse every 5s writes it twice a minute. */
 const lastWritten = new Map<string, number>();
 
-/** A page shows this story now. */
-export function noteSeen(stories: StoryStore, id: string, now = Date.now()): void {
-  if (now - (lastWritten.get(id) || 0) < SEEN_WRITE_MS) {
+/** A page shows this story now. `minGap` is how soon after the last write another is made (a hidden tab's rare signal asks for 0). */
+export function noteSeen(
+  stories: StoryStore,
+  id: string,
+  now = Date.now(),
+  minGap = SEEN_WRITE_MS,
+): void {
+  if (now - (lastWritten.get(id) || 0) < minGap) {
     return;
   }
   lastWritten.set(id, now);

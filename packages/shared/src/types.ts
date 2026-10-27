@@ -180,6 +180,26 @@ export interface InboxList {
   repos: { repo: string; count: number; unreviewed: number }[];
   /** built PR stories waiting for review, newest first */
   stories: InboxStory[];
+  /** built local stories (`once-upon local`, no PR yet) waiting for review, newest first; a story the retired turn capture left is not here */
+  local_stories: InboxLocalStory[];
+}
+
+/** A built local story in the review inbox: a branch's story before any PR. Open story goes to its local page, Mark reviewed ticks it off. */
+export interface InboxLocalStory {
+  id: string;
+  /** owner/name from its checkout's origin, null when the checkout has none or is gone */
+  repo: string | null;
+  /** the checkout's folder name, for a label when there is no repo */
+  repo_name: string;
+  title: string;
+  /** the branch it tells the story of (null when detached) */
+  branch: string | null;
+  /** when the story was last built */
+  built_at: string;
+  /** when you last opened or reviewed it (null: never) */
+  seen_at: string | null;
+  reviewed_at: string | null;
+  reviewed_by: ReviewedBy | null;
 }
 
 /** A built PR story in the review inbox: the panel opens on the PR's changes page, and Mark reviewed ticks it off. */
@@ -259,6 +279,8 @@ export interface StoryData {
   /** the step to open on when nothing is saved */
   start?: number;
   local?: LocalStory;
+  /** the page was opened with the story's read-only key (the inbox's links): it can't push, so Create pull request says where to open the story */
+  read_only?: boolean;
 }
 
 // ---------- the panel's own state and what it reports
@@ -435,6 +457,11 @@ export interface FixesView {
   requests: FixRequestView[];
   /** after a send: who got it */
   sent?: { to: string | null } | null;
+  /**
+   * New notes can be added: a local story always, a PR story only the viewer's own. When false the panel hides the
+   * Fix before push tools and Add to fix before push, and keeps notes already there readable. Missing means true.
+   */
+  can_add?: boolean;
 }
 
 export type FixesAct =
@@ -551,21 +578,33 @@ export interface BoardBeat {
 export interface BoardAgent {
   name: string;
   /** the ledger's own word for where it stands */
-  state: 'running' | 'waiting' | 'done' | 'failed' | 'stopped';
+  state: 'running' | 'waiting' | 'plan' | 'fixing' | 'done' | 'failed' | 'stopped';
   status: BoardStatus;
   task: string | null;
   model: string | null;
   started_at: string | null;
   ended_at: string | null;
   outcome: string | null;
-  /** still `running` long after it started, with no done line: probably never reported back */
+  /** still `running` (or at a gate) long after it started, with no done line: probably never reported back */
   stale: boolean;
   beat: BoardBeat | null;
+  /** the automated gate it is at, when it is at one: not on you, the launching session is the next actor */
+  gate: BoardGate | null;
+}
+
+/**
+ * A gate between "an agent is building" and "ready for your review": a build agent stopped at its plan (`plan`, the
+ * ledger's `[plan]`), a reviewer agent running (`review`, a running agent named `review-*`), or the findings being fixed
+ * (`fixing`, the ledger's `[fixing]`, with the count its line gives).
+ */
+export interface BoardGate {
+  kind: 'plan' | 'review' | 'fixing';
+  findings: number | null;
 }
 
 /** The board's columns, in the order the work moves through them: `error` shows only when a card is in it, and idle cards are a lane of their own. */
 export type BoardColumn =
-  'working' | 'waiting' | 'ready' | 'pr_open' | 'back' | 'done' | 'idle' | 'error';
+  'working' | 'checks' | 'waiting' | 'ready' | 'pr_open' | 'back' | 'done' | 'idle' | 'error';
 
 /** What GitHub says about a PR (one GraphQL query, kept a few minutes). */
 export interface PrInfo {
@@ -636,8 +675,14 @@ export interface BoardCard {
   /** when the card entered its column, as far as the bridge knows */
   since: string | null;
   pr: PrInfo | null;
-  /** the built PR story, when there is one: reviewed, and `unread` when it was built after you last opened or reviewed it */
-  story: { id: string; url: string; reviewed: boolean; unread: boolean } | null;
+  /** the built story, when there is one (a PR story, else a local story of the branch: no url, its page link is asked for): reviewed, and `unread` when it was built after you last opened or reviewed it */
+  story: {
+    id: string;
+    kind: 'pr' | 'local';
+    url: string | null;
+    reviewed: boolean;
+    unread: boolean;
+  } | null;
   /** a session is building, rebuilding or fixing for it (a claimed request) */
   building: { kind: StoryRequest['kind']; since: string | null; by: string | null } | null;
   sessions: BoardSession[];
@@ -717,5 +762,16 @@ export interface BoardData {
   voice: BoardVoice | null;
   /** repos with a listener now, and those that had one in the last week */
   listeners: BoardListenerRepo[];
+  /** live sessions that have had no prompt yet (new, or just cleared), by lane name: a strip in the Idle lane, not cards */
+  blank: { name: string; sessions: BoardBlankSession[] }[];
   lanes: { name: string; cards: BoardCard[] }[];
+}
+
+/** A session with no prompt yet. */
+export interface BoardBlankSession {
+  id: string;
+  title: string;
+  /** its iTerm tab is known, so `POST /api/board/focus` can bring it to the front */
+  can_focus: boolean;
+  since: string | null;
 }

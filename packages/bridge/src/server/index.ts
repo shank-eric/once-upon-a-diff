@@ -9,7 +9,9 @@
  *   - every /api call needs the token (Authorization: Bearer <token>), or for a local page's own story only,
  *     that story's page key (./page-key.ts), which can't reach other stories, bridge-wide routes or GitHub's
  *     API. Its one way out to GitHub is Create pull request's `git push` of the story's branch, which the page
- *     sends only from the reviewer's click in its confirm box (routes/pull-request.ts)
+ *     sends only from the reviewer's click in its confirm box (routes/pull-request.ts). A story also has a read-only
+ *     key (the inbox's links carry that one) that reaches only an allowlist of routes (viewKeyMay in ./page-key.ts), so
+ *     it can't push at all, and a route added later is refused to it until it is listed
  *   - the review inbox page's key and the agent board page's key (./page-key.ts) each reach only the routes that allow
  *     them (routes/inbox.ts, routes/board.ts)
  *   - writes must be application/json, and a request with an Origin must come
@@ -43,6 +45,8 @@ import {
   inboxPageUrl,
   localPageUrl,
   pageKey,
+  viewKey,
+  viewKeyMay,
 } from './page-key.ts';
 import { statusRoutes, storyStatusRoutes } from './routes/status.ts';
 import { catalogRoutes } from './routes/catalog.ts';
@@ -150,7 +154,7 @@ export function createBridge({
     board,
     autoReview,
     links: {
-      story: (id) => localPageUrl(portOf(), id, token),
+      story: (id, readOnly = false) => localPageUrl(portOf(), id, token, readOnly),
       inbox: (repo = null, origin) => inboxPageUrl(portOf(), token, repo, origin),
       board: (origin) => boardPageUrl(portOf(), token, origin),
       boardAddress: (origin = `http://127.0.0.1:${portOf()}`) => `${origin}/board/`,
@@ -247,14 +251,19 @@ export function createBridge({
 
   /**
    * The token, then the body: GET, or POST with JSON. Returns the body and the call's scope: null with the bridge's
-   * token, or the one story a local page's key is for. `pageScope` is the review inbox's or the agent board's page
+   * token, or the one story a local page's key is for (`readOnly` when that is the story's read-only key). `pageScope` is the review inbox's or the agent board's page
    * key: no story, and only the routes that allow it.
    */
   async function checkApiCall(
     req: IncomingMessage,
     pathname: string,
     origin: string | undefined,
-  ): Promise<{ body: Body; scope: string | null; pageScope: 'inbox' | 'board' | null }> {
+  ): Promise<{
+    body: Body;
+    scope: string | null;
+    pageScope: 'inbox' | 'board' | null;
+    readOnly: boolean;
+  }> {
     let auth = String(
       String(req.headers.authorization || '').replace(/^Bearer\s+/i, '') ||
         req.headers['x-once-upon-token'] ||
@@ -280,6 +289,7 @@ export function createBridge({
       }
     }
     let scope: string | null = null;
+    let readOnly = false;
     let pageScope: 'inbox' | 'board' | null = null;
     if (auth.startsWith(PAGE_KEY_PREFIX) && sameToken(auth, inboxKey(token))) {
       pageScope = 'inbox';
@@ -291,10 +301,17 @@ export function createBridge({
       }
       const storyMatch = STORY_PATH.exec(pathname);
       const id = storyMatch ? decodeURIComponent(storyMatch[1]) : null;
-      if (!id || !sameToken(auth, pageKey(token, id))) {
+      if (!id) {
         throw new HttpError(403, "this page's key works only for its own story");
       }
-      scope = id;
+      if (sameToken(auth, pageKey(token, id))) {
+        scope = id;
+      } else if (sameToken(auth, viewKey(token, id))) {
+        scope = id;
+        readOnly = true;
+      } else {
+        throw new HttpError(403, "this page's key works only for its own story");
+      }
     }
     if (origin && origin.startsWith('chrome-extension://')) {
       seeExtension(origin);
@@ -307,12 +324,12 @@ export function createBridge({
       if (!/^application\/json\b/i.test(String(req.headers['content-type'] || ''))) {
         throw new HttpError(415, 'send application/json');
       }
-      return { body: await readBody(req), scope, pageScope };
+      return { body: await readBody(req), scope, pageScope, readOnly };
     }
     if (req.method !== 'GET') {
       throw new HttpError(405, 'GET or POST only');
     }
-    return { body: {}, scope, pageScope };
+    return { body: {}, scope, pageScope, readOnly };
   }
 
   /** A /api/stories/<id>/... call: the story, then the route for its `what`. */
@@ -327,6 +344,14 @@ export function createBridge({
     // a page key is only ever handed to a local story's page, and never reaches GitHub's API (Add to my review)
     if (scope && (meta.kind !== 'local' || (what === 'drafts' && call.body.action === 'review'))) {
       throw new HttpError(403, "this page's key can't do that");
+    }
+    // the read-only key reaches only what page-key.ts lists (it reads, asks, marks viewed, takes and sends Fix before
+    // push notes, and may look where the branch's PR stands), and nothing a later route adds until it is listed there
+    if (call.readOnly && !viewKeyMay(what, call.req.method as string)) {
+      throw new HttpError(
+        403,
+        'this link is read-only: open the story from the board or `once-upon page` to do that',
+      );
     }
     // ref: what inbox entries say about the story, with the repo for `wait --repo`
     const ref = { story: id, kind: meta.kind, title: meta.title, repo: storyRepo(meta) };
@@ -389,8 +414,8 @@ export function createBridge({
       if (!pathname.startsWith('/api/')) {
         throw new HttpError(404, 'not found');
       }
-      const { body, scope, pageScope } = await checkApiCall(req, pathname, origin);
-      const call: Call = { app, req, url, body, send, pageScope };
+      const { body, scope, pageScope, readOnly } = await checkApiCall(req, pathname, origin);
+      const call: Call = { app, req, url, body, send, pageScope, readOnly };
       // a page key never reaches the bridge-wide routes, even one whose path looks like a story's
       const route =
         !scope &&

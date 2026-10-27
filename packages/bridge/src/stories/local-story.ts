@@ -120,6 +120,7 @@ export function createLocalStory({
     branch,
     base_oid: sameRange ? old.base_oid : null,
     head_oid: sameRange ? old.head_oid : null, // null makes the diff get remade
+    built_at: new Date().toISOString(), // a publish or a rebuild: refreshLocal keeps it, so a moved HEAD is not one
     title:
       title ||
       (old.title as string | undefined) ||

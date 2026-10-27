@@ -8,6 +8,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs';
 import path from 'node:path';
@@ -19,6 +20,7 @@ import {
   startBridge,
   runCli,
   TOKEN,
+  CLAUDE_DIR,
   type TestBridge,
 } from './helpers.ts';
 import { Builds } from '../src/inbox/builds.ts';
@@ -28,9 +30,9 @@ import { readVoice, voiceStatus } from '../src/board/voice.ts';
 import { sessionOfPid } from '../src/board/listening.ts';
 import { noteListener, readHistory } from '../src/listeners/history.ts';
 import { repoStopReason, requestStop, stopRequested } from '../src/listeners/auto-stop.ts';
-import { laneForAgent, tiedToParent } from '../src/board/agent-home.ts';
+import { gatedHome, laneForAgent, tiedToParent } from '../src/board/agent-home.ts';
 import type { LedgerAgent } from '../src/board/ledger.ts';
-import { parseLedger, parseLedgerTime, parseProgress } from '../src/board/ledger.ts';
+import { gateOf, parseLedger, parseLedgerTime, parseProgress } from '../src/board/ledger.ts';
 import {
   findIt2,
   focusTab,
@@ -50,6 +52,10 @@ import {
   type BranchPr,
 } from '../src/review-inbox/auto-review.ts';
 import { StoryStore } from '../src/stories/store.ts';
+import { localStories } from '../src/review-inbox/stories.ts';
+import { createLocalStory } from '../src/stories/local-story.ts';
+import { refreshLocal } from '../src/stories/local-diff.ts';
+import type { LocalMeta } from '../src/types.ts';
 import type {
   BoardCard,
   BoardData,
@@ -77,16 +83,71 @@ async function deadPid(): Promise<number> {
   return child.pid as number;
 }
 
-/** A registry file the way Claude Code writes it. */
+/** A transcript the way Claude Code writes it, in the projects folder the board looks in by default. */
+function transcript(cwd: string, sessionId: string, lines: unknown[]) {
+  const file = path.join(
+    CLAUDE_DIR,
+    'projects',
+    cwd.replace(/[^A-Za-z0-9]/g, '-'),
+    `${sessionId}.jsonl`,
+  );
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, lines.map((line) => JSON.stringify(line)).join('\n') + '\n');
+  return file;
+}
+
+/** The lines of a session that has had a prompt, and of one that was just cleared. */
+const usedLines = (sessionId: string) => [
+  { type: 'mode', mode: 'normal', sessionId },
+  { type: 'user', message: { role: 'user', content: 'fix the build' }, sessionId },
+  { type: 'assistant', message: { role: 'assistant', content: [] }, sessionId },
+];
+const clearedLines = (sessionId: string) => [
+  { type: 'mode', mode: 'normal', sessionId },
+  { type: 'file-history-snapshot', messageId: 'a', snapshot: {}, isSnapshotUpdate: false },
+  {
+    type: 'user',
+    isMeta: true,
+    message: {
+      role: 'user',
+      content: '<local-command-caveat>Caveat: not for you</local-command-caveat>',
+    },
+    sessionId,
+  },
+  {
+    type: 'user',
+    message: {
+      role: 'user',
+      content:
+        '<command-name>/clear</command-name>\n <command-message>clear</command-message>\n <command-args></command-args>',
+    },
+    sessionId,
+  },
+  {
+    type: 'system',
+    subtype: 'local_command',
+    content: '<local-command-stdout></local-command-stdout>',
+    sessionId,
+  },
+];
+
+/**
+ * A registry file the way Claude Code writes it, and (unless `blank`) a transcript of a session that has had a prompt, so
+ * the board shows it as a card; `blank` leaves the transcript as just the clear.
+ */
 function registry(
   dir: string,
   pid: number,
   extra: Record<string, unknown> = {},
   procStart: string | null = null,
+  { blank = false }: { blank?: boolean } = {},
 ) {
+  const sessionId = `${String(pid).padStart(8, '0')}-aaaa-bbbb-cccc-dddddddddddd`;
+  const cwd = (extra.cwd as string) || '/tmp/somewhere/widgets';
+  transcript(cwd, sessionId, blank ? clearedLines(sessionId) : usedLines(sessionId));
   writeJson(path.join(dir, `${pid}.json`), {
     pid,
-    sessionId: `${String(pid).padStart(8, '0')}-aaaa-bbbb-cccc-dddddddddddd`,
+    sessionId,
     cwd: '/tmp/somewhere/widgets',
     name: `session-${pid}`,
     status: 'idle',
@@ -972,9 +1033,15 @@ test('the review inbox lists built PR stories, and Mark reviewed works on them',
     ],
     'a local story is not a PR story',
   );
+  // it has its own list, and counts under its checkout's name when there is no GitHub repo
+  assert.deepEqual(
+    list.local_stories.map((story) => [story.id, story.repo, story.repo_name, story.title]),
+    [['local-x', null, 'x', 'Local']],
+  );
   assert.deepEqual(list.repos.map((repo) => [repo.repo, repo.unreviewed]).sort(), [
     ['acme/gadgets', 1],
     ['acme/widgets', 1],
+    ['x', 1],
   ]);
   const filtered = (await asInbox('GET', '/api/inbox?repo=acme/widgets')).body as InboxList;
   assert.deepEqual(
@@ -990,7 +1057,7 @@ test('the review inbox lists built PR stories, and Mark reviewed works on them',
   await asInbox('POST', '/api/inbox/reviewed', { story: 'acme-widgets-7', reviewed: false });
   const undone = (await asInbox('GET', '/api/inbox')).body as InboxList;
   assert.equal(undone.stories.find((story) => story.id === 'acme-widgets-7')?.reviewed_at, null);
-  for (const id of ['local-x', 'nope', '../x']) {
+  for (const id of ['nope', '../x']) {
     assert.equal((await asInbox('POST', '/api/inbox/reviewed', { story: id })).status, 404, id);
   }
 });
@@ -3284,4 +3351,738 @@ test('a session whose only activity is a repo listener is in the Listeners lane 
     return (await board.snapshot()).lanes.flatMap((lane) => lane.cards);
   })();
   assert.equal(mine(none).length, 1, 'no listener: a card');
+});
+
+test('[plan] and [fixing] are ledger statuses: a later [running] or [done] clears them, and a reviewer is a running review-* agent', () => {
+  const agents = parseLedger(
+    [
+      '- [running] sid:aaaaaaaa lane:widgets builder (sonnet, high) — build feat/x → notes/p.md — started 10:18 AM ET, 10/26',
+      '- [plan] sid:aaaaaaaa lane:widgets builder — 10:30 AM ET, 10/26 — plan ready: three steps — notes/p.md',
+      '- [running] sid:aaaaaaaa lane:widgets review-x (opus, default) — review of feat/x — started 10:40 AM ET, 10/26',
+      '- [done] sid:aaaaaaaa lane:widgets review-x — 10:50 AM ET, 10/26 — 9 findings (0 high, 2 med, 7 low), notes/r.md',
+      '- [fixing] sid:aaaaaaaa lane:widgets review-x — 10:55 AM ET, 10/26 — 5 findings — notes/r.md',
+      '- [plan] sid:aaaaaaaa planner — 11:00 AM ET, 10/26 — plan ready',
+      '- [running] sid:aaaaaaaa planner — 11:05 AM ET, 10/26 — plan checked, building',
+      '- [running] sid:aaaaaaaa review-y (opus, default) — review of PR #4 — started 11:10 AM ET, 10/26',
+      '- [fixing] sid:aaaaaaaa fixer — 11:15 AM ET, 10/26 — fixing the clear bugs',
+    ].join('\n'),
+    NOW,
+  );
+  const byName = Object.fromEntries(agents.map((agent) => [agent.name, agent]));
+  assert.equal(byName['builder'].state, 'plan');
+  assert.equal(byName['builder'].ended?.toISOString(), '2026-10-26T14:30:00.000Z');
+  assert.equal(byName['builder'].outcome, 'plan ready: three steps');
+  assert.equal(
+    byName['builder'].task,
+    'build feat/x → notes/p.md',
+    'the task from its running line is kept',
+  );
+  assert.equal(byName['review-x'].state, 'fixing');
+  assert.equal(byName['planner'].state, 'running');
+  assert.deepEqual(gateOf(byName['builder']), { kind: 'plan', findings: null });
+  assert.deepEqual(gateOf(byName['review-x']), { kind: 'fixing', findings: 5 });
+  assert.deepEqual(gateOf(byName['fixer']), { kind: 'fixing', findings: null });
+  assert.deepEqual(gateOf(byName['review-y']), { kind: 'review', findings: null });
+  assert.equal(
+    gateOf(byName['planner']),
+    null,
+    'a running agent that is not a reviewer is not at a gate',
+  );
+  const done = parseLedger(
+    '- [running] sid:aaaaaaaa review-x — t — started 10:40 AM ET, 10/26\n- [done] sid:aaaaaaaa review-x — 10:50 AM ET, 10/26 — 2 findings',
+    NOW,
+  );
+  assert.equal(gateOf(done[0]), null, 'a finished reviewer is not at a gate');
+});
+
+test('Agent checks sits under Waiting and above Working in the first-match order', () => {
+  const none = { sessions: [], agents: [], pr: null, story: null };
+  const gate = (kind: 'plan' | 'review' | 'fixing') => ({
+    status: 'working' as const,
+    state: kind === 'review' ? ('running' as const) : kind,
+    gate: { kind, findings: null },
+  });
+  for (const kind of ['plan', 'review', 'fixing'] as const) {
+    assert.equal(columnOf({ ...none, agents: [gate(kind)] }), 'checks', kind);
+    // the session is busy while it checks the plan or fixes the findings, and the card is still at the gate
+    assert.equal(
+      columnOf({ ...none, agents: [gate(kind)], sessions: [{ status: 'working' }] }),
+      'checks',
+    );
+    assert.equal(
+      columnOf({ ...none, agents: [gate(kind), { status: 'working', state: 'running' }] }),
+      'checks',
+    );
+    // the user being needed still wins
+    assert.equal(
+      columnOf({ ...none, agents: [gate(kind)], sessions: [{ status: 'waiting' }] }),
+      'waiting',
+    );
+    assert.equal(
+      columnOf({ ...none, agents: [gate(kind), { status: 'waiting', state: 'waiting' }] }),
+      'waiting',
+    );
+  }
+  // an agent that is just running, or a finished reviewer, is not a gate
+  assert.equal(
+    columnOf({ ...none, agents: [{ status: 'working', state: 'running', gate: null }] }),
+    'working',
+  );
+  assert.equal(
+    columnOf({ ...none, agents: [{ status: 'done', state: 'done', gate: null }] }),
+    'idle',
+  );
+});
+
+test('a gated agent goes in the card of the branch or PR its task names, with the lane tag compared loosely', () => {
+  const agent = (extra: Partial<LedgerAgent> = {}): LedgerAgent => ({
+    sid: 'aaaaaaaa',
+    name: 'review-x',
+    state: 'running',
+    lane: null,
+    model: null,
+    task: null,
+    started: null,
+    ended: null,
+    outcome: null,
+    ...extra,
+  });
+  const card = (lane: string, branch: string, number: number | null) =>
+    ({ kind: 'work', lane, branch, pr: number ? { number } : null }) as unknown as BoardCard;
+  const once = card('once-upon-a-diff', 'stack/4-agent-board', null);
+  const widgets = card('widgets', 'feat/x', 7);
+  const session = {
+    kind: 'session',
+    lane: 'widgets',
+    branch: 'feat/x',
+    pr: null,
+  } as unknown as BoardCard;
+  const cards = [once, widgets, session];
+  assert.equal(
+    gatedHome(
+      agent({ lane: 'once-upon', task: 'review of stack/4-agent-board diff' }),
+      cards,
+      'ClariFi',
+    ),
+    once,
+    '"once-upon" is the lane "once-upon-a-diff"',
+  );
+  assert.equal(gatedHome(agent({ task: 'review PR #7' }), cards, null), widgets);
+  assert.equal(
+    gatedHome(agent({ task: 'review of feat/x' }), cards, null),
+    widgets,
+    'a session card is never a home',
+  );
+  assert.equal(
+    gatedHome(agent({ lane: 'gadgets', task: 'review of feat/x' }), cards, null),
+    null,
+    'a tag for another lane',
+  );
+  assert.equal(gatedHome(agent({ task: 'something else' }), cards, null), null);
+  // the same branch in two repos: the parent's lane decides, else none
+  const gadgets = card('gadgets', 'feat/x', 3);
+  assert.equal(
+    gatedHome(agent({ task: 'review of feat/x' }), [widgets, gadgets], 'gadgets'),
+    gadgets,
+  );
+  assert.equal(
+    gatedHome(agent({ task: 'review of feat/x' }), [widgets, gadgets], 'elsewhere'),
+    null,
+  );
+  // a card on a short branch does not catch every gated agent: the name `review-x` and these tasks have "review" and
+  // "docs" only as parts of longer words
+  const onReview = card('widgets', 'review', 9);
+  const onDocs = card('widgets', 'docs', null);
+  for (const task of [
+    'check of feat/x',
+    'plan check for review-queue work',
+    'reviewing docs-site and the docs.md file',
+  ]) {
+    assert.equal(gatedHome(agent({ task }), [onReview, onDocs], null), null, task);
+  }
+  assert.equal(
+    gatedHome(
+      agent({ name: 'plan-check', task: 'check the plan on docs' }),
+      [onReview, onDocs],
+      null,
+    ),
+    onDocs,
+    'the branch named as a word of its own',
+  );
+  assert.equal(
+    gatedHome(agent({ name: 'fixer', task: 'fix findings on "review"' }), [onReview, onDocs], null),
+    onReview,
+  );
+  // tiedToParent itself is unchanged: a tag for another lane is not tied
+  assert.equal(
+    tiedToParent(agent({ lane: 'once-upon', task: 'on stack/4-agent-board' }), once),
+    false,
+  );
+});
+
+test('the board: Agent checks holds a PR card with a gated agent in it, an agent card for one with no card, and Waiting still wins', async () => {
+  const home = tmp('board-home');
+  const sessions = tmp('board-sessions');
+  const ledger = path.join(tmp('board-notes'), 'ledger.md');
+  const children = [liveChild(), liveChild(), liveChild()];
+  after(() => children.forEach((child) => child.stop()));
+  const [launcher, onStory, onY] = children;
+  const sid = (child: { pid: number }) => String(child.pid).padStart(8, '0');
+  const gadgets = checkoutOf('gadgets', 'main');
+  const widgetsX = checkoutOf('widgets', 'feat/x');
+  const widgetsY = checkoutOf('widgets', 'feat/y');
+  // the launching session is in another repo, on its default branch; the work is on feat/x (a story) and feat/y (a PR)
+  registry(
+    sessions,
+    launcher.pid,
+    { cwd: gadgets, name: 'launcher', status: 'busy' },
+    launcher.procStart,
+  );
+  registry(
+    sessions,
+    onStory.pid,
+    { cwd: widgetsX, name: 'story-one', status: 'busy' },
+    onStory.procStart,
+  );
+  registry(sessions, onY.pid, { cwd: widgetsY, name: 'branch-y' }, onY.procStart);
+  prStory(home, 'acme-widgets-7', 'acme/widgets', 7, 'feat/x');
+  writeFileSync(
+    ledger,
+    [
+      // a plan and a running reviewer for PR 7, launched by a session that is not on its branch
+      `- [running] sid:${sid(launcher)} lane:widgets builder (sonnet, high) — build on feat/x → notes/p.md — started 2:00 PM ET, 10/26`,
+      `- [plan] sid:${sid(launcher)} lane:widgets builder — 2:10 PM ET, 10/26 — plan ready: three steps — notes/p.md`,
+      `- [running] sid:${sid(launcher)} lane:widgets review-seven (opus, default) — review of PR #7 diff — started 2:20 PM ET, 10/26`,
+      // findings being fixed on feat/y, and a reviewer for a branch that has no card
+      `- [running] sid:${sid(launcher)} lane:widgets review-why (opus, default) — review of feat/y diff — started 2:00 PM ET, 10/26`,
+      `- [fixing] sid:${sid(launcher)} lane:widgets review-why — 2:30 PM ET, 10/26 — 3 findings — notes/r.md`,
+      `- [running] sid:${sid(launcher)} lane:elsewhere review-lost (opus, default) — review of feat/none — started 2:40 PM ET, 10/26`,
+      // a finished reviewer is not at a gate
+      `- [done] sid:${sid(launcher)} lane:widgets review-old — 1:00 PM ET, 10/26 — 4 findings — notes/o.md`,
+    ].join('\n'),
+  );
+  writeJson(path.join(home, 'config.json'), {
+    board_ledger_file: ledger,
+    board_sessions_dir: sessions,
+  });
+  const { watcher } = fakeWatcher(
+    [prInfo(7, { branch: 'feat/x' }), prInfo(9, { branch: 'feat/y' })],
+    { 'acme/widgets@feat/y': { number: 9, state: 'open', merged_at: null } },
+  );
+  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+    source: sourceSaying({}),
+    now: () => NOW,
+  });
+  const data = await board.snapshot();
+  const cards = data.lanes.flatMap((lane) => lane.cards);
+  const card = (id: string) => cards.find((found) => found.id === id) as BoardCard;
+
+  const seven = card('pr:acme/widgets#7');
+  assert.equal(
+    seven.column,
+    'checks',
+    'its session is busy, but a plan and a reviewer are at their gates',
+  );
+  assert.deepEqual(
+    seven.agents.map((agent) => [agent.name, agent.state, agent.gate?.kind]),
+    [
+      ['builder', 'plan', 'plan'],
+      ['review-seven', 'running', 'review'],
+    ],
+  );
+  assert.equal(seven.detail, 'plan check, agent review: review-seven');
+  assert.equal(
+    seven.since,
+    '2026-10-26T18:10:00.000Z',
+    'the earliest of the plan time and the review start',
+  );
+  assert.equal(card(`agent:${sid(launcher)}:builder`), undefined, 'nested, not a card of its own');
+
+  // the findings are being fixed on feat/y, whose session is idle
+  const why = card('pr:acme/widgets#9');
+  assert.equal(why.column, 'checks');
+  assert.deepEqual(
+    why.agents.map((agent) => agent.gate),
+    [{ kind: 'fixing', findings: 3 }],
+  );
+
+  // a gated agent whose task names no card has a card of its own, in the column, on its tag's lane
+  const lost = card(`agent:${sid(launcher)}:review-lost`);
+  assert.equal(lost.column, 'checks');
+  assert.equal(lost.lane, 'elsewhere');
+  assert.equal(lost.parent, 'launcher');
+  assert.equal(card(`agent:${sid(launcher)}:review-old`), undefined);
+  // the launching session's own card is its own business
+  assert.equal(card(fullId(launcher.pid)).column, 'working');
+
+  // the user being needed still wins: a waiting agent has its own card in Waiting (as it always has), and a card whose
+  // session is waiting on you is in Waiting whatever gate is on it
+  writeFileSync(
+    ledger,
+    readFileSync(ledger, 'utf8') +
+      `\n- [waiting] sid:${sid(launcher)} lane:widgets builder — 2:50 PM ET, 10/26 — needs Eric: pick A or B — notes/p.md\n`,
+  );
+  const later = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+    source: sourceSaying({ [sid(onStory)]: { status: 'waiting', detail: 'asked you something' } }),
+    now: () => new Date(NOW.getTime() + 5000),
+  });
+  const afterwards = (await later.snapshot()).lanes.flatMap((lane) => lane.cards);
+  const found = (id: string) => afterwards.find((one) => one.id === id);
+  assert.equal(found(`agent:${sid(launcher)}:builder`)?.column, 'waiting');
+  assert.equal(found('pr:acme/widgets#7')?.column, 'waiting');
+  assert.equal(found('pr:acme/widgets#9')?.column, 'checks');
+});
+
+test('a plan or fixing line that has sat a day is marked stale', async () => {
+  const home = tmp('board-home');
+  const sessions = tmp('board-sessions');
+  const ledger = path.join(tmp('board-notes'), 'ledger.md');
+  const child = liveChild();
+  after(() => child.stop());
+  const sid = String(child.pid).padStart(8, '0');
+  registry(
+    sessions,
+    child.pid,
+    { cwd: checkoutOf('widgets', 'main'), name: 'launcher' },
+    child.procStart,
+  );
+  writeFileSync(
+    ledger,
+    [
+      `- [plan] sid:${sid} lane:widgets old-plan — 9:00 AM ET, 10/24 — plan ready`,
+      `- [fixing] sid:${sid} lane:widgets review-fresh — 2:30 PM ET, 10/26 — 2 findings`,
+    ].join('\n'),
+  );
+  writeJson(path.join(home, 'config.json'), {
+    board_ledger_file: ledger,
+    board_sessions_dir: sessions,
+  });
+  const board = new Board(home, new StoryStore({ home }), fakeWatcher().watcher, new Builds(home), {
+    source: sourceSaying({}),
+    now: () => NOW,
+  });
+  const cards = (await board.snapshot()).lanes.flatMap((lane) => lane.cards);
+  const stale = cards.find((found) => found.title === 'old-plan');
+  assert.equal(stale?.column, 'checks');
+  assert.equal(stale?.agents[0].stale, true);
+  assert.equal(cards.find((found) => found.title === 'review-fresh')?.agents[0].stale, false);
+});
+
+test('the Blank strip: sessions with no prompt yet are chips by place, not cards; a prompt, or a busy or waiting tab, makes a card', async () => {
+  const home = tmp('board-home');
+  const sessions = tmp('board-sessions');
+  const children = Array.from({ length: 7 }, () => liveChild());
+  after(() => children.forEach((child) => child.stop()));
+  const [blankA, blankB, blankC, used, busyBlank, waitingBlank, onPr] = children;
+  const sid = (child: { pid: number }) => String(child.pid).padStart(8, '0');
+  const widgets = checkoutOf('widgets', 'main');
+  const gadgets = checkoutOf('gadgets', 'main');
+  const folder = tmp('board-plain-folder');
+  const widgetsY = checkoutOf('widgets', 'feat/y');
+  const blank = { blank: true };
+  // two blank sessions in one checkout, one in another repo, one in a folder that is no repo, and one on a branch with a PR
+  registry(sessions, blankA.pid, { cwd: widgets, name: 'b-one' }, blankA.procStart, blank);
+  registry(sessions, blankB.pid, { cwd: widgets, name: 'a-two' }, blankB.procStart, blank);
+  registry(sessions, blankC.pid, { cwd: gadgets, name: 'g-one' }, blankC.procStart, blank);
+  registry(sessions, used.pid, { cwd: folder, name: 'has-prompt' }, used.procStart);
+  registry(
+    sessions,
+    busyBlank.pid,
+    { cwd: gadgets, name: 'busy-blank', status: 'busy' },
+    busyBlank.procStart,
+    blank,
+  );
+  registry(
+    sessions,
+    waitingBlank.pid,
+    { cwd: gadgets, name: 'waiting-blank' },
+    waitingBlank.procStart,
+    blank,
+  );
+  registry(sessions, onPr.pid, { cwd: widgetsY, name: 'on-pr' }, onPr.procStart, blank);
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  writeJson(path.join(home, 'listener-history.json'), {
+    'acme/gadgets': {
+      repo: 'acme/gadgets',
+      consumer: 'repo-acme-gadgets',
+      started_at: new Date(NOW.getTime() - 3600000).toISOString(),
+      last_seen: new Date(NOW.getTime() - 3600000).toISOString(),
+    },
+  });
+  const { watcher } = fakeWatcher([prInfo(9, { branch: 'feat/y' })], {
+    'acme/widgets@feat/y': { number: 9, state: 'open', merged_at: null },
+  });
+  let now = NOW;
+  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+    source: sourceSaying({
+      [sid(blankA)]: { status: 'done', detail: null },
+      [sid(blankC)]: { status: 'done', detail: null },
+      [sid(waitingBlank)]: { status: 'waiting', detail: 'asked you something' },
+    }),
+    now: () => now,
+  });
+  const data = await board.snapshot();
+  const cards = data.lanes.flatMap((lane) => lane.cards);
+  const ids = cards.map((found) => found.id);
+  for (const gone of [blankA, blankB, blankC]) {
+    assert.ok(!ids.includes(fullId(gone.pid)), `${sid(gone)} is a chip, not a card`);
+  }
+  assert.deepEqual(
+    data.blank.map((group) => [
+      group.name,
+      group.sessions.map((one) => [one.title, one.can_focus]),
+    ]),
+    [
+      // a tab known for b-one and g-one only; a-two comes first by title
+      ['gadgets', [['Tab title', true]]],
+      [
+        'widgets',
+        [
+          ['a-two', false],
+          ['Tab title', true],
+        ],
+      ],
+    ],
+  );
+  assert.equal(data.blank[1].sessions[1].id, fullId(blankA.pid));
+  // a prompt, a busy tab, a waiting tab: cards as always
+  assert.equal(cards.find((found) => found.id === fullId(used.pid))?.column, 'idle');
+  assert.equal(cards.find((found) => found.id === fullId(busyBlank.pid))?.column, 'working');
+  assert.equal(cards.find((found) => found.id === fullId(waitingBlank.pid))?.column, 'waiting');
+  // on a branch with a PR it stays in that PR's card
+  const work = cards.find((found) => found.id === 'pr:acme/widgets#9');
+  assert.deepEqual(
+    work?.sessions.map((one) => one.id),
+    [fullId(onPr.pid)],
+  );
+  assert.ok(
+    !data.blank.flatMap((group) => group.sessions).some((one) => one.id === fullId(onPr.pid)),
+  );
+  // a blank session that can be typed into is still a candidate for Start listening
+  assert.deepEqual(
+    data.listeners.find((entry) => entry.repo === 'acme/gadgets')?.candidates.map((one) => one.id),
+    [fullId(blankC.pid)],
+  );
+
+  // as soon as it has a prompt it is a card (the file grew, so it is read again)
+  const file = path.join(
+    CLAUDE_DIR,
+    'projects',
+    widgets.replace(/[^A-Za-z0-9]/g, '-'),
+    `${fullId(blankB.pid)}.jsonl`,
+  );
+  appendFileSync(
+    file,
+    JSON.stringify({ type: 'user', message: { role: 'user', content: 'start on the fix' } }) + '\n',
+  );
+  now = new Date(NOW.getTime() + 5000);
+  const next = await board.snapshot();
+  assert.equal(
+    next.lanes.flatMap((lane) => lane.cards).find((found) => found.id === fullId(blankB.pid))?.kind,
+    'session',
+  );
+  assert.deepEqual(
+    next.blank.find((group) => group.name === 'widgets')?.sessions.map((one) => one.id),
+    [fullId(blankA.pid)],
+  );
+});
+
+test('the Blank check reads transcripts from board_projects_dir', () => {
+  const home = tmp('board-settings');
+  assert.equal(readSettings(home).board.projectsDir, path.join(CLAUDE_DIR, 'projects'));
+  writeJson(path.join(home, 'config.json'), { board_projects_dir: '/x/projects' });
+  assert.equal(readSettings(home).board.projectsDir, '/x/projects');
+});
+
+// ---------- local stories beside the PR stories
+
+/** A local story as `once-upon local` writes it, in a checkout's .once-upon folder (here the story home), with what a test changes. */
+function localStory(
+  home: string,
+  id: string,
+  repoPath: string,
+  branch: string | null,
+  extra: Record<string, unknown> = {},
+  state: Record<string, unknown> = {},
+) {
+  writeJson(path.join(home, id, 'meta.json'), {
+    kind: 'local',
+    repo_path: repoPath,
+    repo_name: path.basename(repoPath),
+    base: 'origin/main',
+    head: 'HEAD',
+    branch,
+    title: `Local ${id}`,
+    ...extra,
+  });
+  writeJson(path.join(home, id, 'chapters.json'), { title: `Story of ${id}`, chapters: [] });
+  for (const [name, value] of Object.entries(state)) {
+    writeJson(path.join(home, 'state', id, name), value);
+  }
+}
+
+test('the review inbox lists local stories beside the PR stories: Open story, Mark reviewed, a story left by the retired turn capture left out', async () => {
+  const home = tmp('board-inbox');
+  const widgets = checkoutOf('widgets', 'feat/x');
+  prStory(home, 'acme-widgets-7', 'acme/widgets', 7);
+  localStory(home, 'local-widgets-feat-x', widgets, 'feat/x');
+  localStory(
+    home,
+    'local-widgets-seen',
+    widgets,
+    'feat/seen',
+    {},
+    {
+      'reviewed.json': { at: '2026-10-26T14:00:00Z', by: 'manual' },
+    },
+  );
+  // a story the retired turn capture left carries `turn`, and is not listed
+  localStory(home, 'turn-abc', widgets, null, { turn: 'abc', title: 'widgets: a turn' });
+  const bridge = await startBridge({ home });
+  open.push(bridge);
+  const asInbox = (method: string, route: string, body?: unknown) =>
+    bridge.call(method, route, body, { Authorization: `Bearer ${inboxKey(TOKEN)}` });
+
+  const list = (await asInbox('GET', '/api/inbox')).body as InboxList;
+  assert.deepEqual(
+    list.local_stories
+      .map((story) => [story.id, story.repo, story.branch, story.title, story.reviewed_at !== null])
+      .sort(),
+    [
+      ['local-widgets-feat-x', 'acme/widgets', 'feat/x', 'Story of local-widgets-feat-x', false],
+      ['local-widgets-seen', 'acme/widgets', 'feat/seen', 'Story of local-widgets-seen', true],
+    ],
+    'both local stories, not the one a turn made',
+  );
+  assert.deepEqual(
+    list.stories.map((story) => story.id),
+    ['acme-widgets-7'],
+    'PR stories are as before',
+  );
+  // the repo menu counts them with the PR story
+  assert.deepEqual(
+    list.repos.map((repo) => [repo.repo, repo.count, repo.unreviewed]),
+    [['acme/widgets', 3, 2]],
+  );
+  const filtered = (await asInbox('GET', '/api/inbox?repo=acme/widgets')).body as InboxList;
+  assert.equal(filtered.local_stories.length, 2);
+  const none = (await asInbox('GET', '/api/inbox?repo=acme/gadgets')).body as InboxList;
+  assert.deepEqual(none.local_stories, []);
+
+  // Open story: the local page's link, with that story's key
+  const opened = await asInbox('POST', '/api/inbox/open', { story: 'local-widgets-feat-x' });
+  assert.equal(opened.status, 200);
+  assert.match(
+    (opened.body as { url: string }).url,
+    /\/local\/.*local-widgets-feat-x|local-widgets-feat-x/,
+  );
+  for (const id of ['turn-abc', 'acme-widgets-7', 'nope']) {
+    assert.equal((await asInbox('POST', '/api/inbox/open', { story: id })).status, 404, id);
+  }
+  // Mark reviewed, the way a PR story is, and unmark
+  const marked = await asInbox('POST', '/api/inbox/reviewed', { story: 'local-widgets-feat-x' });
+  assert.equal(marked.status, 200);
+  assert.ok((marked.body as { story: { reviewed_at: string } }).story.reviewed_at);
+  const after = (await asInbox('GET', '/api/inbox')).body as InboxList;
+  assert.equal(after.repos[0].unreviewed, 1);
+  await asInbox('POST', '/api/inbox/reviewed', { story: 'local-widgets-feat-x', reviewed: false });
+  const undone = (await asInbox('GET', '/api/inbox')).body as InboxList;
+  assert.equal(
+    undone.local_stories.find((story) => story.id === 'local-widgets-feat-x')?.reviewed_at,
+    null,
+  );
+  assert.equal((await asInbox('POST', '/api/inbox/reviewed', { story: 'turn-abc' })).status, 404);
+  // the board key hands out the same link
+  const asBoard = await bridge.call(
+    'POST',
+    '/api/board/open-story',
+    { story: 'local-widgets-feat-x' },
+    { Authorization: `Bearer ${boardKey(TOKEN)}` },
+  );
+  assert.equal(asBoard.status, 200);
+  assert.equal(
+    (
+      await bridge.call(
+        'POST',
+        '/api/board/open-story',
+        { story: 'turn-abc' },
+        { Authorization: `Bearer ${boardKey(TOKEN)}` },
+      )
+    ).status,
+    404,
+  );
+});
+
+test('local stories older than the story window are not listed', () => {
+  const home = tmp('board-inbox');
+  const widgets = checkoutOf('widgets', 'feat/x');
+  localStory(home, 'local-old', widgets, 'feat/old');
+  const old = new Date(NOW.getTime() - 40 * 24 * 3600 * 1000);
+  for (const file of ['meta.json', 'chapters.json']) {
+    utimesSync(path.join(home, 'local-old', file), old, old);
+  }
+  localStory(home, 'local-new', widgets, 'feat/new');
+  const found = localStories(new StoryStore({ home }), { now: Date.now() });
+  assert.deepEqual(
+    found.map((story) => story.id),
+    ['local-new'],
+  );
+});
+
+const metaOf = (dir: string) =>
+  JSON.parse(readFileSync(path.join(dir, 'meta.json'), 'utf8')) as Record<string, unknown>;
+
+test('a local story’s built time is when it was told: a refresh of its diff is not a rebuild', async () => {
+  const home = tmp('board-inbox');
+  const { repo, base } = localRepo();
+  const first = createLocalStory({ home, repo, base, head: 'HEAD' });
+  const store = new StoryStore({ home });
+  const told = metaOf(first.dir).built_at as string;
+  assert.ok(told, 'once-upon local records it');
+  assert.equal(localStories(store)[0].built_at, told);
+  // HEAD moves and a page remakes local.diff and meta.json: newer files, the same story
+  await new Promise((resolve) => setTimeout(resolve, 15));
+  writeFileSync(path.join(repo, 'one.txt'), 'a\nB\nc\nd\ne\n');
+  git(repo, 'commit', '-q', '-am', 'one more');
+  const raw = metaOf(first.dir);
+  const refreshed = refreshLocal(first.dir, raw as unknown as LocalMeta);
+  assert.notEqual(refreshed.head_oid, raw.head_oid, 'the diff was remade');
+  assert.ok(Number(store.list()[0].version) > Date.parse(told), 'the folder looks newer');
+  assert.equal(refreshed.built_at, told, 'the refresh keeps it');
+  assert.equal(localStories(store)[0].built_at, told, 'so it is not a new build');
+  // a rebuild (once-upon local again) is
+  await new Promise((resolve) => setTimeout(resolve, 15));
+  createLocalStory({ home, repo, base, head: 'HEAD', id: first.id });
+  const rebuilt = localStories(store)[0].built_at;
+  assert.ok(Date.parse(rebuilt) > Date.parse(told), 'a rebuild is a new build');
+  // a story made before built_at was kept falls back to its files' time
+  const old = new Date(NOW.getTime() - 40 * 24 * 3600 * 1000);
+  const meta = metaOf(first.dir);
+  delete meta.built_at;
+  writeJson(path.join(first.dir, 'meta.json'), meta);
+  for (const file of ['meta.json', 'chapters.json', 'local.diff']) {
+    utimesSync(path.join(first.dir, file), old, old);
+  }
+  assert.deepEqual(
+    localStories(store, { now: Date.now() }),
+    [],
+    'older than the window by its files',
+  );
+});
+
+test('picking a repo that has only a folder name in the inbox menu lists its local stories', async () => {
+  const home = tmp('board-inbox');
+  const widgets = checkoutOf('widgets', 'feat/x');
+  localStory(home, 'local-widgets-feat-x', widgets, 'feat/x');
+  // a checkout with no GitHub origin: counted under its folder name
+  const scratch = tmp('scratch-checkout');
+  git(scratch, 'init', '-q', '-b', 'feat/s');
+  localStory(home, 'local-scratch', scratch, 'feat/s');
+  const folder = path.basename(scratch);
+  const bridge = await startBridge({ home });
+  open.push(bridge);
+  const asInbox = async (query: string) =>
+    (
+      await bridge.call('GET', `/api/inbox${query}`, undefined, {
+        Authorization: `Bearer ${inboxKey(TOKEN)}`,
+      })
+    ).body as InboxList;
+  const all = await asInbox('');
+  assert.deepEqual(
+    all.repos.map((repo) => [repo.repo, repo.unreviewed]).sort(),
+    [
+      ['acme/widgets', 1],
+      [folder, 1],
+    ].sort(),
+  );
+  assert.deepEqual(
+    (await asInbox(`?repo=${encodeURIComponent(folder)}`)).local_stories.map((story) => story.id),
+    ['local-scratch'],
+    'the menu says 1, and picking it lists it',
+  );
+  assert.deepEqual(
+    (await asInbox('?repo=acme/widgets')).local_stories.map((story) => story.id),
+    ['local-widgets-feat-x'],
+  );
+});
+
+test('the board: a local story puts its branch in Ready for your review, or Back to you once rebuilt after you opened it, and makes a branch-only card', async () => {
+  const home = tmp('board-home');
+  const sessions = tmp('board-sessions');
+  const [onX] = [liveChild()];
+  after(() => onX.stop());
+  const widgetsX = checkoutOf('widgets', 'feat/x');
+  const widgetsMain = checkoutOf('widgets', 'main');
+  const elsewhere = tmp('board-no-repo');
+  // a session on feat/x, which has a local story; no PR
+  registry(sessions, onX.pid, { cwd: widgetsX, name: 'on-x' }, onX.procStart);
+  localStory(home, 'local-feat-x', widgetsX, 'feat/x');
+  // branch-only cards: unreviewed, and reviewed then rebuilt; and ones that give no card
+  localStory(home, 'local-feat-new', widgetsMain, 'feat/new');
+  const opened = { 'position.json': { at: '2026-10-26T10:00:00Z' } }; // opened before it was built (the file was written now)
+  localStory(home, 'local-feat-rebuilt', widgetsMain, 'feat/rebuilt', {}, opened);
+  const byHand = { 'reviewed.json': { at: '2026-10-26T14:00:00Z', by: 'manual' } };
+  localStory(
+    home,
+    'local-feat-done',
+    widgetsMain,
+    'feat/done',
+    {},
+    { ...byHand, 'position.json': { at: '2099-01-01T00:00:00Z' } },
+  );
+  localStory(home, 'local-main', widgetsMain, 'main'); // a default branch is not a unit of work
+  localStory(home, 'local-detached', widgetsMain, null);
+  localStory(home, 'local-norepo', elsewhere, 'feat/y'); // no GitHub repo: the inbox only
+  localStory(home, 'turn-abc', widgetsMain, null, { turn: 'abc' });
+  // a PR story on feat/pr wins over a local one of the same branch
+  prStory(home, 'acme-widgets-5', 'acme/widgets', 5, 'feat/pr');
+  localStory(home, 'local-feat-pr', widgetsMain, 'feat/pr');
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  const { watcher } = fakeWatcher([prInfo(5, { branch: 'feat/pr' })]);
+  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+    source: sourceSaying({}),
+    now: () => NOW,
+  });
+  const cards = (await board.snapshot()).lanes.flatMap((lane) => lane.cards);
+  const byId = Object.fromEntries(cards.map((found) => [found.id, found]));
+  assert.deepEqual(Object.fromEntries(cards.map((found) => [found.id, found.column])), {
+    'branch:acme/widgets@feat/x': 'ready', // the session joins it; the story is unreviewed
+    'branch:acme/widgets@feat/new': 'ready',
+    'branch:acme/widgets@feat/rebuilt': 'back', // rebuilt since you opened it
+    'pr:acme/widgets#5': 'ready',
+  });
+  const withSession = byId['branch:acme/widgets@feat/x'];
+  assert.equal(withSession.kind, 'work');
+  assert.deepEqual(
+    withSession.sessions.map((one) => one.title),
+    ['on-x'],
+  );
+  assert.equal(withSession.pr, null);
+  assert.deepEqual(withSession.story, {
+    id: 'local-feat-x',
+    kind: 'local',
+    url: null,
+    reviewed: false,
+    unread: false,
+  });
+  assert.equal(withSession.lane, 'widgets');
+  assert.equal(withSession.build, null, 'it has a story: nothing to build');
+  assert.deepEqual(withSession.inbox, { stories: 1, repo: 'acme/widgets' });
+  const branchOnly = byId['branch:acme/widgets@feat/new'];
+  assert.equal(branchOnly.title, 'Story of local-feat-new');
+  assert.equal(branchOnly.branch, 'feat/new');
+  assert.equal(branchOnly.sessions.length, 0);
+  assert.ok(branchOnly.since, 'ready since it was built');
+  assert.equal(byId['branch:acme/widgets@feat/rebuilt'].story?.unread, true);
+  assert.equal(
+    byId['pr:acme/widgets#5'].story?.id,
+    'acme-widgets-5',
+    'a PR story is the card’s story',
+  );
+  assert.equal(byId['pr:acme/widgets#5'].story?.kind, 'pr');
+  // a reviewed one, a default branch, a detached head, no repo and a story left by turn capture are not cards
+  for (const gone of ['feat/done', 'main', 'feat/y']) {
+    assert.ok(!cards.some((found) => found.branch === gone), gone);
+  }
+  assert.equal(cards.length, 4, 'the four above, nothing else');
 });
