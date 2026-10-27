@@ -10,7 +10,8 @@
  *   POST /api/board/stop-listening  {repo}: end the repo's listener
  *   POST /api/board/focus       {session}: bring that session's iTerm tab to the front (the tab is found server-side)
  *   POST /api/board/open-story  {story}: a local story's page link (a card's Open story), with that story's full key
- *   GET /api/board/inbox-link   the review inbox page's link, ?repo= for a repo's PR stories, for a card's badge
+ *   GET /api/board/inbox-link   the review inbox page's link, ?session= for one session's turns and ?repo= for a repo's
+ *                               turns and PR stories, for a card's badge
  *
  * Links only step down in power. The board page's key reaches the board (it types into sessions) and the inbox's link,
  * which carries the inbox's key, a lesser one. The inbox page's key reaches the board's link without a key in it, so an
@@ -53,9 +54,14 @@ async function boardLink(call: Call) {
 
 function inboxLink(call: Call) {
   const { app, url, send } = call;
+  const session = url.searchParams.get('session');
   const repo = url.searchParams.get('repo');
   return send(200, {
-    url: app.links.inbox(repo && REPO_RE.test(repo) ? repo : null, originOf(call)),
+    url: app.links.inbox(
+      repo && REPO_RE.test(repo) ? repo : null,
+      session && SESSION_RE.test(session) ? session : null,
+      originOf(call),
+    ),
   });
 }
 

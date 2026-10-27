@@ -60,7 +60,7 @@ export default defineConfig({
       },
       'open-inbox': {
         suggested_key: { default: 'Alt+Shift+I' },
-        description: 'Open the review inbox: what waits for your review',
+        description: 'Open the review inbox: the Claude Code turns waiting to be reviewed',
       },
     },
     icons: { 16: 'icons/icon16.png', 48: 'icons/icon48.png', 128: 'icons/icon128.png' },

@@ -7,6 +7,7 @@ import { existsSync, statSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { listeners } from '../listeners/listeners.ts';
+import { spoolStatus } from '../capture/spool.ts';
 import { formatTime } from '../config/settings.ts';
 import { readJson } from '../util/json-file.ts';
 import { MIN_NODE_MAJOR, nodeVersionProblem } from '../../bin/node-version.mjs';
@@ -180,6 +181,31 @@ export async function doctor(
         : 'no Claude session has ever listened',
       'In Claude Code, in the repo you want to listen for: /once-upon-listen <owner/name>. Until then, questions wait in the inbox.',
     );
+  }
+  // the review inbox's capture: the hook's spool, and whether the bridge has read it
+  const spool = spoolStatus(home);
+  if (!spool.exists) {
+    add(
+      'PASS',
+      'Turn capture',
+      'no spool yet: the capture hook has not run (only needed for the review inbox)',
+      null,
+    );
+  } else {
+    const size = spool.size < 1024 ? `${spool.size} bytes` : `${Math.round(spool.size / 1024)} KB`;
+    const last = spool.lastAt ? `last record ${localTime(spool.lastAt)}` : 'no readable record';
+    if (spool.unreadRecords === 0) {
+      add('PASS', 'Turn capture', `spool ${size}, ${last}, all read by the bridge`);
+    } else {
+      add(
+        'WARN',
+        'Turn capture',
+        `spool ${size}, ${last}, ${spool.unreadRecords} not read yet${spool.readAt ? ` (the bridge last saved its place ${localTime(spool.readAt)})` : ''}`,
+        health
+          ? 'The bridge reads new lines within a few seconds: run doctor again, and look in ~/.once-upon/bridge.log if this stays'
+          : 'The lines wait for the bridge: once-upon serve',
+      );
+    }
   }
   for (const result of results) {
     out(`${result.level.padEnd(4)}  ${result.name}: ${result.detail}`);

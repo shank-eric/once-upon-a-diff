@@ -97,6 +97,8 @@ const DEFAULT_HOSTS = ['once-upon.test', 'once-upon.fidev.net'];
 
 /**
  * Optional personal settings in config.json, all off or neutral by default:
+ *   capture_exclude         repos the review inbox's capture hook leaves out (default none): each entry is owner/name
+ *                           (any case, matched against the checkout's origin) or an absolute checkout folder (~/ allowed)
  *   display_name            the reviewer's name in lines the bridge writes for Claude ("where Sam's reading stopped")
  *   time_zone               an IANA zone for times the CLI prints (default: the system's), time_zone_label its label
  *   checkout_dirs           folders to look in for a repo's checkout (default ["~/Development"]; ONCE_UPON_DEV_DIR overrides)
@@ -149,6 +151,11 @@ export function readSettings(home = homeDir()) {
       ? null
       : ((wantedHost && allowedHosts.includes(wantedHost) ? wantedHost : allowedHosts[0]) ?? null);
   return {
+    captureExclude: Array.isArray(cfg.capture_exclude)
+      ? cfg.capture_exclude
+          .filter((entry): entry is string => typeof entry === 'string' && !!entry.trim())
+          .map((entry) => expand(entry.trim()))
+      : [],
     displayName:
       typeof cfg.display_name === 'string' && cfg.display_name.trim()
         ? cfg.display_name.trim()

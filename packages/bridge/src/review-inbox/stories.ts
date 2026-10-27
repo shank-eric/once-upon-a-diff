@@ -1,13 +1,13 @@
 /**
- * The built PR stories the review inbox lists: every GitHub story the bridge can find
+ * The built PR stories the review inbox lists beside the captured turns: every GitHub story the bridge can find
  * (`story.mjs build` puts them in the checkout's .once-upon/ folder), built in the last STORY_DAYS days. The inbox's
  * Open goes to the PR's changes page, where the panel opens. Mark reviewed is the story's own state file,
  * <home>/state/<story id>/reviewed.json: {at, by}, where `by` is manual, review or all viewed (auto-review.ts),
  * and an unmark by hand leaves {at: null, by: manual}, so the file's presence means the reviewer has decided.
  *
  * Local stories (`once-upon local`: a branch's story before any PR) are listed beside them (localStories), built in the
- * same days and kept the same way (reviewed.json, position.json, reads). A story an earlier version made for a turn of the
- * retired turn capture (its meta names a `turn`) is left out.
+ * same days and kept the same way (reviewed.json, position.json, reads). The stories of turns are left out: the turn is
+ * listed already, and it is the turn that is marked reviewed.
  */
 import path from 'node:path';
 import { REPO_RE, sameRepo, storyRepo } from '../config/repos.ts';
@@ -87,7 +87,7 @@ export function prStories(
   );
 }
 
-/** The local stories (newest first), or only a repo's (owner/name). A story left by the retired turn capture is not one. */
+/** The local stories (newest first), or only a repo's (owner/name). A turn's own story is not one. */
 export function localStories(
   stories: StoryStore,
   { repo = null, now = Date.now() }: { repo?: string | null; now?: number } = {},
@@ -111,7 +111,7 @@ export function localStories(
       typeof meta.repo_name === 'string' && meta.repo_name
         ? meta.repo_name
         : path.basename(story.repo_path || story.dir);
-    // a checkout with no GitHub origin is counted, and picked in the repo menu, under its folder name
+    // a checkout with no GitHub origin is counted, and picked in the repo menu, under its folder name (as a turn is)
     if (repo && !sameRepo(owner || repoName, repo)) {
       continue;
     }

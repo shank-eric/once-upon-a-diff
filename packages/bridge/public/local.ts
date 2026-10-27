@@ -69,6 +69,23 @@ async function toggleViewed(button: Element) {
   }
 }
 
+/** A review inbox turn's Mark reviewed (or, once it is, Reviewed ✓ takes it back). */
+async function toggleTurnReviewed() {
+  const turn = page.story.local.turn;
+  if (!turn) {
+    return;
+  }
+  try {
+    const marked = await api<{ reviewed_at: string | null }>('POST', `${STORY_PATH}/turn`, {
+      reviewed: !turn.reviewed_at,
+    });
+    turn.reviewed_at = marked.reviewed_at;
+    render();
+  } catch (err) {
+    alert(`Couldn't save: ${(err as Error).message}`);
+  }
+}
+
 async function deleteNote(button: Element) {
   const id = button.getAttribute('data-note-delete') as string;
   try {
@@ -105,6 +122,10 @@ document.addEventListener('click', async (event) => {
   }
   if (target.closest('.ou-local-pr')) {
     return openPrBox();
+  }
+  const turnButton = target.closest('.ou-local-turn');
+  if (turnButton) {
+    return toggleTurnReviewed();
   }
   const viewedButton = target.closest('.ou-local-viewed');
   if (viewedButton) {

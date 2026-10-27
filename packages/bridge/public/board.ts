@@ -140,8 +140,11 @@ function agentHtml(agent: BoardAgent, now: number) {
   </li>`;
 }
 
-/** What a card's review badge counts: "1 PR story". */
-const inboxTitle = (inbox: { stories: number }) => plural(inbox.stories, 'PR story');
+/** What a card's review badge counts: "2 turns, 1 PR story". */
+const inboxTitle = (inbox: { turns: number; stories: number }) =>
+  [inbox.turns && plural(inbox.turns, 'turn'), inbox.stories && plural(inbox.stories, 'PR story')]
+    .filter(Boolean)
+    .join(', ');
 
 const BUILDING_TEXT = {
   build: 'building the story',
@@ -286,7 +289,7 @@ function cardHtml(card: BoardCard, now: number) {
       ${card.focus_session && html`<button type="button" class="ou-board-focus" data-focus="${card.focus_session}"${!card.can_focus && html` disabled`} title="${focusTitle}">Open in iTerm</button>`}
       ${openable && card.story?.url && html`<a class="ou-board-open" href="${card.story.url}" target="_blank" rel="noopener">Open story</a>`}
       ${openable && card.story && !card.story.url && html`<button type="button" class="ou-board-open" data-open-local="${card.story.id}" title="Opens the local story's page">Open story</button>`}
-      ${card.inbox && html`<button type="button" data-inbox data-repo="${card.inbox.repo}" title="${inboxTitle(card.inbox)}">${card.inbox.stories} to review</button>`}
+      ${card.inbox && html`<button type="button" data-inbox="${card.inbox.session}" data-repo="${card.inbox.repo}" title="${inboxTitle(card.inbox)}">${card.inbox.turns + card.inbox.stories} to review</button>`}
     </div>
   </li>`;
 }
@@ -683,9 +686,14 @@ app.addEventListener('click', async (event) => {
   }
   try {
     const query = new URLSearchParams();
-    const repo = target.getAttribute('data-repo');
-    if (repo) {
-      query.set('repo', repo);
+    for (const [attribute, name] of [
+      ['data-inbox', 'session'],
+      ['data-repo', 'repo'],
+    ]) {
+      const value = target.getAttribute(attribute);
+      if (value) {
+        query.set(name, value);
+      }
     }
     const { url } = await api<{ url: string }>(`/api/board/inbox-link?${query}`);
     window.open(url, '_blank', 'noopener');

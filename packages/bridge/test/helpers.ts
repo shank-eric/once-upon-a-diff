@@ -7,6 +7,7 @@ import type { AddressInfo } from 'node:net';
 import { createBridge, type Bridge } from '../src/server/index.ts';
 import type { BranchCheck, PrCheck, RequestedCheck } from '../src/review-inbox/auto-review.ts';
 import type { Build } from '../src/inbox/builds.ts';
+import type { SpoolOptions } from '../src/capture/spool.ts';
 import type { listeningOf } from '../src/listeners/listeners.ts';
 
 /** A build request as the bridge answers with it: the request and its state. */
@@ -138,13 +139,16 @@ export function localRepo(): { repo: string; base: string } {
 export async function startBridge(opts: {
   home: string;
   log?: (line: string) => void;
+  spool?: SpoolOptions;
   checkPr?: PrCheck;
   checkBranch?: BranchCheck;
   checkRequested?: RequestedCheck;
 }) {
-  // no test asks GitHub unless it brings its own check
+  // no test asks GitHub unless it brings its own check, and the turn spool doesn't wait for a Stop's transcript to
+  // settle and looks often
   const server: Bridge = createBridge({
     token: TOKEN,
+    spool: { settleMs: 0, pollMs: 100, debounceMs: 20 },
     checkPr: async () => ({ merged: false, why: null }),
     checkBranch: async () => null,
     checkRequested: async () => [],

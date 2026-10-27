@@ -244,6 +244,7 @@ export function headerHtml() {
     </div>
     <div class="ou-local-view" role="group" aria-label="Diff view">${viewButtonsHtml()}</div>
     <label class="ou-local-ws" title="${WS_TITLE}"><input type="checkbox" class="ou-local-ws-toggle"${local.hide_whitespace && html` checked`}> Hide whitespace</label>
+    ${local.turn && html`<button type="button" class="ou-local-turn" aria-pressed="${!!local.turn.reviewed_at}" title="Tick this turn off in the review inbox">${local.turn.reviewed_at ? 'Reviewed ✓' : 'Mark reviewed'}</button>`}
     <button type="button" class="ou-local-notes-toggle" aria-expanded="false">Fix before push</button>
     <span class="ou-local-pr-holder">${prButtonHtml()}</span>
   </header>

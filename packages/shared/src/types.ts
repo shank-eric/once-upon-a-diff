@@ -172,15 +172,57 @@ export interface LocalStory {
   commits: LocalCommit[];
   files: LocalFile[];
   notes: LocalNote[];
+  /** a review inbox turn's story says which turn it is, so the page can offer Mark reviewed */
+  turn?: { id: string; reviewed_at: string | null };
 }
 
-/** GET /api/inbox: what waits for review, and each repo's counts for the inbox page's filter. */
+/** One file a review inbox turn changed. omitted: the turn's diff was too big to keep this file's lines. */
+export interface TurnFile {
+  path: string;
+  kind: 'created' | 'modified' | 'deleted' | 'renamed';
+  added: number;
+  removed: number;
+  binary?: boolean;
+  omitted?: boolean;
+}
+
+/** One Claude Code turn in the review inbox (GET /api/inbox): what the turn changed, and whether it's been reviewed. */
+export interface Turn {
+  id: string;
+  /** owner/name from the checkout's origin, when it has a GitHub one */
+  repo: string | null;
+  repo_name: string;
+  repo_path: string;
+  branch: string | null;
+  session: string;
+  at: string;
+  /** the working tree's snapshot before the turn and after it (git tree ids) */
+  base_tree: string;
+  head_tree: string;
+  /** what the user asked that turn, from the session's transcript */
+  prompt: string | null;
+  /** Claude's last message of the turn */
+  summary: string | null;
+  /** the turn was stopped (Esc) before it finished: it ends at the next prompt's snapshot, so it may hold edits made after */
+  interrupted?: boolean;
+  files: TurnFile[];
+  added: number;
+  removed: number;
+  /** some files' lines were left out to keep the turn under the size cap */
+  truncated: boolean;
+  reviewed_at: string | null;
+  /** when the bridge made the turn (ms resolution): orders turns that end in the same second */
+  kept_at?: string;
+}
+
+/** GET /api/inbox: the newest turns first, and each repo's counts for the inbox page's filter. */
 export interface InboxList {
-  /** each repo's counts, PR stories included */
+  turns: Turn[];
+  /** each repo's counts, turns and PR stories together */
   repos: { repo: string; count: number; unreviewed: number }[];
-  /** built PR stories waiting for review, newest first */
+  /** built PR stories waiting for review, newest first, listed beside the turns */
   stories: InboxStory[];
-  /** built local stories (`once-upon local`, no PR yet) waiting for review, newest first; a story the retired turn capture left is not here */
+  /** built local stories (`once-upon local`, no PR yet) waiting for review, newest first; a turn's own story is not here */
   local_stories: InboxLocalStory[];
 }
 
@@ -697,8 +739,8 @@ export interface BoardCard {
   listening: BoardListening | null;
   /** Build story, for a card with a session and a branch or PR but no story yet */
   build: BoardBuild | null;
-  /** what waits for review in the inbox: the card's unreviewed story; the link's filter */
-  inbox: { stories: number; repo: string | null } | null;
+  /** what waits for review in the inbox: the sessions' unreviewed turns and the card's unreviewed PR story; the link's filter */
+  inbox: { turns: number; stories: number; session: string | null; repo: string | null } | null;
 }
 
 /** The voice session, pinned above the columns (Larmor's voice mode: src/board/voice.ts). */

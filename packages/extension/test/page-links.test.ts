@@ -18,7 +18,7 @@ test('the extension opens the bridge’s own address or an https host name, to t
     true,
   );
   assert.equal(
-    isPageLink('inbox', `https://once-upon.test/inbox/#key=${key}&repo=acme%2Fwidgets`),
+    isPageLink('inbox', `https://once-upon.test/inbox/#key=${key}&session=abc-123`),
     true,
   );
 });

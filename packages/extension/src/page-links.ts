@@ -6,7 +6,7 @@
 
 export type PageKind = 'board' | 'inbox';
 
-const KEY = String.raw`#key=page\.[A-Za-z0-9_-]+(?:&repo=[A-Za-z0-9_.%-]+)*`;
+const KEY = String.raw`#key=page\.[A-Za-z0-9_-]+(?:&(?:repo|session)=[A-Za-z0-9_.%-]+)*`;
 const LOOPBACK = String.raw`http:\/\/127\.0\.0\.1:\d{2,5}`;
 const NAMED = String.raw`https:\/\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)*`;
 

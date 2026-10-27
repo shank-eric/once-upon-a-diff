@@ -8,6 +8,7 @@ import { pathSha } from '../util/diff.ts';
 import { readPrefs } from '../config/settings.ts';
 import { readJson } from '../util/json-file.ts';
 import { readMeta, storyVersion, localVersion } from './meta.ts';
+import { readTurn } from '../capture/turns.ts';
 import { chaptersOf, addLeftoverChapter } from './chapters.ts';
 import { addTextRefs } from './text-refs.ts';
 import { uncoveredHunks } from './hunk-coverage.ts';
@@ -100,6 +101,11 @@ export function storyData(store: StoryStore, id: string, dir: string): StoryData
       files: localFilesOf(rels, diff, shown, viewed as Record<string, { hash?: string }>),
       notes: store.readState<LocalNote[]>(id, 'notes.json', []) as LocalNote[],
     };
+    // a review inbox turn (capture/turns.ts) says which one it is and whether it's been reviewed
+    const turn = typeof local.turn === 'string' ? readTurn(store.home, local.turn) : null;
+    if (turn) {
+      data.local.turn = { id: turn.id, reviewed_at: turn.reviewed_at };
+    }
   }
   return data;
 }

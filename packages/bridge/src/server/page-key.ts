@@ -61,7 +61,7 @@ export const viewKeyMay = (what: string, method: string): boolean =>
   Object.hasOwn(VIEW_KEY_MAY, what) && VIEW_KEY_MAY[what].includes(method);
 
 /**
- * The review inbox page's key: a token for the inbox page, which reaches the inbox routes (routes/inbox.ts) that
+ * The review inbox page's key: a token for the inbox page, which reaches the turn routes (routes/inbox.ts) that
  * allow it and nothing else. Made like a story's, under its own label so no story's key can stand in for it.
  */
 export const inboxKey = (token: string): string =>
@@ -82,15 +82,17 @@ export const boardPageUrl = (
 ): string => `${origin}/board/#key=${boardKey(token)}`;
 
 /**
- * The review inbox page's link, with its key in the fragment, and the repo to show (owner/name) when there is one.
+ * The review inbox page's link, with its key in the fragment, the repo to show (owner/name) when there is one, and
+ * the Claude Code session to show (its full id) when the board links a card's turns.
  */
 export const inboxPageUrl = (
   port: number,
   token: string,
   repo: string | null = null,
+  session: string | null = null,
   origin = `http://127.0.0.1:${port}`,
 ): string =>
-  `${origin}/inbox/#key=${inboxKey(token)}${repo ? `&repo=${encodeURIComponent(repo)}` : ''}`;
+  `${origin}/inbox/#key=${inboxKey(token)}${repo ? `&repo=${encodeURIComponent(repo)}` : ''}${session ? `&session=${encodeURIComponent(session)}` : ''}`;
 
 /** The local page's link, with its key in the fragment: the full key, or the read-only one when `readOnly`. */
 export const localPageUrl = (

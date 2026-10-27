@@ -8,6 +8,7 @@ import type { LocalCommit } from '@once-upon-a-diff/shared/types';
 import type { StoryStore } from './stories/store.ts';
 import type { Inbox } from './inbox/inbox.ts';
 import type { Build, Builds } from './inbox/builds.ts';
+import type { TurnStore } from './capture/turns.ts';
 import type { AutoReview } from './review-inbox/auto-review.ts';
 import type { Board } from './board/board.ts';
 import type { Config } from './config/settings.ts';
@@ -83,15 +84,17 @@ export interface App {
   stories: StoryStore;
   inbox: Inbox;
   builds: Builds;
+  /** the review inbox's turns */
+  turns: TurnStore;
   /** the agent board's data */
   board: Board;
   /** marks PR stories reviewed in the inbox when GitHub says you have */
   autoReview: AutoReview;
-  /** page links with their keys: a local story's page, the review inbox's (optionally for one repo) and the agent board's */
+  /** page links with their keys: a local story's page, the review inbox's (optionally for one repo and session) and the agent board's */
   links: {
     /** a local story's page link; the full key (it can push), or with `readOnly` the one that reads but never pushes */
     story(id: string, readOnly?: boolean): string;
-    inbox(repo?: string | null, origin?: string): string;
+    inbox(repo?: string | null, session?: string | null, origin?: string): string;
     board(origin?: string): string;
     /** the board page's address with no key in it, for a caller that may not be handed the board's key */
     boardAddress(origin?: string): string;

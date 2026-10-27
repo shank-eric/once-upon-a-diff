@@ -17,6 +17,7 @@
  *   GitHub, through AutoReview  per PR: approvals, merge state, checks, new comments (review-inbox/auto-review.ts). It is asked in
  *                               the background and the board reads what it has, so a poll never waits for GitHub. A
  *                               session's branch without a story is looked up the same way.
+ *   <home>/turns                the review inbox's turns, for each card's count of what waits for review
  *   <projects dir>              each session's transcript, to tell a session with no prompt yet (blank.ts): those are a
  *                               strip in the Idle lane, not cards
  *
@@ -63,6 +64,7 @@ import { requestFor } from '../inbox/progress.ts';
 import type { Builds } from '../inbox/builds.ts';
 import type { BranchPr } from '../review-inbox/auto-review.ts';
 import type { StoryStore } from '../stories/store.ts';
+import type { TurnStore } from '../capture/turns.ts';
 import type {
   BoardAgent,
   BoardBeat,
@@ -315,6 +317,7 @@ type StoryFacts = Pick<InboxStory, 'id' | 'built_at' | 'reviewed_at' | 'reviewed
 /** A live session with what the board worked out about it. */
 interface SessionView {
   card: BoardSession;
+  turns: number;
 }
 
 /** What GitHub hasn't told yet about an open PR: just its number, so the card can sit in the PR open column. */
@@ -354,6 +357,7 @@ export class Board {
   private blank = new BlankSessions();
 
   private home: string;
+  private turns: TurnStore;
   private stories: StoryStore;
   private review: PrWatcher;
   private builds: Builds;
@@ -366,6 +370,7 @@ export class Board {
   /** `options` are for tests: their own status source, clock and repo lookup. */
   constructor(
     home: string,
+    turns: TurnStore,
     stories: StoryStore,
     review: PrWatcher,
     builds: Builds,
@@ -376,6 +381,7 @@ export class Board {
     } = {},
   ) {
     this.home = home;
+    this.turns = turns;
     this.stories = stories;
     this.review = review;
     this.builds = builds;
@@ -465,6 +471,13 @@ export class Board {
       now,
       settings.ledgerTimeZone,
     );
+    const unreviewed = new Map<string, number>();
+    for (const turn of this.turns.all()) {
+      unreviewed.set(
+        turn.session,
+        (unreviewed.get(turn.session) || 0) + (turn.reviewed_at ? 0 : 1),
+      );
+    }
 
     // the units of work: every built PR story, and the PRs merged in the last day
     const stories = prStories(this.stories, { now: nowMs });
@@ -632,6 +645,7 @@ export class Board {
           source: extra ? (picked.source.name as 'iterm' | 'registry') : 'registry',
           focus: picked.source.name === 'iterm' && !!extra,
         },
+        turns: unreviewed.get(session.session) || 0,
       };
       if (quiet.has(session.session) && !(voiceFiles && session.session === voiceFiles.session)) {
         quietViews.push(view.card);
@@ -966,7 +980,7 @@ export class Board {
       can_focus: view.card.focus,
       listening: null,
       build: null,
-      inbox: null,
+      inbox: view.turns ? { turns: view.turns, stories: 0, session: session.session, repo } : null,
     };
   }
 
@@ -1028,7 +1042,9 @@ export class Board {
     const sessions = work.sessions.map((view) => view.card);
     const repo = work.repo;
     const lane = repo ? repo.split('/')[1] : NO_PARENT;
+    const turns = work.sessions.reduce((sum, view) => sum + view.turns, 0);
     const storyUnreviewed = story && !story.reviewed_at ? 1 : 0;
+    const top = [...work.sessions].sort((first, second) => second.turns - first.turns)[0];
     return {
       id: work.key,
       kind: 'work',
@@ -1059,7 +1075,10 @@ export class Board {
       ...focusOf(sessions),
       listening: null,
       build: null,
-      inbox: storyUnreviewed ? { stories: storyUnreviewed, repo } : null,
+      inbox:
+        turns || storyUnreviewed
+          ? { turns, stories: storyUnreviewed, session: turns && top ? top.card.id : null, repo }
+          : null,
     };
   }
 

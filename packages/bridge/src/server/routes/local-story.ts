@@ -29,4 +29,20 @@ function viewed({ app, body, send }: Call, story: ServedStory) {
   return send(200, { path: file.rel, viewed: !!body.viewed });
 }
 
-export const localStoryRoutes: StoryRoute[] = [{ what: 'viewed', method: 'POST', handle: viewed }];
+/** A review inbox turn's story: POST .../turn {reviewed} marks the turn reviewed (true by default) or not. */
+function turn({ app, body, send }: Call, story: ServedStory) {
+  const turnId = story.meta.turn;
+  if (typeof turnId !== 'string') {
+    throw new HttpError(400, 'this story is not a review inbox turn');
+  }
+  const marked = app.turns.markReviewed(turnId, body.reviewed !== false);
+  if (!marked) {
+    throw new HttpError(404, 'that turn is gone');
+  }
+  return send(200, { id: marked.id, reviewed_at: marked.reviewed_at });
+}
+
+export const localStoryRoutes: StoryRoute[] = [
+  { what: 'viewed', method: 'POST', handle: viewed },
+  { what: 'turn', method: 'POST', handle: turn },
+];

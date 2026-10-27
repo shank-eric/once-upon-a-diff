@@ -182,6 +182,7 @@ button.ou-local-pr { white-space: nowrap; }
 .ou-inbox-main { flex: 1; min-width: 0; }
 .ou-inbox-prompt { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ou-inbox-dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--fgColor-accent); }
+.ou-inbox-files { margin: 4px 0 0; padding-left: 18px; font-size: 12px; }
 .ou-inbox-actions { display: flex; gap: 6px; }
 .ou-inbox-repo { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 

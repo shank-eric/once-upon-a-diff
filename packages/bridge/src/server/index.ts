@@ -31,7 +31,10 @@ import { readMeta } from '../stories/meta.ts';
 import { storyRepo } from '../config/repos.ts';
 import { Inbox } from '../inbox/inbox.ts';
 import { Builds } from '../inbox/builds.ts';
+import { TurnStore } from '../capture/turns.ts';
+import { TurnSpool } from '../capture/spool.ts';
 import { removeBridgeFile, writeBridgeFile } from './bridge-file.ts';
+import type { SpoolOptions } from '../capture/spool.ts';
 import { Board } from '../board/board.ts';
 import { HttpError, sameToken, readBody } from './request.ts';
 import { COOKIE_NAMES, cookieFor, cookiesOf } from './session-cookie.ts';
@@ -110,8 +113,11 @@ export type Bridge = http.Server & {
   stories: StoryStore;
   inbox: Inbox;
   builds: Builds;
+  turns: TurnStore;
   board: Board;
   autoReview: AutoReview;
+  /** reads the capture hook's spool and makes the turns */
+  spool: TurnSpool;
 };
 
 export function createBridge({
@@ -122,6 +128,7 @@ export function createBridge({
   checkPr = ghPrCheck,
   checkBranch = ghBranchCheck,
   checkRequested = ghRequestedCheck,
+  spool: spoolOptions,
 }: {
   home: string;
   token: string;
@@ -134,6 +141,8 @@ export function createBridge({
   checkBranch?: BranchCheck;
   /** how the board asks GitHub which PRs wait on your review (the tests' stand-in) */
   checkRequested?: RequestedCheck;
+  /** how the turn spool reads (the tests shorten its waits) */
+  spool?: SpoolOptions;
 }): Bridge {
   const extensionOrigins = new Set(extensionIds.map((id) => `chrome-extension://${id}`));
   if (!token) {
@@ -141,9 +150,19 @@ export function createBridge({
   }
   const stories = new StoryStore({ home });
   const inbox = new Inbox(home);
+  const turns = new TurnStore(home);
   const autoReview = new AutoReview(stories, checkPr, undefined, checkBranch, checkRequested);
   const builds = new Builds(home);
-  const board = new Board(home, stories, autoReview, builds);
+  const board = new Board(home, turns, stories, autoReview, builds);
+  const spool = new TurnSpool(
+    home,
+    turns,
+    log,
+    () => {
+      app.statusCache = null;
+    },
+    spoolOptions,
+  );
   const portOf = () => (server.address() as AddressInfo).port;
   const app: App = {
     home,
@@ -151,11 +170,13 @@ export function createBridge({
     stories,
     inbox,
     builds,
+    turns,
     board,
     autoReview,
     links: {
       story: (id, readOnly = false) => localPageUrl(portOf(), id, token, readOnly),
-      inbox: (repo = null, origin) => inboxPageUrl(portOf(), token, repo, origin),
+      inbox: (repo = null, session = null, origin) =>
+        inboxPageUrl(portOf(), token, repo, session, origin),
       board: (origin) => boardPageUrl(portOf(), token, origin),
       boardAddress: (origin = `http://127.0.0.1:${portOf()}`) => `${origin}/board/`,
     },
@@ -452,13 +473,21 @@ export function createBridge({
       }
     }
   });
-  // which process is the bridge, and on which port, for `once-upon local` (bridge-file.ts)
-  server.once('listening', () => writeBridgeFile(home, portOf(), token));
-  server.once('close', () => removeBridgeFile(home));
+  // the capture hook's spool is read while the bridge listens
+  server.once('listening', () => {
+    writeBridgeFile(home, portOf(), token);
+    spool.start();
+  });
+  server.once('close', () => {
+    removeBridgeFile(home);
+    spool.stop();
+  });
   return Object.assign(server, {
     stories,
     inbox,
     builds: app.builds,
+    turns,
+    spool,
     board,
     autoReview: app.autoReview,
   });

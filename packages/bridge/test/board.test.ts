@@ -56,6 +56,7 @@ import { localStories } from '../src/review-inbox/stories.ts';
 import { createLocalStory } from '../src/stories/local-story.ts';
 import { refreshLocal } from '../src/stories/local-diff.ts';
 import type { LocalMeta } from '../src/types.ts';
+import type { TurnStore } from '../src/capture/turns.ts';
 import type {
   BoardCard,
   BoardData,
@@ -585,6 +586,12 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
     board_progress_file: progress,
     board_sessions_dir: sessions,
   });
+  const turns = {
+    all: () => [
+      { session: fullId(onStory.pid), reviewed_at: null },
+      { session: fullId(onStory.pid), reviewed_at: 'x' },
+    ],
+  } as unknown as TurnStore;
   const seven = prInfo(7, {
     title: 'Seven on GitHub',
     branch: 'feat/x',
@@ -614,7 +621,7 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
     // 19 is someone else's PR GitHub is waiting on your review for
     [{ repo: 'acme/widgets', number: 19 }],
   );
-  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+  const board = new Board(home, turns, new StoryStore({ home }), watcher, new Builds(home), {
     source: sourceSaying({
       [sid(onBranch)]: { status: 'waiting', detail: 'asked you a question' },
       [sid(loose)]: { status: 'working', detail: 'compiling' },
@@ -714,8 +721,13 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
   assert.deepEqual(working.agents[0].beat, { n: 3, of: 6, step: 'code', note: 'writing' });
   assert.deepEqual(working.pr, seven);
   assert.deepEqual(working.story?.reviewed, false);
-  // the card's unreviewed story
-  assert.deepEqual(working.inbox, { stories: 1, repo: 'acme/widgets' });
+  // one unreviewed turn of the busy session, and the card's unreviewed story
+  assert.deepEqual(working.inbox, {
+    turns: 1,
+    stories: 1,
+    session: fullId(onStory.pid),
+    repo: 'acme/widgets',
+  });
 
   const asking = card('pr:acme/widgets#9');
   assert.equal(asking.story, null);
@@ -759,7 +771,7 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
 
   // answers are kept for a moment, and `since` stays while the status does
   const since = working.sessions[0].since;
-  const later = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+  const later = new Board(home, turns, new StoryStore({ home }), watcher, new Builds(home), {
     source: sourceSaying({}),
     now: () => new Date(NOW.getTime() + 60000),
   });
@@ -781,10 +793,14 @@ test('a status change moves `since` to when the board saw it', async () => {
         live.map((session) => [session.session, { status: state, detail: null, title: null }]),
       ),
   };
-  const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
-    source,
-    now: () => clock,
-  });
+  const board = new Board(
+    home,
+    { all: () => [] } as unknown as TurnStore,
+    new StoryStore({ home }),
+    noPrWatcher,
+    new Builds(home),
+    { source, now: () => clock },
+  );
   const first = (await board.snapshot()).lanes[0].cards[0];
   assert.equal(first.column, 'working');
   assert.equal(
@@ -899,14 +915,14 @@ test('the board page and its key: the board routes only, the other pages’ link
   assert.equal(data.lanes[0].cards[0].column, 'working');
   assert.equal((await bridge.call('GET', '/api/board')).status, 200, 'the token reaches it too');
 
-  const inbox = await withKey(key, '/api/board/inbox-link?repo=acme/widgets');
+  const inbox = await withKey(key, '/api/board/inbox-link?session=abc-123');
   assert.equal(
     (inbox.body as { url: string }).url,
-    `${bridge.base}/inbox/#key=${inboxKey(TOKEN)}&repo=acme%2Fwidgets`,
+    `${bridge.base}/inbox/#key=${inboxKey(TOKEN)}&session=abc-123`,
   );
   assert.ok(
-    !(await withKey(key, '/api/board/inbox-link?repo=a%20b')).text.includes('repo='),
-    'a bad repo name is dropped',
+    !(await withKey(key, '/api/board/inbox-link?session=a%20b')).text.includes('session='),
+    'a bad session id is dropped',
   );
   for (const route of [
     '/api/inbox',
@@ -930,11 +946,12 @@ test('the board page and its key: the board routes only, the other pages’ link
     '/api/board/link?public=1',
     '/api/inbox',
     '/api/inbox/link',
+    '/api/inbox/turn?id=t_nothere123',
   ]) {
     const got = await withKey(inboxKey(TOKEN), route);
     assert.ok(!got.text.includes(key), `${route} leaks no board key`);
   }
-  for (const route of ['/api/board', '/api/board/inbox-link', '/api/board/inbox-link?repo=a/b']) {
+  for (const route of ['/api/board', '/api/board/inbox-link', '/api/board/inbox-link?session=a']) {
     assert.equal((await withKey(inboxKey(TOKEN), route)).status, 403, `${route} is the board's`);
   }
   for (const [method, route] of [
@@ -998,7 +1015,7 @@ test('`once-upon board` prints the board link', async () => {
   );
 });
 
-test('the review inbox lists built PR stories, and Mark reviewed works on them', async () => {
+test('the review inbox lists built PR stories beside the turns, and Mark reviewed works on them', async () => {
   const home = tmp('board-inbox');
   prStory(home, 'acme-widgets-7', 'acme/widgets', 7);
   prStory(home, 'acme-gadgets-3', 'acme/gadgets', 3);
@@ -1015,6 +1032,7 @@ test('the review inbox lists built PR stories, and Mark reviewed works on them',
     bridge.call(method, route, body, { Authorization: `Bearer ${inboxKey(TOKEN)}` });
 
   const list = (await asInbox('GET', '/api/inbox')).body as InboxList;
+  assert.deepEqual(list.turns, []);
   const link = (repo: string, number: number) => `https://github.com/${repo}/pull/${number}/files`;
   assert.deepEqual(
     list.stories
@@ -2527,8 +2545,8 @@ test('the bridge answers a proxy’s allowed host names, keeps the key in an Htt
   );
 
   // the other page's link is made on the address the page was opened on, so it gets its own cookie there
-  const link = await withCookie('/api/board/inbox-link?repo=acme/widgets', boardCookie);
-  assert.equal(JSON.parse(link.text).url, `${origin}/inbox/#key=${inbox}&repo=acme%2Fwidgets`);
+  const link = await withCookie('/api/board/inbox-link?session=abc', boardCookie);
+  assert.equal(JSON.parse(link.text).url, `${origin}/inbox/#key=${inbox}&session=abc`);
   // the way back is the board's address alone: the board's own cookie connects it there
   const back = await withCookie('/api/board/link', inboxCookie);
   assert.equal(JSON.parse(back.text).url, `${origin}/board/`);
@@ -2739,10 +2757,17 @@ test('the voice session is pinned above the columns, off every card, with its ag
   };
   writeJson(path.join(home, 'config.json'), { ...settings, board_voice_dir: voiceDir });
   const make = () =>
-    new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
-      source: sourceSaying({}),
-      now: () => NOW,
-    });
+    new Board(
+      home,
+      { all: () => [] } as unknown as TurnStore,
+      new StoryStore({ home }),
+      noPrWatcher,
+      new Builds(home),
+      {
+        source: sourceSaying({}),
+        now: () => NOW,
+      },
+    );
   const data = await make().snapshot();
   const cards = data.lanes.flatMap((lane) => lane.cards);
   assert.equal(
@@ -2809,10 +2834,17 @@ test('snapshot is single-flight: callers during a build share it, and the cache 
     },
   };
   let clock = NOW.getTime();
-  const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
-    source,
-    now: () => new Date(clock),
-  });
+  const board = new Board(
+    home,
+    { all: () => [] } as unknown as TurnStore,
+    new StoryStore({ home }),
+    noPrWatcher,
+    new Builds(home),
+    {
+      source,
+      now: () => new Date(clock),
+    },
+  );
   // a poll slower than the 3 s interval: later callers, even after the cache time has passed, join the build
   const first = board.snapshot();
   clock += 3000;
@@ -2850,15 +2882,22 @@ test('a session’s repo is looked up without holding the snapshot: it goes on, 
   let answer: (repo: string | null) => void = () => {};
   let pending: Promise<string | null> | null = null;
   const asked: string[] = [];
-  const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
-    source: sourceSaying({}),
-    now: () => NOW,
-    repoOf: (cwd) => {
-      asked.push(cwd);
-      pending ??= new Promise((resolve) => (answer = resolve));
-      return pending;
+  const board = new Board(
+    home,
+    { all: () => [] } as unknown as TurnStore,
+    new StoryStore({ home }),
+    noPrWatcher,
+    new Builds(home),
+    {
+      source: sourceSaying({}),
+      now: () => NOW,
+      repoOf: (cwd) => {
+        asked.push(cwd);
+        pending ??= new Promise((resolve) => (answer = resolve));
+        return pending;
+      },
     },
-  });
+  );
   const began = Date.now();
   const lanes = (await board.snapshot()).lanes;
   assert.ok(Date.now() - began < 3000, 'did not wait for the lookup to finish');
@@ -3176,14 +3215,21 @@ test('listeners on the board: a story’s listener marks its card, repos get a l
       'acme/widgets@feat/z': { number: 31, state: 'open', merged_at: null },
     },
   );
-  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
-    source: sourceSaying({
-      [String(onStory.pid).padStart(8, '0')]: { status: 'done', detail: null },
-      [String(onBuild.pid).padStart(8, '0')]: { status: 'done', detail: null },
-      [String(inGadgets.pid).padStart(8, '0')]: { status: 'done', detail: null },
-    }),
-    now: () => NOW,
-  });
+  const board = new Board(
+    home,
+    { all: () => [] } as unknown as TurnStore,
+    new StoryStore({ home }),
+    watcher,
+    new Builds(home),
+    {
+      source: sourceSaying({
+        [String(onStory.pid).padStart(8, '0')]: { status: 'done', detail: null },
+        [String(onBuild.pid).padStart(8, '0')]: { status: 'done', detail: null },
+        [String(inGadgets.pid).padStart(8, '0')]: { status: 'done', detail: null },
+      }),
+      now: () => NOW,
+    },
+  );
   const data = await board.snapshot();
   const cards = data.lanes.flatMap((lane) => lane.cards);
   const card = (id: string) => cards.find((found) => found.id === id) as BoardCard;
@@ -3297,12 +3343,19 @@ test('a session whose only activity is a repo listener is in the Listeners lane 
       repo: 'acme/widgets',
       ...variant.beat,
     });
-    const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
-      source: sourceSaying({
-        [sid]: { status: 'working', detail: variant.detail ?? '1 background task running' },
-      }),
-      now: () => NOW,
-    });
+    const board = new Board(
+      home,
+      { all: () => [] } as unknown as TurnStore,
+      new StoryStore({ home }),
+      noPrWatcher,
+      new Builds(home),
+      {
+        source: sourceSaying({
+          [sid]: { status: 'working', detail: variant.detail ?? '1 background task running' },
+        }),
+        now: () => NOW,
+      },
+    );
     const data = await board.snapshot();
     return { data, cards: data.lanes.flatMap((lane) => lane.cards) };
   };
@@ -3344,10 +3397,17 @@ test('a session whose only activity is a repo listener is in the Listeners lane 
     const sessions = tmp('board-sessions');
     registry(sessions, tree.parent, { cwd: checkout, name: 'plain' }, tree.procStart);
     writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
-    const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
-      source: sourceSaying({ [sid]: { status: 'working', detail: '1 background task running' } }),
-      now: () => NOW,
-    });
+    const board = new Board(
+      home,
+      { all: () => [] } as unknown as TurnStore,
+      new StoryStore({ home }),
+      noPrWatcher,
+      new Builds(home),
+      {
+        source: sourceSaying({ [sid]: { status: 'working', detail: '1 background task running' } }),
+        now: () => NOW,
+      },
+    );
     return (await board.snapshot()).lanes.flatMap((lane) => lane.cards);
   })();
   assert.equal(mine(none).length, 1, 'no listener: a card');
@@ -3569,7 +3629,8 @@ test('the board: Agent checks holds a PR card with a gated agent in it, an agent
     [prInfo(7, { branch: 'feat/x' }), prInfo(9, { branch: 'feat/y' })],
     { 'acme/widgets@feat/y': { number: 9, state: 'open', merged_at: null } },
   );
-  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+  const turns = { all: () => [] } as unknown as TurnStore;
+  const board = new Board(home, turns, new StoryStore({ home }), watcher, new Builds(home), {
     source: sourceSaying({}),
     now: () => NOW,
   });
@@ -3622,7 +3683,7 @@ test('the board: Agent checks holds a PR card with a gated agent in it, an agent
     readFileSync(ledger, 'utf8') +
       `\n- [waiting] sid:${sid(launcher)} lane:widgets builder — 2:50 PM ET, 10/26 — needs Eric: pick A or B — notes/p.md\n`,
   );
-  const later = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+  const later = new Board(home, turns, new StoryStore({ home }), watcher, new Builds(home), {
     source: sourceSaying({ [sid(onStory)]: { status: 'waiting', detail: 'asked you something' } }),
     now: () => new Date(NOW.getTime() + 5000),
   });
@@ -3657,10 +3718,17 @@ test('a plan or fixing line that has sat a day is marked stale', async () => {
     board_ledger_file: ledger,
     board_sessions_dir: sessions,
   });
-  const board = new Board(home, new StoryStore({ home }), fakeWatcher().watcher, new Builds(home), {
-    source: sourceSaying({}),
-    now: () => NOW,
-  });
+  const board = new Board(
+    home,
+    { all: () => [] } as unknown as TurnStore,
+    new StoryStore({ home }),
+    fakeWatcher().watcher,
+    new Builds(home),
+    {
+      source: sourceSaying({}),
+      now: () => NOW,
+    },
+  );
   const cards = (await board.snapshot()).lanes.flatMap((lane) => lane.cards);
   const stale = cards.find((found) => found.title === 'old-plan');
   assert.equal(stale?.column, 'checks');
@@ -3713,14 +3781,21 @@ test('the Blank strip: sessions with no prompt yet are chips by place, not cards
     'acme/widgets@feat/y': { number: 9, state: 'open', merged_at: null },
   });
   let now = NOW;
-  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
-    source: sourceSaying({
-      [sid(blankA)]: { status: 'done', detail: null },
-      [sid(blankC)]: { status: 'done', detail: null },
-      [sid(waitingBlank)]: { status: 'waiting', detail: 'asked you something' },
-    }),
-    now: () => now,
-  });
+  const board = new Board(
+    home,
+    { all: () => [] } as unknown as TurnStore,
+    new StoryStore({ home }),
+    watcher,
+    new Builds(home),
+    {
+      source: sourceSaying({
+        [sid(blankA)]: { status: 'done', detail: null },
+        [sid(blankC)]: { status: 'done', detail: null },
+        [sid(waitingBlank)]: { status: 'waiting', detail: 'asked you something' },
+      }),
+      now: () => now,
+    },
+  );
   const data = await board.snapshot();
   const cards = data.lanes.flatMap((lane) => lane.cards);
   const ids = cards.map((found) => found.id);
@@ -3821,7 +3896,7 @@ function localStory(
   }
 }
 
-test('the review inbox lists local stories beside the PR stories: Open story, Mark reviewed, a story left by the retired turn capture left out', async () => {
+test('the review inbox lists local stories beside the PR stories: Open story, Mark reviewed, a turn’s own story left out', async () => {
   const home = tmp('board-inbox');
   const widgets = checkoutOf('widgets', 'feat/x');
   prStory(home, 'acme-widgets-7', 'acme/widgets', 7);
@@ -3836,7 +3911,7 @@ test('the review inbox lists local stories beside the PR stories: Open story, Ma
       'reviewed.json': { at: '2026-10-26T14:00:00Z', by: 'manual' },
     },
   );
-  // a story the retired turn capture left carries `turn`, and is not listed
+  // a turn's story (the one Review makes) carries `turn`: the turn is listed already, so the story is not
   localStory(home, 'turn-abc', widgets, null, { turn: 'abc', title: 'widgets: a turn' });
   const bridge = await startBridge({ home });
   open.push(bridge);
@@ -3852,7 +3927,7 @@ test('the review inbox lists local stories beside the PR stories: Open story, Ma
       ['local-widgets-feat-x', 'acme/widgets', 'feat/x', 'Story of local-widgets-feat-x', false],
       ['local-widgets-seen', 'acme/widgets', 'feat/seen', 'Story of local-widgets-seen', true],
     ],
-    'both local stories, not the one a turn made',
+    'both local stories, not the turn’s',
   );
   assert.deepEqual(
     list.stories.map((story) => story.id),
@@ -3970,7 +4045,7 @@ test('a local story’s built time is when it was told: a refresh of its diff is
   );
 });
 
-test('picking a repo that has only a folder name in the inbox menu lists its local stories', async () => {
+test('picking a repo that has only a folder name in the inbox menu lists its local stories, as turns do', async () => {
   const home = tmp('board-inbox');
   const widgets = checkoutOf('widgets', 'feat/x');
   localStory(home, 'local-widgets-feat-x', widgets, 'feat/x');
@@ -4039,10 +4114,17 @@ test('the board: a local story puts its branch in Ready for your review, or Back
   localStory(home, 'local-feat-pr', widgetsMain, 'feat/pr');
   writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
   const { watcher } = fakeWatcher([prInfo(5, { branch: 'feat/pr' })]);
-  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
-    source: sourceSaying({}),
-    now: () => NOW,
-  });
+  const board = new Board(
+    home,
+    { all: () => [] } as unknown as TurnStore,
+    new StoryStore({ home }),
+    watcher,
+    new Builds(home),
+    {
+      source: sourceSaying({}),
+      now: () => NOW,
+    },
+  );
   const cards = (await board.snapshot()).lanes.flatMap((lane) => lane.cards);
   const byId = Object.fromEntries(cards.map((found) => [found.id, found]));
   assert.deepEqual(Object.fromEntries(cards.map((found) => [found.id, found.column])), {
@@ -4067,7 +4149,12 @@ test('the board: a local story puts its branch in Ready for your review, or Back
   });
   assert.equal(withSession.lane, 'widgets');
   assert.equal(withSession.build, null, 'it has a story: nothing to build');
-  assert.deepEqual(withSession.inbox, { stories: 1, repo: 'acme/widgets' });
+  assert.deepEqual(withSession.inbox, {
+    turns: 0,
+    stories: 1,
+    session: null,
+    repo: 'acme/widgets',
+  });
   const branchOnly = byId['branch:acme/widgets@feat/new'];
   assert.equal(branchOnly.title, 'Story of local-feat-new');
   assert.equal(branchOnly.branch, 'feat/new');
@@ -4080,7 +4167,7 @@ test('the board: a local story puts its branch in Ready for your review, or Back
     'a PR story is the card’s story',
   );
   assert.equal(byId['pr:acme/widgets#5'].story?.kind, 'pr');
-  // a reviewed one, a default branch, a detached head, no repo and a story left by turn capture are not cards
+  // a reviewed one, a default branch, a detached head, no repo and a turn's story are not cards
   for (const gone of ['feat/done', 'main', 'feat/y']) {
     assert.ok(!cards.some((found) => found.branch === gone), gone);
   }
