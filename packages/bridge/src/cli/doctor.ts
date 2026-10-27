@@ -35,7 +35,12 @@ function listenerPid(port: number): { pid: string; command: string } | null {
 
 type Health = { status: number; body: { name?: string; version?: string } | null };
 
-/** The bridge's /api/health answer, or null when nothing answered within 2s. */
+/**
+ * The bridge's /api/health answer, or null when nothing answered within 2s. This stays an HTTP call on purpose: it is
+ * the one check that walks the same road as the browser (127.0.0.1, the port, the token), and a 401 can only come from
+ * the running bridge, which holds the token it started with. Everything else on this machine that isn't a browser reads
+ * and writes files and stores instead.
+ */
 async function fetchHealth(port: number, token: string | undefined): Promise<Health | null> {
   try {
     const response = await fetch(`http://127.0.0.1:${port}/api/health`, {

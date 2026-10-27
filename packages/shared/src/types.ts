@@ -174,6 +174,11 @@ export interface LocalStory {
   notes: LocalNote[];
 }
 
+/** GET /api/inbox: what waits for review, and each repo's counts for the inbox page's filter. */
+export interface InboxList {
+  repos: { repo: string; count: number; unreviewed: number }[];
+}
+
 /** The PR title and body a session handed over for a local story's branch (`once-upon pr-draft`). */
 export interface PrDraft {
   title: string;

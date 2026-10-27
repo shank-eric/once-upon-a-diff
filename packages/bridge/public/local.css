@@ -173,3 +173,14 @@ button.ou-local-pr { white-space: nowrap; }
 .ou-local-stage-sent { color: var(--fgColor-accent); background: var(--bgColor-accent-muted); }
 .ou-local-stage-fixed { color: var(--fgColor-success); }
 .ou-local-notes-list .ou-local-note-text { margin: 2px 0 0 22px; }
+
+/* The review inbox page (inbox.ts) */
+.ou-inbox { max-width: 900px; margin: 0 auto; padding: 16px; }
+.ou-inbox-list { list-style: none; margin: 0; padding: 0; }
+.ou-inbox-item { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--borderColor-default); border-radius: 6px; margin-bottom: 8px; }
+.ou-inbox-new { background: var(--bgColor-muted); border-left: 3px solid var(--fgColor-accent); }
+.ou-inbox-main { flex: 1; min-width: 0; }
+.ou-inbox-prompt { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ou-inbox-dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--fgColor-accent); }
+.ou-inbox-actions { display: flex; gap: 6px; }
+.ou-inbox-repo { font: inherit; font-size: 12px; max-width: 260px; }

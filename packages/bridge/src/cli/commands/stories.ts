@@ -15,7 +15,7 @@ import { vetRebuild, afterRebuild } from '../../stories/rebuild.ts';
 import { createLocalStory, slug } from '../../stories/local-story.ts';
 import { storyDirFor } from '../../stories/placement.ts';
 import { out } from '../output.ts';
-import { probe, serve } from './bridge.ts';
+import { portState, serve } from './bridge.ts';
 import { localPageUrl } from '../../server/page-key.ts';
 import type { Build } from '../../inbox/builds.ts';
 import type { Plan } from '../../stories/chapters.ts';
@@ -102,10 +102,19 @@ async function local(home: string, cfg: Config, opts: CliOpts) {
   }
   const port = Number(opts.port || cfg.port);
   const url = localPageUrl(port, made.id, cfg.token);
-  const running = await probe(port, cfg.token);
-  if (!running && !opts['no-serve']) {
+  const state = await portState(home, port, cfg.token);
+  const taken = `Port ${port} is held by something that isn't this home's bridge (another program, or a bridge for another home). Free it, or pass --port N`;
+  if (state === 'old-token') {
+    process.stderr.write(
+      `The bridge on port ${port} started before the token changed, so this link won't open. Restart it: stop the running once-upon serve, then run it again\n`,
+    );
+  } else if (state === 'foreign' && !opts['no-serve']) {
+    throw new Error(taken);
+  } else if (state === 'foreign') {
+    process.stderr.write(`${taken}\n`);
+  } else if (state === 'free' && !opts['no-serve']) {
     await serve(home, cfg, { ...opts, port });
-  } else if (!running) {
+  } else if (state === 'free') {
     process.stderr.write(`No bridge on port ${port}. Start one with: once-upon serve\n`);
   }
   out(url);

@@ -55,6 +55,22 @@ async function callBridge(
   }
 }
 
+/** The review inbox page's link (with its key) is the bridge's to make; only a link to the bridge's own /inbox/ is opened. */
+const isInboxLink = (url: unknown): url is string =>
+  typeof url === 'string' &&
+  /^http:\/\/127\.0\.0\.1:\d{2,5}\/inbox\/#key=page\.[A-Za-z0-9_-]+(&repo=[A-Za-z0-9_.%-]+)?$/.test(
+    url,
+  );
+
+/** Opens the review inbox page in a tab (the keyboard command; the options page has a button for it too). */
+async function openInbox() {
+  const answer = await callBridge({ type: 'bridge', path: '/api/inbox/link' }, null);
+  const url = (answer.body as { url?: unknown } | null | undefined)?.url;
+  if (answer.ok && isInboxLink(url)) {
+    chrome.tabs.create({ url });
+  }
+}
+
 function toggle(tab: chrome.tabs.Tab | undefined) {
   if (tab && tab.id != null) {
     chrome.tabs.sendMessage(tab.id, { type: 'toggle' }).catch(() => {});
@@ -79,6 +95,10 @@ export default defineBackground(() => {
 
   chrome.action.onClicked.addListener(toggle);
   chrome.commands.onCommand.addListener(async (command, tab) => {
+    if (command === 'open-inbox') {
+      await openInbox();
+      return;
+    }
     if (command !== 'toggle-panel') {
       return;
     }

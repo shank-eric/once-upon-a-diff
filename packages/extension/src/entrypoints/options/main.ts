@@ -56,6 +56,23 @@ async function test(prefix = '') {
   }
 }
 
+/** Opens the bridge's review inbox page in a tab: the link, with its key, is the bridge's to make. */
+async function openInbox() {
+  const settings = formSettings();
+  const answer: BridgeAnswer<{ url: string }> = await chrome.runtime.sendMessage({
+    type: 'bridge',
+    method: 'GET',
+    path: '/api/inbox/link',
+    settings,
+  } satisfies BridgeRequest);
+  // only a link to the bridge's own inbox page is opened
+  if (answer.ok && /^http:\/\/127\.0\.0\.1:\d{2,5}\/inbox\//.test(answer.body.url)) {
+    chrome.tabs.create({ url: answer.body.url });
+  } else {
+    status(`Couldn't open the inbox: ${answer.error || 'the bridge sent no link'}`, false);
+  }
+}
+
 async function init() {
   const settings = await getSettings();
   $('port').value = String(settings.port);
@@ -67,5 +84,6 @@ async function init() {
     test('Saved. ');
   });
   $('test').addEventListener('click', () => test());
+  $('inbox').addEventListener('click', openInbox);
 }
 init();

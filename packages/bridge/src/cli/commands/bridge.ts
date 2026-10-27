@@ -3,26 +3,49 @@
  * options) and token.
  */
 import { appendFileSync, chmodSync, existsSync } from 'node:fs';
+import net from 'node:net';
 import path from 'node:path';
 import { saveConfig, newToken, readSettings } from '../../config/settings.ts';
 import { createBridge } from '../../server/index.ts';
+import { readBridgeFile, tokenFingerprint } from '../../server/bridge-file.ts';
+import { pidAlive } from '../../util/pid.ts';
 import { out } from '../output.ts';
 import type { Config } from '../../config/settings.ts';
 import type { Bridge } from '../../server/index.ts';
 import type { Command } from '../../types.ts';
 
-/** Is a bridge answering on this port with this token? */
-export async function probe(port: number | string, token: string): Promise<boolean> {
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/health`, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(1500),
-    });
-    const health = (await response.json()) as { name?: string };
-    return response.ok ? health.name === 'once-upon-bridge' : false;
-  } catch {
-    return false;
+/** What is on a port: this home's bridge, one started with another token, something else, or nothing. */
+export type PortState = 'ours' | 'old-token' | 'foreign' | 'free';
+
+/** Whether something listens on the port: a port already listening can't be bound again. */
+function portTaken(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const probe = net.createServer();
+    probe.once('error', (err: NodeJS.ErrnoException) => resolve(err.code === 'EADDRINUSE'));
+    probe.listen(port, '127.0.0.1', () => probe.close(() => resolve(false)));
+  });
+}
+
+/**
+ * Is this home's bridge on the port? Answered without calling it. A port something listens on is taken, and it's ours
+ * when bridge.json (which the bridge writes when it starts listening) names a live process and this port. A bridge
+ * started before the token was rotated is told apart by the token's fingerprint in that file. Anything else on the port
+ * is "foreign": another program, another home's bridge, or a bridge whose file is gone.
+ */
+export async function portState(
+  home: string,
+  port: number | string,
+  token?: string,
+): Promise<PortState> {
+  const number = Number(port);
+  if (!(await portTaken(number))) {
+    return 'free';
   }
+  const file = readBridgeFile(home);
+  if (!file || file.port !== number || !pidAlive(file.pid)) {
+    return 'foreign';
+  }
+  return token && file.token !== tokenFingerprint(token) ? 'old-token' : 'ours';
 }
 
 /** Starts the bridge on 127.0.0.1 and resolves once it listens. */

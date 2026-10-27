@@ -54,6 +54,10 @@ export default defineConfig({
         suggested_key: { default: 'Alt+Shift+S' },
         description: 'Show or hide the story panel',
       },
+      'open-inbox': {
+        suggested_key: { default: 'Alt+Shift+I' },
+        description: 'Open the review inbox: what waits for your review',
+      },
     },
     icons: { 16: 'icons/icon16.png', 48: 'icons/icon48.png', 128: 'icons/icon128.png' },
     web_accessible_resources: [
