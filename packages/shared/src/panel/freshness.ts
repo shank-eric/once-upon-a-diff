@@ -10,9 +10,10 @@
 import { html } from '../util/html.ts';
 import { setHtml } from '../util/dom.ts';
 import { plural, sameSha, shortSha } from '../util/text.ts';
+import { clockTime } from '../util/time.ts';
 import { rangeOfPath } from '../util/github-paths.ts';
 import type { PanelContext } from './context.ts';
-import type { Chapter, Freshness } from '../types.ts';
+import type { Chapter, Freshness, StoryRequest } from '../types.ts';
 
 export { rangeOfPath };
 
@@ -44,6 +45,44 @@ export const rangeUrl = (
 ): string | null =>
   prUrl && since ? `${String(prUrl).replace(/\/+$/, '')}/changes/${since.from}..${since.to}` : null;
 
+const DOING: Record<StoryRequest['kind'], string> = {
+  build: 'Building the story for you…',
+  update: 'Updating the story for you…',
+  rebuild: 'Rebuilding the story for you…',
+  fix: 'Fixing the code for you…',
+};
+
+/**
+ * What to say while a session has a request for the story, instead of offering Update: building once a listener has
+ * taken it (when it started, and who), queued until one does (when it was asked). No DOM, so node tests can use it.
+ */
+export function requestLine(
+  request: StoryRequest | null | undefined,
+  now = Date.now(),
+): { text: string; detail: string } | null {
+  if (!request) {
+    return null;
+  }
+  const asked = clockTime(request.requested_at);
+  if (request.state === 'queued') {
+    return {
+      text: 'Waiting for a Claude session to pick this up…',
+      detail: asked ? `asked at ${asked}` : '',
+    };
+  }
+  const since = Date.parse(request.claimed_at || request.requested_at);
+  const minutes = Number.isFinite(since) ? Math.max(0, Math.floor((now - since) / 60000)) : null;
+  const started = clockTime(request.claimed_at || request.requested_at);
+  const detail = [
+    started &&
+      `started ${started}${minutes !== null && minutes >= 1 ? ` (${minutes} min ago)` : ''}`,
+    request.claimed_by,
+  ]
+    .filter(Boolean)
+    .join(', ');
+  return { text: DOING[request.kind], detail };
+}
+
 const UPDATE_TITLE =
   'Adds a “Since you read it” chapter for the new commits, first, and keeps the chapters you read';
 const RETELL_TITLE = 'A whole new story at the latest commit, for a rebase or a big rework';
@@ -53,9 +92,14 @@ export function createFreshness(context: PanelContext) {
   const { data } = story;
   const { $ } = shell;
   let fresh: Freshness | null = null;
+  let request: StoryRequest | null = null; // the pulse's request: a session is at work on the story
 
   async function refresh() {
     if (!opts.freshness) {
+      // nothing to ask, but a request line's "(N min ago)" moves on with the clock
+      if (request) {
+        render();
+      }
       return;
     }
     try {
@@ -98,26 +142,53 @@ export function createFreshness(context: PanelContext) {
     }
   }
 
+  /** The in-progress line, with a spinner, for the pulse's request (null when there is none). */
+  function progressHtml() {
+    const line = requestLine(request);
+    return (
+      line &&
+      html`<span class="ou-progress" role="status"><span class="ou-spin" aria-hidden="true"></span>${line.text}${line.detail && html` <span class="ou-why">${line.detail}</span>`}</span>`
+    );
+  }
+
+  /**
+   * The pulse's `request`: while a session has one for the story, Update gives way to the in-progress line. When it
+   * ends the story has a new version (or the request failed), so freshness is asked again to bring Update back, or not.
+   */
+  function setRequest(next: StoryRequest | null | undefined) {
+    const value = next || null;
+    if (JSON.stringify(value) === JSON.stringify(request)) {
+      return;
+    }
+    const ended = !!request && !value;
+    request = value;
+    render();
+    if (ended) {
+      refresh();
+    }
+  }
+
   function render() {
     const box = $('.ou-fresh')!;
     box.classList.remove('ou-stale');
+    // a rebuild has its own status line under the toolbar, so only the other requests say so here, unless Update is what they replace
+    const progress =
+      request && (request.kind !== 'rebuild' || fresh?.state === 'stale') ? progressHtml() : null;
     if (!fresh || fresh.state === 'n/a') {
-      setHtml(box, '');
+      setHtml(box, progress);
       return;
     }
     if (fresh.state === 'current') {
       setHtml(
         box,
-        updatedHtml(fresh) ||
-          html`<span class="ou-why">Up to date with ${shortSha(fresh.story_head)}</span>`,
+        html`${updatedHtml(fresh) || html`<span class="ou-why">Up to date with ${shortSha(fresh.story_head)}</span>`}${progress && html` `}${progress}`,
       );
       return;
     }
     if (fresh.state === 'unknown') {
       setHtml(
         box,
-        fresh.error &&
-          html`<span class="ou-why" title="${fresh.error}">Can't tell whether the story is up to date</span>`,
+        html`${fresh.error && html`<span class="ou-why" title="${fresh.error}">Can't tell whether the story is up to date</span>`}${progress}`,
       );
       return;
     }
@@ -138,9 +209,12 @@ export function createFreshness(context: PanelContext) {
       html`<span class="ou-why">It was rebased, so a re-tell is likely the better fit.</span>`;
     const update = html`<button class="ou-update" data-retell="0" title="${UPDATE_TITLE}">Update (new commits)</button>`;
     const retell = html`<button class="ou-update" data-retell="1" title="${RETELL_TITLE}">Re-tell from scratch</button>`;
-    const buttons = opts.requestUpdate && html`${update}${retell}${rebased}`;
+    // no Update or Re-tell while a session is at work on the story: it would only queue a second request
+    const buttons = progress || (opts.requestUpdate && html`${update}${retell}${rebased}`);
     setHtml(box, html`Story is for ${shortSha(fresh.story_head)}; ${what}${changed}.${buttons}`);
-    wireUpdateButtons(box);
+    if (!progress) {
+      wireUpdateButtons(box);
+    }
   }
 
   /**
@@ -198,6 +272,7 @@ export function createFreshness(context: PanelContext) {
     },
     refresh,
     render,
+    setRequest,
     sinceBanner,
   };
 }

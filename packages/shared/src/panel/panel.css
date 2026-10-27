@@ -43,6 +43,10 @@
 #ou-panel .ou-fresh:empty { display: none; }
 #ou-panel .ou-fresh.ou-stale { color: var(--c-warn); }
 #ou-panel .ou-fresh button { margin-left: 6px; }
+#ou-panel .ou-progress { display: inline-flex; align-items: center; gap: 6px; margin-left: 6px; color: var(--c-fg); }
+#ou-panel .ou-spin { width: 11px; height: 11px; border: 2px solid var(--c-muted); border-top-color: transparent; border-radius: 50%; animation: ou-spin 0.9s linear infinite; }
+@keyframes ou-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { #ou-panel .ou-spin { animation: none; } }
 #ou-panel .ou-rebuilding { flex-basis: 100%; font-size: 12px; color: var(--c-muted); }
 #ou-panel .ou-rebuilding.ou-failed { color: var(--c-warn); }
 #ou-panel .ou-rebuild-box { margin: 12px 0 4px; }

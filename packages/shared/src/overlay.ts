@@ -109,7 +109,7 @@ export { changingOf } from './panel/working.ts';
 export { chapterKeyOf, finishedInOf, chapterNumbers } from './panel/story-model.ts';
 export { READ_MS, inferReadSteps, viewedEarlyCheck } from './panel/reading.ts';
 export { placePills, pillMarker } from './panel/file-refs.ts';
-export { rangeOfPath, rangeStepOf, rangeUrl } from './panel/freshness.ts';
+export { rangeOfPath, rangeStepOf, rangeUrl, requestLine } from './panel/freshness.ts';
 export { rebuildAsk, rebuildLine } from './panel/rebuild.ts';
 export { expandDirOf, expandStep, EXPAND_ALL_FAR } from './panel/expand.ts';
 
@@ -153,6 +153,7 @@ export function storyOverlay(input: StoryData, opts: PanelOptions) {
       (pulse) => {
         last = last || pulse;
         context.rebuild?.update(pulse.rebuild);
+        context.freshness?.setRequest(pulse.request);
       },
       () => {},
     );
@@ -231,6 +232,7 @@ export function storyOverlay(input: StoryData, opts: PanelOptions) {
     }
     if (!pulse.down) {
       context.rebuild.update(pulse.rebuild);
+      context.freshness.setRequest(pulse.request);
     }
     last = pulse;
   }

@@ -482,6 +482,18 @@ export interface Pulse {
   listening: boolean;
   answering: string | null;
   rebuild: RebuildView | null;
+  /** a build, update, rebuild or fix request for the story that a session has yet to finish, or null */
+  request: StoryRequest | null;
+}
+
+/** A request a Claude session is to do for a story: queued until a listener takes it, building once one has. */
+export interface StoryRequest {
+  kind: 'build' | 'update' | 'rebuild' | 'fix';
+  state: 'queued' | 'building';
+  requested_at: string;
+  /** who took it, once it is building */
+  claimed_by: string | null;
+  claimed_at: string | null;
 }
 
 /** What a story's last update brought in. */

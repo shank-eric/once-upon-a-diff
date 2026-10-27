@@ -9,8 +9,9 @@ import {
   ghRequestedCheck,
   mergeSummary,
 } from '../src/review-inbox/auto-review.ts';
+import { Builds } from '../src/inbox/builds.ts';
 import { inboxKey } from '../src/server/page-key.ts';
-import type { InboxList } from '@once-upon-a-diff/shared/types';
+import type { StoryRequest, InboxList } from '@once-upon-a-diff/shared/types';
 
 const NOW = new Date('2026-10-26T19:00:00Z'); // 3:00 PM EDT
 
@@ -1113,4 +1114,133 @@ if (process.argv[3]?.startsWith('repos/')) {
       process.env.ONCE_UPON_GH = saved.gh;
     }
   }
+});
+
+test('the pulse says when a session has a request for the story, building or queued, so the panel can drop Update', async () => {
+  const home = tmp('board-pulse');
+  prStory(home, 'acme-widgets-7', 'acme/widgets', 7, 'feat/x');
+  const bridge = await startBridge({ home });
+  open.push(bridge);
+  const pulse = async () =>
+    (
+      await bridge.call<{ request: StoryRequest | null }>(
+        'GET',
+        '/api/stories/acme-widgets-7/pulse',
+      )
+    ).body.request;
+  const ask = (extra: Record<string, unknown>) =>
+    new Builds(home).save({
+      'acme/widgets#7': {
+        id: 'b1',
+        repo: 'acme/widgets',
+        number: 7,
+        url: null,
+        requested_at: '2026-10-26T18:00:00Z',
+        status: 'pending',
+        ...extra,
+      },
+    });
+  assert.equal(await pulse(), null);
+  ask({ mode: 'update', base_sha: 'abc' });
+  assert.deepEqual(await pulse(), {
+    kind: 'update',
+    state: 'queued',
+    requested_at: '2026-10-26T18:00:00Z',
+    claimed_by: null,
+    claimed_at: null,
+  });
+  const claimed = new Date().toISOString();
+  ask({
+    mode: 'rebuild',
+    story: 'acme-widgets-7',
+    claimed_by: 'session-a',
+    claimed_at: claimed,
+  });
+  assert.deepEqual(await pulse(), {
+    kind: 'rebuild',
+    state: 'building',
+    requested_at: '2026-10-26T18:00:00Z',
+    claimed_by: 'session-a',
+    claimed_at: claimed,
+  });
+  ask({ claimed_by: 'session-a', claimed_at: claimed });
+  assert.equal((await pulse())?.kind, 'build');
+  ask({ status: 'done', done_at: claimed });
+  assert.equal(await pulse(), null, 'finished: Update can come back');
+  // a fix request a session has taken counts too, and a taken one wins over a queued one
+  writeJson(path.join(home, 'fixes.json'), {
+    f1: {
+      id: 'f1',
+      story: 'acme-widgets-7',
+      repo: 'acme/widgets',
+      kind: 'github',
+      notes: [],
+      requested_at: '2026-10-26T18:05:00Z',
+      status: 'pending',
+      claimed_by: 'session-b',
+      claimed_at: claimed,
+    },
+  });
+  assert.deepEqual(
+    [(await pulse())?.kind, (await pulse())?.state, (await pulse())?.claimed_by],
+    ['fix', 'building', 'session-b'],
+  );
+});
+
+test('a request belongs to its own story: PR #12’s fix is not #1’s, and another story’s rebuild is not this one’s', async () => {
+  const home = tmp('board-pulse-scope');
+  prStory(home, 'acme-widgets-1', 'acme/widgets', 1, 'feat/one');
+  prStory(home, 'acme-widgets-7', 'acme/widgets', 7, 'feat/seven');
+  const bridge = await startBridge({ home });
+  open.push(bridge);
+  const pulse = async (id: string) =>
+    (await bridge.call<{ request: StoryRequest | null }>('GET', `/api/stories/${id}/pulse`)).body
+      .request;
+  const fix = (number: number, url: string) => ({
+    id: `f${number}`,
+    story: `acme-widgets-${number}`,
+    repo: 'acme/widgets',
+    url,
+    kind: 'github',
+    notes: [],
+    requested_at: '2026-10-26T18:05:00Z',
+    status: 'pending',
+  });
+  writeJson(path.join(home, 'fixes.json'), {
+    f12: fix(12, 'https://github.com/acme/widgets/pull/12'),
+    f10: fix(10, 'https://github.com/acme/widgets/pull/10/files'),
+  });
+  assert.equal(await pulse('acme-widgets-1'), null, '#12 and #10 are not #1');
+  writeJson(path.join(home, 'fixes.json'), {
+    f1: { ...fix(7, 'https://github.com/acme/widgets/pull/1/files?w=1'), story: 'other-story' },
+  });
+  assert.equal((await pulse('acme-widgets-1'))?.kind, 'fix', 'the PR’s own number still matches');
+
+  // a rebuild asked for another story of the PR doesn't show on this one
+  new Builds(home).save({
+    'acme/widgets#7': {
+      id: 'b1',
+      repo: 'acme/widgets',
+      number: 7,
+      url: null,
+      requested_at: '2026-10-26T18:00:00Z',
+      status: 'pending',
+      mode: 'rebuild',
+      story: 'acme-widgets-7-older',
+    },
+  });
+  assert.equal(await pulse('acme-widgets-7'), null);
+  new Builds(home).save({
+    'acme/widgets#7': {
+      id: 'b1',
+      repo: 'acme/widgets',
+      number: 7,
+      url: null,
+      requested_at: '2026-10-26T18:00:00Z',
+      status: 'pending',
+      mode: 'rebuild',
+      story: 'acme-widgets-7',
+    },
+  });
+  assert.equal((await pulse('acme-widgets-7'))?.kind, 'rebuild');
 });

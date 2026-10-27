@@ -19,6 +19,7 @@ import { storyVersion, localVersion } from '../../stories/meta.ts';
 import { HttpError, clipText, toInt } from '../request.ts';
 import { questionsOf } from './questions.ts';
 import { fixesView } from '../../inbox/fixes.ts';
+import { requestFor } from '../../inbox/progress.ts';
 import { workingOf } from '../../stories/working.ts';
 import type { RebuildView, StoryData } from '@once-upon-a-diff/shared/types';
 import type { App, Call, LocalMeta, ServedStory, StoryRoute } from '../../types.ts';
@@ -77,6 +78,11 @@ function pulse({ app, send }: Call, story: ServedStory) {
     // who answers this story's questions, so the panel redraws when a story listener takes over from the repo's
     answering: listening.answering ? listening.answering.consumer : null,
     rebuild: rebuildView(app, story),
+    request: requestFor(app.home, app.builds, {
+      repo: story.meta.kind === 'github' ? story.meta.repo : null,
+      number: story.meta.kind === 'github' ? story.meta.number : null,
+      story: story.id,
+    }),
     // fix before push (notes, Auto-send, requests and who'd get a send) and "being changed" marks
     fixes_rev: revOf(fixesView(app.home, app.stories, story)),
     working_rev: revOf(workingOf(app.home, story.id).marks),
