@@ -13,7 +13,15 @@ import {
   listenPrompt,
   type statusOf,
 } from '../src/listeners/listeners.ts';
-import { repoOfCheckout, repoOfRemote, checkoutFor, seenCheckout } from '../src/config/repos.ts';
+import {
+  repoOfCheckout,
+  repoOfCheckoutAsync,
+  forgetRepoLookups,
+  lastKnownRepo,
+  repoOfRemote,
+  checkoutFor,
+  seenCheckout,
+} from '../src/config/repos.ts';
 import { doctor } from '../src/cli/doctor.ts';
 
 /** GET /api/status. */
@@ -204,6 +212,60 @@ test('Copy prompt for Claude: one short skill line naming the repo, with the lon
   } finally {
     await bridge.close();
   }
+});
+
+test('a checkout’s repo, looked up without blocking: timed out, kept per folder (failures too) until it expires, shared while running', async () => {
+  forgetRepoLookups();
+  const calls: { dir: string; args: string[]; timeout?: number }[] = [];
+  let reply: { code: number; stdout: string; stderr: string } = {
+    code: 0,
+    stdout: 'git@github.com:octo-org/api-server.git\n',
+    stderr: '',
+  };
+  let clock = 1000;
+  const options = {
+    ttlMs: 5000,
+    timeoutMs: 1234,
+    now: () => clock,
+    run: async (dir: string, args: string[], extra?: { timeout?: number }) => {
+      calls.push({ dir, args, timeout: extra?.timeout });
+      await new Promise((resolve) => setImmediate(resolve));
+      return reply;
+    },
+  };
+  const [one, two] = await Promise.all([
+    repoOfCheckoutAsync('/a', options),
+    repoOfCheckoutAsync('/a', options),
+  ]);
+  assert.deepEqual([one, two], ['octo-org/api-server', 'octo-org/api-server']);
+  assert.equal(calls.length, 1, 'callers while it runs share one look');
+  assert.deepEqual(
+    calls[0].args,
+    ['remote', 'get-url', 'origin'],
+    'git by argument list, no shell',
+  );
+  assert.equal(calls[0].timeout, 1234, 'with the timeout');
+  assert.equal(await repoOfCheckoutAsync('/a', options), 'octo-org/api-server');
+  assert.equal(calls.length, 1, 'kept');
+  assert.equal(lastKnownRepo('/a'), 'octo-org/api-server');
+  assert.equal(lastKnownRepo('/never'), undefined);
+  // a failure (a timeout is one) is kept too, so a hung mount is not asked every poll
+  reply = { code: 1, stdout: '', stderr: 'timed out' };
+  assert.equal(await repoOfCheckoutAsync('/b', options), null);
+  assert.equal(await repoOfCheckoutAsync('/b', options), null);
+  assert.equal(calls.length, 2);
+  // past the expiry it looks again, so a fixed remote is picked up
+  clock += 5000;
+  reply = { code: 0, stdout: 'https://github.com/octo-org/web.git', stderr: '' };
+  assert.equal(await repoOfCheckoutAsync('/b', options), 'octo-org/web');
+  assert.equal(calls.length, 3);
+  assert.equal(await repoOfCheckoutAsync(null, options), null);
+  assert.equal(calls.length, 3);
+  // a run that throws still answers null
+  forgetRepoLookups();
+  const broken = { ...options, run: () => Promise.reject(new Error('boom')) };
+  assert.equal(await repoOfCheckoutAsync('/c', broken), null);
+  forgetRepoLookups();
 });
 
 test('the checkout to work from: one the bridge has seen, else ~/Development/<name> if its origin matches', async () => {

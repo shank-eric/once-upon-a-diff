@@ -54,6 +54,10 @@ export default defineConfig({
         suggested_key: { default: 'Alt+Shift+S' },
         description: 'Show or hide the story panel',
       },
+      'open-board': {
+        suggested_key: { default: 'Alt+Shift+B' },
+        description: 'Open the agent board: your work to merge, with its sessions and agents',
+      },
       'open-inbox': {
         suggested_key: { default: 'Alt+Shift+I' },
         description: 'Open the review inbox: what waits for your review',

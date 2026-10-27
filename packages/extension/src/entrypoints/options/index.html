@@ -8,7 +8,7 @@
   </head>
   <body>
     <h1>Once Upon a Diff</h1>
-    <p class="hint">The extension gets stories from the local bridge. Run <code>once-upon setup</code> to print its port and token, paste them here, then start it with <code>once-upon serve</code>.</p>
+    <p class="hint">The extension gets stories from the local bridge. Run <code>once-upon setup</code> to print its port and token, paste them here, save, then use <b>Open board</b> or <b>Open review inbox</b>: no terminal needed.</p>
     <form id="settings">
       <label for="port">Bridge port</label>
       <input type="number" id="port" min="1024" max="65535" required />
@@ -17,6 +17,7 @@
       <div class="buttons">
         <button type="submit">Save</button>
         <button type="button" id="test">Test connection</button>
+        <button type="button" id="board" title="Your work to merge: sessions, agents, PRs (also Alt+Shift+B)">Open board</button>
         <button type="button" id="inbox" title="What waits for your review (also Alt+Shift+I)">Open review inbox</button>
       </div>
     </form>

@@ -5,6 +5,7 @@
  */
 import { defineBackground } from 'wxt/utils/define-background';
 import { getSettings, type BridgeSettings } from '../settings.ts';
+import { isPageLink, type PageKind } from '../page-links.ts';
 import type { BridgeReply, BridgeRequest } from '../content/bridge.ts';
 
 const METHODS = new Set(['GET', 'POST']);
@@ -55,18 +56,16 @@ async function callBridge(
   }
 }
 
-/** The review inbox page's link (with its key) is the bridge's to make; only a link to the bridge's own /inbox/ is opened. */
-const isInboxLink = (url: unknown): url is string =>
-  typeof url === 'string' &&
-  /^http:\/\/127\.0\.0\.1:\d{2,5}\/inbox\/#key=page\.[A-Za-z0-9_-]+(&repo=[A-Za-z0-9_.%-]+)?$/.test(
-    url,
-  );
-
-/** Opens the review inbox page in a tab (the keyboard command; the options page has a button for it too). */
-async function openInbox() {
-  const answer = await callBridge({ type: 'bridge', path: '/api/inbox/link' }, null);
+/**
+ * Opens the board or the review inbox in a tab (the keyboard commands; the options page has buttons too). The link, with
+ * its key, is the bridge's to make: `public=1` asks for the proxy's address (https://once-upon.test) when it reaches this
+ * machine, so the page sets its cookie in this browser, and else the bridge's own. Only a link of the right shape is opened.
+ */
+async function openPage(kind: PageKind) {
+  const path = kind === 'board' ? '/api/board/link?public=1' : '/api/inbox/link?public=1';
+  const answer = await callBridge({ type: 'bridge', path }, null);
   const url = (answer.body as { url?: unknown } | null | undefined)?.url;
-  if (answer.ok && isInboxLink(url)) {
+  if (answer.ok && isPageLink(kind, url)) {
     chrome.tabs.create({ url });
   }
 }
@@ -95,8 +94,8 @@ export default defineBackground(() => {
 
   chrome.action.onClicked.addListener(toggle);
   chrome.commands.onCommand.addListener(async (command, tab) => {
-    if (command === 'open-inbox') {
-      await openInbox();
+    if (command === 'open-inbox' || command === 'open-board') {
+      await openPage(command === 'open-board' ? 'board' : 'inbox');
       return;
     }
     if (command !== 'toggle-panel') {

@@ -11,6 +11,7 @@ import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { readSettings } from './settings.ts';
+import { runGitAsync } from '../util/git.ts';
 import { readJson } from '../util/json-file.ts';
 import type { StoryMeta } from '../types.ts';
 
@@ -48,6 +49,66 @@ export function repoOfCheckout(dir: string | null | undefined): string | null {
   }
   byDir.set(dir, repo);
   return repo;
+}
+
+/** How long one `git remote get-url` may take before it counts as a failure (a hung mount must not hold anything up). */
+export const REPO_LOOKUP_TIMEOUT_MS = 3000;
+/** How long an answer, or a failure, is kept before the next look. */
+export const REPO_LOOKUP_TTL_MS = 5 * 60 * 1000;
+
+const asyncByDir = new Map<string, { at: number; repo: string | null }>();
+const lookups = new Map<string, Promise<string | null>>();
+
+/** What the last look at a checkout found, even one past its expiry: undefined when it was never looked at. */
+export const lastKnownRepo = (dir: string | null | undefined): string | null | undefined =>
+  dir ? asyncByDir.get(dir)?.repo : null;
+
+/**
+ * Like `repoOfCheckout`, without blocking the process: git runs with a timeout and no shell, and the answer (a failure
+ * too) is kept per checkout for `ttlMs`, so a fixed remote is picked up later. Callers asking while a look is running
+ * share it. `run` and `now` are for tests.
+ */
+export function repoOfCheckoutAsync(
+  dir: string | null | undefined,
+  {
+    ttlMs = REPO_LOOKUP_TTL_MS,
+    timeoutMs = REPO_LOOKUP_TIMEOUT_MS,
+    now = Date.now,
+    run = runGitAsync,
+  }: {
+    ttlMs?: number;
+    timeoutMs?: number;
+    now?: () => number;
+    run?: typeof runGitAsync;
+  } = {},
+): Promise<string | null> {
+  if (!dir) {
+    return Promise.resolve(null);
+  }
+  const kept = asyncByDir.get(dir);
+  if (kept && now() - kept.at < ttlMs && now() >= kept.at) {
+    return Promise.resolve(kept.repo);
+  }
+  const running = lookups.get(dir);
+  if (running) {
+    return running;
+  }
+  const lookup = run(dir, ['remote', 'get-url', 'origin'], { timeout: timeoutMs })
+    .then((out) => (out.code === 0 ? repoOfRemote(out.stdout) : null))
+    .catch(() => null)
+    .then((repo) => {
+      asyncByDir.set(dir, { at: now(), repo });
+      lookups.delete(dir);
+      return repo;
+    });
+  lookups.set(dir, lookup);
+  return lookup;
+}
+
+/** Forget what was kept about checkouts, for tests. */
+export function forgetRepoLookups(): void {
+  asyncByDir.clear();
+  lookups.clear();
 }
 
 /** A story's repo: a PR story's own, or a local story's checkout's origin. */

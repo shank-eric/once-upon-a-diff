@@ -51,8 +51,11 @@ test('`once-upon review` prints the inbox link', async () => {
   writeJson(path.join(home, 'config.json'), { port: 48999, token: TOKEN });
   const ran = await runCli(home, ['review', '--no-open']);
   assert.equal(ran.code, 0);
-  assert.equal(ran.stdout.trim(), `http://127.0.0.1:48999/inbox/#key=${inboxKey(TOKEN)}`);
-  const repo = await runCli(home, ['review', '--no-open', '--repo', 'acme/widgets']);
+  // on the proxy's name by default, on the bridge's own address with --local
+  assert.equal(ran.stdout.trim(), `https://once-upon.test/inbox/#key=${inboxKey(TOKEN)}`);
+  const local = await runCli(home, ['review', '--no-open', '--local']);
+  assert.equal(local.stdout.trim(), `http://127.0.0.1:48999/inbox/#key=${inboxKey(TOKEN)}`);
+  const repo = await runCli(home, ['review', '--no-open', '--local', '--repo', 'acme/widgets']);
   assert.equal(
     repo.stdout.trim(),
     `http://127.0.0.1:48999/inbox/#key=${inboxKey(TOKEN)}&repo=acme%2Fwidgets`,

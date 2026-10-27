@@ -18,7 +18,15 @@ import { Builds } from '../../inbox/builds.ts';
 import { noteHanded, readHanded, routeQuestions } from '../../inbox/conversation.ts';
 import { fixesToHand } from '../../inbox/fixes.ts';
 import { beat } from '../../listeners/listeners.ts';
-import { idleMsOf, stopReason } from '../../listeners/auto-stop.ts';
+import { noteListener } from '../../listeners/history.ts';
+import {
+  idleMsOf,
+  logStop,
+  repoIdleMsOf,
+  repoStopReason,
+  stopReason,
+  stopRequested,
+} from '../../listeners/auto-stop.ts';
 import { StoryStore } from '../../stories/store.ts';
 import { slug } from '../../stories/local-story.ts';
 import { readJson, writeJsonAtomic } from '../../util/json-file.ts';
@@ -156,12 +164,23 @@ function fixGuidance(entry: Extract<Printable, { type: 'fix_request' }>): string
 
 /** Prints what was handed over, with what to run next. */
 /** A story wait that stopped itself: the listener says so and doesn't start it again. */
-function printStopped(story: string, reason: string, opts: CliOpts): void {
+function printStopped(
+  scope: { story: string } | { repo: string },
+  reason: string,
+  opts: CliOpts,
+): void {
   if (opts.json) {
-    out(JSON.stringify({ type: 'listen_stopped', story, reason, at: new Date().toISOString() }));
+    out(JSON.stringify({ type: 'listen_stopped', ...scope, reason, at: new Date().toISOString() }));
     return;
   }
-  out(`Stopped listening for ${story}: ${reason}.`);
+  if ('repo' in scope) {
+    out(`Stopped listening for ${scope.repo}: ${reason}.`);
+    out(
+      "Don't start this wait again. The panel's Copy prompt for Claude (or Start listening on the board) starts a repo listener again.",
+    );
+    return;
+  }
+  out(`Stopped listening for ${scope.story}: ${reason}.`);
   out(
     "Don't start this wait again. Its questions go to the repo's listener, if one is running, and the panel's Copy prompt for this story starts a story listener again.",
   );
@@ -254,6 +273,17 @@ async function wait(home: string, cfg: Config, opts: CliOpts) {
           idleMs: idleMsOf(home),
         }
       : null;
+  // a repo's wait ends on its own once no page has shown one of the repo's stories for the idle window, or when the
+  // board's Stop listening asks (both logged to listeners.log)
+  const repoStop =
+    opts.repo && !opts.story && !opts['no-auto-stop']
+      ? {
+          stories: new StoryStore({ home }),
+          repo: String(opts.repo),
+          startedAt: Date.now(),
+          idleMs: repoIdleMsOf(home),
+        }
+      : null;
   if (!existsSync(messages.file)) {
     writeFileSync(messages.file, '', { mode: 0o600 });
   }
@@ -263,6 +293,9 @@ async function wait(home: string, cfg: Config, opts: CliOpts) {
   }
   // the heartbeat the panel's "Claude listening" light reads
   beat(home, consumer, 'waiting', scope);
+  if (opts.repo && !opts.story) {
+    noteListener(home, String(opts.repo), consumer);
+  }
   const heartbeat = setInterval(() => beat(home, consumer, 'waiting', scope), BEAT_MS);
   // build requests come from builds.json (queued ones, claimed as they're handed over), so none are missed or given twice
   const builds = takesBuilds ? new Builds(home) : null;
@@ -314,7 +347,18 @@ async function wait(home: string, cfg: Config, opts: CliOpts) {
       const reason = autoStop && stopReason({ home, consumer, ...autoStop });
       if (reason) {
         clearInterval(heartbeat);
-        printStopped(autoStop!.story, reason, opts);
+        logStop(home, `${consumer} stopped listening for story ${autoStop!.story}: ${reason}`);
+        printStopped({ story: autoStop!.story }, reason, opts);
+        return;
+      }
+      const repoReason =
+        repoStop &&
+        (stopRequested(home, repoStop.repo, repoStop.startedAt) ||
+          repoStopReason({ home, consumer, ...repoStop }));
+      if (repoReason) {
+        clearInterval(heartbeat);
+        logStop(home, `${consumer} stopped listening for ${repoStop!.repo}: ${repoReason}`);
+        printStopped({ repo: repoStop!.repo }, repoReason, opts);
         return;
       }
       await inboxChange(messages.file);
@@ -365,7 +409,7 @@ export const inboxCommands: Command[] = [
       "                                                                 or a PR number here) takes one story's questions, and with build_request its Rebuild",
       "                                                                 requests, ahead of a --repo wait while it's live;",
       "                                                                 a consumer's first wait starts from now, but queued build requests are handed over whenever",
-      '                                                                 they were asked; a --story wait stops itself (printing "Stopped listening")',
+      '                                                                 they were asked; a --story wait and a --repo wait stop themselves (printing "Stopped listening")',
       '                                                                 once no page has shown the story for story_listener_idle_minutes (10)',
     ],
     run: wait,

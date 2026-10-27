@@ -21,6 +21,14 @@ export function localPage(id: string, meta: { title: string }): string {
 <body class="ou-local"><div id="ou-local-app"><p class="ou-local-muted ou-local-loading">Loading the story…</p></div></body></html>`);
 }
 
+/** The agent board's page shell (public/board.ts draws it). It carries no key either: that comes in the link's #fragment. */
+export function boardPage(): string {
+  return String(html`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent board</title><link rel="stylesheet" href="/assets/local.css">
+<script type="module" src="/assets/board.ts"></script></head>
+<body class="ou-local"><div id="ou-board-app"><p class="ou-local-muted ou-local-loading">Loading the board…</p></div></body></html>`);
+}
+
 /** The review inbox's page shell (public/inbox.ts draws it). Like the local page, it carries no key: that comes in the link's #fragment. */
 export function inboxPage(): string {
   return String(html`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">

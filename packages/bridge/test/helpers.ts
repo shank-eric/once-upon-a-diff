@@ -41,6 +41,8 @@ export const tmp = (name: string): string =>
   mkdtempSync(path.join(os.tmpdir(), `once-upon-${name}-`));
 // tests never look in (or move stories into) the real ~/Development checkouts
 process.env.ONCE_UPON_DEV_DIR = mkdtempSync(path.join(os.tmpdir(), 'once-upon-dev-'));
+// the proxy name is taken as reaching this machine, so no test depends on the machine's DNS
+process.env.ONCE_UPON_NO_HOST_CHECK = '1';
 export const TOKEN = 'test-token-0123456789abcdef';
 
 export function writeJson(file: string, value: unknown): void {

@@ -82,6 +82,57 @@ export function prStories(
   );
 }
 
+/** A PR the board shows as merged (a story whose PR merged, within `days` of it). */
+export interface MergedStory {
+  id: string;
+  repo: string;
+  number: number;
+  title: string;
+  branch: string | null;
+  url: string;
+  merged_at: string;
+}
+
+/** The stories whose PR merged in the last `hours` hours: merged.json's `merged_at`, else when the bridge noticed. */
+export function mergedStories(
+  stories: StoryStore,
+  { hours = 24, now = Date.now() }: { hours?: number; now?: number } = {},
+): MergedStory[] {
+  const found: MergedStory[] = [];
+  for (const story of stories.list()) {
+    const done = stories.readState<{ at?: string; why?: string; merged_at?: string | null } | null>(
+      story.id,
+      MERGED,
+      null,
+    );
+    const number = Number(story.number);
+    if (
+      !done ||
+      done.why !== 'merged' ||
+      story.kind !== 'github' ||
+      !story.repo ||
+      !REPO_RE.test(story.repo) ||
+      !number
+    ) {
+      continue;
+    }
+    const mergedMs = Date.parse(done.merged_at || done.at || '');
+    if (Number.isNaN(mergedMs) || now - mergedMs > hours * 3600 * 1000) {
+      continue;
+    }
+    found.push({
+      id: story.id,
+      repo: story.repo,
+      number,
+      title: story.title || `${story.repo}#${number}`,
+      branch: story.head_ref,
+      url: `https://github.com/${story.repo}/pull/${number}`,
+      merged_at: new Date(mergedMs).toISOString(),
+    });
+  }
+  return found;
+}
+
 /** One PR story by id, or null when the id isn't a listed one's. */
 export function prStory(stories: StoryStore, id: string): InboxStory | null {
   return prStories(stories).find((story) => story.id === id) || null;

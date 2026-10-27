@@ -1,4 +1,5 @@
 import { getSettings, setSettings } from '../../settings.ts';
+import { isPageLink, type PageKind } from '../../page-links.ts';
 import type { BridgeAnswer, BridgeRequest } from '../../content/bridge.ts';
 
 /** What the options page reads of GET /api/health and GET /api/stories. */
@@ -56,20 +57,23 @@ async function test(prefix = '') {
   }
 }
 
-/** Opens the bridge's review inbox page in a tab: the link, with its key, is the bridge's to make. */
-async function openInbox() {
+/**
+ * Opens the bridge's board or review inbox in a tab: the link, with its key, is the bridge's to make. `public=1` asks for
+ * the proxy's address (https://once-upon.test) when that reaches this machine, so the page sets its cookie in this browser.
+ */
+async function openPage(kind: PageKind) {
   const settings = formSettings();
   const answer: BridgeAnswer<{ url: string }> = await chrome.runtime.sendMessage({
     type: 'bridge',
     method: 'GET',
-    path: '/api/inbox/link',
+    path: kind === 'board' ? '/api/board/link?public=1' : '/api/inbox/link?public=1',
     settings,
   } satisfies BridgeRequest);
-  // only a link to the bridge's own inbox page is opened
-  if (answer.ok && /^http:\/\/127\.0\.0\.1:\d{2,5}\/inbox\//.test(answer.body.url)) {
+  // only a link of the right shape is opened
+  if (answer.ok && isPageLink(kind, answer.body.url)) {
     chrome.tabs.create({ url: answer.body.url });
   } else {
-    status(`Couldn't open the inbox: ${answer.error || 'the bridge sent no link'}`, false);
+    status(`Couldn't open the ${kind}: ${answer.error || 'the bridge sent no link'}`, false);
   }
 }
 
@@ -84,6 +88,7 @@ async function init() {
     test('Saved. ');
   });
   $('test').addEventListener('click', () => test());
-  $('inbox').addEventListener('click', openInbox);
+  $('board').addEventListener('click', () => openPage('board'));
+  $('inbox').addEventListener('click', () => openPage('inbox'));
 }
 init();

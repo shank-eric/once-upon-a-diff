@@ -9,6 +9,7 @@ import type { StoryStore } from './stories/store.ts';
 import type { Inbox } from './inbox/inbox.ts';
 import type { Build, Builds } from './inbox/builds.ts';
 import type { AutoReview } from './review-inbox/auto-review.ts';
+import type { Board } from './board/board.ts';
 import type { Config } from './config/settings.ts';
 
 /** A story folder's meta.json (readMeta fills in kind, title and a PR's url). */
@@ -78,10 +79,18 @@ export interface App {
   stories: StoryStore;
   inbox: Inbox;
   builds: Builds;
+  /** the agent board's data */
+  board: Board;
   /** marks PR stories reviewed in the inbox when GitHub says you have */
   autoReview: AutoReview;
-  /** page links with their keys: a local story's page, and the review inbox's (optionally for one repo) */
-  links: { story(id: string): string; inbox(repo?: string | null): string };
+  /** page links with their keys: a local story's page, the review inbox's (optionally for one repo) and the agent board's */
+  links: {
+    story(id: string): string;
+    inbox(repo?: string | null, origin?: string): string;
+    board(origin?: string): string;
+    /** the board page's address with no key in it, for a caller that may not be handed the board's key */
+    boardAddress(origin?: string): string;
+  };
   log: (line: string) => void;
   /** PR-list lookups, kept 5s */
   statusCache: {
@@ -100,6 +109,8 @@ export interface Call {
   url: URL;
   body: Body;
   send: Send;
+  /** which page's key (not the bridge's token) made the call, when one did */
+  pageScope?: 'inbox' | 'board' | null;
 }
 
 /** An /api/<path> route. A route with a method answers only that method. */
@@ -109,6 +120,8 @@ export interface ApiRoute {
   what?: string;
   /** the review inbox page's key may call this route too (it takes the bridge's token either way) */
   inboxKey?: boolean;
+  /** the agent board page's key may call this route too */
+  boardKey?: boolean;
   handle(call: Call): unknown;
 }
 

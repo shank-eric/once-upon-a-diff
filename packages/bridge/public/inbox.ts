@@ -4,16 +4,21 @@
  * too). The page's key (the link's #key=, which `once-upon review` and the extension print) reaches the inbox routes
  * and nothing else.
  */
+import { authHeader, startAuth } from '/assets/local/auth.ts';
+import { notConnectedHtml } from '/assets/local/not-connected.ts';
+import { openMenu } from '/assets/local/menu.ts';
 import { html } from '/assets/util/html.ts';
 import { setHtml } from '/assets/util/dom.ts';
 import { shortDateTime } from '/assets/util/time.ts';
 import type { InboxList, InboxStory } from '/assets/types.ts';
 
-/** New stories show up without a reload. */
+/** Like the board: new stories show up without a reload. */
 const POLL_MS = 3000;
 const app = document.getElementById('ou-inbox-app') as HTMLElement;
 const params = new URLSearchParams(location.hash.slice(1));
 const KEY = params.get('key') || '';
+/** Hands the key to the server when the host takes a cookie; calls wait for that so the cookie is there. */
+const authed = startAuth(KEY, '/api/board/link');
 
 /** What the page shows: the repo filter (from the link's #repo=, then the select), and whether reviewed stories are listed. */
 const view = { repo: params.get('repo') || '', showReviewed: false };
@@ -22,21 +27,21 @@ let list: InboxList = { repos: [], stories: [] };
 let failed = false;
 
 async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
-  if (!KEY) {
-    throw new Error('this link has no key: open the inbox from the link `once-upon review` prints');
-  }
+  await authed;
   const response = await fetch(path, {
     method,
     cache: 'no-store',
     headers: {
-      Authorization: `Bearer ${KEY}`,
+      ...authHeader(KEY),
       ...(body ? { 'Content-Type': 'application/json' } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
   });
   const json: T & { error?: string } = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(json.error || `HTTP ${response.status}`);
+    throw Object.assign(new Error(json.error || `HTTP ${response.status}`), {
+      status: response.status,
+    });
   }
   return json;
 }
@@ -64,11 +69,10 @@ function storyHtml(story: InboxStory) {
 
 function render() {
   const stories = list.stories.filter((story) => view.showReviewed || !story.reviewed_at);
+  const items = stories
+    .map((story) => ({ at: story.built_at, markup: storyHtml(story) }))
+    .sort((first, second) => second.at.localeCompare(first.at));
   const unreviewed = list.repos.reduce((sum, repo) => sum + repo.unreviewed, 0);
-  const options = list.repos.map(
-    (repo) =>
-      html`<option value="${repo.repo}"${repo.repo.toLowerCase() === view.repo.toLowerCase() && html` selected`}>${repo.repo} (${repo.unreviewed})</option>`,
-  );
   // the stories listed leave out the reviewed ones unless Show reviewed is on, so the repos' counts say whether any exist
   const any = list.repos.some(
     (repo) => repo.count && (!view.repo || repo.repo.toLowerCase() === view.repo.toLowerCase()),
@@ -76,16 +80,17 @@ function render() {
   const empty = any
     ? 'Nothing left to review here.'
     : 'Nothing yet. A PR story shows up here once one is built.';
-  const body = stories.length
-    ? html`<ul class="ou-inbox-list">${stories.map(storyHtml)}</ul>`
+  const body = items.length
+    ? html`<ul class="ou-inbox-list">${items.map((item) => item.markup)}</ul>`
     : html`<p class="ou-local-muted">${empty}</p>`;
   document.title = unreviewed ? `(${unreviewed}) Review inbox` : 'Review inbox';
   setHtml(
     app,
     html`<header class="ou-local-top">
       <div class="ou-local-top-main"><h1>Review inbox</h1><div class="ou-local-muted">${unreviewed} to review</div></div>
-      <select class="ou-inbox-repo" aria-label="Repo"><option value="">All repos</option>${options}</select>
+      <button type="button" class="ou-inbox-repo" aria-haspopup="menu" aria-expanded="false" title="Show one repo's items">${view.repo || 'All repos'} ▾</button>
       <label class="ou-local-ws"><input type="checkbox" class="ou-inbox-all"${view.showReviewed && html` checked`}> Show reviewed</label>
+      <button type="button" data-board>Agent board</button>
     </header>
     <main class="ou-inbox">${body}</main>`,
   );
@@ -103,9 +108,13 @@ async function refresh() {
     }
   } catch (err) {
     failed = true;
+    // refused for want of a key: say how to connect (the poll fills the inbox in once there is a cookie)
+    const refused = [401, 403].includes((err as { status?: number }).status ?? 0);
     setHtml(
       app,
-      html`<p class="ou-local-error">Couldn't load the inbox: ${(err as Error).message}</p>`,
+      refused
+        ? notConnectedHtml('inbox')
+        : html`<p class="ou-local-error">Couldn't load the inbox: ${(err as Error).message}</p>`,
     );
   }
 }
@@ -114,7 +123,12 @@ app.addEventListener('click', async (event) => {
   const target = event.target as Element;
   const markStory = target.closest('[data-story-reviewed]');
   try {
-    if (markStory) {
+    if (target.closest('.ou-inbox-repo')) {
+      chooseRepo(target.closest('.ou-inbox-repo') as HTMLElement);
+    } else if (target.closest('[data-board]')) {
+      const { url } = await api<{ url: string }>('GET', '/api/board/link');
+      window.open(url, '_blank', 'noopener');
+    } else if (markStory) {
       await api('POST', '/api/inbox/reviewed', {
         story: markStory.getAttribute('data-story-reviewed'),
         reviewed: markStory.getAttribute('data-to') === 'true',
@@ -125,15 +139,34 @@ app.addEventListener('click', async (event) => {
     alert(`Couldn't do that: ${(err as Error).message}`);
   }
 });
+/** The repo filter: a menu of the repos (with what waits in each), in place of a native select. */
+function chooseRepo(anchor: HTMLElement) {
+  const entries = [
+    { value: '', label: 'All repos', checked: !view.repo },
+    ...list.repos.map((repo) => ({
+      value: repo.repo,
+      label: repo.repo,
+      detail: `${repo.unreviewed} to review`,
+      checked: repo.repo.toLowerCase() === view.repo.toLowerCase(),
+    })),
+  ];
+  openMenu(
+    anchor,
+    entries,
+    (value) => {
+      view.repo = value;
+      // draw now: with one repo the server's answer doesn't change, and refresh() redraws only when it does
+      render();
+      refresh();
+    },
+    { label: 'Repo' },
+  );
+}
+
 app.addEventListener('change', (event) => {
-  const target = event.target as HTMLInputElement | HTMLSelectElement;
-  // draw now: the server's answer may not change (Show reviewed is filtered here, and one repo is all repos),
-  // and refresh() redraws only when it does
-  if (target.matches('.ou-inbox-repo')) {
-    view.repo = target.value;
-    render();
-    refresh();
-  } else if (target.matches('.ou-inbox-all')) {
+  const target = event.target as HTMLInputElement;
+  if (target.matches('.ou-inbox-all')) {
+    // draw now: Show reviewed is filtered here, so the server's answer doesn't change
     view.showReviewed = (target as HTMLInputElement).checked;
     render();
     refresh();

@@ -11,6 +11,7 @@
  */
 import { HttpError } from '../request.ts';
 import { REPO_RE } from '../../config/repos.ts';
+import { publicOriginOf } from '../address.ts';
 import { markStoryReviewed, prStories, prStory } from '../../review-inbox/stories.ts';
 import type { ApiRoute, Call } from '../../types.ts';
 
@@ -46,9 +47,13 @@ function reviewed({ app, body, send }: Call) {
   return send(200, { story: prStory(app.stories, story.id) });
 }
 
-function link({ app, url, send }: Call) {
+/** The inbox's link: on 127.0.0.1 for the extension's own check, or (`?public=1`) on the proxy's address when it reaches this machine. */
+async function link({ app, url, send }: Call) {
   const repo = url.searchParams.get('repo');
-  return send(200, { url: app.links.inbox(repo && REPO_RE.test(repo) ? repo : null) });
+  const origin = url.searchParams.get('public') ? await publicOriginOf(app.home) : undefined;
+  return send(200, {
+    url: app.links.inbox(repo && REPO_RE.test(repo) ? repo : null, origin),
+  });
 }
 
 export const inboxRoutes: ApiRoute[] = [

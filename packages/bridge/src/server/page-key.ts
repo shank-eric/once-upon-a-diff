@@ -20,9 +20,30 @@ export const pageKey = (token: string, story: string): string =>
 export const inboxKey = (token: string): string =>
   PAGE_KEY_PREFIX + createHmac('sha256', token).update('inbox-page').digest('base64url');
 
-/** The review inbox page's link, with its key in the fragment, and the repo to show (owner/name) when there is one. */
-export const inboxPageUrl = (port: number, token: string, repo: string | null = null): string =>
-  `http://127.0.0.1:${port}/inbox/#key=${inboxKey(token)}${repo ? `&repo=${encodeURIComponent(repo)}` : ''}`;
+/**
+ * The agent board page's key: a token for the board page, which reaches the board routes (routes/board.ts) that allow
+ * it and nothing else. Made under its own label, so neither the inbox's key nor a story's can stand in for it.
+ */
+export const boardKey = (token: string): string =>
+  PAGE_KEY_PREFIX + createHmac('sha256', token).update('board-page').digest('base64url');
+
+/** The agent board page's link, with its key in the fragment. */
+export const boardPageUrl = (
+  port: number,
+  token: string,
+  origin = `http://127.0.0.1:${port}`,
+): string => `${origin}/board/#key=${boardKey(token)}`;
+
+/**
+ * The review inbox page's link, with its key in the fragment, and the repo to show (owner/name) when there is one.
+ */
+export const inboxPageUrl = (
+  port: number,
+  token: string,
+  repo: string | null = null,
+  origin = `http://127.0.0.1:${port}`,
+): string =>
+  `${origin}/inbox/#key=${inboxKey(token)}${repo ? `&repo=${encodeURIComponent(repo)}` : ''}`;
 
 /** The local page's link, with its key in the fragment. */
 export const localPageUrl = (port: number, story: string, token: string): string =>
