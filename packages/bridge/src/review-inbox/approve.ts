@@ -14,7 +14,7 @@ import type { StoryRef } from '../types.ts';
 import type { StoryStore } from '../stories/store.ts';
 
 const FILE = 'approved.json';
-/** How long an approved local story with no PR stays approved (and on the board's Done). */
+/** How long an approved local story with no PR stays approved (and in the board's Ready to ship). */
 export const APPROVED_DAYS = 7;
 
 /** What approved.json keeps. */

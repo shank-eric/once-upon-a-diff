@@ -6,8 +6,9 @@
  *             launching session is the next actor, not you. Above working, because the session is busy exactly while it
  *             checks the plan or fixes the findings, and a running reviewer is a running agent
  *   working   a session or agent on it is busy, or a session is building, rebuilding or fixing its story
- *   done      the PR merged (the board drops it a day later), or a local story you approved for its current head: ready to
- *             ship, with no PR yet (a new commit clears the approval; the board drops it after APPROVED_DAYS)
+ *   done      the PR merged (the board drops it a day later)
+ *   ship      a local story you approved for its current head: ready to ship, with no PR yet and still on this Mac (a new
+ *             commit clears the approval; the board drops it after APPROVED_DAYS)
  *   back      something is on you: its PR story has a version you haven't opened since it was built (a rebuild, say), or
  *             someone asked something of you on the PR after your last activity (on your own PR: changes requested, or
  *             an open thread whose last comment is theirs; on someone else's: a reply in an open thread you are in),
@@ -38,7 +39,7 @@ export interface ColumnInput {
     unread: boolean;
     /** a local story (no PR): it waits in Ready for your review, never in Back to you, which is the GitHub side's */
     local?: boolean;
-    /** a local story approved for its current head (Approve on its page): ready to ship, so Done while it has no PR */
+    /** a local story approved for its current head (Approve on its page): ready to ship, so Ready to ship while it has no PR */
     approved?: boolean;
   } | null;
   /** a session is building, rebuilding or fixing for it */
@@ -83,7 +84,7 @@ export function columnOf(input: ColumnInput): BoardColumn {
     return 'done';
   }
   if (story?.local && story.approved && !pr) {
-    return 'done';
+    return 'ship';
   }
   if (story?.unread) {
     return story.local ? 'ready' : 'back';

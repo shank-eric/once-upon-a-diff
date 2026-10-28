@@ -203,13 +203,45 @@ button.ou-local-pr { white-space: nowrap; }
 .ou-menu-detail { color: var(--fgColor-muted); font-size: 12px; }
 @media (max-width: 800px) { .ou-menu-item { min-height: 44px; align-items: center; } }
 
-/* The pinned voice session (board.ts) */
-.ou-board-voice { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--borderColor-default); background: var(--bgColor-muted); }
-.ou-board-voice-status { font-weight: 600; }
-.ou-board-voice-lines { order: 1; flex-basis: 100%; list-style: none; margin: 2px 0 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 12px; max-height: 9.5em; overflow-y: auto; }
+/* The voice session (board.ts): a tab on the right edge that opens a docked panel. Wide windows make room for the open
+   panel beside the board; narrower ones overlay it, and a phone gets a bottom sheet. */
+#ou-board-app { --ou-voice-width: 340px; }
+.ou-board-voice { --ou-voice-color: var(--fgColor-muted); }
+.ou-board-voice-listening { --ou-voice-color: var(--fgColor-success); }
+.ou-board-voice-speaking { --ou-voice-color: var(--fgColor-accent); }
+.ou-board-voice-working { --ou-voice-color: var(--fgColor-attention); }
+.ou-board-voice-away { --ou-voice-color: var(--fgColor-accent); }
+.ou-board-voice-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ou-voice-color); flex: none; }
+.ou-board-voice-speaking .ou-board-voice-dot { animation: ou-voice-pulse 1.2s ease-in-out infinite; }
+@keyframes ou-voice-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .ou-board-voice-speaking .ou-board-voice-dot { animation: none; } }
+.ou-board-voice-tab { position: fixed; z-index: 8; right: 0; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px; border-right: 0; border-radius: 8px 0 0 8px; background: var(--bgColor-muted); box-shadow: -2px 0 8px rgba(1, 4, 9, 0.12); }
+.ou-board-voice-tab:hover { border-color: var(--ou-voice-color); }
+.ou-board-voice-word { writing-mode: vertical-rl; font-size: 11px; font-weight: 600; letter-spacing: .04em; color: var(--ou-voice-color); }
+.ou-board-voice-open .ou-board-voice-tab { right: var(--ou-voice-width); }
+.ou-board-voice-panel { position: fixed; z-index: 7; top: 0; right: 0; bottom: 0; width: var(--ou-voice-width); display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; background: var(--bgColor-muted); border-left: 1px solid var(--borderColor-default); box-shadow: -8px 0 24px rgba(1, 4, 9, 0.18); overflow: hidden; }
+.ou-board-voice-head { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+.ou-board-voice-name { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ou-board-voice-close { border: 0; background: none; padding: 2px 6px; color: var(--fgColor-muted); }
+.ou-board-voice-facts { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.ou-board-voice-status { display: inline-flex; gap: 6px; align-items: center; font-weight: 600; }
+.ou-board-voice-lines { flex: 1 1 auto; min-height: 0; list-style: none; margin: 4px 0; padding: 8px 0 0; border-top: 1px solid var(--borderColor-default); display: flex; flex-direction: column; gap: 6px; font-size: 13px; overflow-y: auto; }
 .ou-board-voice-lines li { overflow-wrap: anywhere; }
 .ou-board-voice-lines .ou-board-voice-you { color: var(--fgColor-muted); }
-@media (max-width: 800px) { .ou-board-voice { padding: 8px 10px; } }
+.ou-board-voice-none { flex: 1 1 auto; margin: 4px 0; padding-top: 8px; border-top: 1px solid var(--borderColor-default); }
+.ou-board-voice-panel .ou-board-focus { align-self: flex-start; }
+.ou-board-voice-lines li > .ou-local-muted:first-child { font-weight: 600; }
+/* room for the tab (and, when it is open, the panel) beside the board and its header */
+#ou-board-app.ou-board-has-voice { padding-right: 30px; }
+@media (min-width: 801px) and (max-width: 1099px) { #ou-board-app { --ou-voice-width: 300px; } }
+@media (min-width: 801px) { #ou-board-app.ou-board-pushed { padding-right: calc(var(--ou-voice-width) + 30px); } }
+@media (max-width: 800px) {
+  #ou-board-app.ou-board-has-voice { padding-right: 0; }
+  .ou-board-voice-tab { top: auto; bottom: 12px; right: 12px; transform: none; flex-direction: row; padding: 8px 12px; border: 1px solid var(--borderColor-default); border-radius: 999px; min-height: 44px; }
+  .ou-board-voice-word { writing-mode: horizontal-tb; }
+  .ou-board-voice-open .ou-board-voice-tab { display: none; }
+  .ou-board-voice-panel { top: auto; left: 0; width: auto; height: min(60vh, 440px); border-left: 0; border-top: 1px solid var(--borderColor-default); border-radius: 12px 12px 0 0; padding: 10px; }
+}
 
 /* The Listeners lane (board.ts): a row per repo, who listens and Start or Stop */
 .ou-board-listeners { margin: 16px 0 24px; padding-top: 4px; border-top: 3px solid var(--ou-board-idle); }
@@ -283,10 +315,24 @@ button.ou-local-pr { white-space: nowrap; }
 .ou-board-add-actions { display: flex; gap: 6px; }
 .ou-board-c-backlog[draggable="true"] { cursor: grab; }
 .ou-board-c-backlog.ou-board-dragging { opacity: 0.4; }
-.ou-board-usage-strip { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 10px; font-size: 12px; }
-.ou-board-usage { font-size: 12px; font-variant-numeric: tabular-nums; }
-.ou-board-usage-warn { color: var(--fgColor-attention); }
-.ou-board-usage-high { color: var(--ou-local-del-fg); font-weight: 600; }
+/* The usage meters in the header (board.ts): thin bars, yellow from 70% and red from 90%; session ctx chips share them */
+.ou-board-meters { display: flex; gap: 14px; align-items: center; flex: none; }
+.ou-board-meter { display: inline-flex; gap: 5px; align-items: center; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--fgColor-muted); }
+.ou-board-meter-bar { width: 44px; height: 5px; border-radius: 3px; background: var(--borderColor-default); overflow: hidden; }
+.ou-board-meter-bar span { display: block; height: 100%; border-radius: 3px; background: var(--fgColor-success); }
+.ou-board-meter-num { color: var(--fgColor-default); min-width: 3ch; text-align: right; }
+.ou-board-meter-reset { font-size: 11px; }
+@media (max-width: 1299px) { .ou-board-meter-reset { display: none; } }
+.ou-local-top-main { min-width: 90px; }
+.ou-board-meter.ou-board-usage-warn { color: var(--fgColor-attention); }
+.ou-board-meter.ou-board-usage-warn .ou-board-meter-bar span { background: var(--fgColor-attention); }
+.ou-board-meter.ou-board-usage-warn .ou-board-meter-num { color: var(--fgColor-attention); }
+.ou-board-meter.ou-board-usage-high { color: var(--ou-local-del-fg); }
+.ou-board-meter.ou-board-usage-high .ou-board-meter-bar span { background: var(--ou-local-del-fg); }
+.ou-board-meter.ou-board-usage-high .ou-board-meter-num { color: var(--ou-local-del-fg); font-weight: 600; }
+.ou-board-session .ou-board-meter-bar { width: 28px; height: 4px; }
+.ou-board-session .ou-board-meter { margin-left: 4px; font-size: 11px; }
+@media (max-width: 800px) { .ou-board-meters { flex: 1 1 100%; order: 3; } }
 /* where the dragged card lands: a line in the gap above or below a card, with a dot at its start */
 .ou-board-drop-before, .ou-board-drop-after { position: relative; }
 .ou-board-drop-before::before, .ou-board-drop-after::after { content: ""; position: absolute; left: -4px; right: -4px; height: 3px; border-radius: 2px; background: var(--fgColor-accent); pointer-events: none; }
@@ -304,6 +350,7 @@ button.ou-local-pr { white-space: nowrap; }
 .ou-board-c-checks { --ou-board-color: var(--ou-board-checks); }
 .ou-board-c-waiting { --ou-board-color: var(--ou-board-waiting); }
 .ou-board-c-ready { --ou-board-color: var(--ou-board-ready); }
+.ou-board-c-ship { --ou-board-color: var(--ou-board-open); }
 .ou-board-c-pr_open { --ou-board-color: var(--ou-board-open); }
 .ou-board-c-back, .ou-board-c-error { --ou-board-color: var(--ou-board-back); }
 .ou-board-c-done { --ou-board-color: var(--ou-board-done); }
@@ -330,12 +377,13 @@ button.ou-board-blank-chip:hover { border-color: var(--fgColor-muted); }
   .ou-board-c-waiting { order: 1; }
   .ou-board-c-back { order: 2; }
   .ou-board-c-ready { order: 3; }
-  .ou-board-c-checks { order: 4; }
-  .ou-board-c-working { order: 5; }
-  .ou-board-c-pr_open { order: 6; }
-  .ou-board-c-error { order: 7; }
-  .ou-board-c-done { order: 8; }
-  .ou-board-c-backlog { order: 9; }
+  .ou-board-c-ship { order: 4; }
+  .ou-board-c-checks { order: 5; }
+  .ou-board-c-working { order: 6; }
+  .ou-board-c-pr_open { order: 7; }
+  .ou-board-c-error { order: 8; }
+  .ou-board-c-done { order: 9; }
+  .ou-board-c-backlog { order: 10; }
   .ou-board-lane { margin-bottom: 6px; }
   .ou-board-card { padding: 6px 8px; font-size: 13px; }
   .ou-board-meta, .ou-board-sessions, .ou-board-agents { font-size: 12px; }

@@ -86,8 +86,8 @@ export function voiceStatus(files: VoiceFiles, busy: boolean, now: number): Voic
 
 /** How much of each log's end is read for the last lines. */
 const TAIL_BYTES = 128 * 1024;
-/** How many lines the strip shows. */
-const VOICE_LINES = 6;
+/** How many lines the voice panel keeps (it scrolls). */
+const VOICE_LINES = 20;
 
 /** The whole JSON lines in a file's last TAIL_BYTES (the first one, cut by the read, is skipped), or [] without it. */
 function tailLines(file: string): Record<string, unknown>[] {

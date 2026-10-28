@@ -44,6 +44,7 @@ const COLUMNS: { id: BoardColumn; label: string; group: 'local' | 'github'; alwa
   { id: 'checks', label: 'Agent checks', group: 'local', always: false },
   { id: 'waiting', label: 'Waiting', group: 'local', always: true },
   { id: 'ready', label: 'Ready for your review', group: 'local', always: true },
+  { id: 'ship', label: 'Ready to ship', group: 'local', always: false },
   { id: 'error', label: 'Error', group: 'local', always: false },
   { id: 'pr_open', label: 'PR open', group: 'github', always: true },
   { id: 'back', label: 'Back to you', group: 'github', always: true },
@@ -97,6 +98,17 @@ let hideOnAuthor = readHideOnAuthor();
 const onAuthor = (card: BoardCard) =>
   card.column === 'pr_open' && !!card.pr && !card.pr.mine && !card.sessions.length;
 const shownCard = (card: BoardCard) => !(hideOnAuthor && onAuthor(card));
+
+/** The voice panel's open or closed state is remembered; wrapped like the rest. */
+const VOICE_KEY = 'ou-board-voice-open';
+function readVoiceOpen(): boolean {
+  try {
+    return localStorage.getItem(VOICE_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+let voiceOpen = readVoiceOpen();
 
 /** The Add panel is closed until asked for (+ Add), and closes after an add or Escape. */
 let addOpen = false;
@@ -264,14 +276,6 @@ function isWarm(card: BoardCard, now: number): boolean {
   return rested.length > 0 && now - Math.max(...rested) < WARM_MS;
 }
 
-/** "ctx 45%", yellow from 70% and red from 90% like the status line, or '' when the status line hasn't said. */
-function contextHtml(context: number | null | undefined) {
-  if (typeof context !== 'number') {
-    return '';
-  }
-  return html` <span class="ou-board-usage${levelOf(context)}" title="How full the session's context window is">ctx ${context}%</span>`;
-}
-
 /** The warning class for a percentage: yellow from 70, red from 90. */
 function levelOf(value: number) {
   if (value >= 90) {
@@ -280,20 +284,63 @@ function levelOf(value: number) {
   return value >= 70 ? ' ou-board-usage-warn' : '';
 }
 
-/** The usage strip under the header: the 5-hour and weekly limits with when they reset, as the status line has them. */
+/** A label, a thin bar filled to a percentage and the number, yellow from 70% and red from 90% like the status line. */
+function meterHtml(label: string, percent: number, title: string, extra: HtmlValue = '') {
+  const clamped = Math.max(0, Math.min(100, Math.round(percent)));
+  return html`<span class="ou-board-meter${levelOf(percent)}" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${clamped}" aria-label="${label}" title="${title}">
+    <span class="ou-board-meter-label">${label}</span>
+    <span class="ou-board-meter-bar" aria-hidden="true"><span style="width:${clamped}%"></span></span>
+    <span class="ou-board-meter-num">${clamped}%</span>${extra}
+  </span>`;
+}
+
+/** A session's context meter, or '' when the status line hasn't said. */
+function contextHtml(context: number | null | undefined) {
+  if (typeof context !== 'number') {
+    return '';
+  }
+  return html` ${meterHtml('ctx', context, `The session's context window is ${Math.round(context)}% full`)}`;
+}
+
+/** When a limit resets: the time today, else the weekday and hour. */
+function resetText(iso: string | null, now: number): string {
+  const date = iso ? new Date(iso) : null;
+  if (!date || Number.isNaN(date.getTime())) {
+    return '';
+  }
+  const sameDay = date.toDateString() === new Date(now).toDateString();
+  return date.toLocaleString(
+    [],
+    sameDay ? { hour: 'numeric', minute: '2-digit' } : { weekday: 'short', hour: 'numeric' },
+  );
+}
+
+/**
+ * The usage meters in the header's right side: the 5-hour and weekly limits as thin bars. The reset time and how old the
+ * status line's reading is go in the tooltip, and the reset shows beside the bar once a limit is at 70%.
+ */
 function usageHtml(usage: BoardUsage | null, now: number) {
   if (!usage) {
     return '';
   }
-  const limit = (label: string, value: BoardLimit | null, options: Intl.DateTimeFormatOptions) =>
-    value &&
-    html`<span class="ou-board-usage${levelOf(value.percent)}">${label} ${value.percent}%${value.resets_at && html` <span class="ou-local-muted">resets ${new Date(value.resets_at).toLocaleString([], options)}</span>`}</span>`;
   const seen = age(usage.at, now);
-  return html`<p class="ou-board-usage-strip" aria-label="Usage">
-    ${limit('5h', usage.five_hour, { hour: 'numeric', minute: '2-digit' })}
-    ${limit('week', usage.seven_day, { weekday: 'short', hour: 'numeric' })}
-    ${seen && html`<span class="ou-local-muted">from a status line ${seen} ago</span>`}
-  </p>`;
+  const limit = (label: string, name: string, value: BoardLimit | null) => {
+    if (!value) {
+      return '';
+    }
+    const resets = resetText(value.resets_at, now);
+    const title = `${name}: ${Math.round(value.percent)}% used${resets ? `, resets ${resets}` : ''}${seen ? ` (status line read ${seen} ago)` : ''}`;
+    const note =
+      value.percent >= 70 && resets
+        ? html`<span class="ou-board-meter-reset">resets ${resets}</span>`
+        : '';
+    return meterHtml(label, value.percent, title, note);
+  };
+  const five = limit('5h', '5-hour limit', usage.five_hour);
+  const week = limit('week', 'Weekly limit', usage.seven_day);
+  return five || week
+    ? html`<div class="ou-board-meters" aria-label="Usage">${five}${week}</div>`
+    : '';
 }
 
 function sessionHtml(session: BoardSession, now: number) {
@@ -412,12 +459,12 @@ function cardHtml(card: BoardCard, now: number) {
     pr && html`<a href="${pr.url}" target="_blank" rel="noopener">PR #${pr.number}</a>`;
   const merged = pr?.state === 'merged' && time ? `merged ${ago(card.since, now)}` : '';
   const chips = pr ? prChips(pr) : [];
-  if (card.story?.approved_at && card.column === 'done') {
+  if (card.story?.approved_at && card.column === 'ship') {
     chips.push({ text: 'Approved, ready to ship', tone: 'ok' });
   }
   const gates = card.agents.filter((agent) => agent.gate).map(gateText);
-  // Open story: on a card ready for review, or an approved local story in Done (a local story is never in Back to you)
-  const approved = !!card.story?.approved_at && card.column === 'done';
+  // Open story: on a card ready for review, or an approved local story in Ready to ship (a local story is never in Back to you)
+  const approved = !!card.story?.approved_at && card.column === 'ship';
   const openable = card.column === 'ready' || approved;
   // Mark reviewed: a local story's card in Ready (a PR story is marked in the inbox or by reviewing it on GitHub)
   const markable = card.column === 'ready' && card.story?.kind === 'local';
@@ -503,11 +550,21 @@ const VOICE_STATUS: Record<BoardVoice['status'], string> = {
   away: 'Away on the phone',
 };
 
-/** The voice session, pinned above the columns: its repo beside the label, its name in the tooltip, status, its agents. */
+/** The voice tab's microphone glyph. */
+const MIC_ICON = html`<svg class="ou-board-voice-mic" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+  <path fill="currentColor" d="M8 1a2.5 2.5 0 0 0-2.5 2.5v4a2.5 2.5 0 0 0 5 0v-4A2.5 2.5 0 0 0 8 1Z"/>
+  <path fill="currentColor" d="M3.5 7a.75.75 0 0 1 1.5 0 3 3 0 0 0 6 0 .75.75 0 0 1 1.5 0 4.5 4.5 0 0 1-3.75 4.44V14h1.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5h1.5v-2.56A4.5 4.5 0 0 1 3.5 7Z"/>
+</svg>`;
+
 /** One line of the voice conversation, who said it first. */
 const voiceLineHtml = (line: BoardVoiceLine) =>
   html`<li class="ou-board-voice-${line.who}"><span class="ou-local-muted">${line.who === 'you' ? 'You' : 'Voice'}</span> ${line.text}</li>`;
 
+/**
+ * The voice session as a panel docked on the board's right edge: a small tab (mic, status word, a color for the status)
+ * that opens the panel with its repo and branch, status, context, agents, the conversation (newest at the bottom) and
+ * Open in iTerm. Whether it is open is a page preference, so a poll's redraw leaves it as it is.
+ */
 function voiceHtml(voice: BoardVoice) {
   const agents = [
     voice.agents.running && `${voice.agents.running} running`,
@@ -518,14 +575,30 @@ function voiceHtml(voice: BoardVoice) {
   const focusTitle = voice.can_focus
     ? "Bring the voice session's iTerm tab to the front"
     : 'No iTerm tab is known for this session';
-  return html`<section class="ou-board-voice ou-board-voice-${voice.status}" aria-label="Voice session" title="${voice.name}">
-    <strong>Voice session</strong>
-    ${voice.repo && html`<span class="ou-local-muted">${voice.repo.split('/')[1]}${voice.branch ? ` · ${voice.branch}` : ''}</span>`}
-    <span class="ou-board-voice-status">${VOICE_STATUS[voice.status]}</span>
-    <span class="ou-local-muted">${agents ? `agents: ${agents}` : 'no agents running'}</span>${contextHtml(voice.context)}
-    ${voice.lines.length > 0 && html`<ol class="ou-board-voice-lines" aria-label="Last lines">${voice.lines.map(voiceLineHtml)}</ol>`}
-    <button type="button" class="ou-board-focus" data-focus="${voice.session}"${!voice.can_focus && html` disabled`} title="${focusTitle}">Open in iTerm</button>
-  </section>`;
+  const status = VOICE_STATUS[voice.status];
+  const where = voice.repo
+    ? `${voice.repo.split('/')[1]}${voice.branch ? ` · ${voice.branch}` : ''}`
+    : '';
+  return html`<aside class="ou-board-voice ou-board-voice-${voice.status}${voiceOpen ? ' ou-board-voice-open' : ''}" aria-label="Voice session">
+    <button type="button" class="ou-board-voice-tab" data-voice-toggle aria-expanded="${String(voiceOpen)}" aria-controls="ou-board-voice-panel"
+      title="${voiceOpen ? 'Close' : 'Open'} the voice session: ${voice.name}">
+      ${MIC_ICON}<span class="ou-board-voice-dot" aria-hidden="true"></span><span class="ou-board-voice-word">${status}</span>
+    </button>
+    ${
+      voiceOpen &&
+      html`<div class="ou-board-voice-panel" id="ou-board-voice-panel" role="region" aria-label="Voice session panel">
+      <div class="ou-board-voice-head">
+        <strong class="ou-board-voice-name" title="${voice.title}">${voice.name}</strong>
+        <button type="button" class="ou-board-voice-close" data-voice-toggle aria-label="Close the voice panel" title="Close">✕</button>
+      </div>
+      ${where && html`<div class="ou-local-muted">${where}</div>`}
+      <div class="ou-board-voice-facts"><span class="ou-board-voice-status"><span class="ou-board-voice-dot" aria-hidden="true"></span>${status}</span>${contextHtml(voice.context)}</div>
+      <div class="ou-local-muted">${agents ? `agents: ${agents}` : 'no agents running'}</div>
+      ${voice.lines.length > 0 ? html`<ol class="ou-board-voice-lines" aria-label="Conversation, newest last">${voice.lines.map(voiceLineHtml)}</ol>` : html`<p class="ou-local-muted ou-board-voice-none">Nothing said yet.</p>`}
+      <button type="button" class="ou-board-focus" data-focus="${voice.session}"${!voice.can_focus && html` disabled`} title="${focusTitle}">Open in iTerm</button>
+    </div>`
+    }
+  </aside>`;
 }
 
 /** "3h", "5m" since an ISO time, for the Listeners lane. */
@@ -685,12 +758,16 @@ function render(full: BoardData) {
   // what is on you: a question, a story to review, comments to answer
   const onYou = count('waiting') + count('ready') + count('back');
   document.title = onYou ? `(${onYou}) Agent board` : 'Agent board';
+  // the voice tab and, open, its panel make room beside the board; a phone gets a sheet over the bottom instead
+  app.classList.toggle('ou-board-has-voice', !!data.voice);
+  app.classList.toggle('ou-board-pushed', !!data.voice && voiceOpen);
   const summary = [
     ...(count('backlog') ? [`${count('backlog')} in backlog`] : []),
     `${count('working')} working`,
     `${count('waiting')} waiting`,
     ...(count('checks') ? [`${count('checks')} in agent checks`] : []),
     `${count('ready')} ready for your review`,
+    ...(count('ship') ? [`${count('ship')} ready to ship`] : []),
     `${count('back')} back to you`,
     `status from ${data.status_source}`,
   ].join(' · ');
@@ -706,12 +783,11 @@ function render(full: BoardData) {
       : '';
   const markup = html`<header class="ou-local-top">
       <div class="ou-local-top-main"><h1>Agent board</h1><div class="ou-local-muted">${summary}</div></div>
+      ${usageHtml(data.usage, now)}
       <button type="button" data-board-filter aria-haspopup="menu" title="Narrow the whole board to one repo's lane">Repo: ${filterOn ? laneFilter : 'All'} ▾</button>
       <button type="button" data-inbox="">Review inbox</button>
     </header>
-    ${usageHtml(data.usage, now)}
     ${data.warning && html`<p class="ou-board-warning">${data.warning}</p>`}
-    ${data.voice && voiceHtml(data.voice)}
     <main class="ou-board">
       <div class="ou-board-groups">${GROUPS.map((group) =>
         groupHtml(
@@ -736,7 +812,8 @@ function render(full: BoardData) {
       </section>`
       }
       ${listenersHtml(data.listeners, now)}
-    </main>`;
+    </main>
+    ${data.voice && voiceHtml(data.voice)}`;
   // ages tick on every poll, but the page is only redrawn when its markup changed (a redraw loses a focused button)
   const next = String(markup);
   if (next !== last) {
@@ -748,7 +825,15 @@ function render(full: BoardData) {
     const focused = (document.activeElement as HTMLElement | null)?.closest('[data-backlog-add]')
       ? (document.activeElement as HTMLInputElement).name
       : null;
+    // the voice conversation: a redraw keeps your place in it, and a new line scrolls it to the bottom if you were there
+    const lines = app.querySelector<HTMLElement>('.ou-board-voice-lines');
+    const wasAtBottom = !lines || lines.scrollHeight - lines.scrollTop - lines.clientHeight < 8;
+    const scrolled = lines ? lines.scrollTop : 0;
     setHtml(app, markup);
+    const linesNow = app.querySelector<HTMLElement>('.ou-board-voice-lines');
+    if (linesNow) {
+      linesNow.scrollTop = wasAtBottom ? linesNow.scrollHeight : scrolled;
+    }
     for (const [name, value] of typed) {
       const field = app.querySelector<HTMLInputElement>(`[data-backlog-add] [name="${name}"]`);
       if (field && value) {
@@ -1281,6 +1366,19 @@ app.addEventListener('click', async (event) => {
     hideOnAuthor = !hideOnAuthor;
     try {
       localStorage.setItem(ON_AUTHOR_KEY, String(hideOnAuthor));
+    } catch {
+      /* the choice just isn't remembered */
+    }
+    if (board) {
+      last = '';
+      render(board);
+    }
+    return;
+  }
+  if (clicked.closest('[data-voice-toggle]')) {
+    voiceOpen = !voiceOpen;
+    try {
+      localStorage.setItem(VOICE_KEY, String(voiceOpen));
     } catch {
       /* the choice just isn't remembered */
     }

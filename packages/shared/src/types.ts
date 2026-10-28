@@ -618,6 +618,7 @@ export type BoardColumn =
   | 'checks'
   | 'waiting'
   | 'ready'
+  | 'ship'
   | 'pr_open'
   | 'back'
   | 'done'

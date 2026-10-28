@@ -184,7 +184,7 @@ test('an approval counts only for its head and for APPROVED_DAYS, and the backgr
   }
 });
 
-test('an approved local story with no PR is Done, and any of working, a PR or a new head moves it', () => {
+test('an approved local story with no PR is Ready to ship, and any of working, a PR or a new head moves it', () => {
   const none = { sessions: [], agents: [], pr: null };
   const story = {
     reviewed: true,
@@ -193,8 +193,8 @@ test('an approved local story with no PR is Done, and any of working, a PR or a 
     local: true,
     approved: true,
   };
-  assert.equal(columnOf({ ...none, story }), 'done');
-  assert.equal(columnOf({ ...none, story: { ...story, unread: true } }), 'done');
+  assert.equal(columnOf({ ...none, story }), 'ship');
+  assert.equal(columnOf({ ...none, story: { ...story, unread: true } }), 'ship');
   assert.equal(columnOf({ ...none, sessions: [{ status: 'working' }], story }), 'working');
   assert.equal(columnOf({ ...none, story: { ...story, approved: false } }), 'idle');
   assert.equal(
@@ -205,7 +205,7 @@ test('an approved local story with no PR is Done, and any of working, a PR or a 
   assert.equal(columnOf({ ...none, story: { ...story, local: false } }), 'idle');
 });
 
-test('the board shows an approved local story in Done with its time, and drops it when the head moves', async () => {
+test('the board shows an approved local story in Ready to ship with its time, and drops it when the head moves', async () => {
   const { id, bridge, head, post, repo } = await setup();
   try {
     await post(pageKey(TOKEN, id), `/api/stories/${id}/approve`, { head_sha: head() });
@@ -218,7 +218,7 @@ test('the board shows an approved local story in Done with its time, and drops i
         .flatMap((lane) => lane.cards)
         .find((card) => card.story?.id === id);
     const card = await board();
-    assert.equal(card?.column, 'done');
+    assert.equal(card?.column, 'ship');
     assert.ok(card?.story?.approved_at);
     commit(repo, 'five.txt');
     await bridge.call('GET', `/api/stories/${id}/version`, undefined, {

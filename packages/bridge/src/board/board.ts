@@ -939,7 +939,7 @@ export class Board {
       if (card.story) {
         card.listening = storyListening(card.story.id, waits, listening);
       }
-      if (card.column !== 'done') {
+      if (card.column !== 'done' && card.column !== 'ship') {
         card.build = buildFor(card, idle);
       }
     }
@@ -1311,6 +1311,7 @@ export class Board {
         ]);
         break;
       case 'done':
+      case 'ship':
         card.since = card.pr?.merged_at ?? card.story?.approved_at ?? null;
         break;
       case 'back':
