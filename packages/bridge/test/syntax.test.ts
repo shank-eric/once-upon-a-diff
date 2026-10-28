@@ -1,7 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { langOf, splitHtmlLines, hunkHtml, highlightFile, LIMITS } from '../public/syntax.ts';
+import {
+  langOf,
+  langOfShebang,
+  splitHtmlLines,
+  hunkHtml,
+  highlightFile,
+  LIMITS,
+} from '../public/syntax.ts';
 import hljs from '../public/vendor/highlight.mjs';
 import { startBridge, tmp } from './helpers.ts';
 
@@ -33,6 +40,48 @@ test('picks the language by extension or file name', () => {
   ]) {
     assert.ok(hljs.getLanguage(line), `${line} is vendored`);
   }
+});
+
+test('Python and the rest of the common set by extension or name, and a script with no extension by its #! line', () => {
+  assert.equal(langOf('tools/report.py'), 'python');
+  assert.equal(langOf('db/query.sql'), 'sql');
+  assert.equal(langOf('Dockerfile'), 'dockerfile');
+  assert.equal(langOf('Makefile'), 'makefile');
+  assert.equal(langOf('pyproject.toml'), 'ini');
+  for (const lang of [
+    'python',
+    'sql',
+    'go',
+    'java',
+    'rust',
+    'dockerfile',
+    'makefile',
+    'ini',
+    'diff',
+  ]) {
+    assert.ok(hljs.getLanguage(lang), `${lang} is vendored`);
+  }
+  assert.equal(langOfShebang('#!/usr/bin/env python3'), 'python');
+  assert.equal(langOfShebang('#!/bin/bash'), 'bash');
+  assert.equal(langOfShebang('#!/bin/sh -e'), 'bash');
+  assert.equal(langOfShebang('#!/usr/bin/env ruby'), 'ruby');
+  assert.equal(langOfShebang('#!/usr/bin/env -S node --no-warnings'), 'javascript');
+  assert.equal(langOfShebang('#!/usr/bin/env awk'), null);
+  assert.equal(langOfShebang('echo hi'), null);
+  assert.equal(langOf('bin/setup', '#!/usr/bin/env ruby'), 'ruby');
+  assert.equal(langOf('bin/notes.txt', '#!/usr/bin/env ruby'), null, 'an extension wins');
+  // a new script: its first hunk starts at line 1, so its #! line picks the language
+  const script = {
+    rel: 'bin/sweep',
+    hunks: [{ oldStart: 0, newStart: 1, lines: ['+#!/usr/bin/env python3', '+print("hi")'] }],
+  };
+  assert.ok(highlightFile(script, hljs)?.[0][1]?.includes('<span'), 'highlighted as Python');
+  // a change further down shows no #! line: plain
+  const deeper = {
+    rel: 'bin/sweep',
+    hunks: [{ oldStart: 40, newStart: 40, lines: [' print("hi")'] }],
+  };
+  assert.equal(highlightFile(deeper, hljs), null);
 });
 
 test('cuts highlighted HTML into lines with balanced spans, reopening a token that runs on', () => {

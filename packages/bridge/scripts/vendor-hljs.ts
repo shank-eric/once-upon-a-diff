@@ -12,20 +12,43 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
 const PKG = path.dirname(require.resolve('highlight.js/package.json'));
 const { version } = JSON.parse(readFileSync(path.join(PKG, 'package.json'), 'utf8'));
-// erb's grammar uses xml and ruby, so they come first
+// highlight.js's common set (lib/common.js) without the rare ones, plus erb and dockerfile; erb's and php-template's
+// grammars use xml, ruby and php, so those come first
 const LANGS = [
   'xml',
   'ruby',
+  'php',
+  'php-template',
   'erb',
+  'bash',
+  'shell',
+  'c',
+  'cpp',
+  'csharp',
+  'css',
+  'less',
+  'scss',
+  'markdown',
+  'diff',
+  'dockerfile',
+  'go',
+  'graphql',
+  'ini',
+  'java',
+  'kotlin',
   'javascript',
   'typescript',
   'json',
+  'lua',
+  'makefile',
+  'perl',
+  'plaintext',
+  'python',
+  'r',
+  'rust',
+  'sql',
+  'swift',
   'yaml',
-  'css',
-  'scss',
-  'markdown',
-  'bash',
-  'shell',
 ];
 const OUT = path.join(ROOT, 'public/vendor');
 

@@ -49,6 +49,41 @@ const BY_EXT: Record<string, string> = {
   htm: 'xml',
   xml: 'xml',
   svg: 'xml',
+  py: 'python',
+  pyi: 'python',
+  pyw: 'python',
+  sql: 'sql',
+  go: 'go',
+  java: 'java',
+  kt: 'kotlin',
+  kts: 'kotlin',
+  swift: 'swift',
+  rs: 'rust',
+  c: 'c',
+  h: 'c',
+  cc: 'cpp',
+  cpp: 'cpp',
+  cxx: 'cpp',
+  hpp: 'cpp',
+  hh: 'cpp',
+  cs: 'csharp',
+  php: 'php',
+  pl: 'perl',
+  pm: 'perl',
+  lua: 'lua',
+  r: 'r',
+  less: 'less',
+  graphql: 'graphql',
+  gql: 'graphql',
+  diff: 'diff',
+  patch: 'diff',
+  ini: 'ini',
+  toml: 'ini',
+  cfg: 'ini',
+  conf: 'ini',
+  properties: 'ini',
+  mk: 'makefile',
+  dockerfile: 'dockerfile',
 };
 const BY_NAME: Record<string, string> = {
   Gemfile: 'ruby',
@@ -58,16 +93,74 @@ const BY_NAME: Record<string, string> = {
   Brewfile: 'ruby',
   '.bashrc': 'bash',
   '.zshrc': 'bash',
+  '.bash_profile': 'bash',
+  '.profile': 'bash',
+  '.zprofile': 'bash',
+  Makefile: 'makefile',
+  GNUmakefile: 'makefile',
+  Dockerfile: 'dockerfile',
+  Containerfile: 'dockerfile',
 };
 
-/** The highlight.js language for a path, by its extension (or a few well-known names), or null. */
-export function langOf(rel: string): string | null {
+/** A script's interpreter (the shebang's program, after `env` and its flags) as a highlight.js language. */
+const BY_INTERPRETER: [RegExp, string][] = [
+  [/^python[\d.]*$/, 'python'],
+  [/^(ba|z|k|da)?sh$/, 'bash'],
+  [/^ruby[\d.]*$/, 'ruby'],
+  [/^(node|nodejs|deno|bun)$/, 'javascript'],
+  [/^(ts-node|tsx)$/, 'typescript'],
+  [/^perl[\d.]*$/, 'perl'],
+  [/^php[\d.]*$/, 'php'],
+];
+
+/** The language a `#!` line names, or null: `#!/bin/bash`, `#!/usr/bin/env python3`, `#!/usr/bin/env -S node --flag`. */
+export function langOfShebang(line: string): string | null {
+  const match = /^#!\s*(\S+)(.*)$/.exec(line);
+  if (!match) {
+    return null;
+  }
+  let program = match[1].split('/').pop() as string;
+  if (program === 'env') {
+    program = (
+      match[2]
+        .trim()
+        .split(/\s+/)
+        .find((word) => word && !word.startsWith('-')) || ''
+    )
+      .split('/')
+      .pop() as string;
+  }
+  return BY_INTERPRETER.find(([pattern]) => pattern.test(program))?.[1] ?? null;
+}
+
+/** The file's first line when a hunk shows it (on the new side, else the old side for a deleted file), or null. */
+function firstLineOf(
+  hunks: { newStart?: number; oldStart?: number; lines: string[] }[],
+): string | null {
+  const top =
+    hunks.find((hunk) => hunk.newStart === 1) || hunks.find((hunk) => hunk.oldStart === 1);
+  if (!top) {
+    return null;
+  }
+  const side = top.newStart === 1 ? '+ ' : '- ';
+  const line = top.lines.find((one) => side.includes(one[0]));
+  return line === undefined ? null : line.slice(1);
+}
+
+/**
+ * The highlight.js language for a path, by its extension (or a few well-known names), or null. A file with no
+ * extension (a script in bin/, say) goes by its `#!` line when `firstLine` has it.
+ */
+export function langOf(rel: string, firstLine: string | null = null): string | null {
   const name = String(rel).split('/').pop() as string;
   if (BY_NAME[name]) {
     return BY_NAME[name];
   }
   const dot = name.lastIndexOf('.');
-  return dot > 0 ? BY_EXT[name.slice(dot + 1).toLowerCase()] || null : null;
+  if (dot > 0) {
+    return BY_EXT[name.slice(dot + 1).toLowerCase()] || null;
+  }
+  return firstLine ? langOfShebang(firstLine) : null;
 }
 
 /** Cuts highlighted HTML (text plus <span class="…"> and </span> only) into lines, each with balanced spans. */
@@ -140,10 +233,10 @@ export function hunkHtml(
  * no known language, too big, a very long (minified) line, or highlight.js not loaded.
  */
 export function highlightFile(
-  file: { rel: string; hunks: { lines: string[] }[] },
+  file: { rel: string; hunks: { newStart?: number; oldStart?: number; lines: string[] }[] },
   hljs: Highlighter | null,
 ): (string | null)[][] | null {
-  const lang = langOf(file.rel);
+  const lang = langOf(file.rel, firstLineOf(file.hunks));
   if (!hljs || !lang || !hljs.getLanguage(lang)) {
     return null;
   }
