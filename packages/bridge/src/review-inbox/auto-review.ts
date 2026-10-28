@@ -787,11 +787,13 @@ export class AutoReview {
       if (entry.approval) {
         this.checkApproval(entry, now);
       }
-      if (entry.marked) {
+      // a story you marked or unmarked by hand is left alone, but an approved one still gets the delivered check: pushing
+      // it (Push on its page) is what ships it, and its card should clear then
+      if (entry.marked && !entry.approval) {
         continue;
       }
       const onFeature = story.repo && story.branch && !DEFAULT_BRANCHES.has(story.branch);
-      if (onFeature && entry.repo_path) {
+      if (!entry.marked && onFeature && entry.repo_path) {
         this.kickBranch(story.repo as string, story.branch as string, entry.repo_path, now);
         if (this.branchPr(story.repo as string, story.branch as string)) {
           this.markLocal(story.id, 'pr');
@@ -817,7 +819,7 @@ export class AutoReview {
       const job = inDefaultBranch(checkout, head)
         .then((yes) => {
           if (yes) {
-            this.markLocal(story.id, 'delivered');
+            this.markDelivered(story.id, head);
           }
         })
         .finally(() => this.running.delete(job));
@@ -858,6 +860,29 @@ export class AutoReview {
       })
       .finally(() => this.running.delete(job));
     this.running.add(job);
+  }
+
+  /** Forgets when a story's heads were last looked for in the default branch, so the next kickLocal looks again (after a push). */
+  forget(id: string): void {
+    for (const key of this.delivered.keys()) {
+      if (key.startsWith(`${id}@`) || key.startsWith(`approval:${id}@`)) {
+        this.delivered.delete(key);
+      }
+    }
+  }
+
+  /**
+   * A local story whose head is in the default branch is done. One approved at that head has shipped, so its approval
+   * ends too (approved.json cleared, which takes it out of Ready to ship) and its mark becomes `delivered`.
+   */
+  private markDelivered(id: string, head: string): void {
+    const approval = readApproval(this.stories, id);
+    if (approval && approval.head_oid === head) {
+      this.stories.writeState(id, 'approved.json', null);
+      markStoryReviewed(this.stories, id, true, 'delivered');
+      return;
+    }
+    this.markLocal(id, 'delivered');
   }
 
   /** Writes a local story's done mark unless a hand mark or unmark got there first. */

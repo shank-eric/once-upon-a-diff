@@ -33,6 +33,9 @@ const BOOT: { story: string } = JSON.parse(
  */
 const KEY = new URLSearchParams(location.hash.slice(1)).get('key') || '';
 
+/** The link asked for the Push box to open (`#push=1`, which the board's Ready to ship card adds). */
+export const OPEN_PUSH = new URLSearchParams(location.hash.slice(1)).get('push') === '1';
+
 /** The page's address without its #key, for what the page tells the bridge (position, questions). */
 export const pageUrl = () => location.href.split('#')[0];
 

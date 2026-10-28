@@ -19,6 +19,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { DEFAULT_PORT } from '@once-upon-a-diff/shared/util/bridge-port';
 import { readJson } from '../util/json-file.ts';
+import type { ShipMode } from '@once-upon-a-diff/shared/types';
 
 /** config.json: the port and token, and any personal settings (readSettings). */
 export interface Config {
@@ -110,6 +111,46 @@ export function loadConfig(home = homeDir()): Config {
   return cfg as Config; // both filled in above
 }
 
+/** One `ship` entry: a glob on owner/name (case-insensitive, `*` matches within one part) and what it picks. */
+export interface ShipRule {
+  pattern: string;
+  mode: ShipMode;
+}
+
+const SHIP_PATTERN = /^[A-Za-z0-9_.*-]{1,100}\/[A-Za-z0-9_.*-]{1,100}$/;
+
+/** The rules in config.json's `ship` object, in file order; anything that isn't "push" or "pr" for a repo pattern is dropped. */
+function shipRulesOf(value: unknown): ShipRule[] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return [];
+  }
+  const rules: ShipRule[] = [];
+  for (const [pattern, mode] of Object.entries(value)) {
+    const wanted = typeof mode === 'string' ? mode.trim().toLowerCase() : '';
+    if (SHIP_PATTERN.test(pattern) && (wanted === 'push' || wanted === 'pr')) {
+      rules.push({ pattern, mode: wanted });
+    }
+  }
+  return rules;
+}
+
+/** What the `ship` rules say about a repo (owner/name): the first rule whose glob matches it, or null. */
+export function shipRuleFor(repo: string | null | undefined, rules: ShipRule[]): ShipMode | null {
+  if (!repo) {
+    return null;
+  }
+  for (const rule of rules) {
+    const source = rule.pattern
+      .split('*')
+      .map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&'))
+      .join('[^/]*');
+    if (new RegExp(`^${source}$`, 'i').test(repo)) {
+      return rule.mode;
+    }
+  }
+  return null;
+}
+
 /** The folders to look for checkouts in: ONCE_UPON_DEV_DIR (tests), else checkout_dirs, else ~/Development. */
 function checkoutDirsOf(dirs: string[]): string[] {
   if (process.env.ONCE_UPON_DEV_DIR) {
@@ -157,6 +198,9 @@ const DEFAULT_HOSTS = ['once-upon.test', 'once-upon.fidev.net'];
  *   board_ledger_time_zone  the zone the ledger's times are in when they carry no label like ET (default: the system's)
  *   extension_ids           more extension IDs the bridge answers (a store install, an older unpacked copy); the
  *                           fixed unpacked ID is always allowed
+ *   ship                    how a local story ships, per repo: {"owner/name": "push" | "pr"}, with * globs on owner or
+ *                           name ({"shank-eric/Configuration": "push", "EverFi/*": "pr"}); the first match in file order
+ *                           wins. Unlisted repos ship by branch: Push for commits on the default branch, else Create pull request
  * Read without creating config.json, so a missing file just means the defaults.
  */
 export function readSettings(home = homeDir()) {
@@ -202,6 +246,7 @@ export function readSettings(home = homeDir()) {
         : null,
     allowedHosts,
     publicHost,
+    ship: shipRulesOf(cfg.ship),
     // named in config.json, so used as set; unset, the default name is used only where it resolves to this machine
     publicHostSet:
       wantedHost !== null &&

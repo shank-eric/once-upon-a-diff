@@ -58,6 +58,7 @@ import { readRoutes } from './routes/reads.ts';
 import { localStoryRoutes } from './routes/local-story.ts';
 import { fixRoutes } from './routes/fixes.ts';
 import { pullRequestRoutes } from './routes/pull-request.ts';
+import { pushRoutes } from './routes/push.ts';
 import { inboxRoutes } from './routes/inbox.ts';
 import { boardRoutes } from './routes/board.ts';
 import {
@@ -96,6 +97,7 @@ const STORY_ROUTES: StoryRoute[] = [
   ...localStoryRoutes,
   ...fixRoutes,
   ...pullRequestRoutes,
+  ...pushRoutes,
   ...storyStatusRoutes,
 ];
 const STORY_PATH = /^\/api\/stories\/([^/]+)(?:\/([a-z]+)(?:\/([^/]+))?)?$/;

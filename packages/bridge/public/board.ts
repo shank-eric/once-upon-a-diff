@@ -557,6 +557,7 @@ function cardHtml(card: BoardCard, now: number) {
     <div class="ou-board-actions">
       ${card.build && buildHtml(card)}
       ${card.focus_session && html`<button type="button" class="ou-board-focus" data-focus="${card.focus_session}"${!card.can_focus && html` disabled`} title="${focusTitle}">Open in iTerm</button>`}
+      ${card.column === 'ship' && card.story?.ship === 'push' && html`<button type="button" class="ou-board-push" data-push-local="${card.story.id}" title="Opens the story's Push box, which checks GitHub first">Push</button>`}
       ${openable && card.story?.url && html`<a class="ou-board-open" href="${card.story.url}" target="_blank" rel="noopener">Open story</a>`}
       ${openable && card.story && !card.story.url && html`<button type="button" class="ou-board-open" data-open-local="${card.story.id}" title="Opens the local story's page">Open story</button>`}
       ${markable && card.story && html`<button type="button" data-mark-local="${card.story.id}" title="Done with this story: it leaves Ready for your review">Mark reviewed</button>`}
@@ -1414,6 +1415,18 @@ app.addEventListener('click', async (event) => {
       await refresh();
     } catch (err) {
       alert(`Couldn't mark it reviewed: ${(err as Error).message}`);
+    }
+    return;
+  }
+  const pushLocal = clicked.closest('[data-push-local]');
+  if (pushLocal) {
+    try {
+      const { url } = await api<{ url: string }>('/api/board/open-story', {
+        story: pushLocal.getAttribute('data-push-local'),
+      });
+      window.open(`${url}&push=1`, '_blank', 'noopener'); // the story's page opens its Push box
+    } catch (err) {
+      alert(`Couldn't open the story: ${(err as Error).message}`);
     }
     return;
   }

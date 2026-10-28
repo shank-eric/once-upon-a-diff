@@ -5,7 +5,7 @@
  * /api/stories/<id>/... routes, and only for a local story (index.ts).
  *
  * A story has two keys, and links only step down in power. `pageKey` is the full one: it reads, asks, takes notes and
- * can push the branch for Create pull request. `viewKey` is the read-only one: the same story under its own label, so
+ * can push the branch for Create pull request and an approved commit to the default branch for Push. `viewKey` is the read-only one: the same story under its own label, so
  * it can't be turned into the full key, and the PR routes refuse it. The inbox hands out only the read-only one.
  */
 import { createHmac } from 'node:crypto';
@@ -35,7 +35,7 @@ export const viewKey = (token: string, story: string): string =>
  *  - Fix before push: notes, and fixes (the notes' state, Auto-send, Send, Take back)
  *  - Rebuild: asking the listening session to re-tell the story, which writes only the story (drafts are kept)
  *  - where the branch's PR stands: GET pr, never the POST that pushes
- * Refused: everything else (approve, pr writes, and any route not listed).
+ * Refused: everything else (approve, pr writes, push, and any route not listed).
  */
 const VIEW_KEY_MAY: Record<string, readonly string[]> = {
   '': ['GET'],

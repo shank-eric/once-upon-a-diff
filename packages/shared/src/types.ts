@@ -174,7 +174,12 @@ export interface LocalStory {
   notes: LocalNote[];
   /** Approve was clicked for this head and nothing has moved it since; null otherwise */
   approved: { at: string; head_oid: string } | null;
+  /** what ships it: `push` for commits on the repo's default branch (or a repo set to push), else `pr` (Create pull request) */
+  ship: ShipMode;
 }
+
+/** How a local story ships: pushed to the default branch, or through a pull request. */
+export type ShipMode = 'push' | 'pr';
 
 /** GET /api/inbox: what waits for review, and each repo's counts for the inbox page's filter. */
 export interface InboxList {
@@ -270,6 +275,40 @@ export interface PrView {
 export interface PrPushAnswer {
   output: string;
   view: PrView;
+}
+
+/**
+ * Where origin's default branch stands against the approved commit, for the page's Push box (GET .../push): same (it has
+ * the commit), ahead (the commit is new there: a fast-forward), behind (it already has the commit and more), diverged
+ * (it has commits this checkout doesn't), missing (no such branch on origin) or unreachable (the fetch failed).
+ */
+export type PushRemoteState = 'same' | 'ahead' | 'behind' | 'diverged' | 'missing' | 'unreachable';
+
+export interface PushView {
+  /** owner/name, from the checkout's origin; null when origin isn't on GitHub */
+  repo: string | null;
+  /** origin's default branch, where the push goes; null when the checkout doesn't say */
+  branch: string | null;
+  /** the approved commit: a push sends up to it and no further; null when the story isn't approved */
+  approved_sha: string | null;
+  approved_at: string | null;
+  /** commits on the local branch after the approved one, which stay local */
+  later: number;
+  remote: { state: PushRemoteState; sha: string | null; error?: string };
+  /** what a push sends, newest first */
+  to_push: LocalCommit[];
+  /** whether GitHub protects the branch or requires pull requests (unknown when gh couldn't say, which also stops a push) */
+  protection: { state: 'open' | 'protected' | 'unknown'; reason?: string };
+  /** why a push can't go ahead; null when it can */
+  blocker: string | null;
+  /** the blocker is one a pull request goes around, so the box offers Create pull request */
+  pr_instead: boolean;
+}
+
+/** POST .../push {action: 'push', head_sha}: git's own lines, and the view after it. */
+export interface PushAnswer {
+  output: string;
+  view: PushView;
 }
 
 /** A story as the panel takes it (GET /api/stories/<id>). */
@@ -710,6 +749,8 @@ export interface BoardCard {
     unread: boolean;
     /** a local story approved for its current head: ready to ship (null: not approved) */
     approved_at: string | null;
+    /** a local story approved and ready to ship: Push when its commits go straight to the default branch, else Create pull request (null otherwise) */
+    ship: ShipMode | null;
   } | null;
   /** a session is building, rebuilding or fixing for it (a claimed request) */
   building: { kind: StoryRequest['kind']; since: string | null; by: string | null } | null;

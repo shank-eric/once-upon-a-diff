@@ -115,6 +115,7 @@ describe('Create pull request on a local story', () => {
     }
     const never: [string, string][] = [
       ['pr', 'POST'],
+      ['push', 'GET'],
       ['pr', 'PUT'],
       ['', 'POST'],
       ['push', 'POST'],

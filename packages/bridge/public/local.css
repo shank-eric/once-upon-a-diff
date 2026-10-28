@@ -150,7 +150,7 @@ a { color: var(--fgColor-accent); }
 .ou-local-pr-link { font-size: 12px; white-space: nowrap; }
 .ou-local-approved { font-size: 12px; white-space: nowrap; color: var(--fgColor-success); }
 button.ou-local-approve, button.ou-local-unapprove { white-space: nowrap; }
-button.ou-local-pr { white-space: nowrap; }
+button.ou-local-pr, button.ou-local-push { white-space: nowrap; }
 #ou-local-pr-box { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 64px); padding: 16px 20px; border: 1px solid var(--borderColor-default); border-radius: 8px; background: var(--bgColor-default); color: var(--fgColor-default); }
 #ou-local-pr-box::backdrop { background: rgba(0, 0, 0, .4); }
 #ou-local-pr-box h2 { font-size: 16px; margin: 0 0 6px; }
@@ -348,7 +348,7 @@ button.ou-local-pr { white-space: nowrap; }
 .ou-board-lane-count { font-weight: 400; color: var(--fgColor-default); }
 .ou-board-clickable { cursor: pointer; }
 .ou-board-clickable:hover { border-color: var(--fgColor-muted); }
-.ou-board-open { font-size: 12px; padding: 3px 10px; border: 1px solid var(--borderColor-default); border-radius: 6px; text-decoration: none; white-space: nowrap; }
+.ou-board-open, .ou-board-push { font-size: 12px; padding: 3px 10px; border: 1px solid var(--borderColor-default); border-radius: 6px; text-decoration: none; white-space: nowrap; }
 /* a column's colour, which its header rule and its cards' left edges take (error shares Back to you's red) */
 .ou-board-c-backlog { --ou-board-color: var(--ou-board-backlog); }
 .ou-board-c-working { --ou-board-color: var(--ou-board-working); }

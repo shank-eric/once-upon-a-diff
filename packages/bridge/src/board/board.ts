@@ -36,6 +36,7 @@ import path from 'node:path';
 import { readSettings } from '../config/settings.ts';
 import { REPO_RE, lastKnownRepo, repoOfCheckoutAsync, sameRepo } from '../config/repos.ts';
 import { runGitAsync } from '../util/git.ts';
+import { shipMode } from '../stories/push-default.ts';
 import { gateOf, readAgents, type LedgerAgent } from './ledger.ts';
 import { BlankSessions } from './blank.ts';
 import { SessionTitles } from './titles.ts';
@@ -92,6 +93,7 @@ import type {
   InboxLocalStory,
   InboxStory,
   PrInfo,
+  ShipMode,
 } from '@once-upon-a-diff/shared/types';
 
 /** What the board asks of the GitHub watcher (review-inbox/auto-review.ts's AutoReview): it reads what it has and never waits. */
@@ -376,6 +378,8 @@ export class Board {
   private cache: { at: number; data: BoardData } | null = null;
   /** The build in flight, so callers arriving while it runs share it instead of starting another. */
   private building: Promise<BoardData> | null = null;
+  /** how each approved local story ships, worked out once per snapshot (build) */
+  private shipById = new Map<string, ShipMode>();
   /** Bumped when what a build read is out of date, so a build that started before it does not fill the cache. */
   private generation = 0;
   private blank = new BlankSessions();
@@ -593,6 +597,24 @@ export class Board {
     // branch-only work of its own; a PR story already on the branch is the card's story, so a local one is not
     const localEntryList = localEntries(this.stories, { now: nowMs });
     this.review.kickLocal(localEntryList);
+    // how each approved story ships (Push or Create pull request), for its Ready to ship card
+    this.shipById = new Map(
+      localEntryList
+        .filter((entry) => entry.story.approved_at && entry.repo_path)
+        .map((entry) => [
+          entry.story.id,
+          shipMode(
+            {
+              kind: 'local',
+              repo: entry.story.repo,
+              repo_path: entry.repo_path as string,
+              branch: entry.story.branch,
+              head_oid: entry.head_oid,
+            },
+            this.home,
+          ),
+        ]),
+    );
     const localStoryList = localEntryList.map((entry) => entry.story);
     const newestLocal = new Map<string, InboxLocalStory>();
     for (const local of localStoryList) {
@@ -1247,6 +1269,7 @@ export class Board {
             // built after you last opened or reviewed it (never opened: it is ready for review, not back to you)
             unread: unreadOf(story),
             approved_at: 'number' in story ? null : story.approved_at,
+            ship: 'number' in story ? null : (this.shipById.get(story.id) ?? null),
           }
         : null,
       building: building

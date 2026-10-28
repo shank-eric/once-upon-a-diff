@@ -4,6 +4,7 @@
  * bridge's state (viewed files, notes).
  */
 import { approvalOf } from '../review-inbox/approve.ts';
+import { shipMode } from './push-default.ts';
 import path from 'node:path';
 import { pathSha } from '../util/diff.ts';
 import { readPrefs } from '../config/settings.ts';
@@ -104,6 +105,7 @@ export function storyData(store: StoryStore, id: string, dir: string): StoryData
         const found = approvalOf(store, id, local.head_oid);
         return found ? { at: found.at, head_oid: found.head_oid } : null;
       })(),
+      ship: shipMode(local, store.home),
     };
   }
   return data;

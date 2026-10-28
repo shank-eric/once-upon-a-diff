@@ -38,6 +38,7 @@ export function redrawApprove() {
   if (holder) {
     setHtml(holder, approveHtml());
   }
+  window.dispatchEvent(new Event('ou-approval-changed')); // Push (push.ts) is off until the story is approved
 }
 
 /** Approve (or Unapprove) was clicked. */
@@ -55,6 +56,11 @@ export async function toggleApprove(approve: boolean) {
   }
   redrawApprove();
 }
+
+window.addEventListener('ou-pushed', () => {
+  hasPull = true; // the commit is on GitHub: nothing left to approve
+  redrawApprove();
+});
 
 window.addEventListener('ou-pull-found', () => {
   hasPull = true;

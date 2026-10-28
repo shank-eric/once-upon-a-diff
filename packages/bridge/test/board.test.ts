@@ -4171,6 +4171,7 @@ test('the board: a local story puts its branch in Ready for your review, rebuilt
     reviewed: false,
     unread: false,
     approved_at: null,
+    ship: null,
   });
   assert.equal(withSession.lane, 'widgets');
   assert.equal(withSession.build, null, 'it has a story: nothing to build');

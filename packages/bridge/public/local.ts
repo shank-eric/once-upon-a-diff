@@ -12,12 +12,13 @@
  */
 import { html } from '/assets/util/html.ts';
 import { setHtml } from '/assets/util/dom.ts';
-import { page, api, STORY_PATH } from '/assets/local/page.ts';
+import { page, api, STORY_PATH, OPEN_PUSH } from '/assets/local/page.ts';
 import { treeHtml, fileHtml, headerHtml, resetHighlightBudget } from '/assets/local/diff-view.ts';
 import { placeNotes, openEditor } from '/assets/local/notes.ts';
 import { openFold, openRun, forgetNarrowing } from '/assets/local/folds.ts';
 import { mount, remount, showReopen } from '/assets/local/mount.ts';
 import { lookForPull, openPrBox } from '/assets/local/pull-request.ts';
+import { openPushBox } from '/assets/local/push.ts';
 import { toggleApprove } from '/assets/local/approve.ts';
 import type { LocalStoryData } from '/assets/local/page.ts';
 import type { InitialUi } from '/assets/overlay.ts';
@@ -107,6 +108,9 @@ document.addEventListener('click', async (event) => {
   }
   if (target.closest('.ou-local-pr')) {
     return openPrBox();
+  }
+  if (target.closest('.ou-local-push')) {
+    return openPushBox();
   }
   if (target.closest('.ou-local-approve')) {
     return toggleApprove(true);
@@ -286,6 +290,9 @@ async function start() {
     }
   }, STILL_OPEN_MS);
   lookForPull(true); // Create pull request turns into Open PR #N once the branch has one
+  if (OPEN_PUSH && page.story.local.ship === 'push') {
+    openPushBox(); // the board's Push: its link asks for the box
+  }
   window.addEventListener('focus', () => lookForPull());
 }
 start();

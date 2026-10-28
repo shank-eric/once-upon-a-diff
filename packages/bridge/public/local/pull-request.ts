@@ -20,9 +20,9 @@ const RECHECK_MS = 30000;
 let lastView: PrView | null = null;
 let lastLook = 0;
 
-/** The header's button: a link to the open PR once there is one, else Create pull request (on a branch only). */
+/** The header's button: a link to the open PR once there is one, else Create pull request (on a branch only, and not where Push ships it: push.ts). */
 export function prButtonHtml() {
-  if (!page.story.local.branch) {
+  if (!page.story.local.branch || page.story.local.ship === 'push') {
     return html``;
   }
   const pull = lastView && lastView.pull;
@@ -42,7 +42,11 @@ function redrawButton() {
 /** Looks where the branch stands (quietly: the header button only), at most every RECHECK_MS unless forced. */
 export async function lookForPull(force = false) {
   // a page opened with the read-only key may look (GET), so its Open PR link shows; only pushing is refused
-  if (!page.story.local.branch || (!force && Date.now() - lastLook < RECHECK_MS)) {
+  if (
+    !page.story.local.branch ||
+    page.story.local.ship === 'push' ||
+    (!force && Date.now() - lastLook < RECHECK_MS)
+  ) {
     return;
   }
   if (lastView && lastView.pull) {
@@ -80,7 +84,8 @@ export function compareUrl(
   return { url: withTitle, bodyLeftOut: true };
 }
 
-function commitListHtml(view: PrView) {
+/** The commits a push would send, as the Create pull request box and the Push box list them. */
+export function commitListHtml(view: { to_push: PrView['to_push'] }) {
   const shown = view.to_push.map(
     (commit) => html`<li><code>${commit.sha.slice(0, 7)}</code> ${commit.subject}</li>`,
   );
@@ -149,7 +154,8 @@ function formHtml(view: PrView) {
   </form>`;
 }
 
-function boxElement(): HTMLDialogElement {
+/** The confirm box both buttons use (one dialog on the page). */
+export function boxElement(): HTMLDialogElement {
   let box = document.getElementById('ou-local-pr-box') as HTMLDialogElement | null;
   if (!box) {
     box = document.createElement('dialog');
