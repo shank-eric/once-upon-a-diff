@@ -1,6 +1,7 @@
 /**
  * Session titles: Claude Code writes a session's title into its transcript as an `ai-title` line (`{"type": "ai-title",
- * "aiTitle": "…"}`), again and again as the session goes, so the latest is near the end. It is what iTerm's tab shows,
+ * "aiTitle": "…"}`), again and again as the session goes, but it does not change it, so the board prefers fresher signs
+ * (a rename, then your latest prompt; see titleIn). The ai-title is what iTerm's tab shows,
  * so the board titles a card by it when the tab's name says nothing (a generic or cut-short name) or there is no tab,
  * before the registry's derived name ("sideprojects-73"). A session that has only had messages from other sessions has
  * none, and keeps the registry's name.
@@ -15,9 +16,31 @@ import { RESCAN_MS, findIn, projectFolder, sizeOf } from './blank.ts';
 /** How much of the transcript's end is read: the first span almost always has the title, the second covers long turns. */
 const TAILS = [64 * 1024, 2 * 1024 * 1024];
 
-const AI_TITLE = /"type"\s*:\s*"ai-title"/;
+const TITLE_LINE = /"type"\s*:\s*"(ai-title|agent-name|last-prompt)"/;
 
-/** The last `ai-title` in the transcript's tail, or null. A partial first line (cut by the read) is skipped. */
+/** A prompt shorter than this ("yes", "go ahead") says nothing about what the session is doing. */
+const MIN_PROMPT = 20;
+const MAX_TITLE = 70;
+
+/** A card title from a prompt: its first line, cut at a word. Null for a slash command, a pasted tag or a short reply. */
+export function promptTitle(prompt: string): string | null {
+  const first = prompt.trim().split('\n')[0].replace(/…$/, '').replace(/\s+/g, ' ').trim();
+  if (first.length < MIN_PROMPT || /^[/<[]/.test(first)) {
+    return null;
+  }
+  if (first.length <= MAX_TITLE) {
+    return first;
+  }
+  const cut = first.slice(0, MAX_TITLE);
+  return `${cut.slice(0, Math.max(cut.lastIndexOf(' '), MAX_TITLE / 2)).replace(/[\s,;:.-]+$/, '')}…`;
+}
+
+/**
+ * The session's title from the transcript's tail, the freshest sign first. Claude Code writes its `ai-title` early and
+ * repeats it unchanged, so it goes stale as the work moves on: a name you gave it (`/rename`, an `agent-name` line) wins,
+ * then your latest real prompt (a `last-prompt` line that isn't a slash command or a short reply), then the ai-title.
+ * A partial first line (cut by the read) is skipped.
+ */
 async function titleIn(file: string, size: number): Promise<string | null> {
   const handle = await open(file, 'r');
   try {
@@ -29,25 +52,32 @@ async function titleIn(file: string, size: number): Promise<string | null> {
       if (start > 0) {
         lines.shift();
       }
-      for (let index = lines.length - 1; index >= 0; index--) {
-        if (!AI_TITLE.test(lines[index])) {
+      let named: string | null = null;
+      let prompted: string | null = null;
+      let generated: string | null = null;
+      for (let index = lines.length - 1; index >= 0 && !named; index--) {
+        const match = TITLE_LINE.exec(lines[index]);
+        if (!match) {
           continue;
         }
+        let line: { aiTitle?: unknown; agentName?: unknown; lastPrompt?: unknown };
         try {
-          const line: { type?: unknown; aiTitle?: unknown } = JSON.parse(lines[index]);
-          if (
-            line?.type === 'ai-title' &&
-            typeof line.aiTitle === 'string' &&
-            line.aiTitle.trim()
-          ) {
-            return line.aiTitle.trim();
-          }
+          line = JSON.parse(lines[index]);
         } catch {
-          /* a line that isn't JSON (one still being written) says nothing */
+          continue; // a line that isn't JSON (one still being written) says nothing
+        }
+        const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
+        if (match[1] === 'agent-name') {
+          named = text(line.agentName) || null;
+        } else if (match[1] === 'last-prompt') {
+          prompted = prompted ?? promptTitle(text(line.lastPrompt));
+        } else {
+          generated = generated ?? (text(line.aiTitle) || null);
         }
       }
-      if (start === 0) {
-        return null;
+      const found = named ?? prompted ?? generated;
+      if (found || start === 0) {
+        return found;
       }
     }
     return null;

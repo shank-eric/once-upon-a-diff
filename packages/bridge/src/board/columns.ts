@@ -13,8 +13,9 @@
  *             someone asked something of you on the PR after your last activity (on your own PR: changes requested, or
  *             an open thread whose last comment is theirs; on someone else's: a reply in an open thread you are in),
  *             or GitHub is waiting on your review
- *   ready     its story is built and you haven't reviewed it ("done" is not done until you've seen it). A local story
- *             (no PR yet) is always here, never in back: a rebuild since you opened it is a chip on its card
+ *   ready     its story is built, it has no PR yet, and you haven't reviewed it ("done" is not done until you've seen
+ *             it). It is the Mac's side: a card with a PR, whoever wrote it and whatever story it has, is on GitHub's
+ *             (back or pr_open). A rebuild of a local story since you opened it is a chip on its card
  *   pr_open   pushed with a PR, and nothing waits on you
  *   error     a failed agent, or a session whose tab says error
  *   idle      nothing is happening and there is no PR: a session at its prompt (a lane along the bottom of the page)
@@ -86,10 +87,17 @@ export function columnOf(input: ColumnInput): BoardColumn {
   if (story?.local && story.approved && !pr) {
     return 'ship';
   }
+  // Ready for your review is the Mac's side: a story whose work has no PR. Once a PR exists (even with a local story
+  // of its branch, or a PR story you haven't opened), the card follows the PR's rules on the GitHub side
   if (story?.unread) {
-    return story.local ? 'ready' : 'back';
+    if (!pr) {
+      return 'ready';
+    }
+    if (!story.local) {
+      return 'back';
+    }
   }
-  if (story && !story.reviewed) {
+  if (story && !story.reviewed && !pr) {
     return 'ready';
   }
   if (pr) {

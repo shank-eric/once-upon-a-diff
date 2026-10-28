@@ -455,7 +455,14 @@ test('columns follow the work to merge: waiting and working first, then merged, 
   assert.equal(columnOf({ ...none, sessions: [{ status: 'working' }], story: unseen }), 'working');
   assert.equal(columnOf({ ...none, agents: [{ status: 'working', state: 'running' }] }), 'working');
   assert.equal(columnOf({ ...none, pr: prInfo(1, { state: 'merged' }), story: unseen }), 'done');
-  assert.equal(columnOf({ ...none, pr: open, story: unseen }), 'ready');
+  assert.equal(columnOf({ ...none, story: unseen }), 'ready');
+  // a PR is the GitHub side, whoever wrote it and whatever story it has: never Ready for your review
+  assert.equal(columnOf({ ...none, pr: open, story: unseen }), 'pr_open');
+  assert.equal(columnOf({ ...none, pr: open, story: { ...unseen, local: true } }), 'pr_open');
+  assert.equal(
+    columnOf({ ...none, pr: open, story: { ...unseen, local: true, unread: true } }),
+    'pr_open',
+  );
   // a local story is never in Back to you: unread or not, reviewed or not, it waits in Ready
   const local = { ...unseen, local: true };
   assert.equal(columnOf({ ...none, story: { ...local, unread: true } }), 'ready');
@@ -649,14 +656,14 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
   assert.deepEqual(Object.fromEntries(cards.map((found) => [found.id, found.column])), {
     'pr:acme/widgets#7': 'working', // a session is busy on it, though its story is unreviewed
     'pr:acme/widgets#9': 'waiting', // found by its branch, no story; the session asked a question
-    'pr:acme/widgets#8': 'ready',
+    'pr:acme/widgets#8': 'pr_open', // an unreviewed story on a PR is still the GitHub side's
     'pr:acme/widgets#10': 'back', // an open thread asks something of you
     'pr:acme/widgets#11': 'pr_open',
     'pr:acme/widgets#17': 'back', // rebuilt since you last opened it
     'pr:acme/widgets#18': 'working', // a session is fixing the code
     'pr:acme/widgets#16': 'working', // a session is building its story, whatever branch it is on
-    'pr:acme/widgets#14': 'ready', // someone else's PR, with a story built for you
-    'pr:acme/widgets#15': 'ready',
+    'pr:acme/widgets#14': 'pr_open', // someone else's PR, with a story built for you: GitHub's side, not Ready
+    'pr:acme/widgets#15': 'pr_open',
     'pr:acme/widgets#19': 'back', // GitHub is waiting on your review
     'pr:acme/widgets#12': 'done',
     [fullId(onMain.pid)]: 'idle',
@@ -746,7 +753,7 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
   assert.equal(ready.title, 'PR 8');
   assert.equal(ready.story?.reviewed, false);
   assert.equal(ready.sessions.length, 0);
-  assert.ok(ready.since);
+  assert.equal(ready.column, 'pr_open');
 
   assert.equal(card('pr:acme/widgets#12').since, hoursAgo(2));
   assert.equal(card('pr:acme/widgets#12').story, null);
@@ -4160,7 +4167,7 @@ test('the board: a local story puts its branch in Ready for your review, rebuilt
     'branch:acme/widgets@feat/x': 'ready', // the session joins it; the story is unreviewed
     'branch:acme/widgets@feat/new': 'ready',
     'branch:acme/widgets@feat/rebuilt': 'ready', // rebuilt since you opened it: a local story is never in Back to you
-    'pr:acme/widgets#5': 'ready',
+    'pr:acme/widgets#5': 'pr_open', // the PR story on the branch wins, on GitHub's side
     'story:local-main': 'ready',
     'story:local-detached': 'ready',
   });

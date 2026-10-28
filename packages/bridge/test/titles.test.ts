@@ -63,3 +63,50 @@ test('a transcript in another project folder (the session’s cwd changed) is fo
     'Moved session',
   );
 });
+
+test('a title follows the session: a rename wins, then the latest real prompt, then the ai-title', async () => {
+  const projects = tmp('titles-fresh');
+  const cwd = '/Users/eric/Development/widgets';
+  const prompt = (text: string) => ({ type: 'last-prompt', lastPrompt: text, sessionId: SESSION });
+  const file = put(projects, cwd, SESSION, lines(aiTitle('Cypress fixes'), said('done')));
+  const titles = new SessionTitles();
+  assert.equal(await titles.titleOf(projects, SESSION, cwd, NOW), 'Cypress fixes');
+  // the ai-title is repeated unchanged while the work moves on: the latest real prompt is the title
+  appendFileSync(
+    file,
+    lines(
+      prompt('Larmor speaker clustering needs a threshold\nsecond line'),
+      aiTitle('Cypress fixes'),
+    ),
+  );
+  assert.equal(
+    await titles.titleOf(projects, SESSION, cwd, NOW),
+    'Larmor speaker clustering needs a threshold',
+  );
+  // a slash command, a pasted tag or a short reply is not a title: the last good prompt stands
+  appendFileSync(
+    file,
+    lines(
+      prompt('/compact'),
+      prompt('yes'),
+      prompt('<system-reminder>x</system-reminder> and more'),
+    ),
+  );
+  assert.equal(
+    await titles.titleOf(projects, SESSION, cwd, NOW),
+    'Larmor speaker clustering needs a threshold',
+  );
+  // a long prompt is cut at a word, with the transcript's own ellipsis dropped first
+  appendFileSync(file, lines(prompt(`${'words '.repeat(30)}…`)));
+  const cut = (await titles.titleOf(projects, SESSION, cwd, NOW)) as string;
+  assert.ok(cut.length <= 71 && cut.endsWith('words…'), cut);
+  // a name you gave it wins over any prompt, before or after
+  appendFileSync(
+    file,
+    lines(
+      { type: 'agent-name', agentName: 'Speaker clustering', sessionId: SESSION },
+      prompt('another real prompt about something else'),
+    ),
+  );
+  assert.equal(await titles.titleOf(projects, SESSION, cwd, NOW), 'Speaker clustering');
+});
