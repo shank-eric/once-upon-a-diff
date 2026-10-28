@@ -4121,8 +4121,20 @@ test('the board: a local story puts its branch in Ready for your review, rebuilt
     {},
     { ...byHand, 'position.json': { at: '2099-01-01T00:00:00Z' } },
   );
-  localStory(home, 'local-main', widgetsMain, 'main'); // a default branch is not a unit of work
+  // commits on a default branch, or a range with no branch: a card of their own while they wait for review
+  localStory(home, 'local-main', widgetsMain, 'main');
   localStory(home, 'local-detached', widgetsMain, null);
+  localStory(
+    home,
+    'local-main-done',
+    widgetsMain,
+    'main',
+    {},
+    {
+      ...byHand,
+      'position.json': { at: '2099-01-01T00:00:00Z' },
+    },
+  );
   localStory(home, 'local-norepo', elsewhere, 'feat/y'); // no GitHub repo: the inbox only
   localStory(home, 'turn-abc', widgetsMain, null, { turn: 'abc' });
   // a PR story on feat/pr wins over a local one of the same branch
@@ -4141,6 +4153,8 @@ test('the board: a local story puts its branch in Ready for your review, rebuilt
     'branch:acme/widgets@feat/new': 'ready',
     'branch:acme/widgets@feat/rebuilt': 'ready', // rebuilt since you opened it: a local story is never in Back to you
     'pr:acme/widgets#5': 'ready',
+    'story:local-main': 'ready',
+    'story:local-detached': 'ready',
   });
   const withSession = byId['branch:acme/widgets@feat/x'];
   assert.equal(withSession.kind, 'work');
@@ -4172,11 +4186,15 @@ test('the board: a local story puts its branch in Ready for your review, rebuilt
     'a PR story is the card’s story',
   );
   assert.equal(byId['pr:acme/widgets#5'].story?.kind, 'pr');
-  // a reviewed one, a default branch, a detached head, no repo and a story left by turn capture are not cards
-  for (const gone of ['feat/done', 'main', 'feat/y']) {
+  // a reviewed one, no repo and a story left by turn capture are not cards
+  for (const gone of ['feat/done', 'feat/y']) {
     assert.ok(!cards.some((found) => found.branch === gone), gone);
   }
-  assert.equal(cards.length, 4, 'the four above, nothing else');
+  assert.ok(
+    !cards.some((found) => found.id === 'story:local-main-done'),
+    'reviewed: the inbox only',
+  );
+  assert.equal(cards.length, 6, 'the six above, nothing else');
 });
 
 test('the board: a session on a branch whose PR merged long ago is a card of its own, not on the branch’s old local story', async () => {

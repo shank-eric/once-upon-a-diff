@@ -595,6 +595,20 @@ export class Board {
       if (local.repo && local.branch && !DEFAULT_BRANCHES.has(local.branch)) {
         const key = `${local.repo.toLowerCase()}@${local.branch}`;
         newestLocal.set(key, newestLocal.get(key) ?? local);
+      } else if (local.repo) {
+        // a story of commits on a default branch, or of a commit range with no branch (one commit each, say): no
+        // branch to share, so a card of its own, shown while it waits for review (workCard drops it after)
+        start({
+          key: `story:${local.id}`,
+          repo: local.repo,
+          number: null,
+          branch: null,
+          story: null,
+          mergedAt: null,
+          title: local.title,
+          built: true,
+        });
+        (works.get(`story:${local.id}`) as Work).local = local;
       }
     }
     const branchOfWork = (work: Work) =>
