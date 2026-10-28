@@ -221,8 +221,11 @@ export interface InboxStory {
   reviewed_by: ReviewedBy | null;
 }
 
-/** What marked a PR story reviewed. */
-export type ReviewedBy = 'manual' | 'review' | 'all viewed';
+/**
+ * What marked a story reviewed. The last three are for local stories: its branch has a PR (`pr`), its head is already in
+ * the default branch (`delivered`), or nothing touched it for LOCAL_IDLE_DAYS (`idle`).
+ */
+export type ReviewedBy = 'manual' | 'review' | 'all viewed' | 'pr' | 'delivered' | 'idle';
 
 /** The PR title and body a session handed over for a local story's branch (`once-upon pr-draft`). */
 export interface PrDraft {

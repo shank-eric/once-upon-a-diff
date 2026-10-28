@@ -7,11 +7,12 @@
  *             checks the plan or fixes the findings, and a running reviewer is a running agent
  *   working   a session or agent on it is busy, or a session is building, rebuilding or fixing its story
  *   done      the PR merged (the board drops it a day later)
- *   back      something is on you: its story has a version you haven't opened since it was built (a rebuild, say), or
+ *   back      something is on you: its PR story has a version you haven't opened since it was built (a rebuild, say), or
  *             someone asked something of you on the PR after your last activity (on your own PR: changes requested, or
  *             an open thread whose last comment is theirs; on someone else's: a reply in an open thread you are in),
  *             or GitHub is waiting on your review
- *   ready     its PR story is built and you haven't reviewed it ("done" is not done until you've seen it)
+ *   ready     its story is built and you haven't reviewed it ("done" is not done until you've seen it). A local story
+ *             (no PR yet) is always here, never in back: a rebuild since you opened it is a chip on its card
  *   pr_open   pushed with a PR, and nothing waits on you
  *   error     a failed agent, or a session whose tab says error
  *   idle      nothing is happening and there is no PR: a session at its prompt (a lane along the bottom of the page)
@@ -30,7 +31,13 @@ export interface ColumnInput {
    * bridge noticed, so it doesn't count as your activity), and whether it was built after you last opened or reviewed
    * it (`unread`: false when you have never opened it, which is "ready for your review", not "back to you").
    */
-  story: { reviewed: boolean; manualReviewedAt: number | null; unread: boolean } | null;
+  story: {
+    reviewed: boolean;
+    manualReviewedAt: number | null;
+    unread: boolean;
+    /** a local story (no PR): it waits in Ready for your review, never in Back to you, which is the GitHub side's */
+    local?: boolean;
+  } | null;
   /** a session is building, rebuilding or fixing for it */
   building?: boolean;
 }
@@ -73,7 +80,7 @@ export function columnOf(input: ColumnInput): BoardColumn {
     return 'done';
   }
   if (story?.unread) {
-    return 'back';
+    return story.local ? 'ready' : 'back';
   }
   if (story && !story.reviewed) {
     return 'ready';

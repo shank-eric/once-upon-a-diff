@@ -50,6 +50,9 @@ async function api<T = unknown>(method: string, path: string, body?: unknown): P
 const AUTO_WHY = {
   review: 'marked reviewed because you submitted a review on GitHub after the story was built',
   'all viewed': 'marked reviewed because every file is Viewed on GitHub',
+  pr: 'done because its branch has a pull request',
+  delivered: 'done because its commits are already in the default branch',
+  idle: 'done because nothing opened or rebuilt it for 3 days',
 };
 
 function storyHtml(story: InboxStory) {
@@ -71,11 +74,13 @@ function storyHtml(story: InboxStory) {
 /** A local story (a branch's story before any PR): Open story goes to its page on this bridge, Mark reviewed ticks it off. */
 function localStoryHtml(story: InboxLocalStory) {
   const reviewed = !!story.reviewed_at;
+  const reason = story.reviewed_by;
+  const auto = reason === 'pr' || reason === 'delivered' || reason === 'idle' ? reason : null;
   const where = `${story.repo || story.repo_name}${story.branch ? ` · ${story.branch}` : ''}`;
   return html`<li class="ou-inbox-item${!reviewed && ' ou-inbox-new'}" data-story="${story.id}">
     <div class="ou-inbox-main">
       <div class="ou-inbox-prompt">${!reviewed && html`<span class="ou-inbox-dot" title="Not reviewed yet"></span>`}<span class="ou-inbox-kind">Local story</span> ${story.title}</div>
-      <div class="ou-local-muted">${where} · built ${shortDateTime(story.built_at)}</div>
+      <div class="ou-local-muted">${where} · built ${shortDateTime(story.built_at)}${auto && html` · <span class="ou-inbox-auto" title="${AUTO_WHY[auto]}">auto: ${auto}</span>`}</div>
     </div>
     <div class="ou-inbox-actions">
       <button type="button" data-open-story="${story.id}">Open story</button>
@@ -87,10 +92,15 @@ function localStoryHtml(story: InboxLocalStory) {
 function render() {
   const stories = list.stories.filter((story) => view.showReviewed || !story.reviewed_at);
   const locals = list.local_stories.filter((story) => view.showReviewed || !story.reviewed_at);
-  const items = [
-    ...stories.map((story) => ({ at: story.built_at, markup: storyHtml(story) })),
-    ...locals.map((story) => ({ at: story.built_at, markup: localStoryHtml(story) })),
-  ].sort((first, second) => second.at.localeCompare(first.at));
+  const newest = (first: { at: string }, second: { at: string }) =>
+    second.at.localeCompare(first.at);
+  const onGithub = stories
+    .map((story) => ({ at: story.built_at, markup: storyHtml(story) }))
+    .sort(newest);
+  const onThisMac = locals
+    .map((story) => ({ at: story.built_at, markup: localStoryHtml(story) }))
+    .sort(newest);
+  const items = [...onThisMac, ...onGithub];
   const unreviewed = list.repos.reduce((sum, repo) => sum + repo.unreviewed, 0);
   // the stories listed leave out the reviewed ones unless Show reviewed is on, so the repos' counts say whether any exist
   const any = list.repos.some(
@@ -99,8 +109,13 @@ function render() {
   const empty = any
     ? 'Nothing left to review here.'
     : 'Nothing yet. A PR story shows up here once one is built, and a local story once `once-upon local` has made one.';
+  // local stories (a branch's story before any PR) are on this Mac and never wait on GitHub, so they have a section of their own
+  const section = (label: string, shown: typeof items) =>
+    shown.length
+      ? html`<section><h2 class="ou-board-head">${label} <span class="ou-local-muted">${shown.length}</span></h2><ul class="ou-inbox-list">${shown.map((item) => item.markup)}</ul></section>`
+      : '';
   const body = items.length
-    ? html`<ul class="ou-inbox-list">${items.map((item) => item.markup)}</ul>`
+    ? html`${section('On this Mac', onThisMac)}${section('On GitHub', onGithub)}`
     : html`<p class="ou-local-muted">${empty}</p>`;
   document.title = unreviewed ? `(${unreviewed}) Review inbox` : 'Review inbox';
   setHtml(

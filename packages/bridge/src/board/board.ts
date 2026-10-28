@@ -62,10 +62,17 @@ import {
   type StatusSource,
 } from './sources.ts';
 import { HttpError } from '../server/request.ts';
-import { localStories, mergedStories, prStories } from '../review-inbox/stories.ts';
+import {
+  DEFAULT_BRANCHES,
+  isAutoDone,
+  localEntries,
+  mergedStories,
+  prStories,
+} from '../review-inbox/stories.ts';
 import { requestFor } from '../inbox/progress.ts';
 import type { Builds } from '../inbox/builds.ts';
 import type { BranchPr } from '../review-inbox/auto-review.ts';
+import type { LocalEntry } from '../review-inbox/stories.ts';
 import type { StoryStore } from '../stories/store.ts';
 import type {
   BoardAgent,
@@ -87,6 +94,7 @@ export interface PrWatcher {
   kick(stories: InboxStory[]): void;
   kickInfo(repo: string, number: number): void;
   kickBranch(repo: string, branch: string, checkout: string): void;
+  kickLocal(list: LocalEntry[]): void;
   kickRequested(): void;
   requested(): { repo: string; number: number }[];
   info(repo: string, number: number): PrInfo | null;
@@ -97,8 +105,7 @@ export interface PrWatcher {
 const CACHE_MS = 2000;
 /** A running agent with no done line this long after it started is marked stale. */
 const STALE_MS = 24 * 3600 * 1000;
-/** Branches that are not a unit of work of their own. */
-export const DEFAULT_BRANCHES = new Set(['main', 'master', 'develop', 'development', 'trunk']);
+export { DEFAULT_BRANCHES };
 /** A merged PR stays on the board this long. */
 const MERGED_HOURS = 24;
 const BRANCH_CACHE_MS = 10000;
@@ -251,6 +258,7 @@ export const noPrWatcher: PrWatcher = {
   kick: () => undefined,
   kickInfo: () => undefined,
   kickBranch: () => undefined,
+  kickLocal: () => undefined,
   kickRequested: () => undefined,
   requested: () => [],
   info: () => null,
@@ -312,6 +320,13 @@ interface Work {
 /** Built after you last opened or reviewed it (never opened: it is ready for review, not back to you). */
 const isUnread = (story: Pick<InboxStory, 'built_at' | 'seen_at'>): boolean =>
   !!story.seen_at && Date.parse(story.built_at) > Date.parse(story.seen_at);
+
+/**
+ * Whether a story was built after you last opened it. A local story marked done by a check (its branch has a PR, it is in
+ * the default branch, or it went idle) stays done through a rebuild: its work has left, or nobody is looking.
+ */
+const unreadOf = (story: InboxStory | InboxLocalStory): boolean =>
+  isUnread(story) && ('number' in story || !isAutoDone(story));
 
 /** What the board reads of a built story, a PR story's or a local one's. */
 type StoryFacts = Pick<InboxStory, 'id' | 'built_at' | 'reviewed_at' | 'reviewed_by'>;
@@ -566,7 +581,9 @@ export class Board {
     }
     // local stories (a branch's story before any PR): the newest per repo and branch goes on that branch's work, or on a
     // branch-only work of its own; a PR story already on the branch is the card's story, so a local one is not
-    const localStoryList = localStories(this.stories, { now: nowMs });
+    const localEntryList = localEntries(this.stories, { now: nowMs });
+    this.review.kickLocal(localEntryList);
+    const localStoryList = localEntryList.map((entry) => entry.story);
     const newestLocal = new Map<string, InboxLocalStory>();
     for (const local of localStoryList) {
       if (local.repo && local.branch && !DEFAULT_BRANCHES.has(local.branch)) {
@@ -1073,7 +1090,7 @@ export class Board {
     }
     // a local story alone (no session, no PR) is a card only while there is something to review in it
     const localToReview =
-      !!story && story === work.local && (!story.reviewed_at || isUnread(story));
+      !!story && story === work.local && (!story.reviewed_at || unreadOf(story));
     const known =
       (!!pr && (pr.mine || pr.review_requested || !!story || work.built || !!building)) ||
       localToReview;
@@ -1102,7 +1119,7 @@ export class Board {
             url: 'number' in story ? story.url : null,
             reviewed: !!story.reviewed_at,
             // built after you last opened or reviewed it (never opened: it is ready for review, not back to you)
-            unread: isUnread(story),
+            unread: unreadOf(story),
           }
         : null,
       building: building
@@ -1133,6 +1150,7 @@ export class Board {
             reviewed: card.story.reviewed,
             manualReviewedAt: manual,
             unread: card.story.unread,
+            local: card.story.kind === 'local',
           }
         : null,
       building: !!card.building,

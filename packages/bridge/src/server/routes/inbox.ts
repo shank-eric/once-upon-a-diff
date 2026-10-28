@@ -14,6 +14,7 @@ import { HttpError } from '../request.ts';
 import { REPO_RE } from '../../config/repos.ts';
 import { publicOriginOf } from '../address.ts';
 import {
+  localEntries,
   localStories,
   localStory,
   markStoryReviewed,
@@ -27,9 +28,11 @@ function list({ app, url, send }: Call) {
   // the repo menu counts what waits there
   const repos = new Map<string, { repo: string; count: number; unreviewed: number }>();
   const everything = prStories(app.stories);
-  const locals = localStories(app.stories);
+  const localList = localEntries(app.stories);
+  const locals = localList.map((entry) => entry.story);
   // GitHub is asked in the background, a few minutes apart per PR, so this poll answers at once
   app.autoReview.kick(everything);
+  app.autoReview.kickLocal(localList);
   for (const story of everything) {
     const entry = repos.get(story.repo.toLowerCase()) || {
       repo: story.repo,

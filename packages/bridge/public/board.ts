@@ -321,9 +321,10 @@ function cardHtml(card: BoardCard, now: number) {
   const merged = pr?.state === 'merged' && time ? `merged ${ago(card.since, now)}` : '';
   const chips = pr ? prChips(pr) : [];
   const gates = card.agents.filter((agent) => agent.gate).map(gateText);
-  // Open story: on a card ready for review, and on a rebuilt local story's card in Back to you, which has no PR link to go by
-  const openable =
-    card.column === 'ready' || (card.column === 'back' && !!card.story && !card.story.url);
+  // Open story: on a card ready for review (a local story is never in Back to you)
+  const openable = card.column === 'ready';
+  // Mark reviewed: a local story's card in Ready (a PR story is marked in the inbox or by reviewing it on GitHub)
+  const markable = card.column === 'ready' && card.story?.kind === 'local';
   const focusTitle = card.can_focus
     ? "Bring this session's iTerm tab to the front"
     : 'No iTerm tab is known for this session';
@@ -365,6 +366,7 @@ function cardHtml(card: BoardCard, now: number) {
       ${card.focus_session && html`<button type="button" class="ou-board-focus" data-focus="${card.focus_session}"${!card.can_focus && html` disabled`} title="${focusTitle}">Open in iTerm</button>`}
       ${openable && card.story?.url && html`<a class="ou-board-open" href="${card.story.url}" target="_blank" rel="noopener">Open story</a>`}
       ${openable && card.story && !card.story.url && html`<button type="button" class="ou-board-open" data-open-local="${card.story.id}" title="Opens the local story's page">Open story</button>`}
+      ${markable && card.story && html`<button type="button" data-mark-local="${card.story.id}" title="Done with this story: it leaves Ready for your review">Mark reviewed</button>`}
       ${card.inbox && html`<button type="button" data-inbox data-repo="${card.inbox.repo}" title="${inboxTitle(card.inbox)}">${card.inbox.stories} to review</button>`}
     </div>
   </li>`;
@@ -1033,6 +1035,17 @@ app.addEventListener('click', async (event) => {
       } catch (err) {
         alert(`Couldn't stop it: ${(err as Error).message}`);
       }
+    }
+    return;
+  }
+  const markLocal = clicked.closest('[data-mark-local]');
+  if (markLocal) {
+    try {
+      await api('/api/board/reviewed', { story: markLocal.getAttribute('data-mark-local') });
+      last = '';
+      await refresh();
+    } catch (err) {
+      alert(`Couldn't mark it reviewed: ${(err as Error).message}`);
     }
     return;
   }

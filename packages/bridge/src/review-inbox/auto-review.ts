@@ -20,7 +20,13 @@
  */
 import { runGh } from '../util/gh.ts';
 import { runGitAsync } from '../util/git.ts';
-import { markStoryDone, markStoryReviewed, storyHasState } from './stories.ts';
+import {
+  DEFAULT_BRANCHES,
+  markStoryDone,
+  markStoryReviewed,
+  storyHasState,
+  type LocalEntry,
+} from './stories.ts';
 import type { StoryStore } from '../stories/store.ts';
 import type { InboxStory, PrInfo, ReviewedBy } from '@once-upon-a-diff/shared/types';
 
@@ -570,6 +576,33 @@ export const ghBranchCheck: BranchCheck = async (repo, branch, checkout) => {
   return null;
 };
 
+/**
+ * Whether a commit is already in the checkout's default branch (origin's, as last fetched): the commit is the branch's tip
+ * or behind it. False when the ref or the commit is missing (git answers 128), so a story is never done by a guess.
+ */
+async function inDefaultBranch(checkout: string, oid: string): Promise<boolean> {
+  const named = await runGitAsync(
+    checkout,
+    ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD'],
+    {
+      timeout: 10000,
+    },
+  );
+  const refs =
+    named.code === 0 && named.stdout.trim()
+      ? [named.stdout.trim()]
+      : ['refs/remotes/origin/main', 'refs/remotes/origin/master'];
+  for (const ref of refs) {
+    const { code } = await runGitAsync(checkout, ['merge-base', '--is-ancestor', oid, ref], {
+      timeout: 10000,
+    });
+    if (code === 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 const keyOf = (repo: string, number: number) => `${repo.toLowerCase()}#${number}`;
 const branchKey = (repo: string, branch: string) => `${repo.toLowerCase()}@${branch}`;
 
@@ -582,6 +615,8 @@ export class AutoReview {
   private running = new Set<Promise<void>>();
   private known = new Map<string, PrInfo>();
   private branches = new Map<string, { at: number; pr: BranchPr | null | undefined }>();
+  /** when each local story's head was last looked for in the default branch (story id and head commit) */
+  private delivered = new Map<string, number>();
   private stories: StoryStore;
   private check: PrCheck;
   private checkBranch: BranchCheck;
@@ -715,6 +750,60 @@ export class AutoReview {
           }
         }),
       );
+    }
+  }
+
+  /**
+   * Marks the local stories done that are: the branch has a PR on GitHub, open or merged (`pr`), or the story's head is
+   * already in the default branch (`delivered`). Asked a few minutes apart per story, never waits, and leaves a story
+   * with a reviewed.json (marked or unmarked by hand) as it is. The default branch is the checkout's last fetch of
+   * origin, which the bridge never refreshes, so `delivered` can lag a fetch. A squash merge shows as a merged PR.
+   */
+  kickLocal(list: LocalEntry[], now = Date.now()): void {
+    for (const entry of list) {
+      const { story } = entry;
+      if (entry.marked) {
+        continue;
+      }
+      const onFeature = story.repo && story.branch && !DEFAULT_BRANCHES.has(story.branch);
+      if (onFeature && entry.repo_path) {
+        this.kickBranch(story.repo as string, story.branch as string, entry.repo_path, now);
+        if (this.branchPr(story.repo as string, story.branch as string)) {
+          this.markLocal(story.id, 'pr');
+          continue;
+        }
+      }
+      const head = entry.head_oid;
+      if (
+        !entry.repo_path ||
+        !head ||
+        head === entry.base_oid ||
+        !/^[0-9a-f]{40,64}$/i.test(head)
+      ) {
+        continue;
+      }
+      const key = `${story.id}@${head}`;
+      const last = this.delivered.get(key);
+      if (last !== undefined && now - last < this.cacheMs) {
+        continue;
+      }
+      this.delivered.set(key, now);
+      const checkout = entry.repo_path;
+      const job = inDefaultBranch(checkout, head)
+        .then((yes) => {
+          if (yes) {
+            this.markLocal(story.id, 'delivered');
+          }
+        })
+        .finally(() => this.running.delete(job));
+      this.running.add(job);
+    }
+  }
+
+  /** Writes a local story's done mark unless a hand mark or unmark got there first. */
+  private markLocal(id: string, why: ReviewedBy): void {
+    if (!storyHasState(this.stories, id)) {
+      markStoryReviewed(this.stories, id, true, why);
     }
   }
 

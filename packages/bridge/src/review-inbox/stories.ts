@@ -19,6 +19,12 @@ import type { InboxLocalStory, InboxStory, ReviewedBy } from '@once-upon-a-diff/
 
 /** How long after it was built a PR story stays in the inbox. */
 export const STORY_DAYS = 30;
+/** A local story nobody has opened, read, marked or rebuilt for this many days counts as done (reviewed by `idle`). */
+export const LOCAL_IDLE_DAYS = 3;
+/** What marks a local story done without you: its work is on GitHub or in the default branch, or it went quiet. */
+export const AUTO_DONE: readonly ReviewedBy[] = ['pr', 'delivered', 'idle'];
+/** Branches that are not a unit of work of their own. */
+export const DEFAULT_BRANCHES = new Set(['main', 'master', 'develop', 'development', 'trunk']);
 const REVIEWED = 'reviewed.json';
 const MERGED = 'merged.json';
 
@@ -87,13 +93,31 @@ export function prStories(
   );
 }
 
-/** The local stories (newest first), or only a repo's (owner/name). A story left by the retired turn capture is not one. */
-export function localStories(
+/** A local story with what the checks that need git or GitHub (`AutoReview.kickLocal`) look at, which the inbox does not send. */
+export interface LocalEntry {
+  story: InboxLocalStory;
+  repo_path: string | null;
+  base_oid: string | null;
+  head_oid: string | null;
+  /** a reviewed.json exists (marked or unmarked by hand, or by a check): the checks leave the story alone */
+  marked: boolean;
+}
+
+/** Whether a local story's done mark is one of the automatic ones, so a rebuild since you opened it does not bring it back. */
+export const isAutoDone = (story: Pick<InboxLocalStory, 'reviewed_at' | 'reviewed_by'>): boolean =>
+  !!story.reviewed_at && !!story.reviewed_by && AUTO_DONE.includes(story.reviewed_by);
+
+/**
+ * The local stories (newest first), or only a repo's (owner/name), with what the checks look at. A story left by the
+ * retired turn capture is not one. A story with no reviewed.json that nothing touched for LOCAL_IDLE_DAYS comes back
+ * reviewed by `idle` (worked out here, never written: a rebuild or an open moves it back).
+ */
+export function localEntries(
   stories: StoryStore,
   { repo = null, now = Date.now() }: { repo?: string | null; now?: number } = {},
-): InboxLocalStory[] {
+): LocalEntry[] {
   const cutoff = now - STORY_DAYS * 24 * 3600 * 1000;
-  const found: InboxLocalStory[] = [];
+  const found: LocalEntry[] = [];
   for (const story of stories.list()) {
     if (story.kind !== 'local' || story.turn) {
       continue;
@@ -122,22 +146,51 @@ export function localStories(
     );
     const reads = readReads(stories.home, stateKeyOf(story.id, meta));
     const position = stories.readState<{ at?: string } | null>(story.id, 'position.json', null);
+    const builtAt = new Date(built).toISOString();
+    const seen = latestOf([
+      state?.at,
+      position?.at,
+      ...Object.values(reads).map((read) => read.at),
+    ]);
+    let reviewedAt = state?.at || null;
+    let reviewedBy = state?.at ? state.by || null : null;
+    const quietSince = Date.parse(latestOf([seen, builtAt]) as string);
+    const idleAt = quietSince + LOCAL_IDLE_DAYS * 24 * 3600 * 1000;
+    if (state === null && idleAt <= now) {
+      reviewedAt = new Date(idleAt).toISOString();
+      reviewedBy = 'idle';
+    }
     found.push({
-      id: story.id,
-      repo: owner,
-      repo_name: repoName,
-      title: story.title || story.id,
-      branch: story.branch,
-      built_at: new Date(built).toISOString(),
-      seen_at: latestOf([state?.at, position?.at, ...Object.values(reads).map((read) => read.at)]),
-      reviewed_at: state?.at || null,
-      reviewed_by: state?.at ? state.by || null : null,
+      story: {
+        id: story.id,
+        repo: owner,
+        repo_name: repoName,
+        title: story.title || story.id,
+        branch: story.branch,
+        built_at: builtAt,
+        seen_at: seen,
+        reviewed_at: reviewedAt,
+        reviewed_by: reviewedBy,
+      },
+      repo_path: story.repo_path,
+      base_oid: typeof meta.base_oid === 'string' ? meta.base_oid : null,
+      head_oid: typeof meta.head_oid === 'string' ? meta.head_oid : null,
+      marked: state !== null,
     });
   }
   return found.sort(
     (first, second) =>
-      second.built_at.localeCompare(first.built_at) || first.id.localeCompare(second.id),
+      second.story.built_at.localeCompare(first.story.built_at) ||
+      first.story.id.localeCompare(second.story.id),
   );
+}
+
+/** The local stories (newest first), or only a repo's (owner/name). */
+export function localStories(
+  stories: StoryStore,
+  options: { repo?: string | null; now?: number } = {},
+): InboxLocalStory[] {
+  return localEntries(stories, options).map((entry) => entry.story);
 }
 
 /** One local story by id, or null when the id isn't a listed one's. */

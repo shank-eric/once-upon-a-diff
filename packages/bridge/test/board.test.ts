@@ -50,10 +50,11 @@ import {
   ghPrCheck,
   ghRequestedCheck,
   mergeSummary,
+  AutoReview,
   type BranchPr,
 } from '../src/review-inbox/auto-review.ts';
 import { StoryStore } from '../src/stories/store.ts';
-import { localStories } from '../src/review-inbox/stories.ts';
+import { localEntries, localStories, LOCAL_IDLE_DAYS } from '../src/review-inbox/stories.ts';
 import { createLocalStory } from '../src/stories/local-story.ts';
 import { refreshLocal } from '../src/stories/local-diff.ts';
 import type { LocalMeta } from '../src/types.ts';
@@ -402,6 +403,7 @@ function fakeWatcher(
     checkouts: [] as string[],
     infos: [] as number[],
     stories: [] as string[],
+    locals: [] as string[],
   };
   const watcher: PrWatcher = {
     kick: (list) => asked.stories.push(...list.map((story) => story.id)),
@@ -412,6 +414,7 @@ function fakeWatcher(
     },
     info: (_repo, number) => infos.find((info) => info.number === number) || null,
     branchPr: (repo, branch) => branchPrs[`${repo}@${branch}`],
+    kickLocal: (list) => asked.locals.push(...list.map((entry) => entry.story.id)),
     kickRequested: () => undefined,
     requested: () => requested,
   };
@@ -445,6 +448,13 @@ test('columns follow the work to merge: waiting and working first, then merged, 
   assert.equal(columnOf({ ...none, agents: [{ status: 'working', state: 'running' }] }), 'working');
   assert.equal(columnOf({ ...none, pr: prInfo(1, { state: 'merged' }), story: unseen }), 'done');
   assert.equal(columnOf({ ...none, pr: open, story: unseen }), 'ready');
+  // a local story is never in Back to you: unread or not, reviewed or not, it waits in Ready
+  const local = { ...unseen, local: true };
+  assert.equal(columnOf({ ...none, story: { ...local, unread: true } }), 'ready');
+  assert.equal(columnOf({ ...none, story: { ...local, reviewed: true, unread: true } }), 'ready');
+  assert.equal(columnOf({ ...none, story: local }), 'ready');
+  assert.equal(columnOf({ ...none, story: { ...local, reviewed: true } }), 'idle');
+  assert.equal(columnOf({ ...none, pr: open, story: { ...unseen, unread: true } }), 'back');
   assert.equal(columnOf({ ...none, pr: open }), 'pr_open');
   assert.equal(columnOf({ ...none, sessions: [{ status: 'idle' }], pr: open }), 'pr_open');
   assert.equal(columnOf({ ...none, sessions: [{ status: 'idle' }] }), 'idle');
@@ -4007,7 +4017,7 @@ test('picking a repo that has only a folder name in the inbox menu lists its loc
   );
 });
 
-test('the board: a local story puts its branch in Ready for your review, or Back to you once rebuilt after you opened it, and makes a branch-only card', async () => {
+test('the board: a local story puts its branch in Ready for your review, rebuilt after you opened it too, and makes a branch-only card', async () => {
   const home = tmp('board-home');
   const sessions = tmp('board-sessions');
   const [onX] = [liveChild()];
@@ -4049,7 +4059,7 @@ test('the board: a local story puts its branch in Ready for your review, or Back
   assert.deepEqual(Object.fromEntries(cards.map((found) => [found.id, found.column])), {
     'branch:acme/widgets@feat/x': 'ready', // the session joins it; the story is unreviewed
     'branch:acme/widgets@feat/new': 'ready',
-    'branch:acme/widgets@feat/rebuilt': 'back', // rebuilt since you opened it
+    'branch:acme/widgets@feat/rebuilt': 'ready', // rebuilt since you opened it: a local story is never in Back to you
     'pr:acme/widgets#5': 'ready',
   });
   const withSession = byId['branch:acme/widgets@feat/x'];
@@ -4180,4 +4190,292 @@ test('a started backlog item rides on a live session’s card on its new branch,
   assert.deepEqual(seen.session.from_backlog, [{ id: item.id, title: 'The new idea' }]);
   assert.ok(!seen.cards.some((found) => found.column === 'backlog'));
   assert.equal(seen.session.column, 'working', 'its column is the session’s own');
+});
+
+/** A local story whose checkout is a real repo (an origin of acme/<name>), told at `builtAt`, with the given heads. */
+function builtLocal(
+  home: string,
+  id: string,
+  checkout: string,
+  branch: string,
+  builtAt: string,
+  extra: Record<string, unknown> = {},
+  state: Record<string, unknown> = {},
+) {
+  localStory(home, id, checkout, branch, { built_at: builtAt, ...extra }, state);
+}
+
+const DAY = 24 * 3600 * 1000;
+const iso = (time: number) => new Date(time).toISOString();
+const reviewedBy = (home: string, id: string) =>
+  new StoryStore({ home }).readState<{ at: string | null; by: string } | null>(
+    id,
+    'reviewed.json',
+    null,
+  )?.by ?? null;
+
+test('local stories: nothing opened, read, marked or rebuilt for 3 days is done (idle), computed and never written; a hand mark or unmark wins', () => {
+  assert.equal(LOCAL_IDLE_DAYS, 3);
+  const home = tmp('local-idle');
+  const widgets = checkoutOf('widgets', 'feat/x');
+  const now = Date.parse('2026-10-28T15:00:00Z');
+  builtLocal(home, 'local-quiet', widgets, 'feat/quiet', iso(now - 4 * DAY));
+  builtLocal(home, 'local-recent', widgets, 'feat/recent', iso(now - 2 * DAY));
+  // opened a day ago: the clock runs from then
+  builtLocal(
+    home,
+    'local-opened',
+    widgets,
+    'feat/opened',
+    iso(now - 5 * DAY),
+    {},
+    {
+      'position.json': { at: iso(now - DAY) },
+    },
+  );
+  // unmarked by hand: left alone, however quiet
+  builtLocal(
+    home,
+    'local-unmarked',
+    widgets,
+    'feat/unmarked',
+    iso(now - 6 * DAY),
+    {},
+    {
+      'reviewed.json': { at: null, by: 'manual' },
+    },
+  );
+  builtLocal(
+    home,
+    'local-hand',
+    widgets,
+    'feat/hand',
+    iso(now - 6 * DAY),
+    {},
+    {
+      'reviewed.json': { at: iso(now - 5 * DAY), by: 'manual' },
+    },
+  );
+  const byId = Object.fromEntries(
+    localStories(new StoryStore({ home }), { now }).map((story) => [story.id, story]),
+  );
+  assert.equal(byId['local-quiet'].reviewed_by, 'idle');
+  assert.equal(byId['local-quiet'].reviewed_at, iso(now - DAY), 'done since the cutoff passed');
+  assert.equal(byId['local-recent'].reviewed_at, null);
+  assert.equal(byId['local-opened'].reviewed_at, null);
+  assert.equal(byId['local-unmarked'].reviewed_at, null);
+  assert.equal(byId['local-hand'].reviewed_by, 'manual');
+  assert.equal(reviewedBy(home, 'local-quiet'), null, 'idle is worked out, not written');
+  // a day later the opened one has gone quiet too
+  const later = localStories(new StoryStore({ home }), { now: now + 2 * DAY + 1 });
+  assert.equal(later.find((story) => story.id === 'local-opened')?.reviewed_by, 'idle');
+  assert.equal(later.find((story) => story.id === 'local-unmarked')?.reviewed_at, null);
+});
+
+test('local stories: a branch with a PR (open or merged) is done by pr, a default branch is not asked, a hand mark or unmark is left alone', async () => {
+  const home = tmp('local-pr');
+  const widgets = checkoutOf('widgets', 'feat/x');
+  const now = Date.now();
+  const built = iso(now - 1000);
+  builtLocal(home, 'local-open', widgets, 'feat/open', built);
+  builtLocal(home, 'local-merged', widgets, 'feat/merged', built);
+  builtLocal(home, 'local-none', widgets, 'feat/none', built);
+  builtLocal(home, 'local-main', widgets, 'main', built);
+  builtLocal(
+    home,
+    'local-unmarked',
+    widgets,
+    'feat/open2',
+    built,
+    {},
+    {
+      'reviewed.json': { at: null, by: 'manual' },
+    },
+  );
+  const asked: string[] = [];
+  const answers: Record<string, BranchPr | null> = {
+    'acme/widgets@feat/open': { number: 1, state: 'open', merged_at: null },
+    'acme/widgets@feat/merged': { number: 2, state: 'merged', merged_at: built },
+    'acme/widgets@feat/open2': { number: 3, state: 'open', merged_at: null },
+  };
+  const stories = new StoryStore({ home });
+  const review = new AutoReview(
+    stories,
+    async () => ({ merged: false, why: null }),
+    60000,
+    async (repo, branch) => {
+      asked.push(`${repo}@${branch}`);
+      return answers[`${repo}@${branch}`] ?? null;
+    },
+  );
+  const list = () => localEntries(stories, { now });
+  review.kickLocal(list(), now); // asks GitHub; it answers a moment later
+  await review.idle();
+  assert.equal(reviewedBy(home, 'local-open'), null, 'not on the first ask');
+  review.kickLocal(list(), now);
+  await review.idle();
+  assert.equal(reviewedBy(home, 'local-open'), 'pr');
+  assert.equal(reviewedBy(home, 'local-merged'), 'pr');
+  assert.equal(reviewedBy(home, 'local-none'), null);
+  assert.equal(reviewedBy(home, 'local-main'), null);
+  assert.ok(!asked.includes('acme/widgets@main'), 'a default branch has no PR to ask for');
+  const unmarked = stories.readState<{ at: string | null } | null>(
+    'local-unmarked',
+    'reviewed.json',
+    null,
+  );
+  assert.equal(unmarked?.at, null, 'an unmark by hand is left alone');
+  assert.ok(!asked.includes('acme/widgets@feat/open2'), 'it is not even asked about');
+  const inbox = localStories(stories, { now });
+  assert.equal(inbox.find((story) => story.id === 'local-open')?.reviewed_by, 'pr');
+});
+
+test('local stories: a head already in origin’s default branch is done by delivered; a head not there, a missing ref, or a story with no commits of its own is not', async () => {
+  const home = tmp('local-delivered');
+  const repo = tmp('local-delivered-repo');
+  git(repo, 'init', '-q', '-b', 'main');
+  git(repo, 'remote', 'add', 'origin', 'git@github.com:acme/widgets.git');
+  git(repo, 'commit', '-q', '--allow-empty', '-m', 'base');
+  const base = git(repo, 'rev-parse', 'HEAD');
+  git(repo, 'commit', '-q', '--allow-empty', '-m', 'merged work');
+  const merged = git(repo, 'rev-parse', 'HEAD');
+  git(repo, 'update-ref', 'refs/remotes/origin/main', merged);
+  git(repo, 'checkout', '-q', '-b', 'feat/unmerged');
+  git(repo, 'commit', '-q', '--allow-empty', '-m', 'not merged');
+  const unmerged = git(repo, 'rev-parse', 'HEAD');
+  const bare = tmp('local-delivered-bare'); // no origin ref at all
+  git(bare, 'init', '-q', '-b', 'main');
+  git(bare, 'remote', 'add', 'origin', 'git@github.com:acme/gadgets.git');
+  git(bare, 'commit', '-q', '--allow-empty', '-m', 'only');
+  const only = git(bare, 'rev-parse', 'HEAD');
+  const now = Date.now();
+  const built = iso(now - 1000);
+  builtLocal(home, 'local-in', repo, 'main', built, { base_oid: base, head_oid: merged });
+  builtLocal(home, 'local-out', repo, 'feat/unmerged', built, {
+    base_oid: base,
+    head_oid: unmerged,
+  });
+  builtLocal(home, 'local-norefs', bare, 'main', built, {
+    base_oid: only.slice(0, 1).repeat(40),
+    head_oid: only,
+  });
+  builtLocal(home, 'local-empty', repo, 'main', built, { base_oid: merged, head_oid: merged });
+  builtLocal(home, 'local-nohead', repo, 'main', built, {});
+  const stories = new StoryStore({ home });
+  const review = new AutoReview(
+    stories,
+    async () => ({ merged: false, why: null }),
+    60000,
+    async () => null,
+  );
+  review.kickLocal(localEntries(stories, { now }), now);
+  await review.idle();
+  assert.equal(reviewedBy(home, 'local-in'), 'delivered');
+  assert.equal(reviewedBy(home, 'local-out'), null);
+  assert.equal(
+    reviewedBy(home, 'local-norefs'),
+    null,
+    'git answers 128 for a missing ref: not done',
+  );
+  assert.equal(reviewedBy(home, 'local-empty'), null);
+  assert.equal(reviewedBy(home, 'local-nohead'), null);
+});
+
+test('the board: a local story rebuilt after you opened it stays in Ready, and one a check marked done (pr, delivered, idle) stays done through a rebuild', async () => {
+  const home = tmp('board-home');
+  const sessions = tmp('board-sessions');
+  const widgets = checkoutOf('widgets', 'main');
+  const opened = { 'position.json': { at: '2026-10-26T10:00:00Z' } }; // before it was built (the file is made now)
+  const marked = (reason: string) => ({
+    'reviewed.json': { at: '2026-10-26T11:00:00Z', by: reason },
+    ...opened,
+  });
+  localStory(home, 'local-hand', widgets, 'feat/hand', {}, marked('manual'));
+  localStory(home, 'local-pr', widgets, 'feat/pr', {}, marked('pr'));
+  localStory(home, 'local-delivered', widgets, 'feat/delivered', {}, marked('delivered'));
+  localStory(home, 'local-idle', widgets, 'feat/idle', {}, opened);
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  const { watcher, asked } = fakeWatcher();
+  const later = new Date(Date.now() + 5 * DAY); // idle by then: a rebuild is what would have brought it back
+  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+    source: sourceSaying({}),
+    now: () => later,
+  });
+  const cards = (await board.snapshot()).lanes.flatMap((lane) => lane.cards);
+  assert.deepEqual(
+    Object.fromEntries(cards.map((found) => [found.id, [found.column, found.story?.unread]])),
+    { 'branch:acme/widgets@feat/hand': ['ready', true] },
+    'a hand mark does not survive a rebuild; the three automatic ones do',
+  );
+  assert.deepEqual(asked.locals.sort(), [
+    'local-delivered',
+    'local-hand',
+    'local-idle',
+    'local-pr',
+  ]);
+});
+
+test('POST /api/board/reviewed: the board page marks a local story reviewed or unmarked, a PR story is a 404, and the inbox page’s key does not reach it', async () => {
+  const home = tmp('board-reviewed');
+  const widgets = checkoutOf('widgets', 'feat/x');
+  prStory(home, 'acme-widgets-7', 'acme/widgets', 7);
+  localStory(home, 'local-feat-x', widgets, 'feat/x');
+  const bridge = await startBridge({ home });
+  open.push(bridge);
+  const asBoard = (body: unknown) =>
+    bridge.call('POST', '/api/board/reviewed', body, {
+      Authorization: `Bearer ${boardKey(TOKEN)}`,
+    });
+  assert.equal((await asBoard({ story: 'local-feat-x' })).status, 200);
+  assert.equal(reviewedBy(home, 'local-feat-x'), 'manual');
+  assert.equal((await asBoard({ story: 'local-feat-x', reviewed: false })).status, 200);
+  assert.equal(
+    new StoryStore({ home }).readState<{ at: string | null } | null>(
+      'local-feat-x',
+      'reviewed.json',
+      null,
+    )?.at,
+    null,
+  );
+  assert.equal((await asBoard({ story: 'acme-widgets-7' })).status, 404);
+  assert.equal((await asBoard({ story: 'nope' })).status, 404);
+  const asInbox = await bridge.call(
+    'POST',
+    '/api/board/reviewed',
+    { story: 'local-feat-x' },
+    { Authorization: `Bearer ${inboxKey(TOKEN)}` },
+  );
+  assert.equal(asInbox.status, 403);
+  // the board key still does not reach the inbox's own route
+  const viaInbox = await bridge.call(
+    'POST',
+    '/api/inbox/reviewed',
+    { story: 'local-feat-x' },
+    { Authorization: `Bearer ${boardKey(TOKEN)}` },
+  );
+  assert.equal(viaInbox.status, 403);
+});
+
+test('once-upon reviewed marks a local story reviewed, --undo unmarks it, and a PR story or an unknown id is refused', async () => {
+  const home = tmp('cli-reviewed');
+  const widgets = checkoutOf('widgets', 'feat/x');
+  prStory(home, 'acme-widgets-7', 'acme/widgets', 7);
+  localStory(home, 'local-feat-x', widgets, 'feat/x');
+  const marked = await runCli(home, ['reviewed', 'local-feat-x']);
+  assert.equal(marked.code, 0, marked.stderr);
+  assert.match(marked.stdout, /local-feat-x marked reviewed/);
+  assert.equal(reviewedBy(home, 'local-feat-x'), 'manual');
+  const undone = await runCli(home, ['reviewed', 'local-feat-x', '--undo']);
+  assert.equal(undone.code, 0, undone.stderr);
+  assert.match(undone.stdout, /not reviewed/);
+  assert.equal(
+    reviewedBy(home, 'local-feat-x'),
+    'manual',
+    'an unmark is kept: {at: null, by: manual}',
+  );
+  const flagFirst = await runCli(home, ['reviewed', '--undo', 'local-feat-x']);
+  assert.equal(flagFirst.code, 0, flagFirst.stderr);
+  for (const args of [['reviewed'], ['reviewed', 'acme-widgets-7'], ['reviewed', 'nope']]) {
+    assert.notEqual((await runCli(home, args)).code, 0, args.join(' '));
+  }
 });

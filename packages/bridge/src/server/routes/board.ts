@@ -10,6 +10,8 @@
  *   POST /api/board/stop-listening  {repo}: end the repo's listener
  *   POST /api/board/focus       {session}: bring that session's iTerm tab to the front (the tab is found server-side)
  *   POST /api/board/open-story  {story}: a local story's page link (a card's Open story), with that story's full key
+ *   POST /api/board/reviewed    {story, reviewed?}: mark a local story reviewed (a card's Mark reviewed), or unmark it with
+ *                               reviewed: false. A local story only: PR stories are the inbox's
  *   POST /api/board/backlog     {title, note?, repo?}: add a backlog item (the Backlog column's Add)
  *   POST /api/board/backlog/move {id, before | edge}: reorder (before another item's id, or edge top or bottom)
  *   POST /api/board/backlog/drop {id}: drop one. Start is the CLI's (`once-upon backlog start`), not the page's
@@ -23,7 +25,7 @@ import { REPO_RE } from '../../config/repos.ts';
 import { readSettings } from '../../config/settings.ts';
 import { publicOriginOf } from '../address.ts';
 import { HttpError } from '../request.ts';
-import { localStory } from '../../review-inbox/stories.ts';
+import { localStory, markStoryReviewed } from '../../review-inbox/stories.ts';
 import type { MoveTo } from '../../board/backlog.ts';
 import type { ApiRoute, Call } from '../../types.ts';
 
@@ -104,6 +106,16 @@ function asBadRequest<T>(run: () => T): T {
   }
 }
 
+/** POST {story, reviewed?}: a local story marked reviewed by hand (or unmarked). A PR story's id is a 404 here. */
+function reviewLocal({ app, body, send }: Call) {
+  const id = String(body.story ?? '');
+  if (!localStory(app.stories, id)) {
+    throw new HttpError(404, 'no local story with that id');
+  }
+  markStoryReviewed(app.stories, id, body.reviewed !== false);
+  return send(200, { ok: true });
+}
+
 /** POST {title, note?, repo?}: a new backlog item, by "board". */
 function addBacklog({ app, body, send }: Call) {
   const item = asBadRequest(() =>
@@ -146,6 +158,7 @@ export const boardRoutes: ApiRoute[] = [
   { path: '/api/board/stop-listening', method: 'POST', handle: stopListening, boardKey: true },
   { path: '/api/board/focus', method: 'POST', handle: focus, boardKey: true },
   { path: '/api/board/open-story', method: 'POST', handle: openStory, boardKey: true },
+  { path: '/api/board/reviewed', method: 'POST', handle: reviewLocal, boardKey: true },
   { path: '/api/board/backlog/move', method: 'POST', handle: moveBacklog, boardKey: true },
   { path: '/api/board/backlog/drop', method: 'POST', handle: dropBacklog, boardKey: true },
   { path: '/api/board/backlog', method: 'POST', handle: addBacklog, boardKey: true },
