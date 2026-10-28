@@ -189,17 +189,7 @@ export interface LocalMoved {
 /** How a local story ships: pushed to the default branch, or through a pull request. */
 export type ShipMode = 'push' | 'pr';
 
-/** GET /api/inbox: what waits for review, and each repo's counts for the inbox page's filter. */
-export interface InboxList {
-  /** each repo's counts, PR stories included */
-  repos: { repo: string; count: number; unreviewed: number }[];
-  /** built PR stories waiting for review, newest first */
-  stories: InboxStory[];
-  /** built local stories (`once-upon local`, no PR yet) waiting for review, newest first; a story the retired turn capture left is not here */
-  local_stories: InboxLocalStory[];
-}
-
-/** A built local story in the review inbox: a branch's story before any PR. Open story goes to its local page, Mark reviewed ticks it off. */
+/** A built local story: a branch's story before any PR. The board's Open story goes to its local page, Mark reviewed ticks it off. */
 export interface InboxLocalStory {
   id: string;
   /** owner/name from its checkout's origin, null when the checkout has none or is gone */
@@ -220,7 +210,7 @@ export interface InboxLocalStory {
   approved_head: string | null;
 }
 
-/** A built PR story in the review inbox: the panel opens on the PR's changes page, and Mark reviewed ticks it off. */
+/** A built PR story: the panel opens on the PR's changes page. It is marked reviewed on GitHub or by Viewed. */
 export interface InboxStory {
   id: string;
   repo: string;
@@ -335,7 +325,7 @@ export interface StoryData {
   /** the step to open on when nothing is saved */
   start?: number;
   local?: LocalStory;
-  /** the page was opened with the story's read-only key (the inbox's links): it can't push, so Create pull request says where to open the story */
+  /** the page was opened with the story's read-only key (a read-only link): it can't push, so Create pull request says where to open the story */
   read_only?: boolean;
 }
 
@@ -791,8 +781,6 @@ export interface BoardCard {
   listening: BoardListening | null;
   /** Build story, for a card with a session and a branch or PR but no story yet */
   build: BoardBuild | null;
-  /** what waits for review in the inbox: the card's unreviewed story; the link's filter */
-  inbox: { stories: number; repo: string | null } | null;
   /** a backlog card's item (the Backlog column: src/board/backlog.ts) */
   backlog?: {
     id: string;

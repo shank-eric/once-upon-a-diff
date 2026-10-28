@@ -58,10 +58,6 @@ export default defineConfig({
         suggested_key: { default: 'Alt+Shift+B' },
         description: 'Open the agent board: your work to merge, with its sessions and agents',
       },
-      'open-inbox': {
-        suggested_key: { default: 'Alt+Shift+I' },
-        description: 'Open the review inbox: what waits for your review',
-      },
     },
     icons: { 16: 'icons/icon16.png', 48: 'icons/icon48.png', 128: 'icons/icon128.png' },
     web_accessible_resources: [

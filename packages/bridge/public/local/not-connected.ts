@@ -1,16 +1,16 @@
 /*
- * What the board and inbox pages say when the bridge refuses them for lack of a key: no cookie from an earlier visit and
- * no #key= in the link. It says how to connect and links to the README. The pages keep polling, so once the cookie is
- * there (the extension's button or `once-upon board` in another tab) the page fills in by itself.
+ * What the board page says when the bridge refuses it for lack of a key: no cookie from an earlier visit and
+ * no #key= in the link. It says how to connect and links to the README. The page keeps polling, so once the cookie is
+ * there (the extension's button or `once-upon board` in another tab) it fills in by itself.
  */
 import { html } from '/assets/util/html.ts';
 
-const README = 'https://github.com/shank-eric/once-upon-a-diff#first-run-the-board-and-the-inbox';
+const README = 'https://github.com/shank-eric/once-upon-a-diff#first-run-the-board';
 
-/** The "Not connected yet" panel for the `board` or the `inbox` page. */
-export function notConnectedHtml(page: 'board' | 'inbox') {
-  const button = page === 'board' ? 'Open board' : 'Open inbox';
-  const command = page === 'board' ? 'once-upon board' : 'once-upon review';
+/** The "Not connected yet" panel for the `board` page. */
+export function notConnectedHtml() {
+  const button = 'Open board';
+  const command = 'once-upon board';
   return html`<main class="ou-not-connected">
     <h1>Not connected yet</h1>
     <p>This page needs a key from the bridge, and this browser doesn't have one yet. Either:</p>

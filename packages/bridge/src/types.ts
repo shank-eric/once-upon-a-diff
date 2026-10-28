@@ -85,16 +85,13 @@ export interface App {
   builds: Builds;
   /** the agent board's data */
   board: Board;
-  /** marks PR stories reviewed in the inbox when GitHub says you have */
+  /** marks PR stories reviewed when GitHub says you have */
   autoReview: AutoReview;
-  /** page links with their keys: a local story's page, the review inbox's (optionally for one repo) and the agent board's */
+  /** page links with their keys: a local story's page and the agent board's */
   links: {
     /** a local story's page link; the full key (it can push), or with `readOnly` the one that reads but never pushes */
     story(id: string, readOnly?: boolean): string;
-    inbox(repo?: string | null, origin?: string): string;
     board(origin?: string): string;
-    /** the board page's address with no key in it, for a caller that may not be handed the board's key */
-    boardAddress(origin?: string): string;
   };
   log: (line: string) => void;
   /** PR-list lookups, kept 5s */
@@ -115,7 +112,7 @@ export interface Call {
   body: Body;
   send: Send;
   /** which page's key (not the bridge's token) made the call, when one did */
-  pageScope?: 'inbox' | 'board' | null;
+  pageScope?: 'board' | null;
   /** a story's read-only key made the call (page-key.ts viewKey): it never reaches the PR routes */
   readOnly?: boolean;
 }
@@ -125,8 +122,6 @@ export interface ApiRoute {
   path: string;
   method?: 'GET' | 'POST';
   what?: string;
-  /** the review inbox page's key may call this route too (it takes the bridge's token either way) */
-  inboxKey?: boolean;
   /** the agent board page's key may call this route too */
   boardKey?: boolean;
   handle(call: Call): unknown;

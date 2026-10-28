@@ -6,7 +6,7 @@
  *
  * A story has two keys, and links only step down in power. `pageKey` is the full one: it reads, asks, takes notes and
  * can push the branch for Create pull request and an approved commit to the default branch for Push. `viewKey` is the read-only one: the same story under its own label, so
- * it can't be turned into the full key, and the PR routes refuse it. The inbox hands out only the read-only one.
+ * it can't be turned into the full key, and the PR routes refuse it. Nothing hands out the read-only one at the moment.
  */
 import { createHmac } from 'node:crypto';
 
@@ -20,14 +20,14 @@ export const pageKey = (token: string, story: string): string =>
 /**
  * The read-only key for one story: reads, Ask, viewed marks, Fix before push notes (Send too) and Rebuild, and nothing else
  * (`viewKeyMay`), so nothing that writes to GitHub or the branch's remote. Made under its own label, so the full key
- * can't be got from it. What the review inbox's links carry.
+ * can't be got from it.
  */
 export const viewKey = (token: string, story: string): string =>
   PAGE_KEY_PREFIX + createHmac('sha256', token).update(`local-view:${story}`).digest('base64url');
 
 /**
  * What the read-only key may reach on its story, by the route's `what` ('' is the story itself) and the methods allowed.
- * A list of what is allowed, so a route added later is refused to inbox links until someone adds it here:
+ * A list of what is allowed, so a route added later is refused to read-only links until someone adds it here:
  *  - reading the story and its page state: the story, version, pulse, freshness, status, working, prefs, ui, seen,
  *    position, read marks and the drafted comments with their marks and Add to fix before push
  *  - Ask: questions
@@ -63,15 +63,8 @@ export const viewKeyMay = (what: string, method: string): boolean =>
   Object.hasOwn(VIEW_KEY_MAY, what) && VIEW_KEY_MAY[what].includes(method);
 
 /**
- * The review inbox page's key: a token for the inbox page, which reaches the inbox routes (routes/inbox.ts) that
- * allow it and nothing else. Made like a story's, under its own label so no story's key can stand in for it.
- */
-export const inboxKey = (token: string): string =>
-  PAGE_KEY_PREFIX + createHmac('sha256', token).update('inbox-page').digest('base64url');
-
-/**
  * The agent board page's key: a token for the board page, which reaches the board routes (routes/board.ts) that allow
- * it and nothing else. Made under its own label, so neither the inbox's key nor a story's can stand in for it.
+ * it and nothing else. Made under its own label, so no story's key can stand in for it.
  */
 export const boardKey = (token: string): string =>
   PAGE_KEY_PREFIX + createHmac('sha256', token).update('board-page').digest('base64url');
@@ -82,17 +75,6 @@ export const boardPageUrl = (
   token: string,
   origin = `http://127.0.0.1:${port}`,
 ): string => `${origin}/board/#key=${boardKey(token)}`;
-
-/**
- * The review inbox page's link, with its key in the fragment, and the repo to show (owner/name) when there is one.
- */
-export const inboxPageUrl = (
-  port: number,
-  token: string,
-  repo: string | null = null,
-  origin = `http://127.0.0.1:${port}`,
-): string =>
-  `${origin}/inbox/#key=${inboxKey(token)}${repo ? `&repo=${encodeURIComponent(repo)}` : ''}`;
 
 /** The local page's link, with its key in the fragment: the full key, or the read-only one when `readOnly`. */
 export const localPageUrl = (

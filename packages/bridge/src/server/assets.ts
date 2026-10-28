@@ -25,7 +25,6 @@ const LOCAL_MODULE = /^\/assets\/local\/([a-z0-9-]+\.(?:ts|css))$/;
 const ASSETS: Record<string, string> = {
   '/assets/overlay.ts': path.join(SHARED, 'overlay.ts'),
   '/assets/local.ts': path.join(PUBLIC, 'local.ts'),
-  '/assets/inbox.ts': path.join(PUBLIC, 'inbox.ts'),
   '/assets/board.ts': path.join(PUBLIC, 'board.ts'),
   '/assets/split.ts': path.join(PUBLIC, 'split.ts'),
   '/assets/narrow.ts': path.join(PUBLIC, 'narrow.ts'),

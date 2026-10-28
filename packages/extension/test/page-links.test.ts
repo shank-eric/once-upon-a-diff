@@ -11,15 +11,11 @@ test('the extension opens the bridge’s own address or an https host name, to t
     `https://once-upon.fidev.net/board/#key=${key}`,
   ]) {
     assert.equal(isPageLink('board', url), true, url);
-    assert.equal(isPageLink('inbox', url), false, `${url} is not the inbox`);
   }
   assert.equal(
-    isPageLink('inbox', `http://127.0.0.1:4823/inbox/#key=${key}&repo=acme%2Fwidgets`),
-    true,
-  );
-  assert.equal(
-    isPageLink('inbox', `https://once-upon.test/inbox/#key=${key}&repo=acme%2Fwidgets`),
-    true,
+    isPageLink('board', `https://once-upon.test/inbox/#key=${key}`),
+    false,
+    'the review inbox page is gone',
   );
 });
 

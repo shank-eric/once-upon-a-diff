@@ -21,6 +21,8 @@ import {
   runCli,
   TOKEN,
   CLAUDE_DIR,
+  storyList,
+  markReviewed,
   type TestBridge,
 } from './helpers.ts';
 import { Builds } from '../src/inbox/builds.ts';
@@ -48,7 +50,7 @@ import {
   registrySource,
   typeLine,
 } from '../src/board/sources.ts';
-import { boardKey, inboxKey, pageKey } from '../src/server/page-key.ts';
+import { boardKey, pageKey } from '../src/server/page-key.ts';
 import { readSettings } from '../src/config/settings.ts';
 import type { StatusSource } from '../src/board/sources.ts';
 import {
@@ -71,7 +73,6 @@ import type {
   BoardSession,
   PrInfo,
   StoryRequest,
-  InboxList,
 } from '@once-upon-a-diff/shared/types';
 
 const NOW = new Date('2026-10-26T19:00:00Z'); // 3:00 PM EDT
@@ -740,8 +741,6 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
   assert.deepEqual(working.agents[0].beat, { n: 3, of: 6, step: 'code', note: 'writing' });
   assert.deepEqual(working.pr, seven);
   assert.deepEqual(working.story?.reviewed, false);
-  // the card's unreviewed story
-  assert.deepEqual(working.inbox, { stories: 1, repo: 'acme/widgets' });
 
   const asking = card('pr:acme/widgets#9');
   assert.equal(asking.story, null);
@@ -925,43 +924,15 @@ test('the board page and its key: the board routes only, the other pages’ link
   assert.equal(data.lanes[0].cards[0].column, 'working');
   assert.equal((await bridge.call('GET', '/api/board')).status, 200, 'the token reaches it too');
 
-  const inbox = await withKey(key, '/api/board/inbox-link?repo=acme/widgets');
-  assert.equal(
-    (inbox.body as { url: string }).url,
-    `${bridge.base}/inbox/#key=${inboxKey(TOKEN)}&repo=acme%2Fwidgets`,
-  );
-  assert.ok(
-    !(await withKey(key, '/api/board/inbox-link?repo=a%20b')).text.includes('repo='),
-    'a bad repo name is dropped',
-  );
-  for (const route of [
-    '/api/inbox',
-    '/api/inbox/link',
-    '/api/board/link',
-    '/api/stories',
-    '/api/prefs',
-  ]) {
+  for (const route of ['/api/board/link', '/api/stories', '/api/prefs']) {
     assert.equal((await withKey(key, route)).status, 403, route);
   }
-  // links only step down: the inbox page's key gets the board's address with no key in it, and nothing more of the
-  // board; a story's key neither. The bridge's token (the extension, the CLI) is handed the board's key.
-  const fromInbox = await withKey(inboxKey(TOKEN), '/api/board/link');
-  assert.equal((fromInbox.body as { url: string }).url, `${bridge.base}/board/`);
-  assert.ok(!fromInbox.text.includes(key) && !fromInbox.text.includes('key='), 'no board key');
+  // the board's key is handed out to the bridge's token alone (the extension, the CLI), and to no other key
   const withToken = await bridge.call<{ url: string }>('GET', '/api/board/link');
   assert.equal(withToken.body.url, `${bridge.base}/board/#key=${key}`);
-  // no route an inbox key reaches answers with the board's key (or anything it could make one from)
-  for (const route of [
-    '/api/board/link',
-    '/api/board/link?public=1',
-    '/api/inbox',
-    '/api/inbox/link',
-  ]) {
-    const got = await withKey(inboxKey(TOKEN), route);
+  for (const route of ['/api/board/link', '/api/board/link?public=1']) {
+    const got = await withKey(pageKey(TOKEN, 'x'), route);
     assert.ok(!got.text.includes(key), `${route} leaks no board key`);
-  }
-  for (const route of ['/api/board', '/api/board/inbox-link', '/api/board/inbox-link?repo=a/b']) {
-    assert.equal((await withKey(inboxKey(TOKEN), route)).status, 403, `${route} is the board's`);
   }
   for (const [method, route] of [
     ['POST', '/api/board/type'],
@@ -969,12 +940,12 @@ test('the board page and its key: the board routes only, the other pages’ link
     ['POST', '/api/board/stop-listening'],
   ] as const) {
     assert.equal(
-      (await bridge.call(method, route, {}, { Authorization: `Bearer ${inboxKey(TOKEN)}` })).status,
+      (await bridge.call(method, route, {}, { Authorization: `Bearer ${pageKey(TOKEN, 'x')}` }))
+        .status,
       403,
       `${route} is the board's`,
     );
   }
-  assert.equal((await withKey(inboxKey(TOKEN), '/api/board')).status, 403);
   assert.equal((await withKey(pageKey(TOKEN, 'x'), '/api/board')).status, 403);
   assert.equal((await withKey(`${key}x`, '/api/board')).status, 403);
   assert.equal(
@@ -1024,8 +995,8 @@ test('`once-upon board` prints the board link', async () => {
   );
 });
 
-test('the review inbox lists built PR stories, and Mark reviewed works on them', async () => {
-  const home = tmp('board-inbox');
+test('the bridge lists built PR stories apart from local stories, and a PR story can be marked reviewed', async () => {
+  const home = tmp('board-stories');
   prStory(home, 'acme-widgets-7', 'acme/widgets', 7);
   prStory(home, 'acme-gadgets-3', 'acme/gadgets', 3);
   writeJson(path.join(home, 'local-x', 'meta.json'), {
@@ -1037,10 +1008,8 @@ test('the review inbox lists built PR stories, and Mark reviewed works on them',
   writeJson(path.join(home, 'local-x', 'chapters.json'), { title: 'Local', chapters: [] });
   const bridge = await startBridge({ home });
   open.push(bridge);
-  const asInbox = (method: string, route: string, body?: unknown) =>
-    bridge.call(method, route, body, { Authorization: `Bearer ${inboxKey(TOKEN)}` });
 
-  const list = (await asInbox('GET', '/api/inbox')).body as InboxList;
+  const list = storyList(bridge);
   const link = (repo: string, number: number) => `https://github.com/${repo}/pull/${number}/files`;
   assert.deepEqual(
     list.stories
@@ -1059,36 +1028,24 @@ test('the review inbox lists built PR stories, and Mark reviewed works on them',
     ],
     'a local story is not a PR story',
   );
-  // it has its own list, and counts under its checkout's name when there is no GitHub repo
+  // it has its own list
   assert.deepEqual(
     list.local_stories.map((story) => [story.id, story.repo, story.repo_name, story.title]),
     [['local-x', null, 'x', 'Local']],
   );
-  assert.deepEqual(list.repos.map((repo) => [repo.repo, repo.unreviewed]).sort(), [
-    ['acme/gadgets', 1],
-    ['acme/widgets', 1],
-    ['x', 1],
-  ]);
-  const filtered = (await asInbox('GET', '/api/inbox?repo=acme/widgets')).body as InboxList;
-  assert.deepEqual(
-    filtered.stories.map((story) => story.id),
-    ['acme-widgets-7'],
-  );
 
-  const marked = await asInbox('POST', '/api/inbox/reviewed', { story: 'acme-widgets-7' });
-  assert.equal(marked.status, 200);
-  assert.ok((marked.body as { story: { reviewed_at: string } }).story.reviewed_at);
-  const after = (await asInbox('GET', '/api/inbox')).body as InboxList;
-  assert.equal(after.repos.find((repo) => repo.repo === 'acme/widgets')?.unreviewed, 0);
-  await asInbox('POST', '/api/inbox/reviewed', { story: 'acme-widgets-7', reviewed: false });
-  const undone = (await asInbox('GET', '/api/inbox')).body as InboxList;
-  assert.equal(undone.stories.find((story) => story.id === 'acme-widgets-7')?.reviewed_at, null);
+  assert.ok(markReviewed(bridge, 'acme-widgets-7')?.reviewed_at);
+  markReviewed(bridge, 'acme-widgets-7', false);
+  assert.equal(
+    storyList(bridge).stories.find((story) => story.id === 'acme-widgets-7')?.reviewed_at,
+    null,
+  );
   for (const id of ['nope', '../x']) {
-    assert.equal((await asInbox('POST', '/api/inbox/reviewed', { story: id })).status, 404, id);
+    assert.equal(markReviewed(bridge, id), null, id);
   }
 });
 
-// ---------- the inbox marks a PR story reviewed when GitHub says you have
+// ---------- the bridge marks a PR story reviewed when GitHub says you have
 
 /** The PR as GitHub's GraphQL answers it: who reviewed (each with an approval at REVIEWED_AT), and each file's Viewed state. */
 const REVIEWED_AT = '2026-10-26T12:00:00Z';
@@ -1224,7 +1181,7 @@ test('the PR check reads your review and your Viewed marks through gh', async ()
   }
 });
 
-test('a PR story you reviewed or finished Viewing is marked in the inbox, with why; a manual unmark sticks', async () => {
+test('a PR story you reviewed or finished Viewing is marked reviewed, with why; a manual unmark sticks', async () => {
   const home = tmp('board-auto');
   for (const [id, number] of [
     ['acme-widgets-1', 1],
@@ -1249,18 +1206,16 @@ test('a PR story you reviewed or finished Viewing is marked in the inbox, with w
     },
   });
   open.push(bridge);
-  const asInbox = (method: string, route: string, body?: unknown) =>
-    bridge.call(method, route, body, { Authorization: `Bearer ${inboxKey(TOKEN)}` });
   const stories = async () =>
     Object.fromEntries(
-      ((await asInbox('GET', '/api/inbox')).body as InboxList).stories.map((story) => [
+      storyList(bridge).stories.map((story) => [
         story.number,
         [!!story.reviewed_at, story.reviewed_by],
       ]),
     );
 
   // 4 is unmarked by hand before GitHub is asked: that decision stays
-  await asInbox('POST', '/api/inbox/reviewed', { story: 'acme-widgets-4', reviewed: false });
+  markReviewed(bridge, 'acme-widgets-4', false);
   assert.deepEqual((await stories())[1], [false, null], 'the poll answers before GitHub does');
   await bridge.server.autoReview.idle();
   assert.deepEqual(await stories(), {
@@ -1277,8 +1232,8 @@ test('a PR story you reviewed or finished Viewing is marked in the inbox, with w
   assert.equal(asked.length, 4);
 
   // a manual unmark of an auto-marked story sticks, and a manual mark says so
-  await asInbox('POST', '/api/inbox/reviewed', { story: 'acme-widgets-1', reviewed: false });
-  await asInbox('POST', '/api/inbox/reviewed', { story: 'acme-widgets-3' });
+  markReviewed(bridge, 'acme-widgets-1', false);
+  markReviewed(bridge, 'acme-widgets-3');
   await stories();
   await bridge.server.autoReview.idle();
   assert.deepEqual(await stories(), {
@@ -1289,7 +1244,7 @@ test('a PR story you reviewed or finished Viewing is marked in the inbox, with w
   });
 });
 
-test('a PR story whose PR has merged, or closed with its branch deleted, leaves the inbox and the board count; a closed one with its branch stays', async () => {
+test('a PR story whose PR has merged, or closed with its branch deleted, leaves the story list and the board count; a closed one with its branch stays', async () => {
   const home = tmp('board-merged');
   for (const number of [1, 2, 3, 4]) {
     prStory(home, `acme-widgets-${number}`, 'acme/widgets', number);
@@ -1309,11 +1264,12 @@ test('a PR story whose PR has merged, or closed with its branch deleted, leaves 
     }),
   });
   open.push(bridge);
-  const asInbox = (method: string, route: string) =>
-    bridge.call(method, route, undefined, { Authorization: `Bearer ${inboxKey(TOKEN)}` });
   const ids = async () => {
-    const list = (await asInbox('GET', '/api/inbox')).body as InboxList;
-    return [list.stories.map((story) => story.id).sort(), list.repos[0]?.unreviewed];
+    const list = storyList(bridge);
+    return [
+      list.stories.map((story) => story.id).sort(),
+      list.stories.filter((story) => !story.reviewed_at).length,
+    ];
   };
   assert.deepEqual(await ids(), [
     ['acme-widgets-1', 'acme-widgets-2', 'acme-widgets-3', 'acme-widgets-4'],
@@ -1381,11 +1337,9 @@ test('a story is marked reviewed only by a review you submitted after it was bui
     }),
   });
   open.push(bridge);
-  const asInbox = (method: string, route: string) =>
-    bridge.call(method, route, undefined, { Authorization: `Bearer ${inboxKey(TOKEN)}` });
-  const list = async () => (await asInbox('GET', '/api/inbox')).body as InboxList;
+  const list = async () => storyList(bridge);
   const marks = async () => {
-    await asInbox('GET', '/api/inbox');
+    storyList(bridge);
     await bridge.server.autoReview.idle();
     return Object.fromEntries(
       (await list()).stories.map((story) => [story.number, story.reviewed_by]),
@@ -1408,18 +1362,16 @@ test('an older review does not stop every file Viewed from marking the story, an
     }),
   });
   open.push(bridge);
-  const asInbox = (method: string, route: string) =>
-    bridge.call(method, route, undefined, { Authorization: `Bearer ${inboxKey(TOKEN)}` });
-  await asInbox('GET', '/api/inbox');
+  storyList(bridge);
   await bridge.server.autoReview.idle();
-  const stories = ((await asInbox('GET', '/api/inbox')).body as InboxList).stories;
+  const stories = storyList(bridge).stories;
   assert.deepEqual(Object.fromEntries(stories.map((story) => [story.number, story.reviewed_by])), {
     1: 'all viewed',
     2: null,
   });
 });
 
-test('the board and the inbox share one check per PR, in either order, and the answer reaches every story of the PR', async () => {
+test('the board and the story list share one check per PR, in either order, and the answer reaches every story of the PR', async () => {
   const home = tmp('board-shared');
   prStory(home, 'acme-widgets-1', 'acme/widgets', 1);
   prStory(home, 'acme-widgets-1-again', 'acme/widgets', 1);
@@ -1438,20 +1390,18 @@ test('the board and the inbox share one check per PR, in either order, and the a
   });
   open.push(bridge);
   const review = bridge.server.autoReview;
-  const asInbox = (method: string, route: string) =>
-    bridge.call(method, route, undefined, { Authorization: `Bearer ${inboxKey(TOKEN)}` });
   const marks = async () => {
-    const stories = ((await asInbox('GET', '/api/inbox')).body as InboxList).stories;
+    const stories = storyList(bridge).stories;
     await review.idle();
     return stories.length;
   };
 
-  // the board asks about 1 and 2 first: the inbox poll in the same window neither asks again nor loses the answer
+  // the board asks about 1 and 2 first: a story-list read in the same window neither asks again nor loses the answer
   review.kickInfo('acme/widgets', 1);
   review.kickInfo('acme/widgets', 2);
   assert.equal(await marks(), 3);
   assert.deepEqual(asked.sort(), [1, 2], 'one check per PR');
-  const after = ((await asInbox('GET', '/api/inbox')).body as InboxList).stories;
+  const after = storyList(bridge).stories;
   assert.deepEqual(
     after.map((story) => [story.id, story.reviewed_by]).sort(),
     [
@@ -1463,7 +1413,7 @@ test('the board and the inbox share one check per PR, in either order, and the a
   assert.equal(review.info('acme/widgets', 1)?.number, 1);
   assert.equal(review.info('acme/widgets', 2)?.state, 'merged');
 
-  // the inbox first, then the board in the same window
+  // the story list first, then the board in the same window
   const second = tmp('board-shared-2');
   prStory(second, 'acme-widgets-5', 'acme/widgets', 5);
   const asked5: number[] = [];
@@ -1475,7 +1425,7 @@ test('the board and the inbox share one check per PR, in either order, and the a
     },
   });
   open.push(other);
-  await other.call('GET', '/api/inbox', undefined, { Authorization: `Bearer ${inboxKey(TOKEN)}` });
+  storyList(other);
   other.server.autoReview.kickInfo('acme/widgets', 5);
   await other.server.autoReview.idle();
   assert.deepEqual(asked5, [5]);
@@ -2299,8 +2249,7 @@ test('POST /api/board/focus takes the board key, a live session id and nothing e
   assert.equal((await post(key, { session: 'not-a-live-session' })).status, 404);
   // a live session whose process has no terminal (this test's) has no tab to raise
   assert.equal((await post(key, { session: fullId(process.pid) })).status, 409);
-  // the other pages' keys don't reach it
-  assert.equal((await post(inboxKey(TOKEN), { session: fullId(process.pid) })).status, 403);
+  // another page's key doesn't reach it
   assert.equal((await post(pageKey(TOKEN, 'x'), { session: fullId(process.pid) })).status, 403);
   // and with iTerm turned off in the settings there is nothing to do
   writeJson(path.join(home, 'config.json'), {
@@ -2459,7 +2408,6 @@ test('the bridge answers a proxy’s allowed host names, keeps the key in an Htt
   const origin = `https://${name}`;
   const asHost = (headers: Record<string, string> = {}) => ({ Host: name, ...headers });
   const board = boardKey(TOKEN);
-  const inbox = inboxKey(TOKEN);
 
   // names that are not allowed are refused (DNS rebinding), exactly: no suffix or prefix tricks
   for (const bad of [
@@ -2484,7 +2432,7 @@ test('the bridge answers a proxy’s allowed host names, keeps the key in an Htt
   // no cookie, no key: refused
   assert.equal((await rawRequest(bridge.base, 'GET', '/api/board', asHost())).status, 401);
 
-  // the page hands over its key: only the inbox's or the board's, only from that host's own page
+  // the page hands over its key: only the board's, only from that host's own page
   const start = (key: string, headers: Record<string, string>) =>
     rawRequest(bridge.base, 'POST', '/auth/session', headers, { key });
   assert.equal((await start(board, asHost())).status, 403, 'no Origin');
@@ -2513,8 +2461,6 @@ test('the bridge answers a proxy’s allowed host names, keeps the key in an Htt
   assert.equal(plain.status, 200);
   assert.deepEqual(JSON.parse(plain.text), { cookie: false });
   assert.equal(plain.headers['set-cookie'], undefined);
-  const inboxSet = await start(inbox, asHost({ Origin: origin }));
-  const inboxCookie = ([inboxSet.headers['set-cookie']].flat()[0] as string).split(';')[0];
   const boardCookie = cookie.split(';')[0];
 
   // on the bridge's own address there is no cookie to set
@@ -2528,22 +2474,11 @@ test('the bridge answers a proxy’s allowed host names, keeps the key in an Htt
   assert.deepEqual(JSON.parse(direct.text), { cookie: false });
   assert.equal(direct.headers['set-cookie'], undefined);
 
-  // with the cookie the board loads, and each page's cookie reaches only its own routes
+  // with the cookie the board loads, and the cookie reaches only the board's routes
   const withCookie = (route: string, cookies: string, extra: Record<string, string> = {}) =>
     rawRequest(bridge.base, 'GET', route, asHost({ Cookie: cookies, ...extra }));
   assert.equal((await withCookie('/api/board', boardCookie)).status, 200);
-  assert.equal(
-    (await withCookie('/api/board', inboxCookie)).status,
-    403,
-    'the inbox cookie is not the board’s',
-  );
-  assert.equal((await withCookie('/api/inbox', boardCookie)).status, 403);
-  assert.equal((await withCookie('/api/inbox', inboxCookie)).status, 200);
   assert.equal((await withCookie('/api/stories', boardCookie)).status, 403);
-  // both cookies ride along on every request, and the route picks the one it takes
-  const both = `${boardCookie}; ${inboxCookie}`;
-  assert.equal((await withCookie('/api/board', both)).status, 200);
-  assert.equal((await withCookie('/api/inbox', both)).status, 200);
   assert.equal((await withCookie('/api/board', 'x=1; __Host-ou-board=page.nope')).status, 403);
 
   // a write by cookie needs an allowed Origin; the header key works as before
@@ -2561,18 +2496,6 @@ test('the bridge answers a proxy’s allowed host names, keeps the key in an Htt
     400,
     'a header key needs no Origin',
   );
-
-  // the other page's link is made on the address the page was opened on, so it gets its own cookie there
-  const link = await withCookie('/api/board/inbox-link?repo=acme/widgets', boardCookie);
-  assert.equal(JSON.parse(link.text).url, `${origin}/inbox/#key=${inbox}&repo=acme%2Fwidgets`);
-  // the way back is the board's address alone: the board's own cookie connects it there
-  const back = await withCookie('/api/board/link', inboxCookie);
-  assert.equal(JSON.parse(back.text).url, `${origin}/board/`);
-  assert.ok(!back.text.includes(board));
-  const onLoopback = await bridge.call<{ url: string }>('GET', '/api/board/link', undefined, {
-    Authorization: `Bearer ${inbox}`,
-  });
-  assert.equal(onLoopback.body.url, `${bridge.base}/board/`);
 });
 
 test('the page drops its key only once a call by cookie alone has worked', async () => {
@@ -2598,14 +2521,14 @@ test('the page drops its key only once a call by cookie alone has worked', async
     });
     // a fresh copy of the module each time, since it keeps whether the cookie is in use
     const auth = await import(`../public/local/auth.ts?${name}` as string);
-    await auth.startAuth('page.abc', '/api/board/inbox-link');
+    await auth.startAuth('page.abc', '/api/board');
     return { header: auth.authHeader('page.abc'), replaced, calls };
   };
   try {
     const worked = await scenario('worked', { cookie: true }, 200);
     assert.deepEqual(worked.header, {}, 'the cookie carries it');
     assert.deepEqual(worked.replaced, ['/board/#repo=acme%2Fwidgets']);
-    assert.deepEqual(worked.calls, ['/auth/session', '/api/board/inbox-link']);
+    assert.deepEqual(worked.calls, ['/auth/session', '/api/board']);
 
     const refused = await scenario('refused', { cookie: true }, 401);
     assert.deepEqual(
@@ -2645,15 +2568,10 @@ test('the extension asks the bridge for a fresh page link, on the proxy’s addr
   const link = async (route: string) => (await bridge.call<{ url: string }>('GET', route)).body.url;
   // as the page's own tab would: the bridge's address
   assert.equal(await link('/api/board/link'), `${bridge.base}/board/#key=${boardKey(TOKEN)}`);
-  assert.equal(await link('/api/inbox/link'), `${bridge.base}/inbox/#key=${inboxKey(TOKEN)}`);
   // the extension's ask: the proxy's name, which sets the cookie in its browser
   assert.equal(
     await link('/api/board/link?public=1'),
     `https://once-upon.test/board/#key=${boardKey(TOKEN)}`,
-  );
-  assert.equal(
-    await link('/api/inbox/link?public=1&repo=acme/widgets'),
-    `https://once-upon.test/inbox/#key=${inboxKey(TOKEN)}&repo=acme%2Fwidgets`,
   );
   // and when no proxy name is set, the bridge's own address
   writeJson(path.join(home, 'config.json'), {
@@ -3205,7 +3123,7 @@ test('POST /api/board/type and /stop-listening: the board key, a live idle sessi
   });
   assert.equal(noTab.status, 409);
   assert.match(noTab.text, /no iTerm tab/);
-  for (const key of [inboxKey(TOKEN), pageKey(TOKEN, 'x')]) {
+  for (const key of [pageKey(TOKEN, 'x')]) {
     assert.equal(
       (await post('/api/board/type', { kind: 'listen', session: 's', repo: 'a/b' }, key)).status,
       403,
@@ -3927,7 +3845,7 @@ function localStory(
   }
 }
 
-test('the review inbox lists local stories beside the PR stories: Open story, Mark reviewed, a story left by the retired turn capture left out', async () => {
+test('the bridge lists local stories beside the PR stories: Mark reviewed, a story left by the retired turn capture left out', async () => {
   const home = tmp('board-inbox');
   const widgets = checkoutOf('widgets', 'feat/x');
   prStory(home, 'acme-widgets-7', 'acme/widgets', 7);
@@ -3946,10 +3864,8 @@ test('the review inbox lists local stories beside the PR stories: Open story, Ma
   localStory(home, 'turn-abc', widgets, null, { turn: 'abc', title: 'widgets: a turn' });
   const bridge = await startBridge({ home });
   open.push(bridge);
-  const asInbox = (method: string, route: string, body?: unknown) =>
-    bridge.call(method, route, body, { Authorization: `Bearer ${inboxKey(TOKEN)}` });
 
-  const list = (await asInbox('GET', '/api/inbox')).body as InboxList;
+  const list = storyList(bridge);
   assert.deepEqual(
     list.local_stories
       .map((story) => [story.id, story.repo, story.branch, story.title, story.reviewed_at !== null])
@@ -3965,39 +3881,16 @@ test('the review inbox lists local stories beside the PR stories: Open story, Ma
     ['acme-widgets-7'],
     'PR stories are as before',
   );
-  // the repo menu counts them with the PR story
-  assert.deepEqual(
-    list.repos.map((repo) => [repo.repo, repo.count, repo.unreviewed]),
-    [['acme/widgets', 3, 2]],
-  );
-  const filtered = (await asInbox('GET', '/api/inbox?repo=acme/widgets')).body as InboxList;
-  assert.equal(filtered.local_stories.length, 2);
-  const none = (await asInbox('GET', '/api/inbox?repo=acme/gadgets')).body as InboxList;
-  assert.deepEqual(none.local_stories, []);
-
-  // Open story: the local page's link, with that story's key
-  const opened = await asInbox('POST', '/api/inbox/open', { story: 'local-widgets-feat-x' });
-  assert.equal(opened.status, 200);
-  assert.match(
-    (opened.body as { url: string }).url,
-    /\/local\/.*local-widgets-feat-x|local-widgets-feat-x/,
-  );
-  for (const id of ['turn-abc', 'acme-widgets-7', 'nope']) {
-    assert.equal((await asInbox('POST', '/api/inbox/open', { story: id })).status, 404, id);
-  }
   // Mark reviewed, the way a PR story is, and unmark
-  const marked = await asInbox('POST', '/api/inbox/reviewed', { story: 'local-widgets-feat-x' });
-  assert.equal(marked.status, 200);
-  assert.ok((marked.body as { story: { reviewed_at: string } }).story.reviewed_at);
-  const after = (await asInbox('GET', '/api/inbox')).body as InboxList;
-  assert.equal(after.repos[0].unreviewed, 1);
-  await asInbox('POST', '/api/inbox/reviewed', { story: 'local-widgets-feat-x', reviewed: false });
-  const undone = (await asInbox('GET', '/api/inbox')).body as InboxList;
+  assert.ok(markReviewed(bridge, 'local-widgets-feat-x')?.reviewed_at);
+  assert.equal(storyList(bridge).local_stories.filter((story) => !story.reviewed_at).length, 0);
+  markReviewed(bridge, 'local-widgets-feat-x', false);
+  const undone = storyList(bridge);
   assert.equal(
     undone.local_stories.find((story) => story.id === 'local-widgets-feat-x')?.reviewed_at,
     null,
   );
-  assert.equal((await asInbox('POST', '/api/inbox/reviewed', { story: 'turn-abc' })).status, 404);
+  assert.equal(markReviewed(bridge, 'turn-abc'), null);
   // the board key hands out the same link
   const asBoard = await bridge.call(
     'POST',
@@ -4076,42 +3969,6 @@ test('a local story’s built time is when it was told: a refresh of its diff is
   );
 });
 
-test('picking a repo that has only a folder name in the inbox menu lists its local stories', async () => {
-  const home = tmp('board-inbox');
-  const widgets = checkoutOf('widgets', 'feat/x');
-  localStory(home, 'local-widgets-feat-x', widgets, 'feat/x');
-  // a checkout with no GitHub origin: counted under its folder name
-  const scratch = tmp('scratch-checkout');
-  git(scratch, 'init', '-q', '-b', 'feat/s');
-  localStory(home, 'local-scratch', scratch, 'feat/s');
-  const folder = path.basename(scratch);
-  const bridge = await startBridge({ home });
-  open.push(bridge);
-  const asInbox = async (query: string) =>
-    (
-      await bridge.call('GET', `/api/inbox${query}`, undefined, {
-        Authorization: `Bearer ${inboxKey(TOKEN)}`,
-      })
-    ).body as InboxList;
-  const all = await asInbox('');
-  assert.deepEqual(
-    all.repos.map((repo) => [repo.repo, repo.unreviewed]).sort(),
-    [
-      ['acme/widgets', 1],
-      [folder, 1],
-    ].sort(),
-  );
-  assert.deepEqual(
-    (await asInbox(`?repo=${encodeURIComponent(folder)}`)).local_stories.map((story) => story.id),
-    ['local-scratch'],
-    'the menu says 1, and picking it lists it',
-  );
-  assert.deepEqual(
-    (await asInbox('?repo=acme/widgets')).local_stories.map((story) => story.id),
-    ['local-widgets-feat-x'],
-  );
-});
-
 test('the board: a local story puts its branch in Ready for your review, rebuilt after you opened it too, and makes a branch-only card', async () => {
   const home = tmp('board-home');
   const sessions = tmp('board-sessions');
@@ -4150,7 +4007,7 @@ test('the board: a local story puts its branch in Ready for your review, rebuilt
       'position.json': { at: '2099-01-01T00:00:00Z' },
     },
   );
-  localStory(home, 'local-norepo', elsewhere, 'feat/y'); // no GitHub repo: the inbox only
+  localStory(home, 'local-norepo', elsewhere, 'feat/y'); // no GitHub repo: no card
   localStory(home, 'turn-abc', widgetsMain, null, { turn: 'abc' });
   // a PR story on feat/pr wins over a local one of the same branch
   prStory(home, 'acme-widgets-5', 'acme/widgets', 5, 'feat/pr');
@@ -4189,7 +4046,6 @@ test('the board: a local story puts its branch in Ready for your review, rebuilt
   });
   assert.equal(withSession.lane, 'widgets');
   assert.equal(withSession.build, null, 'it has a story: nothing to build');
-  assert.deepEqual(withSession.inbox, { stories: 1, repo: 'acme/widgets' });
   const branchOnly = byId['branch:acme/widgets@feat/new'];
   assert.equal(branchOnly.title, 'Story of local-feat-new');
   assert.equal(branchOnly.branch, 'feat/new');
@@ -4206,10 +4062,7 @@ test('the board: a local story puts its branch in Ready for your review, rebuilt
   for (const gone of ['feat/done', 'feat/y']) {
     assert.ok(!cards.some((found) => found.branch === gone), gone);
   }
-  assert.ok(
-    !cards.some((found) => found.id === 'story:local-main-done'),
-    'reviewed: the inbox only',
-  );
+  assert.ok(!cards.some((found) => found.id === 'story:local-main-done'), 'reviewed: no card');
   assert.equal(cards.length, 6, 'the six above, nothing else');
 });
 
@@ -4557,7 +4410,7 @@ test('the board: a local story rebuilt after you opened it stays in Ready, and o
   ]);
 });
 
-test('POST /api/board/reviewed: the board page marks a local story reviewed or unmarked, a PR story is a 404, and the inbox page’s key does not reach it', async () => {
+test('POST /api/board/reviewed: the board page marks a local story reviewed or unmarked, a PR story is a 404, and a story page’s key does not reach it', async () => {
   const home = tmp('board-reviewed');
   const widgets = checkoutOf('widgets', 'feat/x');
   prStory(home, 'acme-widgets-7', 'acme/widgets', 7);
@@ -4581,21 +4434,13 @@ test('POST /api/board/reviewed: the board page marks a local story reviewed or u
   );
   assert.equal((await asBoard({ story: 'acme-widgets-7' })).status, 404);
   assert.equal((await asBoard({ story: 'nope' })).status, 404);
-  const asInbox = await bridge.call(
+  const asStory = await bridge.call(
     'POST',
     '/api/board/reviewed',
     { story: 'local-feat-x' },
-    { Authorization: `Bearer ${inboxKey(TOKEN)}` },
+    { Authorization: `Bearer ${pageKey(TOKEN, 'local-feat-x')}` },
   );
-  assert.equal(asInbox.status, 403);
-  // the board key still does not reach the inbox's own route
-  const viaInbox = await bridge.call(
-    'POST',
-    '/api/inbox/reviewed',
-    { story: 'local-feat-x' },
-    { Authorization: `Bearer ${boardKey(TOKEN)}` },
-  );
-  assert.equal(viaInbox.status, 403);
+  assert.equal(asStory.status, 403);
 });
 
 test('once-upon reviewed marks a local story reviewed, --undo unmarks it, and a PR story or an unknown id is refused', async () => {
@@ -4844,7 +4689,7 @@ test('POST /api/board/backlog/assign: the board key only, two ids and no text', 
   });
   assert.equal(noTab.status, 409);
   assert.equal(new BacklogStore(home).items()[0].assigned, null);
-  for (const key of [inboxKey(TOKEN), pageKey(TOKEN, 'x')]) {
+  for (const key of [pageKey(TOKEN, 'x')]) {
     assert.equal((await post({ id: item.id, session: fullId(process.ppid) }, key)).status, 403);
   }
 });
@@ -5035,7 +4880,7 @@ test('GET /api/board/listen-sessions: the board key or the token, a repo or a st
   assert.equal((await get('/api/board/listen-sessions', TOKEN)).status, 400);
   assert.equal((await get('/api/board/listen-sessions?repo=not%20a%20repo', TOKEN)).status, 400);
   assert.equal((await get('/api/board/listen-sessions?story=nope', TOKEN)).status, 404);
-  for (const key of [inboxKey(TOKEN), pageKey(TOKEN, 'acme-widgets-7')]) {
+  for (const key of [pageKey(TOKEN, 'acme-widgets-7')]) {
     assert.equal(
       (await get('/api/board/listen-sessions?repo=acme/widgets', key)).status,
       403,

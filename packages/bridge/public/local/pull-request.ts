@@ -34,7 +34,7 @@ export function prButtonHtml() {
       return link;
     }
     const off = page.story.read_only
-      ? 'Open this story from the board or `once-upon page` to push it: the inbox link is read-only'
+      ? 'Open this story from the board or `once-upon page` to push it: this link is read-only'
       : '';
     return html`<span class="ou-local-ahead">${plural(behind, 'commit')} ahead</span>
       <button type="button" class="ou-local-push-ahead"${off && html` disabled`} title="${off || 'Fast-forward this branch to GitHub, where the open PR is'}">Push</button>${link}`;
@@ -265,11 +265,11 @@ async function submit(form: HTMLFormElement, view: PrView) {
 export async function openPrBox() {
   const box = boxElement();
   if (page.story.read_only) {
-    // the inbox's link carries the read-only key, which can't push: say where to open the story, rather than fail on a click
+    // a read-only link carries the read-only key, which can't push: say where to open the story, rather than fail on a click
     setHtml(
       box,
       html`<form class="ou-local-pr-form"><h2>Create pull request</h2>
-        <p>This page was opened from the review inbox, whose link can read the story but not push its branch.</p>
+        <p>This page was opened with a read-only link, which can read the story but not push its branch.</p>
         <p>To push and open the PR, open the story from the agent board (<b>Open story</b>) or run <code>once-upon page --story ${page.story.id}</code>.</p>
         <div class="ou-local-pr-buttons"><button type="button" data-pr-cancel>Close</button></div></form>`,
     );

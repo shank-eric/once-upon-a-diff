@@ -425,7 +425,6 @@ export function backlogCards(
       can_focus: false,
       listening: null,
       build: null,
-      inbox: null,
       backlog: {
         id: item.id,
         added_by: item.added_by,

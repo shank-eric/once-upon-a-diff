@@ -58,7 +58,7 @@ async function test(prefix = '') {
 }
 
 /**
- * Opens the bridge's board or review inbox in a tab: the link, with its key, is the bridge's to make. `public=1` asks for
+ * Opens the bridge's board in a tab: the link, with its key, is the bridge's to make. `public=1` asks for
  * the proxy's address (https://once-upon.test) when that reaches this machine, so the page sets its cookie in this browser.
  */
 async function openPage(kind: PageKind) {
@@ -66,7 +66,7 @@ async function openPage(kind: PageKind) {
   const answer: BridgeAnswer<{ url: string }> = await chrome.runtime.sendMessage({
     type: 'bridge',
     method: 'GET',
-    path: kind === 'board' ? '/api/board/link?public=1' : '/api/inbox/link?public=1',
+    path: '/api/board/link?public=1',
     settings,
   } satisfies BridgeRequest);
   // only a link of the right shape is opened
@@ -89,6 +89,5 @@ async function init() {
   });
   $('test').addEventListener('click', () => test());
   $('board').addEventListener('click', () => openPage('board'));
-  $('inbox').addEventListener('click', () => openPage('inbox'));
 }
 init();

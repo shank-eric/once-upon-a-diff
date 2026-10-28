@@ -6,6 +6,14 @@ import { fileURLToPath } from 'node:url';
 import type { AddressInfo } from 'node:net';
 import { createBridge, type Bridge } from '../src/server/index.ts';
 import type { BranchCheck, PrCheck, RequestedCheck } from '../src/review-inbox/auto-review.ts';
+import {
+  localEntries,
+  localStory,
+  markStoryReviewed,
+  prStories,
+  prStory,
+} from '../src/review-inbox/stories.ts';
+import type { InboxLocalStory, InboxStory } from '@once-upon-a-diff/shared/types';
 import type { Build } from '../src/inbox/builds.ts';
 import type { listeningOf } from '../src/listeners/listeners.ts';
 
@@ -200,3 +208,32 @@ export const runCli = (
 
 /** startBridge's bridge, with `call` and `close`. */
 export type TestBridge = Awaited<ReturnType<typeof startBridge>>;
+
+/** The built PR stories and the local stories, read in-process as the board reads them. */
+export interface StoryList {
+  stories: InboxStory[];
+  local_stories: InboxLocalStory[];
+}
+
+/**
+ * The PR stories and local stories the bridge has, and the GitHub checks they start (kicked in the background, as a
+ * board poll does).
+ */
+export function storyList(bridge: TestBridge): StoryList {
+  const { stories, autoReview } = bridge.server;
+  const everything = prStories(stories);
+  const localList = localEntries(stories);
+  autoReview.kick(everything);
+  autoReview.kickLocal(localList);
+  return { stories: everything, local_stories: localList.map((entry) => entry.story) };
+}
+
+/** Marks a PR story or a local story reviewed (or not), the way the board's Mark reviewed does, and answers with the story. */
+export function markReviewed(bridge: TestBridge, id: string, reviewed = true) {
+  const { stories } = bridge.server;
+  if (!prStory(stories, id) && !localStory(stories, id)) {
+    return null;
+  }
+  markStoryReviewed(stories, id, reviewed);
+  return prStory(stories, id) ?? localStory(stories, id);
+}

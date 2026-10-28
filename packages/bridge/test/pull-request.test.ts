@@ -4,7 +4,7 @@ import path from 'node:path';
 import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmp, startBridge, runCli, localRepo, writeJson, TOKEN } from './helpers.ts';
-import { boardKey, inboxKey, pageKey, viewKey, viewKeyMay } from '../src/server/page-key.ts';
+import { boardKey, pageKey, viewKey, viewKeyMay } from '../src/server/page-key.ts';
 import { createLocalStory } from '../src/stories/local-story.ts';
 import { aheadOf, namedBase } from '../src/stories/pull-request.ts';
 import type { PrPushAnswer, PrView, StoryData } from '@once-upon-a-diff/shared/types';
@@ -135,7 +135,7 @@ describe('Create pull request on a local story', () => {
     }
   });
 
-  test('links only step down: the inbox hands out a read-only key, which reads, asks and rebuilds but never pushes', async () => {
+  test('the read-only key reads, asks and rebuilds but never pushes', async () => {
     const home = tmp('home');
     const { remote, id } = storyWithOrigin(home);
     const bridge = await startBridge({ home });
@@ -144,29 +144,21 @@ describe('Create pull request on a local story', () => {
     const withKey = (key: string, method: string, route: string, body?: unknown) =>
       bridge.call(method, route, body, { Authorization: `Bearer ${key}` });
     try {
-      // every way the inbox can get a link to the story gives the read-only key, never the full one
-      const opened = await withKey(inboxKey(TOKEN), 'POST', '/api/inbox/open', { story: id });
-      assert.equal(opened.status, 200, opened.text);
-      const read = keyOf((opened.body as { url: string }).url);
-      assert.equal(read, viewKey(TOKEN, id));
+      const read = viewKey(TOKEN, id);
       assert.notEqual(read, pageKey(TOKEN, id), 'not the key that can push');
       assert.notEqual(viewKey(TOKEN, id), viewKey(TOKEN, 'other'), 'one story each');
-      // the inbox's own key and the board-only routes hand out no story key at all
+      // a story key opens nothing, and the board's key is no story's key
       assert.equal(
-        (await withKey(inboxKey(TOKEN), 'POST', '/api/board/open-story', { story: id })).status,
-        403,
-      );
-      assert.equal(
-        (await withKey(read, 'POST', '/api/inbox/open', { story: id })).status,
+        (await withKey(read, 'POST', '/api/board/open-story', { story: id })).status,
         403,
         'a story key opens nothing',
       );
-      assert.equal((await withKey(inboxKey(TOKEN), 'GET', `${story}/pr`)).status, 403);
+      assert.equal((await withKey(boardKey(TOKEN), 'GET', `${story}/pr`)).status, 403);
       assert.equal(
-        (await withKey(inboxKey(TOKEN), 'POST', `${story}/pr`, { action: 'push', head_sha: 'x' }))
+        (await withKey(boardKey(TOKEN), 'POST', `${story}/pr`, { action: 'push', head_sha: 'x' }))
           .status,
         403,
-        "the inbox's key is no story's key",
+        "the board's key is no story's key",
       );
 
       // the read-only key may look where the branch stands, the same view the full key gets
@@ -225,7 +217,7 @@ describe('Create pull request on a local story', () => {
         (await withKey(read, 'POST', `${story}/fixes`, { action: 'auto', on: false })).status,
         200,
       );
-      // Send goes to the session, and take back works: Fix before push is the way the inbox reviews
+      // Send goes to the session, and take back works: Fix before push is the way a read-only link reviews
       assert.equal(
         (await withKey(read, 'POST', `${story}/fixes`, { action: 'send' })).status,
         200,
@@ -533,7 +525,7 @@ describe('Create pull request on a local story', () => {
       }
     });
 
-    test('only the full page key reaches it: not the read-only key, the inbox or board keys, or another story', async () => {
+    test('only the full page key reaches it: not the read-only key, the board key, or another story', async () => {
       const home = tmp('home');
       writeFileSync(fakeGhBin.prsFile, JSON.stringify(OPEN_PR));
       const { repo, remote, id, bridge } = await pushedStory(home);
@@ -544,7 +536,6 @@ describe('Create pull request on a local story', () => {
         assert.equal(viewKeyMay('pr', 'POST'), false);
         for (const key of [
           viewKey(TOKEN, id),
-          inboxKey(TOKEN),
           boardKey(TOKEN),
           pageKey(TOKEN, 'other'),
           'page.nonsense',

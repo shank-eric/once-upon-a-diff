@@ -26,7 +26,7 @@ export function approveHtml() {
   let off = '';
   if (page.story.read_only) {
     off =
-      'Open this story from the board or `once-upon page` to approve it: the inbox link is read-only';
+      'Open this story from the board or `once-upon page` to approve it: this link is read-only';
   } else if (!head) {
     off = 'The diff has no head yet';
   }

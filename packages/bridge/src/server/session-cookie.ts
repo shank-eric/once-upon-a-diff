@@ -2,7 +2,7 @@
  * The page key in a cookie, for the pages served on an allowed host name (a reverse proxy such as puma-dev, over https).
  * A link carries the key in its #fragment, which the server never sees, so the page posts it to /auth/session once, the
  * server checks it and sets a cookie for that host, and the page drops the fragment: later visits are just
- * https://once-upon.test/board/. The inbox and the board keep their own cookies, and each is the same page key the
+ * https://once-upon.test/board/. The board keeps its cookie, which is the same page key the
  * fragment would have carried, so the key checks on the API are the same either way.
  *
  * `__Host-` makes the browser require Secure, Path=/ and no Domain, so the cookie belongs to that one host. HttpOnly keeps
@@ -11,7 +11,7 @@
  */
 import type { IncomingMessage } from 'node:http';
 
-export const COOKIE_NAMES = { inbox: '__Host-ou-inbox', board: '__Host-ou-board' } as const;
+export const COOKIE_NAMES = { board: '__Host-ou-board' } as const;
 const MAX_AGE_S = 30 * 24 * 3600;
 
 /** The request's cookies, by name. */

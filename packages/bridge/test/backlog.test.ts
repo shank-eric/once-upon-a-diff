@@ -18,7 +18,7 @@ import { Board, noPrWatcher } from '../src/board/board.ts';
 import { registrySource } from '../src/board/sources.ts';
 import { StoryStore } from '../src/stories/store.ts';
 import { Builds } from '../src/inbox/builds.ts';
-import { boardKey, inboxKey, pageKey, viewKey } from '../src/server/page-key.ts';
+import { boardKey, pageKey, viewKey } from '../src/server/page-key.ts';
 import type { BoardCard, BoardData } from '@once-upon-a-diff/shared/types';
 
 const open: TestBridge[] = [];
@@ -312,7 +312,7 @@ test('the board snapshot has the Backlog column’s cards, and a CLI-added item 
   );
 });
 
-test('the board key adds and drops; the inbox key and a story’s keys reach nothing of the backlog', async () => {
+test('the board key adds and drops; a story’s keys reach nothing of the backlog', async () => {
   const home = tmp('backlog-bridge');
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: tmp('backlog-bridge-sessions'),
@@ -398,7 +398,7 @@ test('the board key adds and drops; the inbox key and a story’s keys reach not
     400,
   );
   // links only step down
-  for (const key of [inboxKey(TOKEN), pageKey(TOKEN, 'x'), viewKey(TOKEN, 'x'), `${board}x`]) {
+  for (const key of [pageKey(TOKEN, 'x'), viewKey(TOKEN, 'x'), `${board}x`]) {
     for (const route of [
       '/api/board/backlog',
       '/api/board/backlog/drop',

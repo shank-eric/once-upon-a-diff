@@ -1,5 +1,5 @@
 /**
- * The address the board and inbox open on. With a reverse proxy (puma-dev) the bridge can be reached as
+ * The address the board opens on. With a reverse proxy (puma-dev) the bridge can be reached as
  * https://once-upon.test, where the page keeps its key in a cookie; without one, only as http://127.0.0.1:<port>. A
  * public_host named in config.json is always used. The default name is used only when it resolves to this machine, so a
  * setup with no proxy (a new user's) gets the 127.0.0.1 address instead of a link that goes nowhere. Answers are kept a

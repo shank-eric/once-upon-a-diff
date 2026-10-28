@@ -10,10 +10,9 @@
  *     that story's page key (./page-key.ts), which can't reach other stories, bridge-wide routes or GitHub's
  *     API. Its one way out to GitHub is Create pull request's `git push` of the story's branch, which the page
  *     sends only from the reviewer's click in its confirm box (routes/pull-request.ts). A story also has a read-only
- *     key (the inbox's links carry that one) that reaches only an allowlist of routes (viewKeyMay in ./page-key.ts), so
+ *     key that reaches only an allowlist of routes (viewKeyMay in ./page-key.ts), so
  *     it can't push at all, and a route added later is refused to it until it is listed
- *   - the review inbox page's key and the agent board page's key (./page-key.ts) each reach only the routes that allow
- *     them (routes/inbox.ts, routes/board.ts)
+ *   - the agent board page's key (./page-key.ts) reaches only the routes that allow it (routes/board.ts)
  *   - writes must be application/json, and a request with an Origin must come
  *     from this extension (its fixed ID, or one in extension_ids) or from the bridge's own pages
  *   - no CORS headers, so other web pages can't read anything it says
@@ -36,13 +35,11 @@ import { Board } from '../board/board.ts';
 import { HttpError, sameToken, readBody } from './request.ts';
 import { COOKIE_NAMES, cookieFor, cookiesOf } from './session-cookie.ts';
 import { assetFor } from './assets.ts';
-import { pageHeaders, localPage, inboxPage, boardPage } from './pages.ts';
+import { pageHeaders, localPage, boardPage } from './pages.ts';
 import {
   PAGE_KEY_PREFIX,
   boardKey,
   boardPageUrl,
-  inboxKey,
-  inboxPageUrl,
   localPageUrl,
   pageKey,
   viewKey,
@@ -59,7 +56,6 @@ import { localStoryRoutes } from './routes/local-story.ts';
 import { fixRoutes } from './routes/fixes.ts';
 import { pullRequestRoutes } from './routes/pull-request.ts';
 import { pushRoutes } from './routes/push.ts';
-import { inboxRoutes } from './routes/inbox.ts';
 import { boardRoutes } from './routes/board.ts';
 import {
   AutoReview,
@@ -81,13 +77,7 @@ export const VERSION: string = JSON.parse(
 ).version;
 
 /** /api/<path> routes, checked in order. A route with a method answers only that method. */
-const API_ROUTES: ApiRoute[] = [
-  ...statusRoutes,
-  ...catalogRoutes,
-  ...buildRoutes,
-  ...inboxRoutes,
-  ...boardRoutes,
-];
+const API_ROUTES: ApiRoute[] = [...statusRoutes, ...catalogRoutes, ...buildRoutes, ...boardRoutes];
 /** /api/stories/<id>/<what>[/<sub>] routes, by `what` ('' for the story itself). */
 const STORY_ROUTES: StoryRoute[] = [
   ...storyRoutes,
@@ -157,9 +147,7 @@ export function createBridge({
     autoReview,
     links: {
       story: (id, readOnly = false) => localPageUrl(portOf(), id, token, readOnly),
-      inbox: (repo = null, origin) => inboxPageUrl(portOf(), token, repo, origin),
       board: (origin) => boardPageUrl(portOf(), token, origin),
-      boardAddress: (origin = `http://127.0.0.1:${portOf()}`) => `${origin}/board/`,
     },
     log,
     statusCache: null, // PR-list lookups, kept 5s
@@ -186,7 +174,7 @@ export function createBridge({
 
   /**
    * POST /auth/session {key}: a page on an allowed host name hands over the key from its link's #fragment, and the answer
-   * sets the cookie that keeps it for that host. The key has to be the inbox's or the board's page key (the bridge's token
+   * sets the cookie that keeps it for that host. The key has to be the board's page key (the bridge's token
    * and a story's key don't qualify), and the request has to come from that host's own page.
    */
   async function startSession(req: IncomingMessage, origin: string | undefined, send: Send) {
@@ -206,11 +194,9 @@ export function createBridge({
     let name: string | null = null;
     if (key.startsWith(PAGE_KEY_PREFIX) && sameToken(key, boardKey(token))) {
       name = COOKIE_NAMES.board;
-    } else if (key.startsWith(PAGE_KEY_PREFIX) && sameToken(key, inboxKey(token))) {
-      name = COOKIE_NAMES.inbox;
     }
     if (!name) {
-      throw new HttpError(403, "that key isn't the inbox's or the board's");
+      throw new HttpError(403, "that key isn't the board's");
     }
     if (origin !== `https://${host}`) {
       // a page on plain http is let in, but a browser refuses a Secure __Host- cookie there: say there is none, so the page keeps its key
@@ -240,10 +226,6 @@ export function createBridge({
       send(200, localPage(id, readMeta(dir)), HTML, pageHeaders());
       return true;
     }
-    if (/^\/inbox\/?$/.test(pathname)) {
-      send(200, inboxPage(), HTML, pageHeaders());
-      return true;
-    }
     if (/^\/board\/?$/.test(pathname)) {
       send(200, boardPage(), HTML, pageHeaders());
       return true;
@@ -253,7 +235,7 @@ export function createBridge({
 
   /**
    * The token, then the body: GET, or POST with JSON. Returns the body and the call's scope: null with the bridge's
-   * token, or the one story a local page's key is for (`readOnly` when that is the story's read-only key). `pageScope` is the review inbox's or the agent board's page
+   * token, or the one story a local page's key is for (`readOnly` when that is the story's read-only key). `pageScope` is the agent board's page
    * key: no story, and only the routes that allow it.
    */
   async function checkApiCall(
@@ -263,7 +245,7 @@ export function createBridge({
   ): Promise<{
     body: Body;
     scope: string | null;
-    pageScope: 'inbox' | 'board' | null;
+    pageScope: 'board' | null;
     readOnly: boolean;
   }> {
     let auth = String(
@@ -275,16 +257,7 @@ export function createBridge({
     let viaCookie = false;
     if (!auth && allowedHostOf(req)) {
       const jar = cookiesOf(req);
-      // both pages' cookies are sent on every request; the route says which page's key it takes
-      const route = API_ROUTES.find(
-        (candidate) => candidate.path === pathname && methodMatches(candidate, req.method),
-      );
-      const cookieKey =
-        (route?.boardKey && jar[COOKIE_NAMES.board]) ||
-        (route?.inboxKey && jar[COOKIE_NAMES.inbox]) ||
-        jar[COOKIE_NAMES.board] ||
-        jar[COOKIE_NAMES.inbox] ||
-        '';
+      const cookieKey = jar[COOKIE_NAMES.board] || '';
       if (cookieKey) {
         auth = cookieKey;
         viaCookie = true;
@@ -292,10 +265,8 @@ export function createBridge({
     }
     let scope: string | null = null;
     let readOnly = false;
-    let pageScope: 'inbox' | 'board' | null = null;
-    if (auth.startsWith(PAGE_KEY_PREFIX) && sameToken(auth, inboxKey(token))) {
-      pageScope = 'inbox';
-    } else if (auth.startsWith(PAGE_KEY_PREFIX) && sameToken(auth, boardKey(token))) {
+    let pageScope: 'board' | null = null;
+    if (auth.startsWith(PAGE_KEY_PREFIX) && sameToken(auth, boardKey(token))) {
       pageScope = 'board';
     } else if (!sameToken(auth, token)) {
       if (!auth.startsWith(PAGE_KEY_PREFIX)) {
@@ -425,7 +396,7 @@ export function createBridge({
           (candidate) =>
             candidate.path === pathname &&
             methodMatches(candidate, req.method) &&
-            (!pageScope || (pageScope === 'inbox' ? candidate.inboxKey : candidate.boardKey)),
+            (!pageScope || candidate.boardKey),
         );
       if (route) {
         return await route.handle(call);

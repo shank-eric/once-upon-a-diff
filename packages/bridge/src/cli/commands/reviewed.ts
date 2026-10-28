@@ -1,7 +1,7 @@
 /*
  * `once-upon reviewed ID [--undo]`: mark a local story reviewed (or unmark it) from a session, for when you have said
- * "approved". It writes the story's reviewed.json in-process, the same file the board card's and the inbox's Mark
- * reviewed write, so nothing goes over HTTP. A PR story is marked in the inbox or by reviewing it on GitHub.
+ * "approved". It writes the story's reviewed.json in-process, the same file the board card's Mark
+ * reviewed writes, so nothing goes over HTTP. A PR story is marked by reviewing it on GitHub.
  */
 import { StoryStore } from '../../stories/store.ts';
 import { localStory, markStoryReviewed } from '../../review-inbox/stories.ts';

@@ -19,7 +19,7 @@ import { AutoReview } from '../src/review-inbox/auto-review.ts';
 import { APPROVED_DAYS, approvalOf } from '../src/review-inbox/approve.ts';
 import { localEntries, localStories } from '../src/review-inbox/stories.ts';
 import { columnOf } from '../src/board/columns.ts';
-import { boardKey, inboxKey, pageKey, viewKey } from '../src/server/page-key.ts';
+import { boardKey, pageKey, viewKey } from '../src/server/page-key.ts';
 import type { Printable } from '../src/cli/output.ts';
 import type { BoardData, StoryData } from '@once-upon-a-diff/shared/types';
 
@@ -125,16 +125,11 @@ test('Unapprove takes back the mark approving wrote, but not one made by hand', 
   }
 });
 
-test('only the full page key approves: not the read-only key, the inbox or board keys, another story, or a PR story', async () => {
+test('only the full page key approves: not the read-only key, the board key, another story, or a PR story', async () => {
   const { home, id, bridge, head, post, events } = await setup();
   try {
     const url = `/api/stories/${id}/approve`;
-    for (const key of [
-      viewKey(TOKEN, id),
-      inboxKey(TOKEN),
-      boardKey(TOKEN),
-      pageKey(TOKEN, 'other'),
-    ]) {
+    for (const key of [viewKey(TOKEN, id), boardKey(TOKEN), pageKey(TOKEN, 'other')]) {
       const refused = await post(key, url, { head_sha: head() });
       assert.equal(refused.status, 403, refused.text);
     }

@@ -2,9 +2,7 @@
  * The agent board (../../board/board.ts): the live Claude Code sessions and the ledger's background agents.
  *
  *   GET /api/board              the lanes and their cards
- *   GET /api/board/link         the board page's link. With the bridge's token (the extension, the CLI) it carries the board's
- *                               key. With the inbox page's key it has none (the board's cookie connects it, or its
- *                               not-connected page says how)
+ *   GET /api/board/link         the board page's link, with the board's key. Only the bridge's token (the extension, the CLI) gets it
  *   POST /api/board/type        {kind: build|listen, session, repo? | story?}: type Build story's or Start listening's line (a
  *                               story's own listener with story) into the session's iTerm tab, when the session is at its prompt
  *   GET /api/board/listen-sessions?repo= | ?story=  the idle sessions Start listening may type into for that repo (or the
@@ -13,17 +11,14 @@
  *   POST /api/board/focus       {session}: bring that session's iTerm tab to the front (the tab is found server-side)
  *   POST /api/board/open-story  {story}: a local story's page link (a card's Open story), with that story's full key
  *   POST /api/board/reviewed    {story, reviewed?}: mark a local story reviewed (a card's Mark reviewed), or unmark it with
- *                               reviewed: false. A local story only: PR stories are the inbox's
+ *                               reviewed: false. A local story only: PR stories are marked on GitHub
  *   POST /api/board/backlog     {title, note?, repo?}: add a backlog item (the Backlog column's Add)
  *   POST /api/board/backlog/move {id, before | edge}: reorder (before another item's id, or edge top or bottom)
  *   POST /api/board/backlog/drop {id}: drop one. Start is the CLI's (`once-upon backlog start`), not the page's
  *   POST /api/board/backlog/assign {id, session}: type the item's start line (built here from the store, the body has no
  *                               text) into an idle session in the item's repo, which then runs `once-upon backlog start`
- *   GET /api/board/inbox-link   the review inbox page's link, ?repo= for a repo's PR stories, for a card's badge
  *
- * Links only step down in power. The board page's key reaches the board (it types into sessions) and the inbox's link,
- * which carries the inbox's key, a lesser one. The inbox page's key reaches the board's link without a key in it, so an
- * inbox key can never obtain the board's. Only the bridge's token is handed the board's key.
+ * The board page's key reaches the board (it types into sessions). Only the bridge's token is handed the board's key.
  */
 import { REPO_RE } from '../../config/repos.ts';
 import { readSettings } from '../../config/settings.ts';
@@ -48,26 +43,13 @@ function originOf({ app, req }: Call): string | undefined {
 
 /**
  * The board page's link. A page asks on the address it is on (originOf); the extension, which calls the bridge on
- * 127.0.0.1, asks for `?public=1` and gets the proxy's address when that name reaches this machine. The inbox page's
- * key gets the address alone: the board's key is more than the inbox's, so it doesn't pass down. On an allowed host the
- * board's own cookie connects the page, and otherwise the board says to open it from `once-upon board` or the extension.
+ * 127.0.0.1, asks for `?public=1` and gets the proxy's address when that name reaches this machine.
  */
 async function boardLink(call: Call) {
   const origin = call.url.searchParams.get('public')
     ? await publicOriginOf(call.app.home)
     : originOf(call);
-  if (call.pageScope === 'inbox') {
-    return call.send(200, { url: call.app.links.boardAddress(origin) });
-  }
   return call.send(200, { url: call.app.links.board(origin) });
-}
-
-function inboxLink(call: Call) {
-  const { app, url, send } = call;
-  const repo = url.searchParams.get('repo');
-  return send(200, {
-    url: app.links.inbox(repo && REPO_RE.test(repo) ? repo : null, originOf(call)),
-  });
 }
 
 async function focus({ app, body, send }: Call) {
@@ -198,6 +180,5 @@ export const boardRoutes: ApiRoute[] = [
   { path: '/api/board/backlog/assign', method: 'POST', handle: assignBacklog, boardKey: true },
   { path: '/api/board/backlog', method: 'POST', handle: addBacklog, boardKey: true },
   { path: '/api/board', method: 'GET', handle: data, boardKey: true },
-  { path: '/api/board/link', method: 'GET', handle: boardLink, inboxKey: true },
-  { path: '/api/board/inbox-link', method: 'GET', handle: inboxLink, boardKey: true },
+  { path: '/api/board/link', method: 'GET', handle: boardLink },
 ];

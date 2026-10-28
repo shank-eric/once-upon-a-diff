@@ -57,13 +57,12 @@ async function callBridge(
 }
 
 /**
- * Opens the board or the review inbox in a tab (the keyboard commands; the options page has buttons too). The link, with
+ * Opens the board in a tab (the keyboard command; the options page has a button too). The link, with
  * its key, is the bridge's to make: `public=1` asks for the proxy's address (https://once-upon.test) when it reaches this
  * machine, so the page sets its cookie in this browser, and else the bridge's own. Only a link of the right shape is opened.
  */
 async function openPage(kind: PageKind) {
-  const path = kind === 'board' ? '/api/board/link?public=1' : '/api/inbox/link?public=1';
-  const answer = await callBridge({ type: 'bridge', path }, null);
+  const answer = await callBridge({ type: 'bridge', path: '/api/board/link?public=1' }, null);
   const url = (answer.body as { url?: unknown } | null | undefined)?.url;
   if (answer.ok && isPageLink(kind, url)) {
     chrome.tabs.create({ url });
@@ -94,8 +93,8 @@ export default defineBackground(() => {
 
   chrome.action.onClicked.addListener(toggle);
   chrome.commands.onCommand.addListener(async (command, tab) => {
-    if (command === 'open-inbox' || command === 'open-board') {
-      await openPage(command === 'open-board' ? 'board' : 'inbox');
+    if (command === 'open-board') {
+      await openPage('board');
       return;
     }
     if (command !== 'toggle-panel') {

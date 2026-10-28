@@ -8,7 +8,7 @@ import { createLocalStory } from '../src/stories/local-story.ts';
 import { StoryStore } from '../src/stories/store.ts';
 import { readSettings, shipRuleFor } from '../src/config/settings.ts';
 import { shipMode } from '../src/stories/push-default.ts';
-import { boardKey, inboxKey, pageKey, viewKey, viewKeyMay } from '../src/server/page-key.ts';
+import { boardKey, pageKey, viewKey, viewKeyMay } from '../src/server/page-key.ts';
 import type { BoardData, PushAnswer, PushView, StoryData } from '@once-upon-a-diff/shared/types';
 
 const GITHUB_URL = 'https://github.com/acme/widgets.git';
@@ -378,7 +378,7 @@ test('which button a story gets: by branch, a commit range on the default branch
   }
 });
 
-test('only the full page key reaches Push: not the read-only key, the inbox or board keys, another story, or a PR story', async () => {
+test('only the full page key reaches Push: not the read-only key, the board key, another story, or a PR story', async () => {
   fake.set('none');
   const { id, bridge, asKey, approve, head, originMaster, base, full } = await setup();
   try {
@@ -388,7 +388,6 @@ test('only the full page key reaches Push: not the read-only key, the inbox or b
     assert.equal(viewKeyMay('push', 'POST'), false);
     for (const key of [
       viewKey(TOKEN, id),
-      inboxKey(TOKEN),
       boardKey(TOKEN),
       pageKey(TOKEN, 'other'),
       'page.nonsense',

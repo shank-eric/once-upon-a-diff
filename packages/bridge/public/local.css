@@ -178,18 +178,7 @@ button.ou-local-pr, button.ou-local-push, button.ou-local-push-ahead { white-spa
 .ou-local-stage-fixed { color: var(--fgColor-success); }
 .ou-local-notes-list .ou-local-note-text { margin: 2px 0 0 22px; }
 
-/* The review inbox page (inbox.ts) */
-.ou-inbox { max-width: 900px; margin: 0 auto; padding: 16px; }
-.ou-inbox-list { list-style: none; margin: 0; padding: 0; }
-.ou-inbox-item { display: flex; gap: 12px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--borderColor-default); border-radius: 6px; margin-bottom: 8px; }
-.ou-inbox-new { background: var(--bgColor-muted); border-left: 3px solid var(--fgColor-accent); }
-.ou-inbox-main { flex: 1; min-width: 0; }
-.ou-inbox-prompt { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ou-inbox-dot { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: var(--fgColor-accent); }
-.ou-inbox-actions { display: flex; gap: 6px; }
-.ou-inbox-repo { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* What the board and inbox say with no key (local/not-connected.ts) */
+/* What the board says with no key (local/not-connected.ts) */
 .ou-not-connected { max-width: 560px; margin: 48px auto; padding: 0 16px; }
 .ou-not-connected h1 { font-size: 20px; margin: 0 0 12px; }
 .ou-not-connected li { margin: 4px 0; }
@@ -406,6 +395,3 @@ button.ou-board-blank-chip:hover { border-color: var(--fgColor-muted); }
   .ou-board-clickable { cursor: auto; }
   .ou-board-clickable:hover { border-color: var(--borderColor-default); }
 }
-.ou-inbox-kind { font-size: 11px; font-weight: 600; text-transform: uppercase; color: var(--fgColor-accent); margin-right: 4px; }
-.ou-inbox-open { font-size: 12px; padding: 3px 10px; border: 1px solid var(--borderColor-default); border-radius: 6px; text-decoration: none; white-space: nowrap; }
-.ou-inbox-open:hover { border-color: var(--fgColor-accent); }

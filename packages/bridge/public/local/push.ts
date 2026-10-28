@@ -27,8 +27,7 @@ export function pushButtonHtml() {
   }
   let off = '';
   if (page.story.read_only) {
-    off =
-      'Open this story from the board or `once-upon page` to push it: the inbox link is read-only';
+    off = 'Open this story from the board or `once-upon page` to push it: this link is read-only';
   } else if (!local.approved) {
     off = 'Approve the story first: Push sends the approved commit';
   }
@@ -107,7 +106,7 @@ export async function openPushBox() {
     setHtml(
       box,
       html`<form class="ou-local-pr-form"><h2>Push</h2>
-        <p>This page was opened from the review inbox, whose link can read the story but not push.</p>
+        <p>This page was opened with a read-only link, which can read the story but not push.</p>
         <p>To push, open the story from the agent board (<b>Open story</b>) or run <code>once-upon page --story ${page.story.id}</code>.</p>
         <div class="ou-local-pr-buttons"><button type="button" data-pr-cancel>Close</button></div></form>`,
     );

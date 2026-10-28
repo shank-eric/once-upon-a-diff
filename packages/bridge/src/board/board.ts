@@ -979,7 +979,6 @@ export class Board {
         can_focus: parentSession?.focus ?? false,
         listening: null,
         build: null,
-        inbox: null,
       });
     }
 
@@ -1290,7 +1289,6 @@ export class Board {
       can_focus: view.card.focus,
       listening: null,
       build: null,
-      inbox: null,
     };
   }
 
@@ -1354,7 +1352,6 @@ export class Board {
     const sessions = work.sessions.map((view) => view.card);
     const repo = work.repo;
     const lane = repo ? repo.split('/')[1] : NO_PARENT;
-    const storyUnreviewed = story && !story.reviewed_at ? 1 : 0;
     return {
       id: work.key,
       kind: 'work',
@@ -1391,7 +1388,6 @@ export class Board {
       ...focusOf(sessions),
       listening: null,
       build: null,
-      inbox: storyUnreviewed ? { stories: storyUnreviewed, repo } : null,
     };
   }
 

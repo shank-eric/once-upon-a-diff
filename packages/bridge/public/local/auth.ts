@@ -1,5 +1,5 @@
 /*
- * How the board and inbox pages authenticate. A link carries the page key in its #fragment. On the bridge's own address
+ * How the board page authenticates. A link carries the page key in its #fragment. On the bridge's own address
  * the page sends it as a header on every call. On a name a proxy forwards (https://once-upon.test), the page hands it
  * to /auth/session once, the server sets an HttpOnly cookie for that host, and the page drops the key from the address
  * bar, so the URL is just /board/ and later visits need no key. See src/server/session-cookie.ts.

@@ -32,7 +32,7 @@ const POLL_MS = 3000;
 const app = document.getElementById('ou-board-app') as HTMLElement;
 const KEY = new URLSearchParams(location.hash.slice(1)).get('key') || '';
 /** Hands the key to the server when the host takes a cookie; calls wait for that so the cookie is there. */
-const authed = startAuth(KEY, '/api/board/inbox-link');
+const authed = startAuth(KEY, '/api/board');
 
 /**
  * The columns in the order the work moves through them, from Backlog (kept for later) to Done, in two groups: what is still on this Mac and what is on GitHub.
@@ -263,9 +263,6 @@ function agentHtml(agent: BoardAgent, now: number) {
     ${detail && html`<div class="ou-board-agent-note ou-local-muted">${detail}</div>`}
   </li>`;
 }
-
-/** What a card's review badge counts: "1 PR story". */
-const inboxTitle = (inbox: { stories: number }) => plural(inbox.stories, 'PR story');
 
 const BUILDING_TEXT = {
   build: 'building the story',
@@ -519,7 +516,7 @@ function cardHtml(card: BoardCard, now: number) {
   // Open story: on a card ready for review, or an approved local story in Ready to ship (a local story is never in Back to you)
   const approved = !!card.story?.approved_at && card.column === 'ship';
   const openable = card.column === 'ready' || approved;
-  // Mark reviewed: a local story's card in Ready (a PR story is marked in the inbox or by reviewing it on GitHub)
+  // Mark reviewed: a local story's card in Ready (a PR story is marked by reviewing it on GitHub)
   const markable = card.column === 'ready' && card.story?.kind === 'local';
   const focusTitle = card.can_focus
     ? "Bring this session's iTerm tab to the front"
@@ -565,7 +562,6 @@ function cardHtml(card: BoardCard, now: number) {
       ${openable && card.story?.url && html`<a class="ou-board-open" href="${card.story.url}" target="_blank" rel="noopener">Open story</a>`}
       ${openable && card.story && !card.story.url && html`<button type="button" class="ou-board-open" data-open-local="${card.story.id}" title="Opens the local story's page">Open story</button>`}
       ${markable && card.story && html`<button type="button" data-mark-local="${card.story.id}" title="Done with this story: it leaves Ready for your review">Mark reviewed</button>`}
-      ${card.inbox && !card.story && html`<button type="button" data-inbox data-repo="${card.inbox.repo}" title="${inboxTitle(card.inbox)}">${card.inbox.stories} to review</button>`}
     </div>
   </li>`;
 }
@@ -841,7 +837,6 @@ function render(full: BoardData) {
       <div class="ou-local-top-main"><h1>Agent board</h1><div class="ou-local-muted">${summary}</div></div>
       ${usageHtml(data.usage, now)}
       <button type="button" data-board-filter aria-haspopup="menu" title="Narrow the whole board to one repo's lane">Repo: ${filterOn ? laneFilter : 'All'} ▾</button>
-      <button type="button" data-inbox="">Review inbox</button>
     </header>
     ${data.warning && html`<p class="ou-board-warning">${data.warning}</p>`}
     <main class="ou-board">
@@ -924,7 +919,7 @@ async function refresh() {
     setHtml(
       app,
       refused
-        ? notConnectedHtml('board')
+        ? notConnectedHtml()
         : html`<p class="ou-local-error">Couldn't load the board: ${(err as Error).message}</p>`,
     );
   }
@@ -1522,21 +1517,6 @@ app.addEventListener('click', async (event) => {
       render(board);
     }
     return;
-  }
-  const target = (event.target as Element).closest('[data-inbox]');
-  if (!target) {
-    return;
-  }
-  try {
-    const query = new URLSearchParams();
-    const repo = target.getAttribute('data-repo');
-    if (repo) {
-      query.set('repo', repo);
-    }
-    const { url } = await api<{ url: string }>(`/api/board/inbox-link?${query}`);
-    window.open(url, '_blank', 'noopener');
-  } catch (err) {
-    alert(`Couldn't open the inbox: ${(err as Error).message}`);
   }
 });
 
