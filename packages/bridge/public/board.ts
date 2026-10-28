@@ -14,6 +14,7 @@ import { setHtml } from '/assets/util/dom.ts';
 import { plural } from '/assets/util/text.ts';
 import type {
   BoardAgent,
+  BoardAssign,
   BoardBlankSession,
   BoardCard,
   BoardColumn,
@@ -349,6 +350,31 @@ function backlogLane(card: BoardCard): string[] {
     .map((one) => (one.backlog as { id: string }).id);
 }
 
+/** The session Assign uses without asking: the only one, the only blank one, else (no blank ones) the clearly freshest. */
+function assignObvious(candidates: BoardAssign['candidates']) {
+  const blanks = candidates.filter((one) => one.blank);
+  if (blanks.length) {
+    return blanks.length === 1 ? blanks[0] : null;
+  }
+  return obviousChoice(candidates);
+}
+
+/** Assign: types the item's start line into an idle session in its repo. Several with no obvious one: a menu. */
+function assignButtonHtml(id: string, candidates: BoardAssign['candidates'], again: boolean) {
+  const off = candidates.length ? '' : html` disabled`;
+  const choosing =
+    candidates.length > 1 && !assignObvious(candidates)
+      ? html` aria-haspopup="menu" aria-expanded="false"`
+      : '';
+  let title = 'No idle session with an iTerm tab is free for this item';
+  if (candidates.length) {
+    title = choosing
+      ? 'Choose an idle session to hand this item to'
+      : 'Types the start line into an idle session';
+  }
+  return html`<button type="button" data-backlog-assign="${id}"${off}${choosing} title="${title}">${again ? 'Send again' : 'Assign'}${choosing && ' ▾'}</button>`;
+}
+
 function backlogHtml(card: BoardCard, now: number) {
   const item = card.backlog;
   const meta = [
@@ -362,8 +388,10 @@ function backlogHtml(card: BoardCard, now: number) {
     <div class="ou-local-muted ou-board-meta">${meta.join(' · ')}</div>
     ${card.detail && html`<div class="ou-board-detail ou-board-note" title="${card.detail}">${card.detail}</div>`}
     ${item?.started && html`<div class="ou-board-chips"><span class="ou-board-chip">started on ${item.started.branch}, ${item.started.on ? `in ${item.started.on}` : 'no session on it yet'}</span></div>`}
+    ${item?.assigned && !item.started && html`<div class="ou-board-chips"><span class="ou-board-chip">assigned to ${item.assigned.session_title ?? 'a session that has ended'} ${ago(item.assigned.at, now)} ago, not started yet</span></div>`}
     ${item && !item.started && html`<div class="ou-board-startline"><code>${item.start_line}</code></div>`}
     <div class="ou-board-actions">
+      ${item?.assign && !item.started && assignButtonHtml(item.id, item.assign.candidates, !!item.assigned)}
       ${item && !item.started && html`<button type="button" data-backlog-copy="${item.start_line}" title="Copy the line that starts it">Copy start line</button>`}
       ${item && html`<button type="button" data-backlog-drop="${item.id}" title="Drop it from the backlog (the line stays in the file)">Drop</button>`}
     </div>
@@ -788,6 +816,9 @@ const titleOf = (session: string): string => {
     view?.title ??
     board?.listeners.flatMap((entry) => entry.candidates).find((one) => one.id === session)
       ?.title ??
+    board?.lanes
+      .flatMap((lane) => lane.cards.flatMap((card) => card.backlog?.assign?.candidates ?? []))
+      .find((one) => one.id === session)?.title ??
     'that session'
   );
 };
@@ -808,6 +839,20 @@ async function typeInto(
     await refresh();
   } catch (err) {
     alert(`Couldn't type into the session: ${(err as Error).message}`);
+  }
+}
+
+/** Asks first, then has the bridge type the item's start line into the session (the bridge builds it; the page sends two ids). */
+async function assignInto(id: string, session: string, line: string) {
+  if (!window.confirm(`Type this into "${titleOf(session)}" and press Enter?\n\n${line}`)) {
+    return;
+  }
+  try {
+    await api('/api/board/backlog/assign', { id, session });
+    last = '';
+    await refresh();
+  } catch (err) {
+    alert(`Couldn't assign it: ${(err as Error).message}`);
   }
 }
 
@@ -1103,6 +1148,30 @@ app.addEventListener('click', async (event) => {
       build.getAttribute('data-prompt') || '',
       null,
     );
+    return;
+  }
+  const assign = clicked.closest('[data-backlog-assign]');
+  if (assign && !assign.hasAttribute('disabled')) {
+    const id = assign.getAttribute('data-backlog-assign') || '';
+    const offer = board?.lanes.flatMap((lane) => lane.cards).find((one) => one.backlog?.id === id)
+      ?.backlog?.assign;
+    const candidates = offer?.candidates ?? [];
+    // one obvious session (the only one, a blank one, or clearly the freshest): use it; else a menu, blank ones first
+    const obvious = assignObvious(candidates);
+    if (offer && (obvious || candidates.length === 1)) {
+      await assignInto(id, (obvious ?? candidates[0]).id, offer.prompt);
+    } else if (offer && candidates.length) {
+      openMenu(
+        assign as HTMLElement,
+        candidates.map((one) => ({
+          value: one.id,
+          label: one.title,
+          detail: `${one.blank ? 'new' : one.status}${one.since ? ` ${age(one.since, Date.now())}` : ''}${one.branch ? ` · ${one.branch}` : ''}${one.repo ? ` · ${one.repo}` : ''}`,
+        })),
+        (session) => void assignInto(id, session, offer.prompt),
+        { label: 'Sessions to hand it to' },
+      );
+    }
     return;
   }
   const start = clicked.closest('[data-start-listening]');

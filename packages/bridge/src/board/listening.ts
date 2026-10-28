@@ -15,6 +15,7 @@ import type { LiveSession, SourceStatus } from './sources.ts';
 import { noteListener, readHistory } from '../listeners/history.ts';
 import { run } from './sources.ts';
 import type {
+  BoardAssign,
   BoardBuild,
   BoardCard,
   BoardListenerRepo,
@@ -239,6 +240,45 @@ export function buildFor(card: BoardCard, idle: Set<string>): BoardBuild | null 
     return { session: free.id, prompt, blocked: null };
   }
   return { session: null, prompt, blocked: mapped.length ? 'session busy' : 'no iTerm tab' };
+}
+
+/**
+ * The sessions Assign may hand a backlog item to: at the prompt, with an iTerm tab, in the item's repo (any repo for an item
+ * with none), and not the voice session, one that listens, or one already holding a live assignment. Blank sessions (no
+ * prompt yet) first, then the rest freshest first.
+ */
+export function assignCandidates(
+  repo: string | null,
+  input: ListeningInput,
+  skip: Set<string>,
+  blank: Set<string>,
+): BoardAssign['candidates'] {
+  return [...input.idle]
+    .filter((id) => {
+      const view = input.sessions.get(id);
+      if (!view?.focus || skip.has(id)) {
+        return false;
+      }
+      const owner = input.repoOf.get(id);
+      return repo ? !!owner && sameRepo(owner, repo) : true;
+    })
+    .map((id) => {
+      const view = input.sessions.get(id) as BoardSession;
+      return {
+        id,
+        title: view.title ?? id,
+        status: view.status === 'done' ? ('done' as const) : ('idle' as const),
+        since: view.since ?? null,
+        branch: view.branch ?? null,
+        repo: input.repoOf.get(id) ?? null,
+        blank: blank.has(id),
+      };
+    })
+    .sort(
+      (first, second) =>
+        Number(second.blank) - Number(first.blank) ||
+        (Date.parse(second.since || '') || 0) - (Date.parse(first.since || '') || 0),
+    );
 }
 
 /** The listen prompt Start listening types, the one the panel's Copy prompt for Claude copies. */

@@ -737,6 +737,15 @@ export interface BoardCard {
     started: { branch: string | null; at: string | null; on: string | null } | null;
     /** the CLI line to paste into a session to start it */
     start_line: string;
+    /** an Assign typed it into this session lately and no start followed (the title is filled from the live view) */
+    assigned: {
+      session: string;
+      session_title: string | null;
+      branch: string | null;
+      at: string | null;
+    } | null;
+    /** the idle sessions Assign can offer, and the exact line it would type into each; null once started */
+    assign: BoardAssign | null;
   } | null;
   /** backlog items this work card began as: the work's story and column carry on from here */
   from_backlog?: { id: string; title: string }[];
@@ -786,6 +795,22 @@ export interface BoardListenerRepo {
   last_seen: string | null;
   /** idle sessions in the repo's checkout that Start listening can type into (their iTerm tab is known) */
   candidates: { id: string; title: string; status: 'idle' | 'done'; since: string | null }[];
+}
+
+/** The Assign button on a backlog card: who may be handed the item, and the line that would be typed. */
+export interface BoardAssign {
+  candidates: {
+    id: string;
+    title: string;
+    status: 'idle' | 'done';
+    since: string | null;
+    branch: string | null;
+    repo: string | null;
+    /** a session with no prompt yet (the Blank strip): the best one to hand work to */
+    blank: boolean;
+  }[];
+  /** the line the bridge would type (the same for every candidate; shown in the confirm) */
+  prompt: string;
 }
 
 /** What Build story would type, and into which session: null session means every session on the card is busy. */

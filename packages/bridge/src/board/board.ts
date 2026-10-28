@@ -41,16 +41,18 @@ import { BlankSessions } from './blank.ts';
 import { SessionTitles } from './titles.ts';
 import { readStatusLines } from './statusline.ts';
 import { columnOf } from './columns.ts';
-import { BacklogStore, backlogCards } from './backlog.ts';
+import { BacklogStore, assignBranch, assignLine, backlogCards, liveAssignment } from './backlog.ts';
 import type { AddInput, BacklogItem, MoveTo } from './backlog.ts';
 import { gatedHome, laneForAgent, tiedToParent } from './agent-home.ts';
 import { readVoice, voiceLines, voiceStatus } from './voice.ts';
 import {
+  assignCandidates,
   buildFor,
   listenPromptFor,
   listenersLane,
   listeningOnly,
   parentMap,
+  sessionOfPid,
   storyListening,
 } from './listening.ts';
 import { requestStop } from '../listeners/auto-stop.ts';
@@ -388,9 +390,10 @@ export class Board {
     source?: StatusSource;
     now?: () => Date;
     repoOf?: (cwd: string) => Promise<string | null>;
+    typeLine?: typeof typeLine;
   };
 
-  /** `options` are for tests: their own status source, clock and repo lookup. */
+  /** `options` are for tests: their own status source, clock, repo lookup and tab typing. */
   constructor(
     home: string,
     stories: StoryStore,
@@ -400,6 +403,7 @@ export class Board {
       source?: StatusSource;
       now?: () => Date;
       repoOf?: (cwd: string) => Promise<string | null>;
+      typeLine?: typeof typeLine;
     } = {},
   ) {
     this.home = home;
@@ -951,7 +955,45 @@ export class Board {
         ? [{ repo: pin.found.repo, branch: pin.found.view.branch, label: 'Voice session' }]
         : []),
     ];
-    cards.push(...backlogCards(this.backlog.items(), cards, nowMs, cardless));
+    const backlogItems = this.backlog.items();
+    cards.push(...backlogCards(backlogItems, cards, nowMs, cardless));
+
+    // Assign: who may be handed each open item. Not the voice session or one that listens, and not one already holding
+    // another item's live assignment
+    const apart = new Set<string>([
+      ...(pin.found ? [pin.found.view.id] : []),
+      ...quietViews.map((view) => view.id),
+      ...waits
+        .map((wait) => sessionOfPid(wait.pid, parents, sessionByPid))
+        .filter((id): id is string => !!id),
+    ]);
+    for (const card of cards) {
+      const item = card.backlog && backlogItems.find((one) => one.id === card.backlog?.id);
+      if (!card.backlog || !item || item.state !== 'open') {
+        continue;
+      }
+      const taken = new Set(
+        backlogItems
+          .filter((other) => other.id !== item.id)
+          .map((other) => liveAssignment(other, nowMs)?.session)
+          .filter((id): id is string => !!id),
+      );
+      // an item held by a session (assigned lately, not started) can only be sent to that one again, until it expires
+      const holder = liveAssignment(item, nowMs)?.session;
+      card.backlog.assign = {
+        candidates: assignCandidates(
+          item.repo,
+          listening,
+          new Set([...apart, ...taken]),
+          new Set(blankViews.map((one) => one.view.id)),
+        ).filter((one) => !holder || one.id === holder),
+        prompt: assignLine(item),
+      };
+      if (card.backlog.assigned) {
+        const view = sessionViews.get(card.backlog.assigned.session);
+        card.backlog.assigned.session_title = view?.title ?? null;
+      }
+    }
 
     // lanes: one per repo (or lane tag), the cards grouped by the page into columns
     const lanes = new Map<string, { name: string; cards: BoardCard[] }>();
@@ -995,12 +1037,8 @@ export class Board {
     }
   }
 
-  /**
-   * Types a line into a live session's iTerm tab and presses Enter: Build story (the card's story prompt) or Start listening
-   * (`/once-upon-listen <repo>`). The line is made here from what the bridge knows, the tab is found from the session's tty,
-   * and nothing is typed unless the session is at its prompt: working or waiting on you means no.
-   */
-  async type(kind: 'build' | 'listen', sessionId: string, repo: string | null): Promise<string> {
+  /** The it2 CLI and the live session to type into, or the HttpError saying why not: no it2, no such session, busy, or waiting on you. */
+  private async typeable(sessionId: string): Promise<{ it2: string; session: LiveSession }> {
     const settings = readSettings(this.home).board;
     const it2 = settings.statusSource === 'registry' ? null : findIt2(settings.it2Path);
     if (!it2) {
@@ -1025,6 +1063,50 @@ export class Board {
     if (status === 'waiting') {
       throw new HttpError(409, 'the session is waiting for you');
     }
+    return { it2, session };
+  }
+
+  /**
+   * Assign: types the backlog line for an item into an idle session, then records the assignment. The session must be one
+   * the board offers for the item (its repo, not voice or listening, at its prompt: checked again against live status), and
+   * an item another session holds, or one already started, is refused. Nothing is recorded unless the typing worked.
+   */
+  async assignBacklog(id: string, sessionId: string, who: string): Promise<string> {
+    const item = this.backlog.items().find((one) => one.id === id);
+    if (!item || item.state === 'dropped') {
+      throw new HttpError(404, 'no backlog item with that id');
+    }
+    if (item.state === 'started') {
+      throw new HttpError(409, 'that item is already started');
+    }
+    const held = liveAssignment(item, Date.now());
+    if (held && held.session !== sessionId) {
+      throw new HttpError(409, 'that item was assigned to another session a little while ago');
+    }
+    const { it2, session } = await this.typeable(sessionId);
+    const card = (await this.snapshot()).lanes
+      .flatMap((lane) => lane.cards)
+      .find((one) => one.backlog?.id === id);
+    if (!card?.backlog?.assign?.candidates.some((one) => one.id === sessionId)) {
+      throw new HttpError(409, 'that session cannot take this item (its repo, or it is not free)');
+    }
+    const prompt = assignLine(item);
+    const failed = await (this.options.typeLine || typeLine)(it2, session.tty, prompt);
+    if (failed) {
+      throw new HttpError(409, failed);
+    }
+    this.backlog.assign(id, { session: sessionId, branch: assignBranch(item), by: who });
+    this.invalidate();
+    return prompt;
+  }
+
+  /**
+   * Types a line into a live session's iTerm tab and presses Enter: Build story (the card's story prompt) or Start listening
+   * (`/once-upon-listen <repo>`). The line is made here from what the bridge knows, the tab is found from the session's tty,
+   * and nothing is typed unless the session is at its prompt: working or waiting on you means no.
+   */
+  async type(kind: 'build' | 'listen', sessionId: string, repo: string | null): Promise<string> {
+    const { it2, session } = await this.typeable(sessionId);
     let prompt: string | null = null;
     if (kind === 'listen') {
       if (!repo || !REPO_RE.test(repo)) {

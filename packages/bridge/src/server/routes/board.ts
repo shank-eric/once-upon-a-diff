@@ -15,6 +15,8 @@
  *   POST /api/board/backlog     {title, note?, repo?}: add a backlog item (the Backlog column's Add)
  *   POST /api/board/backlog/move {id, before | edge}: reorder (before another item's id, or edge top or bottom)
  *   POST /api/board/backlog/drop {id}: drop one. Start is the CLI's (`once-upon backlog start`), not the page's
+ *   POST /api/board/backlog/assign {id, session}: type the item's start line (built here from the store, the body has no
+ *                               text) into an idle session in the item's repo, which then runs `once-upon backlog start`
  *   GET /api/board/inbox-link   the review inbox page's link, ?repo= for a repo's PR stories, for a card's badge
  *
  * Links only step down in power. The board page's key reaches the board (it types into sessions) and the inbox's link,
@@ -26,6 +28,7 @@ import { readSettings } from '../../config/settings.ts';
 import { publicOriginOf } from '../address.ts';
 import { HttpError } from '../request.ts';
 import { localStory, markStoryReviewed } from '../../review-inbox/stories.ts';
+import { ID_PATTERN } from '../../board/backlog.ts';
 import type { MoveTo } from '../../board/backlog.ts';
 import type { ApiRoute, Call } from '../../types.ts';
 
@@ -147,6 +150,16 @@ function dropBacklog({ app, body, send }: Call) {
   return send(200, { ok: true });
 }
 
+/** POST {id, session}: Assign, the line typed into the session's tab. The session must be one the board offers for the item. */
+async function assignBacklog({ app, body, send }: Call) {
+  const session = String(body.session || '');
+  if (!SESSION_RE.test(session) || !ID_PATTERN.test(String(body.id || ''))) {
+    throw new HttpError(400, 'a backlog item id and a session id are needed');
+  }
+  const typed = await app.board.assignBacklog(String(body.id), session, 'board');
+  return send(200, { ok: true, typed });
+}
+
 /** POST {repo}: end the repo's listener (its `wait` returns "Stopped listening"). */
 function stopListening({ app, body, send }: Call) {
   app.board.stopListening(String(body.repo || ''));
@@ -161,6 +174,7 @@ export const boardRoutes: ApiRoute[] = [
   { path: '/api/board/reviewed', method: 'POST', handle: reviewLocal, boardKey: true },
   { path: '/api/board/backlog/move', method: 'POST', handle: moveBacklog, boardKey: true },
   { path: '/api/board/backlog/drop', method: 'POST', handle: dropBacklog, boardKey: true },
+  { path: '/api/board/backlog/assign', method: 'POST', handle: assignBacklog, boardKey: true },
   { path: '/api/board/backlog', method: 'POST', handle: addBacklog, boardKey: true },
   { path: '/api/board', method: 'GET', handle: data, boardKey: true },
   { path: '/api/board/link', method: 'GET', handle: boardLink, inboxKey: true },
