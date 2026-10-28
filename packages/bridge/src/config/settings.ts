@@ -4,7 +4,8 @@
  *   ~/.once-upon/                   ONCE_UPON_HOME overrides it
  *     config.json                  {port, token, ...personal settings (readSettings)}, mode 600
  *     house-rules.md               optional: your own rules, which the skills read and follow
- *     prefs.json                   page settings that hold across stories and restarts: {hideWhitespace, diffView}
+ *     prefs.json                   page settings that hold across stories and restarts: {hideWhitespace, diffView,
+ *                                  layout}
  *     inbox.jsonl                  questions, notes and answers, one JSON object a line
  *     cursors/<consumer>.json      how far each reader (a Claude session, a hook) has read the inbox
  *     state/<story id>/            what the bridge records per story: ui.json, position.json, viewed.json, notes.json,
@@ -30,6 +31,36 @@ export interface Config {
 export interface Prefs {
   hideWhitespace: boolean;
   diffView: 'unified' | 'split';
+  /** the story panel's size, the last one dragged on any page (absent until one is) */
+  layout?: Layout;
+}
+
+/** The story panel's width and its questions dock's height, in pixels. */
+export interface Layout {
+  width?: number;
+  chatHeight?: number;
+}
+
+/** A size worth keeping: a finite number of pixels, rounded, within reason; else undefined. */
+const sizeOf = (value: unknown): number | undefined =>
+  typeof value === 'number' && Number.isFinite(value) && value >= 100 && value <= 10000
+    ? Math.round(value)
+    : undefined;
+
+/** The sizes in a saved or posted layout, or undefined when it has none. */
+function layoutOf(value: unknown): Layout | undefined {
+  if (!value || typeof value !== 'object') {
+    return undefined;
+  }
+  const { width, chatHeight } = value as Record<string, unknown>;
+  const layout: Layout = {};
+  if (sizeOf(width) !== undefined) {
+    layout.width = sizeOf(width);
+  }
+  if (sizeOf(chatHeight) !== undefined) {
+    layout.chatHeight = sizeOf(chatHeight);
+  }
+  return Object.keys(layout).length ? layout : undefined;
 }
 
 export function homeDir(): string {
@@ -281,7 +312,7 @@ export function saveConfig(cfg: Partial<Config>, home = homeDir()): void {
 
 /**
  * Page settings the bridge keeps for every story, read on each request so a change needs no restart.
- * Only known keys are kept: {hideWhitespace: boolean, diffView: 'unified' | 'split'}.
+ * Only known keys are kept: {hideWhitespace: boolean, diffView: 'unified' | 'split', layout?: {width?, chatHeight?}}.
  */
 export const PREF_DEFAULTS: Readonly<Prefs> = Object.freeze({
   hideWhitespace: false,
@@ -290,10 +321,12 @@ export const PREF_DEFAULTS: Readonly<Prefs> = Object.freeze({
 
 export function readPrefs(home = homeDir()): Prefs {
   const saved = readJson<Record<string, unknown>>(path.join(home, 'prefs.json'), {}) || {};
+  const layout = layoutOf(saved.layout);
   return {
     ...PREF_DEFAULTS,
     hideWhitespace: saved.hideWhitespace === true,
     diffView: saved.diffView === 'split' ? 'split' : 'unified',
+    ...(layout && { layout }),
   };
 }
 
@@ -304,6 +337,11 @@ export function writePrefs(patch: Record<string, unknown>, home = homeDir()): Pr
   }
   if ('diffView' in patch) {
     next.diffView = patch.diffView === 'split' ? 'split' : 'unified';
+  }
+  // a layout patch changes only the sizes it has
+  const layout = layoutOf({ ...next.layout, ...layoutOf(patch.layout) });
+  if (layout) {
+    next.layout = layout;
   }
   mkdirSync(home, { recursive: true, mode: 0o700 });
   writeFileSync(path.join(home, 'prefs.json'), JSON.stringify(next, null, 2) + '\n');

@@ -113,6 +113,7 @@ export function createChatDock(context: PanelContext) {
     const onPointerMove = (moveEvent: PointerEvent) => setHeight(bottom - moveEvent.clientY);
     const onPointerUp = () => {
       context.saveState();
+      opts.onLayout?.({ chatHeight: state.chatHeight });
       dock.classList.remove('ou-chat-dragging');
       grip.removeEventListener('pointermove', onPointerMove);
       grip.removeEventListener('pointerup', onPointerUp);

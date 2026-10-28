@@ -27,6 +27,7 @@ import type {
 } from '../types.ts';
 import type { FileStatus, StoryModel } from './story-model.ts';
 import type { InitialUi, PanelState } from './panel-state.ts';
+import type { Layout } from './layout.ts';
 import type { HostPage } from './host-page.ts';
 import type { Shell } from './shell.ts';
 import type { FileRefs } from './file-refs.ts';
@@ -55,6 +56,7 @@ export interface PanelOptions {
   stylesheets: { page: string; panel: string };
   initial?: InitialUi;
   onState?(state: PanelUi): void;
+  onLayout?(layout: Layout): void;
   onPosition?(position: PanelPosition): void;
   onClose?(): void;
   ask?(question: QuestionAsk): Promise<unknown>;

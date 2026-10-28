@@ -5,6 +5,7 @@
 import type { LocalStory, StoryData } from '/assets/types.ts';
 import type { InitialUi, StoryOverlay } from '/assets/overlay.ts';
 import type { Highlighter } from '/assets/syntax.ts';
+import type { Layout } from '/assets/panel/layout.ts';
 
 /** A local story: one with its diff and the bridge's state for it. */
 export type LocalStoryData = StoryData & { local: LocalStory };
@@ -15,6 +16,8 @@ export interface LocalPage {
   overlay: StoryOverlay | null;
   hidden: boolean;
   lastUi: InitialUi;
+  /** the panel's size across stories, as the bridge's prefs.json last had it */
+  layout: Layout | null;
   hljs: Highlighter | null;
   onVersion: ((version?: string) => Promise<void>) | null;
 }
@@ -39,7 +42,7 @@ export const STORY_PATH = `/api/stories/${encodeURIComponent(BOOT.story)}`;
 
 /**
  * What the page's modules share: the story (with its local diff), the panel (null while it's closed), whether the
- * reviewer closed it, the panel's last saved state, highlight.js once it has loaded (null without it), and
+ * reviewer closed it, the panel's last saved state, its size across stories, highlight.js once it has loaded (null without it), and
  * onVersion(version), local.js's reload, for the panel's pulse to call.
  */
 export const page: LocalPage = {
@@ -48,6 +51,7 @@ export const page: LocalPage = {
   overlay: null,
   hidden: false,
   lastUi: {},
+  layout: null,
   hljs: null,
   onVersion: null,
 };

@@ -20,6 +20,7 @@ import { mount, remount, showReopen } from '/assets/local/mount.ts';
 import { lookForPull, openPrBox } from '/assets/local/pull-request.ts';
 import type { LocalStoryData } from '/assets/local/page.ts';
 import type { InitialUi } from '/assets/overlay.ts';
+import { withLayout, type Layout } from '/assets/panel/layout.ts';
 import type { LocalNote } from '/assets/types.ts';
 
 const POLL_MS = 5000;
@@ -242,7 +243,13 @@ async function start() {
     return;
   }
   document.title = page.story.title;
-  page.lastUi = await api<InitialUi>('GET', `${STORY_PATH}/ui`).catch(() => ({}));
+  const [saved, prefs] = await Promise.all([
+    api<InitialUi>('GET', `${STORY_PATH}/ui`).catch(() => ({})),
+    api<{ layout?: Layout }>('GET', `${STORY_PATH}/prefs`).catch(() => null),
+  ]);
+  // the story's own step and folds, at the size last dragged on any story
+  page.layout = prefs?.layout || null;
+  page.lastUi = withLayout(saved, page.layout);
   render();
   page.hidden = !!page.lastUi.hidden;
   if (page.hidden) {

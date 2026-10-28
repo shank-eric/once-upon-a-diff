@@ -30,6 +30,8 @@
  * and all optional:
  *   initial        {n, all, collapsed, width, chatOpen, chatHeight, ...} to start from (a saved step)
  *   onState(s)     called with {n, all, collapsed, width, chatOpen, chatHeight, ...} whenever they change
+ *   onLayout(l)    called with {width} or {chatHeight} when the reader drags the panel's edge or the dock's top, so the
+ *                  host can keep the size for every story (panel/layout.ts)
  *   onPosition(p)  called with {step, chapter, file} when the step or the file at the top of the screen changes (debounced)
  *   onClose()      called after the x button removes the panel
  *   ask(q)         send a question {text, step, chapter, file}; returns a Promise

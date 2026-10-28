@@ -59,6 +59,11 @@ export function mount(initial: InitialUi) {
       page.lastUi = { ...panelState, hidden: false };
       api('POST', `${STORY_PATH}/ui`, page.lastUi).catch(() => {});
     },
+    // a drag: the new size is every story's (prefs.json), here and on GitHub
+    onLayout: (layout) => {
+      page.layout = { ...page.layout, ...layout };
+      api('POST', `${STORY_PATH}/prefs`, { layout }).catch(() => {});
+    },
     onFilter: narrow,
     reveal,
     onPosition: (position) =>

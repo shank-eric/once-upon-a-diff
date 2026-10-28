@@ -14,6 +14,7 @@
  */
 import { storyOverlay, rangeStepOf } from '@once-upon-a-diff/shared/overlay';
 import { filesChangedPr } from '@once-upon-a-diff/shared/util/github-paths';
+import { withLayout, type Layout } from '@once-upon-a-diff/shared/panel/layout';
 import { callBridge, extensionAlive } from '../bridge.ts';
 import { loadPanelUi, savePanelUi, loadPrefsCopy, storePrefsCopy, tabSession } from '../storage.ts';
 import { createPrTags, titleElement } from '../ui/pr-tags.ts';
@@ -70,6 +71,12 @@ async function bodyOf<T>(answerPromise: Promise<BridgeAnswer<T>>): Promise<T> {
   return answer.body;
 }
 
+/** The panel's size across stories from the bridge's prefs.json, or null when the bridge doesn't answer (the PR's own saved size stands). */
+async function bridgeLayout(): Promise<Layout | null> {
+  const answer = await callBridge<{ layout?: Layout }>('GET', '/api/prefs');
+  return answer.ok ? answer.body.layout || null : null;
+}
+
 export function createFilesChangedPage() {
   // one PR page at a time
   let current: CurrentPage | null = null;
@@ -122,6 +129,10 @@ export function createFilesChangedPage() {
         }
         current.ui = { ...panelState, hidden: false };
         savePanelUi(key, current.ui);
+      },
+      // a drag: the new size is every story's (prefs.json), here and on the local page
+      onLayout: (layout) => {
+        callBridge('POST', '/api/prefs', { layout }).catch(() => {});
       },
       onPosition: (position) =>
         callBridge('POST', `${storyPath}/position`, { ...position, url: location.href }),
@@ -298,7 +309,8 @@ export function createFilesChangedPage() {
       current.id = result.story;
       current.version = data.version;
       current.data = data;
-      current.ui = await loadPanelUi(pr.key);
+      const [saved, layout] = await Promise.all([loadPanelUi(pr.key), bridgeLayout()]);
+      current.ui = withLayout(saved, layout);
       current.status = 'ready';
       mount();
     } finally {

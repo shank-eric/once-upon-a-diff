@@ -99,6 +99,7 @@ export function createShell(context: PanelContext) {
       setWidth(window.innerWidth - moveEvent.clientX);
     const onPointerUp = () => {
       context.saveState();
+      opts.onLayout?.({ width: state.width });
       root.classList.remove('ou-dragging');
       grip.removeEventListener('pointermove', onPointerMove);
       grip.removeEventListener('pointerup', onPointerUp);

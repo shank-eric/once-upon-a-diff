@@ -781,6 +781,45 @@ describe('Hide whitespace on local stories', () => {
   });
 });
 
+describe('the panel’s size across stories', () => {
+  test('a dragged width or dock height is kept in prefs.json, one at a time, and nonsense is dropped', async () => {
+    const home = tmp('home');
+    const bridge = await startBridge({ home });
+    try {
+      assert.equal((await bridge.call<Prefs>('GET', '/api/prefs')).body.layout, undefined);
+      assert.deepEqual(
+        (await bridge.call<Prefs>('POST', '/api/prefs', { layout: { width: 612.4 } })).body,
+        { hideWhitespace: false, diffView: 'unified', layout: { width: 612 } },
+      );
+      assert.deepEqual(
+        (await bridge.call<Prefs>('POST', '/api/prefs', { layout: { chatHeight: 330 } })).body
+          .layout,
+        { width: 612, chatHeight: 330 },
+        'one size leaves the other alone',
+      );
+      assert.deepEqual(
+        (await bridge.call<Prefs>('POST', '/api/prefs', { hideWhitespace: true })).body.layout,
+        { width: 612, chatHeight: 330 },
+        'another setting leaves the layout alone',
+      );
+      for (const width of ['wide', -5, 50, 1e9, null]) {
+        assert.deepEqual(
+          (await bridge.call<Prefs>('POST', '/api/prefs', { layout: { width } })).body.layout,
+          { width: 612, chatHeight: 330 },
+          String(width),
+        );
+      }
+      assert.deepEqual(JSON.parse(readFileSync(path.join(home, 'prefs.json'), 'utf8')), {
+        hideWhitespace: true,
+        diffView: 'unified',
+        layout: { width: 612, chatHeight: 330 },
+      });
+    } finally {
+      await bridge.close();
+    }
+  });
+});
+
 describe('Unified / Split on local stories', () => {
   test('the view is saved in prefs.json beside Hide whitespace, and changes only how the diff is drawn', async () => {
     const home = tmp('home');
