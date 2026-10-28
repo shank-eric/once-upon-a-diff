@@ -1,10 +1,14 @@
 /*
- * What only a local story keeps on the bridge: Viewed per file (GitHub keeps it for PR stories). Fix-before-push
- * notes are in ./fixes.ts, for PR and local stories alike.
+ * What only a local story keeps on the bridge: Viewed per file (GitHub keeps it for PR stories), and Approve (POST
+ * .../approve {head_sha, approved?}: ready to ship at that head, which a session hears as an `approved` event; the full
+ * page key only, as it is not on the read-only key's list in ../page-key.ts). Fix-before-push notes are in ./fixes.ts,
+ * for PR and local stories alike.
  */
 import { HttpError } from '../request.ts';
+import { approvalOf, approveStory, clearApproval } from '../../review-inbox/approve.ts';
 import type { LocalStory, StoryData } from '@once-upon-a-diff/shared/types';
-import type { Call, ServedStory, StoryRoute } from '../../types.ts';
+import { refreshLocal } from '../../stories/local-diff.ts';
+import type { Call, LocalMeta, ServedStory, StoryRoute } from '../../types.ts';
 
 function viewed({ app, body, send }: Call, story: ServedStory) {
   if (story.meta.kind !== 'local') {
@@ -29,4 +33,43 @@ function viewed({ app, body, send }: Call, story: ServedStory) {
   return send(200, { path: file.rel, viewed: !!body.viewed });
 }
 
-export const localStoryRoutes: StoryRoute[] = [{ what: 'viewed', method: 'POST', handle: viewed }];
+function approve({ app, body, send }: Call, story: ServedStory) {
+  if (story.meta.kind !== 'local') {
+    throw new HttpError(400, 'a PR story is approved on GitHub');
+  }
+  // the head as it is now: a commit since the page drew moves it
+  const meta = refreshLocal(story.dir, story.meta as LocalMeta);
+  const answer = () => {
+    const found = approvalOf(app.stories, story.id, meta.head_oid);
+    return { approved: found ? { at: found.at, head_oid: found.head_oid } : null };
+  };
+  if (body.approved === false) {
+    clearApproval(app.stories, story.id);
+    return send(200, answer());
+  }
+  const headOid = meta.head_oid;
+  if (!headOid) {
+    throw new HttpError(409, 'the story has no head yet: reload the page');
+  }
+  if (body.head_sha !== headOid) {
+    throw new HttpError(
+      409,
+      'the branch has moved since this page showed it: reload before approving',
+    );
+  }
+  approveStory(app.stories, app.inbox, {
+    id: story.id,
+    ref: story.ref,
+    branch: meta.branch || null,
+    checkout: meta.repo_path || null,
+    base: meta.base || null,
+    headOid,
+    baseOid: meta.base_oid || null,
+  });
+  return send(200, answer());
+}
+
+export const localStoryRoutes: StoryRoute[] = [
+  { what: 'viewed', method: 'POST', handle: viewed },
+  { what: 'approve', method: 'POST', handle: approve },
+];

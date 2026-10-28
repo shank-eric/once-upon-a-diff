@@ -101,7 +101,7 @@ test("a story listener gets the page's question, rebuild and fix request; the ke
       '--story',
       id,
       '--type',
-      'question,build_request,fix_request',
+      'question,build_request,fix_request,approved',
       '--consumer',
       `story-${id}`,
       '--timeout',

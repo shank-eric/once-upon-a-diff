@@ -209,7 +209,7 @@ describe('one story, one session', () => {
     assert.equal(story.prompt, `/once-upon-listen --story ${STORY}`);
     assert.equal(
       story.command,
-      `once-upon wait --story ${STORY} --type question,build_request,fix_request`,
+      `once-upon wait --story ${STORY} --type question,build_request,fix_request,approved`,
     );
     assert.match(
       story.details,

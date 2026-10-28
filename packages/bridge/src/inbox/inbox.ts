@@ -8,6 +8,7 @@
  *   {"type":"answer","id":"a_…","question":"q_…","story":"…","text":"markdown","by":"<the consumer that answered>"}
  *   {"type":"note","story":"…","note":{"id":"n_…","path":"…","side":"R","line":12,"body":"…"}}
  *   {"type":"read","story":"…","chapter":"<chapter key>","step":2,"title":"Chapter 2: …","head_sha":"…","story_head":"…","reason":"time|viewed|inferred"}
+ *   {"type":"approved","story":"…","branch":"…","checkout":"…","base":"…","head_sha":"…"}  (Approve on a local story's page)
  *   {"type":"fix","action":"sent|fixed|failed","story":"…","request":"f_…","notes":["n_…"],"sha":"…"}  (the requests themselves are in fixes.json)
  *
  * Readers keep a cursor (a byte offset) under <home>/cursors/<consumer>.json,
@@ -99,6 +100,16 @@ export interface CommentEntry extends EntryBase {
   comment: unknown;
 }
 
+/** Approve was clicked on a local story's page (or `once-upon approve` ran): ready to ship at this head. */
+export interface ApprovedEntry extends EntryBase {
+  type: 'approved';
+  story: string;
+  branch: string | null;
+  checkout: string | null;
+  base: string | null;
+  head_sha: string;
+}
+
 /** One line of inbox.jsonl. */
 export type InboxEntry =
   | QuestionEntry
@@ -106,6 +117,7 @@ export type InboxEntry =
   | NoteEntry
   | FixEntry
   | ReadEntry
+  | ApprovedEntry
   | ReviewCommentEntry
   | CommentEntry;
 

@@ -17,7 +17,7 @@ import { Inbox } from '../../inbox/inbox.ts';
 import { Builds } from '../../inbox/builds.ts';
 import { noteHanded, readHanded, routeQuestions } from '../../inbox/conversation.ts';
 import { fixesToHand } from '../../inbox/fixes.ts';
-import { beat } from '../../listeners/listeners.ts';
+import { beat, listeners } from '../../listeners/listeners.ts';
 import { noteListener } from '../../listeners/history.ts';
 import {
   idleMsOf,
@@ -32,7 +32,7 @@ import { slug } from '../../stories/local-story.ts';
 import { readJson, writeJsonAtomic } from '../../util/json-file.ts';
 import { topLevel } from '../../util/git.ts';
 import { out, describe, filterEntries, type Printable } from '../output.ts';
-import type { QuestionEntry } from '../../inbox/inbox.ts';
+import type { InboxEntry, QuestionEntry } from '../../inbox/inbox.ts';
 import type { Config } from '../../config/settings.ts';
 import type { CliOpts, Command } from '../../types.ts';
 
@@ -131,6 +131,28 @@ function questionsToTake(
     writeJsonAtomic(file, after);
   }
   return take;
+}
+
+/**
+ * The approvals this wait takes: a story's live listener (`wait --story`) takes its story's, and a repo or catch-all wait
+ * leaves them to it while it is live, so a session hears one approval once. Not held back for later: a story listener
+ * was running when it was clicked.
+ */
+function approvalsToTake(
+  home: string,
+  consumer: string,
+  scope: WaitScope,
+  fresh: InboxEntry[],
+): InboxEntry[] {
+  if (!fresh.length || scope.story) {
+    return fresh;
+  }
+  const storyListeners = listeners(home).filter(
+    (listener) => listener.live && listener.story && listener.consumer !== consumer,
+  );
+  return fresh.filter(
+    (entry) => !storyListeners.some((listener) => listener.story === entry.story),
+  );
 }
 
 /** A wait run from the repo's checkout tells the bridge where that checkout is, for the next prompt. */
@@ -250,7 +272,7 @@ async function wait(home: string, cfg: Config, opts: CliOpts) {
   }
   const want = {
     ...opts,
-    type: (opts.type as string | undefined) || 'question,build_request,fix_request',
+    type: (opts.type as string | undefined) || 'question,build_request,fix_request,approved',
   };
   const takesBuilds = want.type.split(',').includes('build_request');
   const takesFixes = want.type.split(',').includes('fix_request');
@@ -312,8 +334,17 @@ async function wait(home: string, cfg: Config, opts: CliOpts) {
       let entries: Printable[] = [
         ...questions,
         // (fix requests come from fixes.json, not the inbox file)
+        ...approvalsToTake(
+          home,
+          consumer,
+          scope,
+          unread.filter((entry) => entry.type === 'approved'),
+        ),
         ...unread.filter(
-          (entry) => entry.type !== 'question' && (entry.type as string) !== 'fix_request',
+          (entry) =>
+            entry.type !== 'question' &&
+            entry.type !== 'approved' &&
+            (entry.type as string) !== 'fix_request',
         ),
       ];
       if (takesFixes) {
@@ -403,7 +434,7 @@ export const inboxCommands: Command[] = [
   {
     name: 'wait',
     usage: [
-      '  once-upon wait    [--repo OWNER/NAME | --story ID] [--type question,build_request,fix_request] [--consumer NAME] [--timeout SECONDS] [--no-auto-stop] [--json]',
+      '  once-upon wait    [--repo OWNER/NAME | --story ID] [--type question,build_request,fix_request,approved] [--consumer NAME] [--timeout SECONDS] [--no-auto-stop] [--json]',
       '                                                                 block until a question, build request or fix request arrives, print it, exit (for a background task);',
       "                                                                 --repo takes both for that repo's stories and PRs; --story (an id, owner/name#N, a PR URL",
       "                                                                 or a PR number here) takes one story's questions, and with build_request its Rebuild",

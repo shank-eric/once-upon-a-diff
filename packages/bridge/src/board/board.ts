@@ -1104,7 +1104,9 @@ export class Board {
     }
     // a local story alone (no session, no PR) is a card only while there is something to review in it
     const localToReview =
-      !!story && story === work.local && (!story.reviewed_at || unreadOf(story));
+      !!story &&
+      story === work.local &&
+      (!story.reviewed_at || unreadOf(story) || !!(story as InboxLocalStory).approved_at);
     const known =
       (!!pr && (pr.mine || pr.review_requested || !!story || work.built || !!building)) ||
       localToReview;
@@ -1134,6 +1136,7 @@ export class Board {
             reviewed: !!story.reviewed_at,
             // built after you last opened or reviewed it (never opened: it is ready for review, not back to you)
             unread: unreadOf(story),
+            approved_at: 'number' in story ? null : story.approved_at,
           }
         : null,
       building: building
@@ -1165,6 +1168,7 @@ export class Board {
             manualReviewedAt: manual,
             unread: card.story.unread,
             local: card.story.kind === 'local',
+            approved: !!card.story.approved_at,
           }
         : null,
       building: !!card.building,
@@ -1197,7 +1201,7 @@ export class Board {
         ]);
         break;
       case 'done':
-        card.since = card.pr?.merged_at ?? null;
+        card.since = card.pr?.merged_at ?? card.story?.approved_at ?? null;
         break;
       case 'back':
         card.since = card.pr?.others_at ?? null;

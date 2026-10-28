@@ -3,6 +3,7 @@
  * files, and for a local story the diff and the
  * bridge's state (viewed files, notes).
  */
+import { approvalOf } from '../review-inbox/approve.ts';
 import path from 'node:path';
 import { pathSha } from '../util/diff.ts';
 import { readPrefs } from '../config/settings.ts';
@@ -99,6 +100,10 @@ export function storyData(store: StoryStore, id: string, dir: string): StoryData
       commits: local.commits || [],
       files: localFilesOf(rels, diff, shown, viewed as Record<string, { hash?: string }>),
       notes: store.readState<LocalNote[]>(id, 'notes.json', []) as LocalNote[],
+      approved: (() => {
+        const found = approvalOf(store, id, local.head_oid);
+        return found ? { at: found.at, head_oid: found.head_oid } : null;
+      })(),
     };
   }
   return data;

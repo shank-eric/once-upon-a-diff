@@ -118,6 +118,8 @@ describe('Create pull request on a local story', () => {
       ['rebuild', 'POST'],
       ['rebuild', 'GET'],
       ['push', 'POST'],
+      ['approve', 'POST'],
+      ['approve', 'GET'],
       ['viewed', 'GET'],
       ['notes', 'GET'],
       ['version', 'POST'],

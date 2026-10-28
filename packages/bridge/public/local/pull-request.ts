@@ -52,6 +52,9 @@ export async function lookForPull(force = false) {
   try {
     lastView = await api<PrView>('GET', `${STORY_PATH}/pr`);
     redrawButton();
+    if (lastView.pull) {
+      window.dispatchEvent(new Event('ou-pull-found')); // Approve goes: the PR is the next step (approve.ts)
+    }
   } catch {
     /* the bridge may be restarting; the button still works */
   }

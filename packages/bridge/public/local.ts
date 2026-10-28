@@ -18,6 +18,7 @@ import { placeNotes, openEditor } from '/assets/local/notes.ts';
 import { openFold, openRun, forgetNarrowing } from '/assets/local/folds.ts';
 import { mount, remount, showReopen } from '/assets/local/mount.ts';
 import { lookForPull, openPrBox } from '/assets/local/pull-request.ts';
+import { toggleApprove } from '/assets/local/approve.ts';
 import type { LocalStoryData } from '/assets/local/page.ts';
 import type { InitialUi } from '/assets/overlay.ts';
 import { withLayout, type Layout } from '/assets/panel/layout.ts';
@@ -106,6 +107,12 @@ document.addEventListener('click', async (event) => {
   }
   if (target.closest('.ou-local-pr')) {
     return openPrBox();
+  }
+  if (target.closest('.ou-local-approve')) {
+    return toggleApprove(true);
+  }
+  if (target.closest('.ou-local-unapprove')) {
+    return toggleApprove(false);
   }
   const viewedButton = target.closest('.ou-local-viewed');
   if (viewedButton) {

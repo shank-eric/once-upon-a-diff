@@ -14,6 +14,7 @@ import { REPO_RE, sameRepo, storyRepo } from '../config/repos.ts';
 import { readMeta } from '../stories/meta.ts';
 import { readReads } from '../stories/reads.ts';
 import { stateKeyOf } from '../github/drafts.ts';
+import { approvalOf, readApproval, type Approval } from './approve.ts';
 import type { StoryStore } from '../stories/store.ts';
 import type { InboxLocalStory, InboxStory, ReviewedBy } from '@once-upon-a-diff/shared/types';
 
@@ -99,6 +100,10 @@ export interface LocalEntry {
   repo_path: string | null;
   base_oid: string | null;
   head_oid: string | null;
+  /** meta.json's `head`: the ref the story follows (HEAD or a branch), for finding where it is now */
+  head_ref: string | null;
+  /** the raw approved.json, which the background check clears when the head has moved on */
+  approval: Approval | null;
   /** a reviewed.json exists (marked or unmarked by hand, or by a check): the checks leave the story alone */
   marked: boolean;
 }
@@ -152,8 +157,20 @@ export function localEntries(
       position?.at,
       ...Object.values(reads).map((read) => read.at),
     ]);
+    const approved = approvalOf(
+      stories,
+      story.id,
+      typeof meta.head_oid === 'string' ? meta.head_oid : null,
+      now,
+    );
     let reviewedAt = state?.at || null;
     let reviewedBy = state?.at ? state.by || null : null;
+    // the mark Approve wrote goes with the approval (a new commit, or a week), so the story is back in Ready at once
+    // instead of when the background check next clears the files
+    if (reviewedBy === 'approved' && !approved) {
+      reviewedAt = null;
+      reviewedBy = null;
+    }
     const quietSince = Date.parse(latestOf([seen, builtAt]) as string);
     const idleAt = quietSince + LOCAL_IDLE_DAYS * 24 * 3600 * 1000;
     if (state === null && idleAt <= now) {
@@ -171,10 +188,14 @@ export function localEntries(
         seen_at: seen,
         reviewed_at: reviewedAt,
         reviewed_by: reviewedBy,
+        approved_at: approved?.at ?? null,
+        approved_head: approved?.head_oid ?? null,
       },
       repo_path: story.repo_path,
       base_oid: typeof meta.base_oid === 'string' ? meta.base_oid : null,
       head_oid: typeof meta.head_oid === 'string' ? meta.head_oid : null,
+      head_ref: typeof meta.head === 'string' ? meta.head : null,
+      approval: readApproval(stories, story.id),
       marked: state !== null,
     });
   }

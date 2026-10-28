@@ -27,7 +27,7 @@ const storyWait = (home: string, ...extra: string[]) =>
     '--story',
     STORY,
     '--type',
-    'question,build_request,fix_request',
+    'question,build_request,fix_request,approved',
     '--consumer',
     CONSUMER,
     ...extra,

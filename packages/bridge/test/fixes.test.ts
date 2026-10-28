@@ -220,7 +220,7 @@ describe('fix before push: notes collect as drafts and go to a session as one re
       );
 
       const prompt = listenPrompt({ story: STORY }, 'once-upon');
-      assert.match(prompt.command, /--type question,build_request,fix_request/);
+      assert.match(prompt.command, /--type question,build_request,fix_request,approved/);
       assert.match(prompt.details, /once-upon fixed --request/);
     } finally {
       await bridge.close();

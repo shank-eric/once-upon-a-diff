@@ -370,9 +370,13 @@ function cardHtml(card: BoardCard, now: number) {
     pr && html`<a href="${pr.url}" target="_blank" rel="noopener">PR #${pr.number}</a>`;
   const merged = pr?.state === 'merged' && time ? `merged ${ago(card.since, now)}` : '';
   const chips = pr ? prChips(pr) : [];
+  if (card.story?.approved_at && card.column === 'done') {
+    chips.push({ text: 'Approved, ready to ship', tone: 'ok' });
+  }
   const gates = card.agents.filter((agent) => agent.gate).map(gateText);
-  // Open story: on a card ready for review (a local story is never in Back to you)
-  const openable = card.column === 'ready';
+  // Open story: on a card ready for review, or an approved local story in Done (a local story is never in Back to you)
+  const approved = !!card.story?.approved_at && card.column === 'done';
+  const openable = card.column === 'ready' || approved;
   // Mark reviewed: a local story's card in Ready (a PR story is marked in the inbox or by reviewing it on GitHub)
   const markable = card.column === 'ready' && card.story?.kind === 'local';
   const focusTitle = card.can_focus

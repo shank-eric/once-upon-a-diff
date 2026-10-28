@@ -20,6 +20,7 @@
  */
 import { runGh } from '../util/gh.ts';
 import { runGitAsync } from '../util/git.ts';
+import { clearApproval, readApproval } from './approve.ts';
 import {
   DEFAULT_BRANCHES,
   markStoryDone,
@@ -762,6 +763,9 @@ export class AutoReview {
   kickLocal(list: LocalEntry[], now = Date.now()): void {
     for (const entry of list) {
       const { story } = entry;
+      if (entry.approval) {
+        this.checkApproval(entry, now);
+      }
       if (entry.marked) {
         continue;
       }
@@ -798,6 +802,41 @@ export class AutoReview {
         .finally(() => this.running.delete(job));
       this.running.add(job);
     }
+  }
+
+  /**
+   * An approved story whose branch has moved on is not approved any more: a cached `git rev-parse` of the ref the story
+   * follows, and when it names another commit, the approval (and the reviewed mark approving wrote) is cleared. A ref git
+   * can't resolve (repo gone, branch deleted) leaves it alone.
+   */
+  private checkApproval(entry: LocalEntry, now: number): void {
+    const { approval, repo_path: checkout, head_ref: ref } = entry;
+    if (!approval || !checkout || !ref) {
+      return;
+    }
+    const key = `approval:${entry.story.id}@${approval.head_oid}`;
+    const last = this.delivered.get(key);
+    if (last !== undefined && now - last < this.cacheMs) {
+      return;
+    }
+    this.delivered.set(key, now);
+    const job = runGitAsync(checkout, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`], {
+      timeout: 10000,
+    })
+      .then(({ code, stdout }) => {
+        const tip = stdout.trim();
+        const current = readApproval(this.stories, entry.story.id);
+        if (
+          code === 0 &&
+          tip &&
+          current?.head_oid === approval.head_oid &&
+          tip !== approval.head_oid
+        ) {
+          clearApproval(this.stories, entry.story.id);
+        }
+      })
+      .finally(() => this.running.delete(job));
+    this.running.add(job);
   }
 
   /** Writes a local story's done mark unless a hand mark or unmark got there first. */

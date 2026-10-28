@@ -148,6 +148,8 @@ a { color: var(--fgColor-accent); }
 
 /* Create pull request (local/pull-request.ts) */
 .ou-local-pr-link { font-size: 12px; white-space: nowrap; }
+.ou-local-approved { font-size: 12px; white-space: nowrap; color: var(--fgColor-success); }
+button.ou-local-approve, button.ou-local-unapprove { white-space: nowrap; }
 button.ou-local-pr { white-space: nowrap; }
 #ou-local-pr-box { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 64px); padding: 16px 20px; border: 1px solid var(--borderColor-default); border-radius: 8px; background: var(--bgColor-default); color: var(--fgColor-default); }
 #ou-local-pr-box::backdrop { background: rgba(0, 0, 0, .4); }

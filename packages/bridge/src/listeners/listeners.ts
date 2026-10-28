@@ -172,7 +172,7 @@ export function listenPrompt(
     waitFor = ` --repo ${repo}`;
   } else if (story) {
     arg = ` --story ${story}`;
-    waitFor = ` --story ${story} --type question,build_request,fix_request`;
+    waitFor = ` --story ${story} --type question,build_request,fix_request,approved`;
   }
   const wait = `${cli} wait${waitFor}`;
   let where = 'Run';

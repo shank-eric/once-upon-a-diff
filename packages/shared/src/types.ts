@@ -172,6 +172,8 @@ export interface LocalStory {
   commits: LocalCommit[];
   files: LocalFile[];
   notes: LocalNote[];
+  /** Approve was clicked for this head and nothing has moved it since; null otherwise */
+  approved: { at: string; head_oid: string } | null;
 }
 
 /** GET /api/inbox: what waits for review, and each repo's counts for the inbox page's filter. */
@@ -200,6 +202,9 @@ export interface InboxLocalStory {
   seen_at: string | null;
   reviewed_at: string | null;
   reviewed_by: ReviewedBy | null;
+  /** when you approved it for this head (Approve on its page), null when you haven't or a new commit cleared it */
+  approved_at: string | null;
+  approved_head: string | null;
 }
 
 /** A built PR story in the review inbox: the panel opens on the PR's changes page, and Mark reviewed ticks it off. */
@@ -222,10 +227,11 @@ export interface InboxStory {
 }
 
 /**
- * What marked a story reviewed. The last three are for local stories: its branch has a PR (`pr`), its head is already in
+ * What marked a story reviewed. `approved` is Approve on a local story's page. The last three are for local stories: its branch has a PR (`pr`), its head is already in
  * the default branch (`delivered`), or nothing touched it for LOCAL_IDLE_DAYS (`idle`).
  */
-export type ReviewedBy = 'manual' | 'review' | 'all viewed' | 'pr' | 'delivered' | 'idle';
+export type ReviewedBy =
+  'manual' | 'review' | 'all viewed' | 'approved' | 'pr' | 'delivered' | 'idle';
 
 /** The PR title and body a session handed over for a local story's branch (`once-upon pr-draft`). */
 export interface PrDraft {
@@ -696,6 +702,8 @@ export interface BoardCard {
     url: string | null;
     reviewed: boolean;
     unread: boolean;
+    /** a local story approved for its current head: ready to ship (null: not approved) */
+    approved_at: string | null;
   } | null;
   /** a session is building, rebuilding or fixing for it (a claimed request) */
   building: { kind: StoryRequest['kind']; since: string | null; by: string | null } | null;

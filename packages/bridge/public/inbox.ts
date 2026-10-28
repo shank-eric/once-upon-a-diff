@@ -80,7 +80,7 @@ function localStoryHtml(story: InboxLocalStory) {
   return html`<li class="ou-inbox-item${!reviewed && ' ou-inbox-new'}" data-story="${story.id}">
     <div class="ou-inbox-main">
       <div class="ou-inbox-prompt">${!reviewed && html`<span class="ou-inbox-dot" title="Not reviewed yet"></span>`}<span class="ou-inbox-kind">Local story</span> ${story.title}</div>
-      <div class="ou-local-muted">${where} · built ${shortDateTime(story.built_at)}${auto && html` · <span class="ou-inbox-auto" title="${AUTO_WHY[auto]}">auto: ${auto}</span>`}</div>
+      <div class="ou-local-muted">${where} · built ${shortDateTime(story.built_at)}${auto && html` · <span class="ou-inbox-auto" title="${AUTO_WHY[auto]}">auto: ${auto}</span>`}${story.approved_at && html` · <span class="ou-inbox-auto" title="Approved on its page: ready to ship. A new commit clears it.">approved</span>`}</div>
     </div>
     <div class="ou-inbox-actions">
       <button type="button" data-open-story="${story.id}">Open story</button>

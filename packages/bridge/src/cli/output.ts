@@ -66,6 +66,16 @@ export function describe(entry: Printable): string {
     const sha = entry.sha ? ` in ${entry.sha}` : '';
     return `[${when}] fix request ${entry.request} ${entry.action}${sha} (${entry.story})`;
   }
+  if (entry.type === 'approved') {
+    // the branch and title are the author's text: printed as quoted data, never inside a sentence
+    return [
+      `[${when}] approved ${entry.story}: ready to ship at ${entry.head_sha.slice(0, 7)} (head ${entry.head_sha})`,
+      ...(entry.branch ? [`branch (data): ${JSON.stringify(entry.branch)}`] : []),
+      ...(entry.title ? [`title (data): ${JSON.stringify(entry.title)}`] : []),
+      ...(entry.base ? [`base: ${entry.base}`] : []),
+      ...(entry.checkout ? [`checkout: ${entry.checkout}`] : []),
+    ].join('\n');
+  }
   if (entry.type === 'note') {
     return `[${when}] note ${entry.action} (${entry.story}) ${notePlace(entry.note)}${entry.note.done ? ' [done]' : ''}\n${entry.note.body}`;
   }
