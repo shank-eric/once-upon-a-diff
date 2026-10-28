@@ -1,6 +1,6 @@
 /*
- * The files the bridge serves without a token: the local page's scripts and
- * CSS, and the panel's modules, stylesheets and shared helpers from the shared
+ * The files the bridge serves without a token: the local page's scripts,
+ * CSS and icon, and the panel's modules, stylesheets and shared helpers from the shared
  * package (@once-upon-a-diff/shared). TypeScript modules go out as
  * JavaScript, their types stripped the way Node strips the bridge's own, so
  * the browser runs the same lines with no build step.
@@ -17,6 +17,7 @@ const PUBLIC = path.resolve(HERE, '../../public');
 const SHARED = path.dirname(fileURLToPath(import.meta.resolve('@once-upon-a-diff/shared/overlay')));
 const SCRIPT = 'text/javascript; charset=utf-8';
 const STYLESHEET = 'text/css; charset=utf-8';
+const PNG = 'image/png';
 /** The panel's modules and stylesheets and the shared helpers, served from the shared package's src/<folder>/ for the local page. */
 const SHARED_MODULE = /^\/assets\/(panel|util)\/([a-z0-9-]+\.(?:ts|css))$/;
 /** The local page's own modules and stylesheets, from public/local/. */
@@ -31,6 +32,9 @@ const ASSETS: Record<string, string> = {
   '/assets/syntax.ts': path.join(PUBLIC, 'syntax.ts'),
   '/assets/highlight.mjs': path.join(PUBLIC, 'vendor/highlight.mjs'),
   '/assets/local.css': path.join(PUBLIC, 'local.css'),
+  // the extension's icon (a blue tile that reads on light and dark tabs); /favicon.ico is what a browser asks for with no <link>
+  '/assets/icon.png': path.join(PUBLIC, 'icon.png'),
+  '/favicon.ico': path.join(PUBLIC, 'icon.png'),
 };
 
 /** Each stripped module and the mtime of the file it came from, so an edit shows on the next load. */
@@ -60,6 +64,9 @@ function strippedModule(file: string): string {
 
 /** [contents, content type] for one of the files. */
 function served(file: string): [string | Buffer, string] {
+  if (file.endsWith('.png')) {
+    return [readFileSync(file), PNG];
+  }
   if (file.endsWith('.css')) {
     return [readFileSync(file), STYLESHEET];
   }

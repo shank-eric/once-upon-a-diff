@@ -419,6 +419,12 @@ describe('local stories', () => {
     assert.match(page.headers.get('content-security-policy') as string, /script-src 'self'/);
     assert.equal((await bridge.call('GET', '/assets/overlay.ts')).status, 200);
     assert.equal((await bridge.call('GET', '/assets/local.ts')).status, 200);
+    assert.match(page.text, /<link rel="icon"[^>]*href="\/assets\/icon\.png"/);
+    for (const path of ['/assets/icon.png', '/favicon.ico']) {
+      const icon = await bridge.call('GET', path);
+      assert.equal(icon.status, 200, path);
+      assert.equal(icon.headers.get('content-type'), 'image/png');
+    }
     for (const sheet of ['panel.css', 'page.css']) {
       const css = await bridge.call('GET', `/assets/panel/${sheet}`);
       assert.equal(css.status, 200, sheet);
