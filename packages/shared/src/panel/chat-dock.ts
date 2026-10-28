@@ -4,7 +4,7 @@
  * own) over the Ask box. Its top edge drags to set its height. Open and
  * height are saved with the panel's state (chatOpen, chatHeight).
  *
- * The header says how many questions the step has, how many wait for an
+ * The header says how many questions the story has, how many wait for an
  * answer, and "new answer" when one came while the dock was closed.
  */
 import { plural } from '../util/text.ts';
@@ -44,10 +44,15 @@ export function createChatDock(context: PanelContext) {
     countLine.classList.toggle('ou-unread', unread && !state.chatOpen);
   }
 
-  function setHeight(height: number) {
+  /**
+   * Shows the dock at height, kept within the panel, and returns what it showed. The saved height (state.chatHeight)
+   * is the reader's: only a drag changes it, so a small window or a panel not laid out yet can't shrink it for good.
+   */
+  function showHeight(height: number) {
     const max = Math.max(MIN_HEIGHT, root.clientHeight * MAX_HEIGHT_SHARE);
-    state.chatHeight = Math.round(Math.min(Math.max(height, MIN_HEIGHT), max));
-    dock.style.setProperty('--ou-chat-h', state.chatHeight + 'px');
+    const shown = Math.round(Math.min(Math.max(height, MIN_HEIGHT), max));
+    dock.style.setProperty('--ou-chat-h', shown + 'px');
+    return shown;
   }
 
   function setOpen(open: boolean) {
@@ -55,7 +60,7 @@ export function createChatDock(context: PanelContext) {
     dock.classList.toggle('ou-open', open);
     if (open) {
       unread = false;
-      setHeight(state.chatHeight);
+      showHeight(state.chatHeight);
       scrollToLatest();
     }
     renderHead();
@@ -110,7 +115,9 @@ export function createChatDock(context: PanelContext) {
     grip.setPointerCapture(event.pointerId);
     dock.classList.add('ou-chat-dragging');
     const bottom = dock.getBoundingClientRect().bottom;
-    const onPointerMove = (moveEvent: PointerEvent) => setHeight(bottom - moveEvent.clientY);
+    const onPointerMove = (moveEvent: PointerEvent) => {
+      state.chatHeight = showHeight(bottom - moveEvent.clientY);
+    };
     const onPointerUp = () => {
       context.saveState();
       opts.onLayout?.({ chatHeight: state.chatHeight });
@@ -124,7 +131,7 @@ export function createChatDock(context: PanelContext) {
 
   const onResize = () => {
     if (state.chatOpen) {
-      setHeight(state.chatHeight);
+      showHeight(state.chatHeight);
     }
   };
   window.addEventListener('resize', onResize);

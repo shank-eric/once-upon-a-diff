@@ -66,6 +66,13 @@ const shot = async (page: Page, name: string) => {
     await page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
   }
 };
+/** The questions dock starts closed: open it so its Ask box can be used. */
+const openDock = async (page: Page) => {
+  const head = page.locator('#ou-panel .ou-chathead');
+  if ((await head.getAttribute('aria-expanded')) !== 'true') {
+    await head.click();
+  }
+};
 
 // ---------- a story for a public PR, made from its real file list
 const [, owner, repo, number] = /^([^/]+)\/([^#]+)#(\d+)$/.exec(PR_REF) as RegExpExecArray;
@@ -436,6 +443,7 @@ try {
   );
 
   // question, from the GitHub page
+  await openDock(page);
   await page.locator('#ou-panel .ou-ask textarea').fill('Why two halves?');
   await page.locator('#ou-panel .ou-ask button').click();
   await page.waitForTimeout(800);
@@ -1159,6 +1167,7 @@ try {
     .then(() => true)
     .catch(() => false);
   check(storyTook, 'a story listener takes over on the next pulse, and the line says so');
+  await openDock(localPage);
   await localPage.locator('#ou-panel .ou-ask textarea').fill('Why B?');
   await localPage.locator('#ou-panel .ou-ask button').click();
   await localPage.waitForTimeout(800);
@@ -1184,6 +1193,41 @@ try {
       .then(() => true)
       .catch(() => false);
     check(answeredBy, 'the answer says which session gave it');
+    // the thread is the whole story's: moving to another step keeps it, labelled with its step, and the dock keeps
+    // its height and the typed draft
+    {
+      const heightOf = () =>
+        localPage
+          .locator('#ou-panel .ou-chat')
+          .evaluate((el) => (el as HTMLElement).style.getPropertyValue('--ou-chat-h'));
+      const heightBefore = await heightOf();
+      await localPage.locator('#ou-panel .ou-ask textarea').fill('A half-typed question');
+      const hereBefore = await qaCount('.ou-qa-here');
+      const forward = await localPage.locator('#ou-panel .ou-next').isEnabled();
+      const step = (direction: 'next' | 'prev') =>
+        localPage.locator(`#ou-panel .ou-${direction}`).click();
+      await step(forward ? 'next' : 'prev');
+      await localPage.waitForTimeout(400);
+      check(
+        (await qaCount()) === 1 && (await qaCount('.ou-qa-here')) === 1 - hereBefore,
+        'moving to another step keeps the question in the list, marked only on its own step',
+      );
+      check(
+        /chapter|overview/i.test(
+          await localPage.locator('#ou-panel .ou-qa .ou-qmeta').textContent(),
+        ),
+        'and each question says which step it was asked on',
+      );
+      check(
+        (await heightOf()) === heightBefore &&
+          (await localPage.locator('#ou-panel .ou-ask textarea').inputValue()) ===
+            'A half-typed question',
+        'the dock keeps its height and the typed draft across the step change',
+      );
+      await localPage.locator('#ou-panel .ou-ask textarea').fill('');
+      await step(forward ? 'prev' : 'next');
+      await localPage.waitForTimeout(300);
+    }
     await localPage.locator('#ou-panel .ou-questions').scrollIntoViewIfNeeded();
     await shot(localPage, 'local-qa');
     await localPage.locator('#ou-panel .ou-qa [data-qa-act="collapse"]').click();

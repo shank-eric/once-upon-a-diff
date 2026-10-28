@@ -172,6 +172,7 @@
 #ou-panel .ou-qa { margin: 0 0 12px; padding: 8px 10px; border: 1px solid var(--c-border); border-radius: 6px; }
 #ou-panel .ou-qa .ou-qhead { display: flex; gap: 4px; align-items: flex-start; }
 #ou-panel .ou-qa .ou-q { flex: 1; min-width: 0; font-weight: 600; white-space: pre-wrap; }
+#ou-panel .ou-qa-here { border-left: 3px solid var(--c-accent); }
 #ou-panel .ou-qa-collapsed { padding: 4px 10px; margin-bottom: 6px; }
 #ou-panel .ou-qa-collapsed .ou-q { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #ou-panel .ou-qa-dismissed { opacity: .6; }

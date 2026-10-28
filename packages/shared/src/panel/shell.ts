@@ -29,7 +29,7 @@ const MARKUP = (withAsk: boolean) => html`
         <div class="ou-askhint" hidden></div>
         <div class="ou-askwho" hidden></div>
         <form class="ou-ask${!withAsk && ' ou-off'}">
-          <textarea placeholder="Ask about this step (Cmd+Enter sends it to the bridge inbox)" rows="1" aria-label="Question"></textarea>
+          <textarea placeholder="Ask about this step. The list above holds the whole story (Cmd+Enter sends it to the bridge inbox)" rows="1" aria-label="Question"></textarea>
           <button type="submit">Ask</button>
         </form>
       </div>

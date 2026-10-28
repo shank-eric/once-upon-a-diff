@@ -1,7 +1,8 @@
 /*
  * Questions, in the dock at the bottom of the panel (chat-dock.ts): the Ask
  * box sends one through opts.ask (to the bridge inbox),
- * and the step's questions and their answers come back through
+ * and the story's questions and their answers (every step's, each labelled
+ * with its chapter, the current chapter's marked) come back through
  * opts.loadQuestions on the overlay's tick: every 5s while one is waiting,
  * otherwise every 30s, and when the tab gets focus again.
  *
@@ -17,6 +18,7 @@ import { baseName, plural } from '../util/text.ts';
 import { shortDateTime } from '../util/time.ts';
 import type { PanelContext } from './context.ts';
 import type { Question, QuestionMark, QuestionMarksAnswer } from '../types.ts';
+import { askDrafts, askedOnStep, questionStepLabel, questionTotals } from './question-list.ts';
 
 const SLOW_EVERY = 6; // ticks: 6 x 5s = every 30s with nothing waiting
 const UNDO_MS = 15000;
@@ -42,9 +44,6 @@ export function createQuestions(context: PanelContext) {
   let showDismissed = false;
   let undo: { label: string; ids: string[] } | null = null; // after a dismissal, until UNDO_MS passes or the next one
   let undoTimer: ReturnType<typeof setTimeout> | 0 = 0;
-
-  /** Is this question about the step on screen (any story step on the Overview)? */
-  const forStep = (question: Question) => state.n === 0 || question.step === state.n;
 
   function setUndo(next: { label: string; ids: string[] } | null) {
     clearTimeout(undoTimer);
@@ -72,7 +71,7 @@ export function createQuestions(context: PanelContext) {
   function questionHtml(question: Question) {
     const when = shortDateTime(question.at);
     const where = [
-      state.n === 0 && question.step ? `chapter ${question.step}` : '',
+      questionStepLabel(question, context.steps()),
       question.file ? baseName(question.file) : '',
     ]
       .filter(Boolean)
@@ -84,6 +83,7 @@ export function createQuestions(context: PanelContext) {
       .join(' · ');
     const classes = [
       'ou-qa',
+      askedOnStep(question, state.n) && 'ou-qa-here',
       collapsed && 'ou-qa-collapsed',
       question.dismissed && 'ou-qa-dismissed',
     ]
@@ -105,20 +105,16 @@ export function createQuestions(context: PanelContext) {
 
   function draw() {
     const box = $('.ou-questions')!;
-    const onStep = questions.filter(forStep);
-    const open = onStep.filter((question) => !question.dismissed);
-    const dismissed = onStep.length - open.length;
-    context.chatDock.setCounts({
-      open: open.length,
-      waiting: open.filter((question) => !(question.answers || []).length).length,
-    });
-    if (!onStep.length && !undo) {
-      const empty = state.n ? 'No questions on this step yet.' : 'No questions yet.';
-      setHtml(box, html`<p class="ou-quiet">${empty}</p>`);
+    const scroller = box.parentElement!;
+    const kept = scroller.scrollTop;
+    const { open: openCount, waiting, dismissed } = questionTotals(questions);
+    context.chatDock.setCounts({ open: openCount, waiting });
+    if (!questions.length && !undo) {
+      setHtml(box, html`<p class="ou-quiet">No questions on this story yet.</p>`);
       return;
     }
     const tools = [
-      questions.some((question) => !question.dismissed) &&
+      openCount > 0 &&
         html`<button type="button" class="ou-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back.">Clear conversation</button>`,
       dismissed > 0 &&
         html`<button type="button" class="ou-linkish" data-qa-act="show-dismissed">${showDismissed ? 'Hide' : 'Show'} dismissed (${dismissed})</button>`,
@@ -129,8 +125,9 @@ export function createQuestions(context: PanelContext) {
     const undoLine =
       undo &&
       html`<div class="ou-qundo" role="status">${undo.label} <button type="button" class="ou-linkish" data-qa-act="undo">Undo</button></div>`;
-    const shown = showDismissed ? onStep : open;
+    const shown = showDismissed ? questions : questions.filter((question) => !question.dismissed);
     setHtml(box, html`${toolLine}${undoLine}${shown.map(questionHtml)}`);
+    scroller.scrollTop = kept; // a step change redraws the marks, not the place you were reading
   }
 
   /** Marks the questions here at once, then saves the marks in the bridge and takes its list. */
@@ -232,6 +229,10 @@ export function createQuestions(context: PanelContext) {
 
   const askForm = $<HTMLFormElement>('.ou-ask')!;
   const askText = askForm.querySelector('textarea') as HTMLTextAreaElement;
+  // a typed question survives the panel being redrawn under it (the story changed on disk, a setting flipped)
+  const storyId = String(context.story.data.id || '');
+  askText.value = askDrafts.take(storyId);
+  askText.addEventListener('input', () => askDrafts.keep(storyId, askText.value));
   askForm.addEventListener('submit', async (event) => {
     event.preventDefault();
     const text = askText.value.trim();
@@ -248,6 +249,7 @@ export function createQuestions(context: PanelContext) {
         file: context.navigation.topFile || context.page.fileAtTop(),
       });
       askText.value = '';
+      askDrafts.forget(storyId);
       const health = context.statusLight.current;
       shell.message(
         health && !health.listening
