@@ -277,8 +277,12 @@ button.ou-local-pr { white-space: nowrap; }
 .ou-board-head button { margin-left: 4px; font-weight: 400; }
 .ou-board-add-actions { display: flex; gap: 6px; }
 .ou-board-c-backlog[draggable="true"] { cursor: grab; }
-.ou-board-drop-before { box-shadow: 0 -2px 0 0 var(--fgColor-accent); }
-.ou-board-drop-after { box-shadow: 0 2px 0 0 var(--fgColor-accent); }
+.ou-board-c-backlog.ou-board-dragging { opacity: 0.4; }
+/* where the dragged card lands: a line in the gap above or below a card, with a dot at its start */
+.ou-board-drop-before, .ou-board-drop-after { position: relative; }
+.ou-board-drop-before::before, .ou-board-drop-after::after { content: ""; position: absolute; left: -4px; right: -4px; height: 3px; border-radius: 2px; background: var(--fgColor-accent); pointer-events: none; }
+.ou-board-drop-before::before { top: -6px; }
+.ou-board-drop-after::after { bottom: -6px; }
 .ou-board-lane-toggle { display: block; width: 100%; min-width: 0; padding: 0; border: 0; background: none; font: inherit; letter-spacing: inherit; text-transform: inherit; text-align: left; color: inherit; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ou-board-lane-toggle:hover { color: var(--fgColor-default); }
 .ou-board-lane-count { font-weight: 400; color: var(--fgColor-default); }

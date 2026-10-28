@@ -795,15 +795,38 @@ const clearDrops = () =>
   app
     .querySelectorAll('.ou-board-drop-before, .ou-board-drop-after')
     .forEach((one) => one.classList.remove('ou-board-drop-before', 'ou-board-drop-after'));
-/** Whether the pointer is over a card's lower half, and the card is another one in the dragged card's lane. */
-function dropTarget(event: DragEvent): { card: HTMLElement; after: boolean } | null {
-  const card = cardOf(event);
-  const from = dragId && app.querySelector(`[data-backlog-card="${dragId}"]`);
-  if (!card || !from || card === from || card.dataset.lane !== (from as HTMLElement).dataset.lane) {
+/**
+ * Where a drop would put the dragged card: anywhere over its lane's list (the gaps between cards too), the slot is
+ * before the first card whose middle is below the pointer, else after the last. Null outside the lane, or for a slot
+ * that leaves the order as it is.
+ */
+function dropTarget(
+  event: DragEvent,
+): { card: HTMLElement; after: boolean; where: { before: string } | { edge: string } } | null {
+  const from = dragId ? app.querySelector<HTMLElement>(`[data-backlog-card="${dragId}"]`) : null;
+  const list = (event.target as Element).closest('.ou-board-cards');
+  if (!from || !list) {
     return null;
   }
-  const box = card.getBoundingClientRect();
-  return { card, after: event.clientY > box.top + box.height / 2 };
+  const cards = [...list.querySelectorAll<HTMLElement>(':scope > [data-backlog-card]')].filter(
+    (card) => card.dataset.lane === from.dataset.lane,
+  );
+  if (!cards.length) {
+    return null;
+  }
+  const below = cards.find((card) => {
+    const box = card.getBoundingClientRect();
+    return event.clientY < box.top + box.height / 2;
+  });
+  const card = below || cards[cards.length - 1];
+  const after = !below;
+  const first = board?.lanes
+    .flatMap((lane) => lane.cards)
+    .find((one) => one.backlog?.id === dragId);
+  const where = first
+    ? placeAmong(backlogLane(first), dragId, card.dataset.backlogCard || '', after)
+    : null;
+  return where ? { card, after, where } : null;
 }
 
 app.addEventListener('dragstart', (event) => {
@@ -812,6 +835,7 @@ app.addEventListener('dragstart', (event) => {
     return;
   }
   dragId = card.dataset.backlogCard || '';
+  card.classList.add('ou-board-dragging');
   event.dataTransfer?.setData('text/plain', dragId);
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move';
@@ -819,10 +843,16 @@ app.addEventListener('dragstart', (event) => {
 });
 app.addEventListener('dragover', (event) => {
   const over = dropTarget(event);
+  const mark = over && (over.after ? 'ou-board-drop-after' : 'ou-board-drop-before');
+  // a pointer still over the same slot keeps its line (clearing and re-adding it on every move flickers)
+  if (over && over.card.classList.contains(mark as string)) {
+    event.preventDefault();
+    return;
+  }
   clearDrops();
   if (over) {
     event.preventDefault();
-    over.card.classList.add(over.after ? 'ou-board-drop-after' : 'ou-board-drop-before');
+    over.card.classList.add(mark as string);
   }
 });
 app.addEventListener('dragend', () => {
@@ -842,18 +872,7 @@ app.addEventListener('drop', async (event) => {
   }
   event.preventDefault();
   dragId = '';
-  const first = board?.lanes
-    .flatMap((lane) => lane.cards)
-    .find((card) => card.backlog?.id === dragged);
-  const where = first
-    ? placeAmong(backlogLane(first), dragged, over.card.dataset.backlogCard || '', over.after)
-    : null;
-  if (where) {
-    await moveBacklog(dragged, where);
-  } else if (board) {
-    last = '';
-    render(board);
-  }
+  await moveBacklog(dragged, over.where);
 });
 
 app.addEventListener('submit', async (event) => {
