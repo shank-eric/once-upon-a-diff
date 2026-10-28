@@ -174,8 +174,16 @@ export interface LocalStory {
   notes: LocalNote[];
   /** Approve was clicked for this head and nothing has moved it since; null otherwise */
   approved: { at: string; head_oid: string } | null;
+  /** a story pinned to a branch (not HEAD) whose branch or base has moved since it was told: the current commit of each ref that did, else null; null when nothing moved */
+  moved: LocalMoved | null;
   /** what ships it: `push` for commits on the repo's default branch (or a repo set to push), else `pr` (Create pull request) */
   ship: ShipMode;
+}
+
+/** Where a pinned local story's refs point now, for the ones that moved since it was told (the others are null). */
+export interface LocalMoved {
+  base_oid: string | null;
+  head_oid: string | null;
 }
 
 /** How a local story ships: pushed to the default branch, or through a pull request. */

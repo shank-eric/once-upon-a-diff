@@ -14,7 +14,7 @@ import { freshness } from '../../github/freshness.ts';
 import { readMarks, stateKeyOf } from '../../github/drafts.ts';
 import { listeningOf } from '../../listeners/listeners.ts';
 import { noteSeen } from '../../listeners/auto-stop.ts';
-import { refreshLocal } from '../../stories/local-diff.ts';
+import { refreshLocal, movedSince } from '../../stories/local-diff.ts';
 import { storyVersion, localVersion } from '../../stories/meta.ts';
 import { HttpError, clipText, toInt } from '../request.ts';
 import { questionsOf } from './questions.ts';
@@ -36,8 +36,8 @@ function load({ app, send, readOnly }: Call, story: ServedStory) {
 /** Changes when chapters.json does, and for a local story when its diff or Hide whitespace does. */
 function versionOf(app: App, story: ServedStory): string {
   if (story.meta.kind === 'local') {
-    refreshLocal(story.dir, readMetaFile(story.dir));
-    return localVersion(story.dir, readPrefs(app.home));
+    const meta = refreshLocal(story.dir, readMetaFile(story.dir));
+    return localVersion(story.dir, readPrefs(app.home), movedSince(meta));
   }
   return storyVersion(story.dir);
 }

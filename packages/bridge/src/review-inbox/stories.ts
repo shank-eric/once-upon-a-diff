@@ -85,7 +85,7 @@ export function prStories(
       built_at: new Date(built).toISOString(),
       seen_at: seen,
       reviewed_at: state?.at || null,
-      reviewed_by: state?.at ? state.by || null : null,
+      reviewed_by: state?.at ? state.by || 'manual' : null,
     });
   }
   return found.sort(
@@ -164,7 +164,7 @@ export function localEntries(
       now,
     );
     let reviewedAt = state?.at || null;
-    let reviewedBy = state?.at ? state.by || null : null;
+    let reviewedBy: ReviewedBy | null = state?.at ? state.by || 'manual' : null;
     // the mark Approve wrote goes with the approval (a new commit, or a week), so the story is back in Ready at once
     // instead of when the background check next clears the files
     if (reviewedBy === 'approved' && !approved) {

@@ -13,7 +13,13 @@ import { readMeta, storyVersion, localVersion } from './meta.ts';
 import { chaptersOf, addLeftoverChapter } from './chapters.ts';
 import { addTextRefs } from './text-refs.ts';
 import { uncoveredHunks } from './hunk-coverage.ts';
-import { loadDiff, refreshLocal, diffIgnoringWhitespace, localFilesOf } from './local-diff.ts';
+import {
+  loadDiff,
+  refreshLocal,
+  movedSince,
+  diffIgnoringWhitespace,
+  localFilesOf,
+} from './local-diff.ts';
 import type { DiffFile, LocalNote, StoryData, UncoveredFile } from '@once-upon-a-diff/shared/types';
 import type { StoryStore } from './store.ts';
 import type { Plan } from './chapters.ts';
@@ -70,7 +76,10 @@ export function storyData(store: StoryStore, id: string, dir: string): StoryData
   const data: StoryData = {
     id,
     kind: meta.kind,
-    version: meta.kind === 'local' ? localVersion(dir, prefs) : storyVersion(dir),
+    version:
+      meta.kind === 'local'
+        ? localVersion(dir, prefs, movedSince(meta as LocalMeta))
+        : storyVersion(dir),
     pr: {
       repo: meta.repo || null,
       number: meta.number || null,
@@ -105,6 +114,7 @@ export function storyData(store: StoryStore, id: string, dir: string): StoryData
         const found = approvalOf(store, id, local.head_oid);
         return found ? { at: found.at, head_oid: found.head_oid } : null;
       })(),
+      moved: movedSince(local),
       ship: shipMode(local, store.home),
     };
   }

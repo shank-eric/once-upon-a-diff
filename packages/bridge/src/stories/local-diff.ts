@@ -1,12 +1,12 @@
 /*
- * A local story's diff: remade when its refs move (refreshLocal), with a -w
+ * A local story's diff: remade when a HEAD story's refs move (refreshLocal), with a -w
  * copy for Hide whitespace, and the per-file view the local page draws.
  */
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseUnifiedDiff, pathSha } from '../util/diff.ts';
 import { revParse, diffText, commitsBetween } from '../util/git.ts';
-import type { DiffFile, LocalFile } from '@once-upon-a-diff/shared/types';
+import type { DiffFile, LocalFile, LocalMoved } from '@once-upon-a-diff/shared/types';
 import type { LocalMeta, StoryMeta } from '../types.ts';
 
 /**
@@ -49,12 +49,33 @@ export function loadDiff(dir: string, meta: StoryMeta): Map<string, DiffFile> | 
   return parseUnifiedDiff(readFileSync(file, 'utf8'));
 }
 
+/** Whether a story follows its checkout's HEAD (`--head HEAD`, the default) rather than being pinned to the commits it was told over. */
+export const followsHead = (meta: Pick<LocalMeta, 'head'>): boolean => meta.head === 'HEAD';
+
 /**
- * `meta` is the raw meta.json. A local story follows its refs: when `head` (say HEAD or a branch) has moved
- * since the diff was made, remake local.diff. Viewed marks are kept per file
- * diff, so a file whose diff changed shows as unviewed again.
+ * `meta` is the raw meta.json. A story over `--head HEAD` follows the checkout: when HEAD (or the base ref) has
+ * moved since the diff was made, remake local.diff. Viewed marks are kept per file diff, so a file whose diff
+ * changed shows as unviewed again.
+ *
+ * Any other `--head` (a branch, a commit, HEAD~1) is pinned to the base_oid and head_oid stored when it was told:
+ * a restack or a new commit on that branch does not change the story (movedSince says it did). Telling it again
+ * (`once-upon local`) pins it to the tips as they are then.
  */
 export function refreshLocal(dir: string, meta: LocalMeta): LocalMeta {
+  const hasDiff = existsSync(path.join(dir, 'local.diff'));
+  if (!followsHead(meta) && meta.base_oid && meta.head_oid) {
+    if (!hasDiff) {
+      try {
+        writeFileSync(
+          path.join(dir, 'local.diff'),
+          diffText(meta.repo_path, meta.base_oid, meta.head_oid),
+        );
+      } catch {
+        // the commits are gone from the repo: nothing to draw
+      }
+    }
+    return meta;
+  }
   let baseOid;
   let headOid;
   try {
@@ -63,11 +84,7 @@ export function refreshLocal(dir: string, meta: LocalMeta): LocalMeta {
   } catch {
     return meta; // repo or ref gone: keep the last diff
   }
-  if (
-    baseOid === meta.base_oid &&
-    headOid === meta.head_oid &&
-    existsSync(path.join(dir, 'local.diff'))
-  ) {
+  if (baseOid === meta.base_oid && headOid === meta.head_oid && hasDiff) {
     return meta;
   }
   writeFileSync(path.join(dir, 'local.diff'), diffText(meta.repo_path, baseOid, headOid));
@@ -81,6 +98,30 @@ export function refreshLocal(dir: string, meta: LocalMeta): LocalMeta {
   };
   writeFileSync(path.join(dir, 'meta.json'), JSON.stringify(next, null, 2));
   return next;
+}
+
+/**
+ * For a pinned story, where its base and head refs point now when that is not where the story was told: the current
+ * commit of each ref that moved (the other is null), or null when nothing moved, the story follows HEAD, or a ref
+ * can't be read (the repo or branch is gone).
+ */
+export function movedSince(meta: LocalMeta): LocalMoved | null {
+  if (followsHead(meta) || !meta.base_oid || !meta.head_oid) {
+    return null;
+  }
+  try {
+    const base = revParse(meta.repo_path, meta.base);
+    const head = revParse(meta.repo_path, meta.head);
+    if (base === meta.base_oid && head === meta.head_oid) {
+      return null;
+    }
+    return {
+      base_oid: base === meta.base_oid ? null : base,
+      head_oid: head === meta.head_oid ? null : head,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**

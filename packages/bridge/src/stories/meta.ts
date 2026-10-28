@@ -6,6 +6,7 @@
 import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { readJson } from '../util/json-file.ts';
+import type { LocalMoved } from '@once-upon-a-diff/shared/types';
 import type { Prefs } from '../config/settings.ts';
 import type { StoryMeta } from '../types.ts';
 
@@ -42,12 +43,18 @@ export function storyVersion(dir: string): string {
 
 /**
  * A local story's version also says whether whitespace is hidden and which diff view is on, so a page
- * that polls it redraws when a setting changes in another tab.
+ * that polls it redraws when a setting changes in another tab, and where a pinned story's branch has moved to,
+ * so the page draws its "branch moved" notice.
  */
-export const localVersion = (dir: string, prefs: Prefs | null): string =>
+export const localVersion = (
+  dir: string,
+  prefs: Prefs | null,
+  moved: LocalMoved | null = null,
+): string =>
   storyVersion(dir) +
   (prefs && prefs.hideWhitespace ? '-w' : '') +
-  (prefs && prefs.diffView === 'split' ? '-s' : '');
+  (prefs && prefs.diffView === 'split' ? '-s' : '') +
+  (moved ? `-m${(moved.head_oid || '').slice(0, 7)}${(moved.base_oid || '').slice(0, 7)}` : '');
 
 /**
  * The login of a PR story's author: from its meta.json (`pr_author`, written when it was published), else from the

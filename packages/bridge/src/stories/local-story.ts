@@ -9,7 +9,7 @@ import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { topLevel, revParse, branchOfRef } from '../util/git.ts';
 import { parseUnifiedDiff } from '../util/diff.ts';
-import { refreshLocal } from './local-diff.ts';
+import { refreshLocal, followsHead } from './local-diff.ts';
 import { entryOf } from './chapters.ts';
 import { ID_RE } from './meta.ts';
 import { storyDirFor } from './placement.ts';
@@ -98,7 +98,9 @@ export function createLocalStory({
   // the branch --head names (the checkout's only when it is HEAD), so Create pull request pushes the story's branch
   const branch = branchOfRef(top, head);
   const name = path.basename(top);
-  id = id || slug(`local-${name}-${branch || head}`);
+  // a commit named by its full sha is told by its first nine characters
+  const shown = branch || (/^[0-9a-f]{40}$/i.test(head) ? head.slice(0, 9) : head);
+  id = id || slug(`local-${name}-${shown}`);
   if (!ID_RE.test(id)) {
     throw new Error(`bad story id: ${id}`);
   }
@@ -111,7 +113,10 @@ export function createLocalStory({
   const old: Partial<StoryMeta> = existsSync(metaFile)
     ? JSON.parse(readFileSync(metaFile, 'utf8'))
     : {};
-  const sameRange = old.repo_path === top && old.base === base && old.head === head;
+  // a story over HEAD keeps its commits when told again (refreshLocal follows the checkout). A pinned one is told again to
+  // take the tips as they are now, so its stored commits are dropped and refreshLocal pins the new ones.
+  const sameRange =
+    old.repo_path === top && old.base === base && old.head === head && followsHead({ head });
   const meta: LocalMeta = {
     kind: 'local',
     repo_path: top,
@@ -125,7 +130,7 @@ export function createLocalStory({
     title:
       title ||
       (old.title as string | undefined) ||
-      `${name}: ${base}..${head}${branch ? ` (${branch})` : ''}`,
+      `${name}: ${base}..${shown}${branch ? ` (${branch})` : ''}`,
   };
   writeFileSync(metaFile, JSON.stringify(meta, null, 2));
   refreshLocal(dir, meta);

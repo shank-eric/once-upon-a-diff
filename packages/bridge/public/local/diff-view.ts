@@ -223,6 +223,27 @@ export function fileHtml(file: LocalFile) {
 /** "repo · base abc1234 → head def5678 · branch". The page is drawn once the bridge has made the diff, so both commits are known. */
 const rangeHtml = (local: LocalStory) =>
   html`${local.repo} · <code>${local.base}</code> ${local.base_oid!.slice(0, 9)} → <code>${local.head}</code> ${local.head_oid!.slice(0, 9)}${local.branch && ` · ${local.branch}`}`;
+/**
+ * Shown on a story pinned to a branch (not HEAD) whose branch has moved since it was told: the diff below is still the
+ * commits it was told over, and this gives the old and new commit so a restack is not mistaken for the same work.
+ */
+const movedHtml = (local: LocalStory) => {
+  const { moved } = local;
+  if (!moved) {
+    return '';
+  }
+  const parts = [
+    moved.head_oid &&
+      html`<code>${local.head}</code> ${local.head_oid!.slice(0, 9)} → ${moved.head_oid.slice(0, 9)}`,
+    moved.base_oid &&
+      html`<code>${local.base}</code> ${local.base_oid!.slice(0, 9)} → ${moved.base_oid.slice(0, 9)}`,
+  ].filter(Boolean);
+  const told = parts.map((part, i) => html`${i > 0 && ', '}${part}`);
+  return html`<div class="ou-local-moved" role="status">
+    <strong>Branch moved since this story was told.</strong> This is still the diff of ${told}.
+    Tell the story again (<code>once-upon local</code>) to follow it.
+  </div>`;
+};
 /** "3 commits · 4 files +10 −2" */
 const sizeHtml = (local: LocalStory, added: number, removed: number) =>
   html`${plural(local.commits.length, 'commit')} · ${plural(local.files.length, 'file')} <span class="ou-local-plus">+${added}</span> <span class="ou-local-minus">−${removed}</span>`;
@@ -243,6 +264,7 @@ export function headerHtml() {
     <div class="ou-local-top-main">
       <h1>${story.title}</h1>
       <div class="ou-local-muted">${rangeHtml(local)} · ${sizeHtml(local, added, removed)}</div>
+      ${movedHtml(local)}
     </div>
     <div class="ou-local-view" role="group" aria-label="Diff view">${viewButtonsHtml()}</div>
     <label class="ou-local-ws" title="${WS_TITLE}"><input type="checkbox" class="ou-local-ws-toggle"${local.hide_whitespace && html` checked`}> Hide whitespace</label>

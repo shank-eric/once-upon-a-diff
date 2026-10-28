@@ -59,6 +59,7 @@ a { color: var(--fgColor-accent); }
 
 .ou-local-top { position: sticky; top: 0; z-index: 5; display: flex; gap: 12px; align-items: center; padding: 8px 16px; background: var(--bgColor-muted); border-bottom: 1px solid var(--borderColor-default); }
 .ou-local-top-main { flex: 1; min-width: 0; }
+.ou-local-moved { margin-top: 4px; font-size: 12px; color: var(--fgColor-attention); }
 .ou-local-top-main .ou-local-muted { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ou-local-view { display: flex; }
 .ou-local-view button { border-radius: 0; }

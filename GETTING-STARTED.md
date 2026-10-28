@@ -119,7 +119,7 @@ Tell the session "stop" when you're done. Run one listener per repo, each in its
 once-upon local --repo <checkout> --base <ref>
 ```
 
-This tells the story of `git diff <base> HEAD` (`--head` picks another end) on a page the bridge serves, and starts a bridge if none is running. Without `--chapters <file>` you get one chapter per top-level folder as a starting point. The same panel runs on the page. Click a line number to add a "fix before push" note. The panel's **Fix before push** box sends them to the listening session, and `once-upon notes --story <id>` prints them as a checklist. The page redraws when you amend or add a commit.
+This tells the story of `git diff <base> HEAD` (`--head` picks another end: a branch or a commit stays on the commits it was told over, and the page says when the branch has moved, until you run `once-upon local` again) on a page the bridge serves, and starts a bridge if none is running. Without `--chapters <file>` you get one chapter per top-level folder as a starting point. The same panel runs on the page. Click a line number to add a "fix before push" note. The panel's **Fix before push** box sends them to the listening session, and `once-upon notes --story <id>` prints them as a checklist. The page redraws when you amend or add a commit.
 
 ## Where stories live
 
