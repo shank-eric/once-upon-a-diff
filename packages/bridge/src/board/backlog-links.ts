@@ -4,8 +4,9 @@
  *
  *   worktrees   any git worktree on that branch, in the checkouts the board knows for the item's repo
  *   sessions    any live session on that branch, or working inside such a worktree
- *   agent       the ledger agent whose name is the `by` of the start (the way a subagent says "this is mine"), or whose
- *               task names a `<repo>-worktrees/<branch>` folder; with its latest progress beat
+ *   agent       the ledger agent whose name is the `by` of the start (the way a subagent says "this is mine"), or is the
+ *               name of the branch's worktree folder or of its last segment (voice/speaker-cluster: speaker-cluster), or
+ *               whose task names a `<repo>-worktrees/<branch>` folder; with its latest progress beat
  *
  * and whether the branch's work has merged. The one place for those rules. Pure: board.ts gathers the facts.
  */
@@ -60,7 +61,7 @@ export interface LinkFacts {
   sessions: LinkSession[];
   agents: LedgerAgent[];
   beats: Map<string, BoardBeat>;
-  /** whether the repo's branch has merged (a merged PR the board knows of) */
+  /** whether the repo's branch has merged (a merged PR the board knows of, or its commits are in the main checkout's branch) */
   merged: (repo: string | null, branch: string) => boolean;
 }
 
@@ -99,10 +100,17 @@ export function startedLinks(item: BacklogItem, facts: LinkFacts): BoardStartedL
     .map((session) => ({ id: session.id, title: session.title }));
   const starter = (item.started_by ?? '').toLowerCase();
   const folder = `-worktrees/${branch}`;
+  // names a subagent given the work's folder or branch would carry
+  const named = new Set(
+    [...worktrees.map((tree) => tree.name), branch.split('/').pop() ?? ''].map((name) =>
+      name.toLowerCase(),
+    ),
+  );
   const agent = newest(
     facts.agents.filter(
       (one) =>
         (!!starter && one.name.toLowerCase() === starter) ||
+        named.has(one.name.toLowerCase()) ||
         (!!one.task &&
           new RegExp(`${folder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w./-])`).test(
             one.task,

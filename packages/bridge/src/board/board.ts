@@ -392,6 +392,8 @@ const earliest = (times: (string | null | undefined)[]): string | null =>
 export class Board {
   private seen = new Map<string, { status: BoardStatus; since: number }>();
   private branches = new Map<string, { at: number; branch: string | null }>();
+  /** whether a branch's commits are in its repo's main checkout (mergedLocally), kept a few seconds */
+  private landed = new Map<string, { at: number; merged: boolean }>();
   /** a checkout's worktrees (git worktree list), kept a few seconds */
   private trees = new Map<string, { at: number; list: Worktree[] }>();
   private cache: { at: number; data: BoardData } | null = null;
@@ -572,6 +574,48 @@ export class Board {
     const list = out.code === 0 ? parseWorktrees(out.stdout) : [];
     this.trees.set(cwd, { at: now, list });
     return list;
+  }
+
+  /**
+   * Whether a branch's work is in the repo's main line with no PR to say so (a fast-forward into the main checkout's
+   * branch, as Larmor's work lands): the branch has moved since it was created (its reflog) and its tip is in the main
+   * checkout's branch, main or master, local or origin's. A branch with no commits of its own is not merged.
+   */
+  private async mergedLocally(trees: Worktree[], branch: string, now: number): Promise<boolean> {
+    const main = trees[0];
+    if (!main || !trees.some((tree) => tree.branch === branch)) {
+      return false;
+    }
+    const key = `${main.path}@${branch}`;
+    const kept = this.landed.get(key);
+    if (kept && now - kept.at < BRANCH_CACHE_MS) {
+      return kept.merged;
+    }
+    const log = await runGitAsync(
+      main.path,
+      ['reflog', 'show', '--format=%H', `refs/heads/${branch}`],
+      { timeout: 3000 },
+    );
+    const shas = log.code === 0 ? log.stdout.split('\n').filter(Boolean) : [];
+    let merged = false;
+    if (shas.length > 1 && shas[0] !== shas[shas.length - 1]) {
+      const lines = [main.branch, 'main', 'master']
+        .filter((name): name is string => !!name && name !== branch)
+        .flatMap((name) => [`refs/heads/${name}`, `refs/remotes/origin/${name}`]);
+      for (const line of [...new Set(lines)]) {
+        const check = await runGitAsync(
+          main.path,
+          ['merge-base', '--is-ancestor', `refs/heads/${branch}`, line],
+          { timeout: 3000 },
+        );
+        if (check.code === 0) {
+          merged = true;
+          break;
+        }
+      }
+    }
+    this.landed.set(key, { at: now, merged });
+    return merged;
   }
 
   private async build(now: Date): Promise<BoardData> {
@@ -1090,6 +1134,17 @@ export class Board {
         treesByRepo.set(key, list);
       }),
     );
+    const landedBranches = new Set<string>();
+    await Promise.all(
+      startedItems.map(async (item) => {
+        const repoKey = (item.repo ?? '').toLowerCase();
+        if (
+          await this.mergedLocally(treesByRepo.get(repoKey) ?? [], item.branch as string, nowMs)
+        ) {
+          landedBranches.add(`${repoKey}@${item.branch}`);
+        }
+      }),
+    );
     const mergedWorks = [...works.values()].filter((work) => work.mergedAt);
     const linkFacts = {
       worktrees: treesByRepo,
@@ -1103,6 +1158,9 @@ export class Board {
       agents,
       beats,
       merged: (repo: string | null, branch: string) => {
+        if (landedBranches.has(`${(repo ?? '').toLowerCase()}@${branch}`)) {
+          return true;
+        }
         if (
           mergedWorks.some(
             (work) =>

@@ -123,6 +123,28 @@ test('an agent whose task names the worktree folder is linked even when `by` is 
   assert.equal(found?.agent?.name, 'ou-splitter');
 });
 
+test('an agent named for the worktree folder or the branch’s last segment is linked when `by` is a session', () => {
+  const home = tmp('links-folder');
+  const store = new BacklogStore(home);
+  const made = store.add({ title: 'TV barge-ins', repo: 'acme/widgets' });
+  store.start(made.id, { branch: 'voice/speaker-cluster', by: 'clarifi-f9' });
+  const agents = parseLedger(
+    '- [done] sid:aaaaaaaa speaker-cluster (Opus) — 6:29 PM ET, 10/26 — 5901849 — notes\n' +
+      '- [done] sid:aaaaaaaa speaker-windows (Opus) — 5:50 PM ET, 10/26 — a0fdc8b — notes\n',
+    NOW,
+    'UTC',
+  );
+  const found = startedLinks(store.items()[0], {
+    worktrees: new Map(),
+    sessions: [],
+    agents,
+    beats: new Map(),
+    merged: () => false,
+  });
+  assert.equal(found?.agent?.name, 'speaker-cluster');
+  assert.equal(found?.agent?.state, 'done');
+});
+
 /** A repo (origin acme/widgets) with a worktree on `kill-inbox`, like <repo>-worktrees/kill-inbox, known to the board. */
 function repoWithWorktree(home: string) {
   const parent = tmp('links-repo');
@@ -231,4 +253,30 @@ test('a merged branch shows merged, and an unlinked started card still drops aft
   assert.equal(await backlogCard(boardOf(home, later, merged), item.id), undefined);
   assert.equal(await backlogCard(boardOf(home, later, merged), lonely.id), undefined);
   assert.ok(await backlogCard(boardOf(home, NOW, merged), lonely.id), 'within the day it shows');
+});
+
+test('work fast-forwarded into the main checkout’s branch shows merged; a branch with no commits of its own does not', async () => {
+  const home = tmp('links-ff');
+  const sessions = tmp('links-sessions3');
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  const checkout = repoWithWorktree(home);
+  const tree = path.join(path.dirname(checkout), 'widgets-worktrees', 'kill-inbox');
+  git(checkout, 'checkout', '-q', '-b', 'phone/live');
+  const store = new BacklogStore(home);
+  const item = store.add({ title: 'Retire the inbox page?', repo: 'acme/widgets' });
+  store.start(item.id, { branch: 'kill-inbox', repo: 'acme/widgets', by: 'nobody' });
+  // created, nothing committed yet: its tip is in phone/live, but it is not merged work
+  let card = await backlogCard(boardOf(home, NOW), item.id);
+  assert.equal(card?.backlog?.started?.links?.merged, false);
+  assert.equal(card?.backlog?.started?.links?.active, true);
+  // a commit in the worktree, then fast-forwarded into the main checkout's branch
+  writeFileSync(path.join(tree, 'b.txt'), 'b\n');
+  git(tree, 'add', '.');
+  git(tree, 'commit', '-q', '-m', 'work');
+  card = await backlogCard(boardOf(home, NOW), item.id);
+  assert.equal(card?.backlog?.started?.links?.merged, false, 'committed but not in phone/live yet');
+  git(checkout, 'merge', '-q', '--ff-only', 'kill-inbox');
+  card = await backlogCard(boardOf(home, NOW), item.id);
+  assert.equal(card?.backlog?.started?.links?.merged, true);
+  assert.equal(card?.backlog?.started?.links?.active, false);
 });
