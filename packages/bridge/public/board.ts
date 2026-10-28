@@ -12,6 +12,7 @@ import { freshestFirst, obviousChoice } from '/assets/util/choice.ts';
 import { html, type HtmlValue } from '/assets/util/html.ts';
 import { setHtml } from '/assets/util/dom.ts';
 import { plural } from '/assets/util/text.ts';
+import { startedChips } from '/assets/util/started-chips.ts';
 import type {
   BoardAgent,
   BoardAssign,
@@ -481,7 +482,7 @@ function backlogHtml(card: BoardCard, now: number) {
     <div class="ou-board-title" title="${card.title}">${card.title}</div>
     <div class="ou-local-muted ou-board-meta">${meta.join(' · ')}</div>
     ${card.detail && html`<div class="ou-board-detail ou-board-note" title="${card.detail}">${card.detail}</div>`}
-    ${item?.started && html`<div class="ou-board-chips"><span class="ou-board-chip">started on ${item.started.branch}, ${item.started.on ? `in ${item.started.on}` : 'no session on it yet'}</span></div>`}
+    ${item?.started && html`<div class="ou-board-chips">${startedChips(item.started).map((chip) => html`<span class="ou-board-chip">${chip}</span>`)}</div>`}
     ${item?.assigned && !item.started && html`<div class="ou-board-chips"><span class="ou-board-chip">assigned to ${item.assigned.session_title ?? 'a session that has ended'} ${ago(item.assigned.at, now)} ago, not started yet</span></div>`}
     ${item && !item.started && html`<div class="ou-board-startline"><code>${item.start_line}</code></div>`}
     <div class="ou-board-actions">

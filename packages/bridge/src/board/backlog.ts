@@ -16,13 +16,14 @@
  * An open item is a card in the Backlog column, in its repo's lane. A started item leaves the column: when the board
  * has a work card for its repo and branch, the item rides on that card ("from backlog"), and the card's own story and
  * column take over. A started item with no such card yet stays in Backlog for STARTED_GRACE_HOURS, so a wrong branch
- * name doesn't make it vanish. That is worked out on read, so a board snapshot never writes.
+ * name doesn't make it vanish; with a worktree, session or agent found on its branch (backlog-links.ts) it stays, showing
+ * them and the agent's latest beat, until the branch merges. That is worked out on read, so a board snapshot never writes.
  */
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { REPO_RE, sameRepo } from '../config/repos.ts';
 import { newId } from '../inbox/inbox.ts';
-import type { BoardCard } from '@once-upon-a-diff/shared/types';
+import type { BoardCard, BoardStartedLinks } from '@once-upon-a-diff/shared/types';
 
 export const STARTED_GRACE_HOURS = 24;
 /** An assignment that no `start` followed is a hint for this long, then the item is free to hand to another session. */
@@ -362,13 +363,15 @@ export interface CardlessSession {
  * The Backlog column's cards, and the work cards' "from backlog" marks. Open items are cards; a started item rides on
  * the work card for its repo and branch (and gives that card its title when it has no PR or story title). With no such
  * card it stays a card: saying which session it is on when a cardless one (the voice session, a listening one) is on
- * that branch, else for STARTED_GRACE_HOURS. Dropped items, and started ones past the grace, are not shown.
+ * that branch, else for STARTED_GRACE_HOURS, or for as long as `links` (backlog-links.ts) finds a worktree, session or agent on
+ * it and it has not merged. Dropped items, and started ones past the grace, are not shown.
  */
 export function backlogCards(
   items: BacklogItem[],
   cards: BoardCard[],
   nowMs: number,
   cardless: CardlessSession[] = [],
+  links: Map<string, BoardStartedLinks> = new Map(),
 ): BoardCard[] {
   const shown: BoardCard[] = [];
   for (const item of items) {
@@ -398,8 +401,10 @@ export function backlogCards(
           (item.repo ? sameRepo(session.repo, item.repo) : !session.repo),
       );
       const started = Date.parse(item.started_at ?? '');
+      // work that is linked and not merged stays, whatever the day count says (a worktree, a session or its agent is on it)
       if (
         !onSession &&
+        !links.get(item.id)?.active &&
         (Number.isNaN(started) || nowMs - started > STARTED_GRACE_HOURS * 3600 * 1000)
       ) {
         continue;
@@ -430,7 +435,12 @@ export function backlogCards(
         added_by: item.added_by,
         started:
           item.state === 'started'
-            ? { branch: item.branch, at: item.started_at, on: onSession?.label ?? null }
+            ? {
+                branch: item.branch,
+                at: item.started_at,
+                on: onSession?.label ?? null,
+                links: links.get(item.id) ?? null,
+              }
             : null,
         start_line: startLine(item),
         assigned:

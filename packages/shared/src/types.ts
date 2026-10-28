@@ -789,7 +789,13 @@ export interface BoardCard {
      * work was started on a branch but no card for it exists yet: shown for a day, or while `on` (the voice session or a
      * listening one, which have no cards) is on that branch
      */
-    started: { branch: string | null; at: string | null; on: string | null } | null;
+    started: {
+      branch: string | null;
+      at: string | null;
+      on: string | null;
+      /** what is working it: worktrees on the branch, sessions on it, the ledger agent that started it, whether it merged */
+      links?: BoardStartedLinks | null;
+    } | null;
     /** the CLI line to paste into a session to start it */
     start_line: string;
     /** an Assign typed it into this session lately and no start followed (the title is filled from the live view) */
@@ -804,6 +810,23 @@ export interface BoardCard {
   } | null;
   /** backlog items this work card began as: the work's story and column carry on from here */
   from_backlog?: { id: string; title: string }[];
+}
+
+/** What a started backlog item is being worked by (bridge/src/board/backlog-links.ts). */
+export interface BoardStartedLinks {
+  worktrees: { path: string; name: string }[];
+  sessions: { id: string; title: string }[];
+  /** the ledger agent whose name is who started the item, with its latest beat */
+  agent: {
+    name: string;
+    state: BoardAgent['state'];
+    beat: BoardBeat | null;
+    outcome: string | null;
+  } | null;
+  /** the branch's work has merged */
+  merged: boolean;
+  /** something is linked and the work has not merged: the card stays past the day */
+  active: boolean;
 }
 
 /** The voice session, pinned above the columns (Larmor's voice mode: src/board/voice.ts). */

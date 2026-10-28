@@ -36,6 +36,7 @@ import path from 'node:path';
 import { readSettings } from '../config/settings.ts';
 import {
   REPO_RE,
+  checkoutFor,
   lastKnownRepo,
   repoOfCheckoutAsync,
   sameRepo,
@@ -53,6 +54,8 @@ import { columnOf } from './columns.ts';
 import { BacklogStore, assignBranch, assignLine, backlogCards, liveAssignment } from './backlog.ts';
 import type { AddInput, BacklogItem, MoveTo } from './backlog.ts';
 import { gatedHome, laneForAgent, tiedToParent } from './agent-home.ts';
+import { parseWorktrees, startedLinks } from './backlog-links.ts';
+import type { Worktree } from './backlog-links.ts';
 import { readVoice, voiceLines, voiceStatus } from './voice.ts';
 import {
   assignCandidates,
@@ -99,6 +102,7 @@ import type {
   BoardColumn,
   BoardData,
   BoardSession,
+  BoardStartedLinks,
   BoardStatus,
   BoardVoice,
   InboxLocalStory,
@@ -388,6 +392,8 @@ const earliest = (times: (string | null | undefined)[]): string | null =>
 export class Board {
   private seen = new Map<string, { status: BoardStatus; since: number }>();
   private branches = new Map<string, { at: number; branch: string | null }>();
+  /** a checkout's worktrees (git worktree list), kept a few seconds */
+  private trees = new Map<string, { at: number; list: Worktree[] }>();
   private cache: { at: number; data: BoardData } | null = null;
   /** What the last snapshot knew of the sessions, for the panel's Start listening (listenSessions). */
   private listeningNow: { input: ListeningInput; voice: string | null } | null = null;
@@ -554,6 +560,18 @@ export class Board {
     const branch = out.code === 0 && out.stdout.trim() ? out.stdout.trim() : null;
     this.branches.set(cwd, { at: now, branch });
     return branch;
+  }
+
+  /** The worktrees of a checkout's repo (every checkout of it, this one included), kept a few seconds; none when it isn't a repo. */
+  private async worktreesOf(cwd: string, now: number): Promise<Worktree[]> {
+    const kept = this.trees.get(cwd);
+    if (kept && now - kept.at < BRANCH_CACHE_MS) {
+      return kept.list;
+    }
+    const out = await runGitAsync(cwd, ['worktree', 'list', '--porcelain'], { timeout: 3000 });
+    const list = out.code === 0 ? parseWorktrees(out.stdout) : [];
+    this.trees.set(cwd, { at: now, list });
+    return list;
   }
 
   private async build(now: Date): Promise<BoardData> {
@@ -1039,7 +1057,77 @@ export class Board {
         : []),
     ];
     const backlogItems = this.backlog.items();
-    cards.push(...backlogCards(backlogItems, cards, nowMs, cardless));
+    // what each started item is being worked by: worktrees on its branch, sessions, its ledger agent, whether it merged
+    const startedItems = backlogItems.filter((item) => item.state === 'started' && item.branch);
+    const treesByRepo = new Map<string, Worktree[]>();
+    await Promise.all(
+      [
+        ...new Set(startedItems.flatMap((item) => (item.repo ? [item.repo.toLowerCase()] : []))),
+      ].map(async (key) => {
+        const repo = startedItems.find((item) => item.repo?.toLowerCase() === key)?.repo as string;
+        // every checkout the board knows for the repo: a live session's, a story's, the one it has seen
+        const dirs = new Set<string>(
+          [
+            checkoutFor(this.home, repo),
+            ...live
+              .filter((session) => sameRepo(repoBySession.get(session.session), repo))
+              .map((session) => session.cwd),
+            ...[...this.localCheckouts.entries()]
+              .filter(([name]) => name.startsWith(`${key}@`))
+              .map(([, found]) => found.checkout),
+          ].filter((dir): dir is string => !!dir),
+        );
+        const seenPaths = new Set<string>();
+        const list: Worktree[] = [];
+        for (const dir of await Promise.all([...dirs].map((one) => this.worktreesOf(one, nowMs)))) {
+          for (const tree of dir) {
+            if (!seenPaths.has(tree.path)) {
+              seenPaths.add(tree.path);
+              list.push(tree);
+            }
+          }
+        }
+        treesByRepo.set(key, list);
+      }),
+    );
+    const mergedWorks = [...works.values()].filter((work) => work.mergedAt);
+    const linkFacts = {
+      worktrees: treesByRepo,
+      sessions: [...sessionViews.values()].map((view) => ({
+        id: view.id,
+        title: view.title,
+        cwd: view.cwd,
+        repo: repoBySession.get(view.id) ?? null,
+        branch: view.branch,
+      })),
+      agents,
+      beats,
+      merged: (repo: string | null, branch: string) => {
+        if (
+          mergedWorks.some(
+            (work) =>
+              work.repo && repo && sameRepo(work.repo, repo) && branchOfWork(work) === branch,
+          )
+        ) {
+          return true;
+        }
+        const tree = treesByRepo
+          .get((repo ?? '').toLowerCase())
+          ?.find((one) => one.branch === branch);
+        if (repo && tree) {
+          this.review.kickBranch(repo, branch, tree.path);
+        }
+        return !!repo && this.review.branchPr(repo, branch)?.state === 'merged';
+      },
+    };
+    const links = new Map<string, BoardStartedLinks>();
+    for (const item of startedItems) {
+      const found = startedLinks(item, linkFacts);
+      if (found) {
+        links.set(item.id, found);
+      }
+    }
+    cards.push(...backlogCards(backlogItems, cards, nowMs, cardless, links));
 
     // Assign: who may be handed each open item. Not the voice session or one that listens, and not one already holding
     // another item's live assignment
