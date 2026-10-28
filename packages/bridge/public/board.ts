@@ -79,6 +79,21 @@ function readCollapsed(): Set<string> {
 }
 const collapsed = readCollapsed();
 
+/** Others' PRs waiting on their author can be hidden from PR open; remembered, and wrapped like the rest. */
+const ON_AUTHOR_KEY = 'ou-board-hide-on-author';
+function readHideOnAuthor(): boolean {
+  try {
+    return localStorage.getItem(ON_AUTHOR_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+let hideOnAuthor = readHideOnAuthor();
+/** Someone else's PR with nothing on you and no session of yours on it: the ball is in its author's court. */
+const onAuthor = (card: BoardCard) =>
+  card.column === 'pr_open' && !!card.pr && !card.pr.mine && !card.sessions.length;
+const shownCard = (card: BoardCard) => !(hideOnAuthor && onAuthor(card));
+
 /** The Add panel is closed until asked for (+ Add), and closes after an add or Escape. */
 let addOpen = false;
 /** The board's repo filter: a lane name, '' for All. Remembered; a lane that is gone shows everything. */
@@ -474,12 +489,16 @@ function listenersHtml(repos: BoardListenerRepo[], now: number) {
 }
 
 /** A column's header: its name, how many cards it has, and + Add on Backlog. */
-function columnHead(column: { id: BoardColumn; label: string }, total: number) {
+function columnHead(column: { id: BoardColumn; label: string }, total: number, onAuthorCount = 0) {
   const add =
     column.id === 'backlog' &&
     !addOpen &&
     html` <button type="button" data-backlog-add-open title="Keep something for later">+ Add</button>`;
-  return html`<h2 class="ou-board-head">${column.label} <span class="ou-local-muted">${total}</span>${add}</h2>`;
+  const authors =
+    column.id === 'pr_open' &&
+    onAuthorCount > 0 &&
+    html` <button type="button" data-on-author-toggle aria-pressed="${String(hideOnAuthor)}" title="Others' PRs with nothing on you: the ball is in the author's court">${hideOnAuthor ? 'Show' : 'Hide'} ${onAuthorCount} on their author</button>`;
+  return html`<h2 class="ou-board-head">${column.label} <span class="ou-local-muted">${total}</span>${add}${authors}</h2>`;
 }
 
 /** A repo heading in a column, with the toggle that folds its cards (and the count shown while they are folded). */
@@ -529,7 +548,8 @@ function render(full: BoardData) {
   const data = filtered(full);
   const filterOn = data !== full;
   const now = Date.now();
-  const cards = data.lanes.flatMap((lane) => lane.cards);
+  const onAuthorCount = data.lanes.flatMap((lane) => lane.cards).filter(onAuthor).length;
+  const cards = data.lanes.flatMap((lane) => lane.cards).filter(shownCard);
   const columns = COLUMNS.filter(
     (column) => column.always || cards.some((card) => card.column === column.id),
   );
@@ -554,7 +574,7 @@ function render(full: BoardData) {
       .map((lane) => ({
         name: lane.name,
         cards: lane.cards
-          .filter((card) => card.column === column.id)
+          .filter((card) => card.column === column.id && shownCard(card))
           // Backlog keeps the order you gave it; the others go by how long they have been there
           .sort((first, second) =>
             column.id === 'backlog' ? 0 : String(first.since).localeCompare(String(second.since)),
@@ -564,7 +584,7 @@ function render(full: BoardData) {
     bodyOf.set(
       column.id,
       html`<section class="ou-board-col ou-board-c-${column.id}${count(column.id) ? '' : ' ou-board-empty'}" aria-label="${column.label}">
-      ${columnHead(column, count(column.id))}
+      ${columnHead(column, count(column.id), onAuthorCount)}
       ${column.id === 'backlog' && addOpen && addFormHtml()}
       ${groups.map((group) => {
         const folded = collapsed.has(`${column.id}/${group.name}`);
@@ -1097,6 +1117,19 @@ app.addEventListener('click', async (event) => {
       card.getAttribute('data-focus-card') || '',
       card.querySelector('.ou-board-focus'),
     );
+    return;
+  }
+  if (clicked.closest('[data-on-author-toggle]')) {
+    hideOnAuthor = !hideOnAuthor;
+    try {
+      localStorage.setItem(ON_AUTHOR_KEY, String(hideOnAuthor));
+    } catch {
+      /* the choice just isn't remembered */
+    }
+    if (board) {
+      last = '';
+      render(board);
+    }
     return;
   }
   if (clicked.closest('[data-idle-toggle]')) {
