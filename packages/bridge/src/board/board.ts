@@ -923,7 +923,17 @@ export class Board {
     }
 
     // the Backlog column: open items, and started ones are marked onto the work cards they became
-    cards.push(...backlogCards(this.backlog.items(), cards, nowMs));
+    const cardless = [
+      ...quietViews.map((view) => ({
+        repo: repoBySession.get(view.id) ?? null,
+        branch: view.branch,
+        label: view.title,
+      })),
+      ...(pin.found
+        ? [{ repo: pin.found.repo, branch: pin.found.view.branch, label: 'Voice session' }]
+        : []),
+    ];
+    cards.push(...backlogCards(this.backlog.items(), cards, nowMs, cardless));
 
     // lanes: one per repo (or lane tag), the cards grouped by the page into columns
     const lanes = new Map<string, { name: string; cards: BoardCard[] }>();

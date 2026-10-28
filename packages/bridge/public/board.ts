@@ -347,7 +347,7 @@ function backlogHtml(card: BoardCard, now: number) {
     <div class="ou-board-title" title="${card.title}">${card.title}</div>
     <div class="ou-local-muted ou-board-meta">${meta.join(' · ')}</div>
     ${card.detail && html`<div class="ou-board-detail ou-board-note" title="${card.detail}">${card.detail}</div>`}
-    ${item?.started && html`<div class="ou-board-chips"><span class="ou-board-chip">started on ${item.started.branch}, no session on it yet</span></div>`}
+    ${item?.started && html`<div class="ou-board-chips"><span class="ou-board-chip">started on ${item.started.branch}, ${item.started.on ? `in ${item.started.on}` : 'no session on it yet'}</span></div>`}
     ${item && !item.started && html`<div class="ou-board-startline"><code>${item.start_line}</code></div>`}
     <div class="ou-board-actions">
       ${item && !item.started && html`<button type="button" data-backlog-copy="${item.start_line}" title="Copy the line that starts it">Copy start line</button>`}

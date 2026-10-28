@@ -252,17 +252,32 @@ export const startLine = (item: Pick<BacklogItem, 'id' | 'branch'>): string =>
 
 const lane = (repo: string | null) => (repo ? repo.split('/')[1] : 'General');
 
+/** A live session that is on no card (the voice session, or one only listening): what a started item can sit on. */
+export interface CardlessSession {
+  repo: string | null;
+  branch: string | null;
+  /** how the card names it: "Voice session", or the session's title */
+  label: string;
+}
+
 /**
  * The Backlog column's cards, and the work cards' "from backlog" marks. Open items are cards; a started item rides on
- * the work card for its repo and branch (and gives that card its title when it has no PR or story title), or is a
- * card for STARTED_GRACE_HOURS if there is none yet. Dropped items, and started ones past the grace, are not shown.
+ * the work card for its repo and branch (and gives that card its title when it has no PR or story title). With no such
+ * card it stays a card: saying which session it is on when a cardless one (the voice session, a listening one) is on
+ * that branch, else for STARTED_GRACE_HOURS. Dropped items, and started ones past the grace, are not shown.
  */
-export function backlogCards(items: BacklogItem[], cards: BoardCard[], nowMs: number): BoardCard[] {
+export function backlogCards(
+  items: BacklogItem[],
+  cards: BoardCard[],
+  nowMs: number,
+  cardless: CardlessSession[] = [],
+): BoardCard[] {
   const shown: BoardCard[] = [];
   for (const item of items) {
     if (item.state === 'dropped') {
       continue;
     }
+    let onSession: CardlessSession | undefined;
     if (item.state === 'started') {
       // the work card for its branch, else a session card on it (a session on a new branch with no PR or story yet)
       const onBranch = (card: BoardCard, kind: BoardCard['kind']) =>
@@ -279,8 +294,16 @@ export function backlogCards(items: BacklogItem[], cards: BoardCard[], nowMs: nu
         }
         continue;
       }
+      onSession = cardless.find(
+        (session) =>
+          session.branch === item.branch &&
+          (item.repo ? sameRepo(session.repo, item.repo) : !session.repo),
+      );
       const started = Date.parse(item.started_at ?? '');
-      if (Number.isNaN(started) || nowMs - started > STARTED_GRACE_HOURS * 3600 * 1000) {
+      if (
+        !onSession &&
+        (Number.isNaN(started) || nowMs - started > STARTED_GRACE_HOURS * 3600 * 1000)
+      ) {
         continue;
       }
     }
@@ -308,7 +331,10 @@ export function backlogCards(items: BacklogItem[], cards: BoardCard[], nowMs: nu
       backlog: {
         id: item.id,
         added_by: item.added_by,
-        started: item.state === 'started' ? { branch: item.branch, at: item.started_at } : null,
+        started:
+          item.state === 'started'
+            ? { branch: item.branch, at: item.started_at, on: onSession?.label ?? null }
+            : null,
         start_line: startLine(item),
       },
     });

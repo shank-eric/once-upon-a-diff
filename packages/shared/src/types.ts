@@ -725,8 +725,11 @@ export interface BoardCard {
   backlog?: {
     id: string;
     added_by: string;
-    /** work was started on a branch but no card for it exists yet (shown for a day) */
-    started: { branch: string | null; at: string | null } | null;
+    /**
+     * work was started on a branch but no card for it exists yet: shown for a day, or while `on` (the voice session or a
+     * listening one, which have no cards) is on that branch
+     */
+    started: { branch: string | null; at: string | null; on: string | null } | null;
     /** the CLI line to paste into a session to start it */
     start_line: string;
   } | null;

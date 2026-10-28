@@ -26,7 +26,7 @@ import {
 import { Builds } from '../src/inbox/builds.ts';
 import { Board, liveSessions, noPrWatcher, type PrWatcher } from '../src/board/board.ts';
 import { columnOf, isBackToYou } from '../src/board/columns.ts';
-import { BacklogStore } from '../src/board/backlog.ts';
+import { BacklogStore, backlogCards } from '../src/board/backlog.ts';
 import { readVoice, voiceStatus } from '../src/board/voice.ts';
 import { sessionOfPid } from '../src/board/listening.ts';
 import { noteListener, readHistory } from '../src/listeners/history.ts';
@@ -4224,6 +4224,30 @@ test('a session card is titled by its tab, else the title in its transcript, els
   assert.equal(title(tabbed.pid), 'Tab title');
   assert.equal(title(untabbed.pid), 'Transcript title');
   assert.equal(title(untitled.pid), 'untitled');
+});
+
+test('a started item on the voice session’s or a listening session’s branch says so, and stays past the day', () => {
+  const store = new BacklogStore(tmp('board-backlog-cardless'));
+  const onVoice = store.add({ title: 'Voice idea', repo: 'acme/widgets' });
+  store.start(onVoice.id, { branch: 'feat/voice' });
+  const alone = store.add({ title: 'Nobody on it', repo: 'acme/widgets' });
+  store.start(alone.id, { branch: 'feat/alone' });
+  const later = Date.now() + 2 * 24 * 3600 * 1000;
+  const cardless = [{ repo: 'acme/widgets', branch: 'feat/voice', label: 'Voice session' }];
+  const started = (now: number) =>
+    backlogCards(store.items(), [], now, cardless).map((card) => [
+      card.title,
+      card.backlog?.started?.on,
+    ]);
+  assert.deepEqual(started(Date.now()), [
+    ['Voice idea', 'Voice session'],
+    ['Nobody on it', null],
+  ]);
+  assert.deepEqual(
+    started(later),
+    [['Voice idea', 'Voice session']],
+    'only the one with no session drops after a day',
+  );
 });
 
 test('a started backlog item rides on a live session’s card on its new branch, before any PR or story', async () => {
