@@ -18,7 +18,8 @@
  *                               the background and the board reads what it has, so a poll never waits for GitHub. A
  *                               session's branch without a story is looked up the same way.
  *   <projects dir>              each session's transcript, to tell a session with no prompt yet (blank.ts): those are a
- *                               strip in the Idle lane, not cards
+ *                               strip in the Idle lane, not cards; and for its title when the tab's name says nothing
+ *                               (titles.ts)
  *
  * The board shows your own work: sessions on this Mac, and PRs you authored (isShown). Columns follow the work to
  * merge (columns.ts). A lane is the repo's name (else the folder's name): the page puts a lane's label right above its
@@ -35,6 +36,7 @@ import { REPO_RE, lastKnownRepo, repoOfCheckoutAsync, sameRepo } from '../config
 import { runGitAsync } from '../util/git.ts';
 import { gateOf, readAgents, type LedgerAgent } from './ledger.ts';
 import { BlankSessions } from './blank.ts';
+import { SessionTitles } from './titles.ts';
 import { columnOf } from './columns.ts';
 import { BacklogStore, backlogCards } from './backlog.ts';
 import type { AddInput, BacklogItem, MoveTo } from './backlog.ts';
@@ -354,6 +356,7 @@ export class Board {
   /** Bumped when what a build read is out of date, so a build that started before it does not fill the cache. */
   private generation = 0;
   private blank = new BlankSessions();
+  private titles = new SessionTitles();
   private backlog: BacklogStore;
 
   private home: string;
@@ -626,6 +629,22 @@ export class Board {
       }),
     );
     this.blank.keep(new Set(live.map((session) => session.session)));
+    // each session's own title from its transcript, for when the tab's name says nothing (titles.ts)
+    const titles = new Map<string, string>();
+    await Promise.all(
+      live.map(async (session) => {
+        const title = await this.titles.titleOf(
+          settings.projectsDir,
+          session.session,
+          session.cwd,
+          nowMs,
+        );
+        if (title) {
+          titles.set(session.session, title);
+        }
+      }),
+    );
+    this.titles.keep(new Set(live.map((session) => session.session)));
     const blankViews: { lane: string; view: BoardSession }[] = [];
 
     // sessions: one on a branch of its own joins that branch's work, the rest are cards of their own
@@ -648,7 +667,11 @@ export class Board {
       const view: SessionView = {
         card: {
           id: session.session,
-          title: extra?.title || session.name || path.basename(session.cwd),
+          title:
+            extra?.title ||
+            titles.get(session.session) ||
+            session.name ||
+            path.basename(session.cwd),
           cwd: session.cwd,
           branch,
           status,
@@ -724,6 +747,10 @@ export class Board {
         this.review.kickBranch(repo, branch, session.cwd);
         if (found && found.state === 'open' && !works.has(prKey(repo, found.number))) {
           work.number = found.number;
+        } else if (found?.state === 'merged') {
+          // the branch's PR merged: its local story is done, so a session still on the branch is a card of its own
+          work.number = found.number;
+          work.mergedAt = found.merged_at;
         }
       }
       if (work && live(work)) {

@@ -19,7 +19,7 @@ const CHUNK = 64 * 1024;
 /** A transcript this long with no prompt in it is not blank. */
 const GIVE_UP = 4 * 1024 * 1024;
 /** A session with no transcript is looked for in the other project folders at most this often. */
-const RESCAN_MS = 10000;
+export const RESCAN_MS = 10000;
 
 /** Claude Code's project folder name for a working directory. */
 export const projectFolder = (cwd: string): string => cwd.replace(/[^A-Za-z0-9]/g, '-');
@@ -177,7 +177,7 @@ export class BlankSessions {
   }
 }
 
-async function sizeOf(file: string): Promise<number | null> {
+export async function sizeOf(file: string): Promise<number | null> {
   try {
     return (await stat(file)).size;
   } catch {
@@ -186,7 +186,7 @@ async function sizeOf(file: string): Promise<number | null> {
 }
 
 /** The session's transcript in whichever project folder has it (its cwd may have changed since it started). */
-async function findIn(projectsDir: string, sessionId: string): Promise<string | null> {
+export async function findIn(projectsDir: string, sessionId: string): Promise<string | null> {
   let folders: string[];
   try {
     folders = await readdir(projectsDir);

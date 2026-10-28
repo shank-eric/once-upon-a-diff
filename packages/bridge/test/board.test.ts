@@ -4088,6 +4088,63 @@ test('the board: a local story puts its branch in Ready for your review, or Back
   assert.equal(cards.length, 4, 'the four above, nothing else');
 });
 
+test('the board: a session on a branch whose PR merged long ago is a card of its own, not on the branch’s old local story', async () => {
+  const home = tmp('board-home');
+  const sessions = tmp('board-sessions');
+  const child = liveChild();
+  after(() => child.stop());
+  const checkout = checkoutOf('widgets', 'feat/old');
+  registry(sessions, child.pid, { cwd: checkout, name: 'new-work' }, child.procStart);
+  localStory(home, 'local-feat-old', checkout, 'feat/old');
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  const mergedAt = new Date(NOW.getTime() - 5 * 24 * 3600 * 1000).toISOString();
+  const { watcher } = fakeWatcher([], {
+    'acme/widgets@feat/old': { number: 9, state: 'merged', merged_at: mergedAt },
+  });
+  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+    source: registrySource,
+    now: () => NOW,
+  });
+  const cards = (await board.snapshot()).lanes.flatMap((lane) => lane.cards);
+  assert.deepEqual(
+    cards.map((found) => [found.kind, found.title]),
+    [['session', 'new-work']],
+  );
+});
+
+test('a session card is titled by its tab, else the title in its transcript, else the registry’s name', async () => {
+  const home = tmp('board-home');
+  const sessions = tmp('board-sessions');
+  const [tabbed, untabbed, untitled] = [liveChild(), liveChild(), liveChild()];
+  after(() => [tabbed, untabbed, untitled].forEach((child) => child.stop()));
+  const cwd = tmp('board-titles');
+  for (const [child, name] of [
+    [tabbed, 'tabbed'],
+    [untabbed, 'untabbed'],
+    [untitled, 'untitled'],
+  ] as const) {
+    registry(sessions, child.pid, { cwd, name }, child.procStart);
+  }
+  for (const child of [tabbed, untabbed]) {
+    transcript(cwd, fullId(child.pid), [
+      ...usedLines(fullId(child.pid)),
+      { type: 'ai-title', aiTitle: 'Transcript title', sessionId: fullId(child.pid) },
+    ]);
+  }
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+    source: sourceSaying({
+      [String(tabbed.pid).padStart(8, '0')]: { status: 'done', detail: null },
+    }),
+    now: () => NOW,
+  });
+  const cards = (await board.snapshot()).lanes.flatMap((lane) => lane.cards);
+  const title = (pid: number) => cards.find((found) => found.id === fullId(pid))?.title;
+  assert.equal(title(tabbed.pid), 'Tab title');
+  assert.equal(title(untabbed.pid), 'Transcript title');
+  assert.equal(title(untitled.pid), 'untitled');
+});
+
 test('a started backlog item rides on a live session’s card on its new branch, before any PR or story', async () => {
   const home = tmp('board-backlog-session');
   const sessions = tmp('board-backlog-sessions');
