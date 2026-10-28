@@ -278,6 +278,10 @@ button.ou-local-pr { white-space: nowrap; }
 .ou-board-add-actions { display: flex; gap: 6px; }
 .ou-board-c-backlog[draggable="true"] { cursor: grab; }
 .ou-board-c-backlog.ou-board-dragging { opacity: 0.4; }
+.ou-board-usage-strip { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0 0 10px; font-size: 12px; }
+.ou-board-usage { font-size: 12px; font-variant-numeric: tabular-nums; }
+.ou-board-usage-warn { color: var(--fgColor-attention); }
+.ou-board-usage-high { color: var(--ou-local-del-fg); font-weight: 600; }
 /* where the dragged card lands: a line in the gap above or below a card, with a dot at its start */
 .ou-board-drop-before, .ou-board-drop-after { position: relative; }
 .ou-board-drop-before::before, .ou-board-drop-after::after { content: ""; position: absolute; left: -4px; right: -4px; height: 3px; border-radius: 2px; background: var(--fgColor-accent); pointer-events: none; }

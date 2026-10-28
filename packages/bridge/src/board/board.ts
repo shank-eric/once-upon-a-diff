@@ -20,6 +20,8 @@
  *   <projects dir>              each session's transcript, to tell a session with no prompt yet (blank.ts): those are a
  *                               strip in the Idle lane, not cards; and for its title when the tab's name says nothing
  *                               (titles.ts)
+ *   <home>/statusline/          each session's context use and the usage limits, as a status line script copies them
+ *                               (statusline.ts)
  *
  * The board shows your own work: sessions on this Mac, and PRs you authored (isShown). Columns follow the work to
  * merge (columns.ts). A lane is the repo's name (else the folder's name): the page puts a lane's label right above its
@@ -37,6 +39,7 @@ import { runGitAsync } from '../util/git.ts';
 import { gateOf, readAgents, type LedgerAgent } from './ledger.ts';
 import { BlankSessions } from './blank.ts';
 import { SessionTitles } from './titles.ts';
+import { readStatusLines } from './statusline.ts';
 import { columnOf } from './columns.ts';
 import { BacklogStore, backlogCards } from './backlog.ts';
 import type { AddInput, BacklogItem, MoveTo } from './backlog.ts';
@@ -298,6 +301,7 @@ function voiceOf(
     },
     session: pinned.view.id,
     can_focus: pinned.view.focus,
+    context: pinned.view.context ?? null,
   };
 }
 
@@ -662,6 +666,12 @@ export class Board {
       }),
     );
     this.titles.keep(new Set(live.map((session) => session.session)));
+    // each session's context use and the usage limits, from the status line's copies (statusline.ts)
+    const statusLines = readStatusLines(
+      this.home,
+      new Set(live.map((session) => session.session)),
+      nowMs,
+    );
     const blankViews: { lane: string; view: BoardSession }[] = [];
 
     // sessions: one on a branch of its own joins that branch's work, the rest are cards of their own
@@ -696,6 +706,7 @@ export class Board {
           since: new Date(since).toISOString(),
           source: extra ? (picked.source.name as 'iterm' | 'registry') : 'registry',
           focus: picked.source.name === 'iterm' && !!extra,
+          context: statusLines.context.get(session.session) ?? null,
         },
       };
       if (quiet.has(session.session) && !(voiceFiles && session.session === voiceFiles.session)) {
@@ -928,6 +939,7 @@ export class Board {
       listeners: listenersLane(waits, listening),
       blank: blankStrip(blankViews),
       lanes: [...lanes.values()].sort((first, second) => first.name.localeCompare(second.name)),
+      usage: statusLines.usage,
     };
   }
 

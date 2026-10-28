@@ -667,6 +667,8 @@ export interface BoardSession {
   source: 'iterm' | 'registry';
   /** its iTerm tab is known, so `POST /api/board/focus` can bring it to the front */
   focus: boolean;
+  /** how full its context window is (%), when its status line says (board/statusline.ts) */
+  context?: number | null;
 }
 
 /**
@@ -738,6 +740,8 @@ export interface BoardVoice {
   agents: { running: number; waiting: number };
   session: string;
   can_focus: boolean;
+  /** how full its context window is (%), when its status line says */
+  context: number | null;
 }
 
 /** A session listening for requests, and which session that is. */
@@ -788,6 +792,21 @@ export interface BoardData {
   /** live sessions that have had no prompt yet (new, or just cleared), by lane name: a strip in the Idle lane, not cards */
   blank: { name: string; sessions: BoardBlankSession[] }[];
   lanes: { name: string; cards: BoardCard[] }[];
+  /** the account's usage limits as the freshest status line had them, null when none has rendered lately */
+  usage: BoardUsage | null;
+}
+
+/** A usage limit: how much is used (%) and when it resets. */
+export interface BoardLimit {
+  percent: number;
+  resets_at: string | null;
+}
+
+/** The account's usage limits, and when a status line last said them. */
+export interface BoardUsage {
+  five_hour: BoardLimit | null;
+  seven_day: BoardLimit | null;
+  at: string;
 }
 
 /** A session with no prompt yet. */

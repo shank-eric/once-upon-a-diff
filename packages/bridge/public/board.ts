@@ -18,8 +18,10 @@ import type {
   BoardCard,
   BoardColumn,
   BoardData,
+  BoardLimit,
   BoardListenerRepo,
   BoardSession,
+  BoardUsage,
   BoardVoice,
   PrInfo,
 } from '/assets/types.ts';
@@ -246,10 +248,42 @@ function prChips(pr: PrInfo) {
   return chips;
 }
 
+/** "ctx 45%", yellow from 70% and red from 90% like the status line, or '' when the status line hasn't said. */
+function contextHtml(context: number | null | undefined) {
+  if (typeof context !== 'number') {
+    return '';
+  }
+  return html` <span class="ou-board-usage${levelOf(context)}" title="How full the session's context window is">ctx ${context}%</span>`;
+}
+
+/** The warning class for a percentage: yellow from 70, red from 90. */
+function levelOf(value: number) {
+  if (value >= 90) {
+    return ' ou-board-usage-high';
+  }
+  return value >= 70 ? ' ou-board-usage-warn' : '';
+}
+
+/** The usage strip under the header: the 5-hour and weekly limits with when they reset, as the status line has them. */
+function usageHtml(usage: BoardUsage | null, now: number) {
+  if (!usage) {
+    return '';
+  }
+  const limit = (label: string, value: BoardLimit | null, options: Intl.DateTimeFormatOptions) =>
+    value &&
+    html`<span class="ou-board-usage${levelOf(value.percent)}">${label} ${value.percent}%${value.resets_at && html` <span class="ou-local-muted">resets ${new Date(value.resets_at).toLocaleString([], options)}</span>`}</span>`;
+  const seen = age(usage.at, now);
+  return html`<p class="ou-board-usage-strip" aria-label="Usage">
+    ${limit('5h', usage.five_hour, { hour: 'numeric', minute: '2-digit' })}
+    ${limit('week', usage.seven_day, { weekday: 'short', hour: 'numeric' })}
+    ${seen && html`<span class="ou-local-muted">from a status line ${seen} ago</span>`}
+  </p>`;
+}
+
 function sessionHtml(session: BoardSession, now: number) {
   const time = age(session.since, now);
   return html`<li class="ou-board-session ou-board-s-${session.status}" title="${session.cwd}">
-    <span class="ou-board-mark" aria-hidden="true">●</span> <strong>${session.title}</strong> <span class="ou-local-muted">${session.status}${time && ` · ${time}`}</span>
+    <span class="ou-board-mark" aria-hidden="true">●</span> <strong>${session.title}</strong> <span class="ou-local-muted">${session.status}${time && ` · ${time}`}</span>${contextHtml(session.context)}
     ${session.detail && html`<div class="ou-board-agent-note ou-local-muted">${session.detail}</div>`}
   </li>`;
 }
@@ -437,7 +471,7 @@ function voiceHtml(voice: BoardVoice) {
     <strong>Voice session</strong>
     ${voice.repo && html`<span class="ou-local-muted">${voice.repo.split('/')[1]}${voice.branch ? ` · ${voice.branch}` : ''}</span>`}
     <span class="ou-board-voice-status">${VOICE_STATUS[voice.status]}</span>
-    <span class="ou-local-muted">${agents ? `agents: ${agents}` : 'no agents running'}</span>
+    <span class="ou-local-muted">${agents ? `agents: ${agents}` : 'no agents running'}</span>${contextHtml(voice.context)}
     <button type="button" class="ou-board-focus" data-focus="${voice.session}"${!voice.can_focus && html` disabled`} title="${focusTitle}">Open in iTerm</button>
   </section>`;
 }
@@ -619,6 +653,7 @@ function render(full: BoardData) {
       <button type="button" data-board-filter aria-haspopup="menu" title="Narrow the whole board to one repo's lane">Repo: ${filterOn ? laneFilter : 'All'} ▾</button>
       <button type="button" data-inbox="">Review inbox</button>
     </header>
+    ${usageHtml(data.usage, now)}
     ${data.warning && html`<p class="ou-board-warning">${data.warning}</p>`}
     ${data.voice && voiceHtml(data.voice)}
     <main class="ou-board">

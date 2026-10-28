@@ -2743,6 +2743,12 @@ test('the voice session is pinned above the columns, off every card, with its ag
     last_speak: 4,
   });
   writeFileSync(path.join(voiceDir, 'voice-session-name'), 'clarifi-f9\n');
+  // its status line's copy: the voice card shows its context use, and the board the usage limits
+  writeJson(path.join(home, 'statusline', `${fullId(voice.pid)}.json`), {
+    at: NOW.getTime() / 1000 - 30,
+    context: 37,
+    rate_limits: { five_hour: { used_percentage: 91, resets_at: NOW.getTime() / 1000 + 3600 } },
+  });
   const settings = {
     board_ledger_file: ledger,
     board_sessions_dir: sessions,
@@ -2776,6 +2782,12 @@ test('the voice session is pinned above the columns, off every card, with its ag
     agents: { running: 1, waiting: 1 },
     session: fullId(voice.pid),
     can_focus: false,
+    context: 37,
+  });
+  assert.deepEqual(data.usage, {
+    five_hour: { percent: 91, resets_at: new Date(NOW.getTime() + 3600 * 1000).toISOString() },
+    seven_day: null,
+    at: new Date(NOW.getTime() - 30 * 1000).toISOString(),
   });
   // its agents keep their own cards, still "from" the voice session
   const helper = cards.find((card) => card.id === `agent:${sid(voice)}:helper-two`);
