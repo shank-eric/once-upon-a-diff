@@ -106,6 +106,8 @@ describe('Create pull request on a local story', () => {
       ['notes', 'POST'],
       ['fixes', 'GET'],
       ['fixes', 'POST'],
+      ['rebuild', 'GET'],
+      ['rebuild', 'POST'],
       ['pr', 'GET'],
     ];
     for (const [what, method] of may) {
@@ -115,8 +117,6 @@ describe('Create pull request on a local story', () => {
       ['pr', 'POST'],
       ['pr', 'PUT'],
       ['', 'POST'],
-      ['rebuild', 'POST'],
-      ['rebuild', 'GET'],
       ['push', 'POST'],
       ['approve', 'POST'],
       ['approve', 'GET'],
@@ -134,7 +134,7 @@ describe('Create pull request on a local story', () => {
     }
   });
 
-  test('links only step down: the inbox hands out a read-only key, which reads and asks but never pushes', async () => {
+  test('links only step down: the inbox hands out a read-only key, which reads, asks and rebuilds but never pushes', async () => {
     const home = tmp('home');
     const { remote, id } = storyWithOrigin(home);
     const bridge = await startBridge({ home });
@@ -230,10 +230,12 @@ describe('Create pull request on a local story', () => {
         200,
         'Send',
       );
-      // everything not on the allowlist is refused, listed or not: a rebuild request, a route that does not exist yet
+      // Rebuild reaches its own route (a rebuild with no chapters to keep is a 400 from its own check, not a 403)
+      assert.notEqual((await withKey(read, 'GET', `${story}/rebuild`)).status, 403, 'Rebuild');
+      assert.notEqual((await withKey(read, 'POST', `${story}/rebuild`, {})).status, 403, 'Rebuild');
+      // everything not on the allowlist is refused, listed or not: Approve, a route that does not exist yet
       for (const [method, what] of [
-        ['POST', '/rebuild'],
-        ['GET', '/rebuild'],
+        ['POST', '/approve'],
         ['POST', '/later'],
         ['GET', '/later'],
       ] as const) {
@@ -246,8 +248,6 @@ describe('Create pull request on a local story', () => {
         assert.equal(refused.status, 403, `${method} ${what}`);
         assert.match((refused.body as { error: string }).error, /read-only/);
       }
-      // the full key still reaches them (a rebuild with no chapters to keep is a 400 from its own check, not a 403)
-      assert.notEqual((await withKey(pageKey(TOKEN, id), 'GET', `${story}/rebuild`)).status, 403);
       // not another story, a bridge-wide route, or a page of the board's
       assert.equal((await withKey(read, 'GET', '/api/stories/acme-widgets-7')).status, 403);
       assert.equal((await withKey(read, 'GET', '/api/stories')).status, 403);

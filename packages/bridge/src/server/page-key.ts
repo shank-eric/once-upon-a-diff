@@ -18,7 +18,7 @@ export const pageKey = (token: string, story: string): string =>
   PAGE_KEY_PREFIX + createHmac('sha256', token).update(`local-page:${story}`).digest('base64url');
 
 /**
- * The read-only key for one story: reads, Ask, viewed marks and Fix before push notes (Send too), and nothing else
+ * The read-only key for one story: reads, Ask, viewed marks, Fix before push notes (Send too) and Rebuild, and nothing else
  * (`viewKeyMay`), so nothing that writes to GitHub or the branch's remote. Made under its own label, so the full key
  * can't be got from it. What the review inbox's links carry.
  */
@@ -33,8 +33,9 @@ export const viewKey = (token: string, story: string): string =>
  *  - Ask: questions
  *  - Viewed marks: viewed
  *  - Fix before push: notes, and fixes (the notes' state, Auto-send, Send, Take back)
+ *  - Rebuild: asking the listening session to re-tell the story, which writes only the story (drafts are kept)
  *  - where the branch's PR stands: GET pr, never the POST that pushes
- * Refused: everything else (rebuild, pr writes, and any route not listed).
+ * Refused: everything else (approve, pr writes, and any route not listed).
  */
 const VIEW_KEY_MAY: Record<string, readonly string[]> = {
   '': ['GET'],
@@ -53,6 +54,7 @@ const VIEW_KEY_MAY: Record<string, readonly string[]> = {
   viewed: ['POST'],
   notes: ['POST'],
   fixes: ['GET', 'POST'],
+  rebuild: ['GET', 'POST'],
   pr: ['GET'],
 };
 
