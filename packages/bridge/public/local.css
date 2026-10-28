@@ -206,6 +206,8 @@ button.ou-local-pr { white-space: nowrap; }
 /* The voice session (board.ts): a tab on the right edge that opens a docked panel. Wide windows make room for the open
    panel beside the board; narrower ones overlay it, and a phone gets a bottom sheet. */
 #ou-board-app { --ou-voice-width: 340px; }
+/* a dragged width (set on the app) is held to 260px up to 60% of the window, which also catches a saved one after the window shrinks */
+#ou-board-app { --ou-voice-w: clamp(260px, var(--ou-voice-width), 60vw); }
 .ou-board-voice { --ou-voice-color: var(--fgColor-muted); }
 .ou-board-voice-listening { --ou-voice-color: var(--fgColor-success); }
 .ou-board-voice-speaking { --ou-voice-color: var(--fgColor-accent); }
@@ -218,8 +220,10 @@ button.ou-local-pr { white-space: nowrap; }
 .ou-board-voice-tab { position: fixed; z-index: 8; right: 0; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px; border-right: 0; border-radius: 8px 0 0 8px; background: var(--bgColor-muted); box-shadow: -2px 0 8px rgba(1, 4, 9, 0.12); }
 .ou-board-voice-tab:hover { border-color: var(--ou-voice-color); }
 .ou-board-voice-word { writing-mode: vertical-rl; font-size: 11px; font-weight: 600; letter-spacing: .04em; color: var(--ou-voice-color); }
-.ou-board-voice-open .ou-board-voice-tab { right: var(--ou-voice-width); }
-.ou-board-voice-panel { position: fixed; z-index: 7; top: 0; right: 0; bottom: 0; width: var(--ou-voice-width); display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; background: var(--bgColor-muted); border-left: 1px solid var(--borderColor-default); box-shadow: -8px 0 24px rgba(1, 4, 9, 0.18); overflow: hidden; }
+.ou-board-voice-open .ou-board-voice-tab { right: var(--ou-voice-w); }
+.ou-board-voice-panel { position: fixed; z-index: 7; top: 0; right: 0; bottom: 0; width: var(--ou-voice-w); display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; background: var(--bgColor-muted); border-left: 1px solid var(--borderColor-default); box-shadow: -8px 0 24px rgba(1, 4, 9, 0.18); overflow: hidden; }
+.ou-board-voice-grip { position: absolute; z-index: 1; left: 0; top: 0; bottom: 0; width: 8px; cursor: col-resize; touch-action: none; }
+.ou-board-voice-grip:hover, .ou-board-voice-grip:focus-visible { background: var(--fgColor-accent); opacity: .35; outline: none; }
 .ou-board-voice-head { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
 .ou-board-voice-name { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ou-board-voice-close { border: 0; background: none; padding: 2px 6px; color: var(--fgColor-muted); }
@@ -234,12 +238,13 @@ button.ou-local-pr { white-space: nowrap; }
 /* room for the tab (and, when it is open, the panel) beside the board and its header */
 #ou-board-app.ou-board-has-voice { padding-right: 30px; }
 @media (min-width: 801px) and (max-width: 1099px) { #ou-board-app { --ou-voice-width: 300px; } }
-@media (min-width: 801px) { #ou-board-app.ou-board-pushed { padding-right: calc(var(--ou-voice-width) + 30px); } }
+@media (min-width: 801px) { #ou-board-app.ou-board-pushed { padding-right: calc(var(--ou-voice-w) + 30px); } }
 @media (max-width: 800px) {
   #ou-board-app.ou-board-has-voice { padding-right: 0; }
   .ou-board-voice-tab { top: auto; bottom: 12px; right: 12px; transform: none; flex-direction: row; padding: 8px 12px; border: 1px solid var(--borderColor-default); border-radius: 999px; min-height: 44px; }
   .ou-board-voice-word { writing-mode: horizontal-tb; }
   .ou-board-voice-open .ou-board-voice-tab { display: none; }
+  .ou-board-voice-grip { display: none; }
   .ou-board-voice-panel { top: auto; left: 0; width: auto; height: min(60vh, 440px); border-left: 0; border-top: 1px solid var(--borderColor-default); border-radius: 12px 12px 0 0; padding: 10px; }
 }
 

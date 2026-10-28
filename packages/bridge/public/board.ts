@@ -110,6 +110,56 @@ function readVoiceOpen(): boolean {
 }
 let voiceOpen = readVoiceOpen();
 
+/**
+ * The voice panel's width is dragged (or arrowed) and remembered too. It lives in a CSS custom property on the board's
+ * own element, which a redraw leaves alone, so a redraw never resets it. null is the stylesheet's default width.
+ */
+const VOICE_WIDTH_KEY = 'ou-board-voice-width';
+const VOICE_MIN_WIDTH = 260;
+const VOICE_MAX_SHARE = 0.6;
+const VOICE_KEY_STEP = 16;
+function readVoiceWidth(): number | null {
+  try {
+    const width = Number.parseInt(localStorage.getItem(VOICE_WIDTH_KEY) || '');
+    return Number.isFinite(width) ? width : null;
+  } catch {
+    return null;
+  }
+}
+let voiceWidth = readVoiceWidth();
+/** A drag of the panel's edge is under way: a redraw would drop the handle (and its pointer capture), so the drop redraws. */
+let voiceResizing = false;
+const clampVoiceWidth = (width: number) =>
+  Math.round(
+    Math.min(
+      Math.max(width, VOICE_MIN_WIDTH),
+      Math.max(window.innerWidth * VOICE_MAX_SHARE, VOICE_MIN_WIDTH),
+    ),
+  );
+function applyVoiceWidth() {
+  if (voiceWidth === null) {
+    app.style.removeProperty('--ou-voice-width');
+  } else {
+    app.style.setProperty('--ou-voice-width', `${voiceWidth}px`);
+  }
+  // the handle reports the width it is at (not in the markup, so arrowing never makes a redraw)
+  const handle = app.querySelector<HTMLElement>('[data-voice-resize]');
+  const panel = app.querySelector<HTMLElement>('.ou-board-voice-panel');
+  if (handle && panel) {
+    handle.setAttribute('aria-valuenow', String(Math.round(panel.getBoundingClientRect().width)));
+  }
+}
+function saveVoiceWidth() {
+  try {
+    if (voiceWidth !== null) {
+      localStorage.setItem(VOICE_WIDTH_KEY, String(voiceWidth));
+    }
+  } catch {
+    /* the width just isn't remembered */
+  }
+}
+applyVoiceWidth();
+
 /** The Add panel is closed until asked for (+ Add), and closes after an add or Escape. */
 let addOpen = false;
 /** The board's repo filter: a lane name, '' for All. Remembered; a lane that is gone shows everything. */
@@ -587,6 +637,7 @@ function voiceHtml(voice: BoardVoice) {
     ${
       voiceOpen &&
       html`<div class="ou-board-voice-panel" id="ou-board-voice-panel" role="region" aria-label="Voice session panel">
+      <div class="ou-board-voice-grip" data-voice-resize role="separator" aria-orientation="vertical" aria-label="Resize the voice panel" aria-valuemin="${VOICE_MIN_WIDTH}" tabindex="0" title="Drag to resize (or use the arrow keys)"></div>
       <div class="ou-board-voice-head">
         <strong class="ou-board-voice-name" title="${voice.title}">${voice.name}</strong>
         <button type="button" class="ou-board-voice-close" data-voice-toggle aria-label="Close the voice panel" title="Close">✕</button>
@@ -701,7 +752,7 @@ function filtered(data: BoardData): BoardData {
 function render(full: BoardData) {
   board = full;
   // a card is being dragged: a redraw would drop it, so the drop (or its end) redraws
-  if (dragId) {
+  if (dragId || voiceResizing) {
     return;
   }
   const data = filtered(full);
@@ -825,11 +876,18 @@ function render(full: BoardData) {
     const focused = (document.activeElement as HTMLElement | null)?.closest('[data-backlog-add]')
       ? (document.activeElement as HTMLInputElement).name
       : null;
+    const handleFocused = !!(document.activeElement as HTMLElement | null)?.closest(
+      '[data-voice-resize]',
+    );
     // the voice conversation: a redraw keeps your place in it, and a new line scrolls it to the bottom if you were there
     const lines = app.querySelector<HTMLElement>('.ou-board-voice-lines');
     const wasAtBottom = !lines || lines.scrollHeight - lines.scrollTop - lines.clientHeight < 8;
     const scrolled = lines ? lines.scrollTop : 0;
     setHtml(app, markup);
+    applyVoiceWidth();
+    if (handleFocused) {
+      app.querySelector<HTMLElement>('[data-voice-resize]')?.focus();
+    }
     const linesNow = app.querySelector<HTMLElement>('.ou-board-voice-lines');
     if (linesNow) {
       linesNow.scrollTop = wasAtBottom ? linesNow.scrollHeight : scrolled;
@@ -940,6 +998,53 @@ async function assignInto(id: string, session: string, line: string) {
     alert(`Couldn't assign it: ${(err as Error).message}`);
   }
 }
+
+// the voice panel's left edge: drag it (pointer capture keeps the drag when the pointer leaves the thin handle), or arrow it
+app.addEventListener('pointerdown', (event) => {
+  const handle = (event.target as Element).closest<HTMLElement>('[data-voice-resize]');
+  if (!handle || event.button !== 0) {
+    return;
+  }
+  event.preventDefault();
+  handle.setPointerCapture(event.pointerId);
+  voiceResizing = true;
+  const move = (moveEvent: PointerEvent) => {
+    voiceWidth = clampVoiceWidth(window.innerWidth - moveEvent.clientX);
+    applyVoiceWidth();
+  };
+  const finish = () => {
+    handle.removeEventListener('pointermove', move);
+    handle.removeEventListener('pointerup', finish);
+    handle.removeEventListener('pointercancel', finish);
+    voiceResizing = false;
+    saveVoiceWidth();
+    if (board) {
+      last = '';
+      render(board);
+    }
+  };
+  handle.addEventListener('pointermove', move);
+  handle.addEventListener('pointerup', finish);
+  handle.addEventListener('pointercancel', finish);
+});
+
+// ArrowLeft widens the panel (its edge moves left), ArrowRight narrows it, 16px at a time
+app.addEventListener('keydown', (event) => {
+  const handle = (event.target as Element).closest<HTMLElement>('[data-voice-resize]');
+  if (!handle || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) {
+    return;
+  }
+  event.preventDefault();
+  const shown =
+    app.querySelector<HTMLElement>('.ou-board-voice-panel')?.getBoundingClientRect().width ??
+    VOICE_MIN_WIDTH;
+  voiceWidth = clampVoiceWidth(
+    (voiceWidth === null ? shown : Math.min(voiceWidth, shown)) +
+      (event.key === 'ArrowLeft' ? VOICE_KEY_STEP : -VOICE_KEY_STEP),
+  );
+  applyVoiceWidth();
+  saveVoiceWidth();
+});
 
 // Alt+Up or Alt+Down on a focused Backlog card moves it within its lane (the keyboard's way to reorder)
 app.addEventListener('keydown', async (event) => {
