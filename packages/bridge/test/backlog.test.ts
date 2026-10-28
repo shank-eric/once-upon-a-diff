@@ -19,7 +19,14 @@ import { registrySource } from '../src/board/sources.ts';
 import { StoryStore } from '../src/stories/store.ts';
 import { Builds } from '../src/inbox/builds.ts';
 import { boardKey, pageKey, viewKey } from '../src/server/page-key.ts';
-import type { BoardCard, BoardData } from '@once-upon-a-diff/shared/types';
+import type {
+  BoardAgent,
+  BoardCard,
+  BoardData,
+  BoardStartedLinks,
+} from '@once-upon-a-diff/shared/types';
+
+type BoardAgentState = BoardAgent['state'];
 
 const open: TestBridge[] = [];
 after(() => Promise.all(open.map((bridge) => bridge.close())));
@@ -264,6 +271,108 @@ test('a started item with no work card stays for a day, then goes; a repo-less o
   const card = work(null, 'scratch');
   assert.equal(backlogCards(store.items(), [card], startedAt).length, 1, 'only the first item');
   assert.deepEqual(card.from_backlog, [{ id: free.id, title: 'No repo item' }]);
+});
+
+/** What `startedLinks` says about an item, as far as the cards look. */
+const linked = (extra: Partial<BoardStartedLinks> = {}): BoardStartedLinks => ({
+  worktrees: [],
+  sessions: [],
+  agent: null,
+  merged: false,
+  merged_at: null,
+  active: true,
+  ...extra,
+});
+const agentLink = (state: BoardAgentState, ended_at: string | null = null) =>
+  ({
+    name: 'hold-speech',
+    state,
+    beat: null,
+    outcome: null,
+    ended_at,
+  }) as BoardStartedLinks['agent'];
+
+test('a started item folds into the card of its open agent, whatever the agent card’s branch, and takes it the title', () => {
+  const store = new BacklogStore(tmp('backlog-agent-fold'));
+  const item = store.add({ title: 'Hold a spoken line', repo: 'acme/larmor' });
+  store.start(item.id, { branch: 'voice/hold', by: 'hold-speech' });
+  const agentCard = work(null, '', {
+    kind: 'agent',
+    title: 'hold-speech',
+    branch: null,
+    agents: [{ name: 'hold-speech', state: 'running' } as BoardCard['agents'][number]],
+  });
+  const links = new Map([[item.id, linked({ agent: agentLink('running') })]]);
+  assert.deepEqual(backlogCards(store.items(), [agentCard], NOW, [], links), []);
+  assert.equal(agentCard.title, 'Hold a spoken line');
+  assert.deepEqual(agentCard.from_backlog, [{ id: item.id, title: 'Hold a spoken line' }]);
+  // a work card the agent sits in keeps its own title
+  const inside = work('acme/larmor', 'other', {
+    title: 'A PR title',
+    agents: [{ name: 'hold-speech', state: 'running' } as BoardCard['agents'][number]],
+  });
+  assert.deepEqual(backlogCards(store.items(), [inside], NOW, [], links), []);
+  assert.equal(inside.title, 'A PR title');
+  assert.equal(inside.from_backlog?.length, 1);
+});
+
+test('a started item with no card is Working until its work ends, then Done (Error when the agent failed) for a day', () => {
+  const store = new BacklogStore(tmp('backlog-columns'));
+  const item = store.add({ title: 'Piece of work', repo: 'acme/widgets' });
+  store.start(item.id, { branch: 'feat/piece', by: 'builder' });
+  const startedAt = Date.parse(store.items()[0].started_at as string);
+  const hour = 3600 * 1000;
+  const columnOf = (links: BoardStartedLinks | undefined, now: number) => {
+    const cards = backlogCards(
+      store.items(),
+      [],
+      now,
+      [],
+      links ? new Map([[item.id, links]]) : new Map(),
+    );
+    return cards.map((card) => card.column);
+  };
+  assert.deepEqual(
+    columnOf(undefined, startedAt + hour),
+    ['working'],
+    'no link yet: started, no session',
+  );
+  assert.deepEqual(
+    columnOf(linked({ worktrees: [{ path: '/x', name: 'x' }] }), startedAt + 50 * hour),
+    ['working'],
+  );
+  const ended = new Date(startedAt + 2 * hour).toISOString();
+  assert.deepEqual(columnOf(linked({ agent: agentLink('done', ended) }), startedAt + 3 * hour), [
+    'done',
+  ]);
+  assert.deepEqual(columnOf(linked({ agent: agentLink('stopped', ended) }), startedAt + 3 * hour), [
+    'done',
+  ]);
+  assert.deepEqual(columnOf(linked({ agent: agentLink('failed', ended) }), startedAt + 3 * hour), [
+    'error',
+  ]);
+  assert.deepEqual(
+    columnOf(linked({ agent: agentLink('done', ended) }), startedAt + 27 * hour),
+    [],
+    'a day after it ended',
+  );
+  // merged: Done from the merge time
+  const mergedAt = new Date(startedAt + 30 * hour).toISOString();
+  const merged = linked({ merged: true, merged_at: mergedAt, active: false });
+  assert.deepEqual(columnOf(merged, startedAt + 40 * hour), ['done']);
+  assert.deepEqual(columnOf(merged, startedAt + 56 * hour), []);
+  // merged with no time known counts from the start, so an old one does not linger
+  assert.deepEqual(columnOf(linked({ merged: true, active: false }), startedAt + 25 * hour), []);
+  // a Done card still carries the item, with what linked
+  const [card] = backlogCards(
+    store.items(),
+    [],
+    startedAt + 3 * hour,
+    [],
+    new Map([[item.id, linked({ agent: agentLink('done', ended) })]]),
+  );
+  assert.equal(card.backlog?.started?.links?.agent?.state, 'done');
+  assert.equal(card.since, ended);
 });
 
 test('the board snapshot has the Backlog column’s cards, and a CLI-added item shows up', async () => {

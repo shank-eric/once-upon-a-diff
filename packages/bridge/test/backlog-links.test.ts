@@ -79,7 +79,7 @@ test('startedLinks: a worktree on the branch, a session in it, the agent named b
       ['ou-kill-inbox', { n: 3, of: 6, step: 'code', note: 'removing' }],
       ['ou-other', { n: 1, of: 6, step: 'read', note: '' }],
     ]),
-    merged: () => false,
+    merged: () => null,
   };
   const found = startedLinks(item, facts) as BoardStartedLinks;
   assert.deepEqual(found.worktrees, [
@@ -90,7 +90,10 @@ test('startedLinks: a worktree on the branch, a session in it, the agent named b
   assert.deepEqual(found.agent?.beat, { n: 3, of: 6, step: 'code', note: 'removing' });
   assert.equal(found.active, true);
   // merged: shown as merged, and no longer active
-  const merged = startedLinks(item, { ...facts, merged: () => true }) as BoardStartedLinks;
+  const merged = startedLinks(item, {
+    ...facts,
+    merged: () => ({ at: null }),
+  }) as BoardStartedLinks;
   assert.equal(merged.merged, true);
   assert.equal(merged.active, false);
   // nothing linked says so, as before
@@ -118,7 +121,7 @@ test('an agent whose task names the worktree folder is linked even when `by` is 
     sessions: [],
     agents,
     beats: new Map(),
-    merged: () => false,
+    merged: () => null,
   });
   assert.equal(found?.agent?.name, 'ou-splitter');
 });
@@ -139,7 +142,7 @@ test('an agent named for the worktree folder or the branch’s last segment is l
     sessions: [],
     agents,
     beats: new Map(),
-    merged: () => false,
+    merged: () => null,
   });
   assert.equal(found?.agent?.name, 'speaker-cluster');
   assert.equal(found?.agent?.state, 'done');
@@ -174,7 +177,7 @@ const backlogCard = async (board: Board, id: string): Promise<BoardCard | undefi
     .flatMap((lane) => lane.cards)
     .find((card) => card.backlog?.id === id);
 
-test('the Retire-the-inbox case: a card started by a subagent links to its worktree, its agent and its latest beat', async () => {
+test('the Retire-the-inbox case: a started card folds into its running agent’s card, and moves to Done when the agent finishes', async () => {
   const home = tmp('links-board');
   const sessions = tmp('links-sessions');
   const notes = tmp('links-notes');
@@ -199,34 +202,54 @@ test('the Retire-the-inbox case: a card started by a subagent links to its workt
   const item = store.add({ title: 'Retire the inbox page?', repo: 'acme/widgets' });
   store.start(item.id, { branch: 'kill-inbox', repo: 'acme/widgets', by: 'ou-kill-inbox' });
 
-  let card = await backlogCard(boardOf(home, NOW), item.id);
-  const started = card?.backlog?.started;
-  assert.equal(started?.branch, 'kill-inbox');
-  assert.deepEqual(
-    started?.links?.worktrees.map((tree) => tree.name),
-    ['kill-inbox'],
+  // one card: the agent's, titled by the backlog item, with the item noted on it; nothing left in Backlog
+  const cardsOf = async (board: Board) =>
+    (await board.snapshot()).lanes.flatMap((lane) => lane.cards);
+  let cards = await cardsOf(boardOf(home, NOW));
+  assert.equal(
+    cards.some((one) => one.backlog?.id === item.id),
+    false,
   );
-  assert.equal(started?.links?.agent?.name, 'ou-kill-inbox');
-  assert.deepEqual(started?.links?.agent?.beat, {
-    n: 3,
-    of: 6,
-    step: 'code',
-    note: 'removing',
-  });
+  const agentCard = cards.find((one) => one.agents.some((agent) => agent.name === 'ou-kill-inbox'));
+  assert.equal(agentCard?.kind, 'agent');
+  assert.equal(agentCard?.title, 'Retire the inbox page?');
+  assert.equal(agentCard?.column, 'working');
+  assert.deepEqual(agentCard?.from_backlog, [{ id: item.id, title: 'Retire the inbox page?' }]);
+  assert.deepEqual(agentCard?.agents[0].beat?.step, 'code');
 
-  // still there two days on, while the work is linked and unmerged
+  // still one card two days on, while the agent is running
   const later = new Date(Date.now() + 2 * 24 * 3600 * 1000); // the start events are stamped with the real clock
-  card = await backlogCard(boardOf(home, later), item.id);
-  assert.ok(card, 'linked work is not dropped after the grace day');
+  cards = await cardsOf(boardOf(home, later));
+  assert.equal(cards.filter((one) => one.title === 'Retire the inbox page?').length, 1);
 
-  // the agent finishes: the card says done
+  // the agent finishes: the item is one Done card, linked to the worktree and the agent, with no hand drop
   writeFileSync(
     ledger,
     '- [running] sid:54736864 ou-kill-inbox (sonnet, high) — remove the inbox — started 2:30 PM ET, 10/26\n' +
       '- [done] sid:54736864 ou-kill-inbox — 3:30 PM ET, 10/26 — committed on kill-inbox — notes\n',
   );
-  card = await backlogCard(boardOf(home, NOW), item.id);
-  assert.equal(card?.backlog?.started?.links?.agent?.state, 'done');
+  const done = await backlogCard(boardOf(home, NOW), item.id);
+  assert.equal(done?.column, 'done');
+  assert.equal(done?.backlog?.started?.links?.agent?.state, 'done');
+  assert.deepEqual(
+    done?.backlog?.started?.links?.worktrees.map((tree) => tree.name),
+    ['kill-inbox'],
+  );
+  // and it leaves Done a day after the agent ended
+  assert.equal(await backlogCard(boardOf(home, later), item.id), undefined);
+});
+
+test('a started card with no session, agent or worktree yet is a Working card, for the grace day', async () => {
+  const home = tmp('links-unlinked');
+  const sessions = tmp('links-sessions-u');
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  repoWithWorktree(home);
+  const store = new BacklogStore(home);
+  const item = store.add({ title: 'Not picked up', repo: 'acme/widgets' });
+  store.start(item.id, { branch: 'not-yet', repo: 'acme/widgets', by: 'nobody' });
+  const card = await backlogCard(boardOf(home, new Date()), item.id);
+  assert.equal(card?.column, 'working');
+  assert.equal(card?.backlog?.started?.links?.active, false);
 });
 
 test('a merged branch shows merged, and an unlinked started card still drops after the day', async () => {
@@ -249,6 +272,8 @@ test('a merged branch shows merged, and an unlinked started card still drops aft
   const card = await backlogCard(boardOf(home, NOW, merged), item.id);
   assert.equal(card?.backlog?.started?.links?.merged, true);
   assert.equal(card?.backlog?.started?.links?.active, false);
+  assert.equal(card?.backlog?.started?.links?.merged_at, NOW.toISOString());
+  assert.equal(card?.column, 'done', 'merged work is a Done card, not a Backlog one');
   const later = new Date(Date.now() + 2 * 24 * 3600 * 1000); // the start events are stamped with the real clock
   assert.equal(await backlogCard(boardOf(home, later, merged), item.id), undefined);
   assert.equal(await backlogCard(boardOf(home, later, merged), lonely.id), undefined);
@@ -279,4 +304,6 @@ test('work fast-forwarded into the main checkout’s branch shows merged; a bran
   card = await backlogCard(boardOf(home, NOW), item.id);
   assert.equal(card?.backlog?.started?.links?.merged, true);
   assert.equal(card?.backlog?.started?.links?.active, false);
+  assert.ok(card?.backlog?.started?.links?.merged_at, 'dated by the branch tip’s commit');
+  assert.equal(card?.column, 'done');
 });

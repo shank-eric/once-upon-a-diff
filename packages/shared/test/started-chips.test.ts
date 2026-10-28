@@ -8,6 +8,7 @@ const links = (extra: Partial<BoardStartedLinks> = {}): BoardStartedLinks => ({
   sessions: [],
   agent: null,
   merged: false,
+  merged_at: null,
   active: false,
   ...extra,
 });
@@ -23,6 +24,7 @@ test('a started card names its branch, then what is working it', () => {
           state: 'running',
           beat: { n: 3, of: 6, step: 'code', note: 'x' },
           outcome: null,
+          ended_at: null,
         },
         worktrees: [{ path: '/d/widgets-worktrees/kill-inbox', name: 'kill-inbox' }],
         sessions: [{ id: 's', title: 'the builder' }],
@@ -39,7 +41,7 @@ test('a started card names its branch, then what is working it', () => {
 
 test('a finished agent, a merge, and a card with nothing linked', () => {
   const done = links({
-    agent: { name: 'ou-x', state: 'done', beat: null, outcome: 'ok' },
+    agent: { name: 'ou-x', state: 'done', beat: null, outcome: 'ok', ended_at: null },
     merged: true,
   });
   assert.deepEqual(startedChips({ branch: 'x', on: null, links: done }), [
@@ -49,14 +51,14 @@ test('a finished agent, a merge, and a card with nothing linked', () => {
   ]);
   assert.deepEqual(startedChips({ branch: 'x', on: null, links: links() }), [
     'started on x',
-    'no session on it yet',
+    'no session yet',
   ]);
   assert.deepEqual(startedChips({ branch: 'x', on: 'Voice session' }), [
     'started on x',
     'session Voice session',
   ]);
   const waiting = links({
-    agent: { name: 'ou-y', state: 'waiting', beat: null, outcome: null },
+    agent: { name: 'ou-y', state: 'waiting', beat: null, outcome: null, ended_at: null },
   });
   assert.equal(startedChips({ branch: 'x', on: null, links: waiting })[1], 'ou-y waiting on you');
 });

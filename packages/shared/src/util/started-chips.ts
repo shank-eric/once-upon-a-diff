@@ -39,7 +39,7 @@ export function startedChips(started: {
     chips.push(`session ${title}`);
   }
   if (!agent && !(links?.worktrees.length ?? 0) && !titles.length && !links?.merged) {
-    chips.push('no session on it yet');
+    chips.push('no session yet');
   }
   return chips;
 }

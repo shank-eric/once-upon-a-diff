@@ -148,6 +148,11 @@ export function seenCheckout(
   }
 }
 
+/** Every checkout folder the bridge has recorded, whatever its repo, that still exists. */
+export function seenCheckouts(home: string): string[] {
+  return Object.values(readAll(home)).filter((dir) => typeof dir === 'string' && existsSync(dir));
+}
+
 /**
  * Where to work on a repo: the checkout the bridge has seen, else <dir>/<name> for each of config.json's
  * checkout_dirs (default ~/Development) when its origin is that repo, else null. ONCE_UPON_DEV_DIR overrides them.

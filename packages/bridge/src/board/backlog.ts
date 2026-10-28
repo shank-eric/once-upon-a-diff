@@ -13,19 +13,21 @@
  * A move names where it goes relative to the other items, never an index, so it folds the same whatever was added or
  * dropped in between, and the page shows the order within each repo lane.
  *
- * An open item is a card in the Backlog column, in its repo's lane. A started item leaves the column: when the board
- * has a work card for its repo and branch, the item rides on that card ("from backlog"), and the card's own story and
- * column take over. A started item with no such card yet stays in Backlog for STARTED_GRACE_HOURS, so a wrong branch
- * name doesn't make it vanish; with a worktree, session or agent found on its branch (backlog-links.ts) it stays, showing
- * them and the agent's latest beat, until the branch merges. That is worked out on read, so a board snapshot never writes.
+ * An open item is a card in the Backlog column, in its repo's lane. A started item leaves the column and is one piece of
+ * work shown once: it rides on the card its work is on (the work card for its repo and branch, else the card of its
+ * linked agent: "from backlog"), or, with no card, is a card of its own in Working (so a wrong branch name doesn't make
+ * it vanish: STARTED_GRACE_HOURS, or as long as a worktree, session or agent is found on it, backlog-links.ts) and then
+ * in Done once it merged or its agent finished. That is worked out on read, so a board snapshot never writes.
  */
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { REPO_RE, sameRepo } from '../config/repos.ts';
 import { newId } from '../inbox/inbox.ts';
-import type { BoardCard, BoardStartedLinks } from '@once-upon-a-diff/shared/types';
+import type { BoardAgent, BoardCard, BoardStartedLinks } from '@once-upon-a-diff/shared/types';
 
 export const STARTED_GRACE_HOURS = 24;
+/** A started item whose work merged, or whose agent finished, stays in Done this long. */
+export const DONE_HOURS = 24;
 /** An assignment that no `start` followed is a hint for this long, then the item is free to hand to another session. */
 export const ASSIGN_HOURS = 2;
 
@@ -349,6 +351,29 @@ export function assignLine(item: Pick<BacklogItem, 'id' | 'title' | 'branch'>): 
   );
 }
 
+/**
+ * Whether a started item's work has finished, with when and where it goes: merged is Done at its merge time (else the
+ * start), a finished agent is Done at its end (a failed one is Error). Null while the work is going on or has no link.
+ */
+function endedColumn(
+  links: BoardStartedLinks | undefined,
+  startedMs: number,
+): { column: 'done' | 'error'; when: number } | null {
+  if (links?.merged) {
+    const when = Date.parse(links.merged_at ?? '');
+    return { column: 'done', when: Number.isNaN(when) ? startedMs || 0 : when };
+  }
+  const agent = links?.agent;
+  if (agent && !AGENT_OPEN.includes(agent.state)) {
+    const when = Date.parse(agent.ended_at ?? '');
+    return {
+      column: agent.state === 'failed' ? 'error' : 'done',
+      when: Number.isNaN(when) ? startedMs || 0 : when,
+    };
+  }
+  return null;
+}
+
 const lane = (repo: string | null) => (repo ? repo.split('/')[1] : 'General');
 
 /** A live session that is on no card (the voice session, or one only listening): what a started item can sit on. */
@@ -359,12 +384,19 @@ export interface CardlessSession {
   label: string;
 }
 
+const AGENT_OPEN: BoardAgent['state'][] = ['running', 'waiting', 'plan', 'fixing'];
+
 /**
- * The Backlog column's cards, and the work cards' "from backlog" marks. Open items are cards; a started item rides on
- * the work card for its repo and branch (and gives that card its title when it has no PR or story title). With no such
- * card it stays a card: saying which session it is on when a cardless one (the voice session, a listening one) is on
- * that branch, else for STARTED_GRACE_HOURS, or for as long as `links` (backlog-links.ts) finds a worktree, session or agent on
- * it and it has not merged. Dropped items, and started ones past the grace, are not shown.
+ * The cards the Backlog item column shows, and the work cards' "from backlog" marks. Open items are cards in Backlog. A
+ * started item is one piece of work, shown once:
+ *
+ *   on a card    it rides on the work or session card for its repo and branch, else on the card its linked, still open
+ *                agent is in (an agent's own card takes the item's title); that card's column carries on
+ *   no card      it is a card of its own in Working ("started, no session yet" until `links` (backlog-links.ts) finds a
+ *                worktree, session or agent), in Done once its work merged or its agent finished (Error when the agent
+ *                failed), and gone DONE_HOURS after that. An unlinked one is gone after STARTED_GRACE_HOURS
+ *
+ * Dropped items are not shown.
  */
 export function backlogCards(
   items: BacklogItem[],
@@ -379,6 +411,8 @@ export function backlogCards(
       continue;
     }
     let onSession: CardlessSession | undefined;
+    let column: BoardCard['column'] = 'backlog';
+    let since: string | null = item.added_at || null;
     if (item.state === 'started') {
       // the work card for its branch, else a session card on it (a session on a new branch with no PR or story yet)
       const onBranch = (card: BoardCard, kind: BoardCard['kind']) =>
@@ -395,19 +429,47 @@ export function backlogCards(
         }
         continue;
       }
+      // the card of the linked agent, when it is still open: the agent is where the work is
+      const link = links.get(item.id);
+      const open = link?.agent && AGENT_OPEN.includes(link.agent.state) ? link.agent.name : null;
+      const byAgent = open
+        ? cards.find((card) => card.agents.some((one) => one.name === open))
+        : null;
+      if (byAgent) {
+        byAgent.from_backlog = [
+          ...(byAgent.from_backlog ?? []),
+          { id: item.id, title: item.title },
+        ];
+        if (byAgent.kind === 'agent') {
+          byAgent.title = item.title;
+        }
+        continue;
+      }
       onSession = cardless.find(
         (session) =>
           session.branch === item.branch &&
           (item.repo ? sameRepo(session.repo, item.repo) : !session.repo),
       );
       const started = Date.parse(item.started_at ?? '');
-      // work that is linked and not merged stays, whatever the day count says (a worktree, a session or its agent is on it)
-      if (
-        !onSession &&
-        !links.get(item.id)?.active &&
-        (Number.isNaN(started) || nowMs - started > STARTED_GRACE_HOURS * 3600 * 1000)
-      ) {
-        continue;
+      const ended = endedColumn(link, started);
+      if (ended) {
+        // finished: Done (or Error) for a day from when it finished, as far as is known
+        if (nowMs - ended.when > DONE_HOURS * 3600 * 1000) {
+          continue;
+        }
+        column = ended.column;
+        since = new Date(ended.when).toISOString();
+      } else {
+        column = 'working';
+        since = item.started_at || item.added_at || null;
+        // work that is linked and not merged stays, whatever the day count says (a worktree, a session or its agent is on it)
+        if (
+          !onSession &&
+          !link?.active &&
+          (Number.isNaN(started) || nowMs - started > STARTED_GRACE_HOURS * 3600 * 1000)
+        ) {
+          continue;
+        }
       }
     }
     shown.push({
@@ -417,9 +479,9 @@ export function backlogCards(
       repo: item.repo,
       branch: item.branch,
       lane: lane(item.repo),
-      column: 'backlog',
+      column,
       detail: item.note,
-      since: item.added_at || null,
+      since,
       pr: null,
       story: null,
       building: null,

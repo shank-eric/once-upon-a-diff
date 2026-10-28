@@ -822,9 +822,13 @@ export interface BoardStartedLinks {
     state: BoardAgent['state'];
     beat: BoardBeat | null;
     outcome: string | null;
+    /** when its last ledger line says it ended (null while it is open) */
+    ended_at: string | null;
   } | null;
   /** the branch's work has merged */
   merged: boolean;
+  /** when it merged, as far as the bridge can tell (a PR's merged time, or a fast-forwarded branch's tip commit); null when unknown */
+  merged_at: string | null;
   /** something is linked and the work has not merged: the card stays past the day */
   active: boolean;
 }

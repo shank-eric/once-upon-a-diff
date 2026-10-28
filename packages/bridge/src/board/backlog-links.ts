@@ -61,8 +61,11 @@ export interface LinkFacts {
   sessions: LinkSession[];
   agents: LedgerAgent[];
   beats: Map<string, BoardBeat>;
-  /** whether the repo's branch has merged (a merged PR the board knows of, or its commits are in the main checkout's branch) */
-  merged: (repo: string | null, branch: string) => boolean;
+  /**
+   * whether the repo's branch has merged (a merged PR the board knows of, or its commits are in the main checkout's
+   * branch): null when not, else when it did (ms; null inside when that isn't known)
+   */
+  merged: (repo: string | null, branch: string) => { at: number | null } | null;
 }
 
 const insideOf = (dir: string, parent: string): boolean =>
@@ -128,9 +131,11 @@ export function startedLinks(item: BacklogItem, facts: LinkFacts): BoardStartedL
           state: agent.state,
           beat: facts.beats.get(agent.name) ?? null,
           outcome: agent.outcome,
+          ended_at: agent.ended ? agent.ended.toISOString() : null,
         }
       : null,
-    merged,
+    merged: !!merged,
+    merged_at: merged?.at ? new Date(merged.at).toISOString() : null,
     active: linked && !merged,
   };
 }

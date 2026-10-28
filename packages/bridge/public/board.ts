@@ -478,7 +478,7 @@ function backlogHtml(card: BoardCard, now: number) {
     ago(card.since, now) && `added ${ago(card.since, now)}`,
     item && item.added_by !== 'board' && item.added_by !== 'you' && `by ${item.added_by}`,
   ].filter(Boolean);
-  return html`<li class="ou-board-card ou-board-c-backlog" data-card="${card.id}" data-backlog-card="${item?.id ?? ''}" data-lane="${card.lane}" draggable="true" tabindex="0" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown">
+  return html`<li class="ou-board-card ou-board-c-backlog" data-card="${card.id}" data-backlog-card="${item?.id ?? ''}" data-lane="${card.lane}" draggable="${String(!item?.started)}" tabindex="0" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown">
     <div class="ou-board-title" title="${card.title}">${card.title}</div>
     <div class="ou-local-muted ou-board-meta">${meta.join(' · ')}</div>
     ${card.detail && html`<div class="ou-board-detail ou-board-note" title="${card.detail}">${card.detail}</div>`}

@@ -31,7 +31,7 @@
  * it is running or waiting; a finished one has no card. It is nested inside its parent's card only when tightly tied to
  * it, on the same branch or PR (agent-home.ts).
  */
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { readSettings } from '../config/settings.ts';
 import {
@@ -40,10 +40,12 @@ import {
   lastKnownRepo,
   repoOfCheckoutAsync,
   sameRepo,
+  seenCheckouts,
   storyRepo,
 } from '../config/repos.ts';
 import { ID_RE as STORY_ID_RE, readMeta } from '../stories/meta.ts';
 import { runGitAsync } from '../util/git.ts';
+import { checkoutsOf } from './checkouts.ts';
 import { shipMode } from '../stories/push-default.ts';
 import { aheadOf } from '../stories/pull-request.ts';
 import { gateOf, readAgents, type LedgerAgent } from './ledger.ts';
@@ -130,6 +132,17 @@ const STALE_MS = 24 * 3600 * 1000;
 export { DEFAULT_BRANCHES };
 /** A merged PR stays on the board this long. */
 const MERGED_HOURS = 24;
+
+const AGENT_OPEN = ['running', 'waiting', 'plan', 'fixing'];
+
+/** A path a task names as the folder it is in: itself when a folder, its folder when a file, null when it is not there. */
+function dirOf(candidate: string): string | null {
+  try {
+    return statSync(candidate).isDirectory() ? candidate : path.dirname(candidate);
+  } catch {
+    return null;
+  }
+}
 const BRANCH_CACHE_MS = 10000;
 /** How often a branch's commits-ahead count is looked at again (git ls-remote each time). */
 const AHEAD_MS = 60000;
@@ -393,7 +406,7 @@ export class Board {
   private seen = new Map<string, { status: BoardStatus; since: number }>();
   private branches = new Map<string, { at: number; branch: string | null }>();
   /** whether a branch's commits are in its repo's main checkout (mergedLocally), kept a few seconds */
-  private landed = new Map<string, { at: number; merged: boolean }>();
+  private landed = new Map<string, { at: number; merged: boolean; mergedAt: number | null }>();
   /** a checkout's worktrees (git worktree list), kept a few seconds */
   private trees = new Map<string, { at: number; list: Worktree[] }>();
   private cache: { at: number; data: BoardData } | null = null;
@@ -581,15 +594,19 @@ export class Board {
    * branch, as Larmor's work lands): the branch has moved since it was created (its reflog) and its tip is in the main
    * checkout's branch, main or master, local or origin's. A branch with no commits of its own is not merged.
    */
-  private async mergedLocally(trees: Worktree[], branch: string, now: number): Promise<boolean> {
+  private async mergedLocally(
+    trees: Worktree[],
+    branch: string,
+    now: number,
+  ): Promise<{ at: number | null } | null> {
     const main = trees[0];
     if (!main || !trees.some((tree) => tree.branch === branch)) {
-      return false;
+      return null;
     }
     const key = `${main.path}@${branch}`;
     const kept = this.landed.get(key);
     if (kept && now - kept.at < BRANCH_CACHE_MS) {
-      return kept.merged;
+      return kept.merged ? { at: kept.mergedAt } : null;
     }
     const log = await runGitAsync(
       main.path,
@@ -598,6 +615,7 @@ export class Board {
     );
     const shas = log.code === 0 ? log.stdout.split('\n').filter(Boolean) : [];
     let merged = false;
+    let mergedAt: number | null = null;
     if (shas.length > 1 && shas[0] !== shas[shas.length - 1]) {
       const lines = [main.branch, 'main', 'master']
         .filter((name): name is string => !!name && name !== branch)
@@ -613,9 +631,21 @@ export class Board {
           break;
         }
       }
+      if (merged) {
+        // when it landed: the branch tip's commit time (a fast-forward keeps its commits' own times)
+        const tip = await runGitAsync(
+          main.path,
+          ['log', '-1', '--format=%ct', `refs/heads/${branch}`],
+          {
+            timeout: 3000,
+          },
+        );
+        const seconds = tip.code === 0 ? Number(tip.stdout.trim()) : NaN;
+        mergedAt = Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : null;
+      }
     }
-    this.landed.set(key, { at: now, merged });
-    return merged;
+    this.landed.set(key, { at: now, merged, mergedAt });
+    return merged ? { at: mergedAt } : null;
   }
 
   private async build(now: Date): Promise<BoardData> {
@@ -1109,17 +1139,27 @@ export class Board {
         ...new Set(startedItems.flatMap((item) => (item.repo ? [item.repo.toLowerCase()] : []))),
       ].map(async (key) => {
         const repo = startedItems.find((item) => item.repo?.toLowerCase() === key)?.repo as string;
-        // every checkout the board knows for the repo: a live session's, a story's, the one it has seen
+        // every checkout of the repo the board can learn of (checkouts.ts); checkout_dirs only when none turns up
         const dirs = new Set<string>(
-          [
-            checkoutFor(this.home, repo),
-            ...live
+          await checkoutsOf(repo, {
+            sessionDirs: live
               .filter((session) => sameRepo(repoBySession.get(session.session), repo))
               .map((session) => session.cwd),
-            ...[...this.localCheckouts.entries()]
-              .filter(([name]) => name.startsWith(`${key}@`))
-              .map(([, found]) => found.checkout),
-          ].filter((dir): dir is string => !!dir),
+            agentTasks: agents
+              .filter(
+                (agent) =>
+                  AGENT_OPEN.includes(agent.state) ||
+                  (agent.ended?.getTime() ?? 0) >= nowMs - settings.doneHours * 3600 * 1000,
+              )
+              .map((agent) => agent.task),
+            seenDirs: [
+              ...seenCheckouts(this.home),
+              ...[...this.localCheckouts.values()].map((found) => found.checkout),
+            ],
+            dirOf: dirOf,
+            repoOf: (dir) => this.repoOf(dir),
+            fallback: () => checkoutFor(this.home, repo),
+          }),
         );
         const seenPaths = new Set<string>();
         const list: Worktree[] = [];
@@ -1134,14 +1174,17 @@ export class Board {
         treesByRepo.set(key, list);
       }),
     );
-    const landedBranches = new Set<string>();
+    const landedBranches = new Map<string, { at: number | null }>();
     await Promise.all(
       startedItems.map(async (item) => {
         const repoKey = (item.repo ?? '').toLowerCase();
-        if (
-          await this.mergedLocally(treesByRepo.get(repoKey) ?? [], item.branch as string, nowMs)
-        ) {
-          landedBranches.add(`${repoKey}@${item.branch}`);
+        const landed = await this.mergedLocally(
+          treesByRepo.get(repoKey) ?? [],
+          item.branch as string,
+          nowMs,
+        );
+        if (landed) {
+          landedBranches.set(`${repoKey}@${item.branch}`, landed);
         }
       }),
     );
@@ -1158,16 +1201,16 @@ export class Board {
       agents,
       beats,
       merged: (repo: string | null, branch: string) => {
-        if (landedBranches.has(`${(repo ?? '').toLowerCase()}@${branch}`)) {
-          return true;
+        const landed = landedBranches.get(`${(repo ?? '').toLowerCase()}@${branch}`);
+        if (landed) {
+          return landed;
         }
-        if (
-          mergedWorks.some(
-            (work) =>
-              work.repo && repo && sameRepo(work.repo, repo) && branchOfWork(work) === branch,
-          )
-        ) {
-          return true;
+        const mergedWork = mergedWorks.find(
+          (work) => work.repo && repo && sameRepo(work.repo, repo) && branchOfWork(work) === branch,
+        );
+        if (mergedWork) {
+          const when = Date.parse(mergedWork.mergedAt ?? '');
+          return { at: Number.isNaN(when) ? null : when };
         }
         const tree = treesByRepo
           .get((repo ?? '').toLowerCase())
@@ -1175,7 +1218,12 @@ export class Board {
         if (repo && tree) {
           this.review.kickBranch(repo, branch, tree.path);
         }
-        return !!repo && this.review.branchPr(repo, branch)?.state === 'merged';
+        const found = repo ? this.review.branchPr(repo, branch) : null;
+        if (found?.state !== 'merged') {
+          return null;
+        }
+        const when = Date.parse(found.merged_at ?? '');
+        return { at: Number.isNaN(when) ? null : when };
       },
     };
     const links = new Map<string, BoardStartedLinks>();

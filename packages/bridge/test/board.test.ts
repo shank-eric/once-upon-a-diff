@@ -4376,6 +4376,55 @@ test('local stories: a head already in origin’s default branch is done by deli
   assert.equal(reviewedBy(home, 'local-nohead'), null);
 });
 
+test('local stories: commits rewritten and pushed straight to the default branch are delivered, only with the base in it, no ref holding the head, and nothing unpushed', async () => {
+  const home = tmp('local-rewritten');
+  const now = Date.now();
+  const built = iso(now - 1000);
+  /** A checkout whose story commit was then amended; `push` says whether the amended commit is origin's tip. */
+  const checkoutOf = (name: string, push: boolean) => {
+    const repo = tmp(`local-rewritten-${name}`);
+    git(repo, 'init', '-q', '-b', 'main');
+    git(repo, 'remote', 'add', 'origin', 'git@github.com:acme/widgets.git');
+    git(repo, 'commit', '-q', '--allow-empty', '-m', 'base');
+    const base = git(repo, 'rev-parse', 'HEAD');
+    git(repo, 'update-ref', 'refs/remotes/origin/main', base);
+    git(repo, 'commit', '-q', '--allow-empty', '-m', 'the story commit');
+    const head = git(repo, 'rev-parse', 'HEAD');
+    git(repo, 'commit', '-q', '--allow-empty', '--amend', '-m', 'the story commit, reworded');
+    if (push) {
+      git(repo, 'update-ref', 'refs/remotes/origin/main', 'HEAD');
+    }
+    return { repo, base, head };
+  };
+  const pushed = checkoutOf('pushed', true);
+  const unpushed = checkoutOf('unpushed', false);
+  const feature = checkoutOf('feature', true);
+  builtLocal(home, 'local-rewritten', pushed.repo, 'main', built, {
+    base_oid: pushed.base,
+    head_oid: pushed.head,
+  });
+  builtLocal(home, 'local-unpushed', unpushed.repo, 'main', built, {
+    base_oid: unpushed.base,
+    head_oid: unpushed.head,
+  });
+  builtLocal(home, 'local-feature', feature.repo, 'feat/branch', built, {
+    base_oid: feature.base,
+    head_oid: feature.head,
+  });
+  const stories = new StoryStore({ home });
+  const review = new AutoReview(
+    stories,
+    async () => ({ merged: false, why: null }),
+    60000,
+    async () => null,
+  );
+  review.kickLocal(localEntries(stories, { now }), now);
+  await review.idle();
+  assert.equal(reviewedBy(home, 'local-rewritten'), 'delivered');
+  assert.equal(reviewedBy(home, 'local-unpushed'), null, 'the amended commit is not pushed yet');
+  assert.equal(reviewedBy(home, 'local-feature'), null, 'a branch story is the PR’s to clear');
+});
+
 test('the board: a local story rebuilt after you opened it stays in Ready, and one a check marked done (pr, delivered, idle) stays done through a rebuild', async () => {
   const home = tmp('board-home');
   const sessions = tmp('board-sessions');
