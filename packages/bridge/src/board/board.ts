@@ -44,7 +44,7 @@ import { columnOf } from './columns.ts';
 import { BacklogStore, backlogCards } from './backlog.ts';
 import type { AddInput, BacklogItem, MoveTo } from './backlog.ts';
 import { gatedHome, laneForAgent, tiedToParent } from './agent-home.ts';
-import { readVoice, voiceStatus } from './voice.ts';
+import { readVoice, voiceLines, voiceStatus } from './voice.ts';
 import {
   buildFor,
   listenPromptFor,
@@ -282,6 +282,7 @@ function voiceOf(
   files: ReturnType<typeof readVoice>,
   agents: LedgerAgent[],
   nowMs: number,
+  dir: string,
 ): BoardVoice | null {
   if (!pinned || !files) {
     return null;
@@ -302,6 +303,7 @@ function voiceOf(
     session: pinned.view.id,
     can_focus: pinned.view.focus,
     context: pinned.view.context ?? null,
+    lines: voiceLines(dir, pinned.view.id),
   };
 }
 
@@ -935,7 +937,7 @@ export class Board {
       at: now.toISOString(),
       status_source: picked.source.name,
       warning: picked.warning,
-      voice: voiceOf(pin.found, voiceFiles, agents, nowMs),
+      voice: voiceOf(pin.found, voiceFiles, agents, nowMs, settings.voiceDir as string),
       listeners: listenersLane(waits, listening),
       blank: blankStrip(blankViews),
       lanes: [...lanes.values()].sort((first, second) => first.name.localeCompare(second.name)),

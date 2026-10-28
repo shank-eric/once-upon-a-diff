@@ -23,6 +23,7 @@ import type {
   BoardSession,
   BoardUsage,
   BoardVoice,
+  BoardVoiceLine,
   PrInfo,
 } from '/assets/types.ts';
 
@@ -457,6 +458,10 @@ const VOICE_STATUS: Record<BoardVoice['status'], string> = {
 };
 
 /** The voice session, pinned above the columns: its repo beside the label, its name in the tooltip, status, its agents. */
+/** One line of the voice conversation, who said it first. */
+const voiceLineHtml = (line: BoardVoiceLine) =>
+  html`<li class="ou-board-voice-${line.who}"><span class="ou-local-muted">${line.who === 'you' ? 'You' : 'Voice'}</span> ${line.text}</li>`;
+
 function voiceHtml(voice: BoardVoice) {
   const agents = [
     voice.agents.running && `${voice.agents.running} running`,
@@ -472,6 +477,7 @@ function voiceHtml(voice: BoardVoice) {
     ${voice.repo && html`<span class="ou-local-muted">${voice.repo.split('/')[1]}${voice.branch ? ` · ${voice.branch}` : ''}</span>`}
     <span class="ou-board-voice-status">${VOICE_STATUS[voice.status]}</span>
     <span class="ou-local-muted">${agents ? `agents: ${agents}` : 'no agents running'}</span>${contextHtml(voice.context)}
+    ${voice.lines.length > 0 && html`<ol class="ou-board-voice-lines" aria-label="Last lines">${voice.lines.map(voiceLineHtml)}</ol>`}
     <button type="button" class="ou-board-focus" data-focus="${voice.session}"${!voice.can_focus && html` disabled`} title="${focusTitle}">Open in iTerm</button>
   </section>`;
 }

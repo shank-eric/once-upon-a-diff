@@ -6,9 +6,12 @@
  *   voice-session-name  the name the voice session answers to, one line
  *   away                exists while the user is away on the phone
  *   paused              exists while voice is paused from the menu bar
+ *   spoken.jsonl        what a session said aloud, a line per state: {id, wall (epoch s), text, session_id, status}
+ *   turns.jsonl         what the user said: {type: "turn", channel: "mic", text, is_final, wall_clock (epoch s)}
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
 import path from 'node:path';
+import type { BoardVoiceLine } from '@once-upon-a-diff/shared/types';
 
 export interface VoiceFiles {
   session: string;
@@ -79,4 +82,76 @@ export function voiceStatus(files: VoiceFiles, busy: boolean, now: number): Voic
     return 'speaking';
   }
   return busy ? 'working' : 'listening';
+}
+
+/** How much of each log's end is read for the last lines. */
+const TAIL_BYTES = 128 * 1024;
+/** How many lines the strip shows. */
+const VOICE_LINES = 6;
+
+/** The whole JSON lines in a file's last TAIL_BYTES (the first one, cut by the read, is skipped), or [] without it. */
+function tailLines(file: string): Record<string, unknown>[] {
+  let handle: number;
+  try {
+    handle = openSync(file, 'r');
+  } catch {
+    return [];
+  }
+  try {
+    const size = statSync(file).size;
+    const start = Math.max(0, size - TAIL_BYTES);
+    const buffer = Buffer.alloc(size - start);
+    const read = readSync(handle, buffer, 0, buffer.length, start);
+    const lines = buffer.subarray(0, read).toString('utf8').split('\n');
+    if (start > 0) {
+      lines.shift();
+    }
+    return lines.flatMap((text) => {
+      try {
+        const parsed: unknown = JSON.parse(text);
+        return parsed && typeof parsed === 'object' ? [parsed as Record<string, unknown>] : [];
+      } catch {
+        return [];
+      }
+    });
+  } finally {
+    closeSync(handle);
+  }
+}
+
+/**
+ * The voice session's last few lines, oldest first: what it said (its own lines in spoken.jsonl, each at its latest
+ * state) and what you said since it first spoke in the part read (turns.jsonl names no session, and one voice session
+ * runs at a time).
+ */
+export function voiceLines(dir: string, session: string): BoardVoiceLine[] {
+  const said = new Map<string, BoardVoiceLine>();
+  for (const line of tailLines(path.join(dir, 'spoken.jsonl'))) {
+    if (
+      line.session_id === session &&
+      typeof line.id === 'string' &&
+      typeof line.text === 'string' &&
+      line.text.trim() &&
+      typeof line.wall === 'number'
+    ) {
+      said.set(line.id, { who: 'voice', text: line.text.trim(), at: line.wall * 1000 });
+    }
+  }
+  if (!said.size) {
+    return [];
+  }
+  const start = Math.min(...[...said.values()].map((line) => line.at));
+  const heard = tailLines(path.join(dir, 'turns.jsonl')).flatMap((line) =>
+    line.type === 'turn' &&
+    line.is_final === true &&
+    typeof line.text === 'string' &&
+    line.text.trim() &&
+    typeof line.wall_clock === 'number' &&
+    line.wall_clock * 1000 >= start
+      ? [{ who: 'you' as const, text: line.text.trim(), at: line.wall_clock * 1000 }]
+      : [],
+  );
+  return [...said.values(), ...heard]
+    .sort((first, second) => first.at - second.at)
+    .slice(-VOICE_LINES);
 }

@@ -348,7 +348,7 @@ At phone width (under 800 px) the board is one column ordered by what needs you 
 | `board_projects_dir` | Claude Code's transcripts, to tell blank sessions | `$CLAUDE_CONFIG_DIR/projects` or `~/.claude/projects` |
 | `board_ledger_file`, `board_progress_file` | The agent ledger and progress files | none: no agents are shown |
 | `listen_idle_minutes` | How long a `wait --repo` keeps listening with no page showing one of the repo's stories (a page in a background tab still counts, through its once-a-minute "still open" call; it logs to `listeners.log` and prints "Stopped listening" when it stops; `--no-auto-stop` turns it off) | `10` |
-| `board_voice_dir` | Larmor's folder (`~/.larmor`): when its `session` file says voice is on, that session is pinned in a strip above the columns (labelled Voice session, with its repo, status from `session`, `paused` and `away`, and how many of its agents are running or waiting) instead of sitting in a column; its agents keep their own cards. Read only | none: off |
+| `board_voice_dir` | Larmor's folder (`~/.larmor`): when its `session` file says voice is on, that session is pinned in a strip above the columns (labelled Voice session, with its repo, status from `session`, `paused` and `away`, and how many of its agents are running or waiting, with its last six lines: what it said aloud from `spoken.jsonl` and what you said from `turns.jsonl`) instead of sitting in a column; its agents keep their own cards. Read only | none: off |
 | `board_done_hours` | How long a finished agent stays inside its card | `4` |
 | `board_ledger_time_zone` | The zone for ledger times that carry no label such as ET | the system's |
 

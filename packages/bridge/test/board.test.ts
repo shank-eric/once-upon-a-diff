@@ -2743,6 +2743,59 @@ test('the voice session is pinned above the columns, off every card, with its ag
     last_speak: 4,
   });
   writeFileSync(path.join(voiceDir, 'voice-session-name'), 'clarifi-f9\n');
+  // what it said (each line at its latest state; another session's lines left out) and what you said since it first spoke
+  const wall = (minutes: number) => NOW.getTime() / 1000 - minutes * 60;
+  writeFileSync(
+    path.join(voiceDir, 'spoken.jsonl'),
+    [
+      {
+        id: 'm1',
+        wall: wall(5),
+        text: 'One sec, checking.',
+        session_id: fullId(voice.pid),
+        status: 'queued',
+      },
+      {
+        id: 'm1',
+        wall: wall(5),
+        text: 'One sec, checking.',
+        session_id: fullId(voice.pid),
+        status: 'spoken',
+      },
+      {
+        id: 'm2',
+        wall: wall(4),
+        text: 'Not this one.',
+        session_id: 'someone-else',
+        status: 'spoken',
+      },
+      {
+        id: 'm3',
+        wall: wall(2),
+        text: 'It is green.',
+        session_id: fullId(voice.pid),
+        status: 'spoken',
+      },
+    ]
+      .map((line) => JSON.stringify(line))
+      .join('\n') + '\n',
+  );
+  writeFileSync(
+    path.join(voiceDir, 'turns.jsonl'),
+    [
+      {
+        type: 'turn',
+        channel: 'mic',
+        text: 'Before it spoke.',
+        is_final: true,
+        wall_clock: wall(9),
+      },
+      { type: 'turn', channel: 'mic', text: 'Is it green?', is_final: true, wall_clock: wall(3) },
+      { type: 'turn', channel: 'mic', text: 'Is it', is_final: false, wall_clock: wall(3) },
+    ]
+      .map((line) => JSON.stringify(line))
+      .join('\n') + '\n',
+  );
   // its status line's copy: the voice card shows its context use, and the board the usage limits
   writeJson(path.join(home, 'statusline', `${fullId(voice.pid)}.json`), {
     at: NOW.getTime() / 1000 - 30,
@@ -2783,6 +2836,11 @@ test('the voice session is pinned above the columns, off every card, with its ag
     session: fullId(voice.pid),
     can_focus: false,
     context: 37,
+    lines: [
+      { who: 'voice', text: 'One sec, checking.', at: wall(5) * 1000 },
+      { who: 'you', text: 'Is it green?', at: wall(3) * 1000 },
+      { who: 'voice', text: 'It is green.', at: wall(2) * 1000 },
+    ],
   });
   assert.deepEqual(data.usage, {
     five_hour: { percent: 91, resets_at: new Date(NOW.getTime() + 3600 * 1000).toISOString() },

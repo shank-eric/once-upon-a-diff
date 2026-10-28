@@ -742,6 +742,8 @@ export interface BoardVoice {
   can_focus: boolean;
   /** how full its context window is (%), when its status line says */
   context: number | null;
+  /** its last few lines, oldest first: what it said aloud and what you said to it */
+  lines: BoardVoiceLine[];
 }
 
 /** A session listening for requests, and which session that is. */
@@ -794,6 +796,13 @@ export interface BoardData {
   lanes: { name: string; cards: BoardCard[] }[];
   /** the account's usage limits as the freshest status line had them, null when none has rendered lately */
   usage: BoardUsage | null;
+}
+
+/** A line of the voice conversation: who said it, what, and when (ms since the epoch). */
+export interface BoardVoiceLine {
+  who: 'voice' | 'you';
+  text: string;
+  at: number;
 }
 
 /** A usage limit: how much is used (%) and when it resets. */
