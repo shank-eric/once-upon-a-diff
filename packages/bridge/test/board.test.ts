@@ -1536,18 +1536,28 @@ test('the branch check keeps PRs from this repo, prefers an open one, and counts
   });
 });
 
-test('the review-requested search and PrInfo.review_requested both count only requests made of you by name', async () => {
+test('the board’s PR search: requests made of you by name and your own open PRs, each once; PrInfo.review_requested by name too', async () => {
   await withFakeGh(tmp('requested'), async ({ answer, calls }) => {
     writeJson(answer, {
       data: {
-        search: {
+        requested: {
           nodes: [{ number: 4, repository: { nameWithOwner: 'acme/widgets' } }, {}],
+        },
+        mine: {
+          nodes: [
+            { number: 3071, repository: { nameWithOwner: 'acme/furnace' } },
+            { number: 4, repository: { nameWithOwner: 'Acme/Widgets' } },
+          ],
         },
       },
     });
-    assert.deepEqual(await ghRequestedCheck(), [{ repo: 'acme/widgets', number: 4 }]);
+    assert.deepEqual(await ghRequestedCheck(), [
+      { repo: 'acme/widgets', number: 4 },
+      { repo: 'acme/furnace', number: 3071 },
+    ]);
     const query = calls()[0].find((arg) => arg.startsWith('query=')) as string;
     assert.match(query, /user-review-requested:@me/);
+    assert.match(query, /is:pr is:open author:@me/);
     assert.doesNotMatch(query.replace('user-review-requested:@me', ''), /review-requested:@me/);
 
     // a request to a team reads as no User login, so it is not yours

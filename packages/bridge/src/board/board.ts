@@ -546,7 +546,7 @@ export class Board {
         built: true,
       });
     }
-    // PRs GitHub is waiting on your review for are units of work too, with or without a story
+    // PRs GitHub is waiting on your review for, and your own open ones, are units of work too, with or without a story
     this.review.kickRequested();
     for (const request of this.review.requested()) {
       const key = prKey(request.repo, request.number);

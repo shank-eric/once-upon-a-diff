@@ -463,17 +463,42 @@ export function whyReviewed(facts: PrFacts, builtAt: string): PrFacts['why'] {
 }
 
 /**
- * Open PRs GitHub is waiting on your review for, by repo and number. Only requests made of you by name count
- * (`user-review-requested:@me`, where `review-requested:@me` also takes the teams you are in), the same as PrInfo's
- * `review_requested`, which reads the requested reviewer as a User.
+ * The open PRs the board starts from with or without a story, by repo and number: the ones GitHub is waiting on your
+ * review for, and the ones you opened (a PR of yours with no story and no session on its branch is still yours to
+ * watch). Only review requests made of you by name count (`user-review-requested:@me`, where `review-requested:@me`
+ * also takes the teams you are in), the same as PrInfo's `review_requested`, which reads the requested reviewer as a User.
  */
 export type RequestedCheck = () => Promise<{ repo: string; number: number }[]>;
 
-const REQUESTED_QUERY = `query{search(query:"is:pr is:open user-review-requested:@me archived:false",type:ISSUE,first:30){nodes{... on PullRequest{number repository{nameWithOwner}}}}}`;
+const SEARCH_FIELDS = 'nodes{... on PullRequest{number repository{nameWithOwner}}}';
+const REQUESTED_QUERY = `query{
+  requested:search(query:"is:pr is:open user-review-requested:@me archived:false",type:ISSUE,first:30){${SEARCH_FIELDS}}
+  mine:search(query:"is:pr is:open author:@me archived:false",type:ISSUE,first:50){${SEARCH_FIELDS}}}`;
+
+type SearchNode = { number?: number; repository?: { nameWithOwner: string } };
+
+/** The PRs in both searches' answers, each once, review requests first. */
+export function requestedOf(data: {
+  requested?: { nodes: SearchNode[] };
+  mine?: { nodes: SearchNode[] };
+}): { repo: string; number: number }[] {
+  const seen = new Set<string>();
+  return [...(data.requested?.nodes ?? []), ...(data.mine?.nodes ?? [])].flatMap((node) => {
+    if (!node.number || !node.repository) {
+      return [];
+    }
+    const key = `${node.repository.nameWithOwner.toLowerCase()}#${node.number}`;
+    if (seen.has(key)) {
+      return [];
+    }
+    seen.add(key);
+    return [{ repo: node.repository.nameWithOwner, number: node.number }];
+  });
+}
 
 export const ghRequestedCheck: RequestedCheck = async () => {
   const out: {
-    data?: { search: { nodes: { number?: number; repository?: { nameWithOwner: string } }[] } };
+    data?: { requested?: { nodes: SearchNode[] }; mine?: { nodes: SearchNode[] } };
     errors?: { message: string }[];
   } = JSON.parse(
     await runGh(['api', 'graphql', '-f', `query=${REQUESTED_QUERY}`], { timeout: 30000 }),
@@ -481,11 +506,7 @@ export const ghRequestedCheck: RequestedCheck = async () => {
   if (out.errors?.length || !out.data) {
     throw new Error(out.errors?.map((e) => e.message).join('; ') || 'no answer');
   }
-  return out.data.search.nodes.flatMap((node) =>
-    node.number && node.repository
-      ? [{ repo: node.repository.nameWithOwner, number: node.number }]
-      : [],
-  );
+  return requestedOf(out.data);
 };
 
 /** The PR GitHub has for a branch: an open one, else the latest merged one that the local branch contains. */
@@ -649,12 +670,12 @@ export class AutoReview {
     return this.branches.get(branchKey(repo, branch))?.pr;
   }
 
-  /** The PRs GitHub last said are waiting on your review ([] until it first answers). */
+  /** The open PRs GitHub last said wait on your review or are yours ([] until it first answers). */
   requested(): { repo: string; number: number }[] {
     return this.asked?.list || [];
   }
 
-  /** Asks GitHub which open PRs wait on your review, unless it was asked lately. Doesn't wait. */
+  /** Asks GitHub which open PRs wait on your review or are yours, unless it was asked lately. Doesn't wait. */
   kickRequested(now = Date.now()): void {
     if (this.asked && now - this.asked.at < this.cacheMs) {
       return;
