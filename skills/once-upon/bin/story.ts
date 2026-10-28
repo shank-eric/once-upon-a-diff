@@ -19,7 +19,11 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from '../../../packages/bridge/src/cli/args.ts';
 import { parseUnifiedDiff } from '../../../packages/bridge/src/util/diff.ts';
 import { chaptersOf } from '../../../packages/bridge/src/stories/chapters.ts';
-import { addTextRefs } from '../../../packages/bridge/src/stories/text-refs.ts';
+import {
+  addTextRefs,
+  ambiguousRefsOf,
+  textOf,
+} from '../../../packages/bridge/src/stories/text-refs.ts';
 import {
   uncoveredHunks,
   SMALL_FILE_LINES,
@@ -219,6 +223,14 @@ function buildMap(plan: Plan, diff: Map<string, DiffFile>) {
       if (entry.partial) {
         file.partial_in.push(step);
       }
+    }
+  });
+  chapters.forEach((chapter, i) => {
+    const own = chapter.files.map((entry) => entry.rel);
+    for (const { name, rels: fits } of ambiguousRefsOf(textOf(chapter), own)) {
+      problems.push(
+        `chapter ${i + 1} names \`${name}\`, which fits ${fits.join(' and ')}: write the full path`,
+      );
     }
   });
   const missing = rels.filter((rel) => files[rel].chapters.length === 0);

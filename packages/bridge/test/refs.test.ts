@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { tmp, writeJson, localRepo } from './helpers.ts';
-import { lineRefsOf, addTextRefs, REF_NOTE } from '../src/stories/text-refs.ts';
+import { lineRefsOf, addTextRefs, ambiguousRefsOf, REF_NOTE } from '../src/stories/text-refs.ts';
 import { pathSha } from '../src/util/diff.ts';
 import { StoryStore } from '../src/stories/store.ts';
 import { createLocalStory } from '../src/stories/local-story.ts';
@@ -40,6 +40,21 @@ test("line references in a chapter's text: path:N, ranges, bare :N, and diff lin
     [{ rel: 'apps/b/index.ts', lines: [{ side: 'R', start: 3, end: 3 }] }],
     "the chapter's own file settles a basename",
   );
+});
+
+test('a name two of the chapter’s own files fit: the file named just before it, else no reference, and the build is told', () => {
+  const own = ['apps/a/index.ts', 'apps/b/index.ts', 'apps/a/Orders.tsx'];
+  assert.deepEqual(lineRefsOf('`index.ts:3` is one of two.', own, RELS), [], 'not the first match');
+  assert.deepEqual(
+    lineRefsOf('`apps/b/index.ts` opens, then `index.ts:3`.', own, RELS),
+    [{ rel: 'apps/b/index.ts', lines: [{ side: 'R', start: 3, end: 3 }] }],
+    'the file named just before settles it',
+  );
+  assert.deepEqual(
+    ambiguousRefsOf('`index.ts:3`, `index.ts` again, `Orders.tsx:4` and `apps/a/index.ts`', own),
+    [{ name: 'index.ts', rels: ['apps/a/index.ts', 'apps/b/index.ts'] }],
+  );
+  assert.deepEqual(ambiguousRefsOf('```\n`index.ts`\n```', own), [], 'code blocks are not names');
 });
 
 test('a later chapter that points at a file\'s lines finishes it; "Since you read it" chapters only finish what they list', () => {

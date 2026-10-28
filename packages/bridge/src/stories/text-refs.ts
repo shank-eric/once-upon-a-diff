@@ -23,10 +23,18 @@ import type { Chapter } from '@once-upon-a-diff/shared/types';
 export const REF_NOTE = 'its lines are pointed at in the text';
 const REF_LABEL = 'pointed at in the text';
 
+/** The file a name is (an exact path), else every file it is a path suffix of. */
+const findIn = (name: string, scope: string[]): string | string[] =>
+  scope.find((rel) => rel === name) || scope.filter((rel) => rel.endsWith('/' + name));
+
+/** Whether a backticked word could be a file name: no spaces, and a dot or a slash. */
+const mayBeFile = (name: string) => !!name && !/\s/.test(name) && /[./]/.test(name);
+
 /**
  * The files a chapter's text points at lines of: [{rel, lines: [{side, start, end}]}] in order of first mention.
  * Names resolve as the panel resolves them: the chapter's own files first (exact path, then a path suffix such as
- * `Combobox/component.tsx` or a basename), then the rest of the PR's files, where a name that fits more than one is skipped.
+ * `Combobox/component.tsx` or a basename), then the rest of the PR's files. A name that fits more than one file
+ * means the file named just before it when that is one of them, and is skipped otherwise (ambiguousRefsOf flags it).
  * text is the chapter's markdown, listed the chapter's own files, rels every file in the story.
  */
 export function lineRefsOf(
@@ -35,24 +43,24 @@ export function lineRefsOf(
   rels: string[],
 ): { rel: string; lines: LineRef[] }[] {
   const bySha = new Map(rels.map((rel) => [pathSha(rel), rel]));
-  const find = (name: string, scope: string[]) =>
-    scope.find((rel) => rel === name) || scope.filter((rel) => rel.endsWith('/' + name));
-  const resolve = (name: string) => {
-    if (!name || /\s/.test(name) || !/[./]/.test(name)) {
+  const pick = (found: string | string[], last: string | null) => {
+    if (typeof found === 'string') {
+      return found;
+    }
+    if (found.length === 1) {
+      return found[0];
+    }
+    return last && found.includes(last) ? last : null;
+  };
+  const resolve = (name: string, last: string | null) => {
+    if (!mayBeFile(name)) {
       return null;
     }
-    const own = find(name, listed);
-    if (typeof own === 'string') {
-      return own;
+    const own = findIn(name, listed);
+    if (typeof own === 'string' || own.length) {
+      return pick(own, last);
     }
-    if (own.length) {
-      return own[0];
-    }
-    const any = find(name, rels);
-    if (typeof any === 'string') {
-      return any;
-    }
-    return any.length === 1 ? any[0] : null;
+    return pick(findIn(name, rels), last);
   };
   const out = new Map<string, LineRef[]>();
   const add = (rel: string, line: LineRef) => {
@@ -93,7 +101,7 @@ export function lineRefsOf(
       }
       continue;
     }
-    const rel = resolve(name);
+    const rel = resolve(name, last);
     if (!rel) {
       continue;
     }
@@ -103,6 +111,29 @@ export function lineRefsOf(
     }
   }
   return [...out].map(([rel, lines]) => ({ rel, lines }));
+}
+
+/**
+ * The backticked names in a chapter's text that fit more than one of its own files (two `board.ts`, say), each with the
+ * files it fits, in order of first mention. The build refuses them: the panel can't tell which is meant.
+ */
+export function ambiguousRefsOf(
+  text: string,
+  listed: string[],
+): { name: string; rels: string[] }[] {
+  const found = new Map<string, string[]>();
+  const src = String(text || '').replace(/```[\s\S]*?```/g, ' ');
+  for (const match of src.matchAll(/`([^`\n]+)`/g)) {
+    const { name } = parseLineRef(match[1]);
+    if (!name || !mayBeFile(name) || found.has(name)) {
+      continue;
+    }
+    const rels = findIn(name, listed);
+    if (typeof rels !== 'string' && rels.length > 1) {
+      found.set(name, rels);
+    }
+  }
+  return [...found].map(([name, rels]) => ({ name, rels }));
 }
 
 /** The text of a chapter the panel draws as markdown. */

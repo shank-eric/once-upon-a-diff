@@ -4,7 +4,9 @@
  *
  * A backticked name is a file when it is a PR path, a path suffix such as
  * `Combobox/component.tsx`, or a basename, among the files on screen in this
- * step. An ambiguous name goes to the first match in chapter order. A
+ * step. A name that fits more than one of them means the file named just
+ * before it when that is one, and isn't a link otherwise (the build refuses
+ * such names, so only an older story has them). A
  * `path:40`, `path:40-58` or `path:L12` suffix makes it a line reference.
  * A bare `:40-58` is a line in the file named last before it in the step,
  * or in the step's only file; it's drawn with that file's name in front.
@@ -90,9 +92,13 @@ export function createFileRefs(context: PanelContext) {
     if (!name || /\s/.test(name) || !/[./]/.test(name)) {
       return null;
     }
-    const rel =
-      linkScope.find((candidate) => candidate === name) ||
-      linkScope.find((candidate) => candidate.endsWith('/' + name));
+    const fits = linkScope.filter((candidate) => candidate.endsWith('/' + name));
+    let rel = linkScope.find((candidate) => candidate === name) || null;
+    if (!rel && fits.length === 1) {
+      rel = fits[0];
+    } else if (!rel && lastRef && fits.includes(lastRef)) {
+      rel = lastRef;
+    }
     if (rel) {
       lastRef = rel;
     }
