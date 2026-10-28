@@ -147,7 +147,7 @@ export function createFreshness(context: PanelContext) {
     const line = requestLine(request);
     return (
       line &&
-      html`<span class="ou-progress" role="status"><span class="ou-spin" aria-hidden="true"></span>${line.text}${line.detail && html` <span class="ou-why">${line.detail}</span>`}</span>`
+      html`<span class="ou-busy" role="status"><span class="ou-spin" aria-hidden="true"></span>${line.text}${line.detail && html` <span class="ou-why">${line.detail}</span>`}</span>`
     );
   }
 
