@@ -1,0 +1,157 @@
+/*
+ * The panel's "Start listening": types the listen line (the one Copy prompt for Claude copies) into a live Claude Code
+ * session through the host's opts.listen, which the extension backs with the bridge's board. It asks for the idle sessions
+ * on click: one (or one clearly fresher than the rest) is typed into at once, several close together are listed to choose
+ * from, and none leaves the note saying so, with Copy prompt beside it as the way that always works.
+ *
+ * `listenPlan` and the texts have no DOM, so node tests can use them.
+ */
+import { obviousChoice, freshestFirst } from '../util/choice.ts';
+import type { ListenSession, ListenTarget } from '../types.ts';
+import type { PanelOptions } from './context.ts';
+
+/** What to do with the sessions the bridge offered. */
+export type ListenPlan =
+  | { kind: 'none' }
+  | { kind: 'one'; session: ListenSession }
+  | { kind: 'choose'; sessions: ListenSession[] };
+
+/** None, the one to use without asking (the only one, or clearly the freshest), or the sessions to choose from, freshest first. */
+export function listenPlan(sessions: readonly ListenSession[]): ListenPlan {
+  if (!sessions.length) {
+    return { kind: 'none' };
+  }
+  const obvious = obviousChoice(sessions);
+  return obvious
+    ? { kind: 'one', session: obvious }
+    : { kind: 'choose', sessions: freshestFirst(sessions) };
+}
+
+/** "idle 12m", "idle 3h" or "idle 2d" for the chooser, from the time it went idle (nothing when unknown). */
+export function idleFor(since: string | null, now = Date.now()): string {
+  const time = since ? Date.parse(since) : NaN;
+  if (Number.isNaN(time)) {
+    return '';
+  }
+  const minutes = Math.max(0, Math.round((now - time) / 60000));
+  if (minutes < 1) {
+    return 'idle just now';
+  }
+  if (minutes < 60) {
+    return `idle ${minutes}m`;
+  }
+  return minutes < 24 * 60
+    ? `idle ${Math.round(minutes / 60)}h`
+    : `idle ${Math.round(minutes / 1440)}d`;
+}
+
+const forWhat = (target: ListenTarget, repo: string | null | undefined) =>
+  target.scope === 'story' ? 'this story' : repo || 'the repo';
+
+/** The note when no session can be typed into: Copy prompt is the way left. */
+export function noSessionNote(
+  target: ListenTarget,
+  repo: string | null | undefined,
+  checkout: string | null | undefined,
+) {
+  const where = checkout ? `in ${checkout}` : `in your ${repo || 'repo'} checkout`;
+  return (
+    `No idle Claude Code session in ${repo || 'the repo'} has an iTerm tab to type into. ` +
+    `Start one ${where} and use Copy prompt for ${target.scope === 'story' ? 'this story' : 'Claude'}.`
+  );
+}
+
+/** The note after the line was typed. */
+export const typedNote = (title: string, target: ListenTarget, repo: string | null | undefined) =>
+  `Typed into “${title}” to listen for ${forWhat(target, repo)}. It should show as listening in a few seconds.`;
+
+/** The note when the bridge refused or could not be asked (its words, or a plain reason). */
+export const failedNote = (message: string) =>
+  `Couldn't start it: ${message}. Copy prompt still works.`;
+
+/** What the panel knows of where it is, for the notes. */
+export interface ListenWhere {
+  repo?: string | null;
+  checkout?: string | null;
+}
+
+/**
+ * Wires `button` (Start listening) to ask for sessions and type into one, showing every outcome in `note`. Clicking while
+ * the chooser is open closes it. Returns nothing: the button and note are the whole interface, and are drawn again by
+ * the status light when the listener shows up.
+ */
+export function wireStartListening(
+  button: HTMLButtonElement,
+  note: HTMLElement,
+  target: ListenTarget,
+  listen: NonNullable<PanelOptions['listen']>,
+  where: ListenWhere,
+): void {
+  const label = button.textContent;
+  const say = (text: string) => {
+    note.replaceChildren(text);
+    note.hidden = !text;
+  };
+  const rest = () => {
+    button.disabled = false;
+    button.textContent = label;
+  };
+  const message = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
+  async function start(session: ListenSession) {
+    note.replaceChildren(`Typing into “${session.title}”…`);
+    button.disabled = true;
+    try {
+      await listen.start(session.id, target);
+      say(typedNote(session.title, target, where.repo));
+    } catch (err) {
+      say(failedNote(message(err)));
+    }
+    rest();
+  }
+
+  button.onclick = async () => {
+    if (button.disabled) {
+      return;
+    }
+    if (note.querySelector('.ou-startpick')) {
+      say('');
+      return;
+    }
+    button.disabled = true;
+    button.textContent = 'Looking…';
+    let sessions: ListenSession[];
+    try {
+      sessions = await listen.sessions(target);
+    } catch (err) {
+      say(failedNote(message(err)));
+      rest();
+      return;
+    }
+    rest();
+    const plan = listenPlan(sessions);
+    if (plan.kind === 'none') {
+      say(noSessionNote(target, where.repo, where.checkout));
+    } else if (plan.kind === 'one') {
+      await start(plan.session);
+    } else {
+      const doc = note.ownerDocument;
+      const list = doc.createElement('span');
+      list.className = 'ou-startpick';
+      list.append('Type into which session? ');
+      for (const session of plan.sessions) {
+        const pick = doc.createElement('button');
+        pick.type = 'button';
+        const idle = idleFor(session.since);
+        pick.textContent = idle ? `${session.title} · ${idle}` : session.title;
+        pick.title = `Types the listen line into “${session.title}” and presses Enter`;
+        pick.onclick = () => {
+          start(session);
+        };
+        list.append(pick, ' ');
+      }
+      note.replaceChildren(list);
+      note.hidden = false;
+    }
+  };
+}

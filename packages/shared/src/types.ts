@@ -428,6 +428,18 @@ export interface Listening {
   story_prompt?: { prompt: string } | null;
 }
 
+/** An idle Claude Code session the panel's Start listening may type into. */
+export interface ListenSession {
+  id: string;
+  title: string;
+  status: 'idle' | 'done';
+  /** ISO time it went idle, null when unknown */
+  since: string | null;
+}
+
+/** What Start listening starts: the whole repo's listener, or one for just this story. */
+export type ListenTarget = { scope: 'repo'; repo: string } | { scope: 'story' };
+
 /** GET /api/status for a story. */
 export interface BridgeStatus {
   bridge: { version: string };

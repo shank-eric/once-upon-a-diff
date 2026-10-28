@@ -28,7 +28,13 @@ import { Board, liveSessions, noPrWatcher, type PrWatcher } from '../src/board/b
 import { columnOf, isBackToYou } from '../src/board/columns.ts';
 import { BacklogStore, assignBranch, assignLine, backlogCards } from '../src/board/backlog.ts';
 import { readVoice, voiceStatus } from '../src/board/voice.ts';
-import { sessionOfPid } from '../src/board/listening.ts';
+import {
+  listenCandidates,
+  listenStoryPromptFor,
+  sessionOfPid,
+  type ListeningInput,
+} from '../src/board/listening.ts';
+import { listenPrompt } from '../src/listeners/listeners.ts';
 import { noteListener, readHistory } from '../src/listeners/history.ts';
 import { repoStopReason, requestStop, stopRequested } from '../src/listeners/auto-stop.ts';
 import { gatedHome, laneForAgent, tiedToParent } from '../src/board/agent-home.ts';
@@ -62,6 +68,7 @@ import type {
   BoardAssign,
   BoardCard,
   BoardData,
+  BoardSession,
   PrInfo,
   StoryRequest,
   InboxList,
@@ -4876,4 +4883,156 @@ test('the board: a PR card whose branch has a local story shows how many commits
   );
   assert.ok(!cards['pr:acme/widgets#7'].ahead, 'nothing ahead: no badge');
   assert.deepEqual([...new Set(looked)].sort(), [`${widgets}@feat/level`, `${widgets}@feat/pr`]);
+});
+
+test('the panel’s Start listening: idle sessions in the repo (no voice session), then the repo’s or the story’s line typed, every refusal as the board has it', async () => {
+  const home = tmp('board-panel-listen');
+  const sessions = tmp('board-sessions');
+  const [idle, busy, other] = [liveChild(), liveChild(), liveChild()];
+  after(() => [idle, busy, other].forEach((child) => child.stop()));
+  const widgets = checkoutOf('widgets', 'main');
+  registry(sessions, idle.pid, { cwd: widgets, name: 'idle' }, idle.procStart);
+  registry(sessions, busy.pid, { cwd: widgets, name: 'busy', status: 'busy' }, busy.procStart);
+  registry(
+    sessions,
+    other.pid,
+    { cwd: checkoutOf('gadgets', 'main'), name: 'other' },
+    other.procStart,
+  );
+  writeJson(path.join(home, 'config.json'), {
+    board_sessions_dir: sessions,
+    board_it2_path: fakeIt2(),
+    board_status_source: 'iterm',
+  });
+  prStory(home, 'acme-widgets-7', 'acme/widgets', 7);
+  const typed: string[] = [];
+  const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+    source: sourceSaying(
+      Object.fromEntries(
+        [idle, other].map((child) => [
+          String(child.pid).padStart(8, '0'),
+          { status: 'done' as const, detail: null },
+        ]),
+      ),
+    ),
+    now: () => NOW,
+    typeLine: async (_it2, _tty, text) => {
+      typed.push(text);
+      return null;
+    },
+  });
+  const status = async (promise: Promise<unknown>) =>
+    promise.then(
+      () => 200,
+      (err: { status?: number }) => err.status,
+    );
+  // who may be typed into, per repo; a bad repo is the caller's
+  assert.deepEqual(
+    (await board.listenSessions('acme/widgets')).map((one) => one.id),
+    [fullId(idle.pid)],
+    'idle and in the repo: not the busy one, not the gadgets one',
+  );
+  assert.deepEqual(
+    (await board.listenSessions('Acme/Gadgets')).map((one) => one.id),
+    [fullId(other.pid)],
+    'a repo name matches in any case',
+  );
+  assert.deepEqual(await board.listenSessions('acme/nothing'), []);
+  assert.equal(await status(board.listenSessions('not a repo')), 400);
+  // the story's repo
+  assert.equal(board.storyRepoOf('acme-widgets-7'), 'acme/widgets');
+  assert.throws(() => board.storyRepoOf('nope'), /no story/);
+  // a repo's line, then one story's line: the same text as the panel's copy buttons
+  assert.equal(
+    await board.type('listen', fullId(idle.pid), 'acme/widgets'),
+    '/once-upon-listen acme/widgets',
+  );
+  assert.equal(
+    await board.type('listen', fullId(idle.pid), null, 'acme-widgets-7'),
+    '/once-upon-listen --story acme-widgets-7',
+  );
+  assert.deepEqual(typed, [
+    '/once-upon-listen acme/widgets',
+    '/once-upon-listen --story acme-widgets-7',
+  ]);
+  assert.equal(
+    listenStoryPromptFor('acme-widgets-7'),
+    listenPrompt({ story: 'acme-widgets-7' }).prompt,
+    'the board types what Copy prompt for this story copies',
+  );
+  // refusals type nothing: busy, another repo's session, an unknown or odd story id, no repo
+  typed.length = 0;
+  assert.equal(await status(board.type('listen', fullId(busy.pid), null, 'acme-widgets-7')), 409);
+  assert.equal(await status(board.type('listen', fullId(other.pid), null, 'acme-widgets-7')), 409);
+  assert.equal(await status(board.type('listen', fullId(idle.pid), null, 'nope')), 404);
+  assert.equal(await status(board.type('listen', fullId(idle.pid), null, 'a b; rm')), 400);
+  assert.equal(await status(board.type('listen', fullId(idle.pid), null)), 400);
+  assert.deepEqual(typed, []);
+});
+
+test('listenCandidates leaves out the sessions it is told to skip, and the ones with no tab or another repo', () => {
+  const view = (id: string, focus: boolean, since: string | null) =>
+    ({ id, title: id, status: 'idle', since, focus }) as unknown as BoardSession;
+  const input = {
+    idle: new Set(['a', 'b', 'voice', 'notab', 'gadgets']),
+    sessions: new Map([
+      ['a', view('a', true, '2026-10-26T18:00:00Z')],
+      ['b', view('b', true, '2026-10-26T18:30:00Z')],
+      ['voice', view('voice', true, '2026-10-26T18:59:00Z')],
+      ['notab', view('notab', false, null)],
+      ['gadgets', view('gadgets', true, null)],
+    ]),
+    repoOf: new Map([
+      ['a', 'acme/widgets'],
+      ['b', 'acme/widgets'],
+      ['voice', 'acme/widgets'],
+      ['notab', 'acme/widgets'],
+      ['gadgets', 'acme/gadgets'],
+    ]),
+  } as unknown as ListeningInput;
+  assert.deepEqual(
+    listenCandidates('acme/widgets', input, new Set(['voice'])).map((one) => one.id),
+    ['b', 'a'],
+    'freshest first',
+  );
+  assert.deepEqual(
+    listenCandidates('acme/widgets', input).map((one) => one.id),
+    ['voice', 'b', 'a'],
+    'the board’s lane skips nobody',
+  );
+});
+
+test('GET /api/board/listen-sessions: the board key or the token, a repo or a story, nothing from the other pages’ keys', async () => {
+  const home = tmp('board-listen-sessions-route');
+  const sessions = tmp('board-sessions');
+  mkdirSync(sessions, { recursive: true });
+  writeJson(path.join(home, 'config.json'), {
+    board_sessions_dir: sessions,
+    board_it2_path: fakeIt2(),
+    board_status_source: 'iterm',
+  });
+  prStory(home, 'acme-widgets-7', 'acme/widgets', 7);
+  const bridge = await startBridge({ home });
+  open.push(bridge);
+  const get = (route: string, key: string) =>
+    bridge.call<{ repo: string; sessions: unknown[] }>('GET', route, undefined, {
+      Authorization: `Bearer ${key}`,
+    });
+  for (const key of [TOKEN, boardKey(TOKEN)]) {
+    const byRepo = await get('/api/board/listen-sessions?repo=acme/widgets', key);
+    assert.equal(byRepo.status, 200);
+    assert.deepEqual(byRepo.body, { repo: 'acme/widgets', sessions: [] });
+    const byStory = await get('/api/board/listen-sessions?story=acme-widgets-7', key);
+    assert.deepEqual(byStory.body, { repo: 'acme/widgets', sessions: [] }, "the story's own repo");
+  }
+  assert.equal((await get('/api/board/listen-sessions', TOKEN)).status, 400);
+  assert.equal((await get('/api/board/listen-sessions?repo=not%20a%20repo', TOKEN)).status, 400);
+  assert.equal((await get('/api/board/listen-sessions?story=nope', TOKEN)).status, 404);
+  for (const key of [inboxKey(TOKEN), pageKey(TOKEN, 'acme-widgets-7')]) {
+    assert.equal(
+      (await get('/api/board/listen-sessions?repo=acme/widgets', key)).status,
+      403,
+      "the board's route",
+    );
+  }
 });

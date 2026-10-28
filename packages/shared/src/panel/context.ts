@@ -11,6 +11,8 @@ import type {
   FixesAct,
   FixesView,
   Freshness,
+  ListenSession,
+  ListenTarget,
   PanelPosition,
   PanelUi,
   Pulse,
@@ -63,6 +65,15 @@ export interface PanelOptions {
   loadQuestions?(): Promise<Question[]>;
   markQuestions?(action: QuestionMark, ids: string[]): Promise<QuestionMarksAnswer>;
   status?(): Promise<BridgeStatus>;
+  /**
+   * Start listening (panel/start-listening.ts): the idle Claude Code sessions that may be typed into, and typing the
+   * listen line into one. Both reject with an Error whose message says why. Only a host that can reach the bridge's board
+   * (the extension) passes it; without it the panel offers just Copy prompt.
+   */
+  listen?: {
+    sessions(target: ListenTarget): Promise<ListenSession[]>;
+    start(sessionId: string, target: ListenTarget): Promise<void>;
+  };
   drafts?: {
     load(): Promise<DraftsAnswer>;
     act(chapter: number, index: number, action: DraftAction): Promise<DraftsAnswer>;

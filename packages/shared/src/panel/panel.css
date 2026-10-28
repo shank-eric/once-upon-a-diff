@@ -91,6 +91,8 @@
 #ou-panel .ou-askwho .ou-copystory { margin-left: 4px; }
 #ou-panel .ou-askwho .ou-prompt { white-space: pre-wrap; word-break: break-all; font-size: 11px; margin: 4px 0 0; color: var(--c-fg); }
 #ou-panel .ou-askhint .ou-copyprompt { margin-left: 4px; }
+#ou-panel .ou-startnote { margin: 4px 0 0; color: var(--c-fg); }
+#ou-panel .ou-startnote button { margin: 0 4px 2px 0; }
 #ou-panel .ou-askhint .ou-promptmore { border: 0; background: none; padding: 0 2px; color: var(--c-accent, inherit); text-decoration: underline; cursor: pointer; font-size: 11px; }
 #ou-panel .ou-askhint .ou-promptlong, #ou-panel .ou-askhint .ou-prompt { white-space: pre-wrap; word-break: break-all; font-size: 11px; margin: 4px 0 0; color: var(--c-fg); }
 #ou-panel .ou-progress { margin: 0 0 10px; padding: 4px 8px; font-size: 12px; color: var(--c-muted); border-left: 3px solid var(--c-border); }

@@ -34,7 +34,14 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { readSettings } from '../config/settings.ts';
-import { REPO_RE, lastKnownRepo, repoOfCheckoutAsync, sameRepo } from '../config/repos.ts';
+import {
+  REPO_RE,
+  lastKnownRepo,
+  repoOfCheckoutAsync,
+  sameRepo,
+  storyRepo,
+} from '../config/repos.ts';
+import { ID_RE as STORY_ID_RE, readMeta } from '../stories/meta.ts';
 import { runGitAsync } from '../util/git.ts';
 import { shipMode } from '../stories/push-default.ts';
 import { aheadOf } from '../stories/pull-request.ts';
@@ -50,13 +57,16 @@ import { readVoice, voiceLines, voiceStatus } from './voice.ts';
 import {
   assignCandidates,
   buildFor,
+  listenCandidates,
   listenPromptFor,
+  listenStoryPromptFor,
   listenersLane,
   listeningOnly,
   parentMap,
   sessionOfPid,
   storyListening,
 } from './listening.ts';
+import type { ListeningInput } from './listening.ts';
 import { requestStop } from '../listeners/auto-stop.ts';
 import { listeners } from '../listeners/listeners.ts';
 import {
@@ -379,6 +389,8 @@ export class Board {
   private seen = new Map<string, { status: BoardStatus; since: number }>();
   private branches = new Map<string, { at: number; branch: string | null }>();
   private cache: { at: number; data: BoardData } | null = null;
+  /** What the last snapshot knew of the sessions, for the panel's Start listening (listenSessions). */
+  private listeningNow: { input: ListeningInput; voice: string | null } | null = null;
   /** The build in flight, so callers arriving while it runs share it instead of starting another. */
   private building: Promise<BoardData> | null = null;
   /** how each approved local story ships, worked out once per snapshot (build) */
@@ -1006,6 +1018,7 @@ export class Board {
       repoOf: repoBySession,
       idle,
     };
+    this.listeningNow = { input: listening, voice: pin.found?.view.id ?? null };
     for (const card of cards) {
       if (card.story) {
         card.listening = storyListening(card.story.id, waits, listening);
@@ -1172,14 +1185,58 @@ export class Board {
   }
 
   /**
-   * Types a line into a live session's iTerm tab and presses Enter: Build story (the card's story prompt) or Start listening
-   * (`/once-upon-listen <repo>`). The line is made here from what the bridge knows, the tab is found from the session's tty,
-   * and nothing is typed unless the session is at its prompt: working or waiting on you means no.
+   * The repo a story belongs to (a PR story's, or the local story's repo), or null when its meta names none. A 404 for a
+   * story that does not exist.
    */
-  async type(kind: 'build' | 'listen', sessionId: string, repo: string | null): Promise<string> {
+  storyRepoOf(storyId: string): string | null {
+    const dir = this.stories.dirOf(storyId);
+    if (!dir) {
+      throw new HttpError(404, 'no story with that id');
+    }
+    return storyRepo(readMeta(dir));
+  }
+
+  /**
+   * The sessions the panel's Start listening may type into for a repo: the board's Start listening rule (idle, in the repo,
+   * an iTerm tab known), without the voice session. From the board's last snapshot, so a click costs no more than a page
+   * poll; `type` checks the chosen session again against live status before it types.
+   */
+  async listenSessions(repo: string): Promise<ReturnType<typeof listenCandidates>> {
+    if (!REPO_RE.test(repo)) {
+      throw new HttpError(400, 'a repo (owner/name) is needed');
+    }
+    await this.snapshot();
+    const known = this.listeningNow;
+    return known
+      ? listenCandidates(repo, known.input, new Set(known.voice ? [known.voice] : []))
+      : [];
+  }
+
+  /**
+   * Types a line into a live session's iTerm tab and presses Enter: Build story (the card's story prompt) or Start listening
+   * (`/once-upon-listen <repo>`, or with a story `/once-upon-listen --story <id>`, the panel's two buttons). The line is made
+   * here from what the bridge knows, the tab is found from the session's tty, and nothing is typed unless the session is at
+   * its prompt: working or waiting on you means no.
+   */
+  async type(
+    kind: 'build' | 'listen',
+    sessionId: string,
+    repo: string | null,
+    story: string | null = null,
+  ): Promise<string> {
     const { it2, session } = await this.typeable(sessionId);
     let prompt: string | null = null;
-    if (kind === 'listen') {
+    if (kind === 'listen' && story) {
+      if (!STORY_ID_RE.test(story)) {
+        throw new HttpError(400, 'a story id is needed');
+      }
+      // the story's own repo, when it has one: the session has to be in a checkout of it
+      const owner = this.storyRepoOf(story);
+      if (owner && !sameRepo(await repoOfCheckoutAsync(session.cwd), owner)) {
+        throw new HttpError(409, `that session is not in a checkout of ${owner}`);
+      }
+      prompt = listenStoryPromptFor(story);
+    } else if (kind === 'listen') {
       if (!repo || !REPO_RE.test(repo)) {
         throw new HttpError(400, 'a repo (owner/name) is needed');
       }
@@ -1194,7 +1251,7 @@ export class Board {
         throw new HttpError(409, 'there is nothing to build for that session');
       }
     }
-    const failed = await typeLine(it2, session.tty, prompt);
+    const failed = await (this.options.typeLine || typeLine)(it2, session.tty, prompt);
     if (failed) {
       throw new HttpError(409, failed);
     }

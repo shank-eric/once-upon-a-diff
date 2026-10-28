@@ -154,6 +154,36 @@ export function storyListening(
   return found ? listeningOf(found, input) : null;
 }
 
+/**
+ * The sessions Start listening may type into for a repo: idle (at its prompt), in a checkout of the repo, with an iTerm tab
+ * the board can find. Freshest first. `skip` leaves out sessions that must never be typed into (the voice session, for the
+ * panel's button).
+ */
+export function listenCandidates(
+  repo: string,
+  input: ListeningInput,
+  skip: ReadonlySet<string> = new Set(),
+): BoardListenerRepo['candidates'] {
+  return [...input.idle]
+    .filter((id) => {
+      const owner = input.repoOf.get(id);
+      return !skip.has(id) && !!owner && sameRepo(owner, repo) && input.sessions.get(id)?.focus;
+    })
+    .map((id) => {
+      const view = input.sessions.get(id);
+      return {
+        id,
+        title: view?.title ?? id,
+        status: view?.status === 'done' ? ('done' as const) : ('idle' as const),
+        since: view?.since ?? null,
+      };
+    })
+    .sort(
+      (first, second) =>
+        (Date.parse(second.since || '') || 0) - (Date.parse(first.since || '') || 0),
+    );
+}
+
 /** The Listeners lane: a row per repo with a live listener, then those that had one in the last week. */
 export function listenersLane(live: Listener[], input: ListeningInput): BoardListenerRepo[] {
   const repoListeners = live.filter((listener) => listener.repo && !listener.story);
@@ -185,24 +215,7 @@ export function listenersLane(live: Listener[], input: ListeningInput): BoardLis
             }
           : null,
         last_seen: entry?.last_seen ?? null,
-        candidates: [...input.idle]
-          .filter((id) => {
-            const owner = input.repoOf.get(id);
-            return !!owner && sameRepo(owner, repo) && input.sessions.get(id)?.focus;
-          })
-          .map((id) => {
-            const view = input.sessions.get(id);
-            return {
-              id,
-              title: view?.title ?? id,
-              status: view?.status === 'done' ? ('done' as const) : ('idle' as const),
-              since: view?.since ?? null,
-            };
-          })
-          .sort(
-            (first, second) =>
-              (Date.parse(second.since || '') || 0) - (Date.parse(first.since || '') || 0),
-          ),
+        candidates: listenCandidates(repo, input),
       };
     })
     .sort((first, second) => {
@@ -283,3 +296,6 @@ export function assignCandidates(
 
 /** The listen prompt Start listening types, the one the panel's Copy prompt for Claude copies. */
 export const listenPromptFor = (repo: string): string => `/once-upon-listen ${repo}`;
+
+/** The one-story form, the one the panel's "Copy prompt for this story" copies (listenPrompt({story}).prompt). */
+export const listenStoryPromptFor = (story: string): string => `/once-upon-listen --story ${story}`;

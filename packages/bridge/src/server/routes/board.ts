@@ -5,8 +5,10 @@
  *   GET /api/board/link         the board page's link. With the bridge's token (the extension, the CLI) it carries the board's
  *                               key. With the inbox page's key it has none (the board's cookie connects it, or its
  *                               not-connected page says how)
- *   POST /api/board/type        {kind: build|listen, session, repo?}: type Build story's or Start listening's line into the
- *                               session's iTerm tab, when the session is at its prompt
+ *   POST /api/board/type        {kind: build|listen, session, repo? | story?}: type Build story's or Start listening's line (a
+ *                               story's own listener with story) into the session's iTerm tab, when the session is at its prompt
+ *   GET /api/board/listen-sessions?repo= | ?story=  the idle sessions Start listening may type into for that repo (or the
+ *                               story's repo): the panel's Start listening button asks this, then POSTs /type
  *   POST /api/board/stop-listening  {repo}: end the repo's listener
  *   POST /api/board/focus       {session}: bring that session's iTerm tab to the front (the tab is found server-side)
  *   POST /api/board/open-story  {story}: a local story's page link (a card's Open story), with that story's full key
@@ -77,7 +79,7 @@ async function focus({ app, body, send }: Call) {
   return send(200, { ok: true });
 }
 
-/** POST {kind: 'build' | 'listen', session, repo?}: type Build story's or Start listening's line into the session's tab. */
+/** POST {kind: 'build' | 'listen', session, repo? | story?}: type Build story's or Start listening's line into the session's tab. */
 async function type({ app, body, send }: Call) {
   const session = String(body.session || '');
   let kind: 'build' | 'listen' | null = null;
@@ -87,8 +89,26 @@ async function type({ app, body, send }: Call) {
   if (!kind || !SESSION_RE.test(session)) {
     throw new HttpError(400, 'a kind (build or listen) and a session id are needed');
   }
-  const typed = await app.board.type(kind, session, body.repo ? String(body.repo) : null);
+  const typed = await app.board.type(
+    kind,
+    session,
+    body.repo ? String(body.repo) : null,
+    body.story ? String(body.story) : null,
+  );
   return send(200, { ok: true, typed });
+}
+
+/** GET ?repo= or ?story=: the idle sessions Start listening may type into for the repo (a story's: its own repo). */
+async function listenSessions({ app, url, send }: Call) {
+  const storyId = url.searchParams.get('story');
+  let repo = url.searchParams.get('repo');
+  if (storyId) {
+    repo = app.board.storyRepoOf(storyId) || repo;
+  }
+  if (!repo || !REPO_RE.test(repo)) {
+    throw new HttpError(400, 'a repo (owner/name), or a story that has one, is needed');
+  }
+  return send(200, { repo, sessions: await app.board.listenSessions(repo) });
 }
 
 /** POST {story}: the page link of a local story on a card, which has no URL of its own like a PR story's. */
@@ -168,6 +188,7 @@ function stopListening({ app, body, send }: Call) {
 
 export const boardRoutes: ApiRoute[] = [
   { path: '/api/board/type', method: 'POST', handle: type, boardKey: true },
+  { path: '/api/board/listen-sessions', method: 'GET', handle: listenSessions, boardKey: true },
   { path: '/api/board/stop-listening', method: 'POST', handle: stopListening, boardKey: true },
   { path: '/api/board/focus', method: 'POST', handle: focus, boardKey: true },
   { path: '/api/board/open-story', method: 'POST', handle: openStory, boardKey: true },

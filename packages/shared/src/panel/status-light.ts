@@ -5,13 +5,15 @@
  * Clicking it shows the checks. When no session is listening, a hint over the
  * Ask box gives the prompt to paste into Claude Code. A line under it says
  * which session answers this story, with "Copy prompt for this story" to send
- * the story's questions to one session (the one that built it) instead.
+ * the story's questions to one session (the one that built it) instead. Where the host can reach the bridge's board
+ * (opts.listen), each of the two also has a Start listening button that types the same line into a live session.
  *
  * healthChecks has no DOM, so node tests can use it.
  */
 import { html } from '../util/html.ts';
 import { setHtml } from '../util/dom.ts';
 import { copyPrompt } from './copy-buttons.ts';
+import { wireStartListening } from './start-listening.ts';
 import type { PanelContext } from './context.ts';
 import type { Answering, BridgeStatus, ListenerView, Listening, StatusError } from '../types.ts';
 
@@ -128,7 +130,7 @@ const classOf = (check: HealthCheck) => {
 };
 
 /** What the hint over the Ask box says when no session will answer. */
-function askHintHtml(result: Health) {
+function askHintHtml(result: Health, canStart = false) {
   if (result.level === 'error') {
     return html`${result.checks[0].detail}. Questions can't be sent until it's back.`;
   }
@@ -145,11 +147,17 @@ function askHintHtml(result: Health) {
   const long =
     result.details &&
     html`<pre class="ou-promptlong" hidden>Without the once-upon-listen skill, paste this instead:\n${result.details}</pre>`;
-  return html`No Claude session is listening${forRepo}; questions will wait. ${where} <code>${result.prompt}</code> <button type="button" class="ou-copyprompt">Copy prompt for Claude</button>${more}<pre class="ou-prompt" hidden></pre>${long}`;
+  const startTitle = `Types ${result.prompt} into an idle Claude Code session in the repo and presses Enter`;
+  const start =
+    canStart &&
+    html` <button type="button" class="ou-startlisten" title="${startTitle}">Start listening</button>`;
+  const note = canStart && html`<div class="ou-startnote" role="status" hidden></div>`;
+  const copy = html` <button type="button" class="ou-copyprompt">Copy prompt for Claude</button>`;
+  return html`No Claude session is listening${forRepo}; questions will wait. ${where} <code>${result.prompt}</code>${start}${copy}${more}${note}<pre class="ou-prompt" hidden></pre>${long}`;
 }
 
 /** The line under the Ask box: who answers this story's questions, and the prompt that gives them to one session. */
-export function askWhoHtml(result: Health) {
+export function askWhoHtml(result: Health, canStart = false) {
   if (result.level === 'error') {
     return html``;
   }
@@ -159,7 +167,14 @@ export function askWhoHtml(result: Health) {
     const title =
       `Copies ${storyPrompt.prompt}. Paste it into the Claude session that built this story: ` +
       "it answers this story's questions from then on, ahead of the repo's listener.";
-    copy = html` <button type="button" class="ou-copystory" title="${title}">Copy prompt for this story</button><pre class="ou-prompt" hidden></pre>`;
+    const startTitle =
+      `Types ${storyPrompt.prompt} into an idle Claude Code session in the repo and presses Enter: ` +
+      "it answers this story's questions from then on, ahead of the repo's listener.";
+    const start =
+      canStart &&
+      html` <button type="button" class="ou-startstory" title="${startTitle}">Start listening for this story</button>`;
+    const note = canStart && html`<div class="ou-startnote" role="status" hidden></div>`;
+    copy = html`${start} <button type="button" class="ou-copystory" title="${title}">Copy prompt for this story</button>${note}<pre class="ou-prompt" hidden></pre>`;
   }
   if (answering && answering.scope === 'story') {
     return html`Answered by <b>${answering.consumer}</b>, the session listening for this story.`;
@@ -201,7 +216,8 @@ export function createStatusLight(context: PanelContext) {
     if (!showHint) {
       return;
     }
-    const hintHtml = askHintHtml(result);
+    const canStart = !!opts.listen && !!result.repo && !!result.prompt;
+    const hintHtml = askHintHtml(result, canStart);
     const markup = String(hintHtml);
     // redrawn on every refresh, so only when it changes (a "Copied" label stays put)
     if (hint.getAttribute('data-html') === markup) {
@@ -218,6 +234,17 @@ export function createStatusLight(context: PanelContext) {
           hint.querySelector<HTMLElement>('.ou-prompt'),
         );
     }
+    const startButton = hint.querySelector<HTMLButtonElement>('.ou-startlisten');
+    const startNote = hint.querySelector<HTMLElement>('.ou-startnote');
+    if (opts.listen && startButton && startNote) {
+      wireStartListening(
+        startButton,
+        startNote,
+        { scope: 'repo', repo: result.repo as string },
+        opts.listen,
+        result,
+      );
+    }
     const more = hint.querySelector<HTMLElement>('.ou-promptmore');
     if (more) {
       more.onclick = () => {
@@ -231,7 +258,7 @@ export function createStatusLight(context: PanelContext) {
 
   function renderWho(result: Health) {
     const who = $('.ou-askwho')!;
-    const whoHtml = opts.ask ? askWhoHtml(result) : html``;
+    const whoHtml = opts.ask ? askWhoHtml(result, !!opts.listen) : html``;
     const markup = String(whoHtml);
     who.hidden = !markup;
     // redrawn only when it changes, so a "Copied" label stays put
@@ -240,6 +267,11 @@ export function createStatusLight(context: PanelContext) {
     }
     who.setAttribute('data-html', markup);
     setHtml(who, whoHtml);
+    const startButton = who.querySelector<HTMLButtonElement>('.ou-startstory');
+    const startNote = who.querySelector<HTMLElement>('.ou-startnote');
+    if (opts.listen && startButton && startNote) {
+      wireStartListening(startButton, startNote, { scope: 'story' }, opts.listen, result);
+    }
     const copyButton = who.querySelector<HTMLElement>('.ou-copystory');
     if (copyButton) {
       copyButton.onclick = () =>

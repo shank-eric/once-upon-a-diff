@@ -16,6 +16,7 @@ import { storyOverlay, rangeStepOf } from '@once-upon-a-diff/shared/overlay';
 import { filesChangedPr } from '@once-upon-a-diff/shared/util/github-paths';
 import { withLayout, type Layout } from '@once-upon-a-diff/shared/panel/layout';
 import { callBridge, extensionAlive } from '../bridge.ts';
+import { createListenOption } from '../listen.ts';
 import { loadPanelUi, savePanelUi, loadPrefsCopy, storePrefsCopy, tabSession } from '../storage.ts';
 import { createPrTags, titleElement } from '../ui/pr-tags.ts';
 import { requestFor, stepOfHash } from '../ui/story-tag.ts';
@@ -219,6 +220,8 @@ export function createFilesChangedPage() {
         }
         throw Object.assign(new Error(answer.error as string), { code });
       },
+      // Start listening: type the listen line into an idle Claude Code session, through the bridge's board
+      listen: createListenOption(callBridge, storyId),
       pulse: () => bodyOf(callBridge<Pulse>('GET', `${storyPath}/pulse`)),
       // a hidden tab doesn't pulse: this keeps the story's listener from stopping while the page is still open
       stillOpen: () => callBridge('POST', `${storyPath}/seen`, {}),
