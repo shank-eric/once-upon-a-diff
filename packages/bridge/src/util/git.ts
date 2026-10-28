@@ -47,6 +47,23 @@ export const revParse = (repo: string, ref: string): string =>
 export const topLevel = (repo: string): string =>
   runGit(repo, ['rev-parse', '--show-toplevel']).trim();
 
+/**
+ * The branch a ref names in the checkout: the current branch for HEAD, the ref itself when it is a local branch
+ * (`feat/x` or `refs/heads/feat/x`), else null (a commit, a tag, a remote branch).
+ */
+export function branchOfRef(repo: string, ref: string): string | null {
+  if (ref === 'HEAD') {
+    return branchName(repo);
+  }
+  const name = ref.replace(/^refs\/heads\//, '');
+  try {
+    runGit(repo, ['show-ref', '--verify', '--quiet', `refs/heads/${name}`]);
+    return name;
+  } catch {
+    return null;
+  }
+}
+
 export function branchName(repo: string): string | null {
   try {
     return runGit(repo, ['symbolic-ref', '--quiet', '--short', 'HEAD']).trim();

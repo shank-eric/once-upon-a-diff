@@ -7,7 +7,7 @@
  */
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { topLevel, revParse, branchName } from '../util/git.ts';
+import { topLevel, revParse, branchOfRef } from '../util/git.ts';
 import { parseUnifiedDiff } from '../util/diff.ts';
 import { refreshLocal } from './local-diff.ts';
 import { entryOf } from './chapters.ts';
@@ -95,7 +95,8 @@ export function createLocalStory({
   const top = topLevel(repo);
   revParse(top, base); // fail early on a bad ref
   revParse(top, head);
-  const branch = branchName(top);
+  // the branch --head names (the checkout's only when it is HEAD), so Create pull request pushes the story's branch
+  const branch = branchOfRef(top, head);
   const name = path.basename(top);
   id = id || slug(`local-${name}-${branch || head}`);
   if (!ID_RE.test(id)) {
