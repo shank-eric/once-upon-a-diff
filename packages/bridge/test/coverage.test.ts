@@ -94,6 +94,15 @@ test('"whole": true and a "Since you read it" chapter cover a big file; a file i
   const diff = parseUnifiedDiff(DIFF);
   const whole = { chapters: [chapter({ files: [{ rel: 'src/big.js', whole: true }] })] };
   assert.deepEqual(uncoveredHunks(chaptersOf(whole), diff), []);
+  // with lines too: they are jump targets, and whole still covers the rest
+  const wholeWithLines = {
+    chapters: [
+      chapter({
+        files: [{ rel: 'src/big.js', whole: true, lines: [{ side: 'R', start: 1, end: 2 }] }],
+      }),
+    ],
+  };
+  assert.deepEqual(uncoveredHunks(chaptersOf(wholeWithLines), diff), []);
   const since = {
     chapters: [
       chapter({

@@ -8,9 +8,10 @@
  * `L` ranges and comments are checked against the hunk's old side, the rest
  * against its new side.
  *
- * Listing a file with no line refs covers all its hunks when:
+ * An entry that says `"whole": true` covers all the file's hunks, with or without `lines` (the author's call that one
+ * chapter tells all of it; its lines are then just jump targets). Listing a file with no line refs covers all its
+ * hunks when:
  *   - the file is small (at most SMALL_FILE_LINES changed lines, about a screen)
- *   - the entry says `"whole": true`, the author's call that one chapter tells all of it
  *   - the file is deleted, or a lockfile, where pointing at lines says nothing
  *   - the chapter is a "Since you read it" one, which tells every file its commits touched
  * A file no chapter lists isn't reported here: file placement already says so.
@@ -56,7 +57,6 @@ export function hunkRef(rel: string, hunk: DiffHunk): string {
 function coveredByListing(file: DiffFile, entry: ChapterFile, chapter: Chapter): boolean {
   return (
     !!chapter.since ||
-    !!entry.whole ||
     file.kind === 'deleted' ||
     LOCKFILES.test(file.rel) ||
     file.stats.added + file.stats.removed <= SMALL_FILE_LINES
@@ -103,7 +103,10 @@ export function uncoveredHunks(chapters: Chapter[], diff: Map<string, DiffFile>)
         listed.add(entry.rel);
       }
       const lines = entry.lines || [];
-      if (!lines.length && !entry.ref && coveredByListing(file, entry, chapter)) {
+      if (
+        !entry.ref &&
+        (entry.whole || (!lines.length && coveredByListing(file, entry, chapter)))
+      ) {
         whole.add(entry.rel);
       }
       lines.forEach((range) => addRange(entry.rel, range));
