@@ -3,7 +3,8 @@
  * GitHub (GET .../pr) and what a push would send, with the title and body a session handed over (`once-upon
  * pr-draft`) to check and edit. Its own button pushes the branch when it needs it (POST .../pr, never forced),
  * then opens GitHub's compare page with the title and body filled in, where the reviewer makes the PR. Once the
- * branch has an open PR, the header's button is a link to it.
+ * branch has an open PR, the header's button is a link to it, with how many commits the local branch is ahead of GitHub's
+ * and a Push for them (push-ahead.ts).
  */
 import { html } from '/assets/util/html.ts';
 import { setHtml } from '/assets/util/dom.ts';
@@ -27,9 +28,29 @@ export function prButtonHtml() {
   }
   const pull = lastView && lastView.pull;
   if (pull) {
-    return html`<a class="ou-local-pr-link" href="${pull.url}" target="_blank" rel="noopener">Open PR #${String(pull.number)}</a>`;
+    const link = html`<a class="ou-local-pr-link" href="${pull.url}" target="_blank" rel="noopener">Open PR #${String(pull.number)}</a>`;
+    const behind = lastView && aheadCount(lastView);
+    if (!behind) {
+      return link;
+    }
+    const off = page.story.read_only
+      ? 'Open this story from the board or `once-upon page` to push it: the inbox link is read-only'
+      : '';
+    return html`<span class="ou-local-ahead">${plural(behind, 'commit')} ahead</span>
+      <button type="button" class="ou-local-push-ahead"${off && html` disabled`} title="${off || 'Fast-forward this branch to GitHub, where the open PR is'}">Push</button>${link}`;
   }
   return html`<button type="button" class="ou-local-pr" title="Push this branch if it needs it, then open GitHub's Create pull request page">Create pull request</button>`;
+}
+
+/** How many commits the local branch has that GitHub's copy lacks, when the view says it is a plain fast-forward behind. */
+function aheadCount(view: PrView) {
+  return view.remote.state === 'ahead' ? view.to_push.length : 0;
+}
+
+/** Takes a fresher look at the branch (after a push), and redraws the header's buttons. */
+export function takeView(view: PrView) {
+  lastView = view;
+  redrawButton();
 }
 
 function redrawButton() {
@@ -49,14 +70,15 @@ export async function lookForPull(force = false) {
   ) {
     return;
   }
-  if (lastView && lastView.pull) {
-    return;
-  }
+  const hadPull = lastView ? lastView.pull : null;
   lastLook = Date.now();
   try {
     lastView = await api<PrView>('GET', `${STORY_PATH}/pr`);
+    if (hadPull && !lastView.pull) {
+      lastView.pull = hadPull; // gh not answering for a moment doesn't close a PR already seen
+    }
     redrawButton();
-    if (lastView.pull) {
+    if (lastView.pull && !hadPull) {
       window.dispatchEvent(new Event('ou-pull-found')); // Approve goes: the PR is the next step (approve.ts)
     }
   } catch {

@@ -4834,3 +4834,46 @@ test('POST /api/board/backlog/assign: the board key only, two ids and no text', 
     assert.equal((await post({ id: item.id, session: fullId(process.ppid) }, key)).status, 403);
   }
 });
+
+test('the board: a PR card whose branch has a local story shows how many commits it is ahead of GitHub, and a PR with no local story is left alone', async () => {
+  const home = tmp('board-home');
+  const widgets = checkoutOf('widgets', 'main');
+  prStory(home, 'acme-widgets-5', 'acme/widgets', 5, 'feat/pr');
+  localStory(home, 'local-feat-pr', widgets, 'feat/pr');
+  prStory(home, 'acme-widgets-6', 'acme/widgets', 6, 'feat/lonely');
+  prStory(home, 'acme-widgets-7', 'acme/widgets', 7, 'feat/level');
+  localStory(home, 'local-feat-level', widgets, 'feat/level');
+  writeJson(path.join(home, 'config.json'), {});
+  const { watcher } = fakeWatcher([
+    prInfo(5, { branch: 'feat/pr' }),
+    prInfo(6, { branch: 'feat/lonely' }),
+    prInfo(7, { branch: 'feat/level' }),
+  ]);
+  const looked: string[] = [];
+  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+    source: sourceSaying({}),
+    now: () => NOW,
+    aheadOf: async (checkout, branch) => {
+      looked.push(`${checkout}@${branch}`);
+      return branch === 'feat/pr' ? 2 : 0;
+    },
+  });
+  const cardsOf = async () =>
+    Object.fromEntries(
+      (await board.snapshot()).lanes.flatMap((lane) => lane.cards).map((card) => [card.id, card]),
+    );
+  const first = await cardsOf();
+  assert.ok(
+    !first['pr:acme/widgets#5'].ahead,
+    'the look runs in the background, the snapshot does not wait',
+  );
+  await new Promise((resolve) => setImmediate(resolve));
+  const cards = await cardsOf();
+  assert.deepEqual(cards['pr:acme/widgets#5'].ahead, { count: 2, story: 'local-feat-pr' });
+  assert.ok(
+    !cards['pr:acme/widgets#6'].ahead,
+    'no local story of that branch: the board leaves it alone',
+  );
+  assert.ok(!cards['pr:acme/widgets#7'].ahead, 'nothing ahead: no badge');
+  assert.deepEqual([...new Set(looked)].sort(), [`${widgets}@feat/level`, `${widgets}@feat/pr`]);
+});

@@ -37,6 +37,7 @@ import { readSettings } from '../config/settings.ts';
 import { REPO_RE, lastKnownRepo, repoOfCheckoutAsync, sameRepo } from '../config/repos.ts';
 import { runGitAsync } from '../util/git.ts';
 import { shipMode } from '../stories/push-default.ts';
+import { aheadOf } from '../stories/pull-request.ts';
 import { gateOf, readAgents, type LedgerAgent } from './ledger.ts';
 import { BlankSessions } from './blank.ts';
 import { SessionTitles } from './titles.ts';
@@ -116,6 +117,8 @@ export { DEFAULT_BRANCHES };
 /** A merged PR stays on the board this long. */
 const MERGED_HOURS = 24;
 const BRANCH_CACHE_MS = 10000;
+/** How often a branch's commits-ahead count is looked at again (git ls-remote each time). */
+const AHEAD_MS = 60000;
 /** A snapshot waits this long for a session's repo to be looked up, then goes on without it (what was last known, or none). */
 const REPO_WAIT_MS = 500;
 
@@ -380,6 +383,10 @@ export class Board {
   private building: Promise<BoardData> | null = null;
   /** how each approved local story ships, worked out once per snapshot (build) */
   private shipById = new Map<string, ShipMode>();
+  /** the newest local story's checkout for each repo and branch, for a PR card's commits-ahead count (build) */
+  private localCheckouts = new Map<string, { story: string; checkout: string }>();
+  /** commits ahead of origin per checkout and branch, looked up in the background (kickAhead) */
+  private aheads = new Map<string, { at: number; count: number | null }>();
   /** Bumped when what a build read is out of date, so a build that started before it does not fill the cache. */
   private generation = 0;
   private blank = new BlankSessions();
@@ -395,6 +402,7 @@ export class Board {
     now?: () => Date;
     repoOf?: (cwd: string) => Promise<string | null>;
     typeLine?: typeof typeLine;
+    aheadOf?: typeof aheadOf;
   };
 
   /** `options` are for tests: their own status source, clock, repo lookup and tab typing. */
@@ -408,6 +416,7 @@ export class Board {
       now?: () => Date;
       repoOf?: (cwd: string) => Promise<string | null>;
       typeLine?: typeof typeLine;
+      aheadOf?: typeof aheadOf;
     } = {},
   ) {
     this.home = home;
@@ -490,6 +499,36 @@ export class Board {
     }
     void lookup.then(() => this.invalidate());
     return lastKnownRepo(cwd) ?? null;
+  }
+
+  /**
+   * A PR card's commits ahead of origin, as the checkout of a local story of its branch has them. The look (git
+   * ls-remote) runs in the background, at most every AHEAD_MS, and a change drops the kept snapshot. Null when the branch
+   * has no local story, or nothing is ahead.
+   */
+  private aheadFor(repo: string, branch: string): BoardCard['ahead'] {
+    const found = this.localCheckouts.get(`${repo.toLowerCase()}@${branch}`);
+    if (!found) {
+      return null;
+    }
+    const key = `${found.checkout}\0${branch}`;
+    const kept = this.aheads.get(key);
+    const now = Date.now();
+    if (!kept || now - kept.at >= AHEAD_MS) {
+      // the old answer stays until the new one arrives, and a failed look keeps it
+      this.aheads.set(key, { at: now, count: kept?.count ?? null });
+      (this.options.aheadOf || aheadOf)(found.checkout, branch)
+        .then((count) => {
+          const last = this.aheads.get(key);
+          if (count !== null && last?.count !== count) {
+            this.invalidate();
+          }
+          this.aheads.set(key, { at: Date.now(), count: count ?? last?.count ?? null });
+        })
+        .catch(() => undefined);
+    }
+    const count = kept?.count;
+    return count ? { count, story: found.story } : null;
   }
 
   /** A checkout's current branch (null when detached or not a repo), kept a few seconds. */
@@ -615,6 +654,16 @@ export class Board {
           ),
         ]),
     );
+    this.localCheckouts = new Map();
+    for (const entry of localEntryList) {
+      const { repo, branch } = entry.story;
+      if (repo && branch && entry.repo_path) {
+        const key = `${repo.toLowerCase()}@${branch}`;
+        if (!this.localCheckouts.has(key)) {
+          this.localCheckouts.set(key, { story: entry.story.id, checkout: entry.repo_path });
+        }
+      }
+    }
     const localStoryList = localEntryList.map((entry) => entry.story);
     const newestLocal = new Map<string, InboxLocalStory>();
     for (const local of localStoryList) {
@@ -1260,6 +1309,10 @@ export class Board {
       detail: null,
       since: null,
       pr,
+      ahead:
+        pr?.state === 'open' && (work.branch ?? pr.branch) && work.repo
+          ? this.aheadFor(work.repo, (work.branch ?? pr.branch) as string)
+          : null,
       story: story
         ? {
             id: story.id,

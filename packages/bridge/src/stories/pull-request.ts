@@ -7,6 +7,11 @@
  *
  * The push is a plain `git push -u origin <branch>` with the reviewer's own git login. It never forces: a branch
  * whose GitHub copy has commits this checkout doesn't is reported as diverged and not pushed.
+ *
+ * Push for a branch that already has an open PR (a fix made after review): aheadOf counts the local commits origin's
+ * copy lacks (`git ls-remote` and `git rev-list --count`, no fetch), and pushAhead sends them with a plain
+ * `git push origin <branch>`, a fast-forward that never forces and is refused when origin has commits this checkout
+ * doesn't (pushAheadBlocker).
  */
 import { runGh } from '../util/gh.ts';
 import { revParse, runGit, runGitAsync } from '../util/git.ts';
@@ -182,6 +187,71 @@ export async function pushBranch(repoPath: string, branch: string): Promise<stri
   const pushed = await runGitAsync(
     repoPath,
     ['push', '-u', 'origin', `refs/heads/${branch}:refs/heads/${branch}`],
+    { timeout: PUSH_MS },
+  );
+  const output = `${pushed.stdout}${pushed.stderr}`.trim();
+  if (pushed.code !== 0) {
+    throw new Error(output || 'git push failed');
+  }
+  return output;
+}
+
+/**
+ * How many commits the local branch has that origin's copy lacks, from `git ls-remote` and `git rev-list --count`
+ * without fetching: 0 when they match, null when it can't be said (origin unreachable, no such branch there or here, or
+ * origin's copy has commits this checkout doesn't, which a push would be refused over).
+ */
+export async function aheadOf(repoPath: string, branch: string): Promise<number | null> {
+  const headSha = headOf(repoPath, branch);
+  if (!headSha) {
+    return null;
+  }
+  const listed = await runGitAsync(
+    repoPath,
+    ['ls-remote', '--heads', 'origin', `refs/heads/${branch}`],
+    { timeout: LS_REMOTE_MS },
+  );
+  const remoteSha = listed.code === 0 ? listed.stdout.trim().split(/\s+/)[0] : '';
+  if (!remoteSha) {
+    return null;
+  }
+  if (remoteSha === headSha) {
+    return 0;
+  }
+  const ancestor = await runGitAsync(repoPath, ['merge-base', '--is-ancestor', remoteSha, headSha]);
+  if (ancestor.code !== 0) {
+    return null;
+  }
+  const counted = await runGitAsync(repoPath, ['rev-list', '--count', `${remoteSha}..${headSha}`]);
+  const count = Number(counted.stdout.trim());
+  return counted.code === 0 && Number.isInteger(count) ? count : null;
+}
+
+/** Why a push of an open PR's branch can't go ahead, or null when it can. expectedSha is the commit the box showed. */
+export function pushAheadBlocker(view: PrView, expectedSha: unknown): string | null {
+  if (!view.pull) {
+    return `${view.branch || 'This branch'} has no open PR here: use Create pull request.`;
+  }
+  const blocker = pushBlocker(view, expectedSha);
+  if (blocker) {
+    return view.remote.state === 'diverged'
+      ? `GitHub's ${view.branch} has commits this checkout doesn't, so a push would be refused. Pull first.`
+      : blocker;
+  }
+  if (view.remote.state === 'missing') {
+    return `origin has no ${view.branch}: use Create pull request.`;
+  }
+  if (view.remote.state === 'same') {
+    return `${view.branch} is on GitHub and up to date: nothing to push.`;
+  }
+  return null;
+}
+
+/** git push origin <branch>: a fast-forward of the branch, never forced. Resolves to git's own lines; rejects with them when it fails. */
+export async function pushAhead(repoPath: string, branch: string): Promise<string> {
+  const pushed = await runGitAsync(
+    repoPath,
+    ['push', 'origin', `refs/heads/${branch}:refs/heads/${branch}`],
     { timeout: PUSH_MS },
   );
   const output = `${pushed.stdout}${pushed.stderr}`.trim();

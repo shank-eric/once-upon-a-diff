@@ -6,7 +6,7 @@ import { execFileSync } from 'node:child_process';
 import { tmp, startBridge, runCli, localRepo, writeJson, TOKEN } from './helpers.ts';
 import { boardKey, inboxKey, pageKey, viewKey, viewKeyMay } from '../src/server/page-key.ts';
 import { createLocalStory } from '../src/stories/local-story.ts';
-import { namedBase } from '../src/stories/pull-request.ts';
+import { aheadOf, namedBase } from '../src/stories/pull-request.ts';
 import type { PrPushAnswer, PrView, StoryData } from '@once-upon-a-diff/shared/types';
 
 const GITHUB_URL = 'https://github.com/acme/widgets.git';
@@ -383,5 +383,193 @@ describe('Create pull request on a local story', () => {
     assert.equal(namedBase(repo, 'main'), 'main');
     assert.equal(namedBase(repo, base), null);
     assert.equal(namedBase(repo, 'origin/develop'), null);
+  });
+  describe('Push for a branch with an open PR', () => {
+    const OPEN_PR = [{ number: 12, url: 'https://github.com/acme/widgets/pull/12' }];
+    const commitFix = (repo: string, name: string) => {
+      writeFileSync(path.join(repo, name), `${name}\n`);
+      git(repo, 'add', '.');
+      git(repo, 'commit', '-q', '-m', name);
+    };
+    /** The story's branch pushed once (so the PR has something), then the bridge. */
+    async function pushedStory(home: string) {
+      const made = storyWithOrigin(home);
+      const bridge = await startBridge({ home });
+      const view = (await bridge.call<PrView>('GET', `/api/stories/${made.id}/pr`)).body;
+      const first = await bridge.call('POST', `/api/stories/${made.id}/pr`, {
+        action: 'push',
+        head_sha: view.head_sha,
+      });
+      assert.equal(first.status, 200, first.text);
+      return { ...made, bridge };
+    }
+
+    test('aheadOf counts what origin lacks from ls-remote and rev-list, without fetching', async () => {
+      const { repo, remote, bridge } = await pushedStory(tmp('home'));
+      try {
+        assert.equal(await aheadOf(repo, 'feature'), 0);
+        commitFix(repo, 'fix-1.txt');
+        commitFix(repo, 'fix-2.txt');
+        assert.equal(await aheadOf(repo, 'feature'), 2);
+        const tracking = git(repo, 'rev-parse', 'refs/remotes/origin/feature');
+        assert.equal(await aheadOf(repo, 'no-such-branch'), null, 'not here');
+        // someone else pushes to feature: this checkout has neither their commit nor a fast-forward
+        const other = tmp('other');
+        execFileSync('git', ['clone', '-q', remote, other]);
+        git(other, 'checkout', '-q', 'feature');
+        writeFileSync(path.join(other, 'theirs.txt'), 'theirs\n');
+        git(other, 'add', '.');
+        git(
+          other,
+          '-c',
+          'user.email=t@example.com',
+          '-c',
+          'user.name=T',
+          'commit',
+          '-q',
+          '-m',
+          'theirs',
+        );
+        git(other, 'push', '-q', 'origin', 'feature');
+        assert.equal(await aheadOf(repo, 'feature'), null, 'diverged: no count');
+        assert.equal(
+          git(repo, 'rev-parse', 'refs/remotes/origin/feature'),
+          tracking,
+          'nothing fetched',
+        );
+      } finally {
+        await bridge.close();
+      }
+    });
+
+    test('Push fast-forwards the commits made after review, and then there is nothing to push', async () => {
+      const home = tmp('home');
+      writeFileSync(fakeGhBin.prsFile, JSON.stringify(OPEN_PR));
+      const { repo, remote, id, bridge } = await pushedStory(home);
+      try {
+        commitFix(repo, 'fix-1.txt');
+        commitFix(repo, 'fix-2.txt');
+        const view = (await bridge.call<PrView>('GET', `/api/stories/${id}/pr`)).body;
+        assert.equal(view.remote.state, 'ahead');
+        assert.deepEqual(view.pull, { number: 12, url: OPEN_PR[0].url });
+        assert.deepEqual(
+          view.to_push.map((commit) => commit.subject),
+          ['fix-2.txt', 'fix-1.txt'],
+        );
+        const pushed = await bridge.call<PrPushAnswer>('POST', `/api/stories/${id}/pr`, {
+          action: 'push-ahead',
+          head_sha: view.head_sha,
+        });
+        assert.equal(pushed.status, 200, pushed.text);
+        assert.equal(git(remote, 'rev-parse', 'refs/heads/feature'), view.head_sha);
+        assert.equal(pushed.body.view.remote.state, 'same');
+        assert.deepEqual(pushed.body.view.to_push, []);
+        assert.equal(await aheadOf(repo, 'feature'), 0);
+        const again = await bridge.call('POST', `/api/stories/${id}/pr`, {
+          action: 'push-ahead',
+          head_sha: view.head_sha,
+        });
+        assert.equal(again.status, 409);
+        assert.match(again.text, /nothing to push/);
+      } finally {
+        writeFileSync(fakeGhBin.prsFile, '[]');
+        await bridge.close();
+      }
+    });
+
+    test('it is refused with no open PR, a branch that moved, or commits on GitHub this checkout lacks, and nothing is forced', async () => {
+      const home = tmp('home');
+      const { repo, remote, id, bridge } = await pushedStory(home);
+      const post = (head: unknown) =>
+        bridge.call('POST', `/api/stories/${id}/pr`, { action: 'push-ahead', head_sha: head });
+      try {
+        commitFix(repo, 'fix-1.txt');
+        const head = git(repo, 'rev-parse', 'feature');
+        const pushedTip = git(remote, 'rev-parse', 'refs/heads/feature');
+        assert.notEqual(head, pushedTip);
+        const noPr = await post(head);
+        assert.equal(noPr.status, 409);
+        assert.match(noPr.text, /no open PR/);
+
+        writeFileSync(fakeGhBin.prsFile, JSON.stringify(OPEN_PR));
+        const moved = await post('a'.repeat(40));
+        assert.equal(moved.status, 409);
+        assert.match(moved.text, /moved since the box opened/);
+
+        const other = tmp('other');
+        execFileSync('git', ['clone', '-q', remote, other]);
+        git(other, 'checkout', '-q', 'feature');
+        writeFileSync(path.join(other, 'theirs.txt'), 'theirs\n');
+        git(other, 'add', '.');
+        git(
+          other,
+          '-c',
+          'user.email=t@example.com',
+          '-c',
+          'user.name=T',
+          'commit',
+          '-q',
+          '-m',
+          'theirs',
+        );
+        git(other, 'push', '-q', 'origin', 'feature');
+        const theirs = git(remote, 'rev-parse', 'refs/heads/feature');
+        const diverged = await post(head);
+        assert.equal(diverged.status, 409);
+        assert.match(diverged.text, /Pull first/);
+        assert.equal(
+          git(remote, 'rev-parse', 'refs/heads/feature'),
+          theirs,
+          'their commit is still the tip',
+        );
+        assert.equal(git(repo, 'rev-parse', 'feature'), head);
+        assert.equal(
+          (await bridge.call('POST', `/api/stories/${id}/pr`, { action: 'nope' })).status,
+          400,
+        );
+      } finally {
+        writeFileSync(fakeGhBin.prsFile, '[]');
+        await bridge.close();
+      }
+    });
+
+    test('only the full page key reaches it: not the read-only key, the inbox or board keys, or another story', async () => {
+      const home = tmp('home');
+      writeFileSync(fakeGhBin.prsFile, JSON.stringify(OPEN_PR));
+      const { repo, remote, id, bridge } = await pushedStory(home);
+      try {
+        commitFix(repo, 'fix-1.txt');
+        const head = git(repo, 'rev-parse', 'feature');
+        const tip = git(remote, 'rev-parse', 'refs/heads/feature');
+        assert.equal(viewKeyMay('pr', 'POST'), false);
+        for (const key of [
+          viewKey(TOKEN, id),
+          inboxKey(TOKEN),
+          boardKey(TOKEN),
+          pageKey(TOKEN, 'other'),
+          'page.nonsense',
+        ]) {
+          const refused = await bridge.call(
+            'POST',
+            `/api/stories/${id}/pr`,
+            { action: 'push-ahead', head_sha: head },
+            { Authorization: `Bearer ${key}` },
+          );
+          assert.equal(refused.status, 403, refused.text);
+        }
+        assert.equal(git(remote, 'rev-parse', 'refs/heads/feature'), tip, 'nothing was pushed');
+        const full = await bridge.call(
+          'POST',
+          `/api/stories/${id}/pr`,
+          { action: 'push-ahead', head_sha: head },
+          { Authorization: `Bearer ${pageKey(TOKEN, id)}` },
+        );
+        assert.equal(full.status, 200, full.text);
+        assert.equal(git(remote, 'rev-parse', 'refs/heads/feature'), head);
+      } finally {
+        writeFileSync(fakeGhBin.prsFile, '[]');
+        await bridge.close();
+      }
+    });
   });
 });

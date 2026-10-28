@@ -752,6 +752,11 @@ export interface BoardCard {
     /** a local story approved and ready to ship: Push when its commits go straight to the default branch, else Create pull request (null otherwise) */
     ship: ShipMode | null;
   } | null;
+  /**
+   * a work card with an open PR whose local checkout has commits origin's branch lacks (a fix made after review), and
+   * the local story whose page has the Push box; absent when no local story of the branch is known
+   */
+  ahead?: { count: number; story: string } | null;
   /** a session is building, rebuilding or fixing for it (a claimed request) */
   building: { kind: StoryRequest['kind']; since: string | null; by: string | null } | null;
   sessions: BoardSession[];

@@ -19,6 +19,7 @@ import { openFold, openRun, forgetNarrowing } from '/assets/local/folds.ts';
 import { mount, remount, showReopen } from '/assets/local/mount.ts';
 import { lookForPull, openPrBox } from '/assets/local/pull-request.ts';
 import { openPushBox } from '/assets/local/push.ts';
+import { openPushAheadBox } from '/assets/local/push-ahead.ts';
 import { toggleApprove } from '/assets/local/approve.ts';
 import type { LocalStoryData } from '/assets/local/page.ts';
 import type { InitialUi } from '/assets/overlay.ts';
@@ -111,6 +112,9 @@ document.addEventListener('click', async (event) => {
   }
   if (target.closest('.ou-local-push')) {
     return openPushBox();
+  }
+  if (target.closest('.ou-local-push-ahead')) {
+    return openPushAheadBox();
   }
   if (target.closest('.ou-local-approve')) {
     return toggleApprove(true);
@@ -290,8 +294,9 @@ async function start() {
     }
   }, STILL_OPEN_MS);
   lookForPull(true); // Create pull request turns into Open PR #N once the branch has one
-  if (OPEN_PUSH && page.story.local.ship === 'push') {
-    openPushBox(); // the board's Push: its link asks for the box
+  if (OPEN_PUSH) {
+    // the board's Push: its link asks for the box (Push to the default branch, or Push for the open PR's branch)
+    (page.story.local.ship === 'push' ? openPushBox : openPushAheadBox)();
   }
   window.addEventListener('focus', () => lookForPull());
 }

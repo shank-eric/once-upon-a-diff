@@ -512,6 +512,9 @@ function cardHtml(card: BoardCard, now: number) {
   if (card.story?.approved_at && card.column === 'ship') {
     chips.push({ text: 'Approved, ready to ship', tone: 'ok' });
   }
+  if (card.ahead) {
+    chips.push({ text: `${card.ahead.count} ahead`, tone: 'warn' });
+  }
   const gates = card.agents.filter((agent) => agent.gate).map(gateText);
   // Open story: on a card ready for review, or an approved local story in Ready to ship (a local story is never in Back to you)
   const approved = !!card.story?.approved_at && card.column === 'ship';
@@ -558,6 +561,7 @@ function cardHtml(card: BoardCard, now: number) {
       ${card.build && buildHtml(card)}
       ${card.focus_session && html`<button type="button" class="ou-board-focus" data-focus="${card.focus_session}"${!card.can_focus && html` disabled`} title="${focusTitle}">Open in iTerm</button>`}
       ${card.column === 'ship' && card.story?.ship === 'push' && html`<button type="button" class="ou-board-push" data-push-local="${card.story.id}" title="Opens the story's Push box, which checks GitHub first">Push</button>`}
+      ${card.ahead && html`<button type="button" class="ou-board-push" data-push-local="${card.ahead.story}" title="Opens the story's Push box: the branch is ${card.ahead.count} ahead of GitHub, where this PR is open">Push</button>`}
       ${openable && card.story?.url && html`<a class="ou-board-open" href="${card.story.url}" target="_blank" rel="noopener">Open story</a>`}
       ${openable && card.story && !card.story.url && html`<button type="button" class="ou-board-open" data-open-local="${card.story.id}" title="Opens the local story's page">Open story</button>`}
       ${markable && card.story && html`<button type="button" data-mark-local="${card.story.id}" title="Done with this story: it leaves Ready for your review">Mark reviewed</button>`}
