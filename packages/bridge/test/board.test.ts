@@ -4234,6 +4234,9 @@ test('a session card is titled by its tab, else the title in its transcript, els
   assert.equal(title(tabbed.pid), 'Tab title');
   assert.equal(title(untabbed.pid), 'Transcript title');
   assert.equal(title(untitled.pid), 'untitled');
+  // when it went quiet comes from the registry, which the tab's status can't move: Done or Idle on the page
+  const resting = cards.find((found) => found.id === fullId(untitled.pid))?.sessions[0];
+  assert.equal(resting?.rested_at, new Date(NOW.getTime() - 600000).toISOString());
 });
 
 test('a started item on the voice session’s or a listening session’s branch says so, and stays past the day', () => {

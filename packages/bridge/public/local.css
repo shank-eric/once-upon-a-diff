@@ -308,6 +308,8 @@ button.ou-local-pr { white-space: nowrap; }
 .ou-board-c-back, .ou-board-c-error { --ou-board-color: var(--ou-board-back); }
 .ou-board-c-done { --ou-board-color: var(--ou-board-done); }
 .ou-board-c-idle { --ou-board-color: var(--ou-board-idle); }
+.ou-board-c-done-idle { --ou-board-color: var(--fgColor-success); }
+.ou-board-head-note { font-weight: 400; font-size: 12px; }
 /* The Idle lane: a full-width row along the bottom, its cards side by side */
 .ou-board-idle { margin-top: 16px; padding-top: 4px; border-top: 3px solid var(--ou-board-color, var(--borderColor-default)); }
 .ou-board-idle .ou-board-head { border-top: 0; padding-top: 0; display: flex; gap: 8px; align-items: center; }

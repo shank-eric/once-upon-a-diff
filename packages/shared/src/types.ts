@@ -675,6 +675,11 @@ export interface BoardSession {
   focus: boolean;
   /** how full its context window is (%), when its status line says (board/statusline.ts) */
   context?: number | null;
+  /**
+   * when it last went quiet (its turn ended), from Claude Code's registry; null while it is busy. The tab's own
+   * status can change on a glance, so the board splits Done (context still cached) from Idle by this.
+   */
+  rested_at?: string | null;
 }
 
 /**

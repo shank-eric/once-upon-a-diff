@@ -709,6 +709,10 @@ export class Board {
           source: extra ? (picked.source.name as 'iterm' | 'registry') : 'registry',
           focus: picked.source.name === 'iterm' && !!extra,
           context: statusLines.context.get(session.session) ?? null,
+          rested_at:
+            session.status !== 'busy' && session.statusAt
+              ? new Date(session.statusAt).toISOString()
+              : null,
         },
       };
       if (quiet.has(session.session) && !(voiceFiles && session.session === voiceFiles.session)) {

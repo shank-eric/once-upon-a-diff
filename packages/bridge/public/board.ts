@@ -249,6 +249,20 @@ function prChips(pr: PrInfo) {
   return chips;
 }
 
+/**
+ * How long a session keeps its context cached after its turn ends: the prompt cache's lifetime, an hour on these
+ * sessions. Past it, picking the session up re-reads its whole context.
+ */
+const WARM_MS = 60 * 60 * 1000;
+
+/** Whether a resting card's newest session went quiet within WARM_MS (by Claude Code's registry, not the tab's status). */
+function isWarm(card: BoardCard, now: number): boolean {
+  const rested = card.sessions
+    .map((session) => (session.rested_at ? Date.parse(session.rested_at) : NaN))
+    .filter((time) => !Number.isNaN(time));
+  return rested.length > 0 && now - Math.max(...rested) < WARM_MS;
+}
+
 /** "ctx 45%", yellow from 70% and red from 90% like the status line, or '' when the status line hasn't said. */
 function contextHtml(context: number | null | undefined) {
   if (typeof context !== 'number') {
@@ -609,6 +623,9 @@ function render(full: BoardData) {
         first.lane.localeCompare(second.lane) ||
         String(first.card.since).localeCompare(String(second.card.since)),
     );
+  // Done: finished lately, its context still cached, so picking it up is cheap; Idle: it would re-read everything
+  const done = idle.filter((item) => isWarm(item.card, now));
+  const cold = idle.filter((item) => !isWarm(item.card, now));
   const count = (id: BoardColumn) => cards.filter((card) => card.column === id).length;
   const blankCount = data.blank.reduce((sum, group) => sum + group.sessions.length, 0);
   // a column lists its cards by lane, the lane's label right above its cards (so the two are never far apart)
@@ -653,7 +670,8 @@ function render(full: BoardData) {
     blankCount > 0
       ? ''
       : html`<p class="ou-local-muted">No Claude Code sessions are running, and no PRs are waiting.</p>`;
-  const idleRow = html`<ul class="ou-board-idle-row">${idle.map((item) => html`<li class="ou-board-idle-cell"><h3 class="ou-board-lane-label">${item.lane}</h3><ul class="ou-board-cards">${cardHtml(item.card, now)}</ul></li>`)}</ul>`;
+  const idleRow = (items: typeof idle) =>
+    html`<ul class="ou-board-idle-row">${items.map((item) => html`<li class="ou-board-idle-cell"><h3 class="ou-board-lane-label">${item.lane}</h3><ul class="ou-board-cards">${cardHtml(item.card, now)}</ul></li>`)}</ul>`;
   const toggle =
     idle.length > 0
       ? html`<button type="button" data-idle-toggle aria-expanded="${String(idleOpen)}">${idleOpen ? 'Hide' : 'Show'}</button>`
@@ -675,10 +693,17 @@ function render(full: BoardData) {
       )}</div>
       ${!cards.length && nothing}
       ${
-        (idle.length > 0 || blankCount > 0) &&
+        done.length > 0 &&
+        html`<section class="ou-board-idle ou-board-c-done-idle" aria-label="Done">
+        <h2 class="ou-board-head">Done <span class="ou-local-muted">${done.length}</span> <span class="ou-local-muted ou-board-head-note">context still cached</span></h2>
+        ${idleRow(done)}
+      </section>`
+      }
+      ${
+        (cold.length > 0 || blankCount > 0) &&
         html`<section class="ou-board-idle ou-board-c-idle" aria-label="Idle">
-        <h2 class="ou-board-head">Idle <span class="ou-local-muted">${idle.length + blankCount}</span> ${toggle}</h2>
-        ${idleOpen && idle.length > 0 && idleRow}
+        <h2 class="ou-board-head">Idle <span class="ou-local-muted">${cold.length + blankCount}</span> ${cold.length > 0 && toggle}</h2>
+        ${idleOpen && cold.length > 0 && idleRow(cold)}
         ${blankCount > 0 && blankHtml(data.blank)}
       </section>`
       }
