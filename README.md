@@ -413,7 +413,7 @@ The bridge also checks each request:
 | `GET /api/health` | `{ok, version}` |
 | `GET`/`POST /api/prefs` | page settings kept for every story: `{hideWhitespace, diffView}` (`unified` or `split`) |
 | `GET /api/stories` | every story it can serve |
-| `POST /api/stories/status-many` | `{prs: [{repo, number}]}`: each PR's story or build request (and settles a request whose story turned up), what's been read, newer commits, and who's listening per repo |
+| `POST /api/stories/status-many` | `{prs: [{repo, number}]}`: each PR's story or build request (and settles a request whose story turned up), what's been read, `unread_answers`, newer commits, and who's listening per repo |
 | `GET /api/status?story=ID` | the status light: the bridge, the story, and whether a Claude session is listening |
 | `GET /api/stories/:id` | the panel's data, plus the diff, viewed files and notes for a local story |
 | `GET /api/stories/:id/version` | changes when the story or (for local) the commits change |
@@ -422,8 +422,8 @@ The bridge also checks each request:
 | `GET`/`POST /api/stories/:id/ui` | the panel's step, width, collapsed and hidden state (the local page uses this, and the extension keeps its own in `chrome.storage`) |
 | `POST /api/stories/:id/position` | `{step, chapter, file}`, written to `state/<id>/position.json` |
 | `GET`/`POST /api/stories/:id/read` | the chapters you've read, each with the commit it was read at, and where an update would start (`since`); or record one: `{chapter, step, reason, seconds, head_sha}` |
-| `GET`/`POST /api/stories/:id/questions` | ask a question, or list them with their answers (`once-upon answer` adds one), each marked `dismissed`, `collapsed` and `handed_to`, and each answer with `by` |
-| `POST /api/stories/:id/questions/marks` | `{action, ids}`: `dismiss`, `restore`, `collapse` or `expand` those questions, or `{action: 'clear'}` to dismiss every one (the answer says which, as `cleared`) |
+| `GET`/`POST /api/stories/:id/questions` | ask a question, or list them with their answers (`once-upon answer` adds one), each marked `dismissed`, `collapsed`, `handed_to` and `unread` (an answer you haven't read), a question with no answer also with a `status` (`queued`, `working` with the session's latest note, or `stalled`), and each answer with `by` |
+| `POST /api/stories/:id/questions/marks` | `{action, ids}`: `dismiss`, `restore`, `collapse`, `expand`, `read` or `unread` those questions, `{action: 'read_all'}` to mark every unread answer read, or `{action: 'clear'}` to dismiss every one (the answer says which, as `cleared`) |
 | `POST /api/builds` | ask for a story: `{repo, number, url, requested_at}` (`once-upon builds` lists them) |
 | `POST /api/stories/:id/viewed` | local stories: `{path, viewed}` |
 | `POST /api/stories/:id/notes[/:note]` | fix-before-push notes: add `{path, side, line, body}` (or `{chapter, index}`, a drafted comment), or update `{done}`, `{body}` or `{delete: true}`; a sent note only takes `{done}` |
@@ -461,7 +461,7 @@ Questions and notes from the panel each end up as one JSON line in `~/.once-upon
 once-upon wait --story <id> --type question,build_request
 ```
 
-It blocks until a new question on that story arrives, then prints the question and exits. A story's own wait comes before the repo's listener (see [One story, one session](#one-story-one-session)). A consumer's first wait starts from now, not from old questions. The exit wakes the session. Claude answers in chat and runs `once-upon answer --question <id> --file answer.md`, so the answer also shows in the panel under the question. Then it starts the wait again. The once-upon skill's SKILL.md describes this loop.
+It blocks until a new question on that story arrives, then prints the question and exits. A story's own wait comes before the repo's listener (see [One story, one session](#one-story-one-session)). A consumer's first wait starts from now, not from old questions. The exit wakes the session. Claude answers in chat and runs `once-upon answer --question <id> --file answer.md`, so the answer also shows in the panel under the question, flagged New until you have had it in view (the dock header, the board card and the PR list's tag say how many are unread). While it works, `once-upon asking --question <id> --note "reading auth.ts"` shows what it is doing under the question, with who has it and for how long, until the answer clears it. Then it starts the wait again. The once-upon skill's SKILL.md describes this loop.
 
 **Proposed next steps.** Nothing in Claude Code's settings, hooks or MCP config has been changed. These are for you to decide:
 

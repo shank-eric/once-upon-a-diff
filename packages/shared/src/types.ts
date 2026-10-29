@@ -367,6 +367,7 @@ export interface ReadEvent {
 // ---------- the bridge's answers
 
 export interface Answer {
+  id?: string;
   at: string;
   text: string;
   by?: string | null;
@@ -381,7 +382,33 @@ export interface Question {
   dismissed?: boolean;
   collapsed?: boolean;
   handed_to?: string | null;
+  /** it has an answer you haven't read (the bridge keeps what you read, so this holds across reloads and pages) */
+  unread?: boolean;
+  /** Mark unread held it: looking at the answer doesn't read it again until Mark read or Mark all read */
+  held?: boolean;
+  /** when you last read its answer */
+  read_at?: string | null;
+  /** where a question with no answer stands: queued, a session working on it, or one that went quiet */
+  status?: QuestionStatus | null;
   answers: Answer[];
+}
+
+/** What a session has said about the question it is answering. */
+export interface QuestionStatus {
+  state: 'queued' | 'working' | 'stalled';
+  /** the session working on it */
+  by: string | null;
+  /** when it took the question */
+  since: string | null;
+  /** what it said it is doing (once-upon asking) */
+  note: string | null;
+  note_at: string | null;
+}
+
+/** What a read adds to its mark: the newest answer the panel drew for each question, and whether the panel did it by itself. */
+export interface QuestionMarkExtra {
+  seen?: Record<string, string>;
+  auto?: boolean;
 }
 
 /** A question as the Ask box sends it. */
@@ -392,7 +419,8 @@ export interface QuestionAsk {
   file: string | null;
 }
 
-export type QuestionMark = 'dismiss' | 'restore' | 'collapse' | 'expand' | 'clear';
+export type QuestionMark =
+  'dismiss' | 'restore' | 'collapse' | 'expand' | 'clear' | 'read' | 'unread' | 'read_all';
 
 export interface QuestionMarksAnswer {
   questions: Question[];
@@ -561,6 +589,8 @@ export interface RebuildAsk {
 export interface Pulse {
   version: string;
   questions_rev: string;
+  /** questions whose answer you haven't read */
+  unread_answers?: number;
   drafts_rev: string;
   fixes_rev: string;
   working_rev: string;
@@ -757,6 +787,8 @@ export interface BoardCard {
     url: string | null;
     reviewed: boolean;
     unread: boolean;
+    /** questions you asked in the story whose answers you haven't read */
+    unread_answers: number;
     /** a local story approved for its current head: ready to ship (null: not approved) */
     approved_at: string | null;
     /** a local story approved and ready to ship: Push when its commits go straight to the default branch, else Create pull request (null otherwise) */

@@ -26,6 +26,8 @@ interface Beat {
   state: 'waiting' | 'handling';
   at: string;
   question?: string | null;
+  /** every question a handover carried, when it carried more than one */
+  questions?: string[];
   repo?: string | null;
   story?: string | null;
   builds?: boolean;
@@ -42,6 +44,7 @@ export interface Listener {
   age_s: number;
   live: boolean;
   question: string | null;
+  questions: string[];
   repo: string | null;
   story: string | null;
   builds: boolean;
@@ -115,6 +118,7 @@ export function listeners(home: string, now = Date.now()): Listener[] {
         age_s: Math.round(age / 1000),
         live,
         question: beat.question || null,
+        questions: Array.isArray(beat.questions) ? beat.questions : [],
         repo: beat.repo || null,
         story: beat.story || null,
         builds: !!beat.builds,

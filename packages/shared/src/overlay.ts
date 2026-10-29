@@ -36,8 +36,9 @@
  *   onClose()      called after the x button removes the panel
  *   ask(q)         send a question {text, step, chapter, file}; returns a Promise
  *   loadQuestions() returns a Promise of [{id, at, step, text, file, dismissed, collapsed, handed_to, answers: [{at, text, by}]}]
- *   markQuestions(action, ids) saves what the reviewer did with questions: dismiss, restore, collapse, expand, or clear
- *                  (dismiss every one in the story); returns a Promise of {questions, cleared}
+ *   markQuestions(action, ids, extra) saves what the reviewer did with questions: dismiss, restore, collapse, expand,
+ *                  read, unread, read_all, or clear (dismiss every one in the story); returns a Promise of
+ *                  {questions, cleared}. A read's extra is {seen: {<question id>: newest answer `at` drawn}, auto}
  *   status()       returns a Promise of the bridge's /api/status ({bridge, story, listening});
  *                  it rejects with err.code 'down', 'token' or 'old' when the bridge can't say. Drives the status light.
  *   drafts         {load(), act(chapter, index, action)}: each returns a Promise of {drafts: [{chapter, index, status:

@@ -4,10 +4,19 @@ import path from 'node:path';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmp, githubStory, startBridge, runCli } from './helpers.ts';
 import { Inbox } from '../src/inbox/inbox.ts';
-import { markQuestions, readHanded } from '../src/inbox/conversation.ts';
+import {
+  markQuestions,
+  noteHanded,
+  readAsking,
+  readHanded,
+  statusOf,
+  unreadAnswers,
+  withMarks,
+} from '../src/inbox/conversation.ts';
 import { beat, listenPrompt, listeningOf } from '../src/listeners/listeners.ts';
 import { storyIdOf } from '../src/cli/commands/inbox.ts';
 import { askWhoHtml, type Health } from '@once-upon-a-diff/shared/panel/status-light';
+import type { StatusMany } from './helpers.ts';
 import type { Pulse, Question, QuestionMarksAnswer } from '@once-upon-a-diff/shared/types';
 
 const STORY = 'acme-widgets-7';
@@ -260,5 +269,301 @@ describe('one story, one session', () => {
       /Copy prompt for this story/,
     );
     assert.equal(String(askWhoHtml({ level: 'error' } as Health)), '');
+  });
+});
+
+describe('unread answers', () => {
+  const ago = (millis: number) => new Date(Date.now() - millis).toISOString();
+  const DAY = 24 * 3600 * 1000;
+  const setup = (home: string) => {
+    githubStory(path.join(home, STORY));
+    const inbox = new Inbox(home);
+    const ask = (id: string) =>
+      inbox.append({ type: 'question', id, story: STORY, repo: 'acme/widgets', step: 1, text: id });
+    const answer = (question: string, when: string) =>
+      inbox.append({ type: 'answer', question, story: STORY, text: 'Because.', at: when });
+    return { inbox, ask, answer };
+  };
+
+  test('an answer is unread until it is read, and a newer one is unread again', async () => {
+    const home = tmp('home');
+    const { ask, answer } = setup(home);
+    const bridge = await startBridge({ home });
+    const listOf = async () =>
+      (await bridge.call<{ questions: Question[] }>('GET', PATH)).body.questions;
+    const pulse = async () => (await bridge.call<Pulse>('GET', `/api/stories/${STORY}/pulse`)).body;
+    try {
+      ask('q_one');
+      ask('q_two');
+      assert.deepEqual(
+        (await listOf()).map((question) => question.unread),
+        [false, false],
+        'no answer, nothing to read',
+      );
+      assert.equal((await pulse()).unread_answers, 0);
+      const before = (await pulse()).questions_rev;
+      answer('q_one', ago(60000));
+      assert.equal((await listOf())[0].unread, true);
+      assert.equal((await pulse()).unread_answers, 1);
+      assert.notEqual((await pulse()).questions_rev, before, 'the panel refreshes on the pulse');
+
+      const read = await bridge.call<QuestionMarksAnswer>('POST', `${PATH}/marks`, {
+        action: 'read',
+        ids: ['q_one'],
+      });
+      assert.equal(read.body.questions[0].unread, false);
+      assert.ok(read.body.questions[0].read_at);
+      assert.equal((await pulse()).unread_answers, 0);
+
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      answer('q_one', new Date().toISOString());
+      assert.equal((await listOf())[0].unread, true, 'a newer answer to a read question');
+
+      await bridge.call('POST', `${PATH}/marks`, { action: 'dismiss', ids: ['q_one'] });
+      assert.equal((await listOf())[0].unread, false, 'a dismissed question has nothing unread');
+      await bridge.call('POST', `${PATH}/marks`, { action: 'restore', ids: ['q_one'] });
+      assert.equal((await listOf())[0].unread, true, 'a restored question is as unread as it was');
+
+      answer('q_two', ago(1000));
+      const all = await bridge.call<QuestionMarksAnswer>('POST', `${PATH}/marks`, {
+        action: 'read_all',
+      });
+      assert.ok(all.body.questions.every((question) => !question.unread));
+      await bridge.call('POST', `${PATH}/marks`, { action: 'unread', ids: ['q_two'] });
+      assert.deepEqual(
+        (await listOf()).map((question) => question.unread),
+        [false, true],
+        'Mark unread brings one back',
+      );
+    } finally {
+      await bridge.close();
+    }
+  });
+
+  test('an old answer nobody marked is not unread, unless it is marked unread', () => {
+    const home = tmp('home');
+    const { inbox, ask, answer } = setup(home);
+    ask('q_old');
+    answer('q_old', ago(10 * DAY));
+    ask('q_new');
+    answer('q_new', ago(2 * DAY));
+    assert.equal(unreadAnswers(home, inbox).get(STORY), 1, 'only the one inside the week');
+    markQuestions(home, STORY, 'unread', ['q_old']);
+    assert.equal(unreadAnswers(home, inbox).get(STORY), 2);
+    markQuestions(home, STORY, 'read', ['q_old', 'q_new']);
+    assert.equal(unreadAnswers(home, inbox).size, 0);
+  });
+
+  test('a question with no answer is queued, then a session is on it, then it may go quiet', () => {
+    const home = tmp('home');
+    const { inbox, ask } = setup(home);
+    ask('q_one');
+    const list = () => withMarks(home, STORY, inbox.questions(STORY))[0];
+    assert.equal(list().status?.state, 'queued');
+    assert.equal(list().status?.by, null);
+
+    noteHanded(home, ['q_one'], 'repo-acme-widgets');
+    let status = list().status!;
+    assert.equal(status.state, 'working');
+    assert.equal(status.by, 'repo-acme-widgets');
+    assert.equal(status.note, null);
+
+    const run = (...args: string[]) => runCli(home, args);
+    return run('asking', '--question', 'q_one', '--note', 'reading auth.ts').then(
+      async (result) => {
+        assert.equal(result.code, 0, result.stderr);
+        status = list().status!;
+        assert.equal(status.note, 'reading auth.ts');
+        assert.ok(status.note_at);
+
+        // quiet for ten minutes: gone quiet, unless its listener's beat says it is handling this question. A listener
+        // back in wait is no sign of work on it
+        const later = Date.now() + 10 * 60 * 1000;
+        const handed = readHanded(home).q_one;
+        const asking = readAsking(home).q_one;
+        assert.equal(statusOf(handed, asking, false, later).state, 'stalled');
+        assert.equal(statusOf(handed, asking, true, later).state, 'working');
+        assert.equal(statusOf(handed, asking, false, Date.now() + 1000).state, 'working');
+        assert.equal(
+          statusOf(handed, undefined, false, Date.now() + 4 * 60 * 1000).state,
+          'working',
+        );
+        assert.equal(
+          statusOf(handed, undefined, false, Date.now() + 6 * 60 * 1000).state,
+          'stalled',
+        );
+        assert.equal(statusOf(undefined, undefined, true, later).state, 'queued');
+
+        const missing = await run('asking', '--question', 'q_nope', '--note', 'x');
+        assert.notEqual(missing.code, 0);
+        const bare = await run('asking', '--question', 'q_one');
+        assert.notEqual(bare.code, 0, 'a note is required');
+
+        // the answer clears the note and the status
+        const answered = await run('answer', '--question', 'q_one', '--text', 'Done.');
+        assert.equal(answered.code, 0, answered.stderr);
+        assert.equal(readAsking(home).q_one, undefined);
+        assert.equal(list().status, null);
+        const after = await run('asking', '--question', 'q_one', '--note', 'late');
+        assert.match(after.stdout, /already answered/);
+        assert.equal(readAsking(home).q_one, undefined);
+      },
+    );
+  });
+
+  test("the pulse changes when a session's note does, so the panel redraws", async () => {
+    const home = tmp('home');
+    const { ask } = setup(home);
+    ask('q_one');
+    noteHanded(home, ['q_one'], 'repo-acme-widgets');
+    const bridge = await startBridge({ home });
+    try {
+      const pulse = async () =>
+        (await bridge.call<Pulse>('GET', `/api/stories/${STORY}/pulse`)).body.questions_rev;
+      const first = await pulse();
+      await runCli(home, ['asking', '--question', 'q_one', '--note', 'writing the answer']);
+      assert.notEqual(await pulse(), first);
+    } finally {
+      await bridge.close();
+    }
+  });
+
+  test('status-many says how many answers of a PR are unread', async () => {
+    const home = tmp('home');
+    const { ask, answer } = setup(home);
+    ask('q_one');
+    answer('q_one', ago(1000));
+    const bridge = await startBridge({ home });
+    try {
+      const lookup = async () =>
+        (
+          await bridge.call<StatusMany>('POST', '/api/stories/status-many', {
+            prs: [{ repo: 'acme/widgets', number: 7 }],
+          })
+        ).body.results[0];
+      assert.equal((await lookup()).unread_answers, 1);
+      await bridge.call('POST', `${PATH}/marks`, { action: 'read', ids: ['q_one'] });
+      // status-many keeps its story list for 5s, but the count is read fresh
+      assert.equal((await lookup()).unread_answers, 0);
+    } finally {
+      await bridge.close();
+    }
+  });
+
+  test('a question handed over long ago shows as gone quiet unless its listener is handling it', () => {
+    const home = tmp('home');
+    const { inbox, ask } = setup(home);
+    ask('q_one');
+    ask('q_two');
+    const old = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    writeFileSync(
+      path.join(home, 'handed.json'),
+      JSON.stringify({
+        q_one: { consumer: 'repo-acme-widgets', at: old },
+        q_two: { consumer: 'repo-acme-widgets', at: old },
+      }),
+    );
+    const states = () =>
+      Object.fromEntries(
+        withMarks(home, STORY, inbox.questions(STORY)).map((question) => [
+          question.id,
+          question.status?.state,
+        ]),
+      );
+    // the listener went back to wait: nothing says it is on either one
+    beat(home, 'repo-acme-widgets', 'waiting', { repo: 'acme/widgets' });
+    assert.deepEqual(states(), { q_one: 'stalled', q_two: 'stalled' });
+    // a handover carries more than one question: its beat names them all
+    beat(home, 'repo-acme-widgets', 'handling', {
+      question: 'q_one',
+      questions: ['q_one', 'q_two'],
+    });
+    assert.deepEqual(states(), { q_one: 'working', q_two: 'working' });
+  });
+
+  test('a read marks the answer the panel drew, never a newer one, and Mark unread holds until a read by hand', async () => {
+    const home = tmp('home');
+    const { ask, answer } = setup(home);
+    const bridge = await startBridge({ home });
+    const listOf = async () =>
+      (await bridge.call<{ questions: Question[] }>('GET', PATH)).body.questions;
+    const marks = (body: Record<string, unknown>) =>
+      bridge.call<QuestionMarksAnswer>('POST', `${PATH}/marks`, body);
+    try {
+      ask('q_one');
+      const first = ago(60000);
+      const second = ago(30000);
+      answer('q_one', first);
+      answer('q_one', second);
+      // the panel drew only the first answer
+      let read = await marks({ action: 'read', ids: ['q_one'], seen: { q_one: first } });
+      assert.equal(read.body.questions[0].read_at, first);
+      assert.equal(read.body.questions[0].unread, true, 'the newer answer is still unread');
+      // a mark never moves back
+      read = await marks({ action: 'read', ids: ['q_one'], seen: { q_one: ago(120000) } });
+      assert.equal(read.body.questions[0].read_at, first);
+      read = await marks({ action: 'read', ids: ['q_one'], seen: { q_one: second } });
+      assert.equal(read.body.questions[0].unread, false);
+
+      // read_all: only what the panel drew
+      ask('q_two');
+      ask('q_three');
+      answer('q_two', ago(5000));
+      answer('q_three', ago(4000));
+      const some = await marks({ action: 'read_all', seen: { q_two: ago(5000) } });
+      assert.deepEqual(
+        some.body.questions.map((question) => question.unread),
+        [false, false, true],
+        'q_three was not drawn, so it stays unread',
+      );
+      const rest = await marks({ action: 'read_all' });
+      assert.ok(
+        rest.body.questions.every((question) => !question.unread),
+        'no seen: every unread one',
+      );
+
+      // Mark unread is kept in the bridge: looking at it does not read it, a read by hand does
+      const held = await marks({ action: 'unread', ids: ['q_one'] });
+      assert.equal(held.body.questions[0].unread, true);
+      assert.equal(held.body.questions[0].held, true);
+      const looked = await marks({
+        action: 'read',
+        ids: ['q_one'],
+        seen: { q_one: second },
+        auto: true,
+      });
+      assert.equal(
+        looked.body.questions[0].unread,
+        true,
+        'an automatic read leaves a held question',
+      );
+      const byHand = await marks({ action: 'read', ids: ['q_one'], seen: { q_one: second } });
+      assert.equal(byHand.body.questions[0].unread, false);
+      assert.equal(byHand.body.questions[0].held, false);
+      assert.equal((await listOf())[0].held, false);
+    } finally {
+      await bridge.close();
+    }
+  });
+
+  test('Undo after a dismissal brings the unread answer back as it was', async () => {
+    const home = tmp('home');
+    const { ask, answer } = setup(home);
+    const bridge = await startBridge({ home });
+    try {
+      ask('q_one');
+      answer('q_one', ago(1000));
+      const cleared = await bridge.call<QuestionMarksAnswer>('POST', `${PATH}/marks`, {
+        action: 'clear',
+      });
+      assert.equal(cleared.body.questions[0].unread, false);
+      const undone = await bridge.call<QuestionMarksAnswer>('POST', `${PATH}/marks`, {
+        action: 'restore',
+        ids: cleared.body.cleared,
+      });
+      assert.equal(undone.body.questions[0].unread, true);
+    } finally {
+      await bridge.close();
+    }
   });
 });

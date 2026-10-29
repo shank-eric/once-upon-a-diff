@@ -60,18 +60,22 @@ const revOf = (value: unknown) =>
 /**
  * One cheap call the panel can poll in place of version, questions, status and drafts:
  * when a field changes, it fetches that one. questions_rev covers answers, dismissals,
- * collapses and handovers. drafts_rev covers the drafts and the
+ * collapses, handovers, what's unread and what a session says it is doing. drafts_rev covers the drafts and the
  * reviewer's marks, not what gh finds on GitHub, which the panel still checks on its own. fixes_rev covers
  * fix before push, and working_rev the "being changed" marks.
  */
 async function pulse({ app, send }: Call, story: ServedStory) {
   noteSeen(app.stories, story.id); // a panel shows the story (for a story listener's natural end)
-  const questions = questionsOf(app, story).map((question) => [
+  const questionList = questionsOf(app, story);
+  const questions = questionList.map((question) => [
     question.id,
     question.answers.length,
     question.dismissed,
     question.collapsed,
     question.handed_to,
+    question.unread,
+    question.status?.state ?? null,
+    question.status?.note ?? null,
   ]);
   const listening = listeningOf(app.home, { repo: story.ref.repo, story: story.id });
   const comments = (app.stories.load(story.id) as StoryData).chapters.map(
@@ -81,6 +85,7 @@ async function pulse({ app, send }: Call, story: ServedStory) {
   return send(200, {
     version: versionOf(app, story),
     questions_rev: revOf(questions),
+    unread_answers: questionList.filter((question) => question.unread).length,
     drafts_rev: revOf([comments, marks]),
     listening: listening.ok,
     // who answers this story's questions, so the panel redraws when a story listener takes over from the repo's

@@ -4,8 +4,9 @@
  * own) over the Ask box. Its top edge drags to set its height. Open and
  * height are saved with the panel's state (chatOpen, chatHeight).
  *
- * The header says how many questions the story has, how many wait for an
- * answer, and "new answer" when one came while the dock was closed.
+ * The header says how many questions the story has, how many a session is
+ * working on or waits for one, and how many answers nobody has read. The
+ * bridge keeps what was read, so the count holds across reloads and pages.
  */
 import { plural } from '../util/text.ts';
 import type { PanelContext } from './context.ts';
@@ -16,7 +17,12 @@ const PINNED_SLACK = 24;
 
 export interface ChatCounts {
   open: number;
+  /** no answer, and no session on it yet */
   waiting: number;
+  /** a session is working on it */
+  working: number;
+  /** answers not read yet */
+  unread: number;
 }
 
 export function createChatDock(context: PanelContext) {
@@ -25,8 +31,7 @@ export function createChatDock(context: PanelContext) {
   const dock = $('.ou-chat')!;
   const head = $<HTMLButtonElement>('.ou-chathead')!;
   const scroller = $('.ou-chatbody')!;
-  let counts: ChatCounts = { open: 0, waiting: 0 };
-  let unread = false;
+  let counts: ChatCounts = { open: 0, waiting: 0, working: 0, unread: 0 };
 
   dock.hidden = !opts.ask && !opts.loadQuestions;
 
@@ -35,12 +40,13 @@ export function createChatDock(context: PanelContext) {
     $('.ou-chatarrow')!.textContent = state.chatOpen ? '▾' : '▸';
     const parts = [
       counts.open > 0 && plural(counts.open, 'question'),
+      counts.working > 0 && `${counts.working} being worked on`,
       counts.waiting > 0 && `${counts.waiting} waiting`,
-      unread && !state.chatOpen && 'new answer',
+      counts.unread > 0 && `${counts.unread} unread ${counts.unread === 1 ? 'answer' : 'answers'}`,
     ].filter(Boolean);
     const countLine = $('.ou-chatcount')!;
     countLine.textContent = parts.length ? parts.join(' · ') : '';
-    countLine.classList.toggle('ou-unread', unread && !state.chatOpen);
+    countLine.classList.toggle('ou-unread', counts.unread > 0);
   }
 
   /**
@@ -59,7 +65,6 @@ export function createChatDock(context: PanelContext) {
     state.chatOpen = open;
     dock.classList.toggle('ou-open', open);
     if (open) {
-      unread = false;
       showHeight(state.chatHeight);
       scrollToLatest();
     }
@@ -87,14 +92,6 @@ export function createChatDock(context: PanelContext) {
   function setCounts(next: ChatCounts) {
     counts = next;
     renderHead();
-  }
-
-  /** An answer came in: flag it on the header while the dock is closed. */
-  function noteAnswer() {
-    if (!state.chatOpen) {
-      unread = true;
-      renderHead();
-    }
   }
 
   head.addEventListener('click', () => {
@@ -143,7 +140,6 @@ export function createChatDock(context: PanelContext) {
   return {
     setOpen,
     setCounts,
-    noteAnswer,
     redraw,
     scrollToLatest,
     destroy: () => {

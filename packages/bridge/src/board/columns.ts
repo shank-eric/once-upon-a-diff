@@ -42,6 +42,8 @@ export interface ColumnInput {
     local?: boolean;
     /** a local story approved for its current head (Approve on its page): ready to ship, so Ready to ship while it has no PR */
     approved?: boolean;
+    /** questions you asked in the story whose answers you haven't read: Claude handed something back, so Back to you (Ready with no PR) */
+    answered?: number;
   } | null;
   /** a session is building, rebuilding or fixing for it */
   building?: boolean;
@@ -86,6 +88,10 @@ export function columnOf(input: ColumnInput): BoardColumn {
   }
   if (story?.local && story.approved && !pr) {
     return 'ship';
+  }
+  // an answer to a question you asked, unread: back to you on the GitHub side, in Ready while there is no PR
+  if (story?.answered) {
+    return pr ? 'back' : 'ready';
   }
   // Ready for your review is the Mac's side: a story whose work has no PR. Once a PR exists (even with a local story
   // of its branch, or a PR story you haven't opened), the card follows the PR's rules on the GitHub side

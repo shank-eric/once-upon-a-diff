@@ -101,11 +101,12 @@ The event gives the question id, the story id, the chapter or step, the file it 
 
 1. Find the story: `<cli> list` prints each story's id and folder. Read `<folder>/chapters.json`: the overview, and the chapter it was asked from (step N is `chapters[N-1]`, step 0 is the Overview). `meta.json` has the PR's `head_oid` and `base_oid`, or a local story's `repo_path`, `base` and `head`. When the question says "this" or "here", `~/.once-upon/state/<story id>/position.json` has the file at the top of the user's screen.
 2. Read the code it's about in this checkout: the new side with `git show <head_oid>:<path>`, the old side with `git show <base_oid>:<path>`, and callers or tests around it as needed. For a local story the working tree is the new side.
+   The panel shows the reviewer who has their question and for how long, from the moment the wait handed it over. Add what you're doing, in a few words, so they see it live: `<cli> asking --question <id> --note "reading <file>"` once you start reading, and `<cli> asking --question <id> --note "writing the answer"` just before you write. Pass `--consumer <name>` when you aren't the session the wait handed it to. It's a note, not a step to wait on: skip it for a one-line answer you already know. The panel shows the question as being worked on while your wait's handover is under 5 minutes old, your last note is, or your listener's `handling` beat names it. After that it shows as gone quiet, and nothing picks it up again, so on a long answer keep the notes coming (a note every few minutes).
 3. Answer:
    ```bash
    <cli> answer --question <id> --file <scratchpad>/answer-<id>.md
    ```
-   Use `--text "…"` for a one-liner. The panel shows the answer under the question within a few seconds, with "Answered by" and the consumer the wait handed it to.
+   Use `--text "…"` for a one-liner. The panel shows the answer under the question within a few seconds, with "Answered by" and the consumer the wait handed it to, and flags it New until the reviewer has had it in view. Answering clears your `asking` note.
    - Short and plain: lead with the answer, ≈2-6 sentences, a short list only when it helps. Name files and lines as `` `path:40` ``. Hedge where you're unsure.
    - If the answer suggests a review comment, draft it in the user's voice and add it to the chapter's Draft comments with `<cli> comment --story <id> --chapter <N> --path <file> --line <L> --body-file <f>`. Check `<cli> drafts --story <id>` first and don't re-suggest one that's posted or dismissed.
 4. In chat, say one line: the question and that it's answered.

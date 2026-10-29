@@ -83,8 +83,8 @@ export function mount(initial: InitialUi) {
       api<{ questions: Question[] }>('GET', `${STORY_PATH}/questions`).then(
         (answer) => answer.questions,
       ),
-    markQuestions: (action, ids) =>
-      api<QuestionMarksAnswer>('POST', `${STORY_PATH}/questions/marks`, { action, ids }),
+    markQuestions: (action, ids, extra) =>
+      api<QuestionMarksAnswer>('POST', `${STORY_PATH}/questions/marks`, { action, ids, ...extra }),
     fixes: {
       load: () => api<FixesView>('GET', `${STORY_PATH}/fixes`),
       act: (body) => api<FixesView>('POST', `${STORY_PATH}/fixes`, body),

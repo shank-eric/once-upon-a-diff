@@ -36,6 +36,7 @@ export interface PrLine {
   update_state?: string | null;
   update_mode?: string | null;
   reads?: { read: number; total: number; next: number | null };
+  unread_answers?: number;
 }
 /** POST /api/stories/status-many: each PR's line, and who's listening for each repo. */
 export type StatusMany = {

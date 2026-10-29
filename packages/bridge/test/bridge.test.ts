@@ -533,6 +533,7 @@ describe('pulse', () => {
         'questions_rev',
         'rebuild',
         'request',
+        'unread_answers',
         'version',
         'working_rev',
       ]);

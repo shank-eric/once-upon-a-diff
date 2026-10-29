@@ -14,6 +14,7 @@ import { setHtml } from '/assets/util/dom.ts';
 import { plural } from '/assets/util/text.ts';
 import { startedChips } from '/assets/util/started-chips.ts';
 import { cleanupConfirm, sizeText, worktreeChips } from '/assets/util/worktree-text.ts';
+import { answerBits } from '/assets/util/story-answers.ts';
 import type {
   BoardAgent,
   BoardAssign,
@@ -553,10 +554,11 @@ function cardHtml(card: BoardCard, now: number) {
   }
   const gates = card.agents.filter((agent) => agent.gate).map(gateText);
   // Open story: on a card ready for review, or an approved local story in Ready to ship (a local story is never in Back to you)
-  const approved = !!card.story?.approved_at && card.column === 'ship';
-  const openable = card.column === 'ready' || approved;
-  // Mark reviewed: a local story's card in Ready (a PR story is marked by reviewing it on GitHub)
-  const markable = card.column === 'ready' && card.story?.kind === 'local';
+  const bits = answerBits(card);
+  const { openable, markable } = bits; // Mark reviewed: a local story's card in Ready (a PR story is marked by reviewing it on GitHub)
+  if (bits.chip) {
+    chips.push({ text: bits.chip, tone: 'warn' });
+  }
   const focusTitle = card.can_focus
     ? "Bring this session's iTerm tab to the front"
     : 'No iTerm tab is known for this session';
@@ -573,6 +575,9 @@ function cardHtml(card: BoardCard, now: number) {
   }
   if (card.story?.unread) {
     notes.push('the story has a new version since you last opened it');
+  }
+  if (bits.note) {
+    notes.push(bits.note);
   }
   if (pr && !pr.mine && pr.author) {
     notes.push(`${pr.author}'s PR${pr.review_requested ? ', your review is requested' : ''}`);
@@ -599,7 +604,7 @@ function cardHtml(card: BoardCard, now: number) {
       ${card.focus_session && html`<button type="button" class="ou-board-focus" data-focus="${card.focus_session}"${!card.can_focus && html` disabled`} title="${focusTitle}">Open in iTerm</button>`}
       ${card.column === 'ship' && card.story?.ship === 'push' && html`<button type="button" class="ou-board-push" data-push-local="${card.story.id}" title="Opens the story's Push box, which checks GitHub first">Push</button>`}
       ${card.ahead && html`<button type="button" class="ou-board-push" data-push-local="${card.ahead.story}" title="Opens the story's Push box: the branch is ${card.ahead.count} ahead of GitHub, where this PR is open">Push</button>`}
-      ${openable && card.story?.url && html`<a class="ou-board-open" href="${card.story.url}" target="_blank" rel="noopener">Open story</a>`}
+      ${openable && card.story?.url && html`<a class="ou-board-open" href="${card.story.url}${bits.hash}" target="_blank" rel="noopener">Open story</a>`}
       ${openable && card.story && !card.story.url && html`<button type="button" class="ou-board-open" data-open-local="${card.story.id}" title="Opens the local story's page">Open story</button>`}
       ${markable && card.story && html`<button type="button" data-mark-local="${card.story.id}" title="Done with this story: it leaves Ready for your review">Mark reviewed</button>`}
     </div>

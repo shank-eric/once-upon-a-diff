@@ -186,6 +186,13 @@
 #ou-panel .ou-qtools { margin: -2px 0 8px; }
 #ou-panel .ou-qundo { margin: 0 0 8px; font-size: 12px; color: var(--c-muted); }
 #ou-panel .ou-qa .ou-wait { margin-top: 4px; font-size: 12px; color: var(--c-muted); font-style: italic; }
+#ou-panel .ou-qa .ou-wait-stalled { color: var(--c-warn, var(--c-muted)); }
+#ou-panel .ou-qa .ou-wnote { margin-top: 2px; font-style: normal; }
+#ou-panel .ou-qa .ou-pulse { display: inline-block; width: 7px; height: 7px; margin-right: 6px; border-radius: 50%; background: var(--c-accent); vertical-align: 1px; animation: ou-pulse 1.4s ease-in-out infinite; }
+@keyframes ou-pulse { 0%, 100% { opacity: .25; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { #ou-panel .ou-qa .ou-pulse { animation: none; } }
+#ou-panel .ou-qa-new { border-left: 3px solid var(--c-accent); padding-left: 8px; }
+#ou-panel .ou-qa-new .ou-qmeta { color: var(--c-accent); font-weight: 600; }
 #ou-panel button.ou-linkish { border: 0; background: none; padding: 0 2px; color: var(--c-muted); font-size: 11px; text-decoration: underline dotted; }
 #ou-panel button.ou-linkish:hover { color: var(--c-accent); }
 #ou-panel .ou-ask { border-top: 1px solid var(--c-border); padding: 8px 10px; display: flex; gap: 6px; align-items: flex-end; background: var(--c-subtle); }

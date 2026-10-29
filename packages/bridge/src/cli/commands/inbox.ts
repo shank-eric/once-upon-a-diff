@@ -15,7 +15,13 @@ import { existsSync, readFileSync, statSync, watch, writeFileSync } from 'node:f
 import { REPO_RE, sameRepo, repoOfCheckout, seenCheckout } from '../../config/repos.ts';
 import { Inbox } from '../../inbox/inbox.ts';
 import { Builds } from '../../inbox/builds.ts';
-import { noteHanded, readHanded, routeQuestions } from '../../inbox/conversation.ts';
+import {
+  clearAsking,
+  noteAsking,
+  noteHanded,
+  readHanded,
+  routeQuestions,
+} from '../../inbox/conversation.ts';
 import { fixesToHand } from '../../inbox/fixes.ts';
 import { beat, listeners } from '../../listeners/listeners.ts';
 import { noteListener } from '../../listeners/history.ts';
@@ -216,6 +222,9 @@ function printHandOver(entries: Printable[], opts: CliOpts): void {
     }
     out(describe(entry));
     if (entry.type === 'question') {
+      out(
+        `Tell the panel what you're doing as you go: once-upon asking --question ${entry.id} --note "<few words>"`,
+      );
       out(`Answer with: once-upon answer --question ${entry.id} --text "…"`);
     }
     if (entry.type === 'build_request') {
@@ -366,7 +375,11 @@ async function wait(home: string, cfg: Config, opts: CliOpts) {
           questions.map((question) => question.id),
           consumer,
         );
-        beat(home, consumer, 'handling', { ...scope, question: entries[0].id });
+        beat(home, consumer, 'handling', {
+          ...scope,
+          question: entries[0].id,
+          questions: questions.map((question) => question.id),
+        });
         printHandOver(entries, opts);
         return;
       }
@@ -420,7 +433,31 @@ function answer(home: string, cfg: Config, opts: CliOpts) {
     text: String(text).trim(),
     ...(answeredBy ? { by: answeredBy } : {}),
   });
+  clearAsking(home, question.id);
   out(added.id);
+}
+
+/** A session working on a question says what it is up to, and the panel shows it under the question. */
+function asking(home: string, cfg: Config, opts: CliOpts) {
+  const note = opts.note;
+  if (!opts.question || opts.question === true || !note || note === true) {
+    throw new Error('usage: once-upon asking --question ID --note "<few words>" [--consumer NAME]');
+  }
+  const question = new Inbox(home).questions().find((entry) => entry.id === opts.question);
+  if (!question) {
+    throw new Error(`no question ${opts.question}`);
+  }
+  if (question.answers.length) {
+    return out(`${question.id} is already answered`);
+  }
+  const session = opts.consumer && opts.consumer !== true ? String(opts.consumer) : null;
+  noteAsking(
+    home,
+    question.id,
+    String(note),
+    session || readHanded(home)[question.id]?.consumer || null,
+  );
+  return out(`${question.id}: ${String(note).trim()}`);
 }
 
 export const inboxCommands: Command[] = [
@@ -444,6 +481,15 @@ export const inboxCommands: Command[] = [
       '                                                                 once no page has shown the story for story_listener_idle_minutes (10; a background tab still counts)',
     ],
     run: wait,
+  },
+  {
+    name: 'asking',
+    usage: [
+      '  once-upon asking  --question ID --note "<few words>" [--consumer NAME]',
+      '                                                                 say what you are doing on a question (reading a file, writing the answer);',
+      '                                                                 the panel shows it live under the question until it is answered',
+    ],
+    run: asking,
   },
   {
     name: 'answer',

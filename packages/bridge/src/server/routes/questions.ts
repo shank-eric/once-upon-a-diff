@@ -16,11 +16,18 @@ export const questionsOf = (app: App, story: Pick<ServedStory, 'id'>) =>
   withMarks(app.home, story.id, app.inbox.questions(story.id));
 
 /**
- * POST .../questions/marks {action, ids}: dismiss, restore, collapse or expand those questions. clear dismisses
- * every question the story has that isn't dismissed yet, and says which (`cleared`), so the panel can undo it.
+ * POST .../questions/marks {action, ids}: dismiss, restore, collapse, expand, read or unread those questions. clear
+ * dismisses every question the story has that isn't dismissed yet, and says which (`cleared`), so the panel can undo
+ * it. read_all marks every unread answer read. A read says `seen` ({<question id>: the newest answer's `at` the panel
+ * drew}), which is what gets marked, so an answer that came in between stays unread; `auto` says the panel marked it
+ * because it sat in view, which leaves a question held unread alone.
  */
 function mark({ app, body, send }: Call, story: ServedStory) {
   const action = String(body.action || '');
+  const seen =
+    body.seen && typeof body.seen === 'object' && !Array.isArray(body.seen)
+      ? (body.seen as Record<string, unknown>)
+      : null;
   let ids: string[];
   let cleared: string[] | null = null;
   if (action === 'clear') {
@@ -28,6 +35,12 @@ function mark({ app, body, send }: Call, story: ServedStory) {
       .filter((question) => !question.dismissed)
       .map((question) => question.id);
     cleared = ids;
+  } else if (action === 'read_all') {
+    // the ones the panel drew (seen), when it says; every unread one for a caller that doesn't
+    const drawn = seen ? new Set(Object.keys(seen)) : null;
+    ids = questionsOf(app, story)
+      .filter((question) => question.unread && (!drawn || drawn.has(question.id)))
+      .map((question) => question.id);
   } else if (QA_ACTIONS.includes(action)) {
     const known = new Set(app.inbox.questions(story.id).map((question) => question.id));
     ids = (Array.isArray(body.ids) ? body.ids : [])
@@ -35,9 +48,10 @@ function mark({ app, body, send }: Call, story: ServedStory) {
       .map(String)
       .filter((id) => known.has(id));
   } else {
-    throw new HttpError(400, `action is one of clear, ${QA_ACTIONS.join(', ')}`);
+    throw new HttpError(400, `action is one of clear, read_all, ${QA_ACTIONS.join(', ')}`);
   }
-  markQuestions(app.home, story.id, action === 'clear' ? 'dismiss' : action, ids);
+  const applied = ({ clear: 'dismiss', read_all: 'read' } as Record<string, string>)[action];
+  markQuestions(app.home, story.id, applied || action, ids, { seen, auto: body.auto === true });
   return send(200, { questions: questionsOf(app, story), ...(cleared ? { cleared } : {}) });
 }
 

@@ -27,6 +27,8 @@ import {
   type TestBridge,
 } from './helpers.ts';
 import { Builds } from '../src/inbox/builds.ts';
+import { Inbox } from '../src/inbox/inbox.ts';
+import { markQuestions } from '../src/inbox/conversation.ts';
 import { Board, liveSessions, noPrWatcher, type PrWatcher } from '../src/board/board.ts';
 import { columnOf, isBackToYou } from '../src/board/columns.ts';
 import { BacklogStore, assignBranch, assignLine, backlogCards } from '../src/board/backlog.ts';
@@ -472,6 +474,17 @@ test('columns follow the work to merge: waiting and working first, then merged, 
   assert.equal(columnOf({ ...none, story: local }), 'ready');
   assert.equal(columnOf({ ...none, story: { ...local, reviewed: true } }), 'idle');
   assert.equal(columnOf({ ...none, pr: open, story: { ...unseen, unread: true } }), 'back');
+  // an unread answer to your question: Ready while there is no PR, Back to you once there is one, local story or not
+  const answered = { ...unseen, reviewed: true, answered: 1 };
+  assert.equal(columnOf({ ...none, story: { ...answered, local: true } }), 'ready');
+  assert.equal(columnOf({ ...none, pr: open, story: answered }), 'back');
+  assert.equal(columnOf({ ...none, pr: open, story: { ...answered, local: true } }), 'back');
+  assert.equal(columnOf({ ...none, pr: open, story: { ...answered, answered: 0 } }), 'pr_open');
+  assert.equal(columnOf({ ...none, pr: { ...open, state: 'merged' }, story: answered }), 'done');
+  assert.equal(
+    columnOf({ ...none, sessions: [{ status: 'working' }], pr: open, story: answered }),
+    'working',
+  );
   assert.equal(columnOf({ ...none, pr: open }), 'pr_open');
   assert.equal(columnOf({ ...none, sessions: [{ status: 'idle' }], pr: open }), 'pr_open');
   assert.equal(columnOf({ ...none, sessions: [{ status: 'idle' }] }), 'idle');
@@ -4160,6 +4173,7 @@ test('the board: a local story puts its branch in Ready for your review, rebuilt
     url: null,
     reviewed: false,
     unread: false,
+    unread_answers: 0,
     approved_at: null,
     ship: null,
   });
@@ -4576,6 +4590,48 @@ test('the board: a local story rebuilt after you opened it stays in Ready, and o
     'local-idle',
     'local-pr',
   ]);
+});
+
+test('the board: an unread answer keeps a reviewed local story in Ready and sends a PR card to Back to you, until it is read', async () => {
+  const home = tmp('board-home');
+  const sessions = tmp('board-sessions');
+  const widgets = checkoutOf('widgets', 'main');
+  // reviewed by hand and opened long after it was built: no card, but for the answer
+  const done = {
+    'reviewed.json': { at: '2026-10-26T14:00:00Z', by: 'manual' },
+    'position.json': { at: '2099-01-01T00:00:00Z' },
+  };
+  localStory(home, 'local-answered', widgets, 'feat/answered', {}, done);
+  localStory(home, 'local-quiet', widgets, 'feat/quiet', {}, done);
+  prStory(home, 'acme-widgets-5', 'acme/widgets', 5, 'feat/pr');
+  const inbox = new Inbox(home);
+  for (const story of ['local-answered', 'acme-widgets-5']) {
+    inbox.append({ type: 'question', id: `q_${story}`, story, text: 'Why?', step: 1 });
+    inbox.append({ type: 'answer', question: `q_${story}`, story, text: 'Because.' });
+  }
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  const snapshot = async () => {
+    const { watcher } = fakeWatcher([prInfo(5, { branch: 'feat/pr' })]);
+    const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+      source: sourceSaying({}),
+      now: () => NOW,
+    });
+    const cards = (await board.snapshot()).lanes.flatMap((lane) => lane.cards);
+    return Object.fromEntries(cards.map((found) => [found.id, found]));
+  };
+  let byId = await snapshot();
+  assert.equal(byId['branch:acme/widgets@feat/answered'].column, 'ready');
+  assert.equal(byId['branch:acme/widgets@feat/answered'].story?.unread_answers, 1);
+  assert.equal(byId['pr:acme/widgets#5'].column, 'back');
+  assert.equal(byId['pr:acme/widgets#5'].story?.unread_answers, 1);
+  assert.equal(byId['branch:acme/widgets@feat/quiet'], undefined, 'no answer, nothing to review');
+
+  markQuestions(home, 'local-answered', 'read', ['q_local-answered']);
+  markQuestions(home, 'acme-widgets-5', 'read', ['q_acme-widgets-5']);
+  byId = await snapshot();
+  assert.equal(byId['branch:acme/widgets@feat/answered'], undefined, 'read: the card goes');
+  assert.equal(byId['pr:acme/widgets#5'].column, 'pr_open');
+  assert.equal(byId['pr:acme/widgets#5'].story?.unread_answers, 0);
 });
 
 test('POST /api/board/reviewed: the board page marks a local story reviewed or unmarked, a PR story is a 404, and a story page’s key does not reach it', async () => {

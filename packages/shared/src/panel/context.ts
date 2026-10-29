@@ -19,6 +19,7 @@ import type {
   Question,
   QuestionAsk,
   QuestionMark,
+  QuestionMarkExtra,
   QuestionMarksAnswer,
   ReadEvent,
   ReadInfo,
@@ -63,7 +64,11 @@ export interface PanelOptions {
   onClose?(): void;
   ask?(question: QuestionAsk): Promise<unknown>;
   loadQuestions?(): Promise<Question[]>;
-  markQuestions?(action: QuestionMark, ids: string[]): Promise<QuestionMarksAnswer>;
+  markQuestions?(
+    action: QuestionMark,
+    ids: string[],
+    extra?: QuestionMarkExtra,
+  ): Promise<QuestionMarksAnswer>;
   status?(): Promise<BridgeStatus>;
   /**
    * Start listening (panel/start-listening.ts): the idle Claude Code sessions that may be typed into, and typing the

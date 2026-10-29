@@ -12,7 +12,8 @@ import { callBridge, type BridgeAnswer } from '../bridge.ts';
 import type { Listening } from '@once-upon-a-diff/shared/types';
 import type { BuildRequestView, PrRef, StoryStatus } from './story-tag.ts';
 import { listenNotice } from './listen-notice.ts';
-import { tagFor, tagHtml, requestFor, missingListeners } from './story-tag.ts';
+import { answersBadge, tagFor, tagHtml, requestFor, missingListeners } from './story-tag.ts';
+import { html } from '@once-upon-a-diff/shared/util/html';
 import { createTagHost, showTag, clickedTagButton } from './tag-host.ts';
 
 const MAX_PER_CALL = 200;
@@ -140,7 +141,7 @@ export function createPrTags({ attr, onStory }: { attr: string; onStory?: (pr: P
   function show(host: Element, pr: PrRef) {
     const result = resultOf(pr);
     if (result) {
-      showTag(host, tagHtml(tagFor(result, pr)));
+      showTag(host, html`${tagHtml(tagFor(result, pr))}${answersBadge(result, pr)}`);
     }
   }
 

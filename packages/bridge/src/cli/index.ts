@@ -57,6 +57,7 @@ const HELP_ORDER = [
   'doctor',
   'builds',
   'done',
+  'asking',
   'answer',
   'notes',
   'working',

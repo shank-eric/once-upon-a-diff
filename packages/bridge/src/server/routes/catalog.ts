@@ -10,6 +10,7 @@ import { stateKeyOf } from '../../github/drafts.ts';
 import { currentHead, newerCount } from '../../github/freshness.ts';
 import { listeningOf } from '../../listeners/listeners.ts';
 import { readReads } from '../../stories/reads.ts';
+import { unreadAnswers } from '../../inbox/conversation.ts';
 import { prKey } from '@once-upon-a-diff/shared/util/github-paths';
 import type { StoryData } from '@once-upon-a-diff/shared/types';
 import type { ApiRoute, App, Call } from '../../types.ts';
@@ -28,6 +29,8 @@ interface PrStatus {
   update_state?: string | null;
   update_mode?: string | null;
   reads?: { read: number; total: number; next: number | null };
+  /** questions of the story whose answer the reviewer hasn't read */
+  unread_answers?: number;
   current_head?: string;
   stale?: boolean | null;
   newer?: number | null;
@@ -53,6 +56,7 @@ function prStatus(
   app: App,
   cache: StatusCache,
   { repo: rawRepo, number: rawNumber }: { repo?: unknown; number?: unknown },
+  unread: Map<string, number>,
 ): PrStatus {
   const repo = String(rawRepo || '');
   const number = Number(rawNumber);
@@ -86,6 +90,7 @@ function prStatus(
     update_state: updating ? build!.state : null,
     update_mode: updating ? build!.mode : null,
     reads: readSummary(app, id),
+    unread_answers: unread.get(id) || 0,
   };
 }
 
@@ -119,7 +124,10 @@ async function statusMany({ app, body, send }: Call) {
     app.statusCache = { at: Date.now(), list: app.stories.list(), builds: app.builds.all() };
   }
   const cache = app.statusCache;
-  const results = prs.map((pr: { repo?: unknown; number?: unknown }) => prStatus(app, cache, pr));
+  const unread = unreadAnswers(app.home, app.inbox);
+  const results = prs.map((pr: { repo?: unknown; number?: unknown }) =>
+    prStatus(app, cache, pr, unread),
+  );
   await Promise.all(
     results.filter((result) => result.state === 'ready' && result.story_head).map(addFreshness),
   );

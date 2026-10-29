@@ -1,6 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { tagFor, tagHtml, requestFor, missingListeners } from '../src/content/ui/story-tag.ts';
+import {
+  answersBadge,
+  tagFor,
+  tagHtml,
+  requestFor,
+  missingListeners,
+  wantsAskDock,
+  withAskDock,
+} from '../src/content/ui/story-tag.ts';
 import { conversationPr } from '@once-upon-a-diff/shared/util/github-paths';
 
 const pr = { repo: 'octo-org/api-server', number: 42 };
@@ -111,4 +119,36 @@ test('a #ou-step-N hash names the step to open on', async () => {
   for (const hash of ['', '#diff-abc', '#ou-step-', '#ou-step-x']) {
     assert.equal(stepOfHash(hash), null, hash);
   }
+});
+
+test('a PR with unread answers gets a badge beside its one tag, linking Files changed with the Ask dock open', () => {
+  const pr = { repo: 'acme/widgets', number: 7 };
+  const ready = { state: 'ready', story: 's', story_head: 'abc1234def' };
+  assert.equal(answersBadge({ ...ready, unread_answers: 0 }, pr), null);
+  assert.equal(answersBadge(ready, pr), null, 'an older bridge says nothing');
+  assert.equal(answersBadge({ state: 'none', unread_answers: 2 }, pr), null, 'no story, no badge');
+  const one = String(answersBadge({ ...ready, unread_answers: 1 }, pr));
+  assert.match(one, /href="https:\/\/github.com\/acme\/widgets\/pull\/7\/changes#ou-ask"/);
+  assert.match(one, />1 new answer</);
+  assert.match(String(answersBadge({ ...ready, unread_answers: 3 }, pr)), />3 new answers</);
+  // the badge is not a second tag
+  assert.equal((String(tagHtml(tagFor(ready, pr))).match(/class="b /g) || []).length, 1);
+  assert.equal(wantsAskDock('#ou-ask'), true);
+  assert.equal(wantsAskDock('#ou-step-2'), false);
+  assert.equal(wantsAskDock(''), false);
+});
+
+test('the Ask dock opens once for a #ou-ask URL and stays as the reviewer leaves it', () => {
+  const href = 'https://github.com/acme/widgets/pull/7/changes#ou-ask';
+  const saved = { n: 2, chatOpen: false };
+  const first = withAskDock(saved, { hash: '#ou-ask', href, opened: undefined });
+  assert.equal(first.panel.chatOpen, true);
+  assert.equal(first.opened, href);
+  assert.equal(saved.chatOpen, false, 'the saved state is not changed');
+  // the panel is mounted again on this URL (the reviewer closed the dock): it stays closed
+  const again = withAskDock(saved, { hash: '#ou-ask', href, opened: first.opened });
+  assert.equal(again.panel.chatOpen, false);
+  // another hash, or none: the saved state as it is
+  assert.equal(withAskDock(saved, { hash: '#ou-step-2', href, opened: undefined }).panel, saved);
+  assert.equal(withAskDock(saved, { hash: '', href, opened: undefined }).panel, saved);
 });

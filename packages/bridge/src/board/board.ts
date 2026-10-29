@@ -96,6 +96,8 @@ import {
   prStories,
 } from '../review-inbox/stories.ts';
 import { requestFor } from '../inbox/progress.ts';
+import { unreadAnswers } from '../inbox/conversation.ts';
+import { Inbox } from '../inbox/inbox.ts';
 import type { Builds } from '../inbox/builds.ts';
 import type { BranchPr } from '../review-inbox/auto-review.ts';
 import type { LocalEntry } from '../review-inbox/stories.ts';
@@ -422,6 +424,8 @@ export class Board {
   private building: Promise<BoardData> | null = null;
   /** how each approved local story ships, worked out once per snapshot (build) */
   private shipById = new Map<string, ShipMode>();
+  /** each story's questions whose answer you haven't read, worked out once per snapshot (build) */
+  private unreadById = new Map<string, number>();
   /** the newest local story's checkout for each repo and branch, for a PR card's commits-ahead count (build) */
   private localCheckouts = new Map<string, { story: string; checkout: string }>();
   /** commits ahead of origin per checkout and branch, looked up in the background (kickAhead) */
@@ -668,6 +672,7 @@ export class Board {
   private async build(now: Date): Promise<BoardData> {
     const nowMs = now.getTime();
     const settings = readSettings(this.home).board;
+    this.unreadById = unreadAnswers(this.home, new Inbox(this.home), nowMs);
     const picked = this.options.source
       ? { source: this.options.source, warning: null }
       : pickSource(settings.statusSource, settings.it2Path);
@@ -1693,7 +1698,10 @@ export class Board {
     const localToReview =
       !!story &&
       story === work.local &&
-      (!story.reviewed_at || unreadOf(story) || !!(story as InboxLocalStory).approved_at);
+      (!story.reviewed_at ||
+        unreadOf(story) ||
+        !!(story as InboxLocalStory).approved_at ||
+        !!this.unreadById.get(story.id));
     const known =
       (!!pr && (pr.mine || pr.review_requested || !!story || work.built || !!building)) ||
       localToReview;
@@ -1726,6 +1734,7 @@ export class Board {
             reviewed: !!story.reviewed_at,
             // built after you last opened or reviewed it (never opened: it is ready for review, not back to you)
             unread: unreadOf(story),
+            unread_answers: this.unreadById.get(story.id) ?? 0,
             approved_at: 'number' in story ? null : story.approved_at,
             ship: 'number' in story ? null : (this.shipById.get(story.id) ?? null),
           }
@@ -1757,6 +1766,7 @@ export class Board {
             reviewed: card.story.reviewed,
             manualReviewedAt: manual,
             unread: card.story.unread,
+            answered: card.story.unread_answers,
             local: card.story.kind === 'local',
             approved: !!card.story.approved_at,
           }

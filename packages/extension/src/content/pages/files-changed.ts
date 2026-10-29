@@ -19,7 +19,7 @@ import { callBridge, extensionAlive } from '../bridge.ts';
 import { createListenOption } from '../listen.ts';
 import { loadPanelUi, savePanelUi, loadPrefsCopy, storePrefsCopy, tabSession } from '../storage.ts';
 import { createPrTags, titleElement } from '../ui/pr-tags.ts';
-import { requestFor, stepOfHash } from '../ui/story-tag.ts';
+import { requestFor, stepOfHash, withAskDock } from '../ui/story-tag.ts';
 import { toast } from '../ui/toast.ts';
 import { createWhitespaceCheck, prefsStore } from './hide-whitespace.ts';
 import type { BridgeAnswer } from '../bridge.ts';
@@ -56,6 +56,8 @@ interface CurrentPage extends FilesChangedPr {
   rangeFor?: string;
   /** the #ou-step-N URL it opened on, once per page */
   hashFor?: string;
+  /** the #ou-ask URL it opened the Ask dock for, once per page */
+  askFor?: string;
 }
 
 const PANEL_ID = 'once-upon-panel';
@@ -234,9 +236,13 @@ export function createFilesChangedPage() {
       loadQuestions: async () =>
         (await bodyOf(callBridge<{ questions: Question[] }>('GET', `${storyPath}/questions`)))
           .questions,
-      markQuestions: (action, ids) =>
+      markQuestions: (action, ids, extra) =>
         bodyOf(
-          callBridge<QuestionMarksAnswer>('POST', `${storyPath}/questions/marks`, { action, ids }),
+          callBridge<QuestionMarksAnswer>('POST', `${storyPath}/questions/marks`, {
+            action,
+            ids,
+            ...extra,
+          }),
         ),
     };
   }
@@ -249,8 +255,16 @@ export function createFilesChangedPage() {
       current.overlay.destroy();
     }
     const jump = jumpStep();
+    // a PR-list "1 new answer" badge links Files changed#ou-ask: open the Ask dock, once per page
+    const asked = withAskDock(current.ui, {
+      hash: location.hash,
+      href: location.href,
+      opened: current.askFor,
+    });
+    current.askFor = asked.opened;
+    const base = asked.panel;
     current.overlay = storyOverlay(current.data, {
-      initial: jump ? { ...current.ui, n: jump, all: false } : current.ui,
+      initial: jump ? { ...base, n: jump, all: false } : base,
       ...panelOptions(current.key, current.id as string), // a story's page has its id
     });
   }

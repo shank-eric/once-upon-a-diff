@@ -51,6 +51,8 @@ export interface StoryStatus {
   update_state?: string | null;
   update_mode?: string | null;
   reads?: { read: number; total: number; next?: number | null } | null;
+  /** questions asked in the story whose answers they haven't read */
+  unread_answers?: number;
 }
 
 /** What a tag shows and does. */
@@ -207,6 +209,40 @@ export function tagFor(result: StoryStatus | null | undefined, { repo, number }:
     label: 'Story',
     title: `Open the story on Files changed${upTo}`,
   };
+}
+
+/** Does a Files changed URL's #ou-ask hash ask for the panel's Ask dock to open? */
+export const wantsAskDock = (hash: string | null | undefined): boolean => hash === '#ou-ask';
+
+/**
+ * The badge beside a PR's tag when answers to its questions wait unread: "1 new answer", linking Files changed with the
+ * Ask dock open. null when there are none. It is not a tag of its own: tagFor's one tag stays one.
+ */
+export function answersBadge(
+  result: StoryStatus | null | undefined,
+  { repo, number }: PrRef,
+): Html | null {
+  const count = result && result.state === 'ready' ? result.unread_answers || 0 : 0;
+  if (count < 1) {
+    return null;
+  }
+  const label = `${count} new ${count === 1 ? 'answer' : 'answers'}`;
+  const title = `${count === 1 ? 'An answer' : 'Answers'} to your question${count === 1 ? '' : 's'} in the story ${count === 1 ? 'is' : 'are'} unread. Opens the story with the Ask box open.`;
+  return html`<a class="ans" href="https://github.com/${repo}/pull/${number}/changes#ou-ask" title="${title}">${label}</a>`;
+}
+
+/**
+ * The panel state to open with: the Ask dock open when the URL asks for it (#ou-ask) and hasn't been honoured for this
+ * URL yet, so closing the dock stays closed. `opened` is the URL it last opened the dock for.
+ */
+export function withAskDock<Ui extends object>(
+  panel: Ui,
+  { hash, href, opened }: { hash: string | null | undefined; href: string; opened?: string },
+): { panel: Ui | (Ui & { chatOpen: true }); opened: string | undefined } {
+  if (!wantsAskDock(hash) || opened === href) {
+    return { panel, opened };
+  }
+  return { panel: { ...panel, chatOpen: true }, opened: href };
 }
 
 /** The step a Files changed URL's #ou-step-N hash asks the panel to open on, or null. */
