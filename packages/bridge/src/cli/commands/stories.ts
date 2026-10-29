@@ -91,6 +91,11 @@ async function local(home: string, cfg: Config, opts: CliOpts) {
   process.stderr.write(
     `Story ${made.id}: ${made.files} files, ${made.chapters} chapters (${made.dir})\n`,
   );
+  if (made.ambiguous.length) {
+    process.stderr.write(
+      `  ${opts.head} is the tip of ${made.ambiguous.join(', ')}, so the story has no branch (no Create pull request); name one with --head\n`,
+    );
+  }
   if (made.unplaced.length) {
     process.stderr.write(
       `  ${made.unplaced.length} files aren't in a chapter; they show in a last "Not in a chapter yet" step\n`,

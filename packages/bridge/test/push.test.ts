@@ -346,7 +346,7 @@ test('which button a story gets: by branch, a commit range on the default branch
     git(repo, 'checkout', '-q', 'master');
     // the page's story data carries it
     assert.equal((await full<StoryData>('GET', '')).body.local?.ship, 'push');
-    // a local story built from a sha with no branch, whose head is on master
+    // a local story built from the sha of master's tip takes master as its branch
     const chapters = path.join(tmp('ch'), 'chapters.json');
     writeJson(chapters, { chapters: [{ title: 'Chapter 1', files: ['b.txt'] }] });
     const sha = createLocalStory({
@@ -357,8 +357,10 @@ test('which button a story gets: by branch, a commit range on the default branch
       chapters,
     });
     const raw = JSON.parse(readFileSync(path.join(sha.dir, 'meta.json'), 'utf8'));
-    assert.equal(raw.branch, null);
+    assert.equal(raw.branch, 'master');
     assert.equal(shipMode({ ...raw, repo: 'acme/widgets' }, home), 'push');
+    // and one with no branch at all, whose head is in master, still pushes
+    assert.equal(shipMode({ ...raw, branch: null, repo: 'acme/widgets' }, home), 'push');
     // the rules: Push on a feature branch, Create pull request on the default branch
     writeJson(path.join(home, 'config.json'), {
       port: 1,

@@ -96,10 +96,12 @@ export function createLocalStory({
   revParse(top, base); // fail early on a bad ref
   revParse(top, head);
   // the branch --head names (the checkout's only when it is HEAD), so Create pull request pushes the story's branch
-  const branch = branchOfRef(top, head);
+  const { branch, ambiguous } = branchOfRef(top, head);
   const name = path.basename(top);
-  // a commit named by its full sha is told by its first nine characters
-  const shown = branch || (/^[0-9a-f]{40}$/i.test(head) ? head.slice(0, 9) : head);
+  // the story is told by the branch only when --head names it (or is HEAD): a commit stays its own story, by its first
+  // nine characters when it is a full sha, so it never takes over the default story of the branch it happens to tip
+  const named = head === 'HEAD' || head.replace(/^refs\/heads\//, '') === branch;
+  const shown = (named && branch) || (/^[0-9a-f]{40}$/i.test(head) ? head.slice(0, 9) : head);
   id = id || slug(`local-${name}-${shown}`);
   if (!ID_RE.test(id)) {
     throw new Error(`bad story id: ${id}`);
@@ -168,5 +170,6 @@ export function createLocalStory({
     chapters: (plan.chapters || []).length,
     unplaced: rels.filter((rel) => !placed.has(rel)),
     unknown: [...placed].filter((rel) => !diff.has(rel)),
+    ambiguous,
   };
 }

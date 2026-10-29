@@ -47,21 +47,45 @@ export const revParse = (repo: string, ref: string): string =>
 export const topLevel = (repo: string): string =>
   runGit(repo, ['rev-parse', '--show-toplevel']).trim();
 
+/** The local branches whose tip is exactly this commit, sorted by name. */
+export function branchesAt(repo: string, oid: string): string[] {
+  return runGit(repo, ['for-each-ref', '--points-at', oid, '--format=%(refname)', 'refs/heads'])
+    .split('\n')
+    .map((line) => line.trim().replace(/^refs\/heads\//, ''))
+    .filter(Boolean)
+    .sort();
+}
+
 /**
  * The branch a ref names in the checkout: the current branch for HEAD, the ref itself when it is a local branch
- * (`feat/x` or `refs/heads/feat/x`), else null (a commit, a tag, a remote branch).
+ * (`feat/x` or `refs/heads/feat/x`). Any other ref (a sha of any length, a tag, a remote branch) names the local branch
+ * whose tip it resolves to: the only one, else the checkout's current branch when HEAD is that commit, else none, and
+ * `ambiguous` lists the branches that tied. Null too for a commit no branch points at.
  */
-export function branchOfRef(repo: string, ref: string): string | null {
+export function branchOfRef(
+  repo: string,
+  ref: string,
+): { branch: string | null; ambiguous: string[] } {
   if (ref === 'HEAD') {
-    return branchName(repo);
+    return { branch: branchName(repo), ambiguous: [] };
   }
   const name = ref.replace(/^refs\/heads\//, '');
   try {
     runGit(repo, ['show-ref', '--verify', '--quiet', `refs/heads/${name}`]);
-    return name;
+    return { branch: name, ambiguous: [] };
   } catch {
-    return null;
+    // not a local branch: a commit may still be the tip of one
   }
+  const oid = revParse(repo, ref);
+  const tips = branchesAt(repo, oid);
+  if (tips.length === 1) {
+    return { branch: tips[0], ambiguous: [] };
+  }
+  const current = branchName(repo);
+  if (tips.length > 1 && current && tips.includes(current) && revParse(repo, 'HEAD') === oid) {
+    return { branch: current, ambiguous: [] };
+  }
+  return { branch: null, ambiguous: tips };
 }
 
 export function branchName(repo: string): string | null {
