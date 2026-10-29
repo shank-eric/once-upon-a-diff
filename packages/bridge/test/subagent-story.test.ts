@@ -686,7 +686,7 @@ describe('what the panel says', () => {
       ),
     );
     assert.match(repoRelay, /Questions go to <b>ou-fix-cache<\/b>.*through <b>repo-acme<\/b>/);
-    // not relayed yet: only the session that launched the agent can reach it, so no Start button, but the prompt to copy
+    // not relayed yet: only the session that launched the agent can reach it, so no Start button and no copy button, only the line to run by hand as plain text
     const waiting = String(
       askWhoHtml(
         health({
@@ -702,7 +702,13 @@ describe('what the panel says', () => {
     assert.match(waiting, /Only the Claude session that launched it can pass/);
     assert.match(waiting, /Until it does, <b>repo-acme<\/b> answers/);
     assert.doesNotMatch(waiting, /ou-startstory/);
-    assert.match(waiting, /ou-copystory/);
+    assert.doesNotMatch(waiting, /Copy prompt|ou-copystory|<button/);
+    assert.match(
+      waiting,
+      new RegExp(
+        `To start that, run <code>/once-upon-listen --story ${STORY}</code> in the session that launched ou-fix-cache`,
+      ),
+    );
     const plain = String(
       askWhoHtml(health({ answering: { consumer: 'story-x', scope: 'story' } })),
     );

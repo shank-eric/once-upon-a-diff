@@ -177,16 +177,17 @@ export function askWhoHtml(result: Health, canStart = false) {
     return html`Answered by <b>${answering.consumer}</b>, the session listening for this story.`;
   }
   // built by an agent, with no live wait in the session that launched it: only that session can reach the agent, so
-  // Start listening (which types into an idle session in the repo) isn't offered, but the prompt can be copied
+  // Start listening (which types into an idle session in the repo) isn't offered. The line to run by hand is plain,
+  // selectable text: there is no copy button anywhere.
   if (result.agent) {
     const agentNote = html`<b>${result.agent}</b> built this story and has its context.
-      Only the Claude session that launched it can pass this story's questions on to it: it does that while it listens (<code>/once-upon-listen --story</code>, or for the repo).`;
-    const copyOnly =
+      Only the Claude session that launched it can pass this story's questions on to it: it does that while it listens.`;
+    const byHand =
       storyPrompt &&
-      html` <button type="button" class="ou-copystory" title="Copies ${storyPrompt.prompt}. Paste it into the session that launched ${result.agent}.">Copy prompt for this story</button><pre class="ou-prompt" hidden></pre>`;
+      html` To start that, run <code>${storyPrompt.prompt}</code> in the session that launched ${result.agent}.`;
     return answering
-      ? html`${agentNote} Until it does, <b>${answering.consumer}</b> answers.${copyOnly}`
-      : html`${agentNote}${copyOnly}`;
+      ? html`${agentNote} Until it does, <b>${answering.consumer}</b> answers.${byHand}`
+      : html`${agentNote}${byHand}`;
   }
   if (answering) {
     const cover =
