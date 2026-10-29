@@ -9,9 +9,8 @@
  */
 import { plural } from '../util/text.ts';
 import type { PanelContext } from './context.ts';
+import { dockHeightWithin } from './layout.ts';
 
-const MIN_HEIGHT = 120;
-const MAX_HEIGHT_SHARE = 0.8; // of the panel's height
 /** How close to the bottom (px) still counts as reading the latest, so a new answer scrolls into view. */
 const PINNED_SLACK = 24;
 
@@ -47,10 +46,11 @@ export function createChatDock(context: PanelContext) {
   /**
    * Shows the dock at height, kept within the panel, and returns what it showed. The saved height (state.chatHeight)
    * is the reader's: only a drag changes it, so a small window or a panel not laid out yet can't shrink it for good.
+   * A panel whose stylesheet hasn't loaded yet has no real height to be kept within, so the panel's resizes
+   * (the stylesheet arriving, the window changing) show it again.
    */
   function showHeight(height: number) {
-    const max = Math.max(MIN_HEIGHT, root.clientHeight * MAX_HEIGHT_SHARE);
-    const shown = Math.round(Math.min(Math.max(height, MIN_HEIGHT), max));
+    const shown = dockHeightWithin(height, root.clientHeight);
     dock.style.setProperty('--ou-chat-h', shown + 'px');
     return shown;
   }
@@ -135,6 +135,10 @@ export function createChatDock(context: PanelContext) {
     }
   };
   window.addEventListener('resize', onResize);
+  // the panel is mounted before its stylesheet arrives, so the open dock is first shown within an unstyled panel's
+  // height: show it at the saved height again once the panel has its real size
+  const sizeWatch = typeof ResizeObserver === 'function' ? new ResizeObserver(onResize) : null;
+  sizeWatch?.observe(root);
 
   return {
     setOpen,
@@ -142,7 +146,10 @@ export function createChatDock(context: PanelContext) {
     noteAnswer,
     redraw,
     scrollToLatest,
-    destroy: () => window.removeEventListener('resize', onResize),
+    destroy: () => {
+      window.removeEventListener('resize', onResize);
+      sizeWatch?.disconnect();
+    },
   };
 }
 
