@@ -8,8 +8,12 @@
  *   - [done] sid:<8 hex> [lane:<name>] <name> — 1:33 PM ET, 10/26 — outcome — notes path
  *   - [waiting] sid:<8 hex> [lane:<name>] <name> — 1:40 PM ET, 10/26 — needs <you>: question — notes path
  *
+ * The time can come before the outcome (`— 1:40 PM ET, 10/26 — outcome`) or after it (`— outcome — 1:40 PM ET, 10/26`).
  * [failed] and [stopped] work like [done]. [waiting] is an agent that has finished but whose result needs a decision:
  * the board puts it in the waiting column with the question, until a later [done] or [stopped] line clears it.
+ * [review] is an agent that has finished and is parked on your story review (`— story <id> up, <what changed>`): it
+ * reads as state 'waiting' with `review` set, so every open list still holds it, but the board shows it as ready for
+ * review instead of as a question, in the card whose branch it names or a Ready card of its own. A later line clears it.
  *
  * Two more statuses mean the launching session, not you, is the next actor, and put the card in Agent checks:
  *
@@ -34,6 +38,8 @@ export interface LedgerAgent {
   sid: string;
   name: string;
   state: 'running' | 'waiting' | 'plan' | 'fixing' | 'done' | 'failed' | 'stopped';
+  /** a `[review]` line: waiting, but on your story review and not on a question */
+  review?: boolean;
   lane: string | null;
   model: string | null;
   task: string | null;
@@ -113,6 +119,7 @@ const LABELS: Record<string, string> = {
   PDT: 'America/Los_Angeles',
   UTC: 'UTC',
 };
+const NOTES_PATH_RE = /^\S*notes\/\S*$/;
 const TIME_RE = /(\d{1,2}):(\d{2})\s*([AP]M)(?:\s+([A-Z]{2,4}))?,\s*(\d{1,2})\/(\d{1,2})/i;
 
 /**
@@ -147,7 +154,7 @@ export function parseLedgerTime(text: string, now: Date, zone?: string): Date | 
 }
 
 const LINE_RE =
-  /^\s*-\s*\[(running|waiting|plan|fixing|done|failed|stopped)\]\s+sid:([0-9a-f]{8})\s+(?:lane:([\w.-]+)\s+)?([\w.-]+)\s*(.*)$/;
+  /^\s*-\s*\[(running|waiting|review|plan|fixing|done|failed|stopped)\]\s+sid:([0-9a-f]{8})\s+(?:lane:([\w.-]+)\s+)?([\w.-]+)\s*(.*)$/;
 
 /** The ledger's agents, one per sid and name, from the lines' text. */
 export function parseLedger(text: string, now: Date, zone?: string): LedgerAgent[] {
@@ -163,6 +170,7 @@ export function parseLedger(text: string, now: Date, zone?: string): LedgerAgent
       sid,
       name,
       state: 'running',
+      review: false,
       lane: null,
       model: null,
       task: null,
@@ -170,7 +178,8 @@ export function parseLedger(text: string, now: Date, zone?: string): LedgerAgent
       ended: null,
       outcome: null,
     };
-    agent.state = state as LedgerAgent['state'];
+    agent.state = state === 'review' ? 'waiting' : (state as LedgerAgent['state']);
+    agent.review = state === 'review';
     agent.lane = lane || agent.lane;
     if (state === 'running') {
       // (model, effort) — task — started <time>
@@ -187,11 +196,24 @@ export function parseLedger(text: string, now: Date, zone?: string): LedgerAgent
       const time = TIME_RE.exec(rest);
       agent.ended = time ? parseLedgerTime(time[0], now, zone) : null;
       const after = time ? rest.slice(time.index + time[0].length) : rest;
-      agent.outcome =
+      const outcome =
         after
           .replace(/^[^—]*—\s*/, '')
           .split(/\s+—\s+/)[0]
           .trim() || null;
+      // the time can also come last (`— outcome — 6:04 PM ET, 10/29`, optionally a notes path after it): then the
+      // outcome is what sits between the name's (model, effort) and the time, and a lone notes path is not one
+      const before = time
+        ? rest
+            .slice(0, time.index)
+            .split('—')
+            .map((part) => part.trim())
+            .slice(1)
+            .filter(Boolean)
+            .join(' — ')
+        : '';
+      agent.outcome =
+        (outcome && !NOTES_PATH_RE.test(outcome) ? outcome : before || outcome) || null;
     }
     agents.set(key, agent);
   }

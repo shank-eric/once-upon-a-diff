@@ -262,6 +262,54 @@ test('a waiting agent stays waiting until a later done or stopped line clears it
   assert.equal(parseLedger([...lines, stopped].join('\n'), NOW)[0].state, 'stopped');
 });
 
+test('[review] reads as waiting with the review flag, and a later line clears it', () => {
+  const lines = [
+    '- [running] sid:5cf3b512 builder (sonnet, high) — build feat/x — started 1:00 PM ET, 10/29',
+    '- [review] sid:5cf3b512 builder — 1:20 PM ET, 10/29 — story abc123 up, three chapters — notes/a.md',
+  ];
+  const [parked] = parseLedger(lines.join('\n'), NOW);
+  assert.equal(parked.state, 'waiting');
+  assert.equal(parked.review, true);
+  assert.equal(parked.outcome, 'story abc123 up, three chapters');
+  assert.equal(parked.task, 'build feat/x');
+  const [asking] = parseLedger(
+    '- [waiting] sid:5cf3b512 builder — 1:30 PM ET, 10/29 — needs Eric: which one?',
+    NOW,
+  );
+  assert.equal(asking.review, false, 'a plain waiting line is a question');
+  const after = (line: string) => parseLedger([...lines, line].join('\n'), NOW)[0];
+  assert.equal(after('- [done] sid:5cf3b512 builder — 1:40 PM ET, 10/29 — shipped').review, false);
+  assert.equal(
+    after('- [running] sid:5cf3b512 builder — 1:40 PM ET, 10/29 — fixing').state,
+    'running',
+  );
+  assert.equal(
+    after('- [waiting] sid:5cf3b512 builder — 1:40 PM ET, 10/29 — needs Eric: x').review,
+    false,
+  );
+});
+
+test('the outcome is found whether the time comes before it or after it, and a lone notes path is no outcome', () => {
+  // the ledger's real lines put the time last
+  const [done, review, notesOnly, timeFirst] = parseLedger(
+    [
+      '- [done] sid:225477e3 ou-ready-label (sonnet, high) — 1d547c3 on stack/39-ready-label: [review] → Ready column; hook edited (uncommitted), dry run OK — 6:04 PM ET, 10/29',
+      '- [review] sid:225477e3 ou-x (sonnet, high) — story abc123 up on stack/39, three chapters — 6:04 PM ET, 10/29',
+      '- [review] sid:225477e3 ou-y — 6:05 PM ET, 10/29 — notes/y.md',
+      '- [review] sid:225477e3 ou-z — 6:06 PM ET, 10/29 — story def456 up — notes/z.md',
+    ].join('\n'),
+    NOW,
+  );
+  assert.equal(
+    done.outcome,
+    '1d547c3 on stack/39-ready-label: [review] → Ready column; hook edited (uncommitted), dry run OK',
+  );
+  assert.equal(review.outcome, 'story abc123 up on stack/39, three chapters');
+  assert.equal(review.review, true);
+  assert.equal(notesOnly.outcome, 'notes/y.md', 'nothing else to show: the path stays');
+  assert.equal(timeFirst.outcome, 'story def456 up');
+});
+
 test('progress beats: the latest per agent', () => {
   const beats = parseProgress(
     [
@@ -2740,6 +2788,10 @@ test('the voice session is pinned above the columns, off every card, with its ag
       `- [running] sid:${sid(voice)} lane:elsewhere helper-one (sonnet, low) — a task — started 2:50 PM ET, 10/26`,
       `- [waiting] sid:${sid(voice)} helper-two — 2:55 PM ET, 10/26 — needs Eric: pick — notes/x.md`,
       `- [done] sid:${sid(voice)} helper-three — 2:56 PM ET, 10/26 — done`,
+      `- [review] sid:${sid(voice)} helper-four (sonnet, low) — story abc up, two chapters — 2:57 PM ET, 10/26`,
+      // left behind more than a day ago: no longer counted
+      `- [review] sid:${sid(voice)} helper-five — story old — 9:00 AM ET, 10/24`,
+      `- [waiting] sid:${sid(voice)} helper-six — 9:00 AM ET, 10/24 — needs Eric: long ago — notes/y.md`,
       `- [running] sid:${sid(other)} not-the-voice (sonnet, low) — a task — started 2:50 PM ET, 10/26`,
     ].join('\n'),
   );
@@ -2839,7 +2891,7 @@ test('the voice session is pinned above the columns, off every card, with its ag
     branch: 'main',
     status: 'working',
     since: data.voice?.since,
-    agents: { running: 1, waiting: 1 },
+    agents: { running: 1, waiting: 1, review: 1 },
     session: fullId(voice.pid),
     can_focus: false,
     context: 37,
@@ -3816,6 +3868,42 @@ test('[plan] and [fixing] are ledger statuses: a later [running] or [done] clear
   assert.equal(gateOf(done[0]), null, 'a finished reviewer is not at a gate');
 });
 
+test('an agent that says [review] puts a card with no PR in Ready, never Waiting; a real question still wins', () => {
+  const none = { sessions: [], agents: [], pr: null, story: null };
+  const review = { status: 'waiting' as const, state: 'waiting' as const, review: true };
+  assert.equal(columnOf({ ...none, agents: [review] }), 'ready');
+  assert.equal(
+    columnOf({ ...none, agents: [review, { status: 'waiting', state: 'waiting' }] }),
+    'waiting',
+  );
+  assert.equal(
+    columnOf({ ...none, agents: [review], sessions: [{ status: 'waiting' }] }),
+    'waiting',
+  );
+  assert.equal(
+    columnOf({ ...none, agents: [review, { status: 'working', state: 'running' }] }),
+    'working',
+  );
+  assert.equal(columnOf({ ...none, agents: [{ status: 'waiting', state: 'waiting' }] }), 'waiting');
+});
+
+test('a story marked reviewed takes a card out of Ready even while an agent says [review]; an unreviewed one stays; a PR ignores it', () => {
+  const review = { status: 'waiting' as const, state: 'waiting' as const, review: true };
+  const none = { sessions: [], agents: [review], pr: null };
+  const story = { reviewed: false, manualReviewedAt: null, unread: false, local: true };
+  assert.equal(columnOf({ ...none, story }), 'ready');
+  assert.equal(columnOf({ ...none, story: { ...story, reviewed: true } }), 'idle');
+  assert.equal(columnOf({ ...none, story: { ...story, reviewed: true, approved: true } }), 'ship');
+  assert.equal(
+    columnOf({
+      ...none,
+      story: { ...story, unread: true },
+      pr: prInfo(7, { review_requested: false }),
+    }),
+    'pr_open',
+  );
+});
+
 test('Agent checks sits under Waiting and above Working in the first-match order', () => {
   const none = { sessions: [], agents: [], pr: null, story: null };
   const gate = (kind: 'plan' | 'review' | 'fixing') => ({
@@ -4052,6 +4140,98 @@ test('the board: Agent checks holds a PR card with a gated agent in it, an agent
   assert.equal(found(`agent:${sid(launcher)}:builder`)?.column, 'waiting');
   assert.equal(found('pr:acme/widgets#7')?.column, 'waiting');
   assert.equal(found('pr:acme/widgets#9')?.column, 'checks');
+});
+
+test('an agent parked on your story review is ready for review, not waiting; a question still waits', async () => {
+  const home = tmp('board-home');
+  const sessions = tmp('board-sessions');
+  const ledger = path.join(tmp('board-notes'), 'ledger.md');
+  const launcher = liveChild();
+  after(() => launcher.stop());
+  const sid = String(launcher.pid).padStart(8, '0');
+  registry(
+    sessions,
+    launcher.pid,
+    { cwd: checkoutOf('gadgets', 'main'), name: 'launcher' },
+    launcher.procStart,
+  );
+  prStory(home, 'acme-widgets-7', 'acme/widgets', 7, 'feat/x');
+  writeFileSync(
+    ledger,
+    [
+      `- [running] sid:${sid} lane:widgets on-pr (sonnet, high) — build on PR #7 — started 1:00 PM ET, 10/26`,
+      `- [review] sid:${sid} lane:widgets on-pr — 2:00 PM ET, 10/26 — story up on PR #7 — notes/a.md`,
+      `- [review] sid:${sid} lane:elsewhere on-nothing — 2:10 PM ET, 10/26 — story up — notes/b.md`,
+      `- [waiting] sid:${sid} lane:elsewhere asker — 2:20 PM ET, 10/26 — needs Eric: pick A or B`,
+    ].join('\n'),
+  );
+  writeJson(path.join(home, 'config.json'), {
+    board_ledger_file: ledger,
+    board_sessions_dir: sessions,
+  });
+  const { watcher } = fakeWatcher([prInfo(7, { branch: 'feat/x' })], {});
+  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+    source: sourceSaying({}),
+    now: () => NOW,
+  });
+  const cards = (await board.snapshot()).lanes.flatMap((lane) => lane.cards);
+  const card = (id: string) => cards.find((found) => found.id === id) as BoardCard;
+  const seven = card('pr:acme/widgets#7');
+  assert.notEqual(seven.column, 'waiting', 'a story to review is not a question');
+  assert.deepEqual(
+    seven.agents.map((agent) => [agent.name, agent.review]),
+    [['on-pr', true]],
+    'nested in the card its task names',
+  );
+  assert.equal(card(`agent:${sid}:on-pr`), undefined);
+  const lone = card(`agent:${sid}:on-nothing`);
+  assert.equal(lone.column, 'ready');
+  assert.equal(lone.detail, 'story up');
+  assert.equal(card(`agent:${sid}:asker`).column, 'waiting');
+});
+
+test('a [review] agent naming a no-PR branch sits in its Ready card; one left a day behind is gone', async () => {
+  const home = tmp('board-home');
+  const sessions = tmp('board-sessions');
+  const ledger = path.join(tmp('board-notes'), 'ledger.md');
+  const launcher = liveChild();
+  after(() => launcher.stop());
+  const sid = String(launcher.pid).padStart(8, '0');
+  registry(
+    sessions,
+    launcher.pid,
+    { cwd: checkoutOf('gadgets', 'main'), name: 'launcher' },
+    launcher.procStart,
+  );
+  localStory(home, 'local-feat-x', checkoutOf('widgets', 'feat/x'), 'feat/x');
+  writeFileSync(
+    ledger,
+    [
+      `- [running] sid:${sid} lane:widgets on-x (sonnet, high) — build on feat/x — started 1:00 PM ET, 10/26`,
+      `- [review] sid:${sid} lane:widgets on-x — story up on feat/x, two chapters — 2:30 PM ET, 10/26`,
+      `- [review] sid:${sid} lane:widgets lost-review — story up — 2:30 PM ET, 10/24`,
+      `- [waiting] sid:${sid} lane:widgets lost-question — 2:30 PM ET, 10/24 — needs Eric: long ago`,
+    ].join('\n'),
+  );
+  writeJson(path.join(home, 'config.json'), {
+    board_ledger_file: ledger,
+    board_sessions_dir: sessions,
+  });
+  const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+    source: sourceSaying({}),
+    now: () => NOW,
+  });
+  const cards = (await board.snapshot()).lanes.flatMap((lane) => lane.cards);
+  const work = cards.find((card) => card.id === 'branch:acme/widgets@feat/x') as BoardCard;
+  assert.equal(work.column, 'ready');
+  assert.deepEqual(
+    work.agents.map((agent) => [agent.name, agent.review]),
+    [['on-x', true]],
+  );
+  assert.equal(
+    cards.some((card) => card.agents.some((agent) => agent.name.startsWith('lost-'))),
+    false,
+  );
 });
 
 test('a plan or fixing line that has sat a day is marked stale', async () => {

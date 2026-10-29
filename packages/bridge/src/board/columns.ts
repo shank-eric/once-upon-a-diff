@@ -1,7 +1,7 @@
 /**
  * Which column a card goes in: the work moves left to right to merge. The first that fits:
  *
- *   waiting   a session or agent on it is blocked on a question
+ *   waiting   a session or agent on it is blocked on a question (an agent parked on your story review is not: see ready)
  *   checks    an agent on it is at an automated gate (a plan to check, a reviewer running, findings being fixed): the
  *             launching session is the next actor, not you. Above working, because the session is busy exactly while it
  *             checks the plan or fixes the findings, and a running reviewer is a running agent
@@ -13,7 +13,7 @@
  *             someone asked something of you on the PR after your last activity (on your own PR: changes requested, or
  *             an open thread whose last comment is theirs; on someone else's: a reply in an open thread you are in),
  *             or GitHub is waiting on your review
- *   ready     its story is built, it has no PR yet, and you haven't reviewed it ("done" is not done until you've seen
+ *   ready     its story is built, it has no PR yet, and you haven't reviewed it, or an agent on it says `[review]` ("done" is not done until you've seen
  *             it). It is the Mac's side: a card with a PR, whoever wrote it and whatever story it has, is on GitHub's
  *             (back or pr_open). A rebuild of a local story since you opened it is a chip on its card
  *   pr_open   pushed with a PR, and nothing waits on you
@@ -27,7 +27,10 @@ import type { BoardAgent, BoardColumn, BoardSession, PrInfo } from '@once-upon-a
 
 export interface ColumnInput {
   sessions: Pick<BoardSession, 'status'>[];
-  agents: (Pick<BoardAgent, 'status' | 'state'> & { gate?: BoardAgent['gate'] })[];
+  agents: (Pick<BoardAgent, 'status' | 'state'> & {
+    gate?: BoardAgent['gate'];
+    review?: boolean;
+  })[];
   pr: PrInfo | null;
   /**
    * The built PR story: whether you have reviewed it, when you marked it by hand (ms; an auto-mark carries the time the
@@ -69,7 +72,7 @@ export function columnOf(input: ColumnInput): BoardColumn {
   const { sessions, agents, pr, story, building } = input;
   if (
     sessions.some((session) => session.status === 'waiting') ||
-    agents.some((agent) => agent.state === 'waiting')
+    agents.some((agent) => agent.state === 'waiting' && !agent.review)
   ) {
     return 'waiting';
   }
@@ -92,6 +95,10 @@ export function columnOf(input: ColumnInput): BoardColumn {
   // an answer to a question you asked, unread: back to you on the GitHub side, in Ready while there is no PR
   if (story?.answered) {
     return pr ? 'back' : 'ready';
+  }
+  // a story you have marked reviewed takes the card out of Ready even while the agent's [review] line stands
+  if (!pr && !story?.reviewed && agents.some((agent) => agent.review)) {
+    return 'ready';
   }
   // Ready for your review is the Mac's side: a story whose work has no PR. Once a PR exists (even with a local story
   // of its branch, or a PR story you haven't opened), the card follows the PR's rules on the GitHub side

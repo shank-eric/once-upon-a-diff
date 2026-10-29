@@ -258,6 +258,9 @@ const AGENT_MARK: Record<BoardAgent['state'], string> = {
 
 const STATE_NOTE: Partial<Record<BoardAgent['state'], string>> = { plan: 'plan ready' };
 
+/** A `[review]` agent is not asking a question: it has a story up for you. */
+const agentMark = (agent: BoardAgent) => (agent.review ? '◉' : AGENT_MARK[agent.state]);
+
 /** What an agent at a gate is doing, as a chip: "plan check", "agent review · review-x", "fixing 5 findings". */
 function gateText(agent: BoardAgent): string {
   const gate = agent.gate;
@@ -270,17 +273,18 @@ function gateText(agent: BoardAgent): string {
   return `agent review · ${agent.name}`;
 }
 
+const stateNote = (agent: BoardAgent) =>
+  agent.review ? 'ready for review' : (STATE_NOTE[agent.state] ?? agent.state);
+
 function agentHtml(agent: BoardAgent, now: number) {
   const beat = agent.beat;
   const note =
-    beat && agent.state === 'running'
-      ? `${beat.n}/${beat.of} ${beat.step}`
-      : (STATE_NOTE[agent.state] ?? agent.state);
+    beat && agent.state === 'running' ? `${beat.n}/${beat.of} ${beat.step}` : stateNote(agent);
   const percent = beat ? Math.min(100, Math.round((beat.n / Math.max(1, beat.of)) * 100)) : 0;
   const detail = agent.state === 'running' ? beat?.note || agent.task : agent.outcome || agent.task;
   const time = age(agent.ended_at || agent.started_at, now);
   return html`<li class="ou-board-agent ou-board-s-${agent.status}" title="${agent.task || ''}">
-    <div class="ou-board-agent-line"><span class="ou-board-mark" aria-hidden="true">${AGENT_MARK[agent.state]}</span> <strong>${agent.name}</strong>
+    <div class="ou-board-agent-line"><span class="ou-board-mark" aria-hidden="true">${agentMark(agent)}</span> <strong>${agent.name}</strong>
       <span class="ou-local-muted">${note}${agent.stale && ' (no done line yet)'}${time && ` · ${time}`}</span></div>
     ${beat && agent.state === 'running' && html`<div class="ou-board-bar" aria-hidden="true"><span style="width:${percent}%"></span></div>`}
     ${detail && html`<div class="ou-board-agent-note ou-local-muted">${detail}</div>`}
@@ -691,6 +695,7 @@ function voiceHtml(voice: BoardVoice) {
   const agents = [
     voice.agents.running && `${voice.agents.running} running`,
     voice.agents.waiting && `${voice.agents.waiting} waiting`,
+    voice.agents.review && `${voice.agents.review} ready for review`,
   ]
     .filter(Boolean)
     .join(', ');

@@ -157,6 +157,12 @@ const MERGED_HOURS = 24;
 
 const AGENT_OPEN = ['running', 'waiting', 'plan', 'fixing'];
 
+/** A `[waiting]` or `[review]` line this old (its time) is left behind, as the iTerm hook does: no board card, no count. */
+function forgotten(agent: LedgerAgent, nowMs: number): boolean {
+  const since = agent.ended ?? agent.started;
+  return !!since && nowMs - since.getTime() > STALE_MS;
+}
+
 /** A path a task names as the folder it is in: itself when a folder, its folder when a file, null when it is not there. */
 function dirOf(candidate: string): string | null {
   try {
@@ -291,6 +297,7 @@ function agentOf(agent: LedgerAgent, beat: BoardBeat | undefined, now: number): 
   return {
     name: agent.name,
     state: agent.state,
+    review: !!agent.review,
     status: AGENT_STATUS[agent.state],
     task: agent.task,
     model: agent.model,
@@ -354,7 +361,10 @@ function voiceOf(
     since: pinned.view.since,
     agents: {
       running: mine.filter((agent) => agent.state === 'running').length,
-      waiting: mine.filter((agent) => agent.state === 'waiting').length,
+      waiting: mine.filter(
+        (agent) => agent.state === 'waiting' && !agent.review && !forgotten(agent, nowMs),
+      ).length,
+      review: mine.filter((agent) => agent.review && !forgotten(agent, nowMs)).length,
     },
     session: pinned.view.id,
     can_focus: pinned.view.focus,
@@ -1055,7 +1065,7 @@ export class Board {
     const shown = agents.filter(
       (agent) =>
         agent.state === 'running' ||
-        agent.state === 'waiting' ||
+        (agent.state === 'waiting' && !forgotten(agent, nowMs)) ||
         agent.state === 'plan' ||
         agent.state === 'fixing' ||
         (agent.ended?.getTime() ?? 0) >= nowMs - settings.doneHours * 3600 * 1000,
@@ -1077,10 +1087,12 @@ export class Board {
         parent.agents.push(view);
         continue;
       }
-      // an agent at a gate belongs in the card of the branch or PR its task names, wherever its launching session is
-      const home = view.gate
-        ? gatedHome(agent, cards, parent?.lane ?? voiceParent?.lane ?? null)
-        : null;
+      // an agent at a gate, or parked on your story review, belongs in the card of the branch or PR its task names,
+      // wherever its launching session is
+      const home =
+        view.gate || view.review
+          ? gatedHome(agent, cards, parent?.lane ?? voiceParent?.lane ?? null)
+          : null;
       if (home) {
         home.agents.push(view);
         continue;
@@ -1090,6 +1102,8 @@ export class Board {
       if (agent.state === 'done' || agent.state === 'failed' || agent.state === 'stopped') {
         continue;
       }
+      // parked on your story review is Ready, not Waiting
+      const column: BoardColumn = agent.review ? 'ready' : AGENT_COLUMN[agent.state];
       cards.push({
         id: `agent:${agent.sid}:${agent.name}`,
         kind: 'agent',
@@ -1097,7 +1111,7 @@ export class Board {
         repo: null,
         branch: null,
         lane: laneForAgent(agent, knownLanes, parent?.lane ?? voiceParent?.lane ?? null, NO_PARENT),
-        column: view.gate ? 'checks' : AGENT_COLUMN[agent.state],
+        column: view.gate ? 'checks' : column,
         detail:
           agent.state === 'waiting' || view.gate?.kind === 'fixing' || view.gate?.kind === 'plan'
             ? view.outcome
@@ -1901,7 +1915,7 @@ export class Board {
       building: !!card.building,
     });
     const asking = card.sessions.find((session) => session.status === 'waiting');
-    const waitingAgent = card.agents.find((agent) => agent.state === 'waiting');
+    const waitingAgent = card.agents.find((agent) => agent.state === 'waiting' && !agent.review);
     const busy = card.sessions.find((session) => session.status === 'working');
     switch (card.column) {
       case 'waiting':
@@ -1934,9 +1948,15 @@ export class Board {
       case 'back':
         card.since = card.pr?.others_at ?? null;
         break;
-      case 'ready':
-        card.since = built?.built_at ?? null;
+      case 'ready': {
+        // a card in Ready only because an agent says [review] (no story on it yet) says so, from the agent's line
+        const parked = card.agents.find((agent) => agent.review);
+        card.since = built?.built_at ?? parked?.ended_at ?? null;
+        if (!built && parked) {
+          card.detail = parked.outcome;
+        }
         break;
+      }
       default:
         card.detail = card.sessions[0]?.detail || null;
         card.since = card.sessions[0]?.since ?? null;

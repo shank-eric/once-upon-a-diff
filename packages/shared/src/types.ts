@@ -667,6 +667,8 @@ export interface BoardAgent {
   name: string;
   /** the ledger's own word for where it stands */
   state: 'running' | 'waiting' | 'plan' | 'fixing' | 'done' | 'failed' | 'stopped';
+  /** `waiting` on your story review (the ledger's `[review]`), not on a question: shown as ready for review */
+  review: boolean;
   status: BoardStatus;
   task: string | null;
   model: string | null;
@@ -936,8 +938,8 @@ export interface BoardVoice {
   branch: string | null;
   status: 'listening' | 'speaking' | 'working' | 'paused' | 'away' | 'ended';
   since: string | null;
-  /** the agents it started that are running or waiting on you */
-  agents: { running: number; waiting: number };
+  /** the agents it started that are running, waiting on you, or ready for your review */
+  agents: { running: number; waiting: number; review: number };
   session: string;
   can_focus: boolean;
   /** how full its context window is (%), when its status line says */
