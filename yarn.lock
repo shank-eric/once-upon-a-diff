@@ -2426,6 +2426,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"htm@npm:3.1.1":
+  version: 3.1.1
+  resolution: "htm@npm:3.1.1"
+  checksum: 10c0/0de4c8fff2b8e76c162235ae80dbf93ca5eef1575bd50596a06ce9bebf1a6da5efc467417c53034a9ffa2ab9ecff819cbec041dc9087894b2b900ad4de26c7e7
+  languageName: node
+  linkType: hard
+
 "html-escaper@npm:^3.0.3":
   version: 3.0.3
   resolution: "html-escaper@npm:3.0.3"
@@ -3042,7 +3049,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"linkedom@npm:^0.18.12":
+"linkedom@npm:0.18.14, linkedom@npm:^0.18.12":
   version: 0.18.14
   resolution: "linkedom@npm:0.18.14"
   dependencies:
@@ -3447,6 +3454,10 @@ __metadata:
     "@once-upon-a-diff/shared": "workspace:*"
     "@types/node": "npm:24.19.1"
     highlight.js: "npm:11.11.1"
+    htm: "npm:3.1.1"
+    linkedom: "npm:0.18.14"
+    preact: "npm:10.29.8"
+    rolldown: "npm:1.2.15"
     typescript: "npm:5.9.3"
   bin:
     once-upon: bin/once-upon.mjs
@@ -3677,6 +3688,18 @@ __metadata:
   languageName: node
   linkType: hard
 
+"preact@npm:10.29.8":
+  version: 10.29.8
+  resolution: "preact@npm:10.29.8"
+  peerDependencies:
+    preact-render-to-string: ">=5"
+  peerDependenciesMeta:
+    preact-render-to-string:
+      optional: true
+  checksum: 10c0/505460352139e0ce5b9c971b69d8d9f3b73ea0f316e3ff1c0b3db9a1abe206c9dff6ba385eb796253c38fcc08b5ade70cd8da3d9d6c9e9aec1a2fd59348253ae
+  languageName: node
+  linkType: hard
+
 "prelude-ls@npm:^1.2.1":
   version: 1.2.1
   resolution: "prelude-ls@npm:1.2.1"
@@ -3880,7 +3903,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"rolldown@npm:~1.2.12":
+"rolldown@npm:1.2.15, rolldown@npm:~1.2.12":
   version: 1.2.15
   resolution: "rolldown@npm:1.2.15"
   dependencies:

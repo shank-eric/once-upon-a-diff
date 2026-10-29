@@ -8,6 +8,8 @@
 import { authHeader, startAuth } from '/assets/local/auth.ts';
 import { notConnectedHtml } from '/assets/local/not-connected.ts';
 import { openMenu } from '/assets/local/menu.ts';
+import { remember, stored } from '/assets/local/stored.ts';
+import { mountVoice } from '/assets/local/voice-panel.ts';
 import { freshestFirst, obviousChoice } from '/assets/util/choice.ts';
 import { html, type HtmlValue } from '/assets/util/html.ts';
 import { setHtml } from '/assets/util/dom.ts';
@@ -28,13 +30,22 @@ import type {
   BoardSession,
   BoardUsage,
   BoardVoice,
-  BoardVoiceLine,
   BoardWorktree,
   PrInfo,
 } from '/assets/types.ts';
 
 const POLL_MS = 3000;
 const app = document.getElementById('ou-board-app') as HTMLElement;
+/**
+ * The page has two parts. `main` takes the board's string-rendered markup (setHtml replaces all of it on a redraw), and
+ * `voiceHost` is where the voice panel, a Preact component (local/voice-panel.ts), draws itself, so a redraw of the strings
+ * never touches it. Both sit inside the app element, which carries the classes and variables the stylesheet keys off.
+ */
+const main = document.createElement('div');
+main.style.display = 'contents';
+main.append(...app.childNodes);
+const voiceHost = document.createElement('div');
+app.append(main, voiceHost);
 const KEY = new URLSearchParams(location.hash.slice(1)).get('key') || '';
 /** Hands the key to the server when the host takes a cookie; calls wait for that so the cookie is there. */
 const authed = startAuth(KEY, '/api/board');
@@ -63,30 +74,6 @@ const GROUPS = [
 let last = '';
 let board: BoardData | null = null;
 
-/**
- * What the board remembers lives in localStorage, which can be missing or blocked. `stored` is the saved text under a key
- * (run through `parse` when there is one), or `fallback` when none is saved, it does not parse or storage throws. `remember`
- * saves one, and a choice that cannot be saved just isn't remembered.
- */
-function stored<T>(key: string, fallback: T, parse?: (text: string) => T): T {
-  try {
-    const text = localStorage.getItem(key);
-    if (text === null) {
-      return fallback;
-    }
-    return parse ? parse(text) : (text as T);
-  } catch {
-    return fallback;
-  }
-}
-function remember(key: string, value: string) {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    /* the choice just isn't remembered */
-  }
-}
-
 /** The Idle lane's state is remembered. */
 const IDLE_KEY = 'ou-board-idle-open';
 let idleOpen = stored(IDLE_KEY, true, (text) => text !== 'false');
@@ -112,57 +99,6 @@ const shownCard = (card: BoardCard) => !(hideOnAuthor && onAuthor(card));
 
 /** A phone-mode or bridge call is running: the 3 s refresh redraws the buttons disabled, so a second click cannot start another. */
 let phoneBusy = false;
-/** The voice panel's open or closed state is remembered. */
-const VOICE_KEY = 'ou-board-voice-open';
-let voiceOpen = stored(VOICE_KEY, false, (text) => text === 'true');
-/** While voice is paused or ended the panel is collapsed to its tab; a click on the tab peeks it open, not remembered. */
-let voicePeek = false;
-const voiceOpenVerb = (voice: BoardVoice) => (voiceCollapsed(voice) ? 'Peek at' : 'Open');
-const voiceCollapsed = (voice: BoardVoice) => voice.status === 'paused' || voice.status === 'ended';
-/** Whether the voice panel itself is showing: the remembered choice, or a peek while it is collapsed. */
-const voiceShown = (voice: BoardVoice) => (voiceCollapsed(voice) ? voicePeek : voiceOpen);
-
-/**
- * The voice panel's width is dragged (or arrowed) and remembered too. It lives in a CSS custom property on the board's
- * own element, which a redraw leaves alone, so a redraw never resets it. null is the stylesheet's default width.
- */
-const VOICE_WIDTH_KEY = 'ou-board-voice-width';
-const VOICE_MIN_WIDTH = 260;
-const VOICE_MAX_SHARE = 0.6;
-const VOICE_KEY_STEP = 16;
-let voiceWidth = stored<number | null>(VOICE_WIDTH_KEY, null, (text) => {
-  const width = Number.parseInt(text);
-  return Number.isFinite(width) ? width : null;
-});
-/** A drag of the panel's edge is under way: a redraw would drop the handle (and its pointer capture), so the drop redraws. */
-let voiceResizing = false;
-const clampVoiceWidth = (width: number) =>
-  Math.round(
-    Math.min(
-      Math.max(width, VOICE_MIN_WIDTH),
-      Math.max(window.innerWidth * VOICE_MAX_SHARE, VOICE_MIN_WIDTH),
-    ),
-  );
-function applyVoiceWidth() {
-  if (voiceWidth === null) {
-    app.style.removeProperty('--ou-voice-width');
-  } else {
-    app.style.setProperty('--ou-voice-width', `${voiceWidth}px`);
-  }
-  // the handle reports the width it is at (not in the markup, so arrowing never makes a redraw)
-  const handle = app.querySelector<HTMLElement>('[data-voice-resize]');
-  const panel = app.querySelector<HTMLElement>('.ou-board-voice-panel');
-  if (handle && panel) {
-    handle.setAttribute('aria-valuenow', String(Math.round(panel.getBoundingClientRect().width)));
-  }
-}
-function saveVoiceWidth() {
-  if (voiceWidth !== null) {
-    remember(VOICE_WIDTH_KEY, String(voiceWidth));
-  }
-}
-applyVoiceWidth();
-
 /** The Add panel is closed until asked for (+ Add), and closes after an add or Escape. */
 let addOpen = false;
 /** The board's repo filter: a lane name, '' for All. Remembered; a lane that is gone shows everything. */
@@ -589,25 +525,6 @@ function groupHtml(group: (typeof GROUPS)[number], columns: unknown[]) {
   </div>`;
 }
 
-const VOICE_STATUS: Record<BoardVoice['status'], string> = {
-  listening: 'Listening',
-  speaking: 'Speaking',
-  working: 'Working',
-  paused: 'Paused',
-  away: 'Away on the phone',
-  ended: 'Ended',
-};
-
-/** The voice tab's microphone glyph. */
-const MIC_ICON = html`<svg class="ou-board-voice-mic" viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-  <path fill="currentColor" d="M8 1a2.5 2.5 0 0 0-2.5 2.5v4a2.5 2.5 0 0 0 5 0v-4A2.5 2.5 0 0 0 8 1Z"/>
-  <path fill="currentColor" d="M3.5 7a.75.75 0 0 1 1.5 0 3 3 0 0 0 6 0 .75.75 0 0 1 1.5 0 4.5 4.5 0 0 1-3.75 4.44V14h1.5a.75.75 0 0 1 0 1.5h-4.5a.75.75 0 0 1 0-1.5h1.5v-2.56A4.5 4.5 0 0 1 3.5 7Z"/>
-</svg>`;
-
-/** One line of the voice conversation, who said it first. */
-const voiceLineHtml = (line: BoardVoiceLine) =>
-  html`<li class="ou-board-voice-${line.who}"><span class="ou-local-muted">${line.who === 'you' ? 'You' : 'Voice'}</span> ${line.text}</li>`;
-
 /**
  * The voice controls in the board's top header, the rightmost items (past the repo dropdown): Resume while voice is paused,
  * the phone-mode toggle whenever the Larmor checkout can run it, voice on or not (Larmor's away mode, which starts the phone
@@ -629,57 +546,6 @@ function voiceHeaderHtml(voice: BoardVoice | null, phone: BoardData['phone']) {
   return buttons.length > 0
     ? html`<div class="ou-local-top-voice ou-board-voice-phone" role="group" aria-label="Voice controls">${buttons}</div>`
     : '';
-}
-
-/**
- * The voice session as a panel docked on the board's right edge: a small tab (mic, status word, a color for the status)
- * that opens the panel with its repo and branch, status, context, agents, the conversation (newest at the bottom) and
- * Open in iTerm. Whether it is open is a page preference, so a poll's redraw leaves it as it is.
- */
-function voiceHtml(voice: BoardVoice) {
-  const agents = [
-    voice.agents.running && `${voice.agents.running} running`,
-    voice.agents.waiting && `${voice.agents.waiting} waiting`,
-    voice.agents.review && `${voice.agents.review} ready for review`,
-  ]
-    .filter(Boolean)
-    .join(', ');
-  const focusTitle = voice.can_focus
-    ? "Bring the voice session's iTerm tab to the front"
-    : 'No iTerm tab is known for this session';
-  const status = VOICE_STATUS[voice.status];
-  const shown = voiceShown(voice);
-  const tabVerb = shown ? 'Close' : voiceOpenVerb(voice);
-  const pauseButton =
-    {
-      paused: html`<button type="button" class="ou-board-voice-pause" data-voice-pause="resume" title="Resume voice (removes ~/.larmor/paused, as the menu bar does)">Resume</button>`,
-      ended: '',
-    }[voice.status as string] ??
-    html`<button type="button" class="ou-board-voice-pause" data-voice-pause="pause" title="Pause voice (the mic is released until you resume)">Pause</button>`;
-  const where = voice.repo
-    ? `${voice.repo.split('/')[1]}${voice.branch ? ` · ${voice.branch}` : ''}`
-    : '';
-  return html`<aside class="ou-board-voice ou-board-voice-${voice.status}${shown ? ' ou-board-voice-open' : ''}${voiceCollapsed(voice) ? ' ou-board-voice-collapsed' : ''}" aria-label="Voice session">
-    <button type="button" class="ou-board-voice-tab" data-voice-toggle aria-expanded="${String(shown)}" aria-controls="ou-board-voice-panel"
-      title="${tabVerb} the voice session: ${voice.name}">
-      ${MIC_ICON}<span class="ou-board-voice-dot" aria-hidden="true"></span><span class="ou-board-voice-word">${status}</span>
-    </button>
-    ${
-      shown &&
-      html`<div class="ou-board-voice-panel" id="ou-board-voice-panel" role="region" aria-label="Voice session panel">
-      <div class="ou-board-voice-grip" data-voice-resize role="separator" aria-orientation="vertical" aria-label="Resize the voice panel" aria-valuemin="${VOICE_MIN_WIDTH}" tabindex="0" title="Drag to resize (or use the arrow keys)"></div>
-      <div class="ou-board-voice-head">
-        <strong class="ou-board-voice-name" title="${voice.title}">${voice.name}</strong>
-        <button type="button" class="ou-board-voice-close" data-voice-toggle aria-label="Close the voice panel" title="Close">✕</button>
-      </div>
-      ${where && html`<div class="ou-local-muted">${where}</div>`}
-      <div class="ou-board-voice-facts"><span class="ou-board-voice-status"><span class="ou-board-voice-dot" aria-hidden="true"></span>${status}</span>${contextHtml(voice.context)}${pauseButton}</div>
-      <div class="ou-local-muted">${agents ? `agents: ${agents}` : 'no agents running'}</div>
-      ${voice.lines.length > 0 ? html`<ol class="ou-board-voice-lines" aria-label="Conversation, newest last">${voice.lines.map(voiceLineHtml)}</ol>` : html`<p class="ou-local-muted ou-board-voice-none">Nothing said yet.</p>`}
-      <button type="button" class="ou-board-focus" data-focus="${voice.session}"${!voice.can_focus && html` disabled`} title="${focusTitle}">Open in iTerm</button>
-    </div>`
-    }
-  </aside>`;
 }
 
 /** "3h", "5m" since an ISO time, for the Listeners lane. */
@@ -803,10 +669,22 @@ function worktreesHtml(trees: NonNullable<BoardData['worktrees']>, now: number) 
   </section>`;
 }
 
+/** Hands the voice panel (a Preact component) the poll's voice session; Preact works out what changed. */
+function showVoice(voice: BoardVoice | null) {
+  mountVoice(voiceHost, {
+    voice,
+    root: app,
+    api,
+    onChanged: refresh,
+    onFocus: (session) => focusSession(session, null),
+  });
+}
+
 function render(full: BoardData) {
   board = full;
+  showVoice(full.voice);
   // a card is being dragged: a redraw would drop it, so the drop (or its end) redraws
-  if (dragId || voiceResizing) {
+  if (dragId) {
     return;
   }
   const data = filtered(full);
@@ -863,12 +741,6 @@ function render(full: BoardData) {
   // what is on you: a question, a story to review, comments to answer
   const onYou = count('waiting') + count('ready') + count('back');
   document.title = onYou ? `(${onYou}) Agent board` : 'Agent board';
-  // the voice tab and, open, its panel make room beside the board; a phone gets a sheet over the bottom instead
-  app.classList.toggle('ou-board-has-voice', !!data.voice);
-  if (!data.voice || !voiceCollapsed(data.voice)) {
-    voicePeek = false;
-  }
-  app.classList.toggle('ou-board-pushed', !!data.voice && voiceShown(data.voice));
   const summary = [
     ...(count('backlog') ? [`${count('backlog')} in backlog`] : []),
     `${count('working')} working`,
@@ -921,8 +793,7 @@ function render(full: BoardData) {
       }
       ${data.worktrees && worktreesHtml(data.worktrees, now)}
       ${listenersHtml(data.listeners, now)}
-    </main>
-    ${data.voice && voiceHtml(data.voice)}`;
+    </main>`;
   // ages tick on every poll, but the page is only redrawn when its markup changed (a redraw loses a focused button)
   const next = String(markup);
   if (next !== last) {
@@ -934,22 +805,7 @@ function render(full: BoardData) {
     const focused = (document.activeElement as HTMLElement | null)?.closest('[data-backlog-add]')
       ? (document.activeElement as HTMLInputElement).name
       : null;
-    const handleFocused = !!(document.activeElement as HTMLElement | null)?.closest(
-      '[data-voice-resize]',
-    );
-    // the voice conversation: a redraw keeps your place in it, and a new line scrolls it to the bottom if you were there
-    const lines = app.querySelector<HTMLElement>('.ou-board-voice-lines');
-    const wasAtBottom = !lines || lines.scrollHeight - lines.scrollTop - lines.clientHeight < 8;
-    const scrolled = lines ? lines.scrollTop : 0;
-    setHtml(app, markup);
-    applyVoiceWidth();
-    if (handleFocused) {
-      app.querySelector<HTMLElement>('[data-voice-resize]')?.focus();
-    }
-    const linesNow = app.querySelector<HTMLElement>('.ou-board-voice-lines');
-    if (linesNow) {
-      linesNow.scrollTop = wasAtBottom ? linesNow.scrollHeight : scrolled;
-    }
+    setHtml(main, markup);
     for (const [name, value] of typed) {
       const field = app.querySelector<HTMLInputElement>(`[data-backlog-add] [name="${name}"]`);
       if (field && value) {
@@ -967,15 +823,23 @@ function render(full: BoardData) {
   }
 }
 
+/** Polls that failed in a row: the voice panel keeps its place (a peek, a drag) through one blip and goes after a second. */
+let failedPolls = 0;
+
 async function refresh() {
   try {
     render(await api<BoardData>('/api/board'));
+    failedPolls = 0;
   } catch (err) {
     last = '';
+    failedPolls++;
     // refused for want of a key: say how to connect (the poll fills the board in once there is a cookie)
     const refused = [401, 403].includes((err as { status?: number }).status ?? 0);
+    if (failedPolls >= 2) {
+      showVoice(null);
+    }
     setHtml(
-      app,
+      main,
       refused
         ? notConnectedHtml()
         : html`<p class="ou-local-error">Couldn't load the board: ${(err as Error).message}</p>`,
@@ -1105,53 +969,6 @@ async function cleanUp(button: HTMLButtonElement) {
     await refresh();
   }
 }
-
-// the voice panel's left edge: drag it (pointer capture keeps the drag when the pointer leaves the thin handle), or arrow it
-app.addEventListener('pointerdown', (event) => {
-  const handle = (event.target as Element).closest<HTMLElement>('[data-voice-resize]');
-  if (!handle || event.button !== 0) {
-    return;
-  }
-  event.preventDefault();
-  handle.setPointerCapture(event.pointerId);
-  voiceResizing = true;
-  const move = (moveEvent: PointerEvent) => {
-    voiceWidth = clampVoiceWidth(window.innerWidth - moveEvent.clientX);
-    applyVoiceWidth();
-  };
-  const finish = () => {
-    handle.removeEventListener('pointermove', move);
-    handle.removeEventListener('pointerup', finish);
-    handle.removeEventListener('pointercancel', finish);
-    voiceResizing = false;
-    saveVoiceWidth();
-    if (board) {
-      last = '';
-      render(board);
-    }
-  };
-  handle.addEventListener('pointermove', move);
-  handle.addEventListener('pointerup', finish);
-  handle.addEventListener('pointercancel', finish);
-});
-
-// ArrowLeft widens the panel (its edge moves left), ArrowRight narrows it, 16px at a time
-app.addEventListener('keydown', (event) => {
-  const handle = (event.target as Element).closest<HTMLElement>('[data-voice-resize]');
-  if (!handle || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) {
-    return;
-  }
-  event.preventDefault();
-  const shown =
-    app.querySelector<HTMLElement>('.ou-board-voice-panel')?.getBoundingClientRect().width ??
-    VOICE_MIN_WIDTH;
-  voiceWidth = clampVoiceWidth(
-    (voiceWidth === null ? shown : Math.min(voiceWidth, shown)) +
-      (event.key === 'ArrowLeft' ? VOICE_KEY_STEP : -VOICE_KEY_STEP),
-  );
-  applyVoiceWidth();
-  saveVoiceWidth();
-});
 
 // Alt+Up or Alt+Down on a focused Backlog card moves it within its lane (the keyboard's way to reorder)
 app.addEventListener('keydown', async (event) => {
@@ -1641,19 +1458,6 @@ app.addEventListener('click', async (event) => {
     }
     last = '';
     await refresh();
-    return;
-  }
-  if (clicked.closest('[data-voice-toggle]')) {
-    if (board?.voice && voiceCollapsed(board.voice)) {
-      voicePeek = !voicePeek;
-    } else {
-      voiceOpen = !voiceOpen;
-      remember(VOICE_KEY, String(voiceOpen));
-    }
-    if (board) {
-      last = '';
-      render(board);
-    }
     return;
   }
   if (clicked.closest('[data-idle-toggle]')) {

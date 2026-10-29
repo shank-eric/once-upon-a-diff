@@ -11,6 +11,7 @@
       "/assets/panel/*": ["../../shared/src/panel/*"],
       "/assets/local/*": ["./local/*"],
       "/assets/highlight.mjs": ["./types/highlight.d.ts"],
+      "/assets/preact.mjs": ["./types/preact.d.ts"],
       "/assets/*": ["./*"]
     }
   },

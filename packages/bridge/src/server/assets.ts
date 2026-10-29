@@ -31,6 +31,7 @@ const ASSETS: Record<string, string> = {
   '/assets/narrow.ts': path.join(PUBLIC, 'narrow.ts'),
   '/assets/syntax.ts': path.join(PUBLIC, 'syntax.ts'),
   '/assets/highlight.mjs': path.join(PUBLIC, 'vendor/highlight.mjs'),
+  '/assets/preact.mjs': path.join(PUBLIC, 'vendor/preact.mjs'),
   '/assets/local.css': path.join(PUBLIC, 'local.css'),
   // the extension's icon (a blue tile that reads on light and dark tabs); /favicon.ico is what a browser asks for with no <link>
   '/assets/icon.png': path.join(PUBLIC, 'icon.png'),

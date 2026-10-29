@@ -3,8 +3,31 @@
   "compilerOptions": {
     "allowJs": true,
     "checkJs": true,
-    "lib": ["es2023", "dom", "dom.iterable"],
-    "types": ["node"]
+    "lib": [
+      "es2023",
+      "dom",
+      "dom.iterable"
+    ],
+    "types": [
+      "node"
+    ],
+    "paths": {
+      "/assets/preact.mjs": [
+        "../public/types/preact.d.ts"
+      ],
+      "/assets/local/*": [
+        "../public/local/*"
+      ],
+      "/assets/types.ts": [
+        "../../shared/src/types.ts"
+      ],
+      "/assets/util/*": [
+        "../../shared/src/util/*"
+      ]
+    }
   },
-  "include": [".", "../../shared/types"]
+  "include": [
+    ".",
+    "../../shared/types"
+  ]
 }
