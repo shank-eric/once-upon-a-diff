@@ -3,7 +3,7 @@
  * (local), and publish a once-upon folder where the bridge finds it.
  */
 import { execFile } from 'node:child_process';
-import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { openArgv } from '../../config/settings.ts';
 import { StoryStore } from '../../stories/store.ts';
@@ -18,7 +18,7 @@ import {
   writeBinding,
 } from '../../inbox/binding.ts';
 import { storyIdOf } from './inbox.ts';
-import { readJson, writeJsonAtomic } from '../../util/json-file.ts';
+import { copyFileAtomic, readJson, writeJsonAtomic } from '../../util/json-file.ts';
 import { parseUnifiedDiff } from '../../util/diff.ts';
 import { stateKeyOf } from '../../github/drafts.ts';
 import { vetRebuild, afterRebuild } from '../../stories/rebuild.ts';
@@ -275,29 +275,22 @@ function publish(home: string, cfg: Config, opts: CliOpts) {
   const dest = storyDirFor(home, id, { repo });
   for (const name of ['chapters.json', 'file-map.json']) {
     if (existsSync(path.join(source, name))) {
-      copyFileSync(path.join(source, name), path.join(dest, name));
+      copyFileAtomic(path.join(source, name), path.join(dest, name));
     }
   }
-  writeFileSync(
-    path.join(dest, 'meta.json'),
-    JSON.stringify(
-      {
-        kind: 'github',
-        repo,
-        number: prJson.number,
-        url: prJson.url,
-        pr_title: prJson.title || null,
-        pr_author: prJson.author?.login || null, // whose PR it is: Fix before push is on only for the viewer's own
-        head_oid: prJson.headRefOid || null, // the commit the story was told from
-        base_oid: prJson.baseRefOid || null,
-        head_ref: prJson.headRefName || null, // the PR's branch, where a fix request's change goes
-        source,
-        published_at: new Date().toISOString(),
-      },
-      null,
-      2,
-    ),
-  );
+  writeJsonAtomic(path.join(dest, 'meta.json'), {
+    kind: 'github',
+    repo,
+    number: prJson.number,
+    url: prJson.url,
+    pr_title: prJson.title || null,
+    pr_author: prJson.author?.login || null, // whose PR it is: Fix before push is on only for the viewer's own
+    head_oid: prJson.headRefOid || null, // the commit the story was told from
+    base_oid: prJson.baseRefOid || null,
+    head_ref: prJson.headRefName || null, // the PR's branch, where a fix request's change goes
+    source,
+    published_at: new Date().toISOString(),
+  });
   let note = null;
   if (rebuilt) {
     note = afterRebuild(home, { id, stateKey: stateKeyOf(id, meta), ...rebuilt });

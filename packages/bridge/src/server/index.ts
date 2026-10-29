@@ -22,11 +22,12 @@
  */
 import http, { type IncomingMessage } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { StoryStore } from '../stories/store.ts';
 import { readMeta } from '../stories/meta.ts';
+import { writeFileAtomic } from '../util/json-file.ts';
 import { storyRepo } from '../config/repos.ts';
 import { Inbox } from '../inbox/inbox.ts';
 import { Builds } from '../inbox/builds.ts';
@@ -159,7 +160,7 @@ export function createBridge({
     if (Date.now() - extensionWritten > SEEN_WRITE_MS) {
       extensionWritten = Date.now();
       try {
-        writeFileSync(path.join(home, 'extension-seen.json'), JSON.stringify(app.extensionSeen));
+        writeFileAtomic(path.join(home, 'extension-seen.json'), JSON.stringify(app.extensionSeen));
       } catch {
         /* not worth failing a request over */
       }

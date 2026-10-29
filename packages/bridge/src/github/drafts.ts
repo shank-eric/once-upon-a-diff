@@ -27,7 +27,7 @@
 import { createHash } from 'node:crypto';
 import { runGh } from '../util/gh.ts';
 import { prKey } from '@once-upon-a-diff/shared/util/github-paths';
-import { readJson, writeJson } from '../util/json-file.ts';
+import { readJson, writeJsonAtomic } from '../util/json-file.ts';
 import { noteState } from '../inbox/fixes.ts';
 import { stateFile } from '../config/settings.ts';
 import type { Chapter, DraftRow, LocalNote, StoryData } from '@once-upon-a-diff/shared/types';
@@ -298,7 +298,7 @@ export function readMarks(home: string, key: string): DraftMarks {
   return { ...EMPTY(), ...readJson<Partial<DraftMarks>>(file(home, key), {}) };
 }
 function writeMarks(home: string, key: string, marks: DraftMarks): void {
-  writeJson(file(home, key), marks);
+  writeJsonAtomic(file(home, key), marks);
 }
 
 const entryOf = (draft: CommentLike): MarkEntry => ({

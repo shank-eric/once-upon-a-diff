@@ -23,7 +23,7 @@ import { sameRepo, REPO_RE } from '../config/repos.ts';
 import { SHA_RE, plural, shortSha } from '@once-upon-a-diff/shared/util/text';
 import { prKey } from '@once-upon-a-diff/shared/util/github-paths';
 import { readerOf } from '../config/settings.ts';
-import { readJson, writeJson } from '../util/json-file.ts';
+import { readJson, writeJsonAtomic } from '../util/json-file.ts';
 import { listeners } from '../listeners/listeners.ts';
 import { ID_RE } from '../stories/meta.ts';
 import { isRebuild, REBUILD_MODES } from '../stories/rebuild.ts';
@@ -247,7 +247,7 @@ export class Builds {
     return readJson<Record<string, Build>>(this.file, {}) as Record<string, Build>;
   }
   save(all: Record<string, Build>): void {
-    writeJson(this.file, all);
+    writeJsonAtomic(this.file, all);
   }
 
   get(repo: string, number: number | string): Build | null {

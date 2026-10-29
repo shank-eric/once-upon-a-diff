@@ -14,11 +14,11 @@
  *     local-<repo>-<branch>/       a local-commits story made by `once-upon local`
  */
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, writeFileSync, chmodSync } from 'node:fs';
+import { mkdirSync, chmodSync, copyFileSync, existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DEFAULT_PORT } from '@once-upon-a-diff/shared/util/bridge-port';
-import { readJson } from '../util/json-file.ts';
+import { readJson, writeFileAtomic } from '../util/json-file.ts';
 import type { ShipMode } from '@once-upon-a-diff/shared/types';
 
 /** config.json: the port and token, and any personal settings (readSettings). */
@@ -95,8 +95,18 @@ export function ownerOnly(dir: string): void {
 export function loadConfig(home = homeDir()): Config {
   ownerOnly(home);
   const file = path.join(home, 'config.json');
-  const cfg = readJson<Partial<Config>>(file, {}) || {};
+  let cfg = readJson<Partial<Config>>(file, null);
   let changed = false;
+  if (existsSync(file) && (!cfg || typeof cfg !== 'object' || Array.isArray(cfg))) {
+    // a crash or a bad edit left it empty or unparseable: saving a fresh one would wipe every setting in it
+    const keep = `${file}.unreadable-${new Date().toISOString().replace(/[:.]/g, '-')}`;
+    copyFileSync(file, keep);
+    console.error(
+      `once-upon: ${file} is empty or not JSON. Kept a copy at ${keep} and started a fresh one (new token).`,
+    );
+    cfg = null;
+  }
+  cfg ??= {};
   if (!cfg.token) {
     cfg.token = newToken();
     changed = true;
@@ -378,7 +388,7 @@ export function formatTime(iso: string | null | undefined, home = homeDir()): st
 export function saveConfig(cfg: Partial<Config>, home = homeDir()): void {
   ownerOnly(home);
   const file = path.join(home, 'config.json');
-  writeFileSync(file, JSON.stringify(cfg, null, 2) + '\n', { mode: 0o600 });
+  writeFileAtomic(file, JSON.stringify(cfg, null, 2) + '\n', 0o600);
   chmodSync(file, 0o600);
 }
 
@@ -416,6 +426,6 @@ export function writePrefs(patch: Record<string, unknown>, home = homeDir()): Pr
     next.layout = layout;
   }
   mkdirSync(home, { recursive: true, mode: 0o700 });
-  writeFileSync(path.join(home, 'prefs.json'), JSON.stringify(next, null, 2) + '\n');
+  writeFileAtomic(path.join(home, 'prefs.json'), JSON.stringify(next, null, 2) + '\n');
   return next;
 }

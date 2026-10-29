@@ -5,7 +5,8 @@
  * refs move) and chapters.json in once-upon's format, so the same panel and
  * the same chapters work on either.
  */
-import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { copyFileAtomic, writeJsonAtomic } from '../util/json-file.ts';
 import path from 'node:path';
 import { topLevel, revParse, branchOfRef } from '../util/git.ts';
 import { parseUnifiedDiff } from '../util/diff.ts';
@@ -134,7 +135,7 @@ export function createLocalStory({
       (old.title as string | undefined) ||
       `${name}: ${base}..${shown}${branch ? ` (${branch})` : ''}`,
   };
-  writeFileSync(metaFile, JSON.stringify(meta, null, 2));
+  writeJsonAtomic(metaFile, meta);
   refreshLocal(dir, meta);
 
   const diff = parseUnifiedDiff(readFileSync(path.join(dir, 'local.diff'), 'utf8'));
@@ -147,14 +148,14 @@ export function createLocalStory({
       : {};
     const vetted = vet ? vet({ id, meta, diff, before, after }) : null;
     if (vetted) {
-      writeFileSync(chaptersFile, JSON.stringify(vetted, null, 2));
-      writeFileSync(path.resolve(chapters), JSON.stringify(vetted, null, 2));
+      writeJsonAtomic(chaptersFile, vetted);
+      writeJsonAtomic(path.resolve(chapters), vetted);
     } else {
-      copyFileSync(path.resolve(chapters), chaptersFile);
+      copyFileAtomic(path.resolve(chapters), chaptersFile);
     }
   }
   if (!existsSync(chaptersFile)) {
-    writeFileSync(chaptersFile, JSON.stringify(defaultChapters(rels, meta.title), null, 2));
+    writeJsonAtomic(chaptersFile, defaultChapters(rels, meta.title));
   }
 
   const plan: Plan = JSON.parse(readFileSync(chaptersFile, 'utf8'));

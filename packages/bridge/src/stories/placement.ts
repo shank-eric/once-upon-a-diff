@@ -21,7 +21,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { checkoutFor } from '../config/repos.ts';
 import { ownerOnly } from '../config/settings.ts';
-import { readJson, writeJson } from '../util/json-file.ts';
+import { readJson, writeJsonAtomic } from '../util/json-file.ts';
 
 export const STORY_FOLDER = '.once-upon';
 const EXCLUDE_LINE = `/${STORY_FOLDER}/`;
@@ -91,7 +91,7 @@ export function indexStory(home: string, id: string, dir: string): void {
   }
   all[id] = dir;
   mkdirSync(home, { recursive: true });
-  writeJson(indexFile(home), all);
+  writeJsonAtomic(indexFile(home), all);
 }
 
 /** The folder a new story goes in: <checkout>/.once-upon/<id>, made and excluded, or <home>/<id>. */

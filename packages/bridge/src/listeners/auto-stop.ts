@@ -17,8 +17,9 @@
 import { readFixes } from '../inbox/fixes.ts';
 import { Builds } from '../inbox/builds.ts';
 import { readSettings } from '../config/settings.ts';
+import { writeFileAtomic } from '../util/json-file.ts';
 import { plural } from '@once-upon-a-diff/shared/util/text';
-import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { sameRepo } from '../config/repos.ts';
 import type { StoryStore } from '../stories/store.ts';
@@ -184,9 +185,11 @@ export function requestStop(home: string, repo: string, now = Date.now()): void 
   } catch {
     stops = {};
   }
-  writeFileSync(file, JSON.stringify({ ...stops, [repo.toLowerCase()]: now }, null, 2) + '\n', {
-    mode: 0o600,
-  });
+  writeFileAtomic(
+    file,
+    JSON.stringify({ ...stops, [repo.toLowerCase()]: now }, null, 2) + '\n',
+    0o600,
+  );
 }
 
 /** Whether a stop was asked for the repo after this wait started. */

@@ -2,7 +2,8 @@
  * A local story's diff: remade when a HEAD story's refs move (refreshLocal), with a -w
  * copy for Hide whitespace, and the per-file view the local page draws.
  */
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { writeFileAtomic, writeJsonAtomic } from '../util/json-file.ts';
 import path from 'node:path';
 import { parseUnifiedDiff, pathSha } from '../util/diff.ts';
 import { revParse, diffText, commitsBetween } from '../util/git.ts';
@@ -20,7 +21,7 @@ export function diffIgnoringWhitespace(dir: string, meta: StoryMeta): Map<string
       return null;
     }
     try {
-      writeFileSync(
+      writeFileAtomic(
         file,
         diffText(meta.repo_path, meta.base_oid, meta.head_oid, { ignoreWhitespace: true }),
       );
@@ -66,7 +67,7 @@ export function refreshLocal(dir: string, meta: LocalMeta): LocalMeta {
   if (!followsHead(meta) && meta.base_oid && meta.head_oid) {
     if (!hasDiff) {
       try {
-        writeFileSync(
+        writeFileAtomic(
           path.join(dir, 'local.diff'),
           diffText(meta.repo_path, meta.base_oid, meta.head_oid),
         );
@@ -87,7 +88,7 @@ export function refreshLocal(dir: string, meta: LocalMeta): LocalMeta {
   if (baseOid === meta.base_oid && headOid === meta.head_oid && hasDiff) {
     return meta;
   }
-  writeFileSync(path.join(dir, 'local.diff'), diffText(meta.repo_path, baseOid, headOid));
+  writeFileAtomic(path.join(dir, 'local.diff'), diffText(meta.repo_path, baseOid, headOid));
   rmSync(path.join(dir, 'local-w.diff'), { force: true }); // remade for the new range when Hide whitespace wants it
   const next = {
     ...meta,
@@ -96,7 +97,7 @@ export function refreshLocal(dir: string, meta: LocalMeta): LocalMeta {
     commits: commitsBetween(meta.repo_path, baseOid, headOid),
     updated_at: new Date().toISOString(),
   };
-  writeFileSync(path.join(dir, 'meta.json'), JSON.stringify(next, null, 2));
+  writeJsonAtomic(path.join(dir, 'meta.json'), next);
   return next;
 }
 

@@ -23,7 +23,7 @@
  * to the commit the story was told from.
  */
 import { stateFile } from '../config/settings.ts';
-import { readJson, writeJson } from '../util/json-file.ts';
+import { readJson, writeJsonAtomic } from '../util/json-file.ts';
 import { chapterKeyOf } from '@once-upon-a-diff/shared/panel/story-model';
 import { SHA_RE } from '@once-upon-a-diff/shared/util/text';
 import type { Chapter, DiffFile } from '@once-upon-a-diff/shared/types';
@@ -95,7 +95,7 @@ export function noteRead(
       ? { seconds: Math.round(+(seconds as number)) }
       : {}),
   };
-  writeJson(file(home, key), all);
+  writeJsonAtomic(file(home, key), all);
   return all[chapter];
 }
 
@@ -114,7 +114,7 @@ export function retireReads(home: string, key: string, chapterKeys: string[]): n
     delete all[chapter];
   }
   if (moving.length) {
-    writeJson(file(home, key), all);
+    writeJsonAtomic(file(home, key), all);
   }
   return moving.length;
 }

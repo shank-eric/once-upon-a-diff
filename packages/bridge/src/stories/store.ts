@@ -12,7 +12,7 @@
  */
 import { readdirSync } from 'node:fs';
 import path from 'node:path';
-import { readJson, writeJson } from '../util/json-file.ts';
+import { readJson, writeJsonAtomic } from '../util/json-file.ts';
 import { readIndex } from './placement.ts';
 import { stateFile } from '../config/settings.ts';
 import { ID_RE, isStoryDir, readMeta, storyVersion } from './meta.ts';
@@ -103,7 +103,7 @@ export class StoryStore {
     return readJson<T>(stateFile(this.home, id, name), fallback);
   }
   writeState(id: string, name: string, value: unknown): void {
-    writeJson(stateFile(this.home, id, name), value);
+    writeJsonAtomic(stateFile(this.home, id, name), value);
   }
 
   /** The story as the panel takes it (the overlay's data), plus the diff and bridge state for a local story. */

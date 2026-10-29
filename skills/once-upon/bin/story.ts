@@ -9,7 +9,7 @@
  *                                             unplaced or a hunk is told by no chapter (--allow-uncovered publishes anyway)
  *   story.ts publish --dir D                 publish the story for Once Upon a Diff through `once-upon publish` (build does this too)
  */
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 // imports the bridge's and the panel's own helpers from the checkout it's linked from.
 import { parseArgs } from '../../../packages/bridge/src/cli/args.ts';
 import { parseUnifiedDiff } from '../../../packages/bridge/src/util/diff.ts';
+import { writeJsonAtomic } from '../../../packages/bridge/src/util/json-file.ts';
 import { chaptersOf } from '../../../packages/bridge/src/stories/chapters.ts';
 import {
   addTextRefs,
@@ -285,20 +286,13 @@ async function cmdBuild(opts: CliOpts) {
   if (map.uncovered.length && !opts['allow-uncovered']) {
     throw new Error(hunksNotCovered(map.uncovered));
   }
-  await writeFile(
-    path.join(dir, 'file-map.json'),
-    JSON.stringify(
-      {
-        pr: `${repoOf(pr)}#${pr.number}`,
-        mode: plan.mode || 'journey',
-        files: map.files,
-        chapters: map.chapters,
-        ...(map.uncovered.length ? { uncovered_hunks: map.uncovered } : {}),
-      },
-      null,
-      2,
-    ),
-  );
+  writeJsonAtomic(path.join(dir, 'file-map.json'), {
+    pr: `${repoOf(pr)}#${pr.number}`,
+    mode: plan.mode || 'journey',
+    files: map.files,
+    chapters: map.chapters,
+    ...(map.uncovered.length ? { uncovered_hunks: map.uncovered } : {}),
+  });
   const all = [...diff.values()];
   const placed =
     all.length - Object.values(map.files).filter((file) => !file.chapters.length).length;

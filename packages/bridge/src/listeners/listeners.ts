@@ -12,11 +12,12 @@
  * it takes fix requests (../inbox/fixes.ts).
  * A story's own listener answers its questions ahead of a repo's (answeringOf).
  */
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { sameRepo, checkoutFor, tilde } from '../config/repos.ts';
+import { writeFileAtomic } from '../util/json-file.ts';
 import { activeBinding, type Binding } from '../inbox/binding.ts';
 import type { Answering } from '@once-upon-a-diff/shared/types';
 
@@ -78,7 +79,7 @@ export function beat(
   const dir = path.join(home, 'listeners');
   mkdirSync(dir, { recursive: true });
   const safe = String(consumer || 'default').replace(/[^A-Za-z0-9._-]/g, '_');
-  writeFileSync(
+  writeFileAtomic(
     path.join(dir, `${safe}.json`),
     JSON.stringify({ consumer, pid: process.pid, state, at: new Date().toISOString(), ...extra }),
   );
@@ -94,7 +95,7 @@ export function touchHandling(home: string, consumer: string): void {
   try {
     const last = JSON.parse(readFileSync(file, 'utf8'));
     if (last.state === 'handling') {
-      writeFileSync(file, JSON.stringify({ ...last, at: new Date().toISOString() }));
+      writeFileAtomic(file, JSON.stringify({ ...last, at: new Date().toISOString() }));
     }
   } catch {
     /* no listener by that name */

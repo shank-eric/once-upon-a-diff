@@ -7,12 +7,12 @@
  *   <home>/checkouts.json   {"owner/name": "/path/to/checkout"}, lowercased keys
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { readSettings } from './settings.ts';
 import { runGitAsync } from '../util/git.ts';
-import { readJson } from '../util/json-file.ts';
+import { readJson, writeJsonAtomic } from '../util/json-file.ts';
 import type { StoryMeta } from '../types.ts';
 
 export const REPO_RE = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
@@ -142,7 +142,7 @@ export function seenCheckout(
   all[key] = dir;
   try {
     mkdirSync(home, { recursive: true });
-    writeFileSync(file(home), JSON.stringify(all, null, 2));
+    writeJsonAtomic(file(home), all);
   } catch {
     /* a convenience */
   }

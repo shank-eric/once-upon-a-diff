@@ -23,11 +23,10 @@ import {
   readSync,
   closeSync,
   statSync,
-  writeFileSync,
 } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
-import { readJson } from '../util/json-file.ts';
+import { readJson, writeFileAtomic } from '../util/json-file.ts';
 import { ownerOnly } from '../config/settings.ts';
 import type { LocalNote } from '@once-upon-a-diff/shared/types';
 
@@ -241,7 +240,7 @@ export class Inbox {
     return readJson<{ offset?: number }>(this.cursorFile(consumer), {})?.offset || 0;
   }
   setCursor(consumer: string | null | undefined, offset: number): void {
-    writeFileSync(
+    writeFileAtomic(
       this.cursorFile(consumer),
       JSON.stringify({ offset, at: new Date().toISOString() }),
     );
