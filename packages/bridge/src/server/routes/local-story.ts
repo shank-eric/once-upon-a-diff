@@ -5,7 +5,7 @@
  * for PR and local stories alike.
  */
 import { HttpError } from '../request.ts';
-import { approvalOf, approveStory, clearApproval } from '../../review-inbox/approve.ts';
+import { approvalOf, approveStory, clearApproval } from '../../story-lists/approve.ts';
 import type { LocalStory, StoryData } from '@once-upon-a-diff/shared/types';
 import { refreshLocal } from '../../stories/local-diff.ts';
 import type { Call, LocalMeta, ServedStory, StoryRoute } from '../../types.ts';

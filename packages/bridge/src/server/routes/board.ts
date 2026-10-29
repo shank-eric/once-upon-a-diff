@@ -34,7 +34,7 @@ import { REPO_RE } from '../../config/repos.ts';
 import { readSettings } from '../../config/settings.ts';
 import { publicOriginOf } from '../address.ts';
 import { HttpError } from '../request.ts';
-import { localStory, markStoryReviewed } from '../../review-inbox/stories.ts';
+import { localStory, markStoryReviewed } from '../../story-lists/stories.ts';
 import { ID_PATTERN } from '../../board/backlog.ts';
 import type { MoveTo } from '../../board/backlog.ts';
 import type { ApiRoute, Call } from '../../types.ts';

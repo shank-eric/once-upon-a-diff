@@ -66,7 +66,7 @@ import {
   type BranchCheck,
   type PrCheck,
   type RequestedCheck,
-} from '../review-inbox/auto-review.ts';
+} from '../story-lists/auto-review.ts';
 import { UNPACKED_EXTENSION_ID, readSettings } from '../config/settings.ts';
 import type { ApiRoute, App, Body, Call, Send, StoryRoute } from '../types.ts';
 

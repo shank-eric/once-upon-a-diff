@@ -7,7 +7,7 @@
  */
 import { HttpError } from '../request.ts';
 import { approvedFor, pushApproved, pushView } from '../../stories/push-default.ts';
-import { localEntries } from '../../review-inbox/stories.ts';
+import { localEntries } from '../../story-lists/stories.ts';
 import { refreshLocal } from '../../stories/local-diff.ts';
 import type { PushAnswer } from '@once-upon-a-diff/shared/types';
 import type { Call, LocalMeta, ServedStory, StoryRoute } from '../../types.ts';

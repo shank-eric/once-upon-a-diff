@@ -2,6 +2,7 @@
  * Small text helpers shared by the panel, the content scripts and the bridge.
  * No DOM or Node dependencies.
  */
+import type { BoardAgent } from '../types.ts';
 
 /** The 7-character short form of a commit SHA ('' for none). */
 export function shortSha(sha: string | null | undefined): string {
@@ -16,6 +17,18 @@ export function baseName(filePath: string): string {
 /** "1 file", "2 files": the count and the noun, with an "s" unless the count is 1. */
 export function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`;
+}
+
+/** What an agent at a gate is doing, in a few words: "plan check", "fixing 5 findings", "agent review · review-x". */
+export function gateText(agent: Pick<BoardAgent, 'name' | 'gate'>): string {
+  const gate = agent.gate;
+  if (gate?.kind === 'plan') {
+    return 'plan check';
+  }
+  if (gate?.kind === 'fixing') {
+    return gate.findings === null ? 'fixing' : `fixing ${plural(gate.findings, 'finding')}`;
+  }
+  return `agent review · ${agent.name}`;
 }
 
 /** The text with its first character upper-cased. */

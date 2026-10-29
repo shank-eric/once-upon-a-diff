@@ -7,7 +7,7 @@ import { createLocalStory } from '../src/stories/local-story.ts';
 import { refreshLocal, movedSince } from '../src/stories/local-diff.ts';
 import { StoryStore } from '../src/stories/store.ts';
 import { pageKey } from '../src/server/page-key.ts';
-import { prStories, localStories } from '../src/review-inbox/stories.ts';
+import { prStories, localStories } from '../src/story-lists/stories.ts';
 import type { LocalMeta } from '../src/types.ts';
 
 const metaOf = (dir: string) =>

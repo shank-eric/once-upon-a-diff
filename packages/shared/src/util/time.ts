@@ -8,6 +8,36 @@ const parse = (iso: string | null | undefined): Date | null => {
   return date && !Number.isNaN(date.getTime()) ? date : null;
 };
 
+/** Whole minutes from an ISO timestamp to `now` (never negative), or null when it isn't one. */
+export function minutesSince(iso: string | null | undefined, now = Date.now()): number | null {
+  const date = parse(iso);
+  return date ? Math.max(0, Math.floor((now - date.getTime()) / 60000)) : null;
+}
+
+/**
+ * The board's compact age since an ISO timestamp: "now", "5m", "3h" or "2d" (days from `daysAfterHours` on, 48 by
+ * default), or '' when it isn't one. Intl.RelativeTimeFormat has no form this short, so prose like "5 minutes ago" is not built on it here.
+ */
+export function compactAge(
+  iso: string | null | undefined,
+  now = Date.now(),
+  daysAfterHours = 48,
+): string {
+  const minutes = minutesSince(iso, now);
+  if (minutes === null) {
+    return '';
+  }
+  if (minutes < 1) {
+    return 'now';
+  }
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+  return minutes < daysAfterHours * 60
+    ? `${Math.floor(minutes / 60)}h`
+    : `${Math.floor(minutes / 1440)}d`;
+}
+
 /** "3:41 PM" for an ISO timestamp, or '' when it isn't one. */
 export function clockTime(iso: string | null | undefined): string {
   const date = parse(iso);

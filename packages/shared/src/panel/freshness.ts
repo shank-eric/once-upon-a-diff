@@ -10,7 +10,7 @@
 import { html } from '../util/html.ts';
 import { setHtml } from '../util/dom.ts';
 import { plural, sameSha, shortSha } from '../util/text.ts';
-import { clockTime } from '../util/time.ts';
+import { clockTime, minutesSince } from '../util/time.ts';
 import { rangeOfPath } from '../util/github-paths.ts';
 import type { PanelContext } from './context.ts';
 import type { Chapter, Freshness, StoryRequest } from '../types.ts';
@@ -70,8 +70,7 @@ export function requestLine(
       detail: asked ? `asked at ${asked}` : '',
     };
   }
-  const since = Date.parse(request.claimed_at || request.requested_at);
-  const minutes = Number.isFinite(since) ? Math.max(0, Math.floor((now - since) / 60000)) : null;
+  const minutes = minutesSince(request.claimed_at || request.requested_at, now);
   const started = clockTime(request.claimed_at || request.requested_at);
   const detail = [
     started &&

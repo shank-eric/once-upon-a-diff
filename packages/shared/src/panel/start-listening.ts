@@ -7,6 +7,7 @@
  * `listenPlan` and the texts have no DOM, so node tests can use them.
  */
 import { obviousChoice, freshestFirst } from '../util/choice.ts';
+import { compactAge } from '../util/time.ts';
 import type { ListenSession, ListenTarget } from '../types.ts';
 import type { PanelOptions } from './context.ts';
 
@@ -29,20 +30,11 @@ export function listenPlan(sessions: readonly ListenSession[]): ListenPlan {
 
 /** "idle 12m", "idle 3h" or "idle 2d" for the chooser, from the time it went idle (nothing when unknown). */
 export function idleFor(since: string | null, now = Date.now()): string {
-  const time = since ? Date.parse(since) : NaN;
-  if (Number.isNaN(time)) {
+  const age = compactAge(since, now, 24);
+  if (!age) {
     return '';
   }
-  const minutes = Math.max(0, Math.round((now - time) / 60000));
-  if (minutes < 1) {
-    return 'idle just now';
-  }
-  if (minutes < 60) {
-    return `idle ${minutes}m`;
-  }
-  return minutes < 24 * 60
-    ? `idle ${Math.round(minutes / 60)}h`
-    : `idle ${Math.round(minutes / 1440)}d`;
+  return age === 'now' ? 'idle just now' : `idle ${age}`;
 }
 
 const forWhat = (target: ListenTarget, repo: string | null | undefined) =>

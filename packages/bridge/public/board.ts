@@ -11,7 +11,8 @@ import { openMenu } from '/assets/local/menu.ts';
 import { freshestFirst, obviousChoice } from '/assets/util/choice.ts';
 import { html, type HtmlValue } from '/assets/util/html.ts';
 import { setHtml } from '/assets/util/dom.ts';
-import { plural } from '/assets/util/text.ts';
+import { gateText, plural } from '/assets/util/text.ts';
+import { compactAge } from '/assets/util/time.ts';
 import { startedChips } from '/assets/util/started-chips.ts';
 import { cleanupConfirm, sizeText, worktreeChips } from '/assets/util/worktree-text.ts';
 import { answerBits } from '/assets/util/story-answers.ts';
@@ -62,53 +63,48 @@ const GROUPS = [
 let last = '';
 let board: BoardData | null = null;
 
-/** The Idle lane's state is remembered; localStorage can be missing or blocked, so every use is wrapped. */
-const IDLE_KEY = 'ou-board-idle-open';
-function readIdleOpen(): boolean {
-  try {
-    return localStorage.getItem(IDLE_KEY) !== 'false';
-  } catch {
-    return true;
-  }
-}
-let idleOpen = readIdleOpen();
-
-/** The Worktrees lane's state is remembered too; wrapped like the rest. */
-const TREES_KEY = 'ou-board-worktrees-open';
-function readTreesOpen(): boolean {
-  try {
-    return localStorage.getItem(TREES_KEY) !== 'false';
-  } catch {
-    return true;
-  }
-}
-let treesOpen = readTreesOpen();
-
 /**
- * A repo heading's fold in a column is remembered, as "<column>/<heading>"; localStorage can be missing or blocked, so every
- * use is wrapped.
+ * What the board remembers lives in localStorage, which can be missing or blocked. `stored` is the saved text under a key
+ * (run through `parse` when there is one), or `fallback` when none is saved, it does not parse or storage throws. `remember`
+ * saves one, and a choice that cannot be saved just isn't remembered.
  */
-const COLLAPSED_KEY = 'ou-board-collapsed-lanes';
-function readCollapsed(): Set<string> {
+function stored<T>(key: string, fallback: T, parse?: (text: string) => T): T {
   try {
-    const saved = JSON.parse(localStorage.getItem(COLLAPSED_KEY) || '[]');
-    return new Set(Array.isArray(saved) ? saved.filter((id) => typeof id === 'string') : []);
+    const text = localStorage.getItem(key);
+    if (text === null) {
+      return fallback;
+    }
+    return parse ? parse(text) : (text as T);
   } catch {
-    return new Set();
+    return fallback;
   }
 }
-const collapsed = readCollapsed();
+function remember(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* the choice just isn't remembered */
+  }
+}
 
-/** Others' PRs waiting on their author can be hidden from PR open; remembered, and wrapped like the rest. */
+/** The Idle lane's state is remembered. */
+const IDLE_KEY = 'ou-board-idle-open';
+let idleOpen = stored(IDLE_KEY, true, (text) => text !== 'false');
+
+/** The Worktrees lane's state is remembered too. */
+const TREES_KEY = 'ou-board-worktrees-open';
+let treesOpen = stored(TREES_KEY, true, (text) => text !== 'false');
+
+/** A repo heading's fold in a column is remembered, as "<column>/<heading>". */
+const COLLAPSED_KEY = 'ou-board-collapsed-lanes';
+const collapsed = stored(COLLAPSED_KEY, new Set<string>(), (text) => {
+  const saved = JSON.parse(text);
+  return new Set<string>(Array.isArray(saved) ? saved.filter((id) => typeof id === 'string') : []);
+});
+
+/** Others' PRs waiting on their author can be hidden from PR open; remembered. */
 const ON_AUTHOR_KEY = 'ou-board-hide-on-author';
-function readHideOnAuthor(): boolean {
-  try {
-    return localStorage.getItem(ON_AUTHOR_KEY) === 'true';
-  } catch {
-    return false;
-  }
-}
-let hideOnAuthor = readHideOnAuthor();
+let hideOnAuthor = stored(ON_AUTHOR_KEY, false, (text) => text === 'true');
 /** Someone else's PR with nothing on you and no session of yours on it: the ball is in its author's court. */
 const onAuthor = (card: BoardCard) =>
   card.column === 'pr_open' && !!card.pr && !card.pr.mine && !card.sessions.length;
@@ -116,16 +112,9 @@ const shownCard = (card: BoardCard) => !(hideOnAuthor && onAuthor(card));
 
 /** A phone-mode or bridge call is running: the 3 s refresh redraws the buttons disabled, so a second click cannot start another. */
 let phoneBusy = false;
-/** The voice panel's open or closed state is remembered; wrapped like the rest. */
+/** The voice panel's open or closed state is remembered. */
 const VOICE_KEY = 'ou-board-voice-open';
-function readVoiceOpen(): boolean {
-  try {
-    return localStorage.getItem(VOICE_KEY) === 'true';
-  } catch {
-    return false;
-  }
-}
-let voiceOpen = readVoiceOpen();
+let voiceOpen = stored(VOICE_KEY, false, (text) => text === 'true');
 /** While voice is paused or ended the panel is collapsed to its tab; a click on the tab peeks it open, not remembered. */
 let voicePeek = false;
 const voiceOpenVerb = (voice: BoardVoice) => (voiceCollapsed(voice) ? 'Peek at' : 'Open');
@@ -141,15 +130,10 @@ const VOICE_WIDTH_KEY = 'ou-board-voice-width';
 const VOICE_MIN_WIDTH = 260;
 const VOICE_MAX_SHARE = 0.6;
 const VOICE_KEY_STEP = 16;
-function readVoiceWidth(): number | null {
-  try {
-    const width = Number.parseInt(localStorage.getItem(VOICE_WIDTH_KEY) || '');
-    return Number.isFinite(width) ? width : null;
-  } catch {
-    return null;
-  }
-}
-let voiceWidth = readVoiceWidth();
+let voiceWidth = stored<number | null>(VOICE_WIDTH_KEY, null, (text) => {
+  const width = Number.parseInt(text);
+  return Number.isFinite(width) ? width : null;
+});
 /** A drag of the panel's edge is under way: a redraw would drop the handle (and its pointer capture), so the drop redraws. */
 let voiceResizing = false;
 const clampVoiceWidth = (width: number) =>
@@ -173,12 +157,8 @@ function applyVoiceWidth() {
   }
 }
 function saveVoiceWidth() {
-  try {
-    if (voiceWidth !== null) {
-      localStorage.setItem(VOICE_WIDTH_KEY, String(voiceWidth));
-    }
-  } catch {
-    /* the width just isn't remembered */
+  if (voiceWidth !== null) {
+    remember(VOICE_WIDTH_KEY, String(voiceWidth));
   }
 }
 applyVoiceWidth();
@@ -187,14 +167,7 @@ applyVoiceWidth();
 let addOpen = false;
 /** The board's repo filter: a lane name, '' for All. Remembered; a lane that is gone shows everything. */
 const FILTER_KEY = 'ou-board-filter';
-function readFilter(): string {
-  try {
-    return localStorage.getItem(FILTER_KEY) || '';
-  } catch {
-    return '';
-  }
-}
-let laneFilter = readFilter();
+let laneFilter = stored(FILTER_KEY, '');
 /** The repo the Add panel's next item is for ('' for none). It stays between adds. */
 let addRepo = '';
 /** The Backlog card being dragged, and the card to put the keyboard back on after an Alt+arrow move. */
@@ -224,25 +197,9 @@ async function api<T = unknown>(path: string, body?: unknown): Promise<T> {
   return json;
 }
 
-/** "5m", "3h", "2d" since an ISO time, or '' when there isn't one. */
-function age(iso: string | null, now: number): string {
-  const elapsed = iso ? now - new Date(iso).getTime() : NaN;
-  if (Number.isNaN(elapsed)) {
-    return '';
-  }
-  const minutes = Math.max(0, Math.floor(elapsed / 60000));
-  if (minutes < 1) {
-    return 'now';
-  }
-  if (minutes < 60) {
-    return `${minutes}m`;
-  }
-  return minutes < 2880 ? `${Math.floor(minutes / 60)}h` : `${Math.floor(minutes / 1440)}d`;
-}
-
-/** "5m ago", or "just now" for the first minute (age() says "now"). */
+/** "5m ago", or "just now" for the first minute (compactAge says "now"). */
 function ago(iso: string | null, now: number): string {
-  const time = age(iso, now);
+  const time = compactAge(iso, now);
   return time === 'now' ? 'just now' : time && `${time} ago`;
 }
 
@@ -261,18 +218,6 @@ const STATE_NOTE: Partial<Record<BoardAgent['state'], string>> = { plan: 'plan r
 /** A `[review]` agent is not asking a question: it has a story up for you. */
 const agentMark = (agent: BoardAgent) => (agent.review ? '◉' : AGENT_MARK[agent.state]);
 
-/** What an agent at a gate is doing, as a chip: "plan check", "agent review · review-x", "fixing 5 findings". */
-function gateText(agent: BoardAgent): string {
-  const gate = agent.gate;
-  if (gate?.kind === 'plan') {
-    return 'plan check';
-  }
-  if (gate?.kind === 'fixing') {
-    return gate.findings === null ? 'fixing' : `fixing ${plural(gate.findings, 'finding')}`;
-  }
-  return `agent review · ${agent.name}`;
-}
-
 const stateNote = (agent: BoardAgent) =>
   agent.review ? 'ready for review' : (STATE_NOTE[agent.state] ?? agent.state);
 
@@ -282,7 +227,7 @@ function agentHtml(agent: BoardAgent, now: number) {
     beat && agent.state === 'running' ? `${beat.n}/${beat.of} ${beat.step}` : stateNote(agent);
   const percent = beat ? Math.min(100, Math.round((beat.n / Math.max(1, beat.of)) * 100)) : 0;
   const detail = agent.state === 'running' ? beat?.note || agent.task : agent.outcome || agent.task;
-  const time = age(agent.ended_at || agent.started_at, now);
+  const time = compactAge(agent.ended_at || agent.started_at, now);
   return html`<li class="ou-board-agent ou-board-s-${agent.status}" title="${agent.task || ''}">
     <div class="ou-board-agent-line"><span class="ou-board-mark" aria-hidden="true">${agentMark(agent)}</span> <strong>${agent.name}</strong>
       <span class="ou-local-muted">${note}${agent.stale && ' (no done line yet)'}${time && ` · ${time}`}</span></div>
@@ -397,7 +342,7 @@ function usageHtml(usage: BoardUsage | null, now: number) {
   if (!usage) {
     return '';
   }
-  const seen = age(usage.at, now);
+  const seen = compactAge(usage.at, now);
   const limit = (label: string, name: string, value: BoardLimit | null) => {
     if (!value) {
       return '';
@@ -418,7 +363,7 @@ function usageHtml(usage: BoardUsage | null, now: number) {
 }
 
 function sessionHtml(session: BoardSession, now: number) {
-  const time = age(session.since, now);
+  const time = compactAge(session.since, now);
   return html`<li class="ou-board-session ou-board-s-${session.status}" title="${session.cwd}">
     <span class="ou-board-mark" aria-hidden="true">●</span> <strong>${session.title}</strong> <span class="ou-local-muted">${session.status}${time && ` · ${time}`}</span>${contextHtml(session.context)}
     ${session.detail && html`<div class="ou-board-agent-note ou-local-muted">${session.detail}</div>`}
@@ -498,7 +443,7 @@ function assignButtonHtml(id: string, candidates: BoardAssign['candidates'], aga
 
 /** One worktree: its name, where, the chips, why it is kept, and Clean up when the bridge offers it. */
 function worktreeHtml(tree: BoardWorktree, now: number, lane = false) {
-  const chips = worktreeChips(tree, age(tree.last_commit_at, now));
+  const chips = worktreeChips(tree, compactAge(tree.last_commit_at, now));
   const where = [lane && tree.lane, tree.branch ?? 'detached HEAD'].filter(Boolean).join(' · ');
   return html`<li class="ou-board-tree${tree.removable ? ' ou-board-tree-removable' : ''}" data-worktree="${tree.path}">
     <div class="ou-board-tree-name" title="${tree.path}"><code>${tree.name}</code> <span class="ou-local-muted">${where}</span></div>
@@ -527,7 +472,7 @@ function backlogHtml(card: BoardCard, now: number) {
     <div class="ou-local-muted ou-board-meta">${meta.join(' · ')}</div>
     ${card.detail && html`<div class="ou-board-detail ou-board-note" title="${card.detail}">${card.detail}</div>`}
     ${item?.started && html`<div class="ou-board-chips">${startedChips(item.started).map((chip) => html`<span class="ou-board-chip">${chip}</span>`)}</div>`}
-    ${item?.assigned && !item.started && html`<div class="ou-board-chips"><span class="ou-board-chip">assigned to ${item.assigned.session_title ?? 'a session that has ended'} ${ago(item.assigned.at, now)} ago, not started yet</span></div>`}
+    ${item?.assigned && !item.started && html`<div class="ou-board-chips"><span class="ou-board-chip">assigned to ${item.assigned.session_title ?? 'a session that has ended'} ${ago(item.assigned.at, now)}, not started yet</span></div>`}
     ${item && !item.started && html`<div class="ou-board-startline"><code>${item.start_line}</code></div>`}
     ${cardTrees(card, now)}
     <div class="ou-board-actions">
@@ -544,7 +489,7 @@ function cardHtml(card: BoardCard, now: number) {
   }
   const classes = `${card.can_focus ? ' ou-board-clickable' : ''}`;
   const pr = card.pr;
-  const time = age(card.since, now);
+  const time = compactAge(card.since, now);
   const where = [card.repo && card.kind !== 'agent' ? card.repo.split('/')[1] : '', card.branch]
     .filter(Boolean)
     .join(' · ');
@@ -571,7 +516,7 @@ function cardHtml(card: BoardCard, now: number) {
   // what is going on that the column alone doesn't say
   const notes: string[] = [];
   if (card.building) {
-    const since = age(card.building.since, now);
+    const since = compactAge(card.building.since, now);
     notes.push(
       `${BUILDING_TEXT[card.building.kind]}${card.building.by ? ` (${card.building.by})` : ''}${since && ` · ${since}`}`,
     );
@@ -738,7 +683,7 @@ function voiceHtml(voice: BoardVoice) {
 }
 
 /** "3h", "5m" since an ISO time, for the Listeners lane. */
-const since = (iso: string | null, now: number) => (iso ? age(iso, now) : '');
+const since = (iso: string | null, now: number) => (iso ? compactAge(iso, now) : '');
 
 /** The Listeners lane: a row per repo, who listens (with Stop) or when it last did (with Start). */
 function listenersHtml(repos: BoardListenerRepo[], now: number) {
@@ -1390,11 +1335,7 @@ app.addEventListener('click', async (event) => {
     if (!collapsed.delete(id)) {
       collapsed.add(id);
     }
-    try {
-      localStorage.setItem(COLLAPSED_KEY, JSON.stringify([...collapsed]));
-    } catch {
-      /* the choice just isn't remembered */
-    }
+    remember(COLLAPSED_KEY, JSON.stringify([...collapsed]));
     if (board) {
       last = '';
       render(board);
@@ -1426,11 +1367,7 @@ app.addEventListener('click', async (event) => {
       ],
       (value) => {
         laneFilter = value;
-        try {
-          localStorage.setItem(FILTER_KEY, value);
-        } catch {
-          /* the choice just isn't remembered */
-        }
+        remember(FILTER_KEY, value);
         if (board) {
           last = '';
           render(board);
@@ -1475,11 +1412,7 @@ app.addEventListener('click', async (event) => {
   const treesToggle = clicked.closest('[data-trees-toggle]');
   if (treesToggle) {
     treesOpen = !treesOpen;
-    try {
-      localStorage.setItem(TREES_KEY, String(treesOpen));
-    } catch {
-      /* not remembered */
-    }
+    remember(TREES_KEY, String(treesOpen));
     if (board) {
       last = '';
       render(board);
@@ -1537,7 +1470,7 @@ app.addEventListener('click', async (event) => {
         candidates.map((one) => ({
           value: one.id,
           label: one.title,
-          detail: `${one.blank ? 'new' : one.status}${one.since ? ` ${age(one.since, Date.now())}` : ''}${one.branch ? ` · ${one.branch}` : ''}${one.repo ? ` · ${one.repo}` : ''}`,
+          detail: `${one.blank ? 'new' : one.status}${one.since ? ` ${compactAge(one.since, Date.now())}` : ''}${one.branch ? ` · ${one.branch}` : ''}${one.repo ? ` · ${one.repo}` : ''}`,
         })),
         (session) => void assignInto(id, session, offer.prompt),
         { label: 'Sessions to hand it to' },
@@ -1561,7 +1494,7 @@ app.addEventListener('click', async (event) => {
         freshestFirst(candidates).map((one) => ({
           value: one.id,
           label: one.title,
-          detail: `${one.status}${one.since ? ` ${age(one.since, Date.now())}` : ''} · ${repo}`,
+          detail: `${one.status}${one.since ? ` ${compactAge(one.since, Date.now())}` : ''} · ${repo}`,
         })),
         (id) => void typeInto('listen', id, line, repo),
         { label: `Sessions in ${repo}` },
@@ -1633,7 +1566,7 @@ app.addEventListener('click', async (event) => {
         .map((one) => ({
           value: one.id,
           label: one.title,
-          detail: `blank${one.since ? ` ${age(one.since, Date.now())}` : ''} · ${name}`,
+          detail: `blank${one.since ? ` ${compactAge(one.since, Date.now())}` : ''} · ${name}`,
         })),
       (id) => void focusSession(id, null),
       { label: `Blank sessions in ${name}` },
@@ -1662,11 +1595,7 @@ app.addEventListener('click', async (event) => {
   }
   if (clicked.closest('[data-on-author-toggle]')) {
     hideOnAuthor = !hideOnAuthor;
-    try {
-      localStorage.setItem(ON_AUTHOR_KEY, String(hideOnAuthor));
-    } catch {
-      /* the choice just isn't remembered */
-    }
+    remember(ON_AUTHOR_KEY, String(hideOnAuthor));
     if (board) {
       last = '';
       render(board);
@@ -1719,11 +1648,7 @@ app.addEventListener('click', async (event) => {
       voicePeek = !voicePeek;
     } else {
       voiceOpen = !voiceOpen;
-      try {
-        localStorage.setItem(VOICE_KEY, String(voiceOpen));
-      } catch {
-        /* the choice just isn't remembered */
-      }
+      remember(VOICE_KEY, String(voiceOpen));
     }
     if (board) {
       last = '';
@@ -1733,11 +1658,7 @@ app.addEventListener('click', async (event) => {
   }
   if (clicked.closest('[data-idle-toggle]')) {
     idleOpen = !idleOpen;
-    try {
-      localStorage.setItem(IDLE_KEY, String(idleOpen));
-    } catch {
-      /* the choice just isn't remembered */
-    }
+    remember(IDLE_KEY, String(idleOpen));
     if (board) {
       last = '';
       render(board);

@@ -8,8 +8,8 @@ import {
   rangeOfPath,
 } from '../src/util/github-paths.ts';
 import { escapeHtml, unescapeHtml, html, raw, Html } from '../src/util/html.ts';
-import { shortSha, baseName, plural, capitalize } from '../src/util/text.ts';
-import { clockTime, shortDateTime } from '../src/util/time.ts';
+import { shortSha, baseName, plural, capitalize, gateText } from '../src/util/text.ts';
+import { clockTime, compactAge, minutesSince, shortDateTime } from '../src/util/time.ts';
 
 const locationOf = (url: string) => {
   const parsed = new URL(url, 'https://github.com');
@@ -106,4 +106,32 @@ describe('the html`` tag', () => {
     assert.equal('x' + markup, 'x<i>&amp;</i>');
     assert.equal(markup.markup, '<i>&amp;</i>');
   });
+});
+
+test('minutes and the compact age since an ISO time', () => {
+  const now = Date.parse('2026-10-29T12:00:00Z');
+  const before = (minutes: number) => new Date(now - minutes * 60000).toISOString();
+  assert.equal(minutesSince(null, now), null);
+  assert.equal(minutesSince('nope', now), null);
+  assert.equal(minutesSince(before(5.9), now), 5);
+  assert.equal(minutesSince(before(-3), now), 0);
+  assert.equal(compactAge(null, now), '');
+  assert.equal(compactAge('nope', now), '');
+  assert.equal(compactAge(before(0), now), 'now');
+  assert.equal(compactAge(before(5), now), '5m');
+  assert.equal(compactAge(before(180), now), '3h');
+  assert.equal(compactAge(before(2879), now), '47h');
+  assert.equal(compactAge(before(2880), now), '2d');
+  assert.equal(compactAge(before(1500), now, 24), '1d');
+});
+
+test('what an agent at a gate is doing', () => {
+  assert.equal(gateText({ name: 'a', gate: { kind: 'plan', findings: null } }), 'plan check');
+  assert.equal(gateText({ name: 'a', gate: { kind: 'fixing', findings: null } }), 'fixing');
+  assert.equal(gateText({ name: 'a', gate: { kind: 'fixing', findings: 1 } }), 'fixing 1 finding');
+  assert.equal(gateText({ name: 'a', gate: { kind: 'fixing', findings: 5 } }), 'fixing 5 findings');
+  assert.equal(
+    gateText({ name: 'review-x', gate: { kind: 'review', findings: null } }),
+    'agent review · review-x',
+  );
 });

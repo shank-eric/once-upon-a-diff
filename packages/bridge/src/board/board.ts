@@ -1,7 +1,7 @@
 /**
  * The agent board's data. A card is a unit of work: a branch or PR, with the Claude Code sessions and ledger agents
  * working on it inside. Sessions that are not on a branch of their own (the default branch, no repo) are cards of their
- * own. Everything is read-only. The sources:
+ * own. Building it only reads; what a click on the board does to other tools is in ADR-11. The sources:
  *
  *   <sessions dir>/<pid>.json   Claude Code's live-session registry: {pid, sessionId, cwd, name, status, statusUpdatedAt,
  *                               procStart}. A file counts only while its pid is alive (and, when `ps` can say, started
@@ -9,12 +9,12 @@
  *                               checkout's current one (`git rev-parse`).
  *   a status source             the terminal's richer status (sources.ts)
  *   ledger and progress files   the background agents (ledger.ts)
- *   PR stories                  the built stories (review-inbox/stories.ts): each is a PR, with its branch, and whether you have
+ *   PR stories                  the built stories (story-lists/stories.ts): each is a PR, with its branch, and whether you have
  *                               reviewed it. Merged ones stay a day, as Done.
  *   local stories               a branch's story before any PR (`once-upon local`): on a card of that repo and branch (a
  *                               branch-only card when nothing else is there, while it waits for review), as its story
  *                               when the branch has no PR story, with the same Ready and Back to you rules
- *   GitHub, through AutoReview  per PR: approvals, merge state, checks, new comments (review-inbox/auto-review.ts). It is asked in
+ *   GitHub, through AutoReview  per PR: approvals, merge state, checks, new comments (story-lists/auto-review.ts). It is asked in
  *                               the background and the board reads what it has, so a poll never waits for GitHub. A
  *                               session's branch without a story is looked up the same way.
  *   <projects dir>              each session's transcript, to tell a session with no prompt yet (blank.ts): those are a
@@ -108,13 +108,13 @@ import {
   localEntries,
   mergedStories,
   prStories,
-} from '../review-inbox/stories.ts';
+} from '../story-lists/stories.ts';
 import { requestFor } from '../inbox/progress.ts';
 import { unreadAnswers } from '../inbox/conversation.ts';
 import { Inbox } from '../inbox/inbox.ts';
 import type { Builds } from '../inbox/builds.ts';
-import type { BranchPr } from '../review-inbox/auto-review.ts';
-import type { LocalEntry } from '../review-inbox/stories.ts';
+import type { BranchPr } from '../story-lists/auto-review.ts';
+import type { LocalEntry } from '../story-lists/stories.ts';
 import type { StoryStore } from '../stories/store.ts';
 import type {
   BoardAgent,
@@ -134,8 +134,9 @@ import type {
   PrInfo,
   ShipMode,
 } from '@once-upon-a-diff/shared/types';
+import { gateText } from '@once-upon-a-diff/shared/util/text';
 
-/** What the board asks of the GitHub watcher (review-inbox/auto-review.ts's AutoReview): it reads what it has and never waits. */
+/** What the board asks of the GitHub watcher (story-lists/auto-review.ts's AutoReview): it reads what it has and never waits. */
 export interface PrWatcher {
   kick(stories: InboxStory[]): void;
   kickInfo(repo: string, number: number): void;
@@ -1927,7 +1928,7 @@ export class Board {
         break;
       case 'checks': {
         const gated = card.agents.filter((agent) => agent.gate);
-        card.detail = gated.map((agent) => gateText(agent)).join(', ');
+        card.detail = gated.map(gateText).join(', ');
         card.since = earliest(
           gated.map((agent) => (agent.gate?.kind === 'review' ? agent.started_at : agent.ended_at)),
         );
@@ -1962,20 +1963,6 @@ export class Board {
         card.since = card.sessions[0]?.since ?? null;
     }
   }
-}
-
-/** What a gated agent says it is doing, in a few words. */
-export function gateText(agent: Pick<BoardAgent, 'name' | 'gate'>): string {
-  const gate = agent.gate;
-  if (gate?.kind === 'plan') {
-    return 'plan check';
-  }
-  if (gate?.kind === 'fixing') {
-    return gate.findings === null
-      ? 'fixing'
-      : `fixing ${gate.findings} ${gate.findings === 1 ? 'finding' : 'findings'}`;
-  }
-  return `agent review: ${agent.name}`;
 }
 
 /** The blank sessions grouped by lane (a repo's name, else the folder's), the lanes by name and a lane's sessions by title. */

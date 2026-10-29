@@ -5,14 +5,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AddressInfo } from 'node:net';
 import { createBridge, type Bridge } from '../src/server/index.ts';
-import type { BranchCheck, PrCheck, RequestedCheck } from '../src/review-inbox/auto-review.ts';
+import type { BranchCheck, PrCheck, RequestedCheck } from '../src/story-lists/auto-review.ts';
 import {
   localEntries,
   localStory,
   markStoryReviewed,
   prStories,
   prStory,
-} from '../src/review-inbox/stories.ts';
+} from '../src/story-lists/stories.ts';
 import type { InboxLocalStory, InboxStory } from '@once-upon-a-diff/shared/types';
 import type { Build } from '../src/inbox/builds.ts';
 import type { listeningOf } from '../src/listeners/listeners.ts';

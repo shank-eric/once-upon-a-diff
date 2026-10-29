@@ -38,6 +38,9 @@ test('how long a session has been idle, for the chooser', () => {
   assert.equal(idleFor(ago(0), NOW), 'idle just now');
   assert.equal(idleFor(ago(12), NOW), 'idle 12m');
   assert.equal(idleFor(ago(180), NOW), 'idle 3h');
+  assert.equal(idleFor(ago(60 * 23), NOW), 'idle 23h');
+  assert.equal(idleFor(ago(60 * 24), NOW), 'idle 1d');
+  assert.equal(idleFor(ago(60 * 47), NOW), 'idle 1d');
   assert.equal(idleFor(ago(60 * 48), NOW), 'idle 2d');
 });
 

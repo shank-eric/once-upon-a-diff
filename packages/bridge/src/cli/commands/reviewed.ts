@@ -4,7 +4,7 @@
  * reviewed writes, so nothing goes over HTTP. A PR story is marked by reviewing it on GitHub.
  */
 import { StoryStore } from '../../stories/store.ts';
-import { localStory, markStoryReviewed } from '../../review-inbox/stories.ts';
+import { localStory, markStoryReviewed } from '../../story-lists/stories.ts';
 import { out } from '../output.ts';
 import type { Config } from '../../config/settings.ts';
 import type { CliOpts, Command } from '../../types.ts';

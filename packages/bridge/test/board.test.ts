@@ -74,9 +74,9 @@ import {
   mergeSummary,
   AutoReview,
   type BranchPr,
-} from '../src/review-inbox/auto-review.ts';
+} from '../src/story-lists/auto-review.ts';
 import { StoryStore } from '../src/stories/store.ts';
-import { localEntries, localStories, LOCAL_IDLE_DAYS } from '../src/review-inbox/stories.ts';
+import { localEntries, localStories, LOCAL_IDLE_DAYS } from '../src/story-lists/stories.ts';
 import { createLocalStory } from '../src/stories/local-story.ts';
 import { refreshLocal } from '../src/stories/local-diff.ts';
 import type { LocalMeta } from '../src/types.ts';
@@ -4099,7 +4099,7 @@ test('the board: Agent checks holds a PR card with a gated agent in it, an agent
       ['review-seven', 'running', 'review'],
     ],
   );
-  assert.equal(seven.detail, 'plan check, agent review: review-seven');
+  assert.equal(seven.detail, 'plan check, agent review · review-seven');
   assert.equal(
     seven.since,
     '2026-10-26T18:10:00.000Z',

@@ -8,7 +8,7 @@ import type { LocalCommit } from '@once-upon-a-diff/shared/types';
 import type { StoryStore } from './stories/store.ts';
 import type { Inbox } from './inbox/inbox.ts';
 import type { Build, Builds } from './inbox/builds.ts';
-import type { AutoReview } from './review-inbox/auto-review.ts';
+import type { AutoReview } from './story-lists/auto-review.ts';
 import type { Board } from './board/board.ts';
 import type { Config } from './config/settings.ts';
 
