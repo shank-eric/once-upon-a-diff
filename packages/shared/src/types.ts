@@ -833,7 +833,7 @@ export interface BoardStartedLinks {
   active: boolean;
 }
 
-/** The voice session, pinned above the columns (Larmor's voice mode: src/board/voice.ts). */
+/** The voice session, pinned above the columns once voice has started in it today, and kept (collapsed) while paused or ended (Larmor's voice mode: src/board/voice.ts). */
 export interface BoardVoice {
   /** the name it answers to, else its title */
   name: string;
@@ -841,7 +841,7 @@ export interface BoardVoice {
   repo: string | null;
   lane: string;
   branch: string | null;
-  status: 'listening' | 'speaking' | 'working' | 'paused' | 'away';
+  status: 'listening' | 'speaking' | 'working' | 'paused' | 'away' | 'ended';
   since: string | null;
   /** the agents it started that are running or waiting on you */
   agents: { running: number; waiting: number };

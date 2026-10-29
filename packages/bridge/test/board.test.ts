@@ -8,6 +8,7 @@ import {
   existsSync,
   mkdirSync,
   readFileSync,
+  rmSync,
   utimesSync,
   writeFileSync,
 } from 'node:fs';
@@ -937,6 +938,7 @@ test('the board page and its key: the board routes only, the other pages’ link
   for (const [method, route] of [
     ['POST', '/api/board/type'],
     ['POST', '/api/board/focus'],
+    ['POST', '/api/board/voice/pause'],
     ['POST', '/api/board/stop-listening'],
   ] as const) {
     assert.equal(
@@ -2625,6 +2627,7 @@ test('the voice session: read from Larmor’s folder, status from its files, not
   session({ last_listen: 1000, last_speak: 990 });
   assert.deepEqual(readVoice(dir), {
     session: 'abc12345-aaaa',
+    on: true,
     name: null,
     away: false,
     paused: false,
@@ -2644,14 +2647,48 @@ test('the voice session: read from Larmor’s folder, status from its files, not
   );
   assert.equal(voiceStatus({ ...files, lastSpeak: 1004000 }, true, now + 60000), 'working');
   assert.equal(voiceStatus(files, true, now), 'working', 'busy is working');
+  assert.equal(voiceStatus({ ...files, on: false }, false, now), 'ended', 'ended wins over all');
   writeFileSync(path.join(dir, 'paused'), '');
   assert.equal(voiceStatus(readVoice(dir) as typeof files, false, now), 'paused');
   writeFileSync(path.join(dir, 'away'), '');
   assert.equal(
     voiceStatus(readVoice(dir) as typeof files, false, now),
-    'away',
-    'away wins over paused',
+    'paused',
+    'paused wins over away, so Resume is offered',
   );
+  rmSync(path.join(dir, 'paused'));
+  assert.equal(voiceStatus(readVoice(dir) as typeof files, false, now), 'away');
+});
+
+test('the voice session counts as today by its last activity, at the local midnight edge, in any time zone', () => {
+  const dir = tmp('board-voice-midnight');
+  const midnight = new Date(NOW);
+  midnight.setHours(0, 0, 0, 0);
+  const stamp = (offsetSeconds: number) => midnight.getTime() / 1000 + offsetSeconds;
+  const noon = midnight.getTime() + 12 * 3600 * 1000;
+  const write = (started: number, session: Record<string, unknown>) => {
+    writeJson(path.join(dir, 'last-voice.json'), {
+      session_id: 'abc12345-aaaa',
+      cwd: '/x',
+      at: started,
+    });
+    writeJson(path.join(dir, 'session'), session);
+  };
+  // ended after midnight, started before it: today
+  write(stamp(-3600), { on: false, since: stamp(60) });
+  assert.equal(readVoice(dir, noon)?.on, false);
+  // started and ended before midnight: yesterday's, gone
+  write(stamp(-7200), { on: false, since: stamp(-1) });
+  assert.equal(readVoice(dir, noon), null);
+  // started just after midnight, ended later today
+  write(stamp(1), { on: false, since: stamp(3600) });
+  assert.equal(readVoice(dir, noon)?.session, 'abc12345-aaaa');
+  // still on, started yesterday: on is always shown
+  write(stamp(-86400), { on: true, session_id: 'abc12345-aaaa' });
+  assert.equal(readVoice(dir, noon)?.on, true);
+  // tomorrow, with nothing since: gone
+  write(stamp(1), { on: false, since: stamp(3600) });
+  assert.equal(readVoice(dir, noon + 24 * 3600 * 1000), null);
 });
 
 test('the voice session is pinned above the columns, off every card, with its agents keeping theirs', async () => {
@@ -2809,7 +2846,89 @@ test('the voice session is pinned above the columns, off every card, with its ag
   // and voice off in its own files: the same
   writeJson(path.join(home, 'config.json'), { ...settings, board_voice_dir: voiceDir });
   writeJson(path.join(voiceDir, 'session'), { on: false, session_id: fullId(voice.pid) });
+  assert.equal((await make().snapshot()).voice, null, 'voice is off and was never started today');
+  // off, but it started today (last-voice.json, which outlives `session`'s id): the panel stays, as ended
+  // (times are from the local midnight before NOW, so the case holds in any time zone)
+  const midnight = new Date(NOW);
+  midnight.setHours(0, 0, 0, 0);
+  const lastVoice = (secondsAfterMidnight: number) =>
+    writeJson(path.join(voiceDir, 'last-voice.json'), {
+      session_id: fullId(voice.pid),
+      cwd: '/x',
+      at: midnight.getTime() / 1000 + secondsAfterMidnight,
+    });
+  writeJson(path.join(voiceDir, 'session'), { on: false, since: 1 });
+  lastVoice(1);
+  const ended = (await make().snapshot()).voice;
+  assert.equal(ended?.status, 'ended');
+  assert.equal(ended?.session, fullId(voice.pid));
+  assert.equal(ended?.name, 'clarifi-f9');
+  writeFileSync(path.join(voiceDir, 'paused'), '');
+  assert.equal((await make().snapshot()).voice?.status, 'ended', 'ended wins over paused');
+  // yesterday's voice is gone
+  lastVoice(-3 * 24 * 3600);
   assert.equal((await make().snapshot()).voice, null);
+  // voice on again and paused: the panel stays, as paused
+  writeJson(path.join(voiceDir, 'session'), { on: true, session_id: fullId(voice.pid) });
+  assert.equal((await make().snapshot()).voice?.status, 'paused');
+});
+
+test('POST /api/board/voice/pause makes and removes Larmor’s paused file, only with voice on and the board key', async () => {
+  const home = tmp('board-voice-pause');
+  const voiceDir = tmp('board-voice');
+  const bridge = await startBridge({ home });
+  open.push(bridge);
+  const post = (body: unknown, key = boardKey(TOKEN)) =>
+    bridge.call('POST', '/api/board/voice/pause', body, { Authorization: `Bearer ${key}` });
+  const paused = path.join(voiceDir, 'paused');
+  assert.equal((await post({ paused: true })).status, 400, 'board_voice_dir is not set');
+  writeJson(path.join(home, 'config.json'), { board_voice_dir: voiceDir });
+  assert.equal((await post({})).status, 400, 'paused is needed');
+  assert.equal((await post({ paused: 'yes' })).status, 400);
+  // voice is off: nothing to pause
+  writeJson(path.join(voiceDir, 'session'), { on: false, since: 1 });
+  assert.equal((await post({ paused: true })).status, 409);
+  assert.equal(existsSync(paused), false);
+  writeJson(path.join(voiceDir, 'session'), { on: true, session_id: 'abc12345-aaaa' });
+  assert.equal((await post({ paused: true })).status, 200);
+  assert.equal(existsSync(paused), true);
+  assert.equal((await post({ paused: true })).status, 200, 'pausing twice is fine');
+  assert.equal((await post({ paused: false })).status, 200);
+  assert.equal(existsSync(paused), false);
+  assert.equal((await post({ paused: false })).status, 200, 'resuming when not paused is fine');
+  // resume works after voice ended too
+  writeFileSync(paused, '');
+  writeJson(path.join(voiceDir, 'session'), { on: false, since: 1 });
+  assert.equal((await post({ paused: false })).status, 200);
+  assert.equal(existsSync(paused), false);
+  // another page's key doesn't reach it
+  assert.equal((await post({ paused: true }, pageKey(TOKEN, 'x'))).status, 403);
+});
+
+test('Board.setVoicePaused drops the kept snapshot, so the refresh right after Pause or Resume sees it', async () => {
+  const home = tmp('board-voice-pause-cache');
+  const sessions = tmp('board-sessions');
+  const voiceDir = tmp('board-voice');
+  const child = liveChild();
+  after(() => child.stop());
+  const ledger = path.join(tmp('board-notes'), 'ledger.md');
+  writeFileSync(ledger, '');
+  registry(sessions, child.pid, { status: 'idle' }, child.procStart);
+  writeJson(path.join(voiceDir, 'session'), { on: true, session_id: fullId(child.pid) });
+  writeJson(path.join(home, 'config.json'), {
+    board_ledger_file: ledger,
+    board_sessions_dir: sessions,
+    board_voice_dir: voiceDir,
+  });
+  const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+    source: sourceSaying({}),
+    now: () => NOW,
+  });
+  assert.notEqual((await board.snapshot()).voice?.status, 'paused');
+  board.setVoicePaused(true);
+  assert.equal((await board.snapshot()).voice?.status, 'paused');
+  board.setVoicePaused(false);
+  assert.notEqual((await board.snapshot()).voice?.status, 'paused');
 });
 
 test('snapshot is single-flight: callers during a build share it, and the cache fills when it finishes', async () => {

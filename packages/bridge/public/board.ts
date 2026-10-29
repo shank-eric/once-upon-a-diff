@@ -110,6 +110,12 @@ function readVoiceOpen(): boolean {
   }
 }
 let voiceOpen = readVoiceOpen();
+/** While voice is paused or ended the panel is collapsed to its tab; a click on the tab peeks it open, not remembered. */
+let voicePeek = false;
+const voiceOpenVerb = (voice: BoardVoice) => (voiceCollapsed(voice) ? 'Peek at' : 'Open');
+const voiceCollapsed = (voice: BoardVoice) => voice.status === 'paused' || voice.status === 'ended';
+/** Whether the voice panel itself is showing: the remembered choice, or a peek while it is collapsed. */
+const voiceShown = (voice: BoardVoice) => (voiceCollapsed(voice) ? voicePeek : voiceOpen);
 
 /**
  * The voice panel's width is dragged (or arrowed) and remembered too. It lives in a CSS custom property on the board's
@@ -600,6 +606,7 @@ const VOICE_STATUS: Record<BoardVoice['status'], string> = {
   working: 'Working',
   paused: 'Paused',
   away: 'Away on the phone',
+  ended: 'Ended',
 };
 
 /** The voice tab's microphone glyph. */
@@ -628,16 +635,25 @@ function voiceHtml(voice: BoardVoice) {
     ? "Bring the voice session's iTerm tab to the front"
     : 'No iTerm tab is known for this session';
   const status = VOICE_STATUS[voice.status];
+  const shown = voiceShown(voice);
+  const tabVerb = shown ? 'Close' : voiceOpenVerb(voice);
+  const pauseButton =
+    {
+      paused: html`<button type="button" class="ou-board-voice-pause" data-voice-pause="resume" title="Resume voice (removes ~/.larmor/paused, as the menu bar does)">Resume</button>`,
+      ended: '',
+    }[voice.status as string] ??
+    html`<button type="button" class="ou-board-voice-pause" data-voice-pause="pause" title="Pause voice (the mic is released until you resume)">Pause</button>`;
   const where = voice.repo
     ? `${voice.repo.split('/')[1]}${voice.branch ? ` · ${voice.branch}` : ''}`
     : '';
-  return html`<aside class="ou-board-voice ou-board-voice-${voice.status}${voiceOpen ? ' ou-board-voice-open' : ''}" aria-label="Voice session">
-    <button type="button" class="ou-board-voice-tab" data-voice-toggle aria-expanded="${String(voiceOpen)}" aria-controls="ou-board-voice-panel"
-      title="${voiceOpen ? 'Close' : 'Open'} the voice session: ${voice.name}">
+  return html`<aside class="ou-board-voice ou-board-voice-${voice.status}${shown ? ' ou-board-voice-open' : ''}${voiceCollapsed(voice) ? ' ou-board-voice-collapsed' : ''}" aria-label="Voice session">
+    <button type="button" class="ou-board-voice-tab" data-voice-toggle aria-expanded="${String(shown)}" aria-controls="ou-board-voice-panel"
+      title="${tabVerb} the voice session: ${voice.name}">
       ${MIC_ICON}<span class="ou-board-voice-dot" aria-hidden="true"></span><span class="ou-board-voice-word">${status}</span>
     </button>
+    ${voice.status === 'paused' && !shown && html`<button type="button" class="ou-board-voice-resume-tab" data-voice-pause="resume" title="Resume voice">Resume</button>`}
     ${
-      voiceOpen &&
+      shown &&
       html`<div class="ou-board-voice-panel" id="ou-board-voice-panel" role="region" aria-label="Voice session panel">
       <div class="ou-board-voice-grip" data-voice-resize role="separator" aria-orientation="vertical" aria-label="Resize the voice panel" aria-valuemin="${VOICE_MIN_WIDTH}" tabindex="0" title="Drag to resize (or use the arrow keys)"></div>
       <div class="ou-board-voice-head">
@@ -645,7 +661,7 @@ function voiceHtml(voice: BoardVoice) {
         <button type="button" class="ou-board-voice-close" data-voice-toggle aria-label="Close the voice panel" title="Close">✕</button>
       </div>
       ${where && html`<div class="ou-local-muted">${where}</div>`}
-      <div class="ou-board-voice-facts"><span class="ou-board-voice-status"><span class="ou-board-voice-dot" aria-hidden="true"></span>${status}</span>${contextHtml(voice.context)}</div>
+      <div class="ou-board-voice-facts"><span class="ou-board-voice-status"><span class="ou-board-voice-dot" aria-hidden="true"></span>${status}</span>${contextHtml(voice.context)}${pauseButton}</div>
       <div class="ou-local-muted">${agents ? `agents: ${agents}` : 'no agents running'}</div>
       ${voice.lines.length > 0 ? html`<ol class="ou-board-voice-lines" aria-label="Conversation, newest last">${voice.lines.map(voiceLineHtml)}</ol>` : html`<p class="ou-local-muted ou-board-voice-none">Nothing said yet.</p>`}
       <button type="button" class="ou-board-focus" data-focus="${voice.session}"${!voice.can_focus && html` disabled`} title="${focusTitle}">Open in iTerm</button>
@@ -813,7 +829,10 @@ function render(full: BoardData) {
   document.title = onYou ? `(${onYou}) Agent board` : 'Agent board';
   // the voice tab and, open, its panel make room beside the board; a phone gets a sheet over the bottom instead
   app.classList.toggle('ou-board-has-voice', !!data.voice);
-  app.classList.toggle('ou-board-pushed', !!data.voice && voiceOpen);
+  if (!data.voice || !voiceCollapsed(data.voice)) {
+    voicePeek = false;
+  }
+  app.classList.toggle('ou-board-pushed', !!data.voice && voiceShown(data.voice));
   const summary = [
     ...(count('backlog') ? [`${count('backlog')} in backlog`] : []),
     `${count('working')} working`,
@@ -1493,12 +1512,29 @@ app.addEventListener('click', async (event) => {
     }
     return;
   }
-  if (clicked.closest('[data-voice-toggle]')) {
-    voiceOpen = !voiceOpen;
+  const voicePause = clicked.closest<HTMLElement>('[data-voice-pause]');
+  if (voicePause) {
+    const pause = voicePause.getAttribute('data-voice-pause') === 'pause';
+    voicePause.setAttribute('disabled', '');
     try {
-      localStorage.setItem(VOICE_KEY, String(voiceOpen));
-    } catch {
-      /* the choice just isn't remembered */
+      await api('/api/board/voice/pause', { paused: pause });
+    } catch (err) {
+      alert(`Couldn't ${pause ? 'pause' : 'resume'} voice: ${(err as Error).message}`);
+    }
+    last = '';
+    await refresh();
+    return;
+  }
+  if (clicked.closest('[data-voice-toggle]')) {
+    if (board?.voice && voiceCollapsed(board.voice)) {
+      voicePeek = !voicePeek;
+    } else {
+      voiceOpen = !voiceOpen;
+      try {
+        localStorage.setItem(VOICE_KEY, String(voiceOpen));
+      } catch {
+        /* the choice just isn't remembered */
+      }
     }
     if (board) {
       last = '';

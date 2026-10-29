@@ -7,6 +7,8 @@
  *                               story's own listener with story) into the session's iTerm tab, when the session is at its prompt
  *   GET /api/board/listen-sessions?repo= | ?story=  the idle sessions Start listening may type into for that repo (or the
  *                               story's repo): the panel's Start listening button asks this, then POSTs /type
+ *   POST /api/board/voice/pause {paused: boolean}: pause or resume voice by making or removing Larmor's `paused` file, as its
+ *                               menu bar does (the bridge writes the file, the page only asks). 409 to pause when voice is off
  *   POST /api/board/stop-listening  {repo}: end the repo's listener
  *   POST /api/board/focus       {session}: bring that session's iTerm tab to the front (the tab is found server-side)
  *   POST /api/board/open-story  {story}: a local story's page link (a card's Open story), with that story's full key
@@ -162,6 +164,15 @@ async function assignBacklog({ app, body, send }: Call) {
   return send(200, { ok: true, typed });
 }
 
+/** POST {paused}: pause (true) or resume (false) voice. */
+function voicePause({ app, body, send }: Call) {
+  if (typeof body.paused !== 'boolean') {
+    throw new HttpError(400, 'paused (true or false) is needed');
+  }
+  app.board.setVoicePaused(body.paused);
+  return send(200, { ok: true, paused: body.paused });
+}
+
 /** POST {repo}: end the repo's listener (its `wait` returns "Stopped listening"). */
 function stopListening({ app, body, send }: Call) {
   app.board.stopListening(String(body.repo || ''));
@@ -171,6 +182,7 @@ function stopListening({ app, body, send }: Call) {
 export const boardRoutes: ApiRoute[] = [
   { path: '/api/board/type', method: 'POST', handle: type, boardKey: true },
   { path: '/api/board/listen-sessions', method: 'GET', handle: listenSessions, boardKey: true },
+  { path: '/api/board/voice/pause', method: 'POST', handle: voicePause, boardKey: true },
   { path: '/api/board/stop-listening', method: 'POST', handle: stopListening, boardKey: true },
   { path: '/api/board/focus', method: 'POST', handle: focus, boardKey: true },
   { path: '/api/board/open-story', method: 'POST', handle: openStory, boardKey: true },

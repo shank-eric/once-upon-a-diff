@@ -192,8 +192,9 @@ const DEFAULT_HOSTS = ['once-upon.test', 'once-upon.fidev.net'];
  *   board_projects_dir      Claude Code's transcripts, for telling a session with no prompt yet (default $CLAUDE_CONFIG_DIR/projects or ~/.claude/projects)
  *   board_ledger_file       a Markdown file of background-agent lines for the board (see board/ledger.ts); no default, off when unset
  *   board_progress_file     its progress beats (`- <time> <name> <N>/6 <step>: <note>`); no default, off when unset
- *   board_voice_dir         Larmor's folder (~/.larmor): when voice mode is on, its session is pinned at the top of the board
- *                           instead of sitting in a column; read only, off when unset
+ *   board_voice_dir         Larmor's folder (~/.larmor): once voice has started in a session today, that session is pinned at the
+ *                           top of the board instead of sitting in a column (collapsed while paused or ended). The board
+ *                           reads it, and writes only `paused`, for its Pause and Resume buttons; off when unset
  *   board_done_hours        how long a finished agent stays on the board (default 4)
  *   board_ledger_time_zone  the zone the ledger's times are in when they carry no label like ET (default: the system's)
  *   extension_ids           more extension IDs the bridge answers (a store install, an older unpacked copy); the

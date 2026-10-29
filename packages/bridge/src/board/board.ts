@@ -58,7 +58,7 @@ import type { AddInput, BacklogItem, MoveTo } from './backlog.ts';
 import { gatedHome, laneForAgent, tiedToParent } from './agent-home.ts';
 import { parseWorktrees, startedLinks } from './backlog-links.ts';
 import type { Worktree } from './backlog-links.ts';
-import { readVoice, voiceLines, voiceStatus } from './voice.ts';
+import { readVoice, setPaused, voiceLines, voiceStatus } from './voice.ts';
 import {
   assignCandidates,
   buildFor,
@@ -823,7 +823,7 @@ export class Board {
     const quietViews: BoardSession[] = [];
 
     // the voice session is pinned above the columns, so it is on no card (its agents keep theirs)
-    const voiceFiles = settings.voiceDir ? readVoice(settings.voiceDir) : null;
+    const voiceFiles = settings.voiceDir ? readVoice(settings.voiceDir, nowMs) : null;
     const pin: { found: PinnedVoice | null } = { found: null };
 
     // sessions with no prompt yet (new, or just cleared) that are at rest and would be cards of their own: the Blank strip
@@ -1290,6 +1290,26 @@ export class Board {
       lanes: [...lanes.values()].sort((first, second) => first.name.localeCompare(second.name)),
       usage: statusLines.usage,
     };
+  }
+
+  /**
+   * Pause or resume voice from the board: the `paused` file in Larmor's folder, made or removed the way its menu bar
+   * does. Pausing needs voice to be on (start_voice clears the file anyway); resuming is always fine.
+   */
+  setVoicePaused(paused: boolean): void {
+    const dir = readSettings(this.home).board.voiceDir;
+    if (!dir) {
+      throw new HttpError(400, 'board_voice_dir is not set, so there is no voice to pause');
+    }
+    if (
+      paused &&
+      !readVoice(dir, (this.options.now ? this.options.now() : new Date()).getTime())?.on
+    ) {
+      throw new HttpError(409, 'voice mode is not on, so there is nothing to pause');
+    }
+    setPaused(dir, paused);
+    // the page refreshes right after the POST: it must see the file, not the kept snapshot
+    this.invalidate();
   }
 
   /**

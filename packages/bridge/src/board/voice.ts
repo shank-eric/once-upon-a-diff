@@ -5,16 +5,30 @@
  *   session             {"on": true, "session_id": "<Claude Code session id>", "last_listen": <epoch s>, "last_speak": <epoch s>}
  *   voice-session-name  the name the voice session answers to, one line
  *   away                exists while the user is away on the phone
- *   paused              exists while voice is paused from the menu bar
+ *   paused              exists while voice is paused from the menu bar (the board's Pause makes and removes it the same way)
+ *   last-voice.json     {"session_id", "cwd", "at": <epoch s>}: the last session that took voice mode. It outlives the end
+ *                       of voice mode, which rewrites `session` as {"on": false} without the session id
  *   spoken.jsonl        what a session said aloud, a line per state: {id, wall (epoch s), text, session_id, status}
  *   turns.jsonl         what the user said: {type: "turn", channel: "mic", text, is_final, wall_clock (epoch s)}
  */
-import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
+import {
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 import type { BoardVoiceLine } from '@once-upon-a-diff/shared/types';
 
 export interface VoiceFiles {
   session: string;
+  /** voice mode is on right now; false when it ended and the session is only remembered from today */
+  on: boolean;
   name: string | null;
   away: boolean;
   paused: boolean;
@@ -23,23 +37,65 @@ export interface VoiceFiles {
   lastSpeak: number;
 }
 
-/** The voice files when voice is on and names a session, else null. */
-export function readVoice(dir: string): VoiceFiles | null {
-  let state: { on?: unknown; session_id?: unknown; last_listen?: unknown; last_speak?: unknown };
+/** True when the epoch-ms times fall on the same local calendar day. */
+function sameDay(first: number, second: number): boolean {
+  return new Date(first).toDateString() === new Date(second).toDateString();
+}
+
+/** The session that last took voice mode and when (epoch ms), from last-voice.json, or null. */
+function lastVoice(dir: string): { session: string; at: number } | null {
+  try {
+    const last = JSON.parse(readFileSync(path.join(dir, 'last-voice.json'), 'utf8'));
+    if (
+      last &&
+      typeof last.session_id === 'string' &&
+      last.session_id &&
+      typeof last.at === 'number'
+    ) {
+      return { session: last.session_id, at: last.at * 1000 };
+    }
+  } catch {
+    /* none */
+  }
+  return null;
+}
+
+/**
+ * The voice session once voice has started in it: while voice mode is on (`session` names it), and after it ends, for the
+ * rest of that local day (last-voice.json), as `on: false`. Null before any voice today.
+ */
+export function readVoice(dir: string, now: number = Date.now()): VoiceFiles | null {
+  let state: {
+    on?: unknown;
+    session_id?: unknown;
+    since?: unknown;
+    last_listen?: unknown;
+    last_speak?: unknown;
+  } | null = null;
   try {
     state = JSON.parse(readFileSync(path.join(dir, 'session'), 'utf8'));
   } catch {
-    return null;
+    state = null;
   }
   // `null` or a bare value is valid JSON but says nothing
-  if (
-    !state ||
-    typeof state !== 'object' ||
-    state.on !== true ||
-    typeof state.session_id !== 'string' ||
-    !state.session_id
-  ) {
-    return null;
+  const live =
+    !!state &&
+    typeof state === 'object' &&
+    state.on === true &&
+    typeof state.session_id === 'string' &&
+    !!state.session_id;
+  let session: string;
+  if (live) {
+    session = (state as { session_id: string }).session_id;
+  } else {
+    const last = lastVoice(dir);
+    // today is judged by the last activity: voice ending writes `since` (its end time) into `session`, so a voice that
+    // started before midnight and ended after it still counts, while one on right now always does (the live branch)
+    const since = state && typeof state.since === 'number' ? state.since * 1000 : 0;
+    if (!last || !sameDay(Math.max(last.at, since), now)) {
+      return null;
+    }
+    session = last.session;
   }
   let name: string | null = null;
   try {
@@ -49,31 +105,56 @@ export function readVoice(dir: string): VoiceFiles | null {
   }
   const millis = (seconds: unknown) => (typeof seconds === 'number' ? seconds * 1000 : 0);
   return {
-    session: state.session_id,
+    session,
+    on: live,
     name,
-    away: existsSync(path.join(dir, 'away')),
+    away: live && existsSync(path.join(dir, 'away')),
     paused: existsSync(path.join(dir, 'paused')),
-    lastListen: millis(state.last_listen),
-    lastSpeak: millis(state.last_speak),
+    lastListen: live ? millis(state?.last_listen) : 0,
+    lastSpeak: live ? millis(state?.last_speak) : 0,
   };
 }
 
-export type VoiceStatus = 'listening' | 'speaking' | 'working' | 'paused' | 'away';
+/**
+ * Pause or resume voice the way Larmor's menu bar does: the `paused` file is made (the folder is made if need be) or
+ * removed (no error when it is not there), and Larmor's ear, which watches the file, does the rest.
+ */
+export function setPaused(dir: string, paused: boolean): void {
+  const file = path.join(dir, 'paused');
+  if (paused) {
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(file, '');
+  } else {
+    try {
+      unlinkSync(file);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw err;
+      }
+    }
+  }
+}
+
+export type VoiceStatus = 'listening' | 'speaking' | 'working' | 'paused' | 'away' | 'ended';
 
 /** How soon after it spoke the session counts as still speaking. */
 const SPEAKING_MS = 20 * 1000;
 
 /**
- * Where the voice session stands: away on the phone or paused (files), else speaking just after it spoke, listening
+ * Where the voice session stands: ended (voice mode is off, the session only remembered from today), paused or away on the phone
+ * (files; paused wins, so Resume is offered), else speaking just after it spoke, listening
  * when it asked and is waiting for you, else working. `busy` is the session's own busy flag: a session that is working
  * is working whatever it last said.
  */
 export function voiceStatus(files: VoiceFiles, busy: boolean, now: number): VoiceStatus {
-  if (files.away) {
-    return 'away';
+  if (!files.on) {
+    return 'ended';
   }
   if (files.paused) {
     return 'paused';
+  }
+  if (files.away) {
+    return 'away';
   }
   if (!busy && files.lastListen >= files.lastSpeak && files.lastListen > 0) {
     return 'listening';
