@@ -12,7 +12,7 @@ import { Builds } from '../src/inbox/builds.ts';
 import { cleanWorktree, type CleanInput } from '../src/board/worktree-clean.ts';
 import { WorktreeScanner } from '../src/board/worktrees.ts';
 import { boardKey, pageKey } from '../src/server/page-key.ts';
-import { HttpError } from '../src/server/request.ts';
+import { BoardError } from '../src/board/errors.ts';
 
 const open: TestBridge[] = [];
 after(() => Promise.all(open.map((bridge) => bridge.close())));
@@ -59,7 +59,7 @@ function input(scanner: WorktreeScanner, dir: string, over: Partial<CleanInput> 
 
 const refused = async (promise: Promise<unknown>, status: number, message: RegExp) => {
   await assert.rejects(promise, (err: unknown) => {
-    assert.ok(err instanceof HttpError, String(err));
+    assert.ok(err instanceof BoardError, String(err));
     assert.equal(err.status, status);
     assert.match(err.message, message);
     return true;

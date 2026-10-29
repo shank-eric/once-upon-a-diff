@@ -33,6 +33,7 @@ import { Inbox } from '../inbox/inbox.ts';
 import { Builds } from '../inbox/builds.ts';
 import { removeBridgeFile, writeBridgeFile } from './bridge-file.ts';
 import { Board } from '../board/board.ts';
+import { BoardError } from '../board/errors.ts';
 import { HttpError, sameToken, readBody } from './request.ts';
 import { COOKIE_NAMES, cookieFor, cookiesOf } from './session-cookie.ts';
 import { assetFor } from './assets.ts';
@@ -415,7 +416,11 @@ export function createBridge({
       return await storyCall(call, storyMatch, scope);
     } catch (caught) {
       const err = caught as Error & { status?: number };
-      const status = err.status || 500;
+      // an HttpError carries its status; so does a BoardError, the board's own refusal (board/errors.ts)
+      const status =
+        (caught instanceof HttpError || caught instanceof BoardError
+          ? caught.status
+          : err.status) || 500;
       if (status === 500) {
         log(err.stack || String(err));
       }

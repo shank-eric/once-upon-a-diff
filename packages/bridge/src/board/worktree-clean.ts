@@ -19,7 +19,7 @@
  */
 import { appendFileSync, mkdirSync } from 'node:fs';
 import path from 'node:path';
-import { HttpError } from '../server/request.ts';
+import { BoardError } from './errors.ts';
 import { gitArgs, judge, runCommand } from './worktrees.ts';
 import type {
   JudgeContext,
@@ -107,16 +107,16 @@ export async function cleanWorktree(input: CleanInput): Promise<CleanResult> {
   const now = input.now ?? Date.now;
   const listed = input.scanner.find(input.dir);
   if (!listed) {
-    throw new HttpError(404, 'the board does not list a worktree there');
+    throw new BoardError(404, 'the board does not list a worktree there');
   }
   if (inFlight.has(listed.path)) {
-    throw new HttpError(409, 'that worktree is already being cleaned up');
+    throw new BoardError(409, 'that worktree is already being cleaned up');
   }
   inFlight.add(listed.path);
   try {
     const facts = await input.scanner.refreshOne(listed.path);
     if (!facts) {
-      throw new HttpError(409, 'git no longer lists that worktree');
+      throw new BoardError(409, 'git no longer lists that worktree');
     }
     const judged = judge(facts, {
       ...(await input.contextOf(facts)),
@@ -124,22 +124,22 @@ export async function cleanWorktree(input: CleanInput): Promise<CleanResult> {
       now: now(),
     });
     if (!judged.removable) {
-      throw new HttpError(409, `not cleaned up: ${judged.keep.join(', ')}`);
+      throw new BoardError(409, `not cleaned up: ${judged.keep.join(', ')}`);
     }
     const supersededAck = input.ack.includes('superseded');
     if (judged.verdict === 'superseded' && !supersededAck) {
-      throw new HttpError(
+      throw new BoardError(
         409,
         'this work is only superseded (the main line has a copy of each commit): confirm that first',
       );
     }
     if (judged.verdict !== 'superseded' && supersededAck) {
-      throw new HttpError(409, 'the worktree is no longer only superseded: look at it again');
+      throw new BoardError(409, 'the worktree is no longer only superseded: look at it again');
     }
     if (judged.ignored.length) {
       const shown = new Set(input.seen ?? []);
       if (!input.ack.includes('ignored-files') || judged.ignored.some((name) => !shown.has(name))) {
-        throw new HttpError(
+        throw new BoardError(
           409,
           `these ignored files would be deleted with the folder, so confirm them first: ${judged.ignored.join(', ')}`,
         );
@@ -165,7 +165,7 @@ export async function cleanWorktree(input: CleanInput): Promise<CleanResult> {
       const error = removalError(removed);
       log(input.home, now, { ...base, phase: 'failed', error });
       input.scanner.markAttention(facts.path, error);
-      throw new HttpError(409, `${error}. It is marked as needing attention and was not retried.`);
+      throw new BoardError(409, `${error}. It is marked as needing attention and was not retried.`);
     }
     let branch: CleanResult['branch'] = null;
     let note: string | null = null;

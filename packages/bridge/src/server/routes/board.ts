@@ -33,6 +33,7 @@ import path from 'node:path';
 import { REPO_RE } from '../../config/repos.ts';
 import { readSettings } from '../../config/settings.ts';
 import { publicOriginOf } from '../address.ts';
+import { BoardError } from '../../board/errors.ts';
 import { HttpError } from '../request.ts';
 import { localStory, markStoryReviewed } from '../../story-lists/stories.ts';
 import { ID_PATTERN } from '../../board/backlog.ts';
@@ -96,8 +97,8 @@ async function listenSessions({ app, url, send }: Call) {
   const repo = url.searchParams.get('repo');
   if (storyId) {
     // a story with a repo, or a local one with a checkout to find sessions in; else the repo asked for, if any
-    const found = await app.board.storyListenSessions(storyId).catch((err: { status?: number }) => {
-      if (err.status === 400 && repo) {
+    const found = await app.board.storyListenSessions(storyId).catch((err: unknown) => {
+      if (err instanceof BoardError && err.status === 400 && repo) {
         return null;
       }
       throw err;

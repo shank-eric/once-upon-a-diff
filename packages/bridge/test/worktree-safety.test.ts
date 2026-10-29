@@ -18,7 +18,7 @@ import {
   type Runner,
 } from '../src/board/worktrees.ts';
 import { readSettings } from '../src/config/settings.ts';
-import { HttpError } from '../src/server/request.ts';
+import { BoardError } from '../src/board/errors.ts';
 
 const LATER = () => Date.now() + 2 * 3600 * 1000;
 const idle = async () => ({ inUse: [], pr: { number: null, state: 'none' as const } });
@@ -46,7 +46,7 @@ function input(scanner: WorktreeScanner, dir: string, over: Partial<CleanInput> 
 
 const refused = async (promise: Promise<unknown>, status: number, message: RegExp) => {
   await assert.rejects(promise, (err: unknown) => {
-    assert.ok(err instanceof HttpError, String(err));
+    assert.ok(err instanceof BoardError, String(err));
     assert.equal(err.status, status);
     assert.match(err.message, message);
     return true;

@@ -25,7 +25,7 @@ import {
 import { execFile } from 'node:child_process';
 import net from 'node:net';
 import path from 'node:path';
-import { HttpError } from '../server/request.ts';
+import { BoardError } from './errors.ts';
 import type { BoardVoiceLine } from '@once-upon-a-diff/shared/types';
 
 export interface VoiceFiles {
@@ -292,7 +292,7 @@ export function runVoiceCtl(larmorDir: string, command: PhoneCommand): Promise<C
           /* no result line */
         }
         reject(
-          new HttpError(
+          new BoardError(
             502,
             err
               ? `Larmor's voice_ctl ${command} failed: ${lastLine(String(stderr)) || err.message.split('\n')[0]}`
