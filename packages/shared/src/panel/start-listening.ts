@@ -1,8 +1,8 @@
 /*
- * The panel's "Start listening": types the listen line (the one Copy prompt for Claude copies) into a live Claude Code
- * session through the host's opts.listen, which the extension backs with the bridge's board. It asks for the idle sessions
- * on click: one (or one clearly fresher than the rest) is typed into at once, several close together are listed to choose
- * from, and none leaves the note saying so, with Copy prompt beside it as the way that always works.
+ * "Start listening", on the panel, the PR pages and the local page: types the listen line into a live Claude Code session
+ * through the host's opts.listen, which the bridge backs (its board routes for the extension, the story's own routes for the
+ * local page). It asks for the idle sessions on click: one (or one clearly fresher than the rest) is typed into at once,
+ * several close together are listed to choose from, and none leaves a note saying to start one and click again.
  *
  * `listenPlan` and the texts have no DOM, so node tests can use them.
  */
@@ -48,7 +48,7 @@ export function idleFor(since: string | null, now = Date.now()): string {
 const forWhat = (target: ListenTarget, repo: string | null | undefined) =>
   target.scope === 'story' ? 'this story' : repo || 'the repo';
 
-/** The note when no session can be typed into: Copy prompt is the way left. */
+/** The note when no session can be typed into: start one, then click again. */
 export function noSessionNote(
   target: ListenTarget,
   repo: string | null | undefined,
@@ -57,7 +57,8 @@ export function noSessionNote(
   const where = checkout ? `in ${checkout}` : `in your ${repo || 'repo'} checkout`;
   return (
     `No idle Claude Code session in ${repo || 'the repo'} has an iTerm tab to type into. ` +
-    `Start one ${where} and use Copy prompt for ${target.scope === 'story' ? 'this story' : 'Claude'}.`
+    `Start one ${where}, then click Start listening${target.scope === 'story' ? ' for this story' : ''} again` +
+    (target.scope === 'repo' ? `, or run /once-upon-listen ${target.repo} in it yourself.` : '.')
   );
 }
 
@@ -66,8 +67,7 @@ export const typedNote = (title: string, target: ListenTarget, repo: string | nu
   `Typed into “${title}” to listen for ${forWhat(target, repo)}. It should show as listening in a few seconds.`;
 
 /** The note when the bridge refused or could not be asked (its words, or a plain reason). */
-export const failedNote = (message: string) =>
-  `Couldn't start it: ${message}. Copy prompt still works.`;
+export const failedNote = (message: string) => `Couldn't start it: ${message}.`;
 
 /** What the panel knows of where it is, for the notes. */
 export interface ListenWhere {

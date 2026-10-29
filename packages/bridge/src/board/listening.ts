@@ -5,6 +5,7 @@
  * and a Listeners lane with a row per repo: who listens for it, since when, the last request it was handed, or when it
  * last had a listener (listener-history.json, the last week), with Start and Stop.
  */
+import path from 'node:path';
 import { sameRepo } from '../config/repos.ts';
 import { readFixes } from '../inbox/fixes.ts';
 import { Builds } from '../inbox/builds.ts';
@@ -131,6 +132,8 @@ export interface ListeningInput {
   repoOf: Map<string, string | null>;
   /** sessions that may be typed into: not busy, not waiting on you */
   idle: Set<string>;
+  /** sessions that take no new job (Start listening, Assign): the voice session and any that already listens */
+  apart: ReadonlySet<string>;
 }
 
 function listeningOf(listener: Listener, input: ListeningInput): BoardListening {
@@ -155,20 +158,49 @@ export function storyListening(
 }
 
 /**
- * The sessions Start listening may type into for a repo: idle (at its prompt), in a checkout of the repo, with an iTerm tab
- * the board can find. Freshest first. `skip` leaves out sessions that must never be typed into (the voice session, for the
- * panel's button).
+ * The sessions Start listening may type into for a repo, on the board, the panel, the PR pages and the local page alike: idle
+ * (at its prompt), in a checkout of the repo, with an iTerm tab the board can find, and not the voice session or one that
+ * already listens (`input.apart`, the same set Assign leaves out). Freshest first. `skip` leaves out more.
  */
 export function listenCandidates(
   repo: string,
   input: ListeningInput,
   skip: ReadonlySet<string> = new Set(),
 ): BoardListenerRepo['candidates'] {
+  return candidatesWhere(input, skip, (id) => {
+    const owner = input.repoOf.get(id);
+    return !!owner && sameRepo(owner, repo);
+  });
+}
+
+/** Whether `dir` is `root` or inside it. */
+export const withinDir = (dir: string, root: string): boolean =>
+  dir === root || dir.startsWith(root.endsWith(path.sep) ? root : root + path.sep);
+
+/**
+ * The same rule for a story whose repo is unknown (a local story of a checkout with no origin): the sessions that are in
+ * the story's own checkout folder.
+ */
+export function listenCandidatesIn(
+  dir: string,
+  input: ListeningInput,
+  skip: ReadonlySet<string> = new Set(),
+): BoardListenerRepo['candidates'] {
+  return candidatesWhere(input, skip, (id) => {
+    const cwd = input.sessions.get(id)?.cwd;
+    return !!cwd && withinDir(cwd, dir);
+  });
+}
+
+function candidatesWhere(
+  input: ListeningInput,
+  skip: ReadonlySet<string>,
+  match: (id: string) => boolean,
+): BoardListenerRepo['candidates'] {
   return [...input.idle]
-    .filter((id) => {
-      const owner = input.repoOf.get(id);
-      return !skip.has(id) && !!owner && sameRepo(owner, repo) && input.sessions.get(id)?.focus;
-    })
+    .filter(
+      (id) => !skip.has(id) && !input.apart.has(id) && match(id) && input.sessions.get(id)?.focus,
+    )
     .map((id) => {
       const view = input.sessions.get(id);
       return {
@@ -257,7 +289,7 @@ export function buildFor(card: BoardCard, idle: Set<string>): BoardBuild | null 
 
 /**
  * The sessions Assign may hand a backlog item to: at the prompt, with an iTerm tab, in the item's repo (any repo for an item
- * with none), and not the voice session, one that listens, or one already holding a live assignment. Blank sessions (no
+ * with none), and not the voice session or one that listens (`input.apart`) or one already holding a live assignment (`skip`). Blank sessions (no
  * prompt yet) first, then the rest freshest first.
  */
 export function assignCandidates(
@@ -269,7 +301,7 @@ export function assignCandidates(
   return [...input.idle]
     .filter((id) => {
       const view = input.sessions.get(id);
-      if (!view?.focus || skip.has(id)) {
+      if (!view?.focus || skip.has(id) || input.apart.has(id)) {
         return false;
       }
       const owner = input.repoOf.get(id);
@@ -294,8 +326,8 @@ export function assignCandidates(
     );
 }
 
-/** The listen prompt Start listening types, the one the panel's Copy prompt for Claude copies. */
+/** The listen prompt Start listening types (the status API's `prompt`, shown too for typing by hand). */
 export const listenPromptFor = (repo: string): string => `/once-upon-listen ${repo}`;
 
-/** The one-story form, the one the panel's "Copy prompt for this story" copies (listenPrompt({story}).prompt). */
+/** The one-story form (listenPrompt({story}).prompt). */
 export const listenStoryPromptFor = (story: string): string => `/once-upon-listen --story ${story}`;

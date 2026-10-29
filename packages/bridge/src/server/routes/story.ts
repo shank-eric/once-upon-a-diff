@@ -3,7 +3,8 @@
  * to redraw when chapters.json changes), its pulse (version plus what else the
  * panel polls for), the panel's saved state (ui), where the reviewer is
  * (position), whether the story is up to date (freshness), and its Rebuild
- * (rebuild: ask for one, or how the last one stands).
+ * (rebuild: ask for one, or how the last one stands), and Start listening on the local page (listen: GET the sessions that
+ * may be typed into, POST to type into one), since a story's key does not reach the board's routes.
  */
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
@@ -193,6 +194,35 @@ async function storyFreshness({ app, send }: Call, story: ServedStory) {
   );
 }
 
+/** The story's repo for the repo's listener, or a 400 when its meta names none. */
+function listenRepo(story: ServedStory): string {
+  if (!story.ref.repo) {
+    throw new HttpError(400, 'this story has no repo, so no session can be found for it');
+  }
+  return story.ref.repo;
+}
+
+/** GET: the idle sessions Start listening may type into for the story (the board's rule, board/listening.ts). */
+async function listenSessions({ app, send }: Call, story: ServedStory) {
+  return send(200, await app.board.storyListenSessions(story.id));
+}
+
+/**
+ * POST {session, scope?}: types the listen line into that session's tab, as the board's Start listening does: the repo's
+ * (scope 'repo', the default) or this story's own (scope 'story'). The line is made here; the body has no text.
+ */
+async function listen({ app, body, send }: Call, story: ServedStory) {
+  const session = String(body.session || '');
+  if (!/^[A-Za-z0-9._-]{1,100}$/.test(session)) {
+    throw new HttpError(400, 'a session id is needed');
+  }
+  const typed =
+    body.scope === 'story'
+      ? await app.board.type('listen', session, null, story.id)
+      : await app.board.type('listen', session, listenRepo(story), null);
+  return send(200, { ok: true, typed });
+}
+
 export const storyRoutes: StoryRoute[] = [
   { what: '', method: 'GET', handle: load },
   { what: 'version', method: 'GET', handle: version },
@@ -202,4 +232,6 @@ export const storyRoutes: StoryRoute[] = [
   { what: 'position', method: 'POST', handle: position },
   { what: 'freshness', method: 'GET', handle: storyFreshness },
   { what: 'rebuild', handle: rebuild },
+  { what: 'listen', method: 'GET', handle: listenSessions },
+  { what: 'listen', method: 'POST', handle: listen },
 ];

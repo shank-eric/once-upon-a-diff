@@ -79,6 +79,8 @@ import {
   assignCandidates,
   buildFor,
   listenCandidates,
+  listenCandidatesIn,
+  withinDir,
   listenPromptFor,
   listenStoryPromptFor,
   listenersLane,
@@ -433,7 +435,7 @@ export class Board {
   /** What the last snapshot knew of the sessions, for the panel's Start listening (listenSessions). */
   /** a voice_ctl phone call is running */
   private phoneBusy = false;
-  private listeningNow: { input: ListeningInput; voice: string | null } | null = null;
+  private listeningNow: { input: ListeningInput } | null = null;
   /** The build in flight, so callers arriving while it runs share it instead of starting another. */
   private building: Promise<BoardData> | null = null;
   /** how each approved local story ships, worked out once per snapshot (build) */
@@ -1141,6 +1143,14 @@ export class Board {
         .filter((view) => view.status === 'idle' || view.status === 'done')
         .map((view) => view.id),
     );
+    // who may not take a new job (Start listening, Assign): the voice session and any session that already listens
+    const apart = new Set<string>([
+      ...(pin.found ? [pin.found.view.id] : []),
+      ...quietViews.map((view) => view.id),
+      ...waits
+        .map((wait) => sessionOfPid(wait.pid, parents, sessionByPid))
+        .filter((id): id is string => !!id),
+    ]);
     const listening = {
       home: this.home,
       now: nowMs,
@@ -1149,8 +1159,9 @@ export class Board {
       sessions: sessionViews,
       repoOf: repoBySession,
       idle,
+      apart,
     };
-    this.listeningNow = { input: listening, voice: pin.found?.view.id ?? null };
+    this.listeningNow = { input: listening };
     for (const card of cards) {
       if (card.story) {
         card.listening = storyListening(card.story.id, waits, listening);
@@ -1276,15 +1287,8 @@ export class Board {
     }
     cards.push(...backlogCards(backlogItems, cards, nowMs, cardless, links));
 
-    // Assign: who may be handed each open item. Not the voice session or one that listens, and not one already holding
-    // another item's live assignment
-    const apart = new Set<string>([
-      ...(pin.found ? [pin.found.view.id] : []),
-      ...quietViews.map((view) => view.id),
-      ...waits
-        .map((wait) => sessionOfPid(wait.pid, parents, sessionByPid))
-        .filter((id): id is string => !!id),
-    ]);
+    // Assign: who may be handed each open item. Not the voice session or one that listens (`apart`, as for Start listening),
+    // and not one already holding another item's live assignment
     for (const card of cards) {
       const item = card.backlog && backlogItems.find((one) => one.id === card.backlog?.id);
       if (!card.backlog || !item || item.state !== 'open') {
@@ -1302,7 +1306,7 @@ export class Board {
         candidates: assignCandidates(
           item.repo,
           listening,
-          new Set([...apart, ...taken]),
+          new Set(taken),
           new Set(blankViews.map((one) => one.view.id)),
         ).filter((one) => !holder || one.id === holder),
         prompt: assignLine(item),
@@ -1613,18 +1617,64 @@ export class Board {
 
   /**
    * The sessions the panel's Start listening may type into for a repo: the board's Start listening rule (idle, in the repo,
-   * an iTerm tab known), without the voice session. From the board's last snapshot, so a click costs no more than a page
+   * an iTerm tab known, not the voice session or one that already listens). From the board's last snapshot, so a click costs no more than a page
    * poll; `type` checks the chosen session again against live status before it types.
    */
   async listenSessions(repo: string): Promise<ReturnType<typeof listenCandidates>> {
     if (!REPO_RE.test(repo)) {
       throw new HttpError(400, 'a repo (owner/name) is needed');
     }
+    this.needIterm();
     await this.snapshot();
     const known = this.listeningNow;
-    return known
-      ? listenCandidates(repo, known.input, new Set(known.voice ? [known.voice] : []))
-      : [];
+    return known ? listenCandidates(repo, known.input) : [];
+  }
+
+  /**
+   * The sessions Start listening may type into for a story: the story's repo's (listenSessions), or, for a local story whose
+   * checkout has no origin, the sessions in that checkout. A story that has neither is a 400.
+   */
+  async storyListenSessions(
+    storyId: string,
+  ): Promise<{ repo: string | null; sessions: ReturnType<typeof listenCandidates> }> {
+    const repo = this.storyRepoOf(storyId);
+    if (repo) {
+      return { repo, sessions: await this.listenSessions(repo) };
+    }
+    const dir = this.storyCheckoutOf(storyId);
+    if (!dir) {
+      throw new HttpError(
+        400,
+        'this story has no repo or checkout, so no session can be found for it',
+      );
+    }
+    this.needIterm();
+    await this.snapshot();
+    return {
+      repo: null,
+      sessions: this.listeningNow ? listenCandidatesIn(dir, this.listeningNow.input) : [],
+    };
+  }
+
+  /** A local story's checkout folder, when it names one (a PR story has none here). A 404 for a story that does not exist. */
+  private storyCheckoutOf(storyId: string): string | null {
+    const dir = this.stories.dirOf(storyId);
+    if (!dir) {
+      throw new HttpError(404, 'no story with that id');
+    }
+    const meta = readMeta(dir);
+    return meta.kind === 'local' && meta.repo_path ? meta.repo_path : null;
+  }
+
+  /** Start listening types into iTerm tabs, so without the it2 CLI there is nothing to offer, and the page says so. */
+  private needIterm(): void {
+    const settings = readSettings(this.home).board;
+    if (settings.statusSource === 'registry' || !findIt2(settings.it2Path)) {
+      throw new HttpError(
+        409,
+        'Start listening needs iTerm (its it2 CLI), which is not set up on this Mac, so run the line in Claude Code yourself',
+      );
+    }
   }
 
   /**
@@ -1640,15 +1690,32 @@ export class Board {
     story: string | null = null,
   ): Promise<string> {
     const { it2, session } = await this.typeable(sessionId);
+    if (kind === 'listen') {
+      // the same rule as the offer, against a fresh look: a chooser can be stale, and a direct call can name anyone
+      await this.snapshot();
+      if (this.listeningNow?.input.apart.has(sessionId)) {
+        throw new HttpError(409, 'that session is the voice session or already listens');
+      }
+    }
     let prompt: string | null = null;
     if (kind === 'listen' && story) {
       if (!STORY_ID_RE.test(story)) {
         throw new HttpError(400, 'a story id is needed');
       }
-      // the story's own repo, when it has one: the session has to be in a checkout of it
+      // the story's own repo, else its checkout folder: the session has to be there
       const owner = this.storyRepoOf(story);
-      if (owner && !sameRepo(await repoOfCheckoutAsync(session.cwd), owner)) {
-        throw new HttpError(409, `that session is not in a checkout of ${owner}`);
+      if (owner) {
+        if (!sameRepo(await repoOfCheckoutAsync(session.cwd), owner)) {
+          throw new HttpError(409, `that session is not in a checkout of ${owner}`);
+        }
+      } else {
+        const dir = this.storyCheckoutOf(story);
+        if (!dir) {
+          throw new HttpError(409, 'this story has no repo or checkout to find a session by');
+        }
+        if (!withinDir(session.cwd, dir)) {
+          throw new HttpError(409, `that session is not in ${dir}`);
+        }
       }
       prompt = listenStoryPromptFor(story);
     } else if (kind === 'listen') {

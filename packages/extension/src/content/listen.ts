@@ -1,7 +1,8 @@
 /*
- * The panel's Start listening, through the service worker to the bridge's board routes (the same ones the board page's
- * Start listening uses): which idle Claude Code sessions may be typed into, and typing the listen line into one. The bridge
- * makes the line and checks the session again, so nothing the page sends is text to type.
+ * Start listening on GitHub pages (the panel, and the notice on PR lists and a PR's Conversation tab), through the service
+ * worker to the bridge's board routes (the same ones the board page's Start listening uses): which idle Claude Code sessions
+ * may be typed into, and typing the listen line into one. The bridge makes the line and checks the session again, so
+ * nothing the page sends is text to type.
  */
 import type { BridgeAnswer, callBridge } from './bridge.ts';
 import type { PanelOptions } from '@once-upon-a-diff/shared/overlay';
@@ -27,16 +28,26 @@ export function listenError(answer: Extract<BridgeAnswer, { ok: false }>): strin
   return error;
 }
 
-/** opts.listen for the story with this id. `call` is callBridge (a test passes its own). */
+/**
+ * opts.listen for the story with this id, or for a page with no story (the notice on a PR list, which only starts a repo's
+ * listener). `call` is callBridge (a test passes its own).
+ */
 export function createListenOption(
   call: Call,
-  storyId: string,
+  storyId: string | null = null,
 ): NonNullable<PanelOptions['listen']> {
+  /** The story's id for a story target; a page with no story has none, so it can only ask for a repo. */
+  const storyOf = (): string => {
+    if (!storyId) {
+      throw new Error('this page has no story to listen for');
+    }
+    return storyId;
+  };
   return {
     sessions: async (target: ListenTarget) => {
       const query =
         target.scope === 'story'
-          ? `story=${encodeURIComponent(storyId)}`
+          ? `story=${encodeURIComponent(storyOf())}`
           : `repo=${encodeURIComponent(target.repo)}`;
       const answer = await call<{ sessions: ListenSession[] }>(
         'GET',
@@ -51,7 +62,7 @@ export function createListenOption(
       const answer = await call('POST', '/api/board/type', {
         kind: 'listen',
         session: sessionId,
-        ...(target.scope === 'story' ? { story: storyId } : { repo: target.repo }),
+        ...(target.scope === 'story' ? { story: storyOf() } : { repo: target.repo }),
       });
       if (!answer.ok) {
         throw new Error(listenError(answer));

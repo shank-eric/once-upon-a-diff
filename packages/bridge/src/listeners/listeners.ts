@@ -157,7 +157,7 @@ export function cliCommand(found: boolean = cliCache ?? (cliCache = onPath('once
 }
 
 /**
- * "Copy prompt for Claude": one line for the once-upon-listen skill (skills/once-upon-listen), naming the repo
+ * The listen prompt: one line for the once-upon-listen skill (skills/once-upon-listen), naming the repo
  * (or the one story), plus the long form for a session without the skill. A story's wait takes its questions and
  * its Rebuild requests.
  */
@@ -256,7 +256,7 @@ export function listeningOf(
       ? `In Claude Code, in your checkout of ${repo}: /once-upon-listen ${repo}`
       : 'In Claude Code: /once-upon-listen',
     ...listenPrompt({ repo, story: repo ? null : story, checkout: checkoutFor(home, repo) }),
-    // "Copy prompt for this story", for the session that built it
+    // the one-story line, for the session that built it
     story_prompt: storyPrompt
       ? { prompt: storyPrompt.prompt, command: storyPrompt.command, details: storyPrompt.details }
       : null,

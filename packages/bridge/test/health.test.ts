@@ -158,7 +158,7 @@ test('doctor --wait gives a bridge that was just started time to answer', async 
   }
 });
 
-test('Copy prompt for Claude: one short skill line naming the repo, with the long form behind it', async () => {
+test('the listen prompt: one short skill line naming the repo, with the long form behind it', async () => {
   const prompt = listenPrompt(
     { repo: 'octo-org/api-server', checkout: path.join(os.homedir(), 'Development', 'api-server') },
     'once-upon',

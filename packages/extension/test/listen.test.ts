@@ -66,3 +66,24 @@ test('a refusal rejects with the bridge’s own words, and the known failures ge
     );
   }
 });
+
+test('a page with no story (the notice on a PR list) asks and starts by repo, and has no story to listen for', async () => {
+  const { call, calls } = fake({
+    ok: true,
+    status: 200,
+    body: { sessions: [{ id: 's1', title: 'tab', status: 'idle', since: null }], ok: true },
+  });
+  const listen = createListenOption(call);
+  assert.equal((await listen.sessions({ scope: 'repo', repo: 'acme/widgets' })).length, 1);
+  await listen.start('s1', { scope: 'repo', repo: 'acme/widgets' });
+  assert.deepEqual(
+    calls.map((one) => [one.method, one.path, one.body]),
+    [
+      ['GET', '/api/board/listen-sessions?repo=acme%2Fwidgets', undefined],
+      ['POST', '/api/board/type', { kind: 'listen', session: 's1', repo: 'acme/widgets' }],
+    ],
+  );
+  await assert.rejects(listen.sessions({ scope: 'story' }), /no story to listen for/);
+  await assert.rejects(listen.start('s1', { scope: 'story' }), /no story to listen for/);
+  assert.equal(calls.length, 2, 'nothing was sent for the story');
+});

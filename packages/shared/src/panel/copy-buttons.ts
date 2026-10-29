@@ -1,7 +1,6 @@
 /*
- * The panel's copy buttons: a drafted comment's Copy, the Overview's "Copy as
- * gh script" and the status hint's "Copy prompt for Claude". Each says how it
- * went on the button for a moment.
+ * The panel's copy buttons: a drafted comment's Copy and the Overview's "Copy as
+ * gh script". Each says how it went on the button for a moment.
  */
 import { writeClipboard } from '../util/clipboard.ts';
 
@@ -52,9 +51,4 @@ export function copyWithFallback(text: string, button: HTMLElement, pre: HTMLEle
       button.textContent = label;
     }, 1500);
   });
-}
-
-/** Copies the listen prompt; if the clipboard says no, shows it selected so Cmd+C works. */
-export function copyPrompt(text: string, button: HTMLElement, pre: HTMLElement | null): void {
-  copyWithFallback(text, button, pre);
 }

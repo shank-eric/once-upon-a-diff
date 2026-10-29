@@ -8,6 +8,7 @@ import {
   missingListeners,
   wantsAskDock,
   withAskDock,
+  noticeRowHtml,
 } from '../src/content/ui/story-tag.ts';
 import { conversationPr } from '@once-upon-a-diff/shared/util/github-paths';
 
@@ -151,4 +152,29 @@ test('the Ask dock opens once for a #ou-ask URL and stays as the reviewer leaves
   // another hash, or none: the saved state as it is
   assert.equal(withAskDock(saved, { hash: '#ou-step-2', href, opened: undefined }).panel, saved);
   assert.equal(withAskDock(saved, { hash: '', href, opened: undefined }).panel, saved);
+});
+
+test('a notice row has Start listening and a place for its note, and no Copy prompt button', () => {
+  const row = {
+    repo: 'octo-org/api-server',
+    prompt: '/once-upon-listen octo-org/api-server',
+    details: 'once-upon wait --repo octo-org/api-server',
+    checkout: '~/Development/api-server',
+  };
+  const text = String(noticeRowHtml(row, 2));
+  assert.match(text, /No session listening for <b>octo-org\/api-server<\/b>/);
+  assert.match(text, /<button data-i="2"[^>]*>Start listening<\/button>/);
+  assert.match(text, /class="note" data-n="2"[^>]*hidden/);
+  assert.match(
+    text,
+    /Types \/once-upon-listen octo-org\/api-server into an idle Claude Code session in ~\/Development\/api-server/,
+  );
+  assert.match(
+    text,
+    /Without the once-upon-listen skill: once-upon wait --repo octo-org\/api-server/,
+  );
+  assert.doesNotMatch(text, /Copy prompt/);
+  const bare = String(noticeRowHtml({ ...row, checkout: null, details: '' }, 0));
+  assert.match(bare, /in your octo-org\/api-server checkout/);
+  assert.doesNotMatch(bare, /Without the once-upon-listen skill/);
 });

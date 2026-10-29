@@ -204,13 +204,13 @@ function printStopped(
   if ('repo' in scope) {
     out(`Stopped listening for ${scope.repo}: ${reason}.`);
     out(
-      "Don't start this wait again. The panel's Copy prompt for Claude (or Start listening on the board) starts a repo listener again.",
+      "Don't start this wait again. Start listening (the panel, the PR pages or the board) starts a repo listener again.",
     );
     return;
   }
   out(`Stopped listening for ${scope.story}: ${reason}.`);
   out(
-    "Don't start this wait again. Its questions go to the repo's listener, if one is running, and the panel's Copy prompt for this story starts a story listener again.",
+    "Don't start this wait again. Its questions go to the repo's listener, if one is running, and the panel's Start listening for this story starts a story listener again.",
   );
 }
 

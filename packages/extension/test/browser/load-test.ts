@@ -673,8 +673,8 @@ try {
     .catch(() => '');
   check(
     new RegExp(`No session listening for ${owner}/${repo}`, 'i').test(noticeText) &&
-      /Copy prompt for Claude/.test(noticeText),
-    'the list says once that no session is listening for the repo, with Copy prompt for Claude',
+      /Start listening/.test(noticeText),
+    'the list says once that no session is listening for the repo, with Start listening',
   );
   await shot(list, 'pr-list');
   await list.close();

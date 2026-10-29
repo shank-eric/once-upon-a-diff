@@ -295,6 +295,20 @@ export function missingListeners(
     }));
 }
 
+/**
+ * One line of the notice: no session listening for this repo, with Start listening (the bridge types the listen line into an
+ * idle Claude Code session in the repo) and a place for what happened. `index` ties the button to its row. The hover gives
+ * the line and the long form for a session without the skill, to type by hand when no session can be typed into.
+ */
+export function noticeRowHtml(row: MissingListener, index: number): Html {
+  const how = row.checkout
+    ? `Types ${row.prompt} into an idle Claude Code session in ${row.checkout}. With none, start Claude Code there and run it.`
+    : `Types ${row.prompt} into an idle Claude Code session in your ${row.repo} checkout. With none, start Claude Code there and run it.`;
+  const title = `${how}${row.details ? `\n\nWithout the once-upon-listen skill: ${row.details}` : ''}`;
+  const checkout = row.checkout && html` <span class="muted">· ${row.checkout}</span>`;
+  return html`<div class="row"><span>No session listening for <b>${row.repo}</b>${checkout}</span><button data-i="${index}" title="${title}">Start listening</button></div><div class="note" data-n="${index}" role="status" hidden></div>`;
+}
+
 /** The tag's HTML, for a tag host's shadow root (story-tag.css). */
 export function tagHtml(tag: Tag): Html {
   const inner = html`${tag.spin && html`<span class="spin"></span>`}${tag.label}`;

@@ -8,7 +8,7 @@ import {
   typedNote,
   wireStartListening,
 } from '../src/panel/start-listening.ts';
-import { askWhoHtml, type Health } from '../src/panel/status-light.ts';
+import { askHintHtml, askWhoHtml, type Health } from '../src/panel/status-light.ts';
 import type { ListenSession, ListenTarget } from '../src/types.ts';
 
 const NOW = Date.UTC(2026, 9, 28, 18, 0);
@@ -41,23 +41,21 @@ test('how long a session has been idle, for the chooser', () => {
   assert.equal(idleFor(ago(60 * 48), NOW), 'idle 2d');
 });
 
-test('the notes say what happened and keep Copy prompt as the way left', () => {
+test('the notes say what happened, and with no session to type into say to start one and click again', () => {
   const repo: ListenTarget = { scope: 'repo', repo: 'acme/widgets' };
   const story: ListenTarget = { scope: 'story' };
   assert.match(
     noSessionNote(repo, 'acme/widgets', '~/Development/widgets'),
-    /No idle Claude Code session in acme\/widgets has an iTerm tab.*in ~\/Development\/widgets.*Copy prompt for Claude/,
+    /No idle Claude Code session in acme\/widgets has an iTerm tab.*in ~\/Development\/widgets, then click Start listening again, or run \/once-upon-listen acme\/widgets in it yourself\./,
   );
   assert.match(
     noSessionNote(story, 'acme/widgets', null),
-    /in your acme\/widgets checkout.*Copy prompt for this story/,
+    /in your acme\/widgets checkout, then click Start listening for this story again\./,
   );
   assert.match(typedNote('tab a', repo, 'acme/widgets'), /“tab a” to listen for acme\/widgets/);
   assert.match(typedNote('tab a', story, 'acme/widgets'), /to listen for this story/);
-  assert.match(
-    failedNote('session busy'),
-    /Couldn't start it: session busy\. Copy prompt still works/,
-  );
+  assert.equal(failedNote('session busy'), "Couldn't start it: session busy.");
+  assert.doesNotMatch(noSessionNote(repo, 'acme/widgets', null), /Copy prompt/);
 });
 
 /** Just enough of an element for wireStartListening: children, text, hidden, disabled, click. */
@@ -178,7 +176,7 @@ test('the bridge refusing (busy, tab gone) or not answering shows its words, and
     throw new Error('session busy');
   });
   await refused.click();
-  assert.match(refused.note.text, /Couldn't start it: session busy\. Copy prompt still works/);
+  assert.match(refused.note.text, /Couldn't start it: session busy\./);
   assert.equal(refused.button.disabled, false);
   const down = wired(new Error('the bridge is not running'));
   await down.click();
@@ -187,7 +185,7 @@ test('the bridge refusing (busy, tab gone) or not answering shows its words, and
   assert.equal(down.button.textContent, 'Start listening');
 });
 
-test('the story line offers Start listening only where the host can, beside Copy prompt for this story', () => {
+test('the story line has Start listening only where the host can, and never a Copy prompt button', () => {
   const result = {
     level: 'ok' as const,
     prompt: '/once-upon-listen acme/widgets',
@@ -195,15 +193,35 @@ test('the story line offers Start listening only where the host can, beside Copy
     answering: null,
   } as Health;
   const without = String(askWhoHtml(result));
-  assert.doesNotMatch(without, /Start listening/);
-  assert.match(without, /Copy prompt for this story/);
+  assert.doesNotMatch(without, /Start listening|Copy prompt/);
   const withStart = String(askWhoHtml(result, true));
   assert.match(withStart, /class="ou-startstory"[^>]*>Start listening for this story</);
   assert.match(withStart, /class="ou-startnote"/);
-  assert.match(withStart, /Copy prompt for this story/);
+  assert.doesNotMatch(withStart, /Copy prompt|ou-copystory|ou-prompt/);
   assert.doesNotMatch(
     String(askWhoHtml({ ...result, answering: { consumer: 'x', scope: 'story' } } as Health, true)),
     /Start listening/,
     'a story that has its own listener needs none',
   );
+});
+
+test('the Ask hint has Start listening when the host can, the line to type, and never a Copy prompt button', () => {
+  const result = {
+    level: 'warn' as const,
+    prompt: '/once-upon-listen acme/widgets',
+    details: 'once-upon wait --repo acme/widgets',
+    repo: 'acme/widgets',
+    checkout: '~/Development/widgets',
+    checks: [],
+  } as unknown as Health;
+  const withStart = String(askHintHtml(result, true));
+  assert.match(withStart, /class="ou-startlisten"[^>]*>Start listening</);
+  assert.match(withStart, /class="ou-startnote"/);
+  assert.match(withStart, /<code>\/once-upon-listen acme\/widgets<\/code>/);
+  assert.match(withStart, /Start Claude Code in <code>~\/Development\/widgets<\/code>/);
+  assert.doesNotMatch(withStart, /Copy prompt|ou-copyprompt|ou-prompt"/);
+  // the note opens under the button, not in the middle of the sentence about typing the line yourself
+  assert.ok(withStart.indexOf('ou-startnote') < withStart.indexOf('No idle session to type into?'));
+  assert.ok(withStart.indexOf('Start listening</button>') < withStart.indexOf('ou-startnote'));
+  assert.doesNotMatch(String(askHintHtml(result, false)), /Start listening|Copy prompt/);
 });

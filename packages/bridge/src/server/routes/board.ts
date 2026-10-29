@@ -93,9 +93,18 @@ async function type({ app, body, send }: Call) {
 /** GET ?repo= or ?story=: the idle sessions Start listening may type into for the repo (a story's: its own repo). */
 async function listenSessions({ app, url, send }: Call) {
   const storyId = url.searchParams.get('story');
-  let repo = url.searchParams.get('repo');
+  const repo = url.searchParams.get('repo');
   if (storyId) {
-    repo = app.board.storyRepoOf(storyId) || repo;
+    // a story with a repo, or a local one with a checkout to find sessions in; else the repo asked for, if any
+    const found = await app.board.storyListenSessions(storyId).catch((err: { status?: number }) => {
+      if (err.status === 400 && repo) {
+        return null;
+      }
+      throw err;
+    });
+    if (found) {
+      return send(200, found);
+    }
   }
   if (!repo || !REPO_RE.test(repo)) {
     throw new HttpError(400, 'a repo (owner/name), or a story that has one, is needed');

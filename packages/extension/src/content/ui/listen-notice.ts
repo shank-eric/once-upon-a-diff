@@ -1,13 +1,18 @@
 /*
  * The page-level "No session listening for owner/name" notice, on PR lists
  * and a PR's Conversation tab: one line per repo on the page that has no
- * Claude session listening, each with "Copy prompt for Claude". The prompt is
- * the one-line `/once-upon-listen owner/name`, and its hover gives where to
- * start Claude Code and the long form for a session without the skill.
+ * Claude session listening, each with "Start listening". The click goes to
+ * the bridge, which types the one-line `/once-upon-listen owner/name` into an
+ * idle Claude Code session in the repo (the same call the panel's and the
+ * board's Start listening make). The hover gives the line and the long form
+ * for a session that can't be typed into.
  * Our own element in its own shadow root, bottom right. It never touches
  * GitHub's page and posts nothing.
  */
-import { copyWithFeedback } from './copy.ts';
+import { wireStartListening } from '@once-upon-a-diff/shared/panel/start-listening';
+import { callBridge } from '../bridge.ts';
+import { createListenOption } from '../listen.ts';
+import { noticeRowHtml } from './story-tag.ts';
 import type { MissingListener } from './story-tag.ts';
 import { html } from '@once-upon-a-diff/shared/util/html';
 import {
@@ -21,11 +26,12 @@ const HOST_ID = 'once-upon-listen-notice';
 const MAX = 3;
 const NOTICE_CSS_URL = chrome.runtime.getURL('content/ui/listen-notice.css');
 
-export function listenNotice() {
+/** onStarted: a listen line was typed (the page looks again soon, so the row goes when the listener shows). */
+export function listenNotice({ onStarted }: { onStarted?: () => void } = {}) {
+  const listen = createListenOption(callBridge);
   let host: HTMLDivElement | null = null;
   let root: HTMLDivElement | null = null;
   let dismissed = false;
-  let rows: MissingListener[] = [];
   let lastHtml = '';
   function remove() {
     if (host) {
@@ -40,7 +46,6 @@ export function listenNotice() {
     if (dismissed || !missing.length) {
       return remove();
     }
-    rows = missing;
     if (!host || !document.body.contains(host)) {
       host = document.createElement('div');
       host.id = HOST_ID;
@@ -52,42 +57,43 @@ export function listenNotice() {
       shadow.append(link, root);
       hideUntilStyled(host, [link]);
       root.addEventListener('click', (event) => {
-        const button = (event.target as Element).closest<HTMLButtonElement>(
-          'button[data-i], button.x',
-        );
-        if (!button) {
-          return;
-        }
-        if (button.classList.contains('x')) {
+        if ((event.target as Element).closest('button.x')) {
           dismissed = true;
           remove();
-          return;
-        }
-        const missingRow = rows[Number(button.getAttribute('data-i'))];
-        if (missingRow) {
-          copyWithFeedback(missingRow.prompt, button, button.getRootNode());
         }
       });
       stopKeyEvents(root);
       document.body.appendChild(host);
     }
-    const shown = missing.slice(0, MAX);
-    const lines = shown.map((missingRow, i) => {
-      const how = missingRow.checkout
-        ? `Start Claude Code in ${missingRow.checkout} and paste ${missingRow.prompt}.`
-        : `Start Claude Code in your ${missingRow.repo} checkout and paste ${missingRow.prompt}.`;
-      const title = `${how}${missingRow.details ? `\n\nWithout the once-upon-listen skill: ${missingRow.details}` : ''}`;
-      const checkout =
-        missingRow.checkout && html` <span class="muted">· ${missingRow.checkout}</span>`;
-      return html`<div class="row"><span>No session listening for <b>${missingRow.repo}</b>${checkout}</span><button data-i="${i}" title="${title}">Copy prompt for Claude</button></div>`;
-    });
+    const lines = missing.slice(0, MAX).map(noticeRowHtml);
     const more =
       missing.length > MAX && html`<div class="muted">and ${missing.length - MAX} more repos</div>`;
     const next = html`<div class="row top"><div class="lines">${lines}${more}</div><button class="x" title="Hide until the page reloads" aria-label="Hide">×</button></div>`;
     if (String(next) !== lastHtml) {
       lastHtml = String(next);
-      setHtml(root as HTMLDivElement, next); // made above when missing
-    } // redrawn only when it changes, so "Copied" stays put
+      const draw = root as HTMLDivElement; // made above when missing
+      setHtml(draw, next);
+      // each row's Start listening: its note and the chooser live in the row, and stay while the html is the same
+      missing.slice(0, MAX).forEach((row, i) => {
+        const button = draw.querySelector<HTMLButtonElement>(`button[data-i="${i}"]`);
+        const note = draw.querySelector<HTMLElement>(`.note[data-n="${i}"]`);
+        if (button && note) {
+          wireStartListening(
+            button,
+            note,
+            { scope: 'repo', repo: row.repo },
+            {
+              ...listen,
+              start: async (id, target) => {
+                await listen.start(id, target);
+                onStarted?.();
+              },
+            },
+            row,
+          );
+        }
+      });
+    } // redrawn only when it changes, so a note stays put
   }
   return { set, remove };
 }

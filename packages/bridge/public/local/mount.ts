@@ -9,6 +9,7 @@ import type {
   BridgeStatus,
   DraftsAnswer,
   FixesView,
+  ListenSession,
   LocalNote,
   Question,
   QuestionMarksAnswer,
@@ -117,6 +118,16 @@ export function mount(initial: InitialUi) {
       }
     },
     status: () => api<BridgeStatus>('GET', `${STORY_PATH}/status`).catch(statusError),
+    // Start listening: the story's own routes type the listen line into an idle session (the board's routes need the board's key)
+    listen: {
+      sessions: () =>
+        api<{ sessions: ListenSession[] }>('GET', `${STORY_PATH}/listen`).then(
+          (answer) => answer.sessions,
+        ),
+      start: async (session, target) => {
+        await api('POST', `${STORY_PATH}/listen`, { session, scope: target.scope });
+      },
+    },
   });
 }
 

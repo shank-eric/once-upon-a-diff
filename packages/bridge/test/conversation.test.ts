@@ -249,24 +249,30 @@ describe('one story, one session', () => {
       storyPrompt: { prompt: `/once-upon-listen --story ${STORY}` },
     };
     const byRepo = String(
-      askWhoHtml({
-        ...result,
-        answering: { consumer: 'repo-acme-widgets', scope: 'repo' },
-      } as Health),
+      askWhoHtml(
+        {
+          ...result,
+          answering: { consumer: 'repo-acme-widgets', scope: 'repo' },
+        } as Health,
+        true,
+      ),
     );
     assert.match(byRepo, /Answered by <b>repo-acme-widgets<\/b> \(listening for the whole repo\)/);
-    assert.match(byRepo, /Copy prompt for this story/);
+    assert.match(byRepo, /Start listening for this story/);
     const byStory = String(
-      askWhoHtml({
-        ...result,
-        answering: { consumer: 'api-10', scope: 'story' },
-      } as Health),
+      askWhoHtml(
+        {
+          ...result,
+          answering: { consumer: 'api-10', scope: 'story' },
+        } as Health,
+        true,
+      ),
     );
     assert.match(byStory, /Answered by <b>api-10<\/b>, the session listening for this story/);
-    assert.doesNotMatch(byStory, /Copy prompt/);
+    assert.doesNotMatch(byStory, /Start listening/);
     assert.match(
-      String(askWhoHtml({ ...result, answering: null } as Health)),
-      /Copy prompt for this story/,
+      String(askWhoHtml({ ...result, answering: null } as Health, true)),
+      /Start listening for this story/,
     );
     assert.equal(String(askWhoHtml({ level: 'error' } as Health)), '');
   });

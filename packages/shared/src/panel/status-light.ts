@@ -3,16 +3,15 @@
  * and is a Claude session listening for questions (opts.status, on the
  * overlay's tick every 30s, and when the tab gets focus again).
  * Clicking it shows the checks. When no session is listening, a hint over the
- * Ask box gives the prompt to paste into Claude Code. A line under it says
- * which session answers this story, with "Copy prompt for this story" to send
- * the story's questions to one session (the one that built it) instead. Where the host can reach the bridge's board
- * (opts.listen), each of the two also has a Start listening button that types the same line into a live session.
+ * Ask box has Start listening, which types the listen line into an idle Claude Code session in the repo. A line under it
+ * says which session answers this story, with "Start listening for this story" to send the story's questions to one
+ * session (the one that built it) instead. Both go through the bridge (opts.listen); the line is shown too, for a
+ * session that can't be typed into.
  *
  * healthChecks has no DOM, so node tests can use it.
  */
 import { html } from '../util/html.ts';
 import { setHtml } from '../util/dom.ts';
-import { copyPrompt } from './copy-buttons.ts';
 import { wireStartListening } from './start-listening.ts';
 import type { PanelContext } from './context.ts';
 import type { Answering, BridgeStatus, ListenerView, Listening, StatusError } from '../types.ts';
@@ -130,7 +129,7 @@ const classOf = (check: HealthCheck) => {
 };
 
 /** What the hint over the Ask box says when no session will answer. */
-function askHintHtml(result: Health, canStart = false) {
+export function askHintHtml(result: Health, canStart = false) {
   if (result.level === 'error') {
     return html`${result.checks[0].detail}. Questions can't be sent until it's back.`;
   }
@@ -138,8 +137,8 @@ function askHintHtml(result: Health, canStart = false) {
     return html`No Claude session is listening; questions will wait. Start one in Claude Code as a background task: <code>once-upon wait --consumer once-upon</code>`;
   }
   const where = result.checkout
-    ? html`Start Claude Code in <code>${result.checkout}</code> and paste`
-    : 'Paste into Claude Code';
+    ? html`No idle session to type into? Start Claude Code in <code>${result.checkout}</code> and run`
+    : 'No idle session to type into? In Claude Code, run';
   const forRepo = result.repo && ` for ${result.repo}`;
   const more =
     result.details &&
@@ -152,8 +151,7 @@ function askHintHtml(result: Health, canStart = false) {
     canStart &&
     html` <button type="button" class="ou-startlisten" title="${startTitle}">Start listening</button>`;
   const note = canStart && html`<div class="ou-startnote" role="status" hidden></div>`;
-  const copy = html` <button type="button" class="ou-copyprompt">Copy prompt for Claude</button>`;
-  return html`No Claude session is listening${forRepo}; questions will wait. ${where} <code>${result.prompt}</code>${start}${copy}${more}${note}<pre class="ou-prompt" hidden></pre>${long}`;
+  return html`<div>No Claude session is listening${forRepo}; questions will wait.${start}</div>${note}<div>${where} <code>${result.prompt}</code>${more}</div>${long}`;
 }
 
 /** The line under the Ask box: who answers this story's questions, and the prompt that gives them to one session. */
@@ -162,19 +160,12 @@ export function askWhoHtml(result: Health, canStart = false) {
     return html``;
   }
   const { answering, storyPrompt } = result;
-  let copy = null;
-  if (storyPrompt && storyPrompt.prompt !== result.prompt) {
-    const title =
-      `Copies ${storyPrompt.prompt}. Paste it into the Claude session that built this story: ` +
-      "it answers this story's questions from then on, ahead of the repo's listener.";
+  let start = null;
+  if (canStart && storyPrompt && storyPrompt.prompt !== result.prompt) {
     const startTitle =
       `Types ${storyPrompt.prompt} into an idle Claude Code session in the repo and presses Enter: ` +
       "it answers this story's questions from then on, ahead of the repo's listener.";
-    const start =
-      canStart &&
-      html` <button type="button" class="ou-startstory" title="${startTitle}">Start listening for this story</button>`;
-    const note = canStart && html`<div class="ou-startnote" role="status" hidden></div>`;
-    copy = html`${start} <button type="button" class="ou-copystory" title="${title}">Copy prompt for this story</button>${note}<pre class="ou-prompt" hidden></pre>`;
+    start = html` <button type="button" class="ou-startstory" title="${startTitle}">Start listening for this story</button><div class="ou-startnote" role="status" hidden></div>`;
   }
   if (answering && answering.scope === 'story') {
     return html`Answered by <b>${answering.consumer}</b>, the session listening for this story.`;
@@ -182,9 +173,9 @@ export function askWhoHtml(result: Health, canStart = false) {
   if (answering) {
     const cover =
       answering.scope === 'repo' ? 'listening for the whole repo' : 'listening for everything';
-    return html`Answered by <b>${answering.consumer}</b> (${cover}).${copy}`;
+    return html`Answered by <b>${answering.consumer}</b> (${cover}).${start}`;
   }
-  return copy ? html`Or have one session answer just this story:${copy}` : html``;
+  return start ? html`Or have one session answer just this story:${start}` : html``;
 }
 
 export function createStatusLight(context: PanelContext) {
@@ -219,21 +210,12 @@ export function createStatusLight(context: PanelContext) {
     const canStart = !!opts.listen && !!result.repo && !!result.prompt;
     const hintHtml = askHintHtml(result, canStart);
     const markup = String(hintHtml);
-    // redrawn on every refresh, so only when it changes (a "Copied" label stays put)
+    // redrawn on every refresh, so only when it changes (a Start listening note stays put)
     if (hint.getAttribute('data-html') === markup) {
       return;
     }
     hint.setAttribute('data-html', markup);
     setHtml(hint, hintHtml);
-    const copyButton = hint.querySelector<HTMLElement>('.ou-copyprompt');
-    if (copyButton) {
-      copyButton.onclick = () =>
-        copyPrompt(
-          result.prompt as string,
-          copyButton,
-          hint.querySelector<HTMLElement>('.ou-prompt'),
-        );
-    }
     const startButton = hint.querySelector<HTMLButtonElement>('.ou-startlisten');
     const startNote = hint.querySelector<HTMLElement>('.ou-startnote');
     if (opts.listen && startButton && startNote) {
@@ -261,7 +243,7 @@ export function createStatusLight(context: PanelContext) {
     const whoHtml = opts.ask ? askWhoHtml(result, !!opts.listen) : html``;
     const markup = String(whoHtml);
     who.hidden = !markup;
-    // redrawn only when it changes, so a "Copied" label stays put
+    // redrawn only when it changes, so a Start listening note stays put
     if (who.getAttribute('data-html') === markup) {
       return;
     }
@@ -271,15 +253,6 @@ export function createStatusLight(context: PanelContext) {
     const startNote = who.querySelector<HTMLElement>('.ou-startnote');
     if (opts.listen && startButton && startNote) {
       wireStartListening(startButton, startNote, { scope: 'story' }, opts.listen, result);
-    }
-    const copyButton = who.querySelector<HTMLElement>('.ou-copystory');
-    if (copyButton) {
-      copyButton.onclick = () =>
-        copyPrompt(
-          (result.storyPrompt as { prompt: string }).prompt,
-          copyButton,
-          who.querySelector<HTMLElement>('.ou-prompt'),
-        );
     }
   }
 

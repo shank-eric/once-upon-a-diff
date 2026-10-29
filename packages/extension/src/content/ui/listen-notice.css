@@ -16,3 +16,6 @@ button:hover { border-color: var(--fgColor-accent, #0969da); color: var(--fgColo
 code { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; }
 .top { align-items: flex-start; }
 .lines { flex: 1; }
+.note { margin: 0 0 4px; }
+.note[hidden] { display: none; }
+.note button { margin: 0 4px 2px 0; }

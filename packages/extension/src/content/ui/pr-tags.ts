@@ -17,6 +17,7 @@ import { html } from '@once-upon-a-diff/shared/util/html';
 import { createTagHost, showTag, clickedTagButton } from './tag-host.ts';
 
 const MAX_PER_CALL = 200;
+const LISTENER_LOOKS_MS = [5000, 10000, 15000]; // after Start listening typed its line: asks who listens at about 5, 15 and 30 s
 const LOOK_AGAIN_MS = 10000; // while a story is queued, building or updating
 const OFFLINE_MS = 30000; // while the bridge doesn't answer
 
@@ -45,7 +46,29 @@ export function createPrTags({ attr, onStory }: { attr: string; onStory?: (pr: P
   let listening: Record<string, Listening> = {}; // repo -> {ok, prompt, details, checkout}
   let lastAsk = 0;
   let failed = false;
-  const notice = listenNotice();
+  let noticeRepos: string[] = [];
+  let relook: ReturnType<typeof setTimeout> | undefined;
+  // Start listening typed a line: the listener needs a few seconds to load the skill and start its wait, so the page asks who
+  // listens at about 5, 15 and 30 s, and stops once the repos no longer show as missing
+  const notice = listenNotice({
+    onStarted: () => {
+      clearTimeout(relook);
+      const again = (step: number) => {
+        relook = setTimeout(async () => {
+          const known = [...results.values()].filter(
+            (result): result is StoryStatus & PrRef => !!result.repo && !!result.number,
+          );
+          if ((await look(known, { force: true })).ok) {
+            showNotice(noticeRepos);
+          }
+          if (step + 1 < LISTENER_LOOKS_MS.length && stillMissing()) {
+            again(step + 1);
+          }
+        }, LISTENER_LOOKS_MS[step]);
+      };
+      again(0);
+    },
+  });
   const keyOf = (pr: PrRef) => prKey(pr.repo, pr.number);
   const resultOf = (pr: PrRef): StoryStatus | null => results.get(keyOf(pr)) || null;
 
@@ -145,14 +168,28 @@ export function createPrTags({ attr, onStory }: { attr: string; onStory?: (pr: P
     }
   }
 
+  /** Whether a repo on the page still has no listener. */
+  function stillMissing() {
+    const onPage = new Set(noticeRepos.map((repo) => repo.toLowerCase()));
+    return (
+      missingListeners(
+        Object.fromEntries(
+          Object.entries(listening).filter(([repo]) => onPage.has(repo.toLowerCase())),
+        ),
+      ).length > 0
+    );
+  }
+
   /** The notice for the repos on the page that no session is listening for. */
   function showNotice(repos: string[]) {
+    noticeRepos = repos;
     const onPage = new Set(repos.map((repo) => repo.toLowerCase()));
     const here = Object.entries(listening).filter(([repo]) => onPage.has(repo.toLowerCase()));
     notice.set(missingListeners(Object.fromEntries(here)));
   }
 
   function clear() {
+    clearTimeout(relook);
     results.clear();
     listening = {};
     notice.remove();

@@ -64,7 +64,7 @@ import {
   registrySource,
   typeLine,
 } from '../src/board/sources.ts';
-import { boardKey, pageKey } from '../src/server/page-key.ts';
+import { boardKey, pageKey, viewKey } from '../src/server/page-key.ts';
 import { readSettings } from '../src/config/settings.ts';
 import type { StatusSource } from '../src/board/sources.ts';
 import {
@@ -5299,7 +5299,7 @@ test('the panel’s Start listening: idle sessions in the repo (no voice session
   assert.equal(
     listenStoryPromptFor('acme-widgets-7'),
     listenPrompt({ story: 'acme-widgets-7' }).prompt,
-    'the board types what Copy prompt for this story copies',
+    'the board types the status API’s story prompt',
   );
   // refusals type nothing: busy, another repo's session, an unknown or odd story id, no repo
   typed.length = 0;
@@ -5330,17 +5330,253 @@ test('listenCandidates leaves out the sessions it is told to skip, and the ones 
       ['notab', 'acme/widgets'],
       ['gadgets', 'acme/gadgets'],
     ]),
+    apart: new Set(['voice']),
   } as unknown as ListeningInput;
   assert.deepEqual(
-    listenCandidates('acme/widgets', input, new Set(['voice'])).map((one) => one.id),
-    ['b', 'a'],
-    'freshest first',
+    listenCandidates('acme/widgets', input, new Set(['b'])).map((one) => one.id),
+    ['a'],
+    'a session the caller skips is left out too',
   );
   assert.deepEqual(
     listenCandidates('acme/widgets', input).map((one) => one.id),
-    ['voice', 'b', 'a'],
-    'the board’s lane skips nobody',
+    ['b', 'a'],
+    'freshest first; the voice session and the sessions that already listen (apart) are never offered, anywhere',
   );
+  assert.deepEqual(
+    listenCandidates('acme/widgets', { ...input, apart: new Set() }).map((one) => one.id),
+    ['voice', 'b', 'a'],
+    'with nothing apart, everyone idle in the repo',
+  );
+});
+
+test('Start listening and Assign leave out the voice session and a session that already listens: one rule on the lane, the panel and the story routes', async () => {
+  const home = tmp('board-listen-apart');
+  const sessions = tmp('board-sessions');
+  const voiceDir = tmp('board-voice');
+  const tree = await parentWithChild();
+  const [free, voice] = [liveChild(), liveChild()];
+  after(() => {
+    tree.stop();
+    [free, voice].forEach((child) => child.stop());
+  });
+  const widgets = checkoutOf('widgets', 'main');
+  registry(sessions, free.pid, { cwd: widgets, name: 'free' }, free.procStart);
+  registry(sessions, voice.pid, { cwd: widgets, name: 'voice' }, voice.procStart);
+  // idle at its prompt, with a wait of its own running under it
+  registry(sessions, tree.parent, { cwd: widgets, name: 'listener' }, tree.procStart);
+  writeJson(path.join(voiceDir, 'session'), {
+    on: true,
+    session_id: fullId(voice.pid),
+    last_listen: 5,
+    last_speak: 4,
+  });
+  writeJson(path.join(home, 'config.json'), {
+    board_sessions_dir: sessions,
+    board_voice_dir: voiceDir,
+    board_it2_path: fakeIt2(),
+    board_status_source: 'iterm',
+  });
+  writeJson(path.join(home, 'listeners', 'repo-acme-widgets.json'), {
+    consumer: 'repo-acme-widgets',
+    pid: tree.child,
+    state: 'waiting',
+    at: NOW.toISOString(),
+    repo: 'acme/widgets',
+  });
+  prStory(home, 'acme-widgets-7', 'acme/widgets', 7);
+  new BacklogStore(home).add({ title: 'Do a thing', repo: 'acme/widgets' });
+  const done = { status: 'done' as const, detail: null };
+  const typed: string[] = [];
+  const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+    source: sourceSaying(
+      Object.fromEntries(
+        [free.pid, voice.pid, tree.parent].map((pid) => [String(pid).padStart(8, '0'), done]),
+      ),
+    ),
+    now: () => NOW,
+    typeLine: async (_it2, _tty, text) => {
+      typed.push(text);
+      return null;
+    },
+  });
+  const data = await board.snapshot();
+  assert.deepEqual(
+    (await board.listenSessions('acme/widgets')).map((one) => one.id),
+    [fullId(free.pid)],
+    'the panel: not the voice session, not the one that listens',
+  );
+  assert.deepEqual(
+    data.listeners.find((entry) => entry.repo === 'acme/widgets')?.candidates.map((one) => one.id),
+    [fullId(free.pid)],
+    'the lane agrees',
+  );
+  const item = data.lanes.flatMap((lane) => lane.cards).find((card) => card.backlog)
+    ?.backlog as NonNullable<BoardCard['backlog']>;
+  assert.deepEqual(
+    item.assign?.candidates.map((one) => one.id),
+    [fullId(free.pid)],
+    'and so does Assign',
+  );
+  // typing re-checks the rule against a fresh look, so a stale chooser or a direct call cannot reach them either
+  const status = (promise: Promise<unknown>) =>
+    promise.then(
+      () => 200,
+      (err: { status?: number }) => err.status,
+    );
+  for (const id of [fullId(voice.pid), fullId(tree.parent)]) {
+    assert.equal(await status(board.type('listen', id, 'acme/widgets')), 409, id);
+    assert.equal(await status(board.type('listen', id, null, 'acme-widgets-7')), 409, id);
+  }
+  assert.deepEqual(typed, [], 'nothing was typed into either');
+  assert.equal(
+    await board.type('listen', fullId(free.pid), 'acme/widgets'),
+    '/once-upon-listen acme/widgets',
+  );
+  assert.deepEqual(typed, ['/once-upon-listen acme/widgets']);
+});
+
+test('a local story whose checkout has no origin finds sessions in that checkout; without iTerm Start listening says so', async () => {
+  const home = tmp('board-listen-bare');
+  const sessions = tmp('board-sessions');
+  const [inBare, inWidgets] = [liveChild(), liveChild()];
+  after(() => [inBare, inWidgets].forEach((child) => child.stop()));
+  const bare = tmp('board-no-remote');
+  git(bare, 'init', '-q', '-b', 'main');
+  registry(sessions, inBare.pid, { cwd: path.join(bare), name: 'bare' }, inBare.procStart);
+  registry(
+    sessions,
+    inWidgets.pid,
+    { cwd: checkoutOf('widgets', 'main'), name: 'widgets' },
+    inWidgets.procStart,
+  );
+  localStory(home, 'local-bare', bare, 'main');
+  writeJson(path.join(home, 'config.json'), {
+    board_sessions_dir: sessions,
+    board_it2_path: fakeIt2(),
+    board_status_source: 'iterm',
+  });
+  const typed: string[] = [];
+  const done = { status: 'done' as const, detail: null };
+  const make = () =>
+    new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+      source: sourceSaying(
+        Object.fromEntries(
+          [inBare.pid, inWidgets.pid].map((pid) => [String(pid).padStart(8, '0'), done]),
+        ),
+      ),
+      now: () => NOW,
+      typeLine: async (_it2, _tty, text) => {
+        typed.push(text);
+        return null;
+      },
+    });
+  const board = make();
+  const found = await board.storyListenSessions('local-bare');
+  assert.equal(found.repo, null);
+  assert.deepEqual(
+    found.sessions.map((one) => one.id),
+    [fullId(inBare.pid)],
+    'by the story’s checkout',
+  );
+  assert.equal(
+    await board.type('listen', fullId(inBare.pid), null, 'local-bare'),
+    '/once-upon-listen --story local-bare',
+  );
+  await assert.rejects(
+    board.type('listen', fullId(inWidgets.pid), null, 'local-bare'),
+    /not in .*board-no-remote/,
+    'a session elsewhere is refused',
+  );
+  assert.deepEqual(typed, ['/once-upon-listen --story local-bare']);
+  // no iTerm: nothing can be typed into, and the page is told so rather than to click again
+  writeJson(path.join(home, 'config.json'), {
+    board_sessions_dir: sessions,
+    board_status_source: 'registry',
+  });
+  await assert.rejects(make().listenSessions('acme/widgets'), /needs iTerm/);
+  await assert.rejects(make().storyListenSessions('local-bare'), /needs iTerm/);
+});
+
+test('a story’s own listen routes: the local page’s full key and the token reach them, the read-only key, the board key and another story’s key do not', async () => {
+  const home = tmp('story-listen-routes');
+  const sessions = tmp('board-sessions');
+  mkdirSync(sessions, { recursive: true });
+  writeJson(path.join(home, 'config.json'), {
+    board_sessions_dir: sessions,
+    board_it2_path: fakeIt2(),
+    board_status_source: 'iterm',
+  });
+  const widgets = checkoutOf('widgets', 'feat/x');
+  const bare = tmp('board-no-remote');
+  git(bare, 'init', '-q', '-b', 'main');
+  prStory(home, 'acme-widgets-7', 'acme/widgets', 7);
+  localStory(home, 'local-feat-x', widgets, 'feat/x');
+  localStory(home, 'local-bare', bare, 'main');
+  localStory(home, 'local-nowhere', '', 'main');
+  const bridge = await startBridge({ home });
+  open.push(bridge);
+  const viaKey = (method: 'GET' | 'POST', route: string, key: string, body?: unknown) =>
+    bridge.call<{ repo?: string; sessions?: unknown[]; error?: string }>(method, route, body, {
+      Authorization: `Bearer ${key}`,
+    });
+  for (const key of [TOKEN, pageKey(TOKEN, 'local-feat-x')]) {
+    const got = await viaKey('GET', '/api/stories/local-feat-x/listen', key);
+    assert.equal(got.status, 200);
+    assert.deepEqual(got.body, { repo: 'acme/widgets', sessions: [] });
+    // reached: the board looks for the session and finds none
+    for (const scope of ['repo', 'story']) {
+      const sent = await viaKey('POST', '/api/stories/local-feat-x/listen', key, {
+        session: 'nope',
+        scope,
+      });
+      assert.equal(sent.status, 404, scope);
+      assert.match(String(sent.body.error), /no live Claude Code session/);
+    }
+    assert.equal((await viaKey('POST', '/api/stories/local-feat-x/listen', key, {})).status, 400);
+    assert.equal(
+      (await viaKey('POST', '/api/stories/local-feat-x/listen', key, { session: 'a b; rm' }))
+        .status,
+      400,
+      'no text to type',
+    );
+  }
+  // a PR story, by the extension's token
+  assert.equal(
+    (await viaKey('GET', '/api/stories/acme-widgets-7/listen', TOKEN)).body.repo,
+    'acme/widgets',
+  );
+  // a local story whose checkout has no origin finds sessions by the checkout: the story's own listener can be asked for,
+  // the repo's cannot, and with no checkout either there is nothing to find a session by
+  const bareList = await viaKey('GET', '/api/stories/local-bare/listen', TOKEN);
+  assert.deepEqual([bareList.status, bareList.body], [200, { repo: null, sessions: [] }]);
+  assert.equal(
+    (
+      await viaKey('POST', '/api/stories/local-bare/listen', TOKEN, {
+        session: 'nope',
+        scope: 'story',
+      })
+    ).status,
+    404,
+    'reached: the session is looked for',
+  );
+  assert.equal(
+    (await viaKey('POST', '/api/stories/local-bare/listen', TOKEN, { session: 'nope' })).status,
+    400,
+    "no repo, so no repo's listener",
+  );
+  assert.equal((await viaKey('GET', '/api/stories/local-nowhere/listen', TOKEN)).status, 400);
+  // a read-only link never types into a terminal; neither do the board's key or another story's
+  for (const key of [
+    viewKey(TOKEN, 'local-feat-x'),
+    boardKey(TOKEN),
+    pageKey(TOKEN, 'local-bare'),
+  ]) {
+    assert.equal((await viaKey('GET', '/api/stories/local-feat-x/listen', key)).status, 403);
+    assert.equal(
+      (await viaKey('POST', '/api/stories/local-feat-x/listen', key, { session: 'x' })).status,
+      403,
+    );
+  }
 });
 
 test('GET /api/board/listen-sessions: the board key or the token, a repo or a story, nothing from the other pages’ keys', async () => {

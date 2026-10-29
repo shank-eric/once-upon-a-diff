@@ -1,8 +1,8 @@
 /**
  * Which GitHub repo a story, a checkout or a listener is about, and where the
  * bridge has seen a checkout of each repo. Listeners are scoped per repo
- * (`once-upon wait --repo owner/name`), and the "Copy prompt for Claude"
- * prompt says which checkout to work from.
+ * (`once-upon wait --repo owner/name`), and the listen prompt
+ * says which checkout to work from.
  *
  *   <home>/checkouts.json   {"owner/name": "/path/to/checkout"}, lowercased keys
  */
