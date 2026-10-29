@@ -12,6 +12,7 @@ import {
   utimesSync,
   writeFileSync,
 } from 'node:fs';
+import { createServer } from 'node:net';
 import path from 'node:path';
 import {
   tmp,
@@ -32,7 +33,17 @@ import { markQuestions } from '../src/inbox/conversation.ts';
 import { Board, liveSessions, noPrWatcher, type PrWatcher } from '../src/board/board.ts';
 import { columnOf, isBackToYou } from '../src/board/columns.ts';
 import { BacklogStore, assignBranch, assignLine, backlogCards } from '../src/board/backlog.ts';
-import { readVoice, voiceStatus } from '../src/board/voice.ts';
+import {
+  bridgeUp,
+  forgetProbes,
+  readVoice,
+  phoneReady,
+  runVoiceCtl,
+  sinkPort,
+  voiceStatus,
+  type PhoneCommand,
+  waitBridgeDown,
+} from '../src/board/voice.ts';
 import {
   listenCandidates,
   listenStoryPromptFor,
@@ -952,6 +963,8 @@ test('the board page and its key: the board routes only, the other pages’ link
     ['POST', '/api/board/type'],
     ['POST', '/api/board/focus'],
     ['POST', '/api/board/voice/pause'],
+    ['POST', '/api/board/voice/phone'],
+    ['POST', '/api/board/voice/phone/bridge-stop'],
     ['POST', '/api/board/stop-listening'],
   ] as const) {
     assert.equal(
@@ -2643,6 +2656,7 @@ test('the voice session: read from Larmor’s folder, status from its files, not
     on: true,
     name: null,
     away: false,
+    phoneOn: false,
     paused: false,
     lastListen: 1000000,
     lastSpeak: 990000,
@@ -2663,7 +2677,7 @@ test('the voice session: read from Larmor’s folder, status from its files, not
   assert.equal(voiceStatus({ ...files, on: false }, false, now), 'ended', 'ended wins over all');
   writeFileSync(path.join(dir, 'paused'), '');
   assert.equal(voiceStatus(readVoice(dir) as typeof files, false, now), 'paused');
-  writeFileSync(path.join(dir, 'away'), '');
+  writeJson(path.join(dir, 'away'), { on: true, since: 1, by: 'menu' });
   assert.equal(
     voiceStatus(readVoice(dir) as typeof files, false, now),
     'paused',
@@ -2916,6 +2930,257 @@ test('POST /api/board/voice/pause makes and removes Larmor’s paused file, only
   assert.equal(existsSync(paused), false);
   // another page's key doesn't reach it
   assert.equal((await post({ paused: true }, pageKey(TOKEN, 'x'))).status, 403);
+});
+
+test('phone mode is the away file read as Larmor’s read_away reads it, and it is only “away” while voice is on', () => {
+  const dir = tmp('board-voice-away');
+  writeJson(path.join(dir, 'session'), { on: true, session_id: 'abc12345-aaaa' });
+  const away = path.join(dir, 'away');
+  const read = () => readVoice(dir) as NonNullable<ReturnType<typeof readVoice>>;
+  assert.equal(read().phoneOn, false, 'no file');
+  writeJson(away, { on: true, since: 1, by: 'menu', keep_mac_mic: false });
+  assert.deepEqual([read().phoneOn, read().away], [true, true]);
+  writeJson(away, { on: false, since: 1 });
+  assert.deepEqual([read().phoneOn, read().away], [false, false], 'on:false is off');
+  // anything else is off, as Larmor's read_away has it: an object whose `on` is truthy
+  for (const text of [
+    '',
+    'junk',
+    '[]',
+    '{}',
+    '{"on": null}',
+    '{"on": 0}',
+    '{"on": ""}',
+    '[{"on": true}]',
+  ]) {
+    writeFileSync(away, text);
+    assert.equal(read().phoneOn, false, text || '(empty)');
+  }
+  for (const text of ['{"on": 1}', '{"on": "yes"}', '{"on": [1]}']) {
+    writeFileSync(away, text);
+    assert.equal(read().phoneOn, true, text);
+  }
+  writeJson(away, { on: true });
+  writeJson(path.join(dir, 'session'), { on: false, since: 2 });
+  writeJson(path.join(dir, 'last-voice.json'), {
+    session_id: 'abc12345-aaaa',
+    cwd: '/x',
+    at: Date.now() / 1000,
+  });
+  assert.deepEqual(
+    [read().phoneOn, read().away],
+    [true, false],
+    'voice ended: phone mode is the file, away is voice on',
+  );
+});
+
+test('the phone bridge counts as running when its local sink port (phone.json, else 8171) accepts a connection', async () => {
+  const dir = tmp('board-voice-bridge');
+  assert.equal(sinkPort(dir), 8171, 'Larmor’s default');
+  const server = createServer((socket) => socket.end());
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const port = (server.address() as { port: number }).port;
+  writeJson(path.join(dir, 'phone.json'), { sink_port: port });
+  assert.equal(sinkPort(dir), port);
+  forgetProbes();
+  assert.equal(await bridgeUp(dir), true);
+  await new Promise((resolve) => server.close(resolve));
+  assert.equal(await bridgeUp(dir), true, 'the answer is kept for a moment');
+  forgetProbes();
+  assert.equal(await bridgeUp(dir), false, 'nothing listens now');
+  writeJson(path.join(dir, 'phone.json'), { sink_port: 'x' });
+  assert.equal(sinkPort(dir), 8171);
+});
+
+/** A Larmor checkout whose venv python is a script that records its arguments and prints voice_ctl's one-line answer. */
+function fakeLarmor(): string {
+  const larmor = tmp('board-larmor');
+  mkdirSync(path.join(larmor, '.venv-app', 'bin'), { recursive: true });
+  mkdirSync(path.join(larmor, 'app'), { recursive: true });
+  writeFileSync(path.join(larmor, 'app', 'voice_ctl.py'), '');
+  const python = path.join(larmor, '.venv-app', 'bin', 'python');
+  writeFileSync(
+    python,
+    `#!/bin/sh
+echo "$@" >> calls.log
+if [ -f slow ]; then sleep 1; fi
+if [ -f silent ]; then echo "Traceback (most recent call last):" >&2; echo "ModuleNotFoundError: No module named 'rumps'" >&2; exit 3; fi
+if [ -f refuse ] && [ "$2" = phone-on ]; then
+  echo '{"ok": false, "why": "The phone isn'"'"'t paired yet. Pair it first.", "away": false, "bridge": false}'
+  exit 0
+fi
+case "$2" in
+  phone-on) echo 'noise before the answer'; echo '{"ok": true, "why": "", "away": true, "bridge": true}';;
+  *) echo '{"ok": true, "why": "", "away": false, "bridge": false}';;
+esac
+`,
+  );
+  chmodSync(python, 0o755);
+  return larmor;
+}
+
+test('waitBridgeDown waits for the bridge to stop listening, and gives up when it does not', async () => {
+  const dir = tmp('board-voice-down');
+  const server = createServer((socket) => socket.end());
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  writeJson(path.join(dir, 'phone.json'), {
+    sink_port: (server.address() as { port: number }).port,
+  });
+  forgetProbes();
+  assert.equal(await bridgeUp(dir), true);
+  assert.equal(await waitBridgeDown(dir, 200), true, 'still listening when the time is up');
+  setTimeout(() => server.close(), 300);
+  assert.equal(
+    await waitBridgeDown(dir, 3000),
+    false,
+    'it went down, though the probe had cached “up”',
+  );
+});
+
+test('the phone buttons need the checkout’s venv python and app/voice_ctl.py', () => {
+  const larmor = fakeLarmor();
+  assert.equal(phoneReady(larmor), true);
+  rmSync(path.join(larmor, 'app', 'voice_ctl.py'));
+  assert.equal(phoneReady(larmor), false, 'no script');
+  assert.equal(phoneReady(tmp('board-no-larmor')), false);
+});
+
+test('runVoiceCtl runs only the three phone commands, from the checkout, and reads the last line it prints', async () => {
+  const larmor = fakeLarmor();
+  assert.throws(() => runVoiceCtl(larmor, 'stop' as PhoneCommand), /not an allowed/);
+  assert.throws(() => runVoiceCtl(larmor, 'pause' as PhoneCommand), /not an allowed/);
+  assert.deepEqual(await runVoiceCtl(larmor, 'phone-on'), {
+    ok: true,
+    why: '',
+    away: true,
+    bridge: true,
+  });
+  assert.equal(readFileSync(path.join(larmor, 'calls.log'), 'utf8'), 'app/voice_ctl.py phone-on\n');
+  writeFileSync(path.join(larmor, 'silent'), '');
+  await assert.rejects(
+    runVoiceCtl(larmor, 'bridge-stop'),
+    /voice_ctl bridge-stop failed: ModuleNotFoundError: No module named 'rumps'/,
+    'stderr’s last line is the reason',
+  );
+  await assert.rejects(
+    runVoiceCtl(tmp('board-no-larmor'), 'phone-off'),
+    /voice_ctl phone-off failed/,
+  );
+});
+
+test('the phone state: null without a ready board_larmor_dir, else phone mode from the file and the bridge from its port, with voice on or not', async () => {
+  const home = tmp('board-voice-phone');
+  const sessions = tmp('board-sessions');
+  const voiceDir = tmp('board-voice');
+  const child = liveChild();
+  after(() => child.stop());
+  const ledger = path.join(tmp('board-notes'), 'ledger.md');
+  writeFileSync(ledger, '');
+  registry(sessions, child.pid, { status: 'idle' }, child.procStart);
+  writeJson(path.join(voiceDir, 'session'), { on: true, session_id: fullId(child.pid) });
+  const settings = {
+    board_ledger_file: ledger,
+    board_sessions_dir: sessions,
+    board_voice_dir: voiceDir,
+  };
+  const make = () =>
+    new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+      source: sourceSaying({}),
+      now: () => NOW,
+    });
+  writeJson(path.join(home, 'config.json'), settings);
+  assert.equal((await make().snapshot()).phone, null, 'no checkout to ask');
+  const server = createServer((socket) => socket.end());
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  writeJson(path.join(voiceDir, 'phone.json'), {
+    sink_port: (server.address() as { port: number }).port,
+  });
+  const larmorDir = fakeLarmor();
+  writeJson(path.join(home, 'config.json'), { ...settings, board_larmor_dir: larmorDir });
+  forgetProbes();
+  assert.deepEqual((await make().snapshot()).phone, { on: false, bridge: true });
+  writeJson(path.join(home, 'config.json'), {
+    ...settings,
+    board_larmor_dir: tmp('board-larmor-bare'),
+  });
+  assert.equal((await make().snapshot()).phone, null, 'no venv or voice_ctl there, no buttons');
+  writeJson(path.join(home, 'config.json'), { ...settings, board_larmor_dir: larmorDir });
+  writeJson(path.join(voiceDir, 'away'), { on: true, since: 1, by: 'phone' });
+  assert.equal((await make().snapshot()).voice?.status, 'away');
+  assert.deepEqual((await make().snapshot()).phone, { on: true, bridge: true });
+  await new Promise((resolve) => server.close(resolve));
+  forgetProbes();
+  assert.deepEqual((await make().snapshot()).phone, { on: true, bridge: false });
+  // the buttons do not depend on voice: with voice never started today there is no panel, and the phone state is there
+  writeJson(path.join(voiceDir, 'session'), { on: false, since: 1 });
+  const quiet = await make().snapshot();
+  assert.equal(quiet.voice, null);
+  assert.deepEqual(quiet.phone, { on: true, bridge: false });
+});
+
+test('POST /api/board/voice/phone and /phone/bridge-stop ask Larmor’s voice_ctl, voice on or not, with the board key', async () => {
+  const home = tmp('board-voice-phone-post');
+  const voiceDir = tmp('board-voice');
+  const larmor = fakeLarmor();
+  const bridge = await startBridge({ home });
+  open.push(bridge);
+  const post = (route: string, body: unknown, key = boardKey(TOKEN)) =>
+    bridge.call('POST', `/api/board/voice/${route}`, body, { Authorization: `Bearer ${key}` });
+  const calls = () =>
+    existsSync(path.join(larmor, 'calls.log'))
+      ? readFileSync(path.join(larmor, 'calls.log'), 'utf8')
+      : '';
+  assert.equal((await post('phone', { on: true })).status, 400, 'no folders are set');
+  writeJson(path.join(home, 'config.json'), { board_voice_dir: voiceDir });
+  assert.equal((await post('phone', { on: true })).status, 400, 'board_larmor_dir is not set');
+  writeJson(path.join(home, 'config.json'), {
+    board_voice_dir: voiceDir,
+    board_larmor_dir: tmp('board-larmor-bare'),
+  });
+  assert.equal((await post('phone', { on: false })).status, 400, 'no venv or voice_ctl to run');
+  writeJson(path.join(home, 'config.json'), {
+    board_voice_dir: voiceDir,
+    board_larmor_dir: larmor,
+  });
+  assert.equal((await post('phone', {})).status, 400, 'on is needed');
+  assert.equal((await post('phone', { on: 'yes' })).status, 400);
+  // phone mode does not need voice: with voice off Larmor is asked all the same
+  writeJson(path.join(voiceDir, 'session'), { on: false, since: 1 });
+  const turned = await post('phone', { on: true });
+  assert.equal(turned.status, 200);
+  assert.deepEqual(JSON.parse(turned.text), { ok: true, on: true, bridge: true });
+  assert.equal(calls(), 'app/voice_ctl.py phone-on\n');
+  assert.equal((await post('phone', { on: false })).status, 200);
+  const stopped = await post('phone/bridge-stop', {});
+  assert.equal(stopped.status, 200);
+  assert.deepEqual(JSON.parse(stopped.text), { ok: true, on: false, bridge: false });
+  assert.equal(
+    calls(),
+    'app/voice_ctl.py phone-on\napp/voice_ctl.py phone-off\napp/voice_ctl.py bridge-stop\n',
+  );
+  // Larmor refuses (not paired, firewall, wrong network): its reason comes back as a 409
+  writeJson(path.join(voiceDir, 'session'), { on: true, session_id: 'abc12345-aaaa' });
+  writeFileSync(path.join(larmor, 'refuse'), '');
+  const refused = await post('phone', { on: true });
+  assert.equal(refused.status, 409);
+  assert.match(refused.text, /isn.t paired yet/);
+  // no answer from voice_ctl at all
+  writeFileSync(path.join(larmor, 'silent'), '');
+  assert.equal((await post('phone/bridge-stop', {})).status, 502);
+  // one call at a time: while Larmor works on the first, the second is refused
+  rmSync(path.join(larmor, 'silent'));
+  rmSync(path.join(larmor, 'refuse'));
+  writeFileSync(path.join(larmor, 'slow'), '');
+  const first = post('phone', { on: true });
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  const second = await post('phone', { on: false });
+  assert.equal(second.status, 409);
+  assert.match(second.text, /still working/);
+  assert.equal((await first).status, 200);
+  assert.equal((await post('phone', { on: false })).status, 200, 'free again');
+  // another page's key doesn't reach them
+  assert.equal((await post('phone', { on: true }, pageKey(TOKEN, 'x'))).status, 403);
+  assert.equal((await post('phone/bridge-stop', {}, pageKey(TOKEN, 'x'))).status, 403);
 });
 
 test('Board.setVoicePaused drops the kept snapshot, so the refresh right after Pause or Resume sees it', async () => {

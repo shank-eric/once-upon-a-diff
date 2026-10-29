@@ -198,6 +198,9 @@ const DEFAULT_HOSTS = ['once-upon.test', 'once-upon.fidev.net'];
  *   board_voice_dir         Larmor's folder (~/.larmor): once voice has started in a session today, that session is pinned at the
  *                           top of the board instead of sitting in a column (collapsed while paused or ended). The board
  *                           reads it, and writes only `paused`, for its Pause and Resume buttons; off when unset
+ *   board_larmor_dir        the Larmor checkout (~/Development/SideProjects/larmor): the voice panel's phone mode and Stop
+ *                           phone bridge buttons run its `.venv-app/bin/python app/voice_ctl.py` there; without it the panel
+ *                           has no phone buttons
  *   board_done_hours        how long a finished agent stays on the board (default 4)
  *   board_ledger_time_zone  the zone the ledger's times are in when they carry no label like ET (default: the system's)
  *   board_worktrees         false to leave git worktrees off the board (default: shown, with a Clean up button on the ones
@@ -295,6 +298,10 @@ export function readSettings(home = homeDir()) {
       voiceDir:
         typeof cfg.board_voice_dir === 'string' && cfg.board_voice_dir
           ? expand(cfg.board_voice_dir)
+          : null,
+      larmorDir:
+        typeof cfg.board_larmor_dir === 'string' && cfg.board_larmor_dir
+          ? expand(cfg.board_larmor_dir)
           : null,
       doneHours:
         typeof cfg.board_done_hours === 'number' && cfg.board_done_hours > 0

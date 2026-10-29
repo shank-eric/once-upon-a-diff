@@ -7,6 +7,9 @@
  *                               story's own listener with story) into the session's iTerm tab, when the session is at its prompt
  *   GET /api/board/listen-sessions?repo= | ?story=  the idle sessions Start listening may type into for that repo (or the
  *                               story's repo): the panel's Start listening button asks this, then POSTs /type
+ *   POST /api/board/voice/phone {on: boolean}: turn phone mode on or off through Larmor's voice_ctl, which starts the phone
+ *                               bridge when it turns on. 409 with Larmor's reason when it refuses; it works with voice off too
+ *   POST /api/board/voice/phone/bridge-stop: stop the phone bridge, which also ends phone mode (the menu bar's order)
  *   POST /api/board/voice/pause {paused: boolean}: pause or resume voice by making or removing Larmor's `paused` file, as its
  *                               menu bar does (the bridge writes the file, the page only asks). 409 to pause when voice is off
  *   POST /api/board/stop-listening  {repo}: end the repo's listener
@@ -178,6 +181,21 @@ function voicePause({ app, body, send }: Call) {
   return send(200, { ok: true, paused: body.paused });
 }
 
+/** POST {on}: phone mode on or off. */
+async function voicePhone({ app, body, send }: Call) {
+  if (typeof body.on !== 'boolean') {
+    throw new HttpError(400, 'on (true or false) is needed');
+  }
+  const got = await app.board.setPhone(body.on ? 'phone-on' : 'phone-off');
+  return send(200, { ok: true, ...got });
+}
+
+/** POST: stop the phone bridge (and so phone mode). */
+async function voiceBridgeStop({ app, send }: Call) {
+  const got = await app.board.setPhone('bridge-stop');
+  return send(200, { ok: true, ...got });
+}
+
 /** POST {path, ack?}: Clean up a worktree the board lists. Everything but the path is the bridge's own look at it. */
 async function cleanWorktree({ app, body, send }: Call) {
   const dir = String(body.path || '');
@@ -206,6 +224,13 @@ export const boardRoutes: ApiRoute[] = [
   { path: '/api/board/type', method: 'POST', handle: type, boardKey: true },
   { path: '/api/board/listen-sessions', method: 'GET', handle: listenSessions, boardKey: true },
   { path: '/api/board/voice/pause', method: 'POST', handle: voicePause, boardKey: true },
+  { path: '/api/board/voice/phone', method: 'POST', handle: voicePhone, boardKey: true },
+  {
+    path: '/api/board/voice/phone/bridge-stop',
+    method: 'POST',
+    handle: voiceBridgeStop,
+    boardKey: true,
+  },
   { path: '/api/board/stop-listening', method: 'POST', handle: stopListening, boardKey: true },
   { path: '/api/board/focus', method: 'POST', handle: focus, boardKey: true },
   { path: '/api/board/open-story', method: 'POST', handle: openStory, boardKey: true },

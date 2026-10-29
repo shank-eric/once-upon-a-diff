@@ -1005,6 +1005,11 @@ export interface BoardData {
   warning: string | null;
   /** the voice session when voice mode is on and board_voice_dir names its folder; it is not on a card */
   voice: BoardVoice | null;
+  /**
+   * The phone buttons' state, whether or not voice is on: phone mode (Larmor's away mode, from the `away` file) and whether
+   * its phone bridge runs. Null unless board_voice_dir and board_larmor_dir are set and the checkout can run voice_ctl.
+   */
+  phone: { on: boolean; bridge: boolean } | null;
   /** repos with a listener now, and those that had one in the last week */
   listeners: BoardListenerRepo[];
   /** live sessions that have had no prompt yet (new, or just cleared), by lane name: a strip in the Idle lane, not cards */

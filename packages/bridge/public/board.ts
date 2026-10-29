@@ -114,6 +114,8 @@ const onAuthor = (card: BoardCard) =>
   card.column === 'pr_open' && !!card.pr && !card.pr.mine && !card.sessions.length;
 const shownCard = (card: BoardCard) => !(hideOnAuthor && onAuthor(card));
 
+/** A phone-mode or bridge call is running: the 3 s refresh redraws the buttons disabled, so a second click cannot start another. */
+let phoneBusy = false;
 /** The voice panel's open or closed state is remembered; wrapped like the rest. */
 const VOICE_KEY = 'ou-board-voice-open';
 function readVoiceOpen(): boolean {
@@ -658,6 +660,29 @@ const voiceLineHtml = (line: BoardVoiceLine) =>
   html`<li class="ou-board-voice-${line.who}"><span class="ou-local-muted">${line.who === 'you' ? 'You' : 'Voice'}</span> ${line.text}</li>`;
 
 /**
+ * The voice controls in the board's top header, the rightmost items (past the repo dropdown): Resume while voice is paused,
+ * the phone-mode toggle whenever the Larmor checkout can run it, voice on or not (Larmor's away mode, which starts the phone
+ * bridge), and Stop phone bridge while the bridge runs. Nothing when none applies.
+ */
+function voiceHeaderHtml(voice: BoardVoice | null, phone: BoardData['phone']) {
+  const phoneModeTitle = phone?.on
+    ? 'Phone mode is on: lines go to your phone. Turn it off to play them on the Mac again'
+    : "Send voice lines to your phone and release the Mac's mic (starts the phone bridge)";
+  const buttons = [
+    voice?.status === 'paused' &&
+      html`<button type="button" data-voice-pause="resume" title="Resume voice (removes ~/.larmor/paused, as the menu bar does)">Resume</button>`,
+    phone &&
+      html`<button type="button"${phoneBusy && html` disabled`} data-voice-phone="${phone.on ? 'off' : 'on'}" title="${phoneModeTitle}">${phone.on ? 'Turn off phone mode' : 'Turn on phone mode'}</button>`,
+    phone &&
+      phone.bridge &&
+      html`<button type="button"${phoneBusy && html` disabled`} data-voice-phone="bridge-stop" title="Stop the phone bridge (also turns phone mode off)">Stop phone bridge</button>`,
+  ].filter(Boolean);
+  return buttons.length > 0
+    ? html`<div class="ou-local-top-voice ou-board-voice-phone" role="group" aria-label="Voice controls">${buttons}</div>`
+    : '';
+}
+
+/**
  * The voice session as a panel docked on the board's right edge: a small tab (mic, status word, a color for the status)
  * that opens the panel with its repo and branch, status, context, agents, the conversation (newest at the bottom) and
  * Open in iTerm. Whether it is open is a page preference, so a poll's redraw leaves it as it is.
@@ -689,7 +714,6 @@ function voiceHtml(voice: BoardVoice) {
       title="${tabVerb} the voice session: ${voice.name}">
       ${MIC_ICON}<span class="ou-board-voice-dot" aria-hidden="true"></span><span class="ou-board-voice-word">${status}</span>
     </button>
-    ${voice.status === 'paused' && !shown && html`<button type="button" class="ou-board-voice-resume-tab" data-voice-pause="resume" title="Resume voice">Resume</button>`}
     ${
       shown &&
       html`<div class="ou-board-voice-panel" id="ou-board-voice-panel" role="region" aria-label="Voice session panel">
@@ -919,6 +943,7 @@ function render(full: BoardData) {
       <div class="ou-local-top-main"><h1>Agent board</h1><div class="ou-local-muted">${summary}</div></div>
       ${usageHtml(data.usage, now)}
       <button type="button" data-board-filter aria-haspopup="menu" title="Narrow the whole board to one repo's lane">Repo: ${filterOn ? laneFilter : 'All'} ▾</button>
+      ${voiceHeaderHtml(data.voice, data.phone)}
     </header>
     ${data.warning && html`<p class="ou-board-warning">${data.warning}</p>`}
     <main class="ou-board">
@@ -1651,6 +1676,34 @@ app.addEventListener('click', async (event) => {
       await api('/api/board/voice/pause', { paused: pause });
     } catch (err) {
       alert(`Couldn't ${pause ? 'pause' : 'resume'} voice: ${(err as Error).message}`);
+    }
+    last = '';
+    await refresh();
+    return;
+  }
+  const voicePhone = clicked.closest<HTMLElement>('[data-voice-phone]');
+  if (voicePhone) {
+    const action = voicePhone.getAttribute('data-voice-phone');
+    if (phoneBusy) {
+      return;
+    }
+    phoneBusy = true;
+    // the row's buttons all wait while Larmor works: turning on can take several seconds (it waits for the bridge)
+    voicePhone
+      .closest('.ou-board-voice-phone')
+      ?.querySelectorAll('button')
+      .forEach((one) => one.setAttribute('disabled', ''));
+    try {
+      await api(
+        action === 'bridge-stop' ? '/api/board/voice/phone/bridge-stop' : '/api/board/voice/phone',
+        action === 'bridge-stop' ? {} : { on: action === 'on' },
+      );
+    } catch (err) {
+      alert(
+        `Couldn't ${action === 'bridge-stop' ? 'stop the phone bridge' : `turn phone mode ${action}`}: ${(err as Error).message}`,
+      );
+    } finally {
+      phoneBusy = false;
     }
     last = '';
     await refresh();

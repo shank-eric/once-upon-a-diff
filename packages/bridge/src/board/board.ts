@@ -62,7 +62,19 @@ import type { Runner, WorktreeFacts } from './worktrees.ts';
 import { cleanWorktree } from './worktree-clean.ts';
 import type { CleanResult } from './worktree-clean.ts';
 import type { Worktree } from './backlog-links.ts';
-import { readVoice, setPaused, voiceLines, voiceStatus } from './voice.ts';
+import {
+  awayOn,
+  bridgeUp,
+  forgetProbes,
+  phoneReady,
+  readVoice,
+  runVoiceCtl,
+  setPaused,
+  voiceLines,
+  voiceStatus,
+  type PhoneCommand,
+  waitBridgeDown,
+} from './voice.ts';
 import {
   assignCandidates,
   buildFor,
@@ -419,6 +431,8 @@ export class Board {
   private trees = new Map<string, { at: number; list: Worktree[] }>();
   private cache: { at: number; data: BoardData } | null = null;
   /** What the last snapshot knew of the sessions, for the panel's Start listening (listenSessions). */
+  /** a voice_ctl phone call is running */
+  private phoneBusy = false;
   private listeningNow: { input: ListeningInput; voice: string | null } | null = null;
   /** The build in flight, so callers arriving while it runs share it instead of starting another. */
   private building: Promise<BoardData> | null = null;
@@ -847,6 +861,11 @@ export class Board {
     // the voice session is pinned above the columns, so it is on no card (its agents keep theirs)
     const voiceFiles = settings.voiceDir ? readVoice(settings.voiceDir, nowMs) : null;
     const pin: { found: PinnedVoice | null } = { found: null };
+    // the phone buttons need Larmor's checkout to run its voice_ctl; phone mode is the `away` file, the bridge a local port
+    const phone: BoardData['phone'] =
+      settings.voiceDir && settings.larmorDir && phoneReady(settings.larmorDir)
+        ? { on: awayOn(settings.voiceDir), bridge: await bridgeUp(settings.voiceDir, nowMs) }
+        : null;
 
     // sessions with no prompt yet (new, or just cleared) that are at rest and would be cards of their own: the Blank strip
     const blankIds = new Set<string>();
@@ -1307,6 +1326,7 @@ export class Board {
       status_source: picked.source.name,
       warning: picked.warning,
       voice: voiceOf(pin.found, voiceFiles, agents, nowMs, settings.voiceDir as string),
+      phone,
       listeners: listenersLane(waits, listening),
       blank: blankStrip(blankViews),
       lanes: [...lanes.values()].sort((first, second) => first.name.localeCompare(second.name)),
@@ -1335,6 +1355,46 @@ export class Board {
     setPaused(dir, paused);
     // the page refreshes right after the POST: it must see the file, not the kept snapshot
     this.invalidate();
+  }
+
+  /**
+   * Turn phone mode on or off from the board, and stop the phone bridge, by asking Larmor's voice_ctl (it makes the checks
+   * the menu bar makes, writes or removes the `away` file and starts or stops larmor_phone.py). Phone mode can turn on with voice off too. Larmor may refuse (not paired, firewall, another network): that is a 409 carrying its reason.
+   */
+  async setPhone(command: PhoneCommand): Promise<{ on: boolean; bridge: boolean }> {
+    const board = readSettings(this.home).board;
+    if (!board.voiceDir || !board.larmorDir) {
+      throw new HttpError(
+        400,
+        'board_voice_dir and board_larmor_dir are needed for the phone buttons',
+      );
+    }
+    if (!phoneReady(board.larmorDir)) {
+      throw new HttpError(
+        400,
+        `${board.larmorDir} has no .venv-app/bin/python and app/voice_ctl.py to run`,
+      );
+    }
+    // one call at a time: a second one while phone-on waits for the bridge would undo it
+    if (this.phoneBusy) {
+      throw new HttpError(409, 'Larmor is still working on the last phone request');
+    }
+    this.phoneBusy = true;
+    try {
+      const result = await runVoiceCtl(board.larmorDir, command);
+      forgetProbes();
+      if (!result.ok) {
+        throw new HttpError(409, result.why || `Larmor would not do ${command}`);
+      }
+      // Larmor signals the bridge to stop and returns without waiting: report the bridge as it is a moment later
+      const bridge =
+        command === 'bridge-stop' ? await waitBridgeDown(board.voiceDir) : result.bridge;
+      return { on: result.away, bridge };
+    } finally {
+      this.phoneBusy = false;
+      forgetProbes();
+      this.invalidate();
+    }
   }
 
   /**
