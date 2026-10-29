@@ -810,6 +810,67 @@ export interface BoardCard {
   } | null;
   /** backlog items this work card began as: the work's story and column carry on from here */
   from_backlog?: { id: string; title: string }[];
+  /** the git worktrees tied to this card (same repo and branch, a session inside, or listed by a started backlog item) */
+  worktrees?: BoardWorktree[];
+}
+
+/** What git and GitHub say about one worktree (bridge/src/board/worktrees.ts). */
+export interface BoardWorktree {
+  path: string;
+  /** the folder's name */
+  name: string;
+  /** owner/name when the origin is on GitHub */
+  repo: string | null;
+  /** the lane it belongs to: the repo's name, else the main checkout's folder */
+  lane: string;
+  /** the repo's main checkout */
+  main: string;
+  /** null when detached */
+  branch: string | null;
+  /** the newest commit's time at HEAD */
+  last_commit_at: string | null;
+  state: 'clean' | 'dirty' | 'unknown';
+  modified: number | null;
+  untracked: number | null;
+  /** commits on no remote; null when unknown */
+  unpushed: number | null;
+  size_kb: number | null;
+  /** the branch's PR as far as GitHub last said */
+  pr: { number: number | null; state: 'open' | 'merged' | 'none' | 'unknown' };
+  /**
+   * merged: the tip is in the default branch (or in the main checkout's branch when that is built on it). superseded: not
+   * there, but each commit has a copy (same patch, or same subject and file counts for a branch). pr_merged: its PR
+   * merged. pushed: a review checkout, the same as origin's branch with nothing local. new: no commits of its own yet.
+   */
+  verdict: 'merged' | 'superseded' | 'pr_merged' | 'pushed' | 'unmerged' | 'new' | 'unknown';
+  /** live sessions and open agents working in it */
+  in_use: string[];
+  locked: boolean;
+  /** ignored files that cannot be rebuilt (.env, *.local.json, ...): removing the folder deletes them, so the confirm names them */
+  ignored: string[];
+  /** a removal failed or timed out: it needs a look, and Clean up is not offered again */
+  attention: string | null;
+  /** the facts are from before this bridge's last start, or a scan has not confirmed them */
+  stale: boolean;
+  /** Clean up is offered: clean, not in use, and its work is in live or its PR merged */
+  removable: boolean;
+  /** why it is not removable */
+  keep: string[];
+  /** the cleanup also deletes the (merged) branch */
+  deletes_branch: boolean;
+}
+
+/** The worktrees section of the board: the worktrees tied to no card, and the totals over all of them. */
+export interface BoardWorktrees {
+  /** when the last scan finished (null before the first) */
+  at: string | null;
+  scanning: boolean;
+  total: number;
+  removable: number;
+  size_kb: number;
+  items: BoardWorktree[];
+  /** registered worktrees whose folder is gone, with the line that clears them */
+  prunable: { path: string; repo: string | null; line: string }[];
 }
 
 /** What a started backlog item is being worked by (bridge/src/board/backlog-links.ts). */
@@ -917,6 +978,8 @@ export interface BoardData {
   /** live sessions that have had no prompt yet (new, or just cleared), by lane name: a strip in the Idle lane, not cards */
   blank: { name: string; sessions: BoardBlankSession[] }[];
   lanes: { name: string; cards: BoardCard[] }[];
+  /** every git worktree on this Mac (null when the board's worktrees are off) */
+  worktrees: BoardWorktrees | null;
   /** the account's usage limits as the freshest status line had them, null when none has rendered lately */
   usage: BoardUsage | null;
 }

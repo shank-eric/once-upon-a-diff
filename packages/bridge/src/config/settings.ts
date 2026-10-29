@@ -164,6 +164,9 @@ const PLATFORM_OPENER: Partial<Record<NodeJS.Platform, string[]>> = {
   win32: ['explorer'],
 };
 
+/** Repos whose branches the board's worktree cleanup never deletes, whatever config.json says (the owner's packrat rule). */
+export const ALWAYS_KEEP_BRANCHES = ['everfi-frontend'];
+
 /** The names the bridge answers when a reverse proxy forwards them (puma-dev's *.test and *.fidev.net). */
 const DEFAULT_HOSTS = ['once-upon.test', 'once-upon.fidev.net'];
 
@@ -197,6 +200,10 @@ const DEFAULT_HOSTS = ['once-upon.test', 'once-upon.fidev.net'];
  *                           reads it, and writes only `paused`, for its Pause and Resume buttons; off when unset
  *   board_done_hours        how long a finished agent stays on the board (default 4)
  *   board_ledger_time_zone  the zone the ledger's times are in when they carry no label like ET (default: the system's)
+ *   board_worktrees         false to leave git worktrees off the board (default: shown, with a Clean up button on the ones
+ *                           whose work is in the main line)
+ *   board_keep_branches     repos (a name like "widgets" or owner/name) whose branches Clean up never deletes, added to the
+ *                           built-in everfi-frontend, which is always kept
  *   extension_ids           more extension IDs the bridge answers (a store install, an older unpacked copy); the
  *                           fixed unpacked ID is always allowed
  *   ship                    how a local story ships, per repo: {"owner/name": "push" | "pr"}, with * globs on owner or
@@ -297,6 +304,18 @@ export function readSettings(home = homeDir()) {
         typeof cfg.board_ledger_time_zone === 'string' && cfg.board_ledger_time_zone
           ? cfg.board_ledger_time_zone
           : undefined,
+      worktrees: cfg.board_worktrees !== false,
+      // the built-in names are always kept, so a config that lists others cannot drop them
+      keepBranches: [
+        ...new Set([
+          ...ALWAYS_KEEP_BRANCHES,
+          ...(Array.isArray(cfg.board_keep_branches)
+            ? cfg.board_keep_branches
+                .filter((name): name is string => typeof name === 'string' && !!name.trim())
+                .map((name) => name.trim().toLowerCase())
+            : []),
+        ]),
+      ],
     },
     extensionIds: [
       UNPACKED_EXTENSION_ID,

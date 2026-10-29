@@ -45,7 +45,7 @@ import {
 } from '../config/repos.ts';
 import { ID_RE as STORY_ID_RE, readMeta } from '../stories/meta.ts';
 import { runGitAsync } from '../util/git.ts';
-import { checkoutsOf } from './checkouts.ts';
+import { checkoutsOf, pathsIn } from './checkouts.ts';
 import { shipMode } from '../stories/push-default.ts';
 import { aheadOf } from '../stories/pull-request.ts';
 import { gateOf, readAgents, type LedgerAgent } from './ledger.ts';
@@ -57,6 +57,10 @@ import { BacklogStore, assignBranch, assignLine, backlogCards, liveAssignment } 
 import type { AddInput, BacklogItem, MoveTo } from './backlog.ts';
 import { gatedHome, laneForAgent, tiedToParent } from './agent-home.ts';
 import { parseWorktrees, startedLinks } from './backlog-links.ts';
+import { WorktreeScanner, judge, workingIn } from './worktrees.ts';
+import type { Runner, WorktreeFacts } from './worktrees.ts';
+import { cleanWorktree } from './worktree-clean.ts';
+import type { CleanResult } from './worktree-clean.ts';
 import type { Worktree } from './backlog-links.ts';
 import { readVoice, setPaused, voiceLines, voiceStatus } from './voice.ts';
 import {
@@ -107,6 +111,8 @@ import type {
   BoardStartedLinks,
   BoardStatus,
   BoardVoice,
+  BoardWorktree,
+  BoardWorktrees,
   InboxLocalStory,
   InboxStory,
   PrInfo,
@@ -425,6 +431,8 @@ export class Board {
   private blank = new BlankSessions();
   private titles = new SessionTitles();
   private backlog: BacklogStore;
+  /** every git worktree, scanned in the background (worktrees.ts): a build reads what it has and never waits */
+  private scanner: WorktreeScanner;
 
   private home: string;
   private stories: StoryStore;
@@ -436,6 +444,8 @@ export class Board {
     repoOf?: (cwd: string) => Promise<string | null>;
     typeLine?: typeof typeLine;
     aheadOf?: typeof aheadOf;
+    /** runs the worktree scan's git and du (tests count calls or hold one up) */
+    worktreeRun?: Runner;
   };
 
   /** `options` are for tests: their own status source, clock, repo lookup and tab typing. */
@@ -450,6 +460,7 @@ export class Board {
       repoOf?: (cwd: string) => Promise<string | null>;
       typeLine?: typeof typeLine;
       aheadOf?: typeof aheadOf;
+      worktreeRun?: Runner;
     } = {},
   ) {
     this.home = home;
@@ -458,6 +469,12 @@ export class Board {
     this.builds = builds;
     this.options = options;
     this.backlog = new BacklogStore(home);
+    this.scanner = new WorktreeScanner({
+      home,
+      dirs: () => readSettings(home).checkoutDirs,
+      onChange: () => this.invalidate(),
+      run: options.worktreeRun,
+    });
   }
 
   /** Adds a backlog item (a page's Add), and drops the kept snapshot so the card shows on the next poll. */
@@ -1288,6 +1305,9 @@ export class Board {
       listeners: listenersLane(waits, listening),
       blank: blankStrip(blankViews),
       lanes: [...lanes.values()].sort((first, second) => first.name.localeCompare(second.name)),
+      worktrees: settings.worktrees
+        ? this.worktreeSection(cards, live, sessionViews, agents, settings.keepBranches, nowMs)
+        : null,
       usage: statusLines.usage,
     };
   }
@@ -1310,6 +1330,123 @@ export class Board {
     setPaused(dir, paused);
     // the page refreshes right after the POST: it must see the file, not the kept snapshot
     this.invalidate();
+  }
+
+  /**
+   * The worktrees section: what the scanner has (it is kicked here and never waited for), each judged. A worktree tied to
+   * a card (its branch, a session in it, or a started backlog item that lists it) goes on that card; the rest are returned.
+   */
+  private worktreeSection(
+    cards: BoardCard[],
+    live: LiveSession[],
+    sessionViews: Map<string, BoardSession>,
+    agents: LedgerAgent[],
+    keepBranches: string[],
+    nowMs: number,
+  ): BoardWorktrees {
+    const seeds = [
+      ...live.map((session) => session.cwd),
+      ...agents.flatMap((agent) => pathsIn(agent.task).map((found) => dirOf(found) ?? '')),
+      ...seenCheckouts(this.home),
+    ].filter(Boolean);
+    this.scanner.kick(seeds);
+    const scan = this.scanner.read();
+    const sessions = live.map((session) => ({
+      title: sessionViews.get(session.session)?.title ?? session.name ?? path.basename(session.cwd),
+      cwd: session.cwd,
+    }));
+    const judged = scan.items.map((facts) =>
+      judge(facts, {
+        inUse: workingIn(facts.path, sessions, agents),
+        pr: this.prOf(facts),
+        keepBranches,
+        now: nowMs,
+      }),
+    );
+    const inside = (dir: string, parent: string) =>
+      dir === parent || dir.startsWith(parent + path.sep);
+    const loose: BoardWorktree[] = [];
+    for (const tree of judged) {
+      const card = cards.find(
+        (one) =>
+          (!!one.repo &&
+            !!tree.repo &&
+            !!tree.branch &&
+            !DEFAULT_BRANCHES.has(tree.branch) &&
+            sameRepo(one.repo, tree.repo) &&
+            one.branch === tree.branch) ||
+          one.sessions.some((session) => inside(session.cwd, tree.path)) ||
+          one.agents.some((agent) => tree.in_use.includes(agent.name)) ||
+          !!one.backlog?.started?.links?.worktrees.some((linked) => linked.path === tree.path),
+      );
+      if (card) {
+        card.worktrees = [...(card.worktrees ?? []), tree];
+      } else {
+        loose.push(tree);
+      }
+    }
+    loose.sort(
+      (first, second) =>
+        Number(second.removable) - Number(first.removable) ||
+        first.lane.localeCompare(second.lane) ||
+        String(first.last_commit_at).localeCompare(String(second.last_commit_at)),
+    );
+    return {
+      at: scan.finished ? new Date(scan.finished).toISOString() : null,
+      scanning: scan.scanning || scan.finished === null,
+      total: judged.length,
+      removable: judged.filter((tree) => tree.removable).length,
+      size_kb: judged.reduce((sum, tree) => sum + (tree.size_kb ?? 0), 0),
+      items: loose,
+      prunable: scan.prunable,
+    };
+  }
+
+  /** What GitHub last said of the worktree's branch (asked in the background for a branch not yet in live or main). */
+  private prOf(facts: WorktreeFacts): BoardWorktree['pr'] {
+    if (!facts.repo || !facts.branch || facts.merged || facts.superseded) {
+      return { number: null, state: 'unknown' };
+    }
+    this.review.kickBranch(facts.repo, facts.branch, facts.path);
+    const found = this.review.branchPr(facts.repo, facts.branch);
+    if (found === undefined) {
+      return { number: null, state: 'unknown' };
+    }
+    return found ? { number: found.number, state: found.state } : { number: null, state: 'none' };
+  }
+
+  /**
+   * Clean up a worktree on the page's click (worktree-clean.ts has the checks). Who works in it is looked at now, from the
+   * registry and the ledger, not from the last snapshot.
+   */
+  async cleanWorktree(dir: string, ack: string[], seen: string[] = []): Promise<CleanResult> {
+    const settings = readSettings(this.home).board;
+    if (!settings.worktrees) {
+      throw new HttpError(404, 'the board does not show worktrees');
+    }
+    const result = await cleanWorktree({
+      scanner: this.scanner,
+      dir,
+      ack,
+      seen,
+      home: this.home,
+      keepBranches: settings.keepBranches,
+      now: () => (this.options.now || (() => new Date()))().getTime(),
+      contextOf: async (facts) => {
+        const sessions = (await liveSessions(settings.sessionsDir)).map((session) => ({
+          title: session.name ?? path.basename(session.cwd),
+          cwd: session.cwd,
+        }));
+        const { agents } = readAgents(
+          { ledger: settings.ledgerFile, progress: null },
+          new Date(),
+          settings.ledgerTimeZone,
+        );
+        return { inUse: workingIn(facts.path, sessions, agents), pr: this.prOf(facts) };
+      },
+    });
+    this.invalidate();
+    return result;
   }
 
   /**

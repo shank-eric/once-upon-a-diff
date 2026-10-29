@@ -19,9 +19,14 @@
  *   POST /api/board/backlog/drop {id}: drop one. Start is the CLI's (`once-upon backlog start`), not the page's
  *   POST /api/board/backlog/assign {id, session}: type the item's start line (built here from the store, the body has no
  *                               text) into an idle session in the item's repo, which then runs `once-upon backlog start`
+ *   POST /api/board/worktree/clean {path, ack?, ignored?}: Clean up a worktree (board/worktree-clean.ts): `git worktree remove` without
+ *                               --force, and `git branch -d` for a branch merged into the default branch (never an everfi-frontend one).
+ *                               The bridge re-checks the worktree itself and refuses (409) anything dirty, in use, locked, new,
+ *                               a detached HEAD no branch reaches, ignored files not confirmed, or unpushed commits not in the main line; ack "superseded" and "ignored-files" (with ignored, the names) are the page saying its confirm named those
  *
  * The board page's key reaches the board (it types into sessions). Only the bridge's token is handed the board's key.
  */
+import path from 'node:path';
 import { REPO_RE } from '../../config/repos.ts';
 import { readSettings } from '../../config/settings.ts';
 import { publicOriginOf } from '../address.ts';
@@ -173,6 +178,24 @@ function voicePause({ app, body, send }: Call) {
   return send(200, { ok: true, paused: body.paused });
 }
 
+/** POST {path, ack?}: Clean up a worktree the board lists. Everything but the path is the bridge's own look at it. */
+async function cleanWorktree({ app, body, send }: Call) {
+  const dir = String(body.path || '');
+  if (!path.isAbsolute(dir)) {
+    throw new HttpError(400, 'the worktree path is needed');
+  }
+  // ack: what the confirm said ("superseded", "ignored-files"), a string or a list; ignored: the file names it showed
+  const list = (value: unknown): string[] => {
+    const items = Array.isArray(value) ? value : [value];
+    return items
+      .filter((item) => item !== undefined && item !== null && item !== '')
+      .map(String)
+      .slice(0, 100);
+  };
+  const result = await app.board.cleanWorktree(dir, list(body.ack), list(body.ignored));
+  return send(200, { ok: true, ...result });
+}
+
 /** POST {repo}: end the repo's listener (its `wait` returns "Stopped listening"). */
 function stopListening({ app, body, send }: Call) {
   app.board.stopListening(String(body.repo || ''));
@@ -189,6 +212,7 @@ export const boardRoutes: ApiRoute[] = [
   { path: '/api/board/reviewed', method: 'POST', handle: reviewLocal, boardKey: true },
   { path: '/api/board/backlog/move', method: 'POST', handle: moveBacklog, boardKey: true },
   { path: '/api/board/backlog/drop', method: 'POST', handle: dropBacklog, boardKey: true },
+  { path: '/api/board/worktree/clean', method: 'POST', handle: cleanWorktree, boardKey: true },
   { path: '/api/board/backlog/assign', method: 'POST', handle: assignBacklog, boardKey: true },
   { path: '/api/board/backlog', method: 'POST', handle: addBacklog, boardKey: true },
   { path: '/api/board', method: 'GET', handle: data, boardKey: true },

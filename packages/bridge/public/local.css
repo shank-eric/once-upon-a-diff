@@ -363,6 +363,14 @@ button.ou-local-pr, button.ou-local-push, button.ou-local-push-ahead { white-spa
 .ou-board-idle .ou-board-head { border-top: 0; padding-top: 0; display: flex; gap: 8px; align-items: center; }
 .ou-board-idle-row { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-start; }
 .ou-board-idle-cell { flex: 0 0 240px; min-width: 0; }
+.ou-board-trees { list-style: none; margin: 6px 0 0; padding: 6px 0 0; border-top: 1px solid var(--borderColor-default); display: flex; flex-direction: column; gap: 8px; }
+.ou-board-trees-grid { margin: 8px 0 0; padding: 0; border-top: 0; flex-direction: row; flex-wrap: wrap; align-items: flex-start; }
+.ou-board-trees-grid .ou-board-tree { flex: 0 0 280px; min-width: 0; padding: 6px 8px; border: 1px solid var(--borderColor-default); border-left: 3px solid var(--ou-board-idle); border-radius: 6px; background: var(--bgColor-muted); }
+.ou-board-trees-grid .ou-board-tree-removable { border-left-color: var(--fgColor-success, #1a7f37); }
+.ou-board-tree { font-size: 12px; }
+.ou-board-tree-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ou-board-tree-keep { font-size: 11px; margin-top: 4px; }
+.ou-board-trees-lane { margin-top: 16px; --ou-board-color: var(--ou-board-idle); }
 .ou-board-blank { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; margin-top: 10px; padding: 6px 10px; border: 1px solid var(--borderColor-default); border-left: 3px solid var(--ou-board-color, var(--borderColor-default)); border-radius: 6px; background: var(--bgColor-muted); }
 .ou-board-blank-chip { background: none; font: inherit; font-size: 11px; line-height: 16px; }
 button.ou-board-blank-chip { cursor: pointer; color: var(--fgColor-default); }

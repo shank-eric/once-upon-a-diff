@@ -13,6 +13,7 @@ import { html, type HtmlValue } from '/assets/util/html.ts';
 import { setHtml } from '/assets/util/dom.ts';
 import { plural } from '/assets/util/text.ts';
 import { startedChips } from '/assets/util/started-chips.ts';
+import { cleanupConfirm, sizeText, worktreeChips } from '/assets/util/worktree-text.ts';
 import type {
   BoardAgent,
   BoardAssign,
@@ -26,6 +27,7 @@ import type {
   BoardUsage,
   BoardVoice,
   BoardVoiceLine,
+  BoardWorktree,
   PrInfo,
 } from '/assets/types.ts';
 
@@ -69,6 +71,17 @@ function readIdleOpen(): boolean {
   }
 }
 let idleOpen = readIdleOpen();
+
+/** The Worktrees lane's state is remembered too; wrapped like the rest. */
+const TREES_KEY = 'ou-board-worktrees-open';
+function readTreesOpen(): boolean {
+  try {
+    return localStorage.getItem(TREES_KEY) !== 'false';
+  } catch {
+    return true;
+  }
+}
+let treesOpen = readTreesOpen();
 
 /**
  * A repo heading's fold in a column is remembered, as "<column>/<heading>"; localStorage can be missing or blocked, so every
@@ -476,6 +489,24 @@ function assignButtonHtml(id: string, candidates: BoardAssign['candidates'], aga
   return html`<button type="button" data-backlog-assign="${id}"${off}${choosing} title="${title}">${again ? 'Send again' : 'Assign'}${choosing && ' ▾'}</button>`;
 }
 
+/** One worktree: its name, where, the chips, why it is kept, and Clean up when the bridge offers it. */
+function worktreeHtml(tree: BoardWorktree, now: number, lane = false) {
+  const chips = worktreeChips(tree, age(tree.last_commit_at, now));
+  const where = [lane && tree.lane, tree.branch ?? 'detached HEAD'].filter(Boolean).join(' · ');
+  return html`<li class="ou-board-tree${tree.removable ? ' ou-board-tree-removable' : ''}" data-worktree="${tree.path}">
+    <div class="ou-board-tree-name" title="${tree.path}"><code>${tree.name}</code> <span class="ou-local-muted">${where}</span></div>
+    <div class="ou-board-chips">${chips.map((chip) => html`<span class="ou-board-chip">${chip}</span>`)}</div>
+    ${!tree.removable && tree.keep.length > 0 && html`<div class="ou-local-muted ou-board-tree-keep">kept: ${tree.keep.join(', ')}</div>`}
+    ${tree.removable && html`<div class="ou-board-actions"><button type="button" data-worktree-clean="${tree.path}" title="${tree.deletes_branch ? 'Removes the folder and deletes the merged branch' : 'Removes the folder and keeps the branch'}">Clean up</button></div>`}
+  </li>`;
+}
+
+/** A card's worktrees, under its own chips. */
+const cardTrees = (card: BoardCard, now: number) =>
+  card.worktrees?.length
+    ? html`<ul class="ou-board-trees">${card.worktrees.map((tree) => worktreeHtml(tree, now))}</ul>`
+    : '';
+
 function backlogHtml(card: BoardCard, now: number) {
   const item = card.backlog;
   const meta = [
@@ -491,6 +522,7 @@ function backlogHtml(card: BoardCard, now: number) {
     ${item?.started && html`<div class="ou-board-chips">${startedChips(item.started).map((chip) => html`<span class="ou-board-chip">${chip}</span>`)}</div>`}
     ${item?.assigned && !item.started && html`<div class="ou-board-chips"><span class="ou-board-chip">assigned to ${item.assigned.session_title ?? 'a session that has ended'} ${ago(item.assigned.at, now)} ago, not started yet</span></div>`}
     ${item && !item.started && html`<div class="ou-board-startline"><code>${item.start_line}</code></div>`}
+    ${cardTrees(card, now)}
     <div class="ou-board-actions">
       ${item?.assign && !item.started && assignButtonHtml(item.id, item.assign.candidates, !!item.assigned)}
       ${item && !item.started && html`<button type="button" data-backlog-copy="${item.start_line}" title="Copy the line that starts it">Copy start line</button>`}
@@ -561,6 +593,7 @@ function cardHtml(card: BoardCard, now: number) {
     ${card.kind === 'session' && card.sessions[0] && html`<div class="ou-local-muted">${card.sessions[0].status}${card.sessions[0].branch ? ` on ${card.sessions[0].branch}` : ''}</div>`}
     ${list}
     ${card.agents.length > 0 && html`<ul class="ou-board-agents">${card.agents.map((agent) => agentHtml(agent, now))}</ul>`}
+    ${cardTrees(card, now)}
     <div class="ou-board-actions">
       ${card.build && buildHtml(card)}
       ${card.focus_session && html`<button type="button" class="ou-board-focus" data-focus="${card.focus_session}"${!card.can_focus && html` disabled`} title="${focusTitle}">Open in iTerm</button>`}
@@ -764,7 +797,31 @@ function filtered(data: BoardData): BoardData {
     lanes: data.lanes.filter((lane) => lane.name === laneFilter),
     blank: data.blank.filter((group) => group.name === laneFilter),
     listeners: data.listeners.filter((entry) => entry.repo.split('/')[1] === laneFilter),
+    worktrees: data.worktrees && {
+      ...data.worktrees,
+      items: data.worktrees.items.filter((tree) => tree.lane === laneFilter),
+    },
   };
+}
+
+/** The Worktrees lane: every worktree tied to no card, by repo, the ones Clean up is offered for first. */
+function worktreesHtml(trees: NonNullable<BoardData['worktrees']>, now: number) {
+  if (!trees.total && !trees.prunable.length) {
+    return trees.scanning
+      ? html`<section class="ou-board-idle ou-board-trees-lane" aria-label="Worktrees"><h2 class="ou-board-head">Worktrees <span class="ou-local-muted">scanning…</span></h2></section>`
+      : '';
+  }
+  const summary = [
+    `${trees.total} on this Mac`,
+    ...(trees.removable ? [`${trees.removable} can be cleaned up`] : []),
+    ...(trees.size_kb ? [sizeText(trees.size_kb)] : []),
+    ...(trees.scanning ? ['scanning…'] : []),
+  ].join(' · ');
+  return html`<section class="ou-board-idle ou-board-trees-lane" aria-label="Worktrees">
+    <h2 class="ou-board-head">Worktrees <span class="ou-local-muted">${trees.items.length}</span> <span class="ou-local-muted ou-board-head-note">${summary}</span> <button type="button" data-trees-toggle aria-expanded="${String(treesOpen)}">${treesOpen ? 'Hide' : 'Show'}</button></h2>
+    ${treesOpen && html`<ul class="ou-board-trees ou-board-trees-grid">${trees.items.map((tree) => worktreeHtml(tree, now, true))}</ul>`}
+    ${treesOpen && trees.prunable.length > 0 && html`<div class="ou-local-muted ou-board-tree-keep">The folder is gone for ${trees.prunable.length === 1 ? 'one worktree' : `${trees.prunable.length} worktrees`}; clear ${trees.prunable.length === 1 ? 'it' : 'them'} by hand: ${[...new Set(trees.prunable.map((item) => item.line))].map((line) => html`<code>${line}</code> `)}</div>`}
+  </section>`;
 }
 
 function render(full: BoardData) {
@@ -882,6 +939,7 @@ function render(full: BoardData) {
         ${blankCount > 0 && blankHtml(data.blank)}
       </section>`
       }
+      ${data.worktrees && worktreesHtml(data.worktrees, now)}
       ${listenersHtml(data.listeners, now)}
     </main>
     ${data.voice && voiceHtml(data.voice)}`;
@@ -1016,6 +1074,55 @@ async function assignInto(id: string, session: string, line: string) {
     await refresh();
   } catch (err) {
     alert(`Couldn't assign it: ${(err as Error).message}`);
+  }
+}
+
+/** The worktree with this path, from the last data: on a card or in the lane. */
+const worktreeAt = (dir: string): BoardWorktree | undefined =>
+  [
+    ...(board?.lanes.flatMap((lane) => lane.cards.flatMap((card) => card.worktrees ?? [])) ?? []),
+    ...(board?.worktrees?.items ?? []),
+  ].find((tree) => tree.path === dir);
+
+/**
+ * Clean up: asks first (the confirm says what goes and what stays, and that the work is only superseded when it is), then
+ * has the bridge remove it. The bridge looks again itself and refuses what it should not remove; the page sends the
+ * path, and "superseded" and "ignored-files" (with the names) when its confirm said so.
+ */
+async function cleanUp(button: HTMLButtonElement) {
+  const dir = button.getAttribute('data-worktree-clean') || '';
+  const tree = worktreeAt(dir);
+  if (!tree || !window.confirm(cleanupConfirm(tree))) {
+    return;
+  }
+  button.disabled = true;
+  button.textContent = 'Removing…';
+  document.body.style.cursor = 'progress';
+  try {
+    const done = await api<{
+      branch: { name: string; restore: string } | null;
+      note: string | null;
+    }>('/api/board/worktree/clean', {
+      path: dir,
+      ack: [
+        ...(tree.verdict === 'superseded' ? ['superseded'] : []),
+        ...(tree.ignored.length ? ['ignored-files'] : []),
+      ],
+      ignored: tree.ignored,
+    });
+    if (done.branch || done.note) {
+      alert(
+        done.branch
+          ? `Removed. The branch ${done.branch.name} was deleted. To bring it back:\n${done.branch.restore}`
+          : `Removed. ${done.note}`,
+      );
+    }
+  } catch (err) {
+    alert(`Not cleaned up: ${(err as Error).message}`);
+  } finally {
+    document.body.style.cursor = '';
+    last = '';
+    await refresh();
   }
 }
 
@@ -1328,6 +1435,25 @@ app.addEventListener('click', async (event) => {
       },
       { label: 'Repo for the new item' },
     );
+    return;
+  }
+  const treesToggle = clicked.closest('[data-trees-toggle]');
+  if (treesToggle) {
+    treesOpen = !treesOpen;
+    try {
+      localStorage.setItem(TREES_KEY, String(treesOpen));
+    } catch {
+      /* not remembered */
+    }
+    if (board) {
+      last = '';
+      render(board);
+    }
+    return;
+  }
+  const clean = clicked.closest<HTMLButtonElement>('[data-worktree-clean]');
+  if (clean && !clean.disabled) {
+    await cleanUp(clean);
     return;
   }
   const drop = clicked.closest('[data-backlog-drop]');

@@ -13,6 +13,7 @@
 import path from 'node:path';
 import { sameRepo } from '../config/repos.ts';
 import type { BoardBeat, BoardStartedLinks } from '@once-upon-a-diff/shared/types';
+import { parseWorktreeEntries } from './worktrees.ts';
 import type { LedgerAgent } from './ledger.ts';
 import type { BacklogItem } from './backlog.ts';
 
@@ -23,27 +24,9 @@ export interface Worktree {
   branch: string | null;
 }
 
-/** The worktrees in `git worktree list --porcelain` output: blocks of `worktree <path>`, `HEAD ...`, `branch refs/heads/<name>`. */
+/** The worktrees in `git worktree list --porcelain` output (worktrees.ts has the fuller parse). */
 export function parseWorktrees(text: string): Worktree[] {
-  const found: Worktree[] = [];
-  for (const block of text.split(/\n\s*\n/)) {
-    const lines = block.split('\n');
-    const dir = lines.find((line) => line.startsWith('worktree '));
-    if (!dir) {
-      continue;
-    }
-    const branch = lines.find((line) => line.startsWith('branch '));
-    found.push({
-      path: dir.slice('worktree '.length).trim(),
-      branch: branch
-        ? branch
-            .slice('branch '.length)
-            .trim()
-            .replace(/^refs\/heads\//, '')
-        : null,
-    });
-  }
-  return found;
+  return parseWorktreeEntries(text).map((entry) => ({ path: entry.path, branch: entry.branch }));
 }
 
 /** A live session as the links look at it. */

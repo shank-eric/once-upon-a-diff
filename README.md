@@ -354,6 +354,8 @@ At phone width (under 800 px) the board is one column ordered by what needs you 
 | `board_voice_dir` | Larmor's folder (`~/.larmor`): when its `session` file says voice is on, that session is pinned in a strip above the columns (labelled Voice session, with its repo, status from `session`, `paused` and `away`, and how many of its agents are running or waiting, with its last six lines: what it said aloud from `spoken.jsonl` and what you said from `turns.jsonl`) instead of sitting in a column; its agents keep their own cards. Read only | none: off |
 | `board_done_hours` | How long a finished agent stays inside its card | `4` |
 | `board_ledger_time_zone` | The zone for ledger times that carry no label such as ET | the system's |
+| `board_worktrees` | `false` leaves git worktrees off the board. Each one shows on the card it belongs to, or in a Worktrees lane, with its age, clean or dirty, merged or superseded, unpushed commits, PR and size. **Clean up** (one click, after a confirm) removes a clean worktree whose work is in the main line with `git worktree remove`, never `--force`, and deletes its branch with `git branch -d` only when merged | `true` |
+| `board_keep_branches` | Repos (a name or `owner/name`) whose branches Clean up never deletes. `everfi-frontend` is always on the list | `[]` |
 
 The board's page key, like a story's, is made from the bridge's token and reaches only the board's routes. It can get a local story's full page link (**Open story**). The board's key is the one that types into your Claude sessions, and only the bridge's token is handed it.
 
