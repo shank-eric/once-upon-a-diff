@@ -35,6 +35,7 @@ export interface Health {
   repo?: string | null;
   checkout?: string | null;
   answering?: Answering | null;
+  agent?: string | null;
   storyPrompt?: { prompt: string } | null;
 }
 
@@ -111,6 +112,7 @@ export function healthChecks(
     repo: listening.repo || null,
     checkout: listening.checkout || null,
     answering: listening.answering || null,
+    agent: listening.agent || null,
     storyPrompt: listening.story_prompt || null,
   };
 }
@@ -167,8 +169,24 @@ export function askWhoHtml(result: Health, canStart = false) {
       "it answers this story's questions from then on, ahead of the repo's listener.";
     start = html` <button type="button" class="ou-startstory" title="${startTitle}">Start listening for this story</button><div class="ou-startnote" role="status" hidden></div>`;
   }
+  // a live wait in the session that launched the agent relays to it, whatever the wait covers
+  if (answering && answering.agent) {
+    return html`Questions go to <b>${answering.agent}</b>, the agent that built this story, through <b>${answering.consumer}</b>.`;
+  }
   if (answering && answering.scope === 'story') {
     return html`Answered by <b>${answering.consumer}</b>, the session listening for this story.`;
+  }
+  // built by an agent, with no live wait in the session that launched it: only that session can reach the agent, so
+  // Start listening (which types into an idle session in the repo) isn't offered, but the prompt can be copied
+  if (result.agent) {
+    const agentNote = html`<b>${result.agent}</b> built this story and has its context.
+      Only the Claude session that launched it can pass this story's questions on to it: it does that while it listens (<code>/once-upon-listen --story</code>, or for the repo).`;
+    const copyOnly =
+      storyPrompt &&
+      html` <button type="button" class="ou-copystory" title="Copies ${storyPrompt.prompt}. Paste it into the session that launched ${result.agent}.">Copy prompt for this story</button><pre class="ou-prompt" hidden></pre>`;
+    return answering
+      ? html`${agentNote} Until it does, <b>${answering.consumer}</b> answers.${copyOnly}`
+      : html`${agentNote}${copyOnly}`;
   }
   if (answering) {
     const cover =

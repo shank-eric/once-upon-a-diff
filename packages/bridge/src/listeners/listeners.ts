@@ -17,6 +17,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { sameRepo, checkoutFor, tilde } from '../config/repos.ts';
+import { activeBinding, type Binding } from '../inbox/binding.ts';
 import type { Answering } from '@once-upon-a-diff/shared/types';
 
 /** A listener's last heartbeat, <home>/listeners/<consumer>.json. */
@@ -30,6 +31,9 @@ interface Beat {
   questions?: string[];
   repo?: string | null;
   story?: string | null;
+  /** the Claude Code session that runs the wait, and whether it was told not to relay (binding.ts) */
+  session?: string | null;
+  norelay?: boolean;
   builds?: boolean;
   fixes?: boolean;
 }
@@ -47,6 +51,8 @@ export interface Listener {
   questions: string[];
   repo: string | null;
   story: string | null;
+  session: string | null;
+  no_relay: boolean;
   builds: boolean;
   fixes: boolean;
 }
@@ -121,6 +127,8 @@ export function listeners(home: string, now = Date.now()): Listener[] {
         questions: Array.isArray(beat.questions) ? beat.questions : [],
         repo: beat.repo || null,
         story: beat.story || null,
+        session: beat.session || null,
+        no_relay: !!beat.norelay,
         builds: !!beat.builds,
         fixes: !!beat.fixes,
       });
@@ -227,6 +235,26 @@ export function answeringOf(
 }
 
 /**
+ * answeringOf, plus the agent when the answering listener relays the story's questions to it: a live wait that runs in
+ * the session that owns the story's agent (its beat says which) relays, whatever it covers (the story, the repo or
+ * everything). A listener for the story that isn't in that session answers it itself, and so keeps it.
+ */
+export function answeringWithAgent(
+  live: Pick<Listener, 'consumer' | 'repo' | 'story' | 'session' | 'no_relay'>[],
+  binding: Pick<Binding, 'agent' | 'session'> | null,
+  { repo = null, story = null }: { repo?: string | null; story?: string | null } = {},
+): Answering | null {
+  const answering = answeringOf(live, { repo, story });
+  if (!answering || !binding || !binding.session) {
+    return answering;
+  }
+  const listener = live.find((one) => one.consumer === answering.consumer);
+  return listener && listener.session === binding.session && !listener.no_relay
+    ? { ...answering, agent: binding.agent }
+    : answering;
+}
+
+/**
  * Is a Claude session listening for this page, and the prompt that starts one. A wait with no --repo or --story
  * covers everything, a --repo wait covers that repo's stories and PRs, and a --story wait that story.
  */
@@ -235,6 +263,7 @@ export function listeningOf(
   { repo = null, story = null }: { repo?: string | null; story?: string | null } = {},
 ) {
   const all = listeners(home);
+  const binding = story ? activeBinding(home, story) : null;
   const covers = (listener: Listener) =>
     (!listener.repo && !listener.story) ||
     (repo && sameRepo(listener.repo, repo)) ||
@@ -250,7 +279,9 @@ export function listeningOf(
       repo: listener.repo,
       story: listener.story,
     })),
-    answering: answeringOf(live, { repo, story }),
+    answering: answeringWithAgent(live, binding, { repo, story }),
+    // the subagent that built the story, while its binding can still be used (a stale one is ignored)
+    agent: binding ? binding.agent : null,
     last_seen: all[0] ? all[0].at : null,
     start: repo
       ? `In Claude Code, in your checkout of ${repo}: /once-upon-listen ${repo}`

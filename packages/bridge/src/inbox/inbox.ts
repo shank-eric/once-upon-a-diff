@@ -49,6 +49,8 @@ export interface QuestionEntry extends EntryBase {
   file: string | null;
   text: string;
   url?: string | null;
+  /** asked by voice (`once-upon ask --voice`) rather than typed in the panel's Ask box */
+  channel?: 'voice';
 }
 
 export interface AnswerEntry extends EntryBase {
@@ -130,6 +132,7 @@ export interface QuestionWithAnswers {
   chapter: string | null;
   file: string | null;
   text: string;
+  channel: 'voice' | null;
   answers: { id: string; at: string; text: string; by: string | null }[];
 }
 
@@ -209,6 +212,7 @@ export class Inbox {
           chapter: e.chapter || null,
           file: e.file || null,
           text: e.text,
+          channel: e.channel === 'voice' ? 'voice' : null,
           answers: [],
         });
       } else if (e.type === 'answer') {

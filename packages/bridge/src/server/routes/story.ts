@@ -77,6 +77,7 @@ async function pulse({ app, send }: Call, story: ServedStory) {
     question.unread,
     question.status?.state ?? null,
     question.status?.note ?? null,
+    question.status?.via ?? null,
   ]);
   const listening = listeningOf(app.home, { repo: story.ref.repo, story: story.id });
   const comments = (app.stories.load(story.id) as StoryData).chapters.map(
@@ -90,7 +91,10 @@ async function pulse({ app, send }: Call, story: ServedStory) {
     drafts_rev: revOf([comments, marks]),
     listening: listening.ok,
     // who answers this story's questions, so the panel redraws when a story listener takes over from the repo's
-    answering: listening.answering ? listening.answering.consumer : null,
+    answering: listening.answering
+      ? `${listening.answering.consumer}${listening.answering.agent ? `>${listening.answering.agent}` : ''}`
+      : null,
+    agent: listening.agent,
     rebuild: rebuildView(app, story),
     request: requestFor(app.home, app.builds, {
       repo: story.meta.kind === 'github' ? story.meta.repo : null,

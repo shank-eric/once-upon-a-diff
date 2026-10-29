@@ -38,7 +38,8 @@ export interface QaMarks {
 export type QaAction = 'dismiss' | 'restore' | 'collapse' | 'expand' | 'read' | 'unread';
 
 /** Who a wait handed each question to (handed.json). */
-type Handed = Record<string, { consumer: string; at: string }>;
+/** `via` is the relay wait that handed it to the agent `consumer` (binding.ts). */
+type Handed = Record<string, { consumer: string; at: string; via?: string }>;
 
 export const QA_ACTIONS: string[] = [
   'dismiss',
@@ -141,15 +142,15 @@ const handedFile = (home: string) => path.join(home, 'handed.json');
 /** {<question id>: {consumer, at}} for every question a wait has handed over. */
 export const readHanded = (home: string): Handed => readJson<Handed>(handedFile(home), {}) || {};
 
-/** Notes that `wait` handed these questions to `consumer`. */
-export function noteHanded(home: string, ids: string[], consumer: string): void {
+/** Notes that `wait` handed these questions to `consumer`, or relayed them to the agent `consumer` as `via`. */
+export function noteHanded(home: string, ids: string[], consumer: string, via?: string): void {
   if (!ids.length) {
     return;
   }
   const handed = readHanded(home);
   const now = new Date().toISOString();
   for (const id of ids) {
-    handed[id] = { consumer, at: now };
+    handed[id] = { consumer, at: now, ...(via ? { via } : {}) };
   }
   writeJsonAtomic(handedFile(home), handed);
 }
@@ -228,10 +229,18 @@ export function clearAsking(home: string, id: string): void {
 /** No word from the session for this long, and its listener not handling the question: it looks abandoned. */
 export const STALL_MS = 5 * 60 * 1000;
 
+/**
+ * A relayed question the agent hasn't said a word about yet has to wait for the owner session to send it (it may be
+ * in the middle of a turn) and for the agent to resume, so it gets longer before it counts as gone quiet.
+ */
+export const RELAY_STALL_MS = 15 * 60 * 1000;
+
 /** Where an unanswered question stands: queued, being worked on by a session, or worked on and gone quiet. */
 export interface QuestionStatus {
-  state: 'queued' | 'working' | 'stalled';
+  state: 'queued' | 'relaying' | 'working' | 'stalled';
   by: string | null;
+  /** the session that relayed it to `by`, the story's agent */
+  via: string | null;
   /** when a session took it */
   since: string | null;
   note: string | null;
@@ -242,7 +251,8 @@ export interface QuestionStatus {
  * A question's status from what the wait handed over and the session said since. It is working while a listener's beat
  * says it is handling this question (`handling`), or while the handover or the session's last note is under STALL_MS
  * old. A session that took it and went back to waiting, or went away, without answering is stalled once it has been
- * quiet that long. A listener back in `wait` is no sign of work on it.
+ * quiet that long. A listener back in `wait` is no sign of work on it. A relayed question is `relaying` until the agent
+ * says something (`once-upon asking`), and stalls after RELAY_STALL_MS instead.
  */
 export function statusOf(
   handed: Handed[string] | undefined,
@@ -251,13 +261,20 @@ export function statusOf(
   now = Date.now(),
 ): QuestionStatus {
   if (!handed && !asking) {
-    return { state: 'queued', by: null, since: null, note: null, note_at: null };
+    return { state: 'queued', by: null, via: null, since: null, note: null, note_at: null };
   }
   const signs = [handed?.at, asking?.at].map((time) => Date.parse(time || '') || 0);
-  const quiet = now - Math.max(...signs) > STALL_MS;
+  // relayed, and the agent hasn't spoken yet: the owner session still has to send it
+  const relaying = !!handed?.via && !asking;
+  const quiet = now - Math.max(...signs) > (relaying ? RELAY_STALL_MS : STALL_MS);
+  let state: QuestionStatus['state'] = relaying ? 'relaying' : 'working';
+  if (quiet && !handling) {
+    state = 'stalled';
+  }
   return {
-    state: quiet && !handling ? 'stalled' : 'working',
+    state,
     by: asking?.by || handed?.consumer || null,
+    via: handed?.via || null,
     since: handed?.at || asking?.at || null,
     note: asking?.note || null,
     note_at: asking?.at || null,
@@ -320,7 +337,8 @@ export function routeQuestions<Q extends { id: string; story: string }>(
     (listener) => listener.live && listener.story && listener.consumer !== consumer,
   );
   for (const question of questions) {
-    const elsewhere = handed[question.id] && handed[question.id].consumer !== consumer;
+    const owner = handed[question.id] && (handed[question.id].via || handed[question.id].consumer);
+    const elsewhere = owner && owner !== consumer;
     if (elsewhere || readQaMarks(home, question.story).dismissed[question.id]) {
       continue;
     }

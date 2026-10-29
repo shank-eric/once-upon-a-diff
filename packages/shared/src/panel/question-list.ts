@@ -66,12 +66,27 @@ export function waitingText(
   const status = question.status;
   const session = status?.by || question.handed_to || 'the Claude session';
   if (status?.state === 'working') {
-    return { state: 'working', text: `${session} is working on it`, note: status.note };
+    // relayed to the agent that built the story: the session that sent it on is named too
+    const text = status.via
+      ? `Sent to ${session}, which built this story, through ${status.via}`
+      : `${session} is working on it`;
+    return { state: 'working', text, note: status.note };
+  }
+  if (status?.state === 'relaying') {
+    // the relay printed it, and the agent has said nothing yet
+    return {
+      state: 'queued',
+      text: `Waiting for ${status.via || 'the relay'} to pass it to ${session}, which built this story`,
+      note: null,
+    };
   }
   if (status?.state === 'stalled') {
+    const who = status.via
+      ? `Nothing from ${session} since ${quietAt || 'it was handed over'}, and ${status.via} may not have passed it on`
+      : `${session} took it${quietAt ? ` and has been quiet since ${quietAt}` : ' and has gone quiet'}`;
     return {
       state: 'stalled',
-      text: `${session} took it${quietAt ? ` and has been quiet since ${quietAt}` : ' and has gone quiet'}. No session will pick it up again: ask it again, or dismiss it.`,
+      text: `${who}. No session will pick it up again: ask it again, or dismiss it.`,
       note: status.note,
     };
   }

@@ -235,7 +235,7 @@ export function storyOverlay(input: StoryData, opts: PanelOptions) {
     if (moved('working_rev')) {
       context.working.refresh();
     }
-    if (moved('listening') || moved('answering') || moved('down')) {
+    if (moved('listening') || moved('answering') || moved('agent') || moved('down')) {
       context.statusLight.refresh();
     }
     if (!pulse.down) {

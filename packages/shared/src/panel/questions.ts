@@ -132,6 +132,7 @@ export function createQuestions(context: PanelContext) {
     const meta = [
       when,
       where,
+      question.channel === 'voice' ? 'By voice' : '',
       collapsed && answerCount ? plural(answerCount, 'answer') : '',
       question.unread ? 'New answer' : '',
     ]

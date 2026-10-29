@@ -526,6 +526,7 @@ describe('pulse', () => {
     try {
       const first = await pulse();
       assert.deepEqual(Object.keys(first).sort(), [
+        'agent',
         'answering',
         'drafts_rev',
         'fixes_rev',

@@ -8,6 +8,16 @@ import path from 'node:path';
 import { openArgv } from '../../config/settings.ts';
 import { StoryStore } from '../../stories/store.ts';
 import { Builds } from '../../inbox/builds.ts';
+import {
+  AGENT_RE,
+  activeBinding,
+  clearBinding,
+  ownSession,
+  readBinding,
+  sessionLive,
+  writeBinding,
+} from '../../inbox/binding.ts';
+import { storyIdOf } from './inbox.ts';
 import { readJson, writeJsonAtomic } from '../../util/json-file.ts';
 import { parseUnifiedDiff } from '../../util/diff.ts';
 import { stateKeyOf } from '../../github/drafts.ts';
@@ -56,10 +66,84 @@ function pendingRebuild(builds: Builds, id: string, meta: StoryMeta): Build | nu
   return build && build.status === 'pending' ? build : null;
 }
 
+/** --agent NAME, checked before a build starts: the named agent that built the story and answers its questions. */
+function agentOf(opts: CliOpts): string | null {
+  if (opts.agent === undefined) {
+    return null;
+  }
+  if (typeof opts.agent !== 'string' || !AGENT_RE.test(opts.agent)) {
+    throw new Error("--agent is the agent's name, like ou-fix-thing (letters, digits, . _ -)");
+  }
+  return opts.agent;
+}
+
+/**
+ * Binds the story to its agent, owned by this session (the parent's, for a subagent), and says so, and whether that
+ * session is running. A story built without --agent drops an older binding, so a rebuild by someone else doesn't send
+ * its questions to the agent that built it before.
+ */
+function bindStory(home: string, id: string, agent: string | null): void {
+  if (!agent) {
+    const before = readBinding(home, id);
+    if (before && clearBinding(home, id)) {
+      process.stderr.write(
+        `Story ${id}: no longer bound to ${before.agent} (it was built again without --agent)\n`,
+      );
+    }
+    return;
+  }
+  const session = ownSession();
+  writeBinding(home, id, agent, session);
+  process.stderr.write(`${bindingLine(home, id, agent, session)}\n`);
+}
+
+/** What a new binding says: who relays, or why nothing will. */
+function bindingLine(home: string, id: string, agent: string, session: string | null): string {
+  if (!session) {
+    return `Story ${id}: bound to ${agent}, but no CLAUDE_CODE_SESSION_ID says which session owns it, so nothing will relay (once-upon bind --story ${id} --agent ${agent} --session <id>)`;
+  }
+  if (!sessionLive(home, session)) {
+    return `Story ${id}: bound to ${agent}, but session ${session} isn't in Claude Code's session registry as running, so nothing will relay until it is`;
+  }
+  return `Story ${id}: its questions go to ${agent}, relayed by the session that launched it (once-upon wait there)`;
+}
+
+/** `once-upon bind --story ID --agent NAME [--session ID] | --clear`: the story's questions go to the agent that built it. */
+function bind(home: string, cfg: Config, opts: CliOpts) {
+  if (!opts.story || opts.story === true) {
+    throw new Error('usage: once-upon bind --story ID (--agent NAME [--session ID] | --clear)');
+  }
+  const id = storyIdOf(home, String(opts.story));
+  if (!new StoryStore({ home }).dirOf(id)) {
+    throw new Error(`no story ${id}: once-upon list shows them`);
+  }
+  if (opts.clear) {
+    out(clearBinding(home, id) ? `${id}: unbound` : `${id}: wasn't bound`);
+    return;
+  }
+  const agent = agentOf(opts);
+  if (!agent) {
+    const bound = readBinding(home, id);
+    out(
+      bound
+        ? `${id}: ${bound.agent}, session ${bound.session || '(unknown)'}, ${activeBinding(home, id) ? 'in use' : 'stale or its session has ended'}`
+        : `${id}: not bound`,
+    );
+    return;
+  }
+  const session = typeof opts.session === 'string' && opts.session ? opts.session : ownSession();
+  writeBinding(home, id, agent, session);
+  out(`${id}: ${agent}, session ${session || '(unknown)'}`);
+  if (!session || !sessionLive(home, session)) {
+    process.stderr.write(`${bindingLine(home, id, agent, session)}\n`);
+  }
+}
+
 async function local(home: string, cfg: Config, opts: CliOpts) {
   if (!opts.repo || !opts.base) {
     throw new Error('usage: once-upon local --repo DIR --base REF [--head REF] [--chapters FILE]');
   }
+  const agent = agentOf(opts);
   const builds = new Builds(home);
   let rebuilt = null as Rebuilt | null; // set by vet, when it publishes a rebuild
   const made = createLocalStory({
@@ -88,6 +172,7 @@ async function local(home: string, cfg: Config, opts: CliOpts) {
     builds.settleStory(made.id, { note });
     process.stderr.write(`${note}\n`);
   }
+  bindStory(home, made.id, agent);
   process.stderr.write(
     `Story ${made.id}: ${made.files} files, ${made.chapters} chapters (${made.dir})\n`,
   );
@@ -140,6 +225,12 @@ function page(home: string, cfg: Config, opts: CliOpts) {
   }
   const url = localPageUrl(Number(opts.port || cfg.port), id, cfg.token);
   out(url);
+  const bound = activeBinding(home, id);
+  if (bound) {
+    process.stderr.write(
+      `Built by the agent ${bound.agent}: run once-upon wait --story ${id} in the session that launched it, and its questions go to the agent\n`,
+    );
+  }
   if (!opts['no-open']) {
     const [cmd, ...args] = openArgv(url, home);
     execFile(cmd, args, () => {});
@@ -150,6 +241,7 @@ function publish(home: string, cfg: Config, opts: CliOpts) {
   if (!opts.dir) {
     throw new Error('usage: once-upon publish --dir <once-upon folder>');
   }
+  const agent = agentOf(opts);
   const source = path.resolve(opts.dir as string);
   const pr = readJson<PrJson>(path.join(source, 'pr.json'), null);
   const repo = pr && pr.url ? pr.url.split('/').slice(3, 5).join('/') : null;
@@ -218,6 +310,7 @@ function publish(home: string, cfg: Config, opts: CliOpts) {
     published: true,
     note,
   });
+  bindStory(home, id, agent);
   out(dest);
 }
 
@@ -232,11 +325,20 @@ export const storyCommands: Command[] = [
   {
     name: 'local',
     usage: [
-      '  once-upon local   --repo DIR --base REF [--head REF] [--chapters FILE] [--id ID] [--title T] [--no-open] [--allow-uncovered]',
+      '  once-upon local   --repo DIR --base REF [--head REF] [--chapters FILE] [--id ID] [--title T] [--agent NAME] [--no-open] [--allow-uncovered]',
       '                                                                 story over local commits, served at /local/<id>/; with a Rebuild',
       '                                                                 pending, the chapters must keep what it keeps and tell every file and hunk',
     ],
     run: local,
+  },
+  {
+    name: 'bind',
+    usage: [
+      '  once-upon bind    --story ID (--agent NAME [--session ID] | --clear)   the agent that built a story answers its questions: the session that owns',
+      "                                                                 the agent (a subagent has its parent's, from CLAUDE_CODE_SESSION_ID) relays them with SendMessage",
+      '                                                                 when it waits for the story; publish and local take --agent NAME to bind as they build',
+    ],
+    run: bind,
   },
   {
     name: 'page',
@@ -248,7 +350,7 @@ export const storyCommands: Command[] = [
   {
     name: 'publish',
     usage: [
-      '  once-upon publish --dir DIR [--id ID] [--allow-uncovered]     copy a once-upon folder into <checkout>/.once-upon/<owner>-<repo>-<N>/ (or ~/.once-upon/)',
+      '  once-upon publish --dir DIR [--id ID] [--agent NAME] [--allow-uncovered]     copy a once-upon folder into <checkout>/.once-upon/<owner>-<repo>-<N>/ (or ~/.once-upon/)',
       "                                                                 and finish the PR's build request; a Rebuild must keep what it keeps, tell",
       '                                                                 every file and hunk, and keeps the drafts the new chapters dropped',
     ],

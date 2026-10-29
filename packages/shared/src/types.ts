@@ -382,6 +382,8 @@ export interface Question {
   dismissed?: boolean;
   collapsed?: boolean;
   handed_to?: string | null;
+  /** asked by voice, not typed in the Ask box */
+  channel?: 'voice' | null;
   /** it has an answer you haven't read (the bridge keeps what you read, so this holds across reloads and pages) */
   unread?: boolean;
   /** Mark unread held it: looking at the answer doesn't read it again until Mark read or Mark all read */
@@ -395,9 +397,11 @@ export interface Question {
 
 /** What a session has said about the question it is answering. */
 export interface QuestionStatus {
-  state: 'queued' | 'working' | 'stalled';
+  state: 'queued' | 'relaying' | 'working' | 'stalled';
   /** the session working on it */
   by: string | null;
+  /** the session that relayed it to `by`, the agent that built the story */
+  via?: string | null;
   /** when it took the question */
   since: string | null;
   /** what it said it is doing (once-upon asking) */
@@ -440,6 +444,8 @@ export interface ListenerView {
 export interface Answering {
   consumer: string;
   scope: 'story' | 'repo' | 'all';
+  /** the agent that built the story, when this listener relays the story's questions to it */
+  agent?: string | null;
 }
 
 export interface Listening {
@@ -451,6 +457,8 @@ export interface Listening {
   repo?: string | null;
   checkout?: string | null;
   answering?: Answering | null;
+  /** the subagent that built this story and answers its questions (through a relay), while that can still work */
+  agent?: string | null;
   story_prompt?: { prompt: string } | null;
 }
 
@@ -596,6 +604,8 @@ export interface Pulse {
   working_rev: string;
   listening: boolean;
   answering: string | null;
+  /** the subagent that built the story and answers its questions through a relay, while its binding can be used */
+  agent?: string | null;
   rebuild: RebuildView | null;
   /** a build, update, rebuild or fix request for the story that a session has yet to finish, or null */
   request: StoryRequest | null;

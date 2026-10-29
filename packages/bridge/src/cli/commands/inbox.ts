@@ -12,17 +12,20 @@
  * (../../listeners/auto-stop.ts), unless --no-auto-stop.
  */
 import { existsSync, readFileSync, statSync, watch, writeFileSync } from 'node:fs';
-import { REPO_RE, sameRepo, repoOfCheckout, seenCheckout } from '../../config/repos.ts';
-import { Inbox } from '../../inbox/inbox.ts';
+import { REPO_RE, sameRepo, repoOfCheckout, seenCheckout, storyRepo } from '../../config/repos.ts';
+import { Inbox, newId } from '../../inbox/inbox.ts';
 import { Builds } from '../../inbox/builds.ts';
 import {
   clearAsking,
   noteAsking,
   noteHanded,
   readHanded,
+  readQaMarks,
   routeQuestions,
 } from '../../inbox/conversation.ts';
 import { fixesToHand } from '../../inbox/fixes.ts';
+import { relayBinding, ownSession, touchBinding, type Binding } from '../../inbox/binding.ts';
+import { relayMessage } from '../../inbox/relay.ts';
 import { beat, listeners } from '../../listeners/listeners.ts';
 import { noteListener } from '../../listeners/history.ts';
 import {
@@ -34,6 +37,7 @@ import {
   stopRequested,
 } from '../../listeners/auto-stop.ts';
 import { StoryStore } from '../../stories/store.ts';
+import { readMeta } from '../../stories/meta.ts';
 import { slug } from '../../stories/local-story.ts';
 import { readJson, writeJsonAtomic } from '../../util/json-file.ts';
 import { topLevel } from '../../util/git.ts';
@@ -43,7 +47,18 @@ import type { Config } from '../../config/settings.ts';
 import type { CliOpts, Command } from '../../types.ts';
 
 /** What a wait covers: the beat says so, for the status light and the routing. */
-type WaitScope = { repo?: string; story?: string; builds?: boolean; fixes?: boolean };
+type WaitScope = {
+  repo?: string;
+  story?: string;
+  builds?: boolean;
+  fixes?: boolean;
+  /** the Claude Code session this wait runs in, and --no-relay: the beat says so, for the panel's "who answers" (binding.ts) */
+  session?: string;
+  norelay?: boolean;
+};
+
+/** The questions this wait relays, by id, to the agent that built their story. */
+type Relays = Map<string, Binding>;
 
 const BEAT_MS = 5000;
 const POLL_MS = 2000;
@@ -214,14 +229,32 @@ function printStopped(
   );
 }
 
-function printHandOver(entries: Printable[], opts: CliOpts): void {
+function printHandOver(
+  entries: Printable[],
+  opts: CliOpts,
+  relays: Relays = new Map(),
+  consumer = 'default',
+): void {
   for (const entry of entries) {
+    const relay = entry.type === 'question' ? relays.get(entry.id) : undefined;
+    const message = relay && relayMessage(entry as QuestionEntry, relay.agent);
     if (opts.json) {
-      out(JSON.stringify(entry));
+      out(JSON.stringify(relay ? { ...entry, relay: { agent: relay.agent, message } } : entry));
       continue;
     }
     out(describe(entry));
-    if (entry.type === 'question') {
+    if (relay) {
+      out(
+        [
+          `Relay: this story was built by the agent "${relay.agent}", which has the context. Don't answer it yourself: send it on, then start the wait again. The agent answers it in the panel.`,
+          `SendMessage to "${relay.agent}", with this message:`,
+          '---',
+          message,
+          '---',
+          `If SendMessage can't reach "${relay.agent}", answer it yourself and say so: once-upon answer --question ${entry.id} --consumer ${consumer} --text "…"`,
+        ].join('\n'),
+      );
+    } else if (entry.type === 'question') {
       out(
         `Tell the panel what you're doing as you go: once-upon asking --question ${entry.id} --note "<few words>"`,
       );
@@ -322,6 +355,16 @@ async function wait(home: string, cfg: Config, opts: CliOpts) {
   if (!existsSync(messages.cursorFile(consumer))) {
     messages.setCursor(consumer, statSync(messages.file).size);
   }
+  // a wait run from the session that owns a story's agent relays that story's questions to it (binding.ts), whatever
+  // it covers; the beat says which session this is, so the panel can name the agent as the one that answers
+  const noRelay = !!opts['no-relay'];
+  const owner = ownSession();
+  if (owner) {
+    scope.session = owner;
+  }
+  if (noRelay) {
+    scope.norelay = true;
+  }
   // the heartbeat the panel's "Claude listening" light reads
   beat(home, consumer, 'waiting', scope);
   if (opts.repo && !opts.story) {
@@ -370,17 +413,34 @@ async function wait(home: string, cfg: Config, opts: CliOpts) {
       }
       if (entries.length) {
         clearInterval(heartbeat);
+        // a question of a story built by an agent this session owns goes on to the agent, from any wait here
+        const relays: Relays = new Map();
+        const bindings = new Map<string, Binding | null>();
+        for (const question of noRelay ? [] : questions) {
+          if (!bindings.has(question.story)) {
+            bindings.set(question.story, relayBinding(home, question.story, owner));
+          }
+          const bound = bindings.get(question.story);
+          if (bound) {
+            relays.set(question.id, bound);
+            touchBinding(home, question.story); // in use, so a long session's binding doesn't expire under it
+          }
+        }
+        const own = questions.filter((question) => !relays.has(question.id));
         noteHanded(
           home,
-          questions.map((question) => question.id),
+          own.map((question) => question.id),
           consumer,
         );
+        for (const [id, bound] of relays) {
+          noteHanded(home, [id], bound.agent, consumer);
+        }
         beat(home, consumer, 'handling', {
           ...scope,
           question: entries[0].id,
           questions: questions.map((question) => question.id),
         });
-        printHandOver(entries, opts);
+        printHandOver(entries, opts, relays, consumer);
         return;
       }
       if (Date.now() > deadline) {
@@ -426,6 +486,16 @@ function answer(home: string, cfg: Config, opts: CliOpts) {
   const handed = readHanded(home)[question.id];
   const answeredBy =
     opts.consumer && opts.consumer !== true ? String(opts.consumer) : handed?.consumer;
+  // a question relayed to its story's agent, which is asked again or answered by someone else meanwhile: the late
+  // relay doesn't add a second answer
+  if (handed?.via && answeredBy === handed.consumer) {
+    if (question.answers.length) {
+      throw new Error(`${question.id} is already answered: not adding another`);
+    }
+    if (readQaMarks(home, question.story).dismissed[question.id]) {
+      throw new Error(`${question.id} was dismissed: not answering it`);
+    }
+  }
   const added = messages.append({
     type: 'answer',
     question: question.id,
@@ -434,6 +504,39 @@ function answer(home: string, cfg: Config, opts: CliOpts) {
     ...(answeredBy ? { by: answeredBy } : {}),
   });
   clearAsking(home, question.id);
+  out(added.id);
+}
+
+/**
+ * `once-upon ask --story ID --text T [--voice] [--step N]`: files a question on a story as the panel's Ask box does, so
+ * it shows in the panel and routes like one (to the story's agent through its relay, else a listener). The voice session
+ * runs it for a question the reviewer said aloud.
+ */
+function ask(home: string, cfg: Config, opts: CliOpts) {
+  const text = typeof opts.text === 'string' ? opts.text.trim() : '';
+  if (!opts.story || opts.story === true || !text) {
+    throw new Error('usage: once-upon ask --story ID --text "<question>" [--voice] [--step N]');
+  }
+  const id = storyIdOf(home, String(opts.story));
+  const dir = new StoryStore({ home }).dirOf(id);
+  if (!dir) {
+    throw new Error(`no story ${id}: once-upon list shows them`);
+  }
+  const meta = readMeta(dir);
+  const step = typeof opts.step === 'string' ? Number(opts.step) : NaN;
+  const added = new Inbox(home).append({
+    type: 'question',
+    id: newId('q'),
+    story: id,
+    kind: meta.kind,
+    title: meta.title,
+    repo: storyRepo(meta),
+    step: Number.isInteger(step) && step >= 0 ? step : null,
+    chapter: null,
+    file: null,
+    text: text.slice(0, 8000),
+    ...(opts.voice ? { channel: 'voice' as const } : {}),
+  });
   out(added.id);
 }
 
@@ -448,7 +551,10 @@ function asking(home: string, cfg: Config, opts: CliOpts) {
     throw new Error(`no question ${opts.question}`);
   }
   if (question.answers.length) {
-    return out(`${question.id} is already answered`);
+    return out(`${question.id} is already answered: stop, someone else has it`);
+  }
+  if (readQaMarks(home, question.story).dismissed[question.id]) {
+    return out(`${question.id} was dismissed: stop, the reviewer dropped it`);
   }
   const session = opts.consumer && opts.consumer !== true ? String(opts.consumer) : null;
   noteAsking(
@@ -478,9 +584,19 @@ export const inboxCommands: Command[] = [
       "                                                                 requests, ahead of a --repo wait while it's live;",
       "                                                                 a consumer's first wait starts from now, but queued build requests are handed over whenever",
       '                                                                 they were asked; a --story wait and a --repo wait stop themselves (printing "Stopped listening")',
-      '                                                                 once no page has shown the story for story_listener_idle_minutes (10; a background tab still counts)',
+      '                                                                 once no page has shown the story for story_listener_idle_minutes (10; a background tab still counts);',
+      '                                                                 run from the session that owns the agent that built a story (once-upon bind), a question on that story',
+      '                                                                 is printed with the SendMessage to send the agent instead of to answer; --no-relay answers it here',
     ],
     run: wait,
+  },
+  {
+    name: 'ask',
+    usage: [
+      '  once-upon ask     --story ID --text "<question>" [--voice] [--step N]',
+      "                                                                 file a question on a story, as the panel's Ask box does (--voice: it was asked aloud)",
+    ],
+    run: ask,
   },
   {
     name: 'asking',

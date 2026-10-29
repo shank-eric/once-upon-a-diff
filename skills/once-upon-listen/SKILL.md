@@ -111,6 +111,15 @@ The event gives the question id, the story id, the chapter or step, the file it 
    - If the answer suggests a review comment, draft it in the user's voice and add it to the chapter's Draft comments with `<cli> comment --story <id> --chapter <N> --path <file> --line <L> --body-file <f>`. Check `<cli> drafts --story <id>` first and don't re-suggest one that's posted or dismissed.
 4. In chat, say one line: the question and that it's answered.
 
+### A relayed question
+
+When the story was built by a subagent that this session launched (`<cli> bind`, or `--agent` on its `publish` or `local`), the wait prints "Relay: this story was built by the agent …" with a message, instead of "Answer with". Don't read the code or answer it yourself. Send it on:
+
+1. `SendMessage` to the agent named, with the message printed (with `--json`, `relay.message`). Then start the wait again (step 3). The agent answers in the panel itself (its message tells it to run `asking` first, and to stop if the question was answered or dismissed meanwhile), and the panel says it is waiting for you to pass it on until the agent speaks.
+2. If the agent has asked you for the answer to speak (a voice question), say it when it arrives.
+3. If SendMessage says the agent can't be reached, answer it yourself as step 4 says but with `--consumer <this wait's consumer>` (the line printed shows it), and tell the user once that the agent was gone.
+4. A binding that is a day old, or whose session has ended, isn't relayed at all, and a wait run from a session that doesn't own the agent never relays. `--no-relay` turns it off for one wait.
+
 ## 5. A build request
 
 The event gives the build id, `owner/repo#N` and the PR URL. A request with `mode: "update"` asks to bring an existing story up to the PR's latest commit. It also has `base_sha` (the commit the story was told from), `since_sha` (where the user's reading stopped, from the chapters they read) and `retell` (true when they asked for a new story from scratch).
