@@ -5,7 +5,9 @@
  * only: the read-only key reaches neither (page-key.ts). Right after a push the story's delivered check runs, which
  * clears its card.
  */
+import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { HttpError } from '../request.ts';
+import { parseBody } from '../validate.ts';
 import { approvedFor, pushApproved, pushView } from '../../stories/push-default.ts';
 import { localEntries } from '../../story-lists/stories.ts';
 import { refreshLocal } from '../../stories/local-diff.ts';
@@ -28,11 +30,9 @@ async function view({ app, send }: Call, story: ServedStory) {
   return send(200, await pushView(story.meta, approvedFor(app.stories, story.id)));
 }
 
-async function push({ app, body, send }: Call, story: ServedStory) {
+async function push({ app, body: raw, send }: Call, story: ServedStory) {
   localOnly(story);
-  if (body.action !== 'push') {
-    throw new HttpError(400, 'action must be push');
-  }
+  const body = parseBody('pushApproved', raw);
   if (pushing.has(story.id)) {
     throw new HttpError(409, 'a push for this story is already running');
   }
@@ -85,6 +85,6 @@ async function push({ app, body, send }: Call, story: ServedStory) {
 }
 
 export const pushRoutes: StoryRoute[] = [
-  { what: 'push', method: 'GET', handle: view },
-  { what: 'push', method: 'POST', handle: push },
+  { route: ROUTES.pushView, handle: view },
+  { route: ROUTES.pushApproved, handle: push },
 ];

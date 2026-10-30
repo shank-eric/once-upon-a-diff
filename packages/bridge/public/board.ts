@@ -5,6 +5,8 @@
  * GET /api/board (src/board/board.ts), polled every few seconds. The page's key (the link's #key=, which
  * `once-upon board` prints) reaches the board's routes and nothing else.
  */
+import { createClient, type Transport } from '/assets/protocol/client.ts';
+import { ROUTES } from '/assets/protocol/routes.ts';
 import { authHeader, startAuth } from '/assets/local/auth.ts';
 import { notConnectedHtml } from '/assets/local/not-connected.ts';
 import { openMenu } from '/assets/local/menu.ts';
@@ -113,25 +115,37 @@ let focusAfter = '';
 /** An add is in flight: a second submit waits for it. */
 let adding = false;
 
-async function api<T = unknown>(path: string, body?: unknown): Promise<T> {
+/** The board's way to the bridge for the protocol's client: its key (or its cookie), once the host's auth has settled. */
+const transport: Transport = async ({ method, path, body }) => {
   await authed;
-  const response = await fetch(path, {
-    method: body === undefined ? 'GET' : 'POST',
-    cache: 'no-store',
-    headers: {
-      ...authHeader(KEY),
-      ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  const json: T & { error?: string } = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw Object.assign(new Error(json.error || `HTTP ${response.status}`), {
-      status: response.status,
+  try {
+    const response = await fetch(path, {
+      method,
+      cache: 'no-store',
+      headers: {
+        ...authHeader(KEY),
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
     });
+    const json: unknown = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = (json as { error?: string }).error;
+      return {
+        ok: false,
+        status: response.status,
+        body: json,
+        error: message || `HTTP ${response.status}`,
+      };
+    }
+    return { ok: true, status: response.status, body: json };
+  } catch (err) {
+    return { ok: false, status: 0, error: (err as Error).message };
   }
-  return json;
-}
+};
+
+/** The typed calls to the bridge: `bridge.ask(ROUTES.name, {body})` answers, or throws a BridgeError with the bridge's message and status. */
+const bridge = createClient(transport);
 
 /** "5m ago", or "just now" for the first minute (compactAge says "now"). */
 function ago(iso: string | null, now: number): string {
@@ -674,7 +688,7 @@ function showVoice(voice: BoardVoice | null) {
   mountVoice(voiceHost, {
     voice,
     root: app,
-    api,
+    pause: (paused) => bridge.ask(ROUTES.boardVoicePause, { body: { paused } }),
     onChanged: refresh,
     onFocus: (session) => focusSession(session, null),
   });
@@ -828,7 +842,7 @@ let failedPolls = 0;
 
 async function refresh() {
   try {
-    render(await api<BoardData>('/api/board'));
+    render(await bridge.ask(ROUTES.board));
     failedPolls = 0;
   } catch (err) {
     last = '';
@@ -860,7 +874,7 @@ async function focusSession(session: string, button: Element | null) {
   }
   document.body.style.cursor = 'progress';
   try {
-    await api('/api/board/focus', { session });
+    await bridge.ask(ROUTES.boardFocus, { body: { session } });
   } catch (err) {
     alert(`Couldn't bring the iTerm tab forward: ${(err as Error).message}`);
   } finally {
@@ -899,7 +913,9 @@ async function typeInto(
     return;
   }
   try {
-    await api('/api/board/type', { kind, session, ...(repo ? { repo } : {}) });
+    await bridge.ask(ROUTES.boardType, {
+      body: { kind, session, ...(repo ? { repo } : {}) },
+    });
     last = '';
     await refresh();
   } catch (err) {
@@ -913,7 +929,7 @@ async function assignInto(id: string, session: string, line: string) {
     return;
   }
   try {
-    await api('/api/board/backlog/assign', { id, session });
+    await bridge.ask(ROUTES.boardBacklogAssign, { body: { id, session } });
     last = '';
     await refresh();
   } catch (err) {
@@ -943,16 +959,15 @@ async function cleanUp(button: HTMLButtonElement) {
   button.textContent = 'Removing…';
   document.body.style.cursor = 'progress';
   try {
-    const done = await api<{
-      branch: { name: string; restore: string } | null;
-      note: string | null;
-    }>('/api/board/worktree/clean', {
-      path: dir,
-      ack: [
-        ...(tree.verdict === 'superseded' ? ['superseded'] : []),
-        ...(tree.ignored.length ? ['ignored-files'] : []),
-      ],
-      ignored: tree.ignored,
+    const done = await bridge.ask(ROUTES.boardWorktreeClean, {
+      body: {
+        path: dir,
+        ack: [
+          ...(tree.verdict === 'superseded' ? ['superseded'] : []),
+          ...(tree.ignored.length ? ['ignored-files'] : []),
+        ],
+        ignored: tree.ignored,
+      },
     });
     if (done.branch || done.note) {
       alert(
@@ -999,7 +1014,12 @@ document.addEventListener('keydown', (event) => {
 });
 
 /** Where `dragged` goes in its lane's ids if put before (or after) `target`: before the item now there, or the bottom. */
-function placeAmong(ids: string[], dragged: string, target: string, after: boolean) {
+function placeAmong(
+  ids: string[],
+  dragged: string,
+  target: string,
+  after: boolean,
+): { before: string } | { edge: 'top' | 'bottom' } | null {
   const rest = ids.filter((one) => one !== dragged);
   const slot = rest.indexOf(target) + (after ? 1 : 0);
   if (rest.indexOf(target) < 0 || slot === ids.indexOf(dragged)) {
@@ -1008,9 +1028,9 @@ function placeAmong(ids: string[], dragged: string, target: string, after: boole
   return slot >= rest.length ? { edge: 'bottom' } : { before: rest[slot] };
 }
 
-async function moveBacklog(id: string, where: { before: string } | { edge: string }) {
+async function moveBacklog(id: string, where: { before: string } | { edge: 'top' | 'bottom' }) {
   try {
-    await api('/api/board/backlog/move', { id, ...where });
+    await bridge.ask(ROUTES.boardBacklogMove, { body: { id, ...where } });
   } catch (err) {
     alert(`Couldn't move it: ${(err as Error).message}`);
   }
@@ -1029,9 +1049,11 @@ const clearDrops = () =>
  * before the first card whose middle is below the pointer, else after the last. Null outside the lane, or for a slot
  * that leaves the order as it is.
  */
-function dropTarget(
-  event: DragEvent,
-): { card: HTMLElement; after: boolean; where: { before: string } | { edge: string } } | null {
+function dropTarget(event: DragEvent): {
+  card: HTMLElement;
+  after: boolean;
+  where: { before: string } | { edge: 'top' | 'bottom' };
+} | null {
   const from = dragId ? app.querySelector<HTMLElement>(`[data-backlog-card="${dragId}"]`) : null;
   const list = (event.target as Element).closest('.ou-board-cards');
   if (!from || !list) {
@@ -1123,7 +1145,7 @@ app.addEventListener('submit', async (event) => {
   adding = true;
   form.reset();
   try {
-    await api('/api/board/backlog', item);
+    await bridge.ask(ROUTES.boardBacklogAdd, { body: item });
     addOpen = false;
   } catch (err) {
     const again = (name: string) =>
@@ -1244,7 +1266,9 @@ app.addEventListener('click', async (event) => {
   const drop = clicked.closest('[data-backlog-drop]');
   if (drop) {
     try {
-      await api('/api/board/backlog/drop', { id: drop.getAttribute('data-backlog-drop') });
+      await bridge.ask(ROUTES.boardBacklogDrop, {
+        body: { id: drop.getAttribute('data-backlog-drop') ?? '' },
+      });
       last = '';
       await refresh();
     } catch (err) {
@@ -1328,7 +1352,7 @@ app.addEventListener('click', async (event) => {
       )
     ) {
       try {
-        await api('/api/board/stop-listening', { repo });
+        await bridge.ask(ROUTES.boardStopListening, { body: { repo } });
         last = '';
         await refresh();
       } catch (err) {
@@ -1340,7 +1364,9 @@ app.addEventListener('click', async (event) => {
   const markLocal = clicked.closest('[data-mark-local]');
   if (markLocal) {
     try {
-      await api('/api/board/reviewed', { story: markLocal.getAttribute('data-mark-local') });
+      await bridge.ask(ROUTES.boardReviewed, {
+        body: { story: markLocal.getAttribute('data-mark-local') ?? '' },
+      });
       last = '';
       await refresh();
     } catch (err) {
@@ -1351,8 +1377,8 @@ app.addEventListener('click', async (event) => {
   const pushLocal = clicked.closest('[data-push-local]');
   if (pushLocal) {
     try {
-      const { url } = await api<{ url: string }>('/api/board/open-story', {
-        story: pushLocal.getAttribute('data-push-local'),
+      const { url } = await bridge.ask(ROUTES.boardOpenStory, {
+        body: { story: pushLocal.getAttribute('data-push-local') ?? '' },
       });
       window.open(`${url}&push=1`, '_blank', 'noopener'); // the story's page opens its Push box
     } catch (err) {
@@ -1363,8 +1389,8 @@ app.addEventListener('click', async (event) => {
   const openLocal = clicked.closest('[data-open-local]');
   if (openLocal) {
     try {
-      const { url } = await api<{ url: string }>('/api/board/open-story', {
-        story: openLocal.getAttribute('data-open-local'),
+      const { url } = await bridge.ask(ROUTES.boardOpenStory, {
+        body: { story: openLocal.getAttribute('data-open-local') ?? '' },
       });
       window.open(url, '_blank', 'noopener');
     } catch (err) {
@@ -1424,7 +1450,7 @@ app.addEventListener('click', async (event) => {
     const pause = voicePause.getAttribute('data-voice-pause') === 'pause';
     voicePause.setAttribute('disabled', '');
     try {
-      await api('/api/board/voice/pause', { paused: pause });
+      await bridge.ask(ROUTES.boardVoicePause, { body: { paused: pause } });
     } catch (err) {
       alert(`Couldn't ${pause ? 'pause' : 'resume'} voice: ${(err as Error).message}`);
     }
@@ -1445,10 +1471,11 @@ app.addEventListener('click', async (event) => {
       ?.querySelectorAll('button')
       .forEach((one) => one.setAttribute('disabled', ''));
     try {
-      await api(
-        action === 'bridge-stop' ? '/api/board/voice/phone/bridge-stop' : '/api/board/voice/phone',
-        action === 'bridge-stop' ? {} : { on: action === 'on' },
-      );
+      if (action === 'bridge-stop') {
+        await bridge.ask(ROUTES.boardVoiceBridgeStop);
+      } else {
+        await bridge.ask(ROUTES.boardVoicePhone, { body: { on: action === 'on' } });
+      }
     } catch (err) {
       alert(
         `Couldn't ${action === 'bridge-stop' ? 'stop the phone bridge' : `turn phone mode ${action}`}: ${(err as Error).message}`,

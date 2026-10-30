@@ -23,14 +23,14 @@ const base: BoardVoice = {
     { who: 'voice', text: 'hi there', at: 2 },
   ],
 };
-const calls: { path: string; body: unknown }[] = [];
+const calls: { paused: boolean }[] = [];
 let changed = 0;
 let focused: string[] = [];
 const props = (voice: BoardVoice | null) => ({
   voice,
   root,
-  api: async (path: string, body?: unknown) => {
-    calls.push({ path, body });
+  pause: async (paused: boolean) => {
+    calls.push({ paused });
   },
   onChanged: () => {
     changed++;
@@ -230,13 +230,13 @@ test('Pause asks the bridge, waits disabled until the poll is back, then enables
   changed = 0;
   fire($('.ou-board-voice-pause'), 'click');
   await tick();
-  assert.deepEqual(calls, [{ path: '/api/board/voice/pause', body: { paused: true } }]);
+  assert.deepEqual(calls, [{ paused: true }]);
   assert.equal(changed, 1);
   assert.ok(!$('.ou-board-voice-pause').hasAttribute('disabled'), 'enabled again after the poll');
 
   // a slow bridge: the button waits disabled, so a second click cannot send a second request
   let release = () => {};
-  const slow = { ...props(base), api: () => new Promise<void>((resolve) => (release = resolve)) };
+  const slow = { ...props(base), pause: () => new Promise<void>((resolve) => (release = resolve)) };
   mountVoice(host as unknown as HTMLElement, slow);
   await tick();
   fire($('.ou-board-voice-pause'), 'click');
@@ -252,7 +252,7 @@ test('Pause asks the bridge, waits disabled until the poll is back, then enables
   await tick();
   fire($('.ou-board-voice-pause'), 'click');
   await tick();
-  assert.deepEqual(calls.at(-1), { path: '/api/board/voice/pause', body: { paused: false } });
+  assert.deepEqual(calls.at(-1), { paused: false });
   await show({ ...base, status: 'ended' });
   assert.ok($('.ou-board-voice-pause') === null);
 });

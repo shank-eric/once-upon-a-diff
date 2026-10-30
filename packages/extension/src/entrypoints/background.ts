@@ -5,6 +5,8 @@
  */
 import { defineBackground } from 'wxt/utils/define-background';
 import { getSettings, type BridgeSettings } from '../settings.ts';
+import { matchRoute } from '@once-upon-a-diff/protocol/client';
+import { EXTENSION_ROUTES } from '../bridge-routes.ts';
 import { isPageLink, type PageKind } from '../page-links.ts';
 import type { BridgeReply, BridgeRequest } from '../content/bridge.ts';
 
@@ -14,11 +16,11 @@ async function callBridge(
   { method = 'GET', path, body }: BridgeRequest,
   override: BridgeSettings | null,
 ): Promise<BridgeReply> {
+  // only a call to one of the routes the extension makes (bridge-routes.ts), with its method: the token goes with nothing else
   if (
     !METHODS.has(method) ||
     typeof path !== 'string' ||
-    !/^\/api\/[A-Za-z0-9._~%/?=&-]*$/.test(path) ||
-    path.includes('..')
+    !matchRoute(method, path, EXTENSION_ROUTES)
   ) {
     return { ok: false, status: 0, error: 'bad request' };
   }

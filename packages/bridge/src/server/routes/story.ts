@@ -6,6 +6,7 @@
  * (rebuild: ask for one, or how the last one stands), and Start listening on the local page (listen: GET the sessions that
  * may be typed into, POST to type into one), since a story's key does not reach the board's routes.
  */
+import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -17,7 +18,8 @@ import { listeningOf } from '../../listeners/listeners.ts';
 import { noteSeen } from '../../listeners/auto-stop.ts';
 import { refreshLocal, movedSince } from '../../stories/local-diff.ts';
 import { storyVersion, localVersion } from '../../stories/meta.ts';
-import { HttpError, clipText, toInt } from '../request.ts';
+import { HttpError } from '../request.ts';
+import { parseBody } from '../validate.ts';
 import { questionsOf } from './questions.ts';
 import { fixesViewOf } from './fixes.ts';
 import { requestFor } from '../../inbox/progress.ts';
@@ -50,7 +52,8 @@ function version({ app, send }: Call, story: ServedStory) {
 }
 
 // a hidden tab's page is still open: it says so about once a minute, and that is all it does (listeners/auto-stop.ts)
-function seen({ app, send }: Call, story: ServedStory) {
+function seen({ app, body, send }: Call, story: ServedStory) {
+  parseBody('seen', body);
   noteSeen(app.stories, story.id, Date.now(), 0); // rare by design, so no write throttle
   return send(200, { ok: true });
 }
@@ -129,8 +132,9 @@ function rebuildView(app: App, story: ServedStory): (RebuildView & { id: string 
  * GET: rebuildView. POST {mode: 'rebuild'|'rebuild_from', from_step, guidance}: the panel's Rebuild story or Rebuild
  * from here, a build request a listener hands to a Claude session. A request already being built comes back as it is.
  */
-function rebuild({ app, req, body, send }: Call, story: ServedStory) {
+function rebuild({ app, req, body: raw, send }: Call, story: ServedStory) {
   if (req.method === 'POST') {
+    const body = parseBody('rebuild', raw);
     const chapters = ((app.stories.load(story.id) as StoryData).chapters || []).filter(
       (chapter) => !chapter.auto,
     );
@@ -141,9 +145,9 @@ function rebuild({ app, req, body, send }: Call, story: ServedStory) {
     app.builds.requestRebuild({
       story: story.id,
       meta: story.meta,
-      mode: String(body.mode || ''),
-      from_step: toInt(body.from_step),
-      guidance: clipText(body.guidance, 4000),
+      mode: body.mode,
+      from_step: body.from_step,
+      guidance: body.guidance,
       chapters: chapters.length,
       story_dir: story.dir,
       requested_at: body.requested_at,
@@ -160,28 +164,13 @@ function panelState({ app, req, body, send }: Call, story: ServedStory) {
   if (req.method === 'GET') {
     return send(200, app.stories.readState(story.id, 'ui.json', {}));
   }
-  const saved = {
-    n: toInt(body.n) ?? 0,
-    all: !!body.all,
-    collapsed: !!body.collapsed,
-    width: toInt(body.width),
-    hidden: !!body.hidden,
-    filesOpen: !!body.filesOpen,
-    chatOpen: !!body.chatOpen,
-    chatHeight: toInt(body.chatHeight),
-    at: new Date().toISOString(),
-  };
+  const saved = { ...parseBody('ui', body), at: new Date().toISOString() };
   app.stories.writeState(story.id, 'ui.json', saved);
   return send(200, saved);
 }
 
 function position({ app, body, send }: Call, story: ServedStory) {
-  const where = {
-    step: toInt(body.step),
-    chapter: clipText(body.chapter, 300),
-    file: clipText(body.file, 1000),
-    url: clipText(body.url, 2000),
-  };
+  const where = parseBody('position', body);
   app.stories.writeState(story.id, 'position.json', { ...where, at: new Date().toISOString() });
   return send(200, { ok: true });
 }
@@ -215,27 +204,26 @@ async function listenSessions({ app, send }: Call, story: ServedStory) {
  * POST {session, scope?}: types the listen line into that session's tab, as the board's Start listening does: the repo's
  * (scope 'repo', the default) or this story's own (scope 'story'). The line is made here; the body has no text.
  */
-async function listen({ app, body, send }: Call, story: ServedStory) {
-  const session = String(body.session || '');
-  if (!/^[A-Za-z0-9._-]{1,100}$/.test(session)) {
-    throw new HttpError(400, 'a session id is needed');
-  }
+async function listen({ app, body: raw, send }: Call, story: ServedStory) {
+  const { session, scope } = parseBody('listen', raw);
   const typed =
-    body.scope === 'story'
+    scope === 'story'
       ? await app.board.type('listen', session, null, story.id)
       : await app.board.type('listen', session, listenRepo(story), null);
   return send(200, { ok: true, typed });
 }
 
 export const storyRoutes: StoryRoute[] = [
-  { what: '', method: 'GET', handle: load },
-  { what: 'version', method: 'GET', handle: version },
-  { what: 'pulse', method: 'GET', handle: pulse },
-  { what: 'seen', method: 'POST', handle: seen },
-  { what: 'ui', handle: panelState },
-  { what: 'position', method: 'POST', handle: position },
-  { what: 'freshness', method: 'GET', handle: storyFreshness },
-  { what: 'rebuild', handle: rebuild },
-  { what: 'listen', method: 'GET', handle: listenSessions },
-  { what: 'listen', method: 'POST', handle: listen },
+  { route: ROUTES.story, handle: load },
+  { route: ROUTES.storyVersion, handle: version },
+  { route: ROUTES.storyPulse, handle: pulse },
+  { route: ROUTES.storySeen, handle: seen },
+  { route: ROUTES.storyUiRead, handle: panelState },
+  { route: ROUTES.storyUiWrite, handle: panelState },
+  { route: ROUTES.storyPosition, handle: position },
+  { route: ROUTES.storyFreshness, handle: storyFreshness },
+  { route: ROUTES.storyRebuildRead, handle: rebuild },
+  { route: ROUTES.storyRebuildWrite, handle: rebuild },
+  { route: ROUTES.storyListenSessions, handle: listenSessions },
+  { route: ROUTES.storyListen, handle: listen },
 ];

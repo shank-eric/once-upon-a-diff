@@ -30,17 +30,16 @@
  * The board page's key reaches the board (it types into sessions). Only the bridge's token is handed the board's key.
  */
 import path from 'node:path';
+import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { REPO_RE } from '../../config/repos.ts';
 import { readSettings } from '../../config/settings.ts';
 import { publicOriginOf } from '../address.ts';
 import { BoardError } from '../../board/errors.ts';
 import { HttpError } from '../request.ts';
+import { parseBody } from '../validate.ts';
 import { localStory, markStoryReviewed } from '../../story-lists/stories.ts';
-import { ID_PATTERN } from '../../board/backlog.ts';
 import type { MoveTo } from '../../board/backlog.ts';
 import type { ApiRoute, Call } from '../../types.ts';
-
-const SESSION_RE = /^[A-Za-z0-9._-]{1,100}$/;
 
 async function data({ app, send }: Call) {
   return send(200, await app.board.snapshot());
@@ -64,30 +63,14 @@ async function boardLink(call: Call) {
 }
 
 async function focus({ app, body, send }: Call) {
-  const session = String(body.session || '');
-  if (!SESSION_RE.test(session)) {
-    throw new HttpError(400, 'a session id is needed');
-  }
-  await app.board.focus(session);
+  await app.board.focus(parseBody('boardFocus', body).session);
   return send(200, { ok: true });
 }
 
 /** POST {kind: 'build' | 'listen', session, repo? | story?}: type Build story's or Start listening's line into the session's tab. */
-async function type({ app, body, send }: Call) {
-  const session = String(body.session || '');
-  let kind: 'build' | 'listen' | null = null;
-  if (body.kind === 'listen' || body.kind === 'build') {
-    kind = body.kind;
-  }
-  if (!kind || !SESSION_RE.test(session)) {
-    throw new HttpError(400, 'a kind (build or listen) and a session id are needed');
-  }
-  const typed = await app.board.type(
-    kind,
-    session,
-    body.repo ? String(body.repo) : null,
-    body.story ? String(body.story) : null,
-  );
+async function type({ app, body: raw, send }: Call) {
+  const { kind, session, repo, story } = parseBody('boardType', raw);
+  const typed = await app.board.type(kind, session, repo || null, story || null);
   return send(200, { ok: true, typed });
 }
 
@@ -115,7 +98,7 @@ async function listenSessions({ app, url, send }: Call) {
 
 /** POST {story}: the page link of a local story on a card, which has no URL of its own like a PR story's. */
 function openStory({ app, body, send }: Call) {
-  const story = localStory(app.stories, String(body.story || ''));
+  const story = localStory(app.stories, parseBody('boardOpenStory', body).story);
   if (!story) {
     throw new HttpError(404, 'no local story with that id');
   }
@@ -132,71 +115,57 @@ function asBadRequest<T>(run: () => T): T {
 }
 
 /** POST {story, reviewed?}: a local story marked reviewed by hand (or unmarked). A PR story's id is a 404 here. */
-function reviewLocal({ app, body, send }: Call) {
-  const id = String(body.story ?? '');
+function reviewLocal({ app, body: raw, send }: Call) {
+  const { story: id, reviewed } = parseBody('boardReviewed', raw);
   if (!localStory(app.stories, id)) {
     throw new HttpError(404, 'no local story with that id');
   }
-  markStoryReviewed(app.stories, id, body.reviewed !== false);
+  markStoryReviewed(app.stories, id, reviewed !== false);
   return send(200, { ok: true });
 }
 
 /** POST {title, note?, repo?}: a new backlog item, by "board". */
-function addBacklog({ app, body, send }: Call) {
+function addBacklog({ app, body: raw, send }: Call) {
+  const { title, note, repo } = parseBody('boardBacklogAdd', raw);
   const item = asBadRequest(() =>
-    app.board.addBacklog({
-      title: String(body.title ?? ''),
-      note: body.note ? String(body.note) : null,
-      repo: body.repo ? String(body.repo) : null,
-      by: 'board',
-    }),
+    app.board.addBacklog({ title, note: note || null, repo: repo || null, by: 'board' }),
   );
   return send(200, { ok: true, id: item.id });
 }
 
 /** POST {id, before | edge}: put a backlog item before another, or at the top or bottom. */
-function moveBacklog({ app, body, send }: Call) {
-  const where: MoveTo = body.before
-    ? { before: String(body.before) }
-    : { edge: body.edge === 'top' ? 'top' : 'bottom' };
-  if (!body.before && body.edge !== 'top' && body.edge !== 'bottom') {
-    throw new HttpError(400, 'before (an item id) or edge (top or bottom) is needed');
-  }
-  asBadRequest(() => app.board.moveBacklog(String(body.id ?? ''), where, 'board'));
+function moveBacklog({ app, body: raw, send }: Call) {
+  const { id, before, edge } = parseBody('boardBacklogMove', raw);
+  const where: MoveTo = before ? { before } : { edge: edge === 'top' ? 'top' : 'bottom' };
+  asBadRequest(() => app.board.moveBacklog(id, where, 'board'));
   return send(200, { ok: true });
 }
 
 /** POST {id}: drop a backlog item. The line stays in the file. */
 function dropBacklog({ app, body, send }: Call) {
-  asBadRequest(() => app.board.dropBacklog(String(body.id ?? ''), 'board'));
+  const { id } = parseBody('boardBacklogDrop', body);
+  asBadRequest(() => app.board.dropBacklog(id, 'board'));
   return send(200, { ok: true });
 }
 
 /** POST {id, session}: Assign, the line typed into the session's tab. The session must be one the board offers for the item. */
-async function assignBacklog({ app, body, send }: Call) {
-  const session = String(body.session || '');
-  if (!SESSION_RE.test(session) || !ID_PATTERN.test(String(body.id || ''))) {
-    throw new HttpError(400, 'a backlog item id and a session id are needed');
-  }
-  const typed = await app.board.assignBacklog(String(body.id), session, 'board');
+async function assignBacklog({ app, body: raw, send }: Call) {
+  const { id, session } = parseBody('boardBacklogAssign', raw);
+  const typed = await app.board.assignBacklog(id, session, 'board');
   return send(200, { ok: true, typed });
 }
 
 /** POST {paused}: pause (true) or resume (false) voice. */
-function voicePause({ app, body, send }: Call) {
-  if (typeof body.paused !== 'boolean') {
-    throw new HttpError(400, 'paused (true or false) is needed');
-  }
-  app.board.setVoicePaused(body.paused);
-  return send(200, { ok: true, paused: body.paused });
+function voicePause({ app, body: raw, send }: Call) {
+  const { paused } = parseBody('boardVoicePause', raw);
+  app.board.setVoicePaused(paused);
+  return send(200, { ok: true, paused });
 }
 
 /** POST {on}: phone mode on or off. */
-async function voicePhone({ app, body, send }: Call) {
-  if (typeof body.on !== 'boolean') {
-    throw new HttpError(400, 'on (true or false) is needed');
-  }
-  const got = await app.board.setPhone(body.on ? 'phone-on' : 'phone-off');
+async function voicePhone({ app, body: raw, send }: Call) {
+  const { on } = parseBody('boardVoicePhone', raw);
+  const got = await app.board.setPhone(on ? 'phone-on' : 'phone-off');
   return send(200, { ok: true, ...got });
 }
 
@@ -207,49 +176,37 @@ async function voiceBridgeStop({ app, send }: Call) {
 }
 
 /** POST {path, ack?}: Clean up a worktree the board lists. Everything but the path is the bridge's own look at it. */
-async function cleanWorktree({ app, body, send }: Call) {
-  const dir = String(body.path || '');
+async function cleanWorktree({ app, body: raw, send }: Call) {
+  // ack: what the confirm said ("superseded", "ignored-files"); ignored: the file names it showed
+  const { path: dir, ack, ignored } = parseBody('boardWorktreeClean', raw);
   if (!path.isAbsolute(dir)) {
     throw new HttpError(400, 'the worktree path is needed');
   }
-  // ack: what the confirm said ("superseded", "ignored-files"), a string or a list; ignored: the file names it showed
-  const list = (value: unknown): string[] => {
-    const items = Array.isArray(value) ? value : [value];
-    return items
-      .filter((item) => item !== undefined && item !== null && item !== '')
-      .map(String)
-      .slice(0, 100);
-  };
-  const result = await app.board.cleanWorktree(dir, list(body.ack), list(body.ignored));
+  const result = await app.board.cleanWorktree(dir, ack, ignored);
   return send(200, { ok: true, ...result });
 }
 
 /** POST {repo}: end the repo's listener (its `wait` returns "Stopped listening"). */
 function stopListening({ app, body, send }: Call) {
-  app.board.stopListening(String(body.repo || ''));
+  app.board.stopListening(parseBody('boardStopListening', body).repo);
   return send(200, { ok: true });
 }
 
 export const boardRoutes: ApiRoute[] = [
-  { path: '/api/board/type', method: 'POST', handle: type, boardKey: true },
-  { path: '/api/board/listen-sessions', method: 'GET', handle: listenSessions, boardKey: true },
-  { path: '/api/board/voice/pause', method: 'POST', handle: voicePause, boardKey: true },
-  { path: '/api/board/voice/phone', method: 'POST', handle: voicePhone, boardKey: true },
-  {
-    path: '/api/board/voice/phone/bridge-stop',
-    method: 'POST',
-    handle: voiceBridgeStop,
-    boardKey: true,
-  },
-  { path: '/api/board/stop-listening', method: 'POST', handle: stopListening, boardKey: true },
-  { path: '/api/board/focus', method: 'POST', handle: focus, boardKey: true },
-  { path: '/api/board/open-story', method: 'POST', handle: openStory, boardKey: true },
-  { path: '/api/board/reviewed', method: 'POST', handle: reviewLocal, boardKey: true },
-  { path: '/api/board/backlog/move', method: 'POST', handle: moveBacklog, boardKey: true },
-  { path: '/api/board/backlog/drop', method: 'POST', handle: dropBacklog, boardKey: true },
-  { path: '/api/board/worktree/clean', method: 'POST', handle: cleanWorktree, boardKey: true },
-  { path: '/api/board/backlog/assign', method: 'POST', handle: assignBacklog, boardKey: true },
-  { path: '/api/board/backlog', method: 'POST', handle: addBacklog, boardKey: true },
-  { path: '/api/board', method: 'GET', handle: data, boardKey: true },
-  { path: '/api/board/link', method: 'GET', handle: boardLink },
+  { route: ROUTES.boardType, handle: type },
+  { route: ROUTES.boardListenSessions, handle: listenSessions },
+  { route: ROUTES.boardVoicePause, handle: voicePause },
+  { route: ROUTES.boardVoicePhone, handle: voicePhone },
+  { route: ROUTES.boardVoiceBridgeStop, handle: voiceBridgeStop },
+  { route: ROUTES.boardStopListening, handle: stopListening },
+  { route: ROUTES.boardFocus, handle: focus },
+  { route: ROUTES.boardOpenStory, handle: openStory },
+  { route: ROUTES.boardReviewed, handle: reviewLocal },
+  { route: ROUTES.boardBacklogMove, handle: moveBacklog },
+  { route: ROUTES.boardBacklogDrop, handle: dropBacklog },
+  { route: ROUTES.boardWorktreeClean, handle: cleanWorktree },
+  { route: ROUTES.boardBacklogAssign, handle: assignBacklog },
+  { route: ROUTES.boardBacklogAdd, handle: addBacklog },
+  { route: ROUTES.board, handle: data },
+  { route: ROUTES.boardLink, handle: boardLink },
 ];

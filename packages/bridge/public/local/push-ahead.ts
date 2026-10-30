@@ -8,9 +8,10 @@
 import { html } from '/assets/util/html.ts';
 import { setHtml } from '/assets/util/dom.ts';
 import { plural } from '/assets/util/text.ts';
-import { api, page, STORY_PATH } from './page.ts';
+import { ROUTES } from '/assets/protocol/routes.ts';
+import { bridge, page, PARAMS } from './page.ts';
 import { boxElement, commitListHtml, takeView } from './pull-request.ts';
-import type { PrPushAnswer, PrView } from '/assets/types.ts';
+import type { PrView } from '/assets/types.ts';
 
 /** Why the box's Push can't go, or null when it can. */
 function blockerOf(view: PrView): string | null {
@@ -64,9 +65,9 @@ async function submit(form: HTMLFormElement, view: PrView) {
   goButton.disabled = true;
   setHtml(result, html`<p>Pushing ${view.branch}…</p>`);
   try {
-    const answer = await api<PrPushAnswer>('POST', `${STORY_PATH}/pr`, {
-      action: 'push-ahead',
-      head_sha: view.head_sha,
+    const answer = await bridge.ask(ROUTES.prPush, {
+      params: PARAMS,
+      body: { action: 'push-ahead', head_sha: view.head_sha },
     });
     takeView(answer.view);
     const lines = answer.output && html`<pre class="ou-local-pr-output">${answer.output}</pre>`;
@@ -99,7 +100,7 @@ export async function openPushAheadBox() {
   box.showModal();
   let view: PrView;
   try {
-    view = await api<PrView>('GET', `${STORY_PATH}/pr`);
+    view = await bridge.ask(ROUTES.prView, { params: PARAMS });
   } catch (err) {
     setHtml(
       box,

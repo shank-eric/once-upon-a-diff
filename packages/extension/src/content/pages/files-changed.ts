@@ -15,7 +15,8 @@
 import { storyOverlay, rangeStepOf } from '@once-upon-a-diff/shared/overlay';
 import { filesChangedPr } from '@once-upon-a-diff/shared/util/github-paths';
 import { withLayout, type Layout } from '@once-upon-a-diff/shared/panel/layout';
-import { callBridge, extensionAlive } from '../bridge.ts';
+import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { bridge, extensionAlive } from '../bridge.ts';
 import { createListenOption } from '../listen.ts';
 import { loadPanelUi, savePanelUi, loadPrefsCopy, storePrefsCopy, tabSession } from '../storage.ts';
 import { createPrTags, titleElement } from '../ui/pr-tags.ts';
@@ -28,20 +29,7 @@ import type { PrRef } from '../ui/story-tag.ts';
 import type { Route } from '../index.ts';
 import type { PanelOptions, StoryOverlay } from '@once-upon-a-diff/shared/overlay';
 import type { FilesChangedPr } from '@once-upon-a-diff/shared/util/github-paths';
-import type {
-  BridgeStatus,
-  DraftsAnswer,
-  FixesView,
-  Freshness,
-  Pulse,
-  Question,
-  QuestionMarksAnswer,
-  ReadInfo,
-  RebuildView,
-  StatusError,
-  StoryData,
-  WorkingMark,
-} from '@once-upon-a-diff/shared/types';
+import type { StatusError, StoryData } from '@once-upon-a-diff/shared/types';
 
 /** The PR page on screen, and its story once the bridge has one. */
 interface CurrentPage extends FilesChangedPr {
@@ -76,7 +64,7 @@ async function bodyOf<T>(answerPromise: Promise<BridgeAnswer<T>>): Promise<T> {
 
 /** The panel's size across stories from the bridge's prefs.json, or null when the bridge doesn't answer (the PR's own saved size stands). */
 async function bridgeLayout(): Promise<Layout | null> {
-  const answer = await callBridge<{ layout?: Layout }>('GET', '/api/prefs');
+  const answer = await bridge.call(ROUTES.prefsRead);
   return answer.ok ? answer.body.layout || null : null;
 }
 
@@ -119,7 +107,7 @@ export function createFilesChangedPage() {
 
   /** The panel's callbacks, all through the bridge. */
   function panelOptions(key: string, storyId: string): Omit<PanelOptions, 'initial'> {
-    const storyPath = `/api/stories/${encodeURIComponent(storyId)}`;
+    const params = { id: storyId };
     return {
       host: 'GitHub',
       stylesheets: {
@@ -135,13 +123,13 @@ export function createFilesChangedPage() {
       },
       // a drag: the new size is every story's (prefs.json), here and on the local page
       onLayout: (layout) => {
-        callBridge('POST', '/api/prefs', { layout }).catch(() => {});
+        bridge.call(ROUTES.prefsWrite, { body: { layout } }).catch(() => {});
       },
       onPosition: (position) =>
-        callBridge('POST', `${storyPath}/position`, { ...position, url: location.href }),
+        bridge.call(ROUTES.storyPosition, { params, body: { ...position, url: location.href } }),
       // a chapter they read (stayed on, or ticked every file of), with the PR head it was read at
       onRead: async (read) => {
-        await bodyOf(callBridge('POST', `${storyPath}/read`, read));
+        await bodyOf(bridge.call(ROUTES.readNote, { params, body: read }));
       },
       onClose: () => {
         if (!current || current.key !== key) {
@@ -156,9 +144,9 @@ export function createFilesChangedPage() {
         );
       },
       ask: async (question) => {
-        const answer = await callBridge<Question>('POST', `${storyPath}/questions`, {
-          ...question,
-          url: location.href,
+        const answer = await bridge.call(ROUTES.questionAsk, {
+          params,
+          body: { ...question, url: location.href },
         });
         if (!answer.ok) {
           throw new Error(
@@ -173,44 +161,35 @@ export function createFilesChangedPage() {
         location.reload();
       },
       drafts: {
-        load: () => bodyOf(callBridge<DraftsAnswer>('GET', `${storyPath}/drafts`)),
+        load: () => bodyOf(bridge.call(ROUTES.draftsRead, { params })),
         act: (chapter, index, action) =>
-          bodyOf(
-            callBridge<DraftsAnswer>('POST', `${storyPath}/drafts`, { chapter, index, action }),
-          ),
+          bodyOf(bridge.call(ROUTES.draftsAct, { params, body: { chapter, index, action } })),
       },
       // fix before push: notes to send to the session working the PR's branch, and what it says it's changing
       fixes: {
-        load: () => bodyOf(callBridge<FixesView>('GET', `${storyPath}/fixes`)),
-        act: (body) => bodyOf(callBridge<FixesView>('POST', `${storyPath}/fixes`, body)),
+        load: () => bodyOf(bridge.call(ROUTES.fixesRead, { params })),
+        act: (body) => bodyOf(bridge.call(ROUTES.fixesAct, { params, body })),
         note: (noteId, changes) =>
           bodyOf(
-            callBridge(
-              'POST',
-              `${storyPath}/notes/${encodeURIComponent(noteId as string)}`,
-              changes,
-            ),
+            bridge.call(ROUTES.noteUpdate, {
+              params: { ...params, note: noteId as string },
+              body: changes,
+            }),
           ),
       },
-      working: () => bodyOf(callBridge<{ marks?: WorkingMark[] }>('GET', `${storyPath}/working`)),
-      reads: () => bodyOf(callBridge<ReadInfo>('GET', `${storyPath}/read`)),
-      freshness: () => bodyOf(callBridge<Freshness>('GET', `${storyPath}/freshness`)),
+      working: () => bodyOf(bridge.call(ROUTES.working, { params })),
+      reads: () => bodyOf(bridge.call(ROUTES.readRead, { params })),
+      freshness: () => bodyOf(bridge.call(ROUTES.storyFreshness, { params })),
       requestUpdate: (base, { retell = false }: { retell?: boolean } = {}) =>
         bodyOf(
-          callBridge(
-            'POST',
-            '/api/builds',
-            requestFor({ act: 'update', base }, (current as CurrentPage).pr, { retell }),
-          ),
+          bridge.call(ROUTES.buildRequest, {
+            body: requestFor({ act: 'update', base }, (current as CurrentPage).pr, { retell }),
+          }),
         ),
       // Rebuild story / Rebuild from here: a build request for this story
-      requestRebuild: (ask) =>
-        bodyOf(callBridge<{ rebuild?: RebuildView | null }>('POST', `${storyPath}/rebuild`, ask)),
+      requestRebuild: (ask) => bodyOf(bridge.call(ROUTES.storyRebuildWrite, { params, body: ask })),
       status: async () => {
-        const answer = await callBridge<BridgeStatus>(
-          'GET',
-          `/api/status?story=${encodeURIComponent(storyId)}`,
-        );
+        const answer = await bridge.call(ROUTES.status, { query: { story: storyId } });
         if (answer.ok) {
           return answer.body;
         }
@@ -223,10 +202,10 @@ export function createFilesChangedPage() {
         throw Object.assign(new Error(answer.error as string), { code });
       },
       // Start listening: type the listen line into an idle Claude Code session, through the bridge's board
-      listen: createListenOption(callBridge, storyId),
-      pulse: () => bodyOf(callBridge<Pulse>('GET', `${storyPath}/pulse`)),
+      listen: createListenOption(bridge.call, storyId),
+      pulse: () => bodyOf(bridge.call(ROUTES.storyPulse, { params })),
       // a hidden tab doesn't pulse: this keeps the story's listener from stopping while the page is still open
-      stillOpen: () => callBridge('POST', `${storyPath}/seen`, {}),
+      stillOpen: () => bridge.call(ROUTES.storySeen, { params }),
       // the story changed on disk (Claude filled in a chapter): redraw in place
       onPulse: (pulse) => {
         if (current && current.key === key && pulse.version !== current.version) {
@@ -234,16 +213,9 @@ export function createFilesChangedPage() {
         }
       },
       loadQuestions: async () =>
-        (await bodyOf(callBridge<{ questions: Question[] }>('GET', `${storyPath}/questions`)))
-          .questions,
+        (await bodyOf(bridge.call(ROUTES.questionsRead, { params }))).questions,
       markQuestions: (action, ids, extra) =>
-        bodyOf(
-          callBridge<QuestionMarksAnswer>('POST', `${storyPath}/questions/marks`, {
-            action,
-            ids,
-            ...extra,
-          }),
-        ),
+        bodyOf(bridge.call(ROUTES.questionMarks, { params, body: { action, ids, ...extra } })),
     };
   }
 
@@ -270,7 +242,7 @@ export function createFilesChangedPage() {
   }
 
   async function fetchStory(id: string): Promise<StoryData | null> {
-    const answer = await callBridge<StoryData>('GET', `/api/stories/${encodeURIComponent(id)}`);
+    const answer = await bridge.call(ROUTES.story, { params: { id } });
     return answer.ok ? answer.body : null;
   }
 
@@ -397,10 +369,7 @@ export function createFilesChangedPage() {
     }
     let now = version;
     if (now === undefined) {
-      const answer = await callBridge<{ version: string }>(
-        'GET',
-        `/api/stories/${encodeURIComponent(current.id)}/version`,
-      );
+      const answer = await bridge.call(ROUTES.storyVersion, { params: { id: current.id } });
       now = answer.ok ? answer.body.version : null;
     }
     if (!current || now == null || now === current.version) {
@@ -476,7 +445,7 @@ export function createFilesChangedPage() {
 
   // ---------- Hide whitespace: GitHub's ?w=1, remembered in the bridge's prefs.json (the local page's setting too)
   const checkWhitespace = createWhitespaceCheck({
-    prefs: prefsStore({ call: callBridge, load: loadPrefsCopy, store: storePrefsCopy }),
+    prefs: prefsStore({ call: bridge.call, load: loadPrefsCopy, store: storePrefsCopy }),
     session: tabSession,
     keepPanelPlace,
   });

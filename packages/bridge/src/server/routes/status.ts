@@ -7,6 +7,8 @@ import { readPrefs, writePrefs } from '../../config/settings.ts';
 import { storyRepo, REPO_RE } from '../../config/repos.ts';
 import { statusOf } from '../../listeners/listeners.ts';
 import { readMeta } from '../../stories/meta.ts';
+import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { parseBody } from '../validate.ts';
 import type { ApiRoute, Call, ServedStory, StoryRoute } from '../../types.ts';
 
 /** The status light: bridge, story, and a Claude session listening. */
@@ -28,9 +30,11 @@ function status({ app, url, send }: Call) {
   return send(200, statusOf({ home, version, story, repo, extensionSeen: app.extensionSeen }));
 }
 
-/** GET or POST page settings: what /api/prefs answers. */
+/** GET or POST page settings: what /api/prefs answers. A POST's body is checked here, after the guards. */
 const prefs = ({ app, req, body, send }: Call) =>
-  req.method === 'GET' ? send(200, readPrefs(app.home)) : send(200, writePrefs(body, app.home));
+  req.method === 'GET'
+    ? send(200, readPrefs(app.home))
+    : send(200, writePrefs(parseBody('prefs', body), app.home));
 
 /**
  * The same status light and page settings under a story's own path, for the local page, whose key reaches only
@@ -38,8 +42,7 @@ const prefs = ({ app, req, body, send }: Call) =>
  */
 export const storyStatusRoutes: StoryRoute[] = [
   {
-    what: 'status',
-    method: 'GET',
+    route: ROUTES.storyStatus,
     handle: ({ app, send }: Call, story: ServedStory) =>
       send(
         200,
@@ -52,19 +55,18 @@ export const storyStatusRoutes: StoryRoute[] = [
         }),
       ),
   },
-  { what: 'prefs', handle: prefs },
+  { route: ROUTES.storyPrefsRead, handle: prefs },
+  { route: ROUTES.storyPrefsWrite, handle: prefs },
 ];
 
 export const statusRoutes: ApiRoute[] = [
   {
-    path: '/api/health',
+    route: ROUTES.health,
     handle: ({ app, send }) =>
       send(200, { ok: true, name: 'once-upon-bridge', version: app.version }),
   },
-  { path: '/api/status', method: 'GET', handle: status },
-  {
-    // page settings kept across stories and restarts (the local page's Hide whitespace)
-    path: '/api/prefs',
-    handle: prefs,
-  },
+  { route: ROUTES.status, handle: status },
+  // page settings kept across stories and restarts (the local page's Hide whitespace)
+  { route: ROUTES.prefsRead, handle: prefs },
+  { route: ROUTES.prefsWrite, handle: prefs },
 ];

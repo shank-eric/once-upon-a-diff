@@ -85,7 +85,8 @@ export type VoicePanelProps = {
   voice: BoardVoice | null;
   /** The board's own element: it gets the has-voice and pushed classes and the width variable. */
   root: HTMLElement;
-  api: (path: string, body?: unknown) => Promise<unknown>;
+  /** Pauses (true) or resumes (false) the voice session, through the bridge. */
+  pause: (paused: boolean) => Promise<unknown>;
   /** Called after Pause or Resume, to poll again. */
   onChanged: () => void | Promise<void>;
   /** Brings the voice session's iTerm tab to the front. */
@@ -93,7 +94,7 @@ export type VoicePanelProps = {
 };
 
 export function VoicePanel(props: VoicePanelProps) {
-  const { voice, root, api, onChanged, onFocus } = props;
+  const { voice, root, pause: askPause, onChanged, onFocus } = props;
   const [open, setOpen] = useState(() => stored(OPEN_KEY, false, (text) => text === 'true'));
   const [peek, setPeek] = useState(false);
   const [width, setWidth] = useState<number | null>(() =>
@@ -185,7 +186,7 @@ export function VoicePanel(props: VoicePanelProps) {
   const pause = async (paused: boolean) => {
     setBusy(true);
     try {
-      await api('/api/board/voice/pause', { paused });
+      await askPause(paused);
     } catch (err) {
       alert(`Couldn't ${paused ? 'pause' : 'resume'} voice: ${(err as Error).message}`);
     }

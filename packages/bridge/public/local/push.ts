@@ -9,9 +9,10 @@
 import { html } from '/assets/util/html.ts';
 import { setHtml } from '/assets/util/dom.ts';
 import { plural } from '/assets/util/text.ts';
-import { api, page, STORY_PATH } from './page.ts';
+import { ROUTES } from '/assets/protocol/routes.ts';
+import { bridge, page, PARAMS } from './page.ts';
 import { boxElement, commitListHtml, openPrBox } from './pull-request.ts';
-import type { PushAnswer, PushView } from '/assets/types.ts';
+import type { PushView } from '/assets/types.ts';
 
 /** Set once a push has gone through, so the header says so until the page is reloaded. */
 let pushedAt: string | null = null;
@@ -76,9 +77,9 @@ async function submit(form: HTMLFormElement, view: PushView) {
   goButton.disabled = true;
   setHtml(result, html`<p>Pushing to ${view.branch || 'origin'}…</p>`);
   try {
-    const answer = await api<PushAnswer>('POST', `${STORY_PATH}/push`, {
-      action: 'push',
-      head_sha: view.approved_sha,
+    const answer = await bridge.ask(ROUTES.pushApproved, {
+      params: PARAMS,
+      body: { action: 'push', head_sha: view.approved_sha },
     });
     pushedAt = view.approved_sha ? view.approved_sha.slice(0, 7) : 'now';
     page.story.local.approved = null;
@@ -117,7 +118,7 @@ export async function openPushBox() {
   box.showModal();
   let view: PushView;
   try {
-    view = await api<PushView>('GET', `${STORY_PATH}/push`);
+    view = await bridge.ask(ROUTES.pushView, { params: PARAMS });
   } catch (err) {
     setHtml(
       box,

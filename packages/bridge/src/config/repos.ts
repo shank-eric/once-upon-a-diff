@@ -10,12 +10,13 @@ import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { REPO_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { readSettings } from './settings.ts';
 import { runGitAsync } from '../util/git.ts';
 import { readJson, writeJsonAtomic } from '../util/json-file.ts';
 import type { StoryMeta } from '../types.ts';
 
-export const REPO_RE = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
+export { REPO_RE };
 export const sameRepo = (first: unknown, second: unknown): boolean =>
   !!first && !!second && String(first).toLowerCase() === String(second).toLowerCase();
 

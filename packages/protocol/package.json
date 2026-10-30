@@ -1,0 +1,25 @@
+{
+  "name": "@once-upon-a-diff/protocol",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Once Upon a Diff's contract between the bridge and its clients: the wire types, the route table and the request schemas",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "test": "node ../bridge/bin/node-version.mjs && node --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json"
+  },
+  "dependencies": {
+    "valibot": "1.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.1",
+    "typescript": "5.9.3"
+  }
+}

@@ -2,6 +2,7 @@
  * The local page's shared state, and its one way to the bridge. The boot
  * block in the page names the story; its key comes in the link's #fragment.
  */
+import { createClient, type Transport } from '/assets/protocol/client.ts';
 import type { LocalStory, StoryData } from '/assets/types.ts';
 import type { InitialUi, StoryOverlay } from '/assets/overlay.ts';
 import type { Highlighter } from '/assets/syntax.ts';
@@ -39,9 +40,9 @@ export const OPEN_PUSH = new URLSearchParams(location.hash.slice(1)).get('push')
 /** The page's address without its #key, for what the page tells the bridge (position, questions). */
 export const pageUrl = () => location.href.split('#')[0];
 
-/** The story id, and its /api/stories/<id> path. */
+/** The story id, and the params every call on its routes takes. */
 export const STORY_ID = BOOT.story;
-export const STORY_PATH = `/api/stories/${encodeURIComponent(BOOT.story)}`;
+export const PARAMS = { id: BOOT.story };
 
 /**
  * What the page's modules share: the story (with its local diff), the panel (null while it's closed), whether the
@@ -59,25 +60,43 @@ export const page: LocalPage = {
   onVersion: null,
 };
 
-/** A bridge call with the page's key. Rejects with the bridge's error message. */
-export async function api<T = unknown>(method: string, path: string, body?: unknown): Promise<T> {
+/**
+ * The page's way to the bridge for the protocol's client: a fetch with the page's key. It never rejects: a call that
+ * didn't get there says so in its reply, and `bridge.ask` turns that into an Error with the bridge's message.
+ */
+const transport: Transport = async ({ method, path, body }) => {
   if (!KEY) {
-    throw new Error(
-      `this link has no key: open the page from the link \`once-upon page --story ${BOOT.story}\` prints`,
-    );
+    return {
+      ok: false,
+      status: 0,
+      error: `this link has no key: open the page from the link \`once-upon page --story ${BOOT.story}\` prints`,
+    };
   }
-  const response = await fetch(path, {
-    method,
-    cache: 'no-store',
-    headers: {
-      Authorization: `Bearer ${KEY}`,
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const json: T & { error?: string } = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(json.error || `HTTP ${response.status}`);
+  try {
+    const response = await fetch(path, {
+      method,
+      cache: 'no-store',
+      headers: {
+        Authorization: `Bearer ${KEY}`,
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    const json: unknown = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = (json as { error?: string }).error;
+      return {
+        ok: false,
+        status: response.status,
+        body: json,
+        error: message || `HTTP ${response.status}`,
+      };
+    }
+    return { ok: true, status: response.status, body: json };
+  } catch (err) {
+    return { ok: false, status: 0, error: (err as Error).message };
   }
-  return json;
-}
+};
+
+/** The typed calls to the bridge: `bridge.ask(ROUTES.name, {params: PARAMS, body})` answers or throws with the bridge's message. */
+export const bridge = createClient(transport);

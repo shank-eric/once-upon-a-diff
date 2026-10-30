@@ -1,10 +1,8 @@
 import { getSettings, setSettings } from '../../settings.ts';
 import { isPageLink, type PageKind } from '../../page-links.ts';
-import type { BridgeAnswer, BridgeRequest } from '../../content/bridge.ts';
-
-/** What the options page reads of GET /api/health and GET /api/stories. */
-type Health = { version: string };
-type StoryList = { stories?: { title: string; kind: string; repo?: string; number?: number }[] };
+import { createClient } from '@once-upon-a-diff/protocol/client';
+import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import type { BridgeRequest } from '../../content/bridge.ts';
 
 /** The page's elements by id; the form's fields are inputs. */
 const $ = (id: string) => document.getElementById(id) as HTMLInputElement;
@@ -17,20 +15,20 @@ function status(text: string, ok: boolean) {
 /** The values in the form now, saved or not, so Test works before Save. */
 const formSettings = () => ({ port: Number($('port').value), token: $('token').value.trim() });
 
+/** The bridge client for the form's values (saved or not), through the service worker. */
+const bridgeWith = (settings: ReturnType<typeof formSettings>) =>
+  createClient((request) =>
+    chrome.runtime.sendMessage({ type: 'bridge', ...request, settings } satisfies BridgeRequest),
+  );
+
 async function test(prefix = '') {
   $('stories').textContent = '';
   const settings = formSettings();
   if (!settings.token) {
     return status(`${prefix}Paste the token from once-upon setup, then test.`, false);
   }
-  const ask = <T>(path: string): Promise<BridgeAnswer<T>> =>
-    chrome.runtime.sendMessage({
-      type: 'bridge',
-      method: 'GET',
-      path,
-      settings,
-    } satisfies BridgeRequest);
-  const health = await ask<Health>('/api/health');
+  const bridge = bridgeWith(settings);
+  const health = await bridge.call(ROUTES.health);
   if (!health.ok) {
     const why =
       (
@@ -43,9 +41,9 @@ async function test(prefix = '') {
       )[health.error as string] || health.error;
     return status(`${prefix}Couldn't reach the bridge: ${why}`, false);
   }
-  const list = await ask<StoryList>('/api/stories');
+  const list = await bridge.call(ROUTES.stories);
   // a failed list's body is the bridge's error, without stories
-  const stories = ((list.body as StoryList | null) && (list.body as StoryList).stories) || [];
+  const stories = (list.ok && list.body.stories) || [];
   status(
     `${prefix}Connected to the bridge ${health.body.version}. ${stories.length} stor${stories.length === 1 ? 'y' : 'ies'}:`,
     true,
@@ -63,12 +61,7 @@ async function test(prefix = '') {
  */
 async function openPage(kind: PageKind) {
   const settings = formSettings();
-  const answer: BridgeAnswer<{ url: string }> = await chrome.runtime.sendMessage({
-    type: 'bridge',
-    method: 'GET',
-    path: '/api/board/link?public=1',
-    settings,
-  } satisfies BridgeRequest);
+  const answer = await bridgeWith(settings).call(ROUTES.boardLink, { query: { public: '1' } });
   // only a link of the right shape is opened
   if (answer.ok && isPageLink(kind, answer.body.url)) {
     chrome.tabs.create({ url: answer.body.url });

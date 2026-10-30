@@ -5,6 +5,7 @@
  */
 import type { IncomingMessage } from 'node:http';
 import type { LocalCommit } from '@once-upon-a-diff/shared/types';
+import type { AnyRoute } from '@once-upon-a-diff/protocol/routes';
 import type { StoryStore } from './stories/store.ts';
 import type { Inbox } from './inbox/inbox.ts';
 import type { Build, Builds } from './inbox/builds.ts';
@@ -117,20 +118,15 @@ export interface Call {
   readOnly?: boolean;
 }
 
-/** An /api/<path> route. A route with a method answers only that method. */
+/** An /api/<path> route: its entry in the protocol's table (path, method, keys) and what answers it. */
 export interface ApiRoute {
-  path: string;
-  method?: 'GET' | 'POST';
-  what?: string;
-  /** the agent board page's key may call this route too */
-  boardKey?: boolean;
+  route: AnyRoute;
   handle(call: Call): unknown;
 }
 
-/** A /api/stories/<id>/<what>[/<sub>] route. */
+/** A /api/stories/<id>/<what>[/<sub>] route: its entry in the protocol's table and what answers it. */
 export interface StoryRoute {
-  what: string;
-  method?: 'GET' | 'POST';
+  route: AnyRoute;
   handle(call: Call, story: ServedStory): unknown;
 }
 

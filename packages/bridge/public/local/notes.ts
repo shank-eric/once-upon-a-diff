@@ -8,7 +8,8 @@
  */
 import { html } from '/assets/util/html.ts';
 import { insertHtml, setHtml } from '/assets/util/dom.ts';
-import { page, api, STORY_PATH } from './page.ts';
+import { ROUTES } from '/assets/protocol/routes.ts';
+import { page, bridge, PARAMS } from './page.ts';
 import { columnCount } from './diff-view.ts';
 import type { LocalNote, Side } from '/assets/types.ts';
 
@@ -166,12 +167,10 @@ export function openEditor(cell: Element) {
       return;
     }
     try {
-      const note = await api<LocalNote>('POST', `${STORY_PATH}/notes`, {
-        path: rel,
-        side,
-        line,
-        body,
-      });
+      const note = (await bridge.ask(ROUTES.noteAdd, {
+        params: PARAMS,
+        body: { path: rel, side, line, body },
+      })) as LocalNote;
       page.story.local.notes.push(note);
       (form.closest('tr') as HTMLTableRowElement).remove();
       placeNotes();

@@ -4,11 +4,12 @@
  * may be typed into, and typing the listen line into one. The bridge makes the line and checks the session again, so
  * nothing the page sends is text to type.
  */
-import type { BridgeAnswer, callBridge } from './bridge.ts';
+import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import type { Bridge, BridgeAnswer } from './bridge.ts';
 import type { PanelOptions } from '@once-upon-a-diff/shared/overlay';
-import type { ListenSession, ListenTarget } from '@once-upon-a-diff/shared/types';
+import type { ListenTarget } from '@once-upon-a-diff/shared/types';
 
-type Call = typeof callBridge;
+type Call = Bridge['call'];
 
 /** Why a call failed, in words the panel can show after "Couldn't start it:". */
 export function listenError(answer: Extract<BridgeAnswer, { ok: false }>): string {
@@ -30,7 +31,7 @@ export function listenError(answer: Extract<BridgeAnswer, { ok: false }>): strin
 
 /**
  * opts.listen for the story with this id, or for a page with no story (the notice on a PR list, which only starts a repo's
- * listener). `call` is callBridge (a test passes its own).
+ * listener). `call` is the bridge client's call (a test passes its own).
  */
 export function createListenOption(
   call: Call,
@@ -45,24 +46,21 @@ export function createListenOption(
   };
   return {
     sessions: async (target: ListenTarget) => {
-      const query =
-        target.scope === 'story'
-          ? `story=${encodeURIComponent(storyOf())}`
-          : `repo=${encodeURIComponent(target.repo)}`;
-      const answer = await call<{ sessions: ListenSession[] }>(
-        'GET',
-        `/api/board/listen-sessions?${query}`,
-      );
+      const answer = await call(ROUTES.boardListenSessions, {
+        query: target.scope === 'story' ? { story: storyOf() } : { repo: target.repo },
+      });
       if (!answer.ok) {
         throw new Error(listenError(answer));
       }
       return answer.body.sessions;
     },
     start: async (sessionId: string, target: ListenTarget) => {
-      const answer = await call('POST', '/api/board/type', {
-        kind: 'listen',
-        session: sessionId,
-        ...(target.scope === 'story' ? { story: storyOf() } : { repo: target.repo }),
+      const answer = await call(ROUTES.boardType, {
+        body: {
+          kind: 'listen',
+          session: sessionId,
+          ...(target.scope === 'story' ? { story: storyOf() } : { repo: target.repo }),
+        },
       });
       if (!answer.ok) {
         throw new Error(listenError(answer));

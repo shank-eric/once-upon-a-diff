@@ -10,8 +10,9 @@ import { html } from '/assets/util/html.ts';
 import { setHtml } from '/assets/util/dom.ts';
 import { plural } from '/assets/util/text.ts';
 import { writeClipboard } from '/assets/util/clipboard.ts';
-import { api, page, STORY_PATH } from './page.ts';
-import type { PrPushAnswer, PrView } from '/assets/types.ts';
+import { ROUTES } from '/assets/protocol/routes.ts';
+import { bridge, page, PARAMS } from './page.ts';
+import type { PrView } from '/assets/types.ts';
 
 /** Longest compare link to hand GitHub; past it the body is left out and copied instead. */
 const MAX_URL = 7000;
@@ -73,7 +74,7 @@ export async function lookForPull(force = false) {
   const hadPull = lastView ? lastView.pull : null;
   lastLook = Date.now();
   try {
-    lastView = await api<PrView>('GET', `${STORY_PATH}/pr`);
+    lastView = await bridge.ask(ROUTES.prView, { params: PARAMS });
     if (hadPull && !lastView.pull) {
       lastView.pull = hadPull; // gh not answering for a moment doesn't close a PR already seen
     }
@@ -229,9 +230,9 @@ async function submit(form: HTMLFormElement, view: PrView) {
   try {
     if (view.remote.state !== 'same') {
       setHtml(result, html`<p>Pushing ${view.branch}…</p>`);
-      const answer = await api<PrPushAnswer>('POST', `${STORY_PATH}/pr`, {
-        action: 'push',
-        head_sha: view.head_sha,
+      const answer = await bridge.ask(ROUTES.prPush, {
+        params: PARAMS,
+        body: { action: 'push', head_sha: view.head_sha },
       });
       output = answer.output;
       lastView = answer.view;
@@ -283,7 +284,7 @@ export async function openPrBox() {
   box.showModal();
   let view: PrView;
   try {
-    view = await api<PrView>('GET', `${STORY_PATH}/pr`);
+    view = await bridge.ask(ROUTES.prView, { params: PARAMS });
   } catch (err) {
     setHtml(
       box,

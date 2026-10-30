@@ -20,40 +20,9 @@ import { plural, shortSha } from '@once-upon-a-diff/shared/util/text';
 import { clockTime } from '@once-upon-a-diff/shared/util/time';
 import type { Html } from '@once-upon-a-diff/shared/util/html';
 import type { Listening } from '@once-upon-a-diff/shared/types';
+import type { PrRef, BuildRequestView, StoryStatus } from '@once-upon-a-diff/protocol/types';
 
-/** A PR, as the tags know it. */
-export interface PrRef {
-  repo: string;
-  number: number;
-}
-
-/** A build request's state, as status-many and POST /api/builds say it. */
-export interface BuildRequestView {
-  id?: string;
-  status?: string;
-  state?: string;
-  mode?: string;
-  requested_at?: string;
-}
-
-/** One PR's line from POST /api/stories/status-many: its newest story, or its build request's state. */
-export interface StoryStatus {
-  repo?: string;
-  number?: number;
-  state?: 'none' | 'queued' | 'building' | 'ready' | string;
-  request?: BuildRequestView | null;
-  story?: string;
-  story_head?: string | null;
-  current_head?: string | null;
-  stale?: boolean | null;
-  newer?: number | null;
-  updating?: boolean;
-  update_state?: string | null;
-  update_mode?: string | null;
-  reads?: { read: number; total: number; next?: number | null } | null;
-  /** questions asked in the story whose answers they haven't read */
-  unread_answers?: number;
-}
+export type { PrRef, BuildRequestView, StoryStatus };
 
 /** What a tag shows and does. */
 export interface Tag {

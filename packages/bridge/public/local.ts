@@ -12,7 +12,8 @@
  */
 import { html } from '/assets/util/html.ts';
 import { setHtml } from '/assets/util/dom.ts';
-import { page, api, STORY_PATH, OPEN_PUSH } from '/assets/local/page.ts';
+import { ROUTES } from '/assets/protocol/routes.ts';
+import { page, bridge, PARAMS, OPEN_PUSH } from '/assets/local/page.ts';
 import { treeHtml, fileHtml, headerHtml, resetHighlightBudget } from '/assets/local/diff-view.ts';
 import { placeNotes, openEditor } from '/assets/local/notes.ts';
 import { openFold, openRun, forgetNarrowing } from '/assets/local/folds.ts';
@@ -64,7 +65,7 @@ async function toggleViewed(button: Element) {
     file.viewed_changed = false;
   }
   try {
-    await api('POST', `${STORY_PATH}/viewed`, { path: rel, viewed: nowViewed });
+    await bridge.ask(ROUTES.viewed, { params: PARAMS, body: { path: rel, viewed: nowViewed } });
   } catch (err) {
     alert(`Couldn't save: ${(err as Error).message}`);
   }
@@ -76,7 +77,10 @@ async function toggleViewed(button: Element) {
 async function deleteNote(button: Element) {
   const id = button.getAttribute('data-note-delete') as string;
   try {
-    await api('POST', `${STORY_PATH}/notes/${encodeURIComponent(id)}`, { delete: true });
+    await bridge.ask(ROUTES.noteUpdate, {
+      params: { ...PARAMS, note: id },
+      body: { delete: true },
+    });
   } catch (err) {
     alert(`Couldn't delete the note: ${(err as Error).message}`);
     return;
@@ -130,7 +134,7 @@ document.addEventListener('click', async (event) => {
   if (view) {
     const want = view.getAttribute('data-diff-view');
     if (want !== page.story.local.diff_view) {
-      setPref({ diffView: want }, 'the diff view');
+      setPref({ diffView: want === 'split' ? 'split' : 'unified' }, 'the diff view');
     }
     return;
   }
@@ -183,12 +187,12 @@ document.addEventListener('click', async (event) => {
 
 /** Hide whitespace and Unified/Split: saved by the bridge for every story, then the diff is redrawn under the panel. */
 async function setPref(
-  patch: { diffView?: string | null; hideWhitespace?: boolean },
+  patch: { diffView?: 'unified' | 'split'; hideWhitespace?: boolean },
   what: string,
 ) {
   try {
-    await api('POST', `${STORY_PATH}/prefs`, patch);
-    page.story = await api<LocalStoryData>('GET', STORY_PATH);
+    await bridge.ask(ROUTES.storyPrefsWrite, { params: PARAMS, body: patch });
+    page.story = (await bridge.ask(ROUTES.story, { params: PARAMS })) as LocalStoryData;
     render();
     remount();
   } catch (err) {
@@ -216,9 +220,10 @@ document.addEventListener('change', async (event) => {
     return;
   }
   const id = box.getAttribute('data-note-done') as string;
-  const updated = await api<LocalNote>('POST', `${STORY_PATH}/notes/${encodeURIComponent(id)}`, {
-    done: box.checked,
-  });
+  const updated = (await bridge.ask(ROUTES.noteUpdate, {
+    params: { ...PARAMS, note: id },
+    body: { done: box.checked },
+  })) as LocalNote;
   page.story.local.notes = page.story.local.notes.map((note) => (note.id === id ? updated : note));
   placeNotes();
 });
@@ -227,15 +232,14 @@ document.addEventListener('change', async (event) => {
 // The panel's pulse says when (mount.js), and this page polls /version itself only while the panel is closed.
 async function reloadIfChanged(known?: string) {
   try {
-    const version =
-      known ?? (await api<{ version: string }>('GET', `${STORY_PATH}/version`)).version;
+    const version = known ?? (await bridge.ask(ROUTES.storyVersion, { params: PARAMS })).version;
     if (version === page.story.version) {
       return;
     }
     if (document.querySelector('.ou-local-note-edit')) {
       return; // don't redraw under a note being written
     }
-    page.story = await api<LocalStoryData>('GET', STORY_PATH);
+    page.story = (await bridge.ask(ROUTES.story, { params: PARAMS })) as LocalStoryData;
     render();
     remount();
   } catch {
@@ -249,7 +253,7 @@ async function start() {
     () => null,
   );
   try {
-    page.story = await api<LocalStoryData>('GET', STORY_PATH);
+    page.story = (await bridge.ask(ROUTES.story, { params: PARAMS })) as LocalStoryData;
   } catch (err) {
     setHtml(
       app,
@@ -259,8 +263,10 @@ async function start() {
   }
   document.title = page.story.title;
   const [saved, prefs] = await Promise.all([
-    api<InitialUi>('GET', `${STORY_PATH}/ui`).catch(() => ({})),
-    api<{ layout?: Layout }>('GET', `${STORY_PATH}/prefs`).catch(() => null),
+    bridge.ask(ROUTES.storyUiRead, { params: PARAMS }).catch(() => ({})) as Promise<InitialUi>,
+    bridge.ask(ROUTES.storyPrefsRead, { params: PARAMS }).catch(() => null) as Promise<{
+      layout?: Layout;
+    } | null>,
   ]);
   // the story's own step and folds, at the size last dragged on any story
   page.layout = prefs?.layout || null;
@@ -290,7 +296,7 @@ async function start() {
   window.addEventListener('focus', pollWhileClosed); // the panel's own tick looks on focus while it's open
   setInterval(() => {
     if (document.visibilityState !== 'visible') {
-      api('POST', `${STORY_PATH}/seen`, {}).catch(() => {});
+      bridge.ask(ROUTES.storySeen, { params: PARAMS }).catch(() => {});
     }
   }, STILL_OPEN_MS);
   lookForPull(true); // Create pull request turns into Open PR #N once the branch has one

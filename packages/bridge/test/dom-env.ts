@@ -9,6 +9,7 @@ import path from 'node:path';
 import { parseHTML } from 'linkedom';
 
 const PUBLIC = fileURLToPath(new URL('../public/', import.meta.url));
+const PROTOCOL = fileURLToPath(new URL('../../protocol/src/', import.meta.url));
 const SHARED_UTIL = fileURLToPath(new URL('../../shared/src/util/', import.meta.url));
 
 registerHooks({
@@ -22,6 +23,10 @@ registerHooks({
     const util = /^\/assets\/util\/([a-z0-9-]+\.ts)$/.exec(specifier);
     if (util) {
       return { url: pathToFileURL(path.join(SHARED_UTIL, util[1])).href, shortCircuit: true };
+    }
+    const protocol = /^\/assets\/protocol\/([a-z0-9/-]+\.ts)$/.exec(specifier);
+    if (protocol) {
+      return { url: pathToFileURL(path.join(PROTOCOL, protocol[1])).href, shortCircuit: true };
     }
     const local = /^\/assets\/local\/([a-z0-9-]+\.ts)$/.exec(specifier);
     if (local) {

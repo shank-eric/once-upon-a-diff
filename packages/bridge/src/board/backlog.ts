@@ -19,6 +19,7 @@
  * it vanish: STARTED_GRACE_HOURS, or as long as a worktree, session or agent is found on it, backlog-links.ts) and then
  * in Done once it merged or its agent finished. That is worked out on read, so a board snapshot never writes.
  */
+import { BACKLOG_ID_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { appendFileSync, existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { REPO_RE, sameRepo } from '../config/repos.ts';
@@ -31,7 +32,7 @@ export const DONE_HOURS = 24;
 /** An assignment that no `start` followed is a hint for this long, then the item is free to hand to another session. */
 export const ASSIGN_HOURS = 2;
 
-export const ID_PATTERN = /^bl_[a-z0-9]{6,24}$/;
+export const ID_PATTERN = BACKLOG_ID_RE;
 const SESSION_PATTERN = /^[A-Za-z0-9._-]{1,100}$/;
 const BRANCH_PATTERN = /^[A-Za-z0-9._/-]{1,200}$/;
 const TITLE_MAX = 200;

@@ -8,7 +8,8 @@
 import { html } from '/assets/util/html.ts';
 import { setHtml } from '/assets/util/dom.ts';
 import { shortDateTime } from '/assets/util/time.ts';
-import { api, page, STORY_PATH } from './page.ts';
+import { ROUTES } from '/assets/protocol/routes.ts';
+import { bridge, page, PARAMS } from './page.ts';
 
 /** Set by pull-request.ts when the branch turns out to have an open PR (an event, so the two files don't import each other). */
 let hasPull = false;
@@ -45,11 +46,10 @@ export function redrawApprove() {
 export async function toggleApprove(approve: boolean) {
   failure = '';
   try {
-    const answer = await api<{ approved: { at: string; head_oid: string } | null }>(
-      'POST',
-      `${STORY_PATH}/approve`,
-      { approved: approve, head_sha: page.story.local.head_oid },
-    );
+    const answer = await bridge.ask(ROUTES.approve, {
+      params: PARAMS,
+      body: { approved: approve, head_sha: page.story.local.head_oid },
+    });
     page.story.local.approved = answer.approved;
   } catch (err) {
     failure = (err as Error).message;

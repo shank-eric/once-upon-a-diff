@@ -6,7 +6,8 @@
     "moduleResolution": "bundler",
     "paths": {
       "/assets/overlay.ts": ["../../shared/src/overlay.ts"],
-      "/assets/types.ts": ["../../shared/src/types.ts"],
+      "/assets/types.ts": ["../../protocol/src/types.ts"],
+      "/assets/protocol/*": ["../../protocol/src/*"],
       "/assets/util/*": ["../../shared/src/util/*"],
       "/assets/panel/*": ["../../shared/src/panel/*"],
       "/assets/local/*": ["./local/*"],

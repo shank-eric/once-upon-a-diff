@@ -20,6 +20,7 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p scripts/tsconfig.json && tsc -p test/tsconfig.json"
   },
   "dependencies": {
+    "@once-upon-a-diff/protocol": "workspace:*",
     "@once-upon-a-diff/shared": "workspace:*"
   },
   "devDependencies": {

@@ -15,7 +15,8 @@
  * createWhitespaceCheck reads location only when it runs.
  */
 import { filesChangedPr } from '@once-upon-a-diff/shared/util/github-paths';
-import type { BridgeAnswer, BridgeMethod } from '../bridge.ts';
+import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import type { Bridge } from '../bridge.ts';
 import type { PrefsCopy } from '../storage.ts';
 
 /** What a tab last saw of a page: its PR key and view, and w. */
@@ -121,19 +122,21 @@ export function prefsStore({
   load,
   store,
 }: {
-  call: (method: BridgeMethod, path: string, body?: unknown) => Promise<BridgeAnswer<Prefs>>;
+  call: Bridge['call'];
   load: () => Promise<PrefsCopy | null>;
   store: (value: PrefsCopy) => Promise<void>;
 }) {
   return {
     async read() {
       const copy = (await load()) || {};
-      const answer = await call('GET', '/api/prefs');
+      const answer = await call(ROUTES.prefsRead);
       if (!answer.ok) {
         return !!copy.hideWhitespace;
       }
       if (copy.dirty && !!copy.hideWhitespace !== !!answer.body.hideWhitespace) {
-        const written = await call('POST', '/api/prefs', { hideWhitespace: !!copy.hideWhitespace });
+        const written = await call(ROUTES.prefsWrite, {
+          body: { hideWhitespace: !!copy.hideWhitespace },
+        });
         if (written.ok) {
           await store({ hideWhitespace: !!written.body.hideWhitespace });
           return !!written.body.hideWhitespace;
@@ -144,7 +147,7 @@ export function prefsStore({
       return !!answer.body.hideWhitespace;
     },
     async write(hide: boolean): Promise<boolean> {
-      const answer = await call('POST', '/api/prefs', { hideWhitespace: !!hide });
+      const answer = await call(ROUTES.prefsWrite, { body: { hideWhitespace: !!hide } });
       await store(
         answer.ok
           ? { hideWhitespace: !!answer.body.hideWhitespace }

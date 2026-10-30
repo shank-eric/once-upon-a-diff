@@ -269,6 +269,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@once-upon-a-diff/extension@workspace:packages/extension"
   dependencies:
+    "@once-upon-a-diff/protocol": "workspace:*"
     "@once-upon-a-diff/shared": "workspace:*"
     "@types/chrome": "npm:0.3.4"
     "@types/node": "npm:24.19.1"
@@ -280,10 +281,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@once-upon-a-diff/protocol@workspace:*, @once-upon-a-diff/protocol@workspace:packages/protocol":
+  version: 0.0.0-use.local
+  resolution: "@once-upon-a-diff/protocol@workspace:packages/protocol"
+  dependencies:
+    "@types/node": "npm:24.19.1"
+    typescript: "npm:5.9.3"
+    valibot: "npm:1.5.0"
+  languageName: unknown
+  linkType: soft
+
 "@once-upon-a-diff/shared@workspace:*, @once-upon-a-diff/shared@workspace:packages/shared":
   version: 0.0.0-use.local
   resolution: "@once-upon-a-diff/shared@workspace:packages/shared"
   dependencies:
+    "@once-upon-a-diff/protocol": "workspace:*"
     "@types/node": "npm:24.19.1"
     typescript: "npm:5.9.3"
   languageName: unknown
@@ -3451,6 +3463,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "once-upon-a-diff@workspace:packages/bridge"
   dependencies:
+    "@once-upon-a-diff/protocol": "workspace:*"
     "@once-upon-a-diff/shared": "workspace:*"
     "@types/node": "npm:24.19.1"
     highlight.js: "npm:11.11.1"
@@ -4766,6 +4779,18 @@ __metadata:
   version: 1.0.2
   resolution: "util-deprecate@npm:1.0.2"
   checksum: 10c0/41a5bdd214df2f6c3ecf8622745e4a366c4adced864bc3c833739791aeeeb1838119af7daed4ba36428114b5c67dcda034a79c882e97e43c03e66a4dd7389942
+  languageName: node
+  linkType: hard
+
+"valibot@npm:1.5.0":
+  version: 1.5.0
+  resolution: "valibot@npm:1.5.0"
+  peerDependencies:
+    typescript: ">=5"
+  peerDependenciesMeta:
+    typescript:
+      optional: true
+  checksum: 10c0/d49dab2b2fcbb477c894def73466de598b602859a47ab92b26d387c4d2a472cbfd4ef57b49eea91aeeff143c38f5a9523914dc5a73469ec93c7cfd4326eb5fbf
   languageName: node
   linkType: hard
 

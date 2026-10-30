@@ -24,7 +24,7 @@ export function sameToken(given: unknown, token: string): boolean {
   return givenBytes.length === tokenBytes.length && timingSafeEqual(givenBytes, tokenBytes);
 }
 
-/** The request's JSON body ({} when empty). Rejects with 413 past 256 KB, 400 when it isn't JSON. */
+/** The request's JSON body ({} when empty). Rejects with 413 past 256 KB, 400 when it isn't a JSON object. */
 export function readBody(req: IncomingMessage): Promise<Body> {
   return new Promise((resolve, reject) => {
     let size = 0;
@@ -52,11 +52,19 @@ export function readBody(req: IncomingMessage): Promise<Body> {
       if (!chunks.length) {
         return resolve({});
       }
+      let parsed: unknown;
       try {
-        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')));
+        parsed = JSON.parse(Buffer.concat(chunks).toString('utf8'));
       } catch {
         reject(new HttpError(400, 'body is not JSON'));
+        return;
       }
+      // a handler reads fields off it, so null, a number or a list would only be a 500 later
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        reject(new HttpError(400, 'body must be a JSON object'));
+        return;
+      }
+      resolve(parsed as Body);
     });
     req.on('error', reject);
   });

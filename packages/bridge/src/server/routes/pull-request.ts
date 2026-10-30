@@ -5,7 +5,9 @@
  * already has an open PR: the same click-only fast-forward of what the PR is behind on, refused when there is no open PR
  * or origin has commits this checkout lacks.
  */
+import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { HttpError } from '../request.ts';
+import { parseBody } from '../validate.ts';
 import {
   DRAFT_FILE,
   prView,
@@ -34,12 +36,10 @@ async function view({ app, send }: Call, story: ServedStory) {
   return send(200, await prView(story.meta, draftOf(app, story)));
 }
 
-async function push({ app, body, send }: Call, story: ServedStory) {
+async function push({ app, body: raw, send }: Call, story: ServedStory) {
   localOnly(story);
+  const body = parseBody('prPush', raw);
   const ahead = body.action === 'push-ahead';
-  if (body.action !== 'push' && !ahead) {
-    throw new HttpError(400, 'action must be push or push-ahead');
-  }
   if (pushing.has(story.id)) {
     throw new HttpError(409, 'a push for this story is already running');
   }
@@ -76,6 +76,6 @@ async function push({ app, body, send }: Call, story: ServedStory) {
 }
 
 export const pullRequestRoutes: StoryRoute[] = [
-  { what: 'pr', method: 'GET', handle: view },
-  { what: 'pr', method: 'POST', handle: push },
+  { route: ROUTES.prView, handle: view },
+  { route: ROUTES.prPush, handle: push },
 ];

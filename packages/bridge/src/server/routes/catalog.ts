@@ -4,6 +4,8 @@
  * listening per repo).
  */
 import { readMeta } from '../../stories/meta.ts';
+import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { parseBody } from '../validate.ts';
 import { storyFinishes } from '../../inbox/builds.ts';
 import { isRebuild } from '../../stories/rebuild.ts';
 import { stateKeyOf } from '../../github/drafts.ts';
@@ -36,7 +38,6 @@ interface PrStatus {
   newer?: number | null;
 }
 
-const MAX_PRS = 200;
 const STATUS_CACHE_MS = 5000;
 
 /** How much of a story they've read, for the PR-list tag: {read, total, next} (next: the first unread step, or null). */
@@ -55,11 +56,9 @@ function readSummary(app: App, id: string) {
 function prStatus(
   app: App,
   cache: StatusCache,
-  { repo: rawRepo, number: rawNumber }: { repo?: unknown; number?: unknown },
+  { repo, number }: { repo: string; number: number },
   unread: Map<string, number>,
 ): PrStatus {
-  const repo = String(rawRepo || '');
-  const number = Number(rawNumber);
   const hits = cache.list.filter(
     (story) =>
       story.kind === 'github' &&
@@ -119,15 +118,13 @@ async function addFreshness(result: PrStatus) {
 
 /** PR lists: ready / building / none for many PRs in one call. */
 async function statusMany({ app, body, send }: Call) {
-  const prs = Array.isArray(body.prs) ? body.prs.slice(0, MAX_PRS) : [];
+  const { prs } = parseBody('statusMany', body);
   if (!app.statusCache || Date.now() - app.statusCache.at > STATUS_CACHE_MS) {
     app.statusCache = { at: Date.now(), list: app.stories.list(), builds: app.builds.all() };
   }
   const cache = app.statusCache;
   const unread = unreadAnswers(app.home, app.inbox);
-  const results = prs.map((pr: { repo?: unknown; number?: unknown }) =>
-    prStatus(app, cache, pr, unread),
-  );
+  const results = prs.map((pr) => prStatus(app, cache, pr, unread));
   await Promise.all(
     results.filter((result) => result.state === 'ready' && result.story_head).map(addFreshness),
   );
@@ -143,10 +140,9 @@ async function statusMany({ app, body, send }: Call) {
 
 export const catalogRoutes: ApiRoute[] = [
   {
-    path: '/api/stories',
-    method: 'GET',
+    route: ROUTES.stories,
     handle: ({ app, send }) =>
       send(200, { stories: app.stories.list().map(({ dir, ...story }) => story) }),
   },
-  { path: '/api/stories/status-many', method: 'POST', handle: statusMany },
+  { route: ROUTES.statusMany, handle: statusMany },
 ];

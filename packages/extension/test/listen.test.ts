@@ -1,17 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createListenOption, listenError } from '../src/content/listen.ts';
+import { createClient, type CallRequest } from '@once-upon-a-diff/protocol/client';
 import type { BridgeAnswer } from '../src/content/bridge.ts';
 
-type Call = Parameters<typeof createListenOption>[0];
-
-/** A callBridge that records what it was asked and answers from `answer`. */
+/** A bridge client over a transport that records what it was asked and answers from `answer`. */
 function fake(answer: BridgeAnswer) {
-  const calls: { method: string; path: string; body?: unknown }[] = [];
-  const call = (async (method: string, path: string, body?: unknown) => {
-    calls.push({ method, path, body });
+  const calls: CallRequest[] = [];
+  const { call } = createClient(async (request) => {
+    calls.push(request);
     return answer;
-  }) as unknown as Call;
+  });
   return { call, calls };
 }
 

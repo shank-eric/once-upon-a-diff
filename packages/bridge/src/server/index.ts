@@ -37,6 +37,8 @@ import { BoardError } from '../board/errors.ts';
 import { HttpError, sameToken, readBody } from './request.ts';
 import { COOKIE_NAMES, cookieFor, cookiesOf } from './session-cookie.ts';
 import { assetFor } from './assets.ts';
+import { parseBody } from './validate.ts';
+import { boardKeyMay } from '@once-upon-a-diff/protocol/routes';
 import { pageHeaders, localPage, boardPage } from './pages.ts';
 import {
   PAGE_KEY_PREFIX,
@@ -78,10 +80,15 @@ export const VERSION: string = JSON.parse(
   readFileSync(path.resolve(HERE, '../../package.json'), 'utf8'),
 ).version;
 
-/** /api/<path> routes, checked in order. A route with a method answers only that method. */
-const API_ROUTES: ApiRoute[] = [...statusRoutes, ...catalogRoutes, ...buildRoutes, ...boardRoutes];
+/** /api/<path> routes (each is an entry in the protocol's route table), checked in order. A route answers only its method. */
+export const API_ROUTES: ApiRoute[] = [
+  ...statusRoutes,
+  ...catalogRoutes,
+  ...buildRoutes,
+  ...boardRoutes,
+];
 /** /api/stories/<id>/<what>[/<sub>] routes, by `what` ('' for the story itself). */
-const STORY_ROUTES: StoryRoute[] = [
+export const STORY_ROUTES: StoryRoute[] = [
   ...storyRoutes,
   ...questionRoutes,
   ...draftRoutes,
@@ -95,9 +102,6 @@ const STORY_ROUTES: StoryRoute[] = [
 const STORY_PATH = /^\/api\/stories\/([^/]+)(?:\/([a-z]+)(?:\/([^/]+))?)?$/;
 const SEEN_WRITE_MS = 30000;
 const HTML = 'text/html; charset=utf-8';
-
-const methodMatches = (route: { method?: string }, method: string | undefined) =>
-  !route.method || route.method === method;
 
 /** The server, with the stores it serves from, for the CLI's startup line and the tests. Call .listen(port, '127.0.0.1'). */
 export type Bridge = http.Server & {
@@ -192,7 +196,7 @@ export function createBridge({
     if (!/^application\/json\b/i.test(String(req.headers['content-type'] || ''))) {
       throw new HttpError(415, 'send application/json');
     }
-    const key = String((await readBody(req)).key || '');
+    const { key } = parseBody('authSession', await readBody(req));
     let name: string | null = null;
     if (key.startsWith(PAGE_KEY_PREFIX) && sameToken(key, boardKey(token))) {
       name = COOKIE_NAMES.board;
@@ -332,7 +336,7 @@ export function createBridge({
     const ref = { story: id, kind: meta.kind, title: meta.title, repo: storyRepo(meta) };
     const story = { id, dir, meta, ref, sub: match[3] };
     const route = STORY_ROUTES.find(
-      (candidate) => candidate.what === what && methodMatches(candidate, call.req.method),
+      (candidate) => candidate.route.what === what && candidate.route.method === call.req.method,
     );
     if (!route) {
       throw new HttpError(404, 'not found');
@@ -396,9 +400,9 @@ export function createBridge({
         !scope &&
         API_ROUTES.find(
           (candidate) =>
-            candidate.path === pathname &&
-            methodMatches(candidate, req.method) &&
-            (!pageScope || candidate.boardKey),
+            candidate.route.path === pathname &&
+            candidate.route.method === req.method &&
+            (!pageScope || boardKeyMay(candidate.route)),
         );
       if (route) {
         return await route.handle(call);

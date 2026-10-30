@@ -3,6 +3,7 @@
  * (background.js), which calls the bridge on 127.0.0.1. GitHub's page never
  * talks to the bridge itself.
  */
+import { createClient, type Reply, type Transport } from '@once-upon-a-diff/protocol/client';
 import type { BridgeSettings } from '../settings.ts';
 
 export type BridgeMethod = 'GET' | 'POST';
@@ -26,11 +27,9 @@ export interface BridgeReply {
 
 /**
  * The same, as a caller takes it: an ok answer's body is the bridge's JSON, of the type the caller asks for (the
- * bridge's own code makes it).
+ * bridge's own code makes it). This is the protocol client's Reply.
  */
-export type BridgeAnswer<T = unknown> =
-  | { ok: true; status: number; body: T; error?: null }
-  | { ok: false; status: number; body?: unknown; error?: string | null };
+export type BridgeAnswer<T = unknown> = Reply<T>;
 
 /** false once the extension has been reloaded or removed under this page: chrome.* calls would throw. */
 export const extensionAlive = () => !!(globalThis.chrome && chrome.runtime && chrome.runtime.id);
@@ -59,3 +58,15 @@ export async function callBridge<T = unknown>(
     return { ok: false, status: 0, error: 'extension reloaded' };
   }
 }
+
+/** callBridge as the protocol client's transport. */
+const transport: Transport = ({ method, path, body }) => callBridge(method, path, body);
+
+/**
+ * The typed way to call the bridge from a content script: `bridge.call(ROUTES.name, {params, query, body})` answers
+ * {ok, status, body, error} and never rejects, with the route's body and answer types (@once-upon-a-diff/protocol).
+ */
+export const bridge = createClient(transport);
+
+/** The client's type, for what takes one (a test passes its own). */
+export type Bridge = typeof bridge;

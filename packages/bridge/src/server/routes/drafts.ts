@@ -6,6 +6,7 @@
  * (action fix) makes the draft a note (./fixes.ts). A comment drafted in
  * Q&A comes in through `once-upon comment`.
  */
+import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { newId } from '../../inbox/inbox.ts';
 import {
   stateKeyOf,
@@ -17,15 +18,19 @@ import {
   noteAdded,
 } from '../../github/drafts.ts';
 import { addToPendingReview } from '../../github/review.ts';
-import { HttpError, toInt } from '../request.ts';
+import { HttpError } from '../request.ts';
+import { parseBody } from '../validate.ts';
 import { noteFromDraft } from './fixes.ts';
 import type { DraftComment, StoryData } from '@once-upon-a-diff/shared/types';
-import type { App, Body, Call, ServedStory, StoryRoute } from '../../types.ts';
+import type { App, Call, ServedStory, StoryRoute } from '../../types.ts';
 
 /** The drafted comment a request names by chapter (1-based) and index, else 404. */
-export function draftOf(chapters: StoryData['chapters'], body: Body): DraftComment {
-  const chapter = chapters[(toInt(body.chapter) as number) - 1];
-  const comment = chapter && chapter.comments[toInt(body.index) as number];
+export function draftOf(
+  chapters: StoryData['chapters'],
+  where: { chapter: number | null; index: number | null },
+): DraftComment {
+  const chapter = chapters[(where.chapter as number) - 1];
+  const comment = chapter && chapter.comments[where.index as number];
   if (!comment) {
     throw new HttpError(404, 'no such draft');
   }
@@ -38,7 +43,7 @@ async function addToReview(
   story: ServedStory,
   key: string,
   comment: DraftComment,
-  body: Body,
+  chapter: number | null,
 ) {
   const { meta } = story;
   if (meta.kind !== 'github' || !meta.repo || !meta.number) {
@@ -61,7 +66,7 @@ async function addToReview(
     type: 'review_comment',
     id: newId('r'),
     ...story.ref,
-    chapter: toInt(body.chapter),
+    chapter,
     path: comment.path,
     line: comment.line,
     url: added.url,
@@ -70,18 +75,19 @@ async function addToReview(
   return added;
 }
 
-async function drafts({ app, req, body, send }: Call, story: ServedStory) {
+async function drafts({ app, req, body: raw, send }: Call, story: ServedStory) {
   const { meta } = story;
   const key = stateKeyOf(story.id, meta);
   let added = null;
   if (req.method === 'POST') {
+    const body = parseBody('draftsAct', raw);
     const comment = draftOf((app.stories.load(story.id) as StoryData).chapters, body);
     if (body.action === 'review') {
-      added = await addToReview(app, story, key, comment, body);
+      added = await addToReview(app, story, key, comment, body.chapter);
     } else if (body.action === 'fix') {
       noteFromDraft(app, story, body); // Add to fix before push
     } else {
-      mark(app.home, key, String(body.action || ''), comment);
+      mark(app.home, key, body.action, comment);
     }
   }
   const { rows, login, error } = await draftsOf(app.home, app.stories, story.id, meta);
@@ -94,4 +100,7 @@ async function drafts({ app, req, body, send }: Call, story: ServedStory) {
   });
 }
 
-export const draftRoutes: StoryRoute[] = [{ what: 'drafts', handle: drafts }];
+export const draftRoutes: StoryRoute[] = [
+  { route: ROUTES.draftsRead, handle: drafts },
+  { route: ROUTES.draftsAct, handle: drafts },
+];

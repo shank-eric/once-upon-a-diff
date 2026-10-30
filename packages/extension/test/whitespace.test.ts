@@ -10,7 +10,7 @@ import {
   REDIRECT_GUARD_MS,
   type Prefs,
 } from '../src/content/pages/hide-whitespace.ts';
-import type { BridgeAnswer } from '../src/content/bridge.ts';
+import { createClient, type Transport } from '@once-upon-a-diff/protocol/client';
 import type { PrefsCopy } from '../src/content/storage.ts';
 import { tmp, startBridge } from 'once-upon-a-diff/test/helpers';
 
@@ -146,17 +146,19 @@ describe('GitHub Hide whitespace: the saved setting', () => {
       },
     };
   };
-  const down: Store['call'] = async () => ({ ok: false, status: 0, error: 'unreachable' });
+  /** A bridge client over a fake transport. */
+  const over = (transport: Transport): Store['call'] => createClient(transport).call;
+  const down = over(async () => ({ ok: false, status: 0, error: 'unreachable' }));
 
   test('is the same prefs.json setting the local page uses', async () => {
     const home = tmp('home');
     const bridge = await startBridge({ home });
     try {
       // the answer as callBridge gives it, with the fields prefsStore reads
-      const call: Store['call'] = async (method, path, body) => {
+      const call = over(async ({ method, path, body }) => {
         const response = await bridge.call<Prefs>(method, path, body);
-        return { ok: response.status === 200, body: response.body } as BridgeAnswer<Prefs>;
-      };
+        return { ok: response.status === 200, status: response.status, body: response.body };
+      });
       const storage = fakeStorage();
       const prefs = prefsStore({ call, ...storage });
       assert.equal(await prefs.read(), false);
@@ -180,14 +182,13 @@ describe('GitHub Hide whitespace: the saved setting', () => {
 
     const sent: unknown[] = [];
     let saved = false;
-    const call: Store['call'] = async (method, path, body) => {
+    const call = over(async ({ method, body }) => {
       if (method === 'POST') {
         sent.push(body);
         saved = (body as Partial<Prefs>).hideWhitespace as boolean;
-        return { ok: true, body: { hideWhitespace: saved } } as BridgeAnswer<Prefs>;
       }
-      return { ok: true, body: { hideWhitespace: saved } } as BridgeAnswer<Prefs>;
-    };
+      return { ok: true, status: 200, body: { hideWhitespace: saved } };
+    });
     const online = prefsStore({ call, ...storage });
     assert.equal(await online.read(), true);
     assert.deepEqual(sent, [{ hideWhitespace: true }]);
@@ -197,7 +198,7 @@ describe('GitHub Hide whitespace: the saved setting', () => {
   test('takes the bridge value over a clean copy', async () => {
     const storage = fakeStorage({ hideWhitespace: true });
     const prefs = prefsStore({
-      call: async () => ({ ok: true, body: { hideWhitespace: false } }) as BridgeAnswer<Prefs>,
+      call: over(async () => ({ ok: true, status: 200, body: { hideWhitespace: false } })),
       ...storage,
     });
     assert.equal(await prefs.read(), false);

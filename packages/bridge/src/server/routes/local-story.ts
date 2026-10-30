@@ -4,16 +4,19 @@
  * page key only, as it is not on the read-only key's list in ../page-key.ts). Fix-before-push notes are in ./fixes.ts,
  * for PR and local stories alike.
  */
+import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { HttpError } from '../request.ts';
+import { parseBody } from '../validate.ts';
 import { approvalOf, approveStory, clearApproval } from '../../story-lists/approve.ts';
 import type { LocalStory, StoryData } from '@once-upon-a-diff/shared/types';
 import { refreshLocal } from '../../stories/local-diff.ts';
 import type { Call, LocalMeta, ServedStory, StoryRoute } from '../../types.ts';
 
-function viewed({ app, body, send }: Call, story: ServedStory) {
+function viewed({ app, body: raw, send }: Call, story: ServedStory) {
   if (story.meta.kind !== 'local') {
     throw new HttpError(400, 'viewed files are kept by GitHub for PR stories');
   }
+  const body = parseBody('viewed', raw);
   const data = app.stories.load(story.id) as StoryData & { local: LocalStory };
   const file = data.local.files.find((candidate) => candidate.rel === body.path);
   if (!file) {
@@ -33,10 +36,11 @@ function viewed({ app, body, send }: Call, story: ServedStory) {
   return send(200, { path: file.rel, viewed: !!body.viewed });
 }
 
-function approve({ app, body, send }: Call, story: ServedStory) {
+function approve({ app, body: raw, send }: Call, story: ServedStory) {
   if (story.meta.kind !== 'local') {
     throw new HttpError(400, 'a PR story is approved on GitHub');
   }
+  const body = parseBody('approve', raw);
   // the head as it is now: a commit since the page drew moves it
   const meta = refreshLocal(story.dir, story.meta as LocalMeta);
   const answer = () => {
@@ -70,6 +74,6 @@ function approve({ app, body, send }: Call, story: ServedStory) {
 }
 
 export const localStoryRoutes: StoryRoute[] = [
-  { what: 'viewed', method: 'POST', handle: viewed },
-  { what: 'approve', method: 'POST', handle: approve },
+  { route: ROUTES.viewed, handle: viewed },
+  { route: ROUTES.approve, handle: approve },
 ];

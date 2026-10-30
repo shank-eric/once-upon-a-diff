@@ -8,7 +8,9 @@
  * Today's packages and where they sit:
  *   packages/bridge/src      server (Node)
  *   packages/bridge/public   the board and local pages (browser, will become apps/web)
- *   packages/shared          the panel, its helpers and the shared types (browser-safe)
+ *   packages/shared          the panel and its helpers (browser-safe)
+ *   packages/protocol/src    the wire types, route table and schemas (no DOM, no Node, imports no package but valibot)
+ *   packages/protocol/src/domain  pure rules: imports nothing at all
  *   packages/extension/src   the Chrome extension (app)
  * Tests, scripts and config files are Node and cross packages on purpose, so no layer
  * names them. packages/bridge/test/boundary-lint.test.ts probes every rule below.
@@ -23,7 +25,7 @@
  *     lists with `...PARENT.paths`, and its files are carved out of the parent's `files`
  *     with `ignores`, so no file matches two blocks.
  *
- * To add a layer (protocol, panel, board-view, ui, web, board-core):
+ * To add a layer (panel, board-view, ui, web, board-core):
  *   1. Add a `files` glob and an entry to LAYERS (see FUTURE at the bottom).
  *   2. List what it must not reach in `paths` (folders, resolved after relative imports)
  *      and `specifiers` (package names and URL paths as written in the import).
@@ -54,6 +56,22 @@ const SHARED_PACKAGE = {
   message:
     'inside packages/shared, imports stay relative (the local page loads those files into the browser)',
 };
+const NOT_THE_SCHEMAS_MESSAGE =
+  'schemas.ts is server side: it imports valibot, which no page or extension loads (routes.ts takes its types with import type)';
+const SCHEMAS = {
+  regex: '^(@once-upon-a-diff/protocol|/assets/protocol)/schemas(\\.ts)?$',
+  message: NOT_THE_SCHEMAS_MESSAGE,
+};
+// any bare or absolute specifier but valibot (the protocol's one dependency); relative ones stay inside the package
+const PROTOCOL_IMPORTS = {
+  regex: '^(?!valibot$)[^.]',
+  message: 'protocol imports nothing but itself and valibot',
+};
+const NOTHING = {
+  regex: '.',
+  message:
+    'the domain imports nothing, not even the rest of the protocol (the protocol imports the domain)',
+};
 const ASSET_URL = {
   regex: '^/assets/',
   message: 'shared is served at /assets/ for the pages, so it must not import through that URL',
@@ -65,6 +83,8 @@ const BRIDGE_PUBLIC = './packages/bridge/public';
 const SHARED_UTIL = './packages/shared/src/util';
 const SHARED_PANEL = './packages/shared/src/panel';
 const EXTENSION_SRC = './packages/extension/src';
+const PROTOCOL_SRC = './packages/protocol/src';
+const PROTOCOL_DOMAIN = './packages/protocol/src/domain';
 
 // restrictions (a `from` folder with the reason it is off limits)
 const NOT_THE_PAGES = { from: BRIDGE_PUBLIC, message: 'the server does not import the pages' };
@@ -74,11 +94,23 @@ const NOT_THE_SERVER = {
   message: 'the pages, shared and the extension meet the server over HTTP, not by import',
 };
 const NOT_THE_BRIDGE = { from: './packages/bridge', message: 'shared sits below the bridge' };
+const NOT_THE_BRIDGE_PACKAGE = {
+  from: './packages/bridge',
+  message: 'the protocol sits below the bridge',
+};
+const NOT_THE_SHARED_PACKAGE = {
+  from: './packages/shared',
+  message: 'the protocol sits below shared',
+};
+const NOT_THE_SCHEMAS = {
+  from: './packages/protocol/src/schemas.ts',
+  message: NOT_THE_SCHEMAS_MESSAGE,
+};
 const NOT_THE_PANEL = { from: SHARED_PANEL, message: 'shared/util is below shared/panel' };
 
 const SHARED = {
-  paths: [NOT_THE_BRIDGE, NOT_THE_EXTENSION],
-  specifiers: [BRIDGE, EXTENSION, SHARED_PACKAGE, ASSET_URL],
+  paths: [NOT_THE_BRIDGE, NOT_THE_EXTENSION, NOT_THE_SCHEMAS],
+  specifiers: [BRIDGE, EXTENSION, SHARED_PACKAGE, ASSET_URL, SCHEMAS],
 };
 
 const LAYERS = [
@@ -94,8 +126,27 @@ const LAYERS = [
     files: ['packages/bridge/public/**/*.ts'],
     ignores: ['packages/bridge/public/vendor/**'],
     targets: [BRIDGE_PUBLIC],
-    paths: [NOT_THE_SERVER],
-    specifiers: [BRIDGE, EXTENSION],
+    paths: [NOT_THE_SERVER, NOT_THE_SCHEMAS],
+    specifiers: [BRIDGE, EXTENSION, SCHEMAS],
+    browser: true,
+  },
+  {
+    // the protocol: types, the route table, the schemas and the typed client. It reaches no other package.
+    name: 'protocol',
+    files: ['packages/protocol/src/**/*.ts'],
+    ignores: ['packages/protocol/src/domain/**'],
+    targets: [PROTOCOL_SRC],
+    paths: [NOT_THE_BRIDGE_PACKAGE, NOT_THE_SHARED_PACKAGE, NOT_THE_EXTENSION],
+    specifiers: [PROTOCOL_IMPORTS],
+    browser: true,
+  },
+  {
+    // the domain is a layer of its own inside the protocol: pure rules that import nothing, relative paths included
+    name: 'domain',
+    files: ['packages/protocol/src/domain/**/*.ts'],
+    targets: [PROTOCOL_DOMAIN],
+    paths: [{ from: './packages', message: NOTHING.message }],
+    specifiers: [NOTHING],
     browser: true,
   },
   {
@@ -119,8 +170,8 @@ const LAYERS = [
     name: 'extension',
     files: ['packages/extension/src/**/*.ts'],
     targets: [EXTENSION_SRC],
-    paths: [NOT_THE_SERVER],
-    specifiers: [BRIDGE],
+    paths: [NOT_THE_SERVER, NOT_THE_SCHEMAS],
+    specifiers: [BRIDGE, SCHEMAS],
     browser: true,
   },
 ];
@@ -129,8 +180,6 @@ const LAYERS = [
  * Layers still to come, written the way they will read. Move each into LAYERS as its split
  * lands, and keep the probe test in step.
  *
- *   protocol:   files packages/protocol/src/**. paths: every other package folder.
- *               specifiers: every workspace package. browser: true (no DOM and no Node either).
  *   panel:      files packages/panel/src/**. paths: web, extension, board-view. browser: true.
  *   board-view: files packages/board-view/src/**. paths: web, extension, panel. browser: true.
  *   ui:         files packages/ui/src/**. paths: panel, board-view, web, extension. browser: true.

@@ -1,9 +1,9 @@
 /*
  * The files the bridge serves without a token: the local page's scripts,
- * CSS and icon, and the panel's modules, stylesheets and shared helpers from the shared
- * package (@once-upon-a-diff/shared). TypeScript modules go out as
- * JavaScript, their types stripped the way Node strips the bridge's own, so
- * the browser runs the same lines with no build step.
+ * CSS and icon, the panel's modules, stylesheets and shared helpers from the shared
+ * package (@once-upon-a-diff/shared), and the route table and client from the protocol
+ * package. TypeScript modules go out as JavaScript, their types stripped the way Node
+ * strips the bridge's own, so the browser runs the same lines with no build step.
  */
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
@@ -15,11 +15,20 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.resolve(HERE, '../../public');
 /** The shared package's sources (src/), wherever the workspace links it from. */
 const SHARED = path.dirname(fileURLToPath(import.meta.resolve('@once-upon-a-diff/shared/overlay')));
+/** The protocol package's sources (src/). */
+const PROTOCOL = path.dirname(
+  fileURLToPath(import.meta.resolve('@once-upon-a-diff/protocol/routes')),
+);
 const SCRIPT = 'text/javascript; charset=utf-8';
 const STYLESHEET = 'text/css; charset=utf-8';
 const PNG = 'image/png';
 /** The panel's modules and stylesheets and the shared helpers, served from the shared package's src/<folder>/ for the local page. */
 const SHARED_MODULE = /^\/assets\/(panel|util)\/([a-z0-9-]+\.(?:ts|css))$/;
+/**
+ * The protocol's modules a page may load: the route table, the typed client and the domain's id patterns. Not schemas.ts, which
+ * imports valibot (the bridge checks bodies, the pages don't) and has nothing for a page to run.
+ */
+const PROTOCOL_MODULE = /^\/assets\/protocol\/(routes|client|domain\/patterns)\.ts$/;
 /** The local page's own modules and stylesheets, from public/local/. */
 const LOCAL_MODULE = /^\/assets\/local\/([a-z0-9-]+\.(?:ts|css))$/;
 
@@ -81,12 +90,18 @@ export function assetFor(pathname: string): [string | Buffer, string] | null {
   }
   const sharedModule = SHARED_MODULE.exec(pathname);
   const localModule = LOCAL_MODULE.exec(pathname);
-  if (!sharedModule && !localModule) {
+  const protocolModule = PROTOCOL_MODULE.exec(pathname);
+  if (!sharedModule && !localModule && !protocolModule) {
     return null;
   }
-  const file = sharedModule
-    ? path.join(SHARED, sharedModule[1], sharedModule[2])
-    : path.join(PUBLIC, 'local', (localModule as RegExpExecArray)[1]);
+  let file: string;
+  if (sharedModule) {
+    file = path.join(SHARED, sharedModule[1], sharedModule[2]);
+  } else if (protocolModule) {
+    file = path.join(PROTOCOL, `${protocolModule[1]}.ts`);
+  } else {
+    file = path.join(PUBLIC, 'local', (localModule as RegExpExecArray)[1]);
+  }
   if (!existsSync(file)) {
     throw new HttpError(404, 'no such module');
   }

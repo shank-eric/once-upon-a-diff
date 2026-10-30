@@ -5,21 +5,9 @@
  * panel's Fix before push sends the notes to a Claude session.
  */
 import { storyOverlay, type InitialUi } from '/assets/overlay.ts';
-import type {
-  BridgeStatus,
-  DraftsAnswer,
-  FixesView,
-  ListenSession,
-  LocalNote,
-  Question,
-  QuestionMarksAnswer,
-  ReadInfo,
-  RebuildView,
-  Pulse,
-  StatusError,
-  WorkingMark,
-} from '/assets/types.ts';
-import { page, api, pageUrl, STORY_PATH } from './page.ts';
+import type { LocalNote, StatusError } from '/assets/types.ts';
+import { ROUTES } from '/assets/protocol/routes.ts';
+import { page, bridge, pageUrl, PARAMS } from './page.ts';
 import { narrow, reveal, unnarrow, forgetNarrowing } from './folds.ts';
 import { placeNotes } from './notes.ts';
 
@@ -37,13 +25,16 @@ function statusError(err: Error): never {
 
 /** Add to fix before push: the bridge makes the draft a note (once), which joins the checklist and the diff. */
 async function addToFixBeforePush(chapter: number, index: number) {
-  const note = await api<LocalNote>('POST', `${STORY_PATH}/notes`, { chapter, index });
+  const note = (await bridge.ask(ROUTES.noteAdd, {
+    params: PARAMS,
+    body: { chapter, index },
+  })) as LocalNote;
   page.story.local.notes = [
     ...page.story.local.notes.filter((existing) => existing.id !== note.id),
     note,
   ];
   placeNotes();
-  return api<DraftsAnswer>('GET', `${STORY_PATH}/drafts`);
+  return bridge.ask(ROUTES.draftsRead, { params: PARAMS });
 }
 
 export function mount(initial: InitialUi) {
@@ -58,40 +49,46 @@ export function mount(initial: InitialUi) {
     commentsTitle: 'Fix before push (drafted)',
     onState: (panelState) => {
       page.lastUi = { ...panelState, hidden: false };
-      api('POST', `${STORY_PATH}/ui`, page.lastUi).catch(() => {});
+      bridge.ask(ROUTES.storyUiWrite, { params: PARAMS, body: page.lastUi }).catch(() => {});
     },
     // a drag: the new size is every story's (prefs.json), here and on GitHub
     onLayout: (layout) => {
       page.layout = { ...page.layout, ...layout };
-      api('POST', `${STORY_PATH}/prefs`, { layout }).catch(() => {});
+      bridge.ask(ROUTES.storyPrefsWrite, { params: PARAMS, body: { layout } }).catch(() => {});
     },
     onFilter: narrow,
     reveal,
     onPosition: (position) =>
-      api('POST', `${STORY_PATH}/position`, { ...position, url: pageUrl() }).catch(() => {}),
-    reads: () => api<ReadInfo>('GET', `${STORY_PATH}/read`),
-    onRead: (read) => api('POST', `${STORY_PATH}/read`, read), // the bridge records the range's head commit with it
+      bridge
+        .ask(ROUTES.storyPosition, { params: PARAMS, body: { ...position, url: pageUrl() } })
+        .catch(() => {}),
+    reads: () => bridge.ask(ROUTES.readRead, { params: PARAMS }),
+    onRead: (read) => bridge.ask(ROUTES.readNote, { params: PARAMS, body: read }), // the bridge records the range's head commit with it
     onClose: () => {
       page.overlay = null;
       page.hidden = true;
       forgetNarrowing();
       unnarrow();
-      api('POST', `${STORY_PATH}/ui`, { ...page.lastUi, hidden: true }).catch(() => {});
+      bridge
+        .ask(ROUTES.storyUiWrite, { params: PARAMS, body: { ...page.lastUi, hidden: true } })
+        .catch(() => {});
       showReopen();
     },
-    ask: (question) => api('POST', `${STORY_PATH}/questions`, { ...question, url: pageUrl() }),
+    ask: (question) =>
+      bridge.ask(ROUTES.questionAsk, { params: PARAMS, body: { ...question, url: pageUrl() } }),
     loadQuestions: () =>
-      api<{ questions: Question[] }>('GET', `${STORY_PATH}/questions`).then(
-        (answer) => answer.questions,
-      ),
+      bridge.ask(ROUTES.questionsRead, { params: PARAMS }).then((answer) => answer.questions),
     markQuestions: (action, ids, extra) =>
-      api<QuestionMarksAnswer>('POST', `${STORY_PATH}/questions/marks`, { action, ids, ...extra }),
+      bridge.ask(ROUTES.questionMarks, { params: PARAMS, body: { action, ids, ...extra } }),
     fixes: {
-      load: () => api<FixesView>('GET', `${STORY_PATH}/fixes`),
-      act: (body) => api<FixesView>('POST', `${STORY_PATH}/fixes`, body),
+      load: () => bridge.ask(ROUTES.fixesRead, { params: PARAMS }),
+      act: (body) => bridge.ask(ROUTES.fixesAct, { params: PARAMS, body }),
       note: (noteId, changes) =>
         // the panel edits only a note it drew, which has an id
-        api('POST', `${STORY_PATH}/notes/${encodeURIComponent(noteId as string)}`, changes),
+        bridge.ask(ROUTES.noteUpdate, {
+          params: { ...PARAMS, note: noteId as string },
+          body: changes,
+        }),
       // the panel's notes changed (sent, fixed, edited): the diff and the checklist show the same
       onChange: (view) => {
         // the view's notes are notes.json's, each with its state (shared FixNote leaves out `at`, `done`...)
@@ -99,33 +96,35 @@ export function mount(initial: InitialUi) {
         placeNotes();
       },
     },
-    working: () => api<{ marks?: WorkingMark[] }>('GET', `${STORY_PATH}/working`),
+    working: () => bridge.ask(ROUTES.working, { params: PARAMS }),
     drafts: {
-      load: () => api<DraftsAnswer>('GET', `${STORY_PATH}/drafts`),
+      load: () => bridge.ask(ROUTES.draftsRead, { params: PARAMS }),
       act: (chapter, index, action) =>
         action === 'fix'
           ? addToFixBeforePush(chapter, index)
-          : api<DraftsAnswer>('POST', `${STORY_PATH}/drafts`, { chapter, index, action }),
+          : bridge.ask(ROUTES.draftsAct, { params: PARAMS, body: { chapter, index, action } }),
     },
     // Rebuild story / Rebuild from here: a build request for this story, which `once-upon local` finishes
-    requestRebuild: (ask) =>
-      api<{ rebuild?: RebuildView | null }>('POST', `${STORY_PATH}/rebuild`, ask),
-    pulse: () => api<Pulse>('GET', `${STORY_PATH}/pulse`),
+    requestRebuild: (ask) => bridge.ask(ROUTES.storyRebuildWrite, { params: PARAMS, body: ask }),
+    pulse: () => bridge.ask(ROUTES.storyPulse, { params: PARAMS }),
     // the story or the commits moved: local.js reloads and redraws
     onPulse: (pulse) => {
       if (pulse.version !== page.story.version && page.onVersion) {
         page.onVersion(pulse.version);
       }
     },
-    status: () => api<BridgeStatus>('GET', `${STORY_PATH}/status`).catch(statusError),
+    status: () => bridge.ask(ROUTES.storyStatus, { params: PARAMS }).catch(statusError),
     // Start listening: the story's own routes type the listen line into an idle session (the board's routes need the board's key)
     listen: {
       sessions: () =>
-        api<{ sessions: ListenSession[] }>('GET', `${STORY_PATH}/listen`).then(
-          (answer) => answer.sessions,
-        ),
+        bridge
+          .ask(ROUTES.storyListenSessions, { params: PARAMS })
+          .then((answer) => answer.sessions),
       start: async (session, target) => {
-        await api('POST', `${STORY_PATH}/listen`, { session, scope: target.scope });
+        await bridge.ask(ROUTES.storyListen, {
+          params: PARAMS,
+          body: { session, scope: target.scope },
+        });
       },
     },
   });

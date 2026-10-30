@@ -10,7 +10,7 @@
  * GitHub's page and posts nothing.
  */
 import { wireStartListening } from '@once-upon-a-diff/shared/panel/start-listening';
-import { callBridge } from '../bridge.ts';
+import { bridge } from '../bridge.ts';
 import { createListenOption } from '../listen.ts';
 import { noticeRowHtml } from './story-tag.ts';
 import type { MissingListener } from './story-tag.ts';
@@ -28,7 +28,7 @@ const NOTICE_CSS_URL = chrome.runtime.getURL('content/ui/listen-notice.css');
 
 /** onStarted: a listen line was typed (the page looks again soon, so the row goes when the listener shows). */
 export function listenNotice({ onStarted }: { onStarted?: () => void } = {}) {
-  const listen = createListenOption(callBridge);
+  const listen = createListenOption(bridge.call);
   let host: HTMLDivElement | null = null;
   let root: HTMLDivElement | null = null;
   let dismissed = false;

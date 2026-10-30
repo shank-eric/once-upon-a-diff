@@ -8,9 +8,11 @@
  * when to look.
  */
 import { prKey } from '@once-upon-a-diff/shared/util/github-paths';
-import { callBridge, type BridgeAnswer } from '../bridge.ts';
+import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { bridge, type BridgeAnswer } from '../bridge.ts';
 import type { Listening } from '@once-upon-a-diff/shared/types';
-import type { BuildRequestView, PrRef, StoryStatus } from './story-tag.ts';
+import type { StatusMany } from '@once-upon-a-diff/protocol/types';
+import type { PrRef, StoryStatus } from './story-tag.ts';
 import { listenNotice } from './listen-notice.ts';
 import { answersBadge, tagFor, tagHtml, requestFor, missingListeners } from './story-tag.ts';
 import { html } from '@once-upon-a-diff/shared/util/html';
@@ -20,12 +22,6 @@ const MAX_PER_CALL = 200;
 const LISTENER_LOOKS_MS = [5000, 10000, 15000]; // after Start listening typed its line: asks who listens at about 5, 15 and 30 s
 const LOOK_AGAIN_MS = 10000; // while a story is queued, building or updating
 const OFFLINE_MS = 30000; // while the bridge doesn't answer
-
-/** POST /api/stories/status-many's answer. */
-interface StatusMany {
-  results: StoryStatus[];
-  listening?: Record<string, Listening>;
-}
 
 export const inFlight = (result: StoryStatus | null) =>
   !!result && (result.state === 'queued' || result.state === 'building' || !!result.updating);
@@ -84,8 +80,8 @@ export function createPrTags({ attr, onStory }: { attr: string; onStory?: (pr: P
     if (!need.length) {
       return { ok: true };
     }
-    const answer = await callBridge<StatusMany>('POST', '/api/stories/status-many', {
-      prs: need.map(({ repo, number }) => ({ repo, number })),
+    const answer = await bridge.call(ROUTES.statusMany, {
+      body: { prs: need.map(({ repo, number }) => ({ repo, number })) },
     });
     lastAsk = Date.now();
     failed = !answer.ok;
@@ -128,11 +124,9 @@ export function createPrTags({ attr, onStory }: { attr: string; onStory?: (pr: P
     button.disabled = true;
     const tag = tagFor(resultOf(pr), pr);
     const retell = button.getAttribute('data-act') === 'retell';
-    const answer = await callBridge<{ state: string; request: BuildRequestView }>(
-      'POST',
-      '/api/builds',
-      requestFor(tag, pr, { retell }),
-    );
+    const answer = await bridge.call(ROUTES.buildRequest, {
+      body: requestFor(tag, pr, { retell }),
+    });
     if (answer.ok) {
       const previous = resultOf(pr) || {};
       results.set(
