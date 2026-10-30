@@ -29,7 +29,7 @@ import {
   uncoveredHunks,
   SMALL_FILE_LINES,
 } from '../../../packages/bridge/src/services/stories/hunk-coverage.ts';
-import { finishedInOf } from '../../../packages/shared/src/panel/story-model.ts';
+import { finishedInOf } from '../../../packages/shared/src/util/story-model.ts';
 
 import type { DiffFile, UncoveredFile } from '../../../packages/shared/src/types.ts';
 import type { Plan } from '../../../packages/bridge/src/services/stories/chapters.ts';

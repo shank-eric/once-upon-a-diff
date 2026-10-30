@@ -24,7 +24,7 @@
  */
 import { stateFile } from '../config/settings.ts';
 import { readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
-import { chapterKeyOf } from '@once-upon-a-diff/shared/panel/story-model';
+import { chapterKeyOf } from '@once-upon-a-diff/shared/util/story-model';
 import { SHA_RE } from '@once-upon-a-diff/shared/util/text';
 import type { Chapter, DiffFile } from '@once-upon-a-diff/shared/types';
 

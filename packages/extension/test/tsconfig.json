@@ -4,5 +4,5 @@
     "lib": ["es2023", "dom", "dom.iterable"],
     "types": ["node", "chrome"]
   },
-  "include": [".", "../../shared/types"]
+  "include": [".", "../../panel/types"]
 }

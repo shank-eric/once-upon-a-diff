@@ -417,7 +417,7 @@ describe('local stories', () => {
     assert.match(page.text, /id="ou-local-boot"/);
     assert.ok(!page.text.includes(TOKEN), 'the page key comes in the link, not the page');
     assert.match(page.headers.get('content-security-policy') as string, /script-src 'self'/);
-    assert.equal((await bridge.call('GET', '/assets/overlay.ts')).status, 200);
+    assert.equal((await bridge.call('GET', '/assets/panel/overlay.ts')).status, 200);
     assert.equal((await bridge.call('GET', '/assets/local.ts')).status, 200);
     assert.match(page.text, /<link rel="icon"[^>]*href="\/assets\/icon\.png"/);
     for (const path of ['/assets/icon.png', '/favicon.ico']) {

@@ -22,7 +22,7 @@ import {
   questionMoves,
   readsToRetire,
 } from 'once-upon-a-diff/services/stories/rebuild';
-import { rebuildAsk, rebuildLine } from '@once-upon-a-diff/shared/panel/rebuild';
+import { rebuildAsk, rebuildLine } from '@once-upon-a-diff/panel/rebuild/rebuild';
 import { tagFor, type StoryStatus } from '../src/content/ui/story-tag.ts';
 import type { Plan, PlanFile } from 'once-upon-a-diff/services/stories/chapters';
 import type { StoryMeta } from 'once-upon-a-diff/services/stories/types';

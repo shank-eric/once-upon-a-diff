@@ -33,9 +33,9 @@ import {
 } from '../src/services/inbox/binding.ts';
 import { relayMessage } from '../src/services/inbox/relay.ts';
 import { beat, listeningOf } from '../src/services/listeners/listeners.ts';
-import { waitingText } from '@once-upon-a-diff/shared/panel/question-list';
-import { askWhoHtml, healthChecks } from '@once-upon-a-diff/shared/panel/status-light';
-import type { Health } from '@once-upon-a-diff/shared/panel/status-light';
+import { waitingText } from '@once-upon-a-diff/panel/ask/question-list';
+import { askWhoHtml, healthChecks } from '@once-upon-a-diff/panel/status-light';
+import type { Health } from '@once-upon-a-diff/panel/status-light';
 import type { Pulse, Question } from '@once-upon-a-diff/shared/types';
 
 const STORY = 'acme-widgets-7';

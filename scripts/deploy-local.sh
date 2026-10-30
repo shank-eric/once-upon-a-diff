@@ -199,15 +199,18 @@ verify_live() {
   [ "$code" = 200 ] || die "/assets/preact.mjs returned $code"
   type="$(curl -s --max-time 10 -o /dev/null -w '%{content_type}' "$base/assets/preact.mjs")"
   case "$type" in text/javascript*) ;; *) die "/assets/preact.mjs content-type is '$type'" ;; esac
-  for f in "$MAIN"/packages/bridge/public/vendor/*.sha256; do
+  SERVED_N=0
+  for f in "$MAIN"/packages/web/public/vendor/*.sha256; do
     [ -e "$f" ] || continue
+    SERVED_N=$((SERVED_N + 1))
     name="$(basename "$f" .sha256)"
     want="$(awk '{print $1}' "$f")"
     got="$(curl -s --max-time 10 "$base/assets/$name" | shasum -a 256 | awk '{print $1}')"
     [ "$want" = "$got" ] || die "served /assets/$name hashes $got, vendored says $want"
   done
+  [ "$SERVED_N" -gt 0 ] || die "no vendor .sha256 files found in $MAIN/packages/web/public/vendor, nothing to verify"
   (cd "$MAIN/packages/bridge" && node bin/once-upon.mjs backlog list >/dev/null) || die "backlog list failed"
-  say "verified: $PORT answers, /api/board 200, /assets/preact.mjs 200 $type and matches its sha256, backlog list ok"
+  say "verified: $PORT answers, /api/board 200, /assets/preact.mjs 200 $type, $SERVED_N served vendor file(s) match their sha256, backlog list ok"
 }
 
 rebuild_main() {
@@ -372,11 +375,12 @@ if [ "$REUSED" = 0 ]; then
   quiet "test" bash -c "cd '$WT' && yarn test"
   quiet "build" bash -c "cd '$WT' && yarn build"
   VENDOR_N=0
-  for f in "$WT"/packages/*/public/vendor/*.sha256 "$WT"/public/vendor/*.sha256; do
+  for f in "$WT"/packages/web/public/vendor/*.sha256; do
     [ -e "$f" ] || continue
     quiet "sha256 $(basename "$f")" bash -c "cd '$(dirname "$f")' && shasum -a 256 -c '$(basename "$f")'"
     VENDOR_N=$((VENDOR_N + 1))
   done
+  [ "$VENDOR_N" -gt 0 ] || die "no vendor .sha256 files found in $WT/packages/web/public/vendor, nothing was checked"
   say "vendor checksums verified: $VENDOR_N"
   printf '%s\n%s\n' "$TIP" "$KEY" >"$(stamp_of)"
 fi

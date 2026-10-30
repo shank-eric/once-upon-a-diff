@@ -23,7 +23,7 @@ const NODE_FILES = [
   'skills/**/*.{ts,mjs}',
   '*.config.{ts,mjs}',
 ];
-const LOCAL_PAGE = 'packages/bridge/public/**';
+const LOCAL_PAGE = 'packages/web/public/**';
 
 export default defineConfig(
   globalIgnores([
@@ -31,7 +31,7 @@ export default defineConfig(
     '**/.output/',
     '**/.wxt/',
     '.yarn/',
-    'packages/bridge/public/vendor/',
+    'packages/web/public/vendor/',
   ]),
   eslint.configs.recommended,
   importPlugin.flatConfigs.recommended,

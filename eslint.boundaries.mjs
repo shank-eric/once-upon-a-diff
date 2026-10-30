@@ -15,8 +15,17 @@
  *                            claude-sessions, stores (JSON files, atomic writes, backlog.jsonl, the ledger and notes
  *                            reads), os (programs, pids, ports, the browser). The only place that may run a program,
  *                            write a file or reach the network
- *   packages/bridge/public   the board and local pages (browser, will become apps/web)
- *   packages/shared          the panel and its helpers (browser-safe)
+ *   packages/web/public      the board and local pages (browser app). public/board/ holds the board page's regions, each a folder
+ *                            (header, columns, backlog, worktrees, voice) that imports no other region, only board/shared.ts and the
+ *                            helpers (local/, util, the protocol); board.ts, over them, is the page
+ *   packages/panel/src       the story panel (browser, host-agnostic): imports the protocol and shared helpers only, never an app,
+ *                            the bridge or the host adapters. overlay.ts composes it; its regions are folders (ask, drafts, fixes,
+ *                            reading, rebuild) that import no other region and not overlay.ts, only the panel's shared files
+ *                            (context, host, bridge-options, shell, ...)
+ *   packages/shared          helpers the apps and the panel share (browser-safe)
+ *     src/util                 pure helpers (no DOM host)
+ *     src/host                 host adapters: the diff-page reader both the extension (GitHub) and the local page inject into the panel.
+ *                              The panel never imports it (it is handed one, packages/panel/src/host.ts)
  *   packages/protocol/src    the wire types, route table and schemas (no DOM, no Node, imports no package but valibot)
  *   packages/protocol/src/domain  pure rules: imports nothing at all
  *   packages/extension/src   the Chrome extension (app)
@@ -59,6 +68,24 @@ const EXTENSION = {
   regex: '^@once-upon-a-diff/extension(/|$)',
   message: 'the extension is an app: nothing imports an app',
 };
+const WEB = {
+  regex: '^@once-upon-a-diff/web(/|$)',
+  message: 'the pages are an app: nothing imports an app',
+};
+const PANEL = {
+  regex: '^@once-upon-a-diff/panel(/|$)',
+  message:
+    'the panel is client code above shared and the protocol: only the apps (and tests) import it',
+};
+const HOST_ADAPTERS = {
+  regex: '^@once-upon-a-diff/shared/host(/|$)',
+  message:
+    'the panel is host-agnostic: it is handed a host adapter (packages/panel/src/host.ts), never imports one',
+};
+const BOARD_PAGE_URL = {
+  regex: '^/assets/board\\.ts$',
+  message: 'board.ts is the page over its regions: a region does not import it',
+};
 const SHARED_PACKAGE = {
   regex: '^@once-upon-a-diff/shared(/|$)',
   message:
@@ -87,9 +114,13 @@ const ASSET_URL = {
 
 // folders, from the repo root
 const BRIDGE_SRC = './packages/bridge/src';
-const BRIDGE_PUBLIC = './packages/bridge/public';
+const WEB_PUBLIC = './packages/web/public';
 const SHARED_UTIL = './packages/shared/src/util';
-const SHARED_PANEL = './packages/shared/src/panel';
+const SHARED_HOST = './packages/shared/src/host';
+const PANEL_SRC = './packages/panel/src';
+const PANEL_OVERLAY = './packages/panel/src/overlay.ts';
+const WEB_BOARD = './packages/web/public/board';
+const WEB_BOARD_PAGE = './packages/web/public/board.ts';
 const EXTENSION_SRC = './packages/extension/src';
 const PROTOCOL_SRC = './packages/protocol/src';
 const PROTOCOL_DOMAIN = './packages/protocol/src/domain';
@@ -198,7 +229,7 @@ const FS_WRITE_MESSAGE =
   'only an adapter writes files: add a function to adapters/stores/ (files.ts, json-file.ts) and call that';
 const FS_NAMESPACE_MESSAGE =
   'import the read functions by name from node:fs: a whole-module import hides the write calls from the lint rule';
-const NOT_THE_PAGES = { from: BRIDGE_PUBLIC, message: 'the server does not import the pages' };
+const NOT_THE_PAGES = { from: WEB_PUBLIC, message: 'the pages are an app: nothing imports them' };
 const NOT_THE_EXTENSION = { from: EXTENSION_SRC, message: 'nothing imports an app' };
 const NOT_THE_SERVER = {
   from: BRIDGE_SRC,
@@ -234,17 +265,87 @@ const NOT_THE_CLI_APP = {
   from: BRIDGE_CLI,
   message: 'the CLI is an app: the services, the adapters and the HTTP app never import it',
 };
-const NOT_THE_PANEL = { from: SHARED_PANEL, message: 'shared/util is below shared/panel' };
+const NOT_THE_PANEL_PACKAGE = {
+  from: PANEL_SRC,
+  message:
+    'the panel is client code above shared and the protocol: only the apps (and tests) import it',
+};
+const NOT_THE_HOST = { from: SHARED_HOST, message: 'shared/util is below shared/host' };
+const NOT_THE_HOST_ADAPTERS = {
+  from: SHARED_HOST,
+  message:
+    'the panel is host-agnostic: it is handed a host adapter (packages/panel/src/host.ts), never imports one',
+};
+const NOT_THE_OVERLAY = {
+  from: PANEL_OVERLAY,
+  message: 'overlay.ts composes the regions: a region does not import the composition root',
+};
+const NOT_THE_BOARD_PAGE = {
+  from: WEB_BOARD_PAGE,
+  message: 'board.ts is the page over its regions: a region does not import it',
+};
 
 const SHARED = {
-  paths: [NOT_THE_BRIDGE, NOT_THE_EXTENSION, NOT_THE_SCHEMAS],
-  specifiers: [BRIDGE, EXTENSION, SHARED_PACKAGE, ASSET_URL, SCHEMAS],
+  paths: [NOT_THE_BRIDGE, NOT_THE_PAGES, NOT_THE_EXTENSION, NOT_THE_PANEL_PACKAGE, NOT_THE_SCHEMAS],
+  specifiers: [BRIDGE, EXTENSION, WEB, PANEL, SHARED_PACKAGE, ASSET_URL, SCHEMAS],
 };
+
+// the panel: browser code that names no host, no app and no server
+const PANEL_BASE = {
+  paths: [NOT_THE_BRIDGE, NOT_THE_PAGES, NOT_THE_EXTENSION, NOT_THE_HOST_ADAPTERS, NOT_THE_SCHEMAS],
+  specifiers: [BRIDGE, EXTENSION, WEB, HOST_ADAPTERS, SCHEMAS],
+};
+
+// what a page region must not reach: the page above it, and the apps, server and schemas every page avoids
+const PAGES = {
+  paths: [NOT_THE_SERVER, NOT_THE_SCHEMAS],
+  specifiers: [BRIDGE, EXTENSION, SCHEMAS],
+};
+
+/**
+ * Regions: sibling folders of one feature that do not import each other. `siblings` is every region's folder name, `urls` the
+ * /assets/ prefix a page module spells its imports with (the panel names its own by relative path or package).
+ * A region's block carries its layer's base lists and bans the other regions by path (relative imports) and by specifier.
+ */
+const regionLayers = ({
+  prefix,
+  root,
+  names,
+  base,
+  urls,
+  noCompositionRoot = [],
+  noRootSpecifiers = [],
+}) =>
+  names.map((name) => {
+    const others = names.filter((other) => other !== name);
+    const alternation = others.join('|');
+    const message = `regions do not import each other: ${name} takes what it shares from the feature's shared files, and the page or panel composes the regions`;
+    return {
+      name: `${prefix}-region-${name}`,
+      files: [`${root.slice(2)}/${name}/**/*.ts`],
+      targets: [`${root}/${name}`],
+      paths: [
+        ...base.paths,
+        ...noCompositionRoot,
+        ...others.map((other) => ({ from: `${root}/${other}`, message })),
+      ],
+      specifiers: [
+        ...base.specifiers,
+        ...noRootSpecifiers,
+        ...(others.length
+          ? urls.map((url) => ({ regex: `^${url}/(${alternation})(/|$)`, message }))
+          : []),
+      ],
+      browser: true,
+    };
+  });
+const PANEL_REGIONS = ['ask', 'drafts', 'fixes', 'reading', 'rebuild'];
+const BOARD_REGIONS = ['header', 'columns', 'backlog', 'worktrees', 'voice'];
 
 // what every server layer must not reach, whatever its place in the stack
 const SERVER = {
-  paths: [NOT_THE_PAGES, NOT_THE_EXTENSION],
-  specifiers: [EXTENSION],
+  paths: [NOT_THE_PAGES, NOT_THE_EXTENSION, NOT_THE_PANEL_PACKAGE],
+  specifiers: [EXTENSION, PANEL],
 };
 
 const LAYERS = [
@@ -303,21 +404,63 @@ const LAYERS = [
     properties: [...NOT_GLOBAL_FETCH, NOT_PROCESS_KILL],
   },
   {
+    // the pages (the web app): the board's regions and shared file are carved out below, each with its own block
     name: 'pages',
-    files: ['packages/bridge/public/**/*.ts'],
-    ignores: ['packages/bridge/public/vendor/**'],
-    targets: [BRIDGE_PUBLIC],
-    paths: [NOT_THE_SERVER, NOT_THE_SCHEMAS],
-    specifiers: [BRIDGE, EXTENSION, SCHEMAS],
+    files: ['packages/web/public/**/*.ts'],
+    ignores: [
+      'packages/web/public/vendor/**',
+      'packages/web/public/board/shared.ts',
+      ...BOARD_REGIONS.map((region) => `packages/web/public/board/${region}/**`),
+    ],
+    targets: [WEB_PUBLIC],
+    ...PAGES,
     browser: true,
   },
+  {
+    // what the board's regions share (the helpers two of them draw with): below the regions, which import it
+    name: 'web-board-shared',
+    files: ['packages/web/public/board/shared.ts'],
+    targets: [`${WEB_BOARD}/shared.ts`],
+    paths: [
+      ...PAGES.paths,
+      NOT_THE_BOARD_PAGE,
+      ...BOARD_REGIONS.map((region) => ({
+        from: `${WEB_BOARD}/${region}`,
+        message: 'board/shared.ts sits below the regions, which import it',
+      })),
+    ],
+    specifiers: [
+      ...PAGES.specifiers,
+      BOARD_PAGE_URL,
+      {
+        regex: `^/assets/board/(${BOARD_REGIONS.join('|')})(/|$)`,
+        message: 'board/shared.ts sits below the regions, which import it',
+      },
+    ],
+    browser: true,
+  },
+  ...regionLayers({
+    prefix: 'web-board',
+    root: WEB_BOARD,
+    names: BOARD_REGIONS,
+    base: PAGES,
+    urls: ['/assets/board'],
+    noCompositionRoot: [NOT_THE_BOARD_PAGE],
+    noRootSpecifiers: [BOARD_PAGE_URL],
+  }),
   {
     // the protocol: types, the route table, the schemas and the typed client. It reaches no other package.
     name: 'protocol',
     files: ['packages/protocol/src/**/*.ts'],
     ignores: ['packages/protocol/src/domain/**'],
     targets: [PROTOCOL_SRC],
-    paths: [NOT_THE_BRIDGE_PACKAGE, NOT_THE_SHARED_PACKAGE, NOT_THE_EXTENSION],
+    paths: [
+      NOT_THE_BRIDGE_PACKAGE,
+      NOT_THE_SHARED_PACKAGE,
+      NOT_THE_EXTENSION,
+      NOT_THE_PAGES,
+      NOT_THE_PANEL_PACKAGE,
+    ],
     specifiers: [PROTOCOL_IMPORTS],
     browser: true,
   },
@@ -331,22 +474,53 @@ const LAYERS = [
     browser: true,
   },
   {
-    // shared/util is a layer of its own inside shared: it extends shared's lists and adds the panel
+    // shared/util is a layer of its own inside shared: it extends shared's lists and adds shared/host above it
     name: 'shared-util',
     files: ['packages/shared/src/util/**/*.ts'],
     targets: [SHARED_UTIL],
-    paths: [...SHARED.paths, NOT_THE_PANEL],
+    paths: [...SHARED.paths, NOT_THE_HOST],
     specifiers: [...SHARED.specifiers],
     browser: true,
   },
   {
-    name: 'shared',
-    files: ['packages/shared/src/**/*.ts', 'packages/shared/types/**/*.ts'],
-    ignores: ['packages/shared/src/util/**'],
-    targets: ['./packages/shared/src', './packages/shared/types'],
+    // the host adapters the apps inject into the panel (the diff-page reader): the panel never imports them
+    name: 'host',
+    files: ['packages/shared/src/host/**/*.ts'],
+    targets: [SHARED_HOST],
     ...SHARED,
     browser: true,
   },
+  {
+    name: 'shared',
+    files: ['packages/shared/src/**/*.ts'],
+    ignores: ['packages/shared/src/util/**', 'packages/shared/src/host/**'],
+    targets: ['./packages/shared/src'],
+    ...SHARED,
+    browser: true,
+  },
+  {
+    // the panel's own files (host.ts, bridge-options.ts, context.ts, shell.ts...) and its composition root, overlay.ts; the regions are carved out
+    name: 'panel',
+    files: ['packages/panel/src/**/*.ts', 'packages/panel/types/**/*.ts'],
+    ignores: PANEL_REGIONS.map((region) => `packages/panel/src/${region}/**`),
+    targets: [PANEL_SRC, './packages/panel/types'],
+    ...PANEL_BASE,
+    browser: true,
+  },
+  ...regionLayers({
+    prefix: 'panel',
+    root: PANEL_SRC,
+    names: PANEL_REGIONS,
+    base: PANEL_BASE,
+    urls: ['@once-upon-a-diff/panel'],
+    noCompositionRoot: [NOT_THE_OVERLAY],
+    noRootSpecifiers: [
+      {
+        regex: '^@once-upon-a-diff/panel/overlay$',
+        message: NOT_THE_OVERLAY.message,
+      },
+    ],
+  }),
   {
     name: 'extension',
     files: ['packages/extension/src/**/*.ts'],
@@ -358,18 +532,13 @@ const LAYERS = [
 ];
 
 /*
- * Layers still to come, written the way they will read. Move each into LAYERS as its split
- * lands, and keep the probe test in step.
+ * Layers still to come, written the way they will read. Move each into LAYERS as its split lands, and keep the probe test in step.
  *
- *   panel:      files packages/panel/src/**. paths: web, extension, board-view. browser: true.
- *   board-view: files packages/board-view/src/**. paths: web, extension, panel. browser: true.
+ *   board-view: the board page as its own package, over ui and the api client (its regions are already folders: web/public/board/).
  *   ui:         files packages/ui/src/**. paths: panel, board-view, web, extension. browser: true.
- *   web:        files packages/web/src/**. paths: bridge/src, board-core. browser: true.
  *   board-core: files packages/board-core/src/**. paths: web, extension, panel, board-view, ui. Not a package yet: it is
  *               packages/bridge/src/services/board, which still imports about thirty modules of the other services and
  *               the adapters by path. It becomes a package when those arrive as interfaces the bridge passes in.
- *   nothing imports an app: add { from: './packages/web/src', message: 'nothing imports an app' }
- *               to every layer's paths (NOT_THE_EXTENSION is the one for the extension today).
  */
 
 const escapeSlashes = (source) => source.replaceAll('/', '\\/');

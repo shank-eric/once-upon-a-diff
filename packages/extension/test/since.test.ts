@@ -232,7 +232,7 @@ test('the out-of-date tag offers Update (new commits) and Re-tell from scratch',
 });
 
 test('"Since you read it" chapters finish their files and are not numbered', async () => {
-  const { finishedInOf, chapterNumbers } = await import('@once-upon-a-diff/shared/overlay');
+  const { finishedInOf, chapterNumbers } = await import('@once-upon-a-diff/panel/overlay');
   const chapters = [
     {
       title: 'Since you read it: 1 new commit',
@@ -268,7 +268,7 @@ test('"Since you read it" chapters finish their files and are not numbered', asy
 });
 
 test('GitHub\'s diff of a "Since you read it" chapter\'s commits opens on that chapter', async () => {
-  const { rangeOfPath, rangeStepOf, rangeUrl } = await import('@once-upon-a-diff/shared/overlay');
+  const { rangeOfPath, rangeStepOf, rangeUrl } = await import('@once-upon-a-diff/panel/overlay');
   const chapters = [
     { title: 'Since you read it', since: { from: SHA_A, to: SHA_B } },
     { title: 'Chapter 1: Start' },

@@ -11,7 +11,7 @@ import {
 import { pathSha } from '../src/services/stories/diff.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
 import { createLocalStory } from '../src/services/stories/local-story.ts';
-import { finishedInOf } from '@once-upon-a-diff/shared/overlay';
+import { finishedInOf } from '@once-upon-a-diff/panel/overlay';
 import type { Chapter } from '@once-upon-a-diff/shared/types';
 
 const RELS = [

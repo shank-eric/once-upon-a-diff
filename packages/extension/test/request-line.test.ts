@@ -1,7 +1,7 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { createFreshness, requestLine } from '@once-upon-a-diff/shared/panel/freshness';
-import type { PanelContext } from '@once-upon-a-diff/shared/panel/context';
+import { createFreshness, requestLine } from '@once-upon-a-diff/panel/rebuild/freshness';
+import type { PanelContext } from '@once-upon-a-diff/panel/context';
 import type { StoryRequest } from '@once-upon-a-diff/shared/types';
 
 const request = (extra: Partial<StoryRequest> = {}): StoryRequest => ({

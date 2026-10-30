@@ -6,7 +6,11 @@ import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { matchRoute } from '@once-upon-a-diff/protocol/client';
 import { EXTENSION_ROUTES } from '../src/bridge-routes.ts';
 
-const SRC = path.join(import.meta.dirname, '../src');
+// the extension's own code, and the panel it bundles (whose bridge-options.ts names the routes the panel calls)
+const SOURCES = [
+  path.join(import.meta.dirname, '../src'),
+  path.join(import.meta.dirname, '../../panel/src'),
+];
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
@@ -21,7 +25,7 @@ function sourceFiles(dir: string): string[] {
 /** The route names the extension's code writes as ROUTES.<name>, outside comments. */
 function namedRoutes(): Set<string> {
   const names = new Set<string>();
-  for (const file of sourceFiles(SRC)) {
+  for (const file of SOURCES.flatMap(sourceFiles)) {
     if (file.endsWith('bridge-routes.ts')) {
       continue;
     }

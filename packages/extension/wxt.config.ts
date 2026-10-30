@@ -23,8 +23,8 @@ const STORE = !!process.env.ONCE_UPON_STORE;
  * paths in the output: they're web-accessible, so github.com can load them from the extension.
  */
 const LINKED_CSS = {
-  'panel/page.css': '../shared/src/panel/page.css',
-  'panel/panel.css': '../shared/src/panel/panel.css',
+  'panel/page.css': '../panel/src/page.css',
+  'panel/panel.css': '../panel/src/panel.css',
   'content/ui/story-tag.css': 'src/content/ui/story-tag.css',
   'content/ui/listen-notice.css': 'src/content/ui/listen-notice.css',
   'content/ui/toast.css': 'src/content/ui/toast.css',

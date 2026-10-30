@@ -15,7 +15,7 @@ import {
 } from '../src/services/inbox/conversation.ts';
 import { beat, listenPrompt, listeningOf } from '../src/services/listeners/listeners.ts';
 import { storyIdOf } from '../src/cli/commands/inbox.ts';
-import { askWhoHtml, type Health } from '@once-upon-a-diff/shared/panel/status-light';
+import { askWhoHtml, type Health } from '@once-upon-a-diff/panel/status-light';
 import type { StatusMany } from './helpers.ts';
 import type { Pulse, Question, QuestionMarksAnswer } from '@once-upon-a-diff/shared/types';
 

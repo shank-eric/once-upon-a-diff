@@ -20,7 +20,7 @@ import {
   finishedInOf,
   inferReadSteps,
   viewedEarlyCheck,
-} from '@once-upon-a-diff/shared/overlay';
+} from '@once-upon-a-diff/panel/overlay';
 import { clearFreshness } from '../src/services/review/freshness.ts';
 import { createLocalStory } from '../src/services/stories/local-story.ts';
 

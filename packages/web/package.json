@@ -1,0 +1,34 @@
+{
+  "name": "@once-upon-a-diff/web",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Once Upon a Diff's pages: the agent board and the local story page, served by the bridge",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "dependencies": {
+    "@once-upon-a-diff/panel": "workspace:*",
+    "@once-upon-a-diff/protocol": "workspace:*",
+    "@once-upon-a-diff/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.1",
+    "highlight.js": "11.11.1",
+    "htm": "3.1.1",
+    "linkedom": "0.18.14",
+    "once-upon-a-diff": "workspace:*",
+    "preact": "10.29.8",
+    "rolldown": "1.2.15",
+    "typescript": "5.9.3"
+  },
+  "exports": {
+    "./public/*": "./public/*"
+  },
+  "scripts": {
+    "vendor": "node ../bridge/bin/node-version.mjs && node scripts/vendor-hljs.ts && node scripts/vendor-preact.ts",
+    "test": "node ../bridge/bin/node-version.mjs && node --test test/*.test.ts",
+    "typecheck": "tsc -p public/tsconfig.json && tsc -p test/tsconfig.json"
+  }
+}

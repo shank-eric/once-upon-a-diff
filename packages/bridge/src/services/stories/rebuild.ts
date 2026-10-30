@@ -20,7 +20,7 @@
  */
 import { chaptersOf, entryOf } from './chapters.ts';
 import { readReads, retireReads } from './reads.ts';
-import { chapterKeyOf } from '@once-upon-a-diff/shared/panel/story-model';
+import { chapterKeyOf } from '@once-upon-a-diff/shared/util/story-model';
 import { plural } from '@once-upon-a-diff/shared/util/text';
 import { Inbox } from '../inbox/inbox.ts';
 import { moveQuestions } from '../inbox/conversation.ts';

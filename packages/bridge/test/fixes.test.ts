@@ -8,7 +8,7 @@ import { createLocalStory } from '../src/services/stories/local-story.ts';
 import { beat, listenPrompt, type Listener } from '../src/services/listeners/listeners.ts';
 import { readFixes } from '../src/services/inbox/fixes.ts';
 import { MARK_FRESH_MS, parseFiles, workingOf } from '../src/services/stories/working.ts';
-import { fixSummary, takesNotes } from '@once-upon-a-diff/shared/panel/fixes';
+import { fixSummary, takesNotes } from '@once-upon-a-diff/panel/fixes/fixes';
 import { clearCache } from '../src/services/review/drafts.ts';
 import type { DraftsAnswer, FixNote, FixesView, Pulse } from '@once-upon-a-diff/shared/types';
 import type { FixRequest } from '../src/services/inbox/fixes.ts';

@@ -17,21 +17,17 @@
   },
   "scripts": {
     "serve": "node bin/once-upon.mjs serve",
-    "vendor": "node bin/node-version.mjs && node scripts/vendor-hljs.ts && node scripts/vendor-preact.ts",
     "test": "node bin/node-version.mjs && node --test test/*.test.ts",
-    "typecheck": "tsc -p tsconfig.json && tsc -p public/tsconfig.json && tsc -p test/tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json"
   },
   "dependencies": {
+    "@once-upon-a-diff/panel": "workspace:*",
     "@once-upon-a-diff/protocol": "workspace:*",
-    "@once-upon-a-diff/shared": "workspace:*"
+    "@once-upon-a-diff/shared": "workspace:*",
+    "@once-upon-a-diff/web": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "24.19.1",
-    "highlight.js": "11.11.1",
-    "htm": "3.1.1",
-    "linkedom": "0.18.14",
-    "preact": "10.29.8",
-    "rolldown": "1.2.15",
     "typescript": "5.9.3"
   }
 }

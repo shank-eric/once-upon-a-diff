@@ -9,7 +9,7 @@
  * Our own element in its own shadow root, bottom right. It never touches
  * GitHub's page and posts nothing.
  */
-import { wireStartListening } from '@once-upon-a-diff/shared/panel/start-listening';
+import { wireStartListening } from '@once-upon-a-diff/panel/start-listening';
 import { bridge } from '../bridge.ts';
 import { createListenOption } from '../listen.ts';
 import { noticeRowHtml } from './story-tag.ts';

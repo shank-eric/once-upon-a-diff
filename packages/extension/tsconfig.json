@@ -6,5 +6,5 @@
     "moduleResolution": "bundler",
     "types": ["chrome"]
   },
-  "include": ["src", "../shared/types", ".wxt/wxt.d.ts"]
+  "include": ["src", "../panel/types", ".wxt/wxt.d.ts"]
 }

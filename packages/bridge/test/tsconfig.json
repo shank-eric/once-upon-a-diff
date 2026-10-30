@@ -6,12 +6,13 @@
     "lib": ["es2023", "dom", "dom.iterable"],
     "types": ["node"],
     "paths": {
-      "/assets/preact.mjs": ["../public/types/preact.d.ts"],
-      "/assets/local/*": ["../public/local/*"],
+      "/assets/preact.mjs": ["../../web/public/types/preact.d.ts"],
+      "/assets/local/*": ["../../web/public/local/*"],
       "/assets/types.ts": ["../../protocol/src/types.ts"],
       "/assets/protocol/*": ["../../protocol/src/*"],
+      "/assets/host/*": ["../../shared/src/host/*"],
       "/assets/util/*": ["../../shared/src/util/*"]
     }
   },
-  "include": [".", "../../shared/types"]
+  "include": [".", "../../panel/types"]
 }

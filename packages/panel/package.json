@@ -1,0 +1,26 @@
+{
+  "name": "@once-upon-a-diff/panel",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Once Upon a Diff's story panel: the side panel a host page (the extension on GitHub, the local page) mounts, with the host and the bridge injected",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "test": "node ../bridge/bin/node-version.mjs && node --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json"
+  },
+  "dependencies": {
+    "@once-upon-a-diff/protocol": "workspace:*",
+    "@once-upon-a-diff/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.1",
+    "typescript": "5.9.3"
+  }
+}

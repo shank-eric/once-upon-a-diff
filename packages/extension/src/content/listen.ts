@@ -6,7 +6,7 @@
  */
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import type { Bridge, BridgeAnswer } from './bridge.ts';
-import type { PanelOptions } from '@once-upon-a-diff/shared/overlay';
+import type { PanelOptions } from '@once-upon-a-diff/panel/overlay';
 import type { ListenTarget } from '@once-upon-a-diff/shared/types';
 
 type Call = Bridge['call'];

@@ -3,7 +3,7 @@
  * entries, drafted comments and "Since you read it" range, and a last chapter
  * for any file of the diff no chapter places.
  */
-import { chapterKeyOf } from '@once-upon-a-diff/shared/panel/story-model';
+import { chapterKeyOf } from '@once-upon-a-diff/shared/util/story-model';
 import { SHA_RE } from '@once-upon-a-diff/shared/util/text';
 import type {
   Chapter,
