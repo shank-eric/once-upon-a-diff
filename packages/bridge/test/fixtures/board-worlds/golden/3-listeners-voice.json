@@ -1,0 +1,522 @@
+{
+  "asked": [
+    "kick acme-widgets-7",
+    "kickRequested",
+    "kickLocal local-w",
+    "kickInfo acme/widgets#7"
+  ],
+  "board": {
+    "at": "2026-10-26T19:00:00.000Z",
+    "blank": [],
+    "lanes": [
+      {
+        "cards": [
+          {
+            "agents": [
+              {
+                "beat": null,
+                "ended_at": null,
+                "gate": null,
+                "model": "sonnet, low",
+                "name": "helper-one",
+                "outcome": null,
+                "review": false,
+                "stale": false,
+                "started_at": "2026-10-26T18:50:00.000Z",
+                "state": "running",
+                "status": "working",
+                "task": "a task"
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "working",
+            "detail": "a task",
+            "focus_session": "<PID:11>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "agent:<PID:11>:helper-one",
+            "kind": "agent",
+            "lane": "elsewhere",
+            "listening": null,
+            "parent": "Voice session",
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T18:50:00.000Z",
+            "story": null,
+            "title": "helper-one"
+          }
+        ],
+        "name": "elsewhere"
+      },
+      {
+        "cards": [
+          {
+            "agents": [],
+            "branch": "main",
+            "build": null,
+            "building": null,
+            "can_focus": true,
+            "column": "idle",
+            "detail": null,
+            "focus_session": "<PID:14>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "<PID:14>-aaaa-bbbb-cccc-dddddddddddd",
+            "kind": "session",
+            "lane": "gadgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/gadgets",
+            "sessions": [
+              {
+                "branch": "main",
+                "context": null,
+                "cwd": "<WORK>/checkout-18",
+                "detail": null,
+                "focus": true,
+                "id": "<PID:14>-aaaa-bbbb-cccc-dddddddddddd",
+                "rested_at": "2026-10-26T18:50:00.000Z",
+                "since": "2026-10-26T18:50:00.000Z",
+                "source": "iterm",
+                "status": "done",
+                "title": "Tab title"
+              }
+            ],
+            "since": "2026-10-26T18:50:00.000Z",
+            "story": null,
+            "title": "Tab title"
+          }
+        ],
+        "name": "gadgets"
+      },
+      {
+        "cards": [
+          {
+            "agents": [],
+            "branch": "main",
+            "build": null,
+            "building": null,
+            "can_focus": true,
+            "column": "idle",
+            "detail": null,
+            "focus_session": "<PID:12>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "<PID:12>-aaaa-bbbb-cccc-dddddddddddd",
+            "kind": "session",
+            "lane": "widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [
+              {
+                "branch": "main",
+                "context": null,
+                "cwd": "<WORK>/checkout-17",
+                "detail": null,
+                "focus": true,
+                "id": "<PID:12>-aaaa-bbbb-cccc-dddddddddddd",
+                "rested_at": "2026-10-26T18:50:00.000Z",
+                "since": "2026-10-26T18:50:00.000Z",
+                "source": "iterm",
+                "status": "done",
+                "title": "Tab title"
+              }
+            ],
+            "since": "2026-10-26T18:50:00.000Z",
+            "story": null,
+            "title": "Tab title"
+          },
+          {
+            "agents": [],
+            "branch": "main",
+            "build": null,
+            "building": null,
+            "can_focus": true,
+            "column": "idle",
+            "detail": null,
+            "focus_session": "<PID:13>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "<PID:13>-aaaa-bbbb-cccc-dddddddddddd",
+            "kind": "session",
+            "lane": "widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [
+              {
+                "branch": "main",
+                "context": null,
+                "cwd": "<WORK>/checkout-17",
+                "detail": null,
+                "focus": true,
+                "id": "<PID:13>-aaaa-bbbb-cccc-dddddddddddd",
+                "rested_at": "2026-10-26T18:50:00.000Z",
+                "since": "2026-10-26T18:50:00.000Z",
+                "source": "iterm",
+                "status": "done",
+                "title": "Tab title"
+              }
+            ],
+            "since": "2026-10-26T18:50:00.000Z",
+            "story": null,
+            "title": "Tab title"
+          },
+          {
+            "agents": [],
+            "branch": "main",
+            "build": null,
+            "building": null,
+            "can_focus": true,
+            "column": "working",
+            "detail": "compiling",
+            "focus_session": "<PID:15>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "<PID:15>-aaaa-bbbb-cccc-dddddddddddd",
+            "kind": "session",
+            "lane": "widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [
+              {
+                "branch": "main",
+                "context": null,
+                "cwd": "<WORK>/checkout-17",
+                "detail": "compiling",
+                "focus": true,
+                "id": "<PID:15>-aaaa-bbbb-cccc-dddddddddddd",
+                "rested_at": null,
+                "since": "2026-10-26T18:50:00.000Z",
+                "source": "iterm",
+                "status": "working",
+                "title": "Tab title"
+              }
+            ],
+            "since": "2026-10-26T18:50:00.000Z",
+            "story": null,
+            "title": "Tab title"
+          },
+          {
+            "agents": [],
+            "ahead": null,
+            "branch": "feat/x",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "pr_open",
+            "detail": null,
+            "focus_session": null,
+            "id": "pr:acme/widgets#7",
+            "kind": "work",
+            "lane": "widgets",
+            "listening": {
+              "can_focus": false,
+              "consumer": "story-acme-widgets-7",
+              "session": null,
+              "title": null
+            },
+            "parent": null,
+            "pr": {
+              "approvals": 0,
+              "author": "octocat",
+              "branch": "feat/x",
+              "checks": null,
+              "draft": false,
+              "merge": null,
+              "merged_at": null,
+              "mine": true,
+              "number": 7,
+              "others_at": null,
+              "required": null,
+              "review": null,
+              "review_requested": false,
+              "state": "open",
+              "title": "PR 7",
+              "unresolved": 0,
+              "url": "https://github.com/acme/widgets/pull/7",
+              "viewer_at": null
+            },
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": null,
+            "story": {
+              "approved_at": null,
+              "id": "acme-widgets-7",
+              "kind": "pr",
+              "reviewed": false,
+              "ship": null,
+              "unread": false,
+              "unread_answers": 0,
+              "url": "https://github.com/acme/widgets/pull/7/files"
+            },
+            "title": "PR 7"
+          },
+          {
+            "agents": [],
+            "ahead": null,
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "ready",
+            "detail": null,
+            "focus_session": null,
+            "id": "story:local-w",
+            "kind": "work",
+            "lane": "widgets",
+            "listening": {
+              "can_focus": false,
+              "consumer": "story-local-w",
+              "session": "<PID:10>-aaaa-bbbb-cccc-dddddddddddd",
+              "title": "listener-two"
+            },
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": "2026-10-26T13:07:00.000Z",
+            "story": {
+              "approved_at": null,
+              "id": "local-w",
+              "kind": "local",
+              "reviewed": false,
+              "ship": null,
+              "unread": false,
+              "unread_answers": 0,
+              "url": null
+            },
+            "title": "Story of local-w"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "ended_at": "2026-10-26T18:55:00.000Z",
+                "gate": null,
+                "model": null,
+                "name": "helper-two",
+                "outcome": "needs Eric: pick",
+                "review": false,
+                "stale": false,
+                "started_at": null,
+                "state": "waiting",
+                "status": "waiting",
+                "task": null
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "waiting",
+            "detail": "needs Eric: pick",
+            "focus_session": "<PID:11>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "agent:<PID:11>:helper-two",
+            "kind": "agent",
+            "lane": "widgets",
+            "listening": null,
+            "parent": "Voice session",
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T18:55:00.000Z",
+            "story": null,
+            "title": "helper-two"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "ended_at": "2026-10-26T18:57:00.000Z",
+                "gate": null,
+                "model": null,
+                "name": "helper-four",
+                "outcome": "story abc up, two chapters",
+                "review": true,
+                "stale": false,
+                "started_at": null,
+                "state": "waiting",
+                "status": "waiting",
+                "task": null
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "ready",
+            "detail": "story abc up, two chapters",
+            "focus_session": "<PID:11>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "agent:<PID:11>:helper-four",
+            "kind": "agent",
+            "lane": "widgets",
+            "listening": null,
+            "parent": "Voice session",
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T18:57:00.000Z",
+            "story": null,
+            "title": "helper-four"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "ended_at": null,
+                "gate": null,
+                "model": "sonnet, low",
+                "name": "not-the-voice",
+                "outcome": null,
+                "review": false,
+                "stale": false,
+                "started_at": "2026-10-26T18:50:00.000Z",
+                "state": "running",
+                "status": "working",
+                "task": "a task"
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": true,
+            "column": "working",
+            "detail": "a task",
+            "focus_session": "<PID:12>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "agent:<PID:12>:not-the-voice",
+            "kind": "agent",
+            "lane": "widgets",
+            "listening": null,
+            "parent": "Tab title",
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T18:50:00.000Z",
+            "story": null,
+            "title": "not-the-voice"
+          }
+        ],
+        "name": "widgets"
+      }
+    ],
+    "listeners": [
+      {
+        "active": {
+          "can_focus": false,
+          "consumer": "repo-acme-widgets",
+          "last_handled_at": null,
+          "session": "<PID:9>-aaaa-bbbb-cccc-dddddddddddd",
+          "since": "2026-10-26T19:00:00.000Z",
+          "state": "waiting",
+          "title": "listener-one"
+        },
+        "candidates": [
+          {
+            "id": "<PID:12>-aaaa-bbbb-cccc-dddddddddddd",
+            "since": "2026-10-26T18:50:00.000Z",
+            "status": "done",
+            "title": "Tab title"
+          },
+          {
+            "id": "<PID:13>-aaaa-bbbb-cccc-dddddddddddd",
+            "since": "2026-10-26T18:50:00.000Z",
+            "status": "done",
+            "title": "Tab title"
+          }
+        ],
+        "last_seen": "2026-10-26T19:00:00.000Z",
+        "repo": "acme/widgets"
+      }
+    ],
+    "phone": {
+      "bridge": false,
+      "on": false
+    },
+    "status_source": "iterm",
+    "usage": null,
+    "voice": {
+      "agents": {
+        "review": 1,
+        "running": 1,
+        "waiting": 1
+      },
+      "branch": "main",
+      "can_focus": false,
+      "context": 37,
+      "lane": "widgets",
+      "lines": [
+        {
+          "at": 1793040900000,
+          "text": "One sec, checking.",
+          "who": "voice"
+        },
+        {
+          "at": 1793041020000,
+          "text": "Is it green?",
+          "who": "you"
+        },
+        {
+          "at": 1793041080000,
+          "text": "It is green.",
+          "who": "voice"
+        }
+      ],
+      "name": "clarifi-f9",
+      "repo": "acme/widgets",
+      "session": "<PID:11>-aaaa-bbbb-cccc-dddddddddddd",
+      "since": "2026-10-26T18:50:00.000Z",
+      "status": "working",
+      "title": "clarifi-f9"
+    },
+    "warning": null,
+    "worktrees": {
+      "at": null,
+      "items": [],
+      "prunable": [],
+      "removable": 0,
+      "scanning": true,
+      "size_kb": "<kb>",
+      "total": 0
+    }
+  },
+  "listenGadgets": [
+    {
+      "id": "<PID:14>-aaaa-bbbb-cccc-dddddddddddd",
+      "since": "2026-10-26T18:50:00.000Z",
+      "status": "done",
+      "title": "Tab title"
+    }
+  ],
+  "listenWidgets": [
+    {
+      "id": "<PID:12>-aaaa-bbbb-cccc-dddddddddddd",
+      "since": "2026-10-26T18:50:00.000Z",
+      "status": "done",
+      "title": "Tab title"
+    },
+    {
+      "id": "<PID:13>-aaaa-bbbb-cccc-dddddddddddd",
+      "since": "2026-10-26T18:50:00.000Z",
+      "status": "done",
+      "title": "Tab title"
+    }
+  ],
+  "storyListen": {
+    "repo": "acme/widgets",
+    "sessions": [
+      {
+        "id": "<PID:12>-aaaa-bbbb-cccc-dddddddddddd",
+        "since": "2026-10-26T18:50:00.000Z",
+        "status": "done",
+        "title": "Tab title"
+      },
+      {
+        "id": "<PID:13>-aaaa-bbbb-cccc-dddddddddddd",
+        "since": "2026-10-26T18:50:00.000Z",
+        "status": "done",
+        "title": "Tab title"
+      }
+    ]
+  }
+}

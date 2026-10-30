@@ -1,0 +1,22 @@
+{
+  "board": {
+    "at": "2026-10-26T19:00:00.000Z",
+    "blank": [],
+    "lanes": [],
+    "listeners": [],
+    "phone": null,
+    "status_source": "iterm",
+    "usage": null,
+    "voice": null,
+    "warning": null,
+    "worktrees": {
+      "at": null,
+      "items": [],
+      "prunable": [],
+      "removable": 0,
+      "scanning": true,
+      "size_kb": "<kb>",
+      "total": 0
+    }
+  }
+}
