@@ -6,6 +6,7 @@
  *
  *   {op:'add',   id, title, note, repo, branch, by, at}
  *   {op:'start', id, branch, repo, by, at}     work began on that branch
+ *   {op:'done',  id, sha?, by, at}             the work landed (a local deploy: no PR ever merges it)
  *   {op:'drop',  id, by, at}
  *   {op:'move',  id, before | edge, by, at}   `before` is another item's id; `edge` is 'top' or 'bottom'
  *
@@ -17,7 +18,7 @@
  * work shown once: it rides on the card its work is on (the work card for its repo and branch, else the card of its
  * linked agent: "from backlog"), or, with no card, is a card of its own in Working (so a wrong branch name doesn't make
  * it vanish: STARTED_GRACE_HOURS, or as long as a worktree, session or agent is found on it, backlog-links.ts) and then
- * in Done once it merged or its agent finished. That is worked out on read, so a board snapshot never writes.
+ * in Done once it merged, landed or its agent finished. That is worked out on read, so a board snapshot never writes.
  */
 import { BACKLOG_ID_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { appendBacklogEvent, readBacklogFile } from '../../adapters/stores/backlog-file.ts';
@@ -27,7 +28,7 @@ import { newId } from '../inbox/inbox.ts';
 import type { BoardAgent, BoardCard, BoardStartedLinks } from '@once-upon-a-diff/shared/types';
 
 export const STARTED_GRACE_HOURS = 24;
-/** A started item whose work merged, or whose agent finished, stays in Done this long. */
+/** A started item whose work merged or landed, or whose agent finished, stays in Done this long. */
 export const DONE_HOURS = 24;
 /** An assignment that no `start` followed is a hint for this long, then the item is free to hand to another session. */
 export const ASSIGN_HOURS = 2;
@@ -35,6 +36,7 @@ export const ASSIGN_HOURS = 2;
 export const ID_PATTERN = BACKLOG_ID_RE;
 const SESSION_PATTERN = /^[A-Za-z0-9._-]{1,100}$/;
 const BRANCH_PATTERN = /^[A-Za-z0-9._/-]{1,200}$/;
+const SHA_PATTERN = /^[0-9a-f]{7,64}$/;
 const TITLE_MAX = 200;
 const NOTE_MAX = 1000;
 const BY_MAX = 40;
@@ -52,6 +54,9 @@ export interface BacklogItem {
   started_at: string | null;
   started_by: string | null;
   dropped_at: string | null;
+  /** when a `done` event recorded the work as landed (started items only), and the sha it landed as, when given */
+  landed_at: string | null;
+  landed_sha: string | null;
   /** the latest session an Assign typed the item into; kept until a start or a drop (shown for ASSIGN_HOURS) */
   assigned: { session: string; branch: string | null; at: string } | null;
 }
@@ -76,6 +81,7 @@ export interface BacklogStorage {
     input: { branch: string; repo?: string | null; by?: string | null },
   ): BacklogItem;
   drop(id: string, who?: string | null): BacklogItem;
+  done(id: string, input?: { sha?: string | null; by?: string | null }): BacklogItem;
   assign(
     id: string,
     input: { session: string; branch?: string | null; by?: string | null },
@@ -138,6 +144,8 @@ export function foldBacklog(text: string): BacklogItem[] {
         started_at: null,
         started_by: null,
         dropped_at: null,
+        landed_at: null,
+        landed_sha: null,
         assigned: null,
       });
     } else if (
@@ -152,6 +160,9 @@ export function foldBacklog(text: string): BacklogItem[] {
       found.repo = typeof event.repo === 'string' && event.repo ? event.repo : found.repo;
       found.started_at = when;
       found.started_by = who;
+      // a new start is new work: an earlier landing no longer speaks for it
+      found.landed_at = null;
+      found.landed_sha = null;
     } else if (
       found &&
       found.state === 'open' &&
@@ -164,6 +175,9 @@ export function foldBacklog(text: string): BacklogItem[] {
         branch: typeof event.branch === 'string' && event.branch ? event.branch : null,
         at: when,
       };
+    } else if (found && found.state === 'started' && event.op === 'done') {
+      found.landed_at = when;
+      found.landed_sha = typeof event.sha === 'string' && event.sha ? event.sha : null;
     } else if (found && event.op === 'drop') {
       found.state = 'dropped';
       found.dropped_at = when;
@@ -285,6 +299,21 @@ export class BacklogStore implements BacklogStorage {
     return this.find(id);
   }
 
+  /** Records that a started item's work landed (deploy-local.sh, no PR), with the sha it landed as when known. */
+  done(id: string, input: { sha?: string | null; by?: string | null } = {}): BacklogItem {
+    const item = this.find(id);
+    if (item.state !== 'started') {
+      throw new Error(`${id} is ${item.state}, only a started item can be done`);
+    }
+    this.append({
+      op: 'done',
+      id,
+      sha: optional(input.sha, 'the sha', SHA_PATTERN),
+      by: clean(input.by, 'the name', BY_MAX) || 'cli',
+    });
+    return this.find(id);
+  }
+
   drop(id: string, who?: string | null): BacklogItem {
     this.find(id);
     this.append({ op: 'drop', id, by: clean(who, 'the name', BY_MAX) || 'cli' });
@@ -351,13 +380,17 @@ export function assignLine(item: Pick<BacklogItem, 'id' | 'title' | 'branch'>): 
 }
 
 /**
- * Whether a started item's work has finished, with when and where it goes: merged is Done at its merge time (else the
- * start), a finished agent is Done at its end (a failed one is Error). Null while the work is going on or has no link.
+ * Whether a started item's work has finished, with when and where it goes: landed (`done`, a local deploy) is Done at
+ * that time, merged is Done at its merge time (else the start), a finished agent is Done at its end (a failed one is Error). Null while the work is going on or has no link.
  */
 function endedColumn(
   links: BoardStartedLinks | undefined,
   startedMs: number,
+  landedMs: number,
 ): { column: 'done' | 'error'; when: number } | null {
+  if (!Number.isNaN(landedMs)) {
+    return { column: 'done', when: landedMs };
+  }
   if (links?.merged) {
     const when = Date.parse(links.merged_at ?? '');
     return { column: 'done', when: Number.isNaN(when) ? startedMs || 0 : when };
@@ -392,7 +425,7 @@ const AGENT_OPEN: BoardAgent['state'][] = ['running', 'waiting', 'plan', 'fixing
  *   on a card    it rides on the work or session card for its repo and branch, else on the card its linked, still open
  *                agent is in (an agent's own card takes the item's title); that card's column carries on
  *   no card      it is a card of its own in Working ("started, no session yet" until `links` (backlog-links.ts) finds a
- *                worktree, session or agent), in Done once its work merged or its agent finished (Error when the agent
+ *                worktree, session or agent), in Done once its work merged, landed (`once-upon backlog done`) or its agent finished (Error when the agent
  *                failed), and gone DONE_HOURS after that. An unlinked one is gone after STARTED_GRACE_HOURS
  *
  * Dropped items are not shown.
@@ -450,7 +483,7 @@ export function backlogCards(
           (item.repo ? sameRepo(session.repo, item.repo) : !session.repo),
       );
       const started = Date.parse(item.started_at ?? '');
-      const ended = endedColumn(link, started);
+      const ended = endedColumn(link, started, Date.parse(item.landed_at ?? ''));
       if (ended) {
         // finished: Done (or Error) for a day from when it finished, as far as is known
         if (nowMs - ended.when > DONE_HOURS * 3600 * 1000) {

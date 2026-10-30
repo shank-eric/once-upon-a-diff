@@ -10,6 +10,7 @@ import {
   assignLine,
   liveAssignment,
   STARTED_GRACE_HOURS,
+  DONE_HOURS,
   backlogCards,
   foldBacklog,
   startLine,
@@ -314,6 +315,83 @@ test('a started item folds into the card of its open agent, whatever the agent c
   assert.deepEqual(backlogCards(store.items(), [inside], NOW, [], links), []);
   assert.equal(inside.title, 'A PR title');
   assert.equal(inside.from_backlog?.length, 1);
+});
+
+test('a landed item is Done for a day from the done event, then off the board; list --all shows it', async () => {
+  const home = tmp('backlog-landed');
+  const store = new BacklogStore(home);
+  const item = store.add({ title: 'Shipped by deploy', repo: 'acme/widgets' });
+  assert.throws(() => store.done(item.id), /only a started item/);
+  store.start(item.id, { branch: 'stack/9-shipped' });
+  const landed = store.done(item.id, { sha: 'abc1234', by: 'deploy-local' });
+  assert.equal(landed.state, 'started');
+  assert.equal(landed.landed_sha, 'abc1234');
+  assert.throws(() => store.done(item.id, { sha: 'not a sha' }), /sha/);
+  const landedMs = Date.parse(landed.landed_at as string);
+  const hour = 3600 * 1000;
+  // nothing is linked, and the grace day is long past: a landed item is Done until DONE_HOURS after it landed
+  const soon = backlogCards(store.items(), [], landedMs + (DONE_HOURS - 1) * hour);
+  assert.deepEqual(
+    soon.map((card) => card.column),
+    ['done'],
+  );
+  assert.equal(soon[0].since, landed.landed_at);
+  assert.equal(backlogCards(store.items(), [], landedMs + (DONE_HOURS + 1) * hour).length, 0);
+
+  // by branch (what the deploy script has): only started, not yet landed items on it; no match is not an error
+  const other = store.add({ title: 'Other', repo: 'acme/widgets' });
+  store.start(other.id, { branch: 'stack/10-other' });
+  const cli = await runCli(home, [
+    'backlog',
+    'done',
+    '--branch',
+    'stack/10-other',
+    '--sha',
+    'def5678',
+    '--repo',
+    'acme/widgets',
+  ]);
+  assert.equal(cli.code, 0, cli.stderr);
+  assert.match(cli.stdout, /done at def5678: Other/);
+  // the same branch name in another repo is not this deploy's work
+  const elsewhere = store.add({ title: 'Elsewhere', repo: 'acme/gadgets' });
+  store.start(elsewhere.id, { branch: 'stack/11-same' });
+  const wrongRepo = await runCli(home, [
+    'backlog',
+    'done',
+    '--branch',
+    'stack/11-same',
+    '--repo',
+    'acme/widgets',
+  ]);
+  assert.equal(wrongRepo.code, 0, wrongRepo.stderr);
+  assert.equal(wrongRepo.stdout.trim(), '');
+  assert.equal(store.items().find((one) => one.id === elsewhere.id)?.landed_at, null);
+  const none = await runCli(home, [
+    'backlog',
+    'done',
+    '--branch',
+    'stack/none',
+    '--repo',
+    'acme/widgets',
+  ]);
+  assert.equal(none.code, 0, none.stderr);
+  assert.equal(none.stdout.trim(), '');
+  assert.notEqual((await runCli(home, ['backlog', 'done'])).code, 0);
+  // started again: new work, so the old landing is forgotten and the item is Working again
+  store.start(item.id, { branch: 'stack/12-again' });
+  const again = store.items().find((one) => one.id === item.id);
+  assert.equal(again?.landed_at, null);
+  assert.equal(again?.landed_sha, null);
+  store.done(item.id, { sha: 'abc1234' });
+  const listed = (await runCli(home, ['backlog', 'list', '--all'])).stdout;
+  assert.equal(listed.split('\n').filter((line) => /\tdone\t/.test(line)).length, 2);
+  assert.equal(
+    JSON.parse(
+      readFileSync(path.join(home, 'backlog.jsonl'), 'utf8').trim().split('\n').pop() as string,
+    ).op,
+    'done',
+  );
 });
 
 test('a started item with no card is Working until its work ends, then Done (Error when the agent failed) for a day', () => {

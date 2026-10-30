@@ -258,6 +258,26 @@ recover() {
   exit "$rc"
 }
 
+# Record the deployed branches' backlog items as landed (no PR ever merges them, and the stack branches get pruned).
+# Fast-forward: local branches whose tip is in $PREV..$TIP. Batch: local branches whose tip is one of the picked shas.
+# A failure here only prints a line, the deploy is already live.
+mark_landed() {
+  local name tip hit n=0
+  while read -r name tip; do
+    case "$name" in main | master) continue ;; esac
+    hit=0
+    if [ "$BATCH" = 1 ]; then
+      case " ${SHAS[*]} " in *" $tip "*) hit=1 ;; esac
+    elif git -C "$MAIN" merge-base --is-ancestor "$tip" "$TIP" && ! git -C "$MAIN" merge-base --is-ancestor "$tip" "$PREV"; then
+      hit=1
+    fi
+    [ "$hit" = 1 ] || continue
+    (cd "$MAIN/packages/bridge" && node bin/once-upon.mjs backlog done --branch "$name" --sha "$tip" --by deploy-local </dev/null) || say "could not mark backlog items on $name as done"
+    n=$((n + 1))
+  done < <(git -C "$MAIN" for-each-ref --format='%(refname:lstrip=2) %(objectname)' refs/heads 2>/dev/null) || true
+  say "backlog: checked $n deployed branch(es) for started items"
+}
+
 go_live() {
   trap recover EXIT
   SWITCHED=1
@@ -280,6 +300,7 @@ go_live() {
   else
     say "local main is not an ancestor of the tip, left it alone"
   fi
+  mark_landed || say "could not mark backlog items as done"
   SHORT="$(git -C "$MAIN" rev-parse --short "$TIP")"
   NOW="$(TZ=America/New_York date '+%-I:%M %p ET, %-m/%-d')"
 }

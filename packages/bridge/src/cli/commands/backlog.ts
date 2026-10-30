@@ -3,7 +3,7 @@
  * (services/backlog/backlog.ts) in-process, so nothing goes over HTTP; the board shows the items as its Backlog column.
  */
 import { formatTime } from '../../services/config/settings.ts';
-import { repoOfCheckout, currentBranch } from '../../services/config/repos.ts';
+import { repoOfCheckout, currentBranch, sameRepo } from '../../services/config/repos.ts';
 
 import { BacklogStore } from '../../services/backlog/backlog.ts';
 import { DEFAULT_BRANCHES } from '../../services/review/story-lists.ts';
@@ -18,15 +18,21 @@ const USAGE =
   '       once-upon backlog show ID\n' +
   '       once-upon backlog start ID [--branch NAME] [--repo owner/name] [--by NAME]\n' +
   '       once-upon backlog move ID --before ID | --top | --bottom\n' +
+  '       once-upon backlog done ID [--sha SHA] [--by NAME]\n' +
+  '       once-upon backlog done --branch NAME [--sha SHA] [--by NAME]\n' +
   '       once-upon backlog drop ID';
 
 const text = (value: unknown): string | null => (typeof value === 'string' ? value : null);
 
 function describe(item: BacklogItem, home: string): string {
   const where = [item.repo, item.branch].filter(Boolean).join(' ');
-  return [item.id, item.state, where || '-', item.title, formatTime(item.added_at, home)].join(
-    '\t',
-  );
+  return [
+    item.id,
+    item.landed_at ? 'done' : item.state,
+    where || '-',
+    item.title,
+    formatTime(item.added_at, home),
+  ].join('\t');
 }
 
 function backlog(home: string, cfg: Config, opts: CliOpts) {
@@ -94,6 +100,33 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     store.move(item.id, before ? { before } : { edge }, who);
     return out(`${item.id} moved ${before ? `before ${before}` : `to the ${edge}`}: ${item.title}`);
   }
+  if (verb === 'done') {
+    // by id, or every started item on a branch of a repo (what deploy-local.sh knows: --repo, else this checkout's);
+    // none on the branch is not an error
+    const branch = text(opts.branch);
+    const repo = text(opts.repo) ?? repoOfCheckout(process.cwd());
+    if (!words[0] && !branch) {
+      throw new Error('mark an item done by ID, or by --branch NAME');
+    }
+    const targets = words[0]
+      ? [found()]
+      : store
+          .items()
+          .filter(
+            (one) =>
+              one.state === 'started' &&
+              one.branch === branch &&
+              sameRepo(one.repo, repo) &&
+              !one.landed_at,
+          );
+    for (const item of targets) {
+      const landed = store.done(item.id, { sha: text(opts.sha), by: who });
+      out(
+        `${landed.id} done${landed.landed_sha ? ` at ${landed.landed_sha}` : ''}: ${landed.title}`,
+      );
+    }
+    return;
+  }
   if (verb === 'drop') {
     const item = found();
     store.drop(item.id, who);
@@ -108,6 +141,7 @@ export const backlogCommands: Command[] = [
     usage: [
       '  once-upon backlog add "TITLE" [--note TEXT] [--repo owner/name] [--branch NAME]  keep something for later: a card in the board\'s Backlog column',
       '  once-upon backlog list [--all] [--json] | show ID | drop ID                     the items in board order (open ones, or all), one item, or drop one',
+      '  once-upon backlog done ID | --branch NAME [--sha SHA]                           the work landed (a local deploy): the card goes to Done for a day',
       '  once-upon backlog move ID --before ID | --top | --bottom                        reorder: new items go to the bottom',
       "  once-upon backlog start ID [--branch NAME]                                       work began: the card moves onto that branch's work card",
     ],
