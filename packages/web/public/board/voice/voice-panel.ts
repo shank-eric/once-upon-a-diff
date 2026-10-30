@@ -11,6 +11,7 @@
  */
 import { html, render, useEffect, useLayoutEffect, useRef, useState } from '/assets/preact.mjs';
 import { remember, stored } from '/assets/local/stored.ts';
+import { Meter } from '/assets/board/shared.ts';
 import type { BoardVoice, BoardVoiceLine } from '/assets/types.ts';
 
 const OPEN_KEY = 'ou-board-voice-open';
@@ -55,23 +56,6 @@ export function lineKeys(lines: readonly BoardVoiceLine[]): string[] {
     seen.set(base, count + 1);
     return count ? `${base}#${count}` : base;
   });
-}
-
-function meterLevel(percent: number) {
-  if (percent >= 90) {
-    return ' ou-board-usage-high';
-  }
-  return percent >= 70 ? ' ou-board-usage-warn' : '';
-}
-
-/** The session's context meter, the same markup as the cards' (board.ts meterHtml) until they are components too. */
-function Meter(props: { percent: number }) {
-  const clamped = Math.max(0, Math.min(100, Math.round(props.percent)));
-  return html`<span class=${`ou-board-meter${meterLevel(props.percent)}`} role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${clamped} aria-label="ctx" title=${`The session's context window is ${Math.round(props.percent)}% full`}>
-    <span class="ou-board-meter-label">ctx</span>
-    <span class="ou-board-meter-bar" aria-hidden="true"><span style=${`width:${clamped}%`}></span></span>
-    <span class="ou-board-meter-num">${clamped}%</span>
-  </span>`;
 }
 
 const MicIcon = () =>
@@ -287,7 +271,7 @@ export function VoicePanel(props: VoicePanelProps) {
       </div>
       ${where ? html`<div class="ou-local-muted">${where}</div>` : null}
       <div class="ou-board-voice-facts">
-        <span class="ou-board-voice-status"><span class="ou-board-voice-dot" aria-hidden="true"></span>${status}</span>${typeof voice.context === 'number' ? html` <${Meter} percent=${voice.context} />` : null}${pauseButton}
+        <span class="ou-board-voice-status"><span class="ou-board-voice-dot" aria-hidden="true"></span>${status}</span>${typeof voice.context === 'number' ? html` <${Meter} label="ctx" percent=${voice.context} title=${`The session's context window is ${Math.round(voice.context)}% full`} />` : null}${pauseButton}
       </div>
       <div class="ou-local-muted">${agents ? `agents: ${agents}` : 'no agents running'}</div>
       ${

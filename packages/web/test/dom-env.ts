@@ -56,6 +56,12 @@ for (const name of [
   'pointercancel',
   'lostpointercapture',
   'scroll',
+  'dragstart',
+  'dragover',
+  'dragend',
+  'dragleave',
+  'drop',
+  'submit',
 ]) {
   Object.defineProperty(window.HTMLElement.prototype, `on${name}`, {
     value: null,
@@ -64,11 +70,72 @@ for (const name of [
   });
 }
 // linkedom has no layout: the panel is as wide as its --ou-voice-width says, else 340
+// and a list's items are 100 tall, one under the other
 window.HTMLElement.prototype.getBoundingClientRect = function () {
   const width = Number.parseInt(root.style.getPropertyValue('--ou-voice-width')) || 340;
-  return { width } as DOMRect;
+  const top = this.parentElement ? [...this.parentElement.children].indexOf(this) * 100 : 0;
+  return { width, top, height: 100 } as DOMRect;
 };
+// browsers take an undefined reference node as null, which Preact relies on; linkedom reads its nodeType
+for (const type of [window.Element, window.DocumentFragment]) {
+  const insertBefore = type.prototype.insertBefore;
+  type.prototype.insertBefore = function <T extends Node>(node: T, before?: Node | null): T {
+    return insertBefore.call(this, node, before ?? null) as T;
+  };
+}
 window.HTMLElement.prototype.setPointerCapture = function () {};
+
+// linkedom calls a listener with `this` set to the event's target, where a browser sets it to the element the listener is on
+// (Preact's handlers read `this`, so a click on a button would also run the button's handler again at each ancestor)
+{
+  const proto = Object.getPrototypeOf(window.Node.prototype);
+  const add = proto.addEventListener;
+  const remove = proto.removeEventListener;
+  const wrapped = new WeakMap<object, EventListener>();
+  proto.addEventListener = function (type: string, listener: unknown, options: unknown) {
+    if (typeof listener !== 'function') {
+      return add.call(this, type, listener, options);
+    }
+    if (!wrapped.has(listener)) {
+      wrapped.set(listener, (event: Event) => listener.call(event.currentTarget, event));
+    }
+    return add.call(this, type, wrapped.get(listener), options);
+  };
+  proto.removeEventListener = function (type: string, listener: unknown, options: unknown) {
+    return remove.call(
+      this,
+      type,
+      (listener && wrapped.get(listener as object)) || listener,
+      options,
+    );
+  };
+}
+
+// linkedom has no focus: this tracks it the way a browser does for what the board relies on. focus() takes it, blur() gives
+// it up, and moving the focused node in the tree (a keyed reorder) or removing it drops it, as a browser would.
+let focused: Element | null = null;
+Object.defineProperty(document, 'activeElement', {
+  get: () => (focused && document.contains(focused) ? focused : document.body),
+  configurable: true,
+});
+window.HTMLElement.prototype.focus = function (this: HTMLElement) {
+  // eslint-disable-next-line @typescript-eslint/no-this-alias
+  focused = this;
+};
+window.HTMLElement.prototype.blur = function () {
+  if (focused === this) {
+    focused = null;
+  }
+};
+for (const type of [window.Element, window.DocumentFragment]) {
+  const insertBefore = type.prototype.insertBefore;
+  type.prototype.insertBefore = function <T extends Node>(node: T, before?: Node | null): T {
+    if (node === (focused as unknown as Node)) {
+      focused = null;
+    }
+    return insertBefore.call(this, node, before ?? null) as T;
+  };
+}
 
 const storage = new Map<string, string>();
 Object.assign(globalThis, {
