@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The yarn version comes from "packageManager" in package.json, and corepack has to be on before setup-node so
+      # its cache step can find yarn.
+      - name: Enable corepack
+        run: corepack enable
+
+      # node-version-file reads .nvmrc, the same 24 that "engines" asks for. The cache is yarn's folder (.yarn/cache,
+      # since enableGlobalCache is off), keyed on yarn.lock.
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: yarn
+
+      - name: Install
+        run: yarn install --immutable
+
+      - name: Lint
+        run: yarn lint
+
+      - name: Typecheck
+        run: yarn typecheck
+
+      - name: Format check
+        run: yarn format:check
+
+      - name: Test
+        run: yarn test
+
+      - name: Build the extension
+        run: yarn build
