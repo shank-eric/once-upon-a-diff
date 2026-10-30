@@ -31,6 +31,7 @@ The pre-commit hook runs ESLint and Prettier's check on what's staged.
 - Strict everywhere, and no `any`. Type JSON where it's read (`readJson<T>`, `JSON.parse(...) as T`), and keep casts for the places the DOM or a parsed file forces them, with a word on why when it isn't obvious.
 - Only syntax Node can strip: no `enum`, `namespace` or constructor parameter properties (`erasableSyntaxOnly` checks), and `import type` for types (`verbatimModuleSyntax`). A class declares its fields with `declare`.
 - Imports name the file, `.ts` included (`./reads.ts`). Across packages, import by name: `@once-upon-a-diff/shared/util/html`, `once-upon-a-diff/stories/chapters`. Inside `packages/shared`, keep imports relative: the local page loads those files straight into the browser.
+- Package boundaries are lint rules (`eslint.boundaries.mjs`, run by `yarn lint`): the server (`bridge/src`) and the pages (`bridge/public`) never import each other, `shared` never imports the bridge or the extension, the extension never imports the bridge source, and nothing that ships to the browser imports a Node built-in. Tests and scripts are exempt. The rules for the packages still to come are in that file, commented out.
 - The bridge and the panel share their data shapes through `packages/shared/src/types.ts`. Change a shape there, and both sides' typecheck says what to update.
 
 ## A release
