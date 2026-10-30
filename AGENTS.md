@@ -12,7 +12,7 @@ Standing rules for any agent working in Once Upon a Diff. A brief only needs to 
 ## The live bridge
 
 - Never restart the live bridge (port 4823) and never reload the extension.
-- Deploys happen only through `scripts/deploy-local.sh`, run by the main session.
+- Deploys happen only through `scripts/deploy-local.sh`, run by the main session. The default is `--yes <branch-or-sha>` (fast-forward, no gates); `--batch <base> <sha>...` cherry-picks and runs the gates in the one `deploy` worktree.
 
 ## Tests and checks
 

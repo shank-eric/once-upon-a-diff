@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 # Local deploy for Once Upon a Diff. Never pushes, never deletes branches or worktrees.
 #
-#   scripts/deploy-local.sh [--yes] <name> <base-sha> <sha>...
+#   scripts/deploy-local.sh --yes <branch-or-sha>            fast-forward deploy (default)
+#   scripts/deploy-local.sh [--yes] --batch <base> <sha>...  cherry-pick deploy with gates
 #   scripts/deploy-local.sh --rollback <sha>
 #
-# Without --yes it builds the deploy worktree, runs every gate, prints the plan and stops.
-# Re-running with the same arguments and --yes reuses that worktree and skips the gates when the tip is unchanged.
+# Fast-forward mode refuses unless the target descends from the main checkout's live HEAD and the checkout is clean.
+# It fast-forwards main to the target, installs, builds, respawns the bridge and verifies. It runs no gates: the
+# branch's own agent ran them. Without --yes it only prints the plan.
+# Batch mode cherry-picks the shas onto <base> in ONE reusable worktree (../once-upon-a-diff-worktrees/deploy, reset
+# to the base each time), runs every gate and prints the plan. Re-running with the same arguments and --yes reuses
+# that worktree and skips the gates when the tip is unchanged.
 set -euo pipefail
 
 MAIN="${OU_MAIN:-$HOME/Development/SideProjects/once-upon-a-diff}"
@@ -18,17 +23,20 @@ die() { echo "deploy-local: $*" >&2; exit 1; }
 say() { echo "deploy-local: $*"; }
 
 usage() {
-  echo "usage: scripts/deploy-local.sh [--yes] <name> <base-sha> <sha>..." >&2
+  echo "usage: scripts/deploy-local.sh --yes <branch-or-sha>" >&2
+  echo "       scripts/deploy-local.sh [--yes] --batch <base> <sha>..." >&2
   echo "       scripts/deploy-local.sh --rollback <sha>" >&2
   exit 2
 }
 
 YES=0
+BATCH=0
 ROLLBACK=""
 ARGS=()
 while [ $# -gt 0 ]; do
   case "$1" in
     --yes) YES=1 ;;
+    --batch) BATCH=1 ;;
     --rollback)
       [ $# -ge 2 ] || usage
       ROLLBACK="$2"
@@ -101,6 +109,40 @@ switch_main() {
     [ "$before" = "$after" ] || say "note: $KNOWN_EDIT diff changed across the switch, check it"
   fi
   say "main checkout detached at $(git -C "$MAIN" rev-parse --short HEAD)"
+}
+
+# Fast-forward mode: keep the main checkout on branch main and merge --ff-only $1 into it, carrying the known edit.
+ff_main() {
+  local sha="$1" stashed=0 cur
+  check_main_clean
+  cur="$(git -C "$MAIN" symbolic-ref -q --short HEAD || true)"
+  if [ "$cur" != main ]; then
+    git -C "$MAIN" merge-base --is-ancestor main HEAD || die "local main is not an ancestor of the live HEAD, so switching to it is unsafe. Fix it by hand."
+  fi
+  if [ -n "$(git -C "$MAIN" status --porcelain -- "$KNOWN_EDIT")" ]; then
+    git -C "$MAIN" stash push -q -m "deploy-local: $KNOWN_EDIT" -- "$KNOWN_EDIT"
+    stashed=1
+  fi
+  if [ "$cur" != main ]; then
+    git -C "$MAIN" switch -q main || { [ "$stashed" = 1 ] && git -C "$MAIN" stash pop -q; die "could not switch the main checkout to branch main (is it checked out in another worktree?)"; }
+  fi
+  if ! git -C "$MAIN" merge -q --ff-only "$sha"; then
+    [ "$stashed" = 1 ] && git -C "$MAIN" stash pop -q
+    die "fast-forward of main to $sha failed"
+  fi
+  if [ "$stashed" = 1 ] && ! git -C "$MAIN" stash pop -q; then
+    say "stash pop of $KNOWN_EDIT conflicted. Your edit is still in git stash ('deploy-local')."
+  fi
+  say "main fast-forwarded to $(git -C "$MAIN" rev-parse --short HEAD) on branch main"
+}
+
+# Put the main checkout back on branch main at $1 (recovery for fast-forward mode).
+restore_main() {
+  local sha="$1"
+  if [ "$(git -C "$MAIN" symbolic-ref -q --short HEAD || true)" != main ]; then
+    git -C "$MAIN" switch -q main || return 1
+  fi
+  git -C "$MAIN" reset -q --keep "$sha" || git -C "$MAIN" reset -q --hard "$sha"
 }
 
 # The pid listening on $PORT, or nothing.
@@ -187,22 +229,99 @@ if [ -n "$ROLLBACK" ]; then
   exit 0
 fi
 
-[ ${#ARGS[@]} -ge 2 ] || usage
-NAME="${ARGS[0]}"
-BASE="${ARGS[1]}"
-SHAS=("${ARGS[@]:2}")
-case "$NAME" in *[!A-Za-z0-9._-]* | "") die "bad name '$NAME'" ;; esac
-
-BRANCH="stack/deploy-$NAME"
-WT="$MAIN-worktrees/deploy-$NAME"
 PREV="$(git -C "$MAIN" rev-parse HEAD)"
 PREVS="$(git -C "$MAIN" rev-parse --short "$PREV")"
+ROLLBACK_CMD="scripts/deploy-local.sh --rollback $PREV"
+
+# Switch main to $TIP, rebuild, respawn and verify. Once main is switched, any failure puts the previous sha back.
+SWITCHED=0
+recover() {
+  local rc=$?
+  trap - EXIT
+  if [ "$SWITCHED" = 1 ] && [ "$rc" -ne 0 ]; then
+    echo "deploy-local: FAILED after switching main (exit $rc). Putting $PREVS back." >&2
+    (
+      if [ "$BATCH" = 1 ]; then
+        switch_main "$PREV" || switch_main "$PREV" force
+      else
+        restore_main "$PREV" || switch_main "$PREV" force
+      fi
+      rebuild_main
+      respawn_bridge
+    ) || echo "deploy-local: automatic recovery failed." >&2
+    echo "deploy-local: previous sha: $PREV" >&2
+    echo "deploy-local: roll back by hand with: $ROLLBACK_CMD" >&2
+  fi
+  exit "$rc"
+}
+
+go_live() {
+  trap recover EXIT
+  SWITCHED=1
+  if [ "$BATCH" = 1 ]; then switch_main "$TIP"; else ff_main "$TIP"; fi
+  rebuild_main
+  respawn_bridge
+  verify_live
+  SWITCHED=0
+  trap - EXIT
+  # Batch mode: move the local main branch up when the tip descends from it. Fast-forward mode already did.
+  if [ "$BATCH" != 1 ]; then
+    say "local main is at $(git -C "$MAIN" rev-parse --short main)"
+  elif git -C "$MAIN" merge-base --is-ancestor main "$TIP"; then
+    OLDMAIN="$(git -C "$MAIN" rev-parse --short main)"
+    if git -C "$MAIN" branch -f main "$TIP" 2>/dev/null; then
+      say "local main $OLDMAIN -> $(git -C "$MAIN" rev-parse --short main)"
+    else
+      say "could not move local main (checked out in a worktree?), left it at $OLDMAIN"
+    fi
+  else
+    say "local main is not an ancestor of the tip, left it alone"
+  fi
+  SHORT="$(git -C "$MAIN" rev-parse --short "$TIP")"
+  NOW="$(TZ=America/New_York date '+%-I:%M %p ET, %-m/%-d')"
+}
+
+if [ "$BATCH" != 1 ]; then
+  # Fast-forward mode
+  [ ${#ARGS[@]} -eq 1 ] || usage
+  TARGET="${ARGS[0]}"
+  TIP="$(git -C "$MAIN" rev-parse --verify -q "$TARGET^{commit}")" || die "unknown branch or sha $TARGET"
+  git -C "$MAIN" merge-base --is-ancestor "$PREV" "$TIP" || die "$TARGET ($(git -C "$MAIN" rev-parse --short "$TIP")) does not descend from the live HEAD $PREVS. Rebase it onto $PREVS, or use --batch."
+  [ "$TIP" != "$PREV" ] || die "$TARGET is already live at $PREVS"
+  check_main_clean
+  echo
+  echo "Plan"
+  echo "  target     $(git -C "$MAIN" rev-parse --short "$TIP")  ($(git -C "$MAIN" log -1 --format=%s "$TIP"))"
+  echo "  live now   $PREVS ($PREV)"
+  echo "  go live    fast-forward $MAIN to the target, yarn install, build, respawn bridge from $MAIN/packages/bridge, verify. No gates."
+  echo "  rollback   $ROLLBACK_CMD"
+  echo
+  if [ "$YES" != 1 ]; then
+    say "plan only. Re-run with --yes to go live."
+    exit 0
+  fi
+  go_live
+  echo
+  echo "Rollback: $ROLLBACK_CMD"
+  echo "Ledger:   deploy ff $TARGET: $PREVS -> $SHORT, no gates run here, bridge pid $BRIDGE_PID at $NOW, local main ff, nothing pushed"
+  exit 0
+fi
+
+# Batch mode
+[ ${#ARGS[@]} -ge 2 ] || usage
+BASE="${ARGS[0]}"
+SHAS=("${ARGS[@]:1}")
+WT="$MAIN-worktrees/deploy"
 
 check_main_clean
-git -C "$MAIN" rev-parse --verify -q "$BASE^{commit}" >/dev/null || die "unknown base $BASE"
-for s in ${SHAS[@]+"${SHAS[@]}"}; do
-  git -C "$MAIN" rev-parse --verify -q "$s^{commit}" >/dev/null || die "unknown sha $s"
+BASE="$(git -C "$MAIN" rev-parse --verify -q "$BASE^{commit}")" || die "unknown base ${ARGS[0]}"
+RESOLVED=()
+for s in "${SHAS[@]}"; do
+  r="$(git -C "$MAIN" rev-parse --verify -q "$s^{commit}")" || die "unknown sha $s"
+  RESOLVED+=("$r")
 done
+SHAS=("${RESOLVED[@]}")
+KEY="$BASE ${SHAS[*]}"
 
 stamp_of() {
   local dir
@@ -213,32 +332,39 @@ stamp_of() {
 
 REUSED=0
 if [ -e "$WT" ]; then
-  # A dry run's worktree can be reused when its tip is the one whose gates passed.
-  STAMP="$(stamp_of)"
-  [ -f "$STAMP" ] || die "worktree $WT already exists and has no passed-gates stamp. Pick another name."
   [ -z "$(git -C "$WT" status --porcelain)" ] || die "worktree $WT has uncommitted changes"
-  [ "$(git -C "$WT" rev-parse HEAD)" = "$(cat "$STAMP")" ] || die "worktree $WT moved since its gates passed. Pick another name."
-  TIP="$(git -C "$WT" rev-parse HEAD)"
-  REUSED=1
-  say "reusing $WT at $(git -C "$WT" rev-parse --short "$TIP"): gates already passed for this tip"
-else
-  git -C "$MAIN" rev-parse --verify -q "refs/heads/$BRANCH" >/dev/null && die "branch $BRANCH already exists"
-  # 1. Worktree and cherry-picks
-  mkdir -p "$MAIN-worktrees"
-  git -C "$MAIN" worktree add -q "$WT" -b "$BRANCH" "$BASE"
-  say "worktree $WT on $BRANCH from $(git -C "$WT" rev-parse --short HEAD)"
-  for s in ${SHAS[@]+"${SHAS[@]}"}; do
+  STAMP="$(stamp_of)"
+  # A dry run's result can be reused when this worktree's tip is the one whose gates passed for these arguments.
+  if [ -f "$STAMP" ] && [ "$(sed -n 1p "$STAMP")" = "$(git -C "$WT" rev-parse HEAD)" ] && [ "$(sed -n 2p "$STAMP")" = "$KEY" ]; then
+    TIP="$(git -C "$WT" rev-parse HEAD)"
+    REUSED=1
+    say "reusing $WT at $(git -C "$WT" rev-parse --short "$TIP"): gates already passed for this tip"
+  fi
+fi
+
+if [ "$REUSED" = 0 ]; then
+  if [ -e "$WT" ]; then
+    rm -f "$(stamp_of)"
+    git -C "$WT" checkout -q --detach "$BASE"
+    git -C "$WT" reset -q --hard "$BASE"
+    # Ignored build output from the last deploy must not leak into these gates.
+    rm -rf "$WT"/build "$WT"/packages/*/build "$WT"/packages/*/dist "$WT"/packages/*/.output
+  else
+    mkdir -p "$MAIN-worktrees"
+    git -C "$MAIN" worktree add -q --detach "$WT" "$BASE"
+  fi
+  say "worktree $WT reset to $(git -C "$WT" rev-parse --short HEAD)"
+  for s in "${SHAS[@]}"; do
     if ! out="$(git -C "$WT" cherry-pick "$s" 2>&1)"; then
       echo "deploy-local: cherry-pick of $s failed:" >&2
       echo "$out" | tail -n 6 >&2
       git -C "$WT" status --short | grep -E '^(UU|AA|DU|UD|AU|UA|DD) ' >&2 || true
-      die "stopped. Fix it in $WT (branch $BRANCH), or 'git cherry-pick --abort' there. Nothing was deleted and nothing is live."
+      die "stopped. Fix it in $WT, or 'git cherry-pick --abort' there. Nothing was deleted and nothing is live."
     fi
     say "picked $s -> $(git -C "$WT" rev-parse --short HEAD)"
   done
   TIP="$(git -C "$WT" rev-parse HEAD)"
 
-  # 2. Gates
   quiet "yarn install" bash -c "cd '$WT' && yarn install --immutable"
   quiet "lint" bash -c "cd '$WT' && yarn lint"
   quiet "typecheck" bash -c "cd '$WT' && yarn typecheck"
@@ -252,14 +378,12 @@ else
     VENDOR_N=$((VENDOR_N + 1))
   done
   say "vendor checksums verified: $VENDOR_N"
-  echo "$TIP" >"$(stamp_of)"
+  printf '%s\n%s\n' "$TIP" "$KEY" >"$(stamp_of)"
 fi
 
-# 3. Plan
-ROLLBACK_CMD="scripts/deploy-local.sh --rollback $PREV"
 echo
 echo "Plan"
-echo "  worktree   $WT ($BRANCH)"
+echo "  worktree   $WT (detached)"
 echo "  tip        $(git -C "$WT" rev-parse --short "$TIP")  ($(git -C "$WT" log -1 --format=%s "$TIP"))"
 echo "  live now   $PREVS ($PREV)"
 echo "  go live    detach $MAIN at the tip, yarn install, build, respawn bridge from $MAIN/packages/bridge, verify, fast-forward local main"
@@ -270,48 +394,9 @@ if [ "$YES" != 1 ]; then
   exit 0
 fi
 
-# 4. Go live. Once main is switched, any failure puts the previous sha back and respawns the bridge.
-SWITCHED=0
-recover() {
-  local rc=$?
-  trap - EXIT
-  if [ "$SWITCHED" = 1 ] && [ "$rc" -ne 0 ]; then
-    echo "deploy-local: FAILED after switching main (exit $rc). Putting $PREVS back." >&2
-    (
-      switch_main "$PREV" || switch_main "$PREV" force
-      rebuild_main
-      respawn_bridge
-    ) || echo "deploy-local: automatic recovery failed." >&2
-    echo "deploy-local: previous sha: $PREV" >&2
-    echo "deploy-local: roll back by hand with: $ROLLBACK_CMD" >&2
-  fi
-  exit "$rc"
-}
-trap recover EXIT
-
-switch_main "$TIP"
-SWITCHED=1
-rebuild_main
-respawn_bridge
-
-# 5. Verify
-verify_live
-SWITCHED=0
-trap - EXIT
-
-# 6. Fast-forward local main
-if git -C "$MAIN" merge-base --is-ancestor main "$TIP"; then
-  OLDMAIN="$(git -C "$MAIN" rev-parse --short main)"
-  git -C "$MAIN" branch -f main "$TIP"
-  say "local main $OLDMAIN -> $(git -C "$MAIN" rev-parse --short main)"
-else
-  say "local main is not an ancestor of the tip, left it alone"
-fi
-
-# 7. Rollback and ledger line
-SHORT="$(git -C "$MAIN" rev-parse --short "$TIP")"
+go_live
 NOTE=""
 [ "$REUSED" = 1 ] && NOTE=" (reused worktree)"
 echo
 echo "Rollback: $ROLLBACK_CMD"
-echo "Ledger:   deploy $NAME: $PREVS -> $SHORT, ${#SHAS[@]} picked, gates green$NOTE, bridge pid $BRIDGE_PID at $(TZ=America/New_York date '+%-I:%M %p ET, %-m/%-d'), local main ff, nothing pushed"
+echo "Ledger:   deploy batch: $PREVS -> $SHORT, ${#SHAS[@]} picked, gates green$NOTE, bridge pid $BRIDGE_PID at $NOW, local main ff, nothing pushed"
