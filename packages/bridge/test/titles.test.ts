@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmp } from './helpers.ts';
-import { projectFolder } from '../src/board/blank.ts';
-import { SessionTitles } from '../src/board/titles.ts';
+import { projectFolder } from '../src/adapters/claude-sessions/blank.ts';
+import { SessionTitles } from '../src/adapters/claude-sessions/titles.ts';
 
 const SESSION = '11111111-aaaa-bbbb-cccc-dddddddddddd';
 const NOW = Date.parse('2026-10-27T15:00:00Z');

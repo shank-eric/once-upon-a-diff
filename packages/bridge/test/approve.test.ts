@@ -12,14 +12,14 @@ import {
   writeJson,
   TOKEN,
 } from './helpers.ts';
-import { createLocalStory } from '../src/stories/local-story.ts';
-import { StoryStore } from '../src/stories/store.ts';
-import { Inbox } from '../src/inbox/inbox.ts';
-import { AutoReview } from '../src/story-lists/auto-review.ts';
-import { APPROVED_DAYS, approvalOf } from '../src/story-lists/approve.ts';
-import { localEntries, localStories } from '../src/story-lists/stories.ts';
-import { columnOf } from '../src/board/columns.ts';
-import { boardKey, pageKey, viewKey } from '../src/server/page-key.ts';
+import { createLocalStory } from '../src/services/stories/local-story.ts';
+import { StoryStore } from '../src/services/stories/store.ts';
+import { Inbox } from '../src/services/inbox/inbox.ts';
+import { AutoReview } from '../src/services/review/auto-review.ts';
+import { APPROVED_DAYS, approvalOf } from '../src/services/review/approve.ts';
+import { localEntries, localStories } from '../src/services/review/story-lists.ts';
+import { columnOf } from '../src/services/board/columns.ts';
+import { boardKey, pageKey, viewKey } from '../src/services/pages/page-key.ts';
 import type { Printable } from '../src/cli/output.ts';
 import type { BoardData, StoryData } from '@once-upon-a-diff/shared/types';
 

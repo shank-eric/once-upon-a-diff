@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmp, writeJson, git } from './helpers.ts';
-import { Board, noPrWatcher } from '../src/board/board.ts';
-import { BacklogStore } from '../src/board/backlog.ts';
-import { checkoutsOf, pathsIn, type CheckoutFacts } from '../src/board/checkouts.ts';
-import { registrySource } from '../src/board/sources.ts';
-import { StoryStore } from '../src/stories/store.ts';
-import { Builds } from '../src/inbox/builds.ts';
+import { Board, noPrWatcher } from '../src/services/board/board.ts';
+import { BacklogStore } from '../src/services/backlog/backlog.ts';
+import { checkoutsOf, pathsIn, type CheckoutFacts } from '../src/services/worktrees/checkouts.ts';
+import { registrySource } from '../src/services/sessions/sources.ts';
+import { StoryStore } from '../src/services/stories/store.ts';
+import { Builds } from '../src/services/inbox/builds.ts';
 import type { BoardCard } from '@once-upon-a-diff/shared/types';
 
 test('pathsIn takes absolute and ~/ paths from a task, and leaves dates, urls, and/or and relative paths', () => {

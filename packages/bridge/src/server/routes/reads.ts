@@ -3,17 +3,24 @@
  * time (POST), and what changed after they read each chapter (GET).
  */
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
-import { readMeta } from '../../stories/meta.ts';
-import { stateKeyOf } from '../../github/drafts.ts';
-import { currentHead, changesSince } from '../../github/freshness.ts';
-import { newId } from '../../inbox/inbox.ts';
-import { readReads, noteRead, sinceOf, readSha, changedSinceRead } from '../../stories/reads.ts';
+import { readMeta } from '../../services/stories/meta.ts';
+import { stateKeyOf } from '../../services/review/drafts.ts';
+import { currentHead, changesSince } from '../../services/review/freshness.ts';
+import { newId } from '../../services/inbox/inbox.ts';
+import {
+  readReads,
+  noteRead,
+  sinceOf,
+  readSha,
+  changedSinceRead,
+} from '../../services/stories/reads.ts';
 import { SHA_RE } from '@once-upon-a-diff/shared/util/text';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
 import type { StoryData } from '@once-upon-a-diff/shared/types';
-import type { FileChange } from '../../github/freshness.ts';
-import type { App, Call, ServedStory, StoryMeta, StoryRoute } from '../../types.ts';
+import type { FileChange } from '../../services/review/freshness.ts';
+import type { ServedStory, StoryMeta } from '../../services/stories/types.ts';
+import type { App, Call, StoryRoute } from '../types.ts';
 
 type ReadBody = ReturnType<typeof parseBody<'readNote'>>;
 

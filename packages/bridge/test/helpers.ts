@@ -5,17 +5,17 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AddressInfo } from 'node:net';
 import { createBridge, type Bridge } from '../src/server/index.ts';
-import type { BranchCheck, PrCheck, RequestedCheck } from '../src/story-lists/auto-review.ts';
+import type { BranchCheck, PrCheck, RequestedCheck } from '../src/services/review/auto-review.ts';
 import {
   localEntries,
   localStory,
   markStoryReviewed,
   prStories,
   prStory,
-} from '../src/story-lists/stories.ts';
+} from '../src/services/review/story-lists.ts';
 import type { InboxLocalStory, InboxStory } from '@once-upon-a-diff/shared/types';
-import type { Build } from '../src/inbox/builds.ts';
-import type { listeningOf } from '../src/listeners/listeners.ts';
+import type { Build } from '../src/services/inbox/builds.ts';
+import type { listeningOf } from '../src/services/listeners/listeners.ts';
 
 /** A build request as the bridge answers with it: the request and its state. */
 export type BuildView = Build & { state: string };

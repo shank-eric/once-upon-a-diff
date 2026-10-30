@@ -12,8 +12,8 @@ import {
   type ReadRecord,
   type Reads,
   type Since,
-} from '../src/stories/reads.ts';
-import type { ReadEntry } from '../src/inbox/inbox.ts';
+} from '../src/services/stories/reads.ts';
+import type { ReadEntry } from '../src/services/inbox/inbox.ts';
 import type { Chapter, ReadChange, ReadInfo, StoryData } from '@once-upon-a-diff/shared/types';
 import {
   chapterKeyOf,
@@ -21,8 +21,8 @@ import {
   inferReadSteps,
   viewedEarlyCheck,
 } from '@once-upon-a-diff/shared/overlay';
-import { clearFreshness } from '../src/github/freshness.ts';
-import { createLocalStory } from '../src/stories/local-story.ts';
+import { clearFreshness } from '../src/services/review/freshness.ts';
+import { createLocalStory } from '../src/services/stories/local-story.ts';
 
 /** POST .../read: the record kept, with its chapter key. */
 type ReadBody = ReadRecord & { chapter: string };
@@ -219,7 +219,7 @@ test('a local story records the head commit of its range', async () => {
 });
 
 test('chapters he read are marked when a newer commit changed their files, and drafts on a changed line', async () => {
-  const { changedSinceRead } = await import('../src/stories/reads.ts');
+  const { changedSinceRead } = await import('../src/services/stories/reads.ts');
   const chapters = [
     {
       key: 'since-x',

@@ -27,12 +27,18 @@ import {
   markReviewed,
   type TestBridge,
 } from './helpers.ts';
-import { Builds } from '../src/inbox/builds.ts';
-import { Inbox } from '../src/inbox/inbox.ts';
-import { markQuestions } from '../src/inbox/conversation.ts';
-import { Board, liveSessions, noPrWatcher, type PrWatcher } from '../src/board/board.ts';
-import { columnOf, isBackToYou } from '../src/board/columns.ts';
-import { BacklogStore, assignBranch, assignLine, backlogCards } from '../src/board/backlog.ts';
+import { Builds } from '../src/services/inbox/builds.ts';
+import { Inbox } from '../src/services/inbox/inbox.ts';
+import { markQuestions } from '../src/services/inbox/conversation.ts';
+import { Board, liveSessions, noPrWatcher, type PrWatcher } from '../src/services/board/board.ts';
+import { columnOf, isBackToYou } from '../src/services/board/columns.ts';
+import {
+  BacklogStore,
+  assignBranch,
+  assignLine,
+  backlogCards,
+} from '../src/services/backlog/backlog.ts';
+import { voiceStatus } from '../src/services/voice/voice.ts';
 import {
   bridgeUp,
   forgetProbes,
@@ -40,33 +46,31 @@ import {
   phoneReady,
   runVoiceCtl,
   sinkPort,
-  voiceStatus,
   type PhoneCommand,
   waitBridgeDown,
-} from '../src/board/voice.ts';
+} from '../src/adapters/larmor.ts';
 import {
   listenCandidates,
   listenStoryPromptFor,
   sessionOfPid,
   type ListeningInput,
-} from '../src/board/listening.ts';
-import { listenPrompt } from '../src/listeners/listeners.ts';
-import { noteListener, readHistory } from '../src/listeners/history.ts';
-import { repoStopReason, requestStop, stopRequested } from '../src/listeners/auto-stop.ts';
-import { gatedHome, laneForAgent, tiedToParent } from '../src/board/agent-home.ts';
-import type { LedgerAgent } from '../src/board/ledger.ts';
-import { gateOf, parseLedger, parseLedgerTime, parseProgress } from '../src/board/ledger.ts';
+} from '../src/services/sessions/listening.ts';
+import { listenPrompt } from '../src/services/listeners/listeners.ts';
+import { noteListener, readHistory } from '../src/services/listeners/history.ts';
+import { repoStopReason, requestStop, stopRequested } from '../src/services/listeners/auto-stop.ts';
+import { gatedHome, laneForAgent, tiedToParent } from '../src/services/board/agent-home.ts';
+import type { LedgerAgent } from '../src/services/ledger/ledger.ts';
 import {
-  findIt2,
-  focusTab,
-  itermSource,
-  pickSource,
-  registrySource,
-  typeLine,
-} from '../src/board/sources.ts';
-import { boardKey, pageKey, viewKey } from '../src/server/page-key.ts';
-import { readSettings } from '../src/config/settings.ts';
-import type { StatusSource } from '../src/board/sources.ts';
+  gateOf,
+  parseLedger,
+  parseLedgerTime,
+  parseProgress,
+} from '../src/services/ledger/ledger.ts';
+import { pickSource, registrySource } from '../src/services/sessions/sources.ts';
+import { findIt2, focusTab, itermSource, typeLine } from '../src/adapters/iterm.ts';
+import { boardKey, pageKey, viewKey } from '../src/services/pages/page-key.ts';
+import { readSettings } from '../src/services/config/settings.ts';
+import type { StatusSource } from '../src/adapters/iterm.ts';
 import {
   ghBranchCheck,
   ghPrCheck,
@@ -74,12 +78,12 @@ import {
   mergeSummary,
   AutoReview,
   type BranchPr,
-} from '../src/story-lists/auto-review.ts';
-import { StoryStore } from '../src/stories/store.ts';
-import { localEntries, localStories, LOCAL_IDLE_DAYS } from '../src/story-lists/stories.ts';
-import { createLocalStory } from '../src/stories/local-story.ts';
-import { refreshLocal } from '../src/stories/local-diff.ts';
-import type { LocalMeta } from '../src/types.ts';
+} from '../src/services/review/auto-review.ts';
+import { StoryStore } from '../src/services/stories/store.ts';
+import { localEntries, localStories, LOCAL_IDLE_DAYS } from '../src/services/review/story-lists.ts';
+import { createLocalStory } from '../src/services/stories/local-story.ts';
+import { refreshLocal } from '../src/services/stories/local-diff.ts';
+import type { LocalMeta } from '../src/services/stories/types.ts';
 import type {
   BoardAssign,
   BoardCard,
@@ -2679,7 +2683,7 @@ test('a public host that does not resolve to this machine is not offered (a setu
     });
     const set = await bridge.call<{ url: string }>('GET', '/api/board/link?public=1');
     assert.equal(set.body.url, `https://nowhere.invalid/board/#key=${boardKey(TOKEN)}`);
-    const { resolvesHere } = await import('../src/server/address.ts');
+    const { resolvesHere } = await import('../src/services/pages/address.ts');
     assert.equal(await resolvesHere('localhost'), true);
     assert.equal(await resolvesHere('nowhere.invalid'), false);
   } finally {

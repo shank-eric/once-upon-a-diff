@@ -1,10 +1,10 @@
 /*
  * `once-upon doctor`: is everything connected?
  */
-import { doctor } from '../doctor.ts';
+import { doctor } from '../../services/doctor.ts';
 import { out } from '../output.ts';
-import type { Config } from '../../config/settings.ts';
-import type { CliOpts, Command } from '../../types.ts';
+import type { Config } from '../../services/config/settings.ts';
+import type { CliOpts, Command } from '../types.ts';
 
 async function runDoctor(home: string, cfg: Config, opts: CliOpts) {
   const ok = await doctor(home, cfg, {

@@ -30,11 +30,11 @@ import {
   localRepo,
   runCli,
 } from 'once-upon-a-diff/test/helpers';
-import { createLocalStory } from 'once-upon-a-diff/stories/local-story';
-import { localPageUrl } from 'once-upon-a-diff/server/page-key';
-import { beat } from 'once-upon-a-diff/listeners/listeners';
-import { Builds, type Build } from 'once-upon-a-diff/inbox/builds';
-import type { InboxEntry, QuestionEntry } from 'once-upon-a-diff/inbox/inbox';
+import { createLocalStory } from 'once-upon-a-diff/services/stories/local-story';
+import { localPageUrl } from 'once-upon-a-diff/services/pages/page-key';
+import { beat } from 'once-upon-a-diff/services/listeners/listeners';
+import { Builds, type Build } from 'once-upon-a-diff/services/inbox/builds';
+import type { InboxEntry, QuestionEntry } from 'once-upon-a-diff/services/inbox/inbox';
 import type { LocalNote } from '@once-upon-a-diff/shared/types';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');

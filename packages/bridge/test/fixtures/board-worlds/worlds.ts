@@ -30,6 +30,33 @@ process.env.GIT_AUTHOR_NAME = process.env.GIT_COMMITTER_NAME = 'Snap';
 process.env.GIT_AUTHOR_EMAIL = process.env.GIT_COMMITTER_EMAIL = 'snap@example.com';
 process.env.GIT_CONFIG_GLOBAL = '/dev/null';
 process.env.GIT_CONFIG_SYSTEM = '/dev/null';
+// the board's two `ps` reads (every process's parent, and a pid's tty and start) are answered from the fixtures' own
+// child processes, so a loaded machine can't time them out into a different board. The stub is first on the PATH.
+const STUBS = path.join(WORK, 'stubs');
+mkdirSync(STUBS, { recursive: true });
+writeFileSync(
+  path.join(STUBS, 'ps'),
+  [
+    '#!/bin/sh',
+    'dir=$(dirname "$0")',
+    'case "$*" in',
+    '  *-A*) cat "$dir/parents.txt" ;;',
+    '  *-p*) for pid in $(echo "${*##*-p }" | tr "," " "); do grep "^ *$pid " "$dir/starts.txt"; done ;;',
+    'esac',
+    'exit 0',
+    '',
+  ].join('\n'),
+);
+chmodSync(path.join(STUBS, 'ps'), 0o755);
+process.env.PATH = `${STUBS}${path.delimiter}${process.env.PATH}`;
+const parentRows: string[] = [];
+const startRows: string[] = [];
+const noteProcess = (pid: number, ppid: number, start: string) => {
+  parentRows.push(`${pid} ${ppid}`);
+  startRows.push(`${pid} ?? ${start}`);
+  writeFileSync(path.join(STUBS, 'parents.txt'), `${parentRows.join('\n')}\n`);
+  writeFileSync(path.join(STUBS, 'starts.txt'), `${startRows.join('\n')}\n`);
+};
 
 const NOW = new Date('2026-10-26T19:00:00Z');
 // freeze the clock: the stores stamp events with `new Date()` and the board compares against Date.now()
@@ -50,10 +77,24 @@ class FrozenDate extends RealDate {
 globalThis.Date = FrozenDate as unknown as DateConstructor;
 
 const src = (file: string) => import(path.join(ROOT, 'packages/bridge/src', file));
-const { Board, noPrWatcher } = await src('board/board.ts');
-const { StoryStore } = await src('stories/store.ts');
-const { Builds } = await src('inbox/builds.ts');
-const { seenCheckout } = await src('config/repos.ts');
+const { Board, noPrWatcher } = await src('services/board/board.ts');
+const { StoryStore } = await src('services/stories/store.ts');
+const { Builds } = await src('services/inbox/builds.ts');
+const { seenCheckout, repoOfCheckoutAsync } = await src('services/config/repos.ts');
+// the repo of a folder, already answered: the board waits only 500 ms for a lookup and falls back to what it knew
+// (the real async lookup, with git run in-process so its answer, and the board's last-known repo, are there at once)
+const gitNow = (repo: string, args: string[]) => {
+  try {
+    const stdout = execFileSync('git', ['-C', repo, ...args], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    return Promise.resolve({ code: 0, stdout, stderr: '' });
+  } catch {
+    return Promise.resolve({ code: 1, stdout: '', stderr: '' });
+  }
+};
+const repoOf = (cwd: string) => repoOfCheckoutAsync(cwd, { run: gitNow });
 
 let counter = 0;
 const tmp = (name: string) => {
@@ -73,18 +114,22 @@ const gitAt = (cwd: string, when: string, ...args: string[]) =>
     encoding: 'utf8',
     env: { ...process.env, GIT_AUTHOR_DATE: when, GIT_COMMITTER_DATE: when },
   }).trim();
-const procStartOf = (pid: number) =>
-  execFileSync('ps', ['-o', 'lstart=', '-p', String(pid)], {
+// the real ps (by path, not the stub), asked once when a child is made
+const procStartOf = (pid: number, ppid: number) => {
+  const start = execFileSync('/bin/ps', ['-o', 'lstart=', '-p', String(pid)], {
     encoding: 'utf8',
     env: { ...process.env, TZ: 'UTC', LC_ALL: 'C' },
   }).trim();
+  noteProcess(pid, ppid, start);
+  return start;
+};
 
 const children: { pid: number; kill: () => void }[] = [];
 function liveChild() {
   const child = spawn('sleep', ['120']);
   children.push({ pid: child.pid as number, kill: () => child.kill() });
   const pid = child.pid as number;
-  return { pid, procStart: procStartOf(pid) };
+  return { pid, procStart: procStartOf(pid, process.pid) };
 }
 function parentWithChild(): Promise<{ parent: number; child: number; procStart: string }> {
   const shell = spawn('sh', ['-c', 'sleep 120 & echo $!; wait']);
@@ -102,7 +147,9 @@ function parentWithChild(): Promise<{ parent: number; child: number; procStart: 
           }
         },
       });
-      resolve({ parent: shell.pid as number, child, procStart: procStartOf(shell.pid as number) });
+      const procStart = procStartOf(shell.pid as number, process.pid);
+      procStartOf(child, shell.pid as number);
+      resolve({ parent: shell.pid as number, child, procStart });
     });
   });
 }
@@ -317,6 +364,7 @@ async function record(
   const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
     source: sourceSaying({}),
     now: () => NOW,
+    repoOf,
   });
   await record('1-empty', board);
 }
@@ -507,6 +555,7 @@ async function record(
       [sid(titled)]: { status: 'done', detail: null },
     }),
     now: () => NOW,
+    repoOf,
     aheadOf: async () => 2,
   });
   await record('2-busy-mix', board, {
@@ -648,6 +697,7 @@ async function record(
       [sid(tree2.parent as never)]: { status: 'done', detail: null },
     }),
     now: () => NOW,
+    repoOf,
   });
   await record('3-listeners-voice', board, {
     asked: async () => asked.slice(),
@@ -796,6 +846,7 @@ async function record(
   const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
     source: sourceSaying({ [sid(idleW)]: { status: 'done', detail: null } }),
     now: () => NOW,
+    repoOf,
   });
   await board.snapshot();
   await (board as any).scanner.idle();

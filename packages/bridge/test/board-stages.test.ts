@@ -4,11 +4,11 @@ import { execFileSync } from 'node:child_process';
 import { chmodSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmp, writeJson, startBridge, TOKEN, type TestBridge } from './helpers.ts';
-import { Board, noPrWatcher, type PrWatcher } from '../src/board/board.ts';
-import { StoryStore } from '../src/stories/store.ts';
-import { Builds } from '../src/inbox/builds.ts';
-import { boardKey } from '../src/server/page-key.ts';
-import type { StatusSource } from '../src/board/sources.ts';
+import { Board, noPrWatcher, type PrWatcher } from '../src/services/board/board.ts';
+import { StoryStore } from '../src/services/stories/store.ts';
+import { Builds } from '../src/services/inbox/builds.ts';
+import { boardKey } from '../src/services/pages/page-key.ts';
+import type { StatusSource } from '../src/adapters/iterm.ts';
 
 const open: TestBridge[] = [];
 after(() => Promise.all(open.map((bridge) => bridge.close())));

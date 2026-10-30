@@ -13,12 +13,12 @@ import {
   backlogCards,
   foldBacklog,
   startLine,
-} from '../src/board/backlog.ts';
-import { Board, noPrWatcher } from '../src/board/board.ts';
-import { registrySource } from '../src/board/sources.ts';
-import { StoryStore } from '../src/stories/store.ts';
-import { Builds } from '../src/inbox/builds.ts';
-import { boardKey, pageKey, viewKey } from '../src/server/page-key.ts';
+} from '../src/services/backlog/backlog.ts';
+import { Board, noPrWatcher } from '../src/services/board/board.ts';
+import { registrySource } from '../src/services/sessions/sources.ts';
+import { StoryStore } from '../src/services/stories/store.ts';
+import { Builds } from '../src/services/inbox/builds.ts';
+import { boardKey, pageKey, viewKey } from '../src/services/pages/page-key.ts';
 import type {
   BoardAgent,
   BoardCard,

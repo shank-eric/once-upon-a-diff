@@ -3,7 +3,7 @@
  * the help text and the commands can't drift apart. bin/once-upon.ts runs
  * main().
  */
-import { homeDir, loadConfig } from '../config/settings.ts';
+import { homeDir, loadConfig } from '../services/config/settings.ts';
 import { parseArgs } from './args.ts';
 import { bridgeCommands } from './commands/bridge.ts';
 import { storyCommands } from './commands/stories.ts';
@@ -17,7 +17,7 @@ import { boardCommands } from './commands/board.ts';
 import { backlogCommands } from './commands/backlog.ts';
 import { approveCommands } from './commands/approve.ts';
 import { reviewedCommands } from './commands/reviewed.ts';
-import type { Command } from '../types.ts';
+import type { Command } from './types.ts';
 
 const COMMANDS = new Map<string, Command>(
   [
@@ -78,7 +78,7 @@ export function usageText() {
     ...lines,
     '',
     'ONCE_UPON_HOME moves ~/.once-upon. Personal settings (display name, time zone, checkout folders,',
-    'opener, gh token handling) are optional keys in its config.json: see readSettings in config/settings.ts.',
+    'opener, gh token handling) are optional keys in its config.json: see readSettings in services/config/settings.ts.',
     ' ',
   ].join('\n');
 }

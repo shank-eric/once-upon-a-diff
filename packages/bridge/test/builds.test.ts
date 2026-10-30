@@ -12,9 +12,9 @@ import {
   type TestBridge,
 } from './helpers.ts';
 import type { Printable } from '../src/cli/output.ts';
-import { Builds, CLAIM_FRESH_MS } from '../src/inbox/builds.ts';
-import { beat } from '../src/listeners/listeners.ts';
-import { Inbox } from '../src/inbox/inbox.ts';
+import { Builds, CLAIM_FRESH_MS } from '../src/services/inbox/builds.ts';
+import { beat } from '../src/services/listeners/listeners.ts';
+import { Inbox } from '../src/services/inbox/inbox.ts';
 
 /** acme/widgets#7's line from status-many, as a PR page asks for it. */
 const prStatus = async (bridge: TestBridge) =>

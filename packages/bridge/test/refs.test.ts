@@ -2,10 +2,15 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { tmp, writeJson, localRepo } from './helpers.ts';
-import { lineRefsOf, addTextRefs, ambiguousRefsOf, REF_NOTE } from '../src/stories/text-refs.ts';
-import { pathSha } from '../src/util/diff.ts';
-import { StoryStore } from '../src/stories/store.ts';
-import { createLocalStory } from '../src/stories/local-story.ts';
+import {
+  lineRefsOf,
+  addTextRefs,
+  ambiguousRefsOf,
+  REF_NOTE,
+} from '../src/services/stories/text-refs.ts';
+import { pathSha } from '../src/services/stories/diff.ts';
+import { StoryStore } from '../src/services/stories/store.ts';
+import { createLocalStory } from '../src/services/stories/local-story.ts';
 import { finishedInOf } from '@once-upon-a-diff/shared/overlay';
 import type { Chapter } from '@once-upon-a-diff/shared/types';
 

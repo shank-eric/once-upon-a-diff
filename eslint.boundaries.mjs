@@ -6,7 +6,15 @@
  * built-ins stay out of anything that ships to the browser.
  *
  * Today's packages and where they sit:
- *   packages/bridge/src      server (Node)
+ *   packages/bridge/src      server (Node), in four layers (below the apps, an app imports only what is below it):
+ *     server/                the HTTP app, and server/routes/ (over the services; node:http only outside the routes)
+ *     cli/                   the CLI app (over the services, in process)
+ *     services/              the rules and the stores' use: stories, inbox, sessions, listeners, backlog, worktrees, voice,
+ *                            review, board (over the adapters; no programs, no fs writes, no network of their own)
+ *     adapters/              every side effect, one module per outside system: github (gh), git, iterm (it2), larmor,
+ *                            claude-sessions, stores (JSON files, atomic writes, backlog.jsonl, the ledger and notes
+ *                            reads), os (programs, pids, ports, the browser). The only place that may run a program,
+ *                            write a file or reach the network
  *   packages/bridge/public   the board and local pages (browser, will become apps/web)
  *   packages/shared          the panel and its helpers (browser-safe)
  *   packages/protocol/src    the wire types, route table and schemas (no DOM, no Node, imports no package but valibot)
@@ -87,6 +95,109 @@ const PROTOCOL_SRC = './packages/protocol/src';
 const PROTOCOL_DOMAIN = './packages/protocol/src/domain';
 
 // restrictions (a `from` folder with the reason it is off limits)
+// what only an adapter may do (the services, the apps and the routes go through one)
+const NO_CHILD_PROCESS = {
+  regex: '^(node:)?child_process$',
+  message:
+    'only an adapter runs programs: add a function to adapters/os.ts (or the adapter for that tool)',
+};
+const NO_NETWORK = {
+  regex: '^(node:)?(net|https?|http2|dgram|tls|dns(/promises)?)$',
+  message:
+    'only an adapter touches the network: add a function to adapters/os.ts (or the adapter for that service)',
+};
+// the HTTP app listens, so it has node:http, and nothing else on the network
+const NO_NETWORK_BUT_HTTP = {
+  regex: '^(node:)?(net|https|http2|dgram|tls|dns(/promises)?)$',
+  message: 'only an adapter touches the network (the HTTP app has node:http, to listen)',
+};
+// threads and code evaluation: another way to reach child_process, the network or a file write without naming it
+const NO_ESCAPE_HATCH = {
+  regex: '^(node:)?(worker_threads|vm)$',
+  message:
+    'only an adapter may start threads or evaluate code: add a function to the adapter that needs it',
+};
+// node:module may be imported for what only reads (stripTypeScriptTypes), but not to load a module by name
+const MODULE_MODULES = '^(node:)?module$';
+const MODULE_LOADERS = ['createRequire', 'register', 'registerHooks', 'Module'];
+const MODULE_MESSAGE =
+  'only an adapter loads modules by name (createRequire, register, hooks): import the one function you need, by name, from node:module';
+const NETWORK_MESSAGE =
+  'only an adapter touches the network: add a function to adapters/os.ts (or the adapter for that service)';
+const NOT_FETCH = { name: 'fetch', message: NETWORK_MESSAGE };
+// the global object spells the same things without the bare name
+const GLOBAL_OBJECTS = ['globalThis', 'global', 'self', 'window'];
+const NOT_GLOBAL_FETCH = GLOBAL_OBJECTS.map((object) => ({
+  object,
+  property: 'fetch',
+  message: NETWORK_MESSAGE,
+}));
+const NOT_PROCESS_KILL = {
+  object: 'process',
+  property: 'kill',
+  message: 'only an adapter signals a process: add a function to adapters/os.ts',
+};
+// node:fs and node:fs/promises, whole: the names that change a file or folder (reads are fine)
+const FS_MODULES = '^(node:)?fs(/promises)?$';
+const FS_WRITES = [
+  'writeFile',
+  'writeFileSync',
+  'appendFile',
+  'appendFileSync',
+  'mkdir',
+  'mkdirSync',
+  'mkdtemp',
+  'mkdtempSync',
+  'rm',
+  'rmSync',
+  'rmdir',
+  'rmdirSync',
+  'unlink',
+  'unlinkSync',
+  'rename',
+  'renameSync',
+  'copyFile',
+  'copyFileSync',
+  'cp',
+  'cpSync',
+  'chmod',
+  'chmodSync',
+  'chown',
+  'chownSync',
+  'utimes',
+  'utimesSync',
+  'symlink',
+  'symlinkSync',
+  'link',
+  'linkSync',
+  'truncate',
+  'truncateSync',
+  'createWriteStream',
+  'promises',
+  'write',
+  'writeSync',
+  'writev',
+  'writevSync',
+  'ftruncate',
+  'ftruncateSync',
+  'fchmod',
+  'fchmodSync',
+  'fchown',
+  'fchownSync',
+  'lchown',
+  'lchownSync',
+  'futimes',
+  'futimesSync',
+  'lutimes',
+  'lutimesSync',
+];
+// open and openSync stay importable (a read needs a descriptor), but the flag decides: only the literal 'r' is a read
+const FS_OPEN_MESSAGE =
+  "open and openSync outside an adapter must pass the literal flag 'r' and be imported without an alias: a write goes through adapters/stores/";
+const FS_WRITE_MESSAGE =
+  'only an adapter writes files: add a function to adapters/stores/ (files.ts, json-file.ts) and call that';
+const FS_NAMESPACE_MESSAGE =
+  'import the read functions by name from node:fs: a whole-module import hides the write calls from the lint rule';
 const NOT_THE_PAGES = { from: BRIDGE_PUBLIC, message: 'the server does not import the pages' };
 const NOT_THE_EXTENSION = { from: EXTENSION_SRC, message: 'nothing imports an app' };
 const NOT_THE_SERVER = {
@@ -106,6 +217,23 @@ const NOT_THE_SCHEMAS = {
   from: './packages/protocol/src/schemas.ts',
   message: NOT_THE_SCHEMAS_MESSAGE,
 };
+const BRIDGE_ADAPTERS = './packages/bridge/src/adapters';
+const BRIDGE_SERVICES = './packages/bridge/src/services';
+const BRIDGE_HTTP = './packages/bridge/src/server';
+const BRIDGE_CLI = './packages/bridge/src/cli';
+const NOT_THE_ADAPTERS = {
+  from: BRIDGE_ADAPTERS,
+  message: 'the apps and routes go through the services, and only the services call an adapter',
+};
+const NOT_THE_SERVICES = { from: BRIDGE_SERVICES, message: 'the adapters sit below the services' };
+const NOT_THE_HTTP_APP = {
+  from: BRIDGE_HTTP,
+  message: 'the HTTP app is on top: the services, the adapters and the CLI never import it',
+};
+const NOT_THE_CLI_APP = {
+  from: BRIDGE_CLI,
+  message: 'the CLI is an app: the services, the adapters and the HTTP app never import it',
+};
 const NOT_THE_PANEL = { from: SHARED_PANEL, message: 'shared/util is below shared/panel' };
 
 const SHARED = {
@@ -113,13 +241,66 @@ const SHARED = {
   specifiers: [BRIDGE, EXTENSION, SHARED_PACKAGE, ASSET_URL, SCHEMAS],
 };
 
+// what every server layer must not reach, whatever its place in the stack
+const SERVER = {
+  paths: [NOT_THE_PAGES, NOT_THE_EXTENSION],
+  specifiers: [EXTENSION],
+};
+
 const LAYERS = [
   {
-    name: 'server',
-    files: ['packages/bridge/src/**/*.ts'],
-    targets: [BRIDGE_SRC],
-    paths: [NOT_THE_PAGES, NOT_THE_EXTENSION],
-    specifiers: [EXTENSION],
+    // every side effect: one module per outside system. It is the one layer that may run programs, write files and reach
+    // the network, and it knows nothing of the services above it.
+    name: 'adapters',
+    files: ['packages/bridge/src/adapters/**/*.ts'],
+    targets: [BRIDGE_ADAPTERS],
+    paths: [...SERVER.paths, NOT_THE_SERVICES, NOT_THE_HTTP_APP, NOT_THE_CLI_APP],
+    specifiers: [...SERVER.specifiers],
+  },
+  {
+    // the rules, over the adapters: no program, no file write and no network of their own
+    name: 'services',
+    files: ['packages/bridge/src/services/**/*.ts'],
+    targets: [BRIDGE_SERVICES],
+    paths: [...SERVER.paths, NOT_THE_HTTP_APP, NOT_THE_CLI_APP],
+    specifiers: [...SERVER.specifiers, NO_CHILD_PROCESS, NO_NETWORK, NO_ESCAPE_HATCH],
+    fsWrites: true,
+    globals: [NOT_FETCH],
+    properties: [...NOT_GLOBAL_FETCH, NOT_PROCESS_KILL],
+  },
+  {
+    // the HTTP app, over the services only
+    name: 'http',
+    files: ['packages/bridge/src/server/**/*.ts'],
+    ignores: ['packages/bridge/src/server/routes/**'],
+    targets: [BRIDGE_HTTP],
+    paths: [...SERVER.paths, NOT_THE_ADAPTERS, NOT_THE_CLI_APP],
+    specifiers: [...SERVER.specifiers, NO_CHILD_PROCESS, NO_NETWORK_BUT_HTTP, NO_ESCAPE_HATCH],
+    fsWrites: true,
+    globals: [NOT_FETCH],
+    properties: [...NOT_GLOBAL_FETCH, NOT_PROCESS_KILL],
+  },
+  {
+    // the routes: the HTTP app's own handlers, which never touch node:http either (they get a Call)
+    name: 'http-routes',
+    files: ['packages/bridge/src/server/routes/**/*.ts'],
+    targets: [BRIDGE_HTTP + '/routes'],
+    paths: [...SERVER.paths, NOT_THE_ADAPTERS, NOT_THE_CLI_APP],
+    specifiers: [...SERVER.specifiers, NO_CHILD_PROCESS, NO_NETWORK, NO_ESCAPE_HATCH],
+    fsWrites: true,
+    globals: [NOT_FETCH],
+    properties: [...NOT_GLOBAL_FETCH, NOT_PROCESS_KILL],
+  },
+  {
+    // the CLI app, over the services only (the entry point, bin/once-upon.ts, is the one place that knows both apps)
+    name: 'cli',
+    files: ['packages/bridge/src/cli/**/*.ts'],
+    targets: [BRIDGE_CLI],
+    paths: [...SERVER.paths, NOT_THE_ADAPTERS, NOT_THE_HTTP_APP],
+    specifiers: [...SERVER.specifiers, NO_CHILD_PROCESS, NO_NETWORK, NO_ESCAPE_HATCH],
+    fsWrites: true,
+    globals: [NOT_FETCH],
+    properties: [...NOT_GLOBAL_FETCH, NOT_PROCESS_KILL],
   },
   {
     name: 'pages',
@@ -184,14 +365,26 @@ const LAYERS = [
  *   board-view: files packages/board-view/src/**. paths: web, extension, panel. browser: true.
  *   ui:         files packages/ui/src/**. paths: panel, board-view, web, extension. browser: true.
  *   web:        files packages/web/src/**. paths: bridge/src, board-core. browser: true.
- *   board-core: files packages/board-core/src/**. paths: web, extension, panel, board-view, ui.
+ *   board-core: files packages/board-core/src/**. paths: web, extension, panel, board-view, ui. Not a package yet: it is
+ *               packages/bridge/src/services/board, which still imports about thirty modules of the other services and
+ *               the adapters by path. It becomes a package when those arrive as interfaces the bridge passes in.
  *   nothing imports an app: add { from: './packages/web/src', message: 'nothing imports an app' }
  *               to every layer's paths (NOT_THE_EXTENSION is the one for the extension today).
  */
 
 const escapeSlashes = (source) => source.replaceAll('/', '\\/');
 
-const layerBlock = ({ files, ignores = [], targets, paths, specifiers, browser = false }) => {
+const layerBlock = ({
+  files,
+  ignores = [],
+  targets,
+  paths,
+  specifiers,
+  browser = false,
+  fsWrites = false,
+  globals = [],
+  properties = [],
+}) => {
   const syntax = specifiers.flatMap(({ regex, message }) => {
     const pattern = `/${escapeSlashes(regex)}/`;
     return [
@@ -199,10 +392,60 @@ const layerBlock = ({ files, ignores = [], targets, paths, specifiers, browser =
       { selector: `TSImportType[argument.literal.value=${pattern}]`, message },
     ];
   });
+  // node:fs may be imported for its reads, by name; the names that write, and a whole-module import, are refused
+  const fsPaths = fsWrites
+    ? ['node:fs', 'fs', 'node:fs/promises', 'fs/promises'].map((name) => ({
+        name,
+        importNames: FS_WRITES,
+        message: FS_WRITE_MESSAGE,
+      }))
+    : [];
+  const modulePaths = fsWrites
+    ? ['node:module', 'module'].map((name) => ({
+        name,
+        importNames: MODULE_LOADERS,
+        message: MODULE_MESSAGE,
+      }))
+    : [];
+  const fsSyntax = fsWrites
+    ? [
+        ...['ImportDefaultSpecifier', 'ImportNamespaceSpecifier'].map((kind) => ({
+          selector: `ImportDeclaration[source.value=/${escapeSlashes(MODULE_MODULES)}/] > ${kind}`,
+          message: MODULE_MESSAGE,
+        })),
+        {
+          selector: `ImportExpression[source.value=/${escapeSlashes(MODULE_MODULES)}/]`,
+          message: MODULE_MESSAGE,
+        },
+        {
+          selector: `ImportDeclaration[source.value=/${escapeSlashes(FS_MODULES)}/] > ImportDefaultSpecifier`,
+          message: FS_NAMESPACE_MESSAGE,
+        },
+        {
+          selector: `ImportDeclaration[source.value=/${escapeSlashes(FS_MODULES)}/] > ImportNamespaceSpecifier`,
+          message: FS_NAMESPACE_MESSAGE,
+        },
+        {
+          selector: `ImportExpression[source.value=/${escapeSlashes(FS_MODULES)}/]`,
+          message: FS_NAMESPACE_MESSAGE,
+        },
+        // open and openSync: only the read flag, and no alias that would hide the call from the next selector
+        {
+          selector: `CallExpression[callee.name=/^(open|openSync)$/]:not([arguments.1.value='r'])`,
+          message: FS_OPEN_MESSAGE,
+        },
+        {
+          selector: `ImportDeclaration[source.value=/${escapeSlashes(FS_MODULES)}/] > ImportSpecifier[imported.name=/^(open|openSync)$/][local.name!=/^(open|openSync)$/]`,
+          message: FS_OPEN_MESSAGE,
+        },
+      ]
+    : [];
   return {
     files,
     ignores,
     rules: {
+      'no-restricted-globals': globals.length ? ['error', ...globals] : 'off',
+      'no-restricted-properties': properties.length ? ['error', ...properties] : 'off',
       'import/no-restricted-paths': [
         'error',
         {
@@ -215,9 +458,12 @@ const layerBlock = ({ files, ignores = [], targets, paths, specifiers, browser =
       ],
       'no-restricted-imports': [
         'error',
-        { patterns: specifiers.map(({ regex, message }) => ({ regex, message })) },
+        {
+          paths: [...fsPaths, ...modulePaths],
+          patterns: specifiers.map(({ regex, message }) => ({ regex, message })),
+        },
       ],
-      'no-restricted-syntax': ['error', ...syntax],
+      'no-restricted-syntax': ['error', ...syntax, ...fsSyntax],
       'import/no-nodejs-modules': browser ? 'error' : 'off',
     },
   };

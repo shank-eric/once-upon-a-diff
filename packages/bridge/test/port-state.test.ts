@@ -5,7 +5,7 @@ import net from 'node:net';
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmp, startBridge, TOKEN, type TestBridge } from './helpers.ts';
-import { portState } from '../src/cli/commands/bridge.ts';
+import { portState } from '../src/services/bridge/bridge.ts';
 
 const open: TestBridge[] = [];
 after(() => Promise.all(open.map((bridge) => bridge.close())));

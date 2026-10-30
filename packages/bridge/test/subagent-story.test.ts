@@ -13,7 +13,7 @@ import {
   writeJson,
   CLAUDE_DIR,
 } from './helpers.ts';
-import { Inbox } from '../src/inbox/inbox.ts';
+import { Inbox } from '../src/services/inbox/inbox.ts';
 import {
   RELAY_STALL_MS,
   STALL_MS,
@@ -21,7 +21,7 @@ import {
   readHanded,
   statusOf,
   withMarks,
-} from '../src/inbox/conversation.ts';
+} from '../src/services/inbox/conversation.ts';
 import {
   BINDING_FRESH_MS,
   activeBinding,
@@ -30,9 +30,9 @@ import {
   readBinding,
   relayBinding,
   writeBinding,
-} from '../src/inbox/binding.ts';
-import { relayMessage } from '../src/inbox/relay.ts';
-import { beat, listeningOf } from '../src/listeners/listeners.ts';
+} from '../src/services/inbox/binding.ts';
+import { relayMessage } from '../src/services/inbox/relay.ts';
+import { beat, listeningOf } from '../src/services/listeners/listeners.ts';
 import { waitingText } from '@once-upon-a-diff/shared/panel/question-list';
 import { askWhoHtml, healthChecks } from '@once-upon-a-diff/shared/panel/status-light';
 import type { Health } from '@once-upon-a-diff/shared/panel/status-light';

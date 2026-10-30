@@ -21,19 +21,17 @@
  * stores and settings below) and answers with `send`.
  */
 import http, { type IncomingMessage } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { StoryStore } from '../stories/store.ts';
-import { readMeta } from '../stories/meta.ts';
-import { writeFileAtomic } from '../util/json-file.ts';
-import { storyRepo } from '../config/repos.ts';
-import { Inbox } from '../inbox/inbox.ts';
-import { Builds } from '../inbox/builds.ts';
-import { removeBridgeFile, writeBridgeFile } from './bridge-file.ts';
-import { Board } from '../board/board.ts';
-import { BoardError } from '../board/errors.ts';
+import { StoryStore } from '../services/stories/store.ts';
+import { readMeta } from '../services/stories/meta.ts';
+import { storyRepo } from '../services/config/repos.ts';
+import { Inbox } from '../services/inbox/inbox.ts';
+import { Builds } from '../services/inbox/builds.ts';
+import { announceBridge, retireBridge, writeExtensionSeen } from '../services/bridge/bridge.ts';
+import { Board } from '../services/board/board.ts';
+import { BoardError } from '../services/errors.ts';
 import { HttpError, sameToken, readBody } from './request.ts';
 import { COOKIE_NAMES, cookieFor, cookiesOf } from './session-cookie.ts';
 import { assetFor } from './assets.ts';
@@ -48,7 +46,7 @@ import {
   pageKey,
   viewKey,
   viewKeyMay,
-} from './page-key.ts';
+} from '../services/pages/page-key.ts';
 import { statusRoutes, storyStatusRoutes } from './routes/status.ts';
 import { catalogRoutes } from './routes/catalog.ts';
 import { buildRoutes } from './routes/builds.ts';
@@ -69,11 +67,11 @@ import {
   type BranchCheck,
   type PrCheck,
   type RequestedCheck,
-} from '../story-lists/auto-review.ts';
-import { UNPACKED_EXTENSION_ID, readSettings } from '../config/settings.ts';
-import type { ApiRoute, App, Body, Call, Send, StoryRoute } from '../types.ts';
+} from '../services/review/auto-review.ts';
+import { UNPACKED_EXTENSION_ID, readSettings } from '../services/config/settings.ts';
+import type { ApiRoute, App, Body, Call, Send, StoryRoute } from './types.ts';
 
-export { relOfPath } from '../util/diff.ts';
+export { relOfPath } from '../services/stories/diff.ts';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const VERSION: string = JSON.parse(
@@ -142,7 +140,7 @@ export function createBridge({
   const autoReview = new AutoReview(stories, checkPr, undefined, checkBranch, checkRequested);
   const builds = new Builds(home);
   const board = new Board(home, stories, autoReview, builds);
-  const portOf = () => (server.address() as AddressInfo).port;
+  const portOf = () => (server.address() as { port: number }).port;
   const app: App = {
     home,
     version: VERSION,
@@ -150,6 +148,7 @@ export function createBridge({
     inbox,
     builds,
     board,
+    sessions: board.sessions,
     autoReview,
     links: {
       story: (id, readOnly = false) => localPageUrl(portOf(), id, token, readOnly),
@@ -165,7 +164,7 @@ export function createBridge({
     if (Date.now() - extensionWritten > SEEN_WRITE_MS) {
       extensionWritten = Date.now();
       try {
-        writeFileAtomic(path.join(home, 'extension-seen.json'), JSON.stringify(app.extensionSeen));
+        writeExtensionSeen(home, app.extensionSeen);
       } catch {
         /* not worth failing a request over */
       }
@@ -358,7 +357,7 @@ export function createBridge({
       );
     };
     try {
-      const port = (server.address() as AddressInfo).port;
+      const port = (server.address() as { port: number }).port;
       const host = String(req.headers.host || '').toLowerCase();
       // the bridge's own address, or a name allowed in config.json (allowed_hosts) that a proxy forwards: exact names only
       if (host !== `127.0.0.1:${port}` && host !== `localhost:${port}` && !allowedHostOf(req)) {
@@ -420,7 +419,7 @@ export function createBridge({
       return await storyCall(call, storyMatch, scope);
     } catch (caught) {
       const err = caught as Error & { status?: number };
-      // an HttpError carries its status; so does a BoardError, the board's own refusal (board/errors.ts)
+      // an HttpError carries its status; so does a BoardError, the board's own refusal (services/errors.ts)
       const status =
         (caught instanceof HttpError || caught instanceof BoardError
           ? caught.status
@@ -436,8 +435,8 @@ export function createBridge({
     }
   });
   // which process is the bridge, and on which port, for `once-upon local` (bridge-file.ts)
-  server.once('listening', () => writeBridgeFile(home, portOf(), token));
-  server.once('close', () => removeBridgeFile(home));
+  server.once('listening', () => announceBridge(home, portOf(), token));
+  server.once('close', () => retireBridge(home));
   return Object.assign(server, {
     stories,
     inbox,

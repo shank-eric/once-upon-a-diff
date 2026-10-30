@@ -1,5 +1,5 @@
 /*
- * Create pull request on a local story's page (../../stories/pull-request.ts): GET .../pr says where the branch
+ * Create pull request on a local story's page (../../services/stories/pull-request.ts): GET .../pr says where the branch
  * stands, and POST .../pr {action: 'push', head_sha} pushes it, only from the reviewer's click in the confirm box.
  * The page opens the PR itself on GitHub's compare page. {action: 'push-ahead', head_sha} is Push for a branch that
  * already has an open PR: the same click-only fast-forward of what the PR is behind on, refused when there is no open PR
@@ -15,9 +15,10 @@ import {
   pushAheadBlocker,
   pushBlocker,
   pushBranch,
-} from '../../stories/pull-request.ts';
+} from '../../services/stories/pull-request.ts';
 import type { PrDraft, PrPushAnswer } from '@once-upon-a-diff/shared/types';
-import type { App, Call, ServedStory, StoryRoute } from '../../types.ts';
+import type { ServedStory } from '../../services/stories/types.ts';
+import type { App, Call, StoryRoute } from '../types.ts';
 
 /** Stories with a push under way, so a second click can't start another. */
 const pushing = new Set<string>();

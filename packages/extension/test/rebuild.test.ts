@@ -10,23 +10,23 @@ import {
   runCli,
   localRepo,
 } from 'once-upon-a-diff/test/helpers';
-import { Builds } from 'once-upon-a-diff/inbox/builds';
-import { Inbox } from 'once-upon-a-diff/inbox/inbox';
-import { withMarks } from 'once-upon-a-diff/inbox/conversation';
-import { parseUnifiedDiff } from 'once-upon-a-diff/util/diff';
-import { noteRead, readReads } from 'once-upon-a-diff/stories/reads';
-import { createLocalStory } from 'once-upon-a-diff/stories/local-story';
+import { Builds } from 'once-upon-a-diff/services/inbox/builds';
+import { Inbox } from 'once-upon-a-diff/services/inbox/inbox';
+import { withMarks } from 'once-upon-a-diff/services/inbox/conversation';
+import { parseUnifiedDiff } from 'once-upon-a-diff/services/stories/diff';
+import { noteRead, readReads } from 'once-upon-a-diff/services/stories/reads';
+import { createLocalStory } from 'once-upon-a-diff/services/stories/local-story';
 import {
   rebuildProblems,
   carryDrafts,
   questionMoves,
   readsToRetire,
-} from 'once-upon-a-diff/stories/rebuild';
+} from 'once-upon-a-diff/services/stories/rebuild';
 import { rebuildAsk, rebuildLine } from '@once-upon-a-diff/shared/panel/rebuild';
 import { tagFor, type StoryStatus } from '../src/content/ui/story-tag.ts';
-import type { Plan, PlanFile } from 'once-upon-a-diff/stories/chapters';
-import type { StoryMeta } from 'once-upon-a-diff/types';
-import type { Listener } from 'once-upon-a-diff/listeners/listeners';
+import type { Plan, PlanFile } from 'once-upon-a-diff/services/stories/chapters';
+import type { StoryMeta } from 'once-upon-a-diff/services/stories/types';
+import type { Listener } from 'once-upon-a-diff/services/listeners/listeners';
 import type { Pulse, RebuildView } from '@once-upon-a-diff/shared/types';
 
 /** What POST .../rebuild answers. */

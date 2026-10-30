@@ -3,14 +3,14 @@
  * story (POST /api/builds), and `once-upon builds` lists them. How a
  * request stands comes back from status-many (catalog.ts).
  */
-import { readMeta } from '../../stories/meta.ts';
+import { readMeta } from '../../services/stories/meta.ts';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { parseBody } from '../validate.ts';
-import { stateKeyOf } from '../../github/drafts.ts';
-import { readReads, sinceOf } from '../../stories/reads.ts';
+import { stateKeyOf } from '../../services/review/drafts.ts';
+import { readReads, sinceOf } from '../../services/stories/reads.ts';
 import { SHA_RE } from '@once-upon-a-diff/shared/util/text';
 import type { StoryData } from '@once-upon-a-diff/shared/types';
-import type { ApiRoute, App, Call } from '../../types.ts';
+import type { ApiRoute, App, Call } from '../types.ts';
 
 type BuildBody = ReturnType<typeof parseBody<'buildRequest'>>;
 

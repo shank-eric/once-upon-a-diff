@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { git, localRepo, runCli, tmp } from './helpers.ts';
-import { createLocalStory } from '../src/stories/local-story.ts';
+import { createLocalStory } from '../src/services/stories/local-story.ts';
 
 test('a local story records the branch --head names, not the checkout’s', () => {
   const home = tmp('home');

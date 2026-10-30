@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { tmp, startBridge, localRepo, writeJson } from './helpers.ts';
-import { createLocalStory } from '../src/stories/local-story.ts';
+import { createLocalStory } from '../src/services/stories/local-story.ts';
 import { relOfPath } from '../src/server/index.ts';
 import { draftView } from '@once-upon-a-diff/shared/overlay';
 import type { DraftFix, DraftsAnswer, FixNote, StoryData } from '@once-upon-a-diff/shared/types';

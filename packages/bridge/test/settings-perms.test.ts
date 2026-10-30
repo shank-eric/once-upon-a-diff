@@ -3,8 +3,12 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { chmodSync, mkdirSync, statSync } from 'node:fs';
 import { tmp, localRepo, writeJson } from './helpers.ts';
-import { loadConfig, readSettings, UNPACKED_EXTENSION_ID } from '../src/config/settings.ts';
-import { storyDirFor } from '../src/stories/placement.ts';
+import {
+  loadConfig,
+  readSettings,
+  UNPACKED_EXTENSION_ID,
+} from '../src/services/config/settings.ts';
+import { storyDirFor } from '../src/services/stories/placement.ts';
 
 const modeOf = (file: string) => (statSync(file).mode & 0o777).toString(8);
 

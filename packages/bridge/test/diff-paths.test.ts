@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { headerPaths, parseUnifiedDiff } from '../src/util/diff.ts';
+import { headerPaths, parseUnifiedDiff } from '../src/services/stories/diff.ts';
 
 test('a diff header’s paths are read whether git quoted them or not', () => {
   assert.deepEqual(headerPaths('diff --git a/src/one.ts b/src/one.ts'), {

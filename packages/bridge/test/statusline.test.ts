@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmp } from './helpers.ts';
-import { readStatusLines } from '../src/board/statusline.ts';
+import { readStatusLines } from '../src/adapters/claude-sessions/statusline.ts';
 
 const NOW = Date.parse('2026-10-28T18:00:00Z');
 const LIVE = '11111111-aaaa-bbbb-cccc-dddddddddddd';

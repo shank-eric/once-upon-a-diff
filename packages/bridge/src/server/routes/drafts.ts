@@ -7,7 +7,7 @@
  * Q&A comes in through `once-upon comment`.
  */
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
-import { newId } from '../../inbox/inbox.ts';
+import { newId } from '../../services/inbox/inbox.ts';
 import {
   stateKeyOf,
   readMarks,
@@ -16,13 +16,14 @@ import {
   forgetComments,
   addedMark,
   noteAdded,
-} from '../../github/drafts.ts';
-import { addToPendingReview } from '../../github/review.ts';
+} from '../../services/review/drafts.ts';
+import { addToPendingReview } from '../../services/review/pending-review.ts';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
 import { noteFromDraft } from './fixes.ts';
 import type { DraftComment, StoryData } from '@once-upon-a-diff/shared/types';
-import type { App, Call, ServedStory, StoryRoute } from '../../types.ts';
+import type { ServedStory } from '../../services/stories/types.ts';
+import type { App, Call, StoryRoute } from '../types.ts';
 
 /** The drafted comment a request names by chapter (1-based) and index, else 404. */
 export function draftOf(

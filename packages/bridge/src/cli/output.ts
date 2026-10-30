@@ -2,17 +2,17 @@
  * What the CLI prints: a line to stdout, and inbox entries as `inbox` and
  * `wait` show them.
  */
-import { formatTime, readerOf } from '../config/settings.ts';
-import { sameRepo } from '../config/repos.ts';
-import { updateOf } from '../inbox/builds.ts';
+import { formatTime, readerOf } from '../services/config/settings.ts';
+import { sameRepo } from '../services/config/repos.ts';
+import { updateOf } from '../services/inbox/builds.ts';
 import { plural } from '@once-upon-a-diff/shared/util/text';
-import type { InboxEntry } from '../inbox/inbox.ts';
-import type { Build, BuildRequestEntry } from '../inbox/builds.ts';
-import type { RequestNote } from '../inbox/fixes.ts';
-import type { CliOpts } from '../types.ts';
+import type { InboxEntry } from '../services/inbox/inbox.ts';
+import type { Build, BuildRequestEntry } from '../services/inbox/builds.ts';
+import type { RequestNote } from '../services/inbox/fixes.ts';
+import type { CliOpts } from './types.ts';
 
 /** A fix request as `wait` hands it over (fixesToHand). */
-type FixRequestEntry = ReturnType<typeof import('../inbox/fixes.ts').fixesToHand>[number];
+type FixRequestEntry = ReturnType<typeof import('../services/inbox/fixes.ts').fixesToHand>[number];
 /** What `inbox` and `wait` print: an inbox line, or a request handed over. */
 export type Printable = InboxEntry | BuildRequestEntry | FixRequestEntry;
 

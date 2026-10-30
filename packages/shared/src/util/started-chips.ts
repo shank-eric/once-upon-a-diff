@@ -1,4 +1,4 @@
-/** The chips on a started backlog card: where the work is, from what the bridge linked to it (bridge/src/board/backlog-links.ts). */
+/** The chips on a started backlog card: where the work is, from what the bridge linked to it (bridge/src/services/backlog/backlog-links.ts). */
 import type { BoardStartedLinks } from '../types.ts';
 
 /** Plain-text chips, in the order they read: the branch, then what is working it or that it merged. */

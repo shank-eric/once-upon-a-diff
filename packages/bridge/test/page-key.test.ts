@@ -12,9 +12,9 @@ import {
   TOKEN,
   type TestBridge,
 } from './helpers.ts';
-import { createLocalStory } from '../src/stories/local-story.ts';
-import { Inbox } from '../src/inbox/inbox.ts';
-import { pageKey } from '../src/server/page-key.ts';
+import { createLocalStory } from '../src/services/stories/local-story.ts';
+import { Inbox } from '../src/services/inbox/inbox.ts';
+import { pageKey } from '../src/services/pages/page-key.ts';
 import type { Printable } from '../src/cli/output.ts';
 
 /** A local story with one drafted comment, a PR story beside it, and a bridge serving both. */

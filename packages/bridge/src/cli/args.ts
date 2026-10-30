@@ -2,7 +2,7 @@
  * The CLI's argument parsing: `once-upon <command> [--flag value]... [words]`.
  * A flag without a value is true; bare words go in opts._.
  */
-import type { CliOpts } from '../types.ts';
+import type { CliOpts } from './types.ts';
 
 export function parseArgs(argv: string[]): { command: string | undefined; opts: CliOpts } {
   const [command, ...rest] = argv;

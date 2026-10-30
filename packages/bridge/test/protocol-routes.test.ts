@@ -11,9 +11,9 @@ import {
   TOKEN,
   type TestBridge,
 } from './helpers.ts';
-import { createLocalStory } from '../src/stories/local-story.ts';
+import { createLocalStory } from '../src/services/stories/local-story.ts';
 import { API_ROUTES, STORY_ROUTES } from '../src/server/index.ts';
-import { boardKey, pageKey, viewKey, viewKeyMay } from '../src/server/page-key.ts';
+import { boardKey, pageKey, viewKey, viewKeyMay } from '../src/services/pages/page-key.ts';
 import { ROUTES, boardKeyMay, type AnyRoute } from '@once-upon-a-diff/protocol/routes';
 
 const ENTRIES = Object.entries(ROUTES as Record<string, AnyRoute>);

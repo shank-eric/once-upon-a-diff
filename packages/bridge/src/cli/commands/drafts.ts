@@ -4,17 +4,16 @@
  * fix-before-push notes (notes).
  */
 import { readFileSync } from 'node:fs';
-import path from 'node:path';
-import { StoryStore } from '../../stories/store.ts';
-import { readMeta } from '../../stories/meta.ts';
-import { addComment } from '../../stories/comments.ts';
-import { Inbox } from '../../inbox/inbox.ts';
-import { draftsOf } from '../../github/drafts.ts';
+import { StoryStore } from '../../services/stories/store.ts';
+import { readMeta, readStoredMeta } from '../../services/stories/meta.ts';
+import { addComment } from '../../services/stories/comments.ts';
+import { Inbox } from '../../services/inbox/inbox.ts';
+import { draftsOf } from '../../services/review/drafts.ts';
 import { out, notePlace } from '../output.ts';
-import { readJson } from '../../util/json-file.ts';
+
 import type { DraftRow, LocalNote } from '@once-upon-a-diff/shared/types';
-import type { Config } from '../../config/settings.ts';
-import type { CliOpts, Command, StoryMeta } from '../../types.ts';
+import type { Config } from '../../services/config/settings.ts';
+import type { CliOpts, Command } from '../types.ts';
 
 const storeFor = (home: string) => new StoryStore({ home });
 
@@ -36,7 +35,7 @@ function comment(home: string, cfg: Config, opts: CliOpts) {
   if (!dir) {
     throw new Error(`no story ${opts.story} (see: once-upon list)`);
   }
-  const meta = readJson<StoryMeta>(path.join(dir, 'meta.json'), {} as StoryMeta);
+  const meta = readStoredMeta(dir);
   const result = addComment(dir, meta, {
     chapter: opts.chapter,
     path: typeof opts.path === 'string' ? opts.path : '',

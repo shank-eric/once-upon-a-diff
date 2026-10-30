@@ -17,23 +17,23 @@ import { fileURLToPath } from 'node:url';
 // This skill ships in the Once Upon a Diff repo (skills/once-upon/bin), and Node resolves the skill link, so it
 // imports the bridge's and the panel's own helpers from the checkout it's linked from.
 import { parseArgs } from '../../../packages/bridge/src/cli/args.ts';
-import { parseUnifiedDiff } from '../../../packages/bridge/src/util/diff.ts';
-import { writeJsonAtomic } from '../../../packages/bridge/src/util/json-file.ts';
-import { chaptersOf } from '../../../packages/bridge/src/stories/chapters.ts';
+import { parseUnifiedDiff } from '../../../packages/bridge/src/services/stories/diff.ts';
+import { writeJsonAtomic } from '../../../packages/bridge/src/adapters/stores/json-file.ts';
+import { chaptersOf } from '../../../packages/bridge/src/services/stories/chapters.ts';
 import {
   addTextRefs,
   ambiguousRefsOf,
   textOf,
-} from '../../../packages/bridge/src/stories/text-refs.ts';
+} from '../../../packages/bridge/src/services/stories/text-refs.ts';
 import {
   uncoveredHunks,
   SMALL_FILE_LINES,
-} from '../../../packages/bridge/src/stories/hunk-coverage.ts';
+} from '../../../packages/bridge/src/services/stories/hunk-coverage.ts';
 import { finishedInOf } from '../../../packages/shared/src/panel/story-model.ts';
 
 import type { DiffFile, UncoveredFile } from '../../../packages/shared/src/types.ts';
-import type { Plan } from '../../../packages/bridge/src/stories/chapters.ts';
-import type { CliOpts } from '../../../packages/bridge/src/types.ts';
+import type { Plan } from '../../../packages/bridge/src/services/stories/chapters.ts';
+import type { CliOpts } from '../../../packages/bridge/src/cli/types.ts';
 
 /** pr.json, from `gh pr view --json` in gather.sh: just what's read here. */
 interface PrJson {
@@ -200,7 +200,7 @@ async function cmdBrief(opts: CliOpts) {
 
 /**
  * Where each file is told and finished, by the panel's own rules: a chapter tells a file by listing it or by pointing
- * at its lines in its text (packages/bridge/src/stories/text-refs.ts), and finishes it when it's the last chapter to tell it or
+ * at its lines in its text (packages/bridge/src/services/stories/text-refs.ts), and finishes it when it's the last chapter to tell it or
  * the newest "Since you read it" chapter that lists it (finishedInOf).
  */
 function buildMap(plan: Plan, diff: Map<string, DiffFile>) {
@@ -319,7 +319,7 @@ async function cmdBuild(opts: CliOpts) {
  * seconds. It also prints the story id, and the line that makes this session
  * the story's own listener. While the panel's Rebuild is pending for the story,
  * publish refuses chapters that change the ones it keeps or leave a file or
- * hunk untold, and keeps the drafts the new chapters dropped (packages/bridge/src/stories/rebuild.ts).
+ * hunk untold, and keeps the drafts the new chapters dropped (packages/bridge/src/services/stories/rebuild.ts).
  */
 async function cmdPublish(opts: CliOpts) {
   const dest = execFileSync(

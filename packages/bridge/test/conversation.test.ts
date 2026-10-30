@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmp, githubStory, startBridge, runCli } from './helpers.ts';
-import { Inbox } from '../src/inbox/inbox.ts';
+import { Inbox } from '../src/services/inbox/inbox.ts';
 import {
   markQuestions,
   noteHanded,
@@ -12,8 +12,8 @@ import {
   statusOf,
   unreadAnswers,
   withMarks,
-} from '../src/inbox/conversation.ts';
-import { beat, listenPrompt, listeningOf } from '../src/listeners/listeners.ts';
+} from '../src/services/inbox/conversation.ts';
+import { beat, listenPrompt, listeningOf } from '../src/services/listeners/listeners.ts';
 import { storyIdOf } from '../src/cli/commands/inbox.ts';
 import { askWhoHtml, type Health } from '@once-upon-a-diff/shared/panel/status-light';
 import type { StatusMany } from './helpers.ts';

@@ -6,11 +6,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { tmp, writeJson, githubStory, startBridge } from './helpers.ts';
-import { parseUnifiedDiff } from '../src/util/diff.ts';
-import { chaptersOf, type Plan, type PlanChapter } from '../src/stories/chapters.ts';
-import type { FileMap } from '../src/stories/story-data.ts';
+import { parseUnifiedDiff } from '../src/services/stories/diff.ts';
+import { chaptersOf, type Plan, type PlanChapter } from '../src/services/stories/chapters.ts';
+import type { FileMap } from '../src/services/stories/story-data.ts';
 import type { StoryData } from '@once-upon-a-diff/shared/types';
-import { uncoveredHunks, SMALL_FILE_LINES } from '../src/stories/hunk-coverage.ts';
+import { uncoveredHunks, SMALL_FILE_LINES } from '../src/services/stories/hunk-coverage.ts';
 
 const STORY = fileURLToPath(new URL('../../../skills/once-upon/bin/story.mjs', import.meta.url));
 const run = promisify(execFile);

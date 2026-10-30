@@ -1,21 +1,21 @@
 /*
  * What a Claude session tells the panel while it fixes notes: which files it's changing (working, which the panel
- * shows as "Being changed by <session>"), and how a fix request ended (fixed). See ../../inbox/fixes.ts and
- * ../../stories/working.ts.
+ * shows as "Being changed by <session>"), and how a fix request ended (fixed). See ../../services/inbox/fixes.ts and
+ * ../../services/stories/working.ts.
  */
-import { readMeta } from '../../stories/meta.ts';
-import { StoryStore } from '../../stories/store.ts';
-import { Inbox } from '../../inbox/inbox.ts';
-import { readFixes, reportFix } from '../../inbox/fixes.ts';
-import { answeringOf, listeners, touchHandling } from '../../listeners/listeners.ts';
-import { storyRepo } from '../../config/repos.ts';
-import { clearMark, parseFiles, setMark } from '../../stories/working.ts';
+import { readMeta } from '../../services/stories/meta.ts';
+import { StoryStore } from '../../services/stories/store.ts';
+import { Inbox } from '../../services/inbox/inbox.ts';
+import { readFixes, reportFix } from '../../services/inbox/fixes.ts';
+import { answeringOf, listeners, touchHandling } from '../../services/listeners/listeners.ts';
+import { storyRepo } from '../../services/config/repos.ts';
+import { clearMark, parseFiles, setMark } from '../../services/stories/working.ts';
 import { storyIdOf } from './inbox.ts';
 import { out } from '../output.ts';
 import { plural } from '@once-upon-a-diff/shared/util/text';
-import type { FixRequest } from '../../inbox/fixes.ts';
-import type { Config } from '../../config/settings.ts';
-import type { CliOpts, Command } from '../../types.ts';
+import type { FixRequest } from '../../services/inbox/fixes.ts';
+import type { Config } from '../../services/config/settings.ts';
+import type { CliOpts, Command } from '../types.ts';
 
 const WORKING_USAGE =
   'usage: once-upon working (--story ID | --request F) [--files P[:A-B],... | --done [SHA]] [--consumer NAME]';

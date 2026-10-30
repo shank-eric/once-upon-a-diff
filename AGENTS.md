@@ -28,6 +28,7 @@ Standing rules for any agent working in Once Upon a Diff. A brief only needs to 
 ## Structure
 
 - The layer rules live in `eslint.boundaries.mjs` (branch stack/48). Do not work around them. Change the rule file if a layer really has to move.
+- The bridge's server (`packages/bridge/src`) has four layers: `server/` (HTTP, with `routes/`) and `cli/` are apps over `services/`, which sit over `adapters/`. Only an adapter runs a program, writes a file or reaches the network: add a function to `adapters/` (`os.ts`, `git.ts`, `stores/files.ts`...) instead of calling `child_process`, `node:fs` writes or `fetch` from a service, a route or a command. `bin/once-upon.ts` is the one place that knows both apps.
 - Prefer codemods for moves and renames: `git mv` plus ts-morph or sed, then check the diff is only the move.
 
 ## Reporting

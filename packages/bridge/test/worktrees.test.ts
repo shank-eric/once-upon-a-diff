@@ -4,22 +4,21 @@ import { mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { tmp, writeJson, git } from './helpers.ts';
 import { fixture } from './worktree-fixture.ts';
-import { Board, noPrWatcher } from '../src/board/board.ts';
-import { BacklogStore } from '../src/board/backlog.ts';
-import { registrySource } from '../src/board/sources.ts';
-import { seenCheckout } from '../src/config/repos.ts';
-import { StoryStore } from '../src/stories/store.ts';
-import { Builds } from '../src/inbox/builds.ts';
+import { Board, noPrWatcher } from '../src/services/board/board.ts';
+import { BacklogStore } from '../src/services/backlog/backlog.ts';
+import { registrySource } from '../src/services/sessions/sources.ts';
+import { seenCheckout } from '../src/services/config/repos.ts';
+import { StoryStore } from '../src/services/stories/store.ts';
+import { Builds } from '../src/services/inbox/builds.ts';
 import {
   WorktreeScanner,
   judge,
   parseWorktreeEntries,
-  runCommand,
   workingIn,
   type JudgeContext,
-  type Runner,
   type WorktreeFacts,
-} from '../src/board/worktrees.ts';
+} from '../src/services/worktrees/worktrees.ts';
+import { runCommand, type Runner } from '../src/adapters/os.ts';
 import type { BoardCard } from '@once-upon-a-diff/shared/types';
 
 /** A scan to its end: kicks it and waits. */

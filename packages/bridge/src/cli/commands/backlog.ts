@@ -1,16 +1,16 @@
 /*
  * The backlog from the terminal: `once-upon backlog add|list|show|start|drop`. It reads and writes the backlog file
- * (board/backlog.ts) in-process, so nothing goes over HTTP; the board shows the items as its Backlog column.
+ * (services/backlog/backlog.ts) in-process, so nothing goes over HTTP; the board shows the items as its Backlog column.
  */
-import { formatTime } from '../../config/settings.ts';
-import { repoOfCheckout } from '../../config/repos.ts';
-import { branchName } from '../../util/git.ts';
-import { BacklogStore } from '../../board/backlog.ts';
-import { DEFAULT_BRANCHES } from '../../board/board.ts';
+import { formatTime } from '../../services/config/settings.ts';
+import { repoOfCheckout, currentBranch } from '../../services/config/repos.ts';
+
+import { BacklogStore } from '../../services/backlog/backlog.ts';
+import { DEFAULT_BRANCHES } from '../../services/review/story-lists.ts';
 import { out } from '../output.ts';
-import type { BacklogItem } from '../../board/backlog.ts';
-import type { Config } from '../../config/settings.ts';
-import type { CliOpts, Command } from '../../types.ts';
+import type { BacklogItem } from '../../services/backlog/backlog.ts';
+import type { Config } from '../../services/config/settings.ts';
+import type { CliOpts, Command } from '../types.ts';
 
 const USAGE =
   'usage: once-upon backlog add "TITLE" [--note TEXT] [--repo owner/name] [--branch NAME] [--by NAME]\n' +
@@ -69,7 +69,7 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
   if (verb === 'start') {
     const item = found();
     // the branch the session is on, unless it is a default branch (then the work has no branch yet: say which)
-    const current = branchName(process.cwd());
+    const current = currentBranch(process.cwd());
     const branch =
       text(opts.branch) ??
       item.branch ??

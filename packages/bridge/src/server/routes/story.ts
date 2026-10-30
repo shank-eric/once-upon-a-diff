@@ -10,22 +10,23 @@ import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { readPrefs } from '../../config/settings.ts';
-import { seenCheckout } from '../../config/repos.ts';
-import { freshness } from '../../github/freshness.ts';
-import { readMarks, stateKeyOf } from '../../github/drafts.ts';
-import { listeningOf } from '../../listeners/listeners.ts';
-import { noteSeen } from '../../listeners/auto-stop.ts';
-import { refreshLocal, movedSince } from '../../stories/local-diff.ts';
-import { storyVersion, localVersion } from '../../stories/meta.ts';
+import { readPrefs } from '../../services/config/settings.ts';
+import { seenCheckout } from '../../services/config/repos.ts';
+import { freshness } from '../../services/review/freshness.ts';
+import { readMarks, stateKeyOf } from '../../services/review/drafts.ts';
+import { listeningOf } from '../../services/listeners/listeners.ts';
+import { noteSeen } from '../../services/listeners/auto-stop.ts';
+import { refreshLocal, movedSince } from '../../services/stories/local-diff.ts';
+import { storyVersion, localVersion } from '../../services/stories/meta.ts';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
 import { questionsOf } from './questions.ts';
 import { fixesViewOf } from './fixes.ts';
-import { requestFor } from '../../inbox/progress.ts';
-import { workingOf } from '../../stories/working.ts';
+import { requestFor } from '../../services/inbox/progress.ts';
+import { workingOf } from '../../services/stories/working.ts';
 import type { RebuildView, StoryData } from '@once-upon-a-diff/shared/types';
-import type { App, Call, LocalMeta, ServedStory, StoryRoute } from '../../types.ts';
+import type { LocalMeta, ServedStory } from '../../services/stories/types.ts';
+import type { App, Call, StoryRoute } from '../types.ts';
 
 function load({ app, send, readOnly }: Call, story: ServedStory) {
   if (story.meta.kind === 'local' && story.ref.repo) {
@@ -51,7 +52,7 @@ function version({ app, send }: Call, story: ServedStory) {
   return send(200, { version: versionOf(app, story) });
 }
 
-// a hidden tab's page is still open: it says so about once a minute, and that is all it does (listeners/auto-stop.ts)
+// a hidden tab's page is still open: it says so about once a minute, and that is all it does (services/listeners/auto-stop.ts)
 function seen({ app, body, send }: Call, story: ServedStory) {
   parseBody('seen', body);
   noteSeen(app.stories, story.id, Date.now(), 0); // rare by design, so no write throttle
@@ -195,7 +196,7 @@ function listenRepo(story: ServedStory): string {
   return story.ref.repo;
 }
 
-/** GET: the idle sessions Start listening may type into for the story (the board's rule, board/listening.ts). */
+/** GET: the idle sessions Start listening may type into for the story (the board's rule, services/sessions/listening.ts). */
 async function listenSessions({ app, send }: Call, story: ServedStory) {
   return send(200, await app.board.storyListenSessions(story.id));
 }

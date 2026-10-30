@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { tmp, githubStory, startBridge, runCli, writeJson, TOKEN } from './helpers.ts';
-import { pageKey } from '../src/server/page-key.ts';
+import { pageKey } from '../src/services/pages/page-key.ts';
 import type { Pulse } from '@once-upon-a-diff/shared/types';
 
 const STORY = 'acme-widgets-7';

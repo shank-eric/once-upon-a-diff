@@ -171,4 +171,4 @@ The panel's **Rebuild story…** (Overview) and **Rebuild from here…** (a chap
 
 - `bin/gather.sh`: read-only `gh` fetch into the scratch folder.
 - `bin/viewed.sh`: the gh user's viewed state per file (GraphQL `viewerViewedState`), for `brief`.
-- `bin/story.ts`: `brief`, `build`, `publish` (run through `bin/story.mjs`, which checks the Node version first). It reads the diff and places files with the bridge's and the panel's own code from this checkout, so `file-map.json` matches the panel, and checks hunk coverage with `packages/bridge/src/stories/hunk-coverage.ts`.
+- `bin/story.ts`: `brief`, `build`, `publish` (run through `bin/story.mjs`, which checks the Node version first). It reads the diff and places files with the bridge's and the panel's own code from this checkout, so `file-map.json` matches the panel, and checks hunk coverage with `packages/bridge/src/services/stories/hunk-coverage.ts`.

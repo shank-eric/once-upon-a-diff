@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { tmp, git, localRepo, githubStory, writeJson, startBridge, runCli } from './helpers.ts';
-import { createLocalStory } from '../src/stories/local-story.ts';
-import { StoryStore } from '../src/stories/store.ts';
-import { seenCheckout } from '../src/config/repos.ts';
-import { mainCheckout, excludeStories, readIndex } from '../src/stories/placement.ts';
+import { createLocalStory } from '../src/services/stories/local-story.ts';
+import { StoryStore } from '../src/services/stories/store.ts';
+import { seenCheckout } from '../src/services/config/repos.ts';
+import { mainCheckout, excludeStories, readIndex } from '../src/services/stories/placement.ts';
 import type { StoryData } from '@once-upon-a-diff/shared/types';
 
 const status = (repo: string) => git(repo, 'status', '--porcelain');

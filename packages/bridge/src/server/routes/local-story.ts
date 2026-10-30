@@ -7,10 +7,11 @@
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
-import { approvalOf, approveStory, clearApproval } from '../../story-lists/approve.ts';
+import { approvalOf, approveStory, clearApproval } from '../../services/review/approve.ts';
 import type { LocalStory, StoryData } from '@once-upon-a-diff/shared/types';
-import { refreshLocal } from '../../stories/local-diff.ts';
-import type { Call, LocalMeta, ServedStory, StoryRoute } from '../../types.ts';
+import { refreshLocal } from '../../services/stories/local-diff.ts';
+import type { LocalMeta, ServedStory } from '../../services/stories/types.ts';
+import type { Call, StoryRoute } from '../types.ts';
 
 function viewed({ app, body: raw, send }: Call, story: ServedStory) {
   if (story.meta.kind !== 'local') {

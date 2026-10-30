@@ -9,16 +9,15 @@ import {
   removalError,
   shellQuote,
   type CleanInput,
-} from '../src/board/worktree-clean.ts';
+} from '../src/services/worktrees/worktree-clean.ts';
 import {
   WorktreeScanner,
   irreplaceableIgnored,
   judge,
-  runCommand,
-  type Runner,
-} from '../src/board/worktrees.ts';
-import { readSettings } from '../src/config/settings.ts';
-import { BoardError } from '../src/board/errors.ts';
+} from '../src/services/worktrees/worktrees.ts';
+import { runCommand, type Runner } from '../src/adapters/os.ts';
+import { readSettings } from '../src/services/config/settings.ts';
+import { BoardError } from '../src/services/errors.ts';
 
 const LATER = () => Date.now() + 2 * 3600 * 1000;
 const idle = async () => ({ inUse: [], pr: { number: null, state: 'none' as const } });

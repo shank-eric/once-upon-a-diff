@@ -858,7 +858,7 @@ export interface BoardCard {
   worktrees?: BoardWorktree[];
 }
 
-/** What git and GitHub say about one worktree (bridge/src/board/worktrees.ts). */
+/** What git and GitHub say about one worktree (bridge/src/services/worktrees/worktrees.ts). */
 export interface BoardWorktree {
   path: string;
   /** the folder's name */
@@ -917,7 +917,7 @@ export interface BoardWorktrees {
   prunable: { path: string; repo: string | null; line: string }[];
 }
 
-/** What a started backlog item is being worked by (bridge/src/board/backlog-links.ts). */
+/** What a started backlog item is being worked by (bridge/src/services/backlog/backlog-links.ts). */
 export interface BoardStartedLinks {
   worktrees: { path: string; name: string }[];
   sessions: { id: string; title: string }[];

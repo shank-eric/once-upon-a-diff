@@ -5,11 +5,12 @@
  * in state/<id>/questions.json, so a reload or another tab shows the same.
  */
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
-import { newId } from '../../inbox/inbox.ts';
-import { markQuestions, withMarks } from '../../inbox/conversation.ts';
+import { newId } from '../../services/inbox/inbox.ts';
+import { markQuestions, withMarks } from '../../services/inbox/conversation.ts';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
-import type { App, Call, ServedStory, StoryRoute } from '../../types.ts';
+import type { ServedStory } from '../../services/stories/types.ts';
+import type { App, Call, StoryRoute } from '../types.ts';
 
 /** The story's questions, oldest first, each with its answers and marks. */
 export const questionsOf = (app: App, story: Pick<ServedStory, 'id'>) =>

@@ -1,15 +1,15 @@
 /*
  * pr-draft: a session hands over the title and body for a local story's PR, for the page's Create pull request
- * button (../../stories/pull-request.ts). It only saves them: the reviewer pushes and opens the PR from the page.
+ * button (../../services/stories/pull-request.ts). It only saves them: the reviewer pushes and opens the PR from the page.
  */
 import { readFileSync } from 'node:fs';
-import { StoryStore } from '../../stories/store.ts';
-import { readMeta } from '../../stories/meta.ts';
-import { DRAFT_FILE } from '../../stories/pull-request.ts';
+import { StoryStore } from '../../services/stories/store.ts';
+import { readMeta } from '../../services/stories/meta.ts';
+import { DRAFT_FILE } from '../../services/stories/pull-request.ts';
 import { out } from '../output.ts';
 import type { PrDraft } from '@once-upon-a-diff/shared/types';
-import type { Config } from '../../config/settings.ts';
-import type { CliOpts, Command } from '../../types.ts';
+import type { Config } from '../../services/config/settings.ts';
+import type { CliOpts, Command } from '../types.ts';
 
 const USAGE =
   'usage: once-upon pr-draft --story ID --title T (--body-file F | --body TEXT) [--base BRANCH]';

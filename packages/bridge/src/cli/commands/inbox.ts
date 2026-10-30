@@ -4,17 +4,24 @@
  * task), and answer a question (answer).
  *
  * A story's own wait (`wait --story`) takes that story's questions ahead of a
- * repo-wide one: see the routing rule in ../../inbox/conversation.ts. With
+ * repo-wide one: see the routing rule in ../../services/inbox/conversation.ts. With
  * build_request in its --type, it takes the story's Rebuild requests the same
- * way (../../inbox/builds.ts). Fix requests (fix_request in --type) are
- * routed the same way too, from the queue in ../../inbox/fixes.ts. A story's
+ * way (../../services/inbox/builds.ts). Fix requests (fix_request in --type) are
+ * routed the same way too, from the queue in ../../services/inbox/fixes.ts. A story's
  * wait also stops itself once no page has shown the story for a while
- * (../../listeners/auto-stop.ts), unless --no-auto-stop.
+ * (../../services/listeners/auto-stop.ts), unless --no-auto-stop.
  */
-import { existsSync, readFileSync, statSync, watch, writeFileSync } from 'node:fs';
-import { REPO_RE, sameRepo, repoOfCheckout, seenCheckout, storyRepo } from '../../config/repos.ts';
-import { Inbox, newId } from '../../inbox/inbox.ts';
-import { Builds } from '../../inbox/builds.ts';
+import { existsSync, readFileSync, statSync, watch } from 'node:fs';
+import {
+  REPO_RE,
+  sameRepo,
+  repoOfCheckout,
+  seenCheckout,
+  storyRepo,
+  checkoutRoot,
+} from '../../services/config/repos.ts';
+import { Inbox, newId, readIdList, writeIdList } from '../../services/inbox/inbox.ts';
+import { Builds } from '../../services/inbox/builds.ts';
 import {
   clearAsking,
   noteAsking,
@@ -22,12 +29,17 @@ import {
   readHanded,
   readQaMarks,
   routeQuestions,
-} from '../../inbox/conversation.ts';
-import { fixesToHand } from '../../inbox/fixes.ts';
-import { relayBinding, ownSession, touchBinding, type Binding } from '../../inbox/binding.ts';
-import { relayMessage } from '../../inbox/relay.ts';
-import { beat, listeners } from '../../listeners/listeners.ts';
-import { noteListener } from '../../listeners/history.ts';
+} from '../../services/inbox/conversation.ts';
+import { fixesToHand } from '../../services/inbox/fixes.ts';
+import {
+  relayBinding,
+  ownSession,
+  touchBinding,
+  type Binding,
+} from '../../services/inbox/binding.ts';
+import { relayMessage } from '../../services/inbox/relay.ts';
+import { beat, listeners } from '../../services/listeners/listeners.ts';
+import { noteListener } from '../../services/listeners/history.ts';
 import {
   idleMsOf,
   logStop,
@@ -35,16 +47,15 @@ import {
   repoStopReason,
   stopReason,
   stopRequested,
-} from '../../listeners/auto-stop.ts';
-import { StoryStore } from '../../stories/store.ts';
-import { readMeta } from '../../stories/meta.ts';
-import { slug } from '../../stories/local-story.ts';
-import { readJson, writeJsonAtomic } from '../../util/json-file.ts';
-import { topLevel } from '../../util/git.ts';
+} from '../../services/listeners/auto-stop.ts';
+import { StoryStore } from '../../services/stories/store.ts';
+import { readMeta } from '../../services/stories/meta.ts';
+import { slug } from '../../services/stories/local-story.ts';
+
 import { out, describe, filterEntries, type Printable } from '../output.ts';
-import type { InboxEntry, QuestionEntry } from '../../inbox/inbox.ts';
-import type { Config } from '../../config/settings.ts';
-import type { CliOpts, Command } from '../../types.ts';
+import type { InboxEntry, QuestionEntry } from '../../services/inbox/inbox.ts';
+import type { Config } from '../../services/config/settings.ts';
+import type { CliOpts, Command } from '../types.ts';
 
 /** What a wait covers: the beat says so, for the status light and the routing. */
 type WaitScope = {
@@ -90,7 +101,7 @@ function consumerOf(opts: CliOpts): string {
 /** The repo of the checkout this runs in, or null. */
 function checkoutRepo(): string | null {
   try {
-    return repoOfCheckout(topLevel(process.cwd()));
+    return repoOfCheckout(checkoutRoot(process.cwd()));
   } catch {
     return null;
   }
@@ -138,7 +149,7 @@ function questionsToTake(
   fresh: QuestionEntry[],
 ): QuestionEntry[] {
   const file = deferredFile(messages, consumer);
-  const before = readJson<string[]>(file, []) || [];
+  const before = readIdList(file);
   const earlier = before.length
     ? messages
         .all()
@@ -149,7 +160,7 @@ function questionsToTake(
   const { take, defer } = routeQuestions(home, consumer, scope, [...earlier, ...fresh]);
   const after = defer.map((question) => question.id);
   if (after.length || before.length) {
-    writeJsonAtomic(file, after);
+    writeIdList(file, after);
   }
   return take;
 }
@@ -179,7 +190,7 @@ function approvalsToTake(
 /** A wait run from the repo's checkout tells the bridge where that checkout is, for the next prompt. */
 function noteCheckout(home: string, repo: string): void {
   try {
-    const top = topLevel(process.cwd());
+    const top = checkoutRoot(process.cwd());
     if (sameRepo(repoOfCheckout(top), repo)) {
       seenCheckout(home, repo, top);
     }
@@ -348,9 +359,7 @@ async function wait(home: string, cfg: Config, opts: CliOpts) {
           idleMs: repoIdleMsOf(home),
         }
       : null;
-  if (!existsSync(messages.file)) {
-    writeFileSync(messages.file, '', { mode: 0o600 });
-  }
+  messages.ensureFile();
   // a reader new to the inbox starts from now, not from every old question
   if (!existsSync(messages.cursorFile(consumer))) {
     messages.setCursor(consumer, statSync(messages.file).size);

@@ -2,11 +2,11 @@
  * Build requests from the terminal: list the pending ones and claim one as
  * it's built (builds), and finish one (done).
  */
-import { formatTime, readerOf } from '../../config/settings.ts';
-import { Builds, updateOf } from '../../inbox/builds.ts';
+import { formatTime, readerOf } from '../../services/config/settings.ts';
+import { Builds, updateOf } from '../../services/inbox/builds.ts';
 import { out } from '../output.ts';
-import type { Config } from '../../config/settings.ts';
-import type { CliOpts, Command } from '../../types.ts';
+import type { Config } from '../../services/config/settings.ts';
+import type { CliOpts, Command } from '../types.ts';
 
 function builds(home: string, cfg: Config, opts: CliOpts) {
   const requests = new Builds(home);

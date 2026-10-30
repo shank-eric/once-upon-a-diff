@@ -1,19 +1,20 @@
 /*
  * `once-upon approve ID [--undo]`: approve a local story from a session, for when you have said "approved" in
- * conversation. The same thing the story page's Approve button does (story-lists/approve.ts), in-process: it approves
+ * conversation. The same thing the story page's Approve button does (services/review/approve.ts), in-process: it approves
  * the story at its head as it is now, marks it reviewed, and appends the `approved` event a listening session hears.
  * --undo clears the approval.
  */
-import { Inbox } from '../../inbox/inbox.ts';
-import { StoryStore } from '../../stories/store.ts';
-import { readMeta } from '../../stories/meta.ts';
-import { refreshLocal } from '../../stories/local-diff.ts';
-import { storyRepo } from '../../config/repos.ts';
-import { approveStory, clearApproval } from '../../story-lists/approve.ts';
-import { localStory } from '../../story-lists/stories.ts';
+import { Inbox } from '../../services/inbox/inbox.ts';
+import { StoryStore } from '../../services/stories/store.ts';
+import { readMeta } from '../../services/stories/meta.ts';
+import { refreshLocal } from '../../services/stories/local-diff.ts';
+import { storyRepo } from '../../services/config/repos.ts';
+import { approveStory, clearApproval } from '../../services/review/approve.ts';
+import { localStory } from '../../services/review/story-lists.ts';
 import { out } from '../output.ts';
-import type { Config } from '../../config/settings.ts';
-import type { CliOpts, Command, LocalMeta } from '../../types.ts';
+import type { Config } from '../../services/config/settings.ts';
+import type { CliOpts, Command } from '../types.ts';
+import type { LocalMeta } from '../../services/stories/types.ts';
 
 const USAGE = 'usage: once-upon approve ID [--undo]';
 

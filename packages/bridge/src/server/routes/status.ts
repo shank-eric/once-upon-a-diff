@@ -3,13 +3,14 @@
  * listener check) and /api/prefs (settings kept across stories, such as Hide
  * whitespace).
  */
-import { readPrefs, writePrefs } from '../../config/settings.ts';
-import { storyRepo, REPO_RE } from '../../config/repos.ts';
-import { statusOf } from '../../listeners/listeners.ts';
-import { readMeta } from '../../stories/meta.ts';
+import { readPrefs, writePrefs } from '../../services/config/settings.ts';
+import { storyRepo, REPO_RE } from '../../services/config/repos.ts';
+import { statusOf } from '../../services/listeners/listeners.ts';
+import { readMeta } from '../../services/stories/meta.ts';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { parseBody } from '../validate.ts';
-import type { ApiRoute, Call, ServedStory, StoryRoute } from '../../types.ts';
+import type { ServedStory } from '../../services/stories/types.ts';
+import type { ApiRoute, Call, StoryRoute } from '../types.ts';
 
 /** The status light: bridge, story, and a Claude session listening. */
 function status({ app, url, send }: Call) {

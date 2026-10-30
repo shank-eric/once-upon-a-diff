@@ -3,19 +3,19 @@
  * status (ready, building or none, read progress, out of date, and who's
  * listening per repo).
  */
-import { readMeta } from '../../stories/meta.ts';
+import { readMeta } from '../../services/stories/meta.ts';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { parseBody } from '../validate.ts';
-import { storyFinishes } from '../../inbox/builds.ts';
-import { isRebuild } from '../../stories/rebuild.ts';
-import { stateKeyOf } from '../../github/drafts.ts';
-import { currentHead, newerCount } from '../../github/freshness.ts';
-import { listeningOf } from '../../listeners/listeners.ts';
-import { readReads } from '../../stories/reads.ts';
-import { unreadAnswers } from '../../inbox/conversation.ts';
+import { storyFinishes } from '../../services/inbox/builds.ts';
+import { isRebuild } from '../../services/stories/rebuild.ts';
+import { stateKeyOf } from '../../services/review/drafts.ts';
+import { currentHead, newerCount } from '../../services/review/freshness.ts';
+import { listeningOf } from '../../services/listeners/listeners.ts';
+import { readReads } from '../../services/stories/reads.ts';
+import { unreadAnswers } from '../../services/inbox/conversation.ts';
 import { prKey } from '@once-upon-a-diff/shared/util/github-paths';
 import type { StoryData } from '@once-upon-a-diff/shared/types';
-import type { ApiRoute, App, Call } from '../../types.ts';
+import type { ApiRoute, App, Call } from '../types.ts';
 
 type StatusCache = NonNullable<App['statusCache']>;
 

@@ -1,5 +1,5 @@
 /*
- * Push on a local story's page, for commits that go straight to the repo's default branch (../../stories/push-default.ts):
+ * Push on a local story's page, for commits that go straight to the repo's default branch (../../services/stories/push-default.ts):
  * GET .../push says what a push of the approved commit would do, and POST .../push {action: 'push', head_sha} does it,
  * only from the reviewer's click in the confirm box. head_sha is the approved commit the box showed. The full page key
  * only: the read-only key reaches neither (page-key.ts). Right after a push the story's delivered check runs, which
@@ -8,11 +8,12 @@
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
-import { approvedFor, pushApproved, pushView } from '../../stories/push-default.ts';
-import { localEntries } from '../../story-lists/stories.ts';
-import { refreshLocal } from '../../stories/local-diff.ts';
+import { approvedFor, pushApproved, pushView } from '../../services/stories/push-default.ts';
+import { localEntries } from '../../services/review/story-lists.ts';
+import { refreshLocal } from '../../services/stories/local-diff.ts';
 import type { PushAnswer } from '@once-upon-a-diff/shared/types';
-import type { Call, LocalMeta, ServedStory, StoryRoute } from '../../types.ts';
+import type { LocalMeta, ServedStory } from '../../services/stories/types.ts';
+import type { Call, StoryRoute } from '../types.ts';
 
 /** Stories with a push under way, so a second click can't start another. */
 const pushing = new Set<string>();

@@ -2,12 +2,11 @@
  * Stories: list what the bridge can serve, make a local story over commits
  * (local), and publish a once-upon folder where the bridge finds it.
  */
-import { execFile } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+
 import path from 'node:path';
-import { openArgv } from '../../config/settings.ts';
-import { StoryStore } from '../../stories/store.ts';
-import { Builds } from '../../inbox/builds.ts';
+import { openTarget } from '../../services/config/settings.ts';
+import { StoryStore } from '../../services/stories/store.ts';
+import { Builds } from '../../services/inbox/builds.ts';
 import {
   AGENT_RE,
   activeBinding,
@@ -16,40 +15,19 @@ import {
   readBinding,
   sessionLive,
   writeBinding,
-} from '../../inbox/binding.ts';
+} from '../../services/inbox/binding.ts';
 import { storyIdOf } from './inbox.ts';
-import { copyFileAtomic, readJson, writeJsonAtomic } from '../../util/json-file.ts';
-import { parseUnifiedDiff } from '../../util/diff.ts';
-import { stateKeyOf } from '../../github/drafts.ts';
-import { vetRebuild, afterRebuild } from '../../stories/rebuild.ts';
-import { createLocalStory, slug } from '../../stories/local-story.ts';
-import { storyDirFor } from '../../stories/placement.ts';
+
+import { vetRebuild, afterRebuild } from '../../services/stories/rebuild.ts';
+import { createLocalStory } from '../../services/stories/local-story.ts';
+
 import { out } from '../output.ts';
-import { portState, serve } from './bridge.ts';
-import { localPageUrl } from '../../server/page-key.ts';
-import type { Build } from '../../inbox/builds.ts';
-import type { Plan } from '../../stories/chapters.ts';
-import type { Config } from '../../config/settings.ts';
-import type { CliOpts, Command, StoryMeta } from '../../types.ts';
+import { portState, serve } from '../../services/bridge/bridge.ts';
+import { localPageUrl } from '../../services/pages/page-key.ts';
 
-/** A rebuild that's being published: its request, the chapters before and after, and the drafts carried over. */
-type Rebuilt = {
-  build: Build;
-  before: Plan;
-  after: Plan;
-  counts: { carried: number; unmapped: number };
-};
-
-/** once-upon's pr.json: just what publish reads. */
-interface PrJson {
-  url?: string;
-  number?: number;
-  title?: string;
-  author?: { login?: string } | null;
-  headRefOid?: string;
-  baseRefOid?: string;
-  headRefName?: string;
-}
+import type { Config } from '../../services/config/settings.ts';
+import type { CliOpts, Command } from '../types.ts';
+import { type Rebuilt, pendingRebuild, publishPrStory } from '../../services/stories/publish.ts';
 
 function list(home: string) {
   const store = new StoryStore({ home });
@@ -58,12 +36,6 @@ function list(home: string) {
       `${story.id}\t${story.kind}\t${story.repo ? `${story.repo}#${story.number}` : ''}\t${story.title}\t${story.dir}`,
     );
   }
-}
-
-/** The story's pending rebuild request, or null. */
-function pendingRebuild(builds: Builds, id: string, meta: StoryMeta): Build | null {
-  const build = builds.rebuildOf(id, meta);
-  return build && build.status === 'pending' ? build : null;
 }
 
 /** --agent NAME, checked before a build starts: the named agent that built the story and answers its questions. */
@@ -210,8 +182,7 @@ async function local(home: string, cfg: Config, opts: CliOpts) {
   }
   out(url);
   if (!opts['no-open']) {
-    const [cmd, ...args] = openArgv(url, home);
-    execFile(cmd, args, () => {});
+    openTarget(url, home);
   }
 }
 
@@ -232,76 +203,20 @@ function page(home: string, cfg: Config, opts: CliOpts) {
     );
   }
   if (!opts['no-open']) {
-    const [cmd, ...args] = openArgv(url, home);
-    execFile(cmd, args, () => {});
+    openTarget(url, home);
   }
 }
 
-function publish(home: string, cfg: Config, opts: CliOpts) {
+function publish(home: string, _cfg: Config, opts: CliOpts) {
   if (!opts.dir) {
     throw new Error('usage: once-upon publish --dir <once-upon folder>');
   }
   const agent = agentOf(opts);
-  const source = path.resolve(opts.dir as string);
-  const pr = readJson<PrJson>(path.join(source, 'pr.json'), null);
-  const repo = pr && pr.url ? pr.url.split('/').slice(3, 5).join('/') : null;
-  if (!repo || !pr!.number) {
-    throw new Error(`${source} doesn't say which PR it is (no pr.json naming it)`);
-  }
-  const prJson = pr as PrJson & { number: number }; // named above
-  const id = (opts.id as string | undefined) || slug(`${repo.replace('/', '-')}-${prJson.number}`);
-  const builds = new Builds(home);
-  const meta: StoryMeta = { kind: 'github', repo, number: prJson.number };
-  const rebuild = pendingRebuild(builds, id, meta);
-  // a rebuild the panel asked for: what was published before, checked against and carried into the new chapters
-  let rebuilt: Rebuilt | null = null;
-  if (rebuild) {
-    const served = new StoryStore({ home }).dirOf(id);
-    const before = (served && readJson<Plan>(path.join(served, 'chapters.json'), null)) || {};
-    const after = readJson<Plan>(path.join(source, 'chapters.json'), null);
-    if (!after || !existsSync(path.join(source, 'pr.diff'))) {
-      throw new Error(`${source} needs chapters.json and pr.diff to publish a rebuild`);
-    }
-    const diff = parseUnifiedDiff(readFileSync(path.join(source, 'pr.diff'), 'utf8'));
-    const counts = vetRebuild(rebuild, before, after, diff, {
-      allowUncovered: !!opts['allow-uncovered'],
-    });
-    if (counts.carried || counts.unmapped) {
-      writeJsonAtomic(path.join(source, 'chapters.json'), after); // so the next build keeps them
-    }
-    rebuilt = { build: rebuild, before, after, counts };
-  }
-  // into the repo's checkout (.once-upon/<id>, kept out of git) when the bridge knows it, else ~/.once-upon/<id>
-  const dest = storyDirFor(home, id, { repo });
-  for (const name of ['chapters.json', 'file-map.json']) {
-    if (existsSync(path.join(source, name))) {
-      copyFileAtomic(path.join(source, name), path.join(dest, name));
-    }
-  }
-  writeJsonAtomic(path.join(dest, 'meta.json'), {
-    kind: 'github',
-    repo,
-    number: prJson.number,
-    url: prJson.url,
-    pr_title: prJson.title || null,
-    pr_author: prJson.author?.login || null, // whose PR it is: Fix before push is on only for the viewer's own
-    head_oid: prJson.headRefOid || null, // the commit the story was told from
-    base_oid: prJson.baseRefOid || null,
-    head_ref: prJson.headRefName || null, // the PR's branch, where a fix request's change goes
-    source,
-    published_at: new Date().toISOString(),
-  });
-  let note = null;
-  if (rebuilt) {
-    note = afterRebuild(home, { id, stateKey: stateKeyOf(id, meta), ...rebuilt });
-    process.stderr.write(`${note}\n`);
-  }
-  // the story is here, so a Build story or Update request for the PR is done, and a rebuild with it published again
-  builds.settle(repo, prJson.number, {
-    story: id,
-    head: prJson.headRefOid || null,
-    published: true,
-    note,
+  const { id, dest } = publishPrStory(home, {
+    dir: opts.dir as string,
+    id: opts.id as string | undefined,
+    allowUncovered: !!opts['allow-uncovered'],
+    onNote: (note) => process.stderr.write(`${note}\n`),
   });
   bindStory(home, id, agent);
   out(dest);

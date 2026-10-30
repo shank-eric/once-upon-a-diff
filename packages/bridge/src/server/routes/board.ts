@@ -1,5 +1,5 @@
 /*
- * The agent board (../../board/board.ts): the live Claude Code sessions and the ledger's background agents.
+ * The agent board (../../services/board/board.ts): the live Claude Code sessions and the ledger's background agents.
  *
  *   GET /api/board              the lanes and their cards
  *   GET /api/board/link         the board page's link, with the board's key. Only the bridge's token (the extension, the CLI) gets it
@@ -22,7 +22,7 @@
  *   POST /api/board/backlog/drop {id}: drop one. Start is the CLI's (`once-upon backlog start`), not the page's
  *   POST /api/board/backlog/assign {id, session}: type the item's start line (built here from the store, the body has no
  *                               text) into an idle session in the item's repo, which then runs `once-upon backlog start`
- *   POST /api/board/worktree/clean {path, ack?, ignored?}: Clean up a worktree (board/worktree-clean.ts): `git worktree remove` without
+ *   POST /api/board/worktree/clean {path, ack?, ignored?}: Clean up a worktree (services/worktrees/worktree-clean.ts): `git worktree remove` without
  *                               --force, and `git branch -d` for a branch merged into the default branch (never an everfi-frontend one).
  *                               The bridge re-checks the worktree itself and refuses (409) anything dirty, in use, locked, new,
  *                               a detached HEAD no branch reaches, ignored files not confirmed, or unpushed commits not in the main line; ack "superseded" and "ignored-files" (with ignored, the names) are the page saying its confirm named those
@@ -31,15 +31,15 @@
  */
 import path from 'node:path';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
-import { REPO_RE } from '../../config/repos.ts';
-import { readSettings } from '../../config/settings.ts';
-import { publicOriginOf } from '../address.ts';
-import { BoardError } from '../../board/errors.ts';
+import { REPO_RE } from '../../services/config/repos.ts';
+import { readSettings } from '../../services/config/settings.ts';
+import { publicOriginOf } from '../../services/pages/address.ts';
+import { BoardError } from '../../services/errors.ts';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
-import { localStory, markStoryReviewed } from '../../story-lists/stories.ts';
-import type { MoveTo } from '../../board/backlog.ts';
-import type { ApiRoute, Call } from '../../types.ts';
+import { localStory, markStoryReviewed } from '../../services/review/story-lists.ts';
+import type { MoveTo } from '../../services/backlog/backlog.ts';
+import type { ApiRoute, Call } from '../types.ts';
 
 async function data({ app, send }: Call) {
   return send(200, await app.board.snapshot());
@@ -63,14 +63,14 @@ async function boardLink(call: Call) {
 }
 
 async function focus({ app, body, send }: Call) {
-  await app.board.focus(parseBody('boardFocus', body).session);
+  await app.sessions.focus(parseBody('boardFocus', body).session);
   return send(200, { ok: true });
 }
 
 /** POST {kind: 'build' | 'listen', session, repo? | story?}: type Build story's or Start listening's line into the session's tab. */
 async function type({ app, body: raw, send }: Call) {
   const { kind, session, repo, story } = parseBody('boardType', raw);
-  const typed = await app.board.type(kind, session, repo || null, story || null);
+  const typed = await app.sessions.type(kind, session, repo || null, story || null);
   return send(200, { ok: true, typed });
 }
 
@@ -80,7 +80,7 @@ async function listenSessions({ app, url, send }: Call) {
   const repo = url.searchParams.get('repo');
   if (storyId) {
     // a story with a repo, or a local one with a checkout to find sessions in; else the repo asked for, if any
-    const found = await app.board.storyListenSessions(storyId).catch((err: unknown) => {
+    const found = await app.sessions.storyListenSessions(storyId).catch((err: unknown) => {
       if (err instanceof BoardError && err.status === 400 && repo) {
         return null;
       }
@@ -93,7 +93,7 @@ async function listenSessions({ app, url, send }: Call) {
   if (!repo || !REPO_RE.test(repo)) {
     throw new HttpError(400, 'a repo (owner/name), or a story that has one, is needed');
   }
-  return send(200, { repo, sessions: await app.board.listenSessions(repo) });
+  return send(200, { repo, sessions: await app.sessions.listenSessions(repo) });
 }
 
 /** POST {story}: the page link of a local story on a card, which has no URL of its own like a PR story's. */
