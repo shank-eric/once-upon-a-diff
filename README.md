@@ -13,7 +13,7 @@ The once-upon skill (`skills/once-upon/`) writes the stories, and this extension
 
 ## Installing
 
-You need Node 24 or newer, the current LTS (`.nvmrc` says 24, so `fnm use` or `nvm use` in the repo picks it). On an older Node the CLI, the skill helper and the package scripts stop with one line saying so. The repo is a Yarn workspaces monorepo in TypeScript: `yarn` installs the build and test tools and links the four packages (`packages/protocol`, `packages/shared`, `packages/bridge`, `packages/extension`). The bridge has no build, and one runtime dependency, Valibot, which checks what a page sends: Node 24 runs its TypeScript directly. The extension is built with WXT. The repo uses Yarn 4, kept in `.yarn/releases` and named in `package.json`'s `packageManager`. Any `yarn` hands off to it, and `corepack enable` gets you a `yarn` if you have none.
+You need Node 24 or newer, the current LTS (`.nvmrc` says 24, so `fnm use` or `nvm use` in the repo picks it). On an older Node the CLI, the skill helper and the package scripts stop with one line saying so. The repo is a Yarn workspaces monorepo in TypeScript: `yarn` installs the build and test tools and links the six packages (`protocol`, `shared`, `panel`, `web`, `bridge` and `extension`, under `packages/`). The bridge has no build, and one runtime dependency, Valibot, which checks what a page sends: Node 24 runs its TypeScript directly. The extension is built with WXT. The repo uses Yarn 4, kept in `.yarn/releases` and named in `package.json`'s `packageManager`. Any `yarn` hands off to it, and `corepack enable` gets you a `yarn` if you have none.
 
 1. Install, build the extension, and print the bridge's port and token. `setup` also creates `~/.once-upon/config.json` with a random token:
    ```bash
@@ -523,7 +523,7 @@ yarn test:extension    # builds the extension, then loads it into a throwaway Pl
 yarn test:expand       # the same Chromium: panel links expand collapsed files and hunks on /files and /changes
 ```
 
-A pre-commit hook (husky and lint-staged, installed by `yarn install`) runs ESLint and Prettier's check on the staged files.
+A pre-commit hook (husky and lint-staged, installed by `yarn install`) runs ESLint and Prettier's check on the staged files. CI (`.github/workflows/ci.yml`) runs install, lint, typecheck, the format check, the tests and the extension build on every push and pull request. `AGENTS.md` has the standing rules for an agent working here, and `scripts/deploy-local.sh` puts a commit live on your own machine: `--yes <branch-or-sha>` fast-forwards main and respawns the bridge, `--batch <base> <sha>...` cherry-picks and runs the gates first, and `--rollback <sha>` goes back. It never pushes.
 
 `test:extension` needs Playwright's Chromium:
 
@@ -575,7 +575,7 @@ Six Yarn workspaces under `packages/`, all TypeScript (strict), and the skills a
   - `test/`: its unit tests, their helpers and the fake `gh`.
 - `packages/web/` (`@once-upon-a-diff/web`): the pages the bridge serves, with their own browser tsconfig. The URLs are unchanged (`/assets/...`, `/board/`, `/local/...`): the bridge's `server/assets.ts` serves `public/` from here.
   - `public/local.ts` draws the local story page and handles its clicks; `public/local/` holds the diff view, notes, folds and the panel mount, next to `split.ts`, `narrow.ts` and `syntax.ts`.
-  - `public/board.ts` is the agent board page: its poll, state and clicks, over the regions in `public/board/`, one folder each and none importing another (the lint checks): `header/` (usage and the phone controls), `columns/` (the columns, lanes and cards), `backlog/` (the Backlog card, Assign and the Add form), `worktrees/` (the Worktrees lane) and `voice/` (the voice panel, a Preact component). `board/shared.ts` holds what two regions draw with.
+  - `public/board.ts` is the agent board page: the bridge transport, the poll and a root Preact component (`BoardApp`), over the regions in `public/board/`, one folder each and none importing another (the lint checks). Each region is a Preact component: `header/` (usage and the phone controls), `columns/` (the columns, lanes and cards), `backlog/` (the Backlog card, Assign and the Add form), `worktrees/` (the Worktrees lane) and `voice/` (the voice panel, a Preact component). `board/shared.ts` holds what two regions use (the usage meter, the focus button, `useSetting` for the remembered settings and the `Api` object).
   - `public/vendor/`: the vendored highlight.js and Preact (`yarn vendor` rebuilds them; `preact.mjs.sha256` is checked by a test and by the deploy).
   - `scripts/` builds the vendored files, and `test/` has the page tests (the board and the voice panel in a linkedom DOM).
 - `packages/extension/` (`@once-upon-a-diff/extension`): the extension, built by WXT from `wxt.config.ts` (which writes the manifest) into `.output/chrome-mv3`, the folder to load unpacked.
