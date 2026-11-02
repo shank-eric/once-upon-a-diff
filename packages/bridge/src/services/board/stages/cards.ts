@@ -118,7 +118,11 @@ export function workCard(ctx: BuildContext, facts: CardFacts, work: Work): Board
   let pr: PrInfo | null = null;
   let story: InboxStory | InboxLocalStory | null = work.story ?? work.local;
   if (work.repo && work.number) {
-    ctx.review.kickInfo(work.repo, work.number);
+    // a merged PR past MERGED_HOURS is dropped below, so GitHub is not asked about it again
+    const mergedMs = work.mergedAt ? Date.parse(work.mergedAt) : NaN;
+    if (!(nowMs - mergedMs > MERGED_HOURS * 3600 * 1000)) {
+      ctx.review.kickInfo(work.repo, work.number);
+    }
     pr =
       ctx.review.info(work.repo, work.number) ||
       (work.mergedAt

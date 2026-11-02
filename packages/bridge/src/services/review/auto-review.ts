@@ -514,12 +514,19 @@ export interface BranchPr {
   number: number;
   state: 'open' | 'merged';
   merged_at: string | null;
+  /** a merged PR's last commit on the branch: what a squash merge shipped, which no ancestor check can see */
+  head_oid?: string;
 }
-/** `checkout` is the local checkout the branch is in, where a merged PR's head commit is looked for. */
+/**
+ * `checkout` is the local checkout the branch is in, where a merged PR's head commit is looked for. `heads` are commits
+ * the caller's stories are at (the head, the approved head): a merged PR whose last commit is one of them counts without
+ * the local branch containing it, which a deleted branch (`gh pr merge --delete-branch`) can't.
+ */
 export type BranchCheck = (
   repo: string,
   branch: string,
   checkout: string,
+  heads?: string[],
 ) => Promise<BranchPr | null>;
 
 /** Open and merged PRs are asked for separately, so a long run of merged ones (up to 100 of each) can't push the open one out. */
@@ -554,7 +561,7 @@ async function onBranch(checkout: string, branch: string, oid: string): Promise<
  * is someone else's work). An open one wins. A merged one counts only when its head commit is the local branch's tip
  * or behind it, so a branch name reused after a merge doesn't pick up the old PR; the latest merged one is taken.
  */
-export const ghBranchCheck: BranchCheck = async (repo, branch, checkout) => {
+export const ghBranchCheck: BranchCheck = async (repo, branch, checkout, heads = []) => {
   const [owner, name] = repo.split('/');
   const out: {
     data?: {
@@ -591,8 +598,13 @@ export const ghBranchCheck: BranchCheck = async (repo, branch, checkout) => {
     .filter(ours)
     .sort((first, second) => (second.mergedAt || '').localeCompare(first.mergedAt || ''));
   for (const node of merged) {
-    if (await onBranch(checkout, branch, node.headRefOid)) {
-      return { number: node.number, state: 'merged', merged_at: node.mergedAt };
+    if (heads.includes(node.headRefOid) || (await onBranch(checkout, branch, node.headRefOid))) {
+      return {
+        number: node.number,
+        state: 'merged',
+        merged_at: node.mergedAt,
+        head_oid: node.headRefOid,
+      };
     }
   }
   return null;
@@ -723,7 +735,13 @@ export class AutoReview {
   }
 
   /** Asks GitHub which PR a branch has (and, for a merged one, whether `checkout`'s branch contains it), unless it was asked lately. Doesn't wait. */
-  kickBranch(repo: string, branch: string, checkout: string, now = Date.now()): void {
+  kickBranch(
+    repo: string,
+    branch: string,
+    checkout: string,
+    now = Date.now(),
+    heads: string[] = [],
+  ): void {
     const key = branchKey(repo, branch);
     const last = this.branches.get(key);
     if (last && now - last.at < this.cacheMs) {
@@ -731,7 +749,7 @@ export class AutoReview {
     }
     // the old answer stays until the new one arrives, and a failed ask keeps it
     this.branches.set(key, { at: now, pr: last?.pr });
-    const job = this.checkBranch(repo, branch, checkout)
+    const job = this.checkBranch(repo, branch, checkout, heads)
       .then((pr) => {
         this.branches.set(key, { at: now, pr });
       })
@@ -825,9 +843,23 @@ export class AutoReview {
         continue;
       }
       const onFeature = story.repo && story.branch && !DEFAULT_BRANCHES.has(story.branch);
-      if (!entry.marked && onFeature && entry.repo_path) {
-        this.kickBranch(story.repo as string, story.branch as string, entry.repo_path, now);
-        if (this.branchPr(story.repo as string, story.branch as string)) {
+      if ((!entry.marked || entry.approval) && onFeature && entry.repo_path) {
+        this.kickBranch(
+          story.repo as string,
+          story.branch as string,
+          entry.repo_path,
+          now,
+          [entry.head_oid, entry.approval?.head_oid].filter((oid): oid is string => !!oid),
+        );
+        const found = this.branchPr(story.repo as string, story.branch as string);
+        if (found && entry.approval) {
+          // a squash merge leaves the approved head in no branch of the default one, so the merged PR is what shows it shipped:
+          // the PR's last commit is the approved head. An open PR leaves the approval for the card to follow the PR.
+          if (found.state === 'merged' && found.head_oid === entry.approval.head_oid) {
+            this.markDelivered(story.id, entry.approval.head_oid, 'pr');
+            continue;
+          }
+        } else if (found) {
           this.markLocal(story.id, 'pr');
           continue;
         }
@@ -907,16 +939,17 @@ export class AutoReview {
 
   /**
    * A local story whose head is in the default branch is done. One approved at that head has shipped, so its approval
-   * ends too (approved.json cleared, which takes it out of Ready to ship) and its mark becomes `delivered`.
+   * ends too (approved.json cleared, which takes it out of Ready to ship) and its mark becomes `delivered`, or `pr` when a
+   * merged PR is what showed it (a squash merge).
    */
-  private markDelivered(id: string, head: string): void {
+  private markDelivered(id: string, head: string, why: ReviewedBy = 'delivered'): void {
     const approval = readApproval(this.stories, id);
     if (approval && approval.head_oid === head) {
       this.stories.writeState(id, 'approved.json', null);
-      markStoryReviewed(this.stories, id, true, 'delivered');
+      markStoryReviewed(this.stories, id, true, why);
       return;
     }
-    this.markLocal(id, 'delivered');
+    this.markLocal(id, why);
   }
 
   /** Writes a local story's done mark unless a hand mark or unmark got there first. */

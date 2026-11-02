@@ -1552,7 +1552,7 @@ test('the branch check keeps PRs from this repo, prefers an open one, and counts
         [node(6, tip, 'fork/widgets'), node(7, tip, null)],
         [node(3, behind, mine, '2026-10-01T00:00:00Z')],
       ),
-      { number: 3, state: 'merged', merged_at: '2026-10-01T00:00:00Z' },
+      { number: 3, state: 'merged', merged_at: '2026-10-01T00:00:00Z', head_oid: behind },
     );
     assert.equal(await ask([], [node(3, behind, 'fork/widgets', '2026-10-01T00:00:00Z')]), null);
     // merged: its head is the tip, or behind it: the latest such one; a head the branch doesn't have is an old PR of a reused name
@@ -1565,13 +1565,34 @@ test('the branch check keeps PRs from this repo, prefers an open one, and counts
           node(9, stray, mine, '2026-10-09T00:00:00Z'),
         ],
       ),
-      { number: 4, state: 'merged', merged_at: '2026-10-03T00:00:00Z' },
+      { number: 4, state: 'merged', merged_at: '2026-10-03T00:00:00Z', head_oid: tip },
     );
     assert.equal(await ask([], [node(9, stray, mine, '2026-10-09T00:00:00Z')]), null);
     assert.equal(
       await ask([], [node(9, '0'.repeat(40), mine, '2026-10-09T00:00:00Z')]),
       null,
       'a head commit this checkout has never seen',
+    );
+    // a commit a story is at counts without the local branch having it: a squash merge whose branch was deleted after
+    // (`gh pr merge --delete-branch`), where git can't say the branch contains anything
+    writeJson(answer, {
+      data: {
+        repository: {
+          open: { nodes: [] },
+          merged: { nodes: [node(11, stray, mine, '2026-10-11T00:00:00Z')] },
+        },
+      },
+    });
+    assert.deepEqual(await ghBranchCheck('Acme/Widgets', 'deleted-branch', checkout, [stray]), {
+      number: 11,
+      state: 'merged',
+      merged_at: '2026-10-11T00:00:00Z',
+      head_oid: stray,
+    });
+    assert.equal(
+      await ghBranchCheck('Acme/Widgets', 'deleted-branch', checkout),
+      null,
+      'with no head named, a branch that is gone proves nothing',
     );
     // open and merged are asked for separately, up to 100 each, with the head repository and commit
     const query = calls()[0].find((arg) => arg.startsWith('query=')) as string;

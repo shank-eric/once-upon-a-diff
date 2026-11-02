@@ -15,7 +15,7 @@ import {
 import { createLocalStory } from '../src/services/stories/local-story.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
 import { Inbox } from '../src/services/inbox/inbox.ts';
-import { AutoReview } from '../src/services/review/auto-review.ts';
+import { AutoReview, type BranchCheck } from '../src/services/review/auto-review.ts';
 import { APPROVED_DAYS, approvalOf } from '../src/services/review/approve.ts';
 import { localEntries, localStories } from '../src/services/review/story-lists.ts';
 import { columnOf } from '../src/services/board/columns.ts';
@@ -24,7 +24,7 @@ import type { Printable } from '../src/cli/output.ts';
 import type { BoardData, StoryData } from '@once-upon-a-diff/shared/types';
 
 /** A local story on a real checkout, and a bridge serving it. */
-async function setup() {
+async function setup(options: { checkBranch?: BranchCheck } = {}) {
   const home = tmp('home');
   const { repo, base } = localRepo();
   git(repo, 'remote', 'add', 'origin', 'git@github.com:acme/widgets.git');
@@ -34,7 +34,7 @@ async function setup() {
     chapters: [{ title: 'Chapter 1', files: ['one.txt'] }],
   });
   const { id } = createLocalStory({ home, repo, base, head: 'HEAD', chapters });
-  const bridge = await startBridge({ home });
+  const bridge = await startBridge({ home, checkBranch: options.checkBranch });
   const head = () => git(repo, 'rev-parse', 'HEAD');
   const post = (key: string, url: string, body: unknown) =>
     bridge.call<{ error?: string; approved?: { at: string; head_oid: string } | null }>(
@@ -105,10 +105,11 @@ test('Unapprove takes back the mark approving wrote, but not one made by hand', 
     const off = await post(pageKey(TOKEN, id), url, { approved: false });
     assert.equal(off.body.approved, null);
     assert.equal(
-      store.readState<{ at: string | null } | null>(id, 'reviewed.json', null)?.at,
+      store.readState(id, 'reviewed.json', null),
       null,
-      'back in Ready',
+      'no mark left, so the background checks can still call it done',
     );
+    assert.equal(localStories(store)[0].reviewed_at, null, 'back in Ready');
     assert.equal(approvalOf(store, id, head()), null);
 
     // marked reviewed by hand first: approving keeps that mark, and so does unapproving
@@ -261,6 +262,160 @@ test('once-upon approve approves at the current head, tells a story listener onl
     assert.match(undone.stdout, /approval cleared/);
     assert.equal(store.readState(id, 'approved.json', null), null);
     assert.notEqual((await runCli(home, ['approve', 'nope'])).code, 0);
+  } finally {
+    await bridge.close();
+  }
+});
+
+const squashed =
+  (head: () => string): BranchCheck =>
+  async () => ({
+    number: 7001,
+    state: 'merged',
+    merged_at: new Date().toISOString(),
+    head_oid: head(),
+  });
+
+test('a squash-merged PR ships an approved story, which the default branch never contains', async () => {
+  const { id, bridge, head, post, store } = await setup();
+  try {
+    await post(pageKey(TOKEN, id), `/api/stories/${id}/approve`, { head_sha: head() });
+    const now = Date.now();
+    const run = async (check: BranchCheck) => {
+      const review = new AutoReview(store, async () => ({ merged: false, why: null }), 0, check);
+      review.kickLocal(localEntries(store, { now }), now); // asks GitHub
+      await review.idle();
+      review.kickLocal(localEntries(store, { now }), now + 1);
+      await review.idle();
+    };
+    // a merged PR that stopped short of the approved head shipped something else
+    await run(async () => ({
+      number: 7001,
+      state: 'merged',
+      merged_at: new Date(now).toISOString(),
+      head_oid: '0'.repeat(40),
+    }));
+    assert.equal(approvalOf(store, id, head())?.head_oid, head(), 'still approved');
+    await run(async () => ({ number: 7001, state: 'open', merged_at: null }));
+    assert.equal(approvalOf(store, id, head())?.head_oid, head(), 'an open PR leaves it');
+    await run(squashed(head));
+    assert.equal(store.readState(id, 'approved.json', null), null, 'cleared');
+    const after = localStories(store, { now })[0];
+    assert.equal(after.approved_at, null);
+    assert.equal(after.reviewed_by, 'pr');
+  } finally {
+    await bridge.close();
+  }
+});
+
+test('approve --undo on a squash-merged story does not strand it in Ready: the PR check still finds it done', async () => {
+  const { id, bridge, head, post, store } = await setup();
+  try {
+    await post(pageKey(TOKEN, id), `/api/stories/${id}/approve`, { head_sha: head() });
+    await post(pageKey(TOKEN, id), `/api/stories/${id}/approve`, { approved: false });
+    const now = Date.now();
+    assert.equal(localStories(store, { now })[0].reviewed_at, null, 'back in Ready');
+    const review = new AutoReview(
+      store,
+      async () => ({ merged: false, why: null }),
+      0,
+      squashed(head),
+    );
+    review.kickLocal(localEntries(store, { now }), now);
+    await review.idle();
+    review.kickLocal(localEntries(store, { now }), now + 1);
+    await review.idle();
+    assert.equal(localStories(store, { now })[0].reviewed_by, 'pr');
+    // an unmark by hand before approving comes back with the unapprove
+    store.writeState(id, 'reviewed.json', { at: null, by: 'manual' });
+    await post(pageKey(TOKEN, id), `/api/stories/${id}/approve`, { head_sha: head() });
+    await post(pageKey(TOKEN, id), `/api/stories/${id}/approve`, { approved: false });
+    assert.deepEqual(store.readState(id, 'reviewed.json', null), { at: null, by: 'manual' });
+  } finally {
+    await bridge.close();
+  }
+});
+
+test('the card of an approved story whose PR was squash-merged is linked to that PR, so it leaves Ready to ship', async () => {
+  const { id, bridge, head, post } = await setup({ checkBranch: squashed(() => head()) });
+  try {
+    await post(pageKey(TOKEN, id), `/api/stories/${id}/approve`, { head_sha: head() });
+    const card = async () =>
+      (
+        await bridge.call<BoardData>('GET', '/api/board', undefined, {
+          Authorization: `Bearer ${boardKey(TOKEN)}`,
+        })
+      ).body.lanes
+        .flatMap((lane) => lane.cards)
+        .find((one) => one.story?.id === id || one.pr?.number === 7001);
+    assert.equal((await card())?.column, 'ship', 'before GitHub has answered');
+    await new Promise((resolve) => setTimeout(resolve, 2100)); // the board's snapshot is kept 2 s
+    const linked = await card();
+    assert.equal(linked?.pr?.number, 7001);
+    assert.equal(linked?.pr?.state, 'merged');
+    assert.equal(linked?.column, 'done');
+    await new Promise((resolve) => setTimeout(resolve, 2100));
+    assert.equal((await card())?.story?.approved_at ?? null, null, 'and the approval is gone');
+  } finally {
+    await bridge.close();
+  }
+});
+
+test('a merged PR is taken for an approved story by its head alone, so a deleted branch still ships it', async () => {
+  const { id, bridge, head, post, store } = await setup();
+  try {
+    await post(pageKey(TOKEN, id), `/api/stories/${id}/approve`, { head_sha: head() });
+    const now = Date.now();
+    // what ghBranchCheck does once the caller names the story's heads: the branch need not exist
+    const review = new AutoReview(
+      store,
+      async () => ({ merged: false, why: null }),
+      0,
+      async (_repo, _branch, _checkout, heads = []) =>
+        heads.includes(head())
+          ? {
+              number: 7001,
+              state: 'merged',
+              merged_at: new Date(now).toISOString(),
+              head_oid: head(),
+            }
+          : null,
+    );
+    review.kickLocal(localEntries(store, { now }), now);
+    await review.idle();
+    review.kickLocal(localEntries(store, { now }), now + 1);
+    await review.idle();
+    assert.equal(store.readState(id, 'approved.json', null), null);
+    assert.equal(localStories(store, { now })[0].reviewed_by, 'pr');
+  } finally {
+    await bridge.close();
+  }
+});
+
+test('a branch that went on after an older PR merged keeps the approved story on the board, in Ready to ship', async () => {
+  const { id, bridge, head, post } = await setup({
+    checkBranch: async () => ({
+      number: 6000,
+      state: 'merged',
+      merged_at: '2026-10-01T00:00:00Z',
+      head_oid: '0'.repeat(40),
+    }),
+  });
+  try {
+    await post(pageKey(TOKEN, id), `/api/stories/${id}/approve`, { head_sha: head() });
+    const card = async () =>
+      (
+        await bridge.call<BoardData>('GET', '/api/board', undefined, {
+          Authorization: `Bearer ${boardKey(TOKEN)}`,
+        })
+      ).body.lanes
+        .flatMap((lane) => lane.cards)
+        .find((one) => one.story?.id === id);
+    await card();
+    await new Promise((resolve) => setTimeout(resolve, 2100));
+    const after = await card();
+    assert.equal(after?.column, 'ship');
+    assert.equal(after?.pr, null, 'the old PR is not this story’s');
   } finally {
     await bridge.close();
   }

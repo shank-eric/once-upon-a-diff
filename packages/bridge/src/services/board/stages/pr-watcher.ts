@@ -6,7 +6,7 @@ import type { InboxStory, PrInfo } from '@once-upon-a-diff/shared/types';
 export interface PrWatcher {
   kick(stories: InboxStory[]): void;
   kickInfo(repo: string, number: number): void;
-  kickBranch(repo: string, branch: string, checkout: string): void;
+  kickBranch(repo: string, branch: string, checkout: string, now?: number, heads?: string[]): void;
   kickLocal(list: LocalEntry[]): void;
   kickRequested(): void;
   requested(): { repo: string; number: number }[];

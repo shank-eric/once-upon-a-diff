@@ -41,6 +41,48 @@ export interface CollectedWorks {
   localCheckouts: Map<string, { story: string; checkout: string }>;
 }
 
+/**
+ * A branch's card with an unresolved local story (approved, or not yet reviewed) and no PR yet takes the PR GitHub says
+ * the branch has, whether or not a session is on the branch (sessions.ts does the same for a session's). Without this a
+ * squash-merged branch has no PR on its card and an approved story would sit in Ready to ship. An open PR is taken as it
+ * is. A merged one only when its last commit is the story's head or its approved head, so a branch that went on after an
+ * older PR merged keeps its card. A PR that already has a work of its own is not doubled. A resolved story is not asked about.
+ */
+function linkBranchWorks(
+  works: Map<string, Work>,
+  review: PrWatcher,
+  checkouts: CollectedWorks['localCheckouts'],
+  headsOf: Map<string, string[]>,
+  nowMs: number,
+): void {
+  for (const work of [...works.values()]) {
+    const local = work.local;
+    if (!local || work.number || work.story || work.mergedAt || !work.repo || !work.branch) {
+      continue;
+    }
+    if (!local.approved_at && local.reviewed_at) {
+      continue;
+    }
+    const checkout = checkouts.get(`${work.repo.toLowerCase()}@${work.branch}`);
+    if (!checkout) {
+      continue;
+    }
+    const heads = headsOf.get(local.id) ?? [];
+    review.kickBranch(work.repo, work.branch, checkout.checkout, nowMs, heads);
+    const found = review.branchPr(work.repo, work.branch);
+    if (!found || works.has(prKey(work.repo, found.number))) {
+      continue;
+    }
+    if (found.state === 'merged') {
+      if (!found.head_oid || !heads.includes(found.head_oid)) {
+        continue;
+      }
+      work.mergedAt = found.merged_at;
+    }
+    work.number = found.number;
+  }
+}
+
 /** Reads the stories and the PR lists into works. Asks the GitHub watcher about what it reads (kick, kickRequested, kickLocal), in this order. */
 export function collectWorks(ctx: BuildContext): CollectedWorks {
   const { home, nowMs, review, builds } = ctx;
@@ -188,5 +230,12 @@ export function collectWorks(ctx: BuildContext): CollectedWorks {
       there.local = local;
     }
   }
+  const headsOf = new Map(
+    localEntryList.map((entry) => [
+      entry.story.id,
+      [entry.head_oid, entry.approval?.head_oid].filter((oid): oid is string => !!oid),
+    ]),
+  );
+  linkBranchWorks(works, review, localCheckouts, headsOf, nowMs);
   return { works, stories, localStoryList, shipById, localCheckouts };
 }

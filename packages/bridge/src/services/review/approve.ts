@@ -24,6 +24,8 @@ export interface Approval {
   base_oid: string | null;
   /** approving wrote the story's reviewed mark */
   marked: boolean;
+  /** the story had been unmarked by hand before approving, so unapproving puts that unmark back (else it clears the file) */
+  unmarked?: boolean;
 }
 
 /** The raw approved.json, or null. */
@@ -72,6 +74,7 @@ export function approveStory(stories: StoryStore, inbox: Inbox, input: ApproveIn
   }
   const state = stories.readState<{ at?: string | null } | null>(input.id, 'reviewed.json', null);
   const marked = !state?.at;
+  const unmarked = before ? before.unmarked : state !== null && !state.at;
   if (marked) {
     markStoryReviewed(stories, input.id, true, 'approved');
   }
@@ -81,6 +84,7 @@ export function approveStory(stories: StoryStore, inbox: Inbox, input: ApproveIn
     head_oid: input.headOid,
     base_oid: input.baseOid,
     marked: before ? before.marked || marked : marked,
+    ...(unmarked ? { unmarked: true } : {}),
   } satisfies Approval);
   inbox.append({
     type: 'approved',
@@ -94,7 +98,11 @@ export function approveStory(stories: StoryStore, inbox: Inbox, input: ApproveIn
   return true;
 }
 
-/** Clears the approval, and the reviewed mark approving wrote (so the story is in Ready again). False when there was none. */
+/**
+ * Clears the approval, and the reviewed mark approving wrote (so the story is in Ready again). False when there was none.
+ * The mark goes back to how it was before approving: no file at all, so the background checks can still find the story
+ * delivered or its PR merged, unless it had been unmarked by hand (that unmark returns).
+ */
 export function clearApproval(stories: StoryStore, id: string): boolean {
   const found = readApproval(stories, id);
   if (!found) {
@@ -102,7 +110,11 @@ export function clearApproval(stories: StoryStore, id: string): boolean {
   }
   stories.writeState(id, FILE, null);
   if (found.marked && storyHasState(stories, id)) {
-    markStoryReviewed(stories, id, false);
+    if (found.unmarked) {
+      markStoryReviewed(stories, id, false);
+    } else {
+      stories.writeState(id, 'reviewed.json', null);
+    }
   }
   return true;
 }
