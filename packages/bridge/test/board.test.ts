@@ -621,11 +621,6 @@ test('columns follow the work to merge: waiting and working first, then merged, 
   assert.equal(columnOf({ ...none, pr: open, story: { ...unseen, reviewed: true } }), 'pr_open');
   // GitHub waiting on your review is back to you; a session building for the PR is working
   assert.equal(columnOf({ ...none, pr: prInfo(1, { review_requested: true }) }), 'back');
-  // someone else's draft that shows for another reason (a story built for you) is not waiting on your review
-  assert.equal(
-    columnOf({ ...none, pr: prInfo(1, { review_requested: true, draft: true, mine: false }) }),
-    'pr_open',
-  );
   assert.equal(columnOf({ ...none, pr: open, story: unseen, building: true }), 'working');
   assert.equal(columnOf({ ...none, sessions: [{ status: 'waiting' }], building: true }), 'waiting');
 });
@@ -801,7 +796,6 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
     'pr:acme/widgets#15': 'pr_open',
     'pr:acme/widgets#19': 'back', // GitHub is waiting on your review
     'pr:acme/widgets#22': 'pr_open', // your own draft still shows
-    'pr:acme/widgets#23': 'pr_open', // someone else's draft with a story built for you: shown, but not waiting on your review
     'pr:acme/widgets#12': 'done',
     [fullId(onMain.pid)]: 'idle',
     [`agent:${sid(onMain)}:needs-answer`]: 'waiting', // its own card, in its parent's lane
@@ -837,6 +831,11 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
     card('pr:acme/widgets#20'),
     undefined,
     'someone else’s draft is not on the board, review request or not',
+  );
+  assert.equal(
+    card('pr:acme/widgets#23'),
+    undefined,
+    'someone else’s draft is not on the board even with a story built for you',
   );
   assert.equal(card('pr:acme/widgets#14').pr?.mine, false);
   // a finished agent (done, stopped or failed) sits in Waiting for 30 minutes after its last line (finished-agents.test.ts has
@@ -1482,6 +1481,7 @@ test('the board: someone else’s draft comes onto the board once it is marked r
     board_progress_file: path.join(quiet, 'progress.md'),
     board_sessions_dir: quiet,
   });
+  prStory(home, 'acme-widgets-30', 'acme/widgets', 30, 'feat/their-draft');
   const infos = [
     prInfo(30, { author: 'someone', mine: false, review_requested: true, draft: true }),
   ];
@@ -1497,7 +1497,7 @@ test('the board: someone else’s draft comes onto the board once it is marked r
     (await board.snapshot()).lanes
       .flatMap((lane) => lane.cards)
       .find((found) => found.id === 'pr:acme/widgets#30')?.column;
-  assert.equal(await columnOfPr(), undefined, 'a draft: not on the board');
+  assert.equal(await columnOfPr(), undefined, 'a draft with a story: not on the board');
   infos[0] = { ...infos[0], draft: false };
   assert.equal(await columnOfPr(), 'back', 'marked ready: GitHub is waiting on your review');
   infos[0] = { ...infos[0], draft: true };

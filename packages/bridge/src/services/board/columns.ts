@@ -118,7 +118,7 @@ export function columnOf(input: ColumnInput): BoardColumn {
     return 'ready';
   }
   if (pr) {
-    return isBackToYou(input) || (pr.review_requested && !pr.draft) ? 'back' : 'pr_open';
+    return isBackToYou(input) || pr.review_requested ? 'back' : 'pr_open';
   }
   if (
     sessions.some((session) => session.status === 'error') ||
