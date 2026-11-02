@@ -84,6 +84,7 @@ const BUILDING_TEXT = {
   update: 'updating the story',
   rebuild: 'rebuilding the story',
   fix: 'fixing the code',
+  write: 'writing the story',
 } as const;
 
 /** Chips are neutral in colour; what they mean is said by a mark in front. */

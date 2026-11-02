@@ -11,7 +11,7 @@
  */
 import { html } from '@once-upon-a-diff/shared/util/html';
 import { setHtml } from '@once-upon-a-diff/shared/util/dom';
-import { baseName, capitalize } from '@once-upon-a-diff/shared/util/text';
+import { baseName, capitalize, plural } from '@once-upon-a-diff/shared/util/text';
 import { viewedEarlyCheck } from './reading.ts';
 import type { PanelContext } from '../context.ts';
 import type { StepProgress } from './reading.ts';
@@ -136,22 +136,26 @@ export function createViewedTracker(context: PanelContext) {
   }
 
   function renderOverviewProgress(box: HTMLElement, all: StepProgress[]) {
+    const writing = data.chapters.filter((chapter) => chapter.unwritten).length;
     const due = all.reduce((sum, progress) => sum + progress.due, 0);
     const viewed = all.reduce((sum, progress) => sum + progress.viewed, 0);
     const left = all
       .map((progress, index) => ({ progress, index }))
       .filter(({ progress }) => progress.viewed < progress.due)
       .map(({ index }) => index + 1);
-    box.classList.toggle('ou-complete', !!due && viewed === due);
+    box.classList.toggle('ou-complete', !!due && viewed === due && !writing);
+    const stillWriting = writing ? ` · ${plural(writing, 'chapter')} still being written` : '';
     if (!due) {
-      setHtml(box, '');
+      setHtml(box, writing ? html`<span>${stillWriting.slice(3)}</span>` : '');
+    } else if (viewed === due && writing) {
+      setHtml(box, html`<b>${viewed} of ${due}</b> files marked viewed${stillWriting}`);
     } else if (viewed === due) {
       setHtml(box, html`<span class="ou-done">✓ All ${due} files marked viewed</span>`);
     } else {
       const still = left.length
         ? ` · ${left.map(story.chapterName).join(', ')} still ${left.length > 1 ? 'have' : 'has'} some to go`
         : '';
-      setHtml(box, html`<b>${viewed} of ${due}</b> files marked viewed${still}`);
+      setHtml(box, html`<b>${viewed} of ${due}</b> files marked viewed${still}${stillWriting}`);
     }
   }
 
@@ -195,7 +199,13 @@ export function createViewedTracker(context: PanelContext) {
       !!(progress && progress.due && progress.viewed === progress.due),
     );
     if (!progress || !progress.due) {
-      setHtml(box, html`<span>Nothing to mark viewed in this chapter</span>`);
+      const waiting = context.chapter()?.unwritten;
+      setHtml(
+        box,
+        waiting
+          ? html`<span>Mark viewed unlocks when this chapter's story is written</span>`
+          : html`<span>Nothing to mark viewed in this chapter</span>`,
+      );
       return;
     }
     if (progress.viewed === progress.due) {

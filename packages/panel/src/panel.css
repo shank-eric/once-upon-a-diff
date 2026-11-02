@@ -500,6 +500,9 @@
   color: var(--c-muted);
   margin-left: 4px;
 }
+#ou-panel .ou-stepprog.ou-writing {
+  font-style: italic;
+}
 #ou-panel .ou-stepprog.ou-done {
   color: var(--c-ok);
 }
@@ -701,6 +704,7 @@
   color: var(--c-warn);
 }
 #ou-panel .ou-st-done,
+#ou-panel .ou-st-pending,
 #ou-panel .ou-st-viewed {
   color: var(--c-muted);
 }

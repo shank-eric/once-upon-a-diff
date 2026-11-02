@@ -65,6 +65,10 @@ export interface Chapter {
   since?: SinceRange;
   /** the last chapter the bridge adds for files no chapter places */
   auto?: boolean;
+  /** derived by the bridge, never in chapters.json: a published chapter with no narrative yet, which is still being written */
+  unwritten?: boolean;
+  /** derived by the bridge: the chapter was first published without its text, so a Viewed tick made meanwhile is not a read */
+  skeleton?: boolean;
 }
 
 /** A file of the diff, and its sha256 (GitHub's #diff-<sha> anchors). */
@@ -208,6 +212,8 @@ export interface InboxLocalStory {
   /** when you approved it for this head (Approve on its page), null when you haven't or a new commit cleared it */
   approved_at: string | null;
   approved_head: string | null;
+  /** chapters published with no text yet: while there are any, the story is still being written (absent: none) */
+  unwritten?: number;
 }
 
 /** A built PR story: the panel opens on the PR's changes page. It is marked reviewed on GitHub or by Viewed. */
@@ -227,6 +233,8 @@ export interface InboxStory {
   reviewed_at: string | null;
   /** why it is reviewed: marked by hand, or marked by itself because you submitted a review after it was built or viewed every file */
   reviewed_by: ReviewedBy | null;
+  /** chapters published with no text yet: while there are any, the story is still being written (absent: none) */
+  unwritten?: number;
 }
 
 /**
@@ -816,7 +824,11 @@ export interface BoardCard {
    */
   ahead?: { count: number; story: string } | null;
   /** a session is building, rebuilding or fixing for it (a claimed request) */
-  building: { kind: StoryRequest['kind']; since: string | null; by: string | null } | null;
+  building: {
+    kind: StoryRequest['kind'] | 'write';
+    since: string | null;
+    by: string | null;
+  } | null;
   sessions: BoardSession[];
   agents: BoardAgent[];
   /** an agent card's parent session, by title */

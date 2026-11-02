@@ -23,6 +23,14 @@ import type { PanelContext } from '../context.ts';
 export const READ_MS = 30000;
 
 /**
+ * Each build of a story that's told chapter by chapter remounts the panel. So the time on the step isn't lost to it,
+ * the clock goes here when a panel is destroyed (module state outlives the panel in the page) and the next panel for the
+ * same story, on the same step, picks it up if that happens within CARRY_MS.
+ */
+const CARRY_MS = 5 * 60 * 1000;
+let carriedClock: { story: string; step: number; ms: number; at: number } | null = null;
+
+/**
  * Chapters they reviewed before the panel tracked reads (or with the panel closed): every file the chapter marks
  * viewed was already Viewed the first time this page could see all of them, and read.json has no record of it.
  * Only that first look counts, so ticking a later chapter's files while reading an earlier one doesn't read it.
@@ -30,7 +38,7 @@ export const READ_MS = 30000;
  * firstLook step -> complete at the first look, filled in here. Returns the steps to record as read.
  */
 export function inferReadSteps(
-  chapters: { key?: unknown; title?: unknown }[],
+  chapters: { key?: unknown; title?: unknown; skeleton?: unknown }[],
   progress: (Pick<StepProgress, 'due' | 'viewed' | 'unknown' | 'noToggle'> | null | undefined)[],
   readInfo: ReadInfo | null,
   firstLook: Map<number, boolean>,
@@ -43,6 +51,7 @@ export function inferReadSteps(
     const step = index + 1;
     if (
       firstLook.has(step) ||
+      chapters[index]?.skeleton || // published before its text: files ticked meanwhile say nothing about the text
       !stepProgress ||
       !stepProgress.due ||
       stepProgress.noToggle ||
@@ -113,11 +122,18 @@ export function createReading(context: PanelContext) {
   const completeSeen = new Map(); // chapter -> were all its files viewed when last looked at
   const firstLook = new Map(); // chapter -> were all its files already viewed the first time the page showed them all (inferReadSteps)
   let clock = { step: 0, ms: 0, from: 0 };
+  let resumeClock = carriedClock && carriedClock.story === data.id ? carriedClock : null;
+  carriedClock = null;
   let info: ReadInfo | null = null; // the bridge's GET /read
   const showing = () => document.visibilityState === 'visible';
 
   function start() {
-    clock = { step: state.n, ms: 0, from: showing() ? Date.now() : 0 };
+    const resume =
+      resumeClock && resumeClock.step === state.n && Date.now() - resumeClock.at < CARRY_MS
+        ? resumeClock.ms
+        : 0;
+    resumeClock = null; // only the first start after a remount: moving to another step begins a new clock
+    clock = { step: state.n, ms: resume, from: showing() ? Date.now() : 0 };
   }
   const elapsed = () => clock.ms + (clock.from ? Date.now() - clock.from : 0);
 
@@ -148,7 +164,8 @@ export function createReading(context: PanelContext) {
 
   /** Leaving the step: it counts as read once they've been on it READ_MS. */
   function leave() {
-    if (clock.step > 0 && elapsed() >= READ_MS) {
+    // a chapter still being written isn't read by staring at its skeleton
+    if (clock.step > 0 && elapsed() >= READ_MS && !data.chapters[clock.step - 1]?.unwritten) {
       send(clock.step, 'time');
     }
   }
@@ -202,6 +219,9 @@ export function createReading(context: PanelContext) {
     (info.stale_comments || []).some((comment) => comment.step === step && comment.index === index);
 
   function destroy() {
+    if (clock.step > 0 && elapsed() < READ_MS) {
+      carriedClock = { story: data.id, step: clock.step, ms: elapsed(), at: Date.now() };
+    }
     document.removeEventListener('visibilitychange', onVisibility);
     window.removeEventListener('pagehide', leave);
   }

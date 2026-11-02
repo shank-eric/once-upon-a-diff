@@ -275,7 +275,7 @@ function hunksNotCovered(uncovered: UncoveredFile[]): string {
 async function cmdBuild(opts: CliOpts) {
   const dir = opts.dir as string;
   const { pr, diff } = await load(dir);
-  const plan = await readJson<Plan & { mode?: string }>(
+  const plan = await readJson<Plan>(
     (opts.chapters as string | undefined) || path.join(dir, 'chapters.json'),
   );
   const chapters = plan.chapters || [];

@@ -152,7 +152,14 @@ export function workCard(ctx: BuildContext, facts: CardFacts, work: Work): Board
           story: work.story?.id ?? null,
         })
       : null;
-  const building = request?.state === 'building' ? request : null;
+  const claimed = request?.state === 'building' ? request : null;
+  // a story published as a skeleton is still being written: it is not built until every chapter has its text
+  let building: BoardCard['building'] = null;
+  if (claimed) {
+    building = { kind: claimed.kind, since: claimed.claimed_at, by: claimed.claimed_by };
+  } else if (story && (story.unwritten ?? 0) > 0) {
+    building = { kind: 'write', since: story.built_at, by: null };
+  }
   if (pr && !isShown(pr, { story: !!story || work.built, building: !!building })) {
     // someone else's PR with nothing for you in it: not on the board, though a session of yours on its branch still is
     pr = null;
@@ -203,9 +210,7 @@ export function workCard(ctx: BuildContext, facts: CardFacts, work: Work): Board
           ship: 'number' in story ? null : (facts.shipById.get(story.id) ?? null),
         }
       : null,
-    building: building
-      ? { kind: building.kind, since: building.claimed_at, by: building.claimed_by }
-      : null,
+    building,
     sessions,
     agents: [],
     parent: null,
@@ -221,6 +226,7 @@ const BUILDING_TEXT = {
   update: 'updating story',
   rebuild: 'rebuilding story',
   fix: 'fixing the code',
+  write: 'writing story',
 } as const;
 
 /** The session a click on a card brings to the front: one waiting on you, else a busy one, else the first. */

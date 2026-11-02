@@ -7,7 +7,12 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { tmp, writeJson, githubStory, startBridge } from './helpers.ts';
 import { parseUnifiedDiff } from '../src/services/stories/diff.ts';
-import { chaptersOf, type Plan, type PlanChapter } from '../src/services/stories/chapters.ts';
+import {
+  chaptersOf,
+  markUnwritten,
+  type Plan,
+  type PlanChapter,
+} from '../src/services/stories/chapters.ts';
 import type { FileMap } from '../src/services/stories/story-data.ts';
 import type { StoryData } from '@once-upon-a-diff/shared/types';
 import { uncoveredHunks, SMALL_FILE_LINES } from '../src/services/stories/hunk-coverage.ts';
@@ -195,4 +200,39 @@ test("the bridge serves a published story's uncovered hunks for the panel's Over
   } finally {
     await bridge.close();
   }
+});
+
+test('a skeleton (the plan, with no narratives yet) builds and passes the same checks, and a chapter with no text is unwritten', async () => {
+  const dir = scratch({
+    mode: 'journey',
+    chapters: [
+      chapter({
+        title: 'Chapter 1: Big',
+        headline: 'The big file lands.',
+        files: [{ rel: 'src/big.js', lines: [{ side: 'R', start: 10, end: 31 }], whole: true }],
+      }),
+      chapter({
+        title: 'Chapter 2: The rest',
+        headline: 'The rest.',
+        files: ['src/small.js', 'old.js'],
+      }),
+    ],
+  });
+  const { stderr } = await run(process.execPath, [STORY, 'build', '--dir', dir, '--no-bridge']);
+  assert.match(stderr, /5 of 5 hunks covered/);
+
+  const plan: Plan = JSON.parse(readFileSync(path.join(dir, 'chapters.json'), 'utf8'));
+  plan.chapters![0].narrative = '### Chapter 1: Big\n\nThe big file.';
+  const chapters = chaptersOf(plan);
+  chapters.push({ ...chapters[1], key: 'since', since: { from: 'a', to: 'b', commits: 1 } });
+  chapters.push({ ...chapters[1], key: 'auto', auto: true });
+  markUnwritten(chapters, plan);
+  assert.deepEqual(
+    chapters.map((each) => !!each.unwritten),
+    [false, true, false, false],
+    'only a chapter with no text, not a since or leftover chapter',
+  );
+  const folders = chaptersOf({ chapters: [chapter({ files: ['src/small.js'] })] });
+  markUnwritten(folders, { mode: 'by-folder' });
+  assert.equal(folders[0].unwritten, undefined, "a by-folder story's text never comes");
 });

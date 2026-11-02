@@ -13,6 +13,7 @@ import path from 'node:path';
 import { REPO_RE, sameRepo, storyRepo } from '../config/repos.ts';
 import { readMeta } from '../stories/meta.ts';
 import { readReads } from '../stories/reads.ts';
+import { unwrittenCount } from '../stories/skeleton.ts';
 import { stateKeyOf } from './drafts.ts';
 import { approvalOf, readApproval, type Approval } from './approve.ts';
 import type { StoryStore } from '../stories/store.ts';
@@ -63,6 +64,7 @@ export function prStories(
     if (stories.readState(story.id, MERGED, null) !== null) {
       continue;
     }
+    const unwritten = unwrittenCount(story.dir);
     const state = stories.readState<{ at?: string | null; by?: ReviewedBy } | null>(
       story.id,
       REVIEWED,
@@ -86,6 +88,7 @@ export function prStories(
       seen_at: seen,
       reviewed_at: state?.at || null,
       reviewed_by: state?.at ? state.by || 'manual' : null,
+      ...(unwritten && { unwritten }),
     });
   }
   return found.sort(
@@ -152,6 +155,7 @@ export function localEntries(
     const reads = readReads(stories.home, stateKeyOf(story.id, meta));
     const position = stories.readState<{ at?: string } | null>(story.id, 'position.json', null);
     const builtAt = new Date(built).toISOString();
+    const unwritten = unwrittenCount(story.dir);
     const seen = latestOf([
       state?.at,
       position?.at,
@@ -190,6 +194,7 @@ export function localEntries(
         reviewed_by: reviewedBy,
         approved_at: approved?.at ?? null,
         approved_head: approved?.head_oid ?? null,
+        ...(unwritten && { unwritten }),
       },
       repo_path: story.repo_path,
       base_oid: typeof meta.base_oid === 'string' ? meta.base_oid : null,

@@ -7,6 +7,7 @@
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
+import { unwrittenCount } from '../../services/stories/skeleton.ts';
 import { approvalOf, approveStory, clearApproval } from '../../services/review/approve.ts';
 import type { LocalStory, StoryData } from '@once-upon-a-diff/shared/types';
 import { refreshLocal } from '../../services/stories/local-diff.ts';
@@ -51,6 +52,9 @@ function approve({ app, body: raw, send }: Call, story: ServedStory) {
   if (body.approved === false) {
     clearApproval(app.stories, story.id);
     return send(200, answer());
+  }
+  if (unwrittenCount(story.dir) > 0) {
+    throw new HttpError(409, 'some chapters are still being written: approve once they are done');
   }
   const headOid = meta.head_oid;
   if (!headOid) {

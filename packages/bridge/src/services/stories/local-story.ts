@@ -17,6 +17,7 @@ import { storyDirFor } from './placement.ts';
 import { repoOfCheckout, seenCheckout } from '../config/repos.ts';
 import { plural } from '@once-upon-a-diff/shared/util/text';
 import type { DiffFile } from '@once-upon-a-diff/shared/types';
+import { noteSkeleton } from './skeleton.ts';
 import type { LocalMeta, StoryMeta } from './types.ts';
 import type { Plan, PlanChapter } from './chapters.ts';
 
@@ -159,6 +160,7 @@ export function createLocalStory({
   }
 
   const plan: Plan = JSON.parse(readFileSync(chaptersFile, 'utf8'));
+  noteSkeleton(dir, plan);
   const placed = new Set(
     (plan.chapters || []).flatMap((chapter: PlanChapter) =>
       (chapter.files || []).map((e) => entryOf(e).rel),

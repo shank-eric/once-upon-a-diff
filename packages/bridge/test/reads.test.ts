@@ -497,3 +497,22 @@ test('an inferred read is kept with its reason', () => {
   );
   assert.equal(noteRead(home, 'k', 'start', { head_sha: SHA_A, reason: 'made up' }).reason, 'time');
 });
+
+test('a chapter first published without its text is not inferred read from Viewed ticks made meanwhile', () => {
+  const chapters = [
+    { title: 'Chapter 1: Told', key: 'told' },
+    { title: 'Chapter 2: Late', key: 'late', skeleton: true },
+  ];
+  const progress = (due: number, viewed: number) => ({
+    due,
+    viewed,
+    unviewed: [],
+    unknown: [],
+    noToggle: false,
+  });
+  assert.deepEqual(
+    inferReadSteps(chapters, [progress(2, 2), progress(2, 2)], { reads: {} }, new Map()),
+    [1],
+    'only the chapter whose text was there when its files were ticked',
+  );
+});

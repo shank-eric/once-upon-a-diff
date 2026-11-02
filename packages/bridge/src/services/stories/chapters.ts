@@ -38,6 +38,7 @@ export interface PlanChapter {
 
 /** chapters.json: the story as once-upon (or `once-upon local`) wrote it. */
 export interface Plan {
+  mode?: string;
   title?: string;
   overview?: string;
   summary?: string;
@@ -113,6 +114,22 @@ export function chaptersOf(plan: Plan): Chapter[] {
       ...(since ? { since } : {}),
     };
   });
+}
+
+/**
+ * A story is published as a skeleton first (the plan: titles, headlines, files), then chapter by chapter. A chapter
+ * with no narrative yet is `unwritten`: the panel says it's being written and holds its Mark viewed. Not the leftover
+ * chapter, a "Since you read it" chapter, or any chapter of a by-folder story (a fallback whose text never comes).
+ */
+export function markUnwritten(chapters: Chapter[], plan: { mode?: string }): void {
+  if (plan.mode === 'by-folder') {
+    return;
+  }
+  for (const chapter of chapters) {
+    if (!chapter.narrative.trim() && !chapter.auto && !chapter.since) {
+      chapter.unwritten = true;
+    }
+  }
 }
 
 /** Anything in the diff that no chapter places goes in a last chapter, so no file is hidden from every step. */

@@ -8,6 +8,7 @@ import { stateKeyOf } from '../review/drafts.ts';
 import { vetRebuild, afterRebuild } from './rebuild.ts';
 import { slug } from './local-story.ts';
 import { storyDirFor } from './placement.ts';
+import { noteSkeleton } from './skeleton.ts';
 import type { Plan } from './chapters.ts';
 import type { StoryMeta } from './types.ts';
 
@@ -87,6 +88,7 @@ export function publishPrStory(
       copyFileAtomic(path.join(source, name), path.join(dest, name));
     }
   }
+  noteSkeleton(dest, readJson<Plan>(path.join(source, 'chapters.json'), {}) || {});
   writeJsonAtomic(path.join(dest, 'meta.json'), {
     kind: 'github',
     repo,

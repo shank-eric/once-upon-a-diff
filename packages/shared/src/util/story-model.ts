@@ -17,7 +17,7 @@ import type { StoryData } from '../types.ts';
 
 /** What chapter `step` tells the reviewer about a file it lists. */
 export interface FileStatus {
-  kind: 'done' | 'later' | 'mark';
+  kind: 'done' | 'later' | 'mark' | 'pending';
   text: string;
   short: string;
 }
@@ -140,6 +140,14 @@ export function createStoryModel(input: StoryData) {
     }
     if (finishedAt != null && finishedAt > step) {
       return { kind: 'later', text: '', short: '' }; // shown as nothing: it isn't this chapter's to mark
+    }
+    if (data.chapters[step - 1].unwritten) {
+      // the chapter is published but its story isn't written yet: Mark viewed waits for the text
+      return {
+        kind: 'pending',
+        text: 'Mark viewed once the story is written',
+        short: 'being written',
+      };
     }
     return { kind: 'mark', text: 'Mark viewed', short: 'mark viewed' };
   }

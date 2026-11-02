@@ -61,7 +61,7 @@ export function createFileList(context: PanelContext) {
 
   /** "4 to mark viewed · 2 come back later · 1 already finished" for chapter `step`. */
   function filesSummary(step: number): string {
-    const kinds = { mark: 0, later: 0, done: 0 };
+    const kinds = { mark: 0, later: 0, done: 0, pending: 0 };
     for (const file of data.chapters[step - 1].files) {
       const status = context.fileStatus(file.rel, step);
       if (status) {
@@ -72,6 +72,7 @@ export function createFileList(context: PanelContext) {
       kinds.mark && `${kinds.mark} to mark viewed`,
       kinds.later && `${kinds.later} come${kinds.later === 1 ? 's' : ''} back later`,
       kinds.done && `${kinds.done} already finished`,
+      kinds.pending && `${kinds.pending} waiting for the story`,
     ]
       .filter(Boolean)
       .join(' · ');

@@ -10,7 +10,7 @@ import { pathSha } from './diff.ts';
 import { readPrefs } from '../config/settings.ts';
 import { readJson } from '../../adapters/stores/json-file.ts';
 import { readMeta, storyVersion, localVersion } from './meta.ts';
-import { chaptersOf, addLeftoverChapter } from './chapters.ts';
+import { chaptersOf, addLeftoverChapter, markUnwritten } from './chapters.ts';
 import { addTextRefs } from './text-refs.ts';
 import { uncoveredHunks } from './hunk-coverage.ts';
 import {
@@ -22,6 +22,7 @@ import {
 } from './local-diff.ts';
 import type { DiffFile, LocalNote, StoryData, UncoveredFile } from '@once-upon-a-diff/shared/types';
 import type { StoryStore } from './store.ts';
+import { skeletonKeys } from './skeleton.ts';
 import type { Plan } from './chapters.ts';
 import type { LocalMeta } from './types.ts';
 
@@ -72,6 +73,14 @@ export function storyData(store: StoryStore, id: string, dir: string): StoryData
   // hunks no chapter points at: a build allowed to publish with them says so in file-map.json, a local story's diff is here
   const uncovered = diff ? uncoveredHunks(chapters, diff) : (map && map.uncovered_hunks) || [];
   addLeftoverChapter(chapters, rels);
+  markUnwritten(chapters, plan);
+  // a chapter first published without its text: Viewed ticks made meanwhile say nothing about it (skeleton.ts)
+  const skeleton = skeletonKeys(dir);
+  for (const chapter of chapters) {
+    if (skeleton.has(chapter.key) && !chapter.auto && !chapter.since) {
+      chapter.skeleton = true;
+    }
+  }
   const prefs = meta.kind === 'local' ? readPrefs(store.home) : null;
   const data: StoryData = {
     id,

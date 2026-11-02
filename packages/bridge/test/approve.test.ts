@@ -31,7 +31,7 @@ async function setup(options: { checkBranch?: BranchCheck } = {}) {
   const chapters = path.join(tmp('ch'), 'chapters.json');
   writeJson(chapters, {
     title: 'Two commits',
-    chapters: [{ title: 'Chapter 1', files: ['one.txt'] }],
+    chapters: [{ title: 'Chapter 1', narrative: 'Told.', files: ['one.txt'] }],
   });
   const { id } = createLocalStory({ home, repo, base, head: 'HEAD', chapters });
   const bridge = await startBridge({ home, checkBranch: options.checkBranch });
@@ -59,6 +59,40 @@ const commit = (repo: string, name: string) => {
   git(repo, 'add', '.');
   git(repo, 'commit', '-q', '-m', name);
 };
+
+test('Approve is refused while a chapter is still being written, and the board shows the story as writing', async () => {
+  const { id, home, bridge, head, post, events } = await setup();
+  try {
+    const file = path.join(new StoryStore({ home }).dirOf(id) as string, 'chapters.json');
+    writeJson(file, {
+      title: 'Two commits',
+      chapters: [
+        { title: 'Chapter 1', narrative: 'Told.', files: ['one.txt'] },
+        { title: 'Chapter 2', files: ['two.txt'] },
+      ],
+    });
+    const refused = await post(pageKey(TOKEN, id), `/api/stories/${id}/approve`, {
+      head_sha: head(),
+    });
+    assert.equal(refused.status, 409, refused.text);
+    assert.match(refused.body.error || '', /still being written/);
+    assert.equal(events().length, 0);
+    assert.equal(localStories(new StoryStore({ home }))[0].unwritten, 1);
+
+    writeJson(file, {
+      title: 'Two commits',
+      chapters: [
+        { title: 'Chapter 1', narrative: 'Told.', files: ['one.txt'] },
+        { title: 'Chapter 2', narrative: 'Told.', files: ['two.txt'] },
+      ],
+    });
+    const ok = await post(pageKey(TOKEN, id), `/api/stories/${id}/approve`, { head_sha: head() });
+    assert.equal(ok.status, 200, ok.text);
+    assert.equal(localStories(new StoryStore({ home }))[0].unwritten, undefined);
+  } finally {
+    await bridge.close();
+  }
+});
 
 test('Approve records the head, marks the story reviewed, tells a listener once, and refuses a stale head', async () => {
   const { id, bridge, head, post, events, store, repo } = await setup();

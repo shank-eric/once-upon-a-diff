@@ -28,7 +28,9 @@ export function createBody(context: PanelContext) {
       const prefix = story.isNew(number)
         ? html`<span class="ou-new">New</span> `
         : `${story.chapterNumber(number)}. `;
-      const progress = html`<span class="ou-stepprog" data-prog-for="${number}"></span>`;
+      const progress = step.unwritten
+        ? html`<span class="ou-stepprog ou-writing" title="This chapter is being written">writing</span>`
+        : html`<span class="ou-stepprog" data-prog-for="${number}"></span>`;
       return html`<li data-n="${number}" class="${number === state.n ? 'ou-current' : ''}">${prefix}${stripChapterPrefix(step.title)} <span class="ou-count">(${step.files.length})</span>${progress}</li>`;
     });
     return [overview, ...steps];
@@ -67,14 +69,17 @@ export function createBody(context: PanelContext) {
   function chapterHtml(chapter: Chapter) {
     context.refs.startStep(chapter.files.map((file) => file.rel));
     const storyHtml = context.refs.storyWithPills(() => {
-      if (chapter.narrative) {
+      if (!chapter.unwritten && chapter.narrative.trim()) {
         return markdown(chapter.narrative);
       }
       const headline =
         chapter.headline && html`<p><strong>${inline(chapter.headline)}</strong></p>`;
       const scenario = chapter.scenario && html`<p>The scenario: ${inline(chapter.scenario)}</p>`;
       const summary = chapter.summary && html`<p>${inline(chapter.summary)}</p>`;
-      return html`${headline}${scenario}${summary}<p class="ou-empty">This chapter's story isn't written yet.</p>`;
+      const note = chapter.unwritten
+        ? "This chapter is being written. It'll show up here in a moment."
+        : "This chapter's story isn't written yet.";
+      return html`${headline}${scenario}${summary}<p class="ou-empty">${note}</p>`;
     });
     // the comments resolve their file names after the story and before the file list, as references do in reading order
     const comments = context.drafts.chapterCommentsHtml(chapter);

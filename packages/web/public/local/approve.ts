@@ -30,6 +30,8 @@ export function approveHtml() {
       'Open this story from the board or `once-upon page` to approve it: this link is read-only';
   } else if (!head) {
     off = 'The diff has no head yet';
+  } else if (page.story.chapters.some((chapter) => chapter.unwritten)) {
+    off = 'Some chapters are still being written';
   }
   return html`<button type="button" class="ou-local-approve"${off && html` disabled`} title="${off || 'Ready to ship at this commit: marks the story reviewed and tells a session listening for it'}">Approve</button>${failure && html` <span class="ou-local-pr-stop">${failure}</span>`}`;
 }
