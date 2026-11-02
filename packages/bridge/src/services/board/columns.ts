@@ -10,6 +10,7 @@
  *   ship      a local story you approved for its current head: ready to ship, with no PR yet and still on this Mac (a new
  *             commit clears the approval; the board drops it after APPROVED_DAYS)
  *   back      something is on you: its PR story has a version you haven't opened since it was built (a rebuild, say), or
+ *             an unread answer to a question you asked in the story of your own PR, or
  *             someone asked something of you on the PR after your last activity (on your own PR: changes requested, or
  *             an open thread whose last comment is theirs; on someone else's: a reply in an open thread you are in),
  *             or GitHub is waiting on your review
@@ -45,7 +46,7 @@ export interface ColumnInput {
     local?: boolean;
     /** a local story approved for its current head (Approve on its page): ready to ship, so Ready to ship while it has no PR */
     approved?: boolean;
-    /** questions you asked in the story whose answers you haven't read: Claude handed something back, so Back to you (Ready with no PR) */
+    /** questions you asked in the story whose answers you haven't read: Claude handed something back, so Back to you on your own PR (Ready with no PR); on someone else's PR it is only a chip */
     answered?: number;
   } | null;
   /** a session is building, rebuilding or fixing for it */
@@ -92,8 +93,11 @@ export function columnOf(input: ColumnInput): BoardColumn {
   if (story?.local && story.approved && !pr) {
     return 'ship';
   }
-  // an answer to a question you asked, unread: back to you on the GitHub side, in Ready while there is no PR
-  if (story?.answered) {
+  // an answer to a question you asked, unread: back to you on the GitHub side for your own PR, in Ready while there is
+  // no PR. On someone else's PR the answer is a chip on the card, not a reason to leave PR open (you asked about their
+  // code while reviewing it; the ball is theirs unless GitHub requests you or its story has a new version)
+  // a stub PR (before GitHub says who wrote it) has author null: treat it as yours until it fills in
+  if (story?.answered && (!pr || pr.mine || pr.author === null)) {
     return pr ? 'back' : 'ready';
   }
   // a story you have marked reviewed takes the card out of Ready even while the agent's [review] line stands

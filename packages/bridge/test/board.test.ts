@@ -32,6 +32,7 @@ import { Inbox } from '../src/services/inbox/inbox.ts';
 import { markQuestions } from '../src/services/inbox/conversation.ts';
 import { Board, liveSessions, noPrWatcher, type PrWatcher } from '../src/services/board/board.ts';
 import { columnOf, isBackToYou } from '../src/services/board/columns.ts';
+import { answerBits } from '@once-upon-a-diff/shared/util/story-answers';
 import {
   BacklogStore,
   assignBranch,
@@ -512,6 +513,47 @@ function checkoutOf(name: string, branch: string): string {
 }
 
 const fullId = (pid: number) => `${String(pid).padStart(8, '0')}-aaaa-bbbb-cccc-dddddddddddd`;
+
+test("someone else's PR with a built story stays in PR open despite an unread answer (#7009)", () => {
+  const none = { sessions: [], agents: [], pr: null, story: null };
+  // #7009's shape: Usman's PR, you not requested, a reviewed story you have opened, one unread answer to your question
+  const theirs = prInfo(7009, {
+    author: 'usman154',
+    mine: false,
+    review_requested: false,
+    approvals: 1,
+    required: 3,
+    review: 'approved',
+    checks: 'failure',
+    unresolved: 1,
+    viewer_at: '2026-11-02T22:05:47Z',
+    others_at: null,
+  });
+  const story = { reviewed: true, manualReviewedAt: null, unread: false, answered: 1 };
+  assert.equal(columnOf({ ...none, pr: theirs, story }), 'pr_open');
+  // what still puts it in Back to you: GitHub asking for your review, a new version of the story, a reply for you
+  assert.equal(
+    columnOf({ ...none, pr: { ...theirs, review_requested: true }, story }),
+    'back',
+    'requested',
+  );
+  assert.equal(columnOf({ ...none, pr: theirs, story: { ...story, unread: true } }), 'back');
+  assert.equal(
+    columnOf({ ...none, pr: { ...theirs, others_at: '2026-11-02T22:30:00Z' }, story }),
+    'back',
+  );
+  // your own PR keeps the rule: an unread answer is back to you
+  assert.equal(columnOf({ ...none, pr: { ...theirs, mine: true }, story }), 'back');
+  // a stub PR (GitHub has not said who wrote it yet): author null, mine false, treated as yours
+  assert.equal(columnOf({ ...none, pr: { ...theirs, author: null }, story }), 'back', 'stub');
+  // the answer is still on the card in PR open: a chip and Open story
+  const bits = answerBits({
+    column: 'pr_open',
+    story: { unread_answers: 1 } as Parameters<typeof answerBits>[0]['story'],
+  });
+  assert.equal(bits.chip, '1 unread answer');
+  assert.ok(bits.openable);
+});
 
 test('columns follow the work to merge: waiting and working first, then merged, ready, back to you, PR open', () => {
   const none = { sessions: [], agents: [], pr: null, story: null };
