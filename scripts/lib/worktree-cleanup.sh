@@ -4,8 +4,20 @@
 #
 # Removes the worktree checked out on <branch> under <worktrees-dir> when <branch> is an ancestor of
 # <landed-into-ref>. With "patch" (batch deploys, which cherry-pick), landed means every commit of <branch> has a
-# patch-id match in <landed-into-ref> (git cherry) instead. Untracked or ignored symlinks (node_modules) are forced past. Any other untracked, ignored or modified
+# patch-id match in <landed-into-ref> (git cherry) instead. Untracked symlinks and regenerable ignored paths (node_modules, dist, build, .venv*, __pycache__, *.log, .yarn/cache) are forced past. Any other untracked, ignored or modified
 # file makes it refuse and say so. Prints one "deploy-local:" line either way. Never fails the caller.
+# Ignored paths that an install or build recreates. Anything else ignored (.env, *.pem, ...) blocks removal.
+_regenerable() {
+  case "$1" in
+    node_modules | node_modules/* | */node_modules | */node_modules/*) return 0 ;;
+    .yarn/cache | .yarn/cache/* | .yarn/install-state.gz | .husky/_ | .husky/_/*) return 0 ;;
+    dist | dist/* | */dist | */dist/* | build | build/* | */build | */build/*) return 0 ;;
+    .venv* | */.venv* | __pycache__ | */__pycache__ | */__pycache__/*) return 0 ;;
+    *.log) return 0 ;;
+  esac
+  return 1
+}
+
 cleanup_landed_worktree() {
   local repo="$1" root="$2" branch="$3" into="$4" mode="${5:-}" wt="" line cur dirt p out
   cur=""
@@ -36,14 +48,17 @@ cleanup_landed_worktree() {
   while IFS= read -r line; do
     [ -n "$line" ] || continue
     p="${line:3}"
-    case "${line:0:2}" in "??" | "!!") [ -L "$wt/${p%/}" ] && continue ;; esac
+    case "${line:0:2}" in
+      "??") [ -L "$wt/${p%/}" ] && continue ;;
+      "!!") _regenerable "${p%/}" && continue ;;
+    esac
     dirt="$dirt
   $line"
   done <<EOS
 $out
 EOS
   if [ -n "$dirt" ]; then
-    echo "deploy-local: worktree $wt kept: it has changes besides untracked or ignored symlinks:$dirt"
+    echo "deploy-local: worktree $wt kept: it has changes besides untracked symlinks and regenerable ignored paths:$dirt"
     return 0
   fi
   if git -C "$repo" worktree remove --force "$wt" 2>/dev/null; then
