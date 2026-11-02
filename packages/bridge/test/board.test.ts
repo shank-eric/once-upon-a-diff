@@ -578,6 +578,11 @@ test('columns follow the work to merge: waiting and working first, then merged, 
   assert.equal(columnOf({ ...none, pr: open, story: { ...unseen, reviewed: true } }), 'pr_open');
   // GitHub waiting on your review is back to you; a session building for the PR is working
   assert.equal(columnOf({ ...none, pr: prInfo(1, { review_requested: true }) }), 'back');
+  // someone else's draft that shows for another reason (a story built for you) is not waiting on your review
+  assert.equal(
+    columnOf({ ...none, pr: prInfo(1, { review_requested: true, draft: true, mine: false }) }),
+    'pr_open',
+  );
   assert.equal(columnOf({ ...none, pr: open, story: unseen, building: true }), 'working');
   assert.equal(columnOf({ ...none, sessions: [{ status: 'waiting' }], building: true }), 'waiting');
 });
@@ -618,6 +623,7 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
   prStory(home, 'acme-widgets-8', 'acme/widgets', 8, 'feat/z');
   prStory(home, 'acme-widgets-14', 'acme/widgets', 14, 'feat/theirs');
   prStory(home, 'acme-widgets-15', 'acme/widgets', 15, 'feat/unknown');
+  prStory(home, 'acme-widgets-23', 'acme/widgets', 23, 'feat/their-draft');
   const byHand = { 'reviewed.json': { at: '2026-10-26T14:00:00Z', by: 'manual' } };
   const opened = { 'position.json': { at: '2099-01-01T00:00:00Z' } }; // you opened the story after it was built
   prStory(home, 'acme-widgets-10', 'acme/widgets', 10, 'feat/ten', { ...byHand, ...opened });
@@ -706,6 +712,9 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
       prInfo(17),
       prInfo(18),
       prInfo(19, { author: 'someone', mine: false, review_requested: true }),
+      prInfo(20, { author: 'someone', mine: false, review_requested: true, draft: true }),
+      prInfo(22, { draft: true }),
+      prInfo(23, { author: 'someone', mine: false, review_requested: true, draft: true }),
       prInfo(9, { branch: 'feat/y', checks: 'pending' }),
       prInfo(10, { viewer_at: '2026-10-26T13:00:00Z', others_at: '2026-10-26T15:00:00Z' }),
       prInfo(11, { others_at: '2026-10-26T13:00:00Z' }),
@@ -716,7 +725,12 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
       'acme/widgets@old/merged': { number: 3, state: 'merged', merged_at: null },
     },
     // 19 is someone else's PR GitHub is waiting on your review for
-    [{ repo: 'acme/widgets', number: 19 }],
+    // 20 is someone else's draft with a review request, and 22 is your own draft
+    [
+      { repo: 'acme/widgets', number: 19 },
+      { repo: 'acme/widgets', number: 20 },
+      { repo: 'acme/widgets', number: 22 },
+    ],
   );
   const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
     source: sourceSaying({
@@ -743,6 +757,8 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
     'pr:acme/widgets#14': 'pr_open', // someone else's PR, with a story built for you: GitHub's side, not Ready
     'pr:acme/widgets#15': 'pr_open',
     'pr:acme/widgets#19': 'back', // GitHub is waiting on your review
+    'pr:acme/widgets#22': 'pr_open', // your own draft still shows
+    'pr:acme/widgets#23': 'pr_open', // someone else's draft with a story built for you: shown, but not waiting on your review
     'pr:acme/widgets#12': 'done',
     [fullId(onMain.pid)]: 'idle',
     [`agent:${sid(onMain)}:needs-answer`]: 'waiting', // its own card, in its parent's lane
@@ -774,6 +790,11 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
   assert.equal(card('pr:acme/widgets#16').story, null);
   assert.equal(card('pr:acme/widgets#19').pr?.review_requested, true);
   assert.equal(card('pr:acme/widgets#19').story, null);
+  assert.equal(
+    card('pr:acme/widgets#20'),
+    undefined,
+    'someone else’s draft is not on the board, review request or not',
+  );
   assert.equal(card('pr:acme/widgets#14').pr?.mine, false);
   // a finished agent (done, stopped or failed) sits in Waiting for 30 minutes after its last line (finished-agents.test.ts has
   // the timing), then has no card, not even in the Idle lane
@@ -1406,6 +1427,36 @@ async function withFakeGh(
     });
   }
 }
+
+test('the board: someone else’s draft comes onto the board once it is marked ready, and goes off again as a draft', async () => {
+  const home = tmp('board-draft-home');
+  const quiet = tmp('board-draft-quiet');
+  writeJson(path.join(home, 'config.json'), {
+    board_ledger_file: path.join(quiet, 'ledger.md'),
+    board_progress_file: path.join(quiet, 'progress.md'),
+    board_sessions_dir: quiet,
+  });
+  const infos = [
+    prInfo(30, { author: 'someone', mine: false, review_requested: true, draft: true }),
+  ];
+  const { watcher } = fakeWatcher(infos, {}, [{ repo: 'acme/widgets', number: 30 }]);
+  // each look is an hour on, past the board's kept answer
+  let clock = NOW.getTime();
+  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+    source: sourceSaying({}),
+    now: () => new Date(clock),
+  });
+  const columnOfPr = async () =>
+    (clock += 3600000) &&
+    (await board.snapshot()).lanes
+      .flatMap((lane) => lane.cards)
+      .find((found) => found.id === 'pr:acme/widgets#30')?.column;
+  assert.equal(await columnOfPr(), undefined, 'a draft: not on the board');
+  infos[0] = { ...infos[0], draft: false };
+  assert.equal(await columnOfPr(), 'back', 'marked ready: GitHub is waiting on your review');
+  infos[0] = { ...infos[0], draft: true };
+  assert.equal(await columnOfPr(), undefined, 'converted back to a draft: gone again');
+});
 
 test('a story is marked reviewed only by a review you submitted after it was built', async () => {
   const home = tmp('board-built');

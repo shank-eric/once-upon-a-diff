@@ -49,11 +49,17 @@ export function sessionCard(
 /**
  * Whose PRs the board shows: the ones you authored (the signed-in gh user's), and other people's only when something is
  * for you in them: a story built for you, a review GitHub is waiting on you for, or a session of yours building for
- * them. A PR GitHub hasn't described yet has no author and is let through, so a session's card doesn't flicker; with no
- * session on it, it waits for its author (workCard). The one place to change what the board covers.
+ * them. Someone else's draft is not ready for anyone's review, so a review request alone does not bring it in: it shows
+ * only with a story or a session of yours on it. A PR GitHub hasn't described yet has no author and is let through, so a
+ * session's card doesn't flicker; with no session on it, it waits for its author (workCard). The one place to change what
+ * the board covers.
  */
 const isShown = (pr: PrInfo, forYou: { story: boolean; building: boolean }): boolean =>
-  pr.mine || pr.author === null || pr.review_requested || forYou.story || forYou.building;
+  pr.mine ||
+  pr.author === null ||
+  (pr.review_requested && !pr.draft) ||
+  forYou.story ||
+  forYou.building;
 
 /** Built after you last opened or reviewed it (never opened: it is ready for review, not back to you). */
 const isUnread = (story: Pick<InboxStory, 'built_at' | 'seen_at'>): boolean =>
