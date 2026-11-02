@@ -81,10 +81,12 @@
                   "of": 6,
                   "step": "code"
                 },
+                "clears_at": null,
                 "ended_at": null,
                 "gate": null,
                 "model": "sonnet, high",
                 "name": "ou-kill-inbox",
+                "notes": null,
                 "outcome": null,
                 "review": false,
                 "stale": false,

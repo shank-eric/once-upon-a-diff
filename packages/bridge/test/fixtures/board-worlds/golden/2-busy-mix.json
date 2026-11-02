@@ -110,10 +110,12 @@
                   "of": 6,
                   "step": "read"
                 },
+                "clears_at": null,
                 "ended_at": null,
                 "gate": null,
                 "model": "sonnet, high",
                 "name": "tagged-one",
+                "notes": null,
                 "outcome": null,
                 "review": false,
                 "stale": false,
@@ -146,10 +148,12 @@
             "agents": [
               {
                 "beat": null,
+                "clears_at": null,
                 "ended_at": null,
                 "gate": null,
                 "model": "sonnet, low",
                 "name": "crosscut-note",
+                "notes": null,
                 "outcome": null,
                 "review": false,
                 "stale": false,
@@ -253,10 +257,12 @@
             "agents": [
               {
                 "beat": null,
+                "clears_at": null,
                 "ended_at": "2026-10-26T18:45:00.000Z",
                 "gate": null,
                 "model": null,
                 "name": "needs-answer",
+                "notes": "notes/x.md",
                 "outcome": "needs Eric: pick A or B",
                 "review": false,
                 "stale": false,
@@ -294,10 +300,12 @@
             "agents": [
               {
                 "beat": null,
+                "clears_at": null,
                 "ended_at": null,
                 "gate": null,
                 "model": "sonnet, high",
                 "name": "orphan",
+                "notes": null,
                 "outcome": null,
                 "review": false,
                 "stale": false,
@@ -325,6 +333,82 @@
             "since": "2026-10-26T18:57:00.000Z",
             "story": null,
             "title": "orphan"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": "2026-10-26T19:28:00.000Z",
+                "ended_at": "2026-10-26T18:58:00.000Z",
+                "gate": null,
+                "model": null,
+                "name": "broke",
+                "notes": null,
+                "outcome": "exploded",
+                "review": false,
+                "stale": false,
+                "started_at": null,
+                "state": "failed",
+                "status": "error",
+                "task": null
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "waiting",
+            "detail": "exploded",
+            "focus_session": null,
+            "id": "agent:deadbeef:broke",
+            "kind": "agent",
+            "lane": "No live session",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T18:58:00.000Z",
+            "story": null,
+            "title": "broke"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": "2026-10-26T19:29:00.000Z",
+                "ended_at": "2026-10-26T18:59:00.000Z",
+                "gate": null,
+                "model": null,
+                "name": "stopped-one",
+                "notes": null,
+                "outcome": "asked to stop",
+                "review": false,
+                "stale": false,
+                "started_at": null,
+                "state": "stopped",
+                "status": "done",
+                "task": null
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "waiting",
+            "detail": "asked to stop",
+            "focus_session": null,
+            "id": "agent:deadbeef:stopped-one",
+            "kind": "agent",
+            "lane": "No live session",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T18:59:00.000Z",
+            "story": null,
+            "title": "stopped-one"
           }
         ],
         "name": "No live session"
@@ -405,10 +489,12 @@
             "agents": [
               {
                 "beat": null,
+                "clears_at": null,
                 "ended_at": "2026-10-26T18:48:00.000Z",
                 "gate": null,
                 "model": null,
                 "name": "parked-two",
+                "notes": null,
                 "outcome": "story up",
                 "review": true,
                 "stale": false,
@@ -521,10 +607,12 @@
                   "of": 6,
                   "step": "code"
                 },
+                "clears_at": null,
                 "ended_at": null,
                 "gate": null,
                 "model": "sonnet, low",
                 "name": "nested-one",
+                "notes": null,
                 "outcome": null,
                 "review": false,
                 "stale": false,
@@ -535,10 +623,12 @@
               },
               {
                 "beat": null,
+                "clears_at": null,
                 "ended_at": null,
                 "gate": null,
                 "model": "sonnet, low",
                 "name": "pr-agent",
+                "notes": null,
                 "outcome": null,
                 "review": false,
                 "stale": false,
@@ -1269,10 +1359,50 @@
             "agents": [
               {
                 "beat": null,
+                "clears_at": "2026-10-26T19:10:00.000Z",
+                "ended_at": "2026-10-26T18:40:00.000Z",
+                "gate": null,
+                "model": null,
+                "name": "nested-done",
+                "notes": null,
+                "outcome": "it finished",
+                "review": false,
+                "stale": false,
+                "started_at": null,
+                "state": "done",
+                "status": "done",
+                "task": null
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "waiting",
+            "detail": "it finished",
+            "focus_session": "<PID:0>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "agent:<PID:0>:nested-done",
+            "kind": "agent",
+            "lane": "widgets",
+            "listening": null,
+            "parent": "story-one",
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T18:40:00.000Z",
+            "story": null,
+            "title": "nested-done"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
                 "ended_at": null,
                 "gate": null,
                 "model": "sonnet, low",
                 "name": "wt-agent",
+                "notes": null,
                 "outcome": null,
                 "review": false,
                 "stale": false,
@@ -1305,6 +1435,7 @@
             "agents": [
               {
                 "beat": null,
+                "clears_at": null,
                 "ended_at": "2026-10-26T18:46:00.000Z",
                 "gate": {
                   "findings": null,
@@ -1312,6 +1443,7 @@
                 },
                 "model": null,
                 "name": "gated-plan",
+                "notes": "notes/p.md",
                 "outcome": "plan up",
                 "review": false,
                 "stale": false,
@@ -1344,10 +1476,12 @@
             "agents": [
               {
                 "beat": null,
+                "clears_at": null,
                 "ended_at": "2026-10-26T18:47:00.000Z",
                 "gate": null,
                 "model": null,
                 "name": "parked-review",
+                "notes": null,
                 "outcome": "story up",
                 "review": true,
                 "stale": false,
@@ -1380,6 +1514,7 @@
             "agents": [
               {
                 "beat": null,
+                "clears_at": null,
                 "ended_at": "2026-10-26T18:49:00.000Z",
                 "gate": {
                   "findings": null,
@@ -1387,6 +1522,7 @@
                 },
                 "model": null,
                 "name": "fixer",
+                "notes": null,
                 "outcome": "fixing",
                 "review": false,
                 "stale": false,

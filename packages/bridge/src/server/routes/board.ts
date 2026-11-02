@@ -22,6 +22,9 @@
  *   POST /api/board/backlog/drop {id}: drop one. Start is the CLI's (`once-upon backlog start`), not the page's
  *   POST /api/board/backlog/assign {id, session}: type the item's start line (built here from the store, the body has no
  *                               text) into an idle session in the item's repo, which then runs `once-upon backlog start`
+ *   POST /api/board/agent/finish {sid, name}: Finish on a finished agent's card in Waiting: the card leaves the board now and
+ *                               returns only if the agent does something more. The agent is looked up in the ledger; a
+ *                               `[waiting]` one gets a `[done]` line there. 409 for one still working or parked on your story review
  *   POST /api/board/worktree/clean {path, ack?, ignored?}: Clean up a worktree (services/worktrees/worktree-clean.ts): `git worktree remove` without
  *                               --force, and `git branch -d` for a branch merged into the default branch (never an everfi-frontend one).
  *                               The bridge re-checks the worktree itself and refuses (409) anything dirty, in use, locked, new,
@@ -186,6 +189,12 @@ async function cleanWorktree({ app, body: raw, send }: Call) {
   return send(200, { ok: true, ...result });
 }
 
+/** POST {sid, name}: Finish a finished agent's card (the bridge looks the agent up in the ledger itself). */
+function finishAgent({ app, body, send }: Call) {
+  const { sid, name } = parseBody('boardAgentFinish', body);
+  return send(200, { ok: true, ...app.board.finishAgent(sid, name) });
+}
+
 /** POST {repo}: end the repo's listener (its `wait` returns "Stopped listening"). */
 function stopListening({ app, body, send }: Call) {
   app.board.stopListening(parseBody('boardStopListening', body).repo);
@@ -199,6 +208,7 @@ export const boardRoutes: ApiRoute[] = [
   { route: ROUTES.boardVoicePhone, handle: voicePhone },
   { route: ROUTES.boardVoiceBridgeStop, handle: voiceBridgeStop },
   { route: ROUTES.boardStopListening, handle: stopListening },
+  { route: ROUTES.boardAgentFinish, handle: finishAgent },
   { route: ROUTES.boardFocus, handle: focus },
   { route: ROUTES.boardOpenStory, handle: openStory },
   { route: ROUTES.boardReviewed, handle: reviewLocal },

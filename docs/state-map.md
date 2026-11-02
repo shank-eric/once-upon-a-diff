@@ -30,6 +30,7 @@ This covers every file and in-memory cache that the bridge, the CLI, the extensi
 | `listeners/<consumer>.json` | `wait` every 5 s and on handover. `working` refreshes a handling beat | bridge `listeners()` (status light, routing, board), CLI routing | `{consumer, pid, state, at, repo?, story?, builds?, fixes?}` | **never deleted**. Live means a waiting beat under 15 s with a live pid, or a handling beat under 10 min | Two sessions with the same consumer name share one file and one cursor (below) |
 | `listener-history.json` | `wait --repo` at start, board on each build (atomic) | board's Listeners lane | `{repo: {consumer, started_at, last_seen}}` | entries over 7 days dropped on read | Missing: the lane shows only live listeners |
 | `listener-stops.json` | board's Stop listening (`services/board/board.ts` → `services/listeners/auto-stop.ts`, atomic) | `wait --repo` every loop | `{repo: ms}` | one key per repo, never cleared | A stop older than a wait's start is ignored, so stale is harmless |
+| `finished-agents.json` | board's Finish on an agent's card (`services/board/board.ts`, atomic) | the board's agents stage | `{"<sid>:<name>": ms}` | entries older than a week are dropped on the next write | A card stays hidden while nothing the agent did is later than its time, so a new ledger line or beat brings it back |
 | `listeners.log` | `wait` when it stops itself | people | text | **never trimmed** | none |
 | `handed.json` | `wait` when it hands questions over (atomic) | routing, panel ("answered by"), `answer` | `{question id: {consumer, at}}` | **never pruned** | Missing: a question could be handed again, and "Answered by" falls back to `--consumer` |
 | `asking.json` | CLI `asking` (a session says what it is doing on a question), cleared by `answer` (atomic) | panel via pulse (question status: working, gone quiet) | `{question id: {note, at, by}}` | one entry per open question, removed when answered | Missing: the panel shows only the handover time |
@@ -98,6 +99,7 @@ The board also **writes** outside `<home>`, each on a click (ADR-11):
 | Larmor's phone mode and bridge (`board_larmor_dir`) | Phone mode on and off, Stop phone bridge | runs `python app/voice_ctl.py phone-on \| phone-off \| bridge-stop` there. Larmor writes or removes its `away` file and starts or stops its phone bridge |
 | iTerm tabs | Open in iTerm, Build story, Start listening, Assign | `it2 window focus`, `it2 session focus`, `it2 session run "<line>"` |
 | a checkout | worktree Clean up | `git worktree remove` (no `--force`), then `git branch -d` when the branch is merged. The attempt is logged first in `worktree-cleanups.jsonl` |
+| the agent ledger (`board_ledger_file`) | Finish on a card of an agent still `[waiting]` | appends one `[done]` line (`appendLine`). A finished agent's card is cleared through `<home>/finished-agents.json` instead, with no ledger line |
 | `<home>/statusline/` | housekeeping | deletes a gone session's file after a day |
 
 ## 5. Browser-side state

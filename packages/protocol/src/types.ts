@@ -690,6 +690,10 @@ export interface BoardAgent {
   beat: BoardBeat | null;
   /** the automated gate it is at, when it is at one: not on you, the launching session is the next actor */
   gate: BoardGate | null;
+  /** the notes file its ledger lines name, when they name one */
+  notes: string | null;
+  /** a finished agent's card in Waiting leaves the board at this time, unless it does something more first (null on any other agent) */
+  clears_at: string | null;
 }
 
 /**

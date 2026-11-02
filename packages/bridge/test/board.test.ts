@@ -753,6 +753,9 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
     [fullId(loose.pid)]: 'working',
     [`agent:${sid(onStory)}:tagged-one`]: 'working',
     'agent:deadbeef:orphan': 'working',
+    [`agent:${sid(onStory)}:nested-done`]: 'waiting', // finished 20 minutes ago: in Waiting for 30
+    'agent:deadbeef:broke': 'waiting',
+    'agent:deadbeef:stopped-one': 'waiting',
   });
   assert.equal(card('pr:acme/widgets#13'), undefined, 'merged three days ago: gone');
   assert.equal(card('pr:acme/widgets#17').story?.unread, true);
@@ -772,12 +775,16 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
   assert.equal(card('pr:acme/widgets#19').pr?.review_requested, true);
   assert.equal(card('pr:acme/widgets#19').story, null);
   assert.equal(card('pr:acme/widgets#14').pr?.mine, false);
-  // a finished agent (done, stopped or failed) has no card of its own, not even in the Idle lane
-  for (const name of ['nested-old', 'nested-done']) {
-    assert.equal(card(`agent:${sid(onStory)}:${name}`), undefined, name);
+  // a finished agent (done, stopped or failed) sits in Waiting for 30 minutes after its last line (finished-agents.test.ts has
+  // the timing), then has no card, not even in the Idle lane
+  assert.equal(card(`agent:${sid(onStory)}:nested-old`), undefined, 'hours ago');
+  for (const id of [
+    `agent:${sid(onStory)}:nested-done`,
+    'agent:deadbeef:stopped-one',
+    'agent:deadbeef:broke',
+  ]) {
+    assert.equal(card(id).column, 'waiting', id);
   }
-  assert.equal(card('agent:deadbeef:stopped-one'), undefined);
-  assert.equal(card('agent:deadbeef:broke'), undefined);
   // sessions on a branch whose PR merged are not lumped into one card named for it: one card each, by session title
   assert.equal(card(fullId(staleOne.pid)).kind, 'session');
   assert.equal(card(fullId(staleOne.pid)).title, 'stale-one');
@@ -1018,6 +1025,7 @@ test('the board page and its key: the board routes only, the other pages’ link
     ['POST', '/api/board/voice/phone'],
     ['POST', '/api/board/voice/phone/bridge-stop'],
     ['POST', '/api/board/stop-listening'],
+    ['POST', '/api/board/agent/finish'],
   ] as const) {
     assert.equal(
       (await bridge.call(method, route, {}, { Authorization: `Bearer ${pageKey(TOKEN, 'x')}` }))

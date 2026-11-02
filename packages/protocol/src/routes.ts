@@ -145,6 +145,11 @@ export const ROUTES = {
     '/api/board/stop-listening',
     'token+board',
   ),
+  boardAgentFinish: api<In<'boardAgentFinish'>, Ok & { ledger: boolean }>(
+    'POST',
+    '/api/board/agent/finish',
+    'token+board',
+  ),
   boardFocus: api<In<'boardFocus'>, Ok>('POST', '/api/board/focus', 'token+board'),
   boardOpenStory: api<In<'boardOpenStory'>, { url: string }>(
     'POST',

@@ -15,10 +15,12 @@
             "agents": [
               {
                 "beat": null,
+                "clears_at": null,
                 "ended_at": null,
                 "gate": null,
                 "model": "sonnet, low",
                 "name": "helper-one",
+                "notes": null,
                 "outcome": null,
                 "review": false,
                 "stale": false,
@@ -292,10 +294,12 @@
             "agents": [
               {
                 "beat": null,
+                "clears_at": null,
                 "ended_at": "2026-10-26T18:55:00.000Z",
                 "gate": null,
                 "model": null,
                 "name": "helper-two",
+                "notes": "notes/x.md",
                 "outcome": "needs Eric: pick",
                 "review": false,
                 "stale": false,
@@ -328,10 +332,50 @@
             "agents": [
               {
                 "beat": null,
+                "clears_at": "2026-10-26T19:26:00.000Z",
+                "ended_at": "2026-10-26T18:56:00.000Z",
+                "gate": null,
+                "model": null,
+                "name": "helper-three",
+                "notes": null,
+                "outcome": "done",
+                "review": false,
+                "stale": false,
+                "started_at": null,
+                "state": "done",
+                "status": "done",
+                "task": null
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "waiting",
+            "detail": "done",
+            "focus_session": "<PID:11>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "agent:<PID:11>:helper-three",
+            "kind": "agent",
+            "lane": "widgets",
+            "listening": null,
+            "parent": "Voice session",
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T18:56:00.000Z",
+            "story": null,
+            "title": "helper-three"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
                 "ended_at": "2026-10-26T18:57:00.000Z",
                 "gate": null,
                 "model": null,
                 "name": "helper-four",
+                "notes": null,
                 "outcome": "story abc up, two chapters",
                 "review": true,
                 "stale": false,
@@ -364,10 +408,12 @@
             "agents": [
               {
                 "beat": null,
+                "clears_at": null,
                 "ended_at": null,
                 "gate": null,
                 "model": "sonnet, low",
                 "name": "not-the-voice",
+                "notes": null,
                 "outcome": null,
                 "review": false,
                 "stale": false,
@@ -430,7 +476,7 @@
       }
     ],
     "phone": {
-      "bridge": false,
+      "bridge": true,
       "on": false
     },
     "status_source": "iterm",

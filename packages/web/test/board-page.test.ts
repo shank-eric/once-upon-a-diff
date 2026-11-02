@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { document, root, saved, tick, fire, window } from './dom-env.ts';
 import { render } from '../public/vendor/preact.mjs';
 import type {
+  BoardAgent,
   BoardCard,
   BoardData,
   BoardVoice,
@@ -857,6 +858,93 @@ test('Open story, Push and Mark reviewed each ask the bridge for the right thing
     null,
     'a story ready to ship is not marked reviewed',
   );
+  answer = () => board();
+  await pollNow();
+});
+
+test('a finished agent’s card shows its notes and when it leaves, and Finish asks the bridge to clear it', async () => {
+  requests.length = 0;
+  confirmed.length = 0;
+  sure = true;
+  const agentCard = (name: string, state: BoardAgent['state'], over: Partial<BoardAgent> = {}) =>
+    card({
+      id: `agent:abcdef01:${name}`,
+      kind: 'agent',
+      title: name,
+      repo: null,
+      column: 'waiting',
+      detail: 'the result',
+      parent: 'main-session',
+      agents: [
+        {
+          name,
+          state,
+          review: false,
+          status: 'done',
+          task: null,
+          model: null,
+          started_at: null,
+          ended_at: '2026-10-29T11:50:00Z',
+          outcome: 'the result',
+          stale: false,
+          beat: null,
+          gate: null,
+          notes: 'notes/research/x.md',
+          clears_at: new Date(Date.now() + 20 * 60000 - 5000).toISOString(),
+          ...over,
+        },
+      ],
+    });
+  answer = () =>
+    withCards(
+      agentCard('finished-one', 'done'),
+      agentCard('question-one', 'waiting', { clears_at: null }),
+      agentCard('working-one', 'running', { clears_at: null, notes: null }),
+      agentCard('parked-one', 'waiting', { review: true, clears_at: null }),
+    );
+  await pollNow();
+  const finished = $('[data-card="agent:abcdef01:finished-one"]') as HTMLElement;
+  assert.match(
+    finished.querySelector('[data-agent-notes]')?.textContent ?? '',
+    /notes\/research\/x\.md/,
+  );
+  assert.match(finished.querySelector('[data-agent-clears]')?.textContent ?? '', /in 20 min/);
+  assert.equal(
+    $('[data-card="agent:abcdef01:question-one"] [data-agent-clears]'),
+    null,
+    'a question has no timer',
+  );
+  assert.equal(
+    $('[data-finish-agent="agent:abcdef01:working-one"]'),
+    null,
+    'no Finish on a working agent',
+  );
+  assert.equal(
+    $('[data-finish-agent="agent:abcdef01:parked-one"]'),
+    null,
+    'nor on one parked on your review',
+  );
+
+  await click($('[data-finish-agent="agent:abcdef01:finished-one"]'));
+  assert.deepEqual(sentTo('/api/board/agent/finish'), [
+    {
+      method: 'POST',
+      path: '/api/board/agent/finish',
+      body: { sid: 'abcdef01', name: 'finished-one' },
+    },
+  ]);
+  assert.deepEqual(confirmed, [], 'a finished agent is cleared without asking');
+
+  sure = false;
+  await click($('[data-finish-agent="agent:abcdef01:question-one"]'));
+  assert.equal(sentTo('/api/board/agent/finish').length, 1, 'declined: nothing sent');
+  assert.match(confirmed[0], /still waiting on a question/);
+  sure = true;
+  await click($('[data-finish-agent="agent:abcdef01:question-one"]'));
+  assert.deepEqual(sentTo('/api/board/agent/finish')[1].body, {
+    sid: 'abcdef01',
+    name: 'question-one',
+  });
   answer = () => board();
   await pollNow();
 });

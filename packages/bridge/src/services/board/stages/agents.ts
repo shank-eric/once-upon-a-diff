@@ -3,7 +3,8 @@
  * parent's card only when tightly tied to it (agent-home.ts), else it is a card of its own, on its own lane.
  */
 import { gatedHome, laneForAgent, tiedToParent } from '../agent-home.ts';
-import { gateOf, type LedgerAgent } from '../../ledger/ledger.ts';
+import { gateOf, lastActivity, type LedgerAgent } from '../../ledger/ledger.ts';
+import { readFinished } from '../../../adapters/stores/finished-agents.ts';
 import type {
   BoardAgent,
   BoardCard,
@@ -37,7 +38,16 @@ const AGENT_STATUS: Record<LedgerAgent['state'], BoardStatus> = {
   stopped: 'done',
 };
 
-export function agentOf(agent: LedgerAgent, beat: BoardBeat | undefined, now: number): BoardAgent {
+/** An agent that has finished for good: no more work to do, with or without a result to read. */
+export const isFinished = (agent: Pick<LedgerAgent, 'state'>): boolean =>
+  agent.state === 'done' || agent.state === 'failed' || agent.state === 'stopped';
+
+export function agentOf(
+  agent: LedgerAgent,
+  beat: BoardBeat | undefined,
+  now: number,
+  clearsAt: Date | null = null,
+): BoardAgent {
   // still open: running, or at a gate (when it began is the line's time, not the original start)
   const open = agent.state === 'running' || agent.state === 'plan' || agent.state === 'fixing';
   const began = agent.state === 'running' ? agent.started : agent.ended || agent.started;
@@ -54,6 +64,8 @@ export function agentOf(agent: LedgerAgent, beat: BoardBeat | undefined, now: nu
     stale: open && !!began && now - began.getTime() > STALE_MS,
     beat: beat || null,
     gate: gateOf(agent),
+    notes: agent.notes ?? null,
+    clears_at: clearsAt?.toISOString() ?? null,
   };
 }
 
@@ -79,7 +91,9 @@ export interface AgentFacts {
  * Places the agents the board shows (running, at a gate, waiting, or finished within the last few hours). An agent tied
  * to its parent's card, or to the branch or PR its task names, is added to that card's `agents` (which changes the card
  * given). The rest get a card of their own, on their own lane while they run, wait or sit at a gate: these are returned,
- * to go after the others. A finished agent has no card.
+ * to go after the others. A finished agent (done, failed or stopped) gets a card of its own in Waiting for
+ * `finishedWaitMinutes` after its last ledger line, with its outcome, its notes path
+ * and its parent session, until the card's Finish clears it. A later ledger line brings the card back, with a fresh timer.
  */
 export function placeAgents(
   ctx: BuildContext,
@@ -87,6 +101,8 @@ export function placeAgents(
   { agents, beats, pin }: AgentFacts,
 ): BoardCard[] {
   const { nowMs } = ctx;
+  const waitMs = ctx.settings.finishedWaitMinutes * 60 * 1000;
+  const cleared = readFinished(ctx.home);
   const added: BoardCard[] = [];
   const cardsBySid = new Map<string, BoardCard>();
   for (const card of cards) {
@@ -101,14 +117,21 @@ export function placeAgents(
       (agent.state === 'waiting' && !forgotten(agent, nowMs)) ||
       agent.state === 'plan' ||
       agent.state === 'fixing' ||
-      (agent.ended?.getTime() ?? 0) >= nowMs - ctx.settings.doneHours * 3600 * 1000,
+      (agent.ended?.getTime() ?? 0) >=
+        nowMs - Math.max(ctx.settings.doneHours * 3600 * 1000, waitMs),
   );
   // the lanes already on the board, which an agent's task text can name
   const knownLanes = [
     ...new Set([...cards.map((card) => card.lane), ...agents.flatMap((agent) => agent.lane || [])]),
   ].filter((lane) => lane !== NO_PARENT);
   for (const agent of shown) {
-    const view = agentOf(agent, beats.get(agent.name), nowMs);
+    const active = lastActivity(agent);
+    // a finished agent waits until its card's Finish clears it, or `waitMs` after its last sign of life
+    const clearsAt =
+      isFinished(agent) && active && active.getTime() + waitMs > nowMs
+        ? new Date(active.getTime() + waitMs)
+        : null;
+    const view = agentOf(agent, beats.get(agent.name), nowMs, clearsAt);
     const parent = cardsBySid.get(agent.sid) || null;
     const voiceParent = pin && pin.view.id.startsWith(agent.sid) ? pin : null;
     const parentSession =
@@ -127,13 +150,19 @@ export function placeAgents(
       home.agents.push(view);
       continue;
     }
-    // an agent gets a card of its own only while it is running, at a gate or waiting on you; a finished one (done,
-    // stopped or failed) has none, and its result is in its notes
-    if (agent.state === 'done' || agent.state === 'failed' || agent.state === 'stopped') {
-      continue;
+    // a finished agent's card is in Waiting for a while, unless it was cleared and has done nothing since (a ledger line
+    // in the minute of the click is not told apart: the times carry no seconds)
+    if (isFinished(agent)) {
+      const clearedAt = cleared.get(`${agent.sid}:${agent.name}`);
+      if (!clearsAt || (clearedAt !== undefined && active && active.getTime() <= clearedAt)) {
+        continue;
+      }
     }
-    // parked on your story review is Ready, not Waiting
-    const column: BoardColumn = agent.review ? 'ready' : AGENT_COLUMN[agent.state];
+    // parked on your story review is Ready, not Waiting; a finished agent is in Waiting whether it failed or not
+    let column: BoardColumn = isFinished(agent) ? 'waiting' : AGENT_COLUMN[agent.state];
+    if (agent.review) {
+      column = 'ready';
+    }
     added.push({
       id: `agent:${agent.sid}:${agent.name}`,
       kind: 'agent',
@@ -143,10 +172,13 @@ export function placeAgents(
       lane: laneForAgent(agent, knownLanes, parent?.lane ?? voiceParent?.lane ?? null, NO_PARENT),
       column: view.gate ? 'checks' : column,
       detail:
-        agent.state === 'waiting' || view.gate?.kind === 'fixing' || view.gate?.kind === 'plan'
+        agent.state === 'waiting' ||
+        isFinished(agent) ||
+        view.gate?.kind === 'fixing' ||
+        view.gate?.kind === 'plan'
           ? view.outcome
           : view.task,
-      since: (agent.ended || agent.started)?.toISOString() ?? null,
+      since: (isFinished(agent) ? active : agent.ended || agent.started)?.toISOString() ?? null,
       pr: null,
       story: null,
       building: null,

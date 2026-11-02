@@ -87,6 +87,7 @@ test('every route the bridge registers is in the table, and every table route is
 const BOARD_KEY_REACH = [
   'GET /api/board',
   'GET /api/board/listen-sessions',
+  'POST /api/board/agent/finish',
   'POST /api/board/backlog',
   'POST /api/board/backlog/assign',
   'POST /api/board/backlog/drop',

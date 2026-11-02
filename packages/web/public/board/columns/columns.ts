@@ -296,6 +296,49 @@ function Build(props: { card: BoardCard; api: Api }) {
   return html`<button type="button" class="ou-board-build" data-build=${build.session} data-prompt=${build.prompt} disabled=${!!build.blocked} onClick=${run} title=${title}>${label}</button>`;
 }
 
+/** Whether an agent card's Finish applies: the agent has finished or is waiting on a question, not working or parked on your review. */
+const finishable = (card: BoardCard) =>
+  card.kind === 'agent' &&
+  card.agents.length === 1 &&
+  !card.agents[0].review &&
+  ['waiting', 'done', 'failed', 'stopped'].includes(card.agents[0].state);
+
+/** Finish: clears a finished agent's card now (the bridge writes the ledger's `[done]` line for one that was still waiting on a question). */
+function finishAgent(api: Api, card: BoardCard) {
+  const agent = card.agents[0];
+  const sid = /^agent:([0-9a-f]{8}):/.exec(card.id)?.[1];
+  if (!sid) {
+    return;
+  }
+  if (
+    agent.state === 'waiting' &&
+    !window.confirm(
+      `${agent.name} is still waiting on a question. Finish it and write a [done] line to the ledger?`,
+    )
+  ) {
+    return;
+  }
+  void act(
+    'finish it',
+    () => api.bridge.ask(ROUTES.boardAgentFinish, { body: { sid, name: agent.name } }),
+    api,
+  );
+}
+
+/** What a finished agent's card says beyond its agent line: its notes file, and when the card leaves on its own. */
+function Finished(props: { card: BoardCard; now: number }) {
+  const { card, now } = props;
+  const agent = card.agents[0];
+  if (card.kind !== 'agent' || !agent) {
+    return null;
+  }
+  const left = agent.clears_at
+    ? Math.max(1, Math.ceil((Date.parse(agent.clears_at) - now) / 60000))
+    : 0;
+  return html`${agent.notes && html`<div class="ou-local-muted ou-board-meta" data-agent-notes>notes: <code>${agent.notes}</code></div>`}
+    ${left > 0 && html`<div class="ou-local-muted ou-board-meta" data-agent-clears>leaves the board in ${left} min unless it does something more</div>`}`;
+}
+
 /** A card other than a Backlog item: its title, where it is, what is going on, its sessions and agents, and its buttons. */
 export function Card(props: { card: BoardCard; now: number; api: Api }) {
   const { card, now, api } = props;
@@ -359,6 +402,7 @@ export function Card(props: { card: BoardCard; now: number; api: Api }) {
   return html`<li class=${`ou-board-card ou-board-c-${card.column}${card.can_focus ? ' ou-board-clickable' : ''}`} data-card=${card.id} data-focus-card=${card.can_focus ? card.focus_session : ''} onClick=${onCard}>
     <div class="ou-board-title" title=${card.title}>${card.title}</div>
     ${card.kind === 'agent' && html`<div class="ou-local-muted ou-board-meta"><${From} card=${card} api=${api} /></div>`}
+    <${Finished} card=${card} now=${now} />
     <div class="ou-local-muted ou-board-meta">${prLink}${prLink && where && ' · '}${where}${(prLink || where) && (merged || time) && ' · '}${merged || time}</div>
     ${notes.map((note) => html`<div class="ou-board-detail">${note}</div>`)}
     ${card.listening && html`<${Listening} listening=${card.listening} api=${api} />`}
@@ -371,6 +415,7 @@ export function Card(props: { card: BoardCard; now: number; api: Api }) {
     <${CardTrees} card=${card} now=${now} api=${api} />
     <div class="ou-board-actions">
       ${card.build && html`<${Build} card=${card} api=${api} />`}
+      ${finishable(card) && html`<button type="button" class="ou-board-finish" data-finish-agent=${card.id} onClick=${() => finishAgent(api, card)} title="Clears this card now. It comes back only if the agent does something more">Finish</button>`}
       ${card.focus_session && html`<button type="button" class="ou-board-focus" data-focus=${card.focus_session} disabled=${!card.can_focus || switching} onClick=${() => focus(card.focus_session as string)} title=${focusTitle}>${switching ? 'Switching…' : 'Open in iTerm'}</button>`}
       ${card.column === 'ship' && story?.ship === 'push' && html`<button type="button" class="ou-board-push" data-push-local=${story.id} onClick=${() => openStory(api, story.id, true)} title="Opens the story's Push box, which checks GitHub first">Push</button>`}
       ${card.ahead && html`<button type="button" class="ou-board-push" data-push-local=${card.ahead.story} onClick=${() => openStory(api, (card.ahead as { story: string }).story, true)} title=${`Opens the story's Push box: the branch is ${card.ahead.count} ahead of GitHub, where this PR is open`}>Push</button>`}

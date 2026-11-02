@@ -279,6 +279,10 @@ export const BODIES = {
     id: pipe(string(), regex(BACKLOG_ID_RE)),
     session: sessionId,
   }),
+  boardAgentFinish: object({
+    sid: pipe(string(), regex(/^[0-9a-f]{8}$/)),
+    name: pipe(string(), regex(/^[\w.-]+$/)),
+  }),
   boardWorktreeClean: object({
     path: optional(string(), ''),
     ack: names,

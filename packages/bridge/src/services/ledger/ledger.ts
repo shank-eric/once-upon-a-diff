@@ -27,6 +27,11 @@
  * is a word of letters, digits, dashes and underscores. A lane tag puts the agent on a lane of that name instead of
  * inside its parent's card. The last line with a given sid and name wins. Lines that don't match are skipped.
  *
+ * A finished agent (done, failed or stopped) with no card to sit in is a card of its own in Waiting for the setting
+ * board_finished_wait_minutes (30) after its latest ledger line, with its outcome and the first `notes/` path its lines
+ * name; a new line starts the time again (progress beats are not counted: they carry no date or sid). The board's Finish on that card appends a `[done]` line only for an
+ * agent still `[waiting]` (doneLine), and otherwise just records the click (adapters/stores/finished-agents.ts).
+ *
  * The progress file's lines are `- <time> <name> <N>/<M> <step>: <note>`; the board shows each agent's latest.
  * Both files are read from their tail only, so a long history costs nothing.
  */
@@ -46,6 +51,8 @@ export interface LedgerAgent {
   started: Date | null;
   ended: Date | null;
   outcome: string | null;
+  /** the notes file its latest line names (the first path with `notes/` in it), when it names one */
+  notes?: string | null;
 }
 
 const LEDGER_TAIL = 1024 * 1024;
@@ -100,6 +107,8 @@ const LABELS: Record<string, string> = {
   UTC: 'UTC',
 };
 const NOTES_PATH_RE = /^\S*notes\/\S*$/;
+/** A notes path inside a line: `notes/…`, `~/…/notes/…` or `/…/notes/…`, up to a space. */
+const NOTES_IN_LINE_RE = /(?:^|[\s(,;])((?:~|\/)?[^\s()]*\bnotes\/[^\s()]+)/;
 const TIME_RE = /(\d{1,2}):(\d{2})\s*([AP]M)(?:\s+([A-Z]{2,4}))?,\s*(\d{1,2})\/(\d{1,2})/i;
 
 /**
@@ -136,6 +145,12 @@ export function parseLedgerTime(text: string, now: Date, zone?: string): Date | 
 const LINE_RE =
   /^\s*-\s*\[(running|waiting|review|plan|fixing|done|failed|stopped)\]\s+sid:([0-9a-f]{8})\s+(?:lane:([\w.-]+)\s+)?([\w.-]+)\s*(.*)$/;
 
+/** The notes path a line's text names, without the punctuation after it, or null. */
+function notesOf(text: string): string | null {
+  const path = NOTES_IN_LINE_RE.exec(text)?.[1];
+  return path ? path.replace(/[.,;:]+$/, '') : null;
+}
+
 /** The ledger's agents, one per sid and name, from the lines' text. */
 export function parseLedger(text: string, now: Date, zone?: string): LedgerAgent[] {
   const agents = new Map<string, LedgerAgent>();
@@ -157,10 +172,13 @@ export function parseLedger(text: string, now: Date, zone?: string): LedgerAgent
       started: null,
       ended: null,
       outcome: null,
+      notes: null,
     };
     agent.state = state === 'review' ? 'waiting' : (state as LedgerAgent['state']);
     agent.review = state === 'review';
     agent.lane = lane || agent.lane;
+    // a follow-up line that names no notes keeps the path an earlier line gave
+    agent.notes = notesOf(rest) || agent.notes;
     if (state === 'running') {
       // (model, effort) — task — started <time>
       const model = /^\(([^)]*)\)/.exec(rest.trim());
@@ -244,4 +262,33 @@ export function readAgents(
     agents: files.ledger ? parseLedger(tailOf(files.ledger, LEDGER_TAIL), now, zone) : [],
     beats: files.progress ? parseProgress(tailOf(files.progress, PROGRESS_TAIL)) : new Map(),
   };
+}
+
+/**
+ * When an agent last did anything: its latest ledger line's time, else its start. Only ledger lines count: they carry a
+ * date and a sid, where a progress beat has neither (its time of day would land on today for an agent from last week, and
+ * a name used by two sessions would be one agent). Null when no line has a time.
+ */
+export function lastActivity(agent: Pick<LedgerAgent, 'ended' | 'started'>): Date | null {
+  return agent.ended ?? agent.started ?? null;
+}
+
+/** "3:40 PM ET, 11/2": a time as the ledger's writers write it, always in Eastern time and always labelled, so it reads the same whatever zone the reader is set to. */
+export function ledgerTime(instant: Date): string {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    hour: 'numeric',
+    minute: '2-digit',
+    month: 'numeric',
+    day: 'numeric',
+    hour12: true,
+  }).formatToParts(instant);
+  const get = (type: string) => parts.find((part) => part.type === type)?.value ?? '';
+  return `${get('hour')}:${get('minute')} ${get('dayPeriod').toUpperCase()} ET, ${get('month')}/${get('day')}`;
+}
+
+/** The `[done]` line the board's Finish writes for an agent that was still open: its own sid, lane tag and name, the time, and why. */
+export function doneLine(agent: Pick<LedgerAgent, 'sid' | 'lane' | 'name'>, when: Date): string {
+  const lane = agent.lane ? ` lane:${agent.lane}` : '';
+  return `- [done] sid:${agent.sid}${lane} ${agent.name} — ${ledgerTime(when)} — finished from the board`;
 }

@@ -8,7 +8,9 @@ import { readSettings } from '../config/settings.ts';
 import { REPO_RE, lastKnownRepo, repoOfCheckoutAsync } from '../config/repos.ts';
 import { runGitAsync } from '../../adapters/git.ts';
 import { aheadOf } from '../stories/pull-request.ts';
-import { readAgents } from '../ledger/ledger.ts';
+import { doneLine, lastActivity, readAgents } from '../ledger/ledger.ts';
+import { appendLine } from '../../adapters/stores/notes.ts';
+import { markFinished } from '../../adapters/stores/finished-agents.ts';
 import { BlankSessions } from '../../adapters/claude-sessions/blank.ts';
 import { SessionTitles } from '../../adapters/claude-sessions/titles.ts';
 import { BacklogStore, assignBranch, assignLine, liveAssignment } from '../backlog/backlog.ts';
@@ -513,6 +515,47 @@ export class Board {
     this.backlog.assign(id, { session: sessionId, branch: assignBranch(item), by: who });
     this.invalidate();
     return prompt;
+  }
+
+  /**
+   * A finished agent's card's Finish: the card leaves the board now, and comes back only if the agent does something more
+   * (a later ledger line or beat). The agent is looked up in the ledger again, never taken from the page. One still
+   * `[waiting]` on a question gets a `[done]` line, so the ledger says it is closed; one that is done, failed or stopped
+   * needs none. A working agent, or one parked on your story review, is refused.
+   */
+  finishAgent(sid: string, name: string): { ledger: boolean } {
+    const settings = readSettings(this.home).board;
+    if (!settings.ledgerFile) {
+      throw new BoardError(400, 'board_ledger_file is not set, so there are no agents');
+    }
+    const now = (this.options.now || (() => new Date()))();
+    const { agents } = readAgents(
+      { ledger: settings.ledgerFile, progress: null },
+      now,
+      settings.ledgerTimeZone,
+    );
+    const agent = agents.find((one) => one.sid === sid && one.name === name);
+    if (!agent) {
+      throw new BoardError(404, 'no agent with that sid and name in the ledger');
+    }
+    if (agent.review) {
+      throw new BoardError(
+        409,
+        'that agent is parked on your story review: mark the story reviewed',
+      );
+    }
+    const open = agent.state === 'waiting';
+    if (!open && agent.state !== 'done' && agent.state !== 'failed' && agent.state !== 'stopped') {
+      throw new BoardError(409, 'that agent is still working');
+    }
+    if (open) {
+      appendLine(settings.ledgerFile, doneLine(agent, now));
+    }
+    // the click counts as at least the agent's latest line, which may be ahead of this clock (a wrong zone, a typo), so the card goes either way
+    const latest = lastActivity(agent)?.getTime() ?? 0;
+    markFinished(this.home, `${sid}:${name}`, Math.max(now.getTime(), latest));
+    this.invalidate();
+    return { ledger: open };
   }
 
   /** The board's Stop listening: every `wait --repo` for the repo ends on its next look, within a couple of seconds. */

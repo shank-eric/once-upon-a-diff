@@ -204,6 +204,8 @@ const DEFAULT_HOSTS = ['once-upon.test', 'once-upon.fidev.net'];
  *                           phone bridge buttons run its `.venv-app/bin/python app/voice_ctl.py` there; without it the panel
  *                           has no phone buttons
  *   board_done_hours        how long a finished agent stays on the board (default 4)
+ *   board_finished_wait_minutes  how long a finished agent (done, failed or stopped) with no card of its parent's sits in
+ *                           Waiting, counted from its last ledger line (default 30)
  *   board_ledger_time_zone  the zone the ledger's times are in when they carry no label like ET (default: the system's)
  *   board_worktrees         false to leave git worktrees off the board (default: shown, with a Clean up button on the ones
  *                           whose work is in the main line)
@@ -309,6 +311,10 @@ export function readSettings(home = homeDir()) {
         typeof cfg.board_done_hours === 'number' && cfg.board_done_hours > 0
           ? cfg.board_done_hours
           : 4,
+      finishedWaitMinutes:
+        typeof cfg.board_finished_wait_minutes === 'number' && cfg.board_finished_wait_minutes > 0
+          ? cfg.board_finished_wait_minutes
+          : 30,
       ledgerTimeZone:
         typeof cfg.board_ledger_time_zone === 'string' && cfg.board_ledger_time_zone
           ? cfg.board_ledger_time_zone
