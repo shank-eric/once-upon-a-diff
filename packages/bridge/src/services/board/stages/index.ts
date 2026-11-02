@@ -154,9 +154,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   });
   cards.push(
     ...addBacklogCards(ctx, cards, backlogItems, links, {
-      listening,
       sessionViews,
-      blankViews,
       quietViews,
       pin,
       repoBySession,

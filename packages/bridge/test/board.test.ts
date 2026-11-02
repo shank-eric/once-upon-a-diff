@@ -88,7 +88,6 @@ import { createLocalStory } from '../src/services/stories/local-story.ts';
 import { refreshLocal } from '../src/services/stories/local-diff.ts';
 import type { LocalMeta } from '../src/services/stories/types.ts';
 import type {
-  BoardAssign,
   BoardCard,
   BoardData,
   BoardSession,
@@ -5543,128 +5542,90 @@ function fakeIt2(): string {
   return it2;
 }
 
-test('Assign offers idle sessions in the item’s repo (any for an item with no repo), blank ones first, never busy, voice-less or listening ones', async () => {
+/** A voice folder saying voice is on in this session (it spoke a minute ago), named for the voice session. */
+function voiceOnIn(sessionId: string): string {
+  const voiceDir = tmp('board-voice');
+  writeJson(path.join(voiceDir, 'session'), { on: true, session_id: sessionId });
+  writeFileSync(path.join(voiceDir, 'voice-session-name'), 'clarifi-da\n');
+  writeFileSync(
+    path.join(voiceDir, 'spoken.jsonl'),
+    JSON.stringify({
+      id: 'm1',
+      wall: NOW.getTime() / 1000 - 60,
+      text: 'Hello.',
+      session_id: sessionId,
+      status: 'spoken',
+    }) + '\n',
+  );
+  return voiceDir;
+}
+
+const statusOf = async (promise: Promise<unknown>) =>
+  promise.then(
+    () => 200,
+    (err: { status?: number }) => err.status,
+  );
+
+test('every open backlog item carries the message Assign sends, and a started one has no Assign', async () => {
   const home = tmp('board-assign');
-  const sessions = tmp('board-sessions');
-  const [older, newer, blankOne, busyOne, gadgetsOne] = [
-    liveChild(),
-    liveChild(),
-    liveChild(),
-    liveChild(),
-    liveChild(),
-  ];
-  after(() => [older, newer, blankOne, busyOne, gadgetsOne].forEach((child) => child.stop()));
-  const widgets = checkoutOf('widgets', 'main');
-  const gadgets = checkoutOf('gadgets', 'main');
-  registry(sessions, older.pid, { cwd: widgets, name: 'older' }, older.procStart);
-  registry(
-    sessions,
-    newer.pid,
-    { cwd: widgets, name: 'newer', statusUpdatedAt: NOW.getTime() - 1000 },
-    newer.procStart,
-  );
-  registry(sessions, blankOne.pid, { cwd: widgets, name: 'blank' }, blankOne.procStart, {
-    blank: true,
-  });
-  registry(
-    sessions,
-    busyOne.pid,
-    { cwd: widgets, name: 'busy', status: 'busy' },
-    busyOne.procStart,
-  );
-  registry(sessions, gadgetsOne.pid, { cwd: gadgets, name: 'gadgets' }, gadgetsOne.procStart);
-  // a session that runs a repo listener is not handed work
-  registry(sessions, process.pid, { cwd: widgets, name: 'listening' }, procStartOf(process.pid));
-  writeJson(path.join(home, 'listeners', 'repo-acme-widgets.json'), {
-    consumer: 'repo-acme-widgets',
-    pid: process.pid,
-    state: 'waiting',
-    at: NOW.toISOString(),
-    repo: 'acme/widgets',
-  });
-  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: tmp('board-sessions') });
   const store = new BacklogStore(home);
-  const forWidgets = store.add({ title: 'Widgets thing', repo: 'acme/widgets' });
+  const open = store.add({ title: 'Widgets thing', repo: 'acme/widgets' });
   const noRepo = store.add({ title: 'Anywhere thing' });
-  const forOthers = store.add({ title: 'Gadgets thing', repo: 'acme/gadgets' });
-  const says = (pid: number) =>
-    [String(pid).padStart(8, '0'), { status: 'done' as const, detail: null }] as const;
+  const started = store.add({ title: 'Going', repo: 'acme/widgets' });
+  store.start(started.id, { branch: 'feat/going' });
   const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
-    source: sourceSaying(
-      Object.fromEntries(
-        [older, newer, blankOne, gadgetsOne]
-          .map((child) => says(child.pid))
-          .concat([says(process.pid)]),
-      ),
-    ),
+    source: sourceSaying({}),
     now: () => NOW,
   });
-  const data = await board.snapshot();
-  const offer = (id: string) =>
-    data.lanes.flatMap((lane) => lane.cards).find((card) => card.backlog?.id === id)?.backlog
-      ?.assign as BoardAssign;
-  const names = (id: string) => offer(id).candidates.map((one) => one.title);
-  assert.deepEqual(names(forWidgets.id), ['Tab title', 'Tab title', 'Tab title']);
-  assert.deepEqual(
-    offer(forWidgets.id).candidates.map((one) => [one.id, one.blank]),
-    [
-      [fullId(blankOne.pid), true],
-      [fullId(newer.pid), false],
-      [fullId(older.pid), false],
-    ],
-    'blank first, then the freshest; not busy, not the listening one, not the gadgets one',
-  );
-  assert.deepEqual(
-    offer(forOthers.id).candidates.map((one) => one.id),
-    [fullId(gadgetsOne.pid)],
-  );
-  assert.equal(offer(noRepo.id).candidates.length, 4, 'no repo: any idle session, from any repo');
-  assert.deepEqual(
-    new Set(offer(noRepo.id).candidates.map((one) => one.repo)),
-    new Set(['acme/widgets', 'acme/gadgets']),
-  );
-  assert.equal(offer(forWidgets.id).prompt, assignLine(forWidgets));
+  const cards = (await board.snapshot()).lanes.flatMap((lane) => lane.cards);
+  const offer = (id: string) => cards.find((card) => card.backlog?.id === id)?.backlog?.assign;
+  assert.deepEqual(offer(open.id), { prompt: `Start backlog card ${open.id}: Widgets thing` });
+  assert.deepEqual(offer(noRepo.id), { prompt: `Start backlog card ${noRepo.id}: Anywhere thing` });
+  assert.ok(!offer(started.id));
 });
 
-test('Assign types the bridge’s line, records it, and refuses a busy, wrong-repo, held or started case', async () => {
+test('Assign types "Start backlog card <id>: <title>" into the voice session even mid-turn, records it, and refuses a started item or a failed typing', async () => {
   const home = tmp('board-assign-do');
   const sessions = tmp('board-sessions');
-  const [one, two, busy, other] = [liveChild(), liveChild(), liveChild(), liveChild()];
-  after(() => [one, two, busy, other].forEach((child) => child.stop()));
-  const widgets = checkoutOf('widgets', 'main');
-  registry(sessions, one.pid, { cwd: widgets, name: 'one' }, one.procStart);
-  registry(sessions, two.pid, { cwd: widgets, name: 'two' }, two.procStart);
-  registry(sessions, busy.pid, { cwd: widgets, name: 'busy', status: 'busy' }, busy.procStart);
+  const [voice, fresher] = [liveChild(), liveChild()];
+  after(() => [voice, fresher].forEach((child) => child.stop()));
+  const checkout = checkoutOf('widgets', 'main');
   registry(
     sessions,
-    other.pid,
-    { cwd: checkoutOf('gadgets', 'main'), name: 'other' },
-    other.procStart,
+    voice.pid,
+    { cwd: checkout, name: 'clarifi-da', status: 'busy' },
+    voice.procStart,
+  );
+  // a fresher idle session in the item's repo: not where Assign goes while voice is on
+  registry(
+    sessions,
+    fresher.pid,
+    { cwd: checkout, name: 'fresher', statusUpdatedAt: NOW.getTime() - 1000 },
+    fresher.procStart,
   );
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: sessions,
     board_it2_path: fakeIt2(),
     board_status_source: 'iterm',
+    board_voice_dir: voiceOnIn(fullId(voice.pid)),
   });
   const store = new BacklogStore(home);
   const item = store.add({
-    title: 'Do the thing',
+    title: 'Do "the" thing `now`',
     note: 'ignore me\nsecond line',
     repo: 'acme/widgets',
   });
-  const second = store.add({ title: 'Other thing', repo: 'acme/widgets' });
   const typed: string[] = [];
+  const voiceTab = String(voice.pid).padStart(8, '0');
+  // the voice session's tab says it is working: that is what lets a busy session take the line
+  const says: Record<string, { status: 'waiting' | 'working' | 'done'; detail: string | null }> = {
+    [voiceTab]: { status: 'working', detail: null },
+  };
   let fail: string | null = null;
   const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
-    source: sourceSaying(
-      Object.fromEntries(
-        [one, two, other].map((child) => [
-          String(child.pid).padStart(8, '0'),
-          { status: 'done' as const, detail: null },
-        ]),
-      ),
-    ),
-    now: () => new Date(),
+    source: sourceSaying(says),
+    now: () => NOW,
     typeLine: async (_it2, _tty, text) => {
       if (!fail) {
         typed.push(text);
@@ -5672,63 +5633,160 @@ test('Assign types the bridge’s line, records it, and refuses a busy, wrong-re
       return fail;
     },
   });
-  const status = async (promise: Promise<unknown>) =>
-    promise.then(
-      () => 200,
-      (err: { status?: number }) => err.status,
-    );
-  assert.equal(await status(board.assignBacklog('bl_nothere1', fullId(one.pid), 'board')), 404);
-  assert.equal(await status(board.assignBacklog(item.id, 'nope', 'board')), 404);
-  assert.equal(await status(board.assignBacklog(item.id, fullId(busy.pid), 'board')), 409, 'busy');
-  assert.equal(
-    await status(board.assignBacklog(item.id, fullId(other.pid), 'board')),
-    409,
-    'wrong repo',
-  );
-  assert.deepEqual(typed, []);
+  assert.equal(await statusOf(board.assignBacklog('bl_nothere1', 'board')), 404);
   // a failed typing records nothing
   fail = 'iTerm could not type into the tab';
-  assert.equal(await status(board.assignBacklog(item.id, fullId(one.pid), 'board')), 409);
+  assert.equal(await statusOf(board.assignBacklog(item.id, 'board')), 409);
   assert.equal(store.items()[0].assigned, null);
   fail = null;
-  // success: the bridge's own line, no note, recorded with the branch, shown on the card
-  await board.assignBacklog(item.id, fullId(one.pid), 'board');
+  // the voice session is working (busy) and still takes the line
+  const sent = await board.assignBacklog(item.id, 'board');
   assert.deepEqual(typed, [assignLine(item)]);
-  assert.doesNotMatch(typed[0], /ignore me|second line/);
-  assert.equal(store.items()[0].assigned?.session, fullId(one.pid));
+  assert.equal(typed[0], `Start backlog card ${item.id}: Do the thing now`);
+  assert.doesNotMatch(typed[0], /ignore me|second line|[`"]/);
+  assert.deepEqual(sent, { typed: typed[0], session: 'clarifi-da' });
+  assert.equal(store.items()[0].assigned?.session, fullId(voice.pid));
   assert.equal(store.items()[0].assigned?.branch, assignBranch(item));
   const card = (await board.snapshot()).lanes
     .flatMap((lane) => lane.cards)
     .find((found) => found.backlog?.id === item.id);
   assert.equal(card?.backlog?.assigned?.session_title, 'Tab title');
-  assert.deepEqual(
-    card?.backlog?.assign?.candidates.map((found) => found.id),
-    [fullId(one.pid)],
-    'a held item can only go to its holder again',
-  );
-  // another item is not offered the session that holds this one
-  const secondCard = (await board.snapshot()).lanes
-    .flatMap((lane) => lane.cards)
-    .find((found) => found.backlog?.id === second.id);
-  assert.deepEqual(
-    secondCard?.backlog?.assign?.candidates.map((found) => found.id),
-    [fullId(two.pid)],
-  );
-  // held by another session: refused; the same one may be told again
-  assert.equal(await status(board.assignBacklog(item.id, fullId(two.pid), 'board')), 409);
-  assert.equal(await status(board.assignBacklog(item.id, fullId(one.pid), 'board')), 200);
-  // started: no more assigning, and the assignment is gone
+  assert.ok(card?.backlog?.assign, 'still offered, as Send again');
+  // again is fine
+  assert.equal(await statusOf(board.assignBacklog(item.id, 'board')), 200);
+  assert.equal(typed.length, 2);
+  // a voice session waiting on you (a permission prompt) is never typed into, and neither is one whose tab says nothing
+  says[voiceTab] = { status: 'waiting', detail: null };
+  assert.equal(await statusOf(board.assignBacklog(item.id, 'board')), 409, 'waiting');
+  delete says[voiceTab];
+  assert.equal(await statusOf(board.assignBacklog(item.id, 'board')), 409, 'no status for the tab');
+  assert.equal(typed.length, 2);
+  // started: no more assigning
   store.start(item.id, { branch: assignBranch(item) });
-  assert.equal(await status(board.assignBacklog(item.id, fullId(two.pid), 'board')), 409);
-  assert.equal(store.items()[0].state, 'started');
-  assert.equal(
-    store.items()[0].assigned?.session,
-    fullId(one.pid),
-    'the event stays in the file; the card ignores it',
-  );
+  assert.equal(await statusOf(board.assignBacklog(item.id, 'board')), 409);
+  assert.equal(typed.length, 2);
 });
 
-test('POST /api/board/backlog/assign: the board key only, two ids and no text', async () => {
+test('with no voice session, Assign goes to the most recent live interactive session, and only if it is at its prompt', async () => {
+  const home = tmp('board-assign-fallback');
+  const sessions = tmp('board-sessions');
+  const [older, newer] = [liveChild(), liveChild()];
+  after(() => [older, newer].forEach((child) => child.stop()));
+  const checkout = checkoutOf('widgets', 'main');
+  registry(sessions, older.pid, { cwd: checkout, name: 'older' }, older.procStart);
+  registry(
+    sessions,
+    newer.pid,
+    { cwd: checkout, name: 'newer', statusUpdatedAt: NOW.getTime() - 1000 },
+    newer.procStart,
+  );
+  writeJson(path.join(home, 'config.json'), {
+    board_sessions_dir: sessions,
+    board_it2_path: fakeIt2(),
+    board_status_source: 'iterm',
+  });
+  const item = new BacklogStore(home).add({ title: 'Thing', repo: 'acme/widgets' });
+  const typed: string[] = [];
+  const make = (dir: string) =>
+    new Board(dir, new StoryStore({ home: dir }), noPrWatcher, new Builds(dir), {
+      source: sourceSaying({}),
+      now: () => NOW,
+      typeLine: async (_it2, _tty, text) => {
+        typed.push(text);
+        return null;
+      },
+    });
+  const board = make(home);
+  assert.equal((await board.assignBacklog(item.id, 'board')).session, 'newer');
+  assert.equal(typed.length, 1);
+  registry(
+    sessions,
+    newer.pid,
+    { cwd: checkout, name: 'newer', status: 'busy', statusUpdatedAt: NOW.getTime() - 1000 },
+    newer.procStart,
+  );
+  assert.equal(await statusOf(board.assignBacklog(item.id, 'board')), 409, 'busy: refused');
+  assert.equal(typed.length, 1);
+  // no live session at all
+  const empty = tmp('board-home-empty');
+  writeJson(path.join(empty, 'config.json'), {
+    board_sessions_dir: tmp('board-sessions'),
+    board_it2_path: fakeIt2(),
+    board_status_source: 'iterm',
+  });
+  const lonely = new BacklogStore(empty).add({ title: 'Thing' });
+  assert.equal(await statusOf(make(empty).assignBacklog(lonely.id, 'board')), 409);
+  assert.equal(typed.length, 1);
+});
+
+test('Assign’s fallback leaves out an ended voice session and a session that listens', async () => {
+  const home = tmp('board-assign-apart');
+  const sessions = tmp('board-sessions');
+  const voiceDir = tmp('board-voice');
+  const tree = await parentWithChild();
+  const [free, ended] = [liveChild(), liveChild()];
+  after(() => {
+    tree.stop();
+    [free, ended].forEach((child) => child.stop());
+  });
+  const checkout = checkoutOf('widgets', 'main');
+  registry(
+    sessions,
+    free.pid,
+    { cwd: checkout, name: 'free', statusUpdatedAt: NOW.getTime() - 5000 },
+    free.procStart,
+  );
+  registry(
+    sessions,
+    ended.pid,
+    { cwd: checkout, name: 'was-voice', statusUpdatedAt: NOW.getTime() - 2000 },
+    ended.procStart,
+  );
+  // the newest session runs a listener
+  registry(
+    sessions,
+    tree.parent,
+    { cwd: checkout, name: 'listener', statusUpdatedAt: NOW.getTime() - 1000 },
+    tree.procStart,
+  );
+  writeJson(path.join(home, 'listeners', 'repo-acme-widgets.json'), {
+    consumer: 'repo-acme-widgets',
+    pid: tree.child,
+    state: 'waiting',
+    at: NOW.toISOString(),
+    repo: 'acme/widgets',
+  });
+  // voice ended earlier today in `ended`: the card stays pinned, as ended
+  const midnight = new Date(NOW);
+  midnight.setHours(0, 0, 0, 0);
+  writeJson(path.join(voiceDir, 'session'), { on: false, since: 1 });
+  writeJson(path.join(voiceDir, 'last-voice.json'), {
+    session_id: fullId(ended.pid),
+    cwd: '/x',
+    at: midnight.getTime() / 1000 + 1,
+  });
+  writeJson(path.join(home, 'config.json'), {
+    board_sessions_dir: sessions,
+    board_voice_dir: voiceDir,
+    board_it2_path: fakeIt2(),
+    board_status_source: 'iterm',
+  });
+  const item = new BacklogStore(home).add({ title: 'Thing', repo: 'acme/widgets' });
+  const typed: string[] = [];
+  const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+    source: sourceSaying({}),
+    now: () => NOW,
+    typeLine: async (_it2, _tty, text) => {
+      typed.push(text);
+      return null;
+    },
+  });
+  assert.equal((await board.snapshot()).voice?.status, 'ended');
+  assert.equal((await board.assignBacklog(item.id, 'board')).session, 'free');
+  assert.equal(typed.length, 1);
+});
+
+test('POST /api/board/backlog/assign: the board key only, an item id and nothing else', async () => {
   const home = tmp('board-assign-route');
   const sessions = tmp('board-sessions');
   const checkout = checkoutOf('widgets', 'main');
@@ -5744,21 +5802,14 @@ test('POST /api/board/backlog/assign: the board key only, two ids and no text', 
   const post = (body: unknown, key = boardKey(TOKEN)) =>
     bridge.call('POST', '/api/board/backlog/assign', body, { Authorization: `Bearer ${key}` });
   assert.equal((await post({})).status, 400);
-  assert.equal((await post({ id: 'not an id', session: fullId(process.ppid) })).status, 400);
-  assert.equal((await post({ id: item.id })).status, 400);
-  assert.equal((await post({ id: 'bl_nothere1', session: fullId(process.ppid) })).status, 404);
-  assert.equal((await post({ id: item.id, session: 'nope' })).status, 404);
+  assert.equal((await post({ id: 'not an id' })).status, 400);
+  assert.equal((await post({ id: 'bl_nothere1' })).status, 404);
   // a live idle session whose tab can't be found is not typed into, and nothing is recorded
-  const noTab = await post({
-    id: item.id,
-    session: fullId(process.ppid),
-    prompt: 'rm -rf /',
-    title: 'x',
-  });
+  const noTab = await post({ id: item.id, prompt: 'rm -rf /', title: 'x' });
   assert.equal(noTab.status, 409);
   assert.equal(new BacklogStore(home).items()[0].assigned, null);
   for (const key of [pageKey(TOKEN, 'x')]) {
-    assert.equal((await post({ id: item.id, session: fullId(process.ppid) }, key)).status, 403);
+    assert.equal((await post({ id: item.id }, key)).status, 403);
   }
 });
 
@@ -5991,11 +6042,7 @@ test('Start listening and Assign leave out the voice session and a session that 
   );
   const item = data.lanes.flatMap((lane) => lane.cards).find((card) => card.backlog)
     ?.backlog as NonNullable<BoardCard['backlog']>;
-  assert.deepEqual(
-    item.assign?.candidates.map((one) => one.id),
-    [fullId(free.pid)],
-    'and so does Assign',
-  );
+  assert.ok(item.assign, 'Assign no longer picks a session: the voice session takes it');
   // typing re-checks the rule against a fresh look, so a stale chooser or a direct call cannot reach them either
   const status = (promise: Promise<unknown>) =>
     promise.then(

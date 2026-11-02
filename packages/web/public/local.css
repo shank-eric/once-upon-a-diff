@@ -305,6 +305,7 @@ button.ou-local-pr, button.ou-local-push, button.ou-local-push-ahead { white-spa
 .ou-board-bar span { display: block; height: 100%; border-radius: 2px; background: var(--fgColor-muted); }
 .ou-board-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
 .ou-board-actions:empty { display: none; }
+.ou-board-assign-note { font-size: 11px; }
 .ou-board-from { padding: 0; border: 0; background: none; color: var(--fgColor-accent); font-size: inherit; text-decoration: underline; cursor: pointer; }
 .ou-board-note { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
 .ou-board-startline { margin-top: 4px; font-size: 11px; overflow-wrap: anywhere; color: var(--fgColor-muted); }

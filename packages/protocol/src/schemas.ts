@@ -276,10 +276,7 @@ export const BODIES = {
     check((body) => !!body.before || !!body.edge, MOVE_NEEDS),
   ),
   boardBacklogDrop: object({ id: optional(string(), '') }),
-  boardBacklogAssign: object({
-    id: pipe(string(), regex(BACKLOG_ID_RE)),
-    session: sessionId,
-  }),
+  boardBacklogAssign: object({ id: pipe(string(), regex(BACKLOG_ID_RE)) }),
   boardAgentFinish: object({
     sid: pipe(string(), regex(/^[0-9a-f]{8}$/)),
     name: pipe(string(), regex(/^[\w.-]+$/)),
@@ -320,10 +317,7 @@ const FIELD_MESSAGES: Partial<Record<BodyName, Record<string, string>>> = {
   boardVoiceStart: { session: 'session must be a session id' },
   boardFocus: { session: 'a session id is needed' },
   boardBacklogMove: { edge: MOVE_NEEDS },
-  boardBacklogAssign: {
-    id: 'a backlog item id and a session id are needed',
-    session: 'a backlog item id and a session id are needed',
-  },
+  boardBacklogAssign: { id: 'a backlog item id is needed' },
 };
 
 /** What checkBody says: the body as the schema reads it, or why it can't. */

@@ -155,11 +155,11 @@ function dropBacklog({ app, body, send }: Call) {
   return send(200, { ok: true });
 }
 
-/** POST {id, session}: Assign, the line typed into the session's tab. The session must be one the board offers for the item. */
+/** POST {id}: Assign, "Start backlog card ..." typed into the voice session's tab (the bridge picks the session). */
 async function assignBacklog({ app, body: raw, send }: Call) {
-  const { id, session } = parseBody('boardBacklogAssign', raw);
-  const typed = await app.board.assignBacklog(id, session, 'board');
-  return send(200, { ok: true, typed });
+  const { id } = parseBody('boardBacklogAssign', raw);
+  const sent = await app.board.assignBacklog(id, 'board');
+  return send(200, { ok: true, ...sent });
 }
 
 /** POST {paused}: pause (true) or resume (false) voice. */

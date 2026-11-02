@@ -56,9 +56,6 @@ export function titleOf(board: BoardData, session: string): string {
   return (
     view?.title ??
     board.listeners.flatMap((entry) => entry.candidates).find((one) => one.id === session)?.title ??
-    board.lanes
-      .flatMap((lane) => lane.cards.flatMap((card) => card.backlog?.assign?.candidates ?? []))
-      .find((one) => one.id === session)?.title ??
     'that session'
   );
 }

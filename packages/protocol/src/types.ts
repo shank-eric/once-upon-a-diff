@@ -1022,19 +1022,8 @@ export interface BoardHelper {
   last_request_at: string;
 }
 
-/** The Assign button on a backlog card: who may be handed the item, and the line that would be typed. */
+/** The Assign button on a backlog card: the message it sends the voice session (the same for every click). */
 export interface BoardAssign {
-  candidates: {
-    id: string;
-    title: string;
-    status: 'idle' | 'done';
-    since: string | null;
-    branch: string | null;
-    repo: string | null;
-    /** a session with no prompt yet (the Blank strip): the best one to hand work to */
-    blank: boolean;
-  }[];
-  /** the line the bridge would type (the same for every candidate; shown in the confirm) */
   prompt: string;
 }
 

@@ -17,7 +17,6 @@ import type { LiveSession } from '../../adapters/claude-sessions/registry.ts';
 import { noteListener, readHistory } from '../listeners/history.ts';
 import { run } from '../../adapters/os.ts';
 import type {
-  BoardAssign,
   BoardBuild,
   BoardCard,
   BoardListenerRepo,
@@ -174,7 +173,7 @@ export interface ListeningInput {
   idle: Set<string>;
   /** the listener sessions that are busy (a turn, a request being handled, other tasks): the lane says so */
   busy: ReadonlySet<string>;
-  /** sessions that take no new job (Start listening, Assign): the voice session and any that already listens */
+  /** sessions that take no new job (Start listening): the voice session and any that already listens */
   apart: ReadonlySet<string>;
 }
 
@@ -331,45 +330,6 @@ export function buildFor(card: BoardCard, idle: Set<string>): BoardBuild | null 
     return { session: free.id, prompt, blocked: null };
   }
   return { session: null, prompt, blocked: mapped.length ? 'session busy' : 'no iTerm tab' };
-}
-
-/**
- * The sessions Assign may hand a backlog item to: at the prompt, with an iTerm tab, in the item's repo (any repo for an item
- * with none), and not the voice session or one that listens (`input.apart`) or one already holding a live assignment (`skip`). Blank sessions (no
- * prompt yet) first, then the rest freshest first.
- */
-export function assignCandidates(
-  repo: string | null,
-  input: ListeningInput,
-  skip: Set<string>,
-  blank: Set<string>,
-): BoardAssign['candidates'] {
-  return [...input.idle]
-    .filter((id) => {
-      const view = input.sessions.get(id);
-      if (!view?.focus || skip.has(id) || input.apart.has(id)) {
-        return false;
-      }
-      const owner = input.repoOf.get(id);
-      return repo ? !!owner && sameRepo(owner, repo) : true;
-    })
-    .map((id) => {
-      const view = input.sessions.get(id) as BoardSession;
-      return {
-        id,
-        title: view.title ?? id,
-        status: view.status === 'done' ? ('done' as const) : ('idle' as const),
-        since: view.since ?? null,
-        branch: view.branch ?? null,
-        repo: input.repoOf.get(id) ?? null,
-        blank: blank.has(id),
-      };
-    })
-    .sort(
-      (first, second) =>
-        Number(second.blank) - Number(first.blank) ||
-        (Date.parse(second.since || '') || 0) - (Date.parse(first.since || '') || 0),
-    );
 }
 
 /** The listen prompt Start listening types (the status API's `prompt`, shown too for typing by hand). */

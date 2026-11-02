@@ -51,17 +51,7 @@ const card = (over: Partial<BoardCard>): BoardCard => ({
   build: null,
   ...over,
 });
-const candidates = (...ids: string[]) =>
-  ids.map((id) => ({
-    id,
-    title: `session ${id}`,
-    status: 'idle' as const,
-    since: null,
-    branch: null,
-    repo: null,
-    blank: false,
-  }));
-const backlog = (id: string, lane = 'widgets', sessions: string[] = ['s1']): BoardCard =>
+const backlog = (id: string, lane = 'widgets'): BoardCard =>
   card({
     id: `backlog:${id}`,
     kind: 'backlog',
@@ -75,7 +65,7 @@ const backlog = (id: string, lane = 'widgets', sessions: string[] = ['s1']): Boa
       started: null,
       start_line: `once-upon backlog start ${id}`,
       assigned: null,
-      assign: { candidates: candidates(...sessions), prompt: `start ${id}` },
+      assign: { prompt: `Start backlog card ${id}: Item ${id}` },
     },
   });
 const tree: BoardWorktree = {
@@ -138,7 +128,7 @@ const board = (over: Partial<BoardData> = {}): BoardData => ({
       name: 'widgets',
       cards: [
         backlog('bl_1'),
-        backlog('bl_2', 'widgets', ['s1', 's2']),
+        backlog('bl_2'),
         backlog('bl_3'),
         card({ id: 'w-1', title: 'Working on it' }),
         idleCard,
@@ -169,6 +159,8 @@ let answer: () => BoardData | Error = () => board();
 let refuse = 0;
 type Sent = { method: string; path: string; body?: Record<string, unknown> };
 const requests: Sent[] = [];
+/** A POST path the bridge refuses with this status and reason. */
+const refused = new Map<string, { status: number; error: string }>();
 /** A POST path held until `release` is called, to see a button while its call is out. */
 const held = new Map<string, Promise<void>>();
 let poll = () => {};
@@ -186,7 +178,19 @@ Object.assign(globalThis, {
     if (method !== 'GET') {
       requests.push({ method, path, body: init?.body ? JSON.parse(init.body) : undefined });
       await held.get(path);
-      return { ok: true, status: 200, json: async () => ({ ok: true, url: 'http://x/story?k=1' }) };
+      const refusal = refused.get(path);
+      if (refusal) {
+        return {
+          ok: false,
+          status: refusal.status,
+          json: async () => ({ error: refusal.error }),
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ ok: true, url: 'http://x/story?k=1', session: 'clarifi-da' }),
+      };
     }
     if (refuse) {
       return { ok: false, status: refuse, json: async () => ({ error: 'no key' }) };
@@ -235,7 +239,7 @@ const withOrder = (...ids: string[]) =>
       {
         name: 'widgets',
         cards: [
-          ...ids.map((id) => backlog(id, 'widgets', id === 'bl_2' ? ['s1', 's2'] : ['s1'])),
+          ...ids.map((id) => backlog(id, 'widgets')),
           card({ id: 'w-1', title: 'Working on it' }),
           idleCard,
         ],
@@ -357,29 +361,37 @@ test('the Add panel’s repo menu picks the repo the item is for', async () => {
   });
 });
 
-test('Assign types into the one obvious session after a confirm, and offers a menu when there is no obvious one', async () => {
+test('Assign is always on and asks the bridge to tell the voice session: the id only, no confirm, and the answer shows', async () => {
   requests.length = 0;
-  sure = false;
-  await click($('[data-backlog-assign="bl_1"]'));
-  assert.match(confirmed.at(-1) as string, /Type this into "session s1" and press Enter/);
-  assert.deepEqual(requests, [], 'a no sends nothing');
-  sure = true;
-  await click($('[data-backlog-assign="bl_1"]'));
-  assert.deepEqual(sentTo('/api/board/backlog/assign')[0].body, { id: 'bl_1', session: 's1' });
+  confirmed.length = 0;
+  const button = $('[data-backlog-assign="bl_1"]') as HTMLButtonElement;
+  assert.equal(button.disabled, false);
+  assert.equal(button.hasAttribute('aria-haspopup'), false, 'no menu of sessions');
+  await click(button);
+  await tick();
+  assert.deepEqual(sentTo('/api/board/backlog/assign')[0].body, { id: 'bl_1' });
+  assert.deepEqual(confirmed, [], 'nothing is asked first');
+  assert.match($('[data-backlog-assign-note="sent"]')?.textContent as string, /Sent to clarifi-da/);
 
-  requests.length = 0;
-  const two = $('[data-backlog-assign="bl_2"]') as HTMLElement;
-  assert.equal(two.getAttribute('aria-haspopup'), 'menu', 'two idle sessions: a menu button');
-  await click(two);
-  const items = [...document.querySelectorAll('.ou-menu-item')] as HTMLElement[];
-  assert.equal(items.length, 2);
-  assert.deepEqual(requests, [], 'the menu sends nothing until one is picked');
-  await click(items[1]);
-  assert.deepEqual(sentTo('/api/board/backlog/assign')[0].body, { id: 'bl_2', session: 's2' });
+  // the bridge's reason for a refusal shows beside the button, not in an alert
+  alerts.length = 0;
+  refused.set('/api/board/backlog/assign', {
+    status: 409,
+    error: 'the session is waiting for you',
+  });
+  await click($('[data-backlog-assign="bl_2"]'));
+  await tick();
+  assert.match(
+    $('[data-backlog-assign-note="refused"]')?.textContent as string,
+    /Not sent: the session is waiting for you/,
+  );
+  assert.deepEqual(alerts, []);
+  refused.clear();
 });
 
-test('Copy start line and Drop are on the card: Drop asks the bridge to drop that item', async () => {
+test('Drop is on the card, Copy start line is not: Drop asks the bridge to drop that item', async () => {
   requests.length = 0;
+  assert.equal(all('[data-backlog-copy]').length, 0);
   await click($('[data-backlog-drop="bl_3"]'));
   assert.deepEqual(sentTo('/api/board/backlog/drop')[0].body, { id: 'bl_3' });
 });

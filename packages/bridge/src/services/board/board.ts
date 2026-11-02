@@ -13,7 +13,7 @@ import { appendLine } from '../../adapters/stores/notes.ts';
 import { markFinished } from '../../adapters/stores/finished-agents.ts';
 import { BlankSessions } from '../../adapters/claude-sessions/blank.ts';
 import { SessionTitles } from '../../adapters/claude-sessions/titles.ts';
-import { BacklogStore, assignBranch, assignLine, liveAssignment } from '../backlog/backlog.ts';
+import { BacklogStore, assignBranch, assignLine } from '../backlog/backlog.ts';
 import type { AddInput, BacklogItem, MoveTo } from '../backlog/backlog.ts';
 import { parseWorktrees } from '../backlog/backlog-links.ts';
 import { WorktreeScanner, workingIn } from '../worktrees/worktrees.ts';
@@ -140,7 +140,7 @@ export class Board {
         listening: () => this.listeningNow?.input ?? null,
         invalidate: () => this.invalidate(),
       },
-      { typeLine: options.typeLine },
+      { typeLine: options.typeLine, source: options.source },
     );
     this.scanner = new WorktreeScanner({
       home,
@@ -518,11 +518,13 @@ export class Board {
   }
 
   /**
-   * Assign: types the backlog line for an item into an idle session, then records the assignment. The session must be one
-   * the board offers for the item (its repo, not voice or listening, at its prompt: checked again against live status), and
-   * an item another session holds, or one already started, is refused. Nothing is recorded unless the typing worked.
+   * Assign: tells the voice session to start a backlog card, by typing "Start backlog card <id>: <title>" into its tab (the
+   * board snapshot's voice session, else the most recent live interactive session). The id and title are the bridge's own,
+   * the title cleaned and capped. The voice session may be mid-turn (Claude Code queues the line); a session that is not the
+   * voice one must be at its prompt, and one waiting on you is refused either way. An item already started is refused.
+   * Sending again is fine. Nothing is recorded unless the typing worked.
    */
-  async assignBacklog(id: string, sessionId: string, who: string): Promise<string> {
+  async assignBacklog(id: string, who: string): Promise<{ typed: string; session: string }> {
     const item = this.backlog.items().find((one) => one.id === id);
     if (!item || item.state === 'dropped') {
       throw new BoardError(404, 'no backlog item with that id');
@@ -530,25 +532,33 @@ export class Board {
     if (item.state === 'started') {
       throw new BoardError(409, 'that item is already started');
     }
-    const held = liveAssignment(item, Date.now());
-    if (held && held.session !== sessionId) {
-      throw new BoardError(409, 'that item was assigned to another session a little while ago');
+    // voice that has ended (the card stays pinned for the day) is just another session
+    const voice = (await this.snapshot()).voice;
+    const live = voice && voice.status !== 'ended' ? voice : null;
+    let target = live ? { id: live.session, name: live.name } : null;
+    if (!target) {
+      // never the voice session or one that listens (the same set Start listening leaves out)
+      const apart = this.listeningNow?.input.apart;
+      const recent = (await this.sessions.live())
+        .filter((one) => (!one.kind || one.kind === 'interactive') && !apart?.has(one.session))
+        .sort(
+          (first, second) =>
+            (second.statusAt ?? second.startedAt ?? 0) - (first.statusAt ?? first.startedAt ?? 0),
+        )[0];
+      if (!recent) {
+        throw new BoardError(409, 'there is no voice session or live session to send it to');
+      }
+      target = { id: recent.session, name: recent.name ?? path.basename(recent.cwd) };
     }
-    const { it2, session } = await this.sessions.typeable(sessionId);
-    const card = (await this.snapshot()).lanes
-      .flatMap((lane) => lane.cards)
-      .find((one) => one.backlog?.id === id);
-    if (!card?.backlog?.assign?.candidates.some((one) => one.id === sessionId)) {
-      throw new BoardError(409, 'that session cannot take this item (its repo, or it is not free)');
-    }
+    const { it2, session } = await this.sessions.typeable(target.id, !!live);
     const prompt = assignLine(item);
     const failed = await this.sessions.send(it2, session, prompt);
     if (failed) {
       throw new BoardError(409, failed);
     }
-    this.backlog.assign(id, { session: sessionId, branch: assignBranch(item), by: who });
+    this.backlog.assign(id, { session: target.id, branch: assignBranch(item), by: who });
     this.invalidate();
-    return prompt;
+    return { typed: prompt, session: target.name };
   }
 
   /**

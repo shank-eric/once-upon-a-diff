@@ -3,7 +3,7 @@
  * what is working it: worktrees on its branch, sessions, its ledger agent, and whether it merged (backlog-links.ts).
  */
 import { checkoutFor, sameRepo, seenCheckouts } from '../../config/repos.ts';
-import { assignLine, backlogCards, liveAssignment } from '../../backlog/backlog.ts';
+import { assignLine, backlogCards } from '../../backlog/backlog.ts';
 import type { BacklogItem } from '../../backlog/backlog.ts';
 import {
   agentLinks,
@@ -14,8 +14,6 @@ import {
 import type { Worktree } from '../../backlog/backlog-links.ts';
 import { checkoutsOf } from '../../worktrees/checkouts.ts';
 import type { LedgerAgent } from '../../ledger/ledger.ts';
-import { assignCandidates } from '../../sessions/listening.ts';
-import type { ListeningInput } from '../../sessions/listening.ts';
 import type { LiveSession } from '../../../adapters/claude-sessions/registry.ts';
 import type {
   BoardBeat,
@@ -198,11 +196,9 @@ export async function readBacklogLinks(
   return links;
 }
 
-/** What the open items' Assign candidates are worked out from. */
+/** What the open items' cards are worked out from: the sessions' views (for the title of the one an item was sent to) and the sessions an item may stand in for. */
 export interface AssignFacts {
-  listening: ListeningInput;
   sessionViews: Map<string, BoardSession>;
-  blankViews: { lane: string; view: BoardSession }[];
   quietViews: BoardSession[];
   pin: PinnedVoice | null;
   repoBySession: Map<string, string | null>;
@@ -218,7 +214,7 @@ export function addBacklogCards(
   cards: BoardCard[],
   backlogItems: BacklogItem[],
   links: Map<string, BoardStartedLinks>,
-  { listening, sessionViews, blankViews, quietViews, pin, repoBySession }: AssignFacts,
+  { sessionViews, quietViews, pin, repoBySession }: AssignFacts,
 ): BoardCard[] {
   const { nowMs } = ctx;
   const cardless = [
@@ -232,8 +228,7 @@ export function addBacklogCards(
   const added = backlogCards(backlogItems, cards, nowMs, cardless, links);
   const all = [...cards, ...added];
 
-  // Assign: who may be handed each open item. Not the voice session or one that listens (`apart`, as for Start listening),
-  // and not one already holding another item's live assignment
+  // Assign: sends the voice session "Start backlog card ...", so every open item the board is not already working has it
   for (const card of all) {
     const item = card.backlog && backlogItems.find((one) => one.id === card.backlog?.id);
     // (an item a ledger agent is working has its agent's chip, not an Assign)
@@ -243,25 +238,10 @@ export function addBacklogCards(
     if (card.backlog.started || (card.backlog.agent && !card.backlog.agent.tried)) {
       continue;
     }
-    const taken = new Set(
-      backlogItems
-        .filter((other) => other.id !== item.id)
-        .map((other) => liveAssignment(other, nowMs)?.session)
-        .filter((id): id is string => !!id),
-    );
-    // an item held by a session (assigned lately, not started) can only be sent to that one again, until it expires
-    const holder = liveAssignment(item, nowMs)?.session;
-    card.backlog.assign = {
-      candidates: assignCandidates(
-        item.repo,
-        listening,
-        new Set(taken),
-        new Set(blankViews.map((one) => one.view.id)),
-      ).filter((one) => !holder || one.id === holder),
-      prompt: assignLine(item),
-    };
+    card.backlog.assign = { prompt: assignLine(item) };
     if (card.backlog.assigned) {
-      const view = sessionViews.get(card.backlog.assigned.session);
+      const sent = card.backlog.assigned.session;
+      const view = sessionViews.get(sent) ?? (pin?.view.id === sent ? pin.view : undefined);
       card.backlog.assigned.session_title = view?.title ?? null;
     }
   }

@@ -152,15 +152,8 @@ test('the board’s bodies keep their messages: a session id, a kind, a flag, an
     id: 'bl_abcdef',
     edge: 'top',
   });
-  bad(
-    'boardBacklogAssign',
-    { id: 'nope', session: 's1' },
-    'a backlog item id and a session id are needed',
-  );
-  assert.deepEqual(ok('boardBacklogAssign', { id: 'bl_abcdef', session: 's1' }), {
-    id: 'bl_abcdef',
-    session: 's1',
-  });
+  bad('boardBacklogAssign', { id: 'nope' }, 'a backlog item id is needed');
+  assert.deepEqual(ok('boardBacklogAssign', { id: 'bl_abcdef' }), { id: 'bl_abcdef' });
 });
 
 test('worktree clean: ack and ignored take a string or a list, empty ones dropped, at most 100', () => {

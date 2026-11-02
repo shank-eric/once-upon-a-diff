@@ -12,7 +12,7 @@ import { readSettings } from '../config/settings.ts';
 import { REPO_RE, repoOfCheckoutAsync, sameRepo, storyRepo } from '../config/repos.ts';
 import { ID_RE as STORY_ID_RE, readMeta } from '../stories/meta.ts';
 import type { StoryStore } from '../stories/store.ts';
-import { findIt2, focusTab, typeLine } from '../../adapters/iterm.ts';
+import { findIt2, focusTab, typeLine, type StatusSource } from '../../adapters/iterm.ts';
 import { liveSessions, type LiveSession } from '../../adapters/claude-sessions/registry.ts';
 import { pickSource } from './sources.ts';
 import { BoardError } from '../errors.ts';
@@ -43,13 +43,15 @@ export class Sessions {
   private options: {
     /** for tests: their own tab typing */
     typeLine?: typeof typeLine;
+    /** for tests: their own tab statuses, in place of the configured source */
+    source?: StatusSource;
   };
 
   constructor(
     home: string,
     stories: StoryStore,
     feed: SessionsFeed,
-    options: { typeLine?: typeof typeLine } = {},
+    options: { typeLine?: typeof typeLine; source?: StatusSource } = {},
   ) {
     this.home = home;
     this.stories = stories;
@@ -89,8 +91,15 @@ export class Sessions {
     }
   }
 
-  /** The it2 CLI and the live session to type into, or the BoardError saying why not: no it2, no such session, busy, or waiting on you. */
-  async typeable(sessionId: string): Promise<{ it2: string; session: LiveSession }> {
+  /**
+   * The it2 CLI and the live session to type into, or the BoardError saying why not: no it2, no such session, busy, or waiting
+   * on you. `allowBusy` lets a working session take the line (Claude Code queues what is typed while it works): only for the
+   * voice session, which is always mid-turn, and only when iTerm reports that tab's status.
+   */
+  async typeable(
+    sessionId: string,
+    allowBusy = false,
+  ): Promise<{ it2: string; session: LiveSession }> {
     const settings = readSettings(this.home).board;
     const it2 = settings.statusSource === 'registry' ? null : findIt2(settings.it2Path);
     if (!it2) {
@@ -105,11 +114,15 @@ export class Sessions {
     if (!session) {
       throw new BoardError(404, 'no live Claude Code session with that id');
     }
-    const tab = (
-      await pickSource(settings.statusSource, settings.it2Path).source.statuses([session])
-    ).get(sessionId);
+    const source =
+      this.options.source ?? pickSource(settings.statusSource, settings.it2Path).source;
+    const tab = (await source.statuses([session])).get(sessionId);
+    if (allowBusy && !tab) {
+      // a working session takes the line only when its tab says it is not waiting on you: no word from the tab means no
+      throw new BoardError(409, 'iTerm has no status for that tab, so it is not safe to type into');
+    }
     const status = tab?.status ?? (session.status === 'busy' ? 'working' : 'idle');
-    if (session.status === 'busy' || status === 'working') {
+    if (!allowBusy && (session.status === 'busy' || status === 'working')) {
       throw new BoardError(409, 'session busy');
     }
     if (status === 'waiting') {

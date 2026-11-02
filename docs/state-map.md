@@ -154,7 +154,7 @@ All seven were checked again on 0741c6c and are still open, though the atomic wr
 4. **Two sessions with one consumer name.** Two sessions running `/once-upon-listen owner/repo` both default to `repo-owner-name` (`consumerOf`, `cli/commands/inbox.ts`). They share one cursor and one heartbeat file, race on the cursor, and the bridge sees one listener. Nothing warns about it.
 5. **The bridge writes into checkouts on reads.** `GET …/version`, `pulse` and `load` on a local story over `HEAD` run `refreshLocal`, which rewrites `local.diff` and `meta.json` in the worktree, while `once-upon local` may be writing the same files from the CLI. (A pinned story writes `local.diff` only when it's missing.) `GET /api/stories/<local id>` also rewrites `checkouts.json`.
 6. **`publish` isn't atomic across files.** `publishPrStory` (`services/stories/publish.ts`) copies two files and then writes `meta.json`, each atomic on its own, but not together. A pulse in between serves new chapters with the old `head_oid` for up to one poll.
-7. **Board typing is check-then-act.** Build story, Start listening and Assign check that the session is at its prompt (`Sessions.typeable` in `services/sessions/sessions.ts`), then call `it2 session run` (`adapters/iterm.ts`). A prompt typed in between gets the line appended.
+7. **Board typing is check-then-act.** Build story, Start listening and Assign check that the session is at its prompt (`Sessions.typeable` in `services/sessions/sessions.ts`; Assign lets the voice session be mid-turn), then call `it2 session run` (`adapters/iterm.ts`). A prompt typed in between gets the line appended.
 
 ### Duplicates
 

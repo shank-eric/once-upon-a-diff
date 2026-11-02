@@ -1,15 +1,13 @@
 /*
- * The Backlog column's parts, drawn by Preact (ADR-14): a Backlog card (Assign, Copy start line, Drop), the + Add button and
+ * The Backlog column's parts, drawn by Preact (ADR-14): a Backlog card (Assign, Drop), the + Add button and
  * Add panel, and drag and drop (and Alt+Up/Down) to reorder a lane. The page root calls the two hooks, so the Backlog
  * column (the columns region) gets its button, its panel and its drag handlers handed in and imports none of this.
  */
 import { html, useEffect, useRef, useState } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { openMenu } from '/assets/local/menu.ts';
-import type { BoardAssign, BoardCard, BoardData } from '/assets/types.ts';
-import { obviousChoice } from '/assets/util/choice.ts';
-import { compactAge } from '/assets/util/time.ts';
-import { ago, CardTrees, titleOf, type Api } from '/assets/board/shared.ts';
+import type { BoardCard, BoardData } from '/assets/types.ts';
+import { ago, CardTrees, type Api } from '/assets/board/shared.ts';
 import { agentOnlyChips, startedChips } from '/assets/util/started-chips.ts';
 
 /** The ids of the Backlog cards in a card's lane, in the order the board shows them. */
@@ -18,15 +16,6 @@ export function backlogLane(card: BoardCard, board: BoardData | null): string[] 
   return (lane?.cards ?? [])
     .filter((one) => one.column === 'backlog' && one.backlog)
     .map((one) => (one.backlog as { id: string }).id);
-}
-
-/** The session Assign uses without asking: the only one, the only blank one, else (no blank ones) the clearly freshest. */
-export function assignObvious(candidates: BoardAssign['candidates']) {
-  const blanks = candidates.filter((one) => one.blank);
-  if (blanks.length) {
-    return blanks.length === 1 ? blanks[0] : null;
-  }
-  return obviousChoice(candidates);
 }
 
 /** Where `dragged` goes in its lane's ids if put before (or after) `target`: before the item now there, or the bottom. */
@@ -48,51 +37,38 @@ type Where = { before: string } | { edge: 'top' | 'bottom' };
 const findItem = (board: BoardData, id: string) =>
   board.lanes.flatMap((lane) => lane.cards).find((one) => one.backlog?.id === id);
 
-/** Asks first, then has the bridge type the item's start line into the session (the bridge builds it; the page sends two ids). */
-async function assignInto(api: Api, id: string, session: string, line: string) {
-  if (
-    !window.confirm(`Type this into "${titleOf(api.board, session)}" and press Enter?\n\n${line}`)
-  ) {
-    return;
-  }
-  try {
-    await api.bridge.ask(ROUTES.boardBacklogAssign, { body: { id, session } });
-    await api.refresh();
-  } catch (err) {
-    alert(`Couldn't assign it: ${(err as Error).message}`);
-  }
-}
-
-/** Assign: types the item's start line into an idle session in its repo. Several with no obvious one: a menu. */
-function Assign(props: { id: string; assign: BoardAssign; again: boolean; api: Api }) {
-  const { id, assign, again, api } = props;
-  const { candidates, prompt } = assign;
-  const choosing = candidates.length > 1 && !assignObvious(candidates);
-  let title = 'No idle session with an iTerm tab is free for this item';
-  if (candidates.length) {
-    title = choosing
-      ? 'Choose an idle session to hand this item to'
-      : 'Types the start line into an idle session';
-  }
-  const run = (event: MouseEvent) => {
-    // one obvious session (the only one, a blank one, or clearly the freshest): use it; else a menu, blank ones first
-    const obvious = assignObvious(candidates);
-    if (obvious || candidates.length === 1) {
-      void assignInto(api, id, (obvious ?? candidates[0]).id, prompt);
-    } else if (candidates.length) {
-      openMenu(
-        event.currentTarget as HTMLElement,
-        candidates.map((one) => ({
-          value: one.id,
-          label: one.title,
-          detail: `${one.blank ? 'new' : one.status}${one.since ? ` ${compactAge(one.since, Date.now())}` : ''}${one.branch ? ` · ${one.branch}` : ''}${one.repo ? ` · ${one.repo}` : ''}`,
-        })),
-        (session) => void assignInto(api, id, session, prompt),
-        { label: 'Sessions to hand it to' },
-      );
+/**
+ * Assign: asks the bridge to tell the voice session to start the item ("Start backlog card <id>: <title>", typed into its
+ * tab; the page sends only the id). Always on. The answer, or the reason it was refused, shows beside the button for a few
+ * seconds, and the card's own "assigned to" chip follows with the next poll.
+ */
+function Assign(props: { id: string; again: boolean; api: Api }) {
+  const { id, again, api } = props;
+  const [note, setNote] = useState<{ text: string; bad: boolean } | null>(null);
+  const sending = useRef(false);
+  useEffect(() => {
+    if (!note) {
+      return;
+    }
+    const timer = setTimeout(() => setNote(null), 6000);
+    return () => clearTimeout(timer);
+  }, [note]);
+  const run = async () => {
+    if (sending.current) {
+      return;
+    }
+    sending.current = true;
+    try {
+      const sent = await api.bridge.ask(ROUTES.boardBacklogAssign, { body: { id } });
+      setNote({ text: `Sent to ${sent.session}`, bad: false });
+      await api.refresh();
+    } catch (err) {
+      setNote({ text: `Not sent: ${(err as Error).message}`, bad: true });
+    } finally {
+      sending.current = false;
     }
   };
-  return html`<button type="button" data-backlog-assign=${id} disabled=${!candidates.length} ...${choosing ? { 'aria-haspopup': 'menu', 'aria-expanded': 'false' } : {}} onClick=${run} title=${title}>${again ? 'Send again' : 'Assign'}${choosing && ' ▾'}</button>`;
+  return html`<button type="button" data-backlog-assign=${id} onClick=${run} title="Tell the voice session to start this card">${again ? 'Send again' : 'Assign'}</button>${note && html`<span class="ou-local-muted ou-board-assign-note" data-backlog-assign-note=${note.bad ? 'refused' : 'sent'} role="status">${note.text}</span>`}`;
 }
 
 /** What a Backlog card needs for drag and drop (from useBacklogDnd): its marks and its handlers. */
@@ -121,13 +97,6 @@ export function BacklogCard(props: { card: BoardCard; now: number; api: Api; dnd
   ]
     .filter(Boolean)
     .join(' ');
-  const copy = async (line: string) => {
-    try {
-      await navigator.clipboard.writeText(line);
-    } catch {
-      alert('Copying was blocked: select the line on the card and copy it.');
-    }
-  };
   const drop = async (id: string) => {
     try {
       await api.bridge.ask(ROUTES.boardBacklogDrop, { body: { id } });
@@ -147,8 +116,7 @@ export function BacklogCard(props: { card: BoardCard; now: number; api: Api; dnd
     ${item && !item.started && !(item.agent && !item.agent.tried) && html`<div class="ou-board-startline"><code>${item.start_line}</code></div>`}
     <${CardTrees} card=${card} now=${now} api=${api} />
     <div class="ou-board-actions">
-      ${item?.assign && !item.started && html`<${Assign} id=${item.id} assign=${item.assign} again=${!!item.assigned} api=${api} />`}
-      ${item && !item.started && !(item.agent && !item.agent.tried) && html`<button type="button" data-backlog-copy=${item.start_line} onClick=${() => copy(item.start_line)} title="Copy the line that starts it">Copy start line</button>`}
+      ${item?.assign && !item.started && html`<${Assign} id=${item.id} again=${!!item.assigned} api=${api} />`}
       ${item && html`<button type="button" data-backlog-drop=${item.id} onClick=${() => drop(item.id)} title="Drop it from the backlog (the line stays in the file)">Drop</button>`}
     </div>
   </li>`;
