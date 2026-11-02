@@ -100,6 +100,8 @@ const BOARD_KEY_REACH = [
   'POST /api/board/voice/pause',
   'POST /api/board/voice/phone',
   'POST /api/board/voice/phone/bridge-stop',
+  'POST /api/board/voice/start',
+  'POST /api/board/voice/stop',
   'POST /api/board/worktree/clean',
 ];
 

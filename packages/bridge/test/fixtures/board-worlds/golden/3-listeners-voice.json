@@ -515,6 +515,47 @@
       "status": "working",
       "title": "clarifi-f9"
     },
+    "voice_paused": false,
+    "voice_start": {
+      "candidates": [
+        {
+          "id": "<PID:9>-aaaa-bbbb-cccc-dddddddddddd",
+          "idle": true,
+          "name": "listener-one"
+        },
+        {
+          "id": "<PID:10>-aaaa-bbbb-cccc-dddddddddddd",
+          "idle": true,
+          "name": "listener-two"
+        },
+        {
+          "id": "<PID:11>-aaaa-bbbb-cccc-dddddddddddd",
+          "idle": false,
+          "name": "clarifi-f9"
+        },
+        {
+          "id": "<PID:12>-aaaa-bbbb-cccc-dddddddddddd",
+          "idle": true,
+          "name": "Tab title"
+        },
+        {
+          "id": "<PID:13>-aaaa-bbbb-cccc-dddddddddddd",
+          "idle": true,
+          "name": "Tab title"
+        },
+        {
+          "id": "<PID:14>-aaaa-bbbb-cccc-dddddddddddd",
+          "idle": true,
+          "name": "Tab title"
+        },
+        {
+          "id": "<PID:15>-aaaa-bbbb-cccc-dddddddddddd",
+          "idle": false,
+          "name": "Tab title"
+        }
+      ],
+      "last": null
+    },
     "warning": null,
     "worktrees": {
       "at": null,

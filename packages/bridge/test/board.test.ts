@@ -3145,7 +3145,12 @@ if [ -f refuse ] && [ "$2" = phone-on ]; then
   echo '{"ok": false, "why": "The phone isn'"'"'t paired yet. Pair it first.", "away": false, "bridge": false}'
   exit 0
 fi
+if [ -f refuse ] && [ "$2" = start ]; then
+  echo '{"ok": false, "why": "Voice is already on in another session", "away": false, "bridge": false, "voice": {"on": true, "paused": false}}'
+  exit 0
+fi
 case "$2" in
+  start) echo '{"ok": true, "why": "", "away": false, "bridge": false, "voice": {"on": true, "paused": false}}';;
   phone-on) echo 'noise before the answer'; echo '{"ok": true, "why": "", "away": true, "bridge": true}';;
   *) echo '{"ok": true, "why": "", "away": false, "bridge": false}';;
 esac
@@ -3181,15 +3186,35 @@ test('the phone buttons need the checkout’s venv python and app/voice_ctl.py',
   assert.equal(phoneReady(tmp('board-no-larmor')), false);
 });
 
-test('runVoiceCtl runs only the three phone commands, from the checkout, and reads the last line it prints', async () => {
+test('runVoiceCtl runs only the phone, start and stop commands, from the checkout, and reads the last line it prints', async () => {
   const larmor = fakeLarmor();
-  assert.throws(() => runVoiceCtl(larmor, 'stop' as PhoneCommand), /not an allowed/);
+  assert.throws(() => runVoiceCtl(larmor, 'status' as PhoneCommand), /not an allowed/);
   assert.throws(() => runVoiceCtl(larmor, 'pause' as PhoneCommand), /not an allowed/);
+  // a session id goes to start alone, and only in an id's own shape
+  assert.throws(() => runVoiceCtl(larmor, 'stop', 'sess-1'), /not an allowed/);
+  assert.throws(() => runVoiceCtl(larmor, 'start', '--help'), /not an allowed/);
+  assert.throws(() => runVoiceCtl(larmor, 'start', 'a b; rm'), /not an allowed/);
+  assert.deepEqual(await runVoiceCtl(larmor, 'start', 'sess-1'), {
+    ok: true,
+    why: '',
+    away: false,
+    bridge: false,
+    voiceOn: true,
+  });
+  assert.deepEqual(await runVoiceCtl(larmor, 'stop'), {
+    ok: true,
+    why: '',
+    away: false,
+    bridge: false,
+    voiceOn: false,
+  });
+  rmSync(path.join(larmor, 'calls.log'));
   assert.deepEqual(await runVoiceCtl(larmor, 'phone-on'), {
     ok: true,
     why: '',
     away: true,
     bridge: true,
+    voiceOn: false,
   });
   assert.equal(readFileSync(path.join(larmor, 'calls.log'), 'utf8'), 'app/voice_ctl.py phone-on\n');
   writeFileSync(path.join(larmor, 'silent'), '');
@@ -3225,7 +3250,9 @@ test('the phone state: null without a ready board_larmor_dir, else phone mode fr
       now: () => NOW,
     });
   writeJson(path.join(home, 'config.json'), settings);
-  assert.equal((await make().snapshot()).phone, null, 'no checkout to ask');
+  const noCheckout = await make().snapshot();
+  assert.equal(noCheckout.phone, null, 'no checkout to ask');
+  assert.equal(noCheckout.voice_start, null, 'nor to start voice with');
   const server = createServer((socket) => socket.end());
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   writeJson(path.join(voiceDir, 'phone.json'), {
@@ -3235,6 +3262,22 @@ test('the phone state: null without a ready board_larmor_dir, else phone mode fr
   writeJson(path.join(home, 'config.json'), { ...settings, board_larmor_dir: larmorDir });
   forgetProbes();
   assert.deepEqual((await make().snapshot()).phone, { on: false, bridge: true });
+  // Start voice: the live sessions with whether each is at its prompt, and the last voice session when it is still live
+  const started = (await make().snapshot()).voice_start;
+  assert.equal(started?.last, null, 'no last-voice.json yet');
+  assert.deepEqual(
+    started?.candidates.map((one) => [one.id, one.idle]),
+    [[fullId(child.pid), true]],
+  );
+  writeJson(path.join(voiceDir, 'last-voice.json'), { session_id: fullId(child.pid), at: 1 });
+  assert.equal((await make().snapshot()).voice_start?.last?.id, fullId(child.pid));
+  writeJson(path.join(voiceDir, 'last-voice.json'), { session_id: 'gone-session', at: 1 });
+  assert.equal(
+    (await make().snapshot()).voice_start?.last,
+    null,
+    'a session that ended is not offered',
+  );
+  rmSync(path.join(voiceDir, 'last-voice.json'));
   writeJson(path.join(home, 'config.json'), {
     ...settings,
     board_larmor_dir: tmp('board-larmor-bare'),
@@ -3317,6 +3360,129 @@ test('POST /api/board/voice/phone and /phone/bridge-stop ask Larmor’s voice_ct
   // another page's key doesn't reach them
   assert.equal((await post('phone', { on: true }, pageKey(TOKEN, 'x'))).status, 403);
   assert.equal((await post('phone/bridge-stop', {}, pageKey(TOKEN, 'x'))).status, 403);
+});
+
+test('the voice state: a pause file shows with voice off, only interactive sessions can take Start, and a dead owner means voice is off', async () => {
+  const home = tmp('board-voice-facts');
+  const sessions = tmp('board-sessions');
+  const voiceDir = tmp('board-voice');
+  const [shown, headless] = [liveChild(), liveChild()];
+  after(() => {
+    shown.stop();
+    headless.stop();
+  });
+  const ledger = path.join(tmp('board-notes'), 'ledger.md');
+  writeFileSync(ledger, '');
+  registry(sessions, shown.pid, { status: 'idle', kind: 'interactive' }, shown.procStart);
+  registry(sessions, headless.pid, { status: 'idle', kind: 'sdk-cli' }, headless.procStart);
+  writeJson(path.join(home, 'config.json'), {
+    board_ledger_file: ledger,
+    board_sessions_dir: sessions,
+    board_voice_dir: voiceDir,
+    board_larmor_dir: fakeLarmor(),
+  });
+  const snap = () =>
+    new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+      source: sourceSaying({}),
+      now: () => NOW,
+    }).snapshot();
+  assert.equal((await snap()).voice_paused, false);
+  assert.deepEqual(
+    (await snap()).voice_start?.candidates.map((one) => one.id),
+    [fullId(shown.pid)],
+    'a session that is not interactive is not offered',
+  );
+  // a pause left behind: voice is off (no session file), and the page can still Resume
+  writeFileSync(path.join(voiceDir, 'paused'), '');
+  const left = await snap();
+  assert.equal(left.voice, null);
+  assert.equal(left.voice_paused, true);
+  // voice on in a live owner, then the owner dies: the file still says on, Larmor counts it as off
+  const owner = liveChild();
+  writeJson(path.join(voiceDir, 'session'), {
+    on: true,
+    session_id: fullId(shown.pid),
+    owner: owner.pid,
+  });
+  assert.equal((await snap()).voice?.status, 'paused');
+  owner.stop();
+  await new Promise((resolve) => setTimeout(resolve, 200));
+  assert.equal((await snap()).voice, null, 'owner gone: voice is off');
+});
+
+test('POST /api/board/voice/start and /stop ask Larmor’s voice_ctl with the board key, one at a time, and carry its refusal', async () => {
+  const home = tmp('board-voice-start-post');
+  const voiceDir = tmp('board-voice');
+  const larmor = fakeLarmor();
+  const bridge = await startBridge({ home });
+  open.push(bridge);
+  const post = (route: string, body: unknown, key = boardKey(TOKEN)) =>
+    bridge.call('POST', `/api/board/voice/${route}`, body, { Authorization: `Bearer ${key}` });
+  const calls = () => readFileSync(path.join(larmor, 'calls.log'), 'utf8');
+  assert.equal((await post('start', {})).status, 400, 'no folders are set');
+  writeJson(path.join(home, 'config.json'), {
+    board_voice_dir: voiceDir,
+    board_larmor_dir: larmor,
+  });
+  const bad = await post('start', { session: '--help' });
+  assert.equal(bad.status, 400, bad.text);
+  assert.equal((await post('start', { session: 5 })).status, 400);
+  const started = await post('start', { session: 'sess-1' });
+  assert.equal(started.status, 200);
+  assert.deepEqual(JSON.parse(started.text), { ok: true, voice: true });
+  assert.equal((await post('start', {})).status, 200, 'the session is optional');
+  const stopped = await post('stop', {});
+  assert.equal(stopped.status, 200);
+  assert.deepEqual(JSON.parse(stopped.text), { ok: true, voice: false });
+  assert.equal(
+    calls(),
+    'app/voice_ctl.py start sess-1\napp/voice_ctl.py start\napp/voice_ctl.py stop\n',
+  );
+  writeFileSync(path.join(larmor, 'refuse'), '');
+  const refused = await post('start', { session: 'sess-1' });
+  assert.equal(refused.status, 409);
+  assert.match(refused.text, /already on in another session/);
+  rmSync(path.join(larmor, 'refuse'));
+  // one call at a time across start, stop and the phone buttons
+  writeFileSync(path.join(larmor, 'slow'), '');
+  const first = post('start', {});
+  await new Promise((resolve) => setTimeout(resolve, 300));
+  assert.equal((await post('stop', {})).status, 409);
+  assert.equal((await first).status, 200);
+  assert.equal((await post('start', {}, pageKey(TOKEN, 'x'))).status, 403);
+  assert.equal((await post('stop', {}, pageKey(TOKEN, 'x'))).status, 403);
+});
+
+test('Stop phone bridge holds the one-call guard until the bridge is down', async () => {
+  const home = tmp('board-bridge-down-guard');
+  const voiceDir = tmp('board-voice');
+  const larmor = fakeLarmor();
+  const server = createServer((socket) => socket.end());
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  writeJson(path.join(voiceDir, 'phone.json'), {
+    sink_port: (server.address() as { port: number }).port,
+  });
+  forgetProbes();
+  const bridge = await startBridge({ home });
+  open.push(bridge);
+  writeJson(path.join(home, 'config.json'), {
+    board_voice_dir: voiceDir,
+    board_larmor_dir: larmor,
+  });
+  const post = (route: string, body: unknown) =>
+    bridge.call('POST', `/api/board/voice/${route}`, body, {
+      Authorization: `Bearer ${boardKey(TOKEN)}`,
+    });
+  const stopping = post('phone/bridge-stop', {});
+  await new Promise((resolve) => setTimeout(resolve, 500));
+  assert.equal(
+    (await post('phone', { on: true })).status,
+    409,
+    'still waiting for the bridge to go',
+  );
+  setTimeout(() => server.close(), 200);
+  assert.equal((await stopping).status, 200);
+  assert.equal((await post('phone', { on: false })).status, 200, 'free once it is down');
 });
 
 test('Board.setVoicePaused drops the kept snapshot, so the refresh right after Pause or Resume sees it', async () => {

@@ -94,7 +94,8 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     blank: state.blank,
     titles: state.titles,
   });
-  const { waits, parents, sessionByPid, voiceFiles, phone, statusLines } = facts;
+  const { waits, parents, sessionByPid, voiceFiles, phone, voiceStart, voicePaused, statusLines } =
+    facts;
 
   const placed = placeSessions(ctx, liveFacts, facts, works, state.seen);
   const { sessionCards, quietViews, blankViews, repoBySession } = placed;
@@ -153,6 +154,8 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     warning: picked.warning,
     voice: voiceOf(pin, voiceFiles, agents, nowMs, settings.voiceDir as string),
     phone,
+    voice_start: voiceStart,
+    voice_paused: voicePaused,
     listeners: listenersLane(waits, listening),
     blank: blankStrip(blankViews),
     lanes,

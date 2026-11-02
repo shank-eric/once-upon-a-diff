@@ -97,6 +97,8 @@ const EMPTY: BoardData = {
   warning: null,
   voice: null,
   phone: null,
+  voice_start: null,
+  voice_paused: false,
   listeners: [],
   blank: [],
   lanes: [],

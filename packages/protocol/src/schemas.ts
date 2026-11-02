@@ -257,6 +257,7 @@ export const BODIES = {
   }),
   boardVoicePause: object({ paused: boolean() }),
   boardVoicePhone: object({ on: boolean() }),
+  boardVoiceStart: object({ session: optional(sessionId) }),
   boardStopListening: object({ repo: optional(string(), '') }),
   boardFocus: object({ session: sessionId }),
   boardOpenStory: object({ story: optional(string(), '') }),
@@ -316,6 +317,7 @@ const FIELD_MESSAGES: Partial<Record<BodyName, Record<string, string>>> = {
   },
   boardVoicePause: { paused: 'paused (true or false) is needed' },
   boardVoicePhone: { on: 'on (true or false) is needed' },
+  boardVoiceStart: { session: 'session must be a session id' },
   boardFocus: { session: 'a session id is needed' },
   boardBacklogMove: { edge: MOVE_NEEDS },
   boardBacklogAssign: {

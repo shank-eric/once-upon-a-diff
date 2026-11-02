@@ -1,6 +1,6 @@
 /*
  * The board's top header, drawn by Preact (ADR-14): the title and the summary line, the usage meters, the repo filter and the
- * voice controls (Resume, the phone-mode toggle, Stop phone bridge). The filter's value is the page root's (remembered).
+ * voice controls (Start, Pause or Resume and Stop voice, and the Phone menu). The filter's value is the page root's (remembered).
  */
 import { html, useState } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/protocol/routes.ts';
@@ -49,41 +49,62 @@ function Usage(props: { usage: BoardUsage | null; now: number }) {
 }
 
 /**
- * What the voice buttons are waiting on, kept by the page root so that it outlives the header: a resume is out, or a phone-mode
- * or bridge call is running (the row's buttons all wait while Larmor works; turning on can take several seconds).
+ * What the voice buttons are waiting on, kept by the page root so that it outlives the header: a Larmor call that is out
+ * (Start voice takes up to about 20 s, Stop voice about 3 s), or a phone-mode or bridge call (the row's buttons all wait
+ * while Larmor works; turning phone mode on can take several seconds).
  */
+export type VoiceCall = '' | 'start' | 'stop' | 'pause';
 export function useVoiceBusy() {
-  const [resuming, setResuming] = useState(false);
+  const [voiceCall, setVoiceCall] = useState<VoiceCall>('');
   const [phoneBusy, setPhoneBusy] = useState(false);
-  return { resuming, setResuming, phoneBusy, setPhoneBusy };
+  return { voiceCall, setVoiceCall, phoneBusy, setPhoneBusy };
 }
 export type VoiceBusy = ReturnType<typeof useVoiceBusy>;
 
 /**
- * The voice controls in the board's top header, the rightmost items (past the repo dropdown): Resume while voice is paused,
- * the phone-mode toggle whenever the Larmor checkout can run it, voice on or not (Larmor's away mode, which starts the phone
- * bridge), and Stop phone bridge while the bridge runs. Nothing when none applies.
+ * The voice controls in the board's top header, the rightmost items (past the repo dropdown):
+ *  - voice off: Start voice in the last voice session, and a menu of the other sessions at their prompt (Larmor types
+ *    /larmor into the tab, as its menu bar does; the last session busy leaves the others);
+ *  - voice on: Pause (Resume while paused) and Stop voice;
+ *  - a Phone menu (a dot while phone mode is on): turn phone mode on or off, and Stop phone bridge while the bridge runs.
+ * Start and Stop need the Larmor checkout that can run voice_ctl; Pause and Resume only need its folder. Nothing when none applies.
  */
 function VoiceControls(props: {
   voice: BoardData['voice'];
   phone: BoardData['phone'];
+  voiceStart: BoardData['voice_start'];
+  voicePaused: boolean;
   api: Api;
   busy: VoiceBusy;
 }) {
-  const { voice, phone, api } = props;
-  const { resuming, setResuming, phoneBusy, setPhoneBusy } = props.busy;
-  const resume = async () => {
-    setResuming(true);
+  const { voice, phone, voiceStart, voicePaused, api } = props;
+  const { voiceCall, setVoiceCall, phoneBusy, setPhoneBusy } = props.busy;
+  const waiting = voiceCall !== '' || phoneBusy;
+  const voiceOn = !!voice && voice.status !== 'ended';
+  const voiceCallOf = async (kind: VoiceCall, what: string, call: () => Promise<unknown>) => {
+    if (waiting) {
+      return;
+    }
+    setVoiceCall(kind);
     try {
-      await api.bridge.ask(ROUTES.boardVoicePause, { body: { paused: false } });
+      await call();
     } catch (err) {
-      alert(`Couldn't resume voice: ${(err as Error).message}`);
+      alert(`Couldn't ${what}: ${(err as Error).message}`);
     }
     await api.refresh();
-    setResuming(false);
+    setVoiceCall('');
   };
+  const pause = (paused: boolean) =>
+    voiceCallOf('pause', paused ? 'pause voice' : 'resume voice', () =>
+      api.bridge.ask(ROUTES.boardVoicePause, { body: { paused } }),
+    );
+  const start = (session?: string) =>
+    voiceCallOf('start', 'start voice', () =>
+      api.bridge.ask(ROUTES.boardVoiceStart, { body: session ? { session } : {} }),
+    );
+  const stop = () => voiceCallOf('stop', 'stop voice', () => api.bridge.ask(ROUTES.boardVoiceStop));
   const phoneCall = async (action: 'on' | 'off' | 'bridge-stop') => {
-    if (phoneBusy) {
+    if (waiting) {
       return;
     }
     setPhoneBusy(true);
@@ -102,17 +123,81 @@ function VoiceControls(props: {
     }
     await api.refresh();
   };
-  const phoneModeTitle = phone?.on
-    ? 'Phone mode is on: lines go to your phone. Turn it off to play them on the Mac again'
-    : "Send voice lines to your phone and release the Mac's mic (starts the phone bridge)";
+  const pickSession = (event: MouseEvent) => {
+    const idle = (voiceStart?.candidates ?? []).filter((one) => one.idle);
+    if (idle.length === 0) {
+      alert("Couldn't start voice: no Claude Code session is waiting at its prompt");
+      return;
+    }
+    openMenu(
+      event.currentTarget as HTMLElement,
+      idle.map((one) => ({
+        value: one.id,
+        label: one.name,
+        checked: one.id === voiceStart?.last?.id,
+      })),
+      (id) => void start(id),
+      { label: 'Start voice in' },
+    );
+  };
+  const phoneMenu = (event: MouseEvent) => {
+    if (!phone) {
+      return;
+    }
+    openMenu(
+      event.currentTarget as HTMLElement,
+      [
+        phone.on
+          ? { value: 'off', label: 'Turn off phone mode', detail: 'Play lines on the Mac again' }
+          : {
+              value: 'on',
+              label: 'Turn on phone mode',
+              detail: "Send lines to your phone, free the Mac's mic",
+            },
+        ...(phone.bridge
+          ? [
+              {
+                value: 'bridge-stop',
+                label: 'Stop phone bridge',
+                detail: 'Also turns phone mode off',
+              },
+            ]
+          : []),
+      ],
+      (value) => void phoneCall(value as 'on' | 'off' | 'bridge-stop'),
+      { label: 'Phone' },
+    );
+  };
+  const last = voiceStart?.last
+    ? voiceStart.candidates.find((one) => one.id === voiceStart.last?.id)
+    : undefined;
+  const starting = voiceCall === 'start';
+  // a pause left by a session that died shows with voice off, and Resume is the way out (Start clears it too)
+  const paused = voiceOn ? voice?.status === 'paused' : voicePaused;
+  const lastTitle = last?.idle
+    ? 'Type /larmor into that session, as the menu bar does'
+    : `${voiceStart?.last?.name} is busy: pick another session`;
+  const pauseTitle = paused
+    ? 'Resume voice (removes ~/.larmor/paused, as the menu bar does)'
+    : 'Pause voice: the mic is released and replies come as text';
+  const phoneTitle = phone?.on ? 'Phone mode is on: lines go to your phone' : 'Phone mode is off';
   const buttons = [
-    voice?.status === 'paused' &&
-      html`<button type="button" data-voice-pause="resume" disabled=${resuming || phoneBusy} onClick=${resume} title="Resume voice (removes ~/.larmor/paused, as the menu bar does)">Resume</button>`,
+    !voiceOn &&
+      voiceStart &&
+      (last && voiceStart.last
+        ? html`<button type="button" data-voice-start="last" disabled=${waiting || !last.idle} onClick=${() => start(voiceStart.last?.id)} title=${lastTitle}>${starting ? 'Starting…' : `Start voice in ${voiceStart.last.name}`}</button>`
+        : html`<button type="button" data-voice-start="pick" disabled=${waiting} onClick=${pickSession} aria-haspopup="menu" title="Choose a session to start voice in">${starting ? 'Starting…' : 'Start voice'} ▾</button>`),
+    !voiceOn &&
+      voiceStart &&
+      last &&
+      html`<button type="button" data-voice-start-menu disabled=${waiting} onClick=${pickSession} aria-haspopup="menu" aria-label="Start voice in another session">▾</button>`,
+    (voiceOn || voicePaused) &&
+      html`<button type="button" data-voice-pause=${paused ? 'resume' : 'pause'} disabled=${waiting} onClick=${() => pause(!paused)} title=${pauseTitle}>${paused ? 'Resume' : 'Pause'}</button>`,
+    voiceOn &&
+      voiceStart &&
+      html`<button type="button" data-voice-stop disabled=${waiting} onClick=${stop} title="Stop voice, as the menu bar's Stop voice does">${voiceCall === 'stop' ? 'Stopping…' : 'Stop voice'}</button>`,
     phone &&
-      html`<button type="button" disabled=${phoneBusy} data-voice-phone=${phone.on ? 'off' : 'on'} onClick=${() => phoneCall(phone.on ? 'off' : 'on')} title=${phoneModeTitle}>${phone.on ? 'Turn off phone mode' : 'Turn on phone mode'}</button>`,
-    phone &&
-      phone.bridge &&
-      html`<button type="button" disabled=${phoneBusy} data-voice-phone="bridge-stop" onClick=${() => phoneCall('bridge-stop')} title="Stop the phone bridge (also turns phone mode off)">Stop phone bridge</button>`,
+      html`<button type="button" data-voice-phone-menu=${phone.on ? 'on' : 'off'} disabled=${waiting} onClick=${phoneMenu} aria-haspopup="menu" title=${phoneTitle}>Phone${phone.on ? ' ●' : ''} ▾</button>`,
   ].filter(Boolean);
   return buttons.length > 0
     ? html`<div class="ou-local-top-voice ou-board-voice-phone" role="group" aria-label="Voice controls">${buttons}</div>`
@@ -156,6 +241,6 @@ export function Header(props: HeaderProps) {
     <div class="ou-local-top-main"><h1>Agent board</h1><div class="ou-local-muted">${summary}</div></div>
     <${Usage} usage=${data.usage} now=${now} />
     <button type="button" data-board-filter aria-haspopup="menu" onClick=${chooseRepo} title="Narrow the whole board to one repo's lane">Repo: ${filterOn ? filter : 'All'} ▾</button>
-    <${VoiceControls} voice=${data.voice} phone=${data.phone} api=${api} busy=${busy} />
+    <${VoiceControls} voice=${data.voice} phone=${data.phone} voiceStart=${data.voice_start} voicePaused=${data.voice_paused} api=${api} busy=${busy} />
   </header>`;
 }

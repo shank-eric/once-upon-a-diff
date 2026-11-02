@@ -1045,6 +1045,13 @@ export interface BoardData {
    * its phone bridge runs. Null unless board_voice_dir and board_larmor_dir are set and the checkout can run voice_ctl.
    */
   phone: { on: boolean; bridge: boolean } | null;
+  /**
+   * What Start voice may type into: the last voice session (when it is still live) and the live sessions with whether each is
+   * at its prompt. Null when the Larmor checkout can't run voice_ctl (the same gate as `phone`).
+   */
+  voice_start: BoardVoiceStart | null;
+  /** Larmor's `paused` file exists (board_voice_dir set), voice on or not: a pause left by a session that died needs a Resume */
+  voice_paused: boolean;
   /** repos with a listener now, and those that had one in the last week */
   listeners: BoardListenerRepo[];
   /** live sessions that have had no prompt yet (new, or just cleared), by lane name: a strip in the Idle lane, not cards */
@@ -1054,6 +1061,12 @@ export interface BoardData {
   worktrees: BoardWorktrees | null;
   /** the account's usage limits as the freshest status line had them, null when none has rendered lately */
   usage: BoardUsage | null;
+}
+
+/** The sessions Start voice may type /larmor into. */
+export interface BoardVoiceStart {
+  last: { id: string; name: string } | null;
+  candidates: { id: string; name: string; idle: boolean }[];
 }
 
 /** A line of the voice conversation: who said it, what, and when (ms since the epoch). */

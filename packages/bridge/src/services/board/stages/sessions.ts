@@ -4,6 +4,7 @@
  * of its own (cards.ts); the voice session is pinned above the columns; a session that only listens is shown in the
  * Listeners lane; one with no prompt yet is a chip in the Blank strip.
  */
+import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { sameRepo } from '../../config/repos.ts';
 import { DEFAULT_BRANCHES } from '../../review/story-lists.ts';
@@ -11,7 +12,7 @@ import { readAgents, type LedgerAgent } from '../../ledger/ledger.ts';
 import type { BlankSessions } from '../../../adapters/claude-sessions/blank.ts';
 import type { SessionTitles } from '../../../adapters/claude-sessions/titles.ts';
 import { readStatusLines } from '../../../adapters/claude-sessions/statusline.ts';
-import { awayOn, bridgeUp, phoneReady, readVoice } from '../../../adapters/larmor.ts';
+import { awayOn, bridgeUp, lastVoice, phoneReady, readVoice } from '../../../adapters/larmor.ts';
 import { listeningOnly, parentMap } from '../../sessions/listening.ts';
 import { listeners, type Listener } from '../../listeners/listeners.ts';
 import { pickSource } from '../../sessions/sources.ts';
@@ -73,6 +74,9 @@ export interface SessionFacts {
   quiet: Set<string>;
   voiceFiles: ReturnType<typeof readVoice>;
   phone: BoardData['phone'];
+  /** the sessions Start voice may type into (same gate as `phone`) */
+  voiceStart: BoardData['voice_start'];
+  voicePaused: boolean;
   /** sessions with no prompt yet, at rest: the Blank strip */
   blankIds: Set<string>;
   /** each session's own title from its transcript */
@@ -147,7 +151,40 @@ export async function readSessionFacts(
     new Set(live.map((session) => session.session)),
     nowMs,
   );
-  return { waits, parents, sessionByPid, quiet, voiceFiles, phone, blankIds, titles, statusLines };
+  // Start voice: the last voice session if it is still live, and each live session with whether it is at its prompt
+  let voiceStart: BoardData['voice_start'] = null;
+  if (phone && settings.voiceDir) {
+    const candidates = live
+      .filter((session) => !session.kind || session.kind === 'interactive')
+      .map((session) => {
+        const status = known.get(session.session)?.status;
+        return {
+          id: session.session,
+          name:
+            known.get(session.session)?.title ||
+            titles.get(session.session) ||
+            session.name ||
+            path.basename(session.cwd),
+          idle: session.status !== 'busy' && (!status || status === 'idle' || status === 'done'),
+        };
+      });
+    const last = lastVoice(settings.voiceDir);
+    const lastLive = last ? candidates.find((one) => one.id === last.session) : undefined;
+    voiceStart = { last: lastLive ? { id: lastLive.id, name: lastLive.name } : null, candidates };
+  }
+  return {
+    waits,
+    parents,
+    sessionByPid,
+    quiet,
+    voiceFiles,
+    phone,
+    voiceStart,
+    voicePaused: !!settings.voiceDir && existsSync(path.join(settings.voiceDir, 'paused')),
+    blankIds,
+    titles,
+    statusLines,
+  };
 }
 
 /** Where each live session went: the cards of sessions standing alone, and the sessions set aside. */

@@ -515,6 +515,8 @@
     "status_source": "iterm",
     "usage": null,
     "voice": null,
+    "voice_paused": false,
+    "voice_start": null,
     "warning": null,
     "worktrees": {
       "at": "2026-10-26T19:00:00.000Z",

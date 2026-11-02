@@ -127,6 +127,8 @@ const board = (over: Partial<BoardData> = {}): BoardData => ({
   warning: null,
   voice,
   phone: null,
+  voice_start: null,
+  voice_paused: false,
   listeners: [],
   blank: [],
   lanes: [
@@ -582,34 +584,149 @@ test('the Worktrees lane folds, and Clean up asks first, then asks the bridge', 
   assert.ok($('.ou-board-trees-grid'));
 });
 
-test('the phone buttons wait while the bridge works, then ask for the opposite', async () => {
+/** Opens the Phone menu and picks its item by position. */
+async function pickPhone(index: number) {
+  await click($('[data-voice-phone-menu]'));
+  await click(document.querySelectorAll('.ou-menu-item')[index] as HTMLElement);
+}
+
+test('the Phone menu waits while the bridge works, then asks for the opposite', async () => {
   requests.length = 0;
   answer = () => board({ phone: { on: false, bridge: true } });
   await pollNow();
   const group = $('.ou-board-voice-phone') as HTMLElement;
+  assert.match($('[data-voice-phone-menu]')?.textContent as string, /^Phone ▾$/);
+  await click($('[data-voice-phone-menu]'));
   assert.deepEqual(
-    [...group.querySelectorAll('button')].map((one) => one.textContent),
+    [...document.querySelectorAll('.ou-menu-label')].map((one) => one.textContent),
     ['Turn on phone mode', 'Stop phone bridge'],
   );
+  await click($('[data-voice-phone-menu]')); // a second click closes it
   let release = () => {};
   held.set('/api/board/voice/phone', new Promise<void>((resolve) => (release = resolve)));
-  await click($('[data-voice-phone="on"]'));
+  await pickPhone(0);
   assert.deepEqual(sentTo('/api/board/voice/phone')[0].body, { on: true });
   assert.ok(
     ([...group.querySelectorAll('button')] as HTMLButtonElement[]).every((one) => one.disabled),
   );
-  // a second click while it is out sends nothing more
-  await click($('[data-voice-phone="on"]'));
-  assert.equal(sentTo('/api/board/voice/phone').length, 1);
   release();
   await tick();
   await tick();
   assert.ok(
     ([...group.querySelectorAll('button')] as HTMLButtonElement[]).every((one) => !one.disabled),
   );
-  await click($('[data-voice-phone="bridge-stop"]'));
+  await pickPhone(1);
   assert.equal(sentTo('/api/board/voice/phone/bridge-stop').length, 1);
   held.clear();
+  // phone mode on: a dot, and the menu offers to turn it off
+  answer = () => board({ phone: { on: true, bridge: false } });
+  await pollNow();
+  assert.match($('[data-voice-phone-menu]')?.textContent as string, /Phone ● ▾/);
+  await pickPhone(0);
+  assert.deepEqual(sentTo('/api/board/voice/phone').at(-1)?.body, { on: false });
+  answer = () => board();
+  await pollNow();
+});
+
+const START = {
+  last: { id: 'sess-1', name: 'clarifi-f9' },
+  candidates: [
+    { id: 'sess-1', name: 'clarifi-f9', idle: true },
+    { id: 'sess-2', name: 'widgets-2', idle: true },
+    { id: 'sess-3', name: 'busy-3', idle: false },
+  ],
+};
+const voiceOff = { voice: null, phone: { on: false, bridge: false } };
+
+test('with voice off the header starts voice in the last session, or in another one from the menu', async () => {
+  requests.length = 0;
+  held.clear();
+  answer = () => board({ ...voiceOff, voice_start: START });
+  await pollNow();
+  assert.equal($('[data-voice-pause]'), null, 'nothing to pause');
+  assert.equal($('[data-voice-stop]'), null);
+  assert.match(
+    $('[data-voice-start="last"]')?.textContent as string,
+    /^Start voice in clarifi-f9$/,
+  );
+  let release = () => {};
+  held.set('/api/board/voice/start', new Promise<void>((resolve) => (release = resolve)));
+  await click($('[data-voice-start="last"]'));
+  assert.deepEqual(sentTo('/api/board/voice/start')[0].body, { session: 'sess-1' });
+  assert.match($('[data-voice-start="last"]')?.textContent as string, /Starting…/);
+  assert.ok(
+    ([...root.querySelectorAll('.ou-board-voice-phone button')] as HTMLButtonElement[]).every(
+      (one) => one.disabled,
+    ),
+    'every voice button waits while Larmor types and checks',
+  );
+  release();
+  await tick();
+  await tick();
+  held.clear();
+  // the menu lists the sessions at their prompt, the last one ticked, and sends the chosen id
+  await click($('[data-voice-start-menu]'));
+  assert.deepEqual(
+    [...document.querySelectorAll('.ou-menu-label')].map((one) => one.textContent),
+    ['clarifi-f9', 'widgets-2'],
+  );
+  await click(document.querySelectorAll('.ou-menu-item')[1] as HTMLElement);
+  assert.deepEqual(sentTo('/api/board/voice/start').at(-1)?.body, { session: 'sess-2' });
+});
+
+test('Start voice with the last session busy is off, and the menu still offers the others; with no last session it is a menu', async () => {
+  requests.length = 0;
+  answer = () =>
+    board({
+      ...voiceOff,
+      voice_start: {
+        ...START,
+        candidates: START.candidates.map((one) => ({
+          ...one,
+          idle: one.id !== 'sess-1' && one.idle,
+        })),
+      },
+    });
+  await pollNow();
+  const main = $('[data-voice-start="last"]') as HTMLButtonElement;
+  assert.ok(main.disabled);
+  assert.match(main.title, /busy/);
+  await click($('[data-voice-start-menu]'));
+  assert.deepEqual(
+    [...document.querySelectorAll('.ou-menu-label')].map((one) => one.textContent),
+    ['widgets-2'],
+  );
+  await click($('[data-voice-start-menu]'));
+  answer = () => board({ ...voiceOff, voice_start: { ...START, last: null } });
+  await pollNow();
+  assert.equal($('[data-voice-start="last"]'), null);
+  assert.equal($('[data-voice-start-menu]'), null);
+  assert.match($('[data-voice-start="pick"]')?.textContent as string, /^Start voice ▾$/);
+  await click($('[data-voice-start="pick"]'));
+  await click(document.querySelectorAll('.ou-menu-item')[0] as HTMLElement);
+  assert.deepEqual(sentTo('/api/board/voice/start').at(-1)?.body, { session: 'sess-1' });
+  answer = () => board();
+  await pollNow();
+});
+
+test('with voice on the header pauses, resumes and stops it, and a refusal is shown', async () => {
+  requests.length = 0;
+  answer = () => board({ voice_start: START });
+  await pollNow();
+  assert.equal($('[data-voice-start="last"]'), null);
+  await click($('[data-voice-pause="pause"]'));
+  assert.deepEqual(sentTo('/api/board/voice/pause')[0].body, { paused: true });
+  answer = () => board({ voice: { ...voice, status: 'paused' }, voice_start: START });
+  await pollNow();
+  assert.equal($('[data-voice-pause="pause"]'), null);
+  assert.equal($('[data-voice-pause="resume"]')?.textContent, 'Resume');
+  await click($('[data-voice-stop]'));
+  assert.equal(sentTo('/api/board/voice/stop').length, 1);
+  // without a Larmor checkout that can run voice_ctl there is no Stop, but Pause still works
+  answer = () => board({ voice_start: null });
+  await pollNow();
+  assert.equal($('[data-voice-stop]'), null);
+  assert.ok($('[data-voice-pause="pause"]'));
   answer = () => board();
   await pollNow();
 });
@@ -623,6 +740,19 @@ test('Resume is in the header while voice is paused', async () => {
   answer = () => board();
   await pollNow();
   assert.equal($('[data-voice-pause="resume"]'), null);
+});
+
+test('a pause left with voice off shows Resume next to Start, and Resume asks the bridge', async () => {
+  requests.length = 0;
+  answer = () => board({ voice: null, voice_paused: true, voice_start: START });
+  await pollNow();
+  assert.ok($('[data-voice-start="last"]'));
+  assert.equal($('[data-voice-pause="pause"]'), null, 'nothing to pause');
+  assert.equal($('[data-voice-stop]'), null);
+  await click($('[data-voice-pause="resume"]'));
+  assert.deepEqual(sentTo('/api/board/voice/pause')[0].body, { paused: false });
+  answer = () => board();
+  await pollNow();
 });
 
 test('clicks in the panel are the panel’s own: they ask the bridge for nothing', async () => {
@@ -673,7 +803,7 @@ test('a failed poll does not give back a button that is still waiting on its own
   await pollNow();
   let release = () => {};
   held.set('/api/board/voice/phone', new Promise<void>((resolve) => (release = resolve)));
-  await click($('[data-voice-phone="on"]'));
+  await pickPhone(0);
   assert.equal(sentTo('/api/board/voice/phone').length, 1);
   await click($('[data-backlog-add-open]'));
   const title = $('[data-backlog-title]') as HTMLInputElement;

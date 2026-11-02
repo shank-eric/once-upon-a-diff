@@ -10,6 +10,10 @@
  *   POST /api/board/voice/phone {on: boolean}: turn phone mode on or off through Larmor's voice_ctl, which starts the phone
  *                               bridge when it turns on. 409 with Larmor's reason when it refuses; it works with voice off too
  *   POST /api/board/voice/phone/bridge-stop: stop the phone bridge, which also ends phone mode (the menu bar's order)
+ *   POST /api/board/voice/start {session?}: Start voice: Larmor's voice_ctl types /larmor into that session's tab (the last voice
+ *                               session when none is given) and waits for voice to come on. 409 with Larmor's reason when it
+ *                               refuses (voice already on, engine not ready, the session busy or gone). Takes up to about 30 s
+ *   POST /api/board/voice/stop  Stop voice, through voice_ctl (the menu bar's Stop voice). Takes up to about 3 s
  *   POST /api/board/voice/pause {paused: boolean}: pause or resume voice by making or removing Larmor's `paused` file, as its
  *                               menu bar does (the bridge writes the file, the page only asks). 409 to pause when voice is off
  *   POST /api/board/stop-listening  {repo}: end the repo's listener
@@ -172,6 +176,17 @@ async function voicePhone({ app, body: raw, send }: Call) {
   return send(200, { ok: true, ...got });
 }
 
+/** POST {session?}: Start voice in that session, or the last voice session. */
+async function voiceStart({ app, body: raw, send }: Call) {
+  const { session } = parseBody('boardVoiceStart', raw);
+  return send(200, { ok: true, ...(await app.board.startVoice(session)) });
+}
+
+/** POST: Stop voice. */
+async function voiceStop({ app, send }: Call) {
+  return send(200, { ok: true, ...(await app.board.stopVoice()) });
+}
+
 /** POST: stop the phone bridge (and so phone mode). */
 async function voiceBridgeStop({ app, send }: Call) {
   const got = await app.board.setPhone('bridge-stop');
@@ -205,6 +220,8 @@ export const boardRoutes: ApiRoute[] = [
   { route: ROUTES.boardType, handle: type },
   { route: ROUTES.boardListenSessions, handle: listenSessions },
   { route: ROUTES.boardVoicePause, handle: voicePause },
+  { route: ROUTES.boardVoiceStart, handle: voiceStart },
+  { route: ROUTES.boardVoiceStop, handle: voiceStop },
   { route: ROUTES.boardVoicePhone, handle: voicePhone },
   { route: ROUTES.boardVoiceBridgeStop, handle: voiceBridgeStop },
   { route: ROUTES.boardStopListening, handle: stopListening },

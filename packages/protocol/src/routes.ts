@@ -130,6 +130,16 @@ export const ROUTES = {
     '/api/board/voice/pause',
     'token+board',
   ),
+  boardVoiceStart: api<In<'boardVoiceStart'>, Ok & { voice: boolean }>(
+    'POST',
+    '/api/board/voice/start',
+    'token+board',
+  ),
+  boardVoiceStop: api<undefined, Ok & { voice: boolean }>(
+    'POST',
+    '/api/board/voice/stop',
+    'token+board',
+  ),
   boardVoicePhone: api<In<'boardVoicePhone'>, Ok & { on: boolean; bridge: boolean }>(
     'POST',
     '/api/board/voice/phone',

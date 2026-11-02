@@ -8,6 +8,8 @@
     "status_source": "iterm",
     "usage": null,
     "voice": null,
+    "voice_paused": false,
+    "voice_start": null,
     "warning": null,
     "worktrees": {
       "at": null,

@@ -13,7 +13,7 @@ Every key is an HMAC under the bridge's token with its own label (`services/page
 | Key | Label | Reaches | Can hand out |
 |---|---|---|---|
 | token | (none) | everything. The extension, the CLI and listeners use it | every link |
-| board key | `board-page` | the board routes (the `token+board` entries in the protocol's route table, `packages/protocol/src/routes.ts`): snapshot, type into a session's tab, focus a tab, stop a listener, Pause and Resume voice, phone mode and Stop phone bridge, worktree Clean up, backlog add, move, drop and assign, mark a local story reviewed | a local story's **full** link (Open story) |
+| board key | `board-page` | the board routes (the `token+board` entries in the protocol's route table, `packages/protocol/src/routes.ts`): snapshot, type into a session's tab, focus a tab, stop a listener, Start, Pause, Resume and Stop voice, phone mode and Stop phone bridge, worktree Clean up, backlog add, move, drop and assign, mark a local story reviewed | a local story's **full** link (Open story) |
 | story full key | `local-page:<id>` | every route of that one local story, including Approve, `POST …/pr` (Create pull request's `git push`, and Push for a branch behind its open PR) and `POST …/push` (Push to the default branch) | nothing |
 | story read-only key | `local-view:<id>` | an allowlist (`VIEW_KEY_MAY` in `page-key.ts`): read, Ask, Viewed, notes, Send fix requests, Rebuild, page prefs and UI state, `GET …/pr` | nothing |
 
@@ -26,7 +26,7 @@ On an allowed host name over https, the board trades its key for a `__Host-ou-bo
 ## Consequences
 
 - A leaked story link stays confined to its story. A read-only one, if one were handed out, could read and annotate that story but not push, type or see the board.
-- **The board key is close to the token in practice.** It types `/once-upon …` and Assign lines into Claude sessions, hands out full story keys (which can push branches), and writes outside the bridge: it makes and removes Larmor's `paused` file, runs Larmor's `voice_ctl`, and removes worktrees and merged branches (ADR-11). It sits in a 30-day cookie on `once-upon.test`.
+- **The board key is close to the token in practice.** It types `/once-upon …` and Assign lines into Claude sessions, hands out full story keys (which can push branches), and writes outside the bridge: it makes and removes Larmor's `paused` file, runs Larmor's `voice_ctl` (Start and Stop voice, phone mode), and removes worktrees and merged branches (ADR-11). It sits in a 30-day cookie on `once-upon.test`.
 - The read-only key is default-deny, so a new story route is closed to it until it's listed. The full story key and the board key are default-allow within their scope, so a new story route is open to full links at once.
 - The read-only key may send fix requests and Rebuild, which make a listening session change code, commit or re-tell a story, though never push.
 - Keys never expire on their own. The only revocation is `token --rotate`, which changes every key and cookie at once and means re-pasting the token into the extension and restarting the bridge.

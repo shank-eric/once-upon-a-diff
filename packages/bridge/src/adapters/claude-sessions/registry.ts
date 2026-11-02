@@ -19,6 +19,8 @@ export interface LiveSession {
   /** when the registry last changed it (ms since the epoch) */
   statusAt: number | null;
   startedAt: number | null;
+  /** Claude Code's session kind ("interactive" for one at a prompt), when the registry says */
+  kind?: string | null;
 }
 
 interface Registry {
@@ -30,6 +32,7 @@ interface Registry {
   statusUpdatedAt?: unknown;
   startedAt?: unknown;
   procStart?: unknown;
+  kind?: unknown;
 }
 
 /** The registry's live sessions: files whose pid is running, with their ttys. */
@@ -71,6 +74,7 @@ export async function liveSessions(dir: string): Promise<LiveSession[]> {
       status: typeof reg.status === 'string' ? reg.status : 'idle',
       statusAt: typeof reg.statusUpdatedAt === 'number' ? reg.statusUpdatedAt : null,
       startedAt: typeof reg.startedAt === 'number' ? reg.startedAt : null,
+      kind: typeof reg.kind === 'string' ? reg.kind : null,
       procStart: typeof reg.procStart === 'string' ? collapse(reg.procStart) : null,
     });
   }

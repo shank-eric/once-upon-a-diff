@@ -27,7 +27,9 @@ import {
   readVoice,
   runVoiceCtl,
   setPaused,
+  type CtlResult,
   type PhoneCommand,
+  type VoiceCommand,
   VoiceCtlError,
   waitBridgeDown,
 } from '../../adapters/larmor.ts';
@@ -66,7 +68,7 @@ export class Board {
   /** a checkout's worktrees (git worktree list), kept a few seconds */
   private trees = new Map<string, { at: number; list: Worktree[] }>();
   private cache: { at: number; data: BoardData } | null = null;
-  /** a voice_ctl phone call is running */
+  /** a voice_ctl call (phone, start or stop) is running */
   private phoneBusy = false;
   /** What the last build knew of the sessions, for the panel's Start listening (listenSessions). */
   private listeningNow: { input: ListeningInput } | null = null;
@@ -380,11 +382,44 @@ export class Board {
    * the menu bar makes, writes or removes the `away` file and starts or stops larmor_phone.py). Phone mode can turn on with voice off too. Larmor may refuse (not paired, firewall, another network): that is a 409 carrying its reason.
    */
   async setPhone(command: PhoneCommand): Promise<{ on: boolean; bridge: boolean }> {
+    const { result, after } = await this.askLarmor(command, undefined, async (done, voiceDir) =>
+      // Larmor signals the bridge to stop and returns without waiting: report the bridge as it is a moment later, still
+      // inside the one-call guard so no second request starts while the bridge goes down
+      command === 'bridge-stop' ? await waitBridgeDown(voiceDir) : done.bridge,
+    );
+    return { on: result.away, bridge: after ?? result.bridge };
+  }
+
+  /**
+   * Start voice from the board: Larmor's voice_ctl `start` types /larmor into the session's tab (the last voice session when
+   * none is given) and waits for voice to come on in it. Larmor makes every check (voice already on, engine not ready, the
+   * session busy or gone, no iTerm) and its reason comes back as a 409. Takes up to about 30 s.
+   */
+  async startVoice(session?: string): Promise<{ voice: boolean }> {
+    if (session !== undefined && !/^[A-Za-z0-9._]/.test(session)) {
+      throw new BoardError(400, 'session must be a session id');
+    }
+    const { result } = await this.askLarmor('start', session);
+    return { voice: result.voiceOn };
+  }
+
+  /** Stop voice from the board: Larmor's voice_ctl `stop`, the menu bar's Stop voice. Takes up to about 3 s. */
+  async stopVoice(): Promise<{ voice: boolean }> {
+    const { result } = await this.askLarmor('stop');
+    return { voice: result.voiceOn };
+  }
+
+  /** One voice_ctl call, one at a time (a second while phone-on waits for the bridge would undo it). `settle` runs inside the guard. */
+  private async askLarmor<T = undefined>(
+    command: VoiceCommand,
+    session?: string,
+    settle?: (result: CtlResult, voiceDir: string) => Promise<T>,
+  ): Promise<{ result: CtlResult; after: T | undefined }> {
     const board = readSettings(this.home).board;
     if (!board.voiceDir || !board.larmorDir) {
       throw new BoardError(
         400,
-        'board_voice_dir and board_larmor_dir are needed for the phone buttons',
+        'board_voice_dir and board_larmor_dir are needed for the voice and phone buttons',
       );
     }
     if (!phoneReady(board.larmorDir)) {
@@ -393,23 +428,19 @@ export class Board {
         `${board.larmorDir} has no .venv-app/bin/python and app/voice_ctl.py to run`,
       );
     }
-    // one call at a time: a second one while phone-on waits for the bridge would undo it
     if (this.phoneBusy) {
-      throw new BoardError(409, 'Larmor is still working on the last phone request');
+      throw new BoardError(409, 'Larmor is still working on the last voice or phone request');
     }
     this.phoneBusy = true;
     try {
-      const result = await runVoiceCtl(board.larmorDir, command).catch((err: unknown) => {
+      const result = await runVoiceCtl(board.larmorDir, command, session).catch((err: unknown) => {
         throw err instanceof VoiceCtlError ? new BoardError(502, err.message) : err;
       });
       forgetProbes();
       if (!result.ok) {
         throw new BoardError(409, result.why || `Larmor would not do ${command}`);
       }
-      // Larmor signals the bridge to stop and returns without waiting: report the bridge as it is a moment later
-      const bridge =
-        command === 'bridge-stop' ? await waitBridgeDown(board.voiceDir) : result.bridge;
-      return { on: result.away, bridge };
+      return { result, after: settle ? await settle(result, board.voiceDir) : undefined };
     } finally {
       this.phoneBusy = false;
       forgetProbes();

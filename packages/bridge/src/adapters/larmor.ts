@@ -72,13 +72,29 @@ export function awayOn(dir: string): boolean {
   }
 }
 
+/**
+ * Larmor counts voice as on only while the session's MCP server (`owner`, a pid) runs: it dies without writing the file when
+ * its tab closes. A file with no owner (an older Larmor) is trusted, as it was before.
+ */
+function ownerAlive(owner: unknown): boolean {
+  if (typeof owner !== 'number' || !Number.isInteger(owner) || owner <= 0) {
+    return owner === undefined || owner === null;
+  }
+  try {
+    process.kill(owner, 0);
+    return true;
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
 /** True when the epoch-ms times fall on the same local calendar day. */
 function sameDay(first: number, second: number): boolean {
   return new Date(first).toDateString() === new Date(second).toDateString();
 }
 
 /** The session that last took voice mode and when (epoch ms), from last-voice.json, or null. */
-function lastVoice(dir: string): { session: string; at: number } | null {
+export function lastVoice(dir: string): { session: string; at: number } | null {
   try {
     const last = JSON.parse(readFileSync(path.join(dir, 'last-voice.json'), 'utf8'));
     if (
@@ -103,6 +119,7 @@ export function readVoice(dir: string, now: number = Date.now()): VoiceFiles | n
   let state: {
     on?: unknown;
     session_id?: unknown;
+    owner?: unknown;
     since?: unknown;
     last_listen?: unknown;
     last_speak?: unknown;
@@ -118,7 +135,8 @@ export function readVoice(dir: string, now: number = Date.now()): VoiceFiles | n
     typeof state === 'object' &&
     state.on === true &&
     typeof state.session_id === 'string' &&
-    !!state.session_id;
+    !!state.session_id &&
+    ownerAlive(state.owner);
   let session: string;
   if (live) {
     session = (state as { session_id: string }).session_id;
@@ -244,13 +262,19 @@ export function forgetProbes(): void {
   bridgeProbes.clear();
 }
 
-/** The subcommands of Larmor's `voice_ctl` the board runs for the phone buttons, and nothing else. */
+/** The subcommands of Larmor's `voice_ctl` the board runs for the phone and voice buttons, and nothing else. */
 export type PhoneCommand = 'phone-on' | 'phone-off' | 'bridge-stop';
+export type VoiceCommand = PhoneCommand | 'start' | 'stop';
 
-const PHONE_COMMANDS: readonly string[] = ['phone-on', 'phone-off', 'bridge-stop'];
+const CTL_COMMANDS: readonly string[] = ['phone-on', 'phone-off', 'bridge-stop', 'start', 'stop'];
 
 /** voice_ctl waits for the bridge to listen after phone-on, up to about 10 s. */
-const CTL_TIMEOUT_MS = 20 * 1000;
+const CTL_TIMEOUT_MS = 30 * 1000;
+/**
+ * start scans the sessions, types into iTerm and waits up to 15 s for voice (after a pause it cleared, up to 8 s more for the
+ * engine), with each iTerm or ps call allowed 5 s: about 40 s in the worst case. The kill must not come after /larmor was typed.
+ */
+const START_TIMEOUT_MS = 70 * 1000;
 
 /** The last non-empty line of some output (a Python traceback ends with its reason), cut to a short message. */
 function lastLine(text: string): string {
@@ -266,32 +290,52 @@ export interface CtlResult {
   why: string;
   away: boolean;
   bridge: boolean;
+  /** voice mode is on, after the command ran */
+  voiceOn: boolean;
 }
 
 /**
  * Runs `python app/voice_ctl.py <command>` from Larmor's checkout with its own venv python (no shell, a fixed list of
  * commands, a timeout) and returns the one JSON line it prints. Larmor owns the checks and the bridge; the board only asks.
  */
-export function runVoiceCtl(larmorDir: string, command: PhoneCommand): Promise<CtlResult> {
-  if (!PHONE_COMMANDS.includes(command)) {
+export function runVoiceCtl(
+  larmorDir: string,
+  command: VoiceCommand,
+  session?: string,
+): Promise<CtlResult> {
+  if (!CTL_COMMANDS.includes(command)) {
     throw new Error(`not an allowed voice_ctl command: ${command}`);
+  }
+  // a session id goes only to start, and only in the id's own shape (execFile, so no shell either way)
+  if (
+    session !== undefined &&
+    (command !== 'start' || !/^[A-Za-z0-9._][A-Za-z0-9._-]{0,99}$/.test(session))
+  ) {
+    throw new Error(`not an allowed voice_ctl argument for ${command}`);
   }
   const python = path.join(larmorDir, '.venv-app', 'bin', 'python');
   return new Promise((resolve, reject) => {
     execFile(
       python,
-      ['app/voice_ctl.py', command],
-      { cwd: larmorDir, timeout: CTL_TIMEOUT_MS, maxBuffer: 1024 * 1024 },
+      ['app/voice_ctl.py', command, ...(session ? [session] : [])],
+      {
+        cwd: larmorDir,
+        timeout: command === 'start' ? START_TIMEOUT_MS : CTL_TIMEOUT_MS,
+        maxBuffer: 1024 * 1024,
+      },
       (err, stdout, stderr) => {
         const line = String(stdout).trim().split('\n').pop() ?? '';
         try {
-          const got = JSON.parse(line) as Partial<CtlResult>;
+          const got = JSON.parse(line) as Partial<Omit<CtlResult, 'voiceOn'>> & {
+            voice?: { on?: unknown };
+          };
           if (typeof got.ok === 'boolean') {
             return resolve({
               ok: got.ok,
               why: typeof got.why === 'string' ? got.why : '',
               away: got.away === true,
               bridge: got.bridge === true,
+              voiceOn: got.voice?.on === true,
             });
           }
         } catch {
