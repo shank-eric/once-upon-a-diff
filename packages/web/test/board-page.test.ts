@@ -128,6 +128,7 @@ const board = (over: Partial<BoardData> = {}): BoardData => ({
   voice,
   phone: null,
   voice_start: null,
+  builders: null,
   voice_paused: false,
   listeners: [],
   helpers: [],
@@ -754,6 +755,34 @@ test('a pause left with voice off shows Resume next to Start, and Resume asks th
   assert.deepEqual(sentTo('/api/board/voice/pause')[0].body, { paused: false });
   answer = () => board();
   await pollNow();
+});
+
+test('the header shows how many builder slots are free, with the running builders in its tooltip', async () => {
+  answer = () =>
+    board({
+      builders: {
+        cap: 3,
+        free: 1,
+        running: [
+          { name: 'build-a', task: 'card bl_1 do a thing', since: '2026-10-29T11:00:00Z' },
+          { name: 'build-b', task: null, since: null },
+        ],
+      },
+    });
+  await pollNow();
+  const chip = $('[data-builders-free]');
+  assert.equal(chip?.textContent, '1 of 3 free');
+  assert.match(
+    chip?.getAttribute('title') ?? '',
+    /2 builders running of 3 slots\nbuild-a .*: card bl_1 do a thing\nbuild-b$/,
+  );
+  assert.ok(!chip?.classList.contains('ou-board-builders-full'));
+  answer = () => board({ builders: { cap: 3, free: 0, running: [] } });
+  await pollNow();
+  assert.ok($('[data-builders-free]')?.classList.contains('ou-board-builders-full'));
+  answer = () => board();
+  await pollNow();
+  assert.equal($('[data-builders-free]'), null, 'hidden with no voice session');
 });
 
 test('clicks in the panel are the panel’s own: they ask the bridge for nothing', async () => {

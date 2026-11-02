@@ -40,7 +40,7 @@ import type { ListeningInput } from '../../sessions/listening.ts';
 import type { SessionTitles } from '../../../adapters/claude-sessions/titles.ts';
 import type { WorktreeScanner } from '../../worktrees/worktrees.ts';
 import type { BoardData, BoardStatus } from '@once-upon-a-diff/shared/types';
-import { placeAgents } from './agents.ts';
+import { builderSlots, placeAgents } from './agents.ts';
 import { addBacklogCards, readBacklogLinks } from './backlog.ts';
 import { buildCards, placeCards } from './cards.ts';
 import type { CardFacts } from './cards.ts';
@@ -160,6 +160,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     voice: voiceOf(pin, voiceFiles, agents, nowMs, settings.voiceDir as string),
     phone,
     voice_start: voiceStart,
+    builders: builderSlots(agents, pin, settings.builderSlots, nowMs),
     voice_paused: voicePaused,
     listeners: listenersLane(waits, listening),
     helpers: standingHelpers(standing, live, sessionViews, nowMs),

@@ -8,6 +8,11 @@
   "board": {
     "at": "2026-10-26T19:00:00.000Z",
     "blank": [],
+    "builders": {
+      "cap": 3,
+      "free": 3,
+      "running": []
+    },
     "helpers": [],
     "lanes": [
       {

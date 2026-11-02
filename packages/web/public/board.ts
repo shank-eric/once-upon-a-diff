@@ -99,6 +99,7 @@ const EMPTY: BoardData = {
   voice: null,
   phone: null,
   voice_start: null,
+  builders: null,
   voice_paused: false,
   listeners: [],
   helpers: [],

@@ -2,11 +2,12 @@
  * The ledger's background agents on the board: which are shown, and where each goes. An agent is nested in its
  * parent's card only when tightly tied to it (agent-home.ts), else it is a card of its own, on its own lane.
  */
-import { gatedHome, laneForAgent, madeSomething, tiedToParent } from '../agent-home.ts';
+import { gatedHome, isBuilder, laneForAgent, madeSomething, tiedToParent } from '../agent-home.ts';
 import { gateOf, lastActivity, type LedgerAgent } from '../../ledger/ledger.ts';
 import { readFinished } from '../../../adapters/stores/finished-agents.ts';
 import type {
   BoardAgent,
+  BoardBuilders,
   BoardCard,
   BoardBeat,
   BoardColumn,
@@ -78,6 +79,39 @@ export const AGENT_COLUMN: Record<LedgerAgent['state'], BoardColumn> = {
   failed: 'error',
   stopped: 'idle',
 };
+
+/**
+ * The voice session's build slots: its running builders (isBuilder; a stale one, running past the stale mark, is
+ * likely dead and holds no slot) against the cap. Null when there is no voice session.
+ */
+export function builderSlots(
+  agents: LedgerAgent[],
+  pin: PinnedVoice | null,
+  cap: number,
+  nowMs: number,
+): BoardBuilders | null {
+  if (!pin) {
+    return null;
+  }
+  const running = agents
+    .filter(
+      (agent) =>
+        agent.state === 'running' &&
+        pin.view.id.startsWith(agent.sid) &&
+        isBuilder(agent) &&
+        !(agent.started && nowMs - agent.started.getTime() > STALE_MS),
+    )
+    .sort((first, second) => (first.started?.getTime() ?? 0) - (second.started?.getTime() ?? 0));
+  return {
+    cap,
+    free: Math.max(0, cap - running.length),
+    running: running.map((agent) => ({
+      name: agent.name,
+      task: agent.task,
+      since: agent.started?.toISOString() ?? null,
+    })),
+  };
+}
 
 /** What the agents are placed against. */
 export interface AgentFacts {

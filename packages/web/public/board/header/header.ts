@@ -5,7 +5,7 @@
 import { html, useState } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { openMenu } from '/assets/local/menu.ts';
-import type { BoardData, BoardLimit, BoardUsage } from '/assets/types.ts';
+import type { BoardBuilders, BoardData, BoardLimit, BoardUsage } from '/assets/types.ts';
 import { compactAge } from '/assets/util/time.ts';
 import { plural } from '/assets/util/text.ts';
 import { Meter, type Api } from '/assets/board/shared.ts';
@@ -46,6 +46,27 @@ function Usage(props: { usage: BoardUsage | null; now: number }) {
   return five || week
     ? html`<div class="ou-board-meters" aria-label="Usage">${five}${week}</div>`
     : null;
+}
+
+/**
+ * How many build agents are free for the voice session to hand work to ("2 of 3 free"), beside the voice buttons. The
+ * tooltip lists the running builders. Hidden when voice is off.
+ */
+function Builders(props: { builders: BoardBuilders | null; now: number }) {
+  const { builders, now } = props;
+  if (!builders) {
+    return null;
+  }
+  const lines = builders.running.map((one) => {
+    const age = compactAge(one.since, now);
+    const task = one.task && one.task.length > 90 ? `${one.task.slice(0, 89)}…` : one.task;
+    return `${one.name}${age ? ` (${age})` : ''}${task ? `: ${task}` : ''}`;
+  });
+  const title = [
+    `${plural(builders.running.length, 'builder')} running of ${builders.cap} slots`,
+    ...lines,
+  ].join('\n');
+  return html`<span class=${`ou-board-builders${builders.free === 0 ? ' ou-board-builders-full' : ''}`} data-builders-free=${builders.free} title=${title}>${builders.free} of ${builders.cap} free</span>`;
 }
 
 /**
@@ -241,6 +262,7 @@ export function Header(props: HeaderProps) {
     <div class="ou-local-top-main"><h1>Agent board</h1><div class="ou-local-muted">${summary}</div></div>
     <${Usage} usage=${data.usage} now=${now} />
     <button type="button" data-board-filter aria-haspopup="menu" onClick=${chooseRepo} title="Narrow the whole board to one repo's lane">Repo: ${filterOn ? filter : 'All'} ▾</button>
+    <${Builders} builders=${data.builders} now=${now} />
     <${VoiceControls} voice=${data.voice} phone=${data.phone} voiceStart=${data.voice_start} voicePaused=${data.voice_paused} api=${api} busy=${busy} />
   </header>`;
 }

@@ -15,6 +15,7 @@ import {
   utimesSync,
   realpathSync,
 } from 'node:fs';
+import net from 'node:net';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
@@ -125,6 +126,7 @@ const procStartOf = (pid: number, ppid: number) => {
 };
 
 const children: { pid: number; kill: () => void }[] = [];
+const servers: net.Server[] = [];
 function liveChild() {
   const child = spawn('sleep', ['120']);
   children.push({ pid: child.pid as number, kill: () => child.kill() });
@@ -677,6 +679,13 @@ async function record(
   const it2 = path.join(tmp('it2'), 'it2');
   writeFileSync(it2, '#!/bin/sh\necho "[]"\n');
   chmodSync(it2, 0o755);
+  // the phone bridge's port is this world's own listener, so `phone.bridge` never depends on the machine running the tests
+  const sink = net.createServer((socket) => socket.destroy()).unref();
+  await new Promise<void>((resolve) => sink.listen(0, '127.0.0.1', resolve));
+  servers.push(sink);
+  writeJson(path.join(voiceDir, 'phone.json'), {
+    sink_port: (sink.address() as net.AddressInfo).port,
+  });
   writeJson(path.join(home, 'config.json'), {
     board_ledger_file: ledger,
     board_sessions_dir: sessions,
@@ -891,5 +900,6 @@ for (const [name, value] of Object.entries(results)) {
 
 export function finish() {
   children.forEach((child) => child.kill());
+  servers.forEach((server) => server.close());
   rmSync(WORK, { recursive: true, force: true });
 }

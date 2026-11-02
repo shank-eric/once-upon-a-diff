@@ -311,6 +311,10 @@ export function readSettings(home = homeDir()) {
         typeof cfg.board_done_hours === 'number' && cfg.board_done_hours > 0
           ? cfg.board_done_hours
           : 4,
+      builderSlots:
+        typeof cfg.board_builder_slots === 'number' && cfg.board_builder_slots >= 1
+          ? Math.floor(cfg.board_builder_slots)
+          : 3,
       finishedWaitMinutes:
         typeof cfg.board_finished_wait_minutes === 'number' && cfg.board_finished_wait_minutes > 0
           ? cfg.board_finished_wait_minutes

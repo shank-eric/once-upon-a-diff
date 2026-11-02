@@ -325,6 +325,9 @@ button.ou-local-pr, button.ou-local-push, button.ou-local-push-ahead { white-spa
 .ou-board-meter-reset { font-size: 11px; }
 @media (max-width: 1299px) { .ou-board-meter-reset { display: none; } }
 .ou-local-top-main { min-width: 90px; }
+/* builder slots free, beside the voice buttons (board/header/header.ts): attention-coloured when none is free */
+.ou-board-builders { flex: none; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--fgColor-default); padding: 2px 8px; border: 1px solid var(--borderColor-default); border-radius: 999px; cursor: default; }
+.ou-board-builders-full { color: var(--fgColor-attention); border-color: var(--fgColor-attention); }
 .ou-board-meter.ou-board-usage-warn { color: var(--fgColor-attention); }
 .ou-board-meter.ou-board-usage-warn .ou-board-meter-bar span { background: var(--fgColor-attention); }
 .ou-board-meter.ou-board-usage-warn .ou-board-meter-num { color: var(--fgColor-attention); }

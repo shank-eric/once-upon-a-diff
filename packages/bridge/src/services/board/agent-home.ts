@@ -201,3 +201,15 @@ export function madeSomething(
     )
   );
 }
+
+/**
+ * Whether a running agent is a builder, one that holds a build slot: its task claims a backlog card (`card bl_<id>`) or
+ * names a worktrees folder, and it is not a reviewer. Research and lookup agents claim neither, so they are not builders.
+ */
+export function isBuilder(agent: Pick<LedgerAgent, 'name' | 'task'>): boolean {
+  if (/^review-/i.test(agent.name)) {
+    return false;
+  }
+  const task = agent.task ?? '';
+  return !!claimedId(task) || /-worktrees\//.test(task);
+}

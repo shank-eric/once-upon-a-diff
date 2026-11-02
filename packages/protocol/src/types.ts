@@ -1063,6 +1063,8 @@ export interface BoardData {
    * at its prompt. Null when the Larmor checkout can't run voice_ctl (the same gate as `phone`).
    */
   voice_start: BoardVoiceStart | null;
+  /** the voice session's build agents against board_builder_slots; null when voice is off or its session isn't running */
+  builders: BoardBuilders | null;
   /** Larmor's `paused` file exists (board_voice_dir set), voice on or not: a pause left by a session that died needs a Resume */
   voice_paused: boolean;
   /** repos with a listener now, and those that had one in the last week */
@@ -1076,6 +1078,16 @@ export interface BoardData {
   worktrees: BoardWorktrees | null;
   /** the account's usage limits as the freshest status line had them, null when none has rendered lately */
   usage: BoardUsage | null;
+}
+
+/** The build agents the voice session has running, against its cap: how many builders are free to assign work to. */
+export interface BoardBuilders {
+  /** board_builder_slots (default 3) */
+  cap: number;
+  /** cap less the running builders, never below 0 */
+  free: number;
+  /** the running builders, oldest first */
+  running: { name: string; task: string | null; since: string | null }[];
 }
 
 /** The sessions Start voice may type /larmor into. */
