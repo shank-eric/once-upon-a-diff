@@ -80,6 +80,8 @@ export class Board {
   private generation = 0;
   private blank = new BlankSessions();
   private titles = new SessionTitles();
+  /** the session each listener's wait ran in, for its handling beat (adoptHandlers) */
+  private listenerSessions = new Map<string, string>();
   private backlog: BacklogStore;
   /** The sessions a click may type into: Build story, Start listening and Assign (sessions.ts). */
   readonly sessions: Sessions;
@@ -349,6 +351,7 @@ export class Board {
       seen: this.seen,
       blank: this.blank,
       titles: this.titles,
+      listenerSessions: this.listenerSessions,
       backlog: this.backlog,
       scanner: this.scanner,
     });

@@ -56,11 +56,47 @@ export function sessionOfPid(
 }
 
 /**
- * The sessions whose only activity is a listener's wait, which the board shows in the Listeners lane and nowhere else. The
- * wait is a background task, so the terminal calls the session working while it waits; that is not work. A session counts
- * when it has a live wait that is waiting (not one that has handed something over: that session is at work), the
- * registry says it is not in a turn, the tab's background tasks are no more than its waits, and it has no running, waiting,
- * plan or fixing ledger agent. Anything else (a build, an answer, another tool running) makes it an ordinary card.
+ * Lets a handling listener find its session after its wait has exited. A wait that hands a request over writes its
+ * handling beat and ends, so its pid is gone from `ps` and the parent chain no longer leads to a session. While the wait
+ * ran, `memory` was told which session it was (after a bridge restart the beat's own `session`, when it names a live one, says so), so a handling beat whose
+ * pid leads nowhere is hooked to that session's process in `parents`. `memory` ({consumer: session}) keeps what it learned
+ * and forgets sessions that are gone. `parents` is changed.
+ */
+export function adoptHandlers(
+  waits: Listener[],
+  live: LiveSession[],
+  parents: Map<number, number>,
+  sessionByPid: Map<number, string>,
+  memory: Map<string, string>,
+): void {
+  const pidOf = new Map(live.map((one) => [one.session, one.pid]));
+  for (const wait of waits) {
+    const found = sessionOfPid(wait.pid, parents, sessionByPid);
+    if (found) {
+      memory.set(wait.consumer, found);
+      continue;
+    }
+    const named = wait.session && pidOf.has(wait.session) ? wait.session : undefined;
+    const remembered = memory.get(wait.consumer) ?? named;
+    const pid = remembered ? pidOf.get(remembered) : undefined;
+    if (wait.state === 'handling' && pid) {
+      parents.set(wait.pid, pid);
+    }
+  }
+  for (const [consumer, session] of [...memory]) {
+    if (!pidOf.has(session)) {
+      memory.delete(consumer);
+    }
+  }
+}
+
+/**
+ * The sessions whose listener is theirs to show: the board shows them in the Listeners lane and nowhere else, and the
+ * answer says which of them are busy (a turn running, a request being handled, or tasks besides the wait), which the
+ * lane marks. The wait is a background task, so the terminal calls a session working while it waits; that is not work,
+ * and a listener that is answering a question is still the listener. A session counts when it has a live wait (waiting or
+ * handling a request it was handed) and nothing that is plainly other work: no running, waiting, plan or fixing ledger
+ * agent, and the tab is not waiting on you or in error. Those make it an ordinary card.
  */
 export function listeningOnly(
   live: LiveSession[],
@@ -69,16 +105,13 @@ export function listeningOnly(
   parents: Map<number, number>,
   sessionByPid: Map<number, string>,
   agents: LedgerAgent[],
-): Set<string> {
-  const quiet = new Set<string>();
+): Map<string, boolean> {
+  const quiet = new Map<string, boolean>();
   for (const session of live) {
-    if (session.status === 'busy') {
-      continue;
-    }
     const mine = waits.filter(
       (wait) => sessionOfPid(wait.pid, parents, sessionByPid) === session.session,
     );
-    if (!mine.length || mine.some((wait) => wait.state !== 'waiting')) {
+    if (!mine.length) {
       continue;
     }
     if (
@@ -93,15 +126,21 @@ export function listeningOnly(
     ) {
       continue;
     }
-    // "1 background task running" is the wait itself; a session with more tasks than waits is doing something besides
+    const status = known.get(session.session)?.status;
+    if (status === 'waiting' || status === 'error') {
+      continue;
+    }
+    // "1 background task running" is the wait itself; more tasks than waits is something besides listening
     const tasks = /^(\d+) background tasks? running$/.exec(
       known.get(session.session)?.detail ?? '',
     );
-    const status = known.get(session.session)?.status;
-    if (status === 'waiting' || status === 'error' || (tasks && Number(tasks[1]) > mine.length)) {
-      continue;
-    }
-    quiet.add(session.session);
+    const waiting = mine.filter((wait) => wait.state === 'waiting').length;
+    quiet.set(
+      session.session,
+      session.status === 'busy' ||
+        mine.some((wait) => wait.state === 'handling') ||
+        !!(tasks && Number(tasks[1]) > waiting),
+    );
   }
   return quiet;
 }
@@ -133,6 +172,8 @@ export interface ListeningInput {
   repoOf: Map<string, string | null>;
   /** sessions that may be typed into: not busy, not waiting on you */
   idle: Set<string>;
+  /** the listener sessions that are busy (a turn, a request being handled, other tasks): the lane says so */
+  busy: ReadonlySet<string>;
   /** sessions that take no new job (Start listening, Assign): the voice session and any that already listens */
   apart: ReadonlySet<string>;
 }
@@ -237,16 +278,20 @@ export function listenersLane(live: Listener[], input: ListeningInput): BoardLis
         (listener) => listener.repo && sameRepo(listener.repo, repo),
       );
       const entry = history[repo.toLowerCase()];
+      const found = active ? listeningOf(active, input) : null;
       return {
         repo,
-        active: active
-          ? {
-              ...listeningOf(active, input),
-              state: active.state,
-              since: entry?.started_at ?? null,
-              last_handled_at: lastHandled(input.home, active.consumer),
-            }
-          : null,
+        active:
+          active && found
+            ? {
+                ...found,
+                state: active.state,
+                busy:
+                  active.state === 'handling' || (!!found.session && input.busy.has(found.session)),
+                since: entry?.started_at ?? null,
+                last_handled_at: lastHandled(input.home, active.consumer),
+              }
+            : null,
         last_seen: entry?.last_seen ?? null,
         candidates: listenCandidates(repo, input),
       };

@@ -59,6 +59,7 @@ export interface BoardState {
   seen: Map<string, { status: BoardStatus; since: number }>;
   blank: BlankSessions;
   titles: SessionTitles;
+  listenerSessions: Map<string, string>;
   backlog: BacklogStore;
   scanner: WorktreeScanner;
 }
@@ -98,9 +99,19 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   const facts = await readSessionFacts(ctx, liveFacts, {
     blank: state.blank,
     titles: state.titles,
+    listenerSessions: state.listenerSessions,
   });
-  const { waits, parents, sessionByPid, voiceFiles, phone, voiceStart, voicePaused, statusLines } =
-    facts;
+  const {
+    waits,
+    parents,
+    sessionByPid,
+    quiet,
+    voiceFiles,
+    phone,
+    voiceStart,
+    voicePaused,
+    statusLines,
+  } = facts;
 
   const placed = placeSessions(ctx, liveFacts, facts, works, state.seen);
   const { sessionCards, quietViews, blankViews, repoBySession } = placed;
@@ -123,6 +134,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     parents,
     sessionByPid,
     quietViews,
+    busyListeners: new Set([...quiet].filter(([, busy]) => busy).map(([id]) => id)),
     blankViews,
     pin,
     repoBySession,

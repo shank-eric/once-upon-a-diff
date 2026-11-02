@@ -16,6 +16,8 @@ export interface ListenerFacts {
   sessionByPid: Map<number, string>;
   /** the sessions that are on no card of the columns: those that only listen, the voice session, the blank ones */
   quietViews: BoardSession[];
+  /** those of them that are busy (a turn, a request in hand, other tasks) */
+  busyListeners: Set<string>;
   blankViews: { lane: string; view: BoardSession }[];
   pin: PinnedVoice | null;
   repoBySession: Map<string, string | null>;
@@ -29,7 +31,16 @@ export interface ListenerFacts {
 export function markListening(
   ctx: BuildContext,
   cards: BoardCard[],
-  { waits, parents, sessionByPid, quietViews, blankViews, pin, repoBySession }: ListenerFacts,
+  {
+    waits,
+    parents,
+    sessionByPid,
+    quietViews,
+    busyListeners,
+    blankViews,
+    pin,
+    repoBySession,
+  }: ListenerFacts,
 ): { listening: ListeningInput; sessionViews: Map<string, BoardSession> } {
   const sessionViews = new Map<string, BoardSession>();
   quietViews.forEach((view) => sessionViews.set(view.id, view));
@@ -61,6 +72,7 @@ export function markListening(
     sessions: sessionViews,
     repoOf: repoBySession,
     idle,
+    busy: busyListeners,
     apart,
   };
   for (const card of cards) {

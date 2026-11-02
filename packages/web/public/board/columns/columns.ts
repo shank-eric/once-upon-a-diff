@@ -471,7 +471,7 @@ function Listener(props: { entry: BoardListenerRepo; now: number; api: Api }) {
       active.last_handled_at
         ? `last request ${since(active.last_handled_at, now)} ago`
         : 'no request yet',
-      active.state === 'handling' && 'handling one now',
+      active.state === 'handling' ? 'handling one now' : active.busy && 'busy now',
     ].filter(Boolean);
     const stop = async () => {
       if (

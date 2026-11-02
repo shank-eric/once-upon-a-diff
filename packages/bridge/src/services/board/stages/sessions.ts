@@ -13,7 +13,7 @@ import type { BlankSessions } from '../../../adapters/claude-sessions/blank.ts';
 import type { SessionTitles } from '../../../adapters/claude-sessions/titles.ts';
 import { readStatusLines } from '../../../adapters/claude-sessions/statusline.ts';
 import { awayOn, bridgeUp, lastVoice, phoneReady, readVoice } from '../../../adapters/larmor.ts';
-import { listeningOnly, parentMap } from '../../sessions/listening.ts';
+import { adoptHandlers, listeningOnly, parentMap } from '../../sessions/listening.ts';
 import { listeners, type Listener } from '../../listeners/listeners.ts';
 import { pickSource } from '../../sessions/sources.ts';
 import { type SourceStatus, type StatusSource } from '../../../adapters/iterm.ts';
@@ -70,8 +70,8 @@ export interface SessionFacts {
   waits: Listener[];
   parents: Map<number, number>;
   sessionByPid: Map<number, string>;
-  /** sessions whose only activity is a listener's wait: shown in the Listeners lane alone */
-  quiet: Set<string>;
+  /** sessions that listen: shown in the Listeners lane alone, each with whether it is busy there */
+  quiet: Map<string, boolean>;
   voiceFiles: ReturnType<typeof readVoice>;
   phone: BoardData['phone'];
   /** the sessions Start voice may type into (same gate as `phone`) */
@@ -88,6 +88,8 @@ export interface SessionFacts {
 export interface Trackers {
   blank: BlankSessions;
   titles: SessionTitles;
+  /** the session each listener's wait ran in ({consumer: session}), for the handling beat its wait leaves behind */
+  listenerSessions: Map<string, string>;
 }
 
 export async function readSessionFacts(
@@ -96,10 +98,11 @@ export async function readSessionFacts(
   trackers: Trackers,
 ): Promise<SessionFacts> {
   const { settings, nowMs } = ctx;
-  // a session whose only activity is a listener's wait is shown in the Listeners lane alone, not as a card too
+  // a session that listens is shown in the Listeners lane alone, not as a card too (busy or not)
   const waits = listeners(ctx.home, nowMs).filter((wait) => wait.live);
   const parents = waits.length ? await parentMap() : new Map<number, number>();
   const sessionByPid = new Map(live.map((one) => [one.pid, one.session]));
+  adoptHandlers(waits, live, parents, sessionByPid, trackers.listenerSessions);
   const quiet = listeningOnly(live, known, waits, parents, sessionByPid, agents);
 
   // the voice session is pinned above the columns, so it is on no card (its agents keep theirs)
@@ -191,7 +194,7 @@ export async function readSessionFacts(
 export interface PlacedSessions {
   /** a session standing alone is a card of its own */
   sessionCards: BoardCard[];
-  /** the sessions whose only activity is a listener's wait */
+  /** the sessions that listen */
   quietViews: BoardSession[];
   /** the sessions that have had no prompt yet, with their lane */
   blankViews: { lane: string; view: BoardSession }[];

@@ -219,10 +219,10 @@
             "kind": "work",
             "lane": "widgets",
             "listening": {
-              "can_focus": false,
+              "can_focus": true,
               "consumer": "story-acme-widgets-7",
-              "session": null,
-              "title": null
+              "session": "<PID:12>-aaaa-bbbb-cccc-dddddddddddd",
+              "title": "Tab title"
             },
             "parent": null,
             "pr": {
@@ -455,6 +455,7 @@
     "listeners": [
       {
         "active": {
+          "busy": false,
           "can_focus": false,
           "consumer": "repo-acme-widgets",
           "last_handled_at": null,
@@ -464,12 +465,6 @@
           "title": "listener-one"
         },
         "candidates": [
-          {
-            "id": "<PID:12>-aaaa-bbbb-cccc-dddddddddddd",
-            "since": "2026-10-26T18:50:00.000Z",
-            "status": "done",
-            "title": "Tab title"
-          },
           {
             "id": "<PID:13>-aaaa-bbbb-cccc-dddddddddddd",
             "since": "2026-10-26T18:50:00.000Z",
@@ -583,12 +578,6 @@
   ],
   "listenWidgets": [
     {
-      "id": "<PID:12>-aaaa-bbbb-cccc-dddddddddddd",
-      "since": "2026-10-26T18:50:00.000Z",
-      "status": "done",
-      "title": "Tab title"
-    },
-    {
       "id": "<PID:13>-aaaa-bbbb-cccc-dddddddddddd",
       "since": "2026-10-26T18:50:00.000Z",
       "status": "done",
@@ -598,12 +587,6 @@
   "storyListen": {
     "repo": "acme/widgets",
     "sessions": [
-      {
-        "id": "<PID:12>-aaaa-bbbb-cccc-dddddddddddd",
-        "since": "2026-10-26T18:50:00.000Z",
-        "status": "done",
-        "title": "Tab title"
-      },
       {
         "id": "<PID:13>-aaaa-bbbb-cccc-dddddddddddd",
         "since": "2026-10-26T18:50:00.000Z",

@@ -996,6 +996,8 @@ export interface BoardListenerRepo {
   active:
     | (BoardListening & {
         state: 'waiting' | 'handling';
+        /** its session is at work besides waiting (a turn, a request in hand, other tasks); it is still only here, no card */
+        busy: boolean;
         /** when the repo went from no listener to this one */
         since: string | null;
         /** the last request (question, build or fix) it was handed */

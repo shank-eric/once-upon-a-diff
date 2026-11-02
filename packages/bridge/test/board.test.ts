@@ -53,10 +53,12 @@ import {
 import {
   listenCandidates,
   listenStoryPromptFor,
+  adoptHandlers,
   sessionOfPid,
   type ListeningInput,
 } from '../src/services/sessions/listening.ts';
-import { listenPrompt } from '../src/services/listeners/listeners.ts';
+import { listenPrompt, type Listener } from '../src/services/listeners/listeners.ts';
+import type { LiveSession } from '../src/adapters/claude-sessions/registry.ts';
 import { noteListener, readHistory } from '../src/services/listeners/history.ts';
 import { repoStopReason, requestStop, stopRequested } from '../src/services/listeners/auto-stop.ts';
 import { gatedHome, laneForAgent, tiedToParent } from '../src/services/board/agent-home.ts';
@@ -3721,6 +3723,43 @@ test('the process tree says which session runs a listener', () => {
   assert.equal(sessionOfPid(1, loop, sessions), null, 'a loop ends');
 });
 
+test('a handling listener, whose wait has exited, finds its session again', () => {
+  const live = [
+    { session: 'session-a', pid: 300 },
+    { session: 'session-b', pid: 310 },
+  ] as LiveSession[];
+  const sessions = new Map([
+    [300, 'session-a'],
+    [310, 'session-b'],
+  ]);
+  const handling = (extra: Partial<Listener> = {}) =>
+    ({ consumer: 'repo-acme-widgets', pid: 500, state: 'handling', ...extra }) as Listener;
+  // the wait ran in session-a, so its handling beat (pid gone from ps) is session-a's
+  const memory = new Map<string, string>();
+  const parents = new Map([[500, 300]]);
+  adoptHandlers([handling({ state: 'waiting' })], live, parents, sessions, memory);
+  assert.equal(memory.get('repo-acme-widgets'), 'session-a');
+  const later = new Map<number, number>();
+  adoptHandlers([handling()], live, later, sessions, memory);
+  assert.equal(sessionOfPid(500, later, sessions), 'session-a');
+  // nothing remembered: it stays unplaced; a session that is gone is forgotten
+  // after a bridge restart (nothing remembered) a beat that names a live session says which it is
+  const named = new Map<number, number>();
+  adoptHandlers([handling({ session: 'session-b' })], live, named, sessions, new Map());
+  assert.equal(sessionOfPid(500, named, sessions), 'session-b');
+  const stale = new Map<number, number>();
+  adoptHandlers([handling({ session: 'session-z' })], live, stale, sessions, new Map());
+  assert.equal(sessionOfPid(500, stale, sessions), null, 'a session that is gone');
+  const unknown = new Map<number, number>();
+  adoptHandlers([handling()], live, unknown, sessions, new Map());
+  assert.equal(sessionOfPid(500, unknown, sessions), null);
+  const gone = new Map([['repo-acme-widgets', 'session-z']]);
+  const none = new Map<number, number>();
+  adoptHandlers([handling()], live, none, sessions, gone);
+  assert.equal(sessionOfPid(500, none, sessions), null);
+  assert.equal(gone.size, 0);
+});
+
 test('the listener history keeps recent repos, and when a stretch of listening began', () => {
   const home = tmp('board-history');
   const day = 24 * 3600 * 1000;
@@ -4093,7 +4132,7 @@ function parentWithChild(): Promise<{
   });
 }
 
-test('a session whose only activity is a repo listener is in the Listeners lane alone, and is a card while it works', async () => {
+test('a session that listens is in the Listeners lane alone, busy or not, and is a card only for other work', async () => {
   const tree = await parentWithChild();
   after(() => tree.stop());
   const sid = String(tree.parent).padStart(8, '0');
@@ -4102,6 +4141,7 @@ test('a session whose only activity is a repo listener is in the Listeners lane 
     registry?: Record<string, unknown>;
     beat?: Record<string, unknown>;
     detail?: string;
+    status?: 'working' | 'waiting';
     ledger?: string;
   };
   const world = async (variant: Case) => {
@@ -4130,7 +4170,10 @@ test('a session whose only activity is a repo listener is in the Listeners lane 
     });
     const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
       source: sourceSaying({
-        [sid]: { status: 'working', detail: variant.detail ?? '1 background task running' },
+        [sid]: {
+          status: variant.status ?? ('working' as const),
+          detail: variant.detail ?? '1 background task running',
+        },
       }),
       now: () => NOW,
     });
@@ -4140,35 +4183,33 @@ test('a session whose only activity is a repo listener is in the Listeners lane 
   const mine = (cards: BoardCard[]) =>
     cards.filter((card) => card.sessions.some((session) => session.id === fullId(tree.parent)));
 
-  // only its wait is running: no card, and the lane names the session
+  // only its wait is running: no card, and the lane names the session, not busy
   const quiet = await world({});
   assert.equal(mine(quiet.cards).length, 0, 'no card');
   assert.equal(quiet.data.listeners[0].repo, 'acme/widgets');
   assert.equal(quiet.data.listeners[0].active?.session, fullId(tree.parent));
   assert.equal(quiet.data.listeners[0].active?.title, 'Tab title');
-  // it picked up a request: the wait handed it over, or its turn is running
-  assert.equal(
-    mine((await world({ beat: { state: 'handling' } })).cards).length,
-    1,
-    'handling a request',
-  );
+  assert.equal(quiet.data.listeners[0].active?.busy, false, 'not busy');
+  // it picked up a request (the wait handed it over): still only in the lane, which says it is busy
+  const handling = await world({ beat: { state: 'handling' } });
+  assert.equal(mine(handling.cards).length, 0, 'handling a request: no card');
+  assert.equal(handling.data.listeners[0].active?.session, fullId(tree.parent));
+  assert.equal(handling.data.listeners[0].active?.busy, true);
+  // a turn is running (answering): no card, busy in the lane
   const busy = await world({ registry: { status: 'busy' } });
-  assert.equal(mine(busy.cards)[0]?.column, 'working', 'a turn is running');
-  assert.equal(
-    busy.data.listeners[0].active?.session,
-    fullId(tree.parent),
-    'and it is still in the lane',
-  );
-  // something besides its wait is running
-  assert.equal(
-    mine((await world({ detail: '2 background tasks running' })).cards).length,
-    1,
-    'another task',
-  );
+  assert.equal(mine(busy.cards).length, 0, 'a turn is running: no card');
+  assert.equal(busy.data.listeners[0].active?.session, fullId(tree.parent), 'still in the lane');
+  assert.equal(busy.data.listeners[0].active?.busy, true);
+  // a background task besides its wait: no card, busy in the lane
+  const tasks = await world({ detail: '2 background tasks running' });
+  assert.equal(mine(tasks.cards).length, 0, 'another task: no card');
+  assert.equal(tasks.data.listeners[0].active?.busy, true);
+  // real other work stays a card: a subagent in the ledger, a tab waiting on you
   const withAgent = await world({
     ledger: `- [running] sid:${sid} helper (sonnet, low) — a task — started 2:50 PM ET, 10/26`,
   });
-  assert.equal(mine(withAgent.cards).length, 1, 'a subagent is running');
+  assert.equal(mine(withAgent.cards).length, 1, 'a subagent is running: a card');
+  assert.equal(mine((await world({ status: 'waiting' })).cards).length, 1, 'waiting on you');
   // no listener at all: an ordinary card
   const none = await (async () => {
     const home = tmp('board-no-wait');
