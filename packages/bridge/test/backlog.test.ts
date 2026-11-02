@@ -321,7 +321,7 @@ test('a landed item is Done for a day from the done event, then off the board; l
   const home = tmp('backlog-landed');
   const store = new BacklogStore(home);
   const item = store.add({ title: 'Shipped by deploy', repo: 'acme/widgets' });
-  assert.throws(() => store.done(item.id), /only a started item/);
+  assert.throws(() => store.done('bl_nothere1'), /no backlog item/);
   store.start(item.id, { branch: 'stack/9-shipped' });
   const landed = store.done(item.id, { sha: 'abc1234', by: 'deploy-local' });
   assert.equal(landed.state, 'started');
@@ -394,7 +394,7 @@ test('a landed item is Done for a day from the done event, then off the board; l
   );
 });
 
-test('a started item with no card is Working until its work ends, then Done (Error when the agent failed) for a day', () => {
+test('a started item with no card is Working until its work ends, then Ready, or Done once it merged, for a day', () => {
   const store = new BacklogStore(tmp('backlog-columns'));
   const item = store.add({ title: 'Piece of work', repo: 'acme/widgets' });
   store.start(item.id, { branch: 'feat/piece', by: 'builder' });
@@ -420,19 +420,21 @@ test('a started item with no card is Working until its work ends, then Done (Err
     ['working'],
   );
   const ended = new Date(startedAt + 2 * hour).toISOString();
+  // finished with a branch and not merged: Ready for review (the repo here is not one that skips review)
   assert.deepEqual(columnOf(linked({ agent: agentLink('done', ended) }), startedAt + 3 * hour), [
-    'done',
+    'ready',
   ]);
+  // failed or stopped: back in Backlog, marked tried
   assert.deepEqual(columnOf(linked({ agent: agentLink('stopped', ended) }), startedAt + 3 * hour), [
-    'done',
+    'backlog',
   ]);
   assert.deepEqual(columnOf(linked({ agent: agentLink('failed', ended) }), startedAt + 3 * hour), [
-    'error',
+    'backlog',
   ]);
   assert.deepEqual(
     columnOf(linked({ agent: agentLink('done', ended) }), startedAt + 27 * hour),
-    [],
-    'a day after it ended',
+    ['ready'],
+    'unmerged work stays Ready until it merges, however long ago its agent ended',
   );
   // merged: Done from the merge time
   const mergedAt = new Date(startedAt + 30 * hour).toISOString();
@@ -763,4 +765,142 @@ test('the assign line is one plain line with the id and a cleaned title, and the
   );
   const long = assignBranch({ id: 'bl_abcd1234', title: 'A '.repeat(100), branch: null });
   assert.match(long, /^backlog\/[a-z0-9-]{1,40}-abcd$/);
+});
+
+test('reopen brings a dropped item back with the same id; only a dropped item can be reopened', () => {
+  const store = new BacklogStore(tmp('backlog-reopen'));
+  const item = store.add({ title: 'Come back', repo: 'acme/widgets' });
+  assert.throws(() => store.reopen(item.id), /only a dropped item/);
+  store.start(item.id, { branch: 'feat/x', by: 'builder' });
+  store.drop(item.id);
+  assert.equal(store.items()[0].state, 'dropped');
+  const back = store.reopen(item.id, 'eric');
+  assert.equal(back.id, item.id);
+  assert.equal(back.state, 'open');
+  assert.equal(back.started_at, null);
+  assert.equal(back.dropped_at, null);
+  assert.equal(back.branch, null, 'the branch of the old start is gone');
+  assert.equal(backlogCards(store.items(), [], NOW)[0].column, 'backlog');
+  // a start after the drop was ignored, and one after the reopen counts
+  store.start(item.id, { branch: 'feat/y' });
+  assert.equal(store.items()[0].state, 'started');
+});
+
+test('an open item an agent names: rides on its card while it works, then follows what it produced', () => {
+  const store = new BacklogStore(tmp('backlog-open-agent'));
+  const item = store.add({ title: 'Look into a thing', repo: 'acme/widgets' });
+  const hour = 3600 * 1000;
+  const ended = new Date(NOW - 10 * 60 * 1000).toISOString();
+  const cardsFor = (agent: BoardAgentState, endedAt: string | null, now = NOW, own = true) => {
+    const agentCard = work(null, '', {
+      kind: 'agent',
+      title: 'scout',
+      branch: null,
+      agents: [{ name: 'scout', state: agent } as BoardCard['agents'][number]],
+    });
+    const link = linked({
+      agent: { ...(agentLink(agent, endedAt) as object), name: 'scout' } as never,
+    });
+    const shown = backlogCards(
+      store.items(),
+      own ? [agentCard] : [],
+      now,
+      [],
+      new Map([[item.id, link]]),
+    );
+    return { shown, agentCard };
+  };
+  // running: one card, the agent's, which takes the item's title
+  const running = cardsFor('running', null);
+  assert.deepEqual(running.shown, []);
+  assert.equal(running.agentCard.title, 'Look into a thing');
+  assert.equal(running.agentCard.from_backlog?.[0].id, item.id);
+  // a plan-stop agent: still the agent's one card, which moves to Waiting, for you
+  const plan = cardsFor('plan', ended);
+  assert.deepEqual(plan.shown, []);
+  assert.equal(plan.agentCard.column, 'waiting');
+  // finished (done, failed or stopped) while the agent's own card still waits: one card, the agent's
+  for (const state of ['done', 'failed', 'stopped'] as const) {
+    assert.deepEqual(cardsFor(state, ended).shown, [], state);
+  }
+  // the agent's card gone (Finish, or its 30 minutes): research is Done for a day and then off the board, never Backlog
+  const links = (state: BoardAgentState) =>
+    new Map([[item.id, linked({ agent: agentLink(state, ended) })]]);
+  assert.deepEqual(
+    backlogCards(store.items(), [], NOW, [], links('done')).map((card) => card.column),
+    ['done'],
+  );
+  assert.deepEqual(backlogCards(store.items(), [], NOW + 30 * hour, [], links('done')), []);
+  // failed or stopped: back in Backlog, marked tried
+  for (const state of ['failed', 'stopped'] as const) {
+    const back = backlogCards(store.items(), [], NOW, [], links(state));
+    assert.deepEqual(
+      back.map((card) => card.column),
+      ['backlog'],
+    );
+    assert.equal(back[0].backlog?.agent?.tried, true);
+  }
+});
+
+test('an open item whose agent works in a worktree is started on its branch, and `backlog done` lands it with no start', () => {
+  const store = new BacklogStore(tmp('backlog-derived'));
+  const item = store.add({ title: 'Build a thing', repo: 'shank-eric/once-upon-a-diff' });
+  const ended = new Date(NOW - 60 * 1000).toISOString();
+  const derived = linked({
+    branch: 'build-thing',
+    agent: agentLink('done', ended),
+  });
+  const shown = backlogCards(store.items(), [], NOW, [], new Map([[item.id, derived]]));
+  assert.deepEqual(
+    shown.map((card) => card.column),
+    ['ship'],
+  );
+  assert.equal(shown[0].backlog?.started?.branch, 'build-thing');
+  assert.equal(shown[0].backlog?.agent, null);
+  // it rides on the work card for that branch
+  const card = work('shank-eric/once-upon-a-diff', 'build-thing');
+  assert.deepEqual(backlogCards(store.items(), [card], NOW, [], new Map([[item.id, derived]])), []);
+  assert.equal(card.from_backlog?.[0].id, item.id);
+  // landed with no start: an open item can be done, and is Done for a day
+  const landed = store.done(item.id, { sha: 'abc1234', by: 'deploy-local' });
+  assert.equal(landed.state, 'open');
+  const done = backlogCards(store.items(), [], NOW + 3600 * 1000, [], new Map());
+  assert.deepEqual(
+    done.map((card) => card.column),
+    ['done'],
+  );
+});
+
+test('finished, unmerged branch work is Ready, or Ready to ship for once-upon-a-diff and Larmor', () => {
+  const store = new BacklogStore(tmp('backlog-ready-ship'));
+  const ended = new Date(NOW - 60 * 1000).toISOString();
+  for (const [repo, column] of [
+    ['acme/widgets', 'ready'],
+    ['shank-eric/once-upon-a-diff', 'ship'],
+    ['naveenvasou/larmor', 'ship'],
+  ] as const) {
+    const item = store.add({ title: `Work in ${repo}`, repo });
+    store.start(item.id, { branch: 'feat/x', by: 'builder' });
+    const cards = backlogCards(
+      store.items().filter((one) => one.id === item.id),
+      [],
+      NOW,
+      [],
+      new Map([[item.id, linked({ agent: agentLink('done', ended) })]]),
+    );
+    assert.deepEqual(
+      cards.map((card) => card.column),
+      [column],
+      repo,
+    );
+  }
+});
+
+test('reopen also clears an assignment', () => {
+  const store = new BacklogStore(tmp('backlog-reopen-assign'));
+  const item = store.add({ title: 'Assigned then dropped', repo: 'acme/widgets' });
+  store.assign(item.id, { session: 'sess-1', branch: 'backlog/x' });
+  store.drop(item.id);
+  const back = store.reopen(item.id);
+  assert.equal(back.assigned, null);
 });

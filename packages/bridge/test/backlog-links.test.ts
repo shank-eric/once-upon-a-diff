@@ -5,7 +5,14 @@ import path from 'node:path';
 import { tmp, writeJson, git } from './helpers.ts';
 import { Board, noPrWatcher, type PrWatcher } from '../src/services/board/board.ts';
 import { BacklogStore } from '../src/services/backlog/backlog.ts';
-import { parseWorktrees, startedLinks } from '../src/services/backlog/backlog-links.ts';
+import {
+  agentLinks,
+  claimedId,
+  claims,
+  parseWorktrees,
+  startedLinks,
+  worktreeOfAgent,
+} from '../src/services/backlog/backlog-links.ts';
 import { parseLedger } from '../src/services/ledger/ledger.ts';
 import { registrySource } from '../src/services/sessions/sources.ts';
 import { seenCheckout } from '../src/services/config/repos.ts';
@@ -177,7 +184,7 @@ const backlogCard = async (board: Board, id: string): Promise<BoardCard | undefi
     .flatMap((lane) => lane.cards)
     .find((card) => card.backlog?.id === id);
 
-test('the Retire-the-inbox case: a started card folds into its running agent’s card, and moves to Done when the agent finishes', async () => {
+test('the Retire-the-inbox case: a started card folds into its running agent’s card, and is Ready (unmerged work) when the agent finishes', async () => {
   const home = tmp('links-board');
   const sessions = tmp('links-sessions');
   const notes = tmp('links-notes');
@@ -222,21 +229,101 @@ test('the Retire-the-inbox case: a started card folds into its running agent’s
   cards = await cardsOf(boardOf(home, later));
   assert.equal(cards.filter((one) => one.title === 'Retire the inbox page?').length, 1);
 
-  // the agent finishes: the item is one Done card, linked to the worktree and the agent, with no hand drop
+  // the agent finishes with unmerged work on its branch: the item is one Ready card, linked to the worktree and the agent
   writeFileSync(
     ledger,
     '- [running] sid:54736864 ou-kill-inbox (sonnet, high) — remove the inbox — started 2:30 PM ET, 10/26\n' +
       '- [done] sid:54736864 ou-kill-inbox — 3:30 PM ET, 10/26 — committed on kill-inbox — notes\n',
   );
-  const done = await backlogCard(boardOf(home, NOW), item.id);
-  assert.equal(done?.column, 'done');
+  // while the finished agent's own card waits (its 30 minutes), the item is on that card and there is no second one
+  const waiting = (await cardsOf(boardOf(home, NOW))).find((one) => one.kind === 'agent');
+  assert.equal(waiting?.column, 'waiting');
+  assert.equal(waiting?.from_backlog?.[0].id, item.id);
+  assert.equal(await backlogCard(boardOf(home, NOW), item.id), undefined);
+  const done = await backlogCard(boardOf(home, later), item.id);
+  assert.equal(done?.column, 'ready');
   assert.equal(done?.backlog?.started?.links?.agent?.state, 'done');
   assert.deepEqual(
     done?.backlog?.started?.links?.worktrees.map((tree) => tree.name),
     ['kill-inbox'],
   );
-  // and it leaves Done a day after the agent ended
-  assert.equal(await backlogCard(boardOf(home, later), item.id), undefined);
+});
+
+test('a card named in an agent’s ledger task is linked with no start: out of Backlog while it runs, and back in it when the agent fails', async () => {
+  const home = tmp('links-named');
+  const notes = tmp('links-named-notes');
+  const ledger = path.join(notes, 'ledger.md');
+  writeJson(path.join(home, 'config.json'), {
+    board_sessions_dir: tmp('links-named-sessions'),
+    board_ledger_file: ledger,
+    board_ledger_time_zone: 'UTC',
+  });
+  const store = new BacklogStore(home);
+  const item = store.add({ title: 'Research the thing', repo: 'acme/widgets' });
+  const running = `- [running] sid:54736864 ou-scout (sonnet, high) — card ${item.id} research — started 2:30 PM ET, 10/26\n`;
+  writeFileSync(ledger, running);
+  const cardsOf = async () =>
+    (await boardOf(home, NOW).snapshot()).lanes.flatMap((lane) => lane.cards);
+  const cards = await cardsOf();
+  assert.equal(
+    cards.some((one) => one.backlog?.id === item.id),
+    false,
+  );
+  const agentCard = cards.find((one) => one.agents.some((agent) => agent.name === 'ou-scout'));
+  assert.equal(agentCard?.title, 'Research the thing');
+  assert.deepEqual(agentCard?.from_backlog, [{ id: item.id, title: 'Research the thing' }]);
+  // it fails: the item is a Backlog card again, marked tried by the agent
+  writeFileSync(
+    ledger,
+    running + '- [failed] sid:54736864 ou-scout — 2:45 PM ET, 10/26 — gave up\n',
+  );
+  // (still one card while the failed agent's own card waits)
+  assert.equal(await backlogCard(boardOf(home, NOW), item.id), undefined);
+  const later = new Date(NOW.getTime() + 24 * 3600 * 1000);
+  const back = await backlogCard(boardOf(home, later), item.id);
+  assert.equal(back?.column, 'backlog');
+  assert.equal(back?.backlog?.agent?.tried, true);
+  assert.equal(back?.backlog?.agent?.links.agent?.name, 'ou-scout');
+  // a reviewer naming the card, or a task that mentions it in passing, does not claim it
+  const other = store.add({ title: 'Another card', repo: 'acme/widgets' });
+  writeFileSync(
+    ledger,
+    `- [running] sid:54736864 review-x (opus, high) — review card ${other.id} diff — started 2:30 PM ET, 10/26\n` +
+      `- [running] sid:54736864 ou-notes (sonnet, high) — card ${item.id} then see ${other.id} — started 2:30 PM ET, 10/26\n`,
+  );
+  assert.equal((await backlogCard(boardOf(home, NOW), other.id))?.column, 'backlog');
+  assert.equal(
+    (await backlogCard(boardOf(home, NOW), other.id))?.backlog?.agent,
+    null,
+    'no agent owns it',
+  );
+});
+
+test('research that finished is Done for a day and then gone, never back in Backlog; an agent in a worktree makes its card Ready', async () => {
+  const home = tmp('links-research');
+  const ledger = path.join(tmp('links-research-notes'), 'ledger.md');
+  writeJson(path.join(home, 'config.json'), {
+    board_sessions_dir: tmp('links-research-sessions'),
+    board_ledger_file: ledger,
+    board_ledger_time_zone: 'UTC',
+  });
+  const store = new BacklogStore(home);
+  const item = store.add({ title: 'Look into it', repo: 'acme/widgets' });
+  writeFileSync(
+    ledger,
+    `- [running] sid:54736864 ou-look (sonnet, high) — card ${item.id} look — started 2:30 PM ET, 10/26\n` +
+      '- [done] sid:54736864 ou-look — 3:00 PM ET, 10/26 — it is fine — notes/x.md\n',
+  );
+  const day = 24 * 3600 * 1000;
+  // after the agent's own card is gone (a day on): Done, then off the board
+  assert.equal(
+    (await backlogCard(boardOf(home, new Date(NOW.getTime() + 12 * 3600 * 1000)), item.id))?.column,
+    'done',
+  );
+  assert.equal(
+    await backlogCard(boardOf(home, new Date(NOW.getTime() + 3 * day)), item.id),
+    undefined,
+  );
 });
 
 test('a started card with no session, agent or worktree yet is a Working card, for the grace day', async () => {
@@ -306,4 +393,77 @@ test('work fast-forwarded into the main checkout’s branch shows merged; a bran
   assert.equal(card?.backlog?.started?.links?.active, false);
   assert.ok(card?.backlog?.started?.links?.merged_at, 'dated by the branch tip’s commit');
   assert.equal(card?.column, 'done');
+});
+
+test('agentLinks: an open item is linked by an agent whose task names its id, as a whole token', () => {
+  const store = new BacklogStore(tmp('links-open'));
+  const made = store.add({ title: 'Research a thing', repo: 'acme/widgets' });
+  const item = store.items()[0];
+  const facts = (task: string, state = 'running') => ({
+    worktrees: new Map(),
+    sessions: [],
+    agents: ledgerLines(
+      state,
+      state === 'running'
+        ? `(sonnet, high) — ${task} — started 2:30 PM ET, 10/26`
+        : '— 3:00 PM ET, 10/26 — outcome',
+    ),
+    beats: new Map([['ou-kill-inbox', { n: 2, of: 6, step: 'plan', note: '' }]]),
+    merged: () => null,
+  });
+  const found = agentLinks(item, facts(`card ${made.id} research`)) as BoardStartedLinks;
+  assert.equal(found.agent?.name, 'ou-kill-inbox');
+  assert.deepEqual(found.agent?.beat, { n: 2, of: 6, step: 'plan', note: '' });
+  assert.equal(found.active, true);
+  // a longer token around the id is not the id
+  assert.equal(agentLinks(item, facts(`card ${made.id}x research`)), null);
+  assert.equal(agentLinks(item, facts(`card x${made.id} research`)), null);
+  assert.equal(agentLinks(item, facts('no card named')), null);
+  // a finished agent still says who worked it, and is not active
+  const done = agentLinks(item, {
+    ...facts(''),
+    agents: parseLedger(
+      `- [running] sid:aaaaaaaa ou-kill-inbox (x) — card ${made.id} — started 2:30 PM ET, 10/26\n- [done] sid:aaaaaaaa ou-kill-inbox — 3:00 PM ET, 10/26 — ok\n`,
+      NOW,
+      'UTC',
+    ),
+  }) as BoardStartedLinks;
+  assert.equal(done.agent?.state, 'done');
+  assert.equal(done.active, false);
+  // a started or dropped item is not an open item's link
+  store.start(made.id, { branch: 'x' });
+  assert.equal(agentLinks(store.items()[0], facts(`card ${made.id}`)), null);
+});
+
+test('claims: only the first `card <id>` of a non-reviewer’s task claims a card', () => {
+  const agent = (name: string, task: string) => ({ name, task });
+  assert.equal(claimedId('card bl_abcdef12 do it'), 'bl_abcdef12');
+  assert.equal(claimedId('restore card bl_abcdef12 to top, then card bl_zzzzzz99'), 'bl_abcdef12');
+  assert.equal(claimedId('see bl_abcdef12 for context'), null);
+  assert.equal(claimedId('notes/x-bl_abcdef12-plan.md'), null);
+  assert.equal(claims(agent('ou-a', 'card bl_abcdef12 x'), 'bl_abcdef12'), true);
+  assert.equal(claims(agent('ou-a', 'card bl_abcdef12 x'), 'bl_zzzzzz99'), false);
+  assert.equal(claims(agent('review-a', 'card bl_abcdef12 x'), 'bl_abcdef12'), false);
+  assert.equal(claims(agent('ou-a', 'card bl_abcdef12x'), 'bl_abcdef12'), false);
+});
+
+test('worktreeOfAgent: the worktree named for the agent or in its task, never a default branch', () => {
+  const trees = [
+    { path: '/d/widgets', branch: 'main' },
+    { path: '/d/widgets-worktrees/squash-ship', branch: 'squash-ship' },
+    { path: '/d/widgets-worktrees/other', branch: 'stack/9-other' },
+  ];
+  const agent = (name: string, task: string) =>
+    ({ name, task, sid: 'aaaaaaaa' }) as Parameters<typeof worktreeOfAgent>[0];
+  assert.equal(worktreeOfAgent(agent('ou-squash-ship', 'card x'), trees)?.branch, 'squash-ship');
+  assert.equal(
+    worktreeOfAgent(agent('builder', 'in widgets-worktrees/other now'), trees)?.branch,
+    'stack/9-other',
+  );
+  assert.equal(
+    worktreeOfAgent(agent('builder', 'build on stack/9-other'), trees)?.branch,
+    'stack/9-other',
+  );
+  assert.equal(worktreeOfAgent(agent('main', 'card x'), trees), null);
+  assert.equal(worktreeOfAgent(agent('ou-research', 'card x'), trees), null);
 });

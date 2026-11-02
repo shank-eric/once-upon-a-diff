@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { startedChips } from '../src/util/started-chips.ts';
+import { agentChip, agentOnlyChips, startedChips } from '../src/util/started-chips.ts';
 import type { BoardStartedLinks } from '../src/types.ts';
 
 const links = (extra: Partial<BoardStartedLinks> = {}): BoardStartedLinks => ({
@@ -61,4 +61,20 @@ test('a finished agent, a merge, and a card with nothing linked', () => {
     agent: { name: 'ou-y', state: 'waiting', beat: null, outcome: null, ended_at: null },
   });
   assert.equal(startedChips({ branch: 'x', on: null, links: waiting })[1], 'ou-y waiting on you');
+});
+
+test('a failed or stopped agent is "tried by", and an open card an agent names has just the agent chip', () => {
+  const agent = (state: NonNullable<BoardStartedLinks['agent']>['state']) => ({
+    name: 'ou-x',
+    state,
+    beat: null,
+    outcome: null,
+    ended_at: null,
+  });
+  assert.equal(agentChip(agent('failed')), 'tried by ou-x (failed)');
+  assert.equal(agentChip(agent('stopped')), 'tried by ou-x (stopped)');
+  assert.deepEqual(agentOnlyChips({ links: links({ agent: agent('plan') }), tried: false }), [
+    'ou-x plan ready',
+  ]);
+  assert.deepEqual(agentOnlyChips({ links: links(), tried: false }), []);
 });

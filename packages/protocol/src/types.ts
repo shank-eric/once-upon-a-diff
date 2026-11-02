@@ -858,6 +858,11 @@ export interface BoardCard {
     } | null;
     /** the CLI line to paste into a session to start it */
     start_line: string;
+    /**
+     * an open item a ledger agent names (its task says the id, no `start` needed): what is working it, and whether the
+     * agent only tried it (failed, stopped, or finished long ago) so the card is back in Backlog
+     */
+    agent?: { links: BoardStartedLinks; tried: boolean } | null;
     /** an Assign typed it into this session lately and no start followed (the title is filled from the live view) */
     assigned: {
       session: string;
@@ -952,6 +957,8 @@ export interface BoardStartedLinks {
   merged_at: string | null;
   /** something is linked and the work has not merged: the card stays past the day */
   active: boolean;
+  /** the branch an agent that owns an open item works on (found from its worktree), which makes the item started; null otherwise */
+  branch?: string | null;
 }
 
 /** The voice session, pinned above the columns once voice has started in it today, and kept (collapsed) while paused or ended (Larmor's voice mode: src/board/voice.ts). */

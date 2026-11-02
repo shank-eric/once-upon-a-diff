@@ -6,8 +6,9 @@
  *
  *   {op:'add',   id, title, note, repo, branch, by, at}
  *   {op:'start', id, branch, repo, by, at}     work began on that branch
- *   {op:'done',  id, sha?, by, at}             the work landed (a local deploy: no PR ever merges it)
+ *   {op:'done',  id, sha?, by, at}             the work landed (a local deploy: no PR ever merges it); an open item can land too
  *   {op:'drop',  id, by, at}
+ *   {op:'reopen', id, by, at}                  a dropped item is open again (a new `start` after a drop is still ignored)
  *   {op:'move',  id, before | edge, by, at}   `before` is another item's id; `edge` is 'top' or 'bottom'
  *
  * The items come back in order: an add goes to the bottom, and a move puts one item before another or at an edge.
@@ -81,6 +82,7 @@ export interface BacklogStorage {
     input: { branch: string; repo?: string | null; by?: string | null },
   ): BacklogItem;
   drop(id: string, who?: string | null): BacklogItem;
+  reopen(id: string, who?: string | null): BacklogItem;
   done(id: string, input?: { sha?: string | null; by?: string | null }): BacklogItem;
   assign(
     id: string,
@@ -115,6 +117,8 @@ function optional(value: unknown, what: string, pattern: RegExp): string | null 
 /** The items in a file's text: the events folded by id, oldest first. Lines that aren't events are skipped. */
 export function foldBacklog(text: string): BacklogItem[] {
   const items = new Map<string, BacklogItem>();
+  // what each item was added with, which a reopen goes back to (a start overwrote the branch and the repo)
+  const added = new Map<string, { branch: string | null; repo: string | null }>();
   const order: string[] = [];
   for (const line of text.split('\n')) {
     let event: Record<string, unknown>;
@@ -132,6 +136,10 @@ export function foldBacklog(text: string): BacklogItem[] {
     const found = items.get(id);
     if (event.op === 'add' && !found && typeof event.title === 'string') {
       order.push(id);
+      added.set(id, {
+        branch: typeof event.branch === 'string' && event.branch ? event.branch : null,
+        repo: typeof event.repo === 'string' && event.repo ? event.repo : null,
+      });
       items.set(id, {
         id,
         title: event.title,
@@ -175,12 +183,28 @@ export function foldBacklog(text: string): BacklogItem[] {
         branch: typeof event.branch === 'string' && event.branch ? event.branch : null,
         at: when,
       };
-    } else if (found && found.state === 'started' && event.op === 'done') {
+    } else if (
+      found &&
+      (found.state === 'started' || found.state === 'open') &&
+      event.op === 'done'
+    ) {
+      // (an open item an agent works on is started by what the board finds, so it can land with no `start`)
       found.landed_at = when;
       found.landed_sha = typeof event.sha === 'string' && event.sha ? event.sha : null;
     } else if (found && event.op === 'drop') {
       found.state = 'dropped';
       found.dropped_at = when;
+    } else if (found && found.state === 'dropped' && event.op === 'reopen') {
+      // back to an open item: the work it was started on no longer speaks for it, and it keeps its place in the order
+      found.state = 'open';
+      found.dropped_at = null;
+      found.started_at = null;
+      found.started_by = null;
+      found.landed_at = null;
+      found.landed_sha = null;
+      found.branch = added.get(id)?.branch ?? null;
+      found.repo = added.get(id)?.repo ?? null;
+      found.assigned = null;
     } else if (found && event.op === 'move') {
       // a target that is gone or unknown leaves the item where it was
       const target = typeof event.before === 'string' ? order.indexOf(event.before) : -1;
@@ -302,8 +326,8 @@ export class BacklogStore implements BacklogStorage {
   /** Records that a started item's work landed (deploy-local.sh, no PR), with the sha it landed as when known. */
   done(id: string, input: { sha?: string | null; by?: string | null } = {}): BacklogItem {
     const item = this.find(id);
-    if (item.state !== 'started') {
-      throw new Error(`${id} is ${item.state}, only a started item can be done`);
+    if (item.state === 'dropped') {
+      throw new Error(`${id} is dropped, only a started or open item can be done`);
     }
     this.append({
       op: 'done',
@@ -317,6 +341,16 @@ export class BacklogStore implements BacklogStorage {
   drop(id: string, who?: string | null): BacklogItem {
     this.find(id);
     this.append({ op: 'drop', id, by: clean(who, 'the name', BY_MAX) || 'cli' });
+    return this.find(id);
+  }
+
+  /** Brings a dropped item back as an open one, with the same id (so an id a ledger line names still means it). */
+  reopen(id: string, who?: string | null): BacklogItem {
+    const item = this.find(id);
+    if (item.state !== 'dropped') {
+      throw new Error(`${id} is ${item.state}, only a dropped item can be reopened`);
+    }
+    this.append({ op: 'reopen', id, by: clean(who, 'the name', BY_MAX) || 'cli' });
     return this.find(id);
   }
 }
@@ -380,14 +414,14 @@ export function assignLine(item: Pick<BacklogItem, 'id' | 'title' | 'branch'>): 
 }
 
 /**
- * Whether a started item's work has finished, with when and where it goes: landed (`done`, a local deploy) is Done at
- * that time, merged is Done at its merge time (else the start), a finished agent is Done at its end (a failed one is Error). Null while the work is going on or has no link.
+ * Whether a started item's work has landed or merged, with when: landed (`done`, a local deploy) is Done at that time,
+ * merged is Done at its merge time (else the start). Null while the work is going on. What its agent says is `agentColumn`.
  */
 function endedColumn(
   links: BoardStartedLinks | undefined,
   startedMs: number,
   landedMs: number,
-): { column: 'done' | 'error'; when: number } | null {
+): { column: 'done'; when: number } | null {
   if (!Number.isNaN(landedMs)) {
     return { column: 'done', when: landedMs };
   }
@@ -395,15 +429,47 @@ function endedColumn(
     const when = Date.parse(links.merged_at ?? '');
     return { column: 'done', when: Number.isNaN(when) ? startedMs || 0 : when };
   }
-  const agent = links?.agent;
-  if (agent && !AGENT_OPEN.includes(agent.state)) {
-    const when = Date.parse(agent.ended_at ?? '');
-    return {
-      column: agent.state === 'failed' ? 'error' : 'done',
-      when: Number.isNaN(when) ? startedMs || 0 : when,
-    };
-  }
   return null;
+}
+
+/** The repos whose finished work skips review for now and is Ready to ship (once-upon-a-diff and Larmor). */
+const SKIPS_REVIEW = /^(once-upon-a-diff|larmor)$/i;
+
+/**
+ * Where an item goes by what its ledger agent (named by `start --by`, found in its worktree, or owning it by the id in its
+ * task) has produced, when the agent has no card on the board (while it does, the item rides on that card, so it is one
+ * card):
+ *
+ *   open agent         a plan stop or a question is Waiting, for you; otherwise Working
+ *   done, a branch     the work is not merged: Ready for review, or Ready to ship for once-upon-a-diff and Larmor
+ *   done, card only    Done for DONE_HOURS after it ended, then off the board (it stays done, never back in Backlog)
+ *   failed or stopped  back in Backlog, marked tried by the agent
+ *
+ * Null when the item is past its Done day. `tried` marks the Backlog case: the card says who tried it.
+ */
+function agentColumn(
+  item: BacklogItem,
+  agent: NonNullable<BoardStartedLinks['agent']>,
+  nowMs: number,
+): { column: BoardCard['column']; when: number | null; tried: boolean } | null {
+  const ended = Date.parse(agent.ended_at ?? '');
+  const when = Number.isNaN(ended) ? null : ended;
+  if (agent.state === 'plan' || agent.state === 'waiting') {
+    return { column: 'waiting', when, tried: false };
+  }
+  if (AGENT_OPEN.includes(agent.state)) {
+    return { column: 'working', when, tried: false };
+  }
+  if (agent.state === 'failed' || agent.state === 'stopped') {
+    return { column: 'backlog', when, tried: true };
+  }
+  if (item.state === 'started' && item.branch) {
+    const repoName = (item.repo ?? '').split('/')[1] ?? '';
+    return { column: SKIPS_REVIEW.test(repoName) ? 'ship' : 'ready', when, tried: false };
+  }
+  return when !== null && nowMs - when > DONE_HOURS * 3600 * 1000
+    ? null
+    : { column: 'done', when, tried: false };
 }
 
 const lane = (repo: string | null) => (repo ? repo.split('/')[1] : 'General');
@@ -419,14 +485,16 @@ export interface CardlessSession {
 const AGENT_OPEN: BoardAgent['state'][] = ['running', 'waiting', 'plan', 'fixing'];
 
 /**
- * The cards the Backlog item column shows, and the work cards' "from backlog" marks. Open items are cards in Backlog. A
- * started item is one piece of work, shown once:
+ * The cards the Backlog item column shows, and the work cards' "from backlog" marks. Open items are cards in Backlog,
+ * except one a ledger agent names (its task says the id: no `start` needed), which goes where the agent's work puts it
+ * (agentColumn). A started item is one piece of work, shown once:
  *
- *   on a card    it rides on the work or session card for its repo and branch, else on the card its linked, still open
- *                agent is in (an agent's own card takes the item's title); that card's column carries on
+ *   on a card    it rides on the work or session card for its repo and branch, else on the card its linked agent is in
+ *                (an agent's own card takes the item's title); that card's column carries on
  *   no card      it is a card of its own in Working ("started, no session yet" until `links` (backlog-links.ts) finds a
- *                worktree, session or agent), in Done once its work merged, landed (`once-upon backlog done`) or its agent finished (Error when the agent
- *                failed), and gone DONE_HOURS after that. An unlinked one is gone after STARTED_GRACE_HOURS
+ *                worktree, session or agent), in Done once its work merged or landed (`once-upon backlog done`), and gone
+ *                DONE_HOURS after that. Its agent's work decides the rest (agentColumn): finished with a branch, it is
+ *                Ready; failed or stopped, it is back in Backlog. An unlinked one is gone after STARTED_GRACE_HOURS
  *
  * Dropped items are not shown.
  */
@@ -438,14 +506,22 @@ export function backlogCards(
   links: Map<string, BoardStartedLinks> = new Map(),
 ): BoardCard[] {
   const shown: BoardCard[] = [];
-  for (const item of items) {
-    if (item.state === 'dropped') {
+  for (const original of items) {
+    if (original.state === 'dropped') {
       continue;
     }
+    const link = links.get(original.id);
+    // an open item whose agent works in a worktree (`link.branch`), or that landed (`done` with no `start`), is a started one
+    const derived = original.state === 'open' && !!(link?.branch || original.landed_at);
+    const item: BacklogItem = derived
+      ? { ...original, state: 'started', branch: link?.branch ?? original.branch }
+      : original;
     let onSession: CardlessSession | undefined;
     let column: BoardCard['column'] = 'backlog';
     let since: string | null = item.added_at || null;
-    if (item.state === 'started') {
+    let tried = false;
+    const agent = link?.agent ?? null;
+    if (item.state === 'started' && item.branch) {
       // the work card for its branch, else a session card on it (a session on a new branch with no PR or story yet)
       const onBranch = (card: BoardCard, kind: BoardCard['kind']) =>
         card.kind === kind &&
@@ -461,12 +537,11 @@ export function backlogCards(
         }
         continue;
       }
-      // the card of the linked agent, when it is still open: the agent is where the work is
-      const link = links.get(item.id);
-      const open = link?.agent && AGENT_OPEN.includes(link.agent.state) ? link.agent.name : null;
-      const byAgent = open
-        ? cards.find((card) => card.agents.some((one) => one.name === open))
-        : null;
+    }
+    if (agent && !(item.state === 'started' && (link?.merged || item.landed_at))) {
+      // the card its agent is on, whatever the agent is doing, so the work is one card: the agent's own card (running,
+      // at a gate, or waiting out its 30 minutes), or the card the agent is nested in. A cleared agent has none
+      const byAgent = cards.find((card) => card.agents.some((one) => one.name === agent.name));
       if (byAgent) {
         byAgent.from_backlog = [
           ...(byAgent.from_backlog ?? []),
@@ -474,24 +549,43 @@ export function backlogCards(
         ];
         if (byAgent.kind === 'agent') {
           byAgent.title = item.title;
+          // a plan stop waits on you, which is where the card says so
+          if (agent.state === 'plan') {
+            byAgent.column = 'waiting';
+          }
         }
         continue;
       }
+      const placed = agentColumn(item, agent, nowMs);
+      if (!placed) {
+        continue;
+      }
+      column = placed.column;
+      tried = placed.tried;
+      since = item.started_at ?? item.added_at ?? null;
+      if (column === 'backlog') {
+        since = item.added_at || null;
+      } else if (placed.when !== null) {
+        since = new Date(placed.when).toISOString();
+      }
+    }
+    if (item.state === 'started') {
       onSession = cardless.find(
         (session) =>
           session.branch === item.branch &&
           (item.repo ? sameRepo(session.repo, item.repo) : !session.repo),
       );
       const started = Date.parse(item.started_at ?? '');
-      const ended = endedColumn(link, started, Date.parse(item.landed_at ?? ''));
-      if (ended) {
-        // finished: Done (or Error) for a day from when it finished, as far as is known
-        if (nowMs - ended.when > DONE_HOURS * 3600 * 1000) {
+      const landed = endedColumn(link, started, Date.parse(item.landed_at ?? ''));
+      if (landed) {
+        // landed or merged: Done for a day from then, as far as is known
+        if (nowMs - landed.when > DONE_HOURS * 3600 * 1000) {
           continue;
         }
-        column = ended.column;
-        since = new Date(ended.when).toISOString();
-      } else {
+        column = landed.column;
+        tried = false;
+        since = new Date(landed.when).toISOString();
+      } else if (column === 'backlog' && !tried) {
         column = 'working';
         since = item.started_at || item.added_at || null;
         // work that is linked and not merged stays, whatever the day count says (a worktree, a session or its agent is on it)
@@ -537,6 +631,8 @@ export function backlogCards(
               }
             : null,
         start_line: startLine(item),
+        // an open item a ledger agent names: what is working it, or who tried it
+        agent: original.state === 'open' && !derived && link?.agent ? { links: link, tried } : null,
         assigned:
           item.state === 'open' && liveAssignment(item, nowMs)
             ? {

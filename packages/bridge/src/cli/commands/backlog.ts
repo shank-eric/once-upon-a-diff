@@ -1,5 +1,5 @@
 /*
- * The backlog from the terminal: `once-upon backlog add|list|show|start|drop`. It reads and writes the backlog file
+ * The backlog from the terminal: `once-upon backlog add|list|show|start|drop|reopen`. It reads and writes the backlog file
  * (services/backlog/backlog.ts) in-process, so nothing goes over HTTP; the board shows the items as its Backlog column.
  */
 import { formatTime } from '../../services/config/settings.ts';
@@ -20,7 +20,8 @@ const USAGE =
   '       once-upon backlog move ID --before ID | --top | --bottom\n' +
   '       once-upon backlog done ID [--sha SHA] [--by NAME]\n' +
   '       once-upon backlog done --branch NAME [--sha SHA] [--by NAME]\n' +
-  '       once-upon backlog drop ID';
+  '       once-upon backlog drop ID\n' +
+  '       once-upon backlog reopen ID';
 
 const text = (value: unknown): string | null => (typeof value === 'string' ? value : null);
 
@@ -132,6 +133,11 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     store.drop(item.id, who);
     return out(`${item.id} dropped: ${item.title}`);
   }
+  if (verb === 'reopen') {
+    const item = found();
+    store.reopen(item.id, who);
+    return out(`${item.id} reopened: ${item.title}`);
+  }
   throw new Error(USAGE);
 }
 
@@ -140,7 +146,7 @@ export const backlogCommands: Command[] = [
     name: 'backlog',
     usage: [
       '  once-upon backlog add "TITLE" [--note TEXT] [--repo owner/name] [--branch NAME]  keep something for later: a card in the board\'s Backlog column',
-      '  once-upon backlog list [--all] [--json] | show ID | drop ID                     the items in board order (open ones, or all), one item, or drop one',
+      '  once-upon backlog list [--all] [--json] | show ID | drop ID | reopen ID         the items in board order (open ones, or all), one item, drop one, or bring a dropped one back',
       '  once-upon backlog done ID | --branch NAME [--sha SHA]                           the work landed (a local deploy): the card goes to Done for a day',
       '  once-upon backlog move ID --before ID | --top | --bottom                        reorder: new items go to the bottom',
       "  once-upon backlog start ID [--branch NAME]                                       work began: the card moves onto that branch's work card",

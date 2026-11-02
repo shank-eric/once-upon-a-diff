@@ -5,7 +5,12 @@
 import { checkoutFor, sameRepo, seenCheckouts } from '../../config/repos.ts';
 import { assignLine, backlogCards, liveAssignment } from '../../backlog/backlog.ts';
 import type { BacklogItem } from '../../backlog/backlog.ts';
-import { startedLinks } from '../../backlog/backlog-links.ts';
+import {
+  agentLinks,
+  owningAgent,
+  startedLinks,
+  worktreeOfAgent,
+} from '../../backlog/backlog-links.ts';
 import type { Worktree } from '../../backlog/backlog-links.ts';
 import { checkoutsOf } from '../../worktrees/checkouts.ts';
 import type { LedgerAgent } from '../../ledger/ledger.ts';
@@ -37,7 +42,7 @@ export interface LinkFacts {
 }
 
 /**
- * What is working each started item: its worktrees (looked up per repo, every checkout the board can learn of), the
+ * What is working each started item, and each open item a ledger agent names: its worktrees (looked up per repo, every checkout the board can learn of), the
  * sessions in them, its ledger agent, and whether its branch merged. Keyed by item id; an item nothing is found for has none.
  */
 export async function readBacklogLinks(
@@ -55,11 +60,17 @@ export async function readBacklogLinks(
 ): Promise<Map<string, BoardStartedLinks>> {
   const { nowMs } = ctx;
   const startedItems = backlogItems.filter((item) => item.state === 'started' && item.branch);
+  // an open item an agent owns (its task claims the id) is worked like a started one when the agent has a worktree
+  const owned = backlogItems.flatMap((item) => {
+    const agent = owningAgent(item, agents);
+    return agent ? [{ item, agent }] : [];
+  });
+  const wanted = [...startedItems, ...owned.map((one) => one.item)];
   const treesByRepo = new Map<string, Worktree[]>();
   await Promise.all(
-    [...new Set(startedItems.flatMap((item) => (item.repo ? [item.repo.toLowerCase()] : [])))].map(
+    [...new Set(wanted.flatMap((item) => (item.repo ? [item.repo.toLowerCase()] : [])))].map(
       async (key) => {
-        const repo = startedItems.find((item) => item.repo?.toLowerCase() === key)?.repo as string;
+        const repo = wanted.find((item) => item.repo?.toLowerCase() === key)?.repo as string;
         // every checkout of the repo the board can learn of (checkouts.ts); checkout_dirs only when none turns up
         const dirs = new Set<string>(
           await checkoutsOf(repo, {
@@ -98,9 +109,25 @@ export async function readBacklogLinks(
       },
     ),
   );
+  // those owned items with a worktree are started, on its branch (nothing is written: it is worked out on read)
+  const derived = new Set<string>();
+  const worked: BacklogItem[] = [...startedItems];
+  for (const { item, agent } of owned) {
+    const tree = worktreeOfAgent(agent, treesByRepo.get((item.repo ?? '').toLowerCase()) ?? []);
+    if (tree?.branch) {
+      derived.add(item.id);
+      worked.push({
+        ...item,
+        state: 'started',
+        branch: tree.branch,
+        started_by: agent.name,
+        started_at: null,
+      });
+    }
+  }
   const landedBranches = new Map<string, { at: number | null }>();
   await Promise.all(
-    startedItems.map(async (item) => {
+    worked.map(async (item) => {
       const repoKey = (item.repo ?? '').toLowerCase();
       const landed = await ctx.lookups.mergedLocally(
         treesByRepo.get(repoKey) ?? [],
@@ -155,8 +182,15 @@ export async function readBacklogLinks(
     },
   };
   const links = new Map<string, BoardStartedLinks>();
-  for (const item of startedItems) {
+  for (const item of worked) {
     const found = startedLinks(item, linkFacts);
+    if (found) {
+      links.set(item.id, derived.has(item.id) ? { ...found, branch: item.branch } : found);
+    }
+  }
+  // an open item an agent owns with no worktree (research, a plan) is linked by the agent alone
+  for (const { item } of owned) {
+    const found = derived.has(item.id) ? null : agentLinks(item, linkFacts);
     if (found) {
       links.set(item.id, found);
     }
@@ -202,7 +236,11 @@ export function addBacklogCards(
   // and not one already holding another item's live assignment
   for (const card of all) {
     const item = card.backlog && backlogItems.find((one) => one.id === card.backlog?.id);
+    // (an item a ledger agent is working has its agent's chip, not an Assign)
     if (!card.backlog || !item || item.state !== 'open') {
+      continue;
+    }
+    if (card.backlog.started || (card.backlog.agent && !card.backlog.agent.tried)) {
       continue;
     }
     const taken = new Set(
