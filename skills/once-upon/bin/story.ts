@@ -8,18 +8,27 @@
  *   story.ts build   --dir D [--no-bridge]   D/chapters.json -> D/file-map.json, then publish; fails if a file is
  *                                             unplaced or a hunk is told by no chapter (--allow-uncovered publishes anyway)
  *   story.ts publish --dir D                 publish the story for Once Upon a Diff through `once-upon publish` (build does this too)
+ *   story.ts slice   --dir D --chapter K     what one chapter's writer reads: map, neighbours, key points (D/points.json), numbered diff
+ *   story.ts merge   --dir D                 lay D/fragments/*.json (one per chapter) onto D/chapters.json; never publishes (--clear: delete them instead)
+ *                                             slice and merge read D/pr.diff, or --diff F, or a local story's --repo R --base B --head H
  */
 import { readFile } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, unlinkSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 // This skill ships in the Once Upon a Diff repo (skills/once-upon/bin), and Node resolves the skill link, so it
 // imports the bridge's and the panel's own helpers from the checkout it's linked from.
 import { parseArgs } from '../../../packages/bridge/src/cli/args.ts';
+import { diffText } from '../../../packages/bridge/src/adapters/git.ts';
 import { parseUnifiedDiff } from '../../../packages/bridge/src/services/stories/diff.ts';
 import { writeJsonAtomic } from '../../../packages/bridge/src/adapters/stores/json-file.ts';
 import { chaptersOf } from '../../../packages/bridge/src/services/stories/chapters.ts';
+import {
+  mergeFragments,
+  sliceOf,
+  type Points,
+} from '../../../packages/bridge/src/services/stories/fragments.ts';
 import {
   addTextRefs,
   ambiguousRefsOf,
@@ -311,6 +320,99 @@ async function cmdBuild(opts: CliOpts) {
 }
 
 /**
+ * The diff `slice` and `merge` read: `--diff <file>`, else a local story's range (`--repo <checkout> --base <ref> --head <ref>`,
+ * made as the local flow makes its diff), else D/pr.diff.
+ */
+function diffOf(opts: CliOpts): ReturnType<typeof parseUnifiedDiff> {
+  const dir = opts.dir as string;
+  if (
+    typeof opts.repo === 'string' &&
+    typeof opts.base === 'string' &&
+    typeof opts.head === 'string'
+  ) {
+    return parseUnifiedDiff(diffText(path.resolve(opts.repo), opts.base, opts.head));
+  }
+  const file = typeof opts.diff === 'string' ? path.resolve(opts.diff) : path.join(dir, 'pr.diff');
+  if (!existsSync(file)) {
+    throw new Error(
+      `no diff to read: ${file} is missing. For a local story pass --repo <checkout> --base <ref> --head <branch> (or --diff <file>)`,
+    );
+  }
+  return parseUnifiedDiff(readFileSync(file, 'utf8'));
+}
+
+/** The packet one chapter's writer reads (fragments.ts sliceOf): `--chapter` is the chapter's key or its number. */
+async function cmdSlice(opts: CliOpts) {
+  const dir = opts.dir as string;
+  const diff = diffOf(opts);
+  const plan = await readJson<Plan>(path.join(dir, 'chapters.json'));
+  const points = await readJson<Points>(path.join(dir, 'points.json'), {});
+  const which = typeof opts.chapter === 'string' ? opts.chapter : '';
+  const text = which ? sliceOf(plan, which, diff, points) : null;
+  if (text === null) {
+    throw new Error(
+      `slice needs --chapter <key or number> naming a chapter of ${dir}/chapters.json`,
+    );
+  }
+  process.stdout.write(text + '\n');
+}
+
+/**
+ * Lays the chapter writers' fragments (D/fragments/*.json) onto D/chapters.json, filling only chapters with no text yet
+ * (fragments.ts). The file is read and written in one synchronous step, so it is the one writer of chapters.json while
+ * it runs. It prints a line per fragment and exits 1 when any was refused. Publishing is a separate step: `build`,
+ * or `once-upon local --chapters` for a local story.
+ */
+async function cmdMerge(opts: CliOpts) {
+  const dir = opts.dir as string;
+  const fragmentDir = path.join(dir, 'fragments');
+  if (opts.clear) {
+    // a new telling starts with no fragments, so none from an earlier one fills (or orphans) its chapters
+    const old = existsSync(fragmentDir)
+      ? readdirSync(fragmentDir).filter((name) => name.endsWith('.json'))
+      : [];
+    old.forEach((name) => unlinkSync(path.join(fragmentDir, name)));
+    process.stderr.write(`cleared ${old.length} fragments\n`);
+    return;
+  }
+  const diff = diffOf(opts);
+  const names = existsSync(fragmentDir)
+    ? readdirSync(fragmentDir)
+        .filter((name) => name.endsWith('.json'))
+        .sort()
+    : [];
+  const fragments = names.map((name) => {
+    try {
+      return JSON.parse(readFileSync(path.join(fragmentDir, name), 'utf8')) as unknown;
+    } catch {
+      return { __unreadable: name };
+    }
+  });
+  const file = path.join(dir, 'chapters.json');
+  const plan = JSON.parse(readFileSync(file, 'utf8')) as Plan;
+  const { plan: merged, outcomes } = mergeFragments(plan, fragments, diff);
+  if (outcomes.some((outcome) => outcome.status === 'merged')) {
+    writeJsonAtomic(file, merged);
+  }
+  outcomes.forEach((outcome, i) => {
+    const name = names[i] || '';
+    process.stderr.write(
+      `${outcome.status.padEnd(8)} ${name}${outcome.key ? ` (${outcome.key})` : ''}: ${outcome.why}\n`,
+    );
+  });
+  const rejected = outcomes.filter((outcome) => outcome.status === 'rejected').length;
+  const unwritten = (merged.chapters || []).filter(
+    (chapter) => !String(chapter.narrative || '').trim() && !chapter.since,
+  ).length;
+  process.stderr.write(
+    `${outcomes.filter((outcome) => outcome.status === 'merged').length} merged, ${rejected} refused, ${unwritten} chapters still without text\n`,
+  );
+  if (rejected) {
+    process.exitCode = 1;
+  }
+}
+
+/**
  * Once Upon a Diff: hand the folder to `once-upon publish`, which copies
  * chapters.json and file-map.json, with a meta.json naming the PR and the
  * commits it was told from, to where the bridge serves it (the repo's
@@ -344,12 +446,14 @@ const COMMANDS: Record<string, (opts: CliOpts) => Promise<void>> = {
   brief: cmdBrief,
   build: cmdBuild,
   publish: cmdPublish,
+  slice: cmdSlice,
+  merge: cmdMerge,
 };
 const { command, opts } = parseArgs(process.argv.slice(2));
 const run = COMMANDS[command as string];
 if (!run || !opts.dir) {
   process.stderr.write(
-    'usage: story.ts <brief|build|publish> --dir <scratch-dir> [--no-bridge] [--allow-uncovered]\n',
+    'usage: story.ts <brief|build|publish|slice|merge> --dir <scratch-dir> [--no-bridge] [--allow-uncovered] [--chapter <key|n>] [--clear] [--diff <file> | --repo <dir> --base <ref> --head <ref>]\n',
   );
   process.exitCode = 1;
 } else {

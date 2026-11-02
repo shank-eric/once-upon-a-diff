@@ -31,6 +31,8 @@ export interface PlanChapter {
   scenario?: string;
   summary?: string;
   narrative?: string;
+  /** a short answer once told (≤400 chars) */
+  answer?: string;
   files?: PlanFile[];
   comments?: (Partial<DraftComment> & { side?: string })[];
   since?: unknown;
