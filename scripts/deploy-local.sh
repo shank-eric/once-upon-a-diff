@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Local deploy for Once Upon a Diff. Never pushes, never deletes branches or worktrees.
+# Local deploy for Once Upon a Diff. Never pushes and never deletes branches. After a deploy it removes the worktree
+# of each landed branch (under ../once-upon-a-diff-worktrees) when that branch is now an ancestor of main.
 #
 #   scripts/deploy-local.sh --yes <branch-or-sha>            fast-forward deploy (default)
 #   scripts/deploy-local.sh [--yes] --batch <base> <sha>...  cherry-pick deploy with gates
@@ -18,6 +19,9 @@ PORT=4823
 KNOWN_EDIT="skills/once-upon/SKILL.md"
 # The bridge also writes its own timestamped lines here; the hand deploys appended stdout to the same file.
 BRIDGE_LOG="$HOME/.once-upon/bridge.log"
+
+# shellcheck source=lib/worktree-cleanup.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/worktree-cleanup.sh"
 
 die() { echo "deploy-local: $*" >&2; exit 1; }
 say() { echo "deploy-local: $*"; }
@@ -263,6 +267,7 @@ recover() {
 # A failure here only prints a line, the deploy is already live.
 mark_landed() {
   local name tip hit n=0
+  LANDED_BRANCHES=()
   while read -r name tip; do
     case "$name" in main | master) continue ;; esac
     hit=0
@@ -272,6 +277,7 @@ mark_landed() {
       hit=1
     fi
     [ "$hit" = 1 ] || continue
+    LANDED_BRANCHES+=("$name")
     (cd "$MAIN/packages/bridge" && node bin/once-upon.mjs backlog done --branch "$name" --sha "$tip" --by deploy-local </dev/null) || say "could not mark backlog items on $name as done"
     n=$((n + 1))
   done < <(git -C "$MAIN" for-each-ref --format='%(refname:lstrip=2) %(objectname)' refs/heads 2>/dev/null) || true
@@ -301,6 +307,11 @@ go_live() {
     say "local main is not an ancestor of the tip, left it alone"
   fi
   mark_landed || say "could not mark backlog items as done"
+  local b mode=""
+  [ "$BATCH" = 1 ] && mode=patch
+  for b in ${LANDED_BRANCHES[@]+"${LANDED_BRANCHES[@]}"}; do
+    cleanup_landed_worktree "$MAIN" "$MAIN-worktrees" "$b" main "$mode" || true
+  done
   SHORT="$(git -C "$MAIN" rev-parse --short "$TIP")"
   NOW="$(TZ=America/New_York date '+%-I:%M %p ET, %-m/%-d')"
 }
