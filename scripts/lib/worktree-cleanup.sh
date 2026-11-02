@@ -13,6 +13,7 @@ _regenerable() {
     .yarn/cache | .yarn/cache/* | .yarn/install-state.gz | .husky/_ | .husky/_/*) return 0 ;;
     dist | dist/* | */dist | */dist/* | build | build/* | */build | */build/*) return 0 ;;
     .venv* | */.venv* | __pycache__ | */__pycache__ | */__pycache__/*) return 0 ;;
+    .wxt | .wxt/* | */.wxt | */.wxt/*) return 0 ;;
     *.log) return 0 ;;
   esac
   return 1
