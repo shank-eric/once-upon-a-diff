@@ -8,6 +8,7 @@ import { Board, noPrWatcher } from '../src/services/board/board.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
 import { Builds } from '../src/services/inbox/builds.ts';
 import { boardKey } from '../src/services/pages/page-key.ts';
+import { madeSomething } from '../src/services/board/agent-home.ts';
 import { doneLine, lastActivity, ledgerTime, parseLedger } from '../src/services/ledger/ledger.ts';
 import { appendLine } from '../src/adapters/stores/notes.ts';
 import { BoardError } from '../src/services/errors.ts';
@@ -167,6 +168,166 @@ test('a finished agent sits in Waiting with its outcome, notes and parent, then 
   assert.ok(await rig.card('research-b'), 'still there: its line was later');
   rig.moveTo(21);
   assert.equal(await rig.card('research-b'), undefined);
+});
+
+const running = (name: string, task: string) =>
+  `- [running] sid:${SID} ${name} (sonnet, low) — ${task} — started 3:00 PM ET, 11/2\n`;
+
+test('a finished agent that made something is in Done, one that only researched is in Waiting', async () => {
+  const rig = world();
+  writeFileSync(
+    rig.ledger,
+    // a build agent: a commit sha in its result
+    running('ou-build', 'the board fix in widgets-worktrees/board-fix') +
+      line('done', 'ou-build', '3:20 PM ET, 11/2', 'branch board-fix, sha 0637f8f, tests green') +
+      // linked to a work card: its task claims one
+      running('ou-linked', 'card bl_abc123def456 write the thing') +
+      line('done', 'ou-linked', '3:21 PM ET, 11/2', 'wrote it up') +
+      // a card adder: its result names the card it added
+      running('ou-adder', 'look for gaps in the board') +
+      line('done', 'ou-adder', '3:22 PM ET, 11/2', 'added card bl_zzz999yyy888 for the gap') +
+      // a deploy with no sha
+      running('ou-deployer', 'ship it') +
+      line('done', 'ou-deployer', '3:23 PM ET, 11/2', 'deployed to the local board') +
+      // a reviewer: findings are in the story and the file
+      running('review-board-fix', 'review the diff') +
+      line('done', 'review-board-fix', '3:24 PM ET, 11/2', '3 findings — notes/reviews/x.md') +
+      // pure research: options and a notes file
+      running('research-fees', 'compare the fee options') +
+      line(
+        'done',
+        'research-fees',
+        '3:25 PM ET, 11/2',
+        'options laid out — notes/research/fees.md',
+      ) +
+      // a research agent that was stopped, and one that failed, even with a build-like task
+      running('research-stopped', 'dig into the wedge') +
+      line('stopped', 'research-stopped', '3:26 PM ET, 11/2', 'asked to stop') +
+      running('ou-stopped-claim', 'card bl_abc123def456 try it') +
+      line('stopped', 'ou-stopped-claim', '3:26 PM ET, 11/2', 'asked to stop') +
+      running('ou-failed', 'card bl_abc123def456 try it') +
+      line('failed', 'ou-failed', '3:27 PM ET, 11/2', 'the build broke, nothing committed'),
+  );
+  const columns: Record<string, string | undefined> = {};
+  for (const name of [
+    'ou-build',
+    'ou-linked',
+    'ou-adder',
+    'ou-deployer',
+    'review-board-fix',
+    'research-fees',
+    'research-stopped',
+    'ou-stopped-claim',
+    'ou-failed',
+  ]) {
+    columns[name] = (await rig.card(name))?.column;
+  }
+  assert.deepEqual(columns, {
+    'ou-build': 'done',
+    'ou-linked': 'done',
+    'ou-adder': 'done',
+    'ou-deployer': 'done',
+    'review-board-fix': 'done',
+    'research-fees': 'waiting',
+    'research-stopped': 'waiting',
+    'ou-stopped-claim': 'waiting',
+    'ou-failed': 'waiting',
+  });
+  const built = await rig.card('ou-build');
+  assert.equal(
+    built?.agents[0].clears_at,
+    '2026-11-02T20:50:00.000Z',
+    'Done cards clear on the same timer',
+  );
+});
+
+test('what counts as something made: a sha it produced, a build, a deploy, a branch, a worktrees path, a card added or claimed, a reviewer', () => {
+  const made = (
+    task: string | null,
+    outcome: string | null,
+    name = 'ou-x',
+    state: 'done' | 'stopped' = 'done',
+  ) => madeSomething({ name, task, outcome, state });
+  // shas it produced, including all-digit ones
+  assert.equal(made(null, 'on main at 0637f8f'), true, 'sha');
+  assert.equal(made(null, '3556751 live on phone/live after Eric’s OK'), true, 'all-digit sha');
+  assert.equal(
+    made(null, '5901849: per-turn clustering, 379 pass'),
+    true,
+    'a sha leading the result',
+  );
+  assert.equal(made(null, 'work done (3064178)'), true);
+  assert.equal(made(null, 'stack/5 now 4fc94ff: read-only key'), true, 'a branch’s new tip');
+  assert.equal(made(null, 'rebased on develop 284c668, green'), true);
+  assert.equal(made(null, 'live 8dcb3bc (stack/35: worktree board), main ff’d'), true);
+  // actions
+  assert.equal(made(null, 'committed the fix'), true);
+  assert.equal(made(null, 'pushed and deployed'), true);
+  assert.equal(made(null, 'built + wired, 26 tests pass, uncommitted'), true);
+  assert.equal(made(null, 'published the private Artifact'), true);
+  assert.equal(made(null, 'caddy/ install.sh staged'), true);
+  assert.equal(made(null, 'built as larmor-burst-guard, live'), true);
+  assert.equal(made(null, 'on branch card-agent-link'), true);
+  assert.equal(made(null, 'on branch feat/x'), true);
+  assert.equal(
+    made(null, 'record in ClariFi-worktrees/feature/12.md'),
+    true,
+    'a worktrees path in the result',
+  );
+  // cards
+  assert.equal(made(null, 'filed bl_mvzro4kube937c'), true, 'a card it added');
+  assert.equal(made(null, 'card bl_mvzqiqp629372e at top'), true);
+  assert.equal(made('card bl_mvzro4kube937c do it', 'ok'), true, 'a card it claimed');
+  assert.equal(made('refactor in widgets-worktrees/refactor', 'ok'), true, 'a worktree it names');
+  assert.equal(made('look at it', 'ok', 'review-thing'), true, 'a reviewer');
+  assert.equal(made('look at it', 'asked to stop', 'review-thing', 'stopped'), true);
+  // a stopped agent has to show output: a claim alone is not output
+  assert.equal(made('card bl_mvzro4kube937c do it', 'asked to stop', 'ou-x', 'stopped'), false);
+  assert.equal(
+    made('refactor in widgets-worktrees/refactor', null, 'ou-x', 'stopped'),
+    false,
+    'a worktrees path in the task alone',
+  );
+  assert.equal(made('card bl_mvzro4kube937c', 'committed 0637f8f', 'ou-x', 'stopped'), true);
+  // research: nothing it made
+  assert.equal(made('compare options', 'options laid out — notes/research/a.md'), false);
+  assert.equal(made(null, null), false);
+  assert.equal(
+    made('see bl_mvzro4kube937c for context', 'summarised the thread'),
+    false,
+    'an id in passing is not a claim',
+  );
+  assert.equal(
+    made(null, 'see card bl_mvu1ajh3e75c97, it covers this'),
+    false,
+    'an id with no added word',
+  );
+  assert.equal(made(null, 'Eric picked 2 cards (redux bl_mvu1ajh3e75c97)'), false);
+  // quoted commits, PRs, sids and worktrees are not output
+  assert.equal(made(null, 'cites 31d1f56 as the reason'), false);
+  assert.equal(made(null, 'a stale function from before e5342ec'), false);
+  assert.equal(made(null, 'found in ed7b242'), false);
+  assert.equal(made(null, 'closed by sid:86c0254d'), false, 'a sid is not a sha');
+  assert.equal(made(null, 'PR #6995 merged'), false);
+  assert.equal(made(null, 'card dropped, worktree removed'), false);
+  assert.equal(made(null, 'default = main worktree'), false);
+  assert.equal(made(null, 'ideas: 12 built, 5 open'), false, 'a count of other things built');
+  assert.equal(made(null, 'the live bridge keys are different'), false);
+  assert.equal(made(null, 'no longer live on 2026.19.0'), false);
+  // said as not done
+  assert.equal(made(null, 'no branch needed, nothing deployed'), false);
+  assert.equal(made(null, 'nothing was committed or pushed'), false);
+  assert.equal(made(null, 'committed? no'), false);
+  assert.equal(made(null, 'pushed: none'), false);
+  assert.equal(made(null, 'no new worktree or branch feat/x'), false);
+  assert.equal(made(null, 'no code written; findings in the note'), false);
+  assert.equal(
+    made(null, 'committed 794009f on docs/adrs, not pushed'),
+    true,
+    'a commit, not pushed',
+  );
+  assert.equal(made(null, 'deadbeef and 20261102 are not shas'), false);
+  assert.equal(made(null, 'the branch is fine'), false);
 });
 
 test('board_finished_wait_minutes sets how long a finished agent waits', async () => {

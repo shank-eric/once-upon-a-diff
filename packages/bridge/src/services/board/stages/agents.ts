@@ -2,7 +2,7 @@
  * The ledger's background agents on the board: which are shown, and where each goes. An agent is nested in its
  * parent's card only when tightly tied to it (agent-home.ts), else it is a card of its own, on its own lane.
  */
-import { gatedHome, laneForAgent, tiedToParent } from '../agent-home.ts';
+import { gatedHome, laneForAgent, madeSomething, tiedToParent } from '../agent-home.ts';
 import { gateOf, lastActivity, type LedgerAgent } from '../../ledger/ledger.ts';
 import { readFinished } from '../../../adapters/stores/finished-agents.ts';
 import type {
@@ -91,9 +91,10 @@ export interface AgentFacts {
  * Places the agents the board shows (running, at a gate, waiting, or finished within the last few hours). An agent tied
  * to its parent's card, or to the branch or PR its task names, is added to that card's `agents` (which changes the card
  * given). The rest get a card of their own, on their own lane while they run, wait or sit at a gate: these are returned,
- * to go after the others. A finished agent (done, failed or stopped) gets a card of its own in Waiting for
+ * to go after the others. A finished agent (done, failed or stopped) gets a card of its own for
  * `finishedWaitMinutes` after its last ledger line, with its outcome, its notes path
- * and its parent session, until the card's Finish clears it. A later ledger line brings the card back, with a fresh timer.
+ * and its parent session, until the card's Finish clears it: in Done when it made something (a commit, a deploy, a
+ * branch, a card; madeSomething), in Waiting when it only researched or failed. A later ledger line brings the card back, with a fresh timer.
  */
 export function placeAgents(
   ctx: BuildContext,
@@ -158,8 +159,12 @@ export function placeAgents(
         continue;
       }
     }
-    // parked on your story review is Ready, not Waiting; a finished agent is in Waiting whether it failed or not
-    let column: BoardColumn = isFinished(agent) ? 'waiting' : AGENT_COLUMN[agent.state];
+    // parked on your story review is Ready, not Waiting. A finished agent that made something (madeSomething) is Done; one
+    // that only researched, or failed, is in Waiting: there is something to read, or to look into
+    let column: BoardColumn = AGENT_COLUMN[agent.state];
+    if (isFinished(agent)) {
+      column = agent.state !== 'failed' && madeSomething(agent) ? 'done' : 'waiting';
+    }
     if (agent.review) {
       column = 'ready';
     }

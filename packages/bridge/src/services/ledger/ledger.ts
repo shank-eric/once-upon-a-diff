@@ -27,7 +27,8 @@
  * is a word of letters, digits, dashes and underscores. A lane tag puts the agent on a lane of that name instead of
  * inside its parent's card. The last line with a given sid and name wins. Lines that don't match are skipped.
  *
- * A finished agent (done, failed or stopped) with no card to sit in is a card of its own in Waiting for the setting
+ * A finished agent (done, failed or stopped) with no card to sit in is a card of its own, in Waiting when it only
+ * researched or failed and in Done when it made something (madeSomething in board/agent-home.ts), for the setting
  * board_finished_wait_minutes (30) after its latest ledger line, with its outcome and the first `notes/` path its lines
  * name; a new line starts the time again (progress beats are not counted: they carry no date or sid). The board's Finish on that card appends a `[done]` line only for an
  * agent still `[waiting]` (doneLine), and otherwise just records the click (adapters/stores/finished-agents.ts).

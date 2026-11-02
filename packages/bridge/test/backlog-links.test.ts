@@ -235,9 +235,9 @@ test('the Retire-the-inbox case: a started card folds into its running agent’s
     '- [running] sid:54736864 ou-kill-inbox (sonnet, high) — remove the inbox — started 2:30 PM ET, 10/26\n' +
       '- [done] sid:54736864 ou-kill-inbox — 3:30 PM ET, 10/26 — committed on kill-inbox — notes\n',
   );
-  // while the finished agent's own card waits (its 30 minutes), the item is on that card and there is no second one
+  // while the finished agent's own card stays (its 30 minutes), the item is on that card and there is no second one
   const waiting = (await cardsOf(boardOf(home, NOW))).find((one) => one.kind === 'agent');
-  assert.equal(waiting?.column, 'waiting');
+  assert.equal(waiting?.column, 'done', 'it committed, so its card is in Done, not Waiting');
   assert.equal(waiting?.from_backlog?.[0].id, item.id);
   assert.equal(await backlogCard(boardOf(home, NOW), item.id), undefined);
   const done = await backlogCard(boardOf(home, later), item.id);
