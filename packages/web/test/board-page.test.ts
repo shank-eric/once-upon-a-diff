@@ -130,6 +130,7 @@ const board = (over: Partial<BoardData> = {}): BoardData => ({
   voice_start: null,
   voice_paused: false,
   listeners: [],
+  helpers: [],
   blank: [],
   lanes: [
     {
@@ -940,6 +941,32 @@ test('Build story and Start and Stop listening ask first, then type into the ses
   ]);
   answer = () => board();
   await pollNow();
+});
+
+test('standing helpers are a row under the Listeners, with the session and the last request, and none when there are none', async () => {
+  answer = () =>
+    board({
+      helpers: [
+        {
+          name: 'backlog-clerk',
+          state: 'waiting',
+          session: 'main-session-1',
+          title: 'main one',
+          can_focus: false,
+          last_request_at: new Date(Date.now() - 40 * 60000).toISOString(),
+        },
+      ],
+    });
+  await pollNow();
+  const row = $('[data-helper="backlog-clerk"]') as HTMLElement;
+  assert.match(row.textContent ?? '', /backlog-clerk/);
+  assert.match(row.textContent ?? '', /Standing by/);
+  assert.match(row.textContent ?? '', /main one/);
+  assert.match(row.textContent ?? '', /last request 40m ago/);
+  assert.equal(all('.ou-board-listeners h2').at(-1)?.textContent?.startsWith('Helpers'), true);
+  answer = () => board();
+  await pollNow();
+  assert.equal(all('[data-helper]').length, 0);
 });
 
 test('Open story, Push and Mark reviewed each ask the bridge for the right thing', async () => {

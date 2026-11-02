@@ -6043,3 +6043,84 @@ test('GET /api/board/listen-sessions: the board key or the token, a repo or a st
     );
   }
 });
+
+test('a standing helper is a row at the bottom, never a card: gone with its session, when finished, or after 8 hours idle', async () => {
+  const tree = await parentWithChild();
+  after(() => tree.stop());
+  const sid = String(tree.parent).padStart(8, '0');
+  const world = async (ledgerLines: string[], live = true) => {
+    const home = tmp('board-helpers');
+    const sessions = tmp('board-sessions');
+    if (live) {
+      registry(sessions, tree.parent, { cwd: checkoutOf('widgets', 'main') }, tree.procStart);
+    }
+    const ledger = path.join(tmp('board-notes'), 'ledger.md');
+    writeFileSync(ledger, ledgerLines.join('\n'));
+    writeJson(path.join(home, 'config.json'), {
+      board_sessions_dir: sessions,
+      board_ledger_file: ledger,
+      board_ledger_time_zone: 'UTC',
+    });
+    const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+      source: sourceSaying({ [sid]: { status: 'done', detail: null } }),
+      now: () => NOW,
+    });
+    const data = await board.snapshot();
+    return { data, cards: data.lanes.flatMap((lane) => lane.cards) };
+  };
+  // NOW is 7:00 PM UTC; the ledger's times are read as UTC here
+  const started = `- [running] sid:${sid} backlog-clerk (sonnet, low) — standing helper for backlog card ops — started 1:00 PM ET, 10/26`;
+  const waiting = `- [waiting] sid:${sid} backlog-clerk — 6:30 PM, 10/26 — ready for the next request`;
+  const agentCards = (cards: BoardCard[], name = 'backlog-clerk') =>
+    cards.filter((card) => card.agents.some((agent) => agent.name === name));
+
+  const shown = await world([started, waiting]);
+  assert.equal(shown.data.helpers.length, 1);
+  const [helper] = shown.data.helpers;
+  assert.equal(helper.name, 'backlog-clerk');
+  assert.equal(helper.state, 'waiting');
+  assert.equal(helper.session, fullId(tree.parent));
+  assert.equal(helper.last_request_at, '2026-10-26T18:30:00.000Z');
+  assert.equal(agentCards(shown.cards).length, 0, 'no card, so not in Waiting or Done');
+
+  assert.equal((await world([started])).data.helpers[0].state, 'handling', 'running: handling one');
+  // a later done line ends it (and it does not turn into a Done card either)
+  const done = await world([
+    started,
+    `- [done] sid:${sid} backlog-clerk — 6:40 PM, 10/26 — shut down`,
+  ]);
+  assert.equal(done.data.helpers.length, 0);
+  assert.equal(agentCards(done.cards).length, 0);
+  // its session is gone
+  const gone = await world([started, waiting], false);
+  assert.equal(gone.data.helpers.length, 0, 'session ended');
+  assert.equal(agentCards(gone.cards).length, 0);
+  // nobody has asked it anything for more than 8 hours
+  const idle = await world([
+    started,
+    `- [waiting] sid:${sid} backlog-clerk — 10:50 AM, 10/26 — ready`,
+  ]);
+  assert.equal(idle.data.helpers.length, 0, 'idle 8h');
+  // the marker is the start of the task (or a [helper] tag), not a mention
+  const tagged = await world([
+    `- [waiting] sid:${sid} tagged-one (sonnet) — [helper] card ops — 6:30 PM, 10/26 — ready`,
+  ]);
+  assert.equal(tagged.data.helpers.length, 0, 'a waiting line carries no task');
+  const tag = await world([
+    `- [running] sid:${sid} tagged-one (sonnet) — [helper] card ops — started 1:00 PM ET, 10/26`,
+  ]);
+  assert.equal(tag.data.helpers[0]?.name, 'tagged-one');
+  const mention = await world([
+    `- [running] sid:${sid} builder (sonnet) — build the standing helper row — started 1:00 PM ET, 10/26`,
+  ]);
+  assert.equal(mention.data.helpers.length, 0, 'a mention is not the marker');
+  assert.equal(agentCards(mention.cards, 'builder').length, 1, 'it is an ordinary card');
+  // a helper is no agent of its session: not counted in the voice strip, and it claims no backlog card
+  // an ordinary waiting agent is not a helper
+  const plain = await world([
+    `- [running] sid:${sid} researcher (sonnet) — a one-off task — started 1:00 PM ET, 10/26`,
+    `- [waiting] sid:${sid} researcher — 6:30 PM, 10/26 — found things`,
+  ]);
+  assert.equal(plain.data.helpers.length, 0);
+  assert.equal(agentCards(plain.cards, 'researcher').length, 1, 'still a Waiting card');
+});

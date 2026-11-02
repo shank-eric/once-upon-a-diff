@@ -44,6 +44,7 @@ import { placeAgents } from './agents.ts';
 import { addBacklogCards, readBacklogLinks } from './backlog.ts';
 import { buildCards, placeCards } from './cards.ts';
 import type { CardFacts } from './cards.ts';
+import { isStandingHelper, standingHelpers } from './helpers.ts';
 import { groupLanes } from './lanes.ts';
 import { markListening } from './listeners.ts';
 import { placeSessions, readLive, readSessionFacts } from './sessions.ts';
@@ -80,7 +81,11 @@ export interface BuiltBoard {
 export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<BuiltBoard> {
   const { now, nowMs, settings } = ctx;
   const unreadById = unreadAnswers(ctx.home, new Inbox(ctx.home), nowMs);
-  const liveFacts = await readLive(ctx);
+  const read = await readLive(ctx);
+  // a standing helper is no card, no running work and no owner of a backlog card: it is held out of every stage's agents
+  // and has its row only (helpers.ts)
+  const standing = read.agents.filter(isStandingHelper);
+  const liveFacts = { ...read, agents: read.agents.filter((agent) => !isStandingHelper(agent)) };
   const { live, agents, beats, picked } = liveFacts;
   const collected = collectWorks(ctx);
   const { works, stories, localStoryList } = collected;
@@ -157,6 +162,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     voice_start: voiceStart,
     voice_paused: voicePaused,
     listeners: listenersLane(waits, listening),
+    helpers: standingHelpers(standing, live, sessionViews, nowMs),
     blank: blankStrip(blankViews),
     lanes,
     worktrees: settings.worktrees

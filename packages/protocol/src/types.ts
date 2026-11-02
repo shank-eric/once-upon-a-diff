@@ -1007,6 +1007,19 @@ export interface BoardListenerRepo {
   candidates: { id: string; title: string; status: 'idle' | 'done'; since: string | null }[];
 }
 
+/** One standing helper in the footer row (a ledger agent whose task says "standing helper"): never a card. */
+export interface BoardHelper {
+  name: string;
+  /** waiting for a request, or handling one now */
+  state: 'waiting' | 'handling';
+  /** the session that launched it (the one you reach it through), and that session's title and whether its tab can be focused */
+  session: string;
+  title: string | null;
+  can_focus: boolean;
+  /** its latest ledger line */
+  last_request_at: string;
+}
+
 /** The Assign button on a backlog card: who may be handed the item, and the line that would be typed. */
 export interface BoardAssign {
   candidates: {
@@ -1054,6 +1067,8 @@ export interface BoardData {
   voice_paused: boolean;
   /** repos with a listener now, and those that had one in the last week */
   listeners: BoardListenerRepo[];
+  /** standing helpers (ledger agents marked "standing helper") whose session is live, for the row under the Listeners */
+  helpers: BoardHelper[];
   /** live sessions that have had no prompt yet (new, or just cleared), by lane name: a strip in the Idle lane, not cards */
   blank: { name: string; sessions: BoardBlankSession[] }[];
   lanes: { name: string; cards: BoardCard[] }[];

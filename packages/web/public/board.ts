@@ -22,6 +22,7 @@ import {
   arrange,
   Card,
   Columns,
+  Helpers,
   Listeners,
   type ColumnsView,
 } from '/assets/board/columns/columns.ts';
@@ -100,6 +101,7 @@ const EMPTY: BoardData = {
   voice_start: null,
   voice_paused: false,
   listeners: [],
+  helpers: [],
   blank: [],
   lanes: [],
   worktrees: null,
@@ -197,6 +199,7 @@ function BoardApp(props: { view: View; refresh: () => Promise<void> }) {
       <${Columns} view=${columns} />
       ${data.worktrees && html`<${Worktrees} trees=${data.worktrees} now=${now} open=${treesOpen} onToggle=${() => setTreesOpen(!treesOpen)} api=${api} />`}
       <${Listeners} repos=${data.listeners} now=${now} api=${api} />
+      <${Helpers} helpers=${data.helpers} now=${now} api=${api} />
     </main>`
   }
   <${VoicePanel}

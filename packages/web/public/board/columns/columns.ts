@@ -13,6 +13,7 @@ import type {
   BoardCard,
   BoardColumn,
   BoardData,
+  BoardHelper,
   BoardListenerRepo,
   BoardSession,
   PrInfo,
@@ -528,6 +529,18 @@ export function Listeners(props: { repos: BoardListenerRepo[]; now: number; api:
     return null;
   }
   return html`<section class="ou-board-listeners" aria-label="Listeners"><h2 class="ou-board-head">Listeners <span class="ou-local-muted">${repos.filter((entry) => entry.active).length}</span></h2><ul>${repos.map((entry) => html`<${Listener} key=${entry.repo} entry=${entry} now=${now} api=${api} />`)}</ul></section>`;
+}
+
+/** The standing helpers' row, under the Listeners: each helper, the session you reach it through, and when it was last asked. */
+export function Helpers(props: { helpers: BoardHelper[]; now: number; api: Api }) {
+  const { helpers, now, api } = props;
+  if (!helpers.length) {
+    return null;
+  }
+  return html`<section class="ou-board-listeners" aria-label="Standing helpers"><h2 class="ou-board-head">Helpers <span class="ou-local-muted">${helpers.length}</span></h2><ul>${helpers.map(
+    (one) =>
+      html`<li key=${`${one.session}:${one.name}`} class="ou-board-listener" data-helper=${one.name}><strong>${one.name}</strong> <span class="ou-board-voice-status">${one.state === 'handling' ? 'Handling' : 'Standing by'}</span> <span class="ou-local-muted"><${SessionLink} bridge=${api.bridge} session=${one.session} canFocus=${one.can_focus} name=${one.title || one.session.slice(0, 8)} title="Bring the session that launched it to the front" /> · last request ${since(one.last_request_at, now)} ago</span></li>`,
+  )}</ul></section>`;
 }
 
 /** What the Backlog column gets from the backlog region: its + Add button and Add panel, and the drag handlers for its lanes' lists. */

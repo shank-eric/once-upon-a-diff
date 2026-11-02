@@ -8,6 +8,7 @@
   "board": {
     "at": "2026-10-26T19:00:00.000Z",
     "blank": [],
+    "helpers": [],
     "lanes": [
       {
         "cards": [
