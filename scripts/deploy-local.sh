@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# Local deploy for Once Upon a Diff. Never pushes and never deletes branches. After a deploy it removes the worktree
-# of each landed branch (under ../once-upon-a-diff-worktrees) when that branch is now an ancestor of main.
+# Local deploy for Once Upon a Diff. Never pushes. After a deploy it removes the worktree of each landed branch (under
+# ../once-upon-a-diff-worktrees) when that branch is now an ancestor of main. Batch mode, which cherry-picks, also deletes
+# each fully picked local branch (git cherry shows only '-') and logs its tip sha in the ledger line for restoring.
 #
 #   scripts/deploy-local.sh --yes <branch-or-sha>            fast-forward deploy (default)
 #   scripts/deploy-local.sh [--yes] --batch <base> <sha>...  cherry-pick deploy with gates
@@ -307,10 +308,16 @@ go_live() {
     say "local main is not an ancestor of the tip, left it alone"
   fi
   mark_landed || say "could not mark backlog items as done"
-  local b mode=""
-  [ "$BATCH" = 1 ] && mode=patch
+  local b
+  DELETED_BRANCHES=()
   for b in ${LANDED_BRANCHES[@]+"${LANDED_BRANCHES[@]}"}; do
-    cleanup_landed_worktree "$MAIN" "$MAIN-worktrees" "$b" main "$mode" || true
+    if [ "$BATCH" = 1 ]; then
+      # Cherry-picked branches never become ancestors of main: judge them by patch, then drop worktree and branch.
+      cleanup_landed_branch "$MAIN" "$MAIN-worktrees" "$b" main || true
+      [ -z "$DELETED_BRANCH_NOTE" ] || DELETED_BRANCHES+=("$DELETED_BRANCH_NOTE")
+    else
+      cleanup_landed_worktree "$MAIN" "$MAIN-worktrees" "$b" main "" || true
+    fi
   done
   SHORT="$(git -C "$MAIN" rev-parse --short "$TIP")"
   NOW="$(TZ=America/New_York date '+%-I:%M %p ET, %-m/%-d')"
@@ -433,6 +440,7 @@ fi
 go_live
 NOTE=""
 [ "$REUSED" = 1 ] && NOTE=" (reused worktree)"
+[ ${#DELETED_BRANCHES[@]} -eq 0 ] || NOTE="$NOTE, deleted landed branches (restore with git branch <name> <sha>): ${DELETED_BRANCHES[*]}"
 echo
 echo "Rollback: $ROLLBACK_CMD"
 echo "Ledger:   deploy batch: $PREVS -> $SHORT, ${#SHAS[@]} picked, gates green$NOTE, bridge pid $BRIDGE_PID at $NOW, local main ff, nothing pushed"
