@@ -46,7 +46,9 @@ export interface CollectedWorks {
  * the branch has, whether or not a session is on the branch (sessions.ts does the same for a session's). Without this a
  * squash-merged branch has no PR on its card and an approved story would sit in Ready to ship. An open PR is taken as it
  * is. A merged one only when its last commit is the story's head or its approved head, so a branch that went on after an
- * older PR merged keeps its card. A PR that already has a work of its own is not doubled. A resolved story is not asked about.
+ * older PR merged keeps its card. A PR that already has a work of its own (one of yours from GitHub's list, before GitHub has
+ * said which branch it is from) is not doubled: an open one takes the local story, and the branch's card goes. A resolved
+ * story is not asked about.
  */
 function linkBranchWorks(
   works: Map<string, Work>,
@@ -70,7 +72,21 @@ function linkBranchWorks(
     const heads = headsOf.get(local.id) ?? [];
     review.kickBranch(work.repo, work.branch, checkout.checkout, nowMs, heads);
     const found = review.branchPr(work.repo, work.branch);
-    if (!found || works.has(prKey(work.repo, found.number))) {
+    if (!found) {
+      continue;
+    }
+    const there = works.get(prKey(work.repo, found.number));
+    if (there) {
+      // The PR already has a work of its own (one of yours, from GitHub's list, before GitHub has said which branch it is
+      // from): the branch's card goes instead of staying as a second card with no PR in Ready to ship, and the local story
+      // goes on the PR's work unless that has a story of its own.
+      if (found.state === 'open') {
+        if (!there.story && !there.local && !there.mergedAt) {
+          there.local = local;
+        }
+        there.branch = there.branch ?? work.branch;
+        works.delete(work.key);
+      }
       continue;
     }
     if (found.state === 'merged') {

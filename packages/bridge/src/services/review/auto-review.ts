@@ -680,7 +680,12 @@ export class AutoReview {
   >();
   private running = new Set<Promise<void>>();
   private known = new Map<string, PrInfo>();
-  private branches = new Map<string, { at: number; pr: BranchPr | null | undefined }>();
+  /** per branch: how many asks were made, and the newest one answered (an older ask finishing later is dropped) */
+  private branchSeq = new Map<string, { asked: number; answered: number }>();
+  private branches = new Map<
+    string,
+    { at: number; pr: BranchPr | null | undefined; heads: string[] }
+  >();
   /** when each local story's head was last looked for in the default branch (story id and head commit) */
   private delivered = new Map<string, number>();
   private stories: StoryStore;
@@ -744,14 +749,29 @@ export class AutoReview {
   ): void {
     const key = branchKey(repo, branch);
     const last = this.branches.get(key);
-    if (last && now - last.at < this.cacheMs) {
+    // An answer is shared by every caller in its window, but a merged PR is only found for the heads the asker gave (or a
+    // branch that has its commits), so a "none" asked without a story's head is not the answer for a caller that has one.
+    if (
+      last &&
+      now - last.at < this.cacheMs &&
+      (last.pr?.state === 'open' || heads.every((head) => last.heads.includes(head)))
+    ) {
       return;
     }
     // the old answer stays until the new one arrives, and a failed ask keeps it
-    this.branches.set(key, { at: now, pr: last?.pr });
-    const job = this.checkBranch(repo, branch, checkout, heads)
+    const asked =
+      last && now - last.at < this.cacheMs ? [...new Set([...last.heads, ...heads])] : heads;
+    this.branches.set(key, { at: now, pr: last?.pr, heads: asked });
+    // asks can overlap and finish in any order: an answer is kept only if no newer ask has been answered already
+    const seq = (this.branchSeq.get(key)?.asked ?? 0) + 1;
+    this.branchSeq.set(key, { asked: seq, answered: this.branchSeq.get(key)?.answered ?? 0 });
+    const job = this.checkBranch(repo, branch, checkout, asked)
       .then((pr) => {
-        this.branches.set(key, { at: now, pr });
+        const state = this.branchSeq.get(key) as { asked: number; answered: number };
+        if (seq > state.answered) {
+          state.answered = seq;
+          this.branches.set(key, { at: now, pr, heads: asked });
+        }
       })
       .catch(() => undefined)
       .finally(() => this.running.delete(job));
