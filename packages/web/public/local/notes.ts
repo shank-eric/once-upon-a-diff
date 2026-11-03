@@ -11,6 +11,7 @@ import { insertHtml, setHtml } from '/assets/util/dom.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { page, bridge, PARAMS } from './page.ts';
 import { columnCount } from './diff-view.ts';
+import { redrawSend } from './send.ts';
 import type { LocalNote, Side } from '/assets/types.ts';
 
 const placeOf = (note: LocalNote) =>
@@ -84,7 +85,7 @@ function notesListHtml() {
     return html`<li class="${note.done ? 'ou-local-done' : ''}"><label>${done} ${goto}</label> ${stageHtml(note)}<div class="ou-local-note-text">${note.body}</div></li>`;
   });
   return html`<ul>${items}</ul>
-    <p class="ou-local-muted">Send them to a Claude session from the panel's Fix before push. Also in the terminal: <code>once-upon notes --story ${page.story.id}</code></p>`;
+    <p class="ou-local-muted">Send them to a Claude session with Send above, or from the panel's Fix before push. Also in the terminal: <code>once-upon notes --story ${page.story.id}</code></p>`;
 }
 
 function noteRow(note: LocalNote, away: boolean) {
@@ -130,6 +131,7 @@ export function placeNotes() {
   if (list) {
     setHtml(list, notesListHtml());
   }
+  redrawSend(); // Send counts the notes still to send
 }
 
 /** The note form under a line, opened from its line number (focused again if it's already open). */

@@ -12,7 +12,10 @@
       "/assets/types.ts": ["../../protocol/src/types.ts"],
       "/assets/protocol/*": ["../../protocol/src/*"],
       "/assets/host/*": ["../../shared/src/host/*"],
-      "/assets/util/*": ["../../shared/src/util/*"]
+      "/assets/util/*": ["../../shared/src/util/*"],
+      "/assets/panel/*": ["../../panel/src/*"],
+      "/assets/highlight.mjs": ["../public/types/highlight.d.ts"],
+      "/assets/*": ["../public/*"]
     }
   },
   "include": [".", "../../panel/types"]

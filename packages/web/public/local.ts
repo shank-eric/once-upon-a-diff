@@ -21,6 +21,7 @@ import { mount, remount, showReopen } from '/assets/local/mount.ts';
 import { lookForPull, openPrBox } from '/assets/local/pull-request.ts';
 import { openPushBox } from '/assets/local/push.ts';
 import { openPushAheadBox } from '/assets/local/push-ahead.ts';
+import { sendNotes } from '/assets/local/send.ts';
 import { toggleApprove } from '/assets/local/approve.ts';
 import type { LocalStoryData } from '/assets/local/page.ts';
 import type { InitialUi } from '/assets/panel/overlay.ts';
@@ -119,6 +120,9 @@ document.addEventListener('click', async (event) => {
   }
   if (target.closest('.ou-local-push-ahead')) {
     return openPushAheadBox();
+  }
+  if (target.closest('.ou-local-send')) {
+    return sendNotes();
   }
   if (target.closest('.ou-local-approve')) {
     return toggleApprove(true);

@@ -13,6 +13,7 @@ import { page } from './page.ts';
 import { prButtonHtml } from './pull-request.ts';
 import { approveHtml } from './approve.ts';
 import { pushButtonHtml } from './push.ts';
+import { sendButtonHtml } from './send.ts';
 import type { DiffHunk, LocalFile, LocalStory, Side } from '/assets/types.ts';
 import type { SplitHalf } from '/assets/split.ts';
 
@@ -253,7 +254,7 @@ const WS_TITLE =
 const viewButtonsHtml = () =>
   html`<button type="button" data-diff-view="unified" aria-pressed="${!isSplit()}">Unified</button><button type="button" data-diff-view="split" aria-pressed="${isSplit()}">Split</button>`;
 
-/** The top bar: the range, its size, the diff view, Hide whitespace and the notes toggle. */
+/** The top bar: the range, its size, the diff view, Hide whitespace, the notes toggle and its Send. */
 export function headerHtml() {
   const { story } = page;
   const local = story.local;
@@ -269,6 +270,7 @@ export function headerHtml() {
     <div class="ou-local-view" role="group" aria-label="Diff view">${viewButtonsHtml()}</div>
     <label class="ou-local-ws" title="${WS_TITLE}"><input type="checkbox" class="ou-local-ws-toggle"${local.hide_whitespace && html` checked`}> Hide whitespace</label>
     <button type="button" class="ou-local-notes-toggle" aria-expanded="false">Fix before push</button>
+    <span class="ou-local-send-holder">${sendButtonHtml()}</span>
     <span class="ou-local-approve-holder">${approveHtml()}</span>
     <span class="ou-local-push-holder">${pushButtonHtml()}</span>
     <span class="ou-local-pr-holder">${prButtonHtml()}</span>

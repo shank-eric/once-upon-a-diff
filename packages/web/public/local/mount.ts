@@ -13,6 +13,7 @@ import { ROUTES } from '/assets/protocol/routes.ts';
 import { page, bridge, pageUrl, PARAMS, STORY_ID } from './page.ts';
 import { narrow, reveal, unnarrow, forgetNarrowing } from './folds.ts';
 import { placeNotes } from './notes.ts';
+import { redrawSend } from './send.ts';
 
 /** The panel's host here: the local diff view's DOM (it has GitHub's /changes shapes) and the page's fetch to the bridge. */
 const host: PanelHost = {
@@ -75,6 +76,7 @@ export function mount(initial: InitialUi) {
       reveal,
       onClose: () => {
         page.overlay = null;
+        redrawSend();
         page.hidden = true;
         forgetNarrowing();
         unnarrow();
@@ -122,6 +124,7 @@ export function mount(initial: InitialUi) {
     },
     host,
   );
+  redrawSend(); // Send needs the panel that is now open
 }
 
 /** Mounts again on the step and scroll the panel has now (a redraw under it). */

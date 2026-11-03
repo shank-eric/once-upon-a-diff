@@ -209,41 +209,55 @@ export function createFixes(context: PanelContext) {
       render();
       return;
     }
-    if (busy || !opts.fixes) {
-      return;
-    }
-    busy = true;
-    control.disabled = true;
-    try {
+    await guarded(control, async () => {
       if (action === 'send') {
-        const next = await opts.fixes.act({ action: 'send' });
-        shell.message(
-          next.sent && next.sent.to
-            ? `Sent to ${next.sent.to}. Its notes are locked until it reports back.`
-            : 'Queued: the next Claude session that takes fix requests for this story gets it.',
-        );
-        take(next);
+        await send();
       } else if (action === 'auto') {
-        take(await opts.fixes.act({ action: 'auto', on: (control as HTMLInputElement).checked }));
+        take(await opts.fixes!.act({ action: 'auto', on: (control as HTMLInputElement).checked }));
       } else if (action === 'take_back') {
         take(
-          await opts.fixes.act({
+          await opts.fixes!.act({
             action: 'take_back',
             request: control.getAttribute('data-request'),
           }),
         );
       } else if (action === 'remove') {
-        await opts.fixes.note(noteId, { delete: true });
+        await opts.fixes!.note(noteId, { delete: true });
         await refresh();
       } else if (action === 'save') {
         const text = item!.querySelector<HTMLTextAreaElement>('.ou-fixedit')!.value.trim(); // Save is on a note
         if (text) {
-          await opts.fixes.note(noteId, { body: text });
+          await opts.fixes!.note(noteId, { body: text });
         }
         editing = null;
         await refresh();
         render();
       }
+    });
+  }
+
+  /** Hands every draft note to a Claude session as one request, and says where it went. */
+  async function send() {
+    const next = await opts.fixes!.act({ action: 'send' });
+    shell.message(
+      next.sent && next.sent.to
+        ? `Sent to ${next.sent.to}. Its notes are locked until it reports back.`
+        : 'Queued: the next Claude session that takes fix requests for this story gets it.',
+    );
+    take(next);
+  }
+
+  /** Runs one change one at a time, with its control (if it has one) off meanwhile, and says why it failed. */
+  async function guarded(control: HTMLElement | null, work: () => Promise<void>) {
+    if (busy || !opts.fixes) {
+      return;
+    }
+    busy = true;
+    if (control) {
+      (control as HTMLButtonElement).disabled = true;
+    }
+    try {
+      await work();
     } catch (err) {
       shell.message(
         `Couldn't save that: ${err && (err as Error).message ? (err as Error).message : err}`,
@@ -251,13 +265,18 @@ export function createFixes(context: PanelContext) {
       await refresh();
     } finally {
       busy = false;
-      control.disabled = false;
+      if (control) {
+        (control as HTMLButtonElement).disabled = false;
+      }
     }
   }
 
+  /** Send, from outside the panel's own buttons (the local page's top bar): the same request, the same message. */
+  const sendNotes = () => guarded(null, send);
+
   refresh();
 
-  return { render, refresh, act, canAdd };
+  return { render, refresh, act, canAdd, sendNotes };
 }
 
 export type Fixes = ReturnType<typeof createFixes>;

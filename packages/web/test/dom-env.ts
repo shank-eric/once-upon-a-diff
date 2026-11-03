@@ -36,6 +36,10 @@ registerHooks({
     if (local) {
       return { url: pathToFileURL(path.join(PUBLIC, 'local', local[1])).href, shortCircuit: true };
     }
+    const asset = /^\/assets\/([a-z0-9-]+\.ts)$/.exec(specifier);
+    if (asset) {
+      return { url: pathToFileURL(path.join(PUBLIC, asset[1])).href, shortCircuit: true };
+    }
     return nextResolve(specifier, context);
   },
 });

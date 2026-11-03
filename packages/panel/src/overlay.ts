@@ -330,6 +330,7 @@ export function storyOverlay(input: StoryData, opts: PanelOptions, host: PanelHo
     jumpTo: context.scroll.jumpTo,
     refreshQuestions: context.questions.refresh,
     refreshFixes: context.fixes.refresh,
+    sendFixes: context.fixes.sendNotes,
     setCollapsed: shell.setCollapsed,
     state,
     data: input,

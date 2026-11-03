@@ -151,6 +151,7 @@ a { color: var(--fgColor-accent); }
 .ou-local-pr-link { font-size: 12px; white-space: nowrap; }
 .ou-local-approved { font-size: 12px; white-space: nowrap; color: var(--fgColor-success); }
 button.ou-local-approve, button.ou-local-unapprove { white-space: nowrap; }
+button.ou-local-send { white-space: nowrap; }
 button.ou-local-pr, button.ou-local-push, button.ou-local-push-ahead { white-space: nowrap; }
 .ou-local-ahead { font-size: 12px; white-space: nowrap; color: var(--fgColor-muted); }
 #ou-local-pr-box { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 64px); padding: 16px 20px; border: 1px solid var(--borderColor-default); border-radius: 8px; background: var(--bgColor-default); color: var(--fgColor-default); }
