@@ -18,15 +18,15 @@
  *     chapter that now tells its file (or the Overview), and retireReads() sets
  *     aside a read of a chapter whose files changed in the rebuild
  */
-import { chaptersOf, entryOf } from './chapters.ts';
+import { chaptersOf, entryOf, refOf } from './chapters.ts';
 import { readReads, retireReads } from './reads.ts';
 import { chapterKeyOf } from '@once-upon-a-diff/protocol/domain/chapters';
 import { plural } from '@once-upon-a-diff/protocol/domain/text';
 import { Inbox } from '../inbox/inbox.ts';
 import { moveQuestions } from '../inbox/conversation.ts';
-import { addTextRefs } from './text-refs.ts';
+import { upgradePlan } from './legacy.ts';
+import { canonical, withoutKey } from './validate.ts';
 import { uncoveredHunks, sidesOf } from './hunk-coverage.ts';
-import { relOfPath } from './diff.ts';
 import type { DiffFile } from '@once-upon-a-diff/protocol/types';
 import type { Plan, PlanChapter } from './chapters.ts';
 
@@ -44,20 +44,6 @@ export const firstRetold = (build: RebuildAskFields | null | undefined): number 
     ? Number(build.from_step)
     : 1;
 
-/** JSON with sorted keys, so two chapters compare by content whatever order their keys were written in. */
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) {
-    return `[${value.map(canonical).join(',')}]`;
-  }
-  if (value && typeof value === 'object') {
-    return `{${Object.keys(value)
-      .sort()
-      .map((key) => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`)
-      .join(',')}}`;
-  }
-  return JSON.stringify(value ?? null);
-}
-
 /** The kept chapters (1..from-1) that the new plan changed or lost: problem lines. */
 function keptChapterProblems(before: Plan, after: Plan, from: number): string[] {
   const problems: string[] = [];
@@ -66,7 +52,11 @@ function keptChapterProblems(before: Plan, after: Plan, from: number): string[] 
   old.forEach((chapter, i) => {
     if (!now[i]) {
       problems.push(`chapter ${i + 1} is gone; chapters 1-${from - 1} must stay as published`);
-    } else if (canonical(chapter) !== canonical(now[i])) {
+    } else if (
+      // a chapter published with no key may have been given one since (assignKeys): that is not the author changing it
+      canonical(chapter.key === undefined ? withoutKey(chapter) : chapter) !==
+      canonical(chapter.key === undefined ? withoutKey(now[i]) : now[i])
+    ) {
       problems.push(
         `chapter ${i + 1} ("${chapter.title || ''}") changed; chapters 1-${from - 1} must stay exactly as published (copy them from the published chapters.json)`,
       );
@@ -87,7 +77,7 @@ function coverageProblems(
   { allowUncovered = false } = {},
 ): string[] {
   const rels = [...diff.keys()];
-  const chapters = addTextRefs(chaptersOf(after), rels);
+  const chapters = chaptersOf(upgradePlan(after, rels));
   const problems: string[] = [];
   const placed = new Set<string>();
   chapters.forEach((chapter, i) => {
@@ -167,13 +157,16 @@ function homeOf(
     const line = Number(comment.line);
     const side = comment.side === 'L' ? 'L' : 'R';
     const byLines = retold.find((candidate) =>
-      entriesOf(candidate).some(
-        (entry) =>
-          entry.rel === rel &&
-          (entry.lines || []).some(
-            (range) => range.side === side && line >= range.start && line <= range.end,
-          ),
-      ),
+      (candidate.chapter.refs || [])
+        .map(refOf)
+        .some(
+          (ref) =>
+            ref.path === rel &&
+            ref.start !== undefined &&
+            ref.side === side &&
+            line >= ref.start &&
+            line <= (ref.end as number),
+        ),
     );
     if (byLines) {
       return byLines.index;
@@ -205,14 +198,16 @@ export function carryDrafts(
   if (!(after.chapters || []).length || (after.chapters as PlanChapter[]).length < from) {
     return counts;
   }
-  for (const chapter of (before.chapters || []).slice(from - 1)) {
+  // the drafts of a story told before refs name their file by a path suffix; read it as a new one, with full paths
+  for (const chapter of (upgradePlan(before, rels).chapters || []).slice(from - 1)) {
     for (const comment of chapter.comments || []) {
       const id = commentId(comment);
       if (present.has(id)) {
         continue;
       }
       present.add(id);
-      const rel = isGeneral(comment) ? null : relOfPath(comment.path, rels);
+      const rel =
+        isGeneral(comment) || !rels.includes(comment.path || '') ? null : (comment.path as string);
       const maps = isGeneral(comment) || (!!rel && onDiffLine(diff.get(rel) as DiffFile, comment));
       const target = (after.chapters as PlanChapter[])[
         homeOf(after, from, chapterKeyOf(chapter), rel, comment)
@@ -248,9 +243,7 @@ export function questionMoves(
     const old = (before.chapters || [])[step - 1];
     const sameKey = old && now.find(({ chapter }) => chapterKeyOf(chapter) === chapterKeyOf(old));
     const tellsFile = ({ chapter }: { chapter: PlanChapter }) =>
-      rels(chapter).some(
-        (rel) => rel === question.file || String(question.file).endsWith('/' + rel),
-      );
+      rels(chapter).some((rel) => rel === question.file);
     const file = question.file ? now.slice(from - 1).find(tellsFile) : null;
     // the same chapter while it still tells the question's file, else the one that does
     const keep = sameKey && (!question.file || tellsFile(sameKey)) ? sameKey : null;

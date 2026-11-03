@@ -6,13 +6,12 @@ import path from 'node:path';
 import { tmp, writeJson } from '@once-upon-a-diff/test-kit/files';
 import { scriptDrafts, reviewScript, type ScriptRow } from '../src/drafts/review-script.ts';
 
-const RELS = ['src/a.js', 'lib/b.js'];
 const NASTY = 'It\'s "quoted" $(touch PWNED) `touch PWNED2` $HOME\nONCE_UPON_REVIEW_JSON\n\\n end';
 const CHAPTERS = [
   {
     comments: [
       { path: 'src/a.js', line: 2, body: 'Could you confirm?' },
-      { path: 'b.js', line: 7, side: 'L', body: NASTY },
+      { path: 'lib/b.js', line: 7, side: 'L', body: NASTY },
       { path: '(general)', line: 0, body: 'Thanks for this.' },
     ],
   },
@@ -40,7 +39,7 @@ const ROWS: ScriptRow[] = [
 ];
 
 test('only line drafts still to post go in, with full paths and sides', () => {
-  const drafts = scriptDrafts(CHAPTERS, ROWS, RELS);
+  const drafts = scriptDrafts(CHAPTERS, ROWS);
   assert.deepEqual(drafts.comments, [
     { path: 'src/a.js', line: 2, side: 'RIGHT', body: 'Could you confirm?' },
     { path: 'lib/b.js', line: 7, side: 'LEFT', body: NASTY },
@@ -70,7 +69,7 @@ test('the script sends the comments to gh api as JSON on stdin, untouched by the
   chmodSync(path.join(bin, 'gh'), 0o755);
   const home = path.join(dir, 'home');
   writeJson(path.join(home, 'config.json'), { gh_unset_github_token: true });
-  const drafts = scriptDrafts(CHAPTERS, ROWS, RELS);
+  const drafts = scriptDrafts(CHAPTERS, ROWS);
   const script = reviewScript({ repo: 'acme/widgets', number: 7, ...drafts });
   execFileSync('sh', ['-c', script], {
     cwd: dir,

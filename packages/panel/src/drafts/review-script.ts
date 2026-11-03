@@ -44,25 +44,14 @@ const stillDraft = (row: ScriptRow | undefined) =>
   !row ||
   (!row.dismissed && !row.fix && !row.added && row.status !== 'posted' && row.status !== 'pending');
 
-/** The file a draft names: exact, else the one file it's a path suffix of, else as written. */
-function fullPath(name: string, rels: string[]): string {
-  const clean = String(name || '').replace(/^\.\//, '');
-  if (rels.includes(clean)) {
-    return clean;
-  }
-  const matches = rels.filter((rel) => rel.endsWith('/' + clean));
-  return matches.length === 1 ? matches[0] : clean;
-}
-
 /**
  * What goes in the script, from the chapters' drafts and the bridge's rows for them.
- * chapters: the story's chapters, each with its `comments`. rows: the bridge's draft rows. rels: every file in the
- * story. general: drafts with no line, left out. inReview: drafts already in their pending review.
+ * chapters: the story's chapters, each with its `comments`. rows: the bridge's draft rows. A draft's path is the file's
+ * full path. general: drafts with no line, left out. inReview: drafts already in their pending review.
  */
 export function scriptDrafts(
   chapters: { comments?: (Omit<Partial<DraftComment>, 'side'> & { side?: string })[] }[],
   rows: ScriptRow[],
-  rels: string[],
 ): { comments: ScriptComment[]; general: number; inReview: number } {
   const byKey = new Map(rows.map((row) => [`${row.chapter}:${row.index}`, row]));
   const out = { comments: [] as ScriptComment[], general: 0, inReview: 0 };
@@ -82,7 +71,7 @@ export function scriptDrafts(
         return;
       }
       out.comments.push({
-        path: fullPath(comment.path, rels),
+        path: comment.path,
         line,
         side: comment.side === 'L' ? 'LEFT' : 'RIGHT',
         body,

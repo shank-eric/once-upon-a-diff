@@ -1,9 +1,8 @@
 /*
- * How a story's text points at lines, read the same way by the panel
- * (file-refs.js, markdown.js) and the bridge (stories/text-refs.mjs): a
- * backticked `path:45`, `path:40-58`, `path:L12` or bare `:45`, and a link to
- * a file's diff with a line anchor (#diff-<sha256>R45). Only the syntax lives
- * here. Each side resolves the names to files by its own rules.
+ * How a story's text points at lines. A story links by data: a chapter's `refs` entry has an id, and the text links to
+ * it as `[text](ref:<id>)` (refLinkId, refIdsIn). A link to a file's diff with a line anchor (#diff-<sha256>R45) names
+ * its file by an exact id, so it jumps too (parseDiffLink). The backticked `path:45`, `path:40-58`, `path:L12` and bare
+ * `:45` forms (parseLineRef) link nothing: only the bridge reads them, to upgrade an older story and to lint a new one.
  */
 
 /** A side of a file's diff: 'L' the old lines, 'R' the new. */
@@ -42,4 +41,21 @@ export function parseDiffLink(url: string): { sha: string; line: LineRef | null 
     return null;
   }
   return { sha: match[1], line: match[3] ? lineOf(match[2], match[3], match[4]) : null };
+}
+
+/** What a ref's id may be: the author's short slug, unique in its chapter. */
+export const REF_ID = /^[a-z0-9][a-z0-9-]*$/;
+
+/** The id a link's target names (`ref:load`), or null when it is not a ref link. */
+export function refLinkId(url: string): string | null {
+  const match = /^ref:([a-z0-9][a-z0-9-]*)$/.exec(String(url));
+  return match ? match[1] : null;
+}
+
+/** The ids of the ref links in a markdown text, in order, code blocks left out. */
+export function refIdsIn(text: string): string[] {
+  const src = String(text || '').replace(/```[\s\S]*?```/g, ' ');
+  return [...src.matchAll(/\[[^\]]*\]\((ref:[^)\s]*)\)/g)].map(
+    (match) => refLinkId(match[1]) ?? match[1].slice(4),
+  );
 }

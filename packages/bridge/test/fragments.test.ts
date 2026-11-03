@@ -38,14 +38,27 @@ const diff = parseUnifiedDiff(DIFF);
 const plan = (): Plan => ({
   mode: 'journey',
   chapters: [
-    { key: 'a', title: 'Chapter 1: A', headline: 'A.', files: ['src/a.js'] },
-    { key: 'b', title: 'Chapter 2: B', headline: 'B.', files: ['src/b.js', 'test/b.test.js'] },
-    { key: 'c', title: 'Chapter 3: C', headline: 'C.', files: ['src/board.ts', 'web/board.ts'] },
+    { key: 'a', title: 'Chapter 1: A', headline: 'A.', files: ['src/a.js'], refs: [] },
+    {
+      key: 'b',
+      title: 'Chapter 2: B',
+      headline: 'B.',
+      files: ['src/b.js', 'test/b.test.js'],
+      refs: [],
+    },
+    {
+      key: 'c',
+      title: 'Chapter 3: C',
+      headline: 'C.',
+      files: ['src/board.ts', 'web/board.ts'],
+      refs: [],
+    },
     {
       key: 'd',
       title: 'Chapter 4: D',
       headline: 'D.',
       files: ['src/d.js', { rel: 'src/a.js', partial: true }],
+      refs: [],
     },
   ],
 });
@@ -59,8 +72,9 @@ test('a fragment fills an empty chapter, with its answer and comments, and leave
     [
       {
         key: 'a',
-        narrative: `${text(1)} See \`src/a.js:11\`.`,
+        narrative: `${text(1)} See [the line](ref:new).`,
         answer: 'Short.',
+        refs: [{ id: 'new', path: 'src/a.js', side: 'R', start: 11, end: 11 }],
         comments: [
           { path: 'src/a.js', line: 11, body: 'Could you confirm?' },
           { body: 'General.' },
@@ -82,6 +96,7 @@ test('a fragment fills an empty chapter, with its answer and comments, and leave
     { path: 'src/a.js', line: 11, body: 'Could you confirm?' },
     { path: '(general)', line: 0, body: 'General.' },
   ]);
+  assert.deepEqual(chapter.refs, [{ id: 'new', path: 'src/a.js', side: 'R', start: 11, end: 11 }]);
   assert.equal(chapter.title, 'Chapter 1: A', 'a fragment cannot retitle');
   assert.deepEqual(chapter.files, ['src/a.js'], 'or move files');
   assert.equal(input.chapters![0].narrative, undefined, 'the input plan is not changed');
@@ -166,19 +181,31 @@ test('a fragment is refused, and its chapter stays unwritten, for each of these'
     { key: 'a', narrative: 'x', comments: [{ path: 'src/a.js', line: 99, body: 'b' }] },
     /not on a line in the diff/,
   );
-  // the text points at lines of a file the chapter doesn't list: that would add it to the chapter and move where it finishes
+  // a ref on a file the chapter doesn't list would add it to the chapter and move where it finishes
   refused(
-    { key: 'b', narrative: 'See `src/a.js:11`.' },
-    /src\/a\.js, which the chapter does not list/,
+    { key: 'b', narrative: 'See [it](ref:x).', refs: [{ id: 'x', path: 'src/a.js', start: 11 }] },
+    /ref "x" is on src\/a\.js, which the chapter does not list/,
   );
-  // `board.ts` fits both of chapter 3's files
+  refused({ key: 'a', narrative: 'x', refs: 'no' }, /refs is not a list/);
+  // the text links to a ref the chapter does not have
+  refused({ key: 'c', narrative: 'The [board](ref:board) file.' }, /links to ref:board/);
+  // a comment's path is the full path: a suffix names no file
   refused(
-    { key: 'c', narrative: 'The `board.ts` file.' },
-    /fits src\/board\.ts and web\/board\.ts/,
+    { key: 'c', narrative: 'x', comments: [{ path: 'board.ts', line: 11, body: 'b' }] },
+    /board\.ts, which the chapter does not list \(write the file's full path\)/,
   );
+  // a ref id the chapter has, on other lines
+  const held = plan();
+  held.chapters![0].refs = [{ id: 'new', path: 'src/a.js', start: 10, end: 12 }];
+  const clash = mergeFragments(
+    held,
+    [{ key: 'a', narrative: 'x', refs: [{ id: 'new', path: 'src/a.js', start: 11 }] }],
+    diff,
+  );
+  assert.match(clash.outcomes[0].why, /ref "new" is already in the chapter/);
 });
 
-test('a bare file name with no line, a full path and a code block are fine; an old-side comment is checked on the old side', () => {
+test('text that names files is just text, and an old-side comment is checked on the old side', () => {
   const { outcomes } = mergeFragments(
     plan(),
     [
@@ -278,7 +305,11 @@ function scratch(fragments: Record<string, unknown>): string {
 test('story.mjs merge writes chapters.json, says what happened per fragment and exits 1 only when one is refused', async () => {
   const dir = scratch({
     '01-a.json': { key: 'a', narrative: text(1) },
-    '02-b.json': { key: 'b', narrative: 'See `src/a.js:11`.' },
+    '02-b.json': {
+      key: 'b',
+      narrative: 'See [it](ref:x).',
+      refs: [{ id: 'x', path: 'src/a.js', start: 11 }],
+    },
     '03-bad.json': '{not json',
   });
   await assert.rejects(
@@ -453,4 +484,42 @@ test('--clear removes fragments left by an earlier telling, so a rebuild is not 
   writeJson(path.join(dir, 'fragments', 'a.json'), { key: 'a', narrative: text(1) });
   const again = await run(process.execPath, [STORY, 'merge', '--dir', dir]);
   assert.match(again.stderr, /1 merged/);
+});
+
+test("the packet lists the chapter's refs, so its writer links to them by id", () => {
+  const input = plan();
+  input.chapters![1].refs = [
+    { id: 'loader', path: 'src/b.js', side: 'R', start: 11, end: 12, label: 'the loader' },
+  ];
+  const out = sliceOf(input, 'b', diff)!;
+  assert.match(out, /## Refs this chapter has/);
+  assert.match(out, /- loader: src\/b\.js R11-12 the loader/);
+  assert.match(sliceOf(plan(), 'b', diff)!, /\(none yet\)/);
+});
+
+test('a fragment that repeats a planned ref with the same lines is fine, whatever its label; other lines are refused, saying where', () => {
+  const input = plan();
+  input.chapters![0].refs = [
+    { id: 'new', path: 'src/a.js', side: 'R', start: 10, end: 12, label: 'the planned label' },
+  ];
+  const same = (ref: Record<string, unknown>) =>
+    mergeFragments(input, [{ key: 'a', narrative: 'See [it](ref:new).', refs: [ref] }], diff);
+  for (const ref of [
+    { id: 'new', path: 'src/a.js', start: 10, end: 12 },
+    { id: 'new', path: 'src/a.js', side: 'R', start: 10, end: 12, label: 'another label' },
+  ]) {
+    const merged = same(ref);
+    assert.equal(merged.outcomes[0].status, 'merged', JSON.stringify(ref));
+    assert.deepEqual(
+      merged.plan.chapters![0].refs,
+      input.chapters![0].refs,
+      "the chapter's own ref stays",
+    );
+  }
+  const moved = same({ id: 'new', path: 'src/a.js', start: 11, end: 12 });
+  assert.equal(moved.outcomes[0].status, 'rejected');
+  assert.match(
+    moved.outcomes[0].why,
+    /ref "new" is already in the chapter on src\/a\.js R10-12, and the fragment has it on src\/a\.js R11-12/,
+  );
 });

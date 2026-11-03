@@ -1,25 +1,18 @@
 /*
- * File and line references in the story's text, and the status pill on a
- * file's mention.
+ * Links in the story's text, and the status pill on a file's mention.
  *
- * A backticked name is a file when it is a PR path, a path suffix such as
- * `Combobox/component.tsx`, or a basename, among the files on screen in this
- * step. A name that fits more than one of them means the file named just
- * before it when that is one, and isn't a link otherwise (the build refuses
- * such names, so only an older story has them). A
- * `path:40`, `path:40-58` or `path:L12` suffix makes it a line reference.
- * A bare `:40-58` is a line in the file named last before it in the step,
- * or in the step's only file; it's drawn with that file's name in front.
+ * A link is data: a chapter's `refs` entry has an id, and the text links to it as `[text](ref:<id>)` (markdown.ts). A
+ * ref names its file and, when it has lines, a side and a range. A backticked name or `path:40` is plain code. A link
+ * to a file's diff (#diff-<sha>R45) names its file by an exact id, so it jumps too.
  *
- * placePills and pillMarker have no DOM, so node tests can use them. The
- * story's text is built as a string (markdown.js), so the html`` markup
- * pill() and refAttrs() return turns into its string there.
+ * placePills and pillMarker have no DOM, so node tests can use them. The story's text is built as a string
+ * (markdown.js), so the html`` markup pill() and refAttrs() return turns into its string there.
  */
-import { html, raw, unescapeHtml } from '@once-upon-a-diff/protocol/domain/html';
-import { parseLineRef } from '@once-upon-a-diff/protocol/domain/line-refs';
+import { html, raw } from '@once-upon-a-diff/protocol/domain/html';
 import { markViewedButton } from './viewed-button.ts';
 import type { LineRef } from '@once-upon-a-diff/protocol/domain/line-refs';
 import type { Html } from '@once-upon-a-diff/protocol/domain/html';
+import type { ChapterRef } from '@once-upon-a-diff/protocol/types';
 import type { PanelContext } from './context.ts';
 
 // eslint-disable-next-line no-control-regex -- the placeholder markers are control characters on purpose
@@ -61,49 +54,27 @@ export function refAttrs(rel: string, line: LineRef | null | undefined): Html {
 
 export function createFileRefs(context: PanelContext) {
   const { story, state } = context;
-  let linkScope = story.allRels; // the files a name can resolve to: the step's
+  let linkScope = story.allRels; // the files a diff link can jump to: the step's
+  let stepRefs: ChapterRef[] = []; // the refs the step's text links to: the chapter's
   let pilled = new Set(); // files whose pill is already drawn in this step
-  let lastRef: string | null = null; // the file a bare `:40` refers to
   let pillMarks: string[] | null = null; // while a chapter's story is drawn: each file mention, in reading order
 
-  /** Starts a step's text: names resolve among these files, and no pill is drawn yet. */
-  function startStep(scope: string[]) {
+  /** Starts a step's text: its diff links jump among these files, its `ref:` links are these refs, and no pill is drawn yet. */
+  function startStep(scope: string[], refs: ChapterRef[] = []) {
     linkScope = scope;
+    stepRefs = refs;
     pilled = new Set();
-    lastRef = null;
   }
   const inScope = (rel: string) => linkScope.includes(rel);
-  const noteMention = (rel: string) => {
-    lastRef = rel;
-  };
-
-  /** {rel, line, bare} for a backticked name that's a file (or a line in one) of this step, else null. */
-  function resolveRef(text: string): { rel: string; line: LineRef | null; bare?: boolean } | null {
-    const { name, line } = parseLineRef(unescapeHtml(text));
-    if (!name && line) {
-      let rel = null;
-      if (lastRef && linkScope.includes(lastRef)) {
-        rel = lastRef;
-      } else if (linkScope.length === 1) {
-        rel = linkScope[0];
-      }
-      return rel ? { rel, line, bare: true } : null;
-    }
-    if (!name || /\s/.test(name) || !/[./]/.test(name)) {
-      return null;
-    }
-    const fits = linkScope.filter((candidate) => candidate.endsWith('/' + name));
-    let rel = linkScope.find((candidate) => candidate === name) || null;
-    if (!rel && fits.length === 1) {
-      rel = fits[0];
-    } else if (!rel && lastRef && fits.includes(lastRef)) {
-      rel = lastRef;
-    }
-    if (rel) {
-      lastRef = rel;
-    }
-    return rel ? { rel, line } : null;
-  }
+  /** The step's ref with this id, or null. */
+  const refById = (id: string): ChapterRef | null => stepRefs.find((ref) => ref.id === id) || null;
+  /** A ref's lines as a jump target (null for a ref to the file). */
+  const lineOf = (ref: ChapterRef): LineRef | null =>
+    ref.start === undefined
+      ? null
+      : { side: ref.side === 'L' ? 'L' : 'R', start: ref.start, end: ref.end ?? ref.start };
+  /** The story file a path names, exactly, or null: a draft comment's path is the file's full path. */
+  const fileOf = (path: string): string | null => (story.allPaths.has(path) ? path : null);
 
   /**
    * The status pill on a file's mention. While a chapter's story is drawn (pillMarks set), each mention leaves a
@@ -150,7 +121,7 @@ export function createFileRefs(context: PanelContext) {
     return raw(placePills(markup, marks, pillHtml));
   }
 
-  return { startStep, inScope, noteMention, resolveRef, pill, storyWithPills };
+  return { startStep, inScope, refById, lineOf, fileOf, pill, storyWithPills };
 }
 
 export type FileRefs = ReturnType<typeof createFileRefs>;

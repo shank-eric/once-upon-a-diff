@@ -2,14 +2,14 @@
  * Every hunk of the diff should be told by some chapter, not only every file.
  *
  * A chapter covers a hunk when something in it points at a line inside that
- * hunk (its context lines count): a `lines` range on one of its file entries,
- * a line reference in its text (text-refs.ts: `path:40-58`, `path:L12`, a
- * bare `:45`, a diff link with a line), or a drafted comment on that line.
- * `L` ranges and comments are checked against the hunk's old side, the rest
- * against its new side.
+ * hunk (its context lines count): a ref of the chapter with lines (`refs`),
+ * or a drafted comment on that line, at the file's full path. Text covers
+ * nothing: a `path:40-58` in a narrative is not a pointer. `L` refs and
+ * comments are checked against the hunk's old side, the rest against its new
+ * side.
  *
- * An entry that says `"whole": true` covers all the file's hunks, with or without `lines` (the author's call that one
- * chapter tells all of it; its lines are then just jump targets). Listing a file with no line refs covers all its
+ * An entry that says `"whole": true` covers all the file's hunks, with or without refs (the author's call that one
+ * chapter tells all of it; its refs are then just jump targets). Listing a file with no line refs covers all its
  * hunks when:
  *   - the file is small (at most SMALL_FILE_LINES changed lines, about a screen)
  *   - the file is deleted, or a lockfile, where pointing at lines says nothing
@@ -19,7 +19,6 @@
  * The once-upon skill's `build` refuses to publish with uncovered hunks, and
  * file-map.json carries any it was told to allow, for the panel's Overview.
  */
-import { lineRefsOf, textOf } from './text-refs.ts';
 import type {
   Chapter,
   ChapterFile,
@@ -63,25 +62,18 @@ function coveredByListing(file: DiffFile, entry: ChapterFile, chapter: Chapter):
   );
 }
 
-/** The path a drafted comment names, resolved like a text reference (exact, then a unique suffix), or null. */
+/** The path a drafted comment names when it is on a line of a file of the diff (its full path), or null. */
 function commentRel(
   comment: { path?: string; line?: number | string },
   rels: string[],
 ): string | null {
-  const name = String(comment.path || '').replace(/^\.\//, '');
-  if (!name || !(Number(comment.line) > 0)) {
-    return null;
-  }
-  if (rels.includes(name)) {
-    return name;
-  }
-  const matches = rels.filter((rel) => rel.endsWith('/' + name));
-  return matches.length === 1 ? matches[0] : null;
+  const name = String(comment.path || '');
+  return name && Number(comment.line) > 0 && rels.includes(name) ? name : null;
 }
 
 /**
  * The hunks no chapter covers: [{rel, hunks: [{side, start, end, ref}]}] in diff order. chapters are chapters.json's,
- * normalized (chaptersOf), with or without addTextRefs.
+ * normalized (chaptersOf; an older story is upgraded first, legacy.ts).
  */
 export function uncoveredHunks(chapters: Chapter[], diff: Map<string, DiffFile>): UncoveredFile[] {
   const rels = [...diff.keys()];
@@ -93,7 +85,6 @@ export function uncoveredHunks(chapters: Chapter[], diff: Map<string, DiffFile>)
     if (chapter.auto) {
       continue; // the bridge's "Not in a chapter yet" tells nothing
     }
-    const own = chapter.files.map((entry) => entry.rel);
     for (const entry of chapter.files) {
       const file = diff.get(entry.rel);
       if (!file) {
@@ -102,17 +93,22 @@ export function uncoveredHunks(chapters: Chapter[], diff: Map<string, DiffFile>)
       if (!entry.ref) {
         listed.add(entry.rel);
       }
-      const lines = entry.lines || [];
-      if (
-        !entry.ref &&
-        (entry.whole || (!lines.length && coveredByListing(file, entry, chapter)))
-      ) {
+      // a text reference of an older story covers hunks (below) but never made a listed file need pointing at
+      const pointed = chapter.refs.some(
+        (ref) => ref.path === entry.rel && ref.start !== undefined && !ref.text,
+      );
+      if (!entry.ref && (entry.whole || (!pointed && coveredByListing(file, entry, chapter)))) {
         whole.add(entry.rel);
       }
-      lines.forEach((range) => addRange(entry.rel, range));
     }
-    for (const { rel, lines } of lineRefsOf(textOf(chapter), own, rels)) {
-      lines.forEach((range) => addRange(rel, range));
+    for (const ref of chapter.refs) {
+      if (ref.start !== undefined) {
+        addRange(ref.path, {
+          side: ref.side === 'L' ? 'L' : 'R',
+          start: ref.start,
+          end: ref.end as number,
+        });
+      }
     }
     for (const comment of chapter.comments || []) {
       const rel = commentRel(comment, rels);

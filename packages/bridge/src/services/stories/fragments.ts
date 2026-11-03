@@ -2,25 +2,29 @@
  * Chapters written in parallel. A story with many chapters is published as a skeleton first. Each chapter's text is then
  * written by its own writer, who hands back a fragment (never chapters.json, never a publish):
  *
- *   {"key": "…", "narrative": "…", "answer": "…", "comments": [{"path": "…", "line": 12, "body": "…"}]}
+ *   {"key": "…", "narrative": "…", "answer": "…", "refs": [{"id": "load", "path": "…", "side": "R", "start": 40, "end": 58}],
+ *    "comments": [{"path": "…", "line": 12, "body": "…"}]}
  *
  * mergeFragments lays the fragments onto the plan. A fragment fills a chapter only while that chapter has no narrative, so
  * a chapter that is written (kept by a rebuild, edited by hand, told since) is never overwritten and a second merge changes
- * nothing. Its comments go after any already there, without exact duplicates. A fragment is refused, and its chapter stays
- * unwritten, when it would not build the way the plan does: it points at a file the chapter does not list, names a file
- * that fits two of the chapter's files, moves where a file is finished, or comments on a line that is not in the diff.
+ * nothing. Its refs join the chapter's (a ref with an id the chapter has is skipped when it is the same, refused when it is
+ * not), and its comments go after any already there, without exact duplicates. A fragment is refused, and its chapter stays
+ * unwritten, when it would not build the way the plan does (validate.ts chapterProblems): a ref or comment on a file the
+ * chapter does not list, a comment without the file's full path or on a line that is not in the diff, or a link to a ref
+ * the chapter does not have.
  *
  * Pure: the caller reads and writes the files (skills/once-upon/bin/story.ts `merge`). `sliceOf` is the writer's packet.
  */
-import { addTextRefs, ambiguousRefsOf, lineRefsOf, textOf } from './text-refs.ts';
-import { chaptersOf, entryOf, type Plan, type PlanChapter } from './chapters.ts';
-import { relOfPath } from './diff.ts';
-import {
-  chapterKeyOf,
-  chapterNumbers,
-  finishedInOf,
-} from '@once-upon-a-diff/protocol/domain/chapters';
+import { entryOf, refOf, type Plan, type PlanChapter, type PlanRef } from './chapters.ts';
+import { chapterProblems } from './validate.ts';
+import { chapterKeyOf, chapterNumbers } from '@once-upon-a-diff/protocol/domain/chapters';
 import type { DiffFile } from '@once-upon-a-diff/protocol/types';
+
+/** Where a ref points, as text: its file and lines (or the file), never its label. */
+function placeOf(ref: PlanRef): string {
+  const { path, side, start, end } = refOf(ref);
+  return start === undefined ? path : `${path} ${side}${start}-${end}`;
+}
 
 /** One drafted comment in a fragment or a plan. */
 type PlanComment = NonNullable<PlanChapter['comments']>[number];
@@ -30,19 +34,6 @@ export interface FragmentOutcome {
   key: string;
   status: 'merged' | 'skipped' | 'rejected';
   why: string;
-}
-
-/** Where each file is finished and the placement problems of a plan, as `build` sees them (without the hunk check). */
-function placementOf(plan: Plan, rels: string[]) {
-  const chapters = addTextRefs(chaptersOf(plan), rels);
-  const problems: string[] = [];
-  chapters.forEach((chapter, i) => {
-    const own = chapter.files.map((entry) => entry.rel);
-    for (const { name, rels: fits } of ambiguousRefsOf(textOf(chapter), own)) {
-      problems.push(`chapter ${i + 1} names \`${name}\`, which fits ${fits.join(' and ')}`);
-    }
-  });
-  return { finishedIn: finishedInOf(chapters), problems };
 }
 
 /** Whether a comment's line is in one of the file's hunks, on the side it names. */
@@ -61,6 +52,7 @@ function readFragment(raw: unknown):
       key: string;
       narrative: string;
       answer: string | null;
+      refs: PlanRef[];
       comments: (PlanComment & { path: string; line: number; body: string })[];
     }
   | { ok: false; key: string; why: string } {
@@ -79,6 +71,12 @@ function readFragment(raw: unknown):
   if (fragment.comments !== undefined && !Array.isArray(fragment.comments)) {
     return { ok: false, key, why: 'comments is not a list' };
   }
+  if (fragment.refs !== undefined && !Array.isArray(fragment.refs)) {
+    return { ok: false, key, why: 'refs is not a list' };
+  }
+  const refs = ((fragment.refs as unknown[]) || []).map((item) =>
+    item && typeof item === 'object' ? (item as PlanRef) : ({} as PlanRef),
+  );
   const comments: (PlanComment & { path: string; line: number; body: string })[] = [];
   for (const item of (fragment.comments as unknown[]) || []) {
     const comment = (item && typeof item === 'object' ? item : {}) as Record<string, unknown>;
@@ -100,7 +98,7 @@ function readFragment(raw: unknown):
   }
   const answer =
     typeof fragment.answer === 'string' && fragment.answer.trim() ? fragment.answer.trim() : null;
-  return { ok: true, key, narrative, answer, comments };
+  return { ok: true, key, narrative, answer, refs, comments };
 }
 
 /**
@@ -112,7 +110,6 @@ export function mergeFragments(
   fragments: unknown[],
   diff: Map<string, DiffFile>,
 ): { plan: Plan; outcomes: FragmentOutcome[] } {
-  const rels = [...diff.keys()];
   let current: Plan = structuredClone(plan);
   const outcomes: FragmentOutcome[] = [];
   for (const raw of fragments) {
@@ -149,22 +146,22 @@ export function mergeFragments(
     const listed = (target.files || []).map((entry) => entryOf(entry).rel);
     const refused = (why: string) => outcomes.push({ key, status: 'rejected', why });
     const outside = fragment.comments.find(
-      (comment) => comment.path !== '(general)' && !relOfPath(comment.path, listed),
+      (comment) => comment.path !== '(general)' && !listed.includes(comment.path),
     );
     if (outside) {
-      refused(`a comment is on ${outside.path}, which the chapter does not list`);
+      refused(
+        `a comment is on ${outside.path}, which the chapter does not list (write the file's full path)`,
+      );
       continue;
     }
     const offDiff = fragment.comments.find((comment) => {
-      const rel = comment.path === '(general)' ? null : relOfPath(comment.path, listed);
-      const file = rel ? diff.get(rel) : null;
+      const file = comment.path === '(general)' ? null : diff.get(comment.path);
       return !!file && !lineInDiff(file, comment.line, comment.side);
     });
     if (offDiff) {
       refused(`the comment on ${offDiff.path}:${offDiff.line} is not on a line in the diff`);
       continue;
     }
-    const before = placementOf(current, rels);
     const next: Plan = structuredClone(current);
     const chapter = next.chapters![found[0]];
     chapter.narrative = fragment.narrative;
@@ -177,37 +174,26 @@ export function mergeFragments(
       String(known.body || '').trim() === String(comment.body || '').trim();
     const fresh: PlanComment[] = [];
     for (const comment of fragment.comments) {
-      const mapped = {
-        ...comment,
-        path: comment.path === '(general)' ? comment.path : relOfPath(comment.path, listed)!,
-      };
-      if (![...existing, ...fresh].some((known) => sameAs(known, mapped))) {
-        fresh.push(mapped);
+      if (![...existing, ...fresh].some((known) => sameAs(known, comment))) {
+        fresh.push(comment);
       }
     }
     chapter.comments = [...existing, ...fresh];
-    const tells = lineRefsOf(textOf(chaptersOf({ chapters: [chapter] })[0]), listed, rels).find(
-      (ref) => !listed.includes(ref.rel),
-    );
-    if (tells) {
-      refused(
-        `its text points at lines of ${tells.rel}, which the chapter does not list: name that file without lines, or point at the chapter that lists it`,
-      );
-      continue;
+    const refs = Array.isArray(chapter.refs) ? [...chapter.refs] : [];
+    let clash: string | null = null;
+    for (const ref of fragment.refs) {
+      const known = refs.find((one) => one.id === ref.id);
+      if (!known) {
+        refs.push(ref);
+      } else if (placeOf(known) !== placeOf(ref)) {
+        // the same id and place is the planned ref again (its label may differ or be left out): the chapter's stays
+        clash = `ref "${String(ref.id)}" is already in the chapter on ${placeOf(known)}, and the fragment has it on ${placeOf(ref)}`;
+      }
     }
-    const after = placementOf(next, rels);
-    const ambiguous = after.problems.find((problem) => !before.problems.includes(problem));
-    if (ambiguous) {
-      refused(`${ambiguous}: write the full path`);
-      continue;
-    }
-    const moved = Object.keys(after.finishedIn).find(
-      (rel) => after.finishedIn[rel] !== before.finishedIn[rel],
-    );
-    if (moved) {
-      refused(
-        `it would move where ${moved} is finished (chapter ${before.finishedIn[moved]} to ${after.finishedIn[moved]})`,
-      );
+    chapter.refs = refs;
+    const problem = clash || chapterProblems({ chapters: [{ ...chapter, key }] }, { diff })[0];
+    if (problem) {
+      refused(problem.replace(/^chapter 1: /, ''));
       continue;
     }
     if (fragment.answer) {
@@ -318,16 +304,23 @@ export function sliceOf(
       '',
     );
   }
+  const refs = (chapter.refs || []).map(refOf);
+  out.push(
+    '## Refs this chapter has (link to one as [text](ref:<id>); add the ones you need to your fragment)',
+    ...(refs.length
+      ? refs.map(
+          (ref) =>
+            `- ${ref.id}: ${ref.path}${ref.start !== undefined ? ` ${ref.side}${ref.start}-${ref.end}` : ''}${ref.label ? ` ${ref.label}` : ''}`,
+        )
+      : ['(none yet)']),
+    '',
+  );
   out.push('## Files and their diff (R = new side line, L = old side line)', '');
   for (const entry of (chapter.files || []).map(entryOf)) {
     const file = diff.get(entry.rel);
     const marks = [
       entry.partial ? `partial${entry.note ? `: ${entry.note}` : ''}` : '',
       entry.whole ? 'whole' : '',
-      ...(entry.lines || []).map(
-        (range) =>
-          `${range.side}${range.start}-${range.end}${range.label ? ` ${range.label}` : ''}`,
-      ),
     ].filter(Boolean);
     out.push(
       `### ${entry.rel}${file ? ` (${file.kind}, +${file.stats.added} -${file.stats.removed})` : ' (not in the diff)'}${marks.length ? ` [${marks.join('; ')}]` : ''}`,

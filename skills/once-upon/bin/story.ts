@@ -5,8 +5,10 @@
  * threads.json, checks.json, viewed.tsv). It makes no network calls.
  *
  *   story.ts brief   --dir D                 what Claude reads to plan: files, commits, reviews, threads, CI, viewed
- *   story.ts build   --dir D [--no-bridge]   D/chapters.json -> D/file-map.json, then publish; fails if a file is
- *                                             unplaced or a hunk is told by no chapter (--allow-uncovered publishes anyway)
+ *   story.ts build   --dir D [--no-bridge]   D/chapters.json -> D/file-map.json, then publish; gives each chapter a key
+ *                                             (written back to D/chapters.json); fails if a file is unplaced, a chapter
+ *                                             has no refs list, a ref or comment is wrong, or a hunk is told by no
+ *                                             chapter (--allow-uncovered publishes anyway)
  *   story.ts publish --dir D                 publish the story for Once Upon a Diff through `once-upon publish` (build does this too)
  *   story.ts slice   --dir D --chapter K     what one chapter's writer reads: map, neighbours, key points (D/points.json), numbered diff
  *   story.ts merge   --dir D                 lay D/fragments/*.json (one per chapter) onto D/chapters.json; never publishes (--clear: delete them instead)
@@ -29,11 +31,12 @@ import {
   sliceOf,
   type Points,
 } from '../../../packages/bridge/src/services/stories/fragments.ts';
+import { lintTextRefs } from '../../../packages/bridge/src/services/stories/text-refs.ts';
+import { upgradePlan } from '../../../packages/bridge/src/services/stories/legacy.ts';
 import {
-  addTextRefs,
-  ambiguousRefsOf,
-  textOf,
-} from '../../../packages/bridge/src/services/stories/text-refs.ts';
+  assignKeys,
+  chapterProblems,
+} from '../../../packages/bridge/src/services/stories/validate.ts';
 import {
   uncoveredHunks,
   SMALL_FILE_LINES,
@@ -208,13 +211,14 @@ async function cmdBrief(opts: CliOpts) {
 }
 
 /**
- * Where each file is told and finished, by the panel's own rules: a chapter tells a file by listing it or by pointing
- * at its lines in its text (packages/bridge/src/services/stories/text-refs.ts), and finishes it when it's the last chapter to tell it or
- * the newest "Since you read it" chapter that lists it (finishedInOf).
+ * Where each file is told and finished, by the panel's own rules: a chapter tells a file by listing it, and finishes it
+ * when it's the last chapter to list it or the newest "Since you read it" chapter that lists it (finishedInOf). Pointing
+ * at a file's lines is a ref (`refs`), which needs the file listed: it moves nothing. A chapter an older story kept
+ * as it was is read as it is on the panel (legacy.ts).
  */
 function buildMap(plan: Plan, diff: Map<string, DiffFile>) {
   const rels = [...diff.keys()];
-  const chapters = addTextRefs(chaptersOf(plan), rels);
+  const chapters = chaptersOf(upgradePlan(plan, rels));
   const finishedIn = finishedInOf(chapters);
   const files: Record<string, MapFile> = {};
   for (const rel of rels) {
@@ -233,14 +237,6 @@ function buildMap(plan: Plan, diff: Map<string, DiffFile>) {
       if (entry.partial) {
         file.partial_in.push(step);
       }
-    }
-  });
-  chapters.forEach((chapter, i) => {
-    const own = chapter.files.map((entry) => entry.rel);
-    for (const { name, rels: fits } of ambiguousRefsOf(textOf(chapter), own)) {
-      problems.push(
-        `chapter ${i + 1} names \`${name}\`, which fits ${fits.join(' and ')}: write the full path`,
-      );
     }
   });
   const missing = rels.filter((rel) => files[rel].chapters.length === 0);
@@ -276,7 +272,7 @@ function hunksNotCovered(uncovered: UncoveredFile[]): string {
   return [
     `hunks not covered: ${count} in ${uncovered.length} files (bigger than ${SMALL_FILE_LINES} changed lines) that no chapter points at`,
     ...lines,
-    'Give the chapter that tells each one a `lines` range on it, a `path:N-M` reference in its narrative or a comment on it,',
+    'Give the chapter that tells each one a ref on it (`refs`: {id, path, side, start, end}) or a comment on it,',
     'or mark the file\'s entry "whole": true where one chapter tells all of it. --allow-uncovered publishes anyway.',
   ].join('\n');
 }
@@ -288,6 +284,22 @@ async function cmdBuild(opts: CliOpts) {
     (opts.chapters as string | undefined) || path.join(dir, 'chapters.json'),
   );
   const chapters = plan.chapters || [];
+  // every chapter gets its key now, and keeps it: the bridge assigns what is missing, and it is written back here
+  const keyed = assignKeys(plan);
+  if (keyed.length) {
+    writeJsonAtomic((opts.chapters as string | undefined) || path.join(dir, 'chapters.json'), plan);
+    process.stderr.write(`Gave ${keyed.length} chapters a key: ${keyed.join(', ')}\n`);
+  }
+  if (opts['no-bridge']) {
+    // the bridge checks the plan itself when it publishes, against what it published before; this is the same check without that
+    const refused = chapterProblems(plan, { diff });
+    if (refused.length && !opts['allow-missing']) {
+      throw new Error(`chapters:\n  - ${refused.join('\n  - ')}`);
+    }
+  }
+  for (const warning of lintTextRefs(plan)) {
+    process.stderr.write(`warning: ${warning}\n`);
+  }
   const map = buildMap(plan, diff);
   if (map.problems.length && !opts['allow-missing']) {
     throw new Error(`file placement:\n  - ${map.problems.join('\n  - ')}`);

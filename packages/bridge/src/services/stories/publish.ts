@@ -9,6 +9,7 @@ import { vetRebuild, afterRebuild } from './rebuild.ts';
 import { slug } from './local-story.ts';
 import { storyDirFor } from './placement.ts';
 import { noteSkeleton } from './skeleton.ts';
+import { readyPlan } from './validate.ts';
 import type { Plan } from './chapters.ts';
 import type { StoryMeta } from './types.ts';
 
@@ -83,6 +84,18 @@ export function publishPrStory(
   }
   // into the repo's checkout (.once-upon/<id>, kept out of git) when the bridge knows it, else ~/.once-upon/<id>
   const dest = storyDirFor(home, id, { repo });
+  // every chapter has a key and its refs, and the story's text links by them: refused here, not drawn wrong later
+  const plan = readJson<Plan>(path.join(source, 'chapters.json'), null);
+  if (plan) {
+    const diffFile = path.join(source, 'pr.diff');
+    const assigned = readyPlan(plan, {
+      diff: existsSync(diffFile) ? parseUnifiedDiff(readFileSync(diffFile, 'utf8')) : undefined,
+      served: readJson<Plan>(path.join(dest, 'chapters.json'), null),
+    });
+    if (assigned.length) {
+      writeJsonAtomic(path.join(source, 'chapters.json'), plan); // so the author's next edit keeps the keys
+    }
+  }
   for (const name of ['chapters.json', 'file-map.json']) {
     if (existsSync(path.join(source, name))) {
       copyFileAtomic(path.join(source, name), path.join(dest, name));

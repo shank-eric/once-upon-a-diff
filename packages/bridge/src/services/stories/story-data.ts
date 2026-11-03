@@ -11,7 +11,7 @@ import { readPrefs } from '../config/settings.ts';
 import { readJson } from '../../adapters/stores/json-file.ts';
 import { readMeta, storyVersion, localVersion } from './meta.ts';
 import { chaptersOf, addLeftoverChapter, markUnwritten } from './chapters.ts';
-import { addTextRefs } from './text-refs.ts';
+import { upgradePlan } from './legacy.ts';
 import { uncoveredHunks } from './hunk-coverage.ts';
 import {
   loadDiff,
@@ -59,11 +59,13 @@ export function storyData(store: StoryStore, id: string, dir: string): StoryData
   const diff = loadDiff(dir, meta);
   const map = readJson<FileMap>(path.join(dir, 'file-map.json'), null);
   const rels = relsOf(map, diff);
-  const chapters = chaptersOf(plan);
+  // a story told before refs is read as one that has them (legacy.ts); the files on disk stay as they were
+  const chapters = chaptersOf(upgradePlan(plan, rels));
   // a local diff is the truth: a file that has left it (say, reverted) leaves its chapters too
   if (diff) {
     for (const chapter of chapters) {
       chapter.files = chapter.files.filter((file) => diff.has(file.rel));
+      chapter.refs = chapter.refs.filter((ref) => diff.has(ref.path));
     }
   }
   for (const chapter of chapters) {
@@ -73,8 +75,6 @@ export function storyData(store: StoryStore, id: string, dir: string): StoryData
       }
     }
   }
-  // a chapter whose text points at a file's lines tells that file too, so the last one to do it finishes it (text-refs.ts)
-  addTextRefs(chapters, rels);
   // hunks no chapter points at: a build allowed to publish with them says so in file-map.json, a local story's diff is here
   const uncovered = diff ? uncoveredHunks(chapters, diff) : (map && map.uncovered_hunks) || [];
   addLeftoverChapter(chapters, rels);

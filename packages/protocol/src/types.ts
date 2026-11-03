@@ -22,6 +22,23 @@ export interface ChapterLines extends LineSpan {
   label: string;
 }
 
+/**
+ * A place in a story's diff that its text can link to: a chapter's `refs` entry. The narrative links to it as
+ * `[text](ref:<id>)`. `id` is the author's, unique in the chapter that holds it. With `start` it is a line range on
+ * `side` (R, the new lines, by default); without, it is the file.
+ */
+export interface ChapterRef {
+  id: string;
+  path: string;
+  /** no lines: the link goes to the file */
+  side?: Side;
+  start?: number;
+  end?: number;
+  label?: string;
+  /** made by the bridge from the text of a story told before refs: it links, but is not a pointer a chapter chose to make (hunk coverage, a file's line list) */
+  text?: boolean;
+}
+
 /** A file a chapter tells. partial: it tells some of it (note says which), and a later chapter more. */
 export interface ChapterFile {
   rel: string;
@@ -29,8 +46,9 @@ export interface ChapterFile {
   note: string | null;
   /** this chapter tells all of the file's hunks */
   whole?: boolean;
-  /** not listed: the chapter's text points at its lines (the bridge adds these) */
+  /** an older story only: not listed, its text pointed at this file's lines (the bridge adds these when it reads one) */
   ref?: boolean;
+  /** derived by the bridge from the chapter's `refs` on this file: the lines this chapter shows of it */
   lines?: ChapterLines[];
 }
 
@@ -55,7 +73,7 @@ export interface SinceRange {
 }
 
 export interface Chapter {
-  /** what read.json records a read under */
+  /** what read.json records a read under; the bridge assigns it when a chapter is published without one */
   key: string;
   title: string;
   headline: string;
@@ -63,6 +81,8 @@ export interface Chapter {
   summary: string;
   narrative: string;
   files: ChapterFile[];
+  /** the places the narrative links to (`[text](ref:<id>)`), each on a file the chapter lists */
+  refs: ChapterRef[];
   comments: DraftComment[];
   since?: SinceRange;
   /** the last chapter the bridge adds for files no chapter places */

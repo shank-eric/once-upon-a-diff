@@ -13,7 +13,7 @@ import {
   raw,
   unescapeHtml,
 } from '@once-upon-a-diff/protocol/domain/html';
-import { parseDiffLink } from '@once-upon-a-diff/protocol/domain/line-refs';
+import { parseDiffLink, refLinkId } from '@once-upon-a-diff/protocol/domain/line-refs';
 import { refAttrs } from './file-refs.ts';
 import type { Html } from '@once-upon-a-diff/protocol/domain/html';
 import type { PanelContext } from './context.ts';
@@ -67,11 +67,18 @@ export function createMarkdown(context: PanelContext) {
     const links: string[] = [];
     html = html.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (match, text: string, url: string) => {
       // links to this PR's files (and lines) scroll the page instead of navigating
+      const id = refLinkId(url);
       const link = parseDiffLink(url);
       const rel = link && story.shaToPath.get(link.sha);
       let markup: string | null;
-      if (rel && refs.inScope(rel)) {
-        refs.noteMention(rel);
+      if (id !== null) {
+        // a link by id: the ref's file and lines. A ref this text doesn't have is just its words.
+        const ref = refs.refById(id);
+        markup =
+          ref && refs.fileOf(ref.path)
+            ? `<span ${refAttrs(ref.path, refs.lineOf(ref))}>${emphasis(text)}</span>${refs.pill(ref.path)}`
+            : emphasis(text);
+      } else if (rel && refs.inScope(rel)) {
         markup = `<span ${refAttrs(rel, link.line)}>${emphasis(text)}</span>${refs.pill(rel)}`;
       } else {
         markup = linkHtml(emphasis(text), url);
@@ -84,14 +91,7 @@ export function createMarkdown(context: PanelContext) {
     );
     html = html.replace(CODE_MARK, (match, indexText: string) => {
       const index = Number(indexText);
-      const ref = refs.resolveRef(codes[index]);
-      if (!ref) {
-        return `<code>${codes[index]}</code>`;
-      }
-      const label = ref.bare
-        ? `${escapeHtml(ref.rel.split('/').pop())}${codes[index]}`
-        : codes[index];
-      return `<code ${refAttrs(ref.rel, ref.line)}>${label}</code>${refs.pill(ref.rel)}`;
+      return `<code>${codes[index]}</code>`;
     });
     return raw(html);
   }

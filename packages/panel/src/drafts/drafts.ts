@@ -116,15 +116,15 @@ export function createDrafts(context: PanelContext) {
   /** One drafted comment, with its step and index: render adds its state and its buttons. */
   function commentHtml(comment: DraftComment, step: number, index: number) {
     const general = !comment.line || /^\(/.test(comment.path || '');
-    const ref = !general && context.refs.resolveRef(comment.path);
+    const rel = !general ? context.refs.fileOf(comment.path) : null;
     let name;
-    if (ref) {
+    if (rel) {
       const line = {
         side: (comment.side === 'L' ? 'L' : 'R') as Side,
         start: comment.line,
         end: comment.line,
       };
-      name = html`<code ${refAttrs(ref.rel, line)}>${comment.path}:${comment.line}</code>`;
+      name = html`<code ${refAttrs(rel, line)}>${comment.path}:${comment.line}</code>`;
     } else {
       name = html`<code>${comment.path}${!general && `:${comment.line}`}</code>`;
     }
@@ -236,7 +236,7 @@ export function createDrafts(context: PanelContext) {
     if (!onPr || !opts.drafts || !checked || loadError) {
       return null; // without gh's posted state, the script could post one twice
     }
-    return scriptDrafts(data.chapters, rows, story.allRels);
+    return scriptDrafts(data.chapters, rows);
   }
 
   /** Copy as gh script: copies the script, and nothing else. Running it is the reviewer's call. */
@@ -266,8 +266,8 @@ export function createDrafts(context: PanelContext) {
     if (!comment || !comment.path || !(Number(comment.line) > 0)) {
       return false;
     }
-    const ref = context.refs.resolveRef(comment.path);
-    const block = ref && context.page.blockOf(ref.rel);
+    const rel = context.refs.fileOf(comment.path);
+    const block = rel && context.page.blockOf(rel);
     if (!block) {
       return false;
     }
@@ -358,10 +358,10 @@ export function createDrafts(context: PanelContext) {
       // Add to my review worked, but this page won't show the comment until it's reloaded
       el.classList.add('ou-c-done', 'ou-c-pending');
       stateLine.hidden = false;
-      const ref = comment && context.refs.resolveRef(comment.path);
+      const rel = comment && context.refs.fileOf(comment.path);
       const jump =
-        ref &&
-        html` · ${lineJump(ref.rel, (comment as DraftComment).side, (comment as DraftComment).line)}`;
+        rel &&
+        html` · ${lineJump(rel, (comment as DraftComment).side, (comment as DraftComment).line)}`;
       const onGithub = row.added!.url && githubLink(row.added!.url); // 'added' means it has one
       const reload =
         opts.reloadPage &&

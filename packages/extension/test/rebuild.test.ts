@@ -24,7 +24,7 @@ import {
 } from 'once-upon-a-diff/services/stories/rebuild';
 import { rebuildAsk, rebuildLine } from '@once-upon-a-diff/panel/rebuild/rebuild';
 import { tagFor, type StoryStatus } from '../src/content/ui/story-tag.ts';
-import type { Plan, PlanFile } from 'once-upon-a-diff/services/stories/chapters';
+import type { Plan } from 'once-upon-a-diff/services/stories/chapters';
 import type { StoryMeta } from 'once-upon-a-diff/services/stories/types';
 import type { Listener } from 'once-upon-a-diff/services/listeners/listeners';
 import type { Pulse, RebuildView } from '@once-upon-a-diff/protocol/types';
@@ -81,19 +81,16 @@ const published = (): Plan & { chapters: NonNullable<Plan['chapters']> } => ({
       title: 'Chapter 1: Start',
       key: 'start',
       files: ['src/a.js'],
+      refs: [],
       comments: [{ path: 'src/a.js', line: 2, body: 'Could you confirm?' }],
     },
     {
       title: 'Chapter 2: Finish',
-      files: [
-        'src/b.js',
-        {
-          rel: 'src/big.js',
-          lines: [
-            { side: 'R', start: 2, end: 20, label: 'first' },
-            { side: 'R', start: 130, end: 140, label: 'second' },
-          ],
-        },
+      key: 'finish',
+      files: ['src/b.js', 'src/big.js'],
+      refs: [
+        { id: 'first', path: 'src/big.js', side: 'R', start: 2, end: 20, label: 'first' },
+        { id: 'second', path: 'src/big.js', side: 'R', start: 130, end: 140, label: 'second' },
       ],
       comments: [
         { path: 'src/b.js', line: 11, body: 'Is this needed?' },
@@ -109,17 +106,13 @@ const retoldFromTwo = (): ReturnType<typeof published> => {
   const plan = published();
   plan.chapters = [
     plan.chapters[0],
-    { title: 'Chapter 2: The b side', files: ['src/b.js'] },
+    { title: 'Chapter 2: The b side', files: ['src/b.js'], refs: [] },
     {
       title: 'Chapter 3: The big file',
-      files: [
-        {
-          rel: 'src/big.js',
-          lines: [
-            { side: 'R', start: 1, end: 27, label: 'first' },
-            { side: 'R', start: 125, end: 151, label: 'second' },
-          ],
-        },
+      files: ['src/big.js'],
+      refs: [
+        { id: 'first', path: 'src/big.js', side: 'R', start: 1, end: 27, label: 'first' },
+        { id: 'second', path: 'src/big.js', side: 'R', start: 125, end: 151, label: 'second' },
       ],
     },
   ];
@@ -137,6 +130,7 @@ describe('the rebuild rules', () => {
       comments: first.comments,
       files: first.files,
       key: first.key,
+      refs: first.refs,
       title: first.title,
     };
     assert.deepEqual(
@@ -167,7 +161,7 @@ describe('the rebuild rules', () => {
 
   test('a whole rebuild may change every chapter', () => {
     const plan = retoldFromTwo();
-    plan.chapters[0] = { title: 'Chapter 1: Begin again', files: ['src/a.js'] };
+    plan.chapters[0] = { title: 'Chapter 1: Begin again', files: ['src/a.js'], refs: [] };
     assert.deepEqual(rebuildProblems({ mode: 'rebuild' }, published(), plan, diff), []);
   });
 
@@ -179,9 +173,7 @@ describe('the rebuild rules', () => {
       /1 files are in no chapter: src\/b.js/,
     );
     const half = retoldFromTwo();
-    (half.chapters[2].files![0] as Exclude<PlanFile, string>).lines = [
-      { side: 'R', start: 1, end: 27 },
-    ];
+    half.chapters[2].refs = [{ id: 'first', path: 'src/big.js', side: 'R', start: 1, end: 27 }];
     const problems = rebuildProblems(fromTwo, published(), half, diff);
     assert.match(problems.join('\n'), /hunks not covered: src\/big.js:125-151/);
     assert.deepEqual(
@@ -442,8 +434,8 @@ describe('a local story', () => {
       writeJson(path.join(chapters, 'chapters.json'), {
         title: 'By commit',
         chapters: [
-          { title: 'Chapter 1: Change one', files: ['one.txt'] },
-          { title: 'Chapter 2: Add two', files: ['lib/two.js', 'gone.txt'] },
+          { title: 'Chapter 1: Change one', files: ['one.txt'], refs: [] },
+          { title: 'Chapter 2: Add two', files: ['lib/two.js', 'gone.txt'], refs: [] },
         ],
       });
       const result = await runCli(home, [

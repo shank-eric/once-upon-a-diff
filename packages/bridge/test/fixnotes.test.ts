@@ -14,11 +14,12 @@ test('Add to fix before push makes a local draft a note, once, and the draft say
   writeJson(chapters, {
     chapters: [
       {
+        refs: [],
         title: 'Chapter 1: One',
         files: ['one.txt', 'lib/two.js'],
         comments: [
           { path: 'one.txt', line: 2, body: 'Lower-case B' },
-          { path: 'two.js', line: 1, body: 'Name it' },
+          { path: 'lib/two.js', line: 1, body: 'Name it' },
           { path: '(general)', line: 0, body: 'Overall' },
         ],
       },

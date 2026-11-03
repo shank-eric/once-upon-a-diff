@@ -8,11 +8,24 @@ import { SHA_RE } from '@once-upon-a-diff/protocol/domain/text';
 import type {
   Chapter,
   ChapterFile,
+  ChapterRef,
   DraftComment,
   SinceRange,
 } from '@once-upon-a-diff/protocol/types';
 
-/** A file entry in chapters.json as the story was written: a path, or the fields entryOf reads. */
+/** A ref in chapters.json as the story was written (refOf normalizes it). */
+export interface PlanRef {
+  id?: unknown;
+  path?: unknown;
+  side?: string;
+  start?: number | string;
+  end?: number | string;
+  label?: string;
+  /** an older story's text reference, made by legacy.ts */
+  text?: boolean;
+}
+
+/** A file entry in chapters.json as the story was written: a path, or the fields entryOf reads. `lines` is an older story's. */
 export type PlanFile =
   | string
   | {
@@ -20,6 +33,7 @@ export type PlanFile =
       partial?: unknown;
       note?: string | null;
       whole?: unknown;
+      ref?: unknown;
       lines?: { side?: string; start: number | string; end?: number | string; label?: string }[];
     };
 
@@ -34,6 +48,8 @@ export interface PlanChapter {
   /** a short answer once told (≤400 chars) */
   answer?: string;
   files?: PlanFile[];
+  /** the places the narrative links to; a plan published now has it on every chapter */
+  refs?: PlanRef[];
   comments?: (Partial<DraftComment> & { side?: string })[];
   since?: unknown;
 }
@@ -78,6 +94,9 @@ export function entryOf(entry: PlanFile): ChapterFile {
     return { rel: entry, partial: false, note: null };
   }
   const out: ChapterFile = { rel: entry.rel, partial: !!entry.partial, note: entry.note || null };
+  if (entry.ref) {
+    out.ref = true; // an older story: not listed, its text pointed at lines of it (legacy.ts)
+  }
   if (entry.whole) {
     out.whole = true; // this chapter tells all of the file's hunks (hunk-coverage.ts)
   }
@@ -92,10 +111,50 @@ export function entryOf(entry: PlanFile): ChapterFile {
   return out;
 }
 
-/** chapters.json's chapters, normalized. */
+/** A ref, normalized: a line range (side R unless it says L, end defaulting to start), or the file when it has no start. */
+export function refOf(ref: PlanRef): ChapterRef {
+  const out: ChapterRef = { id: String(ref.id ?? ''), path: String(ref.path ?? '') };
+  if (ref.start !== undefined && ref.start !== null && ref.start !== '') {
+    const start = +ref.start;
+    const end = +(ref.end || ref.start);
+    out.side = ref.side === 'L' ? 'L' : 'R';
+    out.start = Math.min(start, end);
+    out.end = Math.max(start, end);
+  }
+  if (ref.label) {
+    out.label = String(ref.label);
+  }
+  if (ref.text) {
+    out.text = true;
+  }
+  return out;
+}
+
+/** The line ranges of refs that name lines of `rel`, as a chapter's file entry shows them (`lines`). */
+function linesOf(refs: ChapterRef[], entry: ChapterFile): ChapterFile['lines'] {
+  // an older story's text references only gave lines to a file its text pointed at without listing it
+  return refs
+    .filter(
+      (ref) =>
+        ref.path === entry.rel && ref.start !== undefined && (!ref.text || entry.ref === true),
+    )
+    .map((ref) => ({
+      side: ref.side === 'L' ? ('L' as const) : ('R' as const),
+      start: ref.start as number,
+      end: ref.end as number,
+      label: ref.label || '',
+    }));
+}
+
+/**
+ * chapters.json's chapters, normalized. Each file entry's `lines` are its chapter's refs on that file, so the panel's file
+ * list and the local page's narrowing read ranges from one place. A plan with chapters that have no `refs` is an older
+ * story: upgrade it first (legacy.ts upgradePlan).
+ */
 export function chaptersOf(plan: Plan): Chapter[] {
   return (plan.chapters || []).map((chapter) => {
     const since = sinceOfChapter(chapter.since);
+    const refs = (chapter.refs || []).map(refOf);
     return {
       key: chapterKeyOf(chapter), // what read.json records a read under
       title: chapter.title || '',
@@ -103,7 +162,13 @@ export function chaptersOf(plan: Plan): Chapter[] {
       scenario: chapter.scenario || '',
       summary: chapter.summary || '',
       narrative: chapter.narrative || '',
-      files: (chapter.files || []).map(entryOf),
+      files: (chapter.files || []).map((file) => {
+        const entry = entryOf(file);
+        const lines = linesOf(refs, entry);
+        delete entry.lines;
+        return lines && lines.length ? { ...entry, lines } : entry;
+      }),
+      refs,
       comments: (chapter.comments || []).map((comment) => ({
         path: comment.path || '',
         line: comment.line || 0,
@@ -149,6 +214,7 @@ export function addLeftoverChapter(chapters: Chapter[], rels: string[]): void {
     summary: '',
     narrative: `### Chapter ${chapters.length + 1}: Not in a chapter yet\n\nThe story doesn't place these ${unplaced.length} files. They're here so nothing in the diff is missed.`,
     files: unplaced.map((rel) => ({ rel, partial: false, note: null })),
+    refs: [],
     comments: [],
     auto: true,
   });

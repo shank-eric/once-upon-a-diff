@@ -26,6 +26,7 @@ async function twoStories() {
     title: 'Two commits',
     chapters: [
       {
+        refs: [],
         title: 'Chapter 1: One',
         files: ['one.txt', 'gone.txt', 'lib/two.js'],
         comments: [{ path: 'one.txt', line: 2, body: 'Fix the capital B' }],

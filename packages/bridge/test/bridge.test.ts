@@ -374,11 +374,12 @@ describe('local stories', () => {
       title: 'Two commits',
       chapters: [
         {
+          refs: [],
           title: 'Chapter 1: One',
           files: ['one.txt'],
           comments: [{ path: 'one.txt', line: 2, body: 'Fix the capital B' }],
         },
-        { title: 'Chapter 2: Two', files: ['lib/two.js', 'not-in-diff.js'] },
+        { refs: [], title: 'Chapter 2: Two', files: ['lib/two.js', 'not-in-diff.js'] },
       ],
     });
     const made = createLocalStory({ home, repo, base, head: 'HEAD', chapters });

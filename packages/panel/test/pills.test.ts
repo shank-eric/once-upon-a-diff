@@ -52,7 +52,15 @@ test('a file this chapter finishes gets its Mark viewed button at its last menti
     pr: { title: 'PR' },
     files: files.map((rel, i) => ({ rel, sha: `sha${i}` })),
     chapters: [
-      { title: 'Chapter 1: A', files: files.map((rel) => ({ rel })) },
+      {
+        title: 'Chapter 1: A',
+        files: files.map((rel) => ({ rel })),
+        refs: [
+          { id: 'a', path: 'src/a.js' },
+          { id: 'open', path: 'src/a.js', side: 'R', start: 3, end: 9 },
+          { id: 'b', path: 'src/b.js' },
+        ],
+      },
       { title: 'Chapter 2: B', files: [{ rel: 'src/b.js' }] },
     ],
   } as unknown as StoryData);
@@ -63,12 +71,12 @@ test('a file this chapter finishes gets its Mark viewed button at its last menti
   } as unknown as PanelContext;
   context.refs = createFileRefs(context);
   context.markdown = createMarkdown(context);
-  context.refs.startStep(files);
+  context.refs.startStep(files, story.data.chapters[0].refs);
   const narrative = [
-    '1. `a.js` opens (`a.js:3-9`), and `b.js` starts.',
-    '2. `board.ts` is two files, so it is no link.',
+    '1. [`a.js`](ref:a) opens ([`a.js:3-9`](ref:open)), and [`b.js`](ref:b) starts.',
+    '2. `board.ts` is two files, so it is plain text.',
     '',
-    '**Files to mark viewed:** `a.js`, `src/b.js`.',
+    '**Files to mark viewed:** [`a.js`](ref:a), [`src/b.js`](ref:b).',
   ].join('\n');
   const out = String(context.refs.storyWithPills(() => context.markdown.markdown(narrative)));
   const buttons = [...out.matchAll(/<button[^>]*data-mark-for="([^"]+)"/g)].map(
@@ -77,6 +85,9 @@ test('a file this chapter finishes gets its Mark viewed button at its last menti
   assert.deepEqual(buttons, ['src/a.js'], 'one button, for the file this chapter finishes');
   const lastMention = out.lastIndexOf('data-rel="src/a.js"');
   assert.ok(out.indexOf('<button') > lastMention, 'the button follows the last mention');
-  assert.match(out.slice(lastMention), /^data-rel="src\/a\.js"[^>]*>a\.js<\/code><button/);
-  assert.doesNotMatch(out, /data-rel="(one|two)\/board\.ts"/, 'an ambiguous name is no link');
+  assert.match(
+    out.slice(lastMention),
+    /^data-rel="src\/a\.js"[^>]*><code>a\.js<\/code><\/span><button/,
+  );
+  assert.doesNotMatch(out, /data-rel="(one|two)\/board\.ts"/, 'a name with no ref is no link');
 });

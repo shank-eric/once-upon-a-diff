@@ -95,7 +95,7 @@ async function setup(opts: { config?: Record<string, unknown> } = {}) {
   commit(repo, 'c.txt');
   const chapters = path.join(tmp('ch'), 'chapters.json');
   writeJson(chapters, {
-    chapters: [{ title: 'Chapter 1', narrative: 'Told.', files: ['b.txt', 'c.txt'] }],
+    chapters: [{ refs: [], title: 'Chapter 1', narrative: 'Told.', files: ['b.txt', 'c.txt'] }],
   });
   const story = createLocalStory({ home, repo, base, head: 'HEAD', chapters });
   const metaFile = path.join(story.dir, 'meta.json');
@@ -351,7 +351,7 @@ test('which button a story gets: by branch, a commit range on the default branch
     // a local story built from the sha of master's tip takes master as its branch
     const chapters = path.join(tmp('ch'), 'chapters.json');
     writeJson(chapters, {
-      chapters: [{ title: 'Chapter 1', narrative: 'Told.', files: ['b.txt'] }],
+      chapters: [{ refs: [], title: 'Chapter 1', narrative: 'Told.', files: ['b.txt'] }],
     });
     const sha = createLocalStory({
       home,
@@ -424,7 +424,7 @@ test('a checkout whose origin is not on GitHub gets a reason, not a push', async
     const { repo, base } = localRepo(); // on branch feature, with no origin
     const chapters = path.join(tmp('ch'), 'chapters.json');
     writeJson(chapters, {
-      chapters: [{ title: 'Chapter 1', narrative: 'Told.', files: ['one.txt'] }],
+      chapters: [{ refs: [], title: 'Chapter 1', narrative: 'Told.', files: ['one.txt'] }],
     });
     const story = createLocalStory({ home, repo, base, head: 'HEAD', chapters });
     const bridge = await startBridge({ home });

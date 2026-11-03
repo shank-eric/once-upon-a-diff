@@ -6,14 +6,19 @@ import type { PanelContext } from '../src/context.ts';
 /** A file name git allows, chosen to look like attributes if it ever got out of its quotes. */
 const EVIL = 'a onfocus=alert(1) autofocus tabindex=1 x.js';
 
-/** The markdown renderer with just the refs it calls: `:40` resolves to EVIL's line 40, as in a chapter of one file. */
+/** The markdown renderer with just the refs it calls: the ref `evil` is EVIL's line 40. */
 function render(source: string): string {
   const refs = {
     inScope: () => true,
-    noteMention: () => {},
     pill: () => '',
-    resolveRef: (text: string) =>
-      text === ':40' ? { rel: EVIL, line: { side: 'R', start: 40, end: 40 }, bare: true } : null,
+    refById: (id: string) =>
+      id === 'evil' ? { id, path: EVIL, side: 'R', start: 40, end: 40 } : null,
+    fileOf: (path: string) => path,
+    lineOf: (ref: { side: string; start: number; end: number }) => ({
+      side: ref.side,
+      start: ref.start,
+      end: ref.end,
+    }),
   };
   const context = { story: { shaToPath: new Map<string, string>() }, refs };
   return String(createMarkdown(context as unknown as PanelContext).markdown(source));
@@ -43,15 +48,26 @@ const SAFE_ATTRS = new Set([
   'data-end',
 ]);
 
-test('a code span inside a link URL cannot break out of the href (the onfocus= payload)', () => {
-  const out = render('See [t](https://x.test/`:40`) for more.');
+test('a ref to a file named like attributes keeps its name inside its quotes (the onfocus= payload)', () => {
+  const out = render('See [t](ref:evil) for more.');
+  const unexpected = attributeNames(out).filter((name) => !SAFE_ATTRS.has(name));
+  assert.deepEqual(unexpected, [], out);
+  assert.doesNotMatch(out, /<a\b/);
+  assert.ok(out.includes(`data-rel="${EVIL}"`), 'the file reference itself renders');
+});
+
+test('a code span inside a link URL cannot break out of the href, and a backticked name links nothing', () => {
+  const out = render('See [t](https://x.test/`:40`) and `a.js:40` for more.');
   const unexpected = attributeNames(out).filter((name) => !SAFE_ATTRS.has(name));
   assert.deepEqual(unexpected, [], out);
   assert.doesNotMatch(out, /<a\b/, 'a URL with a code span in it is not made a link');
-  assert.ok(
-    out.includes(`data-rel="${EVIL}"`),
-    'the file reference itself still renders, its name inside its quotes',
-  );
+  assert.doesNotMatch(out, /data-rel/, 'text is not a link: only a ref id links');
+  assert.match(out, /<code>a\.js:40<\/code>/);
+});
+
+test('a link to a ref the chapter does not have is just its words', () => {
+  const out = render('See [the loader](ref:nope).');
+  assert.equal(out, '<p>See the loader.</p>');
 });
 
 test('only http(s) and relative links become links; others stay text', () => {

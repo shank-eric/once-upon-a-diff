@@ -36,17 +36,11 @@ export function githubStory(
     chapters: [
       {
         title: 'Chapter 1: Start',
-        files: [
-          {
-            rel: 'src/a.js',
-            partial: true,
-            note: 'the top',
-            lines: [{ side: 'R', start: 1, end: 3, label: 'top' }],
-          },
-        ],
+        files: [{ rel: 'src/a.js', partial: true, note: 'the top' }],
+        refs: [{ id: 'top', path: 'src/a.js', side: 'R', start: 1, end: 3, label: 'top' }],
         comments: [{ path: 'src/a.js', line: 2, body: 'Could you confirm?' }],
       },
-      { title: 'Chapter 2: Finish', files: ['src/a.js', 'src/b.js'] },
+      { title: 'Chapter 2: Finish', files: ['src/a.js', 'src/b.js'], refs: [] },
     ],
   });
 }

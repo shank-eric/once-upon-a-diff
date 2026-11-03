@@ -499,7 +499,7 @@ describe('fix before push is for the viewer’s own PRs', () => {
     githubStory(path.join(home, 'source-11'), { meta: { number: 11, source } });
     const { repo, base } = localRepo();
     const chapters = path.join(tmp('ch'), 'chapters.json');
-    writeJson(chapters, { chapters: [{ title: 'Chapter 1: One', files: ['one.txt'] }] });
+    writeJson(chapters, { chapters: [{ refs: [], title: 'Chapter 1: One', files: ['one.txt'] }] });
     const local = createLocalStory({ home, repo, base, head: 'HEAD', chapters });
     const bridge = await startBridge({ home });
     try {
@@ -565,7 +565,7 @@ describe('"being changed" marks', () => {
     githubStory(path.join(home, STORY));
     const { repo, base } = localRepo();
     const chapters = path.join(tmp('ch'), 'chapters.json');
-    writeJson(chapters, { chapters: [{ title: 'Chapter 1: One', files: ['one.txt'] }] });
+    writeJson(chapters, { chapters: [{ refs: [], title: 'Chapter 1: One', files: ['one.txt'] }] });
     const local = createLocalStory({ home, repo, base, head: 'HEAD', chapters });
     const bridge = await startBridge({ home });
     const working = async (id: string) =>

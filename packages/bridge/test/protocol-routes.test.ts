@@ -31,6 +31,7 @@ async function bridgeWithStories() {
     title: 'Two commits',
     chapters: [
       {
+        refs: [],
         title: 'Chapter 1: One',
         files: ['one.txt'],
         comments: [{ path: 'one.txt', line: 2, body: 'Fix' }],

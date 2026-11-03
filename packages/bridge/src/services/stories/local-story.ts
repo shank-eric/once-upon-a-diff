@@ -18,6 +18,7 @@ import { repoOfCheckout, seenCheckout } from '../config/repos.ts';
 import { plural } from '@once-upon-a-diff/protocol/domain/text';
 import type { DiffFile } from '@once-upon-a-diff/protocol/types';
 import { noteSkeleton } from './skeleton.ts';
+import { readyPlan } from './validate.ts';
 import type { LocalMeta, StoryMeta } from './types.ts';
 import type { Plan, PlanChapter } from './chapters.ts';
 
@@ -148,9 +149,12 @@ export function createLocalStory({
       ? JSON.parse(readFileSync(chaptersFile, 'utf8'))
       : {};
     const vetted = vet ? vet({ id, meta, diff, before, after }) : null;
-    if (vetted) {
-      writeJsonAtomic(chaptersFile, vetted);
-      writeJsonAtomic(path.resolve(chapters), vetted);
+    // every chapter has a key and its refs (validate.ts); an older story's chapters kept as they were are let through
+    const ready = vetted || after;
+    const assigned = readyPlan(ready, { diff, served: before });
+    if (vetted || assigned.length) {
+      writeJsonAtomic(chaptersFile, ready);
+      writeJsonAtomic(path.resolve(chapters), ready);
     } else {
       copyFileAtomic(path.resolve(chapters), chaptersFile);
     }

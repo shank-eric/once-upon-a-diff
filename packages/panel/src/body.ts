@@ -7,6 +7,7 @@
 import { html } from '@once-upon-a-diff/protocol/domain/html';
 import { setHtml } from './dom.ts';
 import { copyComment } from './copy-buttons.ts';
+import { refAttrs } from './file-refs.ts';
 import { plural } from '@once-upon-a-diff/protocol/domain/text';
 import type { PanelContext } from './context.ts';
 import type { Chapter, DraftAction, Side } from '@once-upon-a-diff/protocol/types';
@@ -55,19 +56,27 @@ export function createBody(context: PanelContext) {
 
   /** A quiet note on the Overview: changed hunks no chapter points at (once-upon's build allowed them), as line links. */
   function uncoveredHtml() {
-    const refs = (data.uncovered_hunks || []).flatMap((file) =>
-      file.hunks.map((hunk) => `\`${hunk.ref}\``),
+    const hunks = (data.uncovered_hunks || []).flatMap((file) =>
+      file.hunks.map((hunk) => ({ rel: file.rel, hunk })),
     );
-    if (!refs.length) {
+    if (!hunks.length) {
       return null;
     }
-    const shown = refs.slice(0, UNCOVERED_SHOWN).join(', ');
-    const more = refs.length > UNCOVERED_SHOWN ? ` and ${refs.length - UNCOVERED_SHOWN} more` : '';
-    return html`<p class="ou-quiet ou-uncovered">${inline(`${plural(refs.length, 'changed hunk')} no chapter points at: ${shown}${more}.`)}</p>`;
+    const shown = hunks
+      .slice(0, UNCOVERED_SHOWN)
+      .map(
+        ({ rel, hunk }, i) => html`${i ? ', ' : ''}<code ${refAttrs(rel, hunk)}>${hunk.ref}</code>`,
+      );
+    const more =
+      hunks.length > UNCOVERED_SHOWN ? ` and ${hunks.length - UNCOVERED_SHOWN} more` : '';
+    return html`<p class="ou-quiet ou-uncovered">${plural(hunks.length, 'changed hunk')} no chapter points at: ${shown}${more}.</p>`;
   }
 
   function chapterHtml(chapter: Chapter) {
-    context.refs.startStep(chapter.files.map((file) => file.rel));
+    context.refs.startStep(
+      chapter.files.map((file) => file.rel),
+      chapter.refs,
+    );
     const storyHtml = context.refs.storyWithPills(() => {
       if (!chapter.unwritten && chapter.narrative.trim()) {
         return markdown(chapter.narrative);

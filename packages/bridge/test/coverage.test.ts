@@ -13,6 +13,7 @@ import {
   type Plan,
   type PlanChapter,
 } from '../src/services/stories/chapters.ts';
+import { upgradePlan } from '../src/services/stories/legacy.ts';
 import type { FileMap } from '../src/services/stories/story-data.ts';
 import type { StoryData } from '@once-upon-a-diff/protocol/types';
 import { uncoveredHunks, SMALL_FILE_LINES } from '../src/services/stories/hunk-coverage.ts';
@@ -53,21 +54,19 @@ const DIFF = [
 const chapter = (fields: PlanChapter): PlanChapter => ({
   title: 'Chapter',
   narrative: '',
+  refs: [],
   comments: [],
   ...fields,
 });
 
-test('a hunk is covered by a lines range, a text reference or a comment; a small file by its listing', () => {
+test('a hunk is covered by a ref or a comment; a small file by its listing; text covers nothing', () => {
   const diff = parseUnifiedDiff(DIFF);
   assert.ok(diff.get('src/big.js')!.stats.added > SMALL_FILE_LINES);
   const plan = {
     chapters: [
       chapter({
-        files: [
-          { rel: 'src/big.js', lines: [{ side: 'R', start: 12, end: 14 }] },
-          'src/small.js',
-          'old.js',
-        ],
+        files: ['src/big.js', 'src/small.js', 'old.js'],
+        refs: [{ id: 'first', path: 'src/big.js', side: 'R', start: 12, end: 14 }],
       }),
     ],
   };
@@ -83,15 +82,22 @@ test('a hunk is covered by a lines range, a text reference or a comment; a small
 
   plan.chapters.push(
     chapter({
-      narrative: 'Then `big.js:105-110` does the work.',
+      narrative: 'Then `src/big.js:105-110` and `big.js:210` do the work.',
       files: ['src/big.js'],
-      comments: [{ path: 'big.js', line: 221, body: 'Could you confirm?' }],
+      comments: [{ path: 'big.js', line: 221, body: 'A suffix names no file.' }],
     }),
   );
+  assert.equal(
+    uncoveredHunks(chaptersOf(plan), diff)[0].hunks.length,
+    2,
+    'text and a comment on a path that is not the full one cover nothing',
+  );
+  plan.chapters[1].refs = [{ id: 'work', path: 'src/big.js', start: 105, end: 110 }];
+  plan.chapters[1].comments = [{ path: 'src/big.js', line: 221, body: 'Could you confirm?' }];
   assert.deepEqual(
     uncoveredHunks(chaptersOf(plan), diff),
     [],
-    "a later chapter's text and comment cover the rest",
+    "a later chapter's ref and comment cover the rest",
   );
 });
 
@@ -99,11 +105,12 @@ test('"whole": true and a "Since you read it" chapter cover a big file; a file i
   const diff = parseUnifiedDiff(DIFF);
   const whole = { chapters: [chapter({ files: [{ rel: 'src/big.js', whole: true }] })] };
   assert.deepEqual(uncoveredHunks(chaptersOf(whole), diff), []);
-  // with lines too: they are jump targets, and whole still covers the rest
+  // with refs too: they are jump targets, and whole still covers the rest
   const wholeWithLines = {
     chapters: [
       chapter({
-        files: [{ rel: 'src/big.js', whole: true, lines: [{ side: 'R', start: 1, end: 2 }] }],
+        files: [{ rel: 'src/big.js', whole: true }],
+        refs: [{ id: 'top', path: 'src/big.js', side: 'R', start: 1, end: 2 }],
       }),
     ],
   };
@@ -121,7 +128,7 @@ test('"whole": true and a "Since you read it" chapter cover a big file; a file i
   assert.equal(
     uncoveredHunks(chaptersOf(plain), diff)[0].hunks.length,
     3,
-    'listed with no lines, a big file has all its hunks uncovered',
+    'listed with no refs, a big file has all its hunks uncovered',
   );
 });
 
@@ -141,11 +148,8 @@ test('build refuses a story with hunks not covered, naming them, and --allow-unc
   const dir = scratch({
     chapters: [
       chapter({
-        files: [
-          { rel: 'src/big.js', lines: [{ side: 'R', start: 10, end: 31 }] },
-          'src/small.js',
-          'old.js',
-        ],
+        files: ['src/big.js', 'src/small.js', 'old.js'],
+        refs: [{ id: 'first', path: 'src/big.js', side: 'R', start: 10, end: 31 }],
       }),
     ],
   });
@@ -209,7 +213,8 @@ test('a skeleton (the plan, with no narratives yet) builds and passes the same c
       chapter({
         title: 'Chapter 1: Big',
         headline: 'The big file lands.',
-        files: [{ rel: 'src/big.js', lines: [{ side: 'R', start: 10, end: 31 }], whole: true }],
+        files: [{ rel: 'src/big.js', whole: true }],
+        refs: [{ id: 'first', path: 'src/big.js', side: 'R', start: 10, end: 31 }],
       }),
       chapter({
         title: 'Chapter 2: The rest',
@@ -235,4 +240,62 @@ test('a skeleton (the plan, with no narratives yet) builds and passes the same c
   const folders = chaptersOf({ chapters: [chapter({ files: ['src/small.js'] })] });
   markUnwritten(folders, { mode: 'by-folder' });
   assert.equal(folders[0].unwritten, undefined, "a by-folder story's text never comes");
+});
+
+test('build gives chapters their keys and writes them back, and refuses a chapter with no refs list', async () => {
+  const dir = scratch({
+    chapters: [
+      chapter({ title: 'Chapter 1: Big', files: [{ rel: 'src/big.js', whole: true }] }),
+      chapter({ title: 'Chapter 2: The rest', files: ['src/small.js', 'old.js'] }),
+    ],
+  });
+  const { stderr } = await run(process.execPath, [STORY, 'build', '--dir', dir, '--no-bridge']);
+  assert.match(stderr, /Gave 2 chapters a key: big, the rest/);
+  const written: Plan = JSON.parse(readFileSync(path.join(dir, 'chapters.json'), 'utf8'));
+  assert.deepEqual(
+    written.chapters!.map((each) => each.key),
+    ['big', 'the rest'],
+  );
+
+  delete written.chapters![1].refs;
+  writeJson(path.join(dir, 'chapters.json'), written);
+  await assert.rejects(
+    run(process.execPath, [STORY, 'build', '--dir', dir, '--no-bridge']),
+    (err: Error & { stderr: string }) => {
+      assert.match(err.stderr, /chapter 2 has no refs list/);
+      return true;
+    },
+  );
+});
+
+test("an older story's text references do not change what its hunks need: the same as before refs", () => {
+  const two = parseUnifiedDiff(
+    [
+      ...modified('src/two.js', [
+        [10, 2],
+        [50, 2],
+      ]),
+      '',
+    ].join('\n'),
+  );
+  // a chapter as an older story wrote it: no `refs` list
+  const told = (fields: PlanChapter) =>
+    chaptersOf(
+      upgradePlan({ chapters: [{ title: 'Chapter', files: ['src/two.js'], ...fields }] }, [
+        ...two.keys(),
+      ]),
+    );
+  // listed and small: covered by the listing, and a text reference to one hunk does not take that away
+  assert.deepEqual(uncoveredHunks(told({ narrative: 'See `two.js:11`.' }), two), []);
+  const [text] = told({ narrative: 'See `two.js:11`.' });
+  assert.equal(text.files[0].lines, undefined, 'and gives the file no lines of its own');
+  assert.equal(text.refs[0].text, true);
+  // a `lines` range is a pointer the author chose, as it was: the other hunk then needs pointing at
+  const lines = told({
+    files: [{ rel: 'src/two.js', lines: [{ side: 'R', start: 11, end: 12 }] }],
+  });
+  assert.deepEqual(
+    uncoveredHunks(lines, two).map((file) => file.hunks.map((hunk) => hunk.start)),
+    [[50]],
+  );
 });
