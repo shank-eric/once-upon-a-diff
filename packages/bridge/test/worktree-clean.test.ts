@@ -1,5 +1,6 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmp, writeJson, git, startBridge, TOKEN, type TestBridge } from './helpers.ts';
@@ -9,6 +10,7 @@ import { registrySource } from '../src/services/sessions/sources.ts';
 import { seenCheckout } from '../src/services/config/repos.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
 import { Builds } from '../src/services/inbox/builds.ts';
+import { AgentRegistry } from '../src/services/ledger/registry.ts';
 import { cleanWorktree, type CleanInput } from '../src/services/worktrees/worktree-clean.ts';
 import { WorktreeScanner } from '../src/services/worktrees/worktrees.ts';
 import { boardKey, pageKey } from '../src/services/pages/page-key.ts';
@@ -29,9 +31,14 @@ function setup(name = 'widgets', remote = 'git@github.com:acme/widgets.git') {
   const open = repo.add('open-work');
   repo.commit(open, 'open work', 5);
   const copied = repo.add('copied-work');
-  repo.commit(copied, 'copied work', 1);
+  // the same patch on main (a new file), so git cherry sees a copy
+  writeFileSync(path.join(copied, 'copy.txt'), 'x\n');
+  git(copied, 'add', '.');
+  git(copied, 'commit', '-q', '-m', 'copied work');
   repo.commit(repo.main, 'edit three', 3);
-  repo.commit(repo.main, 'copied work', 1);
+  writeFileSync(path.join(repo.main, 'copy.txt'), 'x\n');
+  git(repo.main, 'add', '.');
+  git(repo.main, 'commit', '-q', '-m', 'copied work again');
   return { ...repo, merged, open, copied };
 }
 
@@ -147,7 +154,10 @@ test('refused, with nothing changed: dirty, unpushed and unmerged, in use, locke
   await refused(
     cleanWorktree(
       input(scanner, tree.merged, {
-        contextOf: async () => ({ ...(await idle()), inUse: ['the builder'] }),
+        contextOf: async () => ({
+          ...(await idle()),
+          inUse: [{ kind: 'agent' as const, id: 'ou-builder', label: 'the builder' }],
+        }),
       }),
     ),
     409,
@@ -246,17 +256,100 @@ async function settled(board: Board) {
   throw new Error('the scan did not finish');
 }
 
-test('the board: Clean up refuses what an open ledger agent is working in, then removes it once it is done', async () => {
+const stampOf = () => {
+  const started = new Date(LATER() - 3600 * 1000);
+  return `${started.getUTCHours() % 12 || 12}:00 ${started.getUTCHours() >= 12 ? 'PM' : 'AM'}, ${started.getUTCMonth() + 1}/${started.getUTCDate()}`;
+};
+
+test('the board: a ledger agent that only names the worktree in its task or by its name does not hold it', async () => {
   const tree = setup();
   const notes = tmp('wc-notes');
   const ledger = path.join(notes, 'ledger.md');
-  const started = new Date(LATER() - 3600 * 1000);
-  const stamp = `${started.getUTCHours() % 12 || 12}:00 ${started.getUTCHours() >= 12 ? 'PM' : 'AM'}, ${started.getUTCMonth() + 1}/${started.getUTCDate()}`;
   writeFileSync(
     ledger,
-    `- [running] sid:54736864 merger (sonnet, high) — working in ${tree.trees}/merged-work — started ${stamp}\n`,
+    `- [running] sid:54736864 merged-work (sonnet, high) — working in ${tree.trees}/merged-work, branch merged-work — started ${stampOf()}\n`,
   );
   const { board } = boardOf(tree, ledger);
+  const data = await settled(board);
+  const found = data.lanes
+    .flatMap((lane) => lane.cards.flatMap((one) => one.worktrees ?? []))
+    .concat(data.worktrees?.items ?? [])
+    .find((one) => one.name === 'merged-work');
+  assert.deepEqual(found?.in_use, []);
+  assert.equal(found?.removable, true);
+  const done = await board.cleanWorktree(tree.merged, []);
+  assert.equal(done.branch?.name, 'merged-work');
+  assert.equal(existsSync(tree.merged), false);
+});
+
+test('the board: a live session whose folder is in the worktree holds it, by session id', async () => {
+  const tree = setup();
+  const { board, home } = boardOf(tree);
+  const sessions = (
+    JSON.parse(readFileSync(path.join(home, 'config.json'), 'utf8')) as {
+      board_sessions_dir: string;
+    }
+  ).board_sessions_dir;
+  const procStart = execFileSync('ps', ['-o', 'lstart=', '-p', String(process.pid)], {
+    encoding: 'utf8',
+    env: { ...process.env, TZ: 'UTC', LC_ALL: 'C' },
+  }).trim();
+  writeJson(path.join(sessions, `${process.pid}.json`), {
+    pid: process.pid,
+    sessionId: 'aaaaaaaa-aaaa-bbbb-cccc-dddddddddddd',
+    cwd: `${tree.merged}/packages`,
+    name: 'working-here',
+    status: 'busy',
+    startedAt: Date.now() - 3600000,
+    procStart,
+  });
+  mkdirSync(`${tree.merged}/packages`, { recursive: true });
+  await settled(board);
+  await refused(board.cleanWorktree(tree.merged, []), 409, /in use by working-here/);
+  assert.ok(existsSync(tree.merged));
+});
+
+test('the board: an agent registered from the main checkout on the worktree’s branch holds it until it finishes', async () => {
+  const tree = setup();
+  const { board, home } = boardOf(tree);
+  const registry = new AgentRegistry(home);
+  registry.start({
+    name: 'builder',
+    sid: '54736864',
+    kind: 'builder',
+    task: 'build it',
+    cwd: tree.main,
+    repo: 'acme/widgets',
+    branch: 'merged-work',
+    at: new Date(LATER() - 3600 * 1000),
+  });
+  const data = await settled(board);
+  const found = data.lanes
+    .flatMap((lane) => lane.cards.flatMap((one) => one.worktrees ?? []))
+    .concat(data.worktrees?.items ?? [])
+    .find((one) => one.name === 'merged-work');
+  assert.deepEqual(found?.in_use, [{ kind: 'agent', id: '54736864:builder', label: 'builder' }]);
+  assert.equal(found?.removable, false);
+  await refused(board.cleanWorktree(tree.merged, []), 409, /in use by builder/);
+  assert.ok(existsSync(tree.merged));
+  registry.finish('builder', { outcome: 'done', at: new Date(LATER() - 60 * 1000) });
+  await board.cleanWorktree(tree.merged, []);
+  assert.equal(existsSync(tree.merged), false);
+});
+
+test('the board: Clean up refuses what an open registered agent is working in, then removes it once it is done', async () => {
+  const tree = setup();
+  const { board, home } = boardOf(tree);
+  const registry = new AgentRegistry(home);
+  registry.start({
+    name: 'merger',
+    sid: '54736864',
+    kind: 'builder',
+    task: 'merge it',
+    cwd: `${tree.merged}/packages`,
+    at: new Date(LATER() - 3600 * 1000),
+  });
+  mkdirSync(`${tree.merged}/packages`, { recursive: true });
   const data = await settled(board);
   // an open agent works in it, so it is on that agent's card
   const card = data.lanes
@@ -266,10 +359,12 @@ test('the board: Clean up refuses what an open ledger agent is working in, then 
     card?.agents.some((agent) => agent.name === 'merger'),
     'on the agent’s card',
   );
-  assert.deepEqual(card?.worktrees?.[0].in_use, ['merger']);
+  assert.deepEqual(card?.worktrees?.[0].in_use, [
+    { kind: 'agent', id: '54736864:merger', label: 'merger' },
+  ]);
   await refused(board.cleanWorktree(tree.merged, []), 409, /in use by merger/);
   assert.ok(existsSync(tree.merged));
-  writeFileSync(ledger, `- [done] sid:54736864 merger — ${stamp} — finished — notes\n`);
+  registry.finish('merger', { outcome: 'done', at: new Date(LATER() - 60 * 1000) });
   const done = await board.cleanWorktree(tree.merged, []);
   assert.equal(existsSync(tree.merged), false);
   assert.equal(done.branch?.name, 'merged-work');

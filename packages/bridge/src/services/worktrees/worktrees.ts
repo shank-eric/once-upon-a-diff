@@ -7,7 +7,7 @@
  *               levels down for folders with a .git. A repo with no linked worktree is dropped. Every 10 minutes.
  *   each scan   `git worktree list --porcelain` per repo, then per worktree: the last commit's time, commits on no
  *               remote, whether it is in live (the main checkout's HEAD) or main (an ancestor), or superseded (every
- *               commit has a copy there: the same patch, or the same subject and per-file line counts)
+ *               commit has a copy there: the same patch)
  *   slower      clean or dirty (every 5 minutes, or when HEAD moved) and size on disk (every hour, one at a time)
  *
  * Every git call has a timeout and runs with `-c core.fsmonitor=false --no-optional-locks`: a wedged fsmonitor daemon
@@ -21,9 +21,8 @@
 import { realpathSync, statSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { repoOfRemote } from '../config/repos.ts';
+import { repoOfRemote, sameRepo } from '../config/repos.ts';
 import { readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
-import { pathsIn } from './checkouts.ts';
 import type { LedgerAgent } from '../ledger/ledger.ts';
 import type { BoardWorktree } from '@once-upon-a-diff/protocol/types';
 import { type RunResult, type Runner, runCommand } from '../../adapters/os.ts';
@@ -88,9 +87,7 @@ const STATUS_TTL_MS = 5 * 60 * 1000;
 const SIZE_TTL_MS = 60 * 60 * 1000;
 /** a worktree made this lately is never offered for cleanup */
 const NEW_MS = 60 * 60 * 1000;
-const MAX_PLUS = 20;
 const MAX_CHERRY = 300;
-const HISTORY = 1500;
 
 const DEFAULT_BRANCHES = new Set(['main', 'master']);
 
@@ -163,8 +160,7 @@ export interface WorktreeFacts {
   /** the tip is an ancestor of the default branch, or of the main checkout's own branch when that is built on it (null: could not tell) */
   merged: boolean | null;
   /**
-   * not merged, but each commit has a copy there (null: could not tell). A detached HEAD counts only for patch-identical
-   * copies; a branch also for the same subject and per-file line counts, since the branch itself is kept.
+   * not merged, but each commit has a copy there: the same patch, by `git cherry` (null: could not tell).
    */
   superseded: boolean | null;
   /** a branch whose tip is also origin's branch of the same name (a review checkout: nothing local) */
@@ -256,8 +252,6 @@ export class WorktreeScanner {
   private lastLength = 0;
   /** merged and superseded answers, by tip and targets */
   private judged = new Map<string, { merged: boolean; superseded: boolean }>();
-  /** a target's history (subject to commits), by its sha */
-  private histories = new Map<string, Map<string, string[]>>();
   /** whether a branch has never moved, by branch and tip */
   private unmovedBy = new Map<string, boolean>();
   /** paths just removed and when, so a scan that began before cannot bring them back */
@@ -664,9 +658,7 @@ export class WorktreeScanner {
     const own = entry.branch ? `refs/heads/${entry.branch}` : null;
     const into = targets.list.filter((target) => target.ref !== own && target.sha !== tip);
     const intoAll = targets.list.filter((target) => target.ref !== own);
-    // a detached HEAD is dropped with its folder, so only patch-identical copies count for it
-    const strict = entry.detached;
-    const key = `${tip}|${intoAll.map((target) => target.sha).join(',')}|${own ?? ''}|${strict}`;
+    const key = `${tip}|${intoAll.map((target) => target.sha).join(',')}|${own ?? ''}`;
     const kept = this.judged.get(key);
     if (kept) {
       return kept;
@@ -688,7 +680,7 @@ export class WorktreeScanner {
     let superseded = false;
     if (!merged) {
       for (const target of into) {
-        if (await this.copiedIn(main, tip, target, strict)) {
+        if (await this.copiedIn(main, tip, target)) {
           superseded = true;
           break;
         }
@@ -699,16 +691,8 @@ export class WorktreeScanner {
     return result;
   }
 
-  /**
-   * Whether every commit of the tip that the target lacks has a copy there: `git cherry` says so (the same patch), or,
-   * unless `strict`, the subject and per-file line counts match.
-   */
-  private async copiedIn(
-    main: MainInfo,
-    tip: string,
-    target: Target,
-    strict: boolean,
-  ): Promise<boolean> {
+  /** Whether every commit of the tip that the target lacks has a copy there: `git cherry` says so (the same patch). */
+  private async copiedIn(main: MainInfo, tip: string, target: Target): Promise<boolean> {
     const cherry = await this.git(main.path, ['cherry', target.sha, tip], 20000);
     if (cherry.code !== 0 || cherry.timedOut) {
       return false;
@@ -717,87 +701,7 @@ export class WorktreeScanner {
     if (!lines.length || lines.length > MAX_CHERRY) {
       return false;
     }
-    const plus = lines.filter((line) => line.startsWith('+ ')).map((line) => line.slice(2).trim());
-    if (!plus.length) {
-      return true;
-    }
-    if (strict || plus.length > MAX_PLUS) {
-      return false;
-    }
-    const history = await this.historyOf(main, target);
-    const subjects = await this.git(main.path, [
-      'log',
-      '--no-walk=unsorted',
-      '--format=%H%x09%s',
-      ...plus,
-    ]);
-    if (subjects.code !== 0) {
-      return false;
-    }
-    const subjectOf = new Map(
-      subjects.stdout
-        .split('\n')
-        .filter(Boolean)
-        .map((line) => {
-          const [sha, ...rest] = line.split('\t');
-          return [sha, rest.join('\t')] as const;
-        }),
-    );
-    for (const sha of plus) {
-      const subject = subjectOf.get(sha);
-      const candidates = subject ? (history.get(subject) ?? []).slice(0, 5) : [];
-      if (!subject || !candidates.length) {
-        return false;
-      }
-      const mine = await this.numstat(main, sha);
-      let same = false;
-      for (const candidate of candidates) {
-        if (mine !== null && mine === (await this.numstat(main, candidate))) {
-          same = true;
-          break;
-        }
-      }
-      if (!same) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  private async historyOf(main: MainInfo, target: Target): Promise<Map<string, string[]>> {
-    const kept = this.histories.get(target.sha);
-    if (kept) {
-      return kept;
-    }
-    const log = await this.git(
-      main.path,
-      ['log', '-n', String(HISTORY), '--format=%H%x09%s', target.sha],
-      20000,
-    );
-    const bySubject = new Map<string, string[]>();
-    for (const line of log.code === 0 ? log.stdout.split('\n').filter(Boolean) : []) {
-      const [sha, ...rest] = line.split('\t');
-      const subject = rest.join('\t');
-      bySubject.set(subject, [...(bySubject.get(subject) ?? []), sha]);
-    }
-    if (this.histories.size > 20) {
-      this.histories.clear();
-    }
-    this.histories.set(target.sha, bySubject);
-    return bySubject;
-  }
-
-  /** A commit's per-file added and deleted line counts, as one comparable string; null when git could not say. */
-  private async numstat(main: MainInfo, sha: string): Promise<string | null> {
-    const out = await this.git(main.path, [
-      'diff-tree',
-      '--no-commit-id',
-      '--numstat',
-      '-r',
-      '--root',
-      sha,
-    ]);
-    return out.code === 0 ? out.stdout.split('\n').filter(Boolean).sort().join('\n') : null;
+    return !lines.some((line) => line.startsWith('+ '));
   }
 
   /** Clean or dirty. A timeout or failure keeps the last answer. */
@@ -896,8 +800,8 @@ async function foldersWithGit(dir: string, depth: number): Promise<string[]> {
 
 /** What the board knows around a worktree that git does not. */
 export interface JudgeContext {
-  /** live sessions and open agents in it */
-  inUse: string[];
+  /** live sessions and open registered agents whose folder is in it */
+  inUse: BoardWorktree['in_use'];
   pr: BoardWorktree['pr'];
   /** repos whose branches are never deleted (names, lowercase) */
   keepBranches: string[];
@@ -910,36 +814,39 @@ const inside = (dir: string, parent: string): boolean =>
   dir === parent || dir.startsWith(parent + path.sep);
 
 /**
- * Who is working in a worktree: live sessions whose folder is in it, open registered agents whose cwd is in it, and open ledger agents whose task names
- * a path in it or its `<repo>-worktrees/<folder>`, or that are named for its folder. A worktree something works in is never cleaned up.
+ * Who is working in a worktree: live sessions whose folder is in it, and open registered agents whose cwd is in it or
+ * whose registered repo and branch are the worktree's (an agent is registered from the launcher's folder, so its cwd
+ * is often the main checkout). Each by id; nothing is matched by name or task text. A worktree something works in is
+ * never cleaned up. An agent's id is `<sid8>:<name>`.
  */
 export function workingIn(
   dir: string,
-  sessions: { title: string; cwd: string }[],
-  agents: (Pick<LedgerAgent, 'name' | 'state' | 'task'> & Partial<Pick<LedgerAgent, 'cwd'>>)[],
-): string[] {
-  const folder = path.basename(dir);
-  const named = new RegExp(
-    `-worktrees/${folder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?![\\w./-])`,
-  );
-  const who = sessions
-    .filter((session) => inside(session.cwd, dir) || inside(session.cwd, real(dir)))
-    .map((session) => session.title);
+  sessions: { id: string; title: string; cwd: string }[],
+  agents: (Pick<LedgerAgent, 'sid' | 'name' | 'state'> &
+    Partial<Pick<LedgerAgent, 'cwd' | 'repo' | 'branch'>>)[],
+  tree: { repo: string | null; branch: string | null } = { repo: null, branch: null },
+): BoardWorktree['in_use'] {
+  const within = (cwd: string): boolean =>
+    [dir, real(dir)].some((one) => inside(cwd, one) || inside(real(cwd), one));
+  const who: BoardWorktree['in_use'] = sessions
+    .filter((session) => within(session.cwd))
+    .map((session) => ({ kind: 'session', id: session.id, label: session.title }));
   for (const agent of agents) {
     if (!OPEN_AGENT.includes(agent.state)) {
       continue;
     }
-    if (
-      // a registered agent says where it works: its cwd
-      (!!agent.cwd && (inside(agent.cwd, dir) || inside(agent.cwd, real(dir)))) ||
-      agent.name.toLowerCase() === folder.toLowerCase() ||
-      (!!agent.task &&
-        (named.test(agent.task) || pathsIn(agent.task).some((found) => inside(found, dir))))
-    ) {
-      who.push(agent.name);
+    const onBranch =
+      !!tree.branch &&
+      agent.branch === tree.branch &&
+      (!agent.repo || !tree.repo || sameRepo(agent.repo, tree.repo));
+    if (onBranch || (!!agent.cwd && within(agent.cwd))) {
+      who.push({ kind: 'agent', id: `${agent.sid}:${agent.name}`, label: agent.name });
     }
   }
-  return [...new Set(who)];
+  return who.filter(
+    (one, index) =>
+      who.findIndex((other) => other.kind === one.kind && other.id === one.id) === index,
+  );
 }
 
 /** Whether a repo's branches are on the never-delete list: by owner/name, name, or the main checkout's folder. */
@@ -1002,7 +909,7 @@ export function judge(facts: WorktreeFacts, context: JudgeContext): BoardWorktre
     keep.push('scanning');
   }
   if (context.inUse.length) {
-    keep.push(`in use by ${context.inUse.join(', ')}`);
+    keep.push(`in use by ${context.inUse.map((one) => one.label).join(', ')}`);
   }
   if (facts.locked) {
     keep.push('locked');

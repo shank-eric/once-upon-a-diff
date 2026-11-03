@@ -118,7 +118,10 @@ test('judge: every reason to keep a worktree', () => {
     false,
     'an unknown status is not clean',
   );
-  assert.match(keep({}, { inUse: ['the builder'] }).keep.join(), /in use by the builder/);
+  assert.match(
+    keep({}, { inUse: [{ kind: 'agent', id: 'ou-builder', label: 'the builder' }] }).keep.join(),
+    /in use by the builder/,
+  );
   assert.match(keep({ locked: true }).keep.join(), /locked/);
   assert.match(keep({ loaded: true }).keep.join(), /scanning/);
   assert.match(keep({ merged: false, superseded: false }).keep.join(), /not in the main line/);
@@ -181,24 +184,31 @@ test('judge: an everfi-frontend branch is never deleted, however it is named', (
   assert.equal(configured.deletes_branch, false, 'a name from config.json counts');
 });
 
-test('workingIn: sessions inside the folder, open agents naming it or named for it', () => {
+test('workingIn: live sessions and registered agents by cwd or by repo and branch, by id; names and task text count for nothing', () => {
   const dir = '/d/widgets-worktrees/kill-inbox';
   const sessions = [
-    { title: 'in it', cwd: `${dir}/packages` },
-    { title: 'beside it', cwd: '/d/widgets-worktrees/kill-inbox-2' },
+    { id: 's1', title: 'in it', cwd: `${dir}/packages` },
+    { id: 's2', title: 'beside it', cwd: '/d/widgets-worktrees/kill-inbox-2' },
   ];
+  const run = { sid: 'abcd1234', state: 'running' as const };
   const agents = [
-    { name: 'a1', state: 'running' as const, task: 'work in /d/widgets-worktrees/kill-inbox/x' },
-    {
-      name: 'a2',
-      state: 'running' as const,
-      task: 'worktree widgets-worktrees/kill-inbox, branch k',
-    },
-    { name: 'kill-inbox', state: 'plan' as const, task: null },
-    { name: 'a3', state: 'done' as const, task: 'widgets-worktrees/kill-inbox' },
-    { name: 'a4', state: 'running' as const, task: 'widgets-worktrees/kill-inbox-2' },
+    { ...run, name: 'a1', cwd: `${dir}/x` },
+    { ...run, name: 'a2', task: 'work in /d/widgets-worktrees/kill-inbox/x' },
+    { ...run, name: 'a3', task: 'worktree widgets-worktrees/kill-inbox' },
+    { ...run, name: 'kill-inbox', state: 'plan' as const },
+    { ...run, name: 'a4', state: 'done' as const, cwd: dir },
+    { ...run, name: 'a5', cwd: '/d/widgets-worktrees/kill-inbox-2' },
+    { ...run, name: 'a6', cwd: '/d/widgets', repo: 'Acme/Widgets', branch: 'kill-inbox' },
+    { ...run, name: 'a7', cwd: '/d/widgets', repo: 'acme/widgets', branch: 'other' },
+    { ...run, name: 'a8', cwd: '/d/widgets', repo: 'else/where', branch: 'kill-inbox' },
+    { ...run, name: 'a9', state: 'done' as const, cwd: '/d/widgets', branch: 'kill-inbox' },
   ];
-  assert.deepEqual(workingIn(dir, sessions, agents), ['in it', 'a1', 'a2', 'kill-inbox']);
+  const tree = { repo: 'acme/widgets', branch: 'kill-inbox' };
+  assert.deepEqual(workingIn(dir, sessions, agents, tree), [
+    { kind: 'session', id: 's1', label: 'in it' },
+    { kind: 'agent', id: 'abcd1234:a1', label: 'a1' },
+    { kind: 'agent', id: 'abcd1234:a6', label: 'a6' },
+  ]);
 });
 
 /** A repo with a worktree for each case the verdicts tell apart. */
@@ -230,7 +240,7 @@ function cases() {
   return { ...repo, merged, unmerged, fresh, dirty, samePatch, moved };
 }
 
-test('the scanner finds every worktree and tells merged, superseded, new, dirty and open work apart', async () => {
+test('the scanner finds every worktree and tells merged, superseded (the same patch), new, dirty and open work apart', async () => {
   const tree = cases();
   const home = tmp('wt-home');
   const scanner = new WorktreeScanner({ home, dirs: () => [] });
@@ -248,7 +258,11 @@ test('the scanner finds every worktree and tells merged, superseded, new, dirty 
   assert.equal(one('dirty-work').modified, 0);
   assert.equal(one('merged-work').untracked, 0);
   assert.equal(one('same-patch').superseded, true, 'git cherry: the same patch');
-  assert.equal(one('moved-context').superseded, true, 'same subject and file counts');
+  assert.equal(
+    one('moved-context').superseded,
+    false,
+    'the same subject and file counts is not a copy',
+  );
   assert.equal(one('moved-context').merged, false);
   assert.ok((one('merged-work').sizeKb ?? 0) > 0);
   assert.ok(one('merged-work').lastCommitMs);
@@ -264,7 +278,7 @@ test('the scanner finds every worktree and tells merged, superseded, new, dirty 
     fresh: ['new', false],
     'dirty-work': ['merged', false],
     'same-patch': ['superseded', true],
-    'moved-context': ['superseded', true],
+    'moved-context': ['unmerged', false],
   });
 });
 

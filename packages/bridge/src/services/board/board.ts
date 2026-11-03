@@ -479,6 +479,7 @@ export class Board {
       now: () => (this.options.now || (() => new Date()))().getTime(),
       contextOf: async (facts) => {
         const sessions = (await liveSessions(settings.sessionsDir)).map((session) => ({
+          id: session.session,
           title: session.name ?? path.basename(session.cwd),
           cwd: session.cwd,
         }));
@@ -488,7 +489,7 @@ export class Board {
           settings.ledgerTimeZone,
         );
         return {
-          inUse: workingIn(facts.path, sessions, agents),
+          inUse: workingIn(facts.path, sessions, agents, facts),
           pr: prOfFacts(this.review, facts),
         };
       },

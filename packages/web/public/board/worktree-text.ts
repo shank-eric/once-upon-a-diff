@@ -55,7 +55,7 @@ export function worktreeChips(tree: BoardWorktree, age: string): string[] {
     chips.push('needs attention');
   }
   for (const who of tree.in_use) {
-    chips.push(`in use by ${who}`);
+    chips.push(`in use by ${who.label}`);
   }
   if (tree.stale) {
     chips.push('scanning');

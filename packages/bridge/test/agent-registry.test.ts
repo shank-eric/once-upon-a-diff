@@ -471,11 +471,25 @@ test('running again clears the last fixing round count', () => {
   assert.equal(registry.agents()[0].findings, null);
 });
 
+test('agent start stores --cwd as an absolute path', async () => {
+  const home = tmp('reg-cwd-cli');
+  const env = { CLAUDE_CODE_SESSION_ID: `${SID}-0000-4000-8000-000000000000` };
+  const started = await runCli(
+    home,
+    ['agent', 'start', 'ou-rel', '--kind', 'builder', '--task', 'x', '--cwd', 'some/where/../here'],
+    env,
+  );
+  assert.equal(started.code, 0, started.stderr);
+  assert.equal(new AgentRegistry(home).agents()[0].cwd, path.resolve('some/here'));
+});
+
 test('a registered agent works in the worktree its cwd is in', () => {
   const dir = '/work/widgets-worktrees/thing';
   const registry = new AgentRegistry(tmp('reg-cwd'));
   registry.start({ ...BUILD, name: 'ou-elsewhere', cwd: `${dir}/packages/x`, at: minute(0) });
-  assert.deepEqual(workingIn(dir, [], registry.agents()), ['ou-elsewhere']);
+  assert.deepEqual(workingIn(dir, [], registry.agents()), [
+    { kind: 'agent', id: `${SID}:ou-elsewhere`, label: 'ou-elsewhere' },
+  ]);
   registry.finish('ou-elsewhere', { at: minute(1) });
   assert.deepEqual(workingIn(dir, [], registry.agents()), []);
 });

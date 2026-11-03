@@ -170,7 +170,7 @@ test('a detached worktree is removable only when a branch reaches its HEAD', asy
   assert.equal(existsSync(onMain), false);
 });
 
-test('superseded for a detached HEAD needs the same patch: the same subject and file counts is not enough', async () => {
+test('superseded needs the same patch, for a detached HEAD and a branch alike: the same subject and file counts is not enough', async () => {
   const repo = fixture();
   const lookalike = path.join(repo.trees, 'lookalike');
   git(repo.main, 'worktree', 'add', '-q', '--detach', lookalike, 'main');
@@ -182,7 +182,7 @@ test('superseded for a detached HEAD needs the same patch: the same subject and 
   repo.commit(repo.main, 'edit two', 2, 'theirs');
   const scanner = await scannerOf(repo.main);
   assert.equal(one(scanner, lookalike).superseded, false, 'a detached HEAD: patch-identical only');
-  assert.equal(one(scanner, named).superseded, true, 'a branch is kept, so the heuristic stands');
+  assert.equal(one(scanner, named).superseded, false, 'a branch too: patch-identical only');
 });
 
 test('ignored files that cannot be rebuilt are named, and need a confirm that named them', async () => {

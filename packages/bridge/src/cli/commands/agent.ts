@@ -5,6 +5,7 @@
  * legacy line to it, so those files stay logs written by this command. `--no-mirror` skips those lines, for a caller that
  * writes the progress line itself (beat.sh), so one beat is one line. It goes after the words: a flag takes the next word.
  */
+import path from 'node:path';
 import { repoOfCheckout } from '../../services/config/repos.ts';
 import { readSettings } from '../../services/config/settings.ts';
 import { ownSession } from '../../services/inbox/binding.ts';
@@ -69,7 +70,7 @@ function agent(home: string, _cfg: Config, opts: CliOpts) {
   }
   if (verb === 'start') {
     const session = ownSession();
-    const cwd = text(opts.cwd) ?? process.cwd();
+    const cwd = path.resolve(text(opts.cwd) ?? process.cwd());
     const started = registry.start({
       name,
       sid: sid ?? session?.slice(0, 8) ?? '',

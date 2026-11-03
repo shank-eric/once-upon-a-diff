@@ -942,12 +942,12 @@ export interface BoardWorktree {
   pr: { number: number | null; state: 'open' | 'merged' | 'none' | 'unknown' };
   /**
    * merged: the tip is in the default branch (or in the main checkout's branch when that is built on it). superseded: not
-   * there, but each commit has a copy (same patch, or same subject and file counts for a branch). pr_merged: its PR
+   * there, but each commit has a copy (the same patch). pr_merged: its PR
    * merged. pushed: a review checkout, the same as origin's branch with nothing local. new: no commits of its own yet.
    */
   verdict: 'merged' | 'superseded' | 'pr_merged' | 'pushed' | 'unmerged' | 'new' | 'unknown';
-  /** live sessions and open agents working in it */
-  in_use: string[];
+  /** live sessions and open registered agents whose folder is in it: by id, `label` is only for showing */
+  in_use: { kind: 'session' | 'agent'; id: string; label: string }[];
   locked: boolean;
   /** ignored files that cannot be rebuilt (.env, *.local.json, ...): removing the folder deletes them, so the confirm names them */
   ignored: string[];

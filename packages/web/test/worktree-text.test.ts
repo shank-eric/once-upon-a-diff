@@ -50,7 +50,7 @@ test('chips: age, clean or dirty, merged state, unpushed, PR, size', () => {
         unpushed: 3,
         pr: { number: 9, state: 'open' },
         size_kb: null,
-        in_use: ['the builder'],
+        in_use: [{ kind: 'agent', id: 'ou-builder', label: 'the builder' }],
         locked: true,
       }),
       '',

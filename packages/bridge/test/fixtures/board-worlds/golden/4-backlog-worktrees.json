@@ -158,7 +158,11 @@
                 "deletes_branch": false,
                 "ignored": [],
                 "in_use": [
-                  "the builder"
+                  {
+                    "id": "<PID:16>-aaaa-bbbb-cccc-dddddddddddd",
+                    "kind": "session",
+                    "label": "the builder"
+                  }
                 ],
                 "keep": [
                   "in use by the builder",
@@ -228,7 +232,11 @@
                 "deletes_branch": false,
                 "ignored": [],
                 "in_use": [
-                  "in-use-one"
+                  {
+                    "id": "<PID:17>-aaaa-bbbb-cccc-dddddddddddd",
+                    "kind": "session",
+                    "label": "in-use-one"
+                  }
                 ],
                 "keep": [
                   "in use by in-use-one",
