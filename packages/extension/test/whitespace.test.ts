@@ -10,7 +10,7 @@ import {
   REDIRECT_GUARD_MS,
   type Prefs,
 } from '../src/content/pages/hide-whitespace.ts';
-import { createClient, type Transport } from '@once-upon-a-diff/protocol/client';
+import { createClient, type Transport } from '@once-upon-a-diff/api-client/client';
 import type { PrefsCopy } from '../src/content/storage.ts';
 import { tmp, startBridge } from 'once-upon-a-diff/test/helpers';
 

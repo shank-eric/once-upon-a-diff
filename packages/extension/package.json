@@ -20,6 +20,7 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p scripts/tsconfig.json && tsc -p test/tsconfig.json"
   },
   "dependencies": {
+    "@once-upon-a-diff/api-client": "workspace:*",
     "@once-upon-a-diff/host-github": "workspace:*",
     "@once-upon-a-diff/panel": "workspace:*",
     "@once-upon-a-diff/protocol": "workspace:*"

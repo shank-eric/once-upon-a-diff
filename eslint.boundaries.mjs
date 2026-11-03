@@ -25,6 +25,9 @@
  *   packages/host-github/src the host adapter for GitHub (browser): the diff-page reader and the URL routing, which the extension
  *                            and the local page inject into the panel. It implements the panel's port (host.ts, diff-types.ts),
  *                            so it imports the panel's port files, never overlay.ts or a region. The panel never imports it
+ *   packages/api-client/src  the typed client over a host's transport and the poll (browser): imports the protocol's route table and
+ *                            nothing else of this repo, and no page URL but /assets/preact.mjs (use-poll.ts is a Preact hook, so only a page
+ *                            loads it, and only it names /assets/preact.mjs). The panel, the pages and the extension import it; the server and the protocol never do
  *   packages/protocol/src    the wire types, route table and schemas (no DOM, no Node, imports no package but valibot)
  *   packages/protocol/src/domain  pure rules: imports nothing at all (the helpers the bridge, the pages and the panel share)
  *   packages/extension/src   the Chrome extension (app)
@@ -77,6 +80,32 @@ const PANEL = {
   message:
     'the panel is client code above the protocol: only the apps, the host adapters (for its port) and tests import it',
 };
+const API_CLIENT = {
+  regex: '^@once-upon-a-diff/api-client(/|$)',
+  message:
+    'the api-client is client code above the protocol: only the panel, the pages, the extension and tests import it',
+};
+// the Preact hook (use-poll.ts) is a page's: nothing that is bundled into the extension or shared with the panel loads it
+const USE_POLL = {
+  regex: '^@once-upon-a-diff/api-client/use-poll(\\.ts)?$',
+  message:
+    'use-poll.ts is a Preact hook, which only a page loads (it imports /assets/preact.mjs): the panel, the extension and host adapters use poll.ts',
+};
+const NOT_THE_USE_POLL = {
+  from: './packages/api-client/src/use-poll.ts',
+  message: USE_POLL.message,
+};
+// a URL on the pages' side: the vendored Preact (/assets/preact.mjs) is the one the hook may name, and the client and poll name none
+const PAGE_URL = {
+  regex: '^/assets/(?!preact\\.mjs$)',
+  message:
+    'the api-client sits below the pages: its hook names the vendored Preact (/assets/preact.mjs) and packages, never a page module',
+};
+const ANY_PAGE_URL = {
+  regex: '^/assets/',
+  message:
+    'client.ts and poll.ts are shared with the panel and the extension: only use-poll.ts (a page’s hook) names /assets/ URLs, and only the vendored Preact',
+};
 const HOST_ADAPTERS = {
   regex: '^@once-upon-a-diff/host-github(/|$)',
   message:
@@ -126,6 +155,7 @@ const ASSET_URL = {
 const BRIDGE_SRC = './packages/bridge/src';
 const WEB_PUBLIC = './packages/web/public';
 const HOST_GITHUB_SRC = './packages/host-github/src';
+const API_CLIENT_SRC = './packages/api-client/src';
 const PANEL_SRC = './packages/panel/src';
 const PANEL_OVERLAY = './packages/panel/src/overlay.ts';
 const WEB_BOARD = './packages/web/public/board';
@@ -249,6 +279,11 @@ const NOT_THE_TEST_KIT = {
   from: './packages/test-kit',
   message: 'the test kit is dev-only: tests import it, nothing that ships does',
 };
+const NOT_THE_API_CLIENT = {
+  from: './packages/api-client',
+  message:
+    'the api-client is client code above the protocol: the server, the protocol and the test kit never import it',
+};
 const NOT_THE_BRIDGE = { from: './packages/bridge', message: 'the panel sits below the bridge' };
 const NOT_THE_BRIDGE_PACKAGE = {
   from: './packages/bridge',
@@ -310,9 +345,10 @@ const PANEL_BASE = {
     NOT_THE_EXTENSION,
     NOT_THE_HOST_ADAPTERS,
     NOT_THE_SCHEMAS,
+    NOT_THE_USE_POLL,
     NOT_THE_TEST_KIT,
   ],
-  specifiers: [BRIDGE, EXTENSION, WEB, HOST_ADAPTERS, SCHEMAS, TEST_KIT],
+  specifiers: [BRIDGE, EXTENSION, WEB, HOST_ADAPTERS, SCHEMAS, USE_POLL, TEST_KIT],
 };
 
 // what a page region must not reach: the page above it, and the apps, server and schemas every page avoids
@@ -369,6 +405,7 @@ const HOST_ADAPTER = {
     NOT_THE_PAGES,
     NOT_THE_EXTENSION,
     NOT_THE_SCHEMAS,
+    NOT_THE_USE_POLL,
     NOT_THE_TEST_KIT,
     { from: PANEL_OVERLAY, message: PANEL_COMPOSITION.message },
     ...PANEL_REGIONS.map((region) => ({
@@ -376,7 +413,7 @@ const HOST_ADAPTER = {
       message: PANEL_COMPOSITION.message,
     })),
   ],
-  specifiers: [BRIDGE, EXTENSION, WEB, PANEL_COMPOSITION, ASSET_URL, SCHEMAS, TEST_KIT],
+  specifiers: [BRIDGE, EXTENSION, WEB, PANEL_COMPOSITION, ASSET_URL, SCHEMAS, USE_POLL, TEST_KIT],
 };
 
 // what every server layer must not reach, whatever its place in the stack
@@ -386,10 +423,23 @@ const SERVER = {
     NOT_THE_EXTENSION,
     NOT_THE_PANEL_PACKAGE,
     NOT_THE_HOST_PACKAGE,
+    NOT_THE_API_CLIENT,
     NOT_THE_TEST_KIT,
   ],
-  specifiers: [EXTENSION, PANEL, HOST_PACKAGE, TEST_KIT],
+  specifiers: [EXTENSION, PANEL, HOST_PACKAGE, API_CLIENT, TEST_KIT],
 };
+
+// what the api-client may not reach, whichever of its files: the server, the apps, the host adapters, the panel, the schemas
+const API_CLIENT_PATHS = [
+  NOT_THE_SERVER,
+  NOT_THE_PAGES,
+  NOT_THE_EXTENSION,
+  NOT_THE_HOST_PACKAGE,
+  NOT_THE_PANEL_PACKAGE,
+  NOT_THE_SCHEMAS,
+  NOT_THE_TEST_KIT,
+];
+const API_CLIENT_SPECIFIERS = [BRIDGE, EXTENSION, WEB, PANEL, HOST_PACKAGE, SCHEMAS, TEST_KIT];
 
 const LAYERS = [
   {
@@ -502,7 +552,26 @@ const LAYERS = [
     noRootSpecifiers: [BOARD_PAGE_URL],
   }),
   {
-    // the protocol: types, the route table, the schemas and the typed client. It reaches no other package.
+    // the api-client's client and poll: shared with the panel and the extension, so no page URL at all, not even Preact
+    name: 'api-client',
+    files: ['packages/api-client/src/**/*.ts'],
+    ignores: ['packages/api-client/src/use-poll.ts'],
+    targets: [API_CLIENT_SRC],
+    paths: API_CLIENT_PATHS,
+    specifiers: [...API_CLIENT_SPECIFIERS, ANY_PAGE_URL],
+    browser: true,
+  },
+  {
+    // the api-client's hook: a Preact hook for a page, so it names /assets/preact.mjs (and no other page URL)
+    name: 'api-client-hook',
+    files: ['packages/api-client/src/use-poll.ts'],
+    targets: ['./packages/api-client/src/use-poll.ts'],
+    paths: API_CLIENT_PATHS,
+    specifiers: [...API_CLIENT_SPECIFIERS, PAGE_URL],
+    browser: true,
+  },
+  {
+    // the protocol: types, the route table and the schemas. It reaches no other package.
     name: 'protocol',
     files: ['packages/protocol/src/**/*.ts'],
     ignores: ['packages/protocol/src/domain/**'],
@@ -513,6 +582,7 @@ const LAYERS = [
       NOT_THE_EXTENSION,
       NOT_THE_PAGES,
       NOT_THE_PANEL_PACKAGE,
+      NOT_THE_API_CLIENT,
       NOT_THE_TEST_KIT,
     ],
     specifiers: [PROTOCOL_IMPORTS],
@@ -562,8 +632,8 @@ const LAYERS = [
     name: 'extension',
     files: ['packages/extension/src/**/*.ts'],
     targets: [EXTENSION_SRC],
-    paths: [NOT_THE_SERVER, NOT_THE_SCHEMAS, NOT_THE_TEST_KIT],
-    specifiers: [BRIDGE, SCHEMAS, TEST_KIT],
+    paths: [NOT_THE_SERVER, NOT_THE_SCHEMAS, NOT_THE_USE_POLL, NOT_THE_TEST_KIT],
+    specifiers: [BRIDGE, SCHEMAS, USE_POLL, TEST_KIT],
     browser: true,
   },
   {
@@ -578,6 +648,7 @@ const LAYERS = [
       { from: './packages/panel', message: KIT_BELOW },
       { from: HOST_GITHUB_SRC, message: KIT_BELOW },
       { from: './packages/protocol', message: KIT_BELOW },
+      { from: './packages/api-client', message: KIT_BELOW },
     ],
     specifiers: [
       { regex: '^(once-upon-a-diff(/|$)|@once-upon-a-diff/(?!test-kit(/|$)))', message: KIT_BELOW },
@@ -588,7 +659,7 @@ const LAYERS = [
 /*
  * Layers still to come, written the way they will read. Move each into LAYERS as its split lands, and keep the probe test in step.
  *
- *   board-view: the board page as its own package, over ui and the api client (its regions are already folders: web/public/board/).
+ *   board-view: the board page as its own package, over ui and the api-client (its regions are already folders: web/public/board/).
  *   ui:         files packages/ui/src/**. paths: panel, board-view, web, extension. browser: true.
  *   board-core: files packages/board-core/src/**. paths: web, extension, panel, board-view, ui. Not a package yet: it is
  *               packages/bridge/src/services/board, which still imports about thirty modules of the other services and

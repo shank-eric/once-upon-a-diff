@@ -41,10 +41,13 @@ test('every import in the page scripts and the panel resolves to a served asset,
   assert.ok(seen.has('/assets/host-github/diff-dom.ts'), 'the host adapter is in the graph');
   assert.ok(seen.has('/assets/protocol/routes.ts'), 'the route table is in the graph');
   assert.ok(seen.has('/assets/protocol/domain/html.ts'), 'the domain is in the graph');
+  assert.ok(seen.has('/assets/api-client/client.ts'), 'the typed client is in the graph');
+  assert.ok(seen.has('/assets/api-client/use-poll.ts'), 'the board’s poll hook is in the graph');
+  assert.ok(seen.has('/assets/api-client/poll.ts'), 'and the poll under it');
   assert.ok(seen.has('/assets/panel/dom.ts'), 'the panel’s DOM helpers are in the graph');
 });
 
-test('forBrowser spells the panel, the protocol and the host adapter as the URLs they are served at', () => {
+test('forBrowser spells the panel, the protocol, the api-client and the host adapter as the URLs they are served at', () => {
   assert.equal(
     forBrowser(
       [
@@ -52,6 +55,7 @@ test('forBrowser spells the panel, the protocol and the host adapter as the URLs
         `export { x } from "@once-upon-a-diff/panel/diff-types";`,
         `const m = await import('@once-upon-a-diff/protocol/routes');`,
         `import { createHostPage } from '@once-upon-a-diff/host-github/diff-dom';`,
+        `import { createClient } from '@once-upon-a-diff/api-client/client';`,
         `import './sibling.ts';`,
       ].join('\n'),
     ),
@@ -60,6 +64,7 @@ test('forBrowser spells the panel, the protocol and the host adapter as the URLs
       `export { x } from "/assets/panel/diff-types.ts";`,
       `const m = await import('/assets/protocol/routes.ts');`,
       `import { createHostPage } from '/assets/host-github/diff-dom.ts';`,
+      `import { createClient } from '/assets/api-client/client.ts';`,
       `import './sibling.ts';`,
     ].join('\n'),
   );

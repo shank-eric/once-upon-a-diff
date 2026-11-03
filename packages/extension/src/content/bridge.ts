@@ -3,7 +3,7 @@
  * (background.js), which calls the bridge on 127.0.0.1. GitHub's page never
  * talks to the bridge itself.
  */
-import { createClient, type Reply, type Transport } from '@once-upon-a-diff/protocol/client';
+import { createClient, type Reply, type Transport } from '@once-upon-a-diff/api-client/client';
 import type { BridgeSettings } from '../settings.ts';
 
 export type BridgeMethod = 'GET' | 'POST';

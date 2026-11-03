@@ -376,11 +376,11 @@ test('a bad body is refused before anything is stored', async () => {
   }
 });
 
-test('the bridge serves the route table, the client and the patterns as JavaScript with no valibot, and never the schemas', async () => {
+test('the bridge serves the route table, the patterns and the api-client as JavaScript with no valibot, and never the schemas', async () => {
   const bridge = await startBridge({ home: tmp('home') });
   try {
     const served: Record<string, string> = {};
-    for (const name of ['routes', 'client', 'domain/patterns']) {
+    for (const name of ['routes', 'domain/patterns']) {
       const response = await bridge.call('GET', `/assets/protocol/${name}.ts`, undefined, {
         Authorization: '',
       });
@@ -403,20 +403,40 @@ test('the bridge serves the route table, the client and the patterns as JavaScri
       assert.equal(response.status, 404, name);
       assert.ok(!response.text.includes('safeParse'));
     }
-    // what the browser gets runs: the client imports the table by the same relative path
+    // the client moved to the api-client package: it is served from there, with its table import spelled as the URL the bridge serves it at
+    for (const name of ['client', 'poll', 'use-poll']) {
+      const response = await bridge.call('GET', `/assets/api-client/${name}.ts`, undefined, {
+        Authorization: '',
+      });
+      assert.equal(response.status, 200, name);
+      assert.match(response.headers.get('content-type') || '', /javascript/);
+      const loads = [
+        ...response.text.matchAll(/(?:^|\n)\s*(?:import|export)\b[^;]*?\bfrom\s+['"]([^'"]+)['"]/g),
+      ].map((hit) => hit[1]);
+      assert.ok(
+        loads.every(
+          (specifier) =>
+            ['/assets/protocol/routes.ts', '/assets/preact.mjs'].includes(specifier) ||
+            specifier.startsWith('./'),
+        ),
+        `${name} loads ${loads}`,
+      );
+    }
+    for (const name of ['client', 'nope']) {
+      const response = await bridge.call('GET', `/assets/protocol/${name}.ts`, undefined, {
+        Authorization: '',
+      });
+      assert.equal(response.status, 404, `protocol/${name}`);
+    }
+    // what the browser gets runs
     const dir = tmp('served');
     mkdirSync(path.join(dir, 'protocol'));
     for (const [name, code] of Object.entries(served)) {
       mkdirSync(path.dirname(path.join(dir, 'protocol', `${name}.ts`)), { recursive: true });
       writeFileSync(path.join(dir, 'protocol', `${name}.ts`), code);
     }
-    const client = await import(path.join(dir, 'protocol', 'client.ts'));
     const routes = await import(path.join(dir, 'protocol', 'routes.ts'));
-    assert.equal(typeof client.createClient, 'function');
-    assert.equal(
-      client.pathFor(routes.ROUTES.story, { params: { id: 'a b' } }),
-      '/api/stories/a%20b',
-    );
+    assert.equal(routes.ROUTES.story.path, '/api/stories/:id');
   } finally {
     await bridge.close();
   }

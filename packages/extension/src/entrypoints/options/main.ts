@@ -1,6 +1,6 @@
 import { getSettings, setSettings } from '../../settings.ts';
 import { isPageLink, type PageKind } from '../../page-links.ts';
-import { createClient } from '@once-upon-a-diff/protocol/client';
+import { createClient } from '@once-upon-a-diff/api-client/client';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import type { BridgeRequest } from '../../content/bridge.ts';
 

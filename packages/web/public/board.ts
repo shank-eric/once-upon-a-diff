@@ -5,12 +5,13 @@
  * GET /api/board (src/services/board/board.ts), polled every few seconds. The page's key (the link's #key=, which
  * `once-upon board` prints) reaches the board's routes and nothing else.
  *
- * The page is one Preact tree (ADR-14) drawn into the app element. The poll hands it the board as a prop and Preact redraws
+ * The page is one Preact tree (ADR-14) drawn into the app element. Its root polls (usePoll) and Preact redraws
  * with keys, so focus, scroll and half-typed text stay. The regions (public/board/<region>) are its components; the page
  * holds what they share: the remembered settings, the bridge and the choice of which view draws a card.
  */
 import { html, render, useEffect } from '/assets/preact.mjs';
-import { createClient, type Transport } from '/assets/protocol/client.ts';
+import { createClient, type Transport } from '/assets/api-client/client.ts';
+import { usePoll } from '/assets/api-client/use-poll.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { authHeader, startAuth } from '/assets/local/auth.ts';
 import { notConnectedHtml } from '/assets/local/not-connected.ts';
@@ -89,9 +90,6 @@ function filtered(data: BoardData, laneFilter: string): BoardData {
   };
 }
 
-/** What the page shows: the last board that loaded, and what went wrong with the polls since (none when the last one worked). */
-type View = { data: BoardData | null; error: Error | null; failed: number };
-
 const EMPTY: BoardData = {
   at: '',
   status_source: 'registry',
@@ -109,8 +107,10 @@ const EMPTY: BoardData = {
   usage: null,
 };
 
-function BoardApp(props: { view: View; refresh: () => Promise<void> }) {
-  const { view, refresh } = props;
+/** The page: the board as last polled, and what went wrong with the polls since (none when the last one worked). */
+function BoardApp() {
+  const view = usePoll(() => bridge.ask(ROUTES.board), { everyMs: POLL_MS });
+  const { refresh } = view;
   const full = view.data ?? EMPTY;
   const api: Api = { bridge, board: full, refresh };
   const [laneFilter, setLaneFilter] = useSetting('ou-board-filter', '', String, asText);
@@ -183,6 +183,10 @@ function BoardApp(props: { view: View; refresh: () => Promise<void> }) {
     `status from ${data.status_source}`,
   ].join(' · ');
 
+  // the first poll is still on its way: the line the server put in the page
+  if (!view.data && !view.error) {
+    return html`<p class="ou-local-muted ou-local-loading">Loading the board…</p>`;
+  }
   // refused for want of a key: say how to connect (the poll fills the board in once there is a cookie)
   const refused = [401, 403].includes((view.error as { status?: number } | null)?.status ?? 0);
   const notConnected = html`<div dangerouslySetInnerHTML=${{ __html: String(notConnectedHtml()) }}></div>`;
@@ -212,29 +216,6 @@ function BoardApp(props: { view: View; refresh: () => Promise<void> }) {
   />`;
 }
 
-let current: View = { data: null, error: null, failed: 0 };
-let drawn = false;
-
-/** Draws the page for a view: Preact works out what changed. */
-function show(next: View) {
-  current = next;
-  if (!drawn) {
-    // the "Loading the board…" line the server put there
-    app.textContent = '';
-    drawn = true;
-  }
-  render(html`<${BoardApp} view=${current} refresh=${refresh} />`, app);
-}
-
-async function refresh() {
-  try {
-    show({ data: await bridge.ask(ROUTES.board), error: null, failed: 0 });
-  } catch (err) {
-    // the voice panel keeps its place (a peek, a drag) through one failed poll and goes after a second
-    show({ data: current.data, error: err as Error, failed: current.failed + 1 });
-  }
-}
-
-refresh();
-setInterval(() => document.visibilityState === 'visible' && refresh(), POLL_MS);
-window.addEventListener('focus', refresh);
+// the "Loading the board…" line the server put there
+app.textContent = '';
+render(html`<${BoardApp} />`, app);

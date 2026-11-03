@@ -5,7 +5,7 @@
  */
 import { defineBackground } from 'wxt/utils/define-background';
 import { getSettings, type BridgeSettings } from '../settings.ts';
-import { matchRoute } from '@once-upon-a-diff/protocol/client';
+import { matchRoute } from '@once-upon-a-diff/api-client/client';
 import { EXTENSION_ROUTES } from '../bridge-routes.ts';
 import { isPageLink, type PageKind } from '../page-links.ts';
 import type { BridgeReply, BridgeRequest } from '../content/bridge.ts';

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
-import { matchRoute } from '@once-upon-a-diff/protocol/client';
+import { matchRoute } from '@once-upon-a-diff/api-client/client';
 import { EXTENSION_ROUTES } from '../src/bridge-routes.ts';
 
 // the extension's own code, and the panel it bundles (whose bridge-options.ts names the routes the panel calls)

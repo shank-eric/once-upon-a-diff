@@ -2,7 +2,7 @@
  * The local page's shared state, and its one way to the bridge. The boot
  * block in the page names the story; its key comes in the link's #fragment.
  */
-import { createClient, type Transport } from '/assets/protocol/client.ts';
+import { createClient, type Transport } from '/assets/api-client/client.ts';
 import type { LocalStory, StoryData } from '/assets/types.ts';
 import type { InitialUi, StoryOverlay } from '/assets/panel/overlay.ts';
 import type { Highlighter } from '/assets/syntax.ts';

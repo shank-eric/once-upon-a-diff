@@ -1,0 +1,26 @@
+{
+  "name": "@once-upon-a-diff/api-client",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Once Upon a Diff's way to call the bridge from a browser: the typed client over a host's transport, and the poll the board and the panel share",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "test": "node ../bridge/bin/node-version.mjs && node --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json"
+  },
+  "dependencies": {
+    "@once-upon-a-diff/protocol": "workspace:*"
+  },
+  "devDependencies": {
+    "@once-upon-a-diff/test-kit": "workspace:*",
+    "@types/node": "24.19.1",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,6 +1,6 @@
 # ADR-15: Layered packages, with the protocol as the only place client and server meet
 
-Decided 10/29. Built the same day, as of main at 0741c6c: `packages/protocol`, the server's layers, the `panel` and `web` packages, the region folders and the lint that enforces them. `ui`, `api-client` and `board-core` as packages were not built. ADR-16 says what was built and why those were left.
+Decided 10/29. Built the same day, as of main at 0741c6c: `packages/protocol`, the server's layers, the `panel` and `web` packages, the region folders and the lint that enforces them. `ui`, `api-client` and `board-core` as packages were not built. ADR-16 says what was built and why those were left. `api-client` was built later (11/3): `client.ts` moved out of `protocol` into it, with the poll.
 
 ## Context
 
@@ -19,7 +19,7 @@ Eric chose the direction on 10/29: layered packages, the way a modern React mono
 
 ## Decision
 
-Layers, from the top. A package imports only layers below it. Apps know their host (`chrome.*`, GitHub's DOM, how to reach the bridge) and inject what features need as adapters. The diagram is what exists. `ui` and `api-client` are in the plan and not built, so the pages and the panel use the protocol's `client.ts` directly.
+Layers, from the top. A package imports only layers below it. Apps know their host (`chrome.*`, GitHub's DOM, how to reach the bridge) and inject what features need as adapters. The diagram is what exists. `ui` is in the plan and not built. `api-client` was built on 11/3 (`client.ts` and the poll).
 
 ```mermaid
 flowchart TB
@@ -33,7 +33,7 @@ flowchart TB
   end
   host["host-github<br/>diff-page reader, GitHub URLs"]
   ui["ui (not built)"]
-  api["api-client (not built)"]
+  api["api-client<br/>typed client, poll"]
   protocol["protocol<br/>wire types, route table, schemas"]
   domain["protocol/src/domain<br/>pure rules: id patterns so far"]
   subgraph serverApps["Server apps"]
@@ -52,6 +52,10 @@ flowchart TB
   web --> host
   ext --> panel
   ext --> host
+  boardview --> api
+  panel --> api
+  ext --> api
+  api --> protocol
   boardview --> protocol
   panel --> protocol
   protocol --> domain
@@ -63,7 +67,7 @@ flowchart TB
   boardview -. "HTTP (route table)" .-> http
 
   classDef future stroke-dasharray: 5 5
-  class ui,api future
+  class ui future
 ```
 
 Solid arrows point from importer to imported. The dotted arrow is the runtime HTTP call, not an import. Dashed boxes don't exist.
@@ -79,7 +83,7 @@ Rules:
 - **`types.ts`**: the wire types (moved from `shared`, which re-exports them until the imports move).
 - **`routes.ts`**: the route table. Every call the bridge answers (57 of them), with its method, its path, which keys may make it (`token`, `token+board`, `token+page`, `token+page+view`, or `none`), the body it takes and the answer it gives. The bridge registers its handlers from the entries, and its dispatcher takes its lookups and the board-key rule from them. A test compares each story route's keys with `page-key.ts`'s read-only list, both ways, and calls every route with each kind of key.
 - **`schemas.ts`**: a Valibot schema for each request body. The bridge checks every body against one after the key and story guards, so a bad body never changes which of 401, 403, 404, 413 or 415 answers. A body that isn't a JSON object is a 400.
-- **`client.ts`**: a typed client over a transport each host supplies (the extension's service worker, a page's fetch with its key). It does no I/O itself. The extension's service worker also asks `matchRoute` before it adds the token, so it forwards only the 28 routes the extension calls (`extension/src/bridge-routes.ts`, checked against the code's uses by a test). It starts here and becomes `api-client` when there are poll hooks to put with it.
+- **`client.ts`**: a typed client over a transport each host supplies (the extension's service worker, a page's fetch with its key). It does no I/O itself. The extension's service worker also asks `matchRoute` before it adds the token, so it forwards only the 28 routes the extension calls (`extension/src/bridge-routes.ts`, checked against the code's uses by a test). It started here and became the `api-client` package (11/3) with the poll: `createPoll`, and `usePoll`, the board's Preact hook over it.
 - **`domain/`**: pure rules, with no imports at all, not even the rest of the protocol (the protocol imports the domain). Only the id patterns are there so far.
 
 ### Source imports, not TypeScript project references
@@ -116,7 +120,7 @@ The plan was protocol, panel, web, ui, then the server split and board-core. Wha
 
 ## Open questions
 
-1. When does `client.ts` become the `api-client` package: with the first poll hook, or the panel's move? Neither happened. The board page has its own poll in `board.ts`.
+1. When does `client.ts` become the `api-client` package: with the first poll hook, or the panel's move? Answered 11/3: with the first poll hook. The board page uses `usePoll`. The panel's tick, and the local page's, still have their own timers and could move onto `createPoll`.
 2. Should `VIEW_KEY_MAY` be derived from the table's `keys`, so there is one list? A test checks the two against each other, both ways, with written-out lists.
 3. Should answers be validated by the clients, and so should Valibot be vendored for the pages after all?
 4. Which of the pure helpers move into the domain next? Only the id patterns are there. Candidates: relative time and `gateText` (they moved to the domain: ADR-17), ledger-line parsing (`services/ledger/ledger.ts`, which needs its types) and the board's column rules (`services/board/columns.ts`, also types).

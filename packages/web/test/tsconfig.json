@@ -11,6 +11,7 @@
       "/assets/board/*": ["../public/board/*"],
       "/assets/types.ts": ["../../protocol/src/types.ts"],
       "/assets/protocol/*": ["../../protocol/src/*"],
+      "/assets/api-client/*": ["../../api-client/src/*"],
       "/assets/host-github/*": ["../../host-github/src/*"],
       "/assets/panel/*": ["../../panel/src/*"],
       "/assets/highlight.mjs": ["../public/types/highlight.d.ts"],

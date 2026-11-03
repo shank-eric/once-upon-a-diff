@@ -31,7 +31,7 @@ test('protocol imports only itself and valibot, and only schemas.ts imports vali
 });
 
 test('what a page loads has no runtime import of valibot or of the schemas', () => {
-  for (const name of ['types', 'routes', 'client', 'domain/patterns']) {
+  for (const name of ['types', 'routes', 'domain/patterns']) {
     const code = stripTypeScriptTypes(readFileSync(path.join(SRC, `${name}.ts`), 'utf8'));
     for (const specifier of importsOf(code)) {
       assert.ok(

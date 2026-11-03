@@ -265,10 +265,22 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@once-upon-a-diff/api-client@workspace:*, @once-upon-a-diff/api-client@workspace:packages/api-client":
+  version: 0.0.0-use.local
+  resolution: "@once-upon-a-diff/api-client@workspace:packages/api-client"
+  dependencies:
+    "@once-upon-a-diff/protocol": "workspace:*"
+    "@once-upon-a-diff/test-kit": "workspace:*"
+    "@types/node": "npm:24.19.1"
+    typescript: "npm:5.9.3"
+  languageName: unknown
+  linkType: soft
+
 "@once-upon-a-diff/extension@workspace:packages/extension":
   version: 0.0.0-use.local
   resolution: "@once-upon-a-diff/extension@workspace:packages/extension"
   dependencies:
+    "@once-upon-a-diff/api-client": "workspace:*"
     "@once-upon-a-diff/host-github": "workspace:*"
     "@once-upon-a-diff/panel": "workspace:*"
     "@once-upon-a-diff/protocol": "workspace:*"
@@ -297,6 +309,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@once-upon-a-diff/panel@workspace:packages/panel"
   dependencies:
+    "@once-upon-a-diff/api-client": "workspace:*"
     "@once-upon-a-diff/protocol": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@types/node": "npm:24.19.1"
@@ -328,6 +341,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@once-upon-a-diff/web@workspace:packages/web"
   dependencies:
+    "@once-upon-a-diff/api-client": "workspace:*"
     "@once-upon-a-diff/host-github": "workspace:*"
     "@once-upon-a-diff/panel": "workspace:*"
     "@once-upon-a-diff/protocol": "workspace:*"
@@ -3503,6 +3517,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "once-upon-a-diff@workspace:packages/bridge"
   dependencies:
+    "@once-upon-a-diff/api-client": "workspace:*"
     "@once-upon-a-diff/host-github": "workspace:*"
     "@once-upon-a-diff/panel": "workspace:*"
     "@once-upon-a-diff/protocol": "workspace:*"

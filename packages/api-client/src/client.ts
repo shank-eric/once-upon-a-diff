@@ -1,5 +1,5 @@
 /*
- * The typed way to call the bridge: build a route's path from its table entry (./routes.ts) and hand the request to the
+ * The typed way to call the bridge: build a route's path from its table entry (@once-upon-a-diff/protocol/routes) and hand the request to the
  * host's own transport, which knows how to reach the bridge and which key to send (the extension's service worker, a
  * page's fetch with its page key). This file does no I/O, so it has no DOM or Node in it and a page can load it.
  *
@@ -7,8 +7,14 @@
  *  - `call` never throws. It resolves to {ok, status, body, error}, the shape the extension's content scripts already use.
  *  - `ask` resolves to the answer and throws a BridgeError (with the HTTP status) otherwise, the way the pages' `api` does.
  */
-import type { AnswerOf, AnyRoute, BodyOf, ParamsOf, QueryOf } from './routes.ts';
-import { ROUTES } from './routes.ts';
+import type {
+  AnswerOf,
+  AnyRoute,
+  BodyOf,
+  ParamsOf,
+  QueryOf,
+} from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 
 /** What a host's transport is asked to send. `path` carries the query. A POST always has a body (`{}` when it has none). */
 export interface CallRequest {

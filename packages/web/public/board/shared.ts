@@ -5,7 +5,7 @@
  * imports this file and never another region.
  */
 import { html, useState } from '/assets/preact.mjs';
-import type { Client } from '/assets/protocol/client.ts';
+import type { Client } from '/assets/api-client/client.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { remember, stored } from '/assets/local/stored.ts';
 import { compactAge } from '/assets/protocol/domain/time.ts';
