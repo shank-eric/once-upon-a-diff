@@ -910,13 +910,13 @@ const inside = (dir: string, parent: string): boolean =>
   dir === parent || dir.startsWith(parent + path.sep);
 
 /**
- * Who is working in a worktree: live sessions whose folder is in it, and open ledger agents whose task names a path in
- * it or its `<repo>-worktrees/<folder>`, or that are named for its folder. A worktree something works in is never cleaned up.
+ * Who is working in a worktree: live sessions whose folder is in it, open registered agents whose cwd is in it, and open ledger agents whose task names
+ * a path in it or its `<repo>-worktrees/<folder>`, or that are named for its folder. A worktree something works in is never cleaned up.
  */
 export function workingIn(
   dir: string,
   sessions: { title: string; cwd: string }[],
-  agents: Pick<LedgerAgent, 'name' | 'state' | 'task'>[],
+  agents: (Pick<LedgerAgent, 'name' | 'state' | 'task'> & Partial<Pick<LedgerAgent, 'cwd'>>)[],
 ): string[] {
   const folder = path.basename(dir);
   const named = new RegExp(
@@ -930,6 +930,8 @@ export function workingIn(
       continue;
     }
     if (
+      // a registered agent says where it works: its cwd
+      (!!agent.cwd && (inside(agent.cwd, dir) || inside(agent.cwd, real(dir)))) ||
       agent.name.toLowerCase() === folder.toLowerCase() ||
       (!!agent.task &&
         (named.test(agent.task) || pathsIn(agent.task).some((found) => inside(found, dir))))

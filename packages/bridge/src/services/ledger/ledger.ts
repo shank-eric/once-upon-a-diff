@@ -1,6 +1,9 @@
 /**
- * The background agents the board shows inside their parent session's card, read from two optional text files
- * (the settings board_ledger_file and board_progress_file; with neither set there are no agents).
+ * The background agents the board shows inside their parent session's card. Agents registered through
+ * `once-upon agent start|state|beat|finish` come from <home>/agents.jsonl (events.ts, registry.ts) and are never parsed
+ * from text; this file reads the older source, two optional text files (the settings board_ledger_file and
+ * board_progress_file), still used for agents nobody registered and for old history. read.ts merges the two, and the
+ * registry writes both files' lines as views of its events when the settings name them.
  *
  * The ledger has one line per event, appended by whatever launches the agents:
  *
@@ -37,7 +40,7 @@
  * Both files are read from their tail only, so a long history costs nothing.
  */
 import type { BoardBeat, BoardGate } from '@once-upon-a-diff/protocol/types';
-import { tailOf } from '../../adapters/stores/notes.ts';
+import type { AgentKind, AgentResult } from './events.ts';
 
 /** One agent as its ledger lines tell it. */
 export interface LedgerAgent {
@@ -60,10 +63,27 @@ export interface LedgerAgent {
    * `[running]` line after a plan, a question or a fix gate is the same run going on
    */
   earlier?: LedgerAgent[];
+  /**
+   * 'events' for an agent registered through `once-upon agent` (events.ts), which carries the fields below; absent or
+   * 'ledger' for one read from ledger lines, which carries none of them
+   */
+  source?: 'events' | 'ledger';
+  run?: string | null;
+  /** the launching session's full id, when the agent was registered from a Claude session */
+  session?: string | null;
+  kind?: AgentKind | null;
+  repo?: string | null;
+  branch?: string | null;
+  pr?: number | null;
+  cwd?: string | null;
+  card?: string | null;
+  result?: AgentResult | null;
+  findings?: number | null;
+  /** this run's latest progress beat */
+  beat?: BoardBeat | null;
+  /** its latest event of any kind, a beat included: the sign of life staleness is measured from */
+  lastEvent?: Date | null;
 }
-
-const LEDGER_TAIL = 1024 * 1024;
-const PROGRESS_TAIL = 256 * 1024;
 
 /** How far a zone is ahead of UTC at an instant, in ms. */
 function offsetMs(instant: number, zone: string): number {
@@ -233,18 +253,28 @@ export function parseLedger(text: string, now: Date, zone?: string): LedgerAgent
 }
 
 /** The gate an agent is at, or null: its plan to check, findings being fixed, or a reviewer running. The one place for the rule. */
-export function gateOf(agent: Pick<LedgerAgent, 'state' | 'name' | 'outcome'>): BoardGate | null {
+export function gateOf(
+  agent: Pick<LedgerAgent, 'state' | 'name' | 'outcome'> &
+    Partial<Pick<LedgerAgent, 'source' | 'kind' | 'findings'>>,
+): BoardGate | null {
   if (agent.state === 'plan') {
     return { kind: 'plan', findings: null };
   }
   if (agent.state === 'fixing') {
+    if (agent.source === 'events') {
+      return { kind: 'fixing', findings: agent.findings ?? null };
+    }
     const count = /(\d+)\s+findings?\b/i.exec(agent.outcome || '');
     return { kind: 'fixing', findings: count ? Number(count[1]) : null };
   }
-  return agent.state === 'running' && /^review-/i.test(agent.name)
-    ? { kind: 'review', findings: null }
-    : null;
+  return agent.state === 'running' && isReviewer(agent) ? { kind: 'review', findings: null } : null;
 }
+
+/** A reviewer: a registered agent's kind says so, and a ledger agent is one when its name starts with review-. */
+export const isReviewer = (
+  agent: Pick<LedgerAgent, 'name'> & Partial<Pick<LedgerAgent, 'source' | 'kind'>>,
+): boolean =>
+  agent.source === 'events' ? agent.kind === 'reviewer' : /^review-/i.test(agent.name);
 
 const BEAT_RE =
   /^\s*-\s*\d{1,2}:\d{2}\s*[AP]M\s+([\w.-]+)\s+(\d+)\/(\d+)\s+([\w.-]+)(?::\s*(.*))?$/i;
@@ -266,25 +296,20 @@ export function parseProgress(text: string): Map<string, BoardBeat> {
   return beats;
 }
 
-/** The ledger's agents with the progress file's beats, for the files the settings name (a missing file or setting gives none). */
-export function readAgents(
-  files: { ledger: string | null; progress: string | null },
-  now: Date,
-  zone?: string,
-): { agents: LedgerAgent[]; beats: Map<string, BoardBeat> } {
-  return {
-    agents: files.ledger ? parseLedger(tailOf(files.ledger, LEDGER_TAIL), now, zone) : [],
-    beats: files.progress ? parseProgress(tailOf(files.progress, PROGRESS_TAIL)) : new Map(),
-  };
-}
-
 /**
- * When an agent last did anything: its latest ledger line's time, else its start. Only ledger lines count: they carry a
+ * When an agent last did anything: its latest ledger line's time, else its start (a registered agent: its latest event,
+ * a beat included). For a ledger agent only ledger lines count: they carry a
  * date and a sid, where a progress beat has neither (its time of day would land on today for an agent from last week, and
  * a name used by two sessions would be one agent). Null when no line has a time.
  */
-export function lastActivity(agent: Pick<LedgerAgent, 'ended' | 'started'>): Date | null {
-  return agent.ended ?? agent.started ?? null;
+export function lastActivity(
+  agent: Pick<LedgerAgent, 'ended' | 'started'> &
+    Partial<Pick<LedgerAgent, 'source' | 'lastEvent'>>,
+): Date | null {
+  // a registered agent's beats carry a date and a sid, so they count
+  return (
+    (agent.source === 'events' ? agent.lastEvent : null) ?? agent.ended ?? agent.started ?? null
+  );
 }
 
 /** "3:40 PM ET, 11/2": a time as the ledger's writers write it, always in Eastern time and always labelled, so it reads the same whatever zone the reader is set to. */

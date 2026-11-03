@@ -8,7 +8,8 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { sameRepo } from '../../config/repos.ts';
 import { DEFAULT_BRANCHES } from '../../review/story-lists.ts';
-import { readAgents, type LedgerAgent } from '../../ledger/ledger.ts';
+import { readAgents } from '../../ledger/read.ts';
+import type { LedgerAgent } from '../../ledger/ledger.ts';
 import type { BlankSessions } from '../../../adapters/claude-sessions/blank.ts';
 import type { SessionTitles } from '../../../adapters/claude-sessions/titles.ts';
 import { readStatusLines } from '../../../adapters/claude-sessions/statusline.ts';
@@ -57,7 +58,7 @@ export async function readLive(ctx: BuildContext): Promise<LiveFacts> {
     Promise.all(live.map((session) => ctx.lookups.repoOf(session.cwd))),
   ]);
   const { agents, beats } = readAgents(
-    { ledger: settings.ledgerFile, progress: settings.progressFile },
+    { home: ctx.home, ledger: settings.ledgerFile, progress: settings.progressFile },
     now,
     settings.ledgerTimeZone,
   );

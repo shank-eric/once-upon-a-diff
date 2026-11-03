@@ -13,8 +13,9 @@ export const HELPER_IDLE_MS = 8 * 3600 * 1000;
 /** The marker: the task text starts with "standing helper" (or "standing-helper"), or with a "[helper]" tag. A mention further in does not count. */
 const MARKER = /^\s*(?:standing[\s-]helper\b|\[helper\])/i;
 
-export const isStandingHelper = (agent: Pick<LedgerAgent, 'task'>): boolean =>
-  MARKER.test(agent.task ?? '');
+export const isStandingHelper = (
+  agent: Pick<LedgerAgent, 'task'> & Partial<Pick<LedgerAgent, 'source' | 'kind'>>,
+): boolean => (agent.source === 'events' ? agent.kind === 'helper' : MARKER.test(agent.task ?? ''));
 
 /**
  * The helpers to show: marked agents that are running or waiting (a done, failed or stopped one is over), whose launching

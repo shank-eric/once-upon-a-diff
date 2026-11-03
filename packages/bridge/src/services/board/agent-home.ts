@@ -6,7 +6,7 @@
  * The text placement here is for agents with no claim; bl_mw12ymyrceec6c audits it and replaces it with explicit links.
  */
 import type { BoardCard } from '@once-upon-a-diff/protocol/types';
-import type { LedgerAgent } from '../ledger/ledger.ts';
+import { isReviewer, type LedgerAgent } from '../ledger/ledger.ts';
 
 /** Lowercase letters and digits only, so "Once Upon a Diff" and "once-upon-a-diff" compare equal. */
 const squash = (text: string) => text.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -184,10 +184,20 @@ const clausesOf = (outcome: string): string[] =>
  * added; or, for an agent that finished (done), a task that names a worktrees folder. A stopped agent has to show its output in its result. Clauses that say they did nothing do not count, and a commit or PR only quoted in a finding does not either.
  */
 export function madeSomething(
-  agent: Pick<LedgerAgent, 'name' | 'task' | 'outcome'> & { state?: LedgerAgent['state'] },
+  agent: Pick<LedgerAgent, 'name' | 'task' | 'outcome'> &
+    Partial<Pick<LedgerAgent, 'state' | 'source' | 'kind' | 'result'>>,
 ): boolean {
-  if (/^review-/i.test(agent.name)) {
+  if (isReviewer(agent)) {
     return true;
+  }
+  if (agent.source === 'events') {
+    // a registered agent says what it made: a result with a commit, PR, branch or card. Research that made none is Waiting
+    if (agent.result && Object.keys(agent.result).length) {
+      return true;
+    }
+    if (agent.kind === 'research') {
+      return false;
+    }
   }
   const task = agent.task ?? '';
   if (agent.state !== 'stopped' && /-worktrees\//.test(task)) {

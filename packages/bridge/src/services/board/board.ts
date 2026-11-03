@@ -8,7 +8,9 @@ import { readSettings } from '../config/settings.ts';
 import { REPO_RE, lastKnownRepo, repoOfCheckoutAsync } from '../config/repos.ts';
 import { runGitAsync } from '../../adapters/git.ts';
 import { aheadOf } from '../stories/pull-request.ts';
-import { doneLine, lastActivity, readAgents } from '../ledger/ledger.ts';
+import { doneLine, lastActivity } from '../ledger/ledger.ts';
+import { readAgents } from '../ledger/read.ts';
+import { AgentRegistry } from '../ledger/registry.ts';
 import { appendLine } from '../../adapters/stores/notes.ts';
 import { markFinished } from '../../adapters/stores/finished-agents.ts';
 import { BlankSessions } from '../../adapters/claude-sessions/blank.ts';
@@ -481,7 +483,7 @@ export class Board {
           cwd: session.cwd,
         }));
         const { agents } = readAgents(
-          { ledger: settings.ledgerFile, progress: null },
+          { home: this.home, ledger: settings.ledgerFile, progress: null },
           new Date(),
           settings.ledgerTimeZone,
         );
@@ -576,18 +578,20 @@ export class Board {
    */
   finishAgent(sid: string, name: string): { ledger: boolean } {
     const settings = readSettings(this.home).board;
-    if (!settings.ledgerFile) {
-      throw new BoardError(400, 'board_ledger_file is not set, so there are no agents');
-    }
     const now = (this.options.now || (() => new Date()))();
     const { agents } = readAgents(
-      { ledger: settings.ledgerFile, progress: null },
+      { home: this.home, ledger: settings.ledgerFile, progress: null },
       now,
       settings.ledgerTimeZone,
     );
     const agent = agents.find((one) => one.sid === sid && one.name === name);
     if (!agent) {
-      throw new BoardError(404, 'no agent with that sid and name in the ledger');
+      throw new BoardError(
+        agents.length || settings.ledgerFile ? 404 : 400,
+        agents.length || settings.ledgerFile
+          ? 'no agent with that sid and name in the ledger'
+          : 'board_ledger_file is not set, and no agent is registered, so there are no agents',
+      );
     }
     if (agent.review) {
       throw new BoardError(
@@ -599,7 +603,17 @@ export class Board {
     if (!open && agent.state !== 'done' && agent.state !== 'failed' && agent.state !== 'stopped') {
       throw new BoardError(409, 'that agent is still working');
     }
-    if (open) {
+    if (agent.source === 'events') {
+      // a registered agent is closed by an event, which writes its own ledger line when the settings name a ledger
+      if (open) {
+        new AgentRegistry(this.home, { ledger: settings.ledgerFile, progress: null }).finish(name, {
+          sid,
+          outcome: 'finished from the board',
+          by: 'board',
+          at: now,
+        });
+      }
+    } else if (open && settings.ledgerFile) {
       appendLine(settings.ledgerFile, doneLine(agent, now));
     }
     // the click counts as at least the agent's latest line, which may be ahead of this clock (a wrong zone, a typo), so the card goes either way

@@ -5,6 +5,7 @@
 import { gatedHome, laneForAgent, madeSomething, tiedToParent } from '../agent-home.ts';
 import { agentKey, claimedAgents } from '../../backlog/claims.ts';
 import type { BacklogItem } from '../../backlog/backlog.ts';
+import { STALE_MS, beatOf } from '../../ledger/events.ts';
 import { gateOf, lastActivity, type LedgerAgent } from '../../ledger/ledger.ts';
 import { readFinished } from '../../../adapters/stores/finished-agents.ts';
 import type {
@@ -18,7 +19,7 @@ import type {
 import type { BuildContext, PinnedVoice } from './types.ts';
 
 /** A running agent with no done line this long after it started is marked stale. */
-export const STALE_MS = 24 * 3600 * 1000;
+export { STALE_MS };
 
 export const AGENT_OPEN = ['running', 'waiting', 'plan', 'fixing'];
 
@@ -27,7 +28,7 @@ export const NO_PARENT = 'No live session';
 
 /** A `[waiting]` or `[review]` line this old (its time) is left behind, as the iTerm hook does: no board card, no count. */
 export function forgotten(agent: LedgerAgent, nowMs: number): boolean {
-  const since = agent.ended ?? agent.started;
+  const since = lastActivity(agent);
   return !!since && nowMs - since.getTime() > STALE_MS;
 }
 
@@ -53,9 +54,12 @@ export function agentOf(
 ): BoardAgent {
   // still open: running, or at a gate (when it began is the line's time, not the original start)
   const open = agent.state === 'running' || agent.state === 'plan' || agent.state === 'fixing';
-  const began = agent.state === 'running' ? agent.started : agent.ended || agent.started;
+  // a registered agent's last sign of life is its latest event, a beat included; a ledger agent's is the line's time
+  const ledgerBegan = agent.state === 'running' ? agent.started : agent.ended || agent.started;
+  const began = agent.source === 'events' ? lastActivity(agent) : ledgerBegan;
   return {
     name: agent.name,
+    kind: agent.kind ?? null,
     state: agent.state,
     review: !!agent.review,
     status: AGENT_STATUS[agent.state],
@@ -95,7 +99,7 @@ export function claimViews(
   return new Map(
     [...claimedAgents(items, agents)].map(([id, agent]) => [
       id,
-      agentOf(agent, beats.get(agent.name), nowMs),
+      agentOf(agent, beatOf(agent, beats), nowMs),
     ]),
   );
 }
@@ -121,7 +125,10 @@ export function builderSlots(
         agent.state === 'running' &&
         pin.view.id.startsWith(agent.sid) &&
         claimers.has(agentKey(agent)) &&
-        !(agent.started && nowMs - agent.started.getTime() > STALE_MS),
+        !(
+          (lastActivity(agent) ?? agent.started) &&
+          nowMs - (lastActivity(agent) ?? agent.started)!.getTime() > STALE_MS
+        ),
     )
     .sort((first, second) => (first.started?.getTime() ?? 0) - (second.started?.getTime() ?? 0));
   return {
@@ -192,7 +199,7 @@ export function placeAgents(
       isFinished(agent) && active && active.getTime() + waitMs > nowMs
         ? new Date(active.getTime() + waitMs)
         : null;
-    const view = agentOf(agent, beats.get(agent.name), nowMs, clearsAt);
+    const view = agentOf(agent, beatOf(agent, beats), nowMs, clearsAt);
     const parent = cardsBySid.get(agent.sid) || null;
     const voiceParent = pin && pin.view.id.startsWith(agent.sid) ? pin : null;
     const parentSession =

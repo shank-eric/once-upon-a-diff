@@ -1265,6 +1265,7 @@ test('a finished agent’s card shows its notes and when it leaves, and Finish a
       agents: [
         {
           name,
+          kind: null,
           state,
           review: false,
           status: 'done',

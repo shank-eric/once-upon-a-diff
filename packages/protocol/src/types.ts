@@ -685,6 +685,8 @@ export interface BoardBeat {
 /** A background agent (a subagent) from the ledger file, inside its parent session's card or on a card of its own. */
 export interface BoardAgent {
   name: string;
+  /** what the agent says it is, when it registered through `once-upon agent start` (null for one read from the ledger) */
+  kind: 'builder' | 'reviewer' | 'helper' | 'research' | null;
   /** the ledger's own word for where it stands */
   state: 'running' | 'waiting' | 'plan' | 'fixing' | 'done' | 'failed' | 'stopped';
   /** `waiting` on your story review (the ledger's `[review]`), not on a question: shown as ready for review */
