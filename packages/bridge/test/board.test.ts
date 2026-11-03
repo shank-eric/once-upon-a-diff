@@ -3541,6 +3541,8 @@ test('the phone state: null without a ready board_larmor_dir, else phone mode fr
 test('POST /api/board/voice/phone and /phone/bridge-stop ask Larmor’s voice_ctl, voice on or not, with the board key', async () => {
   const home = tmp('board-voice-phone-post');
   const voiceDir = tmp('board-voice');
+  // The phone bridge's port: without phone.json the probe falls back to Larmor's default, which a Larmor running on this Mac holds. Port 1 has no listener.
+  writeJson(path.join(voiceDir, 'phone.json'), { sink_port: 1 });
   const larmor = fakeLarmor();
   const bridge = await startBridge({ home });
   open.push(bridge);
@@ -3607,6 +3609,7 @@ test('the voice state: a pause file shows with voice off, only interactive sessi
   const home = tmp('board-voice-facts');
   const sessions = tmp('board-sessions');
   const voiceDir = tmp('board-voice');
+  writeJson(path.join(voiceDir, 'phone.json'), { sink_port: 1 }); // not Larmor's default port, which a live Larmor holds
   const [shown, headless] = [liveChild(), liveChild()];
   after(() => {
     shown.stop();
