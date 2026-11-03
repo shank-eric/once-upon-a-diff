@@ -51,6 +51,7 @@ import {
 import { StoryStore } from '../../services/stories/store.ts';
 import { readMeta } from '../../services/stories/meta.ts';
 import { slug } from '../../services/stories/local-story.ts';
+import { answerRefs } from '../../services/stories/validate.ts';
 
 import { out, describe, filterEntries, type Printable } from '../output.ts';
 import type { InboxEntry, QuestionEntry } from '../../services/inbox/inbox.ts';
@@ -481,16 +482,31 @@ async function wait(home: string, cfg: Config, opts: CliOpts) {
   }
 }
 
+/** The files of a story (a ref's path must be one of them), or undefined when the story can't be read. */
+function storyFilesOf(home: string, id: string): string[] | undefined {
+  const data = new StoryStore({ home }).load(id);
+  return data ? data.files.map((file) => file.rel) : undefined;
+}
+
 function answer(home: string, cfg: Config, opts: CliOpts) {
   const messages = new Inbox(home);
   const text = opts.file ? readFileSync(opts.file as string, 'utf8') : opts.text;
   if (!opts.question || !text || text === true) {
-    throw new Error('usage: once-upon answer --question ID (--text T | --file F)');
+    throw new Error('usage: once-upon answer --question ID (--text T | --file F) [--refs R]');
   }
   const question = messages.questions().find((entry) => entry.id === opts.question);
   if (!question) {
     throw new Error(`no question ${opts.question}`);
   }
+  // the places the text links to, as `[text](ref:<id>)`
+  const refs =
+    typeof opts.refs === 'string'
+      ? answerRefs(
+          JSON.parse(readFileSync(opts.refs, 'utf8')) as unknown,
+          String(text),
+          storyFilesOf(home, question.story),
+        )
+      : [];
   // who answered, for the panel: --consumer, else the wait it was handed to
   const handed = readHanded(home)[question.id];
   const answeredBy =
@@ -511,6 +527,7 @@ function answer(home: string, cfg: Config, opts: CliOpts) {
     story: question.story,
     text: String(text).trim(),
     ...(answeredBy ? { by: answeredBy } : {}),
+    ...(refs.length ? { refs } : {}),
   });
   clearAsking(home, question.id);
   out(added.id);
@@ -619,8 +636,9 @@ export const inboxCommands: Command[] = [
   {
     name: 'answer',
     usage: [
-      '  once-upon answer  --question ID (--text T | --file F) [--consumer NAME]',
+      '  once-upon answer  --question ID (--text T | --file F) [--refs R] [--consumer NAME]',
       '                                                                 answer a question; the panel shows it, and who answered',
+      '                                                                 --refs R: a JSON file of [{"id","path","side","start","end"}] the text links to as [text](ref:id)',
     ],
     run: answer,
   },

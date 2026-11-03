@@ -120,7 +120,7 @@ export function createQuestions(context: PanelContext) {
     return answers.map((answer) => {
       const answeredBy = answer.by && html`<div class="ou-aby">Answered by ${answer.by}</div>`;
       const aat = watched.has(answer.at) ? answer.at : null;
-      return html`${answeredBy}<div class="ou-a ou-md"${aat && html` data-aat="${aat}"`}>${context.markdown.markdown(answer.text)}</div>`;
+      return html`${answeredBy}<div class="ou-a ou-md"${aat && html` data-aat="${aat}"`}>${context.refs.withRefs(answer.refs, () => context.markdown.markdown(answer.text))}</div>`;
     });
   }
 

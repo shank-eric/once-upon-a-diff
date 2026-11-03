@@ -91,3 +91,31 @@ test('a file this chapter finishes gets its Mark viewed button at its last menti
   );
   assert.doesNotMatch(out, /data-rel="(one|two)\/board\.ts"/, 'a name with no ref is no link');
 });
+
+test("an answer links by its own refs, and the step's refs are back after it", () => {
+  const files = ['src/a.js', 'src/b.js'];
+  const story = createStoryModel({
+    pr: { title: 'PR' },
+    files: files.map((rel, i) => ({ rel, sha: `sha${i}` })),
+    chapters: [
+      {
+        title: 'Chapter 1: A',
+        files: files.map((rel) => ({ rel })),
+        refs: [{ id: 'top', path: 'src/a.js' }],
+      },
+    ],
+  } as unknown as StoryData);
+  const context = { story, state: { n: 0 }, fileStatus: () => null } as unknown as PanelContext;
+  context.refs = createFileRefs(context);
+  context.markdown = createMarkdown(context);
+  context.refs.startStep(files, story.data.chapters[0].refs);
+  const answer = (text: string, refs?: unknown[]) =>
+    String(context.refs.withRefs(refs as never, () => context.markdown.markdown(text)));
+  const linked = answer('See [the line](ref:b3) and [the step](ref:top).', [
+    { id: 'b3', path: 'src/b.js', side: 'R', start: 3, end: 5 },
+  ]);
+  assert.match(linked, /data-rel="src\/b\.js"[^>]*data-side="R" data-start="3" data-end="5"/);
+  assert.doesNotMatch(linked, /data-rel="src\/a\.js"/, "the step's refs are not the answer's");
+  assert.doesNotMatch(answer('A bare `src/a.js:3` links nothing.'), /data-rel/);
+  assert.match(String(context.markdown.markdown('[back](ref:top)')), /data-rel="src\/a\.js"/);
+});

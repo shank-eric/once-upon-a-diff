@@ -106,8 +106,8 @@ The event gives the question id, the story id, the chapter or step, the file it 
    ```bash
    <cli> answer --question <id> --file <scratchpad>/answer-<id>.md
    ```
-   Use `--text "…"` for a one-liner. The panel shows the answer under the question within a few seconds, with "Answered by" and the consumer the wait handed it to, and flags it New until the reviewer has had it in view. Answering clears your `asking` note.
-   - Short and plain: lead with the answer, ≈2-6 sentences, a short list only when it helps. Name files and lines as `` `path:40` ``. Hedge where you're unsure.
+   Use `--text "…"` for a one-liner. To link a place in the answer, write the places to a JSON file and pass `--refs <scratchpad>/answer-<id>-refs.json`, then link each as `[text](ref:<id>)` in the answer. The file is a list: `[{"id": "load", "path": "src/a.js", "side": "R", "start": 40, "end": 58}]` (`path` is the file's full path as the diff has it, `side` is `R` for the new side or `L` for the old, leave out `start` and `end` for the whole file). The command refuses a link to an id the list doesn't have, and a `path` that isn't one of the story's files. The panel shows the answer under the question within a few seconds, with "Answered by" and the consumer the wait handed it to, and flags it New until the reviewer has had it in view. Answering clears your `asking` note.
+   - Short and plain: lead with the answer, ≈2-6 sentences, a short list only when it helps. Name files and lines as `ref:` links, as above: a backticked `path:40` is plain code and links nothing. Hedge where you're unsure.
    - If the answer suggests a review comment, draft it in the user's voice and add it to the chapter's Draft comments with `<cli> comment --story <id> --chapter <N> --path <file> --line <L> --body-file <f>`. Check `<cli> drafts --story <id>` first and don't re-suggest one that's posted or dismissed.
 4. In chat, say one line: the question and that it's answered.
 

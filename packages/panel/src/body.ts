@@ -41,7 +41,7 @@ export function createBody(context: PanelContext) {
     chapter ? chapter.title : `Overview: ${data.pr.title || ''}`;
 
   function overviewHtml() {
-    context.refs.startStep(story.allRels);
+    context.refs.startStep(story.allRels, data.overview_refs);
     const intro = story.overviewMarkdown
       ? markdown(story.overviewMarkdown)
       : html`${data.summary && html`<p>${inline(data.summary)}</p>`}${data.plan && html`<p>${inline(data.plan)}</p>`}`;

@@ -10,7 +10,7 @@ import { pathSha } from './diff.ts';
 import { readPrefs } from '../config/settings.ts';
 import { readJson } from '../../adapters/stores/json-file.ts';
 import { readMeta, storyVersion, localVersion } from './meta.ts';
-import { chaptersOf, addLeftoverChapter, markUnwritten } from './chapters.ts';
+import { chaptersOf, addLeftoverChapter, markUnwritten, refOf } from './chapters.ts';
 import { upgradePlan } from './legacy.ts';
 import { uncoveredHunks } from './hunk-coverage.ts';
 import {
@@ -60,7 +60,8 @@ export function storyData(store: StoryStore, id: string, dir: string): StoryData
   const map = readJson<FileMap>(path.join(dir, 'file-map.json'), null);
   const rels = relsOf(map, diff);
   // a story told before refs is read as one that has them (legacy.ts); the files on disk stay as they were
-  const chapters = chaptersOf(upgradePlan(plan, rels));
+  const older = upgradePlan(plan, rels);
+  const chapters = chaptersOf(older);
   // a local diff is the truth: a file that has left it (say, reverted) leaves its chapters too
   if (diff) {
     for (const chapter of chapters) {
@@ -101,9 +102,10 @@ export function storyData(store: StoryStore, id: string, dir: string): StoryData
       url: meta.url || null,
     },
     title: meta.title,
-    overview: plan.overview || '',
-    summary: plan.summary || '',
-    plan: plan.plan || '',
+    overview: older.overview || '',
+    summary: older.summary || '',
+    plan: older.plan || '',
+    overview_refs: (older.refs || []).map(refOf),
     files: rels.map((rel) => ({ rel, sha: pathSha(rel) })),
     chapters,
     uncovered_hunks: uncovered,

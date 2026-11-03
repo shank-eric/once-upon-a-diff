@@ -6,7 +6,8 @@
  *   refs      every chapter has a `refs` list (an empty one is fine): [{id, path, side, start, end, label}], each on a
  *             file the chapter lists. The text links to one as `[text](ref:<id>)`, and only a ref id links anything.
  *   comments  a drafted comment's `path` is the file's full path in the diff.
- *   overview  the story map belongs in `overview`, never ahead of a chapter's own heading.
+ *   overview  the story map belongs in `overview`, never ahead of a chapter's own heading. The overview, summary and plan
+ *             link by the plan's own `refs`, which may be on any file of the story.
  *
  * chapterProblems lists what is wrong, one line each. A chapter with no `refs` that is exactly the one already published
  * (a rebuild keeps chapters 1..N-1 byte for byte) is accepted: it is read as an older story's.
@@ -14,8 +15,9 @@
 import { chapterKeyOf } from '@once-upon-a-diff/protocol/domain/chapters';
 import { REF_ID, refIdsIn } from '@once-upon-a-diff/protocol/domain/line-refs';
 import { textOf } from './text-refs.ts';
-import type { DiffFile } from '@once-upon-a-diff/protocol/types';
-import type { Plan, PlanChapter } from './chapters.ts';
+import { refOf } from './chapters.ts';
+import type { ChapterRef, DiffFile } from '@once-upon-a-diff/protocol/types';
+import type { Plan, PlanChapter, PlanRef } from './chapters.ts';
 
 /** JSON with sorted keys, so two chapters compare by content whatever order their keys were written in. */
 export function canonical(value: unknown): string {
@@ -59,6 +61,10 @@ export function assignKeys(plan: Plan): string[] {
   return set;
 }
 
+/** The plan's own text, which links by the plan's `refs`: its overview, summary and plan. */
+const overviewText = (plan: Plan) =>
+  [plan.overview, plan.summary, plan.plan].filter(Boolean).join('\n\n');
+
 export const withoutKey = ({ key: _key, ...rest }: PlanChapter) => rest;
 
 /** A story map in a narrative, ahead of the chapter's own `### Chapter N` heading. */
@@ -66,6 +72,85 @@ function storyMapIn(narrative: string): boolean {
   const heading = /^#{1,6}\s+Chapter\s+\d+\b/m.exec(narrative);
   const before = heading ? narrative.slice(0, heading.index) : '';
   return !!before.trim() && /story map/i.test(before);
+}
+
+/**
+ * The problems of a refs list, as lines: an id that is not a slug or is used twice, a path that is not one of `files`
+ * (any file when `files` is not given) or not in the diff, lines that are not a range, a side that is not L or R.
+ */
+export function refListProblems(
+  refs: PlanRef[],
+  {
+    files,
+    diff,
+    owner = 'the chapter',
+  }: { files?: string[]; diff?: Map<string, DiffFile>; owner?: string } = {},
+): string[] {
+  const problems: string[] = [];
+  const ids = new Set<string>();
+  for (const ref of refs) {
+    const id = String(ref.id ?? '');
+    if (!REF_ID.test(id)) {
+      problems.push(`ref "${id}" is not an id (lower-case letters, digits and hyphens)`);
+      continue;
+    }
+    if (ids.has(id)) {
+      problems.push(`ref "${id}" is used twice`);
+    }
+    ids.add(id);
+    const path = String(ref.path ?? '');
+    if (files && !files.includes(path)) {
+      problems.push(`ref "${id}" is on ${path || '(no path)'}, which ${owner} does not list`);
+    } else if (!path) {
+      problems.push(`ref "${id}" has no path`);
+    } else if (diff && !diff.has(path)) {
+      problems.push(`ref "${id}" is on ${path}, which is not in the diff`);
+    }
+    if (ref.start !== undefined && ref.start !== null && ref.start !== '') {
+      const start = Number(ref.start);
+      const end = Number(ref.end || ref.start);
+      if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start) {
+        problems.push(`ref "${id}" has lines ${ref.start}-${ref.end ?? ref.start}, not a range`);
+      }
+      if (ref.side !== undefined && ref.side !== 'L' && ref.side !== 'R') {
+        problems.push(`ref "${id}" has side "${ref.side}", which is L or R`);
+      }
+    }
+  }
+  return problems;
+}
+
+/** The problems of refs given with a text that links to them (an answer's, the overview's): bad refs, and links to ids not in the list. */
+export function linkedRefProblems(
+  refs: PlanRef[],
+  text: string,
+  where: { files?: string[]; diff?: Map<string, DiffFile>; owner?: string } = {},
+): string[] {
+  const ids = new Set(refs.map((ref) => String(ref.id ?? '')));
+  return [
+    ...refListProblems(refs, where),
+    ...[...new Set(refIdsIn(text))]
+      .filter((id) => !ids.has(id))
+      .map((id) => `the text links to ref:${id}, which has no ref`),
+  ];
+}
+
+/**
+ * The refs an answer's text links to, from the JSON a `--refs` file holds: checked like a chapter's, and each `ref:<id>`
+ * in `text` must be one of them. Throws with every problem. files: the
+ * story's files, which a ref's path must be one of (the full path as the diff has it).
+ */
+export function answerRefs(raw: unknown, text: string, files?: string[]): ChapterRef[] {
+  if (!Array.isArray(raw)) {
+    throw new Error(
+      'the refs file must hold a JSON list: [{"id": "load", "path": "src/a.js", "start": 40, "end": 58}]',
+    );
+  }
+  const problems = linkedRefProblems(raw as PlanRef[], text, { files, owner: 'the story' });
+  if (problems.length) {
+    throw new Error(`refs:\n  - ${problems.join('\n  - ')}`);
+  }
+  return raw.map((ref) => refOf(ref as PlanRef));
 }
 
 /**
@@ -78,6 +163,20 @@ export function chapterProblems(
 ): string[] {
   const problems: string[] = [];
   const chapters = plan.chapters || [];
+  const overview = overviewText(plan);
+  const overviewKept = !!served && overviewText(served) === overview && !Array.isArray(served.refs);
+  if (overview && !Array.isArray(plan.refs) && !overviewKept) {
+    problems.push(
+      'the overview has no refs list: give the plan `"refs": []`, or the places its text links to',
+    );
+  }
+  if (Array.isArray(plan.refs) || refIdsIn(overview).length) {
+    problems.push(
+      ...linkedRefProblems(plan.refs || [], overview, { diff }).map(
+        (line) => `the overview: ${line}`,
+      ),
+    );
+  }
   const kept = new Map(
     (served?.chapters || []).map((chapter) => [
       chapterKeyOf(chapter),
@@ -108,40 +207,12 @@ export function chapterProblems(
       const listed = (chapter.files || []).map((entry) =>
         typeof entry === 'string' ? entry : entry.rel,
       );
-      const ids = new Set<string>();
-      for (const ref of chapter.refs) {
-        const id = String(ref.id ?? '');
-        if (!REF_ID.test(id)) {
-          problems.push(
-            `chapter ${num}: ref "${id}" is not an id (lower-case letters, digits and hyphens)`,
-          );
-          continue;
-        }
-        if (ids.has(id)) {
-          problems.push(`chapter ${num}: ref "${id}" is used twice`);
-        }
-        ids.add(id);
-        const path = String(ref.path ?? '');
-        if (!listed.includes(path)) {
-          problems.push(
-            `chapter ${num}: ref "${id}" is on ${path || '(no path)'}, which the chapter does not list`,
-          );
-        } else if (diff && !diff.has(path)) {
-          problems.push(`chapter ${num}: ref "${id}" is on ${path}, which is not in the diff`);
-        }
-        if (ref.start !== undefined && ref.start !== null && ref.start !== '') {
-          const start = Number(ref.start);
-          const end = Number(ref.end || ref.start);
-          if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start) {
-            problems.push(
-              `chapter ${num}: ref "${id}" has lines ${ref.start}-${ref.end ?? ref.start}, not a range`,
-            );
-          }
-          if (ref.side !== undefined && ref.side !== 'L' && ref.side !== 'R') {
-            problems.push(`chapter ${num}: ref "${id}" has side "${ref.side}", which is L or R`);
-          }
-        }
-      }
+      const ids = new Set(chapter.refs.map((ref) => String(ref.id ?? '')));
+      problems.push(
+        ...refListProblems(chapter.refs, { files: listed, diff }).map(
+          (line) => `chapter ${num}: ${line}`,
+        ),
+      );
       const text = textOf({
         headline: chapter.headline || '',
         scenario: chapter.scenario || '',

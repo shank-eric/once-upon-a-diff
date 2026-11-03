@@ -33,6 +33,7 @@ export function githubStory(
   writeJson(path.join(dir, 'chapters.json'), {
     title: 'Widgets',
     overview: 'Story map',
+    refs: [],
     chapters: [
       {
         title: 'Chapter 1: Start',

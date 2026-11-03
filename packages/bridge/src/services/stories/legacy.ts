@@ -153,13 +153,47 @@ function upgradeChapter(chapter: PlanChapter, rels: string[]): PlanChapter {
   return out;
 }
 
-/** The plan with every chapter that has no `refs` list upgraded (see the top of this file); rels are the story's files. */
-export function upgradePlan(plan: Plan, rels: string[]): Plan {
-  if (!(plan.chapters || []).some((chapter) => !Array.isArray(chapter.refs))) {
+/**
+ * An older story's overview, summary and plan, whose backticked file names and lines the panel linked among every file of
+ * the story: read as one chapter that lists every file, and its refs become the plan's `refs`.
+ */
+function upgradeOverview(plan: Plan, rels: string[]): Plan {
+  const text = [plan.overview, plan.summary, plan.plan].some(
+    (field) => field && field.includes('`'),
+  );
+  if (Array.isArray(plan.refs) || !text) {
     return plan;
   }
+  const pseudo = upgradeChapter(
+    {
+      files: rels,
+      narrative: plan.overview || '',
+      summary: plan.summary || '',
+      scenario: plan.plan || '',
+      since: true, // so that a name is only resolved among the story's own files, and no file is added
+    },
+    rels,
+  );
   return {
     ...plan,
+    ...(plan.overview ? { overview: pseudo.narrative } : {}),
+    ...(plan.summary ? { summary: pseudo.summary } : {}),
+    ...(plan.plan ? { plan: pseudo.scenario } : {}),
+    refs: pseudo.refs,
+  };
+}
+
+/**
+ * The plan with every chapter that has no `refs` list upgraded (see the top of this file), and its overview too when it
+ * has no `refs`; rels are the story's files.
+ */
+export function upgradePlan(plan: Plan, rels: string[]): Plan {
+  const upgradedOverview = upgradeOverview(plan, rels);
+  if (!(plan.chapters || []).some((chapter) => !Array.isArray(chapter.refs))) {
+    return upgradedOverview;
+  }
+  return {
+    ...upgradedOverview,
     chapters: (plan.chapters || []).map((chapter) =>
       Array.isArray(chapter.refs) ? chapter : upgradeChapter(chapter, rels),
     ),

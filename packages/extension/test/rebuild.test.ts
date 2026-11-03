@@ -76,6 +76,7 @@ const diff = parseUnifiedDiff(PR_DIFF);
 const published = (): Plan & { chapters: NonNullable<Plan['chapters']> } => ({
   title: 'Widgets',
   overview: 'Story map',
+  refs: [],
   chapters: [
     {
       title: 'Chapter 1: Start',

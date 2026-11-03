@@ -73,6 +73,16 @@ export function createFileRefs(context: PanelContext) {
     ref.start === undefined
       ? null
       : { side: ref.side === 'L' ? 'L' : 'R', start: ref.start, end: ref.end ?? ref.start };
+  /** Draws something whose text links by its own refs (an answer's) with those as the refs, then puts the step's back. */
+  function withRefs<T>(refs: ChapterRef[] | undefined, draw: () => T): T {
+    const saved = stepRefs;
+    stepRefs = refs || [];
+    try {
+      return draw();
+    } finally {
+      stepRefs = saved;
+    }
+  }
   /** The story file a path names, exactly, or null: a draft comment's path is the file's full path. */
   const fileOf = (path: string): string | null => (story.allPaths.has(path) ? path : null);
 
@@ -121,7 +131,7 @@ export function createFileRefs(context: PanelContext) {
     return raw(placePills(markup, marks, pillHtml));
   }
 
-  return { startStep, inScope, refById, lineOf, fileOf, pill, storyWithPills };
+  return { startStep, inScope, refById, lineOf, fileOf, withRefs, pill, storyWithPills };
 }
 
 export type FileRefs = ReturnType<typeof createFileRefs>;

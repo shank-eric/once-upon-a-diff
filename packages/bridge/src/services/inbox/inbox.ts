@@ -20,7 +20,7 @@ import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { readJson, writeFileAtomic, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
 import { ownerOnly, ensureDir, appendText, writeText } from '../../adapters/stores/files.ts';
-import type { LocalNote } from '@once-upon-a-diff/protocol/types';
+import type { ChapterRef, LocalNote } from '@once-upon-a-diff/protocol/types';
 
 /** What every inbox line has, and what a story's ref adds (StoryRef). */
 interface EntryBase {
@@ -49,6 +49,8 @@ export interface AnswerEntry extends EntryBase {
   question: string;
   text: string;
   by?: string;
+  /** the places the text links to (`[text](ref:<id>)`) */
+  refs?: ChapterRef[];
 }
 
 export interface NoteEntry extends EntryBase {
@@ -124,7 +126,7 @@ export interface QuestionWithAnswers {
   file: string | null;
   text: string;
   channel: 'voice' | null;
-  answers: { id: string; at: string; text: string; by: string | null }[];
+  answers: { id: string; at: string; text: string; by: string | null; refs?: ChapterRef[] }[];
 }
 
 export const newId = (prefix: string): string =>
@@ -224,6 +226,7 @@ export class Inbox {
           at: answer.at,
           text: answer.text,
           by: answer.by || null,
+          ...(answer.refs?.length ? { refs: answer.refs } : {}),
         });
       }
     }

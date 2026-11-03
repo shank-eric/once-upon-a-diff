@@ -349,6 +349,8 @@ export interface StoryData {
   overview: string;
   summary: string;
   plan: string;
+  /** the places the overview, summary and plan link to (`[text](ref:<id>)`), on any file of the story */
+  overview_refs?: ChapterRef[];
   files: StoryFile[];
   chapters: Chapter[];
   uncovered_hunks: UncoveredFile[];
@@ -401,6 +403,8 @@ export interface Answer {
   at: string;
   text: string;
   by?: string | null;
+  /** the places the text links to (`[text](ref:<id>)`), as in a chapter */
+  refs?: ChapterRef[];
 }
 
 export interface Question {

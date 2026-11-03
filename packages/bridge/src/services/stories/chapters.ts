@@ -61,6 +61,8 @@ export interface Plan {
   overview?: string;
   summary?: string;
   plan?: string;
+  /** the places the overview, summary and plan link to */
+  refs?: PlanRef[];
   chapters?: PlanChapter[];
 }
 
