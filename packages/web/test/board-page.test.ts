@@ -669,10 +669,19 @@ test('the repo filter narrows the whole board to one lane, and is remembered', a
     0,
     'the lane’s worktrees are filtered too',
   );
+  assert.doesNotMatch(
+    $('.ou-board-trees-lane .ou-board-head')?.textContent as string,
+    /can be cleaned up/,
+    'and the header counts only the lane’s removable ones',
+  );
   assert.equal(saved.get('ou-board-filter'), 'gadgets');
   await click($('[data-board-filter]'));
   await click(document.querySelectorAll('.ou-menu-item')[0] as HTMLElement);
   assert.equal(order().length, 4);
+  assert.match(
+    $('.ou-board-trees-lane .ou-board-head')?.textContent as string,
+    /1 can be cleaned up/,
+  );
   assert.equal(saved.get('ou-board-filter'), '');
 });
 

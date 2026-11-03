@@ -86,6 +86,9 @@ function filtered(data: BoardData, laneFilter: string): BoardData {
     worktrees: data.worktrees && {
       ...data.worktrees,
       items: data.worktrees.items.filter((tree) => tree.lane === laneFilter),
+      // what the header says can be cleaned up is what the narrowed lane lists
+      removable: data.worktrees.items.filter((tree) => tree.lane === laneFilter && tree.removable)
+        .length,
     },
   };
 }

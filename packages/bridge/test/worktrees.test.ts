@@ -493,6 +493,39 @@ test('the board: a worktree a started backlog card links goes on that card, the 
   assert.equal(data.worktrees?.items[0].lane, 'widgets');
 });
 
+test('the board: the header counts the removable worktrees the lane lists, not the ones on cards', async () => {
+  const repo = fixture();
+  const onCard = repo.add('on-card');
+  repo.commit(onCard, 'card work');
+  git(repo.main, 'merge', '-q', '--ff-only', 'on-card');
+  const loose = repo.add('loose');
+  repo.commit(loose, 'loose work', 2);
+  git(repo.main, 'merge', '-q', '--ff-only', 'loose');
+  const home = tmp('wt-board');
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: tmp('wt-sessions') });
+  seenCheckout(home, 'acme/widgets', repo.main);
+  // a clock past the hour a new worktree is kept for
+  const later = new Date(Date.now() + 2 * 3600 * 1000);
+  const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+    source: registrySource,
+    now: () => later,
+  });
+  const store = new BacklogStore(home);
+  const item = store.add({ title: 'Work on a card', repo: 'acme/widgets' });
+  store.start(item.id, { branch: 'on-card', repo: 'acme/widgets', by: 'someone' });
+  const data = await settled(board);
+  const card = data.lanes
+    .flatMap((lane) => lane.cards)
+    .find((one) => one.backlog?.id === item.id) as BoardCard;
+  assert.equal(card.worktrees?.[0].removable, true, 'the card has a removable worktree');
+  assert.deepEqual(
+    data.worktrees?.items.map((tree) => [tree.name, tree.removable]),
+    [['loose', true]],
+  );
+  assert.equal(data.worktrees?.total, 2, 'every worktree is still on this Mac');
+  assert.equal(data.worktrees?.removable, 1, 'the count is what the lane lists');
+});
+
 test('the board answers while git hangs: the section says it is scanning', async () => {
   const repo = fixture();
   repo.add('one');

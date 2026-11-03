@@ -106,7 +106,8 @@ export function worktreeSection({
     at: scan.finished ? new Date(scan.finished).toISOString() : null,
     scanning: scan.scanning || scan.finished === null,
     total: judged.length,
-    removable: judged.filter((tree) => tree.removable).length,
+    // the header counts what the lane lists; a worktree on a card has its own Clean up on the card
+    removable: loose.filter((tree) => tree.removable).length,
     size_kb: judged.reduce((sum, tree) => sum + (tree.size_kb ?? 0), 0),
     items: loose,
     prunable: scan.prunable,

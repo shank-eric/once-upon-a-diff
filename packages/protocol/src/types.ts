@@ -940,6 +940,7 @@ export interface BoardWorktrees {
   at: string | null;
   scanning: boolean;
   total: number;
+  /** how many of `items` (the loose ones the lane lists) can be cleaned up; worktrees on cards have their own Clean up on the card */
   removable: number;
   size_kb: number;
   items: BoardWorktree[];
