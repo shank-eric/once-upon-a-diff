@@ -14,6 +14,7 @@ Standing rules for any agent working in Once Upon a Diff. A brief only needs to 
 - When you take a backlog card, run `once-upon backlog claim <id> --agent <your name> [--branch <branch>]` first thing. `<your name>` is the name in your ledger line and beat lines, and `--branch` also starts the card on that branch.
 - Whoever launches an agent for a card runs the same claim right after launching it, with `--sid` (its own session id's first 8 characters), so the card is linked before the agent's first line.
 - A claim is for one run of the agent. It ends when that run finishes or the card lands (`done`) or is dropped, and a later run under the same name must claim again.
+- A deploy marks a card done by the commit its agent recorded, never by a branch name: finish a card's run with `--commit <sha> --card <id>` (a fix round's new run records its new tip). `deploy-local.sh` runs `backlog land`, which prints the claimed cards it could not match, to close by hand with `backlog done <id> --sha <sha>`. A card whose work also lands outside the repo gets `backlog hold <id>` so a deploy never closes it.
 - The board links a card and an agent only through a claim, never by the task text, the agent's name or its worktree folder. A claimed card is one card in Working with its agent on it, and its agent holds a build slot.
 
 ## The live bridge

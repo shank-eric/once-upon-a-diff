@@ -142,3 +142,42 @@ export const remoteUrl = (dir: string): string =>
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'ignore'],
   });
+
+/** The full sha of a commit the checkout has (a short sha, a ref), or null when it is not one of this repo's. */
+export function commitOf(repo: string, ref: string): string | null {
+  try {
+    return runGit(repo, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]).trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+/** The commits reachable from `until` and not from `since`, as `git rev-list since..until` lists them (merges left out when asked). */
+export function commitsInRange(
+  repo: string,
+  since: string,
+  until: string,
+  { merges = true } = {},
+): string[] {
+  return runGit(repo, ['rev-list', ...(merges ? [] : ['--no-merges']), `${since}..${until}`])
+    .split('\n')
+    .filter(Boolean);
+}
+
+/**
+ * The commit's patch-id (`git patch-id --stable` of its diff against its parent): equal for two commits that make the
+ * same change, whatever their sha. Null for a commit with no patch (an empty commit or a merge), so two of those are never
+ * taken for the same change.
+ */
+export function patchId(repo: string, sha: string): string | null {
+  const diff = runGit(repo, ['diff-tree', '--root', '-p', '--no-color', '--no-ext-diff', sha]);
+  if (!diff.trim()) {
+    return null;
+  }
+  const out = execFileSync('git', ['-C', repo, 'patch-id', '--stable'], {
+    encoding: 'utf8',
+    input: diff,
+    stdio: ['pipe', 'pipe', 'ignore'],
+  }).trim();
+  return out.split(/\s+/)[0] || null;
+}

@@ -3129,7 +3129,7 @@ test('a claimed agent on its branch’s card sets that card’s column whatever 
   }
 });
 
-test('after `done --branch` a claimed agent shows once, not on the landed card and on its own', async () => {
+test('after the card is marked done a claimed agent shows once, not on the landed card and on its own', async () => {
   const text =
     `- [running] sid:54736864 builder (sonnet, high) — build — started 2:30 PM ET, 10/26\n` +
     `- [done] sid:54736864 builder — 2:50 PM ET, 10/26 — committed on feat/x, tests green — notes/p.md\n`;

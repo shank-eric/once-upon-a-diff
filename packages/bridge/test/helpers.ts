@@ -133,12 +133,13 @@ export const runCli = (
   home: string,
   args: string[],
   env: Record<string, string> = {},
+  cwd?: string,
 ): Promise<{ code: number | string | null | undefined; stdout: string; stderr: string }> =>
   new Promise((resolve) => {
     execFile(
       process.execPath,
       [BIN, ...args],
-      { env: { ...process.env, ONCE_UPON_HOME: home, ...env } },
+      { env: { ...process.env, ONCE_UPON_HOME: home, ...env }, cwd },
       (err, stdout, stderr) => resolve({ code: err ? err.code : 0, stdout, stderr }),
     );
   });

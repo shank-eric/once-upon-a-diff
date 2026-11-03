@@ -263,26 +263,28 @@ recover() {
   exit "$rc"
 }
 
-# Record the deployed branches' backlog items as landed (no PR ever merges them, and the stack branches get pruned).
-# Fast-forward: local branches whose tip is in $PREV..$TIP. Batch: local branches whose tip is one of the picked shas.
-# A failure here only prints a line, the deploy is already live.
+# Record the deployed work's backlog items as landed (no PR ever merges them, and the stack branches get pruned).
+# A card is matched by the commit its agent recorded (agent finish --commit), never by a branch name: `backlog land` marks
+# done the cards whose commit is in the deployed range, as the commit, as a picked sha (batch) or as the same patch.
+# Fast-forward: $PREV..$TIP. Batch: $BASE..$TIP, with the picked shas. A card it could not match is printed, to close by
+# hand with `backlog done ID`. Also lists LANDED_BRANCHES (local branches whose tip is in the deploy) for the worktree
+# cleanup, which judges each by patch itself. A failure here only prints a line, the deploy is already live.
 mark_landed() {
-  local name tip hit n=0
+  local name tip from
   LANDED_BRANCHES=()
   while read -r name tip; do
     case "$name" in main | master) continue ;; esac
-    hit=0
     if [ "$BATCH" = 1 ]; then
-      case " ${SHAS[*]} " in *" $tip "*) hit=1 ;; esac
+      case " ${SHAS[*]} " in *" $tip "*) ;; *) continue ;; esac
     elif git -C "$MAIN" merge-base --is-ancestor "$tip" "$TIP" && ! git -C "$MAIN" merge-base --is-ancestor "$tip" "$PREV"; then
-      hit=1
+      :
+    else
+      continue
     fi
-    [ "$hit" = 1 ] || continue
     LANDED_BRANCHES+=("$name")
-    (cd "$MAIN/packages/bridge" && node bin/once-upon.mjs backlog done --branch "$name" --sha "$tip" --by deploy-local </dev/null) || say "could not mark backlog items on $name as done"
-    n=$((n + 1))
   done < <(git -C "$MAIN" for-each-ref --format='%(refname:lstrip=2) %(objectname)' refs/heads 2>/dev/null) || true
-  say "backlog: checked $n deployed branch(es) for started items"
+  if [ "$BATCH" = 1 ]; then from="$BASE"; else from="$PREV"; fi
+  (cd "$MAIN/packages/bridge" && node bin/once-upon.mjs backlog land ${SHAS[@]+"${SHAS[@]}"} --from "$from" --to "$TIP" --by deploy-local </dev/null) || say "could not mark backlog items as done"
 }
 
 go_live() {

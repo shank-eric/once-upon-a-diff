@@ -360,45 +360,15 @@ test('a landed item is Done for a day from the done event, then off the board; l
   assert.equal(soon[0].since, landed.landed_at);
   assert.equal(backlogCards(store.items(), [], landedMs + (DONE_HOURS + 1) * hour).length, 0);
 
-  // by branch (what the deploy script has): only started, not yet landed items on it; no match is not an error
+  // by id from the CLI; a branch name no longer marks anything (a deploy goes through `backlog land`, landing.test.ts)
   const other = store.add({ title: 'Other', repo: 'acme/widgets' });
   store.start(other.id, { branch: 'stack/10-other' });
-  const cli = await runCli(home, [
-    'backlog',
-    'done',
-    '--branch',
-    'stack/10-other',
-    '--sha',
-    'def5678',
-    '--repo',
-    'acme/widgets',
-  ]);
+  const byBranch = await runCli(home, ['backlog', 'done', '--branch', 'stack/10-other']);
+  assert.notEqual(byBranch.code, 0);
+  assert.equal(store.items().find((one) => one.id === other.id)?.landed_at, null);
+  const cli = await runCli(home, ['backlog', 'done', other.id, '--sha', 'def5678']);
   assert.equal(cli.code, 0, cli.stderr);
   assert.match(cli.stdout, /done at def5678: Other/);
-  // the same branch name in another repo is not this deploy's work
-  const elsewhere = store.add({ title: 'Elsewhere', repo: 'acme/gadgets' });
-  store.start(elsewhere.id, { branch: 'stack/11-same' });
-  const wrongRepo = await runCli(home, [
-    'backlog',
-    'done',
-    '--branch',
-    'stack/11-same',
-    '--repo',
-    'acme/widgets',
-  ]);
-  assert.equal(wrongRepo.code, 0, wrongRepo.stderr);
-  assert.equal(wrongRepo.stdout.trim(), '');
-  assert.equal(store.items().find((one) => one.id === elsewhere.id)?.landed_at, null);
-  const none = await runCli(home, [
-    'backlog',
-    'done',
-    '--branch',
-    'stack/none',
-    '--repo',
-    'acme/widgets',
-  ]);
-  assert.equal(none.code, 0, none.stderr);
-  assert.equal(none.stdout.trim(), '');
   assert.notEqual((await runCli(home, ['backlog', 'done'])).code, 0);
   // started again: new work, so the old landing is forgotten and the item is Working again
   store.start(item.id, { branch: 'stack/12-again' });

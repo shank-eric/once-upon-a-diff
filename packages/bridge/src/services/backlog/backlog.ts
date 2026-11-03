@@ -13,6 +13,8 @@
  *   {op:'edit',  id, title?, note?, repo?, by, at}   only the fields that changed; an empty note or repo clears it. An open item only
  *   {op:'claim', id, agent, sid?, by, at}     an agent (named as in the ledger) owns the card: the one link from a card to an
  *                                              agent (claims.ts). The latest claim wins; a reopen clears it
+ *   {op:'hold',  id, on, by, at}              the card lands by hand: a deploy never marks it done (landing.ts), only `done ID` does.
+ *                                              `on:false` clears it; a reopen clears it too. Sticky across claims
  *
  * The items come back in order: an add goes to the bottom, and a move puts one item before another or at an edge.
  * A move names where it goes relative to the other items, never an index, so it folds the same whatever was added or
@@ -68,6 +70,8 @@ export interface BacklogItem {
   assigned: { session: string; branch: string | null; at: string } | null;
   /** the agent that claimed the card (named as in the ledger, with its launching session's first 8 when given); cleared by a reopen */
   claim: { agent: string; sid: string | null; by: string; at: string } | null;
+  /** the card lands by hand: a deploy does not mark it done (part of its work lands outside the repo) */
+  hold: boolean;
 }
 
 /** Where a move puts an item: before another one, or at the top or the bottom. */
@@ -104,6 +108,7 @@ export interface BacklogStorage {
     input: { session: string; branch?: string | null; by?: string | null },
   ): BacklogItem;
   claim(id: string, input: { agent: string; sid?: string | null; by?: string | null }): BacklogItem;
+  hold(id: string, held: boolean, who?: string | null): BacklogItem;
   move(id: string, where: MoveTo, who?: string | null): BacklogItem;
   edit(id: string, input: EditInput, who?: string | null): BacklogItem;
 }
@@ -173,6 +178,7 @@ export function foldBacklog(text: string): BacklogItem[] {
         landed_sha: null,
         assigned: null,
         claim: null,
+        hold: false,
       });
     } else if (
       found &&
@@ -222,6 +228,8 @@ export function foldBacklog(text: string): BacklogItem[] {
         by: who,
         at: when,
       };
+    } else if (found && found.state !== 'dropped' && event.op === 'hold') {
+      found.hold = event.on !== false;
     } else if (found && event.op === 'drop') {
       found.state = 'dropped';
       found.dropped_at = when;
@@ -237,6 +245,7 @@ export function foldBacklog(text: string): BacklogItem[] {
       found.repo = added.get(id)?.repo ?? null;
       found.assigned = null;
       found.claim = null;
+      found.hold = false;
     } else if (found && found.state === 'open' && !found.landed_at && event.op === 'edit') {
       // only the fields the event carries change (a note or repo of '' clears it); a title is never blanked
       if (typeof event.title === 'string' && event.title) {
@@ -372,6 +381,16 @@ export class BacklogStore implements BacklogStorage {
       sid: optional(input.sid, 'the session id', SID_PATTERN),
       by: clean(input.by, 'the name', BY_MAX) || 'cli',
     });
+    return this.find(id);
+  }
+
+  /** Marks the card as landing by hand (or clears that): a deploy leaves it open, `done ID` closes it. */
+  hold(id: string, held: boolean, who?: string | null): BacklogItem {
+    const item = this.find(id);
+    if (item.state === 'dropped') {
+      throw new Error(`${id} was dropped`);
+    }
+    this.append({ op: 'hold', id, on: held, by: clean(who, 'the name', BY_MAX) || 'cli' });
     return this.find(id);
   }
 
