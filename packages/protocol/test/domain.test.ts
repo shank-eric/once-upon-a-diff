@@ -128,3 +128,10 @@ test('lane keys ignore case, and a key with no short name is labeled by itself',
   assert.equal(sameLaneKey('EverFi/x', 'everfi/X'), true);
   assert.equal(sameLaneKey('a/x', 'b/x'), false);
 });
+
+test('when two repos share a short name, every spelling of one is labeled by the first spelling given', () => {
+  const labels = laneLabels(['EverFi/x', 'other/x', 'everfi/x']);
+  assert.equal(labels.get('EverFi/x'), 'EverFi/x');
+  assert.equal(labels.get('everfi/x'), 'EverFi/x', 'the lane’s own spelling, not the worktree’s');
+  assert.equal(labels.get('other/x'), 'other/x');
+});

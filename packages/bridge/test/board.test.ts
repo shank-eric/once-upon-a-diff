@@ -6387,3 +6387,35 @@ test('a standing helper is a row at the bottom, never a card: gone with its sess
   assert.equal(plain.data.helpers.length, 0);
   assert.equal(agentCards(plain.cards, 'researcher').length, 1, 'still a Waiting card');
 });
+
+test('only a lane tag is resolved to an owner/name: an agent on its parent’s folder lane stays there', async () => {
+  const home = tmp('board-folder-lane');
+  const sessions = tmp('board-folder-lane-sessions');
+  const parent = liveChild();
+  after(() => parent.stop());
+  registry(sessions, parent.pid, { cwd: '/tmp/somewhere/foo' }, parent.procStart);
+  const sid = String(parent.pid).padStart(8, '0');
+  const ledger = path.join(tmp('board-folder-lane-notes'), 'ledger.md');
+  writeFileSync(
+    ledger,
+    [
+      `- [running] sid:${sid} folder-agent (sonnet, low) — a one-off task — started 1:00 PM ET, 10/26`,
+      `- [running] sid:${sid} lane:foo tagged-agent (sonnet, low) — a one-off task — started 1:00 PM ET, 10/26`,
+    ].join('\n'),
+  );
+  writeJson(path.join(home, 'config.json'), {
+    board_sessions_dir: sessions,
+    board_ledger_file: ledger,
+    board_ledger_time_zone: 'UTC',
+  });
+  const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+    source: sourceSaying({ [sid]: { status: 'done', detail: null } }),
+    now: () => NOW,
+    repoOf: async () => null,
+  });
+  board.addBacklog({ title: 'In eric/foo', repo: 'eric/foo', by: 'board' });
+  const cards = (await board.snapshot()).lanes.flatMap((lane) => lane.cards);
+  const lane = (title: string) => cards.find((card) => card.title === title)?.lane;
+  assert.equal(lane('tagged-agent'), 'eric/foo', 'a tag is the short name of the one repo');
+  assert.equal(lane('folder-agent'), 'foo', 'a folder lane is already a key');
+});

@@ -192,15 +192,22 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     : null;
 
   // an agent's lane tag is a short name: now that every repo the board knows is in (cards, backlog cards, blank
-  // sessions, worktrees), it becomes the one owner/name that has that name, so a repo is one lane
+  // sessions, worktrees), it becomes the one owner/name that has that name, so a repo is one lane. A lane that came
+  // from anything else (the agent's registered repo, or its parent's lane, which may be a folder) is already a key and stays
   const repoLanes = [
     ...cards.map((card) => card.lane),
     ...blankViews.map((one) => one.lane),
     ...(worktrees?.items ?? []).map((tree) => tree.lane),
   ];
+  const tags = new Map(
+    agents.flatMap((agent) =>
+      agent.lane ? [[`agent:${agent.sid}:${agent.name}`, agent.lane]] : [],
+    ),
+  );
   for (const card of cards) {
-    if (card.kind === 'agent') {
-      card.lane = resolveLane(card.lane, repoLanes);
+    const tag = card.kind === 'agent' ? tags.get(card.id) : undefined;
+    if (tag) {
+      card.lane = resolveLane(tag, repoLanes);
     }
   }
 

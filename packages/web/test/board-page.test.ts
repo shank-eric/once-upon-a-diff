@@ -691,6 +691,28 @@ test('the repo filter narrows the whole board to one lane, and is remembered', a
   assert.equal(saved.get('ou-board-filter'), '');
 });
 
+test('the repo filter ignores case: a worktree spelled everfi/x is listed and counted under a lane keyed EverFi/x', async () => {
+  const world = board();
+  world.lanes[1] = { key: 'EverFi/x', name: 'x', cards: [card({ id: 'x-1', lane: 'EverFi/x' })] };
+  world.worktrees = {
+    ...(world.worktrees as NonNullable<BoardData['worktrees']>),
+    items: [{ ...tree, lane: 'everfi/x', lane_label: 'x' }],
+  };
+  answer = () => world;
+  await pollNow();
+  await click($('[data-board-filter]'));
+  await click([...document.querySelectorAll('.ou-menu-item')][2] as HTMLElement);
+  assert.equal($('.ou-board-trees-lane')?.querySelectorAll('.ou-board-tree').length, 1);
+  assert.match(
+    $('.ou-board-trees-lane .ou-board-head')?.textContent as string,
+    /1 can be cleaned up/,
+  );
+  await click($('[data-board-filter]'));
+  await click(document.querySelectorAll('.ou-menu-item')[0] as HTMLElement);
+  answer = () => board();
+  await pollNow();
+});
+
 test('the Idle lane’s Hide and Show fold its row, and the choice is remembered', async () => {
   assert.ok($('.ou-board-c-idle .ou-board-idle-row'), 'open to begin with');
   await click($('[data-idle-toggle]'));

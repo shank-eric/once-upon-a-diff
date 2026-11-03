@@ -25,19 +25,22 @@ const distinct = (keys: Iterable<string>): string[] => {
 
 /**
  * The label for each key given (every spelling of it): its short name, or the whole key when another lane has the same
- * short name. A key with no short name (a session in "/") is labeled by the key itself.
+ * short name, spelled as the first of its spellings in `keys` (the lane's own, when the lanes' keys come first). A key
+ * with no short name (a session in "/") is labeled by the key itself.
  */
 export function laneLabels(keys: Iterable<string>): Map<string, string> {
   const all = [...new Set(keys)];
+  const canonical = new Map(distinct(all).map((key) => [key.toLowerCase(), key]));
   const counts = new Map<string, number>();
-  for (const key of distinct(all)) {
+  for (const key of canonical.values()) {
     const short = shortLane(key).toLowerCase();
     counts.set(short, (counts.get(short) ?? 0) + 1);
   }
   return new Map(
     all.map((key) => {
       const short = shortLane(key);
-      return [key, !short || (counts.get(short.toLowerCase()) ?? 0) > 1 ? key : short];
+      const whole = !short || (counts.get(short.toLowerCase()) ?? 0) > 1;
+      return [key, whole ? (canonical.get(key.toLowerCase()) ?? key) : short];
     }),
   );
 }
