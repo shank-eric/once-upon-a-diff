@@ -3,11 +3,11 @@
  * each file with its status in this chapter (Mark viewed, done in an earlier
  * chapter, or nothing when a later chapter finishes it) and its line links.
  */
-import { html, type HtmlValue } from '@once-upon-a-diff/shared/util/html';
+import { html, type HtmlValue } from '@once-upon-a-diff/protocol/domain/html';
 import { refAttrs } from '../file-refs.ts';
 import { markViewedButton } from '../viewed-button.ts';
 import type { ChapterLines } from '@once-upon-a-diff/protocol/types';
-import type { FileStatus } from '@once-upon-a-diff/shared/util/story-model';
+import type { FileStatus } from '../story-model.ts';
 import type { PanelContext } from '../context.ts';
 
 /** "chapters 1, 3": which chapters list a file. */

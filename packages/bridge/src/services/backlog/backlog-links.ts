@@ -12,7 +12,7 @@
  */
 import path from 'node:path';
 import { sameRepo } from '../config/repos.ts';
-import type { BoardBeat, BoardStartedLinks } from '@once-upon-a-diff/shared/types';
+import type { BoardBeat, BoardStartedLinks } from '@once-upon-a-diff/protocol/types';
 import { parseWorktreeEntries } from '../worktrees/worktrees.ts';
 import type { LedgerAgent } from '../ledger/ledger.ts';
 import type { BacklogItem } from './backlog.ts';

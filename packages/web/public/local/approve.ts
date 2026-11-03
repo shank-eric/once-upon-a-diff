@@ -5,9 +5,9 @@
  * page's next reload of the story (its version changed) draws the button again. Not shown once the branch has a PR.
  * The read-only link can't approve (the full page key only), so there the button is off and says why.
  */
-import { html } from '/assets/util/html.ts';
-import { setHtml } from '/assets/util/dom.ts';
-import { shortDateTime } from '/assets/util/time.ts';
+import { html } from '/assets/protocol/domain/html.ts';
+import { setHtml } from '/assets/panel/dom.ts';
+import { shortDateTime } from '/assets/protocol/domain/time.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { bridge, page, PARAMS } from './page.ts';
 

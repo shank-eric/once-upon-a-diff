@@ -9,9 +9,9 @@
  *
  * draftView and shownIn have no DOM, so node tests can use them.
  */
-import { html } from '@once-upon-a-diff/shared/util/html';
-import { insertHtml, setHtml } from '@once-upon-a-diff/shared/util/dom';
-import { capitalize } from '@once-upon-a-diff/shared/util/text';
+import { html } from '@once-upon-a-diff/protocol/domain/html';
+import { insertHtml, setHtml } from '../dom.ts';
+import { capitalize } from '@once-upon-a-diff/protocol/domain/text';
 import { refAttrs } from '../file-refs.ts';
 import { copyWithFallback } from '../copy-buttons.ts';
 import { scriptDrafts, reviewScript } from './review-script.ts';

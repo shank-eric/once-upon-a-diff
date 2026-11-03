@@ -11,7 +11,7 @@ import { Inbox } from '../../services/inbox/inbox.ts';
 import { draftsOf } from '../../services/review/drafts.ts';
 import { out, notePlace } from '../output.ts';
 
-import type { DraftRow, LocalNote } from '@once-upon-a-diff/shared/types';
+import type { DraftRow, LocalNote } from '@once-upon-a-diff/protocol/types';
 import type { Config } from '../../services/config/settings.ts';
 import type { CliOpts, Command } from '../types.ts';
 

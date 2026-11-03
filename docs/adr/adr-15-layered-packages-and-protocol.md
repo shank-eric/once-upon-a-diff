@@ -6,7 +6,7 @@ Decided 10/29. Built the same day, as of main at 0741c6c: `packages/protocol`, t
 
 The code was three packages split by where each one ran: `shared` (the panel and helpers), `bridge` (the server, the CLI, the board and the pages it serves) and `extension`. Most of "I can't trace it" is inside `bridge`, where HTTP routes, the stores, the board and the pages' own code share one folder tree, and in the contract between client and server, which has been implicit:
 
-- The wire types lived in `shared/src/types.ts`, but the routes themselves did not. Each route's path, method and body were written in its handler (`String(body.x || '')`, `toInt`) and again in each of three clients' fetch helpers, as strings.
+- The wire types lived in `shared/src/types.ts` (the `shared` package no longer exists: ADR-17), but the routes themselves did not. Each route's path, method and body were written in its handler (`String(body.x || '')`, `toInt`) and again in each of three clients' fetch helpers, as strings.
 - Which key may reach which route was in two places that had to agree by hand: `boardKey: true` on a route and the `VIEW_KEY_MAY` list in `page-key.ts` (ADR-02).
 - Nothing stopped a page from importing the server, or the other way round, except habit.
 
@@ -31,7 +31,7 @@ flowchart TB
     boardview["board regions, in web<br/>header · columns · voice · backlog · worktrees"]
     panel["panel<br/>ask · drafts · fixes · reading · rebuild"]
   end
-  host["shared/src/host<br/>diff-page reader"]
+  host["host-github<br/>diff-page reader, GitHub URLs"]
   ui["ui (not built)"]
   api["api-client (not built)"]
   protocol["protocol<br/>wire types, route table, schemas"]
@@ -119,5 +119,5 @@ The plan was protocol, panel, web, ui, then the server split and board-core. Wha
 1. When does `client.ts` become the `api-client` package: with the first poll hook, or the panel's move? Neither happened. The board page has its own poll in `board.ts`.
 2. Should `VIEW_KEY_MAY` be derived from the table's `keys`, so there is one list? A test checks the two against each other, both ways, with written-out lists.
 3. Should answers be validated by the clients, and so should Valibot be vendored for the pages after all?
-4. Which of the pure helpers move into the domain next? Only the id patterns are there. Candidates: relative time and `gateText` (in `packages/shared/src/util`), ledger-line parsing (`services/ledger/ledger.ts`, which needs its types) and the board's column rules (`services/board/columns.ts`, also types).
+4. Which of the pure helpers move into the domain next? Only the id patterns are there. Candidates: relative time and `gateText` (they moved to the domain: ADR-17), ledger-line parsing (`services/ledger/ledger.ts`, which needs its types) and the board's column rules (`services/board/columns.ts`, also types).
 5. `sub` is ignored by every story handler except questions and notes, so `POST /api/stories/<id>/approve/anything` still approves. It was so before the table. Should the table's `sub` be enforced?

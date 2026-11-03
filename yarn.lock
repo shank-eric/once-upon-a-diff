@@ -269,9 +269,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@once-upon-a-diff/extension@workspace:packages/extension"
   dependencies:
+    "@once-upon-a-diff/host-github": "workspace:*"
     "@once-upon-a-diff/panel": "workspace:*"
     "@once-upon-a-diff/protocol": "workspace:*"
-    "@once-upon-a-diff/shared": "workspace:*"
     "@types/chrome": "npm:0.3.4"
     "@types/node": "npm:24.19.1"
     once-upon-a-diff: "workspace:*"
@@ -282,12 +282,22 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@once-upon-a-diff/host-github@workspace:*, @once-upon-a-diff/host-github@workspace:packages/host-github":
+  version: 0.0.0-use.local
+  resolution: "@once-upon-a-diff/host-github@workspace:packages/host-github"
+  dependencies:
+    "@once-upon-a-diff/panel": "workspace:*"
+    "@once-upon-a-diff/protocol": "workspace:*"
+    "@types/node": "npm:24.19.1"
+    typescript: "npm:5.9.3"
+  languageName: unknown
+  linkType: soft
+
 "@once-upon-a-diff/panel@workspace:*, @once-upon-a-diff/panel@workspace:packages/panel":
   version: 0.0.0-use.local
   resolution: "@once-upon-a-diff/panel@workspace:packages/panel"
   dependencies:
     "@once-upon-a-diff/protocol": "workspace:*"
-    "@once-upon-a-diff/shared": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@types/node": "npm:24.19.1"
     typescript: "npm:5.9.3"
@@ -301,16 +311,6 @@ __metadata:
     "@types/node": "npm:24.19.1"
     typescript: "npm:5.9.3"
     valibot: "npm:1.5.0"
-  languageName: unknown
-  linkType: soft
-
-"@once-upon-a-diff/shared@workspace:*, @once-upon-a-diff/shared@workspace:packages/shared":
-  version: 0.0.0-use.local
-  resolution: "@once-upon-a-diff/shared@workspace:packages/shared"
-  dependencies:
-    "@once-upon-a-diff/protocol": "workspace:*"
-    "@types/node": "npm:24.19.1"
-    typescript: "npm:5.9.3"
   languageName: unknown
   linkType: soft
 
@@ -328,9 +328,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@once-upon-a-diff/web@workspace:packages/web"
   dependencies:
+    "@once-upon-a-diff/host-github": "workspace:*"
     "@once-upon-a-diff/panel": "workspace:*"
     "@once-upon-a-diff/protocol": "workspace:*"
-    "@once-upon-a-diff/shared": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@types/node": "npm:24.19.1"
     highlight.js: "npm:11.11.1"
@@ -3503,9 +3503,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "once-upon-a-diff@workspace:packages/bridge"
   dependencies:
+    "@once-upon-a-diff/host-github": "workspace:*"
     "@once-upon-a-diff/panel": "workspace:*"
     "@once-upon-a-diff/protocol": "workspace:*"
-    "@once-upon-a-diff/shared": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@once-upon-a-diff/web": "workspace:*"
     "@types/node": "npm:24.19.1"

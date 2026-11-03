@@ -20,7 +20,7 @@ import { storyRepo } from '../config/repos.ts';
 import { runGh } from '../config/gh.ts';
 import { revParse, runGit, runGitAsync } from '../../adapters/git.ts';
 import { readApproval, APPROVED_DAYS } from '../review/approve.ts';
-import type { LocalCommit, PushView, ShipMode } from '@once-upon-a-diff/shared/types';
+import type { LocalCommit, PushView, ShipMode } from '@once-upon-a-diff/protocol/types';
 import type { StoryStore } from './store.ts';
 import type { StoryMeta } from './types.ts';
 

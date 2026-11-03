@@ -14,13 +14,13 @@ import { bridge } from '../bridge.ts';
 import { createListenOption } from '../listen.ts';
 import { noticeRowHtml } from './story-tag.ts';
 import type { MissingListener } from './story-tag.ts';
-import { html } from '@once-upon-a-diff/shared/util/html';
+import { html } from '@once-upon-a-diff/protocol/domain/html';
 import {
   hideUntilStyled,
   setHtml,
   stopKeyEvents,
   stylesheetLink,
-} from '@once-upon-a-diff/shared/util/dom';
+} from '@once-upon-a-diff/panel/dom';
 
 const HOST_ID = 'once-upon-listen-notice';
 const MAX = 3;

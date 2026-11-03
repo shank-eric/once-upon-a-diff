@@ -3,13 +3,8 @@
  * (status light, Hide story, Prev, Next, close), the note line, the body and
  * the questions dock (chat-dock.ts), plus the message line, docking width and collapse.
  */
-import {
-  hideUntilStyled,
-  setHtml,
-  stopKeyEvents,
-  stylesheetLink,
-} from '@once-upon-a-diff/shared/util/dom';
-import { html } from '@once-upon-a-diff/shared/util/html';
+import { hideUntilStyled, setHtml, stopKeyEvents, stylesheetLink } from './dom.ts';
+import { html } from '@once-upon-a-diff/protocol/domain/html';
 import type { PanelContext } from './context.ts';
 
 const MARKUP = (withAsk: boolean) => html`

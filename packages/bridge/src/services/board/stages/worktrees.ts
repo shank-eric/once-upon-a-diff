@@ -13,7 +13,7 @@ import type {
   BoardSession,
   BoardWorktree,
   BoardWorktrees,
-} from '@once-upon-a-diff/shared/types';
+} from '@once-upon-a-diff/protocol/types';
 import type { PrWatcher } from './pr-watcher.ts';
 
 /** A path a task names as the folder it is in: itself when a folder, its folder when a file, null when it is not there. */

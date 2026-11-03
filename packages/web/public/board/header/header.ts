@@ -6,8 +6,8 @@ import { html, useState } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { openMenu } from '/assets/local/menu.ts';
 import type { BoardBuilders, BoardData, BoardLimit, BoardUsage } from '/assets/types.ts';
-import { compactAge } from '/assets/util/time.ts';
-import { plural } from '/assets/util/text.ts';
+import { compactAge } from '/assets/protocol/domain/time.ts';
+import { plural } from '/assets/protocol/domain/text.ts';
 import { Meter, type Api } from '/assets/board/shared.ts';
 
 /** When a limit resets: the time today, else the weekday and hour. */

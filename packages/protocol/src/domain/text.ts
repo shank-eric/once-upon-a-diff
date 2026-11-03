@@ -1,8 +1,13 @@
 /*
- * Small text helpers shared by the panel, the content scripts and the bridge.
- * No DOM or Node dependencies.
+ * Small text helpers shared by the panel, the content scripts, the pages and the bridge.
+ * No DOM or Node dependencies, and no imports: the domain sits below the wire types.
  */
-import type { BoardAgent } from '../types.ts';
+
+/** What gateText reads of a board agent (a BoardAgent fits): its name and the gate it is at, if any. */
+interface GatedAgent {
+  name: string;
+  gate: { kind: 'plan' | 'review' | 'fixing'; findings: number | null } | null;
+}
 
 /** The 7-character short form of a commit SHA ('' for none). */
 export function shortSha(sha: string | null | undefined): string {
@@ -20,7 +25,7 @@ export function plural(count: number, noun: string): string {
 }
 
 /** What an agent at a gate is doing, in a few words: "plan check", "fixing 5 findings", "agent review · review-x". */
-export function gateText(agent: Pick<BoardAgent, 'name' | 'gate'>): string {
+export function gateText(agent: GatedAgent): string {
   const gate = agent.gate;
   if (gate?.kind === 'plan') {
     return 'plan check';

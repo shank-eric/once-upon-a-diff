@@ -20,10 +20,10 @@
  * undone for a few seconds. opts.markQuestions saves those marks in the
  * bridge, so they hold after a reload and on the next poll.
  */
-import { html } from '@once-upon-a-diff/shared/util/html';
-import { setHtml } from '@once-upon-a-diff/shared/util/dom';
-import { baseName, plural } from '@once-upon-a-diff/shared/util/text';
-import { clockTime, shortDateTime } from '@once-upon-a-diff/shared/util/time';
+import { html } from '@once-upon-a-diff/protocol/domain/html';
+import { setHtml } from '../dom.ts';
+import { baseName, plural } from '@once-upon-a-diff/protocol/domain/text';
+import { clockTime, shortDateTime } from '@once-upon-a-diff/protocol/domain/time';
 import type { PanelContext } from '../context.ts';
 import type {
   Question,

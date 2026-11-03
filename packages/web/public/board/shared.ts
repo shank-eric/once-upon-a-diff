@@ -8,8 +8,8 @@ import { html, useState } from '/assets/preact.mjs';
 import type { Client } from '/assets/protocol/client.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { remember, stored } from '/assets/local/stored.ts';
-import { compactAge } from '/assets/util/time.ts';
-import { cleanupConfirm, worktreeChips } from '/assets/util/worktree-text.ts';
+import { compactAge } from '/assets/protocol/domain/time.ts';
+import { cleanupConfirm, worktreeChips } from '/assets/board/worktree-text.ts';
 import type { BoardCard, BoardData, BoardWorktree } from '/assets/types.ts';
 
 /** What every region needs to talk to the bridge: the typed client, the board as last polled, and a poll now. */

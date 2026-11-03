@@ -29,7 +29,7 @@ import {
   type LocalEntry,
 } from './story-lists.ts';
 import type { StoryStore } from '../stories/store.ts';
-import type { InboxStory, PrInfo, ReviewedBy } from '@once-upon-a-diff/shared/types';
+import type { InboxStory, PrInfo, ReviewedBy } from '@once-upon-a-diff/protocol/types';
 
 /** How long one PR's answer (including "nothing yet") is kept before asking GitHub again. */
 export const CACHE_MS = 3 * 60 * 1000;

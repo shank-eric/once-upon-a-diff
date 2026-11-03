@@ -15,11 +15,11 @@
  * story's text is built as a string (markdown.js), so the html`` markup
  * pill() and refAttrs() return turns into its string there.
  */
-import { html, raw, unescapeHtml } from '@once-upon-a-diff/shared/util/html';
-import { parseLineRef } from '@once-upon-a-diff/shared/util/line-refs';
+import { html, raw, unescapeHtml } from '@once-upon-a-diff/protocol/domain/html';
+import { parseLineRef } from '@once-upon-a-diff/protocol/domain/line-refs';
 import { markViewedButton } from './viewed-button.ts';
-import type { LineRef } from '@once-upon-a-diff/shared/util/line-refs';
-import type { Html } from '@once-upon-a-diff/shared/util/html';
+import type { LineRef } from '@once-upon-a-diff/protocol/domain/line-refs';
+import type { Html } from '@once-upon-a-diff/protocol/domain/html';
 import type { PanelContext } from './context.ts';
 
 // eslint-disable-next-line no-control-regex -- the placeholder markers are control characters on purpose

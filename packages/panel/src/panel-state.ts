@@ -5,7 +5,7 @@
  * {n, all, collapsed, width, filesOpen, showPosted, showDismissed, chatOpen, chatHeight}.
  */
 import type { Chapter, PanelUi } from '@once-upon-a-diff/protocol/types';
-import type { StoryModel } from '@once-upon-a-diff/shared/util/story-model';
+import type { StoryModel } from './story-model.ts';
 import type { PanelContext } from './context.ts';
 
 /** The panel's state: what it saves, and whether the Overview's list of every draft is open this time. */

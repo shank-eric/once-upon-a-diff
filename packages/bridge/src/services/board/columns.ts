@@ -24,7 +24,12 @@
  * A card in Back to you clears when you mark its story reviewed, open it (the panel records where you stopped and what
  * you read), submit your review on GitHub, or the auto-review rules fire.
  */
-import type { BoardAgent, BoardColumn, BoardSession, PrInfo } from '@once-upon-a-diff/shared/types';
+import type {
+  BoardAgent,
+  BoardColumn,
+  BoardSession,
+  PrInfo,
+} from '@once-upon-a-diff/protocol/types';
 
 export interface ColumnInput {
   sessions: Pick<BoardSession, 'status'>[];

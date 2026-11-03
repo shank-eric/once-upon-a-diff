@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { answerBits } from '../src/util/story-answers.ts';
-import type { BoardCard } from '../src/types.ts';
+import { answerBits } from '../public/board/columns/story-answers.ts';
+import type { BoardCard } from '@once-upon-a-diff/protocol/types';
 
 const card = (
   column: BoardCard['column'],

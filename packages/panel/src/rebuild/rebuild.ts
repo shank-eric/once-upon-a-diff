@@ -9,9 +9,9 @@
  *
  * rebuildAsk and rebuildLine have no DOM, so node tests can use them.
  */
-import { html } from '@once-upon-a-diff/shared/util/html';
-import { setHtml } from '@once-upon-a-diff/shared/util/dom';
-import { clockTime } from '@once-upon-a-diff/shared/util/time';
+import { html } from '@once-upon-a-diff/protocol/domain/html';
+import { setHtml } from '../dom.ts';
+import { clockTime } from '@once-upon-a-diff/protocol/domain/time';
 import type { PanelContext } from '../context.ts';
 import type { RebuildAsk, RebuildView } from '@once-upon-a-diff/protocol/types';
 

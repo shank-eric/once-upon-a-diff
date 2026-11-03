@@ -9,9 +9,9 @@
  * untick it. One click, one file: nothing ticks Viewed on its own, on a step
  * change, in bulk or for any other file.
  */
-import { html } from '@once-upon-a-diff/shared/util/html';
-import { setHtml } from '@once-upon-a-diff/shared/util/dom';
-import { baseName, capitalize, plural } from '@once-upon-a-diff/shared/util/text';
+import { html } from '@once-upon-a-diff/protocol/domain/html';
+import { setHtml } from '../dom.ts';
+import { baseName, capitalize, plural } from '@once-upon-a-diff/protocol/domain/text';
 import { viewedEarlyCheck } from './reading.ts';
 import type { PanelContext } from '../context.ts';
 import type { StepProgress } from './reading.ts';

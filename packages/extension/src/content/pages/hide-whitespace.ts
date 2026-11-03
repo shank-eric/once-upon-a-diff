@@ -14,7 +14,7 @@
  * No chrome.* here, and the rules touch no DOM, so they can be tested in node.
  * createWhitespaceCheck reads location only when it runs.
  */
-import { filesChangedPr } from '@once-upon-a-diff/shared/util/github-paths';
+import { filesChangedPr } from '@once-upon-a-diff/host-github/pages';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import type { Bridge } from '../bridge.ts';
 import type { PrefsCopy } from '../storage.ts';

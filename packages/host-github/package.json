@@ -1,8 +1,8 @@
 {
-  "name": "@once-upon-a-diff/shared",
+  "name": "@once-upon-a-diff/host-github",
   "version": "0.1.0",
   "private": true,
-  "description": "Once Upon a Diff's story panel and the helpers the extension and the bridge share",
+  "description": "Once Upon a Diff's GitHub host adapter: reads GitHub's diff page and URLs for the panel, so a change in GitHub's markup lands in one package",
   "license": "MIT",
   "type": "module",
   "engines": {
@@ -15,11 +15,12 @@
     "test": "node ../bridge/bin/node-version.mjs && node --test test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json"
   },
+  "dependencies": {
+    "@once-upon-a-diff/panel": "workspace:*",
+    "@once-upon-a-diff/protocol": "workspace:*"
+  },
   "devDependencies": {
     "@types/node": "24.19.1",
     "typescript": "5.9.3"
-  },
-  "dependencies": {
-    "@once-upon-a-diff/protocol": "workspace:*"
   }
 }

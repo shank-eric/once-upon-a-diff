@@ -4,7 +4,7 @@
  * shows it in a row at the bottom, like the listeners, for as long as its session lives and it has been heard from.
  */
 import { lastActivity, type LedgerAgent } from '../../ledger/ledger.ts';
-import type { BoardHelper, BoardSession } from '@once-upon-a-diff/shared/types';
+import type { BoardHelper, BoardSession } from '@once-upon-a-diff/protocol/types';
 import type { LiveSession } from '../../../adapters/claude-sessions/registry.ts';
 
 /** A helper with no ledger line this long is left off the row (its session may be live, but nobody has asked it anything). */

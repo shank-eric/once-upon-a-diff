@@ -7,9 +7,9 @@
  *
  * marksOf has no DOM, so node tests can use it.
  */
-import { html } from '@once-upon-a-diff/shared/util/html';
-import { insertHtml } from '@once-upon-a-diff/shared/util/dom';
-import { shortSha } from '@once-upon-a-diff/shared/util/text';
+import { html } from '@once-upon-a-diff/protocol/domain/html';
+import { insertHtml } from '../dom.ts';
+import { shortSha } from '@once-upon-a-diff/protocol/domain/text';
 import type { FreshUpdate, Freshness, ReadInfo } from '@once-upon-a-diff/protocol/types';
 
 /** One "changed since" mark: why, the steps it lights, the files it tags, and the commits. */

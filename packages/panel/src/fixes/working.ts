@@ -7,9 +7,9 @@
  *
  * changingOf has no DOM, so node tests can use it.
  */
-import { html } from '@once-upon-a-diff/shared/util/html';
-import { insertHtml, setHtml } from '@once-upon-a-diff/shared/util/dom';
-import { shortDateTime } from '@once-upon-a-diff/shared/util/time';
+import { html } from '@once-upon-a-diff/protocol/domain/html';
+import { insertHtml, setHtml } from '../dom.ts';
+import { shortDateTime } from '@once-upon-a-diff/protocol/domain/time';
 import type { LineRanges, WorkingMark } from '@once-upon-a-diff/protocol/types';
 import type { PanelContext } from '../context.ts';
 

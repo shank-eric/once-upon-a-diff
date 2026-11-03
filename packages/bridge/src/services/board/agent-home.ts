@@ -5,7 +5,7 @@
  * place for that rule. An agent that claimed a backlog card is none of this: it is shown on that card (claims.ts).
  * The text placement here is for agents with no claim; bl_mw12ymyrceec6c audits it and replaces it with explicit links.
  */
-import type { BoardCard } from '@once-upon-a-diff/shared/types';
+import type { BoardCard } from '@once-upon-a-diff/protocol/types';
 import type { LedgerAgent } from '../ledger/ledger.ts';
 
 /** Lowercase letters and digits only, so "Once Upon a Diff" and "once-upon-a-diff" compare equal. */

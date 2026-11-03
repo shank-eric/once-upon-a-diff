@@ -28,7 +28,7 @@ import type {
   Side,
   WorkingMark,
 } from '@once-upon-a-diff/protocol/types';
-import type { FileStatus, StoryModel } from '@once-upon-a-diff/shared/util/story-model';
+import type { FileStatus, StoryModel } from './story-model.ts';
 import type { InitialUi, PanelState } from './panel-state.ts';
 import type { Layout } from './layout.ts';
 import type { HostPage } from './host.ts';

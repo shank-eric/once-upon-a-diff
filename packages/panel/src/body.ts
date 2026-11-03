@@ -4,10 +4,10 @@
  * before push notes, its files and its questions. One click handler serves
  * everything in it.
  */
-import { html } from '@once-upon-a-diff/shared/util/html';
-import { setHtml } from '@once-upon-a-diff/shared/util/dom';
+import { html } from '@once-upon-a-diff/protocol/domain/html';
+import { setHtml } from './dom.ts';
 import { copyComment } from './copy-buttons.ts';
-import { plural } from '@once-upon-a-diff/shared/util/text';
+import { plural } from '@once-upon-a-diff/protocol/domain/text';
 import type { PanelContext } from './context.ts';
 import type { Chapter, DraftAction, Side } from '@once-upon-a-diff/protocol/types';
 

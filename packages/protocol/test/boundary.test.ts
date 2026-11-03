@@ -57,7 +57,7 @@ test('the domain imports nothing: no module, no relative path, not even the rest
     const code = readFileSync(file, 'utf8');
     assert.deepEqual(importsOf(code), [], `${file} imports at runtime`);
     assert.ok(
-      !/^\s*(import|export)\b[^;]*\bfrom\b/m.test(code),
+      !/^\s*(import|export)\b[^;]*\bfrom\s+['"]/m.test(code),
       `${file} has an import or a re-export`,
     );
   }

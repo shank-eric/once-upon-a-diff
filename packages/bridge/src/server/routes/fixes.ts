@@ -21,7 +21,7 @@ import { prAuthorOf } from '../../services/stories/meta.ts';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
 import { draftOf } from './drafts.ts';
-import type { FixesView, StoryData } from '@once-upon-a-diff/shared/types';
+import type { FixesView, StoryData } from '@once-upon-a-diff/protocol/types';
 import type { ServedStory } from '../../services/stories/types.ts';
 import type { App, Call, StoryRoute } from '../types.ts';
 

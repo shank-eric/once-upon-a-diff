@@ -5,7 +5,7 @@
 import { formatTime, readerOf } from '../services/config/settings.ts';
 import { sameRepo } from '../services/config/repos.ts';
 import { updateOf } from '../services/inbox/builds.ts';
-import { plural } from '@once-upon-a-diff/shared/util/text';
+import { plural } from '@once-upon-a-diff/protocol/domain/text';
 import type { InboxEntry } from '../services/inbox/inbox.ts';
 import type { Build, BuildRequestEntry } from '../services/inbox/builds.ts';
 import type { RequestNote } from '../services/inbox/fixes.ts';

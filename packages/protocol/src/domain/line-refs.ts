@@ -5,7 +5,9 @@
  * a file's diff with a line anchor (#diff-<sha256>R45). Only the syntax lives
  * here. Each side resolves the names to files by its own rules.
  */
-import type { Side } from '../types.ts';
+
+/** A side of a file's diff: 'L' the old lines, 'R' the new. */
+export type Side = 'L' | 'R';
 
 const LINE_SUFFIX = /^(.*?):([LR])?(\d+)(?:-[LR]?(\d+))?$/;
 const DIFF_LINK = /#diff-([0-9a-f]{64})(?:([LR])(\d+)(?:-[LR]?(\d+))?)?$/;

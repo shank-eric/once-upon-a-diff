@@ -8,7 +8,7 @@
  * working on or waits for one, and how many answers nobody has read. The
  * bridge keeps what was read, so the count holds across reloads and pages.
  */
-import { plural } from '@once-upon-a-diff/shared/util/text';
+import { plural } from '@once-upon-a-diff/protocol/domain/text';
 import type { PanelContext } from '../context.ts';
 import { dockHeightWithin } from '../layout.ts';
 

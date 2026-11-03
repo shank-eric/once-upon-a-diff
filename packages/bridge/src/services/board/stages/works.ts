@@ -11,7 +11,7 @@ import {
   mergedStories,
   prStories,
 } from '../../review/story-lists.ts';
-import type { InboxLocalStory, InboxStory, ShipMode } from '@once-upon-a-diff/shared/types';
+import type { InboxLocalStory, InboxStory, ShipMode } from '@once-upon-a-diff/protocol/types';
 import type { PrWatcher } from './pr-watcher.ts';
 import type { BuildContext, Work } from './types.ts';
 

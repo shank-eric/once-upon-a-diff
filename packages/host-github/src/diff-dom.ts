@@ -26,8 +26,8 @@ import {
   type ExpandRow,
   type FileBlock,
   type TreeRow,
-} from '../util/diff-types.ts';
-import type { Side } from '../types.ts';
+} from '@once-upon-a-diff/panel/diff-types';
+import type { Side } from '@once-upon-a-diff/protocol/types';
 
 /** A page control the panel may click. */
 type Clickable = HTMLElement;

@@ -27,7 +27,7 @@ import { tagFor, type StoryStatus } from '../src/content/ui/story-tag.ts';
 import type { Plan, PlanFile } from 'once-upon-a-diff/services/stories/chapters';
 import type { StoryMeta } from 'once-upon-a-diff/services/stories/types';
 import type { Listener } from 'once-upon-a-diff/services/listeners/listeners';
-import type { Pulse, RebuildView } from '@once-upon-a-diff/shared/types';
+import type { Pulse, RebuildView } from '@once-upon-a-diff/protocol/types';
 
 /** What POST .../rebuild answers. */
 type RebuildAnswer = { rebuild: RebuildView & { id: string } };

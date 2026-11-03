@@ -30,7 +30,7 @@ import path from 'node:path';
 import { liveClaim } from './claims.ts';
 import { REPO_RE, sameRepo } from '../config/repos.ts';
 import { newId } from '../inbox/inbox.ts';
-import type { BoardAgent, BoardCard, BoardStartedLinks } from '@once-upon-a-diff/shared/types';
+import type { BoardAgent, BoardCard, BoardStartedLinks } from '@once-upon-a-diff/protocol/types';
 
 export const STARTED_GRACE_HOURS = 24;
 /** A started item whose work merged or landed, or whose agent finished, stays in Done this long. */

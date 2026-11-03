@@ -36,7 +36,7 @@
  * The progress file's lines are `- <time> <name> <N>/<M> <step>: <note>`; the board shows each agent's latest.
  * Both files are read from their tail only, so a long history costs nothing.
  */
-import type { BoardBeat, BoardGate } from '@once-upon-a-diff/shared/types';
+import type { BoardBeat, BoardGate } from '@once-upon-a-diff/protocol/types';
 import { tailOf } from '../../adapters/stores/notes.ts';
 
 /** One agent as its ledger lines tell it. */

@@ -24,9 +24,9 @@
  */
 import { stateFile } from '../config/settings.ts';
 import { readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
-import { chapterKeyOf } from '@once-upon-a-diff/shared/util/story-model';
-import { SHA_RE } from '@once-upon-a-diff/shared/util/text';
-import type { Chapter, DiffFile } from '@once-upon-a-diff/shared/types';
+import { chapterKeyOf } from '@once-upon-a-diff/protocol/domain/chapters';
+import { SHA_RE } from '@once-upon-a-diff/protocol/domain/text';
+import type { Chapter, DiffFile } from '@once-upon-a-diff/protocol/types';
 
 /** One chapter's read, in read.json. */
 export interface ReadRecord {

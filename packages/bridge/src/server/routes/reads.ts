@@ -14,10 +14,10 @@ import {
   readSha,
   changedSinceRead,
 } from '../../services/stories/reads.ts';
-import { SHA_RE } from '@once-upon-a-diff/shared/util/text';
+import { SHA_RE } from '@once-upon-a-diff/protocol/domain/text';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
-import type { StoryData } from '@once-upon-a-diff/shared/types';
+import type { StoryData } from '@once-upon-a-diff/protocol/types';
 import type { FileChange } from '../../services/review/freshness.ts';
 import type { ServedStory, StoryMeta } from '../../services/stories/types.ts';
 import type { App, Call, StoryRoute } from '../types.ts';

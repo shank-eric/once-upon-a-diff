@@ -4,7 +4,7 @@ Decided 10/29. Built for the board page, as of main at 0741c6c. The story panel,
 
 ## Context
 
-The pages and the panel build their UI the same way. `html`, a tagged template in `shared/src/util/html.ts`, makes an escaped string, and `setHtml` puts it in with `innerHTML`. Clicks are handled by event delegation on `data-` attributes. That's about 12.8k lines across the story panel, the bridge's pages and the extension's content UI.
+The pages and the panel build their UI the same way. `html`, a tagged template in `protocol/src/domain/html.ts`, makes an escaped string, and `setHtml` puts it in with `innerHTML`. Clicks are handled by event delegation on `data-` attributes. That's about 12.8k lines across the story panel, the bridge's pages and the extension's content UI.
 
 It held up for the panel, but the board showed the strain:
 
@@ -13,7 +13,7 @@ It held up for the panel, but the board showed the strain:
 
 Two constraints narrow the choice:
 
-- **No build step for the panel and the bridge's pages.** The bridge serves `.ts` files with their types stripped (`server/assets.ts`), and the same panel source runs on the local page. JSX would need a compile step on the bridge, or a build for `public/` and `shared/`. The pages' policy is `script-src 'self'`, so inline scripts, and so an inline import map, are out too.
+- **No build step for the panel and the bridge's pages.** The bridge serves `.ts` files with their types stripped (`server/assets.ts`), and the same panel source runs on the local page. JSX would need a compile step on the bridge, or a build for `public/` and the other served packages. The pages' policy is `script-src 'self'`, so inline scripts, and so an inline import map, are out too.
 - **The panel lives in a shadow root** on GitHub's page (and on the local page), and it must not touch GitHub's React tree. Whatever renders it has to work in a shadow root.
 
 The extension is built by WXT (Vite), so it can bundle anything. The constraint is on the bridge-served side, and the panel is shared by both.
@@ -47,7 +47,7 @@ Preact's draw is that one piece covers both halves. Keyed diffing removes the ha
 
 ## Questions it left, and how they came out
 
-1. **How do the panel's imports resolve on both sides?** By a rewrite in `server/assets.ts`: `forBrowser` turns `@once-upon-a-diff/shared/util/*` and `@once-upon-a-diff/protocol/*` into `/assets/` URLs as the bridge serves a module, and a test (`bridge/test/assets-graph.test.ts`) walks every import from the two page scripts. The vendored Preact is the one bare-looking path, `/assets/preact.mjs`.
+1. **How do the panel's imports resolve on both sides?** By a rewrite in `server/assets.ts`: `forBrowser` turns `@once-upon-a-diff/{panel,protocol,host-github}/*` into `/assets/` URLs as the bridge serves a module, and a test (`bridge/test/assets-graph.test.ts`) walks every import from the two page scripts. The vendored Preact is the one bare-looking path, `/assets/preact.mjs`.
 2. **Does the vendored htm build need `unsafe-eval`?** The pages' policy is unchanged (`script-src 'self'`) and has no `unsafe-eval`. The board's tests run in linkedom, which does not enforce a policy, so the board page's first load in a browser under the policy is Eric's by-eye check.
 3. **Plain hooks or `@preact/signals`?** Plain hooks. The board has `useSetting`, `useFocus` and effects in `packages/web/public/board/shared.ts`, and no signals dependency.
 4. **Which region first?** The voice panel, then the rest of the board page.

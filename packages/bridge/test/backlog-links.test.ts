@@ -11,7 +11,7 @@ import { registrySource } from '../src/services/sessions/sources.ts';
 import { seenCheckout } from '../src/services/config/repos.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
 import { Builds } from '../src/services/inbox/builds.ts';
-import type { BoardCard, BoardStartedLinks } from '@once-upon-a-diff/shared/types';
+import type { BoardCard, BoardStartedLinks } from '@once-upon-a-diff/protocol/types';
 
 const NOW = new Date('2026-10-26T19:00:00Z');
 /** while the fixtures' runs (2:30 PM ET, 10/26) were going */

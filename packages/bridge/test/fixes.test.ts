@@ -10,7 +10,7 @@ import { readFixes } from '../src/services/inbox/fixes.ts';
 import { MARK_FRESH_MS, parseFiles, workingOf } from '../src/services/stories/working.ts';
 import { fixSummary, takesNotes } from '@once-upon-a-diff/panel/fixes/fixes';
 import { clearCache } from '../src/services/review/drafts.ts';
-import type { DraftsAnswer, FixNote, FixesView, Pulse } from '@once-upon-a-diff/shared/types';
+import type { DraftsAnswer, FixNote, FixesView, Pulse } from '@once-upon-a-diff/protocol/types';
 import type { FixRequest } from '../src/services/inbox/fixes.ts';
 import type { Printable } from '../src/cli/output.ts';
 

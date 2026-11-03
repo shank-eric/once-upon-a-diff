@@ -21,7 +21,7 @@ import { addToPendingReview } from '../../services/review/pending-review.ts';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
 import { noteFromDraft } from './fixes.ts';
-import type { DraftComment, StoryData } from '@once-upon-a-diff/shared/types';
+import type { DraftComment, StoryData } from '@once-upon-a-diff/protocol/types';
 import type { ServedStory } from '../../services/stories/types.ts';
 import type { App, Call, StoryRoute } from '../types.ts';
 

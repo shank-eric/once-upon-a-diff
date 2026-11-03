@@ -28,7 +28,7 @@ import type {
   LineSpan,
   Side,
   UncoveredFile,
-} from '@once-upon-a-diff/shared/types';
+} from '@once-upon-a-diff/protocol/types';
 
 export const SMALL_FILE_LINES = 40;
 const LOCKFILES =

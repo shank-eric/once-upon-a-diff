@@ -1,11 +1,11 @@
 /*
  * The files the bridge serves without a token: the pages' scripts, CSS and icon (the web package,
- * @once-upon-a-diff/web), the panel's modules and stylesheets (@once-upon-a-diff/panel), the shared
- * helpers (@once-upon-a-diff/shared), and the route table and client from the protocol package.
+ * @once-upon-a-diff/web), the panel's modules and stylesheets (@once-upon-a-diff/panel), the GitHub host
+ * adapter (@once-upon-a-diff/host-github), and the route table, client and domain from the protocol package.
  * TypeScript modules go out as JavaScript, their types stripped the way Node strips the bridge's own,
- * so the browser runs the same lines with no build step. The panel names the shared helpers and the
- * protocol by package, as Node and the extension's bundler resolve them, so a served module has those
- * specifiers rewritten to the /assets/ URLs the browser can load (see forBrowser).
+ * so the browser runs the same lines with no build step. The panel, the host adapter and the domain name
+ * the packages they use by package, as Node and the extension's bundler resolve them, so a served module
+ * has those specifiers rewritten to the /assets/ URLs the browser can load (see forBrowser).
  */
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
@@ -19,13 +19,9 @@ const PUBLIC = path.dirname(
 );
 /** The panel package's sources (src/), wherever the workspace links it from. */
 const PANEL = path.dirname(fileURLToPath(import.meta.resolve('@once-upon-a-diff/panel/overlay')));
-/** The shared package's host adapters (src/host/), which the local page injects into the panel. */
-const SHARED_HOST = path.dirname(
-  fileURLToPath(import.meta.resolve('@once-upon-a-diff/shared/host/diff-dom')),
-);
-/** The shared package's helpers (src/util/). */
-const SHARED_UTIL = path.dirname(
-  fileURLToPath(import.meta.resolve('@once-upon-a-diff/shared/util/text')),
+/** The host-github package's sources (src/): the GitHub host adapter, which the local page injects into the panel. */
+const HOST_GITHUB = path.dirname(
+  fileURLToPath(import.meta.resolve('@once-upon-a-diff/host-github/diff-dom')),
 );
 /** The protocol package's sources (src/). */
 const PROTOCOL = path.dirname(
@@ -36,15 +32,13 @@ const STYLESHEET = 'text/css; charset=utf-8';
 const PNG = 'image/png';
 /** The panel's modules and stylesheets, from the panel package's src/ (in its region folders), for the local page. */
 const PANEL_MODULE = /^\/assets\/panel\/([a-z0-9-]+(?:\/[a-z0-9-]+)*\.(?:ts|css))$/;
-/** The shared host adapters, from the shared package's src/host/. */
-const HOST_MODULE = /^\/assets\/host\/([a-z0-9-]+\.ts)$/;
-/** The shared helpers, from the shared package's src/util/. */
-const UTIL_MODULE = /^\/assets\/util\/([a-z0-9-]+\.(?:ts|css))$/;
+/** The host adapter's modules, from the host-github package's src/. */
+const HOST_MODULE = /^\/assets\/host-github\/([a-z0-9-]+\.ts)$/;
 /**
- * The protocol's modules a page may load: the route table, the typed client and the domain's id patterns. Not schemas.ts, which
- * imports valibot (the bridge checks bodies, the pages don't) and has nothing for a page to run.
+ * The protocol's modules a page may load: the route table, the typed client and the domain (all of it: pure rules that import
+ * nothing). Not schemas.ts, which imports valibot (the bridge checks bodies, the pages don't) and has nothing for a page to run.
  */
-const PROTOCOL_MODULE = /^\/assets\/protocol\/(routes|client|domain\/patterns)\.ts$/;
+const PROTOCOL_MODULE = /^\/assets\/protocol\/(routes|client|domain\/[a-z0-9-]+)\.ts$/;
 /** The board page's own modules (its regions' folders), from public/board/. */
 const BOARD_MODULE = /^\/assets\/board\/([a-z0-9-]+(?:\/[a-z0-9-]+)*\.ts)$/;
 /** The local page's own modules and stylesheets, from public/local/. */
@@ -68,15 +62,15 @@ const ASSETS: Record<string, string> = {
 /** Each stripped module and the mtime of the file it came from, so an edit shows on the next load. */
 const stripped = new Map<string, { mtime: number; code: string }>();
 
-/** The specifiers a served module may name by package, and the /assets/ URL each is loaded from. */
+/** The specifiers a served module may name by package, and the /assets/ URL each is loaded from (the package's name is the folder). */
 const PACKAGE_SPECIFIER =
-  /(\bfrom\s*|\bimport\s*\(?\s*)(['"])@once-upon-a-diff\/(shared\/util|protocol)\/([a-z0-9/-]+)\2/g;
-/** A stripped module with its package specifiers (the shared helpers, the protocol) spelled as the URLs the bridge serves them at. */
+  /(\bfrom\s*|\bimport\s*\(?\s*)(['"])@once-upon-a-diff\/(panel|protocol|host-github)\/([a-z0-9/-]+)\2/g;
+/** A stripped module with its package specifiers (the panel, the protocol, the host adapter) spelled as the URLs the bridge serves them at. */
 export const forBrowser = (code: string): string =>
   code.replace(
     PACKAGE_SPECIFIER,
     (_whole, lead: string, quote: string, scope: string, name: string) =>
-      `${lead}${quote}/assets/${scope === 'protocol' ? 'protocol' : 'util'}/${name}.ts${quote}`,
+      `${lead}${quote}/assets/${scope}/${name}.ts${quote}`,
   );
 
 /**
@@ -118,30 +112,20 @@ export function assetFor(pathname: string): [string | Buffer, string] | null {
     return served(ASSETS[pathname]);
   }
   const panelModule = PANEL_MODULE.exec(pathname);
-  const utilModule = UTIL_MODULE.exec(pathname);
   const hostModule = HOST_MODULE.exec(pathname);
   const boardModule = BOARD_MODULE.exec(pathname);
   const localModule = LOCAL_MODULE.exec(pathname);
   const protocolModule = PROTOCOL_MODULE.exec(pathname);
-  if (
-    !panelModule &&
-    !utilModule &&
-    !hostModule &&
-    !boardModule &&
-    !localModule &&
-    !protocolModule
-  ) {
+  if (!panelModule && !hostModule && !boardModule && !localModule && !protocolModule) {
     return null;
   }
   let file: string;
   if (panelModule) {
     file = path.join(PANEL, panelModule[1]);
-  } else if (utilModule) {
-    file = path.join(SHARED_UTIL, utilModule[1]);
   } else if (boardModule) {
     file = path.join(PUBLIC, 'board', boardModule[1]);
   } else if (hostModule) {
-    file = path.join(SHARED_HOST, hostModule[1]);
+    file = path.join(HOST_GITHUB, hostModule[1]);
   } else if (protocolModule) {
     file = path.join(PROTOCOL, `${protocolModule[1]}.ts`);
   } else {

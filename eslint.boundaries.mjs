@@ -18,16 +18,15 @@
  *   packages/web/public      the board and local pages (browser app). public/board/ holds the board page's regions, each a folder
  *                            (header, columns, backlog, worktrees, voice) that imports no other region, only board/shared.ts and the
  *                            helpers (local/, util, the protocol); board.ts, over them, is the page
- *   packages/panel/src       the story panel (browser, host-agnostic): imports the protocol and shared helpers only, never an app,
- *                            the bridge or the host adapters. overlay.ts composes it; its regions are folders (ask, drafts, fixes,
- *                            reading, rebuild) that import no other region and not overlay.ts, only the panel's shared files
- *                            (context, host, bridge-options, shell, ...)
- *   packages/shared          helpers the apps and the panel share (browser-safe)
- *     src/util                 pure helpers (no DOM host)
- *     src/host                 host adapters: the diff-page reader both the extension (GitHub) and the local page inject into the panel.
- *                              The panel never imports it (it is handed one, packages/panel/src/host.ts)
+ *   packages/panel/src       the story panel (browser, host-agnostic): imports the protocol only, never an app, the bridge or the
+ *                            host adapters. overlay.ts composes it; its regions are folders (ask, drafts, fixes, reading,
+ *                            rebuild) that import no other region and not overlay.ts, only the panel's shared files (context,
+ *                            host, bridge-options, shell, dom, ...)
+ *   packages/host-github/src the host adapter for GitHub (browser): the diff-page reader and the URL routing, which the extension
+ *                            and the local page inject into the panel. It implements the panel's port (host.ts, diff-types.ts),
+ *                            so it imports the panel's port files, never overlay.ts or a region. The panel never imports it
  *   packages/protocol/src    the wire types, route table and schemas (no DOM, no Node, imports no package but valibot)
- *   packages/protocol/src/domain  pure rules: imports nothing at all
+ *   packages/protocol/src/domain  pure rules: imports nothing at all (the helpers the bridge, the pages and the panel share)
  *   packages/extension/src   the Chrome extension (app)
  *   packages/test-kit/src    dev-only test helpers (temp files, git repos, story fixtures, a DOM): imports Node and linkedom only, and
  *                            only tests import it. Every layer above bans it, so nothing that ships can reach it
@@ -40,9 +39,8 @@
  * That is why the lists below are built once and shared:
  *
  *   - Each restriction is named once (a const below) and layers list the ones they want.
- *   - A layer nested inside another (shared/util inside shared) extends its parent's
- *     lists with `...PARENT.paths`, and its files are carved out of the parent's `files`
- *     with `ignores`, so no file matches two blocks.
+ *   - A layer nested inside another (the domain inside the protocol) is carved out of the
+ *     parent's `files` with `ignores`, so no file matches two blocks.
  *
  * To add a layer (panel, board-view, ui, web, board-core):
  *   1. Add a `files` glob and an entry to LAYERS (see FUTURE at the bottom).
@@ -77,21 +75,26 @@ const WEB = {
 const PANEL = {
   regex: '^@once-upon-a-diff/panel(/|$)',
   message:
-    'the panel is client code above shared and the protocol: only the apps (and tests) import it',
+    'the panel is client code above the protocol: only the apps, the host adapters (for its port) and tests import it',
 };
 const HOST_ADAPTERS = {
-  regex: '^@once-upon-a-diff/shared/host(/|$)',
+  regex: '^@once-upon-a-diff/host-github(/|$)',
   message:
     'the panel is host-agnostic: it is handed a host adapter (packages/panel/src/host.ts), never imports one',
+};
+const HOST_PACKAGE = {
+  regex: '^@once-upon-a-diff/host-github(/|$)',
+  message:
+    'a host adapter implements the panel’s port: the server, the protocol and the panel never import one, only the apps',
+};
+const PANEL_COMPOSITION = {
+  regex: '^@once-upon-a-diff/panel/(overlay|ask|drafts|fixes|reading|rebuild)(/|$)',
+  message:
+    'a host adapter implements the panel’s port (host.ts, diff-types.ts): it never imports the composition root or a region',
 };
 const BOARD_PAGE_URL = {
   regex: '^/assets/board\\.ts$',
   message: 'board.ts is the page over its regions: a region does not import it',
-};
-const SHARED_PACKAGE = {
-  regex: '^@once-upon-a-diff/shared(/|$)',
-  message:
-    'inside packages/shared, imports stay relative (the local page loads those files into the browser)',
 };
 const NOT_THE_SCHEMAS_MESSAGE =
   'schemas.ts is server side: it imports valibot, which no page or extension loads (routes.ts takes its types with import type)';
@@ -115,14 +118,14 @@ const TEST_KIT = {
 };
 const ASSET_URL = {
   regex: '^/assets/',
-  message: 'shared is served at /assets/ for the pages, so it must not import through that URL',
+  message:
+    'host-github is served at /assets/ for the pages, so it must not import through that URL: it names packages',
 };
 
 // folders, from the repo root
 const BRIDGE_SRC = './packages/bridge/src';
 const WEB_PUBLIC = './packages/web/public';
-const SHARED_UTIL = './packages/shared/src/util';
-const SHARED_HOST = './packages/shared/src/host';
+const HOST_GITHUB_SRC = './packages/host-github/src';
 const PANEL_SRC = './packages/panel/src';
 const PANEL_OVERLAY = './packages/panel/src/overlay.ts';
 const WEB_BOARD = './packages/web/public/board';
@@ -240,20 +243,21 @@ const NOT_THE_PAGES = { from: WEB_PUBLIC, message: 'the pages are an app: nothin
 const NOT_THE_EXTENSION = { from: EXTENSION_SRC, message: 'nothing imports an app' };
 const NOT_THE_SERVER = {
   from: BRIDGE_SRC,
-  message: 'the pages, shared and the extension meet the server over HTTP, not by import',
+  message: 'the pages, the panel and the extension meet the server over HTTP, not by import',
 };
 const NOT_THE_TEST_KIT = {
   from: './packages/test-kit',
   message: 'the test kit is dev-only: tests import it, nothing that ships does',
 };
-const NOT_THE_BRIDGE = { from: './packages/bridge', message: 'shared sits below the bridge' };
+const NOT_THE_BRIDGE = { from: './packages/bridge', message: 'the panel sits below the bridge' };
 const NOT_THE_BRIDGE_PACKAGE = {
   from: './packages/bridge',
   message: 'the protocol sits below the bridge',
 };
-const NOT_THE_SHARED_PACKAGE = {
-  from: './packages/shared',
-  message: 'the protocol sits below shared',
+const NOT_THE_HOST_PACKAGE = {
+  from: HOST_GITHUB_SRC,
+  message:
+    'a host adapter implements the panel’s port: the server, the protocol and the panel never import one, only the apps',
 };
 const NOT_THE_SCHEMAS = {
   from: './packages/protocol/src/schemas.ts',
@@ -279,11 +283,10 @@ const NOT_THE_CLI_APP = {
 const NOT_THE_PANEL_PACKAGE = {
   from: PANEL_SRC,
   message:
-    'the panel is client code above shared and the protocol: only the apps (and tests) import it',
+    'the panel is client code above the protocol: only the apps, the host adapters (for its port) and tests import it',
 };
-const NOT_THE_HOST = { from: SHARED_HOST, message: 'shared/util is below shared/host' };
 const NOT_THE_HOST_ADAPTERS = {
-  from: SHARED_HOST,
+  from: HOST_GITHUB_SRC,
   message:
     'the panel is host-agnostic: it is handed a host adapter (packages/panel/src/host.ts), never imports one',
 };
@@ -298,18 +301,6 @@ const NOT_THE_BOARD_PAGE = {
 
 const KIT_BELOW =
   'the test kit sits below every package: it imports Node and linkedom, so any package can import it in a test';
-
-const SHARED = {
-  paths: [
-    NOT_THE_BRIDGE,
-    NOT_THE_PAGES,
-    NOT_THE_EXTENSION,
-    NOT_THE_PANEL_PACKAGE,
-    NOT_THE_SCHEMAS,
-    NOT_THE_TEST_KIT,
-  ],
-  specifiers: [BRIDGE, EXTENSION, WEB, PANEL, SHARED_PACKAGE, ASSET_URL, SCHEMAS, TEST_KIT],
-};
 
 // the panel: browser code that names no host, no app and no server
 const PANEL_BASE = {
@@ -370,10 +361,34 @@ const regionLayers = ({
 const PANEL_REGIONS = ['ask', 'drafts', 'fixes', 'reading', 'rebuild'];
 const BOARD_REGIONS = ['header', 'columns', 'backlog', 'worktrees', 'voice'];
 
+// a host adapter (host-github): it implements the panel's port, so it sees the panel's port files and nothing of the panel's
+// composition (overlay.ts and the regions), the apps, the server or the schemas
+const HOST_ADAPTER = {
+  paths: [
+    NOT_THE_BRIDGE,
+    NOT_THE_PAGES,
+    NOT_THE_EXTENSION,
+    NOT_THE_SCHEMAS,
+    NOT_THE_TEST_KIT,
+    { from: PANEL_OVERLAY, message: PANEL_COMPOSITION.message },
+    ...PANEL_REGIONS.map((region) => ({
+      from: `${PANEL_SRC}/${region}`,
+      message: PANEL_COMPOSITION.message,
+    })),
+  ],
+  specifiers: [BRIDGE, EXTENSION, WEB, PANEL_COMPOSITION, ASSET_URL, SCHEMAS, TEST_KIT],
+};
+
 // what every server layer must not reach, whatever its place in the stack
 const SERVER = {
-  paths: [NOT_THE_PAGES, NOT_THE_EXTENSION, NOT_THE_PANEL_PACKAGE, NOT_THE_TEST_KIT],
-  specifiers: [EXTENSION, PANEL, TEST_KIT],
+  paths: [
+    NOT_THE_PAGES,
+    NOT_THE_EXTENSION,
+    NOT_THE_PANEL_PACKAGE,
+    NOT_THE_HOST_PACKAGE,
+    NOT_THE_TEST_KIT,
+  ],
+  specifiers: [EXTENSION, PANEL, HOST_PACKAGE, TEST_KIT],
 };
 
 const LAYERS = [
@@ -447,6 +462,7 @@ const LAYERS = [
     ignores: [
       'packages/web/public/vendor/**',
       'packages/web/public/board/shared.ts',
+      'packages/web/public/board/worktree-text.ts',
       ...BOARD_REGIONS.map((region) => `packages/web/public/board/${region}/**`),
     ],
     targets: [WEB_PUBLIC],
@@ -454,10 +470,10 @@ const LAYERS = [
     browser: true,
   },
   {
-    // what the board's regions share (the helpers two of them draw with): below the regions, which import it
+    // what the board's regions share (the helpers two of them draw with, and worktree-text): below the regions, which import it
     name: 'web-board-shared',
-    files: ['packages/web/public/board/shared.ts'],
-    targets: [`${WEB_BOARD}/shared.ts`],
+    files: ['packages/web/public/board/shared.ts', 'packages/web/public/board/worktree-text.ts'],
+    targets: [`${WEB_BOARD}/shared.ts`, `${WEB_BOARD}/worktree-text.ts`],
     paths: [
       ...PAGES.paths,
       NOT_THE_BOARD_PAGE,
@@ -493,7 +509,7 @@ const LAYERS = [
     targets: [PROTOCOL_SRC],
     paths: [
       NOT_THE_BRIDGE_PACKAGE,
-      NOT_THE_SHARED_PACKAGE,
+      NOT_THE_HOST_PACKAGE,
       NOT_THE_EXTENSION,
       NOT_THE_PAGES,
       NOT_THE_PANEL_PACKAGE,
@@ -512,28 +528,11 @@ const LAYERS = [
     browser: true,
   },
   {
-    // shared/util is a layer of its own inside shared: it extends shared's lists and adds shared/host above it
-    name: 'shared-util',
-    files: ['packages/shared/src/util/**/*.ts'],
-    targets: [SHARED_UTIL],
-    paths: [...SHARED.paths, NOT_THE_HOST],
-    specifiers: [...SHARED.specifiers],
-    browser: true,
-  },
-  {
-    // the host adapters the apps inject into the panel (the diff-page reader): the panel never imports them
-    name: 'host',
-    files: ['packages/shared/src/host/**/*.ts'],
-    targets: [SHARED_HOST],
-    ...SHARED,
-    browser: true,
-  },
-  {
-    name: 'shared',
-    files: ['packages/shared/src/**/*.ts'],
-    ignores: ['packages/shared/src/util/**', 'packages/shared/src/host/**'],
-    targets: ['./packages/shared/src'],
-    ...SHARED,
+    // the host adapter for GitHub (the diff-page reader and the URL routing): the apps inject it into the panel, which never imports it
+    name: 'host-github',
+    files: ['packages/host-github/src/**/*.ts'],
+    targets: [HOST_GITHUB_SRC],
+    ...HOST_ADAPTER,
     browser: true,
   },
   {
@@ -577,7 +576,7 @@ const LAYERS = [
       { from: './packages/web', message: KIT_BELOW },
       { from: './packages/extension', message: KIT_BELOW },
       { from: './packages/panel', message: KIT_BELOW },
-      { from: './packages/shared', message: KIT_BELOW },
+      { from: HOST_GITHUB_SRC, message: KIT_BELOW },
       { from: './packages/protocol', message: KIT_BELOW },
     ],
     specifiers: [

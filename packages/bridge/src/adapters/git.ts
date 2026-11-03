@@ -3,7 +3,7 @@
  * ones that reach origin (ls-remote, and the push behind the page's Create pull request, in services/stories/pull-request.ts).
  */
 import { execFile, execFileSync } from 'node:child_process';
-import type { LocalCommit } from '@once-upon-a-diff/shared/types';
+import type { LocalCommit } from '@once-upon-a-diff/protocol/types';
 
 /** Runs git in a folder and returns its trimmed stdout (throws on a non-zero exit, and says nothing on stderr). */
 export const gitText = (dir: string, args: string[]): string =>

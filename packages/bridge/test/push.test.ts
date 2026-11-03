@@ -9,7 +9,7 @@ import { StoryStore } from '../src/services/stories/store.ts';
 import { readSettings, shipRuleFor } from '../src/services/config/settings.ts';
 import { shipMode } from '../src/services/stories/push-default.ts';
 import { boardKey, pageKey, viewKey, viewKeyMay } from '../src/services/pages/page-key.ts';
-import type { BoardData, PushAnswer, PushView, StoryData } from '@once-upon-a-diff/shared/types';
+import type { BoardData, PushAnswer, PushView, StoryData } from '@once-upon-a-diff/protocol/types';
 
 const GITHUB_URL = 'https://github.com/acme/widgets.git';
 const commit = (repo: string, name: string) => {

@@ -13,7 +13,7 @@ import {
   prStories,
   prStory,
 } from '../src/services/review/story-lists.ts';
-import type { InboxLocalStory, InboxStory } from '@once-upon-a-diff/shared/types';
+import type { InboxLocalStory, InboxStory } from '@once-upon-a-diff/protocol/types';
 import type { Build } from '../src/services/inbox/builds.ts';
 import type { listeningOf } from '../src/services/listeners/listeners.ts';
 

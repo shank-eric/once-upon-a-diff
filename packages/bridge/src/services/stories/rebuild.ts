@@ -20,14 +20,14 @@
  */
 import { chaptersOf, entryOf } from './chapters.ts';
 import { readReads, retireReads } from './reads.ts';
-import { chapterKeyOf } from '@once-upon-a-diff/shared/util/story-model';
-import { plural } from '@once-upon-a-diff/shared/util/text';
+import { chapterKeyOf } from '@once-upon-a-diff/protocol/domain/chapters';
+import { plural } from '@once-upon-a-diff/protocol/domain/text';
 import { Inbox } from '../inbox/inbox.ts';
 import { moveQuestions } from '../inbox/conversation.ts';
 import { addTextRefs } from './text-refs.ts';
 import { uncoveredHunks, sidesOf } from './hunk-coverage.ts';
 import { relOfPath } from './diff.ts';
-import type { DiffFile } from '@once-upon-a-diff/shared/types';
+import type { DiffFile } from '@once-upon-a-diff/protocol/types';
 import type { Plan, PlanChapter } from './chapters.ts';
 
 /** What a rebuild's rules read of its request. */

@@ -10,12 +10,8 @@
 import type { Side } from '@once-upon-a-diff/protocol/types';
 import type { PanelContext } from '../context.ts';
 
-export {
-  expandDirOf,
-  type ExpandDir,
-  type ExpandRow,
-} from '@once-upon-a-diff/shared/util/diff-types';
-import type { ExpandDir, ExpandRow } from '@once-upon-a-diff/shared/util/diff-types';
+export { expandDirOf, type ExpandDir, type ExpandRow } from '../diff-types.ts';
+import type { ExpandDir, ExpandRow } from '../diff-types.ts';
 
 /**
  * The next expand control to click to bring `line` into a file's diff.

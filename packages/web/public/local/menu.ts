@@ -4,8 +4,8 @@
  * picks, Escape or Tab closes and focus goes back to the button. A click elsewhere closes it. It takes its colours from
  * the page's tokens (local.css, .ou-menu), so both themes are covered.
  */
-import { html } from '/assets/util/html.ts';
-import { setHtml } from '/assets/util/dom.ts';
+import { html } from '/assets/protocol/domain/html.ts';
+import { setHtml } from '/assets/panel/dom.ts';
 
 export interface MenuItem {
   value: string;

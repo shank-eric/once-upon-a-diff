@@ -4,7 +4,7 @@
  */
 import { html } from '/assets/preact.mjs';
 import type { BoardData } from '/assets/types.ts';
-import { sizeText } from '/assets/util/worktree-text.ts';
+import { sizeText } from '/assets/board/worktree-text.ts';
 import { Worktree, type Api } from '/assets/board/shared.ts';
 
 export function Worktrees(props: {

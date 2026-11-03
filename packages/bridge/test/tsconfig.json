@@ -10,8 +10,7 @@
       "/assets/local/*": ["../../web/public/local/*"],
       "/assets/types.ts": ["../../protocol/src/types.ts"],
       "/assets/protocol/*": ["../../protocol/src/*"],
-      "/assets/host/*": ["../../shared/src/host/*"],
-      "/assets/util/*": ["../../shared/src/util/*"]
+      "/assets/host-github/*": ["../../host-github/src/*"]
     }
   },
   "include": [".", "../../panel/types"]

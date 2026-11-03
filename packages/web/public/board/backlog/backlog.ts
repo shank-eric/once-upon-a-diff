@@ -8,7 +8,11 @@ import { ROUTES } from '/assets/protocol/routes.ts';
 import { openMenu } from '/assets/local/menu.ts';
 import type { BoardCard, BoardData } from '/assets/types.ts';
 import { ago, CardTrees, type Api } from '/assets/board/shared.ts';
-import { agentOnlyChips, pendingClaimChip, startedChips } from '/assets/util/started-chips.ts';
+import {
+  agentOnlyChips,
+  pendingClaimChip,
+  startedChips,
+} from '/assets/board/backlog/started-chips.ts';
 
 /** The ids of the Backlog cards in a card's lane, in the order the board shows them. */
 export function backlogLane(card: BoardCard, board: BoardData | null): string[] {

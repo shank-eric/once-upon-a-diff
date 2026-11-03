@@ -10,7 +10,8 @@ import { installDom } from '@once-upon-a-diff/test-kit/dom';
 
 const PUBLIC = fileURLToPath(new URL('../public/', import.meta.url));
 const PROTOCOL = fileURLToPath(new URL('../../protocol/src/', import.meta.url));
-const SHARED_UTIL = fileURLToPath(new URL('../../shared/src/util/', import.meta.url));
+const PANEL = fileURLToPath(new URL('../../panel/src/', import.meta.url));
+const HOST_GITHUB = fileURLToPath(new URL('../../host-github/src/', import.meta.url));
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -20,9 +21,13 @@ registerHooks({
         shortCircuit: true,
       };
     }
-    const util = /^\/assets\/util\/([a-z0-9-]+\.ts)$/.exec(specifier);
-    if (util) {
-      return { url: pathToFileURL(path.join(SHARED_UTIL, util[1])).href, shortCircuit: true };
+    const panel = /^\/assets\/panel\/([a-z0-9/-]+\.ts)$/.exec(specifier);
+    if (panel) {
+      return { url: pathToFileURL(path.join(PANEL, panel[1])).href, shortCircuit: true };
+    }
+    const host = /^\/assets\/host-github\/([a-z0-9-]+\.ts)$/.exec(specifier);
+    if (host) {
+      return { url: pathToFileURL(path.join(HOST_GITHUB, host[1])).href, shortCircuit: true };
     }
     const protocol = /^\/assets\/protocol\/([a-z0-9/-]+\.ts)$/.exec(specifier);
     if (protocol) {

@@ -2,7 +2,7 @@
  * Small DOM helpers shared by the panel, the local page and the content
  * scripts' own elements: key isolation, stylesheets and setting markup.
  */
-import { html, type HtmlValue } from './html.ts';
+import { html, type HtmlValue } from '@once-upon-a-diff/protocol/domain/html';
 
 /** Keeps key events inside our element, so the host page's single-key shortcuts don't fire while typing in it. */
 export function stopKeyEvents(target: EventTarget): void {

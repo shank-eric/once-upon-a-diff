@@ -26,7 +26,7 @@ import {
 import { execFile } from 'node:child_process';
 import net from 'node:net';
 import path from 'node:path';
-import type { BoardVoiceLine } from '@once-upon-a-diff/shared/types';
+import type { BoardVoiceLine } from '@once-upon-a-diff/protocol/types';
 
 export interface VoiceFiles {
   session: string;

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { tmp, writeJson, githubStory, startBridge } from './helpers.ts';
 import { noteSkeleton, skeletonKeys, unwrittenCount } from '../src/services/stories/skeleton.ts';
 import type { Plan } from '../src/services/stories/chapters.ts';
-import type { StoryData } from '@once-upon-a-diff/shared/types';
+import type { StoryData } from '@once-upon-a-diff/protocol/types';
 
 const plan = (dir: string): Plan =>
   JSON.parse(readFileSync(path.join(dir, 'chapters.json'), 'utf8'));

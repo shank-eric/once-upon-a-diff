@@ -9,7 +9,7 @@ import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
 import { unwrittenCount } from '../../services/stories/skeleton.ts';
 import { approvalOf, approveStory, clearApproval } from '../../services/review/approve.ts';
-import type { LocalStory, StoryData } from '@once-upon-a-diff/shared/types';
+import type { LocalStory, StoryData } from '@once-upon-a-diff/protocol/types';
 import { refreshLocal } from '../../services/stories/local-diff.ts';
 import type { LocalMeta, ServedStory } from '../../services/stories/types.ts';
 import type { Call, StoryRoute } from '../types.ts';

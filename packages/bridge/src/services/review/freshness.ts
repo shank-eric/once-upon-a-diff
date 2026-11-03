@@ -9,9 +9,9 @@
 import { diffText } from '../../adapters/git.ts';
 import { parseUnifiedDiff } from '../stories/diff.ts';
 import { runGh } from '../config/gh.ts';
-import { prKey } from '@once-upon-a-diff/shared/util/github-paths';
-import { SHA_RE, sameSha } from '@once-upon-a-diff/shared/util/text';
-import type { DiffFile, FreshUpdate, Freshness } from '@once-upon-a-diff/shared/types';
+import { prKey } from '@once-upon-a-diff/protocol/domain/pr-key';
+import { SHA_RE, sameSha } from '@once-upon-a-diff/protocol/domain/text';
+import type { DiffFile, FreshUpdate, Freshness } from '@once-upon-a-diff/protocol/types';
 import type { Build } from '../inbox/builds.ts';
 import type { PlanFile } from '../stories/chapters.ts';
 import type { StoryMeta } from '../stories/types.ts';

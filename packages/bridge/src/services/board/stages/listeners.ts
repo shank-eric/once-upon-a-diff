@@ -5,7 +5,7 @@
 import type { Listener } from '../../listeners/listeners.ts';
 import { buildFor, sessionOfPid, storyListening } from '../../sessions/listening.ts';
 import type { ListeningInput } from '../../sessions/listening.ts';
-import type { BoardCard, BoardSession } from '@once-upon-a-diff/shared/types';
+import type { BoardCard, BoardSession } from '@once-upon-a-diff/protocol/types';
 import type { BuildContext, PinnedVoice } from './types.ts';
 
 /** What the listening rules need to know of the sessions. */

@@ -10,7 +10,7 @@ import {
   withAskDock,
   noticeRowHtml,
 } from '../src/content/ui/story-tag.ts';
-import { conversationPr } from '@once-upon-a-diff/shared/util/github-paths';
+import { conversationPr } from '@once-upon-a-diff/host-github/pages';
 
 const pr = { repo: 'octo-org/api-server', number: 42 };
 

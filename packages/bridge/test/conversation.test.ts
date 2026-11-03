@@ -17,7 +17,7 @@ import { beat, listenPrompt, listeningOf } from '../src/services/listeners/liste
 import { storyIdOf } from '../src/cli/commands/inbox.ts';
 import { askWhoHtml, type Health } from '@once-upon-a-diff/panel/status-light';
 import type { StatusMany } from './helpers.ts';
-import type { Pulse, Question, QuestionMarksAnswer } from '@once-upon-a-diff/shared/types';
+import type { Pulse, Question, QuestionMarksAnswer } from '@once-upon-a-diff/protocol/types';
 
 const STORY = 'acme-widgets-7';
 const PATH = `/api/stories/${STORY}/questions`;

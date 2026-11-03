@@ -1,5 +1,5 @@
 /** The words the board puts on a worktree (bridge/src/services/worktrees/worktrees.ts has the facts): its chips and Clean up's confirm. */
-import type { BoardWorktree } from '../types.ts';
+import type { BoardWorktree } from '@once-upon-a-diff/protocol/types';
 
 /** "1.2G", "340M", "12K" for a size in kilobytes. */
 export function sizeText(kilobytes: number): string {

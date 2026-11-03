@@ -6,9 +6,9 @@
  * the story is approved. When GitHub protects the branch or requires pull requests, the box refuses and offers Create
  * pull request. The board's Ready to ship card opens this page with `#push=1` in its link, which opens the box.
  */
-import { html } from '/assets/util/html.ts';
-import { setHtml } from '/assets/util/dom.ts';
-import { plural } from '/assets/util/text.ts';
+import { html } from '/assets/protocol/domain/html.ts';
+import { setHtml } from '/assets/panel/dom.ts';
+import { plural } from '/assets/protocol/domain/text.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { bridge, page, PARAMS } from './page.ts';
 import { boxElement, commitListHtml, openPrBox } from './pull-request.ts';

@@ -7,7 +7,7 @@ import { tmp, githubStory, startBridge, writeJson, type PrLine } from './helpers
 import { clearFreshness } from '../src/services/review/freshness.ts';
 import { Builds, type Build } from '../src/services/inbox/builds.ts';
 import type { Plan } from '../src/services/stories/chapters.ts';
-import type { Freshness } from '@once-upon-a-diff/shared/types';
+import type { Freshness } from '@once-upon-a-diff/protocol/types';
 
 process.env.ONCE_UPON_GH = path.join(
   path.dirname(fileURLToPath(import.meta.url)),

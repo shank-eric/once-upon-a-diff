@@ -2,7 +2,7 @@
  * The panel's copy buttons: a drafted comment's Copy and the Overview's "Copy as
  * gh script". Each says how it went on the button for a moment.
  */
-import { writeClipboard } from '@once-upon-a-diff/shared/util/clipboard';
+import { writeClipboard } from './clipboard.ts';
 
 /** Selects the element's text, so Cmd+C works when the clipboard said no. */
 function selectText(element: Element): void {

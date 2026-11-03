@@ -10,8 +10,8 @@
  *
  * healthChecks has no DOM, so node tests can use it.
  */
-import { html } from '@once-upon-a-diff/shared/util/html';
-import { setHtml } from '@once-upon-a-diff/shared/util/dom';
+import { html } from '@once-upon-a-diff/protocol/domain/html';
+import { setHtml } from './dom.ts';
 import { wireStartListening } from './start-listening.ts';
 import type { PanelContext } from './context.ts';
 import type {

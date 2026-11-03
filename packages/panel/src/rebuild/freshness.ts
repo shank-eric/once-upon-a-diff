@@ -7,11 +7,11 @@
  *
  * rangeStepOf and rangeUrl have no DOM, so node tests can use them.
  */
-import { html } from '@once-upon-a-diff/shared/util/html';
-import { setHtml } from '@once-upon-a-diff/shared/util/dom';
-import { plural, sameSha, shortSha } from '@once-upon-a-diff/shared/util/text';
-import { clockTime, minutesSince } from '@once-upon-a-diff/shared/util/time';
-import { rangeOfPath } from '@once-upon-a-diff/shared/util/github-paths';
+import { html } from '@once-upon-a-diff/protocol/domain/html';
+import { setHtml } from '../dom.ts';
+import { plural, sameSha, shortSha } from '@once-upon-a-diff/protocol/domain/text';
+import { clockTime, minutesSince } from '@once-upon-a-diff/protocol/domain/time';
+import { rangeOfPath } from '@once-upon-a-diff/protocol/domain/pr-key';
 import type { PanelContext } from '../context.ts';
 import type { Chapter, Freshness, StoryRequest } from '@once-upon-a-diff/protocol/types';
 

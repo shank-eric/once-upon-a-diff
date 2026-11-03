@@ -7,15 +7,14 @@
  * listening" notice (listen-notice.js). Each page says where its tags go and
  * when to look.
  */
-import { prKey } from '@once-upon-a-diff/shared/util/github-paths';
+import { prKey } from '@once-upon-a-diff/protocol/domain/pr-key';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { bridge, type BridgeAnswer } from '../bridge.ts';
-import type { Listening } from '@once-upon-a-diff/shared/types';
-import type { StatusMany } from '@once-upon-a-diff/protocol/types';
+import type { Listening, StatusMany } from '@once-upon-a-diff/protocol/types';
 import type { PrRef, StoryStatus } from './story-tag.ts';
 import { listenNotice } from './listen-notice.ts';
 import { answersBadge, tagFor, tagHtml, requestFor, missingListeners } from './story-tag.ts';
-import { html } from '@once-upon-a-diff/shared/util/html';
+import { html } from '@once-upon-a-diff/protocol/domain/html';
 import { createTagHost, showTag, clickedTagButton } from './tag-host.ts';
 
 const MAX_PER_CALL = 200;

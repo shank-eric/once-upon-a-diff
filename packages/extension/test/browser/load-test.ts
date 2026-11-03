@@ -35,7 +35,7 @@ import { localPageUrl } from 'once-upon-a-diff/services/pages/page-key';
 import { beat } from 'once-upon-a-diff/services/listeners/listeners';
 import { Builds, type Build } from 'once-upon-a-diff/services/inbox/builds';
 import type { InboxEntry, QuestionEntry } from 'once-upon-a-diff/services/inbox/inbox';
-import type { LocalNote } from '@once-upon-a-diff/shared/types';
+import type { LocalNote } from '@once-upon-a-diff/protocol/types';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const EXT = path.join(ROOT, '.output/chrome-mv3'); // yarn build's output

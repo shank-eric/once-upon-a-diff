@@ -9,8 +9,8 @@ import type {
   InboxStory,
   PrInfo,
   ShipMode,
-} from '@once-upon-a-diff/shared/types';
-import { gateText } from '@once-upon-a-diff/shared/util/text';
+} from '@once-upon-a-diff/protocol/types';
+import { gateText } from '@once-upon-a-diff/protocol/domain/text';
 import type { LiveSession } from '../../../adapters/claude-sessions/registry.ts';
 import { laneOf } from './lanes.ts';
 import { MERGED_HOURS } from './works.ts';

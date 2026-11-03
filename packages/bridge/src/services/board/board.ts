@@ -39,7 +39,7 @@ import { typeLine, type StatusSource } from '../../adapters/iterm.ts';
 import { BoardError } from '../errors.ts';
 import type { Builds } from '../inbox/builds.ts';
 import type { StoryStore } from '../stories/store.ts';
-import type { BoardCard, BoardData, BoardStatus } from '@once-upon-a-diff/shared/types';
+import type { BoardCard, BoardData, BoardStatus } from '@once-upon-a-diff/protocol/types';
 import { prOfFacts } from './stages/worktrees.ts';
 import { buildBoard } from './stages/index.ts';
 import { liveSessions } from '../../adapters/claude-sessions/registry.ts';

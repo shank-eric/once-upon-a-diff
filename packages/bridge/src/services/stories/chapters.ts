@@ -3,14 +3,14 @@
  * entries, drafted comments and "Since you read it" range, and a last chapter
  * for any file of the diff no chapter places.
  */
-import { chapterKeyOf } from '@once-upon-a-diff/shared/util/story-model';
-import { SHA_RE } from '@once-upon-a-diff/shared/util/text';
+import { chapterKeyOf } from '@once-upon-a-diff/protocol/domain/chapters';
+import { SHA_RE } from '@once-upon-a-diff/protocol/domain/text';
 import type {
   Chapter,
   ChapterFile,
   DraftComment,
   SinceRange,
-} from '@once-upon-a-diff/shared/types';
+} from '@once-upon-a-diff/protocol/types';
 
 /** A file entry in chapters.json as the story was written: a path, or the fields entryOf reads. */
 export type PlanFile =

@@ -39,7 +39,7 @@ import { listenersLane } from '../../sessions/listening.ts';
 import type { ListeningInput } from '../../sessions/listening.ts';
 import type { SessionTitles } from '../../../adapters/claude-sessions/titles.ts';
 import type { WorktreeScanner } from '../../worktrees/worktrees.ts';
-import type { BoardData, BoardStatus } from '@once-upon-a-diff/shared/types';
+import type { BoardData, BoardStatus } from '@once-upon-a-diff/protocol/types';
 import { builderSlots, claimViews, placeAgents } from './agents.ts';
 import { claimerKeys, heldKeys } from '../../backlog/claims.ts';
 import { addBacklogCards, nestClaimedAgents, readBacklogLinks } from './backlog.ts';

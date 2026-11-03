@@ -7,8 +7,8 @@
  */
 import { splitRows } from '/assets/split.ts';
 import { highlightFile, LIMITS } from '/assets/syntax.ts';
-import { html, raw, type Html } from '/assets/util/html.ts';
-import { plural } from '/assets/util/text.ts';
+import { html, raw, type Html } from '/assets/protocol/domain/html.ts';
+import { plural } from '/assets/protocol/domain/text.ts';
 import { page } from './page.ts';
 import { prButtonHtml } from './pull-request.ts';
 import { approveHtml } from './approve.ts';

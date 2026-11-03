@@ -12,7 +12,7 @@
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { BoardStatus } from '@once-upon-a-diff/shared/types';
+import type { BoardStatus } from '@once-upon-a-diff/protocol/types';
 import { run } from './os.ts';
 import type { LiveSession } from './claude-sessions/registry.ts';
 

@@ -7,7 +7,7 @@ import type {
   BoardData,
   BoardSession,
   BoardVoice,
-} from '@once-upon-a-diff/shared/types';
+} from '@once-upon-a-diff/protocol/types';
 import { forgotten } from './agents.ts';
 import type { PinnedVoice } from './types.ts';
 

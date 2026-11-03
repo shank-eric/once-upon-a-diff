@@ -7,10 +7,15 @@
  * files become jump links (file-refs.js). It works on strings, so html``
  * isn't used inside; what it returns is raw() markup for html`` to take.
  */
-import { escapeHtml, html as htmlTag, raw, unescapeHtml } from '@once-upon-a-diff/shared/util/html';
-import { parseDiffLink } from '@once-upon-a-diff/shared/util/line-refs';
+import {
+  escapeHtml,
+  html as htmlTag,
+  raw,
+  unescapeHtml,
+} from '@once-upon-a-diff/protocol/domain/html';
+import { parseDiffLink } from '@once-upon-a-diff/protocol/domain/line-refs';
 import { refAttrs } from './file-refs.ts';
-import type { Html } from '@once-upon-a-diff/shared/util/html';
+import type { Html } from '@once-upon-a-diff/protocol/domain/html';
 import type { PanelContext } from './context.ts';
 
 // eslint-disable-next-line no-control-regex -- the placeholder markers are control characters on purpose

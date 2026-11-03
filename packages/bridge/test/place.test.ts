@@ -7,7 +7,7 @@ import { createLocalStory } from '../src/services/stories/local-story.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
 import { seenCheckout } from '../src/services/config/repos.ts';
 import { mainCheckout, excludeStories, readIndex } from '../src/services/stories/placement.ts';
-import type { StoryData } from '@once-upon-a-diff/shared/types';
+import type { StoryData } from '@once-upon-a-diff/protocol/types';
 
 const status = (repo: string) => git(repo, 'status', '--porcelain');
 const exclude = (repo: string) => readFileSync(path.join(repo, '.git', 'info', 'exclude'), 'utf8');

@@ -14,8 +14,8 @@
  */
 import { storyOverlay, rangeStepOf } from '@once-upon-a-diff/panel/overlay';
 import { bridgeOptions } from '@once-upon-a-diff/panel/bridge-options';
-import { createHostPage } from '@once-upon-a-diff/shared/host/diff-dom';
-import { filesChangedPr } from '@once-upon-a-diff/shared/util/github-paths';
+import { createHostPage } from '@once-upon-a-diff/host-github/diff-dom';
+import { filesChangedPr } from '@once-upon-a-diff/host-github/pages';
 import { withLayout, type Layout } from '@once-upon-a-diff/panel/layout';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { bridge, extensionAlive } from '../bridge.ts';
@@ -31,8 +31,8 @@ import type { PrRef } from '../ui/story-tag.ts';
 import type { Route } from '../index.ts';
 import type { PanelOptions, StoryOverlay } from '@once-upon-a-diff/panel/overlay';
 import type { PanelHost } from '@once-upon-a-diff/panel/host';
-import type { FilesChangedPr } from '@once-upon-a-diff/shared/util/github-paths';
-import type { StatusError, StoryData } from '@once-upon-a-diff/shared/types';
+import type { FilesChangedPr } from '@once-upon-a-diff/host-github/pages';
+import type { StatusError, StoryData } from '@once-upon-a-diff/protocol/types';
 
 /** The PR page on screen, and its story once the bridge has one. */
 interface CurrentPage extends FilesChangedPr {

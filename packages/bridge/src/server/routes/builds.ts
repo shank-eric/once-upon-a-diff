@@ -8,8 +8,8 @@ import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { parseBody } from '../validate.ts';
 import { stateKeyOf } from '../../services/review/drafts.ts';
 import { readReads, sinceOf } from '../../services/stories/reads.ts';
-import { SHA_RE } from '@once-upon-a-diff/shared/util/text';
-import type { StoryData } from '@once-upon-a-diff/shared/types';
+import { SHA_RE } from '@once-upon-a-diff/protocol/domain/text';
+import type { StoryData } from '@once-upon-a-diff/protocol/types';
 import type { ApiRoute, App, Call } from '../types.ts';
 
 type BuildBody = ReturnType<typeof parseBody<'buildRequest'>>;

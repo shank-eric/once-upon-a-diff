@@ -1,6 +1,6 @@
 /*
  * The extension's content script on github.com (started by
- * entrypoints/content.js). It routes by page kind (shared/util/github-paths.js):
+ * entrypoints/content.js). It routes by page kind (host-github/src/pages.ts):
  *   files         a PR's Files changed (/files or /changes): the story panel (pages/files-changed.js)
  *   conversation  a PR's Conversation tab: the story tag by the title (pages/conversation.js)
  *   list          PR lists and PR searches: a story tag per PR (pages/pull-list.js)
@@ -12,12 +12,12 @@
  * its elements off. Its tick (while the tab shows) is the pages' clock for
  * looking again, and coming back to the tab is one 'back' for all of them.
  */
-import { pageKindOf } from '@once-upon-a-diff/shared/util/github-paths';
+import { pageKindOf } from '@once-upon-a-diff/host-github/pages';
 import { extensionAlive } from './bridge.ts';
 import { createFilesChangedPage } from './pages/files-changed.ts';
 import { createConversationPage } from './pages/conversation.ts';
 import { createPullListPage } from './pages/pull-list.ts';
-import type { PageKind } from '@once-upon-a-diff/shared/util/github-paths';
+import type { PageKind } from '@once-upon-a-diff/host-github/pages';
 
 /**
  * Why the router looks: 'tick' (the URL watch, while the tab shows), 'event' (a navigation event) or 'back' (the tab

@@ -3,9 +3,9 @@
  * fix request. It is the panel's own Send (panel/src/fixes/fixes.ts), so it sends the same request and shows the same
  * message; the header only asks the panel to run it. Off with no note to send, and while the panel is closed.
  */
-import { html } from '/assets/util/html.ts';
-import { setHtml } from '/assets/util/dom.ts';
-import { plural } from '/assets/util/text.ts';
+import { html } from '/assets/protocol/domain/html.ts';
+import { setHtml } from '/assets/panel/dom.ts';
+import { plural } from '/assets/protocol/domain/text.ts';
 import { page } from './page.ts';
 
 /** A draft note: not sent to a session yet, and not fixed. */

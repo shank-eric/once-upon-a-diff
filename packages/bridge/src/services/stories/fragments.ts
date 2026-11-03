@@ -19,8 +19,8 @@ import {
   chapterKeyOf,
   chapterNumbers,
   finishedInOf,
-} from '@once-upon-a-diff/shared/util/story-model';
-import type { DiffFile } from '@once-upon-a-diff/shared/types';
+} from '@once-upon-a-diff/protocol/domain/chapters';
+import type { DiffFile } from '@once-upon-a-diff/protocol/types';
 
 /** One drafted comment in a fragment or a plan. */
 type PlanComment = NonNullable<PlanChapter['comments']>[number];

@@ -82,7 +82,7 @@
  *   commentsTitle  heading for the chapter's drafted comments ("Draft comments")
  */
 
-import { createStoryModel } from '@once-upon-a-diff/shared/util/story-model';
+import { createStoryModel } from './story-model.ts';
 import { createPanelState, stateHelpers } from './panel-state.ts';
 import { createShell } from './shell.ts';
 import { createFileRefs } from './file-refs.ts';
@@ -119,7 +119,7 @@ export {
   chapterKeyOf,
   finishedInOf,
   chapterNumbers,
-} from '@once-upon-a-diff/shared/util/story-model';
+} from '@once-upon-a-diff/protocol/domain/chapters';
 export { READ_MS, inferReadSteps, viewedEarlyCheck } from './reading/reading.ts';
 export { placePills, pillMarker } from './file-refs.ts';
 export { rangeOfPath, rangeStepOf, rangeUrl, requestLine } from './rebuild/freshness.ts';

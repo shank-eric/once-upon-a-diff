@@ -1,6 +1,6 @@
 /*
  * What a host page's diff gives the panel to work with, with no DOM calls: the file blocks and tree rows it finds, and the
- * rows of a file's table as expandStep reads them. The host adapter (shared/src/host/diff-dom.ts) makes them, the panel's
+ * rows of a file's table as expandStep reads them. The host adapter (host-github/src/diff-dom.ts) makes them, the panel's
  * expand and viewed parts read them.
  */
 

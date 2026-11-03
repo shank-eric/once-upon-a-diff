@@ -1,4 +1,4 @@
-import { DEFAULT_PORT } from '@once-upon-a-diff/shared/util/bridge-port';
+import { DEFAULT_PORT } from '@once-upon-a-diff/protocol/domain/bridge-port';
 
 /** Where the bridge is, and the token it wants. */
 export interface BridgeSettings {

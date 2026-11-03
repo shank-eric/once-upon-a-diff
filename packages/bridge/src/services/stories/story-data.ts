@@ -20,7 +20,12 @@ import {
   diffIgnoringWhitespace,
   localFilesOf,
 } from './local-diff.ts';
-import type { DiffFile, LocalNote, StoryData, UncoveredFile } from '@once-upon-a-diff/shared/types';
+import type {
+  DiffFile,
+  LocalNote,
+  StoryData,
+  UncoveredFile,
+} from '@once-upon-a-diff/protocol/types';
 import type { StoryStore } from './store.ts';
 import { skeletonKeys } from './skeleton.ts';
 import type { Plan } from './chapters.ts';

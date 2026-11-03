@@ -5,7 +5,7 @@ import { tmp, startBridge, localRepo, writeJson } from './helpers.ts';
 import { createLocalStory } from '../src/services/stories/local-story.ts';
 import { relOfPath } from '../src/server/index.ts';
 import { draftView } from '@once-upon-a-diff/panel/overlay';
-import type { DraftFix, DraftsAnswer, FixNote, StoryData } from '@once-upon-a-diff/shared/types';
+import type { DraftFix, DraftsAnswer, FixNote, StoryData } from '@once-upon-a-diff/protocol/types';
 
 test('Add to fix before push makes a local draft a note, once, and the draft says so', async () => {
   const { repo, base } = localRepo();

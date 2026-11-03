@@ -14,10 +14,10 @@
  *
  * fixSummary has no DOM, so node tests can use it.
  */
-import { html } from '@once-upon-a-diff/shared/util/html';
-import { setHtml } from '@once-upon-a-diff/shared/util/dom';
-import { plural, shortSha } from '@once-upon-a-diff/shared/util/text';
-import { shortDateTime } from '@once-upon-a-diff/shared/util/time';
+import { html } from '@once-upon-a-diff/protocol/domain/html';
+import { setHtml } from '../dom.ts';
+import { plural, shortSha } from '@once-upon-a-diff/protocol/domain/text';
+import { shortDateTime } from '@once-upon-a-diff/protocol/domain/time';
 import { refAttrs } from '../file-refs.ts';
 import type { PanelContext } from '../context.ts';
 import type { FixNote, FixesView } from '@once-upon-a-diff/protocol/types';

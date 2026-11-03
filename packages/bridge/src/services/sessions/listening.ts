@@ -22,7 +22,7 @@ import type {
   BoardListenerRepo,
   BoardListening,
   BoardSession,
-} from '@once-upon-a-diff/shared/types';
+} from '@once-upon-a-diff/protocol/types';
 
 /** {pid: parent pid} for every process, from one `ps`. Empty when ps can't say. */
 export async function parentMap(): Promise<Map<number, number>> {

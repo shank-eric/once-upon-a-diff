@@ -7,7 +7,7 @@ import { tmp, startBridge, runCli, localRepo, writeJson, git, TOKEN } from './he
 import { boardKey, pageKey, viewKey, viewKeyMay } from '../src/services/pages/page-key.ts';
 import { createLocalStory } from '../src/services/stories/local-story.ts';
 import { aheadOf, namedBase } from '../src/services/stories/pull-request.ts';
-import type { PrPushAnswer, PrView, StoryData } from '@once-upon-a-diff/shared/types';
+import type { PrPushAnswer, PrView, StoryData } from '@once-upon-a-diff/protocol/types';
 
 const GITHUB_URL = 'https://github.com/acme/widgets.git';
 

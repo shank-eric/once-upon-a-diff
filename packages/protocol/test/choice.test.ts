@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { freshestFirst, obviousChoice, OBVIOUS_MS } from '../src/util/choice.ts';
+import { freshestFirst, obviousChoice, OBVIOUS_MS } from '../src/domain/choice.ts';
 
 const ago = (minutes: number) =>
   new Date(Date.UTC(2026, 9, 26, 18, 0) - minutes * 60000).toISOString();

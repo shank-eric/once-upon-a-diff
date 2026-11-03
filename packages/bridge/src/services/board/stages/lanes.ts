@@ -1,4 +1,4 @@
-import type { BoardCard } from '@once-upon-a-diff/shared/types';
+import type { BoardCard } from '@once-upon-a-diff/protocol/types';
 import path from 'node:path';
 
 /** Lanes: one per repo (or lane tag), the cards grouped by the page into columns. Sorted by name. */

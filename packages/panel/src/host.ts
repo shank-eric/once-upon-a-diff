@@ -10,9 +10,9 @@
  */
 import type { Client } from '@once-upon-a-diff/protocol/client';
 import type { Side } from '@once-upon-a-diff/protocol/types';
-import type { ExpandRow, FileBlock, TreeRow } from '@once-upon-a-diff/shared/util/diff-types';
+import type { ExpandRow, FileBlock, TreeRow } from './diff-types.ts';
 
-export type { FileBlock, TreeRow } from '@once-upon-a-diff/shared/util/diff-types';
+export type { FileBlock, TreeRow } from './diff-types.ts';
 
 /** What a host page's adapter is built from: the story's files and the panel's own element ids (it never reads those). */
 export interface HostPageDeps {

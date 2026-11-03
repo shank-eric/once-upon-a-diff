@@ -16,7 +16,7 @@
 import { runGh } from '../config/gh.ts';
 import { revParse, runGit, runGitAsync } from '../../adapters/git.ts';
 import { storyRepo } from '../config/repos.ts';
-import type { LocalCommit, PrDraft, PrView } from '@once-upon-a-diff/shared/types';
+import type { LocalCommit, PrDraft, PrView } from '@once-upon-a-diff/protocol/types';
 import type { StoryMeta } from './types.ts';
 
 export const DRAFT_FILE = 'pr-draft.json';

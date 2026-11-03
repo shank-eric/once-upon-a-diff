@@ -16,7 +16,7 @@ import {
   pushBlocker,
   pushBranch,
 } from '../../services/stories/pull-request.ts';
-import type { PrDraft, PrPushAnswer } from '@once-upon-a-diff/shared/types';
+import type { PrDraft, PrPushAnswer } from '@once-upon-a-diff/protocol/types';
 import type { ServedStory } from '../../services/stories/types.ts';
 import type { App, Call, StoryRoute } from '../types.ts';
 

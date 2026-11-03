@@ -16,7 +16,7 @@ import type {
   BoardCard,
   BoardSession,
   BoardStartedLinks,
-} from '@once-upon-a-diff/shared/types';
+} from '@once-upon-a-diff/protocol/types';
 import { AGENT_OPEN } from './agents.ts';
 import type { BuildContext, PinnedVoice, Work } from './types.ts';
 import { dirOf } from './worktrees.ts';

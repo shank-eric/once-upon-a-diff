@@ -63,9 +63,9 @@ const CASES: [string, string, string, string[]][] = [
     [SYNTAX],
   ],
   [
-    'server may import shared and Node built-ins',
+    'server may import the domain and Node built-ins',
     'packages/bridge/src/services/probe.ts',
-    `import { readFileSync } from 'node:fs';\nimport { plural } from '@once-upon-a-diff/shared/util/text';`,
+    `import { readFileSync } from 'node:fs';\nimport { plural } from '@once-upon-a-diff/protocol/domain/text';`,
     [],
   ],
   // the server's layers: apps (http, cli) over services over adapters
@@ -498,64 +498,15 @@ const CASES: [string, string, string, string[]][] = [
     [BUILTINS],
   ],
   [
-    'page may import shared',
+    'page may import the domain',
     'packages/web/public/probe.ts',
-    `import { plural } from '@once-upon-a-diff/shared/util/text';`,
+    `import { plural } from '@once-upon-a-diff/protocol/domain/text';`,
     [],
-  ],
-  // shared
-  [
-    'shared imports the bridge by path',
-    'packages/shared/src/probe.ts',
-    `import type { Call } from '../../bridge/src/server/types.ts';`,
-    [PATHS],
-  ],
-  [
-    'shared imports the pages by path',
-    'packages/shared/src/probe.ts',
-    `import { splitRows } from '../../web/public/split.ts';`,
-    [PATHS],
-  ],
-  [
-    'shared imports the extension by path',
-    'packages/shared/src/probe.ts',
-    `import { isPageLink } from '../../extension/src/page-links.ts';`,
-    [PATHS],
-  ],
-  [
-    'shared imports the bridge by name',
-    'packages/shared/src/probe.ts',
-    `import { x } from 'once-upon-a-diff/types';`,
-    [IMPORTS],
-  ],
-  [
-    'shared imports the bridge dynamically',
-    'packages/shared/src/probe.ts',
-    `await import('once-upon-a-diff/types');`,
-    [SYNTAX],
-  ],
-  [
-    'shared imports the pages through /assets/',
-    'packages/shared/src/probe.ts',
-    `import { x } from '/assets/local/menu.ts';`,
-    [IMPORTS],
-  ],
-  [
-    'shared imports itself by name',
-    'packages/shared/src/probe.ts',
-    `import { x } from '@once-upon-a-diff/shared/util/text';`,
-    [IMPORTS],
   ],
   [
     'the panel imports a Node built-in',
     'packages/panel/src/probe.ts',
     `import os from 'node:os';`,
-    [BUILTINS],
-  ],
-  [
-    'shared imports a bare Node built-in',
-    'packages/shared/src/probe.ts',
-    `import path from 'path';`,
     [BUILTINS],
   ],
   [
@@ -571,41 +522,10 @@ const CASES: [string, string, string, string[]][] = [
     [SYNTAX],
   ],
   [
-    'the panel may import shared util and the protocol',
+    'the panel may import the domain and the protocol',
     'packages/panel/src/probe.ts',
-    `import { plural } from '@once-upon-a-diff/shared/util/text';\nimport { ROUTES } from '@once-upon-a-diff/protocol/routes';\nimport type { StoryData } from '@once-upon-a-diff/protocol/types';`,
+    `import { plural } from '@once-upon-a-diff/protocol/domain/text';\nimport { ROUTES } from '@once-upon-a-diff/protocol/routes';\nimport type { StoryData } from '@once-upon-a-diff/protocol/types';`,
     [],
-  ],
-  // shared/util sits below shared/host, and keeps all of shared's rules
-  [
-    'util imports the host adapters by path',
-    'packages/shared/src/util/probe.ts',
-    `import { createHostPage } from '../host/diff-dom.ts';`,
-    [PATHS],
-  ],
-  [
-    'util imports the panel by name',
-    'packages/shared/src/util/probe.ts',
-    `import { x } from '@once-upon-a-diff/panel/body';`,
-    [IMPORTS],
-  ],
-  [
-    'util imports the bridge by path',
-    'packages/shared/src/util/probe.ts',
-    `import type { Call } from '../../../bridge/src/server/types.ts';`,
-    [PATHS],
-  ],
-  [
-    'util imports a Node built-in',
-    'packages/shared/src/util/probe.ts',
-    `import fs from 'node:fs';`,
-    [BUILTINS],
-  ],
-  [
-    'util imports the bridge dynamically',
-    'packages/shared/src/util/probe.ts',
-    `await import('once-upon-a-diff/types');`,
-    [SYNTAX],
   ],
   // the extension
   [
@@ -633,9 +553,9 @@ const CASES: [string, string, string, string[]][] = [
     [BUILTINS],
   ],
   [
-    'extension may import shared',
+    'extension may import the domain',
     'packages/extension/src/probe.ts',
-    `import { plural } from '@once-upon-a-diff/shared/util/text';`,
+    `import { plural } from '@once-upon-a-diff/protocol/domain/text';`,
     [],
   ],
   // the protocol: no DOM, no Node, no package but valibot, and nothing above it
@@ -646,9 +566,9 @@ const CASES: [string, string, string, string[]][] = [
     [PATHS],
   ],
   [
-    'protocol imports shared by path',
+    'protocol imports a host package by path',
     'packages/protocol/src/probe.ts',
-    `import { plural } from '../../shared/src/util/text.ts';`,
+    `import { filesChangedPr } from '../../host-github/src/pages.ts';`,
     [PATHS],
   ],
   [
@@ -658,9 +578,9 @@ const CASES: [string, string, string, string[]][] = [
     [PATHS],
   ],
   [
-    'protocol imports shared by name',
+    'protocol imports a host package by name',
     'packages/protocol/src/probe.ts',
-    `import { plural } from '@once-upon-a-diff/shared/util/text';`,
+    `import { filesChangedPr } from '@once-upon-a-diff/host-github/pages';`,
     [IMPORTS],
   ],
   [
@@ -684,7 +604,7 @@ const CASES: [string, string, string, string[]][] = [
   [
     'protocol imports another package in a type',
     'packages/protocol/src/probe.ts',
-    `export type X = import('@once-upon-a-diff/shared/types').StoryData;`,
+    `export type X = import('@once-upon-a-diff/protocol/types').StoryData;`,
     [SYNTAX],
   ],
   [
@@ -792,18 +712,6 @@ const CASES: [string, string, string, string[]][] = [
     [PATHS],
   ],
   [
-    'shared imports the schemas by name',
-    'packages/shared/src/panel/probe.ts',
-    `import { BODIES } from '@once-upon-a-diff/protocol/schemas';`,
-    [IMPORTS],
-  ],
-  [
-    'shared util imports the schemas by path',
-    'packages/shared/src/util/probe.ts',
-    `import { BODIES } from '../../../protocol/src/schemas.ts';`,
-    [PATHS],
-  ],
-  [
     'the clients may import the route table and the client',
     'packages/extension/src/probe.ts',
     `import { ROUTES } from '@once-upon-a-diff/protocol/routes';\nimport { createClient } from '@once-upon-a-diff/protocol/client';`,
@@ -821,7 +729,7 @@ const CASES: [string, string, string, string[]][] = [
     `import { checkBody } from '@once-upon-a-diff/protocol/schemas';`,
     [],
   ],
-  // the panel: host-agnostic, over the protocol and the shared helpers
+  // the panel: host-agnostic, over the protocol
   [
     'the panel imports the extension by path',
     'packages/panel/src/probe.ts',
@@ -867,19 +775,19 @@ const CASES: [string, string, string, string[]][] = [
   [
     'the panel imports a host adapter by path',
     'packages/panel/src/probe.ts',
-    `import { createHostPage } from '../../shared/src/host/diff-dom.ts';`,
+    `import { createHostPage } from '../../host-github/src/diff-dom.ts';`,
     [PATHS],
   ],
   [
     'the panel imports a host adapter by name',
     'packages/panel/src/probe.ts',
-    `import { createHostPage } from '@once-upon-a-diff/shared/host/diff-dom';`,
+    `import { createHostPage } from '@once-upon-a-diff/host-github/diff-dom';`,
     [IMPORTS],
   ],
   [
     'the panel imports a host adapter dynamically',
     'packages/panel/src/probe.ts',
-    `await import('@once-upon-a-diff/shared/host/diff-dom');`,
+    `await import('@once-upon-a-diff/host-github/diff-dom');`,
     [SYNTAX],
   ],
   [
@@ -922,13 +830,13 @@ const CASES: [string, string, string, string[]][] = [
   [
     'a panel region keeps the panel’s rules: no host adapter, no Node built-in',
     'packages/panel/src/drafts/probe.ts',
-    `import { createHostPage } from '@once-upon-a-diff/shared/host/diff-dom';\nimport fs from 'node:fs';`,
+    `import { createHostPage } from '@once-upon-a-diff/host-github/diff-dom';\nimport fs from 'node:fs';`,
     [BUILTINS, IMPORTS],
   ],
   [
-    'a panel region may import the panel’s shared files, its own folder, shared util and the protocol',
+    'a panel region may import the panel’s shared files, its own folder, the domain and the protocol',
     'packages/panel/src/ask/probe.ts',
-    `import type { PanelContext } from '../context.ts';\nimport { draftsOf } from './questions.ts';\nimport { html } from '@once-upon-a-diff/shared/util/html';\nimport { ROUTES } from '@once-upon-a-diff/protocol/routes';`,
+    `import type { PanelContext } from '../context.ts';\nimport { draftsOf } from './questions.ts';\nimport { html } from '@once-upon-a-diff/protocol/domain/html';\nimport { ROUTES } from '@once-upon-a-diff/protocol/routes';`,
     [],
   ],
   [
@@ -936,37 +844,6 @@ const CASES: [string, string, string, string[]][] = [
     'packages/panel/src/overlay.ts',
     `import { createDrafts } from './drafts/drafts.ts';\nimport { createFixes } from './fixes/fixes.ts';\nimport type { PanelHost } from './host.ts';`,
     [],
-  ],
-  // the host adapters: shared helpers below the apps, handed to the panel
-  [
-    'a host adapter imports the panel by path',
-    'packages/shared/src/host/probe.ts',
-    `import type { PanelContext } from '../../../panel/src/context.ts';`,
-    [PATHS],
-  ],
-  [
-    'a host adapter imports the panel by name',
-    'packages/shared/src/host/probe.ts',
-    `import { x } from '@once-upon-a-diff/panel/host';`,
-    [IMPORTS],
-  ],
-  [
-    'a host adapter imports the bridge by name',
-    'packages/shared/src/host/probe.ts',
-    `import { x } from 'once-upon-a-diff/types';`,
-    [IMPORTS],
-  ],
-  [
-    'a host adapter may import shared util and is browser code',
-    'packages/shared/src/host/probe.ts',
-    `import type { FileBlock } from '../util/diff-types.ts';`,
-    [],
-  ],
-  [
-    'a host adapter imports a Node built-in',
-    'packages/shared/src/host/probe.ts',
-    `import os from 'node:os';`,
-    [BUILTINS],
   ],
   // the server and the protocol do not reach the client
   [
@@ -982,9 +859,9 @@ const CASES: [string, string, string, string[]][] = [
     [IMPORTS],
   ],
   [
-    'the server may import the shared helpers',
+    'the server may import the domain’s helpers',
     'packages/bridge/src/services/probe.ts',
-    `import { chapterKeyOf } from '@once-upon-a-diff/shared/util/story-model';`,
+    `import { chapterKeyOf } from '@once-upon-a-diff/protocol/domain/chapters';`,
     [],
   ],
   [
@@ -1037,9 +914,9 @@ const CASES: [string, string, string, string[]][] = [
     [BUILTINS, IMPORTS],
   ],
   [
-    'a board region may import board/shared, the page helpers, shared util and the protocol',
+    'a board region may import board/shared, the page helpers, the domain and the protocol',
     'packages/web/public/board/columns/probe.ts',
-    `import { ago } from '/assets/board/shared.ts';\nimport { stored } from '/assets/local/stored.ts';\nimport { html } from '/assets/util/html.ts';\nimport { ROUTES } from '/assets/protocol/routes.ts';\nimport { x } from './columns.ts';`,
+    `import { ago } from '/assets/board/shared.ts';\nimport { stored } from '/assets/local/stored.ts';\nimport { html } from '/assets/protocol/domain/html.ts';\nimport { ROUTES } from '/assets/protocol/routes.ts';\nimport { x } from './columns.ts';`,
     [],
   ],
   [
@@ -1063,13 +940,13 @@ const CASES: [string, string, string, string[]][] = [
   [
     'the pages may import the panel and the host adapters',
     'packages/web/public/local/probe.ts',
-    `import { storyOverlay } from '/assets/panel/overlay.ts';\nimport { createHostPage } from '/assets/host/diff-dom.ts';`,
+    `import { storyOverlay } from '/assets/panel/overlay.ts';\nimport { createHostPage } from '/assets/host-github/diff-dom.ts';`,
     [],
   ],
   [
     'the extension may import the panel and the host adapters',
     'packages/extension/src/probe.ts',
-    `import { storyOverlay } from '@once-upon-a-diff/panel/overlay';\nimport { createHostPage } from '@once-upon-a-diff/shared/host/diff-dom';`,
+    `import { storyOverlay } from '@once-upon-a-diff/panel/overlay';\nimport { createHostPage } from '@once-upon-a-diff/host-github/diff-dom';`,
     [],
   ],
   // outside every layer
@@ -1077,6 +954,140 @@ const CASES: [string, string, string, string[]][] = [
     'tests cross packages freely',
     'packages/extension/test/probe.ts',
     `import { x } from 'once-upon-a-diff/types';\nimport fs from 'node:fs';`,
+    [],
+  ],
+  // the host adapter package (GitHub's DOM and URLs): it implements the panel's port, below the apps
+  [
+    'host-github imports the bridge by path',
+    'packages/host-github/src/probe.ts',
+    `import type { Call } from '../../bridge/src/server/types.ts';`,
+    [PATHS],
+  ],
+  [
+    'host-github imports the bridge by name',
+    'packages/host-github/src/probe.ts',
+    `import { x } from 'once-upon-a-diff/types';`,
+    [IMPORTS],
+  ],
+  [
+    'host-github imports the bridge dynamically',
+    'packages/host-github/src/probe.ts',
+    `await import('once-upon-a-diff/types');`,
+    [SYNTAX],
+  ],
+  [
+    'host-github imports the pages by path',
+    'packages/host-github/src/probe.ts',
+    `import { splitRows } from '../../web/public/split.ts';`,
+    [PATHS],
+  ],
+  [
+    'host-github imports the extension by path',
+    'packages/host-github/src/probe.ts',
+    `import { isPageLink } from '../../extension/src/page-links.ts';`,
+    [PATHS],
+  ],
+  [
+    'host-github imports the extension by name',
+    'packages/host-github/src/probe.ts',
+    `import { x } from '@once-upon-a-diff/extension/page-links';`,
+    [IMPORTS],
+  ],
+  [
+    'host-github imports the panel’s composition root by path',
+    'packages/host-github/src/probe.ts',
+    `import { storyOverlay } from '../../panel/src/overlay.ts';`,
+    [PATHS],
+  ],
+  [
+    'host-github imports the panel’s composition root by name',
+    'packages/host-github/src/probe.ts',
+    `import { storyOverlay } from '@once-upon-a-diff/panel/overlay';`,
+    [IMPORTS],
+  ],
+  [
+    'host-github imports a panel region by path',
+    'packages/host-github/src/probe.ts',
+    `import { createDrafts } from '../../panel/src/drafts/drafts.ts';`,
+    [PATHS],
+  ],
+  [
+    'host-github imports a panel region by name',
+    'packages/host-github/src/probe.ts',
+    `import { createDrafts } from '@once-upon-a-diff/panel/drafts/drafts';`,
+    [IMPORTS],
+  ],
+  [
+    'host-github imports a panel region dynamically',
+    'packages/host-github/src/probe.ts',
+    `await import('@once-upon-a-diff/panel/fixes/fixes');`,
+    [SYNTAX],
+  ],
+  [
+    'host-github imports the schemas',
+    'packages/host-github/src/probe.ts',
+    `import { BODIES } from '@once-upon-a-diff/protocol/schemas';`,
+    [IMPORTS],
+  ],
+  [
+    'host-github imports through /assets/',
+    'packages/host-github/src/probe.ts',
+    `import { x } from '/assets/local/menu.ts';`,
+    [IMPORTS],
+  ],
+  [
+    'host-github imports a Node built-in',
+    'packages/host-github/src/probe.ts',
+    `import os from 'node:os';`,
+    [BUILTINS],
+  ],
+  [
+    'host-github may import the panel’s port, the domain and the protocol',
+    'packages/host-github/src/probe.ts',
+    `import type { FileBlock } from '@once-upon-a-diff/panel/diff-types';\nimport type { HostPage } from '@once-upon-a-diff/panel/host';\nimport { prKey } from '@once-upon-a-diff/protocol/domain/pr-key';\nimport type { Side } from '@once-upon-a-diff/protocol/types';`,
+    [],
+  ],
+  [
+    'the server imports a host adapter by path',
+    'packages/bridge/src/services/probe.ts',
+    `import { createHostPage } from '../../../host-github/src/diff-dom.ts';`,
+    [PATHS],
+  ],
+  [
+    'the server imports a host adapter by name',
+    'packages/bridge/src/services/probe.ts',
+    `import { createHostPage } from '@once-upon-a-diff/host-github/diff-dom';`,
+    [IMPORTS],
+  ],
+  [
+    'the protocol imports a host adapter by path',
+    'packages/protocol/src/probe.ts',
+    `import { createHostPage } from '../../host-github/src/diff-dom.ts';`,
+    [PATHS],
+  ],
+  [
+    'the domain imports a host adapter by name',
+    'packages/protocol/src/domain/probe.ts',
+    `import { createHostPage } from '@once-upon-a-diff/host-github/diff-dom';`,
+    [IMPORTS],
+  ],
+  [
+    'a panel type file imports a host adapter by name',
+    'packages/panel/types/probe.d.ts',
+    `export type P = import('@once-upon-a-diff/host-github/pages').PageKind;`,
+    [SYNTAX],
+  ],
+  // the web board's shared helpers sit below the regions
+  [
+    'board/worktree-text is below the regions',
+    'packages/web/public/board/worktree-text.ts',
+    `import { cardHtml } from '/assets/board/columns/columns.ts';`,
+    [IMPORTS],
+  ],
+  [
+    'board/worktree-text may import the types and the domain',
+    'packages/web/public/board/worktree-text.ts',
+    `import type { BoardWorktree } from '@once-upon-a-diff/protocol/types';\nimport { plural } from '/assets/protocol/domain/text.ts';`,
     [],
   ],
   // the test kit is dev-only: tests import it, nothing that ships does, and it imports no package of this repo
@@ -1089,8 +1100,7 @@ const CASES: [string, string, string, string[]][] = [
     'packages/web/public/board/header/probe.ts',
     'packages/panel/src/probe.ts',
     'packages/panel/src/ask/probe.ts',
-    'packages/shared/src/util/probe.ts',
-    'packages/shared/src/host/probe.ts',
+    'packages/host-github/src/probe.ts',
     'packages/protocol/src/probe.ts',
     'packages/extension/src/probe.ts',
   ].map((file): [string, string, string, string[]] => [
@@ -1112,8 +1122,8 @@ const CASES: [string, string, string, string[]][] = [
     [PATHS],
   ],
   [
-    'shared imports the test kit by path',
-    'packages/shared/src/probe.ts',
+    'host-github imports the test kit by path',
+    'packages/host-github/src/probe.ts',
     `import { tmp } from '../../test-kit/src/files.ts';`,
     [PATHS],
   ],

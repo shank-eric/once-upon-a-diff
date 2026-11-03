@@ -13,7 +13,7 @@ import { doneLine, lastActivity, ledgerTime, parseLedger } from '../src/services
 import { appendLine } from '../src/adapters/stores/notes.ts';
 import { BoardError } from '../src/services/errors.ts';
 import type { StatusSource } from '../src/adapters/iterm.ts';
-import type { BoardCard } from '@once-upon-a-diff/shared/types';
+import type { BoardCard } from '@once-upon-a-diff/protocol/types';
 
 const open: TestBridge[] = [];
 after(() => Promise.all(open.map((bridge) => bridge.close())));

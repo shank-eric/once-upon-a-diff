@@ -14,7 +14,7 @@ import type {
   BoardBeat,
   BoardColumn,
   BoardStatus,
-} from '@once-upon-a-diff/shared/types';
+} from '@once-upon-a-diff/protocol/types';
 import type { BuildContext, PinnedVoice } from './types.ts';
 
 /** A running agent with no done line this long after it started is marked stale. */

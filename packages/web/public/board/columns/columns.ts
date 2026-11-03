@@ -18,8 +18,8 @@ import type {
   BoardSession,
   PrInfo,
 } from '/assets/types.ts';
-import { compactAge } from '/assets/util/time.ts';
-import { gateText, plural } from '/assets/util/text.ts';
+import { compactAge } from '/assets/protocol/domain/time.ts';
+import { gateText, plural } from '/assets/protocol/domain/text.ts';
 import {
   ago,
   CardTrees,
@@ -33,8 +33,8 @@ import {
   useSetting,
   type Api,
 } from '/assets/board/shared.ts';
-import { answerBits } from '/assets/util/story-answers.ts';
-import { freshestFirst, obviousChoice } from '/assets/util/choice.ts';
+import { answerBits } from '/assets/board/columns/story-answers.ts';
+import { freshestFirst, obviousChoice } from '/assets/protocol/domain/choice.ts';
 
 /**
  * The columns in the order the work moves through them, from Backlog (kept for later) to Done, in two groups: what is still on this Mac and what is on GitHub.

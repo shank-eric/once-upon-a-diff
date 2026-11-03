@@ -11,7 +11,7 @@ import { parseBody } from '../validate.ts';
 import { approvedFor, pushApproved, pushView } from '../../services/stories/push-default.ts';
 import { localEntries } from '../../services/review/story-lists.ts';
 import { refreshLocal } from '../../services/stories/local-diff.ts';
-import type { PushAnswer } from '@once-upon-a-diff/shared/types';
+import type { PushAnswer } from '@once-upon-a-diff/protocol/types';
 import type { LocalMeta, ServedStory } from '../../services/stories/types.ts';
 import type { Call, StoryRoute } from '../types.ts';
 

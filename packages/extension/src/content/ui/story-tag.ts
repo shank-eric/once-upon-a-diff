@@ -15,12 +15,16 @@
  *
  * No DOM or chrome.* here, so node can test it.
  */
-import { html } from '@once-upon-a-diff/shared/util/html';
-import { plural, shortSha } from '@once-upon-a-diff/shared/util/text';
-import { clockTime } from '@once-upon-a-diff/shared/util/time';
-import type { Html } from '@once-upon-a-diff/shared/util/html';
-import type { Listening } from '@once-upon-a-diff/shared/types';
-import type { PrRef, BuildRequestView, StoryStatus } from '@once-upon-a-diff/protocol/types';
+import { html } from '@once-upon-a-diff/protocol/domain/html';
+import { plural, shortSha } from '@once-upon-a-diff/protocol/domain/text';
+import { clockTime } from '@once-upon-a-diff/protocol/domain/time';
+import type { Html } from '@once-upon-a-diff/protocol/domain/html';
+import type {
+  Listening,
+  PrRef,
+  BuildRequestView,
+  StoryStatus,
+} from '@once-upon-a-diff/protocol/types';
 
 export type { PrRef, BuildRequestView, StoryStatus };
 

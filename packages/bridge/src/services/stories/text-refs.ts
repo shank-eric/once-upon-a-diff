@@ -17,8 +17,12 @@
  * The once-upon skill's `build` uses addTextRefs for file-map.json.
  */
 import { pathSha } from './diff.ts';
-import { parseDiffLink, parseLineRef, type LineRef } from '@once-upon-a-diff/shared/util/line-refs';
-import type { Chapter } from '@once-upon-a-diff/shared/types';
+import {
+  parseDiffLink,
+  parseLineRef,
+  type LineRef,
+} from '@once-upon-a-diff/protocol/domain/line-refs';
+import type { Chapter } from '@once-upon-a-diff/protocol/types';
 
 export const REF_NOTE = 'its lines are pointed at in the text';
 const REF_LABEL = 'pointed at in the text';

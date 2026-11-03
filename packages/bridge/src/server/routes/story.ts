@@ -24,7 +24,7 @@ import { questionsOf } from './questions.ts';
 import { fixesViewOf } from './fixes.ts';
 import { requestFor } from '../../services/inbox/progress.ts';
 import { workingOf } from '../../services/stories/working.ts';
-import type { RebuildView, StoryData } from '@once-upon-a-diff/shared/types';
+import type { RebuildView, StoryData } from '@once-upon-a-diff/protocol/types';
 import type { LocalMeta, ServedStory } from '../../services/stories/types.ts';
 import type { App, Call, StoryRoute } from '../types.ts';
 

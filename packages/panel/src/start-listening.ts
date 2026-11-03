@@ -6,8 +6,8 @@
  *
  * `listenPlan` and the texts have no DOM, so node tests can use them.
  */
-import { obviousChoice, freshestFirst } from '@once-upon-a-diff/shared/util/choice';
-import { compactAge } from '@once-upon-a-diff/shared/util/time';
+import { obviousChoice, freshestFirst } from '@once-upon-a-diff/protocol/domain/choice';
+import { compactAge } from '@once-upon-a-diff/protocol/domain/time';
 import type { ListenSession, ListenTarget } from '@once-upon-a-diff/protocol/types';
 import type { PanelOptions } from './context.ts';
 

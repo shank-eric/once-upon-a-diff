@@ -5,9 +5,9 @@
  * 'push-ahead'}): a fast-forward of the branch, never forced, refused when GitHub has commits this checkout doesn't.
  * The board's card for the PR opens this page with `#push=1`, which opens the box.
  */
-import { html } from '/assets/util/html.ts';
-import { setHtml } from '/assets/util/dom.ts';
-import { plural } from '/assets/util/text.ts';
+import { html } from '/assets/protocol/domain/html.ts';
+import { setHtml } from '/assets/panel/dom.ts';
+import { plural } from '/assets/protocol/domain/text.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { bridge, page, PARAMS } from './page.ts';
 import { boxElement, commitListHtml, takeView } from './pull-request.ts';

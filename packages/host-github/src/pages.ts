@@ -1,9 +1,8 @@
 /*
- * What a github.com path says about the page: a PR's Files changed (/files or
- * /changes), its Conversation tab, a PR list, or a commit range inside a PR.
- * The content scripts route on these, and the panel reads the commit range.
- * No DOM or chrome.* here, so node can test it.
+ * What a github.com path says about the page: a PR's Files changed (/files or /changes), its Conversation tab, or a PR
+ * list. The extension's content scripts route on these. No DOM or chrome.* here, so node can test it.
  */
+import { prKey } from '@once-upon-a-diff/protocol/domain/pr-key';
 
 /** A PR's Files changed page. */
 export interface FilesChangedPr {
@@ -18,12 +17,6 @@ export type PageKind = 'files' | 'conversation' | 'list' | 'other';
 
 const FILES_CHANGED = /^\/([^/]+)\/([^/]+)\/pull\/(\d+)\/(changes|files)(?:\/|$)/;
 const CONVERSATION = /^\/([^/]+)\/([^/]+)\/pull\/(\d+)\/?$/;
-const COMMIT_RANGE =
-  /^\/[^/]+\/[^/]+\/pull\/\d+\/(?:files|changes)\/([0-9a-f]{7,40})\.\.([0-9a-f]{7,40})\/?$/;
-
-/** The PR key the extension stores state under: "owner/repo#12", lower-cased. */
-export const prKey = (repo: string, number: number | string): string =>
-  `${repo}#${number}`.toLowerCase();
 
 /**
  * A PR's Files changed page (/owner/repo/pull/N/changes or /files, and anything under them):
@@ -82,12 +75,4 @@ export function pageKindOf(loc: { pathname: string; search: string }): PageKind 
     return 'list';
   }
   return 'other';
-}
-
-/** GitHub's diff of a commit range in a PR: /owner/repo/pull/N/files/<from>..<to> (or /changes/…). {from, to} or null. */
-export function rangeOfPath(
-  pathname: string | null | undefined,
-): { from: string; to: string } | null {
-  const match = COMMIT_RANGE.exec(String(pathname || ''));
-  return match ? { from: match[1], to: match[2] } : null;
 }

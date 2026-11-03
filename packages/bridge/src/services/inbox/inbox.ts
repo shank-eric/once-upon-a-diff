@@ -20,7 +20,7 @@ import { randomBytes } from 'node:crypto';
 import path from 'node:path';
 import { readJson, writeFileAtomic, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
 import { ownerOnly, ensureDir, appendText, writeText } from '../../adapters/stores/files.ts';
-import type { LocalNote } from '@once-upon-a-diff/shared/types';
+import type { LocalNote } from '@once-upon-a-diff/protocol/types';
 
 /** What every inbox line has, and what a story's ref adds (StoryRef). */
 interface EntryBase {

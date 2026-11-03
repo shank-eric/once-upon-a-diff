@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createStoryModel } from '../src/util/story-model.ts';
-import type { StoryData } from '../src/types.ts';
+import { createStoryModel } from '../src/story-model.ts';
+import type { StoryData } from '@once-upon-a-diff/protocol/types';
 
 const model = (second: object) =>
   createStoryModel({

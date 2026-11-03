@@ -19,7 +19,7 @@ import {
   type WorktreeFacts,
 } from '../src/services/worktrees/worktrees.ts';
 import { runCommand, type Runner } from '../src/adapters/os.ts';
-import type { BoardCard } from '@once-upon-a-diff/shared/types';
+import type { BoardCard } from '@once-upon-a-diff/protocol/types';
 
 /** A scan to its end: kicks it and waits. */
 async function scanned(scanner: WorktreeScanner, seeds: string[]) {

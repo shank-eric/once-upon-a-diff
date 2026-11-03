@@ -23,7 +23,7 @@ import { newId } from './inbox.ts';
 import { sameRepo } from '../config/repos.ts';
 import { answeringOf, listeners } from '../listeners/listeners.ts';
 import { readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
-import type { FixNote, LocalNote, Side } from '@once-upon-a-diff/shared/types';
+import type { FixNote, LocalNote, Side } from '@once-upon-a-diff/protocol/types';
 import type { Inbox } from './inbox.ts';
 import type { Listener } from '../listeners/listeners.ts';
 import type { StoryStore } from '../stories/store.ts';

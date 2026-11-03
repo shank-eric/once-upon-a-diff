@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { agentChip, agentOnlyChips, startedChips } from '../src/util/started-chips.ts';
-import type { BoardStartedLinks } from '../src/types.ts';
+import { agentChip, agentOnlyChips, startedChips } from '../public/board/backlog/started-chips.ts';
+import type { BoardStartedLinks } from '@once-upon-a-diff/protocol/types';
 
 const links = (extra: Partial<BoardStartedLinks> = {}): BoardStartedLinks => ({
   worktrees: [],

@@ -4,10 +4,10 @@
  * for a few seconds. GitHub renders files as a long jump passes them, which
  * moves the target, so the scroll is settled again for ≈2s.
  */
-import { baseName } from '@once-upon-a-diff/shared/util/text';
+import { baseName } from '@once-upon-a-diff/protocol/domain/text';
 import type { PanelContext } from '../context.ts';
 import type { Side } from '@once-upon-a-diff/protocol/types';
-import type { LineRef } from '@once-upon-a-diff/shared/util/line-refs';
+import type { LineRef } from '@once-upon-a-diff/protocol/domain/line-refs';
 
 const FLASH_MS = 4000;
 const SETTLE_DELAYS = [80, 200, 400, 700, 1100, 1600, 2200];

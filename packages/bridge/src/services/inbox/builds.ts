@@ -20,8 +20,8 @@
 import path from 'node:path';
 import { newId } from './inbox.ts';
 import { sameRepo, REPO_RE } from '../config/repos.ts';
-import { SHA_RE, plural, shortSha } from '@once-upon-a-diff/shared/util/text';
-import { prKey } from '@once-upon-a-diff/shared/util/github-paths';
+import { SHA_RE, plural, shortSha } from '@once-upon-a-diff/protocol/domain/text';
+import { prKey } from '@once-upon-a-diff/protocol/domain/pr-key';
 import { readerOf } from '../config/settings.ts';
 import { readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
 import { listeners } from '../listeners/listeners.ts';

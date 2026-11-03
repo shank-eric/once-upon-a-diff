@@ -4,9 +4,9 @@
  * and keeps that true while GitHub loads and re-renders diffs. A #diff-<sha>
  * jump to a file outside the chapter steps on to the next file in it.
  */
-import { html } from '@once-upon-a-diff/shared/util/html';
-import { setHtml } from '@once-upon-a-diff/shared/util/dom';
-import { baseName, capitalize } from '@once-upon-a-diff/shared/util/text';
+import { html } from '@once-upon-a-diff/protocol/domain/html';
+import { setHtml } from '../dom.ts';
+import { baseName, capitalize } from '@once-upon-a-diff/protocol/domain/text';
 import type { PanelContext } from '../context.ts';
 import type { Chapter } from '@once-upon-a-diff/protocol/types';
 

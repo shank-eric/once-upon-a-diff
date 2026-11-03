@@ -26,11 +26,11 @@
  */
 import { createHash } from 'node:crypto';
 import { runGh } from '../config/gh.ts';
-import { prKey } from '@once-upon-a-diff/shared/util/github-paths';
+import { prKey } from '@once-upon-a-diff/protocol/domain/pr-key';
 import { readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
 import { noteState } from '../inbox/fixes.ts';
 import { stateFile } from '../config/settings.ts';
-import type { Chapter, DraftRow, LocalNote, StoryData } from '@once-upon-a-diff/shared/types';
+import type { Chapter, DraftRow, LocalNote, StoryData } from '@once-upon-a-diff/protocol/types';
 import type { StoryStore } from '../stories/store.ts';
 import type { StoryMeta } from '../stories/types.ts';
 

@@ -38,25 +38,28 @@ test('every import in the page scripts and the panel resolves to a served asset,
   }
   assert.ok(seen.has('/assets/panel/overlay.ts'), 'the panel is in the graph');
   assert.ok(seen.has('/assets/panel/bridge-options.ts'), 'its bridge calls are in the graph');
-  assert.ok(seen.has('/assets/host/diff-dom.ts'), 'the host adapter is in the graph');
+  assert.ok(seen.has('/assets/host-github/diff-dom.ts'), 'the host adapter is in the graph');
   assert.ok(seen.has('/assets/protocol/routes.ts'), 'the route table is in the graph');
-  assert.ok(seen.has('/assets/util/html.ts'), 'the shared helpers are in the graph');
+  assert.ok(seen.has('/assets/protocol/domain/html.ts'), 'the domain is in the graph');
+  assert.ok(seen.has('/assets/panel/dom.ts'), 'the panel’s DOM helpers are in the graph');
 });
 
-test('forBrowser spells the shared helpers and the protocol as the URLs they are served at', () => {
+test('forBrowser spells the panel, the protocol and the host adapter as the URLs they are served at', () => {
   assert.equal(
     forBrowser(
       [
-        `import { html } from '@once-upon-a-diff/shared/util/html';`,
-        `export { x } from "@once-upon-a-diff/shared/util/diff-types";`,
+        `import { html } from '@once-upon-a-diff/protocol/domain/html';`,
+        `export { x } from "@once-upon-a-diff/panel/diff-types";`,
         `const m = await import('@once-upon-a-diff/protocol/routes');`,
+        `import { createHostPage } from '@once-upon-a-diff/host-github/diff-dom';`,
         `import './sibling.ts';`,
       ].join('\n'),
     ),
     [
-      `import { html } from '/assets/util/html.ts';`,
-      `export { x } from "/assets/util/diff-types.ts";`,
+      `import { html } from '/assets/protocol/domain/html.ts';`,
+      `export { x } from "/assets/panel/diff-types.ts";`,
       `const m = await import('/assets/protocol/routes.ts');`,
+      `import { createHostPage } from '/assets/host-github/diff-dom.ts';`,
       `import './sibling.ts';`,
     ].join('\n'),
   );

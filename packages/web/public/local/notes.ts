@@ -6,8 +6,8 @@
  * (To send, Queued, Sent, Fixed), the top bar's toggle counts them by stage,
  * and a sent note can't be deleted here.
  */
-import { html } from '/assets/util/html.ts';
-import { insertHtml, setHtml } from '/assets/util/dom.ts';
+import { html } from '/assets/protocol/domain/html.ts';
+import { insertHtml, setHtml } from '/assets/panel/dom.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { page, bridge, PARAMS } from './page.ts';
 import { columnCount } from './diff-view.ts';

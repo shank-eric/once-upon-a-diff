@@ -17,7 +17,7 @@ import { readIndex } from './placement.ts';
 import { stateFile } from '../config/settings.ts';
 import { ID_RE, isStoryDir, readMeta, storyVersion } from './meta.ts';
 import { storyData } from './story-data.ts';
-import type { StoryData } from '@once-upon-a-diff/shared/types';
+import type { StoryData } from '@once-upon-a-diff/protocol/types';
 
 function childDirs(dir: string): string[] {
   try {

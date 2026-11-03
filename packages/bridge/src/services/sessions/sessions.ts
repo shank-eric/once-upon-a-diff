@@ -24,7 +24,7 @@ import {
   withinDir,
 } from './listening.ts';
 import type { ListeningInput } from './listening.ts';
-import type { BoardData } from '@once-upon-a-diff/shared/types';
+import type { BoardData } from '@once-upon-a-diff/protocol/types';
 
 /** What Sessions asks of the board it sits beside. */
 export interface SessionsFeed {

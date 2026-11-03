@@ -8,7 +8,7 @@ import type {
   BoardSession,
   InboxLocalStory,
   InboxStory,
-} from '@once-upon-a-diff/shared/types';
+} from '@once-upon-a-diff/protocol/types';
 import type { StatusSource } from '../../../adapters/iterm.ts';
 import type { PrWatcher } from './pr-watcher.ts';
 

@@ -21,7 +21,7 @@ import { localEntries, localStories } from '../src/services/review/story-lists.t
 import { columnOf } from '../src/services/board/columns.ts';
 import { boardKey, pageKey, viewKey } from '../src/services/pages/page-key.ts';
 import type { Printable } from '../src/cli/output.ts';
-import type { BoardData, StoryData } from '@once-upon-a-diff/shared/types';
+import type { BoardData, StoryData } from '@once-upon-a-diff/protocol/types';
 
 /** A local story on a real checkout, and a bridge serving it. */
 async function setup(options: { checkBranch?: BranchCheck } = {}) {

@@ -1,8 +1,8 @@
 /*
  * What a story folder says it is (meta.json), and the story a call is about. Types only. The story and the answers the
- * panel takes are in @once-upon-a-diff/shared/types.
+ * panel takes are in @once-upon-a-diff/protocol/types.
  */
-import type { LocalCommit } from '@once-upon-a-diff/shared/types';
+import type { LocalCommit } from '@once-upon-a-diff/protocol/types';
 
 /** A story folder's meta.json (readMeta fills in kind, title and a PR's url). */
 export interface StoryMeta {

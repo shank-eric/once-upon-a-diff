@@ -6,7 +6,7 @@
 import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { readJson } from '../../adapters/stores/json-file.ts';
-import type { LocalMoved } from '@once-upon-a-diff/shared/types';
+import type { LocalMoved } from '@once-upon-a-diff/protocol/types';
 import type { Prefs } from '../config/settings.ts';
 import type { StoryMeta } from './types.ts';
 

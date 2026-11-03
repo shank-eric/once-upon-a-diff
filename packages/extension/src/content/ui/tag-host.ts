@@ -9,8 +9,8 @@ import {
   setHtml,
   stopKeyEvents,
   stylesheetLink,
-} from '@once-upon-a-diff/shared/util/dom';
-import type { Html } from '@once-upon-a-diff/shared/util/html';
+} from '@once-upon-a-diff/panel/dom';
+import type { Html } from '@once-upon-a-diff/protocol/domain/html';
 
 const TAG_CSS_URL = chrome.runtime.getURL('content/ui/story-tag.css');
 

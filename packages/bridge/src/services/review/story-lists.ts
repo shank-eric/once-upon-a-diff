@@ -17,7 +17,7 @@ import { unwrittenCount } from '../stories/skeleton.ts';
 import { stateKeyOf } from './drafts.ts';
 import { approvalOf, readApproval, type Approval } from './approve.ts';
 import type { StoryStore } from '../stories/store.ts';
-import type { InboxLocalStory, InboxStory, ReviewedBy } from '@once-upon-a-diff/shared/types';
+import type { InboxLocalStory, InboxStory, ReviewedBy } from '@once-upon-a-diff/protocol/types';
 
 /** How long after it was built a PR story stays in the inbox. */
 export const STORY_DAYS = 30;

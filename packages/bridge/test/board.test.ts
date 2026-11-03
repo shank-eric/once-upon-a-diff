@@ -34,7 +34,7 @@ import { Inbox } from '../src/services/inbox/inbox.ts';
 import { markQuestions } from '../src/services/inbox/conversation.ts';
 import { Board, liveSessions, noPrWatcher, type PrWatcher } from '../src/services/board/board.ts';
 import { columnOf, isBackToYou } from '../src/services/board/columns.ts';
-import { answerBits } from '@once-upon-a-diff/shared/util/story-answers';
+import { answerBits } from '@once-upon-a-diff/web/public/board/columns/story-answers.ts';
 import {
   BacklogStore,
   assignBranch,
@@ -95,7 +95,7 @@ import type {
   BoardSession,
   PrInfo,
   StoryRequest,
-} from '@once-upon-a-diff/shared/types';
+} from '@once-upon-a-diff/protocol/types';
 
 const NOW = new Date('2026-10-26T19:00:00Z'); // 3:00 PM EDT
 

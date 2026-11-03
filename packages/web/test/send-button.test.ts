@@ -12,7 +12,7 @@ document.body.appendChild(boot);
 const { page } = await import('../public/local/page.ts');
 const { headerHtml } = await import('../public/local/diff-view.ts');
 const { redrawSend, sendNotes } = await import('../public/local/send.ts');
-const { setHtml } = await import('@once-upon-a-diff/shared/util/dom');
+const { setHtml } = await import('@once-upon-a-diff/panel/dom');
 
 type Notes = { id: string; sent?: unknown; fixed?: unknown }[];
 let sends = 0;

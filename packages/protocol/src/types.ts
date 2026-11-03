@@ -5,8 +5,10 @@
  * nothing here runs.
  */
 
-/** A side of a file's diff: 'L' the old lines, 'R' the new. */
-export type Side = 'L' | 'R';
+import type { Side } from './domain/line-refs.ts';
+
+/** A side of a file's diff: 'L' the old lines, 'R' the new (the domain's, which line-ref parsing also names). */
+export type { Side };
 
 /** Lines on one side of a file's diff. */
 export interface LineSpan {
