@@ -5,6 +5,7 @@
  */
 import { html, useEffect, useLayoutEffect, useRef, useState } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/protocol/routes.ts';
+import { sameLaneKey } from '/assets/protocol/domain/lane-key.ts';
 import { openMenu } from '/assets/local/menu.ts';
 import type { BoardCard, BoardData } from '/assets/types.ts';
 import { ago, CardTrees, type Api } from '/assets/board/shared.ts';
@@ -16,7 +17,7 @@ import {
 
 /** The ids of the Backlog cards in a card's lane, in the order the board shows them. */
 export function backlogLane(card: BoardCard, board: BoardData | null): string[] {
-  const lane = board?.lanes.find((one) => one.name === card.lane);
+  const lane = board?.lanes.find((one) => sameLaneKey(one.key, card.lane));
   return (lane?.cards ?? [])
     .filter((one) => one.column === 'backlog' && one.backlog)
     .map((one) => (one.backlog as { id: string }).id);

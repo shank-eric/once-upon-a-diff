@@ -57,6 +57,7 @@
             "title": "helper-one"
           }
         ],
+        "key": "elsewhere",
         "name": "elsewhere"
       },
       {
@@ -72,7 +73,7 @@
             "focus_session": "<PID:14>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "<PID:14>-aaaa-bbbb-cccc-dddddddddddd",
             "kind": "session",
-            "lane": "gadgets",
+            "lane": "acme/gadgets",
             "listening": null,
             "parent": null,
             "pr": null,
@@ -97,6 +98,7 @@
             "title": "Tab title"
           }
         ],
+        "key": "acme/gadgets",
         "name": "gadgets"
       },
       {
@@ -112,7 +114,7 @@
             "focus_session": "<PID:12>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "<PID:12>-aaaa-bbbb-cccc-dddddddddddd",
             "kind": "session",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": null,
@@ -147,7 +149,7 @@
             "focus_session": "<PID:13>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "<PID:13>-aaaa-bbbb-cccc-dddddddddddd",
             "kind": "session",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": null,
@@ -182,7 +184,7 @@
             "focus_session": "<PID:15>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "<PID:15>-aaaa-bbbb-cccc-dddddddddddd",
             "kind": "session",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": null,
@@ -218,7 +220,7 @@
             "focus_session": null,
             "id": "pr:acme/widgets#7",
             "kind": "work",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": {
               "can_focus": true,
               "consumer": "story-acme-widgets-7",
@@ -273,7 +275,7 @@
             "focus_session": null,
             "id": "story:local-w",
             "kind": "work",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": {
               "can_focus": false,
               "consumer": "story-local-w",
@@ -326,7 +328,7 @@
             "focus_session": "<PID:11>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "agent:<PID:11>:helper-two",
             "kind": "agent",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": "Voice session",
             "pr": null,
@@ -365,7 +367,7 @@
             "focus_session": "<PID:11>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "agent:<PID:11>:helper-three",
             "kind": "agent",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": "Voice session",
             "pr": null,
@@ -404,7 +406,7 @@
             "focus_session": "<PID:11>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "agent:<PID:11>:helper-four",
             "kind": "agent",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": "Voice session",
             "pr": null,
@@ -443,7 +445,7 @@
             "focus_session": "<PID:12>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "agent:<PID:12>:not-the-voice",
             "kind": "agent",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": "Tab title",
             "pr": null,
@@ -454,6 +456,7 @@
             "title": "not-the-voice"
           }
         ],
+        "key": "acme/widgets",
         "name": "widgets"
       }
     ],
@@ -496,7 +499,7 @@
       "branch": "main",
       "can_focus": false,
       "context": 37,
-      "lane": "widgets",
+      "lane": "acme/widgets",
       "lines": [
         {
           "at": 1793040900000,

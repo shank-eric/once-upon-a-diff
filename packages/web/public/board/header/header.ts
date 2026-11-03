@@ -8,6 +8,7 @@ import { openMenu } from '/assets/local/menu.ts';
 import type { BoardBuilders, BoardData, BoardLimit, BoardUsage } from '/assets/types.ts';
 import { compactAge } from '/assets/protocol/domain/time.ts';
 import { plural } from '/assets/protocol/domain/text.ts';
+import { sameLaneKey } from '/assets/protocol/domain/lane-key.ts';
 import { Meter, type Api } from '/assets/board/shared.ts';
 
 /** When a limit resets: the time today, else the weekday and hour. */
@@ -230,7 +231,7 @@ export type HeaderProps = {
   summary: string;
   data: BoardData;
   now: number;
-  /** The repo filter: a lane name, '' for All. The menu lists the lanes of the full board. */
+  /** The repo filter: a lane key, '' for All. The menu lists the lanes of the full board. */
   filter: string;
   /** The filter names a lane that is on the board (a lane that is gone shows everything). */
   filterOn: boolean;
@@ -248,10 +249,10 @@ export function Header(props: HeaderProps) {
       [
         { value: '', label: 'All', detail: plural(lanes.length, 'lane'), checked: !filter },
         ...lanes.map((lane) => ({
-          value: lane.name,
+          value: lane.key,
           label: lane.name,
           detail: plural(lane.cards.length, 'card'),
-          checked: lane.name === filter,
+          checked: sameLaneKey(lane.key, filter),
         })),
       ],
       onFilter,
@@ -261,7 +262,7 @@ export function Header(props: HeaderProps) {
   return html`<header class="ou-local-top">
     <div class="ou-local-top-main"><h1>Agent board</h1><div class="ou-local-muted">${summary}</div></div>
     <${Usage} usage=${data.usage} now=${now} />
-    <button type="button" data-board-filter aria-haspopup="menu" onClick=${chooseRepo} title="Narrow the whole board to one repo's lane">Repo: ${filterOn ? filter : 'All'} ▾</button>
+    <button type="button" data-board-filter aria-haspopup="menu" onClick=${chooseRepo} title="Narrow the whole board to one repo's lane">Repo: ${filterOn ? (api.board.lanes.find((lane) => sameLaneKey(lane.key, filter))?.name ?? filter) : 'All'} ▾</button>
     <${Builders} builders=${data.builders} now=${now} />
     <${VoiceControls} voice=${data.voice} phone=${data.phone} voiceStart=${data.voice_start} voicePaused=${data.voice_paused} api=${api} busy=${busy} />
   </header>`;

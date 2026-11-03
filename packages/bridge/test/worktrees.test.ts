@@ -490,7 +490,7 @@ test('the board: a worktree a started backlog card links goes on that card, the 
   assert.equal(data.worktrees?.items[0].verdict, 'new');
   assert.equal(data.worktrees?.items[0].removable, false);
   assert.equal(data.worktrees?.items[0].keep[0], 'made less than an hour ago');
-  assert.equal(data.worktrees?.items[0].lane, 'widgets');
+  assert.equal(data.worktrees?.items[0].lane, 'acme/widgets');
 });
 
 test('the board: the header counts the removable worktrees the lane lists, not the ones on cards', async () => {

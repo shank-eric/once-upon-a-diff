@@ -857,16 +857,16 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
   assert.equal(card(fullId(staleOne.pid)).branch, 'old/merged');
   assert.equal(cards.filter((found) => found.branch === 'old/merged').length, 2);
   // a subagent's lane: its tag, else the repo its task names (a worktree path, or a lane's name), else its parent's
-  assert.equal(card(`agent:${sid(onStory)}:wt-agent`).lane, 'widgets');
+  assert.equal(card(`agent:${sid(onStory)}:wt-agent`).lane, 'acme/widgets');
   assert.equal(card(`agent:${sid(onStory)}:crosscut-note`).lane, 'cross-cutting');
-  assert.equal(card(`agent:${sid(onMain)}:needs-answer`).lane, 'gadgets');
+  assert.equal(card(`agent:${sid(onMain)}:needs-answer`).lane, 'acme/gadgets');
   assert.equal(card('agent:deadbeef:orphan').lane, 'No live session');
   assert.equal(card(`agent:${sid(onStory)}:wt-agent`).parent, 'story-one');
   assert.deepEqual(
     data.lanes.map((lane) => lane.name).filter((name) => !name.startsWith('once-upon-')),
     ['cross-cutting', 'gadgets', 'No live session', 'widgets'],
   );
-  assert.equal(card('pr:acme/widgets#9').lane, 'widgets');
+  assert.equal(card('pr:acme/widgets#9').lane, 'acme/widgets');
 
   const working = card('pr:acme/widgets#7');
   assert.equal(working.kind, 'work');
@@ -909,7 +909,7 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
   const main = card(fullId(onMain.pid));
   assert.equal(main.kind, 'session');
   assert.equal(main.branch, 'main');
-  assert.equal(main.lane, 'gadgets');
+  assert.equal(main.lane, 'acme/gadgets');
   assert.equal(main.agents.length, 0, 'a session card has its agents as cards of their own');
   const needsAnswer = card(`agent:${sid(onMain)}:needs-answer`);
   assert.equal(needsAnswer.detail, 'needs Eric: pick A or B');
@@ -3019,7 +3019,7 @@ test('the voice session is pinned above the columns, off every card, with its ag
     name: 'clarifi-f9',
     title: 'clarifi-f9',
     repo: 'acme/widgets',
-    lane: 'widgets',
+    lane: 'acme/widgets',
     branch: 'main',
     status: 'working',
     since: data.voice?.since,
@@ -3042,7 +3042,7 @@ test('the voice session is pinned above the columns, off every card, with its ag
   const helper = cards.find((card) => card.id === `agent:${sid(voice)}:helper-two`);
   assert.equal(helper?.column, 'waiting');
   assert.equal(helper?.parent, 'Voice session', 'named for what it is, not its tab title');
-  assert.equal(helper?.lane, 'widgets', 'in its parent’s lane');
+  assert.equal(helper?.lane, 'acme/widgets', 'in its parent’s lane');
   assert.equal(
     cards.find((card) => card.id === `agent:${sid(voice)}:helper-one`)?.lane,
     'elsewhere',
@@ -3836,7 +3836,7 @@ test('a session’s repo is looked up without holding the snapshot: it goes on, 
   await new Promise((resolve) => setTimeout(resolve, 20));
   const found = (await board.snapshot()).lanes[0].cards[0];
   assert.equal(found.repo, 'acme/widgets', 'the next snapshot has it, not the kept one');
-  assert.equal(found.lane, 'widgets');
+  assert.equal(found.lane, 'acme/widgets');
 });
 
 test('the process tree says which session runs a listener', () => {
@@ -5172,7 +5172,7 @@ test('the board: a local story puts its branch in Ready for your review, rebuilt
     approved_at: null,
     ship: null,
   });
-  assert.equal(withSession.lane, 'widgets');
+  assert.equal(withSession.lane, 'acme/widgets');
   assert.equal(withSession.build, null, 'it has a story: nothing to build');
   const branchOnly = byId['branch:acme/widgets@feat/new'];
   assert.equal(branchOnly.title, 'Story of local-feat-new');
@@ -6478,4 +6478,28 @@ test('a standing helper is a row at the bottom, never a card: gone with its sess
   ]);
   assert.equal(plain.data.helpers.length, 0);
   assert.equal(agentCards(plain.cards, 'researcher').length, 1, 'still a Waiting card');
+});
+
+test('a lane tag resolves to the one known owner/name it is the short name of, and stays as written when it names none or two', () => {
+  const agent = (lane: string | null, task = 'x') => ({ lane, task }) as unknown as LedgerAgent;
+  const known = ['acme/widgets', 'a/foo', 'b/foo', 'gadgets'];
+  assert.equal(laneForAgent(agent('widgets'), known, null, 'none'), 'acme/widgets');
+  assert.equal(laneForAgent(agent('Acme/Widgets'), known, null, 'none'), 'acme/widgets');
+  assert.equal(laneForAgent(agent('foo'), known, null, 'none'), 'foo', 'two owners have a foo');
+  assert.equal(laneForAgent(agent('b/foo'), known, null, 'none'), 'b/foo');
+  assert.equal(laneForAgent(agent('gadgets'), known, null, 'none'), 'gadgets', 'a folder lane');
+  assert.equal(
+    laneForAgent(agent(null, 'work in widgets-worktrees/x'), known, null, 'none'),
+    'acme/widgets',
+  );
+  // a tag for the lane of the parent card's repo is tied to it by its short name or its whole key
+  const work = {
+    kind: 'work',
+    lane: 'acme/widgets',
+    branch: 'feat/x',
+    pr: null,
+  } as unknown as BoardCard;
+  assert.equal(tiedToParent(agent('widgets', 'on feat/x'), work), true);
+  assert.equal(tiedToParent(agent('acme/widgets', 'on feat/x'), work), true);
+  assert.equal(tiedToParent(agent('other', 'on feat/x'), work), false);
 });

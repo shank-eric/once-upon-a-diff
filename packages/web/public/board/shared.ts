@@ -176,7 +176,9 @@ function CleanUp(props: { tree: BoardWorktree; api: Api }) {
 export function Worktree(props: { tree: BoardWorktree; now: number; api: Api; lane?: boolean }) {
   const { tree, now, api, lane = false } = props;
   const chips = worktreeChips(tree, compactAge(tree.last_commit_at, now));
-  const where = [lane && tree.lane, tree.branch ?? 'detached HEAD'].filter(Boolean).join(' · ');
+  const where = [lane && (tree.lane_label ?? tree.lane), tree.branch ?? 'detached HEAD']
+    .filter(Boolean)
+    .join(' · ');
   return html`<li class=${`ou-board-tree${tree.removable ? ' ou-board-tree-removable' : ''}`} data-worktree=${tree.path}>
     <div class="ou-board-tree-name" title=${tree.path}><code>${tree.name}</code> <span class="ou-local-muted">${where}</span></div>
     <div class="ou-board-chips">${chips.map((chip) => html`<span class="ou-board-chip">${chip}</span>`)}</div>

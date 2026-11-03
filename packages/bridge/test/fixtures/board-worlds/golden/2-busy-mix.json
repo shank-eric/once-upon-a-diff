@@ -87,6 +87,7 @@
     "at": "2026-10-26T19:00:00.000Z",
     "blank": [
       {
+        "key": "acme/gadgets",
         "name": "gadgets",
         "sessions": [
           {
@@ -187,6 +188,7 @@
             "title": "crosscut-note"
           }
         ],
+        "key": "cross-cutting",
         "name": "cross-cutting"
       },
       {
@@ -202,7 +204,7 @@
             "focus_session": "<PID:3>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "<PID:3>-aaaa-bbbb-cccc-dddddddddddd",
             "kind": "session",
-            "lane": "gadgets",
+            "lane": "acme/gadgets",
             "listening": null,
             "parent": null,
             "pr": null,
@@ -238,7 +240,7 @@
             "focus_session": null,
             "id": "story:local-main",
             "kind": "work",
-            "lane": "gadgets",
+            "lane": "acme/gadgets",
             "listening": null,
             "parent": null,
             "pr": null,
@@ -286,7 +288,7 @@
             "focus_session": "<PID:3>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "agent:<PID:3>:needs-answer",
             "kind": "agent",
-            "lane": "gadgets",
+            "lane": "acme/gadgets",
             "listening": null,
             "parent": "main-one",
             "pr": null,
@@ -297,6 +299,7 @@
             "title": "needs-answer"
           }
         ],
+        "key": "acme/gadgets",
         "name": "gadgets"
       },
       {
@@ -419,6 +422,7 @@
             "title": "stopped-one"
           }
         ],
+        "key": "No live session",
         "name": "No live session"
       },
       {
@@ -533,6 +537,7 @@
             "title": "parked-two"
           }
         ],
+        "key": "no-repo-10",
         "name": "no-repo-10"
       },
       {
@@ -548,7 +553,7 @@
             "focus_session": "<PID:5>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "<PID:5>-aaaa-bbbb-cccc-dddddddddddd",
             "kind": "session",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": null,
@@ -583,7 +588,7 @@
             "focus_session": "<PID:6>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "<PID:6>-aaaa-bbbb-cccc-dddddddddddd",
             "kind": "session",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": null,
@@ -659,7 +664,7 @@
             "focus_session": "<PID:0>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "pr:acme/widgets#7",
             "kind": "work",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": {
@@ -740,7 +745,7 @@
             "focus_session": null,
             "id": "pr:acme/widgets#8",
             "kind": "work",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": {
@@ -790,7 +795,7 @@
             "focus_session": null,
             "id": "pr:acme/widgets#10",
             "kind": "work",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": {
@@ -840,7 +845,7 @@
             "focus_session": null,
             "id": "pr:acme/widgets#11",
             "kind": "work",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": {
@@ -890,7 +895,7 @@
             "focus_session": null,
             "id": "pr:acme/widgets#14",
             "kind": "work",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": {
@@ -940,7 +945,7 @@
             "focus_session": null,
             "id": "pr:acme/widgets#15",
             "kind": "work",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": {
@@ -990,7 +995,7 @@
             "focus_session": null,
             "id": "pr:acme/widgets#17",
             "kind": "work",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": {
@@ -1044,7 +1049,7 @@
             "focus_session": null,
             "id": "pr:acme/widgets#18",
             "kind": "work",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": {
@@ -1094,7 +1099,7 @@
             "focus_session": null,
             "id": "pr:acme/widgets#12",
             "kind": "work",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": {
@@ -1135,7 +1140,7 @@
             "focus_session": null,
             "id": "pr:acme/widgets#19",
             "kind": "work",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": {
@@ -1180,7 +1185,7 @@
             "focus_session": null,
             "id": "pr:acme/widgets#16",
             "kind": "work",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": {
@@ -1221,7 +1226,7 @@
             "focus_session": null,
             "id": "story:local-nobranch",
             "kind": "work",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": null,
@@ -1252,7 +1257,7 @@
             "focus_session": null,
             "id": "branch:acme/widgets@feat/mb",
             "kind": "work",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": null,
@@ -1283,7 +1288,7 @@
             "focus_session": null,
             "id": "branch:acme/widgets@feat/appr",
             "kind": "work",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": null,
@@ -1314,7 +1319,7 @@
             "focus_session": "<PID:2>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "branch:acme/widgets@feat/y",
             "kind": "work",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": {
@@ -1395,7 +1400,7 @@
             "focus_session": "<PID:0>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "agent:<PID:0>:nested-done",
             "kind": "agent",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": "story-one",
             "pr": null,
@@ -1434,7 +1439,7 @@
             "focus_session": "<PID:0>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "agent:<PID:0>:wt-agent",
             "kind": "agent",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": "story-one",
             "pr": null,
@@ -1476,7 +1481,7 @@
             "focus_session": "<PID:2>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "agent:<PID:2>:gated-plan",
             "kind": "agent",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": "Tab title",
             "pr": null,
@@ -1515,7 +1520,7 @@
             "focus_session": "<PID:0>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "agent:<PID:0>:parked-review",
             "kind": "agent",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": "story-one",
             "pr": null,
@@ -1557,7 +1562,7 @@
             "focus_session": "<PID:0>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "agent:<PID:0>:fixer",
             "kind": "agent",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": "story-one",
             "pr": null,
@@ -1568,6 +1573,7 @@
             "title": "fixer"
           }
         ],
+        "key": "acme/widgets",
         "name": "widgets"
       }
     ],

@@ -575,7 +575,7 @@ function agentColumn(
     : { column: 'done', when, tried: false };
 }
 
-const lane = (repo: string | null) => (repo ? repo.split('/')[1] : 'General');
+const lane = (repo: string | null) => repo ?? 'General';
 
 /** A live session that is on no card (the voice session, or one only listening): what a started item can sit on. */
 export interface CardlessSession {

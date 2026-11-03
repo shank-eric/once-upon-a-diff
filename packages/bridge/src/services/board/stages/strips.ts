@@ -2,12 +2,7 @@
 import { voiceStatus } from '../../voice/voice.ts';
 import { readVoice, voiceLines } from '../../../adapters/larmor.ts';
 import type { LedgerAgent } from '../../ledger/ledger.ts';
-import type {
-  BoardBlankSession,
-  BoardData,
-  BoardSession,
-  BoardVoice,
-} from '@once-upon-a-diff/protocol/types';
+import type { BoardData, BoardSession, BoardVoice } from '@once-upon-a-diff/protocol/types';
 import { forgotten } from './agents.ts';
 import type { PinnedVoice } from './types.ts';
 
@@ -45,11 +40,18 @@ export function voiceOf(
   };
 }
 
-/** The blank sessions grouped by lane (a repo's name, else the folder's), the lanes by name and a lane's sessions by title. */
-export function blankStrip(views: { lane: string; view: BoardSession }[]): BoardData['blank'] {
-  const groups = new Map<string, { name: string; sessions: BoardBlankSession[] }>();
+/** The blank sessions grouped by lane (a repo's owner/name, else the folder's), the lanes by label and a lane's sessions by title. */
+export function blankStrip(
+  views: { lane: string; view: BoardSession }[],
+  labels: Map<string, string>,
+): BoardData['blank'] {
+  const groups = new Map<string, BoardData['blank'][number]>();
   for (const { lane, view } of views) {
-    const group = groups.get(lane.toLowerCase()) || { name: lane, sessions: [] };
+    const group = groups.get(lane.toLowerCase()) || {
+      key: lane,
+      name: labels.get(lane) ?? lane,
+      sessions: [],
+    };
     group.sessions.push({
       id: view.id,
       title: view.title,

@@ -61,6 +61,7 @@
             "title": "Open two (no repo)"
           }
         ],
+        "key": "General",
         "name": "General"
       },
       {
@@ -110,6 +111,7 @@
             "title": "ou-kill-inbox"
           }
         ],
+        "key": "No live session",
         "name": "No live session"
       },
       {
@@ -131,7 +133,7 @@
             ],
             "id": "<PID:16>-aaaa-bbbb-cccc-dddddddddddd",
             "kind": "session",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": null,
@@ -168,7 +170,7 @@
                   "no commits of its own yet",
                   "1 unpushed"
                 ],
-                "lane": "widgets",
+                "lane": "acme/widgets",
                 "last_commit_at": "2026-10-20T12:00:00.000Z",
                 "locked": false,
                 "main": "<WORK>/links-repo-24/widgets",
@@ -201,7 +203,7 @@
             "focus_session": "<PID:17>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "<PID:17>-aaaa-bbbb-cccc-dddddddddddd",
             "kind": "session",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": null,
@@ -238,7 +240,7 @@
                   "no commits of its own yet",
                   "1 unpushed"
                 ],
-                "lane": "widgets",
+                "lane": "acme/widgets",
                 "last_commit_at": "2026-10-20T12:00:00.000Z",
                 "locked": false,
                 "main": "<WORK>/links-repo-24/widgets",
@@ -271,7 +273,7 @@
             "focus_session": "<PID:18>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "<PID:18>-aaaa-bbbb-cccc-dddddddddddd",
             "kind": "session",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": null,
@@ -333,7 +335,7 @@
             "focus_session": null,
             "id": "backlog:bl_aaaaaa2",
             "kind": "backlog",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": null,
@@ -353,7 +355,7 @@
                   "made less than an hour ago",
                   "2 unpushed"
                 ],
-                "lane": "widgets",
+                "lane": "acme/widgets",
                 "last_commit_at": "2026-10-26T18:30:00.000Z",
                 "locked": false,
                 "main": "<WORK>/links-repo-24/widgets",
@@ -398,7 +400,7 @@
             "focus_session": null,
             "id": "backlog:bl_aaaaaa3",
             "kind": "backlog",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": null,
@@ -436,7 +438,7 @@
             "focus_session": null,
             "id": "backlog:bl_aaaaaa5",
             "kind": "backlog",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": null,
@@ -479,7 +481,7 @@
             "focus_session": null,
             "id": "backlog:bl_aaaaaa7",
             "kind": "backlog",
-            "lane": "widgets",
+            "lane": "acme/widgets",
             "listening": null,
             "parent": null,
             "pr": null,
@@ -490,6 +492,7 @@
             "title": "Started, no tree"
           }
         ],
+        "key": "acme/widgets",
         "name": "widgets"
       }
     ],
@@ -514,7 +517,8 @@
             "no commits of its own yet",
             "1 unpushed"
           ],
-          "lane": "widgets",
+          "lane": "acme/widgets",
+          "lane_label": "widgets",
           "last_commit_at": "2026-10-20T12:00:00.000Z",
           "locked": false,
           "main": "<WORK>/links-repo-24/widgets",

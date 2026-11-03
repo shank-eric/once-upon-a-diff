@@ -28,6 +28,7 @@ import {
   type ColumnsView,
 } from '/assets/board/columns/columns.ts';
 import { BacklogCard, useAddPanel, useBacklogDnd } from '/assets/board/backlog/backlog.ts';
+import { sameLaneKey } from '/assets/protocol/domain/lane-key.ts';
 import { Header, useVoiceBusy } from '/assets/board/header/header.ts';
 import { Worktrees } from '/assets/board/worktrees/worktrees.ts';
 
@@ -75,17 +76,17 @@ const asText = (value: unknown) => String(value);
 
 /** The board narrowed to the filter's lane: its lanes, blank sessions and listeners (a gone lane means All). */
 function filtered(data: BoardData, laneFilter: string): BoardData {
-  if (!laneFilter || !data.lanes.some((lane) => lane.name === laneFilter)) {
+  if (!laneFilter || !data.lanes.some((lane) => sameLaneKey(lane.key, laneFilter))) {
     return data;
   }
   return {
     ...data,
-    lanes: data.lanes.filter((lane) => lane.name === laneFilter),
-    blank: data.blank.filter((group) => group.name === laneFilter),
-    listeners: data.listeners.filter((entry) => entry.repo.split('/')[1] === laneFilter),
+    lanes: data.lanes.filter((lane) => sameLaneKey(lane.key, laneFilter)),
+    blank: data.blank.filter((group) => sameLaneKey(group.key, laneFilter)),
+    listeners: data.listeners.filter((entry) => sameLaneKey(entry.repo, laneFilter)),
     worktrees: data.worktrees && {
       ...data.worktrees,
-      items: data.worktrees.items.filter((tree) => tree.lane === laneFilter),
+      items: data.worktrees.items.filter((tree) => sameLaneKey(tree.lane, laneFilter)),
       // what the header says can be cleaned up is what the narrowed lane lists
       removable: data.worktrees.items.filter((tree) => tree.lane === laneFilter && tree.removable)
         .length,

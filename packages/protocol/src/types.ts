@@ -801,6 +801,7 @@ export interface BoardCard {
   title: string;
   repo: string | null;
   branch: string | null;
+  /** the lane key: the repo's owner/name, else the folder's name (or a lane tag, or "General") */
   lane: string;
   column: BoardColumn;
   /** the question or status line worth reading at a glance */
@@ -895,8 +896,10 @@ export interface BoardWorktree {
   name: string;
   /** owner/name when the origin is on GitHub */
   repo: string | null;
-  /** the lane it belongs to: the repo's name, else the main checkout's folder */
+  /** the lane it belongs to, as a lane key: the repo's owner/name, else the main checkout's folder */
   lane: string;
+  /** the lane's label as the board shows it, set on the Worktrees lane's items: the short name, unless another lane shares it */
+  lane_label?: string;
   /** the repo's main checkout */
   main: string;
   /** null when detached */
@@ -1070,9 +1073,10 @@ export interface BoardData {
   listeners: BoardListenerRepo[];
   /** standing helpers (ledger agents marked "standing helper") whose session is live, for the row under the Listeners */
   helpers: BoardHelper[];
-  /** live sessions that have had no prompt yet (new, or just cleared), by lane name: a strip in the Idle lane, not cards */
-  blank: { name: string; sessions: BoardBlankSession[] }[];
-  lanes: { name: string; cards: BoardCard[] }[];
+  /** live sessions that have had no prompt yet (new, or just cleared), by lane: a strip in the Idle lane, not cards */
+  blank: { key: string; name: string; sessions: BoardBlankSession[] }[];
+  /** one per repo, or per lane tag: `key` is the repo's owner/name (else the folder or tag), `name` is the label (the short name, unless two lanes share it) */
+  lanes: { key: string; name: string; cards: BoardCard[] }[];
   /** every git worktree on this Mac (null when the board's worktrees are off) */
   worktrees: BoardWorktrees | null;
   /** the account's usage limits as the freshest status line had them, null when none has rendered lately */

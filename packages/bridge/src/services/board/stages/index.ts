@@ -24,7 +24,7 @@
  *                               (statusline.ts)
  *
  * The board shows your own work: sessions on this Mac, and PRs you authored (isShown). Columns follow the work to
- * merge (columns.ts). A lane is the repo's name (else the folder's name): the page puts a lane's label right above its
+ * merge (columns.ts). A lane is keyed by the repo's owner/name (else the folder's name) and labeled by the short name unless two lanes share it: the page puts a lane's label right above its
  * cards inside each column. Sessions share a card only on the same live branch (a PR still open, or a story); any other
  * session is a card of its own, titled by the session. A ledger agent is a card of its own, on its own lane (its
  * `lane:<name>` tag, else the repo its task names, else its parent's), with a "from <parent session>" link, only while
@@ -47,6 +47,7 @@ import { buildCards, placeCards } from './cards.ts';
 import type { CardFacts } from './cards.ts';
 import { isStandingHelper, standingHelpers } from './helpers.ts';
 import { groupLanes } from './lanes.ts';
+import { laneLabels, resolveLane } from '@once-upon-a-diff/protocol/domain/lane-key';
 import { markListening } from './listeners.ts';
 import { placeSessions, readLive, readSessionFacts } from './sessions.ts';
 import { blankStrip, voiceOf } from './strips.ts';
@@ -176,8 +177,44 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     ),
   );
 
-  // lanes: one per repo (or lane tag), the cards grouped by the page into columns
-  const lanes = groupLanes(cards);
+  const worktrees = settings.worktrees
+    ? worktreeSection({
+        scanner: state.scanner,
+        home: ctx.home,
+        review: ctx.review,
+        cards,
+        live,
+        sessionViews,
+        agents,
+        keepBranches: settings.keepBranches,
+        nowMs,
+      })
+    : null;
+
+  // an agent's lane tag is a short name: now that every repo the board knows is in (cards, backlog cards, blank
+  // sessions, worktrees), it becomes the one owner/name that has that name, so a repo is one lane
+  const repoLanes = [
+    ...cards.map((card) => card.lane),
+    ...blankViews.map((one) => one.lane),
+    ...(worktrees?.items ?? []).map((tree) => tree.lane),
+  ];
+  for (const card of cards) {
+    if (card.kind === 'agent') {
+      card.lane = resolveLane(card.lane, repoLanes);
+    }
+  }
+
+  // lanes: one per repo (or lane tag), the cards grouped by the page into columns; the labels are the board's one
+  // answer, the short name unless two lanes share it (the Worktrees lane's rows carry theirs)
+  const labels = laneLabels([
+    ...cards.map((card) => card.lane),
+    ...blankViews.map((one) => one.lane),
+    ...(worktrees?.items ?? []).map((tree) => tree.lane),
+  ]);
+  for (const tree of worktrees?.items ?? []) {
+    tree.lane_label = labels.get(tree.lane);
+  }
+  const lanes = groupLanes(cards, labels);
   const data: BoardData = {
     at: now.toISOString(),
     status_source: picked.source.name,
@@ -195,21 +232,9 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     voice_paused: voicePaused,
     listeners: listenersLane(waits, listening),
     helpers: standingHelpers(standing, live, sessionViews, nowMs),
-    blank: blankStrip(blankViews),
+    blank: blankStrip(blankViews, labels),
     lanes,
-    worktrees: settings.worktrees
-      ? worktreeSection({
-          scanner: state.scanner,
-          home: ctx.home,
-          review: ctx.review,
-          cards,
-          live,
-          sessionViews,
-          agents,
-          keepBranches: settings.keepBranches,
-          nowMs,
-        })
-      : null,
+    worktrees,
     usage: statusLines.usage,
   };
   return { data, listening, seen: placed.seen };

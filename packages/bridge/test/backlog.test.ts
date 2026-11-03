@@ -127,7 +127,7 @@ test('open items are cards in the Backlog column, in their repo lane; dropped on
   assert.deepEqual(
     cards.map((card) => [card.title, card.column, card.kind, card.lane]),
     [
-      ['Keep me', 'backlog', 'backlog', 'widgets'],
+      ['Keep me', 'backlog', 'backlog', 'acme/widgets'],
       ['No repo', 'backlog', 'backlog', 'General'],
     ],
   );
@@ -467,6 +467,60 @@ test('a started item with no card is Working until its work ends, then Ready, or
   assert.equal(card.since, ended);
 });
 
+test('lanes are keyed by owner/name: two repos of one name are two lanes, a lone repo keeps its short label', async () => {
+  const home = tmp('backlog-lane-keys');
+  writeJson(path.join(home, 'config.json'), {
+    board_sessions_dir: tmp('backlog-lane-keys-sessions'),
+    board_status_source: 'registry',
+  });
+  const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+    source: registrySource,
+    now: () => new Date(NOW),
+    repoOf: async () => null,
+  });
+  board.addBacklog({ title: 'In a', repo: 'a/foo', by: 'board' });
+  board.addBacklog({ title: 'In b', repo: 'b/foo', by: 'board' });
+  board.addBacklog({ title: 'In widgets', repo: 'acme/widgets', by: 'board' });
+  const data = await board.snapshot();
+  assert.deepEqual(
+    data.lanes.map((lane) => [lane.key, lane.name, lane.cards.map((card) => card.title)]),
+    [
+      ['a/foo', 'a/foo', ['In a']],
+      ['b/foo', 'b/foo', ['In b']],
+      ['acme/widgets', 'widgets', ['In widgets']],
+    ],
+  );
+  assert.deepEqual(
+    data.lanes.flatMap((lane) => lane.cards.map((card) => card.lane)),
+    ['a/foo', 'b/foo', 'acme/widgets'],
+  );
+});
+
+test('a lane tag joins the lane of the repo it names when that repo is only on the board as a backlog card', async () => {
+  const home = tmp('backlog-lane-tag');
+  const ledger = path.join(home, 'agent-ledger.md');
+  appendFileSync(
+    ledger,
+    '- [running] sid:deadbeef lane:foo tagged-agent (sonnet, high) — tagged task — started 2:50 PM ET, 10/27\n',
+  );
+  writeJson(path.join(home, 'config.json'), {
+    board_sessions_dir: tmp('backlog-lane-tag-sessions'),
+    board_status_source: 'registry',
+    board_ledger_file: ledger,
+  });
+  const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+    source: registrySource,
+    now: () => new Date(NOW),
+    repoOf: async () => null,
+  });
+  board.addBacklog({ title: 'In eric/foo', repo: 'eric/foo', by: 'board' });
+  const lanes = (await board.snapshot()).lanes;
+  assert.deepEqual(
+    lanes.map((lane) => [lane.key, lane.name, lane.cards.map((card) => card.title)]),
+    [['eric/foo', 'foo', ['tagged-agent', 'In eric/foo']]],
+  );
+});
+
 test('the board snapshot has the Backlog column’s cards, and a CLI-added item shows up', async () => {
   const home = tmp('backlog-board');
   writeJson(path.join(home, 'config.json'), {
@@ -770,7 +824,7 @@ test('edit changes an open card in place: the CLI, the board key and the board a
   assert.equal(shownCard?.title, 'From the board');
   assert.equal(shownCard?.detail, 'new note');
   assert.equal(shownCard?.repo, 'acme/gadgets');
-  assert.equal(shownCard?.lane, 'gadgets');
+  assert.equal(shownCard?.lane, 'acme/gadgets');
   assert.equal(shownCard?.column, 'backlog');
   for (const body of [
     {},

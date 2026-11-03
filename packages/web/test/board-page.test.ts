@@ -125,6 +125,7 @@ const board = (over: Partial<BoardData> = {}): BoardData => ({
   blank: [],
   lanes: [
     {
+      key: 'widgets',
       name: 'widgets',
       cards: [
         backlog('bl_1'),
@@ -134,7 +135,11 @@ const board = (over: Partial<BoardData> = {}): BoardData => ({
         idleCard,
       ],
     },
-    { name: 'gadgets', cards: [backlog('bl_9', 'gadgets'), card({ id: 'g-1', lane: 'gadgets' })] },
+    {
+      key: 'gadgets',
+      name: 'gadgets',
+      cards: [backlog('bl_9', 'gadgets'), card({ id: 'g-1', lane: 'gadgets' })],
+    },
   ],
   worktrees: {
     at: null,
@@ -269,6 +274,7 @@ const withOrder = (...ids: string[]) =>
   board({
     lanes: [
       {
+        key: 'widgets',
         name: 'widgets',
         cards: [
           ...ids.map((id) => backlog(id, 'widgets')),

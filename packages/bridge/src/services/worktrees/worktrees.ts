@@ -1040,7 +1040,7 @@ export function judge(facts: WorktreeFacts, context: JudgeContext): BoardWorktre
     path: facts.path,
     name: path.basename(facts.path),
     repo: facts.repo,
-    lane: facts.repo?.split('/')[1] ?? path.basename(facts.main),
+    lane: facts.repo ?? path.basename(facts.main),
     main: facts.main,
     branch: facts.branch,
     last_commit_at: facts.lastCommitMs ? new Date(facts.lastCommitMs).toISOString() : null,

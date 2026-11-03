@@ -185,7 +185,7 @@ export function workCard(ctx: BuildContext, facts: CardFacts, work: Work): Board
   }
   const sessions = work.sessions.map((view) => view.card);
   const repo = work.repo;
-  const lane = repo ? repo.split('/')[1] : NO_PARENT;
+  const lane = repo ?? NO_PARENT;
   return {
     id: work.key,
     kind: 'work',

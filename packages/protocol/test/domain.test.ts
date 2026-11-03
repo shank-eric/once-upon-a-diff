@@ -1,6 +1,7 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { prKey, rangeOfPath } from '../src/domain/pr-key.ts';
+import { laneLabels, resolveLane, sameLaneKey, tagNamesLane } from '../src/domain/lane-key.ts';
 import { escapeHtml, unescapeHtml, html, raw, Html } from '../src/domain/html.ts';
 import { shortSha, baseName, plural, capitalize, gateText } from '../src/domain/text.ts';
 import { clockTime, compactAge, minutesSince, shortDateTime } from '../src/domain/time.ts';
@@ -100,4 +101,32 @@ test('what an agent at a gate is doing', () => {
     gateText({ name: 'review-x', gate: { kind: 'review', findings: null } }),
     'agent review · review-x',
   );
+});
+
+test('lane keys: a short label unless two lanes share it, and a tag resolves only when one repo has that name', () => {
+  assert.deepEqual(
+    [...laneLabels(['a/foo', 'b/foo', 'acme/widgets', 'tmp-dir'])],
+    [
+      ['a/foo', 'a/foo'],
+      ['b/foo', 'b/foo'],
+      ['acme/widgets', 'widgets'],
+      ['tmp-dir', 'tmp-dir'],
+    ],
+  );
+  assert.equal(laneLabels(['a/foo']).get('a/foo'), 'foo');
+  assert.equal(laneLabels(['a/foo', 'foo']).get('a/foo'), 'a/foo', 'a folder named foo counts');
+  assert.equal(resolveLane('widgets', ['acme/widgets', 'a/foo', 'b/foo']), 'acme/widgets');
+  assert.equal(resolveLane('foo', ['a/foo', 'b/foo']), 'foo');
+  assert.equal(resolveLane('nothing', ['a/foo']), 'nothing');
+  assert.equal(tagNamesLane('Foo', 'a/foo'), true);
+  assert.equal(tagNamesLane('b/foo', 'a/foo'), false);
+});
+
+test('lane keys ignore case, and a key with no short name is labeled by itself', () => {
+  assert.equal(laneLabels(['EverFi/x', 'everfi/x']).get('EverFi/x'), 'x', 'one repo spelled twice');
+  assert.equal(laneLabels(['EverFi/x', 'other/x']).get('EverFi/x'), 'EverFi/x');
+  assert.equal(laneLabels(['/', 'acme/widgets']).get('/'), '/');
+  assert.equal(resolveLane('x', ['EverFi/x', 'everfi/x']), 'EverFi/x');
+  assert.equal(sameLaneKey('EverFi/x', 'everfi/X'), true);
+  assert.equal(sameLaneKey('a/x', 'b/x'), false);
 });

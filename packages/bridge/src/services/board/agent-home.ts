@@ -5,6 +5,7 @@
  * place for that rule. An agent that claimed a backlog card is none of this: it is shown on that card (claims.ts).
  * The text placement here is for agents with no claim; bl_mw12ymyrceec6c audits it and replaces it with explicit links.
  */
+import { resolveLane, shortLane, tagNamesLane } from '@once-upon-a-diff/protocol/domain/lane-key';
 import type { BoardCard } from '@once-upon-a-diff/protocol/types';
 import { isReviewer, type LedgerAgent } from '../ledger/ledger.ts';
 
@@ -41,16 +42,16 @@ export function tiedToParent(agent: LedgerAgent, card: BoardCard): boolean {
   if (card.kind !== 'work') {
     return false;
   }
-  if (agent.lane && agent.lane.toLowerCase() !== card.lane.toLowerCase()) {
+  if (agent.lane && !tagNamesLane(agent.lane, card.lane)) {
     return false;
   }
   return namesCard(agent, card);
 }
 
-/** Whether a lane tag and a lane name are the same lane, loosely: "once-upon" is the lane "once-upon-a-diff". */
+/** Whether a lane tag and a lane key are the same lane, loosely: "once-upon" is the lane "owner/once-upon-a-diff". */
 function sameLane(tag: string, lane: string): boolean {
   const first = squash(tag);
-  const second = squash(lane);
+  const second = squash(shortLane(lane));
   return !!first && !!second && (first.startsWith(second) || second.startsWith(first));
 }
 
@@ -81,9 +82,11 @@ export function gatedHome(
 }
 
 /**
- * The lane for an agent with its own card: its tag, else the known lane (a repo or tag already on the board) its task
- * text names (a `<repo>-worktrees/` path, or the lane's name, which "Once Upon a Diff" matches for once-upon-a-diff),
- * else its parent's lane, else "No live session". (Text matching, kept for unclaimed agents: bl_mw12ymyrceec6c.)
+ * The lane key for an agent with its own card: its tag, else the known lane (a repo or tag already on the board) its task
+ * text names (a `<repo>-worktrees/` path, or the lane's short name, which "Once Upon a Diff" matches for once-upon-a-diff),
+ * else its parent's lane, else "No live session". A short tag or name stands for the one known "owner/name" it is the
+ * short name of; with two such repos (or none known) it stays as written, an unresolved lane of its own.
+ * (Text matching, kept for unclaimed agents: bl_mw12ymyrceec6c.)
  */
 export function laneForAgent(
   agent: LedgerAgent,
@@ -91,21 +94,24 @@ export function laneForAgent(
   parentLane: string | null,
   fallback: string,
 ): string {
+  const lane = (tag: string) => resolveLane(tag, knownLanes);
   if (agent.lane) {
-    return agent.lane;
+    return lane(agent.lane);
   }
   const task = agent.task || '';
   const worktree = /([\w.-]+)-worktrees\//.exec(task)?.[1];
   const byWorktree =
-    squash(worktree || '') && knownLanes.find((lane) => squash(lane) === squash(worktree || ''));
+    squash(worktree || '') &&
+    knownLanes.find((known) => squash(shortLane(known)) === squash(worktree || ''));
   if (byWorktree) {
-    return byWorktree;
+    return lane(byWorktree);
   }
   const text = squash(task);
   const named = [...knownLanes]
-    .sort((first, second) => second.length - first.length)
-    .find((lane) => {
-      const flat = squash(lane);
+    .sort((first, second) => shortLane(second).length - shortLane(first).length)
+    .find((known) => {
+      const short = shortLane(known);
+      const flat = squash(short);
       // a name with no letters or digits (a cwd of /, a lane tag of --) is nothing to look for: it would match every task
       if (!flat) {
         return false;
@@ -113,9 +119,9 @@ export function laneForAgent(
       // a short name (SDK) has to stand as a word of its own, a longer one can be written with other spacing
       return flat.length >= 5
         ? text.includes(flat)
-        : new RegExp(`\\b${lane.replace(/\W/g, '')}\\b`, 'i').test(task);
+        : new RegExp(`\\b${short.replace(/\W/g, '')}\\b`, 'i').test(task);
     });
-  return named || parentLane || fallback;
+  return lane(named || parentLane || fallback);
 }
 
 const SHA = String.raw`(?<![\w:/.-])(?=[0-9a-f]*\d)[0-9a-f]{7,40}(?![\w-])`;
