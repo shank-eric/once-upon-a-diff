@@ -74,6 +74,29 @@ const bridge = createClient(transport);
 const isOpen = (text: string) => text !== 'false';
 const asText = (value: unknown) => String(value);
 
+/** The worktrees section as the lane filter leaves it: its listed ones, those on its cards, and the counts of both. */
+function narrowed(
+  trees: NonNullable<BoardData['worktrees']>,
+  lanes: BoardData['lanes'],
+  laneFilter: string,
+): NonNullable<BoardData['worktrees']> {
+  const items = trees.items.filter((tree) => sameLaneKey(tree.lane, laneFilter));
+  const onCards = lanes
+    .filter((lane) => sameLaneKey(lane.key, laneFilter))
+    .reduce(
+      (sum, lane) =>
+        sum + lane.cards.reduce((count, one) => count + (one.worktrees?.length ?? 0), 0),
+      0,
+    );
+  return {
+    ...trees,
+    items,
+    on_cards: onCards,
+    removable: items.filter((tree) => tree.removable).length,
+    size_kb: items.reduce((sum, tree) => sum + (tree.size_kb ?? 0), 0),
+  };
+}
+
 /** The board narrowed to the filter's lane: its lanes, blank sessions and listeners (a gone lane means All). */
 function filtered(data: BoardData, laneFilter: string): BoardData {
   if (!laneFilter || !data.lanes.some((lane) => sameLaneKey(lane.key, laneFilter))) {
@@ -84,14 +107,7 @@ function filtered(data: BoardData, laneFilter: string): BoardData {
     lanes: data.lanes.filter((lane) => sameLaneKey(lane.key, laneFilter)),
     blank: data.blank.filter((group) => sameLaneKey(group.key, laneFilter)),
     listeners: data.listeners.filter((entry) => sameLaneKey(entry.repo, laneFilter)),
-    worktrees: data.worktrees && {
-      ...data.worktrees,
-      items: data.worktrees.items.filter((tree) => sameLaneKey(tree.lane, laneFilter)),
-      // what the header says can be cleaned up is what the narrowed lane lists
-      removable: data.worktrees.items.filter(
-        (tree) => sameLaneKey(tree.lane, laneFilter) && tree.removable,
-      ).length,
-    },
+    worktrees: data.worktrees && narrowed(data.worktrees, data.lanes, laneFilter),
   };
 }
 

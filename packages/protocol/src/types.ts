@@ -978,9 +978,13 @@ export interface BoardWorktrees {
   /** when the last scan finished (null before the first) */
   at: string | null;
   scanning: boolean;
+  /** every worktree the scan found (the board page filters `items` and `on_cards` by repo, and leaves this one: it only says whether there is a lane to draw) */
   total: number;
+  /** how many worktrees are on cards (shown there, not in `items`) */
+  on_cards: number;
   /** how many of `items` (the loose ones the lane lists) can be cleaned up; worktrees on cards have their own Clean up on the card */
   removable: number;
+  /** the disk the listed `items` take */
   size_kb: number;
   items: BoardWorktree[];
   /** registered worktrees whose folder is gone, with the line that clears them */

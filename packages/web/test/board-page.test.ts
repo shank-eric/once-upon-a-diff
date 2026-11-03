@@ -145,6 +145,7 @@ const board = (over: Partial<BoardData> = {}): BoardData => ({
     at: null,
     scanning: false,
     total: 1,
+    on_cards: 0,
     removable: 1,
     size_kb: 10,
     items: [tree],
@@ -707,6 +708,52 @@ test('the repo filter ignores case: a worktree spelled everfi/x is listed and co
     $('.ou-board-trees-lane .ou-board-head')?.textContent as string,
     /1 can be cleaned up/,
   );
+  await click($('[data-board-filter]'));
+  await click(document.querySelectorAll('.ou-menu-item')[0] as HTMLElement);
+  answer = () => board();
+  await pollNow();
+});
+
+test('the Worktrees header counts what the lane lists, with the ones on cards apart, under any filter', async () => {
+  const head = () => $('.ou-board-trees-lane .ou-board-head')?.textContent as string;
+  const listed = () => $('.ou-board-trees-lane')?.querySelectorAll('.ou-board-tree').length;
+  const world = board();
+  const onCards = card({ id: 'w-2', title: 'Has trees', worktrees: [tree, tree] });
+  world.lanes[0].cards.push(onCards);
+  world.lanes[1].cards.push(card({ id: 'g-2', lane: 'gadgets', worktrees: [tree] }));
+  const gadgetsTree = {
+    ...tree,
+    path: '/work/g1',
+    name: 'g1',
+    lane: 'gadgets',
+    removable: false,
+    keep: ['dirty'],
+    size_kb: 5,
+  };
+  world.worktrees = {
+    at: null,
+    scanning: false,
+    total: 6,
+    on_cards: 3,
+    removable: 1,
+    size_kb: 15,
+    items: [tree, gadgetsTree, { ...gadgetsTree, path: '/work/g2', name: 'g2' }],
+    prunable: [],
+  };
+  answer = () => world;
+  await pollNow();
+  assert.equal(listed(), 3);
+  assert.match(head(), /3 listed · 3 more on cards · 1 can be cleaned up/);
+  assert.doesNotMatch(head(), /on this Mac/);
+  await click($('[data-board-filter]'));
+  await click([...document.querySelectorAll('.ou-menu-item')][2] as HTMLElement);
+  assert.equal(listed(), 2);
+  assert.match(head(), /2 listed · 1 more on cards/);
+  assert.doesNotMatch(head(), /can be cleaned up/);
+  await click($('[data-board-filter]'));
+  await click([...document.querySelectorAll('.ou-menu-item')][1] as HTMLElement);
+  assert.equal(listed(), 1);
+  assert.match(head(), /1 listed · 2 more on cards · 1 can be cleaned up/);
   await click($('[data-board-filter]'));
   await click(document.querySelectorAll('.ou-menu-item')[0] as HTMLElement);
   answer = () => board();

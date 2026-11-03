@@ -549,6 +549,7 @@
           "verdict": "new"
         }
       ],
+      "on_cards": 3,
       "prunable": [],
       "removable": 0,
       "scanning": false,

@@ -21,7 +21,8 @@ export function Worktrees(props: {
       : null;
   }
   const summary = [
-    `${trees.total} on this Mac`,
+    `${trees.items.length} listed`,
+    ...(trees.on_cards ? [`${trees.on_cards} more on cards`] : []),
     ...(trees.removable ? [`${trees.removable} can be cleaned up`] : []),
     ...(trees.size_kb ? [sizeText(trees.size_kb)] : []),
     ...(trees.scanning ? ['scanning…'] : []),

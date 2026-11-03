@@ -540,6 +540,42 @@ test('the board: the header counts the removable worktrees the lane lists, not t
   assert.equal(data.worktrees?.removable, 1, 'the count is what the lane lists');
 });
 
+test('the board: the header numbers are the listed worktrees, with the ones on cards counted apart', async () => {
+  const repo = fixture();
+  const onCard = repo.add('on-card');
+  repo.commit(onCard, 'card work');
+  const loose = repo.add('loose');
+  repo.commit(loose, 'loose work', 2);
+  const other = fixture('gadgets', 'git@github.com:acme/gadgets.git');
+  const elsewhere = other.add('elsewhere');
+  other.commit(elsewhere, 'other repo work');
+  writeFileSync(path.join(elsewhere, 'big.bin'), 'x'.repeat(300 * 1024));
+  const home = tmp('wt-board');
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: tmp('wt-sessions') });
+  seenCheckout(home, 'acme/widgets', repo.main);
+  seenCheckout(home, 'acme/gadgets', other.main);
+  const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+    source: registrySource,
+  });
+  const store = new BacklogStore(home);
+  const item = store.add({ title: 'Work on a card', repo: 'acme/widgets' });
+  store.start(item.id, { branch: 'on-card', repo: 'acme/widgets', by: 'someone' });
+  const trees = (await settled(board)).worktrees;
+  assert.ok(trees);
+  assert.deepEqual(trees.items.map((tree) => tree.name).sort(), ['elsewhere', 'loose']);
+  assert.equal(trees.on_cards, 1, 'the one on a card is counted apart');
+  assert.equal(
+    trees.total,
+    trees.items.length + trees.on_cards,
+    'and the total is the two together',
+  );
+  assert.equal(
+    trees.size_kb,
+    trees.items.reduce((sum, tree) => sum + (tree.size_kb ?? 0), 0),
+    'the size is the listed ones',
+  );
+});
+
 test('the board answers while git hangs: the section says it is scanning', async () => {
   const repo = fixture();
   repo.add('one');

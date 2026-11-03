@@ -4,7 +4,7 @@
 #
 # Removes the worktree checked out on <branch> under <worktrees-dir> when <branch> is an ancestor of
 # <landed-into-ref>. With "patch" (batch deploys, which cherry-pick), landed means every commit of <branch> has a
-# patch-id match in <landed-into-ref> (git cherry) instead. Untracked symlinks and regenerable ignored paths (node_modules, dist, build, .venv*, __pycache__, *.log, .yarn/cache) are forced past. Any other untracked, ignored or modified
+# patch-id match in <landed-into-ref> (git cherry) instead. Untracked symlinks and regenerable ignored paths (node_modules, dist, build, .venv*, __pycache__, *.log, .yarn/cache, tool cache files such as .eslintcache and .prettiercache; never a generic folder like .cache or coverage, which can hold hand-made files) are forced past. Any other untracked, ignored or modified
 # file makes it refuse and say so. Prints one "deploy-local:" line either way. Never fails the caller.
 # Ignored paths that an install or build recreates. Anything else ignored (.env, *.pem, ...) blocks removal.
 _regenerable() {
@@ -14,6 +14,8 @@ _regenerable() {
     dist | dist/* | */dist | */dist/* | build | build/* | */build | */build/*) return 0 ;;
     .venv* | */.venv* | __pycache__ | */__pycache__ | */__pycache__/*) return 0 ;;
     .wxt | .wxt/* | */.wxt | */.wxt/*) return 0 ;;
+    .eslintcache | */.eslintcache | .prettiercache | */.prettiercache | .stylelintcache | */.stylelintcache) return 0 ;;
+    *.tsbuildinfo | .DS_Store | */.DS_Store | .pytest_cache | */.pytest_cache) return 0 ;;
     *.log) return 0 ;;
   esac
   return 1

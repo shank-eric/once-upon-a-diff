@@ -64,6 +64,29 @@ echo "$out" | grep -q "removed worktree $W/regen" || fail "regen: $out"
 mk envf; mkdir "$W/envf/node_modules"; echo 1 >"$W/envf/node_modules/i"; echo S=1 >"$W/envf/.env"
 out="$(cleanup_landed_worktree "$R" "$W" envf main)"
 echo "$out" | grep -q "\.env" && [ -e "$W/envf" ] || fail "env: $out"
+# 10b. a landed worktree holding only tool caches is removed; the same plus an untracked file, or a tracked change, is kept
+printf '%s\n' .eslintcache .prettiercache '*.tsbuildinfo' .env '*.pem' '*.secret' >"$R/.gitignore"; git -C "$R" add .gitignore; git -C "$R" commit -qm ign3
+mk caches; mkdir -p "$W/caches/packages/web"
+for f in .eslintcache .prettiercache packages/web/.eslintcache packages/web/x.tsbuildinfo; do echo 1 >"$W/caches/$f"; done
+out="$(cleanup_landed_worktree "$R" "$W" caches main)"
+echo "$out" | grep -q "removed worktree $W/caches" && [ ! -e "$W/caches" ] || fail "caches only: $out"
+mk cachedirty; echo 1 >"$W/cachedirty/.eslintcache"; echo x >"$W/cachedirty/new.txt"
+out="$(cleanup_landed_worktree "$R" "$W" cachedirty main)"
+echo "$out" | grep -q "new.txt" && ! echo "$out" | grep -q "eslintcache" && [ -e "$W/cachedirty" ] || fail "caches + untracked: $out"
+mk cachemod; echo 1 >"$W/cachemod/.prettiercache"; echo y >>"$W/cachemod/a"
+out="$(cleanup_landed_worktree "$R" "$W" cachemod main)"
+echo "$out" | grep -q "kept: it has changes" && [ -e "$W/cachemod" ] || fail "caches + modified: $out"
+# 10c. generic folder names are not caches: hand-made or secret files under .cache or coverage keep the worktree
+mk gen1; mkdir "$W/gen1/.cache"; echo S=1 >"$W/gen1/.cache/.env"
+out="$(cleanup_landed_worktree "$R" "$W" gen1 main)"
+echo "$out" | grep -q "\.cache/\.env" && [ -e "$W/gen1" ] || fail ".cache/.env: $out"
+mk gen2; mkdir -p "$W/gen2/pkg/coverage"; echo k >"$W/gen2/pkg/coverage/key.secret"
+out="$(cleanup_landed_worktree "$R" "$W" gen2 main)"
+echo "$out" | grep -q "key.secret" && [ -e "$W/gen2" ] || fail "pkg/coverage/key.secret: $out"
+printf '%s\n' .eslintcache .prettiercache '*.tsbuildinfo' .env '*.pem' '*.secret' /data/ >"$R/.gitignore"; git -C "$R" add .gitignore; git -C "$R" commit -qm ign4
+mk gen3; mkdir -p "$W/gen3/data/coverage"; echo 1,2 >"$W/gen3/data/coverage/survey.csv"
+out="$(cleanup_landed_worktree "$R" "$W" gen3 main)"
+echo "$out" | grep -q "survey.csv" && [ -e "$W/gen3" ] || fail "data/coverage/survey.csv: $out"
 # 11. batch: landed branch loses its worktree AND its branch, tip is reported; dirty one keeps both
 mk l1; echo 1 >"$W/l1/l1.txt"; git -C "$W/l1" add .; git -C "$W/l1" commit -qm l1
 L1TIP="$(git -C "$W/l1" rev-parse HEAD)"
