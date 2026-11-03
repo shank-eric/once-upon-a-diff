@@ -324,8 +324,8 @@ button.ou-local-pr, button.ou-local-push, button.ou-local-push-ahead { white-spa
 .ou-board-add .ou-board-add-repo { align-self: stretch; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ou-board-head button { margin-left: 4px; font-weight: 400; }
 .ou-board-add-actions { display: flex; gap: 6px; }
-.ou-board-c-backlog[draggable="true"] { cursor: grab; }
-.ou-board-c-backlog.ou-board-dragging { opacity: 0.4; }
+[data-backlog-card][draggable="true"] { cursor: grab; }
+[data-backlog-card].ou-board-dragging { opacity: 0.4; }
 /* The usage meters in the header (board.ts): thin bars, yellow from 70% and red from 90%; session ctx chips share them */
 .ou-board-meters { display: flex; gap: 14px; align-items: center; flex: none; }
 .ou-board-meter { display: inline-flex; gap: 5px; align-items: center; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--fgColor-muted); }

@@ -149,7 +149,7 @@ export function BacklogCard(props: { card: BoardCard; now: number; api: Api; dnd
     item && item.added_by !== 'board' && item.added_by !== 'you' && `by ${item.added_by}`,
   ].filter(Boolean);
   const classes = [
-    'ou-board-card ou-board-c-backlog',
+    `ou-board-card ou-board-c-${card.column}`,
     dnd.dragging && 'ou-board-dragging',
     dnd.mark && `ou-board-drop-${dnd.mark}`,
   ]

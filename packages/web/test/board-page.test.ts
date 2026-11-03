@@ -494,6 +494,18 @@ test('Drop is on the card, Copy start line is not: Drop asks the bridge to drop 
   assert.deepEqual(sentTo('/api/board/backlog/drop')[0].body, { id: 'bl_3' });
 });
 
+test('a claimed Backlog item whose agent is running takes the Working border, and one waiting takes the Waiting border', async () => {
+  const claimed = (id: string, column: 'working' | 'waiting') => ({ ...backlog(id), column });
+  answer = () => withCards(claimed('bl_run', 'working'), claimed('bl_wait', 'waiting'));
+  await pollNow();
+  assert.match(cardOf('bl_run').className, /ou-board-c-working/);
+  assert.doesNotMatch(cardOf('bl_run').className, /ou-board-c-backlog/);
+  assert.match(cardOf('bl_wait').className, /ou-board-c-waiting/);
+  assert.match(cardOf('bl_1').className, /ou-board-c-backlog/);
+  answer = () => board();
+  await pollNow();
+});
+
 test('dragging a Backlog card marks where it would land and a drop moves it there', async () => {
   requests.length = 0;
   const first = cardOf('bl_1');
