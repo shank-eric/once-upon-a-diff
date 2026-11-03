@@ -99,7 +99,7 @@
         ]
       }
     ],
-    "builders": null,
+    "editors": [],
     "helpers": [],
     "lanes": [
       {
@@ -114,6 +114,7 @@
                   "step": "read"
                 },
                 "clears_at": null,
+                "editor": null,
                 "ended_at": null,
                 "gate": null,
                 "key": "<PID:0>:tagged-one",
@@ -227,6 +228,7 @@
               {
                 "beat": null,
                 "clears_at": null,
+                "editor": null,
                 "ended_at": "2026-10-26T18:45:00.000Z",
                 "gate": null,
                 "key": "<PID:3>:needs-answer",
@@ -274,6 +276,7 @@
               {
                 "beat": null,
                 "clears_at": null,
+                "editor": null,
                 "ended_at": null,
                 "gate": null,
                 "key": "deadbeef:orphan",
@@ -315,6 +318,7 @@
               {
                 "beat": null,
                 "clears_at": "2026-10-26T19:28:00.000Z",
+                "editor": null,
                 "ended_at": "2026-10-26T18:58:00.000Z",
                 "gate": null,
                 "key": "deadbeef:broke",
@@ -356,6 +360,7 @@
               {
                 "beat": null,
                 "clears_at": "2026-10-26T19:29:00.000Z",
+                "editor": null,
                 "ended_at": "2026-10-26T18:59:00.000Z",
                 "gate": null,
                 "key": "deadbeef:stopped-one",
@@ -473,6 +478,7 @@
               {
                 "beat": null,
                 "clears_at": null,
+                "editor": null,
                 "ended_at": "2026-10-26T18:48:00.000Z",
                 "gate": null,
                 "key": "<PID:4>:parked-two",
@@ -595,6 +601,7 @@
                   "step": "code"
                 },
                 "clears_at": null,
+                "editor": null,
                 "ended_at": null,
                 "gate": null,
                 "key": "<PID:0>:nested-one",
@@ -614,6 +621,7 @@
               {
                 "beat": null,
                 "clears_at": null,
+                "editor": null,
                 "ended_at": null,
                 "gate": null,
                 "key": "<PID:0>:pr-agent",
@@ -715,6 +723,7 @@
               {
                 "beat": null,
                 "clears_at": null,
+                "editor": null,
                 "ended_at": "2026-10-26T18:47:00.000Z",
                 "gate": null,
                 "key": "<PID:0>:parked-review",
@@ -1035,6 +1044,7 @@
               {
                 "beat": null,
                 "clears_at": null,
+                "editor": null,
                 "ended_at": "2026-10-26T18:49:00.000Z",
                 "gate": {
                   "findings": null,
@@ -1332,6 +1342,7 @@
               {
                 "beat": null,
                 "clears_at": null,
+                "editor": null,
                 "ended_at": "2026-10-26T18:46:00.000Z",
                 "gate": {
                   "findings": null,
@@ -1419,6 +1430,7 @@
               {
                 "beat": null,
                 "clears_at": "2026-10-26T19:10:00.000Z",
+                "editor": null,
                 "ended_at": "2026-10-26T18:40:00.000Z",
                 "gate": null,
                 "key": "<PID:0>:nested-done",
@@ -1460,6 +1472,7 @@
               {
                 "beat": null,
                 "clears_at": null,
+                "editor": null,
                 "ended_at": null,
                 "gate": null,
                 "key": "<PID:0>:wt-agent",
@@ -1501,6 +1514,7 @@
               {
                 "beat": null,
                 "clears_at": null,
+                "editor": null,
                 "ended_at": null,
                 "gate": null,
                 "key": "<PID:0>:crosscut-note",

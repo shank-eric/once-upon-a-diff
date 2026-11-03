@@ -8,11 +8,34 @@
   "board": {
     "at": "2026-10-26T19:00:00.000Z",
     "blank": [],
-    "builders": {
-      "cap": 3,
-      "free": 3,
-      "running": []
-    },
+    "editors": [
+      {
+        "authors": [
+          {
+            "beat": {
+              "n": 3,
+              "note": "",
+              "of": 6,
+              "step": "code"
+            },
+            "key": "<PID:15>:ou-writer",
+            "name": "ou-writer",
+            "review": false,
+            "state": "running",
+            "task": "write the thing"
+          }
+        ],
+        "can_focus": true,
+        "in_use": 1,
+        "label": "widgets",
+        "lane": "acme/widgets",
+        "name": "editor-widgets",
+        "session": "<PID:15>-aaaa-bbbb-cccc-dddddddddddd",
+        "since": "2026-10-26T17:00:00.000Z",
+        "slots": 3,
+        "title": "busy-one"
+      }
+    ],
     "helpers": [],
     "lanes": [
       {
@@ -22,6 +45,7 @@
               {
                 "beat": null,
                 "clears_at": null,
+                "editor": null,
                 "ended_at": null,
                 "gate": null,
                 "key": "<PID:11>:helper-one",
@@ -304,8 +328,62 @@
           {
             "agents": [
               {
+                "beat": {
+                  "n": 3,
+                  "note": "",
+                  "of": 6,
+                  "step": "code"
+                },
+                "clears_at": null,
+                "editor": {
+                  "can_focus": true,
+                  "label": "widgets",
+                  "lane": "acme/widgets",
+                  "session": "<PID:15>-aaaa-bbbb-cccc-dddddddddddd",
+                  "title": "busy-one"
+                },
+                "ended_at": null,
+                "gate": null,
+                "key": "<PID:15>:ou-writer",
+                "kind": "builder",
+                "model": null,
+                "name": "ou-writer",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "<PID:15>",
+                "stale": false,
+                "started_at": "2026-10-26T18:30:00.000Z",
+                "state": "running",
+                "status": "working",
+                "task": "write the thing"
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": true,
+            "column": "working",
+            "detail": "write the thing",
+            "focus_session": "<PID:15>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "agent:<PID:15>:ou-writer",
+            "kind": "agent",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": "Editor · widgets",
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T18:30:00.000Z",
+            "story": null,
+            "title": "ou-writer"
+          },
+          {
+            "agents": [
+              {
                 "beat": null,
                 "clears_at": null,
+                "editor": null,
                 "ended_at": "2026-10-26T18:55:00.000Z",
                 "gate": null,
                 "key": "<PID:11>:helper-two",
@@ -347,6 +425,7 @@
               {
                 "beat": null,
                 "clears_at": "2026-10-26T19:26:00.000Z",
+                "editor": null,
                 "ended_at": "2026-10-26T18:56:00.000Z",
                 "gate": null,
                 "key": "<PID:11>:helper-three",
@@ -388,6 +467,7 @@
               {
                 "beat": null,
                 "clears_at": null,
+                "editor": null,
                 "ended_at": "2026-10-26T18:57:00.000Z",
                 "gate": null,
                 "key": "<PID:11>:helper-four",
@@ -429,6 +509,7 @@
               {
                 "beat": null,
                 "clears_at": null,
+                "editor": null,
                 "ended_at": null,
                 "gate": null,
                 "key": "<PID:12>:not-the-voice",
