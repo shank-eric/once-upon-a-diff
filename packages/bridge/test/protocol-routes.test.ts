@@ -91,6 +91,7 @@ const BOARD_KEY_REACH = [
   'POST /api/board/backlog',
   'POST /api/board/backlog/assign',
   'POST /api/board/backlog/drop',
+  'POST /api/board/backlog/edit',
   'POST /api/board/backlog/move',
   'POST /api/board/focus',
   'POST /api/board/open-story',

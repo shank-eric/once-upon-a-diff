@@ -294,6 +294,72 @@ test('a poll redraws in place: the same nodes stay, so focus and scroll are not 
   await pollNow();
 });
 
+test('Edit opens a form on the card with its title, note and repo; Save sends only what changed; Cancel closes it', async () => {
+  requests.length = 0;
+  const item = cardOf('bl_1');
+  assert.equal(item.querySelector('[data-backlog-edit-form]'), null);
+  await click(item.querySelector('[data-backlog-edit="bl_1"]'));
+  const form = item.querySelector('[data-backlog-edit-form]') as HTMLElement;
+  assert.ok(form, 'the form is open on the card');
+  const title = form.querySelector('[name="title"]') as HTMLInputElement;
+  const note = form.querySelector('[name="note"]') as HTMLInputElement;
+  const repo = form.querySelector('[name="repo"]') as HTMLInputElement;
+  assert.equal(title.value, 'Item bl_1');
+  assert.equal(repo.value, 'acme/widgets');
+  title.value = '  Better title ';
+  note.value = 'a new note';
+  await pollNow();
+  assert.ok(item.querySelector('[name="title"]') === title, 'typing stays through a poll');
+  assert.equal(title.value, '  Better title ');
+  fire(form, 'submit');
+  await tick();
+  await tick();
+  assert.deepEqual(sentTo('/api/board/backlog/edit'), [
+    {
+      method: 'POST',
+      path: '/api/board/backlog/edit',
+      body: { id: 'bl_1', title: 'Better title', note: 'a new note' },
+    },
+  ]);
+  assert.equal(item.querySelector('[data-backlog-edit-form]'), null, 'closed after the save');
+
+  requests.length = 0;
+  await click(item.querySelector('[data-backlog-edit="bl_1"]'));
+  await click(item.querySelector('[data-backlog-edit-cancel]'));
+  assert.equal(item.querySelector('[data-backlog-edit-form]'), null);
+  assert.deepEqual(requests, []);
+});
+
+test('Edit keeps a multi-line note whole when only the title changes, and Alt+Arrow in the form does not reorder', async () => {
+  requests.length = 0;
+  answer = () => {
+    const world = withOrder('bl_1', 'bl_2');
+    world.lanes[0].cards[0].detail = 'line one\nline two';
+    return world;
+  };
+  await pollNow();
+  const item = cardOf('bl_1');
+  await click(item.querySelector('[data-backlog-edit="bl_1"]'));
+  const form = item.querySelector('[data-backlog-edit-form]') as HTMLElement;
+  const note = form.querySelector('[name="note"]') as HTMLTextAreaElement;
+  assert.equal(note.tagName, 'TEXTAREA');
+  assert.equal(note.value, 'line one\nline two');
+  const title = form.querySelector('[name="title"]') as HTMLInputElement;
+  title.value = 'Renamed';
+  fire(title, 'keydown', { key: 'ArrowDown', altKey: true });
+  fire(note, 'keydown', { key: 'ArrowUp', altKey: true });
+  await tick();
+  assert.deepEqual(sentTo('/api/board/backlog/move'), [], 'no reorder from inside the form');
+  fire(form, 'submit');
+  await tick();
+  await tick();
+  assert.deepEqual(sentTo('/api/board/backlog/edit'), [
+    { method: 'POST', path: '/api/board/backlog/edit', body: { id: 'bl_1', title: 'Renamed' } },
+  ]);
+  answer = () => board();
+  await pollNow();
+});
+
 test('+ Add opens the panel with the title focused; typing and focus stay through polls; Escape closes it', async () => {
   assert.equal($('[data-backlog-add]'), null);
   await click($('[data-backlog-add-open]'));

@@ -10,6 +10,7 @@
  *   {op:'drop',  id, by, at}
  *   {op:'reopen', id, by, at}                  a dropped item is open again (a new `start` after a drop is still ignored)
  *   {op:'move',  id, before | edge, by, at}   `before` is another item's id; `edge` is 'top' or 'bottom'
+ *   {op:'edit',  id, title?, note?, repo?, by, at}   only the fields that changed; an empty note or repo clears it. An open item only
  *
  * The items come back in order: an add goes to the bottom, and a move puts one item before another or at an edge.
  * A move names where it goes relative to the other items, never an index, so it folds the same whatever was added or
@@ -65,6 +66,13 @@ export interface BacklogItem {
 /** Where a move puts an item: before another one, or at the top or the bottom. */
 export type MoveTo = { before: string } | { edge: 'top' | 'bottom' };
 
+/** What an edit changes: a field left out (undefined) stays; an empty note or repo clears it. */
+export interface EditInput {
+  title?: string;
+  note?: string | null;
+  repo?: string | null;
+}
+
 export interface AddInput {
   title: string;
   note?: string | null;
@@ -89,6 +97,7 @@ export interface BacklogStorage {
     input: { session: string; branch?: string | null; by?: string | null },
   ): BacklogItem;
   move(id: string, where: MoveTo, who?: string | null): BacklogItem;
+  edit(id: string, input: EditInput, who?: string | null): BacklogItem;
 }
 
 /** Text with control characters out (a note keeps its newlines), trimmed, or an error when empty or too long. */
@@ -205,6 +214,19 @@ export function foldBacklog(text: string): BacklogItem[] {
       found.branch = added.get(id)?.branch ?? null;
       found.repo = added.get(id)?.repo ?? null;
       found.assigned = null;
+    } else if (found && found.state === 'open' && !found.landed_at && event.op === 'edit') {
+      // only the fields the event carries change (a note or repo of '' clears it); a title is never blanked
+      if (typeof event.title === 'string' && event.title) {
+        found.title = event.title;
+      }
+      if (typeof event.note === 'string') {
+        found.note = event.note || null;
+      }
+      if (typeof event.repo === 'string') {
+        found.repo = event.repo || null;
+        // a reopen goes back to the repo the item has now, not the one it was added with
+        added.set(id, { branch: added.get(id)?.branch ?? null, repo: found.repo });
+      }
     } else if (found && event.op === 'move') {
       // a target that is gone or unknown leaves the item where it was
       const target = typeof event.before === 'string' ? order.indexOf(event.before) : -1;
@@ -319,6 +341,45 @@ export class BacklogStore implements BacklogStorage {
       this.append({ op: 'move', id, edge: where.edge, by: name });
     } else {
       throw new Error('move it before another item, or to the top or bottom');
+    }
+    return this.find(id);
+  }
+
+  /**
+   * Changes an open card's title, note or repo, appending only what differs from now (nothing appended when nothing does).
+   * A started, done or dropped item is refused.
+   */
+  edit(id: string, input: EditInput, who?: string | null): BacklogItem {
+    const item = this.find(id);
+    if (item.state !== 'open' || item.landed_at) {
+      throw new Error(
+        `${id} is ${item.landed_at ? 'done' : item.state}, only an open card can be edited`,
+      );
+    }
+    const changes: Record<string, string> = {};
+    if (input.title !== undefined) {
+      const title = clean(input.title, 'the title', TITLE_MAX);
+      if (!title) {
+        throw new Error('a title is needed');
+      }
+      if (title !== item.title) {
+        changes.title = title;
+      }
+    }
+    if (input.note !== undefined) {
+      const note = clean(input.note, 'the note', NOTE_MAX, true);
+      if (note !== (item.note ?? '')) {
+        changes.note = note;
+      }
+    }
+    if (input.repo !== undefined) {
+      const repo = optional(input.repo, 'the repo', REPO_RE) ?? '';
+      if (repo !== (item.repo ?? '')) {
+        changes.repo = repo;
+      }
+    }
+    if (Object.keys(changes).length) {
+      this.append({ op: 'edit', id, ...changes, by: clean(who, 'the name', BY_MAX) || 'cli' });
     }
     return this.find(id);
   }

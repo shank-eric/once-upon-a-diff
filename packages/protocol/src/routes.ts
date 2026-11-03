@@ -177,6 +177,11 @@ export const ROUTES = {
     '/api/board/backlog/move',
     'token+board',
   ),
+  boardBacklogEdit: api<In<'boardBacklogEdit'>, Ok>(
+    'POST',
+    '/api/board/backlog/edit',
+    'token+board',
+  ),
   boardBacklogDrop: api<In<'boardBacklogDrop'>, Ok>(
     'POST',
     '/api/board/backlog/drop',

@@ -1,9 +1,9 @@
 /*
- * The Backlog column's parts, drawn by Preact (ADR-14): a Backlog card (Assign, Drop), the + Add button and
+ * The Backlog column's parts, drawn by Preact (ADR-14): a Backlog card (Assign, Edit, Drop), the + Add button and
  * Add panel, and drag and drop (and Alt+Up/Down) to reorder a lane. The page root calls the two hooks, so the Backlog
  * column (the columns region) gets its button, its panel and its drag handlers handed in and imports none of this.
  */
-import { html, useEffect, useRef, useState } from '/assets/preact.mjs';
+import { html, useEffect, useLayoutEffect, useRef, useState } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { openMenu } from '/assets/local/menu.ts';
 import type { BoardCard, BoardData } from '/assets/types.ts';
@@ -71,6 +71,63 @@ function Assign(props: { id: string; again: boolean; api: Api }) {
   return html`<button type="button" data-backlog-assign=${id} onClick=${run} title="Tell the voice session to start this card">${again ? 'Send again' : 'Assign'}</button>${note && html`<span class="ou-local-muted ou-board-assign-note" data-backlog-assign-note=${note.bad ? 'refused' : 'sent'} role="status">${note.text}</span>`}`;
 }
 
+/**
+ * Edit: a form on the card with its title, note and repo (empty for none). Save sends only the fields that changed, and
+ * closes the form (nothing changed: nothing sent). The inputs keep what is typed through every redraw, like the Add panel's.
+ */
+function EditForm(props: { card: BoardCard; id: string; api: Api; close: () => void }) {
+  const { card, id, api, close } = props;
+  const saving = useRef(false);
+  const formRef = useRef<HTMLFormElement | null>(null);
+  // filled once, as it opens: setting the value on each draw would put back what a poll's redraw found, over what is typed
+  useLayoutEffect(() => {
+    const fields = { title: card.title, note: card.detail ?? '', repo: card.repo ?? '' };
+    for (const [name, text] of Object.entries(fields)) {
+      (
+        formRef.current?.querySelector(`[name="${name}"]`) as HTMLInputElement | HTMLTextAreaElement
+      ).value = text;
+    }
+    (formRef.current?.querySelector('[name="title"]') as HTMLInputElement).focus();
+  }, []);
+  const submit = async (event: Event) => {
+    event.preventDefault();
+    if (saving.current) {
+      return;
+    }
+    const form = event.currentTarget as HTMLElement;
+    const value = (name: string) =>
+      (
+        form.querySelector(`[name="${name}"]`) as HTMLInputElement | HTMLTextAreaElement
+      ).value.trim();
+    const was = { title: card.title, note: card.detail ?? '', repo: card.repo ?? '' };
+    const changes: Record<string, string> = {};
+    for (const field of ['title', 'note', 'repo'] as const) {
+      if (value(field) !== was[field]) {
+        changes[field] = value(field);
+      }
+    }
+    if (!Object.keys(changes).length) {
+      return close();
+    }
+    saving.current = true;
+    try {
+      await api.bridge.ask(ROUTES.boardBacklogEdit, { body: { id, ...changes } });
+      close();
+      await api.refresh();
+    } catch (err) {
+      alert(`Couldn't save it: ${(err as Error).message}`);
+    } finally {
+      saving.current = false;
+    }
+  };
+  return html`<form class="ou-board-add" data-backlog-edit-form ref=${formRef} onSubmit=${submit}>
+    <input type="text" name="title" placeholder="Title" maxlength="200" required aria-label="Backlog item title" />
+    <textarea name="note" rows="3" placeholder="Note (optional)" maxlength="1000" aria-label="Note"></textarea>
+    <input type="text" name="repo" placeholder="owner/name (empty for no repo)" aria-label="Repo" />
+    <div class="ou-board-add-actions"><button type="submit">Save</button> <button type="button" data-backlog-edit-cancel onClick=${close}>Cancel</button></div>
+  </form>`;
+}
+
 /** What a Backlog card needs for drag and drop (from useBacklogDnd): its marks and its handlers. */
 export type CardDnd = {
   dragging: boolean;
@@ -84,6 +141,7 @@ export type CardDnd = {
 export function BacklogCard(props: { card: BoardCard; now: number; api: Api; dnd: CardDnd }) {
   const { card, now, api, dnd } = props;
   const item = card.backlog;
+  const [editing, setEditing] = useState(false);
   const meta = [
     card.repo && card.repo.split('/')[1],
     card.branch,
@@ -105,10 +163,11 @@ export function BacklogCard(props: { card: BoardCard; now: number; api: Api; dnd
       alert(`Couldn't drop it: ${(err as Error).message}`);
     }
   };
-  return html`<li class=${classes} data-card=${card.id} data-backlog-card=${item?.id ?? ''} data-lane=${card.lane} draggable=${!item?.started} tabindex="0" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+  return html`<li class=${classes} data-card=${card.id} data-backlog-card=${item?.id ?? ''} data-lane=${card.lane} draggable=${!item?.started && !editing} tabindex="0" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
       onDragStart=${dnd.onDragStart} onDragEnd=${dnd.onDragEnd} onKeyDown=${dnd.onKeyDown}>
     <div class="ou-board-title" title=${card.title}>${card.title}</div>
     <div class="ou-local-muted ou-board-meta">${meta.join(' · ')}</div>
+    ${editing && item && html`<${EditForm} card=${card} id=${item.id} api=${api} close=${() => setEditing(false)} />`}
     ${card.detail && html`<div class="ou-board-detail ou-board-note" title=${card.detail}>${card.detail}</div>`}
     ${item?.started && html`<div class="ou-board-chips">${startedChips(item.started).map((chip) => html`<span class="ou-board-chip">${chip}</span>`)}</div>`}
     ${item?.agent && !item.started && html`<div class="ou-board-chips">${agentOnlyChips(item.agent).map((chip) => html`<span class="ou-board-chip">${chip}</span>`)}</div>`}
@@ -117,6 +176,7 @@ export function BacklogCard(props: { card: BoardCard; now: number; api: Api; dnd
     <${CardTrees} card=${card} now=${now} api=${api} />
     <div class="ou-board-actions">
       ${item?.assign && !item.started && html`<${Assign} id=${item.id} again=${!!item.assigned} api=${api} />`}
+      ${item && !item.started && !editing && html`<button type="button" data-backlog-edit=${item.id} onClick=${() => setEditing(true)} title="Change its title, note or repo">Edit</button>`}
       ${item && html`<button type="button" data-backlog-drop=${item.id} onClick=${() => drop(item.id)} title="Drop it from the backlog (the line stays in the file)">Drop</button>`}
     </div>
   </li>`;
@@ -308,6 +368,10 @@ export function useBacklogDnd(api: Api) {
         // Alt+Up or Alt+Down on a focused Backlog card moves it within its lane (the keyboard's way to reorder)
         onKeyDown(event) {
           if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) {
+            return;
+          }
+          // (typing in the card's edit form is not a reorder)
+          if ((event.target as HTMLElement | null)?.closest?.('form, input, textarea')) {
             return;
           }
           event.preventDefault();

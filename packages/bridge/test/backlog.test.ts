@@ -688,6 +688,126 @@ test('the CLI: add, list, show, start, drop, in-process', async () => {
   assert.match(dropped.stdout, /dropped/);
 });
 
+test('edit changes an open card in place: the CLI, the board key and the board all show the new values', async () => {
+  const home = tmp('backlog-edit');
+  writeJson(path.join(home, 'config.json'), {
+    board_sessions_dir: tmp('backlog-edit-sessions'),
+    board_status_source: 'registry',
+  });
+  const added = await runCli(home, ['backlog', 'add', 'Old title', '--note', 'old note']);
+  const id = /^(bl_[a-z0-9]+) added/.exec(added.stdout)?.[1] as string;
+  assert.ok(id, added.stdout);
+
+  const edited = await runCli(home, [
+    'backlog',
+    'edit',
+    id,
+    '--title',
+    'New title',
+    '--repo',
+    'acme/widgets',
+  ]);
+  assert.equal(edited.code, 0, edited.stderr);
+  assert.match(edited.stdout, /edited: New title/);
+  const shown = JSON.parse((await runCli(home, ['backlog', 'show', id])).stdout);
+  assert.equal(shown.title, 'New title');
+  assert.equal(shown.repo, 'acme/widgets');
+  assert.equal(shown.note, 'old note', 'a field not named stays');
+  const events = readFileSync(path.join(home, 'backlog.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
+  const edit = events.find((one) => one.op === 'edit');
+  assert.deepEqual(Object.keys(edit).sort(), ['at', 'by', 'id', 'op', 'repo', 'title']);
+
+  // an empty value clears the note and the repo; nothing named, or nothing different, is not an event
+  assert.equal((await runCli(home, ['backlog', 'edit', id, '--note', '', '--repo', ''])).code, 0);
+  const cleared = JSON.parse((await runCli(home, ['backlog', 'show', id])).stdout);
+  assert.equal(cleared.note, null);
+  assert.equal(cleared.repo, null);
+  const nothing = await runCli(home, ['backlog', 'edit', id]);
+  assert.notEqual(nothing.code, 0);
+  assert.match(nothing.stderr, /--title, --note or --repo/);
+  const lines = () =>
+    readFileSync(path.join(home, 'backlog.jsonl'), 'utf8').trim().split('\n').length;
+  const before = lines();
+  assert.equal((await runCli(home, ['backlog', 'edit', id, '--title', 'New title'])).code, 0);
+  assert.equal(lines(), before, 'the same title appends nothing');
+  const empty = await runCli(home, ['backlog', 'edit', id, '--title', ' ']);
+  assert.notEqual(empty.code, 0);
+  assert.match(empty.stderr, /a title is needed/);
+  const badRepo = await runCli(home, ['backlog', 'edit', id, '--repo', 'not a repo']);
+  assert.notEqual(badRepo.code, 0);
+
+  // the board's column shows the new values, through the board key's route
+  const bridge = await startBridge({ home });
+  open.push(bridge);
+  const withKey = { Authorization: `Bearer ${boardKey(TOKEN)}` };
+  const card = async () =>
+    (await bridge.call<BoardData>('GET', '/api/board', undefined, withKey)).body.lanes
+      .flatMap((lane) => lane.cards)
+      .find((one) => one.backlog?.id === id);
+  const posted = await bridge.call(
+    'POST',
+    '/api/board/backlog/edit',
+    { id, title: 'From the board', note: 'new note', repo: 'acme/gadgets' },
+    withKey,
+  );
+  assert.equal(posted.status, 200);
+  const shownCard = await card();
+  assert.equal(shownCard?.title, 'From the board');
+  assert.equal(shownCard?.detail, 'new note');
+  assert.equal(shownCard?.repo, 'acme/gadgets');
+  assert.equal(shownCard?.lane, 'gadgets');
+  assert.equal(shownCard?.column, 'backlog');
+  for (const body of [
+    {},
+    { id: 'bl_nothere1', title: 'x' },
+    { id, title: '' },
+    { id, repo: 'no no' },
+  ]) {
+    assert.equal(
+      (await bridge.call('POST', '/api/board/backlog/edit', body, withKey)).status,
+      400,
+      JSON.stringify(body),
+    );
+  }
+  assert.equal(
+    (
+      await bridge.call(
+        'POST',
+        '/api/board/backlog/edit',
+        { id, title: 'x' },
+        { Authorization: `Bearer ${pageKey(TOKEN, 'x')}` },
+      )
+    ).status,
+    403,
+  );
+
+  // a dropped or a started item is refused, with the state in the message
+  await runCli(home, ['backlog', 'drop', id]);
+  const refused = await runCli(home, ['backlog', 'edit', id, '--title', 'Too late']);
+  assert.notEqual(refused.code, 0);
+  assert.match(refused.stderr, new RegExp(`${id} is dropped, only an open card can be edited`));
+  assert.equal(
+    (await bridge.call('POST', '/api/board/backlog/edit', { id, title: 'Too late' }, withKey))
+      .status,
+    400,
+  );
+  const store = new BacklogStore(home);
+  const live = store.add({ title: 'Live' });
+  store.start(live.id, { branch: 'feat/x' });
+  assert.throws(() => store.edit(live.id, { title: 'Nope' }), /is started, only an open card/);
+  store.done(live.id);
+  assert.throws(() => store.edit(live.id, { title: 'Nope' }), /is done, only an open card/);
+
+  // a reopened card keeps its edits (an edit before the drop is not undone by the reopen)
+  const back = store.add({ title: 'Keep', repo: 'acme/widgets' });
+  store.edit(back.id, { repo: 'acme/gadgets' });
+  store.drop(back.id);
+  assert.equal(store.reopen(back.id).repo, 'acme/gadgets');
+});
+
 test('assign events fold: live for a while, cleared by a start, refused after a drop, skipped by readers that do not know them', () => {
   const store = new BacklogStore(tmp('backlog-assign'));
   const item = store.add({ title: 'Idea', repo: 'acme/widgets' });

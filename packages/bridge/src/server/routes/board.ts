@@ -23,6 +23,7 @@
  *                               reviewed: false. A local story only: PR stories are marked on GitHub
  *   POST /api/board/backlog     {title, note?, repo?}: add a backlog item (the Backlog column's Add)
  *   POST /api/board/backlog/move {id, before | edge}: reorder (before another item's id, or edge top or bottom)
+ *   POST /api/board/backlog/edit {id, title?, note?, repo?}: change an open item (a field left out stays; '' clears a note or repo)
  *   POST /api/board/backlog/drop {id}: drop one. Start is the CLI's (`once-upon backlog start`), not the page's
  *   POST /api/board/backlog/assign {id, session}: type the item's start line (built here from the store, the body has no
  *                               text) into an idle session in the item's repo, which then runs `once-upon backlog start`
@@ -148,6 +149,15 @@ function moveBacklog({ app, body: raw, send }: Call) {
   return send(200, { ok: true });
 }
 
+/** POST {id, title?, note?, repo?}: change an open backlog item's title, note or repo (only what is sent changes). */
+function editBacklog({ app, body: raw, send }: Call) {
+  const { id, title, note, repo } = parseBody('boardBacklogEdit', raw);
+  asBadRequest(() =>
+    app.board.editBacklog(id, { title, note: note ?? undefined, repo: repo ?? undefined }, 'board'),
+  );
+  return send(200, { ok: true });
+}
+
 /** POST {id}: drop a backlog item. The line stays in the file. */
 function dropBacklog({ app, body, send }: Call) {
   const { id } = parseBody('boardBacklogDrop', body);
@@ -230,6 +240,7 @@ export const boardRoutes: ApiRoute[] = [
   { route: ROUTES.boardOpenStory, handle: openStory },
   { route: ROUTES.boardReviewed, handle: reviewLocal },
   { route: ROUTES.boardBacklogMove, handle: moveBacklog },
+  { route: ROUTES.boardBacklogEdit, handle: editBacklog },
   { route: ROUTES.boardBacklogDrop, handle: dropBacklog },
   { route: ROUTES.boardWorktreeClean, handle: cleanWorktree },
   { route: ROUTES.boardBacklogAssign, handle: assignBacklog },

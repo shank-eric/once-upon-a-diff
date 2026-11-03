@@ -14,7 +14,7 @@ import { markFinished } from '../../adapters/stores/finished-agents.ts';
 import { BlankSessions } from '../../adapters/claude-sessions/blank.ts';
 import { SessionTitles } from '../../adapters/claude-sessions/titles.ts';
 import { BacklogStore, assignBranch, assignLine } from '../backlog/backlog.ts';
-import type { AddInput, BacklogItem, MoveTo } from '../backlog/backlog.ts';
+import type { AddInput, BacklogItem, EditInput, MoveTo } from '../backlog/backlog.ts';
 import { parseWorktrees } from '../backlog/backlog-links.ts';
 import { WorktreeScanner, workingIn } from '../worktrees/worktrees.ts';
 import type { Runner } from '../../adapters/os.ts';
@@ -160,6 +160,13 @@ export class Board {
   /** Moves a backlog item (a card dragged, or its up and down buttons). */
   moveBacklog(id: string, where: MoveTo, who: string): BacklogItem {
     const item = this.backlog.move(id, where, who);
+    this.invalidate();
+    return item;
+  }
+
+  /** Edits an open backlog item's title, note or repo (a card's Edit). */
+  editBacklog(id: string, input: EditInput, who: string): BacklogItem {
+    const item = this.backlog.edit(id, input, who);
     this.invalidate();
     return item;
   }

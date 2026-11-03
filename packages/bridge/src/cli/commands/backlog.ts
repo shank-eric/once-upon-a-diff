@@ -1,5 +1,5 @@
 /*
- * The backlog from the terminal: `once-upon backlog add|list|show|start|drop|reopen`. It reads and writes the backlog file
+ * The backlog from the terminal: `once-upon backlog add|list|show|edit|start|drop|reopen`. It reads and writes the backlog file
  * (services/backlog/backlog.ts) in-process, so nothing goes over HTTP; the board shows the items as its Backlog column.
  */
 import { formatTime } from '../../services/config/settings.ts';
@@ -16,6 +16,7 @@ const USAGE =
   'usage: once-upon backlog add "TITLE" [--note TEXT] [--repo owner/name] [--branch NAME] [--by NAME]\n' +
   '       once-upon backlog list [--all] [--json]\n' +
   '       once-upon backlog show ID\n' +
+  '       once-upon backlog edit ID [--title TEXT] [--note TEXT] [--repo owner/name]\n' +
   '       once-upon backlog start ID [--branch NAME] [--repo owner/name] [--by NAME]\n' +
   '       once-upon backlog move ID --before ID | --top | --bottom\n' +
   '       once-upon backlog done ID [--sha SHA] [--by NAME]\n' +
@@ -72,6 +73,24 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
   }
   if (verb === 'show') {
     return out(JSON.stringify(found(), null, 2));
+  }
+  if (verb === 'edit') {
+    const item = found();
+    // a flag left out stays; an empty --note or --repo clears it (a flag with no value reads as true, so it is not text)
+    const changes = { title: text(opts.title), note: text(opts.note), repo: text(opts.repo) };
+    if (changes.title === null && changes.note === null && changes.repo === null) {
+      throw new Error('change something: --title, --note or --repo');
+    }
+    const edited = store.edit(
+      item.id,
+      {
+        title: changes.title ?? undefined,
+        note: changes.note ?? undefined,
+        repo: changes.repo ?? undefined,
+      },
+      who,
+    );
+    return out(`${edited.id} edited: ${edited.title}`);
   }
   if (verb === 'start') {
     const item = found();
@@ -146,6 +165,7 @@ export const backlogCommands: Command[] = [
     name: 'backlog',
     usage: [
       '  once-upon backlog add "TITLE" [--note TEXT] [--repo owner/name] [--branch NAME]  keep something for later: a card in the board\'s Backlog column',
+      '  once-upon backlog edit ID [--title TEXT] [--note TEXT] [--repo owner/name]      change an open card in place (an empty --note or --repo clears it)',
       '  once-upon backlog list [--all] [--json] | show ID | drop ID | reopen ID         the items in board order (open ones, or all), one item, drop one, or bring a dropped one back',
       '  once-upon backlog done ID | --branch NAME [--sha SHA]                           the work landed (a local deploy): the card goes to Done for a day',
       '  once-upon backlog move ID --before ID | --top | --bottom                        reorder: new items go to the bottom',

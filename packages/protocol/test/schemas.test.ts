@@ -152,6 +152,11 @@ test('the board’s bodies keep their messages: a session id, a kind, a flag, an
     id: 'bl_abcdef',
     edge: 'top',
   });
+  bad('boardBacklogEdit', { title: 'x' }, 'a backlog item id is needed');
+  assert.deepEqual(ok('boardBacklogEdit', { id: 'bl_abcdef', note: null }), {
+    id: 'bl_abcdef',
+    note: null,
+  });
   bad('boardBacklogAssign', { id: 'nope' }, 'a backlog item id is needed');
   assert.deepEqual(ok('boardBacklogAssign', { id: 'bl_abcdef' }), { id: 'bl_abcdef' });
 });
