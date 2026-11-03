@@ -111,13 +111,17 @@ The event gives the question id, the story id, the chapter or step, the file it 
    - If the answer suggests a review comment, draft it in the user's voice and add it to the chapter's Draft comments with `<cli> comment --story <id> --chapter <N> --path <file> --line <L> --body-file <f>`. Check `<cli> drafts --story <id>` first and don't re-suggest one that's posted or dismissed.
 4. In chat, say one line: the question and that it's answered.
 
-### A relayed question
+### A relayed request
 
-When the story was built by a subagent that this session launched (`<cli> bind`, or `--agent` on its `publish` or `local`), the wait prints "Relay: this story was built by the agent …" with a message, instead of "Answer with". Don't read the code or answer it yourself. Send it on:
+When the story was built by a subagent that this session launched (`<cli> bind`, or `--agent` on its `publish` or `local`), the wait prints "Relay: this story was built by the agent …" with a message, instead of the usual hand-over, for the story's questions, fix requests, rebuild requests and approvals alike. Don't read the code, answer, edit or finish the agent's run yourself. Send it on:
 
-1. `SendMessage` to the agent named, with the message printed (with `--json`, `relay.message`). Then start the wait again (step 3). The agent answers in the panel itself (its message tells it to run `asking` first, and to stop if the question was answered or dismissed meanwhile), and the panel says it is waiting for you to pass it on until the agent speaks.
+1. `SendMessage` to the agent named, with the message printed (with `--json`, `relay.message`). Then start the wait again (step 3), with `--no-auto-stop` when the agent is parked on the reviewer's review, since the reviewer may come back hours later. The message tells the agent what to run, and each kind is the agent's job in its own worktree:
+   - A **question**: it runs `asking` first and `answer --consumer <agent>`, and stops if the question was answered or dismissed meanwhile. The panel says it is waiting for you to pass it on until the agent speaks.
+   - A **fix request**, only for a local story and only to the branch's author (a registered builder; a storyteller, an unknown agent and a PR's story take the usual path of section 6 here): the agent amends its one commit (a new commit when the branch is already pushed) and tells the story again, and its `working` call is what makes the panel say "Being changed by <agent>". Until then your wait holds the request, which keeps it from stopping itself. Notes from drafted comments still go to the reviewer first, through you.
+   - A **rebuild request**: the agent tells the story again from the chapter asked for, with `local` for a local story, or the PR's `story.mjs build --agent <name>` on every build for a PR's (a publish without `--agent` drops the binding).
+   - An **approval**, to the branch's author like a fix: the agent checks its branch head is the approval's `head_sha` and finishes its run with that commit. Create pull request stays the reviewer's. Stop that story's wait once the agent has finished.
 2. If the agent has asked you for the answer to speak (a voice question), say it when it arrives.
-3. If SendMessage says the agent can't be reached, answer it yourself as step 4 says but with `--consumer <this wait's consumer>` (the line printed shows it), and tell the user once that the agent was gone.
+3. If SendMessage says the agent can't be reached, don't edit code or finish its run. A question you answer yourself as step 4 says, from the story, the diff and the "Story context" section of the agent's notes file, with `--consumer <this wait's consumer>` (the line printed shows it). A fix request goes back with `fixed --request <id> --failed --note "author gone"` and a rebuild with `done <id> --failed --note "author gone"`. Tell the user once that the agent was gone.
 4. A binding that is a day old, or whose session has ended, isn't relayed at all, and a wait run from a session that doesn't own the agent never relays. `--no-relay` turns it off for one wait.
 
 ## 5. A build request

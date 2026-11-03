@@ -5,11 +5,11 @@
  * threads.json, checks.json, viewed.tsv). It makes no network calls.
  *
  *   story.ts brief   --dir D                 what Claude reads to plan: files, commits, reviews, threads, CI, viewed
- *   story.ts build   --dir D [--no-bridge]   D/chapters.json -> D/file-map.json, then publish; gives each chapter a key
+ *   story.ts build   --dir D [--no-bridge] [--agent NAME]   D/chapters.json -> D/file-map.json, then publish; gives each chapter a key
  *                                             (written back to D/chapters.json); fails if a file is unplaced, a chapter
  *                                             has no refs list, a ref or comment is wrong, or a hunk is told by no
  *                                             chapter (--allow-uncovered publishes anyway)
- *   story.ts publish --dir D                 publish the story for Once Upon a Diff through `once-upon publish` (build does this too)
+ *   story.ts publish --dir D [--agent NAME]    publish the story for Once Upon a Diff through `once-upon publish` (build does this too)
  *   story.ts slice   --dir D --chapter K     what one chapter's writer reads: map, neighbours, key points (D/points.json), numbered diff
  *   story.ts merge   --dir D                 lay D/fragments/*.json (one per chapter) onto D/chapters.json; never publishes (--clear: delete them instead)
  *                                             slice and merge read D/pr.diff, or --diff F, or a local story's --repo R --base B --head H
@@ -444,6 +444,8 @@ async function cmdPublish(opts: CliOpts) {
       '--dir',
       path.resolve(opts.dir as string),
       ...(opts['allow-uncovered'] ? ['--allow-uncovered'] : []),
+      // an author's story stays bound to it through every chapter's build (a publish without --agent drops the binding)
+      ...(typeof opts.agent === 'string' ? ['--agent', opts.agent] : []),
     ],
     { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] },
   ).trim();
@@ -465,7 +467,7 @@ const { command, opts } = parseArgs(process.argv.slice(2));
 const run = COMMANDS[command as string];
 if (!run || !opts.dir) {
   process.stderr.write(
-    'usage: story.ts <brief|build|publish|slice|merge> --dir <scratch-dir> [--no-bridge] [--allow-uncovered] [--chapter <key|n>] [--clear] [--diff <file> | --repo <dir> --base <ref> --head <ref>]\n',
+    'usage: story.ts <brief|build|publish|slice|merge> --dir <scratch-dir> [--no-bridge] [--allow-uncovered] [--agent <name>] [--chapter <key|n>] [--clear] [--diff <file> | --repo <dir> --base <ref> --head <ref>]\n',
   );
   process.exitCode = 1;
 } else {

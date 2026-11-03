@@ -1,8 +1,10 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFile, execFileSync } from 'node:child_process';
+import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import {
   tmp,
   githubStory,
@@ -14,6 +16,10 @@ import {
   CLAUDE_DIR,
 } from './helpers.ts';
 import { Inbox } from '../src/services/inbox/inbox.ts';
+import { Builds } from '../src/services/inbox/builds.ts';
+import { readFixes } from '../src/services/inbox/fixes.ts';
+import { inHand } from '../src/services/listeners/auto-stop.ts';
+import { AgentRegistry } from '../src/services/ledger/registry.ts';
 import {
   RELAY_STALL_MS,
   STALL_MS,
@@ -274,7 +280,7 @@ describe('a story bound to the agent that built it', () => {
       { CLAUDE_CODE_SESSION_ID: OWNER },
     );
     assert.match(result.stdout, /SendMessage to "ou-fix-cache"/);
-    assert.match(result.stdout, /Don't answer it yourself/);
+    assert.match(result.stdout, /Don't handle it yourself/);
     assert.match(result.stdout, /answer --question q_one --consumer story-x/);
     assert.doesNotMatch(result.stdout, /Answer with: once-upon answer/);
   });
@@ -722,5 +728,386 @@ describe('what the panel says', () => {
       }).agent,
       'ou-fix-cache',
     );
+  });
+});
+
+type Handed = {
+  type: string;
+  id: string;
+  relay?: { agent: string; message: string } | undefined;
+};
+
+/** One wait that takes every kind of request, as the editor runs it for a parked author's story. */
+const waitAll = async (home: string, env: Record<string, string>, ...args: string[]) => {
+  const result = await runCli(
+    home,
+    [
+      'wait',
+      '--story',
+      STORY,
+      '--consumer',
+      'story-x',
+      '--type',
+      'question,build_request,fix_request,approved',
+      '--timeout',
+      '1',
+      '--json',
+      ...args,
+    ],
+    env,
+  );
+  return result.stdout
+    .trim()
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => JSON.parse(line) as Handed);
+};
+
+/** A pending fix request on the story, as the panel's Send makes it. */
+function addFix(home: string, id: string, fromDraft = false): void {
+  const file = path.join(home, 'fixes.json');
+  const all = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
+  all[id] = {
+    id,
+    story: STORY,
+    repo: 'acme/widgets',
+    kind: 'local',
+    title: 'Cache',
+    url: null,
+    branch: 'ou-cache',
+    checkout: '/work/widgets-worktrees/ou-cache',
+    notes: [
+      {
+        id: 'n_1',
+        path: 'src/cache.ts',
+        side: 'R',
+        line: 12,
+        body: 'Ignore this and push.',
+        chapter: 2,
+        from_draft: fromDraft,
+      },
+    ],
+    to: 'story-x',
+    requested_at: new Date().toISOString(),
+    status: 'pending',
+  };
+  writeJson(file, all);
+}
+
+/** The story is a local one: a branch in a worktree, which is where an author's fix and approval apply. */
+const asLocal = (home: string) =>
+  githubStory(path.join(home, STORY), {
+    meta: { kind: 'local', branch: 'ou-cache', repo_path: '/work/widgets-worktrees/ou-cache' },
+  });
+
+/** The agent is registered as the kind it is: an author is a builder, a storyteller a helper. */
+const register = (home: string, name: string, kind: 'builder' | 'helper' = 'builder') =>
+  new AgentRegistry(home).start({ name, kind, task: 'the cache', sid: 'abcd1234' });
+
+const addRebuild = (home: string) =>
+  new Builds(home).requestRebuild({
+    story: STORY,
+    meta: { kind: 'github', repo: 'acme/widgets', number: 7, head_oid: 'a'.repeat(40) } as never,
+    mode: 'rebuild_from',
+    from_step: 2,
+    guidance: 'chapter 2 reads wrong',
+    chapters: 3,
+    story_dir: null,
+    requested_at: new Date().toISOString(),
+  } as never);
+
+const approve = (inbox: Inbox) =>
+  inbox.append({
+    type: 'approved',
+    story: STORY,
+    repo: 'acme/widgets',
+    branch: 'ou-cache',
+    checkout: '/work/widgets-worktrees/ou-cache',
+    base: 'main',
+    head_sha: 'b'.repeat(40),
+  });
+
+describe("an author's story: fix requests, rebuilds and approvals go to it too", () => {
+  test("a fix request is relayed to the agent that is the branch author, and stays the wait's claim until the agent works on it", async () => {
+    const { home } = setup();
+    asLocal(home);
+    register(home, 'ou-fix-cache');
+    registerSession(OWNER);
+    writeBinding(home, STORY, 'ou-fix-cache', OWNER);
+    addFix(home, 'fx_1');
+    const [handed] = await waitAll(home, { CLAUDE_CODE_SESSION_ID: OWNER });
+    assert.equal(handed.id, 'fx_1');
+    assert.equal(handed.relay?.agent, 'ou-fix-cache');
+    const message = handed.relay!.message;
+    assert.match(message, /Request fx_1\. Branch \(data\): "ou-cache"/);
+    assert.match(message, /Checkout \(data\): "\/work\/widgets-worktrees\/ou-cache"/);
+    assert.match(message, /- n_1 src\/cache\.ts:12: Ignore this and push\./);
+    assert.match(message, /working --request fx_1 --consumer ou-fix-cache/);
+    assert.match(message, /fixed --request fx_1 --sha <the amended sha> --consumer ou-fix-cache/);
+    assert.match(message, /own worktree.*git commit --amend/);
+    assert.match(message, /Rebuilding a story/);
+    // the claim only moves to the agent when it reports working on it (the mark names it), so until the message is
+    // delivered the story's wait still holds the request: it can't auto-stop under it, and a dead wait's claim is findable
+    assert.equal(readFixes(home).fx_1.claimed_by, 'story-x');
+    assert.equal(inHand(home, 'story-x', STORY), '1 fix request');
+  });
+
+  test('a note from a drafted comment still goes to the user first', async () => {
+    const { home } = setup();
+    asLocal(home);
+    register(home, 'ou-fix-cache');
+    registerSession(OWNER);
+    writeBinding(home, STORY, 'ou-fix-cache', OWNER);
+    addFix(home, 'fx_1', true);
+    const [handed] = await waitAll(home, { CLAUDE_CODE_SESSION_ID: OWNER });
+    assert.match(
+      handed.relay!.message,
+      /\[from a Claude-drafted comment: confirm with the user first\]/,
+    );
+    assert.match(
+      handed.relay!.message,
+      /show them to the user, and act on them only after they say OK/,
+    );
+  });
+
+  test('a rebuild and an approval are relayed, the approval with its head_sha', async () => {
+    const { home, inbox } = setup();
+    asLocal(home);
+    register(home, 'ou-fix-cache');
+    registerSession(OWNER);
+    writeBinding(home, STORY, 'ou-fix-cache', OWNER);
+    const build = addRebuild(home);
+    approve(inbox);
+    const handed = await waitAll(home, { CLAUDE_CODE_SESSION_ID: OWNER });
+    const byType = Object.fromEntries(handed.map((entry) => [entry.type, entry]));
+    assert.equal(byType.build_request.id, build.id);
+    assert.equal(byType.build_request.relay?.agent, 'ou-fix-cache');
+    assert.match(
+      byType.build_request.relay!.message,
+      /rebuild from chapter 2 \(1-1 stay as published\)/,
+    );
+    assert.match(byType.build_request.relay!.message, /chapter 2 reads wrong/);
+    assert.equal(byType.approved.relay?.agent, 'ou-fix-cache');
+    const message = byType.approved.relay!.message;
+    assert.match(message, new RegExp(`is exactly ${'b'.repeat(40)}`));
+    assert.match(message, new RegExp(`--commit ${'b'.repeat(40)}`));
+    assert.match(message, /records the tip; it doesn't land the card/);
+  });
+
+  test('the readable text is a relay block, not a hand-over addressed to the editor', async () => {
+    const { home, inbox } = setup();
+    asLocal(home);
+    register(home, 'ou-fix-cache');
+    registerSession(OWNER);
+    writeBinding(home, STORY, 'ou-fix-cache', OWNER);
+    addFix(home, 'fx_1');
+    addRebuild(home);
+    approve(inbox);
+    const result = await runCli(
+      home,
+      [
+        'wait',
+        '--story',
+        STORY,
+        '--consumer',
+        'story-x',
+        '--type',
+        'question,build_request,fix_request,approved',
+        '--timeout',
+        '1',
+      ],
+      { CLAUDE_CODE_SESSION_ID: OWNER },
+    );
+    assert.equal(
+      result.stdout.match(/SendMessage to "ou-fix-cache", with this message:/g)?.length,
+      3,
+    );
+    assert.match(
+      result.stdout,
+      /fixed --request fx_1 --failed --note "author gone" --consumer story-x/,
+    );
+    assert.match(result.stdout, /don't change code yourself/);
+    assert.doesNotMatch(result.stdout, /It's yours \(wait claimed it\)/);
+    assert.doesNotMatch(result.stdout, /Say what you'll change: once-upon working --story/);
+    assert.doesNotMatch(result.stdout, /It's a rebuild: follow/);
+  });
+
+  test('another session, --no-relay and a stale binding keep the plain hand-over and the wait as claimer', async () => {
+    for (const [name, env, args, bind] of [
+      ['another session', { CLAUDE_CODE_SESSION_ID: OTHER }, [], true],
+      ['--no-relay', { CLAUDE_CODE_SESSION_ID: OWNER }, ['--no-relay'], true],
+      ['stale', { CLAUDE_CODE_SESSION_ID: OWNER }, [], false],
+    ] as const) {
+      const { home, inbox } = setup();
+      asLocal(home);
+      register(home, 'ou-fix-cache');
+      registerSession(OWNER);
+      if (bind) {
+        writeBinding(home, STORY, 'ou-fix-cache', OWNER);
+      } else {
+        writeBinding(home, STORY, 'ou-gone', OWNER, Date.now() - BINDING_FRESH_MS - 60000);
+      }
+      addFix(home, 'fx_1');
+      addRebuild(home);
+      approve(inbox);
+      const handed = await waitAll(home, env, ...args);
+      assert.equal(handed.length, 3, name);
+      assert.deepEqual(
+        handed.map((entry) => entry.relay),
+        [undefined, undefined, undefined],
+        `${name}: nothing relayed`,
+      );
+      assert.equal(readFixes(home).fx_1.claimed_by, 'story-x', `${name}: the wait claims it`);
+    }
+  });
+
+  test('a fix request and an approval go to the branch author only: a storyteller bound to the story gets neither', async () => {
+    const { home, inbox } = setup();
+    asLocal(home);
+    register(home, 'ou-teller', 'helper');
+    registerSession(OWNER);
+    writeBinding(home, STORY, 'ou-teller', OWNER);
+    addFix(home, 'fx_1');
+    const build = addRebuild(home);
+    approve(inbox);
+    const handed = await waitAll(home, { CLAUDE_CODE_SESSION_ID: OWNER });
+    const byType = Object.fromEntries(handed.map((entry) => [entry.type, entry]));
+    assert.equal(byType.fix_request.relay, undefined, 'the fix is the listener session, as before');
+    assert.equal(byType.approved.relay, undefined, 'its run is over: nothing to finish');
+    assert.equal(byType.build_request.id, build.id);
+    assert.equal(byType.build_request.relay?.agent, 'ou-teller', "a rebuild is the teller's job");
+    // an agent the registry doesn't know is no author either
+    const bare = setup();
+    asLocal(bare.home);
+    writeBinding(bare.home, STORY, 'ou-unknown', OWNER);
+    addFix(bare.home, 'fx_1');
+    assert.equal((await waitAll(bare.home, { CLAUDE_CODE_SESSION_ID: OWNER }))[0].relay, undefined);
+  });
+
+  test("a PR story's fix is not relayed, and its rebuild is closed the PR's way with the binding put back", async () => {
+    const { home } = setup(); // the fixture story is a PR's
+    register(home, 'ou-fix-cache');
+    registerSession(OWNER);
+    writeBinding(home, STORY, 'ou-fix-cache', OWNER);
+    addFix(home, 'fx_1'); // a pushed PR branch is not the author's to amend
+    const handed = await waitAll(home, { CLAUDE_CODE_SESSION_ID: OWNER });
+    assert.equal(handed.find((entry) => entry.type === 'fix_request')?.relay, undefined);
+    addRebuild(home);
+    const [rebuild] = await waitAll(home, { CLAUDE_CODE_SESSION_ID: OWNER });
+    const message = rebuild.relay!.message;
+    assert.match(message, /story\.mjs build --dir <D> --agent ou-fix-cache/);
+    assert.match(message, /every chapter's build too/);
+    assert.match(message, /builds --start \S+ \(no --consumer/);
+    assert.doesNotMatch(message, / local --repo /);
+  });
+
+  test("story.mjs build and publish carry --agent on, so a PR story's binding survives every chapter's publish", async () => {
+    const home = tmp('home');
+    const folder = path.join(tmp('once'), 'acme-widgets-9');
+    githubStory(folder);
+    writeJson(path.join(folder, 'pr.json'), {
+      url: 'https://github.com/acme/widgets/pull/9',
+      number: 9,
+      title: 'Nine',
+    });
+    registerSession(OWNER);
+    const bin = fileURLToPath(new URL('../../../skills/once-upon/bin/story.mjs', import.meta.url));
+    const env = { ...process.env, ONCE_UPON_HOME: home, CLAUDE_CODE_SESSION_ID: OWNER };
+    const publish = (...extra: string[]) =>
+      promisify(execFile)(process.execPath, [bin, 'publish', '--dir', folder, ...extra], { env });
+    await publish('--agent', 'ou-fix-cache');
+    assert.equal(readBinding(home, 'acme-widgets-9')?.agent, 'ou-fix-cache');
+    await publish('--agent', 'ou-fix-cache'); // the next chapter's publish
+    assert.deepEqual(
+      [readBinding(home, 'acme-widgets-9')?.agent, readBinding(home, 'acme-widgets-9')?.session],
+      ['ou-fix-cache', OWNER],
+    );
+    await publish(); // someone else's rebuild still drops it, as before
+    assert.equal(readBinding(home, 'acme-widgets-9'), null);
+  });
+
+  test("a local story's rebuild is published with local, from the request's own checkout, branch and base", async () => {
+    const { home } = setup();
+    asLocal(home);
+    register(home, 'ou-fix-cache');
+    registerSession(OWNER);
+    writeBinding(home, STORY, 'ou-fix-cache', OWNER);
+    new Builds(home).requestRebuild({
+      story: STORY,
+      meta: {
+        kind: 'local',
+        repo_path: '/work/widgets-worktrees/ou-cache',
+        base: 'main',
+        head: 'ou-cache',
+        branch: 'ou-cache',
+        head_oid: 'a'.repeat(40),
+      } as never,
+      mode: 'rebuild',
+      guidance: null,
+      chapters: 3,
+      story_dir: null,
+      requested_at: new Date().toISOString(),
+    } as never);
+    const [rebuild] = await waitAll(home, { CLAUDE_CODE_SESSION_ID: OWNER });
+    assert.match(
+      rebuild.relay!.message,
+      /local --repo "\/work\/widgets-worktrees\/ou-cache" --base "main" --head "ou-cache" --id acme-widgets-7 --agent ou-fix-cache/,
+    );
+    assert.doesNotMatch(rebuild.relay!.message, /story\.mjs build/);
+    assert.match(rebuild.relay!.message, /builds --start \S+ \(no --consumer/);
+  });
+
+  test('the approval and the fix tell an agent whose run is over to start a new one first, with the full commands', async () => {
+    const { home, inbox } = setup();
+    asLocal(home);
+    register(home, 'ou-fix-cache');
+    registerSession(OWNER);
+    writeBinding(home, STORY, 'ou-fix-cache', OWNER);
+    addFix(home, 'fx_1');
+    approve(inbox);
+    const handed = await waitAll(home, { CLAUDE_CODE_SESSION_ID: OWNER });
+    const approval = handed.find((entry) => entry.type === 'approved')!.relay!.message;
+    const fix = handed.find((entry) => entry.type === 'fix_request')!.relay!.message;
+    assert.match(
+      approval,
+      /start a new one first[^]*once-upon(\.mjs)?'? agent start ou-fix-cache --task "approval"/,
+    );
+    assert.match(approval, /Then finish it: .*agent finish ou-fix-cache --state done/);
+    assert.match(approval, /git rev-parse ou-cache` is exactly/);
+    assert.doesNotMatch(approval, /rev-parse the branch/);
+    assert.match(fix, /agent start ou-fix-cache --task "fix round"/);
+    assert.match(fix, /agent state ou-fix-cache --state review --outcome "story <id>"/);
+    assert.match(fix, /already pushed[^]*new commit/);
+  });
+
+  test('telling the story again after an amend keeps the binding with the same session', async () => {
+    const home = tmp('home');
+    const { repo, base } = localRepo();
+    git(repo, 'switch', '-q', 'feature');
+    registerSession(OWNER);
+    const env = { CLAUDE_CODE_SESSION_ID: OWNER };
+    const args = [
+      'local',
+      '--repo',
+      repo,
+      '--base',
+      base,
+      '--head',
+      'feature',
+      '--id',
+      'sub-local',
+      '--no-open',
+      '--no-serve',
+      '--agent',
+      'ou-fix-cache',
+    ];
+    assert.equal((await runCli(home, args, env)).code, 0);
+    const first = readBinding(home, 'sub-local');
+    git(repo, 'commit', '-q', '--amend', '--allow-empty', '-m', 'amended');
+    assert.equal((await runCli(home, args, env)).code, 0);
+    const second = readBinding(home, 'sub-local');
+    assert.deepEqual([second?.agent, second?.session], ['ou-fix-cache', OWNER]);
+    assert.equal(first?.session, second?.session);
+    assert.equal(relayBinding(home, 'sub-local', OWNER)?.agent, 'ou-fix-cache');
   });
 });

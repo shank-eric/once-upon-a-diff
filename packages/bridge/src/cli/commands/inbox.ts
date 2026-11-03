@@ -37,7 +37,13 @@ import {
   touchBinding,
   type Binding,
 } from '../../services/inbox/binding.ts';
-import { relayMessage } from '../../services/inbox/relay.ts';
+import {
+  mayRelay,
+  relayEntryMessage,
+  relayFallback,
+  relayStory,
+} from '../../services/inbox/relay.ts';
+import type { Relayable } from '../../services/inbox/relay.ts';
 import { beat, listeners } from '../../services/listeners/listeners.ts';
 import { noteListener } from '../../services/listeners/history.ts';
 import {
@@ -69,7 +75,7 @@ type WaitScope = {
   norelay?: boolean;
 };
 
-/** The questions this wait relays, by id, to the agent that built their story. */
+/** The entries (questions, fix requests, rebuilds, approvals) this wait relays, by id, to the agent that built their story. */
 type Relays = Map<string, Binding>;
 
 const BEAT_MS = 5000;
@@ -248,8 +254,8 @@ function printHandOver(
   consumer = 'default',
 ): void {
   for (const entry of entries) {
-    const relay = entry.type === 'question' ? relays.get(entry.id) : undefined;
-    const message = relay && relayMessage(entry as QuestionEntry, relay.agent);
+    const relay = relays.get(entry.id);
+    const message = relay && relayEntryMessage(entry as Relayable, relay.agent);
     if (opts.json) {
       out(JSON.stringify(relay ? { ...entry, relay: { agent: relay.agent, message } } : entry));
       continue;
@@ -258,15 +264,18 @@ function printHandOver(
     if (relay) {
       out(
         [
-          `Relay: this story was built by the agent "${relay.agent}", which has the context. Don't answer it yourself: send it on, then start the wait again. The agent answers it in the panel.`,
+          `Relay: this story was built by the agent "${relay.agent}", which has the context. Don't handle it yourself: send it on, then start the wait again. The agent reports it in the panel.`,
           `SendMessage to "${relay.agent}", with this message:`,
           '---',
           message,
           '---',
-          `If SendMessage can't reach "${relay.agent}", answer it yourself and say so: once-upon answer --question ${entry.id} --consumer ${consumer} --text "…"`,
+          relayFallback(entry as Relayable, consumer),
         ].join('\n'),
       );
-    } else if (entry.type === 'question') {
+      out('');
+      continue;
+    }
+    if (entry.type === 'question') {
       out(
         `Tell the panel what you're doing as you go: once-upon asking --question ${entry.id} --note "<few words>"`,
       );
@@ -426,14 +435,18 @@ async function wait(home: string, cfg: Config, opts: CliOpts) {
         // a question of a story built by an agent this session owns goes on to the agent, from any wait here
         const relays: Relays = new Map();
         const bindings = new Map<string, Binding | null>();
-        for (const question of noRelay ? [] : questions) {
-          if (!bindings.has(question.story)) {
-            bindings.set(question.story, relayBinding(home, question.story, owner));
+        for (const entry of noRelay ? [] : entries) {
+          const story = relayStory(entry);
+          if (!story) {
+            continue;
           }
-          const bound = bindings.get(question.story);
-          if (bound) {
-            relays.set(question.id, bound);
-            touchBinding(home, question.story); // in use, so a long session's binding doesn't expire under it
+          if (!bindings.has(story)) {
+            bindings.set(story, relayBinding(home, story, owner));
+          }
+          const bound = bindings.get(story);
+          if (bound && mayRelay(home, entry, bound.agent)) {
+            relays.set(entry.id as string, bound);
+            touchBinding(home, story); // in use, so a long session's binding doesn't expire under it
           }
         }
         const own = questions.filter((question) => !relays.has(question.id));
@@ -443,7 +456,9 @@ async function wait(home: string, cfg: Config, opts: CliOpts) {
           consumer,
         );
         for (const [id, bound] of relays) {
-          noteHanded(home, [id], bound.agent, consumer);
+          if (questions.some((question) => question.id === id)) {
+            noteHanded(home, [id], bound.agent, consumer);
+          }
         }
         beat(home, consumer, 'handling', {
           ...scope,
