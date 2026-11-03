@@ -1,7 +1,7 @@
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmp, startBridge, runCli, localRepo, writeJson, git, TOKEN } from './helpers.ts';
 import { boardKey, pageKey, viewKey, viewKeyMay } from '../src/services/pages/page-key.ts';
@@ -33,14 +33,27 @@ function storyWithOrigin(home: string) {
 }
 
 /** A stand-in gh that answers `gh pr list` with whatever the test last wrote to its file. */
-function fakeGh(): { prsFile: string; bin: string } {
+function fakeGh(): { prsFile: string; callsFile: string; bin: string } {
   const dir = tmp('gh');
   const prsFile = path.join(dir, 'prs.json');
   writeFileSync(prsFile, '[]');
   const bin = path.join(dir, 'gh');
-  writeFileSync(bin, `#!/bin/sh\n[ "$1 $2" = "pr list" ] || exit 2\ncat "${prsFile}"\n`);
+  const callsFile = path.join(dir, 'calls');
+  writeFileSync(
+    bin,
+    `#!/bin/sh\necho "$@" >> "${callsFile}"\n[ "$1 $2" = "pr list" ] || exit 2\ncat "${prsFile}"\n`,
+  );
   chmodSync(bin, 0o755);
-  return { prsFile, bin };
+  return { prsFile, callsFile, bin };
+}
+
+/** A local story on branch `feature` in a checkout whose origin is `url`, with no repo of its own in meta. */
+function storyOnHost(home: string, url: string) {
+  const { repo, base } = localRepo();
+  git(repo, 'remote', 'add', 'origin', url);
+  const chapters = path.join(tmp('ch'), 'chapters.json');
+  writeJson(chapters, { chapters: [{ refs: [], title: 'Chapter 1: One', files: ['one.txt'] }] });
+  return createLocalStory({ home, repo, base, head: 'HEAD', chapters }).id;
 }
 
 describe('Create pull request on a local story', () => {
@@ -334,6 +347,38 @@ describe('Create pull request on a local story', () => {
       assert.equal(git(repo, 'rev-parse', 'feature'), view.head_sha);
     } finally {
       await bridge.close();
+    }
+  });
+
+  test('a checkout whose origin is not on github.com has no repo here: no gh call, no PR looked up', async () => {
+    for (const origin of [
+      'https://ghe.invalid/acme/widgets.git',
+      'git@gitlab.invalid:group/sub/widgets.git',
+      'https://dev.azure.com/acme/Platform/_git/widgets',
+    ]) {
+      const home = tmp('home');
+      const id = storyOnHost(home, origin);
+      // a PR the fake gh would show if it were asked about github.com/acme/widgets
+      writeFileSync(
+        fakeGhBin.prsFile,
+        JSON.stringify([{ number: 9, url: 'https://github.com/acme/widgets/pull/9' }]),
+      );
+      const bridge = await startBridge({ home });
+      try {
+        const callsBefore = existsSync(fakeGhBin.callsFile)
+          ? readFileSync(fakeGhBin.callsFile, 'utf8')
+          : '';
+        const view = (await bridge.call<PrView>('GET', `/api/stories/${id}/pr`)).body;
+        assert.equal(view.repo, null, origin);
+        assert.equal(view.pull, null, origin);
+        const callsAfter = existsSync(fakeGhBin.callsFile)
+          ? readFileSync(fakeGhBin.callsFile, 'utf8')
+          : '';
+        assert.equal(callsAfter, callsBefore, `${origin}: gh was not run`);
+      } finally {
+        writeFileSync(fakeGhBin.prsFile, '[]');
+        await bridge.close();
+      }
     }
   });
 

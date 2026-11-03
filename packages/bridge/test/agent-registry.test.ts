@@ -4,6 +4,7 @@ import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { git, runCli, tmp, writeJson } from './helpers.ts';
 import { gitText } from '../src/adapters/git.ts';
+import { branchTip } from '../src/services/ledger/made.ts';
 import { worktreeFixture } from '@once-upon-a-diff/test-kit/git';
 import { Board, noPrWatcher } from '../src/services/board/board.ts';
 import { AgentRegistry } from '../src/services/ledger/registry.ts';
@@ -866,4 +867,32 @@ test('the progress file knows names, not sessions: a ledger agent of a registere
   assert.ok(theirs);
   assert.equal(beatOf(theirs, beats), undefined);
   assert.equal(beats.get('ou-plain')?.step, 'plan');
+});
+
+test('an author in a GitHub Enterprise checkout registered with --repo gets a start tip, and a result when its branch moves', () => {
+  const fixture = worktreeFixture('widgets', 'https://ghe.example.com/acme/widgets.git');
+  const dir = fixture.add('work');
+  const home = tmp('reg-ghe-tip');
+  const registry = new AgentRegistry(home);
+  const begin = (name: string, repo: string) =>
+    registry.start({
+      ...BUILD,
+      name,
+      branch: 'work',
+      cwd: fixture.main,
+      repo,
+      at: minute(0),
+    } as Parameters<AgentRegistry['start']>[0]);
+  const tip = git(fixture.main, 'rev-parse', 'work');
+  assert.equal(branchTip(fixture.main, 'work', 'acme/widgets'), tip);
+  begin('ou-ghe', 'acme/widgets');
+  begin('ou-other', 'other/thing');
+  const agents = registry.agents();
+  assert.equal(agents.find((one) => one.name === 'ou-ghe')?.tip, tip);
+  assert.equal(agents.find((one) => one.name === 'ou-other')?.tip, null, "another repo's checkout");
+  fixture.commit(dir, 'work');
+  registry.finish('ou-ghe', { at: minute(5) });
+  const result = registry.agents().find((one) => one.name === 'ou-ghe')?.result;
+  assert.equal(result?.commit, git(fixture.main, 'rev-parse', 'work'));
+  assert.equal(result?.branch, 'work');
 });

@@ -449,6 +449,37 @@ test('only the full page key reaches Push: not the read-only key, the board key,
   }
 });
 
+test('a GitHub Enterprise, GitLab or Azure DevOps origin gets the not-GitHub reason, and gh is never asked about github.com', async () => {
+  for (const origin of [
+    'https://ghe.invalid/acme/widgets.git',
+    'git@gitlab.invalid:group/sub/widgets.git',
+    'https://dev.azure.com/acme/Platform/_git/widgets',
+  ]) {
+    const home = tmp('home');
+    const { repo, base } = localRepo();
+    git(repo, 'remote', 'add', 'origin', origin);
+    const chapters = path.join(tmp('ch'), 'chapters.json');
+    writeJson(chapters, {
+      chapters: [{ refs: [], title: 'Chapter 1', narrative: 'Told.', files: ['one.txt'] }],
+    });
+    const story = createLocalStory({ home, repo, base, head: 'HEAD', chapters });
+    const bridge = await startBridge({ home });
+    const callsBefore = fake.calls().length;
+    try {
+      const view = await bridge.call<PushView>('GET', `/api/stories/${story.id}/push`, undefined, {
+        Authorization: `Bearer ${pageKey(TOKEN, story.id)}`,
+      });
+      assert.equal(view.status, 200);
+      assert.equal(view.body.repo, null, origin);
+      assert.match(view.body.blocker as string, /isn't a GitHub repo/, origin);
+      assert.equal(view.body.protection.state, 'unknown', origin);
+      assert.equal(fake.calls().length, callsBefore, `${origin}: gh was not run`);
+    } finally {
+      await bridge.close();
+    }
+  }
+});
+
 test('a checkout whose origin is not on GitHub gets a reason, not a push', async () => {
   const { bridge, full } = await (async () => {
     const home = tmp('home');

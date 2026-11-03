@@ -19,6 +19,8 @@ import {
   forgetRepoLookups,
   lastKnownRepo,
   repoOfRemote,
+  parseRemote,
+  remoteNamed,
   checkoutFor,
   seenCheckout,
 } from '../src/services/config/repos.ts';
@@ -287,4 +289,99 @@ test('the checkout to work from: one the bridge has seen, else ~/Development/<na
   );
   assert.equal(repoOfRemote('https://github.com/octo-org/web-app.git'), 'octo-org/web-app');
   assert.equal(repoOfRemote('https://gitlab.com/a/b'), null);
+});
+
+test('repoOfRemote is GitHub only: another host gives null, so nothing reaches gh or github.com with it', () => {
+  const cases: Array<[string | null | undefined, string | null]> = [
+    ['https://github.com/octo-org/web-app.git', 'octo-org/web-app'],
+    ['https://github.com/octo-org/web-app/', 'octo-org/web-app'],
+    ['https://user:token@github.com/octo-org/web-app', 'octo-org/web-app'],
+    ['git@github.com:octo-org/api-server.git', 'octo-org/api-server'],
+    ['ssh://git@github.com/octo-org/api-server.git', 'octo-org/api-server'],
+    ['ssh://git@ssh.github.com:443/octo-org/api-server.git', 'octo-org/api-server'],
+    ['  https://github.com/o/n.git\n', 'o/n'],
+    ['https://ghe.example.com/octo-org/web-app.git', null],
+    ['git@ghe.example.com:octo-org/web-app.git', null],
+    ['https://gitlab.com/a/b', null],
+    ['https://gitlab.com/group/sub/repo', null],
+    ['https://dev.azure.com/everfi-dev/Platform/_git/dashifi', null],
+    ['git@ssh.dev.azure.com:v3/everfi-dev/Platform/dashifi', null],
+    ['https://evilgithub.com/o/n', null],
+    ['https://github.com/o/n/extra', null],
+    ['https://github.com/only-owner', null],
+    ['/srv/git/o/n.git', null],
+    ['file:///srv/git/o/n.git', null],
+    ['', null],
+    [null, null],
+    [undefined, null],
+  ];
+  for (const [url, repo] of cases) {
+    assert.equal(repoOfRemote(url), repo, String(url));
+  }
+});
+
+test('parseRemote reads any host and form, with one identity per repo', () => {
+  const remote = (host: string, owner: string, name: string) => ({ host, owner, name });
+  const cases: Array<[string, ReturnType<typeof parseRemote>]> = [
+    ['https://github.com/octo-org/web-app.git', remote('github.com', 'octo-org', 'web-app')],
+    [
+      'https://user:token@GHE.example.com:8443/octo-org/web-app',
+      remote('ghe.example.com', 'octo-org', 'web-app'),
+    ],
+    [
+      'https://ghe.example.com/git/octo-org/web-app.git',
+      remote('ghe.example.com', 'git/octo-org', 'web-app'),
+    ],
+    ['git@ghe.example.com:octo-org/web-app.git', remote('ghe.example.com', 'octo-org', 'web-app')],
+    [
+      'ssh://git@ghe.example.com:2222/octo-org/web-app.git',
+      remote('ghe.example.com', 'octo-org', 'web-app'),
+    ],
+    [
+      'ssh://ghe.example.com:2222/octo-org/web-app',
+      remote('ghe.example.com', 'octo-org', 'web-app'),
+    ],
+    ['https://gitlab.com/group/sub/repo.git', remote('gitlab.com', 'group/sub', 'repo')],
+    // Azure DevOps: every form of one repo is the same identity, and no `_git` owner
+    [
+      'https://dev.azure.com/everfi-dev/Platform/_git/dashifi',
+      remote('dev.azure.com', 'everfi-dev/Platform', 'dashifi'),
+    ],
+    [
+      'https://everfi-dev@dev.azure.com/everfi-dev/Platform/_git/dashifi',
+      remote('dev.azure.com', 'everfi-dev/Platform', 'dashifi'),
+    ],
+    [
+      'git@ssh.dev.azure.com:v3/everfi-dev/Platform/dashifi',
+      remote('ssh.dev.azure.com', 'everfi-dev/Platform', 'dashifi'),
+    ],
+  ];
+  for (const [url, expected] of cases) {
+    assert.deepEqual(parseRemote(url), expected, url);
+  }
+  for (const url of [
+    'https://github.com/only-owner',
+    '/srv/git/o/n',
+    'C:/x/y',
+    'file:///srv/o/n',
+    '',
+    null,
+    undefined,
+  ]) {
+    assert.equal(parseRemote(url), null, String(url));
+  }
+});
+
+test('remoteNamed: the owner/name a registered --repo gives, on any host', () => {
+  assert.equal(remoteNamed('https://ghe.example.com/Acme/widgets.git', 'acme/widgets'), true);
+  assert.equal(remoteNamed('git@github.com:acme/widgets.git', 'acme/widgets'), true);
+  assert.equal(
+    remoteNamed('https://dev.azure.com/everfi-dev/Platform/_git/dashifi', 'Platform/dashifi'),
+    true,
+  );
+  assert.equal(remoteNamed('https://ghe.example.com/other/thing.git', 'acme/widgets'), false);
+  assert.equal(remoteNamed('https://ghe.example.com/acme/other.git', 'acme/widgets'), false);
+  assert.equal(remoteNamed('/srv/git/acme/widgets', 'acme/widgets'), false);
+  assert.equal(remoteNamed(null, 'acme/widgets'), false);
+  assert.equal(remoteNamed('https://ghe.example.com/acme/widgets', null), false);
 });

@@ -8,7 +8,7 @@
  * repo is nothing to look at. Every git failure, a slow one included (GIT_TIMEOUT_MS: this runs inside the board's
  * Finish request), is "made nothing here", so registering and finishing never fail because of it.
  */
-import { repoOfRemote } from '../config/repos.ts';
+import { remoteNamed } from '../config/repos.ts';
 import { gitText } from '../../adapters/git.ts';
 import type { AgentResult } from './events.ts';
 import type { LedgerAgent } from './ledger.ts';
@@ -28,8 +28,8 @@ export function branchTip(
   }
   try {
     if (repo) {
-      const origin = repoOfRemote(gitText(cwd, ['remote', 'get-url', 'origin'], GIT_TIMEOUT_MS));
-      if (origin?.toLowerCase() !== repo.toLowerCase()) {
+      // any host: a GitHub Enterprise or GitLab checkout registered with --repo counts too (this never reaches gh)
+      if (!remoteNamed(gitText(cwd, ['remote', 'get-url', 'origin'], GIT_TIMEOUT_MS), repo)) {
         return null;
       }
     }

@@ -20,12 +20,91 @@ export { REPO_RE };
 export const sameRepo = (first: unknown, second: unknown): boolean =>
   !!first && !!second && String(first).toLowerCase() === String(second).toLowerCase();
 
-/** owner/name from a GitHub remote URL (https or ssh), else null. */
+const SEGMENT_RE = /^[A-Za-z0-9_.-]+$/;
+const GITHUB_HOSTS = ['github.com', 'www.github.com', 'ssh.github.com'];
+
+export interface Remote {
+  /** Lowercased, with no user or port. */
+  host: string;
+  /** Everything before the last path segment: `group/sub` or Azure DevOps `org/project` stay whole. */
+  owner: string;
+  name: string;
+}
+
+/**
+ * Where a remote URL points, on any host: https (user:token@, port), `ssh://` (user, port) or scp-style
+ * `git@host:path`. Azure DevOps' `_git` (https) and `v3` (ssh) markers are dropped, so both forms of one repo agree.
+ * Local paths and `file:` URLs give null. This does not say the host is GitHub: `repoOfRemote` does, and every caller
+ * that reaches `gh` or builds a github.com URL goes through that.
+ */
+export function parseRemote(url: string | null | undefined): Remote | null {
+  const text = String(url || '').trim();
+  const scheme = /^([A-Za-z][A-Za-z0-9+.-]*):\/\/([^/]*)(\/.*)?$/.exec(text);
+  let authority: string;
+  let repoPath: string;
+  if (scheme) {
+    if (scheme[1].toLowerCase() === 'file') {
+      return null;
+    }
+    authority = scheme[2];
+    repoPath = scheme[3] || '';
+  } else {
+    const scp = /^([^/:\s]+):(?!\/\/)(.*)$/.exec(text);
+    if (!scp) {
+      return null;
+    }
+    authority = scp[1];
+    repoPath = scp[2];
+  }
+  const host = authority.replace(/^.*@/, '').replace(/:\d*$/, '').toLowerCase();
+  // two characters at least: a drive letter (`C:/x/y`) is not a scp host
+  if (host.length < 2 || !/^[a-z0-9.-]+$/.test(host)) {
+    return null;
+  }
+  const parts = repoPath
+    .replace(/\/+$/, '')
+    .replace(/\.git$/, '')
+    .split('/')
+    .filter(Boolean);
+  if (host.endsWith('dev.azure.com') && parts[0] === 'v3') {
+    parts.shift();
+  }
+  const marker = parts.indexOf('_git');
+  if (marker >= 0) {
+    parts.splice(marker, 1);
+  }
+  if (parts.length < 2 || !parts.every((part) => SEGMENT_RE.test(part))) {
+    return null;
+  }
+  return { host, owner: parts.slice(0, -1).join('/'), name: parts[parts.length - 1] };
+}
+
+/**
+ * owner/name from a GitHub remote URL (https or ssh), else null: a GitHub Enterprise, GitLab or Azure DevOps origin is
+ * null here on purpose. The result goes to `gh`, to github.com URLs and into repo keys that become them.
+ */
 export function repoOfRemote(url: string | null | undefined): string | null {
-  const match = /github\.com[:/]([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+?)(?:\.git)?\/?$/.exec(
-    String(url || '').trim(),
-  );
-  return match ? `${match[1]}/${match[2]}` : null;
+  const remote = parseRemote(url);
+  return remote && GITHUB_HOSTS.includes(remote.host) && !remote.owner.includes('/')
+    ? `${remote.owner}/${remote.name}`
+    : null;
+}
+
+/**
+ * Whether a remote URL, on any host, is the repo `repo` (owner/name) names. The last owner segment counts as the owner
+ * (`Platform/dashifi` for Azure DevOps), so `acme/widgets` also accepts `group/acme/widgets`. That looseness is
+ * deliberate: this only guards a local `git rev-parse` in a checkout the agent was started in, and never reaches gh.
+ */
+export function remoteNamed(
+  url: string | null | undefined,
+  repo: string | null | undefined,
+): boolean {
+  const remote = parseRemote(url);
+  if (!remote || !repo) {
+    return false;
+  }
+  const owners = [remote.owner, remote.owner.split('/').pop() as string];
+  return owners.some((owner) => sameRepo(`${owner}/${remote.name}`, repo));
 }
 
 const byDir = new Map<string, string | null>();
