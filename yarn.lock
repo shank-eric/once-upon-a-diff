@@ -335,7 +335,6 @@ __metadata:
     "@types/node": "npm:24.19.1"
     highlight.js: "npm:11.11.1"
     htm: "npm:3.1.1"
-    once-upon-a-diff: "workspace:*"
     preact: "npm:10.29.8"
     rolldown: "npm:1.2.15"
     typescript: "npm:5.9.3"

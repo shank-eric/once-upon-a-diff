@@ -112,7 +112,7 @@ The plan was protocol, panel, web, ui, then the server split and board-core. Wha
 - Every future route touches `protocol`. That is the point, and also the cost.
 - The read-only key's allowlist still lives in `page-key.ts`, checked against the table by a test, not derived from it.
 - The bridge now has a runtime dependency.
-- `web` and `bridge` depend on each other as workspaces: the bridge resolves web's files to serve them, and web's tests import the bridge's test helpers. Yarn allows it, and it is a cycle to break (ADR-16).
+- `web` and `bridge` once depended on each other as workspaces. The bridge still resolves web's files to serve them, but web's tests no longer import the bridge: the test helpers moved to `test-kit` and the two tests that start a bridge now live in `packages/bridge/test/web-assets.test.ts` (ADR-16). The cycle is broken.
 
 ## Open questions
 

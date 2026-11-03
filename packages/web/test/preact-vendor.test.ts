@@ -2,7 +2,6 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { startBridge, tmp } from 'once-upon-a-diff/test/helpers';
 
 const vendor = (name: string) =>
   readFileSync(new URL(`../public/vendor/${name}`, import.meta.url), 'utf8');
@@ -50,24 +49,4 @@ test('the vendored Preact needs no unsafe-eval, and exports what the components 
     'useRef',
     'useState',
   ]);
-});
-
-test('the bridge serves Preact and the voice panel as JavaScript, with no key', async () => {
-  const bridge = await startBridge({ home: tmp('home') });
-  try {
-    for (const path of [
-      '/assets/preact.mjs',
-      '/assets/board/voice/voice-panel.ts',
-      '/assets/local/stored.ts',
-    ]) {
-      const response = await fetch(`${bridge.base}${path}`);
-      assert.equal(response.status, 200, path);
-      assert.match(response.headers.get('content-type') as string, /javascript/);
-    }
-    const panel = await (await fetch(`${bridge.base}/assets/board/voice/voice-panel.ts`)).text();
-    assert.ok(!/: BoardVoice|import type|VoicePanelProps =/.test(panel), 'its types are stripped');
-    assert.match(panel, /from '\/assets\/preact\.mjs'/);
-  } finally {
-    await bridge.close();
-  }
 });
