@@ -311,7 +311,7 @@ test('the board reads registered events with no ledger file: column, beat, and t
   assert.equal(view.started_at, minute(0).toISOString());
 });
 
-test('role and standing helper come from kind, not from the name or the task text', async () => {
+test('role comes from kind, and the standing row from --standing, not from the name or the task text', async () => {
   const home = tmp('reg-kind');
   const registry = new AgentRegistry(home);
   registry.start({ name: 'rv-x', sid: SID, kind: 'reviewer', task: 'look at it', at: minute(0) });
@@ -326,15 +326,111 @@ test('role and standing helper come from kind, not from the name or the task tex
     name: 'ou-clerk',
     sid: SID,
     kind: 'helper',
+    standing: true,
     task: 'answer requests',
+    at: minute(0),
+  });
+  registry.start({
+    name: 'standing-helper-x',
+    sid: SID,
+    kind: 'helper',
+    task: 'standing helper: one-shot',
     at: minute(0),
   });
   const cards = await boardOf(home)();
   const view = (name: string) =>
     cards.find((one) => one.kind === 'agent' && one.title === name)?.agents[0];
-  assert.equal(view('ou-clerk'), undefined, 'a helper by kind has no card, whatever its task says');
+  assert.equal(view('ou-clerk'), undefined, 'a standing agent has no card, whatever its task says');
+  assert.equal(view('standing-helper-x')?.kind, 'helper', 'a helper without --standing is a card');
   assert.equal(view('rv-x')?.gate?.kind, 'review');
   assert.equal(view('review-board-ui')?.gate, null);
+});
+
+test('a restart of the same sid:name keeps its kind and standing; another id or an explicit kind does not', () => {
+  const registry = new AgentRegistry(tmp('reg-carry'));
+  const clerk = { name: 'clerk', sid: SID, kind: 'helper', standing: true, task: 'ops' } as const;
+  registry.start({ ...clerk, at: minute(0) });
+  registry.finish('clerk', { state: 'done', at: minute(5) });
+  const find = (sid = SID) =>
+    registry.agents().find((one) => one.sid === sid && one.name === 'clerk');
+  registry.start({ name: 'clerk', sid: SID, task: 'ops again', at: minute(10) });
+  assert.equal(find()?.kind, 'helper');
+  assert.equal(find()?.standing, true);
+  assert.equal(find()?.state, 'running');
+  assert.equal(find()?.earlier?.length, 1);
+  // no earlier run of this id: a kind is still needed, and nothing is standing
+  assert.throws(
+    () => registry.start({ name: 'clerk', sid: OTHER, task: 'ops', at: minute(11) }),
+    /the kind must be one of/,
+  );
+  registry.start({ name: 'clerk', sid: OTHER, kind: 'builder', task: 'ops', at: minute(11) });
+  assert.equal(find(OTHER)?.standing, false);
+  // an explicit kind wins, standing stays
+  registry.start({ name: 'clerk', sid: SID, kind: 'research', task: 'ops', at: minute(12) });
+  assert.equal(find()?.kind, 'research');
+  assert.equal(find()?.standing, true);
+});
+
+test('standing: true sets it, false clears it, left out carries the earlier run', () => {
+  const registry = new AgentRegistry(tmp('reg-standing-clear'));
+  const standing = () => registry.agents().find((one) => one.name === 'clerk')?.standing;
+  const start = (when: number, flag?: boolean) => {
+    registry.start({
+      name: 'clerk',
+      sid: SID,
+      kind: 'helper',
+      task: 'ops',
+      ...(flag === undefined ? {} : { standing: flag }),
+      at: minute(when),
+    });
+    const sure = standing();
+    registry.finish('clerk', { state: 'done', at: minute(when + 1) });
+    return sure;
+  };
+  assert.equal(start(0), false, 'never said: not standing');
+  assert.equal(start(2, true), true);
+  assert.equal(start(4), true, 'left out: carries over');
+  assert.equal(start(6, false), false, 'false clears it');
+  assert.equal(start(8), false, 'and the cleared value carries over');
+});
+
+test('the CLI: --standing on start, and a restart with no --kind or --standing keeps both', async () => {
+  const home = tmp('reg-cli-standing');
+  const env = { CLAUDE_CODE_SESSION_ID: `${SID}-0000-4000-8000-000000000000` };
+  const listed = async () =>
+    JSON.parse((await runCli(home, ['agent', 'list', '--all', '--json'], env)).stdout) as {
+      name: string;
+      kind: string;
+      standing: boolean;
+      state: string;
+    }[];
+  await runCli(
+    home,
+    ['agent', 'start', 'clerk', '--kind', 'helper', '--standing', '--task', 'card ops'],
+    env,
+  );
+  assert.deepEqual(
+    (await listed()).map((one) => [one.kind, one.standing]),
+    [['helper', true]],
+  );
+  await runCli(home, ['agent', 'finish', 'clerk'], env);
+  await runCli(home, ['agent', 'start', 'clerk', '--task', 'card ops again'], env);
+  const [again] = await listed();
+  assert.deepEqual([again.kind, again.standing, again.state], ['helper', true, 'running']);
+  const plain = await runCli(
+    home,
+    ['agent', 'start', 'one-shot', '--kind', 'helper', '--task', 'x'],
+    env,
+  );
+  assert.equal(plain.code, 0);
+  assert.equal((await listed()).find((one) => one.name === 'one-shot')?.standing, false);
+  // `--standing true` sets it and `--standing false` clears it, on a restart too
+  await runCli(home, ['agent', 'finish', 'clerk'], env);
+  await runCli(home, ['agent', 'start', 'clerk', '--standing', 'false', '--task', 'x'], env);
+  assert.equal((await listed()).find((one) => one.name === 'clerk')?.standing, false);
+  await runCli(home, ['agent', 'finish', 'clerk'], env);
+  await runCli(home, ['agent', 'start', 'clerk', '--standing', 'true', '--task', 'x'], env);
+  assert.equal((await listed()).find((one) => one.name === 'clerk')?.standing, true);
 });
 
 test('staleness runs from the last event: an agent that beats is live, a silent one is stale', async () => {

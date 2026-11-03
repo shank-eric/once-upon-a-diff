@@ -1096,7 +1096,7 @@ export interface BoardListenerRepo {
   candidates: { id: string; title: string; status: 'idle' | 'done'; since: string | null }[];
 }
 
-/** One standing helper in the footer row (a ledger agent whose task says "standing helper"): never a card. */
+/** One standing helper in the footer row (an agent registered `--standing`): never a card. */
 export interface BoardHelper {
   name: string;
   /** waiting for a request, or handling one now */
@@ -1147,7 +1147,7 @@ export interface BoardData {
   voice_paused: boolean;
   /** repos with a listener now, and those that had one in the last week */
   listeners: BoardListenerRepo[];
-  /** standing helpers (ledger agents marked "standing helper") whose session is live, for the row under the Listeners */
+  /** standing helpers (agents registered `--standing`) whose session is live, for the row under the Listeners */
   helpers: BoardHelper[];
   /** live sessions that have had no prompt yet (new, or just cleared), by lane: a strip in the Idle lane, not cards */
   blank: { key: string; name: string; sessions: BoardBlankSession[] }[];

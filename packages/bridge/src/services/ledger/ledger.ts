@@ -73,6 +73,8 @@ export interface LedgerAgent {
   /** the launching session's full id, when the agent was registered from a Claude session */
   session?: string | null;
   kind?: AgentKind | null;
+  /** registered `--standing`: held out of the cards, shown in the Helpers row (a ledger agent is never standing) */
+  standing?: boolean;
   repo?: string | null;
   branch?: string | null;
   /** the registered branch's tip when the run started (null when the branch did not exist yet), to tell at finish whether it moved */

@@ -88,7 +88,10 @@ export interface StartInput extends Target {
   sid: string;
   /** the launching session's full id, when there is one */
   session?: string | null;
-  kind: AgentKind;
+  /** optional on a restart: the id's earlier run's kind carries over */
+  kind?: AgentKind;
+  /** a standing agent (the backlog clerk): left out, it keeps the earlier run's value; false clears it */
+  standing?: boolean;
   task: string;
   model?: string | null;
   effort?: string | null;
@@ -231,7 +234,10 @@ export class AgentRegistry {
     if (!sid) {
       throw new Error('a session id is needed (--sid SID8, or run it from a Claude session)');
     }
-    if (!(AGENT_KINDS as readonly string[]).includes(input.kind)) {
+    // a restart of the same sid:name keeps what the earlier run was registered as, so a resumed standing agent stays standing
+    const earlier = this.agents().find((one) => one.sid === sid && one.name === name);
+    const kind = input.kind ?? earlier?.kind;
+    if (!kind || !(AGENT_KINDS as readonly string[]).includes(kind)) {
       throw new Error(`the kind must be one of ${AGENT_KINDS.join(', ')}`);
     }
     const task = clean(input.task, 'the task');
@@ -239,7 +245,7 @@ export class AgentRegistry {
       throw new Error('a task is needed (--task TEXT)');
     }
     const slots = count(input.slots, 'the slots', 99);
-    if (slots !== null && (input.kind !== 'editor' || slots < 1)) {
+    if (slots !== null && (kind !== 'editor' || slots < 1)) {
       throw new Error('--slots is for an editor (--kind editor), 1 to 99');
     }
     const run = `r_${randomBytes(5).toString('hex')}`;
@@ -251,7 +257,8 @@ export class AgentRegistry {
       ...this.base('start', name, sid, input),
       session: clean(input.session, 'the session', 100) || null,
       run,
-      kind: input.kind,
+      kind,
+      standing: input.standing ?? earlier?.standing === true,
       task,
       model: clean(input.model, 'the model', 60) || null,
       effort: clean(input.effort, 'the effort', 30) || null,
@@ -263,7 +270,7 @@ export class AgentRegistry {
       card: optional(input.card, 'the card', CARD_PATTERN),
       lane: optional(input.lane, 'the lane', LANE_PATTERN),
       notes: clean(input.notes, 'the notes path', 500) || null,
-      ...(input.kind === 'editor' ? { slots: slots ?? DEFAULT_SLOTS } : {}),
+      ...(kind === 'editor' ? { slots: slots ?? DEFAULT_SLOTS } : {}),
     });
     return { id: `${sid}:${name}`, run };
   }
