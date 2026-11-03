@@ -309,10 +309,7 @@ const finishable = (card: BoardCard) =>
 /** Finish: clears a finished agent's card now (the bridge writes the ledger's `[done]` line for one that was still waiting on a question). */
 function finishAgent(api: Api, card: BoardCard) {
   const agent = card.agents[0];
-  const sid = /^agent:([0-9a-f]{8}):/.exec(card.id)?.[1];
-  if (!sid) {
-    return;
-  }
+  const sid = agent.sid;
   if (
     agent.state === 'waiting' &&
     !window.confirm(

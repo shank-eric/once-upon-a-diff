@@ -1327,9 +1327,14 @@ test('a finished agent’s card shows its notes and when it leaves, and Finish a
   requests.length = 0;
   confirmed.length = 0;
   sure = true;
-  const agentCard = (name: string, state: BoardAgent['state'], over: Partial<BoardAgent> = {}) =>
+  const agentCard = (
+    name: string,
+    state: BoardAgent['state'],
+    over: Partial<BoardAgent> = {},
+    id = `agent:abcdef01:${name}`,
+  ) =>
     card({
-      id: `agent:abcdef01:${name}`,
+      id,
       kind: 'agent',
       title: name,
       repo: null,
@@ -1339,6 +1344,7 @@ test('a finished agent’s card shows its notes and when it leaves, and Finish a
       agents: [
         {
           key: `abcdef01:${name}`,
+          sid: 'abcdef01',
           name,
           kind: null,
           state,
@@ -1364,6 +1370,7 @@ test('a finished agent’s card shows its notes and when it leaves, and Finish a
       agentCard('question-one', 'waiting', { clears_at: null }),
       agentCard('working-one', 'running', { clears_at: null, notes: null }),
       agentCard('parked-one', 'waiting', { review: true, clears_at: null }),
+      agentCard('odd-one', 'done', {}, 'whatever-the-bridge-calls-it'),
     );
   await pollNow();
   const finished = $('[data-card="agent:abcdef01:finished-one"]') as HTMLElement;
@@ -1408,6 +1415,10 @@ test('a finished agent’s card shows its notes and when it leaves, and Finish a
     sid: 'abcdef01',
     name: 'question-one',
   });
+
+  // the sid is the agent's own field, not read out of the card's id
+  await click($('[data-finish-agent="whatever-the-bridge-calls-it"]'));
+  assert.deepEqual(sentTo('/api/board/agent/finish')[2].body, { sid: 'abcdef01', name: 'odd-one' });
   answer = () => board();
   await pollNow();
 });

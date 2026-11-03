@@ -5,15 +5,19 @@
  */
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
+import type { ErrorCode } from '@once-upon-a-diff/protocol/domain/error-code';
 import type { Body } from './types.ts';
 
 const MAX_BODY = 256 * 1024;
 
 export class HttpError extends Error {
   declare status: number;
-  constructor(status: number, message: string) {
+  /** what the answer's `code` is when it isn't the status's own (codeOfStatus): `no_route` for a path with no route */
+  declare code: ErrorCode | undefined;
+  constructor(status: number, message: string, code?: ErrorCode) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 

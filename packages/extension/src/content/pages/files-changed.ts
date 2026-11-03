@@ -18,6 +18,7 @@ import { createHostPage } from '@once-upon-a-diff/host-github/diff-dom';
 import { filesChangedPr } from '@once-upon-a-diff/host-github/pages';
 import { withLayout, type Layout } from '@once-upon-a-diff/panel/layout';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { bridgeProblem } from '@once-upon-a-diff/api-client/client';
 import { bridge, extensionAlive } from '../bridge.ts';
 import { createListenOption } from '../listen.ts';
 import { loadPanelUi, savePanelUi, loadPrefsCopy, storePrefsCopy, tabSession } from '../storage.ts';
@@ -43,6 +44,8 @@ interface CurrentPage extends FilesChangedPr {
   ui: PanelUi;
   overlay: StoryOverlay | null;
   status: string;
+  /** why the bridge couldn't answer, when `status` is its failure's message (the code's word, not the message's) */
+  problem?: StatusError['code'];
   /** the commit-range path whose chapter it opened on, once per page */
   rangeFor?: string;
   /** the #ou-step-N URL it opened on, once per page */
@@ -180,13 +183,7 @@ export function createFilesChangedPage() {
         if (answer.ok) {
           return answer.body;
         }
-        let code: StatusError['code'] = 'down';
-        if (answer.status === 401) {
-          code = 'token';
-        } else if (answer.status === 404) {
-          code = 'old';
-        }
-        throw Object.assign(new Error(answer.error as string), { code });
+        throw Object.assign(new Error(answer.error as string), { code: bridgeProblem(answer) });
       },
       // Start listening: type the listen line into an idle Claude Code session, through the bridge's board
       listen: createListenOption(bridge.call, storyId),
@@ -271,6 +268,7 @@ export function createFilesChangedPage() {
       }
       if (!answer.ok) {
         current.status = answer.error || `HTTP ${answer.status}`;
+        current.problem = bridgeProblem({ status: answer.status ?? 0, body: answer.body });
         return;
       }
       const result = tags.resultOf(current.pr);
@@ -390,7 +388,7 @@ export function createFilesChangedPage() {
     if (current.status === 'unreachable') {
       return "The bridge isn't running. Start it with: once-upon serve";
     }
-    if (/HTTP 401|token/.test(current.status)) {
+    if (current.problem === 'token') {
       return 'The bridge rejected the token. Copy it again from: once-upon setup';
     }
     return 'The bridge has no story for this PR.';

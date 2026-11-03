@@ -15,6 +15,8 @@ import type {
   QueryOf,
 } from '@once-upon-a-diff/protocol/routes';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { hasCode, replyCode } from '@once-upon-a-diff/protocol/domain/error-code';
+import type { StatusError } from '@once-upon-a-diff/protocol/types';
 
 /** What a host's transport is asked to send. `path` carries the query. A POST always has a body (`{}` when it has none). */
 export interface CallRequest {
@@ -31,13 +33,37 @@ export type Reply<T = unknown> =
 /** How a host reaches the bridge. It should not throw: a call that fails says so in its Reply. */
 export type Transport = (request: CallRequest) => Promise<Reply>;
 
-/** A failed call that `ask` turns into an error: the bridge's message, and the HTTP status (0 when it didn't get there). */
+/** A failed call that `ask` turns into an error: the bridge's message, the HTTP status (0 when it didn't get there) and the bridge's JSON (`replyCode` reads its `code`). */
 export class BridgeError extends Error {
   declare status: number;
-  constructor(message: string, status: number) {
+  declare body: unknown;
+  constructor(message: string, status: number, body?: unknown) {
     super(message);
     this.status = status;
+    this.body = body;
   }
+}
+
+/**
+ * What a failed call says about the bridge, for the status light: 0 it didn't get there (`down`), 401 the token is wrong
+ * (`token`), a route the bridge doesn't have (`old`, the bridge is older than the page). An older bridge sends no code,
+ * so its plain 404 counts as a missing route too; anything else is `down`.
+ */
+export function bridgeProblem(reply: {
+  status: number;
+  body?: unknown;
+}): NonNullable<StatusError['code']> {
+  if (!reply.status) {
+    return 'down';
+  }
+  const code = replyCode(reply);
+  if (code === 'unauthorized') {
+    return 'token';
+  }
+  if (code === 'no_route' || (code === 'not_found' && !hasCode(reply))) {
+    return 'old';
+  }
+  return 'down';
 }
 
 /** The arguments a route needs: its params and body when it has them, and an optional query. */
@@ -128,7 +154,7 @@ export function createClient(transport: Transport) {
     async ask<R extends AnyRoute>(route: R, ...rest: ArgList<R>): Promise<AnswerOf<R>> {
       const reply = await transport(request(route, rest[0] as Partial<Args<R>> | undefined));
       if (!reply.ok) {
-        throw new BridgeError(reply.error || `HTTP ${reply.status}`, reply.status);
+        throw new BridgeError(reply.error || `HTTP ${reply.status}`, reply.status, reply.body);
       }
       return reply.body as AnswerOf<R>;
     },

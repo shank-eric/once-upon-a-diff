@@ -61,6 +61,7 @@ export function agentOf(
   const began = agent.source === 'events' ? lastActivity(agent) : ledgerBegan;
   return {
     key: agentKey(agent),
+    sid: agent.sid,
     name: agent.name,
     kind: agent.kind ?? null,
     state: agent.state,

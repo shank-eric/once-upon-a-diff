@@ -32,6 +32,7 @@ import { Builds } from '../services/inbox/builds.ts';
 import { announceBridge, retireBridge, writeExtensionSeen } from '../services/bridge/bridge.ts';
 import { Board } from '../services/board/board.ts';
 import { BoardError } from '../services/errors.ts';
+import { codeOfStatus } from '@once-upon-a-diff/protocol/domain/error-code';
 import { HttpError, sameToken, readBody } from './request.ts';
 import { COOKIE_NAMES, cookieFor, cookiesOf } from './session-cookie.ts';
 import { assetFor } from './assets.ts';
@@ -338,7 +339,7 @@ export function createBridge({
       (candidate) => candidate.route.what === what && candidate.route.method === call.req.method,
     );
     if (!route) {
-      throw new HttpError(404, 'not found');
+      throw new HttpError(404, 'not found', 'no_route');
     }
     return route.handle(call, story);
   }
@@ -390,7 +391,7 @@ export function createBridge({
         return await startSession(req, origin, send);
       }
       if (!pathname.startsWith('/api/')) {
-        throw new HttpError(404, 'not found');
+        throw new HttpError(404, 'not found', 'no_route');
       }
       const { body, scope, pageScope, readOnly } = await checkApiCall(req, pathname, origin);
       const call: Call = { app, req, url, body, send, pageScope, readOnly };
@@ -414,7 +415,7 @@ export function createBridge({
       }
       const storyMatch = STORY_PATH.exec(pathname);
       if (!storyMatch) {
-        throw new HttpError(404, 'not found');
+        throw new HttpError(404, 'not found', 'no_route');
       }
       return await storyCall(call, storyMatch, scope);
     } catch (caught) {
@@ -430,7 +431,9 @@ export function createBridge({
       if (!res.headersSent) {
         // a 413's body may still be arriving: close once the answer is out rather than read the rest
         const extra: Record<string, string> = status === 413 ? { Connection: 'close' } : {};
-        send(status, { error: err.message || String(err) }, undefined, extra);
+        const code =
+          caught instanceof HttpError && caught.code ? caught.code : codeOfStatus(status);
+        send(status, { error: err.message || String(err), code }, undefined, extra);
       }
     }
   });

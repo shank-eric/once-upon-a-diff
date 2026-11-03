@@ -417,8 +417,11 @@ test('the bridge serves the route table, the patterns and the api-client as Java
       assert.ok(
         loads.every(
           (specifier) =>
-            ['/assets/protocol/routes.ts', '/assets/preact.mjs'].includes(specifier) ||
-            specifier.startsWith('./'),
+            [
+              '/assets/protocol/routes.ts',
+              '/assets/protocol/domain/error-code.ts',
+              '/assets/preact.mjs',
+            ].includes(specifier) || specifier.startsWith('./'),
         ),
         `${name} loads ${loads}`,
       );

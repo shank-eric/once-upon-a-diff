@@ -11,7 +11,7 @@
  * commits made after Approve stay local, and it never forces. pushView looks first, read-only, and says why a push
  * can't go: nothing approved; the approved commit isn't on the local default branch; origin's copy has commits this
  * checkout doesn't (it fetches that branch first); or GitHub protects the branch or requires pull requests
- * (`gh api repos/<repo>/branches/<branch>/protection`, where a 404 "Branch not protected" means open, and the
+ * (`gh api repos/<repo>/branches/<branch>`, whose `protected` flag says whether it is, and the
  * branch's active rulesets), in which case the box offers Create pull request. A protection answer gh can't give
  * stops a push too: it is never assumed open.
  */
@@ -98,29 +98,40 @@ export function approvedFor(stories: StoryStore, id: string, now = Date.now()) {
     : null;
 }
 
-/** Whether GitHub protects the branch or requires pull requests into it. */
+/**
+ * Whether GitHub protects the branch or requires pull requests into it. The branch's own answer says whether classic
+ * protection is on (`protection.enabled`): anyone with read access can see it, where the protection rules (admin only) answer 404 to everyone else, even for
+ * a protected branch. The rules are asked only to say why.
+ */
 export async function protectionOf(repo: string, branch: string): Promise<PushView['protection']> {
   const name = encodeURIComponent(branch);
   let reason: string | undefined;
   try {
-    const text = await runGh(['api', `repos/${repo}/branches/${name}/protection`]);
-    let rules: { required_pull_request_reviews?: unknown } = {};
-    try {
-      rules = JSON.parse(text);
-    } catch {
-      /* any answer that isn't a 404 means the rule exists */
+    const info: { protected?: unknown; protection?: { enabled?: unknown } } = JSON.parse(
+      await runGh(['api', `repos/${repo}/branches/${name}`]),
+    );
+    // `protected` is also true for a branch only a ruleset covers (rulesets are weighed below), so classic protection is
+    // `protection.enabled`; an answer that doesn't say counts as protected
+    if (info.protected === true && info.protection?.enabled !== false) {
+      reason = `GitHub protects ${branch}`;
+      try {
+        const rules: { required_pull_request_reviews?: unknown } = JSON.parse(
+          await runGh(['api', `repos/${repo}/branches/${name}/protection`]),
+        );
+        if (rules.required_pull_request_reviews) {
+          reason = `GitHub's branch protection on ${branch} requires pull requests`;
+        }
+      } catch {
+        /* the rules are admin-only: "protects" is all a reader can say */
+      }
+    } else if (typeof info.protected !== 'boolean') {
+      throw new Error('its answer has no protected flag');
     }
-    reason = rules.required_pull_request_reviews
-      ? `GitHub's branch protection on ${branch} requires pull requests`
-      : `GitHub protects ${branch}`;
   } catch (err) {
-    const message = (err as Error).message;
-    if (!/branch not protected/i.test(message) || !/404/.test(message)) {
-      return {
-        state: 'unknown',
-        reason: `Couldn't ask GitHub whether ${branch} is protected (${message})`,
-      };
-    }
+    return {
+      state: 'unknown',
+      reason: `Couldn't ask GitHub whether ${branch} is protected (${(err as Error).message})`,
+    };
   }
   if (reason) {
     return { state: 'protected', reason };

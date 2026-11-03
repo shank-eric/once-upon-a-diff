@@ -130,15 +130,13 @@ export function listeningOnly(
       continue;
     }
     // "1 background task running" is the wait itself; more tasks than waits is something besides listening
-    const tasks = /^(\d+) background tasks? running$/.exec(
-      known.get(session.session)?.detail ?? '',
-    );
+    const tasks = known.get(session.session)?.tasks ?? null;
     const waiting = mine.filter((wait) => wait.state === 'waiting').length;
     quiet.set(
       session.session,
       session.status === 'busy' ||
         mine.some((wait) => wait.state === 'handling') ||
-        !!(tasks && Number(tasks[1]) > waiting),
+        (tasks !== null && tasks > waiting),
     );
   }
   return quiet;

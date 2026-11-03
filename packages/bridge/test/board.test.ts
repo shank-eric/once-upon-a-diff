@@ -408,6 +408,18 @@ test('valid JSON that is not the expected shape (null, a number, an object for a
     'working',
     'the null entry is skipped, the real tab is read',
   );
+  // the count is the status's own `background_tasks`: a whole number from 0, else unknown, whatever the detail says
+  const tasksOf = async (status: string) =>
+    (await itermSource(it2With(mixed, status)).statuses(sessions)).get('s-one')?.tasks;
+  assert.equal(await tasksOf('{"status":"working","detail":"zzz","background_tasks":2}'), 2);
+  assert.equal(await tasksOf('{"status":"working","background_tasks":0}'), 0);
+  assert.equal(
+    await tasksOf('{"status":"working","detail":"3 background tasks running"}'),
+    null,
+    'a detail line is not a count',
+  );
+  assert.equal(await tasksOf('{"status":"working","background_tasks":-1}'), null);
+  assert.equal(await tasksOf('{"status":"working","background_tasks":"2"}'), null);
 });
 
 /** A built PR story in the home, where the bridge finds it. `state` adds files to its state folder. */
@@ -435,14 +447,19 @@ function prStory(
 
 /** A source that says what it's told, keyed by session id prefix. */
 const sourceSaying = (
-  says: Record<string, { status: 'waiting' | 'working' | 'done'; detail: string | null }>,
+  says: Record<
+    string,
+    { status: 'waiting' | 'working' | 'done'; detail: string | null; tasks?: number | null }
+  >,
 ): StatusSource => ({
   name: 'iterm',
   statuses: async (sessions) =>
     new Map(
       sessions.flatMap((session) => {
         const found = says[session.session.slice(0, 8)];
-        return found ? [[session.session, { ...found, title: 'Tab title' }] as const] : [];
+        return found
+          ? [[session.session, { tasks: null, ...found, title: 'Tab title' }] as const]
+          : [];
       }),
     ),
 });
@@ -971,7 +988,10 @@ test('a status change moves `since` to when the board saw it', async () => {
     name: 'iterm',
     statuses: async (live) =>
       new Map(
-        live.map((session) => [session.session, { status: state, detail: null, title: null }]),
+        live.map((session) => [
+          session.session,
+          { status: state, detail: null, tasks: null, title: null },
+        ]),
       ),
   };
   const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
@@ -1026,7 +1046,7 @@ test('the iTerm source matches a session to its tab by tty and reads the tab’s
 if [ "$2" = list ]; then
   echo '[{"id":"TAB-1","name":"Claude Code","tty":"\\\\\\\\/dev\\\\\\\\/ttys042"},{"id":"TAB-2","name":"Real title","tty":"\\\\\\\\/dev\\\\\\\\/ttys043"}]'
 elif [ "$4" = TAB-2 ]; then
-  echo '{"status":"waiting","detail":"needs you"}'
+  echo '{"status":"waiting","detail":"needs you","background_tasks":2}'
 else
   echo '{"status":"nonsense"}'
 fi
@@ -1053,6 +1073,7 @@ fi
   assert.deepEqual(found.get('s-two'), {
     status: 'waiting',
     detail: 'needs you',
+    tasks: 2,
     title: 'Real title',
   });
   assert.equal(findIt2(it2), it2);
@@ -4201,7 +4222,7 @@ test('a session that listens is in the Listeners lane alone, busy or not, and is
   type Case = {
     registry?: Record<string, unknown>;
     beat?: Record<string, unknown>;
-    detail?: string;
+    tasks?: number;
     status?: 'working' | 'waiting';
     ledger?: string;
   };
@@ -4233,7 +4254,9 @@ test('a session that listens is in the Listeners lane alone, busy or not, and is
       source: sourceSaying({
         [sid]: {
           status: variant.status ?? ('working' as const),
-          detail: variant.detail ?? '1 background task running',
+          // the wording is nobody's business: the count is what iTerm's `background_tasks` says
+          detail: 'zzz reworded status line',
+          tasks: variant.tasks ?? 1,
         },
       }),
       now: () => NOW,
@@ -4262,7 +4285,7 @@ test('a session that listens is in the Listeners lane alone, busy or not, and is
   assert.equal(busy.data.listeners[0].active?.session, fullId(tree.parent), 'still in the lane');
   assert.equal(busy.data.listeners[0].active?.busy, true);
   // a background task besides its wait: no card, busy in the lane
-  const tasks = await world({ detail: '2 background tasks running' });
+  const tasks = await world({ tasks: 2 });
   assert.equal(mine(tasks.cards).length, 0, 'another task: no card');
   assert.equal(tasks.data.listeners[0].active?.busy, true);
   // real other work stays a card: a subagent in the ledger, a tab waiting on you
@@ -4278,7 +4301,7 @@ test('a session that listens is in the Listeners lane alone, busy or not, and is
     registry(sessions, tree.parent, { cwd: checkout, name: 'plain' }, tree.procStart);
     writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
     const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
-      source: sourceSaying({ [sid]: { status: 'working', detail: '1 background task running' } }),
+      source: sourceSaying({ [sid]: { status: 'working', detail: 'zzz', tasks: 1 } }),
       now: () => NOW,
     });
     return (await board.snapshot()).lanes.flatMap((lane) => lane.cards);

@@ -4,6 +4,7 @@
  * may be typed into, and typing the listen line into one. The bridge makes the line and checks the session again, so
  * nothing the page sends is text to type.
  */
+import { bridgeProblem } from '@once-upon-a-diff/api-client/client';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import type { Bridge, BridgeAnswer } from './bridge.ts';
 import type { PanelOptions } from '@once-upon-a-diff/panel/overlay';
@@ -23,7 +24,7 @@ export function listenError(answer: Extract<BridgeAnswer, { ok: false }>): strin
   if (error === 'not-configured' || answer.status === 401) {
     return 'the extension has no working bridge token (see its options)';
   }
-  if (error === 'not found') {
+  if (bridgeProblem(answer) === 'old') {
     return 'the bridge is older than this panel, so restart it (once-upon serve)';
   }
   return error;

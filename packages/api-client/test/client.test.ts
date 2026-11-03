@@ -1,7 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ROUTES, type AnyRoute } from '@once-upon-a-diff/protocol/routes';
-import { createClient, matchRoute, pathFor, BridgeError, type CallRequest } from '../src/client.ts';
+import {
+  createClient,
+  matchRoute,
+  pathFor,
+  bridgeProblem,
+  BridgeError,
+  type CallRequest,
+} from '../src/client.ts';
 
 const ENTRIES = Object.entries(ROUTES as Record<string, AnyRoute>);
 
@@ -93,4 +100,44 @@ test('ask gives the answer, and throws a BridgeError with the status when the ca
   });
   const reply = await bad.call(ROUTES.health);
   assert.equal(reply.ok, false, 'call never throws');
+});
+
+test('bridgeProblem is decided by the status and the code, never by the message', () => {
+  const failed = (status: number, body?: unknown) => ({ status, body });
+  assert.equal(bridgeProblem(failed(0)), 'down');
+  assert.equal(
+    bridgeProblem(failed(401, { error: 'zzz reworded', code: 'unauthorized' })),
+    'token',
+  );
+  assert.equal(bridgeProblem(failed(401, { error: 'no word of it' })), 'token', 'an older bridge');
+  assert.equal(bridgeProblem(failed(404, { error: 'zzz', code: 'no_route' })), 'old');
+  assert.equal(
+    bridgeProblem(failed(404, { error: 'not found' })),
+    'old',
+    'an older bridge: no code',
+  );
+  assert.equal(
+    bridgeProblem(failed(404, { error: 'not found', code: 'not_found' })),
+    'down',
+    'a story that is gone is not an old bridge',
+  );
+  assert.equal(
+    bridgeProblem(failed(403, { error: 'this link needs a token', code: 'forbidden' })),
+    'down',
+    'a page key’s 403 is not a wrong token, whatever it says',
+  );
+  assert.equal(bridgeProblem(failed(500, { error: 'token' })), 'down');
+});
+
+test('a failed ask carries the bridge’s status and body, so the code can be read', async () => {
+  const client = createClient(async () => ({
+    ok: false,
+    status: 404,
+    body: { error: 'zzz', code: 'no_route' },
+    error: 'zzz',
+  }));
+  const error = await client.ask(ROUTES.health).catch((caught: unknown) => caught);
+  assert.ok(error instanceof BridgeError);
+  assert.equal(error.status, 404);
+  assert.equal(bridgeProblem(error), 'old');
 });

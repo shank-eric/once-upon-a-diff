@@ -6,6 +6,8 @@
  */
 
 import type { Side } from './domain/line-refs.ts';
+import type { ErrorCode } from './domain/error-code.ts';
+export type { ErrorCode } from './domain/error-code.ts';
 
 /** A side of a file's diff: 'L' the old lines, 'R' the new (the domain's, which line-ref parsing also names). */
 export type { Side };
@@ -515,6 +517,12 @@ export interface BridgeStatus {
   listening?: Listening;
 }
 
+/** What every non-2xx answer from the bridge is: its message (for people) and its code (for programs). */
+export interface ErrorBody {
+  error: string;
+  code: ErrorCode;
+}
+
 /** Why the bridge couldn't say: it's down, the token is wrong, or it's older than the panel. */
 export interface StatusError extends Error {
   code?: 'down' | 'token' | 'old';
@@ -708,6 +716,8 @@ export interface BoardBeat {
 
 /** A background agent (a subagent) from the ledger file, inside its parent session's card or on a card of its own. */
 export interface BoardAgent {
+  /** the session id's first 8 characters the agent is registered under (the first half of `key`) */
+  sid: string;
   /** the agent's key on the board, `sid:name`: two sessions' agents of one name are two agents */
   key: string;
   name: string;
@@ -1198,7 +1208,10 @@ export interface StoryStatus {
   newer?: number | null;
   updating?: boolean;
   update_state?: string | null;
+  /** deprecated: the build's mode, sent for an older extension (read `update_kind`) */
   update_mode?: string | null;
+  /** what the pending update is: a plain update to the latest commit, or a rebuild of the story */
+  update_kind?: 'update' | 'rebuild' | null;
   reads?: { read: number; total: number; next?: number | null } | null;
   /** questions asked in the story whose answers they haven't read */
   unread_answers?: number;

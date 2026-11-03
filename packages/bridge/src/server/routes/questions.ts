@@ -54,7 +54,7 @@ function storyQuestions(call: Call, story: ServedStory) {
     return mark(call, story);
   }
   if (story.sub) {
-    throw new HttpError(404, 'not found');
+    throw new HttpError(404, 'not found', 'no_route');
   }
   if (req.method === 'GET') {
     return send(200, { questions: questionsOf(app, story) });

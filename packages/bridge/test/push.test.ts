@@ -19,8 +19,9 @@ const commit = (repo: string, name: string) => {
 };
 
 /**
- * A stand-in gh for the two GETs the push makes, `gh api repos/acme/widgets/branches/master/protection` and
- * `.../rules/branches/master`, answering from the `protection` and `rules` files next to it. It logs every call.
+ * A stand-in gh for the GETs the push makes, `gh api repos/acme/widgets/branches/master` (its `protected` flag),
+ * `.../branches/master/protection` (admin only: a 404 for a reader) and `.../rules/branches/master`, answering from the
+ * `protection` and `rules` files next to it. It logs every call.
  */
 const fake = (() => {
   const dir = tmp('gh');
@@ -32,13 +33,21 @@ dir="$(dirname "$0")"
 echo "$@" >> "$dir/calls"
 [ "$1" = "api" ] || exit 2
 case "$2" in
+  */rules/branches/*) cat "$dir/rules"; exit 0;;
   */protection)
     case "$(cat "$dir/protection")" in
-      none) echo "gh: Branch not protected (HTTP 404)" >&2; exit 1;;
       pr) echo '{"required_pull_request_reviews":{"required_approving_review_count":1}}'; exit 0;;
+      *) echo "gh: zzz reworded, not a thing you can read (HTTP 404)" >&2; exit 1;;
+    esac;;
+  */branches/*)
+    case "$(cat "$dir/protection")" in
+      none) echo '{"name":"master","protected":false,"protection":{"enabled":false}}'; exit 0;;
+      pr|readonly) echo '{"name":"master","protected":true,"protection":{"enabled":true}}'; exit 0;;
+      # as GitHub answers for a branch only a ruleset covers: protected, but no classic protection
+      ruleset) echo '{"name":"master","protected":true,"protection":{"enabled":false}}'; exit 0;;
+      odd) echo '{"name":"master"}'; exit 0;;
       denied) echo "gh: Resource not accessible by personal access token (HTTP 403)" >&2; exit 1;;
     esac;;
-  */rules/branches/*) cat "$dir/rules"; exit 0;;
 esac
 exit 2
 `,
@@ -276,15 +285,37 @@ test('a protected branch, a ruleset that requires pull requests, or protection g
     assert.match(view.blocker as string, /ruleset/);
     assert.equal(view.pr_instead, true);
 
-    fake.set('none', [{ type: 'deletion' }]);
+    fake.set('ruleset', [{ type: 'deletion' }]);
     view = await full<PushView>('GET', '/push').then((answer) => answer.body);
     assert.equal(view.protection.state, 'open', 'a ruleset that only stops deletions is no bar');
     assert.equal(view.blocker, null);
 
+    // the same branch with a ruleset that requires pull requests is protected
+    fake.set('ruleset', [{ type: 'pull_request', parameters: {} }]);
+    view = await attempt();
+    assert.equal(view.protection.state, 'protected');
+    assert.match(view.blocker as string, /ruleset/);
+
+    // a reader of the repo gets a 404 from the protection rules even on a protected branch: still protected, never open
+    fake.set('readonly');
+    view = await attempt();
+    assert.equal(view.protection.state, 'protected');
+    assert.match(view.blocker as string, /GitHub protects master/);
+    assert.equal(view.pr_instead, true);
+
+    // protected:false with a blocking ruleset is protected, and without one is open (the cases above)
     fake.set('denied');
     view = await attempt();
     assert.equal(view.protection.state, 'unknown', 'never assumed open');
     assert.equal(view.pr_instead, false);
+
+    fake.set('odd');
+    view = await attempt();
+    assert.equal(
+      view.protection.state,
+      'unknown',
+      'an answer with no protected flag is not an open branch',
+    );
   } finally {
     await bridge.close();
   }

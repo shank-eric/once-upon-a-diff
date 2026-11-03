@@ -19,7 +19,7 @@
  */
 import path from 'node:path';
 import { BoardError } from '../errors.ts';
-import { gitArgs, judge } from './worktrees.ts';
+import { gitArgs, judge, parseWorktreeEntries } from './worktrees.ts';
 import { runCommand } from '../../adapters/os.ts';
 import type { JudgeContext, WorktreeFacts, WorktreeScanner } from './worktrees.ts';
 import type { RunResult, Runner } from '../../adapters/os.ts';
@@ -59,19 +59,51 @@ const inFlight = new Set<string>();
 /** A word for a shell: single-quoted, so a path with spaces or commas pastes right. */
 export const shellQuote = (text: string): string => `'${text.replace(/'/g, `'\\''`)}'`;
 
-/** What went wrong with a removal, in words: a timeout, a dirty or locked worktree, or git's own line. */
-export function removalError(result: RunResult): string {
+/** What git says about a worktree after it refused to be removed: edits git would lose, or a lock. */
+export interface RemovalState {
+  dirty: boolean;
+  locked: boolean;
+}
+
+/**
+ * Asks git why a removal failed: `git status` lists modified or untracked files (what `worktree remove` refuses), and
+ * `git worktree list --porcelain` says whether the worktree is locked. A question git can't answer counts as no.
+ */
+export async function removalState(
+  run: Runner,
+  main: string,
+  worktree: string,
+): Promise<RemovalState> {
+  const status = await run(
+    'git',
+    gitArgs(worktree, ['status', '--porcelain', '--untracked-files=all']),
+    SHORT_MS,
+  );
+  const listed = await run('git', gitArgs(main, ['worktree', 'list', '--porcelain']), SHORT_MS);
+  return {
+    dirty: status.code === 0 && status.stdout.trim() !== '',
+    locked:
+      listed.code === 0 &&
+      parseWorktreeEntries(listed.stdout).some((entry) => entry.path === worktree && entry.locked),
+  };
+}
+
+/** What went wrong with a removal, in words: a timeout, a dirty or locked worktree (from `state`), or git's own line. */
+export function removalError(result: RunResult, state: RemovalState): string {
   if (result.timedOut) {
     return `git worktree remove did not finish in ${REMOVE_MS / 60000} minutes and was stopped; the folder may be partly deleted`;
   }
-  const said = (result.stderr || '').trim();
-  if (/contains modified or untracked files/.test(said)) {
-    return 'git refused: the worktree has modified or untracked files';
-  }
-  if (/locked/.test(said)) {
+  // git checks the lock first
+  if (state.locked) {
     return 'git refused: the worktree is locked';
   }
-  const first = said.split('\n').find((line) => line.trim());
+  if (state.dirty) {
+    return 'git refused: the worktree has modified or untracked files';
+  }
+  const first = (result.stderr || '')
+    .trim()
+    .split('\n')
+    .find((line) => line.trim());
   return first
     ? `git refused: ${first.replace(/^(fatal|error): /, '')}`
     : 'git worktree remove failed';
@@ -158,7 +190,12 @@ export async function cleanWorktree(input: CleanInput): Promise<CleanResult> {
       REMOVE_MS,
     );
     if (removed.code !== 0) {
-      const error = removalError(removed);
+      const error = removalError(
+        removed,
+        removed.timedOut
+          ? { dirty: false, locked: false }
+          : await removalState(run, facts.main, facts.path),
+      );
       log(input.home, now, { ...base, phase: 'failed', error });
       input.scanner.markAttention(facts.path, error);
       throw new BoardError(409, `${error}. It is marked as needing attention and was not retried.`);

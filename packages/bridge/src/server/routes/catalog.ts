@@ -29,7 +29,9 @@ interface PrStatus {
   story_head?: string | null;
   updating?: boolean;
   update_state?: string | null;
+  /** deprecated: sent for an older extension, which reads it (see update_kind) */
   update_mode?: string | null;
+  update_kind?: 'update' | 'rebuild' | null;
   reads?: { read: number; total: number; next: number | null };
   /** questions of the story whose answer the reviewer hasn't read */
   unread_answers?: number;
@@ -79,6 +81,7 @@ function prStatus(
   const pending = !!(build && build.status === 'pending');
   // an update or a rebuild of the story there is: the tag says Updating… or Rebuilding…
   const updating = pending && (build!.mode === 'update' || isRebuild(build));
+  const kind = isRebuild(build) ? 'rebuild' : 'update';
   return {
     repo,
     number,
@@ -88,6 +91,7 @@ function prStatus(
     updating,
     update_state: updating ? build!.state : null,
     update_mode: updating ? build!.mode : null,
+    update_kind: updating ? kind : null,
     reads: readSummary(app, id),
     unread_answers: unread.get(id) || 0,
   };

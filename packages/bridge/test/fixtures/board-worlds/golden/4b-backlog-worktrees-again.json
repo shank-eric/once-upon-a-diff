@@ -85,6 +85,7 @@
                 "notes": null,
                 "outcome": null,
                 "review": false,
+                "sid": "54736864",
                 "stale": false,
                 "started_at": "2026-10-26T18:30:00.000Z",
                 "state": "running",

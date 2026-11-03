@@ -156,6 +156,50 @@ describe('bridge guard rails', () => {
       assert.equal(status, 413, chunked ? 'chunked' : 'with a Content-Length');
     }
   });
+  test('every refusal carries a code beside its message, and a stale extension’s words are unchanged', async () => {
+    type Refused = { error: string; code: string };
+    const refusal = async (
+      call: Promise<{ status: number; body: unknown }>,
+    ): Promise<[number, string, string]> => {
+      const { status, body } = await call;
+      const { error, code } = body as Refused;
+      return [status, code, error];
+    };
+    assert.deepEqual(
+      await refusal(bridge.call('GET', '/api/stories', undefined, { Authorization: '' })),
+      // an extension from before codes matches these two strings, so they stay as they are
+      [401, 'unauthorized', 'missing or wrong token'],
+    );
+    assert.deepEqual(await refusal(bridge.call('GET', '/api/no-such-route')), [
+      404,
+      'no_route',
+      'not found',
+    ]);
+    assert.deepEqual(await refusal(bridge.call('GET', '/api/stories/no-such-story')), [
+      404,
+      'not_found',
+      'no story with that id',
+    ]);
+    assert.equal(
+      (
+        await refusal(
+          bridge.call('GET', '/api/health', undefined, { Origin: 'https://github.com' }),
+        )
+      )[1],
+      'forbidden',
+    );
+    const wrongType = await fetch(`${bridge.base}/api/stories/acme-widgets-7/questions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${TOKEN}`, 'Content-Type': 'text/plain' },
+      body: '{}',
+    });
+    assert.equal(((await wrongType.json()) as Refused).code, 'bad_request');
+    const foreign = await raw(bridge.base, '/api/health', {
+      Host: 'evil.example:80',
+      Authorization: `Bearer ${TOKEN}`,
+    });
+    assert.equal((JSON.parse(foreign.body) as Refused).code, 'forbidden');
+  });
   test('sends no CORS headers', async () => {
     const response = await bridge.call<{ stories: StoryListItem[] }>('GET', '/api/stories');
     assert.equal(response.headers.get('access-control-allow-origin'), null);

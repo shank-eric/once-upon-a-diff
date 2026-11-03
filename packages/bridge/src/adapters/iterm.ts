@@ -20,6 +20,8 @@ import type { LiveSession } from './claude-sessions/registry.ts';
 export interface SourceStatus {
   status: BoardStatus;
   detail: string | null;
+  /** the background tasks the session has running, as iTerm's status counts them (`background_tasks`); null when it doesn't say */
+  tasks: number | null;
   /** a better title than the registry's derived name, such as the terminal tab's */
   title: string | null;
 }
@@ -95,7 +97,7 @@ export function itermSource(it2: string): StatusSource {
             return;
           }
           const text = await run(it2, ['session', 'get-status', '-s', tab.id]);
-          let status: { status?: unknown; detail?: unknown } = {};
+          let status: { status?: unknown; detail?: unknown; background_tasks?: unknown } = {};
           try {
             status = JSON.parse(text || '{}');
           } catch {
@@ -112,6 +114,12 @@ export function itermSource(it2: string): StatusSource {
           found.set(live.session, {
             status: mapped,
             detail: typeof status.detail === 'string' && status.detail ? status.detail : null,
+            tasks:
+              typeof status.background_tasks === 'number' &&
+              Number.isInteger(status.background_tasks) &&
+              status.background_tasks >= 0
+                ? status.background_tasks
+                : null,
             title:
               GENERIC_TITLES.has(name.toLowerCase()) || TRUNCATED_TITLE.test(name) ? null : name,
           });

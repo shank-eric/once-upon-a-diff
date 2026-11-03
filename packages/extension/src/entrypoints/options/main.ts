@@ -1,6 +1,6 @@
 import { getSettings, setSettings } from '../../settings.ts';
 import { isPageLink, type PageKind } from '../../page-links.ts';
-import { createClient } from '@once-upon-a-diff/api-client/client';
+import { bridgeProblem, createClient } from '@once-upon-a-diff/api-client/client';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import type { BridgeRequest } from '../../content/bridge.ts';
 
@@ -31,14 +31,14 @@ async function test(prefix = '') {
   const health = await bridge.call(ROUTES.health);
   if (!health.ok) {
     const why =
-      (
-        {
-          unreachable: 'nothing is listening on that port. Is once-upon serve running?',
-          'not-configured': 'paste the token first.',
-          'missing or wrong token':
-            'the bridge rejected the token. Copy it again from once-upon setup.',
-        } as Record<string, string>
-      )[health.error as string] || health.error;
+      bridgeProblem(health) === 'token'
+        ? 'the bridge rejected the token. Copy it again from once-upon setup.'
+        : (
+            {
+              unreachable: 'nothing is listening on that port. Is once-upon serve running?',
+              'not-configured': 'paste the token first.',
+            } as Record<string, string>
+          )[health.error as string] || health.error;
     return status(`${prefix}Couldn't reach the bridge: ${why}`, false);
   }
   const list = await bridge.call(ROUTES.stories);

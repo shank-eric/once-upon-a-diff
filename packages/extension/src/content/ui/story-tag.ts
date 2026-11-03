@@ -83,7 +83,7 @@ export function tagFor(result: StoryStatus | null | undefined, { repo, number }:
       title: `A Claude session is building the story (asked for${asked})`,
     };
   }
-  if (result.updating && /^rebuild/.test(result.update_mode || '')) {
+  if (result.updating && result.update_kind === 'rebuild') {
     return result.update_state === 'building'
       ? {
           kind: 'progress',

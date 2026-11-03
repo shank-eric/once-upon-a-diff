@@ -53,6 +53,24 @@ test('one tag per PR, and the tag is the control', () => {
   );
 });
 
+test('Rebuilding or Updating is the bridge’s update_kind, not the words of its update_mode', () => {
+  const rebuilding = { state: 'ready', updating: true, update_state: 'building' } as const;
+  assert.equal(
+    tagFor({ ...rebuilding, update_kind: 'rebuild', update_mode: 'zzz' }, pr).label,
+    'Rebuilding…',
+  );
+  assert.equal(
+    tagFor({ ...rebuilding, update_kind: 'rebuild', update_state: 'queued' }, pr).label,
+    'Rebuild queued',
+  );
+  assert.equal(
+    tagFor({ ...rebuilding, update_kind: 'update', update_mode: 'rebuild_from' }, pr).label,
+    'Updating…',
+  );
+  // a bridge from before update_kind says nothing: a plain update
+  assert.equal(tagFor({ ...rebuilding, update_mode: 'rebuild' }, pr).label, 'Updating…');
+});
+
 test('the HTML is one element: a link, a button, or a span', () => {
   const count = (html: string) => (html.match(/<(a|button|span) class="b/g) || []).length;
   for (const result of [

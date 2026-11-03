@@ -8,8 +8,9 @@ import { storyOverlay, type InitialUi } from '/assets/panel/overlay.ts';
 import { bridgeOptions } from '/assets/panel/bridge-options.ts';
 import { createHostPage } from '/assets/host-github/diff-dom.ts';
 import type { PanelHost } from '/assets/panel/host.ts';
-import type { LocalNote, StatusError } from '/assets/types.ts';
+import type { LocalNote } from '/assets/types.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
+import { bridgeProblem, type BridgeError } from '/assets/api-client/client.ts';
 import { page, bridge, pageUrl, PARAMS, STORY_ID } from './page.ts';
 import { narrow, reveal, unnarrow, forgetNarrowing } from './folds.ts';
 import { placeNotes } from './notes.ts';
@@ -25,14 +26,8 @@ const host: PanelHost = {
 
 const panelData = () => ({ ...page.story, local: undefined });
 
-function statusError(err: Error): never {
-  let code: StatusError['code'] = 'down';
-  if (/token/.test(err.message)) {
-    code = 'token';
-  } else if (/HTTP 404|not found/.test(err.message)) {
-    code = 'old';
-  }
-  throw Object.assign(err, { code });
+function statusError(err: BridgeError): never {
+  throw Object.assign(err, { code: bridgeProblem(err) });
 }
 
 /** Add to fix before push: the bridge makes the draft a note (once), which joins the checklist and the diff. */

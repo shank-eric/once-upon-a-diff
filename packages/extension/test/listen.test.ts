@@ -57,6 +57,16 @@ test('a refusal rejects with the bridge’s own words, and the known failures ge
     [{ status: 401, error: 'missing or wrong token' }, /no working bridge token/],
     [{ status: 404, error: 'not found' }, /older than this panel.*restart it/],
     [{ status: 500, error: undefined }, /HTTP 500/],
+    // what decides is the code (or, from an older bridge with none, the status), never the words
+    [
+      { status: 404, error: 'zzz', body: { error: 'zzz', code: 'no_route' } },
+      /older than this panel/,
+    ],
+    [{ status: 404, error: 'zzz' }, /older than this panel/],
+    [
+      { status: 404, error: 'not found', body: { error: 'not found', code: 'not_found' } },
+      /^not found$/,
+    ],
   ];
   for (const [answer, text] of reasons) {
     assert.match(

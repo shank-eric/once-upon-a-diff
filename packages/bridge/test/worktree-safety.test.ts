@@ -7,6 +7,7 @@ import { fixture } from './worktree-fixture.ts';
 import {
   cleanWorktree,
   removalError,
+  removalState,
   shellQuote,
   type CleanInput,
 } from '../src/services/worktrees/worktree-clean.ts';
@@ -298,9 +299,13 @@ test('a removal git refuses or that times out is reported as it is, logged with 
       return {
         code: 128,
         stdout: '',
-        stderr: "fatal: '/x' contains modified or untracked files, use --force to delete it\n",
+        stderr: 'fatal: zzz git reworded this, use --force to delete it\n',
         timedOut: false,
       };
+    }
+    // what decides the message is what git reports of the worktree: here, an edit it would lose
+    if (args.includes('status')) {
+      return { code: 0, stdout: ' M merged.txt\n', timedOut: false };
     }
     return runCommand(cmd, args, timeoutMs);
   };
@@ -338,32 +343,63 @@ test('a removal git refuses or that times out is reported as it is, logged with 
   assert.ok(existsSync(dir) && branches(repo.main).includes('merged-work'));
 });
 
-test('removalError tells a timeout, a dirty and a locked worktree apart', () => {
+test('removalError tells a timeout, a dirty and a locked worktree apart, from what git reports and not from its wording', () => {
+  const failed = (stderr: string, timedOut = false) => ({ code: 1, stdout: '', stderr, timedOut });
+  const none = { dirty: false, locked: false };
   assert.match(
-    removalError({ code: 1, stdout: '', timedOut: true }),
+    removalError(failed('', true), none),
     /did not finish in 30 minutes.*partly deleted/,
   );
   assert.match(
-    removalError({
-      code: 1,
-      stdout: '',
-      stderr: 'fatal: x contains modified or untracked files',
-      timedOut: false,
-    }),
+    removalError(failed('zzz some new wording'), { dirty: true, locked: false }),
     /modified or untracked/,
   );
   assert.match(
-    removalError({
-      code: 1,
-      stdout: '',
-      stderr: 'fatal: cannot remove a locked working tree',
-      timedOut: false,
-    }),
+    removalError(failed('zzz some new wording'), { dirty: false, locked: true }),
     /locked/,
   );
+  assert.match(
+    removalError(failed('zzz'), { dirty: true, locked: true }),
+    /locked/,
+    'git checks the lock first',
+  );
   assert.equal(
-    removalError({ code: 1, stdout: '', stderr: 'error: something odd\nmore', timedOut: false }),
+    removalError(failed('fatal: contains modified or untracked files, locked'), none),
+    'git refused: contains modified or untracked files, locked',
+    'git’s words decide nothing',
+  );
+  assert.equal(
+    removalError(failed('error: something odd\nmore'), none),
     'git refused: something odd',
+  );
+});
+
+test('removalState asks git: status says dirty, the worktree list says locked, and a question git cannot answer is no', async () => {
+  const ask =
+    (statusOut: string, listOut: string, code = 0) =>
+    async (_cmd: string, args: string[]) => ({
+      code,
+      stdout: args.includes('status') ? statusOut : listOut,
+      timedOut: false,
+    });
+  const listed = (lock: string) =>
+    `worktree /w/main\nHEAD aaa\nbranch refs/heads/main\n\nworktree /w/feat\nHEAD bbb\nbranch refs/heads/feat${lock}\n`;
+  assert.deepEqual(await removalState(ask(' M a.ts\n', listed('')), '/w/main', '/w/feat'), {
+    dirty: true,
+    locked: false,
+  });
+  assert.deepEqual(await removalState(ask('?? new.ts\n', listed('')), '/w/main', '/w/feat'), {
+    dirty: true,
+    locked: false,
+  });
+  assert.deepEqual(await removalState(ask('', listed('\nlocked')), '/w/main', '/w/feat'), {
+    dirty: false,
+    locked: true,
+  });
+  assert.deepEqual(
+    await removalState(ask('', listed('\nlocked'), 128), '/w/main', '/w/feat'),
+    { dirty: false, locked: false },
+    'git could not say',
   );
 });
 
