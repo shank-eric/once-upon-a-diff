@@ -2,7 +2,8 @@
  * Agents from the terminal: `once-upon agent start|state|beat|finish|list`. The launching session (or the agent itself)
  * registers an agent and reports on it; each call is an event in <home>/agents.jsonl (services/ledger/events.ts), in-process,
  * and the board reads it from there. When the settings name a ledger or a progress file, each event also appends its
- * legacy line to it, so those files stay logs written by this command.
+ * legacy line to it, so those files stay logs written by this command. `--no-mirror` skips those lines, for a caller that
+ * writes the progress line itself (beat.sh), so one beat is one line. It goes after the words: a flag takes the next word.
  */
 import { repoOfCheckout } from '../../services/config/repos.ts';
 import { readSettings } from '../../services/config/settings.ts';
@@ -18,7 +19,7 @@ const USAGE =
   'usage: once-upon agent start NAME --kind builder|reviewer|helper|research --task TEXT [--sid SID8] [--model M] [--effort E]\n' +
   '                             [--repo owner/name] [--branch NAME] [--pr N] [--cwd DIR] [--card ID] [--lane NAME] [--notes PATH]\n' +
   '       once-upon agent state NAME --state running|waiting|review|plan|fixing [--outcome TEXT] [--findings N] [--notes PATH] [--sid SID8] [--run ID]\n' +
-  '       once-upon agent beat NAME N/M STEP [NOTE...] [--sid SID8]\n' +
+  '       once-upon agent beat NAME N/M STEP [NOTE...] [--sid SID8] [--no-mirror]\n' +
   '       once-upon agent finish NAME [--state done|failed|stopped] [--outcome TEXT] [--commit SHA] [--pr N] [--branch NAME] [--card ID] [--findings N] [--notes PATH] [--sid SID8] [--run ID]\n' +
   '       once-upon agent list [--all] [--json]';
 
@@ -27,10 +28,13 @@ const text = (value: unknown): string | null => (typeof value === 'string' && va
 function agent(home: string, _cfg: Config, opts: CliOpts) {
   const [verb, name, ...words] = opts._ || [];
   const board = readSettings(home).board;
-  const registry = new AgentRegistry(home, {
-    ledger: board.ledgerFile,
-    progress: board.progressFile,
-  });
+  // the caller already wrote the legacy line (beat.sh echoes the progress line itself): the event is all this call adds
+  const registry = new AgentRegistry(
+    home,
+    opts['no-mirror']
+      ? { ledger: null, progress: null }
+      : { ledger: board.ledgerFile, progress: board.progressFile },
+  );
   const warn = (line: string) => process.stderr.write(line + '\n');
   const sid = text(opts.sid);
   const run = text(opts.run);

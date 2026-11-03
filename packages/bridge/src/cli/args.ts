@@ -1,6 +1,6 @@
 /*
  * The CLI's argument parsing: `once-upon <command> [--flag value]... [words]`.
- * A flag without a value is true; bare words go in opts._.
+ * A flag without a value is true; bare words go in opts._. After a bare `--` everything is a word, even `--x`.
  */
 import type { CliOpts } from './types.ts';
 
@@ -9,6 +9,10 @@ export function parseArgs(argv: string[]): { command: string | undefined; opts: 
   const opts: CliOpts = {};
   for (let i = 0; i < rest.length; i++) {
     const arg = rest[i];
+    if (arg === '--') {
+      (opts._ ||= []).push(...rest.slice(i + 1));
+      break;
+    }
     if (!arg.startsWith('--')) {
       (opts._ ||= []).push(arg);
       continue;

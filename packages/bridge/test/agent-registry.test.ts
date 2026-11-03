@@ -203,6 +203,78 @@ test('the CLI round trip: start takes the sid from the session, beat and finish 
   assert.notEqual(noRun.code, 0);
 });
 
+test('--no-mirror: a beat from beat.sh, which writes the progress line itself, is one line and one event', async () => {
+  const home = tmp('reg-nomirror');
+  const notes = tmp('reg-nomirror-notes');
+  const ledger = path.join(notes, 'ledger.md');
+  const progress = path.join(notes, 'progress.md');
+  writeFileSync(ledger, '');
+  writeJson(path.join(home, 'config.json'), {
+    board_ledger_file: ledger,
+    board_progress_file: progress,
+  });
+  const env = { CLAUDE_CODE_SESSION_ID: `${SID}-0000-4000-8000-000000000000` };
+  const started = await runCli(
+    home,
+    ['agent', 'start', 'ou-once', '--kind', 'builder', '--task', 'one line'],
+    env,
+  );
+  assert.equal(started.code, 0, started.stderr);
+  // beat.sh's own echo, then its detached call to the CLI
+  const echoed = '- 3:40 PM ou-once 3/6 code: half done';
+  writeFileSync(progress, echoed + '\n');
+  const beat = await runCli(home, [
+    'agent',
+    'beat',
+    'ou-once',
+    '3/6',
+    'code',
+    'half done',
+    '--no-mirror',
+  ]);
+  assert.equal(beat.code, 0, beat.stderr);
+  assert.equal(readFileSync(progress, 'utf8'), echoed + '\n');
+  const events = readFileSync(path.join(home, 'agents.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
+  assert.deepEqual(
+    events.map((event) => event.op),
+    ['start', 'beat'],
+  );
+  assert.deepEqual(parseProgress(readFileSync(progress, 'utf8')).get('ou-once'), {
+    n: 3,
+    of: 6,
+    step: 'code',
+    note: 'half done',
+  });
+  // the ledger's start line is still the mirror's, written once
+  assert.equal(readFileSync(ledger, 'utf8').trim().split('\n').length, 1);
+  // a note that starts with -- is the beat's note, passed after the -- marker as beat.sh does
+  const dashed = await runCli(home, [
+    'agent',
+    'beat',
+    'ou-once',
+    '4/6',
+    'tests',
+    '--no-mirror',
+    '--',
+    '--force removed',
+  ]);
+  assert.equal(dashed.code, 0, dashed.stderr);
+  const lastBeat = readFileSync(path.join(home, 'agents.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line))
+    .pop();
+  assert.equal(lastBeat.note, '--force removed');
+  assert.equal(readFileSync(progress, 'utf8').trim().split('\n').length, 1);
+  // without the flag the CLI still writes the line itself
+  const plain = await runCli(home, ['agent', 'beat', 'ou-once', '5/6', 'green']);
+  assert.equal(plain.code, 0, plain.stderr);
+  assert.equal(readFileSync(progress, 'utf8').trim().split('\n').length, 2);
+});
+
 /** A board over `home` (no ledger file set), and every card on it. */
 function boardOf(home: string, now = NOW) {
   writeJson(path.join(home, 'config.json'), {
