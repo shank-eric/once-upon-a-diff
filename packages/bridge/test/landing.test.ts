@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { git, runCli, tmp } from './helpers.ts';
 import { BacklogStore } from '../src/services/backlog/backlog.ts';
-import { landItems, recordedTips } from '../src/services/backlog/landing.ts';
+import { landItems, recordedTips, runningAgents } from '../src/services/backlog/landing.ts';
 import { AgentRegistry } from '../src/services/ledger/registry.ts';
 
 const SID = 'abcdef01';
@@ -55,11 +55,18 @@ function world() {
     });
   };
   const land = (items: BacklogStore, from: string, head: string, picked: string[] = []) =>
-    landItems(repo, 'acme/widgets', items.items(), recordedTips(registry.events()), {
-      from,
-      to: head,
-      picked,
-    });
+    landItems(
+      repo,
+      'acme/widgets',
+      items.items(),
+      recordedTips(registry.events()),
+      {
+        from,
+        to: head,
+        picked,
+      },
+      runningAgents(registry.agents()),
+    );
   return { repo, base, home, edit, branch, store, registry, run, land };
 }
 
@@ -187,6 +194,7 @@ test('a batch pick whose patch changed lands through the picked sha; an empty co
   assert.equal(byPatch.landed.length, 0, 'the context changed, so the patch-id differs');
   const viaPicked = lab.land(lab.store, lab.base, picked, [tip]);
   assert.equal(viaPicked.landed[0].item.id, item.id);
+  assert.equal(viaPicked.landed[0].sha, picked, 'the commit that went live, not the branch commit');
 
   const empty = lab.store.add({ title: 'Build e', repo: 'acme/widgets' });
   lab.store.claim(empty.id, { agent: 'ou-e', sid: SID });
@@ -201,6 +209,46 @@ test('a batch pick whose patch changed lands through the picked sha; an empty co
     !found.landed.some((one) => one.item.id === empty.id),
     'an empty commit is not a match',
   );
+});
+
+test('a batch pick whose patch is unchanged records the pick, not the branch commit', () => {
+  const lab = world();
+  const item = lab.store.add({ title: 'Build q', repo: 'acme/widgets' });
+  lab.store.claim(item.id, { agent: 'ou-q2', sid: SID });
+  lab.branch('feat/q');
+  const tip = lab.edit(3, 'q change');
+  lab.run('ou-q2', item.id, tip);
+  lab.branch('main');
+  lab.edit(25, 'unrelated');
+  git(lab.repo, 'cherry-pick', tip);
+  const picked = git(lab.repo, 'rev-parse', 'HEAD');
+  const found = lab.land(lab.store, lab.base, 'HEAD', [tip]);
+  assert.equal(found.landed[0].sha, picked);
+  assert.notEqual(found.landed[0].sha, tip);
+});
+
+test('a claimed card whose agent is still running is "still in progress", not "finished without a tip"', () => {
+  const lab = world();
+  const busy = lab.store.add({ title: 'Busy', repo: 'acme/widgets' });
+  lab.store.claim(busy.id, { agent: 'ou-busy', sid: SID });
+  lab.registry.start({
+    name: 'ou-busy',
+    sid: SID,
+    kind: 'builder',
+    task: 'build',
+    card: busy.id,
+    at: minute(0),
+  });
+  const done = lab.store.add({ title: 'Done unmatched', repo: 'acme/widgets' });
+  lab.store.claim(done.id, { agent: 'ou-fin', sid: SID });
+  lab.run('ou-fin', done.id, null);
+  lab.branch('feat/b');
+  const tip = lab.edit(3, 'b change');
+  const found = lab.land(lab.store, lab.base, tip);
+  const why = new Map(found.open.map((one) => [one.item.id, one.why]));
+  assert.match(why.get(busy.id) ?? '', /still in progress/);
+  assert.doesNotMatch(why.get(done.id) ?? '', /still in progress/);
+  assert.match(why.get(done.id) ?? '', /no recorded tip/);
 });
 
 test('a held card is never marked by a deploy, hold --off clears it, and done closes it by hand', () => {

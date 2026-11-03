@@ -68,8 +68,11 @@ test('start, beat, finish round trip folds to one agent with exact times', () =>
   assert.equal(agent.outcome, 'built it');
   assert.deepEqual(agent.result, { commit: 'abc1234', branch: 'thing' });
   assert.equal(agent.findings, 2);
-  // finishing again is a no-op, and a beat after the end is refused
-  registry.finish('ou-thing', { outcome: 'again', at: minute(21) });
+  // finishing again is refused (an amended --commit would be lost), and a beat after the end is refused
+  assert.throws(
+    () => registry.finish('ou-thing', { result: { commit: 'def5678' }, at: minute(21) }),
+    /already finished.*agent start/,
+  );
   assert.equal(registry.events().length, 3);
   assert.throws(() => registry.beat('ou-thing', { n: 3, of: 6, step: 'code' }), /no open run/);
 });

@@ -5,9 +5,10 @@
  * cherry-picks), or as the same patch (a rebase, or a pick whose sha changed). A card whose tip matched nothing stays open and
  * is reported, so a person closes it by id (`backlog done ID`). A held card is never closed here.
  */
-import { commitOf, commitsInRange, patchId } from '../../adapters/git.ts';
+import { authorStamp, commitOf, commitsInRange, patchId } from '../../adapters/git.ts';
 import { sameRepo } from '../config/repos.ts';
-import type { AgentEvent } from '../ledger/events.ts';
+import { runIsOpen, type AgentEvent } from '../ledger/events.ts';
+import type { LedgerAgent } from '../ledger/ledger.ts';
 import type { BacklogItem } from './backlog.ts';
 
 /**
@@ -36,10 +37,18 @@ export function recordedTips(events: AgentEvent[]): Map<string, string> {
   return new Map([...tips].map(([card, tip]) => [card, tip.sha]));
 }
 
+/** The agents with a run still going, as a claim names them: by name, and by session when the claim has one. */
+export function runningAgents(agents: LedgerAgent[]): { name: string; sid: string }[] {
+  return agents.filter((one) => runIsOpen(one)).map((one) => ({ name: one.name, sid: one.sid }));
+}
+
 /** Why a card with work on it did not land. */
-function whyOpen(recorded: string | undefined, tip: string | null): string {
+function whyOpen(recorded: string | undefined, tip: string | null, running: boolean): string {
+  if (running) {
+    return 'still in progress (its agent has a run going)';
+  }
   if (!recorded) {
-    return 'no recorded tip (its agent finished without --commit and --card)';
+    return 'no recorded tip (no finished run named it with --commit and --card)';
   }
   return tip
     ? `tip ${recorded} is not in this deploy`
@@ -71,6 +80,7 @@ export function landItems(
   items: BacklogItem[],
   tips: Map<string, string>,
   range: LandRange,
+  running: { name: string; sid: string }[] = [],
 ): LandResult {
   const reachable = new Set(commitsInRange(repo, range.from, range.to));
   const patches = new Map<string, string>();
@@ -86,6 +96,17 @@ export function landItems(
       return full ? [full] : [];
     }),
   );
+  let stamps: Map<string, string> | null = null;
+  const pickOf = (tip: string): string | null => {
+    stamps ??= new Map(
+      commitsInRange(repo, range.from, range.to, { merges: false }).flatMap((sha) => {
+        const stamp = authorStamp(repo, sha);
+        return stamp ? [[stamp, sha] as [string, string]] : [];
+      }),
+    );
+    const stamp = authorStamp(repo, tip);
+    return (stamp && stamps.get(stamp)) || null;
+  };
   const result: LandResult = { landed: [], held: [], open: [] };
   for (const item of items) {
     if (item.state === 'dropped' || item.landed_at) {
@@ -96,7 +117,15 @@ export function landItems(
     let sha: string | null = null;
     if (tip) {
       const own = patchId(repo, tip);
-      sha = reachable.has(tip) || picked.has(tip) ? tip : ((own && patches.get(own)) ?? null);
+      if (reachable.has(tip)) {
+        sha = tip;
+      } else if (own && patches.has(own)) {
+        sha = patches.get(own) ?? null;
+      } else if (picked.has(tip)) {
+        // the pick's context changed, so its patch differs: the commit that went live is the one that kept the tip's
+        // author, date and message, else (nothing found) the tip as given
+        sha = pickOf(tip) ?? tip;
+      }
     }
     if (sha) {
       if (item.hold) {
@@ -110,7 +139,15 @@ export function landItems(
     if (mine && !item.hold && (item.claim || item.state === 'started')) {
       result.open.push({
         item,
-        why: whyOpen(recorded, tip),
+        why: whyOpen(
+          recorded,
+          tip,
+          !!item.claim &&
+            running.some(
+              (one) =>
+                one.name === item.claim?.agent && (!item.claim.sid || one.sid === item.claim.sid),
+            ),
+        ),
       });
     }
   }

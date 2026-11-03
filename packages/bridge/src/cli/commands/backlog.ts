@@ -6,7 +6,7 @@ import { formatTime } from '../../services/config/settings.ts';
 import { repoOfCheckout, currentBranch } from '../../services/config/repos.ts';
 
 import { BacklogStore, claimHint } from '../../services/backlog/backlog.ts';
-import { landItems, recordedTips } from '../../services/backlog/landing.ts';
+import { landItems, recordedTips, runningAgents } from '../../services/backlog/landing.ts';
 import { AgentRegistry } from '../../services/ledger/registry.ts';
 import { DEFAULT_BRANCHES } from '../../services/review/story-lists.ts';
 import { out } from '../output.ts';
@@ -170,12 +170,14 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
       throw new Error('which deploy? pass --from REF --to REF (the range that went live)');
     }
     const repo = process.cwd();
+    const registry = new AgentRegistry(home);
     const found = landItems(
       repo,
       repoOfCheckout(repo),
       store.items(),
-      recordedTips(new AgentRegistry(home).events()),
+      recordedTips(registry.events()),
       { from, to: upto, picked: words },
+      runningAgents(registry.agents()),
     );
     for (const { item, sha } of found.landed) {
       if (opts['dry-run']) {

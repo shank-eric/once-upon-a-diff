@@ -169,6 +169,18 @@ export function commitsInRange(
 }
 
 /**
+ * A commit's author, author date and message, which a cherry-pick keeps: equal for a commit and its pick, whatever the
+ * patch looks like after a conflict-free but context-changing pick. Null for a commit that cannot be read.
+ */
+export function authorStamp(repo: string, sha: string): string | null {
+  try {
+    return runGit(repo, ['show', '-s', '--format=%an%x00%ae%x00%at%x00%B', sha]);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * The commit's patch-id (`git patch-id --stable` of its diff against its parent): equal for two commits that make the
  * same change, whatever their sha. Null for a commit with no patch (an empty commit or a merge), so two of those are never
  * taken for the same change.

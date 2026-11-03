@@ -301,7 +301,7 @@ export class AgentRegistry {
     });
   }
 
-  /** Ends the run. Finishing a run that is already over changes nothing. */
+  /** Ends the run. Finishing a run that is already over is refused: a fix round is a new run (`agent start`). */
   finish(name: string, input: FinishInput = {}, warn?: (text: string) => void): LedgerAgent {
     const state = input.state ?? 'done';
     if (!(END_STATES as readonly string[]).includes(state)) {
@@ -312,7 +312,9 @@ export class AgentRegistry {
       (one) => one.name === name && (!wanted || one.sid === wanted),
     );
     if (named.length && !named.some(runIsOpen)) {
-      return named[0];
+      throw new Error(
+        `${name} has already finished, so this finish (and any --commit on it) was not recorded: run \`agent start\` for a new run (a fix round is one), then finish that`,
+      );
     }
     const agent = this.open(name, input, warn);
     const result: AgentResult = {};

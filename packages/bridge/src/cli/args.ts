@@ -4,6 +4,9 @@
  */
 import type { CliOpts } from './types.ts';
 
+/** Flags that never take a value, so a bare word after one stays a word. */
+const BOOLEAN_FLAGS = new Set(['dry-run', 'off']);
+
 export function parseArgs(argv: string[]): { command: string | undefined; opts: CliOpts } {
   const [command, ...rest] = argv;
   const opts: CliOpts = {};
@@ -20,7 +23,7 @@ export function parseArgs(argv: string[]): { command: string | undefined; opts: 
     const key = arg.slice(2);
     const next = rest[i + 1];
     let value: string | true = true;
-    if (next !== undefined && !next.startsWith('--')) {
+    if (!BOOLEAN_FLAGS.has(key) && next !== undefined && !next.startsWith('--')) {
       value = next;
       i++;
     }

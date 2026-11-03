@@ -11,6 +11,13 @@ test('the CLI parses flags and bare words', () => {
   assert.deepEqual(opts._, ['word']);
 });
 
+test('a boolean flag takes no value: --dry-run leaves the next bare word a word', () => {
+  const { opts } = parseArgs(['backlog', 'land', '--dry-run', 'abc1234', '--from', 'main']);
+  assert.equal(opts['dry-run'], true);
+  assert.deepEqual(opts._, ['land', 'abc1234']);
+  assert.equal(opts.from, 'main');
+});
+
 test('after a bare -- everything is a word, even one that starts with --', () => {
   const { opts } = parseArgs([
     'agent',
