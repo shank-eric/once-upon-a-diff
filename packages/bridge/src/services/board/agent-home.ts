@@ -2,11 +2,11 @@
  * Where a ledger agent goes on the board. By default it is a card of its own, on its own lane: its `lane:<name>` tag,
  * else the repo it worked in when its task text says (a worktree path, or a lane name), else its parent's lane. It is
  * nested inside its parent's card only when it is tightly tied to it, which is what `tiedToParent` decides, the one
- * place for that rule.
+ * place for that rule. An agent that claimed a backlog card is none of this: it is shown on that card (claims.ts).
+ * The text placement here is for agents with no claim; bl_mw12ymyrceec6c audits it and replaces it with explicit links.
  */
 import type { BoardCard } from '@once-upon-a-diff/shared/types';
 import type { LedgerAgent } from '../ledger/ledger.ts';
-import { claimedId } from '../backlog/backlog-links.ts';
 
 /** Lowercase letters and digits only, so "Once Upon a Diff" and "once-upon-a-diff" compare equal. */
 const squash = (text: string) => text.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -21,7 +21,7 @@ export function namesBranch(text: string, branch: string): boolean {
   return new RegExp(`(?<![\\w/.-])${escaped}(?![\\w/-]|\\.\\w)`, 'i').test(text);
 }
 
-/** Whether the agent's task names the card's branch (as a whole token, see `namesBranch`), or its PR by number (#7, PR 7 or /pull/7). */
+/** Whether the agent's task names the card's branch (as a whole token, see `namesBranch`), or its PR by number (#7, PR 7 or /pull/7). Text matching, kept for unclaimed agents: bl_mw12ymyrceec6c. */
 function namesCard(agent: LedgerAgent, card: BoardCard): boolean {
   const task = `${agent.name} ${agent.task || ''}`;
   if (card.branch && namesBranch(task, card.branch)) {
@@ -35,6 +35,7 @@ function namesCard(agent: LedgerAgent, card: BoardCard): boolean {
  * Whether the agent is working on the same branch or PR as its parent's card, so it belongs inside it: the card is a
  * branch or PR (not a session alone), the agent has no lane tag that names another lane, and its task says the card's
  * branch (as a whole token, see `namesBranch`) or PR number. An agent that says neither is not tied, so it gets its own card.
+ * (Text matching, kept for unclaimed agents until bl_mw12ymyrceec6c replaces it.)
  */
 export function tiedToParent(agent: LedgerAgent, card: BoardCard): boolean {
   if (card.kind !== 'work') {
@@ -57,6 +58,7 @@ function sameLane(tag: string, lane: string): boolean {
  * The branch or PR card a gated agent (a plan to check, a reviewer, findings being fixed) belongs in, wherever its
  * launching session is: the work card whose branch or PR its task names, in a lane its tag matches loosely. Only one
  * match counts. When several cards fit (the same branch name in two repos), the one on the parent's lane wins, else none.
+ * (Text matching, kept for unclaimed agents: reviewers and gates have no card to claim. bl_mw12ymyrceec6c replaces it.)
  */
 export function gatedHome(
   agent: LedgerAgent,
@@ -81,7 +83,7 @@ export function gatedHome(
 /**
  * The lane for an agent with its own card: its tag, else the known lane (a repo or tag already on the board) its task
  * text names (a `<repo>-worktrees/` path, or the lane's name, which "Once Upon a Diff" matches for once-upon-a-diff),
- * else its parent's lane, else "No live session".
+ * else its parent's lane, else "No live session". (Text matching, kept for unclaimed agents: bl_mw12ymyrceec6c.)
  */
 export function laneForAgent(
   agent: LedgerAgent,
@@ -179,9 +181,7 @@ const clausesOf = (outcome: string): string[] =>
  * waits: it left a finding to read and nothing else. Made something is any of: a reviewer (its findings are in the story
  * and the review file, so off the board once it is finished); a result that names a sha it produced, or says it
  * committed, pushed, deployed, built, published, staged or went live, or names a branch, a worktrees path or a card it
- * added; or, for an agent that finished (done), a task that claims a backlog card (`card bl_<id>`, which links it to
- * that card) or names a worktrees folder. A stopped agent has to show its output in its result: a claim alone is not
- * output. Clauses that say they did nothing do not count, and a commit or PR only quoted in a finding does not either.
+ * added; or, for an agent that finished (done), a task that names a worktrees folder. A stopped agent has to show its output in its result. Clauses that say they did nothing do not count, and a commit or PR only quoted in a finding does not either.
  */
 export function madeSomething(
   agent: Pick<LedgerAgent, 'name' | 'task' | 'outcome'> & { state?: LedgerAgent['state'] },
@@ -190,7 +190,7 @@ export function madeSomething(
     return true;
   }
   const task = agent.task ?? '';
-  if (agent.state !== 'stopped' && (!!claimedId(task) || /-worktrees\//.test(task))) {
+  if (agent.state !== 'stopped' && /-worktrees\//.test(task)) {
     return true;
   }
   const outcome = agent.outcome ?? '';
@@ -200,16 +200,4 @@ export function madeSomething(
       (clause) => DID_RE.test(clause) || CARD_ADDED_RES.some((pattern) => pattern.test(clause)),
     )
   );
-}
-
-/**
- * Whether a running agent is a builder, one that holds a build slot: its task claims a backlog card (`card bl_<id>`) or
- * names a worktrees folder, and it is not a reviewer. Research and lookup agents claim neither, so they are not builders.
- */
-export function isBuilder(agent: Pick<LedgerAgent, 'name' | 'task'>): boolean {
-  if (/^review-/i.test(agent.name)) {
-    return false;
-  }
-  const task = agent.task ?? '';
-  return !!claimedId(task) || /-worktrees\//.test(task);
 }

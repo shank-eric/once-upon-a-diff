@@ -25,6 +25,7 @@ import {
   CLAUDE_DIR,
   storyList,
   markReviewed,
+  claimAt,
   type TestBridge,
 } from './helpers.ts';
 import { Builds } from '../src/services/inbox/builds.ts';
@@ -3082,7 +3083,7 @@ test('the voice session is pinned above the columns, off every card, with its ag
   assert.equal((await make().snapshot()).voice?.status, 'paused');
 });
 
-test('the header’s builder slots count the voice session’s running builders against board_builder_slots', async () => {
+test('the header’s builder slots count the voice session’s running agents that hold a claim against board_builder_slots', async () => {
   const home = tmp('board-builders-home');
   const sessions = tmp('board-builders-sessions');
   const voiceDir = tmp('board-builders-voice');
@@ -3103,8 +3104,10 @@ test('the header’s builder slots count the voice session’s running builders 
     ledger,
     [
       `- [running] sid:${mine} build-a (sonnet, high) — card bl_aaaaaa111 do a thing — started 2:50 PM ET, 10/26`,
-      `- [running] sid:${mine} build-b (sonnet, high) — in ~/x-worktrees/b, new branch — started 2:52 PM ET, 10/26`,
-      // not builders: a reviewer, a research agent, a standing helper, a finished builder, another session's builder
+      `- [running] sid:${mine} build-b (sonnet, high) — second card — started 2:52 PM ET, 10/26`,
+      // not builders: text only (a card id and a worktrees path in its task, no claim), a reviewer, a research agent,
+      // a standing helper, a finished builder, another session's builder
+      `- [running] sid:${mine} build-text (sonnet, high) — card bl_aaaaaa111 in ~/x-worktrees/b — started 2:52 PM ET, 10/26`,
       `- [running] sid:${mine} review-a (opus, high) — review card bl_aaaaaa111 — started 2:53 PM ET, 10/26`,
       `- [running] sid:${mine} lookup-a (sonnet, low) — find out what the doc says — started 2:54 PM ET, 10/26`,
       `- [running] sid:${mine} clerk (sonnet, low) — standing helper; last: card bl_aaaaaa111 — started 2:55 PM ET, 10/26`,
@@ -3119,6 +3122,11 @@ test('the header’s builder slots count the voice session’s running builders 
     board_ledger_time_zone: 'UTC',
     board_voice_dir: voiceDir,
   };
+  // the claims: the only thing that makes an agent a builder
+  const backlog = new BacklogStore(home);
+  for (const agent of ['build-a', 'build-b', 'build-done', 'build-other']) {
+    backlog.claim(backlog.add({ title: `Card for ${agent}` }).id, { agent });
+  }
   const snapshot = async () => {
     writeJson(path.join(home, 'config.json'), settings);
     return (
@@ -3136,6 +3144,9 @@ test('the header’s builder slots count the voice session’s running builders 
     ['build-a', 'build-b'],
   );
   assert.equal(builders?.running[0].task, 'card bl_aaaaaa111 do a thing');
+  // one agent holding two cards is one slot
+  backlog.claim(backlog.add({ title: 'A second card for build-a' }).id, { agent: 'build-a' });
+  assert.equal((await snapshot())?.free, 1);
   Object.assign(settings, { board_builder_slots: 5 });
   assert.equal((await snapshot())?.free, 3);
   Object.assign(settings, { board_builder_slots: 1 });
@@ -3143,6 +3154,126 @@ test('the header’s builder slots count the voice session’s running builders 
   // no voice session: nothing to count
   delete (settings as Record<string, unknown>).board_voice_dir;
   assert.equal(await snapshot(), null);
+});
+
+/** The claim tests' world: PR 7 on acme/widgets feat/x (a story), a card started on that branch, and `ledger` lines. */
+function claimWorld(ledgerText: string, now: Date = NOW) {
+  const home = tmp('claim-board-home');
+  const ledger = path.join(tmp('claim-board-notes'), 'ledger.md');
+  writeFileSync(ledger, ledgerText);
+  writeJson(path.join(home, 'config.json'), {
+    board_ledger_file: ledger,
+    board_sessions_dir: tmp('claim-board-sessions'),
+    board_ledger_time_zone: 'UTC',
+  });
+  prStory(home, 'acme-widgets-7', 'acme/widgets', 7, 'feat/x');
+  const store = new BacklogStore(home);
+  const cards = async (): Promise<BoardCard[]> =>
+    (
+      await new Board(
+        home,
+        new StoryStore({ home }),
+        fakeWatcher([prInfo(7, { branch: 'feat/x' })]).watcher,
+        new Builds(home),
+        { source: sourceSaying({}), now: () => now },
+      ).snapshot()
+    ).lanes.flatMap((lane) => lane.cards);
+  return { home, ledger, store, cards };
+}
+const CLAIM_WHILE_RUNNING = '2026-10-26T18:35:00Z';
+const holders = (cards: BoardCard[], name: string) =>
+  cards.filter((card) => card.agents.some((agent) => agent.name === name));
+
+test('a claimed agent on its branch’s card sets that card’s column whatever it is doing (running, at its plan, asking)', async () => {
+  const running = `- [running] sid:54736864 builder (sonnet, high) — build — started 2:30 PM ET, 10/26\n`;
+  const cases: [string, string, string][] = [
+    ['running', running, 'working'],
+    [
+      'at its plan',
+      running + '- [plan] sid:54736864 builder — 2:40 PM ET, 10/26 — plan ready — notes/p.md\n',
+      'checks',
+    ],
+    [
+      'asking',
+      running +
+        '- [waiting] sid:54736864 builder — 2:40 PM ET, 10/26 — needs you: which one — notes/p.md\n',
+      'waiting',
+    ],
+  ];
+  for (const [what, text, column] of cases) {
+    const { store, cards } = claimWorld(text);
+    const item = store.add({ title: 'Build x', repo: 'acme/widgets' });
+    store.start(item.id, { branch: 'feat/x', repo: 'acme/widgets' });
+    claimAt(store, item.id, 'builder', CLAIM_WHILE_RUNNING);
+    const all = await cards();
+    const pr = all.find((card) => card.id === 'pr:acme/widgets#7') as BoardCard;
+    assert.equal(pr.column, column, `${what}: the PR card is in ${column}`);
+    assert.deepEqual(
+      holders(all, 'builder'),
+      [pr],
+      `${what}: the agent is on the PR card and nowhere else`,
+    );
+    assert.equal(pr.from_backlog?.[0].id, item.id);
+    assert.equal(all.filter((card) => card.kind === 'agent').length, 0, `${what}: no agent card`);
+  }
+});
+
+test('after `done --branch` a claimed agent shows once, not on the landed card and on its own', async () => {
+  const text =
+    `- [running] sid:54736864 builder (sonnet, high) — build — started 2:30 PM ET, 10/26\n` +
+    `- [done] sid:54736864 builder — 2:50 PM ET, 10/26 — committed on feat/x, tests green — notes/p.md\n`;
+  const { store, cards } = claimWorld(text);
+  const item = store.add({ title: 'Build x', repo: 'acme/widgets' });
+  store.start(item.id, { branch: 'feat/x', repo: 'acme/widgets' });
+  claimAt(store, item.id, 'builder', CLAIM_WHILE_RUNNING);
+  // before it lands: on the PR card, held out of its own card
+  assert.equal(holders(await cards(), 'builder').length, 1);
+  store.done(item.id, { sha: 'abc1234', by: 'deploy-local' });
+  const all = await cards();
+  assert.equal(holders(all, 'builder').length, 1, 'once, in Done');
+  assert.equal(
+    holders(all, 'builder')[0].kind,
+    'agent',
+    'on its own finished card, the claim being over',
+  );
+});
+
+test('a claim is for one run: a rerun of the same agent under the same name does not pull the finished card back', async () => {
+  const text =
+    `- [running] sid:54736864 ou-build (sonnet, high) — build — started 2:30 PM ET, 10/26\n` +
+    `- [done] sid:54736864 ou-build — 3:00 PM ET, 10/26 — committed abc1234 — notes/p.md\n` +
+    `- [running] sid:54736864 ou-build (sonnet, high) — fix other things — started 4:00 PM ET, 10/26\n`;
+  const { store, cards } = claimWorld(text, new Date('2026-10-26T21:00:00Z'));
+  const item = store.add({ title: 'The first job', repo: 'acme/gadgets' });
+  claimAt(store, item.id, 'ou-build', '2026-10-26T18:40:00Z');
+  const all = await cards();
+  const card = all.find((one) => one.backlog?.id === item.id) as BoardCard;
+  assert.equal(card.column, 'done', 'the first run finished: the card does not go back to Working');
+  assert.equal(card.agents[0].state, 'done');
+  const own = all.filter((one) => one.kind === 'agent');
+  assert.equal(own.length, 1, 'the rerun has its own card');
+  assert.equal(own[0].column, 'working');
+  // and it holds no build slot of that card's: claimed keys come from the current run only
+  const second = store.add({ title: 'The second job', repo: 'acme/gadgets' });
+  claimAt(store, second.id, 'ou-build', '2026-10-26T20:05:00Z');
+  const both = await cards();
+  assert.equal(both.find((one) => one.backlog?.id === second.id)?.column, 'working');
+  assert.equal(both.find((one) => one.backlog?.id === item.id)?.column, 'done');
+  assert.equal(both.filter((one) => one.kind === 'agent').length, 0, 'now it is the second card’s');
+});
+
+test('claiming before the agent’s ledger line, with an older finished run of that name, leaves the card Working and pending', async () => {
+  const text =
+    `- [running] sid:54736864 ou-late (sonnet, high) — old job — started 2:30 PM ET, 10/20\n` +
+    `- [done] sid:54736864 ou-late — 3:00 PM ET, 10/20 — committed abc1234 — notes/p.md\n`;
+  const now = new Date();
+  const { store, cards } = claimWorld(text, now);
+  const item = store.add({ title: 'A new job', repo: 'acme/gadgets' });
+  store.claim(item.id, { agent: 'ou-late' });
+  const card = (await cards()).find((one) => one.backlog?.id === item.id) as BoardCard;
+  assert.ok(card, 'the card is on the board');
+  assert.equal(card.column, 'working');
+  assert.equal(card.backlog?.claim?.pending, true);
 });
 
 test('POST /api/board/voice/pause makes and removes Larmor’s paused file, only with voice on and the board key', async () => {
@@ -5580,8 +5711,10 @@ test('every open backlog item carries the message Assign sends, and a started on
   });
   const cards = (await board.snapshot()).lanes.flatMap((lane) => lane.cards);
   const offer = (id: string) => cards.find((card) => card.backlog?.id === id)?.backlog?.assign;
-  assert.deepEqual(offer(open.id), { prompt: `Start backlog card ${open.id}: Widgets thing` });
-  assert.deepEqual(offer(noRepo.id), { prompt: `Start backlog card ${noRepo.id}: Anywhere thing` });
+  assert.deepEqual(offer(open.id), { prompt: assignLine({ id: open.id, title: 'Widgets thing' }) });
+  assert.deepEqual(offer(noRepo.id), {
+    prompt: assignLine({ id: noRepo.id, title: 'Anywhere thing' }),
+  });
   assert.ok(!offer(started.id));
 });
 
@@ -5642,7 +5775,12 @@ test('Assign types "Start backlog card <id>: <title>" into the voice session eve
   // the voice session is working (busy) and still takes the line
   const sent = await board.assignBacklog(item.id, 'board');
   assert.deepEqual(typed, [assignLine(item)]);
-  assert.equal(typed[0], `Start backlog card ${item.id}: Do the thing now`);
+  assert.match(
+    typed[0],
+    new RegExp(
+      `^Start backlog card ${item.id}: Do the thing now\\. Claim it first: once-upon backlog claim ${item.id} --agent NAME`,
+    ),
+  );
   assert.doesNotMatch(typed[0], /ignore me|second line|[`"]/);
   assert.deepEqual(sent, { typed: typed[0], session: 'clarifi-da' });
   assert.equal(store.items()[0].assigned?.session, fullId(voice.pid));

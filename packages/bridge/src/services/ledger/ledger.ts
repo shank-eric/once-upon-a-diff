@@ -54,6 +54,12 @@ export interface LedgerAgent {
   outcome: string | null;
   /** the notes file its latest line names (the first path with `notes/` in it), when it names one */
   notes?: string | null;
+  /**
+   * the runs before this one, oldest first: a `[running]` line after a `[done]`, `[failed]` or `[stopped]` one (a
+   * SendMessage follow-up under the same name) starts a new run, and the finished one is kept here as it stood. A
+   * `[running]` line after a plan, a question or a fix gate is the same run going on
+   */
+  earlier?: LedgerAgent[];
 }
 
 const LEDGER_TAIL = 1024 * 1024;
@@ -175,6 +181,13 @@ export function parseLedger(text: string, now: Date, zone?: string): LedgerAgent
       outcome: null,
       notes: null,
     };
+    if (
+      state === 'running' &&
+      ['done', 'failed', 'stopped'].includes(agent.state) &&
+      agents.has(key)
+    ) {
+      agent.earlier = [...(agent.earlier ?? []), { ...agent, earlier: undefined }];
+    }
     agent.state = state === 'review' ? 'waiting' : (state as LedgerAgent['state']);
     agent.review = state === 'review';
     agent.lane = lane || agent.lane;

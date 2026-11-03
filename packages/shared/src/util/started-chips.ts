@@ -22,6 +22,9 @@ export function agentOnlyChips(agent: { links: BoardStartedLinks; tried: boolean
   return agent.links.agent ? [agentChip(agent.links.agent)] : [];
 }
 
+/** The chip on a card whose claimed agent has no ledger line yet. */
+export const pendingClaimChip = (agent: string): string => `claimed by ${agent}, not started yet`;
+
 /** Plain-text chips, in the order they read: the branch, then what is working it or that it merged. */
 export function startedChips(started: {
   branch: string | null;

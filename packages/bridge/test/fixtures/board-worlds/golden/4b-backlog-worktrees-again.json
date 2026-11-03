@@ -33,9 +33,10 @@
               "added_by": "cli",
               "agent": null,
               "assign": {
-                "prompt": "Start backlog card bl_aaaaaa4: Open two (no repo)"
+                "prompt": "Start backlog card bl_aaaaaa4: Open two (no repo). Claim it first: once-upon backlog claim bl_aaaaaa4 --agent NAME (the agent's name in the ledger), plus --branch BRANCH when it has one"
               },
               "assigned": null,
+              "claim": null,
               "id": "bl_aaaaaa4",
               "start_line": "once-upon backlog start bl_aaaaaa4 --branch <branch>",
               "started": null
@@ -300,6 +301,7 @@
               "agent": null,
               "assign": null,
               "assigned": null,
+              "claim": null,
               "id": "bl_aaaaaa2",
               "start_line": "once-upon backlog start bl_aaaaaa2 --branch old-one",
               "started": {
@@ -307,14 +309,7 @@
                 "branch": "old-one",
                 "links": {
                   "active": false,
-                  "agent": {
-                    "beat": null,
-                    "ended_at": "2026-10-26T17:30:00.000Z",
-                    "name": "ou-old-one",
-                    "outcome": "committed on old-one",
-                    "state": "done"
-                  },
-                  "branch": null,
+                  "agent": null,
                   "merged": true,
                   "merged_at": "2026-10-26T18:30:00.000Z",
                   "sessions": [],
@@ -385,9 +380,10 @@
               "added_by": "cli",
               "agent": null,
               "assign": {
-                "prompt": "Start backlog card bl_aaaaaa3: Open one"
+                "prompt": "Start backlog card bl_aaaaaa3: Open one. Claim it first: once-upon backlog claim bl_aaaaaa3 --agent NAME (the agent's name in the ledger), plus --branch BRANCH when it has one"
               },
               "assigned": null,
+              "claim": null,
               "id": "bl_aaaaaa3",
               "start_line": "once-upon backlog start bl_aaaaaa3 --branch <branch>",
               "started": null
@@ -417,7 +413,7 @@
               "added_by": "cli",
               "agent": null,
               "assign": {
-                "prompt": "Start backlog card bl_aaaaaa5: Assigned one"
+                "prompt": "Start backlog card bl_aaaaaa5: Assigned one. Claim it first: once-upon backlog claim bl_aaaaaa5 --agent NAME (the agent's name in the ledger), plus --branch BRANCH when it has one"
               },
               "assigned": {
                 "at": "2026-10-26T19:00:00.000Z",
@@ -425,6 +421,7 @@
                 "session": "<PID:16>-aaaa-bbbb-cccc-dddddddddddd",
                 "session_title": "the builder"
               },
+              "claim": null,
               "id": "bl_aaaaaa5",
               "start_line": "once-upon backlog start bl_aaaaaa5 --branch <branch>",
               "started": null
@@ -455,6 +452,7 @@
               "agent": null,
               "assign": null,
               "assigned": null,
+              "claim": null,
               "id": "bl_aaaaaa7",
               "start_line": "once-upon backlog start bl_aaaaaa7 --branch ghost-branch",
               "started": {
@@ -463,7 +461,6 @@
                 "links": {
                   "active": false,
                   "agent": null,
-                  "branch": null,
                   "merged": false,
                   "merged_at": null,
                   "sessions": [],

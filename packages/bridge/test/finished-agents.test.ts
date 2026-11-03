@@ -180,7 +180,7 @@ test('a finished agent that made something is in Done, one that only researched 
     // a build agent: a commit sha in its result
     running('ou-build', 'the board fix in widgets-worktrees/board-fix') +
       line('done', 'ou-build', '3:20 PM ET, 11/2', 'branch board-fix, sha 0637f8f, tests green') +
-      // linked to a work card: its task claims one
+      // a card id in its task is only text: it made nothing the board can see (a real claim is a card, not this)
       running('ou-linked', 'card bl_abc123def456 write the thing') +
       line('done', 'ou-linked', '3:21 PM ET, 11/2', 'wrote it up') +
       // a card adder: its result names the card it added
@@ -224,7 +224,7 @@ test('a finished agent that made something is in Done, one that only researched 
   }
   assert.deepEqual(columns, {
     'ou-build': 'done',
-    'ou-linked': 'done',
+    'ou-linked': 'waiting',
     'ou-adder': 'done',
     'ou-deployer': 'done',
     'review-board-fix': 'done',
@@ -241,7 +241,7 @@ test('a finished agent that made something is in Done, one that only researched 
   );
 });
 
-test('what counts as something made: a sha it produced, a build, a deploy, a branch, a worktrees path, a card added or claimed, a reviewer', () => {
+test('what counts as something made: a sha it produced, a build, a deploy, a branch, a worktrees path, a card added, a reviewer', () => {
   const made = (
     task: string | null,
     outcome: string | null,
@@ -277,11 +277,15 @@ test('what counts as something made: a sha it produced, a build, a deploy, a bra
   // cards
   assert.equal(made(null, 'filed bl_mvzro4kube937c'), true, 'a card it added');
   assert.equal(made(null, 'card bl_mvzqiqp629372e at top'), true);
-  assert.equal(made('card bl_mvzro4kube937c do it', 'ok'), true, 'a card it claimed');
+  assert.equal(
+    made('card bl_mvzro4kube937c do it', 'ok'),
+    false,
+    'a card id in the task is only text',
+  );
   assert.equal(made('refactor in widgets-worktrees/refactor', 'ok'), true, 'a worktree it names');
   assert.equal(made('look at it', 'ok', 'review-thing'), true, 'a reviewer');
   assert.equal(made('look at it', 'asked to stop', 'review-thing', 'stopped'), true);
-  // a stopped agent has to show output: a claim alone is not output
+  // a stopped agent has to show output
   assert.equal(made('card bl_mvzro4kube937c do it', 'asked to stop', 'ou-x', 'stopped'), false);
   assert.equal(
     made('refactor in widgets-worktrees/refactor', null, 'ou-x', 'stopped'),

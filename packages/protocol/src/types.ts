@@ -859,10 +859,15 @@ export interface BoardCard {
     /** the CLI line to paste into a session to start it */
     start_line: string;
     /**
-     * an open item a ledger agent names (its task says the id, no `start` needed): what is working it, and whether the
-     * agent only tried it (failed, stopped, or finished long ago) so the card is back in Backlog
+     * an open item whose claimed agent is in the ledger (no `start` needed): what is working it, and whether the agent
+     * only tried it (failed, stopped, or finished long ago) so the card is back in Backlog
      */
     agent?: { links: BoardStartedLinks; tried: boolean } | null;
+    /**
+     * who claimed it (`once-upon backlog claim ID --agent NAME`), while the claim is in force. `pending`: the agent has
+     * no ledger line yet, so the card says "claimed, not started" until it does (or the claim is old and drops)
+     */
+    claim?: { agent: string; at: string | null; pending: boolean } | null;
     /** an Assign typed it into this session lately and no start followed (the title is filled from the live view) */
     assigned: {
       session: string;
@@ -942,7 +947,7 @@ export interface BoardWorktrees {
 export interface BoardStartedLinks {
   worktrees: { path: string; name: string }[];
   sessions: { id: string; title: string }[];
-  /** the ledger agent whose name is who started the item, with its latest beat */
+  /** the ledger agent that holds the item's claim (`once-upon backlog claim`), with its latest beat */
   agent: {
     name: string;
     state: BoardAgent['state'];
@@ -957,8 +962,6 @@ export interface BoardStartedLinks {
   merged_at: string | null;
   /** something is linked and the work has not merged: the card stays past the day */
   active: boolean;
-  /** the branch an agent that owns an open item works on (found from its worktree), which makes the item started; null otherwise */
-  branch?: string | null;
 }
 
 /** The voice session, pinned above the columns once voice has started in it today, and kept (collapsed) while paused or ended (Larmor's voice mode: src/board/voice.ts). */

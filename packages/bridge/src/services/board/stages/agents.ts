@@ -2,7 +2,9 @@
  * The ledger's background agents on the board: which are shown, and where each goes. An agent is nested in its
  * parent's card only when tightly tied to it (agent-home.ts), else it is a card of its own, on its own lane.
  */
-import { gatedHome, isBuilder, laneForAgent, madeSomething, tiedToParent } from '../agent-home.ts';
+import { gatedHome, laneForAgent, madeSomething, tiedToParent } from '../agent-home.ts';
+import { agentKey, claimedAgents } from '../../backlog/claims.ts';
+import type { BacklogItem } from '../../backlog/backlog.ts';
 import { gateOf, lastActivity, type LedgerAgent } from '../../ledger/ledger.ts';
 import { readFinished } from '../../../adapters/stores/finished-agents.ts';
 import type {
@@ -81,14 +83,34 @@ export const AGENT_COLUMN: Record<LedgerAgent['state'], BoardColumn> = {
 };
 
 /**
- * The voice session's build slots: its running builders (isBuilder; a stale one, running past the stale mark, is
- * likely dead and holds no slot) against the cap. Null when there is no voice session.
+ * The views of the agents that hold a claim, by the id of the card they claimed: what the card shows in place of an
+ * agent card of its own (backlog.ts's backlogCards).
+ */
+export function claimViews(
+  items: BacklogItem[],
+  agents: LedgerAgent[],
+  beats: Map<string, BoardBeat>,
+  nowMs: number,
+): Map<string, BoardAgent> {
+  return new Map(
+    [...claimedAgents(items, agents)].map(([id, agent]) => [
+      id,
+      agentOf(agent, beats.get(agent.name), nowMs),
+    ]),
+  );
+}
+
+/**
+ * The voice session's build slots: its running builders, which are the running agents that hold a claim on a card
+ * (`claimers`, the keys claims.ts gives; one slot per agent, however many cards it holds). A stale one, running past
+ * the stale mark, is likely dead and holds no slot. Null when there is no voice session.
  */
 export function builderSlots(
   agents: LedgerAgent[],
   pin: PinnedVoice | null,
   cap: number,
   nowMs: number,
+  claimers: Set<string>,
 ): BoardBuilders | null {
   if (!pin) {
     return null;
@@ -98,7 +120,7 @@ export function builderSlots(
       (agent) =>
         agent.state === 'running' &&
         pin.view.id.startsWith(agent.sid) &&
-        isBuilder(agent) &&
+        claimers.has(agentKey(agent)) &&
         !(agent.started && nowMs - agent.started.getTime() > STALE_MS),
     )
     .sort((first, second) => (first.started?.getTime() ?? 0) - (second.started?.getTime() ?? 0));
@@ -119,11 +141,14 @@ export interface AgentFacts {
   beats: Map<string, BoardBeat>;
   /** the voice session, pinned above the columns, whose agents keep a card of their own */
   pin: PinnedVoice | null;
+  /** the agents (agentKey) that are a claimed card: they have no card of their own, the claimed card shows them */
+  held?: Set<string>;
 }
 
 /**
- * Places the agents the board shows (running, at a gate, waiting, or finished within the last few hours). An agent tied
- * to its parent's card, or to the branch or PR its task names, is added to that card's `agents` (which changes the card
+ * Places the agents the board shows (running, at a gate, waiting, or finished within the last few hours), except the held
+ * ones: an agent that claimed a backlog card is shown on that card (claims.ts), never here. An agent tied
+ * to its parent's card, or to the branch or PR its task names (text: bl_mw12ymyrceec6c replaces it), is added to that card's `agents` (which changes the card
  * given). The rest get a card of their own, on their own lane while they run, wait or sit at a gate: these are returned,
  * to go after the others. A finished agent (done, failed or stopped) gets a card of its own for
  * `finishedWaitMinutes` after its last ledger line, with its outcome, its notes path
@@ -133,7 +158,7 @@ export interface AgentFacts {
 export function placeAgents(
   ctx: BuildContext,
   cards: BoardCard[],
-  { agents, beats, pin }: AgentFacts,
+  { agents, beats, pin, held = new Set() }: AgentFacts,
 ): BoardCard[] {
   const { nowMs } = ctx;
   const waitMs = ctx.settings.finishedWaitMinutes * 60 * 1000;
@@ -148,12 +173,13 @@ export function placeAgents(
   }
   const shown = agents.filter(
     (agent) =>
-      agent.state === 'running' ||
-      (agent.state === 'waiting' && !forgotten(agent, nowMs)) ||
-      agent.state === 'plan' ||
-      agent.state === 'fixing' ||
-      (agent.ended?.getTime() ?? 0) >=
-        nowMs - Math.max(ctx.settings.doneHours * 3600 * 1000, waitMs),
+      !held.has(agentKey(agent)) &&
+      (agent.state === 'running' ||
+        (agent.state === 'waiting' && !forgotten(agent, nowMs)) ||
+        agent.state === 'plan' ||
+        agent.state === 'fixing' ||
+        (agent.ended?.getTime() ?? 0) >=
+          nowMs - Math.max(ctx.settings.doneHours * 3600 * 1000, waitMs)),
   );
   // the lanes already on the board, which an agent's task text can name
   const knownLanes = [

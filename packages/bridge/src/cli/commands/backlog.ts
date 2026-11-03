@@ -1,11 +1,11 @@
 /*
- * The backlog from the terminal: `once-upon backlog add|list|show|edit|start|drop|reopen`. It reads and writes the backlog file
+ * The backlog from the terminal: `once-upon backlog add|list|show|edit|start|claim|drop|reopen`. It reads and writes the backlog file
  * (services/backlog/backlog.ts) in-process, so nothing goes over HTTP; the board shows the items as its Backlog column.
  */
 import { formatTime } from '../../services/config/settings.ts';
 import { repoOfCheckout, currentBranch, sameRepo } from '../../services/config/repos.ts';
 
-import { BacklogStore } from '../../services/backlog/backlog.ts';
+import { BacklogStore, claimHint } from '../../services/backlog/backlog.ts';
 import { DEFAULT_BRANCHES } from '../../services/review/story-lists.ts';
 import { out } from '../output.ts';
 import type { BacklogItem } from '../../services/backlog/backlog.ts';
@@ -18,6 +18,7 @@ const USAGE =
   '       once-upon backlog show ID\n' +
   '       once-upon backlog edit ID [--title TEXT] [--note TEXT] [--repo owner/name]\n' +
   '       once-upon backlog start ID [--branch NAME] [--repo owner/name] [--by NAME]\n' +
+  '       once-upon backlog claim ID --agent NAME [--sid SID8] [--branch NAME] [--repo owner/name] [--by NAME]\n' +
   '       once-upon backlog move ID --before ID | --top | --bottom\n' +
   '       once-upon backlog done ID [--sha SHA] [--by NAME]\n' +
   '       once-upon backlog done --branch NAME [--sha SHA] [--by NAME]\n' +
@@ -108,7 +109,30 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
       repo: text(opts.repo) ?? item.repo ?? repoOfCheckout(process.cwd()),
       by: who,
     });
-    return out(`${started.id} started on ${started.branch}: ${started.title}`);
+    return out(
+      `${started.id} started on ${started.branch}: ${started.title}\n${claimHint(started.id)}`,
+    );
+  }
+  if (verb === 'claim') {
+    // the agent (named as the ledger names it) owns the card: the board links the two by this and nothing else. --branch
+    // also starts the card on that branch, so it rides on the branch's work card
+    const item = found();
+    const agent = text(opts.agent);
+    if (!agent) {
+      throw new Error('whose card? pass --agent NAME, the name the agent has in the ledger');
+    }
+    const claimed = store.claim(item.id, { agent, sid: text(opts.sid), by: who ?? agent });
+    const branch = text(opts.branch);
+    if (branch) {
+      store.start(item.id, {
+        branch,
+        repo: text(opts.repo) ?? claimed.repo ?? repoOfCheckout(process.cwd()),
+        by: who ?? agent,
+      });
+    }
+    return out(
+      `${item.id} claimed by ${agent}${branch ? `, started on ${branch}` : ''}: ${item.title}`,
+    );
   }
   if (verb === 'move') {
     const item = found();
@@ -170,6 +194,7 @@ export const backlogCommands: Command[] = [
       '  once-upon backlog done ID | --branch NAME [--sha SHA]                           the work landed (a local deploy): the card goes to Done for a day',
       '  once-upon backlog move ID --before ID | --top | --bottom                        reorder: new items go to the bottom',
       "  once-upon backlog start ID [--branch NAME]                                       work began: the card moves onto that branch's work card",
+      '  once-upon backlog claim ID --agent NAME [--sid SID8] [--branch NAME]            an agent takes the card: the board links card and agent only by this (--branch also starts it)',
     ],
     run: backlog,
   },

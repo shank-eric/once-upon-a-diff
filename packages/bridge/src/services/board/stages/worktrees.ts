@@ -54,6 +54,7 @@ export function worktreeSection({
   keepBranches,
   nowMs,
 }: WorktreeInput): BoardWorktrees {
+  // (the agents' task text finds worktrees and which are in use: text matching, kept until bl_mw12ymyrceec6c replaces it)
   const seeds = [
     ...live.map((session) => session.cwd),
     ...agents.flatMap((agent) => pathsIn(agent.task).map((found) => dirOf(found) ?? '')),

@@ -8,6 +8,7 @@ import {
   BacklogStore,
   assignBranch,
   assignLine,
+  claimHint,
   liveAssignment,
   STARTED_GRACE_HOURS,
   DONE_HOURS,
@@ -293,28 +294,39 @@ const agentLink = (state: BoardAgentState, ended_at: string | null = null) =>
     ended_at,
   }) as BoardStartedLinks['agent'];
 
-test('a started item folds into the card of its open agent, whatever the agent card’s branch, and takes it the title', () => {
+test('a claimed started item is one Working card with its agent on it; with a work card on its branch it rides there', () => {
   const store = new BacklogStore(tmp('backlog-agent-fold'));
   const item = store.add({ title: 'Hold a spoken line', repo: 'acme/larmor' });
   store.start(item.id, { branch: 'voice/hold', by: 'hold-speech' });
-  const agentCard = work(null, '', {
+  store.claim(item.id, { agent: 'hold-speech' });
+  const view = { name: 'hold-speech', state: 'running' } as BoardCard['agents'][number];
+  const links = new Map([[item.id, linked({ agent: agentLink('running') })]]);
+  const views = new Map([[item.id, view]]);
+  // no card for the agent: the backlog card is the one card, in Working, with the agent in it
+  const shown = backlogCards(store.items(), [], NOW, [], links, views);
+  assert.equal(shown.length, 1);
+  assert.equal(shown[0].title, 'Hold a spoken line');
+  assert.equal(shown[0].column, 'working');
+  assert.deepEqual(shown[0].agents, [view]);
+  assert.equal(shown[0].backlog?.claim?.agent, 'hold-speech');
+  // a work card on its branch takes the item and the agent, and keeps its own title
+  const inside = work('acme/larmor', 'voice/hold', {
+    agents: [],
+    title: 'A PR title',
+    pr: { number: 3 } as never,
+  });
+  assert.deepEqual(backlogCards(store.items(), [inside], NOW, [], links, views), []);
+  assert.equal(inside.title, 'A PR title');
+  assert.deepEqual(inside.agents, [view]);
+  assert.equal(inside.from_backlog?.length, 1);
+  // an agent's card elsewhere is not a link: the card is shown on its own
+  const stray = work(null, '', {
     kind: 'agent',
     title: 'hold-speech',
     branch: null,
     agents: [{ name: 'hold-speech', state: 'running' } as BoardCard['agents'][number]],
   });
-  const links = new Map([[item.id, linked({ agent: agentLink('running') })]]);
-  assert.deepEqual(backlogCards(store.items(), [agentCard], NOW, [], links), []);
-  assert.equal(agentCard.title, 'Hold a spoken line');
-  assert.deepEqual(agentCard.from_backlog, [{ id: item.id, title: 'Hold a spoken line' }]);
-  // a work card the agent sits in keeps its own title
-  const inside = work('acme/larmor', 'other', {
-    title: 'A PR title',
-    agents: [{ name: 'hold-speech', state: 'running' } as BoardCard['agents'][number]],
-  });
-  assert.deepEqual(backlogCards(store.items(), [inside], NOW, [], links), []);
-  assert.equal(inside.title, 'A PR title');
-  assert.equal(inside.from_backlog?.length, 1);
+  assert.equal(backlogCards(store.items(), [stray], NOW, [], links).length, 1);
 });
 
 test('a landed item is Done for a day from the done event, then off the board; list --all shows it', async () => {
@@ -855,7 +867,7 @@ test('assign events fold: live for a while, cleared by a start, refused after a 
 test('the assign line is one plain line with the id and a cleaned title, and the branch is safe to paste', () => {
   assert.equal(
     assignLine({ id: 'bl_k3j9x2abc', title: 'Filter list by school' }),
-    'Start backlog card bl_k3j9x2abc: Filter list by school',
+    `Start backlog card bl_k3j9x2abc: Filter list by school. ${claimHint('bl_k3j9x2abc')}`,
   );
   const hostile = assignLine({
     id: 'bl_k3j9x2abc',
@@ -865,12 +877,13 @@ test('the assign line is one plain line with the id and a cleaned title, and the
   assert.match(hostile, /^Start backlog card bl_k3j9x2abc: /);
   assert.doesNotMatch(hostile, /[`$\\<>&;"~]/);
   assert.ok(
-    hostile.length <= 'Start backlog card bl_k3j9x2abc: '.length + 83,
+    hostile.length <=
+      'Start backlog card bl_k3j9x2abc: '.length + 83 + 2 + claimHint('bl_k3j9x2abc').length,
     'the title is capped',
   );
   assert.equal(
     assignLine({ id: 'bl_k3j9x2abc', title: '"`$()"' }),
-    'Start backlog card bl_k3j9x2abc: ()',
+    `Start backlog card bl_k3j9x2abc: (). ${claimHint('bl_k3j9x2abc')}`,
   );
   // the branch: the item's own wins, else a slug that always passes the branch pattern
   assert.equal(assignBranch({ id: 'bl_abcd1234', title: 'x', branch: 'feat/mine' }), 'feat/mine');
@@ -901,85 +914,84 @@ test('reopen brings a dropped item back with the same id; only a dropped item ca
   assert.equal(store.items()[0].state, 'started');
 });
 
-test('an open item an agent names: rides on its card while it works, then follows what it produced', () => {
+test('an open item with a claimed agent: one card in the agent’s column while it works, then what it produced', () => {
   const store = new BacklogStore(tmp('backlog-open-agent'));
   const item = store.add({ title: 'Look into a thing', repo: 'acme/widgets' });
+  store.claim(item.id, { agent: 'hold-speech' });
   const hour = 3600 * 1000;
   const ended = new Date(NOW - 10 * 60 * 1000).toISOString();
-  const cardsFor = (agent: BoardAgentState, endedAt: string | null, now = NOW, own = true) => {
-    const agentCard = work(null, '', {
-      kind: 'agent',
-      title: 'scout',
-      branch: null,
-      agents: [{ name: 'scout', state: agent } as BoardCard['agents'][number]],
-    });
-    const link = linked({
-      agent: { ...(agentLink(agent, endedAt) as object), name: 'scout' } as never,
-    });
-    const shown = backlogCards(
+  const cardsFor = (state: BoardAgentState, endedAt: string | null, now = NOW) =>
+    backlogCards(
       store.items(),
-      own ? [agentCard] : [],
+      [],
       now,
       [],
-      new Map([[item.id, link]]),
+      new Map([[item.id, linked({ agent: agentLink(state, endedAt) })]]),
     );
-    return { shown, agentCard };
-  };
-  // running: one card, the agent's, which takes the item's title
+  // running: one card in Working, with who holds it
   const running = cardsFor('running', null);
-  assert.deepEqual(running.shown, []);
-  assert.equal(running.agentCard.title, 'Look into a thing');
-  assert.equal(running.agentCard.from_backlog?.[0].id, item.id);
-  // a plan-stop agent: still the agent's one card, which moves to Waiting, for you
-  const plan = cardsFor('plan', ended);
-  assert.deepEqual(plan.shown, []);
-  assert.equal(plan.agentCard.column, 'waiting');
-  // finished (done, failed or stopped) while the agent's own card still waits: one card, the agent's
-  for (const state of ['done', 'failed', 'stopped'] as const) {
-    assert.deepEqual(cardsFor(state, ended).shown, [], state);
-  }
-  // the agent's card gone (Finish, or its 30 minutes): research is Done for a day and then off the board, never Backlog
-  const links = (state: BoardAgentState) =>
-    new Map([[item.id, linked({ agent: agentLink(state, ended) })]]);
   assert.deepEqual(
-    backlogCards(store.items(), [], NOW, [], links('done')).map((card) => card.column),
+    running.map((card) => card.column),
+    ['working'],
+  );
+  assert.equal(running[0].backlog?.claim?.agent, 'hold-speech');
+  assert.equal(running[0].backlog?.claim?.pending, false);
+  // a plan stop or a question waits on you
+  for (const state of ['plan', 'waiting'] as const) {
+    assert.deepEqual(
+      cardsFor(state, ended).map((card) => card.column),
+      ['waiting'],
+      state,
+    );
+  }
+  // research that finished is Done for a day and then off the board, never Backlog
+  assert.deepEqual(
+    cardsFor('done', ended).map((card) => card.column),
     ['done'],
   );
-  assert.deepEqual(backlogCards(store.items(), [], NOW + 30 * hour, [], links('done')), []);
+  assert.deepEqual(cardsFor('done', ended, NOW + 30 * hour), []);
   // failed or stopped: back in Backlog, marked tried
   for (const state of ['failed', 'stopped'] as const) {
-    const back = backlogCards(store.items(), [], NOW, [], links(state));
+    const back = cardsFor(state, ended);
     assert.deepEqual(
       back.map((card) => card.column),
       ['backlog'],
     );
     assert.equal(back[0].backlog?.agent?.tried, true);
   }
+  // a claim whose agent has no ledger line yet: Working, pending, until the grace is over
+  const pending = backlogCards(
+    store.items(),
+    [],
+    Date.parse(store.items()[0].claim?.at as string) + hour,
+  );
+  assert.deepEqual(
+    pending.map((card) => [card.column, card.backlog?.claim?.pending]),
+    [['working', true]],
+  );
+  const stale = backlogCards(
+    store.items(),
+    [],
+    Date.parse(store.items()[0].claim?.at as string) + 3 * hour,
+  );
+  assert.deepEqual(
+    stale.map((card) => [card.column, card.backlog?.claim]),
+    [['backlog', null]],
+  );
 });
 
-test('an open item whose agent works in a worktree is started on its branch, and `backlog done` lands it with no start', () => {
+test('an open item that landed with no start is Done for a day', () => {
   const store = new BacklogStore(tmp('backlog-derived'));
   const item = store.add({ title: 'Build a thing', repo: 'shank-eric/once-upon-a-diff' });
-  const ended = new Date(NOW - 60 * 1000).toISOString();
-  const derived = linked({
-    branch: 'build-thing',
-    agent: agentLink('done', ended),
-  });
-  const shown = backlogCards(store.items(), [], NOW, [], new Map([[item.id, derived]]));
-  assert.deepEqual(
-    shown.map((card) => card.column),
-    ['ship'],
-  );
-  assert.equal(shown[0].backlog?.started?.branch, 'build-thing');
-  assert.equal(shown[0].backlog?.agent, null);
-  // it rides on the work card for that branch
-  const card = work('shank-eric/once-upon-a-diff', 'build-thing');
-  assert.deepEqual(backlogCards(store.items(), [card], NOW, [], new Map([[item.id, derived]])), []);
-  assert.equal(card.from_backlog?.[0].id, item.id);
-  // landed with no start: an open item can be done, and is Done for a day
   const landed = store.done(item.id, { sha: 'abc1234', by: 'deploy-local' });
   assert.equal(landed.state, 'open');
-  const done = backlogCards(store.items(), [], NOW + 3600 * 1000, [], new Map());
+  const done = backlogCards(
+    store.items(),
+    [],
+    Date.parse(landed.landed_at as string) + 3600 * 1000,
+    [],
+    new Map(),
+  );
   assert.deepEqual(
     done.map((card) => card.column),
     ['done'],

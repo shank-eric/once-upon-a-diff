@@ -3,19 +3,15 @@
  * what is working it: worktrees on its branch, sessions, its ledger agent, and whether it merged (backlog-links.ts).
  */
 import { checkoutFor, sameRepo, seenCheckouts } from '../../config/repos.ts';
-import { assignLine, backlogCards } from '../../backlog/backlog.ts';
+import { assignLine, backlogCards, cardOnBranch } from '../../backlog/backlog.ts';
 import type { BacklogItem } from '../../backlog/backlog.ts';
-import {
-  agentLinks,
-  owningAgent,
-  startedLinks,
-  worktreeOfAgent,
-} from '../../backlog/backlog-links.ts';
+import { agentLinks, startedLinks } from '../../backlog/backlog-links.ts';
 import type { Worktree } from '../../backlog/backlog-links.ts';
 import { checkoutsOf } from '../../worktrees/checkouts.ts';
 import type { LedgerAgent } from '../../ledger/ledger.ts';
 import type { LiveSession } from '../../../adapters/claude-sessions/registry.ts';
 import type {
+  BoardAgent,
   BoardBeat,
   BoardCard,
   BoardSession,
@@ -25,6 +21,25 @@ import { AGENT_OPEN } from './agents.ts';
 import type { BuildContext, PinnedVoice, Work } from './types.ts';
 import { dirOf } from './worktrees.ts';
 import { branchOfWork } from './works.ts';
+
+/**
+ * Puts each claimed agent on the work or session card of its started item's branch, before the columns are decided
+ * (placeCards), so a running, gated or questioning builder puts that card where its agent's state says. It changes the
+ * cards given. The agent is held out of placeAgents, so this is the one place it appears. `views` is by item id.
+ */
+export function nestClaimedAgents(
+  items: BacklogItem[],
+  cards: BoardCard[],
+  views: Map<string, BoardAgent>,
+): void {
+  for (const item of items) {
+    const view = views.get(item.id);
+    const card = view && item.state === 'started' && item.branch ? cardOnBranch(item, cards) : null;
+    if (view && card && !card.agents.some((one) => one.name === view.name)) {
+      card.agents.push(view);
+    }
+  }
+}
 
 /** What a started item is linked against. */
 export interface LinkFacts {
@@ -40,7 +55,7 @@ export interface LinkFacts {
 }
 
 /**
- * What is working each started item, and each open item a ledger agent names: its worktrees (looked up per repo, every checkout the board can learn of), the
+ * What is working each started item, and each open item with a claimed ledger agent: its worktrees (looked up per repo, every checkout the board can learn of), the
  * sessions in them, its ledger agent, and whether its branch merged. Keyed by item id; an item nothing is found for has none.
  */
 export async function readBacklogLinks(
@@ -58,12 +73,7 @@ export async function readBacklogLinks(
 ): Promise<Map<string, BoardStartedLinks>> {
   const { nowMs } = ctx;
   const startedItems = backlogItems.filter((item) => item.state === 'started' && item.branch);
-  // an open item an agent owns (its task claims the id) is worked like a started one when the agent has a worktree
-  const owned = backlogItems.flatMap((item) => {
-    const agent = owningAgent(item, agents);
-    return agent ? [{ item, agent }] : [];
-  });
-  const wanted = [...startedItems, ...owned.map((one) => one.item)];
+  const wanted = startedItems;
   const treesByRepo = new Map<string, Worktree[]>();
   await Promise.all(
     [...new Set(wanted.flatMap((item) => (item.repo ? [item.repo.toLowerCase()] : [])))].map(
@@ -107,22 +117,7 @@ export async function readBacklogLinks(
       },
     ),
   );
-  // those owned items with a worktree are started, on its branch (nothing is written: it is worked out on read)
-  const derived = new Set<string>();
   const worked: BacklogItem[] = [...startedItems];
-  for (const { item, agent } of owned) {
-    const tree = worktreeOfAgent(agent, treesByRepo.get((item.repo ?? '').toLowerCase()) ?? []);
-    if (tree?.branch) {
-      derived.add(item.id);
-      worked.push({
-        ...item,
-        state: 'started',
-        branch: tree.branch,
-        started_by: agent.name,
-        started_at: null,
-      });
-    }
-  }
   const landedBranches = new Map<string, { at: number | null }>();
   await Promise.all(
     worked.map(async (item) => {
@@ -183,12 +178,12 @@ export async function readBacklogLinks(
   for (const item of worked) {
     const found = startedLinks(item, linkFacts);
     if (found) {
-      links.set(item.id, derived.has(item.id) ? { ...found, branch: item.branch } : found);
+      links.set(item.id, found);
     }
   }
-  // an open item an agent owns with no worktree (research, a plan) is linked by the agent alone
-  for (const { item } of owned) {
-    const found = derived.has(item.id) ? null : agentLinks(item, linkFacts);
+  // an open item with a claimed agent is linked by the agent alone (a branch comes with a `start`: `claim --branch`)
+  for (const item of backlogItems) {
+    const found = item.state === 'open' ? agentLinks(item, linkFacts) : null;
     if (found) {
       links.set(item.id, found);
     }
@@ -215,6 +210,7 @@ export function addBacklogCards(
   backlogItems: BacklogItem[],
   links: Map<string, BoardStartedLinks>,
   { sessionViews, quietViews, pin, repoBySession }: AssignFacts,
+  views: Map<string, BoardAgent> = new Map(),
 ): BoardCard[] {
   const { nowMs } = ctx;
   const cardless = [
@@ -225,17 +221,17 @@ export function addBacklogCards(
     })),
     ...(pin ? [{ repo: pin.repo, branch: pin.view.branch, label: 'Voice session' }] : []),
   ];
-  const added = backlogCards(backlogItems, cards, nowMs, cardless, links);
+  const added = backlogCards(backlogItems, cards, nowMs, cardless, links, views);
   const all = [...cards, ...added];
 
   // Assign: sends the voice session "Start backlog card ...", so every open item the board is not already working has it
   for (const card of all) {
     const item = card.backlog && backlogItems.find((one) => one.id === card.backlog?.id);
-    // (an item a ledger agent is working has its agent's chip, not an Assign)
+    // (a claimed item has its agent's chip, not an Assign)
     if (!card.backlog || !item || item.state !== 'open') {
       continue;
     }
-    if (card.backlog.started || (card.backlog.agent && !card.backlog.agent.tried)) {
+    if (card.backlog.started || (card.backlog.claim && !card.backlog.agent?.tried)) {
       continue;
     }
     card.backlog.assign = { prompt: assignLine(item) };

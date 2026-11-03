@@ -40,8 +40,9 @@ import type { ListeningInput } from '../../sessions/listening.ts';
 import type { SessionTitles } from '../../../adapters/claude-sessions/titles.ts';
 import type { WorktreeScanner } from '../../worktrees/worktrees.ts';
 import type { BoardData, BoardStatus } from '@once-upon-a-diff/shared/types';
-import { builderSlots, placeAgents } from './agents.ts';
-import { addBacklogCards, readBacklogLinks } from './backlog.ts';
+import { builderSlots, claimViews, placeAgents } from './agents.ts';
+import { claimerKeys, heldKeys } from '../../backlog/claims.ts';
+import { addBacklogCards, nestClaimedAgents, readBacklogLinks } from './backlog.ts';
 import { buildCards, placeCards } from './cards.ts';
 import type { CardFacts } from './cards.ts';
 import { isStandingHelper, standingHelpers } from './helpers.ts';
@@ -120,8 +121,16 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   // cards for the works: PR details from what GitHub last said
   const cards = buildCards(ctx, cardFacts, works, sessionCards);
 
+  // the Backlog's items, and who claimed which: a claimed card shows its agent, so that agent has no card of its own
+  const backlogItems = state.backlog.items();
+  const held = heldKeys(backlogItems, agents);
+  const claimed = claimViews(backlogItems, agents, beats, nowMs);
+
   // agents: a card of their own, on their own lane, unless tightly tied to their parent's card (tiedToParent)
-  cards.push(...placeAgents(ctx, cards, { agents, beats, pin }));
+  cards.push(...placeAgents(ctx, cards, { agents, beats, pin, held }));
+
+  // a claimed agent goes on its card's branch's card now, so its state counts when the columns are decided
+  nestClaimedAgents(backlogItems, cards, claimed);
 
   // the columns, now that every card has its sessions and agents
   const byStory = new Map<string, StoryFacts>(
@@ -141,7 +150,6 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   });
 
   // the Backlog column: open items, and started ones are marked onto the work cards they became
-  const backlogItems = state.backlog.items();
   const links = await readBacklogLinks(ctx, {
     items: backlogItems,
     live,
@@ -153,12 +161,19 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     sessionViews,
   });
   cards.push(
-    ...addBacklogCards(ctx, cards, backlogItems, links, {
-      sessionViews,
-      quietViews,
-      pin,
-      repoBySession,
-    }),
+    ...addBacklogCards(
+      ctx,
+      cards,
+      backlogItems,
+      links,
+      {
+        sessionViews,
+        quietViews,
+        pin,
+        repoBySession,
+      },
+      claimed,
+    ),
   );
 
   // lanes: one per repo (or lane tag), the cards grouped by the page into columns
@@ -170,7 +185,13 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     voice: voiceOf(pin, voiceFiles, agents, nowMs, settings.voiceDir as string),
     phone,
     voice_start: voiceStart,
-    builders: builderSlots(agents, pin, settings.builderSlots, nowMs),
+    builders: builderSlots(
+      agents,
+      pin,
+      settings.builderSlots,
+      nowMs,
+      claimerKeys(backlogItems, agents),
+    ),
     voice_paused: voicePaused,
     listeners: listenersLane(waits, listening),
     helpers: standingHelpers(standing, live, sessionViews, nowMs),

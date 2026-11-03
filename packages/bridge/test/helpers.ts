@@ -1,4 +1,4 @@
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { execFile, execFileSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -45,6 +45,24 @@ export type StatusMany = {
 };
 
 const BIN = fileURLToPath(new URL('../bin/once-upon.mjs', import.meta.url));
+
+/**
+ * A claim event stamped `stamp`: the store stamps the real clock, and a fixture's ledger is days old, so a test that needs the
+ * claim made while a fixture run was going writes it with the time it means.
+ */
+export function claimAt(
+  store: { file: string },
+  id: string,
+  agent: string,
+  stamp: string,
+  sid?: string,
+): void {
+  appendFileSync(
+    store.file,
+    JSON.stringify({ op: 'claim', id, agent, ...(sid ? { sid } : {}), by: 'test', at: stamp }) +
+      '\n',
+  );
+}
 
 export const tmp = (name: string): string =>
   mkdtempSync(path.join(os.tmpdir(), `once-upon-${name}-`));

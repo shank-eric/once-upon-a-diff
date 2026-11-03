@@ -9,6 +9,13 @@ Standing rules for any agent working in Once Upon a Diff. A brief only needs to 
 - Worktrees go in `../once-upon-a-diff-worktrees/<name>`, next to the main checkout, never inside it.
 - Never delete branches or worktrees.
 
+## Backlog cards
+
+- When you take a backlog card, run `once-upon backlog claim <id> --agent <your name> [--branch <branch>]` first thing. `<your name>` is the name in your ledger line and beat lines, and `--branch` also starts the card on that branch.
+- Whoever launches an agent for a card runs the same claim right after launching it, with `--sid` (its own session id's first 8 characters), so the card is linked before the agent's first line.
+- A claim is for one run of the agent. It ends when that run finishes or the card lands (`done`) or is dropped, and a later run under the same name must claim again.
+- The board links a card and an agent only through a claim, never by the task text, the agent's name or its worktree folder. A claimed card is one card in Working with its agent on it, and its agent holds a build slot.
+
 ## The live bridge
 
 - Never restart the live bridge (port 4823) and never reload the extension.

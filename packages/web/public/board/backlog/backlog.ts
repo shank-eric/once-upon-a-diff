@@ -8,7 +8,7 @@ import { ROUTES } from '/assets/protocol/routes.ts';
 import { openMenu } from '/assets/local/menu.ts';
 import type { BoardCard, BoardData } from '/assets/types.ts';
 import { ago, CardTrees, type Api } from '/assets/board/shared.ts';
-import { agentOnlyChips, startedChips } from '/assets/util/started-chips.ts';
+import { agentOnlyChips, pendingClaimChip, startedChips } from '/assets/util/started-chips.ts';
 
 /** The ids of the Backlog cards in a card's lane, in the order the board shows them. */
 export function backlogLane(card: BoardCard, board: BoardData | null): string[] {
@@ -171,8 +171,9 @@ export function BacklogCard(props: { card: BoardCard; now: number; api: Api; dnd
     ${card.detail && html`<div class="ou-board-detail ou-board-note" title=${card.detail}>${card.detail}</div>`}
     ${item?.started && html`<div class="ou-board-chips">${startedChips(item.started).map((chip) => html`<span class="ou-board-chip">${chip}</span>`)}</div>`}
     ${item?.agent && !item.started && html`<div class="ou-board-chips">${agentOnlyChips(item.agent).map((chip) => html`<span class="ou-board-chip">${chip}</span>`)}</div>`}
+    ${item?.claim?.pending && html`<div class="ou-board-chips"><span class="ou-board-chip">${pendingClaimChip(item.claim.agent)}</span></div>`}
     ${item?.assigned && !item.started && html`<div class="ou-board-chips"><span class="ou-board-chip">assigned to ${item.assigned.session_title ?? 'a session that has ended'} ${ago(item.assigned.at, now)}, not started yet</span></div>`}
-    ${item && !item.started && !(item.agent && !item.agent.tried) && html`<div class="ou-board-startline"><code>${item.start_line}</code></div>`}
+    ${item && !item.started && !(item.claim && !item.agent?.tried) && html`<div class="ou-board-startline"><code>${item.start_line}</code></div>`}
     <${CardTrees} card=${card} now=${now} api=${api} />
     <div class="ou-board-actions">
       ${item?.assign && !item.started && html`<${Assign} id=${item.id} again=${!!item.assigned} api=${api} />`}

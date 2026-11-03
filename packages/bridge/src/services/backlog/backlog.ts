@@ -11,20 +11,23 @@
  *   {op:'reopen', id, by, at}                  a dropped item is open again (a new `start` after a drop is still ignored)
  *   {op:'move',  id, before | edge, by, at}   `before` is another item's id; `edge` is 'top' or 'bottom'
  *   {op:'edit',  id, title?, note?, repo?, by, at}   only the fields that changed; an empty note or repo clears it. An open item only
+ *   {op:'claim', id, agent, sid?, by, at}     an agent (named as in the ledger) owns the card: the one link from a card to an
+ *                                              agent (claims.ts). The latest claim wins; a reopen clears it
  *
  * The items come back in order: an add goes to the bottom, and a move puts one item before another or at an edge.
  * A move names where it goes relative to the other items, never an index, so it folds the same whatever was added or
  * dropped in between, and the page shows the order within each repo lane.
  *
  * An open item is a card in the Backlog column, in its repo's lane. A started item leaves the column and is one piece of
- * work shown once: it rides on the card its work is on (the work card for its repo and branch, else the card of its
- * linked agent: "from backlog"), or, with no card, is a card of its own in Working (so a wrong branch name doesn't make
+ * work shown once: it rides on the card its work is on (the work card for its repo and branch: "from backlog"), or, with
+ * no card, is a card of its own in Working (so a wrong branch name doesn't make
  * it vanish: STARTED_GRACE_HOURS, or as long as a worktree, session or agent is found on it, backlog-links.ts) and then
  * in Done once it merged, landed or its agent finished. That is worked out on read, so a board snapshot never writes.
  */
 import { BACKLOG_ID_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { appendBacklogEvent, readBacklogFile } from '../../adapters/stores/backlog-file.ts';
 import path from 'node:path';
+import { liveClaim } from './claims.ts';
 import { REPO_RE, sameRepo } from '../config/repos.ts';
 import { newId } from '../inbox/inbox.ts';
 import type { BoardAgent, BoardCard, BoardStartedLinks } from '@once-upon-a-diff/shared/types';
@@ -37,6 +40,8 @@ export const ASSIGN_HOURS = 2;
 
 export const ID_PATTERN = BACKLOG_ID_RE;
 const SESSION_PATTERN = /^[A-Za-z0-9._-]{1,100}$/;
+const AGENT_PATTERN = /^[\w.-]{1,100}$/;
+const SID_PATTERN = /^[0-9a-f]{8}$/;
 const BRANCH_PATTERN = /^[A-Za-z0-9._/-]{1,200}$/;
 const SHA_PATTERN = /^[0-9a-f]{7,64}$/;
 const TITLE_MAX = 200;
@@ -61,6 +66,8 @@ export interface BacklogItem {
   landed_sha: string | null;
   /** the latest session an Assign typed the item into; kept until a start or a drop (shown for ASSIGN_HOURS) */
   assigned: { session: string; branch: string | null; at: string } | null;
+  /** the agent that claimed the card (named as in the ledger, with its launching session's first 8 when given); cleared by a reopen */
+  claim: { agent: string; sid: string | null; by: string; at: string } | null;
 }
 
 /** Where a move puts an item: before another one, or at the top or the bottom. */
@@ -96,6 +103,7 @@ export interface BacklogStorage {
     id: string,
     input: { session: string; branch?: string | null; by?: string | null },
   ): BacklogItem;
+  claim(id: string, input: { agent: string; sid?: string | null; by?: string | null }): BacklogItem;
   move(id: string, where: MoveTo, who?: string | null): BacklogItem;
   edit(id: string, input: EditInput, who?: string | null): BacklogItem;
 }
@@ -164,6 +172,7 @@ export function foldBacklog(text: string): BacklogItem[] {
         landed_at: null,
         landed_sha: null,
         assigned: null,
+        claim: null,
       });
     } else if (
       found &&
@@ -200,6 +209,19 @@ export function foldBacklog(text: string): BacklogItem[] {
       // (an open item an agent works on is started by what the board finds, so it can land with no `start`)
       found.landed_at = when;
       found.landed_sha = typeof event.sha === 'string' && event.sha ? event.sha : null;
+    } else if (
+      found &&
+      found.state !== 'dropped' &&
+      event.op === 'claim' &&
+      typeof event.agent === 'string' &&
+      AGENT_PATTERN.test(event.agent)
+    ) {
+      found.claim = {
+        agent: event.agent,
+        sid: typeof event.sid === 'string' && SID_PATTERN.test(event.sid) ? event.sid : null,
+        by: who,
+        at: when,
+      };
     } else if (found && event.op === 'drop') {
       found.state = 'dropped';
       found.dropped_at = when;
@@ -214,6 +236,7 @@ export function foldBacklog(text: string): BacklogItem[] {
       found.branch = added.get(id)?.branch ?? null;
       found.repo = added.get(id)?.repo ?? null;
       found.assigned = null;
+      found.claim = null;
     } else if (found && found.state === 'open' && !found.landed_at && event.op === 'edit') {
       // only the fields the event carries change (a note or repo of '' clears it); a title is never blanked
       if (typeof event.title === 'string' && event.title) {
@@ -329,6 +352,29 @@ export class BacklogStore implements BacklogStorage {
     return this.find(id);
   }
 
+  /** Records that an agent owns the card: the board links the card to that agent and to nothing else. */
+  claim(
+    id: string,
+    input: { agent: string; sid?: string | null; by?: string | null },
+  ): BacklogItem {
+    const item = this.find(id);
+    if (item.state === 'dropped') {
+      throw new Error(`${id} was dropped`);
+    }
+    const agent = optional(input.agent, 'the agent', AGENT_PATTERN);
+    if (!agent) {
+      throw new Error('an agent name is needed (--agent NAME, as the ledger names it)');
+    }
+    this.append({
+      op: 'claim',
+      id,
+      agent,
+      sid: optional(input.sid, 'the session id', SID_PATTERN),
+      by: clean(input.by, 'the name', BY_MAX) || 'cli',
+    });
+    return this.find(id);
+  }
+
   move(id: string, where: MoveTo, who?: string | null): BacklogItem {
     this.find(id);
     const name = clean(who, 'the name', BY_MAX) || 'cli';
@@ -416,6 +462,10 @@ export class BacklogStore implements BacklogStorage {
   }
 }
 
+/** What to tell whoever takes a card: the board links a card to an agent only through its claim. */
+export const claimHint = (id: string): string =>
+  `Claim it first: once-upon backlog claim ${id} --agent NAME (the agent's name in the ledger), plus --branch BRANCH when it has one`;
+
 /** The line a card shows for starting an item, to paste into a session. */
 export const startLine = (item: Pick<BacklogItem, 'id' | 'branch'>): string =>
   `once-upon backlog start ${item.id} --branch ${item.branch || '<branch>'}`;
@@ -464,7 +514,7 @@ export function assignBranch(item: Pick<BacklogItem, 'id' | 'title' | 'branch'>)
  */
 export function assignLine(item: Pick<BacklogItem, 'id' | 'title'>): string {
   const title = lineTitle(item.title);
-  return `Start backlog card ${item.id}${title ? `: ${title}` : ''}`;
+  return `Start backlog card ${item.id}${title ? `: ${title}` : ''}. ${claimHint(item.id)}`;
 }
 
 /**
@@ -490,9 +540,8 @@ function endedColumn(
 const SKIPS_REVIEW = /^(once-upon-a-diff|larmor)$/i;
 
 /**
- * Where an item goes by what its ledger agent (named by `start --by`, found in its worktree, or owning it by the id in its
- * task) has produced, when the agent has no card on the board (while it does, the item rides on that card, so it is one
- * card):
+ * Where an item goes by what its claimed ledger agent has produced (the agent has no card of its own: the item is the
+ * one card):
  *
  *   open agent         a plan stop or a question is Waiting, for you; otherwise Working
  *   done, a branch     the work is not merged: Ready for review, or Ready to ship for once-upon-a-diff and Larmor
@@ -538,19 +587,35 @@ export interface CardlessSession {
 
 const AGENT_OPEN: BoardAgent['state'][] = ['running', 'waiting', 'plan', 'fixing'];
 
+/** The card a started item rides on: the work card for its repo and branch, else a session card on it (a session on a new branch with no PR or story yet). */
+export function cardOnBranch(
+  item: Pick<BacklogItem, 'branch' | 'repo'>,
+  cards: BoardCard[],
+): BoardCard | undefined {
+  const onBranch = (card: BoardCard, kind: BoardCard['kind']) =>
+    card.kind === kind &&
+    card.branch === item.branch &&
+    (item.repo ? sameRepo(card.repo, item.repo) : !card.repo);
+  return (
+    cards.find((card) => onBranch(card, 'work')) ?? cards.find((card) => onBranch(card, 'session'))
+  );
+}
+
 /**
  * The cards the Backlog item column shows, and the work cards' "from backlog" marks. Open items are cards in Backlog,
- * except one a ledger agent names (its task says the id: no `start` needed), which goes where the agent's work puts it
- * (agentColumn). A started item is one piece of work, shown once:
+ * except one whose claimed agent is in the ledger (`once-upon backlog claim`, claims.ts), which goes where the agent's
+ * work puts it (agentColumn). A started item is one piece of work, shown once:
  *
- *   on a card    it rides on the work or session card for its repo and branch, else on the card its linked agent is in
- *                (an agent's own card takes the item's title); that card's column carries on
+ *   on a card    it rides on the work or session card for its repo and branch, with its claimed agent's view in that card's
+ *                `agents`; that card's column carries on
  *   no card      it is a card of its own in Working ("started, no session yet" until `links` (backlog-links.ts) finds a
  *                worktree, session or agent), in Done once its work merged or landed (`once-upon backlog done`), and gone
  *                DONE_HOURS after that. Its agent's work decides the rest (agentColumn): finished with a branch, it is
  *                Ready; failed or stopped, it is back in Backlog. An unlinked one is gone after STARTED_GRACE_HOURS
  *
- * Dropped items are not shown.
+ * A claimed card is one card: its claimed agent has no card of its own (stages/agents.ts holds it out) and shows on this
+ * one, in `agents` (`views`, by item id). A claim whose agent has no ledger line yet is Working, marked pending, for
+ * CLAIM_GRACE_HOURS. Dropped items are not shown.
  */
 export function backlogCards(
   items: BacklogItem[],
@@ -558,6 +623,7 @@ export function backlogCards(
   nowMs: number,
   cardless: CardlessSession[] = [],
   links: Map<string, BoardStartedLinks> = new Map(),
+  views: Map<string, BoardAgent> = new Map(),
 ): BoardCard[] {
   const shown: BoardCard[] = [];
   for (const original of items) {
@@ -565,27 +631,23 @@ export function backlogCards(
       continue;
     }
     const link = links.get(original.id);
-    // an open item whose agent works in a worktree (`link.branch`), or that landed (`done` with no `start`), is a started one
-    const derived = original.state === 'open' && !!(link?.branch || original.landed_at);
-    const item: BacklogItem = derived
-      ? { ...original, state: 'started', branch: link?.branch ?? original.branch }
-      : original;
+    // an open item that landed (`done` with no `start`) is a started one
+    const derived = original.state === 'open' && !!original.landed_at;
+    const item: BacklogItem = derived ? { ...original, state: 'started' } : original;
     let onSession: CardlessSession | undefined;
     let column: BoardCard['column'] = 'backlog';
     let since: string | null = item.added_at || null;
     let tried = false;
     const agent = link?.agent ?? null;
+    const view = views.get(item.id);
+    const claim = liveClaim(original, agent, nowMs);
     if (item.state === 'started' && item.branch) {
-      // the work card for its branch, else a session card on it (a session on a new branch with no PR or story yet)
-      const onBranch = (card: BoardCard, kind: BoardCard['kind']) =>
-        card.kind === kind &&
-        card.branch === item.branch &&
-        (item.repo ? sameRepo(card.repo, item.repo) : !card.repo);
-      const work =
-        cards.find((card) => onBranch(card, 'work')) ??
-        cards.find((card) => onBranch(card, 'session'));
+      const work = cardOnBranch(item, cards);
       if (work) {
         work.from_backlog = [...(work.from_backlog ?? []), { id: item.id, title: item.title }];
+        if (view && !work.agents.some((one) => one.name === view.name)) {
+          work.agents.push(view);
+        }
         if (work.kind === 'work' && !work.pr && !work.story) {
           work.title = item.title;
         }
@@ -593,23 +655,8 @@ export function backlogCards(
       }
     }
     if (agent && !(item.state === 'started' && (link?.merged || item.landed_at))) {
-      // the card its agent is on, whatever the agent is doing, so the work is one card: the agent's own card (running,
-      // at a gate, or waiting out its 30 minutes), or the card the agent is nested in. A cleared agent has none
-      const byAgent = cards.find((card) => card.agents.some((one) => one.name === agent.name));
-      if (byAgent) {
-        byAgent.from_backlog = [
-          ...(byAgent.from_backlog ?? []),
-          { id: item.id, title: item.title },
-        ];
-        if (byAgent.kind === 'agent') {
-          byAgent.title = item.title;
-          // a plan stop waits on you, which is where the card says so
-          if (agent.state === 'plan') {
-            byAgent.column = 'waiting';
-          }
-        }
-        continue;
-      }
+      // the claimed agent decides the column, whatever it is doing: Working while it runs, Waiting at a plan stop or a
+      // question, then by what it produced (agentColumn)
       const placed = agentColumn(item, agent, nowMs);
       if (!placed) {
         continue;
@@ -622,6 +669,10 @@ export function backlogCards(
       } else if (placed.when !== null) {
         since = new Date(placed.when).toISOString();
       }
+    } else if (claim?.pending && item.state === 'open') {
+      // claimed, and its agent's first ledger line has not landed yet
+      column = 'working';
+      since = claim.claim.at || since;
     }
     if (item.state === 'started') {
       onSession = cardless.find(
@@ -666,7 +717,7 @@ export function backlogCards(
       story: null,
       building: null,
       sessions: [],
-      agents: [],
+      agents: view && column !== 'backlog' ? [view] : [],
       parent: null,
       focus_session: null,
       can_focus: false,
@@ -685,8 +736,11 @@ export function backlogCards(
               }
             : null,
         start_line: startLine(item),
-        // an open item a ledger agent names: what is working it, or who tried it
+        // an open item whose claimed agent is in the ledger: what is working it, or who tried it
         agent: original.state === 'open' && !derived && link?.agent ? { links: link, tried } : null,
+        claim: claim
+          ? { agent: claim.claim.agent, at: claim.claim.at || null, pending: claim.pending }
+          : null,
         assigned:
           item.state === 'open' && liveAssignment(item, nowMs)
             ? {
