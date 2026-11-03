@@ -288,6 +288,7 @@ __metadata:
   dependencies:
     "@once-upon-a-diff/protocol": "workspace:*"
     "@once-upon-a-diff/shared": "workspace:*"
+    "@once-upon-a-diff/test-kit": "workspace:*"
     "@types/node": "npm:24.19.1"
     typescript: "npm:5.9.3"
   languageName: unknown
@@ -313,6 +314,16 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@once-upon-a-diff/test-kit@workspace:*, @once-upon-a-diff/test-kit@workspace:packages/test-kit":
+  version: 0.0.0-use.local
+  resolution: "@once-upon-a-diff/test-kit@workspace:packages/test-kit"
+  dependencies:
+    "@types/node": "npm:24.19.1"
+    linkedom: "npm:0.18.14"
+    typescript: "npm:5.9.3"
+  languageName: unknown
+  linkType: soft
+
 "@once-upon-a-diff/web@workspace:*, @once-upon-a-diff/web@workspace:packages/web":
   version: 0.0.0-use.local
   resolution: "@once-upon-a-diff/web@workspace:packages/web"
@@ -320,10 +331,10 @@ __metadata:
     "@once-upon-a-diff/panel": "workspace:*"
     "@once-upon-a-diff/protocol": "workspace:*"
     "@once-upon-a-diff/shared": "workspace:*"
+    "@once-upon-a-diff/test-kit": "workspace:*"
     "@types/node": "npm:24.19.1"
     highlight.js: "npm:11.11.1"
     htm: "npm:3.1.1"
-    linkedom: "npm:0.18.14"
     once-upon-a-diff: "workspace:*"
     preact: "npm:10.29.8"
     rolldown: "npm:1.2.15"
@@ -3496,6 +3507,7 @@ __metadata:
     "@once-upon-a-diff/panel": "workspace:*"
     "@once-upon-a-diff/protocol": "workspace:*"
     "@once-upon-a-diff/shared": "workspace:*"
+    "@once-upon-a-diff/test-kit": "workspace:*"
     "@once-upon-a-diff/web": "workspace:*"
     "@types/node": "npm:24.19.1"
     typescript: "npm:5.9.3"

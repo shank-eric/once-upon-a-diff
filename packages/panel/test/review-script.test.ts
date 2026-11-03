@@ -1,24 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import {
-  chmodSync,
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  writeFileSync,
-} from 'node:fs';
-import os from 'node:os';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import { tmp, writeJson } from '@once-upon-a-diff/test-kit/files';
 import { scriptDrafts, reviewScript, type ScriptRow } from '../src/drafts/review-script.ts';
-
-// the shared package's tests don't lean on the bridge's helpers
-const tmp = (name: string) => mkdtempSync(path.join(os.tmpdir(), `once-upon-${name}-`));
-function writeJson(file: string, value: unknown) {
-  mkdirSync(path.dirname(file), { recursive: true });
-  writeFileSync(file, JSON.stringify(value, null, 2));
-}
 
 const RELS = ['src/a.js', 'lib/b.js'];
 const NASTY = 'It\'s "quoted" $(touch PWNED) `touch PWNED2` $HOME\nONCE_UPON_REVIEW_JSON\n\\n end';

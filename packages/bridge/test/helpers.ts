@@ -1,5 +1,5 @@
-import { appendFileSync, mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
-import { execFile, execFileSync } from 'node:child_process';
+import { appendFileSync, mkdtempSync } from 'node:fs';
+import { execFile } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -44,6 +44,11 @@ export type StatusMany = {
   listening: Record<string, ReturnType<typeof listeningOf>>;
 };
 
+// the helpers every package's tests share live in the test kit; they are re-exported so the tests keep importing them from here
+export { tmp, writeJson } from '@once-upon-a-diff/test-kit/files';
+export { git, localRepo } from '@once-upon-a-diff/test-kit/git';
+export { githubStory } from '@once-upon-a-diff/test-kit/stories';
+
 const BIN = fileURLToPath(new URL('../bin/once-upon.mjs', import.meta.url));
 
 /**
@@ -64,8 +69,6 @@ export function claimAt(
   );
 }
 
-export const tmp = (name: string): string =>
-  mkdtempSync(path.join(os.tmpdir(), `once-upon-${name}-`));
 // tests never look in (or move stories into) the real ~/Development checkouts
 process.env.ONCE_UPON_DEV_DIR = mkdtempSync(path.join(os.tmpdir(), 'once-upon-dev-'));
 // tests never read the real ~/.claude (the board's registry and transcripts are found under it by default)
@@ -74,92 +77,6 @@ process.env.CLAUDE_CONFIG_DIR = CLAUDE_DIR;
 // the proxy name is taken as reaching this machine, so no test depends on the machine's DNS
 process.env.ONCE_UPON_NO_HOST_CHECK = '1';
 export const TOKEN = 'test-token-0123456789abcdef';
-
-export function writeJson(file: string, value: unknown): void {
-  mkdirSync(path.dirname(file), { recursive: true });
-  writeFileSync(file, JSON.stringify(value, null, 2));
-}
-
-/**
- * A published story for acme/widgets#7 with two chapters (its pr.json too, so it also serves as a once-upon folder).
- * `meta` adds to or overrides its meta.json, such as the head_oid it was told from or its once-upon `source`.
- */
-export function githubStory(
-  dir: string,
-  { meta = {} }: { meta?: Record<string, unknown> } = {},
-): void {
-  writeJson(path.join(dir, 'meta.json'), {
-    kind: 'github',
-    repo: 'acme/widgets',
-    number: 7,
-    url: 'https://github.com/acme/widgets/pull/7',
-    pr_title: 'Add widgets',
-    ...meta,
-  });
-  writeJson(path.join(dir, 'pr.json'), {
-    url: 'https://github.com/acme/widgets/pull/7',
-    number: 7,
-    title: 'Add widgets',
-  });
-  writeJson(path.join(dir, 'file-map.json'), {
-    pr: 'acme/widgets#7',
-    files: {
-      'src/a.js': { chapters: [1, 2], partial_in: [1], finished_in: 2 },
-      'src/b.js': { chapters: [2], partial_in: [], finished_in: 2 },
-      'README.md': { chapters: [], partial_in: [], finished_in: null },
-    },
-  });
-  writeJson(path.join(dir, 'chapters.json'), {
-    title: 'Widgets',
-    overview: 'Story map',
-    chapters: [
-      {
-        title: 'Chapter 1: Start',
-        files: [
-          {
-            rel: 'src/a.js',
-            partial: true,
-            note: 'the top',
-            lines: [{ side: 'R', start: 1, end: 3, label: 'top' }],
-          },
-        ],
-        comments: [{ path: 'src/a.js', line: 2, body: 'Could you confirm?' }],
-      },
-      { title: 'Chapter 2: Finish', files: ['src/a.js', 'src/b.js'] },
-    ],
-  });
-}
-
-export const git = (repo: string, ...args: string[]): string =>
-  execFileSync('git', ['-C', repo, ...args], {
-    encoding: 'utf8',
-    env: {
-      ...process.env,
-      GIT_AUTHOR_NAME: 'T',
-      GIT_AUTHOR_EMAIL: 't@example.com',
-      GIT_COMMITTER_NAME: 'T',
-      GIT_COMMITTER_EMAIL: 't@example.com',
-    },
-  }).trim();
-
-/** A git repo with a base commit and two commits on top. Returns {repo, base}. */
-export function localRepo(): { repo: string; base: string } {
-  const repo = tmp('repo');
-  git(repo, 'init', '-q', '-b', 'feature');
-  writeFileSync(path.join(repo, 'one.txt'), 'a\nb\nc\n');
-  writeFileSync(path.join(repo, 'gone.txt'), 'bye\n');
-  git(repo, 'add', '.');
-  git(repo, 'commit', '-q', '-m', 'base');
-  const base = git(repo, 'rev-parse', 'HEAD');
-  writeFileSync(path.join(repo, 'one.txt'), 'a\nB\nc\nd\n');
-  git(repo, 'commit', '-q', '-am', 'change one');
-  mkdirSync(path.join(repo, 'lib'));
-  writeFileSync(path.join(repo, 'lib/two.js'), 'export const two = 2;\n');
-  git(repo, 'rm', '-q', 'gone.txt');
-  git(repo, 'add', '.');
-  git(repo, 'commit', '-q', '-m', 'add two');
-  return { repo, base };
-}
 
 /** A bridge on a random port with the test token, and `call` for its API: the answer's JSON is T, as the test expects it. */
 export async function startBridge(opts: {

@@ -14,10 +14,10 @@
     "@once-upon-a-diff/shared": "workspace:*"
   },
   "devDependencies": {
+    "@once-upon-a-diff/test-kit": "workspace:*",
     "@types/node": "24.19.1",
     "highlight.js": "11.11.1",
     "htm": "3.1.1",
-    "linkedom": "0.18.14",
     "once-upon-a-diff": "workspace:*",
     "preact": "10.29.8",
     "rolldown": "1.2.15",

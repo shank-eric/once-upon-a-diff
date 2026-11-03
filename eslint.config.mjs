@@ -19,6 +19,7 @@ const NODE_FILES = [
   'packages/bridge/**/*.{ts,mjs}',
   'packages/*/scripts/**/*.{ts,mjs}',
   'packages/*/test/**/*.{ts,mjs}',
+  'packages/test-kit/src/**/*.{ts,mjs}',
   'packages/*/*.config.{ts,mjs}',
   'skills/**/*.{ts,mjs}',
   '*.config.{ts,mjs}',

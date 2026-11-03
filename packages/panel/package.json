@@ -20,6 +20,7 @@
     "@once-upon-a-diff/shared": "workspace:*"
   },
   "devDependencies": {
+    "@once-upon-a-diff/test-kit": "workspace:*",
     "@types/node": "24.19.1",
     "typescript": "5.9.3"
   }

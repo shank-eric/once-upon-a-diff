@@ -29,6 +29,8 @@
  *   packages/protocol/src    the wire types, route table and schemas (no DOM, no Node, imports no package but valibot)
  *   packages/protocol/src/domain  pure rules: imports nothing at all
  *   packages/extension/src   the Chrome extension (app)
+ *   packages/test-kit/src    dev-only test helpers (temp files, git repos, story fixtures, a DOM): imports Node and linkedom only, and
+ *                            only tests import it. Every layer above bans it, so nothing that ships can reach it
  * Tests, scripts and config files are Node and cross packages on purpose, so no layer
  * names them. packages/bridge/test/boundary-lint.test.ts probes every rule below.
  *
@@ -107,6 +109,10 @@ const NOTHING = {
   message:
     'the domain imports nothing, not even the rest of the protocol (the protocol imports the domain)',
 };
+const TEST_KIT = {
+  regex: '^@once-upon-a-diff/test-kit(/|$)',
+  message: 'the test kit is dev-only: tests import it, nothing that ships does',
+};
 const ASSET_URL = {
   regex: '^/assets/',
   message: 'shared is served at /assets/ for the pages, so it must not import through that URL',
@@ -122,6 +128,7 @@ const PANEL_OVERLAY = './packages/panel/src/overlay.ts';
 const WEB_BOARD = './packages/web/public/board';
 const WEB_BOARD_PAGE = './packages/web/public/board.ts';
 const EXTENSION_SRC = './packages/extension/src';
+const TEST_KIT_SRC = './packages/test-kit/src';
 const PROTOCOL_SRC = './packages/protocol/src';
 const PROTOCOL_DOMAIN = './packages/protocol/src/domain';
 
@@ -235,6 +242,10 @@ const NOT_THE_SERVER = {
   from: BRIDGE_SRC,
   message: 'the pages, shared and the extension meet the server over HTTP, not by import',
 };
+const NOT_THE_TEST_KIT = {
+  from: './packages/test-kit',
+  message: 'the test kit is dev-only: tests import it, nothing that ships does',
+};
 const NOT_THE_BRIDGE = { from: './packages/bridge', message: 'shared sits below the bridge' };
 const NOT_THE_BRIDGE_PACKAGE = {
   from: './packages/bridge',
@@ -285,21 +296,38 @@ const NOT_THE_BOARD_PAGE = {
   message: 'board.ts is the page over its regions: a region does not import it',
 };
 
+const KIT_BELOW =
+  'the test kit sits below every package: it imports Node and linkedom, so any package can import it in a test';
+
 const SHARED = {
-  paths: [NOT_THE_BRIDGE, NOT_THE_PAGES, NOT_THE_EXTENSION, NOT_THE_PANEL_PACKAGE, NOT_THE_SCHEMAS],
-  specifiers: [BRIDGE, EXTENSION, WEB, PANEL, SHARED_PACKAGE, ASSET_URL, SCHEMAS],
+  paths: [
+    NOT_THE_BRIDGE,
+    NOT_THE_PAGES,
+    NOT_THE_EXTENSION,
+    NOT_THE_PANEL_PACKAGE,
+    NOT_THE_SCHEMAS,
+    NOT_THE_TEST_KIT,
+  ],
+  specifiers: [BRIDGE, EXTENSION, WEB, PANEL, SHARED_PACKAGE, ASSET_URL, SCHEMAS, TEST_KIT],
 };
 
 // the panel: browser code that names no host, no app and no server
 const PANEL_BASE = {
-  paths: [NOT_THE_BRIDGE, NOT_THE_PAGES, NOT_THE_EXTENSION, NOT_THE_HOST_ADAPTERS, NOT_THE_SCHEMAS],
-  specifiers: [BRIDGE, EXTENSION, WEB, HOST_ADAPTERS, SCHEMAS],
+  paths: [
+    NOT_THE_BRIDGE,
+    NOT_THE_PAGES,
+    NOT_THE_EXTENSION,
+    NOT_THE_HOST_ADAPTERS,
+    NOT_THE_SCHEMAS,
+    NOT_THE_TEST_KIT,
+  ],
+  specifiers: [BRIDGE, EXTENSION, WEB, HOST_ADAPTERS, SCHEMAS, TEST_KIT],
 };
 
 // what a page region must not reach: the page above it, and the apps, server and schemas every page avoids
 const PAGES = {
-  paths: [NOT_THE_SERVER, NOT_THE_SCHEMAS],
-  specifiers: [BRIDGE, EXTENSION, SCHEMAS],
+  paths: [NOT_THE_SERVER, NOT_THE_SCHEMAS, NOT_THE_TEST_KIT],
+  specifiers: [BRIDGE, EXTENSION, SCHEMAS, TEST_KIT],
 };
 
 /**
@@ -344,8 +372,8 @@ const BOARD_REGIONS = ['header', 'columns', 'backlog', 'worktrees', 'voice'];
 
 // what every server layer must not reach, whatever its place in the stack
 const SERVER = {
-  paths: [NOT_THE_PAGES, NOT_THE_EXTENSION, NOT_THE_PANEL_PACKAGE],
-  specifiers: [EXTENSION, PANEL],
+  paths: [NOT_THE_PAGES, NOT_THE_EXTENSION, NOT_THE_PANEL_PACKAGE, NOT_THE_TEST_KIT],
+  specifiers: [EXTENSION, PANEL, TEST_KIT],
 };
 
 const LAYERS = [
@@ -404,6 +432,15 @@ const LAYERS = [
     properties: [...NOT_GLOBAL_FETCH, NOT_PROCESS_KILL],
   },
   {
+    // the bridge's entry points (bin/once-upon.ts knows both apps, so it sits over them): the same reach as the server layers, so nothing
+    // that ships imports the client packages or the test kit from here
+    name: 'bridge-bin',
+    files: ['packages/bridge/bin/**/*.{ts,mjs}'],
+    targets: ['./packages/bridge/bin'],
+    paths: [...SERVER.paths],
+    specifiers: [...SERVER.specifiers],
+  },
+  {
     // the pages (the web app): the board's regions and shared file are carved out below, each with its own block
     name: 'pages',
     files: ['packages/web/public/**/*.ts'],
@@ -460,6 +497,7 @@ const LAYERS = [
       NOT_THE_EXTENSION,
       NOT_THE_PAGES,
       NOT_THE_PANEL_PACKAGE,
+      NOT_THE_TEST_KIT,
     ],
     specifiers: [PROTOCOL_IMPORTS],
     browser: true,
@@ -525,9 +563,26 @@ const LAYERS = [
     name: 'extension',
     files: ['packages/extension/src/**/*.ts'],
     targets: [EXTENSION_SRC],
-    paths: [NOT_THE_SERVER, NOT_THE_SCHEMAS],
-    specifiers: [BRIDGE, SCHEMAS],
+    paths: [NOT_THE_SERVER, NOT_THE_SCHEMAS, NOT_THE_TEST_KIT],
+    specifiers: [BRIDGE, SCHEMAS, TEST_KIT],
     browser: true,
+  },
+  {
+    // the test kit: below everything, it imports Node and linkedom and no package of this repo (tests import it, nothing that ships does)
+    name: 'test-kit',
+    files: ['packages/test-kit/src/**/*.ts'],
+    targets: [TEST_KIT_SRC],
+    paths: [
+      { from: './packages/bridge', message: KIT_BELOW },
+      { from: './packages/web', message: KIT_BELOW },
+      { from: './packages/extension', message: KIT_BELOW },
+      { from: './packages/panel', message: KIT_BELOW },
+      { from: './packages/shared', message: KIT_BELOW },
+      { from: './packages/protocol', message: KIT_BELOW },
+    ],
+    specifiers: [
+      { regex: '^(once-upon-a-diff(/|$)|@once-upon-a-diff/(?!test-kit(/|$)))', message: KIT_BELOW },
+    ],
   },
 ];
 
