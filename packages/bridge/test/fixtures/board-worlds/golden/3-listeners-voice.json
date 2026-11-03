@@ -368,7 +368,7 @@
             "build": null,
             "building": null,
             "can_focus": false,
-            "column": "waiting",
+            "column": "done",
             "detail": "done",
             "focus_session": "<PID:11>-aaaa-bbbb-cccc-dddddddddddd",
             "id": "agent:<PID:11>:helper-three",

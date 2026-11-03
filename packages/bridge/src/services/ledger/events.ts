@@ -3,7 +3,7 @@
  * fold into the board's agents (the same LedgerAgent the ledger's lines give, with the fields the lines can't carry).
  * Nothing here is parsed from prose: a kind, a state, a time and a result are fields.
  *
- *   {op:'start',  v, id, sid8, session, name, at, by, run, kind, task, model, effort, repo, branch, pr, cwd, card, lane, notes}
+ *   {op:'start',  v, id, sid8, session, name, at, by, run, kind, task, model, effort, repo, branch, tip, pr, cwd, card, lane, notes}
  *   {op:'state',  ..., state: running|waiting|review|plan|fixing, outcome, findings, notes}
  *   {op:'beat',   ..., n, of, step, note}                 also the heartbeat: it counts as the agent's last sign of life
  *   {op:'finish', ..., state: done|failed|stopped, outcome, result: {commit, pr, branch, card}, findings, notes}
@@ -50,6 +50,8 @@ export interface AgentEvent {
   effort?: string | null;
   repo?: string | null;
   branch?: string | null;
+  /** start only: the registered branch's tip then, or null */
+  tip?: string | null;
   pr?: number | null;
   cwd?: string | null;
   card?: string | null;
@@ -137,6 +139,7 @@ export function foldAgentEvents(events: AgentEvent[]): LedgerAgent[] {
         kind: event.kind ?? null,
         repo: event.repo ?? null,
         branch: event.branch ?? null,
+        tip: event.tip ?? null,
         pr: event.pr ?? null,
         cwd: event.cwd ?? null,
         card: event.card ?? null,

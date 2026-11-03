@@ -23,6 +23,7 @@ import {
   type AgentKind,
   type AgentResult,
 } from './events.ts';
+import { branchTip, madeOnBranch } from './made.ts';
 import { agentsFile } from './read.ts';
 import type { LedgerAgent } from './ledger.ts';
 
@@ -234,6 +235,9 @@ export class AgentRegistry {
     }
     const run = `r_${randomBytes(5).toString('hex')}`;
     const pr = count(input.pr, 'the PR number');
+    const repo = optional(input.repo, 'the repo', REPO_RE);
+    const branch = optional(input.branch, 'the branch', BRANCH_PATTERN);
+    const cwd = clean(input.cwd, 'the cwd', 500) || null;
     this.append({
       ...this.base('start', name, sid, input),
       session: clean(input.session, 'the session', 100) || null,
@@ -242,10 +246,11 @@ export class AgentRegistry {
       task,
       model: clean(input.model, 'the model', 60) || null,
       effort: clean(input.effort, 'the effort', 30) || null,
-      repo: optional(input.repo, 'the repo', REPO_RE),
-      branch: optional(input.branch, 'the branch', BRANCH_PATTERN),
+      repo,
+      branch,
+      tip: branchTip(cwd, branch, repo),
       pr: pr || null,
-      cwd: clean(input.cwd, 'the cwd', 500) || null,
+      cwd,
       card: optional(input.card, 'the card', CARD_PATTERN),
       lane: optional(input.lane, 'the lane', LANE_PATTERN),
       notes: clean(input.notes, 'the notes path', 500) || null,
@@ -317,6 +322,11 @@ export class AgentRegistry {
     }
     if (card) {
       result.card = card;
+    }
+    // none given: what a builder's registered branch gained since the run started. A run that failed or was stopped made
+    // nothing to point at, and a helper, reviewer or researcher never takes an author's commit
+    if (!Object.keys(result).length && state === 'done' && agent.kind === 'builder') {
+      Object.assign(result, madeOnBranch(agent));
     }
     return this.append({
       ...this.base('finish', name, agent.sid, input),

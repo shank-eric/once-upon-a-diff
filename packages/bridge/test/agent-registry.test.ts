@@ -2,7 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { runCli, tmp, writeJson } from './helpers.ts';
+import { git, runCli, tmp, writeJson } from './helpers.ts';
+import { gitText } from '../src/adapters/git.ts';
+import { worktreeFixture } from '@once-upon-a-diff/test-kit/git';
 import { Board, noPrWatcher } from '../src/services/board/board.ts';
 import { AgentRegistry } from '../src/services/ledger/registry.ts';
 import { readAgents } from '../src/services/ledger/read.ts';
@@ -371,14 +373,249 @@ test('a registered agent that finishes with a result made something, with no out
   registry.start({
     ...BUILD,
     name: 'ou-scout',
-    kind: 'research',
     task: 'look in widgets-worktrees/x',
     at: minute(6),
   });
   registry.finish('ou-scout', { outcome: 'pushed back on the plan', at: minute(7) });
   const scout = registry.agents().find((one) => one.name === 'ou-scout');
   assert.ok(scout);
-  assert.equal(madeSomething(scout), false, 'research with no result waits, whatever its words');
+  assert.equal(madeSomething(scout), false, 'a run with no result waits, whatever its words');
+});
+
+/** The column of a registered agent's card on the board. */
+const columnOf = async (home: string, name: string) =>
+  (await boardOf(home)()).find((one) => one.kind === 'agent' && one.title === name)?.column;
+
+test('Done or Waiting comes from the finish event, never its words', async () => {
+  const home = tmp('reg-done-waiting');
+  const registry = new AgentRegistry(home);
+  const finished = (name: string, outcome: string, result: object = {}, kind = 'builder') => {
+    registry.start({ ...BUILD, name, kind: kind as 'builder', at: minute(0) });
+    registry.finish(name, { outcome, result, at: minute(5) });
+  };
+  finished('ou-negated', 'didn’t commit abc1234, nothing pushed');
+  finished(
+    'ou-words',
+    'committed 0637f8f, pushed and deployed, branch feat/x, filed bl_mvzro4kube937c',
+  );
+  finished('ou-commit', 'ok', { commit: 'abc1234' });
+  finished('ou-pr', 'ok', { pr: 7 });
+  finished('ou-branch', 'ok', { branch: 'feat/x' });
+  finished('ou-card', 'ok', { card: 'bl_mvzro4kube937c' });
+  finished('ou-scout', 'options laid out', {}, 'research');
+  registry.start({ ...BUILD, name: 'ou-asker', at: minute(0) });
+  registry.state('ou-asker', { state: 'waiting', outcome: 'pick A or B', at: minute(5) });
+  registry.start({ ...BUILD, name: 'ou-parked', at: minute(0) });
+  registry.state('ou-parked', { state: 'review', outcome: 'story ready', at: minute(5) });
+  const columns: Record<string, string | undefined> = {};
+  for (const name of [
+    'ou-negated',
+    'ou-words',
+    'ou-commit',
+    'ou-pr',
+    'ou-branch',
+    'ou-card',
+    'ou-scout',
+    'ou-asker',
+    'ou-parked',
+  ]) {
+    columns[name] = await columnOf(home, name);
+  }
+  assert.deepEqual(columns, {
+    'ou-negated': 'waiting',
+    'ou-words': 'waiting',
+    'ou-commit': 'done',
+    'ou-pr': 'done',
+    'ou-branch': 'done',
+    'ou-card': 'done',
+    'ou-scout': 'waiting',
+    'ou-asker': 'waiting',
+    'ou-parked': 'ready',
+  });
+});
+
+test('a helper that deploys and finishes with --commit made something', () => {
+  const registry = new AgentRegistry(tmp('reg-helper'));
+  registry.start({ ...BUILD, name: 'deploy-x', kind: 'helper', at: minute(0) });
+  registry.finish('deploy-x', {
+    outcome: 'deployed',
+    result: { commit: 'abc1234' },
+    at: minute(5),
+  });
+  assert.equal(madeSomething(registry.agents()[0]), true);
+});
+
+test('a finish with no result records what the registered branch gained since the start tip, whatever the cwd', async () => {
+  const fixture = worktreeFixture();
+  git(fixture.main, 'checkout', '-q', '--detach');
+  const home = tmp('reg-branch');
+  const registry = new AgentRegistry(home);
+  const begin = (name: string, branch: string | null) =>
+    registry.start({ ...BUILD, name, branch, cwd: fixture.main, at: minute(0) });
+  const resultOf = (name: string) =>
+    registry.agents().find((one) => one.name === name)?.result ?? null;
+  // the cwd is the main checkout, detached at main. A branch made after the start has no start tip to compare with, so
+  // no result is guessed, whatever it holds: the author passes --commit
+  begin('ou-new', 'new-branch');
+  assert.equal(registry.agents()[0].tip, null);
+  const dir = fixture.add('new-branch');
+  fixture.commit(dir, 'work');
+  registry.finish('ou-new', { at: minute(5) });
+  assert.equal(resultOf('ou-new'), null);
+  assert.equal(await columnOf(home, 'ou-new'), 'waiting');
+  // deployed before it finished: main fast-forwarded to the branch, the ref is still there
+  const deployed = fixture.add('deployed');
+  begin('ou-deployed', 'deployed');
+  fixture.commit(deployed, 'ship');
+  git(fixture.main, 'checkout', '-q', '--detach', 'deployed');
+  registry.finish('ou-deployed', { at: minute(5) });
+  assert.equal(resultOf('ou-deployed')?.branch, 'deployed');
+  assert.equal(await columnOf(home, 'ou-deployed'), 'done');
+  // a branch that was there at the start and did not move: nothing made
+  begin('ou-same', 'new-branch');
+  registry.finish('ou-same', { at: minute(5) });
+  assert.equal(resultOf('ou-same'), null);
+  assert.equal(await columnOf(home, 'ou-same'), 'waiting');
+  // the same branch moving on
+  begin('ou-moved', 'new-branch');
+  fixture.commit(dir, 'more', 2);
+  registry.finish('ou-moved', { at: minute(5) });
+  assert.equal(resultOf('ou-moved')?.commit, git(fixture.main, 'rev-parse', 'new-branch'));
+  assert.equal(await columnOf(home, 'ou-moved'), 'done');
+  // a result given on the command line is kept as given
+  begin('ou-given', 'new-branch');
+  fixture.commit(dir, 'again', 3);
+  registry.finish('ou-given', { result: { commit: 'abc1234' }, at: minute(5) });
+  assert.deepEqual(resultOf('ou-given'), { commit: 'abc1234' });
+  // a failed run made nothing to point at
+  begin('ou-failed', 'new-branch');
+  fixture.commit(dir, 'failing', 4);
+  registry.finish('ou-failed', { state: 'failed', at: minute(5) });
+  assert.equal(resultOf('ou-failed'), null);
+  // no branch registered, or the ref gone before the finish (a deploy removed it): no result, and finish still works
+  begin('ou-no-branch', null);
+  registry.finish('ou-no-branch', { at: minute(5) });
+  assert.equal(resultOf('ou-no-branch'), null);
+  const gone = fixture.add('gone');
+  begin('ou-gone', 'gone');
+  fixture.commit(gone, 'x');
+  git(fixture.main, 'worktree', 'remove', '--force', gone);
+  git(fixture.main, 'branch', '-D', 'gone');
+  registry.finish('ou-gone', { at: minute(5) });
+  assert.equal(resultOf('ou-gone'), null);
+});
+
+test('the automatic result is for a builder whose branch moved since its start tip: not for no start tip, a helper, reviewer or researcher, a stopped run, or another repo’s checkout', async () => {
+  const fixture = worktreeFixture();
+  git(fixture.main, 'checkout', '-q', '--detach');
+  const home = tmp('reg-branch-gates');
+  const registry = new AgentRegistry(home);
+  const begin = (name: string, over: Record<string, unknown> = {}) =>
+    registry.start({
+      ...BUILD,
+      name,
+      branch: 'work',
+      cwd: fixture.main,
+      repo: 'acme/widgets',
+      at: minute(0),
+      ...over,
+    } as Parameters<AgentRegistry['start']>[0]);
+  const resultOf = (name: string) =>
+    registry.agents().find((one) => one.name === name)?.result ?? null;
+  // started before its branch existed: the worktree is cut at the base and nothing is committed (a plan-only or stopped
+  // author, or a helper on an author's branch)
+  begin('ou-cut-only');
+  const dir = fixture.add('work');
+  registry.finish('ou-cut-only', { at: minute(5) });
+  assert.equal(resultOf('ou-cut-only'), null, 'no start tip, no result');
+  assert.equal(await columnOf(home, 'ou-cut-only'), 'waiting');
+  // an old start event has no tip either: the same
+  appendAgentEvent(registry.file, {
+    op: 'start',
+    id: `${SID}:ou-old-start`,
+    sid8: SID,
+    name: 'ou-old-start',
+    at: minute(0).toISOString(),
+    run: 'r_old',
+    kind: 'builder',
+    task: 'old',
+    branch: 'work',
+    cwd: fixture.main,
+  });
+  // the branch gains a commit: with no start tip it is still nobody's result
+  fixture.commit(dir, 'work');
+  const tip = git(fixture.main, 'rev-parse', 'work');
+  registry.finish('ou-old-start', { at: minute(5) });
+  assert.equal(resultOf('ou-old-start'), null);
+  begin('ou-tipless', { branch: 'late' });
+  registry.finish('ou-tipless', { at: minute(5) });
+  assert.equal(resultOf('ou-tipless'), null, 'a branch that does not exist is nothing');
+  // a helper, a reviewer and a researcher on a branch that moved: never an author's commit
+  for (const kind of ['helper', 'reviewer', 'research']) {
+    begin(`ou-${kind}`, { kind, branch: 'work' });
+  }
+  fixture.commit(dir, 'moved', 2);
+  for (const kind of ['helper', 'reviewer', 'research']) {
+    registry.finish(`ou-${kind}`, { at: minute(5) });
+    assert.equal(resultOf(`ou-${kind}`), null, kind);
+  }
+  // a stopped run, and a failed one, made nothing, even with a result given
+  begin('ou-stopped');
+  fixture.commit(dir, 'moved again', 3);
+  registry.finish('ou-stopped', { state: 'stopped', at: minute(5) });
+  assert.equal(resultOf('ou-stopped'), null);
+  begin('ou-stopped-given');
+  registry.finish('ou-stopped-given', {
+    state: 'stopped',
+    result: { commit: 'abc1234' },
+    at: minute(5),
+  });
+  assert.equal(
+    madeSomething(registry.agents().find((one) => one.name === 'ou-stopped-given')!),
+    false,
+  );
+  assert.equal(await columnOf(home, 'ou-stopped-given'), 'waiting');
+  // another repo's checkout: neither the start tip nor the result is taken from it
+  begin('ou-elsewhere', { repo: 'other/repo', branch: 'work' });
+  assert.equal(registry.agents().find((one) => one.name === 'ou-elsewhere')?.tip, null);
+  fixture.commit(dir, 'moved once more', 4);
+  registry.finish('ou-elsewhere', { at: minute(5) });
+  assert.equal(resultOf('ou-elsewhere'), null);
+  // the same repo spelled in another case is a match
+  begin('ou-cased', { repo: 'ACME/Widgets', branch: 'work' });
+  assert.equal(registry.agents().find((one) => one.name === 'ou-cased')?.tip?.length, 40);
+  fixture.commit(dir, 'last', 5);
+  registry.finish('ou-cased', { at: minute(5) });
+  assert.equal(resultOf('ou-cased')?.commit, git(fixture.main, 'rev-parse', 'work'));
+  assert.notEqual(resultOf('ou-cased')?.commit, tip);
+});
+
+test('a git call that runs too long is killed: made.ts takes it as nothing made', () => {
+  const fixture = worktreeFixture();
+  assert.throws(() => gitText(fixture.main, ['-c', 'alias.slow=!sleep 5', 'slow'], 100));
+  assert.equal(gitText(fixture.main, ['rev-parse', 'HEAD'], 3000).length, 40);
+});
+
+test('a start or finish in a folder that is not a checkout still works, with no tip and no result', () => {
+  const registry = new AgentRegistry(tmp('reg-not-git'));
+  registry.start({ ...BUILD, branch: 'thing', cwd: tmp('not-a-checkout'), at: minute(0) });
+  registry.start({
+    ...BUILD,
+    name: 'ou-nowhere',
+    branch: 'thing',
+    cwd: '/no/such/dir',
+    at: minute(0),
+  });
+  assert.equal(registry.agents()[0].tip, null);
+  registry.finish('ou-thing', { at: minute(5) });
+  registry.finish('ou-nowhere', { at: minute(5) });
+  assert.deepEqual(
+    registry.agents().map((one) => [one.state, one.result]),
+    [
+      ['done', null],
+      ['done', null],
+    ],
+  );
 });
 
 test('a torn last line does not swallow the next event', () => {

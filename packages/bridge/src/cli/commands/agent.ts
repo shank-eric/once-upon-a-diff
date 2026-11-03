@@ -22,6 +22,7 @@ const USAGE =
   '       once-upon agent state NAME --state running|waiting|review|plan|fixing [--outcome TEXT] [--findings N] [--notes PATH] [--sid SID8] [--run ID]\n' +
   '       once-upon agent beat NAME N/M STEP [NOTE...] [--sid SID8] [--no-mirror]\n' +
   '       once-upon agent finish NAME [--state done|failed|stopped] [--outcome TEXT] [--commit SHA] [--pr N] [--branch NAME] [--card ID] [--findings N] [--notes PATH] [--sid SID8] [--run ID]\n' +
+  '                              with none of --commit, --pr, --branch and --card, a registered branch that moved since the start is recorded as the result\n' +
   '       once-upon agent list [--all] [--json]';
 
 const text = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);

@@ -30,8 +30,9 @@
  * is a word of letters, digits, dashes and underscores. A lane tag puts the agent on a lane of that name instead of
  * inside its parent's card. The last line with a given sid and name wins. Lines that don't match are skipped.
  *
- * A finished agent (done, failed or stopped) with no card to sit in is a card of its own, in Waiting when it only
- * researched or failed and in Done when it made something (madeSomething in board/agent-home.ts), for the setting
+ * A finished agent (done, failed or stopped) with no card to sit in is a card of its own: in Done when it is a reviewer,
+ * a registered agent whose finish event has a result, or a ledger agent with a `[done]` line, and otherwise in Waiting
+ * (madeSomething in board/agent-home.ts reads fields, never the text), for the setting
  * board_finished_wait_minutes (30) after its latest ledger line, with its outcome and the first `notes/` path its lines
  * name; a new line starts the time again (progress beats are not counted: they carry no date or sid). The board's Finish on that card appends a `[done]` line only for an
  * agent still `[waiting]` (doneLine), and otherwise just records the click (adapters/stores/finished-agents.ts).
@@ -74,6 +75,8 @@ export interface LedgerAgent {
   kind?: AgentKind | null;
   repo?: string | null;
   branch?: string | null;
+  /** the registered branch's tip when the run started (null when the branch did not exist yet), to tell at finish whether it moved */
+  tip?: string | null;
   pr?: number | null;
   cwd?: string | null;
   card?: string | null;

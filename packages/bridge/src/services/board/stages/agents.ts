@@ -176,8 +176,8 @@ export interface AgentFacts {
  * given). The rest get a card of their own, on their own lane while they run, wait or sit at a gate: these are returned,
  * to go after the others. A finished agent (done, failed or stopped) gets a card of its own for
  * `finishedWaitMinutes` after its last ledger line, with its outcome, its notes path
- * and its parent session, until the card's Finish clears it: in Done when it made something (a commit, a deploy, a
- * branch, a card; madeSomething), in Waiting when it only researched or failed. A later ledger line brings the card back, with a fresh timer.
+ * and its parent session, until the card's Finish clears it: in Done when it made something (a finish
+ * event's commit, PR, branch or card, or a ledger `[done]` line; madeSomething), in Waiting when it only researched or failed. A later ledger line brings the card back, with a fresh timer.
  */
 export function placeAgents(
   ctx: BuildContext,

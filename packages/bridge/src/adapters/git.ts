@@ -5,11 +5,15 @@
 import { execFile, execFileSync } from 'node:child_process';
 import type { LocalCommit } from '@once-upon-a-diff/protocol/types';
 
-/** Runs git in a folder and returns its trimmed stdout (throws on a non-zero exit, and says nothing on stderr). */
-export const gitText = (dir: string, args: string[]): string =>
+/**
+ * Runs git in a folder and returns its trimmed stdout (throws on a non-zero exit, and says nothing on stderr). With
+ * `timeoutMs` a call that takes longer is killed and throws.
+ */
+export const gitText = (dir: string, args: string[], timeoutMs?: number): string =>
   execFileSync('git', ['-C', dir, ...args], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'ignore'],
+    ...(timeoutMs ? { timeout: timeoutMs } : {}),
   }).trim();
 
 /** Runs git in a checkout and returns stdout (throws on a non-zero exit). */

@@ -267,15 +267,12 @@ test('two agents of one name in different sessions are two agents on a card, and
   assert.equal(keyless.agents.length, 2);
 });
 
-test('a finished ledger agent is not Done because its task names a worktrees folder', () => {
-  const task = 'refactor in widgets-worktrees/refactor';
-  assert.equal(madeSomething({ name: 'a', task, outcome: 'ok', state: 'done' }), false);
+test('a finished ledger agent is Done by its [done] line, not by a worktrees folder in its task or by its outcome', () => {
+  assert.equal(madeSomething({ name: 'a', state: 'done' }), true);
   assert.equal(
-    madeSomething({ name: 'a', task, outcome: 'ok, see widgets-worktrees/refactor' }),
+    madeSomething({ name: 'a', state: 'stopped' }),
     false,
+    'a worktrees task is not output',
   );
-  assert.equal(
-    madeSomething({ name: 'a', task, outcome: 'committed 0637f8f', state: 'done' }),
-    true,
-  );
+  assert.equal(madeSomething({ name: 'a', state: 'waiting' }), false);
 });

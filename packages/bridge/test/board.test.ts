@@ -844,7 +844,7 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
     [fullId(loose.pid)]: 'working',
     [`agent:${sid(onStory)}:tagged-one`]: 'working',
     'agent:deadbeef:orphan': 'working',
-    [`agent:${sid(onStory)}:nested-done`]: 'waiting', // finished 20 minutes ago: in Waiting for 30
+    [`agent:${sid(onStory)}:nested-done`]: 'done', // a ledger [done] line, finished 20 minutes ago: in Done for 30
     'agent:deadbeef:broke': 'waiting',
     'agent:deadbeef:stopped-one': 'waiting',
   });
@@ -876,14 +876,11 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
     'someone else’s draft is not on the board even with a story built for you',
   );
   assert.equal(card('pr:acme/widgets#14').pr?.mine, false);
-  // a finished agent (done, stopped or failed) sits in Waiting for 30 minutes after its last line (finished-agents.test.ts has
-  // the timing), then has no card, not even in the Idle lane
+  // a finished agent sits in Done (a ledger [done] line) or Waiting (stopped or failed) for 30 minutes after its last line
+  // (finished-agents.test.ts has the timing), then has no card, not even in the Idle lane
   assert.equal(card(`agent:${sid(onStory)}:nested-old`), undefined, 'hours ago');
-  for (const id of [
-    `agent:${sid(onStory)}:nested-done`,
-    'agent:deadbeef:stopped-one',
-    'agent:deadbeef:broke',
-  ]) {
+  assert.equal(card(`agent:${sid(onStory)}:nested-done`).column, 'done');
+  for (const id of ['agent:deadbeef:stopped-one', 'agent:deadbeef:broke']) {
     assert.equal(card(id).column, 'waiting', id);
   }
   // sessions on a branch whose PR merged are not lumped into one card named for it: one card each, by session title
