@@ -106,6 +106,7 @@ function filtered(data: BoardData, laneFilter: string): BoardData {
     ...data,
     lanes: data.lanes.filter((lane) => sameLaneKey(lane.key, laneFilter)),
     blank: data.blank.filter((group) => sameLaneKey(group.key, laneFilter)),
+    editors: data.editors.filter((editor) => sameLaneKey(editor.lane, laneFilter)),
     listeners: data.listeners.filter((entry) => sameLaneKey(entry.repo, laneFilter)),
     worktrees: data.worktrees && narrowed(data.worktrees, data.lanes, laneFilter),
   };
@@ -118,7 +119,7 @@ const EMPTY: BoardData = {
   voice: null,
   phone: null,
   voice_start: null,
-  builders: null,
+  editors: [],
   voice_paused: false,
   listeners: [],
   helpers: [],
@@ -175,6 +176,7 @@ function BoardApp() {
     now,
     api,
     blank: data.blank,
+    editors: data.editors,
     collapsed,
     onFold: (id) => {
       const next = new Set(collapsed);

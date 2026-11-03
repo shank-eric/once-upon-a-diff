@@ -42,6 +42,8 @@ export interface LiveFacts {
   branches: (string | null)[];
   repos: (string | null)[];
   agents: LedgerAgent[];
+  /** the registered editors, not among the agents */
+  editors: LedgerAgent[];
   beats: Map<string, BoardBeat>;
 }
 
@@ -57,12 +59,12 @@ export async function readLive(ctx: BuildContext): Promise<LiveFacts> {
     Promise.all(live.map((session) => ctx.lookups.branchOf(session.cwd, nowMs))),
     Promise.all(live.map((session) => ctx.lookups.repoOf(session.cwd))),
   ]);
-  const { agents, beats } = readAgents(
+  const { agents, editors, beats } = readAgents(
     { home: ctx.home, ledger: settings.ledgerFile, progress: settings.progressFile },
     now,
     settings.ledgerTimeZone,
   );
-  return { picked, live, known, branches, repos, agents, beats };
+  return { picked, live, known, branches, repos, agents, editors, beats };
 }
 
 /** What else is known of the live sessions: who listens, the voice session, phone mode, blank sessions, titles and usage. */

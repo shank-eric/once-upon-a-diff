@@ -16,7 +16,7 @@
   "board": {
     "at": "2026-10-26T19:00:00.000Z",
     "blank": [],
-    "builders": null,
+    "editors": [],
     "helpers": [],
     "lanes": [
       {
@@ -70,6 +70,7 @@
                   "step": "code"
                 },
                 "clears_at": null,
+                "editor": null,
                 "ended_at": null,
                 "gate": null,
                 "key": "54736864:ou-kill-inbox",

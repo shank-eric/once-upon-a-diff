@@ -722,7 +722,9 @@ export interface BoardAgent {
   key: string;
   name: string;
   /** what the agent says it is, when it registered through `once-upon agent start` (null for one read from the ledger) */
-  kind: 'builder' | 'reviewer' | 'helper' | 'research' | null;
+  kind: 'builder' | 'reviewer' | 'helper' | 'research' | 'editor' | null;
+  /** the editor that launched and controls it (a builder launched under a live editor's session), else null */
+  editor: BoardAgentEditor | null;
   /** the ledger's own word for where it stands */
   state: 'running' | 'waiting' | 'plan' | 'fixing' | 'done' | 'failed' | 'stopped';
   /** `waiting` on your story review (the ledger's `[review]`), not on a question: shown as ready for review */
@@ -742,6 +744,40 @@ export interface BoardAgent {
   notes: string | null;
   /** a finished agent's card in Waiting leaves the board at this time, unless it does something more first (null on any other agent) */
   clears_at: string | null;
+}
+
+/** The editor (a session running a repo's build queue) an author belongs to: who to say it is "by", and its tab. */
+export interface BoardAgentEditor {
+  /** the editor's lane key (its repo's owner/name, else its folder) and the lane's label as the board shows it */
+  lane: string;
+  /** the lane's label; with two editors on one lane, each adds its session's name, "widgets (clarifi-f9)" */
+  label: string;
+  /** the session's name (its tab's), else the first 8 of its id: what tells two editors on one lane apart */
+  title: string;
+  /** the editor's session id, and whether its iTerm tab can be brought forward */
+  session: string;
+  can_focus: boolean;
+}
+
+/** An editor, with the authors (open builders) it controls: a row in the board's editors strip. */
+export interface BoardEditor extends BoardAgentEditor {
+  /** the name it registered under */
+  name: string;
+  /** its build slots (`agent start --kind editor --slots N`) */
+  slots: number;
+  /** the slots in use: its authors that are working (running, or fixing findings). One at a plan, a question or a story review holds none */
+  in_use: number;
+  since: string | null;
+  authors: {
+    /** `sid:name`, the agent's key */
+    key: string;
+    name: string;
+    state: BoardAgent['state'];
+    /** parked on your story review */
+    review: boolean;
+    task: string | null;
+    beat: BoardBeat | null;
+  }[];
 }
 
 /**
@@ -1105,8 +1141,8 @@ export interface BoardData {
    * at its prompt. Null when the Larmor checkout can't run voice_ctl (the same gate as `phone`).
    */
   voice_start: BoardVoiceStart | null;
-  /** the voice session's build agents against board_builder_slots; null when voice is off or its session isn't running */
-  builders: BoardBuilders | null;
+  /** the editors running a repo's queue (each a live session that registered), with their authors: the strip above the columns */
+  editors: BoardEditor[];
   /** Larmor's `paused` file exists (board_voice_dir set), voice on or not: a pause left by a session that died needs a Resume */
   voice_paused: boolean;
   /** repos with a listener now, and those that had one in the last week */
@@ -1121,16 +1157,6 @@ export interface BoardData {
   worktrees: BoardWorktrees | null;
   /** the account's usage limits as the freshest status line had them, null when none has rendered lately */
   usage: BoardUsage | null;
-}
-
-/** The build agents the voice session has running, against its cap: how many builders are free to assign work to. */
-export interface BoardBuilders {
-  /** board_builder_slots (default 3) */
-  cap: number;
-  /** cap less the running builders, never below 0 */
-  free: number;
-  /** the running builders, oldest first */
-  running: { name: string; task: string | null; since: string | null }[];
 }
 
 /** The sessions Start voice may type /larmor into. */

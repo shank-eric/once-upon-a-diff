@@ -9,6 +9,7 @@ import { ROUTES } from '/assets/protocol/routes.ts';
 import { openMenu } from '/assets/local/menu.ts';
 import type {
   BoardAgent,
+  BoardEditor,
   BoardBlankSession,
   BoardCard,
   BoardColumn,
@@ -76,9 +77,10 @@ const AGENT_MARK: Record<BoardAgent['state'], string> = {
 const STATE_NOTE: Partial<Record<BoardAgent['state'], string>> = { plan: 'plan ready' };
 
 /** A `[review]` agent is not asking a question: it has a story up for you. */
-const agentMark = (agent: BoardAgent) => (agent.review ? '◉' : AGENT_MARK[agent.state]);
+const agentMark = (agent: Pick<BoardAgent, 'state' | 'review'>) =>
+  agent.review ? '◉' : AGENT_MARK[agent.state];
 
-const stateNote = (agent: BoardAgent) =>
+const stateNote = (agent: Pick<BoardAgent, 'state' | 'review'>) =>
   agent.review ? 'ready for review' : (STATE_NOTE[agent.state] ?? agent.state);
 
 const BUILDING_TEXT = {
@@ -203,8 +205,9 @@ function Context(props: { context: number | null | undefined }) {
     : null;
 }
 
-function Agent(props: { agent: BoardAgent; now: number }) {
-  const { agent, now } = props;
+/** `byEditor`: say which editor controls it (an agent card's "from" line already does). */
+function Agent(props: { agent: BoardAgent; now: number; api: Api; byEditor: boolean }) {
+  const { agent, now, api, byEditor } = props;
   const beat = agent.beat;
   const note =
     beat && agent.state === 'running' ? `${beat.n}/${beat.of} ${beat.step}` : stateNote(agent);
@@ -214,6 +217,7 @@ function Agent(props: { agent: BoardAgent; now: number }) {
   return html`<li class=${`ou-board-agent ou-board-s-${agent.status}`} title=${agent.task || ''}>
     <div class="ou-board-agent-line"><span class="ou-board-mark" aria-hidden="true">${agentMark(agent)}</span> <strong>${agent.name}</strong>${' '}
       <span class="ou-local-muted">${note}${agent.stale && ' (no done line yet)'}${time && ` · ${time}`}</span></div>
+    ${byEditor && agent.editor && html`<div class="ou-local-muted ou-board-agent-editor">by <${SessionLink} bridge=${api.bridge} session=${agent.editor.session} canFocus=${agent.editor.can_focus} name=${`Editor · ${agent.editor.label}`} title="The editor that launched this builder: bring its iTerm tab to the front" /></div>`}
     ${beat && agent.state === 'running' && html`<div class="ou-board-bar" aria-hidden="true"><span style=${`width:${percent}%`}></span></div>`}
     ${detail && html`<div class="ou-board-agent-note ou-local-muted">${detail}</div>`}
   </li>`;
@@ -411,7 +415,7 @@ export function Card(props: { card: BoardCard; now: number; api: Api }) {
     ${chips.length > 0 && html`<div class="ou-board-chips">${chips.map((chip) => html`<span class="ou-board-chip">${CHIP_MARK[chip.tone]}${chip.text}</span>`)}</div>`}
     ${card.kind === 'session' && card.sessions[0] && html`<div class="ou-local-muted">${card.sessions[0].status}${card.sessions[0].branch ? ` on ${card.sessions[0].branch}` : ''}</div>`}
     ${card.kind === 'work' && card.sessions.length > 0 && html`<ul class="ou-board-sessions">${card.sessions.map((session) => html`<${Session} key=${session.id} session=${session} now=${now} />`)}</ul>`}
-    ${card.agents.length > 0 && html`<ul class="ou-board-agents">${card.agents.map((agent) => html`<${Agent} key=${agent.key} agent=${agent} now=${now} />`)}</ul>`}
+    ${card.agents.length > 0 && html`<ul class="ou-board-agents">${card.agents.map((agent) => html`<${Agent} key=${agent.key} agent=${agent} now=${now} api=${api} byEditor=${card.kind !== 'agent'} />`)}</ul>`}
     <${CardTrees} card=${card} now=${now} api=${api} />
     <div class="ou-board-actions">
       ${card.build && html`<${Build} card=${card} api=${api} />`}
@@ -529,6 +533,31 @@ export function Listeners(props: { repos: BoardListenerRepo[]; now: number; api:
   return html`<section class="ou-board-listeners" aria-label="Listeners"><h2 class="ou-board-head">Listeners <span class="ou-local-muted">${repos.filter((entry) => entry.active).length}</span></h2><ul>${repos.map((entry) => html`<${Listener} key=${entry.repo} entry=${entry} now=${now} api=${api} />`)}</ul></section>`;
 }
 
+/**
+ * The editors strip, above the columns: a row for each editor (a session running a repo's queue) with its lane, its slots
+ * in use (only its running authors hold one) and the authors it controls, each with where it stands.
+ */
+export function Editors(props: { editors: BoardEditor[]; now: number; api: Api }) {
+  const { editors, now, api } = props;
+  if (!editors.length) {
+    return null;
+  }
+  return html`<section class="ou-board-editors" aria-label="Editors"><ul>${editors.map(
+    (editor) =>
+      html`<li key=${editor.session} class="ou-board-editor" data-editor=${editor.name}>
+        <strong>${editor.label}</strong> <span class="ou-board-voice-status">Editor</span>
+        <span class="ou-local-muted" data-editor-slots>${editor.in_use} of ${editor.slots} slots · ${plural(editor.authors.length, 'author')} · <${SessionLink} bridge=${api.bridge} session=${editor.session} canFocus=${editor.can_focus} name="Open in iTerm" title="Bring the editor's iTerm tab to the front" />${editor.since && ` · since ${since(editor.since, now)}`}</span>
+        ${
+          editor.authors.length > 0 &&
+          html`<ul class="ou-board-editor-authors">${editor.authors.map(
+            (author) =>
+              html`<li key=${author.key} data-author=${author.name} title=${author.task || ''}><span class="ou-board-mark" aria-hidden="true">${agentMark(author)}</span> ${author.name} <span class="ou-local-muted">${author.beat && author.state === 'running' ? `${author.beat.n}/${author.beat.of} ${author.beat.step}` : stateNote(author)}</span></li>`,
+          )}</ul>`
+        }
+      </li>`,
+  )}</ul></section>`;
+}
+
 /** The standing helpers' row, under the Listeners: each helper, the session you reach it through, and when it was last asked. */
 export function Helpers(props: { helpers: BoardHelper[]; now: number; api: Api }) {
   const { helpers, now, api } = props;
@@ -563,6 +592,8 @@ export type ColumnsView = {
   onToggleIdle: () => void;
   /** The Blank strip's sessions, by repo (narrowed to the repo filter's lane). */
   blank: BoardData['blank'];
+  /** The editors, narrowed to the repo filter's lane: the strip above the columns. */
+  editors: BoardData['editors'];
   /** Draws a card, with its key (the page picks the backlog region's view for a Backlog item). */
   renderCard: (card: BoardCard) => unknown;
   slots: Partial<Record<BoardColumn, ColumnSlots>>;
@@ -697,6 +728,7 @@ export function Columns(props: { view: ColumnsView }) {
         html`<button type="button" role="tab" key=${group.id} id=${`ou-board-tab-${group.id}`} aria-selected=${String(group.id === chosen)} aria-controls=${`ou-board-panel-${group.id}`} tabindex=${group.id === chosen ? 0 : -1} onClick=${() => choose(group.id)}>${group.label}</button>`,
     )}</div>`
   }
+    <${Editors} editors=${view.editors} now=${view.now} api=${api} />
     <div class=${tabbed ? 'ou-board-groups ou-board-groups-tabbed' : 'ou-board-groups'}>${GROUPS.map((group) => html`<${Group} key=${group.id} group=${group} view=${view} panel=${tabbed} hidden=${tabbed && group.id !== chosen} />`)}</div>
     ${!cards.length && blankCount === 0 && html`<p class="ou-local-muted">No Claude Code sessions are running, and no PRs are waiting.</p>`}
     ${

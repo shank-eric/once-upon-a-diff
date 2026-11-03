@@ -253,6 +253,14 @@ button.ou-local-pr, button.ou-local-push, button.ou-local-push-ahead { white-spa
 .ou-board-listening { margin-top: 2px; }
 @media (max-width: 800px) { .ou-board-listeners { margin: 14px 0 20px; } .ou-board-listener button, .ou-board-listener select { min-height: 44px; } }
 
+/* The editors strip (board.ts), above the columns: a row for each editor and the authors it controls */
+.ou-board-editors { margin: 0 0 14px; }
+.ou-board-editors ul { list-style: none; margin: 0; padding: 0; }
+.ou-board-editors > ul { display: flex; flex-direction: column; gap: 6px; }
+.ou-board-editor { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; padding: 6px 10px; border: 1px solid var(--borderColor-default); border-radius: 6px; background: var(--bgColor-muted); }
+.ou-board-editor-authors { display: flex; flex-wrap: wrap; gap: 2px 16px; flex-basis: 100%; font-size: 12px; }
+.ou-board-agent-editor { font-size: 12px; }
+
 /* The agent board page (board.ts): columns follow the work to merge, each listing its cards by lane */
 /* Column colours: iTerm's own for the local states, GitHub's for what lives on GitHub. Each is at least 3:1 against both the page and the card
    background (non-text contrast), light and dark. They colour only a column's header rule and a card's left edge. */
@@ -336,8 +344,6 @@ button.ou-local-pr, button.ou-local-push, button.ou-local-push-ahead { white-spa
 @media (max-width: 1299px) { .ou-board-meter-reset { display: none; } }
 .ou-local-top-main { min-width: 90px; }
 /* builder slots free, beside the voice buttons (board/header/header.ts): attention-coloured when none is free */
-.ou-board-builders { flex: none; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--fgColor-default); padding: 2px 8px; border: 1px solid var(--borderColor-default); border-radius: 999px; cursor: default; }
-.ou-board-builders-full { color: var(--fgColor-attention); border-color: var(--fgColor-attention); }
 .ou-board-meter.ou-board-usage-warn { color: var(--fgColor-attention); }
 .ou-board-meter.ou-board-usage-warn .ou-board-meter-bar span { background: var(--fgColor-attention); }
 .ou-board-meter.ou-board-usage-warn .ou-board-meter-num { color: var(--fgColor-attention); }

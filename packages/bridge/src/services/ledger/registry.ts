@@ -35,6 +35,8 @@ const SHA_PATTERN = /^[0-9a-f]{7,64}$/;
 const LANE_PATTERN = /^[\w.-]{1,100}$/;
 const STEP_PATTERN = /^[\w.-]{1,40}$/;
 const TEXT_MAX = 1000;
+/** An editor's slots when it registers with none: the editor skill's own default. */
+export const DEFAULT_SLOTS = 3;
 
 /** Text with control characters out, trimmed, or an error when too long. */
 function clean(value: unknown, what: string, max = TEXT_MAX): string {
@@ -97,6 +99,8 @@ export interface StartInput extends Target {
   card?: string | null;
   lane?: string | null;
   notes?: string | null;
+  /** an editor's build slots (1..99, default 3); only an editor has them */
+  slots?: number | string | null;
 }
 
 export interface StateInput extends Target {
@@ -157,7 +161,8 @@ export class AgentRegistry {
       (one) => `${one.sid}:${one.name}` === event.id,
     );
     try {
-      if (agent && this.mirror.ledger && event.op !== 'beat') {
+      // an editor is not an agent: a `[running]` line that never closes would read as a running agent in the ledger
+      if (agent && this.mirror.ledger && event.op !== 'beat' && agent.kind !== 'editor') {
         appendLine(this.mirror.ledger, ledgerLine(event, agent));
       }
       if (this.mirror.progress && event.op === 'beat') {
@@ -233,6 +238,10 @@ export class AgentRegistry {
     if (!task) {
       throw new Error('a task is needed (--task TEXT)');
     }
+    const slots = count(input.slots, 'the slots', 99);
+    if (slots !== null && (input.kind !== 'editor' || slots < 1)) {
+      throw new Error('--slots is for an editor (--kind editor), 1 to 99');
+    }
     const run = `r_${randomBytes(5).toString('hex')}`;
     const pr = count(input.pr, 'the PR number');
     const repo = optional(input.repo, 'the repo', REPO_RE);
@@ -254,6 +263,7 @@ export class AgentRegistry {
       card: optional(input.card, 'the card', CARD_PATTERN),
       lane: optional(input.lane, 'the lane', LANE_PATTERN),
       notes: clean(input.notes, 'the notes path', 500) || null,
+      ...(input.kind === 'editor' ? { slots: slots ?? DEFAULT_SLOTS } : {}),
     });
     return { id: `${sid}:${name}`, run };
   }

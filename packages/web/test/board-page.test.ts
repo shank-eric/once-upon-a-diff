@@ -6,6 +6,7 @@ import type {
   BoardAgent,
   BoardCard,
   BoardData,
+  BoardEditor,
   BoardVoice,
   BoardWorktree,
 } from '@once-upon-a-diff/protocol/types';
@@ -118,7 +119,7 @@ const board = (over: Partial<BoardData> = {}): BoardData => ({
   voice,
   phone: null,
   voice_start: null,
-  builders: null,
+  editors: [],
   voice_paused: false,
   listeners: [],
   helpers: [],
@@ -1079,32 +1080,145 @@ test('a pause left with voice off shows Resume next to Start, and Resume asks th
   await pollNow();
 });
 
-test('the header shows how many builder slots are free, with the running builders in its tooltip', async () => {
-  answer = () =>
-    board({
-      builders: {
-        cap: 3,
-        free: 1,
-        running: [
-          { name: 'build-a', task: 'card bl_1 do a thing', since: '2026-10-29T11:00:00Z' },
-          { name: 'build-b', task: null, since: null },
-        ],
-      },
-    });
+const EDITOR: BoardEditor = {
+  lane: 'widgets',
+  label: 'widgets',
+  title: 'alpha',
+  session: 'editor-session-1',
+  can_focus: true,
+  name: 'editor-widgets',
+  slots: 3,
+  in_use: 1,
+  since: '2026-10-29T10:00:00Z',
+  authors: [
+    {
+      key: 'abcdef01:ou-a',
+      name: 'ou-a',
+      state: 'running',
+      review: false,
+      task: 'build a',
+      beat: { n: 3, of: 6, step: 'code', note: '' },
+    },
+    {
+      key: 'abcdef01:ou-b',
+      name: 'ou-b',
+      state: 'plan',
+      review: false,
+      task: 'build b',
+      beat: null,
+    },
+  ],
+};
+
+test('no overall builder count in the header; the editors strip shows each editor with its slots in use and its authors', async () => {
+  answer = () => board({ editors: [EDITOR] });
   await pollNow();
-  const chip = $('[data-builders-free]');
-  assert.equal(chip?.textContent, '1 of 3 free');
-  assert.match(
-    chip?.getAttribute('title') ?? '',
-    /2 builders running of 3 slots\nbuild-a .*: card bl_1 do a thing\nbuild-b$/,
+  assert.equal($('[data-builders-free]'), null);
+  assert.equal($('.ou-local-top [data-editor]'), null, 'not in the top header');
+  const row = $('[data-editor="editor-widgets"]') as HTMLElement;
+  assert.ok(row, 'the strip is above the columns');
+  assert.deepEqual(
+    [...document.querySelectorAll('[data-editor], .ou-board-groups')].map((one) =>
+      one.hasAttribute('data-editor'),
+    ),
+    [true, false],
+    'the strip comes before the columns',
   );
-  assert.ok(!chip?.classList.contains('ou-board-builders-full'));
-  answer = () => board({ builders: { cap: 3, free: 0, running: [] } });
-  await pollNow();
-  assert.ok($('[data-builders-free]')?.classList.contains('ou-board-builders-full'));
+  assert.match(row.textContent ?? '', /widgets/);
+  assert.equal(
+    row.querySelector('[data-editor-slots]')?.textContent?.startsWith('1 of 3 slots · 2 authors'),
+    true,
+  );
+  const authors = [...row.querySelectorAll('[data-author]')].map((one) =>
+    one.textContent?.replace(/\s+/g, ' ').trim(),
+  );
+  assert.deepEqual(authors, ['● ou-a 3/6 code', '… ou-b plan ready']);
+  assert.ok(row.querySelector('.ou-board-from'), 'a focus link to the editor’s tab');
+  // the repo filter narrows it to its lane
+  await click($('[data-board-filter]'));
+  await click(document.querySelectorAll('.ou-menu-item')[2] as HTMLElement);
+  assert.equal($('[data-editor]'), null);
+  await click($('[data-board-filter]'));
+  await click(document.querySelectorAll('.ou-menu-item')[1] as HTMLElement);
+  assert.ok($('[data-editor]'));
+  await click($('[data-board-filter]'));
+  await click(document.querySelectorAll('.ou-menu-item')[0] as HTMLElement);
   answer = () => board();
   await pollNow();
-  assert.equal($('[data-builders-free]'), null, 'hidden with no voice session');
+  assert.equal(all('[data-editor]').length, 0, 'no editor, no strip');
+});
+
+test('an author’s row says which editor controls it', async () => {
+  const withEditor = (editor: BoardAgent['editor'], kind: BoardCard['kind'] = 'work') =>
+    board({
+      lanes: [
+        {
+          key: 'widgets',
+          name: 'widgets',
+          cards: [
+            card({
+              id: 'w-2',
+              kind,
+              title: 'Building',
+              agents: [
+                {
+                  key: 'abcdef01:ou-a',
+                  sid: 'abcdef01',
+                  name: 'ou-a',
+                  kind: 'builder',
+                  editor,
+                  state: 'running',
+                  review: false,
+                  status: 'working',
+                  task: 'build a',
+                  model: null,
+                  started_at: null,
+                  ended_at: null,
+                  outcome: null,
+                  stale: false,
+                  beat: null,
+                  gate: null,
+                  notes: null,
+                  clears_at: null,
+                },
+              ],
+            }),
+          ],
+        },
+      ],
+    });
+  answer = () =>
+    withEditor({
+      lane: 'widgets',
+      label: 'widgets',
+      title: 'alpha',
+      session: 'editor-session-1',
+      can_focus: true,
+    });
+  await pollNow();
+  assert.match(
+    $('[data-card="w-2"] .ou-board-agent-editor')?.textContent ?? '',
+    /by Editor · widgets/,
+  );
+  // an agent's own card already says "from Editor ...": its row does not say it again
+  answer = () =>
+    withEditor(
+      {
+        lane: 'widgets',
+        label: 'widgets',
+        title: 'alpha',
+        session: 'editor-session-1',
+        can_focus: true,
+      },
+      'agent',
+    );
+  await pollNow();
+  assert.equal($('[data-card="w-2"] .ou-board-agent-editor'), null);
+  answer = () => withEditor(null);
+  await pollNow();
+  assert.equal($('[data-card="w-2"] .ou-board-agent-editor'), null);
+  answer = () => board();
+  await pollNow();
 });
 
 test('clicks in the panel are the panel’s own: they ask the bridge for nothing', async () => {
@@ -1394,6 +1508,7 @@ test('a finished agent’s card shows its notes and when it leaves, and Finish a
           sid: 'abcdef01',
           name,
           kind: null,
+          editor: null,
           state,
           review: false,
           status: 'done',

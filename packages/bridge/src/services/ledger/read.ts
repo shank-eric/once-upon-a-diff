@@ -17,12 +17,12 @@ const PROGRESS_TAIL = 256 * 1024;
 /** The registry's file in a bridge home. */
 export const agentsFile = (home: string) => path.join(home, 'agents.jsonl');
 
-/** The agents and beats for the home and the files the settings name (a missing file or setting gives none). */
+/** The agents, the editors and the beats for the home and the files the settings name (a missing file or setting gives none). */
 export function readAgents(
   files: { home: string; ledger: string | null; progress: string | null },
   now: Date,
   zone?: string,
-): { agents: LedgerAgent[]; beats: Map<string, BoardBeat> } {
+): { agents: LedgerAgent[]; editors: LedgerAgent[]; beats: Map<string, BoardBeat> } {
   const registered = foldAgentEvents(parseAgentEvents(readAgentsFile(agentsFile(files.home))));
   const keys = new Set(registered.map((agent) => `${agent.sid}:${agent.name}`));
   const fromLedger = files.ledger
@@ -36,5 +36,10 @@ export function readAgents(
   for (const agent of registered) {
     beats.delete(agent.name);
   }
-  return { agents: [...registered, ...fromLedger], beats };
+  // an editor is a session running a repo's queue, not an agent: apart from the agents, so none of the stages sees it as one
+  return {
+    agents: [...registered, ...fromLedger].filter((agent) => agent.kind !== 'editor'),
+    editors: registered.filter((agent) => agent.kind === 'editor'),
+    beats,
+  };
 }

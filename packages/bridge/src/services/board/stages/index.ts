@@ -40,7 +40,8 @@ import type { ListeningInput } from '../../sessions/listening.ts';
 import type { SessionTitles } from '../../../adapters/claude-sessions/titles.ts';
 import type { WorktreeScanner } from '../../worktrees/worktrees.ts';
 import type { BoardData, BoardStatus } from '@once-upon-a-diff/protocol/types';
-import { builderSlots, claimViews, placeAgents } from './agents.ts';
+import { claimViews, placeAgents } from './agents.ts';
+import { editorsOf } from './editors.ts';
 import { claimerKeys, heldKeys } from '../../backlog/claims.ts';
 import { addBacklogCards, nestClaimedAgents, readBacklogLinks } from './backlog.ts';
 import { buildCards, placeCards } from './cards.ts';
@@ -125,10 +126,29 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   // the Backlog's items, and who claimed which: a claimed card shows its agent, so that agent has no card of its own
   const backlogItems = state.backlog.items();
   const held = heldKeys(backlogItems, agents);
-  const claimed = claimViews(backlogItems, agents, beats, nowMs);
+  // the editors, and which agent each controls: by the session an agent was launched from (editors.ts)
+  const editing = editorsOf({
+    editors: read.editors,
+    agents,
+    beats,
+    live,
+    canFocus: (session) => picked.source.name === 'iterm' && read.known.has(session),
+    claimers: claimerKeys(backlogItems, agents),
+    nowMs,
+  });
+  const claimed = claimViews(backlogItems, agents, beats, nowMs, editing.editorOf);
 
   // agents: nested in the card their registered repo, branch, PR or card point to, else a card of their own on their own lane
-  cards.push(...placeAgents(ctx, cards, { agents, beats, pin, held, items: backlogItems }));
+  cards.push(
+    ...placeAgents(ctx, cards, {
+      agents,
+      beats,
+      pin,
+      held,
+      items: backlogItems,
+      editorOf: editing.editorOf,
+    }),
+  );
 
   // a claimed agent goes on its card's branch's card now, so its state counts when the columns are decided
   nestClaimedAgents(backlogItems, cards, claimed);
@@ -197,6 +217,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   const repoLanes = [
     ...cards.map((card) => card.lane),
     ...blankViews.map((one) => one.lane),
+    ...editing.editors.map((editor) => editor.lane),
     ...(worktrees?.items ?? []).map((tree) => tree.lane),
   ];
   const tags = new Map(
@@ -216,10 +237,22 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   const labels = laneLabels([
     ...cards.map((card) => card.lane),
     ...blankViews.map((one) => one.lane),
+    ...editing.editors.map((editor) => editor.lane),
     ...(worktrees?.items ?? []).map((tree) => tree.lane),
   ]);
   for (const tree of worktrees?.items ?? []) {
     tree.lane_label = labels.get(tree.lane);
+  }
+  editing.relabel(labels);
+  // an agent card launched by an editor says so, as the voice session's say "Voice session"
+  for (const card of cards) {
+    const editor = card.kind === 'agent' ? card.agents[0]?.editor : null;
+    if (editor) {
+      card.parent = `Editor · ${editor.label}`;
+      // and "from" brings the editor's own registered session forward, not a tab matched by session-id prefix
+      card.focus_session = editor.session;
+      card.can_focus = editor.can_focus;
+    }
   }
   const lanes = groupLanes(cards, labels);
   const data: BoardData = {
@@ -229,14 +262,8 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     voice: voiceOf(pin, voiceFiles, agents, nowMs, settings.voiceDir as string),
     phone,
     voice_start: voiceStart,
-    builders: builderSlots(
-      agents,
-      pin,
-      settings.builderSlots,
-      nowMs,
-      claimerKeys(backlogItems, agents),
-    ),
     voice_paused: voicePaused,
+    editors: editing.editors,
     listeners: listenersLane(waits, listening),
     helpers: standingHelpers(standing, live, sessionViews, nowMs),
     blank: blankStrip(blankViews, labels),

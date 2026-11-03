@@ -16,7 +16,11 @@
 import { ledgerTime, type LedgerAgent } from './ledger.ts';
 import type { BoardBeat } from '@once-upon-a-diff/protocol/types';
 
-export const AGENT_KINDS = ['builder', 'reviewer', 'helper', 'research'] as const;
+/**
+ * What an agent is. `editor` is not an agent but a session that runs a repo's build queue (`/once-upon-editor`): it
+ * registers itself so the board can show it with the builders it controls (the ones launched under its session id).
+ */
+export const AGENT_KINDS = ['builder', 'reviewer', 'helper', 'research', 'editor'] as const;
 export type AgentKind = (typeof AGENT_KINDS)[number];
 
 /** A run with no event this long is taken to be dead: it holds no build slot, and an unnamed beat does not land on it. */
@@ -57,6 +61,8 @@ export interface AgentEvent {
   card?: string | null;
   lane?: string | null;
   notes?: string | null;
+  /** an editor's build slots */
+  slots?: number | null;
   state?: string;
   outcome?: string | null;
   findings?: number | null;
@@ -143,6 +149,7 @@ export function foldAgentEvents(events: AgentEvent[]): LedgerAgent[] {
         pr: event.pr ?? null,
         cwd: event.cwd ?? null,
         card: event.card ?? null,
+        slots: event.slots ?? null,
         result: null,
         findings: null,
         beat: null,

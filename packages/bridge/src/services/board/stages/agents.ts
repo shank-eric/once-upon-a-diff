@@ -12,7 +12,7 @@ import { laneOf } from './lanes.ts';
 import { readFinished } from '../../../adapters/stores/finished-agents.ts';
 import type {
   BoardAgent,
-  BoardBuilders,
+  BoardAgentEditor,
   BoardCard,
   BoardBeat,
   BoardColumn,
@@ -53,6 +53,7 @@ export function agentOf(
   beat: BoardBeat | undefined,
   now: number,
   clearsAt: Date | null = null,
+  editor: BoardAgentEditor | null = null,
 ): BoardAgent {
   // still open: running, or at a gate (when it began is the line's time, not the original start)
   const open = agent.state === 'running' || agent.state === 'plan' || agent.state === 'fixing';
@@ -64,6 +65,7 @@ export function agentOf(
     sid: agent.sid,
     name: agent.name,
     kind: agent.kind ?? null,
+    editor,
     state: agent.state,
     review: !!agent.review,
     status: AGENT_STATUS[agent.state],
@@ -99,51 +101,14 @@ export function claimViews(
   agents: LedgerAgent[],
   beats: Map<string, BoardBeat>,
   nowMs: number,
+  editorOf: (agent: LedgerAgent) => BoardAgentEditor | null = () => null,
 ): Map<string, BoardAgent> {
   return new Map(
     [...claimedAgents(items, agents)].map(([id, agent]) => [
       id,
-      agentOf(agent, beatOf(agent, beats), nowMs),
+      agentOf(agent, beatOf(agent, beats), nowMs, null, editorOf(agent)),
     ]),
   );
-}
-
-/**
- * The voice session's build slots: its running builders, which are the running agents that hold a claim on a card
- * (`claimers`, the keys claims.ts gives; one slot per agent, however many cards it holds). A stale one, running past
- * the stale mark, is likely dead and holds no slot. Null when there is no voice session.
- */
-export function builderSlots(
-  agents: LedgerAgent[],
-  pin: PinnedVoice | null,
-  cap: number,
-  nowMs: number,
-  claimers: Set<string>,
-): BoardBuilders | null {
-  if (!pin) {
-    return null;
-  }
-  const running = agents
-    .filter(
-      (agent) =>
-        agent.state === 'running' &&
-        pin.view.id.startsWith(agent.sid) &&
-        claimers.has(agentKey(agent)) &&
-        !(
-          (lastActivity(agent) ?? agent.started) &&
-          nowMs - (lastActivity(agent) ?? agent.started)!.getTime() > STALE_MS
-        ),
-    )
-    .sort((first, second) => (first.started?.getTime() ?? 0) - (second.started?.getTime() ?? 0));
-  return {
-    cap,
-    free: Math.max(0, cap - running.length),
-    running: running.map((agent) => ({
-      name: agent.name,
-      task: agent.task,
-      since: agent.started?.toISOString() ?? null,
-    })),
-  };
 }
 
 /**
@@ -168,6 +133,8 @@ export interface AgentFacts {
   held?: Set<string>;
   /** the backlog's items, which an agent's registered `card` points into */
   items?: BacklogItem[];
+  /** the editor that controls an agent, when one does (editors.ts) */
+  editorOf?: (agent: LedgerAgent) => BoardAgentEditor | null;
 }
 
 /**
@@ -182,7 +149,7 @@ export interface AgentFacts {
 export function placeAgents(
   ctx: BuildContext,
   cards: BoardCard[],
-  { agents, beats, pin, held = new Set(), items = [] }: AgentFacts,
+  { agents, beats, pin, held = new Set(), items = [], editorOf = () => null }: AgentFacts,
 ): BoardCard[] {
   const { nowMs } = ctx;
   const waitMs = ctx.settings.finishedWaitMinutes * 60 * 1000;
@@ -216,7 +183,7 @@ export function placeAgents(
       isFinished(agent) && active && active.getTime() + waitMs > nowMs
         ? new Date(active.getTime() + waitMs)
         : null;
-    const view = agentOf(agent, beatOf(agent, beats), nowMs, clearsAt);
+    const view = agentOf(agent, beatOf(agent, beats), nowMs, clearsAt, editorOf(agent));
     const parent = cardsBySid.get(agent.sid) || null;
     const voiceParent = pin && pin.view.id.startsWith(agent.sid) ? pin : null;
     const parentSession =

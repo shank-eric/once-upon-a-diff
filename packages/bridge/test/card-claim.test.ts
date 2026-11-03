@@ -7,7 +7,6 @@ import { Board, noPrWatcher } from '../src/services/board/board.ts';
 import { BacklogStore, backlogCards } from '../src/services/backlog/backlog.ts';
 import { CLAIM_GRACE_HOURS, claimedAgents } from '../src/services/backlog/claims.ts';
 import { startedLinks } from '../src/services/backlog/backlog-links.ts';
-import { builderSlots } from '../src/services/board/stages/agents.ts';
 import { parseLedger } from '../src/services/ledger/ledger.ts';
 import { registrySource } from '../src/services/sessions/sources.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
@@ -222,32 +221,6 @@ test('a claimed agent on a card whose branch has a work card rides on that card,
   assert.deepEqual(shown, []);
   assert.deepEqual(workCard.agents, [view]);
   assert.equal(workCard.from_backlog?.[0].id, item.id);
-});
-
-test('builder slots are the running agents that hold a claim, one slot per agent', () => {
-  const agents = parseLedger(
-    RUNNING('build-a', 'card bl_aaaaaa111 text only') +
-      RUNNING('build-b', 'two cards') +
-      RUNNING('build-c', 'one card') +
-      RUNNING('build-x', 'claims in another session', 'ffffffff') +
-      '- [done] sid:54736864 build-d — 2:56 PM ET, 10/26 — ok\n',
-    NOW,
-    'UTC',
-  );
-  const pin = { view: { id: '54736864-aaaa' } } as never;
-  const held = new Set([
-    '54736864:build-b',
-    '54736864:build-c',
-    'ffffffff:build-x',
-    '54736864:build-d',
-  ]);
-  const slots = builderSlots(agents, pin, 3, NOW.getTime(), held);
-  assert.deepEqual(
-    slots?.running.map((one) => one.name),
-    ['build-b', 'build-c'],
-  );
-  assert.equal(slots?.free, 1);
-  assert.equal(builderSlots(agents, null, 3, NOW.getTime(), held), null);
 });
 
 test('`backlog claim` writes the claim, and --branch also starts the card', async () => {

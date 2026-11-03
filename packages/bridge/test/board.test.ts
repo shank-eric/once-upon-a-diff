@@ -1016,13 +1016,11 @@ test('the board is off until configured: no ledger, no agents; and the settings 
   assert.equal(unset.progressFile, null);
   assert.equal(unset.statusSource, null);
   assert.equal(unset.doneHours, 4);
-  assert.equal(unset.builderSlots, 3);
   assert.match(unset.sessionsDir, /sessions$/);
   writeJson(path.join(home, 'config.json'), {
     board_status_source: 'registry',
     board_ledger_file: '~/notes/ledger.md',
     board_done_hours: 8,
-    board_builder_slots: 2,
     board_sessions_dir: '/x/sessions',
   });
   const set = readSettings(home).board;
@@ -1030,7 +1028,6 @@ test('the board is off until configured: no ledger, no agents; and the settings 
   assert.match(set.ledgerFile as string, /\/notes\/ledger\.md$/);
   assert.ok(!(set.ledgerFile as string).startsWith('~'));
   assert.equal(set.doneHours, 8);
-  assert.equal(set.builderSlots, 2);
   assert.equal(set.sessionsDir, '/x/sessions');
 });
 
@@ -3010,79 +3007,6 @@ test('the voice session is pinned above the columns, off every card, with its ag
   // voice on again and paused: the panel stays, as paused
   writeJson(path.join(voiceDir, 'session'), { on: true, session_id: fullId(voice.pid) });
   assert.equal((await make().snapshot()).voice?.status, 'paused');
-});
-
-test('the header’s builder slots count the voice session’s running agents that hold a claim against board_builder_slots', async () => {
-  const home = tmp('board-builders-home');
-  const sessions = tmp('board-builders-sessions');
-  const voiceDir = tmp('board-builders-voice');
-  const ledger = path.join(tmp('board-builders-notes'), 'ledger.md');
-  const [voice, other] = [liveChild(), liveChild()];
-  after(() => [voice, other].forEach((child) => child.stop()));
-  const sid = (child: { pid: number }) => String(child.pid).padStart(8, '0');
-  const checkout = checkoutOf('widgets', 'main');
-  registry(
-    sessions,
-    voice.pid,
-    { cwd: checkout, name: 'clarifi-f9', status: 'busy' },
-    voice.procStart,
-  );
-  registry(sessions, other.pid, { cwd: checkout, name: 'plain-one' }, other.procStart);
-  const mine = sid(voice);
-  writeFileSync(
-    ledger,
-    [
-      `- [running] sid:${mine} build-a (sonnet, high) — card bl_aaaaaa111 do a thing — started 2:50 PM ET, 10/26`,
-      `- [running] sid:${mine} build-b (sonnet, high) — second card — started 2:52 PM ET, 10/26`,
-      // not builders: text only (a card id and a worktrees path in its task, no claim), a reviewer, a research agent,
-      // a standing helper, a finished builder, another session's builder
-      `- [running] sid:${mine} build-text (sonnet, high) — card bl_aaaaaa111 in ~/x-worktrees/b — started 2:52 PM ET, 10/26`,
-      `- [running] sid:${mine} review-a (opus, high) — review card bl_aaaaaa111 — started 2:53 PM ET, 10/26`,
-      `- [running] sid:${mine} lookup-a (sonnet, low) — find out what the doc says — started 2:54 PM ET, 10/26`,
-      `- [running] sid:${mine} clerk (sonnet, low) — standing helper; last: card bl_aaaaaa111 — started 2:55 PM ET, 10/26`,
-      `- [done] sid:${mine} build-done — 2:56 PM ET, 10/26 — card bl_bbbbbb222 done, committed abc1234`,
-      `- [running] sid:${sid(other)} build-other (sonnet, high) — card bl_cccccc333 x — started 2:57 PM ET, 10/26`,
-    ].join('\n'),
-  );
-  writeJson(path.join(voiceDir, 'session'), { on: true, session_id: fullId(voice.pid) });
-  const settings = {
-    board_ledger_file: ledger,
-    board_sessions_dir: sessions,
-    board_ledger_time_zone: 'UTC',
-    board_voice_dir: voiceDir,
-  };
-  // the claims: the only thing that makes an agent a builder
-  const backlog = new BacklogStore(home);
-  for (const agent of ['build-a', 'build-b', 'build-done', 'build-other']) {
-    backlog.claim(backlog.add({ title: `Card for ${agent}` }).id, { agent });
-  }
-  const snapshot = async () => {
-    writeJson(path.join(home, 'config.json'), settings);
-    return (
-      await new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
-        source: sourceSaying({}),
-        now: () => NOW,
-      }).snapshot()
-    ).builders;
-  };
-  const builders = await snapshot();
-  assert.equal(builders?.cap, 3, 'three slots unless the setting says');
-  assert.equal(builders?.free, 1);
-  assert.deepEqual(
-    builders?.running.map((one) => one.name),
-    ['build-a', 'build-b'],
-  );
-  assert.equal(builders?.running[0].task, 'card bl_aaaaaa111 do a thing');
-  // one agent holding two cards is one slot
-  backlog.claim(backlog.add({ title: 'A second card for build-a' }).id, { agent: 'build-a' });
-  assert.equal((await snapshot())?.free, 1);
-  Object.assign(settings, { board_builder_slots: 5 });
-  assert.equal((await snapshot())?.free, 3);
-  Object.assign(settings, { board_builder_slots: 1 });
-  assert.equal((await snapshot())?.free, 0, 'never below none');
-  // no voice session: nothing to count
-  delete (settings as Record<string, unknown>).board_voice_dir;
-  assert.equal(await snapshot(), null);
 });
 
 /** The claim tests' world: PR 7 on acme/widgets feat/x (a story), a card started on that branch, and `ledger` lines. */

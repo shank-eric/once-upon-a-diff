@@ -80,6 +80,8 @@ export interface LedgerAgent {
   pr?: number | null;
   cwd?: string | null;
   card?: string | null;
+  /** an editor's build slots (kind `editor`) */
+  slots?: number | null;
   result?: AgentResult | null;
   findings?: number | null;
   /** this run's latest progress beat */

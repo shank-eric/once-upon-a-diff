@@ -663,6 +663,30 @@ async function record(
       `- [running] sid:${sid(other)} not-the-voice (sonnet, low) — a task — started 2:50 PM ET, 10/26`,
     ].join('\n'),
   );
+  // an editor (the `busy` session, not the voice session) with one registered builder it launched: the editors strip
+  // and the author's "by Editor"
+  const editing = new AgentRegistry(home);
+  const minutesAgo = (minutes: number) => new Date(NOW.getTime() - minutes * 60000);
+  editing.start({
+    name: 'editor-widgets',
+    sid: sid(busy),
+    session: fullId(busy.pid),
+    kind: 'editor',
+    slots: 3,
+    task: 'editor for widgets',
+    repo: 'acme/widgets',
+    cwd: widgets,
+    at: minutesAgo(120),
+  });
+  editing.start({
+    name: 'ou-writer',
+    sid: sid(busy),
+    kind: 'builder',
+    task: 'write the thing',
+    repo: 'acme/widgets',
+    at: minutesAgo(30),
+  });
+  editing.beat('ou-writer', { n: 3, of: 6, step: 'code', note: '', at: minutesAgo(5) });
   writeJson(path.join(voiceDir, 'session'), {
     on: true,
     session_id: fullId(voice.pid),
