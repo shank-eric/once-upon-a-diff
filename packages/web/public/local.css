@@ -287,6 +287,14 @@ button.ou-local-pr, button.ou-local-push, button.ou-local-push-ahead { white-spa
 .ou-board-group:last-child { padding-right: 0; border-left: 2px solid var(--borderColor-default); }
 .ou-board-group-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--fgColor-muted); margin: 0 0 6px; }
 .ou-board-cols { display: grid; grid-template-columns: repeat(var(--cols, 3), minmax(210px, 1fr)); gap: 12px; align-items: start; }
+/* Too narrow for the two groups side by side (columns.ts, useTabs): tabs, and the chosen group alone (the other stays drawn, hidden) */
+.ou-board-tabs { display: flex; gap: 4px; margin: 0 0 10px; border-bottom: 1px solid var(--borderColor-default); }
+.ou-board-tabs button { padding: 6px 14px; border: 0; border-bottom: 3px solid transparent; border-radius: 6px 6px 0 0; background: none; font: inherit; font-weight: 600; color: var(--fgColor-muted); cursor: pointer; }
+.ou-board-tabs button[aria-selected="true"] { color: var(--fgColor-default); border-bottom-color: var(--fgColor-accent, var(--fgColor-default)); }
+.ou-board-groups-tabbed .ou-board-group { padding: 0; border-left: 0; }
+.ou-board-group[hidden] { display: none; }
+.ou-board-groups-tabbed .ou-board-group-label { display: none; }
+@media (max-width: 800px) { .ou-board-tabs button { min-height: 44px; flex: 1 1 0; } }
 .ou-board-col { min-width: 0; }
 .ou-board-head { font-size: 13px; margin: 0 0 8px; padding-top: 4px; border-top: 3px solid var(--ou-board-color, var(--borderColor-default)); }
 .ou-board-lane { margin-bottom: 10px; min-width: 0; }

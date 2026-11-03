@@ -164,6 +164,38 @@ const refused = new Map<string, { status: number; error: string }>();
 /** A POST path held until `release` is called, to see a button while its call is out. */
 const held = new Map<string, Promise<void>>();
 let poll = () => {};
+/**
+ * The room the columns area has, as the tabs measure it (linkedom has no layout): wide by default. A resize tells the
+ * page's observers. The default board needs 1560px for its 7 columns.
+ */
+const WIDE = 2000;
+const NARROW = 1200;
+let room = WIDE;
+const observers = new Set<() => void>();
+const resizeTo = async (width: number) => {
+  room = width;
+  observers.forEach((measure) => measure());
+  await tick();
+  await tick();
+};
+Object.defineProperty(window.HTMLElement.prototype, 'clientWidth', {
+  get: () => room,
+  configurable: true,
+});
+Object.assign(globalThis, {
+  ResizeObserver: class {
+    measure: () => void;
+    constructor(measure: () => void) {
+      this.measure = measure;
+    }
+    observe() {
+      observers.add(this.measure);
+    }
+    disconnect() {
+      observers.delete(this.measure);
+    }
+  },
+});
 Object.assign(globalThis, {
   location: { hash: '' },
   alert: (text: string) => void alerts.push(text),
@@ -643,6 +675,85 @@ test('the Idle lane’s Hide and Show fold its row, and the choice is remembered
   await click($('[data-idle-toggle]'));
   assert.ok($('.ou-board-c-idle .ou-board-idle-row'));
   assert.equal(saved.get('ou-board-idle-open'), 'true');
+});
+
+test('too narrow for This Mac and GitHub side by side: two tabs, one group shown, the choice remembered, the other kept', async () => {
+  const shown = () =>
+    all('.ou-board-group')
+      .filter((one) => !one.hasAttribute('hidden'))
+      .map((one) => one.getAttribute('aria-labelledby'));
+  assert.equal($('[role="tablist"]'), null, 'wide: no tabs');
+  assert.equal(all('.ou-board-group').length, 2, 'wide: both groups side by side');
+  assert.deepEqual(shown(), [null, null]);
+
+  try {
+    await resizeTo(NARROW);
+    const tabs = all('[role="tab"]');
+    assert.deepEqual(
+      tabs.map((one) => one.textContent),
+      ['On this Mac', 'On GitHub'],
+    );
+    assert.deepEqual(
+      tabs.map((one) => one.getAttribute('aria-selected')),
+      ['true', 'false'],
+      'This Mac is the first choice',
+    );
+    assert.deepEqual(shown(), ['ou-board-tab-local']);
+    assert.equal(all('.ou-board-group').length, 2, 'the other group stays drawn, hidden');
+    for (const tab of tabs) {
+      const panel = document.getElementById(tab.getAttribute('aria-controls') as string);
+      assert.equal(panel?.getAttribute('aria-labelledby'), tab.id, 'each tab names a real panel');
+      assert.equal(panel?.getAttribute('tabindex'), '0');
+    }
+
+    // text typed into the Add panel (in the This Mac group) survives a visit to the GitHub tab
+    await click($('[data-backlog-add-open]'));
+    const title = $('[data-backlog-title]') as HTMLInputElement;
+    title.value = 'half typed';
+    await click(tabs[1]);
+    assert.deepEqual(shown(), ['ou-board-tab-github']);
+    assert.equal(saved.get('ou-board-tab'), 'github');
+    assert.deepEqual(
+      all('[role="tab"]').map((one) => one.getAttribute('tabindex')),
+      ['-1', '0'],
+      'one tab stop, on the chosen tab',
+    );
+    await click(all('[role="tab"]')[0]);
+    assert.ok($('[data-backlog-title]') === title, 'the same input');
+    assert.equal(title.value, 'half typed');
+    await click($('[data-backlog-cancel]'));
+
+    // the arrow keys move between the tabs, and the focus goes with them
+    fire($('[role="tablist"]') as HTMLElement, 'keydown', { key: 'ArrowRight' });
+    await tick();
+    assert.deepEqual(shown(), ['ou-board-tab-github']);
+    assert.ok(document.activeElement === $('#ou-board-tab-github'), 'the focus follows');
+    fire($('[role="tablist"]') as HTMLElement, 'keydown', { key: 'ArrowLeft' });
+    await tick();
+    assert.deepEqual(shown(), ['ou-board-tab-local']);
+    assert.equal(saved.get('ou-board-tab'), 'local');
+    fire($('[role="tablist"]') as HTMLElement, 'keydown', { key: 'End' });
+    await tick();
+    assert.deepEqual(shown(), ['ou-board-tab-github']);
+
+    await pollNow();
+    assert.deepEqual(shown(), ['ou-board-tab-github'], 'a poll keeps the tab');
+    await resizeTo(WIDE);
+    assert.equal($('[role="tablist"]'), null, 'wide again: no tabs');
+    assert.deepEqual(shown(), [null, null], 'wide again: both groups');
+
+    // the room the columns need grows with the optional ones: Agent checks, Ready to ship and Error are 222px each
+    await resizeTo(1700);
+    assert.equal($('[role="tablist"]'), null, '1700px holds the seven columns');
+    answer = () => withCards(card({ id: 'ck-1', column: 'checks' }));
+    await pollNow();
+    assert.ok($('[role="tablist"]'), '1700px does not hold eight');
+  } finally {
+    await resizeTo(WIDE);
+    answer = () => board();
+    await pollNow();
+    saved.delete('ou-board-tab');
+  }
 });
 
 test('the Worktrees lane folds, and Clean up asks first, then asks the bridge', async () => {
@@ -1322,4 +1433,25 @@ test('the remembered settings are read back when the page loads', async () => {
     'the widgets Backlog heading is folded',
   );
   assert.equal(order().length, 0);
+});
+
+test('a page that loads already narrow starts with the tabs, and the saved tab', async () => {
+  saved.set('ou-board-tab', 'github');
+  render(null, root);
+  try {
+    room = NARROW;
+    const again = '../public/board.ts?narrow';
+    await import(again);
+    await idle();
+    assert.ok($('[role="tablist"]'), 'the tabs are there from the first draw');
+    assert.deepEqual(
+      all('.ou-board-group')
+        .filter((one) => !one.hasAttribute('hidden'))
+        .map((one) => one.getAttribute('aria-labelledby')),
+      ['ou-board-tab-github'],
+    );
+  } finally {
+    room = WIDE;
+    saved.delete('ou-board-tab');
+  }
 });

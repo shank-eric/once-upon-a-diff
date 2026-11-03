@@ -4,7 +4,7 @@
  * column's cards, its + Add button and its drag and drop belong to the backlog region, which the board root hands in as
  * `renderCard` and `slots`, since a region imports no other region.
  */
-import { html } from '/assets/preact.mjs';
+import { html, useLayoutEffect, useRef, useState } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { openMenu } from '/assets/local/menu.ts';
 import type {
@@ -30,6 +30,7 @@ import {
   since,
   titleOf,
   useFocus,
+  useSetting,
   type Api,
 } from '/assets/board/shared.ts';
 import { answerBits } from '/assets/util/story-answers.ts';
@@ -600,11 +601,56 @@ function Column(props: { column: (typeof COLUMNS)[number]; view: ColumnsView }) 
   </section>`;
 }
 
-/** One of the two groups of columns, headed by where its work is. */
-function Group(props: { group: (typeof GROUPS)[number]; view: ColumnsView }) {
-  const { group, view } = props;
+/** What a column needs (local.css: 210px and a 12px gap), and what a group adds around its columns (padding, and the border between them). */
+const COLUMN_MIN = 210;
+const COLUMN_GAP = 12;
+const GROUPS_CHROME = 30;
+
+/**
+ * Whether the groups of columns, as many as are showing, are too wide for the room they have, so they become two tabs.
+ * The room is the columns area's own width, so the open voice drawer and the optional columns count; it follows a resize.
+ */
+function useTabs(columns: number): [boolean, { current: HTMLElement | null }] {
+  const area = useRef<HTMLElement | null>(null);
+  const [room, setRoom] = useState(0);
+  useLayoutEffect(() => {
+    const element = area.current;
+    if (!element) {
+      return undefined;
+    }
+    const measure = () => setRoom(element.clientWidth);
+    measure();
+    if (typeof ResizeObserver !== 'function') {
+      return undefined;
+    }
+    const watch = new ResizeObserver(measure);
+    watch.observe(element);
+    return () => watch.disconnect();
+  }, []);
+  const needs = columns * (COLUMN_MIN + COLUMN_GAP) - 2 * COLUMN_GAP + GROUPS_CHROME;
+  // no width yet (not laid out) is not a reason for tabs
+  return [room > 0 && room < needs, area];
+}
+
+/** One of the two groups of columns, headed by where its work is (and, as a tab's panel, labelled by its tab). */
+function Group(props: {
+  group: (typeof GROUPS)[number];
+  view: ColumnsView;
+  panel?: boolean;
+  hidden?: boolean;
+}) {
+  const { group, view, panel, hidden } = props;
   const columns = view.layout.columns.filter((column) => column.group === group.id);
-  return html`<div class="ou-board-group" style=${`--cols:${columns.length}`}>
+  const aria = panel
+    ? {
+        role: 'tabpanel',
+        tabindex: 0,
+        hidden,
+        id: `ou-board-panel-${group.id}`,
+        'aria-labelledby': `ou-board-tab-${group.id}`,
+      }
+    : {};
+  return html`<div class="ou-board-group" style=${`--cols:${columns.length}`} ...${aria}>
     <h2 class="ou-board-group-label">${group.label}</h2>
     <div class="ou-board-cols">${columns.map((column) => html`<${Column} key=${column.id} column=${column} view=${view} />`)}</div>
   </div>`;
@@ -623,7 +669,35 @@ export function Columns(props: { view: ColumnsView }) {
     cold.length > 0
       ? html`<button type="button" data-idle-toggle aria-expanded=${String(idleOpen)} onClick=${view.onToggleIdle}>${idleOpen ? 'Hide' : 'Show'}</button>`
       : null;
-  return html`<div class="ou-board-groups">${GROUPS.map((group) => html`<${Group} key=${group.id} group=${group} view=${view} />`)}</div>
+  // too narrow for the groups side by side: a tab for each, the chosen one remembered, and the other group hidden (still drawn, so a half-typed Add stays)
+  const [tabbed, area] = useTabs(layout.columns.length);
+  const [chosen, choose] = useSetting(
+    'ou-board-tab',
+    'local',
+    (text) => (text === 'github' ? 'github' : 'local'),
+    String,
+  );
+  const onKey = (event: KeyboardEvent) => {
+    const index = GROUPS.findIndex((group) => group.id === chosen);
+    const target = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: GROUPS.length - 1 }[
+      event.key
+    ];
+    if (target === undefined) {
+      return;
+    }
+    event.preventDefault();
+    const next = GROUPS[(target + GROUPS.length) % GROUPS.length];
+    choose(next.id);
+    (document.getElementById(`ou-board-tab-${next.id}`) as HTMLElement | null)?.focus();
+  };
+  return html`<div ref=${area}>${
+    tabbed &&
+    html`<div class="ou-board-tabs" role="tablist" aria-label="Board" onKeyDown=${onKey}>${GROUPS.map(
+      (group) =>
+        html`<button type="button" role="tab" key=${group.id} id=${`ou-board-tab-${group.id}`} aria-selected=${String(group.id === chosen)} aria-controls=${`ou-board-panel-${group.id}`} tabindex=${group.id === chosen ? 0 : -1} onClick=${() => choose(group.id)}>${group.label}</button>`,
+    )}</div>`
+  }
+    <div class=${tabbed ? 'ou-board-groups ou-board-groups-tabbed' : 'ou-board-groups'}>${GROUPS.map((group) => html`<${Group} key=${group.id} group=${group} view=${view} panel=${tabbed} hidden=${tabbed && group.id !== chosen} />`)}</div>
     ${!cards.length && blankCount === 0 && html`<p class="ou-local-muted">No Claude Code sessions are running, and no PRs are waiting.</p>`}
     ${
       done.length > 0 &&
@@ -639,5 +713,5 @@ export function Columns(props: { view: ColumnsView }) {
       ${idleOpen && cold.length > 0 && html`<${IdleRow} items=${cold} view=${view} />`}
       ${blankCount > 0 && html`<${Blank} blank=${view.blank} count=${blankCount} api=${api} />`}
     </section>`
-    }`;
+    }</div>`;
 }
