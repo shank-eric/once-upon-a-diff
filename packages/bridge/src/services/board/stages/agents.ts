@@ -1,12 +1,14 @@
 /**
- * The ledger's background agents on the board: which are shown, and where each goes. An agent is nested in its
- * parent's card only when tightly tied to it (agent-home.ts), else it is a card of its own, on its own lane.
+ * The background agents on the board: which are shown, and where each goes. An agent is nested in the card its
+ * registered repo, branch, PR or card point to (agent-home.ts), else it is a card of its own, on its own lane.
  */
-import { gatedHome, laneForAgent, madeSomething, tiedToParent } from '../agent-home.ts';
+import { resolveLane } from '@once-upon-a-diff/protocol/domain/lane-key';
+import { homeOf, madeSomething } from '../agent-home.ts';
 import { agentKey, claimedAgents } from '../../backlog/claims.ts';
 import type { BacklogItem } from '../../backlog/backlog.ts';
 import { STALE_MS, beatOf } from '../../ledger/events.ts';
 import { gateOf, lastActivity, type LedgerAgent } from '../../ledger/ledger.ts';
+import { laneOf } from './lanes.ts';
 import { readFinished } from '../../../adapters/stores/finished-agents.ts';
 import type {
   BoardAgent,
@@ -58,6 +60,7 @@ export function agentOf(
   const ledgerBegan = agent.state === 'running' ? agent.started : agent.ended || agent.started;
   const began = agent.source === 'events' ? lastActivity(agent) : ledgerBegan;
   return {
+    key: agentKey(agent),
     name: agent.name,
     kind: agent.kind ?? null,
     state: agent.state,
@@ -142,6 +145,18 @@ export function builderSlots(
   };
 }
 
+/**
+ * The lane key for an agent with its own card: its explicit lane tag (resolved to the one known "owner/name" it is the short
+ * name of), else the lane of its registered repo, else its launching session's lane (by sid), else "No live session".
+ * Nothing is read from its task.
+ */
+function laneOfAgent(agent: LedgerAgent, knownLanes: string[], parentLane: string | null): string {
+  if (agent.lane) {
+    return resolveLane(agent.lane, knownLanes);
+  }
+  return (agent.repo ? laneOf(agent.cwd ?? '', agent.repo) : null) || parentLane || NO_PARENT;
+}
+
 /** What the agents are placed against. */
 export interface AgentFacts {
   agents: LedgerAgent[];
@@ -150,12 +165,13 @@ export interface AgentFacts {
   pin: PinnedVoice | null;
   /** the agents (agentKey) that are a claimed card: they have no card of their own, the claimed card shows them */
   held?: Set<string>;
+  /** the backlog's items, which an agent's registered `card` points into */
+  items?: BacklogItem[];
 }
 
 /**
  * Places the agents the board shows (running, at a gate, waiting, or finished within the last few hours), except the held
- * ones: an agent that claimed a backlog card is shown on that card (claims.ts), never here. An agent tied
- * to its parent's card, or to the branch or PR its task names (text: bl_mw12ymyrceec6c replaces it), is added to that card's `agents` (which changes the card
+ * ones: an agent that claimed a backlog card is shown on that card (claims.ts), never here. An agent with a home (agent-home.ts: the card its registered repo and branch, PR or card point to) is added to that card's `agents` (which changes the card
  * given). The rest get a card of their own, on their own lane while they run, wait or sit at a gate: these are returned,
  * to go after the others. A finished agent (done, failed or stopped) gets a card of its own for
  * `finishedWaitMinutes` after its last ledger line, with its outcome, its notes path
@@ -165,7 +181,7 @@ export interface AgentFacts {
 export function placeAgents(
   ctx: BuildContext,
   cards: BoardCard[],
-  { agents, beats, pin, held = new Set() }: AgentFacts,
+  { agents, beats, pin, held = new Set(), items = [] }: AgentFacts,
 ): BoardCard[] {
   const { nowMs } = ctx;
   const waitMs = ctx.settings.finishedWaitMinutes * 60 * 1000;
@@ -188,7 +204,7 @@ export function placeAgents(
         (agent.ended?.getTime() ?? 0) >=
           nowMs - Math.max(ctx.settings.doneHours * 3600 * 1000, waitMs)),
   );
-  // the lanes already on the board, which an agent's task text can name
+  // the lanes already on the board, which a lane tag (`lane:<name>`, usually a short name) can stand for
   const knownLanes = [
     ...new Set([...cards.map((card) => card.lane), ...agents.flatMap((agent) => agent.lane || [])]),
   ].filter((lane) => lane !== NO_PARENT);
@@ -204,16 +220,8 @@ export function placeAgents(
     const voiceParent = pin && pin.view.id.startsWith(agent.sid) ? pin : null;
     const parentSession =
       parent?.sessions.find((one) => one.id.startsWith(agent.sid)) ?? voiceParent?.view;
-    if (parent && tiedToParent(agent, parent)) {
-      parent.agents.push(view);
-      continue;
-    }
-    // an agent at a gate, or parked on your story review, belongs in the card of the branch or PR its task names,
-    // wherever its launching session is
-    const home =
-      view.gate || view.review
-        ? gatedHome(agent, cards, parent?.lane ?? voiceParent?.lane ?? null)
-        : null;
+    // an agent belongs in the card its registered repo, branch, PR or card point to, wherever its launching session is
+    const home = homeOf(agent, cards, items);
     if (home) {
       home.agents.push(view);
       continue;
@@ -241,7 +249,7 @@ export function placeAgents(
       title: agent.name,
       repo: null,
       branch: null,
-      lane: laneForAgent(agent, knownLanes, parent?.lane ?? voiceParent?.lane ?? null, NO_PARENT),
+      lane: laneOfAgent(agent, knownLanes, parent?.lane ?? voiceParent?.lane ?? null),
       column: view.gate ? 'checks' : column,
       detail:
         agent.state === 'waiting' ||

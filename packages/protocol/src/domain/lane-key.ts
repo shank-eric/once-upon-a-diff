@@ -55,7 +55,3 @@ export function resolveLane(tag: string, knownKeys: Iterable<string>): string {
   const named = known.filter((key) => sameLaneKey(shortLane(key), tag));
   return named.length === 1 ? named[0] : tag;
 }
-
-/** Whether a lane tag names a lane key: the whole key, or its short name. */
-export const tagNamesLane = (tag: string, key: string): boolean =>
-  sameLaneKey(tag, key) || sameLaneKey(tag, shortLane(key));

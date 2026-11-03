@@ -26,10 +26,10 @@
  * The board shows your own work: sessions on this Mac, and PRs you authored (isShown). Columns follow the work to
  * merge (columns.ts). A lane is keyed by the repo's owner/name (else the folder's name) and labeled by the short name unless two lanes share it: the page puts a lane's label right above its
  * cards inside each column. Sessions share a card only on the same live branch (a PR still open, or a story); any other
- * session is a card of its own, titled by the session. A ledger agent is a card of its own, on its own lane (its
- * `lane:<name>` tag, else the repo its task names, else its parent's), with a "from <parent session>" link, only while
- * it is running or waiting; a finished one has no card. It is nested inside its parent's card only when tightly tied to
- * it, on the same branch or PR (agent-home.ts).
+ * session is a card of its own, titled by the session. An agent is a card of its own, on its own lane (its `lane:<name>`
+ * tag, else its registered repo's, else its parent's), with a "from <parent session>" link, only while it is running or
+ * waiting; a finished one has no card. It is nested inside the card its registered repo and branch, PR or card point to,
+ * if there is one (agent-home.ts), and never by what its task says.
  */
 import { unreadAnswers } from '../../inbox/conversation.ts';
 import { Inbox } from '../../inbox/inbox.ts';
@@ -127,8 +127,8 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   const held = heldKeys(backlogItems, agents);
   const claimed = claimViews(backlogItems, agents, beats, nowMs);
 
-  // agents: a card of their own, on their own lane, unless tightly tied to their parent's card (tiedToParent)
-  cards.push(...placeAgents(ctx, cards, { agents, beats, pin, held }));
+  // agents: nested in the card their registered repo, branch, PR or card point to, else a card of their own on their own lane
+  cards.push(...placeAgents(ctx, cards, { agents, beats, pin, held, items: backlogItems }));
 
   // a claimed agent goes on its card's branch's card now, so its state counts when the columns are decided
   nestClaimedAgents(backlogItems, cards, claimed);

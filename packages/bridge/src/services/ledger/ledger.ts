@@ -16,7 +16,7 @@
  * the board puts it in the waiting column with the question, until a later [done] or [stopped] line clears it.
  * [review] is an agent that has finished and is parked on your story review (`— story <id> up, <what changed>`): it
  * reads as state 'waiting' with `review` set, so every open list still holds it, but the board shows it as ready for
- * review instead of as a question, in the card whose branch it names or a Ready card of its own. A later line clears it.
+ * review instead of as a question, in the card its registered branch or PR names (a ledger line registers none) or a Ready card of its own. A later line clears it.
  *
  * Two more statuses mean the launching session, not you, is the next actor, and put the card in Agent checks:
  *

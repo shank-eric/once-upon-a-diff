@@ -1316,6 +1316,7 @@ test('a finished agent’s card shows its notes and when it leaves, and Finish a
       parent: 'main-session',
       agents: [
         {
+          key: `abcdef01:${name}`,
           name,
           kind: null,
           state,

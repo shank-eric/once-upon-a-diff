@@ -1,127 +1,56 @@
 /**
- * Where a ledger agent goes on the board. By default it is a card of its own, on its own lane: its `lane:<name>` tag,
- * else the repo it worked in when its task text says (a worktree path, or a lane name), else its parent's lane. It is
- * nested inside its parent's card only when it is tightly tied to it, which is what `tiedToParent` decides, the one
- * place for that rule. An agent that claimed a backlog card is none of this: it is shown on that card (claims.ts).
- * The text placement here is for agents with no claim; bl_mw12ymyrceec6c audits it and replaces it with explicit links.
+ * Where a registered agent goes on the board, decided only by the fields it registered (`once-upon agent start`:
+ * repo, branch, PR, card, and the branch and PR its finish event reports), never by its task, name or outcome. An
+ * agent with a home is nested inside that card; every other agent, including one read from the old ledger text, which
+ * has none of those fields, is a card of its own (stages/agents.ts). An agent that claimed a backlog card is neither:
+ * it is shown on that card (claims.ts).
  */
-import { resolveLane, shortLane, tagNamesLane } from '@once-upon-a-diff/protocol/domain/lane-key';
 import type { BoardCard } from '@once-upon-a-diff/protocol/types';
+import { sameRepo } from '../config/repos.ts';
+import type { BacklogItem } from '../backlog/backlog.ts';
+import { cardOnBranch } from '../backlog/backlog.ts';
 import { isReviewer, type LedgerAgent } from '../ledger/ledger.ts';
 
-/** Lowercase letters and digits only, so "Once Upon a Diff" and "once-upon-a-diff" compare equal. */
-const squash = (text: string) => text.toLowerCase().replace(/[^a-z0-9]/g, '');
-
 /**
- * Whether the text names the branch as a whole token: bounded by the start or end, whitespace, or punctuation other
- * than `/`, `-`, `_` and `.`, so a branch `ui` is not found inside "build" or "ui-kit", and `feat/x` not in `feat/x-2`.
- * A `.` ends a token only as the end of a sentence (followed by whitespace or the end).
+ * The card an agent works on, or null: the one card that its registered fields point to. Three ways to point, each exact
+ * (no text, no loose compare), and the agent has a home only when they all name the same card:
+ *
+ *   branch   its repo and branch (the finish event's branch when it has one): the branch's work card, else a session on it
+ *   PR       its repo and PR number (the finish event's PR when it has one): that work card
+ *   card     its backlog card (`--card`): the work or session card on that item's repo and branch, if the item has a branch.
+ *            This needs no repo of the agent's own: the item supplies it
+ *
+ * Two different cards named, or none, is no home.
  */
-export function namesBranch(text: string, branch: string): boolean {
-  const escaped = branch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return new RegExp(`(?<![\\w/.-])${escaped}(?![\\w/-]|\\.\\w)`, 'i').test(text);
-}
-
-/** Whether the agent's task names the card's branch (as a whole token, see `namesBranch`), or its PR by number (#7, PR 7 or /pull/7). Text matching, kept for unclaimed agents: bl_mw12ymyrceec6c. */
-function namesCard(agent: LedgerAgent, card: BoardCard): boolean {
-  const task = `${agent.name} ${agent.task || ''}`;
-  if (card.branch && namesBranch(task, card.branch)) {
-    return true;
-  }
-  const number = card.pr?.number;
-  return !!number && new RegExp(`(?:#|\\bPR |/pull/)${number}\\b`, 'i').test(task);
-}
-
-/**
- * Whether the agent is working on the same branch or PR as its parent's card, so it belongs inside it: the card is a
- * branch or PR (not a session alone), the agent has no lane tag that names another lane, and its task says the card's
- * branch (as a whole token, see `namesBranch`) or PR number. An agent that says neither is not tied, so it gets its own card.
- * (Text matching, kept for unclaimed agents until bl_mw12ymyrceec6c replaces it.)
- */
-export function tiedToParent(agent: LedgerAgent, card: BoardCard): boolean {
-  if (card.kind !== 'work') {
-    return false;
-  }
-  if (agent.lane && !tagNamesLane(agent.lane, card.lane)) {
-    return false;
-  }
-  return namesCard(agent, card);
-}
-
-/** Whether a lane tag and a lane key are the same lane, loosely: "once-upon" is the lane "owner/once-upon-a-diff". */
-function sameLane(tag: string, lane: string): boolean {
-  const first = squash(tag);
-  const second = squash(shortLane(lane));
-  return !!first && !!second && (first.startsWith(second) || second.startsWith(first));
-}
-
-/**
- * The branch or PR card a gated agent (a plan to check, a reviewer, findings being fixed) belongs in, wherever its
- * launching session is: the work card whose branch or PR its task names, in a lane its tag matches loosely. Only one
- * match counts. When several cards fit (the same branch name in two repos), the one on the parent's lane wins, else none.
- * (Text matching, kept for unclaimed agents: reviewers and gates have no card to claim. bl_mw12ymyrceec6c replaces it.)
- */
-export function gatedHome(
-  agent: LedgerAgent,
+export function homeOf(
+  agent: Pick<LedgerAgent, 'repo' | 'branch' | 'pr' | 'card' | 'result'>,
   cards: BoardCard[],
-  parentLane: string | null,
+  items: Pick<BacklogItem, 'id' | 'repo' | 'branch'>[],
 ): BoardCard | null {
-  const fits = cards.filter(
-    (card) =>
-      card.kind === 'work' &&
-      (!agent.lane || sameLane(agent.lane, card.lane)) &&
-      namesCard(agent, card),
-  );
-  if (fits.length <= 1) {
-    return fits[0] ?? null;
+  const repo = agent.repo ?? null;
+  const branch = agent.result?.branch ?? agent.branch ?? null;
+  const pr = agent.result?.pr ?? agent.pr ?? null;
+  const found = new Set<BoardCard>();
+  const add = (card: BoardCard | undefined) => {
+    if (card) {
+      found.add(card);
+    }
+  };
+  if (repo && branch) {
+    add(cardOnBranch({ repo, branch }, cards));
   }
-  const near = fits.filter(
-    (card) => parentLane && card.lane.toLowerCase() === parentLane.toLowerCase(),
-  );
-  return near.length === 1 ? near[0] : null;
-}
-
-/**
- * The lane key for an agent with its own card: its tag, else the known lane (a repo or tag already on the board) its task
- * text names (a `<repo>-worktrees/` path, or the lane's short name, which "Once Upon a Diff" matches for once-upon-a-diff),
- * else its parent's lane, else "No live session". A short tag or name stands for the one known "owner/name" it is the
- * short name of; with two such repos (or none known) it stays as written, an unresolved lane of its own.
- * (Text matching, kept for unclaimed agents: bl_mw12ymyrceec6c.)
- */
-export function laneForAgent(
-  agent: LedgerAgent,
-  knownLanes: string[],
-  parentLane: string | null,
-  fallback: string,
-): string {
-  const lane = (tag: string) => resolveLane(tag, knownLanes);
-  if (agent.lane) {
-    return lane(agent.lane);
+  if (repo && pr) {
+    add(
+      cards.find(
+        (card) => card.kind === 'work' && sameRepo(card.repo, repo) && card.pr?.number === pr,
+      ),
+    );
   }
-  const task = agent.task || '';
-  const worktree = /([\w.-]+)-worktrees\//.exec(task)?.[1];
-  const byWorktree =
-    squash(worktree || '') &&
-    knownLanes.find((known) => squash(shortLane(known)) === squash(worktree || ''));
-  if (byWorktree) {
-    return lane(byWorktree);
+  const item = agent.card ? items.find((one) => one.id === agent.card) : undefined;
+  if (item?.branch) {
+    add(cardOnBranch(item, cards));
   }
-  const text = squash(task);
-  const named = [...knownLanes]
-    .sort((first, second) => shortLane(second).length - shortLane(first).length)
-    .find((known) => {
-      const short = shortLane(known);
-      const flat = squash(short);
-      // a name with no letters or digits (a cwd of /, a lane tag of --) is nothing to look for: it would match every task
-      if (!flat) {
-        return false;
-      }
-      // a short name (SDK) has to stand as a word of its own, a longer one can be written with other spacing
-      return flat.length >= 5
-        ? text.includes(flat)
-        : new RegExp(`\\b${short.replace(/\W/g, '')}\\b`, 'i').test(task);
-    });
-  return lane(named || parentLane || fallback);
+  return found.size === 1 ? [...found][0] : null;
 }
 
 const SHA = String.raw`(?<![\w:/.-])(?=[0-9a-f]*\d)[0-9a-f]{7,40}(?![\w-])`;
@@ -145,7 +74,7 @@ const SHA_RES = [
 ];
 /**
  * Something it did: committed (or left uncommitted), pushed, deployed, built, published, staged or went live (`live`,
- * or `live on <branch>`, not "12 built" or "live bridge"), tests green, a branch named with a `-` or `/`, a worktrees path.
+ * or `live on <branch>`, not "12 built" or "live bridge"), tests green, or a branch named with a `-` or `/`.
  */
 const DID_RE = new RegExp(
   [
@@ -156,7 +85,6 @@ const DID_RE = new RegExp(
     String.raw`\b(?:tests?|checks?)\s+(?:all\s+)?(?:green|pass\w*)\b`,
     String.raw`\ball\s+green\b`,
     String.raw`\bbranch(?:es)?\s+\x60?${BRANCHY}`,
-    String.raw`-worktrees/`,
   ].join('|'),
   'i',
 );
@@ -186,8 +114,8 @@ const clausesOf = (outcome: string): string[] =>
  * Whether a finished agent made something you can point at, and so is Done, not Waiting. Research is the one thing that
  * waits: it left a finding to read and nothing else. Made something is any of: a reviewer (its findings are in the story
  * and the review file, so off the board once it is finished); a result that names a sha it produced, or says it
- * committed, pushed, deployed, built, published, staged or went live, or names a branch, a worktrees path or a card it
- * added; or, for an agent that finished (done), a task that names a worktrees folder. A stopped agent has to show its output in its result. Clauses that say they did nothing do not count, and a commit or PR only quoted in a finding does not either.
+ * committed, pushed, deployed, built, published, staged or went live, or names a branch or a card it
+ * added. Clauses that say they did nothing do not count, and a commit or PR only quoted in a finding does not either.
  */
 export function madeSomething(
   agent: Pick<LedgerAgent, 'name' | 'task' | 'outcome'> &
@@ -204,10 +132,6 @@ export function madeSomething(
     if (agent.kind === 'research') {
       return false;
     }
-  }
-  const task = agent.task ?? '';
-  if (agent.state !== 'stopped' && /-worktrees\//.test(task)) {
-    return true;
   }
   const outcome = agent.outcome ?? '';
   return (

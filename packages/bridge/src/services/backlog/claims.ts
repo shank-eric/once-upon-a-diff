@@ -18,6 +18,10 @@ export const OPEN: LedgerAgent['state'][] = ['running', 'waiting', 'plan', 'fixi
 export const agentKey = (agent: Pick<LedgerAgent, 'sid' | 'name'>): string =>
   `${agent.sid}:${agent.name}`;
 
+/** Whether two agent views are the same agent (a card lists each agent once). A view with no key is nobody's twin. */
+export const sameAgentView = (first: { key?: string }, second: { key?: string }): boolean =>
+  !!first.key && first.key === second.key;
+
 /** The newest ledger line of the agents with this name: an open one before a finished one, then the latest. */
 export function newest(agents: LedgerAgent[]): LedgerAgent | null {
   const stamp = (agent: LedgerAgent) => (agent.ended ?? agent.started)?.getTime() ?? 0;

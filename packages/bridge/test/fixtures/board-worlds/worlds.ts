@@ -5,6 +5,7 @@
  * GitHub watcher. Importing this file builds them. `snapshots` maps a world name to its normalized JSON text and
  * `finish()` stops the child processes and removes the temp dir.
  */
+import { AgentRegistry } from '../../../src/services/ledger/registry.ts';
 import { spawn, execFileSync } from 'node:child_process';
 import {
   mkdirSync,
@@ -472,31 +473,81 @@ async function record(
     { 'approved.json': { at: '2026-10-26T15:00:00Z' } },
   );
   localStory(home, 'local-merged-branch', widgetsZ, 'feat/mb');
+  // agents registered on a branch or PR: nested in its card. The ledger lines below are agents nobody registered
+  const registered = new AgentRegistry(home);
+  const et = (hour: number, minute: number) => new Date(Date.UTC(2026, 9, 26, hour + 4, minute));
+  const widgets = { repo: 'acme/widgets', model: 'sonnet', effort: 'low' };
+  registered.start({
+    ...widgets,
+    sid: sid(onStory),
+    name: 'nested-one',
+    kind: 'builder',
+    task: 'nested task',
+    branch: 'feat/x',
+    at: et(14, 50),
+  });
+  registered.beat('nested-one', { n: 3, of: 6, step: 'code', note: 'writing', at: et(14, 52) });
+  registered.start({
+    ...widgets,
+    sid: sid(onStory),
+    name: 'pr-agent',
+    kind: 'builder',
+    task: 'review fixes',
+    pr: 7,
+    at: et(14, 51),
+  });
+  registered.start({
+    ...widgets,
+    sid: sid(onBranch),
+    name: 'gated-plan',
+    kind: 'builder',
+    task: 'plan for feat/y',
+    branch: 'feat/y',
+    at: et(14, 46),
+  });
+  registered.state('gated-plan', {
+    state: 'plan',
+    outcome: 'plan up',
+    notes: 'notes/p.md',
+    at: et(14, 46),
+  });
+  registered.start({
+    ...widgets,
+    sid: sid(onStory),
+    name: 'parked-review',
+    kind: 'builder',
+    task: 'story for PR #8',
+    pr: 8,
+    at: et(14, 47),
+  });
+  registered.state('parked-review', { state: 'review', outcome: 'story up', at: et(14, 47) });
+  registered.start({
+    ...widgets,
+    sid: sid(onStory),
+    name: 'fixer',
+    kind: 'builder',
+    task: 'fixing PR #18',
+    pr: 18,
+    at: et(14, 49),
+  });
+  registered.state('fixer', { state: 'fixing', outcome: 'fixing', at: et(14, 49) });
   writeFileSync(
     ledger,
     [
-      `- [running] sid:${sid(onStory)} nested-one (sonnet, low) — nested task on feat/x — started 2:50 PM ET, 10/26`,
       `- [done] sid:${sid(onStory)} nested-done — 2:40 PM ET, 10/26 — it finished`,
       `- [done] sid:${sid(onStory)} nested-old — 7:40 AM ET, 10/26 — hours ago`,
       `- [running] sid:${sid(onStory)} lane:cross-cutting tagged-one (sonnet, high) — tagged task — started 2:55 PM ET, 10/26`,
-      `- [running] sid:${sid(onStory)} pr-agent (sonnet, low) — review fixes for PR #7 — started 2:51 PM ET, 10/26`,
       `- [running] sid:${sid(onStory)} wt-agent (sonnet, low) — refactor in widgets-worktrees/refactor — started 2:52 PM ET, 10/26`,
       `- [running] sid:${sid(onStory)} crosscut-note (sonnet, low) — notes for the Cross Cutting plan — started 2:53 PM ET, 10/26`,
       `- [waiting] sid:${sid(onMain)} needs-answer — 2:45 PM ET, 10/26 — needs Eric: pick A or B — notes/x.md`,
-      `- [plan] sid:${sid(onBranch)} gated-plan (sonnet, high) — plan for feat/y — 2:46 PM ET, 10/26 — plan up — notes/p.md`,
-      `- [review] sid:${sid(onStory)} parked-review (sonnet, low) — story for PR #8 — 2:47 PM ET, 10/26 — story up`,
       `- [review] sid:${sid(loose)} parked-two (sonnet, low) — story elsewhere — 2:48 PM ET, 10/26 — story up`,
-      `- [fixing] sid:${sid(onStory)} fixer (sonnet, low) — fixing PR #18 — 2:49 PM ET, 10/26 — fixing`,
       '- [running] sid:deadbeef orphan (sonnet, high) — no parent — started 2:57 PM ET, 10/26',
       '- [failed] sid:deadbeef broke — 2:58 PM ET, 10/26 — exploded',
       '- [stopped] sid:deadbeef stopped-one — 2:59 PM ET, 10/26 — asked to stop',
       '- [waiting] sid:deadbeef ancient — 9:00 AM ET, 10/22 — needs Eric: long ago — notes/y.md',
     ].join('\n'),
   );
-  writeFileSync(
-    progress,
-    '- 2:52 PM nested-one 3/6 code: writing\n- 2:56 PM tagged-one 1/6 read: reading\n',
-  );
+  writeFileSync(progress, '- 2:56 PM tagged-one 1/6 read: reading\n');
   writeJson(path.join(home, 'config.json'), {
     board_ledger_file: ledger,
     board_progress_file: progress,

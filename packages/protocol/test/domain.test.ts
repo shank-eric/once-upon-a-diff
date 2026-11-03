@@ -1,7 +1,7 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { prKey, rangeOfPath } from '../src/domain/pr-key.ts';
-import { laneLabels, resolveLane, sameLaneKey, tagNamesLane } from '../src/domain/lane-key.ts';
+import { laneLabels, resolveLane, sameLaneKey } from '../src/domain/lane-key.ts';
 import { escapeHtml, unescapeHtml, html, raw, Html } from '../src/domain/html.ts';
 import { shortSha, baseName, plural, capitalize, gateText } from '../src/domain/text.ts';
 import { clockTime, compactAge, minutesSince, shortDateTime } from '../src/domain/time.ts';
@@ -118,8 +118,6 @@ test('lane keys: a short label unless two lanes share it, and a tag resolves onl
   assert.equal(resolveLane('widgets', ['acme/widgets', 'a/foo', 'b/foo']), 'acme/widgets');
   assert.equal(resolveLane('foo', ['a/foo', 'b/foo']), 'foo');
   assert.equal(resolveLane('nothing', ['a/foo']), 'nothing');
-  assert.equal(tagNamesLane('Foo', 'a/foo'), true);
-  assert.equal(tagNamesLane('b/foo', 'a/foo'), false);
 });
 
 test('lane keys ignore case, and a key with no short name is labeled by itself', () => {

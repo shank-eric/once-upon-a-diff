@@ -708,6 +708,8 @@ export interface BoardBeat {
 
 /** A background agent (a subagent) from the ledger file, inside its parent session's card or on a card of its own. */
 export interface BoardAgent {
+  /** the agent's key on the board, `sid:name`: two sessions' agents of one name are two agents */
+  key: string;
   name: string;
   /** what the agent says it is, when it registered through `once-upon agent start` (null for one read from the ledger) */
   kind: 'builder' | 'reviewer' | 'helper' | 'research' | null;

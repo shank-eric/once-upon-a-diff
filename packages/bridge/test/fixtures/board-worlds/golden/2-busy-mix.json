@@ -116,6 +116,7 @@
                 "clears_at": null,
                 "ended_at": null,
                 "gate": null,
+                "key": "<PID:0>:tagged-one",
                 "kind": null,
                 "model": "sonnet, high",
                 "name": "tagged-one",
@@ -147,45 +148,6 @@
             "since": "2026-10-26T18:55:00.000Z",
             "story": null,
             "title": "tagged-one"
-          },
-          {
-            "agents": [
-              {
-                "beat": null,
-                "clears_at": null,
-                "ended_at": null,
-                "gate": null,
-                "kind": null,
-                "model": "sonnet, low",
-                "name": "crosscut-note",
-                "notes": null,
-                "outcome": null,
-                "review": false,
-                "stale": false,
-                "started_at": "2026-10-26T18:53:00.000Z",
-                "state": "running",
-                "status": "working",
-                "task": "notes for the Cross Cutting plan"
-              }
-            ],
-            "branch": null,
-            "build": null,
-            "building": null,
-            "can_focus": false,
-            "column": "working",
-            "detail": "notes for the Cross Cutting plan",
-            "focus_session": "<PID:0>-aaaa-bbbb-cccc-dddddddddddd",
-            "id": "agent:<PID:0>:crosscut-note",
-            "kind": "agent",
-            "lane": "cross-cutting",
-            "listening": null,
-            "parent": "story-one",
-            "pr": null,
-            "repo": null,
-            "sessions": [],
-            "since": "2026-10-26T18:53:00.000Z",
-            "story": null,
-            "title": "crosscut-note"
           }
         ],
         "key": "cross-cutting",
@@ -266,6 +228,7 @@
                 "clears_at": null,
                 "ended_at": "2026-10-26T18:45:00.000Z",
                 "gate": null,
+                "key": "<PID:3>:needs-answer",
                 "kind": null,
                 "model": null,
                 "name": "needs-answer",
@@ -311,6 +274,7 @@
                 "clears_at": null,
                 "ended_at": null,
                 "gate": null,
+                "key": "deadbeef:orphan",
                 "kind": null,
                 "model": "sonnet, high",
                 "name": "orphan",
@@ -350,6 +314,7 @@
                 "clears_at": "2026-10-26T19:28:00.000Z",
                 "ended_at": "2026-10-26T18:58:00.000Z",
                 "gate": null,
+                "key": "deadbeef:broke",
                 "kind": null,
                 "model": null,
                 "name": "broke",
@@ -389,6 +354,7 @@
                 "clears_at": "2026-10-26T19:29:00.000Z",
                 "ended_at": "2026-10-26T18:59:00.000Z",
                 "gate": null,
+                "key": "deadbeef:stopped-one",
                 "kind": null,
                 "model": null,
                 "name": "stopped-one",
@@ -504,6 +470,7 @@
                 "clears_at": null,
                 "ended_at": "2026-10-26T18:48:00.000Z",
                 "gate": null,
+                "key": "<PID:4>:parked-two",
                 "kind": null,
                 "model": null,
                 "name": "parked-two",
@@ -624,7 +591,8 @@
                 "clears_at": null,
                 "ended_at": null,
                 "gate": null,
-                "kind": null,
+                "key": "<PID:0>:nested-one",
+                "kind": "builder",
                 "model": "sonnet, low",
                 "name": "nested-one",
                 "notes": null,
@@ -634,14 +602,15 @@
                 "started_at": "2026-10-26T18:50:00.000Z",
                 "state": "running",
                 "status": "working",
-                "task": "nested task on feat/x"
+                "task": "nested task"
               },
               {
                 "beat": null,
                 "clears_at": null,
                 "ended_at": null,
                 "gate": null,
-                "kind": null,
+                "key": "<PID:0>:pr-agent",
+                "kind": "builder",
                 "model": "sonnet, low",
                 "name": "pr-agent",
                 "notes": null,
@@ -651,7 +620,7 @@
                 "started_at": "2026-10-26T18:51:00.000Z",
                 "state": "running",
                 "status": "working",
-                "task": "review fixes for PR #7"
+                "task": "review fixes"
               }
             ],
             "ahead": null,
@@ -734,7 +703,26 @@
             "title": "Seven on GitHub"
           },
           {
-            "agents": [],
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "ended_at": "2026-10-26T18:47:00.000Z",
+                "gate": null,
+                "key": "<PID:0>:parked-review",
+                "kind": "builder",
+                "model": "sonnet, low",
+                "name": "parked-review",
+                "notes": null,
+                "outcome": "story up",
+                "review": true,
+                "stale": false,
+                "started_at": "2026-10-26T18:47:00.000Z",
+                "state": "waiting",
+                "status": "waiting",
+                "task": "story for PR #8"
+              }
+            ],
             "ahead": null,
             "branch": "feat/z",
             "build": null,
@@ -1034,7 +1022,29 @@
             "title": "PR 17"
           },
           {
-            "agents": [],
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "ended_at": "2026-10-26T18:49:00.000Z",
+                "gate": {
+                  "findings": null,
+                  "kind": "fixing"
+                },
+                "key": "<PID:0>:fixer",
+                "kind": "builder",
+                "model": "sonnet, low",
+                "name": "fixer",
+                "notes": null,
+                "outcome": "fixing",
+                "review": false,
+                "stale": false,
+                "started_at": "2026-10-26T18:49:00.000Z",
+                "state": "fixing",
+                "status": "working",
+                "task": "fixing PR #18"
+              }
+            ],
             "ahead": null,
             "branch": "feat/eighteen",
             "build": null,
@@ -1044,8 +1054,8 @@
               "since": "2026-10-26T19:00:00.000Z"
             },
             "can_focus": false,
-            "column": "working",
-            "detail": "fixing the code",
+            "column": "checks",
+            "detail": "fixing",
             "focus_session": null,
             "id": "pr:acme/widgets#18",
             "kind": "work",
@@ -1074,7 +1084,7 @@
             },
             "repo": "acme/widgets",
             "sessions": [],
-            "since": "2026-10-26T19:00:00.000Z",
+            "since": "2026-10-26T18:49:00.000Z",
             "story": {
               "approved_at": null,
               "id": "acme-widgets-18",
@@ -1308,7 +1318,29 @@
             "title": "Story of local-approved"
           },
           {
-            "agents": [],
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "ended_at": "2026-10-26T18:46:00.000Z",
+                "gate": {
+                  "findings": null,
+                  "kind": "plan"
+                },
+                "key": "<PID:2>:gated-plan",
+                "kind": "builder",
+                "model": "sonnet, low",
+                "name": "gated-plan",
+                "notes": "notes/p.md",
+                "outcome": "plan up",
+                "review": false,
+                "stale": false,
+                "started_at": "2026-10-26T18:46:00.000Z",
+                "state": "plan",
+                "status": "working",
+                "task": "plan for feat/y"
+              }
+            ],
             "ahead": null,
             "branch": "feat/y",
             "build": null,
@@ -1378,6 +1410,7 @@
                 "clears_at": "2026-10-26T19:10:00.000Z",
                 "ended_at": "2026-10-26T18:40:00.000Z",
                 "gate": null,
+                "key": "<PID:0>:nested-done",
                 "kind": null,
                 "model": null,
                 "name": "nested-done",
@@ -1417,6 +1450,7 @@
                 "clears_at": null,
                 "ended_at": null,
                 "gate": null,
+                "key": "<PID:0>:wt-agent",
                 "kind": null,
                 "model": "sonnet, low",
                 "name": "wt-agent",
@@ -1454,113 +1488,30 @@
               {
                 "beat": null,
                 "clears_at": null,
-                "ended_at": "2026-10-26T18:46:00.000Z",
-                "gate": {
-                  "findings": null,
-                  "kind": "plan"
-                },
-                "kind": null,
-                "model": null,
-                "name": "gated-plan",
-                "notes": "notes/p.md",
-                "outcome": "plan up",
-                "review": false,
-                "stale": false,
-                "started_at": null,
-                "state": "plan",
-                "status": "working",
-                "task": null
-              }
-            ],
-            "branch": null,
-            "build": null,
-            "building": null,
-            "can_focus": true,
-            "column": "checks",
-            "detail": "plan up",
-            "focus_session": "<PID:2>-aaaa-bbbb-cccc-dddddddddddd",
-            "id": "agent:<PID:2>:gated-plan",
-            "kind": "agent",
-            "lane": "acme/widgets",
-            "listening": null,
-            "parent": "Tab title",
-            "pr": null,
-            "repo": null,
-            "sessions": [],
-            "since": "2026-10-26T18:46:00.000Z",
-            "story": null,
-            "title": "gated-plan"
-          },
-          {
-            "agents": [
-              {
-                "beat": null,
-                "clears_at": null,
-                "ended_at": "2026-10-26T18:47:00.000Z",
+                "ended_at": null,
                 "gate": null,
+                "key": "<PID:0>:crosscut-note",
                 "kind": null,
-                "model": null,
-                "name": "parked-review",
+                "model": "sonnet, low",
+                "name": "crosscut-note",
                 "notes": null,
-                "outcome": "story up",
-                "review": true,
-                "stale": false,
-                "started_at": null,
-                "state": "waiting",
-                "status": "waiting",
-                "task": null
-              }
-            ],
-            "branch": null,
-            "build": null,
-            "building": null,
-            "can_focus": false,
-            "column": "ready",
-            "detail": "story up",
-            "focus_session": "<PID:0>-aaaa-bbbb-cccc-dddddddddddd",
-            "id": "agent:<PID:0>:parked-review",
-            "kind": "agent",
-            "lane": "acme/widgets",
-            "listening": null,
-            "parent": "story-one",
-            "pr": null,
-            "repo": null,
-            "sessions": [],
-            "since": "2026-10-26T18:47:00.000Z",
-            "story": null,
-            "title": "parked-review"
-          },
-          {
-            "agents": [
-              {
-                "beat": null,
-                "clears_at": null,
-                "ended_at": "2026-10-26T18:49:00.000Z",
-                "gate": {
-                  "findings": null,
-                  "kind": "fixing"
-                },
-                "kind": null,
-                "model": null,
-                "name": "fixer",
-                "notes": null,
-                "outcome": "fixing",
+                "outcome": null,
                 "review": false,
                 "stale": false,
-                "started_at": null,
-                "state": "fixing",
+                "started_at": "2026-10-26T18:53:00.000Z",
+                "state": "running",
                 "status": "working",
-                "task": null
+                "task": "notes for the Cross Cutting plan"
               }
             ],
             "branch": null,
             "build": null,
             "building": null,
             "can_focus": false,
-            "column": "checks",
-            "detail": "fixing",
+            "column": "working",
+            "detail": "notes for the Cross Cutting plan",
             "focus_session": "<PID:0>-aaaa-bbbb-cccc-dddddddddddd",
-            "id": "agent:<PID:0>:fixer",
+            "id": "agent:<PID:0>:crosscut-note",
             "kind": "agent",
             "lane": "acme/widgets",
             "listening": null,
@@ -1568,9 +1519,9 @@
             "pr": null,
             "repo": null,
             "sessions": [],
-            "since": "2026-10-26T18:49:00.000Z",
+            "since": "2026-10-26T18:53:00.000Z",
             "story": null,
-            "title": "fixer"
+            "title": "crosscut-note"
           }
         ],
         "key": "acme/widgets",

@@ -27,7 +27,7 @@
 import { BACKLOG_ID_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { appendBacklogEvent, readBacklogFile } from '../../adapters/stores/backlog-file.ts';
 import path from 'node:path';
-import { liveClaim } from './claims.ts';
+import { liveClaim, sameAgentView } from './claims.ts';
 import { REPO_RE, sameRepo } from '../config/repos.ts';
 import { newId } from '../inbox/inbox.ts';
 import type { BoardAgent, BoardCard, BoardStartedLinks } from '@once-upon-a-diff/protocol/types';
@@ -645,7 +645,7 @@ export function backlogCards(
       const work = cardOnBranch(item, cards);
       if (work) {
         work.from_backlog = [...(work.from_backlog ?? []), { id: item.id, title: item.title }];
-        if (view && !work.agents.some((one) => one.name === view.name)) {
+        if (view && !work.agents.some((one) => sameAgentView(one, view))) {
           work.agents.push(view);
         }
         if (work.kind === 'work' && !work.pr && !work.story) {

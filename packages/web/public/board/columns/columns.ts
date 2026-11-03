@@ -414,7 +414,7 @@ export function Card(props: { card: BoardCard; now: number; api: Api }) {
     ${chips.length > 0 && html`<div class="ou-board-chips">${chips.map((chip) => html`<span class="ou-board-chip">${CHIP_MARK[chip.tone]}${chip.text}</span>`)}</div>`}
     ${card.kind === 'session' && card.sessions[0] && html`<div class="ou-local-muted">${card.sessions[0].status}${card.sessions[0].branch ? ` on ${card.sessions[0].branch}` : ''}</div>`}
     ${card.kind === 'work' && card.sessions.length > 0 && html`<ul class="ou-board-sessions">${card.sessions.map((session) => html`<${Session} key=${session.id} session=${session} now=${now} />`)}</ul>`}
-    ${card.agents.length > 0 && html`<ul class="ou-board-agents">${card.agents.map((agent) => html`<${Agent} key=${agent.name} agent=${agent} now=${now} />`)}</ul>`}
+    ${card.agents.length > 0 && html`<ul class="ou-board-agents">${card.agents.map((agent) => html`<${Agent} key=${agent.key} agent=${agent} now=${now} />`)}</ul>`}
     <${CardTrees} card=${card} now=${now} api=${api} />
     <div class="ou-board-actions">
       ${card.build && html`<${Build} card=${card} api=${api} />`}

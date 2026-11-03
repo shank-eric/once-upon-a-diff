@@ -241,7 +241,7 @@ test('a finished agent that made something is in Done, one that only researched 
   );
 });
 
-test('what counts as something made: a sha it produced, a build, a deploy, a branch, a worktrees path, a card added, a reviewer', () => {
+test('what counts as something made: a sha it produced, a build, a deploy, a branch, a card added, a reviewer', () => {
   const made = (
     task: string | null,
     outcome: string | null,
@@ -271,8 +271,8 @@ test('what counts as something made: a sha it produced, a build, a deploy, a bra
   assert.equal(made(null, 'on branch feat/x'), true);
   assert.equal(
     made(null, 'record in ClariFi-worktrees/feature/12.md'),
-    true,
-    'a worktrees path in the result',
+    false,
+    'a worktrees path is only text',
   );
   // cards
   assert.equal(made(null, 'filed bl_mvzro4kube937c'), true, 'a card it added');
@@ -282,7 +282,11 @@ test('what counts as something made: a sha it produced, a build, a deploy, a bra
     false,
     'a card id in the task is only text',
   );
-  assert.equal(made('refactor in widgets-worktrees/refactor', 'ok'), true, 'a worktree it names');
+  assert.equal(
+    made('refactor in widgets-worktrees/refactor', 'ok'),
+    false,
+    'a worktree its task names is only text',
+  );
   assert.equal(made('look at it', 'ok', 'review-thing'), true, 'a reviewer');
   assert.equal(made('look at it', 'asked to stop', 'review-thing', 'stopped'), true);
   // a stopped agent has to show output

@@ -299,7 +299,11 @@ test('a claimed started item is one Working card with its agent on it; with a wo
   const item = store.add({ title: 'Hold a spoken line', repo: 'acme/larmor' });
   store.start(item.id, { branch: 'voice/hold', by: 'hold-speech' });
   store.claim(item.id, { agent: 'hold-speech' });
-  const view = { name: 'hold-speech', state: 'running' } as BoardCard['agents'][number];
+  const view = {
+    key: 'aaaaaaaa:hold-speech',
+    name: 'hold-speech',
+    state: 'running',
+  } as BoardCard['agents'][number];
   const links = new Map([[item.id, linked({ agent: agentLink('running') })]]);
   const views = new Map([[item.id, view]]);
   // no card for the agent: the backlog card is the one card, in Working, with the agent in it
@@ -324,7 +328,13 @@ test('a claimed started item is one Working card with its agent on it; with a wo
     kind: 'agent',
     title: 'hold-speech',
     branch: null,
-    agents: [{ name: 'hold-speech', state: 'running' } as BoardCard['agents'][number]],
+    agents: [
+      {
+        key: 'aaaaaaaa:hold-speech',
+        name: 'hold-speech',
+        state: 'running',
+      } as BoardCard['agents'][number],
+    ],
   });
   assert.equal(backlogCards(store.items(), [stray], NOW, [], links).length, 1);
 });

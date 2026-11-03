@@ -72,6 +72,7 @@
                 "clears_at": null,
                 "ended_at": null,
                 "gate": null,
+                "key": "54736864:ou-kill-inbox",
                 "kind": null,
                 "model": "sonnet, high",
                 "name": "ou-kill-inbox",

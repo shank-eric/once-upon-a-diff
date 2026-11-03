@@ -63,8 +63,7 @@ import { listenPrompt, type Listener } from '../src/services/listeners/listeners
 import type { LiveSession } from '../src/adapters/claude-sessions/registry.ts';
 import { noteListener, readHistory } from '../src/services/listeners/history.ts';
 import { repoStopReason, requestStop, stopRequested } from '../src/services/listeners/auto-stop.ts';
-import { gatedHome, laneForAgent, tiedToParent } from '../src/services/board/agent-home.ts';
-import type { LedgerAgent } from '../src/services/ledger/ledger.ts';
+import { AgentRegistry } from '../src/services/ledger/registry.ts';
 import {
   gateOf,
   parseLedger,
@@ -710,14 +709,37 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
     'merged.json': { at: hoursAgo(71), why: 'merged', merged_at: hoursAgo(72) },
   });
 
+  // two agents registered on PR 7's branch and PR: nested in its card, whatever their tasks say
+  const registered = new AgentRegistry(home);
+  registered.start({
+    sid: sid(onStory),
+    name: 'nested-one',
+    kind: 'builder',
+    task: 'nested task',
+    model: 'sonnet',
+    effort: 'low',
+    repo: 'acme/widgets',
+    branch: 'feat/x',
+    at: etAt(14, 50),
+  });
+  registered.beat('nested-one', { n: 3, of: 6, step: 'code', note: 'writing', at: etAt(14, 52) });
+  registered.start({
+    sid: sid(onStory),
+    name: 'pr-agent',
+    kind: 'builder',
+    task: 'review fixes',
+    model: 'sonnet',
+    effort: 'low',
+    repo: 'acme/widgets',
+    pr: 7,
+    at: etAt(14, 51),
+  });
   writeFileSync(
     ledger,
     [
-      `- [running] sid:${sid(onStory)} nested-one (sonnet, low) — nested task on feat/x — started 2:50 PM ET, 10/26`,
       `- [done] sid:${sid(onStory)} nested-done — 2:40 PM ET, 10/26 — it finished`,
       `- [done] sid:${sid(onStory)} nested-old — 7:40 AM ET, 10/26 — hours ago`,
       `- [running] sid:${sid(onStory)} lane:cross-cutting tagged-one (sonnet, high) — tagged task — started 2:55 PM ET, 10/26`,
-      `- [running] sid:${sid(onStory)} pr-agent (sonnet, low) — review fixes for PR #7 — started 2:51 PM ET, 10/26`,
       `- [running] sid:${sid(onStory)} wt-agent (sonnet, low) — refactor in widgets-worktrees/refactor — started 2:52 PM ET, 10/26`,
       `- [running] sid:${sid(onStory)} crosscut-note (sonnet, low) — notes for the Cross Cutting plan — started 2:53 PM ET, 10/26`,
       `- [waiting] sid:${sid(onMain)} needs-answer — 2:45 PM ET, 10/26 — needs Eric: pick A or B — notes/x.md`,
@@ -726,10 +748,7 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
       '- [stopped] sid:deadbeef stopped-one — 2:59 PM ET, 10/26 — asked to stop',
     ].join('\n'),
   );
-  writeFileSync(
-    progress,
-    '- 2:52 PM nested-one 3/6 code: writing\n- 2:56 PM tagged-one 1/6 read: reading\n',
-  );
+  writeFileSync(progress, '- 2:56 PM tagged-one 1/6 read: reading\n');
   writeJson(path.join(home, 'config.json'), {
     board_ledger_file: ledger,
     board_progress_file: progress,
@@ -856,9 +875,9 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
   assert.equal(card(fullId(staleTwo.pid)).title, 'Tab title');
   assert.equal(card(fullId(staleOne.pid)).branch, 'old/merged');
   assert.equal(cards.filter((found) => found.branch === 'old/merged').length, 2);
-  // a subagent's lane: its tag, else the repo its task names (a worktree path, or a lane's name), else its parent's
+  // a ledger agent's lane: its tag, else its parent's (its task text is not read)
   assert.equal(card(`agent:${sid(onStory)}:wt-agent`).lane, 'acme/widgets');
-  assert.equal(card(`agent:${sid(onStory)}:crosscut-note`).lane, 'cross-cutting');
+  assert.equal(card(`agent:${sid(onStory)}:crosscut-note`).lane, 'acme/widgets');
   assert.equal(card(`agent:${sid(onMain)}:needs-answer`).lane, 'acme/gadgets');
   assert.equal(card('agent:deadbeef:orphan').lane, 'No live session');
   assert.equal(card(`agent:${sid(onStory)}:wt-agent`).parent, 'story-one');
@@ -885,7 +904,7 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
       ['nested-one', 'working'],
       ['pr-agent', 'working'],
     ],
-    'only agents that say they work on the same branch or PR are nested; the rest have their own cards',
+    'only agents registered on the same branch or PR are nested; the rest have their own cards',
   );
   assert.deepEqual(working.agents[0].beat, { n: 3, of: 6, step: 'code', note: 'writing' });
   assert.deepEqual(working.pr, seven);
@@ -2465,115 +2484,6 @@ test('POST /api/board/focus takes the board key, a live session id and nothing e
     board_status_source: 'registry',
   });
   assert.equal((await post(key, { session: fullId(process.pid) })).status, 409);
-});
-
-test('where an agent goes: nested only when tied to its parent’s branch or PR, else its own card on its own lane', () => {
-  const agent = (extra: Partial<LedgerAgent> = {}): LedgerAgent => ({
-    sid: 'aaaaaaaa',
-    name: 'helper',
-    state: 'running',
-    lane: null,
-    model: null,
-    task: null,
-    started: null,
-    ended: null,
-    outcome: null,
-    ...extra,
-  });
-  const work = {
-    kind: 'work',
-    lane: 'widgets',
-    branch: 'feat/x',
-    pr: { number: 7 },
-  } as unknown as BoardCard;
-  const sessionOnly = {
-    kind: 'session',
-    lane: 'widgets',
-    branch: null,
-    pr: null,
-  } as unknown as BoardCard;
-  assert.equal(tiedToParent(agent({ task: 'fix the thing on feat/x' }), work), true);
-  assert.equal(tiedToParent(agent({ task: 'review PR #7' }), work), true);
-  assert.equal(
-    tiedToParent(agent({ task: 'see https://github.com/acme/widgets/pull/7' }), work),
-    true,
-  );
-  assert.equal(
-    tiedToParent(agent({ task: 'review PR #70' }), work),
-    false,
-    'a longer number is another PR',
-  );
-  assert.equal(tiedToParent(agent({ task: 'something else' }), work), false);
-  assert.equal(
-    tiedToParent(agent({ task: 'on feat/x', lane: 'elsewhere' }), work),
-    false,
-    'a tag for another lane',
-  );
-  assert.equal(tiedToParent(agent({ task: 'on feat/x', lane: 'Widgets' }), work), true);
-  assert.equal(
-    tiedToParent(agent({ task: 'on feat/x' }), sessionOnly),
-    false,
-    'a session alone has no branch to share',
-  );
-  const onBranch = (branch: string, task: string) =>
-    tiedToParent(agent({ task }), { ...work, branch } as unknown as BoardCard);
-  for (const short of ['ui', 'docs', 'test']) {
-    assert.equal(
-      onBranch(short, `run the build ${short}s`),
-      false,
-      `${short} inside a longer word`,
-    );
-    assert.equal(
-      onBranch(short, `work on ${short}-kit`),
-      false,
-      `${short} as a prefix of a branch`,
-    );
-    assert.equal(onBranch(short, `see feat/${short}`), false, `${short} as the tail of a path`);
-    assert.equal(onBranch(short, `see ${short}/more`), false, `${short} as the head of a path`);
-    assert.equal(onBranch(short, `read v1.${short} notes`), false, `${short} after a dot`);
-    assert.equal(
-      onBranch(short, `fix the ${short}.md file`),
-      false,
-      `${short} before a dot and a word`,
-    );
-    assert.equal(onBranch(short, `fix the ${short}`), true, `${short} at the end`);
-    assert.equal(onBranch(short, `${short}: fix the thing`), true, `${short} at the start`);
-    assert.equal(onBranch(short, `on the "${short}" branch, then (${short}), ok`), true);
-    assert.equal(onBranch(short, `finish the ${short}. Then stop`), true, 'a sentence period');
-  }
-  assert.equal(onBranch('feat/x', 'fix the thing on feat/x-2'), false, 'a longer branch path');
-  assert.equal(onBranch('feat/x', 'on origin/feat/x'), false, 'a remote path');
-  assert.equal(onBranch('feat/x', 'work on feat/x, then feat/y'), true);
-  assert.equal(onBranch('stack/4-agent-board', 'fix stack/4-agent-board.'), true);
-  assert.equal(onBranch('release/1.2', 'cut release/1.2 today'), true, 'a dot inside the branch');
-  assert.equal(
-    onBranch('release/1.2', 'cut release/1x2 today'),
-    false,
-    'the dot is not a wildcard',
-  );
-  assert.equal(onBranch('FEAT/X', 'on feat/x'), true, 'case does not matter');
-  const lanes = ['widgets', 'once-upon', 'SDK'];
-  assert.equal(laneForAgent(agent({ lane: 'tagged' }), lanes, 'parent', 'none'), 'tagged');
-  assert.equal(
-    laneForAgent(agent({ task: 'in widgets-worktrees/x' }), lanes, 'parent', 'none'),
-    'widgets',
-  );
-  assert.equal(
-    laneForAgent(agent({ task: 'Once Upon a Diff review inbox' }), lanes, 'parent', 'none'),
-    'once-upon',
-  );
-  assert.equal(laneForAgent(agent({ task: 'the SDK build' }), lanes, 'parent', 'none'), 'SDK');
-  assert.equal(laneForAgent(agent({ task: 'sdkish thing' }), lanes, 'parent', 'none'), 'parent');
-  assert.equal(laneForAgent(agent({ task: 'nothing' }), lanes, null, 'none'), 'none');
-  // a lane whose name has no letters or digits matches nothing, instead of every task
-  for (const empty of ['/', '--', '']) {
-    const odd = [empty, ...lanes];
-    assert.equal(laneForAgent(agent({ task: 'fix the build' }), odd, 'parent', 'none'), 'parent');
-    assert.equal(
-      laneForAgent(agent({ task: 'in --worktrees/x' }), odd, 'parent', 'none'),
-      'parent',
-    );
-  }
 });
 
 /** A request with a Host the test chooses (fetch won't let a script set it): status, body text and headers. */
@@ -4493,91 +4403,8 @@ test('Agent checks sits under Waiting and above Working in the first-match order
   );
 });
 
-test('a gated agent goes in the card of the branch or PR its task names, with the lane tag compared loosely', () => {
-  const agent = (extra: Partial<LedgerAgent> = {}): LedgerAgent => ({
-    sid: 'aaaaaaaa',
-    name: 'review-x',
-    state: 'running',
-    lane: null,
-    model: null,
-    task: null,
-    started: null,
-    ended: null,
-    outcome: null,
-    ...extra,
-  });
-  const card = (lane: string, branch: string, number: number | null) =>
-    ({ kind: 'work', lane, branch, pr: number ? { number } : null }) as unknown as BoardCard;
-  const once = card('once-upon-a-diff', 'stack/4-agent-board', null);
-  const widgets = card('widgets', 'feat/x', 7);
-  const session = {
-    kind: 'session',
-    lane: 'widgets',
-    branch: 'feat/x',
-    pr: null,
-  } as unknown as BoardCard;
-  const cards = [once, widgets, session];
-  assert.equal(
-    gatedHome(
-      agent({ lane: 'once-upon', task: 'review of stack/4-agent-board diff' }),
-      cards,
-      'ClariFi',
-    ),
-    once,
-    '"once-upon" is the lane "once-upon-a-diff"',
-  );
-  assert.equal(gatedHome(agent({ task: 'review PR #7' }), cards, null), widgets);
-  assert.equal(
-    gatedHome(agent({ task: 'review of feat/x' }), cards, null),
-    widgets,
-    'a session card is never a home',
-  );
-  assert.equal(
-    gatedHome(agent({ lane: 'gadgets', task: 'review of feat/x' }), cards, null),
-    null,
-    'a tag for another lane',
-  );
-  assert.equal(gatedHome(agent({ task: 'something else' }), cards, null), null);
-  // the same branch in two repos: the parent's lane decides, else none
-  const gadgets = card('gadgets', 'feat/x', 3);
-  assert.equal(
-    gatedHome(agent({ task: 'review of feat/x' }), [widgets, gadgets], 'gadgets'),
-    gadgets,
-  );
-  assert.equal(
-    gatedHome(agent({ task: 'review of feat/x' }), [widgets, gadgets], 'elsewhere'),
-    null,
-  );
-  // a card on a short branch does not catch every gated agent: the name `review-x` and these tasks have "review" and
-  // "docs" only as parts of longer words
-  const onReview = card('widgets', 'review', 9);
-  const onDocs = card('widgets', 'docs', null);
-  for (const task of [
-    'check of feat/x',
-    'plan check for review-queue work',
-    'reviewing docs-site and the docs.md file',
-  ]) {
-    assert.equal(gatedHome(agent({ task }), [onReview, onDocs], null), null, task);
-  }
-  assert.equal(
-    gatedHome(
-      agent({ name: 'plan-check', task: 'check the plan on docs' }),
-      [onReview, onDocs],
-      null,
-    ),
-    onDocs,
-    'the branch named as a word of its own',
-  );
-  assert.equal(
-    gatedHome(agent({ name: 'fixer', task: 'fix findings on "review"' }), [onReview, onDocs], null),
-    onReview,
-  );
-  // tiedToParent itself is unchanged: a tag for another lane is not tied
-  assert.equal(
-    tiedToParent(agent({ lane: 'once-upon', task: 'on stack/4-agent-board' }), once),
-    false,
-  );
-});
+/** A wall-clock time on 10/26 in ET (EDT, UTC-4), for the registry's `at`. */
+const etAt = (hour: number, minute: number) => new Date(Date.UTC(2026, 9, 26, hour + 4, minute));
 
 test('the board: Agent checks holds a PR card with a gated agent in it, an agent card for one with no card, and Waiting still wins', async () => {
   const home = tmp('board-home');
@@ -4605,21 +4432,65 @@ test('the board: Agent checks holds a PR card with a gated agent in it, an agent
   );
   registry(sessions, onY.pid, { cwd: widgetsY, name: 'branch-y' }, onY.procStart);
   prStory(home, 'acme-widgets-7', 'acme/widgets', 7, 'feat/x');
-  writeFileSync(
-    ledger,
-    [
-      // a plan and a running reviewer for PR 7, launched by a session that is not on its branch
-      `- [running] sid:${sid(launcher)} lane:widgets builder (sonnet, high) — build on feat/x → notes/p.md — started 2:00 PM ET, 10/26`,
-      `- [plan] sid:${sid(launcher)} lane:widgets builder — 2:10 PM ET, 10/26 — plan ready: three steps — notes/p.md`,
-      `- [running] sid:${sid(launcher)} lane:widgets review-seven (opus, default) — review of PR #7 diff — started 2:20 PM ET, 10/26`,
-      // findings being fixed on feat/y, and a reviewer for a branch that has no card
-      `- [running] sid:${sid(launcher)} lane:widgets review-why (opus, default) — review of feat/y diff — started 2:00 PM ET, 10/26`,
-      `- [fixing] sid:${sid(launcher)} lane:widgets review-why — 2:30 PM ET, 10/26 — 3 findings — notes/r.md`,
-      `- [running] sid:${sid(launcher)} lane:elsewhere review-lost (opus, default) — review of feat/none — started 2:40 PM ET, 10/26`,
-      // a finished reviewer is not at a gate
-      `- [done] sid:${sid(launcher)} lane:widgets review-old — 1:00 PM ET, 10/26 — 4 findings — notes/o.md`,
-    ].join('\n'),
-  );
+  // registered agents: a plan and a running reviewer for PR 7, launched by a session that is not on its branch
+  const registered = new AgentRegistry(home);
+  const launched = { sid: sid(launcher), lane: 'widgets', repo: 'acme/widgets' };
+  registered.start({
+    ...launched,
+    name: 'builder',
+    kind: 'builder',
+    task: 'build on feat/x → notes/p.md',
+    branch: 'feat/x',
+    at: etAt(14, 0),
+  });
+  registered.state('builder', {
+    state: 'plan',
+    outcome: 'plan ready: three steps',
+    notes: 'notes/p.md',
+    at: etAt(14, 10),
+  });
+  registered.start({
+    ...launched,
+    name: 'review-seven',
+    kind: 'reviewer',
+    task: 'review of PR #7 diff',
+    pr: 7,
+    at: etAt(14, 20),
+  });
+  // findings being fixed on feat/y, and a reviewer for a branch that has no card
+  registered.start({
+    ...launched,
+    name: 'review-why',
+    kind: 'reviewer',
+    task: 'review of feat/y diff',
+    branch: 'feat/y',
+    at: etAt(14, 0),
+  });
+  registered.state('review-why', {
+    state: 'fixing',
+    findings: 3,
+    outcome: '3 findings',
+    notes: 'notes/r.md',
+    at: etAt(14, 30),
+  });
+  registered.start({
+    ...launched,
+    lane: 'elsewhere',
+    name: 'review-lost',
+    kind: 'reviewer',
+    task: 'review of feat/none',
+    branch: 'feat/none',
+    at: etAt(14, 40),
+  });
+  // a finished reviewer is not at a gate
+  registered.start({
+    ...launched,
+    name: 'review-old',
+    kind: 'reviewer',
+    task: 'review',
+    at: etAt(13, 0),
+  });
+  registered.finish('review-old', { outcome: '4 findings', findings: 4, at: etAt(13, 5) });
   writeJson(path.join(home, 'config.json'), {
     board_ledger_file: ledger,
     board_sessions_dir: sessions,
@@ -4665,7 +4536,7 @@ test('the board: Agent checks holds a PR card with a gated agent in it, an agent
     [{ kind: 'fixing', findings: 3 }],
   );
 
-  // a gated agent whose task names no card has a card of its own, in the column, on its tag's lane
+  // a gated agent whose registered branch has no card has a card of its own, in the column, on its tag's lane
   const lost = card(`agent:${sid(launcher)}:review-lost`);
   assert.equal(lost.column, 'checks');
   assert.equal(lost.lane, 'elsewhere');
@@ -4674,21 +4545,29 @@ test('the board: Agent checks holds a PR card with a gated agent in it, an agent
   // the launching session's own card is its own business
   assert.equal(card(fullId(launcher.pid)).column, 'working');
 
-  // the user being needed still wins: a waiting agent has its own card in Waiting (as it always has), and a card whose
-  // session is waiting on you is in Waiting whatever gate is on it
-  writeFileSync(
-    ledger,
-    readFileSync(ledger, 'utf8') +
-      `\n- [waiting] sid:${sid(launcher)} lane:widgets builder — 2:50 PM ET, 10/26 — needs Eric: pick A or B — notes/p.md\n`,
-  );
+  // the user being needed still wins: a card whose session, or agent, is waiting on you is in Waiting whatever gate is on it
+  registered.state('builder', {
+    state: 'waiting',
+    outcome: 'needs Eric: pick A or B',
+    notes: 'notes/p.md',
+    at: etAt(14, 50),
+  });
   const later = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
     source: sourceSaying({ [sid(onStory)]: { status: 'waiting', detail: 'asked you something' } }),
     now: () => new Date(NOW.getTime() + 5000),
   });
   const afterwards = (await later.snapshot()).lanes.flatMap((lane) => lane.cards);
   const found = (id: string) => afterwards.find((one) => one.id === id);
-  assert.equal(found(`agent:${sid(launcher)}:builder`)?.column, 'waiting');
+  assert.equal(
+    found(`agent:${sid(launcher)}:builder`),
+    undefined,
+    'a registered agent stays in its card',
+  );
   assert.equal(found('pr:acme/widgets#7')?.column, 'waiting');
+  assert.equal(
+    found('pr:acme/widgets#7')?.agents.find((one) => one.name === 'builder')?.state,
+    'waiting',
+  );
   assert.equal(found('pr:acme/widgets#9')?.column, 'checks');
 });
 
@@ -4706,11 +4585,26 @@ test('an agent parked on your story review is ready for review, not waiting; a q
     launcher.procStart,
   );
   prStory(home, 'acme-widgets-7', 'acme/widgets', 7, 'feat/x');
+  const registered = new AgentRegistry(home);
+  registered.start({
+    sid,
+    lane: 'widgets',
+    repo: 'acme/widgets',
+    name: 'on-pr',
+    kind: 'builder',
+    task: 'build on PR #7',
+    pr: 7,
+    at: etAt(13, 0),
+  });
+  registered.state('on-pr', {
+    state: 'review',
+    outcome: 'story up on PR #7',
+    notes: 'notes/a.md',
+    at: etAt(14, 0),
+  });
   writeFileSync(
     ledger,
     [
-      `- [running] sid:${sid} lane:widgets on-pr (sonnet, high) — build on PR #7 — started 1:00 PM ET, 10/26`,
-      `- [review] sid:${sid} lane:widgets on-pr — 2:00 PM ET, 10/26 — story up on PR #7 — notes/a.md`,
       `- [review] sid:${sid} lane:elsewhere on-nothing — 2:10 PM ET, 10/26 — story up — notes/b.md`,
       `- [waiting] sid:${sid} lane:elsewhere asker — 2:20 PM ET, 10/26 — needs Eric: pick A or B`,
     ].join('\n'),
@@ -4731,7 +4625,7 @@ test('an agent parked on your story review is ready for review, not waiting; a q
   assert.deepEqual(
     seven.agents.map((agent) => [agent.name, agent.review]),
     [['on-pr', true]],
-    'nested in the card its task names',
+    'nested in the card its registered PR names',
   );
   assert.equal(card(`agent:${sid}:on-pr`), undefined);
   const lone = card(`agent:${sid}:on-nothing`);
@@ -4754,11 +4648,25 @@ test('a [review] agent naming a no-PR branch sits in its Ready card; one left a 
     launcher.procStart,
   );
   localStory(home, 'local-feat-x', checkoutOf('widgets', 'feat/x'), 'feat/x');
+  const registered = new AgentRegistry(home);
+  registered.start({
+    sid,
+    lane: 'widgets',
+    repo: 'acme/widgets',
+    name: 'on-x',
+    kind: 'builder',
+    task: 'build on feat/x',
+    branch: 'feat/x',
+    at: etAt(13, 0),
+  });
+  registered.state('on-x', {
+    state: 'review',
+    outcome: 'story up on feat/x, two chapters',
+    at: etAt(14, 30),
+  });
   writeFileSync(
     ledger,
     [
-      `- [running] sid:${sid} lane:widgets on-x (sonnet, high) — build on feat/x — started 1:00 PM ET, 10/26`,
-      `- [review] sid:${sid} lane:widgets on-x — story up on feat/x, two chapters — 2:30 PM ET, 10/26`,
       `- [review] sid:${sid} lane:widgets lost-review — story up — 2:30 PM ET, 10/24`,
       `- [waiting] sid:${sid} lane:widgets lost-question — 2:30 PM ET, 10/24 — needs Eric: long ago`,
     ].join('\n'),
@@ -6478,28 +6386,4 @@ test('a standing helper is a row at the bottom, never a card: gone with its sess
   ]);
   assert.equal(plain.data.helpers.length, 0);
   assert.equal(agentCards(plain.cards, 'researcher').length, 1, 'still a Waiting card');
-});
-
-test('a lane tag resolves to the one known owner/name it is the short name of, and stays as written when it names none or two', () => {
-  const agent = (lane: string | null, task = 'x') => ({ lane, task }) as unknown as LedgerAgent;
-  const known = ['acme/widgets', 'a/foo', 'b/foo', 'gadgets'];
-  assert.equal(laneForAgent(agent('widgets'), known, null, 'none'), 'acme/widgets');
-  assert.equal(laneForAgent(agent('Acme/Widgets'), known, null, 'none'), 'acme/widgets');
-  assert.equal(laneForAgent(agent('foo'), known, null, 'none'), 'foo', 'two owners have a foo');
-  assert.equal(laneForAgent(agent('b/foo'), known, null, 'none'), 'b/foo');
-  assert.equal(laneForAgent(agent('gadgets'), known, null, 'none'), 'gadgets', 'a folder lane');
-  assert.equal(
-    laneForAgent(agent(null, 'work in widgets-worktrees/x'), known, null, 'none'),
-    'acme/widgets',
-  );
-  // a tag for the lane of the parent card's repo is tied to it by its short name or its whole key
-  const work = {
-    kind: 'work',
-    lane: 'acme/widgets',
-    branch: 'feat/x',
-    pr: null,
-  } as unknown as BoardCard;
-  assert.equal(tiedToParent(agent('widgets', 'on feat/x'), work), true);
-  assert.equal(tiedToParent(agent('acme/widgets', 'on feat/x'), work), true);
-  assert.equal(tiedToParent(agent('other', 'on feat/x'), work), false);
 });
