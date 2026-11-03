@@ -236,12 +236,15 @@ export type HeaderProps = {
   /** The filter names a lane that is on the board (a lane that is gone shows everything). */
   filterOn: boolean;
   onFilter: (lane: string) => void;
+  /** The tab view at any width (remembered by the page root); a narrow page has tabs whatever this says. */
+  tabs: boolean;
+  onToggleTabs: () => void;
   api: Api;
   busy: VoiceBusy;
 };
 
 export function Header(props: HeaderProps) {
-  const { summary, data, now, filter, filterOn, onFilter, api, busy } = props;
+  const { summary, data, now, filter, filterOn, onFilter, tabs, onToggleTabs, api, busy } = props;
   const chooseRepo = (event: MouseEvent) => {
     const lanes = api.board.lanes;
     openMenu(
@@ -263,6 +266,7 @@ export function Header(props: HeaderProps) {
     <div class="ou-local-top-main"><h1>Agent board</h1><div class="ou-local-muted">${summary}</div></div>
     <${Usage} usage=${data.usage} now=${now} />
     <button type="button" data-board-filter aria-haspopup="menu" onClick=${chooseRepo} title="Narrow the whole board to one repo's lane">Repo: ${filterOn ? (api.board.lanes.find((lane) => sameLaneKey(lane.key, filter))?.name ?? filter) : 'All'} ▾</button>
+    <button type="button" data-board-tabs aria-pressed=${String(tabs)} onClick=${onToggleTabs} title="Show This Mac and GitHub as two tabs at any width (a narrow window always does)">Tabs${tabs ? ' ●' : ''}</button>
     <${Builders} builders=${data.builders} now=${now} />
     <${VoiceControls} voice=${data.voice} phone=${data.phone} voiceStart=${data.voice_start} voicePaused=${data.voice_paused} api=${api} busy=${busy} />
   </header>`;

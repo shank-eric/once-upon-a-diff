@@ -126,6 +126,7 @@ function BoardApp() {
     (text) => text === 'true',
     asText,
   );
+  const [tabs, setTabs] = useSetting('ou-board-tabs', false, (text) => text === 'true', asText);
   /** A repo heading's fold in a column is remembered, as "<column>/<heading>". */
   const [collapsed, setCollapsed] = useSetting(
     'ou-board-collapsed-lanes',
@@ -166,6 +167,7 @@ function BoardApp() {
       setCollapsed(next);
     },
     hideOnAuthor,
+    tabs,
     onToggleAuthors: () => setHideOnAuthor(!hideOnAuthor),
     idleOpen,
     onToggleIdle: () => setIdleOpen(!idleOpen),
@@ -202,7 +204,7 @@ function BoardApp() {
   }
   return html`${
     failure ||
-    html`<${Header} summary=${summary} data=${data} now=${now} filter=${laneFilter} filterOn=${data !== full} onFilter=${setLaneFilter} api=${api} busy=${voiceBusy} />
+    html`<${Header} summary=${summary} data=${data} now=${now} filter=${laneFilter} filterOn=${data !== full} onFilter=${setLaneFilter} tabs=${tabs} onToggleTabs=${() => setTabs(!tabs)} api=${api} busy=${voiceBusy} />
     ${data.warning && html`<p class="ou-board-warning">${data.warning}</p>`}
     <main class="ou-board">
       <${Columns} view=${columns} />

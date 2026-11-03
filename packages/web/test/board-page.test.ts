@@ -783,6 +783,43 @@ test('too narrow for This Mac and GitHub side by side: two tabs, one group shown
   }
 });
 
+test('the Tabs button in the header puts the two tabs on a wide board, and the choice is remembered', async () => {
+  const shown = () =>
+    all('.ou-board-group')
+      .filter((one) => !one.hasAttribute('hidden'))
+      .map((one) => one.getAttribute('aria-labelledby'));
+  const button = () => $('[data-board-tabs]') as HTMLElement;
+  assert.equal(room, WIDE);
+  assert.equal(button().getAttribute('aria-pressed'), 'false', 'off by default');
+  assert.equal($('[role="tablist"]'), null, 'off: the columns side by side');
+  assert.deepEqual(shown(), [null, null]);
+
+  try {
+    await click(button());
+    assert.equal(button().getAttribute('aria-pressed'), 'true');
+    assert.equal(saved.get('ou-board-tabs'), 'true');
+    assert.ok($('[role="tablist"]'), 'on: the tabs at a wide width');
+    assert.equal(shown().length, 1, 'one group shown');
+    await click(all('[role="tab"]')[1]);
+    assert.deepEqual(shown(), ['ou-board-tab-github']);
+
+    // a narrow page has tabs whatever the button says
+    await click(button());
+    assert.equal(saved.get('ou-board-tabs'), 'false');
+    assert.equal($('[role="tablist"]'), null, 'off again: no tabs');
+    await resizeTo(NARROW);
+    assert.ok($('[role="tablist"]'), 'narrow: tabs, with the button off');
+    await resizeTo(WIDE);
+    assert.equal($('[role="tablist"]'), null);
+  } finally {
+    saved.delete('ou-board-tabs');
+    saved.delete('ou-board-tab');
+    if (button().getAttribute('aria-pressed') === 'true') {
+      await click(button());
+    }
+  }
+});
+
 test('the Worktrees lane folds, and Clean up asks first, then asks the bridge', async () => {
   requests.length = 0;
   sure = false;
@@ -1481,5 +1518,20 @@ test('a page that loads already narrow starts with the tabs, and the saved tab',
   } finally {
     room = WIDE;
     saved.delete('ou-board-tab');
+  }
+});
+
+test('a wide page that loads with the Tabs button remembered on starts with the tabs', async () => {
+  saved.set('ou-board-tabs', 'true');
+  render(null, root);
+  try {
+    room = WIDE;
+    const again = '../public/board.ts?tabs';
+    await import(again);
+    await idle();
+    assert.ok($('[role="tablist"]'), 'the tabs are there from the first draw');
+    assert.equal(($('[data-board-tabs]') as HTMLElement).getAttribute('aria-pressed'), 'true');
+  } finally {
+    saved.delete('ou-board-tabs');
   }
 });

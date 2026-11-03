@@ -560,6 +560,8 @@ export type ColumnsView = {
   onFold: (id: string) => void;
   hideOnAuthor: boolean;
   onToggleAuthors: () => void;
+  /** The tab view is wanted at any width (the header's Tabs button); a narrow page has it whatever this says. */
+  tabs: boolean;
   idleOpen: boolean;
   onToggleIdle: () => void;
   /** The Blank strip's sessions, by repo (narrowed to the repo filter's lane). */
@@ -608,9 +610,10 @@ const GROUPS_CHROME = 30;
 
 /**
  * Whether the groups of columns, as many as are showing, are too wide for the room they have, so they become two tabs.
+ * They are also wanted at any width when `wanted` (the header's Tabs button).
  * The room is the columns area's own width, so the open voice drawer and the optional columns count; it follows a resize.
  */
-function useTabs(columns: number): [boolean, { current: HTMLElement | null }] {
+function useTabs(columns: number, wanted: boolean): [boolean, { current: HTMLElement | null }] {
   const area = useRef<HTMLElement | null>(null);
   const [room, setRoom] = useState(0);
   useLayoutEffect(() => {
@@ -629,7 +632,7 @@ function useTabs(columns: number): [boolean, { current: HTMLElement | null }] {
   }, []);
   const needs = columns * (COLUMN_MIN + COLUMN_GAP) - 2 * COLUMN_GAP + GROUPS_CHROME;
   // no width yet (not laid out) is not a reason for tabs
-  return [room > 0 && room < needs, area];
+  return [wanted || (room > 0 && room < needs), area];
 }
 
 /** One of the two groups of columns, headed by where its work is (and, as a tab's panel, labelled by its tab). */
@@ -670,7 +673,7 @@ export function Columns(props: { view: ColumnsView }) {
       ? html`<button type="button" data-idle-toggle aria-expanded=${String(idleOpen)} onClick=${view.onToggleIdle}>${idleOpen ? 'Hide' : 'Show'}</button>`
       : null;
   // too narrow for the groups side by side: a tab for each, the chosen one remembered, and the other group hidden (still drawn, so a half-typed Add stays)
-  const [tabbed, area] = useTabs(layout.columns.length);
+  const [tabbed, area] = useTabs(layout.columns.length, view.tabs);
   const [chosen, choose] = useSetting(
     'ou-board-tab',
     'local',
