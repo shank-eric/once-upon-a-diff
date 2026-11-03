@@ -203,7 +203,7 @@ const DEFAULT_HOSTS = ['once-upon.test', 'once-upon.fidev.net'];
  *   board_larmor_dir        the Larmor checkout (~/Development/SideProjects/larmor): the voice panel's phone mode and Stop
  *                           phone bridge buttons run its `.venv-app/bin/python app/voice_ctl.py` there; without it the panel
  *                           has no phone buttons
- *   board_done_hours        how long a finished agent stays on the board (default 4)
+ *   board_done_hours        how long a finished agent stays on the board (default 1)
  *   board_finished_wait_minutes  how long a finished agent (done, failed or stopped) with no card of its parent's sits in
  *                           Waiting, counted from its last ledger line (default 30)
  *   board_ledger_time_zone  the zone the ledger's times are in when they carry no label like ET (default: the system's)
@@ -310,7 +310,7 @@ export function readSettings(home = homeDir()) {
       doneHours:
         typeof cfg.board_done_hours === 'number' && cfg.board_done_hours > 0
           ? cfg.board_done_hours
-          : 4,
+          : 1,
       finishedWaitMinutes:
         typeof cfg.board_finished_wait_minutes === 'number' && cfg.board_finished_wait_minutes > 0
           ? cfg.board_finished_wait_minutes

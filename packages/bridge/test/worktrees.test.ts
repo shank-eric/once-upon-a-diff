@@ -510,7 +510,19 @@ test('the board: a worktree a started backlog card links goes on that card, the 
 test('the board: the header counts the removable worktrees the lane lists, not the ones on cards', async () => {
   const repo = fixture();
   const onCard = repo.add('on-card');
-  repo.commit(onCard, 'card work');
+  // its merge is dated (by the tip's commit) 90 minutes ahead: the clock below is past the hour a new worktree is kept
+  // for, and still inside the hour its merged card stays in Done
+  const dated = process.env.GIT_COMMITTER_DATE;
+  process.env.GIT_COMMITTER_DATE = new Date(Date.now() + 90 * 60 * 1000).toISOString();
+  try {
+    repo.commit(onCard, 'card work');
+  } finally {
+    if (dated === undefined) {
+      delete process.env.GIT_COMMITTER_DATE;
+    } else {
+      process.env.GIT_COMMITTER_DATE = dated;
+    }
+  }
   git(repo.main, 'merge', '-q', '--ff-only', 'on-card');
   const loose = repo.add('loose');
   repo.commit(loose, 'loose work', 2);

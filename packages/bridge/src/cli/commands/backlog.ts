@@ -228,7 +228,7 @@ export const backlogCommands: Command[] = [
       '  once-upon backlog add "TITLE" [--note TEXT] [--repo owner/name] [--branch NAME]  keep something for later: a card in the board\'s Backlog column',
       '  once-upon backlog edit ID [--title TEXT] [--note TEXT] [--repo owner/name]      change an open card in place (an empty --note or --repo clears it)',
       '  once-upon backlog list [--all] [--json] | show ID | drop ID | reopen ID         the items in board order (open ones, or all), one item, drop one, or bring a dropped one back',
-      '  once-upon backlog done ID [--sha SHA]                                            the work landed: the card goes to Done for a day',
+      '  once-upon backlog done ID [--sha SHA]                                            the work landed: the card goes to Done for an hour',
       '  once-upon backlog land [PICKED_SHA...] --from REF --to REF [--dry-run]           a deploy: mark done the cards whose recorded commit (agent finish --commit) is in the range',
       '  once-upon backlog hold ID [--off]                                                the card lands by hand: a deploy never marks it done',
       '  once-upon backlog move ID --before ID | --top | --bottom                        reorder: new items go to the bottom',

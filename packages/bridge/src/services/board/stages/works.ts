@@ -16,7 +16,7 @@ import type { PrWatcher } from './pr-watcher.ts';
 import type { BuildContext, Work } from './types.ts';
 
 /** A merged PR stays on the board this long. */
-export const MERGED_HOURS = 24;
+export const MERGED_HOURS = 1;
 
 export const prKey = (repo: string, number: number) => `pr:${repo.toLowerCase()}#${number}`;
 

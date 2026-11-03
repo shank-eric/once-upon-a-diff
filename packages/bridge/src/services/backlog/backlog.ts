@@ -36,7 +36,7 @@ import type { BoardAgent, BoardCard, BoardStartedLinks } from '@once-upon-a-diff
 
 export const STARTED_GRACE_HOURS = 24;
 /** A started item whose work merged or landed, or whose agent finished, stays in Done this long. */
-export const DONE_HOURS = 24;
+export const DONE_HOURS = 1;
 /** An assignment that no `start` followed is a hint for this long, then the item is free to hand to another session. */
 export const ASSIGN_HOURS = 2;
 
@@ -567,7 +567,7 @@ const SKIPS_REVIEW = /^(once-upon-a-diff|larmor)$/i;
  *   done, card only    Done for DONE_HOURS after it ended, then off the board (it stays done, never back in Backlog)
  *   failed or stopped  back in Backlog, marked tried by the agent
  *
- * Null when the item is past its Done day. `tried` marks the Backlog case: the card says who tried it.
+ * Null when the item is past its Done hour. `tried` marks the Backlog case: the card says who tried it.
  */
 function agentColumn(
   item: BacklogItem,
@@ -702,7 +702,7 @@ export function backlogCards(
       const started = Date.parse(item.started_at ?? '');
       const landed = endedColumn(link, started, Date.parse(item.landed_at ?? ''));
       if (landed) {
-        // landed or merged: Done for a day from then, as far as is known
+        // landed or merged: Done for DONE_HOURS from then, as far as is known
         if (nowMs - landed.when > DONE_HOURS * 3600 * 1000) {
           continue;
         }

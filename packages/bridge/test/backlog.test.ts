@@ -339,7 +339,7 @@ test('a claimed started item is one Working card with its agent on it; with a wo
   assert.equal(backlogCards(store.items(), [stray], NOW, [], links).length, 1);
 });
 
-test('a landed item is Done for a day from the done event, then off the board; list --all shows it', async () => {
+test('a landed item is Done for an hour from the done event, then off the board; list --all shows it', async () => {
   const home = tmp('backlog-landed');
   const store = new BacklogStore(home);
   const item = store.add({ title: 'Shipped by deploy', repo: 'acme/widgets' });
@@ -352,13 +352,14 @@ test('a landed item is Done for a day from the done event, then off the board; l
   const landedMs = Date.parse(landed.landed_at as string);
   const hour = 3600 * 1000;
   // nothing is linked, and the grace day is long past: a landed item is Done until DONE_HOURS after it landed
-  const soon = backlogCards(store.items(), [], landedMs + (DONE_HOURS - 1) * hour);
+  assert.equal(DONE_HOURS, 1);
+  const soon = backlogCards(store.items(), [], landedMs + 0.5 * hour);
   assert.deepEqual(
     soon.map((card) => card.column),
     ['done'],
   );
   assert.equal(soon[0].since, landed.landed_at);
-  assert.equal(backlogCards(store.items(), [], landedMs + (DONE_HOURS + 1) * hour).length, 0);
+  assert.equal(backlogCards(store.items(), [], landedMs + 2 * hour).length, 0);
 
   // by id from the CLI; a branch name no longer marks anything (a deploy goes through `backlog land`, landing.test.ts)
   const other = store.add({ title: 'Other', repo: 'acme/widgets' });
@@ -386,7 +387,7 @@ test('a landed item is Done for a day from the done event, then off the board; l
   );
 });
 
-test('a started item with no card is Working until its work ends, then Ready, or Done once it merged, for a day', () => {
+test('a started item with no card is Working until its work ends, then Ready, or Done once it merged, for an hour', () => {
   const store = new BacklogStore(tmp('backlog-columns'));
   const item = store.add({ title: 'Piece of work', repo: 'acme/widgets' });
   store.start(item.id, { branch: 'feat/piece', by: 'builder' });
@@ -431,8 +432,8 @@ test('a started item with no card is Working until its work ends, then Ready, or
   // merged: Done from the merge time
   const mergedAt = new Date(startedAt + 30 * hour).toISOString();
   const merged = linked({ merged: true, merged_at: mergedAt, active: false });
-  assert.deepEqual(columnOf(merged, startedAt + 40 * hour), ['done']);
-  assert.deepEqual(columnOf(merged, startedAt + 56 * hour), []);
+  assert.deepEqual(columnOf(merged, startedAt + 30.5 * hour), ['done']);
+  assert.deepEqual(columnOf(merged, startedAt + 32 * hour), []);
   // merged with no time known counts from the start, so an old one does not linger
   assert.deepEqual(columnOf(linked({ merged: true, active: false }), startedAt + 25 * hour), []);
   // a Done card still carries the item, with what linked
@@ -978,12 +979,16 @@ test('an open item with a claimed agent: one card in the agent’s column while 
       state,
     );
   }
-  // research that finished is Done for a day and then off the board, never Backlog
+  // research that finished is Done for an hour and then off the board, never Backlog
   assert.deepEqual(
     cardsFor('done', ended).map((card) => card.column),
     ['done'],
   );
-  assert.deepEqual(cardsFor('done', ended, NOW + 30 * hour), []);
+  assert.deepEqual(
+    cardsFor('done', ended, NOW + 0.5 * hour).map((card) => card.column),
+    ['done'],
+  );
+  assert.deepEqual(cardsFor('done', ended, NOW + 2 * hour), []);
   // failed or stopped: back in Backlog, marked tried
   for (const state of ['failed', 'stopped'] as const) {
     const back = cardsFor(state, ended);
@@ -1014,7 +1019,7 @@ test('an open item with a claimed agent: one card in the agent’s column while 
   );
 });
 
-test('an open item that landed with no start is Done for a day', () => {
+test('an open item that landed with no start is Done for an hour', () => {
   const store = new BacklogStore(tmp('backlog-derived'));
   const item = store.add({ title: 'Build a thing', repo: 'shank-eric/once-upon-a-diff' });
   const landed = store.done(item.id, { sha: 'abc1234', by: 'deploy-local' });
@@ -1022,13 +1027,23 @@ test('an open item that landed with no start is Done for a day', () => {
   const done = backlogCards(
     store.items(),
     [],
-    Date.parse(landed.landed_at as string) + 3600 * 1000,
+    Date.parse(landed.landed_at as string) + 1800 * 1000,
     [],
     new Map(),
   );
   assert.deepEqual(
     done.map((card) => card.column),
     ['done'],
+  );
+  assert.deepEqual(
+    backlogCards(
+      store.items(),
+      [],
+      Date.parse(landed.landed_at as string) + 2 * 3600 * 1000,
+      [],
+      new Map(),
+    ),
+    [],
   );
 });
 

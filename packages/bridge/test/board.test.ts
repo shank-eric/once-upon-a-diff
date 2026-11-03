@@ -673,8 +673,8 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
   registry(sessions, staleTwo.pid, { cwd: stale, name: 'stale-two' }, staleTwo.procStart);
 
   // stories: 7 is being worked on, 8 is built and waiting for you, 10 you reviewed and others asked something since,
-  // 11 you reviewed and read, nothing is new, 17 you reviewed but it was rebuilt since, 12 merged two hours ago,
-  // 13 merged three days ago, 14 is someone else's PR with a story built for you, 15 has not been described by GitHub yet
+  // 11 you reviewed and read, nothing is new, 17 you reviewed but it was rebuilt since, 12 merged half an hour ago,
+  // 13 merged three days ago, 21 merged two hours ago, 14 is someone else's PR with a story built for you, 15 has not been described by GitHub yet
   prStory(home, 'acme-widgets-7', 'acme/widgets', 7, 'feat/x');
   prStory(home, 'acme-widgets-8', 'acme/widgets', 8, 'feat/z');
   prStory(home, 'acme-widgets-14', 'acme/widgets', 14, 'feat/theirs');
@@ -720,7 +720,10 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
   });
   const hoursAgo = (hours: number) => new Date(NOW.getTime() - hours * 3600000).toISOString();
   prStory(home, 'acme-widgets-12', 'acme/widgets', 12, 'feat/twelve', {
-    'merged.json': { at: hoursAgo(1), why: 'merged', merged_at: hoursAgo(2) },
+    'merged.json': { at: hoursAgo(0.25), why: 'merged', merged_at: hoursAgo(0.5) },
+  });
+  prStory(home, 'acme-widgets-21', 'acme/widgets', 21, 'feat/twenty-one', {
+    'merged.json': { at: hoursAgo(1.9), why: 'merged', merged_at: hoursAgo(2) },
   });
   prStory(home, 'acme-widgets-13', 'acme/widgets', 13, 'feat/thirteen', {
     'merged.json': { at: hoursAgo(71), why: 'merged', merged_at: hoursAgo(72) },
@@ -794,7 +797,8 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
       prInfo(9, { branch: 'feat/y', checks: 'pending' }),
       prInfo(10, { viewer_at: '2026-10-26T13:00:00Z', others_at: '2026-10-26T15:00:00Z' }),
       prInfo(11, { others_at: '2026-10-26T13:00:00Z' }),
-      prInfo(12, { state: 'merged', merged_at: hoursAgo(2) }),
+      prInfo(12, { state: 'merged', merged_at: hoursAgo(0.5) }),
+      prInfo(21, { state: 'merged', merged_at: hoursAgo(2) }),
     ],
     {
       'acme/widgets@feat/y': { number: 9, state: 'open', merged_at: null },
@@ -849,6 +853,11 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
     'agent:deadbeef:stopped-one': 'waiting',
   });
   assert.equal(card('pr:acme/widgets#13'), undefined, 'merged three days ago: gone');
+  assert.equal(
+    card('pr:acme/widgets#21'),
+    undefined,
+    'merged two hours ago: gone, the Done hour is up',
+  );
   assert.equal(card('pr:acme/widgets#17').story?.unread, true);
   assert.equal(card('pr:acme/widgets#11').story?.unread, false);
   assert.equal(
@@ -936,7 +945,7 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
   assert.equal(ready.sessions.length, 0);
   assert.equal(ready.column, 'pr_open');
 
-  assert.equal(card('pr:acme/widgets#12').since, hoursAgo(2));
+  assert.equal(card('pr:acme/widgets#12').since, hoursAgo(0.5));
   assert.equal(card('pr:acme/widgets#12').story, null);
 
   const main = card(fullId(onMain.pid));
@@ -1015,7 +1024,7 @@ test('the board is off until configured: no ledger, no agents; and the settings 
   assert.equal(unset.ledgerFile, null);
   assert.equal(unset.progressFile, null);
   assert.equal(unset.statusSource, null);
-  assert.equal(unset.doneHours, 4);
+  assert.equal(unset.doneHours, 1);
   assert.match(unset.sessionsDir, /sessions$/);
   writeJson(path.join(home, 'config.json'), {
     board_status_source: 'registry',
@@ -3094,9 +3103,9 @@ test('after the card is marked done a claimed agent shows once, not on the lande
 test('a claim is for one run: a rerun of the same agent under the same name does not pull the finished card back', async () => {
   const text =
     `- [running] sid:54736864 ou-build (sonnet, high) — build — started 2:30 PM ET, 10/26\n` +
-    `- [done] sid:54736864 ou-build — 3:00 PM ET, 10/26 — committed abc1234 — notes/p.md\n` +
+    `- [done] sid:54736864 ou-build — 3:50 PM ET, 10/26 — committed abc1234 — notes/p.md\n` +
     `- [running] sid:54736864 ou-build (sonnet, high) — fix other things — started 4:00 PM ET, 10/26\n`;
-  const { store, cards } = claimWorld(text, new Date('2026-10-26T21:00:00Z'));
+  const { store, cards } = claimWorld(text, new Date('2026-10-26T20:30:00Z'));
   const item = store.add({ title: 'The first job', repo: 'acme/gadgets' });
   claimAt(store, item.id, 'ou-build', '2026-10-26T18:40:00Z');
   const all = await cards();

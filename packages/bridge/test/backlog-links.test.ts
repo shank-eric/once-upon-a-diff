@@ -245,7 +245,7 @@ test('a claimed card (no start) is out of Backlog while its agent runs, and back
   );
 });
 
-test('research that finished is Done for a day and then gone, never back in Backlog; an agent in a worktree makes its card Ready', async () => {
+test('research that finished is Done for an hour and then gone, never back in Backlog; an agent in a worktree makes its card Ready', async () => {
   const home = tmp('links-research');
   const ledger = path.join(tmp('links-research-notes'), 'ledger.md');
   writeJson(path.join(home, 'config.json'), {
@@ -261,14 +261,14 @@ test('research that finished is Done for a day and then gone, never back in Back
     `- [running] sid:54736864 ou-look (sonnet, high) — look — started 2:30 PM ET, 10/26\n` +
       '- [done] sid:54736864 ou-look — 3:00 PM ET, 10/26 — it is fine — notes/x.md\n',
   );
-  const day = 24 * 3600 * 1000;
-  // after the agent's own card is gone (a day on): Done, then off the board
+  const hour = 3600 * 1000;
+  // the agent ended at 7:00 PM UTC (NOW): Done half an hour on, off the board two hours on
   assert.equal(
-    (await backlogCard(boardOf(home, new Date(NOW.getTime() + 12 * 3600 * 1000)), item.id))?.column,
+    (await backlogCard(boardOf(home, new Date(NOW.getTime() + 0.5 * hour)), item.id))?.column,
     'done',
   );
   assert.equal(
-    await backlogCard(boardOf(home, new Date(NOW.getTime() + 3 * day)), item.id),
+    await backlogCard(boardOf(home, new Date(NOW.getTime() + 2 * hour)), item.id),
     undefined,
   );
 });

@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { tmp } from './helpers.ts';
+import { tmp, writeJson } from './helpers.ts';
+import path from 'node:path';
+import { readSettings } from '../src/services/config/settings.ts';
 import { homeOf, madeSomething } from '../src/services/board/agent-home.ts';
 import { NO_PARENT, placeAgents } from '../src/services/board/stages/agents.ts';
 import { backlogCards } from '../src/services/backlog/backlog.ts';
@@ -275,4 +277,35 @@ test('a finished ledger agent is Done by its [done] line, not by a worktrees fol
     'a worktrees task is not output',
   );
   assert.equal(madeSomething({ name: 'a', state: 'waiting' }), false);
+});
+
+test('a finished agent stays inside its card for an hour by default, never less than the finished wait', () => {
+  const home = tmp('placement-done-hour');
+  const finished = (minutesAgo: number) =>
+    registered({
+      name: 'ou-done',
+      state: 'done',
+      outcome: 'committed abc1234',
+      repo: 'acme/widgets',
+      branch: 'feat/x',
+      ended: new Date(NOW - minutesAgo * 60000),
+    });
+  const nestedAfter = (settings: BuildContext['settings'], minutesAgo: number) => {
+    const featX = makeX();
+    placeAgents({ ...ctx(), home, settings } as unknown as BuildContext, [featX], {
+      agents: [finished(minutesAgo)],
+      beats: new Map(),
+      pin: null,
+    });
+    return nestedIn(featX);
+  };
+  const defaults = readSettings(home).board;
+  assert.equal(defaults.doneHours, 1);
+  assert.deepEqual(nestedAfter(defaults, 30), ['ou-done'], 'finished 30 minutes ago: shown');
+  assert.deepEqual(nestedAfter(defaults, 120), [], 'finished 2 hours ago: gone');
+  // the finished wait is a floor: a long wait keeps it past the hour
+  assert.deepEqual(nestedAfter({ ...defaults, finishedWaitMinutes: 180 }, 120), ['ou-done']);
+  // the setting still overrides the default
+  writeJson(path.join(home, 'config.json'), { board_done_hours: 4 });
+  assert.deepEqual(nestedAfter(readSettings(home).board, 120), ['ou-done']);
 });

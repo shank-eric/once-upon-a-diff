@@ -238,7 +238,7 @@ export interface MergedStory {
 /** The stories whose PR merged in the last `hours` hours: merged.json's `merged_at`, else when the bridge noticed. */
 export function mergedStories(
   stories: StoryStore,
-  { hours = 24, now = Date.now() }: { hours?: number; now?: number } = {},
+  { hours = 1, now = Date.now() }: { hours?: number; now?: number } = {},
 ): MergedStory[] {
   const found: MergedStory[] = [];
   for (const story of stories.list()) {
