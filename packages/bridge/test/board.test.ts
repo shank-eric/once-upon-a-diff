@@ -7,6 +7,7 @@ import {
   chmodSync,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   rmSync,
   utimesSync,
@@ -4007,8 +4008,25 @@ test('`once-upon wait --repo` stops itself when idle and when the board asks, sa
   assert.equal(kept.code, 2);
   // the board's stop request ends a wait that would otherwise go on
   writeJson(path.join(home, 'config.json'), { port: 48997, token: TOKEN, listen_idle_minutes: 60 });
+  const before = Date.now();
   const waiting = runCli(home, ['wait', '--repo', 'acme/widgets', '--timeout', '30']);
-  await new Promise((resolve) => setTimeout(resolve, 1500));
+  // the wait's first beat says it has started (the stop only reaches waits that started before it)
+  const listenersDir = path.join(home, 'listeners');
+  const beatFresh = () =>
+    existsSync(listenersDir) &&
+    readdirSync(listenersDir).some((name) => {
+      try {
+        return (
+          Date.parse(JSON.parse(readFileSync(path.join(listenersDir, name), 'utf8')).at) >= before
+        );
+      } catch {
+        return false;
+      }
+    });
+  for (let i = 0; i < 600 && !beatFresh(); i++) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  assert.ok(beatFresh(), 'the wait started');
   requestStop(home, 'acme/widgets');
   const stopped = await waiting;
   assert.match(stopped.stdout, /Stopped listening for acme\/widgets: stopped from the board/);

@@ -32,6 +32,7 @@ export function readJson<T = unknown>(file: string, fallback: T | null = null): 
  * each write (pid plus random), so writers at the same moment never share one. `mode` is the file's
  * permissions (0o600 for a secret); without one, an existing file keeps the mode it has. The temp
  * is flushed to disk before the rename, so a crash leaves the old file or the new one, not an empty one.
+ * The rename replaces whatever is at `file`: a symlink there is swapped for a regular file, not written through.
  */
 export function writeFileAtomic(file: string, text: string, mode?: number): void {
   const temp = tempName(file);

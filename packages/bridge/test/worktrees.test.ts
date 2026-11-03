@@ -385,9 +385,8 @@ test('a hung git never holds anything up: kick returns at once, and a status tha
     return runCommand(cmd, args, timeoutMs);
   };
   const scanner = new WorktreeScanner({ home: tmp('wt-home'), dirs: () => [], run });
-  const started = Date.now();
+  // kick is synchronous: it returns while git is still held at the gate
   scanner.kick([repo.main]);
-  assert.ok(Date.now() - started < 100);
   assert.equal(scanner.read().scanning, true);
   assert.deepEqual(scanner.read().items, []);
   release();

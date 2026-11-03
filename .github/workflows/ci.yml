@@ -21,11 +21,7 @@ jobs:
         with:
           persist-credentials: false
 
-      # The yarn version comes from "packageManager" in package.json, and corepack has to be on before setup-node so
-      # its cache step can find yarn.
-      - name: Enable corepack
-        run: corepack enable
-
+      # Yarn 4 comes from the repo itself (yarnPath in .yarnrc.yml, version named by "packageManager" in package.json).
       # node-version-file reads .nvmrc, the same 24 that "engines" asks for. The cache is yarn's folder (.yarn/cache,
       # since enableGlobalCache is off), keyed on yarn.lock.
       - name: Set up Node
