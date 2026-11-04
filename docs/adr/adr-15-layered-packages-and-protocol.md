@@ -1,6 +1,6 @@
 # ADR-15: Layered packages, with the protocol as the only place client and server meet
 
-Decided 10/29. Built the same day, as of main at 0741c6c: `packages/protocol`, the server's layers, the `panel` and `web` packages, the region folders and the lint that enforces them. `ui`, `api-client` and `board-core` as packages were not built. ADR-16 says what was built and why those were left. `api-client` was built later (11/3): `client.ts` moved out of `protocol` into it, with the poll.
+Decided 10/29. Built the same day, as of main at 0741c6c: `packages/protocol`, the server's layers, the `panel` and `web` packages, the region folders and the lint that enforces them. `ui`, `api-client` and `board-core` as packages were not built. ADR-16 says what was built and why those were left. `api-client` was built later (11/3): `client.ts` moved out of `protocol` into it, with the poll. `ui` was built on 11/4 (below).
 
 ## Context
 
@@ -19,7 +19,7 @@ Eric chose the direction on 10/29: layered packages, the way a modern React mono
 
 ## Decision
 
-Layers, from the top. A package imports only layers below it. Apps know their host (`chrome.*`, GitHub's DOM, how to reach the bridge) and inject what features need as adapters. The diagram is what exists. `ui` is in the plan and not built. `api-client` was built on 11/3 (`client.ts` and the poll).
+Layers, from the top. A package imports only layers below it. Apps know their host (`chrome.*`, GitHub's DOM, how to reach the bridge) and inject what features need as adapters. The diagram is what exists. `api-client` was built on 11/3 (`client.ts` and the poll). `ui` was built on 11/4: the pieces the board, the local page, the panel and the extension share (the DOM and clipboard helpers and Start listening, with the generic Preact components after them). It imports the protocol and the vendored Preact only, and the panel, the pages and the extension import it. Eric decided it should exist as a clean home for generic components although it has no runtime, dependency or outside consumer of its own, so it does not meet the package rule below: it is the one package made for tidiness, not for that rule.
 
 ```mermaid
 flowchart TB
@@ -32,7 +32,7 @@ flowchart TB
     panel["panel<br/>ask · drafts · fixes · reading · rebuild"]
   end
   host["host-github<br/>diff-page reader, GitHub URLs"]
-  ui["ui (not built)"]
+  ui["ui<br/>dom and clipboard helpers, Start listening"]
   api["api-client<br/>typed client, poll"]
   protocol["protocol<br/>wire types, route table, schemas"]
   domain["protocol/src/domain<br/>pure rules: id patterns so far"]
@@ -55,6 +55,10 @@ flowchart TB
   boardview --> api
   panel --> api
   ext --> api
+  ext --> ui
+  web --> ui
+  panel --> ui
+  ui --> protocol
   api --> protocol
   boardview --> protocol
   panel --> protocol
@@ -66,16 +70,14 @@ flowchart TB
   svc --> ad
   boardview -. "HTTP (route table)" .-> http
 
-  classDef future stroke-dasharray: 5 5
-  class ui future
 ```
 
-Solid arrows point from importer to imported. The dotted arrow is the runtime HTTP call, not an import. Dashed boxes don't exist.
+Solid arrows point from importer to imported. The dotted arrow is the runtime HTTP call, not an import.
 
 Rules:
 
 - **Only apps know their host.** Features don't import each other. Client and server meet only at `protocol`. The board page reaches the board's services only at runtime, through HTTP and the bridge's routes. The two share only the `BoardData` types in protocol.
-- **A package only when it has its own runtime, its own dependencies, or a consumer outside its layer.** Everything else is a folder with a lint rule. So the domain is `protocol/src/domain/`, the server split is folders inside `bridge` (apps `server/` and `cli/`, then `services/`, then `adapters/`, where every side effect goes), and the feature regions are folders inside `web` (the board page) and `panel` that don't import each other. The CLI is a server-side app beside HTTP, over the services, in-process (ADR-05), and stays in `bridge`.
+- **A package only when it has its own runtime, its own dependencies, or a consumer outside its layer** (`ui` is the one exception, by decision on 11/4). Everything else is a folder with a lint rule. So the domain is `protocol/src/domain/`, the server split is folders inside `bridge` (apps `server/` and `cli/`, then `services/`, then `adapters/`, where every side effect goes), and the feature regions are folders inside `web` (the board page) and `panel` that don't import each other. The CLI is a server-side app beside HTTP, over the services, in-process (ADR-05), and stays in `bridge`.
 - **Enforced by lint and by compilers, not by habit.** `eslint.boundaries.mjs` has one entry per layer and region, and `packages/bridge/test/boundary-lint.test.ts` probes each rule with a violating file. Services, routes and the CLI may not run a program, write a file or reach the network, and no code that ships to a browser may import a Node built-in. protocol's own tsconfig has no DOM and no Node types. `yarn lint` runs in the pre-commit hook and in CI.
 
 ### What `packages/protocol` is
@@ -96,7 +98,7 @@ Pages and the extension build their requests from the route table's types, so th
 
 ### Order
 
-The plan was protocol, panel, web, ui, then the server split and board-core. What ran was protocol, the server split, the panel and web with their region folders, then Preact for the board page, each as a branch of its own. `ui` and `board-core` are left (ADR-16).
+The plan was protocol, panel, web, ui, then the server split and board-core. What ran was protocol, the server split, the panel and web with their region folders, then Preact for the board page, each as a branch of its own. `ui` was built on 11/4, after the panel was on Preact; `board-core` is left (ADR-16).
 
 ### Options considered
 

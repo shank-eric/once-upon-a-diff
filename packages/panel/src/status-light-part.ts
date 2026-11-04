@@ -11,7 +11,13 @@
 import { h as preactH, html } from '/assets/preact.mjs';
 import { parseMarkup } from './parse-markup.ts';
 import { askHintHtml, askWhoHtml, classOf, healthChecks, markOf } from './status-light.ts';
-import { failedNote, listenPlan, idleFor, noSessionNote, typedNote } from './start-listening.ts';
+import {
+  failedNote,
+  listenPlan,
+  idleFor,
+  noSessionNote,
+  typedNote,
+} from '@once-upon-a-diff/ui/listen';
 import type { PanelContext } from './context.ts';
 import type { Health } from './status-light.ts';
 import type { ListenSession, ListenTarget, StatusError } from '@once-upon-a-diff/protocol/types';

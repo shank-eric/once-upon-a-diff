@@ -12,7 +12,7 @@
  *   bridge   packages/bridge/src/{server (+routes), cli} over services over adapters
  *   web      packages/web/public (the pages, an app)
  *   extension packages/extension/src (an app)
- *   panel, host-github, api-client, protocol (+ protocol/src/domain), test-kit
+ *   panel, host-github, api-client, ui, protocol (+ protocol/src/domain), test-kit
  */
 
 const BRIDGE = '^packages/bridge/(src|bin)/';
@@ -26,12 +26,13 @@ const EXTENSION = '^packages/extension/';
 const PANEL = '^packages/panel/';
 const HOST = '^packages/host-github/';
 const API_CLIENT = '^packages/api-client/';
+const UI_PKG = '^packages/ui/';
 const PROTOCOL = '^packages/protocol/';
 const DOMAIN = '^packages/protocol/src/domain/';
 const TEST_KIT = '^packages/test-kit/';
 
 // code that ships to a browser (no Node built-ins)
-const BROWSER = `^packages/(panel|host-github|api-client|protocol|extension/src)/|${WEB}`;
+const BROWSER = `^packages/(panel|host-github|api-client|ui|protocol|extension/src)/|${WEB}`;
 
 const rule = (name, comment, importer, imported) => ({
   name,
@@ -136,7 +137,9 @@ export default {
     rule(
       'bridge-is-server-only',
       'the bridge is server code: only the server and Node tests import it',
-      { path: `${WEB}|${EXTENSION}|${PANEL}|${HOST}|${API_CLIENT}|${PROTOCOL}|${TEST_KIT}` },
+      {
+        path: `${WEB}|${EXTENSION}|${PANEL}|${HOST}|${API_CLIENT}|${UI_PKG}|${PROTOCOL}|${TEST_KIT}`,
+      },
       { path: BRIDGE },
     ),
 
@@ -151,7 +154,9 @@ export default {
       'protocol-is-bottom',
       'the protocol is the bottom of the client and server: it imports no other package of this repo',
       { path: PROTOCOL },
-      { path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${HOST}|${API_CLIENT}|${TEST_KIT}` },
+      {
+        path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${HOST}|${API_CLIENT}|${UI_PKG}|${TEST_KIT}`,
+      },
     ),
     rule(
       'protocol-imports-only-valibot',
@@ -185,7 +190,34 @@ export default {
       'api-client-below-panel-and-pages',
       'the api-client imports the protocol and nothing else of this repo',
       { path: API_CLIENT },
-      { path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${HOST}|${TEST_KIT}` },
+      { path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${HOST}|${UI_PKG}|${TEST_KIT}` },
+    ),
+    rule(
+      'ui-below-panel-and-pages',
+      'ui sits below the panel, the pages and the extension: it imports the protocol and the vendored Preact, never an app, the server, the panel, a host adapter or the api-client',
+      { path: UI_PKG },
+      { path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${HOST}|${API_CLIENT}|${TEST_KIT}` },
+    ),
+    rule(
+      'ui-imports-only-the-protocol',
+      'ui imports nothing from npm (the vendored Preact resolves through the tsconfig paths, and no npm package is its own): an npm package or an unresolved import is refused',
+      { path: UI_PKG },
+      {
+        dependencyTypes: [
+          'npm',
+          'npm-dev',
+          'npm-optional',
+          'npm-peer',
+          'npm-no-pkg',
+          'npm-unknown',
+        ],
+      },
+    ),
+    rule(
+      'ui-no-unresolved',
+      'an import in ui that resolves to nothing is refused',
+      { path: UI_PKG },
+      { couldNotResolve: true },
     ),
     rule(
       'poll-hook-is-the-pages',
@@ -217,13 +249,15 @@ export default {
     rule(
       'schemas-are-server-side',
       'schemas.ts imports valibot, which no page or extension loads: only the server imports it',
-      { path: `${WEB}|${EXTENSION}|${PANEL}|${HOST}|${API_CLIENT}|${PROTOCOL}` },
+      { path: `${WEB}|${EXTENSION}|${PANEL}|${HOST}|${API_CLIENT}|${UI_PKG}|${PROTOCOL}` },
       { path: '^packages/protocol/src/schemas\\.ts$', pathNot: '^packages/protocol/src/' },
     ),
     rule(
       'pages-are-an-app',
       'the pages are an app: nothing imports them, and they do not import the extension or the server',
-      { path: `${PANEL}|${HOST}|${API_CLIENT}|${PROTOCOL}|${BRIDGE}|${EXTENSION}|${TEST_KIT}` },
+      {
+        path: `${PANEL}|${HOST}|${API_CLIENT}|${UI_PKG}|${PROTOCOL}|${BRIDGE}|${EXTENSION}|${TEST_KIT}`,
+      },
       { path: WEB, pathNot: '^packages/web/public/(vendor|types)/' },
     ),
     rule(
@@ -254,7 +288,9 @@ export default {
       'test-kit-is-below',
       'the test kit sits below every package: it imports Node and linkedom only',
       { path: TEST_KIT },
-      { path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${HOST}|${PROTOCOL}|${API_CLIENT}` },
+      {
+        path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${HOST}|${PROTOCOL}|${API_CLIENT}|${UI_PKG}`,
+      },
     ),
   ],
   options: {

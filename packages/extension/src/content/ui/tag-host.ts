@@ -4,12 +4,7 @@
  * it and its clicks and keys stay ours. Used on PR lists and the
  * Conversation tab.
  */
-import {
-  hideUntilStyled,
-  setHtml,
-  stopKeyEvents,
-  stylesheetLink,
-} from '@once-upon-a-diff/panel/dom';
+import { hideUntilStyled, setHtml, stopKeyEvents, stylesheetLink } from '@once-upon-a-diff/ui/dom';
 import type { Html } from '@once-upon-a-diff/protocol/domain/html';
 
 const TAG_CSS_URL = chrome.runtime.getURL('content/ui/story-tag.css');

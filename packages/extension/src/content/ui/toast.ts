@@ -2,7 +2,7 @@
  * A short message at the bottom right of GitHub's page, gone after 5s. Our
  * own element in its own shadow root, so GitHub's CSS can't reach it.
  */
-import { hideUntilStyled, stylesheetLink } from '@once-upon-a-diff/panel/dom';
+import { hideUntilStyled, stylesheetLink } from '@once-upon-a-diff/ui/dom';
 
 const TOAST_MS = 5000;
 const TOAST_CSS_URL = chrome.runtime.getURL('content/ui/toast.css');

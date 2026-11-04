@@ -22,12 +22,12 @@ Decided 11/3. Follows ADR-15 and ADR-16, which left `packages/shared` as the pla
 | Option | Why not chosen |
 |---|---|
 | Promote the domain to its own package | Nothing needs its own manifest: it has no runtime or dependency of its own, and the folder plus its lint rule (imports nothing) already hold the line. |
-| A `ui` package for `dom` and `clipboard` | 66 lines and no components yet. They move there when `ui` has a second kind of thing in it (ADR-16). |
+| A `ui` package for `dom` and `clipboard` | 66 lines and no components yet. They move there when `ui` has a second kind of thing in it (ADR-16). Done on 11/4: `ui` exists (ADR-15) and both moved into it. |
 | `rangeOfPath` as a `commitRange()` on `PanelHost` | It would change the panel's port and both hosts. It stays in the domain as a pure path rule the panel reads. |
 
 ## Consequences
 
 - A change in GitHub's markup or URLs touches `packages/host-github`. A pure helper has one home the server, the pages and the panel all import.
 - ADR-15's open question 4 is answered for these helpers. The ledger-line parsing and the board's column rules are still in the bridge.
-- The extension's tag UI imports two DOM helpers from the panel package. That is a small oddity until `ui` exists.
+- The extension's tag UI imported the DOM helpers from the panel package. That oddity ended on 11/4: they are in `ui`.
 - Every import of a moved helper changed, so branches in flight that touch those lines rebase over this one.

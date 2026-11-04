@@ -5,7 +5,7 @@
  * the page's tokens (local.css, .ou-menu), so both themes are covered.
  */
 import { html } from '/assets/protocol/domain/html.ts';
-import { setHtml } from '/assets/panel/dom.ts';
+import { setHtml } from '/assets/ui/dom.ts';
 
 export interface MenuItem {
   value: string;

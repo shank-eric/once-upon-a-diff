@@ -7,7 +7,7 @@
  * pull request. The board's Ready to ship card opens this page with `#push=1` in its link, which opens the box.
  */
 import { html } from '/assets/protocol/domain/html.ts';
-import { setHtml } from '/assets/panel/dom.ts';
+import { setHtml } from '/assets/ui/dom.ts';
 import { plural } from '/assets/protocol/domain/text.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { bridge, page, PARAMS } from './page.ts';

@@ -1,6 +1,6 @@
 /*
  * "Start listening", on the panel, the PR pages and the local page: types the listen line into a live Claude Code session
- * through the host's opts.listen, which the bridge backs (its board routes for the extension, the story's own routes for the
+ * through the host's listen port (the panel's opts.listen), which the bridge backs (its board routes for the extension, the story's own routes for the
  * local page). It asks for the idle sessions on click: one (or one clearly fresher than the rest) is typed into at once,
  * several close together are listed to choose from, and none leaves a note saying to start one and click again.
  *
@@ -9,7 +9,6 @@
 import { obviousChoice, freshestFirst } from '@once-upon-a-diff/protocol/domain/choice';
 import { compactAge } from '@once-upon-a-diff/protocol/domain/time';
 import type { ListenSession, ListenTarget } from '@once-upon-a-diff/protocol/types';
-import type { PanelOptions } from './context.ts';
 
 /** What to do with the sessions the bridge offered. */
 export type ListenPlan =
@@ -61,6 +60,12 @@ export const typedNote = (title: string, target: ListenTarget, repo: string | nu
 /** The note when the bridge refused or could not be asked (its words, or a plain reason). */
 export const failedNote = (message: string) => `Couldn't start it: ${message}.`;
 
+/** How a host reaches the idle sessions and types the listen line into one (the panel's `opts.listen`). */
+export interface ListenPort {
+  sessions(target: ListenTarget): Promise<ListenSession[]>;
+  start(session: string, target: ListenTarget): Promise<unknown>;
+}
+
 /** What the panel knows of where it is, for the notes. */
 export interface ListenWhere {
   repo?: string | null;
@@ -76,7 +81,7 @@ export function wireStartListening(
   button: HTMLButtonElement,
   note: HTMLElement,
   target: ListenTarget,
-  listen: NonNullable<PanelOptions['listen']>,
+  listen: ListenPort,
   where: ListenWhere,
 ): void {
   const label = button.textContent;

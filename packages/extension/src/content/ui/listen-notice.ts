@@ -9,18 +9,13 @@
  * Our own element in its own shadow root, bottom right. It never touches
  * GitHub's page and posts nothing.
  */
-import { wireStartListening } from '@once-upon-a-diff/panel/start-listening';
+import { wireStartListening } from '@once-upon-a-diff/ui/listen';
 import { bridge } from '../bridge.ts';
 import { createListenOption } from '../listen.ts';
 import { noticeRowHtml } from './story-tag.ts';
 import type { MissingListener } from './story-tag.ts';
 import { html } from '@once-upon-a-diff/protocol/domain/html';
-import {
-  hideUntilStyled,
-  setHtml,
-  stopKeyEvents,
-  stylesheetLink,
-} from '@once-upon-a-diff/panel/dom';
+import { hideUntilStyled, setHtml, stopKeyEvents, stylesheetLink } from '@once-upon-a-diff/ui/dom';
 
 const HOST_ID = 'once-upon-listen-notice';
 const MAX = 3;

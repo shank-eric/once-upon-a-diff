@@ -29,6 +29,10 @@
  *   packages/api-client/src  the typed client over a host's transport and the poll (browser): imports the protocol's route table and
  *                            nothing else of this repo, and no page URL but /assets/preact.mjs (use-poll.ts is the pages' Preact hook, so
  *                            only a page loads it, and only it names /assets/preact.mjs). The panel, the pages and the extension import it; the server and the protocol never do
+ *   packages/ui/src          the pieces the board, the local page, the panel and the extension share (browser): the DOM and clipboard
+ *                            helpers, Start listening, and the generic Preact components. Imports the protocol and the vendored Preact
+ *                            (/assets/preact.mjs) only: no region, no host adapter, no app, no api-client. The panel, the pages and the
+ *                            extension import it; the server, the protocol, the api-client and the test kit never do
  *   packages/protocol/src    the wire types, route table and schemas (no DOM, no Node, imports no package but valibot)
  *   packages/protocol/src/domain  pure rules: imports nothing at all (the helpers the bridge, the pages and the panel share)
  *   packages/extension/src   the Chrome extension (app)
@@ -113,6 +117,17 @@ const PANEL_PAGE_URL = {
   message:
     'the panel is shared by the extension and the pages: the one page URL it names is the vendored Preact (/assets/preact.mjs), and it imports packages, never a page module',
 };
+const UI_PACKAGE = {
+  regex: '^@once-upon-a-diff/ui(/|$)',
+  message:
+    'ui is client code above the protocol: only the panel, the pages, the extension and tests import it',
+};
+// ui is shared by the extension and served to the pages: the one page URL it may name is the vendored Preact
+const UI_PAGE_URL = {
+  regex: '^/assets/(?!preact\\.mjs$)',
+  message:
+    'ui is shared by the extension and the pages: the one page URL it names is the vendored Preact (/assets/preact.mjs), and it imports packages, never a page module',
+};
 const HOST_ADAPTERS = {
   regex: '^@once-upon-a-diff/host-github(/|$)',
   message:
@@ -164,6 +179,7 @@ const WEB_PUBLIC = './packages/web/public';
 const HOST_GITHUB_SRC = './packages/host-github/src';
 const API_CLIENT_SRC = './packages/api-client/src';
 const PANEL_SRC = './packages/panel/src';
+const UI_SRC = './packages/ui/src';
 const PANEL_OVERLAY = './packages/panel/src/overlay.ts';
 const WEB_BOARD = './packages/web/public/board';
 const WEB_BOARD_PAGE = './packages/web/public/board.ts';
@@ -290,6 +306,11 @@ const NOT_THE_API_CLIENT = {
   from: './packages/api-client',
   message:
     'the api-client is client code above the protocol: the server, the protocol and the test kit never import it',
+};
+const NOT_THE_UI = {
+  from: UI_SRC,
+  message:
+    'ui is client code above the protocol: only the panel, the pages, the extension and tests import it',
 };
 const NOT_THE_BRIDGE = { from: './packages/bridge', message: 'the panel sits below the bridge' };
 const NOT_THE_BRIDGE_PACKAGE = {
@@ -431,9 +452,10 @@ const SERVER = {
     NOT_THE_PANEL_PACKAGE,
     NOT_THE_HOST_PACKAGE,
     NOT_THE_API_CLIENT,
+    NOT_THE_UI,
     NOT_THE_TEST_KIT,
   ],
-  specifiers: [EXTENSION, PANEL, HOST_PACKAGE, API_CLIENT, TEST_KIT],
+  specifiers: [EXTENSION, PANEL, HOST_PACKAGE, API_CLIENT, UI_PACKAGE, TEST_KIT],
 };
 
 // what the api-client may not reach, whichever of its files: the server, the apps, the host adapters, the panel, the schemas
@@ -444,9 +466,44 @@ const API_CLIENT_PATHS = [
   NOT_THE_HOST_PACKAGE,
   NOT_THE_PANEL_PACKAGE,
   NOT_THE_SCHEMAS,
+  NOT_THE_UI,
   NOT_THE_TEST_KIT,
 ];
-const API_CLIENT_SPECIFIERS = [BRIDGE, EXTENSION, WEB, PANEL, HOST_PACKAGE, SCHEMAS, TEST_KIT];
+const API_CLIENT_SPECIFIERS = [
+  BRIDGE,
+  EXTENSION,
+  WEB,
+  PANEL,
+  HOST_PACKAGE,
+  SCHEMAS,
+  UI_PACKAGE,
+  TEST_KIT,
+];
+
+// what ui may not reach: the server, the apps, the host adapters, the panel, the api-client, the schemas and the test kit
+const UI_BASE = {
+  paths: [
+    NOT_THE_SERVER,
+    NOT_THE_PAGES,
+    NOT_THE_EXTENSION,
+    NOT_THE_HOST_PACKAGE,
+    NOT_THE_PANEL_PACKAGE,
+    NOT_THE_API_CLIENT,
+    NOT_THE_SCHEMAS,
+    NOT_THE_TEST_KIT,
+  ],
+  specifiers: [
+    BRIDGE,
+    EXTENSION,
+    WEB,
+    PANEL,
+    HOST_PACKAGE,
+    API_CLIENT,
+    SCHEMAS,
+    TEST_KIT,
+    UI_PAGE_URL,
+  ],
+};
 
 const LAYERS = [
   {
@@ -578,6 +635,14 @@ const LAYERS = [
     browser: true,
   },
   {
+    // ui: the helpers and components the panel, the pages and the extension share. It imports the protocol and the vendored Preact only.
+    name: 'ui',
+    files: ['packages/ui/src/**/*.ts'],
+    targets: [UI_SRC],
+    ...UI_BASE,
+    browser: true,
+  },
+  {
     // the protocol: types, the route table and the schemas. It reaches no other package.
     name: 'protocol',
     files: ['packages/protocol/src/**/*.ts'],
@@ -590,6 +655,7 @@ const LAYERS = [
       NOT_THE_PAGES,
       NOT_THE_PANEL_PACKAGE,
       NOT_THE_API_CLIENT,
+      NOT_THE_UI,
       NOT_THE_TEST_KIT,
     ],
     specifiers: [PROTOCOL_IMPORTS],
@@ -656,6 +722,7 @@ const LAYERS = [
       { from: HOST_GITHUB_SRC, message: KIT_BELOW },
       { from: './packages/protocol', message: KIT_BELOW },
       { from: './packages/api-client', message: KIT_BELOW },
+      { from: './packages/ui', message: KIT_BELOW },
     ],
     specifiers: [
       { regex: '^(once-upon-a-diff(/|$)|@once-upon-a-diff/(?!test-kit(/|$)))', message: KIT_BELOW },
@@ -667,7 +734,6 @@ const LAYERS = [
  * Layers still to come, written the way they will read. Move each into LAYERS as its split lands, and keep the probe test in step.
  *
  *   board-view: the board page as its own package, over ui and the api-client (its regions are already folders: web/public/board/).
- *   ui:         files packages/ui/src/**. paths: panel, board-view, web, extension. browser: true.
  *   board-core: files packages/board-core/src/**. paths: web, extension, panel, board-view, ui. Not a package yet: it is
  *               packages/bridge/src/services/board, which still imports about thirty modules of the other services and
  *               the adapters by path. It becomes a package when those arrive as interfaces the bridge passes in.

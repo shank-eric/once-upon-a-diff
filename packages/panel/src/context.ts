@@ -72,7 +72,7 @@ export interface PanelOptions {
   ): Promise<QuestionMarksAnswer>;
   status?(): Promise<BridgeStatus>;
   /**
-   * Start listening (panel/start-listening.ts): the idle Claude Code sessions that may be typed into, and typing the
+   * Start listening (ui/listen.ts): the idle Claude Code sessions that may be typed into, and typing the
    * listen line into one. Both reject with an Error whose message says why. Only a host that can reach the bridge's board
    * (the extension, and the local page through its own story routes) passes it; without it the panel shows the listen
    * line to type yourself and offers no button.

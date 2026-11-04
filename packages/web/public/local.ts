@@ -11,7 +11,7 @@
  * follows the story and the commits.
  */
 import { html } from '/assets/protocol/domain/html.ts';
-import { setHtml } from '/assets/panel/dom.ts';
+import { setHtml } from '/assets/ui/dom.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { page, bridge, PARAMS, OPEN_PUSH } from '/assets/local/page.ts';
 import { treeHtml, fileHtml, headerHtml, resetHighlightBudget } from '/assets/local/diff-view.ts';

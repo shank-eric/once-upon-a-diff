@@ -4,7 +4,7 @@
  * message; the header only asks the panel to run it. Off with no note to send, and while the panel is closed.
  */
 import { html } from '/assets/protocol/domain/html.ts';
-import { setHtml } from '/assets/panel/dom.ts';
+import { setHtml } from '/assets/ui/dom.ts';
 import { plural } from '/assets/protocol/domain/text.ts';
 import { page } from './page.ts';
 

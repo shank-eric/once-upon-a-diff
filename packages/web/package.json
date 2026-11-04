@@ -12,7 +12,8 @@
     "@once-upon-a-diff/api-client": "workspace:*",
     "@once-upon-a-diff/host-github": "workspace:*",
     "@once-upon-a-diff/panel": "workspace:*",
-    "@once-upon-a-diff/protocol": "workspace:*"
+    "@once-upon-a-diff/protocol": "workspace:*",
+    "@once-upon-a-diff/ui": "workspace:*"
   },
   "devDependencies": {
     "@once-upon-a-diff/test-kit": "workspace:*",

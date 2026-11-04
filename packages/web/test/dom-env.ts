@@ -12,6 +12,7 @@ const PUBLIC = fileURLToPath(new URL('../public/', import.meta.url));
 const PROTOCOL = fileURLToPath(new URL('../../protocol/src/', import.meta.url));
 const API_CLIENT = fileURLToPath(new URL('../../api-client/src/', import.meta.url));
 const PANEL = fileURLToPath(new URL('../../panel/src/', import.meta.url));
+const UI_DIR = fileURLToPath(new URL('../../ui/src/', import.meta.url));
 const HOST_GITHUB = fileURLToPath(new URL('../../host-github/src/', import.meta.url));
 
 registerHooks({
@@ -25,6 +26,10 @@ registerHooks({
     const panel = /^\/assets\/panel\/([a-z0-9/-]+\.ts)$/.exec(specifier);
     if (panel) {
       return { url: pathToFileURL(path.join(PANEL, panel[1])).href, shortCircuit: true };
+    }
+    const shared = /^\/assets\/ui\/([a-z0-9-]+\.ts)$/.exec(specifier);
+    if (shared) {
+      return { url: pathToFileURL(path.join(UI_DIR, shared[1])).href, shortCircuit: true };
     }
     const host = /^\/assets\/host-github\/([a-z0-9-]+\.ts)$/.exec(specifier);
     if (host) {

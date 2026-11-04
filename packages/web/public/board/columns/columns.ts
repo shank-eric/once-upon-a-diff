@@ -7,7 +7,7 @@
 import { html, useLayoutEffect, useRef, useState } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { openMenu } from '/assets/local/menu.ts';
-import { writeClipboard } from '/assets/panel/clipboard.ts';
+import { writeClipboard } from '/assets/ui/clipboard.ts';
 import type {
   BoardAgent,
   BoardEditor,
@@ -36,7 +36,7 @@ import {
   type Api,
 } from '/assets/board/shared.ts';
 import { answerBits } from '/assets/board/columns/story-answers.ts';
-import { freshestFirst, obviousChoice } from '/assets/protocol/domain/choice.ts';
+import { listenPlan } from '/assets/ui/listen.ts';
 
 /**
  * The columns in the order the work moves through them, from Backlog (kept for later) to Done, in two groups: what is still on this Mac and what is on GitHub.
@@ -509,7 +509,7 @@ function Listener(props: { entry: BoardListenerRepo; now: number; api: Api }) {
   }
   const seen = entry.last_seen ? ` · last listened ${since(entry.last_seen, now)} ago` : '';
   // several idle sessions and no obvious one: the button opens a menu to pick from
-  const choosing = entry.candidates.length > 1 && !obviousChoice(entry.candidates);
+  const choosing = listenPlan(entry.candidates).kind === 'choose';
   let title = 'No idle session in this repo has an iTerm tab';
   if (entry.candidates.length) {
     title = choosing
@@ -517,16 +517,15 @@ function Listener(props: { entry: BoardListenerRepo; now: number; api: Api }) {
       : `Types /once-upon-listen ${entry.repo} into an idle session in the repo`;
   }
   const start = (event: MouseEvent) => {
-    const candidates = entry.candidates;
     // one obvious session (the only one, or clearly the freshest): use it; else a menu of them, freshest first
-    const obvious = obviousChoice(candidates);
+    const plan = listenPlan(entry.candidates);
     const line = `/once-upon-listen ${entry.repo}`;
-    if (obvious || candidates.length === 1) {
-      void typeInto(api, 'listen', (obvious ?? candidates[0]).id, line, entry.repo);
-    } else if (candidates.length) {
+    if (plan.kind === 'one') {
+      void typeInto(api, 'listen', plan.session.id, line, entry.repo);
+    } else if (plan.kind === 'choose') {
       openMenu(
         event.currentTarget as HTMLElement,
-        freshestFirst(candidates).map((one) => ({
+        plan.sessions.map((one) => ({
           value: one.id,
           label: one.title,
           detail: `${one.status}${one.since ? ` ${compactAge(one.since, Date.now())}` : ''} · ${entry.repo}`,

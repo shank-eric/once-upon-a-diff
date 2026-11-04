@@ -10,6 +10,7 @@
       "/assets/api-client/*": ["../../api-client/src/*"],
       "/assets/host-github/*": ["../../host-github/src/*"],
       "/assets/panel/*": ["../../panel/src/*"],
+      "/assets/ui/*": ["../../ui/src/*"],
       "/assets/local/*": ["./local/*"],
       "/assets/highlight.mjs": ["./types/highlight.d.ts"],
       "/assets/preact.mjs": ["./types/preact.d.ts"],

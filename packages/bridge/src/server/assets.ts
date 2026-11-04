@@ -1,8 +1,8 @@
 /*
  * The files the bridge serves without a token: the pages' scripts, CSS and icon (the web package,
  * @once-upon-a-diff/web), the panel's modules and stylesheets (@once-upon-a-diff/panel), the GitHub host
- * adapter (@once-upon-a-diff/host-github), the typed client and the poll from the api-client package, and the route table
- * and domain from the protocol package.
+ * adapter (@once-upon-a-diff/host-github), the typed client and the poll from the api-client package, the shared UI_DIR pieces
+ * (@once-upon-a-diff/ui), and the route table and domain from the protocol package.
  * TypeScript modules go out as JavaScript, their types stripped the way Node strips the bridge's own,
  * so the browser runs the same lines with no build step. The panel, the host adapter and the domain name
  * the packages they use by package, as Node and the extension's bundler resolve them, so a served module
@@ -32,6 +32,8 @@ const PROTOCOL = path.dirname(
 const API_CLIENT = path.dirname(
   fileURLToPath(import.meta.resolve('@once-upon-a-diff/api-client/client')),
 );
+/** The ui package's sources (src/): the helpers and components the pages, the panel and the extension share. */
+const UI_DIR = path.dirname(fileURLToPath(import.meta.resolve('@once-upon-a-diff/ui/clipboard')));
 const SCRIPT = 'text/javascript; charset=utf-8';
 const STYLESHEET = 'text/css; charset=utf-8';
 const PNG = 'image/png';
@@ -41,6 +43,8 @@ const PANEL_MODULE = /^\/assets\/panel\/([a-z0-9-]+(?:\/[a-z0-9-]+)*\.(?:ts|css)
 const HOST_MODULE = /^\/assets\/host-github\/([a-z0-9-]+\.ts)$/;
 /** The api-client's modules a page may load: the typed client, the poll and the Preact hook over it. */
 const API_CLIENT_MODULE = /^\/assets\/api-client\/(client|poll|use-poll)\.ts$/;
+/** The ui package's modules a page may load (the panel reaches them by package, which forBrowser spells as these URLs). */
+const UI_MODULE = /^\/assets\/ui\/([a-z0-9-]+\.ts)$/;
 /**
  * The protocol's modules a page may load: the route table and the domain (all of it: pure rules that import
  * nothing). Not schemas.ts, which imports valibot (the bridge checks bodies, the pages don't) and has nothing for a page to run.
@@ -71,7 +75,7 @@ const stripped = new Map<string, { mtime: number; code: string }>();
 
 /** The specifiers a served module may name by package, and the /assets/ URL each is loaded from (the package's name is the folder). */
 const PACKAGE_SPECIFIER =
-  /(\bfrom\s*|\bimport\s*\(?\s*)(['"])@once-upon-a-diff\/(panel|protocol|host-github|api-client)\/([a-z0-9/-]+)\2/g;
+  /(\bfrom\s*|\bimport\s*\(?\s*)(['"])@once-upon-a-diff\/(panel|protocol|host-github|api-client|ui)\/([a-z0-9/-]+)\2/g;
 /** A stripped module with its package specifiers (the panel, the protocol, the host adapter) spelled as the URLs the bridge serves them at. */
 export const forBrowser = (code: string): string =>
   code.replace(
@@ -124,13 +128,15 @@ export function assetFor(pathname: string): [string | Buffer, string] | null {
   const localModule = LOCAL_MODULE.exec(pathname);
   const protocolModule = PROTOCOL_MODULE.exec(pathname);
   const apiClientModule = API_CLIENT_MODULE.exec(pathname);
+  const uiModule = UI_MODULE.exec(pathname);
   if (
     !panelModule &&
     !hostModule &&
     !boardModule &&
     !localModule &&
     !protocolModule &&
-    !apiClientModule
+    !apiClientModule &&
+    !uiModule
   ) {
     return null;
   }
@@ -143,6 +149,8 @@ export function assetFor(pathname: string): [string | Buffer, string] | null {
     file = path.join(HOST_GITHUB, hostModule[1]);
   } else if (apiClientModule) {
     file = path.join(API_CLIENT, `${apiClientModule[1]}.ts`);
+  } else if (uiModule) {
+    file = path.join(UI_DIR, uiModule[1]);
   } else if (protocolModule) {
     file = path.join(PROTOCOL, `${protocolModule[1]}.ts`);
   } else {

@@ -7,43 +7,15 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { code, files, writesIn } from '@once-upon-a-diff/test-kit/dom-writes';
 
 const SRC = path.join(path.dirname(fileURLToPath(import.meta.url)), '../src');
 
-/** Every way the panel could write into a node by hand, as a source pattern. */
-const WRITES = new RegExp(
-  [
-    String.raw`\bsetHtml\(`,
-    String.raw`\binsertHtml\(`,
-    String.raw`\.(innerHTML|outerHTML|innerText)\b`,
-    String.raw`\.insertAdjacent(HTML|Element|Text)\(`,
-    String.raw`\.(textContent|title|value|checked|open|hidden|disabled|className|id|href|src)\s*=(?!=)`,
-    String.raw`\.style\b`,
-    String.raw`\.dataset\b[^=\n]*=(?!=)`,
-    String.raw`\.on[a-z]+\s*=(?!=)`,
-    String.raw`\.(setAttribute|removeAttribute|toggleAttribute)\(`,
-    String.raw`\.classList\.(add|remove|toggle|replace)\(`,
-    String.raw`\baddEventListener\(`,
-    String.raw`\.(replaceChildren|append|prepend|before|after|appendChild|insertBefore|removeChild|replaceWith|remove)\(`,
-    String.raw`\bdocument\.(createElement|createTextNode)\(`,
-  ].join('|'),
-  'g',
-);
-
-/** Source with its comments taken out (a `//` after a space or at a line's start, and block comments). */
-const code = (source: string) =>
-  source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|\s)\/\/.*$/gm, '$1');
-const writesIn = (source: string) => [...code(source).matchAll(WRITES)].length;
-
 /** file (under src): [how many hand writes, why]. A count can only fall. */
 const ALLOWED: Record<string, [number, string]> = {
-  'dom.ts': [
-    11,
-    'the helpers the extension and the local page use (setHtml, insertHtml, key isolation, waiting for styles)',
-  ],
   'parse-markup.ts': [2, 'reads markup into a detached template'],
   'shell.ts': [
     24,
@@ -63,26 +35,12 @@ const ALLOWED: Record<string, [number, string]> = {
   'reading/reading.ts': [2, 'the page’s visibility and unload'],
   'reading/scroll.ts': [4, 'the page’s scrolling and highlight'],
   'reading/viewed.ts': [2, 'the page’s Viewed toggles'],
-  'start-listening.ts': [
-    17,
-    'wireStartListening, which the extension’s listen notice still uses (the panel has its own, with state)',
-  ],
   'status-light-part.ts': [
     1,
     'a prop set on a parsed element in a markup hook (the details box), not a node',
   ],
   'fixes/working.ts': [2, 'the page’s dimmed blocks (host nodes)'],
 };
-
-function files(dir: string): string[] {
-  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      return files(full);
-    }
-    return entry.name.endsWith('.ts') ? [full] : [];
-  });
-}
 
 test('the panel writes into the DOM by hand only where it says it does', () => {
   const found: Record<string, number> = {};

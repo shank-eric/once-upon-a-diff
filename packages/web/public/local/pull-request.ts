@@ -7,9 +7,9 @@
  * and a Push for them (push-ahead.ts).
  */
 import { html } from '/assets/protocol/domain/html.ts';
-import { setHtml } from '/assets/panel/dom.ts';
+import { setHtml } from '/assets/ui/dom.ts';
 import { plural } from '/assets/protocol/domain/text.ts';
-import { writeClipboard } from '/assets/panel/clipboard.ts';
+import { writeClipboard } from '/assets/ui/clipboard.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { bridge, page, PARAMS } from './page.ts';
 import type { PrView } from '/assets/types.ts';
