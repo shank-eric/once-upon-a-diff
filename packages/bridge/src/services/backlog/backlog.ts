@@ -12,7 +12,7 @@
  *   {op:'move',  id, before | edge, by, at}   `before` is another item's id; `edge` is 'top' or 'bottom'
  *   {op:'edit',  id, title?, note?, repo?, by, at}   only the fields that changed; an empty note or repo clears it. An open item only
  *   {op:'claim', id, agent, sid?, by, at}     an agent (named as in the ledger) owns the card: the one link from a card to an
- *                                              agent (claims.ts). The latest claim wins; a reopen clears it
+ *                                              agent (claims.ts). The latest claim wins; a `done` or a reopen clears it
  *   {op:'hold',  id, on, by, at}              the card lands by hand: a deploy never marks it done (landing.ts), only `done ID` does.
  *                                              `on:false` clears it; a reopen clears it too. Sticky across claims
  *
@@ -68,7 +68,7 @@ export interface BacklogItem {
   landed_sha: string | null;
   /** the latest session an Assign typed the item into; kept until a start or a drop (shown for ASSIGN_HOURS) */
   assigned: { session: string; branch: string | null; at: string } | null;
-  /** the agent that claimed the card (named as in the ledger, with its launching session's first 8 when given); cleared by a reopen */
+  /** the agent that claimed the card (named as in the ledger, with its launching session's first 8 when given); cleared when it lands (`done`) or by a reopen */
   claim: { agent: string; sid: string | null; by: string; at: string } | null;
   /** the card lands by hand: a deploy does not mark it done (part of its work lands outside the repo) */
   hold: boolean;
@@ -215,6 +215,9 @@ export function foldBacklog(text: string): BacklogItem[] {
       // (an open item an agent works on is started by what the board finds, so it can land with no `start`)
       found.landed_at = when;
       found.landed_sha = typeof event.sha === 'string' && event.sha ? event.sha : null;
+      // the claim ends when the card lands, whatever its agent is doing. A later claim is recorded, but holds nothing
+      // until a `start` reopens the work (claimedRun and liveClaim ignore a landed card)
+      found.claim = null;
     } else if (
       found &&
       found.state !== 'dropped' &&

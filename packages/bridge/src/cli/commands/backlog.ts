@@ -30,13 +30,18 @@ const USAGE =
 
 const text = (value: unknown): string | null => (typeof value === 'string' ? value : null);
 
-/** done, else the state (marked when a deploy leaves the card to be closed by hand) */
+/** the state the CLI reports: done once it landed (the store keeps started or open), unless it was dropped after */
+const reported = (item: BacklogItem): string =>
+  item.landed_at && item.state !== 'dropped' ? 'done' : item.state;
+
+/** the reported state (marked when a deploy leaves the card to be closed by hand) */
 const stateOf = (item: BacklogItem): string => {
-  if (item.landed_at) {
-    return 'done';
-  }
-  return item.hold ? `${item.state} (by hand)` : item.state;
+  const state = reported(item);
+  return item.hold && state !== 'done' ? `${state} (by hand)` : state;
 };
+
+/** an item as `show` and `list --json` print it, with its reported state */
+const shown = (item: BacklogItem) => ({ ...item, state: reported(item) });
 
 function describe(item: BacklogItem, home: string): string {
   const where = [item.repo, item.branch].filter(Boolean).join(' ');
@@ -68,9 +73,9 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     return out(`${item.id} added: ${item.title}`);
   }
   if (verb === 'list') {
-    const items = store.items().filter((item) => opts.all || item.state === 'open');
+    const items = store.items().filter((item) => opts.all || reported(item) === 'open');
     if (opts.json) {
-      return out(JSON.stringify(items, null, 2));
+      return out(JSON.stringify(items.map(shown), null, 2));
     }
     // in the board's order, numbered
     return out(
@@ -80,7 +85,7 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     );
   }
   if (verb === 'show') {
-    return out(JSON.stringify(found(), null, 2));
+    return out(JSON.stringify(shown(found()), null, 2));
   }
   if (verb === 'edit') {
     const item = found();

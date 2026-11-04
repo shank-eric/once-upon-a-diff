@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { git, runCli, tmp } from './helpers.ts';
 import { BacklogStore } from '../src/services/backlog/backlog.ts';
+import { claimedRun } from '../src/services/backlog/claims.ts';
 import { landItems, recordedTips } from '../src/services/backlog/landing.ts';
 import { AgentRegistry } from '../src/services/ledger/registry.ts';
 
@@ -382,6 +383,84 @@ test('the CLI: land marks and reports without a branch, --dry-run writes nothing
   const hold = await runCli(lab.home, ['backlog', 'hold', quiet.id], {}, lab.repo);
   assert.match(hold.stdout, /held/);
   assert.equal(lab.store.items().find((one) => one.id === quiet.id)?.hold, true);
+});
+
+test('a landed card is done with its claim ended, whether its agent is still waiting or finished', async () => {
+  const lab = world();
+  const parked = lab.store.add({ title: 'Parked on review', repo: 'acme/widgets' });
+  lab.store.claim(parked.id, { agent: 'ou-wait', sid: SID });
+  lab.store.start(parked.id, { branch: 'feat/w', repo: 'acme/widgets' });
+  const finished = lab.store.add({ title: 'Finished', repo: 'acme/widgets' });
+  lab.store.claim(finished.id, { agent: 'ou-fin', sid: SID });
+  lab.store.start(finished.id, { branch: 'feat/f', repo: 'acme/widgets' });
+  lab.branch('feat/w');
+  const first = lab.edit(3, 'w change');
+  const tip = lab.edit(20, 'f change');
+  // ou-wait records its commit, then a later run parks waiting on Eric's review; ou-fin finishes outright
+  lab.registry.start({ name: 'ou-wait', sid: SID, kind: 'author', task: 'build', card: parked.id });
+  lab.registry.finish('ou-wait', { sid: SID, result: { commit: first, card: parked.id } });
+  lab.registry.start({ name: 'ou-wait', sid: SID, kind: 'author', task: 'fix round' });
+  lab.registry.state('ou-wait', { sid: SID, state: 'waiting', outcome: 'parked on review' });
+  lab.run('ou-fin', finished.id, tip);
+  const real = await runCli(
+    lab.home,
+    ['backlog', 'land', '--from', lab.base, '--to', tip, '--by', 'deploy-local'],
+    {},
+    lab.repo,
+  );
+  assert.match(real.stdout, new RegExp(`${parked.id} done at ${first}`));
+  assert.match(real.stdout, new RegExp(`${finished.id} done at ${tip}`));
+  for (const [id, sha] of [
+    [parked.id, first],
+    [finished.id, tip],
+  ]) {
+    const shown = await runCli(lab.home, ['backlog', 'show', id], {}, lab.repo);
+    const item = JSON.parse(shown.stdout);
+    assert.equal(item.state, 'done', `${id} reads done`);
+    assert.equal(item.landed_sha, sha);
+    assert.equal(item.claim, null, `${id}'s claim ended when it landed`);
+    const stored = lab.store.items().find((one) => one.id === id);
+    assert.ok(stored);
+    assert.equal(claimedRun(stored, lab.registry.agents()), null);
+  }
+  // a fix round's claim after the landing is recorded, but holds nothing until a start reopens the work
+  lab.store.claim(parked.id, { agent: 'ou-wait', sid: SID });
+  const reclaimed = lab.store.items().find((one) => one.id === parked.id);
+  assert.equal(reclaimed?.claim?.agent, 'ou-wait');
+  assert.ok(reclaimed);
+  assert.equal(claimedRun(reclaimed, lab.registry.agents()), null);
+  const restarted = lab.store.start(parked.id, { branch: 'feat/w', repo: 'acme/widgets' });
+  assert.equal(claimedRun(restarted, lab.registry.agents())?.agent.name, 'ou-wait');
+});
+
+test('the CLI reports a landed then dropped card as dropped, and the open list leaves out a card that landed with no start', async () => {
+  const lab = world();
+  const unstarted = lab.store.add({ title: 'Claimed, never started', repo: 'acme/widgets' });
+  lab.store.claim(unstarted.id, { agent: 'ou-u', sid: SID });
+  lab.store.done(unstarted.id, { sha: 'abc1234' });
+  const gone = lab.store.add({ title: 'Landed then dropped', repo: 'acme/widgets' });
+  lab.store.done(gone.id, { sha: 'abc1234' });
+  lab.store.drop(gone.id);
+  const open = lab.store.add({ title: 'Still open', repo: 'acme/widgets' });
+  const cli = async (...args: string[]) => (await runCli(lab.home, args, {}, lab.repo)).stdout;
+  assert.equal(JSON.parse(await cli('backlog', 'show', gone.id)).state, 'dropped');
+  assert.equal(JSON.parse(await cli('backlog', 'show', unstarted.id)).state, 'done');
+  const listed = JSON.parse(await cli('backlog', 'list', '--json'));
+  assert.deepEqual(
+    listed.map((one: { id: string; state: string }) => [one.id, one.state]),
+    [[open.id, 'open']],
+  );
+  const all = JSON.parse(await cli('backlog', 'list', '--all', '--json'));
+  assert.deepEqual(
+    all.map((one: { id: string; state: string }) => [one.id, one.state]),
+    [
+      [unstarted.id, 'done'],
+      [gone.id, 'dropped'],
+      [open.id, 'open'],
+    ],
+  );
+  assert.match(await cli('backlog', 'list', '--all'), new RegExp(`${gone.id}\tdropped\t`));
+  assert.doesNotMatch(await cli('backlog', 'list'), new RegExp(unstarted.id));
 });
 
 test('deploy-local.sh marks cards through backlog land, not a branch name', () => {
