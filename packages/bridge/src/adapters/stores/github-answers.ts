@@ -1,7 +1,7 @@
 /*
  * <home>/github-answers.json: what GitHub last said, kept so a bridge that restarts shows the last known state of each
  * branch's PR, each PR and the lists of your PRs until GitHub answers again. Each entry carries the time it was answered
- * (ms); entries older than a week are dropped on read and on write. A missing file, a file that isn't JSON or one of another
+ * (ms); entries older than a week are dropped on read and on write, and a time ahead of now (a clock that was ahead when it was written) is read as now, so it expires a week on. A missing file, a file that isn't JSON or one of another
  * version reads as empty, and an entry of the wrong shape is skipped, so the next write leaves a clean file. Writes go
  * through writeJsonAtomic.
  */
@@ -67,7 +67,7 @@ export function readGithubAnswers(home: string, now = Date.now()): GithubAnswers
     for (const [key, entry] of Object.entries(stored.branches)) {
       const pr = isRecord(entry) ? branchPrOf(entry.pr) : undefined;
       if (isRecord(entry) && fresh(entry.at) && pr !== undefined) {
-        out.branches[key] = { at: entry.at, pr };
+        out.branches[key] = { at: Math.min(entry.at, now), pr };
       }
     }
   }
@@ -81,7 +81,7 @@ export function readGithubAnswers(home: string, now = Date.now()): GithubAnswers
         typeof info.number === 'number' &&
         (info.state === 'open' || info.state === 'merged' || info.state === 'closed')
       ) {
-        out.prs[key] = { at: entry.at, info: info as unknown as PrInfo };
+        out.prs[key] = { at: Math.min(entry.at, now), info: info as unknown as PrInfo };
       }
     }
   }
@@ -94,7 +94,10 @@ export function readGithubAnswers(home: string, now = Date.now()): GithubAnswers
       (pr) => isRecord(pr) && typeof pr.repo === 'string' && typeof pr.number === 'number',
     )
   ) {
-    out.requested = { at: asked.at, list: asked.list as { repo: string; number: number }[] };
+    out.requested = {
+      at: Math.min(asked.at, now),
+      list: asked.list as { repo: string; number: number }[],
+    };
   }
   return out;
 }
@@ -102,14 +105,20 @@ export function readGithubAnswers(home: string, now = Date.now()): GithubAnswers
 /** Writes what is kept (entries older than a week at `now` left out). A home that can't be written is not an error: the next start just has nothing to show. */
 export function writeGithubAnswers(home: string, answers: GithubAnswers, now = Date.now()): void {
   const keep = <T extends { at: number }>(entries: Record<string, T>) =>
-    Object.fromEntries(Object.entries(entries).filter(([, entry]) => now - entry.at < KEEP_MS));
+    Object.fromEntries(
+      Object.entries(entries)
+        .filter(([, entry]) => now - entry.at < KEEP_MS)
+        .map(([key, entry]) => [key, { ...entry, at: Math.min(entry.at, now) }]),
+    );
   try {
     writeJsonAtomic(file(home), {
       version: VERSION,
       branches: keep(answers.branches),
       prs: keep(answers.prs),
       requested:
-        answers.requested && now - answers.requested.at < KEEP_MS ? answers.requested : null,
+        answers.requested && now - answers.requested.at < KEEP_MS
+          ? { ...answers.requested, at: Math.min(answers.requested.at, now) }
+          : null,
     });
   } catch {
     /* the home is gone or read-only: GitHub sync still works */

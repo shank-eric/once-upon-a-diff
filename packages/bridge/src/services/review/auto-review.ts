@@ -727,7 +727,15 @@ export class AutoReview {
   private saving = false;
   private branches = new Map<
     string,
-    { at: number; pr: BranchPr | null | undefined; heads: string[] }
+    {
+      at: number;
+      pr: BranchPr | null | undefined;
+      heads: string[];
+      /** set while `pr` is an older ask's answer: the heads it covered, which `heads` shrinks to if the newest ask fails */
+      prHeads?: string[];
+      /** the newest ask failed, so an older ask finishing later answers only for its own heads */
+      newestFailed?: boolean;
+    }
   >();
   /** when each local story's head was last looked for in the default branch (story id and head commit) */
   private delivered = new Map<string, number>();
@@ -847,7 +855,7 @@ export class AutoReview {
     // the old answer stays until the new one arrives, and a failed ask keeps it
     const asked =
       last && now - last.at < this.cacheMs ? [...new Set([...last.heads, ...heads])] : heads;
-    this.branches.set(key, { at: now, pr: last?.pr, heads: asked });
+    this.branches.set(key, { at: now, pr: last?.pr, heads: asked, prHeads: last?.prHeads });
     // Asks can overlap and finish in any order. An answer older than one that already landed is dropped. The newest ask
     // writes whole (its placeholder above covers what it asked, so an older one finishing first must not shrink that and
     // cause another ask). An older ask finishing while the newest is out keeps its PR when it found one, under the
@@ -864,7 +872,14 @@ export class AutoReview {
           this.branches.set(key, { at: now, pr, heads: asked });
         } else if (pr) {
           const current = this.branches.get(key);
-          this.branches.set(key, { at: now, heads: asked, ...current, pr });
+          this.branches.set(key, {
+            at: now,
+            heads: asked,
+            ...current,
+            pr,
+            prHeads: asked,
+            ...(current?.newestFailed ? { heads: asked, newestFailed: undefined } : {}),
+          });
         } else {
           return;
         }
@@ -873,7 +888,18 @@ export class AutoReview {
         this.kept.branches[key] = { at: now, pr };
         this.save(now);
       })
-      .catch(() => undefined)
+      .catch(() => {
+        // the newest ask failed: an older ask's answer only speaks for the heads that ask had
+        const current = this.branches.get(key);
+        if (seq === this.branchSeq.get(key) && current) {
+          this.branches.set(
+            key,
+            current.prHeads
+              ? { ...current, heads: current.prHeads, prHeads: undefined }
+              : { ...current, newestFailed: true },
+          );
+        }
+      })
       .finally(() => this.running.delete(job));
     this.running.add(job);
   }

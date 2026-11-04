@@ -341,3 +341,89 @@ test('the newest ask fails: an older ask’s good answer is kept, and no third a
   assert.deepEqual(none.branchPr(REPO, BRANCH), MERGED);
   void never;
 });
+
+test('an entry stamped in the future (a clock that was ahead) is clamped to now, so it still expires', () => {
+  const home = tmp('github-answers-home');
+  const future = START + 3600000;
+  writeJson(files(home), {
+    version: 1,
+    branches: { [KEY]: { at: future, pr: OPEN } },
+    prs: { [`${REPO.toLowerCase()}#1`]: { at: future, info: prInfo(1) } },
+    requested: { at: future, list: [] },
+  });
+  const read = readGithubAnswers(home, START);
+  assert.equal(read.branches[KEY].at, START);
+  assert.equal(read.prs[`${REPO.toLowerCase()}#1`].at, START);
+  assert.equal(read.requested?.at, START);
+  // the bridge writes what it loaded back: a week on from now it is gone
+  writeGithubAnswers(home, read, START);
+  assert.deepEqual(readGithubAnswers(home, START + KEEP_MS), {
+    branches: {},
+    prs: {},
+    requested: null,
+  });
+  writeGithubAnswers(
+    home,
+    { branches: { [KEY]: { at: future, pr: OPEN } }, prs: {}, requested: null },
+    START,
+  );
+  assert.equal(readGithubAnswers(home, START).branches[KEY].at, START, 'a write clamps it too');
+});
+
+test('the newest ask fails: an older ask’s merged answer covers only its own heads', async () => {
+  const releases: ((value: BranchPr | null | 'fail') => void)[] = [];
+  const seen: string[][] = [];
+  const review = new AutoReview(
+    new StoryStore({ home: tmp('github-answers-home') }),
+    noPr,
+    1000,
+    async (_repo, _branch, _checkout, heads = []) => {
+      seen.push(heads);
+      const answer = await new Promise<BranchPr | null | 'fail'>((resolve) =>
+        releases.push(resolve),
+      );
+      if (answer === 'fail') {
+        throw new Error('gh: HTTP 502');
+      }
+      return answer;
+    },
+  );
+  review.kickBranch(REPO, BRANCH, '/nowhere', START, [HEAD]);
+  review.kickBranch(REPO, BRANCH, '/nowhere', START + 10, [OTHER]);
+  releases[0](MERGED);
+  await idle();
+  releases[1]('fail');
+  await review.idle();
+  assert.deepEqual(review.branchPr(REPO, BRANCH), MERGED);
+  review.kickBranch(REPO, BRANCH, '/nowhere', START + 20, [OTHER]);
+  assert.equal(seen.length, 3, 'the answer never covered OTHER, so it is asked again');
+});
+
+test('the newest ask fails first: an older ask’s merged answer landing later covers only its own heads', async () => {
+  const releases: ((value: BranchPr | null | 'fail') => void)[] = [];
+  const seen: string[][] = [];
+  const review = new AutoReview(
+    new StoryStore({ home: tmp('github-answers-home') }),
+    noPr,
+    1000,
+    async (_repo, _branch, _checkout, heads = []) => {
+      seen.push(heads);
+      const answer = await new Promise<BranchPr | null | 'fail'>((resolve) =>
+        releases.push(resolve),
+      );
+      if (answer === 'fail') {
+        throw new Error('gh: HTTP 502');
+      }
+      return answer;
+    },
+  );
+  review.kickBranch(REPO, BRANCH, '/nowhere', START, [HEAD]);
+  review.kickBranch(REPO, BRANCH, '/nowhere', START + 10, [OTHER]);
+  releases[1]('fail');
+  await idle();
+  releases[0](MERGED);
+  await review.idle();
+  assert.deepEqual(review.branchPr(REPO, BRANCH), MERGED);
+  review.kickBranch(REPO, BRANCH, '/nowhere', START + 20, [OTHER]);
+  assert.equal(seen.length, 3, 'the answer never covered OTHER, so it is asked again');
+});
