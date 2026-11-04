@@ -20,14 +20,11 @@ import { focusSession, useSetting, type Api } from '/assets/board/shared.ts';
 import { VoicePanel } from '/assets/board/voice/voice-panel.ts';
 import type { BoardCard, BoardData } from '/assets/types.ts';
 
-import {
-  arrange,
-  Card,
-  Columns,
-  Helpers,
-  Listeners,
-  type ColumnsView,
-} from '/assets/board/columns/columns.ts';
+import { Columns, type ColumnsView } from '/assets/board/columns/columns.ts';
+import { arrange } from '/assets/board/columns/layout.ts';
+import { Card } from '/assets/board/columns/card.ts';
+import { Listeners } from '/assets/board/columns/listeners.ts';
+import { Helpers } from '/assets/board/columns/standing-helpers.ts';
 import { BacklogCard, useAddPanel, useBacklogDnd } from '/assets/board/backlog/backlog.ts';
 import { sameLaneKey } from '/assets/protocol/domain/lane-key.ts';
 import { Header, useVoiceBusy } from '/assets/board/header/header.ts';
