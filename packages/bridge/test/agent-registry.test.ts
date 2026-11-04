@@ -26,6 +26,19 @@ const NOW = minute(30);
 
 const BUILD = { name: 'ou-thing', sid: SID, kind: 'author', task: 'build the thing' } as const;
 
+test('the registry takes any card id the backlog does (6 to 24 characters) and any full git sha', () => {
+  const registry = new AgentRegistry(tmp('reg-card'));
+  const card = `bl_${'a1'.repeat(12)}`; // 24 characters after bl_
+  registry.start({ ...BUILD, card, at: minute(0) });
+  assert.equal(registry.agents()[0].card, card);
+  assert.throws(
+    () => registry.start({ ...BUILD, name: 'ou-other', card: `${card}z`, at: minute(1) }),
+    /the card/,
+  );
+  registry.finish('ou-thing', { result: { commit: 'f'.repeat(64) }, at: minute(2) });
+  assert.equal(registry.agents()[0].result?.commit, 'f'.repeat(64));
+});
+
 test('start, beat, finish round trip folds to one agent with exact times', () => {
   const registry = new AgentRegistry(tmp('reg-round'));
   const run = registry.start({

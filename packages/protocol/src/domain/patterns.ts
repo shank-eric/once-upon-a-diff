@@ -13,6 +13,9 @@ export const SESSION_RE = /^[A-Za-z0-9._-]{1,100}$/;
 /** A backlog item's id. */
 export const BACKLOG_ID_RE = /^bl_[a-z0-9]{6,24}$/;
 
+/** A full commit id: SHA-1 (40 characters) or SHA-256 (64). A commit abbreviated to 7 or more is `SHA_RE` in text.ts. */
+export const FULL_SHA_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+
 /** A git branch name a page sends: what git allows in a ref (no spaces, control characters or `~^:?*[\\`), at most 255 characters. */
 // eslint-disable-next-line no-control-regex -- control characters are what it refuses
 export const BRANCH_RE = /^[^\s\x00-\x1f\x7f~^:?*[\\]{1,255}$/;

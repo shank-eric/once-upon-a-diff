@@ -8,6 +8,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { copyFileAtomic, readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
 import path from 'node:path';
+import { FULL_SHA_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { topLevel, revParse, branchOfRef, mergeBase } from '../../adapters/git.ts';
 import { defaultBranchOf } from './push-default.ts';
 import { removeFile } from '../../adapters/stores/files.ts';
@@ -138,7 +139,7 @@ export function createLocalStory({
   // the story is told by the branch only when --head names it (or is HEAD): a commit stays its own story, by its first
   // nine characters when it is a full sha, so it never takes over the default story of the branch it happens to tip
   const named = head === 'HEAD' || head.replace(/^refs\/heads\//, '') === branch;
-  const shown = (named && branch) || (/^[0-9a-f]{40}$/i.test(head) ? head.slice(0, 9) : head);
+  const shown = (named && branch) || (FULL_SHA_RE.test(head) ? head.slice(0, 9) : head);
   id = id || slug(`local-${name}-${shown}`);
   if (!ID_RE.test(id)) {
     throw new Error(`bad story id: ${id}`);

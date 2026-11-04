@@ -22,16 +22,16 @@ const GITHUB_URL = 'https://github.com/acme/widgets.git';
 
 /**
  * A local story on branch `feature` whose origin is github.com/acme/widgets, rewritten by url.insteadOf to a bare
- * repo in a temp folder, which has `main` at the story's base. git shows the rewritten URL, so the story's meta
+ * repo in a temp folder, which has `main` (or `trunk`) at the story's base. git shows the rewritten URL, so the story's meta
  * names the repo itself.
  */
-function storyWithOrigin(home: string) {
+function storyWithOrigin(home: string, trunk = 'main') {
   const { repo, base } = localRepo();
   const remote = tmp('remote');
-  git(remote, 'init', '-q', '--bare', '-b', 'main');
+  git(remote, 'init', '-q', '--bare', '-b', trunk);
   git(repo, 'config', `url.${remote}.insteadOf`, GITHUB_URL);
   git(repo, 'remote', 'add', 'origin', GITHUB_URL);
-  git(repo, 'push', '-q', 'origin', `${base}:refs/heads/main`);
+  git(repo, 'push', '-q', 'origin', `${base}:refs/heads/${trunk}`);
   git(repo, 'fetch', '-q', 'origin');
   const chapters = path.join(tmp('ch'), 'chapters.json');
   writeJson(chapters, { chapters: [{ refs: [], title: 'Chapter 1: One', files: ['one.txt'] }] });
@@ -505,6 +505,31 @@ describe('Create pull request on a local story', () => {
     ]);
     assert.notEqual(refusedDraft.code, 0);
     assert.match(refusedDraft.stderr, /no story nope/);
+  });
+
+  test("a story's PR base falls back to the master origin has when there is no origin/HEAD, as Push does", async () => {
+    const home = tmp('home');
+    const { id, repo } = storyWithOrigin(home, 'master');
+    try {
+      git(repo, 'symbolic-ref', '--delete', 'refs/remotes/origin/HEAD'); // gits from 2.48 set it on fetch
+    } catch {
+      /* an older git left none */
+    }
+    const bridge = await startBridge({ home });
+    try {
+      const view = (await bridge.call<PrView>('GET', `/api/stories/${id}/pr`)).body;
+      assert.equal(view.base, 'master');
+    } finally {
+      await bridge.close();
+    }
+  });
+
+  test('namedBase reads a 64-character commit (a SHA-256 repo) as a commit, not a branch', () => {
+    const home = tmp('home');
+    const { repo, base } = storyWithOrigin(home);
+    const long = 'a'.repeat(64);
+    git(repo, 'update-ref', `refs/remotes/origin/${long}`, base); // a branch on origin named like a sha
+    assert.equal(namedBase(repo, long), null);
   });
 
   test("namedBase takes a branch on origin, and not a commit or a ref origin doesn't have", () => {

@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { prKey, rangeOfPath } from '../src/domain/pr-key.ts';
 import { laneLabels, resolveLane, sameLaneKey } from '../src/domain/lane-key.ts';
 import { escapeHtml, unescapeHtml, html, raw, Html } from '../src/domain/html.ts';
-import { shortSha, baseName, plural, capitalize, gateText } from '../src/domain/text.ts';
+import { FULL_SHA_RE } from '../src/domain/patterns.ts';
+import { SHA_RE, shortSha, baseName, plural, capitalize, gateText } from '../src/domain/text.ts';
 import { clockTime, compactAge, minutesSince, shortDateTime } from '../src/domain/time.ts';
 
 test('a PR key and a commit range in a PR diff URL', () => {
@@ -13,6 +14,15 @@ test('a PR key and a commit range in a PR diff URL', () => {
     to: 'def5678',
   });
   assert.equal(rangeOfPath('/acme/widgets/pull/7/changes'), null);
+});
+
+test('the sha patterns take SHA-1 and SHA-256 forms', () => {
+  assert.ok(SHA_RE.test('abc1234') && SHA_RE.test('a'.repeat(40)) && SHA_RE.test('a'.repeat(64)));
+  assert.ok(!SHA_RE.test('abc123') && !SHA_RE.test('a'.repeat(65)));
+  assert.ok(FULL_SHA_RE.test('a'.repeat(40)) && FULL_SHA_RE.test('a'.repeat(64)));
+  assert.ok(!FULL_SHA_RE.test('a'.repeat(39)) && !FULL_SHA_RE.test('a'.repeat(41)));
+  assert.ok(!FULL_SHA_RE.test('a'.repeat(65)));
+  assert.ok(!FULL_SHA_RE.test('A'.repeat(40))); // git prints lower case
 });
 
 test('the text helpers', () => {

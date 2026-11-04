@@ -13,8 +13,10 @@
  * `git push origin <branch>`, a fast-forward that never forces and is refused when origin has commits this checkout
  * doesn't (pushAheadBlocker).
  */
+import { FULL_SHA_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { runGh } from '../config/gh.ts';
 import { revParse, runGit, runGitAsync, setUpstream } from '../../adapters/git.ts';
+import { defaultBranchOf } from './push-default.ts';
 import { storyRepo } from '../config/repos.ts';
 import type { LocalCommit, PrDraft, PrView } from '@once-upon-a-diff/protocol/types';
 import type { StoryMeta } from './types.ts';
@@ -22,7 +24,6 @@ import type { StoryMeta } from './types.ts';
 export const DRAFT_FILE = 'pr-draft.json';
 const LS_REMOTE_MS = 20000;
 const PUSH_MS = 5 * 60 * 1000; // a pre-push hook may run checks
-const FULL_SHA = /^[0-9a-f]{40}$/;
 const LOG_FORMAT = '--format=%H%x09%cI%x09%s';
 
 /** A git ref for this checkout's branch, or null when it has none. */
@@ -44,22 +45,16 @@ function hasRemoteBranch(repoPath: string, name: string): boolean {
 
 /** The story's base as a branch on origin (origin/develop, develop), or null for a commit or an expression. */
 export function namedBase(repoPath: string, base: string | undefined): string | null {
-  if (!base || FULL_SHA.test(base)) {
+  if (!base || FULL_SHA_RE.test(base)) {
     return null;
   }
   const name = base.replace(/^refs\/remotes\/origin\/|^refs\/heads\/|^origin\//, '');
   return hasRemoteBranch(repoPath, name) ? name : null;
 }
 
-/** origin's default branch, from refs/remotes/origin/HEAD, else main. */
+/** origin's default branch (as Push finds it), else main. */
 function defaultBranch(repoPath: string): string {
-  try {
-    return runGit(repoPath, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'])
-      .trim()
-      .replace(/^origin\//, '');
-  } catch {
-    return 'main';
-  }
+  return defaultBranchOf(repoPath) || 'main';
 }
 
 function commitsOf(repoPath: string, range: string[]): LocalCommit[] {

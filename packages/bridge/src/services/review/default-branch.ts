@@ -1,5 +1,6 @@
 /** Whether a local story's commit has shipped to its checkout's default branch, asked through git. */
 import { runGitAsync } from '../../adapters/git.ts';
+import { defaultBranchOf } from '../stories/push-default.ts';
 
 /**
  * Whether a commit is already in the checkout's default branch (origin's, as last fetched): the commit is the branch's tip
@@ -10,17 +11,11 @@ export async function inDefaultBranch(
   oid: string,
   { rewrittenFrom = null }: { rewrittenFrom?: string | null } = {},
 ): Promise<boolean> {
-  const named = await runGitAsync(
-    checkout,
-    ['symbolic-ref', '--quiet', 'refs/remotes/origin/HEAD'],
-    {
-      timeout: 10000,
-    },
-  );
-  const refs =
-    named.code === 0 && named.stdout.trim()
-      ? [named.stdout.trim()]
-      : ['refs/remotes/origin/main', 'refs/remotes/origin/master'];
+  const name = defaultBranchOf(checkout); // the one rule Push and Create pull request use too
+  if (!name) {
+    return false;
+  }
+  const refs = [`refs/remotes/origin/${name}`];
   for (const ref of refs) {
     const { code } = await runGitAsync(checkout, ['merge-base', '--is-ancestor', oid, ref], {
       timeout: 10000,

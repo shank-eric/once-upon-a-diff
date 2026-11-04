@@ -5,6 +5,8 @@
  * typed by hand. A mirror that fails never fails the write.
  */
 import { randomBytes } from 'node:crypto';
+import { BACKLOG_ID_RE } from '@once-upon-a-diff/protocol/domain/patterns';
+import { SHA_RE } from '@once-upon-a-diff/protocol/domain/text';
 import { REPO_RE } from '../config/repos.ts';
 import { appendAgentEvent, readAgentsFile } from '../../adapters/stores/agents-file.ts';
 import { appendLine } from '../../adapters/stores/notes.ts';
@@ -32,8 +34,6 @@ import type { LedgerAgent } from './ledger.ts';
 const NAME_PATTERN = /^[\w.-]{1,100}$/;
 const SID_PATTERN = /^[0-9a-f]{8}$/;
 const BRANCH_PATTERN = /^[A-Za-z0-9._/-]{1,200}$/;
-const CARD_PATTERN = /^bl_[0-9a-z]{6,20}$/;
-const SHA_PATTERN = /^[0-9a-f]{7,64}$/;
 const LANE_PATTERN = /^[\w.-]{1,100}$/;
 const STEP_PATTERN = /^[\w.-]{1,40}$/;
 const TEXT_MAX = 1000;
@@ -272,7 +272,7 @@ export class AgentRegistry {
       tip: branchTip(cwd, branch, repo),
       pr: pr || null,
       cwd,
-      card: optional(input.card, 'the card', CARD_PATTERN),
+      card: optional(input.card, 'the card', BACKLOG_ID_RE),
       lane: optional(input.lane, 'the lane', LANE_PATTERN),
       notes: clean(input.notes, 'the notes path', 500) || null,
       ...(kind === 'editor' ? { slots: slots ?? DEFAULT_SLOTS } : {}),
@@ -352,10 +352,10 @@ export class AgentRegistry {
     const agent = this.open(name, { ...input, sid: wanted }, warn);
     const result: AgentResult = {};
     const given = input.result ?? {};
-    const commit = optional(given.commit, 'the commit', SHA_PATTERN);
+    const commit = optional(given.commit, 'the commit', SHA_RE);
     const pr = count(given.pr, 'the PR number');
     const branch = optional(given.branch, 'the branch', BRANCH_PATTERN);
-    const card = optional(given.card, 'the card', CARD_PATTERN);
+    const card = optional(given.card, 'the card', BACKLOG_ID_RE);
     if (commit) {
       result.commit = commit;
     }

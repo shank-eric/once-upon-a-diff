@@ -2,6 +2,7 @@
  * The read-only GraphQL checks through gh: a PR's facts (ghPrCheck), the open PRs waiting on you or yours
  * (ghRequestedCheck), and the PR a branch has (ghBranchCheck).
  */
+import { FULL_SHA_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { runGh } from '../config/gh.ts';
 import { runGitAsync } from '../../adapters/git.ts';
 import { rulesRequired } from './merge-rules.ts';
@@ -225,7 +226,7 @@ interface BranchNode {
 
 /** Whether a commit is the local branch's tip or behind it (false when the checkout doesn't have the commit). */
 async function onBranch(checkout: string, branch: string, oid: string): Promise<boolean> {
-  if (!/^[0-9a-f]{40,64}$/i.test(oid)) {
+  if (!FULL_SHA_RE.test(oid)) {
     return false;
   }
   const { code } = await runGitAsync(

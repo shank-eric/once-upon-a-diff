@@ -41,8 +41,8 @@ export function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-/** A commit SHA, full or abbreviated to 7 or more characters. */
-export const SHA_RE = /^[0-9a-f]{7,40}$/;
+/** A commit SHA, full (SHA-1 or SHA-256) or abbreviated to 7 or more characters. */
+export const SHA_RE = /^[0-9a-f]{7,64}$/;
 
 /** Whether two SHAs name the same commit, either one maybe abbreviated. */
 export function sameSha(

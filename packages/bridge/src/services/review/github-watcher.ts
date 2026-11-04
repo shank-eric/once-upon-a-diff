@@ -21,6 +21,7 @@
  * This file is the scheduler: when to ask and what to do with the answers. The asking is in github-checks.ts (with
  * pr-info.ts and merge-rules.ts for what the board shows) and default-branch.ts.
  */
+import { FULL_SHA_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { runGitAsync } from '../../adapters/git.ts';
 import { clearApproval, readApproval } from './approve.ts';
 import { inDefaultBranch } from './default-branch.ts';
@@ -469,12 +470,7 @@ export class AutoReview {
         }
       }
       const head = entry.head_oid;
-      if (
-        !entry.repo_path ||
-        !head ||
-        head === entry.base_oid ||
-        !/^[0-9a-f]{40,64}$/i.test(head)
-      ) {
+      if (!entry.repo_path || !head || head === entry.base_oid || !FULL_SHA_RE.test(head)) {
         continue;
       }
       const key = `${story.id}@${head}`;
@@ -484,8 +480,7 @@ export class AutoReview {
       }
       this.delivered.set(key, now);
       const checkout = entry.repo_path;
-      const base =
-        entry.base_oid && /^[0-9a-f]{40,64}$/i.test(entry.base_oid) ? entry.base_oid : null;
+      const base = entry.base_oid && FULL_SHA_RE.test(entry.base_oid) ? entry.base_oid : null;
       const job = inDefaultBranch(checkout, head, { rewrittenFrom: onFeature ? null : base })
         .then((yes) => {
           if (yes) {

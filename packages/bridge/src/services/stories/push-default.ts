@@ -15,6 +15,7 @@
  * branch's active rulesets), in which case the box offers Create pull request. A protection answer gh can't give
  * stops a push too: it is never assumed open.
  */
+import { FULL_SHA_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { homeDir, readSettings, shipRuleFor } from '../config/settings.ts';
 import { storyRepo } from '../config/repos.ts';
 import { runGh } from '../config/gh.ts';
@@ -26,7 +27,6 @@ import type { StoryMeta } from './types.ts';
 
 const FETCH_MS = 30000;
 const PUSH_MS = 5 * 60 * 1000; // a pre-push hook may run checks
-const FULL_SHA = /^[0-9a-f]{40,64}$/;
 const LOG_FORMAT = '--format=%H%x09%cI%x09%s';
 /** Ruleset rules that stop a straight push (or only let a pull request or a merge queue through). */
 const BLOCKING_RULES = new Set(['pull_request', 'required_status_checks', 'merge_queue', 'update']);
@@ -82,7 +82,7 @@ export function shipMode(meta: StoryMeta, home = homeDir()): ShipMode {
     return meta.branch === def ? 'push' : 'pr';
   }
   const head = meta.head_oid;
-  return head && FULL_SHA.test(head) && isAncestorSync(repoPath, head, `refs/heads/${def}`)
+  return head && FULL_SHA_RE.test(head) && isAncestorSync(repoPath, head, `refs/heads/${def}`)
     ? 'push'
     : 'pr';
 }
@@ -92,7 +92,7 @@ export function approvedFor(stories: StoryStore, id: string, now = Date.now()) {
   const found = readApproval(stories, id);
   const approvedMs = found ? Date.parse(found.at) : NaN;
   return found &&
-    FULL_SHA.test(found.head_oid) &&
+    FULL_SHA_RE.test(found.head_oid) &&
     now - approvedMs <= APPROVED_DAYS * 24 * 3600 * 1000
     ? found
     : null;

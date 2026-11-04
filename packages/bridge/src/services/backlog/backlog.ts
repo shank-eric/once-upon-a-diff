@@ -27,6 +27,7 @@
  * in Done once it merged, landed or its agent finished. That is worked out on read, so a board snapshot never writes.
  */
 import { BACKLOG_ID_RE } from '@once-upon-a-diff/protocol/domain/patterns';
+import { SHA_RE } from '@once-upon-a-diff/protocol/domain/text';
 import { appendBacklogEvent, readBacklogFile } from '../../adapters/stores/backlog-file.ts';
 import path from 'node:path';
 import { liveClaim, sameAgentView } from './claims.ts';
@@ -45,7 +46,6 @@ const SESSION_PATTERN = /^[A-Za-z0-9._-]{1,100}$/;
 const AGENT_PATTERN = /^[\w.-]{1,100}$/;
 const SID_PATTERN = /^[0-9a-f]{8}$/;
 const BRANCH_PATTERN = /^[A-Za-z0-9._/-]{1,200}$/;
-const SHA_PATTERN = /^[0-9a-f]{7,64}$/;
 const TITLE_MAX = 200;
 const NOTE_MAX = 1000;
 const BY_MAX = 40;
@@ -461,7 +461,7 @@ export class BacklogStore implements BacklogStorage {
     this.append({
       op: 'done',
       id,
-      sha: optional(input.sha, 'the sha', SHA_PATTERN),
+      sha: optional(input.sha, 'the sha', SHA_RE),
       by: clean(input.by, 'the name', BY_MAX) || 'cli',
     });
     return this.find(id);
