@@ -262,7 +262,7 @@ test('a finished card in a skip-review repo is Ready to ship only once its criti
   registry.start({ ...author, kind: 'author', task: 'build it', at: stamp(0) });
   assert.equal(await columnAt(5), 'working');
   registry.finish('ou-build', { sid: 'aaaaaaaa', result: { branch: 'build-it' }, at: stamp(10) });
-  assert.equal(await columnAt(11), 'ship', 'built, and no critic has said anything yet');
+  assert.equal(await columnAt(11), 'checks', 'built, and no critic has said anything yet');
 
   registry.start({ ...critic, kind: 'critic', task: 'review it', at: stamp(11) });
   assert.equal(await columnAt(12), 'checks', 'the critic is running');
@@ -316,6 +316,38 @@ test('a critic that passed with no findings leaves a finished card in Ready to s
     columns[repo] = (await cards(stamp(16))).find((one) => one.backlog?.id === item.id)?.column;
   }
   assert.deepEqual(columns, { 'shank-eric/once-upon-a-diff': 'ship', 'acme/widgets': 'ready' });
+});
+
+test('a built card stays in Agent checks with no critic, or when its latest critic failed or was stopped, and ships once one passes', () => {
+  const { registry, repo, stamp, hold } = builtCard('hold-passed');
+  assert.equal(hold(stamp(11)), 'checks', 'no critic yet');
+  const critic = { sid: 'cccccccc', repo, branch: 'feat-x' } as const;
+  registry.start({ ...critic, name: 'review-a', kind: 'critic', task: 'review', at: stamp(11) });
+  registry.finish('review-a', { sid: 'cccccccc', state: 'failed', at: stamp(13) });
+  assert.equal(hold(stamp(14)), 'checks', 'the critic failed');
+  registry.start({ ...critic, name: 'review-b', kind: 'critic', task: 'review', at: stamp(15) });
+  registry.finish('review-b', { sid: 'cccccccc', state: 'stopped', at: stamp(16) });
+  assert.equal(hold(stamp(17)), 'checks', 'the latest critic was stopped');
+  registry.start({ ...critic, name: 'review-c', kind: 'critic', task: 'review', at: stamp(18) });
+  registry.finish('review-c', { sid: 'cccccccc', findings: 0, at: stamp(20) });
+  assert.equal(hold(stamp(21)), null, 'a clean critic passes it');
+  registry.start({ ...critic, name: 'review-d', kind: 'critic', task: 'review', at: stamp(22) });
+  registry.finish('review-d', { sid: 'cccccccc', state: 'failed', at: stamp(23) });
+  assert.equal(hold(stamp(24)), 'checks', 'a later critic that failed takes it back');
+});
+
+test('a critic that died (open, no sign of life for STALE_MS) has not passed the card', () => {
+  const { registry, repo, stamp, hold } = builtCard('hold-dead');
+  registry.start({
+    name: 'review-x',
+    sid: 'cccccccc',
+    kind: 'critic',
+    task: 'review',
+    repo,
+    branch: 'feat-x',
+    at: stamp(11),
+  });
+  assert.equal(hold(new Date(stamp(11).getTime() + STALE_MS + 1000)), 'checks');
 });
 
 /** A built card on feat-x with its author finished at minute 10, and the registry that holds it. */
@@ -389,7 +421,7 @@ test('a critic registered for another card does not hold this one, even on the s
     card: 'bl_other0000001',
     at: stamp(11),
   });
-  assert.equal(hold(stamp(12)), null, 'an open critic of another card');
+  assert.equal(hold(stamp(12)), 'checks', "another card's critic does not pass this one");
   registry.start({
     name: 'review-mine',
     sid: 'dddddddd',

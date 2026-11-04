@@ -564,8 +564,8 @@ const SKIPS_REVIEW = /^(once-upon-a-diff|larmor)$/i;
  *
  *   open agent         a plan stop or a question is Waiting, for you; otherwise Working
  *   done, a branch     the work is not merged: Ready for review, or Ready to ship for once-upon-a-diff and Larmor, which
- *                      only once its critic has passed with no fix round open (`hold`, claims.ts's criticHold: until then
- *                      it stays in Agent checks or Working)
+ *                      only once a critic has passed it with no fix round open (`hold`, claims.ts's criticHold: until then
+ *                      it stays in Agent checks or Working, also with no critic yet)
  *   done, card only    Done for DONE_HOURS after it ended, then off the board (it stays done, never back in Backlog)
  *   failed or stopped  back in Backlog, marked tried by the agent
  *

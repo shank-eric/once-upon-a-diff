@@ -148,20 +148,21 @@ export function liveClaim(
 }
 
 /**
- * Where a finished, claimed card waits for its critic, or null when nothing holds it back (it is built and has passed its
- * critic with no fix round open). Read only from registered agents' fields, never their text. A critic is a registered
- * `critic` run on the card (`--card`), or, when it names no card, on the item's repo and branch (a finish event's branch
- * wins). The card is held:
+ * Where a finished, claimed card waits for its critic, or null when nothing holds it back: its latest critic run finished
+ * done with no findings, or with findings and the author has finished a fix round since. Read only from registered agents'
+ * fields, never their text. A critic is a registered `critic` run on the card (`--card`), or, when it names no card, on the
+ * item's repo and branch (a finish event's branch wins). The card is held (Agent checks unless noted) while:
  *
- *   critic running        a critic is open (running, or at its fixing gate): Agent checks
+ *   no critic             none is registered for the card yet
+ *   critic running        a critic is open (running, or at its fixing gate)
+ *   critic did not pass   the latest critic failed or was stopped, or died (open with no sign of life for STALE_MS)
  *   fixes pending         the latest finished critic reported findings (`--findings` above 0) and the author has not finished
  *                         since: Working while the author runs (Agent checks at its fixing gate, Waiting at a question or
  *                         plan), else Agent checks, for the fix round yet to start
  *
  * The author is the claimed agent's latest run (by sid and name) on this card (a run with another `--card` is not): the claim
- * holds the run it was made for, and a fix round is a later run of the same agent. Nothing holds for longer than STALE_MS: a
- * critic with no sign of life is dead, and findings the editor dropped (no fix round) lapse that long after the critic
- * finished. A later critic run that finishes with `--findings 0` releases the card at once.
+ * holds the run it was made for, and a fix round is a later run of the same agent. Findings the editor dropped (no fix round)
+ * lapse STALE_MS after the critic finished. A later critic run that finishes with `--findings 0` releases the card at once.
  */
 export function criticHold(
   item: Pick<BacklogItem, 'id' | 'repo' | 'branch'>,
@@ -187,10 +188,15 @@ export function criticHold(
   if (critics.some(alive)) {
     return 'checks';
   }
-  const latest = critics
-    .filter((critic) => critic.state === 'done' && critic.ended)
-    .sort((first, second) => (second.ended?.getTime() ?? 0) - (first.ended?.getTime() ?? 0))[0];
-  if (!latest || !(latest.findings && latest.findings > 0)) {
+  // the latest critic run: a finished one by when it ended, a dead one by its last sign of life
+  const settledAt = (critic: LedgerAgent) =>
+    (critic.ended ?? critic.lastEvent ?? critic.started)?.getTime() ?? 0;
+  const latest = [...critics].sort((first, second) => settledAt(second) - settledAt(first))[0];
+  // no critic yet, or the latest one failed, was stopped or died: nothing has passed this card
+  if (!latest || latest.state !== 'done') {
+    return 'checks';
+  }
+  if (!(latest.findings && latest.findings > 0)) {
     return null;
   }
   // findings nobody fixed (the editor dropped them all) release the card STALE_MS after the critic finished; a newer
