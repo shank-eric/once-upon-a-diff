@@ -60,6 +60,7 @@
                 "started_at": "2026-10-26T18:50:00.000Z",
                 "state": "running",
                 "status": "working",
+                "summary": null,
                 "task": "a task"
               }
             ],
@@ -356,6 +357,7 @@
                 "started_at": "2026-10-26T18:30:00.000Z",
                 "state": "running",
                 "status": "working",
+                "summary": null,
                 "task": "write the thing"
               }
             ],
@@ -398,6 +400,7 @@
                 "started_at": null,
                 "state": "waiting",
                 "status": "waiting",
+                "summary": null,
                 "task": null
               }
             ],
@@ -440,6 +443,10 @@
                 "started_at": null,
                 "state": "done",
                 "status": "done",
+                "summary": {
+                  "did": null,
+                  "why": "done"
+                },
                 "task": null
               }
             ],
@@ -482,6 +489,7 @@
                 "started_at": null,
                 "state": "waiting",
                 "status": "waiting",
+                "summary": null,
                 "task": null
               }
             ],
@@ -524,6 +532,7 @@
                 "started_at": "2026-10-26T18:50:00.000Z",
                 "state": "running",
                 "status": "working",
+                "summary": null,
                 "task": "a task"
               }
             ],

@@ -39,8 +39,14 @@ export function Agent(props: { agent: BoardAgent; now: number; api: Api; byEdito
     ${byEditor && agent.editor && html`<div class="ou-local-muted ou-board-agent-editor">by <${SessionLink} bridge=${api.bridge} session=${agent.editor.session} canFocus=${agent.editor.can_focus} name=${`Editor · ${agent.editor.label}`} title="The editor that launched this builder: bring its iTerm tab to the front" /></div>`}
     ${beat && agent.state === 'running' && html`<div class="ou-board-bar" aria-hidden="true"><span style=${`width:${percent}%`}></span></div>`}
     ${detail && html`<div class="ou-board-agent-note ou-local-muted" data-agent-detail>${detail}</div>`}
-    ${agent.notes && html`<div class="ou-board-agent-note ou-local-muted" data-agent-notes>notes: <code>${agent.notes}</code> <${CopyNotes} path=${agent.notes} count=${api.count} /></div>`}
+    ${agent.notes && html`<${AgentNotes} path=${agent.notes} api=${api} />`}
   </li>`;
+}
+
+/** An agent's notes path, whole and copyable. */
+export function AgentNotes(props: { path: string; api: Api }) {
+  const { path, api } = props;
+  return html`<div class="ou-board-agent-note ou-local-muted" data-agent-notes>notes: <code>${path}</code> <${CopyNotes} path=${path} count=${api.count} /></div>`;
 }
 
 /**

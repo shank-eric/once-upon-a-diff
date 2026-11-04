@@ -13,7 +13,7 @@ import {
   type Api,
 } from '/assets/board/shared.ts';
 import { act, openStory, typeInto } from '/assets/board/columns/actions.ts';
-import { Agent } from '/assets/board/columns/agent.ts';
+import { Agent, AgentNotes } from '/assets/board/columns/agent.ts';
 import { answerBits } from '/assets/board/columns/story-answers.ts';
 import { ContextMeter } from '/assets/ui/meter.ts';
 import { Chips } from '/assets/ui/chip.ts';
@@ -128,6 +128,10 @@ function finishAgent(api: Api, card: BoardCard) {
   );
 }
 
+/** Minutes until a finished agent's card leaves on its own, or 0 when it has no timer. */
+const minutesLeft = (agent: BoardCard['agents'][number], now: number) =>
+  agent.clears_at ? Math.max(1, Math.ceil((Date.parse(agent.clears_at) - now) / 60000)) : 0;
+
 /** What a finished agent's card says beyond its agent line (which has the outcome and notes path): when the card leaves on its own. */
 function Finished(props: { card: BoardCard; now: number }) {
   const { card, now } = props;
@@ -135,10 +139,32 @@ function Finished(props: { card: BoardCard; now: number }) {
   if (card.kind !== 'agent' || !agent) {
     return null;
   }
-  const left = agent.clears_at
-    ? Math.max(1, Math.ceil((Date.parse(agent.clears_at) - now) / 60000))
-    : 0;
+  const left = minutesLeft(agent, now);
   return html`${left > 0 && html`<div class="ou-local-muted ou-board-meta" data-agent-clears>leaves the board in ${left} min unless it does something more</div>`}`;
+}
+
+/** The agent of a finished agent's own card that the bridge summed up (`summary`), or null. */
+const summed = (card: BoardCard) =>
+  card.kind === 'agent' && card.agents.length === 1 && card.agents[0].summary
+    ? card.agents[0]
+    : null;
+
+/**
+ * A finished agent's own card in brief, in place of its agent line: what it did, why it is done, and one meta line (its
+ * session, when it finished, when the card leaves). Its outcome and task are the card's hover text.
+ */
+function Summary(props: { card: BoardCard; now: number; api: Api }) {
+  const { card, now, api } = props;
+  const agent = card.agents[0];
+  const summary = agent.summary as NonNullable<typeof agent.summary>;
+  const time = compactAge(card.since, now);
+  const left = minutesLeft(agent, now);
+  const where = card.parent ? html`<${From} card=${card} api=${api} />` : 'session ended';
+  const when = time && ` · ${time === 'now' ? 'just now' : `${time} ago`}`;
+  return html`${summary.did && html`<div class="ou-board-detail" data-agent-did>${summary.did}</div>`}
+    <div class="ou-board-detail" data-agent-why>${summary.why}</div>
+    <div class="ou-local-muted ou-board-meta" data-agent-meta>${where}${when}${left > 0 && html` · <span data-agent-clears>leaves in ${left} min</span>`}</div>
+    ${agent.notes && html`<${AgentNotes} path=${agent.notes} api=${api} />`}`;
 }
 
 /** A card other than a Backlog item: its title, where it is, what is going on, its sessions and agents, and its buttons. */
@@ -201,11 +227,14 @@ export function Card(props: { card: BoardCard; now: number; api: Api }) {
     }
   };
   const story = card.story;
-  return html`<li class=${`ou-board-card ou-board-c-${card.column}${card.can_focus ? ' ou-board-clickable' : ''}`} data-card=${card.id} data-focus-card=${card.can_focus ? card.focus_session : ''} onClick=${onCard}>
+  const brief = summed(card);
+  const hover = brief ? [brief.outcome, brief.task].filter(Boolean).join('\n') : undefined;
+  return html`<li class=${`ou-board-card ou-board-c-${card.column}${card.can_focus ? ' ou-board-clickable' : ''}`} data-card=${card.id} data-focus-card=${card.can_focus ? card.focus_session : ''} title=${hover} onClick=${onCard}>
     <div class="ou-board-title" title=${card.title}>${card.title}</div>
-    ${card.kind === 'agent' && html`<div class="ou-local-muted ou-board-meta"><${From} card=${card} api=${api} /></div>`}
-    <${Finished} card=${card} now=${now} />
-    <div class="ou-local-muted ou-board-meta">${prLink}${prLink && where && ' · '}${where}${(prLink || where) && (merged || time) && ' · '}${merged || time}</div>
+    ${brief && html`<${Summary} card=${card} now=${now} api=${api} />`}
+    ${card.kind === 'agent' && !brief && html`<div class="ou-local-muted ou-board-meta"><${From} card=${card} api=${api} /></div>`}
+    ${!brief && html`<${Finished} card=${card} now=${now} />`}
+    ${!brief && html`<div class="ou-local-muted ou-board-meta">${prLink}${prLink && where && ' · '}${where}${(prLink || where) && (merged || time) && ' · '}${merged || time}</div>`}
     ${notes.map((note) => html`<div class="ou-board-detail">${note}</div>`)}
     ${card.listening && html`<${Listening} listening=${card.listening} api=${api} />`}
     ${card.kind === 'session' && card.detail && html`<div class="ou-board-detail">${card.detail}</div>`}
@@ -213,7 +242,7 @@ export function Card(props: { card: BoardCard; now: number; api: Api }) {
     ${chips.length > 0 && html`<${Chips} items=${chips} />`}
     ${card.kind === 'session' && card.sessions[0] && html`<div class="ou-local-muted">${card.sessions[0].status}${card.sessions[0].branch ? ` on ${card.sessions[0].branch}` : ''}</div>`}
     ${card.kind === 'work' && card.sessions.length > 0 && html`<ul class="ou-board-sessions">${card.sessions.map((session) => html`<${Session} key=${session.id} session=${session} now=${now} />`)}</ul>`}
-    ${card.agents.length > 0 && html`<ul class="ou-board-agents">${card.agents.map((agent) => html`<${Agent} key=${agent.key} agent=${agent} now=${now} api=${api} byEditor=${card.kind !== 'agent'} />`)}</ul>`}
+    ${card.agents.length > 0 && !brief && html`<ul class="ou-board-agents">${card.agents.map((agent) => html`<${Agent} key=${agent.key} agent=${agent} now=${now} api=${api} byEditor=${card.kind !== 'agent'} />`)}</ul>`}
     <${CardTrees} card=${card} now=${now} api=${api} />
     <div class="ou-board-actions">
       ${card.build && html`<${Build} card=${card} api=${api} />`}

@@ -125,6 +125,7 @@
                 "started_at": "2026-10-26T18:55:00.000Z",
                 "state": "running",
                 "status": "working",
+                "summary": null,
                 "task": "tagged task"
               }
             ],
@@ -239,6 +240,7 @@
                 "started_at": null,
                 "state": "waiting",
                 "status": "waiting",
+                "summary": null,
                 "task": null
               }
             ],
@@ -287,6 +289,7 @@
                 "started_at": "2026-10-26T18:57:00.000Z",
                 "state": "running",
                 "status": "working",
+                "summary": null,
                 "task": "no parent"
               }
             ],
@@ -329,6 +332,10 @@
                 "started_at": null,
                 "state": "failed",
                 "status": "error",
+                "summary": {
+                  "did": null,
+                  "why": "failed"
+                },
                 "task": null
               }
             ],
@@ -371,6 +378,10 @@
                 "started_at": null,
                 "state": "stopped",
                 "status": "done",
+                "summary": {
+                  "did": null,
+                  "why": "stopped"
+                },
                 "task": null
               }
             ],
@@ -489,6 +500,7 @@
                 "started_at": null,
                 "state": "waiting",
                 "status": "waiting",
+                "summary": null,
                 "task": null
               }
             ],
@@ -612,6 +624,7 @@
                 "started_at": "2026-10-26T18:50:00.000Z",
                 "state": "running",
                 "status": "working",
+                "summary": null,
                 "task": "nested task"
               },
               {
@@ -632,6 +645,7 @@
                 "started_at": "2026-10-26T18:51:00.000Z",
                 "state": "running",
                 "status": "working",
+                "summary": null,
                 "task": "review fixes"
               }
             ],
@@ -734,6 +748,7 @@
                 "started_at": "2026-10-26T18:47:00.000Z",
                 "state": "waiting",
                 "status": "waiting",
+                "summary": null,
                 "task": "story for PR #8"
               }
             ],
@@ -1058,6 +1073,7 @@
                 "started_at": "2026-10-26T18:49:00.000Z",
                 "state": "fixing",
                 "status": "working",
+                "summary": null,
                 "task": "fixing PR #18"
               }
             ],
@@ -1315,6 +1331,7 @@
                 "started_at": "2026-10-26T18:46:00.000Z",
                 "state": "plan",
                 "status": "working",
+                "summary": null,
                 "task": "plan for feat/y"
               }
             ],
@@ -1400,6 +1417,10 @@
                 "started_at": "2026-10-26T18:40:00.000Z",
                 "state": "done",
                 "status": "done",
+                "summary": {
+                  "did": "compare the options",
+                  "why": "research done"
+                },
                 "task": "compare the options"
               }
             ],
@@ -1442,6 +1463,10 @@
                 "started_at": "2026-10-26T18:41:00.000Z",
                 "state": "done",
                 "status": "done",
+                "summary": {
+                  "did": "try the thing",
+                  "why": "made nothing to point at"
+                },
                 "task": "try the thing"
               }
             ],
@@ -1484,6 +1509,10 @@
                 "started_at": "2026-10-26T18:42:00.000Z",
                 "state": "done",
                 "status": "done",
+                "summary": {
+                  "did": "check the deploy status",
+                  "why": "done"
+                },
                 "task": "check the deploy status"
               }
             ],
@@ -1526,6 +1555,10 @@
                 "started_at": null,
                 "state": "done",
                 "status": "done",
+                "summary": {
+                  "did": null,
+                  "why": "done"
+                },
                 "task": null
               }
             ],
@@ -1568,6 +1601,7 @@
                 "started_at": "2026-10-26T18:52:00.000Z",
                 "state": "running",
                 "status": "working",
+                "summary": null,
                 "task": "refactor in widgets-worktrees/refactor"
               }
             ],
@@ -1610,6 +1644,7 @@
                 "started_at": "2026-10-26T18:53:00.000Z",
                 "state": "running",
                 "status": "working",
+                "summary": null,
                 "task": "notes for the Cross Cutting plan"
               }
             ],

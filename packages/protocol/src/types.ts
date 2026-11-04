@@ -748,6 +748,11 @@ export interface BoardAgent {
   notes: string | null;
   /** a finished agent's card in Waiting leaves the board at this time, unless it does something more first (null on any other agent) */
   clears_at: string | null;
+  /**
+   * A finished agent's own card, in brief (null on any other agent): what it did (its claimed card's title, else its
+   * task; null when that would only repeat the card's title) and why it is done, from its fields, never its outcome text
+   */
+  summary: { did: string | null; why: string } | null;
 }
 
 /** The editor (a session running a repo's build queue) an author belongs to: who to say it is "by", and its tab. */

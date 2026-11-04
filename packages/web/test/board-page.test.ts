@@ -1207,6 +1207,7 @@ test('an author’s row says which editor controls it', async () => {
                   gate: null,
                   notes: null,
                   clears_at: null,
+                  summary: null,
                 },
               ],
             }),
@@ -1532,6 +1533,7 @@ test('a finished research agent shows its resolution and a copyable notes path, 
     gate: null,
     notes,
     clears_at: null,
+    summary: null,
   });
   const copied: string[] = [];
   const clipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
@@ -1616,6 +1618,7 @@ test('a finished agent’s card shows its notes and when it leaves, and Finish a
           gate: null,
           notes: 'notes/research/x.md',
           clears_at: new Date(Date.now() + 20 * 60000 - 5000).toISOString(),
+          summary: null,
           ...over,
         },
       ],
@@ -1675,6 +1678,81 @@ test('a finished agent’s card shows its notes and when it leaves, and Finish a
   // the sid is the agent's own field, not read out of the card's id
   await click($('[data-finish-agent="whatever-the-bridge-calls-it"]'));
   assert.deepEqual(sentTo('/api/board/agent/finish')[2].body, { sid: 'abcdef01', name: 'odd-one' });
+  answer = () => board();
+  await pollNow();
+});
+
+test('a finished agent’s card says what it did, why it is done, and one meta line, with no agent line repeating it', async () => {
+  const finished = card({
+    id: 'agent:abcdef01:ou-rename',
+    kind: 'agent',
+    title: 'ou-rename',
+    repo: null,
+    column: 'done',
+    detail: 'landed at fc59563 (closed 11/4 by sid 989b3246)',
+    parent: null,
+    since: new Date(Date.now() - 30 * 60000).toISOString(),
+    agents: [
+      {
+        key: 'abcdef01:ou-rename',
+        sid: 'abcdef01',
+        name: 'ou-rename',
+        kind: 'author',
+        editor: null,
+        state: 'done',
+        review: false,
+        status: 'done',
+        task: 'card bl_x rename builders; plan stop',
+        model: null,
+        started_at: null,
+        ended_at: new Date(Date.now() - 30 * 60000).toISOString(),
+        outcome: 'landed at fc59563 (closed 11/4 by sid 989b3246)',
+        stale: false,
+        beat: null,
+        gate: null,
+        notes: 'notes/research/x.md',
+        clears_at: new Date(Date.now() + 20 * 60000 - 5000).toISOString(),
+        summary: { did: 'Rename builders to authors', why: 'landed fc59563' },
+      },
+    ],
+  });
+  answer = () => withCards(finished);
+  await pollNow();
+  const el = $('[data-card="agent:abcdef01:ou-rename"]') as HTMLElement;
+  assert.equal(el.querySelector('[data-agent-did]')?.textContent, 'Rename builders to authors');
+  assert.equal(el.querySelector('[data-agent-why]')?.textContent, 'landed fc59563');
+  assert.equal(
+    el.querySelector('[data-agent-meta]')?.textContent,
+    'session ended · 30m ago · leaves in 20 min',
+  );
+  assert.equal(
+    el.querySelector('.ou-board-agent'),
+    null,
+    'no agent line repeating name, state and time',
+  );
+  assert.doesNotMatch(
+    el.textContent ?? '',
+    /closed 11\/4|its session has ended/,
+    'no free-text outcome',
+  );
+  assert.match(el.querySelector('[data-agent-notes]')?.textContent ?? '', /notes\/research\/x\.md/);
+  assert.match(
+    el.getAttribute('title') ?? '',
+    /closed 11\/4 by sid 989b3246/,
+    'the outcome on hover',
+  );
+  assert.ok(el.querySelector('[data-finish-agent="agent:abcdef01:ou-rename"]'), 'Finish stays');
+
+  // no did line: only the why
+  answer = () =>
+    withCards({
+      ...finished,
+      agents: [{ ...finished.agents[0], summary: { did: null, why: 'done' } }],
+    });
+  await pollNow();
+  const bare = $('[data-card="agent:abcdef01:ou-rename"]') as HTMLElement;
+  assert.equal(bare.querySelector('[data-agent-did]'), null);
+  assert.equal(bare.querySelector('[data-agent-why]')?.textContent, 'done');
   answer = () => board();
   await pollNow();
 });

@@ -478,3 +478,156 @@ test('a worktree goes on the card of the agent holding it by key, not by name; a
     'the holder’s registered cwd is a place to look, once',
   );
 });
+
+test('a done author with no result whose registered card has landed is Done, with what it did and why on its card', () => {
+  const ended = new Date(NOW - 5 * 60000);
+  const author = registered({
+    name: 'ou-rename',
+    state: 'done',
+    task: 'card bl_aaaaaa111111 rename builders; plan stop',
+    card: 'bl_aaaaaa111111',
+    result: null,
+    started: new Date(NOW - 3600000),
+    ended,
+    lastEvent: ended,
+    outcome: 'landed at fc59563 (closed 11/4 by sid 989b3246)',
+  });
+  assert.equal(finishedColumn(author, true), 'done');
+  assert.equal(finishedColumn(author, false), 'waiting', 'not landed: an author that made nothing');
+  assert.equal(finishedColumn({ ...author, state: 'stopped' }, true), 'waiting', 'a stopped run');
+  const item = {
+    id: 'bl_aaaaaa111111',
+    title: 'Rename builders to authors',
+    repo: 'acme/widgets',
+    branch: 'rename',
+    state: 'done',
+    landed_at: '2026-11-03T15:20:00Z',
+    landed_sha: 'fc5956306d994c30c0a7d34578e216c73294d275',
+  } as unknown as BacklogItem;
+  const [own] = place([author], [], [item]);
+  assert.equal(own.column, 'done');
+  assert.deepEqual(own.agents[0].summary, {
+    did: 'Rename builders to authors',
+    why: 'landed fc59563',
+  });
+});
+
+test('a finished agent’s summary says why it is done from its fields, never its outcome text', () => {
+  const ended = new Date(NOW - 5 * 60000);
+  const why = (over: Partial<LedgerAgent>) =>
+    place(
+      [
+        registered({
+          name: 'x',
+          state: 'done',
+          started: new Date(NOW - 3600000),
+          ended,
+          lastEvent: ended,
+          outcome: 'free text',
+          ...over,
+        }),
+      ],
+      [],
+    )[0].agents[0].summary?.why;
+  assert.equal(why({ state: 'failed' }), 'failed');
+  assert.equal(why({ state: 'stopped' }), 'stopped');
+  assert.equal(why({ kind: 'critic', findings: 0 }), 'critic clean');
+  assert.equal(why({ kind: 'critic', findings: 3 }), '3 findings');
+  assert.equal(why({ kind: 'critic' }), 'critic done');
+  assert.equal(why({ result: { commit: 'abcdef1234', branch: 'b' } }), 'committed abcdef1');
+  assert.equal(why({ result: { pr: 12 } }), 'PR #12');
+  assert.equal(why({ result: { branch: 'feat/z' } }), 'on feat/z');
+  assert.equal(why({ kind: 'research' }), 'research done');
+  assert.equal(why({ kind: 'author' }), 'made nothing to point at');
+  assert.equal(why({ kind: 'helper' }), 'done');
+});
+
+test('a finished agent’s did line is its card’s title, else its task, and is left out when it would repeat the card’s title', () => {
+  const ended = new Date(NOW - 5 * 60000);
+  const did = (over: Partial<LedgerAgent>) =>
+    place(
+      [
+        registered({
+          name: 'deploy-x',
+          kind: 'helper',
+          state: 'done',
+          started: new Date(NOW - 3600000),
+          ended,
+          lastEvent: ended,
+          ...over,
+        }),
+      ],
+      [],
+    )[0].agents[0].summary?.did;
+  assert.equal(did({ task: 'ff deploy x' }), 'ff deploy x');
+  assert.equal(did({ task: 'deploy-x' }), null, 'the task is its name, the card’s title');
+  assert.equal(did({ task: null }), null);
+  // a running agent's card has no summary
+  assert.equal(place([registered({ name: 'r', state: 'running' })], [])[0].agents[0].summary, null);
+});
+
+const landedStart = new Date(NOW - 3600000);
+const landedItem = (over: Partial<BacklogItem> = {}) =>
+  ({
+    id: 'bl_aaaaaa222222',
+    title: 'Landed card',
+    repo: 'acme/widgets',
+    branch: 'b',
+    state: 'done',
+    landed_at: new Date(NOW - 30 * 60000).toISOString(),
+    landed_sha: 'abcdef1234567',
+    ...over,
+  }) as unknown as BacklogItem;
+const onLandedCard = (over: Partial<LedgerAgent>, item: BacklogItem) => {
+  const ended = new Date(NOW - 5 * 60000);
+  const [own] = place(
+    [
+      registered({
+        name: 'ou-x',
+        state: 'done',
+        card: 'bl_aaaaaa222222',
+        result: null,
+        started: landedStart,
+        ended,
+        lastEvent: ended,
+        ...over,
+      }),
+    ],
+    [],
+    [item],
+  );
+  return { column: own.column, why: own.agents[0].summary?.why };
+};
+
+test('a card marked done with no sha is landed: Done, and it says landed, not that it made nothing', () => {
+  assert.deepEqual(onLandedCard({}, landedItem({ landed_sha: null })), {
+    column: 'done',
+    why: 'landed',
+  });
+});
+
+test('a research run keeps Research though its card landed', () => {
+  assert.deepEqual(onLandedCard({ kind: 'research' }, landedItem()), {
+    column: 'research',
+    why: 'research done',
+  });
+});
+
+test('a card dropped after it landed is not landed for its agent', () => {
+  assert.deepEqual(onLandedCard({}, landedItem({ state: 'dropped' })), {
+    column: 'waiting',
+    why: 'made nothing to point at',
+  });
+});
+
+test('a landing from before the run started is an earlier run’s; one at its start counts', () => {
+  const before = new Date(landedStart.getTime() - 60000).toISOString();
+  assert.deepEqual(onLandedCard({}, landedItem({ landed_at: before })), {
+    column: 'waiting',
+    why: 'made nothing to point at',
+  });
+  assert.deepEqual(onLandedCard({}, landedItem({ landed_at: landedStart.toISOString() })), {
+    column: 'done',
+    why: 'landed abcdef1',
+  });
+});
