@@ -21,9 +21,8 @@ export function Worktrees(props: {
       : null;
   }
   const summary = [
-    `${trees.items.length} listed`,
-    ...(trees.on_cards ? [`${trees.on_cards} more on cards`] : []),
     ...(trees.removable ? [`${trees.removable} can be cleaned up`] : []),
+    ...(trees.on_cards ? [`${trees.on_cards} more on cards`] : []),
     ...(trees.size_kb ? [sizeText(trees.size_kb)] : []),
     ...(trees.scanning ? ['scanning…'] : []),
   ].join(' · ');
