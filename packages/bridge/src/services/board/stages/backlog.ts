@@ -10,7 +10,7 @@ import { agentLinks, startedLinks } from '../../backlog/backlog-links.ts';
 import type { Worktree } from '../../backlog/backlog-links.ts';
 import { checkoutsOf } from '../../worktrees/checkouts.ts';
 import type { LedgerAgent } from '../../ledger/ledger.ts';
-import type { LiveSession } from '../../../adapters/claude-sessions/registry.ts';
+import type { LiveSession } from '../../../adapters/claude-sessions/live-sessions.ts';
 import type {
   BoardAgent,
   BoardBeat,

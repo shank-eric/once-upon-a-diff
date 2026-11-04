@@ -10,7 +10,7 @@ import { sameRepo } from '../../config/repos.ts';
 import { DEFAULT_BRANCHES } from '../../review/story-lists.ts';
 import { readAgents } from '../../ledger/read.ts';
 import type { LedgerAgent } from '../../ledger/ledger.ts';
-import type { BlankSessions } from '../../../adapters/claude-sessions/blank.ts';
+import type { BlankSessions } from '../../../adapters/claude-sessions/blank-sessions.ts';
 import type { SessionTitles } from '../../../adapters/claude-sessions/titles.ts';
 import { readStatusLines } from '../../../adapters/claude-sessions/statusline.ts';
 import { awayOn, bridgeUp, lastVoice, phoneReady, readVoice } from '../../../adapters/larmor.ts';
@@ -18,7 +18,7 @@ import { adoptHandlers, listeningOnly, parentMap } from '../../sessions/listenin
 import { listeners, type Listener } from '../../listeners/listeners.ts';
 import { pickSource } from '../../sessions/sources.ts';
 import { type SourceStatus, type StatusSource } from '../../../adapters/iterm.ts';
-import { type LiveSession } from '../../../adapters/claude-sessions/registry.ts';
+import { type LiveSession } from '../../../adapters/claude-sessions/live-sessions.ts';
 import type {
   BoardBeat,
   BoardCard,
@@ -28,7 +28,7 @@ import type {
 } from '@once-upon-a-diff/protocol/types';
 import { sessionCard } from './cards.ts';
 import { laneOf } from './lanes.ts';
-import { liveSessions } from '../../../adapters/claude-sessions/registry.ts';
+import { liveSessions } from '../../../adapters/claude-sessions/live-sessions.ts';
 import type { BuildContext, PinnedVoice, SessionView, Work } from './types.ts';
 import { branchOfWork, prKey, startWork } from './works.ts';
 
@@ -87,7 +87,7 @@ export interface SessionFacts {
   statusLines: ReturnType<typeof readStatusLines>;
 }
 
-/** The Board's trackers of what a session's transcript says (blank.ts, titles.ts), which keep what they read between builds. */
+/** The Board's trackers of what a session's transcript says (blank-sessions.ts, titles.ts), which keep what they read between builds. */
 export interface Trackers {
   blank: BlankSessions;
   titles: SessionTitles;

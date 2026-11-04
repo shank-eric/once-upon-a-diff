@@ -13,7 +13,7 @@ import { REPO_RE, repoOfCheckoutAsync, sameRepo, storyRepo } from '../config/rep
 import { ID_RE as STORY_ID_RE, readMeta } from '../stories/meta.ts';
 import type { StoryStore } from '../stories/store.ts';
 import { findIt2, focusTab, typeLine, type StatusSource } from '../../adapters/iterm.ts';
-import { liveSessions, type LiveSession } from '../../adapters/claude-sessions/registry.ts';
+import { liveSessions, type LiveSession } from '../../adapters/claude-sessions/live-sessions.ts';
 import { pickSource } from './sources.ts';
 import { BoardError } from '../errors.ts';
 import {

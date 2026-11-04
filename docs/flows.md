@@ -191,7 +191,7 @@ flowchart LR
 | 9 | `service` | the build gathers its context and runs the stages | `packages/bridge/src/services/board/board.ts:374` (`buildBoard(ctx`) |
 | 10 | `service` | the stages, in order | `packages/bridge/src/services/board/stages/index.ts:85` (`export async function buildBoard`) |
 | 11 | `service` | live sessions, their status, branches and repos | `packages/bridge/src/services/board/stages/sessions.ts:56` (`liveSessions(settings.sessionsDir)`) |
-| 12 | `adapter` | **reads `~/.claude/sessions/<pid>.json`**, live pids only | `packages/bridge/src/adapters/claude-sessions/registry.ts:39` (`export async function liveSessions`) |
+| 12 | `adapter` | **reads `~/.claude/sessions/<pid>.json`**, live pids only | `packages/bridge/src/adapters/claude-sessions/live-sessions.ts:39` (`export async function liveSessions`) |
 | 13 | `service` | the agents, from the registry | `packages/bridge/src/services/board/stages/sessions.ts:62` (`readAgents(`) |
 | 14 | `service` | **reads `agents.jsonl`** and folds its events into one view per agent. (A ledger file is still read for agents with no events, a fallback being removed on branch `ledger-trim`.) | `packages/bridge/src/services/ledger/read.ts:26` (`foldAgentEvents(parseAgentEvents(readAgentsFile(`) |
 | 15 | `service` | the works: PR and local stories, pending builds | `packages/bridge/src/services/board/stages/index.ts:94` (`collectWorks(ctx)`) |

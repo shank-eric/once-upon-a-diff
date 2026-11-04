@@ -11,7 +11,7 @@
  */
 import { open } from 'node:fs/promises';
 import path from 'node:path';
-import { RESCAN_MS, findIn, projectFolder, sizeOf } from './blank.ts';
+import { RESCAN_MS, findIn, projectFolder, sizeOf } from './transcripts.ts';
 
 /** How much of the transcript's end is read: the first span almost always has the title, the second covers long turns. */
 const TAILS = [64 * 1024, 2 * 1024 * 1024];

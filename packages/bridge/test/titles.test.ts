@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmp } from './helpers.ts';
-import { projectFolder } from '../src/adapters/claude-sessions/blank.ts';
+import { projectFolder } from '../src/adapters/claude-sessions/transcripts.ts';
 import { SessionTitles } from '../src/adapters/claude-sessions/titles.ts';
 
 const SESSION = '11111111-aaaa-bbbb-cccc-dddddddddddd';

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { DEFAULT_BRANCHES } from '../../review/story-lists.ts';
 import { sameRepo, seenCheckouts } from '../../config/repos.ts';
 import type { LedgerAgent } from '../../ledger/ledger.ts';
-import type { LiveSession } from '../../../adapters/claude-sessions/registry.ts';
+import type { LiveSession } from '../../../adapters/claude-sessions/live-sessions.ts';
 import { judge, workingIn } from '../../worktrees/worktrees.ts';
 import type { WorktreeFacts, WorktreeScanner } from '../../worktrees/worktrees.ts';
 import type {

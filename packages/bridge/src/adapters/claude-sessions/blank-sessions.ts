@@ -12,17 +12,13 @@
  * answer is kept per session id and file size, and a session found to have a prompt is not looked at again (a session id
  * never goes back to blank).
  */
-import { open, readdir, stat } from 'node:fs/promises';
+import { open } from 'node:fs/promises';
 import path from 'node:path';
+import { RESCAN_MS, findIn, projectFolder, sizeOf } from './transcripts.ts';
 
 const CHUNK = 64 * 1024;
 /** A transcript this long with no prompt in it is not blank. */
 const GIVE_UP = 4 * 1024 * 1024;
-/** A session with no transcript is looked for in the other project folders at most this often. */
-export const RESCAN_MS = 10000;
-
-/** Claude Code's project folder name for a working directory. */
-export const projectFolder = (cwd: string): string => cwd.replace(/[^A-Za-z0-9]/g, '-');
 
 const WRAPPERS =
   /<(local-command-caveat|local-command-stdout|local-command-stderr|command-name|command-message|command-args|system-reminder|ide_[a-z_]+)>[\s\S]*?(?:<\/\1>|$)/g;
@@ -175,29 +171,4 @@ export class BlankSessions {
       }
     }
   }
-}
-
-export async function sizeOf(file: string): Promise<number | null> {
-  try {
-    return (await stat(file)).size;
-  } catch {
-    return null;
-  }
-}
-
-/** The session's transcript in whichever project folder has it (its cwd may have changed since it started). */
-export async function findIn(projectsDir: string, sessionId: string): Promise<string | null> {
-  let folders: string[];
-  try {
-    folders = await readdir(projectsDir);
-  } catch {
-    return null;
-  }
-  for (const folder of folders) {
-    const file = path.join(projectsDir, folder, `${sessionId}.jsonl`);
-    if ((await sizeOf(file)) !== null) {
-      return file;
-    }
-  }
-  return null;
 }

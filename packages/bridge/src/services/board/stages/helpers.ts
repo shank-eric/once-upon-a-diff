@@ -6,7 +6,7 @@
  */
 import { lastActivity, type LedgerAgent } from '../../ledger/ledger.ts';
 import type { BoardHelper, BoardSession } from '@once-upon-a-diff/protocol/types';
-import type { LiveSession } from '../../../adapters/claude-sessions/registry.ts';
+import type { LiveSession } from '../../../adapters/claude-sessions/live-sessions.ts';
 
 /** A helper with no ledger line this long is left off the row (its session may be live, but nobody has asked it anything). */
 export const HELPER_IDLE_MS = 8 * 3600 * 1000;

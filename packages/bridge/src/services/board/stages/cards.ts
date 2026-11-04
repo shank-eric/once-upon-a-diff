@@ -11,7 +11,7 @@ import type {
   ShipMode,
 } from '@once-upon-a-diff/protocol/types';
 import { gateText } from '@once-upon-a-diff/protocol/domain/text';
-import type { LiveSession } from '../../../adapters/claude-sessions/registry.ts';
+import type { LiveSession } from '../../../adapters/claude-sessions/live-sessions.ts';
 import { laneOf } from './lanes.ts';
 import { MERGED_HOURS } from './works.ts';
 import { NO_PARENT } from './agents.ts';

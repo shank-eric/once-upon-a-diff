@@ -141,7 +141,7 @@ All of them reset on restart, and none is shared with CLI processes.
 | Commits ahead of origin per checkout and branch (`ls-remote`, in the background) | `services/board/board.ts` `aheads` | 60 s | grows per branch |
 | Per-snapshot lookups: how stories ship, unread answers, local checkouts, the last listening input | `services/board/stages/` (`shipById`, `unreadById`, `localCheckouts`) and `services/board/board.ts` (`listeningNow`) | rebuilt each snapshot | one per story or repo |
 | Status-since per session | `services/board/board.ts` `seen` | none | **grows with every session id seen** |
-| Blank-session answers, session titles | `adapters/claude-sessions/blank.ts`, `titles.ts` `known` | by file size | **grow with every session id** |
+| Blank-session answers, session titles | `adapters/claude-sessions/blank-sessions.ts`, `titles.ts` `known` | by file size | **grow with every session id** |
 | Worktree scan: facts, merged and superseded answers, histories | `services/worktrees/worktrees.ts` (`WorktreeScanner`) | rescans every 10 min (discovery), 5 min (dirty), hourly (size) | per worktree and branch tip |
 | Is a session live (for a story's agent binding) | `services/inbox/binding.ts` | 2 s | per session |
 | Is Larmor's phone bridge listening | `adapters/larmor.ts` | 2 s | per port |

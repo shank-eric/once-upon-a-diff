@@ -14,7 +14,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { BoardStatus } from '@once-upon-a-diff/protocol/types';
 import { run } from './os.ts';
-import type { LiveSession } from './claude-sessions/registry.ts';
+import type { LiveSession } from './claude-sessions/live-sessions.ts';
 
 /** What a source knows about one session. */
 export interface SourceStatus {

@@ -17,7 +17,7 @@
  *   GitHub, through AutoReview  per PR: approvals, merge state, checks, new comments (review/github-watcher.ts). It is asked in
  *                               the background and the board reads what it has, so a poll never waits for GitHub. A
  *                               session's branch without a story is looked up the same way.
- *   <projects dir>              each session's transcript, to tell a session with no prompt yet (blank.ts): those are a
+ *   <projects dir>              each session's transcript, to tell a session with no prompt yet (blank-sessions.ts): those are a
  *                               strip in the Idle lane, not cards; and for its title when the tab's name says nothing
  *                               (titles.ts)
  *   <home>/statusline/          each session's context use and the usage limits, as a status line script copies them
@@ -34,7 +34,7 @@
 import { unreadAnswers } from '../../inbox/conversation.ts';
 import { Inbox } from '../../inbox/inbox.ts';
 import type { BacklogStore } from '../../backlog/backlog.ts';
-import type { BlankSessions } from '../../../adapters/claude-sessions/blank.ts';
+import type { BlankSessions } from '../../../adapters/claude-sessions/blank-sessions.ts';
 import { listenersLane } from '../../sessions/listening.ts';
 import type { ListeningInput } from '../../sessions/listening.ts';
 import type { SessionTitles } from '../../../adapters/claude-sessions/titles.ts';
