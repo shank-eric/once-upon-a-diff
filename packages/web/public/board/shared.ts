@@ -1,6 +1,6 @@
 /*
  * What the board's regions share, drawn by Preact (ADR-14): small components and hooks that more than one region uses (the
- * usage and context meters, the worktree row, a link that brings an iTerm tab forward), the helpers they read, and the
+ * worktree row, a link that brings an iTerm tab forward), the helpers they read, and the
  * `Api` the board root hands every region: the bridge's typed client, the latest board and a way to poll again. A region
  * imports this file and never another region.
  */
@@ -9,6 +9,7 @@ import type { Client } from '/assets/api-client/client.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { remember, stored } from '/assets/local/stored.ts';
 import { compactAge } from '/assets/protocol/domain/time.ts';
+import { Chips } from '/assets/ui/chip.ts';
 import { cleanupConfirm, worktreeChips } from '/assets/board/worktree-text.ts';
 import type { BoardCard, BoardData, BoardWorktree } from '/assets/types.ts';
 
@@ -18,15 +19,6 @@ export type Api = {
   board: BoardData;
   refresh: () => Promise<void>;
 };
-
-/** "5m ago", or "just now" for the first minute (compactAge says "now"). */
-export function ago(iso: string | null, now: number): string {
-  const time = compactAge(iso, now);
-  return time === 'now' ? 'just now' : time && `${time} ago`;
-}
-
-/** "3h", "5m" since an ISO time, for the Listeners lane. */
-export const since = (iso: string | null, now: number) => (iso ? compactAge(iso, now) : '');
 
 /** A setting the board remembers in localStorage: its value and a setter that saves it (a choice that cannot be saved is just not remembered). */
 export function useSetting<T>(
@@ -58,30 +50,6 @@ export function titleOf(board: BoardData, session: string): string {
     board.listeners.flatMap((entry) => entry.candidates).find((one) => one.id === session)?.title ??
     'that session'
   );
-}
-
-/** The warning class for a percentage: yellow from 70, red from 90. */
-function levelOf(value: number) {
-  if (value >= 90) {
-    return ' ou-board-usage-high';
-  }
-  return value >= 70 ? ' ou-board-usage-warn' : '';
-}
-
-/** A label, a thin bar filled to a percentage and the number, yellow from 70% and red from 90% like the status line. */
-export function Meter(props: {
-  label: string;
-  percent: number;
-  title: string;
-  children?: unknown;
-}) {
-  const { label, percent, title, children } = props;
-  const clamped = Math.max(0, Math.min(100, Math.round(percent)));
-  return html`<span class=${`ou-board-meter${levelOf(percent)}`} role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${clamped} aria-label=${label} title=${title}>
-    <span class="ou-board-meter-label">${label}</span>
-    <span class="ou-board-meter-bar" aria-hidden="true"><span style=${`width:${clamped}%`}></span></span>
-    <span class="ou-board-meter-num">${clamped}%</span>${children}
-  </span>`;
 }
 
 /** Brings a session's iTerm tab to the front; the bridge finds the tab itself, which takes most of a second, so the cursor shows progress. */
@@ -181,7 +149,7 @@ export function Worktree(props: { tree: BoardWorktree; now: number; api: Api; la
     .join(' · ');
   return html`<li class=${`ou-board-tree${tree.removable ? ' ou-board-tree-removable' : ''}`} data-worktree=${tree.path}>
     <div class="ou-board-tree-name" title=${tree.path}><code>${tree.name}</code> <span class="ou-local-muted">${where}</span></div>
-    <div class="ou-board-chips">${chips.map((chip) => html`<span class="ou-board-chip">${chip}</span>`)}</div>
+    <${Chips} items=${chips} />
     ${!tree.removable && tree.keep.length > 0 && html`<div class="ou-local-muted ou-board-tree-keep">kept: ${tree.keep.join(', ')}</div>`}
     ${tree.removable && html`<div class="ou-board-actions"><${CleanUp} tree=${tree} api=${api} /></div>`}
   </li>`;

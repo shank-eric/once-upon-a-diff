@@ -4,7 +4,6 @@ import {
   askDrafts,
   askedOnStep,
   createReadWatch,
-  elapsedText,
   latestAnswerAt,
   readUpTo,
   unreadAnswersOf,
@@ -93,13 +92,6 @@ test('the totals say which questions a session is on and which answers are unrea
     unread: 1,
     dismissed: 1,
   });
-});
-
-test('elapsed time reads as minutes and seconds, then hours', () => {
-  assert.equal(elapsedText(42_000), '0:42');
-  assert.equal(elapsedText(12 * 60_000 + 3_000), '12:03');
-  assert.equal(elapsedText(3_723_000), '1:02:03');
-  assert.equal(elapsedText(-5), '0:00');
 });
 
 test('a question with no answer says who has it, or that nobody does', () => {

@@ -43,8 +43,8 @@ const PANEL_MODULE = /^\/assets\/panel\/([a-z0-9-]+(?:\/[a-z0-9-]+)*\.(?:ts|css)
 const HOST_MODULE = /^\/assets\/host-github\/([a-z0-9-]+\.ts)$/;
 /** The api-client's modules a page may load: the typed client, the poll and the Preact hook over it. */
 const API_CLIENT_MODULE = /^\/assets\/api-client\/(client|poll|use-poll)\.ts$/;
-/** The ui package's modules a page may load (the panel reaches them by package, which forBrowser spells as these URLs). */
-const UI_MODULE = /^\/assets\/ui\/([a-z0-9-]+\.ts)$/;
+/** The ui package's modules and its stylesheet, which a page may load (the panel reaches the modules by package, which forBrowser spells as these URLs). */
+const UI_MODULE = /^\/assets\/ui\/([a-z0-9-]+\.(?:ts|css))$/;
 /**
  * The protocol's modules a page may load: the route table and the domain (all of it: pure rules that import
  * nothing). Not schemas.ts, which imports valibot (the bridge checks bodies, the pages don't) and has nothing for a page to run.

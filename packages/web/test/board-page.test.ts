@@ -313,10 +313,10 @@ test('the header says what is on the board: the summary, the usage meters and th
     $('.ou-local-top-main .ou-local-muted')?.textContent as string,
     /4 in backlog · 2 working/,
   );
-  const meters = all('.ou-board-meters .ou-board-meter');
+  const meters = all('.ou-board-meters .ou-ui-meter');
   assert.equal(meters.length, 2);
   assert.equal(meters[0].getAttribute('aria-valuenow'), '75');
-  assert.ok(meters[0].className.includes('ou-board-usage-warn'), 'yellow from 70%');
+  assert.ok(meters[0].className.includes('ou-ui-usage-warn'), 'yellow from 70%');
   assert.match($('[data-board-filter]')?.textContent as string, /Repo: All/);
 });
 

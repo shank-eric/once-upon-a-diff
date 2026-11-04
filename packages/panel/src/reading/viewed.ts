@@ -16,7 +16,7 @@ import { html } from '/assets/preact.mjs';
 import { baseName, capitalize, plural } from '@once-upon-a-diff/protocol/domain/text';
 import { markViewedNode } from '../mark-viewed-node.ts';
 import { viewedEarlyCheck } from './reading.ts';
-import type { VNode } from '../parse-markup.ts';
+import type { VNode } from '@once-upon-a-diff/ui/parse-markup';
 import type { PanelContext } from '../context.ts';
 import type { StepProgress } from './reading.ts';
 import type { FileBlock } from '../host.ts';

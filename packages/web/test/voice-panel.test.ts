@@ -77,7 +77,7 @@ test('the tab shows with the status, and the panel only once it is opened (and t
   assert.equal($('.ou-board-voice-name').textContent, 'clarifi-f9');
   assert.match(host.textContent as string, /widgets · main/);
   assert.match(host.textContent as string, /agents: 2 running, 1 waiting/);
-  assert.equal($('.ou-board-meter').getAttribute('aria-valuenow'), '42');
+  assert.equal($('.ou-ui-meter').getAttribute('aria-valuenow'), '42');
 
   fire($('.ou-board-voice-close'), 'click');
   await tick();

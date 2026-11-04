@@ -9,7 +9,7 @@
  * element did when it was written again. A reply that was on its way then lands on the old state and nothing shows.
  */
 import { h as preactH, html } from '/assets/preact.mjs';
-import { parseMarkup } from './parse-markup.ts';
+import { parseMarkup } from '@once-upon-a-diff/ui/parse-markup';
 import { askHintHtml, askWhoHtml, classOf, healthChecks, markOf } from './status-light.ts';
 import {
   failedNote,
@@ -21,7 +21,7 @@ import {
 import type { PanelContext } from './context.ts';
 import type { Health } from './status-light.ts';
 import type { ListenSession, ListenTarget, StatusError } from '@once-upon-a-diff/protocol/types';
-import type { MarkupHooks, VNode } from './parse-markup.ts';
+import type { MarkupHooks, VNode } from '@once-upon-a-diff/ui/parse-markup';
 
 const node = (tag: string, props: Record<string, unknown>, child?: unknown) =>
   preactH(tag, props, child as string) as VNode;

@@ -3,7 +3,7 @@
  * (parse-markup.ts) and gives the elements in it the panel's own behavior. A Mark viewed pill becomes the live button, and
  * an element that carries data-rel (a file or line link) jumps to it when clicked.
  */
-import { parseMarkup, type VNode } from './parse-markup.ts';
+import { parseMarkup, type VNode } from '@once-upon-a-diff/ui/parse-markup';
 import type { PanelContext } from './context.ts';
 import type { Side } from '@once-upon-a-diff/protocol/types';
 

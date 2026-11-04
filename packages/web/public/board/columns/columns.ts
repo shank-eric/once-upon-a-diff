@@ -6,8 +6,7 @@
  */
 import { html, useLayoutEffect, useRef, useState } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/protocol/routes.ts';
-import { openMenu } from '/assets/local/menu.ts';
-import { writeClipboard } from '/assets/ui/clipboard.ts';
+import { openMenu } from '/assets/ui/menu.ts';
 import type {
   BoardAgent,
   BoardEditor,
@@ -23,13 +22,10 @@ import type {
 import { compactAge } from '/assets/protocol/domain/time.ts';
 import { gateText, plural } from '/assets/protocol/domain/text.ts';
 import {
-  ago,
   CardTrees,
   FocusButton,
   isTouch,
-  Meter,
   SessionLink,
-  since,
   titleOf,
   useFocus,
   useSetting,
@@ -37,6 +33,10 @@ import {
 } from '/assets/board/shared.ts';
 import { answerBits } from '/assets/board/columns/story-answers.ts';
 import { listenPlan } from '/assets/ui/listen.ts';
+import { ContextMeter } from '/assets/ui/meter.ts';
+import { Chips } from '/assets/ui/chip.ts';
+import { CopyButton } from '/assets/ui/copy-button.ts';
+import { ago, since } from '/assets/ui/time.ts';
 
 /**
  * The columns in the order the work moves through them, from Backlog (kept for later) to Done, in two groups: what is still on this Mac and what is on GitHub.
@@ -93,8 +93,6 @@ const BUILDING_TEXT = {
   write: 'writing the story',
 } as const;
 
-/** Chips are neutral in colour; what they mean is said by a mark in front. */
-const CHIP_MARK = { ok: '✓ ', plain: '', warn: '! ', bad: '! ' } as const;
 /** The PR's facts as small labels: the one line on merging first, then approvals against required, changes requested, checks, open threads. */
 function prChips(pr: PrInfo) {
   const chips: { text: string; tone: 'ok' | 'bad' | 'warn' | 'plain' }[] = [];
@@ -199,14 +197,6 @@ export function arrange(data: BoardData, hideOnAuthor: boolean, now: number) {
 
 export type Layout = ReturnType<typeof arrange>;
 
-/** A session's context meter. */
-function Context(props: { context: number | null | undefined }) {
-  const { context } = props;
-  return typeof context === 'number'
-    ? html` <${Meter} label="ctx" percent=${context} title=${`The session's context window is ${Math.round(context)}% full`} />`
-    : null;
-}
-
 /** `byEditor`: say which editor controls it (an agent card's "from" line already does). */
 function Agent(props: { agent: BoardAgent; now: number; api: Api; byEditor: boolean }) {
   const { agent, now, api, byEditor } = props;
@@ -230,21 +220,14 @@ function Agent(props: { agent: BoardAgent; now: number; api: Api; byEditor: bool
  * Copy for an agent's notes path. The page has no way to open a file on this Mac (the bridge serves no local files), so the path is shown whole and copyable.
  */
 function CopyNotes(props: { path: string }) {
-  const [copied, setCopied] = useState(false);
-  const copy = async () => {
-    if (await writeClipboard(props.path)) {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    }
-  };
-  return html`<button type="button" class="ou-board-copy" data-copy-notes onClick=${copy} title="Copy the notes path">${copied ? 'Copied' : 'Copy'}</button>`;
+  return html`<${CopyButton} text=${props.path} class="ou-ui-copy" title="Copy the notes path" attrs=${{ 'data-copy-notes': true }}>Copy</${CopyButton}>`;
 }
 
 function Session(props: { session: BoardSession; now: number }) {
   const { session, now } = props;
   const time = compactAge(session.since, now);
   return html`<li class=${`ou-board-session ou-board-s-${session.status}`} title=${session.cwd}>
-    <span class="ou-board-mark" aria-hidden="true">●</span> <strong>${session.title}</strong> <span class="ou-local-muted">${session.status}${time && ` · ${time}`}</span><${Context} context=${session.context} />
+    <span class="ou-board-mark" aria-hidden="true">●</span> <strong>${session.title}</strong> <span class="ou-local-muted">${session.status}${time && ` · ${time}`}</span><${ContextMeter} context=${session.context} />
     ${session.detail && html`<div class="ou-board-agent-note ou-local-muted">${session.detail}</div>`}
   </li>`;
 }
@@ -427,8 +410,8 @@ export function Card(props: { card: BoardCard; now: number; api: Api }) {
     ${notes.map((note) => html`<div class="ou-board-detail">${note}</div>`)}
     ${card.listening && html`<${Listening} listening=${card.listening} api=${api} />`}
     ${card.kind === 'session' && card.detail && html`<div class="ou-board-detail">${card.detail}</div>`}
-    ${gates.length > 0 && html`<div class="ou-board-chips ou-board-gates">${gates.map((text) => html`<span class="ou-board-chip">${text}</span>`)}</div>`}
-    ${chips.length > 0 && html`<div class="ou-board-chips">${chips.map((chip) => html`<span class="ou-board-chip">${CHIP_MARK[chip.tone]}${chip.text}</span>`)}</div>`}
+    ${gates.length > 0 && html`<${Chips} class="ou-board-gates" items=${gates} />`}
+    ${chips.length > 0 && html`<${Chips} items=${chips} />`}
     ${card.kind === 'session' && card.sessions[0] && html`<div class="ou-local-muted">${card.sessions[0].status}${card.sessions[0].branch ? ` on ${card.sessions[0].branch}` : ''}</div>`}
     ${card.kind === 'work' && card.sessions.length > 0 && html`<ul class="ou-board-sessions">${card.sessions.map((session) => html`<${Session} key=${session.id} session=${session} now=${now} />`)}</ul>`}
     ${card.agents.length > 0 && html`<ul class="ou-board-agents">${card.agents.map((agent) => html`<${Agent} key=${agent.key} agent=${agent} now=${now} api=${api} byEditor=${card.kind !== 'agent'} />`)}</ul>`}
@@ -454,10 +437,10 @@ function BlankChip(props: { group: { name: string; sessions: BoardBlankSession[]
   const many = group.sessions.length > 1;
   const label = many ? `${group.name} ×${group.sessions.length}` : group.name;
   if (!tabs.length) {
-    return html`<span class="ou-board-chip ou-board-blank-chip" title=${`No iTerm tab is known for ${many ? 'these sessions' : 'this session'}`}>${label}</span>`;
+    return html`<span class="ou-ui-chip ou-board-blank-chip" title=${`No iTerm tab is known for ${many ? 'these sessions' : 'this session'}`}>${label}</span>`;
   }
   if (!many) {
-    return html`<${FocusButton} bridge=${api.bridge} session=${tabs[0].id} class="ou-board-chip ou-board-blank-chip" title="Bring this blank session's iTerm tab to the front">${label}</${FocusButton}>`;
+    return html`<${FocusButton} bridge=${api.bridge} session=${tabs[0].id} class="ou-ui-chip ou-board-blank-chip" title="Bring this blank session's iTerm tab to the front">${label}</${FocusButton}>`;
   }
   const choose = (event: MouseEvent) =>
     openMenu(
@@ -470,7 +453,7 @@ function BlankChip(props: { group: { name: string; sessions: BoardBlankSession[]
       (id) => void focus(id),
       { label: `Blank sessions in ${group.name}` },
     );
-  return html`<button type="button" class="ou-board-chip ou-board-blank-chip" data-blank-group=${group.name} aria-haspopup="menu" aria-expanded="false" onClick=${choose} title=${`Choose a blank session in ${group.name}`}>${label}</button>`;
+  return html`<button type="button" class="ou-ui-chip ou-board-blank-chip" data-blank-group=${group.name} aria-haspopup="menu" aria-expanded="false" onClick=${choose} title=${`Choose a blank session in ${group.name}`}>${label}</button>`;
 }
 
 /** The Blank strip at the bottom of the Idle lane: sessions that have had no prompt yet, one chip per place. */

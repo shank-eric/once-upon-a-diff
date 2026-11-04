@@ -6,9 +6,11 @@
 import { html, useEffect, useLayoutEffect, useRef, useState } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { sameLaneKey } from '/assets/protocol/domain/lane-key.ts';
-import { openMenu } from '/assets/local/menu.ts';
+import { openMenu } from '/assets/ui/menu.ts';
 import type { BoardCard, BoardData } from '/assets/types.ts';
-import { ago, CardTrees, type Api } from '/assets/board/shared.ts';
+import { CardTrees, type Api } from '/assets/board/shared.ts';
+import { Chips } from '/assets/ui/chip.ts';
+import { ago } from '/assets/ui/time.ts';
 import {
   agentOnlyChips,
   pendingClaimChip,
@@ -174,10 +176,10 @@ export function BacklogCard(props: { card: BoardCard; now: number; api: Api; dnd
     <div class="ou-local-muted ou-board-meta">${meta.join(' · ')}</div>
     ${editing && item && html`<${EditForm} card=${card} id=${item.id} api=${api} close=${() => setEditing(false)} />`}
     ${card.detail && html`<div class="ou-board-detail ou-board-note" title=${card.detail}>${card.detail}</div>`}
-    ${item?.started && html`<div class="ou-board-chips">${startedChips(item.started).map((chip) => html`<span class="ou-board-chip">${chip}</span>`)}</div>`}
-    ${item?.agent && !item.started && html`<div class="ou-board-chips">${agentOnlyChips(item.agent).map((chip) => html`<span class="ou-board-chip">${chip}</span>`)}</div>`}
-    ${item?.claim?.pending && html`<div class="ou-board-chips"><span class="ou-board-chip">${pendingClaimChip(item.claim.agent)}</span></div>`}
-    ${item?.assigned && !item.started && html`<div class="ou-board-chips"><span class="ou-board-chip">assigned to ${item.assigned.session_title ?? 'a session that has ended'} ${ago(item.assigned.at, now)}, not started yet</span></div>`}
+    ${item?.started && html`<${Chips} items=${startedChips(item.started)} />`}
+    ${item?.agent && !item.started && html`<${Chips} items=${agentOnlyChips(item.agent)} />`}
+    ${item?.claim?.pending && html`<${Chips} items=${[pendingClaimChip(item.claim.agent)]} />`}
+    ${item?.assigned && !item.started && html`<${Chips} items=${[`assigned to ${item.assigned.session_title ?? 'a session that has ended'} ${ago(item.assigned.at, now)}, not started yet`]} />`}
     ${item && !item.started && !(item.claim && !item.agent?.tried) && html`<div class="ou-board-startline"><code>${item.start_line}</code></div>`}
     <${CardTrees} card=${card} now=${now} api=${api} />
     <div class="ou-board-actions">

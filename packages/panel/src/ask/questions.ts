@@ -44,7 +44,7 @@ import {
   waitingText,
   withRead,
 } from './question-list.ts';
-import { Elapsed, type Clock } from './elapsed.ts';
+import { Elapsed, type Clock } from '@once-upon-a-diff/ui/elapsed';
 
 const SLOW_EVERY = 6; // ticks: 6 x 5s = every 30s with nothing waiting
 const UNDO_MS = 15000;
@@ -252,7 +252,8 @@ export function createQuestions(context: PanelContext) {
   function waitView(wait: WaitRow) {
     const pulse =
       wait.state === 'working' && html`<span class="ou-pulse" aria-hidden="true"></span>`;
-    const elapsed = wait.since && html` · <${Elapsed} since=${wait.since} clock=${clock} />`;
+    const elapsed =
+      wait.since && html` · <${Elapsed} since=${wait.since} clock=${clock} class="ou-elapsed" />`;
     const note = wait.note && html`<div class="ou-wnote">${wait.note}</div>`;
     return html`<div class=${`ou-wait ou-wait-${wait.state}`} role="status">${pulse}${wait.text}${elapsed}${note}</div>`;
   }

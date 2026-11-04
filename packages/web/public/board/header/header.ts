@@ -4,12 +4,13 @@
  */
 import { html, useState } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/protocol/routes.ts';
-import { openMenu } from '/assets/local/menu.ts';
+import { openMenu } from '/assets/ui/menu.ts';
 import type { BoardData, BoardLimit, BoardUsage } from '/assets/types.ts';
 import { compactAge } from '/assets/protocol/domain/time.ts';
 import { plural } from '/assets/protocol/domain/text.ts';
 import { sameLaneKey } from '/assets/protocol/domain/lane-key.ts';
-import { Meter, type Api } from '/assets/board/shared.ts';
+import { Meter } from '/assets/ui/meter.ts';
+import type { Api } from '/assets/board/shared.ts';
 
 /** When a limit resets: the time today, else the weekday and hour. */
 function resetText(iso: string | null, now: number): string {

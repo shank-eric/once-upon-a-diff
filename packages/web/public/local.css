@@ -184,16 +184,6 @@ button.ou-local-pr, button.ou-local-push, button.ou-local-push-ahead { white-spa
 .ou-not-connected h1 { font-size: 20px; margin: 0 0 12px; }
 .ou-not-connected li { margin: 4px 0; }
 
-/* A popover menu in place of a native select (local/menu.ts) */
-.ou-menu { position: fixed; z-index: 20; min-width: 220px; max-width: min(360px, calc(100vw - 16px)); max-height: 60vh; overflow-y: auto; padding: 4px; background: var(--bgColor-default); color: var(--fgColor-default); border: 1px solid var(--borderColor-default); border-radius: 8px; box-shadow: 0 8px 24px rgba(1, 4, 9, 0.3); }
-.ou-menu-item { display: flex; gap: 8px; align-items: flex-start; width: 100%; padding: 6px 8px; text-align: left; border: 0; border-radius: 6px; background: none; font-size: 13px; cursor: pointer; }
-.ou-menu-item:hover, .ou-menu-item:focus-visible { background: var(--bgColor-muted); outline: none; }
-.ou-menu-item:focus-visible { box-shadow: inset 0 0 0 2px var(--fgColor-accent); }
-.ou-menu-check { flex: 0 0 14px; color: var(--fgColor-accent); }
-.ou-menu-text { display: flex; flex-direction: column; min-width: 0; }
-.ou-menu-label { font-weight: 600; overflow-wrap: anywhere; }
-.ou-menu-detail { color: var(--fgColor-muted); font-size: 12px; }
-@media (max-width: 800px) { .ou-menu-item { min-height: 44px; align-items: center; } }
 
 /* The voice session (board.ts): a tab on the right edge that opens a docked panel. Wide windows make room for the open
    panel beside the board; narrower ones overlay it, and a phone gets a bottom sheet. */
@@ -314,13 +304,10 @@ button.ou-local-pr, button.ou-local-push, button.ou-local-push-ahead { white-spa
 .ou-board-title { font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
 .ou-board-meta { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ou-board-detail { margin-top: 2px; overflow-wrap: anywhere; }
-.ou-board-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
-.ou-board-chip { font-size: 11px; line-height: 16px; padding: 0 6px; border: 1px solid var(--borderColor-default); border-radius: 9px; color: var(--fgColor-muted); white-space: nowrap; }
 .ou-board-sessions, .ou-board-agents { list-style: none; margin: 6px 0 0; padding: 6px 0 0; border-top: 1px solid var(--borderColor-default); display: flex; flex-direction: column; gap: 6px; }
 .ou-board-session, .ou-board-agent { font-size: 12px; }
 .ou-board-mark { color: var(--fgColor-muted); }
 .ou-board-agent-note { overflow-wrap: anywhere; }
-.ou-board-copy { font-size: 11px; padding: 0 6px; }
 .ou-board-bar { height: 4px; margin-top: 2px; border-radius: 2px; background: var(--borderColor-default); }
 .ou-board-bar span { display: block; height: 100%; border-radius: 2px; background: var(--fgColor-muted); }
 .ou-board-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }
@@ -339,22 +326,12 @@ button.ou-local-pr, button.ou-local-push, button.ou-local-push-ahead { white-spa
 [data-backlog-card].ou-board-dragging { opacity: 0.4; }
 /* The usage meters in the header (board.ts): thin bars, yellow from 70% and red from 90%; session ctx chips share them */
 .ou-board-meters { display: flex; gap: 14px; align-items: center; flex: none; }
-.ou-board-meter { display: inline-flex; gap: 5px; align-items: center; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--fgColor-muted); }
-.ou-board-meter-bar { width: 44px; height: 5px; border-radius: 3px; background: var(--borderColor-default); overflow: hidden; }
-.ou-board-meter-bar span { display: block; height: 100%; border-radius: 3px; background: var(--fgColor-success); }
-.ou-board-meter-num { color: var(--fgColor-default); min-width: 3ch; text-align: right; }
 .ou-board-meter-reset { font-size: 11px; }
 @media (max-width: 1299px) { .ou-board-meter-reset { display: none; } }
 .ou-local-top-main { min-width: 90px; }
 /* builder slots free, beside the voice buttons (board/header/header.ts): attention-coloured when none is free */
-.ou-board-meter.ou-board-usage-warn { color: var(--fgColor-attention); }
-.ou-board-meter.ou-board-usage-warn .ou-board-meter-bar span { background: var(--fgColor-attention); }
-.ou-board-meter.ou-board-usage-warn .ou-board-meter-num { color: var(--fgColor-attention); }
-.ou-board-meter.ou-board-usage-high { color: var(--ou-local-del-fg); }
-.ou-board-meter.ou-board-usage-high .ou-board-meter-bar span { background: var(--ou-local-del-fg); }
-.ou-board-meter.ou-board-usage-high .ou-board-meter-num { color: var(--ou-local-del-fg); font-weight: 600; }
-.ou-board-session .ou-board-meter-bar { width: 28px; height: 4px; }
-.ou-board-session .ou-board-meter { margin-left: 4px; font-size: 11px; }
+.ou-board-session .ou-ui-meter-bar { width: 28px; height: 4px; }
+.ou-board-session .ou-ui-meter { margin-left: 4px; font-size: 11px; }
 @media (max-width: 800px) { .ou-board-meters { flex: 1 1 100%; order: 3; } }
 /* where the dragged card lands: a line in the gap above or below a card, with a dot at its start */
 .ou-board-drop-before, .ou-board-drop-after { position: relative; }
@@ -420,7 +397,7 @@ button.ou-board-blank-chip:hover { border-color: var(--fgColor-muted); }
   .ou-board-lane { margin-bottom: 6px; }
   .ou-board-card { padding: 6px 8px; font-size: 13px; }
   .ou-board-meta, .ou-board-sessions, .ou-board-agents { font-size: 12px; }
-  .ou-board-chip { line-height: 18px; }
+  .ou-ui-chip { line-height: 18px; }
   .ou-board-card button, .ou-board-open, .ou-board-actions a, .ou-board-focus, .ou-local-top button, .ou-board-head button, .ou-board-lane-toggle { min-height: 44px; min-width: 44px; }
   .ou-board-actions { gap: 8px; }
   .ou-local-top { padding: 8px 10px; flex-wrap: wrap; }

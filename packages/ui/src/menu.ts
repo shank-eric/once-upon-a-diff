@@ -2,10 +2,10 @@
  * A small popover menu in the pages' own style, used instead of a native <select>, whose dropdown can't be styled. It opens
  * under its button and lists items with a label and a short detail. Keyboard: arrows, Home and End move, Enter or Space
  * picks, Escape or Tab closes and focus goes back to the button. A click elsewhere closes it. It takes its colours from
- * the page's tokens (local.css, .ou-menu), so both themes are covered.
+ * the page's tokens (ui.css, .ou-menu), so both themes are covered.
  */
-import { html } from '/assets/protocol/domain/html.ts';
-import { setHtml } from '/assets/ui/dom.ts';
+import { html } from '@once-upon-a-diff/protocol/domain/html';
+import { setHtml } from './dom.ts';
 
 export interface MenuItem {
   value: string;

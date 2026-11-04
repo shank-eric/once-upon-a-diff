@@ -16,7 +16,6 @@ const SRC = path.join(path.dirname(fileURLToPath(import.meta.url)), '../src');
 
 /** file (under src): [how many hand writes, why]. A count can only fall. */
 const ALLOWED: Record<string, [number, string]> = {
-  'parse-markup.ts': [2, 'reads markup into a detached template'],
   'shell.ts': [
     24,
     'the frame: the host element and its stylesheets, the width grip’s drag, the root’s classes and key listener, docking the page',

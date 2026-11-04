@@ -43,17 +43,6 @@ export function questionTotals(list: Question[]) {
   };
 }
 
-/** 0:42, 12:03 or 1:02:03: how long a session has been on a question. */
-export function elapsedText(millis: number): string {
-  const total = Math.max(0, Math.floor(millis / 1000));
-  const seconds = String(total % 60).padStart(2, '0');
-  const minutes = Math.floor(total / 60) % 60;
-  const hours = Math.floor(total / 3600);
-  return hours
-    ? `${hours}:${String(minutes).padStart(2, '0')}:${seconds}`
-    : `${minutes}:${seconds}`;
-}
-
 /**
  * The line under a question with no answer: what a session says it is doing, that none has it yet, or that the one
  * that had it went quiet. `listening` is the status light's word on whether a session is listening at all (null: not

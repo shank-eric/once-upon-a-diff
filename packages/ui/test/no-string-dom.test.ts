@@ -18,6 +18,11 @@ const ALLOWED: Record<string, [number, string]> = {
     11,
     'the helpers the extension and the local page use (setHtml, insertHtml, key isolation, waiting for styles)',
   ],
+  'menu.ts': [
+    16,
+    'the popover menu: it builds its own element under a button, and moves focus and listens for keys and clicks',
+  ],
+  'parse-markup.ts': [2, 'reads markup into a detached template'],
   'listen.ts': [
     17,
     'wireStartListening, which the extension’s listen notice still uses (the panel has its own, with state)',

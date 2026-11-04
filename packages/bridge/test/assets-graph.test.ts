@@ -73,3 +73,15 @@ test('forBrowser spells the panel, the protocol, the api-client, ui and the host
     ].join('\n'),
   );
 });
+
+test("the bridge serves ui's stylesheet, and the board and local pages link it before local.css so the pages' own rules win", async () => {
+  const found = assetFor('/assets/ui/ui.css');
+  assert.ok(found, 'ui.css is served');
+  assert.match(found[1], /text\/css/);
+  assert.match(String(found[0]), /\.ou-ui-chip \{/);
+  const { boardPage, localPage } = await import('../src/server/pages.ts');
+  for (const page of [String(boardPage()), String(localPage('s', { title: 't' }))]) {
+    const first = page.indexOf('/assets/ui/ui.css');
+    assert.ok(first > 0 && first < page.indexOf('/assets/local.css'), 'ui.css comes first');
+  }
+});

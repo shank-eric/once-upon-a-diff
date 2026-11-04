@@ -19,7 +19,7 @@ Eric chose the direction on 10/29: layered packages, the way a modern React mono
 
 ## Decision
 
-Layers, from the top. A package imports only layers below it. Apps know their host (`chrome.*`, GitHub's DOM, how to reach the bridge) and inject what features need as adapters. The diagram is what exists. `api-client` was built on 11/3 (`client.ts` and the poll). `ui` was built on 11/4: the pieces the board, the local page, the panel and the extension share (the DOM and clipboard helpers and Start listening, with the generic Preact components after them). It imports the protocol and the vendored Preact only, and the panel, the pages and the extension import it. Eric decided it should exist as a clean home for generic components although it has no runtime, dependency or outside consumer of its own, so it does not meet the package rule below: it is the one package made for tidiness, not for that rule.
+Layers, from the top. A package imports only layers below it. Apps know their host (`chrome.*`, GitHub's DOM, how to reach the bridge) and inject what features need as adapters. The diagram is what exists. `api-client` was built on 11/3 (`client.ts` and the poll). `ui` was built on 11/4 in two steps: the pieces the board, the local page, the panel and the extension share (the DOM and clipboard helpers and Start listening), then the generic Preact components (`Meter`, `Chip`, `CopyButton`, `Elapsed`), the popover menu, time text, `parseMarkup` and the markdown renderer, with `ui.css` for what they draw. A component that reads a region's state or calls a route stays in its region. It imports the protocol and the vendored Preact only, and the panel, the pages and the extension import it. Eric decided it should exist as a clean home for generic components although it has no runtime, dependency or outside consumer of its own, so it does not meet the package rule below: it is the one package made for tidiness, not for that rule.
 
 ```mermaid
 flowchart TB
@@ -32,7 +32,7 @@ flowchart TB
     panel["panel<br/>ask · drafts · fixes · reading · rebuild"]
   end
   host["host-github<br/>diff-page reader, GitHub URLs"]
-  ui["ui<br/>dom and clipboard helpers, Start listening"]
+  ui["ui<br/>helpers and generic components"]
   api["api-client<br/>typed client, poll"]
   protocol["protocol<br/>wire types, route table, schemas"]
   domain["protocol/src/domain<br/>pure rules: id patterns so far"]

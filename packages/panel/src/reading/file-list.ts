@@ -5,7 +5,7 @@
  * The rows are drawn from the viewed tracker's snapshot, the change tags and the working marks, so they stay current as those do.
  */
 import { html } from '/assets/preact.mjs';
-import type { VNode } from '../parse-markup.ts';
+import type { VNode } from '@once-upon-a-diff/ui/parse-markup';
 import type { ChapterLines } from '@once-upon-a-diff/protocol/types';
 import type { FileStatus } from '../story-model.ts';
 import type { PanelContext } from '../context.ts';
