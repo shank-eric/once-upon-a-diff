@@ -15,9 +15,14 @@ import { DEFAULT_BRANCHES } from '../review/story-lists.ts';
 import type { WorktreeFacts } from '../worktrees/worktrees.ts';
 import type { BranchPr } from '../review/github-checks.ts';
 
-/** A finished author's commit that waits on your review: whether its branch is on origin yet (the `why` says which). */
+/**
+ * A finished author's commit that waits on your review: whether its branch is on origin yet (the `why` says which), and
+ * the branch and the worktree it is in (the card's Review and Build story).
+ */
 export interface PendingReview {
   pushed: boolean;
+  branch: string;
+  path: string;
 }
 
 /**
@@ -64,7 +69,9 @@ export function pendingReview(
   ) {
     return null;
   }
-  return branchPr(repo, branch) === null ? { pushed: tree.unpushed === 0 } : null;
+  return branchPr(repo, branch) === null
+    ? { pushed: tree.unpushed === 0, branch, path: tree.path }
+    : null;
 }
 
 /**

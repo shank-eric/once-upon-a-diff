@@ -3,7 +3,7 @@
  * config.json's `ship` rules, else by branch; Create pull request is for every other story). The button opens the same
  * confirm box Create pull request uses. It says where origin's branch stands (GET .../push) and what a push would send,
  * and its own button pushes the approved commit (POST .../push, a fast-forward, never forced). The button is off until
- * the story is approved. When GitHub protects the branch or requires pull requests, the box refuses and offers Create
+ * the story is approved, except on a storyless review, where the head the page shows is what it pushes. When GitHub protects the branch or requires pull requests, the box refuses and offers Create
  * pull request. The board's Ready to ship card opens this page with `#push=1` in its link, which opens the box.
  */
 import { html } from '/assets/protocol/domain/html.ts';
@@ -29,10 +29,13 @@ export function pushButtonHtml() {
   let off = '';
   if (page.story.read_only) {
     off = 'Open this story from the board or `once-upon page` to push it: this link is read-only';
-  } else if (!local.approved) {
+  } else if (!local.approved && !local.storyless) {
     off = 'Approve the story first: Push sends the approved commit';
   }
-  return html`<button type="button" class="ou-local-push"${off && html` disabled`} title="${off || 'Fast-forward the approved commit to the default branch on GitHub'}">Push</button>`;
+  const does = local.storyless
+    ? 'Fast-forward this commit to the default branch on GitHub'
+    : 'Fast-forward the approved commit to the default branch on GitHub';
+  return html`<button type="button" class="ou-local-push"${off && html` disabled`} title="${off || does}">Push</button>`;
 }
 
 export function redrawPush() {
@@ -55,12 +58,13 @@ function standingHtml(view: PushView) {
 
 function formHtml(view: PushView) {
   const sha = view.approved_sha ? view.approved_sha.slice(0, 7) : '';
+  const which = page.story.local.storyless ? 'the commit shown' : 'the approved commit';
   const blocked = !!view.blocker;
   const offer =
     view.pr_instead && html`<button type="button" data-push-pr>Create pull request</button>`;
   return html`<form class="ou-local-pr-form">
     <h2>Push to ${view.branch || 'the default branch'}</h2>
-    <p class="ou-local-muted">${view.repo || 'origin'}: the approved commit ${sha && html`<code>${sha}</code>`} goes straight to <code>origin/${view.branch || ''}</code> as a fast-forward. It never force-pushes.</p>
+    <p class="ou-local-muted">${view.repo || 'origin'}: ${which} ${sha && html`<code>${sha}</code>`} goes straight to <code>origin/${view.branch || ''}</code> as a fast-forward. It never force-pushes.</p>
     <div class="ou-local-pr-standing">${standingHtml(view)}</div>
     <div class="ou-local-pr-result" role="status">${view.blocker && html`<p class="ou-local-pr-stop">${view.blocker}</p>`}</div>
     <div class="ou-local-pr-buttons">
@@ -79,7 +83,11 @@ async function submit(form: HTMLFormElement, view: PushView) {
   try {
     const answer = await bridge.ask(ROUTES.pushApproved, {
       params: PARAMS,
-      body: { action: 'push', head_sha: view.approved_sha },
+      // a storyless review sends the head its diff was drawn at: that is what the click approves
+      body: {
+        action: 'push',
+        head_sha: page.story.local.storyless ? page.story.local.head_oid : view.approved_sha,
+      },
     });
     pushedAt = view.approved_sha ? view.approved_sha.slice(0, 7) : 'now';
     page.story.local.approved = null;

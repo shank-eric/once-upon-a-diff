@@ -14,7 +14,7 @@
  * doesn't (pushAheadBlocker).
  */
 import { runGh } from '../config/gh.ts';
-import { revParse, runGit, runGitAsync } from '../../adapters/git.ts';
+import { revParse, runGit, runGitAsync, setUpstream } from '../../adapters/git.ts';
 import { storyRepo } from '../config/repos.ts';
 import type { LocalCommit, PrDraft, PrView } from '@once-upon-a-diff/protocol/types';
 import type { StoryMeta } from './types.ts';
@@ -182,16 +182,51 @@ export function pushBlocker(view: PrView, expectedSha: unknown): string | null {
   return null;
 }
 
-/** git push -u origin <branch>: never forced. Resolves to git's own lines; rejects with them when it fails. */
-export async function pushBranch(repoPath: string, branch: string): Promise<string> {
-  const pushed = await runGitAsync(
-    repoPath,
-    ['push', '-u', 'origin', `refs/heads/${branch}:refs/heads/${branch}`],
-    { timeout: PUSH_MS },
-  );
+/**
+ * The push of a branch to origin, never forced: the branch ref with `-u`, or with `sha` exactly that commit
+ * (`<sha>:refs/heads/<branch>`, a storyless review's shown head), so a commit made since the check can't go out with it.
+ * A sha has no local branch to track, so the push sets no upstream: pushWith sets it after.
+ */
+export function branchPushArgs(branch: string, sha: string | null, upstream: boolean): string[] {
+  if (sha) {
+    return ['push', 'origin', `${sha}:refs/heads/${branch}`];
+  }
+  return [
+    'push',
+    ...(upstream ? ['-u'] : []),
+    'origin',
+    `refs/heads/${branch}:refs/heads/${branch}`,
+  ];
+}
+
+/** git push -u origin <branch> (or `sha` only: branchPushArgs): never forced. Resolves to git's own lines; rejects with them when it fails. */
+export async function pushBranch(
+  repoPath: string,
+  branch: string,
+  sha: string | null = null,
+): Promise<string> {
+  return pushWith(repoPath, branch, sha, true);
+}
+
+/**
+ * Runs the push. After a sha push it makes origin/<branch> the branch's upstream, with no push, as `-u` would have: the
+ * fix-round relay tells an author that a branch with an upstream holding its tip is pushed (new commit, not an amend).
+ */
+async function pushWith(
+  repoPath: string,
+  branch: string,
+  sha: string | null,
+  upstream: boolean,
+): Promise<string> {
+  const pushed = await runGitAsync(repoPath, branchPushArgs(branch, sha, upstream), {
+    timeout: PUSH_MS,
+  });
   const output = `${pushed.stdout}${pushed.stderr}`.trim();
   if (pushed.code !== 0) {
     throw new Error(output || 'git push failed');
+  }
+  if (sha) {
+    await setUpstream(repoPath, branch);
   }
   return output;
 }
@@ -248,15 +283,10 @@ export function pushAheadBlocker(view: PrView, expectedSha: unknown): string | n
 }
 
 /** git push origin <branch>: a fast-forward of the branch, never forced. Resolves to git's own lines; rejects with them when it fails. */
-export async function pushAhead(repoPath: string, branch: string): Promise<string> {
-  const pushed = await runGitAsync(
-    repoPath,
-    ['push', 'origin', `refs/heads/${branch}:refs/heads/${branch}`],
-    { timeout: PUSH_MS },
-  );
-  const output = `${pushed.stdout}${pushed.stderr}`.trim();
-  if (pushed.code !== 0) {
-    throw new Error(output || 'git push failed');
-  }
-  return output;
+export async function pushAhead(
+  repoPath: string,
+  branch: string,
+  sha: string | null = null,
+): Promise<string> {
+  return pushWith(repoPath, branch, sha, false);
 }

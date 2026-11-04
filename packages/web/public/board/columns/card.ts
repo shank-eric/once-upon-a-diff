@@ -12,12 +12,13 @@ import {
   useFocus,
   type Api,
 } from '/assets/board/shared.ts';
-import { act, openStory, typeInto } from '/assets/board/columns/actions.ts';
+import { act, openStory, reviewCard, typeInto } from '/assets/board/columns/actions.ts';
 import { Agent, AgentNotes } from '/assets/board/columns/agent.ts';
 import { answerBits } from '/assets/board/columns/story-answers.ts';
 import { ContextMeter } from '/assets/ui/meter.ts';
 import { Chips } from '/assets/ui/chip.ts';
 import { ago } from '/assets/ui/time.ts';
+import { CopyButton } from '/assets/ui/copy-button.ts';
 
 const BUILDING_TEXT = {
   build: 'building the story',
@@ -88,7 +89,10 @@ function Listening(props: { listening: NonNullable<BoardCard['listening']>; api:
   return html`<div class="ou-local-muted ou-board-listening">listening: <${SessionLink} bridge=${api.bridge} session=${listening.session} canFocus=${listening.can_focus} name=${listening.title || listening.consumer} title="Bring the listening session's iTerm tab to the front" /></div>`;
 }
 
-/** Build story: types the skill's command into an idle session of the card (the bridge picks it and says why when none is). */
+/**
+ * Build story: types the card's line into an idle session of the card, or a finished author's launching session (the
+ * bridge picks it and says why when none is). When it can't be typed, Copy hands you the line to paste where you like.
+ */
 function Build(props: { card: BoardCard; api: Api }) {
   const { card, api } = props;
   const build = card.build as NonNullable<BoardCard['build']>;
@@ -96,10 +100,20 @@ function Build(props: { card: BoardCard; api: Api }) {
   const title = build.blocked || `Types ${build.prompt} into the session`;
   const run = () => {
     if (build.session) {
-      void typeInto(api, 'build', build.session, build.prompt, null);
+      void typeInto(api, 'build', build.session, build.prompt, null, card.id);
     }
   };
-  return html`<button type="button" class="ou-board-build" data-build=${build.session} data-prompt=${build.prompt} disabled=${!!build.blocked} onClick=${run} title=${title}>${label}</button>`;
+  const copy =
+    build.blocked &&
+    html`<${CopyButton} text=${build.prompt} class="ou-ui-copy" title=${`Copy: ${build.prompt}`} attrs=${{ 'data-copy-build': card.id }}>Copy</${CopyButton}>`;
+  return html`<button type="button" class="ou-board-build" data-build=${build.session} data-prompt=${build.prompt} disabled=${!!build.blocked} onClick=${run} title=${title}>${label}</button>${copy}`;
+}
+
+/** Review: a storyless review of the card's branch (the diff, Create pull request and Push), on the local story page. Again on a storyless review, it re-pins it to the branch's tip. */
+function Review(props: { card: BoardCard; api: Api }) {
+  const { card, api } = props;
+  const title = `The diff of ${card.review?.branch}, with Create pull request and Push, without a story`;
+  return html`<button type="button" class="ou-board-open" data-review=${card.id} onClick=${() => reviewCard(api, card.id)} title=${title}>Review</button>`;
 }
 
 /** Whether an agent card's Finish applies: the agent has finished or is waiting on a question, not working or parked on your review. */
@@ -246,6 +260,7 @@ export function Card(props: { card: BoardCard; now: number; api: Api }) {
     <${CardTrees} card=${card} now=${now} api=${api} />
     <div class="ou-board-actions">
       ${card.build && html`<${Build} card=${card} api=${api} />`}
+      ${card.review && (!card.story || card.story.storyless) && html`<${Review} card=${card} api=${api} />`}
       ${finishable(card) && html`<button type="button" class="ou-board-finish" data-finish-agent=${card.id} onClick=${() => finishAgent(api, card)} title="Clears this card now. It comes back only if the agent does something more">Finish</button>`}
       ${card.focus_session && html`<button type="button" class="ou-board-focus" data-focus=${card.focus_session} disabled=${!card.can_focus || switching} onClick=${() => focus(card.focus_session as string)} title=${focusTitle}>${switching ? 'Switching…' : 'Open in iTerm'}</button>`}
       ${card.column === 'ship' && story?.ship === 'push' && html`<button type="button" class="ou-board-push" data-push-local=${story.id} onClick=${() => openStory(api, story.id, true)} title="Opens the story's Push box, which checks GitHub first">Push</button>`}

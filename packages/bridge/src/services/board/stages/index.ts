@@ -170,6 +170,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     blankViews,
     pin,
     repoBySession,
+    trees: settings.worktrees ? state.scanner.read().items : [],
   });
 
   // the Backlog column: open items, and started ones are marked onto the work cards they became

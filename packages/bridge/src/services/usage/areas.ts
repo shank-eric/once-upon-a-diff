@@ -110,6 +110,7 @@ export const ROUTE_AREAS: Record<RouteName, Area> = {
   boardAgentFinish: 'Ledger and agent registry',
   boardFocus: 'Board backend',
   boardOpenStory: 'Board backend',
+  boardReview: 'Review',
   boardReviewed: 'Review',
   boardBacklogAdd: 'Backlog',
   boardBacklogMove: 'Backlog',

@@ -16,11 +16,13 @@ import type { SourceStatus } from '../../adapters/iterm.ts';
 import type { LiveSession } from '../../adapters/claude-sessions/registry.ts';
 import { noteListener, readHistory } from '../listeners/history.ts';
 import { run } from '../../adapters/os.ts';
+import { DEFAULT_BRANCHES } from '../review/story-lists.ts';
 import type {
   BoardBuild,
   BoardCard,
   BoardListenerRepo,
   BoardListening,
+  BoardReview,
   BoardSession,
 } from '@once-upon-a-diff/protocol/types';
 
@@ -302,14 +304,40 @@ export function listenersLane(live: Listener[], input: ListeningInput): BoardLis
 }
 
 const SAFE_BRANCH = /^[A-Za-z0-9._/-]{1,200}$/;
+/**
+ * A folder that can be typed, quoted in backticks, in a sentence: absolute, and nothing that could end the line or the
+ * quote: no control characters (C0 or C1), no whitespace but a plain space (tabs, line and paragraph separators, no-break
+ * spaces), no backtick.
+ */
+const safePath = (dir: string): boolean =>
+  dir.startsWith('/') &&
+  dir.length <= 500 &&
+  [...dir].every((char) => {
+    const code = char.codePointAt(0) as number;
+    if (code < 32 || (code >= 127 && code <= 159) || char === '`') {
+      return false;
+    }
+    return char === ' ' || !/\s/u.test(char);
+  });
 
 /**
  * What Build story types into a session for a card, or null when the card has no use for it: a card with a session and a
- * PR or branch, and no story yet. The line is the once-upon skill's own command: `/once-upon <PR url>`, or for commits
- * with no PR a plain sentence naming the branch (the skill's "local commits" path).
+ * PR or branch, and no story yet (a storyless review counts as none). The line is the once-upon skill's own command:
+ * `/once-upon <PR url>`, or for commits with no PR a plain sentence naming the branch (the skill's "local commits" path).
+ * A finished author's commit in Ready for your review (an agent card with `review`) goes to the session that launched
+ * it, as a plain request naming the branch and its worktree, never the slash command: that session decides who runs the
+ * skill (a dispatcher hands it to an agent).
  */
 export function buildFor(card: BoardCard, idle: Set<string>): BoardBuild | null {
-  if (card.kind !== 'work' || card.story || !card.sessions.length || !card.repo) {
+  if (card.kind === 'agent') {
+    return authorBuild(card, idle);
+  }
+  if (
+    card.kind !== 'work' ||
+    (card.story && !card.story.storyless) ||
+    !card.sessions.length ||
+    !card.repo
+  ) {
     return null;
   }
   const number = card.pr?.number;
@@ -328,6 +356,52 @@ export function buildFor(card: BoardCard, idle: Set<string>): BoardBuild | null 
     return { session: free.id, prompt, blocked: null };
   }
   return { session: null, prompt, blocked: mapped.length ? 'session busy' : 'no iTerm tab' };
+}
+
+/** Build story on a finished author's own card: typed into its launching session (`focus_session`) when that is idle. */
+function authorBuild(card: BoardCard, idle: Set<string>): BoardBuild | null {
+  const review = card.review;
+  if (!review || !SAFE_BRANCH.test(review.branch) || !safePath(review.path)) {
+    return null;
+  }
+  const prompt = `Build the Once Upon story of the unpushed commits on branch ${review.branch} in \`${review.path}\``;
+  const launcher = card.focus_session;
+  if (!launcher) {
+    return { session: null, prompt, blocked: 'its session has ended' };
+  }
+  if (!card.can_focus) {
+    return { session: null, prompt, blocked: 'no iTerm tab' };
+  }
+  return idle.has(launcher)
+    ? { session: launcher, prompt, blocked: null }
+    : { session: null, prompt, blocked: 'session busy' };
+}
+
+/**
+ * Review on a work or session card, or null: a branch (not a default one) with no PR and no story, or only a storyless
+ * review (Review again re-pins it to the branch's tip), whose work has not shipped (`shipped`: its PR merged, or the
+ * scanner says it is merged or superseded), in the checkout of a session on that branch (a session alone on such a branch
+ * is a session card), else the storyless review's own checkout (`card.review`, set with the card: stages/cards.ts). An
+ * agent card's review is set where it is placed (stages/agents.ts).
+ */
+export function reviewFor(
+  card: BoardCard,
+  shipped: (repo: string, branch: string) => boolean = () => false,
+): BoardReview | null {
+  if (
+    (card.kind !== 'work' && card.kind !== 'session') ||
+    (card.story && !card.story.storyless) ||
+    card.pr ||
+    !card.repo ||
+    !card.branch ||
+    DEFAULT_BRANCHES.has(card.branch) ||
+    shipped(card.repo, card.branch)
+  ) {
+    return null;
+  }
+  const there = card.sessions.find((session) => session.branch === card.branch);
+  const path = there?.cwd ?? (card.story && card.review?.path) ?? null;
+  return path ? { branch: card.branch, path } : null;
 }
 
 /** The listen prompt Start listening types (the status API's `prompt`, shown too for typing by hand). */

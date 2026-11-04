@@ -59,6 +59,19 @@ export const revParse = (repo: string, ref: string): string =>
 export const topLevel = (repo: string): string =>
   runGit(repo, ['rev-parse', '--show-toplevel']).trim();
 
+/**
+ * Makes origin/<branch> the branch's upstream, with no push (after a push of a sha, which sets none). Resolves to whether
+ * git took it.
+ */
+export async function setUpstream(repo: string, branch: string): Promise<boolean> {
+  const set = await runGitAsync(repo, ['branch', `--set-upstream-to=origin/${branch}`, branch]);
+  return set.code === 0;
+}
+
+/** The best common ancestor of two refs, as a full sha (throws when they share none). */
+export const mergeBase = (repo: string, first: string, second: string): string =>
+  runGit(repo, ['merge-base', first, second]).trim();
+
 /** The local branches whose tip is exactly this commit, sorted by name. */
 export function branchesAt(repo: string, oid: string): string[] {
   return runGit(repo, ['for-each-ref', '--points-at', oid, '--format=%(refname)', 'refs/heads'])

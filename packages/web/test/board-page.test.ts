@@ -1412,7 +1412,11 @@ test('Build story and Start and Stop listening ask first, then type into the ses
   assert.deepEqual(requests, [], 'a no types nothing');
   sure = true;
   await click($('[data-build="idle-s"]'));
-  assert.deepEqual(sentTo('/api/board/type')[0].body, { kind: 'build', session: 'idle-s' });
+  assert.deepEqual(sentTo('/api/board/type')[0].body, {
+    kind: 'build',
+    session: 'idle-s',
+    card: 'b-1',
+  });
 
   requests.length = 0;
   await click($('[data-start-listening="acme/widgets"]'));
@@ -1432,6 +1436,48 @@ test('Build story and Start and Stop listening ask first, then type into the ses
   assert.deepEqual(sentTo('/api/board/stop-listening'), [
     { method: 'POST', path: '/api/board/stop-listening', body: { repo: 'acme/gadgets' } },
   ]);
+  answer = () => board();
+  await pollNow();
+});
+
+test('a Ready author’s card: Build story sends its own card, Copy offers the request when it is blocked, Review opens the storyless page', async () => {
+  requests.length = 0;
+  opened.length = 0;
+  const request = (branch: string) =>
+    `Build the Once Upon story of the unpushed commits on branch ${branch} in /wt/${branch}`;
+  const author = (name: string, branch: string, build: BoardCard['build']) =>
+    card({
+      id: `agent:aaaaaaaa:${name}`,
+      kind: 'agent',
+      title: name,
+      column: 'ready',
+      focus_session: 'launcher',
+      can_focus: true,
+      review: { branch, path: `/wt/${branch}` },
+      build,
+    });
+  answer = () =>
+    withCards(
+      author('one', 'one', { session: 'launcher', prompt: request('one'), blocked: null }),
+      author('two', 'two', { session: null, prompt: request('two'), blocked: 'session busy' }),
+    );
+  await pollNow();
+  const one = '[data-card="agent:aaaaaaaa:one"]';
+  const two = '[data-card="agent:aaaaaaaa:two"]';
+  await click($(`${one} [data-build]`));
+  assert.match(confirmed.at(-1) as string, /unpushed commits on branch one in \/wt\/one/);
+  assert.deepEqual(sentTo('/api/board/type')[0].body, {
+    kind: 'build',
+    session: 'launcher',
+    card: 'agent:aaaaaaaa:one',
+  });
+  assert.equal($(`${one} [data-copy-build]`), null, 'nothing to copy while it can be typed');
+  assert.ok($(`${two} [data-copy-build]`), 'blocked: the request can be copied instead');
+  assert.ok(($(`${two} .ou-board-build`) as HTMLButtonElement).disabled);
+
+  await click($(`${two} [data-review]`));
+  assert.deepEqual(sentTo('/api/board/review')[0].body, { card: 'agent:aaaaaaaa:two' });
+  assert.equal(opened.at(-1), 'http://x/story?k=1');
   answer = () => board();
   await pollNow();
 });

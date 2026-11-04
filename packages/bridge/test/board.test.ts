@@ -30,6 +30,8 @@ import {
   type TestBridge,
 } from './helpers.ts';
 import { Builds } from '../src/services/inbox/builds.ts';
+import { Sessions, type SessionsFeed } from '../src/services/sessions/sessions.ts';
+import { worktreeFixture } from '@once-upon-a-diff/test-kit/git';
 import { Inbox } from '../src/services/inbox/inbox.ts';
 import { markQuestions } from '../src/services/inbox/conversation.ts';
 import { Board, liveSessions, noPrWatcher, type PrWatcher } from '../src/services/board/board.ts';
@@ -6432,4 +6434,112 @@ test('only a lane tag is resolved to an owner/name: an agent on its parent’s f
   const lane = (title: string) => cards.find((card) => card.title === title)?.lane;
   assert.equal(lane('tagged-agent'), 'eric/foo', 'a tag is the short name of the one repo');
   assert.equal(lane('folder-agent'), 'foo', 'a folder lane is already a key');
+});
+
+test('Build story types the clicked card’s own request, though two cards build in the same session', async () => {
+  const home = tmp('board-type-card');
+  const sessions = tmp('board-sessions');
+  const launcher = liveChild();
+  after(() => launcher.stop());
+  registry(sessions, launcher.pid, { cwd: tmp('dev'), name: 'root' }, launcher.procStart);
+  writeJson(path.join(home, 'config.json'), {
+    board_sessions_dir: sessions,
+    board_it2_path: fakeIt2(),
+    board_status_source: 'iterm',
+  });
+  const id = fullId(launcher.pid);
+  const request = (branch: string) =>
+    `Build the Once Upon story of the unpushed commits on branch ${branch} in /wt/${branch}`;
+  // the root session launched both authors: both Ready cards build in it
+  const built = (name: string, branch: string) =>
+    ({
+      id: `agent:aaaaaaaa:${name}`,
+      build: { session: id, prompt: request(branch), blocked: null },
+    }) as BoardCard;
+  const feed: SessionsFeed = {
+    snapshot: async () =>
+      ({
+        lanes: [{ key: 'x', name: 'x', cards: [built('one', 'one'), built('two', 'two')] }],
+      }) as unknown as BoardData,
+    listening: () => null,
+    invalidate: () => {},
+  };
+  const typed: string[] = [];
+  const service = new Sessions(home, new StoryStore({ home }), feed, {
+    typeLine: async (_it2, _tty, text) => {
+      typed.push(text);
+      return null;
+    },
+    source: sourceSaying({}),
+  });
+  await service.type('build', id, null, null, 'agent:aaaaaaaa:two');
+  assert.deepEqual(typed, [request('two')]);
+  await assert.rejects(
+    service.type('build', id, null, null, 'agent:aaaaaaaa:gone'),
+    /nothing to build/,
+  );
+  assert.equal(typed.length, 1);
+});
+
+test('POST /api/board/review: a session’s branch becomes a storyless review over its merge-base, and its page link comes back', async () => {
+  const home = tmp('board-review');
+  const sessions = tmp('board-sessions');
+  const fixture = worktreeFixture();
+  const dir = fixture.add('feat/x');
+  fixture.commit(dir, 'x one');
+  // origin's main is where feat/x began; main has moved on since, so the base is the merge-base, not main's tip
+  const forkPoint = git(fixture.main, 'rev-parse', 'HEAD');
+  git(fixture.main, 'update-ref', 'refs/remotes/origin/main', forkPoint);
+  fixture.commit(fixture.main, 'main later', 3);
+  const child = liveChild();
+  after(() => child.stop());
+  registry(sessions, child.pid, { cwd: dir, name: 'on-x' }, child.procStart);
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  const bridge = await startBridge({ home });
+  open.push(bridge);
+  const cardOnX = async () =>
+    (await bridge.call<BoardData>('GET', '/api/board')).body.lanes
+      .flatMap((lane) => lane.cards)
+      .find((one) => one.branch === 'feat/x') as BoardCard;
+  const post = (body: unknown, key = boardKey(TOKEN)) =>
+    bridge.call<{ url: string; story: string }>('POST', '/api/board/review', body, {
+      Authorization: `Bearer ${key}`,
+    });
+  const before = await cardOnX();
+  assert.deepEqual(before.review, { branch: 'feat/x', path: dir });
+  assert.equal((await post({ card: before.id }, pageKey(TOKEN, 'x'))).status, 403);
+  assert.equal((await post({ card: 'branch:nope@nope' })).status, 404);
+
+  // the path is the card's, never the body's
+  const made = await post({ card: before.id, path: '/etc', branch: 'main' });
+  assert.equal(made.status, 200, made.text);
+  const { story, url } = made.body;
+  assert.match(url, new RegExp(`/local/${story}/`));
+  const folder = path.join(dir, '.once-upon', story);
+  const meta = JSON.parse(readFileSync(path.join(folder, 'meta.json'), 'utf8'));
+  assert.equal(meta.base, forkPoint);
+  assert.equal(meta.head, 'feat/x');
+  assert.equal(meta.branch, 'feat/x', 'a branch, so Create pull request is offered');
+  assert.equal(
+    JSON.parse(readFileSync(path.join(folder, 'chapters.json'), 'utf8')).mode,
+    'by-folder',
+  );
+  assert.match(readFileSync(path.join(folder, 'local.diff'), 'utf8'), /changed-x one/);
+  assert.doesNotMatch(readFileSync(path.join(folder, 'local.diff'), 'utf8'), /main later/);
+
+  // the branch has its story now: a work card with Open story, and Build story still tells one. Review stays while
+  // the story is storyless, so a branch that moved on can be reviewed again
+  const reviewed = await cardOnX();
+  assert.equal(reviewed.kind, 'work');
+  assert.equal(reviewed.story?.id, story);
+  assert.equal(reviewed.story?.storyless, true);
+  assert.deepEqual(reviewed.review, { branch: 'feat/x', path: dir });
+  assert.ok(reviewed.build, 'Build story is still offered on a storyless review');
+  fixture.commit(dir, 'x two', 2);
+  const again = await post({ card: reviewed.id });
+  assert.equal(again.status, 200, again.text);
+  assert.equal(again.body.story, story, 'the same story');
+  const repinned = JSON.parse(readFileSync(path.join(folder, 'meta.json'), 'utf8'));
+  assert.equal(repinned.head_oid, git(dir, 'rev-parse', 'HEAD'), 're-pinned to the new tip');
+  assert.match(readFileSync(path.join(folder, 'local.diff'), 'utf8'), /changed-x two/);
 });

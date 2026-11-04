@@ -3,10 +3,12 @@
  * session can be typed into (Build story, Start listening) when it is at its prompt: not working, not waiting on you.
  */
 import type { Listener } from '../../listeners/listeners.ts';
-import { buildFor, sessionOfPid, storyListening } from '../../sessions/listening.ts';
+import { buildFor, reviewFor, sessionOfPid, storyListening } from '../../sessions/listening.ts';
 import type { ListeningInput } from '../../sessions/listening.ts';
 import type { BoardCard, BoardSession } from '@once-upon-a-diff/protocol/types';
 import type { BuildContext, PinnedVoice } from './types.ts';
+import type { WorktreeFacts } from '../../worktrees/worktrees.ts';
+import { sameRepo } from '../../config/repos.ts';
 
 /** What the listening rules need to know of the sessions. */
 export interface ListenerFacts {
@@ -21,6 +23,24 @@ export interface ListenerFacts {
   blankViews: { lane: string; view: BoardSession }[];
   pin: PinnedVoice | null;
   repoBySession: Map<string, string | null>;
+  /** what the worktree scanner has (memory only): a branch it says is merged or superseded gets no Review */
+  trees?: WorktreeFacts[];
+}
+
+/**
+ * Whether a branch's work already shipped, from what is already known (no new git or gh call): GitHub said its PR
+ * merged, or a worktree on it is merged or superseded (a squash or rebase merge shows as superseded).
+ */
+function shippedBy(ctx: BuildContext, trees: WorktreeFacts[]) {
+  return (repo: string, branch: string): boolean =>
+    ctx.review.branchPr(repo, branch)?.state === 'merged' ||
+    trees.some(
+      (tree) =>
+        !!tree.repo &&
+        sameRepo(tree.repo, repo) &&
+        tree.branch === branch &&
+        (tree.merged === true || tree.superseded === true),
+    );
 }
 
 /**
@@ -40,6 +60,7 @@ export function markListening(
     blankViews,
     pin,
     repoBySession,
+    trees = [],
   }: ListenerFacts,
 ): { listening: ListeningInput; sessionViews: Map<string, BoardSession> } {
   const sessionViews = new Map<string, BoardSession>();
@@ -75,12 +96,21 @@ export function markListening(
     busy: busyListeners,
     apart,
   };
+  const shipped = shippedBy(ctx, trees);
   for (const card of cards) {
     if (card.story) {
       card.listening = storyListening(card.story.id, waits, listening);
     }
     if (card.column !== 'done' && card.column !== 'ship') {
       card.build = buildFor(card, idle);
+      if (card.kind !== 'agent') {
+        const review = reviewFor(card, shipped);
+        if (review) {
+          card.review = review;
+        } else {
+          delete card.review;
+        }
+      }
     }
   }
   return { listening, sessionViews };

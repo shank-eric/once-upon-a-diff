@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { tmp, git, startBridge, localRepo, writeJson, TOKEN } from './helpers.ts';
-import { createLocalStory } from '../src/services/stories/local-story.ts';
+import { tmp, git, startBridge, localRepo, writeJson, fakeGitPush, TOKEN } from './helpers.ts';
+import { createLocalStory, reviewBranch } from '../src/services/stories/local-story.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
 import { readSettings, shipRuleFor } from '../src/services/config/settings.ts';
 import { shipMode } from '../src/services/stories/push-default.ts';
@@ -85,7 +85,9 @@ after(() => {
  * A checkout on master whose origin (github.com/acme/widgets, rewritten to a bare repo) has master at A, with B and C
  * made since, and a local story of A..HEAD (so on branch master). `approve` approves it at C.
  */
-async function setup(opts: { config?: Record<string, unknown> } = {}) {
+async function setup(
+  opts: { config?: Record<string, unknown>; storyless?: boolean; noPush?: boolean } = {},
+) {
   const home = tmp('home');
   if (opts.config) {
     writeJson(path.join(home, 'config.json'), { port: 1, token: TOKEN, ...opts.config });
@@ -98,7 +100,11 @@ async function setup(opts: { config?: Record<string, unknown> } = {}) {
   const base = git(repo, 'rev-parse', 'HEAD');
   git(repo, 'config', `url.${remote}.insteadOf`, GITHUB_URL);
   git(repo, 'remote', 'add', 'origin', GITHUB_URL);
-  git(repo, 'push', '-q', 'origin', 'master');
+  if (opts.noPush) {
+    git(remote, 'fetch', '-q', repo, 'master:master'); // the same seed with no push: a fetch into the bare repo
+  } else {
+    git(repo, 'push', '-q', 'origin', 'master');
+  }
   git(repo, 'fetch', '-q', 'origin');
   commit(repo, 'b.txt');
   commit(repo, 'c.txt');
@@ -106,7 +112,10 @@ async function setup(opts: { config?: Record<string, unknown> } = {}) {
   writeJson(chapters, {
     chapters: [{ refs: [], title: 'Chapter 1', narrative: 'Told.', files: ['b.txt', 'c.txt'] }],
   });
-  const story = createLocalStory({ home, repo, base, head: 'HEAD', chapters });
+  // storyless: what the board's Review makes, pinned to the branch's tip
+  const story = opts.storyless
+    ? reviewBranch({ home, path: repo, branch: 'master' })
+    : createLocalStory({ home, repo, base, head: 'HEAD', chapters });
   const metaFile = path.join(story.dir, 'meta.json');
   writeJson(metaFile, { ...JSON.parse(readFileSync(metaFile, 'utf8')), repo: 'acme/widgets' });
   const bridge = await startBridge({ home });
@@ -182,6 +191,62 @@ test('Push fast-forwards the approved commit to origin, never beyond it, and the
     assert.ok(fake.calls().every((call) => call.startsWith('api repos/acme/widgets/')));
   } finally {
     await bridge.close();
+  }
+});
+
+test('a storyless review pushes the head the page showed with no Approve; a told story still needs Approve', async () => {
+  fake.set('none');
+  const bare = await setup({ storyless: true, noPush: true });
+  const pushes = fakeGitPush();
+  try {
+    const data = (await bare.full<StoryData>('GET', '')).body;
+    assert.equal(data.local?.storyless, true);
+    assert.equal(data.local?.ship, 'push');
+    assert.deepEqual(
+      data.local?.files.map((file) => file.rel),
+      ['b.txt', 'c.txt'],
+      'the diff is there',
+    );
+    const view = (await bare.full<PushView>('GET', '/push')).body;
+    assert.equal(view.approved_sha, bare.head(), 'the head shown is the one a push sends');
+    assert.equal(view.blocker, null);
+    const shown = bare.head();
+    commit(bare.repo, 'd.txt'); // made after the page drew: never pushed unseen
+    const later = await bare.full('POST', '/push', { action: 'push', head_sha: bare.head() });
+    assert.equal(later.status, 409, 'only the head the diff was drawn at');
+    assert.equal(bare.originMaster(), bare.base);
+    const done = await bare.full<PushAnswer>('POST', '/push', {
+      action: 'push',
+      head_sha: shown,
+    });
+    assert.equal(done.status, 200, done.text);
+    assert.deepEqual(
+      pushes.calls().map((args) => args.slice(2)),
+      [['push', 'origin', `${shown}:refs/heads/master`]],
+      'what the page showed, by its sha, and not d.txt',
+    );
+    assert.equal(
+      (
+        await bare.asKey(viewKey(TOKEN, bare.id), 'POST', '/push', {
+          action: 'push',
+          head_sha: bare.head(),
+        })
+      ).status,
+      403,
+      'the read-only link still cannot push',
+    );
+  } finally {
+    pushes.restore();
+    await bare.bridge.close();
+  }
+  const told = await setup({ noPush: true });
+  try {
+    assert.equal((await told.full<StoryData>('GET', '')).body.local?.storyless, false);
+    const refused = await told.full('POST', '/push', { action: 'push', head_sha: told.head() });
+    assert.equal(refused.status, 409, 'a told story is approved first');
+    assert.equal(told.originMaster(), told.base);
+  } finally {
+    await told.bridge.close();
   }
 });
 

@@ -332,7 +332,11 @@
               }
             ],
             "branch": null,
-            "build": null,
+            "build": {
+              "blocked": "no iTerm tab",
+              "prompt": "Build the Once Upon story of the unpushed commits on branch dep-bump in `<WORK>/links-repo-24/widgets-worktrees/dep-bump`",
+              "session": null
+            },
             "building": null,
             "can_focus": false,
             "column": "ready",
@@ -345,6 +349,10 @@
             "parent": "the builder",
             "pr": null,
             "repo": null,
+            "review": {
+              "branch": "dep-bump",
+              "path": "<WORK>/links-repo-24/widgets-worktrees/dep-bump"
+            },
             "sessions": [],
             "since": "2026-10-26T18:41:00.000Z",
             "story": null,

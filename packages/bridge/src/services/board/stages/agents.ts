@@ -283,6 +283,10 @@ export function placeAgents(
       can_focus: parentSession?.focus ?? false,
       listening: null,
       build: null,
+      // a commit waiting on your review: Review and Build story work on its branch's worktree
+      ...(finishedIn === 'ready' && pending
+        ? { review: { branch: pending.branch, path: pending.path } }
+        : {}),
     });
   }
   return added;

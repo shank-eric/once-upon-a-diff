@@ -208,6 +208,11 @@ export interface LocalStory {
   moved: LocalMoved | null;
   /** what ships it: `push` for commits on the repo's default branch (or a repo set to push), else `pr` (Create pull request) */
   ship: ShipMode;
+  /**
+   * a storyless review (a by-folder story: no story was told, the diff by folder). It has no Approve: seeing the diff and
+   * clicking Push or Create pull request is the approval
+   */
+  storyless: boolean;
 }
 
 /** Where a pinned local story's refs point now, for the ones that moved since it was told (the others are null). */
@@ -240,6 +245,8 @@ export interface InboxLocalStory {
   approved_head: string | null;
   /** chapters published with no text yet: while there are any, the story is still being written (absent: none) */
   unwritten?: number;
+  /** a storyless review: the by-folder fallback, no story told (absent: a told story) */
+  storyless?: true;
 }
 
 /** A built PR story: the panel opens on the PR's changes page. It is marked reviewed on GitHub or by Viewed. */
@@ -904,6 +911,8 @@ export interface BoardCard {
     approved_at: string | null;
     /** a local story approved and ready to ship: Push when its commits go straight to the default branch, else Create pull request (null otherwise) */
     ship: ShipMode | null;
+    /** a storyless review (a by-folder local story): Build story still tells one */
+    storyless?: true;
   } | null;
   /**
    * a work card with an open PR whose local checkout has commits origin's branch lacks (a fix made after review), and
@@ -928,6 +937,11 @@ export interface BoardCard {
   listening: BoardListening | null;
   /** Build story, for a card with a session and a branch or PR but no story yet */
   build: BoardBuild | null;
+  /**
+   * The branch's checkout, for Review (a storyless review of its diff: POST /api/board/review) and for the path Build story
+   * names: a finished author's commit waiting on your review, or a work card's branch with no PR. Absent otherwise
+   */
+  review?: BoardReview | null;
   /** a backlog card's item (the Backlog column: src/board/backlog.ts) */
   backlog?: {
     id: string;
@@ -1122,6 +1136,12 @@ export interface BoardHelper {
 /** The Assign button on a backlog card: the message it sends the voice session (the same for every click). */
 export interface BoardAssign {
   prompt: string;
+}
+
+/** A branch to review without a story: its name and the checkout it is in. */
+export interface BoardReview {
+  branch: string;
+  path: string;
 }
 
 /** What Build story would type, and into which session: null session means every session on the card is busy. */

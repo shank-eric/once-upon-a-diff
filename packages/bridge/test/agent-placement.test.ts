@@ -632,6 +632,9 @@ test('a landing from before the run started is an earlier run’s; one at its st
   });
 });
 
+/** What pendingReview says of an unpushed commit on feat/x. */
+const PENDING = { pushed: false, branch: 'feat/x', path: '/wt/feat-x' };
+
 /** The tip of feat/x's worktree: the commit the author below finished with. */
 const TIP = 'c80964d9' + '0'.repeat(32);
 
@@ -781,12 +784,8 @@ test('a critic, a helper, a research run, a stopped author and a landed card kee
     }),
     { column: 'done', why: 'landed abcdef1' },
   );
-  assert.equal(
-    finishedColumn(committer(), true, { pushed: false }),
-    'done',
-    'a landing comes first',
-  );
-  assert.equal(finishedColumn(committer({ source: undefined }), false, { pushed: false }), 'done');
+  assert.equal(finishedColumn(committer(), true, PENDING), 'done', 'a landing comes first');
+  assert.equal(finishedColumn(committer({ source: undefined }), false, PENDING), 'done');
 });
 
 test('an unpushed commit stays in Ready past the finished wait until Finish clears it', () => {
@@ -847,4 +846,12 @@ test('a pending author stops waiting after the week Finish is kept for, so a pur
     [],
     'past the week: not Ready, and its window long gone',
   );
+});
+
+test('a Ready author’s own card carries its branch’s worktree, for Review and Build story; a Done one does not', () => {
+  const [own] = placeWith([committer()]);
+  assert.equal(own.column, 'ready');
+  assert.deepEqual(own.review, { branch: 'feat/x', path: '/wt/feat-x' });
+  const [merged] = placeWith([committer()], { tree: { merged: true } });
+  assert.equal(merged?.review ?? null, null, 'merged: nothing to review');
 });

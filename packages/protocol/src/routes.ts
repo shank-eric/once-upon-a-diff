@@ -177,6 +177,11 @@ export const ROUTES = {
     '/api/board/open-story',
     'token+board',
   ),
+  boardReview: api<In<'boardReview'>, { url: string; story: string }>(
+    'POST',
+    '/api/board/review',
+    'token+board',
+  ),
   boardReviewed: api<In<'boardReviewed'>, Ok>('POST', '/api/board/reviewed', 'token+board'),
   boardBacklogAdd: api<In<'boardBacklogAdd'>, Ok & { id: string }>(
     'POST',

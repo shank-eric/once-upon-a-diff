@@ -14,6 +14,7 @@ import { REPO_RE, sameRepo, storyRepo } from '../config/repos.ts';
 import { readMeta } from '../stories/meta.ts';
 import { readReads } from '../stories/reads.ts';
 import { unwrittenCount } from '../stories/skeleton.ts';
+import { isStoryless } from '../stories/local-story.ts';
 import { stateKeyOf } from './drafts.ts';
 import { approvalOf, readApproval, type Approval } from './approve.ts';
 import type { StoryStore } from '../stories/store.ts';
@@ -195,6 +196,7 @@ export function localEntries(
         approved_at: approved?.at ?? null,
         approved_head: approved?.head_oid ?? null,
         ...(unwritten && { unwritten }),
+        ...(isStoryless(story.dir) && { storyless: true as const }),
       },
       repo_path: story.repo_path,
       base_oid: typeof meta.base_oid === 'string' ? meta.base_oid : null,

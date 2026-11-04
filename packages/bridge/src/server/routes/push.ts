@@ -1,7 +1,10 @@
 /*
  * Push on a local story's page, for commits that go straight to the repo's default branch (../../services/stories/push-default.ts):
  * GET .../push says what a push of the approved commit would do, and POST .../push {action: 'push', head_sha} does it,
- * only from the reviewer's click in the confirm box. head_sha is the approved commit the box showed. The full page key
+ * only from the reviewer's click in the confirm box. head_sha is the approved commit the box showed. A storyless review
+ * (made by the board's Review, no story told) has no Approve: the commit its diff was drawn at (the story's stored head) is
+ * what a push sends, and the page sends that head, so seeing the diff and clicking Push is the approval. Any other commit,
+ * such as one made since, is refused, never pushed unseen. The full page key
  * only: the read-only key reaches neither (page-key.ts). Right after a push the story's delivered check runs, which
  * clears its card.
  */
@@ -11,9 +14,10 @@ import { parseBody } from '../validate.ts';
 import { approvedFor, pushApproved, pushView } from '../../services/stories/push-default.ts';
 import { localEntries } from '../../services/review/story-lists.ts';
 import { refreshLocal } from '../../services/stories/local-diff.ts';
+import { isStoryless } from '../../services/stories/local-story.ts';
 import type { PushAnswer } from '@once-upon-a-diff/protocol/types';
 import type { LocalMeta, ServedStory } from '../../services/stories/types.ts';
-import type { Call, StoryRoute } from '../types.ts';
+import type { App, Call, StoryRoute } from '../types.ts';
 
 /** Stories with a push under way, so a second click can't start another. */
 const pushing = new Set<string>();
@@ -26,9 +30,18 @@ function localOnly(story: ServedStory) {
   }
 }
 
+/** The commit a push may send: the approved one, or for a storyless review the head its diff was drawn at. */
+function approvalOf(app: App, story: ServedStory) {
+  if (isStoryless(story.dir)) {
+    const shown = (story.meta as LocalMeta).head_oid;
+    return shown ? { head_oid: shown, at: new Date().toISOString() } : null;
+  }
+  return approvedFor(app.stories, story.id);
+}
+
 async function view({ app, send }: Call, story: ServedStory) {
   localOnly(story);
-  return send(200, await pushView(story.meta, approvedFor(app.stories, story.id)));
+  return send(200, await pushView(story.meta, approvalOf(app, story)));
 }
 
 async function push({ app, body: raw, send }: Call, story: ServedStory) {
@@ -39,7 +52,7 @@ async function push({ app, body: raw, send }: Call, story: ServedStory) {
   }
   pushing.add(story.id);
   try {
-    const approval = approvedFor(app.stories, story.id);
+    const approval = approvalOf(app, story);
     const before = await pushView(story.meta, approval);
     if (!approval || !before.approved_sha) {
       throw new HttpError(409, before.blocker || 'Approve the story first');
@@ -79,7 +92,7 @@ async function push({ app, body: raw, send }: Call, story: ServedStory) {
     app.board.refresh();
     const answer: PushAnswer = {
       output,
-      view: await pushView(story.meta, approvedFor(app.stories, story.id)),
+      view: await pushView(story.meta, approvalOf(app, story)),
     };
     return send(200, answer);
   } finally {

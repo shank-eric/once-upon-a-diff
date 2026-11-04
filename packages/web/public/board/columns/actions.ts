@@ -2,13 +2,14 @@
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { titleOf, type Api } from '/assets/board/shared.ts';
 
-/** Asks first, then has the bridge type the line into the session's tab (it refuses a session that is busy). */
+/** Asks first, then has the bridge type the line into the session's tab (it refuses a session that is busy). Build story names its card. */
 export async function typeInto(
   api: Api,
   kind: 'build' | 'listen',
   session: string,
   line: string,
   repo: string | null,
+  card: string | null = null,
 ) {
   if (
     !window.confirm(`Type this into "${titleOf(api.board, session)}" and press Enter?\n\n${line}`)
@@ -17,7 +18,7 @@ export async function typeInto(
   }
   try {
     await api.bridge.ask(ROUTES.boardType, {
-      body: { kind, session, ...(repo ? { repo } : {}) },
+      body: { kind, session, ...(repo ? { repo } : {}), ...(card ? { card } : {}) },
     });
     await api.refresh();
   } catch (err) {
@@ -40,4 +41,11 @@ export const openStory = (api: Api, story: string, push: boolean) =>
   act('open the story', async () => {
     const { url } = await api.bridge.ask(ROUTES.boardOpenStory, { body: { story } });
     window.open(push ? `${url}&push=1` : url, '_blank', 'noopener');
+  });
+
+/** Review: the bridge makes a storyless review of the card's branch (the diff, Create pull request and Push), and its page opens. */
+export const reviewCard = (api: Api, card: string) =>
+  act('open the review', async () => {
+    const { url } = await api.bridge.ask(ROUTES.boardReview, { body: { card } });
+    window.open(url, '_blank', 'noopener');
   });

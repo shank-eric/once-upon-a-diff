@@ -3,7 +3,8 @@
  * shows (the bridge refuses it when the branch has moved), which marks the story reviewed and tells a listening session.
  * Approved, the header shows when and at which commit, with Unapprove. A new commit clears it on the bridge, and the
  * page's next reload of the story (its version changed) draws the button again. Not shown once the branch has a PR.
- * The read-only link can't approve (the full page key only), so there the button is off and says why.
+ * The read-only link can't approve (the full page key only), so there the button is off and says why. A storyless review
+ * (no story told) has no Approve: seeing the diff and clicking Push or Create pull request is the approval.
  */
 import { html } from '/assets/protocol/domain/html.ts';
 import { setHtml } from '/assets/ui/dom.ts';
@@ -17,7 +18,7 @@ let failure = '';
 
 /** The header's Approve button, or the approved chip with Unapprove. */
 export function approveHtml() {
-  if (hasPull) {
+  if (hasPull || page.story.local.storyless) {
     return html``;
   }
   const { approved, head_oid: head } = page.story.local;

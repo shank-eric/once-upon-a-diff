@@ -209,13 +209,15 @@ export class Sessions {
    * Types a line into a live session's iTerm tab and presses Enter: Build story (the card's story prompt) or Start listening
    * (`/once-upon-listen <repo>`, or with a story `/once-upon-listen --story <id>`, the panel's two buttons). The line is made
    * here from what the bridge knows, the tab is found from the session's tty, and nothing is typed unless the session is at
-   * its prompt: working or waiting on you means no.
+   * its prompt: working or waiting on you means no. Build story's `card` is the card clicked: one session can build for
+   * several (a launcher's finished authors), so the line is that card's, never the first one found.
    */
   async type(
     kind: 'build' | 'listen',
     sessionId: string,
     repo: string | null,
     story: string | null = null,
+    card: string | null = null,
   ): Promise<string> {
     const { it2, session } = await this.typeable(sessionId);
     if (kind === 'listen') {
@@ -256,7 +258,9 @@ export class Sessions {
       prompt = listenPromptFor(repo);
     } else {
       const cards = (await this.feed.snapshot()).lanes.flatMap((lane) => lane.cards);
-      prompt = cards.find((card) => card.build?.session === sessionId)?.build?.prompt ?? null;
+      prompt =
+        cards.find((one) => (!card || one.id === card) && one.build?.session === sessionId)?.build
+          ?.prompt ?? null;
       if (!prompt) {
         throw new BoardError(409, 'there is nothing to build for that session');
       }

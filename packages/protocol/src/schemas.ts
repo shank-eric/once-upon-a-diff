@@ -269,6 +269,8 @@ export const BODIES = {
     session: sessionId,
     repo: optional(nullable(string())),
     story: optional(nullable(string())),
+    /** Build story's card: its own prompt is typed, not another card's built for the same session */
+    card: optional(nullable(string())),
   }),
   boardVoicePause: object({ paused: boolean() }),
   boardVoicePhone: object({ on: boolean() }),
@@ -276,6 +278,7 @@ export const BODIES = {
   boardStopListening: object({ repo: optional(string(), '') }),
   boardFocus: object({ session: sessionId }),
   boardOpenStory: object({ story: optional(string(), '') }),
+  boardReview: object({ card: optional(string(), '') }),
   boardReviewed: object({ story: optional(string(), ''), reviewed: optional(boolean()) }),
   boardBacklogAdd: object({
     title: optional(string(), ''),

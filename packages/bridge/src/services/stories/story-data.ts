@@ -28,6 +28,7 @@ import type {
 } from '@once-upon-a-diff/protocol/types';
 import type { StoryStore } from './store.ts';
 import { skeletonKeys } from './skeleton.ts';
+import { isStoryless } from './local-story.ts';
 import type { Plan } from './chapters.ts';
 import type { LocalMeta } from './types.ts';
 import { storyParts } from './parts.ts';
@@ -143,6 +144,7 @@ export function storyData(store: StoryStore, id: string, dir: string): StoryData
       })(),
       moved: movedSince(local),
       ship: shipMode(local, store.home),
+      storyless: isStoryless(dir),
     };
   }
   return data;

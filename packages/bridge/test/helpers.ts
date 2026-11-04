@@ -1,5 +1,5 @@
-import { appendFileSync, mkdtempSync } from 'node:fs';
-import { execFile } from 'node:child_process';
+import { appendFileSync, chmodSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFile, execFileSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -174,4 +174,48 @@ export function markReviewed(bridge: TestBridge, id: string, reviewed = true) {
   }
   markStoryReviewed(stories, id, reviewed);
   return prStory(stories, id) ?? localStory(stories, id);
+}
+
+/**
+ * A git on PATH that runs every command with the real git except the ones that would reach a remote or change what it
+ * tracks: `push` and `branch --set-upstream-to`, which it only logs (no test runs a real push). `calls()` answers the logged
+ * argument lists, and `restore()` puts PATH back.
+ */
+export function fakeGitPush(): { calls: () => string[][]; restore: () => void } {
+  const real = execFileSync('which', ['git'], { encoding: 'utf8' }).trim();
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'once-upon-fake-git-'));
+  const log = path.join(dir, 'calls.jsonl');
+  const script = path.join(dir, 'git');
+  writeFileSync(
+    script,
+    `#!/bin/sh
+for arg in "$@"; do
+  case "$arg" in
+    push|--set-upstream-to=*)
+      node -e 'require("fs").appendFileSync(process.argv[1], JSON.stringify(process.argv.slice(2)) + "\\n")' "${log}" "$@"
+      exit 0;;
+  esac
+done
+exec "${real}" "$@"
+`,
+  );
+  chmodSync(script, 0o755);
+  const before = process.env.PATH;
+  process.env.PATH = `${dir}:${before}`;
+  return {
+    calls: () => {
+      try {
+        return readFileSync(log, 'utf8')
+          .trim()
+          .split('\n')
+          .filter(Boolean)
+          .map((line) => JSON.parse(line));
+      } catch {
+        return [];
+      }
+    },
+    restore: () => {
+      process.env.PATH = before;
+    },
+  };
 }

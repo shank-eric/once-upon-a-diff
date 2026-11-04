@@ -19,6 +19,9 @@
  *   POST /api/board/stop-listening  {repo}: end the repo's listener
  *   POST /api/board/focus       {session}: bring that session's iTerm tab to the front (the tab is found server-side)
  *   POST /api/board/open-story  {story}: a local story's page link (a card's Open story), with that story's full key
+ *   POST /api/board/review      {card}: Review on a card with a branch and no story: a storyless review (a by-folder local
+ *                               story over the branch's own commits) made in the branch's checkout, and its page link with
+ *                               its full key. The branch and folder are the card's as the bridge built it, never the body's
  *   POST /api/board/reviewed    {story, reviewed?}: mark a local story reviewed (a card's Mark reviewed), or unmark it with
  *                               reviewed: false. A local story only: PR stories are marked on GitHub
  *   POST /api/board/backlog     {title, note?, repo?}: add a backlog item (the Backlog column's Add)
@@ -46,6 +49,7 @@ import { BoardError } from '../../services/errors.ts';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
 import { localStory, markStoryReviewed } from '../../services/review/story-lists.ts';
+import { reviewBranch } from '../../services/stories/local-story.ts';
 import type { MoveTo } from '../../services/backlog/backlog.ts';
 import type { ApiRoute, Call } from '../types.ts';
 
@@ -77,8 +81,8 @@ async function focus({ app, body, send }: Call) {
 
 /** POST {kind: 'build' | 'listen', session, repo? | story?}: type Build story's or Start listening's line into the session's tab. */
 async function type({ app, body: raw, send }: Call) {
-  const { kind, session, repo, story } = parseBody('boardType', raw);
-  const typed = await app.sessions.type(kind, session, repo || null, story || null);
+  const { kind, session, repo, story, card } = parseBody('boardType', raw);
+  const typed = await app.sessions.type(kind, session, repo || null, story || null, card || null);
   return send(200, { ok: true, typed });
 }
 
@@ -111,6 +115,28 @@ function openStory({ app, body, send }: Call) {
     throw new HttpError(404, 'no local story with that id');
   }
   return send(200, { url: app.links.story(story.id) });
+}
+
+/** POST {card}: Review, a storyless review of the card's branch, and its page link. */
+async function review({ app, body, send }: Call) {
+  const id = parseBody('boardReview', body).card;
+  const card = (await app.board.snapshot()).lanes
+    .flatMap((lane) => lane.cards)
+    .find((one) => one.id === id);
+  if (!card) {
+    throw new HttpError(404, 'no card with that id');
+  }
+  if (!card.review) {
+    throw new HttpError(409, 'that card has no branch to review without a story');
+  }
+  let made: { id: string };
+  try {
+    made = reviewBranch({ home: app.home, ...card.review });
+  } catch (err) {
+    throw new HttpError(409, (err as Error).message);
+  }
+  app.board.refresh(); // the card has its story on the page's next poll
+  return send(200, { url: app.links.story(made.id), story: made.id });
 }
 
 /** An error from the backlog's checks (a bad repo, a missing title, an unknown item) is the caller's: 400. */
@@ -239,6 +265,7 @@ export const boardRoutes: ApiRoute[] = [
   { route: ROUTES.boardAgentFinish, handle: finishAgent },
   { route: ROUTES.boardFocus, handle: focus },
   { route: ROUTES.boardOpenStory, handle: openStory },
+  { route: ROUTES.boardReview, handle: review },
   { route: ROUTES.boardReviewed, handle: reviewLocal },
   { route: ROUTES.boardBacklogMove, handle: moveBacklog },
   { route: ROUTES.boardBacklogEdit, handle: editBacklog },

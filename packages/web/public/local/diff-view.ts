@@ -240,9 +240,13 @@ const movedHtml = (local: LocalStory) => {
       html`<code>${local.base}</code> ${local.base_oid!.slice(0, 9)} → ${moved.base_oid.slice(0, 9)}`,
   ].filter(Boolean);
   const told = parts.map((part, i) => html`${i > 0 && ', '}${part}`);
+  // a storyless review is followed by Review again, which re-pins it to the branch's tip
+  const follow = local.storyless
+    ? html`Click Review on its card on the board to see the new commits.`
+    : html`Tell the story again (<code>once-upon local</code>) to follow it.`;
   return html`<div class="ou-local-moved" role="status">
     <strong>Branch moved since this story was told.</strong> This is still the diff of ${told}.
-    Tell the story again (<code>once-upon local</code>) to follow it.
+    ${follow}
   </div>`;
 };
 /** "3 commits · 4 files +10 −2" */

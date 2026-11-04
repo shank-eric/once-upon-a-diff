@@ -3,10 +3,19 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { chmodSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { tmp, startBridge, runCli, localRepo, writeJson, git, TOKEN } from './helpers.ts';
+import {
+  tmp,
+  startBridge,
+  runCli,
+  localRepo,
+  writeJson,
+  git,
+  fakeGitPush,
+  TOKEN,
+} from './helpers.ts';
 import { boardKey, pageKey, viewKey, viewKeyMay } from '../src/services/pages/page-key.ts';
-import { createLocalStory } from '../src/services/stories/local-story.ts';
-import { aheadOf, namedBase } from '../src/services/stories/pull-request.ts';
+import { createLocalStory, reviewBranch } from '../src/services/stories/local-story.ts';
+import { aheadOf, branchPushArgs, namedBase } from '../src/services/stories/pull-request.ts';
 import type { PrPushAnswer, PrView, StoryData } from '@once-upon-a-diff/protocol/types';
 
 const GITHUB_URL = 'https://github.com/acme/widgets.git';
@@ -104,6 +113,94 @@ describe('Create pull request on a local story', () => {
     } finally {
       await bridge.close();
     }
+  });
+
+  test('Create pull request on a storyless review pushes only the sha the page showed, then tracks the branch; a moved branch is refused', async () => {
+    const home = tmp('home');
+    const { repo } = localRepo();
+    const remote = tmp('remote');
+    git(remote, 'init', '-q', '--bare', '-b', 'main');
+    // origin's main is the story's base, seeded by a fetch into the bare repo: no test runs a real push
+    git(repo, 'branch', 'seed', 'HEAD~2');
+    git(remote, 'fetch', '-q', repo, 'seed:main');
+    git(repo, 'branch', '-D', '-q', 'seed');
+    git(repo, 'config', `url.${remote}.insteadOf`, GITHUB_URL);
+    git(repo, 'remote', 'add', 'origin', GITHUB_URL);
+    git(repo, 'fetch', '-q', 'origin');
+    const { id, dir } = reviewBranch({ home, path: repo, branch: 'feature' });
+    const metaFile = path.join(dir, 'meta.json');
+    writeJson(metaFile, { ...JSON.parse(readFileSync(metaFile, 'utf8')), repo: 'acme/widgets' });
+    const shown = git(repo, 'rev-parse', 'feature');
+    writeFileSync(path.join(repo, 'later.txt'), 'later\n');
+    git(repo, 'add', '.');
+    git(repo, 'commit', '-q', '-m', 'later');
+    const bridge = await startBridge({ home });
+    const pushes = fakeGitPush();
+    const push = (sha: string) =>
+      bridge.call<PrPushAnswer>(
+        'POST',
+        `/api/stories/${id}/pr`,
+        { action: 'push', head_sha: sha },
+        { Authorization: `Bearer ${pageKey(TOKEN, id)}` },
+      );
+    try {
+      const page = (await bridge.call<StoryData>('GET', `/api/stories/${id}`)).body;
+      assert.equal(page.local?.storyless, true);
+      assert.equal(page.local?.head_oid, shown);
+      // the box opened after the new commit: its tip is not what the page showed
+      const tip = (await bridge.call<PrView>('GET', `/api/stories/${id}/pr`)).body
+        .head_sha as string;
+      assert.notEqual(tip, shown);
+      const moved = await push(tip);
+      assert.equal(moved.status, 409);
+      assert.match(moved.text, /the branch moved: click Review on its card to see the new commits/);
+      assert.equal(
+        (await push(shown)).status,
+        409,
+        'the branch is past it, so a push would send more',
+      );
+      assert.deepEqual(pushes.calls(), [], 'nothing pushed');
+      // back at the head the page showed: the click is the approval
+      git(repo, 'reset', '-q', '--hard', shown);
+      const done = await push(shown);
+      assert.equal(done.status, 200, done.text);
+      assert.deepEqual(
+        pushes.calls().map((args) => args.slice(2)),
+        [
+          ['push', 'origin', `${shown}:refs/heads/feature`],
+          ['branch', '--set-upstream-to=origin/feature', 'feature'],
+        ],
+        'the shown sha, never the branch ref, then the upstream the fix-round relay reads',
+      );
+    } finally {
+      pushes.restore();
+      await bridge.close();
+    }
+  });
+
+  test('a storyless review’s push names the shown sha, never the branch ref; a told story’s pushes the branch', () => {
+    const sha = 'c80964d9' + '0'.repeat(32);
+    assert.deepEqual(branchPushArgs('feature', sha, true), [
+      'push',
+      'origin',
+      `${sha}:refs/heads/feature`,
+    ]);
+    assert.deepEqual(branchPushArgs('feature', sha, false), [
+      'push',
+      'origin',
+      `${sha}:refs/heads/feature`,
+    ]);
+    assert.deepEqual(branchPushArgs('feature', null, true), [
+      'push',
+      '-u',
+      'origin',
+      'refs/heads/feature:refs/heads/feature',
+    ]);
+    assert.deepEqual(branchPushArgs('feature', null, false), [
+      'push',
+      'origin',
+      'refs/heads/feature:refs/heads/feature',
+    ]);
   });
 
   test('the read-only key is an allowlist: what it may reach is listed, and anything else is refused by default', () => {

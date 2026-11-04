@@ -3,7 +3,10 @@
  * stands, and POST .../pr {action: 'push', head_sha} pushes it, only from the reviewer's click in the confirm box.
  * The page opens the PR itself on GitHub's compare page. {action: 'push-ahead', head_sha} is Push for a branch that
  * already has an open PR: the same click-only fast-forward of what the PR is behind on, refused when there is no open PR
- * or origin has commits this checkout lacks.
+ * or origin has commits this checkout lacks. On a storyless review the click is the approval, so it pushes only the head
+ * the page showed, by its sha (`<sha>:refs/heads/<branch>`), and then tracks origin's branch. A branch that has moved past
+ * it is refused until Review on its card re-pins the review to the new tip, and a commit made after that check still
+ * can't go out.
  */
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { HttpError } from '../request.ts';
@@ -18,7 +21,8 @@ import {
   pushBranch,
 } from '../../services/stories/pull-request.ts';
 import type { PrDraft, PrPushAnswer } from '@once-upon-a-diff/protocol/types';
-import type { ServedStory } from '../../services/stories/types.ts';
+import { isStoryless } from '../../services/stories/local-story.ts';
+import type { LocalMeta, ServedStory } from '../../services/stories/types.ts';
 import type { App, Call, StoryRoute } from '../types.ts';
 
 /** Stories with a push under way, so a second click can't start another. */
@@ -54,6 +58,12 @@ async function push({ app, body: raw, send }: Call, story: ServedStory) {
     if (blocker) {
       throw new HttpError(409, blocker);
     }
+    // a storyless review: the diff the page drew is what was approved, so the branch must still be at it
+    const storyless = isStoryless(story.dir);
+    const shown = (story.meta as LocalMeta).head_oid;
+    if (storyless && (!shown || before.head_sha !== shown)) {
+      throw new HttpError(409, 'the branch moved: click Review on its card to see the new commits');
+    }
     const branch = before.branch as string;
     if (before.remote.state === 'same') {
       return send(200, { output: 'Already on GitHub: nothing to push.', view: before });
@@ -63,7 +73,12 @@ async function push({ app, body: raw, send }: Call, story: ServedStory) {
     );
     let output: string;
     try {
-      output = await (ahead ? pushAhead : pushBranch)(story.meta.repo_path as string, branch);
+      // a storyless review pushes the very commit the page showed, never whatever the branch holds by then
+      output = await (ahead ? pushAhead : pushBranch)(
+        story.meta.repo_path as string,
+        branch,
+        storyless ? shown : null,
+      );
     } catch (err) {
       throw new HttpError(502, (err as Error).message);
     }

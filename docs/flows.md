@@ -107,6 +107,19 @@ The tag turns to Ready. On `/changes` the panel loads `GET /api/stories/<id>` an
 | B4 | `service` | checks the session is at its prompt, and takes the prompt from the card the board built | `packages/bridge/src/services/sessions/sessions.ts:259` (`build?.session === sessionId`) |
 | B5 | `adapter` | **types the line** into the tab: `it2 session run` | `packages/bridge/src/adapters/iterm.ts:176` (`'session', 'run'`) |
 
+The click names its card (`card` in the body), so a session that builds for several cards, such as a launcher with three finished authors, gets the clicked card's line (`packages/bridge/src/services/sessions/sessions.ts:262` (`one.id === card`)). On a finished author's own card in Ready for your review, the line is a plain request naming the branch and its worktree, typed into the session that launched the author, never the slash command: that session decides who runs the skill (`packages/bridge/src/services/sessions/listening.ts:352` (`function authorBuild`)). When it can't be typed, the card's Copy hands over the line.
+
+**Review, without a story.** A card with a branch and no story or PR, whose work hasn't shipped (a finished author's commit, or a session alone on an unmerged branch), has **Review**. The bridge makes a storyless review: a by-folder local story over the branch's own commits. It opens on the local page, which has the diff, Create pull request and Push, and no Approve. There, seeing the diff and clicking Push or Create pull request is the approval. A told story keeps Approve before Push.
+
+| # | Layer | Hop | At |
+|---|---|---|---|
+| R1 | `app` | the card's Review button | `packages/web/public/board/columns/actions.ts:47` (`reviewCard`) |
+| R2 | `protocol` | `POST /api/board/review {card}`, the board's key | `packages/protocol/src/routes.ts:180` (`boardReview:`) |
+| R3 | `app` | the route finds the card in the board's own snapshot. The branch and folder are the card's, never the body's | `packages/bridge/src/server/routes/board.ts:121` (`async function review`) |
+| R4 | `service` | the base is the merge-base with origin's default branch, the head the branch's name | `packages/bridge/src/services/stories/local-story.ts:201` (`export function reviewBranch`) |
+| R5 | `service` | **writes the story** in the checkout's `.once-upon/`, as `once-upon local` with no chapters does | `packages/bridge/src/services/stories/local-story.ts:90` (`export function createLocalStory`) |
+| R6 | `app` | Push on a storyless review sends the head the diff was drawn at, with no Approve. Create pull request refuses a branch that has moved past it | `packages/bridge/src/server/routes/push.ts:34` (`isStoryless(story.dir)`) |
+
 ## 2. Ask
 
 A reviewer types a question in the panel's Ask box. It goes into the inbox log, a listening session's wait hands it over, the session answers from the terminal, and the panel's pulse sees the answer.

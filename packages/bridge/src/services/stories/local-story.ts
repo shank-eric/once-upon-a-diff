@@ -6,9 +6,11 @@
  * the same chapters work on either.
  */
 import { existsSync, readFileSync } from 'node:fs';
-import { copyFileAtomic, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
+import { copyFileAtomic, readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
 import path from 'node:path';
-import { topLevel, revParse, branchOfRef } from '../../adapters/git.ts';
+import { topLevel, revParse, branchOfRef, mergeBase } from '../../adapters/git.ts';
+import { defaultBranchOf } from './push-default.ts';
+import { removeFile } from '../../adapters/stores/files.ts';
 import { parseUnifiedDiff } from './diff.ts';
 import { refreshLocal, followsHead } from './local-diff.ts';
 import { entryOf } from './chapters.ts';
@@ -47,6 +49,38 @@ function groupOf(rel: string): string {
   return parts.length > 1 ? parts[0] : '(root)';
 }
 
+const BY_FOLDER = 'by-folder';
+/**
+ * Written by Review (reviewBranch) only, next to the story's chapters.json, with the sha it pinned the story to: this
+ * story is a storyless review while it is still pinned there.
+ */
+const STORYLESS_FILE = 'storyless.json';
+
+/** Whether a plan is the by-folder fallback with no chapter told. */
+const untold = (plan: Plan | null): boolean =>
+  plan?.mode === BY_FOLDER &&
+  !(plan.chapters || []).some((chapter) => String(chapter.narrative || '').trim());
+
+/**
+ * Whether the story served from `dir` is a storyless review (no Approve: Push or Create pull request is the approval).
+ * Only Review marks one, and the mark counts only while the story is still pinned to the sha Review pinned it to (a
+ * branch's name, not HEAD) and is the by-folder fallback with no chapter told. Chapters published over it clear the mark
+ * (createLocalStory), and a mark left from an older Review (a reused branch name, a story made again by hand) is ignored.
+ */
+export function isStoryless(dir: string): boolean {
+  const mark = readJson<{ head_oid?: unknown }>(path.join(dir, STORYLESS_FILE), null);
+  const meta = readJson<Partial<LocalMeta>>(path.join(dir, 'meta.json'), null);
+  return (
+    !!mark &&
+    !!meta &&
+    typeof mark.head_oid === 'string' &&
+    mark.head_oid === meta.head_oid &&
+    typeof meta.head === 'string' &&
+    !followsHead({ head: meta.head }) &&
+    untold(readJson<Plan>(path.join(dir, 'chapters.json'), null))
+  );
+}
+
 /** One chapter per top-level folder: a starting point until a real story is written. */
 export function defaultChapters(rels: string[], title: string | undefined) {
   const groups = new Map<string, string[]>();
@@ -64,9 +98,9 @@ export function defaultChapters(rels: string[], title: string | undefined) {
     files,
   }));
   return {
-    mode: 'by-folder',
+    mode: BY_FOLDER,
     title,
-    overview: `No story has been written for these commits yet, so each chapter is a folder. Write a chapters.json (once-upon's format) and run \`once-upon local\` again with \`--chapters\` to tell it properly.`,
+    overview: `No story has been told for these commits, so this is the diff by folder. Build story on the board tells one; Create pull request or Push here needs no Approve.`,
     chapters,
   };
 }
@@ -144,7 +178,14 @@ export function createLocalStory({
   const rels = [...diff.keys()];
   const chaptersFile = path.join(dir, 'chapters.json');
   if (chapters) {
+    removeFile(path.join(dir, STORYLESS_FILE)); // told: a story now, with Approve before Push
     const after: Plan = JSON.parse(readFileSync(path.resolve(chapters), 'utf8'));
+    // chapters handed in are a told story: a by-folder mode carried over from the fallback (a rebuild starting from the
+    // served chapters.json) would skip the being-written check, so it is dropped
+    const carried = after.mode === BY_FOLDER;
+    if (carried) {
+      delete after.mode;
+    }
     const before: Plan = existsSync(chaptersFile)
       ? JSON.parse(readFileSync(chaptersFile, 'utf8'))
       : {};
@@ -152,7 +193,7 @@ export function createLocalStory({
     // every chapter has a key and its refs (validate.ts); an older story's chapters kept as they were are let through
     const ready = vetted || after;
     const assigned = readyPlan(ready, { diff, served: before });
-    if (vetted || assigned.length) {
+    if (vetted || assigned.length || carried) {
       writeJsonAtomic(chaptersFile, ready);
       writeJsonAtomic(path.resolve(chapters), ready);
     } else {
@@ -179,4 +220,51 @@ export function createLocalStory({
     unknown: [...placed].filter((rel) => !diff.has(rel)),
     ambiguous,
   };
+}
+
+/**
+ * A storyless review of a branch (the board's Review): a by-folder local story over the commits the branch has beyond
+ * origin's default branch (else the local main or master), so the page has its diff, Create pull request and Push. The base
+ * is their merge-base as a sha, since the diff is two-dot and a default branch that moved on would show its commits
+ * undone; the head is the branch's name, so the story records the branch. Told again, it refreshes the same story.
+ */
+export function reviewBranch({
+  home,
+  path: dir,
+  branch,
+}: {
+  home: string;
+  path: string;
+  branch: string;
+}) {
+  const top = topLevel(dir);
+  const remote = defaultBranchOf(top);
+  const target = remote
+    ? `refs/remotes/origin/${remote}`
+    : ['main', 'master'].map((name) => `refs/heads/${name}`).find((ref) => hasRef(top, ref));
+  if (!target) {
+    throw new Error('no default branch to compare the branch with');
+  }
+  const base = mergeBase(top, target, `refs/heads/${branch}`);
+  if (base === revParse(top, `refs/heads/${branch}`)) {
+    throw new Error(`${branch} has no commits of its own to review`);
+  }
+  const made = createLocalStory({ home, repo: top, base, head: branch });
+  // a story already told under this id stays a story; else the mark names the sha it is pinned to now
+  const pinned = readJson<Partial<LocalMeta>>(path.join(made.dir, 'meta.json'), null)?.head_oid;
+  if (pinned && untold(readJson<Plan>(path.join(made.dir, 'chapters.json'), null))) {
+    writeJsonAtomic(path.join(made.dir, STORYLESS_FILE), {
+      at: new Date().toISOString(),
+      head_oid: pinned,
+    });
+  }
+  return made;
+}
+
+function hasRef(repo: string, ref: string): boolean {
+  try {
+    return !!revParse(repo, ref);
+  } catch {
+    return false;
+  }
 }

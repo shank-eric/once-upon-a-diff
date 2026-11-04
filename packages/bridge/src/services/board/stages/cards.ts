@@ -212,6 +212,7 @@ export function workCard(ctx: BuildContext, facts: CardFacts, work: Work): Board
           unread_answers: facts.unreadById.get(story.id) ?? 0,
           approved_at: 'number' in story ? null : story.approved_at,
           ship: 'number' in story ? null : (facts.shipById.get(story.id) ?? null),
+          ...(!('number' in story) && story.storyless ? { storyless: true as const } : {}),
         }
       : null,
     building,
@@ -221,7 +222,24 @@ export function workCard(ctx: BuildContext, facts: CardFacts, work: Work): Board
     ...focusOf(sessions),
     listening: null,
     build: null,
+    // a storyless review's checkout, for Review again (listeners.ts reviewFor keeps it while it applies)
+    ...(storylessCheckout(facts, story, pr, repo, work.branch) ?? {}),
   };
+}
+
+/** A storyless review's card's branch and checkout, so Review can re-pin it when no session is on the branch. */
+function storylessCheckout(
+  facts: CardFacts,
+  story: InboxLocalStory | InboxStory | null,
+  pr: PrInfo | null,
+  repo: string | null,
+  branch: string | null,
+): { review: { branch: string; path: string } } | null {
+  if (!story || 'number' in story || !story.storyless || pr || !repo || !branch) {
+    return null;
+  }
+  const local = facts.localCheckouts.get(`${repo.toLowerCase()}@${branch}`);
+  return local ? { review: { branch, path: local.checkout } } : null;
 }
 
 /** What the card says while a session works on the PR's story. */
