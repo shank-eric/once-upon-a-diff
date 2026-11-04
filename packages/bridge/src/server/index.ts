@@ -49,6 +49,11 @@ import {
   viewKeyMay,
 } from '../services/pages/page-key.ts';
 import { statusRoutes, storyStatusRoutes } from './routes/status.ts';
+import { usageRoutes, storyUsageRoutes } from './routes/usage.ts';
+import { ROUTES, type AnyRoute } from '@once-upon-a-diff/protocol/routes';
+import { UNMATCHED, UsageCounters, type Surface } from '../services/usage/counters.ts';
+import { bridgeListening, onUsageFlush } from '../services/usage/capture.ts';
+import { countingEnabled } from '../services/usage/enabled.ts';
 import { catalogRoutes } from './routes/catalog.ts';
 import { buildRoutes } from './routes/builds.ts';
 import { questionRoutes } from './routes/questions.ts';
@@ -87,6 +92,7 @@ export const API_ROUTES: ApiRoute[] = [
   ...buildRoutes,
   ...boardRoutes,
   ...githubRoutes,
+  ...usageRoutes,
 ];
 /** /api/stories/<id>/<what>[/<sub>] routes, by `what` ('' for the story itself). */
 export const STORY_ROUTES: StoryRoute[] = [
@@ -99,7 +105,14 @@ export const STORY_ROUTES: StoryRoute[] = [
   ...pullRequestRoutes,
   ...pushRoutes,
   ...storyStatusRoutes,
+  ...storyUsageRoutes,
 ];
+/** A route's key in the protocol's table, for the usage counts (the object the handlers hold is the table's own). */
+const ROUTE_KEY = new Map<AnyRoute, string>(
+  Object.entries(ROUTES).map(([key, route]) => [route as AnyRoute, key]),
+);
+/** The usage routes are not counted as use: they are the counting. */
+const NOT_COUNTED = new Set<AnyRoute>([ROUTES.usageCount, ROUTES.storyUsageCount] as AnyRoute[]);
 const STORY_PATH = /^\/api\/stories\/([^/]+)(?:\/([a-z]+)(?:\/([^/]+))?)?$/;
 const SEEN_WRITE_MS = 30000;
 const HTML = 'text/html; charset=utf-8';
@@ -111,6 +124,8 @@ export type Bridge = http.Server & {
   builds: Builds;
   board: Board;
   autoReview: AutoReview;
+  /** the usage capture's counts (the tests flush them to read them back) */
+  usage: UsageCounters;
 };
 
 export function createBridge({
@@ -160,7 +175,10 @@ export function createBridge({
     log,
     statusCache: null, // PR-list lookups, kept 5s
     extensionSeen: null, // the last time the extension talked to us, for `once-upon doctor` and the status light
+    usage: new UsageCounters(home, new Set(ROUTE_KEY.values()), countingEnabled(home)),
   };
+  // a flush of the capture (a signal, a shutdown) writes the counts too
+  const unhookUsage = onUsageFlush((stamp) => app.usage.flush(stamp));
   let extensionWritten = 0;
   const seeExtension = (origin: string) => {
     app.extensionSeen = { at: new Date().toISOString(), origin };
@@ -313,6 +331,30 @@ export function createBridge({
     return { body: {}, scope, pageScope, readOnly };
   }
 
+  /** Who made a call that got past the key check, for the usage counts. */
+  function surfaceOf(
+    origin: string | undefined,
+    scope: string | null,
+    pageScope: 'board' | null,
+    readOnly: boolean,
+  ): Surface {
+    if (pageScope) {
+      return 'board';
+    }
+    if (scope) {
+      return readOnly ? 'local-view' : 'local';
+    }
+    return origin?.startsWith('chrome-extension://') ? 'extension' : 'token';
+  }
+
+  /** Counts a call that got past the key check, under its route's key (`unmatched` when it has none, never its path). */
+  function countCall(route: AnyRoute | null, surface: Surface) {
+    if (route && NOT_COUNTED.has(route)) {
+      return;
+    }
+    app.usage.route(route ? (ROUTE_KEY.get(route) ?? UNMATCHED) : UNMATCHED, surface);
+  }
+
   /** A /api/stories/<id>/... call: the story, then the route for its `what`. */
   function storyCall(call: Call, match: RegExpExecArray, scope: string | null) {
     const id = decodeURIComponent(match[1]);
@@ -340,6 +382,7 @@ export function createBridge({
     const route = STORY_ROUTES.find(
       (candidate) => candidate.route.what === what && candidate.route.method === call.req.method,
     );
+    countCall(route?.route ?? null, call.surface);
     if (!route) {
       throw new HttpError(404, 'not found', 'no_route');
     }
@@ -396,7 +439,8 @@ export function createBridge({
         throw new HttpError(404, 'not found', 'no_route');
       }
       const { body, scope, pageScope, readOnly } = await checkApiCall(req, pathname, origin);
-      const call: Call = { app, req, url, body, send, pageScope, readOnly };
+      const surface = surfaceOf(origin, scope, pageScope, readOnly);
+      const call: Call = { app, req, url, body, send, pageScope, readOnly, surface };
       // a page key never reaches the bridge-wide routes, even one whose path looks like a story's
       const route =
         !scope &&
@@ -407,6 +451,7 @@ export function createBridge({
             (!pageScope || boardKeyMay(candidate.route)),
         );
       if (route) {
+        countCall(route.route, surface);
         return await route.handle(call);
       }
       if (pageScope) {
@@ -417,6 +462,7 @@ export function createBridge({
       }
       const storyMatch = STORY_PATH.exec(pathname);
       if (!storyMatch) {
+        countCall(null, surface);
         throw new HttpError(404, 'not found', 'no_route');
       }
       return await storyCall(call, storyMatch, scope);
@@ -440,13 +486,21 @@ export function createBridge({
     }
   });
   // which process is the bridge, and on which port, for `once-upon local` (bridge-file.ts)
-  server.once('listening', () => announceBridge(home, portOf(), token));
-  server.once('close', () => retireBridge(home));
+  server.once('listening', () => {
+    announceBridge(home, portOf(), token);
+    bridgeListening(); // the capture advertises itself to reports only now that the port is ours
+  });
+  server.once('close', () => {
+    retireBridge(home);
+    app.usage.flush();
+    unhookUsage();
+  });
   return Object.assign(server, {
     stories,
     inbox,
     builds: app.builds,
     board,
     autoReview: app.autoReview,
+    usage: app.usage,
   });
 }

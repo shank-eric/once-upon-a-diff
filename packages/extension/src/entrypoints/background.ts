@@ -71,6 +71,16 @@ async function openPage(kind: PageKind) {
   }
 }
 
+/** Counts a toolbar or shortcut use now: a rare event in the service worker, so one call, no batching. Names only. */
+function countNow(
+  name: 'ext.toolbar.toggle' | 'ext.shortcut.togglePanel' | 'ext.shortcut.openBoard',
+) {
+  void callBridge(
+    { type: 'bridge', method: 'POST', path: '/api/usage', body: { counts: { [name]: 1 } } },
+    null,
+  );
+}
+
 function toggle(tab: chrome.tabs.Tab | undefined) {
   if (tab && tab.id != null) {
     chrome.tabs.sendMessage(tab.id, { type: 'toggle' }).catch(() => {});
@@ -93,15 +103,20 @@ export default defineBackground(() => {
     return true;
   });
 
-  chrome.action.onClicked.addListener(toggle);
+  chrome.action.onClicked.addListener((tab) => {
+    countNow('ext.toolbar.toggle');
+    toggle(tab);
+  });
   chrome.commands.onCommand.addListener(async (command, tab) => {
     if (command === 'open-board') {
+      countNow('ext.shortcut.openBoard');
       await openPage('board');
       return;
     }
     if (command !== 'toggle-panel') {
       return;
     }
+    countNow('ext.shortcut.togglePanel');
     const target = tab || (await chrome.tabs.query({ active: true, currentWindow: true }))[0];
     toggle(target);
   });

@@ -56,6 +56,7 @@ const VIEW_KEY_MAY: Record<string, readonly string[]> = {
   fixes: ['GET', 'POST'],
   rebuild: ['GET', 'POST'],
   pr: ['GET'],
+  usage: ['POST'],
 };
 
 /** Whether the read-only key may make this call on its story (`what` is the route's, '' for the story itself). */

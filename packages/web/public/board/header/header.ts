@@ -238,7 +238,10 @@ export function Header(props: HeaderProps) {
           checked: sameLaneKey(lane.key, filter),
         })),
       ],
-      onFilter,
+      (value: string) => {
+        api.count('board.filter.repo');
+        onFilter(value);
+      },
       { label: 'Show one repo' },
     );
   };

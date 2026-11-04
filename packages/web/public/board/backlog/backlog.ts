@@ -209,6 +209,7 @@ export function useAddPanel(api: Api) {
     }
   };
   const openPanel = () => {
+    api.count('board.backlog.addOpen');
     justOpened.current = true;
     setOpen(true);
   };

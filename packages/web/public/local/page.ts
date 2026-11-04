@@ -3,6 +3,8 @@
  * block in the page names the story; its key comes in the link's #fragment.
  */
 import { createClient, type Transport } from '/assets/api-client/client.ts';
+import { createUsage } from '/assets/api-client/usage.ts';
+import { ROUTES } from '/assets/protocol/routes.ts';
 import type { LocalStory, StoryData } from '/assets/types.ts';
 import type { InitialUi, StoryOverlay } from '/assets/panel/overlay.ts';
 import type { Highlighter } from '/assets/syntax.ts';
@@ -100,3 +102,14 @@ const transport: Transport = async ({ method, path, body }) => {
 
 /** The typed calls to the bridge: `bridge.ask(ROUTES.name, {params: PARAMS, body})` answers or throws with the bridge's message. */
 export const bridge = createClient(transport);
+
+/** Counts the page's UI-only actions for the usage capture, sent to the bridge in batches (names and counts only). */
+export const usage = createUsage(async (counts) => {
+  const reply = await bridge.call(ROUTES.storyUsageCount, { params: PARAMS, body: { counts } });
+  return reply.ok ? reply.body : null;
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    void usage.flush();
+  }
+});

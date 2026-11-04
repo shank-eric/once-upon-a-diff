@@ -31,7 +31,7 @@ import type {
 import type { FileStatus, StoryModel } from './story-model.ts';
 import type { InitialUi, PanelState } from './panel-state.ts';
 import type { Layout } from './layout.ts';
-import type { HostPage } from './host.ts';
+import type { HostPage, PanelHost } from './host.ts';
 import type { Shell } from './shell.ts';
 import type { FileRefs } from './file-refs.ts';
 import type { Markdown } from './markdown.ts';
@@ -119,6 +119,8 @@ export interface PanelContext {
   story: StoryModel;
   state: PanelState;
   hostName: string;
+  /** counts one UI-only action for the usage capture (the host's counter: host.ts) */
+  count: PanelHost['count'];
   pageLoadedAt: number;
   commentsTitle: string;
   // the state's helpers (panel-state.ts)

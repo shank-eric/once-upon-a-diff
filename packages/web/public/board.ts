@@ -12,6 +12,7 @@
 import { html, render, useEffect } from '/assets/preact.mjs';
 import { createClient, type Transport } from '/assets/api-client/client.ts';
 import { usePoll } from '/assets/api-client/use-poll.ts';
+import { createUsage } from '/assets/api-client/usage.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { authHeader, startAuth } from '/assets/local/auth.ts';
 import { notConnectedHtml } from '/assets/local/not-connected.ts';
@@ -69,6 +70,17 @@ const transport: Transport = async ({ method, path, body }) => {
 
 /** The typed calls to the bridge: `bridge.ask(ROUTES.name, {body})` answers, or throws a BridgeError with the bridge's message and status. */
 const bridge = createClient(transport);
+
+/** Counts the page's UI-only actions for the usage capture and sends them to the bridge in batches (names and counts only). */
+const usage = createUsage(async (counts) => {
+  const reply = await bridge.call(ROUTES.usageCount, { body: { counts } });
+  return reply.ok ? reply.body : null;
+});
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    void usage.flush();
+  }
+});
 
 /** Remembered settings: the Idle and Worktrees lanes' folds, the repo headings' folds, whether PRs waiting on their author are hidden, and the repo filter. */
 const isOpen = (text: string) => text !== 'false';
@@ -134,7 +146,7 @@ function BoardApp() {
   const view = usePoll(() => bridge.ask(ROUTES.board), { everyMs: POLL_MS });
   const { refresh } = view;
   const full = view.data ?? EMPTY;
-  const api: Api = { bridge, board: full, refresh };
+  const api: Api = { bridge, board: full, refresh, count: usage.count };
   const [laneFilter, setLaneFilter] = useSetting('ou-board-filter', '', String, asText);
   const [idleOpen, setIdleOpen] = useSetting('ou-board-idle-open', true, isOpen, asText);
   const [treesOpen, setTreesOpen] = useSetting('ou-board-worktrees-open', true, isOpen, asText);
@@ -179,6 +191,7 @@ function BoardApp() {
     editors: data.editors,
     collapsed,
     onFold: (id) => {
+      usage.count('board.lane.toggle');
       const next = new Set(collapsed);
       if (!next.delete(id)) {
         next.add(id);
@@ -189,7 +202,10 @@ function BoardApp() {
     tabs,
     onToggleAuthors: () => setHideOnAuthor(!hideOnAuthor),
     idleOpen,
-    onToggleIdle: () => setIdleOpen(!idleOpen),
+    onToggleIdle: () => {
+      usage.count('board.idle.toggle');
+      setIdleOpen(!idleOpen);
+    },
     // a Backlog item has its own view, the others share the session card's
     renderCard: (card: BoardCard) =>
       card.kind === 'backlog'
@@ -224,7 +240,10 @@ function BoardApp() {
   }
   return html`${
     failure ||
-    html`<${Header} summary=${summary} data=${data} now=${now} filter=${laneFilter} filterOn=${data !== full} onFilter=${setLaneFilter} tabs=${tabs} onToggleTabs=${() => setTabs(!tabs)} api=${api} busy=${voiceBusy} />
+    html`<${Header} summary=${summary} data=${data} now=${now} filter=${laneFilter} filterOn=${data !== full} onFilter=${setLaneFilter} tabs=${tabs} onToggleTabs=${() => {
+      usage.count('board.tab.switch');
+      setTabs(!tabs);
+    }} api=${api} busy=${voiceBusy} />
     ${data.warning && html`<p class="ou-board-warning">${data.warning}</p>`}
     <main class="ou-board">
       <${Columns} view=${columns} />
@@ -239,6 +258,7 @@ function BoardApp() {
     pause=${(paused: boolean) => bridge.ask(ROUTES.boardVoicePause, { body: { paused } })}
     onChanged=${refresh}
     onFocus=${(session: string) => focusSession(bridge, session)}
+    count=${usage.count}
   />`;
 }
 

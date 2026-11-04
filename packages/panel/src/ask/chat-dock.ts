@@ -94,6 +94,7 @@ export function createChatDock(context: PanelContext) {
   }
 
   function toggle() {
+    context.count('panel.dock.toggle');
     setOpen(!state.chatOpen);
     context.saveState();
     if (state.chatOpen) {

@@ -11,5 +11,7 @@ export interface CliOpts {
 export interface Command {
   name: string;
   usage: string[];
+  /** the verbs this command takes as its first word (`agent start`), the only first words the usage log may name */
+  subs?: readonly string[];
   run(home: string, cfg: Config, opts: CliOpts): unknown;
 }

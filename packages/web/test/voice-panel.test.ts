@@ -38,6 +38,7 @@ const props = (voice: BoardVoice | null) => ({
   onFocus: async (session: string) => {
     focused.push(session);
   },
+  count: () => {},
 });
 let host = document.createElement('div');
 /** A new panel on a clean board, as the page loads it: open or closed as remembered, at the width remembered. */

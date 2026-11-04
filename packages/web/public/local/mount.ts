@@ -11,7 +11,7 @@ import type { PanelHost } from '/assets/panel/host.ts';
 import type { LocalNote } from '/assets/types.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { bridgeProblem, type BridgeError } from '/assets/api-client/client.ts';
-import { page, bridge, pageUrl, PARAMS, STORY_ID } from './page.ts';
+import { page, bridge, pageUrl, PARAMS, STORY_ID, usage } from './page.ts';
 import { narrow, reveal, unnarrow, forgetNarrowing } from './folds.ts';
 import { placeNotes } from './notes.ts';
 import { redrawSend } from './send.ts';
@@ -22,6 +22,7 @@ const host: PanelHost = {
   client: bridge,
   storyId: STORY_ID,
   pageUrl,
+  count: usage.count,
 };
 
 const panelData = () => ({ ...page.story, local: undefined });

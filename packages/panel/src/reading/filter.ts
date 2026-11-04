@@ -117,6 +117,7 @@ export function createFilter(context: PanelContext) {
     const count = (context.chapter() as Chapter).files.length;
     const here = story.chapterName(state.n);
     const toggle = () => {
+      context.count('panel.filter.toggle');
       state.all = !state.all;
       context.saveState();
       apply();

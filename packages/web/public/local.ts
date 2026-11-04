@@ -13,7 +13,7 @@
 import { html } from '/assets/protocol/domain/html.ts';
 import { setHtml } from '/assets/ui/dom.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
-import { page, bridge, PARAMS, OPEN_PUSH } from '/assets/local/page.ts';
+import { page, bridge, PARAMS, OPEN_PUSH, usage } from '/assets/local/page.ts';
 import { treeHtml, fileHtml, headerHtml, resetHighlightBudget } from '/assets/local/diff-view.ts';
 import { placeNotes, openEditor } from '/assets/local/notes.ts';
 import { openFold, openRun, forgetNarrowing } from '/assets/local/folds.ts';
@@ -144,12 +144,14 @@ document.addEventListener('click', async (event) => {
   }
   const fold = target.closest('.ou-local-fold');
   if (fold) {
+    usage.count('local.fold.toggle');
     const folded = (fold.closest('.ou-local-file') as Element).classList.toggle('ou-local-folded');
     fold.setAttribute('aria-expanded', String(!folded));
     return;
   }
   const treeFile = target.closest('[data-goto]');
   if (treeFile) {
+    usage.count('local.tree.goto');
     const file = fileByRel(treeFile.getAttribute('data-goto'));
     const el = file && document.getElementById(`diff-${file.sha}`);
     if (el) {
@@ -164,6 +166,7 @@ document.addEventListener('click', async (event) => {
   }
   const lineNumber = target.closest('td.ou-local-num[data-line-anchor]');
   if (lineNumber) {
+    usage.count('local.line.open');
     return openEditor(lineNumber);
   }
   const cancel = target.closest('[data-editor-cancel]');
@@ -183,6 +186,7 @@ document.addEventListener('click', async (event) => {
   }
   const toggle = target.closest('.ou-local-notes-toggle');
   if (toggle) {
+    usage.count('local.notes.toggle');
     const list = document.querySelector('.ou-local-notes-list') as HTMLElement;
     list.hidden = !list.hidden;
     toggle.setAttribute('aria-expanded', String(!list.hidden));

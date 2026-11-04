@@ -224,6 +224,20 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
 export const backlogCommands: Command[] = [
   {
     name: 'backlog',
+    subs: [
+      'add',
+      'list',
+      'show',
+      'edit',
+      'start',
+      'claim',
+      'move',
+      'done',
+      'land',
+      'hold',
+      'drop',
+      'reopen',
+    ],
     usage: [
       '  once-upon backlog add "TITLE" [--note TEXT] [--repo owner/name] [--branch NAME]  keep something for later: a card in the board\'s Backlog column',
       '  once-upon backlog edit ID [--title TEXT] [--note TEXT] [--repo owner/name]      change an open card in place (an empty --note or --repo clears it)',

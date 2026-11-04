@@ -165,3 +165,29 @@ export function spawnDetached(cmd: string, args: string[]): void {
 export async function addressesOf(host: string): Promise<string[]> {
   return (await lookup(host, { all: true })).map((entry) => entry.address);
 }
+
+/** Runs `fn` when this process gets the signal. A listener replaces the signal's default (SIGUSR2's default is to end the process). */
+export function onSignal(signal: NodeJS.Signals, handler: () => void): void {
+  process.on(signal, handler);
+}
+
+/** Sends a signal to a process, false when it could not be sent (gone, or not ours). */
+export function signalProcess(pid: number, signal: NodeJS.Signals): boolean {
+  try {
+    process.kill(pid, signal);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** A process's command line, or null when it is gone. */
+export function commandOf(pid: number): string | null {
+  try {
+    return (
+      execFileSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8' }).trim() || null
+    );
+  } catch {
+    return null;
+  }
+}

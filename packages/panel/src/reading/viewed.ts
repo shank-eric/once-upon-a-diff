@@ -101,9 +101,10 @@ export function createViewedTracker(context: PanelContext) {
 
   /** The Mark viewed button for a file, as a node. */
   const markButton = (rel: string, short: boolean): VNode =>
-    markViewedNode(rel, short, snapshot ? snapshot.states.get(rel) === true : null, () =>
-      toggle(rel),
-    );
+    markViewedNode(rel, short, snapshot ? snapshot.states.get(rel) === true : null, () => {
+      context.count('panel.viewed.mark');
+      toggle(rel);
+    });
 
   /** A chapter's progress on the step list: its text, whether it is complete, the hover. Null when it has none to show. */
   function stepProgress(step: number) {

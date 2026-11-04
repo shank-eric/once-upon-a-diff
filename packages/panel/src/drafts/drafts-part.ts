@@ -345,6 +345,7 @@ export function createDrafts(context: PanelContext) {
 
   /** A drafted comment's Copy: the clipboard, else selecting the comment's text and execCommand. */
   function copyComment(step: number, index: number, text: string) {
+    context.count('panel.draft.copy');
     const key = keyOf(step, index);
     writeClipboard(text).then((ok) => {
       if (!alive) {
@@ -369,6 +370,7 @@ export function createDrafts(context: PanelContext) {
 
   /** Copy as gh script: copies the script, and nothing else. Running it is the reviewer's call. */
   function copyScript() {
+    context.count('panel.draft.script');
     const drafts = scriptable();
     if (!drafts || !drafts.comments.length) {
       return;

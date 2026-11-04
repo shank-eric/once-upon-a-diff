@@ -28,6 +28,8 @@ export function CopyButton(props: {
   children?: unknown;
   /** The label after a copy that worked. */
   copiedLabel?: string;
+  /** Runs when the clipboard took the text. */
+  onCopied?: () => void;
   /** Runs when the clipboard said no. It may answer the label to show for a moment. */
   onFailed?: () => string | void;
   class?: string;
@@ -39,6 +41,7 @@ export function CopyButton(props: {
     text,
     children,
     copiedLabel = 'Copied',
+    onCopied,
     onFailed,
     class: className,
     title,
@@ -47,6 +50,7 @@ export function CopyButton(props: {
   const [label, say] = useCopied();
   const copy = async () => {
     if (await writeClipboard(text)) {
+      onCopied?.();
       say(copiedLabel);
       return;
     }

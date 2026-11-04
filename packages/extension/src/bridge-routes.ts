@@ -35,5 +35,6 @@ export const EXTENSION_ROUTES = [
   ROUTES.storyRebuildWrite,
   ROUTES.storySeen,
   ROUTES.storyVersion,
+  ROUTES.usageCount,
   ROUTES.working,
 ] as const;

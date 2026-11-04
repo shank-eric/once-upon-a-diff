@@ -158,6 +158,7 @@ export function storyOverlay(input: StoryData, opts: PanelOptions, host: PanelHo
     // when this page loaded: a draft added after it isn't on the page yet
     pageLoadedAt: (globalThis.performance && performance.timeOrigin) || Date.now(),
     commentsTitle: opts.commentsTitle || 'Draft comments',
+    count: (name) => host.count(name),
   } as PanelContext;
   Object.assign(context, stateHelpers(context));
   const { state } = context;

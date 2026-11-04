@@ -43,7 +43,10 @@ export function createBody(context: PanelContext) {
   const nodes = (markupText: unknown) => context.markup.nodes(markupText);
 
   function stepList() {
-    const overview = html`<li data-n="0" class=${state.n === 0 ? 'ou-current' : undefined} onClick=${() => context.navigation.go(0)}>Overview <span class="ou-count">(${data.files.length})</span></li>`;
+    const overview = html`<li data-n="0" class=${state.n === 0 ? 'ou-current' : undefined} onClick=${() => {
+      context.count('panel.step.jump');
+      context.navigation.go(0);
+    }}>Overview <span class="ou-count">(${data.files.length})</span></li>`;
     const steps = context.steps().map((step, index) => {
       const number = index + 1;
       const prefix = story.isNew(number)
@@ -59,7 +62,10 @@ export function createBody(context: PanelContext) {
       ]
         .filter(Boolean)
         .join(' ');
-      return html`<li data-n=${number} class=${classes || undefined} onClick=${() => context.navigation.go(number)}>${prefix}${stripChapterPrefix(step.title)} <span class="ou-count">(${step.files.length})</span>${progress}${context.working.stepTag(number)}${context.marks.stepTags(number)}</li>`;
+      return html`<li data-n=${number} class=${classes || undefined} onClick=${() => {
+        context.count('panel.step.jump');
+        context.navigation.go(number);
+      }}>${prefix}${stripChapterPrefix(step.title)} <span class="ou-count">(${step.files.length})</span>${progress}${context.working.stepTag(number)}${context.marks.stepTags(number)}</li>`;
     });
     return [overview, ...steps];
   }

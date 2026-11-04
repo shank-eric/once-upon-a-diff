@@ -422,6 +422,11 @@ export function createQuestions(context: PanelContext) {
 
   /** A click on one of the list's buttons: `id` is the question it is on. */
   async function act(action: Act, id?: string) {
+    if (action === 'expand') {
+      context.count('panel.qa.expand');
+    } else if (action === 'collapse') {
+      context.count('panel.qa.collapse');
+    }
     if (action === 'show-dismissed') {
       showDismissed = !showDismissed;
       render();

@@ -21,6 +21,11 @@ const bridgeWith = (settings: ReturnType<typeof formSettings>) =>
     chrome.runtime.sendMessage({ type: 'bridge', ...request, settings } satisfies BridgeRequest),
   );
 
+/** Counts one options-page action now (a rare click, so no batching), with the form's values. Names only. */
+function count(name: 'ext.options.save' | 'ext.options.test' | 'ext.options.openBoard') {
+  void bridgeWith(formSettings()).call(ROUTES.usageCount, { body: { counts: { [name]: 1 } } });
+}
+
 async function test(prefix = '') {
   $('stories').textContent = '';
   const settings = formSettings();
@@ -77,10 +82,17 @@ async function init() {
   $('settings').addEventListener('submit', async (e) => {
     e.preventDefault();
     await setSettings(formSettings());
+    count('ext.options.save');
     status('Saved. Testing…', true);
     test('Saved. ');
   });
-  $('test').addEventListener('click', () => test());
-  $('board').addEventListener('click', () => openPage('board'));
+  $('test').addEventListener('click', () => {
+    count('ext.options.test');
+    return test();
+  });
+  $('board').addEventListener('click', () => {
+    count('ext.options.openBoard');
+    return openPage('board');
+  });
 }
 init();

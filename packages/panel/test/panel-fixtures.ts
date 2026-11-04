@@ -183,6 +183,7 @@ export function pageWorld(
       client: { ask: (() => Promise.reject(new Error('no bridge in this test'))) as never },
       storyId: data.id,
       pageUrl: () => 'https://github.com/acme/widgets/pull/7/changes',
+      count: () => {},
     },
   };
 }

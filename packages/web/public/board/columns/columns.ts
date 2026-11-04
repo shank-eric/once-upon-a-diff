@@ -212,15 +212,15 @@ function Agent(props: { agent: BoardAgent; now: number; api: Api; byEditor: bool
     ${byEditor && agent.editor && html`<div class="ou-local-muted ou-board-agent-editor">by <${SessionLink} bridge=${api.bridge} session=${agent.editor.session} canFocus=${agent.editor.can_focus} name=${`Editor · ${agent.editor.label}`} title="The editor that launched this builder: bring its iTerm tab to the front" /></div>`}
     ${beat && agent.state === 'running' && html`<div class="ou-board-bar" aria-hidden="true"><span style=${`width:${percent}%`}></span></div>`}
     ${detail && html`<div class="ou-board-agent-note ou-local-muted" data-agent-detail>${detail}</div>`}
-    ${agent.notes && html`<div class="ou-board-agent-note ou-local-muted" data-agent-notes>notes: <code>${agent.notes}</code> <${CopyNotes} path=${agent.notes} /></div>`}
+    ${agent.notes && html`<div class="ou-board-agent-note ou-local-muted" data-agent-notes>notes: <code>${agent.notes}</code> <${CopyNotes} path=${agent.notes} count=${api.count} /></div>`}
   </li>`;
 }
 
 /**
  * Copy for an agent's notes path. The page has no way to open a file on this Mac (the bridge serves no local files), so the path is shown whole and copyable.
  */
-function CopyNotes(props: { path: string }) {
-  return html`<${CopyButton} text=${props.path} class="ou-ui-copy" title="Copy the notes path" attrs=${{ 'data-copy-notes': true }}>Copy</${CopyButton}>`;
+function CopyNotes(props: { path: string; count: Api['count'] }) {
+  return html`<${CopyButton} text=${props.path} class="ou-ui-copy" title="Copy the notes path" attrs=${{ 'data-copy-notes': true }} onCopied=${() => props.count('board.notes.copy')}>Copy</${CopyButton}>`;
 }
 
 function Session(props: { session: BoardSession; now: number }) {
@@ -723,7 +723,10 @@ export function Columns(props: { view: ColumnsView }) {
     tabbed &&
     html`<div class="ou-board-tabs" role="tablist" aria-label="Board" onKeyDown=${onKey}>${GROUPS.map(
       (group) =>
-        html`<button type="button" role="tab" key=${group.id} id=${`ou-board-tab-${group.id}`} aria-selected=${String(group.id === chosen)} aria-controls=${`ou-board-panel-${group.id}`} tabindex=${group.id === chosen ? 0 : -1} onClick=${() => choose(group.id)}>${group.label}</button>`,
+        html`<button type="button" role="tab" key=${group.id} id=${`ou-board-tab-${group.id}`} aria-selected=${String(group.id === chosen)} aria-controls=${`ou-board-panel-${group.id}`} tabindex=${group.id === chosen ? 0 : -1} onClick=${() => {
+          api.count('board.tab.switch');
+          choose(group.id);
+        }}>${group.label}</button>`,
     )}</div>`
   }
     <${Editors} editors=${view.editors} now=${view.now} api=${api} />

@@ -18,6 +18,8 @@ import { backlogCommands } from './commands/backlog.ts';
 import { agentCommands } from './commands/agent.ts';
 import { approveCommands } from './commands/approve.ts';
 import { reviewedCommands } from './commands/reviewed.ts';
+import { usageCommands } from './commands/usage.ts';
+import { commandLabel, noteCommand } from '../services/usage/cli-log.ts';
 import type { Command } from './types.ts';
 
 const COMMANDS = new Map<string, Command>(
@@ -35,6 +37,7 @@ const COMMANDS = new Map<string, Command>(
     ...agentCommands,
     ...reviewedCommands,
     ...approveCommands,
+    ...usageCommands,
   ].map((command) => [command.name, command]),
 );
 
@@ -67,6 +70,7 @@ const HELP_ORDER = [
   'notes',
   'working',
   'fixed',
+  'usage',
 ];
 
 /** Every command the table has, and the help's order, so a test can check they match. */
@@ -89,6 +93,8 @@ export function usageText() {
 export function main(argv: string[]): void {
   const { command, opts } = parseArgs(argv);
   const entry = COMMANDS.get(command as string);
+  // the usage log names a command only when the table has it (else `unknown`), and a verb only when the command lists it
+  noteCommand(homeDir(), commandLabel(command, new Set(COMMANDS.keys()), entry?.subs, opts._?.[0]));
   if (!entry) {
     process.stderr.write(usageText() + '\n');
     process.exitCode = 1;

@@ -75,10 +75,12 @@ export type VoicePanelProps = {
   onChanged: () => void | Promise<void>;
   /** Brings the voice session's iTerm tab to the front. */
   onFocus: (session: string) => Promise<void>;
+  /** Counts the panel's tab being toggled, for the usage capture. */
+  count: (name: 'board.voice.tab') => void;
 };
 
 export function VoicePanel(props: VoicePanelProps) {
-  const { voice, root, pause: askPause, onChanged, onFocus } = props;
+  const { voice, root, pause: askPause, onChanged, onFocus, count } = props;
   const [open, setOpen] = useState(() => stored(OPEN_KEY, false, (text) => text === 'true'));
   const [peek, setPeek] = useState(false);
   const [width, setWidth] = useState<number | null>(() =>
@@ -160,6 +162,7 @@ export function VoicePanel(props: VoicePanelProps) {
     return null;
   }
   const toggle = () => {
+    count('board.voice.tab');
     if (collapsed) {
       setPeek(!peek);
     } else {

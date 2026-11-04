@@ -9,7 +9,7 @@
  */
 import { prKey } from '@once-upon-a-diff/protocol/domain/pr-key';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
-import { bridge, type BridgeAnswer } from '../bridge.ts';
+import { bridge, usage, type BridgeAnswer } from '../bridge.ts';
 import type { Listening, StatusMany } from '@once-upon-a-diff/protocol/types';
 import type { PrRef, StoryStatus } from './story-tag.ts';
 import { listenNotice } from './listen-notice.ts';
@@ -107,6 +107,7 @@ export function createPrTags({ attr, onStory }: { attr: string; onStory?: (pr: P
   }
 
   async function onClick(event: Event, pr: PrRef, host: Element) {
+    usage.count('ext.prTag.click');
     const button = clickedTagButton(event);
     if (!button) {
       const link =

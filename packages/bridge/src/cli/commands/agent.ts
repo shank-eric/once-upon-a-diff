@@ -151,6 +151,7 @@ function agent(home: string, _cfg: Config, opts: CliOpts) {
 export const agentCommands: Command[] = [
   {
     name: 'agent',
+    subs: ['start', 'state', 'beat', 'finish', 'list'],
     usage: [
       '  once-upon agent start NAME --kind author|critic|helper|research|editor --task TEXT   register an agent the board shows (its sid comes from the session; prints its id and run)',
       '                                                                                   --standing: a long-lived helper (the backlog clerk), in the Helpers row, never a card; put it before another flag. A restart of the same name may leave out --kind and --standing: they carry over (--standing false clears it)',

@@ -19,7 +19,7 @@ import { filesChangedPr } from '@once-upon-a-diff/host-github/pages';
 import { withLayout, type Layout } from '@once-upon-a-diff/panel/layout';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { bridgeProblem } from '@once-upon-a-diff/api-client/client';
-import { bridge, extensionAlive } from '../bridge.ts';
+import { bridge, extensionAlive, usage } from '../bridge.ts';
 import { createListenOption } from '../listen.ts';
 import { loadPanelUi, savePanelUi, loadPrefsCopy, storePrefsCopy, tabSession } from '../storage.ts';
 import { createPrTags, titleElement } from '../ui/pr-tags.ts';
@@ -118,6 +118,7 @@ export function createFilesChangedPage() {
       client: bridge,
       storyId,
       pageUrl: () => location.href,
+      count: usage.count,
     };
   }
 

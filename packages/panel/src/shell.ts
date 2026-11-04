@@ -50,9 +50,15 @@ export function createShell(context: PanelContext) {
       <div class="ou-bar">
         ${context.statusLight ? context.statusLight.lightView() : null}
         <button class="ou-toggle" title="Collapse or expand the story panel" onClick=${toggleCollapsed}>${state.collapsed ? 'Show story' : 'Hide story'}</button>
-        <button class="ou-prev" title="Previous step" disabled=${withBody && state.n === 0} onClick=${() => context.navigation.go(state.n - 1)}>← Prev</button>
+        <button class="ou-prev" title="Previous step" disabled=${withBody && state.n === 0} onClick=${() => {
+          context.count('panel.step.prev');
+          context.navigation.go(state.n - 1);
+        }}>← Prev</button>
         <span class="ou-title" title=${withBody ? title : undefined}>${withBody ? title : null}</span>
-        <button class="ou-next" title="Next step" disabled=${withBody && state.n === lastStep} onClick=${() => context.navigation.go(state.n + 1)}>Next →</button>
+        <button class="ou-next" title="Next step" disabled=${withBody && state.n === lastStep} onClick=${() => {
+          context.count('panel.step.next');
+          context.navigation.go(state.n + 1);
+        }}>Next →</button>
         <button class="ou-close" title="Remove the overlay and show every file" onClick=${close}>×</button>
       </div>
       <div class="ou-note"><span class="ou-count-note">${context.filter ? context.filter.noteView() : null}</span>${context.statusLight ? context.statusLight.healthView() : null}${context.freshness ? context.freshness.view() : null}${context.rebuild ? context.rebuild.statusView() : null}<span class="ou-msg">${messageText || null}</span></div>
@@ -103,10 +109,12 @@ export function createShell(context: PanelContext) {
     setWidth(state.width);
   }
   function toggleCollapsed() {
+    context.count('panel.collapse');
     setCollapsed(!state.collapsed);
     context.saveState();
   }
   function close() {
+    context.count('panel.close');
     context.destroy();
     if (opts.onClose) {
       opts.onClose();

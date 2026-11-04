@@ -160,6 +160,7 @@ export function createFileRefs(context: PanelContext) {
   /** A click that jumps to a file or line (for a node that has its own look). */
   function jumpClick(rel: string, line: LineRef | null | undefined) {
     return () => {
+      context.count('panel.file.jump');
       void context.scroll.jumpTo(rel, line ?? null);
     };
   }

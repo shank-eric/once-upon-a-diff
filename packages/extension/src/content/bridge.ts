@@ -4,6 +4,8 @@
  * talks to the bridge itself.
  */
 import { createClient, type Reply, type Transport } from '@once-upon-a-diff/api-client/client';
+import { createUsage } from '@once-upon-a-diff/api-client/usage';
+import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import type { BridgeSettings } from '../settings.ts';
 
 export type BridgeMethod = 'GET' | 'POST';
@@ -67,6 +69,19 @@ const transport: Transport = ({ method, path, body }) => callBridge(method, path
  * {ok, status, body, error} and never rejects, with the route's body and answer types (@once-upon-a-diff/protocol).
  */
 export const bridge = createClient(transport);
+
+/** Counts the content scripts' UI-only actions for the usage capture, sent to the bridge in batches (names and counts only). */
+export const usage = createUsage(async (counts) => {
+  const reply = await bridge.call(ROUTES.usageCount, { body: { counts } });
+  return reply.ok ? reply.body : null;
+});
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      void usage.flush();
+    }
+  });
+}
 
 /** The client's type, for what takes one (a test passes its own). */
 export type Bridge = typeof bridge;

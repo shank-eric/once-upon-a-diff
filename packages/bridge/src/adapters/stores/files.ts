@@ -44,3 +44,8 @@ export function restrictFile(file: string, mode: number): void {
 export function copyFile(src: string, dest: string): void {
   copyFileSync(src, dest);
 }
+
+/** Removes a folder and everything in it, with no error when it is not there. */
+export function removeDir(dir: string): void {
+  rmSync(dir, { recursive: true, force: true });
+}

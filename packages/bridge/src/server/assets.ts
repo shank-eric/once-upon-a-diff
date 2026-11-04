@@ -42,7 +42,7 @@ const PANEL_MODULE = /^\/assets\/panel\/([a-z0-9-]+(?:\/[a-z0-9-]+)*\.(?:ts|css)
 /** The host adapter's modules, from the host-github package's src/. */
 const HOST_MODULE = /^\/assets\/host-github\/([a-z0-9-]+\.ts)$/;
 /** The api-client's modules a page may load: the typed client, the poll and the Preact hook over it. */
-const API_CLIENT_MODULE = /^\/assets\/api-client\/(client|poll|use-poll)\.ts$/;
+const API_CLIENT_MODULE = /^\/assets\/api-client\/(client|poll|use-poll|usage)\.ts$/;
 /** The ui package's modules and its stylesheet, which a page may load (the panel reaches the modules by package, which forBrowser spells as these URLs). */
 const UI_MODULE = /^\/assets\/ui\/([a-z0-9-]+\.(?:ts|css))$/;
 /**

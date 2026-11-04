@@ -45,6 +45,7 @@ import type {
   WorktreeCleaned,
   BuildRequestView,
 } from './types.ts';
+import type { UsageAnswer } from './domain/usage-actions.ts';
 
 /**
  * Which keys may make the call (the bridge's token always may):
@@ -116,6 +117,9 @@ export const ROUTES = {
     '/api/builds',
     'token',
   ),
+
+  // a page's batch of UI action counts (domain/usage-actions.ts); the board's key and the extension's token reach it
+  usageCount: api<In<'usage'>, UsageAnswer>('POST', '/api/usage', 'token+board'),
 
   githubRefresh: api<In<'githubRefresh'>, GithubRefreshAnswer>(
     'POST',
@@ -250,6 +254,7 @@ export const ROUTES = {
   ),
   working: story<undefined, { marks?: WorkingMark[] }>('GET', 'working', 'token+page+view'),
   prView: story<undefined, PrView>('GET', 'pr', 'token+page+view'),
+  storyUsageCount: story<In<'usage'>, UsageAnswer>('POST', 'usage', 'token+page+view'),
 
   // ---- a story: the full page key only (never the read-only one)
   storyListenSessions: story<undefined, ListenSessions>('GET', 'listen', 'token+page'),

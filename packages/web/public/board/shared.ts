@@ -12,12 +12,15 @@ import { compactAge } from '/assets/protocol/domain/time.ts';
 import { Chips } from '/assets/ui/chip.ts';
 import { cleanupConfirm, worktreeChips } from '/assets/board/worktree-text.ts';
 import type { BoardCard, BoardData, BoardWorktree } from '/assets/types.ts';
+import type { ActionName } from '/assets/protocol/domain/usage-actions.ts';
 
 /** What every region needs to talk to the bridge: the typed client, the board as last polled, and a poll now. */
 export type Api = {
   bridge: Client;
   board: BoardData;
   refresh: () => Promise<void>;
+  /** counts one UI-only action for the usage capture (names only, from the protocol's list) */
+  count: (name: ActionName) => void;
 };
 
 /** A setting the board remembers in localStorage: its value and a setter that saves it (a choice that cannot be saved is just not remembered). */

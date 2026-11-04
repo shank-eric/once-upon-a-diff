@@ -105,6 +105,8 @@ const BOARD_KEY_REACH = [
   'POST /api/board/voice/start',
   'POST /api/board/voice/stop',
   'POST /api/board/worktree/clean',
+  // a page's batch of UI action counts: names from a closed list, never content (usage capture)
+  'POST /api/usage',
 ];
 
 /**
@@ -137,6 +139,8 @@ const VIEW_KEY_REACH = [
   'GET rebuild',
   'POST rebuild',
   'GET pr',
+  // a batch of UI action counts for the usage capture: names from a closed list, never content
+  'POST usage',
 ];
 
 test('the board key reaches the routes on a written-out list and no others', () => {

@@ -32,6 +32,7 @@ import {
   type GenericSchema,
   type InferOutput,
 } from 'valibot';
+import { MAX_BATCH_ENTRIES } from './domain/usage-actions.ts';
 import { BACKLOG_ID_RE, BRANCH_RE, REPO_RE, SESSION_RE } from './domain/patterns.ts';
 
 /** The ids and lists the bridge caps, so a body can't make it hold more. */
@@ -104,6 +105,16 @@ export const BODIES = {
           }),
         ),
         null,
+      ),
+    ),
+  }),
+  /** POST /api/usage and .../usage: counts by action name. The bridge keeps only the names domain/usage-actions.ts lists. */
+  usage: object({
+    counts: pipe(
+      record(string(), number()),
+      check(
+        (counts) => Object.keys(counts).length <= MAX_BATCH_ENTRIES,
+        'too many actions in one batch',
       ),
     ),
   }),

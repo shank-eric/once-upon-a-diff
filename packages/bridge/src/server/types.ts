@@ -11,6 +11,7 @@ import type { AutoReview } from '../services/review/auto-review.ts';
 import type { Board } from '../services/board/board.ts';
 import type { Sessions } from '../services/sessions/sessions.ts';
 import type { ServedStory } from '../services/stories/types.ts';
+import type { Surface, UsageCounters } from '../services/usage/counters.ts';
 
 /** A JSON request body: whatever the page sent, for the route to check. */
 export type Body = Record<string, unknown>;
@@ -51,6 +52,8 @@ export interface App {
   } | null;
   /** the last time the extension talked to the bridge */
   extensionSeen: { at: string; origin: string } | null;
+  /** what the usage capture counts: route calls and the pages' UI actions */
+  usage: UsageCounters;
 }
 
 /** One API call. */
@@ -64,6 +67,8 @@ export interface Call {
   pageScope?: 'board' | null;
   /** a story's read-only key made the call (page-key.ts viewKey): it never reaches the PR routes */
   readOnly?: boolean;
+  /** who made it, for the usage counts: the board, a story's page (full or read-only key), the extension, or a token holder */
+  surface: Surface;
 }
 
 /** An /api/<path> route: its entry in the protocol's table (path, method, keys) and what answers it. */

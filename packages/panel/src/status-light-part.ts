@@ -240,6 +240,7 @@ export function createStatusLight(context: PanelContext) {
   /** The light in the toolbar. */
   function lightView() {
     return html`<button class="ou-light" title=${title} aria-label="Connection status" aria-expanded=${String(healthOpen)} data-level=${level} hidden=${!opts.status} onClick=${() => {
+      context.count('panel.light.open');
       healthOpen = !healthOpen;
       shell.redraw();
     }}><span class="ou-dot"></span></button>`;

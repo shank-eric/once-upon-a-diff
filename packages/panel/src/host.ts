@@ -10,6 +10,7 @@
  */
 import type { Client } from '@once-upon-a-diff/api-client/client';
 import type { Side } from '@once-upon-a-diff/protocol/types';
+import type { ActionName } from '@once-upon-a-diff/protocol/domain/usage-actions';
 import type { ExpandRow, FileBlock, TreeRow } from './diff-types.ts';
 
 export type { FileBlock, TreeRow } from './diff-types.ts';
@@ -53,4 +54,6 @@ export interface PanelHost {
   client: Pick<Client, 'ask'>;
   storyId: string;
   pageUrl(): string;
+  /** counts one UI-only action for the usage capture (the host sends the batch; the panel only names the action) */
+  count(name: ActionName): void;
 }
