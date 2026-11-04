@@ -49,7 +49,7 @@
                 "ended_at": null,
                 "gate": null,
                 "key": "<PID:11>:helper-one",
-                "kind": null,
+                "kind": "helper",
                 "model": "sonnet, low",
                 "name": "helper-one",
                 "notes": null,
@@ -109,7 +109,7 @@
               {
                 "branch": "main",
                 "context": null,
-                "cwd": "<WORK>/checkout-18",
+                "cwd": "<WORK>/checkout-17",
                 "detail": null,
                 "focus": true,
                 "id": "<PID:14>-aaaa-bbbb-cccc-dddddddddddd",
@@ -150,7 +150,7 @@
               {
                 "branch": "main",
                 "context": null,
-                "cwd": "<WORK>/checkout-17",
+                "cwd": "<WORK>/checkout-16",
                 "detail": null,
                 "focus": true,
                 "id": "<PID:12>-aaaa-bbbb-cccc-dddddddddddd",
@@ -185,7 +185,7 @@
               {
                 "branch": "main",
                 "context": null,
-                "cwd": "<WORK>/checkout-17",
+                "cwd": "<WORK>/checkout-16",
                 "detail": null,
                 "focus": true,
                 "id": "<PID:13>-aaaa-bbbb-cccc-dddddddddddd",
@@ -220,7 +220,7 @@
               {
                 "branch": "main",
                 "context": null,
-                "cwd": "<WORK>/checkout-17",
+                "cwd": "<WORK>/checkout-16",
                 "detail": "compiling",
                 "focus": true,
                 "id": "<PID:15>-aaaa-bbbb-cccc-dddddddddddd",
@@ -389,7 +389,7 @@
                 "ended_at": "2026-10-26T18:55:00.000Z",
                 "gate": null,
                 "key": "<PID:11>:helper-two",
-                "kind": null,
+                "kind": "helper",
                 "model": null,
                 "name": "helper-two",
                 "notes": "notes/x.md",
@@ -397,11 +397,11 @@
                 "review": false,
                 "sid": "<PID:11>",
                 "stale": false,
-                "started_at": null,
+                "started_at": "2026-10-26T18:55:00.000Z",
                 "state": "waiting",
                 "status": "waiting",
                 "summary": null,
-                "task": null
+                "task": "helper-two's task"
               }
             ],
             "branch": null,
@@ -432,7 +432,7 @@
                 "ended_at": "2026-10-26T18:56:00.000Z",
                 "gate": null,
                 "key": "<PID:11>:helper-three",
-                "kind": null,
+                "kind": "helper",
                 "model": null,
                 "name": "helper-three",
                 "notes": null,
@@ -440,14 +440,14 @@
                 "review": false,
                 "sid": "<PID:11>",
                 "stale": false,
-                "started_at": null,
+                "started_at": "2026-10-26T18:56:00.000Z",
                 "state": "done",
                 "status": "done",
                 "summary": {
-                  "did": null,
+                  "did": "helper-three's task",
                   "why": "done"
                 },
-                "task": null
+                "task": "helper-three's task"
               }
             ],
             "branch": null,
@@ -478,7 +478,7 @@
                 "ended_at": "2026-10-26T18:57:00.000Z",
                 "gate": null,
                 "key": "<PID:11>:helper-four",
-                "kind": null,
+                "kind": "helper",
                 "model": null,
                 "name": "helper-four",
                 "notes": null,
@@ -486,11 +486,11 @@
                 "review": true,
                 "sid": "<PID:11>",
                 "stale": false,
-                "started_at": null,
+                "started_at": "2026-10-26T18:57:00.000Z",
                 "state": "waiting",
                 "status": "waiting",
                 "summary": null,
-                "task": null
+                "task": "helper-four's task"
               }
             ],
             "branch": null,
@@ -521,7 +521,7 @@
                 "ended_at": null,
                 "gate": null,
                 "key": "<PID:12>:not-the-voice",
-                "kind": null,
+                "kind": "helper",
                 "model": "sonnet, low",
                 "name": "not-the-voice",
                 "notes": null,

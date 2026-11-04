@@ -1,5 +1,5 @@
 /*
- * The agent board (../../services/board/board.ts): the live Claude Code sessions and the ledger's background agents.
+ * The agent board (../../services/board/board.ts): the live Claude Code sessions and the registered background agents.
  *
  *   GET /api/board              the lanes and their cards
  *   GET /api/board/link         the board page's link, with the board's key. Only the bridge's token (the extension, the CLI) gets it
@@ -32,8 +32,8 @@
  *   POST /api/board/backlog/assign {id, session}: type the item's start line (built here from the store, the body has no
  *                               text) into an idle session in the item's repo, which then runs `once-upon backlog start`
  *   POST /api/board/agent/finish {sid, name}: Finish on a finished agent's card in Waiting: the card leaves the board now and
- *                               returns only if the agent does something more. The agent is looked up in the ledger; a
- *                               `[waiting]` one gets a `[done]` line there. 409 for one still working or parked on your story review
+ *                               returns only if the agent does something more. The agent is looked up in the registry; a
+ *                               waiting one is finished there (and gets its `[done]` ledger line). 409 for one still working or parked on your story review
  *   POST /api/board/worktree/clean {path, ack?, ignored?}: Clean up a worktree (services/worktrees/worktree-clean.ts): `git worktree remove` without
  *                               --force, and `git branch -d` for a branch merged into the default branch (never an everfi-frontend one).
  *                               The bridge re-checks the worktree itself and refuses (409) anything dirty, in use, locked, new,
@@ -249,7 +249,7 @@ async function cleanWorktree({ app, body: raw, send }: Call) {
   return send(200, { ok: true, ...result });
 }
 
-/** POST {sid, name}: Finish a finished agent's card (the bridge looks the agent up in the ledger itself). */
+/** POST {sid, name}: Finish a finished agent's card (the bridge looks the agent up in the registry itself). */
 function finishAgent({ app, body, send }: Call) {
   const { sid, name } = parseBody('boardAgentFinish', body);
   return send(200, { ok: true, ...app.board.finishAgent(sid, name) });

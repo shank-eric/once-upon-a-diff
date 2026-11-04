@@ -1,5 +1,5 @@
 /**
- * The agent board's data, built in stages. A card is a unit of work: a branch or PR, with the Claude Code sessions and ledger agents
+ * The agent board's data, built in stages. A card is a unit of work: a branch or PR, with the Claude Code sessions and registered agents
  * working on it inside. Sessions that are not on a branch of their own (the default branch, no repo) are cards of their
  * own. Building it only reads; what a click on the board does to other tools is in ADR-11. The sources:
  *
@@ -8,7 +8,7 @@
  *                               when procStart says, so a reused pid doesn't revive it). A session's branch is its
  *                               checkout's current one (`git rev-parse`).
  *   a status source             the terminal's richer status (sources.ts)
- *   ledger and progress files   the background agents (ledger.ts)
+ *   the agent registry          the background agents (agents.jsonl, ledger/read.ts)
  *   PR stories                  the built stories (review/story-lists.ts): each is a PR, with its branch, and whether you have
  *                               reviewed it. Merged ones stay a day, as Done.
  *   local stories               a branch's story before any PR (`once-upon local`): on a card of that repo and branch (a
@@ -42,7 +42,7 @@ import type { WorktreeScanner } from '../../worktrees/worktrees.ts';
 import type { BoardData, BoardStatus } from '@once-upon-a-diff/contracts/types';
 import { claimViews, placeAgents } from './agents.ts';
 import { editorsOf } from './editors.ts';
-import { claimerKeys, heldKeys } from '../../backlog/claims.ts';
+import { heldKeys } from '../../backlog/claims.ts';
 import { addBacklogCards, nestClaimedAgents, readBacklogLinks } from './backlog.ts';
 import { buildCards, placeCards } from './cards.ts';
 import type { CardFacts } from './cards.ts';
@@ -90,7 +90,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   // and has its row only (helpers.ts)
   const standing = read.agents.filter(isStandingHelper);
   const liveFacts = { ...read, agents: read.agents.filter((agent) => !isStandingHelper(agent)) };
-  const { live, agents, beats, picked } = liveFacts;
+  const { live, agents, picked } = liveFacts;
   const collected = collectWorks(ctx);
   const { works, stories, localStoryList } = collected;
   const cardFacts: CardFacts = {
@@ -130,19 +130,16 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   const editing = editorsOf({
     editors: read.editors,
     agents,
-    beats,
     live,
     canFocus: (session) => picked.source.name === 'iterm' && read.known.has(session),
-    claimers: claimerKeys(backlogItems, agents),
     nowMs,
   });
-  const claimed = claimViews(backlogItems, agents, beats, nowMs, editing.editorOf);
+  const claimed = claimViews(backlogItems, agents, nowMs, editing.editorOf);
 
   // agents: nested in the card their registered repo, branch, PR or card point to, else a card of their own on their own lane
   cards.push(
     ...placeAgents(ctx, cards, {
       agents,
-      beats,
       pin,
       held,
       items: backlogItems,
@@ -178,7 +175,6 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     items: backlogItems,
     live,
     agents,
-    beats,
     works,
     localCheckouts: cardFacts.localCheckouts,
     repoBySession,

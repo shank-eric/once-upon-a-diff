@@ -2,7 +2,15 @@ import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { appendFileSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { tmp, writeJson, startBridge, runCli, TOKEN, type TestBridge } from './helpers.ts';
+import {
+  tmp,
+  writeJson,
+  startBridge,
+  runCli,
+  registerRuns,
+  TOKEN,
+  type TestBridge,
+} from './helpers.ts';
 import {
   ASSIGN_HOURS,
   BacklogStore,
@@ -480,15 +488,16 @@ test('lanes are keyed by owner/name: two repos of one name are two lanes, a lone
 
 test('a lane tag joins the lane of the repo it names when that repo is only on the board as a backlog card', async () => {
   const home = tmp('backlog-lane-tag');
-  const ledger = path.join(home, 'agent-ledger.md');
-  appendFileSync(
-    ledger,
-    '- [running] sid:deadbeef lane:foo tagged-agent (sonnet, high) — tagged task — started 2:50 PM ET, 10/27\n',
-  );
+  registerRuns(home, {
+    sid: 'deadbeef',
+    name: 'tagged-agent',
+    lane: 'foo',
+    task: 'tagged task',
+    started: '2026-10-27T18:50:00Z',
+  });
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: tmp('backlog-lane-tag-sessions'),
     board_status_source: 'registry',
-    board_ledger_file: ledger,
   });
   const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
     source: registrySource,

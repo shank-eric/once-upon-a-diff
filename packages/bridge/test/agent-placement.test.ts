@@ -41,7 +41,7 @@ const card = (over: Partial<BoardCard>): BoardCard =>
     ...over,
   }) as unknown as BoardCard;
 
-/** A ledger agent (no registered fields), or a registered one with `source: 'events'` and fields. */
+/** An agent with no registered placement fields, or a registered author with fields. */
 const agent = (over: Partial<LedgerAgent> = {}): LedgerAgent => ({
   sid: 'aaaaaaaa',
   name: 'helper',
@@ -55,16 +55,16 @@ const agent = (over: Partial<LedgerAgent> = {}): LedgerAgent => ({
   ...over,
 });
 const registered = (over: Partial<LedgerAgent> = {}): LedgerAgent =>
-  agent({ source: 'events', kind: 'author', ...over });
+  agent({ kind: 'author', ...over });
 
 const place = (agents: LedgerAgent[], cards: BoardCard[], items: BacklogItem[] = []) =>
-  placeAgents(ctx(), cards, { agents, beats: new Map(), pin: null, items });
+  placeAgents(ctx(), cards, { agents, pin: null, items });
 const nestedIn = (target: BoardCard) => target.agents.map((one) => one.name);
 
 const makeX = () => card({ branch: 'feat/x', pr: { number: 7 } as BoardCard['pr'] });
 const makeY = () => card({ branch: 'feat/y', pr: { number: 8 } as BoardCard['pr'] });
 
-test('a ledger agent whose task names a card’s branch and PR is not nested there: gated or tied to its parent, it is a card of its own', () => {
+test('an agent with no registered repo, branch or PR whose task names a card’s branch and PR is not nested there: gated or tied to its parent, it is a card of its own', () => {
   const featX = makeX();
   const featY = makeY();
   // the launching session is on feat/x, and the task says feat/x and PR #7: text used to tie it
@@ -91,7 +91,10 @@ test('a ledger agent whose task names a card’s branch and PR is not nested the
   assert.deepEqual(nestedIn(featX), []);
   assert.equal(review.length, 1);
   assert.equal(review[0].column, 'ready');
-  const reviewer = place([agent({ name: 'review-x', task: 'review of feat/x' })], [featX]);
+  const reviewer = place(
+    [agent({ name: 'review-x', kind: 'critic', task: 'review of feat/x' })],
+    [featX],
+  );
   assert.deepEqual(nestedIn(featX), []);
   assert.equal(reviewer.length, 1);
 });
@@ -247,15 +250,12 @@ test('an agent’s lane is its tag, else its registered repo’s lane, else its 
     'a short tag stands for the one known repo',
   );
   assert.equal(lane({ lane: 'Acme/Widgets' }), 'acme/widgets', 'a whole key, any case');
-  assert.equal(
-    lane({ source: 'events', repo: 'acme/larmor', cwd: '/x/larmor-worktrees/y' }),
-    'acme/larmor',
-  );
-  assert.equal(lane({ source: 'events', repo: 'acme/larmor', lane: 'tagged' }), 'tagged');
+  assert.equal(lane({ repo: 'acme/larmor', cwd: '/x/larmor-worktrees/y' }), 'acme/larmor');
+  assert.equal(lane({ repo: 'acme/larmor', lane: 'tagged' }), 'tagged');
   assert.equal(lane({}), 'acme/parent', 'the task names widgets and a worktree, and is ignored');
-  assert.equal(lane({ source: 'events', cwd: '/x/y' }), 'acme/parent', 'a cwd alone is not a lane');
+  assert.equal(lane({ cwd: '/x/y' }), 'acme/parent', 'a cwd alone is not a lane');
   assert.equal(lane({}, 'deadbeef'), NO_PARENT);
-  assert.equal(lane({ source: 'events' }, 'deadbeef'), NO_PARENT);
+  assert.equal(lane({ kind: 'author' }, 'deadbeef'), NO_PARENT);
 });
 
 const started = (id: string, branch: string): BacklogItem =>
@@ -293,16 +293,6 @@ test('two agents of one name in different sessions are two agents on a card, and
   assert.equal(keyless.agents.length, 2);
 });
 
-test('a finished ledger agent is Done by its [done] line, not by a worktrees folder in its task or by its outcome', () => {
-  assert.equal(finishedColumn({ name: 'a', state: 'done' }), 'done');
-  assert.equal(
-    finishedColumn({ name: 'a', state: 'stopped' }),
-    'waiting',
-    'a worktrees task is not output',
-  );
-  assert.equal(finishedColumn({ name: 'a', state: 'waiting' }), 'waiting');
-});
-
 test('a finished agent stays inside its card for an hour by default, never less than the finished wait', () => {
   const home = tmp('placement-done-hour');
   const finished = (minutesAgo: number) =>
@@ -318,7 +308,6 @@ test('a finished agent stays inside its card for an hour by default, never less 
     const featX = makeX();
     placeAgents({ ...ctx(), home, settings } as unknown as BuildContext, [featX], {
       agents: [finished(minutesAgo)],
-      beats: new Map(),
       pin: null,
     });
     return nestedIn(featX);
@@ -365,7 +354,6 @@ test('Finish clears a finished agent nested in a card, and a new line brings it 
     const featX = makeX();
     placeAgents({ ...ctx(), home } as unknown as BuildContext, [featX], {
       agents,
-      beats: new Map(),
       pin: null,
     });
     return nestedIn(featX);
@@ -397,7 +385,6 @@ test('a failed agent nested in a card puts the card in Waiting, not Error or Idl
         ended: new Date(NOW - 60000),
       }),
     ],
-    beats: new Map(),
     pin: null,
   });
   assert.deepEqual(nestedIn(sessionCard), ['ou-broke']);
@@ -670,7 +657,6 @@ const placeWith = (
   const review = { branchPr: () => pr } as unknown as PrWatcher;
   return placeAgents({ ...ctx(), ...(home ? { home } : {}), review } as BuildContext, cards, {
     agents,
-    beats: new Map(),
     pin: null,
     items,
     trees: tree ? [{ ...facts('/wt/feat-x'), head: TIP, unpushed: 1, ...tree }] : [],
@@ -785,7 +771,6 @@ test('a critic, a helper, a research run, a stopped author and a landed card kee
     { column: 'done', why: 'landed abcdef1' },
   );
   assert.equal(finishedColumn(committer(), true, PENDING), 'done', 'a landing comes first');
-  assert.equal(finishedColumn(committer({ source: undefined }), false, PENDING), 'done');
 });
 
 test('an unpushed commit stays in Ready past the finished wait until Finish clears it', () => {

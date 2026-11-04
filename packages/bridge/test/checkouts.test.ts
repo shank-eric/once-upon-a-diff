@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { tmp, writeJson, git } from './helpers.ts';
+import { tmp, writeJson, git, registerRuns } from './helpers.ts';
 import { Board, noPrWatcher } from '../src/services/board/board.ts';
 import { BacklogStore } from '../src/services/backlog/backlog.ts';
 import { checkoutsOf, pathsIn, type CheckoutFacts } from '../src/services/worktrees/checkouts.ts';
@@ -76,7 +76,7 @@ test('checkoutsOf keeps the folders whose origin is the repo, from sessions, age
   );
 });
 
-test('the board finds a started card’s worktree from the ledger agent’s task path, with no recorded checkout and no checkout_dirs match', async () => {
+test('the board finds a started card’s worktree from its agent’s task path, with no recorded checkout and no checkout_dirs match', async () => {
   const sessions = tmp('checkouts-sessions');
   const parent = tmp('checkouts-repo');
   const checkout = path.join(parent, 'oddly-named-folder');
@@ -92,20 +92,16 @@ test('the board finds a started card’s worktree from the ledger agent’s task
   git(checkout, 'worktree', 'add', '-q', tree, '-b', 'pick-me');
   const worktreesOf = async (task: string | null) => {
     const home = tmp('checkouts-board');
-    const notes = tmp('checkouts-notes');
-    const ledger = path.join(notes, 'ledger.md');
-    writeFileSync(
-      ledger,
-      task
-        ? `- [running] sid:54736864 builder-one (sonnet, high) — ${task} — started 2:30 PM ET, 10/26\n`
-        : '',
-    );
-    writeJson(path.join(home, 'config.json'), {
-      board_sessions_dir: sessions,
-      board_ledger_file: ledger,
-      board_progress_file: path.join(notes, 'progress.md'),
-      board_ledger_time_zone: 'UTC',
-    });
+    if (task) {
+      registerRuns(home, {
+        sid: '54736864',
+        name: 'builder-one',
+        kind: 'author',
+        task,
+        started: '2026-10-26T18:30:00Z',
+      });
+    }
+    writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
     const store = new BacklogStore(home);
     const item = store.add({ title: 'Pick me', repo: 'acme/widgets' });
     store.start(item.id, { branch: 'pick-me', repo: 'acme/widgets', by: 'someone' });

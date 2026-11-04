@@ -122,7 +122,7 @@ export interface BoardHelper {
   session: string;
   title: string | null;
   can_focus: boolean;
-  /** its latest ledger line */
+  /** its latest event */
   last_request_at: string;
 }
 

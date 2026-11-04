@@ -12,7 +12,7 @@ import {
 } from '../agent-home.ts';
 import { agentKey, claimedAgents } from '../../backlog/claims.ts';
 import type { BacklogItem } from '../../backlog/types.ts';
-import { STALE_MS, beatOf } from '../../ledger/events.ts';
+import { STALE_MS } from '../../ledger/events.ts';
 import { gateOf, lastActivity, type LedgerAgent } from '../../ledger/ledger.ts';
 import { laneOf } from './lanes.ts';
 import { readFinished } from '../../../adapters/stores/finished-agents.ts';
@@ -21,7 +21,6 @@ import type {
   BoardAgent,
   BoardAgentEditor,
   BoardCard,
-  BoardBeat,
   BoardColumn,
   BoardStatus,
 } from '@once-upon-a-diff/contracts/types';
@@ -35,7 +34,7 @@ export const AGENT_OPEN = ['running', 'waiting', 'plan', 'fixing'];
 /** The lane for an agent whose session is gone and that names no lane. */
 export const NO_PARENT = 'No live session';
 
-/** A `[waiting]` or `[review]` line this old (its time) is left behind, as the iTerm hook does: no board card, no count. */
+/** A waiting or review agent whose last event is this old is left behind, as the iTerm hook does: no board card, no count. */
 export function forgotten(agent: LedgerAgent, nowMs: number): boolean {
   const since = lastActivity(agent);
   return !!since && nowMs - since.getTime() > STALE_MS;
@@ -57,16 +56,14 @@ export const isFinished = (agent: Pick<LedgerAgent, 'state'>): boolean =>
 
 export function agentOf(
   agent: LedgerAgent,
-  beat: BoardBeat | undefined,
   now: number,
   clearsAt: Date | null = null,
   editor: BoardAgentEditor | null = null,
 ): BoardAgent {
   // still open: running, or at a gate (when it began is the line's time, not the original start)
   const open = agent.state === 'running' || agent.state === 'plan' || agent.state === 'fixing';
-  // a registered agent's last sign of life is its latest event, a beat included; a ledger agent's is the line's time
-  const ledgerBegan = agent.state === 'running' ? agent.started : agent.ended || agent.started;
-  const began = agent.source === 'events' ? lastActivity(agent) : ledgerBegan;
+  // its last sign of life is its latest event, a beat included
+  const began = lastActivity(agent);
   return {
     key: agentKey(agent),
     sid: agent.sid,
@@ -82,7 +79,7 @@ export function agentOf(
     ended_at: agent.ended?.toISOString() ?? null,
     outcome: agent.outcome,
     stale: open && !!began && now - began.getTime() > STALE_MS,
-    beat: beat || null,
+    beat: agent.beat ?? null,
     gate: gateOf(agent),
     notes: agent.notes ?? null,
     clears_at: clearsAt?.toISOString() ?? null,
@@ -107,14 +104,13 @@ export const AGENT_COLUMN: Record<LedgerAgent['state'], BoardColumn> = {
 export function claimViews(
   items: BacklogItem[],
   agents: LedgerAgent[],
-  beats: Map<string, BoardBeat>,
   nowMs: number,
   editorOf: (agent: LedgerAgent) => BoardAgentEditor | null = () => null,
 ): Map<string, BoardAgent> {
   return new Map(
     [...claimedAgents(items, agents)].map(([id, agent]) => [
       id,
-      agentOf(agent, beatOf(agent, beats), nowMs, null, editorOf(agent)),
+      agentOf(agent, nowMs, null, editorOf(agent)),
     ]),
   );
 }
@@ -134,7 +130,6 @@ function laneOfAgent(agent: LedgerAgent, knownLanes: string[], parentLane: strin
 /** What the agents are placed against. */
 export interface AgentFacts {
   agents: LedgerAgent[];
-  beats: Map<string, BoardBeat>;
   /** the voice session, pinned above the columns, whose agents keep a card of their own */
   pin: PinnedVoice | null;
   /** the agents (agentKey) that are a claimed card: they have no card of their own, the claimed card shows them */
@@ -152,27 +147,19 @@ export interface AgentFacts {
  * ones: an agent that claimed a backlog card is shown on that card (claims.ts), never here. An agent with a home (agent-home.ts: the card its registered repo and branch, PR or card point to) is added to that card's `agents` (which changes the card
  * given). The rest get a card of their own, on their own lane while they run, wait or sit at a gate: these are returned,
  * to go after the others. A finished agent (done, failed or stopped) gets a card of its own for
- * `finishedWaitMinutes` after its last ledger line, with its outcome, its notes path
+ * `finishedWaitMinutes` after its last event, with its outcome, its notes path
  * and its parent session, until the card's Finish clears it: in Done when it made something (a finish
- * event's commit, PR, branch or card, or a ledger `[done]` line), in Research when a research run finished
+ * event's commit, PR, branch or card), in Research when a research run finished
  * with no result, in Waiting when it failed, was stopped, or is an author that made nothing (finishedColumn; a done
  * agent whose registered card landed made something). An author whose commit is on a branch with no PR that is not merged
  * is in Ready for your review (pendingReview), and stays there with no timer until Finish clears it, the branch gets a
  * PR, merges, moves on or loses its worktree, or a week has passed (the time a Finish is kept). Its `summary` says what it did and why it is done. An
- * author's card in Waiting stays `doneHours` (an hour), not `finishedWaitMinutes`. A later ledger line brings the card back, with a fresh timer.
+ * author's card in Waiting stays `doneHours` (an hour), not `finishedWaitMinutes`. A later event brings the card back, with a fresh timer.
  */
 export function placeAgents(
   ctx: BuildContext,
   cards: BoardCard[],
-  {
-    agents,
-    beats,
-    pin,
-    held = new Set(),
-    items = [],
-    editorOf = () => null,
-    trees = [],
-  }: AgentFacts,
+  { agents, pin, held = new Set(), items = [], editorOf = () => null, trees = [] }: AgentFacts,
 ): BoardCard[] {
   const { nowMs } = ctx;
   const waitMs = ctx.settings.finishedWaitMinutes * 60 * 1000;
@@ -225,13 +212,12 @@ export function placeAgents(
       finishedIn !== 'ready' && isFinished(agent) && active && active.getTime() + staysMs > nowMs
         ? new Date(active.getTime() + staysMs)
         : null;
-    const view = agentOf(agent, beatOf(agent, beats), nowMs, clearsAt, editorOf(agent));
+    const view = agentOf(agent, nowMs, clearsAt, editorOf(agent));
     const parent = cardsBySid.get(agent.sid) || null;
     const voiceParent = pin && pin.view.id.startsWith(agent.sid) ? pin : null;
     const parentSession =
       parent?.sessions.find((one) => one.id.startsWith(agent.sid)) ?? voiceParent?.view;
-    // a finished agent is gone once its card's Finish cleared it and it has done nothing since (a ledger line in the
-    // minute of the click is not told apart: the times carry no seconds), wherever it would sit
+    // a finished agent is gone once its card's Finish cleared it and it has done nothing since, wherever it would sit
     const clearedAt = isFinished(agent) ? cleared.get(agentKey(agent)) : undefined;
     const wasCleared = clearedAt !== undefined && !!active && active.getTime() <= clearedAt;
     if (wasCleared) {

@@ -4,7 +4,7 @@
  *
  *   worktrees   any git worktree on that branch, in the checkouts the board knows for the item's repo
  *   sessions    any live session on that branch, or working inside such a worktree
- *   agent       the ledger agent that holds the item's claim (`once-upon backlog claim`, claims.ts), with its latest
+ *   agent       the registered agent that holds the item's claim (`once-upon backlog claim`, claims.ts), with its latest
  *               progress beat. Never guessed from `by`, a worktree folder's name or the agent's task text
  *
  * and whether the branch's work has merged. An open item with a claim is linked by the agent alone (`agentLinks`). The
@@ -12,9 +12,8 @@
  */
 import path from 'node:path';
 import { sameRepo } from '../config/repos.ts';
-import type { BoardBeat, BoardStartedLinks } from '@once-upon-a-diff/contracts/types';
+import type { BoardStartedLinks } from '@once-upon-a-diff/contracts/types';
 import { parseWorktreeEntries } from '../worktrees/worktrees.ts';
-import { beatOf } from '../ledger/events.ts';
 import type { LedgerAgent } from '../ledger/ledger.ts';
 import type { BacklogItem } from './types.ts';
 import { OPEN, claimedAgent } from './claims.ts';
@@ -45,7 +44,6 @@ export interface LinkFacts {
   worktrees: Map<string, Worktree[]>;
   sessions: LinkSession[];
   agents: LedgerAgent[];
-  beats: Map<string, BoardBeat>;
   /**
    * whether the repo's branch has merged (a merged PR the board knows of, or its commits are in the main checkout's
    * branch): null when not, else when it did (ms; null inside when that isn't known)
@@ -59,7 +57,7 @@ const insideOf = (dir: string, parent: string): boolean =>
 /** The link for an open item with a claimed agent: the agent only (a branch comes with a `start`, which `claim --branch` writes). */
 export function agentLinks(
   item: BacklogItem,
-  facts: Pick<LinkFacts, 'agents' | 'beats'>,
+  facts: Pick<LinkFacts, 'agents'>,
 ): BoardStartedLinks | null {
   const agent = item.state === 'open' ? claimedAgent(item, facts.agents) : null;
   if (!agent) {
@@ -68,21 +66,18 @@ export function agentLinks(
   return {
     worktrees: [],
     sessions: [],
-    agent: agentLink(agent, facts),
+    agent: agentLink(agent),
     merged: false,
     merged_at: null,
     active: OPEN.includes(agent.state),
   };
 }
 
-function agentLink(
-  agent: LedgerAgent,
-  facts: Pick<LinkFacts, 'beats'>,
-): NonNullable<BoardStartedLinks['agent']> {
+function agentLink(agent: LedgerAgent): NonNullable<BoardStartedLinks['agent']> {
   return {
     name: agent.name,
     state: agent.state,
-    beat: beatOf(agent, facts.beats) ?? null,
+    beat: agent.beat ?? null,
     outcome: agent.outcome,
     ended_at: agent.ended ? agent.ended.toISOString() : null,
   };
@@ -110,7 +105,7 @@ export function startedLinks(item: BacklogItem, facts: LinkFacts): BoardStartedL
   return {
     worktrees,
     sessions,
-    agent: agent ? agentLink(agent, facts) : null,
+    agent: agent ? agentLink(agent) : null,
     merged: !!merged,
     merged_at: merged?.at ? new Date(merged.at).toISOString() : null,
     active: linked && !merged,

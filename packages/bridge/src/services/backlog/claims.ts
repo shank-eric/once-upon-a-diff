@@ -12,12 +12,12 @@ import { STALE_MS } from '../ledger/events.ts';
 import type { LedgerAgent } from '../ledger/ledger.ts';
 import type { BacklogItem } from './types.ts';
 
-/** A claim whose agent has no ledger line yet counts this long (the launcher claims before the agent's first line lands). */
+/** A claim whose agent has no registered event yet counts this long (the launcher claims before the agent's first event lands). */
 export const CLAIM_GRACE_HOURS = 2;
 
 export const OPEN: LedgerAgent['state'][] = ['running', 'waiting', 'plan', 'fixing'];
 
-/** The key an agent goes by on the board: its launching session and its name (the ledger's own key). */
+/** The key an agent goes by on the board: its launching session and its name (the registry's key). */
 export const agentKey = (agent: Pick<LedgerAgent, 'sid' | 'name'>): string =>
   `${agent.sid}:${agent.name}`;
 
@@ -25,7 +25,7 @@ export const agentKey = (agent: Pick<LedgerAgent, 'sid' | 'name'>): string =>
 export const sameAgentView = (first: { key?: string }, second: { key?: string }): boolean =>
   !!first.key && first.key === second.key;
 
-/** The newest ledger line of the agents with this name: an open one before a finished one, then the latest. */
+/** The newest run of the registered agents with this name: an open one before a finished one, then the latest. */
 export function newest(agents: LedgerAgent[]): LedgerAgent | null {
   const stamp = (agent: LedgerAgent) => (agent.ended ?? agent.started)?.getTime() ?? 0;
   return (
@@ -85,7 +85,7 @@ export function claimedRun(item: BacklogItem, agents: LedgerAgent[]): ClaimRun |
   return runs.find((one) => one.agent === best) ?? null;
 }
 
-/** The ledger agent (as the holding run stood) that holds the item's claim, or null. */
+/** The registered agent (as the holding run stood) that holds the item's claim, or null. */
 export const claimedAgent = (item: BacklogItem, agents: LedgerAgent[]): LedgerAgent | null =>
   claimedRun(item, agents)?.agent ?? null;
 
@@ -122,11 +122,8 @@ function currentKeys(items: BacklogItem[], agents: LedgerAgent[]): Set<string> {
  */
 export const heldKeys = currentKeys;
 
-/** The agents that hold a claim with their current run: what a build slot counts. */
-export const claimerKeys = currentKeys;
-
 /**
- * The claim still in force: its run is in the ledger, or it is under CLAIM_GRACE_HOURS old (the agent's line has not
+ * The claim still in force: its run is in the registry, or it is under CLAIM_GRACE_HOURS old (the agent's first event has not
  * landed yet). Null when the item has none, is dropped or landed, or the claim is old and its run never turned up.
  */
 export function liveClaim(
@@ -172,7 +169,6 @@ export function criticHold(
 ): BoardColumn | null {
   const critics = agents.filter(
     (agent) =>
-      agent.source === 'events' &&
       agent.kind === 'critic' &&
       (agent.card
         ? agent.card === item.id

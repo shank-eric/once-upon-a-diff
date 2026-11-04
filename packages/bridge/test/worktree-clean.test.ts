@@ -3,7 +3,15 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { tmp, writeJson, git, startBridge, TOKEN, type TestBridge } from './helpers.ts';
+import {
+  tmp,
+  writeJson,
+  git,
+  registerRuns,
+  startBridge,
+  TOKEN,
+  type TestBridge,
+} from './helpers.ts';
 import { fixture } from './worktree-fixture.ts';
 import { Board, noPrWatcher } from '../src/services/board/board.ts';
 import { registrySource } from '../src/services/sessions/sources.ts';
@@ -230,13 +238,10 @@ test('two clicks at once clean it up once', async () => {
   assert.equal(existsSync(tree.merged), false);
 });
 
-/** A board over a home that knows the repo, with a ledger and session folder of its own. */
-function boardOf(repo: ReturnType<typeof setup>, ledger?: string) {
+/** A board over a home that knows the repo, with a session folder of its own. */
+function boardOf(repo: ReturnType<typeof setup>) {
   const home = tmp('wc-board');
-  writeJson(path.join(home, 'config.json'), {
-    board_sessions_dir: tmp('wc-sessions'),
-    ...(ledger ? { board_ledger_file: ledger, board_ledger_time_zone: 'UTC' } : {}),
-  });
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: tmp('wc-sessions') });
   seenCheckout(home, 'acme/widgets', repo.main);
   const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
     source: registrySource,
@@ -256,20 +261,16 @@ async function settled(board: Board) {
   throw new Error('the scan did not finish');
 }
 
-const stampOf = () => {
-  const started = new Date(LATER() - 3600 * 1000);
-  return `${started.getUTCHours() % 12 || 12}:00 ${started.getUTCHours() >= 12 ? 'PM' : 'AM'}, ${started.getUTCMonth() + 1}/${started.getUTCDate()}`;
-};
-
-test('the board: a ledger agent that only names the worktree in its task or by its name does not hold it', async () => {
+test('the board: an agent that only names the worktree in its task or by its name does not hold it', async () => {
   const tree = setup();
-  const notes = tmp('wc-notes');
-  const ledger = path.join(notes, 'ledger.md');
-  writeFileSync(
-    ledger,
-    `- [running] sid:54736864 merged-work (sonnet, high) — working in ${tree.trees}/merged-work, branch merged-work — started ${stampOf()}\n`,
-  );
-  const { board } = boardOf(tree, ledger);
+  const { board, home } = boardOf(tree);
+  registerRuns(home, {
+    sid: '54736864',
+    name: 'merged-work',
+    kind: 'author',
+    task: `working in ${tree.trees}/merged-work, branch merged-work`,
+    started: new Date(LATER() - 3600 * 1000),
+  });
   const data = await settled(board);
   const found = data.lanes
     .flatMap((lane) => lane.cards.flatMap((one) => one.worktrees ?? []))

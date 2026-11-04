@@ -1,30 +1,10 @@
 /*
- * Line-oriented text files: the agent ledger and its progress file (the settings board_ledger_file and board_progress_file,
- * outside the bridge's home) and the JSONL logs (jsonl.ts). The ledger files are read from their tail, so a long history
- * costs nothing. The board writes to the ledger only through appendLine, for a card's Finish.
+ * Line-oriented text files other tools read and append to: the agent ledger and its progress file (the settings
+ * board_ledger_file and board_progress_file, outside the bridge's home), which the agent registry writes its log lines
+ * to. Nothing here reads them back: the board reads agents from the registry only.
  */
 import { closeSync, fstatSync, openSync, readSync } from 'node:fs';
 import { appendText } from './files.ts';
-
-/** The last `max` bytes of a text file ('' when it can't be read), cut to whole lines. */
-export function tailOf(file: string, max: number): string {
-  let handle: number | null = null;
-  try {
-    handle = openSync(file, 'r');
-    const size = fstatSync(handle).size;
-    const start = Math.max(0, size - max);
-    const buffer = Buffer.alloc(size - start);
-    readSync(handle, buffer, 0, buffer.length, start);
-    const text = buffer.toString('utf8');
-    return start > 0 ? text.slice(text.indexOf('\n') + 1) : text;
-  } catch {
-    return '';
-  } finally {
-    if (handle !== null) {
-      closeSync(handle);
-    }
-  }
-}
 
 /** Whether the file's last byte is not a newline (a torn write or a hand edit), so the next line would glue onto it. */
 function lacksNewline(file: string): boolean {

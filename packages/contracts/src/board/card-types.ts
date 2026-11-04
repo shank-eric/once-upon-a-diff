@@ -82,7 +82,7 @@ export interface BoardSession {
 
 /**
  * One card. kind `work` is a branch or PR with the sessions and agents working on it inside; `session` is a session
- * that is not on a branch of its own (the default branch, or no repo); `agent` is a ledger agent whose lane tag put it
+ * that is not on a branch of its own (the default branch, or no repo); `agent` is a registered agent whose lane tag put it
  * away from its parent, or whose session is gone.
  */
 export interface BoardCard {
@@ -155,7 +155,7 @@ export interface BoardCard {
       branch: string | null;
       at: string | null;
       on: string | null;
-      /** what is working it: worktrees on the branch, sessions on it, the ledger agent that started it, whether it merged */
+      /** what is working it: worktrees on the branch, sessions on it, the registered agent that started it, whether it merged */
       links?: BoardStartedLinks | null;
     } | null;
     /** maybe someday: set only when true (an open, unworked card the Someday section lists, out of the main Backlog) */
@@ -163,13 +163,13 @@ export interface BoardCard {
     /** the CLI line to paste into a session to start it */
     start_line: string;
     /**
-     * an open item whose claimed agent is in the ledger (no `start` needed): what is working it, and whether the agent
+     * an open item whose claimed agent is in the registry (no `start` needed): what is working it, and whether the agent
      * only tried it (failed, stopped, or finished long ago) so the card is back in Backlog
      */
     agent?: { links: BoardStartedLinks; tried: boolean } | null;
     /**
      * who claimed it (`once-upon backlog claim ID --agent NAME`), while the claim is in force. `pending`: the agent has
-     * no ledger line yet, so the card says "claimed, not started" until it does (or the claim is old and drops)
+     * no registered event yet, so the card says "claimed, not started" until it does (or the claim is old and drops)
      */
     claim?: { agent: string; at: string | null; pending: boolean } | null;
     /** an Assign typed it into this session lately and no start followed (the title is filled from the live view) */
@@ -240,13 +240,13 @@ export interface BoardWorktree {
 export interface BoardStartedLinks {
   worktrees: { path: string; name: string }[];
   sessions: { id: string; title: string }[];
-  /** the ledger agent that holds the item's claim (`once-upon backlog claim`), with its latest beat */
+  /** the registered agent that holds the item's claim (`once-upon backlog claim`), with its latest beat */
   agent: {
     name: string;
     state: BoardAgent['state'];
     beat: BoardBeat | null;
     outcome: string | null;
-    /** when its last ledger line says it ended (null while it is open) */
+    /** when its finish event says it ended (null while it is open) */
     ended_at: string | null;
   } | null;
   /** the branch's work has merged */

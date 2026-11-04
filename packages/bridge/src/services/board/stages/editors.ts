@@ -2,14 +2,14 @@
  * Editors: the sessions running a repo's build queue (`/once-upon-editor`), and the authors each controls. An
  * editor registers itself (`once-upon agent start NAME --kind editor --slots N`), so the board knows it and its slots
  * from fields. An author is linked to its editor by the session it was launched from (its registered sid), never by
- * its name or its task: an author, registered as one or holding a backlog claim, launched under an editor's session is
- * that editor's author. Critics, storytellers and helpers are not authors.
+ * its name or its task: an author (registered `--kind author`) launched under an editor's session is that editor's
+ * author. Critics, storytellers and helpers are not authors.
  */
 import { agentKey } from '../../backlog/claims.ts';
 import { lastActivity, type LedgerAgent } from '../../ledger/ledger.ts';
-import { STALE_MS, beatOf } from '../../ledger/events.ts';
+import { STALE_MS } from '../../ledger/events.ts';
 import type { LiveSession } from '../../../adapters/claude-sessions/live-sessions.ts';
-import type { BoardAgentEditor, BoardBeat, BoardEditor } from '@once-upon-a-diff/contracts/types';
+import type { BoardAgentEditor, BoardEditor } from '@once-upon-a-diff/contracts/types';
 import { laneOf } from './lanes.ts';
 import { sameLaneKey, shortLane } from '@once-upon-a-diff/domain/lane-key';
 
@@ -32,20 +32,13 @@ function liveEditors(editors: LedgerAgent[], live: LiveSession[]): LedgerAgent[]
   return [...bySession.values()];
 }
 
-/** Whether an agent is an author: registered as one, or (a ledger agent, which has no kind) it holds a claim on a card. */
-const isAuthor = (agent: LedgerAgent, claimers: Set<string>): boolean =>
-  agent.source === 'events' ? agent.kind === 'author' : claimers.has(agentKey(agent));
-
 export interface EditorFacts {
   /** the registered editors (`kind: 'editor'`), read apart from the agents */
   editors: LedgerAgent[];
   agents: LedgerAgent[];
-  beats: Map<string, BoardBeat>;
   live: LiveSession[];
   /** whether a session's tab can be brought forward (the status source knows it, as a session card's focus) */
   canFocus: (session: string) => boolean;
-  /** the keys of the agents whose current run holds a claim (claims.ts claimerKeys) */
-  claimers: Set<string>;
   nowMs: number;
 }
 
@@ -61,7 +54,7 @@ export function editorsOf(facts: EditorFacts): {
   /** sets every label (the editors', and those on their authors) to the lane's label */
   relabel: (labels: Map<string, string>) => void;
 } {
-  const { agents, beats, claimers, nowMs } = facts;
+  const { agents, nowMs } = facts;
   const links = new Map<string, BoardAgentEditor>();
   const shown: BoardEditor[] = [];
   for (const editor of liveEditors(facts.editors, facts.live)) {
@@ -79,7 +72,7 @@ export function editorsOf(facts: EditorFacts): {
       .filter(
         (agent) =>
           agent.sid === editor.sid &&
-          isAuthor(agent, claimers) &&
+          agent.kind === 'author' &&
           OPEN.includes(agent.state) &&
           nowMs - (lastActivity(agent) ?? agent.started ?? new Date(nowMs)).getTime() <= STALE_MS,
       )
@@ -97,7 +90,7 @@ export function editorsOf(facts: EditorFacts): {
         state: agent.state,
         review: !!agent.review,
         task: agent.task,
-        beat: beatOf(agent, beats) ?? null,
+        beat: agent.beat ?? null,
       })),
     });
   }
@@ -125,8 +118,7 @@ export function editorsOf(facts: EditorFacts): {
       shown.sort((first, second) => first.label.localeCompare(second.label));
     },
     editors: shown,
-    // an author of any state (a finished one keeps its editor on its card); a ledger agent is one only by its claim
-    editorOf: (agent) =>
-      agent.kind !== 'editor' && isAuthor(agent, claimers) ? (links.get(agent.sid) ?? null) : null,
+    // an author of any state (a finished one keeps its editor on its card)
+    editorOf: (agent) => (agent.kind === 'author' ? (links.get(agent.sid) ?? null) : null),
   };
 }

@@ -198,8 +198,9 @@ const DEFAULT_HOSTS = ['once-upon.test', 'once-upon.fidev.net'];
  *   board_it2_path          the it2 CLI's path when it isn't on PATH or in iTerm2's app folder
  *   board_sessions_dir      Claude Code's live-session registry (default $CLAUDE_CONFIG_DIR/sessions or ~/.claude/sessions)
  *   board_projects_dir      Claude Code's transcripts, for telling a session with no prompt yet (default $CLAUDE_CONFIG_DIR/projects or ~/.claude/projects)
- *   board_ledger_file       a Markdown file of background-agent lines for the board (see ledger/ledger.ts); no default, off when unset
- *   board_progress_file     its progress beats (`- <time> <name> <N>/6 <step>: <note>`); no default, off when unset
+ *   board_ledger_file       a Markdown file the agent registry appends a line to for each agent event, a log for people and
+ *                           scripts (ledger/events.ts ledgerLine); the board does not read it; no default, off when unset
+ *   board_progress_file     the same for progress beats (`- <time> <name> <N>/<M> <step>: <note>`); no default, off when unset
  *   board_voice_dir         Larmor's folder (~/.larmor): once voice has started in a session today, that session is pinned at the
  *                           top of the board instead of sitting in a column (collapsed while paused or ended). The board
  *                           reads it, and writes only `paused`, for its Pause and Resume buttons; off when unset
@@ -208,9 +209,8 @@ const DEFAULT_HOSTS = ['once-upon.test', 'once-upon.fidev.net'];
  *                           has no phone buttons
  *   board_done_hours        how long a finished agent stays on the board (default 1)
  *   board_finished_wait_minutes  how long a finished agent (done, failed or stopped) with no card of its parent's sits in
- *                           Done, Research or Waiting, counted from its last ledger line (default 30); an author (kind
+ *                           Done, Research or Waiting, counted from its last event (default 30); an author (kind
  *                           author) in Waiting stays board_done_hours instead
- *   board_ledger_time_zone  the zone the ledger's times are in when they carry no label like ET (default: the system's)
  *   board_worktrees         false to leave git worktrees off the board (default: shown, with a Clean up button on the ones
  *                           whose work is in the main line)
  *   board_keep_branches     repos (a name like "widgets" or owner/name) whose branches Clean up never deletes, added to the
@@ -319,10 +319,6 @@ export function readSettings(home = homeDir()) {
         typeof cfg.board_finished_wait_minutes === 'number' && cfg.board_finished_wait_minutes > 0
           ? cfg.board_finished_wait_minutes
           : 30,
-      ledgerTimeZone:
-        typeof cfg.board_ledger_time_zone === 'string' && cfg.board_ledger_time_zone
-          ? cfg.board_ledger_time_zone
-          : undefined,
       worktrees: cfg.board_worktrees !== false,
       // the built-in names are always kept, so a config that lists others cannot drop them
       keepBranches: [

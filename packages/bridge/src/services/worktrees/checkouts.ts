@@ -2,7 +2,7 @@
  * Where a repo is checked out on this Mac, learned from what the board already sees instead of scanning folders for it:
  *
  *   sessions    the folders of live sessions (the repo is the session's origin)
- *   agents      the folders a ledger agent's task names (`<repo>-worktrees/<name>`, `~/Development/...`)
+ *   agents      the folders a registered agent's task names (`<repo>-worktrees/<name>`, `~/Development/...`)
  *   seen        the checkouts the bridge has recorded (checkouts.json, a local story's checkout)
  *
  * Every candidate counts only when its own `git remote get-url origin` is the repo, so a folder named for one repo that
@@ -31,7 +31,7 @@ export function pathsIn(text: string | null | undefined, home = os.homedir()): s
 export interface CheckoutFacts {
   /** the folders of live sessions */
   sessionDirs: string[];
-  /** the tasks of the ledger agents worth looking at (open ones, and the lately finished) */
+  /** the tasks of the registered agents worth looking at (open ones, and the lately finished) */
   agentTasks: (string | null)[];
   /** checkouts the bridge recorded */
   seenDirs: string[];

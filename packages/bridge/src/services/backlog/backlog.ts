@@ -11,7 +11,7 @@
  *   {op:'reopen', id, by, at}                  a dropped item is open again (a new `start` after a drop is still ignored)
  *   {op:'move',  id, before | edge, by, at}   `before` is another item's id; `edge` is 'top' or 'bottom'
  *   {op:'edit',  id, title?, note?, repo?, by, at}   only the fields that changed; an empty note or repo clears it. An open item only
- *   {op:'claim', id, agent, sid?, by, at}     an agent (named as in the ledger) owns the card: the one link from a card to an
+ *   {op:'claim', id, agent, sid?, by, at}     an agent (named as it registered) owns the card: the one link from a card to an
  *                                              agent (claims.ts). The latest claim wins; a `done` or a reopen clears it
  *   {op:'hold',  id, on, by, at}              the card lands by hand: a deploy never marks it done (landing.ts), only `done ID` does.
  *                                              `on:false` clears it; a reopen clears it too. Sticky across claims
@@ -374,7 +374,7 @@ export class BacklogStore implements BacklogStorage {
 
   /**
    * Puts an open card in the Someday section (or back in the main list, in its old place). Refused for a started, done or
-   * dropped card, and for one whose claim is live (its agent's run is open, or it was just given the card): `agents` is the ledger's.
+   * dropped card, and for one whose claim is live (its agent's run is open, or it was just given the card): `agents` is the registry's.
    */
   someday(
     id: string,
@@ -476,7 +476,7 @@ export class BacklogStore implements BacklogStorage {
     return this.find(id);
   }
 
-  /** Brings a dropped item back as an open one, with the same id (so an id a ledger line names still means it). */
+  /** Brings a dropped item back as an open one, with the same id (so an id a registry event or a log line names still means it). */
   reopen(id: string, who?: string | null): BacklogItem {
     const item = this.find(id);
     if (item.state !== 'dropped') {
@@ -565,7 +565,7 @@ function endedColumn(
 const SKIPS_REVIEW = /^(once-upon-a-diff|larmor)$/i;
 
 /**
- * Where an item goes by what its claimed ledger agent has produced (the agent has no card of its own: the item is the
+ * Where an item goes by what its claimed registered agent has produced (the agent has no card of its own: the item is the
  * one card):
  *
  *   open agent         a plan stop or a question is Waiting, for you; otherwise Working
@@ -633,7 +633,7 @@ export function cardOnBranch(
 
 /**
  * The cards the Backlog item column shows, and the work cards' "from backlog" marks. Open items are cards in Backlog,
- * except one whose claimed agent is in the ledger (`once-upon backlog claim`, claims.ts), which goes where the agent's
+ * except one whose claimed agent is in the registry (`once-upon backlog claim`, claims.ts), which goes where the agent's
  * work puts it (agentColumn). A started item is one piece of work, shown once:
  *
  *   on a card    it rides on the work or session card for its repo and branch, with its claimed agent's view in that card's
@@ -644,7 +644,7 @@ export function cardOnBranch(
  *                Ready; failed or stopped, it is back in Backlog. An unlinked one is gone after STARTED_GRACE_HOURS
  *
  * A claimed card is one card: its claimed agent has no card of its own (stages/agents.ts holds it out) and shows on this
- * one, in `agents` (`views`, by item id). A claim whose agent has no ledger line yet is Working, marked pending, for
+ * one, in `agents` (`views`, by item id). A claim whose agent has no registered event yet is Working, marked pending, for
  * CLAIM_GRACE_HOURS. Dropped items are not shown. `holds` (by item id) keeps a finished card out of Ready to ship while its
  * critic runs or its fixes are pending (criticHold).
  */
@@ -702,7 +702,7 @@ export function backlogCards(
         since = new Date(placed.when).toISOString();
       }
     } else if (claim?.pending && item.state === 'open') {
-      // claimed, and its agent's first ledger line has not landed yet
+      // claimed, and its agent's first event has not landed yet
       column = 'working';
       since = claim.claim.at || since;
     }
@@ -771,7 +771,7 @@ export function backlogCards(
           ? { someday: true as const }
           : {}),
         start_line: startLine(item),
-        // an open item whose claimed agent is in the ledger: what is working it, or who tried it
+        // an open item whose claimed agent is in the registry: what is working it, or who tried it
         agent: original.state === 'open' && !derived && link?.agent ? { links: link, tried } : null,
         claim: claim
           ? { agent: claim.claim.agent, at: claim.claim.at || null, pending: claim.pending }

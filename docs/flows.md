@@ -193,7 +193,7 @@ flowchart LR
 | 11 | `service` | live sessions, their status, branches and repos | `packages/bridge/src/services/board/stages/sessions.ts:56` (`liveSessions(settings.sessionsDir)`) |
 | 12 | `adapter` | **reads `~/.claude/sessions/<pid>.json`**, live pids only | `packages/bridge/src/adapters/claude-sessions/live-sessions.ts:39` (`export async function liveSessions`) |
 | 13 | `service` | the agents, from the registry | `packages/bridge/src/services/board/stages/sessions.ts:62` (`readAgents(`) |
-| 14 | `service` | **reads `agents.jsonl`** and folds its events into one view per agent. (A ledger file is still read for agents with no events, a fallback being removed on branch `ledger-trim`.) | `packages/bridge/src/services/ledger/read.ts:26` (`foldAgentEvents(parseAgentEvents(readAgentsFile(`) |
+| 14 | `service` | **reads `agents.jsonl`** and folds its events into one view per agent. (Nothing else is read: the ledger and progress files are logs the registry writes, not input.) | `packages/bridge/src/services/ledger/read.ts:26` (`foldAgentEvents(parseAgentEvents(readAgentsFile(`) |
 | 15 | `service` | the works: PR and local stories, pending builds | `packages/bridge/src/services/board/stages/index.ts:94` (`collectWorks(ctx)`) |
 | 16 | `service` | what else is known of each session: listeners, voice, blank sessions, titles, status lines | `packages/bridge/src/services/board/stages/index.ts:102` (`readSessionFacts(`) |
 | 17 | `service` | cards for the works, with PR details from what the GitHub watcher last heard | `packages/bridge/src/services/board/stages/index.ts:124` (`buildCards(`) |
@@ -269,7 +269,7 @@ flowchart LR
 | 1 | `app` | `once-upon agent start <name> --kind author --card <id> …` | `packages/bridge/src/cli/commands/agent.ts:75` (`registry.start({`) |
 | 2 | `service` | `AgentRegistry.start` checks the fields and gives the run an id | `packages/bridge/src/services/ledger/registry.ts:231` (`start(input: StartInput)`) |
 | 3 | `adapter` | **appends a `start` event to `agents.jsonl`** | `packages/bridge/src/adapters/stores/agents-file.ts:12` (`export function appendAgentEvent`) |
-| 4 | `service` | and a legacy line to the ledger file through the adapter's `appendLine`, when `board_ledger_file` is set (a log only, once `ledger-trim` lands) | `packages/bridge/src/services/ledger/registry.ts:172` (`appendLine(this.mirror.ledger`) |
+| 4 | `service` | and a log line to the ledger file through the adapter's `appendLine`, when `board_ledger_file` is set (a mirror for the status line, the iTerm hook and people; the board never reads it) | `packages/bridge/src/services/ledger/registry.ts:172` (`appendLine(this.mirror.ledger`) |
 | 5 | `app` | `once-upon backlog claim <id> --agent <name> --branch <b>` | `packages/bridge/src/cli/commands/backlog.ts:131` (`store.claim(item.id`) |
 | 6 | `service` | `BacklogStore.claim` refuses a dropped card | `packages/bridge/src/services/backlog/backlog.ts:365` (`claim(`) |
 | 7 | `adapter` | **appends a `claim` event to `backlog.jsonl`** | `packages/bridge/src/adapters/stores/backlog-file.ts:12` (`export function appendBacklogEvent`) |

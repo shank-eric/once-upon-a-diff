@@ -1,5 +1,5 @@
 /**
- * The live sessions: what the registry, the status source, the ledger and the transcripts say of them, and which card
+ * The live sessions: what the registry, the status source and the transcripts say of them, and which card
  * each goes on. A session on a branch of its own joins that branch's work (works.ts); a session standing alone is a card
  * of its own (cards.ts); the voice session is pinned above the columns; a session that only listens is shown in the
  * Listeners lane; one with no prompt yet is a chip in the Blank strip.
@@ -20,7 +20,6 @@ import { pickSource } from '../../sessions/sources.ts';
 import { type SourceStatus, type StatusSource } from '../../../adapters/status-source.ts';
 import { type LiveSession } from '../../../adapters/claude-sessions/live-sessions.ts';
 import type {
-  BoardBeat,
   BoardCard,
   BoardData,
   BoardSession,
@@ -32,7 +31,7 @@ import { liveSessions } from '../../../adapters/claude-sessions/live-sessions.ts
 import type { BuildContext, PinnedVoice, SessionView, Work } from './types.ts';
 import { branchOfWork, prKey, startWork } from './works.ts';
 
-/** What the registry, the status source and the ledger say of the live sessions and the agents. */
+/** What the registry and the status source say of the live sessions and the agents. */
 export interface LiveFacts {
   picked: { source: StatusSource; warning: string | null };
   live: LiveSession[];
@@ -44,12 +43,11 @@ export interface LiveFacts {
   agents: LedgerAgent[];
   /** the registered editors, not among the agents */
   editors: LedgerAgent[];
-  beats: Map<string, BoardBeat>;
 }
 
-/** Reads the registry's live sessions, their statuses, branches and repos, and the ledger's agents. */
+/** Reads the registry's live sessions, their statuses, branches and repos, and the registered agents. */
 export async function readLive(ctx: BuildContext): Promise<LiveFacts> {
-  const { settings, now, nowMs } = ctx;
+  const { settings, nowMs } = ctx;
   const picked = ctx.sourceOverride
     ? { source: ctx.sourceOverride, warning: null }
     : pickSource(settings.statusSource, settings.it2Path);
@@ -59,12 +57,8 @@ export async function readLive(ctx: BuildContext): Promise<LiveFacts> {
     Promise.all(live.map((session) => ctx.lookups.branchOf(session.cwd, nowMs))),
     Promise.all(live.map((session) => ctx.lookups.repoOf(session.cwd))),
   ]);
-  const { agents, editors, beats } = readAgents(
-    { home: ctx.home, ledger: settings.ledgerFile, progress: settings.progressFile },
-    now,
-    settings.ledgerTimeZone,
-  );
-  return { picked, live, known, branches, repos, agents, editors, beats };
+  const { agents, editors } = readAgents(ctx.home);
+  return { picked, live, known, branches, repos, agents, editors };
 }
 
 /** What else is known of the live sessions: who listens, the voice session, phone mode, blank sessions, titles and usage. */

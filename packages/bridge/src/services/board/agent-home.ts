@@ -1,8 +1,7 @@
 /**
  * Where a registered agent goes on the board, decided only by the fields it registered (`once-upon agent start`:
  * repo, branch, PR, card, and the branch and PR its finish event reports), never by its task, name or outcome. An
- * agent with a home is nested inside that card; every other agent, including one read from the old ledger text, which
- * has none of those fields, is a card of its own (stages/agents.ts). An agent that claimed a backlog card is neither:
+ * agent with a home is nested inside that card; every other agent is a card of its own (stages/agents.ts). An agent that claimed a backlog card is neither:
  * it is shown on that card (claims.ts).
  */
 import type { BoardCard } from '@once-upon-a-diff/contracts/types';
@@ -38,7 +37,7 @@ export interface PendingReview {
  */
 export function pendingReview(
   agent: Pick<LedgerAgent, 'state' | 'ended' | 'started'> &
-    Partial<Pick<LedgerAgent, 'source' | 'kind' | 'result' | 'repo' | 'branch' | 'lastEvent'>>,
+    Partial<Pick<LedgerAgent, 'kind' | 'result' | 'repo' | 'branch' | 'lastEvent'>>,
   trees: WorktreeFacts[],
   branchPr: (repo: string, branch: string) => BranchPr | null | undefined,
   nowMs: number,
@@ -48,7 +47,6 @@ export function pendingReview(
   const commit = agent.result?.commit?.toLowerCase() ?? '';
   const since = lastActivity(agent);
   if (
-    agent.source !== 'events' ||
     agent.state !== 'done' ||
     agent.kind !== 'author' ||
     commit.length < 7 ||
@@ -142,12 +140,9 @@ export function homeOf(
  *   registered, no result, kind author        Waiting: an author that made nothing is a miss to look at
  *   registered, no result, no kind            Waiting, as before kinds existed: not known to be research or a helper
  *   registered, stopped, any kind but research  Waiting: interrupted work, a decision
- *   known only from the ledger                Done on a `[done]` line, Waiting on `[stopped]`: it has no kind or result,
- *                                             so it is never Research
  */
 export function finishedColumn(
-  agent: Pick<LedgerAgent, 'name' | 'state'> &
-    Partial<Pick<LedgerAgent, 'source' | 'kind' | 'result'>>,
+  agent: Pick<LedgerAgent, 'name' | 'state'> & Partial<Pick<LedgerAgent, 'kind' | 'result'>>,
   landed = false,
   pending: PendingReview | null = null,
 ): 'done' | 'research' | 'waiting' | 'ready' {
@@ -156,9 +151,6 @@ export function finishedColumn(
   }
   if (isCritic(agent)) {
     return 'done';
-  }
-  if (agent.source !== 'events') {
-    return agent.state === 'done' ? 'done' : 'waiting';
   }
   // a landing is checked first: a landed card is done whatever its branch says
   if (agent.state === 'done' && landed && agent.kind !== 'research') {
@@ -200,7 +192,7 @@ export function landedFor(
  */
 export function finishedSummary(
   agent: Pick<LedgerAgent, 'name' | 'state' | 'task' | 'started'> &
-    Partial<Pick<LedgerAgent, 'source' | 'kind' | 'result' | 'findings'>>,
+    Partial<Pick<LedgerAgent, 'kind' | 'result' | 'findings'>>,
   item: Pick<BacklogItem, 'title' | 'state' | 'landed_at' | 'landed_sha'> | undefined,
   pending: PendingReview | null = null,
 ): { did: string | null; why: string } {
@@ -211,7 +203,7 @@ export function finishedSummary(
 
 function whyDone(
   agent: Pick<LedgerAgent, 'name' | 'state'> &
-    Partial<Pick<LedgerAgent, 'source' | 'kind' | 'result' | 'findings'>>,
+    Partial<Pick<LedgerAgent, 'kind' | 'result' | 'findings'>>,
   landed: { sha: string | null } | null,
   pending: PendingReview | null,
 ): string {
@@ -244,5 +236,5 @@ function whyDone(
   if (agent.kind === 'research') {
     return 'research done';
   }
-  return agent.source === 'events' && agent.kind === 'author' ? 'made nothing to point at' : 'done';
+  return agent.kind === 'author' ? 'made nothing to point at' : 'done';
 }

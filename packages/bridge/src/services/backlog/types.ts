@@ -18,7 +18,7 @@ export interface BacklogItem {
   landed_sha: string | null;
   /** the latest session an Assign typed the item into; kept until a start or a drop (shown for ASSIGN_HOURS) */
   assigned: { session: string; branch: string | null; at: string } | null;
-  /** the agent that claimed the card (named as in the ledger, with its launching session's first 8 when given); cleared when it lands (`done`) or by a reopen */
+  /** the agent that claimed the card (named as it registered, with its launching session's first 8 when given); cleared when it lands (`done`) or by a reopen */
   claim: { agent: string; sid: string | null; by: string; at: string } | null;
   /** the card lands by hand: a deploy does not mark it done (part of its work lands outside the repo) */
   hold: boolean;

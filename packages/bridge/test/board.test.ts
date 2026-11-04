@@ -27,6 +27,8 @@ import {
   storyList,
   markReviewed,
   claimAt,
+  registerRuns,
+  type AgentRun,
   type TestBridge,
 } from './helpers.ts';
 import { Builds } from '../src/services/inbox/builds.ts';
@@ -66,12 +68,7 @@ import type { LiveSession } from '../src/adapters/claude-sessions/live-sessions.
 import { noteListener, readHistory } from '../src/services/listeners/history.ts';
 import { repoStopReason, requestStop, stopRequested } from '../src/services/inbox/auto-stop.ts';
 import { AgentRegistry } from '../src/services/ledger/registry.ts';
-import {
-  gateOf,
-  parseLedger,
-  parseLedgerTime,
-  parseProgress,
-} from '../src/services/ledger/ledger.ts';
+import { gateOf } from '../src/services/ledger/ledger.ts';
 import { pickSource, registrySource } from '../src/services/sessions/sources.ts';
 import { findIt2, focusTab, itermSource, typeLine } from '../src/adapters/iterm.ts';
 import { boardKey, pageKey, viewKey } from '../src/services/pages/page-key.ts';
@@ -195,152 +192,6 @@ function registry(
     ...extra,
   });
 }
-
-test('ledger times: a label picks the zone, the year is this one, and a far-future date is last year', () => {
-  assert.equal(
-    parseLedgerTime('1:50 PM ET, 10/26', NOW)?.toISOString(),
-    '2026-10-26T17:50:00.000Z',
-  );
-  assert.equal(
-    parseLedgerTime('12:05 AM ET, 10/26', NOW)?.toISOString(),
-    '2026-10-26T04:05:00.000Z',
-  );
-  assert.equal(
-    parseLedgerTime('12:05 PM EST, 1/5', NOW)?.toISOString(),
-    '2026-01-05T17:05:00.000Z',
-  );
-  assert.equal(
-    parseLedgerTime('9:00 AM PT, 10/26', NOW)?.toISOString(),
-    '2026-10-26T16:00:00.000Z',
-  );
-  assert.equal(
-    parseLedgerTime('8:00 AM, 10/26', NOW, 'Asia/Tokyo')?.toISOString(),
-    '2026-10-25T23:00:00.000Z',
-  );
-  assert.equal(
-    parseLedgerTime('3:00 PM ET, 12/30', NOW)?.toISOString(),
-    '2025-12-30T20:00:00.000Z',
-  );
-  assert.equal(parseLedgerTime('no time here', NOW), null);
-});
-
-test('the ledger: the last line for a sid and name wins, lane tags and odd lines are handled', () => {
-  const agents = parseLedger(
-    [
-      '# ledger',
-      '- [running] sid:5cf3b512 lane:once-upon ou-agent-board (sonnet, high) — Once Upon agent board — started 1:50 PM ET, 10/26',
-      '- [done] sid:5cf3b512 lane:once-upon ou-agent-board — 2:30 PM ET, 10/26 — built it — notes/x.md',
-      '- [running] sid:5cf3b512 other-agent (opus, default) — a task — started 2:00 PM ET, 10/26',
-      '- [failed] sid:abcdef01 broke (sonnet) — 2:10 PM ET, 10/26 — it died',
-      '- [done] sid:abcdef01 old-style (sonnet) — no time, just words — path',
-      '- [note] sid:abcdef01 2:12 PM ET, 10/26: not an agent line',
-      '- [running] sid:zzzz no-sid-hex (x) — t — started 1:00 PM ET, 10/26',
-      '- [stopped] sid:abcdef01 stopped-one — 1:00 PM ET, 10/26 — asked to stop',
-    ].join('\n'),
-    NOW,
-  );
-  const byName = Object.fromEntries(agents.map((agent) => [agent.name, agent]));
-  assert.deepEqual(Object.keys(byName).sort(), [
-    'broke',
-    'old-style',
-    'other-agent',
-    'ou-agent-board',
-    'stopped-one',
-  ]);
-  assert.equal(byName['ou-agent-board'].state, 'done');
-  assert.equal(byName['ou-agent-board'].lane, 'once-upon');
-  assert.equal(byName['ou-agent-board'].model, 'sonnet, high');
-  assert.equal(byName['ou-agent-board'].task, 'Once Upon agent board');
-  assert.equal(byName['ou-agent-board'].started?.toISOString(), '2026-10-26T17:50:00.000Z');
-  assert.equal(byName['ou-agent-board'].ended?.toISOString(), '2026-10-26T18:30:00.000Z');
-  assert.equal(byName['ou-agent-board'].outcome, 'built it');
-  assert.equal(byName['other-agent'].state, 'running');
-  assert.equal(byName['other-agent'].lane, null);
-  assert.equal(byName['broke'].state, 'failed');
-  assert.equal(byName['broke'].outcome, 'it died');
-  assert.equal(byName['old-style'].ended, null);
-  assert.equal(byName['stopped-one'].state, 'stopped');
-});
-
-test('a waiting agent stays waiting until a later done or stopped line clears it', () => {
-  const lines = [
-    '- [running] sid:5cf3b512 asker (sonnet, high) — task — started 1:00 PM ET, 10/26',
-    '- [waiting] sid:5cf3b512 asker — 1:20 PM ET, 10/26 — needs Eric: which one? — notes/a.md',
-  ];
-  const [waiting] = parseLedger(lines.join('\n'), NOW);
-  assert.equal(waiting.state, 'waiting');
-  assert.equal(waiting.outcome, 'needs Eric: which one?');
-  assert.equal(waiting.ended?.toISOString(), '2026-10-26T17:20:00.000Z');
-  const stopped = '- [stopped] sid:5cf3b512 asker — 1:30 PM ET, 10/26 — Eric chose A';
-  assert.equal(parseLedger([...lines, stopped].join('\n'), NOW)[0].state, 'stopped');
-});
-
-test('[review] reads as waiting with the review flag, and a later line clears it', () => {
-  const lines = [
-    '- [running] sid:5cf3b512 builder (sonnet, high) — build feat/x — started 1:00 PM ET, 10/29',
-    '- [review] sid:5cf3b512 builder — 1:20 PM ET, 10/29 — story abc123 up, three chapters — notes/a.md',
-  ];
-  const [parked] = parseLedger(lines.join('\n'), NOW);
-  assert.equal(parked.state, 'waiting');
-  assert.equal(parked.review, true);
-  assert.equal(parked.outcome, 'story abc123 up, three chapters');
-  assert.equal(parked.task, 'build feat/x');
-  const [asking] = parseLedger(
-    '- [waiting] sid:5cf3b512 builder — 1:30 PM ET, 10/29 — needs Eric: which one?',
-    NOW,
-  );
-  assert.equal(asking.review, false, 'a plain waiting line is a question');
-  const after = (line: string) => parseLedger([...lines, line].join('\n'), NOW)[0];
-  assert.equal(after('- [done] sid:5cf3b512 builder — 1:40 PM ET, 10/29 — shipped').review, false);
-  assert.equal(
-    after('- [running] sid:5cf3b512 builder — 1:40 PM ET, 10/29 — fixing').state,
-    'running',
-  );
-  assert.equal(
-    after('- [waiting] sid:5cf3b512 builder — 1:40 PM ET, 10/29 — needs Eric: x').review,
-    false,
-  );
-});
-
-test('the outcome is found whether the time comes before it or after it, and a lone notes path is no outcome', () => {
-  // the ledger's real lines put the time last
-  const [done, review, notesOnly, timeFirst] = parseLedger(
-    [
-      '- [done] sid:225477e3 ou-ready-label (sonnet, high) — 1d547c3 on stack/39-ready-label: [review] → Ready column; hook edited (uncommitted), dry run OK — 6:04 PM ET, 10/29',
-      '- [review] sid:225477e3 ou-x (sonnet, high) — story abc123 up on stack/39, three chapters — 6:04 PM ET, 10/29',
-      '- [review] sid:225477e3 ou-y — 6:05 PM ET, 10/29 — notes/y.md',
-      '- [review] sid:225477e3 ou-z — 6:06 PM ET, 10/29 — story def456 up — notes/z.md',
-    ].join('\n'),
-    NOW,
-  );
-  assert.equal(
-    done.outcome,
-    '1d547c3 on stack/39-ready-label: [review] → Ready column; hook edited (uncommitted), dry run OK',
-  );
-  assert.equal(review.outcome, 'story abc123 up on stack/39, three chapters');
-  assert.equal(review.review, true);
-  assert.equal(notesOnly.outcome, 'notes/y.md', 'nothing else to show: the path stays');
-  assert.equal(timeFirst.outcome, 'story def456 up');
-});
-
-test('progress beats: the latest per agent', () => {
-  const beats = parseProgress(
-    [
-      '- 1:23 PM ou-review-inbox 4/6 tests: writing turn tests',
-      '- 1:32 PM ou-review-inbox 5/6 green: typecheck lint tests pass',
-      '- 1:34 PM ou-agent-board 1/6 read: reading inbox notes',
-      'garbage',
-    ].join('\n'),
-  );
-  assert.deepEqual(beats.get('ou-review-inbox'), {
-    n: 5,
-    of: 6,
-    step: 'green',
-    note: 'typecheck lint tests pass',
-  });
-  assert.equal(beats.get('ou-agent-board')?.n, 1);
-  assert.equal(beats.size, 2);
-});
 
 test('live sessions: a dead pid, a reused pid and a bad file are left out; the tty comes from ps', async () => {
   const dir = tmp('board-sessions');
@@ -687,8 +538,6 @@ test('columns follow the work to merge: waiting and working first, then merged, 
 test('the board: a card per branch or PR with its sessions and agents, columns to merge, lanes by repo', async () => {
   const home = tmp('board-home');
   const sessions = tmp('board-sessions');
-  const ledger = path.join(tmp('board-notes'), 'ledger.md');
-  const progress = path.join(path.dirname(ledger), 'progress.md');
   const children = Array.from({ length: 7 }, () => liveChild());
   after(() => children.forEach((child) => child.stop()));
   const [onStory, second, onBranch, onMain, loose, staleOne, staleTwo] = children;
@@ -795,26 +644,67 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
     pr: 7,
     at: etAt(14, 51),
   });
-  writeFileSync(
-    ledger,
-    [
-      `- [done] sid:${sid(onStory)} nested-done — 2:40 PM ET, 10/26 — it finished`,
-      `- [done] sid:${sid(onStory)} nested-old — 7:40 AM ET, 10/26 — hours ago`,
-      `- [running] sid:${sid(onStory)} lane:cross-cutting tagged-one (sonnet, high) — tagged task — started 2:55 PM ET, 10/26`,
-      `- [running] sid:${sid(onStory)} wt-agent (sonnet, low) — refactor in widgets-worktrees/refactor — started 2:52 PM ET, 10/26`,
-      `- [running] sid:${sid(onStory)} crosscut-note (sonnet, low) — notes for the Cross Cutting plan — started 2:53 PM ET, 10/26`,
-      `- [waiting] sid:${sid(onMain)} needs-answer — 2:45 PM ET, 10/26 — needs Eric: pick A or B — notes/x.md`,
-      '- [running] sid:deadbeef orphan (sonnet, high) — no parent — started 2:57 PM ET, 10/26',
-      '- [failed] sid:deadbeef broke — 2:58 PM ET, 10/26 — exploded',
-      '- [stopped] sid:deadbeef stopped-one — 2:59 PM ET, 10/26 — asked to stop',
-    ].join('\n'),
+  // agents with no registered repo, branch or PR: each a card of its own
+  registerRuns(
+    home,
+    {
+      sid: sid(onStory),
+      name: 'nested-done',
+      started: etAt(14, 35),
+      now: { state: 'done', at: etAt(14, 40), outcome: 'it finished' },
+    },
+    {
+      sid: sid(onStory),
+      name: 'nested-old',
+      started: etAt(7, 35),
+      now: { state: 'done', at: etAt(7, 40), outcome: 'hours ago' },
+    },
+    {
+      sid: sid(onStory),
+      name: 'tagged-one',
+      lane: 'cross-cutting',
+      task: 'tagged task',
+      started: etAt(14, 55),
+      beat: { n: 1, of: 6, step: 'read', note: 'reading', at: etAt(14, 56) },
+    },
+    {
+      sid: sid(onStory),
+      name: 'wt-agent',
+      task: 'refactor in widgets-worktrees/refactor',
+      started: etAt(14, 52),
+    },
+    {
+      sid: sid(onStory),
+      name: 'crosscut-note',
+      task: 'notes for the Cross Cutting plan',
+      started: etAt(14, 53),
+    },
+    {
+      sid: sid(onMain),
+      name: 'needs-answer',
+      started: etAt(14, 40),
+      now: {
+        state: 'waiting',
+        at: etAt(14, 45),
+        outcome: 'needs Eric: pick A or B',
+        notes: 'notes/x.md',
+      },
+    },
+    { sid: 'deadbeef', name: 'orphan', task: 'no parent', started: etAt(14, 57) },
+    {
+      sid: 'deadbeef',
+      name: 'broke',
+      started: etAt(14, 50),
+      now: { state: 'failed', at: etAt(14, 58), outcome: 'exploded' },
+    },
+    {
+      sid: 'deadbeef',
+      name: 'stopped-one',
+      started: etAt(14, 50),
+      now: { state: 'stopped', at: etAt(14, 59), outcome: 'asked to stop' },
+    },
   );
-  writeFileSync(progress, '- 2:56 PM tagged-one 1/6 read: reading\n');
-  writeJson(path.join(home, 'config.json'), {
-    board_ledger_file: ledger,
-    board_progress_file: progress,
-    board_sessions_dir: sessions,
-  });
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
   const seven = prInfo(7, {
     title: 'Seven on GitHub',
     branch: 'feat/x',
@@ -889,7 +779,7 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
     [fullId(loose.pid)]: 'working',
     [`agent:${sid(onStory)}:tagged-one`]: 'working',
     'agent:deadbeef:orphan': 'working',
-    [`agent:${sid(onStory)}:nested-done`]: 'done', // a ledger [done] line, finished 20 minutes ago: in Done for 30
+    [`agent:${sid(onStory)}:nested-done`]: 'done', // a helper that finished 20 minutes ago: in Done for 30
     'agent:deadbeef:broke': 'waiting',
     'agent:deadbeef:stopped-one': 'waiting',
   });
@@ -926,7 +816,7 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
     'someone else’s draft is not on the board even with a story built for you',
   );
   assert.equal(card('pr:acme/widgets#14').pr?.mine, false);
-  // a finished agent sits in Done (a ledger [done] line) or Waiting (stopped or failed) for 30 minutes after its last line
+  // a finished agent sits in Done (a helper that finished) or Waiting (stopped or failed) for 30 minutes after its last event
   // (finished-agents.test.ts has the timing), then has no card, not even in the Idle lane
   assert.equal(card(`agent:${sid(onStory)}:nested-old`), undefined, 'hours ago');
   assert.equal(card(`agent:${sid(onStory)}:nested-done`).column, 'done');
@@ -939,7 +829,7 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
   assert.equal(card(fullId(staleTwo.pid)).title, 'Tab title');
   assert.equal(card(fullId(staleOne.pid)).branch, 'old/merged');
   assert.equal(cards.filter((found) => found.branch === 'old/merged').length, 2);
-  // a ledger agent's lane: its tag, else its parent's (its task text is not read)
+  // an agent's lane with no registered repo: its tag, else its parent's (its task text is not read)
   assert.equal(card(`agent:${sid(onStory)}:wt-agent`).lane, 'acme/widgets');
   assert.equal(card(`agent:${sid(onStory)}:crosscut-note`).lane, 'acme/widgets');
   assert.equal(card(`agent:${sid(onMain)}:needs-answer`).lane, 'acme/gadgets');
@@ -1059,7 +949,7 @@ test('a status change moves `since` to when the board saw it', async () => {
   assert.equal(second.since, clock.toISOString());
 });
 
-test('the board is off until configured: no ledger, no agents; and the settings read as documented', () => {
+test('the board settings: the ledger and progress files are off until set, and the settings read as documented', () => {
   const home = tmp('board-settings');
   const unset = readSettings(home).board;
   assert.equal(unset.ledgerFile, null);
@@ -2910,7 +2800,6 @@ test('the voice session is pinned above the columns, off every card, with its ag
   const home = tmp('board-home');
   const sessions = tmp('board-sessions');
   const voiceDir = tmp('board-voice');
-  const ledger = path.join(tmp('board-notes'), 'ledger.md');
   const [voice, other] = [liveChild(), liveChild()];
   after(() => [voice, other].forEach((child) => child.stop()));
   const sid = (child: { pid: number }) => String(child.pid).padStart(8, '0');
@@ -2922,18 +2811,42 @@ test('the voice session is pinned above the columns, off every card, with its ag
     voice.procStart,
   );
   registry(sessions, other.pid, { cwd: checkout, name: 'plain-one' }, other.procStart);
-  writeFileSync(
-    ledger,
-    [
-      `- [running] sid:${sid(voice)} lane:elsewhere helper-one (sonnet, low) — a task — started 2:50 PM ET, 10/26`,
-      `- [waiting] sid:${sid(voice)} helper-two — 2:55 PM ET, 10/26 — needs Eric: pick — notes/x.md`,
-      `- [done] sid:${sid(voice)} helper-three — 2:56 PM ET, 10/26 — done`,
-      `- [review] sid:${sid(voice)} helper-four (sonnet, low) — story abc up, two chapters — 2:57 PM ET, 10/26`,
-      // left behind more than a day ago: no longer counted
-      `- [review] sid:${sid(voice)} helper-five — story old — 9:00 AM ET, 10/24`,
-      `- [waiting] sid:${sid(voice)} helper-six — 9:00 AM ET, 10/24 — needs Eric: long ago — notes/y.md`,
-      `- [running] sid:${sid(other)} not-the-voice (sonnet, low) — a task — started 2:50 PM ET, 10/26`,
-    ].join('\n'),
+  const twoDaysBack = new Date(Date.UTC(2026, 9, 24, 13, 0)); // 9:00 AM ET, 10/24
+  registerRuns(
+    home,
+    { sid: sid(voice), name: 'helper-one', lane: 'elsewhere', started: etAt(14, 50) },
+    {
+      sid: sid(voice),
+      name: 'helper-two',
+      started: etAt(14, 50),
+      now: { state: 'waiting', at: etAt(14, 55), outcome: 'needs Eric: pick', notes: 'notes/x.md' },
+    },
+    {
+      sid: sid(voice),
+      name: 'helper-three',
+      started: etAt(14, 50),
+      now: { state: 'done', at: etAt(14, 56), outcome: 'done' },
+    },
+    {
+      sid: sid(voice),
+      name: 'helper-four',
+      started: etAt(14, 50),
+      now: { state: 'review', at: etAt(14, 57), outcome: 'story abc up, two chapters' },
+    },
+    // left behind more than a day ago: no longer counted
+    {
+      sid: sid(voice),
+      name: 'helper-five',
+      started: twoDaysBack,
+      now: { state: 'review', at: twoDaysBack, outcome: 'story old' },
+    },
+    {
+      sid: sid(voice),
+      name: 'helper-six',
+      started: twoDaysBack,
+      now: { state: 'waiting', at: twoDaysBack, outcome: 'needs Eric: long ago' },
+    },
+    { sid: sid(other), name: 'not-the-voice', started: etAt(14, 50) },
   );
   writeJson(path.join(voiceDir, 'session'), {
     on: true,
@@ -3001,11 +2914,7 @@ test('the voice session is pinned above the columns, off every card, with its ag
     context: 37,
     rate_limits: { five_hour: { used_percentage: 91, resets_at: NOW.getTime() / 1000 + 3600 } },
   });
-  const settings = {
-    board_ledger_file: ledger,
-    board_sessions_dir: sessions,
-    board_ledger_time_zone: 'UTC',
-  };
+  const settings = { board_sessions_dir: sessions };
   writeJson(path.join(home, 'config.json'), { ...settings, board_voice_dir: voiceDir });
   const make = () =>
     new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
@@ -3092,16 +3001,11 @@ test('the voice session is pinned above the columns, off every card, with its ag
   assert.equal((await make().snapshot()).voice?.status, 'paused');
 });
 
-/** The claim tests' world: PR 7 on acme/widgets feat/x (a story), a card started on that branch, and `ledger` lines. */
-function claimWorld(ledgerText: string, now: Date = NOW) {
+/** The claim tests' world: PR 7 on acme/widgets feat/x (a story), a card started on that branch, and registered runs. */
+function claimWorld(runs: AgentRun[], now: Date = NOW) {
   const home = tmp('claim-board-home');
-  const ledger = path.join(tmp('claim-board-notes'), 'ledger.md');
-  writeFileSync(ledger, ledgerText);
-  writeJson(path.join(home, 'config.json'), {
-    board_ledger_file: ledger,
-    board_sessions_dir: tmp('claim-board-sessions'),
-    board_ledger_time_zone: 'UTC',
-  });
+  registerRuns(home, ...runs);
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: tmp('claim-board-sessions') });
   prStory(home, 'acme-widgets-7', 'acme/widgets', 7, 'feat/x');
   const store = new BacklogStore(home);
   const cards = async (): Promise<BoardCard[]> =>
@@ -3114,30 +3018,35 @@ function claimWorld(ledgerText: string, now: Date = NOW) {
         { source: sourceSaying({}), now: () => now },
       ).snapshot()
     ).lanes.flatMap((lane) => lane.cards);
-  return { home, ledger, store, cards };
+  return { home, store, cards };
 }
 const CLAIM_WHILE_RUNNING = '2026-10-26T18:35:00Z';
 const holders = (cards: BoardCard[], name: string) =>
   cards.filter((card) => card.agents.some((agent) => agent.name === name));
 
 test('a claimed agent on its branch’s card sets that card’s column whatever it is doing (running, at its plan, asking)', async () => {
-  const running = `- [running] sid:54736864 builder (sonnet, high) — build — started 2:30 PM ET, 10/26\n`;
-  const cases: [string, string, string][] = [
+  const running: AgentRun = {
+    sid: '54736864',
+    name: 'builder',
+    kind: 'author',
+    task: 'build',
+    started: etAt(14, 30),
+  };
+  const cases: [string, AgentRun, string][] = [
     ['running', running, 'working'],
     [
       'at its plan',
-      running + '- [plan] sid:54736864 builder — 2:40 PM ET, 10/26 — plan ready — notes/p.md\n',
+      { ...running, now: { state: 'plan', at: etAt(14, 40), outcome: 'plan ready' } },
       'checks',
     ],
     [
       'asking',
-      running +
-        '- [waiting] sid:54736864 builder — 2:40 PM ET, 10/26 — needs you: which one — notes/p.md\n',
+      { ...running, now: { state: 'waiting', at: etAt(14, 40), outcome: 'needs you: which one' } },
       'waiting',
     ],
   ];
-  for (const [what, text, column] of cases) {
-    const { store, cards } = claimWorld(text);
+  for (const [what, run, column] of cases) {
+    const { store, cards } = claimWorld([run]);
     const item = store.add({ title: 'Build x', repo: 'acme/widgets' });
     store.start(item.id, { branch: 'feat/x', repo: 'acme/widgets' });
     claimAt(store, item.id, 'builder', CLAIM_WHILE_RUNNING);
@@ -3155,10 +3064,16 @@ test('a claimed agent on its branch’s card sets that card’s column whatever 
 });
 
 test('after the card is marked done a claimed agent shows once, not on the landed card and on its own', async () => {
-  const text =
-    `- [running] sid:54736864 builder (sonnet, high) — build — started 2:30 PM ET, 10/26\n` +
-    `- [done] sid:54736864 builder — 2:50 PM ET, 10/26 — committed on feat/x, tests green — notes/p.md\n`;
-  const { store, cards } = claimWorld(text);
+  const { store, cards } = claimWorld([
+    {
+      sid: '54736864',
+      name: 'builder',
+      kind: 'author',
+      task: 'build',
+      started: etAt(14, 30),
+      now: { state: 'done', at: etAt(14, 50), outcome: 'committed on feat/x, tests green' },
+    },
+  ]);
   const item = store.add({ title: 'Build x', repo: 'acme/widgets' });
   store.start(item.id, { branch: 'feat/x', repo: 'acme/widgets' });
   claimAt(store, item.id, 'builder', CLAIM_WHILE_RUNNING);
@@ -3175,11 +3090,23 @@ test('after the card is marked done a claimed agent shows once, not on the lande
 });
 
 test('a claim is for one run: a rerun of the same agent under the same name does not pull the finished card back', async () => {
-  const text =
-    `- [running] sid:54736864 ou-build (sonnet, high) — build — started 2:30 PM ET, 10/26\n` +
-    `- [done] sid:54736864 ou-build — 3:50 PM ET, 10/26 — committed abc1234 — notes/p.md\n` +
-    `- [running] sid:54736864 ou-build (sonnet, high) — fix other things — started 4:00 PM ET, 10/26\n`;
-  const { store, cards } = claimWorld(text, new Date('2026-10-26T20:30:00Z'));
+  const build: AgentRun = {
+    sid: '54736864',
+    name: 'ou-build',
+    kind: 'author',
+    started: etAt(14, 30),
+  };
+  const { store, cards } = claimWorld(
+    [
+      {
+        ...build,
+        task: 'build',
+        now: { state: 'done', at: etAt(15, 50), outcome: 'committed abc1234' },
+      },
+      { ...build, task: 'fix other things', started: etAt(16, 0) },
+    ],
+    new Date('2026-10-26T20:30:00Z'),
+  );
   const item = store.add({ title: 'The first job', repo: 'acme/gadgets' });
   claimAt(store, item.id, 'ou-build', '2026-10-26T18:40:00Z');
   const all = await cards();
@@ -3198,12 +3125,21 @@ test('a claim is for one run: a rerun of the same agent under the same name does
   assert.equal(both.filter((one) => one.kind === 'agent').length, 0, 'now it is the second card’s');
 });
 
-test('claiming before the agent’s ledger line, with an older finished run of that name, leaves the card Working and pending', async () => {
-  const text =
-    `- [running] sid:54736864 ou-late (sonnet, high) — old job — started 2:30 PM ET, 10/20\n` +
-    `- [done] sid:54736864 ou-late — 3:00 PM ET, 10/20 — committed abc1234 — notes/p.md\n`;
+test('claiming before the agent’s run starts, with an older finished run of that name, leaves the card Working and pending', async () => {
   const now = new Date();
-  const { store, cards } = claimWorld(text, now);
+  const { store, cards } = claimWorld(
+    [
+      {
+        sid: '54736864',
+        name: 'ou-late',
+        kind: 'author',
+        task: 'old job',
+        started: '2026-10-20T18:30:00Z',
+        now: { state: 'done', at: '2026-10-20T19:00:00Z', outcome: 'committed abc1234' },
+      },
+    ],
+    now,
+  );
   const item = store.add({ title: 'A new job', repo: 'acme/gadgets' });
   store.claim(item.id, { agent: 'ou-late' });
   const card = (await cards()).find((one) => one.backlog?.id === item.id) as BoardCard;
@@ -4228,7 +4164,7 @@ test('a session that listens is in the Listeners lane alone, busy or not, and is
     beat?: Record<string, unknown>;
     tasks?: number;
     status?: 'working' | 'waiting';
-    ledger?: string;
+    agents?: AgentRun[];
   };
   const world = async (variant: Case) => {
     const home = tmp('board-quiet');
@@ -4239,13 +4175,8 @@ test('a session that listens is in the Listeners lane alone, busy or not, and is
       { cwd: checkout, name: 'listener-one', ...variant.registry },
       tree.procStart,
     );
-    const ledger = path.join(tmp('board-notes'), 'ledger.md');
-    writeFileSync(ledger, variant.ledger ?? '');
-    writeJson(path.join(home, 'config.json'), {
-      board_sessions_dir: sessions,
-      board_ledger_file: ledger,
-      board_ledger_time_zone: 'UTC',
-    });
+    registerRuns(home, ...(variant.agents ?? []));
+    writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
     writeJson(path.join(home, 'listeners', 'repo-acme-widgets.json'), {
       consumer: 'repo-acme-widgets',
       pid: tree.child,
@@ -4292,9 +4223,9 @@ test('a session that listens is in the Listeners lane alone, busy or not, and is
   const tasks = await world({ tasks: 2 });
   assert.equal(mine(tasks.cards).length, 0, 'another task: no card');
   assert.equal(tasks.data.listeners[0].active?.busy, true);
-  // real other work stays a card: a subagent in the ledger, a tab waiting on you
+  // real other work stays a card: a running subagent, a tab waiting on you
   const withAgent = await world({
-    ledger: `- [running] sid:${sid} helper (sonnet, low) — a task — started 2:50 PM ET, 10/26`,
+    agents: [{ sid, name: 'helper', started: etAt(14, 50) }],
   });
   assert.equal(mine(withAgent.cards).length, 1, 'a subagent is running: a card');
   assert.equal(mine((await world({ status: 'waiting' })).cards).length, 1, 'waiting on you');
@@ -4313,46 +4244,35 @@ test('a session that listens is in the Listeners lane alone, busy or not, and is
   assert.equal(mine(none).length, 1, 'no listener: a card');
 });
 
-test('[plan] and [fixing] are ledger statuses: a later [running] or [done] clears them, and a reviewer is a running review-* agent', () => {
-  const agents = parseLedger(
-    [
-      '- [running] sid:aaaaaaaa lane:widgets builder (sonnet, high) — build feat/x → notes/p.md — started 10:18 AM ET, 10/26',
-      '- [plan] sid:aaaaaaaa lane:widgets builder — 10:30 AM ET, 10/26 — plan ready: three steps — notes/p.md',
-      '- [running] sid:aaaaaaaa lane:widgets review-x (opus, default) — review of feat/x — started 10:40 AM ET, 10/26',
-      '- [done] sid:aaaaaaaa lane:widgets review-x — 10:50 AM ET, 10/26 — 9 findings (0 high, 2 med, 7 low), notes/r.md',
-      '- [fixing] sid:aaaaaaaa lane:widgets review-x — 10:55 AM ET, 10/26 — 5 findings — notes/r.md',
-      '- [plan] sid:aaaaaaaa planner — 11:00 AM ET, 10/26 — plan ready',
-      '- [running] sid:aaaaaaaa planner — 11:05 AM ET, 10/26 — plan checked, building',
-      '- [running] sid:aaaaaaaa review-y (opus, default) — review of PR #4 — started 11:10 AM ET, 10/26',
-      '- [fixing] sid:aaaaaaaa fixer — 11:15 AM ET, 10/26 — fixing the clear bugs',
-    ].join('\n'),
-    NOW,
+test('plan and fixing are gates until the run goes on, and a running critic is one too', () => {
+  const tenAm = (minute: number) => new Date(Date.UTC(2026, 9, 26, 14, minute));
+  const registry = registerRuns(
+    tmp('board-gates'),
+    { sid: 'aaaaaaaa', name: 'builder', kind: 'author', started: tenAm(18) },
+    { sid: 'aaaaaaaa', name: 'review-x', kind: 'critic', started: tenAm(40) },
+    { sid: 'aaaaaaaa', name: 'planner', kind: 'author', started: tenAm(50) },
+    { sid: 'aaaaaaaa', name: 'review-name', kind: 'helper', started: tenAm(50) },
   );
-  const byName = Object.fromEntries(agents.map((agent) => [agent.name, agent]));
-  assert.equal(byName['builder'].state, 'plan');
-  assert.equal(byName['builder'].ended?.toISOString(), '2026-10-26T14:30:00.000Z');
-  assert.equal(byName['builder'].outcome, 'plan ready: three steps');
-  assert.equal(
-    byName['builder'].task,
-    'build feat/x → notes/p.md',
-    'the task from its running line is kept',
-  );
-  assert.equal(byName['review-x'].state, 'fixing');
-  assert.equal(byName['planner'].state, 'running');
+  registry.state('builder', { state: 'plan', outcome: 'plan ready: three steps', at: tenAm(30) });
+  registry.state('review-x', { state: 'fixing', findings: 5, at: tenAm(55) });
+  registry.state('planner', { state: 'plan', outcome: 'plan ready', at: tenAm(56) });
+  registry.state('planner', { state: 'running', at: tenAm(57) });
+  const byName = Object.fromEntries(registry.agents().map((agent) => [agent.name, agent]));
   assert.deepEqual(gateOf(byName['builder']), { kind: 'plan', findings: null });
   assert.deepEqual(gateOf(byName['review-x']), { kind: 'fixing', findings: 5 });
-  assert.deepEqual(gateOf(byName['fixer']), { kind: 'fixing', findings: null });
-  assert.deepEqual(gateOf(byName['review-y']), { kind: 'review', findings: null });
+  assert.equal(gateOf(byName['planner']), null, 'running again: past its plan');
+  assert.equal(gateOf(byName['review-name']), null, 'a name is not a kind');
+  registry.state('review-x', { state: 'running', at: tenAm(58) });
+  assert.deepEqual(gateOf(registry.agents().find((one) => one.name === 'review-x')!), {
+    kind: 'review',
+    findings: null,
+  });
+  registry.finish('review-x', { findings: 2, at: tenAm(59) });
   assert.equal(
-    gateOf(byName['planner']),
+    gateOf(registry.agents().find((one) => one.name === 'review-x')!),
     null,
-    'a running agent that is not a reviewer is not at a gate',
+    'a finished critic is not at a gate',
   );
-  const done = parseLedger(
-    '- [running] sid:aaaaaaaa review-x — t — started 10:40 AM ET, 10/26\n- [done] sid:aaaaaaaa review-x — 10:50 AM ET, 10/26 — 2 findings',
-    NOW,
-  );
-  assert.equal(gateOf(done[0]), null, 'a finished reviewer is not at a gate');
 });
 
 test('an agent that says [review] puts a card with no PR in Ready, never Waiting; a real question still wins', () => {
@@ -4601,7 +4521,6 @@ test('the board: Agent checks holds a PR card with a gated agent in it, an agent
 test('an agent parked on your story review is ready for review, not waiting; a question still waits', async () => {
   const home = tmp('board-home');
   const sessions = tmp('board-sessions');
-  const ledger = path.join(tmp('board-notes'), 'ledger.md');
   const launcher = liveChild();
   after(() => launcher.stop());
   const sid = String(launcher.pid).padStart(8, '0');
@@ -4629,17 +4548,24 @@ test('an agent parked on your story review is ready for review, not waiting; a q
     notes: 'notes/a.md',
     at: etAt(14, 0),
   });
-  writeFileSync(
-    ledger,
-    [
-      `- [review] sid:${sid} lane:elsewhere on-nothing — 2:10 PM ET, 10/26 — story up — notes/b.md`,
-      `- [waiting] sid:${sid} lane:elsewhere asker — 2:20 PM ET, 10/26 — needs Eric: pick A or B`,
-    ].join('\n'),
+  registerRuns(
+    home,
+    {
+      sid,
+      name: 'on-nothing',
+      lane: 'elsewhere',
+      started: etAt(14, 0),
+      now: { state: 'review', at: etAt(14, 10), outcome: 'story up', notes: 'notes/b.md' },
+    },
+    {
+      sid,
+      name: 'asker',
+      lane: 'elsewhere',
+      started: etAt(14, 0),
+      now: { state: 'waiting', at: etAt(14, 20), outcome: 'needs Eric: pick A or B' },
+    },
   );
-  writeJson(path.join(home, 'config.json'), {
-    board_ledger_file: ledger,
-    board_sessions_dir: sessions,
-  });
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
   const { watcher } = fakeWatcher([prInfo(7, { branch: 'feat/x' })], {});
   const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
     source: sourceSaying({}),
@@ -4664,7 +4590,6 @@ test('an agent parked on your story review is ready for review, not waiting; a q
 test('a [review] agent naming a no-PR branch sits in its Ready card; one left a day behind is gone', async () => {
   const home = tmp('board-home');
   const sessions = tmp('board-sessions');
-  const ledger = path.join(tmp('board-notes'), 'ledger.md');
   const launcher = liveChild();
   after(() => launcher.stop());
   const sid = String(launcher.pid).padStart(8, '0');
@@ -4691,17 +4616,25 @@ test('a [review] agent naming a no-PR branch sits in its Ready card; one left a 
     outcome: 'story up on feat/x, two chapters',
     at: etAt(14, 30),
   });
-  writeFileSync(
-    ledger,
-    [
-      `- [review] sid:${sid} lane:widgets lost-review — story up — 2:30 PM ET, 10/24`,
-      `- [waiting] sid:${sid} lane:widgets lost-question — 2:30 PM ET, 10/24 — needs Eric: long ago`,
-    ].join('\n'),
+  const twoDaysBack = new Date(Date.UTC(2026, 9, 24, 18, 30)); // 2:30 PM ET, 10/24
+  registerRuns(
+    home,
+    {
+      sid,
+      name: 'lost-review',
+      lane: 'widgets',
+      started: twoDaysBack,
+      now: { state: 'review', at: twoDaysBack, outcome: 'story up' },
+    },
+    {
+      sid,
+      name: 'lost-question',
+      lane: 'widgets',
+      started: twoDaysBack,
+      now: { state: 'waiting', at: twoDaysBack, outcome: 'needs Eric: long ago' },
+    },
   );
-  writeJson(path.join(home, 'config.json'), {
-    board_ledger_file: ledger,
-    board_sessions_dir: sessions,
-  });
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
   const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
     source: sourceSaying({}),
     now: () => NOW,
@@ -4719,10 +4652,9 @@ test('a [review] agent naming a no-PR branch sits in its Ready card; one left a 
   );
 });
 
-test('a plan or fixing line that has sat a day is marked stale', async () => {
+test('a plan or fixing gate that has sat a day is marked stale', async () => {
   const home = tmp('board-home');
   const sessions = tmp('board-sessions');
-  const ledger = path.join(tmp('board-notes'), 'ledger.md');
   const child = liveChild();
   after(() => child.stop());
   const sid = String(child.pid).padStart(8, '0');
@@ -4732,17 +4664,27 @@ test('a plan or fixing line that has sat a day is marked stale', async () => {
     { cwd: checkoutOf('widgets', 'main'), name: 'launcher' },
     child.procStart,
   );
-  writeFileSync(
-    ledger,
-    [
-      `- [plan] sid:${sid} lane:widgets old-plan — 9:00 AM ET, 10/24 — plan ready`,
-      `- [fixing] sid:${sid} lane:widgets review-fresh — 2:30 PM ET, 10/26 — 2 findings`,
-    ].join('\n'),
+  const twoDaysBack = new Date(Date.UTC(2026, 9, 24, 13, 0)); // 9:00 AM ET, 10/24
+  registerRuns(
+    home,
+    {
+      sid,
+      name: 'old-plan',
+      kind: 'author',
+      lane: 'widgets',
+      started: twoDaysBack,
+      now: { state: 'plan', at: twoDaysBack, outcome: 'plan ready' },
+    },
+    {
+      sid,
+      name: 'review-fresh',
+      kind: 'critic',
+      lane: 'widgets',
+      started: etAt(14, 0),
+      now: { state: 'fixing', at: etAt(14, 30), findings: 2 },
+    },
   );
-  writeJson(path.join(home, 'config.json'), {
-    board_ledger_file: ledger,
-    board_sessions_dir: sessions,
-  });
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
   const board = new Board(home, new StoryStore({ home }), fakeWatcher().watcher, new Builds(home), {
     source: sourceSaying({}),
     now: () => NOW,
@@ -6341,20 +6283,14 @@ test('a standing helper is a row at the bottom, never a card: gone with its sess
   const ago = (hours: number, minutes = 0) =>
     new Date(NOW.getTime() - (hours * 60 + minutes) * 60000);
   type Setup = (registered: AgentRegistry) => void;
-  const world = async (setup: Setup, live = true, ledgerLines: string[] = []) => {
+  const world = async (setup: Setup, live = true) => {
     const home = tmp('board-helpers');
     const sessions = tmp('board-sessions');
     if (live) {
       registry(sessions, tree.parent, { cwd: checkoutOf('widgets', 'main') }, tree.procStart);
     }
-    const ledger = path.join(tmp('board-notes'), 'ledger.md');
-    writeFileSync(ledger, ledgerLines.join('\n'));
     setup(new AgentRegistry(home));
-    writeJson(path.join(home, 'config.json'), {
-      board_sessions_dir: sessions,
-      board_ledger_file: ledger,
-      board_ledger_time_zone: 'UTC',
-    });
+    writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
     const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
       source: sourceSaying({ [sid]: { status: 'done', detail: null } }),
       now: () => NOW,
@@ -6418,17 +6354,24 @@ test('a standing helper is a row at the bottom, never a card: gone with its sess
     });
   });
   assert.equal(idle.data.helpers.length, 0, 'idle 8h');
-  // a helper by kind alone, and a ledger agent saying "standing helper", are ordinary agents: a card, no row
-  const plain = await world(
-    (registered) => {
-      registered.start({ name: 'deploy-x', sid, kind: 'helper', task: 'ff deploy x', at: ago(1) });
-    },
-    true,
-    [
-      `- [running] sid:${sid} backlog-clerk (sonnet, low) — standing helper for backlog card ops — started 1:00 PM ET, 10/26`,
-      `- [running] sid:${sid} tagged-one (sonnet) — [helper] card ops — started 1:00 PM ET, 10/26`,
-    ],
-  );
+  // a helper by kind alone, and one whose task says "standing helper", are ordinary agents: a card, no row
+  const plain = await world((registered) => {
+    registered.start({ name: 'deploy-x', sid, kind: 'helper', task: 'ff deploy x', at: ago(1) });
+    registered.start({
+      name: 'backlog-clerk',
+      sid,
+      kind: 'helper',
+      task: 'standing helper for backlog card ops',
+      at: ago(2),
+    });
+    registered.start({
+      name: 'tagged-one',
+      sid,
+      kind: 'helper',
+      task: '[helper] card ops',
+      at: ago(2),
+    });
+  });
   assert.equal(
     plain.data.helpers.length,
     0,
@@ -6450,19 +6393,12 @@ test('only a lane tag is resolved to an owner/name: an agent on its parent’s f
   after(() => parent.stop());
   registry(sessions, parent.pid, { cwd: '/tmp/somewhere/foo' }, parent.procStart);
   const sid = String(parent.pid).padStart(8, '0');
-  const ledger = path.join(tmp('board-folder-lane-notes'), 'ledger.md');
-  writeFileSync(
-    ledger,
-    [
-      `- [running] sid:${sid} folder-agent (sonnet, low) — a one-off task — started 1:00 PM ET, 10/26`,
-      `- [running] sid:${sid} lane:foo tagged-agent (sonnet, low) — a one-off task — started 1:00 PM ET, 10/26`,
-    ].join('\n'),
+  registerRuns(
+    home,
+    { sid, name: 'folder-agent', task: 'a one-off task', started: etAt(13, 0) },
+    { sid, name: 'tagged-agent', lane: 'foo', task: 'a one-off task', started: etAt(13, 0) },
   );
-  writeJson(path.join(home, 'config.json'), {
-    board_sessions_dir: sessions,
-    board_ledger_file: ledger,
-    board_ledger_time_zone: 'UTC',
-  });
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
   const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
     source: sourceSaying({ [sid]: { status: 'done', detail: null } }),
     now: () => NOW,

@@ -13,20 +13,20 @@ export interface BoardBeat {
   note: string;
 }
 
-/** A background agent (a subagent) from the ledger file, inside its parent session's card or on a card of its own. */
+/** A background agent (a subagent) from the agent registry, inside its parent session's card or on a card of its own. */
 export interface BoardAgent {
   /** the session id's first 8 characters the agent is registered under (the first half of `key`) */
   sid: string;
   /** the agent's key on the board, `sid:name`: two sessions' agents of one name are two agents */
   key: string;
   name: string;
-  /** what the agent says it is, when it registered through `once-upon agent start` (null for one read from the ledger) */
+  /** what the agent says it is, when it registered through `once-upon agent start` (null for an old event whose kind is unknown) */
   kind: 'author' | 'critic' | 'helper' | 'research' | 'editor' | null;
   /** the editor that launched and controls it (an author launched under a live editor's session), else null */
   editor: BoardAgentEditor | null;
-  /** the ledger's own word for where it stands */
+  /** its registered state */
   state: 'running' | 'waiting' | 'plan' | 'fixing' | 'done' | 'failed' | 'stopped';
-  /** `waiting` on your story review (the ledger's `[review]`), not on a question: shown as ready for review */
+  /** `waiting` on your story review (state `review`), not on a question: shown as ready for review */
   review: boolean;
   status: BoardStatus;
   task: string | null;
@@ -39,7 +39,7 @@ export interface BoardAgent {
   beat: BoardBeat | null;
   /** the automated gate it is at, when it is at one: not on you, the launching session is the next actor */
   gate: BoardGate | null;
-  /** the notes file its ledger lines name, when they name one */
+  /** the notes file its events name, when they name one */
   notes: string | null;
   /** a finished agent's card in Waiting leaves the board at this time, unless it does something more first (null on any other agent) */
   clears_at: string | null;
@@ -85,9 +85,9 @@ export interface BoardEditor extends BoardAgentEditor {
 }
 
 /**
- * A gate between "an agent is building" and "ready for your review": a build agent stopped at its plan (`plan`, the
- * ledger's `[plan]`), a critic agent running (`review`, a running agent named `review-*`), or the findings being fixed
- * (`fixing`, the ledger's `[fixing]`, with the count its line gives).
+ * A gate between "an agent is building" and "ready for your review": a build agent stopped at its plan (`plan`), a
+ * critic agent running (`review`, a running agent of kind `critic`), or the findings being fixed (`fixing`, with the
+ * count its state event gives).
  */
 export interface BoardGate {
   kind: 'plan' | 'review' | 'fixing';

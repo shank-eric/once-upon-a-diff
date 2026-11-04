@@ -16,6 +16,8 @@ import {
 import type { InboxLocalStory, InboxStory } from '@once-upon-a-diff/contracts/types';
 import type { Build } from '../src/services/inbox/builds.ts';
 import type { listeningOf } from '../src/services/listeners/listeners.ts';
+import { AgentRegistry } from '../src/services/ledger/registry.ts';
+import type { AgentKind, AgentResult } from '../src/services/ledger/agent-types.ts';
 
 /** A build request as the bridge answers with it: the request and its state. */
 export type BuildView = Build & { state: string };
@@ -67,6 +69,90 @@ export function claimAt(
     JSON.stringify({ op: 'claim', id, agent, ...(sid ? { sid } : {}), by: 'test', at: stamp }) +
       '\n',
   );
+}
+
+/** One registered agent's run as a test sets it up: its start, then where it stands now and when it got there. */
+export interface AgentRun {
+  sid: string;
+  name: string;
+  /** a finished helper sits in Done, a stopped or failed one in Waiting (agent-home.ts) */
+  kind?: AgentKind;
+  task?: string;
+  model?: string;
+  effort?: string;
+  lane?: string;
+  repo?: string;
+  branch?: string;
+  pr?: number;
+  card?: string;
+  cwd?: string;
+  notes?: string;
+  standing?: boolean;
+  started: Date | string;
+  /** a state event or a finish after the start, at `at` */
+  now?: {
+    state: 'waiting' | 'review' | 'plan' | 'fixing' | 'running' | 'done' | 'failed' | 'stopped';
+    at: Date | string;
+    outcome?: string;
+    findings?: number;
+    notes?: string;
+    result?: AgentResult;
+  };
+  beat?: { n: number; of: number; step: string; note?: string; at: Date | string };
+}
+
+/** Registers each run in `home`'s agent registry, in order (a second run of the same sid and name is a rerun). */
+export function registerRuns(home: string, ...runs: AgentRun[]): AgentRegistry {
+  const registry = new AgentRegistry(home);
+  const when = (stamp: Date | string) => new Date(stamp);
+  for (const run of runs) {
+    const { sid, name } = run;
+    registry.start({
+      sid,
+      name,
+      kind: run.kind ?? 'helper',
+      task: run.task || `${name}'s task`,
+      model: run.model ?? null,
+      effort: run.effort ?? null,
+      lane: run.lane ?? null,
+      repo: run.repo ?? null,
+      branch: run.branch ?? null,
+      pr: run.pr ?? null,
+      card: run.card ?? null,
+      cwd: run.cwd ?? null,
+      notes: run.notes ?? null,
+      standing: run.standing,
+      at: when(run.started),
+    });
+    if (run.beat) {
+      registry.beat(name, { ...run.beat, sid, at: when(run.beat.at) });
+    }
+    const now = run.now;
+    if (!now) {
+      continue;
+    }
+    if (now.state === 'done' || now.state === 'failed' || now.state === 'stopped') {
+      registry.finish(name, {
+        sid,
+        state: now.state,
+        outcome: now.outcome ?? null,
+        findings: now.findings ?? null,
+        notes: now.notes ?? null,
+        result: now.result,
+        at: when(now.at),
+      });
+    } else {
+      registry.state(name, {
+        sid,
+        state: now.state,
+        outcome: now.outcome ?? null,
+        findings: now.findings ?? null,
+        notes: now.notes ?? null,
+        at: when(now.at),
+      });
+    }
+  }
+  return registry;
 }
 
 // tests never look in (or move stories into) the real ~/Development checkouts

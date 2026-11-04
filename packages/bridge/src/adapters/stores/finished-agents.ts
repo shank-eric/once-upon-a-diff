@@ -1,6 +1,6 @@
 /*
  * <home>/finished-agents.json: the agents whose card Finish cleared on the board, by `<sid>:<name>`, with the time of the
- * click (ms). The board hides a finished agent's card while nothing it did is later than that time, so a new ledger line
+ * click (ms). The board hides a finished agent's card while nothing it did is later than that time, so a new event
  * or beat brings it back. Writes go through readJson and writeFileAtomic.
  */
 import path from 'node:path';

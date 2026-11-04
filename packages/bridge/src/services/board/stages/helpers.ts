@@ -8,7 +8,7 @@ import { lastActivity, type LedgerAgent } from '../../ledger/ledger.ts';
 import type { BoardHelper, BoardSession } from '@once-upon-a-diff/contracts/types';
 import type { LiveSession } from '../../../adapters/claude-sessions/live-sessions.ts';
 
-/** A helper with no ledger line this long is left off the row (its session may be live, but nobody has asked it anything). */
+/** A helper with no event this long is left off the row (its session may be live, but nobody has asked it anything). */
 export const HELPER_IDLE_MS = 8 * 3600 * 1000;
 
 export const isStandingHelper = (agent: Pick<LedgerAgent, 'standing'>): boolean =>
@@ -16,7 +16,7 @@ export const isStandingHelper = (agent: Pick<LedgerAgent, 'standing'>): boolean 
 
 /**
  * The helpers to show: marked agents that are running or waiting (a done, failed or stopped one is over), whose launching
- * session is still live, with a ledger line inside `HELPER_IDLE_MS`. Name order.
+ * session is still live, with an event inside `HELPER_IDLE_MS`. Name order.
  */
 export function standingHelpers(
   agents: LedgerAgent[],

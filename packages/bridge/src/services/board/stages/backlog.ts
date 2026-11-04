@@ -1,6 +1,6 @@
 /**
  * The Backlog column: open items, and started ones marked onto the work cards they became. A started item is linked to
- * what is working it: worktrees on its branch, sessions, its ledger agent, and whether it merged (backlog-links.ts).
+ * what is working it: worktrees on its branch, sessions, its registered agent, and whether it merged (backlog-links.ts).
  */
 import { checkoutFor, sameRepo, seenCheckouts } from '../../config/repos.ts';
 import { assignLine, backlogCards, cardOnBranch } from '../../backlog/backlog.ts';
@@ -13,7 +13,6 @@ import type { LedgerAgent } from '../../ledger/ledger.ts';
 import type { LiveSession } from '../../../adapters/claude-sessions/live-sessions.ts';
 import type {
   BoardAgent,
-  BoardBeat,
   BoardCard,
   BoardSession,
   BoardStartedLinks,
@@ -47,7 +46,6 @@ export interface LinkFacts {
   items: BacklogItem[];
   live: LiveSession[];
   agents: LedgerAgent[];
-  beats: Map<string, BoardBeat>;
   works: Map<string, Work>;
   /** the newest local story's checkout for each repo and branch */
   localCheckouts: Map<string, { story: string; checkout: string }>;
@@ -56,8 +54,8 @@ export interface LinkFacts {
 }
 
 /**
- * What is working each started item, and each open item with a claimed ledger agent: its worktrees (looked up per repo, every checkout the board can learn of), the
- * sessions in them, its ledger agent, and whether its branch merged. Keyed by item id; an item nothing is found for has none.
+ * What is working each started item, and each open item with a claimed agent: its worktrees (looked up per repo, every checkout the board can learn of), the
+ * sessions in them, its agent, and whether its branch merged. Keyed by item id; an item nothing is found for has none.
  */
 export async function readBacklogLinks(
   ctx: BuildContext,
@@ -65,7 +63,6 @@ export async function readBacklogLinks(
     items: backlogItems,
     live,
     agents,
-    beats,
     works,
     localCheckouts,
     repoBySession,
@@ -144,7 +141,6 @@ export async function readBacklogLinks(
       branch: view.branch,
     })),
     agents,
-    beats,
     merged: (repo: string | null, branch: string) => {
       const landed = landedBranches.get(`${(repo ?? '').toLowerCase()}@${branch}`);
       if (landed) {

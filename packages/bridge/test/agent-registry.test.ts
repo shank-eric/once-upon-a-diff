@@ -8,12 +8,11 @@ import { branchTip } from '../src/services/ledger/made.ts';
 import { worktreeFixture } from '@once-upon-a-diff/test-kit/git';
 import { Board, noPrWatcher } from '../src/services/board/board.ts';
 import { AgentRegistry } from '../src/services/ledger/registry.ts';
-import { readAgents } from '../src/services/ledger/read.ts';
-import { beatOf, runIsOpen } from '../src/services/ledger/events.ts';
+import { runIsOpen } from '../src/services/ledger/events.ts';
 import { appendAgentEvent } from '../src/adapters/stores/agents-file.ts';
 import { finishedColumn } from '../src/services/board/agent-home.ts';
 import { workingIn } from '../src/services/worktrees/worktrees.ts';
-import { gateOf, parseLedger, parseProgress } from '../src/services/ledger/ledger.ts';
+import { gateOf } from '../src/services/ledger/ledger.ts';
 import { registrySource } from '../src/services/sessions/sources.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
 import { Builds } from '../src/services/inbox/builds.ts';
@@ -56,7 +55,6 @@ test('start, beat, finish round trip folds to one agent with exact times', () =>
   assert.equal(run.id, `${SID}:ou-thing`);
   registry.beat('ou-thing', { n: 2, of: 6, step: 'plan', note: 'plan written', at: minute(5) });
   let [agent] = registry.agents();
-  assert.equal(agent.source, 'events');
   assert.equal(agent.state, 'running');
   assert.equal(agent.kind, 'author');
   assert.equal(agent.task, 'build the thing');
@@ -150,7 +148,7 @@ test('without a sid a beat finds the newest open run of the name; with one, that
   assert.equal(byId(OTHER)?.beat?.step, 'read');
 });
 
-test('the CLI round trip: start takes the sid from the session, beat and finish find the run, mirrors parse back', async () => {
+test('the CLI round trip: start takes the sid from the session, beat and finish find the run, and each writes its log line', async () => {
   const home = tmp('reg-cli');
   const notes = tmp('reg-cli-notes');
   const ledger = path.join(notes, 'ledger.md');
@@ -205,15 +203,20 @@ test('the CLI round trip: start takes the sid from the session, beat and finish 
     ['start', 'beat', 'state', 'finish'],
   );
 
-  // the legacy files are views: the ledger parser and the beat parser read them back to the same facts
-  const [viewed] = parseLedger(readFileSync(ledger, 'utf8'), new Date(), 'UTC');
-  assert.equal(viewed.sid, SID);
-  assert.equal(viewed.name, 'ou-cli');
-  assert.equal(viewed.state, 'done');
-  assert.equal(viewed.outcome, 'all done');
-  assert.equal(viewed.task, 'check the thing - now');
-  const beats = parseProgress(readFileSync(progress, 'utf8'));
-  assert.deepEqual(beats.get('ou-cli'), { n: 3, of: 6, step: 'code', note: 'half done' });
+  // the log files get one line per event (the exact format is pinned in the mirror test below)
+  const time = '\\d{1,2}:\\d{2} [AP]M ET, \\d{1,2}/\\d{1,2}';
+  const lines = readFileSync(ledger, 'utf8').trim().split('\n');
+  assert.equal(lines.length, 3);
+  assert.match(
+    lines[0],
+    new RegExp(`^- \\[running\\] sid:${SID} ou-cli — check the thing - now — started ${time}$`),
+  );
+  assert.match(lines[1], new RegExp(`^- \\[fixing\\] sid:${SID} ou-cli — ${time} — 4 findings$`));
+  assert.match(lines[2], new RegExp(`^- \\[done\\] sid:${SID} ou-cli — ${time} — all done$`));
+  assert.match(
+    readFileSync(progress, 'utf8'),
+    /^- \d{1,2}:\d{2} [AP]M ou-cli 3\/6 code: half done\n$/,
+  );
 
   const bad = await runCli(home, ['agent', 'start', 'ou-bad', '--kind', 'wizard', '--task', 'x']);
   assert.notEqual(bad.code, 0);
@@ -261,12 +264,6 @@ test('--no-mirror: a beat from beat.sh, which writes the progress line itself, i
     events.map((event) => event.op),
     ['start', 'beat'],
   );
-  assert.deepEqual(parseProgress(readFileSync(progress, 'utf8')).get('ou-once'), {
-    n: 3,
-    of: 6,
-    step: 'code',
-    note: 'half done',
-  });
   // the ledger's start line is still the mirror's, written once
   assert.equal(readFileSync(ledger, 'utf8').trim().split('\n').length, 1);
   // a note that starts with -- is the beat's note, passed after the -- marker as beat.sh does
@@ -296,10 +293,7 @@ test('--no-mirror: a beat from beat.sh, which writes the progress line itself, i
 
 /** A board over `home` (no ledger file set), and every card on it. */
 function boardOf(home: string, now = NOW) {
-  writeJson(path.join(home, 'config.json'), {
-    board_sessions_dir: tmp('reg-sessions'),
-    board_ledger_time_zone: 'UTC',
-  });
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: tmp('reg-sessions') });
   return async (): Promise<BoardCard[]> =>
     (
       await new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
@@ -862,29 +856,37 @@ test('a registered agent works in the worktree its cwd is in', () => {
   assert.deepEqual(workingIn(dir, [], registry.agents()), []);
 });
 
-test('the progress file knows names, not sessions: a ledger agent of a registered name gets no beat', () => {
-  const home = tmp('reg-beats');
-  const notes = tmp('reg-beats-notes');
+test('the mirror keeps the line format the scripts outside this repo parse (the subagent status line, the iTerm hook)', () => {
+  const notes = tmp('reg-mirror-notes');
   const ledger = path.join(notes, 'ledger.md');
   const progress = path.join(notes, 'progress.md');
-  writeFileSync(
-    ledger,
-    '- [running] sid:99999999 ou-thing (sonnet, high) — their task — started 10:00 AM ET, 11/3\n',
-  );
-  writeFileSync(
-    progress,
-    '- 10:05 AM ou-thing 2/6 plan: from the other\n- 10:06 AM ou-plain 2/6 plan: mine\n',
-  );
-  new AgentRegistry(home).start({ ...BUILD, at: minute(0) });
-  const { agents, beats } = readAgents(
-    { home, ledger, progress },
-    new Date('2026-11-03T16:00:00Z'),
-    'UTC',
-  );
-  const theirs = agents.find((one) => one.sid === '99999999');
-  assert.ok(theirs);
-  assert.equal(beatOf(theirs, beats), undefined);
-  assert.equal(beats.get('ou-plain')?.step, 'plan');
+  const registry = new AgentRegistry(tmp('reg-mirror'), { ledger, progress });
+  // 10:00 AM ET on 11/3 is minute(0)
+  registry.start({ ...BUILD, model: 'sonnet', effort: 'high', lane: 'widgets', at: minute(0) });
+  registry.beat('ou-thing', { n: 2, of: 6, step: 'plan', note: 'plan written', at: minute(5) });
+  registry.state('ou-thing', {
+    state: 'plan',
+    outcome: 'plan ready — see notes',
+    notes: 'notes/plan.md',
+    at: minute(6),
+  });
+  registry.state('ou-thing', { state: 'running', at: minute(7) });
+  registry.state('ou-thing', { state: 'fixing', findings: 3, at: minute(8) });
+  registry.state('ou-thing', { state: 'waiting', outcome: 'needs Eric: A or B', at: minute(9) });
+  registry.state('ou-thing', { state: 'review', outcome: 'story abc up', at: minute(10) });
+  registry.finish('ou-thing', { outcome: 'merged', at: minute(11) });
+  const head = `sid:${SID} lane:widgets ou-thing`;
+  assert.deepEqual(readFileSync(ledger, 'utf8').split('\n'), [
+    `- [running] ${head} (sonnet, high) — build the thing — started 10:00 AM ET, 11/3`,
+    `- [plan] ${head} — 10:06 AM ET, 11/3 — plan ready - see notes — notes/plan.md`,
+    `- [running] ${head} (sonnet, high) — build the thing — started 10:00 AM ET, 11/3`,
+    `- [fixing] ${head} — 10:08 AM ET, 11/3 — 3 findings — notes/plan.md`,
+    `- [waiting] ${head} — 10:09 AM ET, 11/3 — needs Eric: A or B — notes/plan.md`,
+    `- [review] ${head} — 10:10 AM ET, 11/3 — story abc up — notes/plan.md`,
+    `- [done] ${head} — 10:11 AM ET, 11/3 — merged — notes/plan.md`,
+    '',
+  ]);
+  assert.equal(readFileSync(progress, 'utf8'), '- 10:05 AM ou-thing 2/6 plan: plan written\n');
 });
 
 test('an author in a GitHub Enterprise checkout registered with --repo gets a start tip, and a result when its branch moves', () => {

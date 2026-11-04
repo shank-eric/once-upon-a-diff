@@ -3,16 +3,16 @@
     "kick ",
     "kickRequested",
     "kickLocal ",
-    "kickBranch acme/widgets@kill-inbox <WORK>/links-repo-24/widgets-worktrees/kill-inbox",
-    "kickBranch acme/widgets@in-use <WORK>/links-repo-24/widgets-worktrees/in-use",
-    "kickBranch acme/widgets@kill-inbox <WORK>/links-repo-24/widgets-worktrees/kill-inbox",
+    "kickBranch acme/widgets@kill-inbox <WORK>/links-repo-21/widgets-worktrees/kill-inbox",
+    "kickBranch acme/widgets@in-use <WORK>/links-repo-21/widgets-worktrees/in-use",
+    "kickBranch acme/widgets@kill-inbox <WORK>/links-repo-21/widgets-worktrees/kill-inbox",
     "kick ",
     "kickRequested",
     "kickLocal ",
-    "kickBranch acme/widgets@kill-inbox <WORK>/links-repo-24/widgets-worktrees/kill-inbox",
-    "kickBranch acme/widgets@in-use <WORK>/links-repo-24/widgets-worktrees/in-use",
-    "kickBranch acme/widgets@kill-inbox <WORK>/links-repo-24/widgets-worktrees/kill-inbox",
-    "kickBranch acme/widgets@dep-bump <WORK>/links-repo-24/widgets-worktrees/dep-bump"
+    "kickBranch acme/widgets@kill-inbox <WORK>/links-repo-21/widgets-worktrees/kill-inbox",
+    "kickBranch acme/widgets@in-use <WORK>/links-repo-21/widgets-worktrees/in-use",
+    "kickBranch acme/widgets@kill-inbox <WORK>/links-repo-21/widgets-worktrees/kill-inbox",
+    "kickBranch acme/widgets@dep-bump <WORK>/links-repo-21/widgets-worktrees/dep-bump"
   ],
   "board": {
     "at": "2026-10-26T19:00:00.000Z",
@@ -75,7 +75,7 @@
                 "ended_at": null,
                 "gate": null,
                 "key": "54736864:ou-kill-inbox",
-                "kind": null,
+                "kind": "author",
                 "model": "sonnet, high",
                 "name": "ou-kill-inbox",
                 "notes": null,
@@ -141,7 +141,7 @@
               {
                 "branch": "kill-inbox",
                 "context": null,
-                "cwd": "<WORK>/links-repo-24/widgets-worktrees/kill-inbox",
+                "cwd": "<WORK>/links-repo-21/widgets-worktrees/kill-inbox",
                 "detail": null,
                 "focus": false,
                 "id": "<PID:16>-aaaa-bbbb-cccc-dddddddddddd",
@@ -176,10 +176,10 @@
                 "lane": "acme/widgets",
                 "last_commit_at": "2026-10-20T12:00:00.000Z",
                 "locked": false,
-                "main": "<WORK>/links-repo-24/widgets",
+                "main": "<WORK>/links-repo-21/widgets",
                 "modified": 0,
                 "name": "kill-inbox",
-                "path": "<WORK>/links-repo-24/widgets-worktrees/kill-inbox",
+                "path": "<WORK>/links-repo-21/widgets-worktrees/kill-inbox",
                 "pr": {
                   "number": null,
                   "state": "unknown"
@@ -215,7 +215,7 @@
               {
                 "branch": "in-use",
                 "context": null,
-                "cwd": "<WORK>/links-repo-24/widgets-worktrees/in-use",
+                "cwd": "<WORK>/links-repo-21/widgets-worktrees/in-use",
                 "detail": null,
                 "focus": false,
                 "id": "<PID:17>-aaaa-bbbb-cccc-dddddddddddd",
@@ -250,10 +250,10 @@
                 "lane": "acme/widgets",
                 "last_commit_at": "2026-10-20T12:00:00.000Z",
                 "locked": false,
-                "main": "<WORK>/links-repo-24/widgets",
+                "main": "<WORK>/links-repo-21/widgets",
                 "modified": 0,
                 "name": "in-use",
-                "path": "<WORK>/links-repo-24/widgets-worktrees/in-use",
+                "path": "<WORK>/links-repo-21/widgets-worktrees/in-use",
                 "pr": {
                   "number": null,
                   "state": "unknown"
@@ -289,7 +289,7 @@
               {
                 "branch": "main",
                 "context": null,
-                "cwd": "<WORK>/links-repo-24/widgets",
+                "cwd": "<WORK>/links-repo-21/widgets",
                 "detail": null,
                 "focus": true,
                 "id": "<PID:18>-aaaa-bbbb-cccc-dddddddddddd",
@@ -334,7 +334,7 @@
             "branch": null,
             "build": {
               "blocked": "no iTerm tab",
-              "prompt": "Build the Once Upon story of the unpushed commits on branch dep-bump in `<WORK>/links-repo-24/widgets-worktrees/dep-bump`",
+              "prompt": "Build the Once Upon story of the unpushed commits on branch dep-bump in `<WORK>/links-repo-21/widgets-worktrees/dep-bump`",
               "session": null
             },
             "building": null,
@@ -351,7 +351,7 @@
             "repo": null,
             "review": {
               "branch": "dep-bump",
-              "path": "<WORK>/links-repo-24/widgets-worktrees/dep-bump"
+              "path": "<WORK>/links-repo-21/widgets-worktrees/dep-bump"
             },
             "sessions": [],
             "since": "2026-10-26T18:41:00.000Z",
@@ -380,7 +380,7 @@
                   "worktrees": [
                     {
                       "name": "old-one",
-                      "path": "<WORK>/links-repo-24/widgets-worktrees/old-one"
+                      "path": "<WORK>/links-repo-21/widgets-worktrees/old-one"
                     }
                   ]
                 },
@@ -419,10 +419,10 @@
                 "lane": "acme/widgets",
                 "last_commit_at": "2026-10-26T18:30:00.000Z",
                 "locked": false,
-                "main": "<WORK>/links-repo-24/widgets",
+                "main": "<WORK>/links-repo-21/widgets",
                 "modified": 0,
                 "name": "old-one",
-                "path": "<WORK>/links-repo-24/widgets-worktrees/old-one",
+                "path": "<WORK>/links-repo-21/widgets-worktrees/old-one",
                 "pr": {
                   "number": null,
                   "state": "unknown"
@@ -666,10 +666,10 @@
           "lane_label": "widgets",
           "last_commit_at": "2026-10-20T12:00:00.000Z",
           "locked": false,
-          "main": "<WORK>/links-repo-24/widgets",
+          "main": "<WORK>/links-repo-21/widgets",
           "modified": 0,
           "name": "loose-one",
-          "path": "<WORK>/links-repo-24/widgets-worktrees/loose-one",
+          "path": "<WORK>/links-repo-21/widgets-worktrees/loose-one",
           "pr": {
             "number": null,
             "state": "unknown"
@@ -697,10 +697,10 @@
           "lane_label": "widgets",
           "last_commit_at": "2026-10-26T18:40:00.000Z",
           "locked": false,
-          "main": "<WORK>/links-repo-24/widgets",
+          "main": "<WORK>/links-repo-21/widgets",
           "modified": 0,
           "name": "dep-bump",
-          "path": "<WORK>/links-repo-24/widgets-worktrees/dep-bump",
+          "path": "<WORK>/links-repo-21/widgets-worktrees/dep-bump",
           "pr": {
             "number": null,
             "state": "none"

@@ -220,6 +220,51 @@ function registry(
   });
 }
 
+/** A registered agent's run, standing where `now` says (still running without it), as the worlds' agents are set up. */
+interface Run {
+  sid: string;
+  name: string;
+  kind?: 'author' | 'critic' | 'helper' | 'research';
+  model?: string;
+  effort?: string;
+  lane?: string;
+  task?: string;
+  started: Date;
+  now?: {
+    state: 'waiting' | 'review' | 'plan' | 'fixing' | 'done' | 'failed' | 'stopped';
+    at: Date;
+    outcome?: string;
+    notes?: string;
+  };
+  beat?: { n: number; of: number; step: string; note: string; at: Date };
+}
+
+function registerRun(registry: AgentRegistry, run: Run) {
+  const { sid, name, now } = run;
+  registry.start({
+    sid,
+    name,
+    kind: run.kind ?? 'helper',
+    task: run.task ?? `${name}'s task`,
+    model: run.model ?? null,
+    effort: run.effort ?? null,
+    lane: run.lane ?? null,
+    at: run.started,
+  });
+  if (run.beat) {
+    registry.beat(name, { ...run.beat, sid });
+  }
+  if (!now) {
+    return;
+  }
+  const { state, at, outcome = null, notes = null } = now;
+  if (state === 'done' || state === 'failed' || state === 'stopped') {
+    registry.finish(name, { sid, state, outcome, notes, at });
+  } else {
+    registry.state(name, { sid, state, outcome, notes, at });
+  }
+}
+
 function checkoutOf(name: string, branch: string, commit = false): string {
   const dir = tmp('checkout');
   git(dir, 'init', '-q', '-b', branch);
@@ -382,9 +427,6 @@ async function record(
 {
   const home = tmp('home');
   const sessions = tmp('sessions');
-  const notes = tmp('notes');
-  const ledger = path.join(notes, 'ledger.md');
-  const progress = path.join(notes, 'progress.md');
   const [onStory, second, onBranch, onMain, loose, staleOne, staleTwo, blank, titled] = Array.from(
     { length: 9 },
     () => liveChild(),
@@ -479,7 +521,7 @@ async function record(
     { 'approved.json': { at: '2026-10-26T15:00:00Z' } },
   );
   localStory(home, 'local-merged-branch', widgetsZ, 'feat/mb');
-  // agents registered on a branch or PR: nested in its card. The ledger lines below are agents nobody registered
+  // agents registered on a branch or PR: nested in its card. The runs further down register none of those: cards of their own
   const registered = new AgentRegistry(home);
   const et = (hour: number, minute: number) => new Date(Date.UTC(2026, 9, 26, hour + 4, minute));
   const widgets = { repo: 'acme/widgets', model: 'sonnet', effort: 'low' };
@@ -569,28 +611,91 @@ async function record(
     at: et(14, 42),
   });
   registered.finish('lookup', { outcome: 'deploy is healthy', at: et(14, 52) });
-  writeFileSync(
-    ledger,
-    [
-      `- [done] sid:${sid(onStory)} nested-done — 2:40 PM ET, 10/26 — it finished`,
-      `- [done] sid:${sid(onStory)} nested-old — 7:40 AM ET, 10/26 — hours ago`,
-      `- [running] sid:${sid(onStory)} lane:cross-cutting tagged-one (sonnet, high) — tagged task — started 2:55 PM ET, 10/26`,
-      `- [running] sid:${sid(onStory)} wt-agent (sonnet, low) — refactor in widgets-worktrees/refactor — started 2:52 PM ET, 10/26`,
-      `- [running] sid:${sid(onStory)} crosscut-note (sonnet, low) — notes for the Cross Cutting plan — started 2:53 PM ET, 10/26`,
-      `- [waiting] sid:${sid(onMain)} needs-answer — 2:45 PM ET, 10/26 — needs Eric: pick A or B — notes/x.md`,
-      `- [review] sid:${sid(loose)} parked-two (sonnet, low) — story elsewhere — 2:48 PM ET, 10/26 — story up`,
-      '- [running] sid:deadbeef orphan (sonnet, high) — no parent — started 2:57 PM ET, 10/26',
-      '- [failed] sid:deadbeef broke — 2:58 PM ET, 10/26 — exploded',
-      '- [stopped] sid:deadbeef stopped-one — 2:59 PM ET, 10/26 — asked to stop',
-      '- [waiting] sid:deadbeef ancient — 9:00 AM ET, 10/22 — needs Eric: long ago — notes/y.md',
-    ].join('\n'),
-  );
-  writeFileSync(progress, '- 2:56 PM tagged-one 1/6 read: reading\n');
+  const sonnet = (effort: string) => ({ model: 'sonnet', effort });
+  const ancient = new Date(Date.UTC(2026, 9, 22, 13, 0)); // 9:00 AM ET, 10/22
+  for (const run of [
+    {
+      sid: sid(onStory),
+      name: 'nested-done',
+      started: et(14, 40),
+      now: { state: 'done', at: et(14, 40), outcome: 'it finished' },
+    },
+    {
+      sid: sid(onStory),
+      name: 'nested-old',
+      started: et(7, 40),
+      now: { state: 'done', at: et(7, 40), outcome: 'hours ago' },
+    },
+    {
+      sid: sid(onStory),
+      name: 'tagged-one',
+      ...sonnet('high'),
+      lane: 'cross-cutting',
+      task: 'tagged task',
+      started: et(14, 55),
+      beat: { n: 1, of: 6, step: 'read', note: 'reading', at: et(14, 56) },
+    },
+    {
+      sid: sid(onStory),
+      name: 'wt-agent',
+      ...sonnet('low'),
+      task: 'refactor in widgets-worktrees/refactor',
+      started: et(14, 52),
+    },
+    {
+      sid: sid(onStory),
+      name: 'crosscut-note',
+      ...sonnet('low'),
+      task: 'notes for the Cross Cutting plan',
+      started: et(14, 53),
+    },
+    {
+      sid: sid(onMain),
+      name: 'needs-answer',
+      started: et(14, 45),
+      now: {
+        state: 'waiting',
+        at: et(14, 45),
+        outcome: 'needs Eric: pick A or B',
+        notes: 'notes/x.md',
+      },
+    },
+    {
+      sid: sid(loose),
+      name: 'parked-two',
+      started: et(14, 48),
+      now: { state: 'review', at: et(14, 48), outcome: 'story up' },
+    },
+    {
+      sid: 'deadbeef',
+      name: 'orphan',
+      ...sonnet('high'),
+      task: 'no parent',
+      started: et(14, 57),
+    },
+    {
+      sid: 'deadbeef',
+      name: 'broke',
+      started: et(14, 58),
+      now: { state: 'failed', at: et(14, 58), outcome: 'exploded' },
+    },
+    {
+      sid: 'deadbeef',
+      name: 'stopped-one',
+      started: et(14, 59),
+      now: { state: 'stopped', at: et(14, 59), outcome: 'asked to stop' },
+    },
+    {
+      sid: 'deadbeef',
+      name: 'ancient',
+      started: ancient,
+      now: { state: 'waiting', at: ancient, outcome: 'needs Eric: long ago', notes: 'notes/y.md' },
+    },
+  ] as Run[]) {
+    registerRun(registered, run);
+  }
   writeJson(path.join(home, 'config.json'), {
-    board_ledger_file: ledger,
-    board_progress_file: progress,
     board_sessions_dir: sessions,
-    board_ledger_time_zone: 'America/New_York',
     board_it2_path: (() => {
       const file = path.join(tmp('it2'), 'it2');
       writeFileSync(file, '#!/bin/sh\necho "[]"\n');
@@ -688,19 +793,6 @@ async function record(
   registry(sessions, idleOne, { cwd: widgets, name: 'idle-one' });
   registry(sessions, idleTwo, { cwd: gadgets, name: 'idle-two' });
   registry(sessions, busy, { cwd: widgets, name: 'busy-one', status: 'busy' });
-  const notes = tmp('notes');
-  const ledger = path.join(notes, 'ledger.md');
-  writeFileSync(
-    ledger,
-    [
-      `- [running] sid:${sid(voice)} lane:elsewhere helper-one (sonnet, low) — a task — started 2:50 PM ET, 10/26`,
-      `- [waiting] sid:${sid(voice)} helper-two — 2:55 PM ET, 10/26 — needs Eric: pick — notes/x.md`,
-      `- [done] sid:${sid(voice)} helper-three — 2:56 PM ET, 10/26 — done`,
-      `- [review] sid:${sid(voice)} helper-four (sonnet, low) — story abc up, two chapters — 2:57 PM ET, 10/26`,
-      `- [review] sid:${sid(voice)} helper-five — story old — 9:00 AM ET, 10/24`,
-      `- [running] sid:${sid(other)} not-the-voice (sonnet, low) — a task — started 2:50 PM ET, 10/26`,
-    ].join('\n'),
-  );
   // an editor (the `busy` session, not the voice session) with one registered builder it launched: the editors strip
   // and the author's "by Editor"
   const editing = new AgentRegistry(home);
@@ -725,6 +817,55 @@ async function record(
     at: minutesAgo(30),
   });
   editing.beat('ou-writer', { n: 3, of: 6, step: 'code', note: '', at: minutesAgo(5) });
+  // the voice session's agents and another session's, none registered on a repo, branch or PR
+  const helpers = new AgentRegistry(home);
+  const et = (hour: number, minute: number) => new Date(Date.UTC(2026, 9, 26, hour + 4, minute));
+  const old = new Date(Date.UTC(2026, 9, 24, 13, 0)); // 9:00 AM ET, 10/24
+  for (const run of [
+    {
+      sid: sid(voice),
+      name: 'helper-one',
+      model: 'sonnet',
+      effort: 'low',
+      lane: 'elsewhere',
+      task: 'a task',
+      started: et(14, 50),
+    },
+    {
+      sid: sid(voice),
+      name: 'helper-two',
+      started: et(14, 55),
+      now: { state: 'waiting', at: et(14, 55), outcome: 'needs Eric: pick', notes: 'notes/x.md' },
+    },
+    {
+      sid: sid(voice),
+      name: 'helper-three',
+      started: et(14, 56),
+      now: { state: 'done', at: et(14, 56), outcome: 'done' },
+    },
+    {
+      sid: sid(voice),
+      name: 'helper-four',
+      started: et(14, 57),
+      now: { state: 'review', at: et(14, 57), outcome: 'story abc up, two chapters' },
+    },
+    {
+      sid: sid(voice),
+      name: 'helper-five',
+      started: old,
+      now: { state: 'review', at: old, outcome: 'story old' },
+    },
+    {
+      sid: sid(other),
+      name: 'not-the-voice',
+      model: 'sonnet',
+      effort: 'low',
+      task: 'a task',
+      started: et(14, 50),
+    },
+  ] as Run[]) {
+    registerRun(helpers, run);
+  }
   writeJson(path.join(voiceDir, 'session'), {
     on: true,
     session_id: fullId(voice.pid),
@@ -800,9 +941,7 @@ async function record(
     sink_port: (sink.address() as net.AddressInfo).port,
   });
   writeJson(path.join(home, 'config.json'), {
-    board_ledger_file: ledger,
     board_sessions_dir: sessions,
-    board_ledger_time_zone: 'UTC',
     board_voice_dir: voiceDir,
     board_larmor_dir: larmor,
     board_it2_path: it2,
@@ -833,17 +972,26 @@ async function record(
 {
   const home = tmp('home');
   const sessions = tmp('sessions');
-  const notes = tmp('notes');
-  const ledger = path.join(notes, 'ledger.md');
-  const progress = path.join(notes, 'progress.md');
-  writeFileSync(
-    ledger,
-    [
-      '- [running] sid:54736864 ou-kill-inbox (sonnet, high) — remove the inbox — started 2:30 PM ET, 10/26',
-      '- [done] sid:54736864 ou-old-one (sonnet, high) — build in widgets-worktrees/old-one — 1:30 PM ET, 10/26 — committed on old-one — notes',
-    ].join('\n'),
-  );
-  writeFileSync(progress, '- 2:50 PM ou-kill-inbox 3/6 code: removing\n');
+  const agents = new AgentRegistry(home);
+  const et = (hour: number, minute: number) => new Date(Date.UTC(2026, 9, 26, hour + 4, minute));
+  registerRun(agents, {
+    sid: '54736864',
+    name: 'ou-kill-inbox',
+    kind: 'author',
+    model: 'sonnet',
+    effort: 'high',
+    task: 'remove the inbox',
+    started: et(14, 30),
+    beat: { n: 3, of: 6, step: 'code', note: 'removing', at: et(14, 50) },
+  });
+  registerRun(agents, {
+    sid: '54736864',
+    name: 'ou-old-one',
+    kind: 'author',
+    task: 'build in widgets-worktrees/old-one',
+    started: et(13, 30),
+    now: { state: 'done', at: et(13, 30), outcome: 'committed on old-one' },
+  });
   const parent = tmp('links-repo');
   const checkout = path.join(parent, 'widgets');
   mkdirSync(checkout);
@@ -995,14 +1143,8 @@ async function record(
     path.join(home, 'backlog.jsonl'),
     events.map((event) => JSON.stringify({ at: NOW.toISOString(), ...event })).join('\n') + '\n',
   );
-  writeJson(path.join(home, 'config.json'), {
-    board_sessions_dir: sessions,
-    board_ledger_file: ledger,
-    board_progress_file: progress,
-    board_ledger_time_zone: 'UTC',
-  });
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
   const authors = new AgentRegistry(home);
-  const et = (hour: number, minute: number) => new Date(Date.UTC(2026, 9, 26, hour + 4, minute));
   authors.start({
     sid: sid(builder),
     name: 'dep-bump',

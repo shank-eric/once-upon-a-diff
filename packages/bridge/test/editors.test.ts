@@ -9,7 +9,6 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { git, runCli, tmp, writeJson } from './helpers.ts';
 import { Board, noPrWatcher } from '../src/services/board/board.ts';
-import { BacklogStore } from '../src/services/backlog/backlog.ts';
 import { AgentRegistry } from '../src/services/ledger/registry.ts';
 import { registrySource } from '../src/services/sessions/sources.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
@@ -59,7 +58,6 @@ function world(): World {
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: sessions,
     board_ledger_file: ledger,
-    board_ledger_time_zone: 'UTC',
   });
   return {
     home,
@@ -90,7 +88,7 @@ const viewsOf = (data: BoardData): Map<string, BoardAgent> =>
   );
 
 test('an editor shows with the authors it controls: running ones hold its slots, the other kinds and sessions are no authors', async () => {
-  const { registry, live, snapshot, ledger, home } = world();
+  const { registry, live, snapshot } = world();
   registry.start({ ...EDITOR, slots: 3, at: ago(300) });
   live(EDITOR_SESSION);
   registry.start({ ...build('ou-a'), at: ago(60) });
@@ -115,14 +113,6 @@ test('an editor shows with the authors it controls: running ones hold its slots,
   registry.start({ ...build('ou-f', OTHER), at: ago(30) });
   registry.start({ ...build('ou-done'), at: ago(25) });
   registry.finish('ou-done', { outcome: 'ok', result: { commit: 'abc1234' }, at: ago(20) });
-  // a ledger agent has no kind: it is an author by its claim, and its launching session is the ledger's sid
-  writeFileSync(
-    ledger,
-    `- [running] sid:${EDITOR_SID} legacy-claimer (sonnet, high) — a card — started 2:50 PM ET, 11/3\n` +
-      `- [running] sid:${EDITOR_SID} legacy-text (sonnet, high) — card bl_aaaaaa111, no claim — started 2:51 PM ET, 11/3\n`,
-  );
-  const store = new BacklogStore(home);
-  store.claim(store.add({ title: 'A card' }).id, { agent: 'legacy-claimer', sid: EDITOR_SID });
 
   const data = await snapshot();
   assert.equal('builders' in data, false, 'no overall author count');
@@ -133,17 +123,11 @@ test('an editor shows with the authors it controls: running ones hold its slots,
   assert.equal(editor.lane, 'acme/widgets');
   assert.equal(editor.label, 'widgets');
   assert.equal(editor.slots, 3);
-  assert.deepEqual(editor.authors.map((one) => one.name).sort(), [
-    'legacy-claimer',
-    'ou-a',
-    'ou-b',
-    'ou-q',
-    'ou-r',
-  ]);
+  assert.deepEqual(editor.authors.map((one) => one.name).sort(), ['ou-a', 'ou-b', 'ou-q', 'ou-r']);
   assert.equal(
     editor.in_use,
-    2,
-    'running authors hold a slot; one at its plan, a question or a story review does not',
+    1,
+    'a running author holds a slot; one at its plan, a question or a story review does not',
   );
   assert.deepEqual(editor.authors.find((one) => one.name === 'ou-a')?.beat, {
     n: 3,
@@ -160,11 +144,11 @@ test('an editor shows with the authors it controls: running ones hold its slots,
     false,
   );
   // each author says which editor controls it (by its session); the others have none
-  for (const name of ['ou-a', 'ou-b', 'ou-done', 'legacy-claimer']) {
+  for (const name of ['ou-a', 'ou-b', 'ou-done']) {
     assert.equal(views.get(name)?.editor?.session, EDITOR_SESSION, name);
     assert.equal(views.get(name)?.editor?.label, 'widgets', name);
   }
-  for (const name of ['review-x', 'look-x', 'ou-f', 'legacy-text']) {
+  for (const name of ['review-x', 'look-x', 'ou-f']) {
     assert.equal(views.get(name)?.editor ?? null, null, name);
   }
   // an author's own card says "from Editor · widgets", as the voice session's says "Voice session"
@@ -288,10 +272,7 @@ test('a resumed author for a fix round is an author again once the editor starts
 test('an editor registers through the CLI without a ledger line (it is no agent), `agent list` shows it, --slots is refused for an author', async () => {
   const home = tmp('editors-cli');
   const ledger = path.join(tmp('editors-cli-notes'), 'ledger.md');
-  writeJson(path.join(home, 'config.json'), {
-    board_ledger_file: ledger,
-    board_ledger_time_zone: 'UTC',
-  });
+  writeJson(path.join(home, 'config.json'), { board_ledger_file: ledger });
   const run = (...args: string[]) => runCli(home, ['agent', ...args]);
   const started = await run(
     'start',

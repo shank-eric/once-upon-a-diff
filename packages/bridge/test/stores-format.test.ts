@@ -17,7 +17,7 @@ import {
   readUsageText,
   writeUsageJson,
 } from '../src/adapters/stores/usage-file.ts';
-import { appendLine, tailOf } from '../src/adapters/stores/fs/lines.ts';
+import { appendLine } from '../src/adapters/stores/fs/lines.ts';
 import { jsonLines } from '../src/adapters/stores/fs/jsonl.ts';
 import { parseAgentEvents } from '../src/services/ledger/events.ts';
 import { foldBacklog } from '../src/services/backlog/backlog.ts';
@@ -100,16 +100,13 @@ test('lines that are not objects are skipped by both folds', () => {
   assert.deepEqual(parseAgentEvents(`${junk}${JSON.stringify(event)}\n${junk}`), [event]);
 });
 
-test('appendLine and tailOf: a bare line, a guarded new line, no forced mode', () => {
+test('appendLine: a bare line, a guarded new line, no forced mode', () => {
   const file = path.join(tmp('fmt-lines'), 'ledger.md');
   appendLine(file, 'one');
   appendFileSync(file, 'two');
   appendLine(file, 'three');
   assert.equal(text(file), 'one\ntwo\nthree\n');
   assert.notEqual(mode(file) & 0o044, 0, 'made with the default mode, not 0600');
-  assert.equal(tailOf(file, 8), 'three\n');
-  assert.equal(tailOf(file, 1000), 'one\ntwo\nthree\n');
-  assert.equal(tailOf(path.join(path.dirname(file), 'none'), 10), '');
 });
 
 test('bridge.json, finished-agents.json, github-answers.json: 2-space JSON, no final newline', () => {

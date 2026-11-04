@@ -2,11 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { tmp, writeJson, git, claimAt } from './helpers.ts';
+import { tmp, writeJson, git, claimAt, registerRuns, type AgentRun } from './helpers.ts';
 import { Board, noPrWatcher, type PrWatcher } from '../src/services/board/board.ts';
 import { BacklogStore } from '../src/services/backlog/backlog.ts';
 import { agentLinks, parseWorktrees, startedLinks } from '../src/services/backlog/backlog-links.ts';
-import { parseLedger } from '../src/services/ledger/ledger.ts';
 import { registrySource } from '../src/services/sessions/sources.ts';
 import { seenCheckout } from '../src/services/config/repos.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
@@ -39,8 +38,11 @@ test('parseWorktrees reads the porcelain list: paths, branches, detached ones', 
   ]);
 });
 
-const ledgerLines = (state: string, rest: string) =>
-  parseLedger(`- [${state}] sid:aaaaaaaa ou-kill-inbox ${rest}\n`, NOW, 'UTC');
+/** 2:30 PM ET, 10/26, when the fixtures' runs start */
+const STARTED = '2026-10-26T18:30:00Z';
+
+/** The agents the runs register, as the board reads them. */
+const agentsOf = (...runs: AgentRun[]) => registerRuns(tmp('links-agents'), ...runs).agents();
 
 test('startedLinks: a worktree on the branch, a session in it, the agent that claimed the card, and a merge', () => {
   const home = tmp('links-unit');
@@ -71,17 +73,21 @@ test('startedLinks: a worktree on the branch, a session in it, the agent that cl
       { id: 's2', title: 'elsewhere', cwd: '/dev/widgets', repo: 'acme/widgets', branch: 'main' },
       { id: 's3', title: 'other repo', cwd: '/x', repo: 'acme/gadgets', branch: 'kill-inbox' },
     ],
-    agents: [
-      ...ledgerLines('running', '(sonnet, high) — task — started 2:30 PM ET, 10/26'),
-      ...parseLedger(
-        '- [running] sid:aaaaaaaa ou-other (x) — t — started 2:30 PM ET, 10/26\n',
-        NOW,
-      ),
-    ],
-    beats: new Map([
-      ['ou-kill-inbox', { n: 3, of: 6, step: 'code', note: 'removing' }],
-      ['ou-other', { n: 1, of: 6, step: 'read', note: '' }],
-    ]),
+    agents: agentsOf(
+      {
+        sid: 'aaaaaaaa',
+        name: 'ou-kill-inbox',
+        kind: 'author',
+        started: STARTED,
+        beat: { n: 3, of: 6, step: 'code', note: 'removing', at: '2026-10-26T18:50:00Z' },
+      },
+      {
+        sid: 'aaaaaaaa',
+        name: 'ou-other',
+        started: STARTED,
+        beat: { n: 1, of: 6, step: 'read', at: '2026-10-26T18:40:00Z' },
+      },
+    ),
     merged: () => null,
   };
   const found = startedLinks(item, facts) as BoardStartedLinks;
@@ -141,23 +147,28 @@ const backlogCard = async (board: Board, id: string): Promise<BoardCard | undefi
 test('the Retire-the-inbox case: a claimed, started card is one Working card with its agent, and is Ready (unmerged work) when the agent finishes', async () => {
   const home = tmp('links-board');
   const sessions = tmp('links-sessions');
-  const notes = tmp('links-notes');
-  const ledger = path.join(notes, 'ledger.md');
-  const progress = path.join(notes, 'progress.md');
-  writeFileSync(
-    ledger,
-    '- [running] sid:54736864 ou-kill-inbox (sonnet, high) — remove the inbox — started 2:30 PM ET, 10/26\n',
-  );
-  writeFileSync(
-    progress,
-    '- 2:40 PM ou-kill-inbox 2/6 plan: plan written\n- 2:50 PM ou-kill-inbox 3/6 code: removing\n',
-  );
-  writeJson(path.join(home, 'config.json'), {
-    board_sessions_dir: sessions,
-    board_ledger_file: ledger,
-    board_progress_file: progress,
-    board_ledger_time_zone: 'UTC',
+  const registry = registerRuns(home, {
+    sid: '54736864',
+    name: 'ou-kill-inbox',
+    kind: 'author',
+    task: 'remove the inbox',
+    started: STARTED,
   });
+  registry.beat('ou-kill-inbox', {
+    n: 2,
+    of: 6,
+    step: 'plan',
+    note: 'plan written',
+    at: new Date('2026-10-26T18:40:00Z'),
+  });
+  registry.beat('ou-kill-inbox', {
+    n: 3,
+    of: 6,
+    step: 'code',
+    note: 'removing',
+    at: new Date('2026-10-26T18:50:00Z'),
+  });
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
   repoWithWorktree(home);
   const store = new BacklogStore(home);
   const item = store.add({ title: 'Retire the inbox page?', repo: 'acme/widgets' });
@@ -183,11 +194,10 @@ test('the Retire-the-inbox case: a claimed, started card is one Working card wit
   assert.equal(cards.filter((one) => one.kind === 'agent').length, 0);
 
   // the agent finishes with unmerged work on its branch: the item is one Ready card, linked to the worktree and the agent
-  writeFileSync(
-    ledger,
-    '- [running] sid:54736864 ou-kill-inbox (sonnet, high) — remove the inbox — started 2:30 PM ET, 10/26\n' +
-      '- [done] sid:54736864 ou-kill-inbox — 3:30 PM ET, 10/26 — committed on kill-inbox — notes\n',
-  );
+  registry.finish('ou-kill-inbox', {
+    outcome: 'committed on kill-inbox',
+    at: new Date('2026-10-26T19:30:00Z'),
+  });
   const done = await backlogCard(boardOf(home, later), item.id);
   assert.equal(done?.column, 'ready');
   assert.equal(done?.backlog?.started?.links?.agent?.state, 'done');
@@ -199,18 +209,17 @@ test('the Retire-the-inbox case: a claimed, started card is one Working card wit
 
 test('a claimed card (no start) is out of Backlog while its agent runs, and back in it when the agent fails', async () => {
   const home = tmp('links-named');
-  const notes = tmp('links-named-notes');
-  const ledger = path.join(notes, 'ledger.md');
-  writeJson(path.join(home, 'config.json'), {
-    board_sessions_dir: tmp('links-named-sessions'),
-    board_ledger_file: ledger,
-    board_ledger_time_zone: 'UTC',
-  });
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: tmp('links-named-sessions') });
   const store = new BacklogStore(home);
   const item = store.add({ title: 'Research the thing', repo: 'acme/widgets' });
   claimAt(store, item.id, 'ou-scout', CLAIMED);
-  const running = `- [running] sid:54736864 ou-scout (sonnet, high) — research — started 2:30 PM ET, 10/26\n`;
-  writeFileSync(ledger, running);
+  const registry = registerRuns(home, {
+    sid: '54736864',
+    name: 'ou-scout',
+    kind: 'research',
+    task: 'research',
+    started: STARTED,
+  });
   const cardsOf = async () =>
     (await boardOf(home, NOW).snapshot()).lanes.flatMap((lane) => lane.cards);
   const cards = await cardsOf();
@@ -222,20 +231,32 @@ test('a claimed card (no start) is out of Backlog while its agent runs, and back
   assert.equal(mine?.column, 'working');
   assert.equal(mine?.agents[0].name, 'ou-scout');
   // it fails: the item is a Backlog card, marked tried by the agent
-  writeFileSync(
-    ledger,
-    running + '- [failed] sid:54736864 ou-scout — 2:45 PM ET, 10/26 — gave up\n',
-  );
+  registry.finish('ou-scout', {
+    state: 'failed',
+    outcome: 'gave up',
+    at: new Date('2026-10-26T18:45:00Z'),
+  });
   const back = await backlogCard(boardOf(home, NOW), item.id);
   assert.equal(back?.column, 'backlog');
   assert.equal(back?.backlog?.agent?.tried, true);
   assert.equal(back?.backlog?.agent?.links.agent?.name, 'ou-scout');
   // a task that names a card, for a reviewer or in passing, claims nothing
   const other = store.add({ title: 'Another card', repo: 'acme/widgets' });
-  writeFileSync(
-    ledger,
-    `- [running] sid:54736864 review-x (opus, high) — review card ${other.id} diff — started 2:30 PM ET, 10/26\n` +
-      `- [running] sid:54736864 ou-notes (sonnet, high) — card ${other.id} then see ${item.id} — started 2:30 PM ET, 10/26\n`,
+  registerRuns(
+    home,
+    {
+      sid: '54736864',
+      name: 'review-x',
+      kind: 'critic',
+      task: `review card ${other.id} diff`,
+      started: STARTED,
+    },
+    {
+      sid: '54736864',
+      name: 'ou-notes',
+      task: `card ${other.id} then see ${item.id}`,
+      started: STARTED,
+    },
   );
   assert.equal((await backlogCard(boardOf(home, NOW), other.id))?.column, 'backlog');
   assert.equal(
@@ -247,20 +268,18 @@ test('a claimed card (no start) is out of Backlog while its agent runs, and back
 
 test('research that finished is Done for an hour and then gone, never back in Backlog; an agent in a worktree makes its card Ready', async () => {
   const home = tmp('links-research');
-  const ledger = path.join(tmp('links-research-notes'), 'ledger.md');
-  writeJson(path.join(home, 'config.json'), {
-    board_sessions_dir: tmp('links-research-sessions'),
-    board_ledger_file: ledger,
-    board_ledger_time_zone: 'UTC',
-  });
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: tmp('links-research-sessions') });
   const store = new BacklogStore(home);
   const item = store.add({ title: 'Look into it', repo: 'acme/widgets' });
   claimAt(store, item.id, 'ou-look', CLAIMED);
-  writeFileSync(
-    ledger,
-    `- [running] sid:54736864 ou-look (sonnet, high) — look — started 2:30 PM ET, 10/26\n` +
-      '- [done] sid:54736864 ou-look — 3:00 PM ET, 10/26 — it is fine — notes/x.md\n',
-  );
+  registerRuns(home, {
+    sid: '54736864',
+    name: 'ou-look',
+    kind: 'research',
+    task: 'look',
+    started: STARTED,
+    now: { state: 'done', at: '2026-10-26T19:00:00Z', outcome: 'it is fine', notes: 'notes/x.md' },
+  });
   const hour = 3600 * 1000;
   // the agent ended at 7:00 PM UTC (NOW): Done half an hour on, off the board two hours on
   assert.equal(
@@ -348,13 +367,16 @@ test('agentLinks: an open item is linked by the agent that claimed it, and by no
   const facts = (task: string, state = 'running') => ({
     worktrees: new Map(),
     sessions: [],
-    agents: ledgerLines(
-      state,
-      state === 'running'
-        ? `(sonnet, high) — ${task} — started 2:30 PM ET, 10/26`
-        : '— 3:00 PM ET, 10/26 — outcome',
-    ),
-    beats: new Map([['ou-kill-inbox', { n: 2, of: 6, step: 'plan', note: '' }]]),
+    agents: agentsOf({
+      sid: 'aaaaaaaa',
+      name: 'ou-kill-inbox',
+      task,
+      started: STARTED,
+      beat: { n: 2, of: 6, step: 'plan', at: '2026-10-26T18:40:00Z' },
+      ...(state === 'running'
+        ? {}
+        : { now: { state, at: NOW, outcome: 'outcome' } as AgentRun['now'] }),
+    }),
     merged: () => null,
   });
   // the task naming the id is not a claim
@@ -371,11 +393,13 @@ test('agentLinks: an open item is linked by the agent that claimed it, and by no
   // a finished agent still says who worked it, and is not active
   const done = agentLinks(store.items()[0], {
     ...facts(''),
-    agents: parseLedger(
-      `- [running] sid:aaaaaaaa ou-kill-inbox (x) — go — started 2:30 PM ET, 10/26\n- [done] sid:aaaaaaaa ou-kill-inbox — 3:00 PM ET, 10/26 — ok\n`,
-      NOW,
-      'UTC',
-    ),
+    agents: agentsOf({
+      sid: 'aaaaaaaa',
+      name: 'ou-kill-inbox',
+      task: 'go',
+      started: STARTED,
+      now: { state: 'done', at: NOW, outcome: 'ok' },
+    }),
   }) as BoardStartedLinks;
   assert.equal(done.agent?.state, 'done');
   assert.equal(done.active, false);

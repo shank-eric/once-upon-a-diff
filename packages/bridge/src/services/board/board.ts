@@ -8,10 +8,9 @@ import { readSettings } from '../config/settings.ts';
 import { REPO_RE, lastKnownRepo, repoOfCheckoutAsync } from '../config/repos.ts';
 import { branchNameAsync, isAncestorAsync, runGitAsync } from '../../adapters/git.ts';
 import { aheadOf } from '../stories/pull-request.ts';
-import { doneLine, lastActivity } from '../ledger/ledger.ts';
+import { lastActivity } from '../ledger/ledger.ts';
 import { readAgents } from '../ledger/read.ts';
 import { AgentRegistry } from '../ledger/registry.ts';
-import { appendLine } from '../../adapters/stores/fs/lines.ts';
 import { markFinished } from '../../adapters/stores/finished-agents.ts';
 import { BlankSessions } from '../../adapters/claude-sessions/blank-sessions.ts';
 import { SessionTitles } from '../../adapters/claude-sessions/titles.ts';
@@ -175,15 +174,10 @@ export class Board {
     return item;
   }
 
-  /** Puts an open backlog item in the Someday section, or back (a card's Someday button). The ledger says whether its claim is live. */
+  /** Puts an open backlog item in the Someday section, or back (a card's Someday button). The registry says whether its claim is live. */
   somedayBacklog(id: string, aside: boolean, who: string): BacklogItem {
-    const settings = readSettings(this.home).board;
     const now = (this.options.now || (() => new Date()))();
-    const { agents } = readAgents(
-      { home: this.home, ledger: settings.ledgerFile, progress: null },
-      now,
-      settings.ledgerTimeZone,
-    );
+    const { agents } = readAgents(this.home);
     const item = this.backlog.someday(id, aside, who, agents, now.getTime());
     this.invalidate();
     return item;
@@ -487,7 +481,7 @@ export class Board {
 
   /**
    * Clean up a worktree on the page's click (worktree-clean.ts has the checks). Who works in it is looked at now, from the
-   * registry and the ledger, not from the last snapshot.
+   * session registry and the agent registry, not from the last snapshot.
    */
   async cleanWorktree(dir: string, ack: string[], seen: string[] = []): Promise<CleanResult> {
     const settings = readSettings(this.home).board;
@@ -508,11 +502,7 @@ export class Board {
           title: session.name ?? path.basename(session.cwd),
           cwd: session.cwd,
         }));
-        const { agents } = readAgents(
-          { home: this.home, ledger: settings.ledgerFile, progress: null },
-          new Date(),
-          settings.ledgerTimeZone,
-        );
+        const { agents } = readAgents(this.home);
         return {
           inUse: workingIn(facts.path, sessions, agents, facts),
           pr: prOfFacts(this.review, facts),
@@ -601,26 +591,18 @@ export class Board {
 
   /**
    * A finished agent's card's Finish: the card leaves the board now, and comes back only if the agent does something more
-   * (a later ledger line or beat). The agent is looked up in the ledger again, never taken from the page. One still
-   * `[waiting]` on a question gets a `[done]` line, so the ledger says it is closed; one that is done, failed or stopped
-   * needs none. A working agent, or one parked on your story review, is refused.
+   * (a later event or beat). The agent is looked up in the registry again, never taken from the page. One still waiting
+   * on a question is finished through the registry (which writes its `[done]` ledger line when the settings name a
+   * ledger); one that is done, failed or stopped needs nothing. A working agent, or one parked on your story review, is
+   * refused.
    */
   finishAgent(sid: string, name: string): { ledger: boolean } {
     const settings = readSettings(this.home).board;
     const now = (this.options.now || (() => new Date()))();
-    const { agents } = readAgents(
-      { home: this.home, ledger: settings.ledgerFile, progress: null },
-      now,
-      settings.ledgerTimeZone,
-    );
+    const { agents } = readAgents(this.home);
     const agent = agents.find((one) => one.sid === sid && one.name === name);
     if (!agent) {
-      throw new BoardError(
-        agents.length || settings.ledgerFile ? 404 : 400,
-        agents.length || settings.ledgerFile
-          ? 'no agent with that sid and name in the ledger'
-          : 'board_ledger_file is not set, and no agent is registered, so there are no agents',
-      );
+      throw new BoardError(404, 'no registered agent with that sid and name');
     }
     if (agent.review) {
       throw new BoardError(
@@ -632,18 +614,14 @@ export class Board {
     if (!open && agent.state !== 'done' && agent.state !== 'failed' && agent.state !== 'stopped') {
       throw new BoardError(409, 'that agent is still working');
     }
-    if (agent.source === 'events') {
-      // a registered agent is closed by an event, which writes its own ledger line when the settings name a ledger
-      if (open) {
-        new AgentRegistry(this.home, { ledger: settings.ledgerFile, progress: null }).finish(name, {
-          sid,
-          outcome: 'finished from the board',
-          by: 'board',
-          at: now,
-        });
-      }
-    } else if (open && settings.ledgerFile) {
-      appendLine(settings.ledgerFile, doneLine(agent, now));
+    // closed by an event, which writes its own ledger line when the settings name a ledger
+    if (open) {
+      new AgentRegistry(this.home, { ledger: settings.ledgerFile, progress: null }).finish(name, {
+        sid,
+        outcome: 'finished from the board',
+        by: 'board',
+        at: now,
+      });
     }
     // the click counts as at least the agent's latest line, which may be ahead of this clock (a wrong zone, a typo), so the card goes either way
     const latest = lastActivity(agent)?.getTime() ?? 0;

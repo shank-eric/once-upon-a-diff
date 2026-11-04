@@ -1,7 +1,7 @@
 /**
  * Registered agents: the events `once-upon agent start|state|beat|finish` append to <home>/agents.jsonl, and how they
- * fold into the board's agents (the same LedgerAgent the ledger's lines give, with the fields the lines can't carry).
- * Nothing here is parsed from prose: a kind, a state, a time and a result are fields.
+ * fold into the board's agents (LedgerAgent). Nothing here is parsed from prose: a kind, a state, a time and a result
+ * are fields. ledgerLine and beatLine write each event as a log line for people and scripts (registry.ts).
  *
  *   {op:'start',  v, id, sid8, session, name, at, by, run, kind, standing, task, model, effort, repo, branch, tip, pr, cwd, card, lane, notes}
  *   {op:'state',  ..., state: running|waiting|review|plan|fixing, outcome, findings, notes}
@@ -15,7 +15,6 @@
  */
 import { jsonLines } from '../../adapters/stores/fs/jsonl.ts';
 import { ledgerTime, type LedgerAgent } from './ledger.ts';
-import type { BoardBeat } from '@once-upon-a-diff/contracts/types';
 import { AGENT_KINDS, type AgentKind, type AgentResult } from './agent-types.ts';
 
 /** Old names for a kind, still read from old agents.jsonl lines and still accepted by `agent start --kind`. */
@@ -138,7 +137,6 @@ export function foldAgentEvents(events: AgentEvent[]): LedgerAgent[] {
         ended: null,
         outcome: null,
         notes: event.notes ?? null,
-        source: 'events',
         run: event.run ?? null,
         session: event.session ?? null,
         kind: canonicalKind(event.kind),
@@ -199,8 +197,9 @@ export function foldAgentEvents(events: AgentEvent[]): LedgerAgent[] {
 const flat = (text: string | null | undefined) => (text ?? '').replace(/\s+—\s+/g, ' - ').trim();
 
 /**
- * The legacy ledger line for what an event did to its run, so a ledger file stays a readable log and the old parser
- * reads it back to the same state. `agent` is the run after the event.
+ * The ledger line for what an event did to its run, so the ledger file stays a readable log. Scripts outside this repo
+ * (the subagent status line, the iTerm status hook) read these lines with their own patterns: keep the format.
+ * `agent` is the run after the event.
  */
 export function ledgerLine(event: AgentEvent, agent: LedgerAgent): string {
   const lane = agent.lane ? ` lane:${agent.lane}` : '';
@@ -227,12 +226,4 @@ export function beatLine(event: AgentEvent): string {
   const time = ledgerTime(new Date(event.at)).replace(/ ET,.*$/, '');
   const note = event.note ? `: ${event.note}` : '';
   return `- ${time} ${event.name} ${event.n}/${event.of} ${event.step}${note}`;
-}
-
-/** An agent's own beat, or the by-name beat a progress file gave (ledger agents only: an events agent never borrows another run's). */
-export function beatOf(
-  agent: Pick<LedgerAgent, 'name' | 'source' | 'beat'>,
-  legacy: Map<string, BoardBeat>,
-): BoardBeat | undefined {
-  return agent.source === 'events' ? (agent.beat ?? undefined) : legacy.get(agent.name);
 }

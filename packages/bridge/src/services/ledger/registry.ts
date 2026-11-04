@@ -1,8 +1,8 @@
 /**
  * The agent registry: `once-upon agent start|state|beat|finish` write events to <home>/agents.jsonl (events.ts says
  * what they mean). The store validates, finds the run an event belongs to, and, when the settings name a ledger or a
- * progress file, appends the matching legacy line to it, so those files stay readable logs written by the CLI and not
- * typed by hand. A mirror that fails never fails the write.
+ * progress file, appends the matching line to it, so those files stay readable logs for people and scripts, written by
+ * the CLI and not typed by hand. The board never reads them back. A mirror that fails never fails the write.
  */
 import { randomBytes } from 'node:crypto';
 import {
@@ -101,7 +101,7 @@ export interface FinishInput extends Target {
   notes?: string | null;
 }
 
-/** The files the registry mirrors its events into as legacy lines, from the board settings. */
+/** The files the registry mirrors its events into as log lines, from the board settings. */
 export interface Mirror {
   ledger: string | null;
   progress: string | null;
@@ -125,7 +125,7 @@ export class AgentRegistry {
     return foldAgentEvents(this.events());
   }
 
-  /** Writes the event, then its legacy lines. Returns the run after the event. */
+  /** Writes the event, then its log lines. Returns the run after the event. */
   private append(event: AgentEvent): LedgerAgent {
     appendAgentEvent(this.file, { v: 1, ...event });
     const agent = foldAgentEvents(this.events()).find(

@@ -1,13 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { claimAt, runCli, tmp, writeJson } from './helpers.ts';
+import { claimAt, registerRuns, runCli, tmp, writeJson, type AgentRun } from './helpers.ts';
 import { Board, noPrWatcher } from '../src/services/board/board.ts';
 import { BacklogStore, backlogCards } from '../src/services/backlog/backlog.ts';
 import { CLAIM_GRACE_HOURS, claimedAgents, criticHold } from '../src/services/backlog/claims.ts';
 import { startedLinks } from '../src/services/backlog/backlog-links.ts';
-import { parseLedger } from '../src/services/ledger/ledger.ts';
 import { STALE_MS } from '../src/services/ledger/events.ts';
 import { AgentRegistry } from '../src/services/ledger/registry.ts';
 import { registrySource } from '../src/services/sessions/sources.ts';
@@ -16,19 +15,22 @@ import { Builds } from '../src/services/inbox/builds.ts';
 import type { BoardCard } from '@once-upon-a-diff/contracts/types';
 
 const NOW = new Date('2026-10-26T19:00:00Z');
-const RUNNING = (name: string, task = 'do a thing', sid = '54736864') =>
-  `- [running] sid:${sid} ${name} (sonnet, high) — ${task} — started 2:30 PM ET, 10/26\n`;
+/** An author's run that started at 2:30 PM ET on 10/26 and is still going. */
+const RUNNING = (name: string, task = 'do a thing', sid = '54736864'): AgentRun => ({
+  sid,
+  name,
+  kind: 'author',
+  task,
+  started: '2026-10-26T18:30:00Z',
+});
 
-function world(ledgerText: string) {
+/** The agents the runs register, as the board reads them. */
+const agentsOf = (...runs: AgentRun[]) => registerRuns(tmp('claim-agents'), ...runs).agents();
+
+function world(...runs: AgentRun[]) {
   const home = tmp('claim-home');
-  const ledger = path.join(tmp('claim-notes'), 'ledger.md');
-  writeFileSync(ledger, ledgerText);
-  writeJson(path.join(home, 'config.json'), {
-    board_sessions_dir: tmp('claim-sessions'),
-    board_ledger_file: ledger,
-    board_progress_file: path.join(path.dirname(ledger), 'progress.md'),
-    board_ledger_time_zone: 'UTC',
-  });
+  registerRuns(home, ...runs);
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: tmp('claim-sessions') });
   const cards = async (now = NOW): Promise<BoardCard[]> =>
     (
       await new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
@@ -36,7 +38,7 @@ function world(ledgerText: string) {
         now: () => now,
       }).snapshot()
     ).lanes.flatMap((lane) => lane.cards);
-  return { home, ledger, cards, store: new BacklogStore(home) };
+  return { home, cards, store: new BacklogStore(home) };
 }
 
 test('a claim event folds: the latest wins, reopen clears it, a dropped item cannot be claimed', () => {
@@ -83,14 +85,10 @@ test('an edited card can be claimed, and a claimed card can be edited: both even
   assert.equal(back.repo, 'acme/gadgets');
 });
 
-test('claimedAgents: the newest ledger line of the claimed name, pinned by sid when the claim has one', () => {
+test('claimedAgents: the newest run of the claimed name, pinned by sid when the claim has one', () => {
   const store = new BacklogStore(tmp('claim-resolve'));
   const item = store.add({ title: 'A thing' });
-  const agents = parseLedger(
-    RUNNING('ou-one', 'x', 'aaaaaaaa') + RUNNING('ou-one', 'y', 'bbbbbbbb'),
-    NOW,
-    'UTC',
-  );
+  const agents = agentsOf(RUNNING('ou-one', 'x', 'aaaaaaaa'), RUNNING('ou-one', 'y', 'bbbbbbbb'));
   store.claim(item.id, { agent: 'ou-one', sid: 'aaaaaaaa' });
   assert.equal(claimedAgents(store.items(), agents).get(item.id)?.sid, 'aaaaaaaa');
   store.claim(item.id, { agent: 'ou-missing' });
@@ -102,29 +100,21 @@ test('startedLinks finds its agent only through the claim: not by `by`, a folder
   const store = new BacklogStore(tmp('claim-links'));
   const made = store.add({ title: 'T', repo: 'acme/widgets' });
   store.start(made.id, { branch: 'kill-inbox', by: 'ou-kill-inbox' });
-  const agents = parseLedger(
-    RUNNING('ou-kill-inbox', 'build in widgets-worktrees/kill-inbox') + RUNNING('kill-inbox'),
-    NOW,
-    'UTC',
+  const agents = agentsOf(
+    RUNNING('ou-kill-inbox', 'build in widgets-worktrees/kill-inbox'),
+    RUNNING('kill-inbox'),
   );
-  const facts = {
-    worktrees: new Map(),
-    sessions: [],
-    agents,
-    beats: new Map(),
-    merged: () => null,
-  };
+  const facts = { worktrees: new Map(), sessions: [], agents, merged: () => null };
   assert.equal(startedLinks(store.items()[0], facts)?.agent, null);
   store.claim(made.id, { agent: 'ou-kill-inbox' });
   assert.equal(startedLinks(store.items()[0], facts)?.agent?.name, 'ou-kill-inbox');
 });
 
 test('a claimed card is ONE Working card with its agent, and the agent has no card of its own', async () => {
-  const { store, cards, ledger } = world(RUNNING('ou-scout', 'research the thing'));
-  writeFileSync(
-    path.join(path.dirname(ledger), 'progress.md'),
-    '- 2:40 PM ou-scout 2/6 plan: plan written\n',
-  );
+  const { store, cards } = world({
+    ...RUNNING('ou-scout', 'research the thing'),
+    beat: { n: 2, of: 6, step: 'plan', note: 'plan written', at: '2026-10-26T18:40:00Z' },
+  });
   const item = store.add({ title: 'Research the thing', repo: 'acme/widgets' });
   store.claim(item.id, { agent: 'ou-scout' });
   const all = await cards();
@@ -143,13 +133,15 @@ test('a claimed card is ONE Working card with its agent, and the agent has no ca
 });
 
 test('an unclaimed agent with `card bl_x` in its task, its `by` name or its folder name does NOT link', async () => {
-  const { store, cards, ledger } = world('');
+  const { store, cards, home } = world();
   const item = store.add({ title: 'Look into it', repo: 'acme/widgets' });
   store.start(item.id, { branch: 'look-into', repo: 'acme/widgets', by: 'ou-look' });
   const open = store.add({ title: 'Open card', repo: 'acme/widgets' });
-  writeFileSync(
-    ledger,
-    RUNNING('ou-text', `card ${open.id} research`) + RUNNING('ou-look') + RUNNING('look-into'),
+  registerRuns(
+    home,
+    RUNNING('ou-text', `card ${open.id} research`),
+    RUNNING('ou-look'),
+    RUNNING('look-into'),
   );
   const all = await cards();
   const card = all.find((one) => one.backlog?.id === open.id);
@@ -165,8 +157,8 @@ test('an unclaimed agent with `card bl_x` in its task, its `by` name or its fold
   assert.equal(started?.backlog?.started?.links?.agent, null);
 });
 
-test('a claim whose agent is not in the ledger yet is Working, pending, for CLAIM_GRACE_HOURS', async () => {
-  const { store, cards } = world('');
+test('a claim whose agent is not registered yet is Working, pending, for CLAIM_GRACE_HOURS', async () => {
+  const { store, cards } = world();
   const item = store.add({ title: 'Waiting for its agent', repo: 'acme/widgets' });
   store.claim(item.id, { agent: 'ou-late' });
   const real = new Date();
@@ -180,13 +172,12 @@ test('a claim whose agent is not in the ledger yet is Working, pending, for CLAI
 });
 
 test('a claimed agent that fails sends its card back to Backlog, tried', async () => {
-  const { store, cards, ledger } = world(RUNNING('ou-scout'));
+  const { store, cards } = world({
+    ...RUNNING('ou-scout'),
+    now: { state: 'failed', at: '2026-10-26T18:45:00Z', outcome: 'gave up' },
+  });
   const item = store.add({ title: 'Try it', repo: 'acme/widgets' });
   claimAt(store, item.id, 'ou-scout', '2026-10-26T18:35:00Z');
-  writeFileSync(
-    ledger,
-    RUNNING('ou-scout') + '- [failed] sid:54736864 ou-scout — 2:45 PM ET, 10/26 — gave up\n',
-  );
   const back = (await cards()).find((one) => one.backlog?.id === item.id);
   assert.equal(back?.column, 'backlog');
   assert.equal(back?.backlog?.agent?.tried, true);
@@ -198,7 +189,7 @@ test('a claimed agent on a card whose branch has a work card rides on that card,
   const item = store.add({ title: 'Build it', repo: 'acme/widgets' });
   store.start(item.id, { branch: 'build-it' });
   store.claim(item.id, { agent: 'ou-build' });
-  const agent = parseLedger(RUNNING('ou-build'), NOW, 'UTC')[0];
+  const agent = agentsOf(RUNNING('ou-build'))[0];
   const view = { name: 'ou-build', state: 'running' } as BoardCard['agents'][number];
   const workCard = {
     id: 'work:1',
@@ -247,7 +238,7 @@ test('`backlog claim` writes the claim, and --branch also starts the card', asyn
 });
 
 test('a finished card in a skip-review repo is Ready to ship only once its critic has passed and no fix round is open', async () => {
-  const { home, cards, store } = world('');
+  const { home, cards, store } = world();
   const registry = new AgentRegistry(home);
   const repo = 'shank-eric/once-upon-a-diff';
   const stamp = (minutes: number) => new Date(Date.parse('2026-11-03T15:00:00Z') + minutes * 60000);
@@ -284,7 +275,7 @@ test('a finished card in a skip-review repo is Ready to ship only once its criti
 });
 
 test('a critic that passed with no findings leaves a finished card in Ready to ship, and other repos are unaffected', async () => {
-  const { home, cards, store } = world('');
+  const { home, cards, store } = world();
   const registry = new AgentRegistry(home);
   const stamp = (minutes: number) => new Date(Date.parse('2026-11-03T15:00:00Z') + minutes * 60000);
   const columns: Record<string, string | undefined> = {};

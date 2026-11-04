@@ -1,16 +1,16 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { tmp, writeJson, startBridge, TOKEN, type TestBridge } from './helpers.ts';
+import { tmp, writeJson, startBridge, registerRuns, TOKEN, type TestBridge } from './helpers.ts';
 import { Board, noPrWatcher } from '../src/services/board/board.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
 import { Builds } from '../src/services/inbox/builds.ts';
 import { boardKey } from '../src/services/pages/page-key.ts';
 import { finishedColumn } from '../src/services/board/agent-home.ts';
 import { AgentRegistry } from '../src/services/ledger/registry.ts';
-import { doneLine, lastActivity, ledgerTime, parseLedger } from '../src/services/ledger/ledger.ts';
+import { lastActivity, ledgerTime } from '../src/services/ledger/ledger.ts';
 import { appendLine } from '../src/adapters/stores/fs/lines.ts';
 import { BoardError } from '../src/services/errors.ts';
 import type { StatusSource } from '../src/adapters/status-source.ts';
@@ -29,15 +29,13 @@ const procStart = execFileSync('ps', ['-o', 'lstart=', '-p', String(process.pid)
   env: { ...process.env, TZ: 'UTC', LC_ALL: 'C' },
 }).trim();
 
-/** A board over a ledger and progress file, with a clock the test moves and one live session (the agents' parent). */
+/** A board that mirrors into a ledger file, with a clock the test moves and one live session (the agents' parent). */
 function world(config: Record<string, unknown> = {}) {
   const home = tmp('finished-home');
   const notes = tmp('finished-notes');
   const sessions = tmp('finished-sessions');
   const ledger = path.join(notes, 'ledger.md');
-  const progress = path.join(notes, 'progress.md');
   writeFileSync(ledger, '');
-  writeFileSync(progress, '');
   writeJson(path.join(sessions, `${process.pid}.json`), {
     pid: process.pid,
     sessionId: `${SID}-aaaa-bbbb-cccc-dddddddddddd`,
@@ -50,9 +48,7 @@ function world(config: Record<string, unknown> = {}) {
   });
   writeJson(path.join(home, 'config.json'), {
     board_ledger_file: ledger,
-    board_progress_file: progress,
     board_sessions_dir: sessions,
-    board_ledger_time_zone: 'America/New_York',
     ...config,
   });
   const clock = { now: NOW };
@@ -81,40 +77,31 @@ function world(config: Record<string, unknown> = {}) {
   const moveTo = (minutes: number) => {
     clock.now = new Date(NOW.getTime() + minutes * MINUTE);
   };
-  return { home, ledger, progress, board, cards, card, moveTo };
+  return { home, ledger, board, cards, card, moveTo };
 }
 
-const line = (state: string, name: string, time: string, rest: string) =>
-  `- [${state}] sid:${SID} ${name} — ${time} — ${rest}\n`;
+/** h:m PM ET on 11/2 (Eastern standard time, UTC-5). */
+const pmET = (hour: number, minute: number) => new Date(Date.UTC(2026, 10, 2, hour + 17, minute));
 
-test('a ledger line names its notes file, and a later line without one keeps it', () => {
-  const [one] = parseLedger(
-    `- [done] sid:${SID} one — 3:20 PM ET, 11/2 — result in hand — notes/research/2026-11-02-one.md\n`,
-    NOW,
-  );
-  assert.equal(one.notes, 'notes/research/2026-11-02-one.md');
-  const [two] = parseLedger(
-    `- [done] sid:${SID} two — result; ~/Development/ClariFi/notes/x.md. — 3:20 PM ET, 11/2\n`,
-    NOW,
-  );
-  assert.equal(two.notes, '~/Development/ClariFi/notes/x.md');
-  const [kept] = parseLedger(
-    `- [running] sid:${SID} three (sonnet) — write notes/a.md — started 3:00 PM ET, 11/2\n- [done] sid:${SID} three — 3:20 PM ET, 11/2 — fine\n`,
-    NOW,
-  );
-  assert.equal(kept.notes, 'notes/a.md');
-  assert.equal(
-    parseLedger(`- [done] sid:${SID} four — 3:20 PM ET, 11/2 — nothing\n`, NOW)[0].notes,
-    null,
-  );
-});
+/** A run of SID's that started five minutes before `when` and ended then: a helper unless `kind` says otherwise. */
+const ended = (
+  home: string,
+  name: string,
+  when: Date,
+  outcome: string,
+  state: 'done' | 'stopped' | 'failed' = 'done',
+  extra: { kind?: 'research' | 'critic' | 'author'; notes?: string; sid?: string } = {},
+) =>
+  registerRuns(home, {
+    sid: extra.sid ?? SID,
+    name,
+    kind: extra.kind,
+    started: new Date(when.getTime() - 5 * MINUTE),
+    now: { state, at: when, outcome, notes: extra.notes },
+  });
 
-test('the last thing an agent did is its latest ledger line’s time, else its start', () => {
-  const agent = parseLedger(
-    line('done', 'a', '3:20 PM ET, 11/2', 'ok'),
-    NOW,
-    'America/New_York',
-  )[0];
+test('the last thing an agent did is its latest event, else its end or its start', () => {
+  const agent = ended(tmp('finished-last'), 'a', pmET(3, 20), 'ok').agents()[0];
   assert.equal(lastActivity(agent)?.toISOString(), '2026-11-02T20:20:00.000Z');
   assert.equal(
     lastActivity({ ended: null, started: new Date(NOW.getTime() - MINUTE) })?.toISOString(),
@@ -123,22 +110,9 @@ test('the last thing an agent did is its latest ledger line’s time, else its s
   assert.equal(lastActivity({ ended: null, started: null }), null);
 });
 
-test('the done line Finish writes is Eastern time with its label, whatever zone the reader is set to', () => {
+test('ledger times are Eastern with their label, whatever zone the reader is set to', () => {
   assert.equal(ledgerTime(NOW), '3:40 PM ET, 11/2');
   assert.equal(ledgerTime(new Date('2026-11-02T05:05:00Z')), '12:05 AM ET, 11/2', 'midnight is 12');
-  const text = doneLine({ sid: SID, lane: 'widgets', name: 'asker' }, NOW);
-  assert.match(
-    text,
-    /^- \[done\] sid:abcdef01 lane:widgets asker — 3:40 PM ET, 11\/2 — finished from the board$/,
-  );
-  for (const zone of ['America/Chicago', 'Asia/Tokyo', undefined]) {
-    const [back] = parseLedger(text, NOW, zone);
-    assert.deepEqual(
-      [back.state, back.lane, back.ended?.toISOString(), back.outcome],
-      ['done', 'widgets', NOW.toISOString(), 'finished from the board'],
-      String(zone),
-    );
-  }
 });
 
 test('appendLine starts a new line when the file does not end with one, and makes a missing file', () => {
@@ -149,15 +123,14 @@ test('appendLine starts a new line when the file does not end with one, and make
   assert.equal(readFileSync(file, 'utf8'), 'one\ntwo\nthree\n');
 });
 
-test('a finished agent sits in Waiting with its outcome, notes and parent, then leaves 30 minutes after its last line', async () => {
+test('a finished agent sits in Waiting with its outcome, notes and parent, then leaves 30 minutes after its last event', async () => {
   const rig = world();
-  writeFileSync(
-    rig.ledger,
-    line('stopped', 'research-a', '3:20 PM ET, 11/2', 'options laid out — notes/research/a.md') +
-      line('failed', 'research-b', '3:25 PM ET, 11/2', 'the build broke') +
-      line('stopped', 'research-c', '3:30 PM ET, 11/2', 'asked to stop') +
-      line('done', 'research-old', '2:00 PM ET, 11/2', 'long ago'),
-  );
+  ended(rig.home, 'research-a', pmET(3, 20), 'options laid out', 'stopped', {
+    notes: 'notes/research/a.md',
+  });
+  ended(rig.home, 'research-b', pmET(3, 25), 'the build broke', 'failed');
+  ended(rig.home, 'research-c', pmET(3, 30), 'asked to stop', 'stopped');
+  ended(rig.home, 'research-old', pmET(2, 0), 'long ago');
   const first = await rig.card('research-a');
   assert.ok(first, 'a card of its own');
   assert.equal(first.column, 'waiting');
@@ -171,73 +144,17 @@ test('a finished agent sits in Waiting with its outcome, notes and parent, then 
   assert.equal(await rig.card('research-old'), undefined, 'past its 30 minutes');
   rig.moveTo(11);
   assert.equal(await rig.card('research-a'), undefined, 'gone at 3:51 PM');
-  assert.ok(await rig.card('research-b'), 'still there: its line was later');
+  assert.ok(await rig.card('research-b'), 'still there: it ended later');
   rig.moveTo(21);
   assert.equal(await rig.card('research-b'), undefined);
 });
 
-const running = (name: string, task: string) =>
-  `- [running] sid:${SID} ${name} (sonnet, low) — ${task} — started 3:00 PM ET, 11/2\n`;
-
-test('an agent known only from the ledger is Done on its [done] line whatever the text says; a stopped or failed one, and one with no [done], is Waiting; a review- name is Done', async () => {
-  const rig = world();
-  writeFileSync(
-    rig.ledger,
-    running('ou-build', 'the board fix') +
-      line('done', 'ou-build', '3:20 PM ET, 11/2', 'branch board-fix, sha 0637f8f, tests green') +
-      // the words say it did nothing, and the line still says done: the text is not read
-      running('ou-nothing', 'try it') +
-      line('done', 'ou-nothing', '3:21 PM ET, 11/2', 'nothing was committed or pushed') +
-      running('research-fees', 'compare the fee options') +
-      line(
-        'done',
-        'research-fees',
-        '3:25 PM ET, 11/2',
-        'options laid out — notes/research/fees.md',
-      ) +
-      running('review-board-fix', 'review the diff') +
-      line('stopped', 'review-board-fix', '3:24 PM ET, 11/2', '3 findings — notes/reviews/x.md') +
-      running('ou-stopped', 'card bl_abc123def456 try it') +
-      line('stopped', 'ou-stopped', '3:26 PM ET, 11/2', 'committed 0637f8f, then asked to stop') +
-      running('ou-failed', 'card bl_abc123def456 try it') +
-      line('failed', 'ou-failed', '3:27 PM ET, 11/2', 'deployed, then the build broke') +
-      line('waiting', 'ou-asker', '3:28 PM ET, 11/2', 'needs Eric: pick A or B — notes/x.md'),
-  );
-  const columns: Record<string, string | undefined> = {};
-  for (const name of [
-    'ou-build',
-    'ou-nothing',
-    'research-fees',
-    'review-board-fix',
-    'ou-stopped',
-    'ou-failed',
-    'ou-asker',
-  ]) {
-    columns[name] = (await rig.card(name))?.column;
-  }
-  assert.deepEqual(columns, {
-    'ou-build': 'done',
-    'ou-nothing': 'done',
-    'research-fees': 'done',
-    'review-board-fix': 'done',
-    'ou-stopped': 'waiting',
-    'ou-failed': 'waiting',
-    'ou-asker': 'waiting',
-  });
-  const built = await rig.card('ou-build');
-  assert.equal(
-    built?.agents[0].clears_at,
-    '2026-11-02T20:50:00.000Z',
-    'Done cards clear on the same timer',
-  );
-});
-
-test('finishedColumn reads fields only: kind, state, result, ledger source', () => {
+test('finishedColumn reads fields only: kind, state, result', () => {
   const column = (
     state: 'done' | 'stopped' | 'failed' | 'waiting',
     extra: Record<string, unknown> = {},
     name = 'ou-x',
-  ) => finishedColumn({ name, state, source: 'events', ...extra });
+  ) => finishedColumn({ name, state, ...extra });
   const result = { commit: 'abc1234' };
   // made something: a result, whatever the kind
   assert.equal(column('done', { kind: 'author', result }), 'done');
@@ -271,14 +188,11 @@ test('finishedColumn reads fields only: kind, state, result, ledger source', () 
   assert.equal(column('failed', { kind: 'author', result }), 'waiting');
   assert.equal(column('done', { kind: 'critic', result: null }), 'done');
   assert.equal(column('stopped', { kind: 'critic' }), 'done');
-  // ledger only: no kind or result, so never Research
-  assert.equal(finishedColumn({ name: 'review-x', state: 'stopped' }), 'done', 'a ledger reviewer');
-  assert.equal(finishedColumn({ name: 'ou-x', state: 'done' }), 'done', 'a ledger [done]');
-  assert.equal(finishedColumn({ name: 'ou-x', state: 'stopped' }), 'waiting');
-  assert.equal(finishedColumn({ name: 'ou-x', state: 'waiting' }), 'waiting');
+  // a name is only a name: review- in it makes no critic
+  assert.equal(column('stopped', { kind: 'helper' }, 'review-x'), 'waiting');
 });
 
-/** Registered agents (once-upon agent start/finish) beside the ledger, at minutes from the test clock's NOW (3:40 PM ET). */
+/** Registered agents (once-upon agent start/finish), at minutes from the test clock's NOW (3:40 PM ET). */
 function register(home: string, name: string, kind: string, finish: object, atMinute = -10) {
   const registry = new AgentRegistry(home);
   const when = (minutes: number) => new Date(NOW.getTime() + minutes * MINUTE);
@@ -362,23 +276,12 @@ test('an author that finishes with no result is in Waiting and is gone after an 
   assert.equal(await rig.card('ou-author'), undefined, 'gone after an hour');
 });
 
-test('a ledger [done] whose words say research stays Done: no text is read', async () => {
-  const rig = world();
-  writeFileSync(
-    rig.ledger,
-    `- [running] sid:${SID} ou-words (sonnet, low) — try it — started 3:00 PM ET, 11/2\n` +
-      line('done', 'ou-words', '3:30 PM ET, 11/2', 'research only, nothing built'),
-  );
-  assert.equal((await rig.card('ou-words'))?.column, 'done');
-});
-
 test('board_finished_wait_minutes sets how long a finished agent waits', async () => {
-  const text = line('done', 'quick', '3:20 PM ET, 11/2', 'ok');
   const short = world({ board_finished_wait_minutes: 10 });
-  writeFileSync(short.ledger, text);
+  ended(short.home, 'quick', pmET(3, 20), 'ok');
   assert.equal(await short.card('quick'), undefined, '20 minutes is past a 10-minute wait');
   const long = world({ board_finished_wait_minutes: 90 });
-  writeFileSync(long.ledger, text);
+  ended(long.home, 'quick', pmET(3, 20), 'ok');
   assert.ok(await long.card('quick'));
   long.moveTo(60);
   assert.ok(await long.card('quick'), 'at 80 minutes of a 90-minute wait');
@@ -386,47 +289,27 @@ test('board_finished_wait_minutes sets how long a finished agent waits', async (
   assert.equal(await long.card('quick'), undefined);
 });
 
-test('a new ledger line resets the timer, and progress beats do not count', async () => {
+test('a later run resets the timer', async () => {
   const rig = world();
-  writeFileSync(
-    rig.ledger,
-    line('done', 'by-line', '3:20 PM ET, 11/2', 'first') +
-      line('done', 'by-beat', '3:20 PM ET, 11/2', 'first'),
-  );
+  ended(rig.home, 'by-run', pmET(3, 20), 'first');
   rig.moveTo(9);
-  assert.equal((await rig.card('by-line'))?.agents[0].clears_at, '2026-11-02T20:50:00.000Z');
-  appendFileSync(rig.ledger, line('done', 'by-line', '3:48 PM ET, 11/2', 'second look'));
-  appendFileSync(rig.progress, '- 3:47 PM by-beat 6/6 done: more notes\n');
+  assert.equal((await rig.card('by-run'))?.agents[0].clears_at, '2026-11-02T20:50:00.000Z');
+  ended(rig.home, 'by-run', pmET(3, 48), 'second look');
   rig.moveTo(12); // 3:52 PM, past the first window
-  const byLine = await rig.card('by-line');
+  const again = await rig.card('by-run');
   assert.equal(
-    byLine?.agents[0].clears_at,
+    again?.agents[0].clears_at,
     '2026-11-02T21:18:00.000Z',
-    'a later line: a fresh 30 minutes',
+    'a later run: a fresh 30 minutes',
   );
-  assert.equal(byLine?.detail, 'second look');
-  assert.equal(await rig.card('by-beat'), undefined, 'a beat has no date: it starts nothing');
-});
-
-test('an old agent does not come back because a beat from days ago has this time of day', async () => {
-  const rig = world();
-  writeFileSync(rig.ledger, line('done', 'last-week', '3:35 PM ET, 10/23', 'long finished'));
-  // beat.sh writes a time of day only: 10/23's beat at 3:35 PM reads as today's 3:35 PM
-  writeFileSync(rig.progress, '- 3:35 PM last-week 6/6 done: all green\n');
-  assert.equal(await rig.card('last-week'), undefined);
-  rig.moveTo(5);
-  assert.equal(await rig.card('last-week'), undefined);
+  assert.equal(again?.detail, 'second look');
 });
 
 test('one name used by two sessions is two agents: the old one stays gone while the new one waits', async () => {
   const rig = world();
   const other = 'deadbeef';
-  writeFileSync(
-    rig.ledger,
-    `- [done] sid:${other} review-x — 2:00 PM ET, 11/2 — first pass\n` +
-      `- [done] sid:${SID} review-x — 3:30 PM ET, 11/2 — second pass\n`,
-  );
-  writeFileSync(rig.progress, '- 3:35 PM review-x 6/6 done: finished\n');
+  ended(rig.home, 'review-x', pmET(2, 0), 'first pass', 'done', { kind: 'critic', sid: other });
+  ended(rig.home, 'review-x', pmET(3, 30), 'second pass', 'done', { kind: 'critic' });
   const waiting = (await rig.cards()).filter((one) => one.title === 'review-x');
   assert.deepEqual(
     waiting.map((one) => one.id),
@@ -435,17 +318,17 @@ test('one name used by two sessions is two agents: the old one stays gone while 
   assert.equal(waiting[0].detail, 'second pass');
 });
 
-test('Finish clears a finished agent’s card at once, writes no ledger line, and a later line brings it back', async () => {
+test('Finish clears a finished agent’s card at once, writes no ledger line, and a later run brings it back', async () => {
   const rig = world();
-  const text = line('done', 'finisher', '3:20 PM ET, 11/2', 'result');
-  writeFileSync(rig.ledger, text);
+  ended(rig.home, 'finisher', pmET(3, 20), 'result');
+  const text = readFileSync(rig.ledger, 'utf8');
   assert.ok(await rig.card('finisher'));
   assert.deepEqual(rig.board.finishAgent(SID, 'finisher'), { ledger: false });
   assert.equal(await rig.card('finisher'), undefined, 'gone at once');
   assert.equal(readFileSync(rig.ledger, 'utf8'), text, 'a finished agent needs no new line');
   rig.moveTo(1);
   assert.equal(await rig.card('finisher'), undefined, 'still gone on the next look');
-  appendFileSync(rig.ledger, line('done', 'finisher', '3:42 PM ET, 11/2', 'one more thing'));
+  ended(rig.home, 'finisher', pmET(3, 42), 'one more thing');
   rig.moveTo(3);
   const back = await rig.card('finisher');
   assert.equal(back?.detail, 'one more thing', 'it did something more');
@@ -454,10 +337,12 @@ test('Finish clears a finished agent’s card at once, writes no ledger line, an
 
 test('Finish on an agent waiting on a question writes its [done] line, and the card goes', async () => {
   const rig = world();
-  writeFileSync(
-    rig.ledger,
-    line('waiting', 'asker', '3:30 PM ET, 11/2', 'needs Eric: pick A or B').trimEnd(),
-  );
+  registerRuns(rig.home, {
+    sid: SID,
+    name: 'asker',
+    started: pmET(3, 25),
+    now: { state: 'waiting', at: pmET(3, 30), outcome: 'needs Eric: pick A or B' },
+  });
   const waiting = await rig.card('asker');
   assert.equal(waiting?.agents[0].state, 'waiting');
   assert.equal(waiting?.agents[0].clears_at, null, 'a question has no timer');
@@ -465,18 +350,24 @@ test('Finish on an agent waiting on a question writes its [done] line, and the c
   assert.equal(
     readFileSync(rig.ledger, 'utf8').split('\n').at(-2),
     `- [done] sid:${SID} asker — 3:40 PM ET, 11/2 — finished from the board`,
+    'the registry finishes it, and mirrors the line',
   );
   assert.equal(await rig.card('asker'), undefined);
   rig.moveTo(5);
   assert.equal(await rig.card('asker'), undefined, 'its own [done] line does not bring it back');
 });
 
-test('Finish refuses a working agent, one parked on your review, and one the ledger does not have', () => {
+test('Finish refuses a working agent, one parked on your review, and one nobody registered', () => {
   const rig = world();
-  writeFileSync(
-    rig.ledger,
-    `- [running] sid:${SID} busy (sonnet, low) — a task — started 3:30 PM ET, 11/2\n` +
-      line('review', 'parked', '3:30 PM ET, 11/2', 'story abc up'),
+  registerRuns(
+    rig.home,
+    { sid: SID, name: 'busy', started: pmET(3, 30) },
+    {
+      sid: SID,
+      name: 'parked',
+      started: pmET(3, 25),
+      now: { state: 'review', at: pmET(3, 30), outcome: 'story abc up' },
+    },
   );
   const refuses = (name: string, status: number) =>
     assert.throws(
@@ -488,14 +379,15 @@ test('Finish refuses a working agent, one parked on your review, and one the led
   refuses('nobody', 404);
   assert.throws(
     () => world({ board_ledger_file: '' }).board.finishAgent(SID, 'x'),
-    (err: unknown) => err instanceof BoardError && err.status === 400,
+    (err: unknown) => err instanceof BoardError && err.status === 404,
+    'no ledger setting changes nothing',
   );
 });
 
-test('Finish still clears a card whose last line is ahead of the clock', async () => {
+test('Finish still clears a card whose last event is ahead of the clock', async () => {
   const rig = world();
-  // a line stamped 20 minutes after "now": a wrong zone label, or a typo
-  writeFileSync(rig.ledger, line('done', 'ahead', '4:00 PM ET, 11/2', 'result'));
+  // an event stamped 20 minutes after "now": another machine's clock
+  ended(rig.home, 'ahead', pmET(4, 0), 'result');
   assert.ok(await rig.card('ahead'));
   rig.board.finishAgent(SID, 'ahead');
   assert.equal(await rig.card('ahead'), undefined);
@@ -505,14 +397,14 @@ test('Finish still clears a card whose last line is ahead of the clock', async (
     undefined,
     'and it stays gone while nothing later is written',
   );
-  appendFileSync(rig.ledger, line('done', 'ahead', '4:20 PM ET, 11/2', 'more'));
+  ended(rig.home, 'ahead', pmET(4, 20), 'more');
   rig.moveTo(31);
-  assert.equal((await rig.card('ahead'))?.detail, 'more', 'a later line brings it back');
+  assert.equal((await rig.card('ahead'))?.detail, 'more', 'a later run brings it back');
 });
 
 test('POST /api/board/agent/finish takes the board key and a sid and name', async () => {
   const rig = world();
-  writeFileSync(rig.ledger, line('done', 'routed', '3:20 PM ET, 11/2', 'result'));
+  ended(rig.home, 'routed', pmET(3, 20), 'result');
   const bridge = await startBridge({ home: rig.home });
   open.push(bridge);
   const post = (key: string, body: unknown) =>
