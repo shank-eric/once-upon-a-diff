@@ -209,6 +209,7 @@
         "package.json",
         "tsconfig.json",
         "tsconfig.base.json",
+        "tsconfig.browser.json",
         "tsconfig.depcruise.json",
         "eslint.config.mjs",
         "eslint.boundaries.mjs",
