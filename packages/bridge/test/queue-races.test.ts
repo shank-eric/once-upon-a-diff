@@ -10,6 +10,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, writeFileSync } from 'node:fs';
 import { tmp, githubStory, writeJson } from './helpers.ts';
 import { Builds } from '../src/services/inbox/builds.ts';
+import { readHanded } from '../src/services/inbox/conversation.ts';
 import { fixesView, readFixes, readNotes } from '../src/services/inbox/fixes.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
 import type { FixRequest } from '../src/services/inbox/fixes.ts';
@@ -41,6 +42,7 @@ async function race(body: string, argsList: string[][]): Promise<string[]> {
     `import { existsSync } from 'node:fs';
 import { Builds } from ${src('services/inbox/builds.ts')};
 import { addNote, fixesToHand } from ${src('services/inbox/fixes.ts')};
+import { noteHanded, routeQuestions } from ${src('services/inbox/conversation.ts')};
 import { StoryStore } from ${src('services/stories/store.ts')};
 const [go, ...args] = process.argv.slice(2);
 process.stderr.write('ready\\n');
@@ -196,6 +198,32 @@ test('race 2: four waits at once hand each fix request to one of them', async ()
   const ids = handed(outs);
   assert.equal(new Set(ids).size, ids.length, 'no fix request handed out twice');
   assert.equal(ids.length, 20, 'every fix request handed out');
+});
+
+test('race 3: two waits on one repo never take the same question', async () => {
+  const home = tmp('home');
+  // each wait takes the repo's questions one at a time, as it hears them, and notes them handed, as `wait` does
+  const outs = await race(
+    `const ids = [];
+for (let n = 1; n <= 40; n++) {
+  const { take } = routeQuestions(args[0], args[1], { repo: 'acme/widgets' }, [{ id: 'q_' + n, story: '${STORY}' }], { live: [] });
+  noteHanded(args[0], take.map((question) => question.id), args[1]);
+  ids.push(...take.map((question) => question.id));
+}
+process.stdout.write(JSON.stringify(ids));`,
+    [
+      [home, 'repo-a'],
+      [home, 'repo-b'],
+    ],
+  );
+  const ids = handed(outs);
+  assert.equal(new Set(ids).size, ids.length, 'no question handed to both waits');
+  assert.equal(ids.length, 40, 'every question handed out');
+  const owners = readHanded(home);
+  const lost = ['repo-a', 'repo-b'].flatMap((consumer, num) =>
+    (JSON.parse(outs[num]) as string[]).filter((id) => owners[id]?.consumer !== consumer),
+  );
+  assert.deepEqual(lost, [], 'handed.json names the wait that took each question');
 });
 
 /** A note as notes.json keeps it, with the marks given. */

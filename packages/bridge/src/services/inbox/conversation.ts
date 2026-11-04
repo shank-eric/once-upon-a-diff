@@ -19,6 +19,7 @@
  */
 import path from 'node:path';
 import { readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
+import { updateJson } from '../../adapters/stores/lock.ts';
 import { stateFile } from '../config/settings.ts';
 import { ID_RE } from '../stories/meta.ts';
 import { listeners, type Listener } from '../listeners/listeners.ts';
@@ -147,12 +148,12 @@ export function noteHanded(home: string, ids: string[], consumer: string, via?: 
   if (!ids.length) {
     return;
   }
-  const handed = readHanded(home);
   const now = new Date().toISOString();
-  for (const id of ids) {
-    handed[id] = { consumer, at: now, ...(via ? { via } : {}) };
-  }
-  writeJsonAtomic(handedFile(home), handed);
+  updateJson<Handed, void>(handedFile(home), {}, (handed) => {
+    for (const id of ids) {
+      handed[id] = { consumer, at: now, ...(via ? { via } : {}) };
+    }
+  });
 }
 
 /** The mark `unread` leaves: older than any answer, so the answer is unread whatever its age. */
@@ -318,7 +319,8 @@ export function withMarks<
 /**
  * Which of these questions `consumer` (waiting with `scope`, {repo} or {story} or neither) should take now:
  * {take, defer}. Deferred ones belong to a live story listener for now, and the wait looks at them again.
- * Dismissed questions, and ones handed to another session, are dropped.
+ * Dismissed questions, and ones handed to another session, are dropped. The ones taken are noted handed to `consumer`
+ * in the same locked write as the check, so two waits can't both take one.
  */
 export function routeQuestions<Q extends { id: string; story: string }>(
   home: string,
@@ -332,19 +334,27 @@ export function routeQuestions<Q extends { id: string; story: string }>(
   if (!questions.length) {
     return { take, defer };
   }
-  const handed = readHanded(home);
   const storyListeners = (live || listeners(home)).filter(
     (listener) => listener.live && listener.story && listener.consumer !== consumer,
   );
-  for (const question of questions) {
-    const owner = handed[question.id] && (handed[question.id].via || handed[question.id].consumer);
-    const elsewhere = owner && owner !== consumer;
-    if (elsewhere || readQaMarks(home, question.story).dismissed[question.id]) {
-      continue;
+  updateJson<Handed, void>(handedFile(home), {}, (handed) => {
+    const now = new Date().toISOString();
+    for (const question of questions) {
+      const owner =
+        handed[question.id] && (handed[question.id].via || handed[question.id].consumer);
+      const elsewhere = owner && owner !== consumer;
+      if (elsewhere || readQaMarks(home, question.story).dismissed[question.id]) {
+        continue;
+      }
+      const ownedByStory =
+        !scope.story && storyListeners.some((listener) => listener.story === question.story);
+      if (ownedByStory) {
+        defer.push(question);
+      } else {
+        take.push(question);
+        handed[question.id] ??= { consumer, at: now };
+      }
     }
-    const ownedByStory =
-      !scope.story && storyListeners.some((listener) => listener.story === question.story);
-    (ownedByStory ? defer : take).push(question);
-  }
+  });
   return { take, defer };
 }
