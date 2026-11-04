@@ -1,8 +1,8 @@
 /**
- * Editors: the sessions running a repo's build queue (`/once-upon-editor`), and the authors (builders) each controls. An
+ * Editors: the sessions running a repo's build queue (`/once-upon-editor`), and the authors each controls. An
  * editor registers itself (`once-upon agent start NAME --kind editor --slots N`), so the board knows it and its slots
  * from fields. An author is linked to its editor by the session it was launched from (its registered sid), never by
- * its name or its task: a builder, registered as one or holding a backlog claim, launched under an editor's session is
+ * its name or its task: an author, registered as one or holding a backlog claim, launched under an editor's session is
  * that editor's author. Critics, storytellers and helpers are not authors.
  */
 import { agentKey } from '../../backlog/claims.ts';
@@ -32,9 +32,9 @@ function liveEditors(editors: LedgerAgent[], live: LiveSession[]): LedgerAgent[]
   return [...bySession.values()];
 }
 
-/** Whether an agent is a builder: registered as one, or (a ledger agent, which has no kind) it holds a claim on a card. */
-const isBuilder = (agent: LedgerAgent, claimers: Set<string>): boolean =>
-  agent.source === 'events' ? agent.kind === 'builder' : claimers.has(agentKey(agent));
+/** Whether an agent is an author: registered as one, or (a ledger agent, which has no kind) it holds a claim on a card. */
+const isAuthor = (agent: LedgerAgent, claimers: Set<string>): boolean =>
+  agent.source === 'events' ? agent.kind === 'author' : claimers.has(agentKey(agent));
 
 export interface EditorFacts {
   /** the registered editors (`kind: 'editor'`), read apart from the agents */
@@ -50,7 +50,7 @@ export interface EditorFacts {
 }
 
 /**
- * The editors to show, and the link from an agent to its editor. An editor's authors are its open builders (not stale:
+ * The editors to show, and the link from an agent to its editor. An editor's authors are its open authors (not stale:
  * an agent silent past the stale mark is likely dead). Its `in_use` count is the slots in use: only an author that is
  * working (running, or fixing findings) holds one, so one at a plan, a question or a story review does not. `label` starts as the lane's short name and the
  * board sets it to the lane label once all the lanes are known (index.ts).
@@ -79,7 +79,7 @@ export function editorsOf(facts: EditorFacts): {
       .filter(
         (agent) =>
           agent.sid === editor.sid &&
-          isBuilder(agent, claimers) &&
+          isAuthor(agent, claimers) &&
           OPEN.includes(agent.state) &&
           nowMs - (lastActivity(agent) ?? agent.started ?? new Date(nowMs)).getTime() <= STALE_MS,
       )
@@ -127,6 +127,6 @@ export function editorsOf(facts: EditorFacts): {
     editors: shown,
     // an author of any state (a finished one keeps its editor on its card); a ledger agent is one only by its claim
     editorOf: (agent) =>
-      agent.kind !== 'editor' && isBuilder(agent, claimers) ? (links.get(agent.sid) ?? null) : null,
+      agent.kind !== 'editor' && isAuthor(agent, claimers) ? (links.get(agent.sid) ?? null) : null,
   };
 }

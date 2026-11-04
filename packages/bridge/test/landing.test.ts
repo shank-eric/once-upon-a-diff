@@ -43,7 +43,7 @@ function world() {
     registry.start({
       name,
       sid: SID,
-      kind: 'builder',
+      kind: 'author',
       task: 'build',
       card,
       at: minute(clock++),
@@ -234,7 +234,7 @@ test('a claimed card whose agent is still running is "still in progress", not "f
   lab.registry.start({
     name: 'ou-busy',
     sid: SID,
-    kind: 'builder',
+    kind: 'author',
     task: 'build',
     card: busy.id,
     at: new Date(),
@@ -268,7 +268,7 @@ test('"still in progress" is about the run that holds the claim, not a later run
     lab.registry.start({
       name: 'ou-again',
       sid: SID,
-      kind: 'builder',
+      kind: 'author',
       task: 'build',
       card,
       at: new Date(when),
@@ -290,7 +290,7 @@ test('"still in progress" is not said of a claimed run that has gone stale', () 
   lab.registry.start({
     name: 'ou-crashed',
     sid: SID,
-    kind: 'builder',
+    kind: 'author',
     task: 'build',
     card: item.id,
     at: new Date(now - 25 * 3600 * 1000),

@@ -55,7 +55,7 @@ const agent = (over: Partial<LedgerAgent> = {}): LedgerAgent => ({
   ...over,
 });
 const registered = (over: Partial<LedgerAgent> = {}): LedgerAgent =>
-  agent({ source: 'events', kind: 'builder', ...over });
+  agent({ source: 'events', kind: 'author', ...over });
 
 const place = (agents: LedgerAgent[], cards: BoardCard[], items: BacklogItem[] = []) =>
   placeAgents(ctx(), cards, { agents, beats: new Map(), pin: null, items });
@@ -111,7 +111,7 @@ test('a registered agent is nested by its repo and branch or PR, and what its ta
   // a reviewer (kind), task naming feat/y, registered on PR 7
   const byPr = registered({
     name: 'rv-seven',
-    kind: 'reviewer',
+    kind: 'critic',
     task: 'review feat/y',
     repo: 'acme/widgets',
     pr: 7,

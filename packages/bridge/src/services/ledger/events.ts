@@ -18,10 +18,24 @@ import type { BoardBeat } from '@once-upon-a-diff/protocol/types';
 
 /**
  * What an agent is. `editor` is not an agent but a session that runs a repo's build queue (`/once-upon-editor`): it
- * registers itself so the board can show it with the builders it controls (the ones launched under its session id).
+ * registers itself so the board can show it with the authors it controls (the ones launched under its session id).
  */
-export const AGENT_KINDS = ['builder', 'reviewer', 'helper', 'research', 'editor'] as const;
+export const AGENT_KINDS = ['author', 'critic', 'helper', 'research', 'editor'] as const;
 export type AgentKind = (typeof AGENT_KINDS)[number];
+
+/** Old names for a kind, still read from old agents.jsonl lines and still accepted by `agent start --kind`. */
+export const KIND_ALIASES = { builder: 'author', reviewer: 'critic' } as const;
+
+/** The canonical kind for a stored or typed value (an alias reads as its new name), or null when it is none. */
+export function canonicalKind(raw: unknown): AgentKind | null {
+  if (typeof raw !== 'string') {
+    return null;
+  }
+  const kind = Object.hasOwn(KIND_ALIASES, raw)
+    ? KIND_ALIASES[raw as keyof typeof KIND_ALIASES]
+    : raw;
+  return (AGENT_KINDS as readonly string[]).includes(kind) ? (kind as AgentKind) : null;
+}
 
 /** A run with no event this long is taken to be dead: it holds no build slot, and an unnamed beat does not land on it. */
 export const STALE_MS = 24 * 3600 * 1000;
@@ -48,7 +62,8 @@ export interface AgentEvent {
   at: string;
   by?: string;
   run?: string;
-  kind?: AgentKind;
+  /** as stored: an old line may still say `builder` or `reviewer` (read through canonicalKind) */
+  kind?: AgentKind | keyof typeof KIND_ALIASES;
   /** a long-lived agent reached by SendMessage, never finished between requests: the board's Helpers row, no card */
   standing?: boolean;
   task?: string;
@@ -144,7 +159,7 @@ export function foldAgentEvents(events: AgentEvent[]): LedgerAgent[] {
         source: 'events',
         run: event.run ?? null,
         session: event.session ?? null,
-        kind: event.kind ?? null,
+        kind: canonicalKind(event.kind),
         standing: event.standing === true,
         repo: event.repo ?? null,
         branch: event.branch ?? null,

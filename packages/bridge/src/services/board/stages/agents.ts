@@ -181,10 +181,10 @@ export function placeAgents(
   for (const agent of shown) {
     const active = lastActivity(agent);
     // a finished agent waits until its card's Finish clears it, or `waitMs` after its last sign of life; an author (kind
-    // builder) that finished with no result sits in Waiting for `doneHours` instead, an hour by default
+    // author) that finished with no result sits in Waiting for `doneHours` instead, an hour by default
     const finishedIn = isFinished(agent) ? finishedColumn(agent) : null;
     const staysMs =
-      finishedIn === 'waiting' && agent.kind === 'builder'
+      finishedIn === 'waiting' && agent.kind === 'author'
         ? Math.max(waitMs, ctx.settings.doneHours * 3600 * 1000)
         : waitMs;
     const clearsAt =

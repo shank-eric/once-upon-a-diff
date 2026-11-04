@@ -240,12 +240,12 @@ test('finishedColumn reads fields only: kind, state, result, ledger source', () 
   ) => finishedColumn({ name, state, source: 'events', ...extra });
   const result = { commit: 'abc1234' };
   // made something: a result, whatever the kind
-  assert.equal(column('done', { kind: 'builder', result }), 'done');
-  assert.equal(column('done', { kind: 'builder', result: { pr: 7 } }), 'done');
+  assert.equal(column('done', { kind: 'author', result }), 'done');
+  assert.equal(column('done', { kind: 'author', result: { pr: 7 } }), 'done');
   assert.equal(column('done', { kind: 'research', result: { card: 'bl_x' } }), 'done');
   // no result: an author or an unknown kind waits, research is Research, a helper is Done
-  assert.equal(column('done', { kind: 'builder', result: null }), 'waiting');
-  assert.equal(column('done', { kind: 'builder', result: {} }), 'waiting', '{} is no result');
+  assert.equal(column('done', { kind: 'author', result: null }), 'waiting');
+  assert.equal(column('done', { kind: 'author', result: {} }), 'waiting', '{} is no result');
   assert.equal(column('done', { kind: null, result: null }), 'waiting', 'no kind: not research');
   assert.equal(column('done', { kind: 'research', result: null }), 'research');
   assert.equal(column('done', { kind: 'research', result: {} }), 'research');
@@ -257,20 +257,20 @@ test('finishedColumn reads fields only: kind, state, result, ledger source', () 
   assert.equal(column('done', { kind: 'helper', result: {} }), 'done');
   // stopped: nothing to point at; a stopped research run lost nothing, other kinds were interrupted
   assert.equal(column('stopped', { kind: 'research' }), 'research');
-  assert.equal(column('stopped', { kind: 'builder' }), 'waiting');
+  assert.equal(column('stopped', { kind: 'author' }), 'waiting');
   assert.equal(column('stopped', { kind: 'helper' }), 'waiting');
   assert.equal(
     column('stopped', { kind: 'research', result }),
     'research',
     'a stopped run made nothing',
   );
-  assert.equal(column('stopped', { kind: 'builder', result }), 'waiting');
+  assert.equal(column('stopped', { kind: 'author', result }), 'waiting');
   // failed is always Waiting; a reviewer is Done
   assert.equal(column('failed', { kind: 'research' }), 'waiting');
   assert.equal(column('failed', { kind: 'helper' }), 'waiting');
-  assert.equal(column('failed', { kind: 'builder', result }), 'waiting');
-  assert.equal(column('done', { kind: 'reviewer', result: null }), 'done');
-  assert.equal(column('stopped', { kind: 'reviewer' }), 'done');
+  assert.equal(column('failed', { kind: 'author', result }), 'waiting');
+  assert.equal(column('done', { kind: 'critic', result: null }), 'done');
+  assert.equal(column('stopped', { kind: 'critic' }), 'done');
   // ledger only: no kind or result, so never Research
   assert.equal(finishedColumn({ name: 'review-x', state: 'stopped' }), 'done', 'a ledger reviewer');
   assert.equal(finishedColumn({ name: 'ou-x', state: 'done' }), 'done', 'a ledger [done]');
@@ -285,7 +285,7 @@ function register(home: string, name: string, kind: string, finish: object, atMi
   registry.start({
     sid: SID,
     name,
-    kind: kind as 'builder',
+    kind: kind as 'author',
     task: 'the task',
     repo: 'acme/widgets',
     at: when(atMinute - 5),

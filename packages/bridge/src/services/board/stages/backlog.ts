@@ -25,7 +25,7 @@ import { branchOfWork } from './works.ts';
 
 /**
  * Puts each claimed agent on the work or session card of its started item's branch, before the columns are decided
- * (placeCards), so a running, gated or questioning builder puts that card where its agent's state says. It changes the
+ * (placeCards), so a running, gated or questioning author puts that card where its agent's state says. It changes the
  * cards given. The agent is held out of placeAgents, so this is the one place it appears. `views` is by item id.
  */
 export function nestClaimedAgents(

@@ -1192,7 +1192,7 @@ test('an author’s row says which editor controls it', async () => {
                   key: 'abcdef01:ou-a',
                   sid: 'abcdef01',
                   name: 'ou-a',
-                  kind: 'builder',
+                  kind: 'author',
                   editor,
                   state: 'running',
                   review: false,

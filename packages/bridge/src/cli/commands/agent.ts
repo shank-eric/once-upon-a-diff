@@ -17,7 +17,7 @@ import type { Config } from '../../services/config/settings.ts';
 import type { CliOpts, Command } from '../types.ts';
 
 const USAGE =
-  'usage: once-upon agent start NAME [--kind builder|reviewer|helper|research|editor] [--standing] --task TEXT [--sid SID8] [--model M] [--effort E]\n' +
+  'usage: once-upon agent start NAME [--kind author|critic|helper|research|editor] [--standing] --task TEXT [--sid SID8] [--model M] [--effort E]\n' +
   '                             [--repo owner/name] [--branch NAME] [--pr N] [--cwd DIR] [--card ID] [--lane NAME] [--notes PATH] [--slots N]\n' +
   '       once-upon agent state NAME --state running|waiting|review|plan|fixing [--outcome TEXT] [--findings N] [--notes PATH] [--sid SID8] [--run ID]\n' +
   '       once-upon agent beat NAME N/M STEP [NOTE...] [--sid SID8] [--no-mirror]\n' +
@@ -152,7 +152,7 @@ export const agentCommands: Command[] = [
   {
     name: 'agent',
     usage: [
-      '  once-upon agent start NAME --kind builder|reviewer|helper|research|editor --task TEXT   register an agent the board shows (its sid comes from the session; prints its id and run)',
+      '  once-upon agent start NAME --kind author|critic|helper|research|editor --task TEXT   register an agent the board shows (its sid comes from the session; prints its id and run)',
       '                                                                                   --standing: a long-lived helper (the backlog clerk), in the Helpers row, never a card; put it before another flag. A restart of the same name may leave out --kind and --standing: they carry over (--standing false clears it)',
       '  once-upon agent state NAME --state running|waiting|review|plan|fixing            move it: a plan to check, a question, parked on a story review, fixing findings',
       '  once-upon agent beat NAME N/M STEP [NOTE...]                                     a progress beat, and a sign of life',

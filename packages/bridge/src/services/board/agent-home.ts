@@ -9,7 +9,7 @@ import type { BoardCard } from '@once-upon-a-diff/protocol/types';
 import { sameRepo } from '../config/repos.ts';
 import type { BacklogItem } from '../backlog/backlog.ts';
 import { cardOnBranch } from '../backlog/backlog.ts';
-import { isReviewer, type LedgerAgent } from '../ledger/ledger.ts';
+import { isCritic, type LedgerAgent } from '../ledger/ledger.ts';
 
 /**
  * The card an agent works on, or null: the one card that its registered fields point to. Three ways to point, each exact
@@ -64,14 +64,14 @@ export function homeOf(
  * registered. In order:
  *
  *   failed                                    Waiting: it needs a look (stages/agents.ts)
- *   a reviewer                                Done: its findings are in the story and the review file
+ *   a critic                                  Done: its findings are in the story and the review file
  *   registered, finished with a result        Done: a commit, PR, branch or card (given with --commit, --pr, --branch or
  *                                             --card, or recorded from the registered branch moving, registry.ts). A
  *                                             stopped run made nothing to point at, whatever it recorded
  *   registered, no result, kind research      Research: done or stopped, it asks nothing and lost nothing
  *   registered, done, no result, kind helper  Done: a deploy, plan check or lookup did its job and asks nothing (a standing
  *                                             helper has no card at all, stages/helpers.ts; a plain one does)
- *   registered, no result, kind builder       Waiting: an author that made nothing is a miss to look at
+ *   registered, no result, kind author        Waiting: an author that made nothing is a miss to look at
  *   registered, no result, no kind            Waiting, as before kinds existed: not known to be research or a helper
  *   registered, stopped, any kind but research  Waiting: interrupted work, a decision
  *   known only from the ledger                Done on a `[done]` line, Waiting on `[stopped]`: it has no kind or result,
@@ -84,7 +84,7 @@ export function finishedColumn(
   if (agent.state === 'failed') {
     return 'waiting';
   }
-  if (isReviewer(agent)) {
+  if (isCritic(agent)) {
     return 'done';
   }
   if (agent.source !== 'events') {
@@ -98,5 +98,5 @@ export function finishedColumn(
   }
   // a helper (or an editor) that finished its job with nothing to point at is done; only an author's miss, a stopped run
   // and a failure are for you to look at
-  return agent.state === 'done' && agent.kind && agent.kind !== 'builder' ? 'done' : 'waiting';
+  return agent.state === 'done' && agent.kind && agent.kind !== 'author' ? 'done' : 'waiting';
 }

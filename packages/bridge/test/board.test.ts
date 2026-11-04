@@ -734,7 +734,7 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
   registered.start({
     sid: sid(onStory),
     name: 'nested-one',
-    kind: 'builder',
+    kind: 'author',
     task: 'nested task',
     model: 'sonnet',
     effort: 'low',
@@ -746,7 +746,7 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
   registered.start({
     sid: sid(onStory),
     name: 'pr-agent',
-    kind: 'builder',
+    kind: 'author',
     task: 'review fixes',
     model: 'sonnet',
     effort: 'low',
@@ -4424,7 +4424,7 @@ test('the board: Agent checks holds a PR card with a gated agent in it, an agent
   registered.start({
     ...launched,
     name: 'builder',
-    kind: 'builder',
+    kind: 'author',
     task: 'build on feat/x → notes/p.md',
     branch: 'feat/x',
     at: etAt(14, 0),
@@ -4438,7 +4438,7 @@ test('the board: Agent checks holds a PR card with a gated agent in it, an agent
   registered.start({
     ...launched,
     name: 'review-seven',
-    kind: 'reviewer',
+    kind: 'critic',
     task: 'review of PR #7 diff',
     pr: 7,
     at: etAt(14, 20),
@@ -4447,7 +4447,7 @@ test('the board: Agent checks holds a PR card with a gated agent in it, an agent
   registered.start({
     ...launched,
     name: 'review-why',
-    kind: 'reviewer',
+    kind: 'critic',
     task: 'review of feat/y diff',
     branch: 'feat/y',
     at: etAt(14, 0),
@@ -4463,7 +4463,7 @@ test('the board: Agent checks holds a PR card with a gated agent in it, an agent
     ...launched,
     lane: 'elsewhere',
     name: 'review-lost',
-    kind: 'reviewer',
+    kind: 'critic',
     task: 'review of feat/none',
     branch: 'feat/none',
     at: etAt(14, 40),
@@ -4472,7 +4472,7 @@ test('the board: Agent checks holds a PR card with a gated agent in it, an agent
   registered.start({
     ...launched,
     name: 'review-old',
-    kind: 'reviewer',
+    kind: 'critic',
     task: 'review',
     at: etAt(13, 0),
   });
@@ -4577,7 +4577,7 @@ test('an agent parked on your story review is ready for review, not waiting; a q
     lane: 'widgets',
     repo: 'acme/widgets',
     name: 'on-pr',
-    kind: 'builder',
+    kind: 'author',
     task: 'build on PR #7',
     pr: 7,
     at: etAt(13, 0),
@@ -4640,7 +4640,7 @@ test('a [review] agent naming a no-PR branch sits in its Ready card; one left a 
     lane: 'widgets',
     repo: 'acme/widgets',
     name: 'on-x',
-    kind: 'builder',
+    kind: 'author',
     task: 'build on feat/x',
     branch: 'feat/x',
     at: etAt(13, 0),

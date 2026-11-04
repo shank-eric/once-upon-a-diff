@@ -722,8 +722,8 @@ export interface BoardAgent {
   key: string;
   name: string;
   /** what the agent says it is, when it registered through `once-upon agent start` (null for one read from the ledger) */
-  kind: 'builder' | 'reviewer' | 'helper' | 'research' | 'editor' | null;
-  /** the editor that launched and controls it (a builder launched under a live editor's session), else null */
+  kind: 'author' | 'critic' | 'helper' | 'research' | 'editor' | null;
+  /** the editor that launched and controls it (an author launched under a live editor's session), else null */
   editor: BoardAgentEditor | null;
   /** the ledger's own word for where it stands */
   state: 'running' | 'waiting' | 'plan' | 'fixing' | 'done' | 'failed' | 'stopped';
@@ -759,7 +759,7 @@ export interface BoardAgentEditor {
   can_focus: boolean;
 }
 
-/** An editor, with the authors (open builders) it controls: a row in the board's editors strip. */
+/** An editor, with the authors (open authors) it controls: a row in the board's editors strip. */
 export interface BoardEditor extends BoardAgentEditor {
   /** the name it registered under */
   name: string;
@@ -782,7 +782,7 @@ export interface BoardEditor extends BoardAgentEditor {
 
 /**
  * A gate between "an agent is building" and "ready for your review": a build agent stopped at its plan (`plan`, the
- * ledger's `[plan]`), a reviewer agent running (`review`, a running agent named `review-*`), or the findings being fixed
+ * ledger's `[plan]`), a critic agent running (`review`, a running agent named `review-*`), or the findings being fixed
  * (`fixing`, the ledger's `[fixing]`, with the count its line gives).
  */
 export interface BoardGate {

@@ -345,7 +345,7 @@
                 "ended_at": null,
                 "gate": null,
                 "key": "<PID:15>:ou-writer",
-                "kind": "builder",
+                "kind": "author",
                 "model": null,
                 "name": "ou-writer",
                 "notes": null,

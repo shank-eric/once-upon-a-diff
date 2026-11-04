@@ -1,7 +1,7 @@
 /**
  * Editors and their authors: the board shows each editor (a session that registered with `agent start --kind editor`)
- * with the builders launched under its session, and says on each author which editor controls it. No overall agent
- * count: the header's builder chip is gone, and a slot is the editor's own.
+ * with the authors launched under its session, and says on each author which editor controls it. No overall agent
+ * count: the header's author chip is gone, and a slot is the editor's own.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -31,7 +31,7 @@ const EDITOR = {
   repo: 'acme/widgets',
 } as const;
 const build = (name: string, sid = EDITOR_SID) =>
-  ({ name, sid, kind: 'builder', task: `build ${name}` }) as const;
+  ({ name, sid, kind: 'author', task: `build ${name}` }) as const;
 
 interface World {
   home: string;
@@ -103,11 +103,11 @@ test('an editor shows with the authors it controls: running ones hold its slots,
   registry.state('ou-q', { state: 'waiting', outcome: 'which one?', at: ago(44) });
   registry.start({ ...build('ou-r'), at: ago(45) });
   registry.state('ou-r', { state: 'review', outcome: 'story abc', at: ago(44) });
-  // a critic, a lookup, another session's builder and a finished one are no authors of this editor
+  // a critic, a lookup, another session's author and a finished one are no authors of this editor
   registry.start({
     name: 'review-x',
     sid: EDITOR_SID,
-    kind: 'reviewer',
+    kind: 'critic',
     task: 'review',
     at: ago(30),
   });
@@ -115,7 +115,7 @@ test('an editor shows with the authors it controls: running ones hold its slots,
   registry.start({ ...build('ou-f', OTHER), at: ago(30) });
   registry.start({ ...build('ou-done'), at: ago(25) });
   registry.finish('ou-done', { outcome: 'ok', result: { commit: 'abc1234' }, at: ago(20) });
-  // a ledger agent has no kind: it is a builder by its claim, and its launching session is the ledger's sid
+  // a ledger agent has no kind: it is an author by its claim, and its launching session is the ledger's sid
   writeFileSync(
     ledger,
     `- [running] sid:${EDITOR_SID} legacy-claimer (sonnet, high) — a card — started 2:50 PM ET, 11/3\n` +
@@ -125,7 +125,7 @@ test('an editor shows with the authors it controls: running ones hold its slots,
   store.claim(store.add({ title: 'A card' }).id, { agent: 'legacy-claimer', sid: EDITOR_SID });
 
   const data = await snapshot();
-  assert.equal('builders' in data, false, 'no overall builder count');
+  assert.equal('builders' in data, false, 'no overall author count');
   assert.equal(data.editors.length, 1);
   const [editor] = data.editors;
   assert.equal(editor.name, 'editor-widgets');
@@ -227,7 +227,7 @@ test('a silent author is no author: one with no event for a day is likely dead, 
   );
 });
 
-test('a resumed builder for a fix round is an author again once the editor starts it again; its earlier run is kept', async () => {
+test('a resumed author for a fix round is an author again once the editor starts it again; its earlier run is kept', async () => {
   const home = tmp('editors-fix-home');
   const env = { CLAUDE_CODE_SESSION_ID: EDITOR_SESSION };
   const run = (...args: string[]) => runCli(home, ['agent', ...args], env);
@@ -250,12 +250,12 @@ test('a resumed builder for a fix round is an author again once the editor start
   );
   assert.equal((await run('start', 'ou-a', '--kind', 'builder', '--task', 'build it')).code, 0);
   assert.equal((await run('finish', 'ou-a', '--state', 'done', '--outcome', 'built')).code, 0);
-  // the builder is over: a fix round cannot be announced on it
+  // the author is over: a fix round cannot be announced on it
   const refused = await run('state', 'ou-a', '--state', 'fixing');
   assert.notEqual(refused.code, 0);
   assert.match(refused.stderr, /no open run/);
   // the editor starts it again (same name, kind and session), and the fix round can be announced
-  assert.equal((await run('start', 'ou-a', '--kind', 'builder', '--task', 'fix round')).code, 0);
+  assert.equal((await run('start', 'ou-a', '--kind', 'author', '--task', 'fix round')).code, 0);
   assert.equal((await run('state', 'ou-a', '--state', 'fixing', '--findings', '2')).code, 0);
   const registry = new AgentRegistry(home);
   const again = registry.agents().find((one) => one.name === 'ou-a');
@@ -285,7 +285,7 @@ test('a resumed builder for a fix round is an author again once the editor start
   );
 });
 
-test('an editor registers through the CLI without a ledger line (it is no agent), `agent list` shows it, --slots is refused for a builder', async () => {
+test('an editor registers through the CLI without a ledger line (it is no agent), `agent list` shows it, --slots is refused for an author', async () => {
   const home = tmp('editors-cli');
   const ledger = path.join(tmp('editors-cli-notes'), 'ledger.md');
   writeJson(path.join(home, 'config.json'), {
@@ -318,7 +318,7 @@ test('an editor registers through the CLI without a ledger line (it is no agent)
     'build it',
   );
   assert.equal(built.code, 0, built.stderr);
-  // only the builder's `[running]` line is in the ledger: a line for the editor would read as a running agent
+  // only the author's `[running]` line is in the ledger: a line for the editor would read as a running agent
   const lines = readFileSync(ledger, 'utf8').trim().split('\n');
   assert.equal(lines.length, 1);
   assert.match(lines[0], /ou-a/);
@@ -331,7 +331,7 @@ test('an editor registers through the CLI without a ledger line (it is no agent)
     listed.map((one) => [one.name, one.kind, one.slots]),
     [
       ['editor-widgets', 'editor', 4],
-      ['ou-a', 'builder', null],
+      ['ou-a', 'author', null],
     ],
   );
   const refused = await run(

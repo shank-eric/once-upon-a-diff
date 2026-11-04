@@ -1,5 +1,5 @@
 /**
- * What a registered builder made, from git, for one that finishes without saying (`agent finish` with no --commit,
+ * What a registered author made, from git, for one that finishes without saying (`agent finish` with no --commit,
  * --pr, --branch or --card). The registered branch's tip is recorded when the agent starts (the start event's `tip`);
  * at finish the branch counts as made when it still exists and its tip is no longer that one, including after a
  * fast-forward into main. With no recorded start tip (the branch did not exist yet, or the start predates the field)

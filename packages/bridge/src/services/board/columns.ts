@@ -3,9 +3,9 @@
  *
  *   waiting   a session or agent on it is blocked on a question (an agent parked on your story review is not: see ready), or
  *             an agent on it failed (after merged: a failure on a merged card is not news)
- *   checks    an agent on it is at an automated gate (a plan to check, a reviewer running, findings being fixed): the
+ *   checks    an agent on it is at an automated gate (a plan to check, a critic running, findings being fixed): the
  *             launching session is the next actor, not you. Above working, because the session is busy exactly while it
- *             checks the plan or fixes the findings, and a running reviewer is a running agent
+ *             checks the plan or fixes the findings, and a running critic is a running agent
  *   working   a session or agent on it is busy, or a session is building, rebuilding or fixing its story
  *   done      the PR merged (the board drops it an hour later)
  *   ship      a local story you approved for its current head: ready to ship, with no PR yet and still on this Mac (a new

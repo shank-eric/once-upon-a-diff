@@ -800,8 +800,8 @@ const asLocal = (home: string) =>
     meta: { kind: 'local', branch: 'ou-cache', repo_path: '/work/widgets-worktrees/ou-cache' },
   });
 
-/** The agent is registered as the kind it is: an author is a builder, a storyteller a helper. */
-const register = (home: string, name: string, kind: 'builder' | 'helper' = 'builder') =>
+/** The agent is registered as the kind it is: a storyteller is a helper. */
+const register = (home: string, name: string, kind: 'author' | 'helper' = 'author') =>
   new AgentRegistry(home).start({ name, kind, task: 'the cache', sid: 'abcd1234' });
 
 const addRebuild = (home: string) =>

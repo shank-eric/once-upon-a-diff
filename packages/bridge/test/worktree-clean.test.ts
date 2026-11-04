@@ -316,7 +316,7 @@ test('the board: an agent registered from the main checkout on the worktree’s 
   registry.start({
     name: 'builder',
     sid: '54736864',
-    kind: 'builder',
+    kind: 'author',
     task: 'build it',
     cwd: tree.main,
     repo: 'acme/widgets',
@@ -344,7 +344,7 @@ test('the board: Clean up refuses what an open registered agent is working in, t
   registry.start({
     name: 'merger',
     sid: '54736864',
-    kind: 'builder',
+    kind: 'author',
     task: 'merge it',
     cwd: `${tree.merged}/packages`,
     at: new Date(LATER() - 3600 * 1000),

@@ -11,6 +11,8 @@ import { appendLine } from '../../adapters/stores/notes.ts';
 import { lastActivity } from './ledger.ts';
 import {
   AGENT_KINDS,
+  KIND_ALIASES,
+  canonicalKind,
   END_STATES,
   OPEN_STATES,
   STALE_MS,
@@ -89,7 +91,8 @@ export interface StartInput extends Target {
   /** the launching session's full id, when there is one */
   session?: string | null;
   /** optional on a restart: the id's earlier run's kind carries over */
-  kind?: AgentKind;
+  /** an old name (`builder`, `reviewer`) is accepted and stored as its new one */
+  kind?: AgentKind | keyof typeof KIND_ALIASES;
   /** a standing agent (the backlog clerk): left out, it keeps the earlier run's value; false clears it */
   standing?: boolean;
   task: string;
@@ -236,9 +239,11 @@ export class AgentRegistry {
     }
     // a restart of the same sid:name keeps what the earlier run was registered as, so a resumed standing agent stays standing
     const earlier = this.agents().find((one) => one.sid === sid && one.name === name);
-    const kind = input.kind ?? earlier?.kind;
-    if (!kind || !(AGENT_KINDS as readonly string[]).includes(kind)) {
-      throw new Error(`the kind must be one of ${AGENT_KINDS.join(', ')}`);
+    const kind = canonicalKind(input.kind ?? earlier?.kind);
+    if (!kind) {
+      throw new Error(
+        `the kind must be one of ${AGENT_KINDS.join(', ')} (builder and reviewer still work)`,
+      );
     }
     const task = clean(input.task, 'the task');
     if (!task) {
@@ -363,9 +368,9 @@ export class AgentRegistry {
     if (card) {
       result.card = card;
     }
-    // none given: what a builder's registered branch gained since the run started. A run that failed or was stopped made
-    // nothing to point at, and a helper, reviewer or researcher never takes an author's commit
-    if (!Object.keys(result).length && state === 'done' && agent.kind === 'builder') {
+    // none given: what an author's registered branch gained since the run started. A run that failed or was stopped made
+    // nothing to point at, and a helper, critic or researcher never takes an author's commit
+    if (!Object.keys(result).length && state === 'done' && agent.kind === 'author') {
       Object.assign(result, madeOnBranch(agent));
     }
     return this.append({

@@ -150,7 +150,7 @@ export function liveClaim(
 /**
  * Where a finished, claimed card waits for its critic, or null when nothing holds it back (it is built and has passed its
  * critic with no fix round open). Read only from registered agents' fields, never their text. A critic is a registered
- * `reviewer` run on the card (`--card`), or, when it names no card, on the item's repo and branch (a finish event's branch
+ * `critic` run on the card (`--card`), or, when it names no card, on the item's repo and branch (a finish event's branch
  * wins). The card is held:
  *
  *   critic running        a critic is open (running, or at its fixing gate): Agent checks
@@ -172,7 +172,7 @@ export function criticHold(
   const critics = agents.filter(
     (agent) =>
       agent.source === 'events' &&
-      agent.kind === 'reviewer' &&
+      agent.kind === 'critic' &&
       (agent.card
         ? agent.card === item.id
         : !!item.repo &&

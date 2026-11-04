@@ -13,7 +13,7 @@ import { beatOf, runIsOpen } from '../src/services/ledger/events.ts';
 import { appendAgentEvent } from '../src/adapters/stores/agents-file.ts';
 import { finishedColumn } from '../src/services/board/agent-home.ts';
 import { workingIn } from '../src/services/worktrees/worktrees.ts';
-import { parseLedger, parseProgress } from '../src/services/ledger/ledger.ts';
+import { gateOf, parseLedger, parseProgress } from '../src/services/ledger/ledger.ts';
 import { registrySource } from '../src/services/sessions/sources.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
 import { Builds } from '../src/services/inbox/builds.ts';
@@ -24,7 +24,7 @@ const OTHER = '12345678';
 const minute = (minutes: number) => new Date(Date.parse('2026-11-03T15:00:00Z') + minutes * 60000);
 const NOW = minute(30);
 
-const BUILD = { name: 'ou-thing', sid: SID, kind: 'builder', task: 'build the thing' } as const;
+const BUILD = { name: 'ou-thing', sid: SID, kind: 'author', task: 'build the thing' } as const;
 
 test('start, beat, finish round trip folds to one agent with exact times', () => {
   const registry = new AgentRegistry(tmp('reg-round'));
@@ -45,7 +45,7 @@ test('start, beat, finish round trip folds to one agent with exact times', () =>
   let [agent] = registry.agents();
   assert.equal(agent.source, 'events');
   assert.equal(agent.state, 'running');
-  assert.equal(agent.kind, 'builder');
+  assert.equal(agent.kind, 'author');
   assert.equal(agent.task, 'build the thing');
   assert.equal(agent.model, 'sonnet, high');
   assert.equal(agent.repo, 'acme/widgets');
@@ -181,7 +181,7 @@ test('the CLI round trip: start takes the sid from the session, beat and finish 
   const listed = JSON.parse((await runCli(home, ['agent', 'list', '--all', '--json'])).stdout);
   assert.equal(listed.length, 1);
   assert.equal(listed[0].sid, SID);
-  assert.equal(listed[0].kind, 'reviewer');
+  assert.equal(listed[0].kind, 'critic');
   assert.equal(listed[0].state, 'done');
   assert.equal(listed[0].beat.step, 'code');
   assert.equal(listed[0].result.commit, 'abc1234');
@@ -306,7 +306,7 @@ test('the board reads registered events with no ledger file: column, beat, and t
   assert.ok(card, 'the registered agent has a card');
   assert.equal(card.column, 'working');
   const [view] = card.agents;
-  assert.equal(view.kind, 'builder');
+  assert.equal(view.kind, 'author');
   assert.equal(view.task, 'build the thing');
   assert.deepEqual(view.beat, { n: 3, of: 6, step: 'code', note: 'writing' });
   assert.equal(view.started_at, minute(0).toISOString());
@@ -315,11 +315,11 @@ test('the board reads registered events with no ledger file: column, beat, and t
 test('role comes from kind, and the standing row from --standing, not from the name or the task text', async () => {
   const home = tmp('reg-kind');
   const registry = new AgentRegistry(home);
-  registry.start({ name: 'rv-x', sid: SID, kind: 'reviewer', task: 'look at it', at: minute(0) });
+  registry.start({ name: 'rv-x', sid: SID, kind: 'critic', task: 'look at it', at: minute(0) });
   registry.start({
     name: 'review-board-ui',
     sid: SID,
-    kind: 'builder',
+    kind: 'author',
     task: 'build the board',
     at: minute(0),
   });
@@ -364,7 +364,7 @@ test('a restart of the same sid:name keeps its kind and standing; another id or 
     () => registry.start({ name: 'clerk', sid: OTHER, task: 'ops', at: minute(11) }),
     /the kind must be one of/,
   );
-  registry.start({ name: 'clerk', sid: OTHER, kind: 'builder', task: 'ops', at: minute(11) });
+  registry.start({ name: 'clerk', sid: OTHER, kind: 'author', task: 'ops', at: minute(11) });
   assert.equal(find(OTHER)?.standing, false);
   // an explicit kind wins, standing stays
   registry.start({ name: 'clerk', sid: SID, kind: 'research', task: 'ops', at: minute(12) });
@@ -493,8 +493,8 @@ const columnOf = async (home: string, name: string) =>
 test('Done, Research or Waiting comes from the finish event, never its words', async () => {
   const home = tmp('reg-done-waiting');
   const registry = new AgentRegistry(home);
-  const finished = (name: string, outcome: string, result: object = {}, kind = 'builder') => {
-    registry.start({ ...BUILD, name, kind: kind as 'builder', at: minute(0) });
+  const finished = (name: string, outcome: string, result: object = {}, kind = 'author') => {
+    registry.start({ ...BUILD, name, kind: kind as 'author', at: minute(0) });
     registry.finish(name, { outcome, result, at: minute(5) });
   };
   finished('ou-negated', 'didn’t commit abc1234, nothing pushed');
@@ -650,7 +650,7 @@ test('the automatic result is for a builder whose branch moved since its start t
     name: 'ou-old-start',
     at: minute(0).toISOString(),
     run: 'r_old',
-    kind: 'builder',
+    kind: 'author',
     task: 'old',
     branch: 'work',
     cwd: fixture.main,
@@ -901,8 +901,8 @@ test("a second finish from the caller's session is refused even when another ses
   const home = tmp('reg-finish-cross');
   const registry = new AgentRegistry(home);
   const other = '99999999';
-  registry.start({ name: 'ou-twin', sid: SID, kind: 'builder', task: 'mine', at: minute(0) });
-  registry.start({ name: 'ou-twin', sid: other, kind: 'builder', task: 'theirs', at: minute(1) });
+  registry.start({ name: 'ou-twin', sid: SID, kind: 'author', task: 'mine', at: minute(0) });
+  registry.start({ name: 'ou-twin', sid: other, kind: 'author', task: 'theirs', at: minute(1) });
   registry.finish('ou-twin', { sid: SID, result: { commit: 'abc1234' }, at: minute(2) });
   // no --sid: the caller's own session (prefer) has no open run, so the other session's is not its to end
   assert.throws(
@@ -918,7 +918,7 @@ test("a second finish from the caller's session is refused even when another ses
   assert.equal(theirs?.state, 'running');
   assert.equal(theirs?.result?.commit, undefined);
   // with the caller's own run open too, a finish with no --sid ends that one and leaves the other
-  registry.start({ name: 'ou-twin', sid: SID, kind: 'builder', task: 'again', at: minute(4) });
+  registry.start({ name: 'ou-twin', sid: SID, kind: 'author', task: 'again', at: minute(4) });
   registry.finish('ou-twin', { prefer: SID, at: minute(5) });
   assert.equal(registry.agents().find((one) => one.sid === other)?.state, 'running');
   assert.equal(registry.agents().find((one) => one.sid === SID)?.state, 'done');
@@ -927,8 +927,8 @@ test("a second finish from the caller's session is refused even when another ses
 test('a finish with no --sid from a session with no run of the name, when two sessions have one, is refused rather than picking', () => {
   const home = tmp('reg-finish-ambiguous');
   const registry = new AgentRegistry(home);
-  registry.start({ name: 'ou-twin', sid: SID, kind: 'builder', task: 'a', at: minute(0) });
-  registry.start({ name: 'ou-twin', sid: '99999999', kind: 'builder', task: 'b', at: minute(1) });
+  registry.start({ name: 'ou-twin', sid: SID, kind: 'author', task: 'a', at: minute(0) });
+  registry.start({ name: 'ou-twin', sid: '99999999', kind: 'author', task: 'b', at: minute(1) });
   assert.throws(
     () => registry.finish('ou-twin', { prefer: '77777777', at: minute(2) }),
     /more than one session.*--sid/,
@@ -942,7 +942,7 @@ test('a finish with no --sid from a session of its own, when one other session h
   registry.start({
     name: 'review-x',
     sid: 'aaaaaaaa',
-    kind: 'reviewer',
+    kind: 'critic',
     task: 'old',
     at: minute(0),
   });
@@ -950,7 +950,7 @@ test('a finish with no --sid from a session of its own, when one other session h
   registry.start({
     name: 'review-x',
     sid: 'bbbbbbbb',
-    kind: 'reviewer',
+    kind: 'critic',
     task: 'live',
     at: minute(2),
   });
@@ -960,7 +960,7 @@ test('a finish with no --sid from a session of its own, when one other session h
   registry.start({
     name: 'review-x',
     sid: 'bbbbbbbb',
-    kind: 'reviewer',
+    kind: 'critic',
     task: 'again',
     at: minute(4),
   });
@@ -969,14 +969,14 @@ test('a finish with no --sid from a session of its own, when one other session h
   registry.start({
     name: 'review-y',
     sid: 'aaaaaaaa',
-    kind: 'reviewer',
+    kind: 'critic',
     task: 'dead',
     at: minute(0),
   });
   registry.start({
     name: 'review-y',
     sid: 'bbbbbbbb',
-    kind: 'reviewer',
+    kind: 'critic',
     task: 'live',
     at: new Date(minute(0).getTime() + 30 * 3600 * 1000),
   });
@@ -987,9 +987,9 @@ test('a finish with no --sid from a session of its own, when one other session h
 test("a finish with no --sid never ends another session's run when the caller's own run is stale", () => {
   const home = tmp('reg-finish-stale-own');
   const registry = new AgentRegistry(home);
-  registry.start({ name: 'ou-twin', sid: SID, kind: 'builder', task: 'mine', at: minute(0) });
+  registry.start({ name: 'ou-twin', sid: SID, kind: 'author', task: 'mine', at: minute(0) });
   const fresh = new Date(minute(0).getTime() + 30 * 3600 * 1000);
-  registry.start({ name: 'ou-twin', sid: '99999999', kind: 'builder', task: 'theirs', at: fresh });
+  registry.start({ name: 'ou-twin', sid: '99999999', kind: 'author', task: 'theirs', at: fresh });
   const later = new Date(fresh.getTime() + 60000);
   // the caller's run is over 24h quiet; it is still the caller's run to end, not the other session's
   const done = registry.finish('ou-twin', {
@@ -1001,4 +1001,79 @@ test("a finish with no --sid never ends another session's run when the caller's 
   const theirs = registry.agents().find((one) => one.sid === '99999999');
   assert.equal(theirs?.state, 'running');
   assert.equal(theirs?.result?.commit, undefined);
+});
+
+test('author and critic are the kinds; builder and reviewer are accepted as aliases and stored as the new names', async () => {
+  const home = tmp('reg-alias');
+  const registry = new AgentRegistry(home);
+  const env = { CLAUDE_CODE_SESSION_ID: `${SID}-0000-4000-8000-000000000000` };
+  const start = async (name: string, kind: string) =>
+    runCli(home, ['agent', 'start', name, '--kind', kind, '--task', 'x'], env);
+  for (const [name, kind] of [
+    ['ou-a', 'author'],
+    ['ou-b', 'builder'],
+    ['rv-a', 'critic'],
+    ['rv-b', 'reviewer'],
+  ]) {
+    const done = await start(name, kind);
+    assert.equal(done.code, 0, done.stderr);
+  }
+  const listed = JSON.parse((await runCli(home, ['agent', 'list', '--all', '--json'], env)).stdout);
+  assert.deepEqual(
+    listed.map((one: { name: string; kind: string }) => [one.name, one.kind]),
+    [
+      ['ou-a', 'author'],
+      ['ou-b', 'author'],
+      ['rv-a', 'critic'],
+      ['rv-b', 'critic'],
+    ],
+  );
+  const stored = readFileSync(path.join(home, 'agents.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line).kind);
+  assert.deepEqual(stored, ['author', 'author', 'critic', 'critic']);
+  const bad = await start('ou-c', 'wizard');
+  assert.notEqual(bad.code, 0);
+  assert.match(
+    bad.stderr,
+    /author, critic, helper, research, editor \(builder and reviewer still work\)/,
+  );
+  // an author holds a build slot-style gate, a critic running is at the review gate, whichever name it came by
+  assert.equal(registry.agents().filter((one) => one.kind === 'author').length, 2);
+});
+
+test('old agents.jsonl lines with kind builder or reviewer read as author and critic; the file is not rewritten', () => {
+  const home = tmp('reg-old-lines');
+  const file = path.join(home, 'agents.jsonl');
+  const line = (name: string, kind: string) =>
+    JSON.stringify({
+      op: 'start',
+      id: `${SID}:${name}`,
+      sid8: SID,
+      name,
+      at: minute(0).toISOString(),
+      run: `r_${name}`,
+      kind,
+      task: 'old',
+    });
+  const before =
+    [line('old-a', 'builder'), line('old-r', 'reviewer'), line('old-w', 'wizard')].join('\n') +
+    '\n';
+  writeFileSync(file, before);
+  const registry = new AgentRegistry(home);
+  assert.deepEqual(
+    registry.agents().map((one) => [one.name, one.kind]),
+    [
+      ['old-a', 'author'],
+      ['old-r', 'critic'],
+      ['old-w', null],
+    ],
+  );
+  const [, critic] = registry.agents();
+  assert.deepEqual(gateOf(critic), { kind: 'review', findings: null });
+  assert.equal(readFileSync(file, 'utf8'), before);
+  // finishing an old author with nothing made is still a miss in Waiting, as an author is
+  registry.finish('old-a', { outcome: 'nothing', at: minute(5) });
+  assert.equal(finishedColumn(registry.agents().find((one) => one.name === 'old-a')!), 'waiting');
 });

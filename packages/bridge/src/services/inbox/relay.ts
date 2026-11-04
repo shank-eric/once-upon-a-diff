@@ -100,17 +100,17 @@ export function relayStory(entry: {
   return null;
 }
 
-/** Is `agent` the author of a branch (a builder in the agent registry), not a storyteller or another helper? */
+/** Is `agent` the author of a branch (an author in the agent registry), not a storyteller or another helper? */
 export function isAuthor(home: string, agent: string): boolean {
   return new AgentRegistry(home)
     .agents()
-    .some((one) => one.name === agent && one.kind === 'builder');
+    .some((one) => one.name === agent && one.kind === 'author');
 }
 
 /**
  * May this entry go to the story's bound agent? A question or a rebuild goes to whoever told the story. A fix request
  * or an approval is the branch author's: it amends or finishes its own run in its own worktree. So they are relayed
- * only to a registered builder, and only for a local story: a PR's branch is already pushed, and the session that
+ * only to a registered author, and only for a local story: a PR's branch is already pushed, and the session that
  * listens for it handles those as it always did.
  */
 export function mayRelay(

@@ -24,17 +24,17 @@
  *   - [fixing] sid:<8 hex> [lane:<name>] review-<x> — 10:55 AM ET, 10/27 — 5 findings — notes path
  *
  * [plan] is a build agent stopped at its plan; a later [running] line (plan checked, building) or a [done] clears it.
- * [fixing] is written under the reviewer's name when the launcher starts on the findings (the first "<n> findings" in
+ * [fixing] is written under the critic's name when the launcher starts on the findings (the first "<n> findings" in
  * its text is the count); a later [done] under that name clears it. A running agent whose name starts with review- is
- * a reviewer, which is a gate too, with no line of its own. sid is the first 8 characters of the launching session's id, and the name
+ * a critic, which is a gate too, with no line of its own. sid is the first 8 characters of the launching session's id, and the name
  * is a word of letters, digits, dashes and underscores. A lane tag only names the lane of an agent's own card (the board
  * nests an agent by its registered repo, branch, PR or card, agent-home.ts, whatever its tag says). The last line with a given sid and name wins. Lines that don't match are skipped.
  *
- * A finished agent (done, failed or stopped) with no card to sit in is a card of its own: in Done when it is a reviewer,
+ * A finished agent (done, failed or stopped) with no card to sit in is a card of its own: in Done when it is a critic,
  * a registered agent whose finish event has a result, or a ledger agent with a `[done]` line; in Research when a
  * registered research run has no result; and otherwise in Waiting (finishedColumn in
  * board/agent-home.ts reads fields, never the text), for the setting board_finished_wait_minutes (30; an author in
- * Waiting, kind builder, stays board_done_hours, 1 hour) after its latest ledger line, with its outcome and the first `notes/` path its lines
+ * Waiting, kind author, stays board_done_hours, 1 hour) after its latest ledger line, with its outcome and the first `notes/` path its lines
  * name; a new line starts the time again (progress beats are not counted: they carry no date or sid). The board's Finish on that card appends a `[done]` line only for an
  * agent still `[waiting]` (doneLine), and otherwise just records the click (adapters/stores/finished-agents.ts).
  *
@@ -260,7 +260,7 @@ export function parseLedger(text: string, now: Date, zone?: string): LedgerAgent
   return [...agents.values()];
 }
 
-/** The gate an agent is at, or null: its plan to check, findings being fixed, or a reviewer running. The one place for the rule. */
+/** The gate an agent is at, or null: its plan to check, findings being fixed, or a critic running. The one place for the rule. */
 export function gateOf(
   agent: Pick<LedgerAgent, 'state' | 'name' | 'outcome'> &
     Partial<Pick<LedgerAgent, 'source' | 'kind' | 'findings'>>,
@@ -275,14 +275,13 @@ export function gateOf(
     const count = /(\d+)\s+findings?\b/i.exec(agent.outcome || '');
     return { kind: 'fixing', findings: count ? Number(count[1]) : null };
   }
-  return agent.state === 'running' && isReviewer(agent) ? { kind: 'review', findings: null } : null;
+  return agent.state === 'running' && isCritic(agent) ? { kind: 'review', findings: null } : null;
 }
 
-/** A reviewer: a registered agent's kind says so, and a ledger agent is one when its name starts with review-. */
-export const isReviewer = (
+/** A critic: a registered agent's kind says so, and a ledger agent is one when its name starts with review-. */
+export const isCritic = (
   agent: Pick<LedgerAgent, 'name'> & Partial<Pick<LedgerAgent, 'source' | 'kind'>>,
-): boolean =>
-  agent.source === 'events' ? agent.kind === 'reviewer' : /^review-/i.test(agent.name);
+): boolean => (agent.source === 'events' ? agent.kind === 'critic' : /^review-/i.test(agent.name));
 
 const BEAT_RE =
   /^\s*-\s*\d{1,2}:\d{2}\s*[AP]M\s+([\w.-]+)\s+(\d+)\/(\d+)\s+([\w.-]+)(?::\s*(.*))?$/i;

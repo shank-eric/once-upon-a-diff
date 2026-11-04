@@ -259,12 +259,12 @@ test('a finished card in a skip-review repo is Ready to ship only once its criti
   const columnAt = async (minutes: number) =>
     (await cards(stamp(minutes))).find((one) => one.backlog?.id === item.id)?.column;
 
-  registry.start({ ...author, kind: 'builder', task: 'build it', at: stamp(0) });
+  registry.start({ ...author, kind: 'author', task: 'build it', at: stamp(0) });
   assert.equal(await columnAt(5), 'working');
   registry.finish('ou-build', { sid: 'aaaaaaaa', result: { branch: 'build-it' }, at: stamp(10) });
   assert.equal(await columnAt(11), 'ship', 'built, and no critic has said anything yet');
 
-  registry.start({ ...critic, kind: 'reviewer', task: 'review it', at: stamp(11) });
+  registry.start({ ...critic, kind: 'critic', task: 'review it', at: stamp(11) });
   assert.equal(await columnAt(12), 'checks', 'the critic is running');
 
   registry.finish('review-build-it', { sid: 'aaaaaaaa', findings: 2, at: stamp(15) });
@@ -274,7 +274,7 @@ test('a finished card in a skip-review repo is Ready to ship only once its criti
     'the critic found things and no fix round has finished',
   );
 
-  registry.start({ ...author, kind: 'builder', task: 'fix the findings', at: stamp(17) });
+  registry.start({ ...author, kind: 'author', task: 'fix the findings', at: stamp(17) });
   assert.equal(await columnAt(18), 'working', 'the fix round is running');
   registry.state('ou-build', { sid: 'aaaaaaaa', state: 'fixing', findings: 2, at: stamp(19) });
   assert.equal(await columnAt(20), 'checks', 'the author is fixing');
@@ -296,7 +296,7 @@ test('a critic that passed with no findings leaves a finished card in Ready to s
     registry.start({
       name,
       sid: 'bbbbbbbb',
-      kind: 'builder',
+      kind: 'author',
       task: 't',
       repo,
       branch: 'feat-x',
@@ -306,7 +306,7 @@ test('a critic that passed with no findings leaves a finished card in Ready to s
     registry.start({
       name: `review-${name}`,
       sid: 'bbbbbbbb',
-      kind: 'reviewer',
+      kind: 'critic',
       task: 'r',
       repo,
       branch: 'feat-x',
@@ -327,7 +327,7 @@ function builtCard(name: string) {
   const added = store.add({ title: 'Build it', repo });
   const item = store.start(added.id, { branch: 'feat-x' });
   const author = { name: 'ou-build', sid: 'cccccccc', repo, branch: 'feat-x' } as const;
-  registry.start({ ...author, kind: 'builder', task: 'build', card: item.id, at: stamp(0) });
+  registry.start({ ...author, kind: 'author', task: 'build', card: item.id, at: stamp(0) });
   registry.finish('ou-build', { sid: 'cccccccc', result: { branch: 'feat-x' }, at: stamp(10) });
   const hold = (nowAt: Date) =>
     criticHold(item, { sid: 'cccccccc', name: 'ou-build' }, registry.agents(), nowAt.getTime());
@@ -337,7 +337,7 @@ function builtCard(name: string) {
 test('findings nobody fixed lapse after STALE_MS, and a newer critic run with none releases the card at once', () => {
   const { registry, repo, stamp, hold } = builtCard('hold-lapse');
   const critic = { name: 'review-x', sid: 'cccccccc', repo, branch: 'feat-x' } as const;
-  registry.start({ ...critic, kind: 'reviewer', task: 'review', at: stamp(11) });
+  registry.start({ ...critic, kind: 'critic', task: 'review', at: stamp(11) });
   registry.finish('review-x', { sid: 'cccccccc', findings: 2, at: stamp(15) });
   assert.equal(hold(stamp(16)), 'checks');
   assert.equal(hold(new Date(stamp(15).getTime() + STALE_MS - 1000)), 'checks');
@@ -346,7 +346,7 @@ test('findings nobody fixed lapse after STALE_MS, and a newer critic run with no
     null,
     'dropped findings lapse',
   );
-  registry.start({ ...critic, kind: 'reviewer', task: 'review again', at: stamp(20) });
+  registry.start({ ...critic, kind: 'critic', task: 'review again', at: stamp(20) });
   registry.finish('review-x', { sid: 'cccccccc', findings: 0, at: stamp(22) });
   assert.equal(hold(stamp(23)), null, 'the rerun passed');
 });
@@ -356,7 +356,7 @@ test("an author run for another card is not this card's fix round", () => {
   registry.start({
     name: 'review-x',
     sid: 'cccccccc',
-    kind: 'reviewer',
+    kind: 'critic',
     task: 'review',
     repo,
     branch: 'feat-x',
@@ -365,7 +365,7 @@ test("an author run for another card is not this card's fix round", () => {
   registry.finish('review-x', { sid: 'cccccccc', findings: 2, at: stamp(15) });
   registry.start({
     ...author,
-    kind: 'builder',
+    kind: 'author',
     task: 'other work',
     card: 'bl_other0000001',
     at: stamp(16),
@@ -373,7 +373,7 @@ test("an author run for another card is not this card's fix round", () => {
   assert.equal(hold(stamp(17)), 'checks', "its running is the other card's");
   registry.finish('ou-build', { sid: 'cccccccc', result: { branch: 'feat-x' }, at: stamp(25) });
   assert.equal(hold(stamp(26)), 'checks', "and its finish is not this card's fix");
-  registry.start({ ...author, kind: 'builder', task: 'fix', card: undefined, at: stamp(27) });
+  registry.start({ ...author, kind: 'author', task: 'fix', card: undefined, at: stamp(27) });
   assert.equal(hold(stamp(28)), 'working', 'a run that names no card still counts');
 });
 
@@ -382,7 +382,7 @@ test('a critic registered for another card does not hold this one, even on the s
   registry.start({
     name: 'review-old',
     sid: 'dddddddd',
-    kind: 'reviewer',
+    kind: 'critic',
     task: 'review',
     repo,
     branch: 'feat-x',
@@ -393,7 +393,7 @@ test('a critic registered for another card does not hold this one, even on the s
   registry.start({
     name: 'review-mine',
     sid: 'dddddddd',
-    kind: 'reviewer',
+    kind: 'critic',
     task: 'review',
     repo,
     branch: 'feat-x',
