@@ -568,7 +568,9 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
 
 ## Code layout
 
-Eight Yarn workspaces under `packages/`, all TypeScript (strict), and the skills at the root. Each package has its own dependencies, tests and tsconfig, extending the root's `tsconfig.base.json`.
+Nine Yarn workspaces under `packages/`, all TypeScript (strict), and the skills at the root. Each package has its own dependencies, tests and tsconfig, extending the root's `tsconfig.base.json`.
+
+To trace a click or a command through the code, start with [`docs/flows.md`](docs/flows.md): five requests (Build a story, Ask, Board refresh, Start listening, and an agent's claim through to its card landing), each hop with its file, line and layer. [`docs/state-map.md`](docs/state-map.md) lists every file the tool reads or writes, and [`docs/adr/`](docs/adr/) records why it's built the way it is.
 
 - `packages/protocol/` (`@once-upon-a-diff/protocol`): the contract between the bridge and everything that calls it. It imports no other package, and uses no DOM and no Node (its tsconfig has neither). Its `exports` point at the `.ts` sources, which WXT bundles and the bridge serves type-stripped.
   - `src/types.ts`: the story and the bridge's answers as the panel takes them.
@@ -579,6 +581,7 @@ Eight Yarn workspaces under `packages/`, all TypeScript (strict), and the skills
   - `src/client.ts`: `createClient(transport)` (calls over a transport each host supplies, as `call` that never throws and `ask` that throws a `BridgeError`), `pathFor`, and `matchRoute`, which the extension's service worker asks before it sends the token.
   - `src/poll.ts`: `createPoll`, a look at the bridge on a timer with no framework in it: it loads at once, every few seconds while the tab is visible and when the window gets the focus, keeps the last data through a failed load and counts the failures in a row.
   - `src/use-poll.ts`: `usePoll(load, { everyMs })`, the Preact hook over it (the board page's poll). It imports Preact as the pages do (`/assets/preact.mjs`), so only a page loads it.
+- `packages/ui/` (`@once-upon-a-diff/ui`): what the board, the local page, the panel and the extension share: the DOM and clipboard helpers, Start listening, the popover menu, time text, `parseMarkup` and the markdown renderer, the parts strip, and generic Preact components with no region state (`Meter`, `Chip`, `CopyButton`, `Elapsed`), with their stylesheet `ui.css`. It imports the protocol and the vendored Preact only. The pages load it at `/assets/ui/` and the extension by package name, so there is one Preact.
 - `packages/host-github/` (`@once-upon-a-diff/host-github`): the host adapter for GitHub, so a change in GitHub's markup lands in one package. Its `exports` point at the `.ts` sources the same way the protocol's do: WXT bundles them into the extension and the bridge serves them, type-stripped, to the local page. It implements the panel's port (`panel/src/host.ts`, `panel/src/diff-types.ts`) and imports nothing else of the panel.
   - `src/diff-dom.ts`: the diff-page reader, finding files, lines, Viewed toggles and expand controls on GitHub's `/changes` and `/files` and on the local page, whose diff view has `/changes`' shapes. Both apps hand it to the panel; the panel never imports it.
   - `src/pages.ts`: what a github.com path says about the page (Files changed, Conversation, a PR list), which the extension's content scripts route on.

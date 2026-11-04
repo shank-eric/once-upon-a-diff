@@ -35,7 +35,9 @@ flowchart TB
   ui["ui<br/>helpers and generic components"]
   api["api-client<br/>typed client, poll"]
   protocol["protocol<br/>wire types, route table, schemas"]
-  domain["protocol/src/domain<br/>pure rules: id patterns so far"]
+  domain["protocol/src/domain<br/>pure rules, imports nothing: 13 modules<br/>(patterns, html, text, time, chapters, parts ...)"]
+  vendor["vendored /assets/preact.mjs<br/>(htm/preact standalone)"]
+  testkit["test-kit<br/>(dev only: tests import it, nothing that ships)"]
   subgraph serverApps["Server apps"]
     http["bridge server/ (HTTP routes)"]
     cli["bridge cli/"]
@@ -48,6 +50,7 @@ flowchart TB
   end
 
   web --> boardview
+  web --> api
   web --> panel
   web --> host
   ext --> panel
@@ -68,25 +71,31 @@ flowchart TB
   cli --> svc
   svc --> domain
   svc --> ad
+  boardview --> vendor
+  panel --> vendor
+  ui --> vendor
+  host --> panel
+  host --> protocol
   boardview -. "HTTP (route table)" .-> http
+  ext -. "HTTP via service worker" .-> http
 
 ```
 
-Solid arrows point from importer to imported. The dotted arrow is the runtime HTTP call, not an import.
+Solid arrows point from importer to imported. The dotted arrows are runtime HTTP calls, not imports. `host-github` imports only the panel's port (`host.ts`, `diff-types.ts`), never `overlay.ts` or a region. `test-kit` has no arrows because no shipped code may import it: every package's tests do, as a dev dependency.
 
 Rules:
 
 - **Only apps know their host.** Features don't import each other. Client and server meet only at `protocol`. The board page reaches the board's services only at runtime, through HTTP and the bridge's routes. The two share only the `BoardData` types in protocol.
 - **A package only when it has its own runtime, its own dependencies, or a consumer outside its layer** (`ui` is the one exception, by decision on 11/4). Everything else is a folder with a lint rule. So the domain is `protocol/src/domain/`, the server split is folders inside `bridge` (apps `server/` and `cli/`, then `services/`, then `adapters/`, where every side effect goes), and the feature regions are folders inside `web` (the board page) and `panel` that don't import each other. The CLI is a server-side app beside HTTP, over the services, in-process (ADR-05), and stays in `bridge`.
-- **Enforced by lint and by compilers, not by habit.** `eslint.boundaries.mjs` has one entry per layer and region, and `packages/bridge/test/boundary-lint.test.ts` probes each rule with a violating file. Services, routes and the CLI may not run a program, write a file or reach the network, and no code that ships to a browser may import a Node built-in. protocol's own tsconfig has no DOM and no Node types. `yarn lint` runs in the pre-commit hook and in CI.
+- **Enforced by lint and by compilers, not by habit.** `eslint.boundaries.mjs` has one entry per layer and region, and `packages/bridge/test/boundary-lint.test.ts` probes each rule with a violating file. `.dependency-cruiser.mjs` checks the same layers over the whole import graph and adds cycles, and `packages/bridge/test/layer-rules-agree.test.ts` fails when the two rule files disagree, so `eslint.boundaries.mjs` is the one source. Services, routes and the CLI may not run a program, write a file or reach the network, and no code that ships to a browser may import a Node built-in. protocol's own tsconfig has no DOM and no Node types. `yarn lint` runs in the pre-commit hook and in CI.
 
 ### What `packages/protocol` is
 
 - **`types.ts`**: the wire types (moved from `shared`, which re-exports them until the imports move).
-- **`routes.ts`**: the route table. Every call the bridge answers (57 of them), with its method, its path, which keys may make it (`token`, `token+board`, `token+page`, `token+page+view`, or `none`), the body it takes and the answer it gives. The bridge registers its handlers from the entries, and its dispatcher takes its lookups and the board-key rule from them. A test compares each story route's keys with `page-key.ts`'s read-only list, both ways, and calls every route with each kind of key.
+- **`routes.ts`**: the route table. Every call the bridge answers (64 of them on 11/4), with its method, its path, which keys may make it (`token`, `token+board`, `token+page`, `token+page+view`, or `none`), the body it takes and the answer it gives. The bridge registers its handlers from the entries, and its dispatcher takes its lookups and the board-key rule from them. A test compares each story route's keys with `page-key.ts`'s read-only list, both ways, and calls every route with each kind of key.
 - **`schemas.ts`**: a Valibot schema for each request body. The bridge checks every body against one after the key and story guards, so a bad body never changes which of 401, 403, 404, 413 or 415 answers. A body that isn't a JSON object is a 400.
-- **`client.ts`**: a typed client over a transport each host supplies (the extension's service worker, a page's fetch with its key). It does no I/O itself. The extension's service worker also asks `matchRoute` before it adds the token, so it forwards only the 28 routes the extension calls (`extension/src/bridge-routes.ts`, checked against the code's uses by a test). It started here and became the `api-client` package (11/3) with the poll: `createPoll`, and `usePoll`, the board's Preact hook over it.
-- **`domain/`**: pure rules, with no imports at all, not even the rest of the protocol (the protocol imports the domain). Only the id patterns are there so far.
+- **`client.ts`**: a typed client over a transport each host supplies (the extension's service worker, a page's fetch with its key). It does no I/O itself. The extension's service worker also asks `matchRoute` before it adds the token, so it forwards only the routes the extension calls (30 on 11/4, listed in `extension/src/bridge-routes.ts` and checked against the code's uses by a test). It started here and became the `api-client` package (11/3) with the poll: `createPoll`, and `usePoll`, the board's Preact hook over it.
+- **`domain/`**: pure rules, with no imports at all, not even the rest of the protocol (the protocol imports the domain). It started with the id patterns. On 11/4 it has 13 modules: `patterns`, `html`, `text`, `time`, `choice`, `chapters`, `line-refs`, `pr-key`, `bridge-port` (most moved from `shared`, ADR-17), and `lane-key`, `parts` (ADR-19), `error-code` and `usage-actions` (ADR-18).
 
 ### Source imports, not TypeScript project references
 
@@ -125,5 +134,5 @@ The plan was protocol, panel, web, ui, then the server split and board-core. Wha
 1. When does `client.ts` become the `api-client` package: with the first poll hook, or the panel's move? Answered 11/3: with the first poll hook. The board page uses `usePoll`. The panel's tick, and the local page's, still have their own timers and could move onto `createPoll`.
 2. Should `VIEW_KEY_MAY` be derived from the table's `keys`, so there is one list? A test checks the two against each other, both ways, with written-out lists.
 3. Should answers be validated by the clients, and so should Valibot be vendored for the pages after all?
-4. Which of the pure helpers move into the domain next? Only the id patterns are there. Candidates: relative time and `gateText` (they moved to the domain: ADR-17), ledger-line parsing (`services/ledger/ledger.ts`, which needs its types) and the board's column rules (`services/board/columns.ts`, also types).
+4. Which of the pure helpers move into the domain next? Candidates: relative time and `gateText` (they moved to the domain: ADR-17), ledger-line parsing (`services/ledger/ledger.ts`, which needs its types) and the board's column rules (`services/board/columns.ts`, also types).
 5. `sub` is ignored by every story handler except questions and notes, so `POST /api/stories/<id>/approve/anything` still approves. It was so before the table. Should the table's `sub` be enforced?
