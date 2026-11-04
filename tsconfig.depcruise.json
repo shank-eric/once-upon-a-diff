@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "paths": {
+      "/assets/types.ts": ["./packages/protocol/src/types.ts"],
+      "/assets/protocol/*": ["./packages/protocol/src/*"],
+      "/assets/api-client/*": ["./packages/api-client/src/*"],
+      "/assets/host-github/*": ["./packages/host-github/src/*"],
+      "/assets/panel/*": ["./packages/panel/src/*"],
+      "/assets/local/*": ["./packages/web/public/local/*"],
+      "/assets/highlight.mjs": ["./packages/web/public/vendor/highlight.mjs"],
+      "/assets/preact.mjs": ["./packages/web/public/vendor/preact.mjs"],
+      "/assets/*": ["./packages/web/public/*"]
+    }
+  },
+  "include": ["packages/*/src", "packages/web/public"]
+}

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "workspaces": {
+    ".": {
+      "entry": ["skills/**/*.ts", "eslint.*.mjs"],
+    },
+    "packages/extension": {
+      "entry": ["src/entrypoints/**/*.ts", "scripts/*.ts"],
+    },
+    "packages/web": {
+      "entry": ["public/{board,local,split,narrow,syntax}.ts", "scripts/*.ts"],
+      "ignore": ["public/vendor/**"],
+      // the pages import these through /assets/api-client/* and /assets/host-github/* URLs, which knip cannot follow: a real
+      // false positive, but it also hides a genuinely unused entry, so drop one here if a page stops using it
+      "ignoreDependencies": ["@once-upon-a-diff/api-client", "@once-upon-a-diff/host-github"],
+    },
+    "packages/panel": {
+      "ignoreBinaries": ["jq"],
+    },
+  },
+}
