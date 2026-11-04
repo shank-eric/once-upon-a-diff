@@ -320,6 +320,7 @@ button.ou-local-pr, button.ou-local-push, button.ou-local-push-ahead { white-spa
 .ou-board-session, .ou-board-agent { font-size: 12px; }
 .ou-board-mark { color: var(--fgColor-muted); }
 .ou-board-agent-note { overflow-wrap: anywhere; }
+.ou-board-copy { font-size: 11px; padding: 0 6px; }
 .ou-board-bar { height: 4px; margin-top: 2px; border-radius: 2px; background: var(--borderColor-default); }
 .ou-board-bar span { display: block; height: 100%; border-radius: 2px; background: var(--fgColor-muted); }
 .ou-board-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; }

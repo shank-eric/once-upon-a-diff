@@ -540,7 +540,11 @@ async function record(
     task: 'compare the options',
     at: et(14, 40),
   });
-  registered.finish('scout', { outcome: 'options laid out', at: et(14, 50) });
+  registered.finish('scout', {
+    outcome: 'options laid out',
+    notes: '~/Development/ClariFi/notes/research/2026-10-26-options.md',
+    at: et(14, 50),
+  });
   registered.start({
     ...widgets,
     sid: sid(onStory),

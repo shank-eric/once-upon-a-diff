@@ -1392,7 +1392,7 @@
                 "kind": "research",
                 "model": "sonnet, low",
                 "name": "scout",
-                "notes": null,
+                "notes": "~/Development/ClariFi/notes/research/2026-10-26-options.md",
                 "outcome": "options laid out",
                 "review": false,
                 "sid": "<PID:0>",

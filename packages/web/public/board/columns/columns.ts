@@ -7,6 +7,7 @@
 import { html, useLayoutEffect, useRef, useState } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { openMenu } from '/assets/local/menu.ts';
+import { writeClipboard } from '/assets/panel/clipboard.ts';
 import type {
   BoardAgent,
   BoardEditor,
@@ -220,8 +221,23 @@ function Agent(props: { agent: BoardAgent; now: number; api: Api; byEditor: bool
       <span class="ou-local-muted">${note}${agent.stale && ' (no done line yet)'}${time && ` · ${time}`}</span></div>
     ${byEditor && agent.editor && html`<div class="ou-local-muted ou-board-agent-editor">by <${SessionLink} bridge=${api.bridge} session=${agent.editor.session} canFocus=${agent.editor.can_focus} name=${`Editor · ${agent.editor.label}`} title="The editor that launched this builder: bring its iTerm tab to the front" /></div>`}
     ${beat && agent.state === 'running' && html`<div class="ou-board-bar" aria-hidden="true"><span style=${`width:${percent}%`}></span></div>`}
-    ${detail && html`<div class="ou-board-agent-note ou-local-muted">${detail}</div>`}
+    ${detail && html`<div class="ou-board-agent-note ou-local-muted" data-agent-detail>${detail}</div>`}
+    ${agent.notes && html`<div class="ou-board-agent-note ou-local-muted" data-agent-notes>notes: <code>${agent.notes}</code> <${CopyNotes} path=${agent.notes} /></div>`}
   </li>`;
+}
+
+/**
+ * Copy for an agent's notes path. The page has no way to open a file on this Mac (the bridge serves no local files), so the path is shown whole and copyable.
+ */
+function CopyNotes(props: { path: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    if (await writeClipboard(props.path)) {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    }
+  };
+  return html`<button type="button" class="ou-board-copy" data-copy-notes onClick=${copy} title="Copy the notes path">${copied ? 'Copied' : 'Copy'}</button>`;
 }
 
 function Session(props: { session: BoardSession; now: number }) {
@@ -330,7 +346,7 @@ function finishAgent(api: Api, card: BoardCard) {
   );
 }
 
-/** What a finished agent's card says beyond its agent line: its notes file, and when the card leaves on its own. */
+/** What a finished agent's card says beyond its agent line (which has the outcome and notes path): when the card leaves on its own. */
 function Finished(props: { card: BoardCard; now: number }) {
   const { card, now } = props;
   const agent = card.agents[0];
@@ -340,8 +356,7 @@ function Finished(props: { card: BoardCard; now: number }) {
   const left = agent.clears_at
     ? Math.max(1, Math.ceil((Date.parse(agent.clears_at) - now) / 60000))
     : 0;
-  return html`${agent.notes && html`<div class="ou-local-muted ou-board-meta" data-agent-notes>notes: <code>${agent.notes}</code></div>`}
-    ${left > 0 && html`<div class="ou-local-muted ou-board-meta" data-agent-clears>leaves the board in ${left} min unless it does something more</div>`}`;
+  return html`${left > 0 && html`<div class="ou-local-muted ou-board-meta" data-agent-clears>leaves the board in ${left} min unless it does something more</div>`}`;
 }
 
 /** A card other than a Backlog item: its title, where it is, what is going on, its sessions and agents, and its buttons. */

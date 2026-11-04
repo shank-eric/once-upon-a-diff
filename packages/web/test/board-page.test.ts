@@ -1511,6 +1511,73 @@ test('Open story, Push and Mark reviewed each ask the bridge for the right thing
   await pollNow();
 });
 
+test('a finished research agent shows its resolution and a copyable notes path, on its own card and inside another card', async () => {
+  const notes = '~/Development/ClariFi/notes/research/2026-11-03-options.md';
+  const agent = (name: string): BoardAgent => ({
+    key: `abcdef01:${name}`,
+    sid: 'abcdef01',
+    name,
+    kind: 'research',
+    editor: null,
+    state: 'done',
+    review: false,
+    status: 'done',
+    task: 'compare the options',
+    model: null,
+    started_at: null,
+    ended_at: '2026-10-29T11:50:00Z',
+    outcome: 'use the second option: it needs no migration',
+    stale: false,
+    beat: null,
+    gate: null,
+    notes,
+    clears_at: null,
+  });
+  const copied: string[] = [];
+  const clipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+  Object.defineProperty(navigator, 'clipboard', {
+    configurable: true,
+    value: { writeText: async (text: string) => void copied.push(text) },
+  });
+  try {
+    answer = () =>
+      withCards(
+        card({
+          id: 'agent:abcdef01:scout',
+          kind: 'agent',
+          title: 'scout',
+          repo: null,
+          column: 'research',
+          detail: 'use the second option: it needs no migration',
+          agents: [agent('scout')],
+        }),
+        card({ id: 'work-1', kind: 'work', title: 'a branch', agents: [agent('inside')] }),
+      );
+    await pollNow();
+    for (const id of ['agent:abcdef01:scout', 'work-1']) {
+      const one = $(`[data-card="${id}"]`) as HTMLElement;
+      assert.equal(
+        one.querySelector('[data-agent-detail]')?.textContent,
+        'use the second option: it needs no migration',
+        `${id}: the resolution`,
+      );
+      assert.equal(one.querySelectorAll('[data-agent-notes]').length, 1, `${id}: notes once`);
+      assert.equal(one.querySelector('[data-agent-notes] code')?.textContent, notes);
+    }
+    await click($('[data-card="agent:abcdef01:scout"] [data-copy-notes]'));
+    assert.deepEqual(copied, [notes], 'Copy puts the whole path on the clipboard');
+    assert.equal($('[data-card="agent:abcdef01:scout"] [data-copy-notes]')?.textContent, 'Copied');
+  } finally {
+    if (clipboard) {
+      Object.defineProperty(navigator, 'clipboard', clipboard);
+    } else {
+      delete (navigator as { clipboard?: unknown }).clipboard;
+    }
+    answer = () => board();
+    await pollNow();
+  }
+});
+
 test('a finished agent’s card shows its notes and when it leaves, and Finish asks the bridge to clear it', async () => {
   requests.length = 0;
   confirmed.length = 0;
