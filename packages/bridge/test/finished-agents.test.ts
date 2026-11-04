@@ -8,7 +8,8 @@ import { Board, noPrWatcher } from '../src/services/board/board.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
 import { Builds } from '../src/services/inbox/builds.ts';
 import { boardKey } from '../src/services/pages/page-key.ts';
-import { madeSomething } from '../src/services/board/agent-home.ts';
+import { finishedColumn } from '../src/services/board/agent-home.ts';
+import { AgentRegistry } from '../src/services/ledger/registry.ts';
 import { doneLine, lastActivity, ledgerTime, parseLedger } from '../src/services/ledger/ledger.ts';
 import { appendLine } from '../src/adapters/stores/notes.ts';
 import { BoardError } from '../src/services/errors.ts';
@@ -231,32 +232,144 @@ test('an agent known only from the ledger is Done on its [done] line whatever th
   );
 });
 
-test('madeSomething reads fields only: a registered result, a reviewer, a ledger [done]', () => {
+test('finishedColumn reads fields only: kind, state, result, ledger source', () => {
+  const column = (
+    state: 'done' | 'stopped' | 'failed' | 'waiting',
+    extra: Record<string, unknown> = {},
+    name = 'ou-x',
+  ) => finishedColumn({ name, state, source: 'events', ...extra });
   const result = { commit: 'abc1234' };
-  assert.equal(madeSomething({ name: 'ou-x', state: 'done', source: 'events', result }), true);
+  // made something: a result, whatever the kind
+  assert.equal(column('done', { kind: 'builder', result }), 'done');
+  assert.equal(column('done', { kind: 'builder', result: { pr: 7 } }), 'done');
+  assert.equal(column('done', { kind: 'research', result: { card: 'bl_x' } }), 'done');
+  // no result: an author or an unknown kind waits, research is Research, a helper is Done
+  assert.equal(column('done', { kind: 'builder', result: null }), 'waiting');
+  assert.equal(column('done', { kind: 'builder', result: {} }), 'waiting', '{} is no result');
+  assert.equal(column('done', { kind: null, result: null }), 'waiting', 'no kind: not research');
+  assert.equal(column('done', { kind: 'research', result: null }), 'research');
+  assert.equal(column('done', { kind: 'research', result: {} }), 'research');
   assert.equal(
-    madeSomething({ name: 'ou-x', state: 'done', source: 'events', result: { pr: 7 } }),
-    true,
+    column('done', { kind: 'helper', result: null }),
+    'done',
+    'a plain helper did its job',
   );
+  assert.equal(column('done', { kind: 'helper', result: {} }), 'done');
+  // stopped: nothing to point at; a stopped research run lost nothing, other kinds were interrupted
+  assert.equal(column('stopped', { kind: 'research' }), 'research');
+  assert.equal(column('stopped', { kind: 'builder' }), 'waiting');
+  assert.equal(column('stopped', { kind: 'helper' }), 'waiting');
   assert.equal(
-    madeSomething({ name: 'ou-x', state: 'done', source: 'events', result: null }),
-    false,
+    column('stopped', { kind: 'research', result }),
+    'research',
+    'a stopped run made nothing',
   );
-  assert.equal(madeSomething({ name: 'ou-x', state: 'done', source: 'events', result: {} }), false);
+  assert.equal(column('stopped', { kind: 'builder', result }), 'waiting');
+  // failed is always Waiting; a reviewer is Done
+  assert.equal(column('failed', { kind: 'research' }), 'waiting');
+  assert.equal(column('failed', { kind: 'helper' }), 'waiting');
+  assert.equal(column('failed', { kind: 'builder', result }), 'waiting');
+  assert.equal(column('done', { kind: 'reviewer', result: null }), 'done');
+  assert.equal(column('stopped', { kind: 'reviewer' }), 'done');
+  // ledger only: no kind or result, so never Research
+  assert.equal(finishedColumn({ name: 'review-x', state: 'stopped' }), 'done', 'a ledger reviewer');
+  assert.equal(finishedColumn({ name: 'ou-x', state: 'done' }), 'done', 'a ledger [done]');
+  assert.equal(finishedColumn({ name: 'ou-x', state: 'stopped' }), 'waiting');
+  assert.equal(finishedColumn({ name: 'ou-x', state: 'waiting' }), 'waiting');
+});
+
+/** Registered agents (once-upon agent start/finish) beside the ledger, at minutes from the test clock's NOW (3:40 PM ET). */
+function register(home: string, name: string, kind: string, finish: object, atMinute = -10) {
+  const registry = new AgentRegistry(home);
+  const when = (minutes: number) => new Date(NOW.getTime() + minutes * MINUTE);
+  registry.start({
+    sid: SID,
+    name,
+    kind: kind as 'builder',
+    task: 'the task',
+    repo: 'acme/widgets',
+    at: when(atMinute - 5),
+  });
+  registry.finish(name, { outcome: 'what it did', at: when(atMinute), ...finish });
+}
+
+test('a finished research agent with no result is in Research for 30 minutes; a failed one, an explicit wait and one with a result are not', async () => {
+  const rig = world();
+  register(rig.home, 'ou-scout', 'research', {});
+  register(rig.home, 'ou-scout-failed', 'research', { state: 'failed' });
+  register(rig.home, 'ou-scout-stopped', 'research', { state: 'stopped' });
+  register(rig.home, 'ou-scout-card', 'research', { result: { card: 'bl_mvzro4kube937c' } });
+  const asker = new AgentRegistry(rig.home);
+  asker.start({ sid: SID, name: 'ou-asker', kind: 'research', task: 'ask', at: NOW });
+  asker.state('ou-asker', { state: 'waiting', outcome: 'pick A or B', at: NOW });
+  const scout = await rig.card('ou-scout');
+  assert.equal(scout?.column, 'research');
+  assert.equal(scout?.detail, 'what it did');
   assert.equal(
-    madeSomething({
-      name: 'ou-x',
-      state: 'done',
-      source: 'events',
-      kind: 'reviewer',
-      result: null,
-    }),
-    true,
+    scout?.agents[0].clears_at,
+    '2026-11-02T21:00:00.000Z',
+    '30 minutes after its finish',
   );
-  assert.equal(madeSomething({ name: 'review-x', state: 'stopped' }), true, 'a ledger reviewer');
-  assert.equal(madeSomething({ name: 'ou-x', state: 'done' }), true, 'a ledger [done]');
-  assert.equal(madeSomething({ name: 'ou-x', state: 'stopped' }), false);
-  assert.equal(madeSomething({ name: 'ou-x', state: 'waiting' }), false);
+  assert.equal((await rig.card('ou-scout-stopped'))?.column, 'research');
+  assert.equal((await rig.card('ou-scout-failed'))?.column, 'waiting');
+  assert.equal((await rig.card('ou-scout-card'))?.column, 'done');
+  assert.equal((await rig.card('ou-asker'))?.column, 'waiting', 'a question stays a question');
+  rig.moveTo(19);
+  assert.ok(await rig.card('ou-scout'), 'at 29 minutes');
+  rig.moveTo(21);
+  assert.equal(await rig.card('ou-scout'), undefined, 'gone after 30 minutes');
+});
+
+test('Finish clears a Research card at once, and a later event brings it back', async () => {
+  const rig = world();
+  register(rig.home, 'ou-scout', 'research', {});
+  assert.equal((await rig.card('ou-scout'))?.column, 'research');
+  rig.moveTo(1);
+  rig.board.finishAgent(SID, 'ou-scout');
+  rig.moveTo(2);
+  assert.equal(await rig.card('ou-scout'), undefined, 'cleared');
+  const registry = new AgentRegistry(rig.home);
+  registry.start({
+    sid: SID,
+    name: 'ou-scout',
+    kind: 'research',
+    task: 'again',
+    at: new Date(NOW.getTime() + 3 * MINUTE),
+  });
+  registry.finish('ou-scout', { outcome: 'second look', at: new Date(NOW.getTime() + 4 * MINUTE) });
+  rig.moveTo(5);
+  const back = await rig.card('ou-scout');
+  assert.equal(back?.column, 'research', 'back with a fresh timer');
+  assert.equal(back?.agents[0].clears_at, '2026-11-02T21:14:00.000Z');
+});
+
+test('an author that finishes with no result is in Waiting and is gone after an hour; other finished cards still clear at 30 minutes', async () => {
+  const rig = world();
+  register(rig.home, 'ou-author', 'builder', {});
+  register(rig.home, 'ou-author-stopped', 'builder', { state: 'stopped' });
+  register(rig.home, 'ou-built', 'builder', { result: { card: 'bl_mvzro4kube937c' } });
+  const author = await rig.card('ou-author');
+  assert.equal(author?.column, 'waiting');
+  assert.equal(author?.agents[0].clears_at, '2026-11-02T21:30:00.000Z', 'an hour after its finish');
+  assert.equal((await rig.card('ou-author-stopped'))?.column, 'waiting');
+  assert.equal((await rig.card('ou-built'))?.column, 'done');
+  rig.moveTo(21);
+  assert.equal(await rig.card('ou-built'), undefined, 'Done: 30 minutes');
+  assert.ok(await rig.card('ou-author'), 'Waiting author: still there at 41 minutes');
+  rig.moveTo(49);
+  assert.ok(await rig.card('ou-author'), 'at 59 minutes');
+  rig.moveTo(51);
+  assert.equal(await rig.card('ou-author'), undefined, 'gone after an hour');
+});
+
+test('a ledger [done] whose words say research stays Done: no text is read', async () => {
+  const rig = world();
+  writeFileSync(
+    rig.ledger,
+    `- [running] sid:${SID} ou-words (sonnet, low) — try it — started 3:00 PM ET, 11/2\n` +
+      line('done', 'ou-words', '3:30 PM ET, 11/2', 'research only, nothing built'),
+  );
+  assert.equal((await rig.card('ou-words'))?.column, 'done');
 });
 
 test('board_finished_wait_minutes sets how long a finished agent waits', async () => {

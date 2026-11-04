@@ -20,7 +20,7 @@ async function board(home: string, cfg: Config, opts: CliOpts) {
   ).lanes.flatMap((lane) => lane.cards);
   const count = (column: string) => cards.filter((card) => card.column === column).length;
   process.stderr.write(
-    `${plural(cards.length, 'card')}: ${count('working')} working, ${count('waiting')} waiting, ${count('ready')} ready for review\n`,
+    `${plural(cards.length, 'card')}: ${count('working')} working, ${count('waiting')} waiting, ${count('ready')} ready for review${count('research') ? `, ${count('research')} research` : ''}\n`,
   );
   const url = boardPageUrl(
     Number(opts.port || cfg.port),

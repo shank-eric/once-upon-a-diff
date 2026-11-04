@@ -531,6 +531,34 @@ async function record(
     at: et(14, 49),
   });
   registered.state('fixer', { state: 'fixing', outcome: 'fixing', at: et(14, 49) });
+  // finished with no result and no card to nest in: research is Research, a helper that did its job is Done, an author that made nothing is Waiting for an hour
+  registered.start({
+    ...widgets,
+    sid: sid(onStory),
+    name: 'scout',
+    kind: 'research',
+    task: 'compare the options',
+    at: et(14, 40),
+  });
+  registered.finish('scout', { outcome: 'options laid out', at: et(14, 50) });
+  registered.start({
+    ...widgets,
+    sid: sid(onStory),
+    name: 'built-nothing',
+    kind: 'builder',
+    task: 'try the thing',
+    at: et(14, 41),
+  });
+  registered.finish('built-nothing', { outcome: 'nothing to commit', at: et(14, 51) });
+  registered.start({
+    ...widgets,
+    sid: sid(onStory),
+    name: 'lookup',
+    kind: 'helper',
+    task: 'check the deploy status',
+    at: et(14, 42),
+  });
+  registered.finish('lookup', { outcome: 'deploy is healthy', at: et(14, 52) });
   writeFileSync(
     ledger,
     [

@@ -790,12 +790,13 @@ export interface BoardGate {
   findings: number | null;
 }
 
-/** The board's columns, in the order the work moves through them: `error` shows only when a card is in it, and idle cards are a lane of their own. */
+/** The board's columns, in the order the work moves through them: `research` and `error` show only when a card is in them, and idle cards are a lane of their own. */
 export type BoardColumn =
   | 'backlog'
   | 'working'
   | 'checks'
   | 'waiting'
+  | 'research'
   | 'ready'
   | 'ship'
   | 'pr_open'

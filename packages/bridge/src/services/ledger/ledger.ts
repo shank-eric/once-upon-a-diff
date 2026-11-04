@@ -31,9 +31,10 @@
  * inside its parent's card. The last line with a given sid and name wins. Lines that don't match are skipped.
  *
  * A finished agent (done, failed or stopped) with no card to sit in is a card of its own: in Done when it is a reviewer,
- * a registered agent whose finish event has a result, or a ledger agent with a `[done]` line, and otherwise in Waiting
- * (madeSomething in board/agent-home.ts reads fields, never the text), for the setting
- * board_finished_wait_minutes (30) after its latest ledger line, with its outcome and the first `notes/` path its lines
+ * a registered agent whose finish event has a result, or a ledger agent with a `[done]` line; in Research when a
+ * registered research run has no result; and otherwise in Waiting (finishedColumn in
+ * board/agent-home.ts reads fields, never the text), for the setting board_finished_wait_minutes (30; an author in
+ * Waiting, kind builder, stays board_done_hours, 1 hour) after its latest ledger line, with its outcome and the first `notes/` path its lines
  * name; a new line starts the time again (progress beats are not counted: they carry no date or sid). The board's Finish on that card appends a `[done]` line only for an
  * agent still `[waiting]` (doneLine), and otherwise just records the click (adapters/stores/finished-agents.ts).
  *

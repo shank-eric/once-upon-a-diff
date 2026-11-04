@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { tmp, writeJson } from './helpers.ts';
 import path from 'node:path';
 import { readSettings } from '../src/services/config/settings.ts';
-import { homeOf, madeSomething } from '../src/services/board/agent-home.ts';
+import { finishedColumn, homeOf } from '../src/services/board/agent-home.ts';
 import { NO_PARENT, placeAgents } from '../src/services/board/stages/agents.ts';
 import { backlogCards } from '../src/services/backlog/backlog.ts';
 import type { BacklogItem } from '../src/services/backlog/backlog.ts';
@@ -135,6 +135,25 @@ test('a registered agent whose card is a started backlog item is nested on that 
     null,
   );
   assert.equal(homeOf(registered({ card: 'bl_missing' }), cards, [item]), null);
+});
+
+test('a finished research agent on a registered branch is nested in its card, not in a Research card of its own', () => {
+  const featX = makeX();
+  const added = place(
+    [
+      registered({
+        kind: 'research',
+        state: 'done',
+        repo: 'acme/widgets',
+        branch: 'feat/x',
+        ended: new Date(NOW - 60000),
+      }),
+    ],
+    [featX],
+  );
+  assert.equal(added.length, 0);
+  assert.equal(featX.agents.length, 1);
+  assert.equal(featX.agents[0].kind, 'research');
 });
 
 test('a finished builder is nested by the branch or PR its finish event reports', () => {
@@ -270,13 +289,13 @@ test('two agents of one name in different sessions are two agents on a card, and
 });
 
 test('a finished ledger agent is Done by its [done] line, not by a worktrees folder in its task or by its outcome', () => {
-  assert.equal(madeSomething({ name: 'a', state: 'done' }), true);
+  assert.equal(finishedColumn({ name: 'a', state: 'done' }), 'done');
   assert.equal(
-    madeSomething({ name: 'a', state: 'stopped' }),
-    false,
+    finishedColumn({ name: 'a', state: 'stopped' }),
+    'waiting',
     'a worktrees task is not output',
   );
-  assert.equal(madeSomething({ name: 'a', state: 'waiting' }), false);
+  assert.equal(finishedColumn({ name: 'a', state: 'waiting' }), 'waiting');
 });
 
 test('a finished agent stays inside its card for an hour by default, never less than the finished wait', () => {

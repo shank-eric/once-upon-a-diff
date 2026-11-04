@@ -10,7 +10,7 @@ import { AgentRegistry } from '../src/services/ledger/registry.ts';
 import { readAgents } from '../src/services/ledger/read.ts';
 import { beatOf } from '../src/services/ledger/events.ts';
 import { appendAgentEvent } from '../src/adapters/stores/agents-file.ts';
-import { madeSomething } from '../src/services/board/agent-home.ts';
+import { finishedColumn } from '../src/services/board/agent-home.ts';
 import { workingIn } from '../src/services/worktrees/worktrees.ts';
 import { parseLedger, parseProgress } from '../src/services/ledger/ledger.ts';
 import { registrySource } from '../src/services/sessions/sources.ts';
@@ -463,12 +463,12 @@ test('the board Finish on a registered agent writes a finish event', async () =>
   assert.equal(registry.events().at(-1)?.op, 'finish');
 });
 
-test('a registered agent that finishes with a result made something, with no outcome text; research with none did not', () => {
+test('a registered agent that finishes with a result is Done, with no outcome text; an author with none waits', () => {
   const registry = new AgentRegistry(tmp('reg-made'));
   registry.start({ ...BUILD, at: minute(0) });
   registry.finish('ou-thing', { result: { commit: 'abc1234', branch: 'thing' }, at: minute(5) });
   const [built] = registry.agents();
-  assert.equal(madeSomething(built), true);
+  assert.equal(finishedColumn(built), 'done');
   registry.start({
     ...BUILD,
     name: 'ou-scout',
@@ -478,14 +478,18 @@ test('a registered agent that finishes with a result made something, with no out
   registry.finish('ou-scout', { outcome: 'pushed back on the plan', at: minute(7) });
   const scout = registry.agents().find((one) => one.name === 'ou-scout');
   assert.ok(scout);
-  assert.equal(madeSomething(scout), false, 'a run with no result waits, whatever its words');
+  assert.equal(
+    finishedColumn(scout),
+    'waiting',
+    'an author with no result waits, whatever its words',
+  );
 });
 
 /** The column of a registered agent's card on the board. */
 const columnOf = async (home: string, name: string) =>
   (await boardOf(home)()).find((one) => one.kind === 'agent' && one.title === name)?.column;
 
-test('Done or Waiting comes from the finish event, never its words', async () => {
+test('Done, Research or Waiting comes from the finish event, never its words', async () => {
   const home = tmp('reg-done-waiting');
   const registry = new AgentRegistry(home);
   const finished = (name: string, outcome: string, result: object = {}, kind = 'builder') => {
@@ -501,7 +505,10 @@ test('Done or Waiting comes from the finish event, never its words', async () =>
   finished('ou-pr', 'ok', { pr: 7 });
   finished('ou-branch', 'ok', { branch: 'feat/x' });
   finished('ou-card', 'ok', { card: 'bl_mvzro4kube937c' });
+  finished('ou-nothing', 'built nothing', {}, 'builder');
   finished('ou-scout', 'options laid out', {}, 'research');
+  finished('ou-lookup', 'found it', {}, 'helper');
+  finished('ou-scout-card', 'filed a card', { card: 'bl_mvzro4kube937c' }, 'research');
   registry.start({ ...BUILD, name: 'ou-asker', at: minute(0) });
   registry.state('ou-asker', { state: 'waiting', outcome: 'pick A or B', at: minute(5) });
   registry.start({ ...BUILD, name: 'ou-parked', at: minute(0) });
@@ -514,7 +521,10 @@ test('Done or Waiting comes from the finish event, never its words', async () =>
     'ou-pr',
     'ou-branch',
     'ou-card',
+    'ou-nothing',
     'ou-scout',
+    'ou-lookup',
+    'ou-scout-card',
     'ou-asker',
     'ou-parked',
   ]) {
@@ -527,7 +537,10 @@ test('Done or Waiting comes from the finish event, never its words', async () =>
     'ou-pr': 'done',
     'ou-branch': 'done',
     'ou-card': 'done',
-    'ou-scout': 'waiting',
+    'ou-nothing': 'waiting',
+    'ou-scout': 'research',
+    'ou-lookup': 'done',
+    'ou-scout-card': 'done',
     'ou-asker': 'waiting',
     'ou-parked': 'ready',
   });
@@ -541,7 +554,7 @@ test('a helper that deploys and finishes with --commit made something', () => {
     result: { commit: 'abc1234' },
     at: minute(5),
   });
-  assert.equal(madeSomething(registry.agents()[0]), true);
+  assert.equal(finishedColumn(registry.agents()[0]), 'done');
 });
 
 test('a finish with no result records what the registered branch gained since the start tip, whatever the cwd', async () => {
@@ -670,8 +683,8 @@ test('the automatic result is for a builder whose branch moved since its start t
     at: minute(5),
   });
   assert.equal(
-    madeSomething(registry.agents().find((one) => one.name === 'ou-stopped-given')!),
-    false,
+    finishedColumn(registry.agents().find((one) => one.name === 'ou-stopped-given')!),
+    'waiting',
   );
   assert.equal(await columnOf(home, 'ou-stopped-given'), 'waiting');
   // another repo's checkout: neither the start tip nor the result is taken from it

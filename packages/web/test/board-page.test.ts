@@ -320,6 +320,31 @@ test('the header says what is on the board: the summary, the usage meters and th
   assert.match($('[data-board-filter]')?.textContent as string, /Repo: All/);
 });
 
+test('Research shows only with a card in it, sits right after Waiting, and is not counted as on you', async () => {
+  const headings = () =>
+    all('.ou-board-groups .ou-board-col').map((one) => one.getAttribute('aria-label'));
+  const titleBefore = document.title;
+  assert.ok(!headings().includes('Research'), 'no card, no column');
+  try {
+    answer = () =>
+      withCards(card({ id: 'rs-1', kind: 'agent', column: 'research', title: 'ou-scout' }));
+    await pollNow();
+    const order = headings();
+    assert.equal(order.indexOf('Research'), order.indexOf('Waiting') + 1, 'after Waiting');
+    assert.equal($('.ou-board-c-research .ou-board-head .ou-local-muted')?.textContent, '1');
+    assert.match(
+      $('.ou-local-top-main .ou-local-muted')?.textContent as string,
+      /· 1 research · /,
+      'the summary line says so',
+    );
+    assert.equal(document.title, titleBefore, 'the tab title count is only what is on you');
+  } finally {
+    answer = () => board();
+    await pollNow();
+  }
+  assert.ok(!headings().includes('Research'), 'gone with its card');
+});
+
 test('a poll redraws in place: the same nodes stay, so focus and scroll are not lost', async () => {
   const button = $('[data-backlog-drop="bl_1"]') as HTMLElement;
   const item = cardOf('bl_1');

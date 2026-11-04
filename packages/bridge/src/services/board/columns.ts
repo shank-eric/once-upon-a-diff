@@ -18,6 +18,8 @@
  *             it). It is the Mac's side: a card with a PR, whoever wrote it and whatever story it has, is on GitHub's
  *             (back or pr_open). A rebuild of a local story since you opened it is a chip on its card
  *   pr_open   pushed with a PR, and nothing waits on you
+ *   research  a finished research agent with no card to sit in and no result (set by stages/agents.ts on an agent's own card,
+ *             never by this function: a work card is never in it)
  *   error     a failed agent, or a session whose tab says error
  *   idle      nothing is happening and there is no PR: a session at its prompt (a lane along the bottom of the page)
  *

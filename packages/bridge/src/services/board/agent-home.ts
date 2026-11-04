@@ -54,24 +54,43 @@ export function homeOf(
 }
 
 /**
- * Whether a finished agent made something you can point at, and so is Done, not Waiting. No text is read: not the
- * outcome, not the task. Made something is any of: a reviewer (its findings are in the story and the review file, so
- * off the board once it is finished); a registered agent whose finish event has a result (a commit, PR, branch or card:
- * given with --commit, --pr, --branch or --card, or recorded from the registered branch moving, registry.ts); or an
- * agent known only from a ledger `[done]` line, which carries no result, so its own word that it is done is all there
- * is. A registered agent with no result (research, or a builder that made nothing) is Waiting, and so is a stopped
- * one (registered or ledger-only). A failed one is Waiting whatever this says (stages/agents.ts).
+ * The column of a finished agent that is not inside a card. No text is read: not the outcome, not the task, only what it
+ * registered. In order:
+ *
+ *   failed                                    Waiting: it needs a look (stages/agents.ts)
+ *   a reviewer                                Done: its findings are in the story and the review file
+ *   registered, finished with a result        Done: a commit, PR, branch or card (given with --commit, --pr, --branch or
+ *                                             --card, or recorded from the registered branch moving, registry.ts). A
+ *                                             stopped run made nothing to point at, whatever it recorded
+ *   registered, no result, kind research      Research: done or stopped, it asks nothing and lost nothing
+ *   registered, done, no result, kind helper  Done: a deploy, plan check or lookup did its job and asks nothing (a standing
+ *                                             helper has no card at all, stages/helpers.ts; a plain one does)
+ *   registered, no result, kind builder       Waiting: an author that made nothing is a miss to look at
+ *   registered, no result, no kind            Waiting, as before kinds existed: not known to be research or a helper
+ *   registered, stopped, any kind but research  Waiting: interrupted work, a decision
+ *   known only from the ledger                Done on a `[done]` line, Waiting on `[stopped]`: it has no kind or result,
+ *                                             so it is never Research
  */
-export function madeSomething(
+export function finishedColumn(
   agent: Pick<LedgerAgent, 'name' | 'state'> &
     Partial<Pick<LedgerAgent, 'source' | 'kind' | 'result'>>,
-): boolean {
+): 'done' | 'research' | 'waiting' {
+  if (agent.state === 'failed') {
+    return 'waiting';
+  }
   if (isReviewer(agent)) {
-    return true;
+    return 'done';
   }
-  if (agent.source === 'events') {
-    // a run that was stopped made nothing to point at, whatever it recorded
-    return agent.state !== 'stopped' && !!agent.result && Object.keys(agent.result).length > 0;
+  if (agent.source !== 'events') {
+    return agent.state === 'done' ? 'done' : 'waiting';
   }
-  return agent.state === 'done';
+  if (agent.state !== 'stopped' && agent.result && Object.keys(agent.result).length > 0) {
+    return 'done';
+  }
+  if (agent.kind === 'research') {
+    return 'research';
+  }
+  // a helper (or an editor) that finished its job with nothing to point at is done; only an author's miss, a stopped run
+  // and a failure are for you to look at
+  return agent.state === 'done' && agent.kind && agent.kind !== 'builder' ? 'done' : 'waiting';
 }

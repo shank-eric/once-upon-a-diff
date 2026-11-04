@@ -269,6 +269,7 @@ button.ou-local-pr, button.ou-local-push, button.ou-local-push-ahead { white-spa
   --ou-board-working: #cc6d00;  /* iTerm's working orange, darkened to hold 3:1 on white */
   --ou-board-waiting: #5f87ff;  /* iTerm's waiting blue */
   --ou-board-checks: #1b7c83;   /* a teal no other column uses */
+  --ou-board-research: #57606a; /* a blue-gray, between Backlog's and Idle's grays and Waiting's blue */
   --ou-board-ready: #b08800;    /* GitHub's attention yellow */
   --ou-board-open: #1f883d;     /* GitHub's open-PR green */
   --ou-board-back: #cf222e;     /* GitHub's changes-requested red */
@@ -280,6 +281,7 @@ button.ou-local-pr, button.ou-local-push, button.ou-local-push-ahead { white-spa
     --ou-board-backlog: #8b949e;
     --ou-board-working: #ff9500;
     --ou-board-checks: #39c5cf;
+    --ou-board-research: #8b9fb5;
     --ou-board-ready: #d29922;
     --ou-board-open: #3fb950;
     --ou-board-back: #f85149;
@@ -369,6 +371,7 @@ button.ou-local-pr, button.ou-local-push, button.ou-local-push-ahead { white-spa
 .ou-board-c-working { --ou-board-color: var(--ou-board-working); }
 .ou-board-c-checks { --ou-board-color: var(--ou-board-checks); }
 .ou-board-c-waiting { --ou-board-color: var(--ou-board-waiting); }
+.ou-board-c-research { --ou-board-color: var(--ou-board-research); }
 .ou-board-c-ready { --ou-board-color: var(--ou-board-ready); }
 .ou-board-c-ship { --ou-board-color: var(--ou-board-open); }
 .ou-board-c-pr_open { --ou-board-color: var(--ou-board-open); }
@@ -408,10 +411,11 @@ button.ou-board-blank-chip:hover { border-color: var(--fgColor-muted); }
   .ou-board-c-ship { order: 4; }
   .ou-board-c-checks { order: 5; }
   .ou-board-c-working { order: 6; }
-  .ou-board-c-pr_open { order: 7; }
-  .ou-board-c-error { order: 8; }
-  .ou-board-c-done { order: 9; }
-  .ou-board-c-backlog { order: 10; }
+  .ou-board-c-research { order: 7; }
+  .ou-board-c-pr_open { order: 8; }
+  .ou-board-c-error { order: 9; }
+  .ou-board-c-done { order: 10; }
+  .ou-board-c-backlog { order: 11; }
   .ou-board-lane { margin-bottom: 6px; }
   .ou-board-card { padding: 6px 8px; font-size: 13px; }
   .ou-board-meta, .ou-board-sessions, .ou-board-agents { font-size: 12px; }
