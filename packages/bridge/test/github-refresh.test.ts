@@ -440,3 +440,61 @@ test('refresh is false, and marks nothing, for a repo nothing was asked about', 
   assert.equal(review.refresh({ repo: REPO, number: 1 }, 1_700_000_100_000), false);
   assert.equal(review.refresh({ repo: 'acme/other', number: 5 }, 1_700_000_100_000), true);
 });
+
+test('a branch answer that was asked before a refresh does not clear the refresh’s stale mark', async () => {
+  const START = 1_700_000_000_000;
+  const releases: (() => void)[] = [];
+  let asks = 0;
+  const review = new AutoReview(
+    new StoryStore({ home: tmp('guard-home') }),
+    async () => ({ merged: false, why: null }),
+    60000,
+    async () => {
+      asks += 1;
+      await new Promise<void>((resolve) => releases.push(resolve));
+      return OPEN;
+    },
+  );
+  review.kickBranch(REPO, BRANCH, '/nowhere', START);
+  // you act on GitHub while that ask is out; it started before the action
+  assert.equal(review.refresh({ repo: REPO, branch: BRANCH }, START + 100), true);
+  releases[0]();
+  await review.idle();
+  assert.deepEqual(review.branchPr(REPO, BRANCH), OPEN, 'its answer is still shown');
+  review.kickBranch(REPO, BRANCH, '/nowhere', START + 200);
+  assert.equal(asks, 2, 'but the board asks again');
+  releases[1]();
+  await review.idle();
+  review.kickBranch(REPO, BRANCH, '/nowhere', START + 300);
+  assert.equal(asks, 2, 'and that answer is fresh');
+});
+
+test('the lists too: an answer asked before a refresh does not clear its stale mark', async () => {
+  const START = 1_700_000_000_000;
+  const releases: (() => void)[] = [];
+  let asks = 0;
+  const review = new AutoReview(
+    new StoryStore({ home: tmp('guard-home') }),
+    async () => ({ merged: false, why: null }),
+    60000,
+    async () => null,
+    async () => {
+      asks += 1;
+      await new Promise<void>((resolve) => releases.push(resolve));
+      return [{ repo: REPO, number: asks }];
+    },
+  );
+  review.kickRequested(START);
+  releases[0]();
+  await review.idle();
+  review.kickRequested(START + 60001); // the window is up: asked again, and this ask is out
+  assert.equal(asks, 2);
+  assert.equal(review.refresh({ repo: REPO, number: 1 }, START + 60100), true);
+  releases[1]();
+  await review.idle();
+  review.kickRequested(START + 60200);
+  assert.equal(asks, 3, 'the board asks again');
+  releases[2]();
+  await review.idle();
+  assert.deepEqual(review.requested(), [{ repo: REPO, number: 3 }]);
+});

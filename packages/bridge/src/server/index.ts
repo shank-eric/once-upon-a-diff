@@ -140,7 +140,7 @@ export function createBridge({
   }
   const stories = new StoryStore({ home });
   const inbox = new Inbox(home);
-  const autoReview = new AutoReview(stories, checkPr, undefined, checkBranch, checkRequested);
+  const autoReview = new AutoReview(stories, checkPr, undefined, checkBranch, checkRequested, home);
   const builds = new Builds(home);
   const board = new Board(home, stories, autoReview, builds);
   const portOf = () => (server.address() as { port: number }).port;

@@ -29,6 +29,11 @@ import {
   type LocalEntry,
 } from './story-lists.ts';
 import type { StoryStore } from '../stories/store.ts';
+import {
+  readGithubAnswers,
+  writeGithubAnswers,
+  type GithubAnswers,
+} from '../../adapters/stores/github-answers.ts';
 import type { InboxStory, PrInfo, ReviewedBy } from '@once-upon-a-diff/protocol/types';
 
 /** How long one PR's answer (including "nothing yet") is kept before asking GitHub again. */
@@ -707,6 +712,19 @@ export class AutoReview {
   private known = new Map<string, PrInfo>();
   /** per branch: how many asks were made (only the newest one's answer is kept, an older ask finishing later is dropped) */
   private branchSeq = new Map<string, number>();
+  /** per branch: the newest ask whose answer landed (a failed newest ask leaves an older one's good answer in place) */
+  private branchAnswered = new Map<string, number>();
+  /**
+   * The branches whose answer was loaded from the file and not yet replaced by one from this run: shown on the board as
+   * the last known state, but never a reason to write a permanent mark (kickLocal).
+   */
+  private loadedBranches = new Set<string>();
+  /** where the answers are kept (the bridge's home), or undefined for none */
+  private home: string | undefined;
+  /** what is in the file: the last answer of each kind, by the time it came */
+  private kept: GithubAnswers = { branches: {}, prs: {}, requested: null };
+  private saveAt = 0;
+  private saving = false;
   private branches = new Map<
     string,
     { at: number; pr: BranchPr | null | undefined; heads: string[] }
@@ -731,12 +749,44 @@ export class AutoReview {
     cacheMs = CACHE_MS,
     checkBranch: BranchCheck = ghBranchCheck,
     checkRequested: RequestedCheck = ghRequestedCheck,
+    home?: string,
   ) {
     this.stories = stories;
     this.check = check;
     this.checkBranch = checkBranch;
     this.checkRequested = checkRequested;
     this.cacheMs = cacheMs;
+    this.home = home;
+    if (home) {
+      // what GitHub said before this start: shown until it answers again, and never fresh (at -Infinity asks again at once)
+      this.kept = readGithubAnswers(home);
+      for (const [key, entry] of Object.entries(this.kept.branches)) {
+        this.branches.set(key, { at: Number.NEGATIVE_INFINITY, pr: entry.pr, heads: [] });
+        this.loadedBranches.add(key);
+      }
+      for (const [key, entry] of Object.entries(this.kept.prs)) {
+        this.known.set(key, entry.info);
+      }
+      if (this.kept.requested) {
+        this.asked = { at: Number.NEGATIVE_INFINITY, list: this.kept.requested.list };
+      }
+    }
+  }
+
+  /** Writes what GitHub said, once for the answers that land in the same turn. A home that can't be written loses only the cold start. */
+  private save(now: number): void {
+    if (!this.home) {
+      return;
+    }
+    this.saveAt = Math.max(this.saveAt, now);
+    if (this.saving) {
+      return;
+    }
+    this.saving = true;
+    queueMicrotask(() => {
+      this.saving = false;
+      writeGithubAnswers(this.home as string, this.kept, this.saveAt);
+    });
   }
 
   /** What GitHub last said about a PR, or null when it hasn't answered yet (or the check carries no detail). */
@@ -766,6 +816,8 @@ export class AutoReview {
         // asks can overlap (a refresh makes one while another is out): only the newest writes
         if (seq === this.askedSeq) {
           this.asked = { at: now, list };
+          this.kept.requested = { at: now, list };
+          this.save(now);
         }
       })
       .catch(() => undefined)
@@ -796,15 +848,30 @@ export class AutoReview {
     const asked =
       last && now - last.at < this.cacheMs ? [...new Set([...last.heads, ...heads])] : heads;
     this.branches.set(key, { at: now, pr: last?.pr, heads: asked });
-    // asks can overlap and finish in any order: only the newest ask writes (its placeholder above covers what it asked, so
-    // an older one finishing first must not shrink that and cause another ask)
+    // Asks can overlap and finish in any order. An answer older than one that already landed is dropped. The newest ask
+    // writes whole (its placeholder above covers what it asked, so an older one finishing first must not shrink that and
+    // cause another ask). An older ask finishing while the newest is out keeps its PR when it found one, under the
+    // placeholder's own time and heads, so that if the newest fails the good answer is still there. A "none" from it asked
+    // fewer heads than the newest, so it says nothing for them.
     const seq = (this.branchSeq.get(key) ?? 0) + 1;
     this.branchSeq.set(key, seq);
     const job = this.checkBranch(repo, branch, checkout, asked)
       .then((pr) => {
+        if (seq < (this.branchAnswered.get(key) ?? 0)) {
+          return;
+        }
         if (seq === this.branchSeq.get(key)) {
           this.branches.set(key, { at: now, pr, heads: asked });
+        } else if (pr) {
+          const current = this.branches.get(key);
+          this.branches.set(key, { at: now, heads: asked, ...current, pr });
+        } else {
+          return;
         }
+        this.branchAnswered.set(key, seq);
+        this.loadedBranches.delete(key);
+        this.kept.branches[key] = { at: now, pr };
+        this.save(now);
       })
       .catch(() => undefined)
       .finally(() => this.running.delete(job));
@@ -824,6 +891,8 @@ export class AutoReview {
         // a refresh replaces the entry: an older answer finishing later must not overwrite what the newer one found
         if (facts.info && this.checked.get(key) === entry) {
           this.known.set(key, facts.info);
+          this.kept.prs[key] = { at: now, info: facts.info };
+          this.save(now);
         }
         return facts;
       })
@@ -887,7 +956,7 @@ export class AutoReview {
     if (named) {
       const found = this.branches.get(branchKey(repo, named));
       if (found) {
-        this.branches.set(branchKey(repo, named), { ...found, at: 0 });
+        this.markBranchStale(branchKey(repo, named), found);
         if (found.pr) {
           numbers.add(found.pr.number);
         }
@@ -902,7 +971,7 @@ export class AutoReview {
       // a PR the branch check found, whose branch this ping didn't name
       for (const [key, found] of this.branches) {
         if (key.startsWith(`${repo.toLowerCase()}@`) && found.pr?.number === number) {
-          this.branches.set(key, { ...found, at: 0 });
+          this.markBranchStale(key, found);
         }
       }
     }
@@ -912,8 +981,19 @@ export class AutoReview {
     if (this.asked && now - this.listRefreshedAt >= LIST_GAP_MS) {
       this.listRefreshedAt = now;
       this.asked = { ...this.asked, at: 0 };
+      // an ask already out started before what you did: its answer must not replace the stale mark
+      this.askedSeq++;
     }
     return true;
+  }
+
+  /** Marks a branch's answer stale. An ask already out started before what you did, so it counts as an older one and can't clear the mark. */
+  private markBranchStale(
+    key: string,
+    found: { at: number; pr: BranchPr | null | undefined; heads: string[] },
+  ): void {
+    this.branches.set(key, { ...found, at: 0 });
+    this.branchSeq.set(key, (this.branchSeq.get(key) ?? 0) + 1);
   }
 
   /** Starts a check for each story's PR that wasn't asked about lately, and applies what it found to every listed story of that PR. Doesn't wait. */
@@ -974,7 +1054,12 @@ export class AutoReview {
           now,
           [entry.head_oid, entry.approval?.head_oid].filter((oid): oid is string => !!oid),
         );
-        const found = this.branchPr(story.repo as string, story.branch as string);
+        // a loaded answer (from before this start) is shown, not acted on: marks are permanent
+        const found = this.loadedBranches.has(
+          branchKey(story.repo as string, story.branch as string),
+        )
+          ? undefined
+          : this.branchPr(story.repo as string, story.branch as string);
         if (found && entry.approval) {
           // a squash merge leaves the approved head in no branch of the default one, so the merged PR is what shows it shipped:
           // the PR's last commit is the approved head, or the approved head is among its commits (GitHub added one since). An
