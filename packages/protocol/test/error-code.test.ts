@@ -13,6 +13,7 @@ test('every status the bridge answers with maps to a code, and every code but no
     [413, 'bad_request'],
     [415, 'bad_request'],
     [421, 'forbidden'],
+    [429, 'rate_limited'],
     [500, 'internal'],
     [502, 'bad_gateway'],
     [503, 'internal'],

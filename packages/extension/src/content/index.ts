@@ -5,6 +5,7 @@
  *   conversation  a PR's Conversation tab: the story tag by the title (pages/conversation.js)
  *   list          PR lists and PR searches: a story tag per PR (pages/pull-list.js)
  *   other         nothing
+ * and refresh.ts, which watches for what you do on GitHub and tells the bridge (any page kind).
  *
  * GitHub navigates without reloading (Turbo and React routes), so the router
  * watches the URL as well as the usual navigation events, and tells every
@@ -17,6 +18,7 @@ import { extensionAlive } from './bridge.ts';
 import { createFilesChangedPage } from './pages/files-changed.ts';
 import { createConversationPage } from './pages/conversation.ts';
 import { createPullListPage } from './pages/pull-list.ts';
+import { createRefreshPage } from './refresh.ts';
 import type { PageKind } from '@once-upon-a-diff/host-github/pages';
 
 /**
@@ -38,7 +40,12 @@ const NAVIGATION_EVENTS = ['turbo:load', 'turbo:render', 'popstate', 'pageshow']
 
 /** Starts the router and every page. */
 export function startContentScript() {
-  const pages = [createFilesChangedPage(), createPullListPage(), createConversationPage()];
+  const pages = [
+    createFilesChangedPage(),
+    createPullListPage(),
+    createConversationPage(),
+    createRefreshPage(),
+  ];
   let lastHref = location.href;
   let lastBack = 0;
 

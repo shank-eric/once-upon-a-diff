@@ -51,6 +51,7 @@ function approve({ app, body: raw, send }: Call, story: ServedStory) {
   };
   if (body.approved === false) {
     clearApproval(app.stories, story.id);
+    app.board.refresh(); // its card leaves Ready to ship on the page's next poll
     return send(200, answer());
   }
   if (unwrittenCount(story.dir) > 0) {
@@ -75,6 +76,7 @@ function approve({ app, body: raw, send }: Call, story: ServedStory) {
     headOid,
     baseOid: meta.base_oid || null,
   });
+  app.board.refresh(); // its card moves to Ready to ship on the page's next poll
   return send(200, answer());
 }
 

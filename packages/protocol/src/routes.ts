@@ -17,6 +17,7 @@ import type {
   BoardData,
   DraftsAnswer,
   FixesView,
+  GithubRefreshAnswer,
   Freshness,
   Health,
   ListenSessions,
@@ -113,6 +114,12 @@ export const ROUTES = {
   buildRequest: api<In<'buildRequest'>, { state: string; request: BuildRequestView }>(
     'POST',
     '/api/builds',
+    'token',
+  ),
+
+  githubRefresh: api<In<'githubRefresh'>, GithubRefreshAnswer>(
+    'POST',
+    '/api/github/refresh',
     'token',
   ),
 

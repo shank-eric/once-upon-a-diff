@@ -75,6 +75,8 @@ async function push({ app, body: raw, send }: Call, story: ServedStory) {
       app.autoReview.idle(),
       new Promise((resolve) => setTimeout(resolve, CHECK_WAIT_MS).unref()),
     ]);
+    // the page's card clears on its next poll, not after the board's kept answer runs out
+    app.board.refresh();
     const answer: PushAnswer = {
       output,
       view: await pushView(story.meta, approvedFor(app.stories, story.id)),

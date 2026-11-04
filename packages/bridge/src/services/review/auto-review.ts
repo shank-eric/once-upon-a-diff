@@ -33,6 +33,14 @@ import type { InboxStory, PrInfo, ReviewedBy } from '@once-upon-a-diff/protocol/
 
 /** How long one PR's answer (including "nothing yet") is kept before asking GitHub again. */
 export const CACHE_MS = 3 * 60 * 1000;
+/** The least time between two refreshes of the same branch or PR (a burst of pings is one). */
+export const REFRESH_GAP_MS = 2000;
+/**
+ * The least time between two refreshes of the lists (your open PRs): under the 6.5 s between the extension's two pings, so
+ * the second one still asks again once GitHub's search has caught up, and a run of pings for different branches can't make
+ * a search each.
+ */
+export const LIST_GAP_MS = 5000;
 
 /**
  * What GitHub says about a PR: whether it merged, and why it counts as reviewed (null when it doesn't yet). Rejects when
@@ -682,15 +690,19 @@ export async function inDefaultBranch(
   return false;
 }
 
+/** What GitHub said about one PR, when it was asked, and the stories it has been applied to. */
+interface Check {
+  at: number;
+  facts: Promise<PrFacts | null>;
+  applied: Set<string>;
+}
+
 const keyOf = (repo: string, number: number) => `${repo.toLowerCase()}#${number}`;
 const branchKey = (repo: string, branch: string) => `${repo.toLowerCase()}@${branch}`;
 
 export class AutoReview {
   /** One check per PR: when it was asked, what it found (null when GitHub couldn't say), and the stories it has been applied to. */
-  private checked = new Map<
-    string,
-    { at: number; facts: Promise<PrFacts | null>; applied: Set<string> }
-  >();
+  private checked = new Map<string, Check>();
   private running = new Set<Promise<void>>();
   private known = new Map<string, PrInfo>();
   /** per branch: how many asks were made (only the newest one's answer is kept, an older ask finishing later is dropped) */
@@ -706,6 +718,11 @@ export class AutoReview {
   private checkBranch: BranchCheck;
   private checkRequested: RequestedCheck;
   private asked: { at: number; list: { repo: string; number: number }[] } | null = null;
+  /** how many asks for the lists were made (only the newest one's answer is kept) */
+  private askedSeq = 0;
+  /** when each branch or PR was last refreshed, and the lists were */
+  private refreshedAt = new Map<string, number>();
+  private listRefreshedAt = Number.NEGATIVE_INFINITY;
   private cacheMs: number;
 
   constructor(
@@ -743,9 +760,13 @@ export class AutoReview {
       return;
     }
     this.asked = { at: now, list: this.asked?.list || [] };
+    const seq = ++this.askedSeq;
     const job = this.checkRequested()
       .then((list) => {
-        this.asked = { at: now, list };
+        // asks can overlap (a refresh makes one while another is out): only the newest writes
+        if (seq === this.askedSeq) {
+          this.asked = { at: now, list };
+        }
       })
       .catch(() => undefined)
       .finally(() => this.running.delete(job));
@@ -797,17 +818,18 @@ export class AutoReview {
     if (last && now - last.at < this.cacheMs) {
       return last;
     }
-    const job: Promise<PrFacts | null> = this.check(repo, number)
+    const entry: Check = { at: now, facts: Promise.resolve(null), applied: new Set<string>() };
+    entry.facts = this.check(repo, number)
       .then((facts) => {
-        if (facts.info) {
+        // a refresh replaces the entry: an older answer finishing later must not overwrite what the newer one found
+        if (facts.info && this.checked.get(key) === entry) {
           this.known.set(key, facts.info);
         }
         return facts;
       })
       .catch(() => null);
-    const entry = { at: now, facts: job, applied: new Set<string>() };
     this.checked.set(key, entry);
-    this.track(job);
+    this.track(entry.facts);
     return entry;
   }
 
@@ -823,6 +845,75 @@ export class AutoReview {
   /** Asks about a PR that has no story in the inbox (the board's), for its details only. Shares the check a story's PR already has. */
   kickInfo(repo: string, number: number, now = Date.now()): void {
     this.ask(repo, number, now);
+  }
+
+  /**
+   * You did something on GitHub (the extension saw it): what GitHub last said about this branch's PR (given by its number, its
+   * branch, or both) and the lists of your PRs is stale, so the board's next build asks again. It asks nothing itself, and
+   * does nothing (false) for a repo the board follows nothing in (no PR, branch or listed PR of it was asked about): a ping
+   * for one costs no rebuild and no search. False also when the same branch or PR was refreshed a moment ago
+   * (REFRESH_GAP_MS). The old answers stay until the new ones land. The lists have their own gap (LIST_GAP_MS), so pings for
+   * different branches don't each make a search.
+   */
+  refresh(
+    input: { repo: string; branch?: string | null; number?: number | null },
+    now = Date.now(),
+  ): boolean {
+    const { repo, number } = input;
+    const branch = input.branch || null;
+    const lower = repo.toLowerCase();
+    const follows =
+      [...this.branches.keys()].some((key) => key.startsWith(`${lower}@`)) ||
+      [...this.known.keys(), ...this.checked.keys()].some((key) => key.startsWith(`${lower}#`)) ||
+      !!this.asked?.list.some((pr) => pr.repo.toLowerCase() === lower);
+    if (!follows) {
+      return false;
+    }
+    for (const [key, when] of this.refreshedAt) {
+      if (now - when >= REFRESH_GAP_MS) {
+        this.refreshedAt.delete(key);
+      }
+    }
+    const gapKey = `${repo.toLowerCase()}@${branch ?? ''}#${number ?? ''}`;
+    if (this.refreshedAt.has(gapKey)) {
+      return false;
+    }
+    this.refreshedAt.set(gapKey, now);
+    const numbers = new Set<number>(number ? [number] : []);
+    let named = branch;
+    if (number) {
+      named = named ?? this.known.get(keyOf(repo, number))?.branch ?? null;
+    }
+    if (named) {
+      const found = this.branches.get(branchKey(repo, named));
+      if (found) {
+        this.branches.set(branchKey(repo, named), { ...found, at: 0 });
+        if (found.pr) {
+          numbers.add(found.pr.number);
+        }
+      }
+      for (const [key, info] of this.known) {
+        if (key.startsWith(`${repo.toLowerCase()}#`) && info.branch === named) {
+          numbers.add(info.number);
+        }
+      }
+    }
+    if (number) {
+      // a PR the branch check found, whose branch this ping didn't name
+      for (const [key, found] of this.branches) {
+        if (key.startsWith(`${repo.toLowerCase()}@`) && found.pr?.number === number) {
+          this.branches.set(key, { ...found, at: 0 });
+        }
+      }
+    }
+    for (const one of numbers) {
+      this.checked.delete(keyOf(repo, one));
+    }
+    if (this.asked && now - this.listRefreshedAt >= LIST_GAP_MS) {
+      this.listRefreshedAt = now;
+      this.asked = { ...this.asked, at: 0 };
+    }
+    return true;
   }
 
   /** Starts a check for each story's PR that wasn't asked about lately, and applies what it found to every listed story of that PR. Doesn't wait. */

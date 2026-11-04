@@ -1286,6 +1286,12 @@ export interface Ok {
   ok: true;
 }
 
+/** POST /api/github/refresh: `refreshed` is false when the bridge skipped it (the same thing was refreshed a moment ago), `settled` false when GitHub's answers hadn't all landed when the wait ran out. */
+export interface GithubRefreshAnswer extends Ok {
+  refreshed: boolean;
+  settled: boolean;
+}
+
 /** GET /api/board/listen-sessions and GET .../listen: the idle sessions Start listening may type into. */
 export interface ListenSessions {
   repo: string | null;

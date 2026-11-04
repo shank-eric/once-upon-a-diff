@@ -5,8 +5,8 @@ import { BODIES } from '../src/schemas.ts';
 
 const ENTRIES = Object.entries(ROUTES as Record<string, AnyRoute>);
 
-test('the table has 61 routes, each method and path once', () => {
-  assert.equal(ENTRIES.length, 61);
+test('the table has 62 routes, each method and path once', () => {
+  assert.equal(ENTRIES.length, 62);
   const seen = new Set<string>();
   for (const [name, route] of ENTRIES) {
     const key = `${route.method} ${route.path}`;

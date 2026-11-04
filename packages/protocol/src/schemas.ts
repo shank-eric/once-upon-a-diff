@@ -13,7 +13,9 @@ import {
   boolean,
   check,
   fallback,
+  integer,
   literal,
+  minValue,
   nullable,
   number,
   object,
@@ -30,7 +32,7 @@ import {
   type GenericSchema,
   type InferOutput,
 } from 'valibot';
-import { BACKLOG_ID_RE, SESSION_RE } from './domain/patterns.ts';
+import { BACKLOG_ID_RE, BRANCH_RE, REPO_RE, SESSION_RE } from './domain/patterns.ts';
 
 /** The ids and lists the bridge caps, so a body can't make it hold more. */
 const MAX_IDS = 500;
@@ -83,6 +85,8 @@ const ids = pipe(
   transform((list) => list.slice(0, MAX_IDS)),
 );
 
+/** What the extension saw you do on a GitHub page (a refresh's reason, for the bridge's log line). */
+export const GITHUB_REFRESH_REASONS = ['review', 'open', 'merge', 'ready', 'close'] as const;
 const MOVE_NEEDS = 'before (an item id) or edge (top or bottom) is needed';
 const QUESTION_ACTIONS = ['dismiss', 'restore', 'collapse', 'expand', 'read', 'unread'] as const;
 
@@ -292,6 +296,16 @@ export const BODIES = {
     ack: names,
     ignored: names,
   }),
+  /** POST /api/github/refresh: what the extension saw you do on GitHub (page-made, so every field is checked) */
+  githubRefresh: pipe(
+    object({
+      repo: pipe(string(), regex(REPO_RE)),
+      branch: optional(pipe(string(), regex(BRANCH_RE))),
+      number: optional(pipe(number(), integer(), minValue(1))),
+      reason: picklist(GITHUB_REFRESH_REASONS),
+    }),
+    check((body) => !!body.branch || !!body.number, 'a branch or a PR number is needed'),
+  ),
 } satisfies Record<string, GenericSchema>;
 
 /** The name of a body schema in BODIES. */
@@ -321,6 +335,7 @@ const FIELD_MESSAGES: Partial<Record<BodyName, Record<string, string>>> = {
   boardVoicePause: { paused: 'paused (true or false) is needed' },
   boardVoicePhone: { on: 'on (true or false) is needed' },
   boardVoiceStart: { session: 'session must be a session id' },
+  githubRefresh: { repo: 'bad repo', branch: 'bad branch', number: 'bad number' },
   boardFocus: { session: 'a session id is needed' },
   boardBacklogMove: { edge: MOVE_NEEDS },
   boardBacklogAssign: { id: 'a backlog item id is needed' },

@@ -13,6 +13,7 @@ export const ERROR_CODES = [
   'bad_request',
   'method_not_allowed',
   'conflict',
+  'rate_limited',
   'bad_gateway',
   'internal',
 ] as const;
@@ -37,6 +38,8 @@ export function codeOfStatus(status: number): ErrorCode {
       return 'method_not_allowed';
     case 409:
       return 'conflict';
+    case 429:
+      return 'rate_limited';
     case 502:
       return 'bad_gateway';
     default:

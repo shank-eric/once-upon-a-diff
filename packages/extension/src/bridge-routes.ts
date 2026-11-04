@@ -15,6 +15,7 @@ export const EXTENSION_ROUTES = [
   ROUTES.draftsRead,
   ROUTES.fixesAct,
   ROUTES.fixesRead,
+  ROUTES.githubRefresh,
   ROUTES.health,
   ROUTES.noteUpdate,
   ROUTES.prefsRead,

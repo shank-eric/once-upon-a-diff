@@ -24,6 +24,7 @@ The pulse is one call, so the panel fetches a part only when its rev changes.
 
 - It's simple and survives bridge restarts, sleep and reloads with no reconnect logic.
 - Changes show within about 2 to 5 s, not at once.
+- The bridge's own polling of GitHub (3 minutes) has a nudge, not a push channel: the extension tells it when you act on GitHub (`POST /api/github/refresh`), which marks that PR's cached answers stale so the board's next poll asks again; the poll stays the fallback.
 - **The cost grows with open tabs and file sizes.** Each pulse rereads the whole `inbox.jsonl`, loads and normalizes the story, runs `refreshLocal` for a local story (two `git rev-parse`, possibly a re-diff), reads the listeners folder and the fixes, and hashes it all. Ten open panels make two pulses a second, each reading the whole inbox.
 - **Reads have side effects.** Pulses and version polls write `seen.json` (throttled to 30 s), `refreshLocal` rewrites files in the checkout, and loading a local story rewrites `checkouts.json`. Listener auto-stop depends on these polls happening.
 - Background tabs are throttled by Chrome. The 60 s "still open" ping is there so a hidden tab still counts.

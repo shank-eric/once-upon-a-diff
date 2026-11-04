@@ -129,6 +129,7 @@ function reviewLocal({ app, body: raw, send }: Call) {
     throw new HttpError(404, 'no local story with that id');
   }
   markStoryReviewed(app.stories, id, reviewed !== false);
+  app.board.refresh(); // the card moves on the page's next poll, not when the kept answer runs out
   return send(200, { ok: true });
 }
 

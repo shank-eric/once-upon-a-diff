@@ -204,6 +204,21 @@ export class Board {
     return this.building;
   }
 
+  /** Drops the kept answer so the next snapshot is built again (a change made outside the board, after which the page must not see the old one). */
+  refresh(): void {
+    this.invalidate();
+  }
+
+  /**
+   * Drops the kept answer and answers with a snapshot built after this call. A build already running started before whatever
+   * changed (so its asks to GitHub predate it): it is waited out, and not used.
+   */
+  async rebuild(): Promise<BoardData> {
+    this.invalidate();
+    await this.building?.catch(() => undefined);
+    return this.snapshot();
+  }
+
   /** Drop the kept answer, and keep a build already running from refilling it with what it read before the change. */
   private invalidate(): void {
     this.generation += 1;

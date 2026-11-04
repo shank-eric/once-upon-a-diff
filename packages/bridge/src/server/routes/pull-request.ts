@@ -8,6 +8,7 @@
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
+import { storyRepo } from '../../services/config/repos.ts';
 import {
   DRAFT_FILE,
   prView,
@@ -66,6 +67,12 @@ async function push({ app, body: raw, send }: Call, story: ServedStory) {
     } catch (err) {
       throw new HttpError(502, (err as Error).message);
     }
+    // the PR's head moved (its checks and approvals with it): ask GitHub again at the board's next build
+    const repo = storyRepo(story.meta);
+    if (repo) {
+      app.autoReview.refresh({ repo, branch });
+    }
+    app.board.refresh();
     const answer: PrPushAnswer = {
       output,
       view: await prView(story.meta, draftOf(app, story)),

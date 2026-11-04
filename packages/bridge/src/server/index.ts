@@ -60,6 +60,7 @@ import { fixRoutes } from './routes/fixes.ts';
 import { pullRequestRoutes } from './routes/pull-request.ts';
 import { pushRoutes } from './routes/push.ts';
 import { boardRoutes } from './routes/board.ts';
+import { githubRoutes } from './routes/github.ts';
 import {
   AutoReview,
   ghBranchCheck,
@@ -85,6 +86,7 @@ export const API_ROUTES: ApiRoute[] = [
   ...catalogRoutes,
   ...buildRoutes,
   ...boardRoutes,
+  ...githubRoutes,
 ];
 /** /api/stories/<id>/<what>[/<sub>] routes, by `what` ('' for the story itself). */
 export const STORY_ROUTES: StoryRoute[] = [
