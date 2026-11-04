@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { git, runCli, tmp } from './helpers.ts';
 import { BacklogStore } from '../src/services/backlog/backlog.ts';
-import { landItems, recordedTips, runningAgents } from '../src/services/backlog/landing.ts';
+import { landItems, recordedTips } from '../src/services/backlog/landing.ts';
 import { AgentRegistry } from '../src/services/ledger/registry.ts';
 
 const SID = 'abcdef01';
@@ -65,7 +65,7 @@ function world() {
         to: head,
         picked,
       },
-      runningAgents(registry.agents()),
+      registry.agents(),
     );
   return { repo, base, home, edit, branch, store, registry, run, land };
 }
@@ -237,7 +237,7 @@ test('a claimed card whose agent is still running is "still in progress", not "f
     kind: 'builder',
     task: 'build',
     card: busy.id,
-    at: minute(0),
+    at: new Date(),
   });
   const done = lab.store.add({ title: 'Done unmatched', repo: 'acme/widgets' });
   lab.store.claim(done.id, { agent: 'ou-fin', sid: SID });
@@ -249,6 +249,62 @@ test('a claimed card whose agent is still running is "still in progress", not "f
   assert.match(why.get(busy.id) ?? '', /still in progress/);
   assert.doesNotMatch(why.get(done.id) ?? '', /still in progress/);
   assert.match(why.get(done.id) ?? '', /no recorded tip/);
+});
+
+/** a card claimed by `agent` (claim made now), with the deploy range ready so its reason can be read */
+function claimedCard(lab: ReturnType<typeof world>, agent: string) {
+  const item = lab.store.add({ title: 'Claimed', repo: 'acme/widgets' });
+  lab.store.claim(item.id, { agent, sid: SID });
+  lab.branch('feat/c');
+  const tip = lab.edit(3, 'c change');
+  return { item, tip };
+}
+
+test('"still in progress" is about the run that holds the claim, not a later run of the same agent', () => {
+  const lab = world();
+  const { item, tip } = claimedCard(lab, 'ou-again');
+  const now = Date.now();
+  const start = (card: string, when: number) =>
+    lab.registry.start({
+      name: 'ou-again',
+      sid: SID,
+      kind: 'builder',
+      task: 'build',
+      card,
+      at: new Date(when),
+    });
+  // the claimed run ends with no commit, then the same agent starts a run for another card
+  start(item.id, now);
+  lab.registry.finish('ou-again', { sid: SID, at: new Date(now + 60000) });
+  start('bl_0123456789ab', now + 120000);
+  const found = lab.land(lab.store, lab.base, tip);
+  assert.match(found.open[0].why, /no recorded tip/);
+  assert.doesNotMatch(found.open[0].why, /still in progress/);
+});
+
+test('"still in progress" is not said of a claimed run that has gone stale', () => {
+  const lab = world();
+  const { item, tip } = claimedCard(lab, 'ou-crashed');
+  const now = Date.now();
+  // its last sign of life was 25 hours ago, and it never finished
+  lab.registry.start({
+    name: 'ou-crashed',
+    sid: SID,
+    kind: 'builder',
+    task: 'build',
+    card: item.id,
+    at: new Date(now - 25 * 3600 * 1000),
+  });
+  assert.match(lab.land(lab.store, lab.base, tip).open[0].why, /no recorded tip/);
+  // a beat an hour ago is a sign of life
+  lab.registry.beat('ou-crashed', {
+    n: 1,
+    of: 2,
+    step: 'read',
+    sid: SID,
+    at: new Date(now - 3600 * 1000),
+  });
+  assert.match(lab.land(lab.store, lab.base, tip).open[0].why, /still in progress/);
 });
 
 test('a held card is never marked by a deploy, hold --off clears it, and done closes it by hand', () => {

@@ -314,16 +314,37 @@ export class AgentRegistry {
     if (!(END_STATES as readonly string[]).includes(state)) {
       throw new Error(`the state must be one of ${END_STATES.join(', ')}`);
     }
-    const wanted = optional(input.sid, 'the session id', SID_PATTERN);
-    const named = this.agents().filter(
-      (one) => one.name === name && (!wanted || one.sid === wanted),
-    );
+    let wanted = optional(input.sid, 'the session id', SID_PATTERN);
+    const prefer =
+      wanted || input.run ? null : optional(input.prefer, 'the session id', SID_PATTERN);
+    const ofName = this.agents().filter((one) => one.name === name);
+    // without --sid, the caller's own session's runs when it has any (stale or not): another session's run of the name is
+    // never its to end, and `open()` is told so it cannot fall through to one
+    if (prefer && ofName.some((one) => one.sid === prefer)) {
+      wanted = prefer;
+    } else if (!wanted && !input.run) {
+      // none of the caller's own: refuse when several sessions have a live run (open and not stale, as `open()` counts them)
+      const nowMs = (input.at ?? new Date()).getTime();
+      const live = new Set(
+        ofName
+          .filter(
+            (one) => runIsOpen(one) && nowMs - (lastActivity(one)?.getTime() ?? nowMs) <= STALE_MS,
+          )
+          .map((one) => one.sid),
+      );
+      if (live.size > 1) {
+        throw new Error(
+          `${name} has open runs in more than one session (${[...live].join(', ')}) and this session is not one of them: pass --sid to say which to finish`,
+        );
+      }
+    }
+    const named = ofName.filter((one) => !wanted || one.sid === wanted);
     if (named.length && !named.some(runIsOpen)) {
       throw new Error(
         `${name} has already finished, so this finish (and any --commit on it) was not recorded: run \`agent start\` for a new run (a fix round is one), then finish that`,
       );
     }
-    const agent = this.open(name, input, warn);
+    const agent = this.open(name, { ...input, sid: wanted }, warn);
     const result: AgentResult = {};
     const given = input.result ?? {};
     const commit = optional(given.commit, 'the commit', SHA_PATTERN);

@@ -7,9 +7,10 @@
  */
 import { authorStamp, commitOf, commitsInRange, patchId } from '../../adapters/git.ts';
 import { sameRepo } from '../config/repos.ts';
-import { runIsOpen, type AgentEvent } from '../ledger/events.ts';
-import type { LedgerAgent } from '../ledger/ledger.ts';
+import { STALE_MS, runIsOpen, type AgentEvent } from '../ledger/events.ts';
+import { lastActivity, type LedgerAgent } from '../ledger/ledger.ts';
 import type { BacklogItem } from './backlog.ts';
+import { claimedRun } from './claims.ts';
 
 /**
  * Each card's tip from the raw finish events (the folded registry keeps only a run's last result, and a rerun hides the
@@ -37,9 +38,17 @@ export function recordedTips(events: AgentEvent[]): Map<string, string> {
   return new Map([...tips].map(([card, tip]) => [card, tip.sha]));
 }
 
-/** The agents with a run still going, as a claim names them: by name, and by session when the claim has one. */
-export function runningAgents(agents: LedgerAgent[]): { name: string; sid: string }[] {
-  return agents.filter((one) => runIsOpen(one)).map((one) => ({ name: one.name, sid: one.sid }));
+/**
+ * Whether the run that holds the item's claim is still going: that run (not a later run of the same name), open, and not
+ * stale (no event for STALE_MS, the rule the registry and the board use), so a crashed agent does not hold its card forever.
+ */
+function claimInProgress(item: BacklogItem, agents: LedgerAgent[], nowMs: number): boolean {
+  const held = claimedRun(item, agents);
+  return (
+    !!held?.current &&
+    runIsOpen(held.agent) &&
+    nowMs - (lastActivity(held.agent)?.getTime() ?? nowMs) <= STALE_MS
+  );
 }
 
 /** Why a card with work on it did not land. */
@@ -80,7 +89,8 @@ export function landItems(
   items: BacklogItem[],
   tips: Map<string, string>,
   range: LandRange,
-  running: { name: string; sid: string }[] = [],
+  agents: LedgerAgent[] = [],
+  nowMs = Date.now(),
 ): LandResult {
   const reachable = new Set(commitsInRange(repo, range.from, range.to));
   const patches = new Map<string, string>();
@@ -139,15 +149,7 @@ export function landItems(
     if (mine && !item.hold && (item.claim || item.state === 'started')) {
       result.open.push({
         item,
-        why: whyOpen(
-          recorded,
-          tip,
-          !!item.claim &&
-            running.some(
-              (one) =>
-                one.name === item.claim?.agent && (!item.claim.sid || one.sid === item.claim.sid),
-            ),
-        ),
+        why: whyOpen(recorded, tip, claimInProgress(item, agents, nowMs)),
       });
     }
   }

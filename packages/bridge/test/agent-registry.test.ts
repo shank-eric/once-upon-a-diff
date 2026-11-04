@@ -9,7 +9,7 @@ import { worktreeFixture } from '@once-upon-a-diff/test-kit/git';
 import { Board, noPrWatcher } from '../src/services/board/board.ts';
 import { AgentRegistry } from '../src/services/ledger/registry.ts';
 import { readAgents } from '../src/services/ledger/read.ts';
-import { beatOf } from '../src/services/ledger/events.ts';
+import { beatOf, runIsOpen } from '../src/services/ledger/events.ts';
 import { appendAgentEvent } from '../src/adapters/stores/agents-file.ts';
 import { finishedColumn } from '../src/services/board/agent-home.ts';
 import { workingIn } from '../src/services/worktrees/worktrees.ts';
@@ -895,4 +895,110 @@ test('an author in a GitHub Enterprise checkout registered with --repo gets a st
   const result = registry.agents().find((one) => one.name === 'ou-ghe')?.result;
   assert.equal(result?.commit, git(fixture.main, 'rev-parse', 'work'));
   assert.equal(result?.branch, 'work');
+});
+
+test("a second finish from the caller's session is refused even when another session has an open run of the name", () => {
+  const home = tmp('reg-finish-cross');
+  const registry = new AgentRegistry(home);
+  const other = '99999999';
+  registry.start({ name: 'ou-twin', sid: SID, kind: 'builder', task: 'mine', at: minute(0) });
+  registry.start({ name: 'ou-twin', sid: other, kind: 'builder', task: 'theirs', at: minute(1) });
+  registry.finish('ou-twin', { sid: SID, result: { commit: 'abc1234' }, at: minute(2) });
+  // no --sid: the caller's own session (prefer) has no open run, so the other session's is not its to end
+  assert.throws(
+    () =>
+      registry.finish('ou-twin', {
+        prefer: SID,
+        result: { commit: 'def5678', card: 'bl_x' },
+        at: minute(3),
+      }),
+    /already finished/,
+  );
+  const theirs = registry.agents().find((one) => one.sid === other);
+  assert.equal(theirs?.state, 'running');
+  assert.equal(theirs?.result?.commit, undefined);
+  // with the caller's own run open too, a finish with no --sid ends that one and leaves the other
+  registry.start({ name: 'ou-twin', sid: SID, kind: 'builder', task: 'again', at: minute(4) });
+  registry.finish('ou-twin', { prefer: SID, at: minute(5) });
+  assert.equal(registry.agents().find((one) => one.sid === other)?.state, 'running');
+  assert.equal(registry.agents().find((one) => one.sid === SID)?.state, 'done');
+});
+
+test('a finish with no --sid from a session with no run of the name, when two sessions have one, is refused rather than picking', () => {
+  const home = tmp('reg-finish-ambiguous');
+  const registry = new AgentRegistry(home);
+  registry.start({ name: 'ou-twin', sid: SID, kind: 'builder', task: 'a', at: minute(0) });
+  registry.start({ name: 'ou-twin', sid: '99999999', kind: 'builder', task: 'b', at: minute(1) });
+  assert.throws(
+    () => registry.finish('ou-twin', { prefer: '77777777', at: minute(2) }),
+    /more than one session.*--sid/,
+  );
+  assert.equal(registry.agents().filter(runIsOpen).length, 2);
+});
+
+test('a finish with no --sid from a session of its own, when one other session has only a finished run of the name, ends the one open run', () => {
+  const home = tmp('reg-finish-subagent');
+  const registry = new AgentRegistry(home);
+  registry.start({
+    name: 'review-x',
+    sid: 'aaaaaaaa',
+    kind: 'reviewer',
+    task: 'old',
+    at: minute(0),
+  });
+  registry.finish('review-x', { sid: 'aaaaaaaa', at: minute(1) });
+  registry.start({
+    name: 'review-x',
+    sid: 'bbbbbbbb',
+    kind: 'reviewer',
+    task: 'live',
+    at: minute(2),
+  });
+  // a subagent whose session differs from its launcher's, and a caller with no session at all
+  const done = registry.finish('review-x', { prefer: 'cccccccc', at: minute(3) });
+  assert.equal(done.sid, 'bbbbbbbb');
+  registry.start({
+    name: 'review-x',
+    sid: 'bbbbbbbb',
+    kind: 'reviewer',
+    task: 'again',
+    at: minute(4),
+  });
+  assert.equal(registry.finish('review-x', { at: minute(5) }).sid, 'bbbbbbbb');
+  // an open run gone stale in another session is not a live one either
+  registry.start({
+    name: 'review-y',
+    sid: 'aaaaaaaa',
+    kind: 'reviewer',
+    task: 'dead',
+    at: minute(0),
+  });
+  registry.start({
+    name: 'review-y',
+    sid: 'bbbbbbbb',
+    kind: 'reviewer',
+    task: 'live',
+    at: new Date(minute(0).getTime() + 30 * 3600 * 1000),
+  });
+  const later = new Date(minute(0).getTime() + 31 * 3600 * 1000);
+  assert.equal(registry.finish('review-y', { at: later }).sid, 'bbbbbbbb');
+});
+
+test("a finish with no --sid never ends another session's run when the caller's own run is stale", () => {
+  const home = tmp('reg-finish-stale-own');
+  const registry = new AgentRegistry(home);
+  registry.start({ name: 'ou-twin', sid: SID, kind: 'builder', task: 'mine', at: minute(0) });
+  const fresh = new Date(minute(0).getTime() + 30 * 3600 * 1000);
+  registry.start({ name: 'ou-twin', sid: '99999999', kind: 'builder', task: 'theirs', at: fresh });
+  const later = new Date(fresh.getTime() + 60000);
+  // the caller's run is over 24h quiet; it is still the caller's run to end, not the other session's
+  const done = registry.finish('ou-twin', {
+    prefer: SID,
+    result: { commit: 'abc1234' },
+    at: later,
+  });
+  assert.equal(done.sid, SID);
+  const theirs = registry.agents().find((one) => one.sid === '99999999');
+  assert.equal(theirs?.state, 'running');
+  assert.equal(theirs?.result?.commit, undefined);
 });
