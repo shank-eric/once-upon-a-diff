@@ -88,7 +88,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
-#ou-panel button {
+#ou-panel button:not(:where(.ou-ui-linkish)) {
   font: inherit;
   font-size: 12px;
   color: var(--c-fg);
@@ -187,30 +187,8 @@
 #ou-panel .ou-fresh button {
   margin-left: 6px;
 }
-#ou-panel .ou-busy {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+#ou-panel .ou-ui-busy {
   margin-left: 6px;
-  color: var(--c-fg);
-}
-#ou-panel .ou-spin {
-  width: 11px;
-  height: 11px;
-  border: 2px solid var(--c-muted);
-  border-top-color: transparent;
-  border-radius: 50%;
-  animation: ou-spin 0.9s linear infinite;
-}
-@keyframes ou-spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-@media (prefers-reduced-motion: reduce) {
-  #ou-panel .ou-spin {
-    animation: none;
-  }
 }
 #ou-panel .ou-rebuilding {
   flex-basis: 100%;
@@ -253,11 +231,6 @@
 }
 #ou-panel .ou-beingchg {
   margin: 8px 0 0;
-  padding: 6px 10px;
-  border-left: 3px solid var(--c-warn);
-  background: var(--c-subtle);
-  border-radius: 0 6px 6px 0;
-  font-size: 12px;
 }
 #ou-panel .ou-chgby {
   font-size: 11px;
@@ -323,11 +296,6 @@
 }
 #ou-panel .ou-since {
   margin: 10px 0;
-  padding: 6px 10px;
-  border-left: 3px solid var(--c-accent);
-  background: var(--c-accent-bg);
-  border-radius: 0 6px 6px 0;
-  font-size: 12px;
 }
 #ou-panel .ou-chat {
   position: relative;
@@ -660,7 +628,7 @@
 #ou-panel a {
   color: var(--c-accent);
 }
-#ou-panel [data-rel] {
+#ou-panel [data-rel]:not(:where(.ou-ui-linkish)) {
   color: var(--c-accent);
   cursor: pointer;
 }
@@ -672,13 +640,8 @@
   outline-offset: 1px;
   text-decoration: underline;
 }
-#ou-panel .ou-pill {
-  font-size: 11px;
-  padding: 0 5px;
-  border-radius: 9px;
-  border: 1px solid currentColor;
+#ou-panel .ou-ui-pill {
   margin-left: 3px;
-  white-space: nowrap;
 }
 #ou-panel button.ou-mark {
   font-size: 11px;
@@ -754,7 +717,7 @@
 #ou-panel .ou-cstate .ou-cnote {
   display: block;
 }
-#ou-panel .ou-cstate button.ou-linkish {
+#ou-panel .ou-cstate button.ou-ui-linkish {
   font-size: 12px;
 }
 #ou-panel .ou-draftsum {
@@ -936,17 +899,6 @@
 #ou-panel .ou-qa-new .ou-qmeta {
   color: var(--c-accent);
   font-weight: 600;
-}
-#ou-panel button.ou-linkish {
-  border: 0;
-  background: none;
-  padding: 0 2px;
-  color: var(--c-muted);
-  font-size: 11px;
-  text-decoration: underline dotted;
-}
-#ou-panel button.ou-linkish:hover {
-  color: var(--c-accent);
 }
 #ou-panel .ou-ask {
   border-top: 1px solid var(--c-border);

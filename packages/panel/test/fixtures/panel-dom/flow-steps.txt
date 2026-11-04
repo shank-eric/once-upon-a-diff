@@ -62,7 +62,7 @@ panel
     <span class="ou-msg">
   <div class="ou-body">
     <div class="ou-working">
-      <div class="ou-beingchg" role="status">
+      <div class="ou-ui-banner ou-ui-banner-warn ou-beingchg" role="status">
         "Being changed by"
         <b>
           "author-2"
@@ -192,14 +192,14 @@ panel
           <span class="ou-draftsum">
             "(1 to post · 1 in fix before push · 1 posted · 2 pending · 1 dismissed)"
       <div class="ou-drafttoggles">
-        <button class="ou-linkish" data-draft-show="showPosted">
+        <button class="ou-ui-linkish" data-draft-show="showPosted">
           "Show posted (1)"
-        <button class="ou-linkish" data-draft-show="showDismissed">
+        <button class="ou-ui-linkish" data-draft-show="showDismissed">
           "Show dismissed (1)"
       <pre class="ou-script" hidden>
       <div class="ou-cgroup" data-group="1">
         <h3 class="ou-cgh">
-          <button class="ou-linkish" data-goto="1">
+          <button class="ou-ui-linkish" data-goto="1">
             "Chapter 1"
           ": Start"
         <div class="ou-comment ou-c-done" data-i="0" data-n="1" hidden>
@@ -236,7 +236,7 @@ panel
             ", not posted"
       <div class="ou-cgroup" data-group="2">
         <h3 class="ou-cgh">
-          <button class="ou-linkish" data-goto="2">
+          <button class="ou-ui-linkish" data-goto="2">
             "Chapter 2"
           ": Finish"
         <div class="ou-comment ou-c-done ou-c-pending" data-i="0" data-n="2">
@@ -286,14 +286,14 @@ panel
             <span class="ou-pend">
               "In your pending review"
             ", on src/c.ts line 11 ·"
-            <button class="ou-linkish" data-end="11" data-rel="src/c.ts" data-side="R" data-start="11" role="link" tabindex="0" title="Scroll to src/c.ts line 11">
+            <button class="ou-ui-linkish" data-end="11" data-rel="src/c.ts" data-side="R" data-start="11" role="link" tabindex="0" title="Scroll to src/c.ts line 11">
               "Jump to line 11"
             "·"
             <a href="https://github.com/acme/widgets/pull/7#c3" rel="noopener noreferrer" target="_blank">
               "view on GitHub"
             <span class="ou-cnote">
               "GitHub shows it after a reload."
-              <button class="ou-linkish" data-draft-reload="" title="Reloads this page. The panel stays on this chapter.">
+              <button class="ou-ui-linkish" data-draft-reload="" title="Reloads this page. The panel stays on this chapter.">
                 "Reload page"
         <div class="ou-comment ou-c-done ou-c-pending" data-i="3" data-n="2">
           <div class="ou-where">
@@ -310,7 +310,7 @@ panel
             <span class="ou-pend">
               "In fix before push"
             "· sent to author-1 ·"
-            <button class="ou-linkish" data-end="3" data-rel="src/b.ts" data-side="R" data-start="3" role="link" tabindex="0" title="Scroll to src/b.ts line 3">
+            <button class="ou-ui-linkish" data-end="3" data-rel="src/b.ts" data-side="R" data-start="3" role="link" tabindex="0" title="Scroll to src/b.ts line 3">
               "Jump to line 3"
     <div class="ou-fixes">
       <h2 class="ou-h">
@@ -323,7 +323,7 @@ panel
         <label class="ou-fixauto" title="Sends each note to the Claude session as soon as it is added, instead of waiting for Send. Kept for this story. A note from a drafted comment waits for Send, since Claude wrote it from the PR.">
           <input data-fix-act="auto" type="checkbox">
           "Auto-send"
-        <button class="ou-linkish" data-fix-act="take_back" data-request="r1" title="Brings these notes back as drafts, to edit or send again">
+        <button class="ou-ui-linkish" data-fix-act="take_back" data-request="r1" title="Brings these notes back as drafts, to edit or send again">
           "Take back the 1 note sent to author-1"
       <div class="ou-comment ou-fixnote ou-fx-draft" data-note-id="n1">
         <div class="ou-where">
@@ -434,11 +434,11 @@ panel
     <div class="ou-chatbody">
       <div class="ou-questions">
         <div class="ou-qtools">
-          <button class="ou-linkish" data-qa-act="read-all" title="Mark every answer in this story as read" type="button">
+          <button class="ou-ui-linkish" data-qa-act="read-all" title="Mark every answer in this story as read" type="button">
             "Mark all read"
-          <button class="ou-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." type="button">
+          <button class="ou-ui-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." type="button">
             "Clear conversation"
-          <button class="ou-linkish" data-qa-act="show-dismissed" type="button">
+          <button class="ou-ui-linkish" data-qa-act="show-dismissed" type="button">
             "Show dismissed (1)"
         <div class="ou-qa" data-qid="q1">
           <div class="ou-qhead">
@@ -446,7 +446,7 @@ panel
               "▾"
             <div class="ou-q">
               "Why q1?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 1: Chapter 1: Start"
@@ -458,7 +458,7 @@ panel
               "▾"
             <div class="ou-q">
               "Why q2?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish, b.ts"
@@ -475,11 +475,11 @@ panel
               "▾"
             <div class="ou-q">
               "Why q3?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Overview"
-            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
           <div class="ou-aby">
             "Answered by author-1"
@@ -498,11 +498,11 @@ panel
               "▾"
             <div class="ou-q">
               "Why q4?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 1: Chapter 1: Start · New answer"
-            <button class="ou-linkish" data-qa-act="read" title="Mark this answer as read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="read" title="Mark this answer as read" type="button">
               "Mark read"
           <div class="ou-a ou-md" data-aat="2026-11-03T11:20:00Z">
             <p>
@@ -516,11 +516,11 @@ panel
               "▸"
             <div class="ou-q">
               "Why q5?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish · 1 answer"
-            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
     <div class="ou-chatfoot">
       <div class="ou-askhint">
@@ -615,7 +615,7 @@ panel
     <span class="ou-msg">
   <div class="ou-body">
     <div class="ou-working">
-      <div class="ou-beingchg" role="status">
+      <div class="ou-ui-banner ou-ui-banner-warn ou-beingchg" role="status">
         "Being changed by"
         <b>
           "author-2"
@@ -705,7 +705,7 @@ panel
         <span class="ou-draftsum">
           "(0 to post · 1 in fix before push · 2 pending · 1 dismissed)"
       <div class="ou-drafttoggles">
-        <button class="ou-linkish" data-draft-show="showDismissed">
+        <button class="ou-ui-linkish" data-draft-show="showDismissed">
           "Show dismissed (1)"
       <div class="ou-comment ou-c-done ou-c-pending" data-i="0" data-n="2">
         <div class="ou-where">
@@ -754,14 +754,14 @@ panel
           <span class="ou-pend">
             "In your pending review"
           ", on src/c.ts line 11 ·"
-          <button class="ou-linkish" data-end="11" data-rel="src/c.ts" data-side="R" data-start="11" role="link" tabindex="0" title="Scroll to src/c.ts line 11">
+          <button class="ou-ui-linkish" data-end="11" data-rel="src/c.ts" data-side="R" data-start="11" role="link" tabindex="0" title="Scroll to src/c.ts line 11">
             "Jump to line 11"
           "·"
           <a href="https://github.com/acme/widgets/pull/7#c3" rel="noopener noreferrer" target="_blank">
             "view on GitHub"
           <span class="ou-cnote">
             "GitHub shows it after a reload."
-            <button class="ou-linkish" data-draft-reload="" title="Reloads this page. The panel stays on this chapter.">
+            <button class="ou-ui-linkish" data-draft-reload="" title="Reloads this page. The panel stays on this chapter.">
               "Reload page"
       <div class="ou-comment ou-c-done ou-c-pending" data-i="3" data-n="2">
         <div class="ou-where">
@@ -778,7 +778,7 @@ panel
           <span class="ou-pend">
             "In fix before push"
           "· sent to author-1 ·"
-          <button class="ou-linkish" data-end="3" data-rel="src/b.ts" data-side="R" data-start="3" role="link" tabindex="0" title="Scroll to src/b.ts line 3">
+          <button class="ou-ui-linkish" data-end="3" data-rel="src/b.ts" data-side="R" data-start="3" role="link" tabindex="0" title="Scroll to src/b.ts line 3">
             "Jump to line 3"
     <div class="ou-fixes">
       <h2 class="ou-h">
@@ -791,7 +791,7 @@ panel
         <label class="ou-fixauto" title="Sends each note to the Claude session as soon as it is added, instead of waiting for Send. Kept for this story. A note from a drafted comment waits for Send, since Claude wrote it from the PR.">
           <input data-fix-act="auto" type="checkbox">
           "Auto-send"
-        <button class="ou-linkish" data-fix-act="take_back" data-request="r1" title="Brings these notes back as drafts, to edit or send again">
+        <button class="ou-ui-linkish" data-fix-act="take_back" data-request="r1" title="Brings these notes back as drafts, to edit or send again">
           "Take back the 1 note sent to author-1"
       <div class="ou-comment ou-fixnote ou-fx-draft" data-note-id="n1">
         <div class="ou-where">
@@ -885,11 +885,11 @@ panel
     <div class="ou-chatbody">
       <div class="ou-questions">
         <div class="ou-qtools">
-          <button class="ou-linkish" data-qa-act="read-all" title="Mark every answer in this story as read" type="button">
+          <button class="ou-ui-linkish" data-qa-act="read-all" title="Mark every answer in this story as read" type="button">
             "Mark all read"
-          <button class="ou-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." type="button">
+          <button class="ou-ui-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." type="button">
             "Clear conversation"
-          <button class="ou-linkish" data-qa-act="show-dismissed" type="button">
+          <button class="ou-ui-linkish" data-qa-act="show-dismissed" type="button">
             "Show dismissed (1)"
         <div class="ou-qa" data-qid="q1">
           <div class="ou-qhead">
@@ -897,7 +897,7 @@ panel
               "▾"
             <div class="ou-q">
               "Why q1?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 1: Chapter 1: Start"
@@ -909,7 +909,7 @@ panel
               "▾"
             <div class="ou-q">
               "Why q2?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish, b.ts"
@@ -926,11 +926,11 @@ panel
               "▾"
             <div class="ou-q">
               "Why q3?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Overview"
-            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
           <div class="ou-aby">
             "Answered by author-1"
@@ -949,11 +949,11 @@ panel
               "▾"
             <div class="ou-q">
               "Why q4?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 1: Chapter 1: Start · New answer"
-            <button class="ou-linkish" data-qa-act="read" title="Mark this answer as read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="read" title="Mark this answer as read" type="button">
               "Mark read"
           <div class="ou-a ou-md" data-aat="2026-11-03T11:20:00Z">
             <p>
@@ -967,11 +967,11 @@ panel
               "▸"
             <div class="ou-q">
               "Why q5?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish · 1 answer"
-            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
     <div class="ou-chatfoot">
       <div class="ou-askhint">
@@ -1067,7 +1067,7 @@ panel
       "Chapter 2 still has 2 to mark viewed: a.ts, b.ts. No rush: Prev goes back, or tick them later."
   <div class="ou-body">
     <div class="ou-working">
-      <div class="ou-beingchg" role="status">
+      <div class="ou-ui-banner ou-ui-banner-warn ou-beingchg" role="status">
         "Being changed by"
         <b>
           "author-2"
@@ -1141,7 +1141,7 @@ panel
         <label class="ou-fixauto" title="Sends each note to the Claude session as soon as it is added, instead of waiting for Send. Kept for this story. A note from a drafted comment waits for Send, since Claude wrote it from the PR.">
           <input data-fix-act="auto" type="checkbox">
           "Auto-send"
-        <button class="ou-linkish" data-fix-act="take_back" data-request="r1" title="Brings these notes back as drafts, to edit or send again">
+        <button class="ou-ui-linkish" data-fix-act="take_back" data-request="r1" title="Brings these notes back as drafts, to edit or send again">
           "Take back the 1 note sent to author-1"
       <div class="ou-comment ou-fixnote ou-fx-draft" data-note-id="n4">
         <div class="ou-where">
@@ -1188,11 +1188,11 @@ panel
     <div class="ou-chatbody">
       <div class="ou-questions">
         <div class="ou-qtools">
-          <button class="ou-linkish" data-qa-act="read-all" title="Mark every answer in this story as read" type="button">
+          <button class="ou-ui-linkish" data-qa-act="read-all" title="Mark every answer in this story as read" type="button">
             "Mark all read"
-          <button class="ou-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." type="button">
+          <button class="ou-ui-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." type="button">
             "Clear conversation"
-          <button class="ou-linkish" data-qa-act="show-dismissed" type="button">
+          <button class="ou-ui-linkish" data-qa-act="show-dismissed" type="button">
             "Show dismissed (1)"
         <div class="ou-qa" data-qid="q1">
           <div class="ou-qhead">
@@ -1200,7 +1200,7 @@ panel
               "▾"
             <div class="ou-q">
               "Why q1?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 1: Chapter 1: Start"
@@ -1212,7 +1212,7 @@ panel
               "▾"
             <div class="ou-q">
               "Why q2?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish, b.ts"
@@ -1229,11 +1229,11 @@ panel
               "▾"
             <div class="ou-q">
               "Why q3?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Overview"
-            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
           <div class="ou-aby">
             "Answered by author-1"
@@ -1252,11 +1252,11 @@ panel
               "▾"
             <div class="ou-q">
               "Why q4?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 1: Chapter 1: Start · New answer"
-            <button class="ou-linkish" data-qa-act="read" title="Mark this answer as read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="read" title="Mark this answer as read" type="button">
               "Mark read"
           <div class="ou-a ou-md" data-aat="2026-11-03T11:20:00Z">
             <p>
@@ -1270,11 +1270,11 @@ panel
               "▸"
             <div class="ou-q">
               "Why q5?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish · 1 answer"
-            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
     <div class="ou-chatfoot">
       <div class="ou-askhint">
@@ -1369,7 +1369,7 @@ panel
     <span class="ou-msg">
   <div class="ou-body">
     <div class="ou-working">
-      <div class="ou-beingchg" role="status">
+      <div class="ou-ui-banner ou-ui-banner-warn ou-beingchg" role="status">
         "Being changed by"
         <b>
           "author-2"
@@ -1425,7 +1425,7 @@ panel
           "0/1"
         <span class="ou-chgby" title="Being changed by author-2">
           "• being changed"
-    <div class="ou-since">
+    <div class="ou-ui-banner ou-ui-banner-accent ou-since">
       <b>
         "2 commits since you read the story"
       ", aaaaaaa..bbbbbbb. This step shows only the files they touched. The chapters after this one are as you read them."
@@ -1457,7 +1457,7 @@ panel
         <label class="ou-fixauto" title="Sends each note to the Claude session as soon as it is added, instead of waiting for Send. Kept for this story. A note from a drafted comment waits for Send, since Claude wrote it from the PR.">
           <input data-fix-act="auto" type="checkbox">
           "Auto-send"
-        <button class="ou-linkish" data-fix-act="take_back" data-request="r1" title="Brings these notes back as drafts, to edit or send again">
+        <button class="ou-ui-linkish" data-fix-act="take_back" data-request="r1" title="Brings these notes back as drafts, to edit or send again">
           "Take back the 1 note sent to author-1"
       <div class="ou-comment ou-fixnote ou-fx-fixed" data-note-id="n3">
         <div class="ou-where">
@@ -1506,11 +1506,11 @@ panel
     <div class="ou-chatbody">
       <div class="ou-questions">
         <div class="ou-qtools">
-          <button class="ou-linkish" data-qa-act="read-all" title="Mark every answer in this story as read" type="button">
+          <button class="ou-ui-linkish" data-qa-act="read-all" title="Mark every answer in this story as read" type="button">
             "Mark all read"
-          <button class="ou-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." type="button">
+          <button class="ou-ui-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." type="button">
             "Clear conversation"
-          <button class="ou-linkish" data-qa-act="show-dismissed" type="button">
+          <button class="ou-ui-linkish" data-qa-act="show-dismissed" type="button">
             "Show dismissed (1)"
         <div class="ou-qa" data-qid="q1">
           <div class="ou-qhead">
@@ -1518,7 +1518,7 @@ panel
               "▾"
             <div class="ou-q">
               "Why q1?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 1: Chapter 1: Start"
@@ -1530,7 +1530,7 @@ panel
               "▾"
             <div class="ou-q">
               "Why q2?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish, b.ts"
@@ -1547,11 +1547,11 @@ panel
               "▾"
             <div class="ou-q">
               "Why q3?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Overview"
-            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
           <div class="ou-aby">
             "Answered by author-1"
@@ -1570,11 +1570,11 @@ panel
               "▾"
             <div class="ou-q">
               "Why q4?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 1: Chapter 1: Start · New answer"
-            <button class="ou-linkish" data-qa-act="read" title="Mark this answer as read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="read" title="Mark this answer as read" type="button">
               "Mark read"
           <div class="ou-a ou-md" data-aat="2026-11-03T11:20:00Z">
             <p>
@@ -1588,11 +1588,11 @@ panel
               "▸"
             <div class="ou-q">
               "Why q5?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish · 1 answer"
-            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
     <div class="ou-chatfoot">
       <div class="ou-askhint">
@@ -1687,7 +1687,7 @@ panel
     <span class="ou-msg">
   <div class="ou-body">
     <div class="ou-working">
-      <div class="ou-beingchg" role="status">
+      <div class="ou-ui-banner ou-ui-banner-warn ou-beingchg" role="status">
         "Being changed by"
         <b>
           "author-2"
@@ -1788,7 +1788,7 @@ panel
         <span class="ou-draftsum">
           "(1 to post · 1 posted)"
       <div class="ou-drafttoggles">
-        <button class="ou-linkish" data-draft-show="showPosted">
+        <button class="ou-ui-linkish" data-draft-show="showPosted">
           "Show posted (1)"
       <div class="ou-comment ou-c-done" data-i="0" data-n="1" hidden>
         <div class="ou-where">
@@ -1830,7 +1830,7 @@ panel
         <label class="ou-fixauto" title="Sends each note to the Claude session as soon as it is added, instead of waiting for Send. Kept for this story. A note from a drafted comment waits for Send, since Claude wrote it from the PR.">
           <input data-fix-act="auto" type="checkbox">
           "Auto-send"
-        <button class="ou-linkish" data-fix-act="take_back" data-request="r1" title="Brings these notes back as drafts, to edit or send again">
+        <button class="ou-ui-linkish" data-fix-act="take_back" data-request="r1" title="Brings these notes back as drafts, to edit or send again">
           "Take back the 1 note sent to author-1"
       <div class="ou-comment ou-fixnote ou-fx-draft" data-note-id="n1">
         <div class="ou-where">
@@ -1903,11 +1903,11 @@ panel
     <div class="ou-chatbody">
       <div class="ou-questions">
         <div class="ou-qtools">
-          <button class="ou-linkish" data-qa-act="read-all" title="Mark every answer in this story as read" type="button">
+          <button class="ou-ui-linkish" data-qa-act="read-all" title="Mark every answer in this story as read" type="button">
             "Mark all read"
-          <button class="ou-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." type="button">
+          <button class="ou-ui-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." type="button">
             "Clear conversation"
-          <button class="ou-linkish" data-qa-act="show-dismissed" type="button">
+          <button class="ou-ui-linkish" data-qa-act="show-dismissed" type="button">
             "Show dismissed (1)"
         <div class="ou-qa ou-qa-here" data-qid="q1">
           <div class="ou-qhead">
@@ -1915,7 +1915,7 @@ panel
               "▾"
             <div class="ou-q">
               "Why q1?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 1: Chapter 1: Start"
@@ -1927,7 +1927,7 @@ panel
               "▾"
             <div class="ou-q">
               "Why q2?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish, b.ts"
@@ -1944,11 +1944,11 @@ panel
               "▾"
             <div class="ou-q">
               "Why q3?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Overview"
-            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
           <div class="ou-aby">
             "Answered by author-1"
@@ -1967,11 +1967,11 @@ panel
               "▾"
             <div class="ou-q">
               "Why q4?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 1: Chapter 1: Start · New answer"
-            <button class="ou-linkish" data-qa-act="read" title="Mark this answer as read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="read" title="Mark this answer as read" type="button">
               "Mark read"
           <div class="ou-a ou-md" data-aat="2026-11-03T11:20:00Z">
             <p>
@@ -1985,11 +1985,11 @@ panel
               "▸"
             <div class="ou-q">
               "Why q5?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish · 1 answer"
-            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
     <div class="ou-chatfoot">
       <div class="ou-askhint">
@@ -2079,7 +2079,7 @@ panel
     <span class="ou-msg">
   <div class="ou-body">
     <div class="ou-working">
-      <div class="ou-beingchg" role="status">
+      <div class="ou-ui-banner ou-ui-banner-warn ou-beingchg" role="status">
         "Being changed by"
         <b>
           "author-2"
@@ -2209,14 +2209,14 @@ panel
           <span class="ou-draftsum">
             "(1 to post · 1 in fix before push · 1 posted · 2 pending · 1 dismissed)"
       <div class="ou-drafttoggles">
-        <button class="ou-linkish" data-draft-show="showPosted">
+        <button class="ou-ui-linkish" data-draft-show="showPosted">
           "Show posted (1)"
-        <button class="ou-linkish" data-draft-show="showDismissed">
+        <button class="ou-ui-linkish" data-draft-show="showDismissed">
           "Show dismissed (1)"
       <pre class="ou-script" hidden>
       <div class="ou-cgroup" data-group="1">
         <h3 class="ou-cgh">
-          <button class="ou-linkish" data-goto="1">
+          <button class="ou-ui-linkish" data-goto="1">
             "Chapter 1"
           ": Start"
         <div class="ou-comment ou-c-done" data-i="0" data-n="1" hidden>
@@ -2253,7 +2253,7 @@ panel
             ", not posted"
       <div class="ou-cgroup" data-group="2">
         <h3 class="ou-cgh">
-          <button class="ou-linkish" data-goto="2">
+          <button class="ou-ui-linkish" data-goto="2">
             "Chapter 2"
           ": Finish"
         <div class="ou-comment ou-c-done ou-c-pending" data-i="0" data-n="2">
@@ -2303,14 +2303,14 @@ panel
             <span class="ou-pend">
               "In your pending review"
             ", on src/c.ts line 11 ·"
-            <button class="ou-linkish" data-end="11" data-rel="src/c.ts" data-side="R" data-start="11" role="link" tabindex="0" title="Scroll to src/c.ts line 11">
+            <button class="ou-ui-linkish" data-end="11" data-rel="src/c.ts" data-side="R" data-start="11" role="link" tabindex="0" title="Scroll to src/c.ts line 11">
               "Jump to line 11"
             "·"
             <a href="https://github.com/acme/widgets/pull/7#c3" rel="noopener noreferrer" target="_blank">
               "view on GitHub"
             <span class="ou-cnote">
               "GitHub shows it after a reload."
-              <button class="ou-linkish" data-draft-reload="" title="Reloads this page. The panel stays on this chapter.">
+              <button class="ou-ui-linkish" data-draft-reload="" title="Reloads this page. The panel stays on this chapter.">
                 "Reload page"
         <div class="ou-comment ou-c-done ou-c-pending" data-i="3" data-n="2">
           <div class="ou-where">
@@ -2327,7 +2327,7 @@ panel
             <span class="ou-pend">
               "In fix before push"
             "· sent to author-1 ·"
-            <button class="ou-linkish" data-end="3" data-rel="src/b.ts" data-side="R" data-start="3" role="link" tabindex="0" title="Scroll to src/b.ts line 3">
+            <button class="ou-ui-linkish" data-end="3" data-rel="src/b.ts" data-side="R" data-start="3" role="link" tabindex="0" title="Scroll to src/b.ts line 3">
               "Jump to line 3"
     <div class="ou-fixes">
       <h2 class="ou-h">
@@ -2340,7 +2340,7 @@ panel
         <label class="ou-fixauto" title="Sends each note to the Claude session as soon as it is added, instead of waiting for Send. Kept for this story. A note from a drafted comment waits for Send, since Claude wrote it from the PR.">
           <input data-fix-act="auto" type="checkbox">
           "Auto-send"
-        <button class="ou-linkish" data-fix-act="take_back" data-request="r1" title="Brings these notes back as drafts, to edit or send again">
+        <button class="ou-ui-linkish" data-fix-act="take_back" data-request="r1" title="Brings these notes back as drafts, to edit or send again">
           "Take back the 1 note sent to author-1"
       <div class="ou-comment ou-fixnote ou-fx-draft" data-note-id="n1">
         <div class="ou-where">
@@ -2451,11 +2451,11 @@ panel
     <div class="ou-chatbody">
       <div class="ou-questions">
         <div class="ou-qtools">
-          <button class="ou-linkish" data-qa-act="read-all" title="Mark every answer in this story as read" type="button">
+          <button class="ou-ui-linkish" data-qa-act="read-all" title="Mark every answer in this story as read" type="button">
             "Mark all read"
-          <button class="ou-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." type="button">
+          <button class="ou-ui-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." type="button">
             "Clear conversation"
-          <button class="ou-linkish" data-qa-act="show-dismissed" type="button">
+          <button class="ou-ui-linkish" data-qa-act="show-dismissed" type="button">
             "Show dismissed (1)"
         <div class="ou-qa" data-qid="q1">
           <div class="ou-qhead">
@@ -2463,7 +2463,7 @@ panel
               "▾"
             <div class="ou-q">
               "Why q1?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 1: Chapter 1: Start"
@@ -2475,7 +2475,7 @@ panel
               "▾"
             <div class="ou-q">
               "Why q2?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish, b.ts"
@@ -2492,11 +2492,11 @@ panel
               "▾"
             <div class="ou-q">
               "Why q3?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Overview"
-            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
           <div class="ou-aby">
             "Answered by author-1"
@@ -2515,11 +2515,11 @@ panel
               "▾"
             <div class="ou-q">
               "Why q4?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 1: Chapter 1: Start · New answer"
-            <button class="ou-linkish" data-qa-act="read" title="Mark this answer as read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="read" title="Mark this answer as read" type="button">
               "Mark read"
           <div class="ou-a ou-md" data-aat="2026-11-03T11:20:00Z">
             <p>
@@ -2533,11 +2533,11 @@ panel
               "▸"
             <div class="ou-q">
               "Why q5?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish · 1 answer"
-            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
     <div class="ou-chatfoot">
       <div class="ou-askhint">
@@ -2632,7 +2632,7 @@ panel
     <span class="ou-msg">
   <div class="ou-body">
     <div class="ou-working">
-      <div class="ou-beingchg" role="status">
+      <div class="ou-ui-banner ou-ui-banner-warn ou-beingchg" role="status">
         "Being changed by"
         <b>
           "author-2"
@@ -2733,7 +2733,7 @@ panel
         <span class="ou-draftsum">
           "(1 to post · 1 posted)"
       <div class="ou-drafttoggles">
-        <button class="ou-linkish" data-draft-show="showPosted">
+        <button class="ou-ui-linkish" data-draft-show="showPosted">
           "Show posted (1)"
       <div class="ou-comment ou-c-done" data-i="0" data-n="1" hidden>
         <div class="ou-where">
@@ -2775,7 +2775,7 @@ panel
         <label class="ou-fixauto" title="Sends each note to the Claude session as soon as it is added, instead of waiting for Send. Kept for this story. A note from a drafted comment waits for Send, since Claude wrote it from the PR.">
           <input data-fix-act="auto" type="checkbox">
           "Auto-send"
-        <button class="ou-linkish" data-fix-act="take_back" data-request="r1" title="Brings these notes back as drafts, to edit or send again">
+        <button class="ou-ui-linkish" data-fix-act="take_back" data-request="r1" title="Brings these notes back as drafts, to edit or send again">
           "Take back the 1 note sent to author-1"
       <div class="ou-comment ou-fixnote ou-fx-draft" data-note-id="n1">
         <div class="ou-where">
@@ -2848,11 +2848,11 @@ panel
     <div class="ou-chatbody">
       <div class="ou-questions">
         <div class="ou-qtools">
-          <button class="ou-linkish" data-qa-act="read-all" title="Mark every answer in this story as read" type="button">
+          <button class="ou-ui-linkish" data-qa-act="read-all" title="Mark every answer in this story as read" type="button">
             "Mark all read"
-          <button class="ou-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." type="button">
+          <button class="ou-ui-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." type="button">
             "Clear conversation"
-          <button class="ou-linkish" data-qa-act="show-dismissed" type="button">
+          <button class="ou-ui-linkish" data-qa-act="show-dismissed" type="button">
             "Show dismissed (1)"
         <div class="ou-qa ou-qa-here" data-qid="q1">
           <div class="ou-qhead">
@@ -2860,7 +2860,7 @@ panel
               "▾"
             <div class="ou-q">
               "Why q1?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 1: Chapter 1: Start"
@@ -2872,7 +2872,7 @@ panel
               "▾"
             <div class="ou-q">
               "Why q2?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish, b.ts"
@@ -2889,11 +2889,11 @@ panel
               "▾"
             <div class="ou-q">
               "Why q3?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Overview"
-            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
           <div class="ou-aby">
             "Answered by author-1"
@@ -2912,11 +2912,11 @@ panel
               "▾"
             <div class="ou-q">
               "Why q4?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 1: Chapter 1: Start · New answer"
-            <button class="ou-linkish" data-qa-act="read" title="Mark this answer as read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="read" title="Mark this answer as read" type="button">
               "Mark read"
           <div class="ou-a ou-md" data-aat="2026-11-03T11:20:00Z">
             <p>
@@ -2930,11 +2930,11 @@ panel
               "▸"
             <div class="ou-q">
               "Why q5?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish · 1 answer"
-            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
     <div class="ou-chatfoot">
       <div class="ou-askhint">
@@ -3029,7 +3029,7 @@ panel
     <span class="ou-msg">
   <div class="ou-body">
     <div class="ou-working">
-      <div class="ou-beingchg" role="status">
+      <div class="ou-ui-banner ou-ui-banner-warn ou-beingchg" role="status">
         "Being changed by"
         <b>
           "author-2"
@@ -3130,7 +3130,7 @@ panel
         <span class="ou-draftsum">
           "(1 to post · 1 posted)"
       <div class="ou-drafttoggles">
-        <button class="ou-linkish" data-draft-show="showPosted">
+        <button class="ou-ui-linkish" data-draft-show="showPosted">
           "Show posted (1)"
       <div class="ou-comment ou-c-done" data-i="0" data-n="1" hidden>
         <div class="ou-where">
@@ -3172,7 +3172,7 @@ panel
         <label class="ou-fixauto" title="Sends each note to the Claude session as soon as it is added, instead of waiting for Send. Kept for this story. A note from a drafted comment waits for Send, since Claude wrote it from the PR.">
           <input data-fix-act="auto" type="checkbox">
           "Auto-send"
-        <button class="ou-linkish" data-fix-act="take_back" data-request="r1" title="Brings these notes back as drafts, to edit or send again">
+        <button class="ou-ui-linkish" data-fix-act="take_back" data-request="r1" title="Brings these notes back as drafts, to edit or send again">
           "Take back the 1 note sent to author-1"
       <div class="ou-comment ou-fixnote ou-fx-draft" data-note-id="n1">
         <div class="ou-where">
@@ -3245,11 +3245,11 @@ panel
     <div class="ou-chatbody">
       <div class="ou-questions">
         <div class="ou-qtools">
-          <button class="ou-linkish" data-qa-act="read-all" title="Mark every answer in this story as read" type="button">
+          <button class="ou-ui-linkish" data-qa-act="read-all" title="Mark every answer in this story as read" type="button">
             "Mark all read"
-          <button class="ou-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." type="button">
+          <button class="ou-ui-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." type="button">
             "Clear conversation"
-          <button class="ou-linkish" data-qa-act="show-dismissed" type="button">
+          <button class="ou-ui-linkish" data-qa-act="show-dismissed" type="button">
             "Show dismissed (1)"
         <div class="ou-qa ou-qa-here" data-qid="q1">
           <div class="ou-qhead">
@@ -3257,7 +3257,7 @@ panel
               "▾"
             <div class="ou-q">
               "Why q1?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 1: Chapter 1: Start"
@@ -3269,7 +3269,7 @@ panel
               "▾"
             <div class="ou-q">
               "Why q2?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish, b.ts"
@@ -3286,11 +3286,11 @@ panel
               "▾"
             <div class="ou-q">
               "Why q3?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Overview"
-            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
           <div class="ou-aby">
             "Answered by author-1"
@@ -3309,11 +3309,11 @@ panel
               "▾"
             <div class="ou-q">
               "Why q4?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 1: Chapter 1: Start · New answer"
-            <button class="ou-linkish" data-qa-act="read" title="Mark this answer as read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="read" title="Mark this answer as read" type="button">
               "Mark read"
           <div class="ou-a ou-md" data-aat="2026-11-03T11:20:00Z">
             <p>
@@ -3327,11 +3327,11 @@ panel
               "▸"
             <div class="ou-q">
               "Why q5?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish · 1 answer"
-            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
     <div class="ou-chatfoot">
       <div class="ou-askhint">
@@ -3426,7 +3426,7 @@ panel
     <span class="ou-msg">
   <div class="ou-body">
     <div class="ou-working">
-      <div class="ou-beingchg" role="status">
+      <div class="ou-ui-banner ou-ui-banner-warn ou-beingchg" role="status">
         "Being changed by"
         <b>
           "author-2"
@@ -3527,7 +3527,7 @@ panel
         <span class="ou-draftsum">
           "(1 to post · 1 posted)"
       <div class="ou-drafttoggles">
-        <button class="ou-linkish" data-draft-show="showPosted">
+        <button class="ou-ui-linkish" data-draft-show="showPosted">
           "Show posted (1)"
       <div class="ou-comment ou-c-done" data-i="0" data-n="1" hidden>
         <div class="ou-where">
@@ -3569,7 +3569,7 @@ panel
         <label class="ou-fixauto" title="Sends each note to the Claude session as soon as it is added, instead of waiting for Send. Kept for this story. A note from a drafted comment waits for Send, since Claude wrote it from the PR.">
           <input data-fix-act="auto" type="checkbox">
           "Auto-send"
-        <button class="ou-linkish" data-fix-act="take_back" data-request="r1" title="Brings these notes back as drafts, to edit or send again">
+        <button class="ou-ui-linkish" data-fix-act="take_back" data-request="r1" title="Brings these notes back as drafts, to edit or send again">
           "Take back the 1 note sent to author-1"
       <div class="ou-comment ou-fixnote ou-fx-draft" data-note-id="n1">
         <div class="ou-where">
@@ -3642,11 +3642,11 @@ panel
     <div class="ou-chatbody">
       <div class="ou-questions">
         <div class="ou-qtools">
-          <button class="ou-linkish" data-qa-act="read-all" title="Mark every answer in this story as read" type="button">
+          <button class="ou-ui-linkish" data-qa-act="read-all" title="Mark every answer in this story as read" type="button">
             "Mark all read"
-          <button class="ou-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." type="button">
+          <button class="ou-ui-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." type="button">
             "Clear conversation"
-          <button class="ou-linkish" data-qa-act="show-dismissed" type="button">
+          <button class="ou-ui-linkish" data-qa-act="show-dismissed" type="button">
             "Show dismissed (1)"
         <div class="ou-qa ou-qa-here" data-qid="q1">
           <div class="ou-qhead">
@@ -3654,7 +3654,7 @@ panel
               "▾"
             <div class="ou-q">
               "Why q1?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 1: Chapter 1: Start"
@@ -3666,7 +3666,7 @@ panel
               "▾"
             <div class="ou-q">
               "Why q2?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish, b.ts"
@@ -3683,11 +3683,11 @@ panel
               "▾"
             <div class="ou-q">
               "Why q3?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Overview"
-            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
           <div class="ou-aby">
             "Answered by author-1"
@@ -3706,11 +3706,11 @@ panel
               "▾"
             <div class="ou-q">
               "Why q4?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 1: Chapter 1: Start · New answer"
-            <button class="ou-linkish" data-qa-act="read" title="Mark this answer as read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="read" title="Mark this answer as read" type="button">
               "Mark read"
           <div class="ou-a ou-md" data-aat="2026-11-03T11:20:00Z">
             <p>
@@ -3724,11 +3724,11 @@ panel
               "▸"
             <div class="ou-q">
               "Why q5?"
-            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+            <button class="ou-ui-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
               "Dismiss"
           <div class="ou-qmeta">
             "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish · 1 answer"
-            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+            <button class="ou-ui-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
     <div class="ou-chatfoot">
       <div class="ou-askhint">

@@ -24,6 +24,7 @@
  * included, as before: a file's pill goes on its first mention in a step), and the Ask box by askView().
  */
 import { Fragment, html } from '/assets/preact.mjs';
+import { LinkButton } from '@once-upon-a-diff/ui/link-button';
 import { baseName, plural } from '@once-upon-a-diff/protocol/domain/text';
 import { clockTime, shortDateTime } from '@once-upon-a-diff/protocol/domain/time';
 import type { PanelContext } from '../context.ts';
@@ -265,13 +266,13 @@ export function createQuestions(context: PanelContext) {
       ? html`<button type="button" class="ou-qtoggle" data-qa-act="expand" aria-expanded="false" title="Show the answer" onClick=${() => act('expand', id)}>▸</button>`
       : html`<button type="button" class="ou-qtoggle" data-qa-act="collapse" aria-expanded="true" title="Collapse to the question" onClick=${() => act('collapse', id)}>▾</button>`;
     const hide = question.dismissed
-      ? html`<button type="button" class="ou-linkish" data-qa-act="restore" title="Bring this question back" onClick=${() => act('restore', id)}>Restore</button>`
-      : html`<button type="button" class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." onClick=${() => act('dismiss', id)}>Dismiss</button>`;
+      ? html`<${LinkButton} type="button" data-qa-act="restore" title="Bring this question back" onClick=${() => act('restore', id)}>Restore</${LinkButton}>`
+      : html`<${LinkButton} type="button" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." onClick=${() => act('dismiss', id)}>Dismiss</${LinkButton}>`;
     let keep = null;
     if (row.keep === 'read') {
-      keep = html`${' '}<button type="button" class="ou-linkish" data-qa-act="read" title="Mark this answer as read" onClick=${() => act('read', id)}>Mark read</button>`;
+      keep = html`${' '}<${LinkButton} type="button" data-qa-act="read" title="Mark this answer as read" onClick=${() => act('read', id)}>Mark read</${LinkButton}>`;
     } else if (row.keep === 'unread') {
-      keep = html`${' '}<button type="button" class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" onClick=${() => act('unread', id)}>Mark unread</button>`;
+      keep = html`${' '}<${LinkButton} type="button" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" onClick=${() => act('unread', id)}>Mark unread</${LinkButton}>`;
     }
     const answers = row.answers.map(
       (answer) =>
@@ -293,15 +294,15 @@ export function createQuestions(context: PanelContext) {
     const buttons = [
       tools.unread && {
         key: 'read-all',
-        node: html`<button type="button" class="ou-linkish" data-qa-act="read-all" title="Mark every answer in this story as read" onClick=${() => act('read-all')}>Mark all read</button>`,
+        node: html`<${LinkButton} type="button" data-qa-act="read-all" title="Mark every answer in this story as read" onClick=${() => act('read-all')}>Mark all read</${LinkButton}>`,
       },
       tools.open && {
         key: 'clear',
-        node: html`<button type="button" class="ou-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." onClick=${() => act('clear')}>Clear conversation</button>`,
+        node: html`<${LinkButton} type="button" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." onClick=${() => act('clear')}>Clear conversation</${LinkButton}>`,
       },
       tools.dismissed > 0 && {
         key: 'show-dismissed',
-        node: html`<button type="button" class="ou-linkish" data-qa-act="show-dismissed" onClick=${() => act('show-dismissed')}>${tools.showDismissed ? 'Hide' : 'Show'} dismissed (${tools.dismissed})</button>`,
+        node: html`<${LinkButton} type="button" data-qa-act="show-dismissed" onClick=${() => act('show-dismissed')}>${tools.showDismissed ? 'Hide' : 'Show'} dismissed (${tools.dismissed})</${LinkButton}>`,
       },
     ].filter((tool) => !!tool);
     const toolLine =
@@ -309,7 +310,7 @@ export function createQuestions(context: PanelContext) {
       html`<div class="ou-qtools">${buttons.map((tool, i) => html`<${Fragment} key=${tool.key}>${i > 0 && ' '}${tool.node}</${Fragment}>`)}</div>`;
     const undoLine =
       model.undo &&
-      html`<div class="ou-qundo" role="status">${model.undo} <button type="button" class="ou-linkish" data-qa-act="undo" onClick=${() => act('undo')}>Undo</button></div>`;
+      html`<div class="ou-qundo" role="status">${model.undo} <${LinkButton} type="button" data-qa-act="undo" onClick=${() => act('undo')}>Undo</${LinkButton}></div>`;
     return html`${toolLine}${undoLine}${model.rows.map(rowView)}`;
   }
 

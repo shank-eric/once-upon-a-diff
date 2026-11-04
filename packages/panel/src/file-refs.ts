@@ -135,7 +135,7 @@ export function createFileRefs(context: PanelContext) {
     if (status.kind === 'mark') {
       return markViewedButton(rel, true);
     }
-    return html`<span class="ou-pill ou-st-${status.kind}" title="${status.text}">${status.short}</span>`;
+    return html`<span class="ou-ui-pill ou-st-${status.kind}" title="${status.text}">${status.short}</span>`;
   }
   /** A chapter's story with its pill markers filled in: the status on each file's last mention, nothing on the earlier ones. */
   function storyWithPills(draw: () => Html) {

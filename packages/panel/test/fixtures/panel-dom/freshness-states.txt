@@ -45,8 +45,8 @@
 ### stale, update queued
 <div class="ou-fresh ou-stale">
   "Story is for 1111111; the PR has 3 newer commits (2 files changed, in chapter 1, chapter 2)."
-  <span class="ou-busy" role="status">
-    <span aria-hidden="true" class="ou-spin">
+  <span class="ou-ui-busy" role="status">
+    <span aria-hidden="true" class="ou-ui-spin">
     "Waiting for a Claude session to pick this up…"
     <span class="ou-why">
       "asked at 6:50 AM"
@@ -54,8 +54,8 @@
 ### stale, update building
 <div class="ou-fresh ou-stale">
   "Story is for 1111111; the PR has 3 newer commits (2 files changed, in chapter 1, chapter 2)."
-  <span class="ou-busy" role="status">
-    <span aria-hidden="true" class="ou-spin">
+  <span class="ou-ui-busy" role="status">
+    <span aria-hidden="true" class="ou-ui-spin">
     "Updating the story for you…"
     <span class="ou-why">
       "started 6:50 AM (10 min ago), session-a"
@@ -63,8 +63,8 @@
 ### stale, a rebuild in flight
 <div class="ou-fresh ou-stale">
   "Story is for 1111111; the PR has 3 newer commits (2 files changed, in chapter 1, chapter 2)."
-  <span class="ou-busy" role="status">
-    <span aria-hidden="true" class="ou-spin">
+  <span class="ou-ui-busy" role="status">
+    <span aria-hidden="true" class="ou-ui-spin">
     "Rebuilding the story for you…"
     <span class="ou-why">
       "started 6:50 AM (10 min ago), session-a"
@@ -78,8 +78,8 @@
 <div class="ou-fresh">
   <span class="ou-why">
     "Up to date with abcdef1"
-  <span class="ou-busy" role="status">
-    <span aria-hidden="true" class="ou-spin">
+  <span class="ou-ui-busy" role="status">
+    <span aria-hidden="true" class="ou-ui-spin">
     "Waiting for a Claude session to pick this up…"
     <span class="ou-why">
       "asked at 6:50 AM"
@@ -88,8 +88,8 @@
 <div class="ou-fresh">
   <span class="ou-why" title="e">
     "Can't tell whether the story is up to date"
-  <span class="ou-busy" role="status">
-    <span aria-hidden="true" class="ou-spin">
+  <span class="ou-ui-busy" role="status">
+    <span aria-hidden="true" class="ou-ui-spin">
     "Fixing the code for you…"
     <span class="ou-why">
       "started 6:50 AM (10 min ago), s"

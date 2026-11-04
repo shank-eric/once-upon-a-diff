@@ -8,6 +8,7 @@
  * What was typed in the form is kept across redraws and step changes; the form itself belongs to the step it was opened on.
  */
 import { html } from '/assets/preact.mjs';
+import { LinkButton } from '@once-upon-a-diff/ui/link-button';
 import { rebuildAsk, rebuildLine, rebuildPending } from './rebuild.ts';
 import type { PanelContext } from '../context.ts';
 import type { RebuildView } from '@once-upon-a-diff/protocol/types';
@@ -100,10 +101,10 @@ export function createRebuild(context: PanelContext) {
         event: Event,
       ) => {
         draft = (event.currentTarget as HTMLTextAreaElement).value;
-      }}>${draft}</textarea><div class="ou-rebuild-btns"><button type="submit" disabled=${sending}>Queue rebuild</button><button type="button" class="ou-linkish" data-rebuild-cancel="" onClick=${() => {
+      }}>${draft}</textarea><div class="ou-rebuild-btns"><button type="submit" disabled=${sending}>Queue rebuild</button><${LinkButton} type="button" data-rebuild-cancel="" onClick=${() => {
         formFor = null;
         render();
-      }}>Cancel</button></div></form>`;
+      }}>Cancel</${LinkButton}></div></form>`;
     }
     return html`<button type="button" class="ou-rebuild-open" title=${box.title} disabled=${box.pending} onClick=${() => {
       formFor = step;

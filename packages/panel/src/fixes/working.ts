@@ -8,6 +8,7 @@
  * changingOf has no DOM, so node tests can use it.
  */
 import { html } from '/assets/preact.mjs';
+import { Banner } from '@once-upon-a-diff/ui/banner';
 import { shortDateTime } from '@once-upon-a-diff/protocol/domain/time';
 import type { LineRanges, WorkingMark } from '@once-upon-a-diff/protocol/types';
 import type { PanelContext } from '../context.ts';
@@ -59,7 +60,7 @@ export function createWorking(context: PanelContext) {
       });
       const more =
         mark.files.length > MAX_FILES_NAMED && ` and ${mark.files.length - MAX_FILES_NAMED} more`;
-      return html`<div class="ou-beingchg" role="status">Being changed by <b>${mark.consumer}</b>: ${files}${more}<span class="ou-quiet"> · since ${shortDateTime(mark.started_at)}</span></div>`;
+      return html`<${Banner} tone="warn" class="ou-beingchg" role="status">Being changed by <b>${mark.consumer}</b>: ${files}${more}<span class="ou-quiet"> · since ${shortDateTime(mark.started_at)}</span></${Banner}>`;
     });
   }
 

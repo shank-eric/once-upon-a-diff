@@ -12,7 +12,7 @@
     <div class="ou-rebuild-btns">
       <button type="submit">
         "Queue rebuild"
-      <button class="ou-linkish" data-rebuild-cancel="" type="button">
+      <button class="ou-ui-linkish" data-rebuild-cancel="" type="button">
         "Cancel"
 
 ### chapter 2 form
@@ -26,7 +26,7 @@
     <div class="ou-rebuild-btns">
       <button type="submit">
         "Queue rebuild"
-      <button class="ou-linkish" data-rebuild-cancel="" type="button">
+      <button class="ou-ui-linkish" data-rebuild-cancel="" type="button">
         "Cancel"
 
 ### failed
@@ -40,7 +40,7 @@
     <div class="ou-rebuild-btns">
       <button type="submit">
         "Queue rebuild"
-      <button class="ou-linkish" data-rebuild-cancel="" type="button">
+      <button class="ou-ui-linkish" data-rebuild-cancel="" type="button">
         "Cancel"
 Couldn't ask for a rebuild: queue full
 ### asked

@@ -946,7 +946,7 @@ try {
   check((await earlyText()) === '', 'unmarking them clears the warning');
   // the narrative's Mark viewed goes on a file's last mention in the chapter only; earlier mentions carry nothing
   const onePills = await localPage
-    .locator('#ou-panel .ou-md [data-mark-for], #ou-panel .ou-md .ou-pill')
+    .locator('#ou-panel .ou-md [data-mark-for], #ou-panel .ou-md .ou-ui-pill')
     .allTextContents();
   check(
     JSON.stringify(onePills) === JSON.stringify(['mark viewed']),

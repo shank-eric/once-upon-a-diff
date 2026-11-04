@@ -7,6 +7,8 @@
  * something else) and the view draws it. The Update buttons' "asked for" is reset where the old panel rebuilt the line: by render().
  */
 import { html } from '/assets/preact.mjs';
+import { Banner } from '@once-upon-a-diff/ui/banner';
+import { Busy } from '@once-upon-a-diff/ui/busy';
 import { plural, shortSha } from '@once-upon-a-diff/protocol/domain/text';
 import { rangeStepOf, rangeUrl, requestLine } from './freshness.ts';
 import type { PanelContext } from '../context.ts';
@@ -119,7 +121,7 @@ export function createFreshness(context: PanelContext) {
   /** The in-progress line, with a spinner, for the pulse's request (null when there is none). */
   const progressView = () =>
     progress &&
-    html`<span class="ou-busy" role="status"><span class="ou-spin" aria-hidden="true"></span>${progress.text}${progress.detail && html` <span class="ou-why">${progress.detail}</span>`}</span>`;
+    html`<${Busy}>${progress.text}${progress.detail && html` <span class="ou-why">${progress.detail}</span>`}</${Busy}>`;
 
   /**
    * A story updated in place (no "Since you read it" chapter for the update): say so at the top, with what the new
@@ -221,7 +223,7 @@ export function createFreshness(context: PanelContext) {
         ? html` You're on GitHub's diff of just these commits. <a href=${link.all}>All of the PR's changes</a>`
         : link &&
           html` <a href=${link.url} title=${`GitHub's Files changed for ${link.range} only`}>See just these commits' changes on GitHub</a>`;
-    return html`<div class="ou-since"><b>${since.what}</b>, ${since.range}. This step shows only the files they touched.${since.rest}${linkView}</div>`;
+    return html`<${Banner} tone="accent" class="ou-since"><b>${since.what}</b>, ${since.range}. This step shows only the files they touched.${since.rest}${linkView}</${Banner}>`;
   }
 
   return {

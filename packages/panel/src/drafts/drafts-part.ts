@@ -12,6 +12,7 @@
  * Copy's "Copied" and the label timers are the part's, and are cleared in destroy().
  */
 import { html } from '/assets/preact.mjs';
+import { LinkButton } from '@once-upon-a-diff/ui/link-button';
 import { capitalize } from '@once-upon-a-diff/protocol/domain/text';
 import { writeClipboard } from '@once-upon-a-diff/ui/clipboard';
 import { draftView, shownIn, type DraftShow } from './drafts.ts';
@@ -128,7 +129,7 @@ export function createDrafts(context: PanelContext) {
   }
 
   const lineJump = (rel: string, side: Side | undefined, line: number | string) =>
-    html`<button class="ou-linkish" ...${context.refs.jumpProps(rel, { side: side === 'L' ? 'L' : 'R', start: Number(line), end: Number(line) })}>Jump to line ${line}</button>`;
+    html`<${LinkButton} ...${context.refs.jumpProps(rel, { side: side === 'L' ? 'L' : 'R', start: Number(line), end: Number(line) })}>Jump to line ${line}</${LinkButton}>`;
 
   /** What a comment's state line says. */
   function lineView(line: Line) {
@@ -146,7 +147,7 @@ export function createDrafts(context: PanelContext) {
       case 'added': {
         const jump = line.rel && html` · ${lineJump(line.rel, line.side, line.line)}`;
         const reload = line.reload
-          ? html` <button class="ou-linkish" data-draft-reload="" title="Reloads this page. The panel stays on this chapter." onClick=${reloadPage}>Reload page</button>`
+          ? html` <${LinkButton} data-draft-reload="" title="Reloads this page. The panel stays on this chapter." onClick=${reloadPage}>Reload page</${LinkButton}>`
           : null;
         return html`<span class="ou-pend">In your pending review</span>, on ${line.path} line ${line.line}${jump}${line.link && githubLink(line.link)}<span class="ou-cnote">GitHub shows it after a reload.${reload}</span>`;
       }
@@ -196,7 +197,7 @@ export function createDrafts(context: PanelContext) {
     const items: unknown[] = [];
     if (toggles.script) {
       items.push(
-        html`<button class="ou-linkish" data-draft-script="" title=${SCRIPT_TITLE} onClick=${copyScript}>${copied.get('script') || `Copy as gh script (${toggles.script})`}</button>`,
+        html`<${LinkButton} data-draft-script="" title=${SCRIPT_TITLE} onClick=${copyScript}>${copied.get('script') || `Copy as gh script (${toggles.script})`}</${LinkButton}>`,
       );
     }
     if (toggles.posted > 0) {
@@ -214,11 +215,11 @@ export function createDrafts(context: PanelContext) {
   }
 
   const showToggle = (key: 'showPosted' | 'showDismissed', word: string, count: number) =>
-    html`<button class="ou-linkish" data-draft-show=${key} onClick=${() => {
+    html`<${LinkButton} data-draft-show=${key} onClick=${() => {
       state[key] = !state[key];
       context.saveState();
       render();
-    }}>${state[key] ? 'Hide' : 'Show'} ${word} (${count})</button>`;
+    }}>${state[key] ? 'Hide' : 'Show'} ${word} (${count})</${LinkButton}>`;
 
   /** A chapter's drafted comments, under their heading (null with none). */
   function chapterCommentsView(chapter: Chapter) {
@@ -246,7 +247,7 @@ export function createDrafts(context: PanelContext) {
       const comments = group.comments.map((comment, index) =>
         commentView(comment, group.step, index),
       );
-      return html`<div class="ou-cgroup" data-group=${group.step}><h3 class="ou-cgh"><button class="ou-linkish" data-goto=${group.step} onClick=${() => context.navigation.go(group.step)}>${name}</button>: ${title}</h3>${comments}</div>`;
+      return html`<div class="ou-cgroup" data-group=${group.step}><h3 class="ou-cgh"><${LinkButton} data-goto=${group.step} onClick=${() => context.navigation.go(group.step)}>${name}</${LinkButton}>: ${title}</h3>${comments}</div>`;
     });
     const open = state.allCommentsOpen != null ? state.allCommentsOpen : total <= ALL_COMMENTS_OPEN;
     const onToggle = (event: Event) => {

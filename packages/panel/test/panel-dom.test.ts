@@ -201,7 +201,9 @@ async function mount(
     },
   };
 }
-const bare = (): PanelOptions => ({ stylesheets: { page: '/p.css', panel: '/q.css' } });
+const bare = (): PanelOptions => ({
+  stylesheets: { page: '/p.css', panel: '/q.css', ui: '/u.css' },
+});
 const full = (calls: unknown[][]) => fullOptions(calls);
 
 async function scenario(
@@ -1718,7 +1720,7 @@ await test('every file and line link in the body, the drafts, the fixes and the 
     await jump('.ou-comment .ou-where code[data-rel]');
     await jump('.ou-files .ou-lines [data-rel]');
     panel.overlay.go(2);
-    await jump('.ou-comment .ou-linkish[data-rel]'); // Jump to line N on a fix before push note
+    await jump('.ou-comment .ou-ui-linkish[data-rel]'); // Jump to line N on a fix before push note
     panel.world.viewed.set('src/a.ts', true);
     panel.world.viewed.set('src/c.ts', true);
     panel.overlay.apply();

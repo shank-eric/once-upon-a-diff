@@ -4,6 +4,7 @@
  * note being edited is a keyed component, so what is typed stays through a redraw and is lost on a step change, as it always was.
  */
 import { html, useLayoutEffect, useRef } from '/assets/preact.mjs';
+import { LinkButton } from '@once-upon-a-diff/ui/link-button';
 import { plural, shortSha } from '@once-upon-a-diff/protocol/domain/text';
 import { shortDateTime } from '@once-upon-a-diff/protocol/domain/time';
 import { fixSummary, takesNotes } from './fixes.ts';
@@ -116,7 +117,7 @@ export function createFixes(context: PanelContext) {
       .map((request) => {
         const notes = plural(request.notes.length, 'note');
         const sentTo = request.claimed_by || request.to || 'the next session';
-        return html` <button class="ou-linkish" data-fix-act="take_back" data-request=${request.id} title=${TAKE_BACK_TITLE} disabled=${off(`take_back:${request.id}`)} onClick=${() => takeBack_(request.id)}>Take back the ${notes} sent to ${sentTo}</button>`;
+        return html` <${LinkButton} data-fix-act="take_back" data-request=${request.id} title=${TAKE_BACK_TITLE} disabled=${off(`take_back:${request.id}`)} onClick=${() => takeBack_(request.id)}>Take back the ${notes} sent to ${sentTo}</${LinkButton}>`;
       });
     const nobody =
       summary.send &&

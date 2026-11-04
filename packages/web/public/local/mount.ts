@@ -56,7 +56,11 @@ export function mount(initial: InitialUi) {
       ...common,
       initial,
       host: 'this page',
-      stylesheets: { page: '/assets/panel/page.css', panel: '/assets/panel/panel.css' },
+      stylesheets: {
+        page: '/assets/panel/page.css',
+        panel: '/assets/panel/panel.css',
+        ui: '/assets/ui/ui.css',
+      },
       commentsTitle: 'Fix before push (drafted)',
       onState: (panelState) => {
         page.lastUi = { ...panelState, hidden: false };

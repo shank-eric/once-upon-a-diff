@@ -141,7 +141,7 @@ panel
       <pre class="ou-script" hidden>
       <div class="ou-cgroup" data-group="1">
         <h3 class="ou-cgh">
-          <button class="ou-linkish" data-goto="1">
+          <button class="ou-ui-linkish" data-goto="1">
             "Chapter 1"
           ": Start"
         <div class="ou-comment" data-i="0" data-n="1">
@@ -168,7 +168,7 @@ panel
           <div class="ou-cstate" hidden>
       <div class="ou-cgroup" data-group="2">
         <h3 class="ou-cgh">
-          <button class="ou-linkish" data-goto="2">
+          <button class="ou-ui-linkish" data-goto="2">
             "Chapter 2"
           ": Finish"
         <div class="ou-comment" data-i="0" data-n="2">
