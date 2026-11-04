@@ -198,6 +198,7 @@ export function createQuestions(context: PanelContext) {
       html`<div class="ou-qundo" role="status">${undo.label} <button type="button" class="ou-linkish" data-qa-act="undo">Undo</button></div>`;
     const shown = showDismissed ? questions : questions.filter((question) => !question.dismissed);
     setHtml(box, html`${toolLine}${undoLine}${shown.map(questionHtml)}`);
+    context.viewed.markDock(); // an answer's Mark viewed buttons say where their file's toggle stands
     scroller.scrollTop = kept; // a step change redraws the marks, not the place you were reading
     watchUnread();
   }

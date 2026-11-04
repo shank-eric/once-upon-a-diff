@@ -7,8 +7,9 @@
  *
  * changingOf has no DOM, so node tests can use it.
  */
-import { html } from '@once-upon-a-diff/protocol/domain/html';
-import { insertHtml, setHtml } from '../dom.ts';
+import { html as markup } from '@once-upon-a-diff/protocol/domain/html';
+import { html } from '/assets/preact.mjs';
+import { setHtml } from '../dom.ts';
 import { shortDateTime } from '@once-upon-a-diff/protocol/domain/time';
 import type { LineRanges, WorkingMark } from '@once-upon-a-diff/protocol/types';
 import type { PanelContext } from '../context.ts';
@@ -57,11 +58,11 @@ export function createWorking(context: PanelContext) {
     return marks.map((mark) => {
       const files = mark.files.slice(0, MAX_FILES_NAMED).map((file, index) => {
         const rel = relOf(file.path, story.allRels);
-        return html`${index > 0 && ', '}<code data-rel="${rel}">${rel}</code>${rangesText(file.ranges || [])}`;
+        return markup`${index > 0 && ', '}<code data-rel="${rel}">${rel}</code>${rangesText(file.ranges || [])}`;
       });
       const more =
         mark.files.length > MAX_FILES_NAMED && ` and ${mark.files.length - MAX_FILES_NAMED} more`;
-      return html`<div class="ou-beingchg" role="status">Being changed by <b>${mark.consumer}</b>: ${files}${more}<span class="ou-quiet"> · since ${shortDateTime(mark.started_at)}</span></div>`;
+      return markup`<div class="ou-beingchg" role="status">Being changed by <b>${mark.consumer}</b>: ${files}${more}<span class="ou-quiet"> · since ${shortDateTime(mark.started_at)}</span></div>`;
     });
   }
 
@@ -79,44 +80,44 @@ export function createWorking(context: PanelContext) {
     }
   }
 
-  function render() {
+  /** The marks that touch step `step`'s files: who is changing the first of them, or null. */
+  const stepWho = (step: number) => {
+    const changing = byRel();
+    const chapter = step ? context.steps()[step - 1] : null;
+    return (chapter && chapter.files.map((file) => changing[file.rel]).find(Boolean)) || null;
+  };
+
+  /** A step's row in the step list: is a session changing a file of it, and the tag that says who. */
+  const stepChanging = (step: number) => !!stepWho(step);
+  function stepTag(step: number) {
+    const who = stepWho(step);
+    return who
+      ? html`<span class="ou-chgby" title=${`Being changed by ${who.consumer}`}>• being changed</span>`
+      : null;
+  }
+
+  /** A file's row in the file list: is a session changing it, and the tag that says who and which lines. */
+  const fileChanging = (rel: string) => !!byRel()[rel];
+  function fileTag(rel: string) {
+    const who = byRel()[rel];
+    return who
+      ? html`<span class="ou-chgby">being changed by ${who.consumer}${rangesText(who.ranges)}</span>`
+      : null;
+  }
+
+  /** The line over the step list, and the page's dimmed blocks (the rows' own tags are drawn with the rows). */
+  function paint() {
     const box = $('.ou-working');
     if (box) {
       setHtml(box, bannerHtml());
     }
-    const changing = byRel();
-    for (const el of shell.root.querySelectorAll('.ou-chgby')) {
-      el.remove();
-    }
-    for (const el of shell.root.querySelectorAll('.ou-changing')) {
-      el.classList.remove('ou-changing');
-    }
-    const steps = context.steps();
-    for (const item of shell.root.querySelectorAll('ol.ou-map li[data-n]')) {
-      const step = Number(item.getAttribute('data-n'));
-      const chapter = step ? steps[step - 1] : null;
-      const who = chapter && chapter.files.map((file) => changing[file.rel]).find(Boolean);
-      if (who) {
-        item.classList.add('ou-changing');
-        insertHtml(
-          item,
-          'beforeend',
-          html`<span class="ou-chgby" title="Being changed by ${who.consumer}">• being changed</span>`,
-        );
-      }
-    }
-    for (const item of shell.root.querySelectorAll('ul.ou-files > li[data-file]')) {
-      const who = changing[item.getAttribute('data-file') as string];
-      if (who) {
-        item.classList.add('ou-changing');
-        insertHtml(
-          item.querySelector('code') as Element,
-          'afterend',
-          html`<span class="ou-chgby">being changed by ${who.consumer}${rangesText(who.ranges)}</span>`,
-        );
-      }
-    }
     dimPage();
+  }
+
+  /** The marks changed: the line, the rows' tags and the page. */
+  function render() {
+    shell.redraw();
+    paint();
   }
 
   async function refresh() {
@@ -141,7 +142,7 @@ export function createWorking(context: PanelContext) {
 
   refresh();
 
-  return { render, refresh, dimPage, destroy };
+  return { render, paint, refresh, dimPage, destroy, stepChanging, stepTag, fileChanging, fileTag };
 }
 
 export type Working = ReturnType<typeof createWorking>;

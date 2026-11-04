@@ -30,6 +30,12 @@ const LINKED_CSS = {
   'content/ui/toast.css': 'src/content/ui/toast.css',
 };
 
+/**
+ * The panel names the vendored Preact as the pages do, /assets/preact.mjs (the bridge serves it from the web package). The bundle takes
+ * the same file, so the panel runs the very bytes the board does, with no second Preact to keep in step.
+ */
+const VENDORED_PREACT = path.resolve(import.meta.dirname, '../web/public/vendor/preact.mjs');
+
 export default defineConfig({
   srcDir: 'src',
   publicDir: 'src/public',
@@ -37,6 +43,7 @@ export default defineConfig({
   // one folder for `yarn dev` and `yarn build`, so Chrome loads the same one either way
   outDirTemplate: '{{browser}}-mv{{manifestVersion}}',
   imports: false,
+  vite: () => ({ resolve: { alias: { '/assets/preact.mjs': VENDORED_PREACT } } }),
   // you load .output/chrome-mv3 in your own Chrome; `yarn dev` only rebuilds it and reloads the extension
   webExt: { disabled: true },
   dev: { server: { port: 4830 } }, // the usual 3000 is often taken

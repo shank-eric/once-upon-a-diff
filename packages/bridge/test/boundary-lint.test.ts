@@ -527,6 +527,30 @@ const CASES: [string, string, string, string[]][] = [
     `import { plural } from '@once-upon-a-diff/protocol/domain/text';\nimport { ROUTES } from '@once-upon-a-diff/protocol/routes';\nimport type { StoryData } from '@once-upon-a-diff/protocol/types';`,
     [],
   ],
+  [
+    'the panel may import the vendored Preact, as the pages do',
+    'packages/panel/src/probe.ts',
+    `import { html, render } from '/assets/preact.mjs';`,
+    [],
+  ],
+  [
+    'a panel region may import the vendored Preact',
+    'packages/panel/src/drafts/probe.ts',
+    `import { html } from '/assets/preact.mjs';`,
+    [],
+  ],
+  [
+    'the panel imports a page module by URL',
+    'packages/panel/src/probe.ts',
+    `import { x } from '/assets/board/shared.ts';`,
+    [IMPORTS],
+  ],
+  [
+    'the panel imports a page module by URL dynamically',
+    'packages/panel/src/reading/probe.ts',
+    `await import('/assets/local.ts');`,
+    [SYNTAX],
+  ],
   // the extension
   [
     'extension imports the server by path',

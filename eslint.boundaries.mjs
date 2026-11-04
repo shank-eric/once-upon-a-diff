@@ -19,15 +19,16 @@
  *                            (header, columns, backlog, worktrees, voice) that imports no other region, only board/shared.ts and the
  *                            helpers (local/, util, the protocol); board.ts, over them, is the page
  *   packages/panel/src       the story panel (browser, host-agnostic): imports the protocol only, never an app, the bridge or the
- *                            host adapters. overlay.ts composes it; its regions are folders (ask, drafts, fixes, reading,
+ *                            host adapters, and the one page URL it names is the vendored Preact (/assets/preact.mjs), which draws it
+ *                            (the extension bundles that file, the bridge serves it). overlay.ts composes it; its regions are folders (ask, drafts, fixes, reading,
  *                            rebuild) that import no other region and not overlay.ts, only the panel's shared files (context,
  *                            host, bridge-options, shell, dom, ...)
  *   packages/host-github/src the host adapter for GitHub (browser): the diff-page reader and the URL routing, which the extension
  *                            and the local page inject into the panel. It implements the panel's port (host.ts, diff-types.ts),
  *                            so it imports the panel's port files, never overlay.ts or a region. The panel never imports it
  *   packages/api-client/src  the typed client over a host's transport and the poll (browser): imports the protocol's route table and
- *                            nothing else of this repo, and no page URL but /assets/preact.mjs (use-poll.ts is a Preact hook, so only a page
- *                            loads it, and only it names /assets/preact.mjs). The panel, the pages and the extension import it; the server and the protocol never do
+ *                            nothing else of this repo, and no page URL but /assets/preact.mjs (use-poll.ts is the pages' Preact hook, so
+ *                            only a page loads it, and only it names /assets/preact.mjs). The panel, the pages and the extension import it; the server and the protocol never do
  *   packages/protocol/src    the wire types, route table and schemas (no DOM, no Node, imports no package but valibot)
  *   packages/protocol/src/domain  pure rules: imports nothing at all (the helpers the bridge, the pages and the panel share)
  *   packages/extension/src   the Chrome extension (app)
@@ -85,11 +86,11 @@ const API_CLIENT = {
   message:
     'the api-client is client code above the protocol: only the panel, the pages, the extension and tests import it',
 };
-// the Preact hook (use-poll.ts) is a page's: nothing that is bundled into the extension or shared with the panel loads it
+// the Preact hook (use-poll.ts) is the pages': nothing that is bundled into the extension or shared with the panel loads it
 const USE_POLL = {
   regex: '^@once-upon-a-diff/api-client/use-poll(\\.ts)?$',
   message:
-    'use-poll.ts is a Preact hook, which only a page loads (it imports /assets/preact.mjs): the panel, the extension and host adapters use poll.ts',
+    'use-poll.ts is the pages’ Preact hook (the board’s poll): the panel keeps its own tick, and the panel, the extension and host adapters use poll.ts',
 };
 const NOT_THE_USE_POLL = {
   from: './packages/api-client/src/use-poll.ts',
@@ -105,6 +106,12 @@ const ANY_PAGE_URL = {
   regex: '^/assets/',
   message:
     'client.ts and poll.ts are shared with the panel and the extension: only use-poll.ts (a page’s hook) names /assets/ URLs, and only the vendored Preact',
+};
+// the panel is bundled by the extension and served by the bridge: the one page URL it may name is the vendored Preact
+const PANEL_PAGE_URL = {
+  regex: '^/assets/(?!preact\\.mjs$)',
+  message:
+    'the panel is shared by the extension and the pages: the one page URL it names is the vendored Preact (/assets/preact.mjs), and it imports packages, never a page module',
 };
 const HOST_ADAPTERS = {
   regex: '^@once-upon-a-diff/host-github(/|$)',
@@ -348,7 +355,7 @@ const PANEL_BASE = {
     NOT_THE_USE_POLL,
     NOT_THE_TEST_KIT,
   ],
-  specifiers: [BRIDGE, EXTENSION, WEB, HOST_ADAPTERS, SCHEMAS, USE_POLL, TEST_KIT],
+  specifiers: [BRIDGE, EXTENSION, WEB, HOST_ADAPTERS, SCHEMAS, USE_POLL, PANEL_PAGE_URL, TEST_KIT],
 };
 
 // what a page region must not reach: the page above it, and the apps, server and schemas every page avoids

@@ -2,7 +2,12 @@
   "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
     "lib": ["es2023", "dom", "dom.iterable"],
-    "types": ["node", "chrome"]
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "types": ["node", "chrome"],
+    "paths": {
+      "/assets/preact.mjs": ["../../web/public/types/preact.d.ts"]
+    }
   },
   "include": [".", "../../panel/types"]
 }

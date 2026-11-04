@@ -3,32 +3,27 @@
  * (status light, Hide story, Prev, Next, close), the note line, the body and
  * the questions dock (chat-dock.ts), plus the message line, docking width and collapse.
  */
-import { hideUntilStyled, setHtml, stopKeyEvents, stylesheetLink } from './dom.ts';
-import { html } from '@once-upon-a-diff/protocol/domain/html';
+import { Fragment, html, render } from '/assets/preact.mjs';
+import { hideUntilStyled, stopKeyEvents, stylesheetLink } from './dom.ts';
+import { createView } from './store.ts';
 import type { PanelContext } from './context.ts';
 
-const MARKUP = (withAsk: boolean) => html`
-    <div class="ou-grip" title="Drag to resize"></div>
-    <div class="ou-bar">
-      <button class="ou-light" title="Checking the connection…" aria-label="Connection status" aria-expanded="false"><span class="ou-dot"></span></button>
-      <button class="ou-toggle" title="Collapse or expand the story panel">Hide story</button>
-      <button class="ou-prev" title="Previous step">&larr; Prev</button>
-      <span class="ou-title"></span>
-      <button class="ou-next" title="Next step">Next &rarr;</button>
-      <button class="ou-close" title="Remove the overlay and show every file">&times;</button>
-    </div>
-    <div class="ou-note"><span class="ou-count-note"></span><div class="ou-health" hidden></div><div class="ou-fresh"></div><div class="ou-rebuilding" role="status" hidden></div><span class="ou-msg"></span></div>
-    <div class="ou-body"></div>
-    <section class="ou-chat" aria-label="Questions for Claude">
+/**
+ * The questions dock's frame. The dock's own parts (chat-dock.ts, ask/questions.ts, status-light.ts) bind to these elements and
+ * write into them, so it is the same elements, with the same props, on every draw: Preact leaves them as they are.
+ */
+const askDock = (
+  withAsk: boolean,
+) => html`<section class="ou-chat" aria-label="Questions for Claude">
       <div class="ou-chatgrip" title="Drag to resize"></div>
       <button type="button" class="ou-chathead" aria-expanded="false" title="Open or close the questions">
         <span class="ou-chatarrow" aria-hidden="true">▸</span><span class="ou-chatlabel">Ask Claude</span><span class="ou-chatcount"></span>
       </button>
       <div class="ou-chatbody"><div class="ou-questions"></div></div>
       <div class="ou-chatfoot">
-        <div class="ou-askhint" hidden></div>
-        <div class="ou-askwho" hidden></div>
-        <form class="ou-ask${!withAsk && ' ou-off'}">
+        <div class="ou-askhint" hidden=${true}></div>
+        <div class="ou-askwho" hidden=${true}></div>
+        <form class=${withAsk ? 'ou-ask' : 'ou-ask ou-off'}>
           <textarea placeholder="Ask about this step. The list above holds the whole story (Cmd+Enter sends it to the bridge inbox)" rows="1" aria-label="Question"></textarea>
           <button type="submit">Ask</button>
         </form>
@@ -56,19 +51,55 @@ export function createShell(context: PanelContext) {
   // focusable, so a click anywhere in the panel moves focus off the page and the page's single-key shortcuts (GitHub's, Refined GitHub's j/k/x) don't fire while you read
   root.tabIndex = -1;
   root.setAttribute('aria-label', 'Once Upon a Diff');
-  setHtml(root, MARKUP(!!opts.ask));
   /** The panel's element for selector, or null. The frame's own (.ou-title, .ou-body...) are always there. */
   const $ = <T extends HTMLElement = HTMLElement>(selector: string): T | null =>
     root.querySelector<T>(selector);
 
+  let messageText = '';
   let messageTimer: ReturnType<typeof setTimeout> | 0 = 0;
+  let mounted = true;
+
+  /** The toolbar, the note under it, the body, and the questions dock: all of the panel, drawn from the parts' data. */
+  function frame() {
+    const chapter = context.chapter();
+    const title = chapter ? chapter.title : `Overview: ${context.story.data.pr.title || ''}`;
+    const lastStep = context.steps().length;
+    const withBody = !!context.body?.ready();
+    return html`<${Fragment}>
+      <div class="ou-grip" title="Drag to resize"></div>
+      <div class="ou-bar">
+        <button class="ou-light" title="Checking the connection…" aria-label="Connection status" aria-expanded="false"><span class="ou-dot"></span></button>
+        <button class="ou-toggle" title="Collapse or expand the story panel" onClick=${toggleCollapsed}>${state.collapsed ? 'Show story' : 'Hide story'}</button>
+        <button class="ou-prev" title="Previous step" disabled=${withBody && state.n === 0} onClick=${() => context.navigation.go(state.n - 1)}>← Prev</button>
+        <span class="ou-title" title=${withBody ? title : undefined}>${withBody ? title : null}</span>
+        <button class="ou-next" title="Next step" disabled=${withBody && state.n === lastStep} onClick=${() => context.navigation.go(state.n + 1)}>Next →</button>
+        <button class="ou-close" title="Remove the overlay and show every file" onClick=${close}>×</button>
+      </div>
+      <div class="ou-note"><span class="ou-count-note">${context.filter ? context.filter.noteView() : null}</span><div class="ou-health" hidden=${true}></div><div class="ou-fresh"></div><div class="ou-rebuilding" role="status" hidden=${true}></div><span class="ou-msg">${messageText || null}</span></div>
+      <div class="ou-body">${context.body ? context.body.view() : null}</div>
+      ${askDock(!!opts.ask)}
+    </${Fragment}>`;
+  }
+  // the frame is drawn here, before any part is built: they take hold of its elements (the dock, the note, the light) when they are
+  const view = createView(() => render(frame(), root));
+  view.update();
+
+  /** Draws the panel again from the parts' data (a part's data changed). Done by the time it returns. */
+  function redraw() {
+    if (mounted) {
+      view.update();
+    }
+  }
+
   /** A line under the toolbar for a few seconds ('' clears it). */
   function message(text: string | null | undefined) {
     clearTimeout(messageTimer);
-    $('.ou-msg')!.textContent = text || '';
+    messageText = text || '';
+    redraw();
     if (text) {
       messageTimer = setTimeout(() => {
-        $('.ou-msg')!.textContent = '';
+        messageText = '';
+        redraw();
       }, MESSAGE_MS);
     }
   }
@@ -85,8 +116,18 @@ export function createShell(context: PanelContext) {
   function setCollapsed(collapsed: boolean) {
     state.collapsed = collapsed;
     root.classList.toggle('ou-collapsed', collapsed);
-    $('.ou-toggle')!.textContent = collapsed ? 'Show story' : 'Hide story';
+    redraw(); // the toggle's label
     setWidth(state.width);
+  }
+  function toggleCollapsed() {
+    setCollapsed(!state.collapsed);
+    context.saveState();
+  }
+  function close() {
+    context.destroy();
+    if (opts.onClose) {
+      opts.onClose();
+    }
   }
 
   // resize by dragging the left edge
@@ -107,18 +148,6 @@ export function createShell(context: PanelContext) {
     grip.addEventListener('pointermove', onPointerMove);
     grip.addEventListener('pointerup', onPointerUp);
   });
-  $('.ou-toggle')!.onclick = () => {
-    setCollapsed(!state.collapsed);
-    context.saveState();
-  };
-  $('.ou-prev')!.onclick = () => context.navigation.go(state.n - 1);
-  $('.ou-next')!.onclick = () => context.navigation.go(state.n + 1);
-  $('.ou-close')!.onclick = () => {
-    context.destroy();
-    if (opts.onClose) {
-      opts.onClose();
-    }
-  };
   const onResize = () => setWidth(state.width);
   window.addEventListener('resize', onResize);
 
@@ -149,6 +178,7 @@ export function createShell(context: PanelContext) {
 
   /** Take the panel off the page and undock it. */
   function unmount() {
+    mounted = false; // what is on the panel stays as it was, for a late answer to write into
     host.remove();
     pageStyle.remove();
     document.documentElement.classList.remove(hostId + '-docked');
@@ -165,6 +195,7 @@ export function createShell(context: PanelContext) {
     isolateKeys,
     mount,
     unmount,
+    redraw,
     clearMessageTimer: () => clearTimeout(messageTimer),
     stopResizing: () => window.removeEventListener('resize', onResize),
   };

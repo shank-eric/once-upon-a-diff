@@ -2,6 +2,8 @@
 
 Decided 10/29. Built for the board page, as of main at 0741c6c. The story panel, the local page and the extension's tags still draw with `html` and `setHtml`. What was done and what was left is in ADR-16.
 
+Update 11/3: the panel's frame, body, file list and viewed, change and working marks draw with Preact (the first of two branches). The panel names the vendored file as the pages do, `/assets/preact.mjs`: the bridge serves it, and the extension's Vite config aliases it to `packages/web/public/vendor/preact.mjs`, so both run the same bytes. Ask, drafts, fixes, rebuild and freshness still write strings into slots the body leaves, and the story's markdown stays a string renderer (`parse-markup.ts` turns its output into nodes).
+
 ## Context
 
 The pages and the panel build their UI the same way. `html`, a tagged template in `protocol/src/domain/html.ts`, makes an escaped string, and `setHtml` puts it in with `innerHTML`. Clicks are handled by event delegation on `data-` attributes. That's about 12.8k lines across the story panel, the bridge's pages and the extension's content UI.
@@ -52,4 +54,4 @@ Preact's draw is that one piece covers both halves. Keyed diffing removes the ha
 3. **Plain hooks or `@preact/signals`?** Plain hooks. The board has `useSetting`, `useFocus` and effects in `packages/web/public/board/shared.ts`, and no signals dependency.
 4. **Which region first?** The voice panel, then the rest of the board page.
 5. **Should the `localStorage` helper and `gateText` be done first?** Yes, and they were, before the first region.
-6. **Still open:** the panel's own conversion (see ADR-16), and whether the local page's diff view, which builds its DOM to match GitHub's, should become components or stay strings.
+6. **Half answered:** the panel's own conversion has started (the update at the top, and ADR-16). Still open: whether the local page's diff view, which builds its DOM to match GitHub's, should become components or stay strings.

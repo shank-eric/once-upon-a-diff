@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { expandDirOf, expandStep, EXPAND_ALL_FAR } from '../src/overlay.ts';
+import { expandDirOf, expandStep, EXPAND_ALL_FAR } from '../src/reading/expand.ts';
 
 /** A file's table as expandStep reads it: hunk rows with their controls, and drawn rows with their line. */
 type Row = { gap?: string[]; n?: number };

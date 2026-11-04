@@ -1,8 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { placePills, pillMarker } from '../src/overlay.ts';
 import { createStoryModel } from '@once-upon-a-diff/panel/story-model';
-import { createFileRefs } from '../src/file-refs.ts';
+import { createFileRefs, placePills, pillMarker } from '../src/file-refs.ts';
 import { createMarkdown } from '../src/markdown.ts';
 import type { PanelContext } from '../src/context.ts';
 import type { StoryData } from '@once-upon-a-diff/protocol/types';

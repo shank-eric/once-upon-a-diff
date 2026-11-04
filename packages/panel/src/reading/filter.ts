@@ -4,8 +4,7 @@
  * and keeps that true while GitHub loads and re-renders diffs. A #diff-<sha>
  * jump to a file outside the chapter steps on to the next file in it.
  */
-import { html } from '@once-upon-a-diff/protocol/domain/html';
-import { setHtml } from '../dom.ts';
+import { html } from '/assets/preact.mjs';
 import { baseName, capitalize } from '@once-upon-a-diff/protocol/domain/text';
 import type { PanelContext } from '../context.ts';
 import type { Chapter } from '@once-upon-a-diff/protocol/types';
@@ -102,7 +101,7 @@ export function createFilter(context: PanelContext) {
       shown: [...wanted].filter((path) => onPage.has(path)).length,
       missing: [...wanted].filter((path) => !onPage.has(path)),
     };
-    renderNote();
+    shell.redraw(); // the note, and the file rows' missing marks
     context.viewed.render();
     context.working.dimPage(); // GitHub re-renders blocks as you scroll
     if (opts.onFilter) {
@@ -111,37 +110,26 @@ export function createFilter(context: PanelContext) {
   }
 
   /** The note under the toolbar: how many files show, and Show all files. */
-  function renderNote() {
+  function noteView() {
     const total = data.files.length;
-    let note;
     if (state.n === 0) {
-      note = html`<span>Overview: all <b>${total}</b> files, ${data.chapters.length} chapters</span>`;
-    } else {
-      const count = (context.chapter() as Chapter).files.length;
-      const extra =
-        seen.missing.length > 0 &&
-        !state.all &&
-        html` <span title="${seen.missing.join('\n')}">(${seen.missing.length} not loaded on the page yet)</span>`;
-      const here = story.chapterName(state.n);
-      note = state.all
-        ? html`<span>Showing all <b>${total}</b> files. ${capitalize(here)}'s ${count} are listed below.</span> <button class="ou-all" aria-pressed="true">Chapter files only</button>`
-        : html`<span>Showing <b>${count}</b> of <b>${total}</b> files, ${here}${extra}</span> <button class="ou-all" aria-pressed="false">Show all files</button>`;
+      return html`<span>Overview: all <b>${total}</b> files, ${data.chapters.length} chapters</span>`;
     }
-    setHtml($('.ou-count-note')!, note);
-    const allButton = $('.ou-all');
-    if (allButton) {
-      allButton.onclick = () => {
-        state.all = !state.all;
-        context.saveState();
-        apply();
-      };
+    const count = (context.chapter() as Chapter).files.length;
+    const here = story.chapterName(state.n);
+    const toggle = () => {
+      state.all = !state.all;
+      context.saveState();
+      apply();
+    };
+    if (state.all) {
+      return html`<span>Showing all <b>${total}</b> files. ${capitalize(here)}'s ${count} are listed below.</span>${' '}<button class="ou-all" aria-pressed="true" onClick=${toggle}>Chapter files only</button>`;
     }
-    for (const item of shell.root.querySelectorAll('ul.ou-files > li[data-file]')) {
-      item.classList.toggle(
-        'ou-missing',
-        seen.missing.includes(item.getAttribute('data-file') as string),
-      );
-    }
+    const extra =
+      seen.missing.length > 0
+        ? html` <span title=${seen.missing.join('\n')}>(${seen.missing.length} not loaded on the page yet)</span>`
+        : null;
+    return html`<span>Showing <b>${count}</b> of <b>${total}</b> files, ${here}${extra}</span>${' '}<button class="ou-all" aria-pressed="false" onClick=${toggle}>Show all files</button>`;
   }
 
   $('.ou-note')!.addEventListener('click', (event) => {
@@ -225,7 +213,7 @@ export function createFilter(context: PanelContext) {
 
   return {
     apply,
-    renderNote,
+    noteView,
     watch,
     unhideAll,
     destroy,

@@ -24,7 +24,7 @@ What exists now:
 
 | Left | Why | What it would take |
 |---|---|---|
-| **The panel's Preact conversion** | The panel is about 5,900 lines with 48 `innerHTML` and `setHtml` uses, and it lives in GitHub's page, where a wrong render is hard to see. The board is where the pain was. | Region by region, when a region is touched, behind the same `context` until each part draws itself. Checked by hand on a GitHub PR and a local story. |
+| **The panel's Preact conversion** | The panel is about 5,900 lines with 48 `innerHTML` and `setHtml` uses, and it lives in GitHub's page, where a wrong render is hard to see. The board is where the pain was. | Started 11/3: the frame, the body, the file list and the viewed, change and working marks draw with Preact, proven by DOM goldens recorded from the string panel (`panel/test/panel-dom.test.ts`). Left: the ask dock, drafts, fixes, rebuild and freshness, which still write strings into slots the body leaves. Checked by hand on a GitHub PR and a local story. |
 | **A `board-core` package** | `services/board` imports about thirty modules from eight other services and nine adapters by path. A package would need a ports object that the bridge passes in for each. | Define the ports (config, stories, inbox, listeners, review, sessions, backlog, worktrees, voice, and the adapters), then move it. Only the apps import `services/board` today, so the folder and its lint rule already hold the line. |
 | **The `web` and `bridge` workspace cycle** | The bridge resolves web's files to serve them, and web's tests import the bridge's test helpers. Yarn allows it. | Done: the helpers moved to `test-kit`, and web's two startBridge tests moved into the bridge, so web has no dependency on the bridge. |
 | **`ui` and `api-client` packages** | Neither has a second consumer yet. The pages use the protocol's `client.ts`, and the panel is the only code with shared components. | Make them when the panel's conversion gives `ui` its components, and when a poll hook is shared. `api-client` was made on 11/3 (ADR-15), with `client.ts` and the poll. `ui` is still to come. |
@@ -41,11 +41,11 @@ What exists now:
 - A page or the panel can't reach the server, and the server can't reach a page, except through the protocol.
 - The bridge has one runtime dependency (Valibot), and the extension and pages have none of it.
 - More manifests, more lint rules to keep right, and each route touches `protocol`. That is the cost ADR-15 accepted.
-- Until the panel converts, two idioms live in the client: components on the board page, strings in the panel, the local page and the extension's tags.
+- Until the panel converts, two idioms live in the client: components on the board page and the panel's frame and body, strings in the rest of the panel, the local page and the extension's tags.
 - `Board` still has delegates to `Sessions`, and the story routes still call them.
 
 ## Open questions
 
-1. Which panel region converts first: `ask` (the most state), or `drafts`?
+1. Which panel region converts first: `ask` (the most state), or `drafts`? Answered 11/3: neither. The frame and the body went first, because the regions draw into the body's slots and need a Preact parent. The ask dock is the one region outside the body and can go at any point.
 2. Is `board-core` worth its ports, or does the folder and its lint rule do enough?
 3. Should CI also run the extension's browser tests? It runs none today, because they need Playwright's Chromium.

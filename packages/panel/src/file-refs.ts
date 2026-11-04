@@ -52,6 +52,23 @@ export function refAttrs(rel: string, line: LineRef | null | undefined): Html {
     : attrs;
 }
 
+/** The same attributes as props for a node (html`<code ...${refNode(rel, line)}>`). */
+export function refNode(rel: string, line: LineRef | null | undefined): Record<string, string> {
+  const where = line ? ` line ${line.start}${line.end !== line.start ? `–${line.end}` : ''}` : '';
+  const props: Record<string, string> = {
+    'data-rel': rel,
+    role: 'link',
+    tabindex: '0',
+    title: `Scroll to ${rel}${where}`,
+  };
+  if (line) {
+    props['data-side'] = line.side;
+    props['data-start'] = String(line.start);
+    props['data-end'] = String(line.end);
+  }
+  return props;
+}
+
 export function createFileRefs(context: PanelContext) {
   const { story, state } = context;
   let linkScope = story.allRels; // the files a diff link can jump to: the step's

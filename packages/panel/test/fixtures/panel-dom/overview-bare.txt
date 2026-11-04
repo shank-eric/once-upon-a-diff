@@ -1,0 +1,273 @@
+html class="once-upon-panel-docked" --ou-w=400px
+page
+  src/a.ts: -
+  src/b.ts: -
+  src/c.ts: -
+  README.md: -
+panel
+<aside aria-label="Once Upon a Diff" id="ou-panel" tabindex="-1">
+  <div class="ou-grip" title="Drag to resize">
+  <div class="ou-bar">
+    <button aria-expanded="false" aria-label="Connection status" class="ou-light" hidden title="Checking the connection…">
+      <span class="ou-dot">
+    <button class="ou-toggle" title="Collapse or expand the story panel">
+      "Hide story"
+    <button class="ou-prev" disabled title="Previous step">
+      "← Prev"
+    <span class="ou-title" title="Overview: Add widgets">
+      "Overview: Add widgets"
+    <button class="ou-next" title="Next step">
+      "Next →"
+    <button class="ou-close" title="Remove the overlay and show every file">
+      "×"
+  <div class="ou-note">
+    <span class="ou-count-note">
+      <span>
+        "Overview: all"
+        <b>
+          "4"
+        "files, 4 chapters"
+    <div class="ou-health" hidden>
+    <div class="ou-fresh">
+    <div class="ou-rebuilding" hidden role="status">
+    <span class="ou-msg">
+  <div class="ou-body">
+    <div class="ou-working">
+    <h2 class="ou-h">
+      "Steps"
+    <ol class="ou-map">
+      <li class="ou-current" data-n="0">
+        "Overview"
+        <span class="ou-count">
+          "(4)"
+      <li data-n="1">
+        "1. Start"
+        <span class="ou-count">
+          "(2)"
+        <span class="ou-stepprog" data-prog-for="1">
+      <li data-n="2">
+        "2. Finish"
+        <span class="ou-count">
+          "(3)"
+        <span class="ou-stepprog" data-prog-for="2" title="0 of 2 marked viewed">
+          "0/2"
+      <li data-n="3">
+        "3. Later"
+        <span class="ou-count">
+          "(1)"
+        <span class="ou-stepprog ou-writing" title="This chapter is being written">
+          "writing"
+      <li data-n="4">
+        <span class="ou-new">
+          "New"
+        "Since you read it: new commits"
+        <span class="ou-count">
+          "(1)"
+        <span class="ou-stepprog" data-prog-for="4" title="0 of 1 marked viewed">
+          "0/1"
+    <div class="ou-md">
+      <h1>
+        "Widgets"
+      <div aria-live="polite" class="ou-progress">
+        <b>
+          "0 of 3"
+        "files marked viewed · chapter 2, “Since you read it” still have some to go · 1 chapter still being written"
+      <div class="ou-early-box" role="status">
+      <p>
+        "The PR adds a widget in"
+        <code>
+          "src/a.ts"
+        "and wires it in"
+        <span data-end="3" data-rel="src/a.ts" data-side="R" data-start="1" role="link" tabindex="0" title="Scroll to src/a.ts line 1–3">
+          "the top"
+        "."
+      <ol>
+        <li>
+          "First"
+          <code>
+            "src/b.ts"
+        <li>
+          "Then"
+          <strong>
+            "everything"
+          "else"
+      <blockquote>
+        <p>
+          "A note <b>not bold</b> & more"
+    <p class="ou-quiet ou-uncovered">
+      "14 changed hunks no chapter points at:"
+      <code data-end="50" data-rel="src/c.ts" data-side="R" data-start="40" role="link" tabindex="0" title="Scroll to src/c.ts line 40–50">
+        "src/c.ts:40-50"
+      ","
+      <code data-end="60" data-rel="src/c.ts" data-side="R" data-start="50" role="link" tabindex="0" title="Scroll to src/c.ts line 50–60">
+        "src/c.ts:50-60"
+      ","
+      <code data-end="70" data-rel="src/c.ts" data-side="R" data-start="60" role="link" tabindex="0" title="Scroll to src/c.ts line 60–70">
+        "src/c.ts:60-70"
+      ","
+      <code data-end="80" data-rel="src/c.ts" data-side="R" data-start="70" role="link" tabindex="0" title="Scroll to src/c.ts line 70–80">
+        "src/c.ts:70-80"
+      ","
+      <code data-end="90" data-rel="src/c.ts" data-side="R" data-start="80" role="link" tabindex="0" title="Scroll to src/c.ts line 80–90">
+        "src/c.ts:80-90"
+      ","
+      <code data-end="100" data-rel="src/c.ts" data-side="R" data-start="90" role="link" tabindex="0" title="Scroll to src/c.ts line 90–100">
+        "src/c.ts:90-100"
+      ","
+      <code data-end="110" data-rel="src/c.ts" data-side="R" data-start="100" role="link" tabindex="0" title="Scroll to src/c.ts line 100–110">
+        "src/c.ts:100-110"
+      ","
+      <code data-end="120" data-rel="src/c.ts" data-side="R" data-start="110" role="link" tabindex="0" title="Scroll to src/c.ts line 110–120">
+        "src/c.ts:110-120"
+      ","
+      <code data-end="130" data-rel="src/c.ts" data-side="R" data-start="120" role="link" tabindex="0" title="Scroll to src/c.ts line 120–130">
+        "src/c.ts:120-130"
+      ","
+      <code data-end="140" data-rel="src/c.ts" data-side="R" data-start="130" role="link" tabindex="0" title="Scroll to src/c.ts line 130–140">
+        "src/c.ts:130-140"
+      ","
+      <code data-end="150" data-rel="src/c.ts" data-side="R" data-start="140" role="link" tabindex="0" title="Scroll to src/c.ts line 140–150">
+        "src/c.ts:140-150"
+      ","
+      <code data-end="160" data-rel="src/c.ts" data-side="R" data-start="150" role="link" tabindex="0" title="Scroll to src/c.ts line 150–160">
+        "src/c.ts:150-160"
+      "and 2 more."
+    <details class="ou-drafts ou-allc">
+      <summary>
+        <h2 class="ou-h">
+          "Draft comments: all chapters (6)"
+          <span class="ou-draftsum">
+      <div class="ou-drafttoggles">
+      <pre class="ou-script" hidden>
+      <div class="ou-cgroup" data-group="1">
+        <h3 class="ou-cgh">
+          <button class="ou-linkish" data-goto="1">
+            "Chapter 1"
+          ": Start"
+        <div class="ou-comment" data-i="0" data-n="1">
+          <div class="ou-where">
+            <span>
+              "On"
+              <code data-end="2" data-rel="src/a.ts" data-side="R" data-start="2" role="link" tabindex="0" title="Scroll to src/a.ts line 2">
+                "src/a.ts:2"
+            <span class="ou-cbtns">
+              <button class="ou-copy">
+                "Copy"
+          <pre>
+            "Could you confirm this <thing>?"
+          <div class="ou-cstate" hidden>
+        <div class="ou-comment" data-i="1" data-n="1">
+          <div class="ou-where">
+            <span>
+              "General PR comment"
+            <span class="ou-cbtns">
+              <button class="ou-copy">
+                "Copy"
+          <pre>
+            "A general note"
+          <div class="ou-cstate" hidden>
+      <div class="ou-cgroup" data-group="2">
+        <h3 class="ou-cgh">
+          <button class="ou-linkish" data-goto="2">
+            "Chapter 2"
+          ": Finish"
+        <div class="ou-comment" data-i="0" data-n="2">
+          <div class="ou-where">
+            <span>
+              "On"
+              <code data-end="7" data-rel="src/c.ts" data-side="L" data-start="7" role="link" tabindex="0" title="Scroll to src/c.ts line 7">
+                "src/c.ts:7"
+            <span class="ou-cbtns">
+              <button class="ou-copy">
+                "Copy"
+          <pre>
+            "Dropped line"
+          <div class="ou-cstate" hidden>
+        <div class="ou-comment" data-i="1" data-n="2">
+          <div class="ou-where">
+            <span>
+              "On"
+              <code data-end="9" data-rel="src/c.ts" data-side="R" data-start="9" role="link" tabindex="0" title="Scroll to src/c.ts line 9">
+                "src/c.ts:9"
+            <span class="ou-cbtns">
+              <button class="ou-copy">
+                "Copy"
+          <pre>
+            "Kept from before"
+          <div class="ou-cstate" hidden>
+        <div class="ou-comment" data-i="2" data-n="2">
+          <div class="ou-where">
+            <span>
+              "On"
+              <code data-end="11" data-rel="src/c.ts" data-side="R" data-start="11" role="link" tabindex="0" title="Scroll to src/c.ts line 11">
+                "src/c.ts:11"
+            <span class="ou-cbtns">
+              <button class="ou-copy">
+                "Copy"
+          <pre>
+            "Not in the diff now"
+          <div class="ou-cstate" hidden>
+        <div class="ou-comment" data-i="3" data-n="2">
+          <div class="ou-where">
+            <span>
+              "On"
+              <code data-end="3" data-rel="src/b.ts" data-side="R" data-start="3" role="link" tabindex="0" title="Scroll to src/b.ts line 3">
+                "src/b.ts:3"
+            <span class="ou-cbtns">
+              <button class="ou-copy">
+                "Copy"
+          <pre>
+            "Fix me"
+          <div class="ou-cstate" hidden>
+    <div class="ou-fixes">
+    <details class="ou-filesbox">
+      <summary>
+        <h2 class="ou-h">
+          "All files (4)"
+        <span class="ou-sum">
+          "4 chapters"
+      <ul class="ou-files">
+        <li data-file="src/a.ts">
+          <code data-rel="src/a.ts" role="link" tabindex="0" title="Scroll to src/a.ts">
+            "src/a.ts"
+          <span class="ou-viewed" data-viewed-for="src/a.ts" title="">
+          <span class="ou-why">
+            "chapters 1, 2"
+        <li data-file="src/b.ts">
+          <code data-rel="src/b.ts" role="link" tabindex="0" title="Scroll to src/b.ts">
+            "src/b.ts"
+          <span class="ou-viewed" data-viewed-for="src/b.ts" title="">
+          <span class="ou-why">
+            "chapters 1, 2"
+        <li data-file="src/c.ts">
+          <code data-rel="src/c.ts" role="link" tabindex="0" title="Scroll to src/c.ts">
+            "src/c.ts"
+          <span class="ou-viewed" data-viewed-for="src/c.ts" title="">
+          <span class="ou-why">
+            "chapters 2, new"
+        <li data-file="README.md">
+          <code data-rel="README.md" role="link" tabindex="0" title="Scroll to README.md">
+            "README.md"
+          <span class="ou-viewed" data-viewed-for="README.md" title="">
+          <span class="ou-why">
+            "chapter 3"
+    <div class="ou-rebuild-box">
+  <section aria-label="Questions for Claude" class="ou-chat" hidden>
+    <div class="ou-chatgrip" title="Drag to resize">
+    <button aria-expanded="false" class="ou-chathead" title="Open or close the questions" type="button">
+      <span aria-hidden="true" class="ou-chatarrow">
+        "▸"
+      <span class="ou-chatlabel">
+        "Ask Claude"
+      <span class="ou-chatcount">
+    <div class="ou-chatbody">
+      <div class="ou-questions">
+        <p class="ou-quiet">
+          "No questions on this story yet."
+    <div class="ou-chatfoot">
+      <div class="ou-askhint" hidden>
+      <div class="ou-askwho" hidden>
+      <form class="ou-ask ou-off">
+        <textarea aria-label="Question" placeholder="Ask about this step. The list above holds the whole story (Cmd+Enter sends it to the bridge inbox)" rows="1">
+        <button type="submit">
+          "Ask"

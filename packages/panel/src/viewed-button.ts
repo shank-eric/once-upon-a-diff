@@ -1,11 +1,14 @@
 /*
- * The Mark viewed button, drawn in the file list and beside a file's mention in the story's text. The tracker
- * (reading/viewed.ts) keeps its label in step with the file's own Viewed toggle.
+ * The Mark viewed button as markup, for the story's text: markdown.ts builds strings, and body.ts turns this one into the node in
+ * mark-viewed-node.ts. No Preact here, so the pure helpers that name it stay loadable in Node.
  */
-import { html } from '@once-upon-a-diff/protocol/domain/html';
+import { html as markup } from '@once-upon-a-diff/protocol/domain/html';
 
-/** The Mark viewed button for a file this chapter finishes. The tracker keeps its label in step with the file's Viewed toggle. */
+/**
+ * The Mark viewed button for a file this chapter finishes, as the markup the story's text carries (markdown.ts builds strings:
+ * body.ts turns it into mark-viewed-node.ts's node). `short` is the lower-case one beside a mention.
+ */
 export function markViewedButton(rel: string, short?: boolean) {
   const label = short ? 'mark viewed' : 'Mark viewed';
-  return html`<button type="button" class="ou-mark ou-st-mark" data-mark-for="${rel}"${short && html` data-mark-short="1"`} title="Tick ${rel}'s Viewed checkbox">${label}</button>`;
+  return markup`<button type="button" class="ou-mark ou-st-mark" data-mark-for="${rel}"${short && markup` data-mark-short="1"`} title="Tick ${rel}'s Viewed checkbox">${label}</button>`;
 }

@@ -4,33 +4,57 @@
  * Mark viewed button. Files that come back in a later chapter, or were
  * finished in an earlier one, don't count.
  *
+ * The tracker reads the toggles into a snapshot (compute) and the panel draws from it: a file's "✓ viewed" or "⚠ viewed early",
+ * the Mark viewed buttons, the step list's progress, and the progress and early boxes under the story's first heading.
+ *
  * The panel clicks a Viewed toggle in one place only (toggle below): the
  * reviewer clicked that file's Mark viewed button, or its "Viewed ✓" to
  * untick it. One click, one file: nothing ticks Viewed on its own, on a step
  * change, in bulk or for any other file.
  */
-import { html } from '@once-upon-a-diff/protocol/domain/html';
-import { setHtml } from '../dom.ts';
+import { html } from '/assets/preact.mjs';
 import { baseName, capitalize, plural } from '@once-upon-a-diff/protocol/domain/text';
+import { markViewedNode } from '../mark-viewed-node.ts';
 import { viewedEarlyCheck } from './reading.ts';
+import type { VNode } from '../parse-markup.ts';
 import type { PanelContext } from '../context.ts';
 import type { StepProgress } from './reading.ts';
 import type { FileBlock } from '../host.ts';
-import type { Chapter } from '@once-upon-a-diff/protocol/types';
 
-/** A file name as a jump link (file-refs.js refAttrs without a line, which can't be imported here without a cycle). */
-const jumpAttrs = (rel: string) =>
-  html`data-rel="${rel}" role="link" tabindex="0" title="Scroll to ${rel}"`;
+type Toggle = boolean | 'none' | null;
 
+/** What the page's Viewed toggles said at the last look, for the step on screen. */
+interface Snapshot {
+  step: number;
+  /** each file of the step: its toggle */
+  states: Map<string, Toggle>;
+  /** the files of the step that are early: finished in a later chapter, or read in their last chapter already */
+  early: Set<string>;
+  /** every story file that is viewed early: the early box lists them on a chapter */
+  earlyList: string[];
+  /** each chapter's progress, null when the page has no Viewed toggles to read */
+  progress: StepProgress[] | null;
+  /** what the step list shows: the progress, or the last there was while the page has no toggles, until the body is drawn again */
+  rows: StepProgress[] | null;
+}
+
+/** What the progress box says, and whether it is the complete one. */
+interface ProgressLine {
+  complete: boolean;
+  content: unknown;
+}
+
+/** A file name as a jump link. */
+const jump = (rel: string) =>
+  html`<code data-rel=${rel} role="link" tabindex="0" title=${`Scroll to ${rel}`}>${baseName(rel)}</code>`;
 const linkList = (rels: string[]) =>
-  rels.map(
-    (rel, index) => html`${index > 0 && ', '}<code ${jumpAttrs(rel)}>${baseName(rel)}</code>`,
-  );
+  rels.map((rel, index) => html`${index > 0 && ', '}${jump(rel)}`);
 
 export function createViewedTracker(context: PanelContext) {
   const { story, state, page, shell } = context;
   const { data } = story;
-  const { $ } = shell;
+  let snapshot: Snapshot | null = null;
+  let lastKey = '';
 
   /** How chapter `step`'s files to mark viewed stand: {due, viewed, unviewed, unknown, noToggle}. */
   function progressOf(step: number, blocks: Map<string, FileBlock>): StepProgress {
@@ -53,89 +77,50 @@ export function createViewedTracker(context: PanelContext) {
     };
   }
 
-  function renderFileMarks(blocks: Map<string, FileBlock>, earlyFor: (rel: string) => boolean) {
-    for (const el of shell.root.querySelectorAll<HTMLElement>('[data-viewed-for]')) {
-      const rel = el.getAttribute('data-viewed-for') as string;
-      const viewed = page.isViewed(rel, blocks);
-      const early = viewed === true && earlyFor(rel);
-      // its "Viewed ✓" button says it
-      const tagged =
-        !!el.parentElement &&
-        !!el.parentElement.querySelector(':scope > .ou-why > [data-mark-for]');
-      let text = '';
-      if (viewed === true && early) {
-        text = '⚠ viewed early';
-      } else if (viewed === true && !tagged) {
-        text = '✓ viewed';
-      }
-      el.textContent = text;
-      el.classList.toggle('ou-early', early);
-      el.title = early
-        ? `Marked viewed, but ${story.chapterName(story.finishedIn[rel])} covers more of it. You may want to unmark it until then.`
-        : '';
+  // ---------- what is drawn, from the snapshot
+
+  /** A file's mark in the file list: its text, whether it is early, and the hover. Null before the first look. */
+  function fileMark(rel: string, tagged: boolean) {
+    if (!snapshot) {
+      return null;
     }
-    // the button on a file this chapter finishes: "Mark viewed" until its Viewed toggle is on, then "Viewed ✓" (a click unticks it)
-    for (const el of shell.root.querySelectorAll<HTMLElement>('[data-mark-for]')) {
-      const rel = el.getAttribute('data-mark-for') as string;
-      const isOn = page.isViewed(rel, blocks) === true;
-      if (el.hasAttribute('data-mark-short')) {
-        el.textContent = isOn ? 'viewed ✓' : 'mark viewed';
-      } else {
-        el.textContent = isOn ? 'Viewed ✓' : 'Mark viewed';
-      }
-      el.classList.toggle('ou-st-viewed', isOn);
-      el.classList.toggle('ou-st-mark', !isOn);
-      el.setAttribute('aria-pressed', String(isOn));
-      el.title = isOn
-        ? `Viewed. Click to untick ${rel}'s Viewed checkbox`
-        : `Tick ${rel}'s Viewed checkbox`;
+    const viewed = snapshot.states.get(rel) ?? null;
+    const early = viewed === true && snapshot.early.has(rel);
+    let text = '';
+    if (viewed === true && early) {
+      text = '⚠ viewed early';
+    } else if (viewed === true && !tagged) {
+      text = '✓ viewed'; // a file with a "Viewed ✓" button says it there
     }
+    const title = early
+      ? `Marked viewed, but ${story.chapterName(story.finishedIn[rel])} covers more of it. You may want to unmark it until then.`
+      : '';
+    return { text, early, title };
   }
 
-  function renderEarlyBox(
-    blocks: Map<string, FileBlock>,
-    step: number,
-    earlyFor: (rel: string) => boolean,
-  ) {
-    const earlyBox = $('.ou-early-box');
-    if (!earlyBox) {
-      return;
-    }
-    const inChapter = step
-      ? new Set((context.chapter() as Chapter).files.map((file) => file.rel))
-      : new Set<string>();
-    const early = step
-      ? story.allRels.filter((rel) => earlyFor(rel) && page.isViewed(rel, blocks) === true)
-      : [];
-    setHtml(
-      earlyBox,
-      early.map((rel) => {
-        const owner = story.chapterName(story.finishedIn[rel]);
-        if (inChapter.has(rel)) {
-          return html`<p>⚠ <code ${jumpAttrs(rel)}>${baseName(rel)}</code> is marked viewed, but ${owner} covers more of it. You may want to unmark it until then.</p>`;
-        }
-        return html`<p>⚠ <code>${baseName(rel)}</code> is marked viewed early: it belongs to ${owner}. You may want to unmark it until then.</p>`;
-      }),
+  /** The Mark viewed button for a file, as a node. */
+  const markButton = (rel: string, short: boolean): VNode =>
+    markViewedNode(rel, short, snapshot ? snapshot.states.get(rel) === true : null, () =>
+      toggle(rel),
     );
-  }
 
-  function renderStepProgress(all: StepProgress[]) {
-    for (const el of shell.root.querySelectorAll<HTMLElement>('[data-prog-for]')) {
-      const progress = all[Number(el.getAttribute('data-prog-for')) - 1];
-      if (!progress || !progress.due || progress.noToggle) {
-        el.textContent = '';
-        continue;
-      }
-      const complete = progress.viewed === progress.due;
-      el.textContent = complete ? '✓' : `${progress.viewed}/${progress.due}`;
-      el.classList.toggle('ou-done', complete);
-      el.title = complete
-        ? 'Every file to mark viewed here is ticked'
-        : `${progress.viewed} of ${progress.due} marked viewed`;
+  /** A chapter's progress on the step list: its text, whether it is complete, the hover. Null when it has none to show. */
+  function stepProgress(step: number) {
+    const progress = snapshot?.rows?.[step - 1];
+    if (!progress || !progress.due || progress.noToggle) {
+      return null;
     }
+    const complete = progress.viewed === progress.due;
+    return {
+      text: complete ? '✓' : `${progress.viewed}/${progress.due}`,
+      done: complete,
+      title: complete
+        ? 'Every file to mark viewed here is ticked'
+        : `${progress.viewed} of ${progress.due} marked viewed`,
+    };
   }
 
-  function renderOverviewProgress(box: HTMLElement, all: StepProgress[]) {
+  function overviewProgress(all: StepProgress[]): ProgressLine {
     const writing = data.chapters.filter((chapter) => chapter.unwritten).length;
     const due = all.reduce((sum, progress) => sum + progress.due, 0);
     const viewed = all.reduce((sum, progress) => sum + progress.viewed, 0);
@@ -143,24 +128,90 @@ export function createViewedTracker(context: PanelContext) {
       .map((progress, index) => ({ progress, index }))
       .filter(({ progress }) => progress.viewed < progress.due)
       .map(({ index }) => index + 1);
-    box.classList.toggle('ou-complete', !!due && viewed === due && !writing);
+    const complete = !!due && viewed === due && !writing;
     const stillWriting = writing ? ` · ${plural(writing, 'chapter')} still being written` : '';
     if (!due) {
-      setHtml(box, writing ? html`<span>${stillWriting.slice(3)}</span>` : '');
-    } else if (viewed === due && writing) {
-      setHtml(box, html`<b>${viewed} of ${due}</b> files marked viewed${stillWriting}`);
-    } else if (viewed === due) {
-      setHtml(box, html`<span class="ou-done">✓ All ${due} files marked viewed</span>`);
-    } else {
-      const still = left.length
-        ? ` · ${left.map(story.chapterName).join(', ')} still ${left.length > 1 ? 'have' : 'has'} some to go`
-        : '';
-      setHtml(box, html`<b>${viewed} of ${due}</b> files marked viewed${still}${stillWriting}`);
+      return { complete, content: writing ? html`<span>${stillWriting.slice(3)}</span>` : null };
     }
+    if (viewed === due && writing) {
+      return {
+        complete,
+        content: html`<b>${viewed} of ${due}</b> files marked viewed${stillWriting}`,
+      };
+    }
+    if (viewed === due) {
+      return {
+        complete,
+        content: html`<span class="ou-done">✓ All ${due} files marked viewed</span>`,
+      };
+    }
+    const still = left.length
+      ? ` · ${left.map(story.chapterName).join(', ')} still ${left.length > 1 ? 'have' : 'has'} some to go`
+      : '';
+    return {
+      complete,
+      content: html`<b>${viewed} of ${due}</b> files marked viewed${still}${stillWriting}`,
+    };
   }
 
-  /** Redraws every viewed mark in the panel from the page's Viewed toggles. */
-  function render() {
+  function chapterProgress(progress: StepProgress | undefined): ProgressLine {
+    if (!progress || !progress.due) {
+      const waiting = context.chapter()?.unwritten;
+      return {
+        complete: false,
+        content: waiting
+          ? html`<span>Mark viewed unlocks when this chapter's story is written</span>`
+          : html`<span>Nothing to mark viewed in this chapter</span>`,
+      };
+    }
+    if (progress.viewed === progress.due) {
+      return {
+        complete: true,
+        content: html`<span class="ou-done">✓ All ${progress.due} marked viewed</span>`,
+      };
+    }
+    const toMark =
+      progress.unviewed.length > 0 && html` · still to mark: ${linkList(progress.unviewed)}`;
+    const notLoaded = progress.unknown.length > 0 && ` · ${progress.unknown.length} not loaded yet`;
+    return {
+      complete: false,
+      content: html`<b>${progress.viewed} of ${progress.due}</b> marked viewed${toMark}${notLoaded}`,
+    };
+  }
+
+  /** The progress box and the early box that sit under the story's first heading. */
+  function boxes(): VNode[] {
+    const snap = snapshot;
+    let progress: ProgressLine = { complete: false, content: null };
+    if (snap?.progress) {
+      progress =
+        snap.step === 0
+          ? overviewProgress(snap.progress)
+          : chapterProgress(snap.progress[snap.step - 1]);
+    }
+    const early = snap && snap.step ? snap.earlyList : [];
+    const inChapter = snap && snap.step ? context.inChapter() : new Set<string>();
+    const lines = early.map((rel) => {
+      const owner = story.chapterName(story.finishedIn[rel]);
+      if (inChapter.has(rel)) {
+        return html`<p>⚠ ${jump(rel)} is marked viewed, but ${owner} covers more of it. You may want to unmark it until then.</p>`;
+      }
+      return html`<p>⚠ <code>${baseName(rel)}</code> is marked viewed early: it belongs to ${owner}. You may want to unmark it until then.</p>`;
+    });
+    return [
+      html`<div class=${progress.complete ? 'ou-progress ou-complete' : 'ou-progress'} aria-live="polite">${progress.content}</div>`,
+      html`<div class="ou-early-box" role="status">${lines}</div>`,
+    ];
+  }
+
+  // ---------- reading the page
+
+  /**
+   * Reads the page's Viewed toggles into the snapshot, and tells the reading part what they say. True when what the panel draws
+   * changed. It draws nothing itself: render() does that, and a step change, which draws anyway, calls this first with `fresh`: the
+   * body is drawn again, so the step list starts blank until there are toggles to read.
+   */
+  function compute(fresh = false): boolean {
     const blocks = page.blocksByPath();
     // viewed too early: a file whose last chapter is still to come (it comes back later, or it's only a later chapter's), never one already finished,
     // one they've read in its last chapter (a review done earlier, or before read tracking), or any on a "Since you read it" step
@@ -171,55 +222,64 @@ export function createViewedTracker(context: PanelContext) {
       readInfo: context.reading.info,
       step,
     });
-    renderFileMarks(blocks, earlyFor);
-    renderEarlyBox(blocks, step, earlyFor);
-    const box = $('.ou-progress');
-    if (!box) {
-      return;
-    }
-    box.classList.remove('ou-complete');
-    const all = data.chapters.map((chapter, index) => progressOf(index + 1, blocks));
-    if (
-      all.some((progress) => progress.noToggle) &&
-      !all.some((progress) => progress.viewed || progress.unviewed.length)
-    ) {
-      setHtml(box, ''); // no Viewed toggles on this page to read
-      return;
-    }
-    context.reading.noteProgress(all);
-    renderStepProgress(all);
-    if (state.n === 0) {
-      renderOverviewProgress(box, all);
-      return;
-    }
-    const progress = all[state.n - 1];
-    // ticking the last of a chapter's files counts as reading it (only a change seen here, not a chapter already complete on load)
-    context.reading.noteComplete(
-      state.n,
-      !!(progress && progress.due && progress.viewed === progress.due),
+    const states = new Map<string, Toggle>(
+      [...context.inChapter()].map((rel) => [rel, page.isViewed(rel, blocks)]),
     );
-    if (!progress || !progress.due) {
-      const waiting = context.chapter()?.unwritten;
-      setHtml(
-        box,
-        waiting
-          ? html`<span>Mark viewed unlocks when this chapter's story is written</span>`
-          : html`<span>Nothing to mark viewed in this chapter</span>`,
-      );
-      return;
+    const early = new Set([...states.keys()].filter((rel) => earlyFor(rel)));
+    const earlyList = step
+      ? story.allRels.filter((rel) => earlyFor(rel) && page.isViewed(rel, blocks) === true)
+      : [];
+    let progress: StepProgress[] | null = null;
+    if (context.body.ready()) {
+      const all = data.chapters.map((chapter, index) => progressOf(index + 1, blocks));
+      const noToggles =
+        all.some((each) => each.noToggle) &&
+        !all.some((each) => each.viewed || each.unviewed.length);
+      if (!noToggles) {
+        progress = all;
+        context.reading.noteProgress(all);
+        if (step > 0) {
+          const mine = all[step - 1];
+          // ticking the last of a chapter's files counts as reading it (only a change seen here, not a chapter already complete on load)
+          context.reading.noteComplete(step, !!(mine && mine.due && mine.viewed === mine.due));
+        }
+      }
     }
-    if (progress.viewed === progress.due) {
-      box.classList.add('ou-complete');
-      setHtml(box, html`<span class="ou-done">✓ All ${progress.due} marked viewed</span>`);
-      return;
+    const rows = progress ?? (fresh ? null : (snapshot?.rows ?? null));
+    snapshot = { step, states, early, earlyList, progress, rows };
+    const key = JSON.stringify([step, [...states], [...early], earlyList, progress, rows]);
+    const changed = key !== lastKey;
+    lastKey = key;
+    return changed;
+  }
+
+  /**
+   * The Mark viewed buttons in the question answers, which the questions part draws as markup outside the Preact tree: "Mark viewed"
+   * until the file's Viewed toggle is on, then "Viewed ✓". The questions part calls it after each draw, and render() on each look.
+   */
+  function markDock() {
+    const blocks = page.blocksByPath();
+    for (const el of shell.root.querySelectorAll<HTMLElement>('.ou-chatbody [data-mark-for]')) {
+      const rel = el.getAttribute('data-mark-for') as string;
+      const isOn = page.isViewed(rel, blocks) === true;
+      const short = el.hasAttribute('data-mark-short');
+      const label = isOn ? 'viewed ✓' : 'mark viewed';
+      el.textContent = short ? label : capitalize(label);
+      el.classList.toggle('ou-st-viewed', isOn);
+      el.classList.toggle('ou-st-mark', !isOn);
+      el.setAttribute('aria-pressed', String(isOn));
+      el.title = isOn
+        ? `Viewed. Click to untick ${rel}'s Viewed checkbox`
+        : `Tick ${rel}'s Viewed checkbox`;
     }
-    const toMark =
-      progress.unviewed.length > 0 && html` · still to mark: ${linkList(progress.unviewed)}`;
-    const notLoaded = progress.unknown.length > 0 && ` · ${progress.unknown.length} not loaded yet`;
-    setHtml(
-      box,
-      html`<b>${progress.viewed} of ${progress.due}</b> marked viewed${toMark}${notLoaded}`,
-    );
+  }
+
+  /** Redraws the viewed marks from the page's Viewed toggles. */
+  function render() {
+    if (compute()) {
+      shell.redraw();
+    }
+    markDock();
   }
 
   // Classic /files ticks a checkbox (no attribute change), and Refined GitHub's batch
@@ -272,7 +332,20 @@ export function createViewedTracker(context: PanelContext) {
     document.removeEventListener('click', recheck, true);
   }
 
-  return { render, toggle, progressOf, leftToMark, leavingMessage, destroy };
+  return {
+    compute,
+    render,
+    markDock,
+    toggle,
+    progressOf,
+    leftToMark,
+    leavingMessage,
+    fileMark,
+    markButton,
+    stepProgress,
+    boxes,
+    destroy,
+  };
 }
 
 export type ViewedTracker = ReturnType<typeof createViewedTracker>;

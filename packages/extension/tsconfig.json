@@ -4,7 +4,10 @@
     "lib": ["es2023", "dom", "dom.iterable"],
     "module": "esnext",
     "moduleResolution": "bundler",
-    "types": ["chrome"]
+    "types": ["chrome"],
+    "paths": {
+      "/assets/preact.mjs": ["../web/public/types/preact.d.ts"]
+    }
   },
   "include": ["src", "../panel/types", ".wxt/wxt.d.ts"]
 }

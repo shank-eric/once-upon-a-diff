@@ -1,5 +1,5 @@
 /*
- * What changed since: the marks on the step list and the file list. They
+ * What changed since: the marks on the step list and the file list (drawn with them, from `stepTags` and `fileTags`). They
  * come from two of the bridge's answers: freshness (commits after the story
  * was told, or the ones its last update brought in) and reads (commits after
  * they read a chapter). One renderer draws all three kinds, and each mark's
@@ -7,8 +7,7 @@
  *
  * marksOf has no DOM, so node tests can use it.
  */
-import { html } from '@once-upon-a-diff/protocol/domain/html';
-import { insertHtml } from '../dom.ts';
+import { html } from '/assets/preact.mjs';
 import { shortSha } from '@once-upon-a-diff/protocol/domain/text';
 import type { FreshUpdate, Freshness, ReadInfo } from '@once-upon-a-diff/protocol/types';
 
@@ -102,30 +101,30 @@ export function createMarks(context: PanelContext) {
     const words = WORDING[mark.why];
     const title = where === 'file' ? words.fileTitle(mark) : words.stepTitle(mark);
     const text = where === 'file' ? words.file(mark) : words.step(mark);
-    return html`<span class="ou-chg" data-why="${mark.why}" title="${title}">${text}</span>`;
+    return html`<span class="ou-chg" data-why=${mark.why} title=${title}>${text}</span>`;
   };
+  const current = () => marksOf(context.freshness.current, context.reading.info);
 
+  /** The tags on a step's row in the step list, in the order the marks come. */
+  const stepTags = (step: number) =>
+    current()
+      .filter((mark) => mark.steps.includes(step))
+      .map((mark) => tag(mark, 'step'));
+
+  /** The tags on a file's row: the marks for this step that name it, the last one first. */
+  const fileTags = (rel: string) =>
+    current()
+      .filter((mark) => mark.onlyOn === null || mark.onlyOn === state.n)
+      .filter((mark) => mark.files.includes(rel))
+      .map((mark) => tag(mark, 'file'))
+      .reverse();
+
+  /** Draws the tags again (the freshness or the reads changed). */
   function render() {
-    for (const el of shell.root.querySelectorAll('.ou-chg')) {
-      el.remove();
-    }
-    const marks = marksOf(context.freshness.current, context.reading.info);
-    for (const item of shell.root.querySelectorAll('ol.ou-map li[data-n]')) {
-      const step = Number(item.getAttribute('data-n'));
-      for (const mark of marks.filter((candidate) => candidate.steps.includes(step))) {
-        insertHtml(item, 'beforeend', tag(mark, 'step'));
-      }
-    }
-    const here = marks.filter((mark) => mark.onlyOn === null || mark.onlyOn === state.n);
-    for (const item of shell.root.querySelectorAll('ul.ou-files > li[data-file]')) {
-      const rel = item.getAttribute('data-file');
-      for (const mark of here.filter((candidate) => candidate.files.includes(rel as string))) {
-        insertHtml(item.querySelector('code') as Element, 'afterend', tag(mark, 'file'));
-      }
-    }
+    shell.redraw();
   }
 
-  return { render };
+  return { render, stepTags, fileTags };
 }
 
 export type Marks = ReturnType<typeof createMarks>;

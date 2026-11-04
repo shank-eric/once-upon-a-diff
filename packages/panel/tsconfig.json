@@ -1,7 +1,12 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "lib": ["es2023", "dom", "dom.iterable"]
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "paths": {
+      "/assets/preact.mjs": ["../web/public/types/preact.d.ts"]
+    }
   },
   "include": ["src", "types"]
 }

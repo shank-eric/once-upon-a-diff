@@ -21,6 +21,12 @@ const EVENT_PROPERTIES = [
   'dragleave',
   'drop',
   'submit',
+  'toggle',
+  'input',
+  'change',
+  'focus',
+  'blur',
+  'keyup',
 ];
 
 export interface DomOptions {
@@ -44,13 +50,34 @@ export function installDom({ html, rootId, rect }: DomOptions) {
   installed = true;
   const { window, document } = parseHTML(html);
   const root = document.getElementById(rootId) as unknown as HTMLElement;
+  // an `el.onclick = fn` assignment runs fn on that event, as in a browser (Preact never assigns these: it adds listeners, and
+  // picks the lower-case event name only when `on<name>` exists on the element)
   for (const name of EVENT_PROPERTIES) {
+    const handlers = new WeakMap<object, { handler: unknown; listener: EventListener }>();
     Object.defineProperty(window.HTMLElement.prototype, `on${name}`, {
-      value: null,
-      writable: true,
+      get(this: HTMLElement) {
+        return handlers.get(this)?.handler ?? null;
+      },
+      set(this: HTMLElement, handler: unknown) {
+        const previous = handlers.get(this);
+        if (previous) {
+          this.removeEventListener(name, previous.listener);
+          handlers.delete(this);
+        }
+        if (typeof handler === 'function') {
+          const listener = (event: Event) => handler.call(this, event);
+          handlers.set(this, { handler, listener });
+          this.addEventListener(name, listener);
+        }
+      },
       configurable: true,
     });
   }
+  // linkedom has no requestSubmit: a submit event, which is what the form's listeners wait for
+  (window.HTMLElement.prototype as unknown as { requestSubmit: () => void }).requestSubmit =
+    function (this: HTMLElement) {
+      this.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+    };
   window.HTMLElement.prototype.getBoundingClientRect = function (this: HTMLElement) {
     if (rect) {
       return rect(this, root) as DOMRect;

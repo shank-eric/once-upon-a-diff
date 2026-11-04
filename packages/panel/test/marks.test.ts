@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { marksOf } from '../src/rebuild/marks.ts';
+import './preact.ts';
+
+const { marksOf } = await import('../src/rebuild/marks.ts');
 
 test('a stale story marks the chapters and files changed since it was told', () => {
   const marks = marksOf(
