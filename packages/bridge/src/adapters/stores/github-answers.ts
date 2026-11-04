@@ -15,7 +15,7 @@ const VERSION = 1;
 /** Entries this old are dropped, long after any card they could show has gone. */
 export const KEEP_MS = 7 * 24 * 3600 * 1000;
 
-/** The PR GitHub has for a branch (see BranchPr in auto-review.ts), as stored. */
+/** The PR GitHub has for a branch (see BranchPr in github-checks.ts), as stored. */
 export interface StoredBranchPr {
   number: number;
   state: 'open' | 'merged';

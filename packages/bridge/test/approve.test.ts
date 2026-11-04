@@ -15,7 +15,8 @@ import {
 import { createLocalStory } from '../src/services/stories/local-story.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
 import { Inbox } from '../src/services/inbox/inbox.ts';
-import { AutoReview, type BranchCheck } from '../src/services/review/auto-review.ts';
+import { AutoReview } from '../src/services/review/github-watcher.ts';
+import type { BranchCheck } from '../src/services/review/github-checks.ts';
 import { APPROVED_DAYS, approvalOf } from '../src/services/review/approve.ts';
 import { localEntries, localStories } from '../src/services/review/story-lists.ts';
 import { columnOf } from '../src/services/board/columns.ts';

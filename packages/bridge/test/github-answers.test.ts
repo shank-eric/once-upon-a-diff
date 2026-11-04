@@ -11,13 +11,13 @@ import { tmp, git, writeJson } from './helpers.ts';
 import { Board } from '../src/services/board/board.ts';
 import { Builds } from '../src/services/inbox/builds.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
-import {
-  AutoReview,
-  type BranchCheck,
-  type BranchPr,
-  type PrCheck,
-  type RequestedCheck,
-} from '../src/services/review/auto-review.ts';
+import { AutoReview } from '../src/services/review/github-watcher.ts';
+import type {
+  BranchCheck,
+  BranchPr,
+  PrCheck,
+  RequestedCheck,
+} from '../src/services/review/github-checks.ts';
 import {
   KEEP_MS,
   readGithubAnswers,

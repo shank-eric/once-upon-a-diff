@@ -66,15 +66,15 @@ import { pullRequestRoutes } from './routes/pull-request.ts';
 import { pushRoutes } from './routes/push.ts';
 import { boardRoutes } from './routes/board.ts';
 import { githubRoutes } from './routes/github.ts';
+import { AutoReview } from '../services/review/github-watcher.ts';
 import {
-  AutoReview,
   ghBranchCheck,
   ghPrCheck,
   ghRequestedCheck,
   type BranchCheck,
   type PrCheck,
   type RequestedCheck,
-} from '../services/review/auto-review.ts';
+} from '../services/review/github-checks.ts';
 import { UNPACKED_EXTENSION_ID, readSettings } from '../services/config/settings.ts';
 import type { ApiRoute, App, Body, Call, Send, StoryRoute } from './types.ts';
 

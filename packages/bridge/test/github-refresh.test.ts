@@ -10,13 +10,8 @@ import { tmp, git, writeJson, startBridge, TOKEN } from './helpers.ts';
 import { Board } from '../src/services/board/board.ts';
 import { Builds } from '../src/services/inbox/builds.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
-import {
-  AutoReview,
-  LIST_GAP_MS,
-  REFRESH_GAP_MS,
-  type BranchPr,
-  type PrFacts,
-} from '../src/services/review/auto-review.ts';
+import { AutoReview, LIST_GAP_MS, REFRESH_GAP_MS } from '../src/services/review/github-watcher.ts';
+import type { BranchPr, PrFacts } from '../src/services/review/github-checks.ts';
 import { noPrWatcher, type PrWatcher } from '../src/services/board/stages/pr-watcher.ts';
 import { boardKey } from '../src/services/pages/page-key.ts';
 import { EXTENSION_ROUTES } from '../../extension/src/bridge-routes.ts';

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// A stand-in for `gh api graphql` as auto-review.ts asks it: prints the canned answer in $FAKE_GH_PR_JSON.
+// A stand-in for `gh api graphql` as github-checks.ts asks it: prints the canned answer in $FAKE_GH_PR_JSON.
 // `gh api repos/...` (the rulesets lookup) prints $FAKE_GH_RULES_JSON, or fails when that isn't set.
 import { appendFileSync, readFileSync } from 'node:fs';
 

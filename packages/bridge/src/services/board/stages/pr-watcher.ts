@@ -1,8 +1,8 @@
 import type { LocalEntry } from '../../review/story-lists.ts';
-import type { BranchPr } from '../../review/auto-review.ts';
+import type { BranchPr } from '../../review/github-checks.ts';
 import type { InboxStory, PrInfo } from '@once-upon-a-diff/protocol/types';
 
-/** What the board asks of the GitHub watcher (review/auto-review.ts's AutoReview): it reads what it has and never waits. */
+/** What the board asks of the GitHub watcher (review/github-watcher.ts's AutoReview): it reads what it has and never waits. */
 export interface PrWatcher {
   kick(stories: InboxStory[]): void;
   kickInfo(repo: string, number: number): void;

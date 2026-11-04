@@ -7,7 +7,7 @@ import type { AnyRoute } from '@once-upon-a-diff/protocol/routes';
 import type { StoryStore } from '../services/stories/store.ts';
 import type { Inbox } from '../services/inbox/inbox.ts';
 import type { Build, Builds } from '../services/inbox/builds.ts';
-import type { AutoReview } from '../services/review/auto-review.ts';
+import type { AutoReview } from '../services/review/github-watcher.ts';
 import type { Board } from '../services/board/board.ts';
 import type { Sessions } from '../services/sessions/sessions.ts';
 import type { ServedStory } from '../services/stories/types.ts';

@@ -14,7 +14,7 @@
  *   local stories               a branch's story before any PR (`once-upon local`): on a card of that repo and branch (a
  *                               branch-only card when nothing else is there, while it waits for review), as its story
  *                               when the branch has no PR story, with the same Ready and Back to you rules
- *   GitHub, through AutoReview  per PR: approvals, merge state, checks, new comments (review/auto-review.ts). It is asked in
+ *   GitHub, through AutoReview  per PR: approvals, merge state, checks, new comments (review/github-watcher.ts). It is asked in
  *                               the background and the board reads what it has, so a poll never waits for GitHub. A
  *                               session's branch without a story is looked up the same way.
  *   <projects dir>              each session's transcript, to tell a session with no prompt yet (blank.ts): those are a

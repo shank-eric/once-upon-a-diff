@@ -10,14 +10,14 @@ import { tmp, git, writeJson } from './helpers.ts';
 import { Board } from '../src/services/board/board.ts';
 import { Builds } from '../src/services/inbox/builds.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
-import {
-  AutoReview,
-  type BranchCheck,
-  type BranchPr,
-  type PrCheck,
-  type PrFacts,
-  type RequestedCheck,
-} from '../src/services/review/auto-review.ts';
+import { AutoReview } from '../src/services/review/github-watcher.ts';
+import type {
+  BranchCheck,
+  BranchPr,
+  PrCheck,
+  PrFacts,
+  RequestedCheck,
+} from '../src/services/review/github-checks.ts';
 import type { BoardCard, PrInfo } from '@once-upon-a-diff/protocol/types';
 
 const START = Date.parse('2026-11-03T20:50:00Z');

@@ -2,7 +2,7 @@
  * POST /api/github/refresh {repo, branch?, number?, reason}: the extension saw you act on GitHub (submit a review, open or merge a
  * PR, mark it ready, close it). What the bridge last read about that branch's PR and your open PRs is marked stale, and the
  * board builds again right now, which asks GitHub again, so the card moves in seconds and not at the 3 minute poll
- * (../../services/review/auto-review.ts refresh). The token only. Its fields come from github.com's page, so the body is
+ * (../../services/review/github-watcher.ts refresh). The token only. Its fields come from github.com's page, so the body is
  * checked (parseBody) and nothing here reaches GitHub for a repo or branch the board doesn't already follow.
  */
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';

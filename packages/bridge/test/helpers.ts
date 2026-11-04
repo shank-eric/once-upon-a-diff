@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { AddressInfo } from 'node:net';
 import { createBridge, type Bridge } from '../src/server/index.ts';
-import type { BranchCheck, PrCheck, RequestedCheck } from '../src/services/review/auto-review.ts';
+import type { BranchCheck, PrCheck, RequestedCheck } from '../src/services/review/github-checks.ts';
 import {
   localEntries,
   localStory,

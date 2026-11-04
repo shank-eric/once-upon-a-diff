@@ -141,7 +141,7 @@ All of them reset on restart, and none is shared with CLI processes.
 | Is a session live (for a story's agent binding) | `services/inbox/binding.ts` | 2 s | per session |
 | Is Larmor's phone bridge listening | `adapters/larmor.ts` | 2 s | per port |
 | In-flight sets: a push per story, a Clean up per path, one phone call at a time | `server/routes/pull-request.ts`, `server/routes/push.ts`, `services/worktrees/worktree-clean.ts`, `services/board/board.ts` `phoneBusy` | while running | per story or path |
-| AutoReview: PR facts, `PrInfo`, branch PRs, requested list | `services/review/auto-review.ts` | 3 min (rules 30 min) | **grows with every PR and branch seen** |
+| AutoReview: PR facts, `PrInfo`, branch PRs, requested list | `services/review/github-watcher.ts` (rules: `merge-rules.ts`) | 3 min (rules 30 min) | **grows with every PR and branch seen** |
 | gh comments per PR, gh login | `services/review/drafts.ts` | 60 s, login kept until restart | grows per PR |
 | Freshness (head and compare) | `services/review/freshness.ts` | 60 s | grows per PR and head pair |
 | Repo per checkout (sync, never expires) and async (5 min) | `services/config/repos.ts` | none / 5 min | per dir. **The sync one never expires**, so a changed origin needs a restart |

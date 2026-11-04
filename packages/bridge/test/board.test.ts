@@ -79,10 +79,10 @@ import {
   ghBranchCheck,
   ghPrCheck,
   ghRequestedCheck,
-  mergeSummary,
-  AutoReview,
   type BranchPr,
-} from '../src/services/review/auto-review.ts';
+} from '../src/services/review/github-checks.ts';
+import { mergeSummary } from '../src/services/review/merge-rules.ts';
+import { AutoReview } from '../src/services/review/github-watcher.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
 import { localEntries, localStories, LOCAL_IDLE_DAYS } from '../src/services/review/story-lists.ts';
 import { createLocalStory } from '../src/services/stories/local-story.ts';
