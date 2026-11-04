@@ -161,6 +161,46 @@ test('status-many settles a pending build once its story turns up', async () => 
   }
 });
 
+test('status-many finishes a request only as it is now, not as its cached copy was', async () => {
+  const home = tmp('home');
+  const head = 'a'.repeat(40);
+  const dir = path.join(home, 'acme-widgets-7');
+  githubStory(dir, { meta: { head_oid: head } });
+  const builds = new Builds(home);
+  const update = builds.request({
+    repo: 'acme/widgets',
+    number: 7,
+    mode: 'update',
+    base_sha: head,
+  });
+  const bridge = await startBridge({ home });
+  try {
+    // the first call caches the update, told from the story's head, so not finished yet
+    await prStatus(bridge);
+    assert.equal(new Builds(home).get('acme/widgets', 7)!.status, 'pending');
+    // then the story's head moves, and a Rebuild replaces the queued update under the same key and id
+    const meta = JSON.parse(readFileSync(path.join(dir, 'meta.json'), 'utf8'));
+    writeFileSync(
+      path.join(dir, 'meta.json'),
+      JSON.stringify({ ...meta, head_oid: 'b'.repeat(40) }),
+    );
+    const rebuild = builds.requestRebuild({
+      story: 'acme-widgets-7',
+      meta: { ...meta, head_oid: 'b'.repeat(40) },
+      mode: 'rebuild',
+      chapters: 2,
+    });
+    assert.equal(rebuild.id, update.id);
+    // within the cache's 5 s the cached update looks finished by the new head, but the rebuild isn't published yet
+    await prStatus(bridge);
+    const now = new Builds(home).get('acme/widgets', 7)!;
+    assert.equal(now.mode, 'rebuild');
+    assert.equal(now.status, 'pending', 'a rebuild is finished only by publishing the story again');
+  } finally {
+    await bridge.close();
+  }
+});
+
 test('PR lists get ready / queued / building / none for many PRs in one call, and who is listening per repo', async () => {
   const home = tmp('home');
   githubStory(path.join(home, 'acme-widgets-7'));

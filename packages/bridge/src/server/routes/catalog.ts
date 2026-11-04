@@ -74,8 +74,10 @@ function prStatus(
   }
   const id = hits.sort((first, second) => Number(second.version) - Number(first.version))[0].id;
   // a PR list or a tag polling status-many settles a build request too (storyFinishes, as publish does)
-  if (storyFinishes(build, readMeta(app.stories.dirOf(id) as string).head_oid)) {
-    build = app.builds.view(app.builds.done(build.id, { story: id }));
+  const storyHead = readMeta(app.stories.dirOf(id) as string).head_oid || null;
+  if (storyFinishes(build, storyHead)) {
+    // settle checks again under the lock: the cached request may have been finished or replaced since
+    build = app.builds.view(app.builds.settle(repo, number, { story: id, head: storyHead }));
     app.statusCache = null;
   }
   const pending = !!(build && build.status === 'pending');
@@ -87,7 +89,7 @@ function prStatus(
     number,
     state: 'ready',
     story: id,
-    story_head: readMeta(app.stories.dirOf(id) as string).head_oid || null,
+    story_head: storyHead,
     updating,
     update_state: updating ? build!.state : null,
     update_mode: updating ? build!.mode : null,

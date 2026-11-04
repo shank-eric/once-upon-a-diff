@@ -14,6 +14,11 @@
  * (`once-upon fixed`): fixed in <sha>, or returned to the drafts with why. The reviewer can take back a request
  * nobody has reported on, which returns its notes too.
  *
+ * fixes.json is the record, and a note's sent, fixed and returned marks follow from it (alignNotes): each change writes
+ * the request first, then brings the story's notes in line, so a crash between the two leaves notes a step behind, and
+ * the next look mends them. Both files are written under fixes.json's lock (adapters/stores/lock.ts), so the bridge and
+ * the CLI can't lose each other's writes.
+ *
  * Routing is the questions' rule (conversation.ts), among the waits that take fix requests: a live story listener
  * gets its story's requests, and a repo or catch-all wait leaves them alone while it's live. A wait claims each
  * request it hands over, so no request goes to two sessions.
@@ -22,7 +27,8 @@ import path from 'node:path';
 import { newId } from './inbox.ts';
 import { sameRepo } from '../config/repos.ts';
 import { answeringOf, listeners } from '../listeners/listeners.ts';
-import { readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
+import { withLock } from '../../adapters/stores/lock.ts';
+import { RequestQueue } from './queue.ts';
 import type { FixNote, LocalNote, Side } from '@once-upon-a-diff/protocol/types';
 import type { Inbox } from './inbox.ts';
 import type { Listener } from '../listeners/listeners.ts';
@@ -86,15 +92,112 @@ export function noteState(note: LocalNote): FixNote['state'] {
 }
 
 const fixesFile = (home: string) => path.join(home, 'fixes.json');
-export const readFixes = (home: string): Record<string, FixRequest> =>
-  readJson<Record<string, FixRequest>>(fixesFile(home), {}) || {};
-const saveFixes = (home: string, all: Record<string, FixRequest>) =>
-  writeJsonAtomic(fixesFile(home), all);
+/** fixes.json as a queue: a wait's claim on a fix request lasts until it's reported on or taken back. */
+const fixesQueue = (home: string) =>
+  new RequestQueue<FixRequest>(fixesFile(home), { claimFreshMs: null });
+export const readFixes = (home: string): Record<string, FixRequest> => fixesQueue(home).all();
+/** Runs `work` under the lock that fixes.json and every story's notes.json are written under. */
+const locked = <T>(home: string, work: () => T): T => withLock(fixesFile(home), work);
 
 export const readNotes = (store: StoryStore, story: string): LocalNote[] =>
   store.readState<LocalNote[]>(story, 'notes.json', []) || [];
 const saveNotes = (store: StoryStore, story: string, notes: LocalNote[]) =>
   store.writeState(story, 'notes.json', notes);
+
+/** Why a note came back from a request, when the session gave no reason. */
+const returnedWhy = (request: FixRequest) => {
+  if (request.status === 'taken_back') {
+    return 'taken back';
+  }
+  return request.why || (request.status === 'failed' ? 'not fixed' : 'not in this change');
+};
+
+/** Gives the note the marks its latest request says it has. */
+function applyRequest(note: LocalNote, request: FixRequest, now: string): void {
+  if (request.status === 'pending') {
+    if (note.sent?.request !== request.id) {
+      note.sent = { request: request.id, to: request.to, at: request.requested_at };
+      delete note.returned;
+    }
+  } else if (request.status === 'done' && (request.fixed || []).includes(note.id)) {
+    if (note.fixed?.request !== request.id) {
+      delete note.sent;
+      note.fixed = {
+        request: request.id,
+        sha: request.sha as string, // a fix has its sha
+        by: request.by ?? null,
+        at: request.done_at || now,
+      };
+      note.done = true;
+    }
+  } else if (note.sent || note.returned?.request !== request.id) {
+    delete note.sent;
+    note.returned = {
+      request: request.id,
+      sha: request.sha ?? null,
+      why: returnedWhy(request),
+      at: request.done_at || now,
+    };
+  }
+}
+
+/**
+ * Brings a story's notes in line with its fix requests (the record), in place: each note takes the marks of the latest
+ * request that carries it, and a note sent to a request fixes.json doesn't have goes back to the drafts. True when a note
+ * changed.
+ */
+function alignNotes(notes: LocalNote[], requests: FixRequest[], now: string): boolean {
+  const latest = new Map<string, FixRequest>();
+  const oldestFirst = [...requests].sort((first, second) =>
+    first.requested_at.localeCompare(second.requested_at),
+  );
+  for (const request of oldestFirst) {
+    for (const carried of request.notes) {
+      latest.set(carried.id, request);
+    }
+  }
+  let changed = false;
+  for (const note of notes) {
+    const before = JSON.stringify(note);
+    const request = latest.get(note.id);
+    if (request) {
+      applyRequest(note, request, now);
+    } else if (note.sent) {
+      note.returned = {
+        request: note.sent.request,
+        sha: null,
+        why: 'lost: its request was never saved',
+        at: now,
+      };
+      delete note.sent;
+    }
+    changed ||= JSON.stringify(note) !== before;
+  }
+  return changed;
+}
+
+const requestsOf = (home: string, story: string) =>
+  Object.values(readFixes(home)).filter((request) => request.story === story);
+
+/** The story's notes in line with fixes.json, saved when they weren't. Call it under the lock. */
+function syncNotes(home: string, store: StoryStore, story: string): LocalNote[] {
+  const notes = readNotes(store, story);
+  if (alignNotes(notes, requestsOf(home, story), new Date().toISOString())) {
+    saveNotes(store, story, notes);
+  }
+  return notes;
+}
+
+/** The story's notes as they should be: read without the lock, and mended under it when they lag fixes.json. */
+function currentNotes(home: string, store: StoryStore, story: string): LocalNote[] {
+  const notes = readNotes(store, story);
+  const lagging = alignNotes(
+    structuredClone(notes),
+    requestsOf(home, story),
+    new Date().toISOString(),
+  );
+  return lagging ? locked(home, () => syncNotes(home, store, story)) : notes;
+}
 
 /** The story's Auto-send setting: each note is sent as it's added. Off unless the reviewer turned it on. */
 export const autoSendOf = (store: StoryStore, story: string): boolean =>
@@ -140,44 +243,41 @@ export function sendNotes(
     live = null,
   }: { ids?: string[] | null; inbox?: Inbox | null; live?: Listener[] | null } = {},
 ): FixRequest {
-  const notes = readNotes(store, story.id);
-  const chosen = notes.filter(
-    (note) => noteState(note) === 'draft' && (!ids || ids.includes(note.id)),
-  );
-  if (!chosen.length) {
-    throw failure(400, 'no notes to send: every note is already sent or fixed');
-  }
   const goTo = fixesGoTo(home, { repo: story.ref.repo, story: story.id }, live);
-  const now = new Date().toISOString();
-  const request: FixRequest = {
-    id: newId('f'),
-    story: story.id,
-    repo: story.ref.repo || null,
-    kind: story.meta.kind,
-    title: story.ref.title || null,
-    url: story.meta.url || null,
-    ...whereOf(story.meta),
-    notes: chosen.map((note) => ({
-      id: note.id,
-      path: note.path,
-      side: note.side,
-      line: note.line,
-      body: note.body,
-      chapter: note.chapter ?? null,
-      from_draft: !!note.draft,
-    })),
-    to: goTo ? goTo.consumer : null,
-    requested_at: now,
-    status: 'pending',
-  };
-  for (const note of chosen) {
-    note.sent = { request: request.id, to: request.to, at: now };
-    delete note.returned;
-  }
-  saveNotes(store, story.id, notes);
-  const all = readFixes(home);
-  all[request.id] = request;
-  saveFixes(home, all);
+  const request = locked(home, () => {
+    const chosen = syncNotes(home, store, story.id).filter(
+      (note) => noteState(note) === 'draft' && (!ids || ids.includes(note.id)),
+    );
+    if (!chosen.length) {
+      throw failure(400, 'no notes to send: every note is already sent or fixed');
+    }
+    const made: FixRequest = {
+      id: newId('f'),
+      story: story.id,
+      repo: story.ref.repo || null,
+      kind: story.meta.kind,
+      title: story.ref.title || null,
+      url: story.meta.url || null,
+      ...whereOf(story.meta),
+      notes: chosen.map((note) => ({
+        id: note.id,
+        path: note.path,
+        side: note.side,
+        line: note.line,
+        body: note.body,
+        chapter: note.chapter ?? null,
+        from_draft: !!note.draft,
+      })),
+      to: goTo ? goTo.consumer : null,
+      requested_at: new Date().toISOString(),
+      status: 'pending',
+    };
+    fixesQueue(home).update((all) => {
+      all[made.id] = made;
+    });
+    syncNotes(home, store, story.id);
+    return made;
+  });
   if (inbox) {
     inbox.append({
       type: 'fix',
@@ -191,22 +291,6 @@ export function sendNotes(
   return request;
 }
 
-/** A pending request's notes go back to the drafts, each saying why. */
-function returnNotes(
-  store: StoryStore,
-  request: FixRequest,
-  returned: { sha: string | null; why: string; at: string },
-): void {
-  const notes = readNotes(store, request.story);
-  for (const note of notes) {
-    if (note.sent && note.sent.request === request.id) {
-      delete note.sent;
-      note.returned = { request: request.id, ...returned };
-    }
-  }
-  saveNotes(store, request.story, notes);
-}
-
 /** The reviewer takes back a request nobody has reported on: its notes are drafts again, to edit or send again. */
 export function takeBack(
   home: string,
@@ -214,19 +298,22 @@ export function takeBack(
   storyId: string,
   requestId: string,
 ): FixRequest {
-  const all = readFixes(home);
-  const request = all[requestId];
-  if (!request || request.story !== storyId) {
-    throw failure(404, 'no such fix request');
-  }
-  if (request.status !== 'pending') {
-    throw failure(409, `that request is ${request.status} already`);
-  }
-  const now = new Date().toISOString();
-  Object.assign(request, { status: 'taken_back', done_at: now });
-  saveFixes(home, all);
-  returnNotes(store, request, { sha: null, why: 'taken back', at: now });
-  return request;
+  return locked(home, () => {
+    const request = fixesQueue(home).finish(requestId, (found) => {
+      if (found.story !== storyId) {
+        throw failure(404, 'no such fix request');
+      }
+      if (found.status !== 'pending') {
+        throw failure(409, `that request is ${found.status} already`);
+      }
+      return { status: 'taken_back' };
+    });
+    if (!request) {
+      throw failure(404, 'no such fix request');
+    }
+    syncNotes(home, store, request.story);
+    return request;
+  });
 }
 
 /**
@@ -253,58 +340,40 @@ export function reportFix(
     inbox?: Inbox | null;
   } = {},
 ): FixRequest {
-  const all = readFixes(home);
-  const request = all[requestId];
-  if (!request) {
-    throw failure(404, `no fix request ${requestId}`);
-  }
-  if (request.status === 'taken_back') {
-    throw failure(
-      409,
-      `the reviewer took ${requestId} back at ${request.done_at}; its notes are drafts again`,
-    );
-  }
-  if (request.status !== 'pending') {
-    throw failure(409, `${requestId} is ${request.status} already`);
-  }
-  if (!failed && !sha) {
-    throw failure(400, 'say which commit fixed it (--sha), or --failed with why');
-  }
-  const ids = request.notes.map((note) => note.id);
-  const fixedIds = failed ? [] : fixed || ids;
-  const unknown = fixedIds.filter((id) => !ids.includes(id));
-  if (unknown.length) {
-    throw failure(400, `not in ${requestId}: ${unknown.join(', ')}`);
-  }
-  const now = new Date().toISOString();
-  const notes = readNotes(store, request.story);
-  for (const note of notes) {
-    if (!note.sent || note.sent.request !== request.id) {
-      continue;
-    }
-    delete note.sent;
-    if (fixedIds.includes(note.id)) {
-      note.fixed = { request: request.id, sha: sha as string, by: reporter, at: now }; // a fix has its sha
-      note.done = true;
-    } else {
-      note.returned = {
-        request: request.id,
+  const request = locked(home, () => {
+    const reported = fixesQueue(home).finish(requestId, (found) => {
+      if (found.status === 'taken_back') {
+        throw failure(
+          409,
+          `the reviewer took ${requestId} back at ${found.done_at}; its notes are drafts again`,
+        );
+      }
+      if (found.status !== 'pending') {
+        throw failure(409, `${requestId} is ${found.status} already`);
+      }
+      if (!failed && !sha) {
+        throw failure(400, 'say which commit fixed it (--sha), or --failed with why');
+      }
+      const ids = found.notes.map((note) => note.id);
+      const fixedIds = failed ? [] : fixed || ids;
+      const unknown = fixedIds.filter((id) => !ids.includes(id));
+      if (unknown.length) {
+        throw failure(400, `not in ${requestId}: ${unknown.join(', ')}`);
+      }
+      return {
+        status: failed ? 'failed' : 'done',
         sha,
-        why: why || (failed ? 'not fixed' : 'not in this change'),
-        at: now,
+        fixed: fixedIds,
+        why: why || null,
+        by: reporter,
       };
+    });
+    if (!reported) {
+      throw failure(404, `no fix request ${requestId}`);
     }
-  }
-  saveNotes(store, request.story, notes);
-  Object.assign(request, {
-    status: failed ? 'failed' : 'done',
-    done_at: now,
-    sha,
-    fixed: fixedIds,
-    why: why || null,
-    by: reporter,
+    syncNotes(home, store, reported.story);
+    return reported;
   });
-  saveFixes(home, all);
   if (inbox) {
     inbox.append({
       type: 'fix',
@@ -313,7 +382,7 @@ export function reportFix(
       repo: request.repo,
       request: request.id,
       sha,
-      notes: fixedIds,
+      notes: request.fixed || [],
       by: reporter,
     });
   }
@@ -345,35 +414,17 @@ export function fixesToHand(
   scope: { repo?: string | null; story?: string | null },
   { live = null }: { live?: Listener[] | null } = {},
 ) {
-  const all = readFixes(home);
-  const pending = Object.values(all).filter(
-    (request) => request.status === 'pending' && !request.claimed_by,
-  );
-  if (!pending.length) {
-    return [];
-  }
   const storyListeners = fixListeners(home, live).filter(
     (listener) => listener.story && listener.consumer !== consumer,
   );
-  const now = new Date().toISOString();
-  const taken: ReturnType<typeof handOverEntry>[] = [];
-  for (const request of pending) {
-    let mine;
+  const mine = (request: FixRequest) => {
     if (scope.story) {
-      mine = request.story === scope.story;
-    } else {
-      const inRepo = !scope.repo || (request.repo && sameRepo(request.repo, scope.repo));
-      mine = inRepo && !storyListeners.some((listener) => listener.story === request.story);
+      return request.story === scope.story;
     }
-    if (mine) {
-      Object.assign(request, { claimed_by: consumer, claimed_at: now });
-      taken.push(handOverEntry(request));
-    }
-  }
-  if (taken.length) {
-    saveFixes(home, all);
-  }
-  return taken;
+    const inRepo = !scope.repo || (!!request.repo && sameRepo(request.repo, scope.repo));
+    return inRepo && !storyListeners.some((listener) => listener.story === request.story);
+  };
+  return fixesQueue(home).take(consumer, mine).map(handOverEntry);
 }
 
 /** The story's fix-before-push state as the panel shows it: its notes, Auto-send, who'd get a send, and its requests. */
@@ -399,7 +450,7 @@ export function fixesView(
       notes: request.notes.map((note) => note.id),
     }));
   return {
-    notes: readNotes(store, story.id).map((note) => ({ ...note, state: noteState(note) })),
+    notes: currentNotes(home, store, story.id).map((note) => ({ ...note, state: noteState(note) })),
     auto_send: autoSendOf(store, story.id),
     to: fixesGoTo(home, { repo: story.ref.repo, story: story.id }, live),
     requests,
@@ -424,7 +475,6 @@ export function addNote(
   },
   { inbox = null }: { inbox?: Inbox | null } = {},
 ) {
-  const notes = readNotes(store, story.id);
   const note: LocalNote = {
     id: newId('n'),
     at: new Date().toISOString(),
@@ -438,8 +488,7 @@ export function addNote(
     ...(fields.draft ? { draft: fields.draft } : {}),
     ...(fields.chapter != null ? { chapter: fields.chapter } : {}),
   };
-  notes.push(note);
-  saveNotes(store, story.id, notes);
+  locked(home, () => saveNotes(store, story.id, [...readNotes(store, story.id), note]));
   if (inbox) {
     inbox.append({
       type: 'note',
@@ -466,38 +515,40 @@ export function updateNote(
   changes: { delete?: unknown; body?: unknown; done?: unknown },
   { inbox = null }: { inbox?: Inbox | null } = {},
 ) {
-  const notes = readNotes(store, story.id);
-  const index = notes.findIndex((note) => note.id === noteId);
-  if (index < 0) {
-    throw failure(404, 'no such note');
-  }
-  const note = notes[index];
-  const editing = changes.delete || (typeof changes.body === 'string' && changes.body.trim());
-  if (editing && noteState(note) !== 'draft') {
-    const why =
-      noteState(note) === 'sent'
-        ? `it's with ${note.sent!.to || 'a Claude session'}; take the request back to change it`
-        : 'it was fixed already';
-    throw failure(409, `that note can't be changed now: ${why}`);
-  }
-  if (changes.delete) {
-    notes.splice(index, 1);
+  return locked(store.home, () => {
+    const notes = syncNotes(store.home, store, story.id);
+    const index = notes.findIndex((note) => note.id === noteId);
+    if (index < 0) {
+      throw failure(404, 'no such note');
+    }
+    const note = notes[index];
+    const editing = changes.delete || (typeof changes.body === 'string' && changes.body.trim());
+    if (editing && noteState(note) !== 'draft') {
+      const why =
+        noteState(note) === 'sent'
+          ? `it's with ${note.sent!.to || 'a Claude session'}; take the request back to change it`
+          : 'it was fixed already';
+      throw failure(409, `that note can't be changed now: ${why}`);
+    }
+    if (changes.delete) {
+      notes.splice(index, 1);
+      saveNotes(store, story.id, notes);
+      if (inbox) {
+        inbox.append({ type: 'note', ...story.ref, action: 'deleted', note });
+      }
+      return { deleted: note.id };
+    }
+    if ('done' in changes) {
+      note.done = !!changes.done;
+    }
+    if (typeof changes.body === 'string' && changes.body.trim()) {
+      note.body = changes.body.trim().slice(0, MAX_NOTE_BODY);
+    }
+    note.updated_at = new Date().toISOString();
     saveNotes(store, story.id, notes);
     if (inbox) {
-      inbox.append({ type: 'note', ...story.ref, action: 'deleted', note });
+      inbox.append({ type: 'note', ...story.ref, action: 'updated', note });
     }
-    return { deleted: note.id };
-  }
-  if ('done' in changes) {
-    note.done = !!changes.done;
-  }
-  if (typeof changes.body === 'string' && changes.body.trim()) {
-    note.body = changes.body.trim().slice(0, MAX_NOTE_BODY);
-  }
-  note.updated_at = new Date().toISOString();
-  saveNotes(store, story.id, notes);
-  if (inbox) {
-    inbox.append({ type: 'note', ...story.ref, action: 'updated', note });
-  }
-  return { ...note, state: noteState(note) };
+    return { ...note, state: noteState(note) };
+  });
 }
