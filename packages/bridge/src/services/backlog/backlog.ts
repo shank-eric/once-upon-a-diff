@@ -563,7 +563,9 @@ const SKIPS_REVIEW = /^(once-upon-a-diff|larmor)$/i;
  * one card):
  *
  *   open agent         a plan stop or a question is Waiting, for you; otherwise Working
- *   done, a branch     the work is not merged: Ready for review, or Ready to ship for once-upon-a-diff and Larmor
+ *   done, a branch     the work is not merged: Ready for review, or Ready to ship for once-upon-a-diff and Larmor, which
+ *                      only once its critic has passed with no fix round open (`hold`, claims.ts's criticHold: until then
+ *                      it stays in Agent checks or Working)
  *   done, card only    Done for DONE_HOURS after it ended, then off the board (it stays done, never back in Backlog)
  *   failed or stopped  back in Backlog, marked tried by the agent
  *
@@ -573,6 +575,7 @@ function agentColumn(
   item: BacklogItem,
   agent: NonNullable<BoardStartedLinks['agent']>,
   nowMs: number,
+  hold: BoardCard['column'] | null = null,
 ): { column: BoardCard['column']; when: number | null; tried: boolean } | null {
   const ended = Date.parse(agent.ended_at ?? '');
   const when = Number.isNaN(ended) ? null : ended;
@@ -587,7 +590,10 @@ function agentColumn(
   }
   if (item.state === 'started' && item.branch) {
     const repoName = (item.repo ?? '').split('/')[1] ?? '';
-    return { column: SKIPS_REVIEW.test(repoName) ? 'ship' : 'ready', when, tried: false };
+    if (SKIPS_REVIEW.test(repoName)) {
+      return { column: hold ?? 'ship', when, tried: false };
+    }
+    return { column: 'ready', when, tried: false };
   }
   return when !== null && nowMs - when > DONE_HOURS * 3600 * 1000
     ? null
@@ -634,7 +640,8 @@ export function cardOnBranch(
  *
  * A claimed card is one card: its claimed agent has no card of its own (stages/agents.ts holds it out) and shows on this
  * one, in `agents` (`views`, by item id). A claim whose agent has no ledger line yet is Working, marked pending, for
- * CLAIM_GRACE_HOURS. Dropped items are not shown.
+ * CLAIM_GRACE_HOURS. Dropped items are not shown. `holds` (by item id) keeps a finished card out of Ready to ship while its
+ * critic runs or its fixes are pending (criticHold).
  */
 export function backlogCards(
   items: BacklogItem[],
@@ -643,6 +650,7 @@ export function backlogCards(
   cardless: CardlessSession[] = [],
   links: Map<string, BoardStartedLinks> = new Map(),
   views: Map<string, BoardAgent> = new Map(),
+  holds: Map<string, BoardCard['column']> = new Map(),
 ): BoardCard[] {
   const shown: BoardCard[] = [];
   for (const original of items) {
@@ -676,7 +684,7 @@ export function backlogCards(
     if (agent && !(item.state === 'started' && (link?.merged || item.landed_at))) {
       // the claimed agent decides the column, whatever it is doing: Working while it runs, Waiting at a plan stop or a
       // question, then by what it produced (agentColumn)
-      const placed = agentColumn(item, agent, nowMs);
+      const placed = agentColumn(item, agent, nowMs, holds.get(item.id) ?? null);
       if (!placed) {
         continue;
       }

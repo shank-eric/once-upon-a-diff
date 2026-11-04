@@ -5,7 +5,7 @@
 import { checkoutFor, sameRepo, seenCheckouts } from '../../config/repos.ts';
 import { assignLine, backlogCards, cardOnBranch } from '../../backlog/backlog.ts';
 import type { BacklogItem } from '../../backlog/backlog.ts';
-import { sameAgentView } from '../../backlog/claims.ts';
+import { claimedAgent, criticHold, sameAgentView } from '../../backlog/claims.ts';
 import { agentLinks, startedLinks } from '../../backlog/backlog-links.ts';
 import type { Worktree } from '../../backlog/backlog-links.ts';
 import { checkoutsOf } from '../../worktrees/checkouts.ts';
@@ -212,6 +212,7 @@ export function addBacklogCards(
   links: Map<string, BoardStartedLinks>,
   { sessionViews, quietViews, pin, repoBySession }: AssignFacts,
   views: Map<string, BoardAgent> = new Map(),
+  agents: LedgerAgent[] = [],
 ): BoardCard[] {
   const { nowMs } = ctx;
   const cardless = [
@@ -222,7 +223,16 @@ export function addBacklogCards(
     })),
     ...(pin ? [{ repo: pin.repo, branch: pin.view.branch, label: 'Voice session' }] : []),
   ];
-  const added = backlogCards(backlogItems, cards, nowMs, cardless, links, views);
+  // a finished card waits out its critic's run and its fix round before it can be Ready to ship
+  const holds = new Map<string, BoardCard['column']>();
+  for (const item of backlogItems) {
+    const author = claimedAgent(item, agents);
+    const hold = author ? criticHold(item, author, agents, nowMs) : null;
+    if (hold) {
+      holds.set(item.id, hold);
+    }
+  }
+  const added = backlogCards(backlogItems, cards, nowMs, cardless, links, views, holds);
   const all = [...cards, ...added];
 
   // Assign: sends the voice session "Start backlog card ...", so every open item the board is not already working has it

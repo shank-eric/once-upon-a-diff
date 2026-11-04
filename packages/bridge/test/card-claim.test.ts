@@ -5,9 +5,11 @@ import path from 'node:path';
 import { claimAt, runCli, tmp, writeJson } from './helpers.ts';
 import { Board, noPrWatcher } from '../src/services/board/board.ts';
 import { BacklogStore, backlogCards } from '../src/services/backlog/backlog.ts';
-import { CLAIM_GRACE_HOURS, claimedAgents } from '../src/services/backlog/claims.ts';
+import { CLAIM_GRACE_HOURS, claimedAgents, criticHold } from '../src/services/backlog/claims.ts';
 import { startedLinks } from '../src/services/backlog/backlog-links.ts';
 import { parseLedger } from '../src/services/ledger/ledger.ts';
+import { STALE_MS } from '../src/services/ledger/events.ts';
+import { AgentRegistry } from '../src/services/ledger/registry.ts';
 import { registrySource } from '../src/services/sessions/sources.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
 import { Builds } from '../src/services/inbox/builds.ts';
@@ -242,4 +244,161 @@ test('`backlog claim` writes the claim, and --branch also starts the card', asyn
   const missing = await run('claim', item.id);
   assert.notEqual(missing.code, 0);
   assert.match(missing.stderr, /agent/);
+});
+
+test('a finished card in a skip-review repo is Ready to ship only once its critic has passed and no fix round is open', async () => {
+  const { home, cards, store } = world('');
+  const registry = new AgentRegistry(home);
+  const repo = 'shank-eric/once-upon-a-diff';
+  const stamp = (minutes: number) => new Date(Date.parse('2026-11-03T15:00:00Z') + minutes * 60000);
+  const item = store.add({ title: 'Build it', repo });
+  store.start(item.id, { branch: 'build-it' });
+  claimAt(store, item.id, 'ou-build', stamp(0).toISOString(), 'aaaaaaaa');
+  const author = { name: 'ou-build', sid: 'aaaaaaaa', repo, branch: 'build-it' } as const;
+  const critic = { name: 'review-build-it', sid: 'aaaaaaaa', repo, branch: 'build-it' } as const;
+  const columnAt = async (minutes: number) =>
+    (await cards(stamp(minutes))).find((one) => one.backlog?.id === item.id)?.column;
+
+  registry.start({ ...author, kind: 'builder', task: 'build it', at: stamp(0) });
+  assert.equal(await columnAt(5), 'working');
+  registry.finish('ou-build', { sid: 'aaaaaaaa', result: { branch: 'build-it' }, at: stamp(10) });
+  assert.equal(await columnAt(11), 'ship', 'built, and no critic has said anything yet');
+
+  registry.start({ ...critic, kind: 'reviewer', task: 'review it', at: stamp(11) });
+  assert.equal(await columnAt(12), 'checks', 'the critic is running');
+
+  registry.finish('review-build-it', { sid: 'aaaaaaaa', findings: 2, at: stamp(15) });
+  assert.equal(
+    await columnAt(16),
+    'checks',
+    'the critic found things and no fix round has finished',
+  );
+
+  registry.start({ ...author, kind: 'builder', task: 'fix the findings', at: stamp(17) });
+  assert.equal(await columnAt(18), 'working', 'the fix round is running');
+  registry.state('ou-build', { sid: 'aaaaaaaa', state: 'fixing', findings: 2, at: stamp(19) });
+  assert.equal(await columnAt(20), 'checks', 'the author is fixing');
+
+  registry.finish('ou-build', { sid: 'aaaaaaaa', result: { branch: 'build-it' }, at: stamp(25) });
+  assert.equal(await columnAt(26), 'ship', 'the author finished after the critic');
+});
+
+test('a critic that passed with no findings leaves a finished card in Ready to ship, and other repos are unaffected', async () => {
+  const { home, cards, store } = world('');
+  const registry = new AgentRegistry(home);
+  const stamp = (minutes: number) => new Date(Date.parse('2026-11-03T15:00:00Z') + minutes * 60000);
+  const columns: Record<string, string | undefined> = {};
+  for (const repo of ['shank-eric/once-upon-a-diff', 'acme/widgets']) {
+    const name = `ou-${repo.split('/')[1]}`;
+    const item = store.add({ title: `Work in ${repo}`, repo });
+    store.start(item.id, { branch: 'feat-x' });
+    claimAt(store, item.id, name, stamp(0).toISOString(), 'bbbbbbbb');
+    registry.start({
+      name,
+      sid: 'bbbbbbbb',
+      kind: 'builder',
+      task: 't',
+      repo,
+      branch: 'feat-x',
+      at: stamp(0),
+    });
+    registry.finish(name, { sid: 'bbbbbbbb', result: { branch: 'feat-x' }, at: stamp(10) });
+    registry.start({
+      name: `review-${name}`,
+      sid: 'bbbbbbbb',
+      kind: 'reviewer',
+      task: 'r',
+      repo,
+      branch: 'feat-x',
+      at: stamp(11),
+    });
+    registry.finish(`review-${name}`, { sid: 'bbbbbbbb', findings: 0, at: stamp(15) });
+    columns[repo] = (await cards(stamp(16))).find((one) => one.backlog?.id === item.id)?.column;
+  }
+  assert.deepEqual(columns, { 'shank-eric/once-upon-a-diff': 'ship', 'acme/widgets': 'ready' });
+});
+
+/** A built card on feat-x with its author finished at minute 10, and the registry that holds it. */
+function builtCard(name: string) {
+  const registry = new AgentRegistry(tmp(name));
+  const store = new BacklogStore(tmp(`${name}-backlog`));
+  const repo = 'shank-eric/once-upon-a-diff';
+  const stamp = (minutes: number) => new Date(Date.parse('2026-11-03T15:00:00Z') + minutes * 60000);
+  const added = store.add({ title: 'Build it', repo });
+  const item = store.start(added.id, { branch: 'feat-x' });
+  const author = { name: 'ou-build', sid: 'cccccccc', repo, branch: 'feat-x' } as const;
+  registry.start({ ...author, kind: 'builder', task: 'build', card: item.id, at: stamp(0) });
+  registry.finish('ou-build', { sid: 'cccccccc', result: { branch: 'feat-x' }, at: stamp(10) });
+  const hold = (nowAt: Date) =>
+    criticHold(item, { sid: 'cccccccc', name: 'ou-build' }, registry.agents(), nowAt.getTime());
+  return { registry, item, repo, stamp, author, hold };
+}
+
+test('findings nobody fixed lapse after STALE_MS, and a newer critic run with none releases the card at once', () => {
+  const { registry, repo, stamp, hold } = builtCard('hold-lapse');
+  const critic = { name: 'review-x', sid: 'cccccccc', repo, branch: 'feat-x' } as const;
+  registry.start({ ...critic, kind: 'reviewer', task: 'review', at: stamp(11) });
+  registry.finish('review-x', { sid: 'cccccccc', findings: 2, at: stamp(15) });
+  assert.equal(hold(stamp(16)), 'checks');
+  assert.equal(hold(new Date(stamp(15).getTime() + STALE_MS - 1000)), 'checks');
+  assert.equal(
+    hold(new Date(stamp(15).getTime() + STALE_MS + 1000)),
+    null,
+    'dropped findings lapse',
+  );
+  registry.start({ ...critic, kind: 'reviewer', task: 'review again', at: stamp(20) });
+  registry.finish('review-x', { sid: 'cccccccc', findings: 0, at: stamp(22) });
+  assert.equal(hold(stamp(23)), null, 'the rerun passed');
+});
+
+test("an author run for another card is not this card's fix round", () => {
+  const { registry, repo, stamp, author, hold } = builtCard('hold-author-card');
+  registry.start({
+    name: 'review-x',
+    sid: 'cccccccc',
+    kind: 'reviewer',
+    task: 'review',
+    repo,
+    branch: 'feat-x',
+    at: stamp(11),
+  });
+  registry.finish('review-x', { sid: 'cccccccc', findings: 2, at: stamp(15) });
+  registry.start({
+    ...author,
+    kind: 'builder',
+    task: 'other work',
+    card: 'bl_other0000001',
+    at: stamp(16),
+  });
+  assert.equal(hold(stamp(17)), 'checks', "its running is the other card's");
+  registry.finish('ou-build', { sid: 'cccccccc', result: { branch: 'feat-x' }, at: stamp(25) });
+  assert.equal(hold(stamp(26)), 'checks', "and its finish is not this card's fix");
+  registry.start({ ...author, kind: 'builder', task: 'fix', card: undefined, at: stamp(27) });
+  assert.equal(hold(stamp(28)), 'working', 'a run that names no card still counts');
+});
+
+test('a critic registered for another card does not hold this one, even on the same branch', () => {
+  const { registry, repo, stamp, item, hold } = builtCard('hold-critic-card');
+  registry.start({
+    name: 'review-old',
+    sid: 'dddddddd',
+    kind: 'reviewer',
+    task: 'review',
+    repo,
+    branch: 'feat-x',
+    card: 'bl_other0000001',
+    at: stamp(11),
+  });
+  assert.equal(hold(stamp(12)), null, 'an open critic of another card');
+  registry.start({
+    name: 'review-mine',
+    sid: 'dddddddd',
+    kind: 'reviewer',
+    task: 'review',
+    repo,
+    branch: 'feat-x',
+    card: item.id,
+    at: stamp(13),
+  });
+  assert.equal(hold(stamp(14)), 'checks', 'its own critic holds it');
 });

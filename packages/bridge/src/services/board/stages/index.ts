@@ -194,6 +194,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
         repoBySession,
       },
       claimed,
+      agents,
     ),
   );
 

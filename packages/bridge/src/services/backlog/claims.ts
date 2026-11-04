@@ -6,6 +6,9 @@
  * when that run finishes or the card lands or is dropped. A card has one claim and an agent may hold several.
  * Pure: the board gathers the facts.
  */
+import type { BoardColumn } from '@once-upon-a-diff/protocol/types';
+import { sameRepo } from '../config/repos.ts';
+import { STALE_MS } from '../ledger/events.ts';
 import type { LedgerAgent } from '../ledger/ledger.ts';
 import type { BacklogItem } from './backlog.ts';
 
@@ -142,4 +145,71 @@ export function liveClaim(
   return !Number.isNaN(since) && nowMs - since <= CLAIM_GRACE_HOURS * 3600 * 1000
     ? { claim, pending: true }
     : null;
+}
+
+/**
+ * Where a finished, claimed card waits for its critic, or null when nothing holds it back (it is built and has passed its
+ * critic with no fix round open). Read only from registered agents' fields, never their text. A critic is a registered
+ * `reviewer` run on the card (`--card`), or, when it names no card, on the item's repo and branch (a finish event's branch
+ * wins). The card is held:
+ *
+ *   critic running        a critic is open (running, or at its fixing gate): Agent checks
+ *   fixes pending         the latest finished critic reported findings (`--findings` above 0) and the author has not finished
+ *                         since: Working while the author runs (Agent checks at its fixing gate, Waiting at a question or
+ *                         plan), else Agent checks, for the fix round yet to start
+ *
+ * The author is the claimed agent's latest run (by sid and name) on this card (a run with another `--card` is not): the claim
+ * holds the run it was made for, and a fix round is a later run of the same agent. Nothing holds for longer than STALE_MS: a
+ * critic with no sign of life is dead, and findings the editor dropped (no fix round) lapse that long after the critic
+ * finished. A later critic run that finishes with `--findings 0` releases the card at once.
+ */
+export function criticHold(
+  item: Pick<BacklogItem, 'id' | 'repo' | 'branch'>,
+  claimed: Pick<LedgerAgent, 'sid' | 'name'>,
+  agents: LedgerAgent[],
+  nowMs: number,
+): BoardColumn | null {
+  const critics = agents.filter(
+    (agent) =>
+      agent.source === 'events' &&
+      agent.kind === 'reviewer' &&
+      (agent.card
+        ? agent.card === item.id
+        : !!item.repo &&
+          !!item.branch &&
+          sameRepo(agent.repo ?? null, item.repo) &&
+          (agent.result?.branch ?? agent.branch) === item.branch),
+  );
+  // a critic with no sign of life for STALE_MS is dead: it holds nothing
+  const alive = (critic: LedgerAgent) =>
+    OPEN.includes(critic.state) &&
+    nowMs - (critic.lastEvent ?? critic.started ?? new Date(nowMs)).getTime() <= STALE_MS;
+  if (critics.some(alive)) {
+    return 'checks';
+  }
+  const latest = critics
+    .filter((critic) => critic.state === 'done' && critic.ended)
+    .sort((first, second) => (second.ended?.getTime() ?? 0) - (first.ended?.getTime() ?? 0))[0];
+  if (!latest || !(latest.findings && latest.findings > 0)) {
+    return null;
+  }
+  // findings nobody fixed (the editor dropped them all) release the card STALE_MS after the critic finished; a newer
+  // critic run that finishes with none releases it at once (a finished run takes no more events)
+  if (nowMs - (latest.ended?.getTime() ?? nowMs) > STALE_MS) {
+    return null;
+  }
+  // the author is the claimed agent's latest run for this card: a run registered for another card is not its fix round
+  const runs = agents
+    .filter((agent) => agent.sid === claimed.sid && agent.name === claimed.name)
+    .flatMap((agent) => [...(agent.earlier ?? []), agent])
+    .filter((run) => !run.card || run.card === item.id);
+  const author = runs[runs.length - 1];
+  if (author?.state === 'running') {
+    return 'working';
+  }
+  if (author && OPEN.includes(author.state)) {
+    return author.state === 'fixing' ? 'checks' : 'waiting';
+  }
+  const fixedAt = author?.ended?.getTime() ?? 0;
+  return fixedAt > (latest.ended?.getTime() ?? 0) ? null : 'checks';
 }
