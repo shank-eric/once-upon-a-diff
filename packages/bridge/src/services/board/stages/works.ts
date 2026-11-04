@@ -45,9 +45,9 @@ export interface CollectedWorks {
  * A branch's card with an unresolved local story (approved, or not yet reviewed) and no PR yet takes the PR GitHub says
  * the branch has, whether or not a session is on the branch (sessions.ts does the same for a session's). Without this a
  * squash-merged branch has no PR on its card and an approved story would sit in Ready to ship. An open PR is taken as it
- * is. A merged one only when its last commit is the story's head or its approved head, so a branch that went on after an
- * older PR merged keeps its card. A PR that already has a work of its own (one of yours from GitHub's list, before GitHub has
- * said which branch it is from) is not doubled: an open one takes the local story, and the branch's card goes. A resolved
+ * is. A merged one only when its last commit is the story's head or its approved head, or one of those is among its
+ * commits (GitHub may have added one after the approval), so a branch that went on after an older PR merged keeps its card. A PR that already has a work of its own (one of yours from GitHub's list, before GitHub has
+ * said which branch it is from) is not doubled: an open one takes the local story (whatever mark that work carries), and the branch's card goes. A resolved
  * story is not asked about.
  */
 function linkBranchWorks(
@@ -81,7 +81,7 @@ function linkBranchWorks(
       // from): the branch's card goes instead of staying as a second card with no PR in Ready to ship, and the local story
       // goes on the PR's work unless that has a story of its own.
       if (found.state === 'open') {
-        if (!there.story && !there.local && !there.mergedAt) {
+        if (!there.story && !there.local) {
           there.local = local;
         }
         there.branch = there.branch ?? work.branch;
@@ -90,7 +90,11 @@ function linkBranchWorks(
       continue;
     }
     if (found.state === 'merged') {
-      if (!found.head_oid || !heads.includes(found.head_oid)) {
+      // the story's own commit is the PR's last, or among its commits when GitHub added one after the approval
+      const ours =
+        (!!found.head_oid && heads.includes(found.head_oid)) ||
+        !!found.shipped?.some((head) => heads.includes(head));
+      if (!ours) {
         continue;
       }
       work.mergedAt = found.merged_at;

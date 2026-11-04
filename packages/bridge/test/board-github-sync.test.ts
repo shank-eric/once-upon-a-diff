@@ -61,7 +61,11 @@ interface Github {
 
 function world(
   github: Github,
-  { older = false, prStory = false }: { older?: boolean; prStory?: boolean } = {},
+  {
+    older = false,
+    prStory = false,
+    mergedStory = false,
+  }: { older?: boolean; prStory?: boolean; mergedStory?: boolean } = {},
 ) {
   const home = tmp('github-sync-home');
   const checkout = tmp('github-sync-checkout');
@@ -114,6 +118,14 @@ function world(
       pr_title: 'PR 3092',
     });
     writeJson(path.join(home, 'pr-3092', 'chapters.json'), { title: 'pr', chapters: [] });
+    if (mergedStory) {
+      // the PR's story is marked merged a few minutes ago (a stale mark when GitHub says the PR is open again)
+      writeJson(path.join(home, 'state', 'pr-3092', 'merged.json'), {
+        at: new Date(START - 300000).toISOString(),
+        why: 'merged',
+        merged_at: new Date(START - 300000).toISOString(),
+      });
+    }
   }
   const stories = new StoryStore({ home });
   const wait = async () => {
@@ -373,5 +385,67 @@ test('an open PR whose work already has a PR story: the branch card goes, the PR
   assert.deepEqual(
     cards.map((card) => [card.pr?.number, card.story?.id, card.column === 'ship']),
     [[3092, 'pr-3092', false]],
+  );
+});
+
+test('a commit GitHub added after approval: the PR squash-merged at another commit is found, the approved story leaves Ready to ship', async () => {
+  const merged: BranchPr = {
+    number: 3092,
+    state: 'merged',
+    merged_at: iso(START - 60000),
+    head_oid: 'b4b4b4b4baaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    shipped: [HEAD],
+  };
+  // ghBranchCheck: the PR's last commit is not the approved head, but the approved head is among its commits
+  const hub = github({
+    branchFor: (heads) => (heads.includes(HEAD) ? merged : null),
+    info: 'fail',
+  });
+  const cards = await world(hub).settle();
+  assert.ok(!cards.some((card) => card.column === 'ship'), JSON.stringify(columns(cards)));
+  assert.deepEqual(
+    cards.map((card) => [card.pr?.number, card.story?.id]),
+    [[3092, 'local-dot-prop']],
+  );
+});
+
+test('an older branch ask that finishes while a newer one is in flight does not shrink what the newer one covers', async () => {
+  const releases: (() => void)[] = [];
+  const seen: string[][] = [];
+  const review = new AutoReview(
+    new StoryStore({ home: tmp('github-sync-home') }),
+    async () => {
+      throw new Error('not asked');
+    },
+    1000,
+    async (_repo, _branch, _checkout, heads = []) => {
+      seen.push(heads);
+      await new Promise<void>((resolve) => releases.push(resolve));
+      return null;
+    },
+  );
+  review.kickBranch(REPO, BRANCH, '/nowhere', START, [OLDER]);
+  review.kickBranch(REPO, BRANCH, '/nowhere', START + 10, [HEAD]);
+  assert.deepEqual(seen, [[OLDER], [OLDER, HEAD]]);
+  releases[0]();
+  await new Promise((resolve) => setImmediate(resolve));
+  // the newer ask covers both heads and is still running: a caller with either head needs no third ask
+  review.kickBranch(REPO, BRANCH, '/nowhere', START + 20, [HEAD]);
+  review.kickBranch(REPO, BRANCH, '/nowhere', START + 30, [OLDER]);
+  assert.deepEqual(seen, [[OLDER], [OLDER, HEAD]]);
+  releases[1]();
+  await review.idle();
+  assert.equal(review.branchPr(REPO, BRANCH), null);
+});
+
+test('an open PR whose work carries a stale merged mark: the branch card goes and the approved story stays on the PR', async () => {
+  const hub = github({
+    branch: { number: 3092, state: 'open', merged_at: null },
+    info: 'fail',
+  });
+  const cards = await world(hub, { prStory: true, mergedStory: true }).settle();
+  assert.deepEqual(
+    cards.map((card) => [card.pr?.number, card.story?.id, card.column === 'ship']),
+    [[3092, 'local-dot-prop', false]],
   );
 });

@@ -1738,7 +1738,39 @@ test('the branch check keeps PRs from this repo, prefers an open one, and counts
       state: 'merged',
       merged_at: '2026-10-11T00:00:00Z',
       head_oid: stray,
+      shipped: [stray],
     });
+    // GitHub added a commit after the approval: the PR's last commit is not a story head, but the approved head is among
+    // its commits, so the merged PR is the story's (an older PR of a reused name has none of the story's heads)
+    writeJson(answer, {
+      data: {
+        repository: {
+          open: { nodes: [] },
+          merged: {
+            nodes: [
+              {
+                ...node(12, '1'.repeat(40), mine, '2026-10-12T00:00:00Z'),
+                commits: {
+                  nodes: [{ commit: { oid: '2'.repeat(40) } }, { commit: { oid: stray } }],
+                },
+              },
+            ],
+          },
+        },
+      },
+    });
+    assert.deepEqual(await ghBranchCheck('Acme/Widgets', 'deleted-branch', checkout, [stray]), {
+      number: 12,
+      state: 'merged',
+      merged_at: '2026-10-12T00:00:00Z',
+      head_oid: '1'.repeat(40),
+      shipped: [stray],
+    });
+    assert.equal(
+      await ghBranchCheck('Acme/Widgets', 'deleted-branch', checkout, ['3'.repeat(40)]),
+      null,
+      'none of the story’s heads is in the PR',
+    );
     assert.equal(
       await ghBranchCheck('Acme/Widgets', 'deleted-branch', checkout),
       null,
@@ -1749,6 +1781,7 @@ test('the branch check keeps PRs from this repo, prefers an open one, and counts
     assert.match(query, /open:pullRequests\(headRefName:\$branch,first:100,states:\[OPEN\]/);
     assert.match(query, /merged:pullRequests\(headRefName:\$branch,first:100,states:\[MERGED\]/);
     assert.match(query, /headRefOid headRepository\{nameWithOwner\}/);
+    assert.match(query, /commits\(last:20\)/);
   });
 });
 

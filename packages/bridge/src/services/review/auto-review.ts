@@ -516,6 +516,12 @@ export interface BranchPr {
   merged_at: string | null;
   /** a merged PR's last commit on the branch: what a squash merge shipped, which no ancestor check can see */
   head_oid?: string;
+  /**
+   * The asked heads (a story's head, its approved head) that the merged PR contains. GitHub can add a commit after
+   * approval (Update branch, an applied suggestion), so a squash merge's last commit is then none of the story's heads
+   * while the approved one is still among the PR's commits.
+   */
+  shipped?: string[];
 }
 /**
  * `checkout` is the local checkout the branch is in, where a merged PR's head commit is looked for. `heads` are commits
@@ -530,17 +536,20 @@ export type BranchCheck = (
 ) => Promise<BranchPr | null>;
 
 /** Open and merged PRs are asked for separately, so a long run of merged ones (up to 100 of each) can't push the open one out. */
-const PR_FIELDS = 'nodes{number mergedAt headRefOid headRepository{nameWithOwner}}';
+const PR_FIELDS = 'number mergedAt headRefOid headRepository{nameWithOwner}';
+/** a merged PR's last 20 commits are asked too, to find the story's head among them when GitHub added a later commit */
+const MERGED_FIELDS = `${PR_FIELDS} commits(last:20){nodes{commit{oid}}}`;
 const BRANCH_QUERY = `query($owner:String!,$name:String!,$branch:String!){
   repository(owner:$owner,name:$name){
-    open:pullRequests(headRefName:$branch,first:100,states:[OPEN],orderBy:{field:UPDATED_AT,direction:DESC}){${PR_FIELDS}}
-    merged:pullRequests(headRefName:$branch,first:100,states:[MERGED],orderBy:{field:UPDATED_AT,direction:DESC}){${PR_FIELDS}}}}`;
+    open:pullRequests(headRefName:$branch,first:100,states:[OPEN],orderBy:{field:UPDATED_AT,direction:DESC}){nodes{${PR_FIELDS}}}
+    merged:pullRequests(headRefName:$branch,first:100,states:[MERGED],orderBy:{field:UPDATED_AT,direction:DESC}){nodes{${MERGED_FIELDS}}}}}`;
 
 interface BranchNode {
   number: number;
   mergedAt: string | null;
   headRefOid: string;
   headRepository: { nameWithOwner: string } | null;
+  commits?: { nodes: { commit: { oid: string } }[] };
 }
 
 /** Whether a commit is the local branch's tip or behind it (false when the checkout doesn't have the commit). */
@@ -559,7 +568,8 @@ async function onBranch(checkout: string, branch: string, oid: string): Promise<
 /**
  * The real branch check: `gh api graphql`. Only PRs whose head is in this repo count (a fork's branch of the same name
  * is someone else's work). An open one wins. A merged one counts only when its head commit is the local branch's tip
- * or behind it, so a branch name reused after a merge doesn't pick up the old PR; the latest merged one is taken.
+ * or behind it, or one of the caller's heads is among its last commits (GitHub added a commit after the approval), so a
+ * branch name reused after a merge doesn't pick up the old PR; the latest merged one is taken.
  */
 export const ghBranchCheck: BranchCheck = async (repo, branch, checkout, heads = []) => {
   const [owner, name] = repo.split('/');
@@ -598,12 +608,15 @@ export const ghBranchCheck: BranchCheck = async (repo, branch, checkout, heads =
     .filter(ours)
     .sort((first, second) => (second.mergedAt || '').localeCompare(first.mergedAt || ''));
   for (const node of merged) {
-    if (heads.includes(node.headRefOid) || (await onBranch(checkout, branch, node.headRefOid))) {
+    const oids = new Set(node.commits?.nodes.map((commit) => commit.commit.oid));
+    const shipped = heads.filter((head) => head === node.headRefOid || oids.has(head));
+    if (shipped.length || (await onBranch(checkout, branch, node.headRefOid))) {
       return {
         number: node.number,
         state: 'merged',
         merged_at: node.mergedAt,
         head_oid: node.headRefOid,
+        ...(shipped.length ? { shipped } : {}),
       };
     }
   }
@@ -680,8 +693,8 @@ export class AutoReview {
   >();
   private running = new Set<Promise<void>>();
   private known = new Map<string, PrInfo>();
-  /** per branch: how many asks were made, and the newest one answered (an older ask finishing later is dropped) */
-  private branchSeq = new Map<string, { asked: number; answered: number }>();
+  /** per branch: how many asks were made (only the newest one's answer is kept, an older ask finishing later is dropped) */
+  private branchSeq = new Map<string, number>();
   private branches = new Map<
     string,
     { at: number; pr: BranchPr | null | undefined; heads: string[] }
@@ -762,14 +775,13 @@ export class AutoReview {
     const asked =
       last && now - last.at < this.cacheMs ? [...new Set([...last.heads, ...heads])] : heads;
     this.branches.set(key, { at: now, pr: last?.pr, heads: asked });
-    // asks can overlap and finish in any order: an answer is kept only if no newer ask has been answered already
-    const seq = (this.branchSeq.get(key)?.asked ?? 0) + 1;
-    this.branchSeq.set(key, { asked: seq, answered: this.branchSeq.get(key)?.answered ?? 0 });
+    // asks can overlap and finish in any order: only the newest ask writes (its placeholder above covers what it asked, so
+    // an older one finishing first must not shrink that and cause another ask)
+    const seq = (this.branchSeq.get(key) ?? 0) + 1;
+    this.branchSeq.set(key, seq);
     const job = this.checkBranch(repo, branch, checkout, asked)
       .then((pr) => {
-        const state = this.branchSeq.get(key) as { asked: number; answered: number };
-        if (seq > state.answered) {
-          state.answered = seq;
+        if (seq === this.branchSeq.get(key)) {
           this.branches.set(key, { at: now, pr, heads: asked });
         }
       })
@@ -874,8 +886,13 @@ export class AutoReview {
         const found = this.branchPr(story.repo as string, story.branch as string);
         if (found && entry.approval) {
           // a squash merge leaves the approved head in no branch of the default one, so the merged PR is what shows it shipped:
-          // the PR's last commit is the approved head. An open PR leaves the approval for the card to follow the PR.
-          if (found.state === 'merged' && found.head_oid === entry.approval.head_oid) {
+          // the PR's last commit is the approved head, or the approved head is among its commits (GitHub added one since). An
+          // open PR leaves the approval for the card to follow the PR.
+          if (
+            found.state === 'merged' &&
+            (found.head_oid === entry.approval.head_oid ||
+              found.shipped?.includes(entry.approval.head_oid))
+          ) {
             this.markDelivered(story.id, entry.approval.head_oid, 'pr');
             continue;
           }

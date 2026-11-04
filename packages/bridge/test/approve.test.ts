@@ -342,6 +342,33 @@ test('a squash-merged PR ships an approved story, which the default branch never
   }
 });
 
+test('a PR squash-merged after GitHub added a commit ships the approved story: its head is among the PR’s commits', async () => {
+  const { id, bridge, head, post, store } = await setup();
+  try {
+    await post(pageKey(TOKEN, id), `/api/stories/${id}/approve`, { head_sha: head() });
+    const now = Date.now();
+    const review = new AutoReview(
+      store,
+      async () => ({ merged: false, why: null }),
+      0,
+      async () => ({
+        number: 7001,
+        state: 'merged',
+        merged_at: new Date(now).toISOString(),
+        head_oid: '0'.repeat(40),
+        shipped: [head()],
+      }),
+    );
+    review.kickLocal(localEntries(store, { now }), now);
+    await review.idle();
+    review.kickLocal(localEntries(store, { now }), now + 1);
+    await review.idle();
+    assert.equal(store.readState(id, 'approved.json', null), null, 'cleared');
+  } finally {
+    await bridge.close();
+  }
+});
+
 test('approve --undo on a squash-merged story does not strand it in Ready: the PR check still finds it done', async () => {
   const { id, bridge, head, post, store } = await setup();
   try {
