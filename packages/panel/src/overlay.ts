@@ -94,7 +94,8 @@ import { createFileList } from './reading/file-list.ts';
 import { createScroller } from './reading/scroll.ts';
 import { createNavigation } from './reading/navigation.ts';
 import { createBody } from './body.ts';
-import { createStatusLight } from './status-light.ts';
+import { createStatusLight } from './status-light-part.ts';
+import { createMarkup } from './markup.ts';
 import { createFreshness } from './rebuild/freshness.ts';
 import { createRebuild } from './rebuild/rebuild.ts';
 import { createReading } from './reading/reading.ts';
@@ -185,6 +186,7 @@ export function storyOverlay(input: StoryData, opts: PanelOptions, host: PanelHo
   context.shell = createShell(context);
   context.refs = createFileRefs(context);
   context.markdown = createMarkdown(context);
+  context.markup = createMarkup(context);
   context.expander = createExpander(context);
   context.filter = createFilter(context);
   context.viewed = createViewedTracker(context);

@@ -4,6 +4,8 @@ Decided 10/29. Built for the board page, as of main at 0741c6c. The story panel,
 
 Update 11/3: the panel's frame, body, file list and viewed, change and working marks draw with Preact (the first of two branches). The panel names the vendored file as the pages do, `/assets/preact.mjs`: the bridge serves it, and the extension's Vite config aliases it to `packages/web/public/vendor/preact.mjs`, so both run the same bytes. Ask, drafts, fixes, rebuild and freshness still write strings into slots the body leaves, and the story's markdown stays a string renderer (`parse-markup.ts` turns its output into nodes).
 
+Update 11/3 (second branch, first half): the Ask dock (the questions, the Ask box, the dock's header) and the status light with its checks, hint and who line draw with Preact too. Each part still keeps its own data and says `shell.redraw()`; the dock and the light are drawn by the parts' views (`chatDock.view()`, `statusLight.lightView()`...), and the markup a part builds as a string (an answer's markdown, the hint and who lines, which the bridge's tests read) is turned into nodes by `markup.ts`, which gives its jump links and Mark viewed pills their own handlers. Drafts, fixes, rebuild and freshness are the second half.
+
 ## Context
 
 The pages and the panel build their UI the same way. `html`, a tagged template in `protocol/src/domain/html.ts`, makes an escaped string, and `setHtml` puts it in with `innerHTML`. Clicks are handled by event delegation on `data-` attributes. That's about 12.8k lines across the story panel, the bridge's pages and the extension's content UI.

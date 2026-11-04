@@ -253,33 +253,11 @@ export function createViewedTracker(context: PanelContext) {
     return changed;
   }
 
-  /**
-   * The Mark viewed buttons in the question answers, which the questions part draws as markup outside the Preact tree: "Mark viewed"
-   * until the file's Viewed toggle is on, then "Viewed ✓". The questions part calls it after each draw, and render() on each look.
-   */
-  function markDock() {
-    const blocks = page.blocksByPath();
-    for (const el of shell.root.querySelectorAll<HTMLElement>('.ou-chatbody [data-mark-for]')) {
-      const rel = el.getAttribute('data-mark-for') as string;
-      const isOn = page.isViewed(rel, blocks) === true;
-      const short = el.hasAttribute('data-mark-short');
-      const label = isOn ? 'viewed ✓' : 'mark viewed';
-      el.textContent = short ? label : capitalize(label);
-      el.classList.toggle('ou-st-viewed', isOn);
-      el.classList.toggle('ou-st-mark', !isOn);
-      el.setAttribute('aria-pressed', String(isOn));
-      el.title = isOn
-        ? `Viewed. Click to untick ${rel}'s Viewed checkbox`
-        : `Tick ${rel}'s Viewed checkbox`;
-    }
-  }
-
   /** Redraws the viewed marks from the page's Viewed toggles. */
   function render() {
     if (compute()) {
       shell.redraw();
     }
-    markDock();
   }
 
   // Classic /files ticks a checkbox (no attribute change), and Refined GitHub's batch
@@ -335,7 +313,6 @@ export function createViewedTracker(context: PanelContext) {
   return {
     compute,
     render,
-    markDock,
     toggle,
     progressOf,
     leftToMark,

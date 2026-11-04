@@ -7,7 +7,11 @@
  * The header says how many questions the story has, how many a session is
  * working on or waits for one, and how many answers nobody has read. The
  * bridge keeps what was read, so the count holds across reloads and pages.
+ *
+ * The dock draws itself (view) and the questions, the hint and who lines, and the Ask box inside it draw theirs. The one thing done
+ * by hand is the height: a drag writes --ou-chat-h on the dock as the pointer moves, instead of drawing the panel for each move.
  */
+import { html } from '/assets/preact.mjs';
 import { plural } from '@once-upon-a-diff/protocol/domain/text';
 import type { PanelContext } from '../context.ts';
 import { dockHeightWithin } from '../layout.ts';
@@ -28,25 +32,17 @@ export interface ChatCounts {
 export function createChatDock(context: PanelContext) {
   const { state, opts, shell } = context;
   const { $, root } = shell;
-  const dock = $('.ou-chat')!;
-  const head = $<HTMLButtonElement>('.ou-chathead')!;
-  const scroller = $('.ou-chatbody')!;
   let counts: ChatCounts = { open: 0, waiting: 0, working: 0, unread: 0 };
+  const scroller = () => $('.ou-chatbody');
 
-  dock.hidden = !opts.ask && !opts.loadQuestions;
-
-  function renderHead() {
-    head.setAttribute('aria-expanded', String(state.chatOpen));
-    $('.ou-chatarrow')!.textContent = state.chatOpen ? '▾' : '▸';
+  function countLine(): string {
     const parts = [
       counts.open > 0 && plural(counts.open, 'question'),
       counts.working > 0 && `${counts.working} being worked on`,
       counts.waiting > 0 && `${counts.waiting} waiting`,
       counts.unread > 0 && `${counts.unread} unread ${counts.unread === 1 ? 'answer' : 'answers'}`,
     ].filter(Boolean);
-    const countLine = $('.ou-chatcount')!;
-    countLine.textContent = parts.length ? parts.join(' · ') : '';
-    countLine.classList.toggle('ou-unread', counts.unread > 0);
+    return parts.join(' · ');
   }
 
   /**
@@ -57,27 +53,30 @@ export function createChatDock(context: PanelContext) {
    */
   function showHeight(height: number) {
     const shown = dockHeightWithin(height, root.clientHeight);
-    dock.style.setProperty('--ou-chat-h', shown + 'px');
+    $('.ou-chat')?.style.setProperty('--ou-chat-h', shown + 'px');
     return shown;
   }
 
   function setOpen(open: boolean) {
     state.chatOpen = open;
-    dock.classList.toggle('ou-open', open);
+    shell.redraw(); // the dock's class, arrow and header
     if (open) {
       showHeight(state.chatHeight);
       scrollToLatest();
     }
-    renderHead();
   }
 
   function scrollToLatest() {
-    scroller.scrollTop = scroller.scrollHeight;
+    const box = scroller();
+    if (box) {
+      box.scrollTop = box.scrollHeight;
+    }
   }
 
   /** Is the conversation scrolled to (about) its end? */
   function isPinned() {
-    return scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight <= PINNED_SLACK;
+    const box = scroller();
+    return !box || box.scrollHeight - box.scrollTop - box.clientHeight <= PINNED_SLACK;
   }
 
   /** Redraws the conversation through draw, keeping you at the end if you were there. */
@@ -89,22 +88,23 @@ export function createChatDock(context: PanelContext) {
     }
   }
 
+  /** The header's counts: drawn with the next draw (the questions part draws right after). */
   function setCounts(next: ChatCounts) {
     counts = next;
-    renderHead();
   }
 
-  head.addEventListener('click', () => {
+  function toggle() {
     setOpen(!state.chatOpen);
     context.saveState();
     if (state.chatOpen) {
       $<HTMLTextAreaElement>('.ou-ask textarea')?.focus();
     }
-  });
+  }
 
   // resize by dragging the top edge
-  $('.ou-chatgrip')!.addEventListener('pointerdown', (event) => {
-    if (!state.chatOpen) {
+  function startDrag(event: PointerEvent) {
+    const dock = $('.ou-chat');
+    if (!state.chatOpen || !dock) {
       return;
     }
     event.preventDefault();
@@ -124,7 +124,7 @@ export function createChatDock(context: PanelContext) {
     };
     grip.addEventListener('pointermove', onPointerMove);
     grip.addEventListener('pointerup', onPointerUp);
-  });
+  }
 
   const onResize = () => {
     if (state.chatOpen) {
@@ -137,7 +137,26 @@ export function createChatDock(context: PanelContext) {
   const sizeWatch = typeof ResizeObserver === 'function' ? new ResizeObserver(onResize) : null;
   sizeWatch?.observe(root);
 
+  /** The dock: the header and its counts, the questions, and under them the hint, the who line and the Ask box. */
+  function view() {
+    const open = state.chatOpen;
+    const line = countLine();
+    return html`<section class=${open ? 'ou-chat ou-open' : 'ou-chat'} aria-label="Questions for Claude" hidden=${!opts.ask && !opts.loadQuestions}>
+      <div class="ou-chatgrip" title="Drag to resize" onPointerDown=${startDrag}></div>
+      <button type="button" class="ou-chathead" aria-expanded=${String(open)} title="Open or close the questions" onClick=${toggle}>
+        <span class="ou-chatarrow" aria-hidden="true">${open ? '▾' : '▸'}</span><span class="ou-chatlabel">Ask Claude</span><span class=${counts.unread > 0 ? 'ou-chatcount ou-unread' : 'ou-chatcount'}>${line || null}</span>
+      </button>
+      <div class="ou-chatbody"><div class="ou-questions">${context.questions ? context.questions.view() : null}</div></div>
+      <div class="ou-chatfoot">
+        ${context.statusLight ? context.statusLight.hintView() : null}
+        ${context.statusLight ? context.statusLight.whoView() : null}
+        ${context.questions ? context.questions.askView() : null}
+      </div>
+    </section>`;
+  }
+
   return {
+    view,
     setOpen,
     setCounts,
     redraw,

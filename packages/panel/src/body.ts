@@ -3,13 +3,13 @@
  * list, then the Overview or a chapter, with its drafted comments, its fix
  * before push notes, its files and its questions. render() works out what the
  * step says (the story's text, the drafted comments) and view() draws it, with the step list and the file list
- * from the parts' live data. One click handler serves what the parts that still write strings put in it.
+ * from the parts' live data. One click handler serves what the parts that still write strings put in it (the drafts, the fixes).
  */
 import { Fragment, html } from '/assets/preact.mjs';
 import { html as markup } from '@once-upon-a-diff/protocol/domain/html';
 import { copyComment } from './copy-buttons.ts';
 import { refAttrs } from './file-refs.ts';
-import { parseMarkup, type VNode } from './parse-markup.ts';
+import type { VNode } from './parse-markup.ts';
 import { plural } from '@once-upon-a-diff/protocol/domain/text';
 import type { PanelContext } from './context.ts';
 import type { Chapter, DraftAction, Side } from '@once-upon-a-diff/protocol/types';
@@ -38,24 +38,8 @@ export function createBody(context: PanelContext) {
   let pieces: Pieces | null = null;
   let renderId = 0;
 
-  /** The story's text and the drafted comments are strings: the nodes they make are given the parts' own behavior here. */
-  const hooks = {
-    element(tag: string, props: Record<string, unknown>): VNode | void {
-      if (tag === 'button' && props['data-mark-for']) {
-        // a Mark viewed pill beside a file's mention
-        return context.viewed.markButton(
-          String(props['data-mark-for']),
-          props['data-mark-short'] !== undefined,
-        );
-      }
-      if (tag === 'details' && String(props.class).includes('ou-allc')) {
-        props.onToggle = (event: Event) => {
-          state.allCommentsOpen = (event.currentTarget as HTMLDetailsElement).open;
-        };
-      }
-    },
-  };
-  const nodes = (markupText: unknown) => parseMarkup(markupText, hooks);
+  /** The story's text and the drafted comments are strings: the nodes they make are given the parts' own behavior (markup.ts). */
+  const nodes = (markupText: unknown) => context.markup.nodes(markupText);
 
   function stepList() {
     const overview = html`<li data-n="0" class=${state.n === 0 ? 'ou-current' : undefined} onClick=${() => context.navigation.go(0)}>Overview <span class="ou-count">(${data.files.length})</span></li>`;
@@ -223,10 +207,6 @@ export function createBody(context: PanelContext) {
     if (fixControl) {
       return context.fixes.act(fixControl as HTMLInputElement);
     }
-    const questionButton = target.closest('[data-qa-act]');
-    if (questionButton) {
-      return context.questions.act(questionButton);
-    }
     const showButton = target.closest('[data-draft-show]');
     if (showButton) {
       const key = showButton.getAttribute('data-draft-show') as 'showPosted' | 'showDismissed';
@@ -250,14 +230,6 @@ export function createBody(context: PanelContext) {
     context.scroll.jumpTo(rel, line);
   }
   $('.ou-body')!.addEventListener('click', onClick);
-  // the questions' buttons and their answers' file links, and the Mark viewed buttons an answer's text carries (the body's own are Preact's)
-  $('.ou-chatbody')!.addEventListener('click', (event) => {
-    const markButton = (event.target as Element).closest('button[data-mark-for]');
-    if (markButton) {
-      return context.viewed.toggle(markButton.getAttribute('data-mark-for') as string);
-    }
-    onClick(event);
-  });
 
   return { render, view, ready: () => pieces !== null };
 }

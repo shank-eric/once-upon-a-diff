@@ -8,12 +8,10 @@
  * session (the one that built it) instead. Both go through the bridge (opts.listen); the line is shown too, for a
  * session that can't be typed into.
  *
- * healthChecks has no DOM, so node tests can use it.
+ * This file has no DOM and no Preact, so node tests can use it (healthChecks, askHintHtml, askWhoHtml). The light, the checks and
+ * the buttons are drawn by status-light-part.ts.
  */
 import { html } from '@once-upon-a-diff/protocol/domain/html';
-import { setHtml } from './dom.ts';
-import { wireStartListening } from './start-listening.ts';
-import type { PanelContext } from './context.ts';
 import type {
   Answering,
   BridgeStatus,
@@ -123,13 +121,13 @@ export function healthChecks(
   };
 }
 
-const markOf = (check: HealthCheck) => {
+export const markOf = (check: HealthCheck) => {
   if (check.ok) {
     return '✓';
   }
   return check.bad ? '✗' : '!';
 };
-const classOf = (check: HealthCheck) => {
+export const classOf = (check: HealthCheck) => {
   if (check.ok) {
     return 'ou-hok';
   }
@@ -202,114 +200,3 @@ export function askWhoHtml(result: Health, canStart = false) {
   }
   return start ? html`Or have one session answer just this story:${start}` : html``;
 }
-
-export function createStatusLight(context: PanelContext) {
-  const { opts, shell } = context;
-  const { $ } = shell;
-  let health: Health | null = null;
-
-  function render(result: Health) {
-    const light = $('.ou-light')!;
-    light.setAttribute('data-level', result.level);
-    light.title =
-      result.checks.map((check) => `${markOf(check)} ${check.name}: ${check.detail}`).join('\n') +
-      '\n(click for details)';
-    const rows = result.checks.map((check) => {
-      const fixText =
-        check.fix &&
-        check.fix.replace(
-          /^In a Claude Code session, run as a background task: /,
-          'In Claude Code, run as a background task: ',
-        );
-      const fix = fixText && html`<br><span class="ou-why">${fixText}</span>`;
-      return html`<li><span class="${classOf(check)}">${markOf(check)}</span> <b>${check.name}</b>: ${check.detail}${fix}</li>`;
-    });
-    setHtml($('.ou-health')!, html`<ul>${rows}</ul>`);
-    renderWho(result);
-    const hint = $('.ou-askhint')!;
-    const showHint = opts.ask && result.level !== 'ok' && !result.listening;
-    hint.hidden = !showHint;
-    if (!showHint) {
-      return;
-    }
-    const canStart = !!opts.listen && !!result.repo && !!result.prompt;
-    const hintHtml = askHintHtml(result, canStart);
-    const markup = String(hintHtml);
-    // redrawn on every refresh, so only when it changes (a Start listening note stays put)
-    if (hint.getAttribute('data-html') === markup) {
-      return;
-    }
-    hint.setAttribute('data-html', markup);
-    setHtml(hint, hintHtml);
-    const startButton = hint.querySelector<HTMLButtonElement>('.ou-startlisten');
-    const startNote = hint.querySelector<HTMLElement>('.ou-startnote');
-    if (opts.listen && startButton && startNote) {
-      wireStartListening(
-        startButton,
-        startNote,
-        { scope: 'repo', repo: result.repo as string },
-        opts.listen,
-        result,
-      );
-    }
-    const more = hint.querySelector<HTMLElement>('.ou-promptmore');
-    if (more) {
-      more.onclick = () => {
-        const long = hint.querySelector<HTMLElement>('.ou-promptlong')!;
-        long.hidden = !long.hidden;
-        more.setAttribute('aria-expanded', String(!long.hidden));
-        more.textContent = long.hidden ? 'show details' : 'hide details';
-      };
-    }
-  }
-
-  function renderWho(result: Health) {
-    const who = $('.ou-askwho')!;
-    const whoHtml = opts.ask ? askWhoHtml(result, !!opts.listen) : html``;
-    const markup = String(whoHtml);
-    who.hidden = !markup;
-    // redrawn only when it changes, so a Start listening note stays put
-    if (who.getAttribute('data-html') === markup) {
-      return;
-    }
-    who.setAttribute('data-html', markup);
-    setHtml(who, whoHtml);
-    const startButton = who.querySelector<HTMLButtonElement>('.ou-startstory');
-    const startNote = who.querySelector<HTMLElement>('.ou-startnote');
-    if (opts.listen && startButton && startNote) {
-      wireStartListening(startButton, startNote, { scope: 'story' }, opts.listen, result);
-    }
-  }
-
-  async function refresh() {
-    if (!opts.status) {
-      return;
-    }
-    try {
-      health = healthChecks(await opts.status());
-    } catch (err) {
-      health = healthChecks(null, (err || {}) as Partial<StatusError>);
-    }
-    render(health);
-  }
-
-  $('.ou-light')!.addEventListener('click', () => {
-    const box = $('.ou-health')!;
-    box.hidden = !box.hidden;
-    $('.ou-light')!.setAttribute('aria-expanded', String(!box.hidden));
-  });
-  if (opts.status) {
-    refresh();
-  } else {
-    $('.ou-light')!.hidden = true;
-  }
-
-  return {
-    get current() {
-      return health;
-    },
-    refresh,
-  };
-}
-
-export type StatusLight = ReturnType<typeof createStatusLight>;

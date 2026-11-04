@@ -4,8 +4,8 @@
  * escaped where it was built (markdown.ts, the html`` tag in protocol/domain/html.ts), so this reads it as the browser would and
  * never runs it. A part that still writes into what it drew (the drafts' state lines) finds its elements where they were.
  *
- * `element` is asked about each element on the way: it may change the props it will get (an onToggle on a list) or answer with
- * a node of its own to put there (the Mark viewed button, which is a component).
+ * `element` is asked about each element on the way (with the element it was read from): it may change the props it will get (an
+ * onToggle on a list) or answer with a node of its own to put there (the Mark viewed button, the Start listening button).
  */
 import { h } from '/assets/preact.mjs';
 import type { html } from '/assets/preact.mjs';
@@ -26,7 +26,7 @@ const BOOLEAN = new Set([
 
 type Props = Record<string, unknown>;
 export interface MarkupHooks {
-  element?(tag: string, props: Props): VNode | void;
+  element?(tag: string, props: Props, source: Element): VNode | void;
 }
 
 function convert(node: Node, hooks: MarkupHooks): (VNode | string)[] {
@@ -42,7 +42,7 @@ function convert(node: Node, hooks: MarkupHooks): (VNode | string)[] {
   for (const attr of el.attributes) {
     props[attr.name] = BOOLEAN.has(attr.name) ? true : attr.value;
   }
-  const replaced = hooks.element?.(tag, props);
+  const replaced = hooks.element?.(tag, props, el);
   if (replaced) {
     return [replaced];
   }

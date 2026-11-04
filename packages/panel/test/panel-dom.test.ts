@@ -8,12 +8,12 @@
  * Flows click and type, and read the DOM straight after (no waiting), the way the panel's own callers do, then wait for the
  * host's answers and read it again.
  */
-import { test } from 'node:test';
+import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { dom } from './panel-env.ts';
+import { dom, clock, FakeIntersectionObserver } from './panel-env.ts';
 import {
   QUESTIONS,
   READS,
@@ -113,6 +113,7 @@ const panelRoot = () =>
   ) as HTMLElement;
 const $ = <T extends HTMLElement = HTMLElement>(selector: string) =>
   panelRoot().querySelector(selector) as T;
+const maybe = (selector: string) => panelRoot().querySelector(selector);
 const all = (selector: string) => [...panelRoot().querySelectorAll<HTMLElement>(selector)];
 
 /** The panel's DOM, plus what it did to the page around it (the docking class and width, and each file block's marks). */
@@ -142,7 +143,8 @@ function check(name: string, actual: string) {
     return;
   }
   assert.ok(existsSync(file), `${name}: no golden, record it with UPDATE_SNAPSHOTS=1`);
-  assert.equal(actual, readFileSync(file, 'utf8'), `${name} changed`);
+  // not assert.equal: a diff of two 75k-character strings takes a minute to print (UPDATE_SNAPSHOTS=1 and git diff show it)
+  assert.ok(actual === readFileSync(file, 'utf8'), `${name} changed`);
 }
 
 const settle = async () => {
@@ -163,13 +165,13 @@ async function mount(
   input: StoryData,
   options: (calls: unknown[][]) => PanelOptions,
   initial: PanelOptions['initial'] = {},
-  { onPage }: { onPage?: string[] } = {},
+  { onPage, wait = settle }: { onPage?: string[]; wait?: () => Promise<void> } = {},
 ): Promise<Mounted> {
   const world = pageWorld(input, { onPage });
   const calls: unknown[][] = [];
   const opts = { ...options(calls), initial };
   const overlay = storyOverlay(input, opts, world.host);
-  await settle();
+  await wait();
   return {
     overlay,
     world,
@@ -536,6 +538,12 @@ await test('the frame keeps its nodes, and the listeners the parts bound to them
       '.ou-note',
       '.ou-chat',
       '.ou-chatbody',
+      '.ou-chathead',
+      '.ou-chatgrip',
+      '.ou-chatarrow',
+      '.ou-chatcount',
+      '.ou-chatfoot',
+      '.ou-ask',
       '.ou-questions',
       '.ou-light',
       '.ou-health',
@@ -664,6 +672,586 @@ await test('a step change blanks the step list progress when the page has no Vie
     assert.ok(progress().some(Boolean), 'a look with no toggles leaves what was there');
     panel.overlay.go(1);
     assert.deepEqual(progress().filter(Boolean), [], 'a step change draws the list blank');
+  } finally {
+    panel.done();
+  }
+});
+
+// ---------- the Ask dock and the status light (before they drew with Preact: these pass on the string versions)
+
+/** Timers the test moves by hand: the panel mounted under mocked timers, with the tab showing. */
+const startClock = () => {
+  mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
+  clock.now = Date.parse('2026-11-03T12:00:00Z');
+  FakeIntersectionObserver.all = [];
+};
+const stopClock = () => {
+  mock.timers.reset();
+  delete (document as unknown as Record<string, unknown>).visibilityState;
+  clock.now = Date.parse('2026-11-03T12:00:00Z');
+};
+/** Moves the mocked clock `ms` on, letting promises and Preact's effects run as it goes. */
+const pump = async (millis: number, step = 50) => {
+  for (let left = millis; left > 0; left -= step) {
+    clock.now += Math.min(step, left);
+    mock.timers.tick(Math.min(step, left));
+    for (let i = 0; i < 10; i++) {
+      await Promise.resolve();
+    }
+  }
+};
+const pumpOnce = async () => pump(50);
+
+const deferred = <T>() => {
+  let finish!: (value: T) => void;
+  const promise = new Promise<T>((resolve) => {
+    finish = resolve;
+  });
+  return { promise, resolve: finish };
+};
+const calling = (calls: unknown[][], name: string) => calls.filter((call) => call[0] === name);
+const notListening = (extra: Record<string, unknown> = {}) => ({
+  bridge: { version: '1.0.0' },
+  story: { ok: true, id: 'story-1' },
+  listening: {
+    ok: false,
+    prompt: '/once-upon-listen acme/widgets',
+    repo: 'acme/widgets',
+    checkout: '/work/widgets',
+    start: 'once-upon wait --consumer once-upon',
+    story_prompt: { prompt: '/once-upon-listen --story story-1' },
+    ...extra,
+  },
+});
+const withStatus = (status: () => unknown) => (calls: unknown[][]) =>
+  fullOptions(calls, { status: (async () => status()) as never });
+const SESSION = { id: 's1', title: 'api-1', status: 'idle' as const, since: null };
+
+await test('the dock header opens and closes the dock, saves it and focuses the Ask box', async () => {
+  const panel = await mount(story(), full, { n: 1 });
+  try {
+    const open = () => $('.ou-chat').classList.contains('ou-open');
+    const saved = () =>
+      (calling(panel.calls, 'onState').at(-1)?.[1] as { chatOpen?: boolean } | undefined)?.chatOpen;
+    assert.equal(open(), false);
+    let focused = 0;
+    $('.ou-ask textarea').focus = () => void focused++;
+    fire($('.ou-chathead'), 'click');
+    assert.equal(open(), true);
+    assert.equal($('.ou-chathead').getAttribute('aria-expanded'), 'true');
+    assert.equal($('.ou-chatarrow').textContent, '▾');
+    assert.equal(saved(), true);
+    assert.equal(focused, 1, 'the Ask box takes focus');
+    const shot = panel.shot();
+    panel.overlay.apply();
+    panel.overlay.apply();
+    assert.equal(panel.shot(), shot, 'a redraw leaves the open dock as it was');
+    fire($('.ou-chathead'), 'click');
+    assert.equal(open(), false);
+    assert.equal($('.ou-chathead').getAttribute('aria-expanded'), 'false');
+    assert.equal($('.ou-chatarrow').textContent, '▸');
+    assert.equal(saved(), false);
+  } finally {
+    panel.done();
+  }
+});
+
+await test('the dock header counts what the list shows, and a mark moves both in the same step', async () => {
+  const panel = await mount(story(), full, { n: 1, chatOpen: true });
+  try {
+    assert.equal(
+      $('.ou-chatcount').textContent,
+      '5 questions · 1 being worked on · 1 waiting · 1 unread answer',
+    );
+    assert.ok($('.ou-chatcount').classList.contains('ou-unread'));
+    assert.equal(all('.ou-qa-new').length, 1);
+    fire($('[data-qa-act="read-all"]'), 'click');
+    // read straight after the click: the count and the rows it counts agree
+    assert.equal($('.ou-chatcount').textContent, '5 questions · 1 being worked on · 1 waiting');
+    assert.ok(!$('.ou-chatcount').classList.contains('ou-unread'));
+    assert.equal(all('.ou-qa-new').length, 0);
+    assert.ok(maybe('[data-qa-act="read-all"]') === null, 'and Mark all read is gone');
+    await settle();
+    assert.deepEqual(calling(panel.calls, 'markQuestions').at(-1), [
+      'markQuestions',
+      'read_all',
+      ['q4'],
+      { seen: { q4: '2026-11-03T11:20:00Z' } },
+    ]);
+  } finally {
+    panel.done();
+  }
+});
+
+await test('flow-ask-actions', async () => {
+  const panel = await mount(story(), full, { n: 1, chatOpen: true });
+  try {
+    const shots: string[] = [];
+    const act = async (label: string, selector: string) => {
+      fire($(selector), 'click');
+      shots.push(`### ${label} (sync)\n${panel.shot()}`);
+      await settle();
+    };
+    await act('collapse q3', '[data-qid="q3"] [data-qa-act="collapse"]');
+    await act('expand q5', '[data-qid="q5"] [data-qa-act="expand"]');
+    await act('mark q4 read', '[data-qid="q4"] [data-qa-act="read"]');
+    await act('mark q3 unread', '[data-qid="q3"] [data-qa-act="unread"]');
+    await act('clear conversation', '[data-qa-act="clear"]');
+    check('flow-ask-actions', shots.join('\n'));
+    assert.deepEqual(
+      calling(panel.calls, 'markQuestions').map((call) => [call[1], call[2]]),
+      [
+        ['collapse', ['q3']],
+        ['expand', ['q5']],
+        ['read', ['q4']],
+        ['unread', ['q3']],
+        ['clear', ['q1', 'q2', 'q3', 'q4', 'q5']],
+      ],
+    );
+  } finally {
+    panel.done();
+  }
+});
+
+await test('a failed mark says so and looks at the list again', async () => {
+  let looked = 0;
+  const panel = await mount(
+    story(),
+    (calls) =>
+      fullOptions(calls, {
+        pulse: undefined,
+        loadQuestions: async () => {
+          looked++;
+          return QUESTIONS;
+        },
+        markQuestions: async () => Promise.reject(new Error('nope')),
+      }),
+    { n: 1, chatOpen: true },
+  );
+  try {
+    const before = looked;
+    fire($('[data-qid="q3"] [data-qa-act="collapse"]'), 'click');
+    await settle();
+    assert.equal($('.ou-msg').textContent, "Couldn't save that: nope");
+    assert.equal(looked, before + 1);
+  } finally {
+    panel.done();
+  }
+});
+
+await test('the undo line goes after fifteen seconds', async () => {
+  startClock();
+  const panel = await mount(story(), full, { n: 1, chatOpen: true }, { wait: pumpOnce });
+  try {
+    fire($('[data-qid="q1"] [data-qa-act="dismiss"]'), 'click');
+    assert.equal($('.ou-qundo').textContent?.trim(), 'Dismissed 1 question. Undo');
+    await pump(14000);
+    assert.ok(maybe('.ou-qundo'), 'still there at 14 s');
+    await pump(1500);
+    assert.ok(maybe('.ou-qundo') === null, 'the undo line is gone at 15 s');
+  } finally {
+    panel.done();
+    stopClock();
+  }
+});
+
+await test('a working question counts its time up on its own, and stops when the panel is closed', async () => {
+  startClock();
+  const panel = await mount(story(), full, { n: 1, chatOpen: true }, { wait: pumpOnce });
+  try {
+    const span = () => $('.ou-elapsed');
+    const first = span();
+    assert.equal(first.textContent, '5:00');
+    const before = panel.shot();
+    await pump(3000);
+    assert.equal(span().textContent, '5:03');
+    assert.ok(span() === first, 'the same node: only its text moved');
+    assert.equal(panel.shot().replace('5:03', '5:00'), before, 'and nothing else changed');
+    const shown = span();
+    panel.overlay.destroy();
+    await pump(5000);
+    assert.equal(shown.textContent, '5:03', 'no timer runs once the panel is closed');
+  } finally {
+    panel.done();
+    stopClock();
+  }
+});
+
+await test('an unread answer in view for a moment, with the dock open, is read once', async () => {
+  startClock();
+  const unread = (calls: unknown[][]) =>
+    calling(calls, 'markQuestions').filter((call) => call[1] === 'read');
+  const inView = (target: Element) => ({
+    target,
+    isIntersecting: true,
+    intersectionRatio: 1,
+    intersectionRect: { height: 10 } as DOMRectReadOnly,
+    rootBounds: { height: 100 } as DOMRectReadOnly,
+  });
+  const panel = await mount(story(), full, { n: 1, chatOpen: true }, { wait: pumpOnce });
+  try {
+    const observer = FakeIntersectionObserver.all.at(-1)!;
+    const target = $('.ou-a[data-aat]');
+    assert.ok(observer.targets.has(target), 'the unread answer is watched');
+    observer.callback([inView(target)]);
+    await pump(1000);
+    assert.equal(unread(panel.calls).length, 0, 'not yet');
+    await pump(1000);
+    assert.deepEqual(
+      unread(panel.calls).map((call) => [call[2], call[3]]),
+      [[['q4'], { seen: { q4: '2026-11-03T11:20:00Z' }, auto: true }]],
+    );
+  } finally {
+    panel.done();
+    stopClock();
+  }
+  startClock();
+  const closed = await mount(story(), full, { n: 1, chatOpen: false }, { wait: pumpOnce });
+  try {
+    const observer = FakeIntersectionObserver.all.at(-1)!;
+    observer.callback([inView($('.ou-a[data-aat]'))]);
+    await pump(3000);
+    assert.equal(unread(closed.calls).length, 0, 'a closed dock reads nothing');
+  } finally {
+    closed.done();
+    stopClock();
+  }
+});
+
+await test('dragging the top of the dock sets its height, and a closed dock does not drag', async () => {
+  const panel = await mount(story(), full, { n: 1, chatOpen: true });
+  try {
+    Object.defineProperty(panelRoot(), 'clientHeight', { value: 800, configurable: true });
+    $('.ou-chat').getBoundingClientRect = () => ({ bottom: 700 }) as DOMRect;
+    const grip = $('.ou-chatgrip');
+    fire(grip, 'pointerdown');
+    assert.ok($('.ou-chat').classList.contains('ou-chat-dragging'));
+    fire(grip, 'pointermove', { clientY: 400 });
+    assert.match($('.ou-chat').getAttribute('style') || '', /--ou-chat-h:\s*300px/);
+    fire(grip, 'pointerup');
+    assert.ok(!$('.ou-chat').classList.contains('ou-chat-dragging'));
+    assert.deepEqual(calling(panel.calls, 'onLayout').at(-1), ['onLayout', { chatHeight: 300 }]);
+    assert.equal(
+      (calling(panel.calls, 'onState').at(-1)?.[1] as { chatHeight?: number }).chatHeight,
+      300,
+    );
+    fire($('.ou-chathead'), 'click'); // closed
+    fire(grip, 'pointerdown');
+    assert.ok(!$('.ou-chat').classList.contains('ou-chat-dragging'));
+  } finally {
+    panel.done();
+  }
+});
+
+await test('the Ask box: Cmd+Enter sends it, the button is off while it goes, a failure keeps the text', async () => {
+  let fail = false;
+  const panel = await mount(
+    story(),
+    (calls) =>
+      fullOptions(calls, {
+        ask: async (question) => {
+          calls.push(['ask', question]);
+          return fail ? Promise.reject(new Error('boom')) : { ok: true };
+        },
+        status: (async () => notListening({ ok: true })) as never,
+      }),
+    { n: 1, chatOpen: true },
+  );
+  try {
+    const text = $<HTMLTextAreaElement>('.ou-ask textarea');
+    const button = $<HTMLButtonElement>('.ou-ask button');
+    text.value = 'First?';
+    fire(text, 'input');
+    fire(text, 'keydown', { key: 'Enter', metaKey: true });
+    assert.equal(button.disabled, true, 'off straight after the send');
+    await settle();
+    assert.equal(button.disabled, false);
+    assert.equal(text.value, '');
+    assert.equal($('.ou-msg').textContent, 'Sent to the bridge inbox.');
+    fail = true;
+    text.value = 'Second?';
+    fire(text, 'input');
+    fire(text, 'keydown', { key: 'Enter', ctrlKey: true });
+    await settle();
+    assert.equal(text.value, 'Second?', 'a failure keeps what was typed');
+    assert.equal(button.disabled, false);
+    assert.equal($('.ou-msg').textContent, "Couldn't send the question: boom");
+    fire(text, 'keydown', { key: 'Enter' });
+    assert.equal(calling(panel.calls, 'ask').length, 2, 'Enter alone sends nothing');
+  } finally {
+    panel.done();
+  }
+});
+
+await test('a jump link in an answer jumps once, and its pill clicks the file once', async () => {
+  const answered = question('qa', {
+    step: 2,
+    answers: [
+      {
+        at: '2026-11-03T11:10:00Z',
+        text: 'Because [the top](ref:top) says so.',
+        refs: [{ id: 'top', path: 'src/a.ts', side: 'R', start: 1, end: 3 }],
+      },
+    ],
+  });
+  const panel = await mount(
+    story(),
+    (calls) => fullOptions(calls, { loadQuestions: async () => [answered], pulse: undefined }),
+    { n: 2, chatOpen: true },
+  );
+  try {
+    const reveals = () => calling(panel.calls, 'reveal').length;
+    await panel.overlay.jumpTo('src/a.ts', { side: 'R', start: 1, end: 3 });
+    const once = reveals();
+    assert.ok(once > 0, 'a jump asks the host to reveal the lines');
+    fire($('.ou-questions span[data-rel="src/a.ts"]'), 'click');
+    await settle();
+    assert.equal(reveals(), 2 * once, 'a click on the link is one jump');
+    fire($('.ou-questions span[data-rel="src/a.ts"]'), 'keydown', { key: 'Enter' });
+    await settle();
+    assert.equal(reveals(), 3 * once, 'Enter on the link is a click');
+  } finally {
+    panel.done();
+  }
+});
+
+await test('an answer draws its file pill only the first time the dock is drawn in a step (as before this change)', async () => {
+  let list = [
+    question('qa', {
+      step: 2,
+      answers: [
+        {
+          at: '2026-11-03T11:10:00Z',
+          text: 'Because [the top](ref:top) says so.',
+          refs: [{ id: 'top', path: 'src/a.ts', side: 'R', start: 1, end: 3 }],
+        },
+      ],
+    }),
+  ];
+  const panel = await mount(
+    story(),
+    (calls) => fullOptions(calls, { loadQuestions: async () => list, pulse: undefined }),
+    { n: 2, chatOpen: true },
+  );
+  try {
+    const pill = () => all('.ou-questions [data-mark-for]').length;
+    assert.equal(pill(), 1);
+    list = [...list, question('qb')];
+    await panel.overlay.refreshQuestions();
+    assert.equal(all('.ou-qa').length, 2);
+    // a known bug on main (the story's "pilled" files are reset only by a step change): kept here, to be fixed on its own card
+    assert.equal(pill(), 0);
+    panel.overlay.go(1);
+    panel.overlay.go(2);
+    assert.equal(pill(), 1, 'a step change brings it back');
+  } finally {
+    panel.done();
+  }
+});
+
+// ---------- the status light, its hint and the line saying who answers
+
+const whoScenario = (name: string, listening: Record<string, unknown>) =>
+  scenario(
+    name,
+    story(),
+    withStatus(() => notListening(listening)),
+    { n: 1, chatOpen: true },
+  );
+await whoScenario('status-who-relayed', {
+  ok: true,
+  agent: 'ou-fix-cache',
+  answering: { consumer: 'story-x', scope: 'story', agent: 'ou-fix-cache' },
+});
+await whoScenario('status-who-relayed-by-repo', {
+  ok: true,
+  agent: 'ou-fix-cache',
+  answering: { consumer: 'repo-acme', scope: 'repo', agent: 'ou-fix-cache' },
+});
+await whoScenario('status-who-agent-without-a-wait', {
+  ok: true,
+  agent: 'ou-fix-cache',
+  answering: { consumer: 'repo-acme', scope: 'repo' },
+});
+await whoScenario('status-who-repo-listener', {
+  ok: true,
+  answering: { consumer: 'repo-acme', scope: 'repo' },
+});
+await whoScenario('status-hint-with-details', { details: 'Paste this line:\n/once-upon-listen x' });
+await whoScenario('status-hint-no-prompt', { prompt: null, story_prompt: null, checkout: null });
+
+await test('flow-start-listening', async () => {
+  const sessionsOf = (calls: unknown[][], list: () => unknown[]) =>
+    fullOptions(calls, {
+      listen: {
+        sessions: async (target) => {
+          calls.push(['listen.sessions', target]);
+          return list() as never;
+        },
+        start: async (id, target) => {
+          calls.push(['listen.start', id, target]);
+        },
+      },
+    });
+  const shots: string[] = [];
+  let list: unknown[] = [];
+  const panel = await mount(story(), (calls) => sessionsOf(calls, () => list), {
+    n: 1,
+    chatOpen: true,
+  });
+  try {
+    const button = () => $<HTMLButtonElement>('.ou-askhint .ou-startlisten');
+    const note = () => $('.ou-askhint .ou-startnote');
+    fire(button(), 'click');
+    assert.equal(button().textContent, 'Looking…');
+    assert.equal(button().disabled, true);
+    shots.push(`### none, looking\n${panel.shot()}`);
+    await settle();
+    assert.equal(button().textContent, 'Start listening');
+    assert.equal(button().disabled, false);
+    assert.match(note().textContent || '', /^No idle Claude Code session in acme\/widgets/);
+    shots.push(`### none, said so\n${panel.shot()}`);
+    await panel.overlay.refreshHealth();
+    await settle();
+    assert.ok(!note().hasAttribute('hidden'), 'the same health keeps the note');
+    list = [SESSION];
+    fire(button(), 'click');
+    await settle();
+    assert.deepEqual(calling(panel.calls, 'listen.start').at(-1)?.slice(1), [
+      's1',
+      { scope: 'repo', repo: 'acme/widgets' },
+    ]);
+    assert.match(note().textContent || '', /^Typed into “api-1” to listen for acme\/widgets\./);
+    shots.push(`### one, typed\n${panel.shot()}`);
+    list = [
+      { ...SESSION, since: '2026-11-03T11:50:00Z' },
+      { ...SESSION, id: 's2', title: 'api-2', since: '2026-11-03T11:51:00Z' },
+    ];
+    fire(button(), 'click');
+    await settle();
+    const picks = all('.ou-askhint .ou-startpick button');
+    assert.equal(picks.length, 2);
+    assert.match(picks[0].textContent || '', /^api-2 · idle /, 'freshest first');
+    shots.push(`### two, choosing\n${panel.shot()}`);
+    fire(button(), 'click');
+    assert.equal(all('.ou-askhint .ou-startpick').length, 0, 'Start again closes the chooser');
+    fire(button(), 'click');
+    await settle();
+    fire(all('.ou-askhint .ou-startpick button')[1], 'click');
+    await settle();
+    assert.deepEqual(calling(panel.calls, 'listen.start').at(-1)?.slice(1), [
+      's1',
+      { scope: 'repo', repo: 'acme/widgets' },
+    ]);
+    check('flow-start-listening', shots.join('\n'));
+  } finally {
+    panel.done();
+  }
+});
+
+await test('Start listening for this story asks for story sessions', async () => {
+  const panel = await mount(
+    story(),
+    (calls) =>
+      fullOptions(calls, {
+        listen: {
+          sessions: async (target) => {
+            calls.push(['listen.sessions', target]);
+            return [SESSION];
+          },
+          start: async (id, target) => {
+            calls.push(['listen.start', id, target]);
+          },
+        },
+      }),
+    { n: 1, chatOpen: true },
+  );
+  try {
+    fire($('.ou-askwho .ou-startstory'), 'click');
+    await settle();
+    assert.deepEqual(calling(panel.calls, 'listen.sessions').at(-1)?.slice(1), [
+      { scope: 'story' },
+    ]);
+    assert.deepEqual(calling(panel.calls, 'listen.start').at(-1)?.slice(1), [
+      's1',
+      { scope: 'story' },
+    ]);
+    assert.match($('.ou-askwho .ou-startnote').textContent || '', /to listen for this story/);
+  } finally {
+    panel.done();
+  }
+});
+
+await test('new hint markup starts the Start listening button over, and a reply that was in flight shows nothing on it', async () => {
+  let prompt = '/once-upon-listen acme/widgets';
+  const looking = deferred<(typeof SESSION)[]>();
+  const panel = await mount(
+    story(),
+    (calls) =>
+      fullOptions(calls, {
+        status: (async () => notListening({ prompt })) as never,
+        listen: {
+          sessions: async () => looking.promise as never,
+          start: async (id, target) => {
+            calls.push(['listen.start', id, target]);
+          },
+        },
+      }),
+    { n: 1, chatOpen: true },
+  );
+  try {
+    const button = () => $<HTMLButtonElement>('.ou-askhint .ou-startlisten');
+    fire(button(), 'click');
+    assert.equal(button().textContent, 'Looking…');
+    prompt = '/once-upon-listen acme/other';
+    await panel.overlay.refreshHealth();
+    await settle();
+    assert.equal(button().textContent, 'Start listening', 'the new hint has a fresh button');
+    assert.equal(button().disabled, false);
+    looking.resolve([SESSION]);
+    await settle();
+    assert.equal(
+      calling(panel.calls, 'listen.start').length,
+      1,
+      'the click still types into the session',
+    );
+    assert.equal(button().textContent, 'Start listening');
+    assert.equal(button().disabled, false);
+    assert.ok($('.ou-askhint .ou-startnote').hasAttribute('hidden'), 'and leaves no note');
+  } finally {
+    panel.done();
+  }
+});
+
+await test('the hint keeps its details open for the same markup and drops them for new markup', async () => {
+  let details = 'Paste this:\n/once-upon-listen x';
+  const panel = await mount(
+    story(),
+    withStatus(() => notListening({ details })),
+    {
+      n: 1,
+      chatOpen: true,
+    },
+  );
+  try {
+    const more = () => $('.ou-askhint .ou-promptmore');
+    const long = () => $('.ou-askhint .ou-promptlong');
+    assert.ok(long().hasAttribute('hidden'));
+    fire(more(), 'click');
+    assert.ok(!long().hasAttribute('hidden'));
+    assert.equal(more().textContent, 'hide details');
+    assert.equal(more().getAttribute('aria-expanded'), 'true');
+    panel.overlay.apply();
+    await panel.overlay.refreshHealth();
+    await settle();
+    assert.ok(!long().hasAttribute('hidden'), 'the same health leaves it open');
+    assert.equal(more().textContent, 'hide details');
+    details = 'Another line';
+    await panel.overlay.refreshHealth();
+    await settle();
+    assert.ok(long().hasAttribute('hidden'), 'new markup starts again');
+    assert.equal(more().textContent, 'show details');
   } finally {
     panel.done();
   }

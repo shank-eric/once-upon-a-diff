@@ -42,7 +42,8 @@ import type { FileList } from './reading/file-list.ts';
 import type { Scroller } from './reading/scroll.ts';
 import type { Navigation } from './reading/navigation.ts';
 import type { Body } from './body.ts';
-import type { StatusLight } from './status-light.ts';
+import type { StatusLight } from './status-light-part.ts';
+import type { Markup } from './markup.ts';
 import type { FreshnessPart } from './rebuild/freshness.ts';
 import type { Rebuild } from './rebuild/rebuild.ts';
 import type { Reading } from './reading/reading.ts';
@@ -131,6 +132,7 @@ export interface PanelContext {
   shell: Shell;
   refs: FileRefs;
   markdown: Markdown;
+  markup: Markup;
   expander: Expander;
   filter: Filter;
   viewed: ViewedTracker;
