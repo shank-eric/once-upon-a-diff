@@ -73,7 +73,8 @@ export function createFileRefs(context: PanelContext) {
   const { story, state } = context;
   let linkScope = story.allRels; // the files a diff link can jump to: the step's
   let stepRefs: ChapterRef[] = []; // the refs the step's text links to: the chapter's
-  let pilled = new Set(); // files whose pill is already drawn in this step
+  let pilled = new Set(); // files whose pill the story already drew in this step
+  let answerPilled = new Set(); // files whose pill an answer has drawn in the answers' current draw
   let pillMarks: string[] | null = null; // while a chapter's story is drawn: each file mention, in reading order
 
   /** Starts a step's text: its diff links jump among these files, its `ref:` links are these refs, and no pill is drawn yet. */
@@ -81,6 +82,10 @@ export function createFileRefs(context: PanelContext) {
     linkScope = scope;
     stepRefs = refs;
     pilled = new Set();
+  }
+  /** Starts a draw of the answers (all of the dock's): each file gets one pill in it, however often the dock is redrawn in a step. */
+  function startAnswers() {
+    answerPilled = new Set();
   }
   const inScope = (rel: string) => linkScope.includes(rel);
   /** The step's ref with this id, or null. */
@@ -106,7 +111,7 @@ export function createFileRefs(context: PanelContext) {
   /**
    * The status pill on a file's mention. While a chapter's story is drawn (pillMarks set), each mention leaves a
    * marker, and placePills() puts the pill on the file's LAST mention in reading order; earlier mentions get nothing.
-   * Elsewhere (an answer), it goes on the first mention of a file the story didn't pill. A file this chapter finishes
+   * Elsewhere (an answer), it goes on the first mention of a file in that draw of the answers, unless the story pilled it in this step. A file this chapter finishes
    * gets the Mark viewed button; one a later chapter finishes gets nothing.
    */
   function pill(rel: string): Html | string {
@@ -116,10 +121,10 @@ export function createFileRefs(context: PanelContext) {
     if (pillMarks) {
       return pillMarker(pillMarks.push(rel) - 1);
     }
-    if (pilled.has(rel)) {
+    if (pilled.has(rel) || answerPilled.has(rel)) {
       return '';
     }
-    pilled.add(rel);
+    answerPilled.add(rel);
     return pillHtml(rel);
   }
   function pillHtml(rel: string): Html | string {
@@ -161,6 +166,7 @@ export function createFileRefs(context: PanelContext) {
 
   return {
     startStep,
+    startAnswers,
     inScope,
     refById,
     lineOf,

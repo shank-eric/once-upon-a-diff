@@ -1034,7 +1034,7 @@ await test('a jump link in an answer jumps once, and its pill clicks the file on
   }
 });
 
-await test('an answer draws its file pill only the first time the dock is drawn in a step (as before this change)', async () => {
+await test('an answer keeps its file pill when the dock is drawn again in the same step', async () => {
   let list = [
     question('qa', {
       step: 2,
@@ -1058,11 +1058,10 @@ await test('an answer draws its file pill only the first time the dock is drawn 
     list = [...list, question('qb')];
     await panel.overlay.refreshQuestions();
     assert.equal(all('.ou-qa').length, 2);
-    // a known bug on main (the story's "pilled" files are reset only by a step change): kept here, to be fixed on its own card
-    assert.equal(pill(), 0);
+    assert.equal(pill(), 1, 'the second draw of the same answer keeps its pill');
     panel.overlay.go(1);
     panel.overlay.go(2);
-    assert.equal(pill(), 1, 'a step change brings it back');
+    assert.equal(pill(), 1, 'and a step change brings it back too');
   } finally {
     panel.done();
   }

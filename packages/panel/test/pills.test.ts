@@ -118,3 +118,57 @@ test("an answer links by its own refs, and the step's refs are back after it", (
   assert.doesNotMatch(answer('A bare `src/a.js:3` links nothing.'), /data-rel/);
   assert.match(String(context.markdown.markdown('[back](ref:top)')), /data-rel="src\/a\.js"/);
 });
+
+function answersContext() {
+  const files = ['src/a.js', 'src/b.js'];
+  const story = createStoryModel({
+    pr: { title: 'PR' },
+    files: files.map((rel, i) => ({ rel, sha: `sha${i}` })),
+    chapters: [{ title: 'Chapter 1: A', files: files.map((rel) => ({ rel })), refs: [] }],
+  } as unknown as StoryData);
+  const context = {
+    story,
+    state: { n: 1 },
+    fileStatus: (rel: string, step: number) => story.statusIn(rel, step),
+  } as unknown as PanelContext;
+  context.refs = createFileRefs(context);
+  context.markdown = createMarkdown(context);
+  context.refs.startStep(files, []);
+  const refs = [
+    { id: 'a', path: 'src/a.js' },
+    { id: 'b', path: 'src/b.js' },
+  ];
+  const draw = (text: string) =>
+    String(context.refs.withRefs(refs as never, () => context.markdown.markdown(text)));
+  const pills = (out: string) =>
+    [...out.matchAll(/<button[^>]*data-mark-for="([^"]+)"/g)].map((match) => match[1]);
+  return { context, draw, pills };
+}
+
+test("an answer's pills are drawn again when the same answers are redrawn in the same step", () => {
+  const { context, draw, pills } = answersContext();
+  const text = 'See [a](ref:a) and [b](ref:b).';
+  context.refs.startAnswers();
+  assert.deepEqual(pills(draw(text)), ['src/a.js', 'src/b.js']);
+  context.refs.startAnswers(); // the dock is drawn again, no step change in between
+  assert.deepEqual(pills(draw(text)), ['src/a.js', 'src/b.js'], 'the second draw keeps its pills');
+});
+
+test('within one draw of the answers, a file gets one pill, on its first mention', () => {
+  const { context, draw, pills } = answersContext();
+  context.refs.startAnswers();
+  const first = draw('First [a](ref:a), then [a again](ref:a).');
+  const second = draw('And [a](ref:a) in the next answer, with [b](ref:b).');
+  assert.deepEqual(pills(first), ['src/a.js']);
+  assert.deepEqual(pills(second), ['src/b.js'], 'a is already pilled in this draw');
+});
+
+test('a file the story pilled in this step gets no pill in the answers, on any draw', () => {
+  const { context, draw, pills } = answersContext();
+  context.refs.startStep(['src/a.js', 'src/b.js'], [{ id: 'a', path: 'src/a.js' }] as never);
+  context.refs.storyWithPills(() => context.markdown.markdown('[a](ref:a)') as never);
+  for (let i = 0; i < 2; i++) {
+    context.refs.startAnswers();
+    assert.deepEqual(pills(draw('[a](ref:a) and [b](ref:b)')), ['src/b.js']);
+  }
+});

@@ -218,6 +218,7 @@ export function createQuestions(context: PanelContext) {
       working: totals.working,
       unread: totals.unread,
     });
+    context.refs.startAnswers();
     const shown = showDismissed ? questions : questions.filter((question) => !question.dismissed);
     return {
       empty: !questions.length && !undo,
