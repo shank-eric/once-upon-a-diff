@@ -51,6 +51,7 @@ const PATHS: [string, Area][] = [
   ['packages/bridge/src/services/sessions/', 'Listeners and sessions'],
   ['packages/bridge/src/services/listeners/', 'Listeners and sessions'],
   ['packages/bridge/src/adapters/iterm.ts', 'Listeners and sessions'],
+  ['packages/bridge/src/adapters/status-source.ts', 'Listeners and sessions'],
   ['packages/bridge/src/adapters/claude-sessions/', 'Listeners and sessions'],
   ['packages/bridge/src/services/backlog/', 'Backlog'],
   ['packages/bridge/src/cli/commands/backlog.ts', 'Backlog'],

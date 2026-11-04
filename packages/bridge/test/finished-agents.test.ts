@@ -13,7 +13,7 @@ import { AgentRegistry } from '../src/services/ledger/registry.ts';
 import { doneLine, lastActivity, ledgerTime, parseLedger } from '../src/services/ledger/ledger.ts';
 import { appendLine } from '../src/adapters/stores/notes.ts';
 import { BoardError } from '../src/services/errors.ts';
-import type { StatusSource } from '../src/adapters/iterm.ts';
+import type { StatusSource } from '../src/adapters/status-source.ts';
 import type { BoardCard } from '@once-upon-a-diff/protocol/types';
 
 const open: TestBridge[] = [];

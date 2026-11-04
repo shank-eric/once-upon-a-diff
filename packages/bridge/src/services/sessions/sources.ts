@@ -4,7 +4,8 @@
  * knows, and the board uses the registry's busy/idle for the rest. Two are built in: `iterm` (adapters/iterm.ts) and
  * `registry`, which adds nothing: busy is working, idle is idle. pickSource chooses between them from the settings.
  */
-import { type StatusSource, findIt2, itermSource } from '../../adapters/iterm.ts';
+import { findIt2, itermSource } from '../../adapters/iterm.ts';
+import type { StatusSource } from '../../adapters/status-source.ts';
 
 export const registrySource: StatusSource = {
   name: 'registry',

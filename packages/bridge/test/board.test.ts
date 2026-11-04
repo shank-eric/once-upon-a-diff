@@ -76,7 +76,7 @@ import { pickSource, registrySource } from '../src/services/sessions/sources.ts'
 import { findIt2, focusTab, itermSource, typeLine } from '../src/adapters/iterm.ts';
 import { boardKey, pageKey, viewKey } from '../src/services/pages/page-key.ts';
 import { readSettings } from '../src/services/config/settings.ts';
-import type { StatusSource } from '../src/adapters/iterm.ts';
+import type { StatusSource } from '../src/adapters/status-source.ts';
 import {
   ghBranchCheck,
   ghPrCheck,

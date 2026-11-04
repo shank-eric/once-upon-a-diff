@@ -12,7 +12,7 @@ import { Builds } from '../inbox/builds.ts';
 import { readHanded } from '../inbox/conversation.ts';
 import type { Listener } from '../listeners/listeners.ts';
 import type { LedgerAgent } from '../ledger/ledger.ts';
-import type { SourceStatus } from '../../adapters/iterm.ts';
+import type { SourceStatus } from '../../adapters/status-source.ts';
 import type { LiveSession } from '../../adapters/claude-sessions/live-sessions.ts';
 import { noteListener, readHistory } from '../listeners/history.ts';
 import { run } from '../../adapters/os.ts';

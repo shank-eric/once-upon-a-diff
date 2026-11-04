@@ -8,7 +8,7 @@ import { Board, noPrWatcher, type PrWatcher } from '../src/services/board/board.
 import { StoryStore } from '../src/services/stories/store.ts';
 import { Builds } from '../src/services/inbox/builds.ts';
 import { boardKey } from '../src/services/pages/page-key.ts';
-import type { StatusSource } from '../src/adapters/iterm.ts';
+import type { StatusSource } from '../src/adapters/status-source.ts';
 
 const open: TestBridge[] = [];
 after(() => Promise.all(open.map((bridge) => bridge.close())));

@@ -17,7 +17,7 @@ import { boardKey } from '../src/services/pages/page-key.ts';
 import { EXTENSION_ROUTES } from '../../extension/src/bridge-routes.ts';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import type { BoardCard, InboxStory, PrInfo } from '@once-upon-a-diff/protocol/types';
-import type { StatusSource } from '../src/adapters/iterm.ts';
+import type { StatusSource } from '../src/adapters/status-source.ts';
 
 const HEAD = '7c3010541aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const BRANCH = 'fix/dot-prop';

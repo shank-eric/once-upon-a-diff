@@ -37,7 +37,8 @@ import {
 } from '../../adapters/larmor.ts';
 import type { ListeningInput } from '../sessions/listening.ts';
 import { requestStop } from '../listeners/auto-stop.ts';
-import { typeLine, type StatusSource } from '../../adapters/iterm.ts';
+import { typeLine } from '../../adapters/iterm.ts';
+import type { StatusSource } from '../../adapters/status-source.ts';
 import { BoardError } from '../errors.ts';
 import type { Builds } from '../inbox/builds.ts';
 import type { StoryStore } from '../stories/store.ts';

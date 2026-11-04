@@ -17,7 +17,7 @@ import { awayOn, bridgeUp, lastVoice, phoneReady, readVoice } from '../../../ada
 import { adoptHandlers, listeningOnly, parentMap } from '../../sessions/listening.ts';
 import { listeners, type Listener } from '../../listeners/listeners.ts';
 import { pickSource } from '../../sessions/sources.ts';
-import { type SourceStatus, type StatusSource } from '../../../adapters/iterm.ts';
+import { type SourceStatus, type StatusSource } from '../../../adapters/status-source.ts';
 import { type LiveSession } from '../../../adapters/claude-sessions/live-sessions.ts';
 import type {
   BoardBeat,

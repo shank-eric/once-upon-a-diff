@@ -6,31 +6,14 @@
  *             line), matched to a session by its tty. A Stop hook that sets the tab's status to "waiting" when a reply
  *             hands back to you is what makes the waiting column work.
  *
- * A status source gets the live sessions (with their ttys) and answers with a status and detail for the ones it knows.
- * Another terminal or status line is one more object with the StatusSource shape.
+ * It is one StatusSource (adapters/status-source.ts) among others.
  */
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import type { BoardStatus } from '@once-upon-a-diff/protocol/types';
 import { run } from './os.ts';
-import type { LiveSession } from './claude-sessions/live-sessions.ts';
-
-/** What a source knows about one session. */
-export interface SourceStatus {
-  status: BoardStatus;
-  detail: string | null;
-  /** the background tasks the session has running, as iTerm's status counts them (`background_tasks`); null when it doesn't say */
-  tasks: number | null;
-  /** a better title than the registry's derived name, such as the terminal tab's */
-  title: string | null;
-}
-
-export interface StatusSource {
-  name: 'iterm' | 'registry';
-  /** Statuses by session id. Never rejects: a source that can't answer gives an empty map. */
-  statuses(sessions: LiveSession[]): Promise<Map<string, SourceStatus>>;
-}
+import type { SourceStatus, StatusSource } from './status-source.ts';
 
 /** Tab names that say nothing about the work, so the registry's name is the better title. */
 const GENERIC_TITLES = new Set([

@@ -105,7 +105,7 @@ The tag turns to Ready. On `/changes` the panel loads `GET /api/stories/<id>` an
 | B2 | `app` | `POST /api/board/type {kind: 'build'}` with the board's key | `packages/web/public/board/columns/actions.ts:19` (`ROUTES.boardType`) |
 | B3 | `app` | the route hands it to the Sessions service | `packages/bridge/src/server/routes/board.ts:81` (`app.sessions.type(`) |
 | B4 | `service` | checks the session is at its prompt, and takes the prompt from the card the board built | `packages/bridge/src/services/sessions/sessions.ts:259` (`build?.session === sessionId`) |
-| B5 | `adapter` | **types the line** into the tab: `it2 session run` | `packages/bridge/src/adapters/iterm.ts:176` (`'session', 'run'`) |
+| B5 | `adapter` | **types the line** into the tab: `it2 session run` | `packages/bridge/src/adapters/iterm.ts:159` (`'session', 'run'`) |
 
 The click names its card (`card` in the body), so a session that builds for several cards, such as a launcher with three finished authors, gets the clicked card's line (`packages/bridge/src/services/sessions/sessions.ts:262` (`one.id === card`)). On a finished author's own card in Ready for your review, the line is a plain request naming the branch and its worktree, typed into the session that launched the author, never the slash command: that session decides who runs the skill (`packages/bridge/src/services/sessions/listening.ts:352` (`function authorBuild`)). When it can't be typed, the card's Copy hands over the line.
 
@@ -239,7 +239,7 @@ flowchart LR
 | 10 | `service` | `Sessions.type`: is the session at its prompt | `packages/bridge/src/services/sessions/sessions.ts:220` (`this.typeable(sessionId)`) |
 | 11 | `service` | the same rule as the offer, against a fresh snapshot | `packages/bridge/src/services/sessions/sessions.ts:223` (`await this.feed.snapshot()`) |
 | 12 | `service` | the bridge makes the line itself, and the body never carries text: `/once-upon-listen <repo>` for the repo, or `--story <id>` for the story scope (`packages/bridge/src/services/sessions/listening.ts:337` (`export const listenStoryPromptFor`), chosen at `packages/bridge/src/services/sessions/sessions.ts:248` (`listenStoryPromptFor(story)`)) | `packages/bridge/src/services/sessions/listening.ts:334` (`export const listenPromptFor`) |
-| 13 | `adapter` | **types it** into the tab found from the session's tty | `packages/bridge/src/adapters/iterm.ts:167` (`export async function typeLine`) |
+| 13 | `adapter` | **types it** into the tab found from the session's tty | `packages/bridge/src/adapters/iterm.ts:150` (`export async function typeLine`) |
 | 14 | `outside` | the session runs the once-upon-listen skill, which starts `once-upon wait` in the background |  |
 | 15 | `app` | the wait **writes its `waiting` beat** every 5 s | `packages/bridge/src/cli/commands/inbox.ts:388` (`beat(home, consumer, 'waiting', scope)`) |
 | 16 | `app` | back: the pulse says whether a listener is live for the story or its repo | `packages/bridge/src/server/routes/story.ts:86` (`listeningOf(app.home`) |

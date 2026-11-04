@@ -9,7 +9,7 @@ import type {
   InboxLocalStory,
   InboxStory,
 } from '@once-upon-a-diff/protocol/types';
-import type { StatusSource } from '../../../adapters/iterm.ts';
+import type { StatusSource } from '../../../adapters/status-source.ts';
 import type { PrWatcher } from './pr-watcher.ts';
 
 /** The board's settings (config.json's board_* keys, read once per build). */
