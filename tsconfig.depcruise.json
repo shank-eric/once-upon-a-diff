@@ -13,7 +13,12 @@
       "/assets/local/*": ["./packages/web/public/local/*"],
       "/assets/highlight.mjs": ["./packages/web/public/vendor/highlight.mjs"],
       "/assets/preact.mjs": ["./packages/web/public/vendor/preact.mjs"],
-      "/assets/*": ["./packages/web/public/*"]
+      "/assets/board/*": ["./packages/web/public/board/*"],
+      "/assets/board.ts": ["./packages/web/public/board.ts"],
+      "/assets/local.ts": ["./packages/web/public/local.ts"],
+      "/assets/narrow.ts": ["./packages/web/public/narrow.ts"],
+      "/assets/split.ts": ["./packages/web/public/split.ts"],
+      "/assets/syntax.ts": ["./packages/web/public/syntax.ts"]
     }
   },
   "include": ["packages/*/src", "packages/web/public"]

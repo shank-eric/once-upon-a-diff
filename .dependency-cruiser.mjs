@@ -1,12 +1,13 @@
 /*
- * Layer check with dependency-cruiser (`yarn depcruise`). It mirrors eslint.boundaries.mjs and AGENTS.md "Structure"
- * (packages/bridge/test/layer-rules-agree.test.ts fails when the two disagree on what a layer may import),
- * and adds what ESLint cannot see: import cycles, and the whole graph (an import through a re-export still counts).
+ * The one home for which package, layer or region may import which, and for import cycles (`yarn depcruise`, run by
+ * `yarn lint`). See AGENTS.md "Structure". It sees the whole graph, so an import through a re-export still counts.
+ * ESLint keeps style and eslint.side-effects.mjs (only an adapter runs a program, writes a file or reaches the network).
  * Source only: tests, scripts and config cross packages on purpose, so they are not cruised.
  *
  * The browser imports its modules by URL (`/assets/panel/overlay.ts`). The bridge serves them from the packages, and
- * tsconfig.depcruise.json maps each URL back to its file (the same `paths` as packages/web/public/tsconfig.json), so the cruise takes that
- * tsconfig to resolve them. A package import (`@once-upon-a-diff/panel/overlay`) resolves through the workspace
+ * tsconfig.depcruise.json maps each URL back to its file (the same `paths` as packages/web/public/tsconfig.json, except that the pages' own files are listed one by one, not by
+ * an /assets/* catch-all, so /assets/vendor/preact.mjs resolves to nothing: the one Preact is /assets/preact.mjs; a new top-level page
+ * needs a line there), so the cruise takes that tsconfig to resolve them. A package import (`@once-upon-a-diff/panel/overlay`) resolves through the workspace
  * symlink and the package's `exports`.
  *
  * Packages and layers, as paths from the repo root (a rule's `from`/`to` match these):
@@ -94,7 +95,7 @@ export default {
     {
       name: 'no-circular',
       comment: 'a cycle between modules: break it by moving what both need into a third module',
-      severity: 'warn', // 19 runtime cycles exist today (listed in the card notes): visible, not blocking, until they are broken
+      severity: 'warn', // 17 runtime cycles exist today: visible, not blocking, until they are broken
       from: {},
       to: { circular: true, dependencyTypesNot: ['type-only'] },
     },
@@ -135,7 +136,7 @@ export default {
     ),
     rule(
       'only-adapters-run-programs-or-network',
-      'only an adapter runs a program or reaches the network (the HTTP app has node:http, to listen). Covers the imports a graph can see; the rest stays ESLint-only (eslint.boundaries.mjs): fs writes (an import of node:fs cannot tell a read from a write), fetch, process.kill, module loaders, and the /assets/ specifier rules',
+      'only an adapter runs a program or reaches the network (the HTTP app has node:http, to listen). Covers the imports a graph can see; the rest stays ESLint-only (eslint.side-effects.mjs): fs writes (an import of node:fs cannot tell a read from a write), fetch, process.kill and module loaders',
       { path: [SERVICES, SERVER, CLI] },
       {
         dependencyTypes: ['core'],
@@ -210,19 +211,25 @@ export default {
       'domain-imports-nothing',
       'the domain is pure rules: it imports nothing, not even the rest of the protocol',
       { path: DOMAIN },
-      { pathNot: DOMAIN },
+      {},
     ),
     rule(
       'api-client-below-panel-and-pages',
       'the api-client imports the protocol and nothing else of this repo',
       { path: API_CLIENT },
-      { path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${HOST}|${UI_PKG}|${TEST_KIT}` },
+      {
+        path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${HOST}|${UI_PKG}|${TEST_KIT}`,
+        pathNot: '^packages/web/public/vendor/preact\\.mjs$',
+      },
     ),
     rule(
       'ui-below-panel-and-pages',
       'ui sits below the panel, the pages and the extension: it imports the protocol and the vendored Preact, never an app, the server, the panel, a host adapter or the api-client',
       { path: UI_PKG },
-      { path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${HOST}|${API_CLIENT}|${TEST_KIT}` },
+      {
+        path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${HOST}|${API_CLIENT}|${TEST_KIT}`,
+        pathNot: '^packages/web/public/vendor/preact\\.mjs$',
+      },
     ),
     rule(
       'ui-imports-only-the-protocol',
@@ -255,7 +262,10 @@ export default {
       'panel-is-host-agnostic',
       'the panel is handed a host adapter (panel/src/host.ts), it never imports one, or an app, or the server',
       { path: PANEL },
-      { path: `${HOST}|${WEB}|${EXTENSION}|${BRIDGE}|${TEST_KIT}` },
+      {
+        path: `${HOST}|${WEB}|${EXTENSION}|${BRIDGE}|${TEST_KIT}`,
+        pathNot: '^packages/web/public/vendor/preact\\.mjs$',
+      },
     ),
     rule(
       'host-implements-the-panel-port',
@@ -281,10 +291,18 @@ export default {
     rule(
       'pages-are-an-app',
       'the pages are an app: nothing imports them, and they do not import the extension or the server',
+      // the panel, ui and the api-client have their own rules over WEB (they may name the vendored Preact, by its URL only)
+      { path: `${HOST}|${PROTOCOL}|${BRIDGE}|${EXTENSION}|${TEST_KIT}` },
+      { path: WEB },
+    ),
+    rule(
+      'preact-by-its-url-only',
+      'the vendored Preact is named /assets/preact.mjs by the panel, ui and the api-client hook, so the page has one Preact: not by a relative path or a package name',
+      { path: `${PANEL}|${UI_PKG}|${API_CLIENT}` },
       {
-        path: `${PANEL}|${HOST}|${API_CLIENT}|${UI_PKG}|${PROTOCOL}|${BRIDGE}|${EXTENSION}|${TEST_KIT}`,
+        path: '^packages/web/public/vendor/preact\\.mjs$',
+        dependencyTypesNot: ['aliased-tsconfig-paths'],
       },
-      { path: WEB, pathNot: '^packages/web/public/(vendor|types)/' },
     ),
     rule(
       'pages-not-the-extension',
@@ -304,6 +322,34 @@ export default {
       { path: EXTENSION },
       { path: `${BRIDGE}|${WEB}` },
     ),
+    // the /assets/ spelling: the browser imports by URL, the extension's bundle and the packages by name
+    rule(
+      'client-names-packages-not-page-urls',
+      'the panel, ui and the api-client hook are shared by the extension and the pages: the one page URL they name is the vendored Preact (/assets/preact.mjs), and they import packages, never a page module',
+      { path: `${PANEL}|${UI_PKG}|^packages/api-client/src/use-poll\\.ts$` },
+      {
+        dependencyTypes: ['aliased-tsconfig-paths'],
+        pathNot: '^packages/web/public/vendor/preact\\.mjs$',
+      },
+    ),
+    rule(
+      'no-page-urls-at-all',
+      'host-github is served at /assets/ for the pages, and the api-client’s client.ts and poll.ts are shared with the panel and the extension: they name packages, not an /assets/ URL (use-poll.ts, the pages’ hook, may name the vendored Preact)',
+      { path: `${HOST}|^packages/api-client/src/(?!use-poll\\.ts$)` },
+      { dependencyTypes: ['aliased-tsconfig-paths'] },
+    ),
+    rule(
+      'protocol-names-no-page-urls',
+      'the protocol names its own files by relative path, not by an /assets/ URL',
+      { path: PROTOCOL },
+      { dependencyTypes: ['aliased-tsconfig-paths'] },
+    ),
+    rule(
+      'no-unresolved',
+      'an import that resolves to nothing (a mistyped path, an /assets/ URL no tsconfig path maps, a package path its exports do not expose) is refused',
+      {},
+      { couldNotResolve: true },
+    ),
     rule(
       'shipped-code-not-the-test-kit',
       'the test kit is dev-only: tests import it, nothing that ships does',
@@ -318,8 +364,8 @@ export default {
     ),
   ],
   options: {
-    doNotFollow: { path: 'node_modules' },
-    exclude: { path: '/vendor/|\\.d\\.m?ts$|^packages/panel/types/|^packages/web/public/types/' },
+    // the vendored files are leaves: an import of one is a dependency the rules see, but its own imports are not followed
+    doNotFollow: { path: 'node_modules|/vendor/' },
     tsConfig: { fileName: 'tsconfig.depcruise.json' },
     tsPreCompilationDeps: true,
     enhancedResolveOptions: {

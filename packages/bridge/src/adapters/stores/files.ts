@@ -1,7 +1,7 @@
 /*
  * File writes that are not JSON documents: folders, appended log lines, copies, removals and permissions. Anything in the
  * bridge that changes a file or folder goes through here or through json-file.ts, so a lint rule can keep the
- * services and the apps from reaching for `node:fs` writes themselves (eslint.boundaries.mjs).
+ * services and the apps from reaching for `node:fs` writes themselves (eslint.side-effects.mjs).
  */
 import { appendFileSync, chmodSync, copyFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 

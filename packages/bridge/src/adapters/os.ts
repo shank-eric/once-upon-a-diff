@@ -1,6 +1,6 @@
 /*
  * This Mac: running programs, process ids, ports, host names and the browser. The services reach it through these, so
- * a lint rule can keep `child_process` and the network out of them (eslint.boundaries.mjs).
+ * a lint rule can keep `child_process` and the network out of them (eslint.side-effects.mjs).
  */
 import { execFile, execFileSync } from 'node:child_process';
 import { lookup } from 'node:dns/promises';

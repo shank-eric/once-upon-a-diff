@@ -13,7 +13,7 @@ import promisePlugin from 'eslint-plugin-promise';
 import eslintPrettierConfig from 'eslint-config-prettier';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
-import boundaries from './eslint.boundaries.mjs';
+import sideEffects from './eslint.side-effects.mjs';
 
 const NODE_FILES = [
   'packages/bridge/**/*.{ts,mjs}',
@@ -112,6 +112,6 @@ export default defineConfig(
     files: ['packages/bridge/test/fixtures/*.{ts,mjs}'],
     rules: { 'n/hashbang': 'off' },
   },
-  // package boundaries: last, so nothing above loosens them
-  ...boundaries,
+  // side effects (only adapters run programs, write files or reach the network): last, so nothing above loosens them
+  ...sideEffects,
 );

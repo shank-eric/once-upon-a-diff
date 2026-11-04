@@ -22,7 +22,7 @@ test('no tracked file names the shared package or the URLs it was served at', ()
         /\.(ts|mjs|json|md|sh|yml)$/.test(file) &&
         !file.startsWith('docs/') &&
         file !== 'packages/bridge/test/no-shared.test.ts' &&
-        file !== 'packages/bridge/test/boundary-lint.test.ts' &&
+        file !== 'packages/bridge/test/side-effects-lint.test.ts' &&
         existsSync(`${ROOT}${file}`),
     );
   const found: string[] = [];

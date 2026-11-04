@@ -212,7 +212,7 @@
         "tsconfig.browser.json",
         "tsconfig.depcruise.json",
         "eslint.config.mjs",
-        "eslint.boundaries.mjs",
+        "eslint.side-effects.mjs",
         ".dependency-cruiser.mjs",
         "knip.jsonc",
         "yarn.lock",
