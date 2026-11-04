@@ -11,6 +11,7 @@ import { seenCheckout } from '../src/services/config/repos.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
 import { Builds } from '../src/services/inbox/builds.ts';
 import {
+  HIDDEN_MARKER,
   WorktreeScanner,
   judge,
   parseWorktreeEntries,
@@ -485,6 +486,21 @@ test('prunable entries are reported with the command, not as worktrees', async (
   );
   assert.equal(scan.prunable.length, 1);
   assert.match(scan.prunable[0].line, /worktree prune$/);
+});
+
+test('a worktree whose git dir has the hidden marker (the deploy worktree of deploy-local.sh) is left out of the scan', async () => {
+  const repo = fixture();
+  const deploy = repo.add('deploy');
+  repo.add('here');
+  const gitDir = git(deploy, 'rev-parse', '--absolute-git-dir').trim();
+  writeFileSync(path.join(gitDir, HIDDEN_MARKER), '');
+  const scan = await scanned(new WorktreeScanner({ home: tmp('wt-home'), dirs: () => [] }), [
+    repo.main,
+  ]);
+  assert.deepEqual(
+    scan.items.map((item) => path.basename(item.path)),
+    ['here'],
+  );
 });
 
 /** A board over a home that knows the repo, with the worktree scan's git optionally held. */

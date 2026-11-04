@@ -19,7 +19,7 @@
  *
  * `judge` is the one place that decides whether a worktree may be cleaned up; the board and the cleanup endpoint share it.
  */
-import { realpathSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { repoOfRemote, sameRepo } from '../config/repos.ts';
@@ -67,6 +67,22 @@ export function parseWorktreeEntries(text: string): WorktreeEntry[] {
     });
   }
   return found;
+}
+
+/**
+ * A file of this name in a worktree's git dir keeps the worktree off the board. scripts/deploy-local.sh writes it in
+ * its own reusable deploy worktree; any tool that owns a worktree the board should not list can do the same.
+ */
+export const HIDDEN_MARKER = 'once-upon-hidden';
+
+/** Whether a linked worktree's git dir (named by the `gitdir:` line of its .git file) has the hidden marker. */
+export function hiddenWorktree(dir: string): boolean {
+  try {
+    const line = /^gitdir:\s*(.+)$/m.exec(readFileSync(path.join(dir, '.git'), 'utf8'));
+    return !!line && existsSync(path.join(path.resolve(dir, line[1].trim()), HIDDEN_MARKER));
+  } catch {
+    return false;
+  }
 }
 
 /** Flags on every git call the board makes: no fsmonitor daemon to wedge on, and no index lock taken by a status. */
@@ -389,7 +405,7 @@ export class WorktreeScanner {
             repo: main.repo,
             line: `git -C ${main.path} worktree prune`,
           });
-        } else {
+        } else if (!hiddenWorktree(entry.path)) {
           queue.push({ entry, main, targets });
         }
       }

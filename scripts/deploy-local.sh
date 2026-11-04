@@ -397,6 +397,8 @@ if [ "$REUSED" = 0 ]; then
     mkdir -p "$MAIN-worktrees"
     git -C "$MAIN" worktree add -q --detach "$WT" "$BASE"
   fi
+  # The board leaves out a worktree whose git dir has this marker (HIDDEN_MARKER in the bridge's worktrees.ts).
+  : >"$(dirname "$(stamp_of)")/once-upon-hidden"
   say "worktree $WT reset to $(git -C "$WT" rev-parse --short HEAD)"
   for s in "${SHAS[@]}"; do
     if ! out="$(git -C "$WT" cherry-pick "$s" 2>&1)"; then
