@@ -1,5 +1,6 @@
 /*
- * Layer check with dependency-cruiser (`yarn depcruise`). It mirrors eslint.boundaries.mjs and AGENTS.md "Structure",
+ * Layer check with dependency-cruiser (`yarn depcruise`). It mirrors eslint.boundaries.mjs and AGENTS.md "Structure"
+ * (packages/bridge/test/layer-rules-agree.test.ts fails when the two disagree on what a layer may import),
  * and adds what ESLint cannot see: import cycles, and the whole graph (an import through a re-export still counts).
  * Source only: tests, scripts and config cross packages on purpose, so they are not cruised.
  *
@@ -9,13 +10,13 @@
  * symlink and the package's `exports`.
  *
  * Packages and layers, as paths from the repo root (a rule's `from`/`to` match these):
- *   bridge   packages/bridge/src/{server (+routes), cli} over services over adapters
+ *   bridge   packages/bridge/src/{server (+routes), cli} over services over adapters (BRIDGE is the whole package)
  *   web      packages/web/public (the pages, an app)
  *   extension packages/extension/src (an app)
  *   panel, host-github, api-client, ui, protocol (+ protocol/src/domain), test-kit
  */
 
-const BRIDGE = '^packages/bridge/(src|bin)/';
+const BRIDGE = '^packages/bridge/';
 const SERVER = '^packages/bridge/src/server/';
 const CLI = '^packages/bridge/src/cli/';
 const ROUTES = '^packages/bridge/src/server/routes/';
@@ -42,6 +43,8 @@ const rule = (name, comment, importer, imported) => ({
   to: imported,
 });
 
+const BOARD_REGIONS = ['header', 'columns', 'backlog', 'worktrees', 'voice'];
+
 // regions: sibling folders of one feature that do not import each other, nor the composition root above them
 const REGION_SETS = [
   {
@@ -53,7 +56,7 @@ const REGION_SETS = [
   {
     name: 'board',
     root: 'packages/web/public/board',
-    regions: ['header', 'columns', 'backlog', 'worktrees', 'voice'],
+    regions: BOARD_REGIONS,
     top: 'packages/web/public/board\\.ts',
   },
 ];
@@ -75,6 +78,16 @@ const regionRules = REGION_SETS.flatMap(({ name, root, regions, top }) => {
   ];
 });
 
+// the board's shared files sit below its regions and its page
+const boardSharedRule = rule(
+  'board-shared-below-the-regions',
+  'board/shared.ts and board/worktree-text.ts sit below the regions and board.ts, which import them',
+  { path: '^packages/web/public/board/(shared|worktree-text)\\.ts$' },
+  {
+    path: `^packages/web/public/board(\\.ts$|/(${BOARD_REGIONS.join('|')})/)`,
+  },
+);
+
 /** @type {import('dependency-cruiser').IConfiguration} */
 export default {
   forbidden: [
@@ -87,6 +100,7 @@ export default {
     },
 
     ...regionRules,
+    boardSharedRule,
 
     // the bridge: server (HTTP) and cli over services over adapters
     rule(
@@ -135,6 +149,12 @@ export default {
       { dependencyTypes: ['core'], path: '^(node:)?http$' },
     ),
     rule(
+      'bridge-not-the-client',
+      'the bridge serves the client packages, it does not import them: the client and the server meet at the protocol',
+      { path: BRIDGE },
+      { path: `${PANEL}|${HOST}|${API_CLIENT}|${UI_PKG}` },
+    ),
+    rule(
       'bridge-is-server-only',
       'the bridge is server code: only the server and Node tests import it',
       {
@@ -157,6 +177,12 @@ export default {
       {
         path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${HOST}|${API_CLIENT}|${UI_PKG}|${TEST_KIT}`,
       },
+    ),
+    rule(
+      'protocol-names-itself-by-path',
+      'the protocol names its own files by relative path: by name it imports valibot only',
+      { path: PROTOCOL },
+      { path: PROTOCOL, dependencyTypesNot: ['local'] },
     ),
     rule(
       'protocol-imports-only-valibot',
@@ -248,9 +274,9 @@ export default {
     ),
     rule(
       'schemas-are-server-side',
-      'schemas.ts imports valibot, which no page or extension loads: only the server imports it',
-      { path: `${WEB}|${EXTENSION}|${PANEL}|${HOST}|${API_CLIENT}|${UI_PKG}|${PROTOCOL}` },
-      { path: '^packages/protocol/src/schemas\\.ts$', pathNot: '^packages/protocol/src/' },
+      'schemas.ts imports valibot, which no page or extension loads: only the server and the protocol itself import it',
+      { path: `${WEB}|${EXTENSION}|${PANEL}|${HOST}|${API_CLIENT}|${UI_PKG}` },
+      { path: '^packages/protocol/src/schemas\\.ts$' },
     ),
     rule(
       'pages-are-an-app',
@@ -288,9 +314,7 @@ export default {
       'test-kit-is-below',
       'the test kit sits below every package: it imports Node and linkedom only',
       { path: TEST_KIT },
-      {
-        path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${HOST}|${PROTOCOL}|${API_CLIENT}|${UI_PKG}`,
-      },
+      { path: '^packages/', pathNot: TEST_KIT },
     ),
   ],
   options: {

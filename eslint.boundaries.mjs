@@ -1,3 +1,5 @@
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+
 /*
  * Package boundaries, enforced by `yarn lint` (eslint.config.mjs spreads this in last).
  *
@@ -41,6 +43,9 @@
  * Tests, scripts and config files are Node and cross packages on purpose, so no layer
  * names them. packages/bridge/test/boundary-lint.test.ts probes every rule below.
  *
+ * This file is the source for the layer rules. .dependency-cruiser.mjs mirrors them over the whole graph, and
+ * packages/bridge/test/layer-rules-agree.test.ts fails when the two disagree on what a layer may import: change both.
+ *
  * Every layer is one entry in LAYERS, and each entry turns into one ESLint block. ESLint
  * REPLACES a rule's options when a later block matches the same file, it does not merge
  * them, so two blocks over the same files would silently drop the first one's rules.
@@ -60,7 +65,9 @@
  *   5. Add a case to the probe test, one that must fire and one that must pass.
  *
  * Three mechanisms, because ESLint sees a specifier, not a package:
- *   - import/no-restricted-paths resolves the file a relative import lands on.
+ *   - import/no-restricted-paths resolves the file a relative import lands on. It cannot resolve a package
+ *     name (the packages expose their files through `exports`, which its resolver does not read), so each
+ *     folder in `paths` is also banned by the package specifiers that reach it (packageSpecifiers below).
  *   - no-restricted-imports matches the specifier of a static package import.
  *   - no-restricted-syntax matches the same specifiers in a dynamic `import('...')` and in a
  *     type-position `import('...')`, which no-restricted-imports does not look at.
@@ -174,7 +181,6 @@ const ASSET_URL = {
 };
 
 // folders, from the repo root
-const BRIDGE_SRC = './packages/bridge/src';
 const WEB_PUBLIC = './packages/web/public';
 const HOST_GITHUB_SRC = './packages/host-github/src';
 const API_CLIENT_SRC = './packages/api-client/src';
@@ -293,9 +299,9 @@ const FS_WRITE_MESSAGE =
 const FS_NAMESPACE_MESSAGE =
   'import the read functions by name from node:fs: a whole-module import hides the write calls from the lint rule';
 const NOT_THE_PAGES = { from: WEB_PUBLIC, message: 'the pages are an app: nothing imports them' };
-const NOT_THE_EXTENSION = { from: EXTENSION_SRC, message: 'nothing imports an app' };
+const NOT_THE_EXTENSION = { from: './packages/extension', message: 'nothing imports an app' };
 const NOT_THE_SERVER = {
-  from: BRIDGE_SRC,
+  from: './packages/bridge',
   message: 'the pages, the panel and the extension meet the server over HTTP, not by import',
 };
 const NOT_THE_TEST_KIT = {
@@ -308,7 +314,7 @@ const NOT_THE_API_CLIENT = {
     'the api-client is client code above the protocol: the server, the protocol and the test kit never import it',
 };
 const NOT_THE_UI = {
-  from: UI_SRC,
+  from: './packages/ui',
   message:
     'ui is client code above the protocol: only the panel, the pages, the extension and tests import it',
 };
@@ -318,7 +324,7 @@ const NOT_THE_BRIDGE_PACKAGE = {
   message: 'the protocol sits below the bridge',
 };
 const NOT_THE_HOST_PACKAGE = {
-  from: HOST_GITHUB_SRC,
+  from: './packages/host-github',
   message:
     'a host adapter implements the panel’s port: the server, the protocol and the panel never import one, only the apps',
 };
@@ -344,12 +350,12 @@ const NOT_THE_CLI_APP = {
   message: 'the CLI is an app: the services, the adapters and the HTTP app never import it',
 };
 const NOT_THE_PANEL_PACKAGE = {
-  from: PANEL_SRC,
+  from: './packages/panel',
   message:
     'the panel is client code above the protocol: only the apps, the host adapters (for its port) and tests import it',
 };
 const NOT_THE_HOST_ADAPTERS = {
-  from: HOST_GITHUB_SRC,
+  from: './packages/host-github',
   message:
     'the panel is host-agnostic: it is handed a host adapter (packages/panel/src/host.ts), never imports one',
 };
@@ -381,7 +387,7 @@ const PANEL_BASE = {
 
 // what a page region must not reach: the page above it, and the apps, server and schemas every page avoids
 const PAGES = {
-  paths: [NOT_THE_SERVER, NOT_THE_SCHEMAS, NOT_THE_TEST_KIT],
+  paths: [NOT_THE_SERVER, NOT_THE_EXTENSION, NOT_THE_SCHEMAS, NOT_THE_TEST_KIT],
   specifiers: [BRIDGE, EXTENSION, SCHEMAS, TEST_KIT],
 };
 
@@ -425,8 +431,8 @@ const regionLayers = ({
 const PANEL_REGIONS = ['ask', 'drafts', 'fixes', 'reading', 'rebuild'];
 const BOARD_REGIONS = ['header', 'columns', 'backlog', 'worktrees', 'voice'];
 
-// a host adapter (host-github): it implements the panel's port, so it sees the panel's port files and nothing of the panel's
-// composition (overlay.ts and the regions), the apps, the server or the schemas
+// a host adapter (host-github): it implements the panel's port, so it sees the panel's port files (host.ts, diff-types.ts) and
+// nothing else of the panel (not overlay.ts, a region or a shared file), the apps, the server or the schemas
 const HOST_ADAPTER = {
   paths: [
     NOT_THE_BRIDGE,
@@ -435,11 +441,12 @@ const HOST_ADAPTER = {
     NOT_THE_SCHEMAS,
     NOT_THE_USE_POLL,
     NOT_THE_TEST_KIT,
-    { from: PANEL_OVERLAY, message: PANEL_COMPOSITION.message },
-    ...PANEL_REGIONS.map((region) => ({
-      from: `${PANEL_SRC}/${region}`,
-      message: PANEL_COMPOSITION.message,
-    })),
+    {
+      from: './packages/panel',
+      except: ['./src/host.ts', './src/diff-types.ts'],
+      message:
+        'a host adapter implements the panel’s port: it imports host.ts and diff-types.ts, nothing else of the panel',
+    },
   ],
   specifiers: [BRIDGE, EXTENSION, WEB, PANEL_COMPOSITION, ASSET_URL, SCHEMAS, USE_POLL, TEST_KIT],
 };
@@ -705,7 +712,7 @@ const LAYERS = [
     name: 'extension',
     files: ['packages/extension/src/**/*.ts'],
     targets: [EXTENSION_SRC],
-    paths: [NOT_THE_SERVER, NOT_THE_SCHEMAS, NOT_THE_USE_POLL, NOT_THE_TEST_KIT],
+    paths: [NOT_THE_SERVER, NOT_THE_PAGES, NOT_THE_SCHEMAS, NOT_THE_USE_POLL, NOT_THE_TEST_KIT],
     specifiers: [BRIDGE, SCHEMAS, USE_POLL, TEST_KIT],
     browser: true,
   },
@@ -719,7 +726,7 @@ const LAYERS = [
       { from: './packages/web', message: KIT_BELOW },
       { from: './packages/extension', message: KIT_BELOW },
       { from: './packages/panel', message: KIT_BELOW },
-      { from: HOST_GITHUB_SRC, message: KIT_BELOW },
+      { from: './packages/host-github', message: KIT_BELOW },
       { from: './packages/protocol', message: KIT_BELOW },
       { from: './packages/api-client', message: KIT_BELOW },
       { from: './packages/ui', message: KIT_BELOW },
@@ -729,6 +736,64 @@ const LAYERS = [
     ],
   },
 ];
+
+// the workspace's packages, by folder: a `paths` folder is banned by its package specifiers too
+const PACKAGES = new Map(
+  readdirSync(new URL('./packages/', import.meta.url)).flatMap((dir) => {
+    const manifest = new URL(`./packages/${dir}/package.json`, import.meta.url);
+    return existsSync(manifest) ? [[dir, JSON.parse(readFileSync(manifest, 'utf8'))]] : [];
+  }),
+);
+
+const escapeRegex = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// the specifier that reaches `rest` (a path inside the package, '' for all of it) through the package's `exports`, if one does
+const specifierFor = ({ name, exports }, rest) => {
+  if (!rest) {
+    return name;
+  }
+  if (!exports) {
+    return `${name}/${rest}`;
+  }
+  const file = /\.m?[jt]s$/.test(rest);
+  for (const [key, value] of Object.entries(exports)) {
+    const [keyHead] = key.slice(2).split('*');
+    const [valueHead, valueTail] = value.slice(2).split('*');
+    if (!file && `${rest}/` === valueHead) {
+      return `${name}/${keyHead}`;
+    }
+    if (rest.startsWith(valueHead) && (!file || rest.endsWith(valueTail))) {
+      const middle = rest.slice(
+        valueHead.length,
+        file ? rest.length - valueTail.length : undefined,
+      );
+      return `${name}/${keyHead}${middle}`;
+    }
+  }
+  return undefined;
+};
+
+// a `paths` entry as package specifiers: its folder (or file) by name, less its `except` entries
+const packageSpecifiers = ({ from, except = [], message }) => {
+  const [, dir, rest = ''] = /^\.\/packages\/([^/]+)\/?(.*)$/.exec(from) ?? [];
+  const manifest = PACKAGES.get(dir);
+  const specifier = manifest && specifierFor(manifest, rest);
+  if (specifier === undefined) {
+    return [];
+  }
+  const whole = rest === '' || !/\.m?[jt]s$/.test(rest);
+  const reach = specifier.endsWith('/')
+    ? escapeRegex(specifier)
+    : `${escapeRegex(specifier)}${whole ? '(/|$)' : '$'}`;
+  const excepted = except
+    .map((path) =>
+      specifierFor(manifest, [rest, path.replace(/^\.\//, '')].filter(Boolean).join('/')),
+    )
+    .filter((name) => name !== undefined)
+    .map(escapeRegex);
+  const unless = excepted.length ? `(?!(${excepted.join('|')})$)` : '';
+  return [{ regex: `^${unless}${reach}`, message }];
+};
 
 /*
  * Layers still to come, written the way they will read. Move each into LAYERS as its split lands, and keep the probe test in step.
@@ -752,6 +817,12 @@ const layerBlock = ({
   globals = [],
   properties = [],
 }) => {
+  // the hand-written specifiers and the zones' package specifiers, once each
+  specifiers = [
+    ...new Map(
+      [...specifiers, ...paths.flatMap(packageSpecifiers)].map((entry) => [entry.regex, entry]),
+    ).values(),
+  ];
   const syntax = specifiers.flatMap(({ regex, message }) => {
     const pattern = `/${escapeSlashes(regex)}/`;
     return [
@@ -819,7 +890,12 @@ const layerBlock = ({
           // folders resolve from the repo root, wherever eslint was started
           basePath: import.meta.dirname,
           zones: targets.flatMap((target) =>
-            paths.map(({ from, message }) => ({ target, from, message })),
+            paths.map(({ from, except, message }) => ({
+              target,
+              from,
+              ...(except && { except }),
+              message,
+            })),
           ),
         },
       ],
