@@ -44,15 +44,16 @@ interface ProgressLine {
   content: unknown;
 }
 
-/** A file name as a jump link. */
-const jump = (rel: string) =>
-  html`<code data-rel=${rel} role="link" tabindex="0" title=${`Scroll to ${rel}`}>${baseName(rel)}</code>`;
-const linkList = (rels: string[]) =>
-  rels.map((rel, index) => html`${index > 0 && ', '}${jump(rel)}`);
-
 export function createViewedTracker(context: PanelContext) {
   const { story, state, page, shell } = context;
   const { data } = story;
+
+  /** A file name as a jump link. */
+  const jump = (rel: string) =>
+    html`<code data-rel=${rel} role="link" tabindex="0" title=${`Scroll to ${rel}`} onClick=${context.refs.jumpClick(rel, null)}>${baseName(rel)}</code>`;
+  const linkList = (rels: string[]) =>
+    rels.map((rel, index) => html`${index > 0 && ', '}${jump(rel)}`);
+
   let snapshot: Snapshot | null = null;
   let lastKey = '';
 

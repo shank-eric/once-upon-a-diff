@@ -1,0 +1,19 @@
+### with a link
+<div class="ou-since">
+  <b>
+    "2 commits since you read the story"
+  ", aaaaaaa..bbbbbbb. This step shows only the files they touched. The chapters after this one are as you read them."
+  <a href="https://github.com/acme/widgets/pull/7/changes/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa..bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" title="GitHub's Files changed for aaaaaaa..bbbbbbb only">
+    "See just these commits' changes on GitHub"
+### without a url
+<div class="ou-since">
+  <b>
+    "2 commits since you read the story"
+  ", aaaaaaa..bbbbbbb. This step shows only the files they touched. The chapters after this one are as you read them."
+### on the range
+<div class="ou-since">
+  <b>
+    "2 commits since you read the story"
+  ", aaaaaaa..bbbbbbb. This step shows only the files they touched. The chapters after this one are as you read them. You're on GitHub's diff of just these commits."
+  <a href="https://github.com/acme/widgets/pull/7/changes">
+    "All of the PR's changes"

@@ -246,7 +246,7 @@ export function createQuestions(context: PanelContext) {
     }
   }, 1000);
 
-  const nodes = (markupText: string) => context.markup.nodes(markupText, { jumps: true });
+  const nodes = (markupText: string) => context.markup.nodes(markupText);
 
   function waitView(wait: WaitRow) {
     const pulse =

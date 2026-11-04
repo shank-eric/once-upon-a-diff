@@ -7,9 +7,7 @@
  *
  * changingOf has no DOM, so node tests can use it.
  */
-import { html as markup } from '@once-upon-a-diff/protocol/domain/html';
 import { html } from '/assets/preact.mjs';
-import { setHtml } from '../dom.ts';
 import { shortDateTime } from '@once-upon-a-diff/protocol/domain/time';
 import type { LineRanges, WorkingMark } from '@once-upon-a-diff/protocol/types';
 import type { PanelContext } from '../context.ts';
@@ -48,21 +46,20 @@ const rangesText = (ranges: LineRanges) =>
 
 export function createWorking(context: PanelContext) {
   const { story, opts, shell } = context;
-  const { $ } = shell;
   let marks: WorkingMark[] = [];
 
   const byRel = () => changingOf(marks, story.allRels);
 
   /** One line per session at work, over the step list. */
-  function bannerHtml() {
+  function bannerView() {
     return marks.map((mark) => {
       const files = mark.files.slice(0, MAX_FILES_NAMED).map((file, index) => {
         const rel = relOf(file.path, story.allRels);
-        return markup`${index > 0 && ', '}<code data-rel="${rel}">${rel}</code>${rangesText(file.ranges || [])}`;
+        return html`${index > 0 && ', '}<code data-rel=${rel} onClick=${context.refs.jumpClick(rel, null)}>${rel}</code>${rangesText(file.ranges || [])}`;
       });
       const more =
         mark.files.length > MAX_FILES_NAMED && ` and ${mark.files.length - MAX_FILES_NAMED} more`;
-      return markup`<div class="ou-beingchg" role="status">Being changed by <b>${mark.consumer}</b>: ${files}${more}<span class="ou-quiet"> · since ${shortDateTime(mark.started_at)}</span></div>`;
+      return html`<div class="ou-beingchg" role="status">Being changed by <b>${mark.consumer}</b>: ${files}${more}<span class="ou-quiet"> · since ${shortDateTime(mark.started_at)}</span></div>`;
     });
   }
 
@@ -105,19 +102,10 @@ export function createWorking(context: PanelContext) {
       : null;
   }
 
-  /** The line over the step list, and the page's dimmed blocks (the rows' own tags are drawn with the rows). */
-  function paint() {
-    const box = $('.ou-working');
-    if (box) {
-      setHtml(box, bannerHtml());
-    }
-    dimPage();
-  }
-
   /** The marks changed: the line, the rows' tags and the page. */
   function render() {
     shell.redraw();
-    paint();
+    dimPage();
   }
 
   async function refresh() {
@@ -142,7 +130,17 @@ export function createWorking(context: PanelContext) {
 
   refresh();
 
-  return { render, paint, refresh, dimPage, destroy, stepChanging, stepTag, fileChanging, fileTag };
+  return {
+    render,
+    bannerView,
+    refresh,
+    dimPage,
+    destroy,
+    stepChanging,
+    stepTag,
+    fileChanging,
+    fileTag,
+  };
 }
 
 export type Working = ReturnType<typeof createWorking>;

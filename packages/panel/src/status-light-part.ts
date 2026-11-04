@@ -256,12 +256,12 @@ export function createStatusLight(context: PanelContext) {
 
   /** The hint over the Ask box. */
   function hintView() {
-    return html`<div class="ou-askhint" hidden=${hintHidden} data-html=${hintMarkup ?? undefined}>${hintMarkup === null ? null : parseMarkup(hintMarkup, hintHooks)}</div>`;
+    return html`<div class="ou-askhint" hidden=${hintHidden}>${hintMarkup === null ? null : parseMarkup(hintMarkup, hintHooks)}</div>`;
   }
 
   /** The line under the Ask box saying who answers. */
   function whoView() {
-    return html`<div class="ou-askwho" hidden=${whoHidden} data-html=${whoMarkup ?? undefined}>${whoMarkup === null ? null : parseMarkup(whoMarkup, whoHooks)}</div>`;
+    return html`<div class="ou-askwho" hidden=${whoHidden}>${whoMarkup === null ? null : parseMarkup(whoMarkup, whoHooks)}</div>`;
   }
 
   if (opts.status) {

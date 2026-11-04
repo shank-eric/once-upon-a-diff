@@ -1,0 +1,96 @@
+### current
+<div class="ou-fresh">
+  <span class="ou-why">
+    "Up to date with abcdef1"
+<div class="ou-rebuilding" hidden role="status">
+### current and updated
+<div class="ou-fresh">
+  <b>
+    "2 new commits since 1111111"
+  ": the story was updated in place, with no “Since you read it” chapter. They changed 1 file, in chapter 1."
+  <a href="https://github.com/acme/widgets/pull/7/changes/1111111222222233333334444444..5555555666666677777778888888" title="GitHub's Files changed for 1111111..5555555 only">
+    "See just what's new on GitHub"
+  <span class="ou-why">
+    "Up to date with 5555555"
+<div class="ou-rebuilding" hidden role="status">
+### stale
+<div class="ou-fresh ou-stale">
+  "Story is for 1111111; the PR has 3 newer commits (2 files changed, in chapter 1, chapter 2)."
+  <button class="ou-update" data-retell="0" title="Adds a “Since you read it” chapter for the new commits, first, and keeps the chapters you read">
+    "Update (new commits)"
+  <button class="ou-update" data-retell="1" title="A whole new story at the latest commit, for a rebase or a big rework">
+    "Re-tell from scratch"
+<div class="ou-rebuilding" hidden role="status">
+### stale and rewritten
+<div class="ou-fresh ou-stale">
+  "Story is for 1111111; the PR was rebased or force-pushed since (2 files changed, in chapter 1, chapter 2)."
+  <button class="ou-update" data-retell="0" title="Adds a “Since you read it” chapter for the new commits, first, and keeps the chapters you read">
+    "Update (new commits)"
+  <button class="ou-update" data-retell="1" title="A whole new story at the latest commit, for a rebase or a big rework">
+    "Re-tell from scratch"
+  <span class="ou-why">
+    "It was rebased, so a re-tell is likely the better fit."
+<div class="ou-rebuilding" hidden role="status">
+### unknown with an error
+<div class="ou-fresh">
+  <span class="ou-why" title="bridge said no">
+    "Can't tell whether the story is up to date"
+<div class="ou-rebuilding" hidden role="status">
+### unknown without one
+<div class="ou-fresh">
+<div class="ou-rebuilding" hidden role="status">
+### n/a
+<div class="ou-fresh">
+<div class="ou-rebuilding" hidden role="status">
+### stale, update queued
+<div class="ou-fresh ou-stale">
+  "Story is for 1111111; the PR has 3 newer commits (2 files changed, in chapter 1, chapter 2)."
+  <span class="ou-busy" role="status">
+    <span aria-hidden="true" class="ou-spin">
+    "Waiting for a Claude session to pick this up…"
+    <span class="ou-why">
+      "asked at 6:50 AM"
+<div class="ou-rebuilding" hidden role="status">
+### stale, update building
+<div class="ou-fresh ou-stale">
+  "Story is for 1111111; the PR has 3 newer commits (2 files changed, in chapter 1, chapter 2)."
+  <span class="ou-busy" role="status">
+    <span aria-hidden="true" class="ou-spin">
+    "Updating the story for you…"
+    <span class="ou-why">
+      "started 6:50 AM (10 min ago), session-a"
+<div class="ou-rebuilding" hidden role="status">
+### stale, a rebuild in flight
+<div class="ou-fresh ou-stale">
+  "Story is for 1111111; the PR has 3 newer commits (2 files changed, in chapter 1, chapter 2)."
+  <span class="ou-busy" role="status">
+    <span aria-hidden="true" class="ou-spin">
+    "Rebuilding the story for you…"
+    <span class="ou-why">
+      "started 6:50 AM (10 min ago), session-a"
+<div class="ou-rebuilding" hidden role="status">
+### current, a rebuild in flight
+<div class="ou-fresh">
+  <span class="ou-why">
+    "Up to date with abcdef1"
+<div class="ou-rebuilding" hidden role="status">
+### current, a build in flight
+<div class="ou-fresh">
+  <span class="ou-why">
+    "Up to date with abcdef1"
+  <span class="ou-busy" role="status">
+    <span aria-hidden="true" class="ou-spin">
+    "Waiting for a Claude session to pick this up…"
+    <span class="ou-why">
+      "asked at 6:50 AM"
+<div class="ou-rebuilding" hidden role="status">
+### unknown, a fix in flight
+<div class="ou-fresh">
+  <span class="ou-why" title="e">
+    "Can't tell whether the story is up to date"
+  <span class="ou-busy" role="status">
+    <span aria-hidden="true" class="ou-spin">
+    "Fixing the code for you…"
+    <span class="ou-why">
+      "started 6:50 AM (10 min ago), s"
+<div class="ou-rebuilding" hidden role="status">

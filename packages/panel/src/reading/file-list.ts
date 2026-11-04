@@ -5,7 +5,6 @@
  * The rows are drawn from the viewed tracker's snapshot, the change tags and the working marks, so they stay current as those do.
  */
 import { html } from '/assets/preact.mjs';
-import { refNode } from '../file-refs.ts';
 import type { VNode } from '../parse-markup.ts';
 import type { ChapterLines } from '@once-upon-a-diff/protocol/types';
 import type { FileStatus } from '../story-model.ts';
@@ -38,7 +37,11 @@ export function createFileList(context: PanelContext) {
       const span =
         line.end && line.end !== line.start ? `s ${line.start}–${line.end}` : ` ${line.start}`;
       const range = `${side === 'L' ? 'old ' : ''}line${span}`;
-      const link = refNode(file.rel, { side, start: line.start, end: line.end || line.start });
+      const link = context.refs.jumpProps(file.rel, {
+        side,
+        start: line.start,
+        end: line.end || line.start,
+      });
       return html`<li><span ...${link}>${range}</span>${line.label ? ` ${line.label}` : null}</li>`;
     });
   }
@@ -61,7 +64,7 @@ export function createFileList(context: PanelContext) {
     ]
       .filter(Boolean)
       .join(' ');
-    return html`<li data-file=${file.rel} class=${classes || undefined}><code ...${refNode(file.rel, null)}>${file.rel}</code>${context.working.fileTag(file.rel)}${context.marks.fileTags(file.rel)}<span class=${viewed?.early ? 'ou-viewed ou-early' : 'ou-viewed'} data-viewed-for=${file.rel} title=${viewed ? viewed.title : undefined}>${viewed?.text || null}</span>${why ? html`<span class=${`ou-why${whyKind}`}>${whyContent}</span>` : null}${lines.length > 0 ? html`<ul class="ou-lines">${lines}</ul>` : null}</li>`;
+    return html`<li data-file=${file.rel} class=${classes || undefined}><code ...${context.refs.jumpProps(file.rel, null)}>${file.rel}</code>${context.working.fileTag(file.rel)}${context.marks.fileTags(file.rel)}<span class=${viewed?.early ? 'ou-viewed ou-early' : 'ou-viewed'} data-viewed-for=${file.rel} title=${viewed ? viewed.title : undefined}>${viewed?.text || null}</span>${why ? html`<span class=${`ou-why${whyKind}`}>${whyContent}</span>` : null}${lines.length > 0 ? html`<ul class="ou-lines">${lines}</ul>` : null}</li>`;
   }
 
   /** "4 to mark viewed · 2 come back later · 1 already finished" for chapter `step`. */

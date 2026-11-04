@@ -520,7 +520,7 @@ panel
               "Mark unread"
     <div class="ou-chatfoot">
       <div class="ou-askhint" hidden>
-      <div class="ou-askwho" data-html="Answered by <b>author-1</b>, the session listening for this story.">
+      <div class="ou-askwho">
         "Answered by"
         <b>
           "author-1"

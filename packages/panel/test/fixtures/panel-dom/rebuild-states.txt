@@ -1,0 +1,40 @@
+### none
+<div class="ou-rebuilding" hidden role="status">
+<div class="ou-rebuild-box">
+  <button class="ou-rebuild-open" title="Keep the chapters before this one and tell this one and the rest again" type="button">
+    "Rebuild from here…"
+### queued
+<div class="ou-rebuilding" role="status">
+  "Rebuild of the whole story queued at 6:50 AM. No Claude session has taken it yet."
+<div class="ou-rebuild-box">
+  <button class="ou-rebuild-open" disabled title="Keep the chapters before this one and tell this one and the rest again" type="button">
+    "Rebuild queued"
+### queued from chapter 3
+<div class="ou-rebuilding" role="status">
+  "Rebuild from chapter 3 queued at 6:50 AM. No Claude session has taken it yet."
+<div class="ou-rebuild-box">
+  <button class="ou-rebuild-open" disabled title="Keep the chapters before this one and tell this one and the rest again" type="button">
+    "Rebuild queued"
+### building
+<div class="ou-rebuilding" role="status">
+  "Rebuilding the whole story… (author-1, asked at 6:50 AM)"
+<div class="ou-rebuild-box">
+  <button class="ou-rebuild-open" disabled title="Keep the chapters before this one and tell this one and the rest again" type="button">
+    "Rebuilding…"
+### done
+<div class="ou-rebuilding" role="status">
+  "Rebuilt the whole story at 6:50 AM. Kept 3 drafts."
+<div class="ou-rebuild-box">
+  <button class="ou-rebuild-open" title="Keep the chapters before this one and tell this one and the rest again" type="button">
+    "Rebuild from here…"
+### failed
+<div class="ou-rebuilding ou-failed" role="status">
+  "The rebuild of the whole story failed at 6:50 AM: no diff"
+<div class="ou-rebuild-box">
+  <button class="ou-rebuild-open" title="Keep the chapters before this one and tell this one and the rest again" type="button">
+    "Rebuild from here…"
+### done long ago
+<div class="ou-rebuilding" hidden role="status">
+<div class="ou-rebuild-box">
+  <button class="ou-rebuild-open" title="Keep the chapters before this one and tell this one and the rest again" type="button">
+    "Rebuild from here…"

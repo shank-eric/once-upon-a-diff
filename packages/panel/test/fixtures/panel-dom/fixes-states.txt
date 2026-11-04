@@ -1,0 +1,1724 @@
+### chapter 1 (notes on its files, and a line for the rest)
+html class="once-upon-panel-docked" --ou-w=400px
+page
+  src/a.ts: data-ou-changing
+  src/b.ts: -
+  src/c.ts: data-ou-changing data-ou-hid data-ou-hidden hidden
+  README.md: data-ou-hid data-ou-hidden hidden
+panel
+<aside aria-label="Once Upon a Diff" id="ou-panel" tabindex="-1">
+  <div class="ou-grip" title="Drag to resize">
+  <div class="ou-bar">
+    <button aria-expanded="false" aria-label="Connection status" class="ou-light" data-level="warn" title="✓ Bridge: reachable, token accepted (1.0.0)\n✓ Story: found (story-1)\n! Claude listening: no Claude session is listening; questions will wait in the inbox\n(click for details)">
+      <span class="ou-dot">
+    <button class="ou-toggle" title="Collapse or expand the story panel">
+      "Hide story"
+    <button class="ou-prev" title="Previous step">
+      "← Prev"
+    <span class="ou-title" title="Chapter 1: Start">
+      "Chapter 1: Start"
+    <button class="ou-next" title="Next step">
+      "Next →"
+    <button class="ou-close" title="Remove the overlay and show every file">
+      "×"
+  <div class="ou-note">
+    <span class="ou-count-note">
+      <span>
+        "Showing"
+        <b>
+          "2"
+        "of"
+        <b>
+          "4"
+        "files, chapter 1"
+      <button aria-pressed="false" class="ou-all">
+        "Show all files"
+    <div class="ou-health" hidden>
+      <ul>
+        <li>
+          <span class="ou-hok">
+            "✓"
+          <b>
+            "Bridge"
+          ": reachable, token accepted (1.0.0)"
+        <li>
+          <span class="ou-hok">
+            "✓"
+          <b>
+            "Story"
+          ": found (story-1)"
+        <li>
+          <span class="ou-hwarn">
+            "!"
+          <b>
+            "Claude listening"
+          ": no Claude session is listening; questions will wait in the inbox"
+          <br>
+          <span class="ou-why">
+            "once-upon wait --consumer once-upon"
+    <div class="ou-fresh ou-stale">
+      "Story is for 1111111; the PR has 3 newer commits (2 files changed, in chapter 1, chapter 2)."
+      <button class="ou-update" data-retell="0" title="Adds a “Since you read it” chapter for the new commits, first, and keeps the chapters you read">
+        "Update (new commits)"
+      <button class="ou-update" data-retell="1" title="A whole new story at the latest commit, for a rebase or a big rework">
+        "Re-tell from scratch"
+    <div class="ou-rebuilding" hidden role="status">
+    <span class="ou-msg">
+  <div class="ou-body">
+    <div class="ou-working">
+      <div class="ou-beingchg" role="status">
+        "Being changed by"
+        <b>
+          "author-2"
+        ":"
+        <code data-rel="src/a.ts">
+          "src/a.ts"
+        "(lines 3–5, 9),"
+        <code data-rel="src/c.ts">
+          "src/c.ts"
+        <span class="ou-quiet">
+          "· since 11/3, 6:40 AM"
+    <h2 class="ou-h">
+      "Steps"
+    <ol class="ou-map">
+      <li data-n="0">
+        "Overview"
+        <span class="ou-count">
+          "(4)"
+      <li class="ou-current ou-changing" data-n="1">
+        "1. Start"
+        <span class="ou-count">
+          "(2)"
+        <span class="ou-stepprog" data-prog-for="1">
+        <span class="ou-chg" data-why="story" title="A file here changed after the story was told">
+          "• changed since"
+        <span class="ou-chgby" title="Being changed by author-2">
+          "• being changed"
+      <li class="ou-changing" data-n="2">
+        "2. Finish"
+        <span class="ou-count">
+          "(3)"
+        <span class="ou-stepprog" data-prog-for="2" title="0 of 2 marked viewed">
+          "0/2"
+        <span class="ou-chg" data-why="read" title="Changed after you read it (at abc1234): src/b.ts">
+          "• changed since you read"
+        <span class="ou-chg" data-why="story" title="A file here changed after the story was told">
+          "• changed since"
+        <span class="ou-chgby" title="Being changed by author-2">
+          "• being changed"
+      <li data-n="3">
+        "3. Later"
+        <span class="ou-count">
+          "(1)"
+        <span class="ou-stepprog ou-writing" title="This chapter is being written">
+          "writing"
+      <li class="ou-changing" data-n="4">
+        <span class="ou-new">
+          "New"
+        "Since you read it: new commits"
+        <span class="ou-count">
+          "(1)"
+        <span class="ou-stepprog" data-prog-for="4" title="0 of 1 marked viewed">
+          "0/1"
+        <span class="ou-chgby" title="Being changed by author-2">
+          "• being changed"
+    <div class="ou-md">
+      <h1>
+        "Chapter 1: Start"
+      <div aria-live="polite" class="ou-progress">
+        <span>
+          "Nothing to mark viewed in this chapter"
+      <div class="ou-early-box" role="status">
+      <p>
+        "It begins in"
+        <code>
+          "src/a.ts"
+        ", where"
+        <span data-end="3" data-rel="src/a.ts" data-side="R" data-start="1" role="link" tabindex="0" title="Scroll to src/a.ts line 1–3">
+          "the top"
+        "is set, and goes to"
+        <span data-end="3" data-rel="src/b.ts" data-side="R" data-start="3" role="link" tabindex="0" title="Scroll to src/b.ts line 3">
+          "b"
+        "."
+      <ul>
+        <li>
+          "one"
+        <li>
+          "two with"
+          <strong>
+            "bold"
+          "and"
+          <em>
+            "em"
+          "and"
+          <code>
+            "src/b.ts"
+      <pre>
+        <code>
+          "let x = 1 < 2;"
+      <p>
+        "See"
+        <a href="https://example.com/a?b=1&c=2" rel="noopener noreferrer" target="_blank">
+          "docs"
+        "."
+    <div class="ou-drafts">
+      <h2 class="ou-h">
+        "Draft comments"
+        <span class="ou-draftsum">
+          "(1 to post · 1 posted)"
+      <div class="ou-drafttoggles">
+        <button class="ou-linkish" data-draft-show="showPosted">
+          "Show posted (1)"
+      <div class="ou-comment ou-c-done" data-i="0" data-n="1" hidden>
+        <div class="ou-where">
+          <span>
+            "On"
+            <code data-end="2" data-rel="src/a.ts" data-side="R" data-start="2" role="link" tabindex="0" title="Scroll to src/a.ts line 2">
+              "src/a.ts:2"
+          <span class="ou-cbtns">
+            <button class="ou-copy">
+              "Copy"
+        <pre>
+          "Could you confirm this <thing>?"
+        <div class="ou-cstate">
+          <span class="ou-ok">
+            "Posted ✓"
+          "·"
+          <a href="https://github.com/acme/widgets/pull/7#c1" rel="noopener noreferrer" target="_blank">
+            "view on GitHub"
+      <div class="ou-comment" data-i="1" data-n="1">
+        <div class="ou-where">
+          <span>
+            "General PR comment"
+          <span class="ou-cbtns">
+            <button data-draft-act="dismiss" title="Not a comment you want: hide it, and don't suggest it again">
+              "Dismiss"
+            <button class="ou-copy">
+              "Copy"
+        <pre>
+          "A general note"
+        <div class="ou-cstate" hidden>
+    <div class="ou-fixes">
+      <h2 class="ou-h">
+        "Fix before push (4)"
+        <span class="ou-draftsum">
+          "(2 to send · 1 sent · 1 fixed)"
+      <div class="ou-fixtools">
+        <button data-fix-act="send" title="Hands every draft note to the Claude session as one request: it makes one change for them, commits it as your repo rules say and never pushes. Sent notes are locked until it reports back.">
+          "Send 2 notes to author-1"
+        <label class="ou-fixauto" title="Sends each note to the Claude session as soon as it is added, instead of waiting for Send. Kept for this story. A note from a drafted comment waits for Send, since Claude wrote it from the PR.">
+          <input data-fix-act="auto" type="checkbox">
+          "Auto-send"
+        <button class="ou-linkish" data-fix-act="take_back" data-request="r1" title="Brings these notes back as drafts, to edit or send again">
+          "Take back the 1 note sent to author-1"
+      <div class="ou-comment ou-fixnote ou-fx-draft" data-note-id="n1">
+        <div class="ou-where">
+          <span>
+            <code data-end="2" data-rel="src/a.ts" data-side="R" data-start="2" role="link" tabindex="0" title="Scroll to src/a.ts line 2">
+              "src/a.ts:2"
+          <span class="ou-cbtns">
+            <button data-fix-act="edit">
+              "Edit"
+            <button data-fix-act="remove">
+              "Remove"
+        <pre>
+          "Rename it"
+        <div class="ou-cstate">
+          <span class="ou-cdraft">
+            "Draft"
+          ", not sent"
+      <div class="ou-comment ou-fixnote ou-fx-sent" data-note-id="n2">
+        <div class="ou-where">
+          <span>
+            <code data-end="3" data-rel="src/b.ts" data-side="R" data-start="3" role="link" tabindex="0" title="Scroll to src/b.ts line 3">
+              "src/b.ts:3"
+          <span class="ou-cbtns">
+        <pre>
+          "Fix me"
+        <div class="ou-cstate">
+          <span class="ou-pend">
+            "Sent to author-1"
+          "· 11/3, 5:05 AM"
+      <div class="ou-quiet">
+        "2 more notes on other chapters' files (all on the Overview)."
+    <details class="ou-filesbox">
+      <summary>
+        <h2 class="ou-h">
+          "Files in this chapter (2)"
+        <span class="ou-sum">
+          "2 come back later"
+      <ul class="ou-files">
+        <li class="ou-changing" data-file="src/a.ts">
+          <code data-rel="src/a.ts" role="link" tabindex="0" title="Scroll to src/a.ts">
+            "src/a.ts"
+          <span class="ou-chgby">
+            "being changed by author-2 (lines 3–5, 9)"
+          <span class="ou-viewed" data-viewed-for="src/a.ts" title="">
+          <span class="ou-why">
+            "here: the top"
+          <ul class="ou-lines">
+            <li>
+              <span data-end="3" data-rel="src/a.ts" data-side="R" data-start="1" role="link" tabindex="0" title="Scroll to src/a.ts line 1–3">
+                "lines 1–3"
+              "the top"
+        <li data-file="src/b.ts">
+          <code data-rel="src/b.ts" role="link" tabindex="0" title="Scroll to src/b.ts">
+            "src/b.ts"
+          <span class="ou-chg" data-why="story" title="Changed in a commit after the one the story was told from">
+            "changed since story"
+          <span class="ou-viewed" data-viewed-for="src/b.ts" title="">
+    <div class="ou-rebuild-box">
+      <button class="ou-rebuild-open" title="Keep the chapters before this one and tell this one and the rest again" type="button">
+        "Rebuild from here…"
+  <section aria-label="Questions for Claude" class="ou-chat">
+    <div class="ou-chatgrip" title="Drag to resize">
+    <button aria-expanded="false" class="ou-chathead" title="Open or close the questions" type="button">
+      <span aria-hidden="true" class="ou-chatarrow">
+        "▸"
+      <span class="ou-chatlabel">
+        "Ask Claude"
+      <span class="ou-chatcount ou-unread">
+        "5 questions · 1 being worked on · 1 waiting · 1 unread answer"
+    <div class="ou-chatbody">
+      <div class="ou-questions">
+        <div class="ou-qtools">
+          <button class="ou-linkish" data-qa-act="read-all" title="Mark every answer in this story as read" type="button">
+            "Mark all read"
+          <button class="ou-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." type="button">
+            "Clear conversation"
+          <button class="ou-linkish" data-qa-act="show-dismissed" type="button">
+            "Show dismissed (1)"
+        <div class="ou-qa ou-qa-here" data-qid="q1">
+          <div class="ou-qhead">
+            <button aria-expanded="true" class="ou-qtoggle" data-qa-act="collapse" title="Collapse to the question" type="button">
+              "▾"
+            <div class="ou-q">
+              "Why q1?"
+            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+              "Dismiss"
+          <div class="ou-qmeta">
+            "11/3, 6:00 AM · Chapter 1: Chapter 1: Start"
+          <div class="ou-wait ou-wait-queued" role="status">
+            "Queued. No Claude session is listening yet."
+        <div class="ou-qa" data-qid="q2">
+          <div class="ou-qhead">
+            <button aria-expanded="true" class="ou-qtoggle" data-qa-act="collapse" title="Collapse to the question" type="button">
+              "▾"
+            <div class="ou-q">
+              "Why q2?"
+            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+              "Dismiss"
+          <div class="ou-qmeta">
+            "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish, b.ts"
+          <div class="ou-wait ou-wait-working" role="status">
+            <span aria-hidden="true" class="ou-pulse">
+            "author-1 is working on it ·"
+            <span class="ou-elapsed" data-since="2026-11-03T11:55:00Z">
+              "5:00"
+            <div class="ou-wnote">
+              "reading"
+        <div class="ou-qa" data-qid="q3">
+          <div class="ou-qhead">
+            <button aria-expanded="true" class="ou-qtoggle" data-qa-act="collapse" title="Collapse to the question" type="button">
+              "▾"
+            <div class="ou-q">
+              "Why q3?"
+            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+              "Dismiss"
+          <div class="ou-qmeta">
+            "11/3, 6:00 AM · Overview"
+            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+              "Mark unread"
+          <div class="ou-aby">
+            "Answered by author-1"
+          <div class="ou-a ou-md">
+            <p>
+              "Because"
+              <code>
+                "src/a.ts"
+              "says so."
+            <ul>
+              <li>
+                "yes"
+        <div class="ou-qa ou-qa-here ou-qa-new" data-qid="q4">
+          <div class="ou-qhead">
+            <button aria-expanded="true" class="ou-qtoggle" data-qa-act="collapse" title="Collapse to the question" type="button">
+              "▾"
+            <div class="ou-q">
+              "Why q4?"
+            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+              "Dismiss"
+          <div class="ou-qmeta">
+            "11/3, 6:00 AM · Chapter 1: Chapter 1: Start · New answer"
+            <button class="ou-linkish" data-qa-act="read" title="Mark this answer as read" type="button">
+              "Mark read"
+          <div class="ou-a ou-md" data-aat="2026-11-03T11:20:00Z">
+            <p>
+              "An unread"
+              <strong>
+                "answer"
+              "."
+        <div class="ou-qa ou-qa-collapsed" data-qid="q5">
+          <div class="ou-qhead">
+            <button aria-expanded="false" class="ou-qtoggle" data-qa-act="expand" title="Show the answer" type="button">
+              "▸"
+            <div class="ou-q">
+              "Why q5?"
+            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+              "Dismiss"
+          <div class="ou-qmeta">
+            "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish · 1 answer"
+            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+              "Mark unread"
+    <div class="ou-chatfoot">
+      <div class="ou-askhint">
+        <div>
+          "No Claude session is listening for acme/widgets; questions will wait."
+          <button class="ou-startlisten" title="Types /once-upon-listen acme/widgets into an idle Claude Code session in the repo and presses Enter" type="button">
+            "Start listening"
+        <div class="ou-startnote" hidden role="status">
+        <div>
+          "No idle session to type into? Start Claude Code in"
+          <code>
+            "/work/widgets"
+          "and run"
+          <code>
+            "/once-upon-listen acme/widgets"
+      <div class="ou-askwho">
+        "Or have one session answer just this story:"
+        <button class="ou-startstory" title="Types /once-upon-listen --story story-1 into an idle Claude Code session in the repo and presses Enter: it answers this story's questions from then on, ahead of the repo's listener." type="button">
+          "Start listening for this story"
+        <div class="ou-startnote" hidden role="status">
+      <form class="ou-ask">
+        <textarea aria-label="Question" placeholder="Ask about this step. The list above holds the whole story (Cmd+Enter sends it to the bridge inbox)" rows="1">
+          value="Second?"
+          "Second?"
+        <button type="submit">
+          "Ask"
+
+### chapter 3
+html class="once-upon-panel-docked" --ou-w=400px
+page
+  src/a.ts: data-ou-changing data-ou-hid data-ou-hidden hidden
+  src/b.ts: data-ou-hid data-ou-hidden hidden
+  src/c.ts: data-ou-changing data-ou-hid data-ou-hidden hidden
+  README.md: -
+panel
+<aside aria-label="Once Upon a Diff" id="ou-panel" tabindex="-1">
+  <div class="ou-grip" title="Drag to resize">
+  <div class="ou-bar">
+    <button aria-expanded="false" aria-label="Connection status" class="ou-light" data-level="warn" title="✓ Bridge: reachable, token accepted (1.0.0)\n✓ Story: found (story-1)\n! Claude listening: no Claude session is listening; questions will wait in the inbox\n(click for details)">
+      <span class="ou-dot">
+    <button class="ou-toggle" title="Collapse or expand the story panel">
+      "Hide story"
+    <button class="ou-prev" title="Previous step">
+      "← Prev"
+    <span class="ou-title" title="Chapter 3: Later">
+      "Chapter 3: Later"
+    <button class="ou-next" title="Next step">
+      "Next →"
+    <button class="ou-close" title="Remove the overlay and show every file">
+      "×"
+  <div class="ou-note">
+    <span class="ou-count-note">
+      <span>
+        "Showing"
+        <b>
+          "1"
+        "of"
+        <b>
+          "4"
+        "files, chapter 3"
+      <button aria-pressed="false" class="ou-all">
+        "Show all files"
+    <div class="ou-health" hidden>
+      <ul>
+        <li>
+          <span class="ou-hok">
+            "✓"
+          <b>
+            "Bridge"
+          ": reachable, token accepted (1.0.0)"
+        <li>
+          <span class="ou-hok">
+            "✓"
+          <b>
+            "Story"
+          ": found (story-1)"
+        <li>
+          <span class="ou-hwarn">
+            "!"
+          <b>
+            "Claude listening"
+          ": no Claude session is listening; questions will wait in the inbox"
+          <br>
+          <span class="ou-why">
+            "once-upon wait --consumer once-upon"
+    <div class="ou-fresh ou-stale">
+      "Story is for 1111111; the PR has 3 newer commits (2 files changed, in chapter 1, chapter 2)."
+      <button class="ou-update" data-retell="0" title="Adds a “Since you read it” chapter for the new commits, first, and keeps the chapters you read">
+        "Update (new commits)"
+      <button class="ou-update" data-retell="1" title="A whole new story at the latest commit, for a rebase or a big rework">
+        "Re-tell from scratch"
+    <div class="ou-rebuilding" hidden role="status">
+    <span class="ou-msg">
+  <div class="ou-body">
+    <div class="ou-working">
+      <div class="ou-beingchg" role="status">
+        "Being changed by"
+        <b>
+          "author-2"
+        ":"
+        <code data-rel="src/a.ts">
+          "src/a.ts"
+        "(lines 3–5, 9),"
+        <code data-rel="src/c.ts">
+          "src/c.ts"
+        <span class="ou-quiet">
+          "· since 11/3, 6:40 AM"
+    <h2 class="ou-h">
+      "Steps"
+    <ol class="ou-map">
+      <li data-n="0">
+        "Overview"
+        <span class="ou-count">
+          "(4)"
+      <li class="ou-changing" data-n="1">
+        "1. Start"
+        <span class="ou-count">
+          "(2)"
+        <span class="ou-stepprog" data-prog-for="1">
+        <span class="ou-chg" data-why="story" title="A file here changed after the story was told">
+          "• changed since"
+        <span class="ou-chgby" title="Being changed by author-2">
+          "• being changed"
+      <li class="ou-changing" data-n="2">
+        "2. Finish"
+        <span class="ou-count">
+          "(3)"
+        <span class="ou-stepprog" data-prog-for="2" title="0 of 2 marked viewed">
+          "0/2"
+        <span class="ou-chg" data-why="read" title="Changed after you read it (at abc1234): src/b.ts">
+          "• changed since you read"
+        <span class="ou-chg" data-why="story" title="A file here changed after the story was told">
+          "• changed since"
+        <span class="ou-chgby" title="Being changed by author-2">
+          "• being changed"
+      <li class="ou-current" data-n="3">
+        "3. Later"
+        <span class="ou-count">
+          "(1)"
+        <span class="ou-stepprog ou-writing" title="This chapter is being written">
+          "writing"
+      <li class="ou-changing" data-n="4">
+        <span class="ou-new">
+          "New"
+        "Since you read it: new commits"
+        <span class="ou-count">
+          "(1)"
+        <span class="ou-stepprog" data-prog-for="4" title="0 of 1 marked viewed">
+          "0/1"
+        <span class="ou-chgby" title="Being changed by author-2">
+          "• being changed"
+    <div class="ou-md">
+      <div aria-live="polite" class="ou-progress">
+        <span>
+          "Mark viewed unlocks when this chapter's story is written"
+      <div class="ou-early-box" role="status">
+      <p class="ou-empty">
+        "This chapter is being written. It'll show up here in a moment."
+    <div class="ou-fixes">
+      <h2 class="ou-h">
+        "Fix before push (4)"
+        <span class="ou-draftsum">
+          "(2 to send · 1 sent · 1 fixed)"
+      <div class="ou-fixtools">
+        <button data-fix-act="send" title="Hands every draft note to the Claude session as one request: it makes one change for them, commits it as your repo rules say and never pushes. Sent notes are locked until it reports back.">
+          "Send 2 notes to author-1"
+        <label class="ou-fixauto" title="Sends each note to the Claude session as soon as it is added, instead of waiting for Send. Kept for this story. A note from a drafted comment waits for Send, since Claude wrote it from the PR.">
+          <input data-fix-act="auto" type="checkbox">
+          "Auto-send"
+        <button class="ou-linkish" data-fix-act="take_back" data-request="r1" title="Brings these notes back as drafts, to edit or send again">
+          "Take back the 1 note sent to author-1"
+      <div class="ou-comment ou-fixnote ou-fx-draft" data-note-id="n4">
+        <div class="ou-where">
+          <span>
+            <code data-rel="README.md" role="link" tabindex="0" title="Scroll to README.md">
+              "README.md"
+          <span class="ou-cbtns">
+            <button data-fix-act="edit">
+              "Edit"
+            <button data-fix-act="remove">
+              "Remove"
+        <pre>
+          "Came back"
+        <div class="ou-cstate">
+          <span class="ou-cstale">
+            "Back from abcdef1: still wrong"
+      <div class="ou-quiet">
+        "3 more notes on other chapters' files (all on the Overview)."
+    <details class="ou-filesbox">
+      <summary>
+        <h2 class="ou-h">
+          "Files in this chapter (1)"
+        <span class="ou-sum">
+          "1 waiting for the story"
+      <ul class="ou-files">
+        <li data-file="README.md">
+          <code data-rel="README.md" role="link" tabindex="0" title="Scroll to README.md">
+            "README.md"
+          <span class="ou-viewed" data-viewed-for="README.md" title="">
+          <span class="ou-why ou-st-pending">
+            "Mark viewed once the story is written"
+    <div class="ou-rebuild-box">
+      <button class="ou-rebuild-open" title="Keep the chapters before this one and tell this one and the rest again" type="button">
+        "Rebuild from here…"
+  <section aria-label="Questions for Claude" class="ou-chat">
+    <div class="ou-chatgrip" title="Drag to resize">
+    <button aria-expanded="false" class="ou-chathead" title="Open or close the questions" type="button">
+      <span aria-hidden="true" class="ou-chatarrow">
+        "▸"
+      <span class="ou-chatlabel">
+        "Ask Claude"
+      <span class="ou-chatcount ou-unread">
+        "5 questions · 1 being worked on · 1 waiting · 1 unread answer"
+    <div class="ou-chatbody">
+      <div class="ou-questions">
+        <div class="ou-qtools">
+          <button class="ou-linkish" data-qa-act="read-all" title="Mark every answer in this story as read" type="button">
+            "Mark all read"
+          <button class="ou-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." type="button">
+            "Clear conversation"
+          <button class="ou-linkish" data-qa-act="show-dismissed" type="button">
+            "Show dismissed (1)"
+        <div class="ou-qa" data-qid="q1">
+          <div class="ou-qhead">
+            <button aria-expanded="true" class="ou-qtoggle" data-qa-act="collapse" title="Collapse to the question" type="button">
+              "▾"
+            <div class="ou-q">
+              "Why q1?"
+            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+              "Dismiss"
+          <div class="ou-qmeta">
+            "11/3, 6:00 AM · Chapter 1: Chapter 1: Start"
+          <div class="ou-wait ou-wait-queued" role="status">
+            "Queued. No Claude session is listening yet."
+        <div class="ou-qa" data-qid="q2">
+          <div class="ou-qhead">
+            <button aria-expanded="true" class="ou-qtoggle" data-qa-act="collapse" title="Collapse to the question" type="button">
+              "▾"
+            <div class="ou-q">
+              "Why q2?"
+            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+              "Dismiss"
+          <div class="ou-qmeta">
+            "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish, b.ts"
+          <div class="ou-wait ou-wait-working" role="status">
+            <span aria-hidden="true" class="ou-pulse">
+            "author-1 is working on it ·"
+            <span class="ou-elapsed" data-since="2026-11-03T11:55:00Z">
+              "5:00"
+            <div class="ou-wnote">
+              "reading"
+        <div class="ou-qa" data-qid="q3">
+          <div class="ou-qhead">
+            <button aria-expanded="true" class="ou-qtoggle" data-qa-act="collapse" title="Collapse to the question" type="button">
+              "▾"
+            <div class="ou-q">
+              "Why q3?"
+            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+              "Dismiss"
+          <div class="ou-qmeta">
+            "11/3, 6:00 AM · Overview"
+            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+              "Mark unread"
+          <div class="ou-aby">
+            "Answered by author-1"
+          <div class="ou-a ou-md">
+            <p>
+              "Because"
+              <code>
+                "src/a.ts"
+              "says so."
+            <ul>
+              <li>
+                "yes"
+        <div class="ou-qa ou-qa-new" data-qid="q4">
+          <div class="ou-qhead">
+            <button aria-expanded="true" class="ou-qtoggle" data-qa-act="collapse" title="Collapse to the question" type="button">
+              "▾"
+            <div class="ou-q">
+              "Why q4?"
+            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+              "Dismiss"
+          <div class="ou-qmeta">
+            "11/3, 6:00 AM · Chapter 1: Chapter 1: Start · New answer"
+            <button class="ou-linkish" data-qa-act="read" title="Mark this answer as read" type="button">
+              "Mark read"
+          <div class="ou-a ou-md" data-aat="2026-11-03T11:20:00Z">
+            <p>
+              "An unread"
+              <strong>
+                "answer"
+              "."
+        <div class="ou-qa ou-qa-collapsed" data-qid="q5">
+          <div class="ou-qhead">
+            <button aria-expanded="false" class="ou-qtoggle" data-qa-act="expand" title="Show the answer" type="button">
+              "▸"
+            <div class="ou-q">
+              "Why q5?"
+            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+              "Dismiss"
+          <div class="ou-qmeta">
+            "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish · 1 answer"
+            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+              "Mark unread"
+    <div class="ou-chatfoot">
+      <div class="ou-askhint">
+        <div>
+          "No Claude session is listening for acme/widgets; questions will wait."
+          <button class="ou-startlisten" title="Types /once-upon-listen acme/widgets into an idle Claude Code session in the repo and presses Enter" type="button">
+            "Start listening"
+        <div class="ou-startnote" hidden role="status">
+        <div>
+          "No idle session to type into? Start Claude Code in"
+          <code>
+            "/work/widgets"
+          "and run"
+          <code>
+            "/once-upon-listen acme/widgets"
+      <div class="ou-askwho">
+        "Or have one session answer just this story:"
+        <button class="ou-startstory" title="Types /once-upon-listen --story story-1 into an idle Claude Code session in the repo and presses Enter: it answers this story's questions from then on, ahead of the repo's listener." type="button">
+          "Start listening for this story"
+        <div class="ou-startnote" hidden role="status">
+      <form class="ou-ask">
+        <textarea aria-label="Question" placeholder="Ask about this step. The list above holds the whole story (Cmd+Enter sends it to the bridge inbox)" rows="1">
+          value="Second?"
+          "Second?"
+        <button type="submit">
+          "Ask"
+
+### read-only
+html class="once-upon-panel-docked" --ou-w=400px
+page
+  src/a.ts: data-ou-changing
+  src/b.ts: -
+  src/c.ts: data-ou-changing
+  README.md: -
+panel
+<aside aria-label="Once Upon a Diff" id="ou-panel" tabindex="-1">
+  <div class="ou-grip" title="Drag to resize">
+  <div class="ou-bar">
+    <button aria-expanded="false" aria-label="Connection status" class="ou-light" data-level="warn" title="✓ Bridge: reachable, token accepted (1.0.0)\n✓ Story: found (story-1)\n! Claude listening: no Claude session is listening; questions will wait in the inbox\n(click for details)">
+      <span class="ou-dot">
+    <button class="ou-toggle" title="Collapse or expand the story panel">
+      "Hide story"
+    <button class="ou-prev" disabled title="Previous step">
+      "← Prev"
+    <span class="ou-title" title="Overview: Add widgets">
+      "Overview: Add widgets"
+    <button class="ou-next" title="Next step">
+      "Next →"
+    <button class="ou-close" title="Remove the overlay and show every file">
+      "×"
+  <div class="ou-note">
+    <span class="ou-count-note">
+      <span>
+        "Overview: all"
+        <b>
+          "4"
+        "files, 4 chapters"
+    <div class="ou-health" hidden>
+      <ul>
+        <li>
+          <span class="ou-hok">
+            "✓"
+          <b>
+            "Bridge"
+          ": reachable, token accepted (1.0.0)"
+        <li>
+          <span class="ou-hok">
+            "✓"
+          <b>
+            "Story"
+          ": found (story-1)"
+        <li>
+          <span class="ou-hwarn">
+            "!"
+          <b>
+            "Claude listening"
+          ": no Claude session is listening; questions will wait in the inbox"
+          <br>
+          <span class="ou-why">
+            "once-upon wait --consumer once-upon"
+    <div class="ou-fresh ou-stale">
+      "Story is for 1111111; the PR has 3 newer commits (2 files changed, in chapter 1, chapter 2)."
+      <button class="ou-update" data-retell="0" title="Adds a “Since you read it” chapter for the new commits, first, and keeps the chapters you read">
+        "Update (new commits)"
+      <button class="ou-update" data-retell="1" title="A whole new story at the latest commit, for a rebase or a big rework">
+        "Re-tell from scratch"
+    <div class="ou-rebuilding" hidden role="status">
+    <span class="ou-msg">
+  <div class="ou-body">
+    <div class="ou-working">
+      <div class="ou-beingchg" role="status">
+        "Being changed by"
+        <b>
+          "author-2"
+        ":"
+        <code data-rel="src/a.ts">
+          "src/a.ts"
+        "(lines 3–5, 9),"
+        <code data-rel="src/c.ts">
+          "src/c.ts"
+        <span class="ou-quiet">
+          "· since 11/3, 6:40 AM"
+    <h2 class="ou-h">
+      "Steps"
+    <ol class="ou-map">
+      <li class="ou-current" data-n="0">
+        "Overview"
+        <span class="ou-count">
+          "(4)"
+      <li class="ou-changing" data-n="1">
+        "1. Start"
+        <span class="ou-count">
+          "(2)"
+        <span class="ou-stepprog" data-prog-for="1">
+        <span class="ou-chg" data-why="story" title="A file here changed after the story was told">
+          "• changed since"
+        <span class="ou-chgby" title="Being changed by author-2">
+          "• being changed"
+      <li class="ou-changing" data-n="2">
+        "2. Finish"
+        <span class="ou-count">
+          "(3)"
+        <span class="ou-stepprog" data-prog-for="2" title="0 of 2 marked viewed">
+          "0/2"
+        <span class="ou-chg" data-why="read" title="Changed after you read it (at abc1234): src/b.ts">
+          "• changed since you read"
+        <span class="ou-chg" data-why="story" title="A file here changed after the story was told">
+          "• changed since"
+        <span class="ou-chgby" title="Being changed by author-2">
+          "• being changed"
+      <li data-n="3">
+        "3. Later"
+        <span class="ou-count">
+          "(1)"
+        <span class="ou-stepprog ou-writing" title="This chapter is being written">
+          "writing"
+      <li class="ou-changing" data-n="4">
+        <span class="ou-new">
+          "New"
+        "Since you read it: new commits"
+        <span class="ou-count">
+          "(1)"
+        <span class="ou-stepprog" data-prog-for="4" title="0 of 1 marked viewed">
+          "0/1"
+        <span class="ou-chgby" title="Being changed by author-2">
+          "• being changed"
+    <div class="ou-md">
+      <h1>
+        "Widgets"
+      <div aria-live="polite" class="ou-progress">
+        <b>
+          "0 of 3"
+        "files marked viewed · chapter 2, “Since you read it” still have some to go · 1 chapter still being written"
+      <div class="ou-early-box" role="status">
+      <p>
+        "The PR adds a widget in"
+        <code>
+          "src/a.ts"
+        "and wires it in"
+        <span data-end="3" data-rel="src/a.ts" data-side="R" data-start="1" role="link" tabindex="0" title="Scroll to src/a.ts line 1–3">
+          "the top"
+        "."
+      <ol>
+        <li>
+          "First"
+          <code>
+            "src/b.ts"
+        <li>
+          "Then"
+          <strong>
+            "everything"
+          "else"
+      <blockquote>
+        <p>
+          "A note <b>not bold</b> & more"
+    <p class="ou-quiet ou-uncovered">
+      "14 changed hunks no chapter points at:"
+      <code data-end="50" data-rel="src/c.ts" data-side="R" data-start="40" role="link" tabindex="0" title="Scroll to src/c.ts line 40–50">
+        "src/c.ts:40-50"
+      ","
+      <code data-end="60" data-rel="src/c.ts" data-side="R" data-start="50" role="link" tabindex="0" title="Scroll to src/c.ts line 50–60">
+        "src/c.ts:50-60"
+      ","
+      <code data-end="70" data-rel="src/c.ts" data-side="R" data-start="60" role="link" tabindex="0" title="Scroll to src/c.ts line 60–70">
+        "src/c.ts:60-70"
+      ","
+      <code data-end="80" data-rel="src/c.ts" data-side="R" data-start="70" role="link" tabindex="0" title="Scroll to src/c.ts line 70–80">
+        "src/c.ts:70-80"
+      ","
+      <code data-end="90" data-rel="src/c.ts" data-side="R" data-start="80" role="link" tabindex="0" title="Scroll to src/c.ts line 80–90">
+        "src/c.ts:80-90"
+      ","
+      <code data-end="100" data-rel="src/c.ts" data-side="R" data-start="90" role="link" tabindex="0" title="Scroll to src/c.ts line 90–100">
+        "src/c.ts:90-100"
+      ","
+      <code data-end="110" data-rel="src/c.ts" data-side="R" data-start="100" role="link" tabindex="0" title="Scroll to src/c.ts line 100–110">
+        "src/c.ts:100-110"
+      ","
+      <code data-end="120" data-rel="src/c.ts" data-side="R" data-start="110" role="link" tabindex="0" title="Scroll to src/c.ts line 110–120">
+        "src/c.ts:110-120"
+      ","
+      <code data-end="130" data-rel="src/c.ts" data-side="R" data-start="120" role="link" tabindex="0" title="Scroll to src/c.ts line 120–130">
+        "src/c.ts:120-130"
+      ","
+      <code data-end="140" data-rel="src/c.ts" data-side="R" data-start="130" role="link" tabindex="0" title="Scroll to src/c.ts line 130–140">
+        "src/c.ts:130-140"
+      ","
+      <code data-end="150" data-rel="src/c.ts" data-side="R" data-start="140" role="link" tabindex="0" title="Scroll to src/c.ts line 140–150">
+        "src/c.ts:140-150"
+      ","
+      <code data-end="160" data-rel="src/c.ts" data-side="R" data-start="150" role="link" tabindex="0" title="Scroll to src/c.ts line 150–160">
+        "src/c.ts:150-160"
+      "and 2 more."
+    <details class="ou-drafts ou-allc">
+      <summary>
+        <h2 class="ou-h">
+          "Draft comments: all chapters (6)"
+          <span class="ou-draftsum">
+            "(1 to post · 1 in fix before push · 1 posted · 2 pending · 1 dismissed)"
+      <div class="ou-drafttoggles">
+        <button class="ou-linkish" data-draft-show="showPosted">
+          "Show posted (1)"
+        <button class="ou-linkish" data-draft-show="showDismissed">
+          "Show dismissed (1)"
+      <pre class="ou-script" hidden>
+      <div class="ou-cgroup" data-group="1">
+        <h3 class="ou-cgh">
+          <button class="ou-linkish" data-goto="1">
+            "Chapter 1"
+          ": Start"
+        <div class="ou-comment ou-c-done" data-i="0" data-n="1" hidden>
+          <div class="ou-where">
+            <span>
+              "On"
+              <code data-end="2" data-rel="src/a.ts" data-side="R" data-start="2" role="link" tabindex="0" title="Scroll to src/a.ts line 2">
+                "src/a.ts:2"
+            <span class="ou-cbtns">
+              <button class="ou-copy">
+                "Copy"
+          <pre>
+            "Could you confirm this <thing>?"
+          <div class="ou-cstate">
+            <span class="ou-ok">
+              "Posted ✓"
+            "·"
+            <a href="https://github.com/acme/widgets/pull/7#c1" rel="noopener noreferrer" target="_blank">
+              "view on GitHub"
+        <div class="ou-comment" data-i="1" data-n="1">
+          <div class="ou-where">
+            <span>
+              "General PR comment"
+            <span class="ou-cbtns">
+              <button data-draft-act="dismiss" title="Not a comment you want: hide it, and don't suggest it again">
+                "Dismiss"
+              <button class="ou-copy">
+                "Copy"
+          <pre>
+            "A general note"
+          <div class="ou-cstate">
+            <span class="ou-cdraft">
+              "Draft"
+            ", not posted"
+      <div class="ou-cgroup" data-group="2">
+        <h3 class="ou-cgh">
+          <button class="ou-linkish" data-goto="2">
+            "Chapter 2"
+          ": Finish"
+        <div class="ou-comment ou-c-done ou-c-pending" data-i="0" data-n="2">
+          <div class="ou-where">
+            <span>
+              "On"
+              <code data-end="7" data-rel="src/c.ts" data-side="L" data-start="7" role="link" tabindex="0" title="Scroll to src/c.ts line 7">
+                "src/c.ts:7"
+            <span class="ou-cbtns">
+              <button class="ou-copy">
+                "Copy"
+          <pre>
+            "Dropped line"
+          <div class="ou-cstate">
+            <span class="ou-pend">
+              "In your pending review"
+            ", not submitted yet ·"
+            <a href="https://github.com/acme/widgets/pull/7#c2" rel="noopener noreferrer" target="_blank">
+              "view on GitHub"
+        <div class="ou-comment ou-c-done" data-i="1" data-n="2" hidden>
+          <div class="ou-where">
+            <span>
+              "On"
+              <code data-end="9" data-rel="src/c.ts" data-side="R" data-start="9" role="link" tabindex="0" title="Scroll to src/c.ts line 9">
+                "src/c.ts:9"
+            <span class="ou-cbtns">
+              <button data-draft-act="restore" title="Bring this draft back">
+                "Restore"
+              <button class="ou-copy">
+                "Copy"
+          <pre>
+            "Kept from before"
+          <div class="ou-cstate">
+            "Dismissed. It won't be suggested again for this PR."
+        <div class="ou-comment ou-c-done ou-c-pending" data-i="2" data-n="2">
+          <div class="ou-where">
+            <span>
+              "On"
+              <code data-end="11" data-rel="src/c.ts" data-side="R" data-start="11" role="link" tabindex="0" title="Scroll to src/c.ts line 11">
+                "src/c.ts:11"
+            <span class="ou-cbtns">
+              <button class="ou-copy">
+                "Copy"
+          <pre>
+            "Not in the diff now"
+          <div class="ou-cstate">
+            <span class="ou-pend">
+              "In your pending review"
+            ", on src/c.ts line 11 ·"
+            <button class="ou-linkish" data-end="11" data-rel="src/c.ts" data-side="R" data-start="11" role="link" tabindex="0" title="Scroll to src/c.ts line 11">
+              "Jump to line 11"
+            "·"
+            <a href="https://github.com/acme/widgets/pull/7#c3" rel="noopener noreferrer" target="_blank">
+              "view on GitHub"
+            <span class="ou-cnote">
+              "GitHub shows it after a reload."
+              <button class="ou-linkish" data-draft-reload="" title="Reloads this page. The panel stays on this chapter.">
+                "Reload page"
+        <div class="ou-comment ou-c-done ou-c-pending" data-i="3" data-n="2">
+          <div class="ou-where">
+            <span>
+              "On"
+              <code data-end="3" data-rel="src/b.ts" data-side="R" data-start="3" role="link" tabindex="0" title="Scroll to src/b.ts line 3">
+                "src/b.ts:3"
+            <span class="ou-cbtns">
+              <button class="ou-copy">
+                "Copy"
+          <pre>
+            "Fix me"
+          <div class="ou-cstate">
+            <span class="ou-pend">
+              "In fix before push"
+            "· sent to author-1 ·"
+            <button class="ou-linkish" data-end="3" data-rel="src/b.ts" data-side="R" data-start="3" role="link" tabindex="0" title="Scroll to src/b.ts line 3">
+              "Jump to line 3"
+    <div class="ou-fixes">
+      <h2 class="ou-h">
+        "Fix before push (4)"
+        <span class="ou-draftsum">
+          "(2 to send · 1 sent · 1 fixed)"
+      <div class="ou-comment ou-fixnote ou-fx-draft" data-note-id="n1">
+        <div class="ou-where">
+          <span>
+            <code data-end="2" data-rel="src/a.ts" data-side="R" data-start="2" role="link" tabindex="0" title="Scroll to src/a.ts line 2">
+              "src/a.ts:2"
+          <span class="ou-cbtns">
+        <pre>
+          "Rename it"
+        <div class="ou-cstate">
+          <span class="ou-cdraft">
+            "Draft"
+          ", not sent"
+      <div class="ou-comment ou-fixnote ou-fx-sent" data-note-id="n2">
+        <div class="ou-where">
+          <span>
+            <code data-end="3" data-rel="src/b.ts" data-side="R" data-start="3" role="link" tabindex="0" title="Scroll to src/b.ts line 3">
+              "src/b.ts:3"
+          <span class="ou-cbtns">
+        <pre>
+          "Fix me"
+        <div class="ou-cstate">
+          <span class="ou-pend">
+            "Sent to author-1"
+          "· 11/3, 5:05 AM"
+      <div class="ou-comment ou-fixnote ou-fx-fixed" data-note-id="n3">
+        <div class="ou-where">
+          <span>
+            <code data-end="9" data-rel="src/c.ts" data-side="L" data-start="9" role="link" tabindex="0" title="Scroll to src/c.ts line 9">
+              "src/c.ts:L9"
+          <span class="ou-cbtns">
+        <pre>
+          "Done thing"
+        <div class="ou-cstate">
+          <span class="ou-ok">
+            "Fixed in abcdef1 ✓"
+          "by author-1"
+      <div class="ou-comment ou-fixnote ou-fx-draft" data-note-id="n4">
+        <div class="ou-where">
+          <span>
+            <code data-rel="README.md" role="link" tabindex="0" title="Scroll to README.md">
+              "README.md"
+          <span class="ou-cbtns">
+        <pre>
+          "Came back"
+        <div class="ou-cstate">
+          <span class="ou-cstale">
+            "Back from abcdef1: still wrong"
+    <details class="ou-filesbox">
+      <summary>
+        <h2 class="ou-h">
+          "All files (4)"
+        <span class="ou-sum">
+          "4 chapters"
+      <ul class="ou-files">
+        <li class="ou-changing" data-file="src/a.ts">
+          <code data-rel="src/a.ts" role="link" tabindex="0" title="Scroll to src/a.ts">
+            "src/a.ts"
+          <span class="ou-chgby">
+            "being changed by author-2 (lines 3–5, 9)"
+          <span class="ou-viewed" data-viewed-for="src/a.ts" title="">
+          <span class="ou-why">
+            "chapters 1, 2"
+        <li data-file="src/b.ts">
+          <code data-rel="src/b.ts" role="link" tabindex="0" title="Scroll to src/b.ts">
+            "src/b.ts"
+          <span class="ou-chg" data-why="story" title="Changed in a commit after the one the story was told from">
+            "changed since story"
+          <span class="ou-viewed" data-viewed-for="src/b.ts" title="">
+          <span class="ou-why">
+            "chapters 1, 2"
+        <li class="ou-changing" data-file="src/c.ts">
+          <code data-rel="src/c.ts" role="link" tabindex="0" title="Scroll to src/c.ts">
+            "src/c.ts"
+          <span class="ou-chg" data-why="story" title="Changed in a commit after the one the story was told from">
+            "changed since story"
+          <span class="ou-chgby">
+            "being changed by author-2"
+          <span class="ou-viewed" data-viewed-for="src/c.ts" title="">
+          <span class="ou-why">
+            "chapters 2, new"
+        <li data-file="README.md">
+          <code data-rel="README.md" role="link" tabindex="0" title="Scroll to README.md">
+            "README.md"
+          <span class="ou-viewed" data-viewed-for="README.md" title="">
+          <span class="ou-why">
+            "chapter 3"
+    <div class="ou-rebuild-box">
+      <button class="ou-rebuild-open" title="Tell the whole story again on the current diff" type="button">
+        "Rebuild story…"
+  <section aria-label="Questions for Claude" class="ou-chat">
+    <div class="ou-chatgrip" title="Drag to resize">
+    <button aria-expanded="false" class="ou-chathead" title="Open or close the questions" type="button">
+      <span aria-hidden="true" class="ou-chatarrow">
+        "▸"
+      <span class="ou-chatlabel">
+        "Ask Claude"
+      <span class="ou-chatcount ou-unread">
+        "5 questions · 1 being worked on · 1 waiting · 1 unread answer"
+    <div class="ou-chatbody">
+      <div class="ou-questions">
+        <div class="ou-qtools">
+          <button class="ou-linkish" data-qa-act="read-all" title="Mark every answer in this story as read" type="button">
+            "Mark all read"
+          <button class="ou-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." type="button">
+            "Clear conversation"
+          <button class="ou-linkish" data-qa-act="show-dismissed" type="button">
+            "Show dismissed (1)"
+        <div class="ou-qa" data-qid="q1">
+          <div class="ou-qhead">
+            <button aria-expanded="true" class="ou-qtoggle" data-qa-act="collapse" title="Collapse to the question" type="button">
+              "▾"
+            <div class="ou-q">
+              "Why q1?"
+            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+              "Dismiss"
+          <div class="ou-qmeta">
+            "11/3, 6:00 AM · Chapter 1: Chapter 1: Start"
+          <div class="ou-wait ou-wait-queued" role="status">
+            "Queued. No Claude session is listening yet."
+        <div class="ou-qa" data-qid="q2">
+          <div class="ou-qhead">
+            <button aria-expanded="true" class="ou-qtoggle" data-qa-act="collapse" title="Collapse to the question" type="button">
+              "▾"
+            <div class="ou-q">
+              "Why q2?"
+            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+              "Dismiss"
+          <div class="ou-qmeta">
+            "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish, b.ts"
+          <div class="ou-wait ou-wait-working" role="status">
+            <span aria-hidden="true" class="ou-pulse">
+            "author-1 is working on it ·"
+            <span class="ou-elapsed" data-since="2026-11-03T11:55:00Z">
+              "5:00"
+            <div class="ou-wnote">
+              "reading"
+        <div class="ou-qa ou-qa-here" data-qid="q3">
+          <div class="ou-qhead">
+            <button aria-expanded="true" class="ou-qtoggle" data-qa-act="collapse" title="Collapse to the question" type="button">
+              "▾"
+            <div class="ou-q">
+              "Why q3?"
+            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+              "Dismiss"
+          <div class="ou-qmeta">
+            "11/3, 6:00 AM · Overview"
+            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+              "Mark unread"
+          <div class="ou-aby">
+            "Answered by author-1"
+          <div class="ou-a ou-md">
+            <p>
+              "Because"
+              <code>
+                "src/a.ts"
+              "says so."
+            <ul>
+              <li>
+                "yes"
+        <div class="ou-qa ou-qa-new" data-qid="q4">
+          <div class="ou-qhead">
+            <button aria-expanded="true" class="ou-qtoggle" data-qa-act="collapse" title="Collapse to the question" type="button">
+              "▾"
+            <div class="ou-q">
+              "Why q4?"
+            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+              "Dismiss"
+          <div class="ou-qmeta">
+            "11/3, 6:00 AM · Chapter 1: Chapter 1: Start · New answer"
+            <button class="ou-linkish" data-qa-act="read" title="Mark this answer as read" type="button">
+              "Mark read"
+          <div class="ou-a ou-md" data-aat="2026-11-03T11:20:00Z">
+            <p>
+              "An unread"
+              <strong>
+                "answer"
+              "."
+        <div class="ou-qa ou-qa-collapsed" data-qid="q5">
+          <div class="ou-qhead">
+            <button aria-expanded="false" class="ou-qtoggle" data-qa-act="expand" title="Show the answer" type="button">
+              "▸"
+            <div class="ou-q">
+              "Why q5?"
+            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+              "Dismiss"
+          <div class="ou-qmeta">
+            "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish · 1 answer"
+            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+              "Mark unread"
+    <div class="ou-chatfoot">
+      <div class="ou-askhint">
+        <div>
+          "No Claude session is listening for acme/widgets; questions will wait."
+          <button class="ou-startlisten" title="Types /once-upon-listen acme/widgets into an idle Claude Code session in the repo and presses Enter" type="button">
+            "Start listening"
+        <div class="ou-startnote" hidden role="status">
+        <div>
+          "No idle session to type into? Start Claude Code in"
+          <code>
+            "/work/widgets"
+          "and run"
+          <code>
+            "/once-upon-listen acme/widgets"
+      <div class="ou-askwho">
+        "Or have one session answer just this story:"
+        <button class="ou-startstory" title="Types /once-upon-listen --story story-1 into an idle Claude Code session in the repo and presses Enter: it answers this story's questions from then on, ahead of the repo's listener." type="button">
+          "Start listening for this story"
+        <div class="ou-startnote" hidden role="status">
+      <form class="ou-ask">
+        <textarea aria-label="Question" placeholder="Ask about this step. The list above holds the whole story (Cmd+Enter sends it to the bridge inbox)" rows="1">
+          value="Second?"
+          "Second?"
+        <button type="submit">
+          "Ask"
+
+### auto-send with no notes
+html class="once-upon-panel-docked" --ou-w=400px
+page
+  src/a.ts: data-ou-changing
+  src/b.ts: -
+  src/c.ts: data-ou-changing
+  README.md: -
+panel
+<aside aria-label="Once Upon a Diff" id="ou-panel" tabindex="-1">
+  <div class="ou-grip" title="Drag to resize">
+  <div class="ou-bar">
+    <button aria-expanded="false" aria-label="Connection status" class="ou-light" data-level="warn" title="✓ Bridge: reachable, token accepted (1.0.0)\n✓ Story: found (story-1)\n! Claude listening: no Claude session is listening; questions will wait in the inbox\n(click for details)">
+      <span class="ou-dot">
+    <button class="ou-toggle" title="Collapse or expand the story panel">
+      "Hide story"
+    <button class="ou-prev" disabled title="Previous step">
+      "← Prev"
+    <span class="ou-title" title="Overview: Add widgets">
+      "Overview: Add widgets"
+    <button class="ou-next" title="Next step">
+      "Next →"
+    <button class="ou-close" title="Remove the overlay and show every file">
+      "×"
+  <div class="ou-note">
+    <span class="ou-count-note">
+      <span>
+        "Overview: all"
+        <b>
+          "4"
+        "files, 4 chapters"
+    <div class="ou-health" hidden>
+      <ul>
+        <li>
+          <span class="ou-hok">
+            "✓"
+          <b>
+            "Bridge"
+          ": reachable, token accepted (1.0.0)"
+        <li>
+          <span class="ou-hok">
+            "✓"
+          <b>
+            "Story"
+          ": found (story-1)"
+        <li>
+          <span class="ou-hwarn">
+            "!"
+          <b>
+            "Claude listening"
+          ": no Claude session is listening; questions will wait in the inbox"
+          <br>
+          <span class="ou-why">
+            "once-upon wait --consumer once-upon"
+    <div class="ou-fresh ou-stale">
+      "Story is for 1111111; the PR has 3 newer commits (2 files changed, in chapter 1, chapter 2)."
+      <button class="ou-update" data-retell="0" title="Adds a “Since you read it” chapter for the new commits, first, and keeps the chapters you read">
+        "Update (new commits)"
+      <button class="ou-update" data-retell="1" title="A whole new story at the latest commit, for a rebase or a big rework">
+        "Re-tell from scratch"
+    <div class="ou-rebuilding" hidden role="status">
+    <span class="ou-msg">
+  <div class="ou-body">
+    <div class="ou-working">
+      <div class="ou-beingchg" role="status">
+        "Being changed by"
+        <b>
+          "author-2"
+        ":"
+        <code data-rel="src/a.ts">
+          "src/a.ts"
+        "(lines 3–5, 9),"
+        <code data-rel="src/c.ts">
+          "src/c.ts"
+        <span class="ou-quiet">
+          "· since 11/3, 6:40 AM"
+    <h2 class="ou-h">
+      "Steps"
+    <ol class="ou-map">
+      <li class="ou-current" data-n="0">
+        "Overview"
+        <span class="ou-count">
+          "(4)"
+      <li class="ou-changing" data-n="1">
+        "1. Start"
+        <span class="ou-count">
+          "(2)"
+        <span class="ou-stepprog" data-prog-for="1">
+        <span class="ou-chg" data-why="story" title="A file here changed after the story was told">
+          "• changed since"
+        <span class="ou-chgby" title="Being changed by author-2">
+          "• being changed"
+      <li class="ou-changing" data-n="2">
+        "2. Finish"
+        <span class="ou-count">
+          "(3)"
+        <span class="ou-stepprog" data-prog-for="2" title="0 of 2 marked viewed">
+          "0/2"
+        <span class="ou-chg" data-why="read" title="Changed after you read it (at abc1234): src/b.ts">
+          "• changed since you read"
+        <span class="ou-chg" data-why="story" title="A file here changed after the story was told">
+          "• changed since"
+        <span class="ou-chgby" title="Being changed by author-2">
+          "• being changed"
+      <li data-n="3">
+        "3. Later"
+        <span class="ou-count">
+          "(1)"
+        <span class="ou-stepprog ou-writing" title="This chapter is being written">
+          "writing"
+      <li class="ou-changing" data-n="4">
+        <span class="ou-new">
+          "New"
+        "Since you read it: new commits"
+        <span class="ou-count">
+          "(1)"
+        <span class="ou-stepprog" data-prog-for="4" title="0 of 1 marked viewed">
+          "0/1"
+        <span class="ou-chgby" title="Being changed by author-2">
+          "• being changed"
+    <div class="ou-md">
+      <h1>
+        "Widgets"
+      <div aria-live="polite" class="ou-progress">
+        <b>
+          "0 of 3"
+        "files marked viewed · chapter 2, “Since you read it” still have some to go · 1 chapter still being written"
+      <div class="ou-early-box" role="status">
+      <p>
+        "The PR adds a widget in"
+        <code>
+          "src/a.ts"
+        "and wires it in"
+        <span data-end="3" data-rel="src/a.ts" data-side="R" data-start="1" role="link" tabindex="0" title="Scroll to src/a.ts line 1–3">
+          "the top"
+        "."
+      <ol>
+        <li>
+          "First"
+          <code>
+            "src/b.ts"
+        <li>
+          "Then"
+          <strong>
+            "everything"
+          "else"
+      <blockquote>
+        <p>
+          "A note <b>not bold</b> & more"
+    <p class="ou-quiet ou-uncovered">
+      "14 changed hunks no chapter points at:"
+      <code data-end="50" data-rel="src/c.ts" data-side="R" data-start="40" role="link" tabindex="0" title="Scroll to src/c.ts line 40–50">
+        "src/c.ts:40-50"
+      ","
+      <code data-end="60" data-rel="src/c.ts" data-side="R" data-start="50" role="link" tabindex="0" title="Scroll to src/c.ts line 50–60">
+        "src/c.ts:50-60"
+      ","
+      <code data-end="70" data-rel="src/c.ts" data-side="R" data-start="60" role="link" tabindex="0" title="Scroll to src/c.ts line 60–70">
+        "src/c.ts:60-70"
+      ","
+      <code data-end="80" data-rel="src/c.ts" data-side="R" data-start="70" role="link" tabindex="0" title="Scroll to src/c.ts line 70–80">
+        "src/c.ts:70-80"
+      ","
+      <code data-end="90" data-rel="src/c.ts" data-side="R" data-start="80" role="link" tabindex="0" title="Scroll to src/c.ts line 80–90">
+        "src/c.ts:80-90"
+      ","
+      <code data-end="100" data-rel="src/c.ts" data-side="R" data-start="90" role="link" tabindex="0" title="Scroll to src/c.ts line 90–100">
+        "src/c.ts:90-100"
+      ","
+      <code data-end="110" data-rel="src/c.ts" data-side="R" data-start="100" role="link" tabindex="0" title="Scroll to src/c.ts line 100–110">
+        "src/c.ts:100-110"
+      ","
+      <code data-end="120" data-rel="src/c.ts" data-side="R" data-start="110" role="link" tabindex="0" title="Scroll to src/c.ts line 110–120">
+        "src/c.ts:110-120"
+      ","
+      <code data-end="130" data-rel="src/c.ts" data-side="R" data-start="120" role="link" tabindex="0" title="Scroll to src/c.ts line 120–130">
+        "src/c.ts:120-130"
+      ","
+      <code data-end="140" data-rel="src/c.ts" data-side="R" data-start="130" role="link" tabindex="0" title="Scroll to src/c.ts line 130–140">
+        "src/c.ts:130-140"
+      ","
+      <code data-end="150" data-rel="src/c.ts" data-side="R" data-start="140" role="link" tabindex="0" title="Scroll to src/c.ts line 140–150">
+        "src/c.ts:140-150"
+      ","
+      <code data-end="160" data-rel="src/c.ts" data-side="R" data-start="150" role="link" tabindex="0" title="Scroll to src/c.ts line 150–160">
+        "src/c.ts:150-160"
+      "and 2 more."
+    <details class="ou-drafts ou-allc">
+      <summary>
+        <h2 class="ou-h">
+          "Draft comments: all chapters (6)"
+          <span class="ou-draftsum">
+            "(1 to post · 1 in fix before push · 1 posted · 2 pending · 1 dismissed)"
+      <div class="ou-drafttoggles">
+        <button class="ou-linkish" data-draft-show="showPosted">
+          "Show posted (1)"
+        <button class="ou-linkish" data-draft-show="showDismissed">
+          "Show dismissed (1)"
+      <pre class="ou-script" hidden>
+      <div class="ou-cgroup" data-group="1">
+        <h3 class="ou-cgh">
+          <button class="ou-linkish" data-goto="1">
+            "Chapter 1"
+          ": Start"
+        <div class="ou-comment ou-c-done" data-i="0" data-n="1" hidden>
+          <div class="ou-where">
+            <span>
+              "On"
+              <code data-end="2" data-rel="src/a.ts" data-side="R" data-start="2" role="link" tabindex="0" title="Scroll to src/a.ts line 2">
+                "src/a.ts:2"
+            <span class="ou-cbtns">
+              <button class="ou-copy">
+                "Copy"
+          <pre>
+            "Could you confirm this <thing>?"
+          <div class="ou-cstate">
+            <span class="ou-ok">
+              "Posted ✓"
+            "·"
+            <a href="https://github.com/acme/widgets/pull/7#c1" rel="noopener noreferrer" target="_blank">
+              "view on GitHub"
+        <div class="ou-comment" data-i="1" data-n="1">
+          <div class="ou-where">
+            <span>
+              "General PR comment"
+            <span class="ou-cbtns">
+              <button data-draft-act="dismiss" title="Not a comment you want: hide it, and don't suggest it again">
+                "Dismiss"
+              <button class="ou-copy">
+                "Copy"
+          <pre>
+            "A general note"
+          <div class="ou-cstate">
+            <span class="ou-cdraft">
+              "Draft"
+            ", not posted"
+      <div class="ou-cgroup" data-group="2">
+        <h3 class="ou-cgh">
+          <button class="ou-linkish" data-goto="2">
+            "Chapter 2"
+          ": Finish"
+        <div class="ou-comment ou-c-done ou-c-pending" data-i="0" data-n="2">
+          <div class="ou-where">
+            <span>
+              "On"
+              <code data-end="7" data-rel="src/c.ts" data-side="L" data-start="7" role="link" tabindex="0" title="Scroll to src/c.ts line 7">
+                "src/c.ts:7"
+            <span class="ou-cbtns">
+              <button class="ou-copy">
+                "Copy"
+          <pre>
+            "Dropped line"
+          <div class="ou-cstate">
+            <span class="ou-pend">
+              "In your pending review"
+            ", not submitted yet ·"
+            <a href="https://github.com/acme/widgets/pull/7#c2" rel="noopener noreferrer" target="_blank">
+              "view on GitHub"
+        <div class="ou-comment ou-c-done" data-i="1" data-n="2" hidden>
+          <div class="ou-where">
+            <span>
+              "On"
+              <code data-end="9" data-rel="src/c.ts" data-side="R" data-start="9" role="link" tabindex="0" title="Scroll to src/c.ts line 9">
+                "src/c.ts:9"
+            <span class="ou-cbtns">
+              <button data-draft-act="restore" title="Bring this draft back">
+                "Restore"
+              <button class="ou-copy">
+                "Copy"
+          <pre>
+            "Kept from before"
+          <div class="ou-cstate">
+            "Dismissed. It won't be suggested again for this PR."
+        <div class="ou-comment ou-c-done ou-c-pending" data-i="2" data-n="2">
+          <div class="ou-where">
+            <span>
+              "On"
+              <code data-end="11" data-rel="src/c.ts" data-side="R" data-start="11" role="link" tabindex="0" title="Scroll to src/c.ts line 11">
+                "src/c.ts:11"
+            <span class="ou-cbtns">
+              <button class="ou-copy">
+                "Copy"
+          <pre>
+            "Not in the diff now"
+          <div class="ou-cstate">
+            <span class="ou-pend">
+              "In your pending review"
+            ", on src/c.ts line 11 ·"
+            <button class="ou-linkish" data-end="11" data-rel="src/c.ts" data-side="R" data-start="11" role="link" tabindex="0" title="Scroll to src/c.ts line 11">
+              "Jump to line 11"
+            "·"
+            <a href="https://github.com/acme/widgets/pull/7#c3" rel="noopener noreferrer" target="_blank">
+              "view on GitHub"
+            <span class="ou-cnote">
+              "GitHub shows it after a reload."
+              <button class="ou-linkish" data-draft-reload="" title="Reloads this page. The panel stays on this chapter.">
+                "Reload page"
+        <div class="ou-comment ou-c-done ou-c-pending" data-i="3" data-n="2">
+          <div class="ou-where">
+            <span>
+              "On"
+              <code data-end="3" data-rel="src/b.ts" data-side="R" data-start="3" role="link" tabindex="0" title="Scroll to src/b.ts line 3">
+                "src/b.ts:3"
+            <span class="ou-cbtns">
+              <button class="ou-copy">
+                "Copy"
+          <pre>
+            "Fix me"
+          <div class="ou-cstate">
+            <span class="ou-pend">
+              "In fix before push"
+            "· sent to author-1 ·"
+            <button class="ou-linkish" data-end="3" data-rel="src/b.ts" data-side="R" data-start="3" role="link" tabindex="0" title="Scroll to src/b.ts line 3">
+              "Jump to line 3"
+    <div class="ou-fixes">
+      <h2 class="ou-h">
+        "Fix before push (0)"
+        <span class="ou-draftsum">
+      <div class="ou-fixtools">
+        <label class="ou-fixauto" title="Sends each note to the Claude session as soon as it is added, instead of waiting for Send. Kept for this story. A note from a drafted comment waits for Send, since Claude wrote it from the PR.">
+          <input checked data-fix-act="auto" type="checkbox">
+          "Auto-send"
+        <button class="ou-linkish" data-fix-act="take_back" data-request="r1" title="Brings these notes back as drafts, to edit or send again">
+          "Take back the 1 note sent to author-1"
+    <details class="ou-filesbox">
+      <summary>
+        <h2 class="ou-h">
+          "All files (4)"
+        <span class="ou-sum">
+          "4 chapters"
+      <ul class="ou-files">
+        <li class="ou-changing" data-file="src/a.ts">
+          <code data-rel="src/a.ts" role="link" tabindex="0" title="Scroll to src/a.ts">
+            "src/a.ts"
+          <span class="ou-chgby">
+            "being changed by author-2 (lines 3–5, 9)"
+          <span class="ou-viewed" data-viewed-for="src/a.ts" title="">
+          <span class="ou-why">
+            "chapters 1, 2"
+        <li data-file="src/b.ts">
+          <code data-rel="src/b.ts" role="link" tabindex="0" title="Scroll to src/b.ts">
+            "src/b.ts"
+          <span class="ou-chg" data-why="story" title="Changed in a commit after the one the story was told from">
+            "changed since story"
+          <span class="ou-viewed" data-viewed-for="src/b.ts" title="">
+          <span class="ou-why">
+            "chapters 1, 2"
+        <li class="ou-changing" data-file="src/c.ts">
+          <code data-rel="src/c.ts" role="link" tabindex="0" title="Scroll to src/c.ts">
+            "src/c.ts"
+          <span class="ou-chg" data-why="story" title="Changed in a commit after the one the story was told from">
+            "changed since story"
+          <span class="ou-chgby">
+            "being changed by author-2"
+          <span class="ou-viewed" data-viewed-for="src/c.ts" title="">
+          <span class="ou-why">
+            "chapters 2, new"
+        <li data-file="README.md">
+          <code data-rel="README.md" role="link" tabindex="0" title="Scroll to README.md">
+            "README.md"
+          <span class="ou-viewed" data-viewed-for="README.md" title="">
+          <span class="ou-why">
+            "chapter 3"
+    <div class="ou-rebuild-box">
+      <button class="ou-rebuild-open" title="Tell the whole story again on the current diff" type="button">
+        "Rebuild story…"
+  <section aria-label="Questions for Claude" class="ou-chat">
+    <div class="ou-chatgrip" title="Drag to resize">
+    <button aria-expanded="false" class="ou-chathead" title="Open or close the questions" type="button">
+      <span aria-hidden="true" class="ou-chatarrow">
+        "▸"
+      <span class="ou-chatlabel">
+        "Ask Claude"
+      <span class="ou-chatcount ou-unread">
+        "5 questions · 1 being worked on · 1 waiting · 1 unread answer"
+    <div class="ou-chatbody">
+      <div class="ou-questions">
+        <div class="ou-qtools">
+          <button class="ou-linkish" data-qa-act="read-all" title="Mark every answer in this story as read" type="button">
+            "Mark all read"
+          <button class="ou-linkish" data-qa-act="clear" title="Dismiss every question in this story, on every step. Undo or Show dismissed brings them back." type="button">
+            "Clear conversation"
+          <button class="ou-linkish" data-qa-act="show-dismissed" type="button">
+            "Show dismissed (1)"
+        <div class="ou-qa" data-qid="q1">
+          <div class="ou-qhead">
+            <button aria-expanded="true" class="ou-qtoggle" data-qa-act="collapse" title="Collapse to the question" type="button">
+              "▾"
+            <div class="ou-q">
+              "Why q1?"
+            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+              "Dismiss"
+          <div class="ou-qmeta">
+            "11/3, 6:00 AM · Chapter 1: Chapter 1: Start"
+          <div class="ou-wait ou-wait-queued" role="status">
+            "Queued. No Claude session is listening yet."
+        <div class="ou-qa" data-qid="q2">
+          <div class="ou-qhead">
+            <button aria-expanded="true" class="ou-qtoggle" data-qa-act="collapse" title="Collapse to the question" type="button">
+              "▾"
+            <div class="ou-q">
+              "Why q2?"
+            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+              "Dismiss"
+          <div class="ou-qmeta">
+            "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish, b.ts"
+          <div class="ou-wait ou-wait-working" role="status">
+            <span aria-hidden="true" class="ou-pulse">
+            "author-1 is working on it ·"
+            <span class="ou-elapsed" data-since="2026-11-03T11:55:00Z">
+              "5:00"
+            <div class="ou-wnote">
+              "reading"
+        <div class="ou-qa ou-qa-here" data-qid="q3">
+          <div class="ou-qhead">
+            <button aria-expanded="true" class="ou-qtoggle" data-qa-act="collapse" title="Collapse to the question" type="button">
+              "▾"
+            <div class="ou-q">
+              "Why q3?"
+            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+              "Dismiss"
+          <div class="ou-qmeta">
+            "11/3, 6:00 AM · Overview"
+            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+              "Mark unread"
+          <div class="ou-aby">
+            "Answered by author-1"
+          <div class="ou-a ou-md">
+            <p>
+              "Because"
+              <code>
+                "src/a.ts"
+              "says so."
+            <ul>
+              <li>
+                "yes"
+        <div class="ou-qa ou-qa-new" data-qid="q4">
+          <div class="ou-qhead">
+            <button aria-expanded="true" class="ou-qtoggle" data-qa-act="collapse" title="Collapse to the question" type="button">
+              "▾"
+            <div class="ou-q">
+              "Why q4?"
+            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+              "Dismiss"
+          <div class="ou-qmeta">
+            "11/3, 6:00 AM · Chapter 1: Chapter 1: Start · New answer"
+            <button class="ou-linkish" data-qa-act="read" title="Mark this answer as read" type="button">
+              "Mark read"
+          <div class="ou-a ou-md" data-aat="2026-11-03T11:20:00Z">
+            <p>
+              "An unread"
+              <strong>
+                "answer"
+              "."
+        <div class="ou-qa ou-qa-collapsed" data-qid="q5">
+          <div class="ou-qhead">
+            <button aria-expanded="false" class="ou-qtoggle" data-qa-act="expand" title="Show the answer" type="button">
+              "▸"
+            <div class="ou-q">
+              "Why q5?"
+            <button class="ou-linkish" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." type="button">
+              "Dismiss"
+          <div class="ou-qmeta">
+            "11/3, 6:00 AM · Chapter 2: Chapter 2: Finish · 1 answer"
+            <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
+              "Mark unread"
+    <div class="ou-chatfoot">
+      <div class="ou-askhint">
+        <div>
+          "No Claude session is listening for acme/widgets; questions will wait."
+          <button class="ou-startlisten" title="Types /once-upon-listen acme/widgets into an idle Claude Code session in the repo and presses Enter" type="button">
+            "Start listening"
+        <div class="ou-startnote" hidden role="status">
+        <div>
+          "No idle session to type into? Start Claude Code in"
+          <code>
+            "/work/widgets"
+          "and run"
+          <code>
+            "/once-upon-listen acme/widgets"
+      <div class="ou-askwho">
+        "Or have one session answer just this story:"
+        <button class="ou-startstory" title="Types /once-upon-listen --story story-1 into an idle Claude Code session in the repo and presses Enter: it answers this story's questions from then on, ahead of the repo's listener." type="button">
+          "Start listening for this story"
+        <div class="ou-startnote" hidden role="status">
+      <form class="ou-ask">
+        <textarea aria-label="Question" placeholder="Ask about this step. The list above holds the whole story (Cmd+Enter sends it to the bridge inbox)" rows="1">
+          value="Second?"
+          "Second?"
+        <button type="submit">
+          "Ask"

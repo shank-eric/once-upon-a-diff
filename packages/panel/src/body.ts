@@ -7,12 +7,12 @@
  */
 import { Fragment, html } from '/assets/preact.mjs';
 import { html as markup } from '@once-upon-a-diff/protocol/domain/html';
-import { copyComment } from './copy-buttons.ts';
 import { refAttrs } from './file-refs.ts';
 import type { VNode } from './parse-markup.ts';
+import type { SinceModel } from './rebuild/freshness-part.ts';
 import { plural } from '@once-upon-a-diff/protocol/domain/text';
 import type { PanelContext } from './context.ts';
-import type { Chapter, DraftAction, Side } from '@once-upon-a-diff/protocol/types';
+import type { Chapter } from '@once-upon-a-diff/protocol/types';
 
 const stripChapterPrefix = (title: string) => title.replace(/^Chapter \d+:\s*/, '');
 const UNCOVERED_SHOWN = 12; // hunk links in the Overview's note before "and N more"
@@ -20,10 +20,11 @@ const UNCOVERED_SHOWN = 12; // hunk links in the Overview's note before "and N m
 /** What the step says, worked out once per render: the markup the story's text and the drafted comments are, and which files it lists. */
 interface Pieces {
   step: number;
-  since: unknown;
+  since: SinceModel | null;
   story: unknown;
   uncovered: unknown;
-  comments: unknown;
+  /** the drafted comments' view (a function: parts hand the views their data fresh at each draw) */
+  comments: () => VNode | null;
   filesTitle: string;
   filesSummary: string;
   entries: Chapter['files'] | { rel: string }[];
@@ -73,7 +74,7 @@ export function createBody(context: PanelContext) {
       since: null,
       story: intro,
       uncovered: uncoveredHtml(),
-      comments: context.drafts.allCommentsHtml(),
+      comments: () => context.drafts.allCommentsView(),
       filesTitle: `All files (${data.files.length})`,
       filesSummary: `${data.chapters.length} chapters`,
       entries: data.files,
@@ -119,11 +120,11 @@ export function createBody(context: PanelContext) {
     });
     return {
       step: state.n,
-      since: context.freshness.sinceBanner(chapter),
+      since: context.freshness.sinceModel(chapter),
       story: storyHtml,
       uncovered: null,
       // the comments resolve their file names after the story and before the file list, as references do in reading order
-      comments: context.drafts.chapterCommentsHtml(chapter),
+      comments: () => context.drafts.chapterCommentsView(chapter),
       filesTitle: `Files in this chapter (${chapter.files.length})`,
       filesSummary: files.filesSummary(state.n),
       entries: chapter.files,
@@ -150,8 +151,8 @@ export function createBody(context: PanelContext) {
     const { step, entries } = pieces;
     const items = (entries as { rel: string }[]).map((file) => files.fileItem(file, step));
     return html`<${Fragment} key=${renderId}>
-      <div class="ou-working"></div><h2 class="ou-h">Steps</h2><ol class="ou-map">${stepList()}</ol>
-      ${nodes(pieces.since)}<div class="ou-md">${withBoxes(nodes(pieces.story))}</div>${nodes(pieces.uncovered)}${nodes(pieces.comments)}<div class="ou-fixes"></div>${files.filesBox(pieces.filesTitle, pieces.filesSummary, items)}<div class="ou-rebuild-box"></div>
+      <div class="ou-working">${context.working.bannerView()}</div><h2 class="ou-h">Steps</h2><ol class="ou-map">${stepList()}</ol>
+      ${context.freshness.sinceView(pieces.since)}<div class="ou-md">${withBoxes(nodes(pieces.story))}</div>${nodes(pieces.uncovered)}${pieces.comments()}<div class="ou-fixes">${context.fixes.view()}</div>${files.filesBox(pieces.filesTitle, pieces.filesSummary, items)}<div class="ou-rebuild-box">${context.rebuild.boxView()}</div>
     </${Fragment}>`;
   }
 
@@ -159,77 +160,16 @@ export function createBody(context: PanelContext) {
   function render() {
     pieces = context.chapter() ? chapterPieces(context.chapter() as Chapter) : overviewPieces();
     renderId++;
+    context.drafts.reset(); // the comments are drawn afresh
     context.viewed.compute(true); // the progress boxes draw from it, and the step list starts blank
     shell.redraw();
     context.questions.render();
     context.drafts.refresh(false);
     context.freshness.render();
     context.rebuild.render();
-    context.fixes.render();
-    context.working.paint();
+    context.working.dimPage();
     $('.ou-body')!.scrollTop = 0;
   }
-
-  /**
-   * What a click in the body does, by what was clicked: the first match wins. The step list and the Mark viewed buttons have their own
-   * handlers; this one is for what the parts that still write strings (the drafts, the fixes, the questions) put in the body and the dock.
-   */
-  function onClick(event: MouseEvent) {
-    const target = event.target as Element;
-    const copyButton = target.closest('.ou-copy');
-    if (copyButton) {
-      const comment = copyButton.closest('.ou-comment') as Element;
-      const step = Number(comment.getAttribute('data-n'));
-      const index = Number(comment.getAttribute('data-i'));
-      return copyComment(data.chapters[step - 1].comments[index].body, copyButton as HTMLElement);
-    }
-    const gotoButton = target.closest('[data-goto]');
-    if (gotoButton) {
-      return context.navigation.go(Number(gotoButton.getAttribute('data-goto')));
-    }
-    const scriptButton = target.closest('[data-draft-script]');
-    if (scriptButton) {
-      return context.drafts.copyScript(scriptButton as HTMLElement);
-    }
-    if (target.closest('[data-draft-reload]')) {
-      return context.drafts.reloadPage();
-    }
-    const actButton = target.closest('[data-draft-act]');
-    if (actButton) {
-      const comment = actButton.closest('.ou-comment') as Element;
-      return context.drafts.act(
-        Number(comment.getAttribute('data-n')),
-        Number(comment.getAttribute('data-i')),
-        actButton.getAttribute('data-draft-act') as DraftAction,
-      );
-    }
-    const fixControl = target.closest('[data-fix-act]');
-    if (fixControl) {
-      return context.fixes.act(fixControl as HTMLInputElement);
-    }
-    const showButton = target.closest('[data-draft-show]');
-    if (showButton) {
-      const key = showButton.getAttribute('data-draft-show') as 'showPosted' | 'showDismissed';
-      state[key] = !state[key];
-      context.saveState();
-      return context.drafts.render();
-    }
-    const ref = target.closest('[data-rel]');
-    if (!ref) {
-      return;
-    }
-    const rel = ref.getAttribute('data-rel') as string;
-    const start = +(ref.getAttribute('data-start') as string);
-    const line = ref.hasAttribute('data-start')
-      ? {
-          side: (ref.getAttribute('data-side') || 'R') as Side,
-          start,
-          end: +(ref.getAttribute('data-end') as string) || start,
-        }
-      : null;
-    context.scroll.jumpTo(rel, line);
-  }
-  $('.ou-body')!.addEventListener('click', onClick);
 
   return { render, view, ready: () => pieces !== null };
 }

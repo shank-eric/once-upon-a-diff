@@ -55,3 +55,50 @@ Object.assign(globalThis, {
   MutationObserver: NoObserver,
 });
 Object.assign(window, { scrollTo() {}, scrollY: 0, innerHeight: 800 });
+
+/** The clipboard, the selection and execCommand, which linkedom lacks: `mode` says whether the clipboard takes a write. */
+export const clipboardEnv = {
+  mode: 'ok' as 'ok' | 'refused' | 'none',
+  exec: true,
+  written: [] as string[],
+  /** a write waits for this to settle, when a test sets it */
+  gate: null as Promise<void> | null,
+  selected: [] as Node[],
+  execCalls: 0,
+};
+Object.defineProperty(globalThis.navigator, 'clipboard', {
+  configurable: true,
+  get: () =>
+    clipboardEnv.mode === 'none'
+      ? undefined
+      : {
+          async writeText(text: string) {
+            clipboardEnv.written.push(text);
+            await clipboardEnv.gate;
+            if (clipboardEnv.mode === 'refused') {
+              throw new Error('not allowed');
+            }
+          },
+        },
+});
+const selectionStub = {
+  removeAllRanges() {},
+  addRange(range: { node?: Node }) {
+    if (range.node) {
+      clipboardEnv.selected.push(range.node);
+    }
+  },
+};
+Object.assign(window, { getSelection: () => selectionStub });
+Object.assign(globalThis.document, {
+  createRange: () => ({
+    node: undefined as Node | undefined,
+    selectNodeContents(node: Node) {
+      this.node = node;
+    },
+  }),
+  execCommand: () => {
+    clipboardEnv.execCalls++;
+    return clipboardEnv.exec;
+  },
+});

@@ -148,7 +148,29 @@ export function createFileRefs(context: PanelContext) {
     return raw(placePills(markup, marks, pillHtml));
   }
 
-  return { startStep, inScope, refById, lineOf, fileOf, withRefs, pill, storyWithPills };
+  /** The props for a node that jumps to a file or line when clicked: refNode's, plus the click. */
+  function jumpProps(rel: string, line: LineRef | null | undefined): Record<string, unknown> {
+    return { ...refNode(rel, line), onClick: jumpClick(rel, line) };
+  }
+  /** A click that jumps to a file or line (for a node that has its own look). */
+  function jumpClick(rel: string, line: LineRef | null | undefined) {
+    return () => {
+      void context.scroll.jumpTo(rel, line ?? null);
+    };
+  }
+
+  return {
+    startStep,
+    inScope,
+    refById,
+    lineOf,
+    fileOf,
+    withRefs,
+    pill,
+    storyWithPills,
+    jumpProps,
+    jumpClick,
+  };
 }
 
 export type FileRefs = ReturnType<typeof createFileRefs>;

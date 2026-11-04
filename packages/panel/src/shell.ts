@@ -54,7 +54,7 @@ export function createShell(context: PanelContext) {
         <button class="ou-next" title="Next step" disabled=${withBody && state.n === lastStep} onClick=${() => context.navigation.go(state.n + 1)}>Next →</button>
         <button class="ou-close" title="Remove the overlay and show every file" onClick=${close}>×</button>
       </div>
-      <div class="ou-note"><span class="ou-count-note">${context.filter ? context.filter.noteView() : null}</span>${context.statusLight ? context.statusLight.healthView() : null}<div class="ou-fresh"></div><div class="ou-rebuilding" role="status" hidden=${true}></div><span class="ou-msg">${messageText || null}</span></div>
+      <div class="ou-note"><span class="ou-count-note">${context.filter ? context.filter.noteView() : null}</span>${context.statusLight ? context.statusLight.healthView() : null}${context.freshness ? context.freshness.view() : null}${context.rebuild ? context.rebuild.statusView() : null}<span class="ou-msg">${messageText || null}</span></div>
       <div class="ou-body">${context.body ? context.body.view() : null}</div>
       ${context.chatDock ? context.chatDock.view() : null}
     </${Fragment}>`;
@@ -72,6 +72,9 @@ export function createShell(context: PanelContext) {
 
   /** A line under the toolbar for a few seconds ('' clears it). */
   function message(text: string | null | undefined) {
+    if (!mounted) {
+      return; // a late answer after the panel was closed
+    }
     clearTimeout(messageTimer);
     messageText = text || '';
     redraw();

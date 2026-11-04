@@ -369,7 +369,7 @@ panel
               "Mark unread"
     <div class="ou-chatfoot">
       <div class="ou-askhint" hidden>
-      <div class="ou-askwho" data-html="Questions go to <b>ou-fix-cache</b>, the agent that built this story, through <b>story-x</b>.">
+      <div class="ou-askwho">
         "Questions go to"
         <b>
           "ou-fix-cache"

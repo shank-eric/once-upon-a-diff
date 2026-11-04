@@ -1,0 +1,50 @@
+### overview
+<div class="ou-rebuild-box">
+  <button class="ou-rebuild-open" title="Tell the whole story again on the current diff" type="button">
+    "Rebuild story…"
+
+### overview form
+<div class="ou-rebuild-box">
+  <form class="ou-rebuild-form">
+    <p class="ou-quiet">
+      "A Claude session tells the whole story again on the current diff, at the same link. Drafts whose line is still in the diff are kept, the others are kept and flagged, and questions move to the chapter that tells their file."
+    <textarea aria-label="What should change" placeholder="What should change? (optional) For example: chapter 3 tells the save flow backwards" rows="3">
+    <div class="ou-rebuild-btns">
+      <button type="submit">
+        "Queue rebuild"
+      <button class="ou-linkish" data-rebuild-cancel="" type="button">
+        "Cancel"
+
+### chapter 2 form
+<div class="ou-rebuild-box">
+  <form class="ou-rebuild-form">
+    <p class="ou-quiet">
+      "Chapter 1 stays exactly as it is. Chapter 2 and the ones after it are told again, and every file and hunk the kept chapters don’t tell still gets a place. Their drafts and questions are kept. The PR has commits this story doesn’t tell yet, so Update, or Rebuild story on the Overview, may fit better."
+    <textarea aria-label="What should change" placeholder="What should change? (optional) For example: chapter 3 tells the save flow backwards" rows="3">
+      value="Tell it differently"
+      "Tell it differently"
+    <div class="ou-rebuild-btns">
+      <button type="submit">
+        "Queue rebuild"
+      <button class="ou-linkish" data-rebuild-cancel="" type="button">
+        "Cancel"
+
+### failed
+<div class="ou-rebuild-box">
+  <form class="ou-rebuild-form">
+    <p class="ou-quiet">
+      "Chapter 1 stays exactly as it is. Chapter 2 and the ones after it are told again, and every file and hunk the kept chapters don’t tell still gets a place. Their drafts and questions are kept. The PR has commits this story doesn’t tell yet, so Update, or Rebuild story on the Overview, may fit better."
+    <textarea aria-label="What should change" placeholder="What should change? (optional) For example: chapter 3 tells the save flow backwards" rows="3">
+      value="Tell it differently"
+      "Tell it differently"
+    <div class="ou-rebuild-btns">
+      <button type="submit">
+        "Queue rebuild"
+      <button class="ou-linkish" data-rebuild-cancel="" type="button">
+        "Cancel"
+Couldn't ask for a rebuild: queue full
+### asked
+<div class="ou-rebuild-box">
+  <button class="ou-rebuild-open" disabled title="Keep the chapters before this one and tell this one and the rest again" type="button">
+    "Rebuild queued"
+Asked for a rebuild from chapter 2. A Claude session picks it up from the inbox.

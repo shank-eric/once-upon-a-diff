@@ -371,11 +371,11 @@ panel
             <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
     <div class="ou-chatfoot">
-      <div class="ou-askhint" data-html="No Claude session is listening; questions will wait. Start one in Claude Code as a background task: <code>once-upon wait --consumer once-upon</code>">
+      <div class="ou-askhint">
         "No Claude session is listening; questions will wait. Start one in Claude Code as a background task:"
         <code>
           "once-upon wait --consumer once-upon"
-      <div class="ou-askwho" data-html="" hidden>
+      <div class="ou-askwho" hidden>
       <form class="ou-ask">
         <textarea aria-label="Question" placeholder="Ask about this step. The list above holds the whole story (Cmd+Enter sends it to the bridge inbox)" rows="1">
           value="Second?"

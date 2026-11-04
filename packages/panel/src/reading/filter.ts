@@ -66,7 +66,6 @@ const insideLine = (node: Node) => {
 export function createFilter(context: PanelContext) {
   const { story, state, opts, page, shell } = context;
   const { data } = story;
-  const { $ } = shell;
   let seen: { found: number; shown: number; missing: string[] } = {
     found: 0,
     shown: 0,
@@ -131,13 +130,6 @@ export function createFilter(context: PanelContext) {
         : null;
     return html`<span>Showing <b>${count}</b> of <b>${total}</b> files, ${here}${extra}</span>${' '}<button class="ou-all" aria-pressed="false" onClick=${toggle}>Show all files</button>`;
   }
-
-  $('.ou-note')!.addEventListener('click', (event) => {
-    const ref = (event.target as Element).closest('[data-rel]');
-    if (ref) {
-      context.scroll.jumpTo(ref.getAttribute('data-rel') as string);
-    }
-  });
 
   // GitHub loads and re-renders diffs as you scroll, and flips aria-pressed when
   // the reviewer ticks Viewed, so re-filter and refresh the check marks after changes.

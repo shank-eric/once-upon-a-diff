@@ -523,7 +523,7 @@ panel
             <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
     <div class="ou-chatfoot">
-      <div class="ou-askhint" data-html="<div>No Claude session is listening for acme/widgets; questions will wait. <button type=\"button\" class=\"ou-startlisten\" title=\"Types /once-upon-listen acme/widgets into an idle Claude Code session in the repo and presses Enter\">Start listening</button></div><div class=\"ou-startnote\" role=\"status\" hidden></div><div>No idle session to type into? Start Claude Code in <code>/work/widgets</code> and run <code>/once-upon-listen acme/widgets</code></div>">
+      <div class="ou-askhint">
         <div>
           "No Claude session is listening for acme/widgets; questions will wait."
           <button class="ou-startlisten" title="Types /once-upon-listen acme/widgets into an idle Claude Code session in the repo and presses Enter" type="button">
@@ -536,7 +536,7 @@ panel
           "and run"
           <code>
             "/once-upon-listen acme/widgets"
-      <div class="ou-askwho" data-html="Or have one session answer just this story: <button type=\"button\" class=\"ou-startstory\" title=\"Types /once-upon-listen --story story-1 into an idle Claude Code session in the repo and presses Enter: it answers this story&#39;s questions from then on, ahead of the repo&#39;s listener.\">Start listening for this story</button><div class=\"ou-startnote\" role=\"status\" hidden></div>">
+      <div class="ou-askwho">
         "Or have one session answer just this story:"
         <button class="ou-startstory" title="Types /once-upon-listen --story story-1 into an idle Claude Code session in the repo and presses Enter: it answers this story's questions from then on, ahead of the repo's listener." type="button">
           "Start listening for this story"
@@ -974,7 +974,7 @@ panel
             <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
     <div class="ou-chatfoot">
-      <div class="ou-askhint" data-html="<div>No Claude session is listening for acme/widgets; questions will wait. <button type=\"button\" class=\"ou-startlisten\" title=\"Types /once-upon-listen acme/widgets into an idle Claude Code session in the repo and presses Enter\">Start listening</button></div><div class=\"ou-startnote\" role=\"status\" hidden></div><div>No idle session to type into? Start Claude Code in <code>/work/widgets</code> and run <code>/once-upon-listen acme/widgets</code></div>">
+      <div class="ou-askhint">
         <div>
           "No Claude session is listening for acme/widgets; questions will wait."
           <button class="ou-startlisten" title="Types /once-upon-listen acme/widgets into an idle Claude Code session in the repo and presses Enter" type="button">
@@ -987,7 +987,7 @@ panel
           "and run"
           <code>
             "/once-upon-listen acme/widgets"
-      <div class="ou-askwho" data-html="Or have one session answer just this story: <button type=\"button\" class=\"ou-startstory\" title=\"Types /once-upon-listen --story story-1 into an idle Claude Code session in the repo and presses Enter: it answers this story&#39;s questions from then on, ahead of the repo&#39;s listener.\">Start listening for this story</button><div class=\"ou-startnote\" role=\"status\" hidden></div>">
+      <div class="ou-askwho">
         "Or have one session answer just this story:"
         <button class="ou-startstory" title="Types /once-upon-listen --story story-1 into an idle Claude Code session in the repo and presses Enter: it answers this story's questions from then on, ahead of the repo's listener." type="button">
           "Start listening for this story"
@@ -1277,7 +1277,7 @@ panel
             <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
     <div class="ou-chatfoot">
-      <div class="ou-askhint" data-html="<div>No Claude session is listening for acme/widgets; questions will wait. <button type=\"button\" class=\"ou-startlisten\" title=\"Types /once-upon-listen acme/widgets into an idle Claude Code session in the repo and presses Enter\">Start listening</button></div><div class=\"ou-startnote\" role=\"status\" hidden></div><div>No idle session to type into? Start Claude Code in <code>/work/widgets</code> and run <code>/once-upon-listen acme/widgets</code></div>">
+      <div class="ou-askhint">
         <div>
           "No Claude session is listening for acme/widgets; questions will wait."
           <button class="ou-startlisten" title="Types /once-upon-listen acme/widgets into an idle Claude Code session in the repo and presses Enter" type="button">
@@ -1290,7 +1290,7 @@ panel
           "and run"
           <code>
             "/once-upon-listen acme/widgets"
-      <div class="ou-askwho" data-html="Or have one session answer just this story: <button type=\"button\" class=\"ou-startstory\" title=\"Types /once-upon-listen --story story-1 into an idle Claude Code session in the repo and presses Enter: it answers this story&#39;s questions from then on, ahead of the repo&#39;s listener.\">Start listening for this story</button><div class=\"ou-startnote\" role=\"status\" hidden></div>">
+      <div class="ou-askwho">
         "Or have one session answer just this story:"
         <button class="ou-startstory" title="Types /once-upon-listen --story story-1 into an idle Claude Code session in the repo and presses Enter: it answers this story's questions from then on, ahead of the repo's listener." type="button">
           "Start listening for this story"
@@ -1595,7 +1595,7 @@ panel
             <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
     <div class="ou-chatfoot">
-      <div class="ou-askhint" data-html="<div>No Claude session is listening for acme/widgets; questions will wait. <button type=\"button\" class=\"ou-startlisten\" title=\"Types /once-upon-listen acme/widgets into an idle Claude Code session in the repo and presses Enter\">Start listening</button></div><div class=\"ou-startnote\" role=\"status\" hidden></div><div>No idle session to type into? Start Claude Code in <code>/work/widgets</code> and run <code>/once-upon-listen acme/widgets</code></div>">
+      <div class="ou-askhint">
         <div>
           "No Claude session is listening for acme/widgets; questions will wait."
           <button class="ou-startlisten" title="Types /once-upon-listen acme/widgets into an idle Claude Code session in the repo and presses Enter" type="button">
@@ -1608,7 +1608,7 @@ panel
           "and run"
           <code>
             "/once-upon-listen acme/widgets"
-      <div class="ou-askwho" data-html="Or have one session answer just this story: <button type=\"button\" class=\"ou-startstory\" title=\"Types /once-upon-listen --story story-1 into an idle Claude Code session in the repo and presses Enter: it answers this story&#39;s questions from then on, ahead of the repo&#39;s listener.\">Start listening for this story</button><div class=\"ou-startnote\" role=\"status\" hidden></div>">
+      <div class="ou-askwho">
         "Or have one session answer just this story:"
         <button class="ou-startstory" title="Types /once-upon-listen --story story-1 into an idle Claude Code session in the repo and presses Enter: it answers this story's questions from then on, ahead of the repo's listener." type="button">
           "Start listening for this story"
@@ -1992,7 +1992,7 @@ panel
             <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
     <div class="ou-chatfoot">
-      <div class="ou-askhint" data-html="<div>No Claude session is listening for acme/widgets; questions will wait. <button type=\"button\" class=\"ou-startlisten\" title=\"Types /once-upon-listen acme/widgets into an idle Claude Code session in the repo and presses Enter\">Start listening</button></div><div class=\"ou-startnote\" role=\"status\" hidden></div><div>No idle session to type into? Start Claude Code in <code>/work/widgets</code> and run <code>/once-upon-listen acme/widgets</code></div>">
+      <div class="ou-askhint">
         <div>
           "No Claude session is listening for acme/widgets; questions will wait."
           <button class="ou-startlisten" title="Types /once-upon-listen acme/widgets into an idle Claude Code session in the repo and presses Enter" type="button">
@@ -2005,7 +2005,7 @@ panel
           "and run"
           <code>
             "/once-upon-listen acme/widgets"
-      <div class="ou-askwho" data-html="Or have one session answer just this story: <button type=\"button\" class=\"ou-startstory\" title=\"Types /once-upon-listen --story story-1 into an idle Claude Code session in the repo and presses Enter: it answers this story&#39;s questions from then on, ahead of the repo&#39;s listener.\">Start listening for this story</button><div class=\"ou-startnote\" role=\"status\" hidden></div>">
+      <div class="ou-askwho">
         "Or have one session answer just this story:"
         <button class="ou-startstory" title="Types /once-upon-listen --story story-1 into an idle Claude Code session in the repo and presses Enter: it answers this story's questions from then on, ahead of the repo's listener." type="button">
           "Start listening for this story"
@@ -2540,7 +2540,7 @@ panel
             <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
     <div class="ou-chatfoot">
-      <div class="ou-askhint" data-html="<div>No Claude session is listening for acme/widgets; questions will wait. <button type=\"button\" class=\"ou-startlisten\" title=\"Types /once-upon-listen acme/widgets into an idle Claude Code session in the repo and presses Enter\">Start listening</button></div><div class=\"ou-startnote\" role=\"status\" hidden></div><div>No idle session to type into? Start Claude Code in <code>/work/widgets</code> and run <code>/once-upon-listen acme/widgets</code></div>">
+      <div class="ou-askhint">
         <div>
           "No Claude session is listening for acme/widgets; questions will wait."
           <button class="ou-startlisten" title="Types /once-upon-listen acme/widgets into an idle Claude Code session in the repo and presses Enter" type="button">
@@ -2553,7 +2553,7 @@ panel
           "and run"
           <code>
             "/once-upon-listen acme/widgets"
-      <div class="ou-askwho" data-html="Or have one session answer just this story: <button type=\"button\" class=\"ou-startstory\" title=\"Types /once-upon-listen --story story-1 into an idle Claude Code session in the repo and presses Enter: it answers this story&#39;s questions from then on, ahead of the repo&#39;s listener.\">Start listening for this story</button><div class=\"ou-startnote\" role=\"status\" hidden></div>">
+      <div class="ou-askwho">
         "Or have one session answer just this story:"
         <button class="ou-startstory" title="Types /once-upon-listen --story story-1 into an idle Claude Code session in the repo and presses Enter: it answers this story's questions from then on, ahead of the repo's listener." type="button">
           "Start listening for this story"
@@ -2937,7 +2937,7 @@ panel
             <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
     <div class="ou-chatfoot">
-      <div class="ou-askhint" data-html="<div>No Claude session is listening for acme/widgets; questions will wait. <button type=\"button\" class=\"ou-startlisten\" title=\"Types /once-upon-listen acme/widgets into an idle Claude Code session in the repo and presses Enter\">Start listening</button></div><div class=\"ou-startnote\" role=\"status\" hidden></div><div>No idle session to type into? Start Claude Code in <code>/work/widgets</code> and run <code>/once-upon-listen acme/widgets</code></div>">
+      <div class="ou-askhint">
         <div>
           "No Claude session is listening for acme/widgets; questions will wait."
           <button class="ou-startlisten" title="Types /once-upon-listen acme/widgets into an idle Claude Code session in the repo and presses Enter" type="button">
@@ -2950,7 +2950,7 @@ panel
           "and run"
           <code>
             "/once-upon-listen acme/widgets"
-      <div class="ou-askwho" data-html="Or have one session answer just this story: <button type=\"button\" class=\"ou-startstory\" title=\"Types /once-upon-listen --story story-1 into an idle Claude Code session in the repo and presses Enter: it answers this story&#39;s questions from then on, ahead of the repo&#39;s listener.\">Start listening for this story</button><div class=\"ou-startnote\" role=\"status\" hidden></div>">
+      <div class="ou-askwho">
         "Or have one session answer just this story:"
         <button class="ou-startstory" title="Types /once-upon-listen --story story-1 into an idle Claude Code session in the repo and presses Enter: it answers this story's questions from then on, ahead of the repo's listener." type="button">
           "Start listening for this story"
@@ -3334,7 +3334,7 @@ panel
             <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
     <div class="ou-chatfoot">
-      <div class="ou-askhint" data-html="<div>No Claude session is listening for acme/widgets; questions will wait. <button type=\"button\" class=\"ou-startlisten\" title=\"Types /once-upon-listen acme/widgets into an idle Claude Code session in the repo and presses Enter\">Start listening</button></div><div class=\"ou-startnote\" role=\"status\" hidden></div><div>No idle session to type into? Start Claude Code in <code>/work/widgets</code> and run <code>/once-upon-listen acme/widgets</code></div>">
+      <div class="ou-askhint">
         <div>
           "No Claude session is listening for acme/widgets; questions will wait."
           <button class="ou-startlisten" title="Types /once-upon-listen acme/widgets into an idle Claude Code session in the repo and presses Enter" type="button">
@@ -3347,7 +3347,7 @@ panel
           "and run"
           <code>
             "/once-upon-listen acme/widgets"
-      <div class="ou-askwho" data-html="Or have one session answer just this story: <button type=\"button\" class=\"ou-startstory\" title=\"Types /once-upon-listen --story story-1 into an idle Claude Code session in the repo and presses Enter: it answers this story&#39;s questions from then on, ahead of the repo&#39;s listener.\">Start listening for this story</button><div class=\"ou-startnote\" role=\"status\" hidden></div>">
+      <div class="ou-askwho">
         "Or have one session answer just this story:"
         <button class="ou-startstory" title="Types /once-upon-listen --story story-1 into an idle Claude Code session in the repo and presses Enter: it answers this story's questions from then on, ahead of the repo's listener." type="button">
           "Start listening for this story"
@@ -3731,7 +3731,7 @@ panel
             <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
     <div class="ou-chatfoot">
-      <div class="ou-askhint" data-html="<div>No Claude session is listening for acme/widgets; questions will wait. <button type=\"button\" class=\"ou-startlisten\" title=\"Types /once-upon-listen acme/widgets into an idle Claude Code session in the repo and presses Enter\">Start listening</button></div><div class=\"ou-startnote\" role=\"status\" hidden></div><div>No idle session to type into? Start Claude Code in <code>/work/widgets</code> and run <code>/once-upon-listen acme/widgets</code></div>">
+      <div class="ou-askhint">
         <div>
           "No Claude session is listening for acme/widgets; questions will wait."
           <button class="ou-startlisten" title="Types /once-upon-listen acme/widgets into an idle Claude Code session in the repo and presses Enter" type="button">
@@ -3744,7 +3744,7 @@ panel
           "and run"
           <code>
             "/once-upon-listen acme/widgets"
-      <div class="ou-askwho" data-html="Or have one session answer just this story: <button type=\"button\" class=\"ou-startstory\" title=\"Types /once-upon-listen --story story-1 into an idle Claude Code session in the repo and presses Enter: it answers this story&#39;s questions from then on, ahead of the repo&#39;s listener.\">Start listening for this story</button><div class=\"ou-startnote\" role=\"status\" hidden></div>">
+      <div class="ou-askwho">
         "Or have one session answer just this story:"
         <button class="ou-startstory" title="Types /once-upon-listen --story story-1 into an idle Claude Code session in the repo and presses Enter: it answers this story's questions from then on, ahead of the repo's listener." type="button">
           "Start listening for this story"

@@ -369,7 +369,7 @@ panel
               "Mark unread"
     <div class="ou-chatfoot">
       <div class="ou-askhint" hidden>
-      <div class="ou-askwho" data-html="<b>ou-fix-cache</b> built this story and has its context.\n      Only the Claude session that launched it can pass this story's questions on to it: it does that while it listens. Until it does, <b>repo-acme</b> answers. To start that, run <code>/once-upon-listen --story story-1</code> in the session that launched ou-fix-cache.">
+      <div class="ou-askwho">
         <b>
           "ou-fix-cache"
         "built this story and has its context. Only the Claude session that launched it can pass this story's questions on to it: it does that while it listens. Until it does,"

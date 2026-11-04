@@ -510,9 +510,9 @@ panel
             <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
     <div class="ou-chatfoot">
-      <div class="ou-askhint" data-html="The bridge isn&#39;t reachable. Questions can't be sent until it's back.">
+      <div class="ou-askhint">
         "The bridge isn't reachable. Questions can't be sent until it's back."
-      <div class="ou-askwho" data-html="" hidden>
+      <div class="ou-askwho" hidden>
       <form class="ou-ask">
         <textarea aria-label="Question" placeholder="Ask about this step. The list above holds the whole story (Cmd+Enter sends it to the bridge inbox)" rows="1">
         <button type="submit">

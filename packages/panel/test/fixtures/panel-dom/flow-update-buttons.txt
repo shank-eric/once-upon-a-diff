@@ -1,0 +1,40 @@
+### stale
+<div class="ou-fresh ou-stale">
+  "Story is for 1111111; the PR has 3 newer commits (2 files changed, in chapter 1, chapter 2)."
+  <button class="ou-update" data-retell="0" title="Adds a “Since you read it” chapter for the new commits, first, and keeps the chapters you read">
+    "Update (new commits)"
+  <button class="ou-update" data-retell="1" title="A whole new story at the latest commit, for a rebase or a big rework">
+    "Re-tell from scratch"
+
+### asking
+<div class="ou-fresh ou-stale">
+  "Story is for 1111111; the PR has 3 newer commits (2 files changed, in chapter 1, chapter 2)."
+  <button class="ou-update" data-retell="0" disabled title="Adds a “Since you read it” chapter for the new commits, first, and keeps the chapters you read">
+    "Update (new commits)"
+  <button class="ou-update" data-retell="1" disabled title="A whole new story at the latest commit, for a rebase or a big rework">
+    "Re-tell from scratch"
+
+### asked
+<div class="ou-fresh ou-stale">
+  "Story is for 1111111; the PR has 3 newer commits (2 files changed, in chapter 1, chapter 2)."
+  <button class="ou-update" data-retell="0" disabled title="Adds a “Since you read it” chapter for the new commits, first, and keeps the chapters you read">
+    "Update (new commits)"
+  <button class="ou-update" data-retell="1" disabled title="A whole new story at the latest commit, for a rebase or a big rework">
+    "Re-tell asked for"
+Asked for a new story from scratch. A Claude session picks it up from the inbox.
+### looked again
+<div class="ou-fresh ou-stale">
+  "Story is for 1111111; the PR has 3 newer commits (2 files changed, in chapter 1, chapter 2)."
+  <button class="ou-update" data-retell="0" title="Adds a “Since you read it” chapter for the new commits, first, and keeps the chapters you read">
+    "Update (new commits)"
+  <button class="ou-update" data-retell="1" title="A whole new story at the latest commit, for a rebase or a big rework">
+    "Re-tell from scratch"
+Asked for a new story from scratch. A Claude session picks it up from the inbox.
+### failed
+<div class="ou-fresh ou-stale">
+  "Story is for 1111111; the PR has 3 newer commits (2 files changed, in chapter 1, chapter 2)."
+  <button class="ou-update" data-retell="0" title="Adds a “Since you read it” chapter for the new commits, first, and keeps the chapters you read">
+    "Update (new commits)"
+  <button class="ou-update" data-retell="1" title="A whole new story at the latest commit, for a rebase or a big rework">
+    "Re-tell from scratch"
+Couldn't ask for an update: nope

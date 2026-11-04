@@ -13,11 +13,14 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { dom, clock, FakeIntersectionObserver } from './panel-env.ts';
+import { dom, clock, clipboardEnv, FakeIntersectionObserver } from './panel-env.ts';
 import {
+  FIXES,
   QUESTIONS,
   READS,
   CURRENT_UPDATED,
+  STALE,
+  WORKING,
   fullOptions,
   pageWorld,
   question,
@@ -25,7 +28,12 @@ import {
   story,
 } from './panel-fixtures.ts';
 import type { PanelOptions } from '../src/context.ts';
-import type { StoryData } from '@once-upon-a-diff/protocol/types';
+import type {
+  DraftRow,
+  DraftsAnswer,
+  FixesView,
+  StoryData,
+} from '@once-upon-a-diff/protocol/types';
 
 const { storyOverlay } = await import('../src/overlay.ts');
 const { parseMarkup } = await import('../src/parse-markup.ts');
@@ -56,10 +64,20 @@ function serialize(node: Node, depth = 0): string[] {
   const el = node as HTMLElement;
   const attrs = [...el.attributes]
     .filter((attr) => !(attr.name === 'class' && !attr.value)) // an empty class says nothing
+    .filter((attr) => attr.name !== 'data-label') // the old Copy as gh script button noted its own label there; nothing read it
     .map((attr) =>
       BOOLEAN.has(attr.name) ? attr.name : `${attr.name}=${JSON.stringify(attr.value)}`,
     )
     .sort();
+  // a ticked box is a property in the DOM the panel sets it on, and linkedom does not write it back as the attribute
+  if (
+    el.tagName === 'INPUT' &&
+    (el as HTMLInputElement).checked === true &&
+    !attrs.includes('checked')
+  ) {
+    attrs.push('checked');
+    attrs.sort();
+  }
   const own: string[] = [];
   if (el.tagName === 'TEXTAREA' && (el as HTMLTextAreaElement).value) {
     own.push(`${pad}  value=${JSON.stringify((el as HTMLTextAreaElement).value)}`);
@@ -1254,6 +1272,1330 @@ await test('the hint keeps its details open for the same markup and drops them f
     assert.equal(more().textContent, 'show details');
   } finally {
     panel.done();
+  }
+});
+
+// ---------- drafts, fixes, the working banner, freshness and rebuild (recorded on the string versions, before they drew with Preact)
+
+/** After a flow: two more draws change nothing (a label written by hand would be reverted, a state a draw cleared would show). */
+const stays = (panel: Mounted, what: string) => {
+  const before = panel.shot();
+  panel.overlay.apply();
+  panel.overlay.apply();
+  assert.ok(panel.shot() === before, `${what}: a redraw changes nothing`);
+};
+const GITHUB_AT = '2099-01-01T00:00:00Z';
+/** What the panel focused, in order (the panel is in a shadow root, which the kit's activeElement does not see into). */
+const focusLog: Element[] = [];
+const focusedNow = () => focusLog.at(-1);
+{
+  const proto = window.HTMLElement.prototype;
+  const focus = proto.focus;
+  proto.focus = function (this: HTMLElement, ...args: []) {
+    focusLog.push(this);
+    return focus.apply(this, args);
+  };
+}
+const draftOptions =
+  (
+    rows: () => DraftRow[],
+    act?: (chapter: number, index: number, action: string) => Promise<DraftsAnswer>,
+    extra: Partial<PanelOptions> = {},
+  ) =>
+  (calls: unknown[][]) =>
+    fullOptions(calls, {
+      pulse: undefined,
+      drafts: {
+        load: async () => {
+          calls.push(['drafts.load']);
+          return { drafts: rows(), error: null };
+        },
+        act: async (chapter, index, action) => {
+          calls.push(['drafts.act', chapter, index, action]);
+          return act ? act(chapter, index, action) : { drafts: rows(), error: null };
+        },
+      },
+      ...extra,
+    });
+const comment = (step: number, index: number) =>
+  $(`.ou-comment[data-n="${step}"][data-i="${index}"]`);
+const draftButton = (step: number, index: number, action: string) =>
+  $<HTMLButtonElement>(
+    `.ou-comment[data-n="${step}"][data-i="${index}"] [data-draft-act="${action}"]`,
+  );
+
+await test('flow-drafts-add-dismiss-restore: each button calls its route once, shows the wait and the error, and a failed add keeps both buttons', async () => {
+  let answer: Promise<DraftsAnswer> | null = null;
+  const panel = await mount(
+    story(),
+    draftOptions(
+      () => [],
+      () => answer ?? Promise.resolve({ drafts: [], error: null }),
+    ),
+    { n: 2 },
+  );
+  try {
+    const shots: string[] = [];
+    const shot = (label: string) => shots.push(`### ${label}\n${panel.shot()}`);
+    const acts = () => calling(panel.calls, 'drafts.act');
+    shot('plain drafts');
+    const gate = deferred<DraftsAnswer>();
+    answer = gate.promise;
+    fire(draftButton(2, 3, 'review'), 'click');
+    assert.equal(acts().length, 1, 'one click, one Add to my review');
+    assert.equal(draftButton(2, 3, 'review').disabled, true);
+    assert.equal(draftButton(2, 3, 'review').textContent, 'Adding…');
+    shot('adding (sync)');
+    gate.resolve({
+      drafts: [
+        {
+          chapter: 2,
+          index: 3,
+          status: 'draft',
+          dismissed: false,
+          added: { at: GITHUB_AT, url: 'https://github.com/acme/widgets/pull/7#c9' },
+        },
+      ],
+      added: { at: GITHUB_AT, url: 'x', started: true },
+    } as never);
+    await settle();
+    assert.equal(acts().length, 1);
+    assert.equal(
+      $('.ou-msg').textContent,
+      'Added to your pending review (started a new one). Nobody else sees it until you submit the review.',
+    );
+    shot('added');
+    answer = Promise.reject(new Error('GitHub said no'));
+    answer.catch(() => {});
+    fire(draftButton(2, 0, 'review'), 'click');
+    assert.equal(acts().length, 2);
+    await settle();
+    assert.ok(comment(2, 0).textContent!.includes('GitHub said no'), 'the error is on the draft');
+    assert.ok(draftButton(2, 0, 'review') && draftButton(2, 0, 'fix'), 'both buttons are back');
+    assert.equal(draftButton(2, 0, 'review').disabled, false);
+    shot('add failed');
+    panel.overlay.go(1);
+    panel.overlay.go(2);
+    assert.ok(
+      comment(2, 0).textContent!.includes('GitHub said no'),
+      'the error is kept across steps',
+    );
+    answer = Promise.resolve({ drafts: [], error: null });
+    fire(draftButton(2, 0, 'review'), 'click');
+    assert.equal(acts().length, 3);
+    await settle();
+    shot('added after a failure');
+    const dismissed: DraftRow[] = [{ chapter: 2, index: 1, status: 'draft', dismissed: true }];
+    answer = Promise.resolve({ drafts: dismissed, error: null });
+    fire(draftButton(2, 1, 'dismiss'), 'click');
+    assert.equal(acts().length, 4);
+    await settle();
+    shot('dismissed (hidden)');
+    fire($('[data-draft-show="showDismissed"]'), 'click');
+    shot('dismissed shown');
+    answer = Promise.resolve({ drafts: [], error: null });
+    fire(draftButton(2, 1, 'restore'), 'click');
+    assert.equal(acts().length, 5);
+    await settle();
+    shot('restored');
+    answer = Promise.resolve({
+      drafts: [
+        {
+          chapter: 2,
+          index: 0,
+          status: 'draft',
+          dismissed: false,
+          fix: { path: 'src/c.ts', side: 'L', line: 7, state: 'draft' },
+        },
+      ],
+      error: null,
+    } as never);
+    fire(draftButton(2, 0, 'fix'), 'click');
+    assert.equal(acts().length, 6);
+    assert.equal(draftButton(2, 0, 'fix').textContent, 'Adding…');
+    await settle();
+    shot('added to fix before push');
+    check('flow-drafts-actions', shots.join('\n'));
+    assert.deepEqual(
+      acts().map((call) => call.slice(1)),
+      [
+        [2, 3, 'review'],
+        [2, 0, 'review'],
+        [2, 0, 'review'],
+        [2, 1, 'dismiss'],
+        [2, 1, 'restore'],
+        [2, 0, 'fix'],
+      ],
+    );
+    assert.equal(
+      calling(panel.calls, 'fixes.load').length >= 2,
+      true,
+      'Add to fix asks the notes again',
+    );
+    stays(panel, 'drafts actions');
+  } finally {
+    panel.done();
+  }
+});
+
+await test('a drafts answer that arrives after a step change draws the step on screen', async () => {
+  const gate = deferred<DraftsAnswer>();
+  const panel = await mount(
+    story(),
+    draftOptions(
+      () => [],
+      () => gate.promise,
+    ),
+    { n: 1 },
+  );
+  try {
+    fire(draftButton(1, 1, 'dismiss'), 'click');
+    panel.overlay.go(2);
+    gate.resolve({
+      drafts: [
+        { chapter: 2, index: 0, status: 'posted', dismissed: false, url: 'https://x/c1' },
+        { chapter: 2, index: 1, status: 'draft', dismissed: true },
+      ],
+      error: null,
+    });
+    await settle();
+    assert.ok(comment(2, 0).hasAttribute('hidden'), 'a posted comment is hidden');
+    assert.ok(comment(2, 1).classList.contains('ou-c-done'));
+    assert.match($('.ou-drafts .ou-draftsum').textContent!, /1 posted/);
+    check('drafts-late-reply', panel.shot());
+  } finally {
+    panel.done();
+  }
+});
+
+await test('Copy on a drafted comment copies it once, says so for a moment, and selects the text when the clipboard says no', async () => {
+  startClock();
+  clipboardEnv.written = [];
+  clipboardEnv.selected = [];
+  clipboardEnv.mode = 'ok';
+  clipboardEnv.exec = true;
+  clipboardEnv.execCalls = 0;
+  const panel = await mount(
+    story(),
+    draftOptions(() => []),
+    { n: 2 },
+    { wait: pumpOnce },
+  );
+  try {
+    const copy = () => $<HTMLButtonElement>('.ou-comment[data-i="3"] .ou-copy');
+    fire(copy(), 'click');
+    await pump(100);
+    assert.deepEqual(clipboardEnv.written, ['Fix me'], 'one click, one write');
+    assert.equal(copy().textContent, 'Copied');
+    await pump(1500);
+    assert.equal(copy().textContent, 'Copy');
+    clipboardEnv.mode = 'refused';
+    fire(copy(), 'click');
+    await pump(100);
+    assert.equal(clipboardEnv.execCalls, 1);
+    assert.equal(clipboardEnv.selected.length, 1);
+    assert.equal(clipboardEnv.selected[0].nodeName, 'PRE', 'the comment is selected');
+    assert.equal(copy().textContent, 'Copied');
+    await pump(1500);
+    clipboardEnv.exec = false;
+    fire(copy(), 'click');
+    await pump(100);
+    assert.equal(copy().textContent, 'Select and copy');
+    await pump(1500);
+    assert.equal(copy().textContent, 'Copy');
+    assert.equal(clipboardEnv.written.length, 3);
+    stays(panel, 'copy');
+  } finally {
+    panel.done();
+    stopClock();
+    clipboardEnv.mode = 'ok';
+    clipboardEnv.exec = true;
+  }
+});
+
+await test('flow-drafts-script-and-toggles: Copy as gh script, Show posted, Reload page and a chapter link on the Overview', async () => {
+  startClock();
+  clipboardEnv.written = [];
+  clipboardEnv.selected = [];
+  clipboardEnv.mode = 'ok';
+  const rows: DraftRow[] = [
+    { chapter: 1, index: 0, status: 'posted', dismissed: false, url: 'https://x/c1' },
+    { chapter: 2, index: 1, status: 'draft', dismissed: true },
+    {
+      chapter: 2,
+      index: 2,
+      status: 'draft',
+      dismissed: false,
+      added: { at: GITHUB_AT, url: 'https://x/c3' },
+    },
+  ];
+  const panel = await mount(
+    story(),
+    draftOptions(() => rows),
+    { n: 0 },
+    { wait: pumpOnce },
+  );
+  try {
+    const shots: string[] = [];
+    const shot = (label: string) => shots.push(`### ${label}\n${panel.shot()}`);
+    const script = () => $<HTMLButtonElement>('[data-draft-script]');
+    const label = script().textContent;
+    assert.match(label!, /^Copy as gh script \(\d+\)$/);
+    fire(script(), 'click');
+    await pump(100);
+    assert.equal(clipboardEnv.written.length, 1, 'one click, one write');
+    assert.match(clipboardEnv.written[0], /acme\/widgets/);
+    assert.equal(script().textContent, 'Copied');
+    await pump(1500);
+    assert.equal(script().textContent, label);
+    clipboardEnv.mode = 'refused';
+    fire(script(), 'click');
+    await pump(100);
+    assert.equal(clipboardEnv.written.length, 2);
+    assert.equal(script().textContent, 'Select and copy');
+    assert.equal($('.ou-script').hasAttribute('hidden'), false, 'the script shows to copy by hand');
+    assert.equal($('.ou-script').textContent, clipboardEnv.written[1]);
+    assert.equal(clipboardEnv.selected.at(-1)?.nodeName, 'PRE');
+    await pump(1500);
+    assert.equal(script().textContent, label);
+    shot('script shown');
+    panel.overlay.apply();
+    assert.equal($('.ou-script').hasAttribute('hidden'), false, 'a redraw keeps it');
+    panel.overlay.go(1);
+    panel.overlay.go(0);
+    assert.equal($('.ou-script').hasAttribute('hidden'), true, 'a step change starts again');
+    const details = $<HTMLDetailsElement>('details.ou-allc');
+    assert.equal(details.hasAttribute('open'), false);
+    details.open = true;
+    fire(details, 'toggle');
+    panel.overlay.go(1);
+    panel.overlay.go(0);
+    assert.equal($('details.ou-allc').hasAttribute('open'), true, 'the open list is remembered');
+    shot('list open');
+    fire($('[data-draft-show="showPosted"]'), 'click');
+    assert.match($('[data-draft-show="showPosted"]').textContent!, /^Hide posted/);
+    const states = calling(panel.calls, 'onState').length;
+    fire($('[data-draft-show="showPosted"]'), 'click');
+    assert.equal(calling(panel.calls, 'onState').length, states + 1, 'a click saves once');
+    assert.match($('[data-draft-show="showPosted"]').textContent!, /^Show posted/);
+    shot('posted shown and hidden');
+    fire($('[data-goto="2"]'), 'click');
+    assert.equal(panel.overlay.state.n, 2, 'a chapter link goes to it');
+    assert.match($('.ou-title').textContent!, /Chapter 2/);
+    fire($('[data-draft-reload]'), 'click');
+    assert.equal(calling(panel.calls, 'reloadPage').length, 1, 'Reload page reloads once');
+    check('flow-drafts-script-toggles', shots.join('\n'));
+    stays(panel, 'script and toggles');
+  } finally {
+    panel.done();
+    stopClock();
+    clipboardEnv.mode = 'ok';
+  }
+});
+
+await test('a draft added to the review turns pending once its comment is on the page, and a settled one is settled once', async () => {
+  const rows: DraftRow[] = [
+    {
+      chapter: 2,
+      index: 0,
+      status: 'draft',
+      dismissed: false,
+      added: { at: GITHUB_AT, url: 'https://github.com/acme/widgets/pull/7#c9' },
+    },
+    {
+      chapter: 2,
+      index: 1,
+      key: 'k-2-1',
+      status: 'posted',
+      dismissed: false,
+      source: 'github',
+      url: 'https://github.com/acme/widgets/pull/7#c1',
+      added: { at: '2026-01-01T00:00:00Z', url: 'https://github.com/acme/widgets/pull/7#c1' },
+    },
+  ];
+  const panel = await mount(
+    story(),
+    draftOptions(() => rows),
+    { n: 2 },
+  );
+  try {
+    assert.match(comment(2, 0).textContent!, /GitHub shows it after a reload/);
+    const block = panel.world.blocks.find((one) => one.rel === 'src/c.ts')!;
+    const body = document.createElement('div');
+    body.className = 'comment-body';
+    body.textContent = 'Dropped line';
+    block.el.appendChild(body);
+    panel.overlay.go(1);
+    panel.overlay.go(2);
+    assert.match(comment(2, 0).textContent!, /not submitted yet/, 'on the page now');
+    assert.ok(!/GitHub shows it after a reload/.test(comment(2, 0).textContent!));
+    panel.overlay.apply();
+    panel.overlay.apply();
+    await settle();
+    assert.equal(
+      calling(panel.calls, 'drafts.act').filter((call) => call[3] === 'settle').length,
+      1,
+      'one settle however often it is drawn',
+    );
+    check('drafts-on-page-and-settled', panel.shot());
+  } finally {
+    panel.done();
+  }
+});
+
+await test('an added draft shows "view on GitHub" only when GitHub returned a comment URL', async () => {
+  const rows = [
+    {
+      chapter: 2,
+      index: 0,
+      status: 'draft',
+      dismissed: false,
+      added: { at: GITHUB_AT, url: null },
+    },
+    {
+      chapter: 2,
+      index: 1,
+      status: 'draft',
+      dismissed: false,
+      added: { at: GITHUB_AT, url: 'https://github.com/acme/widgets/pull/7#c9' },
+    },
+  ] as unknown as DraftRow[];
+  const panel = await mount(
+    story(),
+    draftOptions(() => rows),
+    { n: 2 },
+  );
+  try {
+    assert.match(comment(2, 0).textContent!, /GitHub shows it after a reload/);
+    assert.equal(comment(2, 0).querySelector('a'), null, 'no URL, no link');
+    assert.match(comment(2, 1).textContent!, /GitHub shows it after a reload/);
+    const link = comment(2, 1).querySelector('a')!;
+    assert.equal(link.getAttribute('href'), 'https://github.com/acme/widgets/pull/7#c9');
+    assert.equal(link.textContent, 'view on GitHub');
+  } finally {
+    panel.done();
+  }
+});
+
+// ---------- every jump link in the body jumps once
+
+await test('every file and line link in the body, the drafts, the fixes and the banner jumps once, and Enter on one is a click', async () => {
+  const panel = await mount(story(), full, { n: 0 });
+  try {
+    const reveals = () => calling(panel.calls, 'reveal').length;
+    const jump = async (selector: string) => {
+      const el = $(selector);
+      assert.ok(el, `${selector} is drawn`);
+      const rel = el.getAttribute('data-rel')!;
+      const line = el.hasAttribute('data-start')
+        ? {
+            side: (el.getAttribute('data-side') || 'R') as 'L' | 'R',
+            start: +el.getAttribute('data-start')!,
+            end: +el.getAttribute('data-end')! || +el.getAttribute('data-start')!,
+          }
+        : null;
+      let base = reveals();
+      await panel.overlay.jumpTo(rel, line);
+      const once = reveals() - base;
+      assert.ok(once > 0, `${selector}: a jump asks the host to reveal`);
+      base = reveals();
+      fire(el, 'click');
+      await settle();
+      assert.equal(reveals() - base, once, `${selector}: a click is one jump`);
+      if (el.getAttribute('role') === 'link') {
+        base = reveals();
+        fire(el, 'keydown', { key: 'Enter' });
+        await settle();
+        assert.equal(reveals() - base, once, `${selector}: Enter is one jump`);
+      }
+    };
+    await jump('.ou-md [data-rel]');
+    await jump('.ou-uncovered code[data-rel]');
+    await jump('.ou-working code[data-rel]');
+    await jump('.ou-fixnote code[data-rel]');
+    await jump('.ou-files li[data-file] code[data-rel]');
+    panel.overlay.go(1);
+    await jump('.ou-md [data-rel]');
+    await jump('.ou-comment .ou-where code[data-rel]');
+    await jump('.ou-files .ou-lines [data-rel]');
+    panel.overlay.go(2);
+    await jump('.ou-comment .ou-linkish[data-rel]'); // Jump to line N on a fix before push note
+    panel.world.viewed.set('src/a.ts', true);
+    panel.world.viewed.set('src/c.ts', true);
+    panel.overlay.apply();
+    await jump('.ou-early-box code[data-rel]');
+    await jump('.ou-progress code[data-rel]');
+  } finally {
+    panel.done();
+  }
+});
+
+// ---------- fixes before push
+
+const fixesOptions =
+  (
+    current: { view: FixesView },
+    act?: (body: Record<string, unknown>) => Promise<FixesView> | FixesView,
+    extra: Partial<PanelOptions> = {},
+  ) =>
+  (calls: unknown[][]) =>
+    fullOptions(calls, {
+      pulse: undefined,
+      fixes: {
+        load: async () => {
+          calls.push(['fixes.load']);
+          return structuredClone(current.view);
+        },
+        act: async (body) => {
+          calls.push(['fixes.act', body]);
+          return act ? act(body as never) : structuredClone(current.view);
+        },
+        note: async (id, changes) => {
+          calls.push(['fixes.note', id, changes]);
+          return {};
+        },
+      },
+      ...extra,
+    });
+const fixButton = (act: string, note?: string) =>
+  $<HTMLButtonElement>(
+    `.ou-fixes ${note ? `[data-note-id="${note}"] ` : ''}[data-fix-act="${act}"]`,
+  );
+const editor = () => $<HTMLTextAreaElement>('.ou-fixedit');
+const ticked = (el: HTMLElement) =>
+  !!(el as HTMLInputElement).checked || el.hasAttribute('checked');
+const isOff = (el: HTMLElement) =>
+  !!(el as HTMLButtonElement).disabled || el.hasAttribute('disabled');
+
+await test('flow-fixes-edit: Edit opens a focused editor that keeps its text, Save and Remove call their routes once', async () => {
+  const current = { view: structuredClone(FIXES) };
+  const panel = await mount(story(), fixesOptions(current), { n: 0 });
+  try {
+    const shots: string[] = [];
+    const shot = (label: string) => shots.push(`### ${label}\n${panel.shot()}`);
+    const notes = () => calling(panel.calls, 'fixes.note');
+    focusLog.length = 0;
+    fire(fixButton('edit', 'n1'), 'click');
+    assert.equal(editor().value, 'Rename it');
+    assert.ok(focusedNow() === editor(), 'a new editor takes focus');
+    shot('editing');
+    editor().value = 'Renamed it';
+    await panel.overlay.refreshFixes();
+    assert.equal(editor().value, 'Renamed it', 'a look with nothing new keeps the text');
+    current.view.notes.push({
+      id: 'n9',
+      at: '2026-11-03T10:09:00Z',
+      path: 'src/a.ts',
+      line: 4,
+      side: 'R',
+      body: 'Another',
+      state: 'draft',
+      draft: 'x',
+    });
+    await panel.overlay.refreshFixes();
+    assert.equal(editor().value, 'Renamed it', 'a look with a new note keeps the text');
+    shot('editing while a note came in');
+    fire(fixButton('cancel', 'n1'), 'click');
+    assert.ok(editor() === null);
+    assert.equal(notes().length, 0, 'Cancel saves nothing');
+    fire(fixButton('edit', 'n1'), 'click');
+    editor().value = '   ';
+    fire(fixButton('save', 'n1'), 'click');
+    await settle();
+    assert.equal(notes().length, 0, 'empty text sends no note');
+    assert.ok(editor() === null, 'and ends the edit');
+    fire(fixButton('edit', 'n1'), 'click');
+    editor().value = 'New text';
+    fire(fixButton('save', 'n1'), 'click');
+    await settle();
+    assert.deepEqual(
+      notes().map((call) => call.slice(1)),
+      [['n1', { body: 'New text' }]],
+      'Save is one note call',
+    );
+    fire(fixButton('remove', 'n9'), 'click');
+    await settle();
+    assert.deepEqual(notes().at(-1)!.slice(1), ['n9', { delete: true }]);
+    assert.equal(notes().length, 2, 'Remove is one note call');
+    fire(fixButton('edit', 'n1'), 'click');
+    editor().value = 'lost on a step change';
+    focusLog.length = 0;
+    panel.overlay.go(1);
+    assert.equal(
+      editor().value,
+      'Rename it',
+      'a step change starts the editor again with the note',
+    );
+    assert.ok(focusedNow() === editor(), 'the editor takes focus');
+    shot('after a step change');
+    check('flow-fixes-edit', shots.join('\n'));
+    stays(panel, 'fixes edit');
+  } finally {
+    panel.done();
+  }
+});
+
+await test('flow-fixes-tools: Send, Auto-send and Take back call their routes once, a second click while one runs is ignored', async () => {
+  const current = { view: structuredClone(FIXES) };
+  let answer: Promise<FixesView> | FixesView | null = null;
+  const panel = await mount(
+    story(),
+    fixesOptions(current, () => answer ?? structuredClone(current.view)),
+    { n: 0 },
+  );
+  try {
+    const shots: string[] = [];
+    const shot = (label: string) => shots.push(`### ${label}\n${panel.shot()}`);
+    const acts = () => calling(panel.calls, 'fixes.act').map((call) => call[1]);
+    shot('tools');
+    const gate = deferred<FixesView>();
+    answer = gate.promise;
+    fire(fixButton('send'), 'click');
+    assert.equal(fixButton('send').disabled, true, 'the control is off while it goes');
+    fire(fixButton('send'), 'click');
+    fire(fixButton('send'), 'click');
+    assert.deepEqual(acts(), [{ action: 'send' }], 'a second click while it runs is ignored');
+    shot('sending');
+    gate.resolve({ ...structuredClone(current.view), sent: { to: 'author-1' } } as never);
+    await settle();
+    assert.equal(fixButton('send').disabled, false);
+    assert.equal(
+      $('.ou-msg').textContent,
+      'Sent to author-1. Its notes are locked until it reports back.',
+    );
+    answer = { ...structuredClone(current.view), to: null } as never;
+    fire(fixButton('send'), 'click');
+    await settle();
+    assert.equal(
+      $('.ou-msg').textContent,
+      'Queued: the next Claude session that takes fix requests for this story gets it.',
+    );
+    assert.equal(acts().length, 2);
+    // Auto-send: ticked from the click until the answer
+    const autoGate = deferred<FixesView>();
+    answer = autoGate.promise;
+    const box = () => $<HTMLInputElement>('.ou-fixauto input');
+    box().checked = true;
+    fire(box(), 'click');
+    assert.equal(ticked(box()), true, 'still ticked while the request is out');
+    assert.equal(isOff(box()), true, 'and off');
+    autoGate.resolve({ ...structuredClone(current.view), auto_send: true });
+    await settle();
+    assert.deepEqual(acts().at(-1), { action: 'auto', on: true });
+    assert.equal(acts().length, 3);
+    assert.equal(ticked(box()), true);
+    assert.equal(isOff(box()), false);
+    shot('auto-send on');
+    answer = null;
+    current.view.auto_send = true;
+    fire(fixButton('take_back'), 'click');
+    await settle();
+    assert.deepEqual(acts().at(-1), { action: 'take_back', request: 'r1' });
+    assert.equal(acts().length, 4, 'Take back is one call');
+    await panel.overlay.sendFixes();
+    assert.deepEqual(acts().at(-1), { action: 'send' }, 'a send from outside the panel');
+    assert.equal(acts().length, 5);
+    check('flow-fixes-tools', shots.join('\n'));
+    stays(panel, 'fixes tools');
+  } finally {
+    panel.done();
+  }
+});
+
+await test('a failed fix call says why and looks again; the list is the bridge’s: notes, read-only, auto-send with no notes', async () => {
+  const current = { view: structuredClone(FIXES) };
+  let fail = true;
+  const panel = await mount(
+    story(),
+    fixesOptions(current, () => (fail ? Promise.reject(new Error('boom')) : current.view)),
+    { n: 0 },
+  );
+  try {
+    const shots: string[] = [];
+    const shot = (label: string) => shots.push(`### ${label}\n${panel.shot()}`);
+    const loads = calling(panel.calls, 'fixes.load').length;
+    fire(fixButton('send'), 'click');
+    await settle();
+    assert.equal($('.ou-msg').textContent, "Couldn't save that: boom");
+    assert.equal(calling(panel.calls, 'fixes.load').length, loads + 1, 'it looks again');
+    assert.equal(fixButton('send').disabled, false);
+    panel.overlay.go(1);
+    shot('chapter 1 (notes on its files, and a line for the rest)');
+    panel.overlay.go(3);
+    shot('chapter 3');
+    fail = false;
+    current.view = { ...structuredClone(FIXES), can_add: false };
+    await panel.overlay.refreshFixes();
+    panel.overlay.go(0);
+    shot('read-only');
+    assert.ok(maybe('.ou-fixtools') === null);
+    assert.ok(maybe('[data-draft-act="fix"]') === null);
+    current.view = { ...structuredClone(FIXES), notes: [], auto_send: true };
+    await panel.overlay.refreshFixes();
+    shot('auto-send with no notes');
+    current.view = { ...structuredClone(FIXES), notes: [], auto_send: false };
+    await panel.overlay.refreshFixes();
+    assert.ok(maybe('.ou-fixes h2') === null, 'no notes and no auto-send: nothing');
+    check('fixes-states', shots.join('\n'));
+  } finally {
+    panel.done();
+  }
+});
+
+await test('a fixes answer that arrives after a step change draws the step on screen', async () => {
+  const current = { view: structuredClone(FIXES) };
+  const gate = deferred<FixesView>();
+  let slow = false;
+  const panel = await mount(
+    story(),
+    (calls) => {
+      const opts = fixesOptions(current)(calls);
+      const load = opts.fixes!.load;
+      opts.fixes!.load = () => (slow ? gate.promise : load());
+      return opts;
+    },
+    { n: 1 },
+  );
+  try {
+    slow = true;
+    const pending = panel.overlay.refreshFixes();
+    panel.overlay.go(2);
+    gate.resolve({ ...structuredClone(FIXES), notes: FIXES.notes.slice(1, 2) });
+    await pending;
+    await settle();
+    assert.equal(all('.ou-fixnote').length, 1, 'chapter 2 lists its file’s note only');
+    check('fixes-late-reply', panel.shot());
+  } finally {
+    panel.done();
+  }
+});
+
+// ---------- the working banner
+
+await test('the working banner names each session, a few files, and tags the rows and the page', async () => {
+  const marks = [
+    ...WORKING,
+    {
+      consumer: 'author-3',
+      files: [
+        'src/a.ts',
+        'src/b.ts',
+        'src/c.ts',
+        'README.md',
+        'x/y/z.ts',
+        'q/r.ts',
+        'w/v.ts',
+        'u.ts',
+      ].map((path, i) => ({ path, ranges: i === 1 ? ([[4, 4]] as [number, number][]) : [] })),
+      started_at: '2026-11-03T11:45:00Z',
+      at: '2026-11-03T11:50:00Z',
+    },
+  ];
+  const panel = await mount(
+    story(),
+    (calls) => fullOptions(calls, { pulse: undefined, working: async () => ({ marks }) }),
+    { n: 1 },
+  );
+  try {
+    assert.equal(all('.ou-beingchg').length, 2);
+    assert.match(all('.ou-beingchg')[1].textContent!, /and 2 more/);
+    check('working-banner-two-sessions', panel.shot());
+    const slot = $('.ou-working');
+    panel.overlay.apply();
+    assert.ok($('.ou-working') === slot, 'a redraw keeps the banner’s node');
+    panel.overlay.go(2);
+    assert.ok($('.ou-working') !== slot, 'a step change draws a new one');
+    assert.equal(all('.ou-beingchg').length, 2);
+  } finally {
+    panel.done();
+  }
+});
+
+// ---------- freshness, the since banner and rebuild
+
+const REQUEST_AT = '2026-11-03T11:50:00Z';
+const pulseOptions =
+  (extra: Record<string, unknown>, overrides: Partial<PanelOptions> = {}) =>
+  (calls: unknown[][]) =>
+    fullOptions(calls, {
+      pulse: async () => {
+        calls.push(['pulse']);
+        return {
+          version: 'v1',
+          questions_rev: '1',
+          drafts_rev: '1',
+          fixes_rev: '1',
+          working_rev: '1',
+          listening: false,
+          answering: null,
+          rebuild: null,
+          request: null,
+          ...extra,
+        } as never;
+      },
+      ...overrides,
+    });
+
+await test('freshness-states: the line under the toolbar for every state, alone and with a request in flight', async () => {
+  const shots: string[] = [];
+  const states: [
+    string,
+    NonNullable<Parameters<typeof fullOptions>[1]>['freshness'],
+    Record<string, unknown>,
+  ][] = [
+    ['current', async () => ({ state: 'current', story_head: 'abcdef1234567' }), {}],
+    ['current and updated', async () => CURRENT_UPDATED, {}],
+    ['stale', async () => STALE, {}],
+    ['stale and rewritten', async () => ({ ...STALE, rewritten: true, newer: null }), {}],
+    ['unknown with an error', async () => ({ state: 'unknown', error: 'bridge said no' }), {}],
+    ['unknown without one', async () => ({ state: 'unknown' }), {}],
+    ['n/a', async () => ({ state: 'n/a' }), {}],
+    [
+      'stale, update queued',
+      async () => STALE,
+      {
+        request: {
+          kind: 'update',
+          state: 'queued',
+          requested_at: REQUEST_AT,
+          claimed_by: null,
+          claimed_at: null,
+        },
+      },
+    ],
+    [
+      'stale, update building',
+      async () => STALE,
+      {
+        request: {
+          kind: 'update',
+          state: 'building',
+          requested_at: REQUEST_AT,
+          claimed_by: 'session-a',
+          claimed_at: REQUEST_AT,
+        },
+      },
+    ],
+    [
+      'stale, a rebuild in flight',
+      async () => STALE,
+      {
+        request: {
+          kind: 'rebuild',
+          state: 'building',
+          requested_at: REQUEST_AT,
+          claimed_by: 'session-a',
+          claimed_at: REQUEST_AT,
+        },
+      },
+    ],
+    [
+      'current, a rebuild in flight',
+      async () => ({ state: 'current', story_head: 'abcdef1234567' }),
+      {
+        request: {
+          kind: 'rebuild',
+          state: 'building',
+          requested_at: REQUEST_AT,
+          claimed_by: 'session-a',
+          claimed_at: REQUEST_AT,
+        },
+      },
+    ],
+    [
+      'current, a build in flight',
+      async () => ({ state: 'current', story_head: 'abcdef1234567' }),
+      {
+        request: {
+          kind: 'build',
+          state: 'queued',
+          requested_at: REQUEST_AT,
+          claimed_by: null,
+          claimed_at: null,
+        },
+      },
+    ],
+    [
+      'unknown, a fix in flight',
+      async () => ({ state: 'unknown', error: 'e' }),
+      {
+        request: {
+          kind: 'fix',
+          state: 'building',
+          requested_at: REQUEST_AT,
+          claimed_by: 's',
+          claimed_at: REQUEST_AT,
+        },
+      },
+    ],
+  ];
+  for (const [name, freshness, extra] of states) {
+    const panel = await mount(story(), pulseOptions(extra, { freshness }), { n: 1 });
+    try {
+      await settle();
+      shots.push(
+        `### ${name}\n${[$('.ou-fresh'), $('.ou-rebuilding')].map((el) => serialize(el).join('\n')).join('\n')}`,
+      );
+    } finally {
+      panel.done();
+    }
+  }
+  check('freshness-states', shots.join('\n'));
+});
+
+await test('Update and Re-tell: all the buttons go off at once, the one asked for says so, a failure brings them back', async () => {
+  let fail = false;
+  const panel = await mount(
+    story(),
+    (calls) =>
+      fullOptions(calls, {
+        pulse: undefined,
+        requestUpdate: async (head, options) => {
+          calls.push(['requestUpdate', head, options]);
+          if (fail) {
+            throw new Error('nope');
+          }
+          return {};
+        },
+      }),
+    { n: 1 },
+  );
+  try {
+    const shots: string[] = [];
+    const shot = (label: string) =>
+      shots.push(
+        `### ${label}\n${serialize($('.ou-fresh')).join('\n')}\n${$('.ou-msg').textContent}`,
+      );
+    const update = () => $<HTMLButtonElement>('.ou-update[data-retell="0"]');
+    const retell = () => $<HTMLButtonElement>('.ou-update[data-retell="1"]');
+    const asks = () => calling(panel.calls, 'requestUpdate');
+    shot('stale');
+    fire(retell(), 'click');
+    assert.equal(update().disabled && retell().disabled, true, 'both off at once');
+    assert.equal(asks().length, 1, 'one click, one request');
+    shot('asking');
+    await settle();
+    assert.equal(retell().textContent, 'Re-tell asked for');
+    assert.equal(update().disabled && retell().disabled, true);
+    assert.deepEqual(asks()[0].slice(1), [STALE.story_head, { retell: true }]);
+    shot('asked');
+    window.dispatchEvent(new window.Event('focus')); // the slow look: freshness comes again
+    await settle();
+    assert.equal(retell().textContent, 'Re-tell from scratch');
+    assert.equal(update().disabled, false);
+    shot('looked again');
+    fail = true;
+    fire(update(), 'click');
+    await settle();
+    assert.equal(update().disabled || retell().disabled, false, 'a failure brings them back');
+    assert.equal($('.ou-msg').textContent, "Couldn't ask for an update: nope");
+    assert.deepEqual(asks().at(-1)!.slice(1), [STALE.story_head, { retell: false }]);
+    assert.equal(asks().length, 2);
+    shot('failed');
+    check('flow-update-buttons', shots.join('\n'));
+    stays(panel, 'update buttons');
+  } finally {
+    panel.done();
+  }
+});
+
+await test('the request line’s minutes move on with the clock when the page has no freshness call', async () => {
+  startClock();
+  let request: Record<string, unknown> | null = {
+    kind: 'update',
+    state: 'building',
+    requested_at: '2026-11-03T11:48:00Z',
+    claimed_by: 'session-a',
+    claimed_at: '2026-11-03T11:50:00Z',
+  };
+  const panel = await mount(
+    story(),
+    (calls) =>
+      fullOptions(calls, {
+        freshness: undefined,
+        pulse: async () => ({ version: 'v1', rebuild: null, request }) as never,
+      }),
+    { n: 1 },
+    { wait: pumpOnce },
+  );
+  try {
+    await pump(100);
+    assert.match(
+      $('.ou-fresh').textContent!,
+      /Updating the story for you….*\(10 min ago\), session-a/,
+    );
+    await pump(3 * 60000, 1000);
+    window.dispatchEvent(new window.Event('focus'));
+    await pump(100);
+    assert.match($('.ou-fresh').textContent!, /\(13 min ago\)/);
+    request = null;
+    window.dispatchEvent(new window.Event('focus'));
+    await pump(100);
+    assert.ok(!/min ago/.test($('.ou-fresh').textContent!));
+  } finally {
+    panel.done();
+    stopClock();
+  }
+});
+
+await test('the "Since you read it" banner, with and without a link to GitHub, and on that range’s own page', async () => {
+  const shots: string[] = [];
+  const banner = () => serialize($('.ou-since')).join('\n');
+  const panel = await mount(story(), full, { n: 4 });
+  try {
+    shots.push(`### with a link\n${banner()}`);
+  } finally {
+    panel.done();
+  }
+  const noUrl = story();
+  noUrl.pr = { ...noUrl.pr, url: undefined } as never;
+  const bare = await mount(noUrl, full, { n: 4 });
+  try {
+    shots.push(`### without a url\n${banner()}`);
+  } finally {
+    bare.done();
+  }
+  const saved = globalThis.location;
+  Object.assign(globalThis, {
+    location: Object.assign(
+      new URL(
+        `https://github.com/acme/widgets/pull/7/changes/${'a'.repeat(40)}..${'b'.repeat(40)}`,
+      ),
+      { replace() {} },
+    ),
+  });
+  const here = await mount(story(), full, { n: 4 });
+  try {
+    shots.push(`### on the range\n${banner()}`);
+  } finally {
+    here.done();
+    Object.assign(globalThis, { location: saved });
+  }
+  check('since-banner', shots.join('\n'));
+});
+
+await test('the rebuild line says where the rebuild stands, and goes after half an hour', async () => {
+  const shots: string[] = [];
+  const done = (extra: Record<string, unknown>) => ({
+    mode: 'rebuild',
+    state: 'done',
+    requested_at: '2026-11-03T11:00:00Z',
+    ...extra,
+  });
+  const rebuilds: [string, Record<string, unknown> | null][] = [
+    ['none', null],
+    ['queued', { mode: 'rebuild', state: 'queued', requested_at: REQUEST_AT }],
+    [
+      'queued from chapter 3',
+      { mode: 'rebuild_from', from_step: 3, state: 'queued', requested_at: REQUEST_AT },
+    ],
+    [
+      'building',
+      { mode: 'rebuild', state: 'building', requested_at: REQUEST_AT, claimed_by: 'author-1' },
+    ],
+    ['done', done({ done_at: '2026-11-03T11:50:00Z', note: 'Kept 3 drafts.' })],
+    ['failed', done({ state: 'failed', done_at: '2026-11-03T11:50:00Z', note: 'no diff' })],
+    ['done long ago', done({ done_at: '2026-11-03T11:20:00Z' })],
+  ];
+  for (const [name, rebuild] of rebuilds) {
+    const panel = await mount(story(), pulseOptions({ rebuild }), { n: 1 });
+    try {
+      await settle();
+      shots.push(
+        `### ${name}\n${serialize($('.ou-rebuilding')).join('\n')}\n${serialize($('.ou-rebuild-box')).join('\n')}`,
+      );
+    } finally {
+      panel.done();
+    }
+  }
+  check('rebuild-states', shots.join('\n'));
+});
+
+await test('flow-rebuild-form: the form on each step, its text kept, Cancel, a failure keeps the form, and what it sends', async () => {
+  let fail = false;
+  const panel = await mount(
+    story(),
+    (calls) =>
+      fullOptions(calls, {
+        pulse: undefined,
+        requestRebuild: async (ask) => {
+          calls.push(['requestRebuild', { ...ask, requested_at: 'T' }]);
+          if (fail) {
+            throw new Error('queue full');
+          }
+          return { rebuild: { mode: ask.mode, state: 'queued', requested_at: REQUEST_AT } };
+        },
+      }),
+    { n: 0 },
+  );
+  try {
+    const shots: string[] = [];
+    const shot = (label: string) =>
+      shots.push(
+        `### ${label}\n${serialize($('.ou-rebuild-box')).join('\n')}\n${$('.ou-msg').textContent}`,
+      );
+    const form = () => maybe('.ou-rebuild-form');
+    const area = () => $<HTMLTextAreaElement>('.ou-rebuild-form textarea');
+    const asks = () => calling(panel.calls, 'requestRebuild');
+    shot('overview');
+    focusLog.length = 0;
+    fire($('.ou-rebuild-open'), 'click');
+    assert.ok(form(), 'the form opens at once');
+    assert.ok(focusedNow() === area(), 'with the box focused');
+    shot('overview form');
+    area().value = 'Tell it differently';
+    fire(area(), 'input');
+    panel.overlay.apply();
+    assert.equal(area().value, 'Tell it differently', 'a redraw keeps the text');
+    panel.overlay.go(2);
+    assert.ok(form() === null, 'a step change closes the form');
+    fire($('.ou-rebuild-open'), 'click');
+    assert.equal(area().value, 'Tell it differently', 'and keeps what was typed');
+    shot('chapter 2 form');
+    fire($('[data-rebuild-cancel]'), 'click');
+    assert.ok(form() === null);
+    fire($('.ou-rebuild-open'), 'click');
+    fail = true;
+    fire($('.ou-rebuild-form'), 'submit');
+    assert.equal(
+      $<HTMLButtonElement>('.ou-rebuild-form button[type="submit"]').disabled,
+      true,
+      'off while it goes',
+    );
+    await settle();
+    assert.ok(form(), 'a failure keeps the form');
+    assert.equal(area().value, 'Tell it differently');
+    assert.equal($('.ou-msg').textContent, "Couldn't ask for a rebuild: queue full");
+    assert.equal(asks().length, 1);
+    shot('failed');
+    fail = false;
+    fire($('.ou-rebuild-form'), 'submit');
+    await settle();
+    assert.ok(form() === null, 'a success closes it');
+    assert.equal($<HTMLButtonElement>('.ou-rebuild-open').textContent, 'Rebuild queued');
+    assert.equal($<HTMLButtonElement>('.ou-rebuild-open').disabled, true);
+    assert.deepEqual(
+      asks().map((call) => call[1]),
+      [
+        { mode: 'rebuild_from', from_step: 2, guidance: 'Tell it differently', requested_at: 'T' },
+        { mode: 'rebuild_from', from_step: 2, guidance: 'Tell it differently', requested_at: 'T' },
+      ],
+    );
+    shot('asked');
+    check('flow-rebuild-form', shots.join('\n'));
+    stays(panel, 'rebuild form');
+  } finally {
+    panel.done();
+  }
+  const withoutAsk = await mount(
+    story(),
+    (calls) => ({ ...fullOptions(calls), requestRebuild: undefined }),
+    { n: 1 },
+  );
+  try {
+    assert.ok(maybe('.ou-rebuild-open') === null, 'no requestRebuild, no box');
+  } finally {
+    withoutAsk.done();
+  }
+  const auto = story();
+  auto.chapters[1] = { ...auto.chapters[1], auto: true } as never;
+  const autoPanel = await mount(auto, full, { n: 2 });
+  try {
+    assert.ok(maybe('.ou-rebuild-open') === null, 'an automatic chapter has no box');
+  } finally {
+    autoPanel.done();
+  }
+});
+
+await test('the body’s slots keep their nodes through a redraw, and a step change draws new ones', async () => {
+  const panel = await mount(story(), full, { n: 2 });
+  try {
+    const slots = [
+      '.ou-working',
+      '.ou-fixes',
+      '.ou-rebuild-box',
+      '.ou-drafts',
+      '.ou-comment[data-i="0"]',
+    ];
+    const before = slots.map((selector) => $(selector));
+    panel.overlay.apply();
+    await panel.overlay.refreshFixes();
+    slots.forEach((selector, i) => assert.ok($(selector) === before[i], `${selector} stays`));
+    panel.overlay.go(1);
+    panel.overlay.go(2);
+    slots.forEach((selector, i) => assert.ok($(selector) !== before[i], `${selector} is new`));
+  } finally {
+    panel.done();
+  }
+});
+
+// ---------- behavior that is new in this change (not pinned against the string panel: it did these differently)
+
+await test('Edit on a second note while one is being edited opens that note’s own text and takes focus (the string panel carried the first’s text over)', async () => {
+  const current = { view: structuredClone(FIXES) };
+  const panel = await mount(story(), fixesOptions(current), { n: 0 });
+  try {
+    fire(fixButton('edit', 'n1'), 'click');
+    editor().value = 'typed in the first';
+    focusLog.length = 0;
+    fire(fixButton('edit', 'n4'), 'click');
+    assert.equal(all('.ou-fixedit').length, 1, 'one editor');
+    assert.equal(editor().value, 'Came back', 'the second note’s own text');
+    assert.ok(focusedNow() === editor(), 'and it takes focus');
+    assert.ok(maybe('[data-note-id="n1"] .ou-fixedit') === null, 'the first note is back to text');
+    assert.equal(maybe('[data-note-id="n1"] pre')?.textContent, 'Rename it');
+  } finally {
+    panel.done();
+  }
+});
+
+await test('a failed Auto-send shows the bridge’s state again: the box un-ticks (the string panel kept the stale tick)', async () => {
+  const current = { view: structuredClone(FIXES) };
+  const gate = deferred<FixesView>();
+  const panel = await mount(
+    story(),
+    fixesOptions(current, () => gate.promise),
+    { n: 0 },
+  );
+  try {
+    const box = () => $<HTMLInputElement>('.ou-fixauto input');
+    box().checked = true;
+    fire(box(), 'click');
+    assert.equal(ticked(box()), true, 'ticked while the request is out');
+    gate.promise.catch(() => {});
+    gate.resolve(Promise.reject(new Error('boom')) as never);
+    await settle();
+    assert.equal($('.ou-msg').textContent, "Couldn't save that: boom");
+    assert.equal(ticked(box()), false, 'un-ticked once it failed');
+    assert.equal(isOff(box()), false);
+  } finally {
+    panel.done();
+  }
+});
+
+await test('the body has no delegated click handler: every control and link has its own', async () => {
+  const listening: [Element, string][] = [];
+  const proto = window.HTMLElement.prototype;
+  const add = proto.addEventListener;
+  proto.addEventListener = function (this: HTMLElement, type: string, ...rest: never[]) {
+    listening.push([this, type]);
+    return (add as (...args: unknown[]) => void).call(this, type, ...rest);
+  } as never;
+  const panel = await mount(story(), full, { n: 2, chatOpen: true });
+  try {
+    panel.overlay.go(0);
+    panel.overlay.go(1);
+    const body = $('.ou-body');
+    assert.deepEqual(
+      listening.filter(
+        ([el, type]) => (el === body || body.contains(el)) && type === 'click' && el === body,
+      ),
+      [],
+      'nothing listens for clicks on the body itself',
+    );
+    assert.ok(
+      listening.filter(([el, type]) => body.contains(el) && type === 'click').length > 20,
+      'the elements in it listen for their own',
+    );
+  } finally {
+    proto.addEventListener = add;
+    panel.done();
+  }
+});
+
+/** Every setTimeout the panel sets while this is on: its delay and whether it is still to run. */
+function trackTimers() {
+  const live = new Map<unknown, number>();
+  const made: number[] = [];
+  const set = globalThis.setTimeout;
+  const clear = globalThis.clearTimeout;
+  globalThis.setTimeout = ((callback: () => void, millis: number, ...rest: unknown[]) => {
+    const handle: unknown = set(() => {
+      live.delete(handle);
+      callback(...(rest as []));
+    }, millis);
+    live.set(handle, millis);
+    made.push(millis);
+    return handle;
+  }) as never;
+  globalThis.clearTimeout = ((handle: never) => {
+    live.delete(handle);
+    clear(handle);
+  }) as never;
+  return {
+    made,
+    pending: (millis: number) => [...live.values()].filter((one) => one === millis).length,
+    stop() {
+      globalThis.setTimeout = set;
+      globalThis.clearTimeout = clear;
+    },
+  };
+}
+const COPY_MS = 1500;
+const MESSAGE_MS = 8000;
+
+await test('closing the panel stops the copy labels’ timers, and answers that come after it set no timer and call nothing', async () => {
+  startClock();
+  const timers = trackTimers();
+  clipboardEnv.mode = 'ok';
+  const gate = deferred<DraftsAnswer>();
+  const panel = await mount(
+    story(),
+    draftOptions(
+      () => [],
+      () => gate.promise,
+      {
+        requestRebuild: async () => {
+          throw new Error('late');
+        },
+      },
+    ),
+    { n: 2 },
+    { wait: pumpOnce },
+  );
+  try {
+    const before = timers.pending(COPY_MS);
+    fire($('.ou-comment[data-i="3"] .ou-copy'), 'click');
+    await pump(100);
+    assert.equal(timers.pending(COPY_MS), before + 1, 'the label goes back on a timer');
+    // a clipboard answer, an Add, and a rebuild that are all still out when the panel closes
+    let release!: () => void;
+    clipboardEnv.gate = new Promise((resolve) => (release = resolve));
+    fire($('.ou-comment[data-i="0"] .ou-copy'), 'click');
+    fire(draftButton(2, 0, 'review'), 'click');
+    fire($('.ou-rebuild-open'), 'click');
+    fire($('.ou-rebuild-form'), 'submit');
+    const acts = calling(panel.calls, 'drafts.act').length;
+    const made = timers.made.length;
+    panel.overlay.destroy();
+    assert.equal(timers.pending(COPY_MS), before, 'closing clears the label timer');
+    release();
+    gate.resolve({
+      drafts: [
+        {
+          chapter: 2,
+          index: 0,
+          status: 'pending',
+          dismissed: false,
+          added: { at: GITHUB_AT, url: 'u' },
+        } as never,
+      ],
+      error: null,
+      added: { at: GITHUB_AT, url: 'u', started: true },
+    } as never);
+    await pump(10000, 500);
+    assert.equal(timers.made.length, made, 'no timer is set after closing');
+    assert.equal(timers.pending(MESSAGE_MS), 0);
+    assert.equal(
+      calling(panel.calls, 'drafts.act').length,
+      acts,
+      'and nothing else is asked of the bridge',
+    );
+  } finally {
+    clipboardEnv.gate = null;
+    timers.stop();
+    panel.done();
+    stopClock();
   }
 });
 

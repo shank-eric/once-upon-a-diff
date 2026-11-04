@@ -319,7 +319,7 @@ panel
             <button class="ou-linkish" data-qa-act="unread" title="Keep this answer flagged as unread until you mark it read" type="button">
               "Mark unread"
     <div class="ou-chatfoot">
-      <div class="ou-askhint" data-html="<div>No Claude session is listening for acme/widgets; questions will wait.</div><div>No idle session to type into? Start Claude Code in <code>/work/widgets</code> and run <code>/once-upon-listen acme/widgets</code></div>">
+      <div class="ou-askhint">
         <div>
           "No Claude session is listening for acme/widgets; questions will wait."
         <div>
@@ -329,7 +329,7 @@ panel
           "and run"
           <code>
             "/once-upon-listen acme/widgets"
-      <div class="ou-askwho" data-html="" hidden>
+      <div class="ou-askwho" hidden>
       <form class="ou-ask">
         <textarea aria-label="Question" placeholder="Ask about this step. The list above holds the whole story (Cmd+Enter sends it to the bridge inbox)" rows="1">
         <button type="submit">
