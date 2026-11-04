@@ -32,7 +32,8 @@
  *
  * A finished agent (done, failed or stopped) with no card to sit in is a card of its own: in Done when it is a critic,
  * a registered agent whose finish event has a result, or a ledger agent with a `[done]` line; in Research when a
- * registered research run has no result; and otherwise in Waiting (finishedColumn in
+ * registered research run has no result; in Ready for your review, with no timer, when an author's commit is on a
+ * branch with no PR that is not merged; and otherwise in Waiting (finishedColumn in
  * board/agent-home.ts reads fields, never the text), for the setting board_finished_wait_minutes (30; an author in
  * Waiting, kind author, stays board_done_hours, 1 hour) after its latest ledger line, with its outcome and the first `notes/` path its lines
  * name; a new line starts the time again (progress beats are not counted: they carry no date or sid). The board's Finish on that card appends a `[done]` line only for an

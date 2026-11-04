@@ -16,7 +16,8 @@
  *             an open thread whose last comment is theirs; on someone else's: a reply in an open thread you are in),
  *             or GitHub is waiting on your review
  *   ready     its story is built, it has no PR yet, and you haven't reviewed it, or an agent on it says `[review]` ("done" is not done until you've seen
- *             it). It is the Mac's side: a card with a PR, whoever wrote it and whatever story it has, is on GitHub's
+ *             it), or (set by stages/agents.ts on an agent's own card) a finished author's commit is on a branch with no PR
+ *             that is not merged. It is the Mac's side: a card with a PR, whoever wrote it and whatever story it has, is on GitHub's
  *             (back or pr_open). A rebuild of a local story since you opened it is a chip on its card
  *   pr_open   pushed with a PR, and nothing waits on you
  *   research  a finished research agent with no card to sit in and no result (set by stages/agents.ts on an agent's own card,

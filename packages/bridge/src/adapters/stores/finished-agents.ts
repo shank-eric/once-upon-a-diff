@@ -8,8 +8,11 @@ import { readJson, writeJsonAtomic } from './json-file.ts';
 
 const file = (home: string) => path.join(home, 'finished-agents.json');
 
-/** Entries this old are dropped on the next write, long after any card they could hide has gone. */
-const KEEP_MS = 7 * 24 * 3600 * 1000;
+/**
+ * Entries this old are dropped on the next write, long after any card they could hide has gone. A finished author waiting
+ * on your review (agent-home.ts pendingReview) stops waiting this long after its last activity, so its Finish outlives it.
+ */
+export const KEEP_MS = 7 * 24 * 3600 * 1000;
 
 /** When each cleared agent's card was cleared, in ms, by `<sid>:<name>`. */
 export function readFinished(home: string): Map<string, number> {

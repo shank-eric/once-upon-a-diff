@@ -8,6 +8,7 @@
  *   each scan   `git worktree list --porcelain` per repo, then per worktree: the last commit's time, commits on no
  *               remote, whether it is in live (the main checkout's HEAD) or main (an ancestor), or superseded (every
  *               commit has a copy there: the same patch)
+ *               (a merge check that times out keeps the last answer for the same tip)
  *   slower      clean or dirty (every 5 minutes, or when HEAD moved) and size on disk (every hour, one at a time)
  *
  * Every git call has a timeout and runs with `-c core.fsmonitor=false --no-optional-locks`: a wedged fsmonitor daemon
@@ -567,7 +568,12 @@ export class WorktreeScanner {
       created = null;
     }
     const tip = entry.head;
-    const outcome = tip ? await this.mergeState(main, targets, entry, tip) : null;
+    // a check that timed out keeps the last answer for the same tip: a branch must not read unknown for one scan
+    const kept =
+      before && before.head === tip && before.merged !== null && before.superseded !== null
+        ? { merged: before.merged, superseded: before.superseded }
+        : null;
+    const outcome = (tip ? await this.mergeState(main, targets, entry, tip) : null) ?? kept;
     const branch = entry.detached ? null : entry.branch;
     const remote = branch
       ? await this.git(main.path, [

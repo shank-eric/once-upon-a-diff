@@ -7,7 +7,7 @@ import { finishedColumn, homeOf } from '../src/services/board/agent-home.ts';
 import { NO_PARENT, placeAgents } from '../src/services/board/stages/agents.ts';
 import { columnOf } from '../src/services/board/columns.ts';
 import { worktreeSection } from '../src/services/board/stages/worktrees.ts';
-import { markFinished } from '../src/adapters/stores/finished-agents.ts';
+import { markFinished, readFinished } from '../src/adapters/stores/finished-agents.ts';
 import type { WorktreeFacts, WorktreeScanner } from '../src/services/worktrees/worktrees.ts';
 import type { PrWatcher } from '../src/services/board/stages/pr-watcher.ts';
 import { backlogCards } from '../src/services/backlog/backlog.ts';
@@ -630,4 +630,221 @@ test('a landing from before the run started is an earlier run’s; one at its st
     column: 'done',
     why: 'landed abcdef1',
   });
+});
+
+/** The tip of feat/x's worktree: the commit the author below finished with. */
+const TIP = 'c80964d9' + '0'.repeat(32);
+
+/** A finished author's commit on feat/x, the scanner's facts of its worktree, and what GitHub said of its PR. */
+const committer = (over: Partial<LedgerAgent> = {}) => {
+  const ended = new Date(NOW - 5 * 60000);
+  return registered({
+    name: 'ou-commit',
+    state: 'done',
+    task: 'bump the lockfile',
+    repo: 'acme/widgets',
+    branch: 'feat/x',
+    result: { commit: 'c80964d9', branch: 'feat/x' },
+    started: new Date(NOW - 3600000),
+    ended,
+    lastEvent: ended,
+    ...over,
+  });
+};
+const placeWith = (
+  agents: LedgerAgent[],
+  options: {
+    cards?: BoardCard[];
+    tree?: Partial<WorktreeFacts> | null;
+    /** GitHub's answer: null is no PR (the default), undefined not answered yet */
+    pr?: unknown;
+    items?: BacklogItem[];
+    home?: string;
+  } = {},
+) => {
+  const { cards = [], tree = {}, items = [], home } = options;
+  const pr = 'pr' in options ? options.pr : null;
+  const review = { branchPr: () => pr } as unknown as PrWatcher;
+  return placeAgents({ ...ctx(), ...(home ? { home } : {}), review } as BuildContext, cards, {
+    agents,
+    beats: new Map(),
+    pin: null,
+    items,
+    trees: tree ? [{ ...facts('/wt/feat-x'), head: TIP, unpushed: 1, ...tree }] : [],
+  });
+};
+const ownCard = (agent: LedgerAgent, options: Parameters<typeof placeWith>[1] = {}) => {
+  const [own] = placeWith([agent], options);
+  return own && { column: own.column, why: own.agents[0].summary?.why };
+};
+
+test('an author’s commit on a branch with no PR, not merged, is Ready for your review, not Done', () => {
+  assert.deepEqual(ownCard(committer()), {
+    column: 'ready',
+    why: 'committed c80964d, not pushed',
+  });
+  assert.deepEqual(
+    ownCard(committer(), { tree: { unpushed: 0, onRemote: true } }),
+    { column: 'ready', why: 'committed c80964d, no PR' },
+    'pushed with no PR is still on you',
+  );
+  assert.deepEqual(
+    ownCard(committer({ card: 'bl_aaaaaa333333' })),
+    { column: 'ready', why: 'committed c80964d, not pushed' },
+    'with a card that has not landed',
+  );
+  assert.deepEqual(
+    ownCard(committer({ branch: null, result: { commit: 'c80964d9', branch: 'feat/x' } })),
+    { column: 'ready', why: 'committed c80964d, not pushed' },
+    'the finish event’s branch',
+  );
+});
+
+test('an author’s merged commit is Done, as before', () => {
+  const done = { column: 'done', why: 'committed c80964d' };
+  assert.deepEqual(ownCard(committer(), { tree: { merged: true } }), done, 'merged locally');
+  assert.deepEqual(
+    ownCard(committer(), { tree: { superseded: true } }),
+    done,
+    'its patch is in main',
+  );
+  assert.deepEqual(
+    ownCard(committer(), {
+      pr: {
+        number: 9,
+        state: 'merged',
+        merged_at: '2026-11-03T15:00:00Z',
+        head_oid: 'f'.repeat(40),
+      },
+    }),
+    done,
+    'squash-merged: GitHub has the merged PR',
+  );
+  assert.deepEqual(ownCard(committer(), { tree: { merged: null } }), done, 'merge state unknown');
+  assert.deepEqual(ownCard(committer(), { pr: undefined }), done, 'GitHub has not answered');
+  assert.deepEqual(ownCard(committer(), { tree: null }), done, 'no worktree the scanner lists');
+  assert.deepEqual(
+    ownCard(committer(), { tree: { branch: 'feat/other' } }),
+    done,
+    'another branch',
+  );
+  assert.deepEqual(ownCard(committer(), { tree: { repo: 'acme/other' } }), done, 'another repo');
+  assert.deepEqual(
+    ownCard(committer({ branch: 'main', result: { commit: 'c80964d9', branch: 'main' } }), {
+      tree: { branch: 'main' },
+    }),
+    done,
+    'a commit on a default branch is in it',
+  );
+});
+
+test('an author’s commit whose branch has a PR follows the PR’s rules', () => {
+  const open = { number: 9, state: 'open', merged_at: null };
+  assert.deepEqual(ownCard(committer(), { pr: open }), {
+    column: 'done',
+    why: 'committed c80964d',
+  });
+  // with the PR's card on the board, the author is nested in it, and the card's column is the PR's
+  const prCard = card({ branch: 'feat/x', pr: { number: 9, state: 'open' } as BoardCard['pr'] });
+  assert.deepEqual(placeWith([committer()], { cards: [prCard], pr: open }), []);
+  assert.deepEqual(nestedIn(prCard), ['ou-commit']);
+  assert.equal(
+    columnOf({
+      sessions: [],
+      agents: prCard.agents,
+      pr: prCard.pr,
+      story: null,
+      building: false,
+    }),
+    'pr_open',
+  );
+});
+
+test('a critic, a helper, a research run, a stopped author and a landed card keep their columns beside an unpushed commit', () => {
+  assert.deepEqual(ownCard(committer({ kind: 'critic', findings: 0 })), {
+    column: 'done',
+    why: 'critic clean',
+  });
+  assert.deepEqual(ownCard(committer({ kind: 'helper' })), {
+    column: 'done',
+    why: 'committed c80964d',
+  });
+  assert.deepEqual(ownCard(committer({ kind: 'research' })), {
+    column: 'done',
+    why: 'committed c80964d',
+  });
+  assert.deepEqual(ownCard(committer({ state: 'stopped' })), { column: 'waiting', why: 'stopped' });
+  assert.deepEqual(ownCard(committer({ state: 'failed' })), { column: 'waiting', why: 'failed' });
+  assert.deepEqual(
+    ownCard(committer({ card: 'bl_aaaaaa222222', started: landedStart }), {
+      items: [landedItem()],
+    }),
+    { column: 'done', why: 'landed abcdef1' },
+  );
+  assert.equal(
+    finishedColumn(committer(), true, { pushed: false }),
+    'done',
+    'a landing comes first',
+  );
+  assert.equal(finishedColumn(committer({ source: undefined }), false, { pushed: false }), 'done');
+});
+
+test('an unpushed commit stays in Ready past the finished wait until Finish clears it', () => {
+  const home = tmp('placement-unpushed');
+  const old = committer({
+    ended: new Date(NOW - 2 * 86400000),
+    lastEvent: new Date(NOW - 2 * 86400000),
+  });
+  const [own] = placeWith([old], { home });
+  assert.equal(own?.column, 'ready', 'two days on, still waiting on you');
+  assert.equal(own.agents[0].clears_at, null, 'no timer');
+  assert.deepEqual(
+    placeWith([old], { home, tree: { merged: true } }),
+    [],
+    'merged: the old card goes',
+  );
+  markFinished(home, 'aaaaaaaa:ou-commit', NOW - 60000);
+  assert.deepEqual(placeWith([old], { home }), [], 'cleared by Finish');
+});
+
+test('an old author whose branch name is reused is not Ready: its commit must be the worktree’s tip', () => {
+  const done = { column: 'done', why: 'committed c80964d' };
+  assert.deepEqual(
+    ownCard(committer(), { tree: { head: 'f'.repeat(40) } }),
+    done,
+    'a new worktree on the same branch name, with other commits',
+  );
+  assert.deepEqual(ownCard(committer(), { tree: { head: null } }), done, 'no tip known');
+  // two authors on one branch: the one whose commit is the tip waits on you; the earlier one is Done
+  const later = committer({ name: 'ou-later', result: { commit: 'c80964d9', branch: 'feat/x' } });
+  const earlier = committer({
+    name: 'ou-earlier',
+    result: { commit: 'aaaaaaa1', branch: 'feat/x' },
+  });
+  const cards = placeWith([earlier, later]);
+  assert.deepEqual(
+    cards.map((one) => [one.title, one.column]),
+    [
+      ['ou-earlier', 'done'],
+      ['ou-later', 'ready'],
+    ],
+  );
+});
+
+test('a pending author stops waiting after the week Finish is kept for, so a purged Finish never brings it back', () => {
+  const home = tmp('placement-unpushed-week');
+  const week = 7 * 24 * 3600 * 1000;
+  const endedAt = (when: number) => committer({ ended: new Date(when), lastEvent: new Date(when) });
+  const [six] = placeWith([endedAt(NOW - 6 * 24 * 3600 * 1000)], { home });
+  assert.equal(six?.column, 'ready', 'six days on');
+  // finished a week and two minutes ago, cleared a minute later, and that entry purged by a later Finish
+  const old = endedAt(NOW - week - 2 * 60000);
+  markFinished(home, 'aaaaaaaa:ou-commit', NOW - week - 60000);
+  markFinished(home, 'aaaaaaaa:someone-else', NOW);
+  assert.equal(readFinished(home).has('aaaaaaaa:ou-commit'), false, 'purged');
+  assert.deepEqual(
+    placeWith([old], { home }),
+    [],
+    'past the week: not Ready, and its window long gone',
+  );
 });

@@ -384,6 +384,37 @@ test('slow facts are kept: a second scan does not redo status, size, or the merg
   assert.equal(count(' status '), 3);
 });
 
+test('a merge check that times out keeps the last answer for the same tip, so a branch never reads unknown for a scan', async () => {
+  const repo = fixture();
+  const dir = repo.add('one');
+  repo.commit(dir, 'work');
+  let now = Date.now();
+  let hang = false;
+  const run: Runner = async (cmd, args, timeoutMs) =>
+    hang && args.includes('merge-base')
+      ? { code: 1, stdout: '', timedOut: true }
+      : runCommand(cmd, args, timeoutMs);
+  const scanner = new WorktreeScanner({
+    home: tmp('wt-home'),
+    dirs: () => [],
+    run,
+    now: () => now,
+  });
+  const first = byName((await scanned(scanner, [repo.main])).items, 'one');
+  assert.deepEqual([first.merged, first.superseded], [false, false]);
+  // main moves (a new answer is due), and the check times out: the tip is the same, so the last answer stands
+  repo.commit(repo.main, 'main moved', 6);
+  hang = true;
+  now += 61 * 1000;
+  const second = byName((await scanned(scanner, [repo.main])).items, 'one');
+  assert.deepEqual([second.merged, second.superseded], [false, false]);
+  // the branch moves and the check still times out: a new tip has no answer yet
+  repo.commit(dir, 'more work', 2);
+  now += 61 * 1000;
+  const third = byName((await scanned(scanner, [repo.main])).items, 'one');
+  assert.equal(third.merged, null);
+});
+
 test('a hung git never holds anything up: kick returns at once, and a status that times out is unknown', async () => {
   const repo = fixture();
   repo.add('one');

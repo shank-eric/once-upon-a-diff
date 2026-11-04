@@ -11,7 +11,8 @@
     "kickLocal ",
     "kickBranch acme/widgets@kill-inbox <WORK>/links-repo-24/widgets-worktrees/kill-inbox",
     "kickBranch acme/widgets@in-use <WORK>/links-repo-24/widgets-worktrees/in-use",
-    "kickBranch acme/widgets@kill-inbox <WORK>/links-repo-24/widgets-worktrees/kill-inbox"
+    "kickBranch acme/widgets@kill-inbox <WORK>/links-repo-24/widgets-worktrees/kill-inbox",
+    "kickBranch acme/widgets@dep-bump <WORK>/links-repo-24/widgets-worktrees/dep-bump"
   ],
   "board": {
     "at": "2026-10-26T19:00:00.000Z",
@@ -304,6 +305,52 @@
             "title": "Tab title"
           },
           {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": "2026-10-26T18:41:00.000Z",
+                "gate": null,
+                "key": "<PID:16>:dep-bump",
+                "kind": "author",
+                "model": "sonnet, low",
+                "name": "dep-bump",
+                "notes": null,
+                "outcome": "lockfile bumped",
+                "review": false,
+                "sid": "<PID:16>",
+                "stale": false,
+                "started_at": "2026-10-26T18:30:00.000Z",
+                "state": "done",
+                "status": "done",
+                "summary": {
+                  "did": "bump the lockfile",
+                  "why": "committed <SHA:0>, not pushed"
+                },
+                "task": "bump the lockfile"
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "ready",
+            "detail": "lockfile bumped",
+            "focus_session": "<PID:16>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "agent:<PID:16>:dep-bump",
+            "kind": "agent",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": "the builder",
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T18:41:00.000Z",
+            "story": null,
+            "title": "dep-bump"
+          },
+          {
             "agents": [],
             "backlog": {
               "added_by": "cli",
@@ -543,6 +590,37 @@
           "unpushed": 1,
           "untracked": 0,
           "verdict": "new"
+        },
+        {
+          "attention": null,
+          "branch": "dep-bump",
+          "deletes_branch": false,
+          "ignored": [],
+          "in_use": [],
+          "keep": [
+            "made less than an hour ago",
+            "3 unpushed"
+          ],
+          "lane": "acme/widgets",
+          "lane_label": "widgets",
+          "last_commit_at": "2026-10-26T18:40:00.000Z",
+          "locked": false,
+          "main": "<WORK>/links-repo-24/widgets",
+          "modified": 0,
+          "name": "dep-bump",
+          "path": "<WORK>/links-repo-24/widgets-worktrees/dep-bump",
+          "pr": {
+            "number": null,
+            "state": "none"
+          },
+          "removable": false,
+          "repo": "acme/widgets",
+          "size_kb": "<kb>",
+          "stale": false,
+          "state": "clean",
+          "unpushed": 3,
+          "untracked": 0,
+          "verdict": "new"
         }
       ],
       "on_cards": 3,
@@ -550,7 +628,7 @@
       "removable": 0,
       "scanning": false,
       "size_kb": "<kb>",
-      "total": 4
+      "total": 5
     }
   }
 }

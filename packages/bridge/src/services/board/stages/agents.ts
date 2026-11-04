@@ -3,13 +3,20 @@
  * registered repo, branch, PR or card point to (agent-home.ts), else it is a card of its own, on its own lane.
  */
 import { resolveLane } from '@once-upon-a-diff/protocol/domain/lane-key';
-import { finishedColumn, finishedSummary, homeOf, landedFor } from '../agent-home.ts';
+import {
+  finishedColumn,
+  finishedSummary,
+  homeOf,
+  landedFor,
+  pendingReview,
+} from '../agent-home.ts';
 import { agentKey, claimedAgents } from '../../backlog/claims.ts';
 import type { BacklogItem } from '../../backlog/backlog.ts';
 import { STALE_MS, beatOf } from '../../ledger/events.ts';
 import { gateOf, lastActivity, type LedgerAgent } from '../../ledger/ledger.ts';
 import { laneOf } from './lanes.ts';
 import { readFinished } from '../../../adapters/stores/finished-agents.ts';
+import type { WorktreeFacts } from '../../worktrees/worktrees.ts';
 import type {
   BoardAgent,
   BoardAgentEditor,
@@ -136,6 +143,8 @@ export interface AgentFacts {
   items?: BacklogItem[];
   /** the editor that controls an agent, when one does (editors.ts) */
   editorOf?: (agent: LedgerAgent) => BoardAgentEditor | null;
+  /** what the worktree scanner has (memory only): whether a finished author's branch is merged (pendingReview) */
+  trees?: WorktreeFacts[];
 }
 
 /**
@@ -147,13 +156,23 @@ export interface AgentFacts {
  * and its parent session, until the card's Finish clears it: in Done when it made something (a finish
  * event's commit, PR, branch or card, or a ledger `[done]` line), in Research when a research run finished
  * with no result, in Waiting when it failed, was stopped, or is an author that made nothing (finishedColumn; a done
- * agent whose registered card landed made something). Its `summary` says what it did and why it is done. An
+ * agent whose registered card landed made something). An author whose commit is on a branch with no PR that is not merged
+ * is in Ready for your review (pendingReview), and stays there with no timer until Finish clears it, the branch gets a
+ * PR, merges, moves on or loses its worktree, or a week has passed (the time a Finish is kept). Its `summary` says what it did and why it is done. An
  * author's card in Waiting stays `doneHours` (an hour), not `finishedWaitMinutes`. A later ledger line brings the card back, with a fresh timer.
  */
 export function placeAgents(
   ctx: BuildContext,
   cards: BoardCard[],
-  { agents, beats, pin, held = new Set(), items = [], editorOf = () => null }: AgentFacts,
+  {
+    agents,
+    beats,
+    pin,
+    held = new Set(),
+    items = [],
+    editorOf = () => null,
+    trees = [],
+  }: AgentFacts,
 ): BoardCard[] {
   const { nowMs } = ctx;
   const waitMs = ctx.settings.finishedWaitMinutes * 60 * 1000;
@@ -166,10 +185,18 @@ export function placeAgents(
       cardsBySid.set(sid, cardsBySid.get(sid) || card);
     }
   }
+  // a finished author's commit waiting on your review (read from what the scanner and GitHub already said; asks nothing)
+  const pendingOf = new Map(
+    agents.map((agent) => [
+      agent,
+      pendingReview(agent, trees, (repo, branch) => ctx.review.branchPr(repo, branch), nowMs),
+    ]),
+  );
   const shown = agents.filter(
     (agent) =>
       !held.has(agentKey(agent)) &&
       (agent.state === 'running' ||
+        !!pendingOf.get(agent) ||
         (agent.state === 'waiting' && !forgotten(agent, nowMs)) ||
         agent.state === 'plan' ||
         agent.state === 'fixing' ||
@@ -185,13 +212,17 @@ export function placeAgents(
     // a finished agent waits until its card's Finish clears it, or `waitMs` after its last sign of life; an author (kind
     // author) that finished with no result sits in Waiting for `doneHours` instead, an hour by default
     const item = agent.card ? items.find((one) => one.id === agent.card) : undefined;
-    const finishedIn = isFinished(agent) ? finishedColumn(agent, landedFor(agent, item)) : null;
+    const pending = pendingOf.get(agent) ?? null;
+    const finishedIn = isFinished(agent)
+      ? finishedColumn(agent, landedFor(agent, item), pending)
+      : null;
     const staysMs =
       finishedIn === 'waiting' && agent.kind === 'author'
         ? Math.max(waitMs, ctx.settings.doneHours * 3600 * 1000)
         : waitMs;
+    // Ready for your review has no timer: it stays until Finish clears it, or the branch gets a PR or merges
     const clearsAt =
-      isFinished(agent) && active && active.getTime() + staysMs > nowMs
+      finishedIn !== 'ready' && isFinished(agent) && active && active.getTime() + staysMs > nowMs
         ? new Date(active.getTime() + staysMs)
         : null;
     const view = agentOf(agent, beatOf(agent, beats), nowMs, clearsAt, editorOf(agent));
@@ -212,15 +243,15 @@ export function placeAgents(
       home.agents.push(view);
       continue;
     }
-    // a finished agent's own card is in Waiting for a while
-    if (isFinished(agent) && !clearsAt) {
+    // a finished agent's own card is in its column for a while
+    if (isFinished(agent) && !clearsAt && finishedIn !== 'ready') {
       continue;
     }
     // parked on your story review is Ready, not Waiting. A finished agent's column is finishedColumn's: Done when it made
     // something, Research when it only looked, Waiting when it failed or an author made nothing
     let column: BoardColumn = finishedIn ?? AGENT_COLUMN[agent.state];
     if (isFinished(agent)) {
-      view.summary = finishedSummary(agent, item);
+      view.summary = finishedSummary(agent, item, pending);
     }
     if (agent.review) {
       column = 'ready';

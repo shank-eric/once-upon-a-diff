@@ -343,6 +343,8 @@ function fakeWatcher(
 }
 
 const results: Record<string, unknown> = {};
+/** commits whose sha shows in a golden: made at run time, so normalized like the pids */
+const shasSeen: string[] = [];
 async function record(
   name: string,
   board: any,
@@ -857,6 +859,15 @@ async function record(
   git(path.join(trees, 'old-one'), 'add', '.');
   gitAt(path.join(trees, 'old-one'), '2026-10-26T18:30:00Z', 'commit', '-q', '-m', 'work');
   git(checkout, 'merge', '-q', '--ff-only', 'old-one');
+  // dep-bump: an author committed on it, with no PR and not merged: Ready for your review, not Done
+  const depBump = path.join(trees, 'dep-bump');
+  git(checkout, 'worktree', 'add', '-q', depBump, '-b', 'dep-bump');
+  writeFileSync(path.join(depBump, 'c.txt'), 'c\n');
+  git(depBump, 'add', '.');
+  gitAt(depBump, '2026-10-26T18:40:00Z', 'commit', '-q', '-m', 'bump');
+  // the author finished with the worktree's tip (its sha changes run to run, so the golden names it <SHA:n>)
+  const depBumpTip = git(depBump, 'rev-parse', 'HEAD');
+  shasSeen.push(depBumpTip);
   seenCheckout(home, 'acme/widgets', checkout);
   const [builder, usingTree] = Array.from({ length: 2 }, () => liveChild());
   registry(sessions, builder, { cwd: path.join(trees, 'kill-inbox'), name: 'the builder' });
@@ -955,7 +966,27 @@ async function record(
     board_progress_file: progress,
     board_ledger_time_zone: 'UTC',
   });
+  const authors = new AgentRegistry(home);
+  const et = (hour: number, minute: number) => new Date(Date.UTC(2026, 9, 26, hour + 4, minute));
+  authors.start({
+    sid: sid(builder),
+    name: 'dep-bump',
+    kind: 'author',
+    task: 'bump the lockfile',
+    repo: 'acme/widgets',
+    branch: 'dep-bump',
+    cwd: depBump,
+    model: 'sonnet',
+    effort: 'low',
+    at: et(14, 30),
+  });
+  authors.finish('dep-bump', {
+    outcome: 'lockfile bumped',
+    result: { commit: depBumpTip, branch: 'dep-bump' },
+    at: et(14, 41),
+  });
   const { watcher, asked } = fakeWatcher([], {
+    'acme/widgets@dep-bump': null,
     'acme/widgets@kill-inbox': null,
     'acme/widgets@loose-one': { number: 31, state: 'merged', merged_at: '2026-10-25T10:00:00Z' },
   });
@@ -1000,6 +1031,9 @@ for (const [name, value] of Object.entries(results)) {
     const bare = new RegExp(`(?<![0-9A-Za-z.])${pid}(?![0-9A-Za-z])`, 'g');
     text = text.replace(padded, `<PID:${token}>`).replace(bare, `<pid:${token}>`);
   }
+  shasSeen.forEach((sha, token) => {
+    text = text.split(sha).join(`<SHA:${token}>`).split(sha.slice(0, 7)).join(`<SHA:${token}>`);
+  });
   // Disk usage depends on the filesystem's block size.
   text = text.replace(/"size_kb": \d+/g, '"size_kb": "<kb>"');
   snapshots[name] = text + '\n';

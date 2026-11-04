@@ -147,6 +147,8 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
       held,
       items: backlogItems,
       editorOf: editing.editorOf,
+      // with the scanner off its facts are not kept up, so no author waits on a merge state read from them
+      trees: settings.worktrees ? state.scanner.read().items : [],
     }),
   );
 
