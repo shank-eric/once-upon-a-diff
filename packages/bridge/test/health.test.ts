@@ -372,6 +372,26 @@ test('parseRemote reads any host and form, with one identity per repo', () => {
   }
 });
 
+test('GitHub host aliases, the _git name and underscore aliases', () => {
+  assert.equal(repoOfRemote('git@work.github.com:o/n.git'), 'o/n');
+  assert.equal(repoOfRemote('git@ssh.github.com:o/n.git'), 'o/n');
+  assert.equal(repoOfRemote('git@github.example.com:o/n.git'), null);
+  assert.equal(repoOfRemote('https://github.example.com/o/n'), null);
+  assert.equal(repoOfRemote('git@notgithub.com:o/n.git'), null);
+  assert.equal(repoOfRemote('https://github.com/o/_git'), 'o/_git');
+  assert.deepEqual(parseRemote('https://github.com/o/_git'), {
+    host: 'github.com',
+    owner: 'o',
+    name: '_git',
+  });
+  assert.equal(parseRemote('https://dev.azure.com/org/proj/_git/repo')?.owner, 'org/proj');
+  assert.equal(parseRemote('https://org.visualstudio.com/proj/_git/repo')?.owner, 'proj');
+  assert.equal(parseRemote('git@github_work:o/n.git')?.name, 'n');
+  assert.equal(repoOfRemote('git@github_work:o/n.git'), null);
+  assert.equal(remoteNamed('git@github_work:o/n.git', 'o/n'), true);
+  assert.equal(parseRemote('https://github_work/o/n'), null);
+});
+
 test('remoteNamed: the owner/name a registered --repo gives, on any host', () => {
   assert.equal(remoteNamed('https://ghe.example.com/Acme/widgets.git', 'acme/widgets'), true);
   assert.equal(remoteNamed('git@github.com:acme/widgets.git', 'acme/widgets'), true);

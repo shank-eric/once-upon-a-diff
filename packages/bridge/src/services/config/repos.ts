@@ -21,7 +21,11 @@ export const sameRepo = (first: unknown, second: unknown): boolean =>
   !!first && !!second && String(first).toLowerCase() === String(second).toLowerCase();
 
 const SEGMENT_RE = /^[A-Za-z0-9_.-]+$/;
-const GITHUB_HOSTS = ['github.com', 'www.github.com', 'ssh.github.com'];
+/** github.com and its subdomains (`ssh.github.com`, an ssh alias like `work.github.com`), never `github.example.com`. */
+const isGitHubHost = (host: string): boolean =>
+  host === 'github.com' || host.endsWith('.github.com');
+const isAzureHost = (host: string): boolean =>
+  host === 'dev.azure.com' || host.endsWith('.dev.azure.com') || host.endsWith('.visualstudio.com');
 
 export interface Remote {
   /** Lowercased, with no user or port. */
@@ -42,6 +46,7 @@ export function parseRemote(url: string | null | undefined): Remote | null {
   const scheme = /^([A-Za-z][A-Za-z0-9+.-]*):\/\/([^/]*)(\/.*)?$/.exec(text);
   let authority: string;
   let repoPath: string;
+  let scpForm = false;
   if (scheme) {
     if (scheme[1].toLowerCase() === 'file') {
       return null;
@@ -55,10 +60,12 @@ export function parseRemote(url: string | null | undefined): Remote | null {
     }
     authority = scp[1];
     repoPath = scp[2];
+    scpForm = true;
   }
   const host = authority.replace(/^.*@/, '').replace(/:\d*$/, '').toLowerCase();
   // two characters at least: a drive letter (`C:/x/y`) is not a scp host
-  if (host.length < 2 || !/^[a-z0-9.-]+$/.test(host)) {
+  // an underscore only appears in an ssh-config alias (`git@github_work:o/n`), which is never GitHub
+  if (host.length < 2 || !(scpForm ? /^[a-z0-9._-]+$/ : /^[a-z0-9.-]+$/).test(host)) {
     return null;
   }
   const parts = repoPath
@@ -70,7 +77,7 @@ export function parseRemote(url: string | null | undefined): Remote | null {
     parts.shift();
   }
   const marker = parts.indexOf('_git');
-  if (marker >= 0) {
+  if (marker >= 0 && isAzureHost(host)) {
     parts.splice(marker, 1);
   }
   if (parts.length < 2 || !parts.every((part) => SEGMENT_RE.test(part))) {
@@ -85,7 +92,7 @@ export function parseRemote(url: string | null | undefined): Remote | null {
  */
 export function repoOfRemote(url: string | null | undefined): string | null {
   const remote = parseRemote(url);
-  return remote && GITHUB_HOSTS.includes(remote.host) && !remote.owner.includes('/')
+  return remote && isGitHubHost(remote.host) && !remote.owner.includes('/')
     ? `${remote.owner}/${remote.name}`
     : null;
 }
