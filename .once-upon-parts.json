@@ -1,0 +1,231 @@
+{
+  "version": 1,
+  "groups": [
+    "Bridge",
+    "Client",
+    "Shared",
+    "Repo"
+  ],
+  "parts": [
+    {
+      "id": "server",
+      "name": "Server",
+      "group": "Bridge",
+      "paths": [
+        "packages/bridge/src/server/"
+      ],
+      "note": "The HTTP app and its routes"
+    },
+    {
+      "id": "cli",
+      "name": "CLI",
+      "group": "Bridge",
+      "paths": [
+        "packages/bridge/src/cli/",
+        "packages/bridge/bin/"
+      ],
+      "note": "The once-upon command"
+    },
+    {
+      "id": "stories",
+      "name": "Story pipeline",
+      "group": "Bridge",
+      "paths": [
+        "packages/bridge/src/services/stories/",
+        "skills/once-upon/bin/"
+      ],
+      "note": "Reading, placing, publishing and rebuilding stories"
+    },
+    {
+      "id": "review-inbox",
+      "name": "Review and inbox",
+      "group": "Bridge",
+      "paths": [
+        "packages/bridge/src/services/review/",
+        "packages/bridge/src/services/inbox/"
+      ],
+      "note": "GitHub review sync, drafts, and the panel requests sessions answer"
+    },
+    {
+      "id": "board-services",
+      "name": "Board services",
+      "group": "Bridge",
+      "paths": [
+        "packages/bridge/src/services/board/",
+        "packages/bridge/src/services/backlog/",
+        "packages/bridge/src/services/ledger/",
+        "packages/bridge/src/services/worktrees/",
+        "packages/bridge/src/services/usage/"
+      ],
+      "note": "What the board shows: cards, agents, worktrees, usage"
+    },
+    {
+      "id": "sessions-config",
+      "name": "Sessions and config",
+      "group": "Bridge",
+      "paths": [
+        "packages/bridge/src/services/sessions/",
+        "packages/bridge/src/services/listeners/",
+        "packages/bridge/src/services/config/",
+        "packages/bridge/src/services/bridge/",
+        "packages/bridge/src/services/voice/",
+        "packages/bridge/src/services/pages/",
+        "packages/bridge/src/services/doctor.ts",
+        "packages/bridge/src/services/errors.ts"
+      ],
+      "note": "Claude sessions, listeners, settings and the rest of the services"
+    },
+    {
+      "id": "adapters",
+      "name": "Adapters",
+      "group": "Bridge",
+      "paths": [
+        "packages/bridge/src/adapters/"
+      ],
+      "note": "Every side effect: programs, files, network"
+    },
+    {
+      "id": "panel",
+      "name": "Panel",
+      "group": "Client",
+      "paths": [
+        "packages/panel/"
+      ],
+      "note": "The story panel"
+    },
+    {
+      "id": "host",
+      "name": "Host adapter",
+      "group": "Client",
+      "paths": [
+        "packages/host-github/"
+      ],
+      "note": "GitHub diff-page reader and URL routing"
+    },
+    {
+      "id": "pages",
+      "name": "Pages",
+      "group": "Client",
+      "paths": [
+        "packages/web/"
+      ],
+      "note": "The board and local story pages"
+    },
+    {
+      "id": "extension",
+      "name": "Extension",
+      "group": "Client",
+      "paths": [
+        "packages/extension/"
+      ],
+      "note": "The Chrome extension"
+    },
+    {
+      "id": "ui",
+      "name": "UI",
+      "group": "Client",
+      "paths": [
+        "packages/ui/"
+      ],
+      "note": "Shared components and helpers"
+    },
+    {
+      "id": "api-client",
+      "name": "API client",
+      "group": "Client",
+      "paths": [
+        "packages/api-client/"
+      ],
+      "note": "The typed client and the poll"
+    },
+    {
+      "id": "protocol",
+      "name": "Protocol",
+      "group": "Shared",
+      "paths": [
+        "packages/protocol/"
+      ],
+      "note": "Wire types, routes and schemas"
+    },
+    {
+      "id": "domain",
+      "name": "Domain",
+      "group": "Shared",
+      "paths": [
+        "packages/protocol/src/domain/"
+      ],
+      "note": "Pure rules that import nothing"
+    },
+    {
+      "id": "skills",
+      "name": "Skills",
+      "group": "Repo",
+      "paths": [
+        "skills/"
+      ],
+      "note": "The once-upon and once-upon-listen skills"
+    },
+    {
+      "id": "scripts-docs",
+      "name": "Scripts and docs",
+      "group": "Repo",
+      "paths": [
+        "scripts/",
+        "docs/",
+        "README.md",
+        "GETTING-STARTED.md",
+        "CONTRIBUTING.md",
+        "AGENTS.md",
+        "LICENSE"
+      ],
+      "note": "Deploy and cleanup scripts, documents"
+    },
+    {
+      "id": "tests",
+      "name": "Tests",
+      "group": "Repo",
+      "paths": [
+        "packages/bridge/test/",
+        "packages/panel/test/",
+        "packages/ui/test/",
+        "packages/protocol/test/",
+        "packages/web/test/",
+        "packages/extension/test/",
+        "packages/host-github/test/",
+        "packages/api-client/test/",
+        "packages/test-kit/test/",
+        "packages/test-kit/"
+      ],
+      "note": "Every package's tests and the shared test helpers"
+    },
+    {
+      "id": "config",
+      "name": "Config",
+      "group": "Repo",
+      "paths": [
+        ".once-upon-parts.json",
+        "packages/bridge/package.json",
+        "packages/bridge/tsconfig.json",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.base.json",
+        "tsconfig.depcruise.json",
+        "eslint.config.mjs",
+        "eslint.boundaries.mjs",
+        ".dependency-cruiser.mjs",
+        "knip.jsonc",
+        "yarn.lock",
+        ".yarnrc.yml",
+        ".yarn/",
+        ".github/",
+        ".husky/",
+        ".gitignore",
+        ".nvmrc",
+        ".prettierignore",
+        ".prettierrc.json",
+        ".shellcheckrc"
+      ],
+      "note": "Build, lint and CI setup"
+    }
+  ]
+}

@@ -7,7 +7,9 @@
 
 import type { Side } from './domain/line-refs.ts';
 import type { ErrorCode } from './domain/error-code.ts';
+import type { StoryParts } from './domain/parts.ts';
 export type { ErrorCode } from './domain/error-code.ts';
+export type { StoryPart, StoryParts } from './domain/parts.ts';
 
 /** A side of a file's diff: 'L' the old lines, 'R' the new (the domain's, which line-ref parsing also names). */
 export type { Side };
@@ -355,6 +357,8 @@ export interface StoryData {
   overview_refs?: ChapterRef[];
   files: StoryFile[];
   chapters: Chapter[];
+  /** the repo's parts and the ones each chapter touches (domain/parts.ts), when the repo has a parts file; the panel draws them as a strip (absent: no strip) */
+  parts?: StoryParts;
   uncovered_hunks: UncoveredFile[];
   /** the step to open on when nothing is saved */
   start?: number;

@@ -121,6 +121,10 @@ once-upon local --repo <checkout> --base <ref>
 
 This tells the story of `git diff <base> HEAD` (`--head` picks another end: a branch or a commit stays on the commits it was told over, and the page says when the branch has moved, until you run `once-upon local` again) on a page the bridge serves, and starts a bridge if none is running. Without `--chapters <file>` you get one chapter per top-level folder as a starting point. The same panel runs on the page. Click a line number to add a "fix before push" note. The panel's **Fix before push** box sends them to the listening session, and `once-upon notes --story <id>` prints them as a checklist. The page redraws when you amend or add a commit.
 
+### 11. Name your repo's parts (optional)
+
+The panel can draw a strip of your repo's named parts under Steps, with the parts a chapter touches lit. It needs a small hand-written file: `.once-upon-parts.json` at the root of a repo you own, or `~/.once-upon/parts/<owner>-<name>.json` for one you don't commit to. No file, no strip. The README's "The parts strip" has the format.
+
 ## Where stories live
 
 Each story lives in the checkout it's about, in a hidden `.once-upon/` folder. Git ignores that folder through the checkout's `.git/info/exclude`, which is local and never committed, so `git status` stays clean. Everything else, like your config, preferences, the question inbox and what you've read, is in `~/.once-upon` (`ONCE_UPON_HOME` moves it).

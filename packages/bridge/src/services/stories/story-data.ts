@@ -30,6 +30,7 @@ import type { StoryStore } from './store.ts';
 import { skeletonKeys } from './skeleton.ts';
 import type { Plan } from './chapters.ts';
 import type { LocalMeta } from './types.ts';
+import { storyParts } from './parts.ts';
 
 /** file-map.json, as once-upon's build writes it: where each file is told, and any hunks it was let publish untold. */
 export interface FileMap {
@@ -110,6 +111,16 @@ export function storyData(store: StoryStore, id: string, dir: string): StoryData
     chapters,
     uncovered_hunks: uncovered,
   };
+  // last, so a file that left a local diff and the "Not in a chapter yet" chapter are counted as the panel shows them
+  const parts = storyParts(
+    store.home,
+    meta,
+    chapters.map((chapter) => chapter.files.map((file) => file.rel)),
+    rels,
+  );
+  if (parts) {
+    data.parts = parts;
+  }
   if (meta.kind === 'local') {
     const local = meta as LocalMeta & { title: string };
     const viewed = store.readState<Record<string, { hash?: string }>>(id, 'viewed.json', {});

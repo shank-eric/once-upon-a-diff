@@ -70,6 +70,15 @@ export function createStoryModel(input: StoryData) {
       .map((chapter, index) => (chapter.files.some((file) => file.rel === rel) ? index + 1 : 0))
       .filter(Boolean);
 
+  /** The ids of the parts a step touches: the Overview's are every part a file of the story is in, a chapter's are its files'. Empty when the repo has no parts file. */
+  const partsTouched = (step: number): string[] => {
+    const parts = data.parts;
+    if (!parts) {
+      return [];
+    }
+    return step ? parts.by_chapter[step - 1] || [] : Object.keys(parts.files);
+  };
+
   /** What chapter `step` tells the reviewer about a file it lists: mark it viewed here, done earlier, or later's to mark. */
   function statusIn(rel: string, step: number): FileStatus | null {
     const entry = step && data.chapters[step - 1].files.find((file) => file.rel === rel);
@@ -113,6 +122,7 @@ export function createStoryModel(input: StoryData) {
     chapterList,
     chaptersOf,
     statusIn,
+    partsTouched,
   };
 }
 

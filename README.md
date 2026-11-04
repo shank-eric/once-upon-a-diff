@@ -241,6 +241,27 @@ When a PR gets a few new commits after you've read its story, an update adds one
 - **Changed since you read.** A chapter you read whose files a newer commit changed gets "• changed since you read" in the Steps list, and those files get the same mark in its files list. A drafted comment there whose line a newer commit changed says "May be out of date". The bridge compares the commit you read each chapter at with the story's head, once per commit (gh's compare, read-only and cached 60s, or git for a local story), and `GET /api/stories/:id/read` returns them as `changed` and `stale_comments`. "Since you read it" chapters and chapters you haven't read aren't marked.
 - A rebase past `since_sha`, or a request with `retell`, gets a new story from scratch. Drafts' posted and dismissed marks are kept per PR either way.
 
+### The parts strip: "you are here"
+
+A repo can name its parts once, by hand, and the panel then draws a strip of them under Steps on the Overview and on every chapter, with the parts that step touches lit (a mark, a heavy border and weight, and words for a screen reader, never colour alone). In a chapter the groups with nothing lit fold into one "Not touched" line. The Overview shows every group, with how many of the story's files each lit part holds. Nothing is written into a story: the bridge reads the parts file each time it loads a story, so names are stable, cost no tokens, and an older story gains the strip as soon as its repo has a file.
+
+- **Where the file lives.** `.once-upon-parts.json` at the root of a checkout is for repos you own and can commit to. `~/.once-upon/parts/<owner>-<name>.json` (the repo lowercased, `/` as `-`, for example `acme-widgets.json`) is for every other repo, such as your employer's or an upstream project's, so nothing is committed to a tree that isn't yours. The second wins when both exist. A local story reads the file in the worktree it diffs, a PR story reads the repo's main checkout (its working tree, not the PR's head).
+- **No file, no strip.** There is no guess from folder names. A file that doesn't check out is ignored without an error.
+- **Format** (`version: 1`). `groups` is the draw order of the rows. Each part has an `id` (`a-z`, digits and `-`, up to 40, unique, `other` is taken), a `name` (up to 24 characters), a `group`, `paths` and an optional `note` (shown as the cell's tooltip). A path is a folder prefix ending in `/` or one exact file; the longest match wins, so a part can carve a folder out of another. A file no part owns is in an implicit **Other** part, drawn only when a story has one. Up to 40 parts and 50 paths each.
+
+  ```json
+  {
+    "version": 1,
+    "groups": ["Server", "Repo"],
+    "parts": [
+      { "id": "api", "name": "API", "group": "Server", "paths": ["src/api/"], "note": "The routes" },
+      { "id": "billing", "name": "Billing", "group": "Server", "paths": ["src/api/billing/"] },
+      { "id": "docs", "name": "Docs", "group": "Repo", "paths": ["docs/", "README.md"] }
+    ]
+  }
+  ```
+- This repo's own file is `.once-upon-parts.json`; `packages/bridge/test/parts-file-covers-repo.test.ts` fails when a tracked file lands in no part, so the names keep up with the tree. The rules are `protocol/src/domain/parts.ts`, the lookup is `bridge/src/services/stories/parts.ts`, and the strip is `ui/src/parts-strip.ts`.
+
 ### Rebuild story, Rebuild from here
 
 When a story reads wrong, ask for it again from the panel, on a PR or a local story. **Rebuild story…** sits at the end of the Overview and **Rebuild from here…** at the end of each chapter. Either opens a "What should change?" box (optional), which goes to the Claude session as guidance, and **Queue rebuild** sends `POST /api/stories/:id/rebuild` with `mode: 'rebuild'`, or `mode: 'rebuild_from'` and `from_step` (from chapter 1 is a whole rebuild). The line under the toolbar then says Rebuild queued, Rebuilding…, and Rebuilt (with what was kept) or failed, and the PR tags say "Rebuild queued" or "Rebuilding…".
@@ -553,7 +574,7 @@ Eight Yarn workspaces under `packages/`, all TypeScript (strict), and the skills
   - `src/types.ts`: the story and the bridge's answers as the panel takes them.
   - `src/routes.ts`: the route table. Every call the bridge answers, with its method, path, which keys may make it (the token, the board's key, a story's key, its read-only key), the body it takes and the answer it gives. The bridge registers its handlers from it, and the extension, the board and the local page call through it with the `api-client` package's `client.ts`. The bridge serves `routes.ts` to the pages.
   - `src/schemas.ts`: a Valibot schema for each request body. The bridge checks every body against one (`server/validate.ts`) after its key and story checks. It's server only: `routes.ts` takes the body types from it with `import type`, so a page never loads Valibot, and the bridge doesn't serve it.
-  - `src/domain/`: pure rules, with no imports at all, so the bridge, the pages, the panel and the extension share them: the id patterns, the `html` tag and escaping, text helpers (SHAs, plurals, gate text), times, the choice of a session to listen for, PR keys and commit ranges, line references, chapter keys and numbers, and the default port. The bridge serves all of it to the pages.
+  - `src/domain/`: pure rules, with no imports at all, so the bridge, the pages, the panel and the extension share them: the id patterns, the `html` tag and escaping, text helpers (SHAs, plurals, gate text), times, the choice of a session to listen for, PR keys and commit ranges, line references, chapter keys and numbers, the parts file's rules, and the default port. The bridge serves all of it to the pages.
 - `packages/api-client/` (`@once-upon-a-diff/api-client`): how a browser calls the bridge, and keeps what it shows current. It imports the protocol's route table and nothing else of the repo, and the panel, the pages and the extension import it. Its `exports` point at the `.ts` sources like the protocol's do: WXT bundles them and the bridge serves them, type-stripped.
   - `src/client.ts`: `createClient(transport)` (calls over a transport each host supplies, as `call` that never throws and `ask` that throws a `BridgeError`), `pathFor`, and `matchRoute`, which the extension's service worker asks before it sends the token.
   - `src/poll.ts`: `createPoll`, a look at the bridge on a timer with no framework in it: it loads at once, every few seconds while the tab is visible and when the window gets the focus, keeps the last data through a failed load and counts the failures in a row.

@@ -248,6 +248,46 @@ await scenario(
 );
 await scenario('collapsed', story(), full, { n: 1, collapsed: true, width: 500 });
 await scenario('small-story-no-comments', smallStory(), bare);
+
+// the parts strip: drawn under Steps on the Overview and a chapter when the story has parts, and no trace of it when it has none
+await test('the parts strip shows under Steps on the Overview and on a chapter, and a story without parts has none', async () => {
+  const parts = {
+    groups: ['Code', 'Docs'],
+    parts: [
+      { id: 'source', name: 'Source', group: 'Code' },
+      { id: 'tests', name: 'Tests', group: 'Code' },
+      { id: 'docs', name: 'Docs', group: 'Docs' },
+    ],
+    by_chapter: [['source'], ['source', 'tests'], ['docs'], []],
+    files: { source: 3, docs: 1 },
+  };
+  const panel = await mount({ ...story(), parts }, bare);
+  try {
+    const overview = panel.shot();
+    assert.ok(overview.includes('Parts this story touches'));
+    assert.match(overview, /Source[^]*touched, 3 files/);
+    panel.overlay.go(1);
+    await settle();
+    const chapter = panel.shot();
+    assert.ok(chapter.includes('Parts this chapter touches'));
+    assert.ok(chapter.includes('Not touched: Docs'));
+    assert.ok(!chapter.includes('Parts this story touches'));
+    panel.overlay.go(4);
+    await settle();
+    assert.ok(
+      !panel.shot().includes('ou-ui-parts'),
+      'a chapter that touches nothing draws no strip',
+    );
+  } finally {
+    panel.done();
+  }
+  const without = await mount(story(), bare);
+  try {
+    assert.ok(!without.shot().includes('ou-ui-parts'));
+  } finally {
+    without.done();
+  }
+});
 await scenario('status-error', story(), (calls) =>
   fullOptions(calls, {
     status: async () => Promise.reject(Object.assign(new Error('x'), { code: 'down' })),

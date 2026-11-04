@@ -9,6 +9,7 @@ import { Fragment, html } from '/assets/preact.mjs';
 import { html as markup } from '@once-upon-a-diff/protocol/domain/html';
 import { refAttrs } from './file-refs.ts';
 import type { VNode } from '@once-upon-a-diff/ui/parse-markup';
+import { PartsStrip } from '@once-upon-a-diff/ui/parts-strip';
 import type { SinceModel } from './rebuild/freshness-part.ts';
 import { plural } from '@once-upon-a-diff/protocol/domain/text';
 import type { PanelContext } from './context.ts';
@@ -158,6 +159,7 @@ export function createBody(context: PanelContext) {
     const items = (entries as { rel: string }[]).map((file) => files.fileItem(file, step));
     return html`<${Fragment} key=${renderId}>
       <div class="ou-working">${context.working.bannerView()}</div><h2 class="ou-h">Steps</h2><ol class="ou-map">${stepList()}</ol>
+      ${data.parts ? html`<${PartsStrip} parts=${data.parts} touched=${story.partsTouched(step)} counts=${step ? undefined : data.parts.files} />` : null}
       ${context.freshness.sinceView(pieces.since)}<div class="ou-md">${withBoxes(nodes(pieces.story))}</div>${nodes(pieces.uncovered)}${pieces.comments()}<div class="ou-fixes">${context.fixes.view()}</div>${files.filesBox(pieces.filesTitle, pieces.filesSummary, items)}<div class="ou-rebuild-box">${context.rebuild.boxView()}</div>
     </${Fragment}>`;
   }
