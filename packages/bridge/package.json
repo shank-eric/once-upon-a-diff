@@ -18,7 +18,9 @@
   "scripts": {
     "serve": "node bin/once-upon.mjs serve",
     "test": "node bin/node-version.mjs && node --test test/*.test.ts",
-    "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json"
+    "test:extension": "node bin/node-version.mjs && yarn workspace @once-upon-a-diff/extension build && node test/browser/load-test.ts",
+    "test:expand": "node bin/node-version.mjs && yarn workspace @once-upon-a-diff/extension build && node test/browser/expand-test.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json && tsc -p test/browser/tsconfig.json"
   },
   "dependencies": {
     "@once-upon-a-diff/api-client": "workspace:*",
@@ -30,7 +32,9 @@
   },
   "devDependencies": {
     "@once-upon-a-diff/test-kit": "workspace:*",
+    "@types/chrome": "0.3.4",
     "@types/node": "24.19.1",
+    "playwright-core": "1.64.0",
     "typescript": "5.9.3"
   }
 }

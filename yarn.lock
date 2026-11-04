@@ -327,8 +327,6 @@ __metadata:
     "@once-upon-a-diff/ui": "workspace:*"
     "@types/chrome": "npm:0.3.4"
     "@types/node": "npm:24.19.1"
-    once-upon-a-diff: "workspace:*"
-    playwright-core: "npm:1.64.0"
     typescript: "npm:5.9.3"
     vite: "npm:8.3.4"
     wxt: "npm:0.21.4"
@@ -4011,7 +4009,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"once-upon-a-diff@workspace:*, once-upon-a-diff@workspace:packages/bridge":
+"once-upon-a-diff@workspace:packages/bridge":
   version: 0.0.0-use.local
   resolution: "once-upon-a-diff@workspace:packages/bridge"
   dependencies:
@@ -4022,7 +4020,9 @@ __metadata:
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@once-upon-a-diff/ui": "workspace:*"
     "@once-upon-a-diff/web": "workspace:*"
+    "@types/chrome": "npm:0.3.4"
     "@types/node": "npm:24.19.1"
+    playwright-core: "npm:1.64.0"
     typescript: "npm:5.9.3"
   bin:
     once-upon: bin/once-upon.mjs

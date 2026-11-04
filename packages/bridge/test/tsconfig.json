@@ -14,5 +14,6 @@
       "/assets/host-github/*": ["../../host-github/src/*"]
     }
   },
-  "include": [".", "../../panel/types"]
+  "include": [".", "../../panel/types"],
+  "exclude": ["browser"]
 }

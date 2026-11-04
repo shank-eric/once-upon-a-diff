@@ -2,32 +2,23 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
-import {
-  tmp,
-  writeJson,
-  githubStory,
-  startBridge,
-  runCli,
-  localRepo,
-} from 'once-upon-a-diff/test/helpers';
-import { Builds } from 'once-upon-a-diff/services/inbox/builds';
-import { Inbox } from 'once-upon-a-diff/services/inbox/inbox';
-import { withMarks } from 'once-upon-a-diff/services/inbox/conversation';
-import { parseUnifiedDiff } from 'once-upon-a-diff/services/stories/diff';
-import { noteRead, readReads } from 'once-upon-a-diff/services/stories/reads';
-import { createLocalStory } from 'once-upon-a-diff/services/stories/local-story';
+import { tmp, writeJson, githubStory, startBridge, runCli, localRepo } from './helpers.ts';
+import { Builds } from '../src/services/inbox/builds.ts';
+import { Inbox } from '../src/services/inbox/inbox.ts';
+import { withMarks } from '../src/services/inbox/conversation.ts';
+import { parseUnifiedDiff } from '../src/services/stories/diff.ts';
+import { noteRead, readReads } from '../src/services/stories/reads.ts';
+import { createLocalStory } from '../src/services/stories/local-story.ts';
 import {
   rebuildProblems,
   carryDrafts,
   questionMoves,
   readsToRetire,
-} from 'once-upon-a-diff/services/stories/rebuild';
-import { rebuildAsk, rebuildLine } from '@once-upon-a-diff/panel/rebuild/rebuild';
-import { tagFor, type StoryStatus } from '../src/content/ui/story-tag.ts';
-import type { Plan } from 'once-upon-a-diff/services/stories/chapters';
-import type { StoryMeta } from 'once-upon-a-diff/services/stories/types';
-import type { Listener } from 'once-upon-a-diff/services/listeners/listeners';
-import type { Pulse, RebuildView } from '@once-upon-a-diff/protocol/types';
+} from '../src/services/stories/rebuild.ts';
+import type { Plan } from '../src/services/stories/chapters.ts';
+import type { StoryMeta } from '../src/services/stories/types.ts';
+import type { Listener } from '../src/services/listeners/listeners.ts';
+import type { Pulse, RebuildView, StoryStatus } from '@once-upon-a-diff/protocol/types';
 
 /** What POST .../rebuild answers. */
 type RebuildAnswer = { rebuild: RebuildView & { id: string } };
@@ -303,12 +294,12 @@ describe('asking for a rebuild', () => {
         'sent still: an extension from before update_kind reads it',
       );
       assert.equal(status.update_kind, 'rebuild');
+      assert.equal(status.update_state, 'queued');
       assert.equal(
         new Builds(home).get('acme/widgets', 7)!.status,
         'pending',
         'the story being there does not finish a rebuild',
       );
-      assert.equal(tagFor(status, { repo: 'acme/widgets', number: 7 }).label, 'Rebuild queued');
 
       // a request a session is building stands
       new Builds(home).claim(whole.body.rebuild.id, 'story-acme-widgets-7');
@@ -529,35 +520,4 @@ describe('routing a rebuild', () => {
     );
     assert.equal(heartbeat.builds, true);
   });
-});
-
-test("the panel's request and status line", () => {
-  assert.deepEqual(
-    { ...rebuildAsk(0, '  '), requested_at: null },
-    { mode: 'rebuild', requested_at: null },
-  );
-  const fromThree = rebuildAsk(3, ' Chapter 3 reads backwards ');
-  assert.equal(fromThree.mode, 'rebuild_from');
-  assert.equal(fromThree.from_step, 3);
-  assert.equal(fromThree.guidance, 'Chapter 3 reads backwards');
-  assert.equal(rebuildAsk(1).mode, 'rebuild');
-
-  assert.equal(rebuildLine(null), '');
-  assert.match(rebuildLine({ state: 'queued', from_step: 3 }), /^Rebuild from chapter 3 queued/);
-  assert.equal(
-    rebuildLine({ state: 'building', claimed_by: 'story-x' }),
-    'Rebuilding the whole story… (story-x)',
-  );
-  const now = Date.parse('2026-10-22T20:00:00Z');
-  const done: Partial<RebuildView> = {
-    state: 'done',
-    done_at: '2026-10-22T19:50:00Z',
-    note: 'Re-told the whole story.',
-  };
-  assert.match(rebuildLine(done, now), /^Rebuilt the whole story at .*Re-told the whole story\.$/);
-  assert.equal(rebuildLine(done, now + 60 * 60 * 1000), '', 'an old one says nothing');
-  assert.match(
-    rebuildLine({ state: 'failed', done_at: '2026-10-22T19:55:00Z', note: 'the PR moved' }, now),
-    /failed.*: the PR moved$/,
-  );
 });

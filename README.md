@@ -616,7 +616,7 @@ To trace a click or a command through the code, start with [`docs/flows.md`](doc
     - `pages/conversation.ts` and `pages/pull-list.ts` put the story tag by a PR's title.
     - `ui/` holds the pieces they share: `story-tag.ts` (what a tag says), `tag-host.ts`, `listen-notice.ts`, `pr-tags.ts` (the tag controller every PR page shares), and `toast.ts`. Each one with its own shadow root links its CSS from a `.css` file beside it, which the build copies into the extension as is.
   - `src/public/icons/` (`yarn workspace @once-upon-a-diff/extension icons` redraws them).
-  - `test/`: the unit tests for the tag and Hide whitespace (some against a real bridge), and `browser/load-test.ts` and `browser/expand-test.ts`.
+  - `test/`: the unit tests for the tag and Hide whitespace. The browser tests that load it (`yarn test:extension`, `yarn test:expand`) are the bridge's, in `packages/bridge/test/browser/`, since they start a bridge.
 - `skills/once-upon-listen/`: the Claude Code skill behind **Start listening**.
 - `skills/once-upon/`: the Claude Code skill that writes PR stories. Its `bin/story.ts` (run through `bin/story.mjs`, behind the same Node check) imports the bridge's and the protocol's chapter code from this checkout. Both skills read your house rules (see [Personal settings](#personal-settings)).
 

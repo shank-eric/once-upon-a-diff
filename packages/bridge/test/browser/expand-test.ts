@@ -16,9 +16,9 @@ import path from 'node:path';
 import { mkdirSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
-import { tmp, writeJson, TOKEN, startBridge } from 'once-upon-a-diff/test/helpers';
+import { tmp, writeJson, TOKEN, startBridge } from '../helpers.ts';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../extension');
 const EXT = path.join(ROOT, '.output/chrome-mv3'); // yarn build's output
 const args = process.argv.slice(2);
 /** --name's value, true for a bare --name, or the fallback when it isn't given. */
@@ -66,9 +66,7 @@ writeJson(path.join(home, id, 'chapters.json'), {
     },
   ],
 });
-process.env.ONCE_UPON_GH = fileURLToPath(
-  import.meta.resolve('once-upon-a-diff/test/fixtures/fake-gh'),
-);
+process.env.ONCE_UPON_GH = fileURLToPath(import.meta.resolve('../fixtures/fake-gh.ts'));
 const bridge = await startBridge({ home });
 const port = (bridge.server.address() as AddressInfo).port;
 

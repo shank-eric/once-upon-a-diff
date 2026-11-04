@@ -22,22 +22,15 @@ import type { AddressInfo } from 'node:net';
 import path from 'node:path';
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import {
-  tmp,
-  writeJson,
-  TOKEN,
-  startBridge,
-  localRepo,
-  runCli,
-} from 'once-upon-a-diff/test/helpers';
-import { createLocalStory } from 'once-upon-a-diff/services/stories/local-story';
-import { localPageUrl } from 'once-upon-a-diff/services/pages/page-key';
-import { beat } from 'once-upon-a-diff/services/listeners/listeners';
-import { Builds, type Build } from 'once-upon-a-diff/services/inbox/builds';
-import type { InboxEntry, QuestionEntry } from 'once-upon-a-diff/services/inbox/inbox';
+import { tmp, writeJson, TOKEN, startBridge, localRepo, runCli } from '../helpers.ts';
+import { createLocalStory } from '../../src/services/stories/local-story.ts';
+import { localPageUrl } from '../../src/services/pages/page-key.ts';
+import { beat } from '../../src/services/listeners/listeners.ts';
+import { Builds, type Build } from '../../src/services/inbox/builds.ts';
+import type { InboxEntry, QuestionEntry } from '../../src/services/inbox/inbox.ts';
 import type { LocalNote } from '@once-upon-a-diff/protocol/types';
 
-const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../extension');
 const EXT = path.join(ROOT, '.output/chrome-mv3'); // yarn build's output
 const args = process.argv.slice(2);
 /** --name's value, true for a bare --name, or the fallback when it isn't given. */
@@ -150,9 +143,7 @@ writeJson(lchapters, {
 });
 const local = createLocalStory({ home, repo: lrepo, base, head: 'HEAD', chapters: lchapters });
 
-process.env.ONCE_UPON_GH = fileURLToPath(
-  import.meta.resolve('once-upon-a-diff/test/fixtures/fake-gh'),
-); // no real GitHub calls from the test bridge
+process.env.ONCE_UPON_GH = fileURLToPath(import.meta.resolve('../fixtures/fake-gh.ts')); // no real GitHub calls from the test bridge
 const bridge = await startBridge({ home });
 const port = (bridge.server.address() as AddressInfo).port;
 

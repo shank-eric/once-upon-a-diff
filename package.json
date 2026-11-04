@@ -27,8 +27,8 @@
     "format:check": "prettier --cache --cache-location=.prettiercache --check .",
     "postinstall": "husky",
     "test": "yarn workspaces foreach --all --exclude once-upon-a-diff-workspace -v run test",
-    "test:extension": "yarn workspace @once-upon-a-diff/extension test:extension",
-    "test:expand": "yarn workspace @once-upon-a-diff/extension test:expand"
+    "test:extension": "yarn workspace once-upon-a-diff test:extension",
+    "test:expand": "yarn workspace once-upon-a-diff test:expand"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",

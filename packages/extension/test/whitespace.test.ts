@@ -12,7 +12,6 @@ import {
 } from '../src/content/pages/hide-whitespace.ts';
 import { createClient, type Transport } from '@once-upon-a-diff/api-client/client';
 import type { PrefsCopy } from '../src/content/storage.ts';
-import { tmp, startBridge } from 'once-upon-a-diff/test/helpers';
 
 const PR_URL = 'https://github.com/acme/widgets/pull/7/changes';
 
@@ -150,27 +149,24 @@ describe('GitHub Hide whitespace: the saved setting', () => {
   const over = (transport: Transport): Store['call'] => createClient(transport).call;
   const down = over(async () => ({ ok: false, status: 0, error: 'unreachable' }));
 
-  test('is the same prefs.json setting the local page uses', async () => {
-    const home = tmp('home');
-    const bridge = await startBridge({ home });
-    try {
-      // the answer as callBridge gives it, with the fields prefsStore reads
-      const call = over(async ({ method, path, body }) => {
-        const response = await bridge.call<Prefs>(method, path, body);
-        return { ok: response.status === 200, status: response.status, body: response.body };
-      });
-      const storage = fakeStorage();
-      const prefs = prefsStore({ call, ...storage });
-      assert.equal(await prefs.read(), false);
-      assert.equal(await prefs.write(true), true);
-      assert.deepEqual((await bridge.call('GET', '/api/prefs')).body, {
-        hideWhitespace: true,
-        diffView: 'unified',
-      });
-      assert.deepEqual(storage.box.v, { hideWhitespace: true });
-    } finally {
-      await bridge.close();
-    }
+  test("reads and writes the bridge's /api/prefs setting", async () => {
+    // answers like the bridge's prefs route (bridge.test.ts pins it)
+    let prefsNow = { hideWhitespace: false, diffView: 'unified' };
+    const calls: string[] = [];
+    const call = over(async ({ method, path, body }) => {
+      calls.push(`${method} ${path}`);
+      if (method === 'POST') {
+        prefsNow = { ...prefsNow, ...(body as Partial<Prefs>) };
+      }
+      return { ok: true, status: 200, body: prefsNow };
+    });
+    const storage = fakeStorage();
+    const prefs = prefsStore({ call, ...storage });
+    assert.equal(await prefs.read(), false);
+    assert.equal(await prefs.write(true), true);
+    assert.deepEqual(calls, ['GET /api/prefs', 'POST /api/prefs']);
+    assert.deepEqual(prefsNow, { hideWhitespace: true, diffView: 'unified' });
+    assert.deepEqual(storage.box.v, { hideWhitespace: true });
   });
 
   test('falls back to chrome.storage when the bridge is down, and sends the change when it is back', async () => {

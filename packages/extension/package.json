@@ -15,8 +15,6 @@
     "icons": "node ../bridge/bin/node-version.mjs && node scripts/make-icons.ts",
     "postinstall": "wxt prepare",
     "test": "node ../bridge/bin/node-version.mjs && node --test test/*.test.ts",
-    "test:extension": "node ../bridge/bin/node-version.mjs && wxt build && node test/browser/load-test.ts",
-    "test:expand": "node ../bridge/bin/node-version.mjs && wxt build && node test/browser/expand-test.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p scripts/tsconfig.json && tsc -p test/tsconfig.json"
   },
   "dependencies": {
@@ -29,8 +27,6 @@
   "devDependencies": {
     "@types/chrome": "0.3.4",
     "@types/node": "24.19.1",
-    "once-upon-a-diff": "workspace:*",
-    "playwright-core": "1.64.0",
     "typescript": "5.9.3",
     "vite": "8.3.4",
     "wxt": "0.21.4"
