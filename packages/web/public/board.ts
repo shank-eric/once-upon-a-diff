@@ -146,6 +146,12 @@ function BoardApp() {
   const api: Api = { bridge, board: full, refresh, count: usage.count };
   const [laneFilter, setLaneFilter] = useSetting('ou-board-filter', '', String, asText);
   const [idleOpen, setIdleOpen] = useSetting('ou-board-idle-open', true, isOpen, asText);
+  const [somedayOpen, setSomedayOpen] = useSetting(
+    'ou-board-someday-open',
+    false,
+    (text) => text === 'true',
+    asText,
+  );
   const [treesOpen, setTreesOpen] = useSetting('ou-board-worktrees-open', true, isOpen, asText);
   const [hideOnAuthor, setHideOnAuthor] = useSetting(
     'ou-board-hide-on-author',
@@ -202,6 +208,11 @@ function BoardApp() {
     onToggleIdle: () => {
       usage.count('board.idle.toggle');
       setIdleOpen(!idleOpen);
+    },
+    somedayOpen,
+    onToggleSomeday: () => {
+      usage.count('board.someday.toggle');
+      setSomedayOpen(!somedayOpen);
     },
     // a Backlog item has its own view, the others share the session card's
     renderCard: (card: BoardCard) =>

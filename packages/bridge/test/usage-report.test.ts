@@ -82,7 +82,7 @@ test('a report on partial data says how much it has, and what has no evidence of
     backlog.routesZero.sort(),
     ['boardBacklogDrop', 'boardBacklogEdit', 'boardBacklogMove']
       .sort()
-      .concat(['boardBacklogAssign'])
+      .concat(['boardBacklogAssign', 'boardBacklogSomeday'])
       .sort(),
   );
   assert.equal(backlog.uncoveredLines, 3);

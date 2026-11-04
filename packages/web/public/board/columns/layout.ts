@@ -43,6 +43,9 @@ export function isWarm(card: BoardCard, now: number): boolean {
   return rested.length > 0 && now - Math.max(...rested) < WARM_MS;
 }
 
+/** A Backlog card in the Someday section: out of the Backlog column's lanes and count (the section lists it). */
+export const isSomeday = (card: BoardCard) => card.column === 'backlog' && !!card.backlog?.someday;
+
 /** Someone else's PR with nothing on you and no session of yours on it: the ball is in its author's court. */
 export const isOnAuthor = (card: BoardCard) =>
   card.column === 'pr_open' && !!card.pr && !card.pr.mine && !card.sessions.length;
@@ -54,12 +57,17 @@ export const isOnAuthor = (card: BoardCard) =>
  */
 export function arrange(data: BoardData, hideOnAuthor: boolean, now: number) {
   const shown = (card: BoardCard) => !(hideOnAuthor && isOnAuthor(card));
+  const inColumns = (card: BoardCard) => shown(card) && !isSomeday(card);
   const all = data.lanes.flatMap((lane) => lane.cards);
   const cards = all.filter(shown);
   const columns = COLUMNS.filter(
     (column) => column.always || cards.some((card) => card.column === column.id),
   );
-  const count = (id: BoardColumn) => cards.filter((card) => card.column === id).length;
+  const count = (id: BoardColumn) =>
+    cards.filter((card) => card.column === id && !isSomeday(card)).length;
+  const someday = data.lanes
+    .map((lane) => ({ name: lane.name, cards: lane.cards.filter(isSomeday) }))
+    .filter((group) => group.cards.length);
   const idle = data.lanes
     .flatMap((lane) =>
       lane.cards
@@ -75,6 +83,8 @@ export function arrange(data: BoardData, hideOnAuthor: boolean, now: number) {
     cards,
     columns,
     count,
+    someday,
+    somedayCount: someday.reduce((sum, group) => sum + group.cards.length, 0),
     onAuthorCount: all.filter(isOnAuthor).length,
     // a column lists its cards by lane, the lane's label right above its cards (so the two are never far apart)
     lanesOf: (column: BoardColumn) =>
@@ -82,7 +92,7 @@ export function arrange(data: BoardData, hideOnAuthor: boolean, now: number) {
         .map((lane) => ({
           name: lane.name,
           cards: lane.cards
-            .filter((card) => card.column === column && shown(card))
+            .filter((card) => card.column === column && inColumns(card))
             // Backlog keeps the order you gave it; the others go by how long they have been there
             .sort((first, second) =>
               column === 'backlog' ? 0 : String(first.since).localeCompare(String(second.since)),

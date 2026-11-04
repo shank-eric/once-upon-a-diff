@@ -94,6 +94,7 @@ const BOARD_KEY_REACH = [
   'POST /api/board/backlog/drop',
   'POST /api/board/backlog/edit',
   'POST /api/board/backlog/move',
+  'POST /api/board/backlog/someday',
   'POST /api/board/focus',
   'POST /api/board/open-story',
   // Review: a storyless review of a card's branch, and its page link (the same full key open-story hands out)

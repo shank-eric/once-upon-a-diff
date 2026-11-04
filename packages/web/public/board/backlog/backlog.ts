@@ -21,7 +21,7 @@ import {
 export function backlogLane(card: BoardCard, board: BoardData | null): string[] {
   const lane = board?.lanes.find((one) => sameLaneKey(one.key, card.lane));
   return (lane?.cards ?? [])
-    .filter((one) => one.column === 'backlog' && one.backlog)
+    .filter((one) => one.column === 'backlog' && one.backlog && !one.backlog.someday)
     .map((one) => (one.backlog as { id: string }).id);
 }
 
@@ -170,7 +170,15 @@ export function BacklogCard(props: { card: BoardCard; now: number; api: Api; dnd
       alert(`Couldn't drop it: ${(err as Error).message}`);
     }
   };
-  return html`<li class=${classes} data-card=${card.id} data-backlog-card=${item?.id ?? ''} data-lane=${card.lane} draggable=${!item?.started && !editing} tabindex="0" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
+  const someday = async (id: string, aside: boolean) => {
+    try {
+      await api.bridge.ask(ROUTES.boardBacklogSomeday, { body: { id, on: aside } });
+      await api.refresh();
+    } catch (err) {
+      alert(`Couldn't ${aside ? 'set it aside' : 'bring it back'}: ${(err as Error).message}`);
+    }
+  };
+  return html`<li class=${classes} data-card=${card.id} data-backlog-card=${item?.id ?? ''} data-lane=${card.lane} draggable=${!item?.started && !item?.someday && !editing} tabindex="0" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
       onDragStart=${dnd.onDragStart} onDragEnd=${dnd.onDragEnd} onKeyDown=${dnd.onKeyDown}>
     <div class="ou-board-title" title=${card.title}>${card.title}</div>
     <div class="ou-local-muted ou-board-meta">${meta.join(' · ')}</div>
@@ -183,8 +191,9 @@ export function BacklogCard(props: { card: BoardCard; now: number; api: Api; dnd
     ${item && !item.started && !(item.claim && !item.agent?.tried) && html`<div class="ou-board-startline"><code>${item.start_line}</code></div>`}
     <${CardTrees} card=${card} now=${now} api=${api} />
     <div class="ou-board-actions">
-      ${item?.assign && !item.started && html`<${Assign} id=${item.id} again=${!!item.assigned} api=${api} />`}
+      ${item?.assign && !item.started && !item.someday && html`<${Assign} id=${item.id} again=${!!item.assigned} api=${api} />`}
       ${item && !item.started && !editing && html`<button type="button" data-backlog-edit=${item.id} onClick=${() => setEditing(true)} title="Change its title, note or repo">Edit</button>`}
+      ${item && card.column === 'backlog' && !item.started && !item.claim?.pending && html`<button type="button" data-backlog-someday=${item.id} onClick=${() => someday(item.id, !item.someday)} title=${item.someday ? 'Back in the main Backlog, in its old place' : 'Maybe someday: out of the main Backlog, into the Someday section'}>${item.someday ? 'Back to backlog' : 'Someday'}</button>`}
       ${item && html`<button type="button" data-backlog-drop=${item.id} onClick=${() => drop(item.id)} title="Drop it from the backlog (the line stays in the file)">Drop</button>`}
     </div>
   </li>`;
@@ -377,6 +386,10 @@ export function useBacklogDnd(api: Api) {
         // Alt+Up or Alt+Down on a focused Backlog card moves it within its lane (the keyboard's way to reorder)
         onKeyDown(event) {
           if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) {
+            return;
+          }
+          // (a someday card is not in the lane's order: moving it would lose its old place)
+          if (card.backlog?.someday) {
             return;
           }
           // (typing in the card's edit form is not a reorder)

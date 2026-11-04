@@ -551,6 +551,90 @@
             "since": "2026-10-26T19:00:00.000Z",
             "story": null,
             "title": "Started, no tree"
+          },
+          {
+            "agents": [],
+            "backlog": {
+              "added_by": "cli",
+              "agent": null,
+              "assign": null,
+              "assigned": null,
+              "claim": null,
+              "id": "bl_aaaaaa8",
+              "someday": true,
+              "start_line": "once-upon backlog start bl_aaaaaa8 --branch <branch>",
+              "started": null
+            },
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "backlog",
+            "detail": "later",
+            "focus_session": null,
+            "id": "backlog:bl_aaaaaa8",
+            "kind": "backlog",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": "2026-10-26T19:00:00.000Z",
+            "story": null,
+            "title": "Maybe someday"
+          },
+          {
+            "agents": [],
+            "backlog": {
+              "added_by": "cli",
+              "agent": {
+                "links": {
+                  "active": false,
+                  "agent": {
+                    "beat": null,
+                    "ended_at": "2026-10-26T18:41:00.000Z",
+                    "name": "ou-tried",
+                    "outcome": "gave up",
+                    "state": "failed"
+                  },
+                  "merged": false,
+                  "merged_at": null,
+                  "sessions": [],
+                  "worktrees": []
+                },
+                "tried": true
+              },
+              "assign": null,
+              "assigned": null,
+              "claim": {
+                "agent": "ou-tried",
+                "at": "2026-10-26T18:35:00.000Z",
+                "pending": false
+              },
+              "id": "bl_aaaaaa9",
+              "someday": true,
+              "start_line": "once-upon backlog start bl_aaaaaa9 --branch <branch>",
+              "started": null
+            },
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "backlog",
+            "detail": null,
+            "focus_session": null,
+            "id": "backlog:bl_aaaaaa9",
+            "kind": "backlog",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": "2026-10-26T19:00:00.000Z",
+            "story": null,
+            "title": "Tried, then set aside"
           }
         ],
         "key": "acme/widgets",

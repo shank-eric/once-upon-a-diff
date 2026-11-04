@@ -957,6 +957,8 @@ export interface BoardCard {
       /** what is working it: worktrees on the branch, sessions on it, the ledger agent that started it, whether it merged */
       links?: BoardStartedLinks | null;
     } | null;
+    /** maybe someday: set only when true (an open, unworked card the Someday section lists, out of the main Backlog) */
+    someday?: true;
     /** the CLI line to paste into a session to start it */
     start_line: string;
     /**

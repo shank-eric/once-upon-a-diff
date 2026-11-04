@@ -55,6 +55,7 @@ export const ACTIONS = {
   'board.filter.repo': { area: 'Board frontend' },
   'board.lane.toggle': { area: 'Board frontend' },
   'board.idle.toggle': { area: 'Board frontend' },
+  'board.someday.toggle': { area: 'Board frontend' },
   'board.notes.copy': { area: 'Board frontend' },
   'board.voice.tab': { area: 'Voice' },
   'board.backlog.addOpen': { area: 'Backlog' },

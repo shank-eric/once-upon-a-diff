@@ -15,6 +15,9 @@
  *                                              agent (claims.ts). The latest claim wins; a `done` or a reopen clears it
  *   {op:'hold',  id, on, by, at}              the card lands by hand: a deploy never marks it done (landing.ts), only `done ID` does.
  *                                              `on:false` clears it; a reopen clears it too. Sticky across claims
+ *   {op:'someday', id, on, by, at}            maybe someday: an open card with no live claim leaves the main list for the Someday section,
+ *                                              keeping its place in the order (`on:false` puts it back there). A start, a claim, a done,
+ *                                              a drop or a reopen clears it: work on the card brings it back
  *
  * The items come back in order: an add goes to the bottom, and a move puts one item before another or at an edge.
  * A move names where it goes relative to the other items, never an index, so it folds the same whatever was added or
@@ -31,11 +34,12 @@ import { SHA_RE } from '@once-upon-a-diff/protocol/domain/text';
 import { jsonLines } from '../../adapters/stores/fs/jsonl.ts';
 import { appendBacklogEvent, readBacklogFile } from '../../adapters/stores/backlog-file.ts';
 import path from 'node:path';
-import { liveClaim, sameAgentView } from './claims.ts';
+import { OPEN, claimedAgent, liveClaim, sameAgentView } from './claims.ts';
 import { REPO_RE, sameRepo } from '../config/repos.ts';
 import { newId } from '../inbox/inbox.ts';
 import { clean, optional } from '../input.ts';
 import type { BoardAgent, BoardCard, BoardStartedLinks } from '@once-upon-a-diff/protocol/types';
+import type { LedgerAgent } from '../ledger/ledger.ts';
 
 export const STARTED_GRACE_HOURS = 24;
 /** A started item whose work merged or landed, or whose agent finished, stays in Done this long. */
@@ -74,6 +78,8 @@ export interface BacklogItem {
   claim: { agent: string; sid: string | null; by: string; at: string } | null;
   /** the card lands by hand: a deploy does not mark it done (part of its work lands outside the repo) */
   hold: boolean;
+  /** maybe someday: out of the main list into the Someday section (an open card only; cleared when work starts on it) */
+  someday: boolean;
 }
 
 /** Where a move puts an item: before another one, or at the top or the bottom. */
@@ -111,6 +117,13 @@ export interface BacklogStorage {
   ): BacklogItem;
   claim(id: string, input: { agent: string; sid?: string | null; by?: string | null }): BacklogItem;
   hold(id: string, held: boolean, who?: string | null): BacklogItem;
+  someday(
+    id: string,
+    aside: boolean,
+    who?: string | null,
+    agents?: LedgerAgent[],
+    nowMs?: number,
+  ): BacklogItem;
   move(id: string, where: MoveTo, who?: string | null): BacklogItem;
   edit(id: string, input: EditInput, who?: string | null): BacklogItem;
 }
@@ -156,6 +169,7 @@ export function foldBacklog(text: string): BacklogItem[] {
         assigned: null,
         claim: null,
         hold: false,
+        someday: false,
       });
     } else if (
       found &&
@@ -172,6 +186,7 @@ export function foldBacklog(text: string): BacklogItem[] {
       // a new start is new work: an earlier landing no longer speaks for it
       found.landed_at = null;
       found.landed_sha = null;
+      found.someday = false;
     } else if (
       found &&
       found.state === 'open' &&
@@ -195,6 +210,7 @@ export function foldBacklog(text: string): BacklogItem[] {
       // the claim ends when the card lands, whatever its agent is doing. A later claim is recorded, but holds nothing
       // until a `start` reopens the work (claimedRun and liveClaim ignore a landed card)
       found.claim = null;
+      found.someday = false;
     } else if (
       found &&
       found.state !== 'dropped' &&
@@ -208,11 +224,15 @@ export function foldBacklog(text: string): BacklogItem[] {
         by: who,
         at: when,
       };
+      found.someday = false;
     } else if (found && found.state !== 'dropped' && event.op === 'hold') {
       found.hold = event.on !== false;
+    } else if (found && found.state === 'open' && !found.landed_at && event.op === 'someday') {
+      found.someday = event.on !== false;
     } else if (found && event.op === 'drop') {
       found.state = 'dropped';
       found.dropped_at = when;
+      found.someday = false;
     } else if (found && found.state === 'dropped' && event.op === 'reopen') {
       // back to an open item: the work it was started on no longer speaks for it, and it keeps its place in the order
       found.state = 'open';
@@ -226,6 +246,7 @@ export function foldBacklog(text: string): BacklogItem[] {
       found.assigned = null;
       found.claim = null;
       found.hold = false;
+      found.someday = false;
     } else if (found && found.state === 'open' && !found.landed_at && event.op === 'edit') {
       // only the fields the event carries change (a note or repo of '' clears it); a title is never blanked
       if (typeof event.title === 'string' && event.title) {
@@ -371,6 +392,34 @@ export class BacklogStore implements BacklogStorage {
       throw new Error(`${id} was dropped`);
     }
     this.append({ op: 'hold', id, on: held, by: clean(who, 'the name', BY_MAX) || 'cli' });
+    return this.find(id);
+  }
+
+  /**
+   * Puts an open card in the Someday section (or back in the main list, in its old place). Refused for a started, done or
+   * dropped card, and for one whose claim is live (its agent's run is open, or it was just given the card): `agents` is the ledger's.
+   */
+  someday(
+    id: string,
+    aside: boolean,
+    who?: string | null,
+    agents: LedgerAgent[] = [],
+    nowMs: number = Date.now(),
+  ): BacklogItem {
+    const item = this.find(id);
+    if (aside && (item.state !== 'open' || item.landed_at)) {
+      throw new Error(
+        `${id} is ${item.landed_at ? 'done' : item.state}, only an open card can be someday`,
+      );
+    }
+    // live: its run is open, or it was just made and the agent's first line has not landed (a finished run's card is free)
+    const run = claimedAgent(item, agents);
+    if (aside && (run ? OPEN.includes(run.state) : liveClaim(item, null, nowMs))) {
+      throw new Error(
+        `${id} is claimed by ${item.claim?.agent}, who is working it: it can be someday once that run is over`,
+      );
+    }
+    this.append({ op: 'someday', id, on: aside, by: clean(who, 'the name', BY_MAX) || 'cli' });
     return this.find(id);
   }
 
@@ -742,6 +791,9 @@ export function backlogCards(
                 links: links.get(item.id) ?? null,
               }
             : null,
+        ...(item.someday && item.state === 'open' && column === 'backlog'
+          ? { someday: true as const }
+          : {}),
         start_line: startLine(item),
         // an open item whose claimed agent is in the ledger: what is working it, or who tried it
         agent: original.state === 'open' && !derived && link?.agent ? { links: link, tried } : null,

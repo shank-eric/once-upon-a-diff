@@ -174,6 +174,20 @@ export class Board {
     return item;
   }
 
+  /** Puts an open backlog item in the Someday section, or back (a card's Someday button). The ledger says whether its claim is live. */
+  somedayBacklog(id: string, aside: boolean, who: string): BacklogItem {
+    const settings = readSettings(this.home).board;
+    const now = (this.options.now || (() => new Date()))();
+    const { agents } = readAgents(
+      { home: this.home, ledger: settings.ledgerFile, progress: null },
+      now,
+      settings.ledgerTimeZone,
+    );
+    const item = this.backlog.someday(id, aside, who, agents, now.getTime());
+    this.invalidate();
+    return item;
+  }
+
   /** Drops a backlog item (a card's Drop). */
   dropBacklog(id: string, who: string): BacklogItem {
     const item = this.backlog.drop(id, who);
@@ -551,6 +565,9 @@ export class Board {
     }
     if (item.state === 'started') {
       throw new BoardError(409, 'that item is already started');
+    }
+    if (item.someday) {
+      throw new BoardError(409, 'that item is someday: bring it back to the backlog first');
     }
     // voice that has ended (the card stays pinned for the day) is just another session
     const voice = (await this.snapshot()).voice;

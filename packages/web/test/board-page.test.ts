@@ -527,6 +527,55 @@ test('Drop is on the card, Copy start line is not: Drop asks the bridge to drop 
   assert.deepEqual(sentTo('/api/board/backlog/drop')[0].body, { id: 'bl_3' });
 });
 
+test('the Someday button is only on a card in the Backlog column', async () => {
+  const working = { ...backlog('bl_busy'), column: 'working' as const };
+  const done = { ...backlog('bl_tried'), column: 'done' as const };
+  answer = () => withCards(working, done);
+  await pollNow();
+  assert.equal($('[data-backlog-someday="bl_busy"]'), null, 'working: no button');
+  assert.equal($('[data-backlog-someday="bl_tried"]'), null, 'done: no button');
+  assert.ok($('[data-backlog-someday="bl_1"]'), 'a Backlog card has it');
+  answer = () => board();
+  await pollNow();
+});
+
+test('a someday card is out of the Backlog lanes and its count, in a Someday section closed until opened', async () => {
+  requests.length = 0;
+  const later = backlog('bl_later');
+  (later.backlog as { someday?: true }).someday = true;
+  answer = () => withCards(later);
+  await pollNow();
+  assert.equal(cardOf('bl_later'), null, 'not in the Backlog column, and the section is closed');
+  assert.deepEqual(order().sort(), ['bl_1', 'bl_2', 'bl_3', 'bl_9']);
+  assert.match(
+    $('.ou-local-top-main .ou-local-muted')?.textContent as string,
+    /4 in backlog/,
+    'the summary counts the main list',
+  );
+  const toggle = $('[data-someday-toggle]');
+  assert.match(toggle?.textContent as string, /Someday\s+1/);
+  assert.equal(toggle?.getAttribute('aria-expanded'), 'false');
+  await click(toggle);
+  assert.equal($('[data-someday-toggle]')?.getAttribute('aria-expanded'), 'true');
+  const shown = cardOf('bl_later');
+  assert.ok(shown, 'the open section lists it');
+  assert.ok($('[data-someday]')?.contains(shown));
+  assert.equal(shown.querySelector('[data-backlog-assign]'), null, 'no Assign on a someday card');
+  // Alt+Arrow on a someday card moves nothing: it is not in the lane's order, so a move would lose its old place
+  fire(shown, 'keydown', { key: 'ArrowDown', altKey: true });
+  fire(shown, 'keydown', { key: 'ArrowUp', altKey: true });
+  await tick();
+  assert.deepEqual(sentTo('/api/board/backlog/move'), []);
+  // Back to backlog sends on:false; a main card's Someday button sends on:true
+  await click(shown.querySelector('[data-backlog-someday]'));
+  assert.deepEqual(sentTo('/api/board/backlog/someday')[0].body, { id: 'bl_later', on: false });
+  await click($('[data-backlog-someday="bl_1"]'));
+  assert.deepEqual(sentTo('/api/board/backlog/someday')[1].body, { id: 'bl_1', on: true });
+  await click($('[data-someday-toggle]'));
+  answer = () => board();
+  await pollNow();
+});
+
 test('a claimed Backlog item whose agent is running takes the Working border, and one waiting takes the Waiting border', async () => {
   const claimed = (id: string, column: 'working' | 'waiting') => ({ ...backlog(id), column });
   answer = () => withCards(claimed('bl_run', 'working'), claimed('bl_wait', 'waiting'));

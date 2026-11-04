@@ -27,6 +27,7 @@
  *   POST /api/board/backlog     {title, note?, repo?}: add a backlog item (the Backlog column's Add)
  *   POST /api/board/backlog/move {id, before | edge}: reorder (before another item's id, or edge top or bottom)
  *   POST /api/board/backlog/edit {id, title?, note?, repo?}: change an open item (a field left out stays; '' clears a note or repo)
+ *   POST /api/board/backlog/someday {id, on}: put an open card in the Someday section, or back in the main list in its old place
  *   POST /api/board/backlog/drop {id}: drop one. Start is the CLI's (`once-upon backlog start`), not the page's
  *   POST /api/board/backlog/assign {id, session}: type the item's start line (built here from the store, the body has no
  *                               text) into an idle session in the item's repo, which then runs `once-upon backlog start`
@@ -185,6 +186,13 @@ function editBacklog({ app, body: raw, send }: Call) {
   return send(200, { ok: true });
 }
 
+/** POST {id, on}: a card to the Someday section (or back). The ledger says whether an agent is working it (the store refuses then). */
+function somedayBacklog({ app, body: raw, send }: Call) {
+  const { id, on } = parseBody('boardBacklogSomeday', raw);
+  asBadRequest(() => app.board.somedayBacklog(id, on, 'board'));
+  return send(200, { ok: true });
+}
+
 /** POST {id}: drop a backlog item. The line stays in the file. */
 function dropBacklog({ app, body, send }: Call) {
   const { id } = parseBody('boardBacklogDrop', body);
@@ -269,6 +277,7 @@ export const boardRoutes: ApiRoute[] = [
   { route: ROUTES.boardReviewed, handle: reviewLocal },
   { route: ROUTES.boardBacklogMove, handle: moveBacklog },
   { route: ROUTES.boardBacklogEdit, handle: editBacklog },
+  { route: ROUTES.boardBacklogSomeday, handle: somedayBacklog },
   { route: ROUTES.boardBacklogDrop, handle: dropBacklog },
   { route: ROUTES.boardWorktreeClean, handle: cleanWorktree },
   { route: ROUTES.boardBacklogAssign, handle: assignBacklog },

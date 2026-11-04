@@ -1,5 +1,5 @@
 /*
- * The backlog from the terminal: `once-upon backlog add|list|show|edit|start|claim|done|land|hold|drop|reopen`. It reads and writes the backlog file
+ * The backlog from the terminal: `once-upon backlog add|list|show|edit|start|claim|done|land|hold|someday|drop|reopen`. It reads and writes the backlog file
  * (services/backlog/backlog.ts) in-process, so nothing goes over HTTP; the board shows the items as its Backlog column.
  */
 import { formatTime } from '../../services/config/settings.ts';
@@ -16,7 +16,7 @@ import type { CliOpts, Command } from '../types.ts';
 
 const USAGE =
   'usage: once-upon backlog add "TITLE" [--note TEXT] [--repo owner/name] [--branch NAME] [--by NAME]\n' +
-  '       once-upon backlog list [--all] [--json]\n' +
+  '       once-upon backlog list [--all] [--json] [--someday]\n' +
   '       once-upon backlog show ID\n' +
   '       once-upon backlog edit ID [--title TEXT] [--note TEXT] [--repo owner/name]\n' +
   '       once-upon backlog start ID [--branch NAME] [--repo owner/name] [--by NAME]\n' +
@@ -25,6 +25,7 @@ const USAGE =
   '       once-upon backlog done ID [--sha SHA] [--by NAME]\n' +
   '       once-upon backlog land [PICKED_SHA...] --from REF --to REF [--by NAME] [--dry-run]\n' +
   '       once-upon backlog hold ID [--off]\n' +
+  '       once-upon backlog someday ID [--off]\n' +
   '       once-upon backlog drop ID\n' +
   '       once-upon backlog reopen ID';
 
@@ -37,7 +38,10 @@ const reported = (item: BacklogItem): string =>
 /** the reported state (marked when a deploy leaves the card to be closed by hand) */
 const stateOf = (item: BacklogItem): string => {
   const state = reported(item);
-  return item.hold && state !== 'done' ? `${state} (by hand)` : state;
+  const marks = [item.hold && state !== 'done' && 'by hand', item.someday && 'someday'].filter(
+    Boolean,
+  );
+  return marks.length ? `${state} (${marks.join(', ')})` : state;
 };
 
 /** an item as `show` and `list --json` print it, with its reported state */
@@ -73,16 +77,30 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     return out(`${item.id} added: ${item.title}`);
   }
   if (verb === 'list') {
-    const items = store.items().filter((item) => opts.all || reported(item) === 'open');
+    const all = store.items().filter((item) => opts.all || reported(item) === 'open');
+    // the Someday section is collapsed: out of the main list, and printed (expanded) only by --someday
+    // (--all is everything, someday cards marked in place)
+    const later = all.filter((item) => item.someday);
+    let items = all.filter((item) => !item.someday);
+    if (opts.someday) {
+      items = later;
+    } else if (opts.all) {
+      items = all;
+    }
     if (opts.json) {
       return out(JSON.stringify(items.map(shown), null, 2));
     }
     // in the board's order, numbered
-    return out(
-      items.length
-        ? items.map((item, index) => `${index + 1}\t${describe(item, home)}`).join('\n')
-        : 'No backlog items.',
-    );
+    const lines = items.map((item, index) => `${index + 1}\t${describe(item, home)}`);
+    if (opts.someday) {
+      return out(
+        later.length ? [`Someday (${later.length})`, ...lines].join('\n') : 'Nothing is someday.',
+      );
+    }
+    if (later.length && !opts.all) {
+      lines.push(`Someday (${later.length})`);
+    }
+    return out(items.length || later.length ? lines.join('\n') : 'No backlog items.');
   }
   if (verb === 'show') {
     return out(JSON.stringify(shown(found()), null, 2));
@@ -213,6 +231,16 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
         : `${held.id} released: a deploy can mark it done again`,
     );
   }
+  if (verb === 'someday') {
+    const item = found();
+    // the ledger says whether the card's claim is live (an agent working it)
+    const maybe = store.someday(item.id, !opts.off, who, new AgentRegistry(home).agents());
+    return out(
+      maybe.someday
+        ? `${maybe.id} someday: out of the main list, in the Someday section (backlog someday ${maybe.id} --off brings it back)`
+        : `${maybe.id} back in the backlog, in its old place`,
+    );
+  }
   if (verb === 'drop') {
     const item = found();
     store.drop(item.id, who);
@@ -240,16 +268,18 @@ export const backlogCommands: Command[] = [
       'done',
       'land',
       'hold',
+      'someday',
       'drop',
       'reopen',
     ],
     usage: [
       '  once-upon backlog add "TITLE" [--note TEXT] [--repo owner/name] [--branch NAME]  keep something for later: a card in the board\'s Backlog column',
       '  once-upon backlog edit ID [--title TEXT] [--note TEXT] [--repo owner/name]      change an open card in place (an empty --note or --repo clears it)',
-      '  once-upon backlog list [--all] [--json] | show ID | drop ID | reopen ID         the items in board order (open ones, or all), one item, drop one, or bring a dropped one back',
+      '  once-upon backlog list [--all] [--json] [--someday] | show ID | drop ID | reopen ID  the items in board order (open ones, or all), one item, drop one, or bring a dropped one back',
       '  once-upon backlog done ID [--sha SHA]                                            the work landed: the card goes to Done for an hour',
       '  once-upon backlog land [PICKED_SHA...] --from REF --to REF [--dry-run]           a deploy: mark done the cards whose recorded commit (agent finish --commit) is in the range',
       '  once-upon backlog hold ID [--off]                                                the card lands by hand: a deploy never marks it done',
+      '  once-upon backlog someday ID [--off]                                             maybe someday: out of the main list into a collapsed Someday section (list --someday shows it)',
       '  once-upon backlog move ID --before ID | --top | --bottom                        reorder: new items go to the bottom',
       "  once-upon backlog start ID [--branch NAME]                                       work began: the card moves onto that branch's work card",
       '  once-upon backlog claim ID --agent NAME [--sid SID8] [--branch NAME]            an agent takes the card: the board links card and agent only by this (--branch also starts it)',

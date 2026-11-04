@@ -16,6 +16,7 @@ import {
   foldBacklog,
   startLine,
 } from '../src/services/backlog/backlog.ts';
+import { AgentRegistry } from '../src/services/ledger/registry.ts';
 import { Board, noPrWatcher } from '../src/services/board/board.ts';
 import { registrySource } from '../src/services/sessions/sources.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
@@ -1079,4 +1080,218 @@ test('reopen also clears an assignment', () => {
   store.drop(item.id);
   const back = store.reopen(item.id);
   assert.equal(back.assigned, null);
+});
+
+test('someday: an open card carries the flag on its board card, keeps its place, and work on it clears the flag', () => {
+  const store = new BacklogStore(tmp('backlog-someday-store'));
+  const first = store.add({ title: 'First', repo: 'acme/widgets' });
+  const second = store.add({ title: 'Second', repo: 'acme/widgets' });
+  const third = store.add({ title: 'Third', repo: 'acme/widgets' });
+  const someday = (id: string) =>
+    backlogCards(store.items(), [], NOW).find((card) => card.backlog?.id === id)?.backlog?.someday;
+  assert.equal(someday(second.id), undefined, 'no flag, no key');
+
+  assert.equal(store.someday(second.id, true).someday, true);
+  assert.equal(someday(second.id), true);
+  assert.equal(someday(first.id), undefined);
+  assert.deepEqual(
+    store.items().map((item) => item.id),
+    [first.id, second.id, third.id],
+    'the order is untouched',
+  );
+  assert.equal(store.someday(second.id, false).someday, false);
+  assert.equal(someday(second.id), undefined, 'back in the main list');
+  assert.deepEqual(
+    store.items().map((item) => item.id),
+    [first.id, second.id, third.id],
+    'back in its old place',
+  );
+
+  // work on a someday card brings it back: a claim, a start, a done, a reopen
+  for (const [name, act] of [
+    ['claim', (id: string) => store.claim(id, { agent: 'ou-x' })],
+    ['start', (id: string) => store.start(id, { branch: 'b' })],
+    ['done', (id: string) => store.done(id)],
+    [
+      'reopen',
+      (id: string) => {
+        store.drop(id);
+        return store.reopen(id);
+      },
+    ],
+  ] as const) {
+    const one = store.add({ title: `via ${name}` });
+    store.someday(one.id, true);
+    assert.equal(act(one.id).someday, false, name);
+  }
+
+  // a drop clears it too, so list --all --someday never counts a dropped card
+  const dropping = store.add({ title: 'Dropping' });
+  store.someday(dropping.id, true);
+  assert.equal(store.drop(dropping.id).someday, false);
+
+  // only an open card: a started, done or dropped one is refused (and a claimed one, below)
+  const started = store.add({ title: 'Started' });
+  store.start(started.id, { branch: 'c' });
+  assert.throws(() => store.someday(started.id, true), /only an open card can be someday/);
+  const landed = store.add({ title: 'Landed' });
+  store.done(landed.id);
+  assert.throws(() => store.someday(landed.id, true), /done, only an open card/);
+  const gone = store.add({ title: 'Gone' });
+  store.drop(gone.id);
+  assert.throws(() => store.someday(gone.id, true), /dropped, only an open card/);
+  assert.throws(() => store.someday('bl_nothere1', true), /no backlog item/);
+});
+
+test('someday refuses a card whose claim is live, and takes one whose agent has finished', () => {
+  const home = tmp('backlog-someday-claim');
+  const store = new BacklogStore(home);
+  const registry = new AgentRegistry(home);
+  const item = store.add({ title: 'Claimed', repo: 'acme/widgets' });
+  store.claim(item.id, { agent: 'ou-claimed', sid: 'aaaaaaaa' });
+  // claimed a moment ago, and its agent has no ledger line yet: pending, so live
+  assert.throws(
+    () => store.someday(item.id, true, null, registry.agents()),
+    /claimed by ou-claimed, who is working it/,
+  );
+  registry.start({
+    name: 'ou-claimed',
+    sid: 'aaaaaaaa',
+    kind: 'author',
+    task: 'try it',
+    repo: 'acme/widgets',
+  });
+  assert.throws(() => store.someday(item.id, true, null, registry.agents()), /is working it/);
+  registry.finish('ou-claimed', { sid: 'aaaaaaaa', state: 'failed' });
+  // the run is over: the card is back in Backlog and can be set aside
+  assert.equal(store.someday(item.id, true, null, registry.agents()).someday, true);
+});
+
+test('the CLI: someday takes a card out of list, list --someday shows the section, --off puts it back in its old place', async () => {
+  const home = tmp('backlog-someday-cli');
+  const ids: string[] = [];
+  for (const title of ['One', 'Two', 'Three']) {
+    const added = await runCli(home, ['backlog', 'add', title, '--repo', '']);
+    ids.push(/^(bl_[a-z0-9]+) added/.exec(added.stdout)?.[1] as string);
+  }
+  const rows = async (...args: string[]) =>
+    (await runCli(home, ['backlog', 'list', ...args])).stdout
+      .trim()
+      .split('\n')
+      .map((line) => line.split('\t').slice(0, 2).join(' '));
+
+  const set = await runCli(home, ['backlog', 'someday', ids[1]]);
+  assert.equal(set.code, 0, set.stderr);
+  assert.match(set.stdout, /someday: out of the main list/);
+  // the main list: the other two, numbered, then the collapsed section's heading alone
+  assert.deepEqual(await rows(), [`1 ${ids[0]}`, `2 ${ids[2]}`, 'Someday (1)']);
+  // the section expanded under the same heading
+  assert.deepEqual(await rows('--someday'), ['Someday (1)', `1 ${ids[1]}`]);
+  assert.deepEqual(
+    JSON.parse((await runCli(home, ['backlog', 'list', '--json'])).stdout).map(
+      (item: { id: string }) => item.id,
+    ),
+    [ids[0], ids[2]],
+  );
+  assert.match((await runCli(home, ['backlog', 'list', '--all'])).stdout, /open \(someday\)/);
+
+  const back = await runCli(home, ['backlog', 'someday', ids[1], '--off']);
+  assert.match(back.stdout, /back in the backlog, in its old place/);
+  assert.deepEqual(await rows(), [`1 ${ids[0]}`, `2 ${ids[1]}`, `3 ${ids[2]}`]);
+  assert.equal(
+    (await runCli(home, ['backlog', 'list', '--someday'])).stdout.trim(),
+    'Nothing is someday.',
+  );
+
+  // a card an agent was just given is not someday
+  await runCli(home, ['backlog', 'claim', ids[0], '--agent', 'ou-busy']);
+  const refused = await runCli(home, ['backlog', 'someday', ids[0]]);
+  assert.notEqual(refused.code, 0);
+  assert.match(refused.stderr, /claimed by ou-busy/);
+  assert.notEqual((await runCli(home, ['backlog', 'someday', 'bl_nothere1'])).code, 0);
+});
+
+test('POST /api/board/backlog/someday moves a card in and out of the Someday section', async () => {
+  const home = tmp('backlog-someday-route');
+  writeJson(path.join(home, 'config.json'), {
+    board_sessions_dir: tmp('backlog-someday-sessions'),
+    board_status_source: 'registry',
+  });
+  const id = /^(bl_[a-z0-9]+) added/.exec(
+    (await runCli(home, ['backlog', 'add', 'Later', '--repo', 'acme/widgets'])).stdout,
+  )?.[1] as string;
+  const bridge = await startBridge({ home });
+  open.push(bridge);
+  const withKey = { Authorization: `Bearer ${boardKey(TOKEN)}` };
+  const flag = async () =>
+    (await bridge.call<BoardData>('GET', '/api/board', undefined, withKey)).body.lanes
+      .flatMap((lane) => lane.cards)
+      .find((one) => one.backlog?.id === id)?.backlog?.someday;
+  assert.equal(await flag(), undefined);
+  assert.equal(
+    (await bridge.call('POST', '/api/board/backlog/someday', { id, on: true }, withKey)).status,
+    200,
+  );
+  assert.equal(await flag(), true);
+  // a someday card has no Assign prompt, and the assign route refuses it
+  const assignOf = async () =>
+    (await bridge.call<BoardData>('GET', '/api/board', undefined, withKey)).body.lanes
+      .flatMap((lane) => lane.cards)
+      .find((one) => one.backlog?.id === id)?.backlog?.assign;
+  assert.equal(await assignOf(), null);
+  const assigned = await bridge.call<{ error: string }>(
+    'POST',
+    '/api/board/backlog/assign',
+    { id },
+    withKey,
+  );
+  assert.equal(assigned.status, 409);
+  assert.match(assigned.body.error, /someday/);
+  assert.equal(
+    (await bridge.call('POST', '/api/board/backlog/someday', { id, on: false }, withKey)).status,
+    200,
+  );
+  assert.equal(await flag(), undefined);
+  assert.ok(await assignOf(), 'back in the backlog, it has its Assign prompt again');
+  for (const body of [{}, { id }, { id: 'bl_nothere1', on: true }, { id: 'nope', on: true }]) {
+    assert.equal(
+      (await bridge.call('POST', '/api/board/backlog/someday', body, withKey)).status,
+      400,
+      JSON.stringify(body),
+    );
+  }
+  assert.equal(
+    (
+      await bridge.call(
+        'POST',
+        '/api/board/backlog/someday',
+        { id, on: true },
+        { Authorization: `Bearer ${pageKey(TOKEN, 'x')}` },
+      )
+    ).status,
+    403,
+  );
+});
+
+test('a someday card whose claimed agent finished: someday while its column is Backlog, plain once the run is Done', () => {
+  const store = new BacklogStore(tmp('backlog-someday-finished'));
+  const item = store.add({ title: 'Tried', repo: 'acme/widgets' });
+  store.claim(item.id, { agent: 'hold-speech' });
+  // the claim is old by now, so the store takes the flag
+  store.someday(item.id, true, null, [], Date.now() + 3 * 3600 * 1000);
+  const ended = new Date(NOW - 10 * 60 * 1000).toISOString();
+  const cardFor = (state: BoardAgentState) =>
+    backlogCards(
+      store.items(),
+      [],
+      NOW,
+      [],
+      new Map([[item.id, linked({ agent: agentLink(state, ended) })]]),
+    )[0];
+  // failed: back in Backlog, tried, and in the Someday section
+  assert.equal(cardFor('failed').column, 'backlog');
+  assert.equal(cardFor('failed').backlog?.someday, true);
+  // finished: the card is Done, and only a card in Backlog carries the flag
+  assert.equal(cardFor('done').column, 'done');
+  assert.equal(cardFor('done').backlog?.someday, undefined);
 });

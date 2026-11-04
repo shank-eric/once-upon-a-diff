@@ -245,6 +245,10 @@ export function addBacklogCards(
     if (card.backlog.started || (card.backlog.claim && !card.backlog.agent?.tried)) {
       continue;
     }
+    // (a someday card is out of the pick order: no Assign until it is back in the backlog)
+    if (item.someday) {
+      continue;
+    }
     card.backlog.assign = { prompt: assignLine(item) };
     if (card.backlog.assigned) {
       const sent = card.backlog.assigned.session;

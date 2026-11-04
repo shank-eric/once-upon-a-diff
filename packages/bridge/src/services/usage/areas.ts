@@ -118,6 +118,7 @@ export const ROUTE_AREAS: Record<RouteName, Area> = {
   boardBacklogMove: 'Backlog',
   boardBacklogEdit: 'Backlog',
   boardBacklogDrop: 'Backlog',
+  boardBacklogSomeday: 'Backlog',
   boardBacklogAssign: 'Backlog',
   boardWorktreeClean: 'Worktrees',
   authSession: 'Server shell',

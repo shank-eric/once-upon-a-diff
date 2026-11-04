@@ -203,6 +203,11 @@ export const ROUTES = {
     '/api/board/backlog/drop',
     'token+board',
   ),
+  boardBacklogSomeday: api<In<'boardBacklogSomeday'>, Ok>(
+    'POST',
+    '/api/board/backlog/someday',
+    'token+board',
+  ),
   boardBacklogAssign: api<In<'boardBacklogAssign'>, Ok & { typed: string; session: string }>(
     'POST',
     '/api/board/backlog/assign',

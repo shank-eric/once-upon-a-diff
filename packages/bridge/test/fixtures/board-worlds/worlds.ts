@@ -874,6 +874,7 @@ async function record(
   registry(sessions, usingTree, { cwd: path.join(trees, 'in-use'), name: 'in-use-one' });
   const idleW = liveChild();
   registry(sessions, idleW, { cwd: checkout, name: 'idle-widgets' });
+  const CLAIMED_AT = '2026-10-26T18:35:00.000Z';
   const events = [
     {
       op: 'add',
@@ -955,10 +956,40 @@ async function record(
       by: 'cli',
     },
     { op: 'start', id: 'bl_aaaaaa7', branch: 'ghost-branch', repo: 'acme/widgets', by: 'someone' },
+    // maybe someday: still a Backlog card, flagged for the Someday section, with no Assign
+    {
+      op: 'add',
+      id: 'bl_aaaaaa8',
+      title: 'Maybe someday',
+      note: 'later',
+      repo: 'acme/widgets',
+      branch: null,
+      by: 'cli',
+    },
+    { op: 'someday', id: 'bl_aaaaaa8', on: true, by: 'cli' },
+    // tried by an agent that failed, then set aside: back in Backlog, and someday
+    {
+      op: 'add',
+      id: 'bl_aaaaaa9',
+      title: 'Tried, then set aside',
+      note: null,
+      repo: 'acme/widgets',
+      branch: null,
+      by: 'cli',
+    },
+    {
+      op: 'claim',
+      id: 'bl_aaaaaa9',
+      agent: 'ou-tried',
+      sid: 'aaaaaaaa',
+      by: 'cli',
+      at: CLAIMED_AT,
+    },
+    { op: 'someday', id: 'bl_aaaaaa9', on: true, by: 'cli' },
   ];
   writeFileSync(
     path.join(home, 'backlog.jsonl'),
-    events.map((event) => JSON.stringify({ ...event, at: NOW.toISOString() })).join('\n') + '\n',
+    events.map((event) => JSON.stringify({ at: NOW.toISOString(), ...event })).join('\n') + '\n',
   );
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: sessions,
@@ -985,6 +1016,17 @@ async function record(
     result: { commit: depBumpTip, branch: 'dep-bump' },
     at: et(14, 41),
   });
+  authors.start({
+    sid: 'aaaaaaaa',
+    name: 'ou-tried',
+    kind: 'author',
+    task: 'try the set-aside card',
+    repo: 'acme/widgets',
+    model: 'sonnet',
+    effort: 'low',
+    at: et(14, 30),
+  });
+  authors.finish('ou-tried', { state: 'failed', outcome: 'gave up', at: et(14, 41) });
   const { watcher, asked } = fakeWatcher([], {
     'acme/widgets@dep-bump': null,
     'acme/widgets@kill-inbox': null,

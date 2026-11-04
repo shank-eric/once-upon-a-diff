@@ -31,6 +31,9 @@ export type ColumnsView = {
   tabs: boolean;
   idleOpen: boolean;
   onToggleIdle: () => void;
+  /** The Someday section under the Backlog column: closed until opened, remembered. */
+  somedayOpen: boolean;
+  onToggleSomeday: () => void;
   /** The Blank strip's sessions, by repo (narrowed to the repo filter's lane). */
   blank: BoardData['blank'];
   /** The editors, narrowed to the repo filter's lane: the strip above the columns. */
@@ -69,7 +72,18 @@ function Column(props: { column: (typeof COLUMNS)[number]; view: ColumnsView }) 
       const folded = collapsed.has(`${column.id}/${group.name}`);
       return html`<div class="ou-board-lane" key=${group.name}><${LaneHead} column=${column} name=${group.name} total=${group.cards.length} folded=${folded} onFold=${view.onFold} />${!folded && html`<ul class="ou-board-cards" ...${slot.listProps ?? {}}>${group.cards.map((card) => view.renderCard(card))}</ul>`}</div>`;
     })}
+    ${column.id === 'backlog' && layout.somedayCount > 0 && html`<${Someday} view=${view} />`}
   </section>`;
+}
+
+/** The Backlog column's Someday section: a heading with its count and a Show/Hide toggle, closed unless opened. */
+function Someday(props: { view: ColumnsView }) {
+  const { view } = props;
+  const { layout, somedayOpen } = view;
+  return html`<div class="ou-board-someday" data-someday>
+    <h3 class="ou-board-lane-label"><button type="button" class="ou-board-lane-toggle" data-someday-toggle aria-expanded=${String(somedayOpen)} onClick=${view.onToggleSomeday} title="Cards kept for maybe someday, out of the main Backlog"><span aria-hidden="true">${somedayOpen ? '▾' : '▸'}</span> Someday <span class="ou-board-lane-count">${layout.somedayCount}</span></button></h3>
+    ${somedayOpen && layout.someday.map((group) => html`<div class="ou-board-lane" key=${group.name}><h3 class="ou-board-lane-label">${group.name}</h3><ul class="ou-board-cards">${group.cards.map((card) => view.renderCard(card))}</ul></div>`)}
+  </div>`;
 }
 
 /** What a column needs (local.css: 210px and a 12px gap), and what a group adds around its columns (padding, and the border between them). */
