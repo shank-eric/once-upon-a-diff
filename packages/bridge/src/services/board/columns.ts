@@ -1,7 +1,8 @@
 /**
  * Which column a card goes in: the work moves left to right to merge. The first that fits:
  *
- *   waiting   a session or agent on it is blocked on a question (an agent parked on your story review is not: see ready)
+ *   waiting   a session or agent on it is blocked on a question (an agent parked on your story review is not: see ready), or
+ *             an agent on it failed (after merged: a failure on a merged card is not news)
  *   checks    an agent on it is at an automated gate (a plan to check, a reviewer running, findings being fixed): the
  *             launching session is the next actor, not you. Above working, because the session is busy exactly while it
  *             checks the plan or fixes the findings, and a running reviewer is a running agent
@@ -20,7 +21,7 @@
  *   pr_open   pushed with a PR, and nothing waits on you
  *   research  a finished research agent with no card to sit in and no result (set by stages/agents.ts on an agent's own card,
  *             never by this function: a work card is never in it)
- *   error     a failed agent, or a session whose tab says error
+ *   error     a session whose tab says error
  *   idle      nothing is happening and there is no PR: a session at its prompt (a lane along the bottom of the page)
  *
  * A card in Back to you clears when you mark its story reviewed, open it (the panel records where you stopped and what
@@ -97,6 +98,11 @@ export function columnOf(input: ColumnInput): BoardColumn {
   if (pr?.state === 'merged') {
     return 'done';
   }
+  // a failed agent on the card (nested by its branch, PR or card, or the claimed author) needs a look, as its own card
+  // would in Waiting (finishedColumn); it is Waiting, not Error, which is the session's tab, and it stays a line on the card
+  if (agents.some((agent) => agent.state === 'failed')) {
+    return 'waiting';
+  }
   if (story?.local && story.approved && !pr) {
     return 'ship';
   }
@@ -127,10 +133,7 @@ export function columnOf(input: ColumnInput): BoardColumn {
   if (pr) {
     return isBackToYou(input) || pr.review_requested ? 'back' : 'pr_open';
   }
-  if (
-    sessions.some((session) => session.status === 'error') ||
-    agents.some((agent) => agent.state === 'failed')
-  ) {
+  if (sessions.some((session) => session.status === 'error')) {
     return 'error';
   }
   return 'idle';

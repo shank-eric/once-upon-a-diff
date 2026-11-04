@@ -267,13 +267,16 @@ function placeCard(card: BoardCard, byStory: Map<string, StoryFacts>): void {
   });
   const asking = card.sessions.find((session) => session.status === 'waiting');
   const waitingAgent = card.agents.find((agent) => agent.state === 'waiting' && !agent.review);
+  const failedAgent = card.agents.find((agent) => agent.state === 'failed');
   const busy = card.sessions.find((session) => session.status === 'working');
   switch (card.column) {
     case 'waiting':
-      card.detail = asking?.detail || null;
+      card.detail =
+        asking?.detail || (!waitingAgent && failedAgent ? `${failedAgent.name} failed` : null);
       card.since = earliest([
         ...card.sessions.filter((one) => one.status === 'waiting').map((one) => one.since),
         waitingAgent?.ended_at,
+        ...(asking || waitingAgent || !failedAgent ? [] : [failedAgent.ended_at]),
       ]);
       break;
     case 'checks': {

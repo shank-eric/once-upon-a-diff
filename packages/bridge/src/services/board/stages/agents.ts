@@ -196,19 +196,22 @@ export function placeAgents(
     const voiceParent = pin && pin.view.id.startsWith(agent.sid) ? pin : null;
     const parentSession =
       parent?.sessions.find((one) => one.id.startsWith(agent.sid)) ?? voiceParent?.view;
+    // a finished agent is gone once its card's Finish cleared it and it has done nothing since (a ledger line in the
+    // minute of the click is not told apart: the times carry no seconds), wherever it would sit
+    const clearedAt = isFinished(agent) ? cleared.get(agentKey(agent)) : undefined;
+    const wasCleared = clearedAt !== undefined && !!active && active.getTime() <= clearedAt;
+    if (wasCleared) {
+      continue;
+    }
     // an agent belongs in the card its registered repo, branch, PR or card point to, wherever its launching session is
     const home = homeOf(agent, cards, items);
     if (home) {
       home.agents.push(view);
       continue;
     }
-    // a finished agent's card is in Waiting for a while, unless it was cleared and has done nothing since (a ledger line
-    // in the minute of the click is not told apart: the times carry no seconds)
-    if (isFinished(agent)) {
-      const clearedAt = cleared.get(`${agent.sid}:${agent.name}`);
-      if (!clearsAt || (clearedAt !== undefined && active && active.getTime() <= clearedAt)) {
-        continue;
-      }
+    // a finished agent's own card is in Waiting for a while
+    if (isFinished(agent) && !clearsAt) {
+      continue;
     }
     // parked on your story review is Ready, not Waiting. A finished agent's column is finishedColumn's: Done when it made
     // something, Research when it only looked, Waiting when it failed or an author made nothing

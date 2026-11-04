@@ -3,12 +3,10 @@ import { statSync } from 'node:fs';
 import path from 'node:path';
 import { DEFAULT_BRANCHES } from '../../review/story-lists.ts';
 import { sameRepo, seenCheckouts } from '../../config/repos.ts';
-import { pathsIn } from '../../worktrees/checkouts.ts';
 import type { LedgerAgent } from '../../ledger/ledger.ts';
 import type { LiveSession } from '../../../adapters/claude-sessions/registry.ts';
 import { judge, workingIn } from '../../worktrees/worktrees.ts';
 import type { WorktreeFacts, WorktreeScanner } from '../../worktrees/worktrees.ts';
-import { agentKey } from '../../backlog/claims.ts';
 import type {
   BoardAgent,
   BoardCard,
@@ -56,10 +54,10 @@ export function worktreeSection({
   keepBranches,
   nowMs,
 }: WorktreeInput): BoardWorktrees {
-  // (the agents' task text still finds worktrees to look at, never which are in use: that is cwds only. Kept until bl_mw12ymyrceec6c replaces it)
+  // where to look: the folders of live sessions and of registered agents (never the text of a task), and the checkouts seen
   const seeds = [
     ...live.map((session) => session.cwd),
-    ...agents.flatMap((agent) => pathsIn(agent.task).map((found) => dirOf(found) ?? '')),
+    ...agents.map((agent) => agent.cwd ?? ''),
     ...seenCheckouts(home),
   ].filter(Boolean);
   scanner.kick(seeds);
@@ -79,7 +77,6 @@ export function worktreeSection({
   );
   const inside = (dir: string, parent: string) =>
     dir === parent || dir.startsWith(parent + path.sep);
-  const byKey = new Map(agents.map((agent) => [agentKey(agent), agent]));
   const loose: BoardWorktree[] = [];
   for (const tree of judged) {
     const card = cards.find(
@@ -91,7 +88,7 @@ export function worktreeSection({
           sameRepo(one.repo, tree.repo) &&
           one.branch === tree.branch) ||
         one.sessions.some((session) => inside(session.cwd, tree.path)) ||
-        one.agents.some((agent) => usedBy(tree, agent, byKey)) ||
+        one.agents.some((agent) => usedBy(tree, agent)) ||
         !!one.backlog?.started?.links?.worktrees.some((linked) => linked.path === tree.path),
     );
     if (card) {
@@ -119,19 +116,9 @@ export function worktreeSection({
   };
 }
 
-/**
- * Whether a card's agent is one holding the worktree. The holder is by `<sid8>:<name>`; a card's agent carries no sid, so
- * it is found by name and start time among the ledger's agents of that key.
- */
-function usedBy(tree: BoardWorktree, agent: BoardAgent, byKey: Map<string, LedgerAgent>): boolean {
-  return tree.in_use.some((using) => {
-    const held = using.kind === 'agent' ? byKey.get(using.id) : undefined;
-    return (
-      !!held &&
-      held.name === agent.name &&
-      (held.started?.toISOString() ?? null) === agent.started_at
-    );
-  });
+/** Whether a card's agent is one holding the worktree: the holder's id is its key, `<sid8>:<name>`, which a card's agent carries. */
+function usedBy(tree: BoardWorktree, agent: BoardAgent): boolean {
+  return tree.in_use.some((using) => using.kind === 'agent' && using.id === agent.key);
 }
 
 /** What GitHub last said of the worktree's branch (asked in the background for a branch not yet in live or main). */

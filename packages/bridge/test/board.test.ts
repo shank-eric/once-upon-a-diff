@@ -613,7 +613,7 @@ test('columns follow the work to merge: waiting and working first, then merged, 
   assert.equal(columnOf({ ...none, sessions: [{ status: 'idle' }], pr: open }), 'pr_open');
   assert.equal(columnOf({ ...none, sessions: [{ status: 'idle' }] }), 'idle');
   assert.equal(columnOf({ ...none, sessions: [{ status: 'error' }] }), 'error');
-  assert.equal(columnOf({ ...none, agents: [{ status: 'error', state: 'failed' }] }), 'error');
+  assert.equal(columnOf({ ...none, agents: [{ status: 'error', state: 'failed' }] }), 'waiting');
   // back to you: others newer than your last activity (a review or comment of yours, or a story you marked by hand)
   const later = { viewer_at: '2026-10-26T10:00:00Z', others_at: '2026-10-26T11:00:00Z' };
   assert.equal(columnOf({ ...none, pr: prInfo(1, later) }), 'back');

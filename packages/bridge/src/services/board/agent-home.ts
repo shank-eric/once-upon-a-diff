@@ -18,14 +18,16 @@ import { isReviewer, type LedgerAgent } from '../ledger/ledger.ts';
  *   branch   its repo and branch (the finish event's branch when it has one): the branch's work card, else a session on it
  *   PR       its repo and PR number (the finish event's PR when it has one): that work card
  *   card     its backlog card (`--card`): the work or session card on that item's repo and branch, if the item has a branch.
- *            This needs no repo of the agent's own: the item supplies it
+ *            This needs no repo of the agent's own: the item supplies it. A dropped or landed item, or one whose card's PR merged,
+ *            is not a home: the branch's card is someone else's now (a merged PR's card must not go back to Working for an old claim)
  *
  * Two different cards named, or none, is no home.
  */
 export function homeOf(
   agent: Pick<LedgerAgent, 'repo' | 'branch' | 'pr' | 'card' | 'result'>,
   cards: BoardCard[],
-  items: Pick<BacklogItem, 'id' | 'repo' | 'branch'>[],
+  items: (Pick<BacklogItem, 'id' | 'repo' | 'branch'> &
+    Partial<Pick<BacklogItem, 'state' | 'landed_at'>>)[],
 ): BoardCard | null {
   const repo = agent.repo ?? null;
   const branch = agent.result?.branch ?? agent.branch ?? null;
@@ -47,8 +49,12 @@ export function homeOf(
     );
   }
   const item = agent.card ? items.find((one) => one.id === agent.card) : undefined;
-  if (item?.branch) {
-    add(cardOnBranch(item, cards));
+  if (item?.branch && item.state !== 'dropped' && !item.landed_at) {
+    // a card whose PR merged on GitHub is landed too, though its item is still `started`
+    const onItem = cardOnBranch(item, cards);
+    if (onItem?.pr?.state !== 'merged') {
+      add(onItem);
+    }
   }
   return found.size === 1 ? [...found][0] : null;
 }

@@ -27,8 +27,8 @@
  * [fixing] is written under the reviewer's name when the launcher starts on the findings (the first "<n> findings" in
  * its text is the count); a later [done] under that name clears it. A running agent whose name starts with review- is
  * a reviewer, which is a gate too, with no line of its own. sid is the first 8 characters of the launching session's id, and the name
- * is a word of letters, digits, dashes and underscores. A lane tag puts the agent on a lane of that name instead of
- * inside its parent's card. The last line with a given sid and name wins. Lines that don't match are skipped.
+ * is a word of letters, digits, dashes and underscores. A lane tag only names the lane of an agent's own card (the board
+ * nests an agent by its registered repo, branch, PR or card, agent-home.ts, whatever its tag says). The last line with a given sid and name wins. Lines that don't match are skipped.
  *
  * A finished agent (done, failed or stopped) with no card to sit in is a card of its own: in Done when it is a reviewer,
  * a registered agent whose finish event has a result, or a ledger agent with a `[done]` line; in Research when a

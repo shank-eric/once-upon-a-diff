@@ -5,6 +5,11 @@ import path from 'node:path';
 import { readSettings } from '../src/services/config/settings.ts';
 import { finishedColumn, homeOf } from '../src/services/board/agent-home.ts';
 import { NO_PARENT, placeAgents } from '../src/services/board/stages/agents.ts';
+import { columnOf } from '../src/services/board/columns.ts';
+import { worktreeSection } from '../src/services/board/stages/worktrees.ts';
+import { markFinished } from '../src/adapters/stores/finished-agents.ts';
+import type { WorktreeFacts, WorktreeScanner } from '../src/services/worktrees/worktrees.ts';
+import type { PrWatcher } from '../src/services/board/stages/pr-watcher.ts';
 import { backlogCards } from '../src/services/backlog/backlog.ts';
 import type { BacklogItem } from '../src/services/backlog/backlog.ts';
 import { nestClaimedAgents } from '../src/services/board/stages/backlog.ts';
@@ -327,4 +332,149 @@ test('a finished agent stays inside its card for an hour by default, never less 
   // the setting still overrides the default
   writeJson(path.join(home, 'config.json'), { board_done_hours: 4 });
   assert.deepEqual(nestedAfter(readSettings(home).board, 120), ['ou-done']);
+});
+
+test('a --card home is a started or open item: a dropped or landed one is not a home', () => {
+  const featY = makeY();
+  const item = { id: 'bl_aaaaaa111111', repo: 'acme/widgets', branch: 'feat/y' };
+  const homeFor = (over: Partial<BacklogItem>) =>
+    homeOf(registered({ card: item.id }), [featY], [{ ...item, ...over } as BacklogItem]);
+  assert.equal(homeFor({ state: 'started', landed_at: null }), featY);
+  assert.equal(homeFor({ state: 'open', landed_at: null }), featY);
+  assert.equal(homeFor({ state: 'dropped', landed_at: null }), null, 'dropped');
+  assert.equal(homeFor({ state: 'started', landed_at: '2026-11-03T12:00:00Z' }), null, 'landed');
+  // a PR merged on GitHub leaves the item started with no landed_at, so the card's own PR says so
+  const merged = card({ branch: 'feat/y', pr: { number: 8, state: 'merged' } as BoardCard['pr'] });
+  assert.equal(
+    homeOf(registered({ card: item.id }), [merged], [{ ...item, state: 'started' } as BacklogItem]),
+    null,
+    'its PR merged',
+  );
+});
+
+test('Finish clears a finished agent nested in a card, and a new line brings it back', () => {
+  const home = tmp('placement-finish-nested');
+  const finished = registered({
+    name: 'ou-done',
+    state: 'done',
+    repo: 'acme/widgets',
+    branch: 'feat/x',
+    ended: new Date(NOW - 5 * 60000),
+  });
+  const run = (agents: LedgerAgent[]) => {
+    const featX = makeX();
+    placeAgents({ ...ctx(), home } as unknown as BuildContext, [featX], {
+      agents,
+      beats: new Map(),
+      pin: null,
+    });
+    return nestedIn(featX);
+  };
+  assert.deepEqual(run([finished]), ['ou-done']);
+  markFinished(home, 'aaaaaaaa:ou-done', NOW - 60000);
+  assert.deepEqual(run([finished]), [], 'cleared by Finish');
+  assert.deepEqual(
+    run([{ ...finished, ended: new Date(NOW - 30000) }]),
+    ['ou-done'],
+    'it did something more after the click',
+  );
+});
+
+test('a failed agent nested in a card puts the card in Waiting, not Error or Idle, and stays a line on it', () => {
+  const sessionCard = card({
+    kind: 'session',
+    repo: 'acme/widgets',
+    branch: 'feat/z',
+    sessions: [{ id: 'cccccccc-1', status: 'idle' } as BoardCard['sessions'][number]],
+  });
+  placeAgents(ctx(), [sessionCard], {
+    agents: [
+      registered({
+        name: 'ou-broke',
+        state: 'failed',
+        repo: 'acme/widgets',
+        branch: 'feat/z',
+        ended: new Date(NOW - 60000),
+      }),
+    ],
+    beats: new Map(),
+    pin: null,
+  });
+  assert.deepEqual(nestedIn(sessionCard), ['ou-broke']);
+  const columnWith = (pr: BoardCard['pr'], agents: BoardCard['agents']) =>
+    columnOf({ sessions: sessionCard.sessions, agents, pr, story: null, building: false });
+  assert.equal(columnWith(null, sessionCard.agents), 'waiting');
+  assert.equal(
+    columnWith({ state: 'merged' } as BoardCard['pr'], sessionCard.agents),
+    'done',
+    'a merged card stays Done',
+  );
+});
+
+/** A worktree the scanner has, on feat/x, which something is working in. */
+const facts = (dir: string) =>
+  ({
+    path: dir,
+    main: dir,
+    mainBranch: 'main',
+    repo: 'acme/widgets',
+    branch: 'feat/x',
+    head: 'abc',
+    detached: false,
+    locked: false,
+    lastCommitMs: NOW,
+    created: NOW,
+    unmoved: false,
+    modified: 0,
+    untracked: 0,
+    statusHead: 'abc',
+    statusAt: NOW,
+    unpushed: 0,
+    sizeKb: 1,
+    sizeAt: NOW,
+    defaultBranch: 'main',
+    merged: false,
+    superseded: false,
+    onRemote: false,
+    reachable: true,
+    ignored: [],
+  }) as WorktreeFacts;
+
+test('a worktree goes on the card of the agent holding it by key, not by name; agent task text finds none', () => {
+  const dir = tmp('placement-worktree');
+  const kicked: string[] = [];
+  const scanner = {
+    kick: (seeds: string[]) => kicked.push(...seeds),
+    read: () => ({ items: [facts(dir)], scanning: false, finished: NOW, prunable: [] }),
+  } as unknown as WorktreeScanner;
+  const review = { kickBranch: () => {}, branchPr: () => undefined } as unknown as PrWatcher;
+  // two agents of one name, started at the same time, in two sessions; only the second works in the worktree
+  const same = { name: 'ou-x', started: new Date(NOW - 600000), state: 'running' as const };
+  const other = registered({ ...same, sid: 'aaaaaaaa', task: `look at ${dir}` });
+  const holder = registered({ ...same, sid: 'bbbbbbbb', cwd: dir });
+  const onCard = (agent: LedgerAgent): BoardCard =>
+    card({
+      repo: 'acme/other',
+      branch: `b-${agent.sid}`,
+      agents: [{ ...view(agent.sid, agent.name), started_at: agent.started?.toISOString() }],
+    } as Partial<BoardCard>);
+  const cards = [onCard(other), onCard(holder)];
+  worktreeSection({
+    scanner,
+    home: tmp('placement-worktree-home'),
+    review,
+    cards,
+    live: [],
+    sessionViews: new Map(),
+    agents: [other, holder],
+    keepBranches: [],
+    nowMs: NOW,
+  });
+  assert.equal(cards[0].worktrees, undefined, 'the same-named agent of another session');
+  assert.equal(cards[1].worktrees?.length, 1);
+  assert.deepEqual(
+    kicked.filter((seed) => seed === dir),
+    [dir],
+    'the holder’s registered cwd is a place to look, once',
+  );
 });
