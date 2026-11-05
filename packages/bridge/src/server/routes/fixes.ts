@@ -1,7 +1,7 @@
 /*
  * Fix before push, on PR and local stories alike: the notes (a line note, or a drafted comment turned into one by
  * Add to fix before push), sending them to a Claude session as one fix request (Send N notes, or Auto-send), and the
- * story's "being changed" marks from `once-upon working`. See ../../services/inbox/fixes.ts and ../../services/stories/working.ts.
+ * story's "being changed" marks from `once-upon working`. See ../../services/inbox/fixes.ts and ../../services/inbox/working.ts.
  */
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import {
@@ -16,7 +16,7 @@ import {
 } from '../../services/inbox/fixes.ts';
 import { draftKey, ghLogin } from '../../services/review/drafts.ts';
 import { relOfPath } from '../../services/stories/diff.ts';
-import { workingOf } from '../../services/stories/working.ts';
+import { workingOf } from '../../services/inbox/working.ts';
 import { prAuthorOf } from '../../services/stories/meta.ts';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';

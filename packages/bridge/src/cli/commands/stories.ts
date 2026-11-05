@@ -15,10 +15,11 @@ import {
   readBinding,
   sessionLive,
   writeBinding,
-} from '../../services/inbox/binding.ts';
+} from '../../services/listeners/binding.ts';
 import { storyIdOf } from './inbox.ts';
 
-import { vetRebuild, afterRebuild } from '../../services/stories/rebuild.ts';
+import { afterRebuild } from '../../services/publishing/after-rebuild.ts';
+import { vetRebuild } from '../../services/stories/rebuild.ts';
 import { createLocalStory } from '../../services/stories/local-story.ts';
 
 import { out } from '../output.ts';
@@ -27,7 +28,7 @@ import { localPageUrl } from '../../services/pages/page-key.ts';
 
 import type { Config } from '../../services/config/settings.ts';
 import type { CliOpts, Command } from '../types.ts';
-import { type Rebuilt, pendingRebuild, publishPrStory } from '../../services/stories/publish.ts';
+import { type Rebuilt, pendingRebuild, publishPrStory } from '../../services/publishing/publish.ts';
 
 function list(home: string) {
   const store = new StoryStore({ home });

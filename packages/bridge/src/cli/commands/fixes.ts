@@ -1,15 +1,14 @@
 /*
  * What a Claude session tells the panel while it fixes notes: which files it's changing (working, which the panel
  * shows as "Being changed by <session>"), and how a fix request ended (fixed). See ../../services/inbox/fixes.ts and
- * ../../services/stories/working.ts.
+ * ../../services/inbox/working.ts.
  */
-import { readMeta } from '../../services/stories/meta.ts';
+import { readMeta, storyRepo } from '../../services/stories/meta.ts';
 import { StoryStore } from '../../services/stories/store.ts';
 import { Inbox } from '../../services/inbox/inbox.ts';
 import { readFixes, reportFix } from '../../services/inbox/fixes.ts';
 import { answeringOf, listeners, touchHandling } from '../../services/listeners/listeners.ts';
-import { storyRepo } from '../../services/config/repos.ts';
-import { clearMark, parseFiles, setMark } from '../../services/stories/working.ts';
+import { clearMark, parseFiles, setMark } from '../../services/inbox/working.ts';
 import { storyIdOf } from './inbox.ts';
 import { out } from '../output.ts';
 import { given } from '../options.ts';

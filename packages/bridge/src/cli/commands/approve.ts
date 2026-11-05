@@ -6,9 +6,8 @@
  */
 import { Inbox } from '../../services/inbox/inbox.ts';
 import { StoryStore } from '../../services/stories/store.ts';
-import { readMeta } from '../../services/stories/meta.ts';
+import { readMeta, storyRepo } from '../../services/stories/meta.ts';
 import { refreshLocal } from '../../services/stories/local-diff.ts';
-import { storyRepo } from '../../services/config/repos.ts';
 import { approveStory, clearApproval } from '../../services/review/approve.ts';
 import { localStory } from '../../services/review/story-lists.ts';
 import { out } from '../output.ts';

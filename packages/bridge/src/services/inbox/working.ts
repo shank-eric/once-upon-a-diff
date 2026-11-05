@@ -8,7 +8,7 @@
  * A mark lasts until its session clears it (`working --done`, or `fixed`), and expires when the session goes quiet:
  * no `working` call for MARK_FRESH_MS, or its listener (the wait of the same consumer) stopped beating.
  */
-import { ID_RE } from './meta.ts';
+import { STORY_ID_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { listeners } from '../listeners/listeners.ts';
 import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { stateFile } from '../config/settings.ts';
@@ -34,7 +34,7 @@ const MAX_FILES = 200;
 const workingFile = (home: string, story: string) => stateFile(home, story, 'working.json');
 
 function readWorking(home: string, story: string): Working {
-  if (!ID_RE.test(String(story || ''))) {
+  if (!STORY_ID_RE.test(String(story || ''))) {
     return { marks: {}, done: [] };
   }
   const saved = readJson<Partial<Working>>(workingFile(home, story), {}) || {};

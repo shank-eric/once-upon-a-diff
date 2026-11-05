@@ -9,8 +9,9 @@
  * `SessionsFeed`, so nothing here imports the Board.
  */
 import { readSettings } from '../config/settings.ts';
-import { REPO_RE, repoOfCheckoutAsync, sameRepo, storyRepo } from '../config/repos.ts';
-import { ID_RE as STORY_ID_RE, readMeta } from '../stories/meta.ts';
+import { REPO_RE, repoOfCheckoutAsync, sameRepo } from '../config/repos.ts';
+import { readMeta, storyRepo } from '../stories/meta.ts';
+import { STORY_ID_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import type { StoryStore } from '../stories/store.ts';
 import { findIt2, focusTab, typeLine } from '../../adapters/iterm.ts';
 import type { StatusSource } from '../../adapters/status-source.ts';

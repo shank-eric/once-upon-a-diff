@@ -13,17 +13,17 @@ import path from 'node:path';
 import { readPrefs } from '../../services/config/settings.ts';
 import { seenCheckout } from '../../services/config/repos.ts';
 import { freshness } from '../../services/review/freshness.ts';
-import { readMarks, stateKeyOf } from '../../services/review/drafts.ts';
+import { readMarks } from '../../services/review/drafts.ts';
 import { listeningOf } from '../../services/listeners/listeners.ts';
-import { noteSeen } from '../../services/listeners/auto-stop.ts';
+import { noteSeen } from '../../services/inbox/auto-stop.ts';
 import { refreshLocal, movedSince } from '../../services/stories/local-diff.ts';
-import { storyVersion, localVersion } from '../../services/stories/meta.ts';
+import { storyVersion, localVersion, stateKeyOf } from '../../services/stories/meta.ts';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
 import { questionsOf } from './questions.ts';
 import { fixesViewOf } from './fixes.ts';
 import { requestFor } from '../../services/inbox/progress.ts';
-import { workingOf } from '../../services/stories/working.ts';
+import { workingOf } from '../../services/inbox/working.ts';
 import type { RebuildView, StoryData } from '@once-upon-a-diff/protocol/types';
 import type { LocalMeta, ServedStory } from '../../services/stories/types.ts';
 import type { App, Call, StoryRoute } from '../types.ts';
@@ -52,7 +52,7 @@ function version({ app, send }: Call, story: ServedStory) {
   return send(200, { version: versionOf(app, story) });
 }
 
-// a hidden tab's page is still open: it says so about once a minute, and that is all it does (services/listeners/auto-stop.ts)
+// a hidden tab's page is still open: it says so about once a minute, and that is all it does (services/inbox/auto-stop.ts)
 function seen({ app, body, send }: Call, story: ServedStory) {
   parseBody('seen', body);
   noteSeen(app.stories, story.id, Date.now(), 0); // rare by design, so no write throttle

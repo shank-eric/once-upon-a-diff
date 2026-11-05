@@ -8,7 +8,7 @@
 import path from 'node:path';
 import { repoOfCheckout } from '../../services/config/repos.ts';
 import { readSettings } from '../../services/config/settings.ts';
-import { ownSession } from '../../services/inbox/binding.ts';
+import { ownSession } from '../../services/listeners/binding.ts';
 import type { AgentKind } from '../../services/ledger/events.ts';
 import { lastActivity } from '../../services/ledger/ledger.ts';
 import { AgentRegistry } from '../../services/ledger/registry.ts';

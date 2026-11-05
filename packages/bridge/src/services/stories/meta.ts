@@ -7,10 +7,9 @@ import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { readJson } from '../../adapters/stores/fs/json-file.ts';
 import type { LocalMoved } from '@once-upon-a-diff/protocol/types';
+import { repoOfCheckout } from '../config/repos.ts';
 import type { Prefs } from '../config/settings.ts';
 import type { StoryMeta } from './types.ts';
-
-export const ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/;
 
 /** A file's modification time in ms, or 0 when it's missing. */
 export function modifiedAt(file: string): number {
@@ -82,3 +81,20 @@ export function prAuthorOf(dir: string, meta: StoryMeta): string | null {
 /** The story's meta.json as it is on disk (nothing filled in), or {} when it is missing or not JSON. */
 export const readStoredMeta = (dir: string): StoryMeta =>
   readJson<StoryMeta>(path.join(dir, 'meta.json'), {} as StoryMeta) as StoryMeta;
+
+/** A story's repo: a PR story's own, or a local story's checkout's origin. */
+export function storyRepo(meta: StoryMeta | null | undefined): string | null {
+  if (!meta) {
+    return null;
+  }
+  if (meta.kind === 'local') {
+    return meta.repo || repoOfCheckout(meta.repo_path);
+  }
+  return meta.repo || null;
+}
+
+/** Where a story's reads, marks and drafts live: a PR story's own key, so every story of the PR shares them, else its id. */
+export const stateKeyOf = (id: string, meta: StoryMeta | null | undefined): string =>
+  meta && meta.kind === 'github' && meta.repo && meta.number
+    ? `pr-${meta.repo.replace('/', '-')}-${meta.number}`.toLowerCase()
+    : id;

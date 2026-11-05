@@ -7,7 +7,7 @@ import { tmp, githubStory, startBridge, runCli, localRepo, writeJson } from './h
 import { createLocalStory } from '../src/services/stories/local-story.ts';
 import { beat, listenPrompt, type Listener } from '../src/services/listeners/listeners.ts';
 import { readFixes } from '../src/services/inbox/fixes.ts';
-import { MARK_FRESH_MS, parseFiles, workingOf } from '../src/services/stories/working.ts';
+import { MARK_FRESH_MS, parseFiles, workingOf } from '../src/services/inbox/working.ts';
 import { fixSummary, takesNotes } from '@once-upon-a-diff/panel/fixes/fixes';
 import { clearCache } from '../src/services/review/drafts.ts';
 import type { DraftsAnswer, FixNote, FixesView, Pulse } from '@once-upon-a-diff/protocol/types';

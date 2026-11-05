@@ -2,13 +2,12 @@
  * The backlog from the terminal: `once-upon backlog add|list|show|edit|start|claim|done|land|hold|someday|drop|reopen`. It reads and writes the backlog file
  * (services/backlog/backlog.ts) in-process, so nothing goes over HTTP; the board shows the items as its Backlog column.
  */
-import { formatTime } from '../../services/config/settings.ts';
+import { formatTime, DEFAULT_BRANCHES } from '../../services/config/settings.ts';
 import { repoOfCheckout, currentBranch } from '../../services/config/repos.ts';
 
 import { BacklogStore, claimHint } from '../../services/backlog/backlog.ts';
 import { landItems, recordedTips } from '../../services/backlog/landing.ts';
 import { AgentRegistry } from '../../services/ledger/registry.ts';
-import { DEFAULT_BRANCHES } from '../../services/review/story-lists.ts';
 import { out } from '../output.ts';
 import type { BacklogItem } from '../../services/backlog/backlog.ts';
 import type { Config } from '../../services/config/settings.ts';

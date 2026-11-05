@@ -12,7 +12,7 @@ import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { HttpError } from '../request.ts';
 import { localOnly, oncePerStory } from './story-guards.ts';
 import { parseBody } from '../validate.ts';
-import { storyRepo } from '../../services/config/repos.ts';
+import { storyRepo } from '../../services/stories/meta.ts';
 import {
   DRAFT_FILE,
   prView,

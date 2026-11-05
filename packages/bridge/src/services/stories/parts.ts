@@ -19,7 +19,8 @@ import {
   type PartsFile,
   type StoryParts,
 } from '@once-upon-a-diff/protocol/domain/parts';
-import { checkoutFor, storyRepo } from '../config/repos.ts';
+import { storyRepo } from './meta.ts';
+import { checkoutFor } from '../config/repos.ts';
 import type { StoryMeta } from './types.ts';
 
 /** The in-repo file's name, at a checkout's root. */

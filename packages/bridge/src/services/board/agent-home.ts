@@ -11,7 +11,7 @@ import type { BacklogItem } from '../backlog/backlog.ts';
 import { cardOnBranch } from '../backlog/backlog.ts';
 import { isCritic, lastActivity, type LedgerAgent } from '../ledger/ledger.ts';
 import { KEEP_MS as FINISH_KEPT_MS } from '../../adapters/stores/finished-agents.ts';
-import { DEFAULT_BRANCHES } from '../review/story-lists.ts';
+import { DEFAULT_BRANCHES } from '../config/settings.ts';
 import type { WorktreeFacts } from '../worktrees/worktrees.ts';
 import type { BranchPr } from '../review/github-checks.ts';
 

@@ -17,7 +17,7 @@
  */
 import { FULL_SHA_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { homeDir, readSettings, shipRuleFor } from '../config/settings.ts';
-import { storyRepo } from '../config/repos.ts';
+import { storyRepo } from './meta.ts';
 import { runGh } from '../config/gh.ts';
 import {
   commitLogAsync,
@@ -27,7 +27,7 @@ import {
   revParse,
   runGitAsync,
 } from '../../adapters/git.ts';
-import { readApproval, APPROVED_DAYS } from '../review/approve.ts';
+import { readApproval, APPROVED_DAYS } from './approval.ts';
 import type { PushView, ShipMode } from '@once-upon-a-diff/protocol/types';
 import type { StoryStore } from './store.ts';
 import type { StoryMeta } from './types.ts';

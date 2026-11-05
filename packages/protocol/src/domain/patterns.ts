@@ -7,6 +7,9 @@
 /** An `owner/name` GitHub repo, as the bridge and the pages name one. */
 export const REPO_RE = /^[A-Za-z0-9_.-]{1,100}\/[A-Za-z0-9_.-]{1,100}$/;
 
+/** A story's id: the name of its folder, as the bridge and the pages name one. */
+export const STORY_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/;
+
 /** A Claude Code session id as the board and the panel send it. */
 export const SESSION_RE = /^[A-Za-z0-9._-]{1,100}$/;
 

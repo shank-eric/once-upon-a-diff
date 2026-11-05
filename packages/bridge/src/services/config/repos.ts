@@ -13,7 +13,6 @@ import { REPO_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { readSettings } from './settings.ts';
 import { runGitAsync, remoteUrl, topLevel, branchName } from '../../adapters/git.ts';
 import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
-import type { StoryMeta } from '../stories/types.ts';
 import { ensureDir } from '../../adapters/stores/fs/files.ts';
 
 export { REPO_RE };
@@ -191,17 +190,6 @@ export function repoOfCheckoutAsync(
 export function forgetRepoLookups(): void {
   asyncByDir.clear();
   lookups.clear();
-}
-
-/** A story's repo: a PR story's own, or a local story's checkout's origin. */
-export function storyRepo(meta: StoryMeta | null | undefined): string | null {
-  if (!meta) {
-    return null;
-  }
-  if (meta.kind === 'local') {
-    return meta.repo || repoOfCheckout(meta.repo_path);
-  }
-  return meta.repo || null;
 }
 
 const file = (home: string) => path.join(home, 'checkouts.json');

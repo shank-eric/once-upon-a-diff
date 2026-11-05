@@ -17,7 +17,7 @@ import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { readSettings, stateFile } from '../config/settings.ts';
-import { ID_RE } from '../stories/meta.ts';
+import { STORY_ID_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { collapse } from '@once-upon-a-diff/protocol/domain/text';
 import { startOf, pidAlive } from '../../adapters/os.ts';
 import { removeFile } from '../../adapters/stores/fs/files.ts';
@@ -38,7 +38,7 @@ const fileOf = (home: string, story: string) => stateFile(home, story, 'agent.js
 
 /** The story's binding as saved, whatever its age, or null. */
 export function readBinding(home: string, story: string | null | undefined): Binding | null {
-  if (!ID_RE.test(String(story || ''))) {
+  if (!STORY_ID_RE.test(String(story || ''))) {
     return null;
   }
   const saved = readJson<Partial<Binding> | null>(fileOf(home, story as string), null);
@@ -60,7 +60,7 @@ export function writeBinding(
   session: string | null,
   now = Date.now(),
 ): Binding {
-  if (!ID_RE.test(String(story || ''))) {
+  if (!STORY_ID_RE.test(String(story || ''))) {
     throw new Error(`not a story id: ${story}`);
   }
   if (!AGENT_RE.test(agent)) {
@@ -73,7 +73,7 @@ export function writeBinding(
 
 /** Removes the story's binding. True when there was one. */
 export function clearBinding(home: string, story: string): boolean {
-  if (!ID_RE.test(String(story || ''))) {
+  if (!STORY_ID_RE.test(String(story || ''))) {
     return false;
   }
   const had = !!readBinding(home, story);

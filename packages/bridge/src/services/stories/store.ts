@@ -15,7 +15,8 @@ import path from 'node:path';
 import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { readIndex } from './placement.ts';
 import { stateFile } from '../config/settings.ts';
-import { ID_RE, isStoryDir, readMeta, storyVersion } from './meta.ts';
+import { isStoryDir, readMeta, storyVersion } from './meta.ts';
+import { STORY_ID_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { storyData } from './story-data.ts';
 import type { StoryData } from '@once-upon-a-diff/protocol/types';
 
@@ -40,7 +41,7 @@ export class StoryStore {
     const seen = new Map<string, string>();
     const add = (dir: string) => {
       const id = path.basename(dir);
-      if (ID_RE.test(id) && !seen.has(id)) {
+      if (STORY_ID_RE.test(id) && !seen.has(id)) {
         seen.set(id, dir);
       }
     };
@@ -58,7 +59,7 @@ export class StoryStore {
   }
 
   dirOf(id: string): string | null {
-    if (!ID_RE.test(String(id))) {
+    if (!STORY_ID_RE.test(String(id))) {
       return null;
     }
     const hit = this.dirs().find((candidate) => candidate.id === id);

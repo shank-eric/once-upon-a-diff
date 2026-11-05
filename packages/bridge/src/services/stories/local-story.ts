@@ -8,13 +8,12 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { copyFileAtomic, readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import path from 'node:path';
-import { FULL_SHA_RE } from '@once-upon-a-diff/protocol/domain/patterns';
+import { FULL_SHA_RE, STORY_ID_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { topLevel, revParse, branchOfRef, mergeBase, defaultBranchOf } from '../../adapters/git.ts';
 import { removeFile } from '../../adapters/stores/fs/files.ts';
 import { parseUnifiedDiff } from './diff.ts';
 import { refreshLocal, followsHead } from './local-diff.ts';
 import { entryOf } from './chapters.ts';
-import { ID_RE } from './meta.ts';
 import { storyDirFor } from './placement.ts';
 import { repoOfCheckout, seenCheckout } from '../config/repos.ts';
 import { plural } from '@once-upon-a-diff/protocol/domain/text';
@@ -140,7 +139,7 @@ export function createLocalStory({
   const named = head === 'HEAD' || head.replace(/^refs\/heads\//, '') === branch;
   const shown = (named && branch) || (FULL_SHA_RE.test(head) ? head.slice(0, 9) : head);
   id = id || slug(`local-${name}-${shown}`);
-  if (!ID_RE.test(id)) {
+  if (!STORY_ID_RE.test(id)) {
     throw new Error(`bad story id: ${id}`);
   }
   const dir = storyDirFor(home, id, { checkout: top });

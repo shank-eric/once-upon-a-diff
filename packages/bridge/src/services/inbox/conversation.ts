@@ -21,7 +21,7 @@ import path from 'node:path';
 import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { updateJson } from '../../adapters/stores/fs/lock.ts';
 import { stateFile } from '../config/settings.ts';
-import { ID_RE } from '../stories/meta.ts';
+import { STORY_ID_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { listeners, type Listener } from '../listeners/listeners.ts';
 import type { Inbox } from './inbox.ts';
 
@@ -55,7 +55,7 @@ const marksFile = (home: string, story: string) => stateFile(home, story, 'quest
 
 /** The story's {dismissed, collapsed, moved} marks, empty for an unknown or odd id. */
 export function readQaMarks(home: string, story: string | null | undefined): QaMarks {
-  if (!ID_RE.test(String(story || ''))) {
+  if (!STORY_ID_RE.test(String(story || ''))) {
     return { dismissed: {}, collapsed: {}, moved: {}, read: {}, held: {} };
   }
   const saved = readJson<Partial<QaMarks>>(marksFile(home, story as string), {}) || {};
@@ -70,7 +70,7 @@ export function readQaMarks(home: string, story: string | null | undefined): QaM
 
 /** A rebuild moved these questions: {<question id>: step}. */
 export function moveQuestions(home: string, story: string, moves: Record<string, number>): void {
-  if (!Object.keys(moves).length || !ID_RE.test(String(story || ''))) {
+  if (!Object.keys(moves).length || !STORY_ID_RE.test(String(story || ''))) {
     return;
   }
   const marks = readQaMarks(home, story);

@@ -19,11 +19,8 @@
  *     aside a read of a chapter whose files changed in the rebuild
  */
 import { chaptersOf, entryOf, refOf } from './chapters.ts';
-import { readReads, retireReads } from './reads.ts';
 import { chapterKeyOf } from '@once-upon-a-diff/protocol/domain/chapters';
 import { plural } from '@once-upon-a-diff/protocol/domain/text';
-import { Inbox } from '../inbox/inbox.ts';
-import { moveQuestions } from '../inbox/conversation.ts';
 import { upgradePlan } from './legacy.ts';
 import { canonical, withoutKey } from './validate.ts';
 import { uncoveredHunks, sidesOf } from './hunk-coverage.ts';
@@ -31,7 +28,7 @@ import type { DiffFile } from '@once-upon-a-diff/protocol/types';
 import type { Plan, PlanChapter } from './chapters.ts';
 
 /** What a rebuild's rules read of its request. */
-type RebuildAskFields = { mode?: string; from_step?: number | null };
+export type RebuildAskFields = { mode?: string; from_step?: number | null };
 type PlanComment = NonNullable<PlanChapter['comments']>[number];
 
 export const REBUILD_MODES = ['rebuild', 'rebuild_from'];
@@ -306,37 +303,4 @@ export function vetRebuild(
     throw new Error(`this rebuild can't be published:\n  - ${problems.join('\n  - ')}`);
   }
   return carryDrafts(before, after, diff, firstRetold(build));
-}
-
-/**
- * Once a rebuild is published: moves the questions asked on re-told chapters and sets aside the reads of chapters
- * re-told over other files. `stateKey` is where the story's read.json lives (stateKeyOf). Returns rebuildNote's line.
- */
-export function afterRebuild(
-  home: string,
-  {
-    id,
-    stateKey,
-    build,
-    before,
-    after,
-    counts,
-  }: {
-    id: string;
-    stateKey: string;
-    build: RebuildAskFields;
-    before: Plan;
-    after: Plan;
-    counts: { carried: number; unmapped: number };
-  },
-): string {
-  const from = firstRetold(build);
-  const moves = questionMoves(new Inbox(home).questions(id), before, after, from);
-  moveQuestions(home, id, moves);
-  const retired = retireReads(
-    home,
-    stateKey,
-    readsToRetire(readReads(home, stateKey), before, after),
-  );
-  return rebuildNote(build, { ...counts, moved: Object.keys(moves).length, retired });
 }

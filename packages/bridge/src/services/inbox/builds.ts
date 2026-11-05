@@ -18,14 +18,14 @@
  * live, else to the repo's, as its questions do.
  */
 import path from 'node:path';
-import { newId } from './inbox.ts';
+import { newId } from '../config/ids.ts';
 import { sameRepo, REPO_RE } from '../config/repos.ts';
 import { SHA_RE, plural, shortSha } from '@once-upon-a-diff/protocol/domain/text';
 import { prKey } from '@once-upon-a-diff/protocol/domain/pr-key';
 import { readerOf } from '../config/settings.ts';
 import { RequestQueue } from './queue.ts';
 import { listeners } from '../listeners/listeners.ts';
-import { ID_RE } from '../stories/meta.ts';
+import { STORY_ID_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { isRebuild, REBUILD_MODES } from '../stories/rebuild.ts';
 import type { Listener } from '../listeners/listeners.ts';
 import type { StoryMeta } from '../stories/types.ts';
@@ -439,7 +439,7 @@ export class Builds {
     requested_at,
   }: RebuildRequest): Build {
     const bad = (message: string) => Object.assign(new Error(message), { status: 400 });
-    if (!ID_RE.test(String(story || '')) || !meta) {
+    if (!STORY_ID_RE.test(String(story || '')) || !meta) {
       throw bad('bad story');
     }
     if (!REBUILD_MODES.includes(mode)) {

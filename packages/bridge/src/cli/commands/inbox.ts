@@ -9,7 +9,7 @@
  * way (../../services/inbox/builds.ts). Fix requests (fix_request in --type) are
  * routed the same way too, from the queue in ../../services/inbox/fixes.ts. A story's
  * wait also stops itself once no page has shown the story for a while
- * (../../services/listeners/auto-stop.ts), unless --no-auto-stop.
+ * (../../services/inbox/auto-stop.ts), unless --no-auto-stop.
  */
 import { existsSync, readFileSync, statSync, watch } from 'node:fs';
 import {
@@ -17,10 +17,10 @@ import {
   sameRepo,
   repoOfCheckout,
   seenCheckout,
-  storyRepo,
   checkoutRoot,
 } from '../../services/config/repos.ts';
-import { Inbox, newId, readIdList, writeIdList } from '../../services/inbox/inbox.ts';
+import { newId } from '../../services/config/ids.ts';
+import { Inbox, readIdList, writeIdList } from '../../services/inbox/inbox.ts';
 import { Builds } from '../../services/inbox/builds.ts';
 import {
   clearAsking,
@@ -36,7 +36,7 @@ import {
   ownSession,
   touchBinding,
   type Binding,
-} from '../../services/inbox/binding.ts';
+} from '../../services/listeners/binding.ts';
 import {
   mayRelay,
   relayEntryMessage,
@@ -53,9 +53,9 @@ import {
   repoStopReason,
   stopReason,
   stopRequested,
-} from '../../services/listeners/auto-stop.ts';
+} from '../../services/inbox/auto-stop.ts';
 import { StoryStore } from '../../services/stories/store.ts';
-import { readMeta } from '../../services/stories/meta.ts';
+import { readMeta, storyRepo } from '../../services/stories/meta.ts';
 import { slug } from '../../services/stories/local-story.ts';
 import { answerRefs } from '../../services/stories/validate.ts';
 

@@ -1,17 +1,18 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { StoryStore } from './store.ts';
+import { StoryStore } from '../stories/store.ts';
 import { Builds, type Build } from '../inbox/builds.ts';
 import { copyFileAtomic, readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
-import { parseUnifiedDiff } from './diff.ts';
-import { stateKeyOf } from '../review/drafts.ts';
-import { vetRebuild, afterRebuild } from './rebuild.ts';
-import { slug } from './local-story.ts';
-import { storyDirFor } from './placement.ts';
-import { noteSkeleton } from './skeleton.ts';
-import { readyPlan } from './validate.ts';
-import type { Plan } from './chapters.ts';
-import type { StoryMeta } from './types.ts';
+import { parseUnifiedDiff } from '../stories/diff.ts';
+import { stateKeyOf } from '../stories/meta.ts';
+import { afterRebuild } from './after-rebuild.ts';
+import { vetRebuild } from '../stories/rebuild.ts';
+import { slug } from '../stories/local-story.ts';
+import { storyDirFor } from '../stories/placement.ts';
+import { noteSkeleton } from '../stories/skeleton.ts';
+import { readyPlan } from '../stories/validate.ts';
+import type { Plan } from '../stories/chapters.ts';
+import type { StoryMeta } from '../stories/types.ts';
 
 /** A rebuild that's being published: its request, the chapters before and after, and the drafts carried over. */
 export type Rebuilt = {

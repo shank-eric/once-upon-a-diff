@@ -24,7 +24,7 @@ import {
   runGitAsync,
   setUpstream,
 } from '../../adapters/git.ts';
-import { storyRepo } from '../config/repos.ts';
+import { storyRepo } from './meta.ts';
 import type { PrDraft, PrView } from '@once-upon-a-diff/protocol/types';
 import type { StoryMeta } from './types.ts';
 

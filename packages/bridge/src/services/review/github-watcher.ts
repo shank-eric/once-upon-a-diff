@@ -23,7 +23,8 @@
  */
 import { FULL_SHA_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { runGitAsync } from '../../adapters/git.ts';
-import { clearApproval, readApproval } from './approve.ts';
+import { readApproval } from '../stories/approval.ts';
+import { clearApproval } from './approve.ts';
 import { inDefaultBranch } from './default-branch.ts';
 import {
   ghBranchCheck,
@@ -35,13 +36,8 @@ import {
   type PrFacts,
   type RequestedCheck,
 } from './github-checks.ts';
-import {
-  DEFAULT_BRANCHES,
-  markStoryDone,
-  markStoryReviewed,
-  storyHasState,
-  type LocalEntry,
-} from './story-lists.ts';
+import { DEFAULT_BRANCHES } from '../config/settings.ts';
+import { markStoryDone, markStoryReviewed, storyHasState, type LocalEntry } from './story-lists.ts';
 import type { StoryStore } from '../stories/store.ts';
 import {
   readGithubAnswers,

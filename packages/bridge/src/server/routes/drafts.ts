@@ -7,9 +7,9 @@
  * Q&A comes in through `once-upon comment`.
  */
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
-import { newId } from '../../services/inbox/inbox.ts';
+import { newId } from '../../services/config/ids.ts';
+import { stateKeyOf } from '../../services/stories/meta.ts';
 import {
-  stateKeyOf,
   readMarks,
   mark,
   draftsOf,

@@ -4,9 +4,9 @@
  * whitespace).
  */
 import { readPrefs, writePrefs } from '../../services/config/settings.ts';
-import { storyRepo, REPO_RE } from '../../services/config/repos.ts';
+import { REPO_RE } from '../../services/config/repos.ts';
 import { statusOf } from '../../services/listeners/listeners.ts';
-import { readMeta } from '../../services/stories/meta.ts';
+import { readMeta, storyRepo } from '../../services/stories/meta.ts';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { parseBody } from '../validate.ts';
 import type { ServedStory } from '../../services/stories/types.ts';

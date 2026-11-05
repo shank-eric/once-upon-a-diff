@@ -1,7 +1,7 @@
 /** The worktrees section of the board: what the scanner has, each judged, on the card it belongs to or loose. */
 import { statSync } from 'node:fs';
 import path from 'node:path';
-import { DEFAULT_BRANCHES } from '../../review/story-lists.ts';
+import { DEFAULT_BRANCHES } from '../../config/settings.ts';
 import { sameRepo, seenCheckouts } from '../../config/repos.ts';
 import type { LedgerAgent } from '../../ledger/ledger.ts';
 import type { LiveSession } from '../../../adapters/claude-sessions/live-sessions.ts';

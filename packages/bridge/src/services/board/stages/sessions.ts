@@ -7,7 +7,7 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { sameRepo } from '../../config/repos.ts';
-import { DEFAULT_BRANCHES } from '../../review/story-lists.ts';
+import { DEFAULT_BRANCHES } from '../../config/settings.ts';
 import { readAgents } from '../../ledger/read.ts';
 import type { LedgerAgent } from '../../ledger/ledger.ts';
 import type { BlankSessions } from '../../../adapters/claude-sessions/blank-sessions.ts';

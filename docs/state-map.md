@@ -29,7 +29,7 @@ This covers every file and in-memory cache that the bridge, the CLI, the extensi
 | `cursors/<consumer>.deferred.json` | `wait` (atomic) | `wait` | `[question id]` held for a live story listener | never pruned | Missing: deferred questions are not looked at again by that repo wait |
 | `listeners/<consumer>.json` | `wait` every 5 s and on handover. `working` refreshes a handling beat | bridge `listeners()` (status light, routing, board), CLI routing | `{consumer, pid, state, at, repo?, story?, builds?, fixes?}` | **never deleted**. Live means a waiting beat under 15 s with a live pid, or a handling beat under 10 min | Two sessions with the same consumer name share one file and one cursor (below) |
 | `listener-history.json` | `wait --repo` at start, board on each build (atomic) | board's Listeners lane | `{repo: {consumer, started_at, last_seen}}` | entries over 7 days dropped on read | Missing: the lane shows only live listeners |
-| `listener-stops.json` | board's Stop listening (`services/board/board.ts` → `services/listeners/auto-stop.ts`, atomic) | `wait --repo` every loop | `{repo: ms}` | one key per repo, never cleared | A stop older than a wait's start is ignored, so stale is harmless |
+| `listener-stops.json` | board's Stop listening (`services/board/board.ts` → `services/inbox/auto-stop.ts`, atomic) | `wait --repo` every loop | `{repo: ms}` | one key per repo, never cleared | A stop older than a wait's start is ignored, so stale is harmless |
 | `finished-agents.json` | board's Finish on an agent's card (`services/board/board.ts`, atomic) | the board's agents stage | `{"<sid>:<name>": ms}` | entries older than a week are dropped on the next write | A card stays hidden while nothing the agent did is later than its time, so a new ledger line or beat brings it back |
 | `listeners.log` | `wait` when it stops itself | people | text | **never trimmed** | none |
 | `handed.json` | `wait` when it hands questions over: the check that no other wait has a question and the mark that this one does are one write under `handed.json.lock` (`routeQuestions`), atomic | routing, panel ("answered by"), `answer` | `{question id: {consumer, at}}` | **never pruned** | Missing: a question could be handed again, and "Answered by" falls back to `--consumer` |
@@ -56,7 +56,7 @@ This covers every file and in-memory cache that the bridge, the CLI, the extensi
 
 ## 2. `<home>/state/<key>/`: per-story and per-PR state
 
-`stateFile` makes the folder on first use. `<key>` is the story id, except for `drafts.json` and `read.json`, which use `stateKeyOf` (`services/review/drafts.ts`): `pr-<owner>-<repo>-<N>` for a PR story, so a re-told story keeps them, or the story id for a local one. Folders keyed by an older id scheme (`repo-123`) are left behind with no story. **Nothing deletes a state folder.**
+`stateFile` makes the folder on first use. `<key>` is the story id, except for `drafts.json` and `read.json`, which use `stateKeyOf` (`services/stories/meta.ts`): `pr-<owner>-<repo>-<N>` for a PR story, so a re-told story keeps them, or the story id for a local one. Folders keyed by an older id scheme (`repo-123`) are left behind with no story. **Nothing deletes a state folder.**
 
 | File | Writer | Readers | Format | Missing or stale |
 |---|---|---|---|---|
@@ -70,7 +70,7 @@ This covers every file and in-memory cache that the bridge, the CLI, the extensi
 | `questions.json` | bridge (dismiss, collapse, clear), `publish` on a rebuild (`moved`) | panel, routing | `{dismissed, collapsed, moved}` | Missing: dismissed questions come back and can be handed over |
 | `reviewed.json` | bridge (board Mark reviewed, Approve), AutoReview in the background | board columns | `{at, by}`. Present means decided | Missing: auto-review may mark it again |
 | `approved.json` | bridge, Approve on a local story (`services/review/approve.ts`), cleared by Clear approval | Push and Create pull request boxes, board (Ready to ship) | `{at, head_oid, base_oid, marked}`. It counts only while the story's head is that commit, for 7 days | Missing: not approved |
-| `agent.json` | CLI `bind`, or `--agent` on `publish` or `local` (atomic; `services/inbox/binding.ts`) | `wait` (relays the story's questions to the named agent), panel via pulse | `{agent, session, at}` | ignored after a day or when its session has ended (the registry has no live pid) | Missing: the story's questions go to a listener as usual |
+| `agent.json` | CLI `bind`, or `--agent` on `publish` or `local` (atomic; `services/listeners/binding.ts`) | `wait` (relays the story's questions to the named agent), panel via pulse | `{agent, session, at}` | ignored after a day or when its session has ended (the registry has no live pid) | Missing: the story's questions go to a listener as usual |
 | `merged.json` | AutoReview | board (dropped, Done for 24 h) | `{at, why, merged_at}` | Missing: a merged PR's story shows until GitHub is asked again |
 | `pr-draft.json` | CLI `pr-draft` | local page's Create pull request | `{title, body, base}` | Missing: GitHub fills the title and body from commits |
 | `drafts.json` (PR key) | bridge (Dismiss, Restore, Add to my review). A rebuild's carried drafts go into `chapters.json`, not here | panel, `drafts` | `{dismissed, added}` | Missing: dismissed drafts come back |
@@ -80,7 +80,7 @@ This covers every file and in-memory cache that the bridge, the CLI, the extensi
 
 | Where | Writer | Readers | Holds | Lifetime |
 |---|---|---|---|---|
-| `<main checkout>/.once-upon/<Owner>-<repo>-<N>/` (PR story) | `publish` (CLI, from `story.mjs build`), through `publishPrStory` in `services/stories/publish.ts`: `copyFileAtomic` of `chapters.json` and `file-map.json`, then an atomic `meta.json`. CLI `comment` (atomic) | bridge on every story request, skills (`chapters.json`, `meta.json`) | `chapters.json`, `file-map.json`, `meta.json` (`head_oid`, `pr_author`, `head_ref`, `source`, …) | forever. Folders made before the umask was set keep 0755 |
+| `<main checkout>/.once-upon/<Owner>-<repo>-<N>/` (PR story) | `publish` (CLI, from `story.mjs build`), through `publishPrStory` in `services/publishing/publish.ts`: `copyFileAtomic` of `chapters.json` and `file-map.json`, then an atomic `meta.json`. CLI `comment` (atomic) | bridge on every story request, skills (`chapters.json`, `meta.json`) | `chapters.json`, `file-map.json`, `meta.json` (`head_oid`, `pr_author`, `head_ref`, `source`, …) | forever. Folders made before the umask was set keep 0755 |
 | `<worktree>/.once-upon/local-<folder>-<branch>/` (local story) | `once-upon local` (CLI), **and the bridge**: `refreshLocal` rewrites `local.diff` and `meta.json` whenever HEAD or the base moved, on every version poll, pulse and load (`services/stories/local-diff.ts`). `local-w.diff` on demand | bridge, skills | `meta.json` (`repo_path`, `base`, `head`, `branch`, oids, `commits`, `built_at`), `local.diff`, `local-w.diff`, `chapters.json` | goes when the worktree is deleted, but its index entry and state folder stay |
 | `skeleton.json` in a story's folder (PR or local) | `noteSkeleton` (`services/stories/skeleton.ts`), from `publish` and `once-upon local`, by atomic write | `storyData` (marks each such chapter `skeleton`), the board and Approve (`unwrittenCount` reads `chapters.json`) | `[chapter key, …]`: chapters that were ever published with no narrative. A union, never shrunk | forever, with the story. Missing: the panel may credit a read from Viewed ticks made while a chapter was being written |
 | `<home>/<id>/` | `publish` with no known checkout | bridge | as a PR story | forever |
@@ -143,14 +143,14 @@ All of them reset on restart, and none is shared with CLI processes.
 | Status-since per session | `services/board/board.ts` `seen` | none | **grows with every session id seen** |
 | Blank-session answers, session titles | `adapters/claude-sessions/blank-sessions.ts`, `titles.ts` `known` | by file size | **grow with every session id** |
 | Worktree scan: facts, merged and superseded answers, histories | `services/worktrees/worktrees.ts` (`WorktreeScanner`) | rescans every 10 min (discovery), 5 min (dirty), hourly (size) | per worktree and branch tip |
-| Is a session live (for a story's agent binding) | `services/inbox/binding.ts` | 2 s | per session |
+| Is a session live (for a story's agent binding) | `services/listeners/binding.ts` | 2 s | per session |
 | Is Larmor's phone bridge listening | `adapters/larmor.ts` | 2 s | per port |
 | In-flight sets: a push per story, a Clean up per path, one phone call at a time | `server/routes/pull-request.ts`, `server/routes/push.ts`, `services/worktrees/worktree-clean.ts`, `services/board/board.ts` `phoneBusy` | while running | per story or path |
 | AutoReview: PR facts, `PrInfo`, branch PRs, requested list | `services/review/github-watcher.ts` (rules: `merge-rules.ts`) | 3 min (rules 30 min) | **grows with every PR and branch seen** |
 | gh comments per PR, gh login | `services/review/drafts.ts` | 60 s, login kept until restart | grows per PR |
 | Freshness (head and compare) | `services/review/freshness.ts` | 60 s | grows per PR and head pair |
 | Repo per checkout (sync, never expires) and async (5 min) | `services/config/repos.ts` | none / 5 min | per dir. **The sync one never expires**, so a changed origin needs a restart |
-| `seen.json` write throttle | `services/listeners/auto-stop.ts` | 30 s | per story |
+| `seen.json` write throttle | `services/inbox/auto-stop.ts` | 30 s | per story |
 | Public host resolves here | `services/pages/address.ts` | 60 s | per host |
 | Type-stripped assets | `server/assets.ts` | by mtime | per asset |
 | `cliCache` (is `once-upon` on PATH) | `services/listeners/listeners.ts` | forever | one |
@@ -166,7 +166,7 @@ Items 1 and 2 were closed by the request queue's lock (183210b, 11/4). Items 3 t
 3. **`wait` advances its cursor before handing over** (`cli/commands/inbox.ts`). If the process is killed after the read and before it prints, those questions are skipped for that consumer for good (only build and fix requests come back, from their own files).
 4. **Two sessions with one consumer name.** Two sessions running `/once-upon-listen owner/repo` both default to `repo-owner-name` (`consumerOf`, `cli/commands/inbox.ts`). They share one cursor and one heartbeat file, race on the cursor, and the bridge sees one listener. Nothing warns about it.
 5. **The bridge writes into checkouts on reads.** `GET …/version`, `pulse` and `load` on a local story over `HEAD` run `refreshLocal`, which rewrites `local.diff` and `meta.json` in the worktree, while `once-upon local` may be writing the same files from the CLI. (A pinned story writes `local.diff` only when it's missing.) `GET /api/stories/<local id>` also rewrites `checkouts.json`.
-6. **`publish` isn't atomic across files.** `publishPrStory` (`services/stories/publish.ts`) copies two files and then writes `meta.json`, each atomic on its own, but not together. A pulse in between serves new chapters with the old `head_oid` for up to one poll.
+6. **`publish` isn't atomic across files.** `publishPrStory` (`services/publishing/publish.ts`) copies two files and then writes `meta.json`, each atomic on its own, but not together. A pulse in between serves new chapters with the old `head_oid` for up to one poll.
 7. **Board typing is check-then-act.** Build story, Start listening and Assign check that the session is at its prompt (`Sessions.typeable` in `services/sessions/sessions.ts`; Assign lets the voice session be mid-turn), then call `it2 session run` (`adapters/iterm.ts`). A prompt typed in between gets the line appended.
 
 ### Duplicates

@@ -5,12 +5,8 @@
  */
 import { sameRepo } from '../../config/repos.ts';
 import { shipMode } from '../../stories/push-default.ts';
-import {
-  DEFAULT_BRANCHES,
-  localEntries,
-  mergedStories,
-  prStories,
-} from '../../review/story-lists.ts';
+import { DEFAULT_BRANCHES } from '../../config/settings.ts';
+import { localEntries, mergedStories, prStories } from '../../review/story-lists.ts';
 import type { InboxLocalStory, InboxStory, ShipMode } from '@once-upon-a-diff/protocol/types';
 import type { PrWatcher } from './pr-watcher.ts';
 import type { BuildContext, Work } from './types.ts';

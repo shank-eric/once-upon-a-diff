@@ -18,7 +18,7 @@ import {
 import { Inbox } from '../src/services/inbox/inbox.ts';
 import { Builds } from '../src/services/inbox/builds.ts';
 import { readFixes } from '../src/services/inbox/fixes.ts';
-import { inHand } from '../src/services/listeners/auto-stop.ts';
+import { inHand } from '../src/services/inbox/auto-stop.ts';
 import { AgentRegistry } from '../src/services/ledger/registry.ts';
 import {
   RELAY_STALL_MS,
@@ -36,7 +36,7 @@ import {
   readBinding,
   relayBinding,
   writeBinding,
-} from '../src/services/inbox/binding.ts';
+} from '../src/services/listeners/binding.ts';
 import { relayMessage } from '../src/services/inbox/relay.ts';
 import { beat, listeningOf } from '../src/services/listeners/listeners.ts';
 import { waitingText } from '@once-upon-a-diff/panel/ask/question-list';

@@ -24,7 +24,7 @@
  * request it hands over, so no request goes to two sessions.
  */
 import path from 'node:path';
-import { newId } from './inbox.ts';
+import { newId } from '../config/ids.ts';
 import { sameRepo } from '../config/repos.ts';
 import { answeringOf, listeners } from '../listeners/listeners.ts';
 import { withLock } from '../../adapters/stores/fs/lock.ts';

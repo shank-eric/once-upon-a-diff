@@ -3,10 +3,9 @@
  * time (POST), and what changed after they read each chapter (GET).
  */
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
-import { readMeta } from '../../services/stories/meta.ts';
-import { stateKeyOf } from '../../services/review/drafts.ts';
+import { readMeta, stateKeyOf } from '../../services/stories/meta.ts';
 import { currentHead, changesSince } from '../../services/review/freshness.ts';
-import { newId } from '../../services/inbox/inbox.ts';
+import { newId } from '../../services/config/ids.ts';
 import {
   readReads,
   noteRead,

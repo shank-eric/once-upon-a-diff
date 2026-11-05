@@ -16,8 +16,8 @@
  * reader hasn't seen. A later MCP server or hook reads the same file the same way.
  */
 import { existsSync, openSync, readSync, closeSync, statSync } from 'node:fs';
-import { randomBytes } from 'node:crypto';
 import path from 'node:path';
+import { newId } from '../config/ids.ts';
 import { readJson, writeFileAtomic, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { ownerOnly, ensureDir, appendText, writeText } from '../../adapters/stores/fs/files.ts';
 import type { ChapterRef, LocalNote } from '@once-upon-a-diff/protocol/types';
@@ -128,9 +128,6 @@ export interface QuestionWithAnswers {
   channel: 'voice' | null;
   answers: { id: string; at: string; text: string; by: string | null; refs?: ChapterRef[] }[];
 }
-
-export const newId = (prefix: string): string =>
-  `${prefix}_${Date.now().toString(36)}${randomBytes(3).toString('hex')}`;
 
 export class Inbox {
   declare home: string;

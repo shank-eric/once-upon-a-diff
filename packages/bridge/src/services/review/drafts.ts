@@ -29,6 +29,7 @@ import { runGh } from '../config/gh.ts';
 import { prKey } from '@once-upon-a-diff/protocol/domain/pr-key';
 import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { noteState } from '../inbox/fixes.ts';
+import { stateKeyOf } from '../stories/meta.ts';
 import { stateFile } from '../config/settings.ts';
 import type { Chapter, DraftRow, LocalNote, StoryData } from '@once-upon-a-diff/protocol/types';
 import type { StoryStore } from '../stories/store.ts';
@@ -84,10 +85,6 @@ const TTL_MS = 60000;
 const LINE_SLACK = 3;
 export const SIMILAR = 0.75; // drafts get edited before posting: a lightly reworded real one scored 0.80 against its draft
 
-export const stateKeyOf = (id: string, meta: StoryMeta | null | undefined): string =>
-  meta && meta.kind === 'github' && meta.repo && meta.number
-    ? `pr-${meta.repo.replace('/', '-')}-${meta.number}`.toLowerCase()
-    : id;
 export const draftKey = (comment: CommentLike): string =>
   createHash('sha1')
     .update(`${comment.path || ''}\n${Number(comment.line) || 0}\n${normalize(comment.body)}`)

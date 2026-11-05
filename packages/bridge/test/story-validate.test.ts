@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmp, writeJson } from './helpers.ts';
-import { publishPrStory } from '../src/services/stories/publish.ts';
+import { publishPrStory } from '../src/services/publishing/publish.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
 import { Builds } from '../src/services/inbox/builds.ts';
 import { assignKeys, chapterProblems } from '../src/services/stories/validate.ts';

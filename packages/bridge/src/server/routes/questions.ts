@@ -5,7 +5,7 @@
  * in state/<id>/questions.json, so a reload or another tab shows the same.
  */
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
-import { newId } from '../../services/inbox/inbox.ts';
+import { newId } from '../../services/config/ids.ts';
 import { markQuestions, withMarks } from '../../services/inbox/conversation.ts';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';

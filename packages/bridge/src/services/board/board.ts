@@ -36,7 +36,7 @@ import {
   waitBridgeDown,
 } from '../../adapters/larmor.ts';
 import type { ListeningInput } from '../sessions/listening.ts';
-import { requestStop } from '../listeners/auto-stop.ts';
+import { requestStop } from '../inbox/auto-stop.ts';
 import { typeLine } from '../../adapters/iterm.ts';
 import type { StatusSource } from '../../adapters/status-source.ts';
 import { BoardError } from '../errors.ts';

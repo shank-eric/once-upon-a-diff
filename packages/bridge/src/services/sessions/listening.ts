@@ -16,7 +16,7 @@ import type { SourceStatus } from '../../adapters/status-source.ts';
 import type { LiveSession } from '../../adapters/claude-sessions/live-sessions.ts';
 import { noteListener, readHistory } from '../listeners/history.ts';
 import { run } from '../../adapters/os.ts';
-import { DEFAULT_BRANCHES } from '../review/story-lists.ts';
+import { DEFAULT_BRANCHES } from '../config/settings.ts';
 import type {
   BoardBuild,
   BoardCard,

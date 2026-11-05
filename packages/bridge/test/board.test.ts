@@ -64,7 +64,7 @@ import {
 import { listenPrompt, type Listener } from '../src/services/listeners/listeners.ts';
 import type { LiveSession } from '../src/adapters/claude-sessions/live-sessions.ts';
 import { noteListener, readHistory } from '../src/services/listeners/history.ts';
-import { repoStopReason, requestStop, stopRequested } from '../src/services/listeners/auto-stop.ts';
+import { repoStopReason, requestStop, stopRequested } from '../src/services/inbox/auto-stop.ts';
 import { AgentRegistry } from '../src/services/ledger/registry.ts';
 import {
   gateOf,

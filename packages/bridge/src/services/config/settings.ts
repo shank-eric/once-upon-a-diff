@@ -169,6 +169,9 @@ const PLATFORM_OPENER: Partial<Record<NodeJS.Platform, string[]>> = {
 /** Repos whose branches the board's worktree cleanup never deletes, whatever config.json says (the owner's packrat rule). */
 export const ALWAYS_KEEP_BRANCHES = ['everfi-frontend'];
 
+/** Branches that are not a unit of work of their own. */
+export const DEFAULT_BRANCHES = new Set(['main', 'master', 'develop', 'development', 'trunk']);
+
 /** The names the bridge answers when a reverse proxy forwards them (puma-dev's *.test and *.fidev.net). */
 const DEFAULT_HOSTS = ['once-upon.test', 'once-upon.fidev.net'];
 

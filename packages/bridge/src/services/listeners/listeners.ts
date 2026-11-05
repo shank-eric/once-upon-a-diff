@@ -17,7 +17,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { sameRepo, checkoutFor, tilde } from '../config/repos.ts';
 import { readJson, writeFileAtomic } from '../../adapters/stores/fs/json-file.ts';
-import { activeBinding, type Binding } from '../inbox/binding.ts';
+import { activeBinding, type Binding } from './binding.ts';
 import type { Answering } from '@once-upon-a-diff/protocol/types';
 import { onPath, pidAlive } from '../../adapters/os.ts';
 import { ensureDir } from '../../adapters/stores/fs/files.ts';

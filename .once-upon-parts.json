@@ -33,6 +33,7 @@
       "group": "Bridge",
       "paths": [
         "packages/bridge/src/services/stories/",
+        "packages/bridge/src/services/publishing/",
         "skills/once-upon/bin/"
       ],
       "note": "Reading, placing, publishing and rebuilding stories"

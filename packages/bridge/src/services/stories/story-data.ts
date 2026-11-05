@@ -3,7 +3,7 @@
  * files, and for a local story the diff and the
  * bridge's state (viewed files, notes).
  */
-import { approvalOf } from '../review/approve.ts';
+import { approvalOf } from './approval.ts';
 import { shipMode } from './push-default.ts';
 import path from 'node:path';
 import { pathSha } from './diff.ts';

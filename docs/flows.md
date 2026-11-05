@@ -81,10 +81,10 @@ flowchart LR
 |---|---|---|---|
 | 19 | `outside` | the once-upon skill gathers the PR with `gh`, writes the chapters and runs `story.mjs build`, which checks them and runs `once-upon publish` itself | `skills/once-upon/bin/story.ts:443` (`'publish',`) |
 | 20 | `app` | `publish`, run by `story.ts build` | `packages/bridge/src/cli/commands/stories.ts:210` (`function publish(`) |
-| 21 | `service` | places the story's folder: `.once-upon/<id>/` in the repo's checkout when the bridge knows it, else `~/.once-upon/<id>/` | `packages/bridge/src/services/stories/publish.ts:86` (`storyDirFor(home, id, { repo })`) |
-| 22 | `service` | **copies `chapters.json` and `file-map.json`** into that folder, through the adapter's `copyFileAtomic` | `packages/bridge/src/services/stories/publish.ts:101` (`copyFileAtomic(`) |
-| 23 | `service` | **writes `meta.json`** last, with the head it was told from, through the adapter's `writeJsonAtomic` | `packages/bridge/src/services/stories/publish.ts:105` (`writeJsonAtomic(path.join(dest, 'meta.json')`) |
-| 24 | `service` | settles the build request | `packages/bridge/src/services/stories/publish.ts:124` (`builds.settle(`) |
+| 21 | `service` | places the story's folder: `.once-upon/<id>/` in the repo's checkout when the bridge knows it, else `~/.once-upon/<id>/` | `packages/bridge/src/services/publishing/publish.ts:87` (`storyDirFor(home, id, { repo })`) |
+| 22 | `service` | **copies `chapters.json` and `file-map.json`** into that folder, through the adapter's `copyFileAtomic` | `packages/bridge/src/services/publishing/publish.ts:102` (`copyFileAtomic(`) |
+| 23 | `service` | **writes `meta.json`** last, with the head it was told from, through the adapter's `writeJsonAtomic` | `packages/bridge/src/services/publishing/publish.ts:106` (`writeJsonAtomic(path.join(dest, 'meta.json')`) |
+| 24 | `service` | settles the build request | `packages/bridge/src/services/publishing/publish.ts:125` (`builds.settle(`) |
 | 25 | `service` | `settle` finishes it under the lock, if the story matches the request | `packages/bridge/src/services/inbox/builds.ts:508` (`settle(`) |
 
 **The tag sees it**
@@ -145,13 +145,13 @@ flowchart LR
 | 2' | `app` | on GitHub, the extension supplies its own `ask` over the service worker | `packages/extension/src/content/pages/files-changed.ts:160` (`ROUTES.questionAsk`) |
 | 3 | `protocol` | the route: `POST /api/stories/<id>/questions`, any key of the story's | `packages/protocol/src/routes.ts:230` (`questionAsk:`) |
 | 4 | `app` | the story route checks the body and appends the question | `packages/bridge/src/server/routes/questions.ts:66` (`app.inbox.append(`) |
-| 5 | `service` | `Inbox.append` gives it an id and a time | `packages/bridge/src/services/inbox/inbox.ts:152` (`append<E`) |
+| 5 | `service` | `Inbox.append` gives it an id and a time | `packages/bridge/src/services/inbox/inbox.ts:149` (`append<E`) |
 | 6 | `adapter` | **appends a line to `inbox.jsonl`** | `packages/bridge/src/adapters/stores/fs/files.ts:24` (`export function appendText`) |
 | 7 | `app` | a running `wait` wakes on the file change and reads past its cursor | `packages/bridge/src/cli/commands/inbox.ts:397` (`messages.unread(consumer, { advance: true })`) |
-| 8 | `service` | `unread` reads from the cursor's byte offset and **writes the cursor** (`cursors/<consumer>.json`) | `packages/bridge/src/services/inbox/inbox.ts:251` (`unread(`) |
+| 8 | `service` | `unread` reads from the cursor's byte offset and **writes the cursor** (`cursors/<consumer>.json`) | `packages/bridge/src/services/inbox/inbox.ts:248` (`unread(`) |
 | 9 | `app` | which questions this wait takes | `packages/bridge/src/cli/commands/inbox.ts:151` (`function questionsToTake(`) |
 | 10 | `service` | routing, and **writes `handed.json`** under `handed.json.lock`: a question another wait has is skipped, a story's own live listener beats a repo listener (which defers to it), and each question taken is marked as this wait's in the same locked write, so two waits can't both take it | `packages/bridge/src/services/inbox/conversation.ts:340` (`updateJson<Handed, void>(handedFile(home)`) |
-| 11 | `service` | a story built by an agent this session launched is relayed to that agent | `packages/bridge/src/services/inbox/binding.ts:171` (`export function relayBinding`) |
+| 11 | `service` | a story built by an agent this session launched is relayed to that agent | `packages/bridge/src/services/listeners/binding.ts:171` (`export function relayBinding`) |
 | 12 | `service` | marks again under the lock once the relays are known: a relayed question is noted as `via` the agent, so `answer` credits the right session | `packages/bridge/src/services/inbox/conversation.ts:147` (`export function noteHanded`) |
 | 13 | `service` | **writes the `handling` beat** (`listeners/<consumer>.json`) | `packages/bridge/src/services/listeners/listeners.ts:65` (`export function beat(`) |
 | 14 | `app` | prints the question (with the relay message when it has one) and exits | `packages/bridge/src/cli/commands/inbox.ts:468` (`printHandOver(entries, opts, relays, consumer)`) |

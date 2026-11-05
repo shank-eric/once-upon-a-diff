@@ -10,13 +10,12 @@
  * retired turn capture (its meta names a `turn`) is left out.
  */
 import path from 'node:path';
-import { REPO_RE, sameRepo, storyRepo } from '../config/repos.ts';
-import { readMeta } from '../stories/meta.ts';
+import { REPO_RE, sameRepo } from '../config/repos.ts';
+import { readMeta, storyRepo, stateKeyOf } from '../stories/meta.ts';
 import { readReads } from '../stories/reads.ts';
 import { unwrittenCount } from '../stories/skeleton.ts';
 import { isStoryless } from '../stories/local-story.ts';
-import { stateKeyOf } from './drafts.ts';
-import { approvalOf, readApproval, type Approval } from './approve.ts';
+import { approvalOf, readApproval, type Approval } from '../stories/approval.ts';
 import type { StoryStore } from '../stories/store.ts';
 import type { InboxLocalStory, InboxStory, ReviewedBy } from '@once-upon-a-diff/protocol/types';
 
@@ -26,8 +25,6 @@ export const STORY_DAYS = 30;
 export const LOCAL_IDLE_DAYS = 3;
 /** What marks a local story done without you: its work is on GitHub or in the default branch, or it went quiet. */
 export const AUTO_DONE: readonly ReviewedBy[] = ['pr', 'delivered', 'idle'];
-/** Branches that are not a unit of work of their own. */
-export const DEFAULT_BRANCHES = new Set(['main', 'master', 'develop', 'development', 'trunk']);
 const REVIEWED = 'reviewed.json';
 const MERGED = 'merged.json';
 

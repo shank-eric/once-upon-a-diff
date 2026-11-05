@@ -34,7 +34,7 @@ import { withLayout, type Layout } from '/assets/panel/layout.ts';
 import type { LocalNote } from '/assets/types.ts';
 
 const POLL_MS = 5000;
-// a hidden tab doesn't poll, but its page is still open: it says so about once a minute (services/listeners/auto-stop.ts)
+// a hidden tab doesn't poll, but its page is still open: it says so about once a minute (services/inbox/auto-stop.ts)
 const STILL_OPEN_MS = 60000;
 const app = document.getElementById('ou-local-app') as HTMLElement; // the page's shell has it
 
