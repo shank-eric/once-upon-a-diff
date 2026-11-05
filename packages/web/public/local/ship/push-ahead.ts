@@ -1,16 +1,16 @@
 /*
  * Push for a branch that already has an open PR, in the page's header next to Open PR #N and "N commits ahead": a fix
  * made after review that GitHub's copy of the branch lacks. The button opens the same confirm box Create pull request
- * uses, listing the commits a push would send (GET .../pr), and its own button pushes them (POST .../pr {action:
+ * uses (action-dialog.ts), listing the commits a push would send (GET .../pr), and its own button pushes them (POST .../pr {action:
  * 'push-ahead'}): a fast-forward of the branch, never forced, refused when GitHub has commits this checkout doesn't.
  * The board's card for the PR opens this page with `#push=1`, which opens the box.
  */
-import { html } from '/assets/protocol/domain/html.ts';
-import { setHtml } from '/assets/ui/dom.ts';
+import { html } from '/assets/preact.mjs';
 import { plural } from '/assets/protocol/domain/text.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { bridge, page, PARAMS } from '/assets/local/page.ts';
-import { boxElement, commitListHtml, takeView } from './pull-request.ts';
+import { CommitList, openActionDialog } from './action-dialog.ts';
+import { takeView } from './pull-request.ts';
 import type { PrView } from '/assets/types.ts';
 
 /** Why the box's Push can't go, or null when it can. */
@@ -38,81 +38,46 @@ function blockerOf(view: PrView): string | null {
   }
 }
 
-function formHtml(view: PrView) {
-  const blocker = blockerOf(view);
+function lead(view: PrView) {
+  return html`<p class="ou-local-muted">${view.repo || 'origin'}: <code>${view.branch || ''}</code> goes to <code>origin/${view.branch || ''}</code> as a fast-forward. It never force-pushes.</p>`;
+}
+
+function standing(view: PrView) {
   const branch = html`<code>${view.branch || ''}</code>`;
   const sends =
     view.remote.state === 'ahead' &&
-    html`<p>GitHub's ${branch} is behind. Pushing sends ${plural(view.to_push.length, 'commit')}:</p>${commitListHtml(view)}`;
+    html`<p>GitHub's ${branch} is behind. Pushing sends ${plural(view.to_push.length, 'commit')}:</p><${CommitList} view=${view} />`;
   const pull =
     view.pull &&
     html`<p>Open PR: <a href="${view.pull.url}" target="_blank" rel="noopener">#${String(view.pull.number)}</a></p>`;
-  return html`<form class="ou-local-pr-form">
-    <h2>Push ${view.branch || 'the branch'}</h2>
-    <p class="ou-local-muted">${view.repo || 'origin'}: ${branch} goes to <code>origin/${view.branch || ''}</code> as a fast-forward. It never force-pushes.</p>
-    <div class="ou-local-pr-standing">${sends}${pull}</div>
-    <div class="ou-local-pr-result" role="status">${blocker && html`<p class="ou-local-pr-stop">${blocker}</p>`}</div>
-    <div class="ou-local-pr-buttons">
-      <button type="button" data-pr-cancel>Cancel</button>
-      <button type="submit" class="ou-local-pr-go"${blocker ? html` disabled` : html``}>Push</button>
-    </div>
-  </form>`;
-}
-
-async function submit(form: HTMLFormElement, view: PrView) {
-  const goButton = form.querySelector<HTMLButtonElement>('.ou-local-pr-go')!;
-  const result = form.querySelector('.ou-local-pr-result')!;
-  goButton.disabled = true;
-  setHtml(result, html`<p>Pushing ${view.branch}…</p>`);
-  try {
-    const answer = await bridge.ask(ROUTES.prPush, {
-      params: PARAMS,
-      body: { action: 'push-ahead', head_sha: view.head_sha },
-    });
-    takeView(answer.view);
-    const lines = answer.output && html`<pre class="ou-local-pr-output">${answer.output}</pre>`;
-    setHtml(result, html`<p class="ou-local-pr-ok">Pushed ${view.branch}.</p>${lines}`);
-    goButton.textContent = 'Done';
-  } catch (err) {
-    setHtml(
-      result,
-      html`<p class="ou-local-pr-stop">The push didn't go through.</p><pre class="ou-local-pr-output">${(err as Error).message}</pre>`,
-    );
-    goButton.disabled = false;
-  }
+  return html`${sends}${pull}`;
 }
 
 /** The header Push's click (or the board's link): the confirm box, with where GitHub's copy of the branch stands. */
-export async function openPushAheadBox() {
-  const box = boxElement();
-  if (page.story.read_only) {
-    setHtml(
-      box,
-      html`<form class="ou-local-pr-form"><h2>Push</h2>
-        <p>This page was opened with a read-only link, which can read the story but not push.</p>
-        <p>To push, open the story from the agent board (<b>Open story</b>) or run <code>once-upon page --story ${page.story.id}</code>.</p>
-        <div class="ou-local-pr-buttons"><button type="button" data-pr-cancel>Close</button></div></form>`,
-    );
-    box.showModal();
-    return;
-  }
-  setHtml(box, html`<p class="ou-local-muted">Checking where GitHub's branch stands…</p>`);
-  box.showModal();
-  let view: PrView;
-  try {
-    view = await bridge.ask(ROUTES.prView, { params: PARAMS });
-  } catch (err) {
-    setHtml(
-      box,
-      html`<p class="ou-local-pr-stop">Couldn't check the branch: ${(err as Error).message}</p><div class="ou-local-pr-buttons"><button type="button" data-pr-cancel>Close</button></div>`,
-    );
-    return;
-  }
-  takeView(view);
-  setHtml(box, formHtml(view));
-  const form = box.querySelector<HTMLFormElement>('form')!;
-  form.addEventListener('submit', (event) => {
-    event.preventDefault();
-    submit(form, view);
+export function openPushAheadBox() {
+  openActionDialog<PrView>({
+    refusal: page.story.read_only
+      ? { title: 'Push', cant: 'push', to: 'push', story: page.story.id }
+      : null,
+    checking: "Checking where GitHub's branch stands…",
+    load: () => bridge.ask(ROUTES.prView, { params: PARAMS }),
+    loaded: takeView,
+    title: (view) => `Push ${view.branch || 'the branch'}`,
+    lead,
+    standing,
+    blocker: blockerOf,
+    goLabel: () => 'Push',
+    working: (view) => `Pushing ${view.branch}…`,
+    go: async (view) => {
+      const answer = await bridge.ask(ROUTES.prPush, {
+        params: PARAMS,
+        body: { action: 'push-ahead', head_sha: view.head_sha },
+      });
+      takeView(answer.view);
+      return {
+        ok: html`<p class="ou-local-pr-ok">Pushed ${view.branch}.</p>`,
+        output: answer.output,
+      };
+    },
   });
 }

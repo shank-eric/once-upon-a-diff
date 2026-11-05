@@ -27,6 +27,7 @@ const EVENT_PROPERTIES = [
   'focus',
   'blur',
   'keyup',
+  'close',
 ];
 
 export interface DomOptions {
@@ -86,6 +87,28 @@ export function installDom({ html, rootId, rect }: DomOptions) {
     return { width: 340, top, height: 100 } as DOMRect;
   };
   window.HTMLElement.prototype.setPointerCapture = function () {};
+  // linkedom's <dialog> has no showModal: it marks the dialog open and remembers what had focus, and close() shuts it, gives that
+  // element its focus back if it is still on the page, and says `close`, as a browser does
+  const opener = new WeakMap<object, HTMLElement>();
+  Object.assign(window.HTMLElement.prototype, {
+    showModal(this: HTMLElement) {
+      opener.set(this, document.activeElement as HTMLElement);
+      this.setAttribute('open', '');
+    },
+    show(this: HTMLElement) {
+      this.setAttribute('open', '');
+    },
+    close(this: HTMLElement) {
+      if (this.hasAttribute('open')) {
+        this.removeAttribute('open');
+        const before = opener.get(this);
+        if (before && document.contains(before)) {
+          before.focus();
+        }
+        this.dispatchEvent(new window.Event('close'));
+      }
+    },
+  });
 
   // linkedom has no focus: this tracks it the way a browser does for what the pages rely on. focus() takes it, blur() gives
   // it up, and moving the focused node in the tree (a keyed reorder) or removing it drops it, as a browser would.

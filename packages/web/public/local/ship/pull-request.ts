@@ -9,7 +9,9 @@
 import { html } from '/assets/protocol/domain/html.ts';
 import { setHtml } from '/assets/ui/dom.ts';
 import { plural } from '/assets/protocol/domain/text.ts';
-import { writeClipboard } from '/assets/ui/clipboard.ts';
+import { html as vdom } from '/assets/preact.mjs';
+import { CopyButton } from '/assets/ui/copy-button.ts';
+import { CommitList, openActionDialog } from './action-dialog.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { bridge, page, PARAMS } from '/assets/local/page.ts';
 import type { PrView } from '/assets/types.ts';
@@ -107,30 +109,31 @@ export function compareUrl(
   return { url: withTitle, bodyLeftOut: true };
 }
 
-/** The commits a push would send, as the Create pull request box and the Push box list them. */
-export function commitListHtml(view: { to_push: PrView['to_push'] }) {
-  const shown = view.to_push.map(
-    (commit) => html`<li><code>${commit.sha.slice(0, 7)}</code> ${commit.subject}</li>`,
-  );
-  return html`<ul class="ou-local-pr-commits">${shown}</ul>`;
-}
-
 /** What the push would do, and why the box won't push when it can't. */
-function standingHtml(view: PrView) {
-  const branch = html`<code>${view.branch || ''}</code>`;
+function standing(view: PrView) {
+  const branch = vdom`<code>${view.branch || ''}</code>`;
   const count = plural(view.to_push.length, 'commit');
+  let says;
   switch (view.remote.state) {
     case 'missing':
-      return html`<p>${branch} isn't on GitHub yet. Pushing sends ${count}:</p>${commitListHtml(view)}`;
+      says = vdom`<p>${branch} isn't on GitHub yet. Pushing sends ${count}:</p><${CommitList} view=${view} />`;
+      break;
     case 'ahead':
-      return html`<p>GitHub's ${branch} is behind. Pushing sends ${count}:</p>${commitListHtml(view)}`;
+      says = vdom`<p>GitHub's ${branch} is behind. Pushing sends ${count}:</p><${CommitList} view=${view} />`;
+      break;
     case 'same':
-      return html`<p>${branch} is on GitHub and up to date, so there's nothing to push.</p>`;
+      says = vdom`<p>${branch} is on GitHub and up to date, so there's nothing to push.</p>`;
+      break;
     case 'diverged':
-      return html`<p class="ou-local-pr-stop">GitHub's ${branch} has commits this checkout doesn't, so a push would be refused. Pull them, then open this box again. It never force-pushes.</p>`;
+      says = vdom`<p class="ou-local-pr-stop">GitHub's ${branch} has commits this checkout doesn't, so a push would be refused. Pull them, then open this box again. It never force-pushes.</p>`;
+      break;
     default:
-      return html`<p class="ou-local-pr-stop">${view.remote.error || "Couldn't reach origin."}</p>`;
+      says = vdom`<p class="ou-local-pr-stop">${view.remote.error || "Couldn't reach origin."}</p>`;
   }
+  const pull =
+    view.pull &&
+    vdom`<p>Open PR: <a href="${view.pull.url}" target="_blank" rel="noopener">#${String(view.pull.number)}</a></p>`;
+  return vdom`${says}${pull}`;
 }
 
 /** Why the box's button is off, or null when it can go. */
@@ -150,67 +153,40 @@ function blockerOf(view: PrView): string | null {
   return null;
 }
 
-function formHtml(view: PrView) {
+function lead(view: PrView) {
+  return vdom`<p class="ou-local-muted">${view.repo || 'origin'}: <code>${view.branch || ''}</code> into
+    <input name="base" class="ou-local-pr-base" value="${view.base}" aria-label="Base branch" spellcheck="false" /></p>`;
+}
+
+function fields(view: PrView) {
   const draft = view.draft;
-  const blocker = blockerOf(view);
-  const pushes = view.remote.state !== 'same';
-  const goLabel = pushes ? 'Push and open on GitHub' : 'Open on GitHub';
-  const draftNote = draft
-    ? html`Title and body handed over by a session (<code>once-upon pr-draft</code>). Edit them here or on GitHub.`
-    : html`No title and body were handed over. Leave them empty and GitHub fills them from the commits.`;
-  const pull =
-    view.pull &&
-    html`<p>Open PR: <a href="${view.pull.url}" target="_blank" rel="noopener">#${String(view.pull.number)}</a></p>`;
-  return html`<form class="ou-local-pr-form">
-    <h2>Create pull request</h2>
-    <p class="ou-local-muted">${view.repo || 'origin'}: <code>${view.branch || ''}</code> into
-      <input name="base" class="ou-local-pr-base" value="${view.base}" aria-label="Base branch" spellcheck="false"></p>
-    <div class="ou-local-pr-standing">${standingHtml(view)}${pull}</div>
-    <label>Title<input name="title" value="${draft ? draft.title : ''}"></label>
-    <label>Body<textarea name="body" rows="12">${draft ? draft.body : ''}</textarea></label>
-    <p class="ou-local-muted">${draftNote}</p>
-    <div class="ou-local-pr-result" role="status">${blocker && html`<p class="ou-local-pr-stop">${blocker}</p>`}</div>
-    <div class="ou-local-pr-buttons">
-      <button type="button" data-pr-cancel>Cancel</button>
-      <button type="submit" class="ou-local-pr-go"${blocker ? html` disabled` : html``}>${goLabel}</button>
-    </div>
-  </form>`;
+  const note = draft
+    ? vdom`Title and body handed over by a session (<code>once-upon pr-draft</code>). Edit them here or on GitHub.`
+    : vdom`No title and body were handed over. Leave them empty and GitHub fills them from the commits.`;
+  return vdom`<label>Title<input name="title" value="${draft ? draft.title : ''}" /></label>
+    <label>Body<textarea name="body" rows="12" value="${draft ? draft.body : ''}"></textarea></label>
+    <p class="ou-local-muted">${note}</p>`;
 }
 
-/** The confirm box both buttons use (one dialog on the page). */
-export function boxElement(): HTMLDialogElement {
-  let box = document.getElementById('ou-local-pr-box') as HTMLDialogElement | null;
-  if (!box) {
-    box = document.createElement('dialog');
-    box.id = 'ou-local-pr-box';
-    box.addEventListener('click', (event) => {
-      const target = event.target as Element;
-      if (target === box || target.closest('[data-pr-cancel]')) {
-        box!.close();
-      }
-    });
-    document.body.appendChild(box);
-  }
-  return box;
-}
+/** What a field in the box holds. */
+const fieldOf = (form: HTMLFormElement, name: string) =>
+  (form.querySelector(`[name="${name}"]`) as HTMLInputElement).value;
 
-/** After the push: where the PR page opened, git's lines, and the body to copy when the link couldn't carry it. */
-function doneHtml(url: string, bodyLeftOut: boolean, opened: boolean, output: string) {
+/** After the push: where the PR page opened, and the body to copy when the link couldn't carry it. */
+function done(url: string, body: string, bodyLeftOut: boolean, opened: boolean) {
   const where = opened
-    ? html`GitHub's Create pull request page is open in a new tab. Check it there and click <b>Create pull request</b>.`
-    : html`Open <a href="${url}" target="_blank" rel="noopener">GitHub's Create pull request page</a>, check it, and click <b>Create pull request</b>.`;
+    ? vdom`GitHub's Create pull request page is open in a new tab. Check it there and click <b>Create pull request</b>.`
+    : vdom`Open <a href="${url}" target="_blank" rel="noopener">GitHub's Create pull request page</a>, check it, and click <b>Create pull request</b>.`;
   const copy =
     bodyLeftOut &&
-    html`<p>The body is too long for the link, so it's left out there. <button type="button" data-pr-copy-body>Copy body</button> and paste it in.</p>`;
-  const lines = output && html`<pre class="ou-local-pr-output">${output}</pre>`;
-  return html`<p class="ou-local-pr-ok">${where}</p>${copy}${lines}`;
+    vdom`<p>The body is too long for the link, so it's left out there. <${CopyButton} text=${body} onFailed=${() => "Couldn't copy"} attrs=${{ 'data-pr-copy-body': true }}>Copy body</${CopyButton}> and paste it in.</p>`;
+  return vdom`<p class="ou-local-pr-ok">${where}</p>${copy}`;
 }
 
-async function submit(form: HTMLFormElement, view: PrView) {
-  const fields = new FormData(form);
-  const base = String(fields.get('base') || '').trim() || view.base;
-  const title = String(fields.get('title') || '').trim();
-  const body = String(fields.get('body') || '').trim();
+async function create(view: PrView, form: HTMLFormElement) {
+  const base = fieldOf(form, 'base').trim() || view.base;
+  const title = fieldOf(form, 'title').trim();
+  const body = fieldOf(form, 'body').trim();
   const { url, bodyLeftOut } = compareUrl(
     view.repo as string,
     base,
@@ -218,18 +194,14 @@ async function submit(form: HTMLFormElement, view: PrView) {
     title,
     body,
   );
-  const goButton = form.querySelector<HTMLButtonElement>('.ou-local-pr-go')!;
-  const result = form.querySelector('.ou-local-pr-result')!;
   // opened now, on the click, so the browser doesn't block it once the push is done
   const tab = window.open('about:blank', '_blank');
   if (tab) {
     tab.opener = null;
   }
-  goButton.disabled = true;
   let output = '';
   try {
     if (view.remote.state !== 'same') {
-      setHtml(result, html`<p>Pushing ${view.branch}…</p>`);
       const answer = await bridge.ask(ROUTES.prPush, {
         params: PARAMS,
         body: { action: 'push', head_sha: view.head_sha },
@@ -241,63 +213,41 @@ async function submit(form: HTMLFormElement, view: PrView) {
     if (tab) {
       tab.close();
     }
-    setHtml(
-      result,
-      html`<p class="ou-local-pr-stop">The push didn't go through.</p><pre class="ou-local-pr-output">${(err as Error).message}</pre>`,
-    );
-    goButton.disabled = false;
-    return;
+    throw err;
   }
   if (tab) {
     tab.location.href = url;
   }
-  setHtml(result, doneHtml(url, bodyLeftOut, !!tab, output));
-  const copyButton = result.querySelector<HTMLButtonElement>('[data-pr-copy-body]');
-  if (copyButton) {
-    copyButton.onclick = async () => {
-      copyButton.textContent = (await writeClipboard(body)) ? 'Copied' : "Couldn't copy";
-    };
-  }
-  goButton.textContent = 'Done';
   lastLook = 0; // look for the new PR when they come back from GitHub
+  return { ok: done(url, body, bodyLeftOut, !!tab), output };
 }
 
 /** The header button's click: the confirm box, with where the branch stands. */
-export async function openPrBox() {
-  const box = boxElement();
-  if (page.story.read_only) {
-    // a read-only link carries the read-only key, which can't push: say where to open the story, rather than fail on a click
-    setHtml(
-      box,
-      html`<form class="ou-local-pr-form"><h2>Create pull request</h2>
-        <p>This page was opened with a read-only link, which can read the story but not push its branch.</p>
-        <p>To push and open the PR, open the story from the agent board (<b>Open story</b>) or run <code>once-upon page --story ${page.story.id}</code>.</p>
-        <div class="ou-local-pr-buttons"><button type="button" data-pr-cancel>Close</button></div></form>`,
-    );
-    box.showModal();
-    return;
-  }
-  setHtml(
-    box,
-    html`<p class="ou-local-muted">Checking where ${page.story.local.branch || 'the branch'} stands on GitHub…</p>`,
-  );
-  box.showModal();
-  let view: PrView;
-  try {
-    view = await bridge.ask(ROUTES.prView, { params: PARAMS });
-  } catch (err) {
-    setHtml(
-      box,
-      html`<p class="ou-local-pr-stop">Couldn't check the branch: ${(err as Error).message}</p><div class="ou-local-pr-buttons"><button type="button" data-pr-cancel>Close</button></div>`,
-    );
-    return;
-  }
-  lastView = view;
-  redrawButton();
-  setHtml(box, formHtml(view));
-  const form = box.querySelector<HTMLFormElement>('form')!;
-  form.addEventListener('submit', (event) => {
-    event.preventDefault();
-    submit(form, view);
+export function openPrBox() {
+  openActionDialog<PrView>({
+    refusal: page.story.read_only
+      ? // a read-only link carries the read-only key, which can't push: say where to open the story, rather than fail on a click
+        {
+          title: 'Create pull request',
+          cant: 'push its branch',
+          to: 'push and open the PR',
+          story: page.story.id,
+        }
+      : null,
+    checking: `Checking where ${page.story.local.branch || 'the branch'} stands on GitHub…`,
+    load: () => bridge.ask(ROUTES.prView, { params: PARAMS }),
+    loaded: (view) => {
+      lastView = view;
+      redrawButton();
+    },
+    title: () => 'Create pull request',
+    lead,
+    standing,
+    fields,
+    blocker: blockerOf,
+    goLabel: (view) =>
+      view.remote.state !== 'same' ? 'Push and open on GitHub' : 'Open on GitHub',
+    working: (view) => (view.remote.state !== 'same' ? `Pushing ${view.branch}…` : null),
+    go: create,
   });
 }
