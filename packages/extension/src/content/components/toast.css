@@ -1,5 +1,5 @@
 /*
- * A toast's CSS, linked into its shadow root by toast.js.
+ * A toast's CSS, linked into its shadow root by toast.ts.
  */
 :host { all: initial; }
 .t { position: fixed; right: 16px; bottom: 16px; z-index: 100; max-width: 360px; padding: 8px 12px; border-radius: 6px;

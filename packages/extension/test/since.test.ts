@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { tagFor, tagHtml, requestFor, type StoryStatus } from '../src/content/ui/story-tag.ts';
+import { tagFor, requestFor, type StoryStatus } from '../src/content/tag-model.ts';
 
 const SHA_A = 'a'.repeat(40);
 const SHA_B = 'b'.repeat(40);
@@ -9,11 +9,6 @@ test('the out-of-date tag offers Update (new commits) and Re-tell from scratch',
   const pr = { repo: 'acme/widgets', number: 7 };
   const tag = tagFor({ state: 'ready', stale: true, story_head: SHA_A, current_head: SHA_B }, pr);
   assert.equal(tag.alt!.act, 'retell');
-  const html = String(tagHtml(tag));
-  assert.match(
-    html,
-    /^<button class="b stale" data-act="update"[^>]*>Story out of date · Update<\/button><button class="alt" data-act="retell"/,
-  );
   assert.match(tag.title, /^Update \(new commits\)/);
   assert.match(tag.alt!.title, /^Re-tell from scratch/);
   assert.equal(requestFor(tag, pr).retell, undefined);
@@ -150,11 +145,4 @@ test('the PR-list tag says how much of the story he has read', () => {
     'Update queued',
     'queued and building win',
   );
-  for (const result of [part, all, moved]) {
-    assert.equal(
-      (String(tagHtml(result)).match(/<(a|button|span) class="b/g) || []).length,
-      1,
-      'one tag',
-    );
-  }
 });

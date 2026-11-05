@@ -25,6 +25,7 @@
     "@once-upon-a-diff/ui": "workspace:*"
   },
   "devDependencies": {
+    "@once-upon-a-diff/test-kit": "workspace:*",
     "@types/chrome": "0.3.4",
     "@types/node": "24.19.1",
     "typescript": "5.9.3",

@@ -1,5 +1,5 @@
 /*
- * A story tag's CSS (story-tag.js draws it), linked into each tag's shadow root by tag-host.js.
+ * A story tag's CSS (story-tag.ts draws it), linked into each tag's shadow root by tag-host.ts.
  */
 :host { all: initial; display: inline-block; vertical-align: middle; margin-left: 6px; }
 .b { font: 500 11px/18px -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; display: inline-flex; align-items: center; gap: 4px;

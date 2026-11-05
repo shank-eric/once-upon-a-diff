@@ -4,18 +4,17 @@
  * batched POST /api/stories/status-many, keeps the answers by PR, handles
  * the tags' clicks (Build story, Update, Re-tell, and on Files changed the
  * Story link, which opens the panel) and keeps the page's "No session
- * listening" notice (listen-notice.js). Each page says where its tags go and
+ * listening" notice (components/listen-notice.ts). Each page says where its tags go and
  * when to look.
  */
 import { prKey } from '@once-upon-a-diff/protocol/domain/pr-key';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
-import { bridge, usage, type BridgeAnswer } from '../bridge.ts';
+import { bridge, usage, type BridgeAnswer } from './bridge.ts';
 import type { Listening, StatusMany } from '@once-upon-a-diff/protocol/types';
-import type { PrRef, StoryStatus } from './story-tag.ts';
-import { listenNotice } from './listen-notice.ts';
-import { answersBadge, tagFor, tagHtml, requestFor, missingListeners } from './story-tag.ts';
-import { html } from '@once-upon-a-diff/protocol/domain/html';
-import { createTagHost, showTag, clickedTagButton } from './tag-host.ts';
+import type { PrRef, StoryStatus } from './tag-model.ts';
+import { listenNotice } from './components/listen-notice.ts';
+import { answersBadge, tagFor, requestFor, missingListeners } from './tag-model.ts';
+import { createTagHost, showTag, clickedTagButton } from './components/tag-host.ts';
 
 const MAX_PER_CALL = 200;
 const LISTENER_LOOKS_MS = [5000, 10000, 15000]; // after Start listening typed its line: asks who listens at about 5, 15 and 30 s
@@ -158,7 +157,7 @@ export function createPrTags({ attr, onStory }: { attr: string; onStory?: (pr: P
   function show(host: Element, pr: PrRef) {
     const result = resultOf(pr);
     if (result) {
-      showTag(host, html`${tagHtml(tagFor(result, pr))}${answersBadge(result, pr)}`);
+      showTag(host, tagFor(result, pr), answersBadge(result, pr));
     }
   }
 

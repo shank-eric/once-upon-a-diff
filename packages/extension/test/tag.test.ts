@@ -3,13 +3,12 @@ import assert from 'node:assert/strict';
 import {
   answersBadge,
   tagFor,
-  tagHtml,
   requestFor,
   missingListeners,
   wantsAskDock,
   withAskDock,
-  noticeRowHtml,
-} from '../src/content/ui/story-tag.ts';
+  noticeRowTitle,
+} from '../src/content/tag-model.ts';
 import { conversationPr } from '@once-upon-a-diff/host-github/pages';
 
 const pr = { repo: 'octo-org/api-server', number: 42 };
@@ -71,25 +70,6 @@ test('Rebuilding or Updating is the bridge’s update_kind, not the words of its
   assert.equal(tagFor({ ...rebuilding, update_mode: 'rebuild' }, pr).label, 'Updating…');
 });
 
-test('the HTML is one element: a link, a button, or a span', () => {
-  const count = (html: string) => (html.match(/<(a|button|span) class="b/g) || []).length;
-  for (const result of [
-    { state: 'ready' },
-    { state: 'none' },
-    { state: 'queued' },
-    { state: 'building' },
-    { state: 'ready', stale: true, story_head: 'a' },
-  ]) {
-    assert.equal(count(String(tagHtml(tagFor(result, pr)))), 1, JSON.stringify(result));
-  }
-  assert.match(String(tagHtml(tagFor({ state: 'queued' }, pr))), /^<span /);
-  assert.match(String(tagHtml(tagFor({ state: 'none' }, pr))), /^<button [^>]*data-act="build"/);
-  assert.ok(
-    !String(tagHtml({ kind: 'progress', cls: '', label: '<x>', title: '"' })).includes('<x>'),
-    'escapes',
-  );
-});
-
 test('Build story sends a build request, and Update sends an update from the story head', () => {
   const build = requestFor(tagFor({ state: 'none' }, pr), pr);
   assert.equal(build.url, 'https://github.com/octo-org/api-server/pull/42');
@@ -133,7 +113,7 @@ test('the Conversation tab is /owner/repo/pull/N and nothing after it', () => {
 });
 
 test('a #ou-step-N hash names the step to open on', async () => {
-  const { stepOfHash } = await import('../src/content/ui/story-tag.ts');
+  const { stepOfHash } = await import('../src/content/tag-model.ts');
   assert.equal(stepOfHash('#ou-step-3'), 3);
   for (const hash of ['', '#diff-abc', '#ou-step-', '#ou-step-x']) {
     assert.equal(stepOfHash(hash), null, hash);
@@ -146,12 +126,11 @@ test('a PR with unread answers gets a badge beside its one tag, linking Files ch
   assert.equal(answersBadge({ ...ready, unread_answers: 0 }, pr), null);
   assert.equal(answersBadge(ready, pr), null, 'an older bridge says nothing');
   assert.equal(answersBadge({ state: 'none', unread_answers: 2 }, pr), null, 'no story, no badge');
-  const one = String(answersBadge({ ...ready, unread_answers: 1 }, pr));
-  assert.match(one, /href="https:\/\/github.com\/acme\/widgets\/pull\/7\/changes#ou-ask"/);
-  assert.match(one, />1 new answer</);
-  assert.match(String(answersBadge({ ...ready, unread_answers: 3 }, pr)), />3 new answers</);
-  // the badge is not a second tag
-  assert.equal((String(tagHtml(tagFor(ready, pr))).match(/class="b /g) || []).length, 1);
+  const one = answersBadge({ ...ready, unread_answers: 1 }, pr)!;
+  assert.equal(one.href, 'https://github.com/acme/widgets/pull/7/changes#ou-ask');
+  assert.equal(one.label, '1 new answer');
+  assert.match(one.title, /^An answer to your question in the story is unread/);
+  assert.equal(answersBadge({ ...ready, unread_answers: 3 }, pr)!.label, '3 new answers');
   assert.equal(wantsAskDock('#ou-ask'), true);
   assert.equal(wantsAskDock('#ou-step-2'), false);
   assert.equal(wantsAskDock(''), false);
@@ -172,17 +151,14 @@ test('the Ask dock opens once for a #ou-ask URL and stays as the reviewer leaves
   assert.equal(withAskDock(saved, { hash: '', href, opened: undefined }).panel, saved);
 });
 
-test('a notice row has Start listening and a place for its note, and no Copy prompt button', () => {
+test('a notice row says what Start listening does, and how to do it by hand', () => {
   const row = {
     repo: 'octo-org/api-server',
     prompt: '/once-upon-listen octo-org/api-server',
     details: 'once-upon wait --repo octo-org/api-server',
     checkout: '~/Development/api-server',
   };
-  const text = String(noticeRowHtml(row, 2));
-  assert.match(text, /No session listening for <b>octo-org\/api-server<\/b>/);
-  assert.match(text, /<button data-i="2"[^>]*>Start listening<\/button>/);
-  assert.match(text, /class="note" data-n="2"[^>]*hidden/);
+  const text = noticeRowTitle(row);
   assert.match(
     text,
     /Types \/once-upon-listen octo-org\/api-server into an idle Claude Code session in ~\/Development\/api-server/,
@@ -191,8 +167,7 @@ test('a notice row has Start listening and a place for its note, and no Copy pro
     text,
     /Without the once-upon-listen skill: once-upon wait --repo octo-org\/api-server/,
   );
-  assert.doesNotMatch(text, /Copy prompt/);
-  const bare = String(noticeRowHtml({ ...row, checkout: null, details: '' }, 0));
+  const bare = noticeRowTitle({ ...row, checkout: null, details: '' });
   assert.match(bare, /in your octo-org\/api-server checkout/);
   assert.doesNotMatch(bare, /Without the once-upon-listen skill/);
 });

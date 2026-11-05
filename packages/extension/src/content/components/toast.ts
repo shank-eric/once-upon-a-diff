@@ -5,7 +5,7 @@
 import { hideUntilStyled, stylesheetLink } from '@once-upon-a-diff/ui/dom';
 
 const TOAST_MS = 5000;
-const TOAST_CSS_URL = chrome.runtime.getURL('content/ui/toast.css');
+const TOAST_CSS_URL = chrome.runtime.getURL('content/components/toast.css');
 
 export function toast(text: string): void {
   const host = document.createElement('div');

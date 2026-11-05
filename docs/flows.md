@@ -51,7 +51,7 @@ flowchart LR
 
 | # | Layer | Hop | At |
 |---|---|---|---|
-| 1 | `app` | the tag's Build story click calls the typed client | `packages/extension/src/content/ui/pr-tags.ts:127` (`ROUTES.buildRequest`) |
+| 1 | `app` | the tag's Build story click calls the typed client | `packages/extension/src/content/pr-tags.ts:126` (`ROUTES.buildRequest`) |
 | 2 | `protocol` | the route: `POST /api/builds`, token only | `packages/protocol/src/routes.ts:115` (`buildRequest:`) |
 | 3 | `app` | through the service worker to the bridge, as above | `packages/extension/src/entrypoints/background.ts:33` (`fetch(`) |
 | 4 | `app` | the route checks the body and asks for the build | `packages/bridge/src/server/routes/builds.ts:36` (`parseBody('buildRequest', raw)`) |
@@ -91,7 +91,7 @@ flowchart LR
 
 | # | Layer | Hop | At |
 |---|---|---|---|
-| 26 | `app` | the PR tags poll the status of every PR on the page | `packages/extension/src/content/ui/pr-tags.ts:82` (`ROUTES.statusMany`) |
+| 26 | `app` | the PR tags poll the status of every PR on the page | `packages/extension/src/content/pr-tags.ts:81` (`ROUTES.statusMany`) |
 | 27 | `app` | the route finds each story, and settles a request its head matches | `packages/bridge/src/server/routes/catalog.ts:126` (`async function statusMany(`) |
 | 28 | `app` | it asks the service's `storyFinishes`, the same rule `publish` used, then settles under the lock | `packages/bridge/src/server/routes/catalog.ts:78` (`storyFinishes(build, storyHead)`) |
 

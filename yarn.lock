@@ -324,6 +324,7 @@ __metadata:
     "@once-upon-a-diff/host-github": "workspace:*"
     "@once-upon-a-diff/panel": "workspace:*"
     "@once-upon-a-diff/protocol": "workspace:*"
+    "@once-upon-a-diff/test-kit": "workspace:*"
     "@once-upon-a-diff/ui": "workspace:*"
     "@types/chrome": "npm:0.3.4"
     "@types/node": "npm:24.19.1"

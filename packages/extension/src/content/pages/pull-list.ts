@@ -1,17 +1,17 @@
 /*
  * PR lists (a repo's /pulls, the global /pulls, and PR search results): one
  * story tag after each PR's title, and the tag is the control
- * (ui/story-tag.js): Story opens Files changed, Build story or Update asks
+ * (components/story-tag.ts): Story opens Files changed, Build story or Update asks
  * for one, Queued and Building… show progress. Whether a session is listening
- * is said once for the page, per repo, by the notice (ui/listen-notice.js).
+ * is said once for the page, per repo, by the notice (components/listen-notice.ts).
  * One batched bridge call per page. The tags are our own elements in their
  * own shadow roots; nothing of GitHub's is clicked.
  */
 import { prKey } from '@once-upon-a-diff/protocol/domain/pr-key';
 import { conversationPr, isPullListPage } from '@once-upon-a-diff/host-github/pages';
 import { extensionAlive } from '../bridge.ts';
-import { createPrTags } from '../ui/pr-tags.ts';
-import type { PrRef } from '../ui/story-tag.ts';
+import { createPrTags } from '../pr-tags.ts';
+import type { PrRef } from '../tag-model.ts';
 import type { Route } from '../index.ts';
 
 /** A PR's title link on the list, and its row. */

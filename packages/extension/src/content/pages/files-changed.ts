@@ -4,7 +4,7 @@
  * so, docks the story panel. It re-applies the panel after a reload, after
  * GitHub's in-page navigation, and when the story on disk changes, starting
  * from the step saved for this PR. Whenever the panel isn't showing, the PR's
- * story tag sits by the title, as on the Conversation tab (ui/pr-tags.js):
+ * story tag sits by the title, as on the Conversation tab (pr-tags.ts):
  * Story opens the panel, Build story or Update asks for one. It also keeps
  * GitHub's Hide whitespace (?w=1) in step with the saved setting.
  *
@@ -22,13 +22,13 @@ import { bridgeProblem } from '@once-upon-a-diff/api-client/client';
 import { bridge, extensionAlive, usage } from '../bridge.ts';
 import { createListenOption } from '../listen.ts';
 import { loadPanelUi, savePanelUi, loadPrefsCopy, storePrefsCopy, tabSession } from '../storage.ts';
-import { createPrTags, titleElement } from '../ui/pr-tags.ts';
-import { requestFor, stepOfHash, withAskDock } from '../ui/story-tag.ts';
-import { toast } from '../ui/toast.ts';
+import { createPrTags, titleElement } from '../pr-tags.ts';
+import { requestFor, stepOfHash, withAskDock } from '../tag-model.ts';
+import { toast } from '../components/toast.ts';
 import { createWhitespaceCheck, prefsStore } from './hide-whitespace.ts';
 import type { BridgeAnswer } from '../bridge.ts';
 import type { PanelUi } from '../storage.ts';
-import type { PrRef } from '../ui/story-tag.ts';
+import type { PrRef } from '../tag-model.ts';
 import type { Route } from '../index.ts';
 import type { PanelOptions, StoryOverlay } from '@once-upon-a-diff/panel/overlay';
 import type { PanelHost } from '@once-upon-a-diff/panel/host';

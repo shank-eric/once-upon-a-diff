@@ -302,14 +302,14 @@ export default {
     rule(
       'pages-are-an-app',
       'the pages are an app: nothing imports them, and they do not import the extension or the server',
-      // the panel, ui and the api-client have their own rules over WEB (they may name the vendored Preact, by its URL only)
-      { path: `${HOST}|${PROTOCOL}|${BRIDGE}|${EXTENSION}|${TEST_KIT}` },
+      // the panel, ui, the api-client and the extension have their own rules over WEB (they may name the vendored Preact, by its URL only)
+      { path: `${HOST}|${PROTOCOL}|${BRIDGE}|${TEST_KIT}` },
       { path: WEB },
     ),
     rule(
       'preact-by-its-url-only',
-      'the vendored Preact is named /assets/preact.mjs by the panel, ui and the api-client hook, so the page has one Preact: not by a relative path or a package name',
-      { path: `${PANEL}|${UI_PKG}|${API_CLIENT}` },
+      'the vendored Preact is named /assets/preact.mjs by the panel, ui, the api-client hook and the extension’s components, so a page has one Preact: not by a relative path or a package name',
+      { path: `${PANEL}|${UI_PKG}|${API_CLIENT}|${EXTENSION}` },
       {
         path: '^packages/web/public/vendor/preact\\.mjs$',
         dependencyTypesNot: ['aliased-tsconfig-paths'],
@@ -329,9 +329,9 @@ export default {
     ),
     rule(
       'extension-not-the-server',
-      'the extension meets the server over HTTP, not by import',
+      'the extension meets the server over HTTP, not by import (the vendored Preact, which its bundle names by URL like the panel does, is the one file of the pages it takes)',
       { path: EXTENSION },
-      { path: `${BRIDGE}|${WEB}` },
+      { path: `${BRIDGE}|${WEB}`, pathNot: '^packages/web/public/vendor/preact\\.mjs$' },
     ),
     // the /assets/ spelling: the browser imports by URL, the extension's bundle and the packages by name
     rule(

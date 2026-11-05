@@ -1,5 +1,5 @@
 /*
- * The "No session listening" notice's CSS, linked into its shadow root by listen-notice.js.
+ * The "No session listening" notice's CSS, linked into its shadow root by listen-notice.ts.
  */
 :host { all: initial; }
 .n { position: fixed; right: 16px; bottom: 16px; z-index: 98; max-width: 420px; display: flex; flex-direction: column; gap: 4px;

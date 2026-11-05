@@ -11,14 +11,12 @@
  *   queued     "Queued", asked for and no session has it yet (not clickable)
  *   building   "Building…", a session claimed it (not clickable)
  *   updating   "Update queued" / "Updating…", or "Rebuild queued" / "Rebuilding…" for the panel's Rebuild (not clickable)
- * Who's listening is said once per page, per repo, by the notice (listen-notice.js), not on each tag.
+ * Who's listening is said once per page, per repo, by the notice (components/listen-notice.ts), not on each tag.
  *
- * No DOM or chrome.* here, so node can test it.
+ * What a tag says and does, as data: no DOM, no Preact and no chrome.* here, so node can test it. components/story-tag.ts draws it.
  */
-import { html } from '@once-upon-a-diff/protocol/domain/html';
 import { plural, shortSha } from '@once-upon-a-diff/protocol/domain/text';
 import { clockTime } from '@once-upon-a-diff/protocol/domain/time';
-import type { Html } from '@once-upon-a-diff/protocol/domain/html';
 import type {
   Listening,
   PrRef,
@@ -187,6 +185,13 @@ export function tagFor(result: StoryStatus | null | undefined, { repo, number }:
 /** Does a Files changed URL's #ou-ask hash ask for the panel's Ask dock to open? */
 export const wantsAskDock = (hash: string | null | undefined): boolean => hash === '#ou-ask';
 
+/** The badge beside a PR's tag: what it says and where it links. */
+export interface AnswersBadge {
+  href: string;
+  label: string;
+  title: string;
+}
+
 /**
  * The badge beside a PR's tag when answers to its questions wait unread: "1 new answer", linking Files changed with the
  * Ask dock open. null when there are none. It is not a tag of its own: tagFor's one tag stays one.
@@ -194,14 +199,16 @@ export const wantsAskDock = (hash: string | null | undefined): boolean => hash =
 export function answersBadge(
   result: StoryStatus | null | undefined,
   { repo, number }: PrRef,
-): Html | null {
+): AnswersBadge | null {
   const count = result && result.state === 'ready' ? result.unread_answers || 0 : 0;
   if (count < 1) {
     return null;
   }
-  const label = `${count} new ${count === 1 ? 'answer' : 'answers'}`;
-  const title = `${count === 1 ? 'An answer' : 'Answers'} to your question${count === 1 ? '' : 's'} in the story ${count === 1 ? 'is' : 'are'} unread. Opens the story with the Ask box open.`;
-  return html`<a class="ans" href="https://github.com/${repo}/pull/${number}/changes#ou-ask" title="${title}">${label}</a>`;
+  return {
+    href: `https://github.com/${repo}/pull/${number}/changes#ou-ask`,
+    label: `${count} new ${count === 1 ? 'answer' : 'answers'}`,
+    title: `${count === 1 ? 'An answer' : 'Answers'} to your question${count === 1 ? '' : 's'} in the story ${count === 1 ? 'is' : 'are'} unread. Opens the story with the Ask box open.`,
+  };
 }
 
 /**
@@ -269,30 +276,13 @@ export function missingListeners(
 }
 
 /**
- * One line of the notice: no session listening for this repo, with Start listening (the bridge types the listen line into an
- * idle Claude Code session in the repo) and a place for what happened. `index` ties the button to its row. The hover gives
- * the line and the long form for a session without the skill, to type by hand when no session can be typed into.
+ * The hover of one line of the notice: no session listening for this repo, and what Start listening does (the bridge types the
+ * listen line into an idle Claude Code session in the repo). It gives the long form for a session without the skill, to type
+ * by hand when no session can be typed into.
  */
-export function noticeRowHtml(row: MissingListener, index: number): Html {
+export function noticeRowTitle(row: MissingListener): string {
   const how = row.checkout
     ? `Types ${row.prompt} into an idle Claude Code session in ${row.checkout}. With none, start Claude Code there and run it.`
     : `Types ${row.prompt} into an idle Claude Code session in your ${row.repo} checkout. With none, start Claude Code there and run it.`;
-  const title = `${how}${row.details ? `\n\nWithout the once-upon-listen skill: ${row.details}` : ''}`;
-  const checkout = row.checkout && html` <span class="muted">· ${row.checkout}</span>`;
-  return html`<div class="row"><span>No session listening for <b>${row.repo}</b>${checkout}</span><button data-i="${index}" title="${title}">Start listening</button></div><div class="note" data-n="${index}" role="status" hidden></div>`;
-}
-
-/** The tag's HTML, for a tag host's shadow root (story-tag.css). */
-export function tagHtml(tag: Tag): Html {
-  const inner = html`${tag.spin && html`<span class="spin"></span>`}${tag.label}`;
-  if (tag.kind === 'link') {
-    return html`<a class="b ${tag.cls}" href="${tag.href}" title="${tag.title}">${inner}</a>`;
-  }
-  const alt =
-    tag.alt &&
-    html`<button class="alt" data-act="${tag.alt.act}" title="${tag.alt.title}">${tag.alt.label}</button>`;
-  if (tag.kind === 'button') {
-    return html`<button class="b ${tag.cls}" data-act="${tag.act}" title="${tag.title}">${inner}</button>${alt}`;
-  }
-  return html`<span class="b ${tag.cls}" title="${tag.title}" aria-live="polite">${inner}</span>`;
+  return `${how}${row.details ? `\n\nWithout the once-upon-listen skill: ${row.details}` : ''}`;
 }

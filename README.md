@@ -614,9 +614,10 @@ To trace a click or a command through the code, start with [`docs/flows.md`](doc
     - `bridge.ts` sends bridge calls through the service worker. `storage.ts` keeps the panel's state per PR and the Hide whitespace copy.
     - `pages/files-changed.ts` docks the panel and puts the story tag by the title when the panel is hidden. `pages/hide-whitespace.ts` keeps `?w=1` in step with the setting.
     - `pages/conversation.ts` and `pages/pull-list.ts` put the story tag by a PR's title.
-    - `ui/` holds the pieces they share: `story-tag.ts` (what a tag says), `tag-host.ts`, `listen-notice.ts`, `pr-tags.ts` (the tag controller every PR page shares), and `toast.ts`. Each one with its own shadow root links its CSS from a `.css` file beside it, which the build copies into the extension as is.
+    - `pr-tags.ts` is the tag controller every PR page shares (the status poll, the Build story click and the listen notice's looks). `tag-model.ts` says what a tag shows and does, as data with no DOM.
+    - `components/` holds the elements the content script puts on GitHub's page, each one Preact with no markup string: `story-tag.ts` (the tag and its answers badge), `tag-host.ts` (the host span with its own shadow root that draws a tag), `listen-notice.ts` and `toast.ts`. Each one with its own shadow root links its CSS from a `.css` file beside it, which the build copies into the extension as is. The host element and its shadow root are made by hand, since GitHub's page is a host we do not control; `test/no-string-dom.test.ts` pins where.
   - `src/public/icons/` (`yarn workspace @once-upon-a-diff/extension icons` redraws them).
-  - `test/`: the unit tests for the tag and Hide whitespace. The browser tests that load it (`yarn test:extension`, `yarn test:expand`) are the bridge's, in `packages/bridge/test/browser/`, since they start a bridge.
+  - `test/`: the unit tests for the tag, its components (in a linkedom DOM) and Hide whitespace. The browser tests that load it (`yarn test:extension`, `yarn test:expand`) are the bridge's, in `packages/bridge/test/browser/`, since they start a bridge.
 - `skills/once-upon-listen/`: the Claude Code skill behind **Start listening**.
 - `skills/once-upon/`: the Claude Code skill that writes PR stories. Its `bin/story.ts` (run through `bin/story.mjs`, behind the same Node check) imports the bridge's and the protocol's chapter code from this checkout. Both skills read your house rules (see [Personal settings](#personal-settings)).
 

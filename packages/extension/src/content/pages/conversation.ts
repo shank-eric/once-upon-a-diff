@@ -1,6 +1,6 @@
 /*
  * A PR's Conversation tab (/owner/repo/pull/N): the same single story tag as
- * PR lists (ui/pr-tags.js), next to the PR's title, and the page-level
+ * PR lists (pr-tags.ts), next to the PR's title, and the page-level
  * notice when no session is listening for the repo. It comes back after
  * GitHub redraws the header or navigates in the page, looks again while a
  * story is queued or building, and only reads from GitHub's page.
@@ -8,8 +8,8 @@
 import { prKey } from '@once-upon-a-diff/protocol/domain/pr-key';
 import { conversationPr, pageKindOf } from '@once-upon-a-diff/host-github/pages';
 import { extensionAlive } from '../bridge.ts';
-import { createPrTags, titleElement } from '../ui/pr-tags.ts';
-import type { PrRef } from '../ui/story-tag.ts';
+import { createPrTags, titleElement } from '../pr-tags.ts';
+import type { PrRef } from '../tag-model.ts';
 import type { Route } from '../index.ts';
 
 const ATTR = 'data-ou-convo';
