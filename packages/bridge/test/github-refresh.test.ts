@@ -7,17 +7,24 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { tmp, git, writeJson, startBridge, TOKEN } from './helpers.ts';
-import { Board } from '../src/services/board/board.ts';
-import { Builds } from '../src/services/inbox/builds.ts';
-import { StoryStore } from '../src/services/stories/store.ts';
-import { AutoReview, LIST_GAP_MS, REFRESH_GAP_MS } from '../src/services/review/github-watcher.ts';
-import type { BranchPr, PrFacts } from '../src/services/review/github-checks.ts';
-import { noPrWatcher, type PrWatcher } from '../src/services/board/stages/pr-watcher.ts';
-import { boardKey } from '../src/services/pages/page-key.ts';
+import { Board } from '@once-upon-a-diff/core/orchestration/board/board';
+import { Builds } from '@once-upon-a-diff/core/queues/requests/builds';
+import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
+import {
+  AutoReview,
+  LIST_GAP_MS,
+  REFRESH_GAP_MS,
+} from '@once-upon-a-diff/core/features/review/github-watcher';
+import type { BranchPr, PrFacts } from '@once-upon-a-diff/core/records/github/github-checks';
+import {
+  noPrWatcher,
+  type PrWatcher,
+} from '@once-upon-a-diff/core/orchestration/board/stages/pr-watcher';
+import { boardKey } from '@once-upon-a-diff/core/records/page-links/page-key';
 import { EXTENSION_ROUTES } from '../../extension/src/bridge-routes.ts';
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import type { BoardCard, InboxStory, PrInfo } from '@once-upon-a-diff/contracts/types';
-import type { StatusSource } from '../src/adapters/status-source.ts';
+import type { StatusSource } from '@once-upon-a-diff/core/adapters/status-source';
 
 const HEAD = '7c3010541aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const BRANCH = 'fix/dot-prop';

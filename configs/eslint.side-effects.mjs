@@ -3,11 +3,12 @@
  * file or reaches the network. Which package, layer or region may import which, and import cycles, are dependency-cruiser's
  * (configs/.dependency-cruiser.mjs, `yarn depcruise`, run by `yarn lint`); this file holds no layer or package rule.
  *
- * Where it applies (packages/bridge/src; the adapters are the one place that may do any of this):
- *   server/           the HTTP app: it has node:http, to listen, and nothing else on the network
- *   server/routes/    the HTTP app's handlers: not even node:http (they get a Call)
- *   cli/              the CLI app
- *   services/         the rules, over the adapters: no program, no file write and no network of their own
+ * Where it applies (the adapters, packages/core/src/adapters, are the one place that may do any of this):
+ *   packages/server/src/         the HTTP app: it has node:http, to listen, and nothing else on the network
+ *   packages/server/src/routes/  the HTTP app's handlers: not even node:http (they get a Call)
+ *   packages/cli/src/            the CLI app
+ *   packages/core/src/<tier>/    the tiers (foundation, records, queues, features, orchestration), over the adapters: no program,
+ *                                no file write and no network of their own
  * packages/bridge/test/side-effects-lint.test.ts probes every rule below.
  *
  * ESLint REPLACES a rule's options when a later block matches the same file, it does not merge them, so each file is in one
@@ -196,15 +197,18 @@ const sideEffectBlock = ({ files, ignores = [], networkBan }) => {
 
 export default [
   // the rules, over the adapters
-  sideEffectBlock({ files: ['packages/bridge/src/services/**/*.ts'], networkBan: NO_NETWORK }),
+  sideEffectBlock({
+    files: ['packages/core/src/{foundation,records,queues,features,orchestration}/**/*.ts'],
+    networkBan: NO_NETWORK,
+  }),
   // the HTTP app, over the services only: node:http, to listen
   sideEffectBlock({
-    files: ['packages/bridge/src/server/**/*.ts'],
-    ignores: ['packages/bridge/src/server/routes/**'],
+    files: ['packages/server/src/**/*.ts'],
+    ignores: ['packages/server/src/routes/**'],
     networkBan: NO_NETWORK_BUT_HTTP,
   }),
   // the routes: the HTTP app's own handlers, which never touch node:http either (they get a Call)
-  sideEffectBlock({ files: ['packages/bridge/src/server/routes/**/*.ts'], networkBan: NO_NETWORK }),
+  sideEffectBlock({ files: ['packages/server/src/routes/**/*.ts'], networkBan: NO_NETWORK }),
   // the CLI app, over the services only
-  sideEffectBlock({ files: ['packages/bridge/src/cli/**/*.ts'], networkBan: NO_NETWORK }),
+  sideEffectBlock({ files: ['packages/cli/src/**/*.ts'], networkBan: NO_NETWORK }),
 ];

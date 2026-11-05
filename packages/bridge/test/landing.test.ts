@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { git, runCli, tmp } from './helpers.ts';
-import { BacklogStore } from '../src/services/backlog/backlog.ts';
-import { claimedRun } from '../src/services/backlog/claims.ts';
-import { landItems, recordedTips } from '../src/services/backlog/landing.ts';
-import { AgentRegistry } from '../src/services/ledger/registry.ts';
+import { BacklogStore } from '@once-upon-a-diff/core/queues/backlog/backlog';
+import { claimedRun } from '@once-upon-a-diff/core/queues/backlog/claims';
+import { landItems, recordedTips } from '@once-upon-a-diff/core/queues/backlog/landing';
+import { AgentRegistry } from '@once-upon-a-diff/core/records/agents/registry';
 
 const SID = 'abcdef01';
 const minute = (minutes: number) => new Date(Date.parse('2026-11-03T15:00:00Z') + minutes * 60000);

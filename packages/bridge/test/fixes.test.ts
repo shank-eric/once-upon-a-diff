@@ -4,15 +4,23 @@ import path from 'node:path';
 import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, runCli, localRepo, writeJson } from './helpers.ts';
-import { createLocalStory } from '../src/services/stories/local-story.ts';
-import { beat, listenPrompt, type Listener } from '../src/services/listeners/listeners.ts';
-import { readFixes } from '../src/services/inbox/fixes.ts';
-import { MARK_FRESH_MS, parseFiles, workingOf } from '../src/services/inbox/working.ts';
+import { createLocalStory } from '@once-upon-a-diff/core/records/stories/local-story';
+import {
+  beat,
+  listenPrompt,
+  type Listener,
+} from '@once-upon-a-diff/core/records/listeners/listeners';
+import { readFixes } from '@once-upon-a-diff/core/queues/requests/fixes';
+import {
+  MARK_FRESH_MS,
+  parseFiles,
+  workingOf,
+} from '@once-upon-a-diff/core/queues/requests/working';
 import { fixSummary, takesNotes } from '@once-upon-a-diff/panel/fixes/fixes';
-import { clearCache } from '../src/services/review/drafts.ts';
+import { clearCache } from '@once-upon-a-diff/core/features/review/drafts';
 import type { DraftsAnswer, FixNote, FixesView, Pulse } from '@once-upon-a-diff/contracts/types';
-import type { FixRequest } from '../src/services/inbox/fixes.ts';
-import type { Printable } from '../src/cli/output.ts';
+import type { FixRequest } from '@once-upon-a-diff/core/queues/requests/fixes';
+import type { Printable } from '@once-upon-a-diff/cli/output';
 
 /** GET or POST .../fixes: fix before push as the panel shows it, and after a send the request it made. */
 type FixesBody = Omit<FixesView, 'sent'> & { sent: FixRequest };

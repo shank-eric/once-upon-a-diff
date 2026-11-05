@@ -23,13 +23,13 @@ import {
   backlogCards,
   foldBacklog,
   startLine,
-} from '../src/services/backlog/backlog.ts';
-import { AgentRegistry } from '../src/services/ledger/registry.ts';
-import { Board, noPrWatcher } from '../src/services/board/board.ts';
-import { registrySource } from '../src/services/sessions/sources.ts';
-import { StoryStore } from '../src/services/stories/store.ts';
-import { Builds } from '../src/services/inbox/builds.ts';
-import { boardKey, pageKey, viewKey } from '../src/services/pages/page-key.ts';
+} from '@once-upon-a-diff/core/queues/backlog/backlog';
+import { AgentRegistry } from '@once-upon-a-diff/core/records/agents/registry';
+import { Board, noPrWatcher } from '@once-upon-a-diff/core/orchestration/board/board';
+import { registrySource } from '@once-upon-a-diff/core/features/sessions/sources';
+import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
+import { Builds } from '@once-upon-a-diff/core/queues/requests/builds';
+import { boardKey, pageKey, viewKey } from '@once-upon-a-diff/core/records/page-links/page-key';
 import type {
   BoardAgent,
   BoardCard,

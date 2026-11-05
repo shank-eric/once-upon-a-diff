@@ -12,9 +12,9 @@
     "dev": "wxt",
     "build": "wxt build",
     "zip": "ONCE_UPON_STORE=1 wxt zip",
-    "icons": "node ../bridge/bin/node-version.mjs && node scripts/make-icons.ts",
+    "icons": "node ../core/src/foundation/node-version.mjs && node scripts/make-icons.ts",
     "postinstall": "wxt prepare",
-    "test": "node ../bridge/bin/node-version.mjs && node --test test/*.test.ts",
+    "test": "node ../core/src/foundation/node-version.mjs && node --test test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p scripts/tsconfig.json && tsc -p test/tsconfig.json"
   },
   "dependencies": {

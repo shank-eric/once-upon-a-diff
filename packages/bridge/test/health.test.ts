@@ -12,7 +12,7 @@ import {
   cliCommand,
   listenPrompt,
   type statusOf,
-} from '../src/services/listeners/listeners.ts';
+} from '@once-upon-a-diff/core/records/listeners/listeners';
 import {
   repoOfCheckout,
   repoOfCheckoutAsync,
@@ -23,8 +23,8 @@ import {
   remoteNamed,
   checkoutFor,
   seenCheckout,
-} from '../src/services/config/repos.ts';
-import { doctor } from '../src/services/doctor.ts';
+} from '@once-upon-a-diff/core/foundation/repos';
+import { doctor } from '@once-upon-a-diff/core/orchestration/bridge/doctor';
 
 /** GET /api/status. */
 type Status = ReturnType<typeof statusOf>;

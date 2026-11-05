@@ -8,11 +8,11 @@ import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { git, runCli, tmp, writeJson } from './helpers.ts';
-import { Board, noPrWatcher } from '../src/services/board/board.ts';
-import { AgentRegistry } from '../src/services/ledger/registry.ts';
-import { registrySource } from '../src/services/sessions/sources.ts';
-import { StoryStore } from '../src/services/stories/store.ts';
-import { Builds } from '../src/services/inbox/builds.ts';
+import { Board, noPrWatcher } from '@once-upon-a-diff/core/orchestration/board/board';
+import { AgentRegistry } from '@once-upon-a-diff/core/records/agents/registry';
+import { registrySource } from '@once-upon-a-diff/core/features/sessions/sources';
+import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
+import { Builds } from '@once-upon-a-diff/core/queues/requests/builds';
 import type { BoardAgent, BoardData } from '@once-upon-a-diff/contracts/types';
 
 const EDITOR_SID = 'abcdef01';

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson } from './helpers.ts';
-import { similarity, bestMatch, clearCache } from '../src/services/review/drafts.ts';
+import { similarity, bestMatch, clearCache } from '@once-upon-a-diff/core/features/review/drafts';
 import type { DraftsAnswer } from '@once-upon-a-diff/contracts/types';
 
 /** GET or POST .../drafts: each draft's state, and the gh user it was checked as. */

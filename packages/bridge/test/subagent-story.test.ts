@@ -15,11 +15,11 @@ import {
   writeJson,
   CLAUDE_DIR,
 } from './helpers.ts';
-import { Inbox } from '../src/services/inbox/inbox.ts';
-import { Builds } from '../src/services/inbox/builds.ts';
-import { readFixes } from '../src/services/inbox/fixes.ts';
-import { inHand } from '../src/services/inbox/auto-stop.ts';
-import { AgentRegistry } from '../src/services/ledger/registry.ts';
+import { Inbox } from '@once-upon-a-diff/core/queues/requests/inbox';
+import { Builds } from '@once-upon-a-diff/core/queues/requests/builds';
+import { readFixes } from '@once-upon-a-diff/core/queues/requests/fixes';
+import { inHand } from '@once-upon-a-diff/core/queues/requests/auto-stop';
+import { AgentRegistry } from '@once-upon-a-diff/core/records/agents/registry';
 import {
   RELAY_STALL_MS,
   STALL_MS,
@@ -27,7 +27,7 @@ import {
   readHanded,
   statusOf,
   withMarks,
-} from '../src/services/inbox/conversation.ts';
+} from '@once-upon-a-diff/core/queues/requests/conversation';
 import {
   BINDING_FRESH_MS,
   activeBinding,
@@ -36,9 +36,9 @@ import {
   readBinding,
   relayBinding,
   writeBinding,
-} from '../src/services/listeners/binding.ts';
-import { relayMessage } from '../src/services/inbox/relay.ts';
-import { beat, listeningOf } from '../src/services/listeners/listeners.ts';
+} from '@once-upon-a-diff/core/records/listeners/binding';
+import { relayMessage } from '@once-upon-a-diff/core/queues/requests/relay';
+import { beat, listeningOf } from '@once-upon-a-diff/core/records/listeners/listeners';
 import { waitingText } from '@once-upon-a-diff/panel/ask/question-list';
 import { askWhoHtml, healthChecks } from '@once-upon-a-diff/panel/components/status-light';
 import type { Health } from '@once-upon-a-diff/panel/components/status-light';

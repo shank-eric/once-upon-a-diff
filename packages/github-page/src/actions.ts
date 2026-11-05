@@ -1,7 +1,7 @@
 /*
  * What you just did on a GitHub page that changes a PR's state (submit a review, open a PR, merge, mark ready for review,
  * close), read from the control you clicked or the form you submitted and the page's URL. The extension tells the bridge, which
- * asks GitHub again so the board's card moves now and not at the next poll (bridge services/review/github-watcher.ts refresh).
+ * asks GitHub again so the board's card moves now and not at the next poll (bridge core/src/features/review/github-watcher.ts refresh).
  *
  * This is a guess at intent, made from GitHub's button texts and URLs, which GitHub can change. A wrong guess costs one
  * request to GitHub, and a miss costs nothing: the bridge's own poll still runs. The page's text is untrusted (a PR's

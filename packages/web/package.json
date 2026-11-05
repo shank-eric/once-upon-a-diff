@@ -29,8 +29,8 @@
     "./public/*": "./public/*"
   },
   "scripts": {
-    "vendor": "node ../bridge/bin/node-version.mjs && node scripts/vendor-hljs.ts && node scripts/vendor-preact.ts",
-    "test": "node ../bridge/bin/node-version.mjs && node --test test/*.test.ts",
+    "vendor": "node ../core/src/foundation/node-version.mjs && node scripts/vendor-hljs.ts && node scripts/vendor-preact.ts",
+    "test": "node ../core/src/foundation/node-version.mjs && node --test test/*.test.ts",
     "typecheck": "tsc -p public/tsconfig.json && tsc -p test/tsconfig.json"
   }
 }

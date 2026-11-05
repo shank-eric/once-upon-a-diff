@@ -12,21 +12,28 @@
  * Its `paths` are relative to the repo root, not to configs/: depcruise resolves them against the folder it runs from (`yarn depcruise` runs at the root).
  *
  * Packages and layers, as paths from the repo root (a rule's `from`/`to` match these):
- *   bridge   packages/bridge/src/{server (+routes), cli} over services over adapters (BRIDGE is the whole package)
- *            packages/bridge/instrumentation (the usage probe the entry shims preload: outside the layers)
+ *   core     packages/core/src: adapters (every side effect) under five tiers, bottom to top: foundation, records, queues,
+ *            features, orchestration. A tier imports only the tiers under it, and folders in one tier never import each other
+ *   server   packages/server/src (the HTTP app, with routes/) and cli packages/cli/src (the CLI): apps over core, apart from each other
+ *   bridge   packages/bridge (the shell): bin/once-upon.ts is the one file that knows both apps, instrumentation (the usage probe
+ *            the entry shims preload) and the integration tests. BRIDGE below is all four: the server side as a whole
  *   web      packages/web/public (the pages, an app)
  *   extension packages/extension/src (an app)
  *   panel, github-page, bridge-client, ui-kit, contracts, domain (imports nothing), test-kit
  */
 
 import { fileURLToPath } from 'node:url';
+import { TIERS } from './core-tiers.mjs';
 
-const BRIDGE = '^packages/bridge/';
-const SERVER = '^packages/bridge/src/server/';
-const CLI = '^packages/bridge/src/cli/';
-const ROUTES = '^packages/bridge/src/server/routes/';
-const SERVICES = '^packages/bridge/src/services/';
-const ADAPTERS = '^packages/bridge/src/adapters/';
+const BRIDGE = '^packages/(bridge|core|server|cli)/';
+const SHELL = '^packages/bridge/';
+const CORE = '^packages/core/src/';
+const SERVER = '^packages/server/src/';
+const CLI = '^packages/cli/src/';
+const ROUTES = '^packages/server/src/routes/';
+const ADAPTERS = '^packages/core/src/adapters/';
+const tierPath = (names) => `^packages/core/src/(${names.join('|')})/`;
+const TIER_FILES = tierPath(TIERS);
 const WEB = '^packages/web/public/';
 const EXTENSION = '^packages/extension/';
 const PANEL = '^packages/panel/';
@@ -108,22 +115,22 @@ export default {
     ...regionRules,
     boardSharedRule,
 
-    // the bridge: server (HTTP) and cli over services over adapters
+    // core (adapters under five tiers), and the two apps over it
     rule(
       'adapters-are-bottom',
-      'the adapters sit below the services: they import neither the services nor an app',
+      'the adapters sit below every tier and both apps: they import none of them',
       { path: ADAPTERS },
-      { path: [SERVICES, SERVER, CLI] },
+      { path: [TIER_FILES, SERVER, CLI] },
     ),
     rule(
-      'services-below-apps',
-      'the services sit below the apps: they import neither the HTTP app nor the CLI',
-      { path: SERVICES },
-      { path: [SERVER, CLI] },
+      'core-below-apps',
+      'core sits below the apps: it imports neither the HTTP app, the CLI nor the shell',
+      { path: CORE },
+      { path: [SERVER, CLI, SHELL] },
     ),
     rule(
-      'apps-use-services',
-      'the HTTP app and the CLI go through the services, and only the services call an adapter',
+      'apps-use-core-not-adapters',
+      'the HTTP app and the CLI go through the tiers of core, and only the tiers call an adapter',
       { path: [SERVER, CLI] },
       { path: ADAPTERS },
     ),
@@ -140,9 +147,30 @@ export default {
       { path: SERVER },
     ),
     rule(
+      'apps-not-the-shell',
+      'bin/once-upon.ts in the shell is the one file that knows both apps: neither app, nor core, imports the shell',
+      { path: [SERVER, CLI] },
+      { path: SHELL },
+    ),
+    // the tiers: each imports only the tiers under it, and the folders of one tier stay apart
+    ...TIERS.slice(0, -1).map((name, index) =>
+      rule(
+        `core-${name}-below`,
+        `a tier imports only the tiers under it: ${name} never imports ${TIERS.slice(index + 1).join(', ')}`,
+        { path: `^packages/core/src/${name}/` },
+        { path: tierPath(TIERS.slice(index + 1)) },
+      ),
+    ),
+    rule(
+      'core-tier-siblings-apart',
+      'folders in one tier do not import each other: move what both need down a tier',
+      { path: '^packages/core/src/(records|queues|features|orchestration)/([^/]+)/' },
+      { path: '^packages/core/src/$1/', pathNot: '^packages/core/src/$1/$2/' },
+    ),
+    rule(
       'only-adapters-run-programs-or-network',
       'only an adapter runs a program or reaches the network (the HTTP app has node:http, to listen). Covers the imports a graph can see; the rest stays ESLint-only (configs/eslint.side-effects.mjs): fs writes (an import of node:fs cannot tell a read from a write), fetch, process.kill and module loaders',
-      { path: [SERVICES, SERVER, CLI] },
+      { path: [TIER_FILES, SERVER, CLI] },
       {
         dependencyTypes: ['core'],
         path: '^(node:)?(child_process|net|https|http2|dgram|tls|dns|worker_threads|vm)(/|$)',
@@ -151,13 +179,13 @@ export default {
     rule(
       'only-adapters-run-programs-or-network-http',
       'only the HTTP app (server/, not server/routes/) has node:http, to listen',
-      { path: [SERVICES, CLI, ROUTES] },
+      { path: [TIER_FILES, CLI, ROUTES] },
       { dependencyTypes: ['core'], path: '^(node:)?http$' },
     ),
     rule(
       'instrumentation-is-for-the-shims',
       'instrumentation (the usage probe) is preloaded by the entry shims (bin/once-upon.mjs, skills/once-upon/bin/story.mjs) and by tests: nothing in src/ imports it (it imports the session adapter, never the other way)',
-      { path: '^packages/bridge/src/' },
+      { path: '^packages/(core|server|cli)/src/' },
       { path: INSTRUMENTATION },
     ),
     rule(

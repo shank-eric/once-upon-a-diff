@@ -12,16 +12,16 @@ import {
   writeJson,
   TOKEN,
 } from './helpers.ts';
-import { createLocalStory } from '../src/services/stories/local-story.ts';
-import { StoryStore } from '../src/services/stories/store.ts';
-import { Inbox } from '../src/services/inbox/inbox.ts';
-import { AutoReview } from '../src/services/review/github-watcher.ts';
-import type { BranchCheck } from '../src/services/review/github-checks.ts';
-import { APPROVED_DAYS, approvalOf } from '../src/services/stories/approval.ts';
-import { localEntries, localStories } from '../src/services/review/story-lists.ts';
-import { columnOf } from '../src/services/board/columns.ts';
-import { boardKey, pageKey, viewKey } from '../src/services/pages/page-key.ts';
-import type { Printable } from '../src/cli/output.ts';
+import { createLocalStory } from '@once-upon-a-diff/core/records/stories/local-story';
+import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
+import { Inbox } from '@once-upon-a-diff/core/queues/requests/inbox';
+import { AutoReview } from '@once-upon-a-diff/core/features/review/github-watcher';
+import type { BranchCheck } from '@once-upon-a-diff/core/records/github/github-checks';
+import { APPROVED_DAYS, approvalOf } from '@once-upon-a-diff/core/records/stories/approval';
+import { localEntries, localStories } from '@once-upon-a-diff/core/features/review/story-lists';
+import { columnOf } from '@once-upon-a-diff/core/orchestration/board/columns';
+import { boardKey, pageKey, viewKey } from '@once-upon-a-diff/core/records/page-links/page-key';
+import type { Printable } from '@once-upon-a-diff/cli/output';
 import type { BoardData, StoryData } from '@once-upon-a-diff/contracts/types';
 
 /** A local story on a real checkout, and a bridge serving it. */

@@ -16,7 +16,7 @@ import tseslint from 'typescript-eslint';
 import sideEffects from './configs/eslint.side-effects.mjs';
 
 const NODE_FILES = [
-  'packages/bridge/**/*.{ts,mjs}',
+  'packages/{bridge,core,server,cli}/**/*.{ts,mjs}',
   'packages/*/scripts/**/*.{ts,mjs}',
   'packages/*/test/**/*.{ts,mjs}',
   'packages/test-kit/src/**/*.{ts,mjs}',

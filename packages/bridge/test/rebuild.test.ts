@@ -3,21 +3,21 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { tmp, writeJson, githubStory, startBridge, runCli, localRepo } from './helpers.ts';
-import { Builds } from '../src/services/inbox/builds.ts';
-import { Inbox } from '../src/services/inbox/inbox.ts';
-import { withMarks } from '../src/services/inbox/conversation.ts';
-import { parseUnifiedDiff } from '../src/services/stories/diff.ts';
-import { noteRead, readReads } from '../src/services/stories/reads.ts';
-import { createLocalStory } from '../src/services/stories/local-story.ts';
+import { Builds } from '@once-upon-a-diff/core/queues/requests/builds';
+import { Inbox } from '@once-upon-a-diff/core/queues/requests/inbox';
+import { withMarks } from '@once-upon-a-diff/core/queues/requests/conversation';
+import { parseUnifiedDiff } from '@once-upon-a-diff/core/records/stories/diff';
+import { noteRead, readReads } from '@once-upon-a-diff/core/records/stories/reads';
+import { createLocalStory } from '@once-upon-a-diff/core/records/stories/local-story';
 import {
   rebuildProblems,
   carryDrafts,
   questionMoves,
   readsToRetire,
-} from '../src/services/stories/rebuild.ts';
-import type { Plan } from '../src/services/stories/chapters.ts';
-import type { StoryMeta } from '../src/services/stories/types.ts';
-import type { Listener } from '../src/services/listeners/listeners.ts';
+} from '@once-upon-a-diff/core/records/stories/rebuild';
+import type { Plan } from '@once-upon-a-diff/core/records/stories/chapters';
+import type { StoryMeta } from '@once-upon-a-diff/core/records/stories/types';
+import type { Listener } from '@once-upon-a-diff/core/records/listeners/listeners';
 import type { Pulse, RebuildView, StoryStatus } from '@once-upon-a-diff/contracts/types';
 
 /** What POST .../rebuild answers. */

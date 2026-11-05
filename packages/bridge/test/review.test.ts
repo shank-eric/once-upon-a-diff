@@ -4,8 +4,8 @@ import path from 'node:path';
 import { readFileSync, chmodSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson } from './helpers.ts';
-import { addToPendingReview } from '../src/services/review/pending-review.ts';
-import { clearCache } from '../src/services/review/drafts.ts';
+import { addToPendingReview } from '@once-upon-a-diff/core/records/github/pending-review';
+import { clearCache } from '@once-upon-a-diff/core/features/review/drafts';
 import { draftView, shownIn } from '@once-upon-a-diff/panel/drafts/drafts';
 import type { DraftsAnswer } from '@once-upon-a-diff/contracts/types';
 

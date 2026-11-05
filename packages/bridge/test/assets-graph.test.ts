@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { assetFor, forBrowser } from '../src/server/assets.ts';
+import { assetFor, forBrowser } from '@once-upon-a-diff/server/assets';
 import { startBridge, tmp } from './helpers.ts';
 
 const IMPORT = /(?:\bfrom\s*|\bimport\s*\(?\s*)(['"])([^'"]+)\1/g;
@@ -100,7 +100,7 @@ test("the bridge serves ui-kit's stylesheet, and the board and local pages link 
   const tokens = assetFor('/assets/ui-kit/css/tokens.css');
   assert.ok(tokens, 'tokens.css is served');
   assert.match(tokens[1], /text\/css/);
-  const { boardPage, localPage } = await import('../src/server/pages.ts');
+  const { boardPage, localPage } = await import('@once-upon-a-diff/server/pages');
   for (const page of [String(boardPage()), String(localPage('s', { title: 't' }))]) {
     const tokens = page.indexOf('/assets/ui-kit/css/tokens.css');
     const first = page.indexOf('/assets/ui-kit/css/ui.css');
@@ -145,7 +145,7 @@ test('the old /assets/api-client/ URLs are gone', () => {
 });
 
 test('every asset the local page and the board page load, and every module under them, is fetched from a running bridge with a 200', async () => {
-  const { boardPage, localPage } = await import('../src/server/pages.ts');
+  const { boardPage, localPage } = await import('@once-upon-a-diff/server/pages');
   const bridge = await startBridge({ home: tmp('home') });
   try {
     const seen = new Set<string>();

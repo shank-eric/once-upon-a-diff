@@ -5,7 +5,7 @@
  * GitHub watcher. Importing this file builds them. `snapshots` maps a world name to its normalized JSON text and
  * `finish()` stops the child processes and removes the temp dir.
  */
-import { AgentRegistry } from '../../../src/services/ledger/registry.ts';
+import { AgentRegistry } from '@once-upon-a-diff/core/records/agents/registry';
 import { spawn, execFileSync } from 'node:child_process';
 import {
   mkdirSync,
@@ -78,11 +78,11 @@ class FrozenDate extends RealDate {
 }
 globalThis.Date = FrozenDate as unknown as DateConstructor;
 
-const src = (file: string) => import(path.join(ROOT, 'packages/bridge/src', file));
-const { Board, noPrWatcher } = await src('services/board/board.ts');
-const { StoryStore } = await src('services/stories/store.ts');
-const { Builds } = await src('services/inbox/builds.ts');
-const { seenCheckout, repoOfCheckoutAsync } = await src('services/config/repos.ts');
+const src = (file: string) => import(path.join(ROOT, 'packages/core/src', file));
+const { Board, noPrWatcher } = await src('orchestration/board/board.ts');
+const { StoryStore } = await src('records/stories/store.ts');
+const { Builds } = await src('queues/requests/builds.ts');
+const { seenCheckout, repoOfCheckoutAsync } = await src('foundation/repos.ts');
 // the repo of a folder, already answered: the board waits only 500 ms for a lookup and falls back to what it knew
 // (the real async lookup, with git run in-process so its answer, and the board's last-known repo, are there at once)
 const gitNow = (repo: string, args: string[]) => {

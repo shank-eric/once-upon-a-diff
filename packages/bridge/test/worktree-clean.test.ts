@@ -12,17 +12,20 @@ import {
   TOKEN,
   type TestBridge,
 } from './helpers.ts';
-import { fixture } from './worktree-fixture.ts';
-import { Board, noPrWatcher } from '../src/services/board/board.ts';
-import { registrySource } from '../src/services/sessions/sources.ts';
-import { seenCheckout } from '../src/services/config/repos.ts';
-import { StoryStore } from '../src/services/stories/store.ts';
-import { Builds } from '../src/services/inbox/builds.ts';
-import { AgentRegistry } from '../src/services/ledger/registry.ts';
-import { cleanWorktree, type CleanInput } from '../src/services/worktrees/worktree-clean.ts';
-import { WorktreeScanner } from '../src/services/worktrees/worktrees.ts';
-import { boardKey, pageKey } from '../src/services/pages/page-key.ts';
-import { BoardError } from '../src/services/errors.ts';
+import { worktreeFixture as fixture } from '@once-upon-a-diff/test-kit/git';
+import { Board, noPrWatcher } from '@once-upon-a-diff/core/orchestration/board/board';
+import { registrySource } from '@once-upon-a-diff/core/features/sessions/sources';
+import { seenCheckout } from '@once-upon-a-diff/core/foundation/repos';
+import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
+import { Builds } from '@once-upon-a-diff/core/queues/requests/builds';
+import { AgentRegistry } from '@once-upon-a-diff/core/records/agents/registry';
+import {
+  cleanWorktree,
+  type CleanInput,
+} from '@once-upon-a-diff/core/records/worktrees/worktree-clean';
+import { WorktreeScanner } from '@once-upon-a-diff/core/records/worktrees/worktrees';
+import { boardKey, pageKey } from '@once-upon-a-diff/core/records/page-links/page-key';
+import { BoardError } from '@once-upon-a-diff/core/foundation/errors';
 
 const open: TestBridge[] = [];
 after(() => Promise.all(open.map((bridge) => bridge.close())));

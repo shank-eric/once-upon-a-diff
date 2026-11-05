@@ -1,4 +1,4 @@
-/** The chips on a started backlog card: where the work is, from what the bridge linked to it (bridge/src/services/backlog/backlog-links.ts). */
+/** The chips on a started backlog card: where the work is, from what the bridge linked to it (core/src/queues/backlog/backlog-links.ts). */
 import type { BoardStartedLinks } from '@once-upon-a-diff/contracts/types';
 
 /** What a linked registered agent is doing, in a few words: its beat while it runs, "tried" when it failed or stopped. */

@@ -12,10 +12,10 @@ import {
   TOKEN,
   type TestBridge,
 } from './helpers.ts';
-import { createLocalStory } from '../src/services/stories/local-story.ts';
-import { Inbox } from '../src/services/inbox/inbox.ts';
-import { pageKey } from '../src/services/pages/page-key.ts';
-import type { Printable } from '../src/cli/output.ts';
+import { createLocalStory } from '@once-upon-a-diff/core/records/stories/local-story';
+import { Inbox } from '@once-upon-a-diff/core/queues/requests/inbox';
+import { pageKey } from '@once-upon-a-diff/core/records/page-links/page-key';
+import type { Printable } from '@once-upon-a-diff/cli/output';
 
 /** A local story with one drafted comment, a PR story beside it, and a bridge serving both. */
 async function twoStories() {

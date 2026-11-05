@@ -174,7 +174,7 @@ test('worktree clean: ack and ignored take a string or a list, empty ones droppe
 
 test('the question actions match the bridge’s own list', async () => {
   // the bridge refuses an action it doesn't know too (inbox/conversation.ts), so the two lists have to agree
-  const bridge = await import('../../bridge/src/services/inbox/conversation.ts');
+  const bridge = await import('../../core/src/queues/requests/conversation.ts');
   for (const action of bridge.QA_ACTIONS) {
     ok('questionMarks', { action });
   }

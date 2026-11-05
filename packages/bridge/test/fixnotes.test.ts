@@ -2,8 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { tmp, startBridge, localRepo, writeJson } from './helpers.ts';
-import { createLocalStory } from '../src/services/stories/local-story.ts';
-import { relOfPath } from '../src/server/index.ts';
+import { createLocalStory } from '@once-upon-a-diff/core/records/stories/local-story';
+import { relOfPath } from '@once-upon-a-diff/server/index';
 import { draftView } from '@once-upon-a-diff/panel/drafts/drafts';
 import type { DraftFix, DraftsAnswer, FixNote, StoryData } from '@once-upon-a-diff/contracts/types';
 

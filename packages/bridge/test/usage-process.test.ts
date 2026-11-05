@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readFileSync, utimesSync, writeFileSync } from '
 import path from 'node:path';
 import { tmp, writeJson, runCli } from './helpers.ts';
 import { assertPrivate } from './usage-helpers.ts';
-import type { CoverageFile } from '../src/services/usage/merge.ts';
+import type { CoverageFile } from '@once-upon-a-diff/core/records/usage/merge';
 
 const BIN = path.resolve(import.meta.dirname, '../bin/once-upon.mjs');
 const TOKEN = 'usage-process-token-0123456789';
@@ -70,7 +70,7 @@ test('C4/C5 and the early read: a report flushes the live bridge by signal; SIGT
     assert.equal(data.sources.bridge.starts, 1);
     assert.ok(data.sources.bridge.lastFlush);
     assert.ok(
-      read<CoverageFile>(home, 'coverage-bridge.json').files['packages/bridge/src/server/index.ts'],
+      read<CoverageFile>(home, 'coverage-bridge.json').files['packages/server/src/index.ts'],
     );
 
     // a count that arrives after the flush, and then a deploy's SIGTERM
@@ -207,7 +207,7 @@ test('fix 2: `usage clear` while the bridge runs: its old counts stay cleared an
 test("fix 4: processes that read-merge-write coverage-cli.json at once keep each other's lines", () => {
   const home = tmp('home');
   const script = path.join(tmp('lock'), 'writer.ts');
-  const store = path.resolve(import.meta.dirname, '../src/adapters/stores/usage-file.ts');
+  const store = path.resolve(import.meta.dirname, '../../core/src/adapters/stores/usage-file.ts');
   writeFileSync(
     script,
     `import { readUsageJson, writeUsageJson, withUsageLock } from ${JSON.stringify(store)};
@@ -241,7 +241,7 @@ test('fix 4: a lock a crashed run left behind is taken over, not waited on forev
   const old = new Date(Date.now() - 60000);
   utimesSync(lock, old, old);
   const started = Date.now();
-  const store = path.resolve(import.meta.dirname, '../src/adapters/stores/usage-file.ts');
+  const store = path.resolve(import.meta.dirname, '../../core/src/adapters/stores/usage-file.ts');
   const out = execFileSync(
     process.execPath,
     [

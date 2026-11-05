@@ -15,12 +15,16 @@ import {
   type TestBridge,
 } from './helpers.ts';
 import type { AddressInfo } from 'node:net';
-import { pathSha } from '../src/services/stories/diff.ts';
-import { createLocalStory } from '../src/services/stories/local-story.ts';
-import { StoryStore } from '../src/services/stories/store.ts';
-import { beat } from '../src/services/listeners/listeners.ts';
-import type { Prefs } from '../src/services/config/settings.ts';
-import type { InboxEntry, NoteEntry, QuestionEntry } from '../src/services/inbox/inbox.ts';
+import { pathSha } from '@once-upon-a-diff/core/records/stories/diff';
+import { createLocalStory } from '@once-upon-a-diff/core/records/stories/local-story';
+import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
+import { beat } from '@once-upon-a-diff/core/records/listeners/listeners';
+import type { Prefs } from '@once-upon-a-diff/core/foundation/settings';
+import type {
+  InboxEntry,
+  NoteEntry,
+  QuestionEntry,
+} from '@once-upon-a-diff/core/queues/requests/inbox';
 import type {
   DraftsAnswer,
   FixNote,

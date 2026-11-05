@@ -1,0 +1,84 @@
+/*
+ * The HTTP app's request plumbing the routes share: what every route gets (`App`, the stores and settings), one call, and
+ * a route's shape. Types only.
+ */
+import type { IncomingMessage } from 'node:http';
+import type { AnyRoute } from '@once-upon-a-diff/contracts/routes';
+import type { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
+import type { Inbox } from '@once-upon-a-diff/core/queues/requests/inbox';
+import type { Build, Builds } from '@once-upon-a-diff/core/queues/requests/builds';
+import type { AutoReview } from '@once-upon-a-diff/core/features/review/github-watcher';
+import type { Board } from '@once-upon-a-diff/core/orchestration/board/board';
+import type { Sessions } from '@once-upon-a-diff/core/features/sessions/sessions';
+import type { ServedStory } from '@once-upon-a-diff/core/records/stories/types';
+import type { Surface, UsageCounters } from '@once-upon-a-diff/core/records/usage/counters';
+
+/** A JSON request body: whatever the page sent, for the route to check. */
+export type Body = Record<string, unknown>;
+
+/** Answers a request: JSON for application/json, else the body as is. */
+export type Send = (
+  status: number,
+  body: unknown,
+  type?: string,
+  extra?: Record<string, string>,
+) => void;
+
+/** The bridge's stores and settings, which every route gets. */
+export interface App {
+  home: string;
+  version: string;
+  stories: StoryStore;
+  inbox: Inbox;
+  builds: Builds;
+  /** the agent board's data */
+  board: Board;
+  /** the sessions a click may type into: Build story, Start listening, focus (board.sessions) */
+  sessions: Sessions;
+  /** marks PR stories reviewed when GitHub says you have */
+  autoReview: AutoReview;
+  /** page links with their keys: a local story's page and the agent board's */
+  links: {
+    /** a local story's page link; the full key (it can push), or with `readOnly` the one that reads but never pushes */
+    story(id: string, readOnly?: boolean): string;
+    board(origin?: string): string;
+  };
+  log: (line: string) => void;
+  /** PR-list lookups, kept 5s */
+  statusCache: {
+    at: number;
+    list: ReturnType<StoryStore['list']>;
+    builds: Record<string, Build>;
+  } | null;
+  /** the last time the extension talked to the bridge */
+  extensionSeen: { at: string; origin: string } | null;
+  /** what the usage capture counts: route calls and the pages' UI actions */
+  usage: UsageCounters;
+}
+
+/** One API call. */
+export interface Call {
+  app: App;
+  req: IncomingMessage;
+  url: URL;
+  body: Body;
+  send: Send;
+  /** which page's key (not the bridge's token) made the call, when one did */
+  pageScope?: 'board' | null;
+  /** a story's read-only key made the call (page-key.ts viewKey): it never reaches the PR routes */
+  readOnly?: boolean;
+  /** who made it, for the usage counts: the board, a story's page (full or read-only key), the extension, or a token holder */
+  surface: Surface;
+}
+
+/** An /api/<path> route: its entry in the contracts package's table (path, method, keys) and what answers it. */
+export interface ApiRoute {
+  route: AnyRoute;
+  handle(call: Call): unknown;
+}
+
+/** A /api/stories/<id>/<what>[/<sub>] route: its entry in the contracts package's table and what answers it. */
+export interface StoryRoute {
+  route: AnyRoute;
+  handle(call: Call, story: ServedStory): unknown;
+}

@@ -12,7 +12,7 @@
       "name": "Server",
       "group": "Bridge",
       "paths": [
-        "packages/bridge/src/server/"
+        "packages/server/src/"
       ],
       "note": "The HTTP app and its routes"
     },
@@ -21,7 +21,7 @@
       "name": "CLI",
       "group": "Bridge",
       "paths": [
-        "packages/bridge/src/cli/",
+        "packages/cli/src/",
         "packages/bridge/bin/",
         "packages/bridge/instrumentation/"
       ],
@@ -32,8 +32,8 @@
       "name": "Story pipeline",
       "group": "Bridge",
       "paths": [
-        "packages/bridge/src/services/stories/",
-        "packages/bridge/src/services/publishing/",
+        "packages/core/src/records/stories/",
+        "packages/core/src/features/publishing/",
         "skills/once-upon/bin/"
       ],
       "note": "Reading, placing, publishing and rebuilding stories"
@@ -43,8 +43,9 @@
       "name": "Review and inbox",
       "group": "Bridge",
       "paths": [
-        "packages/bridge/src/services/review/",
-        "packages/bridge/src/services/inbox/"
+        "packages/core/src/features/review/",
+        "packages/core/src/records/github/",
+        "packages/core/src/queues/requests/"
       ],
       "note": "GitHub review sync, drafts, and the panel requests sessions answer"
     },
@@ -53,12 +54,12 @@
       "name": "Board services",
       "group": "Bridge",
       "paths": [
-        "packages/bridge/src/services/board/",
-        "packages/bridge/src/services/backlog/",
-        "packages/bridge/src/services/ledger/",
-        "packages/bridge/src/services/input.ts",
-        "packages/bridge/src/services/worktrees/",
-        "packages/bridge/src/services/usage/"
+        "packages/core/src/orchestration/board/",
+        "packages/core/src/queues/backlog/",
+        "packages/core/src/records/agents/",
+        "packages/core/src/foundation/input.ts",
+        "packages/core/src/records/worktrees/",
+        "packages/core/src/records/usage/"
       ],
       "note": "What the board shows: cards, agents, worktrees, usage"
     },
@@ -67,14 +68,12 @@
       "name": "Sessions and config",
       "group": "Bridge",
       "paths": [
-        "packages/bridge/src/services/sessions/",
-        "packages/bridge/src/services/listeners/",
-        "packages/bridge/src/services/config/",
-        "packages/bridge/src/services/bridge/",
-        "packages/bridge/src/services/voice/",
-        "packages/bridge/src/services/pages/",
-        "packages/bridge/src/services/doctor.ts",
-        "packages/bridge/src/services/errors.ts"
+        "packages/core/src/features/sessions/",
+        "packages/core/src/records/listeners/",
+        "packages/core/src/foundation/",
+        "packages/core/src/orchestration/bridge/",
+        "packages/core/src/records/page-links/",
+        "packages/core/src/orchestration/board/voice.ts"
       ],
       "note": "Claude sessions, listeners, settings and the rest of the services"
     },
@@ -83,7 +82,7 @@
       "name": "Adapters",
       "group": "Bridge",
       "paths": [
-        "packages/bridge/src/adapters/"
+        "packages/core/src/adapters/"
       ],
       "note": "Every side effect: programs, files, network"
     },
@@ -189,6 +188,9 @@
       "group": "Repo",
       "paths": [
         "packages/bridge/test/",
+        "packages/core/test/",
+        "packages/cli/test/",
+        "packages/server/test/",
         "packages/panel/test/",
         "packages/ui-kit/test/",
         "packages/contracts/test/",
@@ -210,6 +212,12 @@
         ".once-upon-parts.json",
         "packages/bridge/package.json",
         "packages/bridge/tsconfig.json",
+        "packages/core/package.json",
+        "packages/core/tsconfig.json",
+        "packages/server/package.json",
+        "packages/server/tsconfig.json",
+        "packages/cli/package.json",
+        "packages/cli/tsconfig.json",
         "package.json",
         "tsconfig.json",
         "eslint.config.mjs",

@@ -4,9 +4,9 @@ import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson, type PrLine } from './helpers.ts';
-import { clearFreshness } from '../src/services/review/freshness.ts';
-import { Builds, type Build } from '../src/services/inbox/builds.ts';
-import type { Plan } from '../src/services/stories/chapters.ts';
+import { clearFreshness } from '@once-upon-a-diff/core/features/review/freshness';
+import { Builds, type Build } from '@once-upon-a-diff/core/queues/requests/builds';
+import type { Plan } from '@once-upon-a-diff/core/records/stories/chapters';
 import type { Freshness } from '@once-upon-a-diff/contracts/types';
 
 process.env.ONCE_UPON_GH = path.join(

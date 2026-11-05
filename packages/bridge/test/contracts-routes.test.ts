@@ -12,9 +12,14 @@ import {
   TOKEN,
   type TestBridge,
 } from './helpers.ts';
-import { createLocalStory } from '../src/services/stories/local-story.ts';
-import { API_ROUTES, STORY_ROUTES } from '../src/server/index.ts';
-import { boardKey, pageKey, viewKey, viewKeyMay } from '../src/services/pages/page-key.ts';
+import { createLocalStory } from '@once-upon-a-diff/core/records/stories/local-story';
+import { API_ROUTES, STORY_ROUTES } from '@once-upon-a-diff/server/index';
+import {
+  boardKey,
+  pageKey,
+  viewKey,
+  viewKeyMay,
+} from '@once-upon-a-diff/core/records/page-links/page-key';
 import { ROUTES, boardKeyMay, type AnyRoute } from '@once-upon-a-diff/contracts/routes';
 
 const ENTRIES = Object.entries(ROUTES as Record<string, AnyRoute>);

@@ -11,10 +11,10 @@ import {
   type StatusMany,
   type TestBridge,
 } from './helpers.ts';
-import type { Printable } from '../src/cli/output.ts';
-import { Builds, CLAIM_FRESH_MS } from '../src/services/inbox/builds.ts';
-import { beat } from '../src/services/listeners/listeners.ts';
-import { Inbox } from '../src/services/inbox/inbox.ts';
+import type { Printable } from '@once-upon-a-diff/cli/output';
+import { Builds, CLAIM_FRESH_MS } from '@once-upon-a-diff/core/queues/requests/builds';
+import { beat } from '@once-upon-a-diff/core/records/listeners/listeners';
+import { Inbox } from '@once-upon-a-diff/core/queues/requests/inbox';
 
 /** acme/widgets#7's line from status-many, as a PR page asks for it. */
 const prStatus = async (bridge: TestBridge) =>

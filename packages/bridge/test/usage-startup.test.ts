@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmp } from './helpers.ts';
-import type { CoverageFile } from '../src/services/usage/merge.ts';
+import type { CoverageFile } from '@once-upon-a-diff/core/records/usage/merge';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 
@@ -13,8 +13,8 @@ test('a flush before the bridge listens keeps its startup coverage for the first
   const script = `
     import { begin } from ${JSON.stringify(path.join(ROOT, 'instrumentation/usage-probe.ts'))};
     begin(['serve']);
-    const { installUsage, bridgeListening } = await import(${JSON.stringify(path.join(ROOT, 'src/services/usage/capture.ts'))});
-    const { etDay } = await import(${JSON.stringify(path.join(ROOT, 'src/services/usage/days.ts'))});
+    const { installUsage, bridgeListening } = await import(${JSON.stringify(path.join(ROOT, '../core/src/records/usage/capture.ts'))});
+    const { etDay } = await import(${JSON.stringify(path.join(ROOT, '../core/src/records/usage/days.ts'))});
     etDay(new Date()); // startup code that runs before the port binds
     const capture = installUsage(['serve']);
     capture.flush(); // the first flush, before listening
@@ -30,7 +30,7 @@ test('a flush before the bridge listens keeps its startup coverage for the first
   ) as CoverageFile;
   assert.ok(file.starts >= 1);
   assert.ok(
-    Object.keys(file.files).some((name) => name.endsWith('services/usage/days.ts')),
+    Object.keys(file.files).some((name) => name.endsWith('core/src/records/usage/days.ts')),
     Object.keys(file.files).join(', '),
   );
 });

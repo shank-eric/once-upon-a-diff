@@ -1,0 +1,28 @@
+{
+  "name": "@once-upon-a-diff/core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Once Upon a Diff's core: the adapters (every side effect) and the services over them, in tiers (foundation, records, queues, features, orchestration). The HTTP app and the CLI sit on top",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    "./*": "./src/*.ts",
+    "./test/*": "./test/*.ts"
+  },
+  "scripts": {
+    "test": "node src/foundation/node-version.mjs && node --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json"
+  },
+  "dependencies": {
+    "@once-upon-a-diff/contracts": "workspace:*",
+    "@once-upon-a-diff/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@once-upon-a-diff/test-kit": "workspace:*",
+    "@types/node": "24.19.1",
+    "typescript": "5.9.3"
+  }
+}

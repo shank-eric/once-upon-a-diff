@@ -4,11 +4,15 @@ import { execFileSync } from 'node:child_process';
 import { chmodSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmp, writeJson, startBridge, TOKEN, type TestBridge } from './helpers.ts';
-import { Board, noPrWatcher, type PrWatcher } from '../src/services/board/board.ts';
-import { StoryStore } from '../src/services/stories/store.ts';
-import { Builds } from '../src/services/inbox/builds.ts';
-import { boardKey } from '../src/services/pages/page-key.ts';
-import type { StatusSource } from '../src/adapters/status-source.ts';
+import {
+  Board,
+  noPrWatcher,
+  type PrWatcher,
+} from '@once-upon-a-diff/core/orchestration/board/board';
+import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
+import { Builds } from '@once-upon-a-diff/core/queues/requests/builds';
+import { boardKey } from '@once-upon-a-diff/core/records/page-links/page-key';
+import type { StatusSource } from '@once-upon-a-diff/core/adapters/status-source';
 
 const open: TestBridge[] = [];
 after(() => Promise.all(open.map((bridge) => bridge.close())));

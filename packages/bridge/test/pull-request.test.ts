@@ -13,9 +13,18 @@ import {
   fakeGitPush,
   TOKEN,
 } from './helpers.ts';
-import { boardKey, pageKey, viewKey, viewKeyMay } from '../src/services/pages/page-key.ts';
-import { createLocalStory, reviewBranch } from '../src/services/stories/local-story.ts';
-import { aheadOf, branchPushArgs, namedBase } from '../src/services/stories/pull-request.ts';
+import {
+  boardKey,
+  pageKey,
+  viewKey,
+  viewKeyMay,
+} from '@once-upon-a-diff/core/records/page-links/page-key';
+import { createLocalStory, reviewBranch } from '@once-upon-a-diff/core/records/stories/local-story';
+import {
+  aheadOf,
+  branchPushArgs,
+  namedBase,
+} from '@once-upon-a-diff/core/records/stories/pull-request';
 import type { PrPushAnswer, PrView, StoryData } from '@once-upon-a-diff/contracts/types';
 
 const GITHUB_URL = 'https://github.com/acme/widgets.git';

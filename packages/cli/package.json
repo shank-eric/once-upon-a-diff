@@ -1,0 +1,28 @@
+{
+  "name": "@once-upon-a-diff/cli",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Once Upon a Diff's CLI app: the once-upon commands, over the core",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "test": "node ../core/src/foundation/node-version.mjs && node --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json"
+  },
+  "dependencies": {
+    "@once-upon-a-diff/contracts": "workspace:*",
+    "@once-upon-a-diff/core": "workspace:*",
+    "@once-upon-a-diff/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@once-upon-a-diff/test-kit": "workspace:*",
+    "@types/node": "24.19.1",
+    "typescript": "5.9.3"
+  }
+}

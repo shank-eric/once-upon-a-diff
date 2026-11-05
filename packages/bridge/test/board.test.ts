@@ -31,21 +31,26 @@ import {
   type AgentRun,
   type TestBridge,
 } from './helpers.ts';
-import { Builds } from '../src/services/inbox/builds.ts';
-import { Sessions, type SessionsFeed } from '../src/services/sessions/sessions.ts';
+import { Builds } from '@once-upon-a-diff/core/queues/requests/builds';
+import { Sessions, type SessionsFeed } from '@once-upon-a-diff/core/features/sessions/sessions';
 import { worktreeFixture } from '@once-upon-a-diff/test-kit/git';
-import { Inbox } from '../src/services/inbox/inbox.ts';
-import { markQuestions } from '../src/services/inbox/conversation.ts';
-import { Board, liveSessions, noPrWatcher, type PrWatcher } from '../src/services/board/board.ts';
-import { columnOf, isBackToYou } from '../src/services/board/columns.ts';
+import { Inbox } from '@once-upon-a-diff/core/queues/requests/inbox';
+import { markQuestions } from '@once-upon-a-diff/core/queues/requests/conversation';
+import {
+  Board,
+  liveSessions,
+  noPrWatcher,
+  type PrWatcher,
+} from '@once-upon-a-diff/core/orchestration/board/board';
+import { columnOf, isBackToYou } from '@once-upon-a-diff/core/orchestration/board/columns';
 import { answerBits } from '@once-upon-a-diff/web/public/board/columns/story-answers.ts';
 import {
   BacklogStore,
   assignBranch,
   assignLine,
   backlogCards,
-} from '../src/services/backlog/backlog.ts';
-import { voiceStatus } from '../src/services/voice/voice.ts';
+} from '@once-upon-a-diff/core/queues/backlog/backlog';
+import { voiceStatus } from '@once-upon-a-diff/core/orchestration/board/voice';
 import {
   bridgeUp,
   forgetProbes,
@@ -55,38 +60,46 @@ import {
   sinkPort,
   type PhoneCommand,
   waitBridgeDown,
-} from '../src/adapters/larmor.ts';
+} from '@once-upon-a-diff/core/adapters/larmor';
 import {
   listenCandidates,
   listenStoryPromptFor,
   adoptHandlers,
   sessionOfPid,
   type ListeningInput,
-} from '../src/services/sessions/listening.ts';
-import { listenPrompt, type Listener } from '../src/services/listeners/listeners.ts';
-import type { LiveSession } from '../src/adapters/claude-sessions/live-sessions.ts';
-import { noteListener, readHistory } from '../src/services/listeners/history.ts';
-import { repoStopReason, requestStop, stopRequested } from '../src/services/inbox/auto-stop.ts';
-import { AgentRegistry } from '../src/services/ledger/registry.ts';
-import { gateOf } from '../src/services/ledger/ledger.ts';
-import { pickSource, registrySource } from '../src/services/sessions/sources.ts';
-import { findIt2, focusTab, itermSource, typeLine } from '../src/adapters/iterm.ts';
-import { boardKey, pageKey, viewKey } from '../src/services/pages/page-key.ts';
-import { readSettings } from '../src/services/config/settings.ts';
-import type { StatusSource } from '../src/adapters/status-source.ts';
+} from '@once-upon-a-diff/core/features/sessions/listening';
+import { listenPrompt, type Listener } from '@once-upon-a-diff/core/records/listeners/listeners';
+import type { LiveSession } from '@once-upon-a-diff/core/adapters/claude-sessions/live-sessions';
+import { noteListener, readHistory } from '@once-upon-a-diff/core/records/listeners/history';
+import {
+  repoStopReason,
+  requestStop,
+  stopRequested,
+} from '@once-upon-a-diff/core/queues/requests/auto-stop';
+import { AgentRegistry } from '@once-upon-a-diff/core/records/agents/registry';
+import { gateOf } from '@once-upon-a-diff/core/records/agents/ledger';
+import { pickSource, registrySource } from '@once-upon-a-diff/core/features/sessions/sources';
+import { findIt2, focusTab, itermSource, typeLine } from '@once-upon-a-diff/core/adapters/iterm';
+import { boardKey, pageKey, viewKey } from '@once-upon-a-diff/core/records/page-links/page-key';
+import { readSettings } from '@once-upon-a-diff/core/foundation/settings';
+import type { StatusSource } from '@once-upon-a-diff/core/adapters/status-source';
 import {
   ghBranchCheck,
   ghPrCheck,
   ghRequestedCheck,
   type BranchPr,
-} from '../src/services/review/github-checks.ts';
-import { mergeSummary } from '../src/services/review/merge-rules.ts';
-import { AutoReview } from '../src/services/review/github-watcher.ts';
-import { StoryStore } from '../src/services/stories/store.ts';
-import { localEntries, localStories, LOCAL_IDLE_DAYS } from '../src/services/review/story-lists.ts';
-import { createLocalStory } from '../src/services/stories/local-story.ts';
-import { refreshLocal } from '../src/services/stories/local-diff.ts';
-import type { LocalMeta } from '../src/services/stories/types.ts';
+} from '@once-upon-a-diff/core/records/github/github-checks';
+import { mergeSummary } from '@once-upon-a-diff/core/records/github/merge-rules';
+import { AutoReview } from '@once-upon-a-diff/core/features/review/github-watcher';
+import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
+import {
+  localEntries,
+  localStories,
+  LOCAL_IDLE_DAYS,
+} from '@once-upon-a-diff/core/features/review/story-lists';
+import { createLocalStory } from '@once-upon-a-diff/core/records/stories/local-story';
+import { refreshLocal } from '@once-upon-a-diff/core/records/stories/local-diff';
+import type { LocalMeta } from '@once-upon-a-diff/core/records/stories/types';
 import type {
   BoardCard,
   BoardData,
@@ -2709,7 +2722,7 @@ test('a public host that does not resolve to this machine is not offered (a setu
     });
     const set = await bridge.call<{ url: string }>('GET', '/api/board/link?public=1');
     assert.equal(set.body.url, `https://nowhere.invalid/board/#key=${boardKey(TOKEN)}`);
-    const { resolvesHere } = await import('../src/services/pages/address.ts');
+    const { resolvesHere } = await import('@once-upon-a-diff/core/records/page-links/address');
     assert.equal(await resolvesHere('localhost'), true);
     assert.equal(await resolvesHere('nowhere.invalid'), false);
   } finally {

@@ -4,11 +4,11 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { tmp, runCli, writeJson } from './helpers.ts';
 import { assertPrivate } from './usage-helpers.ts';
-import { isLinkedWorktree } from '../src/adapters/usage/session.ts';
-import { commandLabel } from '../src/services/usage/cli-log.ts';
-import { COMMAND_AREAS } from '../src/services/usage/areas.ts';
-import { commandNames } from '../src/cli/index.ts';
-import type { CoverageFile } from '../src/services/usage/merge.ts';
+import { isLinkedWorktree } from '@once-upon-a-diff/core/adapters/usage/session';
+import { commandLabel } from '@once-upon-a-diff/core/records/usage/cli-log';
+import { COMMAND_AREAS } from '@once-upon-a-diff/core/records/usage/areas';
+import { commandNames } from '@once-upon-a-diff/cli/index';
+import type { CoverageFile } from '@once-upon-a-diff/core/records/usage/merge';
 
 /** `force` captures even when these tests run in a linked worktree (an agent's checkout is skipped otherwise). */
 const FORCE = { ONCE_UPON_USAGE: 'force' };
@@ -21,13 +21,13 @@ test('a CLI run is captured: coverage per file, a command line, and nothing else
   const run = await runCli(home, ['backlog', 'list'], FORCE);
   assert.equal(run.code, 0, run.stderr);
   const coverage = readCoverage(home);
-  const index = coverage.files['packages/bridge/src/cli/index.ts'];
+  const index = coverage.files['packages/cli/src/index.ts'];
   assert.ok(index, 'the CLI entry is in the coverage');
   assert.equal(index[0].mode, 'function');
   assert.match(index[0].sha, /^[0-9a-f]{8}$/);
   // the report's own command never counts itself, and the capture's bootstrap is not measured
   assert.ok(!coverage.files['packages/bridge/instrumentation/usage-probe.ts']);
-  assert.ok(!coverage.files['packages/bridge/src/adapters/usage/session.ts']);
+  assert.ok(!coverage.files['packages/core/src/adapters/usage/session.ts']);
   assert.ok(!coverage.files['packages/bridge/bin/once-upon.mjs']);
   assert.equal(
     readFileSync(usageFile(home, 'cli-runs.log'), 'utf8').trim().split(' ')[1],
@@ -106,7 +106,7 @@ test('off: ONCE_UPON_USAGE=0 and `usage off` stop everything; `usage on` and `us
   await runCli(home, ['usage', 'on'], FORCE);
   await runCli(home, ['backlog', 'list'], FORCE);
   assert.ok(existsSync(usageFile(home, 'cli-runs.log')));
-  assert.equal(readCoverage(home).files['packages/bridge/src/cli/index.ts'][0].mode, 'function');
+  assert.equal(readCoverage(home).files['packages/cli/src/index.ts'][0].mode, 'function');
 
   const cleared = await runCli(home, ['usage', 'clear'], FORCE);
   assert.equal(cleared.code, 0);
@@ -118,7 +118,7 @@ test('lines mode is opt in, and a run in it keeps block ranges', async () => {
   const home = tmp('home');
   await runCli(home, ['usage', 'on', '--lines'], FORCE);
   await runCli(home, ['backlog', 'list'], FORCE);
-  assert.equal(readCoverage(home).files['packages/bridge/src/cli/index.ts'][0].mode, 'lines');
+  assert.equal(readCoverage(home).files['packages/cli/src/index.ts'][0].mode, 'lines');
 });
 
 test('C6: a linked worktree is not captured unless forced', async (context) => {

@@ -1,0 +1,234 @@
+/*
+ * One story: its data (GET /api/stories/<id>), its version (the pages poll it
+ * to redraw when chapters.json changes), its pulse (version plus what else the
+ * panel polls for), the panel's saved state (ui), where the reviewer is
+ * (position), whether the story is up to date (freshness), and its Rebuild
+ * (rebuild: ask for one, or how the last one stands), and Start listening on the local page (listen: GET the sessions that
+ * may be typed into, POST to type into one), since a story's key does not reach the board's routes.
+ */
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { readPrefs } from '@once-upon-a-diff/core/foundation/settings';
+import { seenCheckout } from '@once-upon-a-diff/core/foundation/repos';
+import { freshness } from '@once-upon-a-diff/core/features/review/freshness';
+import { readMarks } from '@once-upon-a-diff/core/features/review/drafts';
+import { listeningOf } from '@once-upon-a-diff/core/records/listeners/listeners';
+import { noteSeen } from '@once-upon-a-diff/core/queues/requests/auto-stop';
+import { refreshLocal, movedSince } from '@once-upon-a-diff/core/records/stories/local-diff';
+import {
+  storyVersion,
+  localVersion,
+  stateKeyOf,
+} from '@once-upon-a-diff/core/records/stories/meta';
+import { HttpError } from '../request.ts';
+import { parseBody } from '../validate.ts';
+import { questionsOf } from './questions.ts';
+import { fixesViewOf } from './fixes.ts';
+import { requestFor } from '@once-upon-a-diff/core/queues/requests/progress';
+import { workingOf } from '@once-upon-a-diff/core/queues/requests/working';
+import type { RebuildView, StoryData } from '@once-upon-a-diff/contracts/types';
+import type { LocalMeta, ServedStory } from '@once-upon-a-diff/core/records/stories/types';
+import type { App, Call, StoryRoute } from '../types.ts';
+
+function load({ app, send, readOnly }: Call, story: ServedStory) {
+  if (story.meta.kind === 'local' && story.ref.repo) {
+    seenCheckout(app.home, story.ref.repo, story.meta.repo_path); // where to tell a listener to work from
+  }
+  // a page opened with the story's read-only key says so, so Create pull request can point to where it works
+  const data = app.stories.load(story.id) as StoryData;
+  return send(200, readOnly ? { ...data, read_only: true } : data);
+}
+
+/** Changes when chapters.json does, and for a local story when its diff or Hide whitespace does. */
+function versionOf(app: App, story: ServedStory): string {
+  if (story.meta.kind === 'local') {
+    const meta = refreshLocal(story.dir, readMetaFile(story.dir));
+    return localVersion(story.dir, readPrefs(app.home), movedSince(meta));
+  }
+  return storyVersion(story.dir);
+}
+
+// the local page's own poll while its panel is closed: a page shows the story
+function version({ app, send }: Call, story: ServedStory) {
+  noteSeen(app.stories, story.id);
+  return send(200, { version: versionOf(app, story) });
+}
+
+// a hidden tab's page is still open: it says so about once a minute, and that is all it does (core/src/queues/requests/auto-stop.ts)
+function seen({ app, body, send }: Call, story: ServedStory) {
+  parseBody('seen', body);
+  noteSeen(app.stories, story.id, Date.now(), 0); // rare by design, so no write throttle
+  return send(200, { ok: true });
+}
+
+const revOf = (value: unknown) =>
+  createHash('sha1').update(JSON.stringify(value)).digest('hex').slice(0, 12);
+
+/**
+ * One cheap call the panel can poll in place of version, questions, status and drafts:
+ * when a field changes, it fetches that one. questions_rev covers answers, dismissals,
+ * collapses, handovers, what's unread and what a session says it is doing. drafts_rev covers the drafts and the
+ * reviewer's marks, not what gh finds on GitHub, which the panel still checks on its own. fixes_rev covers
+ * fix before push, and working_rev the "being changed" marks.
+ */
+async function pulse({ app, send }: Call, story: ServedStory) {
+  noteSeen(app.stories, story.id); // a panel shows the story (for a story listener's natural end)
+  const questionList = questionsOf(app, story);
+  const questions = questionList.map((question) => [
+    question.id,
+    question.answers.length,
+    question.dismissed,
+    question.collapsed,
+    question.handed_to,
+    question.unread,
+    question.status?.state ?? null,
+    question.status?.note ?? null,
+    question.status?.via ?? null,
+  ]);
+  const listening = listeningOf(app.home, { repo: story.ref.repo, story: story.id });
+  const comments = (app.stories.load(story.id) as StoryData).chapters.map(
+    (chapter) => chapter.comments || [],
+  );
+  const marks = readMarks(app.home, stateKeyOf(story.id, story.meta));
+  return send(200, {
+    version: versionOf(app, story),
+    questions_rev: revOf(questions),
+    unread_answers: questionList.filter((question) => question.unread).length,
+    drafts_rev: revOf([comments, marks]),
+    listening: listening.ok,
+    // who answers this story's questions, so the panel redraws when a story listener takes over from the repo's
+    answering: listening.answering
+      ? `${listening.answering.consumer}${listening.answering.agent ? `>${listening.answering.agent}` : ''}`
+      : null,
+    agent: listening.agent,
+    rebuild: rebuildView(app, story),
+    request: requestFor(app.home, app.builds, {
+      repo: story.meta.kind === 'github' ? story.meta.repo : null,
+      number: story.meta.kind === 'github' ? story.meta.number : null,
+      story: story.id,
+    }),
+    // fix before push (notes, Auto-send, requests, who'd get a send, and whether it takes new notes) and "being changed" marks
+    fixes_rev: revOf(await fixesViewOf(app, story)),
+    working_rev: revOf(workingOf(app.home, story.id).marks),
+  });
+}
+
+/** The story's Rebuild as the panel shows it: {id, mode, from_step, state, requested_at, done_at, note}, or null. */
+function rebuildView(app: App, story: ServedStory): (RebuildView & { id: string }) | null {
+  const build = app.builds.view(app.builds.rebuildOf(story.id, story.meta));
+  if (!build) {
+    return null;
+  }
+  return {
+    id: build.id,
+    mode: build.mode as RebuildView['mode'], // rebuildOf finds only rebuilds
+    from_step: build.from_step || null,
+    state: build.state as RebuildView['state'],
+    requested_at: build.requested_at,
+    claimed_by: build.state === 'building' ? build.claimed_by || null : null,
+    done_at: build.done_at || null,
+    note: build.note || null,
+  };
+}
+
+/**
+ * GET: rebuildView. POST {mode: 'rebuild'|'rebuild_from', from_step, guidance}: the panel's Rebuild story or Rebuild
+ * from here, a build request a listener hands to a Claude session. A request already being built comes back as it is.
+ */
+function rebuild({ app, req, body: raw, send }: Call, story: ServedStory) {
+  if (req.method === 'POST') {
+    const body = parseBody('rebuild', raw);
+    const chapters = ((app.stories.load(story.id) as StoryData).chapters || []).filter(
+      (chapter) => !chapter.auto,
+    );
+    if (!chapters.length) {
+      throw new HttpError(400, 'the story has no chapters to rebuild');
+    }
+    app.statusCache = null;
+    app.builds.requestRebuild({
+      story: story.id,
+      meta: story.meta,
+      mode: body.mode,
+      from_step: body.from_step,
+      guidance: body.guidance,
+      chapters: chapters.length,
+      story_dir: story.dir,
+      requested_at: body.requested_at,
+    });
+  }
+  return send(200, { rebuild: rebuildView(app, story) });
+}
+
+/** meta.json as written, for the local diff refresh (readMeta fills in defaults). Throws when it's missing or broken. */
+const readMetaFile = (dir: string): LocalMeta =>
+  JSON.parse(readFileSync(path.join(dir, 'meta.json'), 'utf8'));
+
+function panelState({ app, req, body, send }: Call, story: ServedStory) {
+  if (req.method === 'GET') {
+    return send(200, app.stories.readState(story.id, 'ui.json', {}));
+  }
+  const saved = { ...parseBody('ui', body), at: new Date().toISOString() };
+  app.stories.writeState(story.id, 'ui.json', saved);
+  return send(200, saved);
+}
+
+function position({ app, body, send }: Call, story: ServedStory) {
+  const where = parseBody('position', body);
+  app.stories.writeState(story.id, 'position.json', { ...where, at: new Date().toISOString() });
+  return send(200, { ok: true });
+}
+
+async function storyFreshness({ app, send }: Call, story: ServedStory) {
+  const { meta } = story;
+  const lastBuild =
+    meta.kind === 'github' && meta.repo && meta.number
+      ? app.builds.get(meta.repo, meta.number)
+      : null;
+  return send(
+    200,
+    await freshness(meta, (app.stories.load(story.id) as StoryData).chapters, { lastBuild }),
+  );
+}
+
+/** The story's repo for the repo's listener, or a 400 when its meta names none. */
+function listenRepo(story: ServedStory): string {
+  if (!story.ref.repo) {
+    throw new HttpError(400, 'this story has no repo, so no session can be found for it');
+  }
+  return story.ref.repo;
+}
+
+/** GET: the idle sessions Start listening may type into for the story (the board's rule, core/src/features/sessions/listening.ts). */
+async function listenSessions({ app, send }: Call, story: ServedStory) {
+  return send(200, await app.board.storyListenSessions(story.id));
+}
+
+/**
+ * POST {session, scope?}: types the listen line into that session's tab, as the board's Start listening does: the repo's
+ * (scope 'repo', the default) or this story's own (scope 'story'). The line is made here; the body has no text.
+ */
+async function listen({ app, body: raw, send }: Call, story: ServedStory) {
+  const { session, scope } = parseBody('listen', raw);
+  const typed =
+    scope === 'story'
+      ? await app.board.type('listen', session, null, story.id)
+      : await app.board.type('listen', session, listenRepo(story), null);
+  return send(200, { ok: true, typed });
+}
+
+export const storyRoutes: StoryRoute[] = [
+  { route: ROUTES.story, handle: load },
+  { route: ROUTES.storyVersion, handle: version },
+  { route: ROUTES.storyPulse, handle: pulse },
+  { route: ROUTES.storySeen, handle: seen },
+  { route: ROUTES.storyUiRead, handle: panelState },
+  { route: ROUTES.storyUiWrite, handle: panelState },
+  { route: ROUTES.storyPosition, handle: position },
+  { route: ROUTES.storyFreshness, handle: storyFreshness },
+  { route: ROUTES.storyRebuildRead, handle: rebuild },
+  { route: ROUTES.storyRebuildWrite, handle: rebuild },
+  { route: ROUTES.storyListenSessions, handle: listenSessions },
+  { route: ROUTES.storyListen, handle: listen },
+];

@@ -10,7 +10,7 @@ import {
   isRunning,
   readMode,
   startCounting,
-} from '../src/adapters/usage/session.ts';
+} from '@once-upon-a-diff/core/adapters/usage/session';
 
 /**
  * Starts counting for this process, unless the capture is off (ONCE_UPON_USAGE=0 or the settings file), the command is
