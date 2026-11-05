@@ -1,6 +1,6 @@
 /** The Blank strip: sessions that have had no prompt yet, one chip per place. */
 import { html } from '/assets/preact.mjs';
-import { openMenu } from '/assets/ui/menu.ts';
+import { openMenu } from '/assets/ui-kit/menu.ts';
 import type { BoardBlankSession, BoardData } from '/assets/types.ts';
 import { compactAge } from '/assets/domain/time.ts';
 import { FocusButton, useFocus, type Api } from '/assets/board/shared.ts';

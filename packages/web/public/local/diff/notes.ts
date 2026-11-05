@@ -7,7 +7,7 @@
  * and a sent note can't be deleted here.
  */
 import { html } from '/assets/domain/html.ts';
-import { insertHtml, setHtml } from '/assets/ui/dom.ts';
+import { insertHtml, setHtml } from '/assets/ui-kit/dom.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { page, bridge, PARAMS } from '/assets/local/page.ts';
 import { columnCount } from './diff-view.ts';

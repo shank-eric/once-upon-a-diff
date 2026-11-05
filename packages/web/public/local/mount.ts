@@ -60,7 +60,7 @@ export function mount(initial: InitialUi) {
       stylesheets: {
         page: '/assets/panel/css/page.css',
         panel: '/assets/panel/css/panel.css',
-        ui: '/assets/ui/ui.css',
+        ui: '/assets/ui-kit/css/ui.css',
       },
       commentsTitle: 'Fix before push (drafted)',
       onState: (panelState) => {

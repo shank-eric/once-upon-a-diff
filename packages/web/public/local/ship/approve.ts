@@ -7,7 +7,7 @@
  * (no story told) has no Approve: seeing the diff and clicking Push or Create pull request is the approval.
  */
 import { html } from '/assets/domain/html.ts';
-import { setHtml } from '/assets/ui/dom.ts';
+import { setHtml } from '/assets/ui-kit/dom.ts';
 import { shortDateTime } from '/assets/domain/time.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { bridge, page, PARAMS } from '/assets/local/page.ts';

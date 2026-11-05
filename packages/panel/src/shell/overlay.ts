@@ -29,7 +29,7 @@
  * panel's events, and bridgeOptions(host) (bridge-options.ts) fills in the calls every host makes the same way.
  *
  * opts:
- *   stylesheets    {page, panel, ui}: the URLs of the panel's page.css and panel.css (src/css/) and ui/ui.css as the host serves them (required)
+ *   stylesheets    {page, panel, ui}: the URLs of the panel's page.css and panel.css (src/css/) and ui-kit/ui.css as the host serves them (required)
  * and all optional:
  *   initial        {n, all, collapsed, width, chatOpen, chatHeight, ...} to start from (a saved step)
  *   onState(s)     called with {n, all, collapsed, width, chatOpen, chatHeight, ...} whenever they change

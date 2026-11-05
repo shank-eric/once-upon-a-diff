@@ -1,5 +1,5 @@
 {
-  "name": "@once-upon-a-diff/ui",
+  "name": "@once-upon-a-diff/ui-kit",
   "version": "0.1.0",
   "private": true,
   "description": "Once Upon a Diff's shared UI pieces for the board, the local page, the panel and the extension: the small DOM and clipboard helpers, Start listening and the generic Preact components",

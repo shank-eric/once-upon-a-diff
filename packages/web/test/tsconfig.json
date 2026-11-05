@@ -15,7 +15,7 @@
       "/assets/api-client/*": ["../../api-client/src/*"],
       "/assets/host-github/*": ["../../host-github/src/*"],
       "/assets/panel/*": ["../../panel/src/*"],
-      "/assets/ui/*": ["../../ui/src/*"],
+      "/assets/ui-kit/*": ["../../ui-kit/src/*"],
       "/assets/highlight.mjs": ["../public/types/highlight.d.ts"],
       "/assets/*": ["../public/*"]
     }

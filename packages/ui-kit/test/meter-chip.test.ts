@@ -2,8 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { document, root, tick } from './preact-env.ts';
 const { html, render } = await import('/assets/preact.mjs');
-const { Meter, ContextMeter } = await import('../src/meter.ts');
-const { Chip, Chips } = await import('../src/chip.ts');
+const { Meter, ContextMeter } = await import('../src/components/meter.ts');
+const { Chip, Chips } = await import('../src/components/chip.ts');
 
 const draw = async (view: Parameters<typeof render>[0]) => {
   render(view, root);

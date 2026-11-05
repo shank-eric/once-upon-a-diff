@@ -24,7 +24,7 @@
  * included, as before: a file's pill goes on its first mention in a step), and the Ask box by askView().
  */
 import { Fragment, html } from '/assets/preact.mjs';
-import { LinkButton } from '@once-upon-a-diff/ui/link-button';
+import { LinkButton } from '@once-upon-a-diff/ui-kit/components/link-button';
 import { baseName, plural } from '@once-upon-a-diff/domain/text';
 import { clockTime, shortDateTime } from '@once-upon-a-diff/domain/time';
 import type { PanelContext } from '../host/context.ts';
@@ -45,7 +45,7 @@ import {
   waitingText,
   withRead,
 } from './question-list.ts';
-import { Elapsed, type Clock } from '@once-upon-a-diff/ui/elapsed';
+import { Elapsed, type Clock } from '@once-upon-a-diff/ui-kit/components/elapsed';
 
 const SLOW_EVERY = 6; // ticks: 6 x 5s = every 30s with nothing waiting
 const UNDO_MS = 15000;

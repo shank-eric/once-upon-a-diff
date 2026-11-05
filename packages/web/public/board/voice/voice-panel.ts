@@ -11,7 +11,7 @@
  */
 import { html, render, useEffect, useLayoutEffect, useRef, useState } from '/assets/preact.mjs';
 import { remember, stored } from '/assets/local/stored.ts';
-import { Meter } from '/assets/ui/meter.ts';
+import { Meter } from '/assets/ui-kit/components/meter.ts';
 import type { BoardVoice, BoardVoiceLine } from '/assets/types.ts';
 import { repoName } from '/assets/domain/text.ts';
 

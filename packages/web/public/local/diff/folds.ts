@@ -6,7 +6,7 @@
 import { chapterNumbers } from '/assets/panel/shell/overlay.ts';
 import { claimsOf, narrowRows } from './narrow.ts';
 import { html } from '/assets/domain/html.ts';
-import { insertHtml } from '/assets/ui/dom.ts';
+import { insertHtml } from '/assets/ui-kit/dom.ts';
 import { plural } from '/assets/domain/text.ts';
 import { page } from '/assets/local/page.ts';
 import { columnCount } from './diff-view.ts';

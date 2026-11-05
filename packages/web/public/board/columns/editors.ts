@@ -4,7 +4,7 @@ import type { BoardEditor } from '/assets/types.ts';
 import { plural } from '/assets/domain/text.ts';
 import { SessionLink, type Api } from '/assets/board/shared.ts';
 import { agentMark, stateNote } from '/assets/board/columns/agent.ts';
-import { since } from '/assets/ui/time.ts';
+import { since } from '/assets/domain/time.ts';
 
 /**
  * The editors strip, above the columns: a row for each editor (a session running a repo's queue) with its lane, its slots

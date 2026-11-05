@@ -10,8 +10,8 @@
  * GitHub's page and posts nothing.
  */
 import { Fragment, html, render, useLayoutEffect, useRef } from '/assets/preact.mjs';
-import { wireStartListening, type ListenPort } from '@once-upon-a-diff/ui/listen';
-import { hideUntilStyled, stopKeyEvents, stylesheetLink } from '@once-upon-a-diff/ui/dom';
+import { wireStartListening, type ListenPort } from '@once-upon-a-diff/ui-kit/listen';
+import { hideUntilStyled, stopKeyEvents, stylesheetLink } from '@once-upon-a-diff/ui-kit/dom';
 import { bridge } from '../bridge.ts';
 import { createListenOption } from '../listen.ts';
 import { noticeRowTitle } from '../tag-model.ts';

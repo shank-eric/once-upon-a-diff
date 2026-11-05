@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { document, root, tick, fire } from './preact-env.ts';
 const { html, render } = await import('/assets/preact.mjs');
-const { CopyButton, useCopied } = await import('../src/copy-button.ts');
+const { CopyButton, useCopied } = await import('../src/components/copy-button.ts');
 
 const written: string[] = [];
 let mode: 'ok' | 'refused' | 'none' = 'ok';

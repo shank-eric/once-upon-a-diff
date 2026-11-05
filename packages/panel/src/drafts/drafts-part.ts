@@ -12,9 +12,9 @@
  * Copy's "Copied" and the label timers are the part's, and are cleared in destroy().
  */
 import { html } from '/assets/preact.mjs';
-import { LinkButton } from '@once-upon-a-diff/ui/link-button';
+import { LinkButton } from '@once-upon-a-diff/ui-kit/components/link-button';
 import { capitalize, shortSha } from '@once-upon-a-diff/domain/text';
-import { writeClipboard } from '@once-upon-a-diff/ui/clipboard';
+import { writeClipboard } from '@once-upon-a-diff/ui-kit/clipboard';
 import { draftView, shownIn, type DraftShow } from './drafts.ts';
 import { scriptDrafts, reviewScript } from './review-script.ts';
 import type { PanelContext } from '../host/context.ts';

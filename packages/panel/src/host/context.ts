@@ -56,7 +56,7 @@ import type { ChatDock } from '../ask/chat-dock.ts';
 
 /** What the panel's host gives it (see overlay.ts for what each does). */
 export interface PanelOptions {
-  /** where the host serves the panel's page.css and panel.css (src/css/) and ui/ui.css (the shared pieces' look, linked before panel.css) */
+  /** where the host serves the panel's page.css and panel.css (src/css/) and ui-kit/ui.css (the shared pieces' look, linked before panel.css) */
   stylesheets: { page: string; panel: string; ui: string };
   initial?: InitialUi;
   onState?(state: PanelUi): void;

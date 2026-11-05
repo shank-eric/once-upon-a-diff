@@ -36,7 +36,7 @@ import type {
 } from '@once-upon-a-diff/protocol/types';
 
 const { storyOverlay } = await import('../src/shell/overlay.ts');
-const { parseMarkup } = await import('@once-upon-a-diff/ui/parse-markup');
+const { parseMarkup } = await import('@once-upon-a-diff/ui-kit/parse-markup');
 const { render, h } = await import('/assets/preact.mjs');
 const { document, tick, fire, window } = dom;
 

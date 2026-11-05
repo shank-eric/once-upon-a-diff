@@ -5,7 +5,7 @@
  * Conversation tab.
  */
 import { html, render } from '/assets/preact.mjs';
-import { hideUntilStyled, stopKeyEvents, stylesheetLink } from '@once-upon-a-diff/ui/dom';
+import { hideUntilStyled, stopKeyEvents, stylesheetLink } from '@once-upon-a-diff/ui-kit/dom';
 import type { AnswersBadge, Tag } from '../tag-model.ts';
 import { TagView } from './story-tag.ts';
 

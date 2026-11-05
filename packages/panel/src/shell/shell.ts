@@ -5,7 +5,7 @@
  * the dock) through their views; the frame draws the rest.
  */
 import { Fragment, html, render } from '/assets/preact.mjs';
-import { hideUntilStyled, stopKeyEvents, stylesheetLink } from '@once-upon-a-diff/ui/dom';
+import { hideUntilStyled, stopKeyEvents, stylesheetLink } from '@once-upon-a-diff/ui-kit/dom';
 import { createView } from '../state/store.ts';
 import type { PanelContext } from '../host/context.ts';
 

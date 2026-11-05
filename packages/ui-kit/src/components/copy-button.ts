@@ -4,7 +4,7 @@
  * answer the label to show instead. Nothing is shown when it answers nothing.
  */
 import { html, useEffect, useRef, useState } from '/assets/preact.mjs';
-import { writeClipboard } from './clipboard.ts';
+import { writeClipboard } from '../clipboard.ts';
 
 /** How long a label says how a copy went. */
 export const COPIED_LABEL_MS = 1500;

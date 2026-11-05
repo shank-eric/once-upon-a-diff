@@ -10,7 +10,7 @@
       "/assets/api-client/*": ["./packages/api-client/src/*"],
       "/assets/host-github/*": ["./packages/host-github/src/*"],
       "/assets/panel/*": ["./packages/panel/src/*"],
-      "/assets/ui/*": ["./packages/ui/src/*"],
+      "/assets/ui-kit/*": ["./packages/ui-kit/src/*"],
       "/assets/local/*": ["./packages/web/public/local/*"],
       "/assets/highlight.mjs": ["./packages/web/public/vendor/highlight.mjs"],
       "/assets/preact.mjs": ["./packages/web/public/vendor/preact.mjs"],

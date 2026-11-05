@@ -2,9 +2,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { document, root, tick, fire } from './preact-env.ts';
 const { html, render } = await import('/assets/preact.mjs');
-const { Busy } = await import('../src/busy.ts');
-const { LinkButton } = await import('../src/link-button.ts');
-const { Banner } = await import('../src/banner.ts');
+const { Busy } = await import('../src/components/busy.ts');
+const { LinkButton } = await import('../src/components/link-button.ts');
+const { Banner } = await import('../src/components/banner.ts');
 
 const draw = async (view: Parameters<typeof render>[0]) => {
   render(view, root);

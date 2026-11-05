@@ -7,10 +7,10 @@
  * and a Push for them (push-ahead.ts).
  */
 import { html } from '/assets/domain/html.ts';
-import { setHtml } from '/assets/ui/dom.ts';
+import { setHtml } from '/assets/ui-kit/dom.ts';
 import { plural } from '/assets/domain/text.ts';
 import { html as vdom } from '/assets/preact.mjs';
-import { CopyButton } from '/assets/ui/copy-button.ts';
+import { CopyButton } from '/assets/ui-kit/components/copy-button.ts';
 import { CommitList, openActionDialog } from './action-dialog.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { bridge, page, PARAMS } from '/assets/local/page.ts';

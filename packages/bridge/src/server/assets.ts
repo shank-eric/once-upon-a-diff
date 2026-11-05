@@ -2,7 +2,7 @@
  * The files the bridge serves without a token: the pages' scripts, CSS and icon (the web package,
  * @once-upon-a-diff/web), the panel's modules and stylesheets (@once-upon-a-diff/panel), the GitHub host
  * adapter (@once-upon-a-diff/host-github), the typed client and the poll from the api-client package, the shared UI_DIR pieces
- * (@once-upon-a-diff/ui), the route table from the protocol package and the pure rules from the domain package.
+ * (@once-upon-a-diff/ui-kit), the route table from the protocol package and the pure rules from the domain package.
  * TypeScript modules go out as JavaScript, their types stripped the way Node strips the bridge's own,
  * so the browser runs the same lines with no build step. The panel, the host adapter and the domain name
  * the packages they use by package, as Node and the extension's bundler resolve them, so a served module
@@ -39,8 +39,10 @@ const DOMAIN = path.dirname(
 const API_CLIENT = path.dirname(
   fileURLToPath(import.meta.resolve('@once-upon-a-diff/api-client/client')),
 );
-/** The ui package's sources (src/): the helpers and components the pages, the panel and the extension share. */
-const UI_DIR = path.dirname(fileURLToPath(import.meta.resolve('@once-upon-a-diff/ui/clipboard')));
+/** The ui-kit package's sources (src/): the helpers and components the pages, the panel and the extension share. */
+const UI_DIR = path.dirname(
+  fileURLToPath(import.meta.resolve('@once-upon-a-diff/ui-kit/clipboard')),
+);
 const SCRIPT = 'text/javascript; charset=utf-8';
 const STYLESHEET = 'text/css; charset=utf-8';
 const PNG = 'image/png';
@@ -50,8 +52,8 @@ const PANEL_MODULE = /^\/assets\/panel\/([a-z0-9-]+(?:\/[a-z0-9-]+)*\.(?:ts|css)
 const HOST_MODULE = /^\/assets\/host-github\/([a-z0-9-]+\.ts)$/;
 /** The api-client's modules a page may load: the typed client, the poll and the Preact hook over it. */
 const API_CLIENT_MODULE = /^\/assets\/api-client\/(client|poll|use-poll|usage)\.ts$/;
-/** The ui package's modules and its stylesheet, which a page may load (the panel reaches the modules by package, which forBrowser spells as these URLs). */
-const UI_MODULE = /^\/assets\/ui\/([a-z0-9-]+\.(?:ts|css))$/;
+/** The ui-kit package's modules (its components/ folder too) and its stylesheet (css/ui.css), which a page may load (the panel reaches the modules by package, which forBrowser spells as these URLs). */
+const UI_MODULE = /^\/assets\/ui-kit\/([a-z0-9-]+(?:\/[a-z0-9-]+)*\.(?:ts|css))$/;
 /**
  * The protocol's modules a page may load: the route table (routes.ts, the route-kit.ts it builds with and each area's
  * routes.ts). Not the schemas (schemas.ts, schema-kit.ts and each area's schemas.ts import valibot: the bridge checks
@@ -80,7 +82,7 @@ const stripped = new Map<string, { mtime: number; code: string }>();
 
 /** The specifiers a served module may name by package, and the /assets/ URL each is loaded from (the package's name is the folder). */
 const PACKAGE_SPECIFIER =
-  /(\bfrom\s*|\bimport\s*\(?\s*)(['"])@once-upon-a-diff\/(panel|protocol|domain|host-github|api-client|ui)\/([a-z0-9/-]+)\2/g;
+  /(\bfrom\s*|\bimport\s*\(?\s*)(['"])@once-upon-a-diff\/(panel|protocol|domain|host-github|api-client|ui-kit)\/([a-z0-9/-]+)\2/g;
 /** A stripped module with its package specifiers (the panel, the protocol, the domain, the host adapter) spelled as the URLs the bridge serves them at. */
 export const forBrowser = (code: string): string =>
   code.replace(

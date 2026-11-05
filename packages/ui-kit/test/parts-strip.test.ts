@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { document, root, tick } from './preact-env.ts';
 const { html, render } = await import('/assets/preact.mjs');
-const { PartsStrip } = await import('../src/parts-strip.ts');
+const { PartsStrip } = await import('../src/components/parts-strip.ts');
 
 const parts = {
   groups: ['Code', 'Docs', 'Misc'],

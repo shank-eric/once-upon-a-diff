@@ -4,7 +4,7 @@
  * note being edited is a keyed component, so what is typed stays through a redraw and is lost on a step change, as it always was.
  */
 import { html, useLayoutEffect, useRef } from '/assets/preact.mjs';
-import { LinkButton } from '@once-upon-a-diff/ui/link-button';
+import { LinkButton } from '@once-upon-a-diff/ui-kit/components/link-button';
 import { plural, shortSha } from '@once-upon-a-diff/domain/text';
 import { shortDateTime } from '@once-upon-a-diff/domain/time';
 import { fixSummary, takesNotes } from './fixes.ts';

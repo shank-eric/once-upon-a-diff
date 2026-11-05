@@ -2,7 +2,7 @@
 import { html } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import type { BoardCard, BoardSession, PrInfo } from '/assets/types.ts';
-import { compactAge } from '/assets/domain/time.ts';
+import { ago, compactAge } from '/assets/domain/time.ts';
 import { gateText, plural, repoName } from '/assets/domain/text.ts';
 import {
   CardTrees,
@@ -15,10 +15,9 @@ import {
 import { act, openStory, reviewCard, typeInto } from '/assets/board/columns/actions.ts';
 import { Agent, AgentNotes } from '/assets/board/columns/agent.ts';
 import { answerBits } from '/assets/board/columns/story-answers.ts';
-import { ContextMeter } from '/assets/ui/meter.ts';
-import { Chips } from '/assets/ui/chip.ts';
-import { ago } from '/assets/ui/time.ts';
-import { CopyButton } from '/assets/ui/copy-button.ts';
+import { ContextMeter } from '/assets/ui-kit/components/meter.ts';
+import { Chips } from '/assets/ui-kit/components/chip.ts';
+import { CopyButton } from '/assets/ui-kit/components/copy-button.ts';
 
 const BUILDING_TEXT = {
   build: 'building the story',

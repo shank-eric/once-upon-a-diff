@@ -16,7 +16,7 @@
  *            packages/bridge/instrumentation (the usage probe the entry shims preload: outside the layers)
  *   web      packages/web/public (the pages, an app)
  *   extension packages/extension/src (an app)
- *   panel, host-github, api-client, ui, protocol, domain (imports nothing), test-kit
+ *   panel, host-github, api-client, ui-kit, protocol, domain (imports nothing), test-kit
  */
 
 import { fileURLToPath } from 'node:url';
@@ -32,14 +32,14 @@ const EXTENSION = '^packages/extension/';
 const PANEL = '^packages/panel/';
 const HOST = '^packages/host-github/';
 const API_CLIENT = '^packages/api-client/';
-const UI_PKG = '^packages/ui/';
+const UI_PKG = '^packages/ui-kit/';
 const PROTOCOL = '^packages/protocol/';
 const DOMAIN = '^packages/domain/';
 const TEST_KIT = '^packages/test-kit/';
 const INSTRUMENTATION = '^packages/bridge/instrumentation/';
 
 // code that ships to a browser (no Node built-ins)
-const BROWSER = `^packages/(panel|host-github|api-client|ui|protocol|domain|extension/src)/|${WEB}`;
+const BROWSER = `^packages/(panel|host-github|api-client|ui-kit|protocol|domain|extension/src)/|${WEB}`;
 
 const rule = (name, comment, importer, imported) => ({
   name,
@@ -234,8 +234,8 @@ export default {
       },
     ),
     rule(
-      'ui-below-panel-and-pages',
-      'ui sits below the panel, the pages and the extension: it imports the protocol, the domain and the vendored Preact, never an app, the server, the panel, a host adapter or the api-client',
+      'ui-kit-below-panel-and-pages',
+      'ui-kit sits below the panel, the pages and the extension: it imports the protocol, the domain and the vendored Preact, never an app, the server, the panel, a host adapter or the api-client',
       { path: UI_PKG },
       {
         path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${HOST}|${API_CLIENT}|${TEST_KIT}`,
@@ -243,8 +243,8 @@ export default {
       },
     ),
     rule(
-      'ui-imports-only-the-protocol',
-      'ui imports nothing from npm (the vendored Preact resolves through the tsconfig paths, and no npm package is its own): an npm package or an unresolved import is refused',
+      'ui-kit-imports-only-the-protocol',
+      'ui-kit imports nothing from npm (the vendored Preact resolves through the tsconfig paths, and no npm package is its own): an npm package or an unresolved import is refused',
       { path: UI_PKG },
       {
         dependencyTypes: [
@@ -258,8 +258,8 @@ export default {
       },
     ),
     rule(
-      'ui-no-unresolved',
-      'an import in ui that resolves to nothing is refused',
+      'ui-kit-no-unresolved',
+      'an import in ui-kit that resolves to nothing is refused',
       { path: UI_PKG },
       { couldNotResolve: true },
     ),
@@ -302,13 +302,13 @@ export default {
     rule(
       'pages-are-an-app',
       'the pages are an app: nothing imports them, and they do not import the extension or the server',
-      // the panel, ui, the api-client and the extension have their own rules over WEB (they may name the vendored Preact, by its URL only)
+      // the panel, ui-kit, the api-client and the extension have their own rules over WEB (they may name the vendored Preact, by its URL only)
       { path: `${HOST}|${PROTOCOL}|${BRIDGE}|${TEST_KIT}` },
       { path: WEB },
     ),
     rule(
       'preact-by-its-url-only',
-      'the vendored Preact is named /assets/preact.mjs by the panel, ui, the api-client hook and the extension’s components, so a page has one Preact: not by a relative path or a package name',
+      'the vendored Preact is named /assets/preact.mjs by the panel, ui-kit, the api-client hook and the extension’s components, so a page has one Preact: not by a relative path or a package name',
       { path: `${PANEL}|${UI_PKG}|${API_CLIENT}|${EXTENSION}` },
       {
         path: '^packages/web/public/vendor/preact\\.mjs$',
@@ -336,7 +336,7 @@ export default {
     // the /assets/ spelling: the browser imports by URL, the extension's bundle and the packages by name
     rule(
       'client-names-packages-not-page-urls',
-      'the panel, ui and the api-client hook are shared by the extension and the pages: the one page URL they name is the vendored Preact (/assets/preact.mjs), and they import packages, never a page module',
+      'the panel, ui-kit and the api-client hook are shared by the extension and the pages: the one page URL they name is the vendored Preact (/assets/preact.mjs), and they import packages, never a page module',
       { path: `${PANEL}|${UI_PKG}|^packages/api-client/src/use-poll\\.ts$` },
       {
         dependencyTypes: ['aliased-tsconfig-paths'],

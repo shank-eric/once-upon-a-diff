@@ -1,13 +1,12 @@
 /** The Listeners lane: a row per repo, who listens (with Stop) or when it last did (with Start). */
 import { html } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/protocol/routes.ts';
-import { openMenu } from '/assets/ui/menu.ts';
+import { openMenu } from '/assets/ui-kit/menu.ts';
 import type { BoardListenerRepo } from '/assets/types.ts';
-import { compactAge } from '/assets/domain/time.ts';
+import { compactAge, since } from '/assets/domain/time.ts';
 import { SessionLink, type Api } from '/assets/board/shared.ts';
 import { act, typeInto } from '/assets/board/columns/actions.ts';
-import { listenPlan } from '/assets/ui/listen.ts';
-import { since } from '/assets/ui/time.ts';
+import { listenPlan } from '/assets/ui-kit/listen.ts';
 
 /** One listener row: who listens (with Stop), or when it last did (with Start). */
 function Listener(props: { entry: BoardListenerRepo; now: number; api: Api }) {

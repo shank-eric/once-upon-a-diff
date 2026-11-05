@@ -6,11 +6,11 @@
 import { html, useEffect, useLayoutEffect, useRef, useState } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { sameLaneKey } from '/assets/domain/lane-key.ts';
-import { openMenu } from '/assets/ui/menu.ts';
+import { openMenu } from '/assets/ui-kit/menu.ts';
 import type { BoardCard, BoardData } from '/assets/types.ts';
 import { CardTrees, type Api } from '/assets/board/shared.ts';
-import { Chips } from '/assets/ui/chip.ts';
-import { ago } from '/assets/ui/time.ts';
+import { Chips } from '/assets/ui-kit/components/chip.ts';
+import { ago } from '/assets/domain/time.ts';
 import {
   agentOnlyChips,
   pendingClaimChip,

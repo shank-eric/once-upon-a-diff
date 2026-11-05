@@ -128,7 +128,7 @@
       "name": "UI",
       "group": "Client",
       "paths": [
-        "packages/ui/"
+        "packages/ui-kit/"
       ],
       "note": "Shared components and helpers"
     },
@@ -190,7 +190,7 @@
       "paths": [
         "packages/bridge/test/",
         "packages/panel/test/",
-        "packages/ui/test/",
+        "packages/ui-kit/test/",
         "packages/protocol/test/",
         "packages/domain/test/",
         "packages/web/test/",

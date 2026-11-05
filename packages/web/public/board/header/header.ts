@@ -4,12 +4,12 @@
  */
 import { html, useState } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/protocol/routes.ts';
-import { openMenu } from '/assets/ui/menu.ts';
+import { openMenu } from '/assets/ui-kit/menu.ts';
 import type { BoardData, BoardLimit, BoardUsage } from '/assets/types.ts';
 import { compactAge } from '/assets/domain/time.ts';
 import { plural } from '/assets/domain/text.ts';
 import { sameLaneKey } from '/assets/domain/lane-key.ts';
-import { Meter } from '/assets/ui/meter.ts';
+import { Meter } from '/assets/ui-kit/components/meter.ts';
 import type { Api } from '/assets/board/shared.ts';
 
 /** When a limit resets: the time today, else the weekday and hour. */

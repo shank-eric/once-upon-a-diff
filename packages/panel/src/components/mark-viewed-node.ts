@@ -3,7 +3,7 @@
  * Viewed toggle: "Mark viewed" until the toggle is on, then "Viewed ✓" (a click unticks it).
  */
 import { html } from '/assets/preact.mjs';
-import type { VNode } from '@once-upon-a-diff/ui/parse-markup';
+import type { VNode } from '@once-upon-a-diff/ui-kit/parse-markup';
 
 /** The same button as a node: `toggleOn` is whether the file's Viewed toggle is on (null before the tracker has looked). */
 export function markViewedNode(

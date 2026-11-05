@@ -19,7 +19,7 @@
     "@once-upon-a-diff/api-client": "workspace:*",
     "@once-upon-a-diff/domain": "workspace:*",
     "@once-upon-a-diff/protocol": "workspace:*",
-    "@once-upon-a-diff/ui": "workspace:*"
+    "@once-upon-a-diff/ui-kit": "workspace:*"
   },
   "devDependencies": {
     "@once-upon-a-diff/test-kit": "workspace:*",

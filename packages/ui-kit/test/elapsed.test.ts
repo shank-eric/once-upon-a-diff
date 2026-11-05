@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { root, tick } from './preact-env.ts';
 const { html, render } = await import('/assets/preact.mjs');
-const { Elapsed } = await import('../src/elapsed.ts');
+const { Elapsed } = await import('../src/components/elapsed.ts');
 
 const NOW = Date.parse('2026-11-04T12:00:00Z');
 const realNow = Date.now;

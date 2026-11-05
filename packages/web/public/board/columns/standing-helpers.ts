@@ -2,7 +2,7 @@
 import { html } from '/assets/preact.mjs';
 import type { BoardHelper } from '/assets/types.ts';
 import { SessionLink, type Api } from '/assets/board/shared.ts';
-import { since } from '/assets/ui/time.ts';
+import { since } from '/assets/domain/time.ts';
 
 /** The standing helpers' row, under the Listeners: each helper, the session you reach it through, and when it was last asked. */
 export function Helpers(props: { helpers: BoardHelper[]; now: number; api: Api }) {

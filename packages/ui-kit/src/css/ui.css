@@ -1,6 +1,6 @@
-/* ui: the pieces the board and the panel share (packages/ui). Linked before local.css and before panel.css (in the panel's shadow root), so a page can override one. */
+/* ui-kit: the pieces the board and the panel share (packages/ui-kit). Linked before local.css and before panel.css (in the panel's shadow root), so a page can override one. */
 
-/* A popover menu in place of a native select (ui/src/menu.ts) */
+/* A popover menu in place of a native select (ui-kit/src/menu.ts) */
 .ou-menu { position: fixed; z-index: 20; min-width: 220px; max-width: min(360px, calc(100vw - 16px)); max-height: 60vh; overflow-y: auto; padding: 4px; background: var(--bgColor-default); color: var(--fgColor-default); border: 1px solid var(--borderColor-default); border-radius: 8px; box-shadow: 0 8px 24px rgba(1, 4, 9, 0.3); }
 .ou-menu-item { display: flex; gap: 8px; align-items: flex-start; width: 100%; padding: 6px 8px; text-align: left; border: 0; border-radius: 6px; background: none; font-size: 13px; cursor: pointer; }
 .ou-menu-item:hover, .ou-menu-item:focus-visible { background: var(--bgColor-muted); outline: none; }
@@ -11,14 +11,14 @@
 .ou-menu-detail { color: var(--fgColor-muted); font-size: 12px; }
 @media (max-width: 800px) { .ou-menu-item { min-height: 44px; align-items: center; } }
 
-/* chips: small neutral labels, a mark in front says what one means (ui/src/chip.ts) */
+/* chips: small neutral labels, a mark in front says what one means (ui-kit/src/components/chip.ts) */
 .ou-ui-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .ou-ui-chip { font-size: 11px; line-height: 16px; padding: 0 6px; border: 1px solid var(--borderColor-default); border-radius: 9px; color: var(--fgColor-muted); white-space: nowrap; }
 
-/* the Copy button (ui/src/copy-button.ts) */
+/* the Copy button (ui-kit/src/components/copy-button.ts) */
 .ou-ui-copy { font-size: 11px; padding: 0 6px; }
 
-/* the usage meter: thin bar, yellow from 70% and red from 90% (ui/src/meter.ts) */
+/* the usage meter: thin bar, yellow from 70% and red from 90% (ui-kit/src/components/meter.ts) */
 .ou-ui-meter { display: inline-flex; gap: 5px; align-items: center; font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--fgColor-muted); }
 .ou-ui-meter-bar { width: 44px; height: 5px; border-radius: 3px; background: var(--borderColor-default); overflow: hidden; }
 .ou-ui-meter-bar span { display: block; height: 100%; border-radius: 3px; background: var(--fgColor-success); }
@@ -30,25 +30,25 @@
 .ou-ui-meter.ou-ui-usage-high .ou-ui-meter-bar span { background: var(--ou-local-del-fg); }
 .ou-ui-meter.ou-ui-usage-high .ou-ui-meter-num { color: var(--ou-local-del-fg); font-weight: 600; }
 
-/* Busy: a spinner and a line of text (ui/src/busy.ts) */
+/* Busy: a spinner and a line of text (ui-kit/src/components/busy.ts) */
 .ou-ui-busy { display: inline-flex; align-items: center; gap: 6px; color: var(--fgColor-default, #1f2328); }
 .ou-ui-spin { width: 11px; height: 11px; border: 2px solid var(--fgColor-muted, #59636e); border-top-color: transparent; border-radius: 50%; animation: ou-ui-spin 0.9s linear infinite; }
 @keyframes ou-ui-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .ou-ui-spin { animation: none; } }
 
-/* LinkButton: a button that reads as a small dotted link (ui/src/link-button.ts) */
+/* LinkButton: a button that reads as a small dotted link (ui-kit/src/components/link-button.ts) */
 .ou-ui-linkish { font: inherit; font-size: 11px; color: var(--fgColor-muted, #59636e); background: none; border: 0; border-radius: 6px; padding: 0 2px; cursor: pointer; white-space: nowrap; text-decoration: underline dotted; }
 .ou-ui-linkish:hover { color: var(--fgColor-accent, #0969da); }
 .ou-ui-linkish:disabled { opacity: 0.45; cursor: default; }
 
-/* Banner: a note with a rule down its left edge and a tint (ui/src/banner.ts) */
+/* Banner: a note with a rule down its left edge and a tint (ui-kit/src/components/banner.ts) */
 .ou-ui-banner { padding: 6px 10px; border-left: 3px solid var(--fgColor-accent, #0969da); background: var(--bgColor-accent-muted, #ddf4ff); border-radius: 0 6px 6px 0; font-size: 12px; }
 .ou-ui-banner-warn { border-left: 3px solid var(--fgColor-attention, #9a6700); background: var(--bgColor-muted, #f6f8fa); }
 
 /* Pill: a small outlined label, drawn in the colour its host gives it (the panel's file status marks) */
 .ou-ui-pill { font-size: 11px; padding: 0 5px; border-radius: 9px; border: 1px solid currentColor; white-space: nowrap; }
 
-/* The parts strip, "you are here": a row per group, the parts a step touches lit by a mark, a heavy border and weight, never colour alone (ui/src/parts-strip.ts) */
+/* The parts strip, "you are here": a row per group, the parts a step touches lit by a mark, a heavy border and weight, never colour alone (ui-kit/src/components/parts-strip.ts) */
 .ou-ui-parts { display: flex; flex-direction: column; gap: 3px; margin: 6px 0; font-size: 11px; line-height: 16px; }
 .ou-ui-parts-row { display: flex; gap: 6px; align-items: baseline; }
 .ou-ui-parts-group { flex: 0 0 auto; min-width: 48px; color: var(--fgColor-muted); }

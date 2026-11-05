@@ -16,7 +16,7 @@ Paths are from the repo root. After each `file:line` comes the name you'll find 
 |---|---|
 | `app` | knows its host: the extension (content scripts, service worker), the board and local pages (`packages/web`), the bridge's `server/` and `cli/` |
 | `feature` | the panel (`packages/panel`), which an app hands its host through `PanelHost` |
-| `client` | `packages/api-client` (the typed client and the poll) and `packages/ui` |
+| `client` | `packages/api-client` (the typed client and the poll) and `packages/ui-kit` |
 | `protocol` | `packages/protocol`: the route table, the wire types and the schemas, over `packages/domain`, the pure rules that import nothing |
 | `service` | `packages/bridge/src/services/`: the rules. No side effects of their own |
 | `adapter` | `packages/bridge/src/adapters/`: every file write, program run and network call |
@@ -225,7 +225,7 @@ flowchart LR
 | # | Layer | Hop | At |
 |---|---|---|---|
 | 1 | `feature` | the panel's button asks the host for sessions | `packages/panel/src/components/status-light-part.ts:111` (`opts.listen!.sessions(target)`) |
-| 2 | `client` | none, one, or a chooser | `packages/ui/src/listen.ts:20` (`export function listenPlan`) |
+| 2 | `client` | none, one, or a chooser | `packages/ui-kit/src/listen.ts:20` (`export function listenPlan`) |
 | 3 | `app` | on GitHub: `GET /api/board/listen-sessions`, with the token through the service worker | `packages/extension/src/content/listen.ts:50` (`ROUTES.boardListenSessions`) |
 | 3' | `app` | on the local page: the story's own route, with the story's key (the board's routes need the board's key) | `packages/web/public/local/mount.ts:115` (`ROUTES.storyListenSessions`) |
 | 4 | `app` | the board route | `packages/bridge/src/server/routes/board.ts:91` (`app.sessions.storyListenSessions(storyId)`) |

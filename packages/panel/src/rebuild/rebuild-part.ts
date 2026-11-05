@@ -8,7 +8,7 @@
  * What was typed in the form is kept across redraws and step changes; the form itself belongs to the step it was opened on.
  */
 import { html } from '/assets/preact.mjs';
-import { LinkButton } from '@once-upon-a-diff/ui/link-button';
+import { LinkButton } from '@once-upon-a-diff/ui-kit/components/link-button';
 import { rebuildAsk, rebuildLine, rebuildPending } from './rebuild.ts';
 import type { PanelContext } from '../host/context.ts';
 import type { RebuildView } from '@once-upon-a-diff/protocol/types';

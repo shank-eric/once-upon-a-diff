@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createMarkdown, type MarkdownLink } from '../src/markdown.ts';
+import { createMarkdown, type MarkdownLink } from '../src/html.ts';
 
 const render = (source: string, link?: MarkdownLink) =>
   String(createMarkdown({ link }).markdown(source));

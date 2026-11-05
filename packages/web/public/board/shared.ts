@@ -9,7 +9,7 @@ import type { Client } from '/assets/api-client/client.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { remember, stored } from '/assets/local/stored.ts';
 import { compactAge } from '/assets/domain/time.ts';
-import { Chips } from '/assets/ui/chip.ts';
+import { Chips } from '/assets/ui-kit/components/chip.ts';
 import { cleanupConfirm, worktreeChips } from '/assets/board/worktree-text.ts';
 import type { BoardCard, BoardData, BoardWorktree } from '/assets/types.ts';
 import type { ActionName } from '/assets/domain/usage-actions.ts';

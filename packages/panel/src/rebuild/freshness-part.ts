@@ -7,8 +7,8 @@
  * something else) and the view draws it. The Update buttons' "asked for" is reset where the old panel rebuilt the line: by render().
  */
 import { html } from '/assets/preact.mjs';
-import { Banner } from '@once-upon-a-diff/ui/banner';
-import { Busy } from '@once-upon-a-diff/ui/busy';
+import { Banner } from '@once-upon-a-diff/ui-kit/components/banner';
+import { Busy } from '@once-upon-a-diff/ui-kit/components/busy';
 import { plural, shortSha } from '@once-upon-a-diff/domain/text';
 import { rangeStepOf, rangeUrl, requestLine } from './freshness.ts';
 import type { PanelContext } from '../host/context.ts';

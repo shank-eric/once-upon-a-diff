@@ -3,7 +3,7 @@
  * caller owns the clock (it stops it when the page is closed), and this subscribes to it while it is on screen.
  */
 import { html, useEffect, useState } from '/assets/preact.mjs';
-import { elapsedText } from './time.ts';
+import { elapsedText } from '@once-upon-a-diff/domain/time';
 
 /** Ticks every second while the tab shows. `subscribe` answers a function that stops listening. */
 export interface Clock {

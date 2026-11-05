@@ -336,7 +336,7 @@ __metadata:
     "@once-upon-a-diff/panel": "workspace:*"
     "@once-upon-a-diff/protocol": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
-    "@once-upon-a-diff/ui": "workspace:*"
+    "@once-upon-a-diff/ui-kit": "workspace:*"
     "@types/chrome": "npm:0.3.4"
     "@types/node": "npm:24.19.1"
     typescript: "npm:5.9.3"
@@ -364,7 +364,7 @@ __metadata:
     "@once-upon-a-diff/domain": "workspace:*"
     "@once-upon-a-diff/protocol": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
-    "@once-upon-a-diff/ui": "workspace:*"
+    "@once-upon-a-diff/ui-kit": "workspace:*"
     "@types/node": "npm:24.19.1"
     typescript: "npm:5.9.3"
   languageName: unknown
@@ -391,9 +391,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@once-upon-a-diff/ui@workspace:*, @once-upon-a-diff/ui@workspace:packages/ui":
+"@once-upon-a-diff/ui-kit@workspace:*, @once-upon-a-diff/ui-kit@workspace:packages/ui-kit":
   version: 0.0.0-use.local
-  resolution: "@once-upon-a-diff/ui@workspace:packages/ui"
+  resolution: "@once-upon-a-diff/ui-kit@workspace:packages/ui-kit"
   dependencies:
     "@once-upon-a-diff/domain": "workspace:*"
     "@once-upon-a-diff/protocol": "workspace:*"
@@ -413,7 +413,7 @@ __metadata:
     "@once-upon-a-diff/panel": "workspace:*"
     "@once-upon-a-diff/protocol": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
-    "@once-upon-a-diff/ui": "workspace:*"
+    "@once-upon-a-diff/ui-kit": "workspace:*"
     "@types/node": "npm:24.19.1"
     highlight.js: "npm:11.11.1"
     htm: "npm:3.1.1"
@@ -4035,7 +4035,7 @@ __metadata:
     "@once-upon-a-diff/panel": "workspace:*"
     "@once-upon-a-diff/protocol": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
-    "@once-upon-a-diff/ui": "workspace:*"
+    "@once-upon-a-diff/ui-kit": "workspace:*"
     "@once-upon-a-diff/web": "workspace:*"
     "@types/chrome": "npm:0.3.4"
     "@types/node": "npm:24.19.1"

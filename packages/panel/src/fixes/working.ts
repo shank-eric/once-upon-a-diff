@@ -8,7 +8,7 @@
  * changingOf has no DOM, so node tests can use it.
  */
 import { html } from '/assets/preact.mjs';
-import { Banner } from '@once-upon-a-diff/ui/banner';
+import { Banner } from '@once-upon-a-diff/ui-kit/components/banner';
 import { shortDateTime } from '@once-upon-a-diff/domain/time';
 import type { LineRanges, WorkingMark } from '@once-upon-a-diff/protocol/types';
 import type { PanelContext } from '../host/context.ts';

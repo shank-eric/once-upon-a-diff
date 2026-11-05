@@ -7,7 +7,7 @@ Object.assign(globalThis, {
   cancelAnimationFrame: (id: ReturnType<typeof setTimeout>) => clearTimeout(id),
 });
 const { html, render, useState } = await import('/assets/preact.mjs');
-const { Dialog } = await import('../src/dialog.ts');
+const { Dialog } = await import('../src/components/dialog.ts');
 
 /** Waits for a dialog the effect has opened (it runs after the next frame, which a loaded machine delays). */
 const shown = async () => {

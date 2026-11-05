@@ -3,7 +3,7 @@ import { html } from '/assets/preact.mjs';
 import { compactAge } from '/assets/domain/time.ts';
 import type { BoardAgent } from '/assets/types.ts';
 import { SessionLink, type Api } from '/assets/board/shared.ts';
-import { CopyButton } from '/assets/ui/copy-button.ts';
+import { CopyButton } from '/assets/ui-kit/components/copy-button.ts';
 
 const AGENT_MARK: Record<BoardAgent['state'], string> = {
   running: '●',
