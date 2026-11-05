@@ -17,16 +17,20 @@ const COLLAPSED_WIDTH = 36;
 
 export function createShell(context: PanelContext) {
   const { hostId, panelId, opts, state } = context;
-  // page.css goes in the page's head, ui.css (the shared pieces) and panel.css in the shadow root, in that order, from where the
-  // host says (opts.stylesheets): the extension's copies on GitHub, the bridge's /assets/ on the local page.
+  // tokens.css (the --ou-* theme tokens) and page.css go in the page's head, tokens.css (a second link, a link sits in one place),
+  // ui.css (the shared pieces) and panel.css in the shadow root, in that order, from where the host says (opts.stylesheets): the
+  // extension's copies on GitHub, the bridge's /assets/ on the local page.
+  const pageTokens = stylesheetLink(opts.stylesheets.tokens);
+  pageTokens.id = hostId + '-tokens';
   const pageStyle = stylesheetLink(opts.stylesheets.page);
   pageStyle.id = hostId + '-style';
+  const shadowTokens = stylesheetLink(opts.stylesheets.tokens);
   const uiStyle = stylesheetLink(opts.stylesheets.ui);
   const panelStyle = stylesheetLink(opts.stylesheets.panel);
   const host = document.createElement('div');
   host.id = hostId;
   const shadow = host.attachShadow({ mode: 'open' });
-  shadow.append(uiStyle, panelStyle);
+  shadow.append(shadowTokens, uiStyle, panelStyle);
   const root = document.createElement('aside');
   root.id = panelId;
   // focusable, so a click anywhere in the panel moves focus off the page and the page's single-key shortcuts (GitHub's, Refined GitHub's j/k/x) don't fire while you read
@@ -154,8 +158,8 @@ export function createShell(context: PanelContext) {
 
   /** Put the panel on the page and dock it. */
   function mount() {
-    hideUntilStyled(host, [pageStyle, uiStyle, panelStyle]);
-    document.head.appendChild(pageStyle);
+    hideUntilStyled(host, [shadowTokens, pageStyle, uiStyle, panelStyle]);
+    document.head.append(pageTokens, pageStyle);
     shadow.appendChild(root);
     document.body.appendChild(host);
     document.documentElement.classList.add(hostId + '-docked');
@@ -165,6 +169,7 @@ export function createShell(context: PanelContext) {
   function unmount() {
     mounted = false; // what is on the panel stays as it was, for a late answer to write into
     host.remove();
+    pageTokens.remove();
     pageStyle.remove();
     document.documentElement.classList.remove(hostId + '-docked');
     document.documentElement.style.removeProperty('--ou-w');

@@ -1,0 +1,41 @@
+/*
+ * ui-kit's theme tokens: the one place a colour or a font stack is named for the bridge pages, the panel and the extension's shadow roots.
+ * Every colour is an alias, var(<Primer name>, <fallback>). On GitHub the Primer names come from github.com's own theme (light, dark,
+ * dimmed, high contrast), so they are NEVER declared here; the fallbacks are what a page with no Primer theme (the board, the local page)
+ * shows, light and dark by prefers-color-scheme. :root takes a document (the bridge pages, GitHub's <html>), :host a shadow root.
+ * Link it before every other sheet, in each shadow root and on each page.
+ */
+:root, :host {
+  --ou-bg: var(--bgColor-default, #fff);
+  --ou-bg-muted: var(--bgColor-muted, #f6f8fa);
+  --ou-bg-accent: var(--bgColor-accent-muted, #ddf4ff);
+  --ou-bg-warn: var(--bgColor-attention-muted, #fff8c5);
+  --ou-bg-emphasis: var(--bgColor-emphasis, #25292e);
+  --ou-fg: var(--fgColor-default, #1f2328);
+  --ou-fg-muted: var(--fgColor-muted, #59636e);
+  --ou-fg-on-emphasis: var(--fgColor-onEmphasis, #fff);
+  --ou-border: var(--borderColor-default, #d1d9e0);
+  --ou-border-subtle: var(--borderColor-muted, #d1d9e0b3);
+  --ou-accent: var(--fgColor-accent, #0969da);
+  --ou-ok: var(--fgColor-success, #1a7f37);
+  --ou-warn: var(--fgColor-attention, #9a6700);
+  --ou-danger: var(--fgColor-danger, #d1242f);
+  --ou-font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+  --ou-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+/* the three emphasis and subtle-border tokens are used only inside GitHub, which always defines them: no dark fallback */
+@media (prefers-color-scheme: dark) {
+  :root, :host {
+    --ou-bg: var(--bgColor-default, #0d1117);
+    --ou-bg-muted: var(--bgColor-muted, #151b23);
+    --ou-bg-accent: var(--bgColor-accent-muted, #388bfd1a);
+    --ou-bg-warn: var(--bgColor-attention-muted, #bb800926);
+    --ou-fg: var(--fgColor-default, #f0f6fc);
+    --ou-fg-muted: var(--fgColor-muted, #9198a1);
+    --ou-border: var(--borderColor-default, #3d444d);
+    --ou-accent: var(--fgColor-accent, #4493f8);
+    --ou-ok: var(--fgColor-success, #3fb950);
+    --ou-warn: var(--fgColor-attention, #d29922);
+    --ou-danger: var(--fgColor-danger, #f85149);
+  }
+}

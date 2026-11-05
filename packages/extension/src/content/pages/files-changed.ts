@@ -143,6 +143,7 @@ export function createFilesChangedPage() {
         page: chrome.runtime.getURL('panel/page.css'),
         panel: chrome.runtime.getURL('panel/panel.css'),
         ui: chrome.runtime.getURL('ui-kit/ui.css'),
+        tokens: chrome.runtime.getURL('ui-kit/tokens.css'),
       },
       onState: (panelState) => {
         if (!current || current.key !== key) {

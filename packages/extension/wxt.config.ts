@@ -25,6 +25,7 @@ const STORE = !!process.env.ONCE_UPON_STORE;
 const LINKED_CSS = {
   'panel/page.css': '../panel/src/css/page.css',
   'panel/panel.css': '../panel/src/css/panel.css',
+  'ui-kit/tokens.css': '../ui-kit/src/css/tokens.css',
   'ui-kit/ui.css': '../ui-kit/src/css/ui.css',
   'content/components/story-tag.css': 'src/content/components/story-tag.css',
   'content/components/listen-notice.css': 'src/content/components/listen-notice.css',

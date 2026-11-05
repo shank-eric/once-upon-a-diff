@@ -124,7 +124,8 @@ test('a tag host has its shadow root, its stylesheet and its slot, and draws the
   assert.equal(host.getAttribute('data-ou-test'), 'acme/widgets#7');
   assert.equal(host.tagName, 'SPAN');
   const shadow = host.shadowRoot!;
-  const sheet = shadow.querySelector('link')!;
+  const [tokens, sheet] = [...shadow.querySelectorAll('link')];
+  assert.equal(tokens.getAttribute('href'), 'chrome-extension://test/ui-kit/tokens.css');
   assert.equal(sheet.getAttribute('rel'), 'stylesheet');
   assert.equal(
     sheet.getAttribute('href'),
@@ -178,9 +179,12 @@ test('the listen notice is one fixed element in its own shadow root, a line per 
   const host = noticeHost()!;
   assert.equal(host.parentElement, document.body);
   const shadow = host.shadowRoot!;
-  assert.equal(
-    shadow.querySelector('link')!.getAttribute('href'),
-    'chrome-extension://test/content/components/listen-notice.css',
+  assert.deepEqual(
+    [...shadow.querySelectorAll('link')].map((link) => link.getAttribute('href')),
+    [
+      'chrome-extension://test/ui-kit/tokens.css',
+      'chrome-extension://test/content/components/listen-notice.css',
+    ],
   );
   assert.equal(host.style.visibility, 'hidden', 'hidden until its stylesheet loads');
   const box = noticeRoot();
@@ -323,9 +327,12 @@ test('a toast is a div with the text, role status and its stylesheet, in a shado
     (child) => child.shadowRoot && child.shadowRoot.querySelector('.t'),
   )!;
   const shadow = host.shadowRoot!;
-  assert.equal(
-    shadow.querySelector('link')!.getAttribute('href'),
-    'chrome-extension://test/content/components/toast.css',
+  assert.deepEqual(
+    [...shadow.querySelectorAll('link')].map((link) => link.getAttribute('href')),
+    [
+      'chrome-extension://test/ui-kit/tokens.css',
+      'chrome-extension://test/content/components/toast.css',
+    ],
   );
   const message = shadow.querySelector('div.t')!;
   assert.equal(message.textContent, 'Saved');

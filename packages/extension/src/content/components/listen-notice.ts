@@ -13,6 +13,7 @@ import { Fragment, html, render, useLayoutEffect, useRef } from '/assets/preact.
 import { wireStartListening, type ListenPort } from '@once-upon-a-diff/ui-kit/listen';
 import { mountShadow } from '@once-upon-a-diff/ui-kit/dom';
 import { bridge } from '../bridge.ts';
+import { TOKENS_CSS_URL } from './tokens-css.ts';
 import { createListenOption } from '../listen.ts';
 import { noticeRowTitle } from '../tag-model.ts';
 import type { MissingListener } from '../tag-model.ts';
@@ -102,7 +103,7 @@ export function listenNotice({ onStarted }: { onStarted?: () => void } = {}) {
       host.id = HOST_ID;
       const mounted = mountShadow({
         host,
-        stylesheets: [NOTICE_CSS_URL],
+        stylesheets: [TOKENS_CSS_URL, NOTICE_CSS_URL],
         className: 'n',
         role: 'status',
         isolateKeys: 'root',

@@ -1,7 +1,8 @@
 /*
  * The panel's CSS, linked into its shadow root by shell.js, so the page's CSS (and other
- * extensions') can't reach it, nor it them. Primer variables, so GitHub's light and dark themes
- * carry over (the local page defines the same variables). #ou-panel is overlay.js's PANEL_ID.
+ * extensions') can't reach it, nor it them. Colours and fonts are the --ou-* theme tokens (ui-kit's tokens.css,
+ * linked first): Primer variables with fallbacks, so GitHub's light and dark themes carry over, and the bridge pages get
+ * the fallbacks. #ou-panel is overlay.js's PANEL_ID.
  */
 :host {
   all: initial;
@@ -10,16 +11,6 @@
   outline: none;
 }
 #ou-panel {
-  --c-bg: var(--bgColor-default, #fff);
-  --c-fg: var(--fgColor-default, #1f2328);
-  --c-muted: var(--fgColor-muted, #59636e);
-  --c-border: var(--borderColor-default, #d1d9e0);
-  --c-subtle: var(--bgColor-muted, #f6f8fa);
-  --c-accent: var(--fgColor-accent, #0969da);
-  --c-accent-bg: var(--bgColor-accent-muted, #ddf4ff);
-  --c-ok: var(--fgColor-success, #1a7f37);
-  --c-warn: var(--fgColor-attention, #9a6700);
-  --c-err: var(--fgColor-danger, #d1242f);
   position: fixed;
   top: 0;
   right: 0;
@@ -27,34 +18,13 @@
   width: var(--ou-w);
   z-index: 99;
   box-sizing: border-box;
-  background: var(--c-bg);
-  color: var(--c-fg);
-  border-left: 1px solid var(--c-border);
-  font:
-    14px/1.5 -apple-system,
-    BlinkMacSystemFont,
-    'Segoe UI',
-    'Noto Sans',
-    Helvetica,
-    Arial,
-    sans-serif;
+  background: var(--ou-bg);
+  color: var(--ou-fg);
+  border-left: 1px solid var(--ou-border);
+  font: 14px/1.5 var(--ou-font-sans);
   display: flex;
   flex-direction: column;
   box-shadow: -4px 0 12px rgba(0, 0, 0, 0.08);
-}
-@media (prefers-color-scheme: dark) {
-  #ou-panel {
-    --c-bg: var(--bgColor-default, #0d1117);
-    --c-fg: var(--fgColor-default, #f0f6fc);
-    --c-muted: var(--fgColor-muted, #9198a1);
-    --c-border: var(--borderColor-default, #3d444d);
-    --c-subtle: var(--bgColor-muted, #151b23);
-    --c-accent: var(--fgColor-accent, #4493f8);
-    --c-accent-bg: var(--bgColor-accent-muted, #388bfd1a);
-    --c-ok: var(--fgColor-success, #3fb950);
-    --c-warn: var(--fgColor-attention, #d29922);
-    --c-err: var(--fgColor-danger, #f85149);
-  }
 }
 #ou-panel * {
   box-sizing: border-box;
@@ -69,7 +39,7 @@
 }
 #ou-panel .ou-grip:hover,
 #ou-panel.ou-dragging .ou-grip {
-  background: var(--c-accent);
+  background: var(--ou-accent);
   opacity: 0.35;
 }
 #ou-panel .ou-bar {
@@ -77,8 +47,8 @@
   align-items: center;
   gap: 6px;
   padding: 8px 10px;
-  border-bottom: 1px solid var(--c-border);
-  background: var(--c-subtle);
+  border-bottom: 1px solid var(--ou-border);
+  background: var(--ou-bg-muted);
 }
 #ou-panel .ou-bar .ou-title {
   flex: 1;
@@ -91,41 +61,41 @@
 #ou-panel button:not(:where(.ou-ui-linkish)) {
   font: inherit;
   font-size: 12px;
-  color: var(--c-fg);
-  background: var(--c-bg);
-  border: 1px solid var(--c-border);
+  color: var(--ou-fg);
+  background: var(--ou-bg);
+  border: 1px solid var(--ou-border);
   border-radius: 6px;
   padding: 3px 8px;
   cursor: pointer;
   white-space: nowrap;
 }
 #ou-panel button:hover:not(:disabled) {
-  border-color: var(--c-accent);
+  border-color: var(--ou-accent);
 }
 #ou-panel button:disabled {
   opacity: 0.45;
   cursor: default;
 }
 #ou-panel button[aria-pressed='true'] {
-  background: var(--c-accent-bg);
-  border-color: var(--c-accent);
+  background: var(--ou-bg-accent);
+  border-color: var(--ou-accent);
 }
 #ou-panel .ou-note {
   padding: 6px 12px;
   font-size: 12px;
-  color: var(--c-muted);
-  border-bottom: 1px solid var(--c-border);
+  color: var(--ou-fg-muted);
+  border-bottom: 1px solid var(--ou-border);
   display: flex;
   gap: 6px;
   align-items: center;
   flex-wrap: wrap;
 }
 #ou-panel .ou-note b {
-  color: var(--c-fg);
+  color: var(--ou-fg);
 }
 #ou-panel .ou-msg {
   flex-basis: 100%;
-  color: var(--c-warn);
+  color: var(--ou-warn);
 }
 #ou-panel button.ou-light {
   border: 0;
@@ -137,25 +107,25 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: var(--c-muted);
+  background: var(--ou-fg-muted);
   vertical-align: middle;
 }
 #ou-panel .ou-light[data-level='ok'] .ou-dot {
-  background: var(--c-ok);
+  background: var(--ou-ok);
 }
 #ou-panel .ou-light[data-level='warn'] .ou-dot {
-  background: var(--c-warn);
+  background: var(--ou-warn);
 }
 #ou-panel .ou-light[data-level='error'] .ou-dot {
-  background: var(--c-err);
+  background: var(--ou-danger);
 }
 #ou-panel .ou-health {
   flex-basis: 100%;
   margin: 2px 0;
   padding: 6px 8px;
-  border: 1px solid var(--c-border);
+  border: 1px solid var(--ou-border);
   border-radius: 6px;
-  background: var(--c-bg);
+  background: var(--ou-bg);
 }
 #ou-panel .ou-health ul {
   list-style: none;
@@ -166,13 +136,13 @@
   padding: 1px 0;
 }
 #ou-panel .ou-health .ou-hok {
-  color: var(--c-ok);
+  color: var(--ou-ok);
 }
 #ou-panel .ou-health .ou-hwarn {
-  color: var(--c-warn);
+  color: var(--ou-warn);
 }
 #ou-panel .ou-health .ou-herr {
-  color: var(--c-err);
+  color: var(--ou-danger);
 }
 #ou-panel .ou-fresh {
   flex-basis: 100%;
@@ -182,7 +152,7 @@
   display: none;
 }
 #ou-panel .ou-fresh.ou-stale {
-  color: var(--c-warn);
+  color: var(--ou-warn);
 }
 #ou-panel .ou-fresh button {
   margin-left: 6px;
@@ -193,10 +163,10 @@
 #ou-panel .ou-rebuilding {
   flex-basis: 100%;
   font-size: 12px;
-  color: var(--c-muted);
+  color: var(--ou-fg-muted);
 }
 #ou-panel .ou-rebuilding.ou-failed {
-  color: var(--c-warn);
+  color: var(--ou-warn);
 }
 #ou-panel .ou-rebuild-box {
   margin: 12px 0 4px;
@@ -211,9 +181,9 @@
   resize: vertical;
   font: inherit;
   font-size: 13px;
-  color: var(--c-fg);
-  background: var(--c-bg);
-  border: 1px solid var(--c-border);
+  color: var(--ou-fg);
+  background: var(--ou-bg);
+  border: 1px solid var(--ou-border);
   border-radius: 6px;
   padding: 6px 8px;
 }
@@ -225,7 +195,7 @@
 }
 #ou-panel .ou-chg {
   font-size: 11px;
-  color: var(--c-warn);
+  color: var(--ou-warn);
   margin-left: 4px;
   white-space: nowrap;
 }
@@ -234,7 +204,7 @@
 }
 #ou-panel .ou-chgby {
   font-size: 11px;
-  color: var(--c-warn);
+  color: var(--ou-warn);
   margin-left: 4px;
   white-space: nowrap;
 }
@@ -251,13 +221,13 @@
 }
 #ou-panel .ou-fixauto {
   font-size: 12px;
-  color: var(--c-muted);
+  color: var(--ou-fg-muted);
   display: inline-flex;
   gap: 4px;
   align-items: center;
 }
 #ou-panel .ou-fixnote.ou-fx-sent {
-  border-left: 3px solid var(--c-warn);
+  border-left: 3px solid var(--ou-warn);
   padding-left: 8px;
 }
 #ou-panel .ou-fixnote.ou-fx-fixed {
@@ -271,9 +241,9 @@
   width: 100%;
   font: inherit;
   font-size: 13px;
-  color: var(--c-fg);
-  background: var(--c-bg);
-  border: 1px solid var(--c-border);
+  color: var(--ou-fg);
+  background: var(--ou-bg);
+  border: 1px solid var(--ou-border);
   border-radius: 6px;
   padding: 5px 8px;
   resize: vertical;
@@ -282,14 +252,14 @@
   margin: 4px 0;
 }
 #ou-panel .ou-cstate .ou-cstale {
-  color: var(--c-warn);
+  color: var(--ou-warn);
 }
 #ou-panel .ou-new {
   font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: var(--c-accent);
+  color: var(--ou-accent);
   border: 1px solid currentColor;
   border-radius: 9px;
   padding: 0 5px;
@@ -302,8 +272,8 @@
   flex: none;
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--c-border);
-  background: var(--c-subtle);
+  border-top: 1px solid var(--ou-border);
+  background: var(--ou-bg-muted);
 }
 #ou-panel .ou-chat[hidden] {
   display: none;
@@ -324,7 +294,7 @@
 }
 #ou-panel .ou-chat.ou-open .ou-chatgrip:hover,
 #ou-panel .ou-chat.ou-chat-dragging .ou-chatgrip {
-  background: var(--c-accent);
+  background: var(--ou-accent);
   opacity: 0.35;
 }
 #ou-panel button.ou-chathead {
@@ -342,10 +312,10 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--c-muted);
+  color: var(--ou-fg-muted);
 }
 #ou-panel button.ou-chathead:hover {
-  color: var(--c-accent);
+  color: var(--ou-accent);
 }
 #ou-panel .ou-chatarrow {
   font-size: 11px;
@@ -356,18 +326,18 @@
   letter-spacing: 0;
 }
 #ou-panel .ou-chatcount.ou-unread {
-  color: var(--c-accent);
+  color: var(--ou-accent);
   font-weight: 600;
 }
 #ou-panel .ou-chat.ou-open .ou-chathead {
-  border-bottom: 1px solid var(--c-border);
+  border-bottom: 1px solid var(--ou-border);
 }
 #ou-panel .ou-chatbody {
   flex: 1;
   min-height: 0;
   overflow: auto;
   padding: 8px 12px 4px;
-  background: var(--c-bg);
+  background: var(--ou-bg);
 }
 #ou-panel .ou-chatfoot {
   flex: none;
@@ -381,9 +351,9 @@
 #ou-panel .ou-askhint {
   padding: 6px 10px 0;
   font-size: 12px;
-  color: var(--c-warn);
-  background: var(--c-subtle);
-  border-top: 1px solid var(--c-border);
+  color: var(--ou-warn);
+  background: var(--ou-bg-muted);
+  border-top: 1px solid var(--ou-border);
 }
 #ou-panel .ou-askhint code {
   font-size: 11px;
@@ -391,9 +361,9 @@
 #ou-panel .ou-askwho {
   padding: 6px 10px 0;
   font-size: 12px;
-  color: var(--c-muted);
-  background: var(--c-subtle);
-  border-top: 1px solid var(--c-border);
+  color: var(--ou-fg-muted);
+  background: var(--ou-bg-muted);
+  border-top: 1px solid var(--ou-border);
 }
 #ou-panel .ou-askhint:not([hidden]) + .ou-askwho {
   border-top: 0;
@@ -406,7 +376,7 @@
 }
 #ou-panel .ou-startnote {
   margin: 4px 0 0;
-  color: var(--c-fg);
+  color: var(--ou-fg);
 }
 #ou-panel .ou-startnote button {
   margin: 0 4px 2px 0;
@@ -415,7 +385,7 @@
   border: 0;
   background: none;
   padding: 0 2px;
-  color: var(--c-accent, inherit);
+  color: var(--ou-accent, inherit);
   text-decoration: underline;
   cursor: pointer;
   font-size: 11px;
@@ -425,26 +395,26 @@
   word-break: break-all;
   font-size: 11px;
   margin: 4px 0 0;
-  color: var(--c-fg);
+  color: var(--ou-fg);
 }
 #ou-panel .ou-progress {
   margin: 0 0 10px;
   padding: 4px 8px;
   font-size: 12px;
-  color: var(--c-muted);
-  border-left: 3px solid var(--c-border);
+  color: var(--ou-fg-muted);
+  border-left: 3px solid var(--ou-border);
 }
 #ou-panel .ou-progress:empty {
   display: none;
 }
 #ou-panel .ou-progress.ou-complete {
-  border-left-color: var(--c-ok);
+  border-left-color: var(--ou-ok);
 }
 #ou-panel .ou-early-box {
   margin: 0 0 10px;
   padding: 6px 8px;
   font-size: 12px;
-  border: 1px solid var(--c-warn);
+  border: 1px solid var(--ou-warn);
   border-radius: 6px;
 }
 #ou-panel .ou-early-box:empty {
@@ -454,25 +424,25 @@
   margin: 0 0 3px;
 }
 #ou-panel .ou-viewed.ou-early {
-  color: var(--c-warn);
+  color: var(--ou-warn);
 }
 #ou-panel .ou-progress .ou-done {
-  color: var(--c-ok);
+  color: var(--ou-ok);
   font-weight: 600;
 }
 #ou-panel .ou-progress b {
-  color: var(--c-fg);
+  color: var(--ou-fg);
 }
 #ou-panel .ou-stepprog {
   font-size: 11px;
-  color: var(--c-muted);
+  color: var(--ou-fg-muted);
   margin-left: 4px;
 }
 #ou-panel .ou-stepprog.ou-writing {
   font-style: italic;
 }
 #ou-panel .ou-stepprog.ou-done {
-  color: var(--c-ok);
+  color: var(--ou-ok);
 }
 #ou-panel details:is(.ou-filesbox, .ou-allc) > summary {
   cursor: pointer;
@@ -488,7 +458,7 @@
 }
 #ou-panel details:is(.ou-filesbox, .ou-allc) > summary::before {
   content: '▸ ';
-  color: var(--c-muted);
+  color: var(--ou-fg-muted);
   font-size: 11px;
 }
 #ou-panel details:is(.ou-filesbox, .ou-allc)[open] > summary::before {
@@ -511,7 +481,7 @@
 }
 #ou-panel details.ou-filesbox > summary .ou-sum {
   font-size: 12px;
-  color: var(--c-muted);
+  color: var(--ou-fg-muted);
   margin-left: 6px;
 }
 #ou-panel .ou-msg:empty {
@@ -526,7 +496,7 @@
   font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--c-muted);
+  color: var(--ou-fg-muted);
   margin: 18px 0 6px;
 }
 #ou-panel ol.ou-map {
@@ -541,15 +511,15 @@
   cursor: pointer;
 }
 #ou-panel ol.ou-map li:hover {
-  color: var(--c-accent);
+  color: var(--ou-accent);
 }
 #ou-panel ol.ou-map li.ou-current {
-  background: var(--c-accent-bg);
+  background: var(--ou-bg-accent);
   font-weight: 600;
-  color: var(--c-accent);
+  color: var(--ou-accent);
 }
 #ou-panel ol.ou-map .ou-count {
-  color: var(--c-muted);
+  color: var(--ou-fg-muted);
   font-weight: 400;
 }
 #ou-panel .ou-md h1,
@@ -587,23 +557,15 @@
   margin: 2px 0 0;
 }
 #ou-panel code {
-  font:
-    12px ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    monospace;
-  background: var(--c-subtle);
+  font: 12px var(--ou-font-mono);
+  background: var(--ou-bg-muted);
   padding: 1px 4px;
   border-radius: 4px;
 }
 #ou-panel pre {
-  font:
-    12px/1.45 ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    monospace;
-  background: var(--c-subtle);
-  border: 1px solid var(--c-border);
+  font: 12px/1.45 var(--ou-font-mono);
+  background: var(--ou-bg-muted);
+  border: 1px solid var(--ou-border);
   border-radius: 6px;
   padding: 8px 10px;
   white-space: pre-wrap;
@@ -617,21 +579,21 @@
 #ou-panel blockquote {
   margin: 0 0 10px;
   padding: 0 10px;
-  border-left: 3px solid var(--c-border);
-  color: var(--c-muted);
+  border-left: 3px solid var(--ou-border);
+  color: var(--ou-fg-muted);
 }
 #ou-panel a {
-  color: var(--c-accent);
+  color: var(--ou-accent);
 }
 #ou-panel [data-rel]:not(:where(.ou-ui-linkish)) {
-  color: var(--c-accent);
+  color: var(--ou-accent);
   cursor: pointer;
 }
 #ou-panel [data-rel]:hover {
   text-decoration: underline;
 }
 #ou-panel [data-rel]:focus-visible {
-  outline: 2px solid var(--c-accent);
+  outline: 2px solid var(--ou-accent);
   outline-offset: 1px;
   text-decoration: underline;
 }
@@ -644,30 +606,30 @@
   padding: 0 7px;
   border-radius: 9px;
   border: 1px solid currentColor;
-  background: var(--c-bg);
+  background: var(--ou-bg);
   cursor: pointer;
   margin-left: 3px;
   white-space: nowrap;
 }
 #ou-panel button.ou-mark:hover {
-  background: var(--c-subtle);
+  background: var(--ou-bg-muted);
 }
 #ou-panel ul.ou-files button.ou-mark {
   margin: 2px 0 0;
 }
 #ou-panel .ou-st-mark {
-  color: var(--c-ok);
+  color: var(--ou-ok);
 }
 #ou-panel .ou-st-later {
-  color: var(--c-warn);
+  color: var(--ou-warn);
 }
 #ou-panel .ou-st-done,
 #ou-panel .ou-st-pending,
 #ou-panel .ou-st-viewed {
-  color: var(--c-muted);
+  color: var(--ou-fg-muted);
 }
 #ou-panel .ou-viewed {
-  color: var(--c-ok);
+  color: var(--ou-ok);
   font-size: 12px;
   margin-left: 4px;
   white-space: nowrap;
@@ -681,33 +643,33 @@
 #ou-panel .ou-comment.ou-c-done {
   margin: 0 0 6px;
   padding: 4px 8px;
-  border: 1px dashed var(--c-border);
+  border: 1px dashed var(--ou-border);
   border-radius: 6px;
   font-size: 12px;
-  color: var(--c-muted);
+  color: var(--ou-fg-muted);
 }
 #ou-panel .ou-comment.ou-c-done pre,
 #ou-panel .ou-comment.ou-c-done .ou-copy {
   display: none;
 }
 #ou-panel .ou-comment.ou-c-pending {
-  border-color: var(--c-warn);
+  border-color: var(--ou-warn);
 }
 #ou-panel .ou-cstate {
   font-size: 12px;
-  color: var(--c-muted);
+  color: var(--ou-fg-muted);
   margin-top: 2px;
 }
 #ou-panel .ou-cstate .ou-ok {
-  color: var(--c-ok);
+  color: var(--ou-ok);
   font-weight: 600;
 }
 #ou-panel .ou-cstate .ou-pend {
-  color: var(--c-warn);
+  color: var(--ou-warn);
   font-weight: 600;
 }
 #ou-panel .ou-cstate .ou-cerr {
-  color: var(--c-err);
+  color: var(--ou-danger);
 }
 #ou-panel .ou-cstate .ou-cnote {
   display: block;
@@ -740,7 +702,7 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: var(--c-muted);
+  color: var(--ou-fg-muted);
   margin-bottom: 4px;
 }
 #ou-panel ul.ou-files {
@@ -751,13 +713,13 @@
 }
 #ou-panel ul.ou-files > li {
   padding: 4px 0;
-  border-bottom: 1px solid var(--c-border);
+  border-bottom: 1px solid var(--ou-border);
 }
 #ou-panel ul.ou-files > li:last-child {
   border-bottom: 0;
 }
 #ou-panel ul.ou-files .ou-why {
-  color: var(--c-muted);
+  color: var(--ou-fg-muted);
   display: block;
 }
 #ou-panel ul.ou-files .ou-missing {
@@ -772,18 +734,18 @@
   padding: 1px 0;
 }
 #ou-panel .ou-empty {
-  color: var(--c-muted);
+  color: var(--ou-fg-muted);
   font-style: italic;
 }
 #ou-panel .ou-quiet {
-  color: var(--c-muted);
+  color: var(--ou-fg-muted);
   font-size: 12px;
   margin: 4px 0 8px;
 }
 #ou-panel .ou-qa {
   margin: 0 0 12px;
   padding: 8px 10px;
-  border: 1px solid var(--c-border);
+  border: 1px solid var(--ou-border);
   border-radius: 6px;
 }
 #ou-panel .ou-qa .ou-qhead {
@@ -798,7 +760,7 @@
   white-space: pre-wrap;
 }
 #ou-panel .ou-qa-here {
-  border-left: 3px solid var(--c-accent);
+  border-left: 3px solid var(--ou-accent);
 }
 #ou-panel .ou-qa-collapsed {
   padding: 4px 10px;
@@ -816,26 +778,26 @@
   border: 0;
   background: none;
   padding: 0 2px;
-  color: var(--c-muted);
+  color: var(--ou-fg-muted);
   font-size: 13px;
   line-height: 18px;
   cursor: pointer;
 }
 #ou-panel .ou-qa .ou-qmeta {
   font-size: 11px;
-  color: var(--c-muted);
+  color: var(--ou-fg-muted);
 }
 #ou-panel .ou-qa .ou-aby {
   margin-top: 6px;
   padding-top: 6px;
-  border-top: 1px dashed var(--c-border);
+  border-top: 1px dashed var(--ou-border);
   font-size: 11px;
-  color: var(--c-muted);
+  color: var(--ou-fg-muted);
 }
 #ou-panel .ou-qa .ou-a {
   margin-top: 6px;
   padding-top: 6px;
-  border-top: 1px dashed var(--c-border);
+  border-top: 1px dashed var(--ou-border);
 }
 #ou-panel .ou-qa .ou-aby + .ou-a {
   margin-top: 2px;
@@ -848,16 +810,16 @@
 #ou-panel .ou-qundo {
   margin: 0 0 8px;
   font-size: 12px;
-  color: var(--c-muted);
+  color: var(--ou-fg-muted);
 }
 #ou-panel .ou-qa .ou-wait {
   margin-top: 4px;
   font-size: 12px;
-  color: var(--c-muted);
+  color: var(--ou-fg-muted);
   font-style: italic;
 }
 #ou-panel .ou-qa .ou-wait-stalled {
-  color: var(--c-warn, var(--c-muted));
+  color: var(--ou-warn, var(--ou-fg-muted));
 }
 #ou-panel .ou-qa .ou-wnote {
   margin-top: 2px;
@@ -869,7 +831,7 @@
   height: 7px;
   margin-right: 6px;
   border-radius: 50%;
-  background: var(--c-accent);
+  background: var(--ou-accent);
   vertical-align: 1px;
   animation: ou-pulse 1.4s ease-in-out infinite;
 }
@@ -888,20 +850,20 @@
   }
 }
 #ou-panel .ou-qa-new {
-  border-left: 3px solid var(--c-accent);
+  border-left: 3px solid var(--ou-accent);
   padding-left: 8px;
 }
 #ou-panel .ou-qa-new .ou-qmeta {
-  color: var(--c-accent);
+  color: var(--ou-accent);
   font-weight: 600;
 }
 #ou-panel .ou-ask {
-  border-top: 1px solid var(--c-border);
+  border-top: 1px solid var(--ou-border);
   padding: 8px 10px;
   display: flex;
   gap: 6px;
   align-items: flex-end;
-  background: var(--c-subtle);
+  background: var(--ou-bg-muted);
 }
 #ou-panel .ou-ask textarea {
   flex: 1;
@@ -910,9 +872,9 @@
   resize: vertical;
   font: inherit;
   font-size: 13px;
-  color: var(--c-fg);
-  background: var(--c-bg);
-  border: 1px solid var(--c-border);
+  color: var(--ou-fg);
+  background: var(--ou-bg);
+  border: 1px solid var(--ou-border);
   border-radius: 6px;
   padding: 5px 8px;
 }

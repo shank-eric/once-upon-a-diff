@@ -93,10 +93,15 @@ test("the bridge serves ui-kit's stylesheet, and the board and local pages link 
   assert.ok(found, 'ui.css is served');
   assert.match(found[1], /text\/css/);
   assert.match(String(found[0]), /\.ou-ui-chip \{/);
+  const tokens = assetFor('/assets/ui-kit/css/tokens.css');
+  assert.ok(tokens, 'tokens.css is served');
+  assert.match(tokens[1], /text\/css/);
   const { boardPage, localPage } = await import('../src/server/pages.ts');
   for (const page of [String(boardPage()), String(localPage('s', { title: 't' }))]) {
+    const tokens = page.indexOf('/assets/ui-kit/css/tokens.css');
     const first = page.indexOf('/assets/ui-kit/css/ui.css');
-    assert.ok(first > 0 && first < page.indexOf('/assets/local/local.css'), 'ui.css comes first');
+    assert.ok(tokens > 0 && tokens < first, 'tokens.css comes before ui.css');
+    assert.ok(first < page.indexOf('/assets/local/local.css'), 'ui.css comes before local.css');
   }
 });
 

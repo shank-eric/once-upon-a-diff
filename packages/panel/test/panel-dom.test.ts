@@ -202,7 +202,7 @@ async function mount(
   };
 }
 const bare = (): PanelOptions => ({
-  stylesheets: { page: '/p.css', panel: '/q.css', ui: '/u.css' },
+  stylesheets: { page: '/p.css', panel: '/q.css', ui: '/u.css', tokens: '/t.css' },
 });
 const full = (calls: unknown[][]) => fullOptions(calls);
 
@@ -792,6 +792,24 @@ const notListening = (extra: Record<string, unknown> = {}) => ({
 const withStatus = (status: () => unknown) => (calls: unknown[][]) =>
   fullOptions(calls, { status: (async () => status()) as never });
 const SESSION = { id: 's1', title: 'api-1', status: 'idle' as const, since: null };
+
+await test("the theme tokens' sheet is linked first, in the shadow root and in the page's head, and the head's copy goes when the panel closes", async () => {
+  const panel = await mount(story(), bare);
+  try {
+    const hrefs = (links: Iterable<Element>) => [...links].map((link) => link.getAttribute('href'));
+    const host = document.getElementById('once-upon-panel')!;
+    assert.deepEqual(hrefs(host.shadowRoot!.querySelectorAll('link')), [
+      '/t.css',
+      '/u.css',
+      '/q.css',
+    ]);
+    assert.deepEqual(hrefs(document.head.querySelectorAll('link')), ['/t.css', '/p.css']);
+    panel.overlay.destroy();
+    assert.deepEqual(hrefs(document.head.querySelectorAll('link')), []);
+  } finally {
+    panel.done();
+  }
+});
 
 await test('the dock header opens and closes the dock, saves it and focuses the Ask box', async () => {
   const panel = await mount(story(), full, { n: 1 });

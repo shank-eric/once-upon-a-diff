@@ -375,7 +375,12 @@ export function fullOptions(
       return answer(...args);
     };
   return {
-    stylesheets: { page: '/panel/page.css', panel: '/panel/panel.css', ui: '/ui-kit/ui.css' },
+    stylesheets: {
+      page: '/panel/page.css',
+      panel: '/panel/panel.css',
+      ui: '/ui-kit/ui.css',
+      tokens: '/ui-kit/tokens.css',
+    },
     host: 'GitHub',
     onState: log('onState', () => undefined),
     onLayout: log('onLayout', () => undefined),

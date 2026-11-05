@@ -2,22 +2,22 @@
  * A story tag's CSS (story-tag.ts draws it), linked into each tag's shadow root by tag-host.ts.
  */
 :host { all: initial; display: inline-block; vertical-align: middle; margin-left: 6px; }
-.b { font: 500 11px/18px -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; display: inline-flex; align-items: center; gap: 4px;
-  padding: 0 7px; border-radius: 999px; border: 1px solid var(--borderColor-default, #d1d9e0); color: var(--fgColor-muted, #59636e);
-  background: var(--bgColor-default, #fff); cursor: pointer; text-decoration: none; white-space: nowrap; }
-.b:hover { color: var(--fgColor-accent, #0969da); border-color: var(--fgColor-accent, #0969da); }
-.b.ready { color: var(--fgColor-success, #1a7f37); border-color: var(--fgColor-success, #1a7f37); }
-.b.read { color: var(--fgColor-muted, #59636e); border-color: var(--borderColor-muted, #d1d9e0b3); font-weight: 400; }
-.b.stale { color: var(--fgColor-attention, #9a6700); border-color: var(--fgColor-attention, #9a6700); }
+.b { font: 500 11px/18px var(--ou-font-sans); display: inline-flex; align-items: center; gap: 4px;
+  padding: 0 7px; border-radius: 999px; border: 1px solid var(--ou-border); color: var(--ou-fg-muted);
+  background: var(--ou-bg); cursor: pointer; text-decoration: none; white-space: nowrap; }
+.b:hover { color: var(--ou-accent); border-color: var(--ou-accent); }
+.b.ready { color: var(--ou-ok); border-color: var(--ou-ok); }
+.b.read { color: var(--ou-fg-muted); border-color: var(--ou-border-subtle); font-weight: 400; }
+.b.stale { color: var(--ou-warn); border-color: var(--ou-warn); }
 .b.queued, .b.building { cursor: default; }
-.b.queued:hover, .b.building:hover { color: var(--fgColor-muted, #59636e); border-color: var(--borderColor-default, #d1d9e0); }
+.b.queued:hover, .b.building:hover { color: var(--ou-fg-muted); border-color: var(--ou-border); }
 .b[disabled], .alt[disabled] { opacity: .6; cursor: default; }
-.alt { font: 11px/18px -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; margin-left: 3px; padding: 0 2px; border: 0;
-  background: none; color: var(--fgColor-muted, #59636e); text-decoration: underline dotted; cursor: pointer; }
-.alt:hover { color: var(--fgColor-accent, #0969da); }
+.alt { font: 11px/18px var(--ou-font-sans); margin-left: 3px; padding: 0 2px; border: 0;
+  background: none; color: var(--ou-fg-muted); text-decoration: underline dotted; cursor: pointer; }
+.alt:hover { color: var(--ou-accent); }
 .spin { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid currentColor; border-top-color: transparent; animation: s .9s linear infinite; }
 @keyframes s { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
-.ans { font: 600 11px/18px -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif; margin-left: 4px; padding: 0 7px; border-radius: 999px;
-  border: 1px solid var(--fgColor-accent, #0969da); color: var(--fgColor-accent, #0969da); background: var(--bgColor-default, #fff); text-decoration: none; white-space: nowrap; }
-.ans:hover { background: var(--bgColor-accent-muted, #ddf4ff); }
+.ans { font: 600 11px/18px var(--ou-font-sans); margin-left: 4px; padding: 0 7px; border-radius: 999px;
+  border: 1px solid var(--ou-accent); color: var(--ou-accent); background: var(--ou-bg); text-decoration: none; white-space: nowrap; }
+.ans:hover { background: var(--ou-bg-accent); }

@@ -8,6 +8,7 @@ import { html, render } from '/assets/preact.mjs';
 import { mountShadow } from '@once-upon-a-diff/ui-kit/dom';
 import type { AnswersBadge, Tag } from '../tag-model.ts';
 import { TagView } from './story-tag.ts';
+import { TOKENS_CSS_URL } from './tokens-css.ts';
 
 const TAG_CSS_URL = chrome.runtime.getURL('content/components/story-tag.css');
 
@@ -21,7 +22,7 @@ export function createTagHost(
   host.setAttribute(attribute, key);
   const { shadow } = mountShadow({
     host,
-    stylesheets: [TAG_CSS_URL],
+    stylesheets: [TOKENS_CSS_URL, TAG_CSS_URL],
     tag: 'span',
     className: 'slot',
     isolateKeys: 'shadow',
