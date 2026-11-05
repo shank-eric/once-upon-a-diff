@@ -12,9 +12,9 @@ import path from 'node:path';
 import { REPO_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { readSettings } from './settings.ts';
 import { runGitAsync, remoteUrl, topLevel, branchName } from '../../adapters/git.ts';
-import { readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
+import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import type { StoryMeta } from '../stories/types.ts';
-import { ensureDir } from '../../adapters/stores/files.ts';
+import { ensureDir } from '../../adapters/stores/fs/files.ts';
 
 export { REPO_RE };
 export const sameRepo = (first: unknown, second: unknown): boolean =>

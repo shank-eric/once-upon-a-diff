@@ -8,7 +8,7 @@
  *   unwrittenCount  how many chapters have no text now, for the board and Approve.
  */
 import path from 'node:path';
-import { readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
+import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { chaptersOf, markUnwritten, type Plan } from './chapters.ts';
 
 const file = (dir: string) => path.join(dir, 'skeleton.json');

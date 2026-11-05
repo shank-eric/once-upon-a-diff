@@ -6,7 +6,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
-import { writeJsonAtomic } from './json-file.ts';
+import { writeJsonAtomic } from './fs/json-file.ts';
 
 export interface BridgeFile {
   pid: number;

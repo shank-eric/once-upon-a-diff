@@ -23,12 +23,12 @@ import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { repoOfRemote, sameRepo } from '../config/repos.ts';
-import { readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
+import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import type { LedgerAgent } from '../ledger/ledger.ts';
 import type { BoardWorktree } from '@once-upon-a-diff/protocol/types';
 import { type RunResult, type Runner, runCommand } from '../../adapters/os.ts';
 import { gitVia } from '../../adapters/git.ts';
-import { ensureDir } from '../../adapters/stores/files.ts';
+import { ensureDir } from '../../adapters/stores/fs/files.ts';
 
 /** One linked or main worktree as `git worktree list --porcelain` gives it. */
 export interface WorktreeEntry {

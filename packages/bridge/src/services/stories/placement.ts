@@ -19,8 +19,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { checkoutFor } from '../config/repos.ts';
-import { ownerOnly, ensureDir, appendText } from '../../adapters/stores/files.ts';
-import { readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
+import { ownerOnly, ensureDir, appendText } from '../../adapters/stores/fs/files.ts';
+import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { runGit } from '../../adapters/git.ts';
 
 export const STORY_FOLDER = '.once-upon';

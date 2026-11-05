@@ -58,9 +58,9 @@ flowchart LR
 | 5 | `service` | `Builds.request` checks the repo and number | `packages/bridge/src/services/inbox/builds.ts:350` (`request({`) |
 | 6 | `service` | and changes `builds.json` in one locked step | `packages/bridge/src/services/inbox/builds.ts:368` (`this.queue.update(`) |
 | 7 | `service` | `RequestQueue.update` | `packages/bridge/src/services/inbox/queue.ts:37` (`update<T>(`) |
-| 8 | `adapter` | reads, changes and writes the file under its `O_EXCL` lock | `packages/bridge/src/adapters/stores/lock.ts:104` (`export function updateJson`) |
-| 9 | `adapter` | the lock: `builds.json.lock`, taken over when its pid is gone or it's 10 s old | `packages/bridge/src/adapters/stores/lock.ts:81` (`export function withLock`) |
-| 10 | `adapter` | **writes `builds.json`** through a temp file and a rename | `packages/bridge/src/adapters/stores/json-file.ts:92` (`export function writeJsonAtomic`) |
+| 8 | `adapter` | reads, changes and writes the file under its `O_EXCL` lock | `packages/bridge/src/adapters/stores/fs/lock.ts:104` (`export function updateJson`) |
+| 9 | `adapter` | the lock: `builds.json.lock`, taken over when its pid is gone or it's 10 s old | `packages/bridge/src/adapters/stores/fs/lock.ts:81` (`export function withLock`) |
+| 10 | `adapter` | **writes `builds.json`** through a temp file and a rename | `packages/bridge/src/adapters/stores/fs/json-file.ts:92` (`export function writeJsonAtomic`) |
 | 11 | `app` | back: the route answers the request's state, and the tag shows Queued | `packages/bridge/src/server/routes/builds.ts:43` (`send(200, { state: build!.state`) |
 
 **A listening session takes it**
@@ -146,7 +146,7 @@ flowchart LR
 | 3 | `protocol` | the route: `POST /api/stories/<id>/questions`, any key of the story's | `packages/protocol/src/routes.ts:230` (`questionAsk:`) |
 | 4 | `app` | the story route checks the body and appends the question | `packages/bridge/src/server/routes/questions.ts:66` (`app.inbox.append(`) |
 | 5 | `service` | `Inbox.append` gives it an id and a time | `packages/bridge/src/services/inbox/inbox.ts:152` (`append<E`) |
-| 6 | `adapter` | **appends a line to `inbox.jsonl`** | `packages/bridge/src/adapters/stores/files.ts:24` (`export function appendText`) |
+| 6 | `adapter` | **appends a line to `inbox.jsonl`** | `packages/bridge/src/adapters/stores/fs/files.ts:24` (`export function appendText`) |
 | 7 | `app` | a running `wait` wakes on the file change and reads past its cursor | `packages/bridge/src/cli/commands/inbox.ts:397` (`messages.unread(consumer, { advance: true })`) |
 | 8 | `service` | `unread` reads from the cursor's byte offset and **writes the cursor** (`cursors/<consumer>.json`) | `packages/bridge/src/services/inbox/inbox.ts:251` (`unread(`) |
 | 9 | `app` | which questions this wait takes | `packages/bridge/src/cli/commands/inbox.ts:151` (`function questionsToTake(`) |
@@ -268,11 +268,11 @@ flowchart LR
 |---|---|---|---|
 | 1 | `app` | `once-upon agent start <name> --kind author --card <id> …` | `packages/bridge/src/cli/commands/agent.ts:75` (`registry.start({`) |
 | 2 | `service` | `AgentRegistry.start` checks the fields and gives the run an id | `packages/bridge/src/services/ledger/registry.ts:231` (`start(input: StartInput)`) |
-| 3 | `adapter` | **appends a `start` event to `agents.jsonl`** | `packages/bridge/src/adapters/stores/agents-file.ts:36` (`export function appendAgentEvent`) |
+| 3 | `adapter` | **appends a `start` event to `agents.jsonl`** | `packages/bridge/src/adapters/stores/agents-file.ts:12` (`export function appendAgentEvent`) |
 | 4 | `service` | and a legacy line to the ledger file through the adapter's `appendLine`, when `board_ledger_file` is set (a log only, once `ledger-trim` lands) | `packages/bridge/src/services/ledger/registry.ts:172` (`appendLine(this.mirror.ledger`) |
 | 5 | `app` | `once-upon backlog claim <id> --agent <name> --branch <b>` | `packages/bridge/src/cli/commands/backlog.ts:131` (`store.claim(item.id`) |
 | 6 | `service` | `BacklogStore.claim` refuses a dropped card | `packages/bridge/src/services/backlog/backlog.ts:365` (`claim(`) |
-| 7 | `adapter` | **appends a `claim` event to `backlog.jsonl`** | `packages/bridge/src/adapters/stores/backlog-file.ts:15` (`export function appendBacklogEvent`) |
+| 7 | `adapter` | **appends a `claim` event to `backlog.jsonl`** | `packages/bridge/src/adapters/stores/backlog-file.ts:12` (`export function appendBacklogEvent`) |
 | 8 | `app` | `--branch` also starts the card on that branch | `packages/bridge/src/cli/commands/backlog.ts:134` (`store.start(item.id`) |
 
 **Work and beats**

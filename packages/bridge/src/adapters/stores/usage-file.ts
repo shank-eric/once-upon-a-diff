@@ -5,8 +5,8 @@
  */
 import { mkdirSync, readFileSync, rmdirSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { appendText, ensureDir, ownerOnly, removeDir, removeFile } from './files.ts';
-import { readJson, writeJsonAtomic } from './json-file.ts';
+import { appendText, ensureDir, ownerOnly, removeDir, removeFile } from './fs/files.ts';
+import { readJson, writeJsonAtomic } from './fs/json-file.ts';
 
 export const usageDir = (home: string) => path.join(home, 'usage');
 const fileOf = (home: string, name: string) => path.join(usageDir(home), name);

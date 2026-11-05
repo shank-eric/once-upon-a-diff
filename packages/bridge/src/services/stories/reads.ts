@@ -23,7 +23,7 @@
  * to the commit the story was told from.
  */
 import { stateFile } from '../config/settings.ts';
-import { readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
+import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { chapterKeyOf } from '@once-upon-a-diff/protocol/domain/chapters';
 import { SHA_RE } from '@once-upon-a-diff/protocol/domain/text';
 import type { Chapter, DiffFile } from '@once-upon-a-diff/protocol/types';

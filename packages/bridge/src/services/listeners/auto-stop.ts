@@ -17,13 +17,13 @@
 import { readFixes } from '../inbox/fixes.ts';
 import { Builds } from '../inbox/builds.ts';
 import { readSettings } from '../config/settings.ts';
-import { writeFileAtomic } from '../../adapters/stores/json-file.ts';
+import { writeFileAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { plural } from '@once-upon-a-diff/protocol/domain/text';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { sameRepo } from '../config/repos.ts';
 import type { StoryStore } from '../stories/store.ts';
-import { ensureDir, appendText } from '../../adapters/stores/files.ts';
+import { ensureDir, appendText } from '../../adapters/stores/fs/files.ts';
 
 export const SEEN_FILE = 'seen.json';
 const SEEN_WRITE_MS = 30000;

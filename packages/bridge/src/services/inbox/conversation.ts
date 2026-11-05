@@ -18,8 +18,8 @@
  * question already handed to one session, or dismissed, isn't handed to another.
  */
 import path from 'node:path';
-import { readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
-import { updateJson } from '../../adapters/stores/lock.ts';
+import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
+import { updateJson } from '../../adapters/stores/fs/lock.ts';
 import { stateFile } from '../config/settings.ts';
 import { ID_RE } from '../stories/meta.ts';
 import { listeners, type Listener } from '../listeners/listeners.ts';

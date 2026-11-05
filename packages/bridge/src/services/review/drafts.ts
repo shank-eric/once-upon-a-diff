@@ -27,7 +27,7 @@
 import { createHash } from 'node:crypto';
 import { runGh } from '../config/gh.ts';
 import { prKey } from '@once-upon-a-diff/protocol/domain/pr-key';
-import { readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
+import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { noteState } from '../inbox/fixes.ts';
 import { stateFile } from '../config/settings.ts';
 import type { Chapter, DraftRow, LocalNote, StoryData } from '@once-upon-a-diff/protocol/types';

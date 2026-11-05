@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 import { parseArgs } from '../../../packages/bridge/src/cli/args.ts';
 import { diffText } from '../../../packages/bridge/src/adapters/git.ts';
 import { parseUnifiedDiff } from '../../../packages/bridge/src/services/stories/diff.ts';
-import { writeJsonAtomic } from '../../../packages/bridge/src/adapters/stores/json-file.ts';
+import { writeJsonAtomic } from '../../../packages/bridge/src/adapters/stores/fs/json-file.ts';
 import { chaptersOf } from '../../../packages/bridge/src/services/stories/chapters.ts';
 import {
   mergeFragments,

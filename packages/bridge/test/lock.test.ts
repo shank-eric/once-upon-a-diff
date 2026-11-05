@@ -4,10 +4,10 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmp } from './helpers.ts';
-import { takeoverSeam, updateJson, withLock } from '../src/adapters/stores/lock.ts';
+import { takeoverSeam, updateJson, withLock } from '../src/adapters/stores/fs/lock.ts';
 
 const LOCK_MODULE = JSON.stringify(
-  path.resolve(import.meta.dirname, '../src/adapters/stores/lock.ts'),
+  path.resolve(import.meta.dirname, '../src/adapters/stores/fs/lock.ts'),
 );
 
 test('processes that update one file at once under its lock keep every change, and let the lock go', async () => {

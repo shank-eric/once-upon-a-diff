@@ -6,12 +6,12 @@
  * the same chapters work on either.
  */
 import { existsSync, readFileSync } from 'node:fs';
-import { copyFileAtomic, readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
+import { copyFileAtomic, readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import path from 'node:path';
 import { FULL_SHA_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { topLevel, revParse, branchOfRef, mergeBase } from '../../adapters/git.ts';
 import { defaultBranchOf } from './push-default.ts';
-import { removeFile } from '../../adapters/stores/files.ts';
+import { removeFile } from '../../adapters/stores/fs/files.ts';
 import { parseUnifiedDiff } from './diff.ts';
 import { refreshLocal, followsHead } from './local-diff.ts';
 import { entryOf } from './chapters.ts';

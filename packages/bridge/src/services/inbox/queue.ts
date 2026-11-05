@@ -1,11 +1,11 @@
 /**
  * A request queue in one JSON file: build requests (builds.json) and fix requests (fixes.json). Each request is pending
  * until something finishes it, and a pending one is queued until a wait claims it for its session. Every write is a
- * locked read-modify-write (adapters/stores/lock.ts), so the bridge and CLI processes can't lose each other's writes,
+ * locked read-modify-write (adapters/stores/fs/lock.ts), so the bridge and CLI processes can't lose each other's writes,
  * and a check and the write it decides (is it still pending? is it still queued?) happen in one step.
  */
-import { readJson } from '../../adapters/stores/json-file.ts';
-import { updateJson } from '../../adapters/stores/lock.ts';
+import { readJson } from '../../adapters/stores/fs/json-file.ts';
+import { updateJson } from '../../adapters/stores/fs/lock.ts';
 
 /** What every queued request has. */
 export interface Queued {

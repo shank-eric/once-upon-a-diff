@@ -5,7 +5,7 @@
  * waits. A lock whose process is gone, or that is older than LOCK_STALE_MS, was left by a crash and is taken over.
  */
 import { closeSync, openSync, readFileSync, statSync, writeSync } from 'node:fs';
-import { pidAlive } from '../os.ts';
+import { pidAlive } from '../../os.ts';
 import { readJson, writeJsonAtomic } from './json-file.ts';
 import { removeFile } from './files.ts';
 

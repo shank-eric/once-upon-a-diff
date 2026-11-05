@@ -10,7 +10,7 @@
  */
 import { ID_RE } from './meta.ts';
 import { listeners } from '../listeners/listeners.ts';
-import { readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
+import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { stateFile } from '../config/settings.ts';
 import type { LineRanges, WorkingMark } from '@once-upon-a-diff/protocol/types';
 import type { Listener } from '../listeners/listeners.ts';

@@ -11,7 +11,7 @@ import { aheadOf } from '../stories/pull-request.ts';
 import { doneLine, lastActivity } from '../ledger/ledger.ts';
 import { readAgents } from '../ledger/read.ts';
 import { AgentRegistry } from '../ledger/registry.ts';
-import { appendLine } from '../../adapters/stores/notes.ts';
+import { appendLine } from '../../adapters/stores/fs/lines.ts';
 import { markFinished } from '../../adapters/stores/finished-agents.ts';
 import { BlankSessions } from '../../adapters/claude-sessions/blank-sessions.ts';
 import { SessionTitles } from '../../adapters/claude-sessions/titles.ts';

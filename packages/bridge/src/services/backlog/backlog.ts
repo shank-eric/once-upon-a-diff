@@ -28,6 +28,7 @@
  */
 import { BACKLOG_ID_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { SHA_RE } from '@once-upon-a-diff/protocol/domain/text';
+import { jsonLines } from '../../adapters/stores/fs/jsonl.ts';
 import { appendBacklogEvent, readBacklogFile } from '../../adapters/stores/backlog-file.ts';
 import path from 'node:path';
 import { liveClaim, sameAgentView } from './claims.ts';
@@ -142,14 +143,12 @@ export function foldBacklog(text: string): BacklogItem[] {
   // what each item was added with, which a reopen goes back to (a start overwrote the branch and the repo)
   const added = new Map<string, { branch: string | null; repo: string | null }>();
   const order: string[] = [];
-  for (const line of text.split('\n')) {
-    let event: Record<string, unknown>;
-    try {
-      event = JSON.parse(line);
-    } catch {
+  for (const value of jsonLines(text)) {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
       continue;
     }
-    const id = typeof event?.id === 'string' ? event.id : '';
+    const event = value as Record<string, unknown>;
+    const id = typeof event.id === 'string' ? event.id : '';
     if (!ID_PATTERN.test(id)) {
       continue;
     }

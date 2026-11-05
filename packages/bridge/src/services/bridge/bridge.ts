@@ -1,7 +1,7 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { readSettings, type Config } from '../config/settings.ts';
-import { writeFileAtomic, readJson } from '../../adapters/stores/json-file.ts';
+import { writeFileAtomic, readJson } from '../../adapters/stores/fs/json-file.ts';
 import type { StoryStore } from '../stories/store.ts';
 import type { Inbox } from '../inbox/inbox.ts';
 import {
@@ -11,7 +11,7 @@ import {
   writeBridgeFile,
 } from '../../adapters/stores/bridge-file.ts';
 import { pidAlive, portTaken } from '../../adapters/os.ts';
-import { restrictFile, appendText } from '../../adapters/stores/files.ts';
+import { restrictFile, appendText } from '../../adapters/stores/fs/files.ts';
 
 /*
  * The bridge as a process: which one is running on a port, its log file, what it records about the extension, and starting

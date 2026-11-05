@@ -12,7 +12,7 @@
  */
 import { readdirSync } from 'node:fs';
 import path from 'node:path';
-import { readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
+import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { readIndex } from './placement.ts';
 import { stateFile } from '../config/settings.ts';
 import { ID_RE, isStoryDir, readMeta, storyVersion } from './meta.ts';

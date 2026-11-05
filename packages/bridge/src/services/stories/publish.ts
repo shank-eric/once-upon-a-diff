@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { StoryStore } from './store.ts';
 import { Builds, type Build } from '../inbox/builds.ts';
-import { copyFileAtomic, readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
+import { copyFileAtomic, readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { parseUnifiedDiff } from './diff.ts';
 import { stateKeyOf } from '../review/drafts.ts';
 import { vetRebuild, afterRebuild } from './rebuild.ts';

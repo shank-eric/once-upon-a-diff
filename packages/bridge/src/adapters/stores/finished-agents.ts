@@ -4,7 +4,7 @@
  * or beat brings it back. Writes go through readJson and writeFileAtomic.
  */
 import path from 'node:path';
-import { readJson, writeJsonAtomic } from './json-file.ts';
+import { readJson, writeJsonAtomic } from './fs/json-file.ts';
 
 const file = (home: string) => path.join(home, 'finished-agents.json');
 

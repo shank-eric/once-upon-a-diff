@@ -13,6 +13,7 @@
  * run is kept in `earlier` as it stood. Fields the fold does not know are ignored, so later cards can add them.
  * Pure: the store (registry.ts) reads and writes.
  */
+import { jsonLines } from '../../adapters/stores/fs/jsonl.ts';
 import { ledgerTime, type LedgerAgent } from './ledger.ts';
 import type { BoardBeat } from '@once-upon-a-diff/protocol/types';
 
@@ -93,24 +94,19 @@ export interface AgentEvent {
 /** The events in a file's text, in order. Lines that aren't events are skipped. */
 export function parseAgentEvents(text: string): AgentEvent[] {
   const events: AgentEvent[] = [];
-  for (const line of text.split('\n')) {
-    if (!line.trim()) {
+  for (const value of jsonLines(text)) {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
       continue;
     }
-    try {
-      const event = JSON.parse(line) as AgentEvent;
-      if (
-        event &&
-        ['start', 'state', 'beat', 'finish'].includes(event.op) &&
-        typeof event.id === 'string' &&
-        typeof event.sid8 === 'string' &&
-        typeof event.name === 'string' &&
-        !Number.isNaN(Date.parse(event.at))
-      ) {
-        events.push(event);
-      }
-    } catch {
-      // a half-written or hand-edited line: skipped
+    const event = value as AgentEvent;
+    if (
+      ['start', 'state', 'beat', 'finish'].includes(event.op) &&
+      typeof event.id === 'string' &&
+      typeof event.sid8 === 'string' &&
+      typeof event.name === 'string' &&
+      !Number.isNaN(Date.parse(event.at))
+    ) {
+      events.push(event);
     }
   }
   return events;

@@ -12,7 +12,7 @@
  */
 import path from 'node:path';
 import { statSync } from 'node:fs';
-import { readJson } from '../../adapters/stores/json-file.ts';
+import { readJson } from '../../adapters/stores/fs/json-file.ts';
 import {
   parsePartsFile,
   storyPartsOf,

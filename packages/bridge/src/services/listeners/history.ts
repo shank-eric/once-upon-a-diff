@@ -5,7 +5,7 @@
  * from no listener to one, so the lane can say how long it has been listening. Entries older than HISTORY_DAYS are dropped.
  */
 import path from 'node:path';
-import { readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
+import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 
 export const HISTORY_DAYS = 7;
 

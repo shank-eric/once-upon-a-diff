@@ -16,7 +16,7 @@
  *
  * fixes.json is the record, and a note's sent, fixed and returned marks follow from it (alignNotes): each change writes
  * the request first, then brings the story's notes in line, so a crash between the two leaves notes a step behind, and
- * the next look mends them. Both files are written under fixes.json's lock (adapters/stores/lock.ts), so the bridge and
+ * the next look mends them. Both files are written under fixes.json's lock (adapters/stores/fs/lock.ts), so the bridge and
  * the CLI can't lose each other's writes.
  *
  * Routing is the questions' rule (conversation.ts), among the waits that take fix requests: a live story listener
@@ -27,7 +27,7 @@ import path from 'node:path';
 import { newId } from './inbox.ts';
 import { sameRepo } from '../config/repos.ts';
 import { answeringOf, listeners } from '../listeners/listeners.ts';
-import { withLock } from '../../adapters/stores/lock.ts';
+import { withLock } from '../../adapters/stores/fs/lock.ts';
 import { RequestQueue } from './queue.ts';
 import type { FixNote, LocalNote, Side } from '@once-upon-a-diff/protocol/types';
 import type { Inbox } from './inbox.ts';

@@ -15,12 +15,12 @@
  */
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
+import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { readSettings, stateFile } from '../config/settings.ts';
 import { ID_RE } from '../stories/meta.ts';
 import { collapse } from '@once-upon-a-diff/protocol/domain/text';
 import { startOf, pidAlive } from '../../adapters/os.ts';
-import { removeFile } from '../../adapters/stores/files.ts';
+import { removeFile } from '../../adapters/stores/fs/files.ts';
 
 export interface Binding {
   agent: string;

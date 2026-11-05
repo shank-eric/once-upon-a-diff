@@ -121,7 +121,7 @@ const FS_WRITES = [
 const FS_OPEN_MESSAGE =
   "open and openSync outside an adapter must pass the literal flag 'r' and be imported without an alias: a write goes through adapters/stores/";
 const FS_WRITE_MESSAGE =
-  'only an adapter writes files: add a function to adapters/stores/ (files.ts, json-file.ts) and call that';
+  'only an adapter writes files: add a function to adapters/stores/fs/ (files.ts, json-file.ts) and call that';
 const FS_NAMESPACE_MESSAGE =
   'import the read functions by name from node:fs: a whole-module import hides the write calls from the lint rule';
 const escapeSlashes = (source) => source.replaceAll('/', '\\/');

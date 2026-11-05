@@ -9,7 +9,7 @@ import {
   readJson,
   writeFileAtomic,
   writeJsonAtomic,
-} from '../src/adapters/stores/json-file.ts';
+} from '../src/adapters/stores/fs/json-file.ts';
 import { loadConfig } from '../src/services/config/settings.ts';
 import { runGh } from '../src/services/config/gh.ts';
 import { parseUnifiedDiff } from '../src/services/stories/diff.ts';
@@ -41,7 +41,7 @@ test('atomic writes: the mode holds, a failed write leaves no temp file', () => 
 test('atomic writes: two writers at once both leave valid JSON, never a partial file', async () => {
   const dir = tmp('json-race');
   const file = path.join(dir, 'shared.json');
-  const mod = new URL('../src/adapters/stores/json-file.ts', import.meta.url).href;
+  const mod = new URL('../src/adapters/stores/fs/json-file.ts', import.meta.url).href;
   const script = `
     import { writeJsonAtomic } from ${JSON.stringify(mod)};
     const [file, tag] = process.argv.slice(1);

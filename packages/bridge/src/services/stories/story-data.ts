@@ -8,7 +8,7 @@ import { shipMode } from './push-default.ts';
 import path from 'node:path';
 import { pathSha } from './diff.ts';
 import { readPrefs } from '../config/settings.ts';
-import { readJson } from '../../adapters/stores/json-file.ts';
+import { readJson } from '../../adapters/stores/fs/json-file.ts';
 import { readMeta, storyVersion, localVersion } from './meta.ts';
 import { chaptersOf, addLeftoverChapter, markUnwritten, refOf } from './chapters.ts';
 import { upgradePlan } from './legacy.ts';

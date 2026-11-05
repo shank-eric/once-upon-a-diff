@@ -19,9 +19,9 @@ import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { DEFAULT_PORT } from '@once-upon-a-diff/protocol/domain/bridge-port';
-import { readJson, writeFileAtomic } from '../../adapters/stores/json-file.ts';
+import { readJson, writeFileAtomic } from '../../adapters/stores/fs/json-file.ts';
 import type { ShipMode } from '@once-upon-a-diff/protocol/types';
-import { ownerOnly, ensureDir, restrictFile, copyFile } from '../../adapters/stores/files.ts';
+import { ownerOnly, ensureDir, restrictFile, copyFile } from '../../adapters/stores/fs/files.ts';
 
 /** config.json: the port and token, and any personal settings (readSettings). */
 export interface Config {

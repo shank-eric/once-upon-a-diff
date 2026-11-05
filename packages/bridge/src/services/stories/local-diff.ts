@@ -3,13 +3,13 @@
  * copy for Hide whitespace, and the per-file view the local page draws.
  */
 import { existsSync, readFileSync } from 'node:fs';
-import { writeFileAtomic, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
+import { writeFileAtomic, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import path from 'node:path';
 import { parseUnifiedDiff, pathSha } from './diff.ts';
 import { revParse, diffText, commitsBetween } from '../../adapters/git.ts';
 import type { DiffFile, LocalFile, LocalMoved } from '@once-upon-a-diff/protocol/types';
 import type { LocalMeta, StoryMeta } from './types.ts';
-import { removeFile } from '../../adapters/stores/files.ts';
+import { removeFile } from '../../adapters/stores/fs/files.ts';
 
 /**
  * The same range with -w, for Hide whitespace. Made the first time it's wanted and kept in local-w.diff

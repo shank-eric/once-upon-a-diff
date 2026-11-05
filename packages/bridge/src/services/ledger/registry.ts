@@ -9,7 +9,7 @@ import { BACKLOG_ID_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { SHA_RE } from '@once-upon-a-diff/protocol/domain/text';
 import { REPO_RE } from '../config/repos.ts';
 import { appendAgentEvent, readAgentsFile } from '../../adapters/stores/agents-file.ts';
-import { appendLine } from '../../adapters/stores/notes.ts';
+import { appendLine } from '../../adapters/stores/fs/lines.ts';
 import { lastActivity } from './ledger.ts';
 import {
   AGENT_KINDS,
