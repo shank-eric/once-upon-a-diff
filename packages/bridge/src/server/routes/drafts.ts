@@ -20,23 +20,10 @@ import {
 import { addToPendingReview } from '../../services/review/pending-review.ts';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
-import { noteFromDraft } from './fixes.ts';
+import { draftOf, noteFromDraft } from './draft-notes.ts';
 import type { DraftComment, StoryData } from '@once-upon-a-diff/contracts/types';
 import type { ServedStory } from '../../services/stories/types.ts';
 import type { App, Call, StoryRoute } from '../types.ts';
-
-/** The drafted comment a request names by chapter (1-based) and index, else 404. */
-export function draftOf(
-  chapters: StoryData['chapters'],
-  where: { chapter: number | null; index: number | null },
-): DraftComment {
-  const chapter = chapters[(where.chapter as number) - 1];
-  const comment = chapter && chapter.comments[where.index as number];
-  if (!comment) {
-    throw new HttpError(404, 'no such draft');
-  }
-  return comment;
-}
 
 /** Add to my review: the draft goes into their pending review on GitHub, once. */
 async function addToReview(

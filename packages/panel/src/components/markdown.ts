@@ -1,6 +1,6 @@
 /*
  * The story's markdown: the domain's renderer with the panel's own links. Backticked file names and links to the PR's files become
- * jump links (file-refs.ts), each followed by its Mark viewed pill; every other link is the renderer's safe web link. What it returns
+ * jump links (ref-attrs.ts), each followed by its Mark viewed pill; every other link is the renderer's safe web link. What it returns
  * is raw() markup for html`` to take.
  */
 import {
@@ -8,7 +8,7 @@ import {
   type MarkdownLink,
 } from '@once-upon-a-diff/domain/html';
 import { parseDiffLink, refLinkId } from '@once-upon-a-diff/domain/line-refs';
-import { refAttrs } from './file-refs.ts';
+import { refAttrs } from './ref-attrs.ts';
 import type { PanelContext } from '../host/context.ts';
 
 export function createMarkdown(context: PanelContext) {

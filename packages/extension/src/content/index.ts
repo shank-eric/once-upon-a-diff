@@ -19,20 +19,7 @@ import { createFilesChangedPage } from './pages/files-changed.ts';
 import { createConversationPage } from './pages/conversation.ts';
 import { createPullListPage } from './pages/pull-list.ts';
 import { createRefreshPage } from './refresh.ts';
-import type { PageKind } from '@once-upon-a-diff/github-page/pages';
-
-/**
- * Why the router looks: 'tick' (the URL watch, while the tab shows), 'event' (a navigation event) or 'back' (the tab
- * got focus or showed again).
- */
-export type RouteReason = 'tick' | 'event' | 'back';
-
-/** What the router tells every page; navigated: the URL changed since the last look. */
-export interface Route {
-  kind: PageKind;
-  navigated: boolean;
-  reason: RouteReason;
-}
+import type { RouteReason } from './route.ts';
 
 const TICK_MS = 700;
 const BACK_MS = 1000; // focus and visibilitychange both fire on coming back: one 'back' for the two

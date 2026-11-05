@@ -5,6 +5,7 @@
  * {n, all, collapsed, width, filesOpen, showPosted, showDismissed, chatOpen, chatHeight}.
  */
 import type { Chapter, PanelUi } from '@once-upon-a-diff/contracts/types';
+import type { InitialUi } from './initial-ui.ts';
 import type { StoryModel } from './story-model.ts';
 import type { PanelContext } from '../host/context.ts';
 
@@ -12,9 +13,6 @@ import type { PanelContext } from '../host/context.ts';
 export interface PanelState extends PanelUi {
   allCommentsOpen?: boolean;
 }
-
-/** A saved state to start from, plus the body's scroll on a live redraw. */
-export type InitialUi = Partial<PanelUi> & { bodyScroll?: number; hidden?: boolean };
 
 /** The step clamped to the story's steps (0 is the Overview). */
 export function clampStep(story: StoryModel, step: number): number {

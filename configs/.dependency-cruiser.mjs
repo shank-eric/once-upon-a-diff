@@ -100,7 +100,7 @@ export default {
     {
       name: 'no-circular',
       comment: 'a cycle between modules: break it by moving what both need into a third module',
-      severity: 'warn', // 17 runtime cycles exist today: visible, not blocking, until they are broken
+      severity: 'error',
       from: {},
       to: { circular: true, dependencyTypesNot: ['type-only'] },
     },

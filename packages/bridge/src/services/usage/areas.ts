@@ -48,6 +48,7 @@ const PATHS: [string, Area][] = [
   ['packages/bridge/src/server/routes/fixes.ts', 'Inbox, Q&A, fix and build requests'],
   ['packages/bridge/src/server/routes/builds.ts', 'Inbox, Q&A, fix and build requests'],
   ['packages/bridge/src/server/routes/drafts.ts', 'Inbox, Q&A, fix and build requests'],
+  ['packages/bridge/src/server/routes/draft-notes.ts', 'Inbox, Q&A, fix and build requests'],
   ['packages/bridge/src/services/sessions/', 'Listeners and sessions'],
   ['packages/bridge/src/services/listeners/', 'Listeners and sessions'],
   ['packages/bridge/src/adapters/iterm.ts', 'Listeners and sessions'],

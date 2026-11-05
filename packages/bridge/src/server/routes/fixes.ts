@@ -8,28 +8,20 @@ import {
   addNote,
   fixesView,
   MAX_NOTE_BODY,
-  readNotes,
   sendNotes,
   setAutoSend,
   takeBack,
   updateNote,
 } from '../../services/inbox/fixes.ts';
-import { draftKey, ghLogin } from '../../services/review/drafts.ts';
-import { relOfPath } from '../../services/stories/diff.ts';
+import { ghLogin } from '../../services/review/drafts.ts';
 import { workingOf } from '../../services/inbox/working.ts';
 import { prAuthorOf } from '../../services/stories/meta.ts';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
-import { draftOf } from './drafts.ts';
-import type { FixesView, StoryData } from '@once-upon-a-diff/contracts/types';
+import { noteFromDraft } from './draft-notes.ts';
+import type { FixesView } from '@once-upon-a-diff/contracts/types';
 import type { ServedStory } from '../../services/stories/types.ts';
 import type { App, Call, StoryRoute } from '../types.ts';
-
-/** The files a note can be on: a local story's diff, or a PR story's files. */
-function relsOf(app: App, story: ServedStory): string[] {
-  const data = app.stories.load(story.id) as StoryData;
-  return data.local ? data.local.files.map((file) => file.rel) : data.files.map((file) => file.rel);
-}
 
 /**
  * Whether the panel offers Fix before push: always on a local story, and on a PR story only when its author is the
@@ -51,40 +43,6 @@ export async function canAddNotes(story: ServedStory): Promise<boolean> {
 /** The story's fix-before-push view with whether it can take new notes (`can_add`). */
 export async function fixesViewOf(app: App, story: ServedStory): Promise<FixesView> {
   return { ...fixesView(app.home, app.stories, story), can_add: await canAddNotes(story) };
-}
-
-/** Add to fix before push: a drafted comment from the story becomes a note, once. Returns {note, request}. */
-export function noteFromDraft(
-  app: App,
-  story: ServedStory,
-  where: { chapter: number | null; index: number | null },
-) {
-  const comment = draftOf((app.stories.load(story.id) as StoryData).chapters, where);
-  const rel = relOfPath(comment.path, relsOf(app, story));
-  if (!rel || !(Number(comment.line) > 0)) {
-    throw new HttpError(
-      400,
-      'only a draft on a line of a file in the diff can go in fix before push',
-    );
-  }
-  const key = draftKey(comment);
-  if (readNotes(app.stories, story.id).some((note) => note.draft === key)) {
-    throw new HttpError(409, "it's already in fix before push");
-  }
-  return addNote(
-    app.home,
-    app.stories,
-    story,
-    {
-      path: rel,
-      side: comment.side,
-      line: Math.trunc(Number(comment.line)),
-      body: String(comment.body ?? '').slice(0, MAX_NOTE_BODY),
-      draft: key,
-      chapter: where.chapter,
-    },
-    { inbox: app.inbox },
-  );
 }
 
 /** POST .../notes: a new note. POST .../notes/<id>: done, its text, or deleting it (a draft note only). */

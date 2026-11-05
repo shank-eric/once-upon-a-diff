@@ -29,7 +29,8 @@ import type {
 } from '@once-upon-a-diff/contracts/types';
 import type { Side } from '@once-upon-a-diff/domain/line-refs';
 import type { FileStatus, StoryModel } from '../state/story-model.ts';
-import type { InitialUi, PanelState } from '../state/panel-state.ts';
+import type { InitialUi } from '../state/initial-ui.ts';
+import type { PanelState } from '../state/panel-state.ts';
 import type { Layout } from '../shell/layout.ts';
 import type { HostPage, PanelHost } from './host.ts';
 import type { Shell } from '../shell/shell.ts';

@@ -111,14 +111,15 @@ import type { PanelContext, PanelOptions } from '../host/context.ts';
 import type { PanelHost } from '../host/host.ts';
 
 export type { PanelContext, PanelOptions } from '../host/context.ts';
-export type { InitialUi } from '../state/panel-state.ts';
+export type { InitialUi } from '../state/initial-ui.ts';
 
 // the pure helpers the content script, the local page and the tests use
 export { draftView, shownIn } from '../drafts/drafts.ts';
 export { fixSummary } from '../fixes/fixes.ts';
 export { changingOf } from '../fixes/working.ts';
 export { chapterKeyOf, finishedInOf, chapterNumbers } from '@once-upon-a-diff/domain/chapters';
-export { READ_MS, inferReadSteps, viewedEarlyCheck } from '../reading/reading.ts';
+export { READ_MS } from '../reading/reading.ts';
+export { inferReadSteps, viewedEarlyCheck } from '../reading/read-checks.ts';
 export { placePills, pillMarker } from '../components/file-refs.ts';
 export { rangeOfPath, rangeStepOf, rangeUrl, requestLine } from '../rebuild/freshness.ts';
 export { rebuildAsk, rebuildLine } from '../rebuild/rebuild.ts';

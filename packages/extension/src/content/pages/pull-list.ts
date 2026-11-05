@@ -12,7 +12,7 @@ import { conversationPr, isPullListPage } from '@once-upon-a-diff/github-page/pa
 import { extensionAlive } from '../bridge.ts';
 import { createPrTags } from '../pr-tags.ts';
 import type { PrRef } from '../tag-model.ts';
-import type { Route } from '../index.ts';
+import type { Route } from '../route.ts';
 
 /** A PR's title link on the list, and its row. */
 interface PrLink extends PrRef {

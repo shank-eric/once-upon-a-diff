@@ -7,7 +7,7 @@
  */
 import { Fragment, html } from '/assets/preact.mjs';
 import { html as markup } from '@once-upon-a-diff/domain/html';
-import { refAttrs } from '../components/file-refs.ts';
+import { refAttrs } from '../components/ref-attrs.ts';
 import type { VNode } from '@once-upon-a-diff/ui-kit/parse-markup';
 import { PartsStrip } from '@once-upon-a-diff/ui-kit/components/parts-strip';
 import type { SinceModel } from '../rebuild/freshness-part.ts';

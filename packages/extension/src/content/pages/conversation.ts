@@ -10,7 +10,7 @@ import { conversationPr, pageKindOf } from '@once-upon-a-diff/github-page/pages'
 import { extensionAlive } from '../bridge.ts';
 import { createPrTags, titleElement } from '../pr-tags.ts';
 import type { PrRef } from '../tag-model.ts';
-import type { Route } from '../index.ts';
+import type { Route } from '../route.ts';
 
 const ATTR = 'data-ou-convo';
 

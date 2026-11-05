@@ -29,7 +29,7 @@ import { createWhitespaceCheck, prefsStore } from './hide-whitespace.ts';
 import type { BridgeAnswer } from '../bridge.ts';
 import type { PanelUi } from '../storage.ts';
 import type { PrRef } from '../tag-model.ts';
-import type { Route } from '../index.ts';
+import type { Route } from '../route.ts';
 import type { PanelOptions, StoryOverlay } from '@once-upon-a-diff/panel/shell/overlay';
 import type { PanelHost } from '@once-upon-a-diff/panel/host/host';
 import type { FilesChangedPr } from '@once-upon-a-diff/github-page/pages';
