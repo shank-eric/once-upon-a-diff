@@ -12,7 +12,7 @@ import { currentHead, newerCount } from '../../services/review/freshness.ts';
 import { listeningOf } from '../../services/listeners/listeners.ts';
 import { readReads } from '../../services/stories/reads.ts';
 import { unreadAnswers } from '../../services/inbox/conversation.ts';
-import { prKey } from '@once-upon-a-diff/protocol/domain/pr-key';
+import { prKey } from '@once-upon-a-diff/domain/pr-key';
 import type { StoryData } from '@once-upon-a-diff/protocol/types';
 import type { ApiRoute, App, Call } from '../types.ts';
 

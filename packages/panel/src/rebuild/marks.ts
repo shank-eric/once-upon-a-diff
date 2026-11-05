@@ -8,7 +8,7 @@
  * marksOf has no DOM, so node tests can use it.
  */
 import { html } from '/assets/preact.mjs';
-import { shortSha } from '@once-upon-a-diff/protocol/domain/text';
+import { shortSha } from '@once-upon-a-diff/domain/text';
 import type { FreshUpdate, Freshness, ReadInfo } from '@once-upon-a-diff/protocol/types';
 
 /** One "changed since" mark: why, the steps it lights, the files it tags, and the commits. */

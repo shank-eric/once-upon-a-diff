@@ -17,7 +17,7 @@ Paths are from the repo root. After each `file:line` comes the name you'll find 
 | `app` | knows its host: the extension (content scripts, service worker), the board and local pages (`packages/web`), the bridge's `server/` and `cli/` |
 | `feature` | the panel (`packages/panel`), which an app hands its host through `PanelHost` |
 | `client` | `packages/api-client` (the typed client and the poll) and `packages/ui` |
-| `protocol` | `packages/protocol`: the route table, the wire types, the schemas, and the pure `domain/` |
+| `protocol` | `packages/protocol`: the route table, the wire types and the schemas, over `packages/domain`, the pure rules that import nothing |
 | `service` | `packages/bridge/src/services/`: the rules. No side effects of their own |
 | `adapter` | `packages/bridge/src/adapters/`: every file write, program run and network call |
 | `outside` | not this repo's code: a Claude Code session, a skill, `beat.sh`, `it2` |

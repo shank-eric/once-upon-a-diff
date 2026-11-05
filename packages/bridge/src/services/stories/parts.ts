@@ -1,5 +1,5 @@
 /*
- * A story's parts: the repo's parts file (protocol/src/domain/parts.ts), found and read, and what the story's chapters touch
+ * A story's parts: the repo's parts file (domain/src/parts.ts), found and read, and what the story's chapters touch
  * of it. Worked out when the story is loaded, never stored: nothing on disk changes, an older story gains its strip the day
  * its repo gets a file, and a renamed part is renamed everywhere.
  *
@@ -18,7 +18,7 @@ import {
   storyPartsOf,
   type PartsFile,
   type StoryParts,
-} from '@once-upon-a-diff/protocol/domain/parts';
+} from '@once-upon-a-diff/domain/parts';
 import { storyRepo } from './meta.ts';
 import { checkoutFor } from '../config/repos.ts';
 import type { StoryMeta } from './types.ts';

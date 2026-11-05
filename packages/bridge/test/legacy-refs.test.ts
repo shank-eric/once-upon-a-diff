@@ -8,7 +8,7 @@ import { lintTextRefs } from '../src/services/stories/text-refs.ts';
 import { pathSha } from '../src/services/stories/diff.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
 import { createLocalStory } from '../src/services/stories/local-story.ts';
-import { finishedInOf } from '@once-upon-a-diff/protocol/domain/chapters';
+import { finishedInOf } from '@once-upon-a-diff/domain/chapters';
 import type { Plan } from '../src/services/stories/chapters.ts';
 
 const RELS = [

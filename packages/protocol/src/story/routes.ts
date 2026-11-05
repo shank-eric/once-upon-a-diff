@@ -5,7 +5,7 @@
  */
 import { story, type In } from '../route-kit.ts';
 import type { BridgeStatus, ListenSessions, ListenTyped, Ok, Prefs } from '../bridge/types.ts';
-import type { UsageAnswer } from '../domain/usage-actions.ts';
+import type { UsageAnswer } from '@once-upon-a-diff/domain/usage-actions';
 import type {
   Freshness,
   PanelUi,

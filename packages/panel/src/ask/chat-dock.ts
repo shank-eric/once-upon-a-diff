@@ -12,7 +12,7 @@
  * by hand is the height: a drag writes --ou-chat-h on the dock as the pointer moves, instead of drawing the panel for each move.
  */
 import { html } from '/assets/preact.mjs';
-import { plural } from '@once-upon-a-diff/protocol/domain/text';
+import { plural } from '@once-upon-a-diff/domain/text';
 import type { PanelContext } from '../host/context.ts';
 import { dockHeightWithin } from '../shell/layout.ts';
 

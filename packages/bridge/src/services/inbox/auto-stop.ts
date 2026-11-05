@@ -18,7 +18,7 @@ import { readFixes } from './fixes.ts';
 import { Builds } from './builds.ts';
 import { readSettings } from '../config/settings.ts';
 import { readJson, writeFileAtomic } from '../../adapters/stores/fs/json-file.ts';
-import { plural } from '@once-upon-a-diff/protocol/domain/text';
+import { plural } from '@once-upon-a-diff/domain/text';
 import path from 'node:path';
 import { sameRepo } from '../config/repos.ts';
 import type { StoryStore } from '../stories/store.ts';

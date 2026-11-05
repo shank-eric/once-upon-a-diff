@@ -3,7 +3,7 @@
  * no #key= in the link. It says how to connect and links to the README. The page keeps polling, so once the cookie is
  * there (the extension's button or `once-upon board` in another tab) it fills in by itself.
  */
-import { html } from '/assets/protocol/domain/html.ts';
+import { html } from '/assets/domain/html.ts';
 
 const README = 'https://github.com/shank-eric/once-upon-a-diff#first-run-the-board';
 

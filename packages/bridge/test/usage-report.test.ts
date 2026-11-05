@@ -6,7 +6,7 @@ import { tmp, writeJson } from './helpers.ts';
 import { buildReport, renderReport, sinceDay } from '../src/services/usage/report.ts';
 import { shaOf, toBase64, emptyBits } from '../src/services/usage/lines.ts';
 import { ROUTE_AREAS } from '../src/services/usage/areas.ts';
-import { ACTIONS } from '@once-upon-a-diff/protocol/domain/usage-actions';
+import { ACTIONS } from '@once-upon-a-diff/domain/usage-actions';
 import type { CoverageFile } from '../src/services/usage/merge.ts';
 
 const NOW = new Date('2026-11-05T14:00:00.000Z'); // 9 AM ET on the 5th

@@ -4,7 +4,7 @@
  * the old forms: legacy.ts, which upgrades a story told before refs, and lintTextRefs here, which warns an author whose
  * new narrative still writes `` `path:45` `` or `` `name.ts` `` where a link was meant.
  */
-import { parseLineRef } from '@once-upon-a-diff/protocol/domain/line-refs';
+import { parseLineRef } from '@once-upon-a-diff/domain/line-refs';
 import type { Chapter } from '@once-upon-a-diff/protocol/types';
 import type { Plan } from './chapters.ts';
 

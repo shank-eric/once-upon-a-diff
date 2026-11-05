@@ -1,7 +1,7 @@
 /*
  * Turns markup our own code built as a string (the story's markdown, the drafted comments, the "Since you read it" banner)
  * into Preact nodes, so a draw puts it in the tree like any other element, with no wrapper element around it. The markup is
- * escaped where it was built (markdown.ts, the html`` tag in protocol/domain/html.ts), so this reads it as the browser would and
+ * escaped where it was built (markdown.ts, the html`` tag in domain/html.ts), so this reads it as the browser would and
  * never runs it. A part that still writes into what it drew (the drafts' state lines) finds its elements where they were.
  *
  * `element` is asked about each element on the way (with the element it was read from): it may change the props it will get (an

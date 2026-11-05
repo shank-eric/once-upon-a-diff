@@ -20,12 +20,15 @@ const importsOf = (code: string): string[] =>
 const isSchemaFile = (name: string): boolean =>
   /^(schemas|schema-kit|[a-z-]+\/schemas)\.ts$/.test(name);
 
-test('protocol imports only itself and valibot, and only the schema files import valibot', () => {
+test('protocol imports only itself, the domain and valibot, and only the schema files import valibot', () => {
   for (const file of files(SRC)) {
     const name = path.relative(SRC, file);
     for (const specifier of importsOf(readFileSync(file, 'utf8'))) {
       if (specifier.startsWith('.')) {
         assert.ok(specifier.endsWith('.ts'), `${name}: ${specifier} names its file`);
+        continue;
+      }
+      if (specifier.startsWith('@once-upon-a-diff/domain/')) {
         continue;
       }
       assert.equal(specifier, 'valibot', `${name} imports ${specifier}`);
@@ -42,6 +45,9 @@ test('what a page loads has no runtime import of valibot or of the schemas', () 
     }
     const code = stripTypeScriptTypes(readFileSync(file, 'utf8'));
     for (const specifier of importsOf(code)) {
+      if (specifier.startsWith('@once-upon-a-diff/domain/')) {
+        continue;
+      }
       const target = path.relative(SRC, path.resolve(path.dirname(file), specifier));
       assert.ok(
         specifier.startsWith('.') && !isSchemaFile(target),
@@ -56,18 +62,5 @@ test('nothing in protocol reaches for the DOM or Node', () => {
     const code = stripTypeScriptTypes(readFileSync(file, 'utf8'));
     assert.ok(!/\b(document|window|localStorage|chrome|process|Buffer|require)\./.test(code), file);
     assert.ok(!/\bfetch\(|\bnode:/.test(code), file);
-  }
-});
-
-test('the domain imports nothing: no module, no relative path, not even the rest of the protocol', () => {
-  const domain = files(path.join(SRC, 'domain'));
-  assert.ok(domain.length > 0);
-  for (const file of domain) {
-    const code = readFileSync(file, 'utf8');
-    assert.deepEqual(importsOf(code), [], `${file} imports at runtime`);
-    assert.ok(
-      !/^\s*(import|export)\b[^;]*\bfrom\s+['"]/m.test(code),
-      `${file} has an import or a re-export`,
-    );
   }
 });

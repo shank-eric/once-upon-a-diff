@@ -6,16 +6,17 @@
  * (To send, Queued, Sent, Fixed), the top bar's toggle counts them by stage,
  * and a sent note can't be deleted here.
  */
-import { html } from '/assets/protocol/domain/html.ts';
+import { html } from '/assets/domain/html.ts';
 import { insertHtml, setHtml } from '/assets/ui/dom.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { page, bridge, PARAMS } from '/assets/local/page.ts';
 import { columnCount } from './diff-view.ts';
 import { redrawSend } from './send.ts';
-import type { LocalNote, Side } from '/assets/types.ts';
-import { fixStage, type FixStage } from '/assets/protocol/domain/fix-notes.ts';
-import { formatLineRef } from '/assets/protocol/domain/line-refs.ts';
-import { shortSha } from '/assets/protocol/domain/text.ts';
+import type { LocalNote } from '/assets/types.ts';
+import type { Side } from '/assets/domain/line-refs.ts';
+import { fixStage, type FixStage } from '/assets/domain/fix-notes.ts';
+import { formatLineRef } from '/assets/domain/line-refs.ts';
+import { shortSha } from '/assets/domain/text.ts';
 
 const placeOf = (note: LocalNote) =>
   note.line ? formatLineRef(note.path, { side: note.side, start: note.line }) : note.path;

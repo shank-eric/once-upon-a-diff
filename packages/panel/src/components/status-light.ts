@@ -11,7 +11,7 @@
  * This file has no DOM and no Preact, so node tests can use it (healthChecks, askHintHtml, askWhoHtml). The light, the checks and
  * the buttons are drawn by status-light-part.ts.
  */
-import { html } from '@once-upon-a-diff/protocol/domain/html';
+import { html } from '@once-upon-a-diff/domain/html';
 import type {
   Answering,
   BridgeStatus,

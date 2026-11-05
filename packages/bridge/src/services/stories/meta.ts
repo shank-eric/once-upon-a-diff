@@ -10,8 +10,8 @@ import type { LocalMoved } from '@once-upon-a-diff/protocol/types';
 import { repoOfCheckout } from '../config/repos.ts';
 import type { Prefs } from '../config/settings.ts';
 import type { StoryMeta } from './types.ts';
-import { prUrl } from '@once-upon-a-diff/protocol/domain/github-urls';
-import { shortSha } from '@once-upon-a-diff/protocol/domain/text';
+import { prUrl } from '@once-upon-a-diff/domain/github-urls';
+import { shortSha } from '@once-upon-a-diff/domain/text';
 
 /** A file's modification time in ms, or 0 when it's missing. */
 export function modifiedAt(file: string): number {

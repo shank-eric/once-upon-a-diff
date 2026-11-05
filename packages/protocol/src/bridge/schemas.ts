@@ -19,7 +19,7 @@ import {
   union,
   type GenericSchema,
 } from 'valibot';
-import { MAX_BATCH_ENTRIES } from '../domain/usage-actions.ts';
+import { MAX_BATCH_ENTRIES } from '@once-upon-a-diff/domain/usage-actions';
 
 export const BRIDGE_BODIES = {
   /** POST /api/prefs and .../prefs: page settings; anything else is dropped, a bad view is unified */

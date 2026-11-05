@@ -6,6 +6,7 @@
     "paths": {
       "/assets/types.ts": ["./packages/protocol/src/types.ts"],
       "/assets/protocol/*": ["./packages/protocol/src/*"],
+      "/assets/domain/*": ["./packages/domain/src/*"],
       "/assets/api-client/*": ["./packages/api-client/src/*"],
       "/assets/host-github/*": ["./packages/host-github/src/*"],
       "/assets/panel/*": ["./packages/panel/src/*"],

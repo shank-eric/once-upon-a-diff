@@ -5,12 +5,12 @@
 import { formatTime, readerOf } from '../services/config/settings.ts';
 import { sameRepo } from '../services/config/repos.ts';
 import { updateOf } from '../services/inbox/builds.ts';
-import { plural, shortSha } from '@once-upon-a-diff/protocol/domain/text';
+import { plural, shortSha } from '@once-upon-a-diff/domain/text';
 import type { InboxEntry } from '../services/inbox/inbox.ts';
 import type { Build, BuildRequestEntry } from '../services/inbox/builds.ts';
 import type { RequestNote } from '../services/inbox/fixes.ts';
 import type { CliOpts } from './types.ts';
-import { formatLineRef } from '@once-upon-a-diff/protocol/domain/line-refs';
+import { formatLineRef } from '@once-upon-a-diff/domain/line-refs';
 
 /** A fix request as `wait` hands it over (fixesToHand). */
 type FixRequestEntry = ReturnType<typeof import('../services/inbox/fixes.ts').fixesToHand>[number];

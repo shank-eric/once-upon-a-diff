@@ -7,7 +7,7 @@
  *
  * expandDirOf and expandStep have no DOM, so node tests can use them.
  */
-import type { Side } from '@once-upon-a-diff/protocol/types';
+import type { Side } from '@once-upon-a-diff/domain/line-refs';
 import type { PanelContext } from '../host/context.ts';
 
 export { expandDirOf, type ExpandDir, type ExpandRow } from '../host/diff-types.ts';

@@ -1,7 +1,7 @@
 /** The editors strip above the columns. */
 import { html } from '/assets/preact.mjs';
 import type { BoardEditor } from '/assets/types.ts';
-import { plural } from '/assets/protocol/domain/text.ts';
+import { plural } from '/assets/domain/text.ts';
 import { SessionLink, type Api } from '/assets/board/shared.ts';
 import { agentMark, stateNote } from '/assets/board/columns/agent.ts';
 import { since } from '/assets/ui/time.ts';

@@ -15,7 +15,7 @@ import {
 } from '../src/services/stories/reads.ts';
 import type { ReadEntry } from '../src/services/inbox/inbox.ts';
 import type { Chapter, ReadChange, ReadInfo, StoryData } from '@once-upon-a-diff/protocol/types';
-import { chapterKeyOf, finishedInOf } from '@once-upon-a-diff/protocol/domain/chapters';
+import { chapterKeyOf, finishedInOf } from '@once-upon-a-diff/domain/chapters';
 import { inferReadSteps, viewedEarlyCheck } from '@once-upon-a-diff/panel/reading/reading';
 import { clearFreshness } from '../src/services/review/freshness.ts';
 import { createLocalStory } from '../src/services/stories/local-story.ts';

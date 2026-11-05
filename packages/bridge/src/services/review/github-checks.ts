@@ -2,7 +2,7 @@
  * The read-only GraphQL checks through gh: a PR's facts (ghPrCheck), the open PRs waiting on you or yours
  * (ghRequestedCheck), and the PR a branch has (ghBranchCheck).
  */
-import { FULL_SHA_RE } from '@once-upon-a-diff/protocol/domain/patterns';
+import { FULL_SHA_RE } from '@once-upon-a-diff/domain/patterns';
 import { runGh } from '../config/gh.ts';
 import { isAncestorAsync } from '../../adapters/git.ts';
 import { rulesRequired } from './merge-rules.ts';

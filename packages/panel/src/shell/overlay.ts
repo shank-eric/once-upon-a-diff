@@ -116,11 +116,7 @@ export type { InitialUi } from '../state/panel-state.ts';
 export { draftView, shownIn } from '../drafts/drafts.ts';
 export { fixSummary } from '../fixes/fixes.ts';
 export { changingOf } from '../fixes/working.ts';
-export {
-  chapterKeyOf,
-  finishedInOf,
-  chapterNumbers,
-} from '@once-upon-a-diff/protocol/domain/chapters';
+export { chapterKeyOf, finishedInOf, chapterNumbers } from '@once-upon-a-diff/domain/chapters';
 export { READ_MS, inferReadSteps, viewedEarlyCheck } from '../reading/reading.ts';
 export { placePills, pillMarker } from '../components/file-refs.ts';
 export { rangeOfPath, rangeStepOf, rangeUrl, requestLine } from '../rebuild/freshness.ts';

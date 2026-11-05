@@ -2,7 +2,7 @@
  * The background agents on the board: which are shown, and where each goes. An agent is nested in the card its
  * registered repo, branch, PR or card point to (agent-home.ts), else it is a card of its own, on its own lane.
  */
-import { resolveLane } from '@once-upon-a-diff/protocol/domain/lane-key';
+import { resolveLane } from '@once-upon-a-diff/domain/lane-key';
 import {
   finishedColumn,
   finishedSummary,

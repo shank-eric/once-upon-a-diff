@@ -26,7 +26,7 @@ import { Card } from '/assets/board/columns/card.ts';
 import { Listeners } from '/assets/board/columns/listeners.ts';
 import { Helpers } from '/assets/board/columns/standing-helpers.ts';
 import { BacklogCard, useAddPanel, useBacklogDnd } from '/assets/board/backlog/backlog.ts';
-import { sameLaneKey } from '/assets/protocol/domain/lane-key.ts';
+import { sameLaneKey } from '/assets/domain/lane-key.ts';
 import { Header, useVoiceBusy } from '/assets/board/header/header.ts';
 import { Worktrees } from '/assets/board/worktrees/worktrees.ts';
 

@@ -8,7 +8,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { copyFileAtomic, readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import path from 'node:path';
-import { FULL_SHA_RE, STORY_ID_RE } from '@once-upon-a-diff/protocol/domain/patterns';
+import { FULL_SHA_RE, STORY_ID_RE } from '@once-upon-a-diff/domain/patterns';
 import { topLevel, revParse, branchOfRef, mergeBase, defaultBranchOf } from '../../adapters/git.ts';
 import { removeFile } from '../../adapters/stores/fs/files.ts';
 import { parseUnifiedDiff } from './diff.ts';
@@ -16,7 +16,7 @@ import { refreshLocal, followsHead } from './local-diff.ts';
 import { entryOf } from './chapters.ts';
 import { storyDirFor } from './placement.ts';
 import { repoOfCheckout, seenCheckout } from '../config/repos.ts';
-import { plural } from '@once-upon-a-diff/protocol/domain/text';
+import { plural } from '@once-upon-a-diff/domain/text';
 import type { DiffFile } from '@once-upon-a-diff/protocol/types';
 import { noteSkeleton } from './skeleton.ts';
 import { readyPlan } from './validate.ts';

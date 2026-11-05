@@ -7,7 +7,7 @@
  * listening" notice (components/listen-notice.ts). Each page says where its tags go and
  * when to look.
  */
-import { prKey } from '@once-upon-a-diff/protocol/domain/pr-key';
+import { prKey } from '@once-upon-a-diff/domain/pr-key';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { bridge, usage, type BridgeAnswer } from './bridge.ts';
 import type { Listening, StatusMany } from '@once-upon-a-diff/protocol/types';

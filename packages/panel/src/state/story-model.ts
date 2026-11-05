@@ -1,13 +1,13 @@
 /*
  * The story as the panel reads it. No DOM here, so node tests can use it. The pure parts (a chapter's key, where each file is
- * finished, the chapter numbers) are the domain's (protocol/src/domain/chapters.ts), which the bridge reads too.
+ * finished, the chapter numbers) are the domain's (domain/src/chapters.ts), which the bridge reads too.
  *
  * Steps: 0 is the Overview (story map, every file, no filter), then 1..N are
  * the chapters. A story map at the top of a chapter's narrative, before its
  * "Chapter N" heading, is moved to the Overview.
  */
 import type { StoryData } from '@once-upon-a-diff/protocol/types';
-import { chapterNumbers, finishedInOf } from '@once-upon-a-diff/protocol/domain/chapters';
+import { chapterNumbers, finishedInOf } from '@once-upon-a-diff/domain/chapters';
 
 /** What chapter `step` tells the reviewer about a file it lists. */
 export interface FileStatus {

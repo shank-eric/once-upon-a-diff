@@ -14,7 +14,7 @@ import { KEEP_MS as FINISH_KEPT_MS } from '../../adapters/stores/finished-agents
 import { DEFAULT_BRANCHES } from '../config/settings.ts';
 import type { WorktreeFacts } from '../worktrees/worktrees.ts';
 import type { BranchPr } from '../review/github-checks.ts';
-import { shortSha, plural } from '@once-upon-a-diff/protocol/domain/text';
+import { shortSha, plural } from '@once-upon-a-diff/domain/text';
 
 /**
  * A finished author's commit that waits on your review: whether its branch is on origin yet (the `why` says which), and

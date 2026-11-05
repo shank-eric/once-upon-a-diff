@@ -9,13 +9,13 @@
  *
  * Only the chapters with no `refs` list are upgraded; a plan told now is returned as it is.
  */
-import { chapterKeyOf } from '@once-upon-a-diff/protocol/domain/chapters';
-import { parseDiffLink, parseLineRef, toSide } from '@once-upon-a-diff/protocol/domain/line-refs';
-import type { LineRef } from '@once-upon-a-diff/protocol/domain/line-refs';
+import { chapterKeyOf } from '@once-upon-a-diff/domain/chapters';
+import { parseDiffLink, parseLineRef, toSide } from '@once-upon-a-diff/domain/line-refs';
+import type { LineRef } from '@once-upon-a-diff/domain/line-refs';
 import { pathSha, relOfPath } from './diff.ts';
 import { findIn, mayBeFile } from './text-refs.ts';
 import type { Plan, PlanChapter, PlanFile, PlanRef } from './chapters.ts';
-import { baseName } from '@once-upon-a-diff/protocol/domain/text';
+import { baseName } from '@once-upon-a-diff/domain/text';
 
 export const REF_NOTE = 'its lines are pointed at in the text';
 const REF_LABEL = 'pointed at in the text';

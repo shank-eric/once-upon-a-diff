@@ -6,9 +6,9 @@
  * branch has an open PR, the header's button is a link to it, with how many commits the local branch is ahead of GitHub's
  * and a Push for them (push-ahead.ts).
  */
-import { html } from '/assets/protocol/domain/html.ts';
+import { html } from '/assets/domain/html.ts';
 import { setHtml } from '/assets/ui/dom.ts';
-import { plural } from '/assets/protocol/domain/text.ts';
+import { plural } from '/assets/domain/text.ts';
 import { html as vdom } from '/assets/preact.mjs';
 import { CopyButton } from '/assets/ui/copy-button.ts';
 import { CommitList, openActionDialog } from './action-dialog.ts';

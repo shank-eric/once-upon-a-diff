@@ -25,9 +25,9 @@ import type {
   ReadInfo,
   RebuildAsk,
   RebuildView,
-  Side,
   WorkingMark,
 } from '@once-upon-a-diff/protocol/types';
+import type { Side } from '@once-upon-a-diff/domain/line-refs';
 import type { FileStatus, StoryModel } from '../state/story-model.ts';
 import type { InitialUi, PanelState } from '../state/panel-state.ts';
 import type { Layout } from '../shell/layout.ts';

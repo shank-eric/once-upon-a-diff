@@ -155,7 +155,7 @@
       "name": "Domain",
       "group": "Shared",
       "paths": [
-        "packages/protocol/src/domain/"
+        "packages/domain/"
       ],
       "note": "Pure rules that import nothing"
     },
@@ -192,6 +192,7 @@
         "packages/panel/test/",
         "packages/ui/test/",
         "packages/protocol/test/",
+        "packages/domain/test/",
         "packages/web/test/",
         "packages/extension/test/",
         "packages/host-github/test/",

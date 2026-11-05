@@ -21,7 +21,7 @@
  * This file is the scheduler: when to ask and what to do with the answers. The asking is in github-checks.ts (with
  * pr-info.ts and merge-rules.ts for what the board shows) and default-branch.ts.
  */
-import { FULL_SHA_RE } from '@once-upon-a-diff/protocol/domain/patterns';
+import { FULL_SHA_RE } from '@once-upon-a-diff/domain/patterns';
 import { runGitAsync } from '../../adapters/git.ts';
 import { readApproval } from '../stories/approval.ts';
 import { clearApproval } from './approve.ts';

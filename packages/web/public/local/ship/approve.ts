@@ -6,12 +6,12 @@
  * The read-only link can't approve (the full page key only), so there the button is off and says why. A storyless review
  * (no story told) has no Approve: seeing the diff and clicking Push or Create pull request is the approval.
  */
-import { html } from '/assets/protocol/domain/html.ts';
+import { html } from '/assets/domain/html.ts';
 import { setHtml } from '/assets/ui/dom.ts';
-import { shortDateTime } from '/assets/protocol/domain/time.ts';
+import { shortDateTime } from '/assets/domain/time.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { bridge, page, PARAMS } from '/assets/local/page.ts';
-import { shortSha } from '/assets/protocol/domain/text.ts';
+import { shortSha } from '/assets/domain/text.ts';
 
 /** Set by pull-request.ts when the branch turns out to have an open PR (an event, so the two files don't import each other). */
 let hasPull = false;

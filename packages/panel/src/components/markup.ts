@@ -5,7 +5,7 @@
  */
 import { parseMarkup, type VNode } from '@once-upon-a-diff/ui/parse-markup';
 import type { PanelContext } from '../host/context.ts';
-import type { Side } from '@once-upon-a-diff/protocol/types';
+import type { Side } from '@once-upon-a-diff/domain/line-refs';
 
 export function createMarkup(context: PanelContext) {
   /** The nodes for a piece of markup, in order. */

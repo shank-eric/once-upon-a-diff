@@ -31,7 +31,7 @@ import { Builds } from '../services/inbox/builds.ts';
 import { announceBridge, retireBridge, writeExtensionSeen } from '../services/bridge/bridge.ts';
 import { Board } from '../services/board/board.ts';
 import { BoardError } from '../services/errors.ts';
-import { codeOfStatus } from '@once-upon-a-diff/protocol/domain/error-code';
+import { codeOfStatus } from '@once-upon-a-diff/domain/error-code';
 import { HttpError, sameToken, readBody } from './request.ts';
 import { COOKIE_NAMES, cookieFor, cookiesOf } from './session-cookie.ts';
 import { assetFor } from './assets.ts';

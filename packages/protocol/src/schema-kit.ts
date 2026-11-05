@@ -15,7 +15,7 @@ import {
   transform,
   union,
 } from 'valibot';
-import { SESSION_RE } from './domain/patterns.ts';
+import { SESSION_RE } from '@once-upon-a-diff/domain/patterns';
 
 /** The ids and lists the bridge caps, so a body can't make it hold more. */
 export const MAX_IDS = 500;

@@ -7,13 +7,8 @@
  * `[text](url)` first. It works on strings, so html``
  * isn't used inside; what it returns is raw() markup for html`` to take.
  */
-import {
-  escapeHtml,
-  html as htmlTag,
-  raw,
-  unescapeHtml,
-} from '@once-upon-a-diff/protocol/domain/html';
-import type { Html } from '@once-upon-a-diff/protocol/domain/html';
+import { escapeHtml, html as htmlTag, raw, unescapeHtml } from '@once-upon-a-diff/domain/html';
+import type { Html } from '@once-upon-a-diff/domain/html';
 
 /**
  * A host's own handling of a link: `url` is as written (escaped markup, like `text`) and `text` is the link's words with their

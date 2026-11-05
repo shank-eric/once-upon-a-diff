@@ -5,7 +5,7 @@
  */
 import { html, useEffect, useLayoutEffect, useRef, useState } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/protocol/routes.ts';
-import { sameLaneKey } from '/assets/protocol/domain/lane-key.ts';
+import { sameLaneKey } from '/assets/domain/lane-key.ts';
 import { openMenu } from '/assets/ui/menu.ts';
 import type { BoardCard, BoardData } from '/assets/types.ts';
 import { CardTrees, type Api } from '/assets/board/shared.ts';
@@ -16,7 +16,7 @@ import {
   pendingClaimChip,
   startedChips,
 } from '/assets/board/backlog/started-chips.ts';
-import { repoName } from '/assets/protocol/domain/text.ts';
+import { repoName } from '/assets/domain/text.ts';
 
 /** The ids of the Backlog cards in a card's lane, in the order the board shows them. */
 export function backlogLane(card: BoardCard, board: BoardData | null): string[] {

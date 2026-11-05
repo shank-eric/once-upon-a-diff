@@ -35,7 +35,7 @@ flowchart TB
   ui["ui<br/>helpers and generic components"]
   api["api-client<br/>typed client, poll"]
   protocol["protocol<br/>wire types, route table, schemas"]
-  domain["protocol/src/domain<br/>pure rules, imports nothing: 13 modules<br/>(patterns, html, text, time, chapters, parts ...)"]
+  domain["packages/domain<br/>pure rules, imports nothing: 13 modules<br/>(patterns, html, text, time, chapters, parts ...)"]
   vendor["vendored /assets/preact.mjs<br/>(htm/preact standalone)"]
   testkit["test-kit<br/>(dev only: tests import it, nothing that ships)"]
   subgraph serverApps["Server apps"]
@@ -95,7 +95,7 @@ Rules:
 - **`routes.ts`**: the route table. Every call the bridge answers (64 of them on 11/4), with its method, its path, which keys may make it (`token`, `token+board`, `token+page`, `token+page+view`, or `none`), the body it takes and the answer it gives. The bridge registers its handlers from the entries, and its dispatcher takes its lookups and the board-key rule from them. A test compares each story route's keys with `page-key.ts`'s read-only list, both ways, and calls every route with each kind of key.
 - **`schemas.ts`**: a Valibot schema for each request body. The bridge checks every body against one after the key and story guards, so a bad body never changes which of 401, 403, 404, 413 or 415 answers. A body that isn't a JSON object is a 400.
 - **`client.ts`**: a typed client over a transport each host supplies (the extension's service worker, a page's fetch with its key). It does no I/O itself. The extension's service worker also asks `matchRoute` before it adds the token, so it forwards only the routes the extension calls (30 on 11/4, listed in `extension/src/bridge-routes.ts` and checked against the code's uses by a test). It started here and became the `api-client` package (11/3) with the poll: `createPoll`, and `usePoll`, the board's Preact hook over it.
-- **`domain/`**: pure rules, with no imports at all, not even the rest of the protocol (the protocol imports the domain). It started with the id patterns. On 11/4 it has 13 modules: `patterns`, `html`, `text`, `time`, `choice`, `chapters`, `line-refs`, `pr-key`, `bridge-port` (most moved from `shared`, ADR-17), and `lane-key`, `parts` (ADR-19), `error-code` and `usage-actions` (ADR-18).
+- **`domain/`** (moved to `packages/domain`, `@once-upon-a-diff/domain`, on 11/4 by decision: the protocol imports it, and it imports nothing): pure rules, with no imports at all, not even the rest of the protocol (the protocol imports the domain). It started with the id patterns. On 11/4 it has 13 modules: `patterns`, `html`, `text`, `time`, `choice`, `chapters`, `line-refs`, `pr-key`, `bridge-port` (most moved from `shared`, ADR-17), and `lane-key`, `parts` (ADR-19), `error-code` and `usage-actions` (ADR-18).
 
 ### Source imports, not TypeScript project references
 

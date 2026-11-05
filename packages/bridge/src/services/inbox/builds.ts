@@ -20,16 +20,16 @@
 import path from 'node:path';
 import { newId } from '../config/ids.ts';
 import { sameRepo, REPO_RE } from '../config/repos.ts';
-import { SHA_RE, plural, shortSha } from '@once-upon-a-diff/protocol/domain/text';
-import { prKey } from '@once-upon-a-diff/protocol/domain/pr-key';
+import { SHA_RE, plural, shortSha } from '@once-upon-a-diff/domain/text';
+import { prKey } from '@once-upon-a-diff/domain/pr-key';
 import { readerOf } from '../config/settings.ts';
 import { RequestQueue } from './queue.ts';
 import { listeners } from '../listeners/listeners.ts';
-import { STORY_ID_RE } from '@once-upon-a-diff/protocol/domain/patterns';
+import { STORY_ID_RE } from '@once-upon-a-diff/domain/patterns';
 import { isRebuild, REBUILD_MODES } from '../stories/rebuild.ts';
 import type { Listener } from '../listeners/listeners.ts';
 import type { StoryMeta } from '../stories/types.ts';
-import { prUrl } from '@once-upon-a-diff/protocol/domain/github-urls';
+import { prUrl } from '@once-upon-a-diff/domain/github-urls';
 
 /** A chapter read before an update was asked for: where the reviewer's reading stopped. */
 export interface BuildRead {

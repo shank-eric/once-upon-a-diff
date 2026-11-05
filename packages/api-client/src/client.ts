@@ -15,7 +15,7 @@ import type {
   QueryOf,
 } from '@once-upon-a-diff/protocol/routes';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
-import { hasCode, replyCode } from '@once-upon-a-diff/protocol/domain/error-code';
+import { hasCode, replyCode } from '@once-upon-a-diff/domain/error-code';
 import type { StatusError } from '@once-upon-a-diff/protocol/types';
 
 /** What a host's transport is asked to send. `path` carries the query. A POST always has a body (`{}` when it has none). */

@@ -3,7 +3,7 @@ import { html } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { openMenu } from '/assets/ui/menu.ts';
 import type { BoardListenerRepo } from '/assets/types.ts';
-import { compactAge } from '/assets/protocol/domain/time.ts';
+import { compactAge } from '/assets/domain/time.ts';
 import { SessionLink, type Api } from '/assets/board/shared.ts';
 import { act, typeInto } from '/assets/board/columns/actions.ts';
 import { listenPlan } from '/assets/ui/listen.ts';

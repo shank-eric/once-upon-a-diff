@@ -9,7 +9,7 @@ import type { VNode } from '@once-upon-a-diff/ui/parse-markup';
 import type { ChapterLines } from '@once-upon-a-diff/protocol/types';
 import type { FileStatus } from '../state/story-model.ts';
 import type { PanelContext } from '../host/context.ts';
-import { toSide } from '@once-upon-a-diff/protocol/domain/line-refs';
+import { toSide } from '@once-upon-a-diff/domain/line-refs';
 
 /** A row's file: a chapter's entry, or one of the story's files on the Overview. */
 type FileEntry = { rel: string; partial?: boolean; note?: string | null; lines?: ChapterLines[] };

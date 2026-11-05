@@ -15,7 +15,7 @@
  * branch's active rulesets), in which case the box offers Create pull request. A protection answer gh can't give
  * stops a push too: it is never assumed open.
  */
-import { FULL_SHA_RE } from '@once-upon-a-diff/protocol/domain/patterns';
+import { FULL_SHA_RE } from '@once-upon-a-diff/domain/patterns';
 import { homeDir, readSettings, shipRuleFor } from '../config/settings.ts';
 import { storyRepo } from './meta.ts';
 import { runGh } from '../config/gh.ts';
@@ -31,7 +31,7 @@ import { readApproval, APPROVED_DAYS } from './approval.ts';
 import type { PushView, ShipMode } from '@once-upon-a-diff/protocol/types';
 import type { StoryStore } from './store.ts';
 import type { StoryMeta } from './types.ts';
-import { shortSha } from '@once-upon-a-diff/protocol/domain/text';
+import { shortSha } from '@once-upon-a-diff/domain/text';
 
 const FETCH_MS = 30000;
 const PUSH_MS = 5 * 60 * 1000; // a pre-push hook may run checks

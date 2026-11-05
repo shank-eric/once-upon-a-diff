@@ -6,9 +6,9 @@
  * the story is approved, except on a storyless review, where the head the page shows is what it pushes. When GitHub protects the branch or requires pull requests, the box refuses and offers Create
  * pull request. The board's Ready to ship card opens this page with `#push=1` in its link, which opens the box.
  */
-import { html } from '/assets/protocol/domain/html.ts';
+import { html } from '/assets/domain/html.ts';
 import { setHtml } from '/assets/ui/dom.ts';
-import { plural, shortSha } from '/assets/protocol/domain/text.ts';
+import { plural, shortSha } from '/assets/domain/text.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { bridge, page, PARAMS } from '/assets/local/page.ts';
 import { html as vdom } from '/assets/preact.mjs';

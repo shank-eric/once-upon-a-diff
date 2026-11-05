@@ -9,7 +9,7 @@ const SRC = fileURLToPath(new URL('../src/', import.meta.url));
 const typeFiles = [
   'types.ts',
   ...readdirSync(SRC, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && entry.name !== 'domain')
+    .filter((entry) => entry.isDirectory())
     .flatMap((entry) =>
       readdirSync(path.join(SRC, entry.name))
         .filter((name) => /(^|-)types\.ts$/.test(name))

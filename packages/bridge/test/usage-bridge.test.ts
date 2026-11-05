@@ -8,7 +8,7 @@ import { createLocalStory } from '../src/services/stories/local-story.ts';
 import { pageKey, viewKey, boardKey } from '../src/services/pages/page-key.ts';
 import { UNPACKED_EXTENSION_ID } from '../src/services/config/settings.ts';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
-import { ACTIONS } from '@once-upon-a-diff/protocol/domain/usage-actions';
+import { ACTIONS } from '@once-upon-a-diff/domain/usage-actions';
 import { ROUTE_AREAS } from '../src/services/usage/areas.ts';
 import { UsageCounters } from '../src/services/usage/counters.ts';
 import { clearUsage } from '../src/adapters/stores/usage-file.ts';

@@ -18,7 +18,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { DEFAULT_PORT } from '@once-upon-a-diff/protocol/domain/bridge-port';
+import { DEFAULT_PORT } from '@once-upon-a-diff/domain/bridge-port';
 import { readJson, writeFileAtomic } from '../../adapters/stores/fs/json-file.ts';
 import type { ShipMode } from '@once-upon-a-diff/protocol/types';
 import { ownerOnly, ensureDir, restrictFile, copyFile } from '../../adapters/stores/fs/files.ts';

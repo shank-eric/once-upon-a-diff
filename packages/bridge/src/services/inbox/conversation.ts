@@ -21,7 +21,7 @@ import path from 'node:path';
 import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { updateJson } from '../../adapters/stores/fs/lock.ts';
 import { stateFile } from '../config/settings.ts';
-import { STORY_ID_RE } from '@once-upon-a-diff/protocol/domain/patterns';
+import { STORY_ID_RE } from '@once-upon-a-diff/domain/patterns';
 import { listeners, type Listener } from '../listeners/listeners.ts';
 import type { Inbox } from './inbox.ts';
 

@@ -10,7 +10,7 @@
  * compare page, on the reviewer's click (local/ship/pull-request.ts). This module draws the page, handles its clicks, and
  * follows the story and the commits.
  */
-import { html } from '/assets/protocol/domain/html.ts';
+import { html } from '/assets/domain/html.ts';
 import { setHtml } from '/assets/ui/dom.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { page, bridge, PARAMS, OPEN_PUSH, usage } from '/assets/local/page.ts';

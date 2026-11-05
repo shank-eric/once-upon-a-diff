@@ -8,13 +8,13 @@
  * placePills and pillMarker have no DOM, so node tests can use them. The story's text is built as a string
  * (markdown.js), so the html`` markup pill() and refAttrs() return turns into its string there.
  */
-import { html, raw } from '@once-upon-a-diff/protocol/domain/html';
+import { html, raw } from '@once-upon-a-diff/domain/html';
 import { markViewedButton } from './viewed-button.ts';
-import type { LineRef } from '@once-upon-a-diff/protocol/domain/line-refs';
-import type { Html } from '@once-upon-a-diff/protocol/domain/html';
+import type { LineRef } from '@once-upon-a-diff/domain/line-refs';
+import type { Html } from '@once-upon-a-diff/domain/html';
 import type { ChapterRef } from '@once-upon-a-diff/protocol/types';
 import type { PanelContext } from '../host/context.ts';
-import { toSide } from '@once-upon-a-diff/protocol/domain/line-refs';
+import { toSide } from '@once-upon-a-diff/domain/line-refs';
 
 // eslint-disable-next-line no-control-regex -- the placeholder markers are control characters on purpose
 const PILL_MARK = /\u0001(\d+)\u0001/g;

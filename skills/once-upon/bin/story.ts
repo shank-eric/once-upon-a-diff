@@ -41,7 +41,7 @@ import {
   uncoveredHunks,
   SMALL_FILE_LINES,
 } from '../../../packages/bridge/src/services/stories/hunk-coverage.ts';
-import { finishedInOf } from '../../../packages/protocol/src/domain/chapters.ts';
+import { finishedInOf } from '../../../packages/domain/src/chapters.ts';
 
 import type { DiffFile, UncoveredFile } from '../../../packages/protocol/src/types.ts';
 import type { Plan } from '../../../packages/bridge/src/services/stories/chapters.ts';

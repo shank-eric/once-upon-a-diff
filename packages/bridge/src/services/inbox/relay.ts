@@ -8,7 +8,7 @@ import { AgentRegistry } from '../ledger/registry.ts';
 import { StoryStore } from '../stories/store.ts';
 import { readMeta } from '../stories/meta.ts';
 import type { QuestionEntry } from './inbox.ts';
-import { formatLineRef } from '@once-upon-a-diff/protocol/domain/line-refs';
+import { formatLineRef } from '@once-upon-a-diff/domain/line-refs';
 
 /** The message for `agent` about this question. `cli` is how to run once-upon from a shell. */
 export function relayMessage(

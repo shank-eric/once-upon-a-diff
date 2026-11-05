@@ -6,7 +6,7 @@ import { execFile, execFileSync } from 'node:child_process';
 import { lookup } from 'node:dns/promises';
 import net from 'node:net';
 import { existsSync } from 'node:fs';
-import { collapse } from '@once-upon-a-diff/protocol/domain/text';
+import { collapse } from '@once-upon-a-diff/domain/text';
 
 /** Runs a command and resolves to its stdout, or null when it fails or runs past the limit. */
 export function run(

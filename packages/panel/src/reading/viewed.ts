@@ -13,7 +13,7 @@
  * change, in bulk or for any other file.
  */
 import { html } from '/assets/preact.mjs';
-import { baseName, capitalize, plural } from '@once-upon-a-diff/protocol/domain/text';
+import { baseName, capitalize, plural } from '@once-upon-a-diff/domain/text';
 import { markViewedNode } from '../components/mark-viewed-node.ts';
 import { viewedEarlyCheck } from './reading.ts';
 import type { VNode } from '@once-upon-a-diff/ui/parse-markup';

@@ -8,7 +8,7 @@
  * A mark lasts until its session clears it (`working --done`, or `fixed`), and expires when the session goes quiet:
  * no `working` call for MARK_FRESH_MS, or its listener (the wait of the same consumer) stopped beating.
  */
-import { STORY_ID_RE } from '@once-upon-a-diff/protocol/domain/patterns';
+import { STORY_ID_RE } from '@once-upon-a-diff/domain/patterns';
 import { listeners } from '../listeners/listeners.ts';
 import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { stateFile } from '../config/settings.ts';

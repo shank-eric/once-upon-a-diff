@@ -27,7 +27,7 @@ import {
   type FileBlock,
   type TreeRow,
 } from '@once-upon-a-diff/panel/host/diff-types';
-import type { Side } from '@once-upon-a-diff/protocol/types';
+import type { Side } from '@once-upon-a-diff/domain/line-refs';
 
 /** A page control the panel may click. */
 type Clickable = HTMLElement;

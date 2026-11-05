@@ -11,7 +11,7 @@ import { STALE_MS, beatOf } from '../../ledger/events.ts';
 import type { LiveSession } from '../../../adapters/claude-sessions/live-sessions.ts';
 import type { BoardAgentEditor, BoardBeat, BoardEditor } from '@once-upon-a-diff/protocol/types';
 import { laneOf } from './lanes.ts';
-import { sameLaneKey, shortLane } from '@once-upon-a-diff/protocol/domain/lane-key';
+import { sameLaneKey, shortLane } from '@once-upon-a-diff/domain/lane-key';
 
 const OPEN = ['running', 'waiting', 'plan', 'fixing'];
 

@@ -9,7 +9,7 @@
 import { html } from '/assets/preact.mjs';
 import { Banner } from '@once-upon-a-diff/ui/banner';
 import { Busy } from '@once-upon-a-diff/ui/busy';
-import { plural, shortSha } from '@once-upon-a-diff/protocol/domain/text';
+import { plural, shortSha } from '@once-upon-a-diff/domain/text';
 import { rangeStepOf, rangeUrl, requestLine } from './freshness.ts';
 import type { PanelContext } from '../host/context.ts';
 import type { Chapter, Freshness, StoryRequest } from '@once-upon-a-diff/protocol/types';

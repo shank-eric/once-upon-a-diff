@@ -6,7 +6,7 @@ const { document } = installDom({
   html: '<!doctype html><html><body><div id="app"></div></body></html>',
   rootId: 'app',
 });
-const { html } = await import('@once-upon-a-diff/protocol/domain/html');
+const { html } = await import('@once-upon-a-diff/domain/html');
 const { insertHtml, setHtml, stylesheetLink } = await import('../src/dom.ts');
 
 test('setHtml puts html`` markup in as is, and a plain string as text', () => {

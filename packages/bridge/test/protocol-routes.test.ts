@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import {
   tmp,
   githubStory,
@@ -384,7 +385,7 @@ test('a bad body is refused before anything is stored', async () => {
   }
 });
 
-test('the bridge serves the route table (each area route file), the patterns and the api-client as JavaScript with no valibot, and never the schemas or the types', async () => {
+test('the bridge serves the route table (each area route file) and the api-client as JavaScript with no valibot, and never the schemas or the types', async () => {
   const bridge = await startBridge({ home: tmp('home') });
   try {
     const served: Record<string, string> = {};
@@ -395,7 +396,6 @@ test('the bridge serves the route table (each area route file), the patterns and
       'github/routes',
       'board/routes',
       'story/routes',
-      'domain/patterns',
     ]) {
       const response = await bridge.call('GET', `/assets/protocol/${name}.ts`, undefined, {
         Authorization: '',
@@ -424,9 +424,9 @@ test('the bridge serves the route table (each area route file), the patterns and
       'story/schemas',
       'story/types',
       'board/card-types',
-      'domain/routes',
+      'domain/patterns',
+      'domain/html',
       'nope',
-      'domain/other',
     ]) {
       const response = await bridge.call('GET', `/assets/protocol/${name}.ts`, undefined, {
         Authorization: '',
@@ -449,7 +449,7 @@ test('the bridge serves the route table (each area route file), the patterns and
           (specifier) =>
             [
               '/assets/protocol/routes.ts',
-              '/assets/protocol/domain/error-code.ts',
+              '/assets/domain/error-code.ts',
               '/assets/preact.mjs',
             ].includes(specifier) || specifier.startsWith('./'),
         ),
@@ -471,6 +471,34 @@ test('the bridge serves the route table (each area route file), the patterns and
     }
     const routes = await import(path.join(dir, 'protocol', 'routes.ts'));
     assert.equal(routes.ROUTES.story.path, '/api/stories/:id');
+  } finally {
+    await bridge.close();
+  }
+});
+
+test('the bridge serves every module of the domain package as JavaScript with no package specifier, and not at the protocol’s old URLs', async () => {
+  const bridge = await startBridge({ home: tmp('home') });
+  try {
+    const src = fileURLToPath(new URL('../../domain/src/', import.meta.url));
+    const names = readdirSync(src)
+      .filter((name) => name.endsWith('.ts'))
+      .map((name) => name.slice(0, -3));
+    assert.ok(names.length >= 15, names.join());
+    for (const name of names) {
+      const response = await bridge.call('GET', `/assets/domain/${name}.ts`, undefined, {
+        Authorization: '',
+      });
+      assert.equal(response.status, 200, name);
+      assert.match(response.headers.get('content-type') || '', /javascript/);
+      assert.ok(!response.text.includes('@once-upon-a-diff/'), `${name} names a package`);
+      assert.ok(!/(^|\n)\s*(import|export)\b[^;]*\bfrom\s/.test(response.text), `${name} imports`);
+    }
+    for (const name of ['nope.ts', 'sub/html.ts', 'html.js']) {
+      const response = await bridge.call('GET', `/assets/domain/${name}`, undefined, {
+        Authorization: '',
+      });
+      assert.notEqual(response.status, 200, name);
+    }
   } finally {
     await bridge.close();
   }

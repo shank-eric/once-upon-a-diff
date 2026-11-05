@@ -8,7 +8,7 @@
  */
 import { html, render, useEffect, useMemo, useState } from '/assets/preact.mjs';
 import { Dialog } from '/assets/ui/dialog.ts';
-import { shortSha } from '/assets/protocol/domain/text.ts';
+import { shortSha } from '/assets/domain/text.ts';
 
 /** What a read-only link is told in place of the box: it can read the story but not push. */
 export interface Refusal {

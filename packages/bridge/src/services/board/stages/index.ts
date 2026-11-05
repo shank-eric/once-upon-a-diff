@@ -48,7 +48,7 @@ import { buildCards, placeCards } from './cards.ts';
 import type { CardFacts } from './cards.ts';
 import { isStandingHelper, standingHelpers } from './helpers.ts';
 import { groupLanes } from './lanes.ts';
-import { laneLabels, resolveLane } from '@once-upon-a-diff/protocol/domain/lane-key';
+import { laneLabels, resolveLane } from '@once-upon-a-diff/domain/lane-key';
 import { markListening } from './listeners.ts';
 import { placeSessions, readLive, readSessionFacts } from './sessions.ts';
 import { blankStrip, voiceOf } from './strips.ts';

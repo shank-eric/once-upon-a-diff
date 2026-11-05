@@ -25,7 +25,7 @@ import { runCommand } from '../../adapters/os.ts';
 import type { JudgeContext, WorktreeFacts, WorktreeScanner } from './worktrees.ts';
 import type { RunResult, Runner } from '../../adapters/os.ts';
 import { ensureDir, appendText } from '../../adapters/stores/fs/files.ts';
-import { shortSha } from '@once-upon-a-diff/protocol/domain/text';
+import { shortSha } from '@once-upon-a-diff/domain/text';
 
 /** `git worktree remove` deletes node_modules too, which can take minutes: a kill partway leaves half a folder, so the limit is long. */
 const REMOVE_MS = 30 * 60 * 1000;

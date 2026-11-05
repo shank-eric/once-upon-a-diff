@@ -15,15 +15,15 @@
  *
  * What a tag says and does, as data: no DOM, no Preact and no chrome.* here, so node can test it. components/story-tag.ts draws it.
  */
-import { plural, shortSha } from '@once-upon-a-diff/protocol/domain/text';
-import { clockTime } from '@once-upon-a-diff/protocol/domain/time';
+import { plural, shortSha } from '@once-upon-a-diff/domain/text';
+import { clockTime } from '@once-upon-a-diff/domain/time';
 import type {
   Listening,
   PrRef,
   BuildRequestView,
   StoryStatus,
 } from '@once-upon-a-diff/protocol/types';
-import { prUrl } from '@once-upon-a-diff/protocol/domain/github-urls';
+import { prUrl } from '@once-upon-a-diff/domain/github-urls';
 
 export type { PrRef, BuildRequestView, StoryStatus };
 

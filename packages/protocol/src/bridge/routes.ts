@@ -3,7 +3,7 @@
  * here runs valibot: a body's type comes from the schemas by `import type`, which is erased.
  */
 import { api, type In } from '../route-kit.ts';
-import type { UsageAnswer } from '../domain/usage-actions.ts';
+import type { UsageAnswer } from '@once-upon-a-diff/domain/usage-actions';
 import type {
   BridgeStatus,
   BuildRequestView,

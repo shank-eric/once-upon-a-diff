@@ -5,9 +5,9 @@
  *
  * Node tests use these.
  */
-import { sameSha } from '@once-upon-a-diff/protocol/domain/text';
-import { clockTime, minutesSince } from '@once-upon-a-diff/protocol/domain/time';
-import { rangeOfPath } from '@once-upon-a-diff/protocol/domain/pr-key';
+import { sameSha } from '@once-upon-a-diff/domain/text';
+import { clockTime, minutesSince } from '@once-upon-a-diff/domain/time';
+import { rangeOfPath } from '@once-upon-a-diff/domain/pr-key';
 import type { StoryRequest } from '@once-upon-a-diff/protocol/types';
 
 export { rangeOfPath };

@@ -1,6 +1,6 @@
 /** An agent's line on a card (its mark, where it stands, its notes path), and the marks the Editors strip shares. */
 import { html } from '/assets/preact.mjs';
-import { compactAge } from '/assets/protocol/domain/time.ts';
+import { compactAge } from '/assets/domain/time.ts';
 import type { BoardAgent } from '/assets/types.ts';
 import { SessionLink, type Api } from '/assets/board/shared.ts';
 import { CopyButton } from '/assets/ui/copy-button.ts';

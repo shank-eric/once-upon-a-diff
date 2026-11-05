@@ -25,8 +25,8 @@
  */
 import { Fragment, html } from '/assets/preact.mjs';
 import { LinkButton } from '@once-upon-a-diff/ui/link-button';
-import { baseName, plural } from '@once-upon-a-diff/protocol/domain/text';
-import { clockTime, shortDateTime } from '@once-upon-a-diff/protocol/domain/time';
+import { baseName, plural } from '@once-upon-a-diff/domain/text';
+import { clockTime, shortDateTime } from '@once-upon-a-diff/domain/time';
 import type { PanelContext } from '../host/context.ts';
 import type {
   Question,

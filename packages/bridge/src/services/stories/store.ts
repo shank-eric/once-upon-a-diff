@@ -16,7 +16,7 @@ import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts
 import { readIndex } from './placement.ts';
 import { stateFile } from '../config/settings.ts';
 import { isStoryDir, readMeta, storyVersion } from './meta.ts';
-import { STORY_ID_RE } from '@once-upon-a-diff/protocol/domain/patterns';
+import { STORY_ID_RE } from '@once-upon-a-diff/domain/patterns';
 import { storyData } from './story-data.ts';
 import type { StoryData } from '@once-upon-a-diff/protocol/types';
 

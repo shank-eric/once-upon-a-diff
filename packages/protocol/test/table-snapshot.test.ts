@@ -31,7 +31,7 @@ test('the body schemas are the same, in the same order, as before the split', ()
   }
 });
 
-test('no file in the protocol is over 400 lines, except the domain', () => {
+test('no file in the protocol is over 400 lines', () => {
   const SRC = fileURLToPath(new URL('../src/', import.meta.url));
   const walk = (dir: string): string[] =>
     readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
@@ -39,9 +39,6 @@ test('no file in the protocol is over 400 lines, except the domain', () => {
     );
   for (const file of walk(SRC)) {
     const name = path.relative(SRC, file);
-    if (name.startsWith('domain/')) {
-      continue;
-    }
     const lines = readFileSync(file, 'utf8').split('\n').length;
     assert.ok(lines <= 400, `${name} is ${lines} lines`);
   }

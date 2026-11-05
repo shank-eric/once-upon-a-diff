@@ -38,7 +38,7 @@ const MARKUP = new RegExp(
     String.raw`\binsertHtml\b`,
     String.raw`\.(innerHTML|outerHTML)\b`,
     String.raw`\.insertAdjacentHTML\b`,
-    String.raw`protocol/domain/html`,
+    String.raw`domain/html`,
     String.raw`\.markup\b`,
   ].join('|'),
 );
@@ -74,7 +74,7 @@ test('every way of building markup from a string is matched, and Preact’s html
     'el.innerHTML = x',
     'const x = el.outerHTML',
     'el.insertAdjacentHTML("beforeend", x)',
-    "import { html } from '@once-upon-a-diff/protocol/domain/html';",
+    "import { html } from '@once-upon-a-diff/domain/html';",
     'String(markup) === html`<b></b>`.markup',
   ];
   for (const line of strings) {

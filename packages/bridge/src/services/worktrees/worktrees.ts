@@ -29,7 +29,7 @@ import type { BoardWorktree } from '@once-upon-a-diff/protocol/types';
 import { type RunResult, type Runner, runCommand } from '../../adapters/os.ts';
 import { gitVia } from '../../adapters/git.ts';
 import { ensureDir } from '../../adapters/stores/fs/files.ts';
-import { repoName } from '@once-upon-a-diff/protocol/domain/text';
+import { repoName } from '@once-upon-a-diff/domain/text';
 
 /** One linked or main worktree as `git worktree list --porcelain` gives it. */
 export interface WorktreeEntry {

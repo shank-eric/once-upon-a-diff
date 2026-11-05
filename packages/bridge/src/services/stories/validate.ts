@@ -12,8 +12,8 @@
  * chapterProblems lists what is wrong, one line each. A chapter with no `refs` that is exactly the one already published
  * (a rebuild keeps chapters 1..N-1 byte for byte) is accepted: it is read as an older story's.
  */
-import { chapterKeyOf } from '@once-upon-a-diff/protocol/domain/chapters';
-import { REF_ID, refIdsIn } from '@once-upon-a-diff/protocol/domain/line-refs';
+import { chapterKeyOf } from '@once-upon-a-diff/domain/chapters';
+import { REF_ID, refIdsIn } from '@once-upon-a-diff/domain/line-refs';
 import { textOf } from './text-refs.ts';
 import { refOf } from './chapters.ts';
 import type { ChapterRef, DiffFile } from '@once-upon-a-diff/protocol/types';

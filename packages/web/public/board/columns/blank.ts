@@ -2,7 +2,7 @@
 import { html } from '/assets/preact.mjs';
 import { openMenu } from '/assets/ui/menu.ts';
 import type { BoardBlankSession, BoardData } from '/assets/types.ts';
-import { compactAge } from '/assets/protocol/domain/time.ts';
+import { compactAge } from '/assets/domain/time.ts';
 import { FocusButton, useFocus, type Api } from '/assets/board/shared.ts';
 
 /** One place's chip in the Blank strip: a session's tab to the front, or for several in one place a menu of them. */

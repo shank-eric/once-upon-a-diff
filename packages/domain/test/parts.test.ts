@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { parsePartsFile, partOf, storyPartsOf, touchedParts } from '../src/domain/parts.ts';
+import { parsePartsFile, partOf, storyPartsOf, touchedParts } from '../src/parts.ts';
 
 const file = parsePartsFile({
   version: 1,

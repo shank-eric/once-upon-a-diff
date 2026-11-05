@@ -16,7 +16,7 @@
  *            packages/bridge/instrumentation (the usage probe the entry shims preload: outside the layers)
  *   web      packages/web/public (the pages, an app)
  *   extension packages/extension/src (an app)
- *   panel, host-github, api-client, ui, protocol (+ protocol/src/domain), test-kit
+ *   panel, host-github, api-client, ui, protocol, domain (imports nothing), test-kit
  */
 
 import { fileURLToPath } from 'node:url';
@@ -34,12 +34,12 @@ const HOST = '^packages/host-github/';
 const API_CLIENT = '^packages/api-client/';
 const UI_PKG = '^packages/ui/';
 const PROTOCOL = '^packages/protocol/';
-const DOMAIN = '^packages/protocol/src/domain/';
+const DOMAIN = '^packages/domain/';
 const TEST_KIT = '^packages/test-kit/';
 const INSTRUMENTATION = '^packages/bridge/instrumentation/';
 
 // code that ships to a browser (no Node built-ins)
-const BROWSER = `^packages/(panel|host-github|api-client|ui|protocol|extension/src)/|${WEB}`;
+const BROWSER = `^packages/(panel|host-github|api-client|ui|protocol|domain|extension/src)/|${WEB}`;
 
 const rule = (name, comment, importer, imported) => ({
   name,
@@ -170,7 +170,7 @@ export default {
       'bridge-is-server-only',
       'the bridge is server code: only the server and Node tests import it',
       {
-        path: `${WEB}|${EXTENSION}|${PANEL}|${HOST}|${API_CLIENT}|${UI_PKG}|${PROTOCOL}|${TEST_KIT}`,
+        path: `${WEB}|${EXTENSION}|${PANEL}|${HOST}|${API_CLIENT}|${UI_PKG}|${PROTOCOL}|${DOMAIN}|${TEST_KIT}`,
       },
       { path: BRIDGE },
     ),
@@ -184,7 +184,7 @@ export default {
     ),
     rule(
       'protocol-is-bottom',
-      'the protocol is the bottom of the client and server: it imports no other package of this repo',
+      'the protocol is the bottom of the client and server: it imports no other package of this repo but the domain',
       { path: PROTOCOL },
       {
         path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${HOST}|${API_CLIENT}|${UI_PKG}|${TEST_KIT}`,
@@ -192,13 +192,13 @@ export default {
     ),
     rule(
       'protocol-names-itself-by-path',
-      'the protocol names its own files by relative path: by name it imports valibot only',
+      'the protocol names its own files by relative path: by name it imports valibot and the domain only',
       { path: PROTOCOL },
       { path: PROTOCOL, dependencyTypesNot: ['local'] },
     ),
     rule(
       'protocol-imports-only-valibot',
-      'the protocol imports nothing but itself and valibot (an npm package or an unresolved import is refused)',
+      'the protocol imports nothing but itself, the domain and valibot (an npm package or an unresolved import is refused)',
       { path: PROTOCOL },
       {
         dependencyTypes: [
@@ -214,19 +214,19 @@ export default {
     ),
     rule(
       'protocol-no-unresolved',
-      'the protocol imports nothing but itself and valibot: an import that resolves to nothing is refused',
+      'the protocol imports nothing but itself, the domain and valibot: an import that resolves to nothing is refused',
       { path: PROTOCOL },
       { couldNotResolve: true },
     ),
     rule(
       'domain-imports-nothing',
-      'the domain is pure rules: it imports nothing, not even the rest of the protocol',
+      'the domain package is pure rules: it imports nothing, not another package of this repo, not npm, not even one of its own files by name',
       { path: DOMAIN },
       {},
     ),
     rule(
       'api-client-below-panel-and-pages',
-      'the api-client imports the protocol and nothing else of this repo',
+      'the api-client imports the protocol and the domain and nothing else of this repo',
       { path: API_CLIENT },
       {
         path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${HOST}|${UI_PKG}|${TEST_KIT}`,
@@ -235,7 +235,7 @@ export default {
     ),
     rule(
       'ui-below-panel-and-pages',
-      'ui sits below the panel, the pages and the extension: it imports the protocol and the vendored Preact, never an app, the server, the panel, a host adapter or the api-client',
+      'ui sits below the panel, the pages and the extension: it imports the protocol, the domain and the vendored Preact, never an app, the server, the panel, a host adapter or the api-client',
       { path: UI_PKG },
       {
         path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${HOST}|${API_CLIENT}|${TEST_KIT}`,

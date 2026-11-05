@@ -4,7 +4,7 @@
  */
 import { mergeSummary } from './merge-rules.ts';
 import type { PrInfo } from '@once-upon-a-diff/protocol/types';
-import { prUrl } from '@once-upon-a-diff/protocol/domain/github-urls';
+import { prUrl } from '@once-upon-a-diff/domain/github-urls';
 
 interface Who {
   login: string;

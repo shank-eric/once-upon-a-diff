@@ -4,7 +4,7 @@
  *
  * Node tests use these.
  */
-import { clockTime } from '@once-upon-a-diff/protocol/domain/time';
+import { clockTime } from '@once-upon-a-diff/domain/time';
 import type { RebuildAsk, RebuildView } from '@once-upon-a-diff/protocol/types';
 
 /** How long the panel says a rebuild finished, after it did. */

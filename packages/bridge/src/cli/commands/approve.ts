@@ -14,7 +14,7 @@ import { out } from '../output.ts';
 import type { Config } from '../../services/config/settings.ts';
 import type { CliOpts, Command } from '../types.ts';
 import type { LocalMeta } from '../../services/stories/types.ts';
-import { shortSha } from '@once-upon-a-diff/protocol/domain/text';
+import { shortSha } from '@once-upon-a-diff/domain/text';
 
 const USAGE = 'usage: once-upon approve ID [--undo]';
 

@@ -6,7 +6,7 @@
  * The board's card for the PR opens this page with `#push=1`, which opens the box.
  */
 import { html } from '/assets/preact.mjs';
-import { plural } from '/assets/protocol/domain/text.ts';
+import { plural } from '/assets/domain/text.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { bridge, page, PARAMS } from '/assets/local/page.ts';
 import { CommitList, openActionDialog } from './action-dialog.ts';

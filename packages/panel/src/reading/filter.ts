@@ -5,7 +5,7 @@
  * jump to a file outside the chapter steps on to the next file in it.
  */
 import { html } from '/assets/preact.mjs';
-import { baseName, capitalize } from '@once-upon-a-diff/protocol/domain/text';
+import { baseName, capitalize } from '@once-upon-a-diff/domain/text';
 import type { PanelContext } from '../host/context.ts';
 import type { Chapter } from '@once-upon-a-diff/protocol/types';
 

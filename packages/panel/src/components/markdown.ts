@@ -4,7 +4,7 @@
  * is raw() markup for html`` to take.
  */
 import { createMarkdown as createUiMarkdown } from '@once-upon-a-diff/ui/markdown';
-import { parseDiffLink, refLinkId } from '@once-upon-a-diff/protocol/domain/line-refs';
+import { parseDiffLink, refLinkId } from '@once-upon-a-diff/domain/line-refs';
 import { refAttrs } from './file-refs.ts';
 import type { MarkdownLink } from '@once-upon-a-diff/ui/markdown';
 import type { PanelContext } from '../host/context.ts';

@@ -3,11 +3,8 @@
  * and what a story page is sent (StoryData). Types only: nothing here runs.
  */
 
-import type { Side } from '../domain/line-refs.ts';
-import type { StoryParts } from '../domain/parts.ts';
-
-/** A side of a file's diff: 'L' the old lines, 'R' the new (the domain's, which line-ref parsing also names). */
-export type { Side };
+import type { Side } from '@once-upon-a-diff/domain/line-refs';
+import type { StoryParts } from '@once-upon-a-diff/domain/parts';
 
 /** Lines on one side of a file's diff. */
 export interface LineSpan {

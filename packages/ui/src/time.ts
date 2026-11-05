@@ -2,7 +2,7 @@
  * Time as text for the board and the panel, over the protocol's `compactAge`: how long ago something was, how long a
  * session has been on a question.
  */
-import { compactAge } from '@once-upon-a-diff/protocol/domain/time';
+import { compactAge } from '@once-upon-a-diff/domain/time';
 
 /** 0:42, 12:03 or 1:02:03: how long a session has been on a question. */
 export function elapsedText(millis: number): string {

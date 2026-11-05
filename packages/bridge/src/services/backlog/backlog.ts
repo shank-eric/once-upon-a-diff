@@ -35,8 +35,8 @@ import {
   CARD_BRANCH_RE,
   SESSION_RE,
   SID_RE,
-} from '@once-upon-a-diff/protocol/domain/patterns';
-import { SHA_RE, repoName } from '@once-upon-a-diff/protocol/domain/text';
+} from '@once-upon-a-diff/domain/patterns';
+import { SHA_RE, repoName } from '@once-upon-a-diff/domain/text';
 import { jsonLines } from '../../adapters/stores/fs/jsonl.ts';
 import { appendBacklogEvent, readBacklogFile } from '../../adapters/stores/backlog-file.ts';
 import path from 'node:path';

@@ -9,7 +9,7 @@
  */
 import { html } from '/assets/preact.mjs';
 import { Banner } from '@once-upon-a-diff/ui/banner';
-import { shortDateTime } from '@once-upon-a-diff/protocol/domain/time';
+import { shortDateTime } from '@once-upon-a-diff/domain/time';
 import type { LineRanges, WorkingMark } from '@once-upon-a-diff/protocol/types';
 import type { PanelContext } from '../host/context.ts';
 

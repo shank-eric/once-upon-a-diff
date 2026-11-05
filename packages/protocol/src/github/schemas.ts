@@ -15,7 +15,7 @@ import {
   string,
   type GenericSchema,
 } from 'valibot';
-import { BRANCH_RE, REPO_RE } from '../domain/patterns.ts';
+import { BRANCH_RE, REPO_RE } from '@once-upon-a-diff/domain/patterns';
 
 /** What the extension saw you do on a GitHub page (a refresh's reason, for the bridge's log line). */
 export const GITHUB_REFRESH_REASONS = ['review', 'open', 'merge', 'ready', 'close'] as const;

@@ -6,9 +6,6 @@
  * nothing here runs.
  */
 
-export type { ErrorCode } from './domain/error-code.ts';
-export type { StoryPart, StoryParts } from './domain/parts.ts';
-
 export type * from './board/agent-types.ts';
 export type * from './board/card-types.ts';
 export type * from './board/types.ts';

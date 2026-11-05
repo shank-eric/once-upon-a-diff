@@ -5,13 +5,13 @@
  */
 import { chapterNumbers } from '/assets/panel/shell/overlay.ts';
 import { claimsOf, narrowRows } from './narrow.ts';
-import { html } from '/assets/protocol/domain/html.ts';
+import { html } from '/assets/domain/html.ts';
 import { insertHtml } from '/assets/ui/dom.ts';
-import { plural } from '/assets/protocol/domain/text.ts';
+import { plural } from '/assets/domain/text.ts';
 import { page } from '/assets/local/page.ts';
 import { columnCount } from './diff-view.ts';
 import type { NarrowRow } from './narrow.ts';
-import type { Side } from '/assets/types.ts';
+import type { Side } from '/assets/domain/line-refs.ts';
 
 let narrowedFor: string | null = null; // the step the tables are narrowed for; a redraw clears it
 /** A redraw draws new tables, so the next filter pass narrows them again. */

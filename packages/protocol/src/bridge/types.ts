@@ -3,7 +3,7 @@
  * statuses and the small acknowledgements. Types only: nothing here runs.
  */
 
-import type { ErrorCode } from '../domain/error-code.ts';
+import type { ErrorCode } from '@once-upon-a-diff/domain/error-code';
 
 /** A built local story: a branch's story before any PR. The board's Open story goes to its local page, Mark reviewed ticks it off. */
 export interface InboxLocalStory {

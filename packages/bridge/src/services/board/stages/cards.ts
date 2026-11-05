@@ -10,13 +10,13 @@ import type {
   PrInfo,
   ShipMode,
 } from '@once-upon-a-diff/protocol/types';
-import { gateText } from '@once-upon-a-diff/protocol/domain/text';
+import { gateText } from '@once-upon-a-diff/domain/text';
 import type { LiveSession } from '../../../adapters/claude-sessions/live-sessions.ts';
 import { laneOf } from './lanes.ts';
 import { MERGED_HOURS } from './works.ts';
 import { NO_PARENT } from './agents.ts';
 import type { BuildContext, SessionView, StoryFacts, Work } from './types.ts';
-import { prUrl } from '@once-upon-a-diff/protocol/domain/github-urls';
+import { prUrl } from '@once-upon-a-diff/domain/github-urls';
 
 /** A card for a session that is not on a branch of its own. */
 export function sessionCard(

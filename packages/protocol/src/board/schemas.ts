@@ -15,7 +15,7 @@ import {
   type GenericSchema,
 } from 'valibot';
 import { sessionId, names } from '../schema-kit.ts';
-import { BACKLOG_ID_RE } from '../domain/patterns.ts';
+import { BACKLOG_ID_RE } from '@once-upon-a-diff/domain/patterns';
 
 const MOVE_NEEDS = 'before (an item id) or edge (top or bottom) is needed';
 

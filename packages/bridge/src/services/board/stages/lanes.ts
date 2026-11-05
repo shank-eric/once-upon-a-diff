@@ -1,5 +1,5 @@
 import type { BoardCard } from '@once-upon-a-diff/protocol/types';
-import { laneLabels } from '@once-upon-a-diff/protocol/domain/lane-key';
+import { laneLabels } from '@once-upon-a-diff/domain/lane-key';
 import path from 'node:path';
 
 /**

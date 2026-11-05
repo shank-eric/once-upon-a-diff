@@ -1,13 +1,13 @@
 /*
- * The parts strip, "you are here": the repo's named parts (protocol/src/domain/parts.ts), a row for each group, with the ones a
+ * The parts strip, "you are here": the repo's named parts (domain/src/parts.ts), a row for each group, with the ones a
  * step touches lit. A lit part says so by a mark (●, an unlit one has ○), a heavier border and weight, never by colour alone,
  * and in words for a screen reader. In a chapter a group with nothing lit folds into one "Not touched" line; the Overview
  * (`counts`) shows every group, with how many files each lit part holds. Styled by ui.css (`ou-ui-parts*`). It takes plain
  * data and knows nothing of stories, so the panel and the pages can both draw it.
  */
 import { html } from '/assets/preact.mjs';
-import type { StoryParts } from '@once-upon-a-diff/protocol/domain/parts';
-import { plural } from '@once-upon-a-diff/protocol/domain/text';
+import type { StoryParts } from '@once-upon-a-diff/domain/parts';
+import { plural } from '@once-upon-a-diff/domain/text';
 
 /** The strip for the parts `touched` (ids). With `counts` (part id: files) it is the whole story's, and every group shows. Nothing touched: nothing drawn. */
 export function PartsStrip(props: {

@@ -5,7 +5,7 @@
  * host asks, as the tab is hidden); a batch that did not get through is kept for the next one, and when the bridge says
  * the capture is off the counter stops. This file does no I/O of its own: `send` is the host's call to the bridge.
  */
-import type { ActionName, UsageAnswer } from '@once-upon-a-diff/protocol/domain/usage-actions';
+import type { ActionName, UsageAnswer } from '@once-upon-a-diff/domain/usage-actions';
 
 /** Sends a batch; resolves to the bridge's answer, or null when it did not get there. */
 export type SendCounts = (counts: Record<string, number>) => Promise<UsageAnswer | null>;

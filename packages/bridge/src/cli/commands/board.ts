@@ -8,7 +8,7 @@ import { boardPageUrl } from '../../services/pages/page-key.ts';
 import { Board, noPrWatcher } from '../../services/board/board.ts';
 import { StoryStore } from '../../services/stories/store.ts';
 import { Builds } from '../../services/inbox/builds.ts';
-import { plural } from '@once-upon-a-diff/protocol/domain/text';
+import { plural } from '@once-upon-a-diff/domain/text';
 import { out } from '../output.ts';
 import type { Config } from '../../services/config/settings.ts';
 import type { CliOpts, Command } from '../types.ts';

@@ -24,8 +24,7 @@ test('the out-of-date tag offers Update (new commits) and Re-tell from scratch',
 });
 
 test('"Since you read it" chapters finish their files and are not numbered', async () => {
-  const { finishedInOf, chapterNumbers } =
-    await import('@once-upon-a-diff/protocol/domain/chapters');
+  const { finishedInOf, chapterNumbers } = await import('@once-upon-a-diff/domain/chapters');
   const chapters = [
     {
       title: 'Since you read it: 1 new commit',

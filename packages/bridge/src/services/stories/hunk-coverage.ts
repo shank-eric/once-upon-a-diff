@@ -25,10 +25,10 @@ import type {
   DiffFile,
   DiffHunk,
   LineSpan,
-  Side,
   UncoveredFile,
 } from '@once-upon-a-diff/protocol/types';
-import { formatLineRef, toSide } from '@once-upon-a-diff/protocol/domain/line-refs';
+import type { Side } from '@once-upon-a-diff/domain/line-refs';
+import { formatLineRef, toSide } from '@once-upon-a-diff/domain/line-refs';
 
 export const SMALL_FILE_LINES = 40;
 const LOCKFILES =

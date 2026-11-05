@@ -9,12 +9,12 @@
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { REPO_RE } from '@once-upon-a-diff/protocol/domain/patterns';
+import { REPO_RE } from '@once-upon-a-diff/domain/patterns';
 import { readSettings } from './settings.ts';
 import { runGitAsync, remoteUrl, topLevel, branchName } from '../../adapters/git.ts';
 import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { ensureDir } from '../../adapters/stores/fs/files.ts';
-import { baseName } from '@once-upon-a-diff/protocol/domain/text';
+import { baseName } from '@once-upon-a-diff/domain/text';
 
 export { REPO_RE };
 export const sameRepo = (first: unknown, second: unknown): boolean =>

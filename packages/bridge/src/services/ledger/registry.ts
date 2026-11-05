@@ -10,8 +10,8 @@ import {
   AGENT_NAME_RE,
   CARD_BRANCH_RE,
   SID_RE,
-} from '@once-upon-a-diff/protocol/domain/patterns';
-import { SHA_RE } from '@once-upon-a-diff/protocol/domain/text';
+} from '@once-upon-a-diff/domain/patterns';
+import { SHA_RE } from '@once-upon-a-diff/domain/text';
 import { REPO_RE } from '../config/repos.ts';
 import { appendAgentEvent, readAgentsFile } from '../../adapters/stores/agents-file.ts';
 import { appendLine } from '../../adapters/stores/fs/lines.ts';

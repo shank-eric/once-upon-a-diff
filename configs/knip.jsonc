@@ -14,6 +14,7 @@
       // false positive, but it also hides a genuinely unused entry, so drop one here if a page stops using it
       "ignoreDependencies": [
         "@once-upon-a-diff/api-client",
+        "@once-upon-a-diff/domain",
         "@once-upon-a-diff/host-github",
         "@once-upon-a-diff/panel",
       ],

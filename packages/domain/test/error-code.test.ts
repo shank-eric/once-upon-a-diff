@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ERROR_CODES, codeOfStatus, hasCode, replyCode } from '../src/domain/error-code.ts';
+import { ERROR_CODES, codeOfStatus, hasCode, replyCode } from '../src/error-code.ts';
 
 test('every status the bridge answers with maps to a code, and every code but no_route is some status’s', () => {
   const table: [number, string][] = [

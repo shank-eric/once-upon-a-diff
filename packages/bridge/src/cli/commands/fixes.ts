@@ -12,7 +12,7 @@ import { clearMark, parseFiles, setMark } from '../../services/inbox/working.ts'
 import { storyIdOf } from './inbox.ts';
 import { out } from '../output.ts';
 import { given } from '../options.ts';
-import { plural } from '@once-upon-a-diff/protocol/domain/text';
+import { plural } from '@once-upon-a-diff/domain/text';
 import type { FixRequest } from '../../services/inbox/fixes.ts';
 import type { Config } from '../../services/config/settings.ts';
 import type { CliOpts, Command } from '../types.ts';

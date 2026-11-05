@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { OTHER_PART_ID, parsePartsFile, partOf } from '@once-upon-a-diff/protocol/domain/parts';
+import { OTHER_PART_ID, parsePartsFile, partOf } from '@once-upon-a-diff/domain/parts';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 

@@ -2,8 +2,8 @@
 import { html } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import type { BoardCard, BoardSession, PrInfo } from '/assets/types.ts';
-import { compactAge } from '/assets/protocol/domain/time.ts';
-import { gateText, plural, repoName } from '/assets/protocol/domain/text.ts';
+import { compactAge } from '/assets/domain/time.ts';
+import { gateText, plural, repoName } from '/assets/domain/text.ts';
 import {
   CardTrees,
   FocusButton,

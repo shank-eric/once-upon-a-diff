@@ -17,7 +17,7 @@ test('what a page loads from the api-client imports only the route table, the pr
     for (const specifier of loads) {
       assert.ok(
         specifier === '@once-upon-a-diff/protocol/routes' ||
-          specifier === '@once-upon-a-diff/protocol/domain/error-code' ||
+          specifier === '@once-upon-a-diff/domain/error-code' ||
           (specifier === '/assets/preact.mjs' && name === 'use-poll.ts') ||
           /^\.\/[a-z-]+\.ts$/.test(specifier),
         `${name} imports ${specifier} at runtime`,

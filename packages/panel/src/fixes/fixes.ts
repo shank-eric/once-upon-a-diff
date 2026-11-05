@@ -14,7 +14,7 @@
  *
  * This file has no DOM and no Preact (fixes-part.ts draws the box), so node tests can use fixSummary and takesNotes.
  */
-import { plural } from '@once-upon-a-diff/protocol/domain/text';
+import { plural } from '@once-upon-a-diff/domain/text';
 import type { FixNote, FixesView } from '@once-upon-a-diff/protocol/types';
 
 export type FixSummary = { drafts: number; send: string | null; counts: string };

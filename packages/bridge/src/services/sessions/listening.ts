@@ -25,7 +25,7 @@ import type {
   BoardReview,
   BoardSession,
 } from '@once-upon-a-diff/protocol/types';
-import { prUrl } from '@once-upon-a-diff/protocol/domain/github-urls';
+import { prUrl } from '@once-upon-a-diff/domain/github-urls';
 
 /** {pid: parent pid} for every process, from one `ps`. Empty when ps can't say. */
 export async function parentMap(): Promise<Map<number, number>> {

@@ -1,8 +1,8 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { prKey, rangeOfPath } from '../src/domain/pr-key.ts';
-import { laneLabels, resolveLane, sameLaneKey } from '../src/domain/lane-key.ts';
-import { escapeHtml, unescapeHtml, html, raw, Html } from '../src/domain/html.ts';
+import { prKey, rangeOfPath } from '../src/pr-key.ts';
+import { laneLabels, resolveLane, sameLaneKey } from '../src/lane-key.ts';
+import { escapeHtml, unescapeHtml, html, raw, Html } from '../src/html.ts';
 import {
   FULL_SHA_RE,
   SID_RE,
@@ -10,10 +10,10 @@ import {
   CARD_BRANCH_RE,
   BRANCH_RE,
   SESSION_RE,
-} from '../src/domain/patterns.ts';
-import { formatLineRef, parseLineRef, toSide } from '../src/domain/line-refs.ts';
-import { prUrl } from '../src/domain/github-urls.ts';
-import { fixStage, fixState } from '../src/domain/fix-notes.ts';
+} from '../src/patterns.ts';
+import { formatLineRef, parseLineRef, toSide } from '../src/line-refs.ts';
+import { prUrl } from '../src/github-urls.ts';
+import { fixStage, fixState } from '../src/fix-notes.ts';
 import {
   SHA_RE,
   shortSha,
@@ -23,8 +23,8 @@ import {
   capitalize,
   collapse,
   gateText,
-} from '../src/domain/text.ts';
-import { clockTime, compactAge, minutesSince, shortDateTime } from '../src/domain/time.ts';
+} from '../src/text.ts';
+import { clockTime, compactAge, minutesSince, shortDateTime } from '../src/time.ts';
 
 test('a PR key and a commit range in a PR diff URL', () => {
   assert.equal(prKey('Acme/Widgets', 7), 'acme/widgets#7');

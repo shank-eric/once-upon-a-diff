@@ -44,7 +44,7 @@ test('every import in the page scripts and the panel resolves to a served asset,
   assert.ok(seen.has('/assets/protocol/route-kit.ts'), 'the route factories are in the graph');
   assert.ok(seen.has('/assets/protocol/story/routes.ts'), 'the story routes are in the graph');
   assert.ok(seen.has('/assets/protocol/board/routes.ts'), 'the board routes are in the graph');
-  assert.ok(seen.has('/assets/protocol/domain/html.ts'), 'the domain is in the graph');
+  assert.ok(seen.has('/assets/domain/html.ts'), 'the domain is in the graph');
   assert.ok(seen.has('/assets/api-client/client.ts'), 'the typed client is in the graph');
   assert.ok(seen.has('/assets/api-client/use-poll.ts'), 'the board’s poll hook is in the graph');
   assert.ok(seen.has('/assets/api-client/poll.ts'), 'and the poll under it');
@@ -53,11 +53,11 @@ test('every import in the page scripts and the panel resolves to a served asset,
   assert.ok(seen.has('/assets/ui/listen.ts'), 'the board’s Start listening plan is in the graph');
 });
 
-test('forBrowser spells the panel, the protocol, the api-client, ui and the host adapter as the URLs they are served at', () => {
+test('forBrowser spells the panel, the protocol, the domain, the api-client, ui and the host adapter as the URLs they are served at', () => {
   assert.equal(
     forBrowser(
       [
-        `import { html } from '@once-upon-a-diff/protocol/domain/html';`,
+        `import { html } from '@once-upon-a-diff/domain/html';`,
         `export { x } from "@once-upon-a-diff/panel/host/diff-types";`,
         `const m = await import('@once-upon-a-diff/protocol/routes');`,
         `import { createHostPage } from '@once-upon-a-diff/host-github/diff-dom';`,
@@ -67,7 +67,7 @@ test('forBrowser spells the panel, the protocol, the api-client, ui and the host
       ].join('\n'),
     ),
     [
-      `import { html } from '/assets/protocol/domain/html.ts';`,
+      `import { html } from '/assets/domain/html.ts';`,
       `export { x } from "/assets/panel/host/diff-types.ts";`,
       `const m = await import('/assets/protocol/routes.ts');`,
       `import { createHostPage } from '/assets/host-github/diff-dom.ts';`,

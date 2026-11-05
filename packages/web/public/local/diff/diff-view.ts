@@ -7,14 +7,15 @@
  */
 import { splitRows } from './split.ts';
 import { highlightFile, LIMITS } from './syntax.ts';
-import { html, raw, type Html } from '/assets/protocol/domain/html.ts';
-import { plural, baseName } from '/assets/protocol/domain/text.ts';
+import { html, raw, type Html } from '/assets/domain/html.ts';
+import { plural, baseName } from '/assets/domain/text.ts';
 import { page } from '/assets/local/page.ts';
 import { prButtonHtml } from '/assets/local/ship/pull-request.ts';
 import { approveHtml } from '/assets/local/ship/approve.ts';
 import { pushButtonHtml } from '/assets/local/ship/push.ts';
 import { sendButtonHtml } from './send.ts';
-import type { DiffHunk, LocalFile, LocalStory, Side } from '/assets/types.ts';
+import type { DiffHunk, LocalFile, LocalStory } from '/assets/types.ts';
+import type { Side } from '/assets/domain/line-refs.ts';
 import type { SplitHalf } from './split.ts';
 
 /** A file's highlighted lines: per hunk, per line HTML (null for a line drawn plain), or null for a plain file. */

@@ -3,7 +3,7 @@
  * to, so the report can add the four kinds of evidence up per area. A route is typed by RouteName and a command is
  * checked against the CLI's table in a test, so adding one without an area fails.
  */
-import type { Area } from '@once-upon-a-diff/protocol/domain/usage-actions';
+import type { Area } from '@once-upon-a-diff/domain/usage-actions';
 import type { RouteName } from '@once-upon-a-diff/protocol/routes';
 
 export type AreaOrNone = Area | 'Unassigned';

@@ -5,7 +5,7 @@
  */
 import { timingSafeEqual } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
-import type { ErrorCode } from '@once-upon-a-diff/protocol/domain/error-code';
+import type { ErrorCode } from '@once-upon-a-diff/domain/error-code';
 import type { Body } from './types.ts';
 
 const MAX_BODY = 256 * 1024;

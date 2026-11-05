@@ -3,7 +3,7 @@
  * Types only: nothing here runs.
  */
 
-import type { Side } from '../domain/line-refs.ts';
+import type { Side } from '@once-upon-a-diff/domain/line-refs';
 import type { ChapterRef, LocalNote } from '../story/types.ts';
 
 export interface Answer {

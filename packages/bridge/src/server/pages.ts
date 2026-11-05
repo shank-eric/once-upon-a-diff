@@ -3,7 +3,7 @@
  * with the story id. It carries no token: the page's key for its story comes
  * in the link's #fragment (./page-key.ts).
  */
-import { html, raw } from '@once-upon-a-diff/protocol/domain/html';
+import { html, raw } from '@once-upon-a-diff/domain/html';
 
 /** The pages' CSP: only the bridge's own scripts, styles and connections. */
 export const pageHeaders = () => ({

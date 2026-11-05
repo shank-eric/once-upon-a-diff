@@ -13,7 +13,7 @@
  */
 import { html } from '/assets/preact.mjs';
 import { LinkButton } from '@once-upon-a-diff/ui/link-button';
-import { capitalize, shortSha } from '@once-upon-a-diff/protocol/domain/text';
+import { capitalize, shortSha } from '@once-upon-a-diff/domain/text';
 import { writeClipboard } from '@once-upon-a-diff/ui/clipboard';
 import { draftView, shownIn, type DraftShow } from './drafts.ts';
 import { scriptDrafts, reviewScript } from './review-script.ts';
@@ -24,9 +24,9 @@ import type {
   DraftComment,
   DraftFix,
   DraftRow,
-  Side,
 } from '@once-upon-a-diff/protocol/types';
-import { toSide } from '@once-upon-a-diff/protocol/domain/line-refs';
+import type { Side } from '@once-upon-a-diff/domain/line-refs';
+import { toSide } from '@once-upon-a-diff/domain/line-refs';
 
 // kept across panel re-renders on this page: a failed Add to my review, and adds already settled
 const reviewErrors = new Map<string, string>();

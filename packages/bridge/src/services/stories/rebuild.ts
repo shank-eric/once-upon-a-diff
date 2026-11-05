@@ -19,14 +19,14 @@
  *     aside a read of a chapter whose files changed in the rebuild
  */
 import { chaptersOf, entryOf, refOf } from './chapters.ts';
-import { chapterKeyOf } from '@once-upon-a-diff/protocol/domain/chapters';
-import { plural } from '@once-upon-a-diff/protocol/domain/text';
+import { chapterKeyOf } from '@once-upon-a-diff/domain/chapters';
+import { plural } from '@once-upon-a-diff/domain/text';
 import { upgradePlan } from './legacy.ts';
 import { canonical, withoutKey } from './validate.ts';
 import { uncoveredHunks, sidesOf } from './hunk-coverage.ts';
 import type { DiffFile } from '@once-upon-a-diff/protocol/types';
 import type { Plan, PlanChapter } from './chapters.ts';
-import { toSide } from '@once-upon-a-diff/protocol/domain/line-refs';
+import { toSide } from '@once-upon-a-diff/domain/line-refs';
 
 /** What a rebuild's rules read of its request. */
 export type RebuildAskFields = { mode?: string; from_step?: number | null };

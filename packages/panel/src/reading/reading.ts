@@ -7,7 +7,7 @@
  *
  * READ_MS, inferReadSteps and viewedEarlyCheck have no DOM, so node tests can use them.
  */
-import { chapterKeyOf } from '@once-upon-a-diff/protocol/domain/chapters';
+import { chapterKeyOf } from '@once-upon-a-diff/domain/chapters';
 import type { ReadEvent, ReadInfo } from '@once-upon-a-diff/protocol/types';
 
 /** How one chapter's files to mark viewed stand (viewed.ts progressOf). */

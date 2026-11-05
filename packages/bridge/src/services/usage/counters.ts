@@ -4,7 +4,7 @@
  * the protocol's table (or `unmatched`), an action from domain/usage-actions.ts. Nothing a person typed can reach it.
  * Written within a few seconds of a count (a debounce), and at once on a flush (a signal, a shutdown).
  */
-import { isActionName, MAX_ACTION_COUNT } from '@once-upon-a-diff/protocol/domain/usage-actions';
+import { isActionName, MAX_ACTION_COUNT } from '@once-upon-a-diff/domain/usage-actions';
 import { clearEpoch, readUsageJson, writeUsageJson } from '../../adapters/stores/usage-file.ts';
 import { etDay } from './days.ts';
 

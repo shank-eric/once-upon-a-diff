@@ -6,12 +6,12 @@
  * from the parts' live data. One click handler serves what the parts that still write strings put in it (the drafts, the fixes).
  */
 import { Fragment, html } from '/assets/preact.mjs';
-import { html as markup } from '@once-upon-a-diff/protocol/domain/html';
+import { html as markup } from '@once-upon-a-diff/domain/html';
 import { refAttrs } from '../components/file-refs.ts';
 import type { VNode } from '@once-upon-a-diff/ui/parse-markup';
 import { PartsStrip } from '@once-upon-a-diff/ui/parts-strip';
 import type { SinceModel } from '../rebuild/freshness-part.ts';
-import { plural } from '@once-upon-a-diff/protocol/domain/text';
+import { plural } from '@once-upon-a-diff/domain/text';
 import type { PanelContext } from '../host/context.ts';
 import type { Chapter } from '@once-upon-a-diff/protocol/types';
 

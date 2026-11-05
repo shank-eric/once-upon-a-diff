@@ -13,7 +13,7 @@
  * `git push origin <branch>`, a fast-forward that never forces and is refused when origin has commits this checkout
  * doesn't (pushAheadBlocker).
  */
-import { FULL_SHA_RE } from '@once-upon-a-diff/protocol/domain/patterns';
+import { FULL_SHA_RE } from '@once-upon-a-diff/domain/patterns';
 import { runGh } from '../config/gh.ts';
 import {
   commitLog,

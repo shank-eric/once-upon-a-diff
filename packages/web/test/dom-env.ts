@@ -10,6 +10,7 @@ import { installDom } from '@once-upon-a-diff/test-kit/dom';
 
 const PUBLIC = fileURLToPath(new URL('../public/', import.meta.url));
 const PROTOCOL = fileURLToPath(new URL('../../protocol/src/', import.meta.url));
+const DOMAIN = fileURLToPath(new URL('../../domain/src/', import.meta.url));
 const API_CLIENT = fileURLToPath(new URL('../../api-client/src/', import.meta.url));
 const PANEL = fileURLToPath(new URL('../../panel/src/', import.meta.url));
 const UI_DIR = fileURLToPath(new URL('../../ui/src/', import.meta.url));
@@ -42,6 +43,10 @@ registerHooks({
     const protocol = /^\/assets\/protocol\/([a-z0-9/-]+\.ts)$/.exec(specifier);
     if (protocol) {
       return { url: pathToFileURL(path.join(PROTOCOL, protocol[1])).href, shortCircuit: true };
+    }
+    const domain = /^\/assets\/domain\/([a-z0-9-]+\.ts)$/.exec(specifier);
+    if (domain) {
+      return { url: pathToFileURL(path.join(DOMAIN, domain[1])).href, shortCircuit: true };
     }
     const board = /^\/assets\/board\/([a-z0-9/-]+\.ts)$/.exec(specifier);
     if (board) {

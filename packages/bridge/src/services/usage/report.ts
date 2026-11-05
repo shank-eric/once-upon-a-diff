@@ -6,7 +6,7 @@
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { ACTIONS, AREAS, type Area } from '@once-upon-a-diff/protocol/domain/usage-actions';
+import { ACTIONS, AREAS, type Area } from '@once-upon-a-diff/domain/usage-actions';
 import { readUsageJson, readUsageText, writeUsageJson } from '../../adapters/stores/usage-file.ts';
 import {
   COMMAND_AREAS,

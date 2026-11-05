@@ -13,7 +13,7 @@ import {
   readSha,
   changedSinceRead,
 } from '../../services/stories/reads.ts';
-import { SHA_RE, shortSha } from '@once-upon-a-diff/protocol/domain/text';
+import { SHA_RE, shortSha } from '@once-upon-a-diff/domain/text';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
 import type { StoryData } from '@once-upon-a-diff/protocol/types';

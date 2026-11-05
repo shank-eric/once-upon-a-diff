@@ -3,8 +3,8 @@
  * entries, drafted comments and "Since you read it" range, and a last chapter
  * for any file of the diff no chapter places.
  */
-import { chapterKeyOf } from '@once-upon-a-diff/protocol/domain/chapters';
-import { SHA_RE } from '@once-upon-a-diff/protocol/domain/text';
+import { chapterKeyOf } from '@once-upon-a-diff/domain/chapters';
+import { SHA_RE } from '@once-upon-a-diff/domain/text';
 import type {
   Chapter,
   ChapterFile,
@@ -12,7 +12,7 @@ import type {
   DraftComment,
   SinceRange,
 } from '@once-upon-a-diff/protocol/types';
-import { toSide } from '@once-upon-a-diff/protocol/domain/line-refs';
+import { toSide } from '@once-upon-a-diff/domain/line-refs';
 
 /** A ref in chapters.json as the story was written (refOf normalizes it). */
 export interface PlanRef {

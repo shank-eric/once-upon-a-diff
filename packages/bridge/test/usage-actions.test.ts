@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import { ACTIONS, AREAS } from '@once-upon-a-diff/protocol/domain/usage-actions';
+import { ACTIONS, AREAS } from '@once-upon-a-diff/domain/usage-actions';
 
 const PACKAGES = path.resolve(import.meta.dirname, '../..');
 /** The client code that may count an action: it runs in the browser or the extension. */
