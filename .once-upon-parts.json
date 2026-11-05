@@ -55,6 +55,7 @@
         "packages/bridge/src/services/board/",
         "packages/bridge/src/services/backlog/",
         "packages/bridge/src/services/ledger/",
+        "packages/bridge/src/services/input.ts",
         "packages/bridge/src/services/worktrees/",
         "packages/bridge/src/services/usage/"
       ],

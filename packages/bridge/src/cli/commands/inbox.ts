@@ -60,6 +60,7 @@ import { slug } from '../../services/stories/local-story.ts';
 import { answerRefs } from '../../services/stories/validate.ts';
 
 import { out, describe, filterEntries, type Printable } from '../output.ts';
+import { given } from '../options.ts';
 import type { InboxEntry, QuestionEntry } from '../../services/inbox/inbox.ts';
 import type { Config } from '../../services/config/settings.ts';
 import type { CliOpts, Command } from '../types.ts';
@@ -524,8 +525,7 @@ function answer(home: string, cfg: Config, opts: CliOpts) {
       : [];
   // who answered, for the panel: --consumer, else the wait it was handed to
   const handed = readHanded(home)[question.id];
-  const answeredBy =
-    opts.consumer && opts.consumer !== true ? String(opts.consumer) : handed?.consumer;
+  const answeredBy = given(opts.consumer) ?? handed?.consumer;
   // a question relayed to its story's agent, which is asked again or answered by someone else meanwhile: the late
   // relay doesn't add a second answer
   if (handed?.via && answeredBy === handed.consumer) {
@@ -597,7 +597,7 @@ function asking(home: string, cfg: Config, opts: CliOpts) {
   if (readQaMarks(home, question.story).dismissed[question.id]) {
     return out(`${question.id} was dismissed: stop, the reviewer dropped it`);
   }
-  const session = opts.consumer && opts.consumer !== true ? String(opts.consumer) : null;
+  const session = given(opts.consumer);
   noteAsking(
     home,
     question.id,

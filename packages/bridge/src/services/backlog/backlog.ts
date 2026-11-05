@@ -34,6 +34,7 @@ import path from 'node:path';
 import { liveClaim, sameAgentView } from './claims.ts';
 import { REPO_RE, sameRepo } from '../config/repos.ts';
 import { newId } from '../inbox/inbox.ts';
+import { clean, optional } from '../input.ts';
 import type { BoardAgent, BoardCard, BoardStartedLinks } from '@once-upon-a-diff/protocol/types';
 
 export const STARTED_GRACE_HOURS = 24;
@@ -112,29 +113,6 @@ export interface BacklogStorage {
   hold(id: string, held: boolean, who?: string | null): BacklogItem;
   move(id: string, where: MoveTo, who?: string | null): BacklogItem;
   edit(id: string, input: EditInput, who?: string | null): BacklogItem;
-}
-
-/** Text with control characters out (a note keeps its newlines), trimmed, or an error when empty or too long. */
-function clean(value: unknown, what: string, max: number, multiline = false): string {
-  const text = String(value ?? '')
-    // eslint-disable-next-line no-control-regex
-    .replace(multiline ? /[\u0000-\u0009\u000b-\u001f\u007f]/g : /[\u0000-\u001f\u007f]/g, ' ')
-    .trim();
-  if (text.length > max) {
-    throw new Error(`${what} is longer than ${max} characters`);
-  }
-  return text;
-}
-
-function optional(value: unknown, what: string, pattern: RegExp): string | null {
-  const text = String(value ?? '').trim();
-  if (!text) {
-    return null;
-  }
-  if (!pattern.test(text)) {
-    throw new Error(`${what} "${text.slice(0, 60)}" is not valid`);
-  }
-  return text;
 }
 
 /** The items in a file's text: the events folded by id, oldest first. Lines that aren't events are skipped. */

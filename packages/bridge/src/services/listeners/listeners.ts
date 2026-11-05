@@ -12,11 +12,11 @@
  * it takes fix requests (../inbox/fixes.ts).
  * A story's own listener answers its questions ahead of a repo's (answeringOf).
  */
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { sameRepo, checkoutFor, tilde } from '../config/repos.ts';
-import { writeFileAtomic } from '../../adapters/stores/fs/json-file.ts';
+import { readJson, writeFileAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { activeBinding, type Binding } from '../inbox/binding.ts';
 import type { Answering } from '@once-upon-a-diff/protocol/types';
 import { onPath, pidAlive } from '../../adapters/os.ts';
@@ -84,13 +84,13 @@ export function beat(
 export function touchHandling(home: string, consumer: string): void {
   const safe = String(consumer || 'default').replace(/[^A-Za-z0-9._-]/g, '_');
   const file = path.join(home, 'listeners', `${safe}.json`);
-  try {
-    const last = JSON.parse(readFileSync(file, 'utf8'));
-    if (last.state === 'handling') {
+  const last = readJson<Beat>(file); // none, or not JSON: no listener by that name
+  if (last?.state === 'handling') {
+    try {
       writeFileAtomic(file, JSON.stringify({ ...last, at: new Date().toISOString() }));
+    } catch {
+      /* the beat stays as it was */
     }
-  } catch {
-    /* no listener by that name */
   }
 }
 
@@ -102,32 +102,31 @@ export function listeners(home: string, now = Date.now()): Listener[] {
   }
   const out: Listener[] = [];
   for (const name of readdirSync(dir).filter((name) => name.endsWith('.json'))) {
-    try {
-      const beat: Beat = JSON.parse(readFileSync(path.join(dir, name), 'utf8'));
-      const age = now - Date.parse(beat.at);
-      const live =
-        beat.state === 'handling'
-          ? age < HANDLING_FRESH_MS
-          : age < WAITING_FRESH_MS && pidAlive(beat.pid);
-      out.push({
-        consumer: beat.consumer,
-        pid: beat.pid,
-        state: beat.state,
-        at: beat.at,
-        age_s: Math.round(age / 1000),
-        live,
-        question: beat.question || null,
-        questions: Array.isArray(beat.questions) ? beat.questions : [],
-        repo: beat.repo || null,
-        story: beat.story || null,
-        session: beat.session || null,
-        no_relay: !!beat.norelay,
-        builds: !!beat.builds,
-        fixes: !!beat.fixes,
-      });
-    } catch {
-      /* a half-written beat; skip it */
+    const beat = readJson<Beat>(path.join(dir, name));
+    if (beat == null) {
+      continue; // a half-written beat; skip it
     }
+    const age = now - Date.parse(beat.at);
+    const live =
+      beat.state === 'handling'
+        ? age < HANDLING_FRESH_MS
+        : age < WAITING_FRESH_MS && pidAlive(beat.pid);
+    out.push({
+      consumer: beat.consumer,
+      pid: beat.pid,
+      state: beat.state,
+      at: beat.at,
+      age_s: Math.round(age / 1000),
+      live,
+      question: beat.question || null,
+      questions: Array.isArray(beat.questions) ? beat.questions : [],
+      repo: beat.repo || null,
+      story: beat.story || null,
+      session: beat.session || null,
+      no_relay: !!beat.norelay,
+      builds: !!beat.builds,
+      fixes: !!beat.fixes,
+    });
   }
   return out.sort((first, second) => first.age_s - second.age_s);
 }

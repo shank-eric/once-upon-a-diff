@@ -13,11 +13,10 @@ import type { LocalStory, StoryData } from '@once-upon-a-diff/protocol/types';
 import { refreshLocal } from '../../services/stories/local-diff.ts';
 import type { LocalMeta, ServedStory } from '../../services/stories/types.ts';
 import type { Call, StoryRoute } from '../types.ts';
+import { localOnly } from './story-guards.ts';
 
 function viewed({ app, body: raw, send }: Call, story: ServedStory) {
-  if (story.meta.kind !== 'local') {
-    throw new HttpError(400, 'viewed files are kept by GitHub for PR stories');
-  }
+  localOnly(story, 'viewed files are kept by GitHub for PR stories');
   const body = parseBody('viewed', raw);
   const data = app.stories.load(story.id) as StoryData & { local: LocalStory };
   const file = data.local.files.find((candidate) => candidate.rel === body.path);
@@ -39,9 +38,7 @@ function viewed({ app, body: raw, send }: Call, story: ServedStory) {
 }
 
 function approve({ app, body: raw, send }: Call, story: ServedStory) {
-  if (story.meta.kind !== 'local') {
-    throw new HttpError(400, 'a PR story is approved on GitHub');
-  }
+  localOnly(story, 'a PR story is approved on GitHub');
   const body = parseBody('approve', raw);
   // the head as it is now: a commit since the page drew moves it
   const meta = refreshLocal(story.dir, story.meta as LocalMeta);

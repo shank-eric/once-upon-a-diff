@@ -2,11 +2,11 @@
  * pr-draft: a session hands over the title and body for a local story's PR, for the page's Create pull request
  * button (../../services/stories/pull-request.ts). It only saves them: the reviewer pushes and opens the PR from the page.
  */
-import { readFileSync } from 'node:fs';
 import { StoryStore } from '../../services/stories/store.ts';
 import { readMeta } from '../../services/stories/meta.ts';
 import { DRAFT_FILE } from '../../services/stories/pull-request.ts';
 import { out } from '../output.ts';
+import { bodyText, given } from '../options.ts';
 import type { PrDraft } from '@once-upon-a-diff/protocol/types';
 import type { Config } from '../../services/config/settings.ts';
 import type { CliOpts, Command } from '../types.ts';
@@ -15,20 +15,6 @@ const USAGE =
   'usage: once-upon pr-draft --story ID --title T (--body-file F | --body TEXT) [--base BRANCH]';
 const MAX_TITLE = 256;
 const MAX_BODY = 65536; // GitHub's own limit on a PR body
-
-const given = (value: unknown): string | null => (value && value !== true ? String(value) : null);
-
-function bodyOf(opts: CliOpts): string {
-  const file = given(opts['body-file']);
-  if (file) {
-    return readFileSync(file === '-' ? 0 : file, 'utf8');
-  }
-  const text = given(opts.body);
-  if (text === null) {
-    throw new Error(USAGE);
-  }
-  return text;
-}
 
 function prDraft(home: string, _cfg: Config, opts: CliOpts) {
   const id = given(opts.story);
@@ -44,7 +30,11 @@ function prDraft(home: string, _cfg: Config, opts: CliOpts) {
   if (readMeta(dir).kind !== 'local') {
     throw new Error(`${id} is a PR story: it already has its pull request`);
   }
-  const body = bodyOf(opts).trim();
+  const text = bodyText(opts);
+  if (text === null) {
+    throw new Error(USAGE);
+  }
+  const body = text.trim();
   if (title.length > MAX_TITLE) {
     throw new Error(`the title is ${title.length} characters; keep it under ${MAX_TITLE}`);
   }

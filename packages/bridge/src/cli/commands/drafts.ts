@@ -3,13 +3,13 @@
  * to a chapter (comment), list each draft's state (drafts), and a story's
  * fix-before-push notes (notes).
  */
-import { readFileSync } from 'node:fs';
 import { StoryStore } from '../../services/stories/store.ts';
 import { readMeta, readStoredMeta } from '../../services/stories/meta.ts';
 import { addComment } from '../../services/stories/comments.ts';
 import { Inbox } from '../../services/inbox/inbox.ts';
 import { draftsOf } from '../../services/review/drafts.ts';
 import { out, notePlace } from '../output.ts';
+import { bodyText } from '../options.ts';
 
 import type { DraftRow, LocalNote } from '@once-upon-a-diff/protocol/types';
 import type { Config } from '../../services/config/settings.ts';
@@ -17,18 +17,11 @@ import type { CliOpts, Command } from '../types.ts';
 
 const storeFor = (home: string) => new StoryStore({ home });
 
-function bodyOf(opts: CliOpts): string {
-  if (opts['body-file']) {
-    return readFileSync(opts['body-file'] as string, 'utf8');
-  }
-  return typeof opts.body === 'string' ? opts.body : '';
-}
-
 function comment(home: string, cfg: Config, opts: CliOpts) {
-  const body = bodyOf(opts);
+  const body = bodyText(opts) ?? '';
   if (!opts.story || !opts.chapter || !body.trim()) {
     throw new Error(
-      'usage: once-upon comment --story ID --chapter N [--path P --line L] (--body-file F | --body T)',
+      'usage: once-upon comment --story ID --chapter N [--path P --line L] (--body-file F | --body T) (--body-file - reads stdin)',
     );
   }
   const dir = storeFor(home).dirOf(opts.story as string);
@@ -126,7 +119,7 @@ export const draftCommands: Command[] = [
     name: 'comment',
     usage: [
       '  once-upon comment --story ID --chapter N [--path P --line L] (--body-file F | --body T)',
-      "                                                                 add a drafted comment to a chapter's Draft comments (never posted)",
+      "                                                                 add a drafted comment to a chapter's Draft comments (never posted); --body-file - reads stdin",
     ],
     run: comment,
   },

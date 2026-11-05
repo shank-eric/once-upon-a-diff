@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { git, localRepo, runCli, tmp } from './helpers.ts';
 import { createLocalStory } from '../src/services/stories/local-story.ts';
@@ -93,4 +93,19 @@ test('a sha keeps its own default story id, so it never takes over the branch’
     JSON.parse(readFileSync(path.join(made.dir, 'meta.json'), 'utf8'));
   assert.equal(metaOf(bySha).branch, 'feature', 'but it still records the branch for the buttons');
   assert.equal(metaOf(byHead).head, 'HEAD', 'and the branch’s story still follows HEAD');
+});
+
+test('telling a story again with no chapters handed in fails on a corrupt chapters.json instead of serving an empty plan', () => {
+  const home = tmp('home');
+  const { repo, base } = localRepo();
+  const made = createLocalStory({ home, repo, base });
+  const chaptersFile = path.join(made.dir, 'chapters.json');
+  assert.ok(JSON.parse(readFileSync(chaptersFile, 'utf8')).chapters.length > 0);
+  writeFileSync(chaptersFile, '{not json');
+  assert.throws(() => createLocalStory({ home, repo, base, id: made.id }), SyntaxError);
+  assert.equal(
+    readFileSync(chaptersFile, 'utf8'),
+    '{not json',
+    'the corrupt file is left for a person to see',
+  );
 });

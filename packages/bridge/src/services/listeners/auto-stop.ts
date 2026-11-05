@@ -17,9 +17,8 @@
 import { readFixes } from '../inbox/fixes.ts';
 import { Builds } from '../inbox/builds.ts';
 import { readSettings } from '../config/settings.ts';
-import { writeFileAtomic } from '../../adapters/stores/fs/json-file.ts';
+import { readJson, writeFileAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { plural } from '@once-upon-a-diff/protocol/domain/text';
-import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { sameRepo } from '../config/repos.ts';
 import type { StoryStore } from '../stories/store.ts';
@@ -180,12 +179,7 @@ const STOPS = 'listener-stops.json';
 export function requestStop(home: string, repo: string, now = Date.now()): void {
   ensureDir(home);
   const file = path.join(home, STOPS);
-  let stops: Record<string, number> = {};
-  try {
-    stops = JSON.parse(readFileSync(file, 'utf8'));
-  } catch {
-    stops = {};
-  }
+  const stops = readJson<Record<string, number>>(file, {}) ?? {};
   writeFileAtomic(
     file,
     JSON.stringify({ ...stops, [repo.toLowerCase()]: now }, null, 2) + '\n',
@@ -195,12 +189,11 @@ export function requestStop(home: string, repo: string, now = Date.now()): void 
 
 /** Whether a stop was asked for the repo after this wait started. */
 export function stopRequested(home: string, repo: string, startedAt: number): string | null {
-  try {
-    const stops: Record<string, number> = JSON.parse(readFileSync(path.join(home, STOPS), 'utf8'));
-    return (stops[repo.toLowerCase()] ?? 0) >= startedAt ? 'stopped from the board' : null;
-  } catch {
-    return null;
+  const stops = readJson<Record<string, number>>(path.join(home, STOPS));
+  if (stops == null) {
+    return null; // no file, not JSON or null: no stop was asked for, whatever the start time
   }
+  return (stops[repo.toLowerCase()] ?? 0) >= startedAt ? 'stopped from the board' : null;
 }
 
 /** One line in <home>/listeners.log when a listener stops by itself or is stopped. */

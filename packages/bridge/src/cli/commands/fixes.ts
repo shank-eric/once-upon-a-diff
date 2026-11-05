@@ -12,6 +12,7 @@ import { storyRepo } from '../../services/config/repos.ts';
 import { clearMark, parseFiles, setMark } from '../../services/stories/working.ts';
 import { storyIdOf } from './inbox.ts';
 import { out } from '../output.ts';
+import { given } from '../options.ts';
 import { plural } from '@once-upon-a-diff/protocol/domain/text';
 import type { FixRequest } from '../../services/inbox/fixes.ts';
 import type { Config } from '../../services/config/settings.ts';
@@ -21,8 +22,6 @@ const WORKING_USAGE =
   'usage: once-upon working (--story ID | --request F) [--files P[:A-B],... | --done [SHA]] [--consumer NAME]';
 const FIXED_USAGE =
   'usage: once-upon fixed --request F (--sha SHA [--notes N1,N2] | --failed) [--note TEXT] [--consumer NAME]';
-
-const given = (value: unknown): string | null => (value && value !== true ? String(value) : null);
 
 /**
  * Who the panel says is at work: --consumer, else the wait the request was handed to, else the session that

@@ -13,7 +13,7 @@
  * go to the repo's listener as for any story. A session that relays keeps its binding fresh (touchBinding), so a long
  * session's binding doesn't expire under it.
  */
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { readSettings, stateFile } from '../config/settings.ts';
@@ -115,19 +115,18 @@ export function sessionLive(home: string, session: string, now = Date.now()): bo
   let live = false;
   if (existsSync(dir)) {
     for (const name of readdirSync(dir).filter((file) => /^\d+\.json$/.test(file))) {
-      try {
-        const entry = JSON.parse(readFileSync(path.join(dir, name), 'utf8'));
-        if (
-          entry &&
-          entry.sessionId === session &&
-          Number.isInteger(entry.pid) &&
-          sameProcess(entry.pid, entry.procStart)
-        ) {
-          live = true;
-          break;
-        }
-      } catch {
-        /* a half-written entry */
+      // a half-written entry reads as null
+      const entry = readJson<{ sessionId?: unknown; pid?: unknown; procStart?: unknown }>(
+        path.join(dir, name),
+      );
+      if (
+        entry &&
+        entry.sessionId === session &&
+        Number.isInteger(entry.pid) &&
+        sameProcess(entry.pid as number, entry.procStart)
+      ) {
+        live = true;
+        break;
       }
     }
   }

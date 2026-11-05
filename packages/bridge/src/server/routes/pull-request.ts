@@ -10,6 +10,7 @@
  */
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { HttpError } from '../request.ts';
+import { localOnly, oncePerStory } from './story-guards.ts';
 import { parseBody } from '../validate.ts';
 import { storyRepo } from '../../services/config/repos.ts';
 import {
@@ -25,32 +26,21 @@ import { isStoryless } from '../../services/stories/local-story.ts';
 import type { LocalMeta, ServedStory } from '../../services/stories/types.ts';
 import type { App, Call, StoryRoute } from '../types.ts';
 
-/** Stories with a push under way, so a second click can't start another. */
-const pushing = new Set<string>();
-
-function localOnly(story: ServedStory) {
-  if (story.meta.kind !== 'local') {
-    throw new HttpError(400, 'a PR story already has its pull request');
-  }
-}
+const NOT_LOCAL = 'a PR story already has its pull request';
 
 const draftOf = (app: App, story: ServedStory) =>
   app.stories.readState<PrDraft | null>(story.id, DRAFT_FILE, null);
 
 async function view({ app, send }: Call, story: ServedStory) {
-  localOnly(story);
+  localOnly(story, NOT_LOCAL);
   return send(200, await prView(story.meta, draftOf(app, story)));
 }
 
 async function push({ app, body: raw, send }: Call, story: ServedStory) {
-  localOnly(story);
+  localOnly(story, NOT_LOCAL);
   const body = parseBody('prPush', raw);
   const ahead = body.action === 'push-ahead';
-  if (pushing.has(story.id)) {
-    throw new HttpError(409, 'a push for this story is already running');
-  }
-  pushing.add(story.id);
-  try {
+  return oncePerStory(story.id, async () => {
     const before = await prView(story.meta, draftOf(app, story));
     const blocker = ahead
       ? pushAheadBlocker(before, body.head_sha)
@@ -93,9 +83,7 @@ async function push({ app, body: raw, send }: Call, story: ServedStory) {
       view: await prView(story.meta, draftOf(app, story)),
     };
     return send(200, answer);
-  } finally {
-    pushing.delete(story.id);
-  }
+  });
 }
 
 export const pullRequestRoutes: StoryRoute[] = [

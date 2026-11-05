@@ -10,6 +10,7 @@
  */
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { HttpError } from '../request.ts';
+import { localOnly, oncePerStory } from './story-guards.ts';
 import { parseBody } from '../validate.ts';
 import { approvedFor, pushApproved, pushView } from '../../services/stories/push-default.ts';
 import { localEntries } from '../../services/review/story-lists.ts';
@@ -19,16 +20,10 @@ import type { PushAnswer } from '@once-upon-a-diff/protocol/types';
 import type { LocalMeta, ServedStory } from '../../services/stories/types.ts';
 import type { App, Call, StoryRoute } from '../types.ts';
 
-/** Stories with a push under way, so a second click can't start another. */
-const pushing = new Set<string>();
+const NOT_LOCAL = 'a PR story is not pushed from here';
+
 /** How long a push's answer waits for the delivered check before it goes without it. */
 const CHECK_WAIT_MS = 5000;
-
-function localOnly(story: ServedStory) {
-  if (story.meta.kind !== 'local') {
-    throw new HttpError(400, 'a PR story is not pushed from here');
-  }
-}
 
 /** The commit a push may send: the approved one, or for a storyless review the head its diff was drawn at. */
 function approvalOf(app: App, story: ServedStory) {
@@ -40,18 +35,14 @@ function approvalOf(app: App, story: ServedStory) {
 }
 
 async function view({ app, send }: Call, story: ServedStory) {
-  localOnly(story);
+  localOnly(story, NOT_LOCAL);
   return send(200, await pushView(story.meta, approvalOf(app, story)));
 }
 
 async function push({ app, body: raw, send }: Call, story: ServedStory) {
-  localOnly(story);
+  localOnly(story, NOT_LOCAL);
   const body = parseBody('pushApproved', raw);
-  if (pushing.has(story.id)) {
-    throw new HttpError(409, 'a push for this story is already running');
-  }
-  pushing.add(story.id);
-  try {
+  return oncePerStory(story.id, async () => {
     const approval = approvalOf(app, story);
     const before = await pushView(story.meta, approval);
     if (!approval || !before.approved_sha) {
@@ -95,9 +86,7 @@ async function push({ app, body: raw, send }: Call, story: ServedStory) {
       view: await pushView(story.meta, approvalOf(app, story)),
     };
     return send(200, answer);
-  } finally {
-    pushing.delete(story.id);
-  }
+  });
 }
 
 export const pushRoutes: StoryRoute[] = [

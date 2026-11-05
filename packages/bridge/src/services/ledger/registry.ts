@@ -29,6 +29,7 @@ import {
 } from './events.ts';
 import { branchTip, madeOnBranch } from './made.ts';
 import { agentsFile } from './read.ts';
+import { clean, count, optional } from '../input.ts';
 import type { LedgerAgent } from './ledger.ts';
 
 const NAME_PATTERN = /^[\w.-]{1,100}$/;
@@ -36,43 +37,8 @@ const SID_PATTERN = /^[0-9a-f]{8}$/;
 const BRANCH_PATTERN = /^[A-Za-z0-9._/-]{1,200}$/;
 const LANE_PATTERN = /^[\w.-]{1,100}$/;
 const STEP_PATTERN = /^[\w.-]{1,40}$/;
-const TEXT_MAX = 1000;
 /** An editor's slots when it registers with none: the editor skill's own default. */
 export const DEFAULT_SLOTS = 3;
-
-/** Text with control characters out, trimmed, or an error when too long. */
-function clean(value: unknown, what: string, max = TEXT_MAX): string {
-  const text = String(value ?? '')
-    // eslint-disable-next-line no-control-regex
-    .replace(/[\u0000-\u001f\u007f]/g, ' ')
-    .trim();
-  if (text.length > max) {
-    throw new Error(`${what} is longer than ${max} characters`);
-  }
-  return text;
-}
-
-function optional(value: unknown, what: string, pattern: RegExp): string | null {
-  const text = String(value ?? '').trim();
-  if (!text) {
-    return null;
-  }
-  if (!pattern.test(text)) {
-    throw new Error(`${what} "${text.slice(0, 60)}" is not valid`);
-  }
-  return text;
-}
-
-function count(value: unknown, what: string, max = 100000): number | null {
-  if (value === undefined || value === null || value === '') {
-    return null;
-  }
-  const number = Number(value);
-  if (!Number.isInteger(number) || number < 0 || number > max) {
-    throw new Error(`${what} must be a whole number`);
-  }
-  return number;
-}
 
 /** Which run an event is for: a name, and the launching session's first 8 characters when the caller knows them. */
 interface Target {
