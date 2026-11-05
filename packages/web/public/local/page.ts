@@ -15,9 +15,7 @@ export type LocalStoryData = StoryData & { local: LocalStory };
 
 /** What the page's modules share (see page below). */
 export interface LocalPage {
-  story: LocalStoryData;
   overlay: StoryOverlay | null;
-  hidden: boolean;
   lastUi: InitialUi;
   /** the panel's size across stories, as the bridge's prefs.json last had it */
   layout: Layout | null;
@@ -47,15 +45,12 @@ export const STORY_ID = BOOT.story;
 export const PARAMS = { id: BOOT.story };
 
 /**
- * What the page's modules share: the story (with its local diff), the panel (null while it's closed), whether the
- * reviewer closed it, the panel's last saved state, its size across stories, highlight.js once it has loaded (null without it), and
- * onVersion(version), local.js's reload, for the panel's pulse to call.
+ * What the page's modules share and the store (store.ts) doesn't draw: the panel (null while it's closed), the panel's last
+ * saved state, its size across stories, highlight.js once it has loaded (null without it), and onVersion(version), the
+ * page's reload, for the panel's pulse to call.
  */
 export const page: LocalPage = {
-  // null until local.ts has loaded it, before anything else reads it
-  story: null as unknown as LocalStoryData,
   overlay: null,
-  hidden: false,
   lastUi: {},
   layout: null,
   hljs: null,

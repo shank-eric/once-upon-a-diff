@@ -3,10 +3,10 @@
  * (`load`), shows what an action would do and why it can't, and runs the action on its Go button (`go`). The boxes give it their
  * route, their texts and their blocker. It owns the rest: the "Checking..." line, "Couldn't check the branch" with Close, the
  * read-only refusal, the form shell with Cancel and Go, the working line, the result (or "The push didn't go through." and git's
- * lines, with Go back on) and Go turning into Done. `openActionDialog` draws one into the page, over everything, and takes it away
- * when it closes (Cancel, Close, Escape, a click on the backdrop).
+ * lines, with Go back on) and Go turning into Done. The page draws one at a time (dialogs.ts) and takes it away when it says it
+ * closed (Cancel, Close, Escape, a click on the backdrop).
  */
-import { html, render, useEffect, useMemo, useState } from '/assets/preact.mjs';
+import { html, useEffect, useMemo, useState } from '/assets/preact.mjs';
 import { Dialog } from '/assets/ui-kit/components/dialog.ts';
 import { shortSha } from '/assets/domain/text.ts';
 
@@ -138,23 +138,4 @@ export function ActionDialog<V>(props: { spec: ActionSpec<V>; onClose: () => voi
     content = html`<${Form} spec=${spec} view=${load.view} onClose=${onClose} />`;
   }
   return html`<${Dialog} id="ou-local-pr-box" onClose=${onClose}>${content}</${Dialog}>`;
-}
-
-/** Shuts the box now on the page, if any: there is one at a time. */
-let closeCurrent: (() => void) | null = null;
-
-/** Draws the box into the page and opens it. A box already open is closed first. */
-export function openActionDialog<V>(spec: ActionSpec<V>): void {
-  closeCurrent?.();
-  const host = document.createElement('div');
-  document.body.appendChild(host);
-  const close = () => {
-    render(null, host);
-    host.remove();
-    if (closeCurrent === close) {
-      closeCurrent = null;
-    }
-  };
-  closeCurrent = close;
-  render(html`<${ActionDialog} spec=${spec} onClose=${close} />`, host);
 }

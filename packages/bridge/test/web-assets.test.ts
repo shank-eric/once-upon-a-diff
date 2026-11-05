@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { startBridge, tmp } from './helpers.ts';
 
 test('the bridge serves highlight.js and the highlighter, with no CDN in the page', async () => {
@@ -11,11 +11,17 @@ test('the bridge serves highlight.js and the highlighter, with no CDN in the pag
       assert.equal(response.status, 200);
       assert.match(response.headers.get('content-type') as string, /javascript/);
     }
-    const local = readFileSync(new URL('../../web/public/local/local.ts', import.meta.url), 'utf8');
-    assert.ok(
-      !/https?:\/\//.test(local.replace(/\/\/.*$/gm, '')),
-      'local.js loads nothing from the network',
+    const dir = new URL('../../web/public/local/', import.meta.url);
+    const sources = (readdirSync(dir, { recursive: true }) as string[]).filter((name) =>
+      name.endsWith('.ts'),
     );
+    assert.ok(sources.includes('local.ts') && sources.includes('app.ts'));
+    for (const name of sources) {
+      assert.ok(
+        !/https?:\/\//.test(readFileSync(new URL(name, dir), 'utf8').replace(/\/\/.*$/gm, '')),
+        `${name} loads nothing from the network`,
+      );
+    }
   } finally {
     await bridge.close();
   }

@@ -166,7 +166,17 @@ test('every asset the local page and the board page load, and every module under
       }
     }
     for (const url of [
-      '/assets/local/diff/diff-view.ts',
+      '/assets/local/app.ts',
+      '/assets/local/store.ts',
+      '/assets/local/actions.ts',
+      '/assets/local/top.ts',
+      '/assets/local/diff/rows.ts',
+      '/assets/local/diff/table.ts',
+      '/assets/local/diff/files.ts',
+      '/assets/local/diff/tree.ts',
+      '/assets/local/diff/highlights.ts',
+      '/assets/local/ship/dialogs.ts',
+      '/assets/preact.mjs',
       '/assets/local/diff/split.ts',
       '/assets/local/diff/narrow.ts',
       '/assets/local/diff/syntax.ts',

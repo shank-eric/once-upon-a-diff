@@ -6,14 +6,15 @@
  * branch has an open PR, the header's button is a link to it, with how many commits the local branch is ahead of GitHub's
  * and a Push for them (push-ahead.ts).
  */
-import { html } from '/assets/domain/html.ts';
-import { setHtml } from '/assets/ui-kit/dom.ts';
-import { plural } from '/assets/domain/text.ts';
 import { html as vdom } from '/assets/preact.mjs';
+import { plural } from '/assets/domain/text.ts';
 import { CopyButton } from '/assets/ui-kit/components/copy-button.ts';
-import { CommitList, openActionDialog } from './action-dialog.ts';
+import { CommitList, type ActionSpec } from './action-dialog.ts';
 import { ROUTES } from '/assets/contracts/routes.ts';
-import { bridge, page, PARAMS } from '/assets/local/page.ts';
+import { bridge, PARAMS } from '/assets/local/page.ts';
+import { foundPull, openDialog, takeView } from '/assets/local/actions.ts';
+import { store, storyOf, type ShipState } from '/assets/local/store.ts';
+import type { LocalStoryData } from '/assets/local/page.ts';
 import type { PrView } from '/assets/types.ts';
 
 /** Longest compare link to hand GitHub; past it the body is left out and copied instead. */
@@ -21,68 +22,52 @@ const MAX_URL = 7000;
 /** How often coming back to the tab may look again for the PR (ls-remote and gh each time). */
 const RECHECK_MS = 30000;
 
-let lastView: PrView | null = null;
 let lastLook = 0;
-
-/** The header's button: a link to the open PR once there is one, else Create pull request (on a branch only, and not where Push ships it: push.ts). */
-export function prButtonHtml() {
-  if (!page.story.local.branch || page.story.local.ship === 'push') {
-    return html``;
-  }
-  const pull = lastView && lastView.pull;
-  if (pull) {
-    const link = html`<a class="ou-local-pr-link" href="${pull.url}" target="_blank" rel="noopener">Open PR #${String(pull.number)}</a>`;
-    const behind = lastView && aheadCount(lastView);
-    if (!behind) {
-      return link;
-    }
-    const off = page.story.read_only
-      ? 'Open this story from the board or `once-upon page` to push it: this link is read-only'
-      : '';
-    return html`<span class="ou-local-ahead">${plural(behind, 'commit')} ahead</span>
-      <button type="button" class="ou-local-push-ahead"${off && html` disabled`} title="${off || 'Fast-forward this branch to GitHub, where the open PR is'}">Push</button>${link}`;
-  }
-  return html`<button type="button" class="ou-local-pr" title="Push this branch if it needs it, then open GitHub's Create pull request page">Create pull request</button>`;
-}
 
 /** How many commits the local branch has that GitHub's copy lacks, when the view says it is a plain fast-forward behind. */
 function aheadCount(view: PrView) {
   return view.remote.state === 'ahead' ? view.to_push.length : 0;
 }
 
-/** Takes a fresher look at the branch (after a push), and redraws the header's buttons. */
-export function takeView(view: PrView) {
-  lastView = view;
-  redrawButton();
-}
-
-function redrawButton() {
-  const holder = document.querySelector('.ou-local-pr-holder');
-  if (holder) {
-    setHtml(holder, prButtonHtml());
+/** The header's button: a link to the open PR once there is one, else Create pull request (on a branch only, and not where Push ships it: push.ts). */
+export function PrButtons(props: { story: LocalStoryData; ship: ShipState }) {
+  const { story, ship } = props;
+  if (!story.local.branch || story.local.ship === 'push') {
+    return null;
   }
+  const view = ship.prView;
+  const pull = view && view.pull;
+  if (pull) {
+    const link = vdom`<a class="ou-local-pr-link" href=${pull.url} target="_blank" rel="noopener">Open PR #${String(pull.number)}</a>`;
+    const behind = view && aheadCount(view);
+    if (!behind) {
+      return link;
+    }
+    const off = story.read_only
+      ? 'Open this story from the board or `once-upon page` to push it: this link is read-only'
+      : '';
+    return vdom`<span class="ou-local-ahead">${plural(behind, 'commit')} ahead</span><button type="button" class="ou-local-push-ahead" disabled=${!!off} title=${off || 'Fast-forward this branch to GitHub, where the open PR is'} onClick=${() => openDialog('push-ahead')}>Push</button>${link}`;
+  }
+  return vdom`<button type="button" class="ou-local-pr" title="Push this branch if it needs it, then open GitHub's Create pull request page" onClick=${() => openDialog('pr')}>Create pull request</button>`;
 }
 
 /** Looks where the branch stands (quietly: the header button only), at most every RECHECK_MS unless forced. */
 export async function lookForPull(force = false) {
+  const { local } = storyOf();
   // a page opened with the read-only key may look (GET), so its Open PR link shows; only pushing is refused
-  if (
-    !page.story.local.branch ||
-    page.story.local.ship === 'push' ||
-    (!force && Date.now() - lastLook < RECHECK_MS)
-  ) {
+  if (!local.branch || local.ship === 'push' || (!force && Date.now() - lastLook < RECHECK_MS)) {
     return;
   }
-  const hadPull = lastView ? lastView.pull : null;
+  const hadPull = store.get().ship.prView?.pull ?? null;
   lastLook = Date.now();
   try {
-    lastView = await bridge.ask(ROUTES.prView, { params: PARAMS });
-    if (hadPull && !lastView.pull) {
-      lastView.pull = hadPull; // gh not answering for a moment doesn't close a PR already seen
+    const view: PrView = await bridge.ask(ROUTES.prView, { params: PARAMS });
+    if (hadPull && !view.pull) {
+      view.pull = hadPull; // gh not answering for a moment doesn't close a PR already seen
     }
-    redrawButton();
-    if (lastView.pull && !hadPull) {
-      window.dispatchEvent(new Event('ou-pull-found')); // Approve goes: the PR is the next step (approve.ts)
+    takeView(view);
+    if (view.pull && !hadPull) {
+      foundPull(); // Approve goes: the PR is the next step
     }
   } catch {
     /* the bridge may be restarting; the button still works */
@@ -207,7 +192,7 @@ async function create(view: PrView, form: HTMLFormElement) {
         body: { action: 'push', head_sha: view.head_sha },
       });
       output = answer.output;
-      lastView = answer.view;
+      takeView(answer.view);
     }
   } catch (err) {
     if (tab) {
@@ -222,24 +207,21 @@ async function create(view: PrView, form: HTMLFormElement) {
   return { ok: done(url, body, bodyLeftOut, !!tab), output };
 }
 
-/** The header button's click: the confirm box, with where the branch stands. */
-export function openPrBox() {
-  openActionDialog<PrView>({
-    refusal: page.story.read_only
+/** The Create pull request box: where the branch stands, and the button that pushes it if it needs it and opens GitHub's compare page. */
+export function prSpec(story: LocalStoryData): ActionSpec<PrView> {
+  return {
+    refusal: story.read_only
       ? // a read-only link carries the read-only key, which can't push: say where to open the story, rather than fail on a click
         {
           title: 'Create pull request',
           cant: 'push its branch',
           to: 'push and open the PR',
-          story: page.story.id,
+          story: story.id,
         }
       : null,
-    checking: `Checking where ${page.story.local.branch || 'the branch'} stands on GitHub…`,
+    checking: `Checking where ${story.local.branch || 'the branch'} stands on GitHub…`,
     load: () => bridge.ask(ROUTES.prView, { params: PARAMS }),
-    loaded: (view) => {
-      lastView = view;
-      redrawButton();
-    },
+    loaded: takeView,
     title: () => 'Create pull request',
     lead,
     standing,
@@ -249,5 +231,5 @@ export function openPrBox() {
       view.remote.state !== 'same' ? 'Push and open on GitHub' : 'Open on GitHub',
     working: (view) => (view.remote.state !== 'same' ? `Pushing ${view.branch}…` : null),
     go: create,
-  });
+  };
 }

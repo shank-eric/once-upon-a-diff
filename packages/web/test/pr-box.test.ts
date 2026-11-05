@@ -5,6 +5,10 @@ import {
   box,
   button,
   commit,
+  current,
+  openBox,
+  closeBox,
+  setStory,
   fire,
   goButton,
   held,
@@ -18,9 +22,6 @@ import {
   text,
   window,
 } from './local-env.ts';
-
-const { page } = await import('../public/local/page.ts');
-const { openPrBox } = await import('../public/local/ship/pull-request.ts');
 
 const view = (over: Record<string, unknown> = {}) => ({
   repo: 'acme/widgets',
@@ -63,7 +64,7 @@ Object.defineProperty(globalThis.navigator, 'clipboard', {
 });
 
 const open = async () => {
-  openPrBox();
+  openBox('pr');
   await settle();
 };
 const field = (name: string) => box()!.querySelector(`[name="${name}"]`) as HTMLInputElement;
@@ -73,15 +74,15 @@ test.beforeEach(() => {
   tabs.length = 0;
   copied.length = 0;
   popupsBlocked = false;
-  page.story = story();
+  setStory(story());
   reply('GET pr', view());
 });
 test.afterEach(() => {
-  box()?.parentElement?.remove();
+  closeBox();
 });
 
 test('the box opens with the base branch, the handed-over title and body, and what a push sends', async () => {
-  openPrBox();
+  openBox('pr');
   assert.match(text(), /Checking where work stands on GitHub/);
   await settle();
   assert.match(text(), /Create pull request/);
@@ -205,6 +206,7 @@ test('a blocker is shown and Go stays off', async () => {
     await settle();
     assert.equal(tabs.length, 0, 'no tab for a box that cannot go');
     button('Cancel')!.click();
+    await settle();
   }
 });
 
@@ -217,13 +219,16 @@ test('a PR already open is linked in the box', async () => {
 test('Cancel, the backdrop and Escape close it', async () => {
   await open();
   button('Cancel')!.click();
-  assert.equal(box(), null);
+  await settle();
+  assert.ok(box() === null);
   await open();
   fire(box()!, 'click');
-  assert.equal(box(), null);
+  await settle();
+  assert.ok(box() === null);
   await open();
   (box() as unknown as { close: () => void }).close();
-  assert.equal(box(), null);
+  await settle();
+  assert.ok(box() === null);
 });
 
 test("when the branch can't be checked the box says so and offers Close", async () => {
@@ -231,16 +236,18 @@ test("when the branch can't be checked the box says so and offers Close", async 
   await open();
   assert.match(text(), /Couldn't check the branch: gh is not logged in/);
   button('Close')!.click();
-  assert.equal(box(), null);
+  await settle();
+  assert.ok(box() === null);
 });
 
 test('a read-only link is told where to open the story, and nothing is asked of the bridge', async () => {
-  page.story.read_only = true;
+  (current() as { read_only: boolean }).read_only = true;
   await open();
   assert.match(text(), /read-only link, which can read the story but not push its branch\./);
   assert.match(text(), /To push and open the PR, open the story from the agent board/);
   assert.match(text(), /once-upon page --story story-1/);
   assert.equal(askedOn('GET pr').length, 0);
   button('Close')!.click();
-  assert.equal(box(), null);
+  await settle();
+  assert.ok(box() === null);
 });

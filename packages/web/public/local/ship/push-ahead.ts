@@ -8,9 +8,10 @@
 import { html } from '/assets/preact.mjs';
 import { plural } from '/assets/domain/text.ts';
 import { ROUTES } from '/assets/contracts/routes.ts';
-import { bridge, page, PARAMS } from '/assets/local/page.ts';
-import { CommitList, openActionDialog } from './action-dialog.ts';
-import { takeView } from './pull-request.ts';
+import { bridge, PARAMS } from '/assets/local/page.ts';
+import { takeView } from '/assets/local/actions.ts';
+import { CommitList, type ActionSpec } from './action-dialog.ts';
+import type { LocalStoryData } from '/assets/local/page.ts';
 import type { PrView } from '/assets/types.ts';
 
 /** Why the box's Push can't go, or null when it can. */
@@ -53,12 +54,10 @@ function standing(view: PrView) {
   return html`${sends}${pull}`;
 }
 
-/** The header Push's click (or the board's link): the confirm box, with where GitHub's copy of the branch stands. */
-export function openPushAheadBox() {
-  openActionDialog<PrView>({
-    refusal: page.story.read_only
-      ? { title: 'Push', cant: 'push', to: 'push', story: page.story.id }
-      : null,
+/** The Push box for a branch with an open PR: where GitHub's copy of the branch stands, and the button that pushes what it lacks. */
+export function pushAheadSpec(story: LocalStoryData): ActionSpec<PrView> {
+  return {
+    refusal: story.read_only ? { title: 'Push', cant: 'push', to: 'push', story: story.id } : null,
     checking: "Checking where GitHub's branch stands…",
     load: () => bridge.ask(ROUTES.prView, { params: PARAMS }),
     loaded: takeView,
@@ -79,5 +78,5 @@ export function openPushAheadBox() {
         output: answer.output,
       };
     },
-  });
+  };
 }

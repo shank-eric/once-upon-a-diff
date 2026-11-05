@@ -130,18 +130,22 @@ export function narrowRows(
   );
   // a removed line with no new number goes with what replaced it, or, for a pure removal, with the lines on both sides
   const isNew = (row: NarrowRow | undefined) => row && row.type === 'line' && row.R != null;
+  // the first row after, and the last row before, a run of removed lines: found once for the run, so a long run is linear
+  const removed = (row: NarrowRow | undefined) => !!row && row.type === 'line' && row.R == null;
+  const nextOf: number[] = [];
+  for (let i = rows.length - 1; i >= 0; i--) {
+    nextOf[i] = removed(rows[i + 1]) ? nextOf[i + 1] : i + 1;
+  }
+  const prevOf: number[] = [];
+  for (let i = 0; i < rows.length; i++) {
+    prevOf[i] = removed(rows[i - 1]) ? prevOf[i - 1] : i - 1;
+  }
   rows.forEach((row, i) => {
     if (row.type !== 'line' || row.R != null) {
       return;
     }
-    let next = i + 1;
-    while (rows[next] && rows[next].type === 'line' && rows[next].R == null) {
-      next++;
-    }
-    let prev = i - 1;
-    while (rows[prev] && rows[prev].type === 'line' && rows[prev].R == null) {
-      prev--;
-    }
+    const next = nextOf[i];
+    const prev = prevOf[i];
     const after = isNew(rows[next]) ? claimedBy[next]! : new Set<number>();
     const before = isNew(rows[prev]) ? claimedBy[prev]! : new Set<number>();
     claimedBy[i] = union(

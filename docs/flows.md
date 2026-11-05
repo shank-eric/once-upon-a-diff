@@ -227,7 +227,7 @@ flowchart LR
 | 1 | `feature` | the panel's button asks the host for sessions | `packages/panel/src/components/status-light-part.ts:111` (`opts.listen!.sessions(target)`) |
 | 2 | `client` | none, one, or a chooser | `packages/ui-kit/src/listen.ts:20` (`export function listenPlan`) |
 | 3 | `app` | on GitHub: `GET /api/board/listen-sessions`, with the token through the service worker | `packages/extension/src/content/listen.ts:50` (`ROUTES.boardListenSessions`) |
-| 3' | `app` | on the local page: the story's own route, with the story's key (the board's routes need the board's key) | `packages/web/public/local/mount.ts:115` (`ROUTES.storyListenSessions`) |
+| 3' | `app` | on the local page: the story's own route, with the story's key (the board's routes need the board's key) | `packages/web/public/local/mount.ts:107` (`ROUTES.storyListenSessions`) |
 | 4 | `app` | the board route | `packages/bridge/src/server/routes/board.ts:91` (`app.sessions.storyListenSessions(storyId)`) |
 | 4' | `app` | the story route, still through `Board`'s one-line delegate (ADR-16) | `packages/bridge/src/server/routes/story.ts:201` (`app.board.storyListenSessions(story.id)`) |
 | 5 | `service` | the story's repo, then the idle sessions in its checkout | `packages/bridge/src/services/sessions/sessions.ts:165` (`async storyListenSessions(`) |

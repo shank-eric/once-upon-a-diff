@@ -2,6 +2,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   document,
+  openBox,
+  closeBox,
+  current,
+  store,
+  setStory,
   askedOn,
   box,
   button,
@@ -17,11 +22,7 @@ import {
   held,
   story,
   text,
-  window,
 } from './local-env.ts';
-
-const { page } = await import('../public/local/page.ts');
-const { openPushBox } = await import('../public/local/ship/push.ts');
 
 const view = (over: Record<string, unknown> = {}) => ({
   repo: 'acme/widgets',
@@ -38,24 +39,24 @@ const view = (over: Record<string, unknown> = {}) => ({
 });
 
 const open = async () => {
-  openPushBox();
+  openBox('push');
   await settle();
 };
 const close = () => button('Cancel')?.click();
 
 test.beforeEach(() => {
   requests.length = 0;
-  page.story = story({ ship: 'push', approved: { at: 'x', head_oid: 'a'.repeat(40) } });
+  setStory(story({ ship: 'push', approved: { at: 'x', head_oid: 'a'.repeat(40) } }));
   reply('GET push', view());
 });
 test.afterEach(() => {
   // close what a test left open the way a reviewer would, so nothing is left drawn to close later
   (button('Cancel') ?? button('Close'))?.click();
-  box()?.parentElement?.remove();
+  closeBox();
 });
 
 test('the box opens as a modal and says where origin stands, then offers Push', async () => {
-  openPushBox();
+  openBox('push');
   assert.match(text(), /Checking where GitHub's branch stands/);
   await settle();
   assert.ok(box()?.hasAttribute('open'), 'shown as a modal');
@@ -69,8 +70,6 @@ test('the box opens as a modal and says where origin stands, then offers Push', 
 
 test('Push sends the approved commit, says what happened with git’s lines, and becomes a disabled Done', async () => {
   reply('POST push', { output: 'main -> main' });
-  let pushed = 0;
-  window.addEventListener('ou-pushed', () => pushed++);
   await open();
   submitGo();
   await settle();
@@ -82,12 +81,17 @@ test('Push sends the approved commit, says what happened with git’s lines, and
   assert.match(text(), /main -> main/);
   assert.equal(goButton().textContent, 'Done');
   assert.ok(!isOn(goButton()), 'a second click has nothing to do');
-  assert.equal(page.story.local.approved, null, 'the page no longer holds the approval');
-  assert.equal(pushed, 1, 'the page was told');
+  assert.equal(
+    (current() as { local: { approved: unknown } }).local.approved,
+    null,
+    'the page no longer holds the approval',
+  );
+  assert.equal(store.get().ship.pushedAt, 'a1b2c3d', 'the page was told');
+  assert.ok(store.get().ship.hasPull, 'and Approve goes');
 });
 
 test('a storyless review pushes the head its diff shows', async () => {
-  page.story = story({ ship: 'push', storyless: true });
+  setStory(story({ ship: 'push', storyless: true }));
   reply('POST push', { output: '' });
   await open();
   assert.match(text(), /the commit shown/);
@@ -99,7 +103,8 @@ test('a storyless review pushes the head its diff shows', async () => {
 test('Cancel takes the box away', async () => {
   await open();
   close();
-  assert.equal(box(), null);
+  await settle();
+  assert.ok(box() === null);
 });
 
 test('a click on the backdrop and Escape close it, a click inside does not', async () => {
@@ -107,10 +112,12 @@ test('a click on the backdrop and Escape close it, a click inside does not', asy
   fire(box()!.querySelector('h2')!, 'click');
   assert.ok(box(), 'a click inside stays');
   fire(box()!, 'click');
-  assert.equal(box(), null, 'the backdrop closes');
+  await settle();
+  assert.ok(box() === null, 'the backdrop closes');
   await open();
   (box() as unknown as { close: () => void }).close(); // Escape: the browser closes the dialog and says so
-  assert.equal(box(), null);
+  await settle();
+  assert.ok(box() === null);
 });
 
 test("when GitHub can't be checked the box says so and offers Close", async () => {
@@ -119,7 +126,8 @@ test("when GitHub can't be checked the box says so and offers Close", async () =
   assert.match(text(), /Couldn't check the branch: gh is not logged in/);
   assert.equal(button('Cancel'), undefined);
   button('Close')!.click();
-  assert.equal(box(), null);
+  await settle();
+  assert.ok(box() === null);
 });
 
 test('a push that fails shows the reason, turns Push back on, and a retry goes through', async () => {
@@ -183,20 +191,33 @@ test('when a pull request goes around the blocker, the box offers Create pull re
 const document_boxes = () => document.querySelectorAll('#ou-local-pr-box').length;
 
 test('a read-only link is told where to open the story, and nothing is asked of the bridge', async () => {
-  page.story = story({ ship: 'push' });
-  page.story.read_only = true;
+  setStory(story({ ship: 'push' }));
+  (current() as { read_only: boolean }).read_only = true;
   await open();
   assert.match(text(), /read-only link, which can read the story but not push\./);
   assert.match(text(), /once-upon page --story story-1/);
   assert.equal(askedOn('GET push').length, 0);
   button('Close')!.click();
-  assert.equal(box(), null);
+  await settle();
+  assert.ok(box() === null);
 });
 
 test('opening a second box closes the first', async () => {
+  reply('GET pr', {
+    repo: 'acme/widgets',
+    branch: 'work',
+    base: 'main',
+    head_sha: 'c'.repeat(40),
+    remote: { state: 'missing', sha: null },
+    to_push: [],
+    draft: null,
+    pull: null,
+  });
   await open();
-  await open();
+  openBox('pr');
+  await settle();
   assert.equal(document_boxes(), 1);
+  assert.match(text(), /Create pull request/);
 });
 
 test('closing a box gives focus back to the button that opened it, by Cancel and by the hand-over to the PR box', async () => {
@@ -210,6 +231,7 @@ test('closing a box gives focus back to the button that opened it, by Cancel and
     'the shim keeps focus until the reviewer moves it',
   );
   button('Cancel')!.click();
+  await settle();
   assert.equal(document.activeElement, opener);
   reply('GET push', view({ blocker: 'main needs a pull request', pr_instead: true }));
   reply('GET pr', {
@@ -226,6 +248,7 @@ test('closing a box gives focus back to the button that opened it, by Cancel and
   button('Create pull request')!.click();
   await settle();
   button('Cancel')!.click();
+  await settle();
   assert.equal(document.activeElement, opener, 'the PR box returns it too');
   opener.remove();
 });

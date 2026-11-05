@@ -6,6 +6,10 @@ import {
   button,
   commit,
   document,
+  openBox,
+  closeBox,
+  current,
+  setStory,
   fire,
   goButton,
   held,
@@ -18,9 +22,6 @@ import {
   submitGo,
   text,
 } from './local-env.ts';
-
-const { page } = await import('../public/local/page.ts');
-const { openPushAheadBox } = await import('../public/local/ship/push-ahead.ts');
 
 const view = (over: Record<string, unknown> = {}) => ({
   repo: 'acme/widgets',
@@ -35,21 +36,21 @@ const view = (over: Record<string, unknown> = {}) => ({
 });
 
 const open = async () => {
-  openPushAheadBox();
+  openBox('push-ahead');
   await settle();
 };
 
 test.beforeEach(() => {
   requests.length = 0;
-  page.story = story();
+  setStory(story());
   reply('GET pr', view());
 });
 test.afterEach(() => {
-  box()?.parentElement?.remove();
+  closeBox();
 });
 
 test('the box opens, lists the commits GitHub lacks and links the open PR', async () => {
-  openPushAheadBox();
+  openBox('push-ahead');
   assert.match(text(), /Checking where GitHub's branch stands/);
   await settle();
   assert.match(text(), /Push work/);
@@ -82,13 +83,16 @@ test('Push fast-forwards the branch, says so with git’s lines, and becomes a d
 test('Cancel, the backdrop and Escape close it', async () => {
   await open();
   button('Cancel')!.click();
-  assert.equal(box(), null);
+  await settle();
+  assert.ok(box() === null);
   await open();
   fire(box()!, 'click');
-  assert.equal(box(), null);
+  await settle();
+  assert.ok(box() === null);
   await open();
   (box() as unknown as { close: () => void }).close();
-  assert.equal(box(), null);
+  await settle();
+  assert.ok(box() === null);
 });
 
 test("when the branch can't be checked the box says so and offers Close", async () => {
@@ -96,7 +100,8 @@ test("when the branch can't be checked the box says so and offers Close", async 
   await open();
   assert.match(text(), /Couldn't check the branch: origin unreachable/);
   button('Close')!.click();
-  assert.equal(box(), null);
+  await settle();
+  assert.ok(box() === null);
 });
 
 test('a push that fails shows the reason and turns Push back on', async () => {
@@ -128,15 +133,17 @@ test('each state that cannot push says why and keeps Push off', async () => {
     await settle();
     assert.equal(askedOn('POST pr').length, 0);
     button('Cancel')!.click();
+    await settle();
   }
 });
 
 test('a read-only link is told where to open the story, and nothing is asked of the bridge', async () => {
-  page.story.read_only = true;
+  (current() as { read_only: boolean }).read_only = true;
   await open();
   assert.match(text(), /read-only link, which can read the story but not push\./);
   assert.match(text(), /once-upon page --story story-1/);
   assert.equal(askedOn('GET pr').length, 0);
   button('Close')!.click();
+  await settle();
   assert.equal(document.getElementById('ou-local-pr-box'), null);
 });

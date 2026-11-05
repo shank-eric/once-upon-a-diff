@@ -12,9 +12,8 @@ import type { LocalNote } from '/assets/types.ts';
 import { ROUTES } from '/assets/contracts/routes.ts';
 import { bridgeProblem, type BridgeError } from '/assets/bridge-client/client.ts';
 import { page, bridge, pageUrl, PARAMS, STORY_ID, usage } from './page.ts';
-import { narrow, reveal, unnarrow, forgetNarrowing } from '/assets/local/diff/folds.ts';
-import { placeNotes } from '/assets/local/diff/notes.ts';
-import { redrawSend } from '/assets/local/diff/send.ts';
+import { narrow, reveal, unnarrow, setNotes, upsertNote } from '/assets/local/actions.ts';
+import { store, storyOf } from '/assets/local/store.ts';
 
 /** The panel's host here: the local diff view's DOM (it has GitHub's /changes shapes) and the page's fetch to the bridge. */
 const host: PanelHost = {
@@ -25,7 +24,7 @@ const host: PanelHost = {
   count: usage.count,
 };
 
-const panelData = () => ({ ...page.story, local: undefined });
+const panelData = () => ({ ...storyOf(), local: undefined });
 
 function statusError(err: BridgeError): never {
   throw Object.assign(err, { code: bridgeProblem(err) });
@@ -37,11 +36,8 @@ async function addToFixBeforePush(chapter: number, index: number) {
     params: PARAMS,
     body: { chapter, index },
   })) as LocalNote;
-  page.story.local.notes = [
-    ...page.story.local.notes.filter((existing) => existing.id !== note.id),
-    note,
-  ];
-  placeNotes();
+  upsertNote(note);
+  store.flush();
   return bridge.ask(ROUTES.draftsRead, { params: PARAMS });
 }
 
@@ -49,7 +45,6 @@ export function mount(initial: InitialUi) {
   if (page.overlay) {
     page.overlay.destroy();
   }
-  removeReopen();
   const common = bridgeOptions(host);
   page.overlay = storyOverlay(
     panelData(),
@@ -76,22 +71,19 @@ export function mount(initial: InitialUi) {
       reveal,
       onClose: () => {
         page.overlay = null;
-        redrawSend();
-        page.hidden = true;
-        forgetNarrowing();
+        store.set({ panelOpen: false, hidden: true });
         unnarrow();
         bridge
           .ask(ROUTES.storyUiWrite, { params: PARAMS, body: { ...page.lastUi, hidden: true } })
           .catch(() => {});
-        showReopen();
       },
       fixes: {
         ...common.fixes,
         // the panel's notes changed (sent, fixed, edited): the diff and the checklist show the same
         onChange: (view) => {
           // the view's notes are notes.json's, each with its state (shared FixNote leaves out `at`, `done`...)
-          page.story.local.notes = view.notes;
-          placeNotes();
+          setNotes(view.notes);
+          store.flush();
         },
       },
       drafts: {
@@ -103,7 +95,7 @@ export function mount(initial: InitialUi) {
       },
       // the story or the commits moved: local.js reloads and redraws
       onPulse: (pulse) => {
-        if (pulse.version !== page.story.version && page.onVersion) {
+        if (pulse.version !== storyOf().version && page.onVersion) {
           page.onVersion(pulse.version);
         }
       },
@@ -124,31 +116,14 @@ export function mount(initial: InitialUi) {
     },
     host,
   );
-  redrawSend(); // Send needs the panel that is now open
+  store.set({ panelOpen: true, hidden: false }); // Send needs the panel that is now open
 }
 
 /** Mounts again on the step and scroll the panel has now (a redraw under it). */
 export function remount() {
-  if (!page.hidden) {
+  if (!store.get().hidden) {
     mount(
       page.overlay ? { ...page.overlay.state, bodyScroll: page.overlay.bodyScroll } : page.lastUi,
     );
   }
-}
-
-export function showReopen() {
-  removeReopen();
-  const button = document.createElement('button');
-  button.className = 'ou-local-reopen';
-  button.type = 'button';
-  button.textContent = 'Show story';
-  button.onclick = () => {
-    page.hidden = false;
-    mount({ ...page.lastUi });
-  };
-  document.body.appendChild(button);
-}
-
-function removeReopen() {
-  document.querySelector('.ou-local-reopen')?.remove();
 }

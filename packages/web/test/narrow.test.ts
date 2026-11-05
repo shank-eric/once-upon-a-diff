@@ -130,3 +130,31 @@ test('a note keeps its line showing, and split rows count both sides', () => {
     'an old-side range claims by the old line number',
   );
 });
+
+test('a run of 20,000 removed lines narrows as before: with what replaced it, or on both sides for a pure removal', () => {
+  const many = (first: number) => Array.from({ length: 20000 }, (_, i) => del(first + i));
+  const two = claimsOf([
+    { files: [{ rel: 'f.js', lines: [{ side: 'R', start: 1, end: 1 }] }] },
+    { files: [{ rel: 'f.js', lines: [{ side: 'R', start: 2, end: 2 }] }] },
+  ]);
+  // the removed lines are replaced by line 2 (chapter 2's): they go with it
+  const replaced = [hunk, ctx(1, 1), ...many(2), add(2)];
+  const first = narrowRows(replaced, two, 'f.js', 1);
+  assert.deepEqual(
+    [first.hidden.slice(0, 3), first.hidden.slice(-2)],
+    [
+      [false, false, true],
+      [true, true],
+    ],
+  );
+  assert.deepEqual(
+    first.runs.map((run) => [run.from, run.to, run.steps]),
+    [[2, 20002, [2]]],
+  );
+  const second = narrowRows(replaced, two, 'f.js', 2);
+  assert.equal(second.hidden.filter(Boolean).length, 1, 'only the line chapter 1 tells');
+  // a pure removal sits between line 1 and line 2: both chapters keep it
+  const pure = [hunk, ctx(1, 1), ...many(2), ctx(22002, 2)];
+  assert.equal(narrowRows(pure, two, 'f.js', 1).hidden.filter(Boolean).length, 1, 'only line 2');
+  assert.equal(narrowRows(pure, two, 'f.js', 2).hidden.filter(Boolean).length, 1, 'only line 1');
+});

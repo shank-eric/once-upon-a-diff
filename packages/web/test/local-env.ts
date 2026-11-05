@@ -13,6 +13,8 @@ Object.assign(globalThis, {
 // the page sends window events (`new Event`): linkedom's window takes its own Event, not Node's
 Object.assign(globalThis, { Event: window.Event });
 Object.assign(globalThis, { location: { hash: '#key=k', href: 'http://localhost/#key=k' } });
+// linkedom has no scrolling: the page asks to scroll, and a test that cares replaces this
+Object.assign(window, { scrollTo: () => {}, scrollY: 0 });
 const boot = document.createElement('script');
 boot.id = 'ou-local-boot';
 boot.textContent = JSON.stringify({ story: 'story-1' });
@@ -67,6 +69,37 @@ export const refuse =
     throw { status, error };
   };
 
+const { render, html } = await import('/assets/preact.mjs');
+const { store } = await import('../public/local/store.ts');
+const { DialogHost } = await import('../public/local/ship/dialogs.ts');
+const { openDialog, closeDialog } = await import('../public/local/actions.ts');
+// the page's boxes, drawn from the store as the page draws them (the rest of the page is not drawn here)
+const dialogs = document.createElement('div');
+document.body.appendChild(dialogs);
+store.attach((state) =>
+  render(
+    state.story ? html`<${DialogHost} story=${state.story} dialog=${state.ship.dialog} />` : null,
+    dialogs,
+  ),
+);
+export { store };
+/** The story the page holds. */
+export const current = () => store.get().story as never as ReturnType<typeof story>;
+export const setStory = (next: ReturnType<typeof story>) => {
+  store.set({ story: next as never });
+  store.flush();
+};
+/** Opens a box, drawn now. */
+export const openBox = (name: 'push' | 'push-ahead' | 'pr') => {
+  openDialog(name);
+  store.flush();
+};
+/** Closes the box, as the page does when it says it closed. */
+export const closeBox = () => {
+  closeDialog();
+  store.flush();
+};
+
 /** The open dialog, if any. */
 export const box = () => document.getElementById('ou-local-pr-box') as HTMLElement | null;
 export const text = () => (box()?.textContent ?? '').replace(/\s+/g, ' ').trim();
@@ -102,18 +135,69 @@ export function story(overrides: Record<string, unknown> = {}) {
   return {
     id: 'story-1',
     title: 'A story',
+    version: 'v1',
     read_only: false,
     local: {
       repo: 'acme/widgets',
+      base: 'main',
+      head: 'work',
+      base_oid: 'a'.repeat(40),
       branch: 'work',
       ship: 'pr',
       head_oid: 'b'.repeat(40),
       approved: null,
       storyless: false,
+      moved: null,
+      commits: [],
+      hide_whitespace: false,
+      diff_view: 'unified',
       notes: [],
       files: [],
       ...overrides,
     },
     chapters: [],
   } as never;
+}
+
+/** A file of the story's diff: one hunk of `lines` (each with its ' ', '-' or '+'), the old side starting at line 1 and the new at line 1. */
+export function file(rel: string, lines: string[], over: Record<string, unknown> = {}) {
+  const old = lines.filter((line) => line[0] !== '+').length;
+  const added = lines.filter((line) => line[0] !== '-').length;
+  return {
+    rel,
+    sha: `sha-${rel.replace(/\W/g, '-')}`,
+    kind: 'modified',
+    stats: {
+      added: lines.filter((line) => line[0] === '+').length,
+      removed: lines.filter((line) => line[0] === '-').length,
+    },
+    hunks: [{ oldStart: 1, oldLines: old, newStart: 1, newLines: added, header: '', lines }],
+    renamed_from: null,
+    binary: false,
+    hash: `hash-${rel}`,
+    whitespace_only: false,
+    viewed: false,
+    viewed_changed: false,
+    ...over,
+  };
+}
+
+/** The page drawn whole from the store into a div on the body (the test's own boxes are not drawn then). Returns what a test needs to take it down. */
+export async function mountApp(
+  over: Record<string, unknown> = {},
+  state: Record<string, unknown> = {},
+) {
+  const { drawInto } = await import('../public/local/app.ts');
+  const host = document.createElement('div');
+  document.body.appendChild(host);
+  store.set({ story: story(over), ...state } as never);
+  drawInto(host);
+  return {
+    host,
+    unmount() {
+      render(null, host);
+      store.attach(() => {}); // nothing draws into the host that is gone when the state changes again
+      host.remove();
+    },
+  };
 }
