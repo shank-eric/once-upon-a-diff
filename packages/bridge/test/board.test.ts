@@ -165,6 +165,8 @@ const clearedLines = (sessionId: string) => [
   },
 ];
 
+let startedCount = 0;
+
 /**
  * A registry file the way Claude Code writes it, and (unless `blank`) a transcript of a session that has had a prompt, so
  * the board shows it as a card; `blank` leaves the transcript as just the clear.
@@ -185,7 +187,9 @@ function registry(
     cwd: '/tmp/somewhere/widgets',
     name: `session-${pid}`,
     status: 'idle',
-    startedAt: NOW.getTime() - 3600000,
+    // the board lists sessions oldest first: each one started a second after the one registered before it, so the order is
+    // the order they are registered in, whatever pids the machine handed out (a pid that wrapped round is smaller)
+    startedAt: NOW.getTime() - 3600000 + 1000 * startedCount++,
     statusUpdatedAt: NOW.getTime() - 600000,
     ...(procStart ? { procStart } : {}),
     ...extra,
@@ -353,6 +357,41 @@ test('live sessions: a dead pid, a reused pid and a bad file are left out; the t
   assert.equal(live[0].cwd, '/tmp/somewhere/widgets');
   assert.equal(live[0].status, 'idle');
   assert.equal(await liveSessions(path.join(dir, 'missing')).then((list) => list.length), 0);
+});
+
+test('live sessions: oldest start first, then lowest pid, a session with no start last, whatever order the files list in', async () => {
+  const dir = tmp('board-session-order');
+  const children = [liveChild(), liveChild(), liveChild(), liveChild()];
+  after(() => children.forEach((child) => child.stop()));
+  // by pid, whatever the machine handed out (a pid can wrap round)
+  const [low, second, third, high] = [...children].sort((first, other) => first.pid - other.pid);
+  const start = NOW.getTime() - 3600000;
+  // readdir lists these by file name as strings ("1", "100", "2", "99"), which is neither the pids' order nor the start order,
+  // and "100" before "99" is the digit boundary a real pid pair crosses
+  const files: [string, { pid: number; procStart: string }, number | undefined][] = [
+    ['1', low, start + 3000], // started last
+    ['99', second, start], // started first, lower pid than `high`
+    ['2', third, undefined], // no start recorded
+    ['100', high, start], // same start as `second`
+  ];
+  for (const [name, child, startedAt] of files) {
+    writeJson(path.join(dir, `${name}.json`), {
+      pid: child.pid,
+      sessionId: fullId(child.pid),
+      cwd: '/tmp/somewhere/widgets',
+      status: 'idle',
+      procStart: child.procStart,
+      ...(startedAt === undefined ? {} : { startedAt }),
+    });
+  }
+  const expected = [second, high, low, third].map((child) => child.pid);
+  for (let poll = 0; poll < 2; poll++) {
+    assert.deepEqual(
+      (await liveSessions(dir)).map((session) => session.pid),
+      expected,
+      `poll ${poll + 1}: same order every time`,
+    );
+  }
 });
 
 test('valid JSON that is not the expected shape (null, a number, an object for a list) drops only itself', async () => {

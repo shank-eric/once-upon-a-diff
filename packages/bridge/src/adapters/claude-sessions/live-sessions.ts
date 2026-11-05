@@ -97,6 +97,13 @@ export async function liveSessions(dir: string): Promise<LiveSession[]> {
       rows.set(Number(match[1]), { tty: match[2], start: collapse(match[3]) });
     }
   }
+  // readdir answers in file-name order, which is string order of the pids ("10001.json" before "9998.json"), so a card's
+  // sessions, the cards of lone sessions and the order of the board's lookups flipped with whatever pids the machine handed
+  // out. Oldest session first, then lowest pid, is the same on every poll.
+  found.sort(
+    (first, second) =>
+      (first.startedAt ?? Infinity) - (second.startedAt ?? Infinity) || first.pid - second.pid,
+  );
   return found
     .filter((live) => {
       const row = rows.get(live.pid);

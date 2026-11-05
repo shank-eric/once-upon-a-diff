@@ -189,6 +189,8 @@ const clearedLines = (sessionId: string) => [
     sessionId,
   },
 ];
+let startedCount = 0;
+
 function registry(
   dir: string,
   child: { pid: number; procStart: string },
@@ -209,7 +211,9 @@ function registry(
     cwd: '/tmp/somewhere/widgets',
     name: `session-${child.pid}`,
     status: 'idle',
-    startedAt: NOW.getTime() - 3600000,
+    // the board lists sessions oldest first: each one started a second after the one registered before it, so the order is
+    // the order they are registered in, whatever pids the machine handed out (a pid that wrapped round is smaller)
+    startedAt: NOW.getTime() - 3600000 + 1000 * startedCount++,
     statusUpdatedAt: NOW.getTime() - 600000,
     procStart: child.procStart,
     ...extra,
