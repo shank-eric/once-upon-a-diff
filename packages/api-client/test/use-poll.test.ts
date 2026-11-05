@@ -1,14 +1,16 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import { document, root, tick, window } from './preact-env.ts';
+import { document, root, window } from './preact-env.ts';
 import { html, render } from '../../web/public/vendor/preact.mjs';
 
 // after the DOM and the resolver are in place (a static import would be resolved before them)
 const { usePoll } = await import('../src/use-poll.ts');
 
+// the test kit's tick waits on a real setTimeout, which is faked here
+const tick = () => new Promise((resolve) => setImmediate(resolve));
 let visible = 'visible';
 Object.defineProperty(document, 'visibilityState', { get: () => visible });
-mock.timers.enable({ apis: ['setInterval'] });
+mock.timers.enable({ apis: ['setTimeout'] });
 
 let loads = 0;
 let answer: () => string = () => `board ${loads}`;

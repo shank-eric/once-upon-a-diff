@@ -60,7 +60,10 @@ function prLinks(): PrLink[] {
 }
 
 export function createPullListPage() {
-  const tags = createPrTags({ attr: ATTR });
+  const tags = createPrTags({
+    attr: ATTR,
+    onDue: (prs) => (prs.length ? scan({ only: prs }) : undefined), // the poll: PRs in flight, or all while the bridge is down
+  });
   let scanning = false;
   let pending: ReturnType<typeof setTimeout> | 0 = 0;
 
@@ -120,21 +123,16 @@ export function createPullListPage() {
       scan();
     } else {
       observer.disconnect();
-      tags.hideNotice();
+      tags.clear(); // its notice, and the poll's targets: nothing on the list is watched once you leave it
     }
   }
 
-  /** Every tick and navigation, from the router. */
+  /** Every navigation and coming back to the tab, from the router (the tags' poll looks again on its own). */
   function route({ kind, navigated, reason }: Route) {
     if (navigated) {
       enterOrLeave(kind === 'list');
     } else if (kind === 'list' && reason === 'back') {
       scan({ force: true }); // back on the tab: another tab or a session may have moved things on
-    } else if (kind === 'list' && !scanning) {
-      const again = tags.due();
-      if (again.length) {
-        scan({ only: again });
-      }
     }
   }
 

@@ -203,14 +203,19 @@ Object.assign(globalThis, {
     }
   },
 });
+const BOARD_POLL_MS = 3000;
+const realSetTimeout = globalThis.setTimeout;
 Object.assign(globalThis, {
   location: { hash: '' },
   alert: (text: string) => void alerts.push(text),
   matchMedia: () => ({ matches: false }),
-  // the page polls on a timer: the test calls the poll itself
-  setInterval: (callback: () => void) => {
-    poll = callback;
-    return 0;
+  // the page polls on a timer (3 s): the test calls the poll itself; any other timer is a real one
+  setTimeout: (callback: () => void, delay?: number, ...rest: unknown[]) => {
+    if (delay === BOARD_POLL_MS) {
+      poll = callback;
+      return 0;
+    }
+    return realSetTimeout(callback, delay, ...rest);
   },
   fetch: async (path: string, init?: { method?: string; body?: string }) => {
     const method = init?.method ?? 'GET';

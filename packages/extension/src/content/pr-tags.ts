@@ -5,24 +5,21 @@
  * the tags' clicks (Build story, Update, Re-tell, and on Files changed the
  * Story link, which opens the panel) and keeps the page's "No session
  * listening" notice (components/listen-notice.ts). Each page says where its tags go and
- * when to look.
+ * when to look. It also owns the tags' poll (a createPoll): while a story is queued, building or updating it asks the page
+ * to look again every 10 s, and every 30 s while the bridge doesn't answer, while the tab shows and when it gets focus.
  */
 import { prKey } from '@once-upon-a-diff/domain/pr-key';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
-import { bridge, usage, type BridgeAnswer } from './bridge.ts';
+import { bridge, extensionAlive, usage, type BridgeAnswer } from './bridge.ts';
 import type { Listening, StatusMany } from '@once-upon-a-diff/protocol/types';
 import type { PrRef, StoryStatus } from './tag-model.ts';
 import { listenNotice } from './components/listen-notice.ts';
 import { answersBadge, tagFor, requestFor, missingListeners } from './tag-model.ts';
 import { createTagHost, showTag, clickedTagButton } from './components/tag-host.ts';
+import { createTagPoll, pollTargets } from './tag-poll.ts';
 
 const MAX_PER_CALL = 200;
 const LISTENER_LOOKS_MS = [5000, 10000, 15000]; // after Start listening typed its line: asks who listens at about 5, 15 and 30 s
-const LOOK_AGAIN_MS = 10000; // while a story is queued, building or updating
-const OFFLINE_MS = 30000; // while the bridge doesn't answer
-
-export const inFlight = (result: StoryStatus | null) =>
-  !!result && (result.state === 'queued' || result.state === 'building' || !!result.updating);
 
 /** The PR title on the classic and the React PR pages (Conversation and Files changed). */
 export function titleElement(): Element | null {
@@ -33,12 +30,23 @@ export function titleElement(): Element | null {
 
 /**
  * attr marks the tag hosts on the page; onStory, when given, is what clicking a Story link does instead of
- * following it.
+ * following it. onDue is what the page does when the poll says some PRs are due a new look: the ones in flight, or all
+ * the ones it has an answer for while the bridge is down. scope, for a page that shows one PR, says which PRs the poll
+ * watches: the one on screen, so a PR the page has navigated away from is never looked at again.
  */
-export function createPrTags({ attr, onStory }: { attr: string; onStory?: (pr: PrRef) => void }) {
+export function createPrTags({
+  attr,
+  onStory,
+  onDue,
+  scope,
+}: {
+  attr: string;
+  onStory?: (pr: PrRef) => void;
+  onDue?: (prs: PrRef[]) => void | Promise<void>;
+  scope?: () => PrRef[];
+}) {
   const results = new Map<string, StoryStatus>(); // "owner/repo#n" -> a status-many result
   let listening: Record<string, Listening> = {}; // repo -> {ok, prompt, details, checkout}
-  let lastAsk = 0;
   let failed = false;
   let noticeRepos: string[] = [];
   let relook: ReturnType<typeof setTimeout> | undefined;
@@ -81,7 +89,6 @@ export function createPrTags({ attr, onStory }: { attr: string; onStory?: (pr: P
     const answer = await bridge.call(ROUTES.statusMany, {
       body: { prs: need.map(({ repo, number }) => ({ repo, number })) },
     });
-    lastAsk = Date.now();
     failed = !answer.ok;
     if (answer.ok) {
       for (const result of answer.body.results) {
@@ -89,21 +96,21 @@ export function createPrTags({ attr, onStory }: { attr: string; onStory?: (pr: P
       }
       listening = { ...listening, ...(answer.body.listening || {}) };
     }
+    poll.reschedule(); // the wait starts from this look
     return answer;
   }
 
-  /**
-   * The PRs to look up again now: the ones in flight every 10s, or all of them every 30s while the bridge is down.
-   * prs: the page's PRs, or by default every PR it has an answer for.
-   */
-  // (status-many's lines carry repo and number; a line a click set does not, and keys as undefined#undefined)
-  function due(prs: PrRef[] = [...results.values()] as PrRef[]): PrRef[] {
-    if (failed) {
-      return Date.now() - lastAsk > OFFLINE_MS ? prs : [];
-    }
-    const waiting = prs.filter((pr) => inFlight(resultOf(pr)));
-    return waiting.length && Date.now() - lastAsk > LOOK_AGAIN_MS ? waiting : [];
-  }
+  /** The PRs the poll looks up again (see pollTargets): the page's own PR when it says which. */
+  const waiting = () => pollTargets(results, failed, scope ? scope() : null);
+
+  // the tags' poll: look() and a click start its wait again, so it is 10 s from the last look
+  const poll = createTagPoll({
+    failed: () => failed,
+    waiting,
+    alive: extensionAlive,
+    onDue: (prs) => onDue?.(prs),
+  });
+  poll.start();
 
   async function onClick(event: Event, pr: PrRef, host: Element) {
     usage.count('ext.prTag.click');
@@ -139,6 +146,7 @@ export function createPrTags({ attr, onStory }: { attr: string; onStory?: (pr: P
             }
           : { state: answer.body.state, request: answer.body.request },
       );
+      poll.reschedule();
     } else {
       button.disabled = false;
     }
@@ -184,13 +192,14 @@ export function createPrTags({ attr, onStory }: { attr: string; onStory?: (pr: P
   function clear() {
     clearTimeout(relook);
     results.clear();
+    failed = false;
     listening = {};
+    poll.reschedule();
     notice.remove();
   }
 
   return {
     look,
-    due,
     resultOf,
     hostFor,
     show,

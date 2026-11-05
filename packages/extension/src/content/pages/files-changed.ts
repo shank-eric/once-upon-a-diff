@@ -78,7 +78,18 @@ export function createFilesChangedPage() {
   // one PR page at a time
   let current: CurrentPage | null = null;
   let syncing = false;
-  const tags = createPrTags({ attr: TAG_ATTR, onStory: () => openPanel() });
+  const tags = createPrTags({
+    attr: TAG_ATTR,
+    onStory: () => openPanel(),
+    scope: () => (current ? [current.pr] : []),
+    // the poll: no story yet and it is queued or building (every 10 s), or the bridge is down (every 30 s)
+    onDue: () => {
+      if (current && !current.data && current.status !== 'loading') {
+        current = null;
+        sync();
+      }
+    },
+  });
 
   function unmount() {
     if (current && current.overlay) {
@@ -456,14 +467,6 @@ export function createFilesChangedPage() {
         sync();
       }
     } else if (current && current.data && !current.ui.hidden && !panelOnPage()) {
-      sync();
-    } else if (
-      current &&
-      !current.data &&
-      current.status !== 'loading' &&
-      tags.due([current.pr]).length
-    ) {
-      current = null; // queued or building (every 10s), or the bridge is down (every 30s)
       sync();
     } else if (current && tags.resultOf(current.pr) && !document.querySelector(`[${TAG_ATTR}]`)) {
       refreshTag(); // GitHub swapped out <body> or redrew the header

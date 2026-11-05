@@ -1,9 +1,13 @@
 /*
- * A look at the bridge on a timer: the board's poll, with no framework in it so the panel can use it too (`use-poll.ts` is the
- * Preact hook over it). It loads at once, then every `everyMs` while the tab is visible, and when the window gets the focus
- * back. A failed load keeps the last data and counts the failures in a row, so a page can ride out one and say so at two.
- * `stop` ends it, and an answer that arrives after that is dropped, even when the poll has been started again since: each start is a run,
- * and only the run that asked hears the answer.
+ * A look at the bridge on a timer: the one poll of the board, the panel, the local page and the extension, with no framework in
+ * it (`use-poll.ts` is the Preact hook over it). It loads at once, then `everyMs` after each load while the tab is visible, and
+ * when the window gets the focus back. A failed load keeps the last data and counts the failures in a row, so a page can ride out one
+ * and say so at two. `stop` ends it, and an answer that arrives after that is dropped, even when the poll has been started again
+ * since: each start is a run, and only the run that asked hears the answer.
+ *
+ * `everyMs` may be a function, read before each wait: the wait it names, or null for none (the poll then sits idle until
+ * `refresh` or `reschedule`). `whenHidden` turns it round, for a keepalive: it fires only while the tab is hidden, with no first
+ * load and no focus listener.
  */
 
 /** What a poll has seen so far: the last data that loaded, the error of the latest failed load (null when it worked) and how many loads failed in a row. */
@@ -15,7 +19,10 @@ export interface PollView<T> {
 
 export interface PollOptions<T> {
   load: () => Promise<T>;
-  everyMs: number;
+  /** The wait between one load and the next, or a function that says it (null: no wait, idle until `refresh` or `reschedule`). */
+  everyMs: number | (() => number | null);
+  /** Fire only while the tab is hidden, with no load at start and none on focus. */
+  whenHidden?: boolean;
   /** Called with each new view, after every load that finished. */
   onChange: (view: PollView<T>) => void;
 }
@@ -27,14 +34,21 @@ export interface Poll {
   stop: () => void;
   /** Loads now. Resolves once that load is in the view. Does nothing when the poll isn't running. */
   refresh: () => Promise<void>;
+  /** Starts the wait again from now, reading `everyMs` anew: for when what a function interval says may have changed. */
+  reschedule: () => void;
 }
 
-export function createPoll<T>({ load, everyMs, onChange }: PollOptions<T>): Poll {
+export function createPoll<T>({
+  load,
+  everyMs,
+  whenHidden = false,
+  onChange,
+}: PollOptions<T>): Poll {
   let view: PollView<T> = { data: null, error: null, failed: 0 };
   // the run that is going (0 when stopped): a load answers only to the run that started it
   let runs = 0;
   let current = 0;
-  let timer: ReturnType<typeof setInterval> | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
 
   async function refresh(): Promise<void> {
     const mine = current;
@@ -53,8 +67,32 @@ export function createPoll<T>({ load, everyMs, onChange }: PollOptions<T>): Poll
     }
     if (mine === current) {
       view = next;
-      onChange(view);
+      try {
+        onChange(view);
+      } finally {
+        schedule(); // a throwing onChange doesn't end the poll
+      }
     }
+  }
+  function schedule() {
+    clearTimeout(timer);
+    timer = undefined;
+    if (!current) {
+      return;
+    }
+    const wait = typeof everyMs === 'function' ? everyMs() : everyMs;
+    if (wait === null) {
+      return;
+    }
+    timer = setTimeout(() => {
+      timer = undefined;
+      const shown = document.visibilityState === 'visible';
+      if (shown !== whenHidden) {
+        void refresh();
+      } else {
+        schedule();
+      }
+    }, wait);
   }
   const onFocus = () => void refresh();
 
@@ -64,19 +102,20 @@ export function createPoll<T>({ load, everyMs, onChange }: PollOptions<T>): Poll
         return;
       }
       current = ++runs;
+      if (whenHidden) {
+        schedule();
+        return;
+      }
       void refresh();
-      timer = setInterval(() => {
-        if (document.visibilityState === 'visible') {
-          void refresh();
-        }
-      }, everyMs);
       window.addEventListener('focus', onFocus);
     },
     stop() {
       current = 0;
-      clearInterval(timer);
+      clearTimeout(timer);
+      timer = undefined;
       window.removeEventListener('focus', onFocus);
     },
     refresh,
+    reschedule: schedule,
   };
 }

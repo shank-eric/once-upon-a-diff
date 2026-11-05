@@ -2279,6 +2279,106 @@ await test('the request line’s minutes move on with the clock when the page ha
   }
 });
 
+const showing = (state: 'visible' | 'hidden') =>
+  Object.defineProperty(document, 'visibilityState', { value: state, configurable: true });
+
+await test('the pulse tick: one pulse a first and then every 5 s while the tab shows, none while it is hidden, one on focus, none after destroy', async () => {
+  startClock();
+  const panel = await mount(story(), pulseOptions({}), { n: 1 }, { wait: pumpOnce });
+  const pulses = () => calling(panel.calls, 'pulse').length;
+  try {
+    assert.equal(pulses(), 1, 'the first pulse comes with the mount');
+    await pump(4900);
+    assert.equal(pulses(), 1, 'not before 5 s');
+    await pump(300);
+    assert.equal(pulses(), 2);
+    await pump(5200); // 5 s after the last pulse came back
+    assert.equal(pulses(), 3);
+    showing('hidden');
+    await pump(30000);
+    assert.equal(pulses(), 3, 'a hidden tab does not pulse');
+    showing('visible');
+    await pump(5200);
+    assert.equal(pulses(), 4);
+    window.dispatchEvent(new window.Event('focus'));
+    await pump(100);
+    assert.equal(pulses(), 5, 'focus asks at once');
+  } finally {
+    panel.done();
+  }
+  await pump(30000);
+  assert.equal(pulses(), 5, 'destroy stops the tick and the focus pulse');
+  window.dispatchEvent(new window.Event('focus'));
+  await pump(100);
+  assert.equal(pulses(), 5);
+  stopClock();
+});
+
+await test('a focus that lands on the 12th tick runs the slow look once (drafts, freshness, reads)', async () => {
+  startClock();
+  let freshness = 0;
+  const panel = await mount(
+    story(),
+    pulseOptions(
+      {},
+      {
+        freshness: async () => {
+          freshness++;
+          return { state: 'current', story_head: 'abcdef1234567' };
+        },
+      },
+    ),
+    { n: 1 },
+    { wait: pumpOnce },
+  );
+  try {
+    // the poll waits 5 s after each pulse comes back: run until the 12th pulse is in (11 ticks), then focus is the 12th
+    const pulses = () => calling(panel.calls, 'pulse').length;
+    for (let waited = 0; pulses() < 12 && waited < 120000; waited += 50) {
+      await pump(50);
+    }
+    assert.equal(pulses(), 12, 'eleven ticks in');
+    const before = freshness;
+    window.dispatchEvent(new window.Event('focus'));
+    await pump(100);
+    assert.equal(freshness - before, 1, 'one freshness look for the focus, not two');
+  } finally {
+    panel.done();
+    stopClock();
+  }
+});
+
+await test('stillOpen: said about once a minute while the tab is hidden, never while it shows, and not after destroy', async () => {
+  startClock();
+  const panel = await mount(
+    story(),
+    (calls) =>
+      fullOptions(calls, {
+        pulse: undefined,
+        stillOpen: async () => void calls.push(['stillOpen']),
+      }),
+    { n: 1 },
+    { wait: pumpOnce },
+  );
+  const said = () => calling(panel.calls, 'stillOpen').length;
+  try {
+    await pump(180000, 1000);
+    assert.equal(said(), 0, 'a showing tab says nothing');
+    showing('hidden');
+    await pump(59000, 1000);
+    assert.equal(said(), 0, 'not before the minute is up');
+    await pump(1500, 500);
+    assert.equal(said(), 1);
+    await pump(60000, 1000);
+    assert.equal(said(), 2);
+  } finally {
+    panel.done();
+  }
+  await pump(120000, 1000);
+  assert.equal(said(), 2, 'destroy stops it');
+  stopClock();
+});
+
 await test('the "Since you read it" banner, with and without a link to GitHub, and on that range’s own page', async () => {
   const shots: string[] = [];
   const banner = () => serialize($('.ou-since')).join('\n');

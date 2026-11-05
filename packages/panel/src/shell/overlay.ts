@@ -105,6 +105,7 @@ import { createQuestions } from '../ask/questions.ts';
 import { createChatDock } from '../ask/chat-dock.ts';
 import { createFixes } from '../fixes/fixes-part.ts';
 import { createWorking } from '../fixes/working.ts';
+import { createPoll } from '@once-upon-a-diff/api-client/poll';
 import type { Pulse, StoryData } from '@once-upon-a-diff/protocol/types';
 import type { PanelContext, PanelOptions } from '../host/context.ts';
 import type { PanelHost } from '../host/host.ts';
@@ -125,13 +126,13 @@ export { expandDirOf, expandStep, EXPAND_ALL_FAR } from '../reading/expand.ts';
 
 const HOST_ID = 'once-upon-panel'; // the element on the page; the panel itself lives in its shadow root
 const PANEL_ID = 'ou-panel'; // both are spelled out in panel/css/page.css and panel/css/panel.css
-// the panel's one clock: a tick every 5s while the tab shows, with one pulse call. Without a pulse, questions take
+// the panel's one clock (a createPoll): a tick every 5s while the tab shows, with one pulse call. Without a pulse, questions take
 // every tick while one waits for its answer (else every 6th) and the status light every 6th (30s). Drafts, freshness
 // and reads look every 12th tick (a minute) either way.
 const TICK_MS = 5000;
 const STATUS_EVERY = 6;
 const SLOW_EVERY = 12;
-// a hidden tab doesn't tick, but its page is still open: opts.stillOpen says so about once a minute, and nothing else
+// a hidden tab doesn't tick, but its page is still open: opts.stillOpen says so about once a minute (a createPoll with whenHidden), and nothing else
 const STILL_OPEN_MS = 60000;
 
 /** A pulse, or {down: true} when the bridge didn't answer. */
@@ -159,18 +160,34 @@ export function storyOverlay(input: StoryData, opts: PanelOptions, host: PanelHo
   Object.assign(context, stateHelpers(context));
   const { state } = context;
 
-  // the previous pulse. The first is asked before the parts' first loads, so nothing that changes after them is missed.
+  // the previous pulse. The poll's first load is asked before the parts' first loads, so nothing that changes after them is missed.
   let last: PulseLook | null = null;
-  if (opts.pulse) {
-    opts.pulse().then(
-      (pulse) => {
-        last = last || pulse;
-        context.rebuild?.update(pulse.rebuild);
-        context.freshness?.setRequest(pulse.request);
-      },
-      () => {},
-    );
-  }
+  let ticks = 0;
+  let asked = false;
+  let slowedOnFocus = false;
+  const pulsePoll = createPoll<PulseLook | null>({
+    everyMs: TICK_MS,
+    // with no pulse there is nothing to load: the tick still runs, for the parts that look on their own share of them
+    load: () => (opts.pulse ? opts.pulse().catch(() => ({ down: true })) : Promise.resolve(null)),
+    onChange: ({ data }) => {
+      if (!asked) {
+        asked = true; // the first load only sets the starting point
+        if (data && !data.down) {
+          last = data;
+          context.rebuild?.update(data.rebuild);
+          context.freshness?.setRequest(data.request);
+        }
+        return;
+      }
+      ticks++;
+      beat(data);
+      // a focus just ran slow(): the tick its pulse counts as doesn't run it again
+      if (ticks % SLOW_EVERY === 0 && !slowedOnFocus) {
+        slow();
+      }
+      slowedOnFocus = false;
+    },
+  });
 
   // each module gets the context and reaches the others through it at call time
   context.page = host.createPage({
@@ -202,11 +219,12 @@ export function storyOverlay(input: StoryData, opts: PanelOptions, host: PanelHo
   context.chatDock = createChatDock(context);
   context.questions = createQuestions(context);
   context.shell.isolateKeys();
+  // the parts are built (a constructor that throws leaves no poll behind), and the first pulse is asked before their first loads
+  pulsePoll.start();
 
   // every part's look at the bridge, on the tick and when the tab gets focus again (a comment drafted or a session
   // started in the terminal shows up as soon as you come back). With opts.pulse, one cheap call a tick says which
   // parts changed; without it, each part looks on its own share of the ticks.
-  let ticks = 0;
   const slow = () => {
     context.drafts.refresh(true); // GitHub's posted state isn't in the pulse
     if (!opts.pulse) {
@@ -216,15 +234,14 @@ export function storyOverlay(input: StoryData, opts: PanelOptions, host: PanelHo
     context.freshness.refresh();
     context.reading.refresh();
   };
-  async function beat() {
-    if (!opts.pulse) {
+  function beat(pulse: PulseLook | null) {
+    if (!pulse) {
       context.questions.poll(ticks);
       if (ticks % STATUS_EVERY === 0) {
         context.statusLight.refresh();
       }
       return;
     }
-    const pulse: PulseLook = await opts.pulse().catch(() => ({ down: true }));
     const moved = (key: keyof PulseLook) => !!last && pulse[key] !== last[key];
     if (opts.onPulse && !pulse.down) {
       opts.onPulse(pulse as Pulse);
@@ -250,28 +267,24 @@ export function storyOverlay(input: StoryData, opts: PanelOptions, host: PanelHo
     }
     last = pulse;
   }
-  const tickTimer = setInterval(() => {
-    if (document.visibilityState !== 'visible') {
-      return;
-    }
-    ticks++;
-    beat();
-    if (ticks % SLOW_EVERY === 0) {
-      slow();
-    }
-  }, TICK_MS);
-  const stillOpenTimer = setInterval(() => {
-    if (opts.stillOpen && document.visibilityState !== 'visible') {
-      Promise.resolve(opts.stillOpen()).catch(() => {});
-    }
-  }, STILL_OPEN_MS);
+  // a hidden tab doesn't tick, but its page is still open
+  const stillOpenPoll = opts.stillOpen
+    ? createPoll<void>({
+        everyMs: STILL_OPEN_MS,
+        whenHidden: true,
+        load: async () => void (await opts.stillOpen!()),
+        onChange: () => {},
+      })
+    : null;
+  stillOpenPoll?.start();
+  // the poll's own focus load is the pulse; the parts that don't hang on a pulse look here
   const onFocus = () => {
     if (!opts.pulse) {
       context.questions.refresh();
       context.statusLight.refresh();
     }
-    beat();
     slow();
+    slowedOnFocus = true;
   };
   window.addEventListener('focus', onFocus);
 
@@ -286,8 +299,8 @@ export function storyOverlay(input: StoryData, opts: PanelOptions, host: PanelHo
     context.drafts.destroy();
     context.navigation.destroy();
     context.scroll.destroy();
-    clearInterval(tickTimer);
-    clearInterval(stillOpenTimer);
+    pulsePoll.stop();
+    stillOpenPoll?.stop();
     window.removeEventListener('focus', onFocus);
     context.expander.cancel();
     context.shell.stopResizing();

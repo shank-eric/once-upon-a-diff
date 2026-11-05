@@ -3,7 +3,7 @@
  * PR lists (pr-tags.ts), next to the PR's title, and the page-level
  * notice when no session is listening for the repo. It comes back after
  * GitHub redraws the header or navigates in the page, looks again while a
- * story is queued or building, and only reads from GitHub's page.
+ * story is queued or building (the tags' poll), and only reads from GitHub's page.
  */
 import { prKey } from '@once-upon-a-diff/domain/pr-key';
 import { conversationPr, pageKindOf } from '@once-upon-a-diff/host-github/pages';
@@ -15,7 +15,11 @@ import type { Route } from '../index.ts';
 const ATTR = 'data-ou-convo';
 
 export function createConversationPage() {
-  const tags = createPrTags({ attr: ATTR });
+  const tags = createPrTags({
+    attr: ATTR,
+    onDue: () => look(), // the poll: the page's PR is in flight, or the bridge is down
+    scope: () => (pr ? [pr] : []),
+  });
   let pr: (PrRef & { key: string }) | null = null;
   let busy = false;
 
@@ -85,9 +89,6 @@ export function createConversationPage() {
     // GitHub redraws the header: put the tag back
     if (tags.resultOf(pr) && !document.querySelector(`[${ATTR}="${CSS.escape(key as string)}"]`)) {
       render();
-    }
-    if (tags.due([pr]).length) {
-      look();
     }
   }
 

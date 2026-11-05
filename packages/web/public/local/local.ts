@@ -23,6 +23,7 @@ import {
 import { placeNotes, openEditor } from '/assets/local/diff/notes.ts';
 import { openFold, openRun, forgetNarrowing } from '/assets/local/diff/folds.ts';
 import { mount, remount, showReopen } from '/assets/local/mount.ts';
+import { startLocalPolls } from '/assets/local/polls.ts';
 import { lookForPull, openPrBox } from '/assets/local/ship/pull-request.ts';
 import { openPushBox } from '/assets/local/ship/push.ts';
 import { openPushAheadBox } from '/assets/local/ship/push-ahead.ts';
@@ -33,9 +34,6 @@ import type { InitialUi } from '/assets/panel/shell/overlay.ts';
 import { withLayout, type Layout } from '/assets/panel/shell/layout.ts';
 import type { LocalNote } from '/assets/types.ts';
 
-const POLL_MS = 5000;
-// a hidden tab doesn't poll, but its page is still open: it says so about once a minute (services/inbox/auto-stop.ts)
-const STILL_OPEN_MS = 60000;
 const app = document.getElementById('ou-local-app') as HTMLElement; // the page's shell has it
 
 function render() {
@@ -300,18 +298,12 @@ async function start() {
     },
   };
   page.onVersion = reloadIfChanged;
-  const pollWhileClosed = () => {
-    if (page.hidden && document.visibilityState === 'visible') {
-      reloadIfChanged();
-    }
-  };
-  setInterval(pollWhileClosed, POLL_MS);
-  window.addEventListener('focus', pollWhileClosed); // the panel's own tick looks on focus while it's open
-  setInterval(() => {
-    if (document.visibilityState !== 'visible') {
-      bridge.ask(ROUTES.storySeen, { params: PARAMS }).catch(() => {});
-    }
-  }, STILL_OPEN_MS);
+  // the open panel's own tick looks while it's open; a hidden tab says it is still open (services/inbox/auto-stop.ts)
+  startLocalPolls({
+    closed: () => page.hidden,
+    reload: () => reloadIfChanged(),
+    seen: () => bridge.ask(ROUTES.storySeen, { params: PARAMS }),
+  });
   lookForPull(true); // Create pull request turns into Open PR #N once the branch has one
   if (OPEN_PUSH) {
     // the board's Push: its link asks for the box (Push to the default branch, or Push for the open PR's branch)
