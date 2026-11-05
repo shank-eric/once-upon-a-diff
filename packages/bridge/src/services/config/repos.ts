@@ -14,6 +14,7 @@ import { readSettings } from './settings.ts';
 import { runGitAsync, remoteUrl, topLevel, branchName } from '../../adapters/git.ts';
 import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { ensureDir } from '../../adapters/stores/fs/files.ts';
+import { baseName } from '@once-upon-a-diff/protocol/domain/text';
 
 export { REPO_RE };
 export const sameRepo = (first: unknown, second: unknown): boolean =>
@@ -109,7 +110,7 @@ export function remoteNamed(
   if (!remote || !repo) {
     return false;
   }
-  const owners = [remote.owner, remote.owner.split('/').pop() as string];
+  const owners = [remote.owner, baseName(remote.owner)];
   return owners.some((owner) => sameRepo(`${owner}/${remote.name}`, repo));
 }
 

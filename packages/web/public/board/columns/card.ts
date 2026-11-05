@@ -3,7 +3,7 @@ import { html } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import type { BoardCard, BoardSession, PrInfo } from '/assets/types.ts';
 import { compactAge } from '/assets/protocol/domain/time.ts';
-import { gateText, plural } from '/assets/protocol/domain/text.ts';
+import { gateText, plural, repoName } from '/assets/protocol/domain/text.ts';
 import {
   CardTrees,
   FocusButton,
@@ -187,7 +187,7 @@ export function Card(props: { card: BoardCard; now: number; api: Api }) {
   const { switching, focus } = useFocus(api.bridge);
   const pr = card.pr;
   const time = compactAge(card.since, now);
-  const where = [card.repo && card.kind !== 'agent' ? card.repo.split('/')[1] : '', card.branch]
+  const where = [card.repo && card.kind !== 'agent' ? repoName(card.repo) : '', card.branch]
     .filter(Boolean)
     .join(' · ');
   const prLink = pr && html`<a href=${pr.url} target="_blank" rel="noopener">PR #${pr.number}</a>`;

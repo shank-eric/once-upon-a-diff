@@ -29,11 +29,13 @@ import { sameRepo } from '../config/repos.ts';
 import { answeringOf, listeners } from '../listeners/listeners.ts';
 import { withLock } from '../../adapters/stores/fs/lock.ts';
 import { RequestQueue } from './queue.ts';
-import type { FixNote, LocalNote, Side } from '@once-upon-a-diff/protocol/types';
+import type { LocalNote, Side } from '@once-upon-a-diff/protocol/types';
 import type { Inbox } from './inbox.ts';
 import type { Listener } from '../listeners/listeners.ts';
 import type { StoryStore } from '../stories/store.ts';
 import type { ServedStory, StoryMeta } from '../stories/types.ts';
+import { toSide } from '@once-upon-a-diff/protocol/domain/line-refs';
+import { fixState } from '@once-upon-a-diff/protocol/domain/fix-notes';
 
 /** A note as a fix request carries it to the session. */
 export interface RequestNote {
@@ -82,14 +84,6 @@ export const MAX_NOTE_BODY = 8000;
 
 /** An error the bridge answers with its HTTP status. */
 const failure = (status: number, message: string) => Object.assign(new Error(message), { status });
-
-/** 'fixed', 'sent' or 'draft'. */
-export function noteState(note: LocalNote): FixNote['state'] {
-  if (note.fixed) {
-    return 'fixed';
-  }
-  return note.sent ? 'sent' : 'draft';
-}
 
 const fixesFile = (home: string) => path.join(home, 'fixes.json');
 /** fixes.json as a queue: a wait's claim on a fix request lasts until it's reported on or taken back. */
@@ -246,7 +240,7 @@ export function sendNotes(
   const goTo = fixesGoTo(home, { repo: story.ref.repo, story: story.id }, live);
   const request = locked(home, () => {
     const chosen = syncNotes(home, store, story.id).filter(
-      (note) => noteState(note) === 'draft' && (!ids || ids.includes(note.id)),
+      (note) => fixState(note) === 'draft' && (!ids || ids.includes(note.id)),
     );
     if (!chosen.length) {
       throw failure(400, 'no notes to send: every note is already sent or fixed');
@@ -450,7 +444,7 @@ export function fixesView(
       notes: request.notes.map((note) => note.id),
     }));
   return {
-    notes: currentNotes(home, store, story.id).map((note) => ({ ...note, state: noteState(note) })),
+    notes: currentNotes(home, store, story.id).map((note) => ({ ...note, state: fixState(note) })),
     auto_send: autoSendOf(store, story.id),
     to: fixesGoTo(home, { repo: story.ref.repo, story: story.id }, live),
     requests,
@@ -479,7 +473,7 @@ export function addNote(
     id: newId('n'),
     at: new Date().toISOString(),
     path: String(fields.path || '').slice(0, 1000),
-    side: fields.side === 'L' ? 'L' : 'R',
+    side: toSide(fields.side),
     line: (fields.line ?? null) as number, // a note on a whole file has no line
     body: String(fields.body || '')
       .slice(0, MAX_NOTE_BODY)
@@ -504,7 +498,7 @@ export function addNote(
     request = sendNotes(home, store, story, { ids: [note.id], inbox });
   }
   const saved = readNotes(store, story.id).find((candidate) => candidate.id === note.id) || note;
-  return { note: { ...saved, state: noteState(saved) }, request };
+  return { note: { ...saved, state: fixState(saved) }, request };
 }
 
 /** Changes one note: done, its text, or deleting it. A sent note can only be ticked done. */
@@ -523,9 +517,9 @@ export function updateNote(
     }
     const note = notes[index];
     const editing = changes.delete || (typeof changes.body === 'string' && changes.body.trim());
-    if (editing && noteState(note) !== 'draft') {
+    if (editing && fixState(note) !== 'draft') {
       const why =
-        noteState(note) === 'sent'
+        fixState(note) === 'sent'
           ? `it's with ${note.sent!.to || 'a Claude session'}; take the request back to change it`
           : 'it was fixed already';
       throw failure(409, `that note can't be changed now: ${why}`);
@@ -549,6 +543,6 @@ export function updateNote(
     if (inbox) {
       inbox.append({ type: 'note', ...story.ref, action: 'updated', note });
     }
-    return { ...note, state: noteState(note) };
+    return { ...note, state: fixState(note) };
   });
 }

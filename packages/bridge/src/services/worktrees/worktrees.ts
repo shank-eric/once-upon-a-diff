@@ -29,6 +29,7 @@ import type { BoardWorktree } from '@once-upon-a-diff/protocol/types';
 import { type RunResult, type Runner, runCommand } from '../../adapters/os.ts';
 import { gitVia } from '../../adapters/git.ts';
 import { ensureDir } from '../../adapters/stores/fs/files.ts';
+import { repoName } from '@once-upon-a-diff/protocol/domain/text';
 
 /** One linked or main worktree as `git worktree list --porcelain` gives it. */
 export interface WorktreeEntry {
@@ -865,7 +866,7 @@ export function workingIn(
 
 /** Whether a repo's branches are on the never-delete list: by owner/name, name, or the main checkout's folder. */
 export function branchesKept(facts: Pick<WorktreeFacts, 'repo' | 'main'>, keep: string[]): boolean {
-  const names = [facts.repo, facts.repo?.split('/')[1], path.basename(facts.main)].map((name) =>
+  const names = [facts.repo, repoName(facts.repo), path.basename(facts.main)].map((name) =>
     (name ?? '').toLowerCase(),
   );
   return keep.some((name) => !!name && names.includes(name.toLowerCase()));

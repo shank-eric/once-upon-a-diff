@@ -8,6 +8,7 @@
  */
 import { html, render, useEffect, useMemo, useState } from '/assets/preact.mjs';
 import { Dialog } from '/assets/ui/dialog.ts';
+import { shortSha } from '/assets/protocol/domain/text.ts';
 
 /** What a read-only link is told in place of the box: it can read the story but not push. */
 export interface Refusal {
@@ -47,7 +48,7 @@ export interface ActionSpec<V> {
 /** The commits a push would send, as the boxes list them. */
 export function CommitList(props: { view: { to_push: { sha: string; subject: string }[] } }) {
   return html`<ul class="ou-local-pr-commits">${props.view.to_push.map(
-    (commit) => html`<li><code>${commit.sha.slice(0, 7)}</code> ${commit.subject}</li>`,
+    (commit) => html`<li><code>${shortSha(commit.sha)}</code> ${commit.subject}</li>`,
   )}</ul>`;
 }
 

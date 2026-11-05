@@ -29,8 +29,14 @@
  * it vanish: STARTED_GRACE_HOURS, or as long as a worktree, session or agent is found on it, backlog-links.ts) and then
  * in Done once it merged, landed or its agent finished. That is worked out on read, so a board snapshot never writes.
  */
-import { BACKLOG_ID_RE } from '@once-upon-a-diff/protocol/domain/patterns';
-import { SHA_RE } from '@once-upon-a-diff/protocol/domain/text';
+import {
+  BACKLOG_ID_RE,
+  AGENT_NAME_RE,
+  CARD_BRANCH_RE,
+  SESSION_RE,
+  SID_RE,
+} from '@once-upon-a-diff/protocol/domain/patterns';
+import { SHA_RE, repoName } from '@once-upon-a-diff/protocol/domain/text';
 import { jsonLines } from '../../adapters/stores/fs/jsonl.ts';
 import { appendBacklogEvent, readBacklogFile } from '../../adapters/stores/backlog-file.ts';
 import path from 'node:path';
@@ -48,10 +54,6 @@ export const DONE_HOURS = 1;
 export const ASSIGN_HOURS = 2;
 
 export const ID_PATTERN = BACKLOG_ID_RE;
-const SESSION_PATTERN = /^[A-Za-z0-9._-]{1,100}$/;
-const AGENT_PATTERN = /^[\w.-]{1,100}$/;
-const SID_PATTERN = /^[0-9a-f]{8}$/;
-const BRANCH_PATTERN = /^[A-Za-z0-9._/-]{1,200}$/;
 const TITLE_MAX = 200;
 const NOTE_MAX = 1000;
 const BY_MAX = 40;
@@ -192,7 +194,7 @@ export function foldBacklog(text: string): BacklogItem[] {
       found.state === 'open' &&
       event.op === 'assign' &&
       typeof event.session === 'string' &&
-      SESSION_PATTERN.test(event.session)
+      SESSION_RE.test(event.session)
     ) {
       found.assigned = {
         session: event.session,
@@ -216,11 +218,11 @@ export function foldBacklog(text: string): BacklogItem[] {
       found.state !== 'dropped' &&
       event.op === 'claim' &&
       typeof event.agent === 'string' &&
-      AGENT_PATTERN.test(event.agent)
+      AGENT_NAME_RE.test(event.agent)
     ) {
       found.claim = {
         agent: event.agent,
-        sid: typeof event.sid === 'string' && SID_PATTERN.test(event.sid) ? event.sid : null,
+        sid: typeof event.sid === 'string' && SID_RE.test(event.sid) ? event.sid : null,
         by: who,
         at: when,
       };
@@ -312,7 +314,7 @@ export class BacklogStore implements BacklogStorage {
       title,
       note: clean(input.note, 'the note', NOTE_MAX, true) || null,
       repo: optional(input.repo, 'the repo', REPO_RE),
-      branch: optional(input.branch, 'the branch', BRANCH_PATTERN),
+      branch: optional(input.branch, 'the branch', CARD_BRANCH_RE),
       by: clean(input.by, 'the name', BY_MAX) || 'cli',
     });
     return this.find(id);
@@ -326,7 +328,7 @@ export class BacklogStore implements BacklogStorage {
     if (item.state === 'dropped') {
       throw new Error(`${id} was dropped`);
     }
-    const branch = optional(input.branch, 'the branch', BRANCH_PATTERN);
+    const branch = optional(input.branch, 'the branch', CARD_BRANCH_RE);
     if (!branch) {
       throw new Error('a branch is needed');
     }
@@ -349,14 +351,14 @@ export class BacklogStore implements BacklogStorage {
     if (item.state !== 'open') {
       throw new Error(`${id} is ${item.state}`);
     }
-    if (!SESSION_PATTERN.test(input.session)) {
+    if (!SESSION_RE.test(input.session)) {
       throw new Error('a session id is needed');
     }
     this.append({
       op: 'assign',
       id,
       session: input.session,
-      branch: optional(input.branch, 'the branch', BRANCH_PATTERN),
+      branch: optional(input.branch, 'the branch', CARD_BRANCH_RE),
       by: clean(input.by, 'the name', BY_MAX) || 'cli',
     });
     return this.find(id);
@@ -371,7 +373,7 @@ export class BacklogStore implements BacklogStorage {
     if (item.state === 'dropped') {
       throw new Error(`${id} was dropped`);
     }
-    const agent = optional(input.agent, 'the agent', AGENT_PATTERN);
+    const agent = optional(input.agent, 'the agent', AGENT_NAME_RE);
     if (!agent) {
       throw new Error('an agent name is needed (--agent NAME, as the ledger names it)');
     }
@@ -379,7 +381,7 @@ export class BacklogStore implements BacklogStorage {
       op: 'claim',
       id,
       agent,
-      sid: optional(input.sid, 'the session id', SID_PATTERN),
+      sid: optional(input.sid, 'the session id', SID_RE),
       by: clean(input.by, 'the name', BY_MAX) || 'cli',
     });
     return this.find(id);
@@ -540,9 +542,9 @@ export function lineTitle(title: string): string {
     : text;
 }
 
-/** The branch an Assign gives the work: the item's own, else backlog/<slug>-<first 4 of the id>. Always matches BRANCH_PATTERN. */
+/** The branch an Assign gives the work: the item's own, else backlog/<slug>-<first 4 of the id>. Always matches CARD_BRANCH_RE. */
 export function assignBranch(item: Pick<BacklogItem, 'id' | 'title' | 'branch'>): string {
-  if (item.branch && BRANCH_PATTERN.test(item.branch)) {
+  if (item.branch && CARD_BRANCH_RE.test(item.branch)) {
     return item.branch;
   }
   const slug = item.title
@@ -618,8 +620,7 @@ function agentColumn(
     return { column: 'backlog', when, tried: true };
   }
   if (item.state === 'started' && item.branch) {
-    const repoName = (item.repo ?? '').split('/')[1] ?? '';
-    if (SKIPS_REVIEW.test(repoName)) {
+    if (SKIPS_REVIEW.test(repoName(item.repo))) {
       return { column: hold ?? 'ship', when, tried: false };
     }
     return { column: 'ready', when, tried: false };

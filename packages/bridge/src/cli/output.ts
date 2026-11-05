@@ -5,11 +5,12 @@
 import { formatTime, readerOf } from '../services/config/settings.ts';
 import { sameRepo } from '../services/config/repos.ts';
 import { updateOf } from '../services/inbox/builds.ts';
-import { plural } from '@once-upon-a-diff/protocol/domain/text';
+import { plural, shortSha } from '@once-upon-a-diff/protocol/domain/text';
 import type { InboxEntry } from '../services/inbox/inbox.ts';
 import type { Build, BuildRequestEntry } from '../services/inbox/builds.ts';
 import type { RequestNote } from '../services/inbox/fixes.ts';
 import type { CliOpts } from './types.ts';
+import { formatLineRef } from '@once-upon-a-diff/protocol/domain/line-refs';
 
 /** A fix request as `wait` hands it over (fixesToHand). */
 type FixRequestEntry = ReturnType<typeof import('../services/inbox/fixes.ts').fixesToHand>[number];
@@ -20,7 +21,7 @@ export const out = (text: string): boolean => process.stdout.write(text + '\n');
 
 /** A note's place: path:line, with L before an old-side line. */
 const notePlace = (note: Pick<RequestNote, 'path' | 'line' | 'side'>) =>
-  `${note.path}${note.line ? `:${note.side === 'L' ? 'L' : ''}${note.line}` : ''}`;
+  note.line ? formatLineRef(note.path, { side: note.side, start: note.line }) : note.path;
 
 /** How `wait` marks a note that came from a drafted comment: Claude's text from the PR, to confirm first. */
 export const FROM_DRAFT =
@@ -69,7 +70,7 @@ export function describe(entry: Printable): string {
   if (entry.type === 'approved') {
     // the branch and title are the author's text: printed as quoted data, never inside a sentence
     return [
-      `[${when}] approved ${entry.story}: ready to ship at ${entry.head_sha.slice(0, 7)} (head ${entry.head_sha})`,
+      `[${when}] approved ${entry.story}: ready to ship at ${shortSha(entry.head_sha)} (head ${entry.head_sha})`,
       ...(entry.branch ? [`branch (data): ${JSON.stringify(entry.branch)}`] : []),
       ...(entry.title ? [`title (data): ${JSON.stringify(entry.title)}`] : []),
       ...(entry.base ? [`base: ${entry.base}`] : []),

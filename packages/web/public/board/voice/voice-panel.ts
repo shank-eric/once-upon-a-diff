@@ -13,6 +13,7 @@ import { html, render, useEffect, useLayoutEffect, useRef, useState } from '/ass
 import { remember, stored } from '/assets/local/stored.ts';
 import { Meter } from '/assets/ui/meter.ts';
 import type { BoardVoice, BoardVoiceLine } from '/assets/types.ts';
+import { repoName } from '/assets/protocol/domain/text.ts';
 
 const OPEN_KEY = 'ou-board-voice-open';
 const WIDTH_KEY = 'ou-board-voice-width';
@@ -201,7 +202,7 @@ export function VoicePanel(props: VoicePanelProps) {
     .filter(Boolean)
     .join(', ');
   const where = voice.repo
-    ? `${voice.repo.split('/')[1]}${voice.branch ? ` · ${voice.branch}` : ''}`
+    ? `${repoName(voice.repo)}${voice.branch ? ` · ${voice.branch}` : ''}`
     : '';
   const openVerb = collapsed ? 'Peek at' : 'Open';
   const tabVerb = shown ? 'Close' : openVerb;

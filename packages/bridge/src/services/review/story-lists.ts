@@ -18,6 +18,7 @@ import { isStoryless } from '../stories/local-story.ts';
 import { approvalOf, readApproval, type Approval } from '../stories/approval.ts';
 import type { StoryStore } from '../stories/store.ts';
 import type { InboxLocalStory, InboxStory, ReviewedBy } from '@once-upon-a-diff/protocol/types';
+import { prUrl } from '@once-upon-a-diff/protocol/domain/github-urls';
 
 /** How long after it was built a PR story stays in the inbox. */
 export const STORY_DAYS = 30;
@@ -81,7 +82,7 @@ export function prStories(
       number,
       title: story.title || `${story.repo}#${number}`,
       branch: story.head_ref,
-      url: `https://github.com/${story.repo}/pull/${number}/files`,
+      url: prUrl(story.repo, number, 'files'),
       built_at: new Date(built).toISOString(),
       seen_at: seen,
       reviewed_at: state?.at || null,
@@ -267,7 +268,7 @@ export function mergedStories(
       number,
       title: story.title || `${story.repo}#${number}`,
       branch: story.head_ref,
-      url: `https://github.com/${story.repo}/pull/${number}`,
+      url: prUrl(story.repo, number),
       merged_at: new Date(mergedMs).toISOString(),
     });
   }

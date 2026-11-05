@@ -13,34 +13,24 @@ import { page, bridge, PARAMS } from '/assets/local/page.ts';
 import { columnCount } from './diff-view.ts';
 import { redrawSend } from './send.ts';
 import type { LocalNote, Side } from '/assets/types.ts';
+import { fixStage, type FixStage } from '/assets/protocol/domain/fix-notes.ts';
+import { formatLineRef } from '/assets/protocol/domain/line-refs.ts';
+import { shortSha } from '/assets/protocol/domain/text.ts';
 
 const placeOf = (note: LocalNote) =>
-  `${note.path}${note.line ? `:${note.side === 'L' ? 'L' : ''}${note.line}` : ''}`;
+  note.line ? formatLineRef(note.path, { side: note.side, start: note.line }) : note.path;
 
-/** Where a note has got: queued is sent with no session taking it yet, so the next one that listens gets it. */
-type Stage = 'draft' | 'queued' | 'sent' | 'fixed';
-
-const STAGE_LABELS: Record<Stage, string> = {
+const STAGE_LABELS: Record<FixStage, string> = {
   draft: 'To send',
   queued: 'Queued',
   sent: 'Sent',
   fixed: 'Fixed',
 };
 
-function stageOf(note: LocalNote): Stage {
-  if (note.fixed) {
-    return 'fixed';
-  }
-  if (note.sent) {
-    return note.sent.to ? 'sent' : 'queued';
-  }
-  return 'draft';
-}
-
 /** The stage in words, for after its label. */
 function stageDetail(note: LocalNote): string {
   if (note.fixed) {
-    return `in ${String(note.fixed.sha || '').slice(0, 7)}`;
+    return `in ${shortSha(note.fixed.sha)}`;
   }
   if (note.sent) {
     return note.sent.to
@@ -54,7 +44,7 @@ function stageDetail(note: LocalNote): string {
 }
 
 function stageHtml(note: LocalNote) {
-  const stage = stageOf(note);
+  const stage = fixStage(note);
   const detail = stageDetail(note);
   return html`<span class="ou-local-stage ou-local-stage-${stage}">${STAGE_LABELS[stage]}</span>${detail && html` <span class="ou-local-muted">${detail}</span>`}`;
 }
@@ -65,9 +55,9 @@ export function toggleText(notes: LocalNote[]): string {
   if (!open.length) {
     return `Fix before push: ${notes.length ? 'all done' : 'none'}`;
   }
-  const counts = (['draft', 'queued', 'sent', 'fixed'] as Stage[])
+  const counts = (['draft', 'queued', 'sent', 'fixed'] as FixStage[])
     .map((stage) => {
-      const count = open.filter((note) => stageOf(note) === stage).length;
+      const count = open.filter((note) => fixStage(note) === stage).length;
       return count ? `${count} ${STAGE_LABELS[stage].toLowerCase()}` : '';
     })
     .filter(Boolean);
@@ -148,7 +138,7 @@ export function openEditor(cell: Element) {
     row,
     'afterend',
     html`<tr class="ou-local-note-edit"><td colspan="${columnCount()}"><form class="ou-local-note-form">
-    <div class="ou-local-muted">Fix before push on <code>${rel}:${side === 'L' ? 'L' : ''}${line}</code></div>
+    <div class="ou-local-muted">Fix before push on <code>${formatLineRef(rel, { side, start: line })}</code></div>
     <textarea rows="3" placeholder="What to fix before pushing"></textarea>
     <div><button type="submit">Add note</button> <button type="button" data-editor-cancel>Cancel</button></div></form></td></tr>`,
   );

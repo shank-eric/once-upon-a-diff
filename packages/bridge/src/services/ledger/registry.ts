@@ -5,7 +5,12 @@
  * typed by hand. A mirror that fails never fails the write.
  */
 import { randomBytes } from 'node:crypto';
-import { BACKLOG_ID_RE } from '@once-upon-a-diff/protocol/domain/patterns';
+import {
+  BACKLOG_ID_RE,
+  AGENT_NAME_RE,
+  CARD_BRANCH_RE,
+  SID_RE,
+} from '@once-upon-a-diff/protocol/domain/patterns';
 import { SHA_RE } from '@once-upon-a-diff/protocol/domain/text';
 import { REPO_RE } from '../config/repos.ts';
 import { appendAgentEvent, readAgentsFile } from '../../adapters/stores/agents-file.ts';
@@ -32,10 +37,6 @@ import { agentsFile } from './read.ts';
 import { clean, count, optional } from '../input.ts';
 import type { LedgerAgent } from './ledger.ts';
 
-const NAME_PATTERN = /^[\w.-]{1,100}$/;
-const SID_PATTERN = /^[0-9a-f]{8}$/;
-const BRANCH_PATTERN = /^[A-Za-z0-9._/-]{1,200}$/;
-const LANE_PATTERN = /^[\w.-]{1,100}$/;
 const STEP_PATTERN = /^[\w.-]{1,40}$/;
 /** An editor's slots when it registers with none: the editor skill's own default. */
 export const DEFAULT_SLOTS = 3;
@@ -164,8 +165,8 @@ export class AgentRegistry {
    * `warn` hears when another session has an open run of the name too.
    */
   private open(name: string, target: Target, warn?: (text: string) => void): LedgerAgent {
-    const wanted = optional(target.sid, 'the session id', SID_PATTERN);
-    const prefer = wanted ? null : optional(target.prefer, 'the session id', SID_PATTERN);
+    const wanted = optional(target.sid, 'the session id', SID_RE);
+    const prefer = wanted ? null : optional(target.prefer, 'the session id', SID_RE);
     const nowMs = (target.at ?? new Date()).getTime();
     const runs = this.agents().filter(
       (one) =>
@@ -195,11 +196,11 @@ export class AgentRegistry {
   }
 
   start(input: StartInput): { id: string; run: string } {
-    const name = optional(input.name, 'the name', NAME_PATTERN);
+    const name = optional(input.name, 'the name', AGENT_NAME_RE);
     if (!name) {
       throw new Error('a name is needed');
     }
-    const sid = optional(input.sid, 'the session id', SID_PATTERN);
+    const sid = optional(input.sid, 'the session id', SID_RE);
     if (!sid) {
       throw new Error('a session id is needed (--sid SID8, or run it from a Claude session)');
     }
@@ -222,7 +223,7 @@ export class AgentRegistry {
     const run = `r_${randomBytes(5).toString('hex')}`;
     const pr = count(input.pr, 'the PR number');
     const repo = optional(input.repo, 'the repo', REPO_RE);
-    const branch = optional(input.branch, 'the branch', BRANCH_PATTERN);
+    const branch = optional(input.branch, 'the branch', CARD_BRANCH_RE);
     const cwd = clean(input.cwd, 'the cwd', 500) || null;
     this.append({
       ...this.base('start', name, sid, input),
@@ -239,7 +240,7 @@ export class AgentRegistry {
       pr: pr || null,
       cwd,
       card: optional(input.card, 'the card', BACKLOG_ID_RE),
-      lane: optional(input.lane, 'the lane', LANE_PATTERN),
+      lane: optional(input.lane, 'the lane', AGENT_NAME_RE),
       notes: clean(input.notes, 'the notes path', 500) || null,
       ...(kind === 'editor' ? { slots: slots ?? DEFAULT_SLOTS } : {}),
     });
@@ -285,9 +286,8 @@ export class AgentRegistry {
     if (!(END_STATES as readonly string[]).includes(state)) {
       throw new Error(`the state must be one of ${END_STATES.join(', ')}`);
     }
-    let wanted = optional(input.sid, 'the session id', SID_PATTERN);
-    const prefer =
-      wanted || input.run ? null : optional(input.prefer, 'the session id', SID_PATTERN);
+    let wanted = optional(input.sid, 'the session id', SID_RE);
+    const prefer = wanted || input.run ? null : optional(input.prefer, 'the session id', SID_RE);
     const ofName = this.agents().filter((one) => one.name === name);
     // without --sid, the caller's own session's runs when it has any (stale or not): another session's run of the name is
     // never its to end, and `open()` is told so it cannot fall through to one
@@ -320,7 +320,7 @@ export class AgentRegistry {
     const given = input.result ?? {};
     const commit = optional(given.commit, 'the commit', SHA_RE);
     const pr = count(given.pr, 'the PR number');
-    const branch = optional(given.branch, 'the branch', BRANCH_PATTERN);
+    const branch = optional(given.branch, 'the branch', CARD_BRANCH_RE);
     const card = optional(given.card, 'the card', BACKLOG_ID_RE);
     if (commit) {
       result.commit = commit;

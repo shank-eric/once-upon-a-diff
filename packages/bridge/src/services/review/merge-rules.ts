@@ -1,6 +1,7 @@
 /** What stands between a PR and its merge button, and how many approvals the base branch's rulesets require. */
 import { runGh } from '../config/gh.ts';
 import type { PrInfo } from '@once-upon-a-diff/protocol/types';
+import { plural } from '@once-upon-a-diff/protocol/domain/text';
 
 /**
  * What stands between a PR and its merge button, in one plain line. GraphQL's `mergeable` only says there are no
@@ -34,7 +35,7 @@ export function mergeSummary(input: {
       let text = 'blocked';
       let tone: 'warn' | 'bad' = 'warn';
       if (short > 0) {
-        text = `needs ${short} more ${short === 1 ? 'approval' : 'approvals'}`;
+        text = `needs ${plural(short, 'more approval')}`;
       } else if (review === 'changes_requested') {
         text = 'changes requested';
         tone = 'bad';

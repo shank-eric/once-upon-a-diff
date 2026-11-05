@@ -11,6 +11,7 @@ import { setHtml } from '/assets/ui/dom.ts';
 import { shortDateTime } from '/assets/protocol/domain/time.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { bridge, page, PARAMS } from '/assets/local/page.ts';
+import { shortSha } from '/assets/protocol/domain/text.ts';
 
 /** Set by pull-request.ts when the branch turns out to have an open PR (an event, so the two files don't import each other). */
 let hasPull = false;
@@ -23,7 +24,7 @@ export function approveHtml() {
   }
   const { approved, head_oid: head } = page.story.local;
   if (approved) {
-    return html`<span class="ou-local-approved" title="Approved ${approved.at}. A new commit clears it.">Approved at ${approved.head_oid.slice(0, 7)} · ${shortDateTime(approved.at)}</span> <button type="button" class="ou-local-unapprove">Unapprove</button>`;
+    return html`<span class="ou-local-approved" title="Approved ${approved.at}. A new commit clears it.">Approved at ${shortSha(approved.head_oid)} · ${shortDateTime(approved.at)}</span> <button type="button" class="ou-local-unapprove">Unapprove</button>`;
   }
   let off = '';
   if (page.story.read_only) {

@@ -28,6 +28,7 @@ import type {
   Side,
   UncoveredFile,
 } from '@once-upon-a-diff/protocol/types';
+import { formatLineRef, toSide } from '@once-upon-a-diff/protocol/domain/line-refs';
 
 export const SMALL_FILE_LINES = 40;
 const LOCKFILES =
@@ -49,7 +50,7 @@ export function hunkRef(rel: string, hunk: DiffHunk): string {
   const removesOnly = hunk.lines.every((line) => !line.startsWith('+'));
   const side = removesOnly ? 'L' : 'R';
   const { start, end } = sidesOf(hunk)[side];
-  return `${rel}:${side === 'L' ? 'L' : ''}${start}${end > start ? `-${end}` : ''}`;
+  return formatLineRef(rel, { side, start, end });
 }
 
 /** Does listing this file, with no line refs, cover all of it? */
@@ -104,7 +105,7 @@ export function uncoveredHunks(chapters: Chapter[], diff: Map<string, DiffFile>)
     for (const ref of chapter.refs) {
       if (ref.start !== undefined) {
         addRange(ref.path, {
-          side: ref.side === 'L' ? 'L' : 'R',
+          side: toSide(ref.side),
           start: ref.start,
           end: ref.end as number,
         });
@@ -114,7 +115,7 @@ export function uncoveredHunks(chapters: Chapter[], diff: Map<string, DiffFile>)
       const rel = commentRel(comment, rels);
       if (rel) {
         const line = Number(comment.line);
-        addRange(rel, { side: comment.side === 'L' ? 'L' : 'R', start: line, end: line });
+        addRange(rel, { side: toSide(comment.side), start: line, end: line });
       }
     }
   }
@@ -126,7 +127,7 @@ export function uncoveredHunks(chapters: Chapter[], diff: Map<string, DiffFile>)
     const pointed = ranges.get(file.rel)!; // every file of the diff has its list
     const missed = file.hunks.filter((hunk) => {
       const sides = sidesOf(hunk);
-      return !pointed.some((range) => overlaps(range, sides[range.side === 'L' ? 'L' : 'R']));
+      return !pointed.some((range) => overlaps(range, sides[toSide(range.side)]));
     });
     if (missed.length) {
       out.push({

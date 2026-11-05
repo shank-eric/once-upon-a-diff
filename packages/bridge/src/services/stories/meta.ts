@@ -10,6 +10,8 @@ import type { LocalMoved } from '@once-upon-a-diff/protocol/types';
 import { repoOfCheckout } from '../config/repos.ts';
 import type { Prefs } from '../config/settings.ts';
 import type { StoryMeta } from './types.ts';
+import { prUrl } from '@once-upon-a-diff/protocol/domain/github-urls';
+import { shortSha } from '@once-upon-a-diff/protocol/domain/text';
 
 /** A file's modification time in ms, or 0 when it's missing. */
 export function modifiedAt(file: string): number {
@@ -29,7 +31,7 @@ export function readMeta(dir: string): StoryMeta & { title: string } {
   const plan = readJson<{ title?: string }>(path.join(dir, 'chapters.json'), {}) || {};
   const out: StoryMeta = { kind: meta.kind || 'github', ...meta };
   if (out.kind === 'github' && out.repo && out.number && !out.url) {
-    out.url = `https://github.com/${out.repo}/pull/${out.number}`;
+    out.url = prUrl(out.repo, out.number);
   }
   out.title = plan.title || out.title || out.pr_title || path.basename(dir);
   return out as StoryMeta & { title: string };
@@ -53,7 +55,7 @@ export const localVersion = (
   storyVersion(dir) +
   (prefs && prefs.hideWhitespace ? '-w' : '') +
   (prefs && prefs.diffView === 'split' ? '-s' : '') +
-  (moved ? `-m${(moved.head_oid || '').slice(0, 7)}${(moved.base_oid || '').slice(0, 7)}` : '');
+  (moved ? `-m${shortSha(moved.head_oid)}${shortSha(moved.base_oid)}` : '');
 
 /**
  * The login of a PR story's author: from its meta.json (`pr_author`, written when it was published), else from the

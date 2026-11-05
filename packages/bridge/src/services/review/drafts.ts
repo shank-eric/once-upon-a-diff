@@ -28,12 +28,13 @@ import { createHash } from 'node:crypto';
 import { runGh } from '../config/gh.ts';
 import { prKey } from '@once-upon-a-diff/protocol/domain/pr-key';
 import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
-import { noteState } from '../inbox/fixes.ts';
 import { stateKeyOf } from '../stories/meta.ts';
 import { stateFile } from '../config/settings.ts';
 import type { Chapter, DraftRow, LocalNote, StoryData } from '@once-upon-a-diff/protocol/types';
 import type { StoryStore } from '../stories/store.ts';
 import type { StoryMeta } from '../stories/types.ts';
+import { toSide } from '@once-upon-a-diff/protocol/domain/line-refs';
+import { fixState } from '@once-upon-a-diff/protocol/domain/fix-notes';
 
 /** A drafted comment, or a comment on GitHub, as the matching reads it. */
 export interface CommentLike {
@@ -342,7 +343,7 @@ export function noteAdded(
   const marks = readMarks(home, key);
   const entry: MarkEntry = {
     ...entryOf(draft),
-    side: draft.side === 'L' ? 'L' : 'R',
+    side: toSide(draft.side),
     url: added.url || null,
     started: !!added.started,
   };
@@ -394,7 +395,7 @@ export function draftStatus(
             path: note.path,
             side: note.side,
             line: note.line,
-            state: noteState(note),
+            state: fixState(note),
             sent_to: note.sent ? note.sent.to : null,
             sha: note.fixed ? note.fixed.sha : null,
           }

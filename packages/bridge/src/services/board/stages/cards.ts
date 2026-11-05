@@ -16,6 +16,7 @@ import { laneOf } from './lanes.ts';
 import { MERGED_HOURS } from './works.ts';
 import { NO_PARENT } from './agents.ts';
 import type { BuildContext, SessionView, StoryFacts, Work } from './types.ts';
+import { prUrl } from '@once-upon-a-diff/protocol/domain/github-urls';
 
 /** A card for a session that is not on a branch of its own. */
 export function sessionCard(
@@ -73,7 +74,7 @@ const unreadOf = (story: InboxStory | InboxLocalStory): boolean =>
 /** What GitHub hasn't told yet about an open PR: just its number, so the card can sit in the PR open column. */
 const stubPr = (repo: string, number: number, title: string, branch: string | null): PrInfo => ({
   number,
-  url: `https://github.com/${repo}/pull/${number}`,
+  url: prUrl(repo, number),
   title,
   state: 'open',
   draft: false,

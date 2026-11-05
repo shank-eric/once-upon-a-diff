@@ -26,6 +26,7 @@ import { canonical, withoutKey } from './validate.ts';
 import { uncoveredHunks, sidesOf } from './hunk-coverage.ts';
 import type { DiffFile } from '@once-upon-a-diff/protocol/types';
 import type { Plan, PlanChapter } from './chapters.ts';
+import { toSide } from '@once-upon-a-diff/protocol/domain/line-refs';
 
 /** What a rebuild's rules read of its request. */
 export type RebuildAskFields = { mode?: string; from_step?: number | null };
@@ -123,7 +124,7 @@ const commentId = (comment: PlanComment) =>
 
 /** Is the comment's line inside one of the file's hunks (context included), on its side? */
 function onDiffLine(file: DiffFile, comment: PlanComment): boolean {
-  const side = comment.side === 'L' ? 'L' : 'R';
+  const side = toSide(comment.side);
   const line = Number(comment.line);
   return file.hunks.some((hunk) => {
     const range = sidesOf(hunk)[side];
@@ -152,7 +153,7 @@ function homeOf(
   }
   if (rel && !isGeneral(comment)) {
     const line = Number(comment.line);
-    const side = comment.side === 'L' ? 'L' : 'R';
+    const side = toSide(comment.side);
     const byLines = retold.find((candidate) =>
       (candidate.chapter.refs || [])
         .map(refOf)

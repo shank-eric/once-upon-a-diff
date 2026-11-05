@@ -19,6 +19,11 @@ export function baseName(filePath: string): string {
   return filePath.split('/').pop() as string;
 }
 
+/** The name half of an `owner/name` repo: "acme/widgets" -> "widgets" ('' for none). */
+export function repoName(repo: string | null | undefined): string {
+  return String(repo || '').split('/')[1] ?? '';
+}
+
 /** "1 file", "2 files": the count and the noun, with an "s" unless the count is 1. */
 export function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`;

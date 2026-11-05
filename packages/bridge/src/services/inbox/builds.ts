@@ -29,6 +29,7 @@ import { STORY_ID_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { isRebuild, REBUILD_MODES } from '../stories/rebuild.ts';
 import type { Listener } from '../listeners/listeners.ts';
 import type { StoryMeta } from '../stories/types.ts';
+import { prUrl } from '@once-upon-a-diff/protocol/domain/github-urls';
 
 /** A chapter read before an update was asked for: where the reviewer's reading stopped. */
 export interface BuildRead {
@@ -363,8 +364,7 @@ export class Builds {
     if (!Number.isInteger(prNumber) || prNumber < 1) {
       throw Object.assign(new Error('bad number'), { status: 400 });
     }
-    const want = `https://github.com/${repo}/pull/${prNumber}`;
-    const prUrl = want; // always this PR's own URL, whatever the page sent
+    const url = prUrl(repo, prNumber); // always this PR's own URL, whatever the page sent
     return this.queue.update((all) => {
       const key = prKey(repo, Number(prNumber));
       const update = mode === 'update' && SHA_RE.test(String(base_sha || ''));
@@ -410,7 +410,7 @@ export class Builds {
         id: newId('b'),
         repo,
         number: prNumber,
-        url: prUrl,
+        url,
         requested_at: requestedAt,
         status: 'pending',
         ...(update
@@ -464,7 +464,7 @@ export class Builds {
         id: old && old.status === 'pending' ? old.id : newId('b'),
         repo: github ? meta.repo : meta.repo || null,
         number: github ? Number(meta.number) : null,
-        url: github ? `https://github.com/${meta.repo}/pull/${Number(meta.number)}` : null,
+        url: github ? prUrl(meta.repo as string, Number(meta.number)) : null,
         requested_at: Number.isFinite(Date.parse(requested_at as string))
           ? new Date(requested_at as string).toISOString()
           : new Date().toISOString(),

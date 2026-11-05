@@ -19,6 +19,7 @@ import { isStoryless } from '../../services/stories/local-story.ts';
 import type { PushAnswer } from '@once-upon-a-diff/protocol/types';
 import type { LocalMeta, ServedStory } from '../../services/stories/types.ts';
 import type { App, Call, StoryRoute } from '../types.ts';
+import { shortSha } from '@once-upon-a-diff/protocol/domain/text';
 
 const NOT_LOCAL = 'a PR story is not pushed from here';
 
@@ -58,7 +59,7 @@ async function push({ app, body: raw, send }: Call, story: ServedStory) {
       throw new HttpError(409, before.blocker || 'no default branch to push to');
     }
     app.log(
-      `pushing ${before.approved_sha.slice(0, 7)} to ${before.branch} for ${story.id}, on the page's Push`,
+      `pushing ${shortSha(before.approved_sha)} to ${before.branch} for ${story.id}, on the page's Push`,
     );
     let output: string;
     try {

@@ -4,6 +4,7 @@
  */
 import { mergeSummary } from './merge-rules.ts';
 import type { PrInfo } from '@once-upon-a-diff/protocol/types';
+import { prUrl } from '@once-upon-a-diff/protocol/domain/github-urls';
 
 interface Who {
   login: string;
@@ -187,7 +188,7 @@ export function infoOf(
   }
   return {
     number: pr.number ?? number,
-    url: pr.url || `https://github.com/${repo}/pull/${number}`,
+    url: pr.url || prUrl(repo, number),
     title: pr.title || `${repo}#${number}`,
     state,
     draft: pr.isDraft === true,

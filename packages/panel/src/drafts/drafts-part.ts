@@ -13,7 +13,7 @@
  */
 import { html } from '/assets/preact.mjs';
 import { LinkButton } from '@once-upon-a-diff/ui/link-button';
-import { capitalize } from '@once-upon-a-diff/protocol/domain/text';
+import { capitalize, shortSha } from '@once-upon-a-diff/protocol/domain/text';
 import { writeClipboard } from '@once-upon-a-diff/ui/clipboard';
 import { draftView, shownIn, type DraftShow } from './drafts.ts';
 import { scriptDrafts, reviewScript } from './review-script.ts';
@@ -26,6 +26,7 @@ import type {
   DraftRow,
   Side,
 } from '@once-upon-a-diff/protocol/types';
+import { toSide } from '@once-upon-a-diff/protocol/domain/line-refs';
 
 // kept across panel re-renders on this page: a failed Add to my review, and adds already settled
 const reviewErrors = new Map<string, string>();
@@ -120,7 +121,7 @@ export function createDrafts(context: PanelContext) {
   /** How far a draft's fix-before-push note has got: sent to a session, fixed in a commit, or ticked done. */
   function fixProgress(fix: DraftFix) {
     if (fix.state === 'fixed') {
-      return html` · <span class="ou-ok">fixed in ${String(fix.sha || '').slice(0, 7)} ✓</span>`;
+      return html` · <span class="ou-ok">fixed in ${shortSha(fix.sha)} ✓</span>`;
     }
     if (fix.state === 'sent') {
       return html` · sent to ${fix.sent_to || 'the next Claude session'}`;
@@ -129,7 +130,7 @@ export function createDrafts(context: PanelContext) {
   }
 
   const lineJump = (rel: string, side: Side | undefined, line: number | string) =>
-    html`<${LinkButton} ...${context.refs.jumpProps(rel, { side: side === 'L' ? 'L' : 'R', start: Number(line), end: Number(line) })}>Jump to line ${line}</${LinkButton}>`;
+    html`<${LinkButton} ...${context.refs.jumpProps(rel, { side: toSide(side), start: Number(line), end: Number(line) })}>Jump to line ${line}</${LinkButton}>`;
 
   /** What a comment's state line says. */
   function lineView(line: Line) {
@@ -173,7 +174,7 @@ export function createDrafts(context: PanelContext) {
     let name;
     if (rel) {
       const line = {
-        side: (comment.side === 'L' ? 'L' : 'R') as Side,
+        side: toSide(comment.side),
         start: comment.line,
         end: comment.line,
       };

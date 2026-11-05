@@ -13,7 +13,7 @@ import {
   readSha,
   changedSinceRead,
 } from '../../services/stories/reads.ts';
-import { SHA_RE } from '@once-upon-a-diff/protocol/domain/text';
+import { SHA_RE, shortSha } from '@once-upon-a-diff/protocol/domain/text';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
 import type { StoryData } from '@once-upon-a-diff/protocol/types';
@@ -91,7 +91,7 @@ async function reads({ app, req, body: raw, send }: Call, story: ServedStory) {
     try {
       changes.set(sha, await changesSince(now, sha));
     } catch (e) {
-      error = `couldn't compare ${sha.slice(0, 7)} with the story's head: ${(e as Error).message}`;
+      error = `couldn't compare ${shortSha(sha)} with the story's head: ${(e as Error).message}`;
     }
   }
   return send(200, {

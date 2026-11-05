@@ -9,6 +9,7 @@ import type { VNode } from '@once-upon-a-diff/ui/parse-markup';
 import type { ChapterLines } from '@once-upon-a-diff/protocol/types';
 import type { FileStatus } from '../story-model.ts';
 import type { PanelContext } from '../context.ts';
+import { toSide } from '@once-upon-a-diff/protocol/domain/line-refs';
 
 /** A row's file: a chapter's entry, or one of the story's files on the Overview. */
 type FileEntry = { rel: string; partial?: boolean; note?: string | null; lines?: ChapterLines[] };
@@ -33,7 +34,7 @@ export function createFileList(context: PanelContext) {
 
   function lineItems(file: FileEntry) {
     return (file.lines || []).map((line) => {
-      const side = line.side === 'L' ? 'L' : 'R';
+      const side = toSide(line.side);
       const span =
         line.end && line.end !== line.start ? `s ${line.start}–${line.end}` : ` ${line.start}`;
       const range = `${side === 'L' ? 'old ' : ''}line${span}`;

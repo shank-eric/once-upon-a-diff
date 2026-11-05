@@ -12,6 +12,7 @@ import type {
   DraftComment,
   SinceRange,
 } from '@once-upon-a-diff/protocol/types';
+import { toSide } from '@once-upon-a-diff/protocol/domain/line-refs';
 
 /** A ref in chapters.json as the story was written (refOf normalizes it). */
 export interface PlanRef {
@@ -104,7 +105,7 @@ export function entryOf(entry: PlanFile): ChapterFile {
   }
   if (Array.isArray(entry.lines) && entry.lines.length) {
     out.lines = entry.lines.map((range) => ({
-      side: range.side === 'L' ? ('L' as const) : ('R' as const),
+      side: toSide(range.side),
       start: +range.start,
       end: +(range.end || range.start),
       label: range.label || '',
@@ -119,7 +120,7 @@ export function refOf(ref: PlanRef): ChapterRef {
   if (ref.start !== undefined && ref.start !== null && ref.start !== '') {
     const start = +ref.start;
     const end = +(ref.end || ref.start);
-    out.side = ref.side === 'L' ? 'L' : 'R';
+    out.side = toSide(ref.side);
     out.start = Math.min(start, end);
     out.end = Math.max(start, end);
   }
@@ -141,7 +142,7 @@ function linesOf(refs: ChapterRef[], entry: ChapterFile): ChapterFile['lines'] {
         ref.path === entry.rel && ref.start !== undefined && (!ref.text || entry.ref === true),
     )
     .map((ref) => ({
-      side: ref.side === 'L' ? ('L' as const) : ('R' as const),
+      side: toSide(ref.side),
       start: ref.start as number,
       end: ref.end as number,
       label: ref.label || '',

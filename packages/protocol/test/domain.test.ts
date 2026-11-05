@@ -3,11 +3,22 @@ import assert from 'node:assert/strict';
 import { prKey, rangeOfPath } from '../src/domain/pr-key.ts';
 import { laneLabels, resolveLane, sameLaneKey } from '../src/domain/lane-key.ts';
 import { escapeHtml, unescapeHtml, html, raw, Html } from '../src/domain/html.ts';
-import { FULL_SHA_RE } from '../src/domain/patterns.ts';
+import {
+  FULL_SHA_RE,
+  SID_RE,
+  AGENT_NAME_RE,
+  CARD_BRANCH_RE,
+  BRANCH_RE,
+  SESSION_RE,
+} from '../src/domain/patterns.ts';
+import { formatLineRef, parseLineRef, toSide } from '../src/domain/line-refs.ts';
+import { prUrl } from '../src/domain/github-urls.ts';
+import { fixStage, fixState } from '../src/domain/fix-notes.ts';
 import {
   SHA_RE,
   shortSha,
   baseName,
+  repoName,
   plural,
   capitalize,
   collapse,
@@ -157,4 +168,67 @@ test('when two repos share a short name, every spelling of one is labeled by the
   assert.equal(labels.get('EverFi/x'), 'EverFi/x');
   assert.equal(labels.get('everfi/x'), 'EverFi/x', 'the lane’s own spelling, not the worktree’s');
   assert.equal(labels.get('other/x'), 'other/x');
+});
+
+test('toSide keeps L and turns anything else into R', () => {
+  assert.equal(toSide('L'), 'L');
+  assert.equal(toSide('R'), 'R');
+  assert.equal(toSide(undefined), 'R');
+  assert.equal(toSide(null), 'R');
+  assert.equal(toSide('left'), 'R');
+});
+
+test('formatLineRef writes the form parseLineRef reads', () => {
+  assert.equal(formatLineRef('src/a.ts', { side: 'R', start: 45 }), 'src/a.ts:45');
+  assert.equal(formatLineRef('src/a.ts', { start: 45 }), 'src/a.ts:45');
+  assert.equal(formatLineRef('src/a.ts', { side: 'L', start: 12 }), 'src/a.ts:L12');
+  assert.equal(formatLineRef('src/a.ts', { side: 'R', start: 40, end: 58 }), 'src/a.ts:40-58');
+  assert.equal(formatLineRef('src/a.ts', { side: 'L', start: 7, end: 7 }), 'src/a.ts:L7');
+  for (const line of [
+    { side: 'R', start: 45, end: 45 },
+    { side: 'L', start: 12, end: 12 },
+    { side: 'R', start: 40, end: 58 },
+  ] as const) {
+    assert.deepEqual(parseLineRef(formatLineRef('x/y.ts', line)), { name: 'x/y.ts', line });
+  }
+});
+
+test('prUrl names a PR and its tab', () => {
+  assert.equal(prUrl('acme/widgets', 7), 'https://github.com/acme/widgets/pull/7');
+  assert.equal(prUrl('acme/widgets', '7', 'files'), 'https://github.com/acme/widgets/pull/7/files');
+  assert.equal(
+    prUrl('acme/widgets', 7, 'changes') + '#ou-ask',
+    'https://github.com/acme/widgets/pull/7/changes#ou-ask',
+  );
+});
+
+test('repoName is the part after the slash', () => {
+  assert.equal(repoName('acme/widgets'), 'widgets');
+  assert.equal(repoName('widgets'), '');
+  assert.equal(repoName(null), '');
+  assert.equal(repoName(undefined), '');
+});
+
+test('the sid, name and branch patterns', () => {
+  assert.ok(SID_RE.test('989b3246') && !SID_RE.test('989b324') && !SID_RE.test('989B3246'));
+  assert.ok(!SID_RE.test('989b32467'));
+  assert.ok(AGENT_NAME_RE.test('domain-helpers') && AGENT_NAME_RE.test('a.b_c'));
+  assert.ok(!AGENT_NAME_RE.test('') && !AGENT_NAME_RE.test('a b') && !AGENT_NAME_RE.test('a/b'));
+  assert.ok(!AGENT_NAME_RE.test('a'.repeat(101)));
+  assert.ok(CARD_BRANCH_RE.test('backlog/slug-abcd') && !CARD_BRANCH_RE.test('a b'));
+  assert.ok(!CARD_BRANCH_RE.test('a'.repeat(201)) && !CARD_BRANCH_RE.test('feat~1'));
+  assert.ok(BRANCH_RE.test('feat') && SESSION_RE.test('abc-1'));
+});
+
+test('a fix note goes draft, queued or sent, then fixed', () => {
+  const sent = { request: 'r', to: 'agent', at: 't' };
+  assert.equal(fixStage({}), 'draft');
+  assert.equal(fixStage({ sent: null, fixed: null }), 'draft');
+  assert.equal(fixStage({ sent: { ...sent, to: null } }), 'queued');
+  assert.equal(fixStage({ sent }), 'sent');
+  assert.equal(fixStage({ sent, fixed: { sha: 'abc' } }), 'fixed');
+  assert.equal(fixState({}), 'draft');
+  assert.equal(fixState({ sent: { ...sent, to: null } }), 'sent');
+  assert.equal(fixState({ sent }), 'sent');
+  assert.equal(fixState({ fixed: { sha: 'abc' } }), 'fixed');
 });

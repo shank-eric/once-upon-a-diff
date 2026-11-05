@@ -14,6 +14,7 @@ import { out } from '../output.ts';
 import type { Config } from '../../services/config/settings.ts';
 import type { CliOpts, Command } from '../types.ts';
 import type { LocalMeta } from '../../services/stories/types.ts';
+import { shortSha } from '@once-upon-a-diff/protocol/domain/text';
 
 const USAGE = 'usage: once-upon approve ID [--undo]';
 
@@ -47,7 +48,7 @@ function approve(home: string, cfg: Config, opts: CliOpts) {
     baseOid: meta.base_oid || null,
   });
   return out(
-    `${id} ${added ? 'approved' : 'already approved'} at ${meta.head_oid.slice(0, 7)}: ${story.title}`,
+    `${id} ${added ? 'approved' : 'already approved'} at ${shortSha(meta.head_oid)}: ${story.title}`,
   );
 }
 

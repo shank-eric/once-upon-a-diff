@@ -14,6 +14,7 @@ import { KEEP_MS as FINISH_KEPT_MS } from '../../adapters/stores/finished-agents
 import { DEFAULT_BRANCHES } from '../config/settings.ts';
 import type { WorktreeFacts } from '../worktrees/worktrees.ts';
 import type { BranchPr } from '../review/github-checks.ts';
+import { shortSha, plural } from '@once-upon-a-diff/protocol/domain/text';
 
 /**
  * A finished author's commit that waits on your review: whether its branch is on origin yet (the `why` says which), and
@@ -221,16 +222,14 @@ function whyDone(
     if (typeof agent.findings !== 'number') {
       return 'critic done';
     }
-    return agent.findings === 0
-      ? 'critic clean'
-      : `${agent.findings} finding${agent.findings === 1 ? '' : 's'}`;
+    return agent.findings === 0 ? 'critic clean' : plural(agent.findings, 'finding');
   }
   const result = agent.result ?? {};
   if (landed && agent.kind !== 'research') {
-    return landed.sha ? `landed ${landed.sha.slice(0, 7)}` : 'landed';
+    return landed.sha ? `landed ${shortSha(landed.sha)}` : 'landed';
   }
   if (result.commit) {
-    const committed = `committed ${result.commit.slice(0, 7)}`;
+    const committed = `committed ${shortSha(result.commit)}`;
     if (pending) {
       return `${committed}, ${pending.pushed ? 'no PR' : 'not pushed'}`;
     }

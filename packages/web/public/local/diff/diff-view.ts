@@ -8,7 +8,7 @@
 import { splitRows } from './split.ts';
 import { highlightFile, LIMITS } from './syntax.ts';
 import { html, raw, type Html } from '/assets/protocol/domain/html.ts';
-import { plural } from '/assets/protocol/domain/text.ts';
+import { plural, baseName } from '/assets/protocol/domain/text.ts';
 import { page } from '/assets/local/page.ts';
 import { prButtonHtml } from '/assets/local/ship/pull-request.ts';
 import { approveHtml } from '/assets/local/ship/approve.ts';
@@ -92,7 +92,7 @@ export function treeHtml(rels: string[]) {
       .sort()
       .map(
         (rel) =>
-          html`<div role="treeitem" id="${rel}" class="ou-local-tree-file" data-goto="${rel}" style="${indent(depth)}">${rel.split('/').pop()}</div>`,
+          html`<div role="treeitem" id="${rel}" class="ou-local-tree-file" data-goto="${rel}" style="${indent(depth)}">${baseName(rel)}</div>`,
       );
     return [dirs, files];
   };

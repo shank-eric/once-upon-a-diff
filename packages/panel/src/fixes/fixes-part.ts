@@ -11,6 +11,7 @@ import { fixSummary, takesNotes } from './fixes.ts';
 import type { FixSummary } from './fixes.ts';
 import type { PanelContext } from '../context.ts';
 import type { FixNote, FixesView } from '@once-upon-a-diff/protocol/types';
+import { formatLineRef, toSide } from '@once-upon-a-diff/protocol/domain/line-refs';
 
 const AUTO_TITLE =
   'Sends each note to the Claude session as soon as it is added, instead of waiting for Send. Kept for this story. ' +
@@ -60,10 +61,10 @@ export function createFixes(context: PanelContext) {
 
   function placeView(note: FixNote) {
     const line = Number(note.line) > 0 ? note.line : null;
-    const where = `${note.path}${line ? `:${note.side === 'L' ? 'L' : ''}${line}` : ''}`;
+    const where = line ? formatLineRef(note.path, { side: note.side, start: line }) : note.path;
     const props = context.refs.jumpProps(
       note.path,
-      line ? { side: note.side === 'L' ? 'L' : 'R', start: line, end: line } : null,
+      line ? { side: toSide(note.side), start: line, end: line } : null,
     );
     return html`<code ...${props}>${where}</code>`;
   }

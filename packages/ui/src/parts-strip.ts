@@ -7,6 +7,7 @@
  */
 import { html } from '/assets/preact.mjs';
 import type { StoryParts } from '@once-upon-a-diff/protocol/domain/parts';
+import { plural } from '@once-upon-a-diff/protocol/domain/text';
 
 /** The strip for the parts `touched` (ids). With `counts` (part id: files) it is the whole story's, and every group shows. Nothing touched: nothing drawn. */
 export function PartsStrip(props: {
@@ -30,10 +31,7 @@ export function PartsStrip(props: {
   const cell = (part: StoryParts['parts'][number]) => {
     const active = lit.has(part.id);
     const count = counts && active ? counts[part.id] : undefined;
-    const title = [
-      part.note,
-      count === undefined ? '' : `${count} ${count === 1 ? 'file' : 'files'}`,
-    ]
+    const title = [part.note, count === undefined ? '' : plural(count, 'file')]
       .filter(Boolean)
       .join(' · ');
     return html`<li class=${active ? 'ou-ui-part ou-ui-part-on' : 'ou-ui-part'} title=${title || undefined}>

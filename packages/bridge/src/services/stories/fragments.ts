@@ -19,6 +19,7 @@ import { entryOf, refOf, type Plan, type PlanChapter, type PlanRef } from './cha
 import { chapterProblems } from './validate.ts';
 import { chapterKeyOf, chapterNumbers } from '@once-upon-a-diff/protocol/domain/chapters';
 import type { DiffFile } from '@once-upon-a-diff/protocol/types';
+import { toSide } from '@once-upon-a-diff/protocol/domain/line-refs';
 
 /** Where a ref points, as text: its file and lines (or the file), never its label. */
 function placeOf(ref: PlanRef): string {
@@ -166,7 +167,7 @@ export function mergeFragments(
     const chapter = next.chapters![found[0]];
     chapter.narrative = fragment.narrative;
     const existing = Array.isArray(chapter.comments) ? chapter.comments : [];
-    const sideOf = (comment: { side?: string }) => (comment.side === 'L' ? 'L' : 'R');
+    const sideOf = (comment: { side?: string }) => toSide(comment.side);
     const sameAs = (known: PlanComment, comment: PlanComment) =>
       (known.path || '(general)') === comment.path &&
       sideOf(known) === sideOf(comment) &&

@@ -25,6 +25,7 @@ import type {
   BoardReview,
   BoardSession,
 } from '@once-upon-a-diff/protocol/types';
+import { prUrl } from '@once-upon-a-diff/protocol/domain/github-urls';
 
 /** {pid: parent pid} for every process, from one `ps`. Empty when ps can't say. */
 export async function parentMap(): Promise<Map<number, number>> {
@@ -343,7 +344,7 @@ export function buildFor(card: BoardCard, idle: Set<string>): BoardBuild | null 
   const number = card.pr?.number;
   let prompt: string | null = null;
   if (number) {
-    prompt = `/once-upon https://github.com/${card.repo}/pull/${number}`;
+    prompt = `/once-upon ${prUrl(card.repo, number)}`;
   } else if (card.branch && SAFE_BRANCH.test(card.branch)) {
     prompt = `/once-upon tell the story of the unpushed commits on branch ${card.branch}`;
   }

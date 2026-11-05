@@ -23,6 +23,7 @@ import type {
   BuildRequestView,
   StoryStatus,
 } from '@once-upon-a-diff/protocol/types';
+import { prUrl } from '@once-upon-a-diff/protocol/domain/github-urls';
 
 export type { PrRef, BuildRequestView, StoryStatus };
 
@@ -49,7 +50,7 @@ export interface MissingListener {
 
 /** What the tag shows and does, from a status-many result. */
 export function tagFor(result: StoryStatus | null | undefined, { repo, number }: PrRef): Tag {
-  const href = `https://github.com/${repo}/pull/${number}/changes`;
+  const href = prUrl(repo, number, 'changes');
   const asked =
     result && result.request && result.request.requested_at
       ? ` at ${clockTime(result.request.requested_at)}`
@@ -205,8 +206,8 @@ export function answersBadge(
     return null;
   }
   return {
-    href: `https://github.com/${repo}/pull/${number}/changes#ou-ask`,
-    label: `${count} new ${count === 1 ? 'answer' : 'answers'}`,
+    href: `${prUrl(repo, number, 'changes')}#ou-ask`,
+    label: plural(count, 'new answer'),
     title: `${count === 1 ? 'An answer' : 'Answers'} to your question${count === 1 ? '' : 's'} in the story ${count === 1 ? 'is' : 'are'} unread. Opens the story with the Ask box open.`,
   };
 }
@@ -251,7 +252,7 @@ export function requestFor(
   const body = {
     repo,
     number,
-    url: `https://github.com/${repo}/pull/${number}`,
+    url: prUrl(repo, number),
     requested_at: new Date().toISOString(),
   };
   return tag.act === 'update' && tag.base

@@ -11,6 +11,24 @@ export type Side = 'L' | 'R';
 const LINE_SUFFIX = /^(.*?):([LR])?(\d+)(?:-[LR]?(\d+))?$/;
 const DIFF_LINK = /#diff-([0-9a-f]{64})(?:([LR])(\d+)(?:-[LR]?(\d+))?)?$/;
 
+/** A side from loose data: 'L' stays the old lines, anything else (missing, 'R', junk) is the new. */
+export function toSide(value: unknown): Side {
+  return value === 'L' ? 'L' : 'R';
+}
+
+/**
+ * The backticked form of a place: `path`, `path:45`, `path:L45` (old side) or `path:40-58`. The reverse of
+ * parseLineRef. A range shows only when `end` is past `start`.
+ */
+export function formatLineRef(
+  path: string,
+  line: { side?: unknown; start: number; end?: number },
+): string {
+  const side = line.side === 'L' ? 'L' : '';
+  const range = line.end !== undefined && line.end > line.start ? `-${line.end}` : '';
+  return `${path}:${side}${line.start}${range}`;
+}
+
 /** A backticked name's line suffix, or a diff link's anchor, as lines on one side. */
 export interface LineRef {
   side: Side;

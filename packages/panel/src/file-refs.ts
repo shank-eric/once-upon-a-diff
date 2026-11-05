@@ -14,6 +14,7 @@ import type { LineRef } from '@once-upon-a-diff/protocol/domain/line-refs';
 import type { Html } from '@once-upon-a-diff/protocol/domain/html';
 import type { ChapterRef } from '@once-upon-a-diff/protocol/types';
 import type { PanelContext } from './context.ts';
+import { toSide } from '@once-upon-a-diff/protocol/domain/line-refs';
 
 // eslint-disable-next-line no-control-regex -- the placeholder markers are control characters on purpose
 const PILL_MARK = /\u0001(\d+)\u0001/g;
@@ -94,7 +95,7 @@ export function createFileRefs(context: PanelContext) {
   const lineOf = (ref: ChapterRef): LineRef | null =>
     ref.start === undefined
       ? null
-      : { side: ref.side === 'L' ? 'L' : 'R', start: ref.start, end: ref.end ?? ref.start };
+      : { side: toSide(ref.side), start: ref.start, end: ref.end ?? ref.start };
   /** Draws something whose text links by its own refs (an answer's) with those as the refs, then puts the step's back. */
   function withRefs<T>(refs: ChapterRef[] | undefined, draw: () => T): T {
     const saved = stepRefs;

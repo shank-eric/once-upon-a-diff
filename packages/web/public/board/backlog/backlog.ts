@@ -16,6 +16,7 @@ import {
   pendingClaimChip,
   startedChips,
 } from '/assets/board/backlog/started-chips.ts';
+import { repoName } from '/assets/protocol/domain/text.ts';
 
 /** The ids of the Backlog cards in a card's lane, in the order the board shows them. */
 export function backlogLane(card: BoardCard, board: BoardData | null): string[] {
@@ -150,7 +151,7 @@ export function BacklogCard(props: { card: BoardCard; now: number; api: Api; dnd
   const item = card.backlog;
   const [editing, setEditing] = useState(false);
   const meta = [
-    card.repo && card.repo.split('/')[1],
+    repoName(card.repo),
     card.branch,
     ago(card.since, now) && `added ${ago(card.since, now)}`,
     item && item.added_by !== 'board' && item.added_by !== 'you' && `by ${item.added_by}`,
@@ -251,7 +252,7 @@ export function useAddPanel(api: Api) {
         { value: '', label: 'No repo', detail: 'in the General lane', checked: !repo },
         ...repos.map((one) => ({
           value: one,
-          label: one.split('/')[1],
+          label: repoName(one),
           detail: one,
           checked: one === repo,
         })),
@@ -296,7 +297,7 @@ export function useAddPanel(api: Api) {
     await api.refresh();
   };
 
-  const repoName = repo ? repo.split('/')[1] : 'none';
+  const repoLabel = repo ? repoName(repo) : 'none';
   return {
     head: open
       ? null
@@ -304,7 +305,7 @@ export function useAddPanel(api: Api) {
     form: open
       ? html`<form class="ou-board-add" data-backlog-add onSubmit=${submit}>
     <input type="text" name="title" data-backlog-title placeholder="Keep something for later" maxlength="200" required aria-label="Backlog item title" ref=${focusIt} />
-    <button type="button" class="ou-board-add-repo" data-backlog-repo aria-haspopup="menu" onClick=${chooseRepo} title="The repo the new item is for: its card goes in that repo's lane">Repo: ${repoName} ▾</button>
+    <button type="button" class="ou-board-add-repo" data-backlog-repo aria-haspopup="menu" onClick=${chooseRepo} title="The repo the new item is for: its card goes in that repo's lane">Repo: ${repoLabel} ▾</button>
     <input type="text" name="note" placeholder="Note (optional)" maxlength="1000" aria-label="Note" />
     <div class="ou-board-add-actions"><button type="submit">Add</button> <button type="button" data-backlog-cancel onClick=${() => setOpen(false)}>Cancel</button></div>
   </form>`

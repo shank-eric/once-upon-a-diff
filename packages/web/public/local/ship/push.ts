@@ -8,7 +8,7 @@
  */
 import { html } from '/assets/protocol/domain/html.ts';
 import { setHtml } from '/assets/ui/dom.ts';
-import { plural } from '/assets/protocol/domain/text.ts';
+import { plural, shortSha } from '/assets/protocol/domain/text.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { bridge, page, PARAMS } from '/assets/local/page.ts';
 import { html as vdom } from '/assets/preact.mjs';
@@ -59,7 +59,7 @@ function standing(view: PushView) {
 }
 
 function lead(view: PushView) {
-  const sha = view.approved_sha ? view.approved_sha.slice(0, 7) : '';
+  const sha = shortSha(view.approved_sha);
   const which = page.story.local.storyless ? 'the commit shown' : 'the approved commit';
   return vdom`<p class="ou-local-muted">${view.repo || 'origin'}: ${which} ${sha && vdom`<code>${sha}</code>`} goes straight to <code>origin/${view.branch || ''}</code> as a fast-forward. It never force-pushes.</p>`;
 }
@@ -73,7 +73,7 @@ async function push(view: PushView) {
       head_sha: page.story.local.storyless ? page.story.local.head_oid : view.approved_sha,
     },
   });
-  pushedAt = view.approved_sha ? view.approved_sha.slice(0, 7) : 'now';
+  pushedAt = view.approved_sha ? shortSha(view.approved_sha) : 'now';
   page.story.local.approved = null;
   redrawPush();
   window.dispatchEvent(new Event('ou-pushed')); // Approve goes: the commit is on GitHub

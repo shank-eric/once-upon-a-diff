@@ -31,6 +31,7 @@ import { readApproval, APPROVED_DAYS } from './approval.ts';
 import type { PushView, ShipMode } from '@once-upon-a-diff/protocol/types';
 import type { StoryStore } from './store.ts';
 import type { StoryMeta } from './types.ts';
+import { shortSha } from '@once-upon-a-diff/protocol/domain/text';
 
 const FETCH_MS = 30000;
 const PUSH_MS = 5 * 60 * 1000; // a pre-push hook may run checks
@@ -178,7 +179,7 @@ export async function pushView(
   }
   if (!tip || !(await isAncestorAsync(repoPath, sha, tip))) {
     return stop(
-      `The approved commit ${sha.slice(0, 7)} isn't on this checkout's ${branch}, so there is nothing to push to it. Pushing happens only for commits on ${branch}.`,
+      `The approved commit ${shortSha(sha)} isn't on this checkout's ${branch}, so there is nothing to push to it. Pushing happens only for commits on ${branch}.`,
     );
   }
   view.later = (await commitLogAsync(repoPath, `${sha}..${tip}`)).length;

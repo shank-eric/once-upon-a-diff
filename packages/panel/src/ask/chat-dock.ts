@@ -40,7 +40,7 @@ export function createChatDock(context: PanelContext) {
       counts.open > 0 && plural(counts.open, 'question'),
       counts.working > 0 && `${counts.working} being worked on`,
       counts.waiting > 0 && `${counts.waiting} waiting`,
-      counts.unread > 0 && `${counts.unread} unread ${counts.unread === 1 ? 'answer' : 'answers'}`,
+      counts.unread > 0 && plural(counts.unread, 'unread answer'),
     ].filter(Boolean);
     return parts.join(' · ');
   }
