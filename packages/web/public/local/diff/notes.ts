@@ -8,7 +8,7 @@
  */
 import { html } from '/assets/domain/html.ts';
 import { insertHtml, setHtml } from '/assets/ui-kit/dom.ts';
-import { ROUTES } from '/assets/protocol/routes.ts';
+import { ROUTES } from '/assets/contracts/routes.ts';
 import { page, bridge, PARAMS } from '/assets/local/page.ts';
 import { columnCount } from './diff-view.ts';
 import { redrawSend } from './send.ts';

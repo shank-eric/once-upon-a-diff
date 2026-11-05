@@ -4,7 +4,7 @@
  * list against the routes the extension's code names (test/bridge-routes.test.ts): add a route here when the code
  * starts calling it.
  */
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 
 export const EXTENSION_ROUTES = [
   ROUTES.boardLink,

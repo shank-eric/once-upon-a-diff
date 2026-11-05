@@ -18,7 +18,7 @@ import {
 import type { Plan } from '../src/services/stories/chapters.ts';
 import type { StoryMeta } from '../src/services/stories/types.ts';
 import type { Listener } from '../src/services/listeners/listeners.ts';
-import type { Pulse, RebuildView, StoryStatus } from '@once-upon-a-diff/protocol/types';
+import type { Pulse, RebuildView, StoryStatus } from '@once-upon-a-diff/contracts/types';
 
 /** What POST .../rebuild answers. */
 type RebuildAnswer = { rebuild: RebuildView & { id: string } };

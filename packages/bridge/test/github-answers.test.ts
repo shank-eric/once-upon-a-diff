@@ -23,7 +23,7 @@ import {
   readGithubAnswers,
   writeGithubAnswers,
 } from '../src/adapters/stores/github-answers.ts';
-import type { BoardCard, PrInfo } from '@once-upon-a-diff/protocol/types';
+import type { BoardCard, PrInfo } from '@once-upon-a-diff/contracts/types';
 
 const START = Date.now();
 const HEAD = '7c3010541aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';

@@ -20,7 +20,7 @@ import {
 } from '@once-upon-a-diff/ui-kit/listen';
 import type { PanelContext } from '../host/context.ts';
 import type { Health } from './status-light.ts';
-import type { ListenSession, ListenTarget, StatusError } from '@once-upon-a-diff/protocol/types';
+import type { ListenSession, ListenTarget, StatusError } from '@once-upon-a-diff/contracts/types';
 import type { MarkupHooks, VNode } from '@once-upon-a-diff/ui-kit/parse-markup';
 
 const node = (tag: string, props: Record<string, unknown>, child?: unknown) =>

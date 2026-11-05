@@ -9,9 +9,9 @@
  * to look again every 10 s, and every 30 s while the bridge doesn't answer, while the tab shows and when it gets focus.
  */
 import { prKey } from '@once-upon-a-diff/domain/pr-key';
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { bridge, extensionAlive, usage, type BridgeAnswer } from './bridge.ts';
-import type { Listening, StatusMany } from '@once-upon-a-diff/protocol/types';
+import type { Listening, StatusMany } from '@once-upon-a-diff/contracts/types';
 import type { PrRef, StoryStatus } from './tag-model.ts';
 import { listenNotice } from './components/listen-notice.ts';
 import { answersBadge, tagFor, requestFor, missingListeners } from './tag-model.ts';

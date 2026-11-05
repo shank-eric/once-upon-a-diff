@@ -1,6 +1,6 @@
 /*
  * The content script's own elements are Preact: a component draws from data, with no markup string and no innerHTML. This pins
- * that for all of content/ (no setHtml, insertHtml, innerHTML, outerHTML, insertAdjacent* or the protocol's html`` markup), and
+ * that for all of content/ (no setHtml, insertHtml, innerHTML, outerHTML, insertAdjacent* or the domain's html`` markup), and
  * pins where content/components still writes into the DOM by hand: a host node on GitHub's page, its shadow root and its
  * stylesheet, which a component cannot be (GitHub's page is a host we do not control, so each element gets its own shadow root
  * made here). A new write anywhere else in components fails, and a file's count can only fall. The write pattern and its probes
@@ -44,7 +44,7 @@ const MARKUP = new RegExp(
 );
 
 test('no file under content/ builds markup from a string', () => {
-  // (components draw with the vendored Preact's html``, which builds elements; the markup string is the protocol's html``)
+  // (components draw with the vendored Preact's html``, which builds elements; the markup string is the domain's html``)
   for (const file of files(CONTENT)) {
     const found = code(readFileSync(file, 'utf8')).match(MARKUP);
     assert.equal(found && found[0], null, `${path.relative(CONTENT, file)} builds markup`);

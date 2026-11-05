@@ -309,11 +309,22 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@once-upon-a-diff/api-client@workspace:packages/api-client"
   dependencies:
+    "@once-upon-a-diff/contracts": "workspace:*"
     "@once-upon-a-diff/domain": "workspace:*"
-    "@once-upon-a-diff/protocol": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@types/node": "npm:24.19.1"
     typescript: "npm:5.9.3"
+  languageName: unknown
+  linkType: soft
+
+"@once-upon-a-diff/contracts@workspace:*, @once-upon-a-diff/contracts@workspace:packages/contracts":
+  version: 0.0.0-use.local
+  resolution: "@once-upon-a-diff/contracts@workspace:packages/contracts"
+  dependencies:
+    "@once-upon-a-diff/domain": "workspace:*"
+    "@types/node": "npm:24.19.1"
+    typescript: "npm:5.9.3"
+    valibot: "npm:1.5.0"
   languageName: unknown
   linkType: soft
 
@@ -331,10 +342,10 @@ __metadata:
   resolution: "@once-upon-a-diff/extension@workspace:packages/extension"
   dependencies:
     "@once-upon-a-diff/api-client": "workspace:*"
+    "@once-upon-a-diff/contracts": "workspace:*"
     "@once-upon-a-diff/domain": "workspace:*"
     "@once-upon-a-diff/host-github": "workspace:*"
     "@once-upon-a-diff/panel": "workspace:*"
-    "@once-upon-a-diff/protocol": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@once-upon-a-diff/ui-kit": "workspace:*"
     "@types/chrome": "npm:0.3.4"
@@ -361,23 +372,12 @@ __metadata:
   resolution: "@once-upon-a-diff/panel@workspace:packages/panel"
   dependencies:
     "@once-upon-a-diff/api-client": "workspace:*"
+    "@once-upon-a-diff/contracts": "workspace:*"
     "@once-upon-a-diff/domain": "workspace:*"
-    "@once-upon-a-diff/protocol": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@once-upon-a-diff/ui-kit": "workspace:*"
     "@types/node": "npm:24.19.1"
     typescript: "npm:5.9.3"
-  languageName: unknown
-  linkType: soft
-
-"@once-upon-a-diff/protocol@workspace:*, @once-upon-a-diff/protocol@workspace:packages/protocol":
-  version: 0.0.0-use.local
-  resolution: "@once-upon-a-diff/protocol@workspace:packages/protocol"
-  dependencies:
-    "@once-upon-a-diff/domain": "workspace:*"
-    "@types/node": "npm:24.19.1"
-    typescript: "npm:5.9.3"
-    valibot: "npm:1.5.0"
   languageName: unknown
   linkType: soft
 
@@ -395,8 +395,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@once-upon-a-diff/ui-kit@workspace:packages/ui-kit"
   dependencies:
+    "@once-upon-a-diff/contracts": "workspace:*"
     "@once-upon-a-diff/domain": "workspace:*"
-    "@once-upon-a-diff/protocol": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@types/node": "npm:24.19.1"
     typescript: "npm:5.9.3"
@@ -408,10 +408,10 @@ __metadata:
   resolution: "@once-upon-a-diff/web@workspace:packages/web"
   dependencies:
     "@once-upon-a-diff/api-client": "workspace:*"
+    "@once-upon-a-diff/contracts": "workspace:*"
     "@once-upon-a-diff/domain": "workspace:*"
     "@once-upon-a-diff/host-github": "workspace:*"
     "@once-upon-a-diff/panel": "workspace:*"
-    "@once-upon-a-diff/protocol": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@once-upon-a-diff/ui-kit": "workspace:*"
     "@types/node": "npm:24.19.1"
@@ -4030,10 +4030,10 @@ __metadata:
   resolution: "once-upon-a-diff@workspace:packages/bridge"
   dependencies:
     "@once-upon-a-diff/api-client": "workspace:*"
+    "@once-upon-a-diff/contracts": "workspace:*"
     "@once-upon-a-diff/domain": "workspace:*"
     "@once-upon-a-diff/host-github": "workspace:*"
     "@once-upon-a-diff/panel": "workspace:*"
-    "@once-upon-a-diff/protocol": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@once-upon-a-diff/ui-kit": "workspace:*"
     "@once-upon-a-diff/web": "workspace:*"

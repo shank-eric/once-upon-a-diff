@@ -4,13 +4,13 @@
  * page key only, as it is not on the read-only key's list in ../page-key.ts). Fix-before-push notes are in ./fixes.ts,
  * for PR and local stories alike.
  */
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
 import { unwrittenCount } from '../../services/stories/skeleton.ts';
 import { approvalOf } from '../../services/stories/approval.ts';
 import { approveStory, clearApproval } from '../../services/review/approve.ts';
-import type { LocalStory, StoryData } from '@once-upon-a-diff/protocol/types';
+import type { LocalStory, StoryData } from '@once-upon-a-diff/contracts/types';
 import { refreshLocal } from '../../services/stories/local-diff.ts';
 import type { LocalMeta, ServedStory } from '../../services/stories/types.ts';
 import type { Call, StoryRoute } from '../types.ts';

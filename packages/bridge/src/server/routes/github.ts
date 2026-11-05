@@ -5,10 +5,10 @@
  * (../../services/review/github-watcher.ts refresh). The token only. Its fields come from github.com's page, so the body is
  * checked (parseBody) and nothing here reaches GitHub for a repo or branch the board doesn't already follow.
  */
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
-import type { GithubRefreshAnswer } from '@once-upon-a-diff/protocol/types';
+import type { GithubRefreshAnswer } from '@once-upon-a-diff/contracts/types';
 import type { ApiRoute, App, Call } from '../types.ts';
 
 /** How long the answer waits for GitHub's answers to land before it goes without them. */

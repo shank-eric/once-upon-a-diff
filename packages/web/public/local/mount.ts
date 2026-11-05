@@ -9,7 +9,7 @@ import { bridgeOptions } from '/assets/panel/host/bridge-options.ts';
 import { createHostPage } from '/assets/host-github/diff-dom.ts';
 import type { PanelHost } from '/assets/panel/host/host.ts';
 import type { LocalNote } from '/assets/types.ts';
-import { ROUTES } from '/assets/protocol/routes.ts';
+import { ROUTES } from '/assets/contracts/routes.ts';
 import { bridgeProblem, type BridgeError } from '/assets/api-client/client.ts';
 import { page, bridge, pageUrl, PARAMS, STORY_ID, usage } from './page.ts';
 import { narrow, reveal, unnarrow, forgetNarrowing } from '/assets/local/diff/folds.ts';

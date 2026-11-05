@@ -9,7 +9,7 @@ import type {
   BoardEditor,
   BoardVoice,
   BoardWorktree,
-} from '@once-upon-a-diff/protocol/types';
+} from '@once-upon-a-diff/contracts/types';
 
 /*
  * The board page itself, loaded as the browser loads it with a fake bridge behind fetch and linkedom for a DOM: one Preact

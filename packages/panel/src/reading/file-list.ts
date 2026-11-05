@@ -6,7 +6,7 @@
  */
 import { html } from '/assets/preact.mjs';
 import type { VNode } from '@once-upon-a-diff/ui-kit/parse-markup';
-import type { ChapterLines } from '@once-upon-a-diff/protocol/types';
+import type { ChapterLines } from '@once-upon-a-diff/contracts/types';
 import type { FileStatus } from '../state/story-model.ts';
 import type { PanelContext } from '../host/context.ts';
 import { toSide } from '@once-upon-a-diff/domain/line-refs';

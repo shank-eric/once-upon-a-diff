@@ -7,7 +7,7 @@ import { writeFileAtomic, writeJsonAtomic } from '../../adapters/stores/fs/json-
 import path from 'node:path';
 import { parseUnifiedDiff, pathSha } from './diff.ts';
 import { revParse, diffText, commitsBetween } from '../../adapters/git.ts';
-import type { DiffFile, LocalFile, LocalMoved } from '@once-upon-a-diff/protocol/types';
+import type { DiffFile, LocalFile, LocalMoved } from '@once-upon-a-diff/contracts/types';
 import type { LocalMeta, StoryMeta } from './types.ts';
 import { removeFile } from '../../adapters/stores/fs/files.ts';
 

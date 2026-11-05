@@ -12,7 +12,7 @@ import { STORY_ID_RE } from '@once-upon-a-diff/domain/patterns';
 import { listeners } from '../listeners/listeners.ts';
 import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { stateFile } from '../config/settings.ts';
-import type { LineRanges, WorkingMark } from '@once-upon-a-diff/protocol/types';
+import type { LineRanges, WorkingMark } from '@once-upon-a-diff/contracts/types';
 import type { Listener } from '../listeners/listeners.ts';
 
 /** A mark as working.json keeps it. */

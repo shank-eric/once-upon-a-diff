@@ -27,7 +27,7 @@ import type {
   BoardCard,
   BoardData,
   BoardStartedLinks,
-} from '@once-upon-a-diff/protocol/types';
+} from '@once-upon-a-diff/contracts/types';
 
 type BoardAgentState = BoardAgent['state'];
 

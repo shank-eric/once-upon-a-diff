@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 /*
- * The extension's bundle must not carry Valibot: the route table and the client are all it takes from the protocol
+ * The extension's bundle must not carry Valibot: the route table and the client are all it takes from the contracts package
  * package, and the request schemas are the bridge's. This walks the files the extension's entrypoints load (their
  * runtime imports, so `import type` is skipped, since it is erased) and fails if one reaches valibot or schemas.ts.
  */

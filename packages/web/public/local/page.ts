@@ -4,7 +4,7 @@
  */
 import { createClient, type Transport } from '/assets/api-client/client.ts';
 import { createUsage } from '/assets/api-client/usage.ts';
-import { ROUTES } from '/assets/protocol/routes.ts';
+import { ROUTES } from '/assets/contracts/routes.ts';
 import type { LocalStory, StoryData } from '/assets/types.ts';
 import type { InitialUi, StoryOverlay } from '/assets/panel/shell/overlay.ts';
 import type { Highlighter } from '/assets/local/diff/syntax.ts';
@@ -63,7 +63,7 @@ export const page: LocalPage = {
 };
 
 /**
- * The page's way to the bridge for the protocol's client: a fetch with the page's key. It never rejects: a call that
+ * The page's way to the bridge for the contracts package's client: a fetch with the page's key. It never rejects: a call that
  * didn't get there says so in its reply, and `bridge.ask` turns that into an Error with the bridge's message.
  */
 const transport: Transport = async ({ method, path, body }) => {

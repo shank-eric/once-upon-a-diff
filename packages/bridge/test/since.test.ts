@@ -8,7 +8,7 @@ import { Builds, buildText } from '../src/services/inbox/builds.ts';
 import { noteRead } from '../src/services/stories/reads.ts';
 import { clearFreshness } from '../src/services/review/freshness.ts';
 import type { Build } from '../src/services/inbox/builds.ts';
-import type { StoryData, StoryStatus } from '@once-upon-a-diff/protocol/types';
+import type { StoryData, StoryStatus } from '@once-upon-a-diff/contracts/types';
 import type { Plan } from '../src/services/stories/chapters.ts';
 
 /** What POST /api/builds answers. */

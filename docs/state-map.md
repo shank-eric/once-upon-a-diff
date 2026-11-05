@@ -207,7 +207,7 @@ Items 1 and 2 were closed by the request queue's lock (183210b, 11/4). Items 3 t
 12. `adr/adr-12-one-panel-two-hosts.md`: one panel on GitHub's page and on a page that copies its DOM
 13. `adr/adr-13-untrusted-pr-content.md`: PR content is data, and the guard is skill rules, not a sandbox
 14. `adr/adr-14-front-end-approach.md`: Preact and htm, vendored as one file, adopted one region at a time
-15. `adr/adr-15-layered-packages-and-protocol.md`: layered packages, with the protocol (types, route table, schemas) as the only place client and server meet
+15. `adr/adr-15-layered-packages-and-protocol.md`: layered packages, with the contracts package (types, route table, schemas) as the only place client and server meet
 16. `adr/adr-16-what-the-rebuild-built.md`: what the 10/29 rebuild built under ADR-14 and ADR-15, and what it left
 17. `adr/adr-17-host-github-and-the-end-of-shared.md`: a `host-github` package, and the end of `shared`
 18. `adr/adr-18-usage-capture.md`: usage capture, counting what the tool actually uses, with names from closed lists only

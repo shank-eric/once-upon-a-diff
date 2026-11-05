@@ -106,7 +106,7 @@ import { createChatDock } from '../ask/chat-dock.ts';
 import { createFixes } from '../fixes/fixes-part.ts';
 import { createWorking } from '../fixes/working.ts';
 import { createPoll } from '@once-upon-a-diff/api-client/poll';
-import type { Pulse, StoryData } from '@once-upon-a-diff/protocol/types';
+import type { Pulse, StoryData } from '@once-upon-a-diff/contracts/types';
 import type { PanelContext, PanelOptions } from '../host/context.ts';
 import type { PanelHost } from '../host/host.ts';
 

@@ -15,7 +15,7 @@
  */
 import { jsonLines } from '../../adapters/stores/fs/jsonl.ts';
 import { ledgerTime, type LedgerAgent } from './ledger.ts';
-import type { BoardBeat } from '@once-upon-a-diff/protocol/types';
+import type { BoardBeat } from '@once-upon-a-diff/contracts/types';
 
 /**
  * What an agent is. `editor` is not an agent but a session that runs a repo's build queue (`/once-upon-editor`): it

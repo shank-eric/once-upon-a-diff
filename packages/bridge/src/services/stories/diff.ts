@@ -1,6 +1,6 @@
 /** Unified diff parsing (the same shape once-upon uses) and GitHub's file anchors. */
 import { createHash } from 'node:crypto';
-import type { DiffFile, DiffHunk } from '@once-upon-a-diff/protocol/types';
+import type { DiffFile, DiffHunk } from '@once-upon-a-diff/contracts/types';
 
 export type { DiffFile, DiffHunk };
 

@@ -6,7 +6,7 @@
  * (action fix) makes the draft a note (./fixes.ts). A comment drafted in
  * Q&A comes in through `once-upon comment`.
  */
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { newId } from '../../services/config/ids.ts';
 import { stateKeyOf } from '../../services/stories/meta.ts';
 import {
@@ -21,7 +21,7 @@ import { addToPendingReview } from '../../services/review/pending-review.ts';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
 import { noteFromDraft } from './fixes.ts';
-import type { DraftComment, StoryData } from '@once-upon-a-diff/protocol/types';
+import type { DraftComment, StoryData } from '@once-upon-a-diff/contracts/types';
 import type { ServedStory } from '../../services/stories/types.ts';
 import type { App, Call, StoryRoute } from '../types.ts';
 

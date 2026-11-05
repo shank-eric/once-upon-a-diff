@@ -7,7 +7,7 @@ import { runGh } from '../config/gh.ts';
 import { isAncestorAsync } from '../../adapters/git.ts';
 import { rulesRequired } from './merge-rules.ts';
 import { infoOf, latest, type PrNode } from './pr-info.ts';
-import type { PrInfo } from '@once-upon-a-diff/protocol/types';
+import type { PrInfo } from '@once-upon-a-diff/contracts/types';
 
 /**
  * What GitHub says about a PR: whether it merged, and why it counts as reviewed (null when it doesn't yet). Rejects when

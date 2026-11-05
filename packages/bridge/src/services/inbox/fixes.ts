@@ -29,7 +29,7 @@ import { sameRepo } from '../config/repos.ts';
 import { answeringOf, listeners } from '../listeners/listeners.ts';
 import { withLock } from '../../adapters/stores/fs/lock.ts';
 import { RequestQueue } from './queue.ts';
-import type { LocalNote } from '@once-upon-a-diff/protocol/types';
+import type { LocalNote } from '@once-upon-a-diff/contracts/types';
 import type { Side } from '@once-upon-a-diff/domain/line-refs';
 import type { Inbox } from './inbox.ts';
 import type { Listener } from '../listeners/listeners.ts';

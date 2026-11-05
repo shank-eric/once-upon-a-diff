@@ -4,7 +4,7 @@
  * spreads this into its PanelOptions and adds what is its own (where the panel's state is saved, what closing it does,
  * the status route, how Start listening reaches the bridge) or overrides one call (the local page's Add to fix before push).
  */
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import type { PanelHost } from './host.ts';
 import type { PanelOptions } from './context.ts';
 

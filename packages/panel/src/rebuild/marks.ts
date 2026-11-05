@@ -9,7 +9,7 @@
  */
 import { html } from '/assets/preact.mjs';
 import { shortSha } from '@once-upon-a-diff/domain/text';
-import type { FreshUpdate, Freshness, ReadInfo } from '@once-upon-a-diff/protocol/types';
+import type { FreshUpdate, Freshness, ReadInfo } from '@once-upon-a-diff/contracts/types';
 
 /** One "changed since" mark: why, the steps it lights, the files it tags, and the commits. */
 export interface ChangeMark {

@@ -4,7 +4,7 @@
  * names are part of the panel's contract:
  * {n, all, collapsed, width, filesOpen, showPosted, showDismissed, chatOpen, chatHeight}.
  */
-import type { Chapter, PanelUi } from '@once-upon-a-diff/protocol/types';
+import type { Chapter, PanelUi } from '@once-upon-a-diff/contracts/types';
 import type { StoryModel } from './story-model.ts';
 import type { PanelContext } from '../host/context.ts';
 

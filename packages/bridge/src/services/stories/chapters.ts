@@ -11,7 +11,7 @@ import type {
   ChapterRef,
   DraftComment,
   SinceRange,
-} from '@once-upon-a-diff/protocol/types';
+} from '@once-upon-a-diff/contracts/types';
 import { toSide } from '@once-upon-a-diff/domain/line-refs';
 
 /** A ref in chapters.json as the story was written (refOf normalizes it). */

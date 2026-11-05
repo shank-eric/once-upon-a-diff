@@ -3,7 +3,7 @@
  * status and detail for the ones it knows: iTerm2 (adapters/iterm.ts) and the session registry (services/sessions) are
  * two of them, and another terminal or status line is one more object with the StatusSource shape.
  */
-import type { BoardStatus } from '@once-upon-a-diff/protocol/types';
+import type { BoardStatus } from '@once-upon-a-diff/contracts/types';
 import type { LiveSession } from './claude-sessions/live-sessions.ts';
 
 /** What a source knows about one session. */

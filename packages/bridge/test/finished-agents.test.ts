@@ -14,7 +14,7 @@ import { doneLine, lastActivity, ledgerTime, parseLedger } from '../src/services
 import { appendLine } from '../src/adapters/stores/fs/lines.ts';
 import { BoardError } from '../src/services/errors.ts';
 import type { StatusSource } from '../src/adapters/status-source.ts';
-import type { BoardCard } from '@once-upon-a-diff/protocol/types';
+import type { BoardCard } from '@once-upon-a-diff/contracts/types';
 
 const open: TestBridge[] = [];
 after(() => Promise.all(open.map((bridge) => bridge.close())));

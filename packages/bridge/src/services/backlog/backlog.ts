@@ -44,7 +44,7 @@ import { OPEN, claimedAgent, liveClaim, sameAgentView } from './claims.ts';
 import { REPO_RE, sameRepo } from '../config/repos.ts';
 import { newId } from '../config/ids.ts';
 import { clean, optional } from '../input.ts';
-import type { BoardAgent, BoardCard, BoardStartedLinks } from '@once-upon-a-diff/protocol/types';
+import type { BoardAgent, BoardCard, BoardStartedLinks } from '@once-upon-a-diff/contracts/types';
 import type { LedgerAgent } from '../ledger/ledger.ts';
 
 export const STARTED_GRACE_HOURS = 24;

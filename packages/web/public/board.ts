@@ -13,7 +13,7 @@ import { html, render, useEffect } from '/assets/preact.mjs';
 import { createClient, type Transport } from '/assets/api-client/client.ts';
 import { usePoll } from '/assets/api-client/use-poll.ts';
 import { createUsage } from '/assets/api-client/usage.ts';
-import { ROUTES } from '/assets/protocol/routes.ts';
+import { ROUTES } from '/assets/contracts/routes.ts';
 import { authHeader, startAuth } from '/assets/local/auth.ts';
 import { notConnectedHtml } from '/assets/local/not-connected.ts';
 import { focusSession, useSetting, type Api } from '/assets/board/shared.ts';
@@ -36,7 +36,7 @@ const KEY = new URLSearchParams(location.hash.slice(1)).get('key') || '';
 /** Hands the key to the server when the host takes a cookie; calls wait for that so the cookie is there. */
 const authed = startAuth(KEY, '/api/board');
 
-/** The board's way to the bridge for the protocol's client: its key (or its cookie), once the host's auth has settled. */
+/** The board's way to the bridge for the contracts package's client: its key (or its cookie), once the host's auth has settled. */
 const transport: Transport = async ({ method, path, body }) => {
   await authed;
   try {

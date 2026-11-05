@@ -9,7 +9,7 @@ import path from 'node:path';
 import { installDom } from '@once-upon-a-diff/test-kit/dom';
 
 const PUBLIC = fileURLToPath(new URL('../public/', import.meta.url));
-const PROTOCOL = fileURLToPath(new URL('../../protocol/src/', import.meta.url));
+const CONTRACTS = fileURLToPath(new URL('../../contracts/src/', import.meta.url));
 const DOMAIN = fileURLToPath(new URL('../../domain/src/', import.meta.url));
 const API_CLIENT = fileURLToPath(new URL('../../api-client/src/', import.meta.url));
 const PANEL = fileURLToPath(new URL('../../panel/src/', import.meta.url));
@@ -40,9 +40,12 @@ registerHooks({
     if (apiClient) {
       return { url: pathToFileURL(path.join(API_CLIENT, apiClient[1])).href, shortCircuit: true };
     }
-    const protocol = /^\/assets\/protocol\/([a-z0-9/-]+\.ts)$/.exec(specifier);
-    if (protocol) {
-      return { url: pathToFileURL(path.join(PROTOCOL, protocol[1])).href, shortCircuit: true };
+    const contractsFile = /^\/assets\/contracts\/([a-z0-9/-]+\.ts)$/.exec(specifier);
+    if (contractsFile) {
+      return {
+        url: pathToFileURL(path.join(CONTRACTS, contractsFile[1])).href,
+        shortCircuit: true,
+      };
     }
     const domain = /^\/assets\/domain\/([a-z0-9-]+\.ts)$/.exec(specifier);
     if (domain) {

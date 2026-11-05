@@ -3,7 +3,7 @@
  * a route's shape. Types only.
  */
 import type { IncomingMessage } from 'node:http';
-import type { AnyRoute } from '@once-upon-a-diff/protocol/routes';
+import type { AnyRoute } from '@once-upon-a-diff/contracts/routes';
 import type { StoryStore } from '../services/stories/store.ts';
 import type { Inbox } from '../services/inbox/inbox.ts';
 import type { Build, Builds } from '../services/inbox/builds.ts';
@@ -71,13 +71,13 @@ export interface Call {
   surface: Surface;
 }
 
-/** An /api/<path> route: its entry in the protocol's table (path, method, keys) and what answers it. */
+/** An /api/<path> route: its entry in the contracts package's table (path, method, keys) and what answers it. */
 export interface ApiRoute {
   route: AnyRoute;
   handle(call: Call): unknown;
 }
 
-/** A /api/stories/<id>/<what>[/<sub>] route: its entry in the protocol's table and what answers it. */
+/** A /api/stories/<id>/<what>[/<sub>] route: its entry in the contracts package's table and what answers it. */
 export interface StoryRoute {
   route: AnyRoute;
   handle(call: Call, story: ServedStory): unknown;

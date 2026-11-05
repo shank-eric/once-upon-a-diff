@@ -42,10 +42,10 @@ test('every import in the page scripts and the panel resolves to a served asset,
   assert.ok(seen.has('/assets/panel/shell/overlay.ts'), 'the panel is in the graph');
   assert.ok(seen.has('/assets/panel/host/bridge-options.ts'), 'its bridge calls are in the graph');
   assert.ok(seen.has('/assets/host-github/diff-dom.ts'), 'the host adapter is in the graph');
-  assert.ok(seen.has('/assets/protocol/routes.ts'), 'the route table is in the graph');
-  assert.ok(seen.has('/assets/protocol/route-kit.ts'), 'the route factories are in the graph');
-  assert.ok(seen.has('/assets/protocol/story/routes.ts'), 'the story routes are in the graph');
-  assert.ok(seen.has('/assets/protocol/board/routes.ts'), 'the board routes are in the graph');
+  assert.ok(seen.has('/assets/contracts/routes.ts'), 'the route table is in the graph');
+  assert.ok(seen.has('/assets/contracts/route-kit.ts'), 'the route factories are in the graph');
+  assert.ok(seen.has('/assets/contracts/story/routes.ts'), 'the story routes are in the graph');
+  assert.ok(seen.has('/assets/contracts/board/routes.ts'), 'the board routes are in the graph');
   assert.ok(seen.has('/assets/domain/html.ts'), 'the domain is in the graph');
   assert.ok(seen.has('/assets/api-client/client.ts'), 'the typed client is in the graph');
   assert.ok(seen.has('/assets/api-client/use-poll.ts'), 'the board’s poll hook is in the graph');
@@ -63,13 +63,13 @@ test('every import in the page scripts and the panel resolves to a served asset,
   assert.ok(seen.has('/assets/domain/time.ts'), 'the time text the board shows is in the domain');
 });
 
-test('forBrowser spells the panel, the protocol, the domain, the api-client, ui-kit and the host adapter as the URLs they are served at', () => {
+test('forBrowser spells the panel, the contracts package, the domain, the api-client, ui-kit and the host adapter as the URLs they are served at', () => {
   assert.equal(
     forBrowser(
       [
         `import { html } from '@once-upon-a-diff/domain/html';`,
         `export { x } from "@once-upon-a-diff/panel/host/diff-types";`,
-        `const m = await import('@once-upon-a-diff/protocol/routes');`,
+        `const m = await import('@once-upon-a-diff/contracts/routes');`,
         `import { createHostPage } from '@once-upon-a-diff/host-github/diff-dom';`,
         `import { createClient } from '@once-upon-a-diff/api-client/client';`,
         `import { writeClipboard } from '@once-upon-a-diff/ui-kit/clipboard';`,
@@ -79,7 +79,7 @@ test('forBrowser spells the panel, the protocol, the domain, the api-client, ui-
     [
       `import { html } from '/assets/domain/html.ts';`,
       `export { x } from "/assets/panel/host/diff-types.ts";`,
-      `const m = await import('/assets/protocol/routes.ts');`,
+      `const m = await import('/assets/contracts/routes.ts');`,
       `import { createHostPage } from '/assets/host-github/diff-dom.ts';`,
       `import { createClient } from '/assets/api-client/client.ts';`,
       `import { writeClipboard } from '/assets/ui-kit/clipboard.ts';`,
@@ -97,6 +97,16 @@ test("the bridge serves ui-kit's stylesheet, and the board and local pages link 
   for (const page of [String(boardPage()), String(localPage('s', { title: 't' }))]) {
     const first = page.indexOf('/assets/ui-kit/css/ui.css');
     assert.ok(first > 0 && first < page.indexOf('/assets/local/local.css'), 'ui.css comes first');
+  }
+});
+
+test('the old /assets/protocol/ URLs are gone', () => {
+  for (const old of [
+    '/assets/protocol/routes.ts',
+    '/assets/protocol/route-kit.ts',
+    '/assets/protocol/story/routes.ts',
+  ]) {
+    assert.equal(assetFor(old), null, old);
   }
 });
 

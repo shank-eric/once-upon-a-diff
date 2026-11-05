@@ -42,7 +42,7 @@ import { beat, listeningOf } from '../src/services/listeners/listeners.ts';
 import { waitingText } from '@once-upon-a-diff/panel/ask/question-list';
 import { askWhoHtml, healthChecks } from '@once-upon-a-diff/panel/components/status-light';
 import type { Health } from '@once-upon-a-diff/panel/components/status-light';
-import type { Pulse, Question } from '@once-upon-a-diff/protocol/types';
+import type { Pulse, Question } from '@once-upon-a-diff/contracts/types';
 
 const STORY = 'acme-widgets-7';
 const OWNER = 'session-owner-1111';

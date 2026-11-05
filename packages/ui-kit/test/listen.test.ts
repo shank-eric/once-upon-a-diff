@@ -8,7 +8,7 @@ import {
   typedNote,
   wireStartListening,
 } from '../src/listen.ts';
-import type { ListenSession, ListenTarget } from '@once-upon-a-diff/protocol/types';
+import type { ListenSession, ListenTarget } from '@once-upon-a-diff/contracts/types';
 
 const NOW = Date.UTC(2026, 9, 28, 18, 0);
 const ago = (minutes: number) => new Date(NOW - minutes * 60000).toISOString();

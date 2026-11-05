@@ -15,8 +15,8 @@ import type { BranchPr, PrFacts } from '../src/services/review/github-checks.ts'
 import { noPrWatcher, type PrWatcher } from '../src/services/board/stages/pr-watcher.ts';
 import { boardKey } from '../src/services/pages/page-key.ts';
 import { EXTENSION_ROUTES } from '../../extension/src/bridge-routes.ts';
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
-import type { BoardCard, InboxStory, PrInfo } from '@once-upon-a-diff/protocol/types';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
+import type { BoardCard, InboxStory, PrInfo } from '@once-upon-a-diff/contracts/types';
 import type { StatusSource } from '../src/adapters/status-source.ts';
 
 const HEAD = '7c3010541aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';

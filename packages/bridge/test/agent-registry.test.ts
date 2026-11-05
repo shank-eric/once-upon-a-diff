@@ -17,7 +17,7 @@ import { gateOf, parseLedger, parseProgress } from '../src/services/ledger/ledge
 import { registrySource } from '../src/services/sessions/sources.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
 import { Builds } from '../src/services/inbox/builds.ts';
-import type { BoardCard } from '@once-upon-a-diff/protocol/types';
+import type { BoardCard } from '@once-upon-a-diff/contracts/types';
 
 const SID = 'abcdef01';
 const OTHER = '12345678';

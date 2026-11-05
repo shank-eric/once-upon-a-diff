@@ -6,7 +6,7 @@
  * when that run finishes or the card lands or is dropped. A card has one claim and an agent may hold several.
  * Pure: the board gathers the facts.
  */
-import type { BoardColumn } from '@once-upon-a-diff/protocol/types';
+import type { BoardColumn } from '@once-upon-a-diff/contracts/types';
 import { sameRepo } from '../config/repos.ts';
 import { STALE_MS } from '../ledger/events.ts';
 import type { LedgerAgent } from '../ledger/ledger.ts';

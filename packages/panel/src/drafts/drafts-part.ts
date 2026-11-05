@@ -24,7 +24,7 @@ import type {
   DraftComment,
   DraftFix,
   DraftRow,
-} from '@once-upon-a-diff/protocol/types';
+} from '@once-upon-a-diff/contracts/types';
 import type { Side } from '@once-upon-a-diff/domain/line-refs';
 import { toSide } from '@once-upon-a-diff/domain/line-refs';
 

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { requestLine } from '@once-upon-a-diff/panel/rebuild/freshness';
-import type { StoryRequest } from '@once-upon-a-diff/protocol/types';
+import type { StoryRequest } from '@once-upon-a-diff/contracts/types';
 
 const request = (extra: Partial<StoryRequest> = {}): StoryRequest => ({
   kind: 'update',

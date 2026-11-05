@@ -1,7 +1,7 @@
 import { getSettings, setSettings } from '../../settings.ts';
 import { isPageLink, type PageKind } from '../../page-links.ts';
 import { bridgeProblem, createClient } from '@once-upon-a-diff/api-client/client';
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import type { BridgeRequest } from '../../content/bridge.ts';
 
 /** The page's elements by id; the form's fields are inputs. */

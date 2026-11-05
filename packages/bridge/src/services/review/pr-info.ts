@@ -3,7 +3,7 @@
  * you and others last acted on it.
  */
 import { mergeSummary } from './merge-rules.ts';
-import type { PrInfo } from '@once-upon-a-diff/protocol/types';
+import type { PrInfo } from '@once-upon-a-diff/contracts/types';
 import { prUrl } from '@once-upon-a-diff/domain/github-urls';
 
 interface Who {

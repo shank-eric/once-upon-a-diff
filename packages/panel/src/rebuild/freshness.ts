@@ -8,7 +8,7 @@
 import { sameSha } from '@once-upon-a-diff/domain/text';
 import { clockTime, minutesSince } from '@once-upon-a-diff/domain/time';
 import { rangeOfPath } from '@once-upon-a-diff/domain/pr-key';
-import type { StoryRequest } from '@once-upon-a-diff/protocol/types';
+import type { StoryRequest } from '@once-upon-a-diff/contracts/types';
 
 export { rangeOfPath };
 

@@ -15,7 +15,7 @@ import {
 import { createLocalStory } from '../src/services/stories/local-story.ts';
 import { API_ROUTES, STORY_ROUTES } from '../src/server/index.ts';
 import { boardKey, pageKey, viewKey, viewKeyMay } from '../src/services/pages/page-key.ts';
-import { ROUTES, boardKeyMay, type AnyRoute } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES, boardKeyMay, type AnyRoute } from '@once-upon-a-diff/contracts/routes';
 
 const ENTRIES = Object.entries(ROUTES as Record<string, AnyRoute>);
 const TABLE = ENTRIES.map(([, route]) => route);
@@ -397,7 +397,7 @@ test('the bridge serves the route table (each area route file) and the api-clien
       'board/routes',
       'story/routes',
     ]) {
-      const response = await bridge.call('GET', `/assets/protocol/${name}.ts`, undefined, {
+      const response = await bridge.call('GET', `/assets/contracts/${name}.ts`, undefined, {
         Authorization: '',
       });
       assert.equal(response.status, 200, name);
@@ -428,7 +428,7 @@ test('the bridge serves the route table (each area route file) and the api-clien
       'domain/html',
       'nope',
     ]) {
-      const response = await bridge.call('GET', `/assets/protocol/${name}.ts`, undefined, {
+      const response = await bridge.call('GET', `/assets/contracts/${name}.ts`, undefined, {
         Authorization: '',
       });
       assert.equal(response.status, 404, name);
@@ -448,7 +448,7 @@ test('the bridge serves the route table (each area route file) and the api-clien
         loads.every(
           (specifier) =>
             [
-              '/assets/protocol/routes.ts',
+              '/assets/contracts/routes.ts',
               '/assets/domain/error-code.ts',
               '/assets/preact.mjs',
             ].includes(specifier) || specifier.startsWith('./'),
@@ -457,26 +457,39 @@ test('the bridge serves the route table (each area route file) and the api-clien
       );
     }
     for (const name of ['client', 'nope']) {
+      const response = await bridge.call('GET', `/assets/contracts/${name}.ts`, undefined, {
+        Authorization: '',
+      });
+      assert.equal(response.status, 404, `contracts/${name}`);
+    }
+    // the package was called protocol: its old URLs are gone
+    for (const name of [
+      'routes',
+      'route-kit',
+      'bridge/routes',
+      'story/routes',
+      'domain/patterns',
+    ]) {
       const response = await bridge.call('GET', `/assets/protocol/${name}.ts`, undefined, {
         Authorization: '',
       });
-      assert.equal(response.status, 404, `protocol/${name}`);
+      assert.equal(response.status, 404, `old protocol/${name}`);
     }
     // what the browser gets runs
     const dir = tmp('served');
-    mkdirSync(path.join(dir, 'protocol'));
+    mkdirSync(path.join(dir, 'contracts'));
     for (const [name, code] of Object.entries(served)) {
-      mkdirSync(path.dirname(path.join(dir, 'protocol', `${name}.ts`)), { recursive: true });
-      writeFileSync(path.join(dir, 'protocol', `${name}.ts`), code);
+      mkdirSync(path.dirname(path.join(dir, 'contracts', `${name}.ts`)), { recursive: true });
+      writeFileSync(path.join(dir, 'contracts', `${name}.ts`), code);
     }
-    const routes = await import(path.join(dir, 'protocol', 'routes.ts'));
+    const routes = await import(path.join(dir, 'contracts', 'routes.ts'));
     assert.equal(routes.ROUTES.story.path, '/api/stories/:id');
   } finally {
     await bridge.close();
   }
 });
 
-test('the bridge serves every module of the domain package as JavaScript with no package specifier, and not at the protocol’s old URLs', async () => {
+test('the bridge serves every module of the domain package as JavaScript with no package specifier, and not at the protocol package’s old URLs', async () => {
   const bridge = await startBridge({ home: tmp('home') });
   try {
     const src = fileURLToPath(new URL('../../domain/src/', import.meta.url));

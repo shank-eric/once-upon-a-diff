@@ -42,7 +42,7 @@
  * The board page's key reaches the board (it types into sessions). Only the bridge's token is handed the board's key.
  */
 import path from 'node:path';
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { REPO_RE } from '../../services/config/repos.ts';
 import { readSettings } from '../../services/config/settings.ts';
 import { publicOriginOf } from '../../services/pages/address.ts';

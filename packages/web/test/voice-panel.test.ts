@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { document, root, saved, tick, fire } from './dom-env.ts';
-import type { BoardVoice } from '@once-upon-a-diff/protocol/types';
+import type { BoardVoice } from '@once-upon-a-diff/contracts/types';
 
 const { mountVoice, nearBottom, clampWidth, lineKeys, MIN_WIDTH } =
   await import('../public/board/voice/voice-panel.ts');

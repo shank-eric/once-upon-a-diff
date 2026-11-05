@@ -5,7 +5,7 @@
  * Only the registered field says so: not the name, the kind or the task text.
  */
 import { lastActivity, type LedgerAgent } from '../../ledger/ledger.ts';
-import type { BoardHelper, BoardSession } from '@once-upon-a-diff/protocol/types';
+import type { BoardHelper, BoardSession } from '@once-upon-a-diff/contracts/types';
 import type { LiveSession } from '../../../adapters/claude-sessions/live-sessions.ts';
 
 /** A helper with no ledger line this long is left off the row (its session may be live, but nobody has asked it anything). */

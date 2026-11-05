@@ -7,7 +7,7 @@ import { readFixes } from './fixes.ts';
 import { sameRepo } from '../config/repos.ts';
 import { storyKey, type Build, type Builds } from './builds.ts';
 import { isRebuild } from '../stories/rebuild.ts';
-import type { StoryRequest } from '@once-upon-a-diff/protocol/types';
+import type { StoryRequest } from '@once-upon-a-diff/contracts/types';
 
 /** The PR number a pull request URL ends in (`…/pull/12`, maybe with `/files` or a query after it), or null. */
 const pullNumberOf = (url: string | null | undefined): number | null => {

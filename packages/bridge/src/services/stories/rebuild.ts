@@ -24,7 +24,7 @@ import { plural } from '@once-upon-a-diff/domain/text';
 import { upgradePlan } from './legacy.ts';
 import { canonical, withoutKey } from './validate.ts';
 import { uncoveredHunks, sidesOf } from './hunk-coverage.ts';
-import type { DiffFile } from '@once-upon-a-diff/protocol/types';
+import type { DiffFile } from '@once-upon-a-diff/contracts/types';
 import type { Plan, PlanChapter } from './chapters.ts';
 import { toSide } from '@once-upon-a-diff/domain/line-refs';
 

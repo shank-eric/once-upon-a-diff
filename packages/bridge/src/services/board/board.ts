@@ -42,7 +42,7 @@ import type { StatusSource } from '../../adapters/status-source.ts';
 import { BoardError } from '../errors.ts';
 import type { Builds } from '../inbox/builds.ts';
 import type { StoryStore } from '../stories/store.ts';
-import type { BoardCard, BoardData, BoardStatus } from '@once-upon-a-diff/protocol/types';
+import type { BoardCard, BoardData, BoardStatus } from '@once-upon-a-diff/contracts/types';
 import { prOfFacts } from './stages/worktrees.ts';
 import { buildBoard } from './stages/index.ts';
 import { liveSessions } from '../../adapters/claude-sessions/live-sessions.ts';

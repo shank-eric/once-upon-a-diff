@@ -9,7 +9,7 @@ import type {
   InboxStory,
   PrInfo,
   ShipMode,
-} from '@once-upon-a-diff/protocol/types';
+} from '@once-upon-a-diff/contracts/types';
 import { gateText } from '@once-upon-a-diff/domain/text';
 import type { LiveSession } from '../../../adapters/claude-sessions/live-sessions.ts';
 import { laneOf } from './lanes.ts';

@@ -26,7 +26,7 @@ import { asCoverage, type CoverageEntry, type CoverageFile } from './merge.ts';
 const PARTIAL_UNDER_MS = 7 * 86400000;
 const LAST_REPORT = 'last-report.json';
 /** The code the bridge process can load: coverage can say a file here never ran. The rest (browser code) has action counts only. */
-const NODE_SCOPE = ['packages/bridge/src/', 'packages/protocol/src/', 'skills/'];
+const NODE_SCOPE = ['packages/bridge/src/', 'packages/contracts/src/', 'skills/'];
 const SKIP_DIR = new Set(['node_modules', 'vendor', 'test', 'build', '.output', 'dist']);
 
 export interface FileUse {

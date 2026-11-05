@@ -20,7 +20,7 @@ import path from 'node:path';
 import { newId } from '../config/ids.ts';
 import { readJson, writeFileAtomic, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { ownerOnly, ensureDir, appendText, writeText } from '../../adapters/stores/fs/files.ts';
-import type { ChapterRef, LocalNote } from '@once-upon-a-diff/protocol/types';
+import type { ChapterRef, LocalNote } from '@once-upon-a-diff/contracts/types';
 
 /** What every inbox line has, and what a story's ref adds (StoryRef). */
 interface EntryBase {

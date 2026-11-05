@@ -1,6 +1,6 @@
 /** A card other than a Backlog item, and its parts: the PR's chips, its sessions, its parent, its listener and its buttons. */
 import { html } from '/assets/preact.mjs';
-import { ROUTES } from '/assets/protocol/routes.ts';
+import { ROUTES } from '/assets/contracts/routes.ts';
 import type { BoardCard, BoardSession, PrInfo } from '/assets/types.ts';
 import { ago, compactAge } from '/assets/domain/time.ts';
 import { gateText, plural, repoName } from '/assets/domain/text.ts';

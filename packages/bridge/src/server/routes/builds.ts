@@ -4,11 +4,11 @@
  * request stands comes back from status-many (catalog.ts).
  */
 import { readMeta, stateKeyOf } from '../../services/stories/meta.ts';
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { parseBody } from '../validate.ts';
 import { readReads, sinceOf } from '../../services/stories/reads.ts';
 import { SHA_RE } from '@once-upon-a-diff/domain/text';
-import type { StoryData } from '@once-upon-a-diff/protocol/types';
+import type { StoryData } from '@once-upon-a-diff/contracts/types';
 import type { ApiRoute, App, Call } from '../types.ts';
 
 type BuildBody = ReturnType<typeof parseBody<'buildRequest'>>;

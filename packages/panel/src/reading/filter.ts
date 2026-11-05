@@ -7,7 +7,7 @@
 import { html } from '/assets/preact.mjs';
 import { baseName, capitalize } from '@once-upon-a-diff/domain/text';
 import type { PanelContext } from '../host/context.ts';
-import type { Chapter } from '@once-upon-a-diff/protocol/types';
+import type { Chapter } from '@once-upon-a-diff/contracts/types';
 
 /**
  * A file outside the chapter also gets the standard `hidden` attribute on

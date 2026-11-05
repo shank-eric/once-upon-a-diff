@@ -1,6 +1,6 @@
 /** What stands between a PR and its merge button, and how many approvals the base branch's rulesets require. */
 import { runGh } from '../config/gh.ts';
-import type { PrInfo } from '@once-upon-a-diff/protocol/types';
+import type { PrInfo } from '@once-upon-a-diff/contracts/types';
 import { plural } from '@once-upon-a-diff/domain/text';
 
 /**

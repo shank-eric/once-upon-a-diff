@@ -33,7 +33,7 @@ import type {
   DraftsAnswer,
   FixesView,
   StoryData,
-} from '@once-upon-a-diff/protocol/types';
+} from '@once-upon-a-diff/contracts/types';
 
 const { storyOverlay } = await import('../src/shell/overlay.ts');
 const { parseMarkup } = await import('@once-upon-a-diff/ui-kit/parse-markup');

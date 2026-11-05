@@ -5,7 +5,7 @@
  */
 import { createClient, type Reply, type Transport } from '@once-upon-a-diff/api-client/client';
 import { createUsage } from '@once-upon-a-diff/api-client/usage';
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import type { BridgeSettings } from '../settings.ts';
 
 export type BridgeMethod = 'GET' | 'POST';
@@ -29,7 +29,7 @@ export interface BridgeReply {
 
 /**
  * The same, as a caller takes it: an ok answer's body is the bridge's JSON, of the type the caller asks for (the
- * bridge's own code makes it). This is the protocol client's Reply.
+ * bridge's own code makes it). This is the contracts client's Reply.
  */
 export type BridgeAnswer<T = unknown> = Reply<T>;
 
@@ -61,12 +61,12 @@ export async function callBridge<T = unknown>(
   }
 }
 
-/** callBridge as the protocol client's transport. */
+/** callBridge as the contracts client's transport. */
 const transport: Transport = ({ method, path, body }) => callBridge(method, path, body);
 
 /**
  * The typed way to call the bridge from a content script: `bridge.call(ROUTES.name, {params, query, body})` answers
- * {ok, status, body, error} and never rejects, with the route's body and answer types (@once-upon-a-diff/protocol).
+ * {ok, status, body, error} and never rejects, with the route's body and answer types (@once-upon-a-diff/contracts).
  */
 export const bridge = createClient(transport);
 

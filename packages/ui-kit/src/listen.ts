@@ -8,7 +8,7 @@
  */
 import { obviousChoice, freshestFirst } from '@once-upon-a-diff/domain/choice';
 import { compactAge } from '@once-upon-a-diff/domain/time';
-import type { ListenSession, ListenTarget } from '@once-upon-a-diff/protocol/types';
+import type { ListenSession, ListenTarget } from '@once-upon-a-diff/contracts/types';
 
 /** What to do with the sessions the bridge offered. */
 export type ListenPlan =

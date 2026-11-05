@@ -9,7 +9,7 @@ import { checkoutsOf, pathsIn, type CheckoutFacts } from '../src/services/worktr
 import { registrySource } from '../src/services/sessions/sources.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
 import { Builds } from '../src/services/inbox/builds.ts';
-import type { BoardCard } from '@once-upon-a-diff/protocol/types';
+import type { BoardCard } from '@once-upon-a-diff/contracts/types';
 
 test('pathsIn takes absolute and ~/ paths from a task, and leaves dates, urls, and/or and relative paths', () => {
   const task =

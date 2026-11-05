@@ -7,7 +7,7 @@ import { assertPrivate } from './usage-helpers.ts';
 import { createLocalStory } from '../src/services/stories/local-story.ts';
 import { pageKey, viewKey, boardKey } from '../src/services/pages/page-key.ts';
 import { UNPACKED_EXTENSION_ID } from '../src/services/config/settings.ts';
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { ACTIONS } from '@once-upon-a-diff/domain/usage-actions';
 import { ROUTE_AREAS } from '../src/services/usage/areas.ts';
 import { UsageCounters } from '../src/services/usage/counters.ts';

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ROUTES, type AnyRoute } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES, type AnyRoute } from '@once-upon-a-diff/contracts/routes';
 import {
   createClient,
   matchRoute,

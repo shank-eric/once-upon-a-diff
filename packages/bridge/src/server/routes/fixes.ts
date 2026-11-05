@@ -3,7 +3,7 @@
  * Add to fix before push), sending them to a Claude session as one fix request (Send N notes, or Auto-send), and the
  * story's "being changed" marks from `once-upon working`. See ../../services/inbox/fixes.ts and ../../services/inbox/working.ts.
  */
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import {
   addNote,
   fixesView,
@@ -21,7 +21,7 @@ import { prAuthorOf } from '../../services/stories/meta.ts';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
 import { draftOf } from './drafts.ts';
-import type { FixesView, StoryData } from '@once-upon-a-diff/protocol/types';
+import type { FixesView, StoryData } from '@once-upon-a-diff/contracts/types';
 import type { ServedStory } from '../../services/stories/types.ts';
 import type { App, Call, StoryRoute } from '../types.ts';
 

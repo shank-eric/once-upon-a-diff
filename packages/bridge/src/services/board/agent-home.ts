@@ -5,7 +5,7 @@
  * has none of those fields, is a card of its own (stages/agents.ts). An agent that claimed a backlog card is neither:
  * it is shown on that card (claims.ts).
  */
-import type { BoardCard } from '@once-upon-a-diff/protocol/types';
+import type { BoardCard } from '@once-upon-a-diff/contracts/types';
 import { sameRepo } from '../config/repos.ts';
 import type { BacklogItem } from '../backlog/backlog.ts';
 import { cardOnBranch } from '../backlog/backlog.ts';

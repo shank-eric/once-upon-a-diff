@@ -5,7 +5,7 @@
  * new narrative still writes `` `path:45` `` or `` `name.ts` `` where a link was meant.
  */
 import { parseLineRef } from '@once-upon-a-diff/domain/line-refs';
-import type { Chapter } from '@once-upon-a-diff/protocol/types';
+import type { Chapter } from '@once-upon-a-diff/contracts/types';
 import type { Plan } from './chapters.ts';
 
 /** The file a name is (an exact path), else every file it is a path suffix of. */

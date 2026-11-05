@@ -10,7 +10,7 @@
  */
 import { conversationPr, filesChangedPr } from './pages.ts';
 
-/** What the refresh's `reason` can be: the protocol's list (GITHUB_REFRESH_REASONS). */
+/** What the refresh's `reason` can be: the contracts package's list (GITHUB_REFRESH_REASONS). */
 export type RefreshReason = 'review' | 'open' | 'merge' | 'ready' | 'close';
 
 /** An action seen: the repo it was on, and the PR's number and head branch when the page says them. */

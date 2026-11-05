@@ -20,7 +20,7 @@ const importsOf = (code: string): string[] =>
 const isSchemaFile = (name: string): boolean =>
   /^(schemas|schema-kit|[a-z-]+\/schemas)\.ts$/.test(name);
 
-test('protocol imports only itself, the domain and valibot, and only the schema files import valibot', () => {
+test('the contracts package imports only itself, the domain and valibot, and only the schema files import valibot', () => {
   for (const file of files(SRC)) {
     const name = path.relative(SRC, file);
     for (const specifier of importsOf(readFileSync(file, 'utf8'))) {
@@ -57,7 +57,7 @@ test('what a page loads has no runtime import of valibot or of the schemas', () 
   }
 });
 
-test('nothing in protocol reaches for the DOM or Node', () => {
+test('nothing in the contracts package reaches for the DOM or Node', () => {
   for (const file of files(SRC)) {
     const code = stripTypeScriptTypes(readFileSync(file, 'utf8'));
     assert.ok(!/\b(document|window|localStorage|chrome|process|Buffer|require)\./.test(code), file);

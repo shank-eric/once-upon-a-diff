@@ -142,11 +142,11 @@
       "note": "The typed client and the poll"
     },
     {
-      "id": "protocol",
-      "name": "Protocol",
+      "id": "contracts",
+      "name": "Contracts",
       "group": "Shared",
       "paths": [
-        "packages/protocol/"
+        "packages/contracts/"
       ],
       "note": "Wire types, routes and schemas"
     },
@@ -191,7 +191,7 @@
         "packages/bridge/test/",
         "packages/panel/test/",
         "packages/ui-kit/test/",
-        "packages/protocol/test/",
+        "packages/contracts/test/",
         "packages/domain/test/",
         "packages/web/test/",
         "packages/extension/test/",

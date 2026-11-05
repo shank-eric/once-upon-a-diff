@@ -7,7 +7,7 @@ import { readPrefs, writePrefs } from '../../services/config/settings.ts';
 import { REPO_RE } from '../../services/config/repos.ts';
 import { statusOf } from '../../services/listeners/listeners.ts';
 import { readMeta, storyRepo } from '../../services/stories/meta.ts';
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { parseBody } from '../validate.ts';
 import type { ServedStory } from '../../services/stories/types.ts';
 import type { ApiRoute, Call, StoryRoute } from '../types.ts';

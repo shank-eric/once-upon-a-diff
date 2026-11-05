@@ -3,7 +3,7 @@
  * reviewer is (opts.onPosition): the step and the file at the top of the
  * screen, debounced.
  */
-import type { Chapter } from '@once-upon-a-diff/protocol/types';
+import type { Chapter } from '@once-upon-a-diff/contracts/types';
 import type { PanelContext } from '../host/context.ts';
 const POSITION_DEBOUNCE_MS = 1200;
 

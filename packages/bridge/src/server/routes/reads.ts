@@ -2,7 +2,7 @@
  * What the reviewer has read, per chapter, with the commit current at the
  * time (POST), and what changed after they read each chapter (GET).
  */
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { readMeta, stateKeyOf } from '../../services/stories/meta.ts';
 import { currentHead, changesSince } from '../../services/review/freshness.ts';
 import { newId } from '../../services/config/ids.ts';
@@ -16,7 +16,7 @@ import {
 import { SHA_RE, shortSha } from '@once-upon-a-diff/domain/text';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
-import type { StoryData } from '@once-upon-a-diff/protocol/types';
+import type { StoryData } from '@once-upon-a-diff/contracts/types';
 import type { FileChange } from '../../services/review/freshness.ts';
 import type { ServedStory, StoryMeta } from '../../services/stories/types.ts';
 import type { App, Call, StoryRoute } from '../types.ts';

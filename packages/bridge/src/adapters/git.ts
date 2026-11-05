@@ -3,7 +3,7 @@
  * ones that reach origin (ls-remote, and the push behind the page's Create pull request, in services/stories/pull-request.ts).
  */
 import { execFile, execFileSync } from 'node:child_process';
-import type { LocalCommit } from '@once-upon-a-diff/protocol/types';
+import type { LocalCommit } from '@once-upon-a-diff/contracts/types';
 import type { RunResult, Runner } from './os.ts';
 
 /** What `runGit` can be told: a kill timeout (none when 0 or unset), stderr dropped, or text for git's stdin. */

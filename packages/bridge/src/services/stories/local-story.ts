@@ -17,7 +17,7 @@ import { entryOf } from './chapters.ts';
 import { storyDirFor } from './placement.ts';
 import { repoOfCheckout, seenCheckout } from '../config/repos.ts';
 import { plural } from '@once-upon-a-diff/domain/text';
-import type { DiffFile } from '@once-upon-a-diff/protocol/types';
+import type { DiffFile } from '@once-upon-a-diff/contracts/types';
 import { noteSkeleton } from './skeleton.ts';
 import { readyPlan } from './validate.ts';
 import type { LocalMeta, StoryMeta } from './types.ts';

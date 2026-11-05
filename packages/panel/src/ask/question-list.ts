@@ -3,7 +3,7 @@
  * every question asked on any step is in it, each labelled with the step it
  * was asked on, and the ones from the step on screen are marked.
  */
-import type { Answer, Question } from '@once-upon-a-diff/protocol/types';
+import type { Answer, Question } from '@once-upon-a-diff/contracts/types';
 
 /** A chapter's number and title are all the label needs. */
 type Titled = { title: string };

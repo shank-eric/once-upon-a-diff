@@ -4,7 +4,7 @@
  *
  * No DOM and no Preact here, so node tests can use them.
  */
-import type { DraftRow } from '@once-upon-a-diff/protocol/types';
+import type { DraftRow } from '@once-upon-a-diff/contracts/types';
 
 /** How a draft shows: see draftView. */
 export type DraftShow = 'dismissed' | 'fix' | 'posted' | 'pending' | 'added' | 'draft';

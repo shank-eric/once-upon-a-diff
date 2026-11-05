@@ -10,7 +10,7 @@ import { shortDateTime } from '@once-upon-a-diff/domain/time';
 import { fixSummary, takesNotes } from './fixes.ts';
 import type { FixSummary } from './fixes.ts';
 import type { PanelContext } from '../host/context.ts';
-import type { FixNote, FixesView } from '@once-upon-a-diff/protocol/types';
+import type { FixNote, FixesView } from '@once-upon-a-diff/contracts/types';
 import { formatLineRef, toSide } from '@once-upon-a-diff/domain/line-refs';
 
 const AUTO_TITLE =

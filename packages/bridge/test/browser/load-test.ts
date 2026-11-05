@@ -28,7 +28,7 @@ import { localPageUrl } from '../../src/services/pages/page-key.ts';
 import { beat } from '../../src/services/listeners/listeners.ts';
 import { Builds, type Build } from '../../src/services/inbox/builds.ts';
 import type { InboxEntry, QuestionEntry } from '../../src/services/inbox/inbox.ts';
-import type { LocalNote } from '@once-upon-a-diff/protocol/types';
+import type { LocalNote } from '@once-upon-a-diff/contracts/types';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../extension');
 const EXT = path.join(ROOT, '.output/chrome-mv3'); // yarn build's output

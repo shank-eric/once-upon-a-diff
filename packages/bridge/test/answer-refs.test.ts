@@ -6,7 +6,7 @@ import { answerRefs, chapterProblems } from '../src/services/stories/validate.ts
 import { upgradePlan } from '../src/services/stories/legacy.ts';
 import type { Plan } from '../src/services/stories/chapters.ts';
 import type { QuestionEntry } from '../src/services/inbox/inbox.ts';
-import type { StoryData } from '@once-upon-a-diff/protocol/types';
+import type { StoryData } from '@once-upon-a-diff/contracts/types';
 
 const RELS = ['src/a.js', 'src/b.js'];
 

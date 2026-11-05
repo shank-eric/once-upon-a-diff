@@ -4,7 +4,7 @@ import { createStoryModel } from '@once-upon-a-diff/panel/state/story-model';
 import { createFileRefs, placePills, pillMarker } from '../src/components/file-refs.ts';
 import { createMarkdown } from '../src/components/markdown.ts';
 import type { PanelContext } from '../src/host/context.ts';
-import type { StoryData } from '@once-upon-a-diff/protocol/types';
+import type { StoryData } from '@once-upon-a-diff/contracts/types';
 
 test("a file's status pill goes on its last mention in the chapter, and its earlier mentions get nothing", () => {
   // the shape of a chapter that names its task file in bullet 2, twice more in sub-bullets, and in its closing file list

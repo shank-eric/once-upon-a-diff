@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { rebuildAsk, rebuildLine } from '../src/rebuild/rebuild.ts';
-import type { RebuildView } from '@once-upon-a-diff/protocol/types';
+import type { RebuildView } from '@once-upon-a-diff/contracts/types';
 
 test("the panel's request and status line", () => {
   assert.deepEqual(

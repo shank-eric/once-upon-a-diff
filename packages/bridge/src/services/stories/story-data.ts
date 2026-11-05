@@ -25,7 +25,7 @@ import type {
   LocalNote,
   StoryData,
   UncoveredFile,
-} from '@once-upon-a-diff/protocol/types';
+} from '@once-upon-a-diff/contracts/types';
 import type { StoryStore } from './store.ts';
 import { skeletonKeys } from './skeleton.ts';
 import { isStoryless } from './local-story.ts';

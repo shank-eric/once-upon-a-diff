@@ -30,7 +30,7 @@ import { prKey } from '@once-upon-a-diff/domain/pr-key';
 import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { stateKeyOf } from '../stories/meta.ts';
 import { stateFile } from '../config/settings.ts';
-import type { Chapter, DraftRow, LocalNote, StoryData } from '@once-upon-a-diff/protocol/types';
+import type { Chapter, DraftRow, LocalNote, StoryData } from '@once-upon-a-diff/contracts/types';
 import type { StoryStore } from '../stories/store.ts';
 import type { StoryMeta } from '../stories/types.ts';
 import { toSide } from '@once-upon-a-diff/domain/line-refs';

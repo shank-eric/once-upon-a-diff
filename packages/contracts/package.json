@@ -1,5 +1,5 @@
 {
-  "name": "@once-upon-a-diff/protocol",
+  "name": "@once-upon-a-diff/contracts",
   "version": "0.1.0",
   "private": true,
   "description": "Once Upon a Diff's contract between the bridge and its clients: the wire types, the route table and the request schemas",

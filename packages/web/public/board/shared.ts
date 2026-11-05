@@ -6,7 +6,7 @@
  */
 import { html, useState } from '/assets/preact.mjs';
 import type { Client } from '/assets/api-client/client.ts';
-import { ROUTES } from '/assets/protocol/routes.ts';
+import { ROUTES } from '/assets/contracts/routes.ts';
 import { remember, stored } from '/assets/local/stored.ts';
 import { compactAge } from '/assets/domain/time.ts';
 import { Chips } from '/assets/ui-kit/components/chip.ts';
@@ -19,7 +19,7 @@ export type Api = {
   bridge: Client;
   board: BoardData;
   refresh: () => Promise<void>;
-  /** counts one UI-only action for the usage capture (names only, from the protocol's list) */
+  /** counts one UI-only action for the usage capture (names only, from the contracts package's list) */
   count: (name: ActionName) => void;
 };
 

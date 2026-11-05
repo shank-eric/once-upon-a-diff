@@ -6,7 +6,7 @@
  * through writeJsonAtomic.
  */
 import path from 'node:path';
-import type { PrInfo } from '@once-upon-a-diff/protocol/types';
+import type { PrInfo } from '@once-upon-a-diff/contracts/types';
 import { readJson, writeJsonAtomic } from './fs/json-file.ts';
 
 const file = (home: string) => path.join(home, 'github-answers.json');

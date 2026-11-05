@@ -12,7 +12,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
-import type { DraftComment } from '@once-upon-a-diff/protocol/types';
+import type { DraftComment } from '@once-upon-a-diff/contracts/types';
 import type { StoryMeta } from './types.ts';
 import type { Plan } from './chapters.ts';
 

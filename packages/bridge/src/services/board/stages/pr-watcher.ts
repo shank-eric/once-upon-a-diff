@@ -1,6 +1,6 @@
 import type { LocalEntry } from '../../review/story-lists.ts';
 import type { BranchPr } from '../../review/github-checks.ts';
-import type { InboxStory, PrInfo } from '@once-upon-a-diff/protocol/types';
+import type { InboxStory, PrInfo } from '@once-upon-a-diff/contracts/types';
 
 /** What the board asks of the GitHub watcher (review/github-watcher.ts's AutoReview): it reads what it has and never waits. */
 export interface PrWatcher {

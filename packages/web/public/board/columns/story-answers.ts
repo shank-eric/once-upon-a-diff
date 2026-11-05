@@ -1,5 +1,5 @@
 /** What a board card says and offers for its story's unread answers, apart from the markup (bridge/public/board.ts). */
-import type { BoardCard } from '@once-upon-a-diff/protocol/types';
+import type { BoardCard } from '@once-upon-a-diff/contracts/types';
 
 export interface AnswerBits {
   /** unread answers to the reviewer's questions in the card's story */

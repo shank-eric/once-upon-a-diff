@@ -2,7 +2,7 @@
 import { voiceStatus } from '../../voice/voice.ts';
 import { readVoice, voiceLines } from '../../../adapters/larmor.ts';
 import type { LedgerAgent } from '../../ledger/ledger.ts';
-import type { BoardData, BoardSession, BoardVoice } from '@once-upon-a-diff/protocol/types';
+import type { BoardData, BoardSession, BoardVoice } from '@once-upon-a-diff/contracts/types';
 import { forgotten } from './agents.ts';
 import type { PinnedVoice } from './types.ts';
 

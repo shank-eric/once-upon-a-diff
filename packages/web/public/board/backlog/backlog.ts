@@ -4,7 +4,7 @@
  * column (the columns region) gets its button, its panel and its drag handlers handed in and imports none of this.
  */
 import { html, useEffect, useLayoutEffect, useRef, useState } from '/assets/preact.mjs';
-import { ROUTES } from '/assets/protocol/routes.ts';
+import { ROUTES } from '/assets/contracts/routes.ts';
 import { sameLaneKey } from '/assets/domain/lane-key.ts';
 import { openMenu } from '/assets/ui-kit/menu.ts';
 import type { BoardCard, BoardData } from '/assets/types.ts';

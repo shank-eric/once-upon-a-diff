@@ -7,7 +7,7 @@ import { tmp, githubStory, startBridge, writeJson } from './helpers.ts';
 import { addToPendingReview } from '../src/services/review/pending-review.ts';
 import { clearCache } from '../src/services/review/drafts.ts';
 import { draftView, shownIn } from '@once-upon-a-diff/panel/drafts/drafts';
-import type { DraftsAnswer } from '@once-upon-a-diff/protocol/types';
+import type { DraftsAnswer } from '@once-upon-a-diff/contracts/types';
 
 /** The fake gh's log: each call's arguments. */
 type Calls = () => string[][];

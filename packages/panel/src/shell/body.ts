@@ -13,7 +13,7 @@ import { PartsStrip } from '@once-upon-a-diff/ui-kit/components/parts-strip';
 import type { SinceModel } from '../rebuild/freshness-part.ts';
 import { plural } from '@once-upon-a-diff/domain/text';
 import type { PanelContext } from '../host/context.ts';
-import type { Chapter } from '@once-upon-a-diff/protocol/types';
+import type { Chapter } from '@once-upon-a-diff/contracts/types';
 
 const stripChapterPrefix = (title: string) => title.replace(/^Chapter \d+:\s*/, '');
 const UNCOVERED_SHOWN = 12; // hunk links in the Overview's note before "and N more"

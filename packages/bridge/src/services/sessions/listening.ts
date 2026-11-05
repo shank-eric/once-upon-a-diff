@@ -24,7 +24,7 @@ import type {
   BoardListening,
   BoardReview,
   BoardSession,
-} from '@once-upon-a-diff/protocol/types';
+} from '@once-upon-a-diff/contracts/types';
 import { prUrl } from '@once-upon-a-diff/domain/github-urls';
 
 /** {pid: parent pid} for every process, from one `ps`. Empty when ps can't say. */

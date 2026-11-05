@@ -28,7 +28,7 @@ import {
   runGitAsync,
 } from '../../adapters/git.ts';
 import { readApproval, APPROVED_DAYS } from './approval.ts';
-import type { PushView, ShipMode } from '@once-upon-a-diff/protocol/types';
+import type { PushView, ShipMode } from '@once-upon-a-diff/contracts/types';
 import type { StoryStore } from './store.ts';
 import type { StoryMeta } from './types.ts';
 import { shortSha } from '@once-upon-a-diff/domain/text';

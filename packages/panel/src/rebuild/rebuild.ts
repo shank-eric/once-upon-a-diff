@@ -5,7 +5,7 @@
  * Node tests use these.
  */
 import { clockTime } from '@once-upon-a-diff/domain/time';
-import type { RebuildAsk, RebuildView } from '@once-upon-a-diff/protocol/types';
+import type { RebuildAsk, RebuildView } from '@once-upon-a-diff/contracts/types';
 
 /** How long the panel says a rebuild finished, after it did. */
 export const DONE_SHOWN_MS = 30 * 60 * 1000;

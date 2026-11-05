@@ -7,7 +7,7 @@
  */
 import { html } from '/assets/preact.mjs';
 import { plural } from '/assets/domain/text.ts';
-import { ROUTES } from '/assets/protocol/routes.ts';
+import { ROUTES } from '/assets/contracts/routes.ts';
 import { bridge, page, PARAMS } from '/assets/local/page.ts';
 import { CommitList, openActionDialog } from './action-dialog.ts';
 import { takeView } from './pull-request.ts';

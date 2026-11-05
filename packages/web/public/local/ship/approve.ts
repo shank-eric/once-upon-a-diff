@@ -9,7 +9,7 @@
 import { html } from '/assets/domain/html.ts';
 import { setHtml } from '/assets/ui-kit/dom.ts';
 import { shortDateTime } from '/assets/domain/time.ts';
-import { ROUTES } from '/assets/protocol/routes.ts';
+import { ROUTES } from '/assets/contracts/routes.ts';
 import { bridge, page, PARAMS } from '/assets/local/page.ts';
 import { shortSha } from '/assets/domain/text.ts';
 

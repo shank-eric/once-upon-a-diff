@@ -11,7 +11,7 @@
 import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { BoardStatus } from '@once-upon-a-diff/protocol/types';
+import type { BoardStatus } from '@once-upon-a-diff/contracts/types';
 import { run } from './os.ts';
 import type { SourceStatus, StatusSource } from './status-source.ts';
 

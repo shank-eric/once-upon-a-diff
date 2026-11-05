@@ -1,5 +1,5 @@
 /** The chips on a started backlog card: where the work is, from what the bridge linked to it (bridge/src/services/backlog/backlog-links.ts). */
-import type { BoardStartedLinks } from '@once-upon-a-diff/protocol/types';
+import type { BoardStartedLinks } from '@once-upon-a-diff/contracts/types';
 
 /** What a linked ledger agent is doing, in a few words: its beat while it runs, "tried" when it failed or stopped. */
 export function agentChip(agent: NonNullable<BoardStartedLinks['agent']>): string {

@@ -18,7 +18,7 @@
 import { entryOf, refOf, type Plan, type PlanChapter, type PlanRef } from './chapters.ts';
 import { chapterProblems } from './validate.ts';
 import { chapterKeyOf, chapterNumbers } from '@once-upon-a-diff/domain/chapters';
-import type { DiffFile } from '@once-upon-a-diff/protocol/types';
+import type { DiffFile } from '@once-upon-a-diff/contracts/types';
 import { toSide } from '@once-upon-a-diff/domain/line-refs';
 
 /** Where a ref points, as text: its file and lines (or the file), never its label. */

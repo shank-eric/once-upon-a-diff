@@ -11,7 +11,7 @@
  */
 import { readFileSync, readdirSync, statSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
-import type { BoardUsage } from '@once-upon-a-diff/protocol/types';
+import type { BoardUsage } from '@once-upon-a-diff/contracts/types';
 
 /** Usage older than this is not shown: no session has rendered its status line since. */
 const USAGE_FRESH_MS = 6 * 3600 * 1000;

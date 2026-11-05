@@ -36,7 +36,7 @@ import { HttpError, sameToken, readBody } from './request.ts';
 import { COOKIE_NAMES, cookieFor, cookiesOf } from './session-cookie.ts';
 import { assetFor } from './assets.ts';
 import { parseBody } from './validate.ts';
-import { boardKeyMay } from '@once-upon-a-diff/protocol/routes';
+import { boardKeyMay } from '@once-upon-a-diff/contracts/routes';
 import { pageHeaders, localPage, boardPage } from './pages.ts';
 import {
   PAGE_KEY_PREFIX,
@@ -49,7 +49,7 @@ import {
 } from '../services/pages/page-key.ts';
 import { statusRoutes, storyStatusRoutes } from './routes/status.ts';
 import { usageRoutes, storyUsageRoutes } from './routes/usage.ts';
-import { ROUTES, type AnyRoute } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES, type AnyRoute } from '@once-upon-a-diff/contracts/routes';
 import { UNMATCHED, UsageCounters, type Surface } from '../services/usage/counters.ts';
 import { bridgeListening, onUsageFlush } from '../services/usage/capture.ts';
 import { countingEnabled } from '../services/usage/enabled.ts';
@@ -84,7 +84,7 @@ export const VERSION: string = JSON.parse(
   readFileSync(path.resolve(HERE, '../../package.json'), 'utf8'),
 ).version;
 
-/** /api/<path> routes (each is an entry in the protocol's route table), checked in order. A route answers only its method. */
+/** /api/<path> routes (each is an entry in the contracts package's route table), checked in order. A route answers only its method. */
 export const API_ROUTES: ApiRoute[] = [
   ...statusRoutes,
   ...catalogRoutes,
@@ -106,7 +106,7 @@ export const STORY_ROUTES: StoryRoute[] = [
   ...storyStatusRoutes,
   ...storyUsageRoutes,
 ];
-/** A route's key in the protocol's table, for the usage counts (the object the handlers hold is the table's own). */
+/** A route's key in the contracts package's table, for the usage counts (the object the handlers hold is the table's own). */
 const ROUTE_KEY = new Map<AnyRoute, string>(
   Object.entries(ROUTES).map(([key, route]) => [route as AnyRoute, key]),
 );

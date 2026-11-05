@@ -29,7 +29,7 @@ import type {
   Pulse,
   Question,
   StoryData,
-} from '@once-upon-a-diff/protocol/types';
+} from '@once-upon-a-diff/contracts/types';
 
 /** A local story's data: the panel's, with its diff. */
 type LocalData = StoryData & { local: LocalStory };

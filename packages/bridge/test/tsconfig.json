@@ -8,8 +8,8 @@
     "paths": {
       "/assets/preact.mjs": ["../../web/public/types/preact.d.ts"],
       "/assets/local/*": ["../../web/public/local/*"],
-      "/assets/types.ts": ["../../protocol/src/types.ts"],
-      "/assets/protocol/*": ["../../protocol/src/*"],
+      "/assets/types.ts": ["../../contracts/src/types.ts"],
+      "/assets/contracts/*": ["../../contracts/src/*"],
       "/assets/domain/*": ["../../domain/src/*"],
       "/assets/api-client/*": ["../../api-client/src/*"],
       "/assets/host-github/*": ["../../host-github/src/*"]

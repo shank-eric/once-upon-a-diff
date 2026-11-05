@@ -33,7 +33,7 @@ import type {
   QuestionMark,
   QuestionMarkExtra,
   QuestionMarksAnswer,
-} from '@once-upon-a-diff/protocol/types';
+} from '@once-upon-a-diff/contracts/types';
 import {
   askDrafts,
   askedOnStep,

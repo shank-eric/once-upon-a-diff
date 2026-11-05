@@ -17,7 +17,7 @@ import { bridgeOptions } from '@once-upon-a-diff/panel/host/bridge-options';
 import { createHostPage } from '@once-upon-a-diff/host-github/diff-dom';
 import { filesChangedPr } from '@once-upon-a-diff/host-github/pages';
 import { withLayout, type Layout } from '@once-upon-a-diff/panel/shell/layout';
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { bridgeProblem } from '@once-upon-a-diff/api-client/client';
 import { bridge, extensionAlive, usage } from '../bridge.ts';
 import { createListenOption } from '../listen.ts';
@@ -33,7 +33,7 @@ import type { Route } from '../index.ts';
 import type { PanelOptions, StoryOverlay } from '@once-upon-a-diff/panel/shell/overlay';
 import type { PanelHost } from '@once-upon-a-diff/panel/host/host';
 import type { FilesChangedPr } from '@once-upon-a-diff/host-github/pages';
-import type { StatusError, StoryData } from '@once-upon-a-diff/protocol/types';
+import type { StatusError, StoryData } from '@once-upon-a-diff/contracts/types';
 
 /** The PR page on screen, and its story once the bridge has one. */
 interface CurrentPage extends FilesChangedPr {

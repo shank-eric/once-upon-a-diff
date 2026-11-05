@@ -1,6 +1,6 @@
 /*
  * The domain: pure rules that both sides share. Nothing here reads a file, the DOM or the network, and nothing here
- * imports anything, not even the rest of the protocol (the protocol imports the domain, never the other way).
+ * imports anything, not even the contracts package (which imports the domain, never the other way).
  * The shapes of the ids the pages and the bridge both check.
  */
 

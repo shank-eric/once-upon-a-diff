@@ -1,7 +1,7 @@
 /*
  * What the bridge counts about use, apart from coverage: which routes were called (by which surface) and which UI-only
  * actions the pages reported, per ET day, in <home>/usage/actions.json. Names only, from closed lists: a route's key in
- * the protocol's table (or `unmatched`), an action from domain/usage-actions.ts. Nothing a person typed can reach it.
+ * the contracts package's table (or `unmatched`), an action from domain/usage-actions.ts. Nothing a person typed can reach it.
  * Written within a few seconds of a count (a debounce), and at once on a flush (a signal, a shutdown).
  */
 import { isActionName, MAX_ACTION_COUNT } from '@once-upon-a-diff/domain/usage-actions';

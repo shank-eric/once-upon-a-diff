@@ -5,7 +5,7 @@
  * (beatOf, events.ts).
  */
 import path from 'node:path';
-import type { BoardBeat } from '@once-upon-a-diff/protocol/types';
+import type { BoardBeat } from '@once-upon-a-diff/contracts/types';
 import { readAgentsFile } from '../../adapters/stores/agents-file.ts';
 import { tailOf } from '../../adapters/stores/fs/lines.ts';
 import { foldAgentEvents, parseAgentEvents } from './events.ts';

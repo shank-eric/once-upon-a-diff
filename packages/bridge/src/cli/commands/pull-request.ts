@@ -7,7 +7,7 @@ import { readMeta } from '../../services/stories/meta.ts';
 import { DRAFT_FILE } from '../../services/stories/pull-request.ts';
 import { out } from '../output.ts';
 import { bodyText, given } from '../options.ts';
-import type { PrDraft } from '@once-upon-a-diff/protocol/types';
+import type { PrDraft } from '@once-upon-a-diff/contracts/types';
 import type { Config } from '../../services/config/settings.ts';
 import type { CliOpts, Command } from '../types.ts';
 

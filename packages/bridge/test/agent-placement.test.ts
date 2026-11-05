@@ -15,7 +15,7 @@ import type { BacklogItem } from '../src/services/backlog/backlog.ts';
 import { nestClaimedAgents } from '../src/services/board/stages/backlog.ts';
 import type { BuildContext } from '../src/services/board/stages/types.ts';
 import type { LedgerAgent } from '../src/services/ledger/ledger.ts';
-import type { BoardAgent, BoardCard } from '@once-upon-a-diff/protocol/types';
+import type { BoardAgent, BoardCard } from '@once-upon-a-diff/contracts/types';
 
 const NOW = Date.parse('2026-11-03T15:30:00Z');
 const ctx = () =>

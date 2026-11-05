@@ -33,7 +33,7 @@ import type {
   BoardColumn,
   BoardSession,
   PrInfo,
-} from '@once-upon-a-diff/protocol/types';
+} from '@once-upon-a-diff/contracts/types';
 
 export interface ColumnInput {
   sessions: Pick<BoardSession, 'status'>[];

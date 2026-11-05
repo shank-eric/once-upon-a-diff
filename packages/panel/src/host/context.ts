@@ -26,7 +26,7 @@ import type {
   RebuildAsk,
   RebuildView,
   WorkingMark,
-} from '@once-upon-a-diff/protocol/types';
+} from '@once-upon-a-diff/contracts/types';
 import type { Side } from '@once-upon-a-diff/domain/line-refs';
 import type { FileStatus, StoryModel } from '../state/story-model.ts';
 import type { InitialUi, PanelState } from '../state/panel-state.ts';

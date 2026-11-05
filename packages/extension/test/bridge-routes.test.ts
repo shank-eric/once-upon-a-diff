@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { matchRoute } from '@once-upon-a-diff/api-client/client';
 import { EXTENSION_ROUTES } from '../src/bridge-routes.ts';
 

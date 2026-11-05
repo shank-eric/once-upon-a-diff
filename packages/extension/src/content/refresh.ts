@@ -11,7 +11,7 @@
  * doesn't get through is not retried: the poll covers it. Only a click or submit the person made counts (`isTrusted`), so a
  * script on the page can't make the extension call the bridge.
  */
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { conversationPr } from '@once-upon-a-diff/host-github/pages';
 import {
   intentOfClick,

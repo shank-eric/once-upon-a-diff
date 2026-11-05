@@ -25,7 +25,7 @@ import {
   setUpstream,
 } from '../../adapters/git.ts';
 import { storyRepo } from './meta.ts';
-import type { PrDraft, PrView } from '@once-upon-a-diff/protocol/types';
+import type { PrDraft, PrView } from '@once-upon-a-diff/contracts/types';
 import type { StoryMeta } from './types.ts';
 
 export const DRAFT_FILE = 'pr-draft.json';

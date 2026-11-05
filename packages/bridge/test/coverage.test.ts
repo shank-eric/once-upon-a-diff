@@ -15,7 +15,7 @@ import {
 } from '../src/services/stories/chapters.ts';
 import { upgradePlan } from '../src/services/stories/legacy.ts';
 import type { FileMap } from '../src/services/stories/story-data.ts';
-import type { StoryData } from '@once-upon-a-diff/protocol/types';
+import type { StoryData } from '@once-upon-a-diff/contracts/types';
 import { uncoveredHunks, SMALL_FILE_LINES } from '../src/services/stories/hunk-coverage.ts';
 
 const STORY = fileURLToPath(new URL('../../../skills/once-upon/bin/story.mjs', import.meta.url));

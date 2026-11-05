@@ -4,7 +4,7 @@
  * listening per repo).
  */
 import { readMeta, stateKeyOf } from '../../services/stories/meta.ts';
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { parseBody } from '../validate.ts';
 import { storyFinishes } from '../../services/inbox/builds.ts';
 import { isRebuild } from '../../services/stories/rebuild.ts';
@@ -13,7 +13,7 @@ import { listeningOf } from '../../services/listeners/listeners.ts';
 import { readReads } from '../../services/stories/reads.ts';
 import { unreadAnswers } from '../../services/inbox/conversation.ts';
 import { prKey } from '@once-upon-a-diff/domain/pr-key';
-import type { StoryData } from '@once-upon-a-diff/protocol/types';
+import type { StoryData } from '@once-upon-a-diff/contracts/types';
 import type { ApiRoute, App, Call } from '../types.ts';
 
 type StatusCache = NonNullable<App['statusCache']>;

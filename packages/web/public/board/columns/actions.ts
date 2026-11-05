@@ -1,5 +1,5 @@
 /** The bridge calls behind a card's or a row's buttons. */
-import { ROUTES } from '/assets/protocol/routes.ts';
+import { ROUTES } from '/assets/contracts/routes.ts';
 import { titleOf, type Api } from '/assets/board/shared.ts';
 
 /** Asks first, then has the bridge type the line into the session's tab (it refuses a session that is busy). Build story names its card. */

@@ -12,7 +12,7 @@ import { Busy } from '@once-upon-a-diff/ui-kit/components/busy';
 import { plural, shortSha } from '@once-upon-a-diff/domain/text';
 import { rangeStepOf, rangeUrl, requestLine } from './freshness.ts';
 import type { PanelContext } from '../host/context.ts';
-import type { Chapter, Freshness, StoryRequest } from '@once-upon-a-diff/protocol/types';
+import type { Chapter, Freshness, StoryRequest } from '@once-upon-a-diff/contracts/types';
 
 const UPDATE_TITLE =
   'Adds a “Since you read it” chapter for the new commits, first, and keeps the chapters you read';

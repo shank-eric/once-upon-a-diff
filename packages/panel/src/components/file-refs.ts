@@ -12,7 +12,7 @@ import { html, raw } from '@once-upon-a-diff/domain/html';
 import { markViewedButton } from './viewed-button.ts';
 import type { LineRef } from '@once-upon-a-diff/domain/line-refs';
 import type { Html } from '@once-upon-a-diff/domain/html';
-import type { ChapterRef } from '@once-upon-a-diff/protocol/types';
+import type { ChapterRef } from '@once-upon-a-diff/contracts/types';
 import type { PanelContext } from '../host/context.ts';
 import { toSide } from '@once-upon-a-diff/domain/line-refs';
 

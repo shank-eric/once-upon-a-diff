@@ -1,6 +1,6 @@
 /** The Listeners lane: a row per repo, who listens (with Stop) or when it last did (with Start). */
 import { html } from '/assets/preact.mjs';
-import { ROUTES } from '/assets/protocol/routes.ts';
+import { ROUTES } from '/assets/contracts/routes.ts';
 import { openMenu } from '/assets/ui-kit/menu.ts';
 import type { BoardListenerRepo } from '/assets/types.ts';
 import { compactAge, since } from '/assets/domain/time.ts';

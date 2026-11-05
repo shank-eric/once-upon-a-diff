@@ -22,7 +22,7 @@ import type {
   PrRef,
   BuildRequestView,
   StoryStatus,
-} from '@once-upon-a-diff/protocol/types';
+} from '@once-upon-a-diff/contracts/types';
 import { prUrl } from '@once-upon-a-diff/domain/github-urls';
 
 export type { PrRef, BuildRequestView, StoryStatus };

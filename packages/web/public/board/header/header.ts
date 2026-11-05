@@ -3,7 +3,7 @@
  * voice controls (Start, Pause or Resume and Stop voice, and the Phone menu). The filter's value is the page root's (remembered).
  */
 import { html, useState } from '/assets/preact.mjs';
-import { ROUTES } from '/assets/protocol/routes.ts';
+import { ROUTES } from '/assets/contracts/routes.ts';
 import { openMenu } from '/assets/ui-kit/menu.ts';
 import type { BoardData, BoardLimit, BoardUsage } from '/assets/types.ts';
 import { compactAge } from '/assets/domain/time.ts';

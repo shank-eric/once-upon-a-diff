@@ -96,7 +96,7 @@ import type {
   BoardSession,
   PrInfo,
   StoryRequest,
-} from '@once-upon-a-diff/protocol/types';
+} from '@once-upon-a-diff/contracts/types';
 
 const NOW = new Date('2026-10-26T19:00:00Z'); // 3:00 PM EDT
 

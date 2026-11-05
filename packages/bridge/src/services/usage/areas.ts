@@ -4,7 +4,7 @@
  * checked against the CLI's table in a test, so adding one without an area fails.
  */
 import type { Area } from '@once-upon-a-diff/domain/usage-actions';
-import type { RouteName } from '@once-upon-a-diff/protocol/routes';
+import type { RouteName } from '@once-upon-a-diff/contracts/routes';
 
 export type AreaOrNone = Area | 'Unassigned';
 
@@ -75,7 +75,7 @@ const PATHS: [string, Area][] = [
   ['packages/bridge/src/cli/', 'Server shell'],
   ['packages/bridge/src/adapters/', 'Server shell'],
   ['packages/bridge/src/services/errors.ts', 'Server shell'],
-  ['packages/protocol/', 'Protocol and api-client'],
+  ['packages/contracts/', 'Protocol and api-client'],
   ['packages/api-client/', 'Protocol and api-client'],
   ['packages/bridge/src/server/', 'Server shell'],
   ['packages/bridge/src/services/pages/', 'Server shell'],
@@ -88,7 +88,7 @@ export function areaOfPath(file: string): AreaOrNone {
   return PATHS.find(([prefix]) => file.startsWith(prefix))?.[1] ?? 'Unassigned';
 }
 
-/** The area of each route in the protocol's table. */
+/** The area of each route in the contracts package's table. */
 export const ROUTE_AREAS: Record<RouteName, Area> = {
   health: 'Server shell',
   status: 'Listeners and sessions',

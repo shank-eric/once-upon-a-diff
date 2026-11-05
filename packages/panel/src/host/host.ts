@@ -3,7 +3,7 @@
  * not how the bridge is reached. The extension and the local page each hand one PanelHost to storyOverlay (overlay.ts).
  *
  *   createPage  the host page's diff: where its files, lines, Viewed toggles and expand controls are (read only)
- *   client      the bridge, as the protocol's typed client: the extension's goes through its service worker, the local
+ *   client      the bridge, as the contracts package's typed client: the extension's goes through its service worker, the local
  *               page's is a fetch with its page key
  *   storyId     the story the panel is showing (its routes' :id)
  *   pageUrl     the page's address as the bridge should record it (no key)

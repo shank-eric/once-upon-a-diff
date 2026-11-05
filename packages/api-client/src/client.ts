@@ -1,5 +1,5 @@
 /*
- * The typed way to call the bridge: build a route's path from its table entry (@once-upon-a-diff/protocol/routes) and hand the request to the
+ * The typed way to call the bridge: build a route's path from its table entry (@once-upon-a-diff/contracts/routes) and hand the request to the
  * host's own transport, which knows how to reach the bridge and which key to send (the extension's service worker, a
  * page's fetch with its page key). This file does no I/O, so it has no DOM or Node in it and a page can load it.
  *
@@ -13,10 +13,10 @@ import type {
   BodyOf,
   ParamsOf,
   QueryOf,
-} from '@once-upon-a-diff/protocol/routes';
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+} from '@once-upon-a-diff/contracts/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { hasCode, replyCode } from '@once-upon-a-diff/domain/error-code';
-import type { StatusError } from '@once-upon-a-diff/protocol/types';
+import type { StatusError } from '@once-upon-a-diff/contracts/types';
 
 /** What a host's transport is asked to send. `path` carries the query. A POST always has a body (`{}` when it has none). */
 export interface CallRequest {

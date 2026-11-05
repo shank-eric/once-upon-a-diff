@@ -31,7 +31,7 @@ test('the body schemas are the same, in the same order, as before the split', ()
   }
 });
 
-test('no file in the protocol is over 400 lines', () => {
+test('no file in the contracts package is over 400 lines', () => {
   const SRC = fileURLToPath(new URL('../src/', import.meta.url));
   const walk = (dir: string): string[] =>
     readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>

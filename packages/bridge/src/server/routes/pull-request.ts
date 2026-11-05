@@ -8,7 +8,7 @@
  * it is refused until Review on its card re-pins the review to the new tip, and a commit made after that check still
  * can't go out.
  */
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { HttpError } from '../request.ts';
 import { localOnly, oncePerStory } from './story-guards.ts';
 import { parseBody } from '../validate.ts';
@@ -21,7 +21,7 @@ import {
   pushBlocker,
   pushBranch,
 } from '../../services/stories/pull-request.ts';
-import type { PrDraft, PrPushAnswer } from '@once-upon-a-diff/protocol/types';
+import type { PrDraft, PrPushAnswer } from '@once-upon-a-diff/contracts/types';
 import { isStoryless } from '../../services/stories/local-story.ts';
 import type { LocalMeta, ServedStory } from '../../services/stories/types.ts';
 import type { App, Call, StoryRoute } from '../types.ts';

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { tmp, githubStory, startBridge, runCli, writeJson, TOKEN } from './helpers.ts';
 import { pageKey } from '../src/services/pages/page-key.ts';
-import type { Pulse } from '@once-upon-a-diff/protocol/types';
+import type { Pulse } from '@once-upon-a-diff/contracts/types';
 
 const STORY = 'acme-widgets-7';
 const CONSUMER = `story-${STORY}`;

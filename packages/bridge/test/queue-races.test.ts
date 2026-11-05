@@ -14,7 +14,7 @@ import { readHanded } from '../src/services/inbox/conversation.ts';
 import { fixesView, readFixes, readNotes } from '../src/services/inbox/fixes.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
 import type { FixRequest } from '../src/services/inbox/fixes.ts';
-import type { LocalNote } from '@once-upon-a-diff/protocol/types';
+import type { LocalNote } from '@once-upon-a-diff/contracts/types';
 import type { StoryMeta } from '../src/services/stories/types.ts';
 
 const STORY = 'acme-widgets-7';

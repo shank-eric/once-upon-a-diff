@@ -2,7 +2,7 @@
  * POST /api/usage and POST /api/stories/:id/usage: a page's batch of UI action counts. Only the names domain/usage-actions.ts
  * lists are kept; the bridge counts every route call itself (server/index.ts), so these carry only what never reaches it.
  */
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { parseBody } from '../validate.ts';
 import type { ApiRoute, Call, StoryRoute } from '../types.ts';
 

@@ -5,7 +5,7 @@
 import type { Listener } from '../../listeners/listeners.ts';
 import { buildFor, reviewFor, sessionOfPid, storyListening } from '../../sessions/listening.ts';
 import type { ListeningInput } from '../../sessions/listening.ts';
-import type { BoardCard, BoardSession } from '@once-upon-a-diff/protocol/types';
+import type { BoardCard, BoardSession } from '@once-upon-a-diff/contracts/types';
 import type { BuildContext, PinnedVoice } from './types.ts';
 import type { WorktreeFacts } from '../../worktrees/worktrees.ts';
 import { sameRepo } from '../../config/repos.ts';

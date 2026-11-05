@@ -14,7 +14,7 @@ import { AgentRegistry } from '../src/services/ledger/registry.ts';
 import { registrySource } from '../src/services/sessions/sources.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
 import { Builds } from '../src/services/inbox/builds.ts';
-import type { BoardAgent, BoardData } from '@once-upon-a-diff/protocol/types';
+import type { BoardAgent, BoardData } from '@once-upon-a-diff/contracts/types';
 
 const EDITOR_SID = 'abcdef01';
 const EDITOR_SESSION = `${EDITOR_SID}-1111-4222-8333-444444444444`;

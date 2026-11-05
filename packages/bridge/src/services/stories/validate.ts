@@ -16,7 +16,7 @@ import { chapterKeyOf } from '@once-upon-a-diff/domain/chapters';
 import { REF_ID, refIdsIn } from '@once-upon-a-diff/domain/line-refs';
 import { textOf } from './text-refs.ts';
 import { refOf } from './chapters.ts';
-import type { ChapterRef, DiffFile } from '@once-upon-a-diff/protocol/types';
+import type { ChapterRef, DiffFile } from '@once-upon-a-diff/contracts/types';
 import type { Plan, PlanChapter, PlanRef } from './chapters.ts';
 
 /** JSON with sorted keys, so two chapters compare by content whatever order their keys were written in. */

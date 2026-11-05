@@ -15,7 +15,7 @@
  *
  * No DOM here, so node tests can use it.
  */
-import type { DraftComment, DraftRow } from '@once-upon-a-diff/protocol/types';
+import type { DraftComment, DraftRow } from '@once-upon-a-diff/contracts/types';
 
 /** What the script reads of the bridge's row for a draft (added and fix only for whether they're there). */
 export type ScriptRow = Pick<DraftRow, 'chapter' | 'index'> & {

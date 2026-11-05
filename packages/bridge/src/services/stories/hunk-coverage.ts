@@ -26,7 +26,7 @@ import type {
   DiffHunk,
   LineSpan,
   UncoveredFile,
-} from '@once-upon-a-diff/protocol/types';
+} from '@once-upon-a-diff/contracts/types';
 import type { Side } from '@once-upon-a-diff/domain/line-refs';
 import { formatLineRef, toSide } from '@once-upon-a-diff/domain/line-refs';
 

@@ -12,7 +12,7 @@ import { plural } from '/assets/domain/text.ts';
 import { html as vdom } from '/assets/preact.mjs';
 import { CopyButton } from '/assets/ui-kit/components/copy-button.ts';
 import { CommitList, openActionDialog } from './action-dialog.ts';
-import { ROUTES } from '/assets/protocol/routes.ts';
+import { ROUTES } from '/assets/contracts/routes.ts';
 import { bridge, page, PARAMS } from '/assets/local/page.ts';
 import type { PrView } from '/assets/types.ts';
 

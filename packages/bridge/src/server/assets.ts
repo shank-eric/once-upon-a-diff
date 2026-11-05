@@ -2,7 +2,7 @@
  * The files the bridge serves without a token: the pages' scripts, CSS and icon (the web package,
  * @once-upon-a-diff/web), the panel's modules and stylesheets (@once-upon-a-diff/panel), the GitHub host
  * adapter (@once-upon-a-diff/host-github), the typed client and the poll from the api-client package, the shared UI_DIR pieces
- * (@once-upon-a-diff/ui-kit), the route table from the protocol package and the pure rules from the domain package.
+ * (@once-upon-a-diff/ui-kit), the route table from the contracts package and the pure rules from the domain package.
  * TypeScript modules go out as JavaScript, their types stripped the way Node strips the bridge's own,
  * so the browser runs the same lines with no build step. The panel, the host adapter and the domain name
  * the packages they use by package, as Node and the extension's bundler resolve them, so a served module
@@ -27,9 +27,9 @@ const PANEL = path.resolve(
 const HOST_GITHUB = path.dirname(
   fileURLToPath(import.meta.resolve('@once-upon-a-diff/host-github/diff-dom')),
 );
-/** The protocol package's sources (src/). */
-const PROTOCOL = path.dirname(
-  fileURLToPath(import.meta.resolve('@once-upon-a-diff/protocol/routes')),
+/** The contracts package's sources (src/). */
+const CONTRACTS = path.dirname(
+  fileURLToPath(import.meta.resolve('@once-upon-a-diff/contracts/routes')),
 );
 /** The domain package's sources (src/): pure rules that import nothing. */
 const DOMAIN = path.dirname(
@@ -55,11 +55,11 @@ const API_CLIENT_MODULE = /^\/assets\/api-client\/(client|poll|use-poll|usage)\.
 /** The ui-kit package's modules (its components/ folder too) and its stylesheet (css/ui.css), which a page may load (the panel reaches the modules by package, which forBrowser spells as these URLs). */
 const UI_MODULE = /^\/assets\/ui-kit\/([a-z0-9-]+(?:\/[a-z0-9-]+)*\.(?:ts|css))$/;
 /**
- * The protocol's modules a page may load: the route table (routes.ts, the route-kit.ts it builds with and each area's
+ * The contracts package's modules a page may load: the route table (routes.ts, the route-kit.ts it builds with and each area's
  * routes.ts). Not the schemas (schemas.ts, schema-kit.ts and each area's schemas.ts import valibot: the bridge checks
  * bodies, the pages don't) and not the types, which a page only imports as types, erased.
  */
-const PROTOCOL_MODULE = /^\/assets\/protocol\/(routes|route-kit|[a-z0-9-]+\/routes)\.ts$/;
+const CONTRACTS_MODULE = /^\/assets\/contracts\/(routes|route-kit|[a-z0-9-]+\/routes)\.ts$/;
 /** The domain package's modules, all of them (pure rules that import nothing), which a page may load. */
 const DOMAIN_MODULE = /^\/assets\/domain\/([a-z0-9-]+)\.ts$/;
 /** The board page's own modules (its regions' folders), from public/board/. */
@@ -82,8 +82,8 @@ const stripped = new Map<string, { mtime: number; code: string }>();
 
 /** The specifiers a served module may name by package, and the /assets/ URL each is loaded from (the package's name is the folder). */
 const PACKAGE_SPECIFIER =
-  /(\bfrom\s*|\bimport\s*\(?\s*)(['"])@once-upon-a-diff\/(panel|protocol|domain|host-github|api-client|ui-kit)\/([a-z0-9/-]+)\2/g;
-/** A stripped module with its package specifiers (the panel, the protocol, the domain, the host adapter) spelled as the URLs the bridge serves them at. */
+  /(\bfrom\s*|\bimport\s*\(?\s*)(['"])@once-upon-a-diff\/(panel|contracts|domain|host-github|api-client|ui-kit)\/([a-z0-9/-]+)\2/g;
+/** A stripped module with its package specifiers (the panel, the contracts package, the domain, the host adapter) spelled as the URLs the bridge serves them at. */
 export const forBrowser = (code: string): string =>
   code.replace(
     PACKAGE_SPECIFIER,
@@ -133,7 +133,7 @@ export function assetFor(pathname: string): [string | Buffer, string] | null {
   const hostModule = HOST_MODULE.exec(pathname);
   const boardModule = BOARD_MODULE.exec(pathname);
   const localModule = LOCAL_MODULE.exec(pathname);
-  const protocolModule = PROTOCOL_MODULE.exec(pathname);
+  const contractsModule = CONTRACTS_MODULE.exec(pathname);
   const domainModule = DOMAIN_MODULE.exec(pathname);
   const apiClientModule = API_CLIENT_MODULE.exec(pathname);
   const uiModule = UI_MODULE.exec(pathname);
@@ -142,7 +142,7 @@ export function assetFor(pathname: string): [string | Buffer, string] | null {
     !hostModule &&
     !boardModule &&
     !localModule &&
-    !protocolModule &&
+    !contractsModule &&
     !domainModule &&
     !apiClientModule &&
     !uiModule
@@ -160,8 +160,8 @@ export function assetFor(pathname: string): [string | Buffer, string] | null {
     file = path.join(API_CLIENT, `${apiClientModule[1]}.ts`);
   } else if (uiModule) {
     file = path.join(UI_DIR, uiModule[1]);
-  } else if (protocolModule) {
-    file = path.join(PROTOCOL, `${protocolModule[1]}.ts`);
+  } else if (contractsModule) {
+    file = path.join(CONTRACTS, `${contractsModule[1]}.ts`);
   } else if (domainModule) {
     file = path.join(DOMAIN, `${domainModule[1]}.ts`);
   } else {

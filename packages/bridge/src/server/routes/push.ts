@@ -8,7 +8,7 @@
  * only: the read-only key reaches neither (page-key.ts). Right after a push the story's delivered check runs, which
  * clears its card.
  */
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { HttpError } from '../request.ts';
 import { localOnly, oncePerStory } from './story-guards.ts';
 import { parseBody } from '../validate.ts';
@@ -16,7 +16,7 @@ import { approvedFor, pushApproved, pushView } from '../../services/stories/push
 import { localEntries } from '../../services/review/story-lists.ts';
 import { refreshLocal } from '../../services/stories/local-diff.ts';
 import { isStoryless } from '../../services/stories/local-story.ts';
-import type { PushAnswer } from '@once-upon-a-diff/protocol/types';
+import type { PushAnswer } from '@once-upon-a-diff/contracts/types';
 import type { LocalMeta, ServedStory } from '../../services/stories/types.ts';
 import type { App, Call, StoryRoute } from '../types.ts';
 import { shortSha } from '@once-upon-a-diff/domain/text';

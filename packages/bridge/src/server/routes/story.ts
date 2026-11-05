@@ -6,7 +6,7 @@
  * (rebuild: ask for one, or how the last one stands), and Start listening on the local page (listen: GET the sessions that
  * may be typed into, POST to type into one), since a story's key does not reach the board's routes.
  */
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -24,7 +24,7 @@ import { questionsOf } from './questions.ts';
 import { fixesViewOf } from './fixes.ts';
 import { requestFor } from '../../services/inbox/progress.ts';
 import { workingOf } from '../../services/inbox/working.ts';
-import type { RebuildView, StoryData } from '@once-upon-a-diff/protocol/types';
+import type { RebuildView, StoryData } from '@once-upon-a-diff/contracts/types';
 import type { LocalMeta, ServedStory } from '../../services/stories/types.ts';
 import type { App, Call, StoryRoute } from '../types.ts';
 

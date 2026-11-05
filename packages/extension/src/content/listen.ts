@@ -5,10 +5,10 @@
  * nothing the page sends is text to type.
  */
 import { bridgeProblem } from '@once-upon-a-diff/api-client/client';
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import type { Bridge, BridgeAnswer } from './bridge.ts';
 import type { PanelOptions } from '@once-upon-a-diff/panel/shell/overlay';
-import type { ListenTarget } from '@once-upon-a-diff/protocol/types';
+import type { ListenTarget } from '@once-upon-a-diff/contracts/types';
 
 type Call = Bridge['call'];
 

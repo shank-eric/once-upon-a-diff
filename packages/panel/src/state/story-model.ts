@@ -6,7 +6,7 @@
  * the chapters. A story map at the top of a chapter's narrative, before its
  * "Chapter N" heading, is moved to the Overview.
  */
-import type { StoryData } from '@once-upon-a-diff/protocol/types';
+import type { StoryData } from '@once-upon-a-diff/contracts/types';
 import { chapterNumbers, finishedInOf } from '@once-upon-a-diff/domain/chapters';
 
 /** What chapter `step` tells the reviewer about a file it lists. */

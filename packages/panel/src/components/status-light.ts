@@ -18,7 +18,7 @@ import type {
   ListenerView,
   Listening,
   StatusError,
-} from '@once-upon-a-diff/protocol/types';
+} from '@once-upon-a-diff/contracts/types';
 
 /** One line of the status light's checks: ok, a warning, or (bad) an error, and how to fix it. */
 export interface HealthCheck {

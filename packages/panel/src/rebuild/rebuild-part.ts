@@ -11,7 +11,7 @@ import { html } from '/assets/preact.mjs';
 import { LinkButton } from '@once-upon-a-diff/ui-kit/components/link-button';
 import { rebuildAsk, rebuildLine, rebuildPending } from './rebuild.ts';
 import type { PanelContext } from '../host/context.ts';
-import type { RebuildView } from '@once-upon-a-diff/protocol/types';
+import type { RebuildView } from '@once-upon-a-diff/contracts/types';
 
 const GUIDANCE_PLACEHOLDER =
   'What should change? (optional) For example: chapter 3 tells the save flow backwards';

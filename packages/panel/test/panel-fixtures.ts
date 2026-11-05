@@ -13,7 +13,7 @@ import type {
   ReadInfo,
   StoryData,
   WorkingMark,
-} from '@once-upon-a-diff/protocol/types';
+} from '@once-upon-a-diff/contracts/types';
 import type { HostPage, FileBlock, PanelHost } from '../src/host/host.ts';
 import type { PanelOptions } from '../src/host/context.ts';
 

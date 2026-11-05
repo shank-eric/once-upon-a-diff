@@ -15,7 +15,7 @@
  * createWhitespaceCheck reads location only when it runs.
  */
 import { filesChangedPr } from '@once-upon-a-diff/host-github/pages';
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import type { Bridge } from '../bridge.ts';
 import type { PrefsCopy } from '../storage.ts';
 

@@ -10,7 +10,7 @@ import {
 } from '../src/services/stories/local-story.ts';
 import { git, tmp, writeJson } from './helpers.ts';
 import { worktreeFixture } from '@once-upon-a-diff/test-kit/git';
-import type { BoardCard } from '@once-upon-a-diff/protocol/types';
+import type { BoardCard } from '@once-upon-a-diff/contracts/types';
 
 /*
  * Build story and Review on the cards that have no story yet: a finished author's commit in Ready for your review (its

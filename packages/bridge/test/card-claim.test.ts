@@ -13,7 +13,7 @@ import { AgentRegistry } from '../src/services/ledger/registry.ts';
 import { registrySource } from '../src/services/sessions/sources.ts';
 import { StoryStore } from '../src/services/stories/store.ts';
 import { Builds } from '../src/services/inbox/builds.ts';
-import type { BoardCard } from '@once-upon-a-diff/protocol/types';
+import type { BoardCard } from '@once-upon-a-diff/contracts/types';
 
 const NOW = new Date('2026-10-26T19:00:00Z');
 const RUNNING = (name: string, task = 'do a thing', sid = '54736864') =>

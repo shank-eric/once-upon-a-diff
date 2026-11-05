@@ -17,7 +17,7 @@ Paths are from the repo root. After each `file:line` comes the name you'll find 
 | `app` | knows its host: the extension (content scripts, service worker), the board and local pages (`packages/web`), the bridge's `server/` and `cli/` |
 | `feature` | the panel (`packages/panel`), which an app hands its host through `PanelHost` |
 | `client` | `packages/api-client` (the typed client and the poll) and `packages/ui-kit` |
-| `protocol` | `packages/protocol`: the route table, the wire types and the schemas, over `packages/domain`, the pure rules that import nothing |
+| `contracts` | `packages/contracts`: the route table, the wire types and the schemas, over `packages/domain`, the pure rules that import nothing |
 | `service` | `packages/bridge/src/services/`: the rules. No side effects of their own |
 | `adapter` | `packages/bridge/src/adapters/`: every file write, program run and network call |
 | `outside` | not this repo's code: a Claude Code session, a skill, `beat.sh`, `it2` |
@@ -25,7 +25,7 @@ Paths are from the repo root. After each `file:line` comes the name you'll find 
 Two things every HTTP hop shares, written once here:
 
 - **Getting to the bridge.** The extension's content scripts never call the bridge. `callBridge` sends the service worker a message (`packages/extension/src/content/bridge.ts:52` (`chrome.runtime.sendMessage`)), the worker checks the route is one the extension may call (`packages/extension/src/entrypoints/background.ts:23` (`matchRoute`)) and fetches `127.0.0.1` with the token (`packages/extension/src/entrypoints/background.ts:33` (`fetch(`)). A page fetches with its own key instead: the board's transport is at `packages/web/public/board.ts:40` (`const transport`).
-- **Inside the bridge.** One handler (`packages/bridge/src/server/index.ts:392` (`http.createServer`)) checks Host and Origin, serves pages, then checks the key (`packages/bridge/src/server/index.ts:441` (`checkApiCall(req, pathname, origin)`)). A bridge-wide route is found in `API_ROUTES` and run (`packages/bridge/src/server/index.ts:455` (`route.handle(call)`)). A story route goes through `storyCall` (`packages/bridge/src/server/index.ts:468` (`storyCall(call, storyMatch, scope)`)), which finds the story and runs its route (`packages/bridge/src/server/index.ts:389` (`route.handle(call, story)`)). Every handler that takes a body checks it with `parseBody` against the protocol's schema before it acts.
+- **Inside the bridge.** One handler (`packages/bridge/src/server/index.ts:392` (`http.createServer`)) checks Host and Origin, serves pages, then checks the key (`packages/bridge/src/server/index.ts:441` (`checkApiCall(req, pathname, origin)`)). A bridge-wide route is found in `API_ROUTES` and run (`packages/bridge/src/server/index.ts:455` (`route.handle(call)`)). A story route goes through `storyCall` (`packages/bridge/src/server/index.ts:468` (`storyCall(call, storyMatch, scope)`)), which finds the story and runs its route (`packages/bridge/src/server/index.ts:389` (`route.handle(call, story)`)). Every handler that takes a body checks it with `parseBody` against the contracts package's schema before it acts.
 
 ## 1. Build a story
 
@@ -52,7 +52,7 @@ flowchart LR
 | # | Layer | Hop | At |
 |---|---|---|---|
 | 1 | `app` | the tag's Build story click calls the typed client | `packages/extension/src/content/pr-tags.ts:126` (`ROUTES.buildRequest`) |
-| 2 | `protocol` | the route: `POST /api/builds`, token only | `packages/protocol/src/bridge/routes.ts:27` (`buildRequest:`) |
+| 2 | `contracts` | the route: `POST /api/builds`, token only | `packages/contracts/src/bridge/routes.ts:27` (`buildRequest:`) |
 | 3 | `app` | through the service worker to the bridge, as above | `packages/extension/src/entrypoints/background.ts:33` (`fetch(`) |
 | 4 | `app` | the route checks the body and asks for the build | `packages/bridge/src/server/routes/builds.ts:36` (`parseBody('buildRequest', raw)`) |
 | 5 | `service` | `Builds.request` checks the repo and number | `packages/bridge/src/services/inbox/builds.ts:350` (`request({`) |
@@ -114,7 +114,7 @@ The click names its card (`card` in the body), so a session that builds for seve
 | # | Layer | Hop | At |
 |---|---|---|---|
 | R1 | `app` | the card's Review button | `packages/web/public/board/columns/actions.ts:47` (`reviewCard`) |
-| R2 | `protocol` | `POST /api/board/review {card}`, the board's key | `packages/protocol/src/board/routes.ts:59` (`boardReview:`) |
+| R2 | `contracts` | `POST /api/board/review {card}`, the board's key | `packages/contracts/src/board/routes.ts:59` (`boardReview:`) |
 | R3 | `app` | the route finds the card in the board's own snapshot. The branch and folder are the card's, never the body's | `packages/bridge/src/server/routes/board.ts:121` (`async function review`) |
 | R4 | `service` | the base is the merge-base with origin's default branch, the head the branch's name | `packages/bridge/src/services/stories/local-story.ts:201` (`export function reviewBranch`) |
 | R5 | `service` | **writes the story** in the checkout's `.once-upon/`, as `once-upon local` with no chapters does | `packages/bridge/src/services/stories/local-story.ts:90` (`export function createLocalStory`) |
@@ -143,7 +143,7 @@ flowchart LR
 | 1 | `feature` | the Ask form's submit calls the host's `ask` | `packages/panel/src/ask/questions.ts:523` (`await opts.ask({`) |
 | 2 | `feature` | on the local page, `ask` is the panel's shared bridge option | `packages/panel/src/host/bridge-options.ts:41` (`ask: (question) =>`) |
 | 2' | `app` | on GitHub, the extension supplies its own `ask` over the service worker | `packages/extension/src/content/pages/files-changed.ts:160` (`ROUTES.questionAsk`) |
-| 3 | `protocol` | the route: `POST /api/stories/<id>/questions`, any key of the story's | `packages/protocol/src/story/routes.ts:49` (`questionAsk:`) |
+| 3 | `contracts` | the route: `POST /api/stories/<id>/questions`, any key of the story's | `packages/contracts/src/story/routes.ts:49` (`questionAsk:`) |
 | 4 | `app` | the story route checks the body and appends the question | `packages/bridge/src/server/routes/questions.ts:66` (`app.inbox.append(`) |
 | 5 | `service` | `Inbox.append` gives it an id and a time | `packages/bridge/src/services/inbox/inbox.ts:149` (`append<E`) |
 | 6 | `adapter` | **appends a line to `inbox.jsonl`** | `packages/bridge/src/adapters/stores/fs/files.ts:24` (`export function appendText`) |
@@ -183,7 +183,7 @@ flowchart LR
 | 1 | `app` | the page's root component polls the board route | `packages/web/public/board.ts:143` (`usePoll(() => bridge.ask(ROUTES.board)`) |
 | 2 | `client` | `usePoll`, the Preact hook | `packages/api-client/src/use-poll.ts:14` (`export function usePoll`) |
 | 3 | `client` | over `createPoll`: a timer while visible, and the window's focus | `packages/api-client/src/poll.ts:68` (`setInterval(`) |
-| 4 | `protocol` | the route: `GET /api/board`, the token or the board's key | `packages/protocol/src/board/routes.ts:10` (`board: api<undefined, BoardData>`) |
+| 4 | `contracts` | the route: `GET /api/board`, the token or the board's key | `packages/contracts/src/board/routes.ts:10` (`board: api<undefined, BoardData>`) |
 | 5 | `app` | the page's transport sends its key (the `#key=` fragment, or the cookie on a proxy name) | `packages/web/public/board.ts:43` (`fetch(path`) |
 | 6 | `app` | the bridge recognizes the board's key (`packages/bridge/src/server/index.ts:295` (`sameToken(auth, boardKey(token))`)), and lets it reach only the routes whose table entry allows it; any other route is a 403 | `packages/bridge/src/server/index.ts:451` (`boardKeyMay(candidate.route)`) |
 | 7 | `app` | the route | `packages/bridge/src/server/routes/board.ts:53` (`app.board.snapshot()`) |
@@ -202,7 +202,7 @@ flowchart LR
 | 20 | `service` | the Backlog's items, folded from **`backlog.jsonl`** (claims included) | `packages/bridge/src/services/board/stages/index.ts:127` (`state.backlog.items()`) |
 | 21 | `service` | which agent claimed which Backlog card | `packages/bridge/src/services/board/stages/index.ts:139` (`claimViews(`) |
 | 22 | `service` | the lanes, by repo | `packages/bridge/src/services/board/stages/index.ts:258` (`groupLanes(cards, labels)`) |
-| 23 | `protocol` | back: the answer's shape | `packages/protocol/src/board/types.ts:10` (`export interface BoardData`) |
+| 23 | `contracts` | back: the answer's shape | `packages/contracts/src/board/types.ts:10` (`export interface BoardData`) |
 | 24 | `app` | the root component draws the regions, and Preact's keyed diff keeps focus, scroll and typed text | `packages/web/public/board.ts:246` (`<${Columns} view=${columns} />`) |
 
 The column regions are split by card type under `packages/web/public/board/columns/` (`layout`, `card`, `agent`, `actions`, `blank`, `listeners`, `editors`, with `columns.ts` putting the columns together).

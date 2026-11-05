@@ -18,7 +18,7 @@ import type {
   PrFacts,
   RequestedCheck,
 } from '../src/services/review/github-checks.ts';
-import type { BoardCard, PrInfo } from '@once-upon-a-diff/protocol/types';
+import type { BoardCard, PrInfo } from '@once-upon-a-diff/contracts/types';
 
 const START = Date.parse('2026-11-03T20:50:00Z');
 const HEAD = '7c3010541aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';

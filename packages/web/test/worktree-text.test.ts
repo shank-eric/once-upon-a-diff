@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { cleanupConfirm, sizeText, worktreeChips } from '../public/board/worktree-text.ts';
-import type { BoardWorktree } from '@once-upon-a-diff/protocol/types';
+import type { BoardWorktree } from '@once-upon-a-diff/contracts/types';
 
 const tree = (over: Partial<BoardWorktree> = {}): BoardWorktree => ({
   path: '/d/widgets-worktrees/x',

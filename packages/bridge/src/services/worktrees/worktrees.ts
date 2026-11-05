@@ -25,7 +25,7 @@ import path from 'node:path';
 import { repoOfRemote, sameRepo } from '../config/repos.ts';
 import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import type { LedgerAgent } from '../ledger/ledger.ts';
-import type { BoardWorktree } from '@once-upon-a-diff/protocol/types';
+import type { BoardWorktree } from '@once-upon-a-diff/contracts/types';
 import { type RunResult, type Runner, runCommand } from '../../adapters/os.ts';
 import { gitVia } from '../../adapters/git.ts';
 import { ensureDir } from '../../adapters/stores/fs/files.ts';

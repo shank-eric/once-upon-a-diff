@@ -12,7 +12,7 @@ import {
   questionTotals,
   waitingText,
 } from '../src/ask/question-list.ts';
-import type { Question } from '@once-upon-a-diff/protocol/types';
+import type { Question } from '@once-upon-a-diff/contracts/types';
 
 const ask = (id: string, step: number, extra: Partial<Question> = {}): Question => ({
   id,

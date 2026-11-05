@@ -1,6 +1,6 @@
 /*
  * The one tiny counter API a page, the panel or the extension uses for the usage capture: `count('board.tab.switch')`.
- * The name has to be one of the protocol's ACTIONS (the type says so, and the bridge drops anything else), so what is sent
+ * The name has to be one of the contracts package's ACTIONS (the type says so, and the bridge drops anything else), so what is sent
  * is a name and a count, never text. Counts are batched in memory and sent as one call at most once a minute (and when the
  * host asks, as the tab is hidden); a batch that did not get through is kept for the next one, and when the bridge says
  * the capture is off the counter stops. This file does no I/O of its own: `send` is the host's call to the bridge.

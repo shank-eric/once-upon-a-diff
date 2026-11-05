@@ -4,7 +4,7 @@
  * (Dismiss, Clear conversation) or collapsed. Those marks are kept per story
  * in state/<id>/questions.json, so a reload or another tab shows the same.
  */
-import { ROUTES } from '@once-upon-a-diff/protocol/routes';
+import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { newId } from '../../services/config/ids.ts';
 import { markQuestions, withMarks } from '../../services/inbox/conversation.ts';
 import { HttpError } from '../request.ts';

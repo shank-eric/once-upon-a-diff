@@ -16,7 +16,7 @@
  *            packages/bridge/instrumentation (the usage probe the entry shims preload: outside the layers)
  *   web      packages/web/public (the pages, an app)
  *   extension packages/extension/src (an app)
- *   panel, host-github, api-client, ui-kit, protocol, domain (imports nothing), test-kit
+ *   panel, host-github, api-client, ui-kit, contracts, domain (imports nothing), test-kit
  */
 
 import { fileURLToPath } from 'node:url';
@@ -33,13 +33,13 @@ const PANEL = '^packages/panel/';
 const HOST = '^packages/host-github/';
 const API_CLIENT = '^packages/api-client/';
 const UI_PKG = '^packages/ui-kit/';
-const PROTOCOL = '^packages/protocol/';
+const CONTRACTS = '^packages/contracts/';
 const DOMAIN = '^packages/domain/';
 const TEST_KIT = '^packages/test-kit/';
 const INSTRUMENTATION = '^packages/bridge/instrumentation/';
 
 // code that ships to a browser (no Node built-ins)
-const BROWSER = `^packages/(panel|host-github|api-client|ui-kit|protocol|domain|extension/src)/|${WEB}`;
+const BROWSER = `^packages/(panel|host-github|api-client|ui-kit|contracts|domain|extension/src)/|${WEB}`;
 
 const rule = (name, comment, importer, imported) => ({
   name,
@@ -162,7 +162,7 @@ export default {
     ),
     rule(
       'bridge-not-the-client',
-      'the bridge serves the client packages, it does not import them: the client and the server meet at the protocol',
+      'the bridge serves the client packages, it does not import them: the client and the server meet at the contracts package',
       { path: BRIDGE },
       { path: `${PANEL}|${HOST}|${API_CLIENT}|${UI_PKG}` },
     ),
@@ -170,7 +170,7 @@ export default {
       'bridge-is-server-only',
       'the bridge is server code: only the server and Node tests import it',
       {
-        path: `${WEB}|${EXTENSION}|${PANEL}|${HOST}|${API_CLIENT}|${UI_PKG}|${PROTOCOL}|${DOMAIN}|${TEST_KIT}`,
+        path: `${WEB}|${EXTENSION}|${PANEL}|${HOST}|${API_CLIENT}|${UI_PKG}|${CONTRACTS}|${DOMAIN}|${TEST_KIT}`,
       },
       { path: BRIDGE },
     ),
@@ -183,23 +183,23 @@ export default {
       { dependencyTypes: ['core'] },
     ),
     rule(
-      'protocol-is-bottom',
-      'the protocol is the bottom of the client and server: it imports no other package of this repo but the domain',
-      { path: PROTOCOL },
+      'contracts-is-bottom',
+      'the contracts package is the bottom of the client and server: it imports no other package of this repo but the domain',
+      { path: CONTRACTS },
       {
         path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${HOST}|${API_CLIENT}|${UI_PKG}|${TEST_KIT}`,
       },
     ),
     rule(
-      'protocol-names-itself-by-path',
-      'the protocol names its own files by relative path: by name it imports valibot and the domain only',
-      { path: PROTOCOL },
-      { path: PROTOCOL, dependencyTypesNot: ['local'] },
+      'contracts-names-itself-by-path',
+      'the contracts package names its own files by relative path: by name it imports valibot and the domain only',
+      { path: CONTRACTS },
+      { path: CONTRACTS, dependencyTypesNot: ['local'] },
     ),
     rule(
-      'protocol-imports-only-valibot',
-      'the protocol imports nothing but itself, the domain and valibot (an npm package or an unresolved import is refused)',
-      { path: PROTOCOL },
+      'contracts-imports-only-valibot',
+      'the contracts package imports nothing but itself, the domain and valibot (an npm package or an unresolved import is refused)',
+      { path: CONTRACTS },
       {
         dependencyTypes: [
           'npm',
@@ -213,9 +213,9 @@ export default {
       },
     ),
     rule(
-      'protocol-no-unresolved',
-      'the protocol imports nothing but itself, the domain and valibot: an import that resolves to nothing is refused',
-      { path: PROTOCOL },
+      'contracts-no-unresolved',
+      'the contracts package imports nothing but itself, the domain and valibot: an import that resolves to nothing is refused',
+      { path: CONTRACTS },
       { couldNotResolve: true },
     ),
     rule(
@@ -226,7 +226,7 @@ export default {
     ),
     rule(
       'api-client-below-panel-and-pages',
-      'the api-client imports the protocol and the domain and nothing else of this repo',
+      'the api-client imports the contracts package and the domain and nothing else of this repo',
       { path: API_CLIENT },
       {
         path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${HOST}|${UI_PKG}|${TEST_KIT}`,
@@ -235,7 +235,7 @@ export default {
     ),
     rule(
       'ui-kit-below-panel-and-pages',
-      'ui-kit sits below the panel, the pages and the extension: it imports the protocol, the domain and the vendored Preact, never an app, the server, the panel, a host adapter or the api-client',
+      'ui-kit sits below the panel, the pages and the extension: it imports the contracts package, the domain and the vendored Preact, never an app, the server, the panel, a host adapter or the api-client',
       { path: UI_PKG },
       {
         path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${HOST}|${API_CLIENT}|${TEST_KIT}`,
@@ -243,7 +243,7 @@ export default {
       },
     ),
     rule(
-      'ui-kit-imports-only-the-protocol',
+      'ui-kit-imports-only-the-contracts',
       'ui-kit imports nothing from npm (the vendored Preact resolves through the tsconfig paths, and no npm package is its own): an npm package or an unresolved import is refused',
       { path: UI_PKG },
       {
@@ -295,15 +295,15 @@ export default {
     ),
     rule(
       'schemas-are-server-side',
-      "the schema files (schemas.ts, schema-kit.ts and each area's schemas.ts) import valibot, which no page or extension loads: only the server and the protocol itself import them",
+      "the schema files (schemas.ts, schema-kit.ts and each area's schemas.ts) import valibot, which no page or extension loads: only the server and the contracts package itself import them",
       { path: `${WEB}|${EXTENSION}|${PANEL}|${HOST}|${API_CLIENT}|${UI_PKG}` },
-      { path: '^packages/protocol/src/(schemas|schema-kit|[a-z-]+/schemas)\\.ts$' },
+      { path: '^packages/contracts/src/(schemas|schema-kit|[a-z-]+/schemas)\\.ts$' },
     ),
     rule(
       'pages-are-an-app',
       'the pages are an app: nothing imports them, and they do not import the extension or the server',
       // the panel, ui-kit, the api-client and the extension have their own rules over WEB (they may name the vendored Preact, by its URL only)
-      { path: `${HOST}|${PROTOCOL}|${BRIDGE}|${TEST_KIT}` },
+      { path: `${HOST}|${CONTRACTS}|${BRIDGE}|${TEST_KIT}` },
       { path: WEB },
     ),
     rule(
@@ -350,9 +350,9 @@ export default {
       { dependencyTypes: ['aliased-tsconfig-paths'] },
     ),
     rule(
-      'protocol-names-no-page-urls',
-      'the protocol names its own files by relative path, not by an /assets/ URL',
-      { path: PROTOCOL },
+      'contracts-names-no-page-urls',
+      'the contracts package names its own files by relative path, not by an /assets/ URL',
+      { path: CONTRACTS },
       { dependencyTypes: ['aliased-tsconfig-paths'] },
     ),
     rule(

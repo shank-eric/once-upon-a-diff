@@ -16,8 +16,8 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json"
   },
   "dependencies": {
-    "@once-upon-a-diff/domain": "workspace:*",
-    "@once-upon-a-diff/protocol": "workspace:*"
+    "@once-upon-a-diff/contracts": "workspace:*",
+    "@once-upon-a-diff/domain": "workspace:*"
   },
   "devDependencies": {
     "@once-upon-a-diff/test-kit": "workspace:*",

@@ -17,8 +17,8 @@
   },
   "dependencies": {
     "@once-upon-a-diff/api-client": "workspace:*",
+    "@once-upon-a-diff/contracts": "workspace:*",
     "@once-upon-a-diff/domain": "workspace:*",
-    "@once-upon-a-diff/protocol": "workspace:*",
     "@once-upon-a-diff/ui-kit": "workspace:*"
   },
   "devDependencies": {

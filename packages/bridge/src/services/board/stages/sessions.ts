@@ -25,7 +25,7 @@ import type {
   BoardData,
   BoardSession,
   BoardStatus,
-} from '@once-upon-a-diff/protocol/types';
+} from '@once-upon-a-diff/contracts/types';
 import { sessionCard } from './cards.ts';
 import { laneOf } from './lanes.ts';
 import { liveSessions } from '../../../adapters/claude-sessions/live-sessions.ts';
