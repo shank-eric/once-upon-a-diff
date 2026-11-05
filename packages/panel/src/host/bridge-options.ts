@@ -63,6 +63,6 @@ export function bridgeOptions({ client, storyId, pageUrl }: PanelHost): Shared {
     working: () => client.ask(ROUTES.working, { params }),
     // Rebuild story / Rebuild from here: a build request for this story
     requestRebuild: (ask) => client.ask(ROUTES.storyRebuildWrite, { params, body: ask }),
-    pulse: () => client.ask(ROUTES.storyPulse, { params }),
+    pulse: (signal) => client.ask(ROUTES.storyPulse, { params }, { signal }),
   };
 }

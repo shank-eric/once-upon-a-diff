@@ -66,7 +66,7 @@ export const page: LocalPage = {
  * The page's way to the bridge for the contracts package's client: a fetch with the page's key. It never rejects: a call that
  * didn't get there says so in its reply, and `bridge.ask` turns that into an Error with the bridge's message.
  */
-const transport: Transport = async ({ method, path, body }) => {
+const transport: Transport = async ({ method, path, body, signal }) => {
   if (!KEY) {
     return {
       ok: false,
@@ -78,6 +78,7 @@ const transport: Transport = async ({ method, path, body }) => {
     const response = await fetch(path, {
       method,
       cache: 'no-store',
+      signal,
       headers: {
         Authorization: `Bearer ${KEY}`,
         ...(body ? { 'Content-Type': 'application/json' } : {}),

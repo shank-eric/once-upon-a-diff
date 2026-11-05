@@ -241,16 +241,17 @@ document.addEventListener('change', async (event) => {
 
 // ---------- follow the story and the commits: when chapters.json changes or the head moves, redraw.
 // The panel's pulse says when (mount.js), and this page polls /version itself only while the panel is closed.
-async function reloadIfChanged(known?: string) {
+async function reloadIfChanged(known?: string, signal?: AbortSignal) {
   try {
-    const version = known ?? (await bridge.ask(ROUTES.storyVersion, { params: PARAMS })).version;
+    const version =
+      known ?? (await bridge.ask(ROUTES.storyVersion, { params: PARAMS }, { signal })).version;
     if (version === page.story.version) {
       return;
     }
     if (document.querySelector('.ou-local-note-edit')) {
       return; // don't redraw under a note being written
     }
-    page.story = (await bridge.ask(ROUTES.story, { params: PARAMS })) as LocalStoryData;
+    page.story = (await bridge.ask(ROUTES.story, { params: PARAMS }, { signal })) as LocalStoryData;
     render();
     remount();
   } catch {
@@ -301,8 +302,8 @@ async function start() {
   // the open panel's own tick looks while it's open; a hidden tab says it is still open (services/inbox/auto-stop.ts)
   startLocalPolls({
     closed: () => page.hidden,
-    reload: () => reloadIfChanged(),
-    seen: () => bridge.ask(ROUTES.storySeen, { params: PARAMS }),
+    reload: (signal) => reloadIfChanged(undefined, signal),
+    seen: (signal) => bridge.ask(ROUTES.storySeen, { params: PARAMS }, { signal }),
   });
   lookForPull(true); // Create pull request turns into Open PR #N once the branch has one
   if (OPEN_PUSH) {

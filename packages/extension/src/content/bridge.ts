@@ -17,6 +17,14 @@ export interface BridgeRequest {
   path: string;
   body?: unknown;
   settings?: BridgeSettings;
+  /** Set on a call with a signal (a poll's load): a later `bridge-abort` with the same id cancels its fetch in the service worker. */
+  id?: string;
+}
+
+/** What a page sends the service worker when it no longer wants the answer to the call with this id. */
+export interface BridgeAbort {
+  type: 'bridge-abort';
+  id: string;
 }
 
 /** What the service worker sends back: status 0 when the call didn't get there, body the bridge's JSON. */
@@ -39,30 +47,64 @@ export const extensionAlive = () => !!(globalThis.chrome && chrome.runtime && ch
 /**
  * Calls the bridge through the service worker.
  * Resolves to {ok, status, body, error}; it never rejects, and status is 0 when the call didn't get there.
+ * With a `signal`, an abort resolves it at once ("aborted") and tells the service worker to abort its fetch too, so the
+ * request to the bridge is closed and not only forgotten here. (If that message doesn't get there, the worker's fetch runs on.)
  */
 export async function callBridge<T = unknown>(
   method: BridgeMethod,
   path: string,
   body?: unknown,
+  signal?: AbortSignal,
 ): Promise<BridgeAnswer<T>> {
   if (!extensionAlive()) {
     return { ok: false, status: 0, error: 'extension reloaded' };
   }
+  const aborted: BridgeAnswer<T> = { ok: false, status: 0, error: 'aborted' };
+  if (signal?.aborted) {
+    return aborted;
+  }
+  const id = signal ? crypto.randomUUID() : undefined;
+  let onAbort: (() => void) | undefined;
   try {
-    const answer: BridgeAnswer<T> | undefined = await chrome.runtime.sendMessage({
+    const sent: Promise<BridgeAnswer<T> | undefined> = chrome.runtime.sendMessage({
       type: 'bridge',
       method,
       path,
       body,
+      ...(id ? { id } : {}),
     } satisfies BridgeRequest);
+    const raced = signal
+      ? Promise.race([
+          sent,
+          new Promise<BridgeAnswer<T>>((resolve) => {
+            onAbort = () => {
+              resolve(aborted);
+              try {
+                chrome.runtime
+                  .sendMessage({ type: 'bridge-abort', id: id as string } satisfies BridgeAbort)
+                  .catch(() => {});
+              } catch {
+                /* the extension was reloaded: its worker's fetch went with it */
+              }
+            };
+            signal.addEventListener('abort', onAbort, { once: true });
+          }),
+        ])
+      : sent;
+    const answer = await raced;
     return answer || { ok: false, status: 0, error: 'no answer' };
   } catch {
     return { ok: false, status: 0, error: 'extension reloaded' };
+  } finally {
+    if (onAbort) {
+      signal?.removeEventListener('abort', onAbort);
+    }
   }
 }
 
 /** callBridge as the contracts client's transport. */
-const transport: Transport = ({ method, path, body }) => callBridge(method, path, body);
+const transport: Transport = ({ method, path, body, signal }) =>
+  callBridge(method, path, body, signal);
 
 /**
  * The typed way to call the bridge from a content script: `bridge.call(ROUTES.name, {params, query, body})` answers

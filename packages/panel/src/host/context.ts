@@ -93,9 +93,10 @@ export interface PanelOptions {
   };
   working?(): Promise<{ marks?: WorkingMark[] } | null>;
   reloadPage?(): void;
-  pulse?(): Promise<Pulse>;
-  /** a hidden tab's slow "still open" signal (see overlay.ts) */
-  stillOpen?(): Promise<unknown>;
+  /** `signal` is the pulse poll's: aborted when a pulse times out or the panel is destroyed, so the host passes it to its call */
+  pulse?(signal?: AbortSignal): Promise<Pulse>;
+  /** a hidden tab's slow "still open" signal (see overlay.ts); `signal` is its poll's, to pass to the call */
+  stillOpen?(signal?: AbortSignal): Promise<unknown>;
   onPulse?(pulse: Pulse): void;
   onFilter?(filter: { n: number; all: boolean }): void;
   reveal?(rel: string, side?: Side, start?: number, end?: number): void;

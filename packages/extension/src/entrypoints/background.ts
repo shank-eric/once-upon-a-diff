@@ -8,13 +8,17 @@ import { getSettings, type BridgeSettings } from '../settings.ts';
 import { matchRoute } from '@once-upon-a-diff/bridge-client/client';
 import { EXTENSION_ROUTES } from '../bridge-routes.ts';
 import { isPageLink, type PageKind } from '../page-links.ts';
-import type { BridgeReply, BridgeRequest } from '../content/bridge.ts';
+import type { BridgeAbort, BridgeReply, BridgeRequest } from '../content/bridge.ts';
 
 const METHODS = new Set(['GET', 'POST']);
+
+/** The fetches out for a call that has an id (a poll's), so a page's `bridge-abort` can close one. */
+const cancellable = new Map<string, AbortController>();
 
 async function callBridge(
   { method = 'GET', path, body }: BridgeRequest,
   override: BridgeSettings | null,
+  signal?: AbortSignal,
 ): Promise<BridgeReply> {
   // only a call to one of the routes the extension makes (bridge-routes.ts), with its method: the token goes with nothing else
   if (
@@ -34,6 +38,7 @@ async function callBridge(
       method,
       cache: 'no-store',
       credentials: 'omit',
+      signal,
       headers: {
         Authorization: `Bearer ${token}`,
         ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
@@ -88,20 +93,42 @@ function toggle(tab: chrome.tabs.Tab | undefined) {
 }
 
 export default defineBackground(() => {
-  chrome.runtime.onMessage.addListener((msg: BridgeRequest | null, sender, sendResponse) => {
-    if (sender.id !== chrome.runtime.id || !msg || msg.type !== 'bridge') {
-      return false;
-    }
-    // only the extension's own pages (the options page) may pass unsaved settings; content scripts run on github.com
-    const ownPage =
-      typeof sender.url === 'string' && sender.url.startsWith(chrome.runtime.getURL(''));
-    const unsaved =
-      ownPage && msg.settings && typeof msg.settings === 'object'
-        ? { port: Number(msg.settings.port), token: String(msg.settings.token || '') }
-        : null;
-    callBridge(msg, unsaved).then(sendResponse);
-    return true;
-  });
+  chrome.runtime.onMessage.addListener(
+    (msg: BridgeRequest | BridgeAbort | null, sender, sendResponse) => {
+      if (sender.id !== chrome.runtime.id || !msg) {
+        return false;
+      }
+      if (msg.type === 'bridge-abort') {
+        if (typeof msg.id === 'string') {
+          cancellable.get(msg.id)?.abort();
+        }
+        return false;
+      }
+      if (msg.type !== 'bridge') {
+        return false;
+      }
+      // only the extension's own pages (the options page) may pass unsaved settings; content scripts run on github.com
+      const ownPage =
+        typeof sender.url === 'string' && sender.url.startsWith(chrome.runtime.getURL(''));
+      const unsaved =
+        ownPage && msg.settings && typeof msg.settings === 'object'
+          ? { port: Number(msg.settings.port), token: String(msg.settings.token || '') }
+          : null;
+      const id = typeof msg.id === 'string' ? msg.id : null;
+      const controller = id ? new AbortController() : null;
+      if (id && controller) {
+        cancellable.set(id, controller);
+      }
+      callBridge(msg, unsaved, controller?.signal)
+        .then(sendResponse)
+        .finally(() => {
+          if (id) {
+            cancellable.delete(id);
+          }
+        });
+      return true;
+    },
+  );
 
   chrome.action.onClicked.addListener((tab) => {
     countNow('ext.toolbar.toggle');

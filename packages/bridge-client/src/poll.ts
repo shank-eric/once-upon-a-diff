@@ -6,8 +6,11 @@
  * since: each start is a run, and only the run that asked hears the answer.
  *
  * A load that hasn't settled after LOAD_TIMEOUT_MS counts as a failed load ("timed out") and the next one is scheduled, so a
- * transport call that never settles can't end the poll. The stale load is not cancelled (a `load` takes no signal), and its
- * answer, should it come after all, is dropped.
+ * transport call that never settles can't end the poll. A `load` is given an AbortSignal, which the poll aborts when it gives
+ * up on the load and when `stop` ends the run it belongs to: a load that passes it to the client's call (and so to the
+ * transport's fetch) leaves no request open, so a route that hangs can't fill the browser's six connections to the host. The
+ * abort is not a second failure: the timeout has already settled the load, and a load ended by `stop` is dropped. A load that
+ * ignores the signal still can't end the poll, and its late answer is still dropped.
  *
  * `everyMs` may be a function, read before each wait: the wait it names, or null for none (the poll then sits idle until
  * `refresh` or `reschedule`). `whenHidden` turns it round, for a keepalive: it fires only while the tab is hidden, with no first
@@ -22,7 +25,8 @@ export interface PollView<T> {
 }
 
 export interface PollOptions<T> {
-  load: () => Promise<T>;
+  /** One look at the bridge. Pass `signal` on to the call it makes: the poll aborts it when the load times out or the poll stops. */
+  load: (signal: AbortSignal) => Promise<T>;
   /** The wait between one load and the next, or a function that says it (null: no wait, idle until `refresh` or `reschedule`). */
   everyMs: number | (() => number | null);
   /** Fire only while the tab is hidden, with no load at start and none on focus. */
@@ -56,6 +60,8 @@ export function createPoll<T>({
   let runs = 0;
   let current = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  // the loads out now: stop aborts them
+  const out = new Set<AbortController>();
 
   async function refresh(): Promise<void> {
     const mine = current;
@@ -64,15 +70,18 @@ export function createPoll<T>({
     }
     let next: PollView<T>;
     let giveUp: ReturnType<typeof setTimeout> | undefined;
+    const controller = new AbortController();
+    out.add(controller);
     try {
       // the race settles once: a load that answers after the timeout lost it, and nothing reads its answer
       const data = await Promise.race([
-        load(),
+        load(controller.signal),
         new Promise<never>((_resolve, reject) => {
-          giveUp = setTimeout(
-            () => reject(new Error(`load timed out after ${LOAD_TIMEOUT_MS / 1000} s`)),
-            LOAD_TIMEOUT_MS,
-          );
+          giveUp = setTimeout(() => {
+            // the failure is the timeout's (rejected first); the abort only closes the request, and the load's own rejection is ignored
+            reject(new Error(`load timed out after ${LOAD_TIMEOUT_MS / 1000} s`));
+            controller.abort();
+          }, LOAD_TIMEOUT_MS);
         }),
       ]);
       next = { data, error: null, failed: 0 };
@@ -84,6 +93,7 @@ export function createPoll<T>({
       };
     } finally {
       clearTimeout(giveUp);
+      out.delete(controller);
     }
     if (mine === current) {
       view = next;
@@ -131,6 +141,10 @@ export function createPoll<T>({
     },
     stop() {
       current = 0;
+      for (const controller of out) {
+        controller.abort(); // a load of this run is over: its request closes, and its answer is dropped (current is 0)
+      }
+      out.clear();
       clearTimeout(timer);
       timer = undefined;
       window.removeEventListener('focus', onFocus);

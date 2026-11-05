@@ -42,7 +42,7 @@ export function createPrTags({
 }: {
   attr: string;
   onStory?: (pr: PrRef) => void;
-  onDue?: (prs: PrRef[]) => void | Promise<void>;
+  onDue?: (prs: PrRef[], signal: AbortSignal) => void | Promise<void>;
   scope?: () => PrRef[];
 }) {
   const results = new Map<string, StoryStatus>(); // "owner/repo#n" -> a status-many result
@@ -80,15 +80,17 @@ export function createPrTags({
    */
   async function look(
     prs: PrRef[],
-    { force = false } = {},
+    { force = false, signal }: { force?: boolean; signal?: AbortSignal } = {},
   ): Promise<Partial<BridgeAnswer<StatusMany>> & { ok: boolean }> {
     const need = prs.filter((pr) => force || !results.has(keyOf(pr))).slice(0, MAX_PER_CALL);
     if (!need.length) {
       return { ok: true };
     }
-    const answer = await bridge.call(ROUTES.statusMany, {
-      body: { prs: need.map(({ repo, number }) => ({ repo, number })) },
-    });
+    const answer = await bridge.call(
+      ROUTES.statusMany,
+      { body: { prs: need.map(({ repo, number }) => ({ repo, number })) } },
+      { signal },
+    );
     failed = !answer.ok;
     if (answer.ok) {
       for (const result of answer.body.results) {
@@ -108,7 +110,7 @@ export function createPrTags({
     failed: () => failed,
     waiting,
     alive: extensionAlive,
-    onDue: (prs) => onDue?.(prs),
+    onDue: (prs, signal) => onDue?.(prs, signal),
   });
   poll.start();
 

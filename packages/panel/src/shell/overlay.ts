@@ -168,7 +168,8 @@ export function storyOverlay(input: StoryData, opts: PanelOptions, host: PanelHo
   const pulsePoll = createPoll<PulseLook | null>({
     everyMs: TICK_MS,
     // with no pulse there is nothing to load: the tick still runs, for the parts that look on their own share of them
-    load: () => (opts.pulse ? opts.pulse().catch(() => ({ down: true })) : Promise.resolve(null)),
+    load: (signal) =>
+      opts.pulse ? opts.pulse(signal).catch(() => ({ down: true })) : Promise.resolve(null),
     // a load the poll gave up on (timed out) has no pulse: it reads as down, like one the bridge didn't answer
     onChange: ({ data: pulse, error }) => {
       const data: PulseLook | null = error ? { down: true } : pulse;
@@ -274,7 +275,7 @@ export function storyOverlay(input: StoryData, opts: PanelOptions, host: PanelHo
     ? createPoll<void>({
         everyMs: STILL_OPEN_MS,
         whenHidden: true,
-        load: async () => void (await opts.stillOpen!()),
+        load: async (signal) => void (await opts.stillOpen!(signal)),
         onChange: () => {},
       })
     : null;

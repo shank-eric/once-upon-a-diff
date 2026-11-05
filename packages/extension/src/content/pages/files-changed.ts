@@ -201,7 +201,7 @@ export function createFilesChangedPage() {
       // Start listening: type the listen line into an idle Claude Code session, through the bridge's board
       listen: createListenOption(bridge.call, storyId),
       // a hidden tab doesn't pulse: this keeps the story's listener from stopping while the page is still open
-      stillOpen: () => bridge.call(ROUTES.storySeen, { params }),
+      stillOpen: (signal) => bridge.call(ROUTES.storySeen, { params }, { signal }),
       // the story changed on disk (Claude filled in a chapter): redraw in place
       onPulse: (pulse) => {
         if (current && current.key === key && pulse.version !== current.version) {

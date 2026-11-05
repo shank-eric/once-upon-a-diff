@@ -17,7 +17,7 @@ const ATTR = 'data-ou-convo';
 export function createConversationPage() {
   const tags = createPrTags({
     attr: ATTR,
-    onDue: () => look(), // the poll: the page's PR is in flight, or the bridge is down
+    onDue: (_prs, signal) => look(signal), // the poll: the page's PR is in flight, or the bridge is down
     scope: () => (pr ? [pr] : []),
   });
   let pr: (PrRef & { key: string }) | null = null;
@@ -53,14 +53,14 @@ export function createConversationPage() {
     tags.showNotice([pr.repo]);
   }
 
-  async function look() {
+  async function look(signal?: AbortSignal) {
     if (busy || !pr) {
       return;
     }
     busy = true;
     const mine = pr;
     try {
-      const answer = await tags.look([pr], { force: true });
+      const answer = await tags.look([pr], { force: true, signal });
       if (pr === mine && answer.ok) {
         render(); // no bridge, no tag: the page stays as GitHub draws it
       }

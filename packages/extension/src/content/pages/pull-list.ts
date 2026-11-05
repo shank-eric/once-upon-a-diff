@@ -62,7 +62,7 @@ function prLinks(): PrLink[] {
 export function createPullListPage() {
   const tags = createPrTags({
     attr: ATTR,
-    onDue: (prs) => (prs.length ? scan({ only: prs }) : undefined), // the poll: PRs in flight, or all while the bridge is down
+    onDue: (prs, signal) => (prs.length ? scan({ only: prs, signal }) : undefined), // the poll: PRs in flight, or all while the bridge is down
   });
   let scanning = false;
   let pending: ReturnType<typeof setTimeout> | 0 = 0;
@@ -77,14 +77,18 @@ export function createPullListPage() {
   }
 
   /** Tags every PR on the page, looking up the ones it doesn't know yet (force: all of them; only: just these, again). */
-  async function scan({ force = false, only = null as PrRef[] | null } = {}) {
+  async function scan({
+    force = false,
+    only = null as PrRef[] | null,
+    signal = undefined as AbortSignal | undefined,
+  } = {}) {
     if (scanning || !extensionAlive() || !isPullListPage(location)) {
       return;
     }
     scanning = true;
     try {
       const items = prLinks();
-      const answer = await tags.look(only || items, { force: force || !!only });
+      const answer = await tags.look(only || items, { force: force || !!only, signal });
       if (!answer.ok) {
         return; // no bridge, no badges: the list stays as GitHub draws it
       }

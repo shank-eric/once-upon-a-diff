@@ -41,7 +41,8 @@ export function createTagPoll({
   waiting: () => PrRef[];
   /** false once the extension was reloaded under the page. */
   alive: () => boolean;
-  onDue: (prs: PrRef[]) => void | Promise<void>;
+  /** `signal` is the poll's load's: pass it to the calls the look makes (it is aborted when the load times out). */
+  onDue: (prs: PrRef[], signal: AbortSignal) => void | Promise<void>;
 }) {
   return createPoll<void>({
     everyMs: () => {
@@ -50,10 +51,10 @@ export function createTagPoll({
       }
       return failed() ? OFFLINE_MS : LOOK_AGAIN_MS;
     },
-    load: async () => {
+    load: async (signal) => {
       const prs = waiting();
       if (alive() && prs.length) {
-        await onDue(prs);
+        await onDue(prs, signal);
       }
     },
     onChange: () => {},

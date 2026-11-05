@@ -15,14 +15,14 @@ export function startLocalPolls({
   seen,
 }: {
   closed: () => boolean;
-  reload: () => Promise<void> | void;
-  seen: () => Promise<unknown>;
+  reload: (signal: AbortSignal) => Promise<void> | void;
+  seen: (signal: AbortSignal) => Promise<unknown>;
 }) {
   const whileClosed = createPoll<void>({
     everyMs: POLL_MS,
-    load: async () => {
+    load: async (signal) => {
       if (closed()) {
-        await reload();
+        await reload(signal);
       }
     },
     onChange: () => {},
@@ -30,7 +30,7 @@ export function startLocalPolls({
   const stillOpen = createPoll<void>({
     everyMs: STILL_OPEN_MS,
     whenHidden: true,
-    load: async () => void (await seen()),
+    load: async (signal) => void (await seen(signal)),
     onChange: () => {},
   });
   whileClosed.start();

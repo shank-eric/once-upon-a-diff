@@ -18,11 +18,17 @@ import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { hasCode, replyCode } from '@once-upon-a-diff/domain/error-code';
 import type { StatusError } from '@once-upon-a-diff/contracts/types';
 
-/** What a host's transport is asked to send. `path` carries the query. A POST always has a body (`{}` when it has none). */
+/** What a host's transport is asked to send. `path` carries the query. A POST always has a body (`{}` when it has none). `signal`, when a poll gave one, is aborted when the call is no longer wanted: the transport should close the request. */
 export interface CallRequest {
   method: 'GET' | 'POST';
   path: string;
   body?: unknown;
+  signal?: AbortSignal;
+}
+
+/** What a call may be given besides a route's arguments: the signal that ends it (a poll's load passes its own). */
+export interface CallOptions {
+  signal?: AbortSignal;
 }
 
 /** What a transport answers: status 0 when the call didn't get there, `body` the bridge's JSON. */
@@ -77,7 +83,10 @@ export type Args<R extends AnyRoute> = (ParamsOf<R> extends undefined
 type NoArgs<R extends AnyRoute> =
   ParamsOf<R> extends undefined ? (BodyOf<R> extends undefined ? true : false) : false;
 
-type ArgList<R extends AnyRoute> = NoArgs<R> extends true ? [args?: Args<R>] : [args: Args<R>];
+type ArgList<R extends AnyRoute> =
+  NoArgs<R> extends true
+    ? [args?: Args<R>, options?: CallOptions]
+    : [args: Args<R>, options?: CallOptions];
 
 /** `?a=1&b=2` for the query's defined values, or ''. */
 function queryString(query: object | undefined): string {
@@ -138,21 +147,25 @@ export function createClient(transport: Transport) {
   const request = <R extends AnyRoute>(
     route: R,
     args: Partial<Args<R>> | undefined,
+    options: CallOptions | undefined,
   ): CallRequest => ({
     method: route.method,
     path: pathFor(route, args),
     ...(route.method === 'POST' ? { body: args?.body ?? {} } : {}),
+    ...(options?.signal ? { signal: options.signal } : {}),
   });
   return {
     /** Calls a route. Never rejects. */
     async call<R extends AnyRoute>(route: R, ...rest: ArgList<R>): Promise<Reply<AnswerOf<R>>> {
-      return (await transport(request(route, rest[0] as Partial<Args<R>> | undefined))) as Reply<
-        AnswerOf<R>
-      >;
+      return (await transport(
+        request(route, rest[0] as Partial<Args<R>> | undefined, rest[1]),
+      )) as Reply<AnswerOf<R>>;
     },
     /** Calls a route and returns the answer, or throws a BridgeError. */
     async ask<R extends AnyRoute>(route: R, ...rest: ArgList<R>): Promise<AnswerOf<R>> {
-      const reply = await transport(request(route, rest[0] as Partial<Args<R>> | undefined));
+      const reply = await transport(
+        request(route, rest[0] as Partial<Args<R>> | undefined, rest[1]),
+      );
       if (!reply.ok) {
         throw new BridgeError(reply.error || `HTTP ${reply.status}`, reply.status, reply.body);
       }

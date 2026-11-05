@@ -272,3 +272,82 @@ test('a load that never settles times out as a failed load and the next one stil
   assert.equal(views.length, 2);
   poll.stop();
 });
+
+/** A fetch that never answers until its signal aborts, then rejects the way a real one does; `opened` has each call's signal. */
+function hungFetch() {
+  const opened: AbortSignal[] = [];
+  const fetch = (signal: AbortSignal) =>
+    new Promise<string>((_resolve, reject) => {
+      opened.push(signal);
+      signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+    });
+  return { opened, fetch };
+}
+
+test('a load that times out has its fetch aborted, counts as one timeout failure and the next load gets a fresh signal', async () => {
+  const views: PollView<string>[] = [];
+  const { opened, fetch } = hungFetch();
+  const poll = createPoll<string>({
+    everyMs: 3000,
+    load: (signal) => fetch(signal),
+    onChange: (view) => views.push(view),
+  });
+  poll.start();
+  await tick();
+  assert.equal(opened.length, 1);
+  mock.timers.tick(LOAD_TIMEOUT_MS - 1);
+  await tick();
+  assert.equal(opened[0].aborted, false, 'not before the timeout');
+  mock.timers.tick(1);
+  await tick();
+  assert.equal(opened[0].aborted, true, 'the timeout closes the request');
+  assert.deepEqual(
+    views.map((view) => [view.data, view.error?.message ?? null, view.failed]),
+    [[null, 'load timed out after 60 s', 1]],
+    'the abort is not a second failure',
+  );
+  mock.timers.tick(3000);
+  await tick();
+  assert.equal(opened.length, 2);
+  assert.equal(opened[1].aborted, false, 'the next load has its own signal');
+  assert.equal(views.length, 1);
+  poll.stop();
+});
+
+test('stop aborts a load in flight and what it says is dropped, even with the poll started again', async () => {
+  const views: PollView<string>[] = [];
+  const { opened, fetch } = hungFetch();
+  const poll = createPoll<string>({
+    everyMs: 3000,
+    load: (signal) => fetch(signal),
+    onChange: (view) => views.push(view),
+  });
+  poll.start();
+  await tick();
+  poll.stop();
+  assert.equal(opened[0].aborted, true);
+  poll.start(); // before the aborted load's rejection has been heard
+  await tick();
+  assert.equal(opened.length, 2, 'the second run loaded');
+  assert.equal(opened[1].aborted, false, 'and stop did not touch it');
+  assert.deepEqual(views, [], 'the aborted load did not reach onChange');
+  poll.stop();
+  assert.equal(opened[1].aborted, true);
+});
+
+test('a load that answers is not aborted afterwards, by the timeout or by stop', async () => {
+  const signals: AbortSignal[] = [];
+  const poll = createPoll<string>({
+    everyMs: 3000,
+    load: async (signal) => {
+      signals.push(signal);
+      return 'ok';
+    },
+    onChange: () => {},
+  });
+  poll.start();
+  await tick();
+  mock.timers.tick(LOAD_TIMEOUT_MS);
+  poll.stop();
+  assert.equal(signals[0].aborted, false);
+});

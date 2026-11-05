@@ -37,12 +37,13 @@ const KEY = new URLSearchParams(location.hash.slice(1)).get('key') || '';
 const authed = startAuth(KEY, '/api/board');
 
 /** The board's way to the bridge for the contracts package's client: its key (or its cookie), once the host's auth has settled. */
-const transport: Transport = async ({ method, path, body }) => {
+const transport: Transport = async ({ method, path, body, signal }) => {
   await authed;
   try {
     const response = await fetch(path, {
       method,
       cache: 'no-store',
+      signal,
       headers: {
         ...authHeader(KEY),
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
@@ -140,7 +141,9 @@ const EMPTY: BoardData = {
 
 /** The page: the board as last polled, and what went wrong with the polls since (none when the last one worked). */
 function BoardApp() {
-  const view = usePoll(() => bridge.ask(ROUTES.board), { everyMs: POLL_MS });
+  const view = usePoll((signal) => bridge.ask(ROUTES.board, undefined, { signal }), {
+    everyMs: POLL_MS,
+  });
   const { refresh } = view;
   const full = view.data ?? EMPTY;
   const api: Api = { bridge, board: full, refresh, count: usage.count };

@@ -141,3 +141,21 @@ test('a failed ask carries the bridge’s status and body, so the code can be re
   assert.equal(error.status, 404);
   assert.equal(bridgeProblem(error), 'old');
 });
+
+test('a call with a signal hands it to the transport; one without leaves it out of the request', async () => {
+  const sent: CallRequest[] = [];
+  const client = createClient(async (request) => {
+    sent.push(request);
+    return { ok: true, status: 200, body: {} };
+  });
+  const { signal } = new AbortController();
+  await client.call(ROUTES.health, undefined, { signal });
+  await client.ask(ROUTES.story, { params: { id: 's1' } }, { signal });
+  await client.call(ROUTES.boardFocus, { body: { session: 's1' } }, { signal });
+  await client.call(ROUTES.health);
+  assert.deepEqual(
+    sent.map((request) => request.signal === signal),
+    [true, true, true, false],
+  );
+  assert.ok(!('signal' in sent[3]));
+});

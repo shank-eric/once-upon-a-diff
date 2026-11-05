@@ -174,3 +174,18 @@ test('pollTargets: the PRs in flight, all of the page’s PRs while the bridge i
   );
   assert.deepEqual(pollTargets(results, true, []), [], 'no PR on the page');
 });
+
+test('the poll hands each look the load’s signal, so the page can pass it to its call', async () => {
+  const signals: AbortSignal[] = [];
+  const poll = createTagPoll({
+    failed: () => false,
+    waiting: () => [PULL],
+    alive: () => true,
+    onDue: (_prs, signal) => void signals.push(signal),
+  });
+  poll.start();
+  await tick();
+  assert.equal(signals.length, 1);
+  assert.equal(signals[0].aborted, false);
+  poll.stop();
+});
