@@ -10,7 +10,7 @@ import {
   type Pending,
   type PendingStore,
 } from '../src/content/refresh.ts';
-import type { Intent } from '@once-upon-a-diff/host-github/actions';
+import type { Intent } from '@once-upon-a-diff/github-page/actions';
 
 const START = 1_000_000;
 const REVIEW: Intent = { reason: 'review', repo: 'Acme/Widgets', number: 42 };

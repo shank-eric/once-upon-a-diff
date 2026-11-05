@@ -8,7 +8,7 @@
       "/assets/contracts/*": ["./packages/contracts/src/*"],
       "/assets/domain/*": ["./packages/domain/src/*"],
       "/assets/api-client/*": ["./packages/api-client/src/*"],
-      "/assets/host-github/*": ["./packages/host-github/src/*"],
+      "/assets/github-page/*": ["./packages/github-page/src/*"],
       "/assets/panel/*": ["./packages/panel/src/*"],
       "/assets/ui-kit/*": ["./packages/ui-kit/src/*"],
       "/assets/local/*": ["./packages/web/public/local/*"],

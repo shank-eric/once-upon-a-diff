@@ -101,7 +101,7 @@
       "name": "Host adapter",
       "group": "Client",
       "paths": [
-        "packages/host-github/"
+        "packages/github-page/"
       ],
       "note": "GitHub diff-page reader and URL routing"
     },
@@ -195,7 +195,7 @@
         "packages/domain/test/",
         "packages/web/test/",
         "packages/extension/test/",
-        "packages/host-github/test/",
+        "packages/github-page/test/",
         "packages/api-client/test/",
         "packages/test-kit/test/",
         "packages/test-kit/"

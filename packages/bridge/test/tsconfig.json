@@ -12,7 +12,7 @@
       "/assets/contracts/*": ["../../contracts/src/*"],
       "/assets/domain/*": ["../../domain/src/*"],
       "/assets/api-client/*": ["../../api-client/src/*"],
-      "/assets/host-github/*": ["../../host-github/src/*"]
+      "/assets/github-page/*": ["../../github-page/src/*"]
     }
   },
   "include": [".", "../../panel/types"],

@@ -1,5 +1,5 @@
 {
-  "name": "@once-upon-a-diff/host-github",
+  "name": "@once-upon-a-diff/github-page",
   "version": "0.1.0",
   "private": true,
   "description": "Once Upon a Diff's GitHub host adapter: reads GitHub's diff page and URLs for the panel, so a change in GitHub's markup lands in one package",

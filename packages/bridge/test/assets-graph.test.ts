@@ -41,7 +41,7 @@ test('every import in the page scripts and the panel resolves to a served asset,
   }
   assert.ok(seen.has('/assets/panel/shell/overlay.ts'), 'the panel is in the graph');
   assert.ok(seen.has('/assets/panel/host/bridge-options.ts'), 'its bridge calls are in the graph');
-  assert.ok(seen.has('/assets/host-github/diff-dom.ts'), 'the host adapter is in the graph');
+  assert.ok(seen.has('/assets/github-page/diff-dom.ts'), 'the host adapter is in the graph');
   assert.ok(seen.has('/assets/contracts/routes.ts'), 'the route table is in the graph');
   assert.ok(seen.has('/assets/contracts/route-kit.ts'), 'the route factories are in the graph');
   assert.ok(seen.has('/assets/contracts/story/routes.ts'), 'the story routes are in the graph');
@@ -70,7 +70,7 @@ test('forBrowser spells the panel, the contracts package, the domain, the api-cl
         `import { html } from '@once-upon-a-diff/domain/html';`,
         `export { x } from "@once-upon-a-diff/panel/host/diff-types";`,
         `const m = await import('@once-upon-a-diff/contracts/routes');`,
-        `import { createHostPage } from '@once-upon-a-diff/host-github/diff-dom';`,
+        `import { createHostPage } from '@once-upon-a-diff/github-page/diff-dom';`,
         `import { createClient } from '@once-upon-a-diff/api-client/client';`,
         `import { writeClipboard } from '@once-upon-a-diff/ui-kit/clipboard';`,
         `import './sibling.ts';`,
@@ -80,7 +80,7 @@ test('forBrowser spells the panel, the contracts package, the domain, the api-cl
       `import { html } from '/assets/domain/html.ts';`,
       `export { x } from "/assets/panel/host/diff-types.ts";`,
       `const m = await import('/assets/contracts/routes.ts');`,
-      `import { createHostPage } from '/assets/host-github/diff-dom.ts';`,
+      `import { createHostPage } from '/assets/github-page/diff-dom.ts';`,
       `import { createClient } from '/assets/api-client/client.ts';`,
       `import { writeClipboard } from '/assets/ui-kit/clipboard.ts';`,
       `import './sibling.ts';`,
@@ -188,6 +188,25 @@ test('a running bridge serves every file of the ui-kit package at /assets/ui-kit
       );
     }
     assert.equal((await fetch(`${bridge.base}/assets/ui/dom.ts`)).status, 404);
+  } finally {
+    await bridge.close();
+  }
+});
+
+test('a running bridge serves every file of the github-page package at /assets/github-page/, and the old /assets/host-github/ URLs are 404', async () => {
+  const src = fileURLToPath(new URL('../../github-page/src/', import.meta.url));
+  const files = readdirSync(src).filter((name) => name.endsWith('.ts'));
+  assert.ok(files.includes('diff-dom.ts') && files.includes('pages.ts'));
+  const bridge = await startBridge({ home: tmp('home') });
+  try {
+    for (const name of files) {
+      const response = await fetch(`${bridge.base}/assets/github-page/${name}`);
+      assert.equal(response.status, 200, name);
+      assert.match(response.headers.get('content-type') ?? '', /javascript/, name);
+    }
+    for (const old of ['diff-dom.ts', 'pages.ts']) {
+      assert.equal((await fetch(`${bridge.base}/assets/host-github/${old}`)).status, 404, old);
+    }
   } finally {
     await bridge.close();
   }

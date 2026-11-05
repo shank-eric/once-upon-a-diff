@@ -1,5 +1,5 @@
 /*
- * packages/shared is gone: what was in it lives in the domain package, the panel, the web package or host-github, and
+ * packages/shared is gone: what was in it lives in the domain package, the panel, the web package or github-page, and
  * nothing names the old package or the URLs its files were served at.
  */
 import { test } from 'node:test';

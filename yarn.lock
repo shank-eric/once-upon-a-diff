@@ -344,7 +344,7 @@ __metadata:
     "@once-upon-a-diff/api-client": "workspace:*"
     "@once-upon-a-diff/contracts": "workspace:*"
     "@once-upon-a-diff/domain": "workspace:*"
-    "@once-upon-a-diff/host-github": "workspace:*"
+    "@once-upon-a-diff/github-page": "workspace:*"
     "@once-upon-a-diff/panel": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@once-upon-a-diff/ui-kit": "workspace:*"
@@ -356,9 +356,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@once-upon-a-diff/host-github@workspace:*, @once-upon-a-diff/host-github@workspace:packages/host-github":
+"@once-upon-a-diff/github-page@workspace:*, @once-upon-a-diff/github-page@workspace:packages/github-page":
   version: 0.0.0-use.local
-  resolution: "@once-upon-a-diff/host-github@workspace:packages/host-github"
+  resolution: "@once-upon-a-diff/github-page@workspace:packages/github-page"
   dependencies:
     "@once-upon-a-diff/domain": "workspace:*"
     "@once-upon-a-diff/panel": "workspace:*"
@@ -410,7 +410,7 @@ __metadata:
     "@once-upon-a-diff/api-client": "workspace:*"
     "@once-upon-a-diff/contracts": "workspace:*"
     "@once-upon-a-diff/domain": "workspace:*"
-    "@once-upon-a-diff/host-github": "workspace:*"
+    "@once-upon-a-diff/github-page": "workspace:*"
     "@once-upon-a-diff/panel": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@once-upon-a-diff/ui-kit": "workspace:*"
@@ -4032,7 +4032,7 @@ __metadata:
     "@once-upon-a-diff/api-client": "workspace:*"
     "@once-upon-a-diff/contracts": "workspace:*"
     "@once-upon-a-diff/domain": "workspace:*"
-    "@once-upon-a-diff/host-github": "workspace:*"
+    "@once-upon-a-diff/github-page": "workspace:*"
     "@once-upon-a-diff/panel": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@once-upon-a-diff/ui-kit": "workspace:*"

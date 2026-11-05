@@ -9,7 +9,7 @@ import {
   withAskDock,
   noticeRowTitle,
 } from '../src/content/tag-model.ts';
-import { conversationPr } from '@once-upon-a-diff/host-github/pages';
+import { conversationPr } from '@once-upon-a-diff/github-page/pages';
 
 const pr = { repo: 'octo-org/api-server', number: 42 };
 

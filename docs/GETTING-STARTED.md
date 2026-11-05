@@ -23,7 +23,7 @@ yarn
 yarn build
 ```
 
-`yarn` installs the tools and links the repo's ten packages (`domain`, `contracts`, `api-client`, `ui-kit`, `host-github`, `panel`, `web`, `bridge`, `extension` and the dev-only `test-kit`). `yarn build` builds the extension into `packages/extension/.output/chrome-mv3`, the folder you load in step 5. The bridge needs no build: Node 24 runs it as it is.
+`yarn` installs the tools and links the repo's ten packages (`domain`, `contracts`, `api-client`, `ui-kit`, `github-page`, `panel`, `web`, `bridge`, `extension` and the dev-only `test-kit`). `yarn build` builds the extension into `packages/extension/.output/chrome-mv3`, the folder you load in step 5. The bridge needs no build: Node 24 runs it as it is.
 
 The repo uses Yarn 4 and carries its own copy (`.yarn/releases`), which any `yarn` on your PATH hands off to. If you don't have `yarn` at all, run `corepack enable` once. Corepack ships with Node 24, and it reads the `packageManager` field in `package.json` to fetch the same Yarn 4.
 

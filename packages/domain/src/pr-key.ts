@@ -1,7 +1,7 @@
 /*
  * The shapes of a GitHub PR the bridge, the panel and the extension all name: the PR key stories and drafts are stored
- * under, and the commit range in a PR's diff URL. The page routing that reads the rest of GitHub's URLs is host-github's
- * (packages/host-github/src/pages.ts). Pure: no DOM and no browser API, so node can test it.
+ * under, and the commit range in a PR's diff URL. The page routing that reads the rest of GitHub's URLs is github-page's
+ * (packages/github-page/src/pages.ts). Pure: no DOM and no browser API, so node can test it.
  */
 
 const COMMIT_RANGE =

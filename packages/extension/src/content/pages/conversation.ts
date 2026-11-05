@@ -6,7 +6,7 @@
  * story is queued or building (the tags' poll), and only reads from GitHub's page.
  */
 import { prKey } from '@once-upon-a-diff/domain/pr-key';
-import { conversationPr, pageKindOf } from '@once-upon-a-diff/host-github/pages';
+import { conversationPr, pageKindOf } from '@once-upon-a-diff/github-page/pages';
 import { extensionAlive } from '../bridge.ts';
 import { createPrTags, titleElement } from '../pr-tags.ts';
 import type { PrRef } from '../tag-model.ts';

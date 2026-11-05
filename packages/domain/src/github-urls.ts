@@ -1,5 +1,5 @@
 /*
- * The addresses of a PR on github.com. Parsing one back is in pr-key.ts and host-github, which read different shapes.
+ * The addresses of a PR on github.com. Parsing one back is in pr-key.ts and github-page, which read different shapes.
  */
 
 /** A PR's page: https://github.com/acme/widgets/pull/7, or its tab (`files`, `changes`) when given. */

@@ -6,7 +6,7 @@ import { ACTIONS, AREAS } from '@once-upon-a-diff/domain/usage-actions';
 
 const PACKAGES = path.resolve(import.meta.dirname, '../..');
 /** The client code that may count an action: it runs in the browser or the extension. */
-const CLIENTS = ['panel/src', 'web/public', 'extension/src', 'host-github/src'];
+const CLIENTS = ['panel/src', 'web/public', 'extension/src', 'github-page/src'];
 
 function sources(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {

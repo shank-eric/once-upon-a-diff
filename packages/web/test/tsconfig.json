@@ -13,7 +13,7 @@
       "/assets/contracts/*": ["../../contracts/src/*"],
       "/assets/domain/*": ["../../domain/src/*"],
       "/assets/api-client/*": ["../../api-client/src/*"],
-      "/assets/host-github/*": ["../../host-github/src/*"],
+      "/assets/github-page/*": ["../../github-page/src/*"],
       "/assets/panel/*": ["../../panel/src/*"],
       "/assets/ui-kit/*": ["../../ui-kit/src/*"],
       "/assets/highlight.mjs": ["../public/types/highlight.d.ts"],

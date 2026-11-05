@@ -8,7 +8,7 @@
  * own shadow roots; nothing of GitHub's is clicked.
  */
 import { prKey } from '@once-upon-a-diff/domain/pr-key';
-import { conversationPr, isPullListPage } from '@once-upon-a-diff/host-github/pages';
+import { conversationPr, isPullListPage } from '@once-upon-a-diff/github-page/pages';
 import { extensionAlive } from '../bridge.ts';
 import { createPrTags } from '../pr-tags.ts';
 import type { PrRef } from '../tag-model.ts';

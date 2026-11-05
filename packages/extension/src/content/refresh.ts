@@ -1,6 +1,6 @@
 /*
  * Tells the bridge when you act on GitHub (submit a review, open a PR, merge, mark ready, close), so the board's card
- * moves in seconds and not at the bridge's next poll of GitHub. What counts as such an action is host-github/src/actions.ts.
+ * moves in seconds and not at the bridge's next poll of GitHub. What counts as such an action is github-page/src/actions.ts.
  * The bridge asks GitHub again for that branch's PR (POST /api/github/refresh). A page-shaped module of the router
  * (index.ts) that also runs its own timer while an intent is waiting: acting on GitHub and switching to the board at once is
  * the usual flow, and the router's tick skips a hidden tab.
@@ -12,13 +12,13 @@
  * script on the page can't make the extension call the bridge.
  */
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
-import { conversationPr } from '@once-upon-a-diff/host-github/pages';
+import { conversationPr } from '@once-upon-a-diff/github-page/pages';
 import {
   intentOfClick,
   intentOfSubmit,
   type El,
   type Intent,
-} from '@once-upon-a-diff/host-github/actions';
+} from '@once-upon-a-diff/github-page/actions';
 import { bridge, extensionAlive, type Bridge } from './bridge.ts';
 
 export const FIRST_PING_MS = 1500;

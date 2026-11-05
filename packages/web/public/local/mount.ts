@@ -6,7 +6,7 @@
  */
 import { storyOverlay, type InitialUi } from '/assets/panel/shell/overlay.ts';
 import { bridgeOptions } from '/assets/panel/host/bridge-options.ts';
-import { createHostPage } from '/assets/host-github/diff-dom.ts';
+import { createHostPage } from '/assets/github-page/diff-dom.ts';
 import type { PanelHost } from '/assets/panel/host/host.ts';
 import type { LocalNote } from '/assets/types.ts';
 import { ROUTES } from '/assets/contracts/routes.ts';

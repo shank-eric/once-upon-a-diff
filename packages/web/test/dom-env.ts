@@ -14,7 +14,7 @@ const DOMAIN = fileURLToPath(new URL('../../domain/src/', import.meta.url));
 const API_CLIENT = fileURLToPath(new URL('../../api-client/src/', import.meta.url));
 const PANEL = fileURLToPath(new URL('../../panel/src/', import.meta.url));
 const UI_DIR = fileURLToPath(new URL('../../ui-kit/src/', import.meta.url));
-const HOST_GITHUB = fileURLToPath(new URL('../../host-github/src/', import.meta.url));
+const GITHUB_PAGE = fileURLToPath(new URL('../../github-page/src/', import.meta.url));
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -32,9 +32,9 @@ registerHooks({
     if (shared) {
       return { url: pathToFileURL(path.join(UI_DIR, shared[1])).href, shortCircuit: true };
     }
-    const host = /^\/assets\/host-github\/([a-z0-9-]+\.ts)$/.exec(specifier);
+    const host = /^\/assets\/github-page\/([a-z0-9-]+\.ts)$/.exec(specifier);
     if (host) {
-      return { url: pathToFileURL(path.join(HOST_GITHUB, host[1])).href, shortCircuit: true };
+      return { url: pathToFileURL(path.join(GITHUB_PAGE, host[1])).href, shortCircuit: true };
     }
     const apiClient = /^\/assets\/api-client\/([a-z0-9-]+\.ts)$/.exec(specifier);
     if (apiClient) {
