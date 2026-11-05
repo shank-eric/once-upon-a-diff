@@ -26,11 +26,10 @@ import type {
   StoryData,
   UncoveredFile,
 } from '@once-upon-a-diff/contracts/types';
-import type { StoryStore } from './store.ts';
 import { skeletonKeys } from './skeleton.ts';
 import { isStoryless } from './local-story.ts';
 import type { Plan } from './chapters.ts';
-import type { LocalMeta } from './types.ts';
+import type { LocalMeta, StoryStateReader } from './types.ts';
 import { storyParts } from './parts.ts';
 
 /** file-map.json, as once-upon's build writes it: where each file is told, and any hunks it was let publish untold. */
@@ -48,7 +47,7 @@ function relsOf(map: FileMap | null, diff: Map<string, DiffFile> | null): string
   return diff ? [...diff.keys()] : [];
 }
 
-export function storyData(store: StoryStore, id: string, dir: string): StoryData {
+export function storyData(store: StoryStateReader, id: string, dir: string): StoryData {
   let meta = readMeta(dir);
   if (meta.kind === 'local') {
     refreshLocal(

@@ -10,7 +10,7 @@ import type { BoardColumn } from '@once-upon-a-diff/contracts/types';
 import { sameRepo } from '../config/repos.ts';
 import { STALE_MS } from '../ledger/events.ts';
 import type { LedgerAgent } from '../ledger/ledger.ts';
-import type { BacklogItem } from './backlog.ts';
+import type { BacklogItem } from './types.ts';
 
 /** A claim whose agent has no ledger line yet counts this long (the launcher claims before the agent's first line lands). */
 export const CLAIM_GRACE_HOURS = 2;

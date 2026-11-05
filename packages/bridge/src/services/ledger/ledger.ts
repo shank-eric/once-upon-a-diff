@@ -43,7 +43,7 @@
  * Both files are read from their tail only, so a long history costs nothing.
  */
 import type { BoardBeat, BoardGate } from '@once-upon-a-diff/contracts/types';
-import type { AgentKind, AgentResult } from './events.ts';
+import type { AgentKind, AgentResult } from './agent-types.ts';
 
 /** One agent as its ledger lines tell it. */
 export interface LedgerAgent {

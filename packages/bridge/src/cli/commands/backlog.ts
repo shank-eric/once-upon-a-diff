@@ -9,7 +9,7 @@ import { BacklogStore, claimHint } from '../../services/backlog/backlog.ts';
 import { landItems, recordedTips } from '../../services/backlog/landing.ts';
 import { AgentRegistry } from '../../services/ledger/registry.ts';
 import { out } from '../output.ts';
-import type { BacklogItem } from '../../services/backlog/backlog.ts';
+import type { BacklogItem } from '../../services/backlog/types.ts';
 import type { Config } from '../../services/config/settings.ts';
 import type { CliOpts, Command } from '../types.ts';
 

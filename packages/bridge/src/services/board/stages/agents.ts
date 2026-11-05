@@ -11,7 +11,7 @@ import {
   pendingReview,
 } from '../agent-home.ts';
 import { agentKey, claimedAgents } from '../../backlog/claims.ts';
-import type { BacklogItem } from '../../backlog/backlog.ts';
+import type { BacklogItem } from '../../backlog/types.ts';
 import { STALE_MS, beatOf } from '../../ledger/events.ts';
 import { gateOf, lastActivity, type LedgerAgent } from '../../ledger/ledger.ts';
 import { laneOf } from './lanes.ts';

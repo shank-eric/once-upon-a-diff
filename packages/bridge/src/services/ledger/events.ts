@@ -16,13 +16,7 @@
 import { jsonLines } from '../../adapters/stores/fs/jsonl.ts';
 import { ledgerTime, type LedgerAgent } from './ledger.ts';
 import type { BoardBeat } from '@once-upon-a-diff/contracts/types';
-
-/**
- * What an agent is. `editor` is not an agent but a session that runs a repo's build queue (`/once-upon-editor`): it
- * registers itself so the board can show it with the authors it controls (the ones launched under its session id).
- */
-export const AGENT_KINDS = ['author', 'critic', 'helper', 'research', 'editor'] as const;
-export type AgentKind = (typeof AGENT_KINDS)[number];
+import { AGENT_KINDS, type AgentKind, type AgentResult } from './agent-types.ts';
 
 /** Old names for a kind, still read from old agents.jsonl lines and still accepted by `agent start --kind`. */
 export const KIND_ALIASES = { builder: 'author', reviewer: 'critic' } as const;
@@ -43,14 +37,6 @@ export const STALE_MS = 24 * 3600 * 1000;
 
 export const OPEN_STATES = ['running', 'waiting', 'review', 'plan', 'fixing'] as const;
 export const END_STATES = ['done', 'failed', 'stopped'] as const;
-
-/** What a finished run made: each part optional. */
-export interface AgentResult {
-  commit?: string;
-  pr?: number;
-  branch?: string;
-  card?: string;
-}
 
 /** One event line as stored. */
 export interface AgentEvent {

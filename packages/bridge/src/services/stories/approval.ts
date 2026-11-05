@@ -3,7 +3,7 @@
  * still counts. It is story state, so the story's own code and the board read it from here; writing it (approveStory,
  * clearApproval) stays in review/approve.ts.
  */
-import type { StoryStore } from './store.ts';
+import type { StoryStateReader } from './types.ts';
 
 /** The story's own state file for its approval. */
 export const APPROVAL_FILE = 'approved.json';
@@ -22,7 +22,7 @@ export interface Approval {
 }
 
 /** The raw approved.json, or null. */
-export const readApproval = (stories: StoryStore, id: string): Approval | null =>
+export const readApproval = (stories: StoryStateReader, id: string): Approval | null =>
   stories.readState<Approval | null>(id, APPROVAL_FILE, null);
 
 /**
@@ -30,7 +30,7 @@ export const readApproval = (stories: StoryStore, id: string): Approval | null =
  * story's head from its meta.json (kept current while a page polls the story, and by the background check).
  */
 export function approvalOf(
-  stories: StoryStore,
+  stories: StoryStateReader,
   id: string,
   headOid: string | null | undefined,
   now = Date.now(),

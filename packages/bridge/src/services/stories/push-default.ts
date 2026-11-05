@@ -29,8 +29,7 @@ import {
 } from '../../adapters/git.ts';
 import { readApproval, APPROVED_DAYS } from './approval.ts';
 import type { PushView, ShipMode } from '@once-upon-a-diff/contracts/types';
-import type { StoryStore } from './store.ts';
-import type { StoryMeta } from './types.ts';
+import type { StoryMeta, StoryStateReader } from './types.ts';
 import { shortSha } from '@once-upon-a-diff/domain/text';
 
 const FETCH_MS = 30000;
@@ -62,7 +61,7 @@ export function shipMode(meta: StoryMeta, home = homeDir()): ShipMode {
 }
 
 /** The approved commit to push: the story's approved.json, while it is under APPROVED_DAYS old. */
-export function approvedFor(stories: StoryStore, id: string, now = Date.now()) {
+export function approvedFor(stories: StoryStateReader, id: string, now = Date.now()) {
   const found = readApproval(stories, id);
   const approvedMs = found ? Date.parse(found.at) : NaN;
   return found &&

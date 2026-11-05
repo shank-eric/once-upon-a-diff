@@ -16,8 +16,8 @@ import { REPO_RE } from '../config/repos.ts';
 import { appendAgentEvent, readAgentsFile } from '../../adapters/stores/agents-file.ts';
 import { appendLine } from '../../adapters/stores/fs/lines.ts';
 import { lastActivity } from './ledger.ts';
+import { AGENT_KINDS, type AgentKind, type AgentResult } from './agent-types.ts';
 import {
-  AGENT_KINDS,
   KIND_ALIASES,
   canonicalKind,
   END_STATES,
@@ -29,8 +29,6 @@ import {
   parseAgentEvents,
   runIsOpen,
   type AgentEvent,
-  type AgentKind,
-  type AgentResult,
 } from './events.ts';
 import { branchTip, madeOnBranch } from './made.ts';
 import { agentsFile } from './read.ts';

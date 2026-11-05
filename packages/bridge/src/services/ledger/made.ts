@@ -10,7 +10,7 @@
  */
 import { remoteNamed } from '../config/repos.ts';
 import { runGit } from '../../adapters/git.ts';
-import type { AgentResult } from './events.ts';
+import type { AgentResult } from './agent-types.ts';
 import type { LedgerAgent } from './ledger.ts';
 
 const GIT_TIMEOUT_MS = 3000;

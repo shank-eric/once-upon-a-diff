@@ -4,7 +4,7 @@
  */
 import { checkoutFor, sameRepo, seenCheckouts } from '../../config/repos.ts';
 import { assignLine, backlogCards, cardOnBranch } from '../../backlog/backlog.ts';
-import type { BacklogItem } from '../../backlog/backlog.ts';
+import type { BacklogItem } from '../../backlog/types.ts';
 import { claimedAgent, criticHold, sameAgentView } from '../../backlog/claims.ts';
 import { agentLinks, startedLinks } from '../../backlog/backlog-links.ts';
 import type { Worktree } from '../../backlog/backlog-links.ts';

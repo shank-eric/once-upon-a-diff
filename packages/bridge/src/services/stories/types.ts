@@ -56,3 +56,9 @@ export interface ServedStory {
   ref: StoryRef;
   sub?: string;
 }
+
+/** What story code reads of a story store: the bridge's home and a story's state files. StoryStore is the one implementation. */
+export interface StoryStateReader {
+  home: string;
+  readState<T>(id: string, name: string, fallback: T): T | null;
+}

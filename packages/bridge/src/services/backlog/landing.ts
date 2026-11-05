@@ -9,7 +9,7 @@ import { authorStamp, commitOf, commitsInRange, patchId } from '../../adapters/g
 import { sameRepo } from '../config/repos.ts';
 import { STALE_MS, runIsOpen, type AgentEvent } from '../ledger/events.ts';
 import { lastActivity, type LedgerAgent } from '../ledger/ledger.ts';
-import type { BacklogItem } from './backlog.ts';
+import type { BacklogItem } from './types.ts';
 import { claimedRun } from './claims.ts';
 
 /**

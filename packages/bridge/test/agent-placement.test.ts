@@ -11,7 +11,7 @@ import { markFinished, readFinished } from '../src/adapters/stores/finished-agen
 import type { WorktreeFacts, WorktreeScanner } from '../src/services/worktrees/worktrees.ts';
 import type { PrWatcher } from '../src/services/board/stages/pr-watcher.ts';
 import { backlogCards } from '../src/services/backlog/backlog.ts';
-import type { BacklogItem } from '../src/services/backlog/backlog.ts';
+import type { BacklogItem } from '../src/services/backlog/types.ts';
 import { nestClaimedAgents } from '../src/services/board/stages/backlog.ts';
 import type { BuildContext } from '../src/services/board/stages/types.ts';
 import type { LedgerAgent } from '../src/services/ledger/ledger.ts';

@@ -16,7 +16,7 @@ import type { BoardBeat, BoardStartedLinks } from '@once-upon-a-diff/contracts/t
 import { parseWorktreeEntries } from '../worktrees/worktrees.ts';
 import { beatOf } from '../ledger/events.ts';
 import type { LedgerAgent } from '../ledger/ledger.ts';
-import type { BacklogItem } from './backlog.ts';
+import type { BacklogItem } from './types.ts';
 import { OPEN, claimedAgent } from './claims.ts';
 
 /** One checkout of a repo, as `git worktree list --porcelain` gives it. */

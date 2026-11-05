@@ -46,6 +46,7 @@ import { newId } from '../config/ids.ts';
 import { clean, optional } from '../input.ts';
 import type { BoardAgent, BoardCard, BoardStartedLinks } from '@once-upon-a-diff/contracts/types';
 import type { LedgerAgent } from '../ledger/ledger.ts';
+import type { BacklogItem } from './types.ts';
 
 export const STARTED_GRACE_HOURS = 24;
 /** A started item whose work merged or landed, or whose agent finished, stays in Done this long. */
@@ -57,32 +58,6 @@ export const ID_PATTERN = BACKLOG_ID_RE;
 const TITLE_MAX = 200;
 const NOTE_MAX = 1000;
 const BY_MAX = 40;
-
-/** One item as its events fold. */
-export interface BacklogItem {
-  id: string;
-  title: string;
-  note: string | null;
-  repo: string | null;
-  branch: string | null;
-  added_by: string;
-  added_at: string;
-  state: 'open' | 'started' | 'dropped';
-  started_at: string | null;
-  started_by: string | null;
-  dropped_at: string | null;
-  /** when a `done` event recorded the work as landed (started items only), and the sha it landed as, when given */
-  landed_at: string | null;
-  landed_sha: string | null;
-  /** the latest session an Assign typed the item into; kept until a start or a drop (shown for ASSIGN_HOURS) */
-  assigned: { session: string; branch: string | null; at: string } | null;
-  /** the agent that claimed the card (named as in the ledger, with its launching session's first 8 when given); cleared when it lands (`done`) or by a reopen */
-  claim: { agent: string; sid: string | null; by: string; at: string } | null;
-  /** the card lands by hand: a deploy does not mark it done (part of its work lands outside the repo) */
-  hold: boolean;
-  /** maybe someday: out of the main list into the Someday section (an open card only; cleared when work starts on it) */
-  someday: boolean;
-}
 
 /** Where a move puts an item: before another one, or at the top or the bottom. */
 export type MoveTo = { before: string } | { edge: 'top' | 'bottom' };

@@ -7,7 +7,7 @@
  */
 import type { BoardCard } from '@once-upon-a-diff/contracts/types';
 import { sameRepo } from '../config/repos.ts';
-import type { BacklogItem } from '../backlog/backlog.ts';
+import type { BacklogItem } from '../backlog/types.ts';
 import { cardOnBranch } from '../backlog/backlog.ts';
 import { isCritic, lastActivity, type LedgerAgent } from '../ledger/ledger.ts';
 import { KEEP_MS as FINISH_KEPT_MS } from '../../adapters/stores/finished-agents.ts';
