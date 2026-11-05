@@ -14,7 +14,7 @@
     "zip": "ONCE_UPON_STORE=1 wxt zip",
     "icons": "node ../core/src/foundation/node-version.mjs && node scripts/make-icons.ts",
     "postinstall": "wxt prepare",
-    "test": "node ../core/src/foundation/node-version.mjs && node --test test/*.test.ts",
+    "test": "node ../core/src/foundation/node-version.mjs && node --test --test-timeout=60000 test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p scripts/tsconfig.json && tsc -p test/tsconfig.json"
   },
   "dependencies": {

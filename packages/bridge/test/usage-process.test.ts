@@ -151,10 +151,12 @@ test('fix 3: a second `serve` on a busy port leaves the live bridge advertised a
       stdio: 'ignore',
     });
     const gone = exited(second);
+    let giveUp: ReturnType<typeof setTimeout> | undefined;
     const result = await Promise.race([
       gone,
-      new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+      new Promise<null>((resolve) => (giveUp = setTimeout(() => resolve(null), 8000))),
     ]);
+    clearTimeout(giveUp);
     if (result === null) {
       second.kill('SIGKILL');
     }

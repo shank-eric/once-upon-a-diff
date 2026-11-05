@@ -1,6 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { assertNoLiveTimers } from '@once-upon-a-diff/test-kit/timers';
 import { createUsage } from '../src/usage.ts';
+
+// a counter left with something pending keeps its batch timer, and the process, alive
+assertNoLiveTimers();
 
 const wait = (millis: number) => new Promise((resolve) => setTimeout(resolve, millis));
 

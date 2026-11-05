@@ -4,6 +4,7 @@
  * installDom once, before importing the code under test. Each test file is its own process, so one call per file; a second call throws.
  */
 import { parseHTML } from 'linkedom';
+import { assertNoLiveTimers } from './timers.ts';
 
 // browsers have an on<event> property for each of these, and Preact picks its event names from them
 const EVENT_PROPERTIES = [
@@ -49,6 +50,8 @@ export function installDom({ html, rootId, rect }: DomOptions) {
     );
   }
   installed = true;
+  // a test file with a DOM runs pages and panels that poll and tick: one that is not torn down fails the file here
+  assertNoLiveTimers();
   const { window, document } = parseHTML(html);
   const root = document.getElementById(rootId) as unknown as HTMLElement;
   // an `el.onclick = fn` assignment runs fn on that event, as in a browser (Preact never assigns these: it adds listeners, and

@@ -13,7 +13,7 @@
   },
   "scripts": {
     "serve": "node bin/once-upon.mjs serve",
-    "test": "node ../core/src/foundation/node-version.mjs && node --test test/*.test.ts",
+    "test": "node ../core/src/foundation/node-version.mjs && node --test --test-timeout=60000 test/*.test.ts",
     "test:extension": "node ../core/src/foundation/node-version.mjs && yarn workspace @once-upon-a-diff/extension build && node test/browser/load-test.ts",
     "test:expand": "node ../core/src/foundation/node-version.mjs && yarn workspace @once-upon-a-diff/extension build && node test/browser/expand-test.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json && tsc -p test/browser/tsconfig.json"

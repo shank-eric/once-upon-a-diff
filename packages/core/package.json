@@ -13,7 +13,7 @@
     "./test/*": "./test/*.ts"
   },
   "scripts": {
-    "test": "node src/foundation/node-version.mjs && node --test test/*.test.ts",
+    "test": "node src/foundation/node-version.mjs && node --test --test-timeout=60000 test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json"
   },
   "dependencies": {

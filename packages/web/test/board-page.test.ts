@@ -209,6 +209,10 @@ Object.assign(globalThis, {
 });
 const BOARD_POLL_MS = 3000;
 const realSetTimeout = globalThis.setTimeout;
+// the page's usage counter arms a real 60 s timer on its first count (board.ts keeps the counter to itself, so the test cannot
+// flush it, as the local page's tests do): the timers that long are cleared when the tests end, or they keep the process up
+const longTimers = new Set<number>();
+test.after(() => longTimers.forEach((timer) => clearTimeout(timer)));
 Object.assign(globalThis, {
   location: { hash: '' },
   alert: (text: string) => void alerts.push(text),
@@ -219,7 +223,11 @@ Object.assign(globalThis, {
       poll = callback;
       return 0;
     }
-    return realSetTimeout(callback, delay, ...rest);
+    const timer = realSetTimeout(callback, delay, ...rest);
+    if (delay !== undefined && delay >= 10_000) {
+      longTimers.add(timer);
+    }
+    return timer;
   },
   fetch: async (path: string, init?: { method?: string; body?: string }) => {
     const method = init?.method ?? 'GET';

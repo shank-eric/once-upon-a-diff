@@ -6,6 +6,9 @@
 import { mkdtempSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { assertNoLiveTimers } from './timers.ts';
+
+assertNoLiveTimers();
 
 process.env.ONCE_UPON_DEV_DIR = mkdtempSync(path.join(os.tmpdir(), 'once-upon-dev-'));
 export const CLAUDE_DIR = mkdtempSync(path.join(os.tmpdir(), 'once-upon-claude-'));
