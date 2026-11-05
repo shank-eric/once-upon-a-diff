@@ -26,7 +26,7 @@ On an allowed host name over https, the board trades its key for a `__Host-ou-bo
 ## Consequences
 
 - A leaked story link stays confined to its story. A read-only one, if one were handed out, could read and annotate that story but not push, type or see the board.
-- **The board key is close to the token in practice.** It types `/once-upon …` and Assign lines into Claude sessions, hands out full story keys (which can push branches), and writes outside the bridge: it makes and removes Larmor's `paused` file, runs Larmor's `voice_ctl` (Start and Stop voice, phone mode), and removes worktrees and merged branches (ADR-11). It sits in a 30-day cookie on `once-upon.test`.
+- **The board key is close to the token in practice.** It types `/once-upon …` and Assign lines into Claude sessions, hands out full story keys (which can push branches), and writes outside the bridge: it runs Larmor's `voice_ctl` (Pause and Resume, Start and Stop voice, phone mode: Larmor writes its own files), and removes worktrees and merged branches (ADR-11). It sits in a 30-day cookie on `once-upon.test`.
 - The read-only key is default-deny, so a new story route is closed to it until it's listed. The full story key and the board key are default-allow within their scope, so a new story route is open to full links at once.
 - The read-only key may send fix requests and Rebuild, which make a listening session change code, commit or re-tell a story, though never push.
 - Keys never expire on their own. The only revocation is `token --rotate`, which changes every key and cookie at once and means re-pasting the token into the extension and restarting the bridge.

@@ -16,9 +16,10 @@ import {
   utimesSync,
   realpathSync,
 } from 'node:fs';
-import net from 'node:net';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { voiceState } from '@once-upon-a-diff/core/adapters/larmor';
+import { fakeLarmorIn } from '../fake-larmor.ts';
 import path from 'node:path';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../../..');
@@ -127,7 +128,6 @@ const procStartOf = (pid: number, ppid: number) => {
 };
 
 const children: { pid: number; kill: () => void }[] = [];
-const servers: net.Server[] = [];
 function liveChild() {
   const child = spawn('sleep', ['120']);
   children.push({ pid: child.pid as number, kill: () => child.kill() });
@@ -768,11 +768,7 @@ async function record(
   const home = tmp('home');
   const sessions = tmp('sessions');
   const voiceDir = tmp('voice');
-  const larmor = tmp('larmor');
-  mkdirSync(path.join(larmor, '.venv-app', 'bin'), { recursive: true });
-  mkdirSync(path.join(larmor, 'app'), { recursive: true });
-  writeFileSync(path.join(larmor, '.venv-app', 'bin', 'python'), '');
-  writeFileSync(path.join(larmor, 'app', 'voice_ctl.py'), '');
+  const larmor = fakeLarmorIn(tmp('larmor'), voiceDir);
   const tree = await parentWithChild();
   const tree2 = await parentWithChild();
   const [voice, other, idleOne, idleTwo, busy] = Array.from({ length: 5 }, () => liveChild());
@@ -869,6 +865,7 @@ async function record(
   writeJson(path.join(voiceDir, 'session'), {
     on: true,
     session_id: fullId(voice.pid),
+    owner: process.pid,
     last_listen: 5,
     last_speak: 4,
   });
@@ -933,13 +930,8 @@ async function record(
   const it2 = path.join(tmp('it2'), 'it2');
   writeFileSync(it2, '#!/bin/sh\necho "[]"\n');
   chmodSync(it2, 0o755);
-  // the phone bridge's port is this world's own listener, so `phone.bridge` never depends on the machine running the tests
-  const sink = net.createServer((socket) => socket.destroy()).unref();
-  await new Promise<void>((resolve) => sink.listen(0, '127.0.0.1', resolve));
-  servers.push(sink);
-  writeJson(path.join(voiceDir, 'phone.json'), {
-    sink_port: (sink.address() as net.AddressInfo).port,
-  });
+  // the fake voice_ctl says the phone bridge runs, so `phone.bridge` never depends on the machine running the tests
+  writeFileSync(path.join(larmor, 'bridge-up'), '');
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: sessions,
     board_voice_dir: voiceDir,
@@ -947,6 +939,10 @@ async function record(
     board_it2_path: it2,
     board_status_source: 'iterm',
   });
+  // the board waits for voice_ctl only so long on its first build: have the answer in before the world is built, however loaded the machine is
+  for (let tries = 0; tries < 100 && !(await voiceState(larmor)); tries += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
   const { watcher, asked } = fakeWatcher([prInfo(7, { branch: 'feat/x' })]);
   const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
     source: sourceSaying({
@@ -1229,6 +1225,5 @@ for (const [name, value] of Object.entries(results)) {
 
 export function finish() {
   children.forEach((child) => child.kill());
-  servers.forEach((server) => server.close());
   rmSync(WORK, { recursive: true, force: true });
 }

@@ -16,8 +16,8 @@ export interface BoardData {
   /** the voice session when voice mode is on and board_voice_dir names its folder; it is not on a card */
   voice: BoardVoice | null;
   /**
-   * The phone buttons' state, whether or not voice is on: phone mode (Larmor's away mode, from the `away` file) and whether
-   * its phone bridge runs. Null unless board_voice_dir and board_larmor_dir are set and the checkout can run voice_ctl.
+   * The phone buttons' state, whether or not voice is on: phone mode (Larmor's away mode) and whether its phone bridge
+   * runs, both from `voice_ctl status`. Null unless board_voice_dir and board_larmor_dir are set and the checkout can run voice_ctl.
    */
   phone: { on: boolean; bridge: boolean } | null;
   /**
@@ -27,7 +27,7 @@ export interface BoardData {
   voice_start: BoardVoiceStart | null;
   /** the editors running a repo's queue (each a live session that registered), with their authors: the strip above the columns */
   editors: BoardEditor[];
-  /** Larmor's `paused` file exists (board_voice_dir set), voice on or not: a pause left by a session that died needs a Resume */
+  /** voice_ctl says voice is paused (board_larmor_dir set), voice on or not: a pause left by a session that died needs a Resume */
   voice_paused: boolean;
   /** repos with a listener now, and those that had one in the last week */
   listeners: BoardListenerRepo[];

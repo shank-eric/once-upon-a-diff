@@ -14,8 +14,8 @@
  *                               session when none is given) and waits for voice to come on. 409 with Larmor's reason when it
  *                               refuses (voice already on, engine not ready, the session busy or gone). Takes up to about 30 s
  *   POST /api/board/voice/stop  Stop voice, through voice_ctl (the menu bar's Stop voice). Takes up to about 3 s
- *   POST /api/board/voice/pause {paused: boolean}: pause or resume voice by making or removing Larmor's `paused` file, as its
- *                               menu bar does (the bridge writes the file, the page only asks). 409 to pause when voice is off
+ *   POST /api/board/voice/pause {paused: boolean}: pause or resume voice through voice_ctl, as Larmor's
+ *                               menu bar does (the page only asks). 409 with Larmor's reason to pause when voice is off
  *   POST /api/board/stop-listening  {repo}: end the repo's listener
  *   POST /api/board/focus       {session}: bring that session's iTerm tab to the front (the tab is found server-side)
  *   POST /api/board/open-story  {story}: a local story's page link (a card's Open story), with that story's full key
@@ -208,9 +208,9 @@ async function assignBacklog({ app, body: raw, send }: Call) {
 }
 
 /** POST {paused}: pause (true) or resume (false) voice. */
-function voicePause({ app, body: raw, send }: Call) {
+async function voicePause({ app, body: raw, send }: Call) {
   const { paused } = parseBody('boardVoicePause', raw);
-  app.board.setVoicePaused(paused);
+  await app.board.setVoicePaused(paused);
   return send(200, { ok: true, paused });
 }
 

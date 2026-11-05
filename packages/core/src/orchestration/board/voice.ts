@@ -1,6 +1,6 @@
 /*
  * The voice session, pinned at the top of the board instead of sitting in a column. Larmor keeps its state in files
- * (adapters/larmor.ts reads them); this is what the board makes of them.
+ * (adapters/larmor.ts asks voice_ctl, and reads the little it does not say); this is what the board makes of them.
  */
 import type { VoiceFiles } from '../../adapters/larmor.ts';
 

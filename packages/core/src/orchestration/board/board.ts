@@ -26,14 +26,12 @@ import type { Worktree } from '../../queues/backlog/backlog-links.ts';
 import {
   forgetProbes,
   phoneReady,
-  readVoice,
+  rememberVoiceState,
   runVoiceCtl,
-  setPaused,
   type CtlResult,
   type PhoneCommand,
   type VoiceCommand,
   VoiceCtlError,
-  waitBridgeDown,
 } from '../../adapters/larmor.ts';
 import type { ListeningInput } from '../../features/sessions/listening.ts';
 import { requestStop } from '../../queues/requests/auto-stop.ts';
@@ -73,6 +71,8 @@ export class Board {
   private cache: { at: number; data: BoardData } | null = null;
   /** a voice_ctl call (phone, start or stop) is running */
   private phoneBusy = false;
+  /** a voice_ctl pause or resume is running */
+  private pauseBusy = false;
   /** What the last build knew of the sessions, for the panel's Start listening (listenSessions). */
   private listeningNow: { input: ListeningInput } | null = null;
   /** The build in flight, so callers arriving while it runs share it instead of starting another. */
@@ -389,36 +389,21 @@ export class Board {
   }
 
   /**
-   * Pause or resume voice from the board: the `paused` file in Larmor's folder, made or removed the way its menu bar
-   * does. Pausing needs voice to be on (start_voice clears the file anyway); resuming is always fine.
+   * Pause or resume voice from the board, through Larmor's voice_ctl (the menu bar's Pause and Resume). Larmor refuses to
+   * pause when voice is not on (a 409 with its reason); resuming is always fine.
    */
-  setVoicePaused(paused: boolean): void {
-    const dir = readSettings(this.home).board.voiceDir;
-    if (!dir) {
-      throw new BoardError(400, 'board_voice_dir is not set, so there is no voice to pause');
-    }
-    if (
-      paused &&
-      !readVoice(dir, (this.options.now ? this.options.now() : new Date()).getTime())?.on
-    ) {
-      throw new BoardError(409, 'voice mode is not on, so there is nothing to pause');
-    }
-    setPaused(dir, paused);
-    // the page refreshes right after the POST: it must see the file, not the kept snapshot
-    this.invalidate();
+  async setVoicePaused(paused: boolean): Promise<void> {
+    await this.askLarmor(paused ? 'pause' : 'resume');
   }
 
   /**
    * Turn phone mode on or off from the board, and stop the phone bridge, by asking Larmor's voice_ctl (it makes the checks
    * the menu bar makes, writes or removes the `away` file and starts or stops larmor_phone.py). Phone mode can turn on with voice off too. Larmor may refuse (not paired, firewall, another network): that is a 409 carrying its reason.
+   * After bridge-stop voice_ctl waits up to 3 s for the bridge to be gone, so the bridge it reports is the real one.
    */
   async setPhone(command: PhoneCommand): Promise<{ on: boolean; bridge: boolean }> {
-    const { result, after } = await this.askLarmor(command, undefined, async (done, voiceDir) =>
-      // Larmor signals the bridge to stop and returns without waiting: report the bridge as it is a moment later, still
-      // inside the one-call guard so no second request starts while the bridge goes down
-      command === 'bridge-stop' ? await waitBridgeDown(voiceDir) : done.bridge,
-    );
-    return { on: result.away, bridge: after ?? result.bridge };
+    const { result } = await this.askLarmor(command);
+    return { on: result.away, bridge: result.bridge };
   }
 
   /**
@@ -440,12 +425,11 @@ export class Board {
     return { voice: result.voiceOn };
   }
 
-  /** One voice_ctl call, one at a time (a second while phone-on waits for the bridge would undo it). `settle` runs inside the guard. */
-  private async askLarmor<T = undefined>(
-    command: VoiceCommand,
-    session?: string,
-    settle?: (result: CtlResult, voiceDir: string) => Promise<T>,
-  ): Promise<{ result: CtlResult; after: T | undefined }> {
+  /**
+   * One voice_ctl call at a time (a second while phone-on waits for the bridge would undo it). Pause and Resume are quick and
+   * independent of the slow commands, so they have a guard of their own and work while a Start or a phone action runs.
+   */
+  private async askLarmor(command: VoiceCommand, session?: string): Promise<{ result: CtlResult }> {
     const board = readSettings(this.home).board;
     if (!board.voiceDir || !board.larmorDir) {
       throw new BoardError(
@@ -459,22 +443,32 @@ export class Board {
         `${board.larmorDir} has no .venv-app/bin/python and app/voice_ctl.py to run`,
       );
     }
-    if (this.phoneBusy) {
+    const pausing = command === 'pause' || command === 'resume';
+    if (pausing ? this.pauseBusy : this.phoneBusy) {
       throw new BoardError(409, 'Larmor is still working on the last voice or phone request');
     }
-    this.phoneBusy = true;
+    if (pausing) {
+      this.pauseBusy = true;
+    } else {
+      this.phoneBusy = true;
+    }
     try {
       const result = await runVoiceCtl(board.larmorDir, command, session).catch((err: unknown) => {
+        forgetProbes(); // no result to keep: the next build asks voice_ctl itself
         throw err instanceof VoiceCtlError ? new BoardError(502, err.message) : err;
       });
-      forgetProbes();
+      // its state is read after the command ran, a refusal included: the next build uses it
+      rememberVoiceState(board.larmorDir, result);
       if (!result.ok) {
         throw new BoardError(409, result.why || `Larmor would not do ${command}`);
       }
-      return { result, after: settle ? await settle(result, board.voiceDir) : undefined };
+      return { result };
     } finally {
-      this.phoneBusy = false;
-      forgetProbes();
+      if (pausing) {
+        this.pauseBusy = false;
+      } else {
+        this.phoneBusy = false;
+      }
       this.invalidate();
     }
   }

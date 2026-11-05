@@ -4,7 +4,6 @@
  * of its own (cards.ts); the voice session is pinned above the columns; a session that only listens is shown in the
  * Listeners lane; one with no prompt yet is a chip in the Blank strip.
  */
-import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { sameRepo } from '../../../foundation/repos.ts';
 import { DEFAULT_BRANCHES } from '../../../foundation/settings.ts';
@@ -13,7 +12,7 @@ import type { LedgerAgent } from '../../../records/agents/ledger.ts';
 import type { BlankSessions } from '../../../adapters/claude-sessions/blank-sessions.ts';
 import type { SessionTitles } from '../../../adapters/claude-sessions/titles.ts';
 import { readStatusLines } from '../../../adapters/claude-sessions/statusline.ts';
-import { awayOn, bridgeUp, lastVoice, phoneReady, readVoice } from '../../../adapters/larmor.ts';
+import { lastVoice, phoneReady, readVoice, voiceState } from '../../../adapters/larmor.ts';
 import { adoptHandlers, listeningOnly, parentMap } from '../../../features/sessions/listening.ts';
 import { listeners, type Listener } from '../../../records/listeners/listeners.ts';
 import { pickSource } from '../../../features/sessions/sources.ts';
@@ -103,11 +102,14 @@ export async function readSessionFacts(
   const quiet = listeningOnly(live, known, waits, parents, sessionByPid, agents);
 
   // the voice session is pinned above the columns, so it is on no card (its agents keep theirs)
-  const voiceFiles = settings.voiceDir ? readVoice(settings.voiceDir, nowMs) : null;
-  // the phone buttons need Larmor's checkout to run its voice_ctl; phone mode is the `away` file, the bridge a local port
+  // voice, pause, phone mode and the bridge all come from one `voice_ctl status`; null when Larmor cannot say, shown as off
+  const larmor =
+    settings.voiceDir && settings.larmorDir ? await voiceState(settings.larmorDir) : null;
+  const voiceFiles = settings.voiceDir ? readVoice(settings.voiceDir, larmor, nowMs) : null;
+  // the phone buttons need Larmor's checkout to run its voice_ctl, and its answer
   const phone: BoardData['phone'] =
-    settings.voiceDir && settings.larmorDir && phoneReady(settings.larmorDir)
-      ? { on: awayOn(settings.voiceDir), bridge: await bridgeUp(settings.voiceDir, nowMs) }
+    larmor && settings.larmorDir && phoneReady(settings.larmorDir)
+      ? { on: larmor.away, bridge: larmor.bridge }
       : null;
 
   // sessions with no prompt yet (new, or just cleared) that are at rest and would be cards of their own: the Blank strip
@@ -180,7 +182,7 @@ export async function readSessionFacts(
     voiceFiles,
     phone,
     voiceStart,
-    voicePaused: !!settings.voiceDir && existsSync(path.join(settings.voiceDir, 'paused')),
+    voicePaused: !!larmor?.paused,
     blankIds,
     titles,
     statusLines,

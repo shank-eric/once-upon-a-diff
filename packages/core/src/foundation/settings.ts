@@ -202,11 +202,13 @@ const DEFAULT_HOSTS = ['once-upon.test', 'once-upon.fidev.net'];
  *                           scripts (ledger/events.ts ledgerLine); the board does not read it; no default, off when unset
  *   board_progress_file     the same for progress beats (`- <time> <name> <N>/<M> <step>: <note>`); no default, off when unset
  *   board_voice_dir         Larmor's folder (~/.larmor): once voice has started in a session today, that session is pinned at the
- *                           top of the board instead of sitting in a column (collapsed while paused or ended). The board
- *                           reads it, and writes only `paused`, for its Pause and Resume buttons; off when unset
- *   board_larmor_dir        the Larmor checkout (~/Development/SideProjects/larmor): the voice panel's phone mode and Stop
- *                           phone bridge buttons run its `.venv-app/bin/python app/voice_ctl.py` there; without it the panel
- *                           has no phone buttons
+ *                           top of the board instead of sitting in a column (collapsed while paused or ended). Voice, pause,
+ *                           phone mode and the bridge come from board_larmor_dir's voice_ctl; the board reads from this folder
+ *                           only the voice name, the last session, the listen and speak times and the spoken lines, and
+ *                           writes nothing there; off when unset
+ *   board_larmor_dir        the Larmor checkout (~/Development/SideProjects/larmor): the board runs its
+ *                           `.venv-app/bin/python app/voice_ctl.py` there for voice state (status), Pause and Resume, Start and
+ *                           Stop voice and the phone buttons; without it there is no voice panel and no buttons
  *   board_done_hours        how long a finished agent stays on the board (default 1)
  *   board_finished_wait_minutes  how long a finished agent (done, failed or stopped) with no card of its parent's sits in
  *                           Done, Research or Waiting, counted from its last event (default 30); an author (kind
