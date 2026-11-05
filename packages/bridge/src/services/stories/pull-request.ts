@@ -15,16 +15,22 @@
  */
 import { FULL_SHA_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { runGh } from '../config/gh.ts';
-import { revParse, runGit, runGitAsync, setUpstream } from '../../adapters/git.ts';
-import { defaultBranchOf } from './push-default.ts';
+import {
+  commitLog,
+  defaultBranchOf,
+  isAncestorAsync,
+  remoteBranchSha,
+  revParse,
+  runGitAsync,
+  setUpstream,
+} from '../../adapters/git.ts';
 import { storyRepo } from '../config/repos.ts';
-import type { LocalCommit, PrDraft, PrView } from '@once-upon-a-diff/protocol/types';
+import type { PrDraft, PrView } from '@once-upon-a-diff/protocol/types';
 import type { StoryMeta } from './types.ts';
 
 export const DRAFT_FILE = 'pr-draft.json';
 const LS_REMOTE_MS = 20000;
 const PUSH_MS = 5 * 60 * 1000; // a pre-push hook may run checks
-const LOG_FORMAT = '--format=%H%x09%cI%x09%s';
 
 /** A git ref for this checkout's branch, or null when it has none. */
 function headOf(repoPath: string, branch: string): string | null {
@@ -57,52 +63,32 @@ function defaultBranch(repoPath: string): string {
   return defaultBranchOf(repoPath) || 'main';
 }
 
-function commitsOf(repoPath: string, range: string[]): LocalCommit[] {
-  try {
-    const text = runGit(repoPath, ['log', LOG_FORMAT, ...range]).trim();
-    return text
-      ? text.split('\n').map((line) => {
-          const [sha, committedAt, subject] = line.split('\t');
-          return { sha, at: committedAt, subject };
-        })
-      : [];
-  } catch {
-    return [];
-  }
-}
-
 /** Where origin's copy of the branch stands against the local one, and what a push would send. */
 async function remoteOf(
   repoPath: string,
   branch: string,
   headSha: string,
 ): Promise<Pick<PrView, 'remote' | 'to_push'>> {
-  const listed = await runGitAsync(
-    repoPath,
-    ['ls-remote', '--heads', 'origin', `refs/heads/${branch}`],
-    { timeout: LS_REMOTE_MS },
-  );
-  if (listed.code !== 0) {
-    const error = listed.stderr.trim().split('\n')[0] || 'git ls-remote failed';
-    return { remote: { state: 'unreachable', sha: null, error }, to_push: [] };
+  const listed = await remoteBranchSha(repoPath, branch, LS_REMOTE_MS);
+  if (!listed.ok) {
+    return { remote: { state: 'unreachable', sha: null, error: listed.error }, to_push: [] };
   }
-  const remoteSha = listed.stdout.trim().split(/\s+/)[0] || null;
+  const remoteSha = listed.sha;
   if (!remoteSha) {
     // not on GitHub yet: the push sends what no origin branch has
-    const toPush = commitsOf(repoPath, [headSha, '--not', '--remotes=origin']);
+    const toPush = commitLog(repoPath, [headSha, '--not', '--remotes=origin']);
     return { remote: { state: 'missing', sha: null }, to_push: toPush };
   }
   if (remoteSha === headSha) {
     return { remote: { state: 'same', sha: remoteSha }, to_push: [] };
   }
-  const ancestor = await runGitAsync(repoPath, ['merge-base', '--is-ancestor', remoteSha, headSha]);
-  if (ancestor.code !== 0) {
+  if (!(await isAncestorAsync(repoPath, remoteSha, headSha))) {
     // not an ancestor, or a commit this checkout hasn't fetched: a plain push would be refused
     return { remote: { state: 'diverged', sha: remoteSha }, to_push: [] };
   }
   return {
     remote: { state: 'ahead', sha: remoteSha },
-    to_push: commitsOf(repoPath, [`${remoteSha}..${headSha}`]),
+    to_push: commitLog(repoPath, [`${remoteSha}..${headSha}`]),
   };
 }
 
@@ -236,20 +222,15 @@ export async function aheadOf(repoPath: string, branch: string): Promise<number 
   if (!headSha) {
     return null;
   }
-  const listed = await runGitAsync(
-    repoPath,
-    ['ls-remote', '--heads', 'origin', `refs/heads/${branch}`],
-    { timeout: LS_REMOTE_MS },
-  );
-  const remoteSha = listed.code === 0 ? listed.stdout.trim().split(/\s+/)[0] : '';
+  const listed = await remoteBranchSha(repoPath, branch, LS_REMOTE_MS);
+  const remoteSha = listed.ok ? listed.sha : null;
   if (!remoteSha) {
     return null;
   }
   if (remoteSha === headSha) {
     return 0;
   }
-  const ancestor = await runGitAsync(repoPath, ['merge-base', '--is-ancestor', remoteSha, headSha]);
-  if (ancestor.code !== 0) {
+  if (!(await isAncestorAsync(repoPath, remoteSha, headSha))) {
     return null;
   }
   const counted = await runGitAsync(repoPath, ['rev-list', '--count', `${remoteSha}..${headSha}`]);

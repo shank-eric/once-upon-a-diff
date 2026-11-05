@@ -4,7 +4,7 @@
  */
 import { FULL_SHA_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { runGh } from '../config/gh.ts';
-import { runGitAsync } from '../../adapters/git.ts';
+import { isAncestorAsync } from '../../adapters/git.ts';
 import { rulesRequired } from './merge-rules.ts';
 import { infoOf, latest, type PrNode } from './pr-info.ts';
 import type { PrInfo } from '@once-upon-a-diff/protocol/types';
@@ -229,12 +229,7 @@ async function onBranch(checkout: string, branch: string, oid: string): Promise<
   if (!FULL_SHA_RE.test(oid)) {
     return false;
   }
-  const { code } = await runGitAsync(
-    checkout,
-    ['merge-base', '--is-ancestor', oid, `refs/heads/${branch}`],
-    { timeout: 10000 },
-  );
-  return code === 0;
+  return isAncestorAsync(checkout, oid, `refs/heads/${branch}`, 10000);
 }
 
 /**

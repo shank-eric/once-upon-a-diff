@@ -6,7 +6,7 @@
 import path from 'node:path';
 import { readSettings } from '../config/settings.ts';
 import { REPO_RE, lastKnownRepo, repoOfCheckoutAsync } from '../config/repos.ts';
-import { runGitAsync } from '../../adapters/git.ts';
+import { branchNameAsync, isAncestorAsync, runGitAsync } from '../../adapters/git.ts';
 import { aheadOf } from '../stories/pull-request.ts';
 import { doneLine, lastActivity } from '../ledger/ledger.ts';
 import { readAgents } from '../ledger/read.ts';
@@ -282,8 +282,7 @@ export class Board {
       return kept.branch;
     }
     // symbolic-ref also answers on a branch with no commits yet, and fails when HEAD is detached
-    const out = await runGitAsync(cwd, ['symbolic-ref', '--short', 'HEAD'], { timeout: 3000 });
-    const branch = out.code === 0 && out.stdout.trim() ? out.stdout.trim() : null;
+    const branch = await branchNameAsync(cwd, 3000);
     this.branches.set(cwd, { at: now, branch });
     return branch;
   }
@@ -332,12 +331,7 @@ export class Board {
         .filter((name): name is string => !!name && name !== branch)
         .flatMap((name) => [`refs/heads/${name}`, `refs/remotes/origin/${name}`]);
       for (const line of [...new Set(lines)]) {
-        const check = await runGitAsync(
-          main.path,
-          ['merge-base', '--is-ancestor', `refs/heads/${branch}`, line],
-          { timeout: 3000 },
-        );
-        if (check.code === 0) {
+        if (await isAncestorAsync(main.path, `refs/heads/${branch}`, line, 3000)) {
           merged = true;
           break;
         }

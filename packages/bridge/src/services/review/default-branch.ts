@@ -1,6 +1,5 @@
 /** Whether a local story's commit has shipped to its checkout's default branch, asked through git. */
-import { runGitAsync } from '../../adapters/git.ts';
-import { defaultBranchOf } from '../stories/push-default.ts';
+import { defaultBranchOf, isAncestorAsync, runGitAsync } from '../../adapters/git.ts';
 
 /**
  * Whether a commit is already in the checkout's default branch (origin's, as last fetched): the commit is the branch's tip
@@ -17,10 +16,7 @@ export async function inDefaultBranch(
   }
   const refs = [`refs/remotes/origin/${name}`];
   for (const ref of refs) {
-    const { code } = await runGitAsync(checkout, ['merge-base', '--is-ancestor', oid, ref], {
-      timeout: 10000,
-    });
-    if (code === 0) {
+    if (await isAncestorAsync(checkout, oid, ref, 10000)) {
       return true;
     }
   }
@@ -31,10 +27,7 @@ export async function inDefaultBranch(
     return false;
   }
   for (const ref of refs) {
-    const based = await runGitAsync(checkout, ['merge-base', '--is-ancestor', rewrittenFrom, ref], {
-      timeout: 10000,
-    });
-    if (based.code !== 0) {
+    if (!(await isAncestorAsync(checkout, rewrittenFrom, ref, 10000))) {
       continue;
     }
     const held = await runGitAsync(

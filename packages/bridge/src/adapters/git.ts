@@ -163,14 +163,110 @@ export const diffText = (
     headOid,
   ]);
 
-export function commitsBetween(repo: string, baseOid: string, headOid: string): LocalCommit[] {
-  const out = runGit(repo, ['log', '--format=%H%x09%cI%x09%s', `${baseOid}..${headOid}`]).trim();
-  return out
-    ? out.split('\n').map((line) => {
+const LOG_FORMAT = '--format=%H%x09%cI%x09%s';
+
+/** The commits in `git log --format=%H%x09%cI%x09%s` output (LOG_FORMAT), one per line; none for blank output. */
+export function parseCommitLog(text: string): LocalCommit[] {
+  const trimmed = text.trim();
+  return trimmed
+    ? trimmed.split('\n').map((line) => {
         const [sha, committedAt, subject] = line.split('\t');
         return { sha, at: committedAt, subject };
       })
     : [];
+}
+
+export const commitsBetween = (repo: string, baseOid: string, headOid: string): LocalCommit[] =>
+  parseCommitLog(runGit(repo, ['log', LOG_FORMAT, `${baseOid}..${headOid}`]));
+
+/** The commits `git log` lists for a range (as `[a..b]`, or `[head, '--not', '--remotes=origin']`); none when git fails. */
+export function commitLog(repo: string, range: string[]): LocalCommit[] {
+  try {
+    return parseCommitLog(runGit(repo, ['log', LOG_FORMAT, ...range]));
+  } catch {
+    return [];
+  }
+}
+
+/** commitLog without blocking the bridge: the commits of one range string, none when git exits non-zero. */
+export async function commitLogAsync(repo: string, range: string): Promise<LocalCommit[]> {
+  const log = await runGitAsync(repo, ['log', LOG_FORMAT, range]);
+  return log.code === 0 ? parseCommitLog(log.stdout) : [];
+}
+
+/** Whether `ancestor` is the same commit as `descendant` or behind it (false when git can't say, a missing ref included). */
+export function isAncestor(repo: string, ancestor: string, descendant: string): boolean {
+  try {
+    runGit(repo, ['merge-base', '--is-ancestor', ancestor, descendant]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** isAncestor without blocking the bridge, with runGitAsync's 20 s limit unless told another. */
+export async function isAncestorAsync(
+  repo: string,
+  ancestor: string,
+  descendant: string,
+  timeout?: number,
+): Promise<boolean> {
+  const checked = await runGitAsync(repo, ['merge-base', '--is-ancestor', ancestor, descendant], {
+    timeout,
+  });
+  return checked.code === 0;
+}
+
+/**
+ * origin's copy of a branch, asked of origin itself (no fetch): its sha, or null when origin has no such branch. `ok` is
+ * false, with git's first line of complaint, when origin can't be reached.
+ */
+export async function remoteBranchSha(
+  repo: string,
+  branch: string,
+  timeout?: number,
+): Promise<{ ok: true; sha: string | null } | { ok: false; error: string }> {
+  const listed = await runGitAsync(
+    repo,
+    ['ls-remote', '--heads', 'origin', `refs/heads/${branch}`],
+    {
+      timeout,
+    },
+  );
+  if (listed.code !== 0) {
+    return { ok: false, error: listed.stderr.trim().split('\n')[0] || 'git ls-remote failed' };
+  }
+  return { ok: true, sha: listed.stdout.trim().split(/\s+/)[0] || null };
+}
+
+/** branchName without blocking the bridge: the current branch, null when HEAD is detached or the folder isn't a repo. */
+export async function branchNameAsync(repo: string, timeout?: number): Promise<string | null> {
+  const out = await runGitAsync(repo, ['symbolic-ref', '--short', 'HEAD'], { timeout });
+  return out.code === 0 && out.stdout.trim() ? out.stdout.trim() : null;
+}
+
+/** origin's default branch: from refs/remotes/origin/HEAD, else main or master when origin has one, else null. */
+export function defaultBranchOf(repo: string): string | null {
+  try {
+    const named = runGit(repo, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'])
+      .trim()
+      .replace(/^origin\//, '');
+    if (named) {
+      return named;
+    }
+  } catch {
+    /* origin/HEAD isn't set: look for the usual names */
+  }
+  for (const name of ['main', 'master']) {
+    try {
+      if (revParse(repo, `refs/remotes/origin/${name}`)) {
+        return name;
+      }
+    } catch {
+      /* not there */
+    }
+  }
+  return null;
 }
 
 /** The URL of the checkout's `origin` remote (throws when there is none). */

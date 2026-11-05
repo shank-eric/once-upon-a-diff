@@ -19,50 +19,23 @@ import { FULL_SHA_RE } from '@once-upon-a-diff/protocol/domain/patterns';
 import { homeDir, readSettings, shipRuleFor } from '../config/settings.ts';
 import { storyRepo } from '../config/repos.ts';
 import { runGh } from '../config/gh.ts';
-import { revParse, runGit, runGitAsync } from '../../adapters/git.ts';
+import {
+  commitLogAsync,
+  defaultBranchOf,
+  isAncestor,
+  isAncestorAsync,
+  revParse,
+  runGitAsync,
+} from '../../adapters/git.ts';
 import { readApproval, APPROVED_DAYS } from '../review/approve.ts';
-import type { LocalCommit, PushView, ShipMode } from '@once-upon-a-diff/protocol/types';
+import type { PushView, ShipMode } from '@once-upon-a-diff/protocol/types';
 import type { StoryStore } from './store.ts';
 import type { StoryMeta } from './types.ts';
 
 const FETCH_MS = 30000;
 const PUSH_MS = 5 * 60 * 1000; // a pre-push hook may run checks
-const LOG_FORMAT = '--format=%H%x09%cI%x09%s';
 /** Ruleset rules that stop a straight push (or only let a pull request or a merge queue through). */
 const BLOCKING_RULES = new Set(['pull_request', 'required_status_checks', 'merge_queue', 'update']);
-
-/** origin's default branch: from refs/remotes/origin/HEAD, else main or master when origin has one, else null. */
-export function defaultBranchOf(repoPath: string): string | null {
-  try {
-    const named = runGit(repoPath, ['symbolic-ref', '--short', 'refs/remotes/origin/HEAD'])
-      .trim()
-      .replace(/^origin\//, '');
-    if (named) {
-      return named;
-    }
-  } catch {
-    /* origin/HEAD isn't set: look for the usual names */
-  }
-  for (const name of ['main', 'master']) {
-    try {
-      if (revParse(repoPath, `refs/remotes/origin/${name}`)) {
-        return name;
-      }
-    } catch {
-      /* not there */
-    }
-  }
-  return null;
-}
-
-function isAncestorSync(repoPath: string, ancestor: string, descendant: string): boolean {
-  try {
-    runGit(repoPath, ['merge-base', '--is-ancestor', ancestor, descendant]);
-    return true;
-  } catch {
-    return false;
-  }
-}
 
 /**
  * How the story ships: a `ship` rule for its repo, else by branch. On the default branch, or on no branch with its head
@@ -82,7 +55,7 @@ export function shipMode(meta: StoryMeta, home = homeDir()): ShipMode {
     return meta.branch === def ? 'push' : 'pr';
   }
   const head = meta.head_oid;
-  return head && FULL_SHA_RE.test(head) && isAncestorSync(repoPath, head, `refs/heads/${def}`)
+  return head && FULL_SHA_RE.test(head) && isAncestor(repoPath, head, `refs/heads/${def}`)
     ? 'push'
     : 'pr';
 }
@@ -159,27 +132,6 @@ export async function protectionOf(repo: string, branch: string): Promise<PushVi
   return { state: 'open' };
 }
 
-async function commitsOf(repoPath: string, range: string): Promise<LocalCommit[]> {
-  const log = await runGitAsync(repoPath, ['log', LOG_FORMAT, range]);
-  const text = log.code === 0 ? log.stdout.trim() : '';
-  return text
-    ? text.split('\n').map((line) => {
-        const [sha, committedAt, subject] = line.split('\t');
-        return { sha, at: committedAt, subject };
-      })
-    : [];
-}
-
-async function isAncestor(
-  repoPath: string,
-  ancestor: string,
-  descendant: string,
-): Promise<boolean> {
-  return (
-    (await runGitAsync(repoPath, ['merge-base', '--is-ancestor', ancestor, descendant])).code === 0
-  );
-}
-
 /**
  * What a push of the approved commit would do, and why it can't when it can't. Read-only apart from the fetch of origin's
  * default branch (its remote-tracking ref). Nothing is pushed here.
@@ -224,12 +176,12 @@ export async function pushView(
   } catch {
     return stop(`${branch} isn't in this checkout.`);
   }
-  if (!tip || !(await isAncestor(repoPath, sha, tip))) {
+  if (!tip || !(await isAncestorAsync(repoPath, sha, tip))) {
     return stop(
       `The approved commit ${sha.slice(0, 7)} isn't on this checkout's ${branch}, so there is nothing to push to it. Pushing happens only for commits on ${branch}.`,
     );
   }
-  view.later = (await commitsOf(repoPath, `${sha}..${tip}`)).length;
+  view.later = (await commitLogAsync(repoPath, `${sha}..${tip}`)).length;
   // the fetch refreshes origin/<branch> so the comparison below is against what GitHub has now
   const [fetched, protection] = await Promise.all([
     runGitAsync(
@@ -257,10 +209,10 @@ export async function pushView(
   }
   if (remoteSha === sha) {
     view.remote = { state: 'same', sha: remoteSha };
-  } else if (await isAncestor(repoPath, remoteSha, sha)) {
+  } else if (await isAncestorAsync(repoPath, remoteSha, sha)) {
     view.remote = { state: 'ahead', sha: remoteSha };
-    view.to_push = await commitsOf(repoPath, `${remoteSha}..${sha}`);
-  } else if (await isAncestor(repoPath, sha, remoteSha)) {
+    view.to_push = await commitLogAsync(repoPath, `${remoteSha}..${sha}`);
+  } else if (await isAncestorAsync(repoPath, sha, remoteSha)) {
     view.remote = { state: 'behind', sha: remoteSha };
   } else {
     view.remote = { state: 'diverged', sha: remoteSha };
