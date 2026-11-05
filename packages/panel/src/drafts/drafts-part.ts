@@ -12,6 +12,7 @@
  * Copy's "Copied" and the label timers are the part's, and are cleared in destroy().
  */
 import { html } from '/assets/preact.mjs';
+import { Section } from '../components/section.ts';
 import { LinkButton } from '@once-upon-a-diff/ui-kit/components/link-button';
 import { capitalize, shortSha } from '@once-upon-a-diff/domain/text';
 import { writeClipboard } from '@once-upon-a-diff/ui-kit/clipboard';
@@ -254,7 +255,8 @@ export function createDrafts(context: PanelContext) {
     const onToggle = (event: Event) => {
       state.allCommentsOpen = (event.currentTarget as HTMLDetailsElement).open;
     };
-    return html`<details class="ou-drafts ou-allc" open=${open} onToggle=${onToggle}><summary><h2 class="ou-h">${context.commentsTitle}: all chapters (${total}) <span class="ou-draftsum">${summary}</span></h2></summary><div class="ou-drafttoggles">${togglesView()}</div><pre class="ou-script" hidden=${!scriptText}>${scriptText}</pre>${items}</details>`;
+    const heading = html`<h2 class="ou-h">${context.commentsTitle}: all chapters (${total}) <span class="ou-draftsum">${summary}</span></h2>`;
+    return html`<${Section} class="ou-drafts ou-allc" open=${open} onToggle=${onToggle} summary=${heading}><div class="ou-drafttoggles">${togglesView()}</div><pre class="ou-script" hidden=${!scriptText}>${scriptText}</pre>${items}</${Section}>`;
   }
 
   // ---------- the bridge's rows

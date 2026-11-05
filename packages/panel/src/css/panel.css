@@ -474,29 +474,24 @@
 #ou-panel .ou-stepprog.ou-done {
   color: var(--c-ok);
 }
-#ou-panel details.ou-filesbox > summary,
-#ou-panel details.ou-allc > summary {
+#ou-panel details:is(.ou-filesbox, .ou-allc) > summary {
   cursor: pointer;
   list-style: none;
   margin: 18px 0 6px;
 }
-#ou-panel details.ou-filesbox > summary::-webkit-details-marker,
-#ou-panel details.ou-allc > summary::-webkit-details-marker {
+#ou-panel details:is(.ou-filesbox, .ou-allc) > summary::-webkit-details-marker {
   display: none;
 }
-#ou-panel details.ou-filesbox > summary .ou-h,
-#ou-panel details.ou-allc > summary .ou-h {
+#ou-panel details:is(.ou-filesbox, .ou-allc) > summary .ou-h {
   display: inline;
   margin: 0;
 }
-#ou-panel details.ou-filesbox > summary::before,
-#ou-panel details.ou-allc > summary::before {
+#ou-panel details:is(.ou-filesbox, .ou-allc) > summary::before {
   content: '▸ ';
   color: var(--c-muted);
   font-size: 11px;
 }
-#ou-panel details.ou-filesbox[open] > summary::before,
-#ou-panel details.ou-allc[open] > summary::before {
+#ou-panel details:is(.ou-filesbox, .ou-allc)[open] > summary::before {
   content: '▾ ';
 }
 #ou-panel .ou-allc .ou-cgh {

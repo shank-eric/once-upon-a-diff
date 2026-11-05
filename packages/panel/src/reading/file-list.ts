@@ -5,6 +5,7 @@
  * The rows are drawn from the viewed tracker's snapshot, the change tags and the working marks, so they stay current as those do.
  */
 import { html } from '/assets/preact.mjs';
+import { Section } from '../components/section.ts';
 import type { VNode } from '@once-upon-a-diff/ui-kit/parse-markup';
 import type { ChapterLines } from '@once-upon-a-diff/contracts/types';
 import type { FileStatus } from '../state/story-model.ts';
@@ -96,7 +97,8 @@ export function createFileList(context: PanelContext) {
         context.saveState();
       }
     };
-    return html`<details class="ou-filesbox" open=${state.filesOpen} onToggle=${onToggle}><summary><h2 class="ou-h">${title}</h2>${summary ? html`<span class="ou-sum">${summary}</span>` : null}</summary><ul class="ou-files">${items}</ul></details>`;
+    const heading = html`<h2 class="ou-h">${title}</h2>${summary ? html`<span class="ou-sum">${summary}</span>` : null}`;
+    return html`<${Section} class="ou-filesbox" open=${state.filesOpen} onToggle=${onToggle} summary=${heading}><ul class="ou-files">${items}</ul></${Section}>`;
   }
 
   return { fileItem, filesSummary, filesBox };
