@@ -123,7 +123,7 @@ The plan was protocol, panel, web, ui, then the server split and board-core. Wha
 
 - A route's path, method, body, answer and who may call it are written once. Adding a route means adding an entry (its `keys` are required, so a route can't be added without deciding who may reach it), a schema if it takes a body, and a handler that calls `parseBody`.
 - The pages and the extension get their calls typed for the first time, which found a few casts that hid mismatches.
-- The panel imports the route table at run time (`packages/panel/src/bridge-options.ts`). The bridge rewrites the package specifier to an `/assets/` URL when it serves the module, and WXT bundles it for the extension. The panel's calls still come in through the `PanelHost` an app injects.
+- The panel imports the route table at run time (`packages/panel/src/host/bridge-options.ts`). The bridge rewrites the package specifier to an `/assets/` URL when it serves the module, and WXT bundles it for the extension. The panel's calls still come in through the `PanelHost` an app injects.
 - Every future route touches `protocol`. That is the point, and also the cost.
 - The read-only key's allowlist still lives in `page-key.ts`, checked against the table by a test, not derived from it.
 - The bridge now has a runtime dependency.

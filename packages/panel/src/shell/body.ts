@@ -7,12 +7,12 @@
  */
 import { Fragment, html } from '/assets/preact.mjs';
 import { html as markup } from '@once-upon-a-diff/protocol/domain/html';
-import { refAttrs } from './file-refs.ts';
+import { refAttrs } from '../components/file-refs.ts';
 import type { VNode } from '@once-upon-a-diff/ui/parse-markup';
 import { PartsStrip } from '@once-upon-a-diff/ui/parts-strip';
-import type { SinceModel } from './rebuild/freshness-part.ts';
+import type { SinceModel } from '../rebuild/freshness-part.ts';
 import { plural } from '@once-upon-a-diff/protocol/domain/text';
-import type { PanelContext } from './context.ts';
+import type { PanelContext } from '../host/context.ts';
 import type { Chapter } from '@once-upon-a-diff/protocol/types';
 
 const stripChapterPrefix = (title: string) => title.replace(/^Chapter \d+:\s*/, '');

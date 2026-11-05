@@ -10,7 +10,7 @@ State changes come from many processes: Claude rewrites `chapters.json`, the CLI
 
 | Who | Polls | Every |
 |---|---|---|
-| Panel (GitHub and local) | `GET …/pulse`: version, questions (with what a session says it is doing and the unread-answer count), drafts, fixes and working revs, listening, who answers, rebuild, request | 5 s while visible (`packages/panel/src/overlay.ts` `TICK_MS`), and a "still open" `POST …/seen` every 60 s while hidden |
+| Panel (GitHub and local) | `GET …/pulse`: version, questions (with what a session says it is doing and the unread-answer count), drafts, fixes and working revs, listening, who answers, rebuild, request | 5 s while visible (`packages/panel/src/shell/overlay.ts` `TICK_MS`), and a "still open" `POST …/seen` every 60 s while hidden |
 | Local page, panel closed | `GET …/version` | 5 s |
 | PR lists and Conversation tags | `POST /api/stories/status-many` | on load and redraw, 10 s while queued or building, 30 s while the bridge is down, and at about 5, 15 and 30 s after Start listening, to see who listens |
 | Board page | `GET /api/board` | 3 s while visible |

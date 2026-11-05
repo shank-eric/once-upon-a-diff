@@ -5,7 +5,7 @@
  * local page share them. A story's own saved state keeps its step and folds;
  * the layout is laid over its sizes.
  */
-import type { InitialUi } from './panel-state.ts';
+import type { InitialUi } from '../state/panel-state.ts';
 
 /** The panel's sizes kept across stories, in pixels. */
 export interface Layout {

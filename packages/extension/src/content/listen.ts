@@ -7,7 +7,7 @@
 import { bridgeProblem } from '@once-upon-a-diff/api-client/client';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import type { Bridge, BridgeAnswer } from './bridge.ts';
-import type { PanelOptions } from '@once-upon-a-diff/panel/overlay';
+import type { PanelOptions } from '@once-upon-a-diff/panel/shell/overlay';
 import type { ListenTarget } from '@once-upon-a-diff/protocol/types';
 
 type Call = Bridge['call'];

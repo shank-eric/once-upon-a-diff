@@ -5,7 +5,7 @@
  * moves the target, so the scroll is settled again for ≈2s.
  */
 import { baseName } from '@once-upon-a-diff/protocol/domain/text';
-import type { PanelContext } from '../context.ts';
+import type { PanelContext } from '../host/context.ts';
 import type { Side } from '@once-upon-a-diff/protocol/types';
 import type { LineRef } from '@once-upon-a-diff/protocol/domain/line-refs';
 

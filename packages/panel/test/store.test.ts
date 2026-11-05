@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createView } from '../src/store.ts';
+import { createView } from '../src/state/store.ts';
 
 test('update draws at once, so the DOM is current when it returns', () => {
   let drawn = 0;

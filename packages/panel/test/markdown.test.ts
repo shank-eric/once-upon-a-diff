@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createMarkdown } from '../src/markdown.ts';
-import type { PanelContext } from '../src/context.ts';
+import { createMarkdown } from '../src/components/markdown.ts';
+import type { PanelContext } from '../src/host/context.ts';
 
 /** A file name git allows, chosen to look like attributes if it ever got out of its quotes. */
 const EVIL = 'a onfocus=alert(1) autofocus tabindex=1 x.js';

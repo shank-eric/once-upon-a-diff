@@ -4,7 +4,7 @@
  * an element that carries data-rel (a file or line link) jumps to it when clicked.
  */
 import { parseMarkup, type VNode } from '@once-upon-a-diff/ui/parse-markup';
-import type { PanelContext } from './context.ts';
+import type { PanelContext } from '../host/context.ts';
 import type { Side } from '@once-upon-a-diff/protocol/types';
 
 export function createMarkup(context: PanelContext) {

@@ -5,7 +5,7 @@
  * reloaded under the page (it reads as empty, and writes are dropped).
  */
 import { extensionAlive } from './bridge.ts';
-import type { InitialUi } from '@once-upon-a-diff/panel/overlay';
+import type { InitialUi } from '@once-upon-a-diff/panel/shell/overlay';
 
 /** The panel's saved state for a PR, and whether it was hidden. */
 export type PanelUi = InitialUi;

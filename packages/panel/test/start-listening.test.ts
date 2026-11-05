@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { askHintHtml, askWhoHtml, type Health } from '../src/status-light.ts';
+import { askHintHtml, askWhoHtml, type Health } from '../src/components/status-light.ts';
 
 test('the story line has Start listening only where the host can, and never a Copy prompt button', () => {
   const result = {

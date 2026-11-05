@@ -29,12 +29,12 @@
  * panel's events, and bridgeOptions(host) (bridge-options.ts) fills in the calls every host makes the same way.
  *
  * opts:
- *   stylesheets    {page, panel, ui}: the URLs of panel/page.css, panel/panel.css and ui/ui.css as the host serves them (required)
+ *   stylesheets    {page, panel, ui}: the URLs of the panel's page.css and panel.css (src/css/) and ui/ui.css as the host serves them (required)
  * and all optional:
  *   initial        {n, all, collapsed, width, chatOpen, chatHeight, ...} to start from (a saved step)
  *   onState(s)     called with {n, all, collapsed, width, chatOpen, chatHeight, ...} whenever they change
  *   onLayout(l)    called with {width} or {chatHeight} when the reader drags the panel's edge or the dock's top, so the
- *                  host can keep the size for every story (panel/layout.ts)
+ *                  host can keep the size for every story (panel/shell/layout.ts)
  *   onPosition(p)  called with {step, chapter, file} when the step or the file at the top of the screen changes (debounced)
  *   onClose()      called after the x button removes the panel
  *   ask(q)         send a question {text, step, chapter, file}; returns a Promise
@@ -82,53 +82,53 @@
  *   commentsTitle  heading for the chapter's drafted comments ("Draft comments")
  */
 
-import { createStoryModel } from './story-model.ts';
-import { createPanelState, stateHelpers } from './panel-state.ts';
+import { createStoryModel } from '../state/story-model.ts';
+import { createPanelState, stateHelpers } from '../state/panel-state.ts';
 import { createShell } from './shell.ts';
-import { createFileRefs } from './file-refs.ts';
-import { createMarkdown } from './markdown.ts';
-import { createExpander } from './reading/expand.ts';
-import { createFilter } from './reading/filter.ts';
-import { createViewedTracker } from './reading/viewed.ts';
-import { createFileList } from './reading/file-list.ts';
-import { createScroller } from './reading/scroll.ts';
-import { createNavigation } from './reading/navigation.ts';
+import { createFileRefs } from '../components/file-refs.ts';
+import { createMarkdown } from '../components/markdown.ts';
+import { createExpander } from '../reading/expand.ts';
+import { createFilter } from '../reading/filter.ts';
+import { createViewedTracker } from '../reading/viewed.ts';
+import { createFileList } from '../reading/file-list.ts';
+import { createScroller } from '../reading/scroll.ts';
+import { createNavigation } from '../reading/navigation.ts';
 import { createBody } from './body.ts';
-import { createStatusLight } from './status-light-part.ts';
-import { createMarkup } from './markup.ts';
-import { createFreshness } from './rebuild/freshness-part.ts';
-import { createRebuild } from './rebuild/rebuild-part.ts';
-import { createReading } from './reading/reading.ts';
-import { createMarks } from './rebuild/marks.ts';
-import { createDrafts } from './drafts/drafts-part.ts';
-import { createQuestions } from './ask/questions.ts';
-import { createChatDock } from './ask/chat-dock.ts';
-import { createFixes } from './fixes/fixes-part.ts';
-import { createWorking } from './fixes/working.ts';
+import { createStatusLight } from '../components/status-light-part.ts';
+import { createMarkup } from '../components/markup.ts';
+import { createFreshness } from '../rebuild/freshness-part.ts';
+import { createRebuild } from '../rebuild/rebuild-part.ts';
+import { createReading } from '../reading/reading.ts';
+import { createMarks } from '../rebuild/marks.ts';
+import { createDrafts } from '../drafts/drafts-part.ts';
+import { createQuestions } from '../ask/questions.ts';
+import { createChatDock } from '../ask/chat-dock.ts';
+import { createFixes } from '../fixes/fixes-part.ts';
+import { createWorking } from '../fixes/working.ts';
 import type { Pulse, StoryData } from '@once-upon-a-diff/protocol/types';
-import type { PanelContext, PanelOptions } from './context.ts';
-import type { PanelHost } from './host.ts';
+import type { PanelContext, PanelOptions } from '../host/context.ts';
+import type { PanelHost } from '../host/host.ts';
 
-export type { PanelContext, PanelOptions } from './context.ts';
-export type { InitialUi } from './panel-state.ts';
+export type { PanelContext, PanelOptions } from '../host/context.ts';
+export type { InitialUi } from '../state/panel-state.ts';
 
 // the pure helpers the content script, the local page and the tests use
-export { draftView, shownIn } from './drafts/drafts.ts';
-export { fixSummary } from './fixes/fixes.ts';
-export { changingOf } from './fixes/working.ts';
+export { draftView, shownIn } from '../drafts/drafts.ts';
+export { fixSummary } from '../fixes/fixes.ts';
+export { changingOf } from '../fixes/working.ts';
 export {
   chapterKeyOf,
   finishedInOf,
   chapterNumbers,
 } from '@once-upon-a-diff/protocol/domain/chapters';
-export { READ_MS, inferReadSteps, viewedEarlyCheck } from './reading/reading.ts';
-export { placePills, pillMarker } from './file-refs.ts';
-export { rangeOfPath, rangeStepOf, rangeUrl, requestLine } from './rebuild/freshness.ts';
-export { rebuildAsk, rebuildLine } from './rebuild/rebuild.ts';
-export { expandDirOf, expandStep, EXPAND_ALL_FAR } from './reading/expand.ts';
+export { READ_MS, inferReadSteps, viewedEarlyCheck } from '../reading/reading.ts';
+export { placePills, pillMarker } from '../components/file-refs.ts';
+export { rangeOfPath, rangeStepOf, rangeUrl, requestLine } from '../rebuild/freshness.ts';
+export { rebuildAsk, rebuildLine } from '../rebuild/rebuild.ts';
+export { expandDirOf, expandStep, EXPAND_ALL_FAR } from '../reading/expand.ts';
 
 const HOST_ID = 'once-upon-panel'; // the element on the page; the panel itself lives in its shadow root
-const PANEL_ID = 'ou-panel'; // both are spelled out in panel/page.css and panel/panel.css
+const PANEL_ID = 'ou-panel'; // both are spelled out in panel/css/page.css and panel/css/panel.css
 // the panel's one clock: a tick every 5s while the tab shows, with one pulse call. Without a pulse, questions take
 // every tick while one waits for its answer (else every 6th) and the status light every 6th (30s). Drafts, freshness
 // and reads look every 12th tick (a minute) either way.

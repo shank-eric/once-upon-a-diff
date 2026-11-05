@@ -12,11 +12,11 @@
  * network calls of its own: everything goes through the service worker to the
  * bridge on 127.0.0.1.
  */
-import { storyOverlay, rangeStepOf } from '@once-upon-a-diff/panel/overlay';
-import { bridgeOptions } from '@once-upon-a-diff/panel/bridge-options';
+import { storyOverlay, rangeStepOf } from '@once-upon-a-diff/panel/shell/overlay';
+import { bridgeOptions } from '@once-upon-a-diff/panel/host/bridge-options';
 import { createHostPage } from '@once-upon-a-diff/host-github/diff-dom';
 import { filesChangedPr } from '@once-upon-a-diff/host-github/pages';
-import { withLayout, type Layout } from '@once-upon-a-diff/panel/layout';
+import { withLayout, type Layout } from '@once-upon-a-diff/panel/shell/layout';
 import { ROUTES } from '@once-upon-a-diff/protocol/routes';
 import { bridgeProblem } from '@once-upon-a-diff/api-client/client';
 import { bridge, extensionAlive, usage } from '../bridge.ts';
@@ -30,8 +30,8 @@ import type { BridgeAnswer } from '../bridge.ts';
 import type { PanelUi } from '../storage.ts';
 import type { PrRef } from '../tag-model.ts';
 import type { Route } from '../index.ts';
-import type { PanelOptions, StoryOverlay } from '@once-upon-a-diff/panel/overlay';
-import type { PanelHost } from '@once-upon-a-diff/panel/host';
+import type { PanelOptions, StoryOverlay } from '@once-upon-a-diff/panel/shell/overlay';
+import type { PanelHost } from '@once-upon-a-diff/panel/host/host';
 import type { FilesChangedPr } from '@once-upon-a-diff/host-github/pages';
 import type { StatusError, StoryData } from '@once-upon-a-diff/protocol/types';
 

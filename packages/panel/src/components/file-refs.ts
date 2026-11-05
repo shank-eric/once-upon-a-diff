@@ -13,7 +13,7 @@ import { markViewedButton } from './viewed-button.ts';
 import type { LineRef } from '@once-upon-a-diff/protocol/domain/line-refs';
 import type { Html } from '@once-upon-a-diff/protocol/domain/html';
 import type { ChapterRef } from '@once-upon-a-diff/protocol/types';
-import type { PanelContext } from './context.ts';
+import type { PanelContext } from '../host/context.ts';
 import { toSide } from '@once-upon-a-diff/protocol/domain/line-refs';
 
 // eslint-disable-next-line no-control-regex -- the placeholder markers are control characters on purpose

@@ -28,35 +28,35 @@ import type {
   Side,
   WorkingMark,
 } from '@once-upon-a-diff/protocol/types';
-import type { FileStatus, StoryModel } from './story-model.ts';
-import type { InitialUi, PanelState } from './panel-state.ts';
-import type { Layout } from './layout.ts';
+import type { FileStatus, StoryModel } from '../state/story-model.ts';
+import type { InitialUi, PanelState } from '../state/panel-state.ts';
+import type { Layout } from '../shell/layout.ts';
 import type { HostPage, PanelHost } from './host.ts';
-import type { Shell } from './shell.ts';
-import type { FileRefs } from './file-refs.ts';
-import type { Markdown } from './markdown.ts';
-import type { Expander } from './reading/expand.ts';
-import type { Filter } from './reading/filter.ts';
-import type { ViewedTracker } from './reading/viewed.ts';
-import type { FileList } from './reading/file-list.ts';
-import type { Scroller } from './reading/scroll.ts';
-import type { Navigation } from './reading/navigation.ts';
-import type { Body } from './body.ts';
-import type { StatusLight } from './status-light-part.ts';
-import type { Markup } from './markup.ts';
-import type { FreshnessPart } from './rebuild/freshness-part.ts';
-import type { Rebuild } from './rebuild/rebuild-part.ts';
-import type { Reading } from './reading/reading.ts';
-import type { Marks } from './rebuild/marks.ts';
-import type { Drafts } from './drafts/drafts-part.ts';
-import type { Fixes } from './fixes/fixes-part.ts';
-import type { Working } from './fixes/working.ts';
-import type { Questions } from './ask/questions.ts';
-import type { ChatDock } from './ask/chat-dock.ts';
+import type { Shell } from '../shell/shell.ts';
+import type { FileRefs } from '../components/file-refs.ts';
+import type { Markdown } from '../components/markdown.ts';
+import type { Expander } from '../reading/expand.ts';
+import type { Filter } from '../reading/filter.ts';
+import type { ViewedTracker } from '../reading/viewed.ts';
+import type { FileList } from '../reading/file-list.ts';
+import type { Scroller } from '../reading/scroll.ts';
+import type { Navigation } from '../reading/navigation.ts';
+import type { Body } from '../shell/body.ts';
+import type { StatusLight } from '../components/status-light-part.ts';
+import type { Markup } from '../components/markup.ts';
+import type { FreshnessPart } from '../rebuild/freshness-part.ts';
+import type { Rebuild } from '../rebuild/rebuild-part.ts';
+import type { Reading } from '../reading/reading.ts';
+import type { Marks } from '../rebuild/marks.ts';
+import type { Drafts } from '../drafts/drafts-part.ts';
+import type { Fixes } from '../fixes/fixes-part.ts';
+import type { Working } from '../fixes/working.ts';
+import type { Questions } from '../ask/questions.ts';
+import type { ChatDock } from '../ask/chat-dock.ts';
 
 /** What the panel's host gives it (see overlay.ts for what each does). */
 export interface PanelOptions {
-  /** where the host serves panel/page.css, panel/panel.css and ui/ui.css (the shared pieces' look, linked before panel.css) */
+  /** where the host serves the panel's page.css and panel.css (src/css/) and ui/ui.css (the shared pieces' look, linked before panel.css) */
   stylesheets: { page: string; panel: string; ui: string };
   initial?: InitialUi;
   onState?(state: PanelUi): void;

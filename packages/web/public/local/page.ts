@@ -6,9 +6,9 @@ import { createClient, type Transport } from '/assets/api-client/client.ts';
 import { createUsage } from '/assets/api-client/usage.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import type { LocalStory, StoryData } from '/assets/types.ts';
-import type { InitialUi, StoryOverlay } from '/assets/panel/overlay.ts';
+import type { InitialUi, StoryOverlay } from '/assets/panel/shell/overlay.ts';
 import type { Highlighter } from '/assets/local/diff/syntax.ts';
-import type { Layout } from '/assets/panel/layout.ts';
+import type { Layout } from '/assets/panel/shell/layout.ts';
 
 /** A local story: one with its diff and the bridge's state for it. */
 export type LocalStoryData = StoryData & { local: LocalStory };

@@ -462,7 +462,7 @@ describe('local stories', () => {
     assert.match(page.text, /id="ou-local-boot"/);
     assert.ok(!page.text.includes(TOKEN), 'the page key comes in the link, not the page');
     assert.match(page.headers.get('content-security-policy') as string, /script-src 'self'/);
-    assert.equal((await bridge.call('GET', '/assets/panel/overlay.ts')).status, 200);
+    assert.equal((await bridge.call('GET', '/assets/panel/shell/overlay.ts')).status, 200);
     assert.equal((await bridge.call('GET', '/assets/local/local.ts')).status, 200);
     assert.match(page.text, /<link rel="icon"[^>]*href="\/assets\/icon\.png"/);
     for (const path of ['/assets/icon.png', '/favicon.ico']) {
@@ -471,7 +471,7 @@ describe('local stories', () => {
       assert.equal(icon.headers.get('content-type'), 'image/png');
     }
     for (const sheet of ['panel.css', 'page.css']) {
-      const css = await bridge.call('GET', `/assets/panel/${sheet}`);
+      const css = await bridge.call('GET', `/assets/panel/css/${sheet}`);
       assert.equal(css.status, 200, sheet);
       assert.match(css.headers.get('content-type') as string, /^text\/css/);
     }

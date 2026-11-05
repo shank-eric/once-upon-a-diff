@@ -20,7 +20,7 @@ const PATHS: [string, Area][] = [
   ['packages/panel/src/fixes/', 'Inbox, Q&A, fix and build requests'],
   ['packages/panel/src/drafts/', 'Review'],
   ['packages/panel/src/start-listening.ts', 'Listeners and sessions'],
-  ['packages/panel/src/status-light', 'Listeners and sessions'],
+  ['packages/panel/src/components/status-light', 'Listeners and sessions'],
   ['packages/panel/', 'Panel'],
   ['packages/host-github/', 'Panel'],
   ['packages/extension/src/content/listen', 'Listeners and sessions'],

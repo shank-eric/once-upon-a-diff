@@ -6,7 +6,7 @@
  */
 import { html } from '/assets/preact.mjs';
 import { baseName, capitalize } from '@once-upon-a-diff/protocol/domain/text';
-import type { PanelContext } from '../context.ts';
+import type { PanelContext } from '../host/context.ts';
 import type { Chapter } from '@once-upon-a-diff/protocol/types';
 
 /**

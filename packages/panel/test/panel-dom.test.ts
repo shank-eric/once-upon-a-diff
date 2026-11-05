@@ -27,7 +27,7 @@ import {
   smallStory,
   story,
 } from './panel-fixtures.ts';
-import type { PanelOptions } from '../src/context.ts';
+import type { PanelOptions } from '../src/host/context.ts';
 import type {
   DraftRow,
   DraftsAnswer,
@@ -35,7 +35,7 @@ import type {
   StoryData,
 } from '@once-upon-a-diff/protocol/types';
 
-const { storyOverlay } = await import('../src/overlay.ts');
+const { storyOverlay } = await import('../src/shell/overlay.ts');
 const { parseMarkup } = await import('@once-upon-a-diff/ui/parse-markup');
 const { render, h } = await import('/assets/preact.mjs');
 const { document, tick, fire, window } = dom;

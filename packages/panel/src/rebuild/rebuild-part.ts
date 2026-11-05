@@ -10,7 +10,7 @@
 import { html } from '/assets/preact.mjs';
 import { LinkButton } from '@once-upon-a-diff/ui/link-button';
 import { rebuildAsk, rebuildLine, rebuildPending } from './rebuild.ts';
-import type { PanelContext } from '../context.ts';
+import type { PanelContext } from '../host/context.ts';
 import type { RebuildView } from '@once-upon-a-diff/protocol/types';
 
 const GUIDANCE_PLACEHOLDER =

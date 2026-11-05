@@ -7,7 +7,7 @@ import { createMarkdown as createUiMarkdown } from '@once-upon-a-diff/ui/markdow
 import { parseDiffLink, refLinkId } from '@once-upon-a-diff/protocol/domain/line-refs';
 import { refAttrs } from './file-refs.ts';
 import type { MarkdownLink } from '@once-upon-a-diff/ui/markdown';
-import type { PanelContext } from './context.ts';
+import type { PanelContext } from '../host/context.ts';
 
 export function createMarkdown(context: PanelContext) {
   const { story, refs } = context;

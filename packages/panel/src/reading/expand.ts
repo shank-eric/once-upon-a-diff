@@ -8,10 +8,10 @@
  * expandDirOf and expandStep have no DOM, so node tests can use them.
  */
 import type { Side } from '@once-upon-a-diff/protocol/types';
-import type { PanelContext } from '../context.ts';
+import type { PanelContext } from '../host/context.ts';
 
-export { expandDirOf, type ExpandDir, type ExpandRow } from '../diff-types.ts';
-import type { ExpandDir, ExpandRow } from '../diff-types.ts';
+export { expandDirOf, type ExpandDir, type ExpandRow } from '../host/diff-types.ts';
+import type { ExpandDir, ExpandRow } from '../host/diff-types.ts';
 
 /**
  * The next expand control to click to bring `line` into a file's diff.

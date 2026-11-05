@@ -4,7 +4,7 @@
  * screen, debounced.
  */
 import type { Chapter } from '@once-upon-a-diff/protocol/types';
-import type { PanelContext } from '../context.ts';
+import type { PanelContext } from '../host/context.ts';
 const POSITION_DEBOUNCE_MS = 1200;
 
 export function createNavigation(context: PanelContext) {

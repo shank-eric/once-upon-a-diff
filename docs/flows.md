@@ -141,7 +141,7 @@ flowchart LR
 | # | Layer | Hop | At |
 |---|---|---|---|
 | 1 | `feature` | the Ask form's submit calls the host's `ask` | `packages/panel/src/ask/questions.ts:523` (`await opts.ask({`) |
-| 2 | `feature` | on the local page, `ask` is the panel's shared bridge option | `packages/panel/src/bridge-options.ts:41` (`ask: (question) =>`) |
+| 2 | `feature` | on the local page, `ask` is the panel's shared bridge option | `packages/panel/src/host/bridge-options.ts:41` (`ask: (question) =>`) |
 | 2' | `app` | on GitHub, the extension supplies its own `ask` over the service worker | `packages/extension/src/content/pages/files-changed.ts:160` (`ROUTES.questionAsk`) |
 | 3 | `protocol` | the route: `POST /api/stories/<id>/questions`, any key of the story's | `packages/protocol/src/story/routes.ts:49` (`questionAsk:`) |
 | 4 | `app` | the story route checks the body and appends the question | `packages/bridge/src/server/routes/questions.ts:66` (`app.inbox.append(`) |
@@ -157,10 +157,10 @@ flowchart LR
 | 14 | `app` | prints the question (with the relay message when it has one) and exits | `packages/bridge/src/cli/commands/inbox.ts:468` (`printHandOver(entries, opts, relays, consumer)`) |
 | 15 | `outside` | the session answers in chat and runs `once-upon answer --question <id> --file …` |  |
 | 16 | `app` | `answer` **appends an `answer` line** to `inbox.jsonl` | `packages/bridge/src/cli/commands/inbox.ts:539` (`messages.append({`) |
-| 17 | `feature` | back: the panel's one clock, every 5 s while the tab shows | `packages/panel/src/overlay.ts:257` (`setInterval(`) |
-| 18 | `feature` | one pulse call a tick | `packages/panel/src/bridge-options.ts:66` (`ROUTES.storyPulse`) |
+| 17 | `feature` | back: the panel's one clock, every 5 s while the tab shows | `packages/panel/src/shell/overlay.ts:257` (`setInterval(`) |
+| 18 | `feature` | one pulse call a tick | `packages/panel/src/host/bridge-options.ts:66` (`ROUTES.storyPulse`) |
 | 19 | `app` | the pulse rereads the inbox and answers a rev per part | `packages/bridge/src/server/routes/story.ts:93` (`questions_rev: revOf(questions)`) |
-| 20 | `feature` | the rev moved, so only the questions are fetched again | `packages/panel/src/overlay.ts:236` (`moved('questions_rev')`) |
+| 20 | `feature` | the rev moved, so only the questions are fetched again | `packages/panel/src/shell/overlay.ts:236` (`moved('questions_rev')`) |
 
 ## 3. Board refresh
 
@@ -224,7 +224,7 @@ flowchart LR
 
 | # | Layer | Hop | At |
 |---|---|---|---|
-| 1 | `feature` | the panel's button asks the host for sessions | `packages/panel/src/status-light-part.ts:111` (`opts.listen!.sessions(target)`) |
+| 1 | `feature` | the panel's button asks the host for sessions | `packages/panel/src/components/status-light-part.ts:111` (`opts.listen!.sessions(target)`) |
 | 2 | `client` | none, one, or a chooser | `packages/ui/src/listen.ts:20` (`export function listenPlan`) |
 | 3 | `app` | on GitHub: `GET /api/board/listen-sessions`, with the token through the service worker | `packages/extension/src/content/listen.ts:50` (`ROUTES.boardListenSessions`) |
 | 3' | `app` | on the local page: the story's own route, with the story's key (the board's routes need the board's key) | `packages/web/public/local/mount.ts:115` (`ROUTES.storyListenSessions`) |
@@ -232,7 +232,7 @@ flowchart LR
 | 4' | `app` | the story route, still through `Board`'s one-line delegate (ADR-16) | `packages/bridge/src/server/routes/story.ts:201` (`app.board.storyListenSessions(story.id)`) |
 | 5 | `service` | the story's repo, then the idle sessions in its checkout | `packages/bridge/src/services/sessions/sessions.ts:165` (`async storyListenSessions(`) |
 | 6 | `service` | candidates from the last board snapshot: never the voice session or one already listening | `packages/bridge/src/services/sessions/listening.ts:204` (`export function listenCandidates`) |
-| 7 | `feature` | the reviewer picks (or there's one): the host's `start` | `packages/panel/src/status-light-part.ts:90` (`opts.listen!.start(`) |
+| 7 | `feature` | the reviewer picks (or there's one): the host's `start` | `packages/panel/src/components/status-light-part.ts:90` (`opts.listen!.start(`) |
 | 8 | `app` | on GitHub: `POST /api/board/type {kind: 'listen'}` | `packages/extension/src/content/listen.ts:59` (`ROUTES.boardType`) |
 | 8' | `app` | on the local page: `POST /api/stories/<id>/listen`, then the delegate | `packages/bridge/src/server/routes/story.ts:212` (`app.board.type('listen'`) |
 | 9 | `app` | the board route | `packages/bridge/src/server/routes/board.ts:81` (`app.sessions.type(`) |
@@ -243,7 +243,7 @@ flowchart LR
 | 14 | `outside` | the session runs the once-upon-listen skill, which starts `once-upon wait` in the background |  |
 | 15 | `app` | the wait **writes its `waiting` beat** every 5 s | `packages/bridge/src/cli/commands/inbox.ts:388` (`beat(home, consumer, 'waiting', scope)`) |
 | 16 | `app` | back: the pulse says whether a listener is live for the story or its repo | `packages/bridge/src/server/routes/story.ts:86` (`listeningOf(app.home`) |
-| 17 | `feature` | the light turns green | `packages/panel/src/overlay.ts:248` (`moved('listening')`) |
+| 17 | `feature` | the light turns green | `packages/panel/src/shell/overlay.ts:248` (`moved('listening')`) |
 
 ## 5. An agent's claim, through to its card landing
 

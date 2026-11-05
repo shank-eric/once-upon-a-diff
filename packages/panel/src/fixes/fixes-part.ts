@@ -9,7 +9,7 @@ import { plural, shortSha } from '@once-upon-a-diff/protocol/domain/text';
 import { shortDateTime } from '@once-upon-a-diff/protocol/domain/time';
 import { fixSummary, takesNotes } from './fixes.ts';
 import type { FixSummary } from './fixes.ts';
-import type { PanelContext } from '../context.ts';
+import type { PanelContext } from '../host/context.ts';
 import type { FixNote, FixesView } from '@once-upon-a-diff/protocol/types';
 import { formatLineRef, toSide } from '@once-upon-a-diff/protocol/domain/line-refs';
 

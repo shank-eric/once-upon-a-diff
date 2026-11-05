@@ -29,8 +29,8 @@ import { openPushAheadBox } from '/assets/local/ship/push-ahead.ts';
 import { sendNotes } from '/assets/local/diff/send.ts';
 import { toggleApprove } from '/assets/local/ship/approve.ts';
 import type { LocalStoryData } from '/assets/local/page.ts';
-import type { InitialUi } from '/assets/panel/overlay.ts';
-import { withLayout, type Layout } from '/assets/panel/layout.ts';
+import type { InitialUi } from '/assets/panel/shell/overlay.ts';
+import { withLayout, type Layout } from '/assets/panel/shell/layout.ts';
 import type { LocalNote } from '/assets/types.ts';
 
 const POLL_MS = 5000;

@@ -6,8 +6,8 @@
  */
 import { Fragment, html, render } from '/assets/preact.mjs';
 import { hideUntilStyled, stopKeyEvents, stylesheetLink } from '@once-upon-a-diff/ui/dom';
-import { createView } from './store.ts';
-import type { PanelContext } from './context.ts';
+import { createView } from '../state/store.ts';
+import type { PanelContext } from '../host/context.ts';
 
 const MESSAGE_MS = 8000;
 const MIN_WIDTH = 280;

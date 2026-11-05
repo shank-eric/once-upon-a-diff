@@ -4,10 +4,10 @@
  * ESLint keeps style and configs/eslint.side-effects.mjs (only an adapter runs a program, writes a file or reaches the network).
  * Source only: tests, scripts and config cross packages on purpose, so they are not cruised.
  *
- * The browser imports its modules by URL (`/assets/panel/overlay.ts`). The bridge serves them from the packages, and
+ * The browser imports its modules by URL (`/assets/panel/shell/overlay.ts`). The bridge serves them from the packages, and
  * configs/tsconfig.depcruise.json maps each URL back to its file (the same `paths` as packages/web/public/tsconfig.json, except that the pages' own files are listed one by one, not by
  * an /assets/* catch-all, so /assets/vendor/preact.mjs resolves to nothing: the one Preact is /assets/preact.mjs; a new top-level page
- * needs a line there), so the cruise takes that tsconfig to resolve them. A package import (`@once-upon-a-diff/panel/overlay`) resolves through the workspace
+ * needs a line there), so the cruise takes that tsconfig to resolve them. A package import (`@once-upon-a-diff/panel/shell/overlay`) resolves through the workspace
  * symlink and the package's `exports`.
  * Its `paths` are relative to the repo root, not to configs/: depcruise resolves them against the folder it runs from (`yarn depcruise` runs at the root).
  *
@@ -57,7 +57,7 @@ const REGION_SETS = [
     name: 'panel',
     root: 'packages/panel/src',
     regions: ['ask', 'drafts', 'fixes', 'reading', 'rebuild'],
-    top: 'packages/panel/src/overlay\\.ts',
+    top: 'packages/panel/src/shell/overlay\\.ts',
   },
   {
     name: 'board',
@@ -271,7 +271,7 @@ export default {
     ),
     rule(
       'panel-is-host-agnostic',
-      'the panel is handed a host adapter (panel/src/host.ts), it never imports one, or an app, or the server',
+      'the panel is handed a host adapter (panel/src/host/host.ts), it never imports one, or an app, or the server',
       { path: PANEL },
       {
         path: `${HOST}|${WEB}|${EXTENSION}|${BRIDGE}|${TEST_KIT}`,
@@ -284,7 +284,7 @@ export default {
       { path: HOST },
       {
         path: PANEL,
-        pathNot: '^packages/panel/src/(host|diff-types)\\.ts$',
+        pathNot: '^packages/panel/src/host/(host|diff-types)\\.ts$',
       },
     ),
     rule(

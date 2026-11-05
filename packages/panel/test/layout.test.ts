@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { dockHeightWithin, withLayout } from '../src/layout.ts';
+import { dockHeightWithin, withLayout } from '../src/shell/layout.ts';
 
 test('the layout’s sizes go over a story’s own, and its step and folds stay', () => {
   const saved = { n: 3, collapsed: true, width: 460, chatHeight: 280 };

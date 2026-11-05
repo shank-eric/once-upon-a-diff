@@ -21,7 +21,7 @@ export interface ChangeMark {
   /** a read mark tags its files only on its own step */
   onlyOn: number | null;
 }
-import type { PanelContext } from '../context.ts';
+import type { PanelContext } from '../host/context.ts';
 
 const range = (mark: ChangeMark) => `${shortSha(mark.since)}..${shortSha(mark.until)}`;
 

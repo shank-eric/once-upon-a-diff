@@ -18,7 +18,7 @@ export interface StepProgress {
   unknown: string[];
   noToggle: boolean;
 }
-import type { PanelContext } from '../context.ts';
+import type { PanelContext } from '../host/context.ts';
 
 export const READ_MS = 30000;
 

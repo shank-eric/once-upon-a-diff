@@ -17,7 +17,7 @@ import { capitalize, shortSha } from '@once-upon-a-diff/protocol/domain/text';
 import { writeClipboard } from '@once-upon-a-diff/ui/clipboard';
 import { draftView, shownIn, type DraftShow } from './drafts.ts';
 import { scriptDrafts, reviewScript } from './review-script.ts';
-import type { PanelContext } from '../context.ts';
+import type { PanelContext } from '../host/context.ts';
 import type {
   Chapter,
   DraftAction,

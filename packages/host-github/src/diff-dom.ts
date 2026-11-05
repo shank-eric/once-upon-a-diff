@@ -26,7 +26,7 @@ import {
   type ExpandRow,
   type FileBlock,
   type TreeRow,
-} from '@once-upon-a-diff/panel/diff-types';
+} from '@once-upon-a-diff/panel/host/diff-types';
 import type { Side } from '@once-upon-a-diff/protocol/types';
 
 /** A page control the panel may click. */

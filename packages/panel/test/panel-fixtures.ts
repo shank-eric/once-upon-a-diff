@@ -14,8 +14,8 @@ import type {
   StoryData,
   WorkingMark,
 } from '@once-upon-a-diff/protocol/types';
-import type { HostPage, FileBlock, PanelHost } from '../src/host.ts';
-import type { PanelOptions } from '../src/context.ts';
+import type { HostPage, FileBlock, PanelHost } from '../src/host/host.ts';
+import type { PanelOptions } from '../src/host/context.ts';
 
 const sha = (rel: string) => createHash('sha256').update(rel).digest('hex');
 export const RELS = ['src/a.ts', 'src/b.ts', 'src/c.ts', 'README.md'];

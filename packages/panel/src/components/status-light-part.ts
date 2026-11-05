@@ -18,7 +18,7 @@ import {
   noSessionNote,
   typedNote,
 } from '@once-upon-a-diff/ui/listen';
-import type { PanelContext } from './context.ts';
+import type { PanelContext } from '../host/context.ts';
 import type { Health } from './status-light.ts';
 import type { ListenSession, ListenTarget, StatusError } from '@once-upon-a-diff/protocol/types';
 import type { MarkupHooks, VNode } from '@once-upon-a-diff/ui/parse-markup';

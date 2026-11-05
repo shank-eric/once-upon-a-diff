@@ -16,11 +16,11 @@ const SRC = path.join(path.dirname(fileURLToPath(import.meta.url)), '../src');
 
 /** file (under src): [how many hand writes, why]. A count can only fall. */
 const ALLOWED: Record<string, [number, string]> = {
-  'shell.ts': [
+  'shell/shell.ts': [
     24,
     'the frame: the host element and its stylesheets, the width grip’s drag, the root’s classes and key listener, docking the page',
   ],
-  'overlay.ts': [1, 'the window’s focus'],
+  'shell/overlay.ts': [1, 'the window’s focus'],
   'ask/chat-dock.ts': [
     6,
     'the dock’s height drag (a CSS property and a class written at each pointer move, so it is not a redraw) and the window’s resize',
@@ -34,7 +34,7 @@ const ALLOWED: Record<string, [number, string]> = {
   'reading/reading.ts': [2, 'the page’s visibility and unload'],
   'reading/scroll.ts': [4, 'the page’s scrolling and highlight'],
   'reading/viewed.ts': [2, 'the page’s Viewed toggles'],
-  'status-light-part.ts': [
+  'components/status-light-part.ts': [
     1,
     'a prop set on a parsed element in a markup hook (the details box), not a node',
   ],

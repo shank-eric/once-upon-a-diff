@@ -37,8 +37,8 @@ test('every import in the page scripts and the panel resolves to a served asset,
       }
     }
   }
-  assert.ok(seen.has('/assets/panel/overlay.ts'), 'the panel is in the graph');
-  assert.ok(seen.has('/assets/panel/bridge-options.ts'), 'its bridge calls are in the graph');
+  assert.ok(seen.has('/assets/panel/shell/overlay.ts'), 'the panel is in the graph');
+  assert.ok(seen.has('/assets/panel/host/bridge-options.ts'), 'its bridge calls are in the graph');
   assert.ok(seen.has('/assets/host-github/diff-dom.ts'), 'the host adapter is in the graph');
   assert.ok(seen.has('/assets/protocol/routes.ts'), 'the route table is in the graph');
   assert.ok(seen.has('/assets/protocol/route-kit.ts'), 'the route factories are in the graph');
@@ -58,7 +58,7 @@ test('forBrowser spells the panel, the protocol, the api-client, ui and the host
     forBrowser(
       [
         `import { html } from '@once-upon-a-diff/protocol/domain/html';`,
-        `export { x } from "@once-upon-a-diff/panel/diff-types";`,
+        `export { x } from "@once-upon-a-diff/panel/host/diff-types";`,
         `const m = await import('@once-upon-a-diff/protocol/routes');`,
         `import { createHostPage } from '@once-upon-a-diff/host-github/diff-dom';`,
         `import { createClient } from '@once-upon-a-diff/api-client/client';`,
@@ -68,7 +68,7 @@ test('forBrowser spells the panel, the protocol, the api-client, ui and the host
     ),
     [
       `import { html } from '/assets/protocol/domain/html.ts';`,
-      `export { x } from "/assets/panel/diff-types.ts";`,
+      `export { x } from "/assets/panel/host/diff-types.ts";`,
       `const m = await import('/assets/protocol/routes.ts');`,
       `import { createHostPage } from '/assets/host-github/diff-dom.ts';`,
       `import { createClient } from '/assets/api-client/client.ts';`,

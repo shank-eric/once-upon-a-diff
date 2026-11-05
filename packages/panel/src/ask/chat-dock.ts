@@ -13,8 +13,8 @@
  */
 import { html } from '/assets/preact.mjs';
 import { plural } from '@once-upon-a-diff/protocol/domain/text';
-import type { PanelContext } from '../context.ts';
-import { dockHeightWithin } from '../layout.ts';
+import type { PanelContext } from '../host/context.ts';
+import { dockHeightWithin } from '../shell/layout.ts';
 
 /** How close to the bottom (px) still counts as reading the latest, so a new answer scrolls into view. */
 const PINNED_SLACK = 24;

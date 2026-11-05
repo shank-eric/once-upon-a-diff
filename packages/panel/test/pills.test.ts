@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createStoryModel } from '@once-upon-a-diff/panel/story-model';
-import { createFileRefs, placePills, pillMarker } from '../src/file-refs.ts';
-import { createMarkdown } from '../src/markdown.ts';
-import type { PanelContext } from '../src/context.ts';
+import { createStoryModel } from '@once-upon-a-diff/panel/state/story-model';
+import { createFileRefs, placePills, pillMarker } from '../src/components/file-refs.ts';
+import { createMarkdown } from '../src/components/markdown.ts';
+import type { PanelContext } from '../src/host/context.ts';
 import type { StoryData } from '@once-upon-a-diff/protocol/types';
 
 test("a file's status pill goes on its last mention in the chapter, and its earlier mentions get nothing", () => {

@@ -19,7 +19,10 @@ const PUBLIC = path.dirname(
   fileURLToPath(import.meta.resolve('@once-upon-a-diff/web/public/board.ts')),
 );
 /** The panel package's sources (src/), wherever the workspace links it from. */
-const PANEL = path.dirname(fileURLToPath(import.meta.resolve('@once-upon-a-diff/panel/overlay')));
+const PANEL = path.resolve(
+  path.dirname(fileURLToPath(import.meta.resolve('@once-upon-a-diff/panel/shell/overlay'))),
+  '..',
+);
 /** The host-github package's sources (src/): the GitHub host adapter, which the local page injects into the panel. */
 const HOST_GITHUB = path.dirname(
   fileURLToPath(import.meta.resolve('@once-upon-a-diff/host-github/diff-dom')),
@@ -37,7 +40,7 @@ const UI_DIR = path.dirname(fileURLToPath(import.meta.resolve('@once-upon-a-diff
 const SCRIPT = 'text/javascript; charset=utf-8';
 const STYLESHEET = 'text/css; charset=utf-8';
 const PNG = 'image/png';
-/** The panel's modules and stylesheets, from the panel package's src/ (in its region folders), for the local page. */
+/** The panel's modules and stylesheets, from the panel package's src/ (in its folders), for the local page. */
 const PANEL_MODULE = /^\/assets\/panel\/([a-z0-9-]+(?:\/[a-z0-9-]+)*\.(?:ts|css))$/;
 /** The host adapter's modules, from the host-github package's src/. */
 const HOST_MODULE = /^\/assets\/host-github\/([a-z0-9-]+\.ts)$/;
@@ -59,7 +62,7 @@ const BOARD_MODULE = /^\/assets\/board\/([a-z0-9-]+(?:\/[a-z0-9-]+)*\.ts)$/;
 const LOCAL_MODULE = /^\/assets\/local\/([a-z0-9-]+(?:\/[a-z0-9-]+)*\.(?:ts|css))$/;
 
 const ASSETS: Record<string, string> = {
-  '/assets/panel/overlay.ts': path.join(PANEL, 'overlay.ts'),
+  '/assets/panel/shell/overlay.ts': path.join(PANEL, 'shell/overlay.ts'),
   '/assets/board.ts': path.join(PUBLIC, 'board.ts'),
   '/assets/highlight.mjs': path.join(PUBLIC, 'vendor/highlight.mjs'),
   '/assets/preact.mjs': path.join(PUBLIC, 'vendor/preact.mjs'),
