@@ -12,6 +12,7 @@
  *
  * Packages and layers, as paths from the repo root (a rule's `from`/`to` match these):
  *   bridge   packages/bridge/src/{server (+routes), cli} over services over adapters (BRIDGE is the whole package)
+ *            packages/bridge/instrumentation (the usage probe the entry shims preload: outside the layers)
  *   web      packages/web/public (the pages, an app)
  *   extension packages/extension/src (an app)
  *   panel, host-github, api-client, ui, protocol (+ protocol/src/domain), test-kit
@@ -32,6 +33,7 @@ const UI_PKG = '^packages/ui/';
 const PROTOCOL = '^packages/protocol/';
 const DOMAIN = '^packages/protocol/src/domain/';
 const TEST_KIT = '^packages/test-kit/';
+const INSTRUMENTATION = '^packages/bridge/instrumentation/';
 
 // code that ships to a browser (no Node built-ins)
 const BROWSER = `^packages/(panel|host-github|api-client|ui|protocol|extension/src)/|${WEB}`;
@@ -148,6 +150,12 @@ export default {
       'only the HTTP app (server/, not server/routes/) has node:http, to listen',
       { path: [SERVICES, CLI, ROUTES] },
       { dependencyTypes: ['core'], path: '^(node:)?http$' },
+    ),
+    rule(
+      'instrumentation-is-for-the-shims',
+      'instrumentation (the usage probe) is preloaded by the entry shims (bin/once-upon.mjs, skills/once-upon/bin/story.mjs) and by tests: nothing in src/ imports it (it imports the session adapter, never the other way)',
+      { path: '^packages/bridge/src/' },
+      { path: INSTRUMENTATION },
     ),
     rule(
       'bridge-not-the-client',

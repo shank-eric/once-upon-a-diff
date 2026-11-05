@@ -11,7 +11,7 @@ const ROOT = path.resolve(import.meta.dirname, '..');
 test('a flush before the bridge listens keeps its startup coverage for the first flush after the port binds', () => {
   const home = tmp('home');
   const script = `
-    import { begin } from ${JSON.stringify(path.join(ROOT, 'src/adapters/usage/boot.ts'))};
+    import { begin } from ${JSON.stringify(path.join(ROOT, 'instrumentation/usage-probe.ts'))};
     begin(['serve']);
     const { installUsage, bridgeListening } = await import(${JSON.stringify(path.join(ROOT, 'src/services/usage/capture.ts'))});
     const { etDay } = await import(${JSON.stringify(path.join(ROOT, 'src/services/usage/days.ts'))});

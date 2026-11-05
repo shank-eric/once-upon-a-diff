@@ -8,7 +8,12 @@ import {
   usageFileSize,
   writeUsageJson,
 } from '../../adapters/stores/usage-file.ts';
-import { CHECKOUT, isLinkedWorktree, readMode, type UsageMode } from '../../adapters/usage/boot.ts';
+import {
+  CHECKOUT,
+  isLinkedWorktree,
+  readMode,
+  type UsageMode,
+} from '../../adapters/usage/session.ts';
 
 export { CHECKOUT, clearUsage, isLinkedWorktree, readMode, readUsageJson, usageFileSize };
 export type { UsageMode };

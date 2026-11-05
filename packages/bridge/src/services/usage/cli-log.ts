@@ -4,7 +4,7 @@
  * lists its verbs; a free-text argument, a flag or an id can never reach the file. Capped at 1 MB.
  */
 import { appendUsageLine } from '../../adapters/stores/usage-file.ts';
-import { isRunning } from '../../adapters/usage/boot.ts';
+import { isRunning } from '../../adapters/usage/session.ts';
 import { etDay } from './days.ts';
 
 export const CLI_LOG = 'cli-runs.log';

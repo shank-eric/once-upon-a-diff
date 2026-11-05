@@ -1,7 +1,8 @@
 /*
- * V8 coverage for the usage capture: the one adapter that talks to `node:inspector`. It imports nothing from this repo, so
- * the entry shims (bin/once-upon.mjs, skills/once-upon/bin/story.mjs) can load it and start counting before any other
- * module runs, and nothing it does is counted against the code being measured (the reduction skips this file and the shims).
+ * The usage capture's V8 coverage session, the one adapter that talks to `node:inspector`, and what is read beside it: the
+ * checkout it runs from, what usage/settings.json asks for, and the coverage shapes. The entry shims start it through
+ * instrumentation/usage-probe.ts (`begin`), before any other module of this repo runs, so it imports nothing from this repo
+ * and is never reported (UNMEASURED): it runs before the counting starts, and nothing it does counts against the code measured.
  *
  * Function level by default (precise coverage with no block ranges, which costs next to nothing); `lines` mode adds block
  * ranges, which measured about 2.4x CPU on hot code, so it is an opt-in (`once-upon usage on --lines`).
@@ -27,7 +28,7 @@ export interface ScriptCoverage {
   functions: CoverageFunction[];
 }
 
-/** The checkout this code runs from: <root>/packages/bridge/src/adapters/usage/boot.ts. */
+/** The checkout this code runs from: <root>/packages/bridge/src/adapters/usage/session.ts. */
 export const CHECKOUT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '../../../../..',
@@ -35,13 +36,14 @@ export const CHECKOUT = path.resolve(
 
 /** The files that start the measuring: they run before it does, so they are never reported. */
 export const UNMEASURED = [
-  'packages/bridge/src/adapters/usage/boot.ts',
+  'packages/bridge/instrumentation/usage-probe.ts',
+  'packages/bridge/src/adapters/usage/session.ts',
   'packages/bridge/bin/once-upon.mjs',
   'packages/bridge/bin/node-version.mjs',
   'skills/once-upon/bin/story.mjs',
 ];
 
-const homeOf = (env: NodeJS.ProcessEnv) =>
+export const homeOf = (env: NodeJS.ProcessEnv) =>
   env.ONCE_UPON_HOME || path.join(os.homedir(), '.once-upon');
 export const usageDirOf = (home: string) => path.join(home, 'usage');
 
@@ -102,30 +104,9 @@ function startSession(detailed: boolean): Running {
   return { session, detailed, startedAt: Date.now() };
 }
 
-/**
- * Starts counting for this process, unless the capture is off (ONCE_UPON_USAGE=0 or the settings file), the command is
- * `usage ...` (a report must not count itself) or this is a linked worktree (ONCE_UPON_USAGE=force overrides that, for
- * the tests). Returns whether it started. Never throws: the tool must run whatever the inspector does.
- */
-export function begin(argv: string[], env: NodeJS.ProcessEnv = process.env): boolean {
-  try {
-    if (running) {
-      return true;
-    }
-    const mode = readMode(homeOf(env), env);
-    const command = argv.find((word) => !word.startsWith('-'));
-    if (mode === 'off' || command === 'usage') {
-      return false;
-    }
-    if (env.ONCE_UPON_USAGE !== 'force' && isLinkedWorktree()) {
-      return false;
-    }
-    running = startSession(mode === 'lines');
-    return true;
-  } catch {
-    running = null;
-    return false;
-  }
+/** Starts counting in this process (throws when the inspector cannot; `begin` catches that). */
+export function startCounting(detailed: boolean): void {
+  running = startSession(detailed);
 }
 
 /** Whether counting is on in this process. */

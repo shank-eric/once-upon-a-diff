@@ -1,5 +1,5 @@
 /*
- * The capture: orchestrates what the entry shim started (adapters/usage/boot.ts). It reduces V8's coverage of this
+ * The capture: orchestrates what the entry shim started (instrumentation/usage-probe.ts). It reduces V8's coverage of this
  * checkout's own files to uncovered-line bitsets, merges them into <home>/usage/coverage-bridge.json (the bridge) or
  * coverage-cli.json (a CLI run), and flushes: every 5 minutes, at the end of the process, on SIGUSR2 (a report asks the
  * bridge for fresh data), and on SIGTERM/SIGINT, which a deploy sends.
@@ -20,15 +20,17 @@ import {
 import {
   CHECKOUT,
   UNMEASURED,
+  readMode,
+  type ScriptCoverage,
+} from '../../adapters/usage/session.ts';
+import {
   isDetailed,
   isRunning,
-  readMode,
   restart,
   startedAtMs,
   stop,
   take,
-  type ScriptCoverage,
-} from '../../adapters/usage/boot.ts';
+} from '../../adapters/usage/session.ts';
 import { homeDir } from '../config/settings.ts';
 import { createSnapshots } from './snapshots.ts';
 import { etDay } from './days.ts';

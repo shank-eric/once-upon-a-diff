@@ -5,5 +5,5 @@
     "checkJs": true,
     "types": ["node"]
   },
-  "include": ["bin", "src", "scripts"]
+  "include": ["bin", "instrumentation", "src", "scripts"]
 }

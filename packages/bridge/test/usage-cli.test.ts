@@ -4,7 +4,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { tmp, runCli, writeJson } from './helpers.ts';
 import { assertPrivate } from './usage-helpers.ts';
-import { isLinkedWorktree } from '../src/adapters/usage/boot.ts';
+import { isLinkedWorktree } from '../src/adapters/usage/session.ts';
 import { commandLabel } from '../src/services/usage/cli-log.ts';
 import { COMMAND_AREAS } from '../src/services/usage/areas.ts';
 import { commandNames } from '../src/cli/index.ts';
@@ -26,7 +26,8 @@ test('a CLI run is captured: coverage per file, a command line, and nothing else
   assert.equal(index[0].mode, 'function');
   assert.match(index[0].sha, /^[0-9a-f]{8}$/);
   // the report's own command never counts itself, and the capture's bootstrap is not measured
-  assert.ok(!coverage.files['packages/bridge/src/adapters/usage/boot.ts']);
+  assert.ok(!coverage.files['packages/bridge/instrumentation/usage-probe.ts']);
+  assert.ok(!coverage.files['packages/bridge/src/adapters/usage/session.ts']);
   assert.ok(!coverage.files['packages/bridge/bin/once-upon.mjs']);
   assert.equal(
     readFileSync(usageFile(home, 'cli-runs.log'), 'utf8').trim().split(' ')[1],

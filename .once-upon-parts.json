@@ -22,7 +22,8 @@
       "group": "Bridge",
       "paths": [
         "packages/bridge/src/cli/",
-        "packages/bridge/bin/"
+        "packages/bridge/bin/",
+        "packages/bridge/instrumentation/"
       ],
       "note": "The once-upon command"
     },

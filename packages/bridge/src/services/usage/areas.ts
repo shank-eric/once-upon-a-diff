@@ -68,6 +68,7 @@ const PATHS: [string, Area][] = [
   ['packages/bridge/src/cli/commands/usage.ts', 'Settings, config and doctor'],
   ['packages/bridge/src/services/usage/', 'Settings, config and doctor'],
   ['packages/bridge/src/adapters/usage/', 'Settings, config and doctor'],
+  ['packages/bridge/instrumentation/', 'Settings, config and doctor'],
   ['packages/bridge/src/adapters/stores/usage-file.ts', 'Settings, config and doctor'],
   ['packages/bridge/src/cli/commands/board.ts', 'Board backend'],
   ['packages/bridge/src/cli/commands/checks.ts', 'Review'],

@@ -3,7 +3,7 @@
  * test forces it with ONCE_UPON_USAGE=force) and neither ONCE_UPON_USAGE=0 nor usage/settings.json says off. The
  * settings file is re-read at most every 5 seconds, so `usage off` takes effect quickly without a stat per request.
  */
-import { isRunning, readMode } from '../../adapters/usage/boot.ts';
+import { isRunning, readMode } from '../../adapters/usage/session.ts';
 
 const CACHE_MS = 5000;
 

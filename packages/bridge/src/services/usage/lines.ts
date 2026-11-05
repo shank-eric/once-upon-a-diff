@@ -3,7 +3,7 @@
  * count-0 range covers every non-blank character on it). Pure: the source text is handed in.
  */
 import { createHash } from 'node:crypto';
-import type { CoverageFunction } from '../../adapters/usage/boot.ts';
+import type { CoverageFunction } from '../../adapters/usage/session.ts';
 
 /** The first 8 hex characters of the text's sha1: names a version of a file. */
 export const shaOf = (text: string): string =>

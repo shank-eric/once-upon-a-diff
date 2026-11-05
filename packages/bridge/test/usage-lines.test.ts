@@ -21,7 +21,7 @@ import {
   type Seen,
 } from '../src/services/usage/merge.ts';
 import { createSnapshots } from '../src/services/usage/snapshots.ts';
-import type { CoverageFunction } from '../src/adapters/usage/boot.ts';
+import type { CoverageFunction } from '../src/adapters/usage/session.ts';
 
 // the text and the ranges V8 reported for it (precise coverage, run in Node 24)
 const TEXT = [
