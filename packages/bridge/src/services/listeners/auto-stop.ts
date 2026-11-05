@@ -10,7 +10,7 @@
  *
  * A tab in the background doesn't pulse, but its page is still open: while the tab is hidden the panel and the local
  * page send a slow "still open" signal instead (POST /api/stories/<id>/seen, about once a minute, STILL_OPEN_MS in
- * panel/src/overlay.ts and web/public/local.ts). It does nothing but note the story as seen, so a reader who keeps the
+ * panel/src/overlay.ts and web/public/local/local.ts). It does nothing but note the story as seen, so a reader who keeps the
  * story's tab in the background doesn't lose the listener. Only a closed tab, or a browser that stops its timers, lets
  * the idle window run out.
  */

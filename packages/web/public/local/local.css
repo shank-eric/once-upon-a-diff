@@ -118,7 +118,7 @@ a { color: var(--fgColor-accent); }
 .ou-local-split .ou-local-rnum { border-left: 1px solid var(--borderColor-default); }
 .ou-local-hunk td { background: var(--ou-local-hunk-bg); color: var(--fgColor-muted); }
 .ou-local-info td { color: var(--fgColor-muted); font-style: italic; }
-/* rows another chapter tells (narrow.js) fold behind one row */
+/* rows another chapter tells (local/diff/narrow.ts) fold behind one row */
 .ou-local-out { display: none; }
 .ou-local-narrow td { padding: 2px 10px; background: var(--bgColor-muted); color: var(--fgColor-muted); font: 12px/20px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; border-top: 1px dashed var(--borderColor-default); border-bottom: 1px dashed var(--borderColor-default); }
 .ou-local-narrow button { font: inherit; padding: 0 6px; margin-left: 6px; }
@@ -135,7 +135,7 @@ a { color: var(--fgColor-accent); }
   .ou-local-tree { display: none; }
 }
 
-/* highlight.js tokens (public/syntax.js) */
+/* highlight.js tokens (local/diff/syntax.ts) */
 .ou-local-code .hljs-keyword, .ou-local-code .hljs-doctag, .ou-local-code .hljs-meta .hljs-keyword, .ou-local-code .hljs-template-tag, .ou-local-code .hljs-template-variable, .ou-local-code .hljs-type.hljs-variable-language { color: var(--hl-keyword); }
 .ou-local-code .hljs-string, .ou-local-code .hljs-regexp, .ou-local-code .hljs-meta .hljs-string { color: var(--hl-string); }
 .ou-local-code .hljs-comment, .ou-local-code .hljs-code, .ou-local-code .hljs-formula { color: var(--hl-comment); }
@@ -147,7 +147,7 @@ a { color: var(--fgColor-accent); }
 .ou-local-code .hljs-section, .ou-local-code .hljs-strong { font-weight: 600; }
 .ou-local-code .hljs-emphasis { font-style: italic; }
 
-/* Create pull request (local/pull-request.ts) */
+/* Create pull request (local/ship/pull-request.ts) */
 .ou-local-pr-link { font-size: 12px; white-space: nowrap; }
 .ou-local-approved { font-size: 12px; white-space: nowrap; color: var(--fgColor-success); }
 button.ou-local-approve, button.ou-local-unapprove { white-space: nowrap; }
@@ -171,7 +171,7 @@ button.ou-local-pr, button.ou-local-push, button.ou-local-push-ahead { white-spa
 .ou-local-pr-go:not(:disabled) { background: var(--fgColor-success); border-color: var(--fgColor-success); color: #fff; font-weight: 600; }
 .ou-local-pr-go:disabled { opacity: .5; cursor: default; }
 
-/* a fix-before-push note's stage (local/notes.ts) */
+/* a fix-before-push note's stage (local/diff/notes.ts) */
 .ou-local-stage { display: inline-block; font-size: 11px; font-weight: 600; line-height: 16px; padding: 0 7px; border-radius: 9px; border: 1px solid currentColor; white-space: nowrap; }
 .ou-local-stage-draft { color: var(--fgColor-muted); }
 .ou-local-stage-queued { color: var(--fgColor-attention); background: var(--bgColor-attention-muted); }

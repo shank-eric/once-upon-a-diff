@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { claimsOf, narrowRows, type NarrowRow } from '../public/narrow.ts';
+import { claimsOf, narrowRows, type NarrowRow } from '../public/local/diff/narrow.ts';
 
 const ctx = (oldLine: number, newLine: number): NarrowRow => ({
   type: 'line',

@@ -16,7 +16,7 @@ import { HttpError } from './request.ts';
 
 /** The web package's pages (public/), wherever the workspace links it from. */
 const PUBLIC = path.dirname(
-  fileURLToPath(import.meta.resolve('@once-upon-a-diff/web/public/local.ts')),
+  fileURLToPath(import.meta.resolve('@once-upon-a-diff/web/public/board.ts')),
 );
 /** The panel package's sources (src/), wherever the workspace links it from. */
 const PANEL = path.dirname(fileURLToPath(import.meta.resolve('@once-upon-a-diff/panel/overlay')));
@@ -52,19 +52,14 @@ const UI_MODULE = /^\/assets\/ui\/([a-z0-9-]+\.(?:ts|css))$/;
 const PROTOCOL_MODULE = /^\/assets\/protocol\/(routes|domain\/[a-z0-9-]+)\.ts$/;
 /** The board page's own modules (its regions' folders), from public/board/. */
 const BOARD_MODULE = /^\/assets\/board\/([a-z0-9-]+(?:\/[a-z0-9-]+)*\.ts)$/;
-/** The local page's own modules and stylesheets, from public/local/. */
-const LOCAL_MODULE = /^\/assets\/local\/([a-z0-9-]+\.(?:ts|css))$/;
+/** The local page's own modules and stylesheet (the shell, and its diff/ and ship/ folders), from public/local/. */
+const LOCAL_MODULE = /^\/assets\/local\/([a-z0-9-]+(?:\/[a-z0-9-]+)*\.(?:ts|css))$/;
 
 const ASSETS: Record<string, string> = {
   '/assets/panel/overlay.ts': path.join(PANEL, 'overlay.ts'),
-  '/assets/local.ts': path.join(PUBLIC, 'local.ts'),
   '/assets/board.ts': path.join(PUBLIC, 'board.ts'),
-  '/assets/split.ts': path.join(PUBLIC, 'split.ts'),
-  '/assets/narrow.ts': path.join(PUBLIC, 'narrow.ts'),
-  '/assets/syntax.ts': path.join(PUBLIC, 'syntax.ts'),
   '/assets/highlight.mjs': path.join(PUBLIC, 'vendor/highlight.mjs'),
   '/assets/preact.mjs': path.join(PUBLIC, 'vendor/preact.mjs'),
-  '/assets/local.css': path.join(PUBLIC, 'local.css'),
   // the extension's icon (a blue tile that reads on light and dark tabs); /favicon.ico is what a browser asks for with no <link>
   '/assets/icon.png': path.join(PUBLIC, 'icon.png'),
   '/favicon.ico': path.join(PUBLIC, 'icon.png'),

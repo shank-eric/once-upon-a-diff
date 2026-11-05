@@ -1,28 +1,33 @@
 /*
  * The bridge's local page: a diff of local commits drawn with the same DOM
- * shapes as GitHub's /changes page (local/diff-view.js), so the very same
- * story panel runs on it unchanged (local/mount.js).
+ * shapes as GitHub's /changes page (local/diff/diff-view.ts), so the very same
+ * story panel runs on it unchanged (local/mount.ts).
  *
  * Here the page owns the review state that GitHub would own: Viewed toggles
  * and line notes go to the bridge, and notes are "fix before push" items
- * (local/notes.js). Other chapters' lines in a shared file fold away
- * (local/folds.js). Create pull request pushes the branch and opens GitHub's
- * compare page, on the reviewer's click (local/pull-request.ts). This module draws the page, handles its clicks, and
+ * (local/diff/notes.ts). Other chapters' lines in a shared file fold away
+ * (local/diff/folds.ts). Create pull request pushes the branch and opens GitHub's
+ * compare page, on the reviewer's click (local/ship/pull-request.ts). This module draws the page, handles its clicks, and
  * follows the story and the commits.
  */
 import { html } from '/assets/protocol/domain/html.ts';
 import { setHtml } from '/assets/ui/dom.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import { page, bridge, PARAMS, OPEN_PUSH, usage } from '/assets/local/page.ts';
-import { treeHtml, fileHtml, headerHtml, resetHighlightBudget } from '/assets/local/diff-view.ts';
-import { placeNotes, openEditor } from '/assets/local/notes.ts';
-import { openFold, openRun, forgetNarrowing } from '/assets/local/folds.ts';
+import {
+  treeHtml,
+  fileHtml,
+  headerHtml,
+  resetHighlightBudget,
+} from '/assets/local/diff/diff-view.ts';
+import { placeNotes, openEditor } from '/assets/local/diff/notes.ts';
+import { openFold, openRun, forgetNarrowing } from '/assets/local/diff/folds.ts';
 import { mount, remount, showReopen } from '/assets/local/mount.ts';
-import { lookForPull, openPrBox } from '/assets/local/pull-request.ts';
-import { openPushBox } from '/assets/local/push.ts';
-import { openPushAheadBox } from '/assets/local/push-ahead.ts';
-import { sendNotes } from '/assets/local/send.ts';
-import { toggleApprove } from '/assets/local/approve.ts';
+import { lookForPull, openPrBox } from '/assets/local/ship/pull-request.ts';
+import { openPushBox } from '/assets/local/ship/push.ts';
+import { openPushAheadBox } from '/assets/local/ship/push-ahead.ts';
+import { sendNotes } from '/assets/local/diff/send.ts';
+import { toggleApprove } from '/assets/local/ship/approve.ts';
 import type { LocalStoryData } from '/assets/local/page.ts';
 import type { InitialUi } from '/assets/panel/overlay.ts';
 import { withLayout, type Layout } from '/assets/panel/layout.ts';

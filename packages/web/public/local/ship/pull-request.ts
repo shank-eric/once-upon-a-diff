@@ -11,7 +11,7 @@ import { setHtml } from '/assets/ui/dom.ts';
 import { plural } from '/assets/protocol/domain/text.ts';
 import { writeClipboard } from '/assets/ui/clipboard.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
-import { bridge, page, PARAMS } from './page.ts';
+import { bridge, page, PARAMS } from '/assets/local/page.ts';
 import type { PrView } from '/assets/types.ts';
 
 /** Longest compare link to hand GitHub; past it the body is left out and copied instead. */

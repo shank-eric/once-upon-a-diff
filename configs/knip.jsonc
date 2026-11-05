@@ -8,7 +8,7 @@
       "entry": ["src/entrypoints/**/*.ts", "scripts/*.ts"],
     },
     "packages/web": {
-      "entry": ["public/{board,local,split,narrow,syntax}.ts", "scripts/*.ts"],
+      "entry": ["public/local/diff/{split,narrow,syntax}.ts", "scripts/*.ts"],
       "ignore": ["public/vendor/**"],
       // the pages import these through /assets/api-client/*, /assets/host-github/* and /assets/panel/* URLs, which knip cannot follow: a real
       // false positive, but it also hides a genuinely unused entry, so drop one here if a page stops using it

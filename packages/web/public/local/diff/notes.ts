@@ -9,7 +9,7 @@
 import { html } from '/assets/protocol/domain/html.ts';
 import { insertHtml, setHtml } from '/assets/ui/dom.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
-import { page, bridge, PARAMS } from './page.ts';
+import { page, bridge, PARAMS } from '/assets/local/page.ts';
 import { columnCount } from './diff-view.ts';
 import { redrawSend } from './send.ts';
 import type { LocalNote, Side } from '/assets/types.ts';

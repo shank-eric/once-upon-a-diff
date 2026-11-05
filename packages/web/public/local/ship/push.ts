@@ -10,7 +10,7 @@ import { html } from '/assets/protocol/domain/html.ts';
 import { setHtml } from '/assets/ui/dom.ts';
 import { plural } from '/assets/protocol/domain/text.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
-import { bridge, page, PARAMS } from './page.ts';
+import { bridge, page, PARAMS } from '/assets/local/page.ts';
 import { boxElement, commitListHtml, openPrBox } from './pull-request.ts';
 import type { PushView } from '/assets/types.ts';
 

@@ -463,7 +463,7 @@ describe('local stories', () => {
     assert.ok(!page.text.includes(TOKEN), 'the page key comes in the link, not the page');
     assert.match(page.headers.get('content-security-policy') as string, /script-src 'self'/);
     assert.equal((await bridge.call('GET', '/assets/panel/overlay.ts')).status, 200);
-    assert.equal((await bridge.call('GET', '/assets/local.ts')).status, 200);
+    assert.equal((await bridge.call('GET', '/assets/local/local.ts')).status, 200);
     assert.match(page.text, /<link rel="icon"[^>]*href="\/assets\/icon\.png"/);
     for (const path of ['/assets/icon.png', '/favicon.ico']) {
       const icon = await bridge.call('GET', path);
@@ -934,8 +934,8 @@ describe('Unified / Split on local stories', () => {
       } finally {
         await restarted.close();
       }
-      assert.equal((await bridge.call('GET', '/assets/split.ts')).status, 200);
-      assert.equal((await bridge.call('GET', '/assets/narrow.ts')).status, 200);
+      assert.equal((await bridge.call('GET', '/assets/local/diff/split.ts')).status, 200);
+      assert.equal((await bridge.call('GET', '/assets/local/diff/narrow.ts')).status, 200);
     } finally {
       await bridge.close();
     }

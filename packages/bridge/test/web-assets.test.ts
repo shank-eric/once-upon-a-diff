@@ -6,12 +6,12 @@ import { startBridge, tmp } from './helpers.ts';
 test('the bridge serves highlight.js and the highlighter, with no CDN in the page', async () => {
   const bridge = await startBridge({ home: tmp('home') });
   try {
-    for (const path of ['/assets/highlight.mjs', '/assets/syntax.ts']) {
+    for (const path of ['/assets/highlight.mjs', '/assets/local/diff/syntax.ts']) {
       const response = await bridge.call('GET', path);
       assert.equal(response.status, 200);
       assert.match(response.headers.get('content-type') as string, /javascript/);
     }
-    const local = readFileSync(new URL('../../web/public/local.ts', import.meta.url), 'utf8');
+    const local = readFileSync(new URL('../../web/public/local/local.ts', import.meta.url), 'utf8');
     assert.ok(
       !/https?:\/\//.test(local.replace(/\/\/.*$/gm, '')),
       'local.js loads nothing from the network',

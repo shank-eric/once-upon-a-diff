@@ -10,8 +10,8 @@ boot.textContent = JSON.stringify({ story: 'story-1' });
 document.body.appendChild(boot);
 
 const { page } = await import('../public/local/page.ts');
-const { headerHtml } = await import('../public/local/diff-view.ts');
-const { redrawSend, sendNotes } = await import('../public/local/send.ts');
+const { headerHtml } = await import('../public/local/diff/diff-view.ts');
+const { redrawSend, sendNotes } = await import('../public/local/diff/send.ts');
 const { setHtml } = await import('@once-upon-a-diff/ui/dom');
 
 type Notes = { id: string; sent?: unknown; fixed?: unknown }[];

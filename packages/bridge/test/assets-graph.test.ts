@@ -5,6 +5,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { assetFor, forBrowser } from '../src/server/assets.ts';
+import { startBridge, tmp } from './helpers.ts';
 
 const IMPORT = /(?:\bfrom\s*|\bimport\s*\(?\s*)(['"])([^'"]+)\1/g;
 
@@ -16,7 +17,7 @@ function served(url: string): string {
 
 test('every import in the page scripts and the panel resolves to a served asset, none by package name', () => {
   const seen = new Set<string>();
-  const queue = ['/assets/local.ts', '/assets/board.ts'];
+  const queue = ['/assets/local/local.ts', '/assets/board.ts'];
   while (queue.length) {
     const url = queue.pop() as string;
     if (seen.has(url)) {
@@ -82,6 +83,53 @@ test("the bridge serves ui's stylesheet, and the board and local pages link it b
   const { boardPage, localPage } = await import('../src/server/pages.ts');
   for (const page of [String(boardPage()), String(localPage('s', { title: 't' }))]) {
     const first = page.indexOf('/assets/ui/ui.css');
-    assert.ok(first > 0 && first < page.indexOf('/assets/local.css'), 'ui.css comes first');
+    assert.ok(first > 0 && first < page.indexOf('/assets/local/local.css'), 'ui.css comes first');
+  }
+});
+
+test('every asset the local page and the board page load, and every module under them, is fetched from a running bridge with a 200', async () => {
+  const { boardPage, localPage } = await import('../src/server/pages.ts');
+  const bridge = await startBridge({ home: tmp('home') });
+  try {
+    const seen = new Set<string>();
+    const queue: string[] = [];
+    for (const page of [String(localPage('s', { title: 't' })), String(boardPage())]) {
+      for (const [, url] of page.matchAll(/\b(?:href|src)="(\/assets\/[^"]+)"/g)) {
+        queue.push(url);
+      }
+    }
+    assert.ok(queue.includes('/assets/local/local.ts'), 'the local page loads its entry script');
+    assert.ok(queue.includes('/assets/local/local.css'), 'and its stylesheet');
+    while (queue.length) {
+      const url = queue.pop() as string;
+      if (seen.has(url)) {
+        continue;
+      }
+      seen.add(url);
+      const response = await fetch(`${bridge.base}${url}`);
+      assert.equal(response.status, 200, url);
+      const body = await response.text();
+      if (url.endsWith('.ts')) {
+        for (const [, , specifier] of body.matchAll(IMPORT)) {
+          if (specifier.startsWith('/') || specifier.startsWith('.')) {
+            queue.push(new URL(specifier, `http://x${url}`).pathname);
+          }
+        }
+      }
+    }
+    for (const url of [
+      '/assets/local/diff/diff-view.ts',
+      '/assets/local/diff/split.ts',
+      '/assets/local/diff/narrow.ts',
+      '/assets/local/diff/syntax.ts',
+      '/assets/local/ship/push.ts',
+      '/assets/local/ship/pull-request.ts',
+      '/assets/local/ship/approve.ts',
+      '/assets/local/page.ts',
+    ]) {
+      assert.ok(seen.has(url), `${url} is in the local page's graph`);
+    }
+  } finally {
+    await bridge.close();
   }
 });

@@ -4,13 +4,13 @@
  * that hold its lines. Viewed stays as it is.
  */
 import { chapterNumbers } from '/assets/panel/overlay.ts';
-import { claimsOf, narrowRows } from '/assets/narrow.ts';
+import { claimsOf, narrowRows } from './narrow.ts';
 import { html } from '/assets/protocol/domain/html.ts';
 import { insertHtml } from '/assets/ui/dom.ts';
 import { plural } from '/assets/protocol/domain/text.ts';
-import { page } from './page.ts';
+import { page } from '/assets/local/page.ts';
 import { columnCount } from './diff-view.ts';
-import type { NarrowRow } from '/assets/narrow.ts';
+import type { NarrowRow } from './narrow.ts';
 import type { Side } from '/assets/types.ts';
 
 let narrowedFor: string | null = null; // the step the tables are narrowed for; a redraw clears it

@@ -6,7 +6,7 @@
 import { html } from '/assets/protocol/domain/html.ts';
 import { setHtml } from '/assets/ui/dom.ts';
 import { plural } from '/assets/protocol/domain/text.ts';
-import { page } from './page.ts';
+import { page } from '/assets/local/page.ts';
 
 /** A draft note: not sent to a session yet, and not fixed. */
 const draftCount = () => page.story.local.notes.filter((note) => !note.sent && !note.fixed).length;

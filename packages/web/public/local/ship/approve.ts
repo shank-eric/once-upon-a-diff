@@ -10,7 +10,7 @@ import { html } from '/assets/protocol/domain/html.ts';
 import { setHtml } from '/assets/ui/dom.ts';
 import { shortDateTime } from '/assets/protocol/domain/time.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
-import { bridge, page, PARAMS } from './page.ts';
+import { bridge, page, PARAMS } from '/assets/local/page.ts';
 
 /** Set by pull-request.ts when the branch turns out to have an open PR (an event, so the two files don't import each other). */
 let hasPull = false;

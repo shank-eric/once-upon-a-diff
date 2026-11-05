@@ -47,7 +47,7 @@ registerHooks({
     if (board) {
       return { url: pathToFileURL(path.join(PUBLIC, 'board', board[1])).href, shortCircuit: true };
     }
-    const local = /^\/assets\/local\/([a-z0-9-]+\.ts)$/.exec(specifier);
+    const local = /^\/assets\/local\/([a-z0-9/-]+\.ts)$/.exec(specifier);
     if (local) {
       return { url: pathToFileURL(path.join(PUBLIC, 'local', local[1])).href, shortCircuit: true };
     }

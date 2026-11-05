@@ -7,7 +7,7 @@ import { createUsage } from '/assets/api-client/usage.ts';
 import { ROUTES } from '/assets/protocol/routes.ts';
 import type { LocalStory, StoryData } from '/assets/types.ts';
 import type { InitialUi, StoryOverlay } from '/assets/panel/overlay.ts';
-import type { Highlighter } from '/assets/syntax.ts';
+import type { Highlighter } from '/assets/local/diff/syntax.ts';
 import type { Layout } from '/assets/panel/layout.ts';
 
 /** A local story: one with its diff and the bridge's state for it. */

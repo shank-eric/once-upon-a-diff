@@ -7,7 +7,7 @@ import {
   hunkHtml,
   highlightFile,
   LIMITS,
-} from '../public/syntax.ts';
+} from '../public/local/diff/syntax.ts';
 import hljs from '../public/vendor/highlight.mjs';
 
 const strip = (html: string) => html.replace(/<[^>]+>/g, '');
