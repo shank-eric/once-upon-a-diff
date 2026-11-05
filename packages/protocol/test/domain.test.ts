@@ -4,7 +4,15 @@ import { prKey, rangeOfPath } from '../src/domain/pr-key.ts';
 import { laneLabels, resolveLane, sameLaneKey } from '../src/domain/lane-key.ts';
 import { escapeHtml, unescapeHtml, html, raw, Html } from '../src/domain/html.ts';
 import { FULL_SHA_RE } from '../src/domain/patterns.ts';
-import { SHA_RE, shortSha, baseName, plural, capitalize, gateText } from '../src/domain/text.ts';
+import {
+  SHA_RE,
+  shortSha,
+  baseName,
+  plural,
+  capitalize,
+  collapse,
+  gateText,
+} from '../src/domain/text.ts';
 import { clockTime, compactAge, minutesSince, shortDateTime } from '../src/domain/time.ts';
 
 test('a PR key and a commit range in a PR diff URL', () => {
@@ -23,6 +31,11 @@ test('the sha patterns take SHA-1 and SHA-256 forms', () => {
   assert.ok(!FULL_SHA_RE.test('a'.repeat(39)) && !FULL_SHA_RE.test('a'.repeat(41)));
   assert.ok(!FULL_SHA_RE.test('a'.repeat(65)));
   assert.ok(!FULL_SHA_RE.test('A'.repeat(40))); // git prints lower case
+});
+
+test('collapse squeezes whitespace runs and trims the ends', () => {
+  assert.equal(collapse('  Tue\t Nov   4\n10:00:00 2026 '), 'Tue Nov 4 10:00:00 2026');
+  assert.equal(collapse(' \n '), '');
 });
 
 test('the text helpers', () => {

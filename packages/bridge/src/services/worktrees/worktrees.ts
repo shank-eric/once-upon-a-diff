@@ -27,6 +27,7 @@ import { readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
 import type { LedgerAgent } from '../ledger/ledger.ts';
 import type { BoardWorktree } from '@once-upon-a-diff/protocol/types';
 import { type RunResult, type Runner, runCommand } from '../../adapters/os.ts';
+import { gitVia } from '../../adapters/git.ts';
 import { ensureDir } from '../../adapters/stores/files.ts';
 
 /** One linked or main worktree as `git worktree list --porcelain` gives it. */
@@ -84,15 +85,6 @@ export function hiddenWorktree(dir: string): boolean {
     return false;
   }
 }
-
-/** Flags on every git call the board makes: no fsmonitor daemon to wedge on, and no index lock taken by a status. */
-export const GIT_FLAGS = ['--no-optional-locks', '-c', 'core.fsmonitor=false'];
-export const gitArgs = (cwd: string, args: string[]): string[] => [
-  '-C',
-  cwd,
-  ...GIT_FLAGS,
-  ...args,
-];
 
 const SHORT_MS = 5000;
 const STATUS_MS = 15000;
@@ -365,7 +357,7 @@ export class WorktreeScanner {
   }
 
   private git(cwd: string, args: string[], timeoutMs = SHORT_MS): Promise<RunResult> {
-    return this.run('git', gitArgs(cwd, args), timeoutMs);
+    return gitVia(this.run, cwd, args, timeoutMs);
   }
 
   private save(): void {

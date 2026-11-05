@@ -9,7 +9,7 @@
  * Finish request), is "made nothing here", so registering and finishing never fail because of it.
  */
 import { remoteNamed } from '../config/repos.ts';
-import { gitText } from '../../adapters/git.ts';
+import { runGit } from '../../adapters/git.ts';
 import type { AgentResult } from './events.ts';
 import type { LedgerAgent } from './ledger.ts';
 
@@ -29,16 +29,23 @@ export function branchTip(
   try {
     if (repo) {
       // any host: a GitHub Enterprise or GitLab checkout registered with --repo counts too (this never reaches gh)
-      if (!remoteNamed(gitText(cwd, ['remote', 'get-url', 'origin'], GIT_TIMEOUT_MS), repo)) {
+      if (
+        !remoteNamed(
+          runGit(cwd, ['remote', 'get-url', 'origin'], {
+            quiet: true,
+            timeoutMs: GIT_TIMEOUT_MS,
+          }).trim(),
+          repo,
+        )
+      ) {
         return null;
       }
     }
     return (
-      gitText(
-        cwd,
-        ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}^{commit}`],
-        GIT_TIMEOUT_MS,
-      ) || null
+      runGit(cwd, ['rev-parse', '--verify', '--quiet', `refs/heads/${branch}^{commit}`], {
+        quiet: true,
+        timeoutMs: GIT_TIMEOUT_MS,
+      }).trim() || null
     );
   } catch {
     return null;

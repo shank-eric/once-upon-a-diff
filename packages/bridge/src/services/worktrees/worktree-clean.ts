@@ -19,7 +19,8 @@
  */
 import path from 'node:path';
 import { BoardError } from '../errors.ts';
-import { gitArgs, judge, parseWorktreeEntries } from './worktrees.ts';
+import { judge, parseWorktreeEntries } from './worktrees.ts';
+import { gitVia } from '../../adapters/git.ts';
 import { runCommand } from '../../adapters/os.ts';
 import type { JudgeContext, WorktreeFacts, WorktreeScanner } from './worktrees.ts';
 import type { RunResult, Runner } from '../../adapters/os.ts';
@@ -74,12 +75,13 @@ export async function removalState(
   main: string,
   worktree: string,
 ): Promise<RemovalState> {
-  const status = await run(
-    'git',
-    gitArgs(worktree, ['status', '--porcelain', '--untracked-files=all']),
+  const status = await gitVia(
+    run,
+    worktree,
+    ['status', '--porcelain', '--untracked-files=all'],
     SHORT_MS,
   );
-  const listed = await run('git', gitArgs(main, ['worktree', 'list', '--porcelain']), SHORT_MS);
+  const listed = await gitVia(run, main, ['worktree', 'list', '--porcelain'], SHORT_MS);
   return {
     dirty: status.code === 0 && status.stdout.trim() !== '',
     locked:
@@ -184,11 +186,7 @@ export async function cleanWorktree(input: CleanInput): Promise<CleanResult> {
       restore: restoreLine(facts, sha),
     };
     log(input.home, now, { ...base, phase: 'attempt' });
-    const removed = await run(
-      'git',
-      gitArgs(facts.main, ['worktree', 'remove', facts.path]),
-      REMOVE_MS,
-    );
+    const removed = await gitVia(run, facts.main, ['worktree', 'remove', facts.path], REMOVE_MS);
     if (removed.code !== 0) {
       const error = removalError(
         removed,
@@ -204,14 +202,15 @@ export async function cleanWorktree(input: CleanInput): Promise<CleanResult> {
     let note: string | null = null;
     if (judged.deletes_branch && facts.branch && !facts.branch.startsWith('-')) {
       // the tip as it is now, captured before the delete (git's own message only has a short sha)
-      const tip = await run(
-        'git',
-        gitArgs(facts.main, ['rev-parse', '--verify', '--quiet', `refs/heads/${facts.branch}`]),
+      const tip = await gitVia(
+        run,
+        facts.main,
+        ['rev-parse', '--verify', '--quiet', `refs/heads/${facts.branch}`],
         SHORT_MS,
       );
       const tipSha = tip.code === 0 ? tip.stdout.trim() : '';
       const deleted = tipSha
-        ? await run('git', gitArgs(facts.main, ['branch', '-d', '--', facts.branch]), SHORT_MS)
+        ? await gitVia(run, facts.main, ['branch', '-d', '--', facts.branch], SHORT_MS)
         : null;
       if (deleted && deleted.code === 0) {
         branch = {

@@ -36,6 +36,9 @@ export function gateText(agent: GatedAgent): string {
   return `agent review · ${agent.name}`;
 }
 
+/** Runs of whitespace (spaces, tabs, newlines) squeezed to single spaces, and the ends trimmed. */
+export const collapse = (text: string): string => text.replace(/\s+/g, ' ').trim();
+
 /** The text with its first character upper-cased. */
 export function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);

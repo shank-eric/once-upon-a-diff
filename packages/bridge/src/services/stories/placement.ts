@@ -21,7 +21,7 @@ import path from 'node:path';
 import { checkoutFor } from '../config/repos.ts';
 import { ownerOnly, ensureDir, appendText } from '../../adapters/stores/files.ts';
 import { readJson, writeJsonAtomic } from '../../adapters/stores/json-file.ts';
-import { gitText } from '../../adapters/git.ts';
+import { runGit } from '../../adapters/git.ts';
 
 export const STORY_FOLDER = '.once-upon';
 const EXCLUDE_LINE = `/${STORY_FOLDER}/`;
@@ -29,7 +29,9 @@ const EXCLUDE_LINE = `/${STORY_FOLDER}/`;
 /** The main checkout of the repo dir is in (for a worktree, the checkout its .git belongs to), or dir itself. */
 export function mainCheckout(dir: string): string {
   try {
-    const common = gitText(dir, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+    const common = runGit(dir, ['rev-parse', '--path-format=absolute', '--git-common-dir'], {
+      quiet: true,
+    }).trim();
     if (path.basename(common) === '.git') {
       return path.dirname(common);
     }
@@ -43,7 +45,9 @@ export function mainCheckout(dir: string): string {
 export function excludeStories(dir: string): boolean {
   let common;
   try {
-    common = gitText(dir, ['rev-parse', '--path-format=absolute', '--git-common-dir']);
+    common = runGit(dir, ['rev-parse', '--path-format=absolute', '--git-common-dir'], {
+      quiet: true,
+    }).trim();
   } catch {
     return false;
   }

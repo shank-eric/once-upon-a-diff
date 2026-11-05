@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { git, runCli, tmp, writeJson } from './helpers.ts';
-import { gitText } from '../src/adapters/git.ts';
+import { runGit } from '../src/adapters/git.ts';
 import { branchTip } from '../src/services/ledger/made.ts';
 import { worktreeFixture } from '@once-upon-a-diff/test-kit/git';
 import { Board, noPrWatcher } from '../src/services/board/board.ts';
@@ -718,8 +718,13 @@ test('the automatic result is for a builder whose branch moved since its start t
 
 test('a git call that runs too long is killed: made.ts takes it as nothing made', () => {
   const fixture = worktreeFixture();
-  assert.throws(() => gitText(fixture.main, ['-c', 'alias.slow=!sleep 5', 'slow'], 100));
-  assert.equal(gitText(fixture.main, ['rev-parse', 'HEAD'], 3000).length, 40);
+  assert.throws(() =>
+    runGit(fixture.main, ['-c', 'alias.slow=!sleep 5', 'slow'], { quiet: true, timeoutMs: 100 }),
+  );
+  assert.equal(
+    runGit(fixture.main, ['rev-parse', 'HEAD'], { quiet: true, timeoutMs: 3000 }).trim().length,
+    40,
+  );
 });
 
 test('a start or finish in a folder that is not a checkout still works, with no tip and no result', () => {

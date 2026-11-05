@@ -4,25 +4,45 @@
  */
 import { execFile, execFileSync } from 'node:child_process';
 import type { LocalCommit } from '@once-upon-a-diff/protocol/types';
+import type { RunResult, Runner } from './os.ts';
+
+/** What `runGit` can be told: a kill timeout (none when 0 or unset), stderr dropped, or text for git's stdin. */
+export interface RunGitOptions {
+  timeoutMs?: number;
+  quiet?: boolean;
+  input?: string;
+}
 
 /**
- * Runs git in a folder and returns its trimmed stdout (throws on a non-zero exit, and says nothing on stderr). With
- * `timeoutMs` a call that takes longer is killed and throws.
+ * Runs git in a checkout and returns stdout, untrimmed (throws on a non-zero exit). stderr goes into the thrown error,
+ * or nowhere with `quiet`. With `timeoutMs` a call that takes longer is killed and throws. `input` is piped to stdin.
  */
-export const gitText = (dir: string, args: string[], timeoutMs?: number): string =>
-  execFileSync('git', ['-C', dir, ...args], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'ignore'],
-    ...(timeoutMs ? { timeout: timeoutMs } : {}),
-  }).trim();
-
-/** Runs git in a checkout and returns stdout (throws on a non-zero exit). */
-export const runGit = (repo: string, args: string[]): string =>
+export const runGit = (repo: string, args: string[], options: RunGitOptions = {}): string =>
   execFileSync('git', ['-C', repo, ...args], {
     encoding: 'utf8',
     maxBuffer: 256 * 1024 * 1024,
-    stdio: ['ignore', 'pipe', 'pipe'],
+    stdio: [
+      options.input === undefined ? 'ignore' : 'pipe',
+      'pipe',
+      options.quiet ? 'ignore' : 'pipe',
+    ],
+    ...(options.input === undefined ? {} : { input: options.input }),
+    ...(options.timeoutMs ? { timeout: options.timeoutMs } : {}),
   });
+
+/** Flags on every git call the board makes: no fsmonitor daemon to wedge on, and no index lock taken by a status. */
+export const GIT_FLAGS = ['--no-optional-locks', '-c', 'core.fsmonitor=false'];
+
+/**
+ * Runs git in a folder through an injected program runner (a test passes its own to count or hold up calls), with the
+ * board's flags (GIT_FLAGS). Resolves like the runner does: never rejects, and says when it was killed at the limit.
+ */
+export const gitVia = (
+  run: Runner,
+  cwd: string,
+  args: string[],
+  timeoutMs: number,
+): Promise<RunResult> => run('git', ['-C', cwd, ...GIT_FLAGS, ...args], timeoutMs);
 
 /**
  * Runs git in a checkout without blocking the bridge: resolves to {code, stdout, stderr}, never rejects. It never
@@ -155,10 +175,7 @@ export function commitsBetween(repo: string, baseOid: string, headOid: string): 
 
 /** The URL of the checkout's `origin` remote (throws when there is none). */
 export const remoteUrl = (dir: string): string =>
-  execFileSync('git', ['-C', dir, 'remote', 'get-url', 'origin'], {
-    encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'ignore'],
-  });
+  runGit(dir, ['remote', 'get-url', 'origin'], { quiet: true });
 
 /** The full sha of a commit the checkout has (a short sha, a ref), or null when it is not one of this repo's. */
 export function commitOf(repo: string, ref: string): string | null {
@@ -203,10 +220,6 @@ export function patchId(repo: string, sha: string): string | null {
   if (!diff.trim()) {
     return null;
   }
-  const out = execFileSync('git', ['-C', repo, 'patch-id', '--stable'], {
-    encoding: 'utf8',
-    input: diff,
-    stdio: ['pipe', 'pipe', 'ignore'],
-  }).trim();
+  const out = runGit(repo, ['patch-id', '--stable'], { input: diff, quiet: true }).trim();
   return out.split(/\s+/)[0] || null;
 }

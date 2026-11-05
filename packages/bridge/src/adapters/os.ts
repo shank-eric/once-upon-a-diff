@@ -6,6 +6,7 @@ import { execFile, execFileSync } from 'node:child_process';
 import { lookup } from 'node:dns/promises';
 import net from 'node:net';
 import { existsSync } from 'node:fs';
+import { collapse } from '@once-upon-a-diff/protocol/domain/text';
 
 /** Runs a command and resolves to its stdout, or null when it fails or runs past the limit. */
 export function run(
@@ -122,8 +123,6 @@ export async function fetchHealth(port: number, token: string | undefined): Prom
     return null;
   }
 }
-
-export const collapse = (text: string) => text.replace(/\s+/g, ' ').trim();
 
 /** The pid's start time as `ps` says it, in the form the registry's procStart has, or null when ps can't say. */
 export function startOf(pid: number): string | null {

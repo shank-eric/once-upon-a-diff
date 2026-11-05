@@ -5,7 +5,8 @@ import path from 'node:path';
  * which folder, busy or idle, and on which tty. A session counts as live when its pid is running and (when ps can say) it
  * started when the file says it did.
  */
-import { collapse, run } from '../os.ts';
+import { collapse } from '@once-upon-a-diff/protocol/domain/text';
+import { run } from '../os.ts';
 
 /** A live session as the board knows it. */
 export interface LiveSession {
