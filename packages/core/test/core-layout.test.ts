@@ -34,7 +34,7 @@ test('each tier holds the folders listed here: foundation has files only, the ot
   for (const tier of TIERS) {
     const dir = path.join(SRC, tier);
     assert.deepEqual(folders(dir), UNITS[tier], `${tier}'s folders`);
-    if (tier !== 'foundation') {
+    if (tier !== TIERS[0]) {
       assert.deepEqual(
         entries(dir),
         UNITS[tier],

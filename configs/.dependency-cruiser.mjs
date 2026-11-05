@@ -12,8 +12,8 @@
  * Its `paths` are relative to the repo root, not to configs/: depcruise resolves them against the folder it runs from (`yarn depcruise` runs at the root).
  *
  * Packages and layers, as paths from the repo root (a rule's `from`/`to` match these):
- *   core     packages/core/src: adapters (every side effect) under five tiers, bottom to top: foundation, records, queues,
- *            features, orchestration. A tier imports only the tiers under it, and folders in one tier never import each other
+ *   core     packages/core/src: adapters (every side effect) under five tiers, bottom to top (the names are in core-tiers.mjs,
+ *            the one list). A tier imports only the tiers under it, and folders in one tier never import each other
  *   server   packages/server/src (the HTTP app, with routes/) and cli packages/cli/src (the CLI): apps over core, apart from each other
  *   bridge   packages/bridge (the shell): bin/once-upon.ts is the one file that knows both apps, instrumentation (the usage probe
  *            the entry shims preload) and the integration tests. BRIDGE below is all four: the server side as a whole
@@ -23,7 +23,7 @@
  */
 
 import { fileURLToPath } from 'node:url';
-import { TIERS } from './core-tiers.mjs';
+import { TIERS, TIERS_OF_FOLDERS } from './core-tiers.mjs';
 
 const BRIDGE = '^packages/(bridge|core|server|cli)/';
 const SHELL = '^packages/bridge/';
@@ -164,7 +164,7 @@ export default {
     rule(
       'core-tier-siblings-apart',
       'folders in one tier do not import each other: move what both need down a tier',
-      { path: '^packages/core/src/(records|queues|features|orchestration)/([^/]+)/' },
+      { path: `^packages/core/src/(${TIERS_OF_FOLDERS.join('|')})/([^/]+)/` },
       { path: '^packages/core/src/$1/', pathNot: '^packages/core/src/$1/$2/' },
     ),
     rule(

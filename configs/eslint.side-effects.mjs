@@ -7,8 +7,8 @@
  *   packages/server/src/         the HTTP app: it has node:http, to listen, and nothing else on the network
  *   packages/server/src/routes/  the HTTP app's handlers: not even node:http (they get a Call)
  *   packages/cli/src/            the CLI app
- *   packages/core/src/<tier>/    the tiers (foundation, records, queues, features, orchestration), over the adapters: no program,
- *                                no file write and no network of their own
+ *   packages/core/src/<tier>/    the tiers (named in configs/core-tiers.mjs), over the adapters: no program, no file write and
+ *                                no network of their own
  * packages/bridge/test/side-effects-lint.test.ts probes every rule below.
  *
  * ESLint REPLACES a rule's options when a later block matches the same file, it does not merge them, so each file is in one
@@ -21,6 +21,8 @@
  *     at, and the whole-module forms of node:fs and node:module that would hide a write or a loader.
  *   - no-restricted-globals and no-restricted-properties catch fetch (bare, or through globalThis) and process.kill.
  */
+
+import { TIERS } from './core-tiers.mjs';
 
 // what only an adapter may do (the services, the apps and the routes go through one)
 const NO_CHILD_PROCESS = {
@@ -198,7 +200,7 @@ const sideEffectBlock = ({ files, ignores = [], networkBan }) => {
 export default [
   // the rules, over the adapters
   sideEffectBlock({
-    files: ['packages/core/src/{foundation,records,queues,features,orchestration}/**/*.ts'],
+    files: [`packages/core/src/{${TIERS.join(',')}}/**/*.ts`],
     networkBan: NO_NETWORK,
   }),
   // the HTTP app, over the services only: node:http, to listen
