@@ -30,24 +30,24 @@ const BUILDING_TEXT = {
 
 /** The PR's facts as small labels: the one line on merging first, then approvals against required, changes requested, checks, open threads. */
 function prChips(pr: PrInfo) {
-  const chips: { text: string; tone: 'ok' | 'bad' | 'warn' | 'plain' }[] = [];
+  const chips: { text: string; mark: 'ok' | 'bad' | 'warn' | 'plain' }[] = [];
   if (pr.state === 'merged') {
     return chips;
   }
   if (pr.merge) {
-    chips.push({ text: pr.merge.text, tone: pr.merge.tone });
+    chips.push({ text: pr.merge.text, mark: pr.merge.tone });
   }
   const said = (word: string) => !!pr.merge && pr.merge.text.includes(word);
   if (pr.draft && !said('draft')) {
-    chips.push({ text: 'Draft', tone: 'plain' });
+    chips.push({ text: 'Draft', mark: 'plain' });
   }
   if (pr.required !== null || pr.approvals > 0) {
     const text =
       pr.required !== null ? `${pr.approvals}/${pr.required} approved` : `${pr.approvals} approved`;
-    chips.push({ text, tone: pr.required !== null && pr.approvals < pr.required ? 'warn' : 'ok' });
+    chips.push({ text, mark: pr.required !== null && pr.approvals < pr.required ? 'warn' : 'ok' });
   }
   if (pr.review === 'changes_requested' && !said('changes')) {
-    chips.push({ text: 'Changes requested', tone: 'bad' });
+    chips.push({ text: 'Changes requested', mark: 'bad' });
   }
   const checks = {
     success: ['Checks passing', 'ok'],
@@ -55,10 +55,10 @@ function prChips(pr: PrInfo) {
     pending: ['Checks running', 'warn'],
   } as const;
   if (pr.checks && !said('checks')) {
-    chips.push({ text: checks[pr.checks][0], tone: checks[pr.checks][1] });
+    chips.push({ text: checks[pr.checks][0], mark: checks[pr.checks][1] });
   }
   if (pr.unresolved > 0 && !said('threads')) {
-    chips.push({ text: plural(pr.unresolved, 'open thread'), tone: 'warn' });
+    chips.push({ text: plural(pr.unresolved, 'open thread'), mark: 'warn' });
   }
   return chips;
 }
@@ -191,17 +191,17 @@ export function Card(props: { card: BoardCard; now: number; api: Api }) {
   const merged = pr?.state === 'merged' && time ? `merged ${ago(card.since, now)}` : '';
   const chips = pr ? prChips(pr) : [];
   if (card.story?.approved_at && card.column === 'ship') {
-    chips.push({ text: 'Approved, ready to ship', tone: 'ok' });
+    chips.push({ text: 'Approved, ready to ship', mark: 'ok' });
   }
   if (card.ahead) {
-    chips.push({ text: `${card.ahead.count} ahead`, tone: 'warn' });
+    chips.push({ text: `${card.ahead.count} ahead`, mark: 'warn' });
   }
   const gates = card.agents.filter((agent) => agent.gate).map(gateText);
   // Open story: on a card ready for review, or an approved local story in Ready to ship (a local story is never in Back to you)
   const bits = answerBits(card);
   const { openable, markable } = bits; // Mark reviewed: a local story's card in Ready (a PR story is marked by reviewing it on GitHub)
   if (bits.chip) {
-    chips.push({ text: bits.chip, tone: 'warn' });
+    chips.push({ text: bits.chip, mark: 'warn' });
   }
   const focusTitle = card.can_focus
     ? "Bring this session's iTerm tab to the front"

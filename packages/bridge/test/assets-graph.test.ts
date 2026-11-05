@@ -60,6 +60,10 @@ test('every import in the page scripts and the panel resolves to a served asset,
     seen.has('/assets/ui-kit/components/meter.ts'),
     'the components folder is in the graph',
   );
+  assert.ok(
+    seen.has('/assets/ui-kit/components/chip-class.ts'),
+    'the chip’s class text, which chip.ts imports as a sibling, is in the graph',
+  );
   assert.ok(seen.has('/assets/domain/time.ts'), 'the time text the board shows is in the domain');
 });
 

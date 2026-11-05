@@ -5,6 +5,7 @@
  * sent note can't be deleted here.
  */
 import { html, useLayoutEffect, useRef } from '/assets/preact.mjs';
+import { Chip, type ChipTone } from '/assets/ui-kit/components/chip.ts';
 import { ROUTES } from '/assets/contracts/routes.ts';
 import { page, bridge, PARAMS } from '/assets/local/page.ts';
 import { closeEditor, deleteNote, gotoNote, setDone, upsertNote } from '/assets/local/actions.ts';
@@ -22,6 +23,14 @@ const STAGE_LABELS: Record<FixStage, string> = {
   queued: 'Queued',
   sent: 'Sent',
   fixed: 'Fixed',
+};
+
+/** The look of each stage's pill: queued and sent are tinted, to be seen among the notes. */
+const STAGE_TONES: Record<FixStage, { tone: ChipTone; tint?: boolean }> = {
+  draft: { tone: 'muted' },
+  queued: { tone: 'attention', tint: true },
+  sent: { tone: 'accent', tint: true },
+  fixed: { tone: 'success' },
 };
 
 /** The stage in words, for after its label. */
@@ -43,7 +52,7 @@ function stageDetail(note: LocalNote): string {
 function Stage(props: { note: LocalNote }) {
   const stage = fixStage(props.note);
   const detail = stageDetail(props.note);
-  return html`<span class="ou-local-stage ou-local-stage-${stage}">${STAGE_LABELS[stage]}</span>${detail && html` <span class="ou-local-muted">${detail}</span>`}`;
+  return html`<${Chip} ...${STAGE_TONES[stage]} strong size="lg" class=${`ou-local-stage ou-local-stage-${stage}`}>${STAGE_LABELS[stage]}</${Chip}>${detail && html` <span class="ou-local-muted">${detail}</span>`}`;
 }
 
 /** The toggle's count of the notes not ticked done, by stage: "Fix before push: 1 queued", "2 to send, 1 sent". */

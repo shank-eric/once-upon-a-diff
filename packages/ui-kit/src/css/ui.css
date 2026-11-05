@@ -14,6 +14,18 @@
 /* chips: small neutral labels, a mark in front says what one means (ui-kit/src/components/chip.ts) */
 .ou-ui-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 .ou-ui-chip { font-size: 11px; line-height: 16px; padding: 0 6px; border: 1px solid var(--ou-border); border-radius: 9px; color: var(--ou-fg-muted); white-space: nowrap; }
+/* a chip's size, weight and colour, after the base rule so they win (chip-class.ts): a tone draws the text and the border in its colour, `inherit` takes the text colour from the host */
+.ou-ui-chip-sm { padding: 0 5px; }
+.ou-ui-chip-lg { padding: 0 7px; }
+.ou-ui-chip-strong { font-weight: 600; }
+.ou-ui-tone-muted { color: var(--ou-fg-muted); border-color: currentColor; }
+.ou-ui-tone-accent { color: var(--ou-accent); border-color: currentColor; }
+.ou-ui-tone-success { color: var(--ou-ok); border-color: currentColor; }
+.ou-ui-tone-attention { color: var(--ou-warn); border-color: currentColor; }
+.ou-ui-tone-inherit { color: inherit; border-color: currentColor; }
+.ou-ui-tint-attention { background: var(--ou-bg-warn); }
+.ou-ui-tint-accent { background: var(--ou-bg-accent); }
+button.ou-ui-chip { font-family: inherit; cursor: pointer; }
 
 /* the Copy button (ui-kit/src/components/copy-button.ts) */
 .ou-ui-copy { font-size: 11px; padding: 0 6px; }
@@ -44,9 +56,6 @@
 /* Banner: a note with a rule down its left edge and a tint (ui-kit/src/components/banner.ts) */
 .ou-ui-banner { padding: 6px 10px; border-left: 3px solid var(--ou-accent); background: var(--ou-bg-accent); border-radius: 0 6px 6px 0; font-size: 12px; }
 .ou-ui-banner-warn { border-left: 3px solid var(--ou-warn); background: var(--ou-bg-muted); }
-
-/* Pill: a small outlined label, drawn in the colour its host gives it (the panel's file status marks) */
-.ou-ui-pill { font-size: 11px; padding: 0 5px; border-radius: 9px; border: 1px solid currentColor; white-space: nowrap; }
 
 /* The parts strip, "you are here": a row per group, the parts a step touches lit by a mark, a heavy border and weight, never colour alone (ui-kit/src/components/parts-strip.ts) */
 .ou-ui-parts { display: flex; flex-direction: column; gap: 3px; margin: 6px 0; font-size: 11px; line-height: 16px; }

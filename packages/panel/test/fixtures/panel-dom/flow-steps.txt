@@ -109,7 +109,7 @@ panel
         <span class="ou-stepprog ou-writing" title="This chapter is being written">
           "writing"
       <li class="ou-changing" data-n="4">
-        <span class="ou-new">
+        <span class="ou-ui-chip ou-ui-chip-sm ou-ui-tone-accent ou-ui-chip-strong ou-new">
           "New"
         "Since you read it: new commits"
         <span class="ou-count">
@@ -662,7 +662,7 @@ panel
         <span class="ou-stepprog ou-writing" title="This chapter is being written">
           "writing"
       <li class="ou-changing" data-n="4">
-        <span class="ou-new">
+        <span class="ou-ui-chip ou-ui-chip-sm ou-ui-tone-accent ou-ui-chip-strong ou-new">
           "New"
         "Since you read it: new commits"
         <span class="ou-count">
@@ -694,7 +694,7 @@ panel
         ", once"
         <span data-end="3" data-rel="src/b.ts" data-side="R" data-start="3" role="link" tabindex="0" title="Scroll to src/b.ts line 3">
           "the finish"
-        <button aria-pressed="false" class="ou-mark ou-st-mark" data-mark-for="src/b.ts" data-mark-short="1" title="Tick src/b.ts's Viewed checkbox" type="button">
+        <button aria-pressed="false" class="ou-ui-chip ou-ui-chip-lg ou-ui-tone-inherit ou-mark ou-st-mark" data-mark-for="src/b.ts" data-mark-short="1" title="Tick src/b.ts's Viewed checkbox" type="button">
           "mark viewed"
         "lands."
       <p>
@@ -849,7 +849,7 @@ panel
             "being changed by author-2 (lines 3–5, 9)"
           <span class="ou-viewed" data-viewed-for="src/a.ts" title="">
           <span class="ou-why ou-st-mark">
-            <button aria-pressed="false" class="ou-mark ou-st-mark" data-mark-for="src/a.ts" title="Tick src/a.ts's Viewed checkbox" type="button">
+            <button aria-pressed="false" class="ou-ui-chip ou-ui-chip-lg ou-ui-tone-inherit ou-mark ou-st-mark" data-mark-for="src/a.ts" title="Tick src/a.ts's Viewed checkbox" type="button">
               "Mark viewed"
         <li data-file="src/b.ts">
           <code data-rel="src/b.ts" role="link" tabindex="0" title="Scroll to src/b.ts">
@@ -860,7 +860,7 @@ panel
             "changed since story"
           <span class="ou-viewed" data-viewed-for="src/b.ts" title="">
           <span class="ou-why ou-st-mark">
-            <button aria-pressed="false" class="ou-mark ou-st-mark" data-mark-for="src/b.ts" title="Tick src/b.ts's Viewed checkbox" type="button">
+            <button aria-pressed="false" class="ou-ui-chip ou-ui-chip-lg ou-ui-tone-inherit ou-mark ou-st-mark" data-mark-for="src/b.ts" title="Tick src/b.ts's Viewed checkbox" type="button">
               "Mark viewed"
         <li class="ou-changing" data-file="src/c.ts">
           <code data-rel="src/c.ts" role="link" tabindex="0" title="Scroll to src/c.ts">
@@ -1114,7 +1114,7 @@ panel
         <span class="ou-stepprog ou-writing" title="This chapter is being written">
           "writing"
       <li class="ou-changing" data-n="4">
-        <span class="ou-new">
+        <span class="ou-ui-chip ou-ui-chip-sm ou-ui-tone-accent ou-ui-chip-strong ou-new">
           "New"
         "Since you read it: new commits"
         <span class="ou-count">
@@ -1416,7 +1416,7 @@ panel
         <span class="ou-stepprog ou-writing" title="This chapter is being written">
           "writing"
       <li class="ou-current ou-changing" data-n="4">
-        <span class="ou-new">
+        <span class="ou-ui-chip ou-ui-chip-sm ou-ui-tone-accent ou-ui-chip-strong ou-new">
           "New"
         "Since you read it: new commits"
         <span class="ou-count">
@@ -1489,7 +1489,7 @@ panel
             "being changed by author-2"
           <span class="ou-viewed" data-viewed-for="src/c.ts" title="">
           <span class="ou-why ou-st-mark">
-            <button aria-pressed="false" class="ou-mark ou-st-mark" data-mark-for="src/c.ts" title="Tick src/c.ts's Viewed checkbox" type="button">
+            <button aria-pressed="false" class="ou-ui-chip ou-ui-chip-lg ou-ui-tone-inherit ou-mark ou-st-mark" data-mark-for="src/c.ts" title="Tick src/c.ts's Viewed checkbox" type="button">
               "Mark viewed"
     <div class="ou-rebuild-box">
       <button class="ou-rebuild-open" disabled title="Keep the chapters before this one and tell this one and the rest again" type="button">
@@ -1734,7 +1734,7 @@ panel
         <span class="ou-stepprog ou-writing" title="This chapter is being written">
           "writing"
       <li class="ou-changing" data-n="4">
-        <span class="ou-new">
+        <span class="ou-ui-chip ou-ui-chip-sm ou-ui-tone-accent ou-ui-chip-strong ou-new">
           "New"
         "Since you read it: new commits"
         <span class="ou-count">
@@ -2126,7 +2126,7 @@ panel
         <span class="ou-stepprog ou-writing" title="This chapter is being written">
           "writing"
       <li class="ou-changing" data-n="4">
-        <span class="ou-new">
+        <span class="ou-ui-chip ou-ui-chip-sm ou-ui-tone-accent ou-ui-chip-strong ou-new">
           "New"
         "Since you read it: new commits"
         <span class="ou-count">
@@ -2679,7 +2679,7 @@ panel
         <span class="ou-stepprog ou-writing" title="This chapter is being written">
           "writing"
       <li class="ou-changing" data-n="4">
-        <span class="ou-new">
+        <span class="ou-ui-chip ou-ui-chip-sm ou-ui-tone-accent ou-ui-chip-strong ou-new">
           "New"
         "Since you read it: new commits"
         <span class="ou-count">
@@ -3076,7 +3076,7 @@ panel
         <span class="ou-stepprog ou-writing" title="This chapter is being written">
           "writing"
       <li class="ou-changing" data-n="4">
-        <span class="ou-new">
+        <span class="ou-ui-chip ou-ui-chip-sm ou-ui-tone-accent ou-ui-chip-strong ou-new">
           "New"
         "Since you read it: new commits"
         <span class="ou-count">
@@ -3473,7 +3473,7 @@ panel
         <span class="ou-stepprog ou-writing" title="This chapter is being written">
           "writing"
       <li class="ou-changing" data-n="4">
-        <span class="ou-new">
+        <span class="ou-ui-chip ou-ui-chip-sm ou-ui-tone-accent ou-ui-chip-strong ou-new">
           "New"
         "Since you read it: new commits"
         <span class="ou-count">

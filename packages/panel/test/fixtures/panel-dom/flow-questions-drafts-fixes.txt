@@ -114,7 +114,7 @@ panel
         <span class="ou-stepprog ou-writing" title="This chapter is being written">
           "writing"
       <li class="ou-changing" data-n="4">
-        <span class="ou-new">
+        <span class="ou-ui-chip ou-ui-chip-sm ou-ui-tone-accent ou-ui-chip-strong ou-new">
           "New"
         "Since you read it: new commits"
         <span class="ou-count">
@@ -503,7 +503,7 @@ panel
         <span class="ou-stepprog ou-writing" title="This chapter is being written">
           "writing"
       <li class="ou-changing" data-n="4">
-        <span class="ou-new">
+        <span class="ou-ui-chip ou-ui-chip-sm ou-ui-tone-accent ou-ui-chip-strong ou-new">
           "New"
         "Since you read it: new commits"
         <span class="ou-count">
@@ -904,7 +904,7 @@ panel
         <span class="ou-stepprog ou-writing" title="This chapter is being written">
           "writing"
       <li class="ou-changing" data-n="4">
-        <span class="ou-new">
+        <span class="ou-ui-chip ou-ui-chip-sm ou-ui-tone-accent ou-ui-chip-strong ou-new">
           "New"
         "Since you read it: new commits"
         <span class="ou-count">
@@ -1301,7 +1301,7 @@ panel
         <span class="ou-stepprog ou-writing" title="This chapter is being written">
           "writing"
       <li class="ou-changing" data-n="4">
-        <span class="ou-new">
+        <span class="ou-ui-chip ou-ui-chip-sm ou-ui-tone-accent ou-ui-chip-strong ou-new">
           "New"
         "Since you read it: new commits"
         <span class="ou-count">
@@ -1710,7 +1710,7 @@ panel
         <span class="ou-stepprog ou-writing" title="This chapter is being written">
           "writing"
       <li class="ou-changing" data-n="4">
-        <span class="ou-new">
+        <span class="ou-ui-chip ou-ui-chip-sm ou-ui-tone-accent ou-ui-chip-strong ou-new">
           "New"
         "Since you read it: new commits"
         <span class="ou-count">
@@ -2119,7 +2119,7 @@ panel
         <span class="ou-stepprog ou-writing" title="This chapter is being written">
           "writing"
       <li class="ou-changing" data-n="4">
-        <span class="ou-new">
+        <span class="ou-ui-chip ou-ui-chip-sm ou-ui-tone-accent ou-ui-chip-strong ou-new">
           "New"
         "Since you read it: new commits"
         <span class="ou-count">
@@ -2529,7 +2529,7 @@ panel
         <span class="ou-stepprog ou-writing" title="This chapter is being written">
           "writing"
       <li class="ou-changing" data-n="4">
-        <span class="ou-new">
+        <span class="ou-ui-chip ou-ui-chip-sm ou-ui-tone-accent ou-ui-chip-strong ou-new">
           "New"
         "Since you read it: new commits"
         <span class="ou-count">

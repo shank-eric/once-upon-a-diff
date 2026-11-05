@@ -9,6 +9,7 @@ import { Fragment, html } from '/assets/preact.mjs';
 import { html as markup } from '@once-upon-a-diff/domain/html';
 import { refAttrs } from '../components/ref-attrs.ts';
 import type { VNode } from '@once-upon-a-diff/ui-kit/parse-markup';
+import { Chip } from '@once-upon-a-diff/ui-kit/components/chip';
 import { PartsStrip } from '@once-upon-a-diff/ui-kit/components/parts-strip';
 import type { SinceModel } from '../rebuild/freshness-part.ts';
 import { plural } from '@once-upon-a-diff/domain/text';
@@ -51,7 +52,7 @@ export function createBody(context: PanelContext) {
     const steps = context.steps().map((step, index) => {
       const number = index + 1;
       const prefix = story.isNew(number)
-        ? html`<span class="ou-new">New</span> `
+        ? html`<${Chip} tone="accent" strong size="sm" class="ou-new">New</${Chip}> `
         : `${story.chapterNumber(number)}. `;
       const done = context.viewed.stepProgress(number);
       const progress = step.unwritten

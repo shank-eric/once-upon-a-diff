@@ -113,7 +113,7 @@ panel
         <span class="ou-stepprog ou-writing" title="This chapter is being written">
           "writing"
       <li class="ou-current ou-changing" data-n="4">
-        <span class="ou-new">
+        <span class="ou-ui-chip ou-ui-chip-sm ou-ui-tone-accent ou-ui-chip-strong ou-new">
           "New"
         "Since you read it: new commits"
         <span class="ou-count">
@@ -184,7 +184,7 @@ panel
             "being changed by author-2"
           <span class="ou-viewed" data-viewed-for="src/c.ts" title="">
           <span class="ou-why ou-st-mark">
-            <button aria-pressed="false" class="ou-mark ou-st-mark" data-mark-for="src/c.ts" title="Tick src/c.ts's Viewed checkbox" type="button">
+            <button aria-pressed="false" class="ou-ui-chip ou-ui-chip-lg ou-ui-tone-inherit ou-mark ou-st-mark" data-mark-for="src/c.ts" title="Tick src/c.ts's Viewed checkbox" type="button">
               "Mark viewed"
     <div class="ou-rebuild-box">
       <button class="ou-rebuild-open" disabled title="Keep the chapters before this one and tell this one and the rest again" type="button">

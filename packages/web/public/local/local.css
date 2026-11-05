@@ -150,11 +150,7 @@ button.ou-local-pr, button.ou-local-push, button.ou-local-push-ahead { white-spa
 .ou-local-pr-go:disabled { opacity: .5; cursor: default; }
 
 /* a fix-before-push note's stage (local/diff/notes.ts) */
-.ou-local-stage { display: inline-block; font-size: 11px; font-weight: 600; line-height: 16px; padding: 0 7px; border-radius: 9px; border: 1px solid currentColor; white-space: nowrap; }
-.ou-local-stage-draft { color: var(--ou-fg-muted); }
-.ou-local-stage-queued { color: var(--ou-warn); background: var(--ou-bg-warn); }
-.ou-local-stage-sent { color: var(--ou-accent); background: var(--ou-bg-accent); }
-.ou-local-stage-fixed { color: var(--ou-ok); }
+.ou-local-stage { display: inline-block; }
 .ou-local-notes-list .ou-local-note-text { margin: 2px 0 0 22px; }
 
 /* What the board says with no key (local/not-connected.ts) */
@@ -375,7 +371,7 @@ button.ou-board-blank-chip:hover { border-color: var(--ou-fg-muted); }
   .ou-board-lane { margin-bottom: 6px; }
   .ou-board-card { padding: 6px 8px; font-size: 13px; }
   .ou-board-meta, .ou-board-sessions, .ou-board-agents { font-size: 12px; }
-  .ou-ui-chip { line-height: 18px; }
+  .ou-ui-chips .ou-ui-chip, .ou-board-blank-chip { line-height: 18px; }
   .ou-board-card button, .ou-board-open, .ou-board-actions a, .ou-board-focus, .ou-local-top button, .ou-board-head button, .ou-board-lane-toggle { min-height: 44px; min-width: 44px; }
   .ou-board-actions { gap: 8px; }
   .ou-local-top { padding: 8px 10px; flex-wrap: wrap; }

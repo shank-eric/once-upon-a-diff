@@ -4,6 +4,7 @@ import { document, root, tick } from './preact-env.ts';
 const { html, render } = await import('/assets/preact.mjs');
 const { Meter, ContextMeter } = await import('../src/components/meter.ts');
 const { Chip, Chips } = await import('../src/components/chip.ts');
+const { chipClass } = await import('../src/components/chip-class.ts');
 
 const draw = async (view: Parameters<typeof render>[0]) => {
   render(view, root);
@@ -35,9 +36,9 @@ test('a context meter draws only when the context is a number', async () => {
   assert.match(root.querySelector('.ou-ui-meter')?.getAttribute('title') ?? '', /63% full/);
 });
 
-test('a chip carries its mark in front of its tone, and a row of chips takes a class of its own', async () => {
+test('a chip carries its mark in front of its text, and a row of chips takes a class of its own', async () => {
   await draw(
-    html`<${Chips} class="ou-board-gates" items=${['plain one', { text: 'passing', tone: 'ok' }, { text: 'failing', tone: 'bad' }, { text: 'careful', tone: 'warn' }, { text: 'quiet', tone: 'plain' }]} />`,
+    html`<${Chips} class="ou-board-gates" items=${['plain one', { text: 'passing', mark: 'ok' }, { text: 'failing', mark: 'bad' }, { text: 'careful', mark: 'warn' }, { text: 'quiet', mark: 'plain' }]} />`,
   );
   const row = root.querySelector('.ou-ui-chips') as HTMLElement;
   assert.equal(row.className, 'ou-ui-chips ou-board-gates');
@@ -49,4 +50,43 @@ test('a chip carries its mark in front of its tone, and a row of chips takes a c
   assert.equal(root.querySelector('.ou-ui-chips')?.className, 'ou-ui-chips');
   await draw(html`<${Chip}>alone</${Chip}>`);
   assert.equal(document.querySelectorAll('.ou-ui-chip').length, 1);
+});
+
+test('chipClass names the look: size, tone, tint (only where a tone has one), weight, then the host class', () => {
+  assert.equal(chipClass(), 'ou-ui-chip');
+  assert.equal(chipClass({ size: 'md' }), 'ou-ui-chip');
+  assert.equal(
+    chipClass({ tone: 'attention', tint: true, strong: true, size: 'lg', class: 'mine' }),
+    'ou-ui-chip ou-ui-chip-lg ou-ui-tone-attention ou-ui-tint-attention ou-ui-chip-strong mine',
+  );
+  assert.equal(chipClass({ tone: 'success', tint: true }), 'ou-ui-chip ou-ui-tone-success');
+  assert.equal(chipClass({ tint: true }), 'ou-ui-chip');
+  assert.equal(
+    chipClass({ tone: 'inherit', size: 'sm' }),
+    'ou-ui-chip ou-ui-chip-sm ou-ui-tone-inherit',
+  );
+});
+
+test('a chip is a span or a button, wears its look, and passes the rest to its element', async () => {
+  await draw(
+    html`<${Chip} tone="accent" tint strong size="sm" class="ou-new" title="t">New</${Chip}>`,
+  );
+  const span = root.querySelector('span') as HTMLElement;
+  assert.equal(
+    span.className,
+    'ou-ui-chip ou-ui-chip-sm ou-ui-tone-accent ou-ui-tint-accent ou-ui-chip-strong ou-new',
+  );
+  assert.equal(span.getAttribute('title'), 't');
+  await draw(html`<${Chip} mark="ok">done</${Chip}>`);
+  assert.equal((root.querySelector('span') as HTMLElement).textContent, '✓ done');
+  let clicked = 0;
+  await draw(
+    html`<${Chip} as="button" tone="inherit" data-mark-for="a.ts" onClick=${() => clicked++}>go</${Chip}>`,
+  );
+  const button = root.querySelector('button') as HTMLElement;
+  assert.equal(button.getAttribute('type'), 'button');
+  assert.equal(button.getAttribute('data-mark-for'), 'a.ts');
+  button.click();
+  assert.equal(clicked, 1);
+  assert.equal(button.className, 'ou-ui-chip ou-ui-tone-inherit');
 });

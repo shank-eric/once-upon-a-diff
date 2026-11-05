@@ -256,13 +256,8 @@
 }
 #ou-panel .ou-new {
   font-size: 10px;
-  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.03em;
-  color: var(--ou-accent);
-  border: 1px solid currentColor;
-  border-radius: 9px;
-  padding: 0 5px;
 }
 #ou-panel .ou-since {
   margin: 10px 0;
@@ -597,7 +592,7 @@
   outline-offset: 1px;
   text-decoration: underline;
 }
-#ou-panel .ou-ui-pill {
+#ou-panel .ou-filepill {
   margin-left: 3px;
 }
 #ou-panel button.ou-mark {

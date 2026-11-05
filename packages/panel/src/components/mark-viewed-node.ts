@@ -3,6 +3,7 @@
  * Viewed toggle: "Mark viewed" until the toggle is on, then "Viewed ✓" (a click unticks it).
  */
 import { html } from '/assets/preact.mjs';
+import { Chip } from '@once-upon-a-diff/ui-kit/components/chip';
 import type { VNode } from '@once-upon-a-diff/ui-kit/parse-markup';
 
 /** The same button as a node: `toggleOn` is whether the file's Viewed toggle is on (null before the tracker has looked). */
@@ -20,5 +21,5 @@ export function markViewedNode(
   const title = viewed
     ? `Viewed. Click to untick ${rel}'s Viewed checkbox`
     : `Tick ${rel}'s Viewed checkbox`;
-  return html`<button type="button" class=${`ou-mark ${viewed ? 'ou-st-viewed' : 'ou-st-mark'}`} data-mark-for=${rel} data-mark-short=${short ? '1' : undefined} aria-pressed=${toggleOn === null ? undefined : String(viewed)} title=${title} onClick=${onClick}>${label}</button>`;
+  return html`<${Chip} as="button" tone="inherit" size="lg" class=${`ou-mark ${viewed ? 'ou-st-viewed' : 'ou-st-mark'}`} data-mark-for=${rel} data-mark-short=${short ? '1' : undefined} aria-pressed=${toggleOn === null ? undefined : String(viewed)} title=${title} onClick=${onClick}>${label}</${Chip}>`;
 }
