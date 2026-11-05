@@ -554,7 +554,7 @@ A pre-commit hook (husky and lint-staged, installed by `yarn install`) runs ESLi
 PLAYWRIGHT_BROWSERS_PATH=/some/dir node node_modules/playwright-core/cli.js install chromium
 ```
 
-Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random port with a temporary home, and builds a two-chapter story for a public PR (`--pr owner/repo#N`, default `refined-github/refined-github#10280`). It then checks:
+Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random port with a temporary home, and builds a two-chapter story for a public PR (`--pr owner/repo#N`, default `shank-eric/inbox-in-gmail#91`). It then checks:
 
 - the options page, and that the extension loads with its fixed ID
 - the panel on `/files` and `/changes`: docking, filtering, coming back after a reload, the `hidden` attribute and hash skipping
@@ -563,6 +563,7 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
 - that the GitHub page itself makes no calls to the bridge
 - the local page: diff, filter, Viewed, a note, and coming back after a reload
 - the options page's Test connection before Save
+- pixel checks: 14 screenshots (the panel on the PR page, the local page, its Q&A and a bridge error, the board, a toast and a story tag, each in light and dark) against the PNGs in `packages/bridge/test/browser/pixels/<platform>/`. `UPDATE_SNAPSHOTS=1 yarn test:extension` rewrites them; a miss writes the actual and diff images to `packages/bridge/test-results/pixel-diff/`
 
 `test:expand` uses `refined-github/refined-github#10298` and checks that line links above, between and past its hunks, on both sides, and file and line links into a collapsed file open and highlight their target, with no expanding on a step change, `?w=1` kept and no Viewed toggle touched. Logged out, GitHub sends `/changes` to `/files`, so the React `/changes` DOM is checked by hand.
 

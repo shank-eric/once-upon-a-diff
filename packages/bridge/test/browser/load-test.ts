@@ -11,7 +11,13 @@
  *      filters by chapter, keeps Viewed and a fix-before-push note, and its
  *      Q&A says who answers and keeps collapse, Dismiss and Clear conversation
  *
- *   node test/browser/load-test.ts [--pr owner/repo#N] [--headed] [--shots DIR]
+ *   4. pixel checks (pixels.ts): the panel on the PR page, the local page (story, Q&A, a bridge error), the board,
+ *      a toast and a story tag, each in light and dark, against the PNGs in test/browser/pixels/<platform>/
+ *
+ *   node test/browser/load-test.ts [--pr owner/repo#N] [--headed] [--shots DIR] [--update-snapshots]
+ *
+ * UPDATE_SNAPSHOTS=1 (or --update-snapshots) rewrites the pixel baselines instead of comparing; a miss writes
+ * test-results/pixel-diff/<name>-actual.png and -diff.png.
  *
  * PLAYWRIGHT_BROWSERS_PATH picks where Playwright's Chromium lives
  * (node node_modules/playwright-core/cli.js install chromium).
@@ -23,8 +29,9 @@ import path from 'node:path';
 import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, writeJson, TOKEN, startBridge, localRepo, runCli } from '../helpers.ts';
+import { SCHEMES, createPixels, primerRule, type ShotOptions } from './pixels.ts';
 import { createLocalStory } from '../../src/services/stories/local-story.ts';
-import { localPageUrl } from '../../src/services/pages/page-key.ts';
+import { boardPageUrl, localPageUrl } from '../../src/services/pages/page-key.ts';
 import { beat } from '../../src/services/listeners/listeners.ts';
 import { Builds, type Build } from '../../src/services/inbox/builds.ts';
 import type { InboxEntry, QuestionEntry } from '../../src/services/inbox/inbox.ts';
@@ -41,11 +48,18 @@ const arg = <F>(name: string, fallback: F): string | true | F => {
   }
   return args[i + 1] && !args[i + 1].startsWith('--') ? args[i + 1] : true;
 };
-const PR_REF = arg('pr', 'refined-github/refined-github#10280') as string; // --pr takes owner/repo#N
+const PR_REF = arg('pr', 'shank-eric/inbox-in-gmail#91') as string; // --pr takes owner/repo#N
 const SHOTS = arg('shots', null) as string | null; // --shots takes a folder
 if (SHOTS) {
   mkdirSync(SHOTS, { recursive: true });
 }
+// the pixel shots show commit ids and the board, so neither may carry this machine: fixed git dates and names (the local
+// story's shas are then the same every run) and no Claude sessions or checkouts of Eric's for the board to find
+process.env.GIT_AUTHOR_DATE = process.env.GIT_COMMITTER_DATE = '2026-10-20T12:00:00Z';
+process.env.GIT_AUTHOR_NAME = process.env.GIT_COMMITTER_NAME = 'Snap';
+process.env.GIT_AUTHOR_EMAIL = process.env.GIT_COMMITTER_EMAIL = 'snap@example.com';
+process.env.CLAUDE_CONFIG_DIR = tmp('claude-config');
+process.env.ONCE_UPON_DEV_DIR = tmp('dev-dir');
 
 let failures = 0;
 const check = (ok: unknown, what: string) => {
@@ -58,6 +72,73 @@ const shot = async (page: Page, name: string) => {
   if (SHOTS) {
     await page.screenshot({ path: path.join(SHOTS, `${name}.png`) });
   }
+};
+
+// ---------- pixel checks (see pixels.ts)
+const UPDATE = process.env.UPDATE_SNAPSHOTS === '1' || arg('update-snapshots', false) === true;
+const pixels = createPixels({ update: UPDATE });
+let skippedPixels = false;
+/** Text that is a clock or a date, so its pixels change from run to run: painted over in the shot. */
+const CLOCKS = [
+  '.ou-local-note-head > b + .ou-local-muted', // a note's date (toLocaleString)
+  '[data-since]', // Elapsed
+  '.ou-fresh .ou-ui-busy .ou-why', // "started 3:42 PM (4 min ago)" in the request line
+  // these two have the time in the middle of other text, with no element of its own, so the whole line is painted over
+  '.ou-qmeta', // a question's date, with where it was asked and Mark read
+  '.ou-rebuilding', // "Rebuilt from chapter 2 at 11:05 AM"
+];
+const maskClocks = (page: Page) => CLOCKS.map((selector) => page.locator(selector));
+/** A note's date is as wide as its digits, and what follows it moves with that: give it a fixed width, so the mask is the same box every run. */
+const FIXED_DATE_WIDTH =
+  '.ou-local-note-head > b + .ou-local-muted { display: inline-block; width: 12em; overflow: hidden; white-space: nowrap; }';
+type Around = (page: Page, scheme: 'light' | 'dark') => Promise<void | (() => Promise<void>)>;
+/** The local header names the repo's folder, a random temp one: say `<repo>` in its place for the shot, and put the text back after. */
+const hideRepoFolder: Around = async (tab) => {
+  const range = tab.locator('.ou-local-top-main > .ou-local-muted');
+  const original = await range.evaluate((line) => {
+    const text = document.createTreeWalker(line, NodeFilter.SHOW_TEXT).nextNode() as Text;
+    const before = text.data;
+    text.data = text.data.replace(/^.*? · /, '<repo> · ');
+    return before;
+  });
+  return async () => {
+    await range.evaluate((line, before) => {
+      (document.createTreeWalker(line, NodeFilter.SHOW_TEXT).nextNode() as Text).data = before;
+    }, original);
+  };
+};
+const BACKDROP = { light: '#ffffff', dark: '#0d1117' };
+/**
+ * Compares the screen (`options.target`'s element, else the viewport) with its baseline, once in light and once in dark
+ * (emulated, so the pages' own prefers-color-scheme rules answer). `primer` pins GitHub's Primer palette first (pixels.ts), and
+ * `around` sets up and tears down anything else for the shot. A platform with no baselines is skipped, with a line.
+ */
+const pixel = async (
+  page: Page,
+  screen: string,
+  options: ShotOptions & { primer?: boolean; around?: Around } = {},
+) => {
+  if (!pixels.active) {
+    if (!skippedPixels) {
+      skippedPixels = true;
+      process.stdout.write(
+        `SKIP pixels: no baselines for ${process.platform} (UPDATE_SNAPSHOTS=1 yarn test:extension makes them)\n`,
+      );
+    }
+    return;
+  }
+  for (const scheme of SCHEMES) {
+    await page.emulateMedia({ colorScheme: scheme });
+    const reset = options.primer ? await page.addStyleTag({ content: primerRule(scheme) }) : null;
+    const undo = await options.around?.(page, scheme);
+    const result = await pixels.shot(page, `${screen}-${scheme}`, options);
+    check(result.ok, result.line);
+    if (undo) {
+      await undo();
+    }
+    await reset?.evaluate((node) => (node as Element).remove());
+  }
+  await page.emulateMedia({ colorScheme: null });
 };
 /** The questions dock starts closed: open it so its Ask box can be used. */
 const openDock = async (page: Page) => {
@@ -82,6 +163,8 @@ if (rels.length < 2) {
 }
 const half = Math.ceil(rels.length / 2);
 const home = tmp('ext-home');
+// the board's header says where it reads each session's status from, which is iTerm when this machine has it: pin the other
+writeJson(path.join(home, 'config.json'), { board_status_source: 'registry' });
 const buildRequests = () =>
   existsSync(path.join(home, 'builds.json'))
     ? Object.values(
@@ -418,6 +501,18 @@ try {
       `/${view}: a hash jump onto a hidden file moves on to a chapter file, or says why not (${jumped.inChapter ? 'moved' : jumped.msg})`,
     );
     await shot(page, `github-${view}-chapter1`);
+    if (view === 'files') {
+      // the hash-jump check just raised a message that the panel clears after 8 s: shoot once it is gone
+      await page
+        .locator('#ou-panel .ou-msg:empty')
+        .waitFor({ state: 'attached', timeout: 15000 })
+        .catch(() => {});
+      await pixel(page, 'panel-github', {
+        target: (tab) => tab.locator('#ou-panel'),
+        mask: maskClocks,
+        primer: true,
+      });
+    }
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.waitForSelector('#once-upon-panel', { timeout: 15000, state: 'attached' });
     await page.waitForTimeout(1500);
@@ -485,6 +580,48 @@ try {
       (await page.locator('[data-ou-hidden]').count()) === 0,
     'x removes the panel and every filter',
   );
+  {
+    // the toast "Story hidden..." the x just raised goes after 5 s, which is shorter than the two shots: keep a copy of it
+    // (same shadow markup and stylesheet) on a fixed backdrop, so its rounded corners don't blend with GitHub's page
+    await page.evaluate(async () => {
+      const host = [...document.body.children].find((el) =>
+        el.shadowRoot?.querySelector('.t[role=status]'),
+      ) as HTMLElement;
+      const copy = document.createElement('div');
+      copy.setAttribute('data-pixel-toast', '');
+      copy.attachShadow({ mode: 'open' }).innerHTML = host.shadowRoot!.innerHTML;
+      const loaded = Promise.all(
+        [...copy.shadowRoot!.querySelectorAll('link')].map(
+          (sheet) =>
+            new Promise((resolve) => {
+              sheet.addEventListener('load', resolve);
+              setTimeout(resolve, 3000);
+            }),
+        ),
+      );
+      document.body.append(copy);
+      host.style.display = 'none';
+      const backdrop = document.createElement('div');
+      backdrop.setAttribute('data-pixel-backdrop', '');
+      backdrop.style.cssText = 'position:fixed;inset:0;z-index:99';
+      document.body.append(backdrop);
+      await loaded;
+    });
+    await pixel(page, 'toast', {
+      target: (tab) => tab.locator('[data-pixel-toast] .t'),
+      primer: true,
+      around: async (tab, scheme) => {
+        await tab
+          .locator('[data-pixel-backdrop]')
+          .evaluate((node, color) => (node.style.background = color), BACKDROP[scheme]);
+      },
+    });
+    await page.evaluate(() =>
+      document
+        .querySelectorAll('[data-pixel-toast], [data-pixel-backdrop]')
+        .forEach((node) => node.remove()),
+    );
+  }
   const filesTag = (tab: Page) =>
     tab
       .locator('[data-ou-files]')
@@ -518,7 +655,7 @@ try {
   );
 
   // the story tag on a PR with no story: Build story -> Queued -> the story turns up -> panel
-  const NOSTORY = Number(arg('no-story-pr', 10298));
+  const NOSTORY = Number(arg('no-story-pr', 92));
   const newPage = await context.newPage();
   await newPage.goto(`https://github.com/${owner}/${repo}/pull/${NOSTORY}/files`, {
     waitUntil: 'domcontentloaded',
@@ -674,6 +811,18 @@ try {
     'the list says once that no session is listening for the repo, with Start listening',
   );
   await shot(list, 'pr-list');
+  if (target) {
+    // the pill that just went Queued, on a backdrop of its own so its rounded corners don't blend with GitHub's row
+    await pixel(list, 'story-tag', {
+      target: (tab) => tab.locator(`[data-ou-badge="${target.key}"] .b`),
+      primer: true,
+      around: async (tab, scheme) => {
+        await tab
+          .locator(`[data-ou-badge="${target.key}"]`)
+          .evaluate((host, color) => (host.style.background = color), BACKDROP[scheme]);
+      },
+    });
+  }
   await list.close();
 
   // the PR's Conversation tab: the same single tag next to the title, and the same notice
@@ -1111,6 +1260,16 @@ try {
     `fixed clears the mark, and the notes say where they were fixed: "${await fixBox()}"`,
   );
   await shot(localPage, 'local-chapter1');
+  // syntax colors come from a dynamic import: wait for a highlighted token, or a slow load would bake plain text in
+  await localPage.waitForSelector('.ou-local-code [class*="hljs-"]', {
+    state: 'attached',
+    timeout: 5000,
+  });
+  await pixel(localPage, 'local-story', {
+    mask: maskClocks,
+    style: FIXED_DATE_WIDTH,
+    around: hideRepoFolder,
+  });
   await localPage.reload();
   await localPage.waitForSelector('#once-upon-panel', { state: 'attached', timeout: 5000 });
   await localPage.waitForTimeout(300);
@@ -1236,6 +1395,15 @@ try {
     }
     await localPage.locator('#ou-panel .ou-questions').scrollIntoViewIfNeeded();
     await shot(localPage, 'local-qa');
+    // the answer counts as read a moment after it is in view, and the dock's header changes with it: wait for that
+    await localPage
+      .locator('#ou-panel .ou-unread')
+      .waitFor({ state: 'detached', timeout: 15000 })
+      .catch(() => {});
+    await pixel(localPage, 'local-qa', {
+      target: (tab) => tab.locator('#ou-panel'),
+      mask: maskClocks,
+    });
     await localPage.locator('#ou-panel .ou-qa [data-qa-act="collapse"]').click();
     check(
       (await qaCount('.ou-qa-collapsed')) === 1 && (await qaCount('.ou-a')) === 0,
@@ -1346,6 +1514,40 @@ try {
     errors.length === 0,
     `no page errors on the local page${errors.length ? `: ${errors.join('; ')}` : ''}`,
   );
+  await localPage.close();
+
+  // 4. the bridge's other pages, for the pixel checks
+  {
+    // the agent board: the two test stories and no agents (the bridge has no ledger, no sessions)
+    const boardPage = await context.newPage();
+    await boardPage.goto(boardPageUrl(port, TOKEN));
+    await boardPage.waitForSelector('#ou-board-app :not(.ou-local-loading)', { timeout: 5000 });
+    await boardPage
+      .locator('#ou-board-app', { hasText: 'scanning' })
+      .waitFor({ state: 'detached', timeout: 10000 })
+      .catch(() => {});
+    await boardPage.waitForTimeout(500);
+    // ages ("1m", "2m ago", "just now") are text in the middle of a card's lines: paint over the lines that carry one
+    await pixel(boardPage, 'board', {
+      mask: (tab) => [tab.getByText(/\b(\d+[smhd]|now)\b/)],
+    });
+    await boardPage.close();
+    // the local page when the bridge can't be reached: the status light goes red and its list says so
+    const errPage = await context.newPage();
+    await errPage.route(/\/status(\?|$)/, (route) => route.abort());
+    await errPage.goto(localPageUrl(port, local.id, TOKEN));
+    await errPage
+      .locator('.ou-local-reopen')
+      .click({ timeout: 1000 })
+      .catch(() => {}); // the panel was left closed
+    await errPage.waitForSelector('#ou-panel .ou-light[data-level="error"]', { timeout: 10000 });
+    await errPage.locator('#ou-panel .ou-light').click();
+    await pixel(errPage, 'local-error', {
+      target: (tab) => tab.locator('#ou-panel'),
+      mask: maskClocks,
+    });
+    await errPage.close();
+  }
 } finally {
   await context.close();
   await bridge.close();
