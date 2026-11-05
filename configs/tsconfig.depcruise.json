@@ -21,5 +21,5 @@
       "/assets/syntax.ts": ["./packages/web/public/syntax.ts"]
     }
   },
-  "include": ["packages/*/src", "packages/web/public"]
+  "include": ["../packages/*/src", "../packages/web/public"]
 }

@@ -1,8 +1,8 @@
 /*
- * Probes for the side-effect lint (eslint.side-effects.mjs): only an adapter runs a program, writes a file or reaches the
+ * Probes for the side-effect lint (configs/eslint.side-effects.mjs): only an adapter runs a program, writes a file or reaches the
  * network. Each case lints a snippet as if it sat in a given folder and checks which of those rules fires, so a rule that
  * stops matching, or a block that gets a rule replaced by a later one, fails here instead of going quiet.
- * Which package, layer or region may import which is dependency-cruiser's job (.dependency-cruiser.mjs), not ESLint's.
+ * Which package, layer or region may import which is dependency-cruiser's job (configs/.dependency-cruiser.mjs), not ESLint's.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

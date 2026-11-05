@@ -1,14 +1,15 @@
 /*
  * The one home for which package, layer or region may import which, and for import cycles (`yarn depcruise`, run by
  * `yarn lint`). See AGENTS.md "Structure". It sees the whole graph, so an import through a re-export still counts.
- * ESLint keeps style and eslint.side-effects.mjs (only an adapter runs a program, writes a file or reaches the network).
+ * ESLint keeps style and configs/eslint.side-effects.mjs (only an adapter runs a program, writes a file or reaches the network).
  * Source only: tests, scripts and config cross packages on purpose, so they are not cruised.
  *
  * The browser imports its modules by URL (`/assets/panel/overlay.ts`). The bridge serves them from the packages, and
- * tsconfig.depcruise.json maps each URL back to its file (the same `paths` as packages/web/public/tsconfig.json, except that the pages' own files are listed one by one, not by
+ * configs/tsconfig.depcruise.json maps each URL back to its file (the same `paths` as packages/web/public/tsconfig.json, except that the pages' own files are listed one by one, not by
  * an /assets/* catch-all, so /assets/vendor/preact.mjs resolves to nothing: the one Preact is /assets/preact.mjs; a new top-level page
  * needs a line there), so the cruise takes that tsconfig to resolve them. A package import (`@once-upon-a-diff/panel/overlay`) resolves through the workspace
  * symlink and the package's `exports`.
+ * Its `paths` are relative to the repo root, not to configs/: depcruise resolves them against the folder it runs from (`yarn depcruise` runs at the root).
  *
  * Packages and layers, as paths from the repo root (a rule's `from`/`to` match these):
  *   bridge   packages/bridge/src/{server (+routes), cli} over services over adapters (BRIDGE is the whole package)
@@ -17,6 +18,8 @@
  *   extension packages/extension/src (an app)
  *   panel, host-github, api-client, ui, protocol (+ protocol/src/domain), test-kit
  */
+
+import { fileURLToPath } from 'node:url';
 
 const BRIDGE = '^packages/bridge/';
 const SERVER = '^packages/bridge/src/server/';
@@ -138,7 +141,7 @@ export default {
     ),
     rule(
       'only-adapters-run-programs-or-network',
-      'only an adapter runs a program or reaches the network (the HTTP app has node:http, to listen). Covers the imports a graph can see; the rest stays ESLint-only (eslint.side-effects.mjs): fs writes (an import of node:fs cannot tell a read from a write), fetch, process.kill and module loaders',
+      'only an adapter runs a program or reaches the network (the HTTP app has node:http, to listen). Covers the imports a graph can see; the rest stays ESLint-only (configs/eslint.side-effects.mjs): fs writes (an import of node:fs cannot tell a read from a write), fetch, process.kill and module loaders',
       { path: [SERVICES, SERVER, CLI] },
       {
         dependencyTypes: ['core'],
@@ -374,7 +377,7 @@ export default {
   options: {
     // the vendored files are leaves: an import of one is a dependency the rules see, but its own imports are not followed
     doNotFollow: { path: 'node_modules|/vendor/' },
-    tsConfig: { fileName: 'tsconfig.depcruise.json' },
+    tsConfig: { fileName: fileURLToPath(new URL('./tsconfig.depcruise.json', import.meta.url)) },
     tsPreCompilationDeps: true,
     enhancedResolveOptions: {
       exportsFields: ['exports'],

@@ -2,7 +2,7 @@
 
 Once Upon a Diff puts a code-review story (an overview, then chapters) in a side panel on a GitHub PR's Files changed page, with the diff filtered to each chapter's files. A Claude Code session writes the story and answers questions you type in the panel. A small local server, the bridge, carries things between the two.
 
-This guide takes you from nothing to your first story. The [README](README.md) has the details behind each step.
+This guide takes you from nothing to your first story. The [README](../README.md) has the details behind each step.
 
 ## Setting up
 
@@ -67,7 +67,7 @@ ln -s "$PWD/skills/once-upon-listen" ~/.claude/skills/once-upon-listen
 
 It's a link, so a `git pull` updates the skill too. The skill finds the `once-upon` command through that link, so it doesn't need the alias in step 8. Start a new Claude Code session to pick it up.
 
-A listener reads PR text that anyone who can comment on a PR can write, so don't run it in bypass-permissions mode (`--dangerously-skip-permissions`). Add the deny list in the README's [Keep listener sessions on a short leash](README.md#keep-listener-sessions-on-a-short-leash) to the checkout's `.claude/settings.local.json` or your `~/.claude/settings.json`, so `git push`, `gh` writes, `curl` and WebFetch are refused outright.
+A listener reads PR text that anyone who can comment on a PR can write, so don't run it in bypass-permissions mode (`--dangerously-skip-permissions`). Add the deny list in the README's [Keep listener sessions on a short leash](../README.md#keep-listener-sessions-on-a-short-leash) to the checkout's `.claude/settings.local.json` or your `~/.claude/settings.json`, so `git push`, `gh` writes, `curl` and WebFetch are refused outright.
 
 ### 7. Install the once-upon skill
 
@@ -79,7 +79,7 @@ ln -s "$PWD/skills/once-upon" ~/.claude/skills/once-upon
 
 It finds this repo through the link, so the checkout can live anywhere.
 
-- **You can give it your own rules.** It's generic: it drafts comments and never posts them. Rules about your own setup (where checkouts live, how to name people, the voice for comments) go in `~/.once-upon/house-rules.md`, which the skills read when it's there. See [Personal settings](README.md#personal-settings).
+- **You can give it your own rules.** It's generic: it drafts comments and never posts them. Rules about your own setup (where checkouts live, how to name people, the voice for comments) go in `~/.once-upon/house-rules.md`, which the skills read when it's there. See [Personal settings](../README.md#personal-settings).
 
 What works without once-upon: local mode (step 10, which makes its own starting chapters), the panel and its Ask box on any story you have, and the listener answering questions. What doesn't: Build story on a PR, and a story's update after new commits.
 

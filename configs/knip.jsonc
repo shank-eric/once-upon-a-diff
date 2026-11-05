@@ -2,7 +2,7 @@
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "workspaces": {
     ".": {
-      "entry": ["skills/**/*.ts", "eslint.*.mjs"],
+      "entry": ["skills/**/*.ts", "configs/eslint.*.mjs"],
     },
     "packages/extension": {
       "entry": ["src/entrypoints/**/*.ts", "scripts/*.ts"],

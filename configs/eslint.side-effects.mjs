@@ -1,7 +1,7 @@
 /*
  * Side-effect rules, enforced by `yarn lint` (eslint.config.mjs spreads this in last): only an adapter runs a program, writes a
  * file or reaches the network. Which package, layer or region may import which, and import cycles, are dependency-cruiser's
- * (.dependency-cruiser.mjs, `yarn depcruise`, run by `yarn lint`); this file holds no layer or package rule.
+ * (configs/.dependency-cruiser.mjs, `yarn depcruise`, run by `yarn lint`); this file holds no layer or package rule.
  *
  * Where it applies (packages/bridge/src; the adapters are the one place that may do any of this):
  *   server/           the HTTP app: it has node:http, to listen, and nothing else on the network

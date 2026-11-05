@@ -1,6 +1,6 @@
 # Once Upon a Diff
 
-New here? [GETTING-STARTED.md](GETTING-STARTED.md) walks you through setup and your first story.
+New here? [docs/GETTING-STARTED.md](docs/GETTING-STARTED.md) walks you through setup and your first story.
 
 A code-review story (an overview, then chapters) in a side panel docked on top of a diff, with the diff filtered to each chapter's files. It works in two places:
 
@@ -530,7 +530,7 @@ Once Upon a Diff doesn't need Refined GitHub and doesn't use anything it adds to
 
 ## Development
 
-[CONTRIBUTING.md](CONTRIBUTING.md) has the day-to-day workflow. The commands, from the repo root:
+[.github/CONTRIBUTING.md](.github/CONTRIBUTING.md) has the day-to-day workflow. The commands, from the repo root:
 
 ```bash
 yarn dev               # the extension, rebuilt into packages/extension/.output/chrome-mv3 on each change and reloaded
@@ -568,7 +568,7 @@ Run it with the same `PLAYWRIGHT_BROWSERS_PATH`. It starts a bridge on a random 
 
 ## Code layout
 
-Nine Yarn workspaces under `packages/`, all TypeScript (strict), and the skills at the root. Each package has its own dependencies, tests and tsconfig, extending the root's `tsconfig.base.json`.
+Nine Yarn workspaces under `packages/`, all TypeScript (strict), and the skills at the root. Each package has its own dependencies, tests and tsconfig, extending the root's `configs/tsconfig.base.json`.
 
 To trace a click or a command through the code, start with [`docs/flows.md`](docs/flows.md): five requests (Build a story, Ask, Board refresh, Start listening, and an agent's claim through to its card landing), each hop with its file, line and layer. [`docs/state-map.md`](docs/state-map.md) lists every file the tool reads or writes, and [`docs/adr/`](docs/adr/) records why it's built the way it is.
 
@@ -595,9 +595,9 @@ To trace a click or a command through the code, start with [`docs/flows.md`](doc
     - `fixes/`: Fix before push (`fixes.ts`) and the "being changed" marks (`working.ts`).
     - `reading/`: moving and finding your place: `navigation.ts`, `scroll.ts`, `filter.ts`, `expand.ts`, `file-list.ts`, `viewed.ts` (Viewed progress) and `reading.ts` (read tracking).
     - `rebuild/`: `rebuild.ts` (Rebuild), `freshness.ts` (is the story current) and `marks.ts` (the "changed since" marks).
-- `packages/test-kit/` (`@once-upon-a-diff/test-kit`): the dev-only test helpers every package's tests share (temp folders and JSON files, git fixtures, a linkedom DOM). A package lists it under `devDependencies` only, and the layer rules (`.dependency-cruiser.mjs`) refuse an import of it from anything that ships.
+- `packages/test-kit/` (`@once-upon-a-diff/test-kit`): the dev-only test helpers every package's tests share (temp folders and JSON files, git fixtures, a linkedom DOM). A package lists it under `devDependencies` only, and the layer rules (`configs/.dependency-cruiser.mjs`) refuse an import of it from anything that ships.
 - `packages/bridge/` (`once-upon-a-diff`, bin `once-upon`): the bridge and its CLI. Private for now; the name is free on npm, for an `npx once-upon-a-diff` later.
-  - `bin/once-upon.mjs` (the `once-upon` bin) is plain JavaScript: it checks the Node version (`bin/node-version.mjs`), then loads `bin/once-upon.ts`, the one place that knows both apps. The server is in four layers, and `.dependency-cruiser.mjs` keeps each to its place: an app imports only what is below it (`eslint.side-effects.mjs`, probed by `test/side-effects-lint.test.ts`, keeps the programs, file writes and network in the adapters).
+  - `bin/once-upon.mjs` (the `once-upon` bin) is plain JavaScript: it checks the Node version (`bin/node-version.mjs`), then loads `bin/once-upon.ts`, the one place that knows both apps. The server is in four layers, and `configs/.dependency-cruiser.mjs` keeps each to its place: an app imports only what is below it (`eslint.side-effects.mjs`, probed by `test/side-effects-lint.test.ts`, keeps the programs, file writes and network in the adapters).
   - `src/server/`: the HTTP app. `index.ts` is the server (its guards, then a route table), the routes are in `server/routes/` by area, and `pages.ts` and `assets.ts` serve the HTML pages, the scripts (type-stripped) and the stylesheets. `validate.ts` checks each body against the protocol's schemas.
   - `src/cli/`: the CLI app. `index.ts` is a table of commands in `cli/commands/` that also builds the help.
   - `src/services/`: the rules, over the adapters, in a folder per area: `stories/` (finding, reading, publishing and rebuilding story folders, local stories, reads, comments), `review/` (drafts, freshness, the pending review, Approve and the background check of GitHub), `board/` (the agent board's columns, built in `stages/`), `sessions/`, `inbox/` (the inbox, build requests, fix-before-push notes and fix requests), `listeners/`, `backlog/`, `worktrees/`, `ledger/`, `voice/`, `config/` (settings, repos and checkouts, gh as the logged-in user), `pages/`, `bridge/` and `doctor.ts`. They run no program, write no file and reach no network of their own.

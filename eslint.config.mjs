@@ -13,7 +13,7 @@ import promisePlugin from 'eslint-plugin-promise';
 import eslintPrettierConfig from 'eslint-config-prettier';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
-import sideEffects from './eslint.side-effects.mjs';
+import sideEffects from './configs/eslint.side-effects.mjs';
 
 const NODE_FILES = [
   'packages/bridge/**/*.{ts,mjs}',
