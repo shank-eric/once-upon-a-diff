@@ -4,7 +4,7 @@
  * may be typed into, and typing the listen line into one. The bridge makes the line and checks the session again, so
  * nothing the page sends is text to type.
  */
-import { bridgeProblem } from '@once-upon-a-diff/api-client/client';
+import { bridgeProblem } from '@once-upon-a-diff/bridge-client/client';
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import type { Bridge, BridgeAnswer } from './bridge.ts';
 import type { PanelOptions } from '@once-upon-a-diff/panel/shell/overlay';

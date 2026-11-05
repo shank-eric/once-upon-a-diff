@@ -1,7 +1,7 @@
 /*
  * The route table: every call the bridge's HTTP API answers, with its method, its path, which keys may make it, the
  * body it takes and the answer it gives. The bridge registers its handlers from these entries, and the clients
- * (the extension, the board and the local page) call through them with the client in the api-client package, so a
+ * (the extension, the board and the local page) call through them with the client in the bridge-client package, so a
  * route's path and shapes are written once.
  *
  * This file is the index. The entries are in each area's folder (bridge/, github/, board/, story/ routes.ts), built

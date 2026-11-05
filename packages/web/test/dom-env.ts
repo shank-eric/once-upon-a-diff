@@ -11,7 +11,7 @@ import { installDom } from '@once-upon-a-diff/test-kit/dom';
 const PUBLIC = fileURLToPath(new URL('../public/', import.meta.url));
 const CONTRACTS = fileURLToPath(new URL('../../contracts/src/', import.meta.url));
 const DOMAIN = fileURLToPath(new URL('../../domain/src/', import.meta.url));
-const API_CLIENT = fileURLToPath(new URL('../../api-client/src/', import.meta.url));
+const BRIDGE_CLIENT = fileURLToPath(new URL('../../bridge-client/src/', import.meta.url));
 const PANEL = fileURLToPath(new URL('../../panel/src/', import.meta.url));
 const UI_DIR = fileURLToPath(new URL('../../ui-kit/src/', import.meta.url));
 const GITHUB_PAGE = fileURLToPath(new URL('../../github-page/src/', import.meta.url));
@@ -36,9 +36,12 @@ registerHooks({
     if (host) {
       return { url: pathToFileURL(path.join(GITHUB_PAGE, host[1])).href, shortCircuit: true };
     }
-    const apiClient = /^\/assets\/api-client\/([a-z0-9-]+\.ts)$/.exec(specifier);
-    if (apiClient) {
-      return { url: pathToFileURL(path.join(API_CLIENT, apiClient[1])).href, shortCircuit: true };
+    const bridgeClient = /^\/assets\/bridge-client\/([a-z0-9-]+\.ts)$/.exec(specifier);
+    if (bridgeClient) {
+      return {
+        url: pathToFileURL(path.join(BRIDGE_CLIENT, bridgeClient[1])).href,
+        shortCircuit: true,
+      };
     }
     const contractsFile = /^\/assets\/contracts\/([a-z0-9/-]+\.ts)$/.exec(specifier);
     if (contractsFile) {

@@ -47,9 +47,9 @@ test('every import in the page scripts and the panel resolves to a served asset,
   assert.ok(seen.has('/assets/contracts/story/routes.ts'), 'the story routes are in the graph');
   assert.ok(seen.has('/assets/contracts/board/routes.ts'), 'the board routes are in the graph');
   assert.ok(seen.has('/assets/domain/html.ts'), 'the domain is in the graph');
-  assert.ok(seen.has('/assets/api-client/client.ts'), 'the typed client is in the graph');
-  assert.ok(seen.has('/assets/api-client/use-poll.ts'), 'the board’s poll hook is in the graph');
-  assert.ok(seen.has('/assets/api-client/poll.ts'), 'and the poll under it');
+  assert.ok(seen.has('/assets/bridge-client/client.ts'), 'the typed client is in the graph');
+  assert.ok(seen.has('/assets/bridge-client/use-poll.ts'), 'the board’s poll hook is in the graph');
+  assert.ok(seen.has('/assets/bridge-client/poll.ts'), 'and the poll under it');
   assert.ok(seen.has('/assets/ui-kit/dom.ts'), 'the shared DOM helpers are in the graph');
   assert.ok(seen.has('/assets/ui-kit/clipboard.ts'), 'the clipboard helper is in the graph');
   assert.ok(
@@ -63,7 +63,7 @@ test('every import in the page scripts and the panel resolves to a served asset,
   assert.ok(seen.has('/assets/domain/time.ts'), 'the time text the board shows is in the domain');
 });
 
-test('forBrowser spells the panel, the contracts package, the domain, the api-client, ui-kit and the host adapter as the URLs they are served at', () => {
+test('forBrowser spells the panel, the contracts package, the domain, the bridge-client, ui-kit and the host adapter as the URLs they are served at', () => {
   assert.equal(
     forBrowser(
       [
@@ -71,7 +71,7 @@ test('forBrowser spells the panel, the contracts package, the domain, the api-cl
         `export { x } from "@once-upon-a-diff/panel/host/diff-types";`,
         `const m = await import('@once-upon-a-diff/contracts/routes');`,
         `import { createHostPage } from '@once-upon-a-diff/github-page/diff-dom';`,
-        `import { createClient } from '@once-upon-a-diff/api-client/client';`,
+        `import { createClient } from '@once-upon-a-diff/bridge-client/client';`,
         `import { writeClipboard } from '@once-upon-a-diff/ui-kit/clipboard';`,
         `import './sibling.ts';`,
       ].join('\n'),
@@ -81,7 +81,7 @@ test('forBrowser spells the panel, the contracts package, the domain, the api-cl
       `export { x } from "/assets/panel/host/diff-types.ts";`,
       `const m = await import('/assets/contracts/routes.ts');`,
       `import { createHostPage } from '/assets/github-page/diff-dom.ts';`,
-      `import { createClient } from '/assets/api-client/client.ts';`,
+      `import { createClient } from '/assets/bridge-client/client.ts';`,
       `import { writeClipboard } from '/assets/ui-kit/clipboard.ts';`,
       `import './sibling.ts';`,
     ].join('\n'),
@@ -121,6 +121,17 @@ test('the old /assets/ui/ URLs are gone, and the moved time and markdown modules
     '/assets/ui-kit/meter.ts',
   ]) {
     assert.throws(() => assetFor(gone), /no such module/, gone);
+  }
+});
+
+test('the old /assets/api-client/ URLs are gone', () => {
+  for (const old of [
+    '/assets/api-client/client.ts',
+    '/assets/api-client/poll.ts',
+    '/assets/api-client/use-poll.ts',
+    '/assets/api-client/usage.ts',
+  ]) {
+    assert.equal(assetFor(old), null, old);
   }
 });
 
@@ -206,6 +217,27 @@ test('a running bridge serves every file of the github-page package at /assets/g
     }
     for (const old of ['diff-dom.ts', 'pages.ts']) {
       assert.equal((await fetch(`${bridge.base}/assets/host-github/${old}`)).status, 404, old);
+    }
+  } finally {
+    await bridge.close();
+  }
+});
+
+test('a running bridge serves every file of the bridge-client package at /assets/bridge-client/, and not the old /assets/api-client/', async () => {
+  const src = fileURLToPath(new URL('../../bridge-client/src/', import.meta.url));
+  const files = readdirSync(src, { recursive: true, encoding: 'utf8' }).filter((name) =>
+    name.endsWith('.ts'),
+  );
+  assert.ok(files.includes('client.ts') && files.includes('use-poll.ts'));
+  const bridge = await startBridge({ home: tmp('home') });
+  try {
+    for (const name of files) {
+      const response = await fetch(`${bridge.base}/assets/bridge-client/${name}`);
+      assert.equal(response.status, 200, name);
+      assert.match(response.headers.get('content-type') ?? '', /javascript/);
+    }
+    for (const name of files) {
+      assert.equal((await fetch(`${bridge.base}/assets/api-client/${name}`)).status, 404, name);
     }
   } finally {
     await bridge.close();

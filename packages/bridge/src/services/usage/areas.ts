@@ -76,7 +76,7 @@ const PATHS: [string, Area][] = [
   ['packages/bridge/src/adapters/', 'Server shell'],
   ['packages/bridge/src/services/errors.ts', 'Server shell'],
   ['packages/contracts/', 'Protocol and api-client'],
-  ['packages/api-client/', 'Protocol and api-client'],
+  ['packages/bridge-client/', 'Protocol and api-client'],
   ['packages/bridge/src/server/', 'Server shell'],
   ['packages/bridge/src/services/pages/', 'Server shell'],
   ['packages/bridge/src/services/bridge/', 'Server shell'],

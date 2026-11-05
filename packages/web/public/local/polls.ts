@@ -1,9 +1,9 @@
 /*
- * The local page's two timers, both createPolls (/assets/api-client/poll.ts): the version check while the panel is closed
+ * The local page's two timers, both createPolls (/assets/bridge-client/poll.ts): the version check while the panel is closed
  * (the open panel's own tick looks then), every 5 s while the tab shows and when it gets focus; and the "still open" keepalive,
  * about once a minute while the tab is hidden (services/inbox/auto-stop.ts).
  */
-import { createPoll } from '/assets/api-client/poll.ts';
+import { createPoll } from '/assets/bridge-client/poll.ts';
 
 export const POLL_MS = 5000;
 export const STILL_OPEN_MS = 60000;

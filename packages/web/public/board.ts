@@ -10,9 +10,9 @@
  * holds what they share: the remembered settings, the bridge and the choice of which view draws a card.
  */
 import { html, render, useEffect } from '/assets/preact.mjs';
-import { createClient, type Transport } from '/assets/api-client/client.ts';
-import { usePoll } from '/assets/api-client/use-poll.ts';
-import { createUsage } from '/assets/api-client/usage.ts';
+import { createClient, type Transport } from '/assets/bridge-client/client.ts';
+import { usePoll } from '/assets/bridge-client/use-poll.ts';
+import { createUsage } from '/assets/bridge-client/usage.ts';
 import { ROUTES } from '/assets/contracts/routes.ts';
 import { authHeader, startAuth } from '/assets/local/auth.ts';
 import { notConnectedHtml } from '/assets/local/not-connected.ts';

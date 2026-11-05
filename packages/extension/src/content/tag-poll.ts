@@ -3,7 +3,7 @@
  * a look" every 10 s, and every 30 s while the bridge doesn't answer, while the tab shows and when it gets focus. It is idle
  * (no timer) otherwise; the tags call `reschedule` when a look or a click changes which of those it is.
  */
-import { createPoll } from '@once-upon-a-diff/api-client/poll';
+import { createPoll } from '@once-upon-a-diff/bridge-client/poll';
 import { prKey } from '@once-upon-a-diff/domain/pr-key';
 import type { PrRef, StoryStatus } from './tag-model.ts';
 

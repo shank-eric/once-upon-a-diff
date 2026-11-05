@@ -385,7 +385,7 @@ test('a bad body is refused before anything is stored', async () => {
   }
 });
 
-test('the bridge serves the route table (each area route file) and the api-client as JavaScript with no valibot, and never the schemas or the types', async () => {
+test('the bridge serves the route table (each area route file) and the bridge-client as JavaScript with no valibot, and never the schemas or the types', async () => {
   const bridge = await startBridge({ home: tmp('home') });
   try {
     const served: Record<string, string> = {};
@@ -434,9 +434,9 @@ test('the bridge serves the route table (each area route file) and the api-clien
       assert.equal(response.status, 404, name);
       assert.ok(!response.text.includes('safeParse'));
     }
-    // the client moved to the api-client package: it is served from there, with its table import spelled as the URL the bridge serves it at
+    // the client moved to the bridge-client package: it is served from there, with its table import spelled as the URL the bridge serves it at
     for (const name of ['client', 'poll', 'use-poll']) {
-      const response = await bridge.call('GET', `/assets/api-client/${name}.ts`, undefined, {
+      const response = await bridge.call('GET', `/assets/bridge-client/${name}.ts`, undefined, {
         Authorization: '',
       });
       assert.equal(response.status, 200, name);

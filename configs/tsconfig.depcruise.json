@@ -7,7 +7,7 @@
       "/assets/types.ts": ["./packages/contracts/src/types.ts"],
       "/assets/contracts/*": ["./packages/contracts/src/*"],
       "/assets/domain/*": ["./packages/domain/src/*"],
-      "/assets/api-client/*": ["./packages/api-client/src/*"],
+      "/assets/bridge-client/*": ["./packages/bridge-client/src/*"],
       "/assets/github-page/*": ["./packages/github-page/src/*"],
       "/assets/panel/*": ["./packages/panel/src/*"],
       "/assets/ui-kit/*": ["./packages/ui-kit/src/*"],

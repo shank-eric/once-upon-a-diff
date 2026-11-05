@@ -16,7 +16,7 @@
  *            packages/bridge/instrumentation (the usage probe the entry shims preload: outside the layers)
  *   web      packages/web/public (the pages, an app)
  *   extension packages/extension/src (an app)
- *   panel, github-page, api-client, ui-kit, contracts, domain (imports nothing), test-kit
+ *   panel, github-page, bridge-client, ui-kit, contracts, domain (imports nothing), test-kit
  */
 
 import { fileURLToPath } from 'node:url';
@@ -31,7 +31,7 @@ const WEB = '^packages/web/public/';
 const EXTENSION = '^packages/extension/';
 const PANEL = '^packages/panel/';
 const GITHUB_PAGE = '^packages/github-page/';
-const API_CLIENT = '^packages/api-client/';
+const BRIDGE_CLIENT = '^packages/bridge-client/';
 const UI_PKG = '^packages/ui-kit/';
 const CONTRACTS = '^packages/contracts/';
 const DOMAIN = '^packages/domain/';
@@ -39,7 +39,7 @@ const TEST_KIT = '^packages/test-kit/';
 const INSTRUMENTATION = '^packages/bridge/instrumentation/';
 
 // code that ships to a browser (no Node built-ins)
-const BROWSER = `^packages/(panel|github-page|api-client|ui-kit|contracts|domain|extension/src)/|${WEB}`;
+const BROWSER = `^packages/(panel|github-page|bridge-client|ui-kit|contracts|domain|extension/src)/|${WEB}`;
 
 const rule = (name, comment, importer, imported) => ({
   name,
@@ -164,13 +164,13 @@ export default {
       'bridge-not-the-client',
       'the bridge serves the client packages, it does not import them: the client and the server meet at the contracts package',
       { path: BRIDGE },
-      { path: `${PANEL}|${GITHUB_PAGE}|${API_CLIENT}|${UI_PKG}` },
+      { path: `${PANEL}|${GITHUB_PAGE}|${BRIDGE_CLIENT}|${UI_PKG}` },
     ),
     rule(
       'bridge-is-server-only',
       'the bridge is server code: only the server and Node tests import it',
       {
-        path: `${WEB}|${EXTENSION}|${PANEL}|${GITHUB_PAGE}|${API_CLIENT}|${UI_PKG}|${CONTRACTS}|${DOMAIN}|${TEST_KIT}`,
+        path: `${WEB}|${EXTENSION}|${PANEL}|${GITHUB_PAGE}|${BRIDGE_CLIENT}|${UI_PKG}|${CONTRACTS}|${DOMAIN}|${TEST_KIT}`,
       },
       { path: BRIDGE },
     ),
@@ -187,7 +187,7 @@ export default {
       'the contracts package is the bottom of the client and server: it imports no other package of this repo but the domain',
       { path: CONTRACTS },
       {
-        path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${GITHUB_PAGE}|${API_CLIENT}|${UI_PKG}|${TEST_KIT}`,
+        path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${GITHUB_PAGE}|${BRIDGE_CLIENT}|${UI_PKG}|${TEST_KIT}`,
       },
     ),
     rule(
@@ -225,9 +225,9 @@ export default {
       {},
     ),
     rule(
-      'api-client-below-panel-and-pages',
-      'the api-client imports the contracts package and the domain and nothing else of this repo',
-      { path: API_CLIENT },
+      'bridge-client-below-panel-and-pages',
+      'the bridge-client imports the contracts package and the domain and nothing else of this repo',
+      { path: BRIDGE_CLIENT },
       {
         path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${GITHUB_PAGE}|${UI_PKG}|${TEST_KIT}`,
         pathNot: '^packages/web/public/vendor/preact\\.mjs$',
@@ -235,10 +235,10 @@ export default {
     ),
     rule(
       'ui-kit-below-panel-and-pages',
-      'ui-kit sits below the panel, the pages and the extension: it imports the contracts package, the domain and the vendored Preact, never an app, the server, the panel, a host adapter or the api-client',
+      'ui-kit sits below the panel, the pages and the extension: it imports the contracts package, the domain and the vendored Preact, never an app, the server, the panel, a host adapter or the bridge-client',
       { path: UI_PKG },
       {
-        path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${GITHUB_PAGE}|${API_CLIENT}|${TEST_KIT}`,
+        path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${GITHUB_PAGE}|${BRIDGE_CLIENT}|${TEST_KIT}`,
         pathNot: '^packages/web/public/vendor/preact\\.mjs$',
       },
     ),
@@ -267,7 +267,7 @@ export default {
       'poll-hook-is-the-pages',
       'use-poll.ts is the pages’ Preact hook: the panel, the extension and the host adapter use poll.ts',
       { path: `${PANEL}|${EXTENSION}|${GITHUB_PAGE}` },
-      { path: '^packages/api-client/src/use-poll\\.ts$' },
+      { path: '^packages/bridge-client/src/use-poll\\.ts$' },
     ),
     rule(
       'panel-is-host-agnostic',
@@ -296,20 +296,20 @@ export default {
     rule(
       'schemas-are-server-side',
       "the schema files (schemas.ts, schema-kit.ts and each area's schemas.ts) import valibot, which no page or extension loads: only the server and the contracts package itself import them",
-      { path: `${WEB}|${EXTENSION}|${PANEL}|${GITHUB_PAGE}|${API_CLIENT}|${UI_PKG}` },
+      { path: `${WEB}|${EXTENSION}|${PANEL}|${GITHUB_PAGE}|${BRIDGE_CLIENT}|${UI_PKG}` },
       { path: '^packages/contracts/src/(schemas|schema-kit|[a-z-]+/schemas)\\.ts$' },
     ),
     rule(
       'pages-are-an-app',
       'the pages are an app: nothing imports them, and they do not import the extension or the server',
-      // the panel, ui-kit, the api-client and the extension have their own rules over WEB (they may name the vendored Preact, by its URL only)
+      // the panel, ui-kit, the bridge-client and the extension have their own rules over WEB (they may name the vendored Preact, by its URL only)
       { path: `${GITHUB_PAGE}|${CONTRACTS}|${BRIDGE}|${TEST_KIT}` },
       { path: WEB },
     ),
     rule(
       'preact-by-its-url-only',
-      'the vendored Preact is named /assets/preact.mjs by the panel, ui-kit, the api-client hook and the extension’s components, so a page has one Preact: not by a relative path or a package name',
-      { path: `${PANEL}|${UI_PKG}|${API_CLIENT}|${EXTENSION}` },
+      'the vendored Preact is named /assets/preact.mjs by the panel, ui-kit, the bridge-client hook and the extension’s components, so a page has one Preact: not by a relative path or a package name',
+      { path: `${PANEL}|${UI_PKG}|${BRIDGE_CLIENT}|${EXTENSION}` },
       {
         path: '^packages/web/public/vendor/preact\\.mjs$',
         dependencyTypesNot: ['aliased-tsconfig-paths'],
@@ -336,8 +336,8 @@ export default {
     // the /assets/ spelling: the browser imports by URL, the extension's bundle and the packages by name
     rule(
       'client-names-packages-not-page-urls',
-      'the panel, ui-kit and the api-client hook are shared by the extension and the pages: the one page URL they name is the vendored Preact (/assets/preact.mjs), and they import packages, never a page module',
-      { path: `${PANEL}|${UI_PKG}|^packages/api-client/src/use-poll\\.ts$` },
+      'the panel, ui-kit and the bridge-client hook are shared by the extension and the pages: the one page URL they name is the vendored Preact (/assets/preact.mjs), and they import packages, never a page module',
+      { path: `${PANEL}|${UI_PKG}|^packages/bridge-client/src/use-poll\\.ts$` },
       {
         dependencyTypes: ['aliased-tsconfig-paths'],
         pathNot: '^packages/web/public/vendor/preact\\.mjs$',
@@ -345,8 +345,8 @@ export default {
     ),
     rule(
       'no-page-urls-at-all',
-      'github-page is served at /assets/ for the pages, and the api-client’s client.ts and poll.ts are shared with the panel and the extension: they name packages, not an /assets/ URL (use-poll.ts, the pages’ hook, may name the vendored Preact)',
-      { path: `${GITHUB_PAGE}|^packages/api-client/src/(?!use-poll\\.ts$)` },
+      'github-page is served at /assets/ for the pages, and the bridge-client’s client.ts and poll.ts are shared with the panel and the extension: they name packages, not an /assets/ URL (use-poll.ts, the pages’ hook, may name the vendored Preact)',
+      { path: `${GITHUB_PAGE}|^packages/bridge-client/src/(?!use-poll\\.ts$)` },
       { dependencyTypes: ['aliased-tsconfig-paths'] },
     ),
     rule(

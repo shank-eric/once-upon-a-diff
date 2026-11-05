@@ -133,11 +133,11 @@
       "note": "Shared components and helpers"
     },
     {
-      "id": "api-client",
+      "id": "bridge-client",
       "name": "API client",
       "group": "Client",
       "paths": [
-        "packages/api-client/"
+        "packages/bridge-client/"
       ],
       "note": "The typed client and the poll"
     },
@@ -196,7 +196,7 @@
         "packages/web/test/",
         "packages/extension/test/",
         "packages/github-page/test/",
-        "packages/api-client/test/",
+        "packages/bridge-client/test/",
         "packages/test-kit/test/",
         "packages/test-kit/"
       ],

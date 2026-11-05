@@ -16,7 +16,7 @@ Paths are from the repo root. After each `file:line` comes the name you'll find 
 |---|---|
 | `app` | knows its host: the extension (content scripts, service worker), the board and local pages (`packages/web`), the bridge's `server/` and `cli/` |
 | `feature` | the panel (`packages/panel`), which an app hands its host through `PanelHost` |
-| `client` | `packages/api-client` (the typed client and the poll) and `packages/ui-kit` |
+| `client` | `packages/bridge-client` (the typed client and the poll) and `packages/ui-kit` |
 | `contracts` | `packages/contracts`: the route table, the wire types and the schemas, over `packages/domain`, the pure rules that import nothing |
 | `service` | `packages/bridge/src/services/`: the rules. No side effects of their own |
 | `adapter` | `packages/bridge/src/adapters/`: every file write, program run and network call |
@@ -181,8 +181,8 @@ flowchart LR
 | # | Layer | Hop | At |
 |---|---|---|---|
 | 1 | `app` | the page's root component polls the board route | `packages/web/public/board.ts:143` (`usePoll(() => bridge.ask(ROUTES.board)`) |
-| 2 | `client` | `usePoll`, the Preact hook | `packages/api-client/src/use-poll.ts:14` (`export function usePoll`) |
-| 3 | `client` | over `createPoll`: a timer while visible, and the window's focus | `packages/api-client/src/poll.ts:68` (`setInterval(`) |
+| 2 | `client` | `usePoll`, the Preact hook | `packages/bridge-client/src/use-poll.ts:14` (`export function usePoll`) |
+| 3 | `client` | over `createPoll`: a timer while visible, and the window's focus | `packages/bridge-client/src/poll.ts:68` (`setInterval(`) |
 | 4 | `contracts` | the route: `GET /api/board`, the token or the board's key | `packages/contracts/src/board/routes.ts:10` (`board: api<undefined, BoardData>`) |
 | 5 | `app` | the page's transport sends its key (the `#key=` fragment, or the cookie on a proxy name) | `packages/web/public/board.ts:43` (`fetch(path`) |
 | 6 | `app` | the bridge recognizes the board's key (`packages/bridge/src/server/index.ts:295` (`sameToken(auth, boardKey(token))`)), and lets it reach only the routes whose table entry allows it; any other route is a 403 | `packages/bridge/src/server/index.ts:451` (`boardKeyMay(candidate.route)`) |

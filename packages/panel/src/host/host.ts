@@ -8,7 +8,7 @@
  *   storyId     the story the panel is showing (its routes' :id)
  *   pageUrl     the page's address as the bridge should record it (no key)
  */
-import type { Client } from '@once-upon-a-diff/api-client/client';
+import type { Client } from '@once-upon-a-diff/bridge-client/client';
 import type { Side } from '@once-upon-a-diff/domain/line-refs';
 import type { ActionName } from '@once-upon-a-diff/domain/usage-actions';
 import type { ExpandRow, FileBlock, TreeRow } from './diff-types.ts';

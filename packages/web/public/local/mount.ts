@@ -10,7 +10,7 @@ import { createHostPage } from '/assets/github-page/diff-dom.ts';
 import type { PanelHost } from '/assets/panel/host/host.ts';
 import type { LocalNote } from '/assets/types.ts';
 import { ROUTES } from '/assets/contracts/routes.ts';
-import { bridgeProblem, type BridgeError } from '/assets/api-client/client.ts';
+import { bridgeProblem, type BridgeError } from '/assets/bridge-client/client.ts';
 import { page, bridge, pageUrl, PARAMS, STORY_ID, usage } from './page.ts';
 import { narrow, reveal, unnarrow, forgetNarrowing } from '/assets/local/diff/folds.ts';
 import { placeNotes } from '/assets/local/diff/notes.ts';

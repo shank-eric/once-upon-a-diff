@@ -9,7 +9,7 @@
     "node": ">=24"
   },
   "dependencies": {
-    "@once-upon-a-diff/api-client": "workspace:*",
+    "@once-upon-a-diff/bridge-client": "workspace:*",
     "@once-upon-a-diff/contracts": "workspace:*",
     "@once-upon-a-diff/domain": "workspace:*",
     "@once-upon-a-diff/github-page": "workspace:*",

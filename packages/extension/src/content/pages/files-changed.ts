@@ -18,7 +18,7 @@ import { createHostPage } from '@once-upon-a-diff/github-page/diff-dom';
 import { filesChangedPr } from '@once-upon-a-diff/github-page/pages';
 import { withLayout, type Layout } from '@once-upon-a-diff/panel/shell/layout';
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
-import { bridgeProblem } from '@once-upon-a-diff/api-client/client';
+import { bridgeProblem } from '@once-upon-a-diff/bridge-client/client';
 import { bridge, extensionAlive, usage } from '../bridge.ts';
 import { createListenOption } from '../listen.ts';
 import { loadPanelUi, savePanelUi, loadPrefsCopy, storePrefsCopy, tabSession } from '../storage.ts';

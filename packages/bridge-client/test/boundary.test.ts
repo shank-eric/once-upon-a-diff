@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const SRC = fileURLToPath(new URL('../src/', import.meta.url));
 
-test('what a page loads from the api-client imports only the route table, the contracts package’s error codes and its own files, and only the hook imports the vendored Preact', () => {
+test('what a page loads from the bridge-client imports only the route table, the contracts package’s error codes and its own files, and only the hook imports the vendored Preact', () => {
   const names = readdirSync(SRC);
   assert.ok(names.length > 0);
   for (const name of names) {

@@ -305,9 +305,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@once-upon-a-diff/api-client@workspace:*, @once-upon-a-diff/api-client@workspace:packages/api-client":
+"@once-upon-a-diff/bridge-client@workspace:*, @once-upon-a-diff/bridge-client@workspace:packages/bridge-client":
   version: 0.0.0-use.local
-  resolution: "@once-upon-a-diff/api-client@workspace:packages/api-client"
+  resolution: "@once-upon-a-diff/bridge-client@workspace:packages/bridge-client"
   dependencies:
     "@once-upon-a-diff/contracts": "workspace:*"
     "@once-upon-a-diff/domain": "workspace:*"
@@ -341,7 +341,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@once-upon-a-diff/extension@workspace:packages/extension"
   dependencies:
-    "@once-upon-a-diff/api-client": "workspace:*"
+    "@once-upon-a-diff/bridge-client": "workspace:*"
     "@once-upon-a-diff/contracts": "workspace:*"
     "@once-upon-a-diff/domain": "workspace:*"
     "@once-upon-a-diff/github-page": "workspace:*"
@@ -371,7 +371,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@once-upon-a-diff/panel@workspace:packages/panel"
   dependencies:
-    "@once-upon-a-diff/api-client": "workspace:*"
+    "@once-upon-a-diff/bridge-client": "workspace:*"
     "@once-upon-a-diff/contracts": "workspace:*"
     "@once-upon-a-diff/domain": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
@@ -407,7 +407,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@once-upon-a-diff/web@workspace:packages/web"
   dependencies:
-    "@once-upon-a-diff/api-client": "workspace:*"
+    "@once-upon-a-diff/bridge-client": "workspace:*"
     "@once-upon-a-diff/contracts": "workspace:*"
     "@once-upon-a-diff/domain": "workspace:*"
     "@once-upon-a-diff/github-page": "workspace:*"
@@ -4029,7 +4029,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "once-upon-a-diff@workspace:packages/bridge"
   dependencies:
-    "@once-upon-a-diff/api-client": "workspace:*"
+    "@once-upon-a-diff/bridge-client": "workspace:*"
     "@once-upon-a-diff/contracts": "workspace:*"
     "@once-upon-a-diff/domain": "workspace:*"
     "@once-upon-a-diff/github-page": "workspace:*"

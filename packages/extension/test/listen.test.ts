@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createListenOption, listenError } from '../src/content/listen.ts';
-import { createClient, type CallRequest } from '@once-upon-a-diff/api-client/client';
+import { createClient, type CallRequest } from '@once-upon-a-diff/bridge-client/client';
 import type { BridgeAnswer } from '../src/content/bridge.ts';
 
 /** A bridge client over a transport that records what it was asked and answers from `answer`. */
