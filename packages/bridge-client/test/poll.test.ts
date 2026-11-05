@@ -1,7 +1,7 @@
 import { test, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import { installDom } from '@once-upon-a-diff/test-kit/dom';
-import { createPoll, type PollView } from '../src/poll.ts';
+import { createPoll, LOAD_TIMEOUT_MS, type PollView } from '../src/poll.ts';
 
 const { window, document } = installDom({
   html: '<!doctype html><html><body><div id="app"></div></body></html>',
@@ -238,5 +238,37 @@ test('a throwing onChange does not end the poll', async () => {
   mock.timers.tick(3000);
   await tick();
   assert.equal(loads, 3, 'the next load still comes on the clock');
+  poll.stop();
+});
+
+test('a load that never settles times out as a failed load and the next one still comes; its late answer is dropped', async () => {
+  const views: PollView<string>[] = [];
+  const waiting: Array<(value: string) => void> = [];
+  const poll = createPoll<string>({
+    everyMs: 3000,
+    load: () => new Promise<string>((resolve) => waiting.push(resolve)),
+    onChange: (view) => views.push(view),
+  });
+  poll.start();
+  await tick();
+  mock.timers.tick(LOAD_TIMEOUT_MS - 1);
+  await tick();
+  assert.equal(views.length, 0, 'not yet');
+  mock.timers.tick(1);
+  await tick();
+  assert.deepEqual(
+    views.map((view) => [view.data, view.error?.message ?? null, view.failed]),
+    [[null, 'load timed out after 60 s', 1]],
+  );
+  mock.timers.tick(3000);
+  await tick();
+  assert.equal(waiting.length, 2, 'the next load ran after everyMs');
+  waiting[0]('stale');
+  await tick();
+  assert.equal(views.length, 1, 'the stale load did not fire onChange');
+  waiting[1]('fresh');
+  await tick();
+  assert.deepEqual(views.at(-1), { data: 'fresh', error: null, failed: 0 });
+  assert.equal(views.length, 2);
   poll.stop();
 });

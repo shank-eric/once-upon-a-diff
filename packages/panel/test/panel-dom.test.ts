@@ -742,6 +742,11 @@ await test('a step change blanks the step list progress when the page has no Vie
 /** Timers the test moves by hand: the panel mounted under mocked timers, with the tab showing. */
 const startClock = () => {
   mock.timers.enable({ apis: ['setTimeout', 'setInterval'] });
+  // Preact's hooks call setTimeout(callback) with no delay, and node's mock timers file that as a NaN run time, which breaks the
+  // order of every timer after it (a poll's 5 s tick then never ran when this test ran alone): give it the 0 a real one reads.
+  const mocked = globalThis.setTimeout;
+  globalThis.setTimeout = ((callback: () => void, millis = 0, ...rest: unknown[]) =>
+    mocked(callback, millis, ...rest)) as typeof setTimeout;
   Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true });
   clock.now = Date.parse('2026-11-03T12:00:00Z');
   FakeIntersectionObserver.all = [];
@@ -2312,6 +2317,44 @@ await test('the pulse tick: one pulse a first and then every 5 s while the tab s
   await pump(100);
   assert.equal(pulses(), 5);
   stopClock();
+});
+
+await test('a pulse that hangs past the poll’s timeout reads as down: the status light looks again', async () => {
+  startClock();
+  let hang = false;
+  const panel = await mount(
+    story(),
+    (calls) =>
+      fullOptions(calls, {
+        pulse: () => {
+          calls.push(['pulse']);
+          return hang
+            ? new Promise<never>(() => {})
+            : Promise.resolve({ version: 'v1', rebuild: null, request: null } as never);
+        },
+        status: async () => {
+          calls.push(['status']);
+          return Promise.reject(Object.assign(new Error('x'), { code: 'down' }));
+        },
+      }),
+    { n: 1 },
+    { wait: pumpOnce },
+  );
+  const looks = () => calling(panel.calls, 'status').length;
+  try {
+    await pump(5200);
+    const before = looks();
+    hang = true;
+    await pump(5000); // the next pulse goes out and never comes back
+    assert.equal(calling(panel.calls, 'pulse').length, 3);
+    await pump(55000);
+    assert.equal(looks(), before, 'not yet: the poll waits 60 s for the pulse');
+    await pump(6000);
+    assert.equal(looks(), before + 1, 'the timed-out pulse moved the panel to down');
+  } finally {
+    panel.done();
+    stopClock();
+  }
 });
 
 await test('a focus that lands on the 12th tick runs the slow look once (drafts, freshness, reads)', async () => {

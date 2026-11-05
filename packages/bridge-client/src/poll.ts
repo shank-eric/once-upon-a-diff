@@ -5,6 +5,10 @@
  * and say so at two. `stop` ends it, and an answer that arrives after that is dropped, even when the poll has been started again
  * since: each start is a run, and only the run that asked hears the answer.
  *
+ * A load that hasn't settled after LOAD_TIMEOUT_MS counts as a failed load ("timed out") and the next one is scheduled, so a
+ * transport call that never settles can't end the poll. The stale load is not cancelled (a `load` takes no signal), and its
+ * answer, should it come after all, is dropped.
+ *
  * `everyMs` may be a function, read before each wait: the wait it names, or null for none (the poll then sits idle until
  * `refresh` or `reschedule`). `whenHidden` turns it round, for a keepalive: it fires only while the tab is hidden, with no first
  * load and no focus listener.
@@ -38,6 +42,9 @@ export interface Poll {
   reschedule: () => void;
 }
 
+/** How long a load may take before the poll gives up on it: the slowest poll's interval (the 60 s keepalives), so no load is cut short that its own poll would still be waiting out. */
+export const LOAD_TIMEOUT_MS = 60000;
+
 export function createPoll<T>({
   load,
   everyMs,
@@ -56,14 +63,27 @@ export function createPoll<T>({
       return;
     }
     let next: PollView<T>;
+    let giveUp: ReturnType<typeof setTimeout> | undefined;
     try {
-      next = { data: await load(), error: null, failed: 0 };
+      // the race settles once: a load that answers after the timeout lost it, and nothing reads its answer
+      const data = await Promise.race([
+        load(),
+        new Promise<never>((_resolve, reject) => {
+          giveUp = setTimeout(
+            () => reject(new Error(`load timed out after ${LOAD_TIMEOUT_MS / 1000} s`)),
+            LOAD_TIMEOUT_MS,
+          );
+        }),
+      ]);
+      next = { data, error: null, failed: 0 };
     } catch (err) {
       next = {
         data: view.data,
         error: err instanceof Error ? err : new Error(String(err)),
         failed: view.failed + 1,
       };
+    } finally {
+      clearTimeout(giveUp);
     }
     if (mine === current) {
       view = next;

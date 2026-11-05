@@ -169,7 +169,9 @@ export function storyOverlay(input: StoryData, opts: PanelOptions, host: PanelHo
     everyMs: TICK_MS,
     // with no pulse there is nothing to load: the tick still runs, for the parts that look on their own share of them
     load: () => (opts.pulse ? opts.pulse().catch(() => ({ down: true })) : Promise.resolve(null)),
-    onChange: ({ data }) => {
+    // a load the poll gave up on (timed out) has no pulse: it reads as down, like one the bridge didn't answer
+    onChange: ({ data: pulse, error }) => {
+      const data: PulseLook | null = error ? { down: true } : pulse;
       if (!asked) {
         asked = true; // the first load only sets the starting point
         if (data && !data.down) {
