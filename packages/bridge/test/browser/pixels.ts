@@ -131,6 +131,17 @@ export function cssFilesUnder(...dirs: string[]): string[] {
 
 const ELEMENT_MIN_SETTLE_MS = 300;
 
+/**
+ * CSS on every shot, in the page and in every shadow root. No scrollbars, and no resize grip on a textarea. With the grip
+ * drawn, the Ask button's rounded corners came out of the raster two ways: in about 4 of 10 runs (local-qa, light or dark)
+ * its bottom-right corner differed by 2 px, 3 to 4 shade levels, at 449,988 and 448,989, the same inside one run and
+ * different between runs. The layout was measured in clean and flaky runs alike and is identical (the button at
+ * x 1451.234375, width 38.765625, so its right edge is whole), so it was never a position that moved. Without the grip the
+ * corners are the same in every run (0 of 10 flaked). The corners of the button differ from the grip-drawn ones, so the
+ * baselines are shot without it.
+ */
+export const SHOT_STYLE = '*{scrollbar-width:none !important}textarea{resize:none !important}';
+
 /** Takes the page to a still, hover-free state: mouse parked off the page, focus dropped (through shadow roots), scrolled to the top, fonts and two frames done. */
 export async function settle(page: Page): Promise<void> {
   await page.mouse.move(-10, -10);
@@ -185,7 +196,7 @@ export function createPixels(options: {
     (target ? target(page) : page).screenshot({
       animations: 'disabled',
       caret: 'hide',
-      style: `*{scrollbar-width:none !important}${style ?? ''}`,
+      style: `${SHOT_STYLE}${style ?? ''}`,
       mask: mask?.(page) ?? [],
       maskColor: '#ff00ff',
     });
