@@ -1,0 +1,3965 @@
+{
+ "routes": [
+  [
+   "health",
+   "GET",
+   "/api/health",
+   null,
+   null,
+   "token"
+  ],
+  [
+   "status",
+   "GET",
+   "/api/status",
+   null,
+   null,
+   "token"
+  ],
+  [
+   "prefsRead",
+   "GET",
+   "/api/prefs",
+   null,
+   null,
+   "token"
+  ],
+  [
+   "prefsWrite",
+   "POST",
+   "/api/prefs",
+   null,
+   null,
+   "token"
+  ],
+  [
+   "stories",
+   "GET",
+   "/api/stories",
+   null,
+   null,
+   "token"
+  ],
+  [
+   "statusMany",
+   "POST",
+   "/api/stories/status-many",
+   null,
+   null,
+   "token"
+  ],
+  [
+   "buildRequest",
+   "POST",
+   "/api/builds",
+   null,
+   null,
+   "token"
+  ],
+  [
+   "usageCount",
+   "POST",
+   "/api/usage",
+   null,
+   null,
+   "token+board"
+  ],
+  [
+   "githubRefresh",
+   "POST",
+   "/api/github/refresh",
+   null,
+   null,
+   "token"
+  ],
+  [
+   "board",
+   "GET",
+   "/api/board",
+   null,
+   null,
+   "token+board"
+  ],
+  [
+   "boardLink",
+   "GET",
+   "/api/board/link",
+   null,
+   null,
+   "token"
+  ],
+  [
+   "boardType",
+   "POST",
+   "/api/board/type",
+   null,
+   null,
+   "token+board"
+  ],
+  [
+   "boardListenSessions",
+   "GET",
+   "/api/board/listen-sessions",
+   null,
+   null,
+   "token+board"
+  ],
+  [
+   "boardVoicePause",
+   "POST",
+   "/api/board/voice/pause",
+   null,
+   null,
+   "token+board"
+  ],
+  [
+   "boardVoiceStart",
+   "POST",
+   "/api/board/voice/start",
+   null,
+   null,
+   "token+board"
+  ],
+  [
+   "boardVoiceStop",
+   "POST",
+   "/api/board/voice/stop",
+   null,
+   null,
+   "token+board"
+  ],
+  [
+   "boardVoicePhone",
+   "POST",
+   "/api/board/voice/phone",
+   null,
+   null,
+   "token+board"
+  ],
+  [
+   "boardVoiceBridgeStop",
+   "POST",
+   "/api/board/voice/phone/bridge-stop",
+   null,
+   null,
+   "token+board"
+  ],
+  [
+   "boardStopListening",
+   "POST",
+   "/api/board/stop-listening",
+   null,
+   null,
+   "token+board"
+  ],
+  [
+   "boardAgentFinish",
+   "POST",
+   "/api/board/agent/finish",
+   null,
+   null,
+   "token+board"
+  ],
+  [
+   "boardFocus",
+   "POST",
+   "/api/board/focus",
+   null,
+   null,
+   "token+board"
+  ],
+  [
+   "boardOpenStory",
+   "POST",
+   "/api/board/open-story",
+   null,
+   null,
+   "token+board"
+  ],
+  [
+   "boardReview",
+   "POST",
+   "/api/board/review",
+   null,
+   null,
+   "token+board"
+  ],
+  [
+   "boardReviewed",
+   "POST",
+   "/api/board/reviewed",
+   null,
+   null,
+   "token+board"
+  ],
+  [
+   "boardBacklogAdd",
+   "POST",
+   "/api/board/backlog",
+   null,
+   null,
+   "token+board"
+  ],
+  [
+   "boardBacklogMove",
+   "POST",
+   "/api/board/backlog/move",
+   null,
+   null,
+   "token+board"
+  ],
+  [
+   "boardBacklogEdit",
+   "POST",
+   "/api/board/backlog/edit",
+   null,
+   null,
+   "token+board"
+  ],
+  [
+   "boardBacklogDrop",
+   "POST",
+   "/api/board/backlog/drop",
+   null,
+   null,
+   "token+board"
+  ],
+  [
+   "boardBacklogSomeday",
+   "POST",
+   "/api/board/backlog/someday",
+   null,
+   null,
+   "token+board"
+  ],
+  [
+   "boardBacklogAssign",
+   "POST",
+   "/api/board/backlog/assign",
+   null,
+   null,
+   "token+board"
+  ],
+  [
+   "boardWorktreeClean",
+   "POST",
+   "/api/board/worktree/clean",
+   null,
+   null,
+   "token+board"
+  ],
+  [
+   "authSession",
+   "POST",
+   "/auth/session",
+   null,
+   null,
+   "none"
+  ],
+  [
+   "story",
+   "GET",
+   "/api/stories/:id",
+   "",
+   null,
+   "token+page+view"
+  ],
+  [
+   "storyVersion",
+   "GET",
+   "/api/stories/:id/version",
+   "version",
+   null,
+   "token+page+view"
+  ],
+  [
+   "storyPulse",
+   "GET",
+   "/api/stories/:id/pulse",
+   "pulse",
+   null,
+   "token+page+view"
+  ],
+  [
+   "storySeen",
+   "POST",
+   "/api/stories/:id/seen",
+   "seen",
+   null,
+   "token+page+view"
+  ],
+  [
+   "storyUiRead",
+   "GET",
+   "/api/stories/:id/ui",
+   "ui",
+   null,
+   "token+page+view"
+  ],
+  [
+   "storyUiWrite",
+   "POST",
+   "/api/stories/:id/ui",
+   "ui",
+   null,
+   "token+page+view"
+  ],
+  [
+   "storyPosition",
+   "POST",
+   "/api/stories/:id/position",
+   "position",
+   null,
+   "token+page+view"
+  ],
+  [
+   "storyFreshness",
+   "GET",
+   "/api/stories/:id/freshness",
+   "freshness",
+   null,
+   "token+page+view"
+  ],
+  [
+   "storyRebuildRead",
+   "GET",
+   "/api/stories/:id/rebuild",
+   "rebuild",
+   null,
+   "token+page+view"
+  ],
+  [
+   "storyRebuildWrite",
+   "POST",
+   "/api/stories/:id/rebuild",
+   "rebuild",
+   null,
+   "token+page+view"
+  ],
+  [
+   "storyStatus",
+   "GET",
+   "/api/stories/:id/status",
+   "status",
+   null,
+   "token+page+view"
+  ],
+  [
+   "storyPrefsRead",
+   "GET",
+   "/api/stories/:id/prefs",
+   "prefs",
+   null,
+   "token+page+view"
+  ],
+  [
+   "storyPrefsWrite",
+   "POST",
+   "/api/stories/:id/prefs",
+   "prefs",
+   null,
+   "token+page+view"
+  ],
+  [
+   "questionsRead",
+   "GET",
+   "/api/stories/:id/questions",
+   "questions",
+   null,
+   "token+page+view"
+  ],
+  [
+   "questionAsk",
+   "POST",
+   "/api/stories/:id/questions",
+   "questions",
+   null,
+   "token+page+view"
+  ],
+  [
+   "questionMarks",
+   "POST",
+   "/api/stories/:id/questions/marks",
+   "questions",
+   "marks",
+   "token+page+view"
+  ],
+  [
+   "draftsRead",
+   "GET",
+   "/api/stories/:id/drafts",
+   "drafts",
+   null,
+   "token+page+view"
+  ],
+  [
+   "draftsAct",
+   "POST",
+   "/api/stories/:id/drafts",
+   "drafts",
+   null,
+   "token+page+view"
+  ],
+  [
+   "readRead",
+   "GET",
+   "/api/stories/:id/read",
+   "read",
+   null,
+   "token+page+view"
+  ],
+  [
+   "readNote",
+   "POST",
+   "/api/stories/:id/read",
+   "read",
+   null,
+   "token+page+view"
+  ],
+  [
+   "viewed",
+   "POST",
+   "/api/stories/:id/viewed",
+   "viewed",
+   null,
+   "token+page+view"
+  ],
+  [
+   "noteAdd",
+   "POST",
+   "/api/stories/:id/notes",
+   "notes",
+   null,
+   "token+page+view"
+  ],
+  [
+   "noteUpdate",
+   "POST",
+   "/api/stories/:id/notes/:note",
+   "notes",
+   ":note",
+   "token+page+view"
+  ],
+  [
+   "fixesRead",
+   "GET",
+   "/api/stories/:id/fixes",
+   "fixes",
+   null,
+   "token+page+view"
+  ],
+  [
+   "fixesAct",
+   "POST",
+   "/api/stories/:id/fixes",
+   "fixes",
+   null,
+   "token+page+view"
+  ],
+  [
+   "working",
+   "GET",
+   "/api/stories/:id/working",
+   "working",
+   null,
+   "token+page+view"
+  ],
+  [
+   "prView",
+   "GET",
+   "/api/stories/:id/pr",
+   "pr",
+   null,
+   "token+page+view"
+  ],
+  [
+   "storyUsageCount",
+   "POST",
+   "/api/stories/:id/usage",
+   "usage",
+   null,
+   "token+page+view"
+  ],
+  [
+   "storyListenSessions",
+   "GET",
+   "/api/stories/:id/listen",
+   "listen",
+   null,
+   "token+page"
+  ],
+  [
+   "storyListen",
+   "POST",
+   "/api/stories/:id/listen",
+   "listen",
+   null,
+   "token+page"
+  ],
+  [
+   "approve",
+   "POST",
+   "/api/stories/:id/approve",
+   "approve",
+   null,
+   "token+page"
+  ],
+  [
+   "prPush",
+   "POST",
+   "/api/stories/:id/pr",
+   "pr",
+   null,
+   "token+page"
+  ],
+  [
+   "pushView",
+   "GET",
+   "/api/stories/:id/push",
+   "push",
+   null,
+   "token+page"
+  ],
+  [
+   "pushApproved",
+   "POST",
+   "/api/stories/:id/push",
+   "push",
+   null,
+   "token+page"
+  ]
+ ],
+ "bodies": [
+  [
+   "prefs",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "hideWhitespace": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(boolean | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "boolean",
+       "expects": "boolean",
+       "async": false,
+       "fallback": false
+      }
+     },
+     "diffView": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((\"unified\" | \"split\") | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "picklist",
+       "expects": "(\"unified\" | \"split\")",
+       "async": false,
+       "options": [
+        "unified",
+        "split"
+       ],
+       "fallback": "unified"
+      }
+     },
+     "layout": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((Object | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "(Object | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "object",
+        "expects": "Object",
+        "async": false,
+        "entries": {
+         "width": {
+          "kind": "schema",
+          "type": "optional",
+          "expects": "((number | null) | undefined)",
+          "async": false,
+          "wrapped": {
+           "kind": "schema",
+           "type": "nullable",
+           "expects": "(number | null)",
+           "async": false,
+           "wrapped": {
+            "kind": "schema",
+            "type": "number",
+            "expects": "number",
+            "async": false
+           },
+           "fallback": null
+          }
+         },
+         "chatHeight": {
+          "kind": "schema",
+          "type": "optional",
+          "expects": "((number | null) | undefined)",
+          "async": false,
+          "wrapped": {
+           "kind": "schema",
+           "type": "nullable",
+           "expects": "(number | null)",
+           "async": false,
+           "wrapped": {
+            "kind": "schema",
+            "type": "number",
+            "expects": "number",
+            "async": false
+           },
+           "fallback": null
+          }
+         }
+        }
+       },
+       "fallback": null
+      }
+     }
+    }
+   }
+  ],
+  [
+   "usage",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "counts": {
+      "kind": "schema",
+      "type": "record",
+      "expects": "Object",
+      "async": false,
+      "key": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      },
+      "value": {
+       "kind": "schema",
+       "type": "number",
+       "expects": "number",
+       "async": false
+      },
+      "pipe": [
+       {
+        "kind": "schema",
+        "type": "record",
+        "expects": "Object",
+        "async": false,
+        "key": {
+         "kind": "schema",
+         "type": "string",
+         "expects": "string",
+         "async": false
+        },
+        "value": {
+         "kind": "schema",
+         "type": "number",
+         "expects": "number",
+         "async": false
+        }
+       },
+       {
+        "kind": "validation",
+        "type": "check",
+        "async": false,
+        "expects": null,
+        "requirement": {
+         "function": "(counts)=>Object.keys(counts).length<=MAX_BATCH_ENTRIES"
+        },
+        "message": "too many actions in one batch"
+       }
+      ]
+     }
+    }
+   }
+  ],
+  [
+   "statusMany",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "prs": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(Array | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "array",
+       "expects": "Array",
+       "async": false,
+       "item": {
+        "kind": "schema",
+        "type": "object",
+        "expects": "Object",
+        "async": false,
+        "entries": {
+         "repo": {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         },
+         "number": {
+          "kind": "schema",
+          "type": "number",
+          "expects": "number",
+          "async": false
+         }
+        }
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "array",
+         "expects": "Array",
+         "async": false,
+         "item": {
+          "kind": "schema",
+          "type": "object",
+          "expects": "Object",
+          "async": false,
+          "entries": {
+           "repo": {
+            "kind": "schema",
+            "type": "string",
+            "expects": "string",
+            "async": false
+           },
+           "number": {
+            "kind": "schema",
+            "type": "number",
+            "expects": "number",
+            "async": false
+           }
+          }
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(list)=>list.slice(0,200)"
+         }
+        }
+       ],
+       "fallback": []
+      },
+      "default": []
+     }
+    }
+   }
+  ],
+  [
+   "buildRequest",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "repo": {
+      "kind": "schema",
+      "type": "string",
+      "expects": "string",
+      "async": false
+     },
+     "number": {
+      "kind": "schema",
+      "type": "union",
+      "expects": "(number | string)",
+      "async": false,
+      "options": [
+       {
+        "kind": "schema",
+        "type": "number",
+        "expects": "number",
+        "async": false
+       },
+       {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       }
+      ]
+     },
+     "mode": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      }
+     },
+     "base_sha": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      }
+     },
+     "retell": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(boolean | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "boolean",
+       "expects": "boolean",
+       "async": false,
+       "fallback": false
+      },
+      "default": false
+     },
+     "requested_at": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      }
+     }
+    }
+   }
+  ],
+  [
+   "ui",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "n": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(((number | string) | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "((number | string) | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "union",
+        "expects": "(number | string)",
+        "async": false,
+        "options": [
+         {
+          "kind": "schema",
+          "type": "number",
+          "expects": "number",
+          "async": false
+         },
+         {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        ]
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "nullable",
+         "expects": "((number | string) | null)",
+         "async": false,
+         "wrapped": {
+          "kind": "schema",
+          "type": "union",
+          "expects": "(number | string)",
+          "async": false,
+          "options": [
+           {
+            "kind": "schema",
+            "type": "number",
+            "expects": "number",
+            "async": false
+           },
+           {
+            "kind": "schema",
+            "type": "string",
+            "expects": "string",
+            "async": false
+           }
+          ]
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>toWhole(value)??0"
+         }
+        }
+       ]
+      },
+      "default": 0
+     },
+     "all": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(boolean | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "boolean",
+       "expects": "boolean",
+       "async": false,
+       "fallback": false
+      },
+      "default": false
+     },
+     "collapsed": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(boolean | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "boolean",
+       "expects": "boolean",
+       "async": false,
+       "fallback": false
+      },
+      "default": false
+     },
+     "width": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(((number | string) | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "((number | string) | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "union",
+        "expects": "(number | string)",
+        "async": false,
+        "options": [
+         {
+          "kind": "schema",
+          "type": "number",
+          "expects": "number",
+          "async": false
+         },
+         {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        ]
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "nullable",
+         "expects": "((number | string) | null)",
+         "async": false,
+         "wrapped": {
+          "kind": "schema",
+          "type": "union",
+          "expects": "(number | string)",
+          "async": false,
+          "options": [
+           {
+            "kind": "schema",
+            "type": "number",
+            "expects": "number",
+            "async": false
+           },
+           {
+            "kind": "schema",
+            "type": "string",
+            "expects": "string",
+            "async": false
+           }
+          ]
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>{if(value==null){returnnull;}returnNumber.isFinite(+value)?Math.trunc(+value):null;}"
+         }
+        }
+       ]
+      },
+      "default": null
+     },
+     "hidden": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(boolean | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "boolean",
+       "expects": "boolean",
+       "async": false,
+       "fallback": false
+      },
+      "default": false
+     },
+     "filesOpen": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(boolean | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "boolean",
+       "expects": "boolean",
+       "async": false,
+       "fallback": false
+      },
+      "default": false
+     },
+     "chatOpen": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(boolean | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "boolean",
+       "expects": "boolean",
+       "async": false,
+       "fallback": false
+      },
+      "default": false
+     },
+     "chatHeight": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(((number | string) | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "((number | string) | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "union",
+        "expects": "(number | string)",
+        "async": false,
+        "options": [
+         {
+          "kind": "schema",
+          "type": "number",
+          "expects": "number",
+          "async": false
+         },
+         {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        ]
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "nullable",
+         "expects": "((number | string) | null)",
+         "async": false,
+         "wrapped": {
+          "kind": "schema",
+          "type": "union",
+          "expects": "(number | string)",
+          "async": false,
+          "options": [
+           {
+            "kind": "schema",
+            "type": "number",
+            "expects": "number",
+            "async": false
+           },
+           {
+            "kind": "schema",
+            "type": "string",
+            "expects": "string",
+            "async": false
+           }
+          ]
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>{if(value==null){returnnull;}returnNumber.isFinite(+value)?Math.trunc(+value):null;}"
+         }
+        }
+       ]
+      },
+      "default": null
+     }
+    }
+   }
+  ],
+  [
+   "position",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "step": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(((number | string) | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "((number | string) | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "union",
+        "expects": "(number | string)",
+        "async": false,
+        "options": [
+         {
+          "kind": "schema",
+          "type": "number",
+          "expects": "number",
+          "async": false
+         },
+         {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        ]
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "nullable",
+         "expects": "((number | string) | null)",
+         "async": false,
+         "wrapped": {
+          "kind": "schema",
+          "type": "union",
+          "expects": "(number | string)",
+          "async": false,
+          "options": [
+           {
+            "kind": "schema",
+            "type": "number",
+            "expects": "number",
+            "async": false
+           },
+           {
+            "kind": "schema",
+            "type": "string",
+            "expects": "string",
+            "async": false
+           }
+          ]
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>{if(value==null){returnnull;}returnNumber.isFinite(+value)?Math.trunc(+value):null;}"
+         }
+        }
+       ]
+      },
+      "default": null
+     },
+     "chapter": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((string | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "(string | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "nullable",
+         "expects": "(string | null)",
+         "async": false,
+         "wrapped": {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>(value==null?null:value.slice(0,max))"
+         }
+        }
+       ]
+      },
+      "default": null
+     },
+     "file": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((string | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "(string | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "nullable",
+         "expects": "(string | null)",
+         "async": false,
+         "wrapped": {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>(value==null?null:value.slice(0,max))"
+         }
+        }
+       ]
+      },
+      "default": null
+     },
+     "url": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((string | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "(string | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "nullable",
+         "expects": "(string | null)",
+         "async": false,
+         "wrapped": {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>(value==null?null:value.slice(0,max))"
+         }
+        }
+       ]
+      },
+      "default": null
+     }
+    }
+   }
+  ],
+  [
+   "seen",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {}
+   }
+  ],
+  [
+   "rebuild",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "mode": {
+      "kind": "schema",
+      "type": "picklist",
+      "expects": "(\"rebuild\" | \"rebuild_from\")",
+      "async": false,
+      "options": [
+       "rebuild",
+       "rebuild_from"
+      ]
+     },
+     "from_step": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(((number | string) | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "((number | string) | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "union",
+        "expects": "(number | string)",
+        "async": false,
+        "options": [
+         {
+          "kind": "schema",
+          "type": "number",
+          "expects": "number",
+          "async": false
+         },
+         {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        ]
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "nullable",
+         "expects": "((number | string) | null)",
+         "async": false,
+         "wrapped": {
+          "kind": "schema",
+          "type": "union",
+          "expects": "(number | string)",
+          "async": false,
+          "options": [
+           {
+            "kind": "schema",
+            "type": "number",
+            "expects": "number",
+            "async": false
+           },
+           {
+            "kind": "schema",
+            "type": "string",
+            "expects": "string",
+            "async": false
+           }
+          ]
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>{if(value==null){returnnull;}returnNumber.isFinite(+value)?Math.trunc(+value):null;}"
+         }
+        }
+       ]
+      },
+      "default": null
+     },
+     "guidance": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((string | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "(string | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "nullable",
+         "expects": "(string | null)",
+         "async": false,
+         "wrapped": {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>(value==null?null:value.slice(0,max))"
+         }
+        }
+       ]
+      },
+      "default": null
+     },
+     "requested_at": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      }
+     }
+    }
+   }
+  ],
+  [
+   "listen",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "session": {
+      "kind": "schema",
+      "type": "string",
+      "expects": "string",
+      "async": false,
+      "pipe": [
+       {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       },
+       {
+        "kind": "validation",
+        "type": "regex",
+        "async": false,
+        "expects": "/^[A-Za-z0-9._-]{1,100}$/",
+        "requirement": {
+         "regex": "/^[A-Za-z0-9._-]{1,100}$/"
+        }
+       }
+      ]
+     },
+     "scope": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((\"repo\" | \"story\") | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "picklist",
+       "expects": "(\"repo\" | \"story\")",
+       "async": false,
+       "options": [
+        "repo",
+        "story"
+       ],
+       "fallback": "repo"
+      }
+     }
+    }
+   }
+  ],
+  [
+   "questionAsk",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "text": {
+      "kind": "schema",
+      "type": "string",
+      "expects": "string",
+      "async": false,
+      "pipe": [
+       {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       },
+       {
+        "kind": "transformation",
+        "type": "transform",
+        "async": false,
+        "operation": {
+         "function": "(value)=>value.slice(0,8000)"
+        }
+       }
+      ]
+     },
+     "step": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(((number | string) | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "((number | string) | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "union",
+        "expects": "(number | string)",
+        "async": false,
+        "options": [
+         {
+          "kind": "schema",
+          "type": "number",
+          "expects": "number",
+          "async": false
+         },
+         {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        ]
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "nullable",
+         "expects": "((number | string) | null)",
+         "async": false,
+         "wrapped": {
+          "kind": "schema",
+          "type": "union",
+          "expects": "(number | string)",
+          "async": false,
+          "options": [
+           {
+            "kind": "schema",
+            "type": "number",
+            "expects": "number",
+            "async": false
+           },
+           {
+            "kind": "schema",
+            "type": "string",
+            "expects": "string",
+            "async": false
+           }
+          ]
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>{if(value==null){returnnull;}returnNumber.isFinite(+value)?Math.trunc(+value):null;}"
+         }
+        }
+       ]
+      },
+      "default": null
+     },
+     "chapter": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((string | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "(string | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "nullable",
+         "expects": "(string | null)",
+         "async": false,
+         "wrapped": {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>(value==null?null:value.slice(0,max))"
+         }
+        }
+       ]
+      },
+      "default": null
+     },
+     "file": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((string | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "(string | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "nullable",
+         "expects": "(string | null)",
+         "async": false,
+         "wrapped": {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>(value==null?null:value.slice(0,max))"
+         }
+        }
+       ]
+      },
+      "default": null
+     },
+     "url": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((string | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "(string | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "nullable",
+         "expects": "(string | null)",
+         "async": false,
+         "wrapped": {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>(value==null?null:value.slice(0,max))"
+         }
+        }
+       ]
+      },
+      "default": null
+     }
+    }
+   }
+  ],
+  [
+   "questionMarks",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "action": {
+      "kind": "schema",
+      "type": "picklist",
+      "expects": "(\"clear\" | \"read_all\" | \"dismiss\" | \"restore\" | \"collapse\" | \"expand\" | \"read\" | \"unread\")",
+      "async": false,
+      "options": [
+       "clear",
+       "read_all",
+       "dismiss",
+       "restore",
+       "collapse",
+       "expand",
+       "read",
+       "unread"
+      ]
+     },
+     "ids": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(Array | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "array",
+       "expects": "Array",
+       "async": false,
+       "item": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "array",
+         "expects": "Array",
+         "async": false,
+         "item": {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(list)=>list.slice(0,MAX_IDS)"
+         }
+        }
+       ],
+       "fallback": []
+      },
+      "default": []
+     },
+     "seen": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((unknown | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "(unknown | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "unknown",
+        "expects": "unknown",
+        "async": false,
+        "pipe": [
+         {
+          "kind": "schema",
+          "type": "unknown",
+          "expects": "unknown",
+          "async": false
+         },
+         {
+          "kind": "validation",
+          "type": "check",
+          "async": false,
+          "expects": null,
+          "requirement": {
+           "function": "(value)=>!Array.isArray(value)"
+          }
+         },
+         {
+          "kind": "schema",
+          "type": "record",
+          "expects": "Object",
+          "async": false,
+          "key": {
+           "kind": "schema",
+           "type": "string",
+           "expects": "string",
+           "async": false
+          },
+          "value": {
+           "kind": "schema",
+           "type": "string",
+           "expects": "string",
+           "async": false
+          }
+         }
+        ]
+       },
+       "fallback": null
+      }
+     },
+     "auto": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(boolean | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "boolean",
+       "expects": "boolean",
+       "async": false,
+       "fallback": false
+      },
+      "default": false
+     }
+    }
+   }
+  ],
+  [
+   "draftsAct",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "chapter": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(((number | string) | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "((number | string) | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "union",
+        "expects": "(number | string)",
+        "async": false,
+        "options": [
+         {
+          "kind": "schema",
+          "type": "number",
+          "expects": "number",
+          "async": false
+         },
+         {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        ]
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "nullable",
+         "expects": "((number | string) | null)",
+         "async": false,
+         "wrapped": {
+          "kind": "schema",
+          "type": "union",
+          "expects": "(number | string)",
+          "async": false,
+          "options": [
+           {
+            "kind": "schema",
+            "type": "number",
+            "expects": "number",
+            "async": false
+           },
+           {
+            "kind": "schema",
+            "type": "string",
+            "expects": "string",
+            "async": false
+           }
+          ]
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>{if(value==null){returnnull;}returnNumber.isFinite(+value)?Math.trunc(+value):null;}"
+         }
+        }
+       ]
+      },
+      "default": null
+     },
+     "index": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(((number | string) | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "((number | string) | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "union",
+        "expects": "(number | string)",
+        "async": false,
+        "options": [
+         {
+          "kind": "schema",
+          "type": "number",
+          "expects": "number",
+          "async": false
+         },
+         {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        ]
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "nullable",
+         "expects": "((number | string) | null)",
+         "async": false,
+         "wrapped": {
+          "kind": "schema",
+          "type": "union",
+          "expects": "(number | string)",
+          "async": false,
+          "options": [
+           {
+            "kind": "schema",
+            "type": "number",
+            "expects": "number",
+            "async": false
+           },
+           {
+            "kind": "schema",
+            "type": "string",
+            "expects": "string",
+            "async": false
+           }
+          ]
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>{if(value==null){returnnull;}returnNumber.isFinite(+value)?Math.trunc(+value):null;}"
+         }
+        }
+       ]
+      },
+      "default": null
+     },
+     "action": {
+      "kind": "schema",
+      "type": "picklist",
+      "expects": "(\"dismiss\" | \"restore\" | \"review\" | \"fix\" | \"settle\")",
+      "async": false,
+      "options": [
+       "dismiss",
+       "restore",
+       "review",
+       "fix",
+       "settle"
+      ]
+     }
+    }
+   }
+  ],
+  [
+   "readNote",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "chapter": {
+      "kind": "schema",
+      "type": "string",
+      "expects": "string",
+      "async": false,
+      "pipe": [
+       {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       },
+       {
+        "kind": "transformation",
+        "type": "transform",
+        "async": false,
+        "operation": {
+         "function": "(value)=>value.slice(0,200)"
+        }
+       }
+      ]
+     },
+     "head_sha": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((string | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "(string | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       }
+      }
+     },
+     "reason": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      }
+     },
+     "step": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(((number | string) | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "((number | string) | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "union",
+        "expects": "(number | string)",
+        "async": false,
+        "options": [
+         {
+          "kind": "schema",
+          "type": "number",
+          "expects": "number",
+          "async": false
+         },
+         {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        ]
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "nullable",
+         "expects": "((number | string) | null)",
+         "async": false,
+         "wrapped": {
+          "kind": "schema",
+          "type": "union",
+          "expects": "(number | string)",
+          "async": false,
+          "options": [
+           {
+            "kind": "schema",
+            "type": "number",
+            "expects": "number",
+            "async": false
+           },
+           {
+            "kind": "schema",
+            "type": "string",
+            "expects": "string",
+            "async": false
+           }
+          ]
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>{if(value==null){returnnull;}returnNumber.isFinite(+value)?Math.trunc(+value):null;}"
+         }
+        }
+       ]
+      },
+      "default": null
+     },
+     "seconds": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(((number | string) | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "((number | string) | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "union",
+        "expects": "(number | string)",
+        "async": false,
+        "options": [
+         {
+          "kind": "schema",
+          "type": "number",
+          "expects": "number",
+          "async": false
+         },
+         {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        ]
+       }
+      }
+     }
+    }
+   }
+  ],
+  [
+   "viewed",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "path": {
+      "kind": "schema",
+      "type": "string",
+      "expects": "string",
+      "async": false
+     },
+     "viewed": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(boolean | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "boolean",
+       "expects": "boolean",
+       "async": false,
+       "fallback": false
+      },
+      "default": false
+     }
+    }
+   }
+  ],
+  [
+   "approve",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "head_sha": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((string | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "(string | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       }
+      }
+     },
+     "approved": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(boolean | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "boolean",
+       "expects": "boolean",
+       "async": false
+      }
+     }
+    }
+   }
+  ],
+  [
+   "noteAdd",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "body": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      }
+     },
+     "path": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((string | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "(string | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "nullable",
+         "expects": "(string | null)",
+         "async": false,
+         "wrapped": {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>(value==null?null:value.slice(0,max))"
+         }
+        }
+       ]
+      },
+      "default": null
+     },
+     "side": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((\"L\" | \"R\") | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "picklist",
+       "expects": "(\"L\" | \"R\")",
+       "async": false,
+       "options": [
+        "L",
+        "R"
+       ],
+       "fallback": "R"
+      }
+     },
+     "line": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(((number | string) | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "((number | string) | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "union",
+        "expects": "(number | string)",
+        "async": false,
+        "options": [
+         {
+          "kind": "schema",
+          "type": "number",
+          "expects": "number",
+          "async": false
+         },
+         {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        ]
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "nullable",
+         "expects": "((number | string) | null)",
+         "async": false,
+         "wrapped": {
+          "kind": "schema",
+          "type": "union",
+          "expects": "(number | string)",
+          "async": false,
+          "options": [
+           {
+            "kind": "schema",
+            "type": "number",
+            "expects": "number",
+            "async": false
+           },
+           {
+            "kind": "schema",
+            "type": "string",
+            "expects": "string",
+            "async": false
+           }
+          ]
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>{if(value==null){returnnull;}returnNumber.isFinite(+value)?Math.trunc(+value):null;}"
+         }
+        }
+       ]
+      },
+      "default": null
+     },
+     "chapter": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(((number | string) | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "((number | string) | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "union",
+        "expects": "(number | string)",
+        "async": false,
+        "options": [
+         {
+          "kind": "schema",
+          "type": "number",
+          "expects": "number",
+          "async": false
+         },
+         {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        ]
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "nullable",
+         "expects": "((number | string) | null)",
+         "async": false,
+         "wrapped": {
+          "kind": "schema",
+          "type": "union",
+          "expects": "(number | string)",
+          "async": false,
+          "options": [
+           {
+            "kind": "schema",
+            "type": "number",
+            "expects": "number",
+            "async": false
+           },
+           {
+            "kind": "schema",
+            "type": "string",
+            "expects": "string",
+            "async": false
+           }
+          ]
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>{if(value==null){returnnull;}returnNumber.isFinite(+value)?Math.trunc(+value):null;}"
+         }
+        }
+       ]
+      },
+      "default": null
+     },
+     "index": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(((number | string) | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "((number | string) | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "union",
+        "expects": "(number | string)",
+        "async": false,
+        "options": [
+         {
+          "kind": "schema",
+          "type": "number",
+          "expects": "number",
+          "async": false
+         },
+         {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        ]
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "nullable",
+         "expects": "((number | string) | null)",
+         "async": false,
+         "wrapped": {
+          "kind": "schema",
+          "type": "union",
+          "expects": "(number | string)",
+          "async": false,
+          "options": [
+           {
+            "kind": "schema",
+            "type": "number",
+            "expects": "number",
+            "async": false
+           },
+           {
+            "kind": "schema",
+            "type": "string",
+            "expects": "string",
+            "async": false
+           }
+          ]
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>{if(value==null){returnnull;}returnNumber.isFinite(+value)?Math.trunc(+value):null;}"
+         }
+        }
+       ]
+      },
+      "default": null
+     }
+    }
+   }
+  ],
+  [
+   "noteUpdate",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "done": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(boolean | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "boolean",
+       "expects": "boolean",
+       "async": false
+      }
+     },
+     "body": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      }
+     },
+     "delete": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(boolean | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "boolean",
+       "expects": "boolean",
+       "async": false
+      }
+     }
+    }
+   }
+  ],
+  [
+   "fixesAct",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "action": {
+      "kind": "schema",
+      "type": "picklist",
+      "expects": "(\"send\" | \"auto\" | \"take_back\")",
+      "async": false,
+      "options": [
+       "send",
+       "auto",
+       "take_back"
+      ]
+     },
+     "ids": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(Array | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "array",
+       "expects": "Array",
+       "async": false,
+       "item": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       },
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "array",
+         "expects": "Array",
+         "async": false,
+         "item": {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(list)=>list.slice(0,MAX_IDS)"
+         }
+        }
+       ]
+      }
+     },
+     "on": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(boolean | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "boolean",
+       "expects": "boolean",
+       "async": false,
+       "fallback": false
+      },
+      "default": false
+     },
+     "request": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((string | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "(string | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       }
+      }
+     }
+    }
+   }
+  ],
+  [
+   "prPush",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "action": {
+      "kind": "schema",
+      "type": "picklist",
+      "expects": "(\"push\" | \"push-ahead\")",
+      "async": false,
+      "options": [
+       "push",
+       "push-ahead"
+      ]
+     },
+     "head_sha": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((string | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "(string | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       }
+      }
+     }
+    }
+   }
+  ],
+  [
+   "pushApproved",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "action": {
+      "kind": "schema",
+      "type": "literal",
+      "expects": "\"push\"",
+      "async": false,
+      "literal": "push"
+     },
+     "head_sha": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((string | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "(string | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       }
+      }
+     }
+    }
+   }
+  ],
+  [
+   "authSession",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "key": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      },
+      "default": ""
+     }
+    }
+   }
+  ],
+  [
+   "boardType",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "kind": {
+      "kind": "schema",
+      "type": "picklist",
+      "expects": "(\"build\" | \"listen\")",
+      "async": false,
+      "options": [
+       "build",
+       "listen"
+      ]
+     },
+     "session": {
+      "kind": "schema",
+      "type": "string",
+      "expects": "string",
+      "async": false,
+      "pipe": [
+       {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       },
+       {
+        "kind": "validation",
+        "type": "regex",
+        "async": false,
+        "expects": "/^[A-Za-z0-9._-]{1,100}$/",
+        "requirement": {
+         "regex": "/^[A-Za-z0-9._-]{1,100}$/"
+        }
+       }
+      ]
+     },
+     "repo": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((string | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "(string | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       }
+      }
+     },
+     "story": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((string | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "(string | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       }
+      }
+     },
+     "card": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((string | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "(string | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       }
+      }
+     }
+    }
+   }
+  ],
+  [
+   "boardVoicePause",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "paused": {
+      "kind": "schema",
+      "type": "boolean",
+      "expects": "boolean",
+      "async": false
+     }
+    }
+   }
+  ],
+  [
+   "boardVoicePhone",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "on": {
+      "kind": "schema",
+      "type": "boolean",
+      "expects": "boolean",
+      "async": false
+     }
+    }
+   }
+  ],
+  [
+   "boardVoiceStart",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "session": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false,
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "string",
+         "expects": "string",
+         "async": false
+        },
+        {
+         "kind": "validation",
+         "type": "regex",
+         "async": false,
+         "expects": "/^[A-Za-z0-9._-]{1,100}$/",
+         "requirement": {
+          "regex": "/^[A-Za-z0-9._-]{1,100}$/"
+         }
+        }
+       ]
+      }
+     }
+    }
+   }
+  ],
+  [
+   "boardStopListening",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "repo": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      },
+      "default": ""
+     }
+    }
+   }
+  ],
+  [
+   "boardFocus",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "session": {
+      "kind": "schema",
+      "type": "string",
+      "expects": "string",
+      "async": false,
+      "pipe": [
+       {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       },
+       {
+        "kind": "validation",
+        "type": "regex",
+        "async": false,
+        "expects": "/^[A-Za-z0-9._-]{1,100}$/",
+        "requirement": {
+         "regex": "/^[A-Za-z0-9._-]{1,100}$/"
+        }
+       }
+      ]
+     }
+    }
+   }
+  ],
+  [
+   "boardOpenStory",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "story": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      },
+      "default": ""
+     }
+    }
+   }
+  ],
+  [
+   "boardReview",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "card": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      },
+      "default": ""
+     }
+    }
+   }
+  ],
+  [
+   "boardReviewed",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "story": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      },
+      "default": ""
+     },
+     "reviewed": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(boolean | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "boolean",
+       "expects": "boolean",
+       "async": false
+      }
+     }
+    }
+   }
+  ],
+  [
+   "boardBacklogAdd",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "title": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      },
+      "default": ""
+     },
+     "note": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((string | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "(string | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       }
+      }
+     },
+     "repo": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((string | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "(string | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       }
+      }
+     }
+    }
+   }
+  ],
+  [
+   "boardBacklogMove",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "id": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      },
+      "default": ""
+     },
+     "before": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      }
+     },
+     "edge": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((\"top\" | \"bottom\") | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "picklist",
+       "expects": "(\"top\" | \"bottom\")",
+       "async": false,
+       "options": [
+        "top",
+        "bottom"
+       ]
+      }
+     }
+    },
+    "pipe": [
+     {
+      "kind": "schema",
+      "type": "object",
+      "expects": "Object",
+      "async": false,
+      "entries": {
+       "id": {
+        "kind": "schema",
+        "type": "optional",
+        "expects": "(string | undefined)",
+        "async": false,
+        "wrapped": {
+         "kind": "schema",
+         "type": "string",
+         "expects": "string",
+         "async": false
+        },
+        "default": ""
+       },
+       "before": {
+        "kind": "schema",
+        "type": "optional",
+        "expects": "(string | undefined)",
+        "async": false,
+        "wrapped": {
+         "kind": "schema",
+         "type": "string",
+         "expects": "string",
+         "async": false
+        }
+       },
+       "edge": {
+        "kind": "schema",
+        "type": "optional",
+        "expects": "((\"top\" | \"bottom\") | undefined)",
+        "async": false,
+        "wrapped": {
+         "kind": "schema",
+         "type": "picklist",
+         "expects": "(\"top\" | \"bottom\")",
+         "async": false,
+         "options": [
+          "top",
+          "bottom"
+         ]
+        }
+       }
+      }
+     },
+     {
+      "kind": "validation",
+      "type": "check",
+      "async": false,
+      "expects": null,
+      "requirement": {
+       "function": "(body)=>!!body.before||!!body.edge"
+      },
+      "message": "before (an item id) or edge (top or bottom) is needed"
+     }
+    ]
+   }
+  ],
+  [
+   "boardBacklogEdit",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "id": {
+      "kind": "schema",
+      "type": "string",
+      "expects": "string",
+      "async": false,
+      "pipe": [
+       {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       },
+       {
+        "kind": "validation",
+        "type": "regex",
+        "async": false,
+        "expects": "/^bl_[a-z0-9]{6,24}$/",
+        "requirement": {
+         "regex": "/^bl_[a-z0-9]{6,24}$/"
+        }
+       }
+      ]
+     },
+     "title": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      }
+     },
+     "note": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((string | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "(string | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       }
+      }
+     },
+     "repo": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((string | null) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "nullable",
+       "expects": "(string | null)",
+       "async": false,
+       "wrapped": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       }
+      }
+     }
+    }
+   }
+  ],
+  [
+   "boardBacklogDrop",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "id": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      },
+      "default": ""
+     }
+    }
+   }
+  ],
+  [
+   "boardBacklogSomeday",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "id": {
+      "kind": "schema",
+      "type": "string",
+      "expects": "string",
+      "async": false,
+      "pipe": [
+       {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       },
+       {
+        "kind": "validation",
+        "type": "regex",
+        "async": false,
+        "expects": "/^bl_[a-z0-9]{6,24}$/",
+        "requirement": {
+         "regex": "/^bl_[a-z0-9]{6,24}$/"
+        }
+       }
+      ]
+     },
+     "on": {
+      "kind": "schema",
+      "type": "boolean",
+      "expects": "boolean",
+      "async": false
+     }
+    }
+   }
+  ],
+  [
+   "boardBacklogAssign",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "id": {
+      "kind": "schema",
+      "type": "string",
+      "expects": "string",
+      "async": false,
+      "pipe": [
+       {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       },
+       {
+        "kind": "validation",
+        "type": "regex",
+        "async": false,
+        "expects": "/^bl_[a-z0-9]{6,24}$/",
+        "requirement": {
+         "regex": "/^bl_[a-z0-9]{6,24}$/"
+        }
+       }
+      ]
+     }
+    }
+   }
+  ],
+  [
+   "boardAgentFinish",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "sid": {
+      "kind": "schema",
+      "type": "string",
+      "expects": "string",
+      "async": false,
+      "pipe": [
+       {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       },
+       {
+        "kind": "validation",
+        "type": "regex",
+        "async": false,
+        "expects": "/^[0-9a-f]{8}$/",
+        "requirement": {
+         "regex": "/^[0-9a-f]{8}$/"
+        }
+       }
+      ]
+     },
+     "name": {
+      "kind": "schema",
+      "type": "string",
+      "expects": "string",
+      "async": false,
+      "pipe": [
+       {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       },
+       {
+        "kind": "validation",
+        "type": "regex",
+        "async": false,
+        "expects": "/^[\\w.-]+$/",
+        "requirement": {
+         "regex": "/^[\\w.-]+$/"
+        }
+       }
+      ]
+     }
+    }
+   }
+  ],
+  [
+   "boardWorktreeClean",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "path": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false
+      },
+      "default": ""
+     },
+     "ack": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((string | Array) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "union",
+       "expects": "(string | Array)",
+       "async": false,
+       "options": [
+        {
+         "kind": "schema",
+         "type": "string",
+         "expects": "string",
+         "async": false
+        },
+        {
+         "kind": "schema",
+         "type": "array",
+         "expects": "Array",
+         "async": false,
+         "item": {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        }
+       ],
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "union",
+         "expects": "(string | Array)",
+         "async": false,
+         "options": [
+          {
+           "kind": "schema",
+           "type": "string",
+           "expects": "string",
+           "async": false
+          },
+          {
+           "kind": "schema",
+           "type": "array",
+           "expects": "Array",
+           "async": false,
+           "item": {
+            "kind": "schema",
+            "type": "string",
+            "expects": "string",
+            "async": false
+           }
+          }
+         ]
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>(Array.isArray(value)?value:[value]).filter((one)=>one!=='').slice(0,MAX_LIST)"
+         }
+        }
+       ],
+       "fallback": []
+      },
+      "default": []
+     },
+     "ignored": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "((string | Array) | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "union",
+       "expects": "(string | Array)",
+       "async": false,
+       "options": [
+        {
+         "kind": "schema",
+         "type": "string",
+         "expects": "string",
+         "async": false
+        },
+        {
+         "kind": "schema",
+         "type": "array",
+         "expects": "Array",
+         "async": false,
+         "item": {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         }
+        }
+       ],
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "union",
+         "expects": "(string | Array)",
+         "async": false,
+         "options": [
+          {
+           "kind": "schema",
+           "type": "string",
+           "expects": "string",
+           "async": false
+          },
+          {
+           "kind": "schema",
+           "type": "array",
+           "expects": "Array",
+           "async": false,
+           "item": {
+            "kind": "schema",
+            "type": "string",
+            "expects": "string",
+            "async": false
+           }
+          }
+         ]
+        },
+        {
+         "kind": "transformation",
+         "type": "transform",
+         "async": false,
+         "operation": {
+          "function": "(value)=>(Array.isArray(value)?value:[value]).filter((one)=>one!=='').slice(0,MAX_LIST)"
+         }
+        }
+       ],
+       "fallback": []
+      },
+      "default": []
+     }
+    }
+   }
+  ],
+  [
+   "githubRefresh",
+   {
+    "kind": "schema",
+    "type": "object",
+    "expects": "Object",
+    "async": false,
+    "entries": {
+     "repo": {
+      "kind": "schema",
+      "type": "string",
+      "expects": "string",
+      "async": false,
+      "pipe": [
+       {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false
+       },
+       {
+        "kind": "validation",
+        "type": "regex",
+        "async": false,
+        "expects": "/^[A-Za-z0-9_.-]{1,100}\\/[A-Za-z0-9_.-]{1,100}$/",
+        "requirement": {
+         "regex": "/^[A-Za-z0-9_.-]{1,100}\\/[A-Za-z0-9_.-]{1,100}$/"
+        }
+       }
+      ]
+     },
+     "branch": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(string | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "string",
+       "expects": "string",
+       "async": false,
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "string",
+         "expects": "string",
+         "async": false
+        },
+        {
+         "kind": "validation",
+         "type": "regex",
+         "async": false,
+         "expects": "/^[^\\s\\x00-\\x1f\\x7f~^:?*[\\\\]{1,255}$/",
+         "requirement": {
+          "regex": "/^[^\\s\\x00-\\x1f\\x7f~^:?*[\\\\]{1,255}$/"
+         }
+        }
+       ]
+      }
+     },
+     "number": {
+      "kind": "schema",
+      "type": "optional",
+      "expects": "(number | undefined)",
+      "async": false,
+      "wrapped": {
+       "kind": "schema",
+       "type": "number",
+       "expects": "number",
+       "async": false,
+       "pipe": [
+        {
+         "kind": "schema",
+         "type": "number",
+         "expects": "number",
+         "async": false
+        },
+        {
+         "kind": "validation",
+         "type": "integer",
+         "async": false,
+         "expects": null,
+         "requirement": {
+          "function": "functionisInteger(){[nativecode]}"
+         }
+        },
+        {
+         "kind": "validation",
+         "type": "min_value",
+         "async": false,
+         "expects": ">=1",
+         "requirement": 1
+        }
+       ]
+      }
+     },
+     "reason": {
+      "kind": "schema",
+      "type": "picklist",
+      "expects": "(\"review\" | \"open\" | \"merge\" | \"ready\" | \"close\")",
+      "async": false,
+      "options": [
+       "review",
+       "open",
+       "merge",
+       "ready",
+       "close"
+      ]
+     }
+    },
+    "pipe": [
+     {
+      "kind": "schema",
+      "type": "object",
+      "expects": "Object",
+      "async": false,
+      "entries": {
+       "repo": {
+        "kind": "schema",
+        "type": "string",
+        "expects": "string",
+        "async": false,
+        "pipe": [
+         {
+          "kind": "schema",
+          "type": "string",
+          "expects": "string",
+          "async": false
+         },
+         {
+          "kind": "validation",
+          "type": "regex",
+          "async": false,
+          "expects": "/^[A-Za-z0-9_.-]{1,100}\\/[A-Za-z0-9_.-]{1,100}$/",
+          "requirement": {
+           "regex": "/^[A-Za-z0-9_.-]{1,100}\\/[A-Za-z0-9_.-]{1,100}$/"
+          }
+         }
+        ]
+       },
+       "branch": {
+        "kind": "schema",
+        "type": "optional",
+        "expects": "(string | undefined)",
+        "async": false,
+        "wrapped": {
+         "kind": "schema",
+         "type": "string",
+         "expects": "string",
+         "async": false,
+         "pipe": [
+          {
+           "kind": "schema",
+           "type": "string",
+           "expects": "string",
+           "async": false
+          },
+          {
+           "kind": "validation",
+           "type": "regex",
+           "async": false,
+           "expects": "/^[^\\s\\x00-\\x1f\\x7f~^:?*[\\\\]{1,255}$/",
+           "requirement": {
+            "regex": "/^[^\\s\\x00-\\x1f\\x7f~^:?*[\\\\]{1,255}$/"
+           }
+          }
+         ]
+        }
+       },
+       "number": {
+        "kind": "schema",
+        "type": "optional",
+        "expects": "(number | undefined)",
+        "async": false,
+        "wrapped": {
+         "kind": "schema",
+         "type": "number",
+         "expects": "number",
+         "async": false,
+         "pipe": [
+          {
+           "kind": "schema",
+           "type": "number",
+           "expects": "number",
+           "async": false
+          },
+          {
+           "kind": "validation",
+           "type": "integer",
+           "async": false,
+           "expects": null,
+           "requirement": {
+            "function": "functionisInteger(){[nativecode]}"
+           }
+          },
+          {
+           "kind": "validation",
+           "type": "min_value",
+           "async": false,
+           "expects": ">=1",
+           "requirement": 1
+          }
+         ]
+        }
+       },
+       "reason": {
+        "kind": "schema",
+        "type": "picklist",
+        "expects": "(\"review\" | \"open\" | \"merge\" | \"ready\" | \"close\")",
+        "async": false,
+        "options": [
+         "review",
+         "open",
+         "merge",
+         "ready",
+         "close"
+        ]
+       }
+      }
+     },
+     {
+      "kind": "validation",
+      "type": "check",
+      "async": false,
+      "expects": null,
+      "requirement": {
+       "function": "(body)=>!!body.branch||!!body.number"
+      },
+      "message": "a branch or a PR number is needed"
+     }
+    ]
+   }
+  ]
+ ]
+}

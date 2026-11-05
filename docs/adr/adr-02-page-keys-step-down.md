@@ -13,7 +13,7 @@ Every key is an HMAC under the bridge's token with its own label (`services/page
 | Key | Label | Reaches | Can hand out |
 |---|---|---|---|
 | token | (none) | everything. The extension, the CLI and listeners use it | every link |
-| board key | `board-page` | the board routes (the `token+board` entries in the protocol's route table, `packages/protocol/src/routes.ts`): snapshot, type into a session's tab, focus a tab, stop a listener, Start, Pause, Resume and Stop voice, phone mode and Stop phone bridge, worktree Clean up, backlog add, move, drop and assign, mark a local story reviewed | a local story's **full** link (Open story) |
+| board key | `board-page` | the board routes (the `token+board` entries in the protocol's route table, `packages/protocol/src/board/routes.ts`): snapshot, type into a session's tab, focus a tab, stop a listener, Start, Pause, Resume and Stop voice, phone mode and Stop phone bridge, worktree Clean up, backlog add, move, drop and assign, mark a local story reviewed | a local story's **full** link (Open story) |
 | story full key | `local-page:<id>` | every route of that one local story, including Approve, `POST …/pr` (Create pull request's `git push`, and Push for a branch behind its open PR) and `POST …/push` (Push to the default branch) | nothing |
 | story read-only key | `local-view:<id>` | an allowlist (`VIEW_KEY_MAY` in `page-key.ts`): read, Ask, Viewed, notes, Send fix requests, Rebuild, page prefs and UI state, `GET …/pr` | nothing |
 

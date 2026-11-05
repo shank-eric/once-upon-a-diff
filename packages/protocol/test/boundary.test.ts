@@ -16,7 +16,11 @@ const importsOf = (code: string): string[] =>
     ...code.matchAll(/(?:^|\n)\s*(?:import|export)\b(?!\s+type\b)[^;]*?\bfrom\s+['"]([^'"]+)['"]/g),
   ].map((hit) => hit[1]);
 
-test('protocol imports only itself and valibot, and only schemas.ts imports valibot', () => {
+/** The files that may import valibot: the schema index, the readers they share and each area's schemas. */
+const isSchemaFile = (name: string): boolean =>
+  /^(schemas|schema-kit|[a-z-]+\/schemas)\.ts$/.test(name);
+
+test('protocol imports only itself and valibot, and only the schema files import valibot', () => {
   for (const file of files(SRC)) {
     const name = path.relative(SRC, file);
     for (const specifier of importsOf(readFileSync(file, 'utf8'))) {
@@ -25,18 +29,23 @@ test('protocol imports only itself and valibot, and only schemas.ts imports vali
         continue;
       }
       assert.equal(specifier, 'valibot', `${name} imports ${specifier}`);
-      assert.equal(name, 'schemas.ts', `${name} imports valibot`);
+      assert.ok(isSchemaFile(name), `${name} imports valibot`);
     }
   }
 });
 
 test('what a page loads has no runtime import of valibot or of the schemas', () => {
-  for (const name of ['types', 'routes', 'domain/patterns']) {
-    const code = stripTypeScriptTypes(readFileSync(path.join(SRC, `${name}.ts`), 'utf8'));
+  for (const file of files(SRC)) {
+    const name = path.relative(SRC, file);
+    if (isSchemaFile(name)) {
+      continue;
+    }
+    const code = stripTypeScriptTypes(readFileSync(file, 'utf8'));
     for (const specifier of importsOf(code)) {
+      const target = path.relative(SRC, path.resolve(path.dirname(file), specifier));
       assert.ok(
-        specifier.startsWith('./') && !specifier.includes('schemas'),
-        `${name}.ts imports ${specifier} at runtime`,
+        specifier.startsWith('.') && !isSchemaFile(target),
+        `${name} imports ${specifier} at runtime`,
       );
     }
   }

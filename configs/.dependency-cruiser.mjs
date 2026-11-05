@@ -295,9 +295,9 @@ export default {
     ),
     rule(
       'schemas-are-server-side',
-      'schemas.ts imports valibot, which no page or extension loads: only the server and the protocol itself import it',
+      "the schema files (schemas.ts, schema-kit.ts and each area's schemas.ts) import valibot, which no page or extension loads: only the server and the protocol itself import them",
       { path: `${WEB}|${EXTENSION}|${PANEL}|${HOST}|${API_CLIENT}|${UI_PKG}` },
-      { path: '^packages/protocol/src/schemas\\.ts$' },
+      { path: '^packages/protocol/src/(schemas|schema-kit|[a-z-]+/schemas)\\.ts$' },
     ),
     rule(
       'pages-are-an-app',

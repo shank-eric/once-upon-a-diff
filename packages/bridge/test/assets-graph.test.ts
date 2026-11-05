@@ -41,6 +41,9 @@ test('every import in the page scripts and the panel resolves to a served asset,
   assert.ok(seen.has('/assets/panel/bridge-options.ts'), 'its bridge calls are in the graph');
   assert.ok(seen.has('/assets/host-github/diff-dom.ts'), 'the host adapter is in the graph');
   assert.ok(seen.has('/assets/protocol/routes.ts'), 'the route table is in the graph');
+  assert.ok(seen.has('/assets/protocol/route-kit.ts'), 'the route factories are in the graph');
+  assert.ok(seen.has('/assets/protocol/story/routes.ts'), 'the story routes are in the graph');
+  assert.ok(seen.has('/assets/protocol/board/routes.ts'), 'the board routes are in the graph');
   assert.ok(seen.has('/assets/protocol/domain/html.ts'), 'the domain is in the graph');
   assert.ok(seen.has('/assets/api-client/client.ts'), 'the typed client is in the graph');
   assert.ok(seen.has('/assets/api-client/use-poll.ts'), 'the board’s poll hook is in the graph');

@@ -46,10 +46,13 @@ const API_CLIENT_MODULE = /^\/assets\/api-client\/(client|poll|use-poll|usage)\.
 /** The ui package's modules and its stylesheet, which a page may load (the panel reaches the modules by package, which forBrowser spells as these URLs). */
 const UI_MODULE = /^\/assets\/ui\/([a-z0-9-]+\.(?:ts|css))$/;
 /**
- * The protocol's modules a page may load: the route table and the domain (all of it: pure rules that import
- * nothing). Not schemas.ts, which imports valibot (the bridge checks bodies, the pages don't) and has nothing for a page to run.
+ * The protocol's modules a page may load: the route table (routes.ts, the route-kit.ts it builds with and each area's
+ * routes.ts) and the domain (all of it: pure rules that import nothing). Not the schemas (schemas.ts, schema-kit.ts and
+ * each area's schemas.ts import valibot: the bridge checks bodies, the pages don't) and not the types, which a page
+ * only imports as types, erased.
  */
-const PROTOCOL_MODULE = /^\/assets\/protocol\/(routes|domain\/[a-z0-9-]+)\.ts$/;
+const PROTOCOL_MODULE =
+  /^\/assets\/protocol\/(routes|route-kit|[a-z0-9-]+\/routes|domain\/[a-z0-9-]+)\.ts$/;
 /** The board page's own modules (its regions' folders), from public/board/. */
 const BOARD_MODULE = /^\/assets\/board\/([a-z0-9-]+(?:\/[a-z0-9-]+)*\.ts)$/;
 /** The local page's own modules and stylesheet (the shell, and its diff/ and ship/ folders), from public/local/. */

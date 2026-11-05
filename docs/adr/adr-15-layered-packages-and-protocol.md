@@ -91,7 +91,7 @@ Rules:
 
 ### What `packages/protocol` is
 
-- **`types.ts`**: the wire types (moved from `shared`, which re-exports them until the imports move).
+- **`types.ts`**: the wire types (moved from `shared`, which re-exports them until the imports move). On 11/4 it became an index over one types file per area (`story/`, `panel/`, `review/`, `bridge/`, `github/`, `board/`), and `routes.ts` and `schemas.ts` likewise over the area files, with `route-kit.ts` and `schema-kit.ts` for what they share.
 - **`routes.ts`**: the route table. Every call the bridge answers (64 of them on 11/4), with its method, its path, which keys may make it (`token`, `token+board`, `token+page`, `token+page+view`, or `none`), the body it takes and the answer it gives. The bridge registers its handlers from the entries, and its dispatcher takes its lookups and the board-key rule from them. A test compares each story route's keys with `page-key.ts`'s read-only list, both ways, and calls every route with each kind of key.
 - **`schemas.ts`**: a Valibot schema for each request body. The bridge checks every body against one after the key and story guards, so a bad body never changes which of 401, 403, 404, 413 or 415 answers. A body that isn't a JSON object is a 400.
 - **`client.ts`**: a typed client over a transport each host supplies (the extension's service worker, a page's fetch with its key). It does no I/O itself. The extension's service worker also asks `matchRoute` before it adds the token, so it forwards only the routes the extension calls (30 on 11/4, listed in `extension/src/bridge-routes.ts` and checked against the code's uses by a test). It started here and became the `api-client` package (11/3) with the poll: `createPoll`, and `usePoll`, the board's Preact hook over it.
@@ -103,7 +103,7 @@ Packages import each other as source through `exports` (`./*` to `src/*.ts`) wit
 
 ### Valibot: server only, not vendored
 
-Pages and the extension build their requests from the route table's types, so they never run a schema, and the server is the one that has to distrust input. `routes.ts` takes its body types from `schemas.ts` with `import type`, which is erased, so a page that imports `routes.ts` never loads Valibot. The bridge serves only `routes`, `client` and `domain/patterns`, never `schemas.ts`, and a lint rule and tests keep it that way (`extension/test/no-valibot.test.ts` fails if the extension's imports reach it). Valibot is pinned to 1.5.0 (MIT) and is a dependency of `protocol`, so it is the bridge's first runtime dependency.
+Pages and the extension build their requests from the route table's types, so they never run a schema, and the server is the one that has to distrust input. `routes.ts` takes its body types from `schemas.ts` with `import type`, which is erased, so a page that imports `routes.ts` never loads Valibot. The bridge serves only the routes (`routes`, `route-kit` and each area's `routes`), `client` and the domain, never a schema file, and a lint rule and tests keep it that way (`extension/test/no-valibot.test.ts` fails if the extension's imports reach it). Valibot is pinned to 1.5.0 (MIT) and is a dependency of `protocol`, so it is the bridge's first runtime dependency.
 
 ### Order
 

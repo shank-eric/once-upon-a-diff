@@ -384,11 +384,19 @@ test('a bad body is refused before anything is stored', async () => {
   }
 });
 
-test('the bridge serves the route table, the patterns and the api-client as JavaScript with no valibot, and never the schemas', async () => {
+test('the bridge serves the route table (each area route file), the patterns and the api-client as JavaScript with no valibot, and never the schemas or the types', async () => {
   const bridge = await startBridge({ home: tmp('home') });
   try {
     const served: Record<string, string> = {};
-    for (const name of ['routes', 'domain/patterns']) {
+    for (const name of [
+      'routes',
+      'route-kit',
+      'bridge/routes',
+      'github/routes',
+      'board/routes',
+      'story/routes',
+      'domain/patterns',
+    ]) {
       const response = await bridge.call('GET', `/assets/protocol/${name}.ts`, undefined, {
         Authorization: '',
       });
@@ -398,13 +406,28 @@ test('the bridge serves the route table, the patterns and the api-client as Java
         ...response.text.matchAll(/(?:^|\n)\s*(?:import|export)\b[^;]*?\bfrom\s+['"]([^'"]+)['"]/g),
       ].map((hit) => hit[1]);
       assert.ok(
-        loads.every((specifier) => specifier.startsWith('./') && !specifier.includes('schemas')),
+        loads.every(
+          (specifier) =>
+            (specifier.startsWith('./') || specifier.startsWith('../')) &&
+            !specifier.includes('schemas') &&
+            !specifier.includes('schema-kit'),
+        ),
         `${name} loads ${loads}`,
       );
       assert.ok(!response.text.includes(TOKEN));
       served[name] = response.text;
     }
-    for (const name of ['schemas', 'types', 'nope', 'domain/other']) {
+    for (const name of [
+      'schemas',
+      'schema-kit',
+      'types',
+      'story/schemas',
+      'story/types',
+      'board/card-types',
+      'domain/routes',
+      'nope',
+      'domain/other',
+    ]) {
       const response = await bridge.call('GET', `/assets/protocol/${name}.ts`, undefined, {
         Authorization: '',
       });
