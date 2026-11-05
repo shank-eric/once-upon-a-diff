@@ -134,11 +134,17 @@ writeJson(lchapters, {
     {
       title: 'Chapter 1: One',
       narrative:
-        '### Chapter 1: One\n\nStarts with `one.txt`.\n\n1. Then `one.txt:2` and `:3`.\n\n**Files to mark viewed:** `one.txt`.',
+        '### Chapter 1: One\n\nStarts with [one.txt](ref:one).\n\n1. Then [one.txt:2](ref:one-2) and [:3](ref:one-3).\n\n**Files to mark viewed:** [one.txt](ref:one-file).',
       files: ['one.txt', { rel: 'lib/two.js', partial: true, note: 'the export' }],
       comments: [{ path: 'one.txt', line: 2, body: 'Fix B' }],
+      refs: [
+        { id: 'one', path: 'one.txt' },
+        { id: 'one-2', path: 'one.txt', side: 'R', start: 2, end: 2 },
+        { id: 'one-3', path: 'one.txt', side: 'R', start: 3, end: 3 },
+        { id: 'one-file', path: 'one.txt' },
+      ],
     },
-    { title: 'Chapter 2: The rest', files: ['lib/two.js', 'gone.txt'] },
+    { title: 'Chapter 2: The rest', files: ['lib/two.js', 'gone.txt'], refs: [] },
   ],
 });
 const local = createLocalStory({ home, repo: lrepo, base, head: 'HEAD', chapters: lchapters });
@@ -1046,7 +1052,9 @@ try {
   );
   check(
     /Fix B/.test(await localPage.locator('.ou-local-notes-list').textContent()) &&
-      /2 open/.test(await localPage.locator('.ou-local-notes-toggle').textContent()),
+      /Fix before push: 2 to send/.test(
+        await localPage.locator('.ou-local-notes-toggle').textContent(),
+      ),
     "and it shows in the page's checklist",
   );
   // Fix before push in the panel: both notes are drafts until Send hands them over as one request
@@ -1070,7 +1078,10 @@ try {
   check(
     /2 sent/.test(await fixBox()) &&
       (await localPage.locator('#ou-panel .ou-fixes [data-fix-act="remove"]').count()) === 0 &&
-      /sent to/.test(await localPage.locator('.ou-local-note-row').first().textContent()),
+      // sent with no session listening yet reads Queued; the diff's row says whom it waits for
+      /Queued for the next Claude session/.test(
+        await localPage.locator('.ou-local-note-row').first().textContent(),
+      ),
     `sent notes are locked, here and in the diff: "${await fixBox()}"`,
   );
   // "being changed": a session's mark dims the file and names it, until it's done
@@ -1154,10 +1165,14 @@ try {
     .locator('#ou-panel .ou-askwho', {
       hasText: 'api-10, the session listening for this story',
     })
-    .waitFor({ timeout: 8000 })
+    // attached, not visible: the line is in the Ask dock's foot, which is folded (display: none) until openDock below
+    .waitFor({ state: 'attached', timeout: 8000 })
     .then(() => true)
     .catch(() => false);
-  check(storyTook, 'a story listener takes over on the next pulse, and the line says so');
+  check(
+    storyTook,
+    `a story listener takes over on the next pulse, and the line says so: "${(await askWho())!.trim()}"`,
+  );
   await openDock(localPage);
   await localPage.locator('#ou-panel .ou-ask textarea').fill('Why B?');
   await localPage.locator('#ou-panel .ou-ask button').click();
