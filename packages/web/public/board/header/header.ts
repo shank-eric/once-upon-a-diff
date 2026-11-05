@@ -2,7 +2,7 @@
  * The board's top header, drawn by Preact (ADR-14): the title and the summary line, the usage meters, the repo filter and the
  * voice controls (Start, Pause or Resume and Stop voice, and the Phone menu). The filter's value is the page root's (remembered).
  */
-import { html, useState } from '/assets/preact.mjs';
+import { html } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/contracts/routes.ts';
 import { openMenu } from '/assets/ui-kit/menu.ts';
 import type { BoardData, BoardLimit, BoardUsage } from '/assets/types.ts';
@@ -10,6 +10,7 @@ import { compactAge } from '/assets/domain/time.ts';
 import { plural } from '/assets/domain/text.ts';
 import { sameLaneKey } from '/assets/domain/lane-key.ts';
 import { Meter } from '/assets/ui-kit/components/meter.ts';
+import type { useBusy } from '/assets/ui-kit/components/action-button.ts';
 import type { Api } from '/assets/board/shared.ts';
 
 /** When a limit resets: the time today, else the weekday and hour. */
@@ -51,17 +52,11 @@ function Usage(props: { usage: BoardUsage | null; now: number }) {
 }
 
 /**
- * What the voice buttons are waiting on, kept by the page root so that it outlives the header: a Larmor call that is out
- * (Start voice takes up to about 20 s, Stop voice about 3 s), or a phone-mode or bridge call (the row's buttons all wait
- * while Larmor works; turning phone mode on can take several seconds).
+ * What the voice buttons are waiting on: the page root's `useBusy()`, so that it outlives the header. Its key is the call that
+ * is out ('start', 'stop', 'pause' or 'phone': Start voice takes up to about 20 s, Stop voice about 3 s, and phone mode can
+ * take several seconds), and every button in the row waits while one is, through the refresh that follows it.
  */
-export type VoiceCall = '' | 'start' | 'stop' | 'pause';
-export function useVoiceBusy() {
-  const [voiceCall, setVoiceCall] = useState<VoiceCall>('');
-  const [phoneBusy, setPhoneBusy] = useState(false);
-  return { voiceCall, setVoiceCall, phoneBusy, setPhoneBusy };
-}
-export type VoiceBusy = ReturnType<typeof useVoiceBusy>;
+export type VoiceBusy = ReturnType<typeof useBusy>;
 
 /**
  * The voice controls in the board's top header, the rightmost items (past the repo dropdown):
@@ -80,22 +75,18 @@ function VoiceControls(props: {
   busy: VoiceBusy;
 }) {
   const { voice, phone, voiceStart, voicePaused, api } = props;
-  const { voiceCall, setVoiceCall, phoneBusy, setPhoneBusy } = props.busy;
-  const waiting = voiceCall !== '' || phoneBusy;
+  const { busy, run } = props.busy;
+  const waiting = busy !== null;
   const voiceOn = !!voice && voice.status !== 'ended';
-  const voiceCallOf = async (kind: VoiceCall, what: string, call: () => Promise<unknown>) => {
-    if (waiting) {
-      return;
-    }
-    setVoiceCall(kind);
-    try {
-      await call();
-    } catch (err) {
-      alert(`Couldn't ${what}: ${(err as Error).message}`);
-    }
-    await api.refresh();
-    setVoiceCall('');
-  };
+  const voiceCallOf = (key: string, what: string, call: () => Promise<unknown>) =>
+    run(key, async () => {
+      try {
+        await call();
+      } catch (err) {
+        alert(`Couldn't ${what}: ${(err as Error).message}`);
+      }
+      await api.refresh();
+    });
   const pause = (paused: boolean) =>
     voiceCallOf('pause', paused ? 'pause voice' : 'resume voice', () =>
       api.bridge.ask(ROUTES.boardVoicePause, { body: { paused } }),
@@ -105,26 +96,15 @@ function VoiceControls(props: {
       api.bridge.ask(ROUTES.boardVoiceStart, { body: session ? { session } : {} }),
     );
   const stop = () => voiceCallOf('stop', 'stop voice', () => api.bridge.ask(ROUTES.boardVoiceStop));
-  const phoneCall = async (action: 'on' | 'off' | 'bridge-stop') => {
-    if (waiting) {
-      return;
-    }
-    setPhoneBusy(true);
-    try {
-      if (action === 'bridge-stop') {
-        await api.bridge.ask(ROUTES.boardVoiceBridgeStop);
-      } else {
-        await api.bridge.ask(ROUTES.boardVoicePhone, { body: { on: action === 'on' } });
-      }
-    } catch (err) {
-      alert(
-        `Couldn't ${action === 'bridge-stop' ? 'stop the phone bridge' : `turn phone mode ${action}`}: ${(err as Error).message}`,
-      );
-    } finally {
-      setPhoneBusy(false);
-    }
-    await api.refresh();
-  };
+  const phoneCall = (action: 'on' | 'off' | 'bridge-stop') =>
+    voiceCallOf(
+      'phone',
+      action === 'bridge-stop' ? 'stop the phone bridge' : `turn phone mode ${action}`,
+      () =>
+        action === 'bridge-stop'
+          ? api.bridge.ask(ROUTES.boardVoiceBridgeStop)
+          : api.bridge.ask(ROUTES.boardVoicePhone, { body: { on: action === 'on' } }),
+    );
   const pickSession = (event: MouseEvent) => {
     const idle = (voiceStart?.candidates ?? []).filter((one) => one.idle);
     if (idle.length === 0) {
@@ -173,7 +153,7 @@ function VoiceControls(props: {
   const last = voiceStart?.last
     ? voiceStart.candidates.find((one) => one.id === voiceStart.last?.id)
     : undefined;
-  const starting = voiceCall === 'start';
+  const starting = busy === 'start';
   // a pause left by a session that died shows with voice off, and Resume is the way out (Start clears it too)
   const paused = voiceOn ? voice?.status === 'paused' : voicePaused;
   const lastTitle = last?.idle
@@ -197,7 +177,7 @@ function VoiceControls(props: {
       html`<button type="button" data-voice-pause=${paused ? 'resume' : 'pause'} disabled=${waiting} onClick=${() => pause(!paused)} title=${pauseTitle}>${paused ? 'Resume' : 'Pause'}</button>`,
     voiceOn &&
       voiceStart &&
-      html`<button type="button" data-voice-stop disabled=${waiting} onClick=${stop} title="Stop voice, as the menu bar's Stop voice does">${voiceCall === 'stop' ? 'Stopping…' : 'Stop voice'}</button>`,
+      html`<button type="button" data-voice-stop disabled=${waiting} onClick=${stop} title="Stop voice, as the menu bar's Stop voice does">${busy === 'stop' ? 'Stopping…' : 'Stop voice'}</button>`,
     phone &&
       html`<button type="button" data-voice-phone-menu=${phone.on ? 'on' : 'off'} disabled=${waiting} onClick=${phoneMenu} aria-haspopup="menu" title=${phoneTitle}>Phone${phone.on ? ' ●' : ''} ▾</button>`,
   ].filter(Boolean);

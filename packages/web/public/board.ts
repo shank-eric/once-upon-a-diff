@@ -27,7 +27,8 @@ import { Listeners } from '/assets/board/columns/listeners.ts';
 import { Helpers } from '/assets/board/columns/standing-helpers.ts';
 import { BacklogCard, useAddPanel, useBacklogDnd } from '/assets/board/backlog/backlog.ts';
 import { sameLaneKey } from '/assets/domain/lane-key.ts';
-import { Header, useVoiceBusy } from '/assets/board/header/header.ts';
+import { Header } from '/assets/board/header/header.ts';
+import { useBusy } from '/assets/ui-kit/components/action-button.ts';
 import { Worktrees } from '/assets/board/worktrees/worktrees.ts';
 
 const POLL_MS = 3000;
@@ -177,7 +178,7 @@ function BoardApp() {
   );
   const add = useAddPanel(api);
   const dnd = useBacklogDnd(api);
-  const voiceBusy = useVoiceBusy();
+  const voiceBusy = useBusy();
 
   const data = filtered(full, laneFilter);
   const now = Date.now();

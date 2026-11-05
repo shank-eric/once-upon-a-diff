@@ -170,7 +170,11 @@ const requests: Sent[] = [];
 const refused = new Map<string, { status: number; error: string }>();
 /** A POST path held until `release` is called, to see a button while its call is out. */
 const held = new Map<string, Promise<void>>();
+/** While set, the board's GET waits for it (after it is counted), to see a button while the load that follows its call is out. */
+let heldBoard: Promise<void> | null = null;
 let poll = () => {};
+/** How many times the page has loaded the board (the poll's GETs), to see which actions made it load again. */
+let boardGets = 0;
 /**
  * The room the columns area has, as the tabs measure it (linkedom has no layout): wide by default. A resize tells the
  * page's observers. The default board needs 1560px for its 7 columns.
@@ -236,6 +240,8 @@ Object.assign(globalThis, {
         json: async () => ({ ok: true, url: 'http://x/story?k=1', session: 'clarifi-da' }),
       };
     }
+    boardGets++;
+    await heldBoard;
     if (refuse) {
       return { ok: false, status: refuse, json: async () => ({ error: 'no key' }) };
     }
@@ -530,6 +536,507 @@ test('Drop is on the card, Copy start line is not: Drop asks the bridge to drop 
   assert.equal(all('[data-backlog-copy]').length, 0);
   await click($('[data-backlog-drop="bl_3"]'));
   assert.deepEqual(sentTo('/api/board/backlog/drop')[0].body, { id: 'bl_3' });
+});
+
+/*
+ * One rule for every async action on the board: when its bridge call settles, worked or refused, the board loads again, and
+ * the button that started it is off until then. These tests hold the call (so the button can be seen while it is out), then
+ * release it, either answered or refused, and say what the page did meanwhile and after.
+ */
+type Outcome = {
+  /** The button's `disabled` while the call was out (null: no such button on the page). */
+  disabled: boolean | null;
+  /** Board loads while the call was out: the refresh waits for it. */
+  during: number;
+  /** Board loads once it settled. */
+  after: number;
+  /** The button's `disabled` once settled (null: it left the page). */
+  disabledAfter: boolean | null;
+  alerts: string[];
+};
+async function settle(
+  path: string,
+  press: () => Promise<unknown>,
+  button: () => Element | null,
+  refusal?: string,
+): Promise<Outcome> {
+  let release = () => {};
+  held.set(path, new Promise<void>((resolve) => (release = resolve)));
+  if (refusal) {
+    refused.set(path, { status: 409, error: refusal });
+  }
+  alerts.length = 0;
+  const before = boardGets;
+  await press();
+  const state = () => (button() as HTMLButtonElement | null)?.disabled ?? null;
+  const out = { disabled: state(), during: boardGets - before };
+  release();
+  await idle();
+  await idle();
+  await idle();
+  held.delete(path);
+  refused.delete(path);
+  return { ...out, after: boardGets - before, disabledAfter: state(), alerts: [...alerts] };
+}
+/** Success, then a refusal, of the same press: the board loads once after each, the button is off while out and on after. */
+async function bothWays(
+  path: string,
+  press: () => Promise<unknown>,
+  button: () => Element | null,
+  alertText: RegExp | null,
+  options: { gone?: boolean } = {},
+) {
+  const worked = await settle(path, press, button);
+  assert.equal(worked.disabled, true, 'off while the call is out');
+  assert.equal(worked.during, 0, 'the refresh waits for the call');
+  assert.equal(worked.after, 1, 'a call that worked loads the board');
+  assert.deepEqual(worked.alerts, []);
+  assert.equal(worked.disabledAfter, options.gone ? null : false);
+  await pollNow();
+  const refusedOne = await settle(path, press, button, 'it moved on');
+  assert.equal(refusedOne.disabled, true, 'off while the call is out');
+  assert.equal(refusedOne.during, 0);
+  assert.equal(refusedOne.after, 1, 'a refused call loads the board too');
+  assert.equal(refusedOne.disabledAfter, false, 'and gives the button back');
+  if (alertText) {
+    assert.equal(refusedOne.alerts.length, 1);
+    assert.match(refusedOne.alerts[0], alertText);
+  }
+  return refusedOne;
+}
+
+test('rule: Assign, Drop and Someday load the board after a call that worked and after one that was refused', async () => {
+  requests.length = 0;
+  answer = () => board();
+  await pollNow();
+  const assign = await bothWays(
+    '/api/board/backlog/assign',
+    () => click($('[data-backlog-assign="bl_2"]')),
+    () => $('[data-backlog-assign="bl_2"]'),
+    null,
+  );
+  assert.deepEqual(assign.alerts, [], 'Assign says why beside its button, not in an alert');
+  assert.match(
+    $('[data-backlog-assign-note="refused"]')?.textContent as string,
+    /Not sent: it moved on/,
+  );
+  await bothWays(
+    '/api/board/backlog/drop',
+    () => click($('[data-backlog-drop="bl_3"]')),
+    () => $('[data-backlog-drop="bl_3"]'),
+    /Couldn't drop it: it moved on/,
+  );
+  await bothWays(
+    '/api/board/backlog/someday',
+    () => click($('[data-backlog-someday="bl_1"]')),
+    () => $('[data-backlog-someday="bl_1"]'),
+    /Couldn't set it aside: it moved on/,
+  );
+});
+
+/** Presses a button with its call and then the board load that follows it held in turn, and says whether the button was off through both. */
+async function offThroughRefresh(
+  path: string,
+  press: () => Promise<unknown>,
+  button: () => Element | null,
+) {
+  const off = () => (button() as HTMLButtonElement | null)?.disabled;
+  let releaseCall = () => {};
+  let releaseBoard = () => {};
+  held.set(path, new Promise<void>((resolve) => (releaseCall = resolve)));
+  heldBoard = new Promise<void>((resolve) => (releaseBoard = resolve));
+  const before = boardGets;
+  await press();
+  assert.equal(off(), true, 'off while the call is out');
+  releaseCall();
+  await idle();
+  await idle();
+  assert.equal(boardGets - before, 1, 'the call settled and the board load started');
+  const throughLoad = off();
+  releaseBoard();
+  await idle();
+  await idle();
+  const after = off();
+  held.delete(path);
+  heldBoard = null;
+  assert.equal(throughLoad, true, 'still off while the board load that follows is out');
+  assert.equal(after, false, 'back once the load is done');
+}
+
+test('rule: a button stays off until the board load after its call is done, for a backlog action, an act() action and the header', async () => {
+  answer = () => board({ voice_start: START });
+  await pollNow();
+  await offThroughRefresh(
+    '/api/board/backlog/drop',
+    () => click($('[data-backlog-drop="bl_3"]')),
+    () => $('[data-backlog-drop="bl_3"]'),
+  );
+  await offThroughRefresh(
+    '/api/board/backlog/assign',
+    () => click($('[data-backlog-assign="bl_2"]')),
+    () => $('[data-backlog-assign="bl_2"]'),
+  );
+  await offThroughRefresh(
+    '/api/board/voice/pause',
+    () => click($('[data-voice-pause="pause"]')),
+    () => $('[data-voice-pause]'),
+  );
+  const story = {
+    id: 'st-ready',
+    kind: 'local' as const,
+    url: null,
+    reviewed: false,
+    unread: false,
+    unread_answers: 0,
+    approved_at: null,
+    ship: null,
+  };
+  answer = () => withCards(card({ id: 'r-1', title: 'To review', column: 'ready', story }));
+  await pollNow();
+  await offThroughRefresh(
+    '/api/board/reviewed',
+    () => click($('[data-mark-local="st-ready"]')),
+    () => $('[data-mark-local="st-ready"]'),
+  );
+  answer = () => board();
+  await pollNow();
+});
+
+test('rule: a second click on Drop while its call is out sends nothing more', async () => {
+  requests.length = 0;
+  let release = () => {};
+  held.set('/api/board/backlog/drop', new Promise<void>((resolve) => (release = resolve)));
+  await click($('[data-backlog-drop="bl_3"]'));
+  await click($('[data-backlog-drop="bl_3"]'));
+  assert.equal(sentTo('/api/board/backlog/drop').length, 1);
+  release();
+  await idle();
+  held.clear();
+});
+
+test('rule: Edit Save loads the board after a save and after a refusal, and its form stays open with the text on a refusal', async () => {
+  requests.length = 0;
+  const open = async () => {
+    const item = cardOf('bl_1');
+    if (!item.querySelector('[data-backlog-edit-form]')) {
+      await click(item.querySelector('[data-backlog-edit="bl_1"]'));
+    }
+    const title = item.querySelector('[name="title"]') as HTMLInputElement;
+    title.value = `Retitled ${Math.random()}`;
+    return item;
+  };
+  const submit = async () => {
+    const item = await open();
+    fire(item.querySelector('[data-backlog-edit-form]') as Element, 'submit');
+    await tick();
+  };
+  const save = () => cardOf('bl_1').querySelector('[data-backlog-edit-form] button[type="submit"]');
+  const worked = await settle('/api/board/backlog/edit', submit, save);
+  assert.equal(worked.disabled, true);
+  assert.equal(worked.during, 0);
+  assert.equal(worked.after, 1);
+  assert.equal(worked.disabledAfter, null, 'the form closed after the save');
+  const refusedOne = await settle('/api/board/backlog/edit', submit, save, 'it moved on');
+  assert.equal(refusedOne.disabled, true);
+  assert.equal(refusedOne.after, 1, 'a refused save loads the board too');
+  assert.equal(refusedOne.disabledAfter, false);
+  assert.match(refusedOne.alerts[0], /Couldn't save it: it moved on/);
+  assert.ok(cardOf('bl_1').querySelector('[data-backlog-edit-form]'), 'the form stays open');
+  await click(cardOf('bl_1').querySelector('[data-backlog-edit-cancel]'));
+});
+
+test('rule: Add loads the board after an add and after a refusal, and a refusal keeps the panel open with the text back', async () => {
+  requests.length = 0;
+  const add = async () => {
+    if (!$('[data-backlog-add]')) {
+      await click($('[data-backlog-add-open]'));
+    }
+    ($('[data-backlog-title]') as HTMLInputElement).value = 'Fix the thing';
+    fire($('[data-backlog-add]') as Element, 'submit');
+    await tick();
+  };
+  const button = () => $('[data-backlog-add] button[type="submit"]');
+  const worked = await settle('/api/board/backlog', add, button);
+  assert.equal(worked.disabled, true);
+  assert.equal(worked.during, 0);
+  assert.equal(worked.after, 1);
+  assert.equal(worked.disabledAfter, null, 'the panel closed after the add');
+  const refusedOne = await settle('/api/board/backlog', add, button, 'it moved on');
+  assert.equal(refusedOne.disabled, true);
+  assert.equal(refusedOne.after, 1, 'a refused add loads the board too');
+  assert.equal(refusedOne.disabledAfter, false);
+  assert.match(refusedOne.alerts[0], /Couldn't add it: it moved on/);
+  assert.equal(($('[data-backlog-title]') as HTMLInputElement).value, 'Fix the thing');
+  await click($('[data-backlog-cancel]'));
+});
+
+test('rule: Move loads the board after a move and after a refusal, and is not held back by a move that is out', async () => {
+  requests.length = 0;
+  answer = () => board();
+  await pollNow();
+  const move = () => {
+    fire(cardOf('bl_1'), 'keydown', { key: 'ArrowDown', altKey: true });
+    return tick();
+  };
+  const worked = await settle('/api/board/backlog/move', move, () => null);
+  assert.equal(worked.during, 0);
+  assert.equal(worked.after, 1);
+  const refusedOne = await settle('/api/board/backlog/move', move, () => null, 'it moved on');
+  assert.equal(refusedOne.after, 1, 'a refused move loads the board too');
+  assert.match(refusedOne.alerts[0], /Couldn't move it: it moved on/);
+  // a second move while one is out still goes (a burst of Alt+Arrow keeps working)
+  requests.length = 0;
+  let release = () => {};
+  held.set('/api/board/backlog/move', new Promise<void>((resolve) => (release = resolve)));
+  await move();
+  await move();
+  assert.equal(sentTo('/api/board/backlog/move').length, 2);
+  release();
+  await idle();
+  held.clear();
+});
+
+test('rule: the header’s Pause, Stop and Start voice load the board after a call that worked and after a refused one', async () => {
+  requests.length = 0;
+  answer = () => board({ voice_start: START });
+  await pollNow();
+  await bothWays(
+    '/api/board/voice/pause',
+    () => click($('[data-voice-pause="pause"]')),
+    () => $('[data-voice-pause]'),
+    /Couldn't pause voice: it moved on/,
+  );
+  const stop = await bothWays(
+    '/api/board/voice/stop',
+    () => click($('[data-voice-stop]')),
+    () => $('[data-voice-stop]'),
+    /Couldn't stop voice: it moved on/,
+  );
+  assert.ok(stop);
+  answer = () => board({ ...voiceOff, voice_start: START });
+  await pollNow();
+  await bothWays(
+    '/api/board/voice/start',
+    () => click($('[data-voice-start="last"]')),
+    () => $('[data-voice-start="last"]'),
+    /Couldn't start voice: it moved on/,
+  );
+  answer = () => board();
+  await pollNow();
+});
+
+test('rule: the Phone menu’s calls load the board after, and wait on, a call that worked and a refused one', async () => {
+  requests.length = 0;
+  answer = () => board({ phone: { on: false, bridge: true } });
+  await pollNow();
+  await bothWays(
+    '/api/board/voice/phone',
+    () => pickPhone(0),
+    () => $('[data-voice-phone-menu]'),
+    /Couldn't turn phone mode on: it moved on/,
+  );
+  await bothWays(
+    '/api/board/voice/phone/bridge-stop',
+    () => pickPhone(1),
+    () => $('[data-voice-phone-menu]'),
+    /Couldn't stop the phone bridge: it moved on/,
+  );
+  answer = () => board();
+  await pollNow();
+});
+
+test('rule: Finish, Mark reviewed, Stop listening and Build story load the board after a call that worked and after a refused one', async () => {
+  requests.length = 0;
+  sure = true;
+  const story = {
+    id: 'st-ready',
+    kind: 'local' as const,
+    url: null,
+    reviewed: false,
+    unread: false,
+    unread_answers: 0,
+    approved_at: null,
+    ship: null,
+  };
+  answer = () =>
+    ({
+      ...withCards(
+        card({ id: 'r-1', title: 'To review', column: 'ready', story }),
+        card({
+          id: 'b-1',
+          title: 'Needs a story',
+          column: 'waiting',
+          build: { session: 'idle-s', prompt: '/once-upon acme/widgets#4', blocked: null },
+        }),
+        card({
+          id: 'agent:abcdef01:done-one',
+          kind: 'agent',
+          title: 'done-one',
+          repo: null,
+          column: 'waiting',
+          parent: 'main-session',
+          agents: [
+            {
+              key: 'abcdef01:done-one',
+              sid: 'abcdef01',
+              name: 'done-one',
+              kind: null,
+              editor: null,
+              state: 'done',
+              review: false,
+              status: 'done',
+              task: null,
+              model: null,
+              started_at: null,
+              ended_at: '2026-10-29T11:50:00Z',
+              outcome: 'the result',
+              stale: false,
+              beat: null,
+              gate: null,
+              notes: null,
+              clears_at: null,
+              summary: null,
+            },
+          ],
+        }),
+      ),
+      listeners: [
+        {
+          repo: 'acme/gadgets',
+          active: {
+            consumer: 'c-1',
+            session: 'g-s',
+            title: 'gadget session',
+            can_focus: false,
+            state: 'waiting',
+            since: null,
+            last_handled_at: null,
+          },
+          last_seen: null,
+          candidates: [],
+        },
+        {
+          repo: 'acme/widgets',
+          active: null,
+          last_seen: null,
+          candidates: [{ id: 'l-1', title: 'listener one', status: 'idle', since: null }],
+        },
+      ],
+    }) as BoardData;
+  await pollNow();
+  await bothWays(
+    '/api/board/agent/finish',
+    () => click($('[data-finish-agent="agent:abcdef01:done-one"]')),
+    () => $('[data-finish-agent="agent:abcdef01:done-one"]'),
+    /Couldn't finish it: it moved on/,
+  );
+  await bothWays(
+    '/api/board/reviewed',
+    () => click($('[data-mark-local="st-ready"]')),
+    () => $('[data-mark-local="st-ready"]'),
+    /Couldn't mark it reviewed: it moved on/,
+  );
+  await bothWays(
+    '/api/board/stop-listening',
+    () => click($('[data-stop-listening="acme/gadgets"]')),
+    () => $('[data-stop-listening="acme/gadgets"]'),
+    /Couldn't stop it: it moved on/,
+  );
+  await bothWays(
+    '/api/board/type',
+    () => click($('[data-build="idle-s"]')),
+    () => $('[data-build="idle-s"]'),
+    /Couldn't type into the session: it moved on/,
+  );
+  // Start listening is a menu or a plain click with no button of its own to hold: it only loads the board again
+  const start = await settle(
+    '/api/board/type',
+    () => click($('[data-start-listening="acme/widgets"]')),
+    () => null,
+    'it moved on',
+  );
+  assert.equal(start.after, 1, 'a refused Start listening loads the board too');
+  assert.match(start.alerts[0], /Couldn't type into the session: it moved on/);
+  // a cancelled confirm sends nothing and loads nothing
+  sure = false;
+  const before = boardGets;
+  await click($('[data-stop-listening="acme/gadgets"]'));
+  await click($('[data-build="idle-s"]'));
+  assert.equal(boardGets, before);
+  assert.equal(($('[data-stop-listening="acme/gadgets"]') as HTMLButtonElement).disabled, false);
+  sure = true;
+  answer = () => board();
+  await pollNow();
+});
+
+test('rule: Open story, Push and Review are off while the link is made, and load nothing after it, worked or refused', async () => {
+  requests.length = 0;
+  opened.length = 0;
+  const story = (id: string, over: Record<string, unknown> = {}) => ({
+    id,
+    kind: 'local' as const,
+    url: null,
+    reviewed: false,
+    unread: false,
+    unread_answers: 0,
+    approved_at: null,
+    ship: null,
+    ...over,
+  });
+  answer = () =>
+    withCards(
+      card({ id: 'r-1', title: 'To review', column: 'ready', story: story('st-ready') }),
+      card({
+        id: 's-1',
+        title: 'To ship',
+        column: 'ship',
+        story: story('st-ship', { approved_at: '2026-10-29T11:00:00Z', ship: 'push' }),
+      }),
+      card({
+        id: 'agent:aaaaaaaa:one',
+        kind: 'agent',
+        title: 'one',
+        column: 'ready',
+        review: { branch: 'one', path: '/wt/one' },
+      }),
+    );
+  await pollNow();
+  const quiet = async (
+    path: string,
+    press: () => Promise<unknown>,
+    button: string,
+    text: RegExp,
+  ) => {
+    const worked = await settle(path, press, () => $(button));
+    assert.equal(worked.disabled, true, 'off while the link is made');
+    assert.equal(worked.after, 0, 'no board state changed, so no load');
+    assert.equal(worked.disabledAfter, false);
+    const refusedOne = await settle(path, press, () => $(button), 'it moved on');
+    assert.equal(refusedOne.disabled, true);
+    assert.equal(refusedOne.after, 0);
+    assert.equal(refusedOne.disabledAfter, false);
+    assert.match(refusedOne.alerts[0], text);
+  };
+  await quiet(
+    '/api/board/open-story',
+    () => click($('[data-open-local="st-ready"]')),
+    '[data-open-local="st-ready"]',
+    /Couldn't open the story: it moved on/,
+  );
+  await quiet(
+    '/api/board/open-story',
+    () => click($('[data-push-local="st-ship"]')),
+    '[data-push-local="st-ship"]',
+    /Couldn't open the story: it moved on/,
+  );
+  await quiet(
+    '/api/board/review',
+    () => click($('[data-review="agent:aaaaaaaa:one"]')),
+    '[data-review="agent:aaaaaaaa:one"]',
+    /Couldn't open the review: it moved on/,
+  );
+  answer = () => board();
+  await pollNow();
 });
 
 test('the Someday button is only on a card in the Backlog column', async () => {
@@ -1999,6 +2506,23 @@ test('the remembered settings are read back when the page loads', async () => {
     'the widgets Backlog heading is folded',
   );
   assert.equal(order().length, 0);
+
+  // leave nothing saved and a fresh page behind: the tests after this one read the default page
+  for (const key of [
+    'ou-board-filter',
+    'ou-board-idle-open',
+    'ou-board-worktrees-open',
+    'ou-board-hide-on-author',
+    'ou-board-collapsed-lanes',
+  ]) {
+    saved.delete(key);
+  }
+  answer = () => board();
+  render(null, root);
+  const fresh = '../public/board.ts?fresh';
+  await import(fresh);
+  await idle();
+  await pollNow();
 });
 
 test('a page that loads already narrow starts with the tabs, and the saved tab', async () => {

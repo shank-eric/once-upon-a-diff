@@ -18,6 +18,7 @@ import { answerBits } from '/assets/board/columns/story-answers.ts';
 import { ContextMeter } from '/assets/ui-kit/components/meter.ts';
 import { Chips } from '/assets/ui-kit/components/chip.ts';
 import { CopyButton } from '/assets/ui-kit/components/copy-button.ts';
+import { ActionButton } from '/assets/ui-kit/components/action-button.ts';
 
 const BUILDING_TEXT = {
   build: 'building the story',
@@ -97,22 +98,19 @@ function Build(props: { card: BoardCard; api: Api }) {
   const build = card.build as NonNullable<BoardCard['build']>;
   const label = build.blocked ? `Build story (${build.blocked})` : 'Build story';
   const title = build.blocked || `Types ${build.prompt} into the session`;
-  const run = () => {
-    if (build.session) {
-      void typeInto(api, 'build', build.session, build.prompt, null, card.id);
-    }
-  };
+  const run = () =>
+    build.session ? typeInto(api, 'build', build.session, build.prompt, null, card.id) : undefined;
   const copy =
     build.blocked &&
     html`<${CopyButton} text=${build.prompt} class="ou-ui-copy" title=${`Copy: ${build.prompt}`} attrs=${{ 'data-copy-build': card.id }}>Copy</${CopyButton}>`;
-  return html`<button type="button" class="ou-board-build" data-build=${build.session} data-prompt=${build.prompt} disabled=${!!build.blocked} onClick=${run} title=${title}>${label}</button>${copy}`;
+  return html`<${ActionButton} class="ou-board-build" attrs=${{ 'data-build': build.session, 'data-prompt': build.prompt }} disabled=${!!build.blocked} onClick=${run} title=${title}>${label}</${ActionButton}>${copy}`;
 }
 
 /** Review: a storyless review of the card's branch (the diff, Create pull request and Push), on the local story page. Again on a storyless review, it re-pins it to the branch's tip. */
 function Review(props: { card: BoardCard; api: Api }) {
   const { card, api } = props;
   const title = `The diff of ${card.review?.branch}, with Create pull request and Push, without a story`;
-  return html`<button type="button" class="ou-board-open" data-review=${card.id} onClick=${() => reviewCard(api, card.id)} title=${title}>Review</button>`;
+  return html`<${ActionButton} class="ou-board-open" attrs=${{ 'data-review': card.id }} onClick=${() => reviewCard(api, card.id)} title=${title}>Review</${ActionButton}>`;
 }
 
 /** Whether an agent card's Finish applies: the agent has finished or is waiting on a question, not working or parked on your review. */
@@ -123,7 +121,7 @@ const finishable = (card: BoardCard) =>
   ['waiting', 'done', 'failed', 'stopped'].includes(card.agents[0].state);
 
 /** Finish: clears a finished agent's card now (the bridge writes the ledger's `[done]` line for one that was still waiting on a question). */
-function finishAgent(api: Api, card: BoardCard) {
+function finishAgent(api: Api, card: BoardCard): Promise<void> | undefined {
   const agent = card.agents[0];
   const sid = agent.sid;
   if (
@@ -134,7 +132,7 @@ function finishAgent(api: Api, card: BoardCard) {
   ) {
     return;
   }
-  void act(
+  return act(
     'finish it',
     () => api.bridge.ask(ROUTES.boardAgentFinish, { body: { sid, name: agent.name } }),
     api,
@@ -260,13 +258,13 @@ export function Card(props: { card: BoardCard; now: number; api: Api }) {
     <div class="ou-board-actions">
       ${card.build && html`<${Build} card=${card} api=${api} />`}
       ${card.review && (!card.story || card.story.storyless) && html`<${Review} card=${card} api=${api} />`}
-      ${finishable(card) && html`<button type="button" class="ou-board-finish" data-finish-agent=${card.id} onClick=${() => finishAgent(api, card)} title="Clears this card now. It comes back only if the agent does something more">Finish</button>`}
+      ${finishable(card) && html`<${ActionButton} class="ou-board-finish" attrs=${{ 'data-finish-agent': card.id }} onClick=${() => finishAgent(api, card)} title="Clears this card now. It comes back only if the agent does something more">Finish</${ActionButton}>`}
       ${card.focus_session && html`<button type="button" class="ou-board-focus" data-focus=${card.focus_session} disabled=${!card.can_focus || switching} onClick=${() => focus(card.focus_session as string)} title=${focusTitle}>${switching ? 'Switching…' : 'Open in iTerm'}</button>`}
-      ${card.column === 'ship' && story?.ship === 'push' && html`<button type="button" class="ou-board-push" data-push-local=${story.id} onClick=${() => openStory(api, story.id, true)} title="Opens the story's Push box, which checks GitHub first">Push</button>`}
-      ${card.ahead && html`<button type="button" class="ou-board-push" data-push-local=${card.ahead.story} onClick=${() => openStory(api, (card.ahead as { story: string }).story, true)} title=${`Opens the story's Push box: the branch is ${card.ahead.count} ahead of GitHub, where this PR is open`}>Push</button>`}
+      ${card.column === 'ship' && story?.ship === 'push' && html`<${ActionButton} class="ou-board-push" attrs=${{ 'data-push-local': story.id }} onClick=${() => openStory(api, story.id, true)} title="Opens the story's Push box, which checks GitHub first">Push</${ActionButton}>`}
+      ${card.ahead && html`<${ActionButton} class="ou-board-push" attrs=${{ 'data-push-local': card.ahead.story }} onClick=${() => openStory(api, (card.ahead as { story: string }).story, true)} title=${`Opens the story's Push box: the branch is ${card.ahead.count} ahead of GitHub, where this PR is open`}>Push</${ActionButton}>`}
       ${openable && story?.url && html`<a class="ou-board-open" href=${`${story.url}${bits.hash}`} target="_blank" rel="noopener">Open story</a>`}
-      ${openable && story && !story.url && html`<button type="button" class="ou-board-open" data-open-local=${story.id} onClick=${() => openStory(api, story.id, false)} title="Opens the local story's page">Open story</button>`}
-      ${markable && story && html`<button type="button" data-mark-local=${story.id} onClick=${() => act('mark it reviewed', () => api.bridge.ask(ROUTES.boardReviewed, { body: { story: story.id } }), api)} title="Done with this story: it leaves Ready for your review">Mark reviewed</button>`}
+      ${openable && story && !story.url && html`<${ActionButton} class="ou-board-open" attrs=${{ 'data-open-local': story.id }} onClick=${() => openStory(api, story.id, false)} title="Opens the local story's page">Open story</${ActionButton}>`}
+      ${markable && story && html`<${ActionButton} attrs=${{ 'data-mark-local': story.id }} onClick=${() => act('mark it reviewed', () => api.bridge.ask(ROUTES.boardReviewed, { body: { story: story.id } }), api)} title="Done with this story: it leaves Ready for your review">Mark reviewed</${ActionButton}>`}
     </div>
   </li>`;
 }

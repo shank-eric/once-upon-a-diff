@@ -10,6 +10,7 @@ import { openMenu } from '/assets/ui-kit/menu.ts';
 import type { BoardCard, BoardData } from '/assets/types.ts';
 import { CardTrees, type Api } from '/assets/board/shared.ts';
 import { Chips } from '/assets/ui-kit/components/chip.ts';
+import { ActionButton, useBusy } from '/assets/ui-kit/components/action-button.ts';
 import { ago } from '/assets/domain/time.ts';
 import {
   agentOnlyChips,
@@ -48,12 +49,11 @@ const findItem = (board: BoardData, id: string) =>
 /**
  * Assign: asks the bridge to tell the voice session to start the item ("Start backlog card <id>: <title>", typed into its
  * tab; the page sends only the id). Always on. The answer, or the reason it was refused, shows beside the button for a few
- * seconds, and the card's own "assigned to" chip follows with the next poll.
+ * seconds. The board refreshes whether it was sent or refused, and the button is off until it has.
  */
 function Assign(props: { id: string; again: boolean; api: Api }) {
   const { id, again, api } = props;
   const [note, setNote] = useState<{ text: string; bad: boolean } | null>(null);
-  const sending = useRef(false);
   useEffect(() => {
     if (!note) {
       return;
@@ -62,21 +62,15 @@ function Assign(props: { id: string; again: boolean; api: Api }) {
     return () => clearTimeout(timer);
   }, [note]);
   const run = async () => {
-    if (sending.current) {
-      return;
-    }
-    sending.current = true;
     try {
       const sent = await api.bridge.ask(ROUTES.boardBacklogAssign, { body: { id } });
       setNote({ text: `Sent to ${sent.session}`, bad: false });
-      await api.refresh();
     } catch (err) {
       setNote({ text: `Not sent: ${(err as Error).message}`, bad: true });
-    } finally {
-      sending.current = false;
     }
+    await api.refresh();
   };
-  return html`<button type="button" data-backlog-assign=${id} onClick=${run} title="Tell the voice session to start this card">${again ? 'Send again' : 'Assign'}</button>${note && html`<span class="ou-local-muted ou-board-assign-note" data-backlog-assign-note=${note.bad ? 'refused' : 'sent'} role="status">${note.text}</span>`}`;
+  return html`<${ActionButton} attrs=${{ 'data-backlog-assign': id }} onClick=${run} title="Tell the voice session to start this card">${again ? 'Send again' : 'Assign'}</${ActionButton}>${note && html`<span class="ou-local-muted ou-board-assign-note" data-backlog-assign-note=${note.bad ? 'refused' : 'sent'} role="status">${note.text}</span>`}`;
 }
 
 /**
@@ -85,7 +79,7 @@ function Assign(props: { id: string; again: boolean; api: Api }) {
  */
 function EditForm(props: { card: BoardCard; id: string; api: Api; close: () => void }) {
   const { card, id, api, close } = props;
-  const saving = useRef(false);
+  const { busy, run } = useBusy();
   const formRef = useRef<HTMLFormElement | null>(null);
   // filled once, as it opens: setting the value on each draw would put back what a poll's redraw found, over what is typed
   useLayoutEffect(() => {
@@ -97,11 +91,8 @@ function EditForm(props: { card: BoardCard; id: string; api: Api; close: () => v
     }
     (formRef.current?.querySelector('[name="title"]') as HTMLInputElement).focus();
   }, []);
-  const submit = async (event: Event) => {
+  const submit = (event: Event) => {
     event.preventDefault();
-    if (saving.current) {
-      return;
-    }
     const form = event.currentTarget as HTMLElement;
     const value = (name: string) =>
       (
@@ -117,22 +108,21 @@ function EditForm(props: { card: BoardCard; id: string; api: Api; close: () => v
     if (!Object.keys(changes).length) {
       return close();
     }
-    saving.current = true;
-    try {
-      await api.bridge.ask(ROUTES.boardBacklogEdit, { body: { id, ...changes } });
-      close();
+    return run('save', async () => {
+      try {
+        await api.bridge.ask(ROUTES.boardBacklogEdit, { body: { id, ...changes } });
+        close();
+      } catch (err) {
+        alert(`Couldn't save it: ${(err as Error).message}`);
+      }
       await api.refresh();
-    } catch (err) {
-      alert(`Couldn't save it: ${(err as Error).message}`);
-    } finally {
-      saving.current = false;
-    }
+    });
   };
   return html`<form class="ou-board-add" data-backlog-edit-form ref=${formRef} onSubmit=${submit}>
     <input type="text" name="title" placeholder="Title" maxlength="200" required aria-label="Backlog item title" />
     <textarea name="note" rows="3" placeholder="Note (optional)" maxlength="1000" aria-label="Note"></textarea>
     <input type="text" name="repo" placeholder="owner/name (empty for no repo)" aria-label="Repo" />
-    <div class="ou-board-add-actions"><button type="submit">Save</button> <button type="button" data-backlog-edit-cancel onClick=${close}>Cancel</button></div>
+    <div class="ou-board-add-actions"><button type="submit" disabled=${busy !== null}>Save</button> <button type="button" data-backlog-edit-cancel onClick=${close}>Cancel</button></div>
   </form>`;
 }
 
@@ -166,18 +156,18 @@ export function BacklogCard(props: { card: BoardCard; now: number; api: Api; dnd
   const drop = async (id: string) => {
     try {
       await api.bridge.ask(ROUTES.boardBacklogDrop, { body: { id } });
-      await api.refresh();
     } catch (err) {
       alert(`Couldn't drop it: ${(err as Error).message}`);
     }
+    await api.refresh();
   };
   const someday = async (id: string, aside: boolean) => {
     try {
       await api.bridge.ask(ROUTES.boardBacklogSomeday, { body: { id, on: aside } });
-      await api.refresh();
     } catch (err) {
       alert(`Couldn't ${aside ? 'set it aside' : 'bring it back'}: ${(err as Error).message}`);
     }
+    await api.refresh();
   };
   return html`<li class=${classes} data-card=${card.id} data-backlog-card=${item?.id ?? ''} data-lane=${card.lane} draggable=${!item?.started && !item?.someday && !editing} tabindex="0" aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown"
       onDragStart=${dnd.onDragStart} onDragEnd=${dnd.onDragEnd} onKeyDown=${dnd.onKeyDown}>
@@ -194,8 +184,8 @@ export function BacklogCard(props: { card: BoardCard; now: number; api: Api; dnd
     <div class="ou-board-actions">
       ${item?.assign && !item.started && !item.someday && html`<${Assign} id=${item.id} again=${!!item.assigned} api=${api} />`}
       ${item && !item.started && !editing && html`<button type="button" data-backlog-edit=${item.id} onClick=${() => setEditing(true)} title="Change its title, note or repo">Edit</button>`}
-      ${item && card.column === 'backlog' && !item.started && !item.claim?.pending && html`<button type="button" data-backlog-someday=${item.id} onClick=${() => someday(item.id, !item.someday)} title=${item.someday ? 'Back in the main Backlog, in its old place' : 'Maybe someday: out of the main Backlog, into the Someday section'}>${item.someday ? 'Back to backlog' : 'Someday'}</button>`}
-      ${item && html`<button type="button" data-backlog-drop=${item.id} onClick=${() => drop(item.id)} title="Drop it from the backlog (the line stays in the file)">Drop</button>`}
+      ${item && card.column === 'backlog' && !item.started && !item.claim?.pending && html`<${ActionButton} attrs=${{ 'data-backlog-someday': item.id }} onClick=${() => someday(item.id, !item.someday)} title=${item.someday ? 'Back in the main Backlog, in its old place' : 'Maybe someday: out of the main Backlog, into the Someday section'}>${item.someday ? 'Back to backlog' : 'Someday'}</${ActionButton}>`}
+      ${item && html`<${ActionButton} attrs=${{ 'data-backlog-drop': item.id }} onClick=${() => drop(item.id)} title="Drop it from the backlog (the line stays in the file)">Drop</${ActionButton}>`}
     </div>
   </li>`;
 }
@@ -208,8 +198,8 @@ export function BacklogCard(props: { card: BoardCard; now: number; api: Api; dnd
 export function useAddPanel(api: Api) {
   const [open, setOpen] = useState(false);
   const [repo, setRepo] = useState('');
-  /** An add is in flight: a second submit waits for it. */
-  const adding = useRef(false);
+  /** An add is in flight (its refresh too): a second submit waits for it. */
+  const { busy: adding, run } = useBusy();
   /** The panel was just opened: its title takes the focus once, when it first appears (not again when the board comes back after an error). */
   const justOpened = useRef(false);
   const focusIt = (element: HTMLElement | null) => {
@@ -262,11 +252,8 @@ export function useAddPanel(api: Api) {
     );
   };
 
-  const submit = async (event: Event) => {
+  const submit = (event: Event) => {
     event.preventDefault();
-    if (adding.current) {
-      return;
-    }
     const form = event.currentTarget as HTMLElement;
     const input = (name: string) => form.querySelector(`[name="${name}"]`) as HTMLInputElement;
     const item = {
@@ -274,27 +261,26 @@ export function useAddPanel(api: Api) {
       repo: repo || undefined,
       note: input('note').value.trim() || undefined,
     };
-    // cleared before the request goes out, so a redraw while it is out can't bring the text back and invite a second add
-    adding.current = true;
-    input('title').value = '';
-    input('note').value = '';
-    try {
-      await api.bridge.ask(ROUTES.boardBacklogAdd, { body: item });
-      setOpen(false);
-    } catch (err) {
-      const title = input('title');
-      const note = input('note');
-      if (title && !title.value) {
-        title.value = item.title;
+    return run('add', async () => {
+      // cleared before the request goes out, so a redraw while it is out can't bring the text back and invite a second add
+      input('title').value = '';
+      input('note').value = '';
+      try {
+        await api.bridge.ask(ROUTES.boardBacklogAdd, { body: item });
+        setOpen(false);
+      } catch (err) {
+        const title = input('title');
+        const note = input('note');
+        if (title && !title.value) {
+          title.value = item.title;
+        }
+        if (note && !note.value) {
+          note.value = item.note ?? '';
+        }
+        alert(`Couldn't add it: ${(err as Error).message}`);
       }
-      if (note && !note.value) {
-        note.value = item.note ?? '';
-      }
-      alert(`Couldn't add it: ${(err as Error).message}`);
-    } finally {
-      adding.current = false;
-    }
-    await api.refresh();
+      await api.refresh();
+    });
   };
 
   const repoLabel = repo ? repoName(repo) : 'none';
@@ -307,7 +293,7 @@ export function useAddPanel(api: Api) {
     <input type="text" name="title" data-backlog-title placeholder="Keep something for later" maxlength="200" required aria-label="Backlog item title" ref=${focusIt} />
     <button type="button" class="ou-board-add-repo" data-backlog-repo aria-haspopup="menu" onClick=${chooseRepo} title="The repo the new item is for: its card goes in that repo's lane">Repo: ${repoLabel} ▾</button>
     <input type="text" name="note" placeholder="Note (optional)" maxlength="1000" aria-label="Note" />
-    <div class="ou-board-add-actions"><button type="submit">Add</button> <button type="button" data-backlog-cancel onClick=${() => setOpen(false)}>Cancel</button></div>
+    <div class="ou-board-add-actions"><button type="submit" disabled=${adding !== null}>Add</button> <button type="button" data-backlog-cancel onClick=${() => setOpen(false)}>Cancel</button></div>
   </form>`
       : null,
   };

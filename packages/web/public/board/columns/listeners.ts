@@ -2,6 +2,7 @@
 import { html } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/contracts/routes.ts';
 import { openMenu } from '/assets/ui-kit/menu.ts';
+import { ActionButton } from '/assets/ui-kit/components/action-button.ts';
 import type { BoardListenerRepo } from '/assets/types.ts';
 import { compactAge, since } from '/assets/domain/time.ts';
 import { SessionLink, type Api } from '/assets/board/shared.ts';
@@ -20,21 +21,18 @@ function Listener(props: { entry: BoardListenerRepo; now: number; api: Api }) {
         : 'no request yet',
       active.state === 'handling' ? 'handling one now' : active.busy && 'busy now',
     ].filter(Boolean);
-    const stop = async () => {
-      if (
-        window.confirm(
-          `Stop listening for ${entry.repo}? Its session's wait ends within a couple of seconds.`,
-        )
-      ) {
-        await act(
-          'stop it',
-          () => api.bridge.ask(ROUTES.boardStopListening, { body: { repo: entry.repo } }),
-          api,
-        );
-      }
-    };
+    const stop = () =>
+      window.confirm(
+        `Stop listening for ${entry.repo}? Its session's wait ends within a couple of seconds.`,
+      )
+        ? act(
+            'stop it',
+            () => api.bridge.ask(ROUTES.boardStopListening, { body: { repo: entry.repo } }),
+            api,
+          )
+        : undefined;
     return html`<li class="ou-board-listener"><strong>${entry.repo}</strong> <span class="ou-board-voice-status">Listening</span> <span class="ou-local-muted"><${SessionLink} bridge=${api.bridge} session=${active.session} canFocus=${active.can_focus} name=${active.title || active.consumer} title="Bring the listening session to the front" /> · ${parts.join(' · ')}</span>${' '}
-      <button type="button" data-stop-listening=${entry.repo} onClick=${stop}>Stop listening</button></li>`;
+      <${ActionButton} attrs=${{ 'data-stop-listening': entry.repo }} onClick=${stop}>Stop listening</${ActionButton}></li>`;
   }
   const seen = entry.last_seen ? ` · last listened ${since(entry.last_seen, now)} ago` : '';
   // several idle sessions and no obvious one: the button opens a menu to pick from

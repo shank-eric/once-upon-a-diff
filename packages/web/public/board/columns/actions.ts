@@ -20,20 +20,24 @@ export async function typeInto(
     await api.bridge.ask(ROUTES.boardType, {
       body: { kind, session, ...(repo ? { repo } : {}), ...(card ? { card } : {}) },
     });
-    await api.refresh();
   } catch (err) {
     alert(`Couldn't type into the session: ${(err as Error).message}`);
   }
+  await api.refresh();
 }
 
-/** Runs a bridge call for a card's button, says why when it fails, and polls again when it worked. */
+/**
+ * Runs a bridge call for a card's button, says why when it fails, and polls again whether it worked or not (a refused write
+ * often means the board was stale; none when no `api` is given, for a call that changes nothing on the board). The button
+ * it sits on is an ActionButton, busy until this has settled.
+ */
 export async function act(what: string, call: () => Promise<unknown>, api?: Api) {
   try {
     await call();
-    await api?.refresh();
   } catch (err) {
     alert(`Couldn't ${what}: ${(err as Error).message}`);
   }
+  await api?.refresh();
 }
 
 /** Opens a local story's page in a tab (the bridge makes the link), with the Push box open when `push`. */
