@@ -31,7 +31,7 @@ Standing rules for any agent working in Once Upon a Diff. A brief only needs to 
 
 ## Browsers
 
-- `yarn test:extension` is fine: it runs headless in a throwaway profile against its own bridge and a fake `gh`, never port 4823 or GitHub. Treat it as a heavy run (one at a time).
+- `yarn test:extension` is fine: it runs headless in a throwaway profile against its own bridge and a fake `gh`, never port 4823 or Eric's GitHub login. It does read public github.com, logged out: a PR of Eric's (`shank-eric/inbox-in-gmail#91`, and `#92` as the PR with no story; `--pr` and `--no-story-pr` pick others), so it needs the network. Treat it as a heavy run (one at a time), through `~/Configuration/scripts/heavy.sh`.
 - It ends its checks with pixel checks (`test/browser/pixels.ts`): 14 screenshots (the panel on the PR page, the local page, its Q&A and error state, the board, a toast and a story tag, each in light and dark) compared with the PNGs in `packages/bridge/test/browser/pixels/<platform>/`, strictly (a near-miss color fails). A miss writes `packages/bridge/test-results/pixel-diff/<name>-actual.png` and `-diff.png`. A change that should alter the look rewrites the baselines with `UPDATE_SNAPSHOTS=1 yarn test:extension`: review the PNG diff. A platform with no baseline folder skips the step with a `SKIP pixels` line.
 - Claude in Chrome may be used to look at the board or a page, as long as Eric keeps control of his browser: open your own new tab and work only there, never touch his tabs, never resize or focus windows, never trigger dialogs, and close your tab when done.
 
