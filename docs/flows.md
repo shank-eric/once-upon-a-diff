@@ -14,12 +14,11 @@ Paths are from the repo root. After each `file:line` comes the name you'll find 
 
 | Layer | What it is |
 |---|---|
-| `app` | knows its host: the extension (content scripts, service worker), the board and local pages (`packages/web`), `packages/server` and `packages/cli` (the bridge's two apps) |
-| `feature` | the panel (`packages/panel`), which an app hands its host through `PanelHost` |
-| `client` | `packages/bridge-client` (the typed client and the poll) and `packages/ui-kit` |
-| `contracts` | `packages/contracts`: the route table, the wire types and the schemas, over `packages/domain`, the pure rules that import nothing |
-| `service` | the tiers of `packages/core/src/` (`foundation/`, `records/`, `queues/`, `features/`, `orchestration/`): the rules. No side effects of their own |
-| `adapter` | `packages/core/src/adapters/`: every file write, program run and network call |
+| `app` | knows its host: the client apps (the extension's content scripts and service worker, the board and local pages in `packages/web`) and the server apps (`packages/server` and `packages/cli`, started by the shell in `packages/bridge/bin`) |
+| `library` | the client libraries in ADR-15's diagram, which an app imports: `packages/panel` (which an app hands its host through `PanelHost`), `packages/bridge-client` (the typed client and the poll), `packages/ui-kit` and `packages/github-page` (the diff-page reader, drawn beside them) |
+| `contracts` | `packages/contracts`: the route table, the wire types and the schemas, over `packages/domain`, the pure rules that import nothing (the diagram's floor) |
+| `service` | `packages/core`, the diagram's one box: its tiers in `src/` (`foundation/`, `records/`, `queues/`, `features/`, `orchestration/`): the rules. No side effects of their own |
+| `adapter` | `packages/core/src/adapters/`, the bottom of that box: every file write, program run and network call. The files they write under `~/.once-upon` are where the server and the CLI meet |
 | `outside` | not this repo's code: a Claude Code session, a skill, `beat.sh`, `it2` |
 
 Two things every HTTP hop shares, written once here:
@@ -140,8 +139,8 @@ flowchart LR
 
 | # | Layer | Hop | At |
 |---|---|---|---|
-| 1 | `feature` | the Ask form's submit calls the host's `ask` | `packages/panel/src/ask/questions.ts:524` (`await opts.ask({`) |
-| 2 | `feature` | on the local page, `ask` is the panel's shared bridge option | `packages/panel/src/host/bridge-options.ts:41` (`ask: (question) =>`) |
+| 1 | `library` | the Ask form's submit calls the host's `ask` | `packages/panel/src/ask/questions.ts:524` (`await opts.ask({`) |
+| 2 | `library` | on the local page, `ask` is the panel's shared bridge option | `packages/panel/src/host/bridge-options.ts:41` (`ask: (question) =>`) |
 | 2' | `app` | on GitHub, the extension supplies its own `ask` over the service worker | `packages/extension/src/content/pages/files-changed.ts:172` (`ROUTES.questionAsk`) |
 | 3 | `contracts` | the route: `POST /api/stories/<id>/questions`, any key of the story's | `packages/contracts/src/story/routes.ts:49` (`questionAsk:`) |
 | 4 | `app` | the story route checks the body and appends the question | `packages/server/src/routes/questions.ts:66` (`app.inbox.append(`) |
@@ -157,10 +156,10 @@ flowchart LR
 | 14 | `app` | prints the question (with the relay message when it has one) and exits | `packages/cli/src/commands/inbox.ts:469` (`printHandOver(entries, opts, relays, consumer)`) |
 | 15 | `outside` | the session answers in chat and runs `once-upon answer --question <id> --file …` |  |
 | 16 | `app` | `answer` **appends an `answer` line** to `inbox.jsonl` | `packages/cli/src/commands/inbox.ts:539` (`messages.append({`) |
-| 17 | `feature` | back: the panel's one clock, every 5 s while the tab shows | `packages/panel/src/shell/overlay.ts:169` (`const pulsePoll = createPoll`) |
-| 18 | `feature` | one pulse call a tick | `packages/panel/src/host/bridge-options.ts:66` (`ROUTES.storyPulse`) |
+| 17 | `library` | back: the panel's one clock, every 5 s while the tab shows | `packages/panel/src/shell/overlay.ts:169` (`const pulsePoll = createPoll`) |
+| 18 | `library` | one pulse call a tick | `packages/panel/src/host/bridge-options.ts:66` (`ROUTES.storyPulse`) |
 | 19 | `app` | the pulse rereads the inbox and answers a rev per part | `packages/server/src/routes/story.ts:97` (`questions_rev: revOf(questions)`) |
-| 20 | `feature` | the rev moved, so only the questions are fetched again | `packages/panel/src/shell/overlay.ts:253` (`moved('questions_rev')`) |
+| 20 | `library` | the rev moved, so only the questions are fetched again | `packages/panel/src/shell/overlay.ts:253` (`moved('questions_rev')`) |
 
 ## 3. Board refresh
 
@@ -181,8 +180,8 @@ flowchart LR
 | # | Layer | Hop | At |
 |---|---|---|---|
 | 1 | `app` | the page's root component polls the board route | `packages/web/public/board.ts:145` (`usePoll((signal) => bridge.ask(ROUTES.board`) |
-| 2 | `client` | `usePoll`, the Preact hook | `packages/bridge-client/src/use-poll.ts:14` (`export function usePoll`) |
-| 3 | `client` | over `createPoll`: a timer while visible, and the window's focus | `packages/bridge-client/src/poll.ts:117` (`timer = setTimeout(`) |
+| 2 | `library` | `usePoll`, the Preact hook | `packages/bridge-client/src/use-poll.ts:14` (`export function usePoll`) |
+| 3 | `library` | over `createPoll`: a timer while visible, and the window's focus | `packages/bridge-client/src/poll.ts:117` (`timer = setTimeout(`) |
 | 4 | `contracts` | the route: `GET /api/board`, the token or the board's key | `packages/contracts/src/board/routes.ts:10` (`board: api<undefined, BoardData>`) |
 | 5 | `app` | the page's transport sends its key (the `#key=` fragment, or the cookie on a proxy name) | `packages/web/public/board.ts:44` (`fetch(path`) |
 | 6 | `app` | the bridge recognizes the board's key (`packages/server/src/index.ts:302` (`sameToken(auth, boardKey(token))`)), and lets it reach only the routes whose table entry allows it; any other route is a 403 | `packages/server/src/index.ts:458` (`boardKeyMay(candidate.route)`) |
@@ -224,15 +223,15 @@ flowchart LR
 
 | # | Layer | Hop | At |
 |---|---|---|---|
-| 1 | `feature` | the panel's button asks the host for sessions | `packages/panel/src/components/status-light-part.ts:111` (`opts.listen!.sessions(target)`) |
-| 2 | `client` | none, one, or a chooser | `packages/ui-kit/src/listen.ts:20` (`export function listenPlan`) |
+| 1 | `library` | the panel's button asks the host for sessions | `packages/panel/src/components/status-light-part.ts:111` (`opts.listen!.sessions(target)`) |
+| 2 | `library` | none, one, or a chooser | `packages/ui-kit/src/listen.ts:20` (`export function listenPlan`) |
 | 3 | `app` | on GitHub: `GET /api/board/listen-sessions`, with the token through the service worker | `packages/extension/src/content/listen.ts:50` (`ROUTES.boardListenSessions`) |
 | 3' | `app` | on the local page: the story's own route, with the story's key (the board's routes need the board's key) | `packages/web/public/local/mount.ts:108` (`ROUTES.storyListenSessions`) |
 | 4 | `app` | the board route | `packages/server/src/routes/board.ts:96` (`app.sessions.storyListenSessions(storyId)`) |
 | 4' | `app` | the story route, still through `Board`'s one-line delegate (ADR-16) | `packages/server/src/routes/story.ts:205` (`app.board.storyListenSessions(story.id)`) |
 | 5 | `service` | the story's repo, then the idle sessions in its checkout | `packages/core/src/features/sessions/sessions.ts:167` (`async storyListenSessions(`) |
 | 6 | `service` | candidates from the last board snapshot: never the voice session or one already listening | `packages/core/src/features/sessions/listening.ts:207` (`export function listenCandidates`) |
-| 7 | `feature` | the reviewer picks (or there's one): the host's `start` | `packages/panel/src/components/status-light-part.ts:90` (`opts.listen!.start(`) |
+| 7 | `library` | the reviewer picks (or there's one): the host's `start` | `packages/panel/src/components/status-light-part.ts:90` (`opts.listen!.start(`) |
 | 8 | `app` | on GitHub: `POST /api/board/type {kind: 'listen'}` | `packages/extension/src/content/listen.ts:59` (`ROUTES.boardType`) |
 | 8' | `app` | on the local page: `POST /api/stories/<id>/listen`, then the delegate | `packages/server/src/routes/story.ts:216` (`app.board.type('listen'`) |
 | 9 | `app` | the board route | `packages/server/src/routes/board.ts:86` (`app.sessions.type(`) |
@@ -243,7 +242,7 @@ flowchart LR
 | 14 | `outside` | the session runs the once-upon-listen skill, which starts `once-upon wait` in the background |  |
 | 15 | `app` | the wait **writes its `waiting` beat** every 5 s | `packages/cli/src/commands/inbox.ts:393` (`beat(home, consumer, 'waiting', scope)`) |
 | 16 | `app` | back: the pulse says whether a listener is live for the story or its repo | `packages/server/src/routes/story.ts:90` (`listeningOf(app.home`) |
-| 17 | `feature` | the light turns green | `packages/panel/src/shell/overlay.ts:265` (`moved('listening')`) |
+| 17 | `library` | the light turns green | `packages/panel/src/shell/overlay.ts:265` (`moved('listening')`) |
 
 ## 5. An agent's claim, through to its card landing
 

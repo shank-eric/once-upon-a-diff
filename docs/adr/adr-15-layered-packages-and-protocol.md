@@ -21,78 +21,58 @@ Eric chose the direction on 10/29: layered packages, the way a modern React mono
 
 ## Decision
 
-Layers, from the top. A package imports only layers below it. Apps know their host (`chrome.*`, GitHub's DOM, how to reach the bridge) and inject what features need as adapters. The diagram is what exists on 11/5, with the server side drawn as the packages it became (the `bridge` shell at the top, `core` as one box over its tiers and adapters). `bridge-client` was built on 11/3 as `api-client` (`client.ts` and the poll). `ui-kit` was built on 11/4 as `ui`, in two steps: the pieces the board, the local page, the panel and the extension share (the DOM and clipboard helpers and Start listening), then the generic Preact components (`Meter`, `Chip`, `CopyButton`, `Elapsed`), the popover menu, time text, `parseMarkup` and the markdown renderer, with `ui.css` for what they draw. A component that reads a region's state or calls a route stays in its region. It imports the contracts package, the domain and the vendored Preact only, and the panel, the pages and the extension import it. Eric decided it should exist as a clean home for generic components although it has no runtime, dependency or outside consumer of its own, so it does not meet the package rule below: it was the one package made for tidiness, not for that rule, until 11/5, when `core`, `server` and `cli` were made for layering, not for a runtime or a dependency ([ADR-20](adr-20-core-server-cli-split.md)).
+Layers, from the top. A package imports only layers below it. Apps know their host (`chrome.*`, GitHub's DOM, how to reach the bridge) and inject what features need as adapters. The diagram is what exists on 11/5, kept to what the layers say: an arrow from a group means every box in it imports the target, the server side is the packages it became (the `bridge` shell at the top, `core` as one box over its tiers and adapters), and the domain and the vendored Preact sit in a floor with no arrows because nearly every package imports them. `bridge-client` was built on 11/3 as `api-client` (`client.ts` and the poll). `ui-kit` was built on 11/4 as `ui`, in two steps: the pieces the board, the local page, the panel and the extension share (the DOM and clipboard helpers and Start listening), then the generic Preact components (`Meter`, `Chip`, `CopyButton`, `Elapsed`), the popover menu, time text, `parseMarkup` and the markdown renderer, with `ui.css` for what they draw. A component that reads a region's state or calls a route stays in its region. It imports the contracts package, the domain and the vendored Preact only, and the panel, the pages and the extension import it. Eric decided it should exist as a clean home for generic components although it has no runtime, dependency or outside consumer of its own, so it does not meet the package rule below: it was the one package made for tidiness, not for that rule, until 11/5, when `core`, `server` and `cli` were made for layering, not for a runtime or a dependency ([ADR-20](adr-20-core-server-cli-split.md)).
 
 ```mermaid
 flowchart TB
   subgraph clientApps["Client apps"]
-    web["web<br/>board and local pages"]
+    web["web<br/>board page (its regions inside) · local page"]
     ext["extension"]
   end
-  subgraph features["Features"]
-    boardview["board regions, in web<br/>header · columns · voice · backlog · worktrees"]
+  gp["github-page<br/>diff-page reader, GitHub URLs"]
+  subgraph libs["Client libraries"]
     panel["panel<br/>ask · drafts · fixes · reading · rebuild"]
+    bc["bridge-client<br/>typed client, poll"]
+    ui["ui-kit<br/>helpers and generic components"]
   end
-  host["github-page<br/>diff-page reader, GitHub URLs"]
-  ui["ui-kit<br/>helpers and generic components"]
-  api["bridge-client<br/>typed client, poll"]
-  protocol["contracts<br/>wire types, route table, schemas"]
-  domain["packages/domain<br/>pure rules, imports nothing: 15 modules<br/>(patterns, html, text, time, chapters, parts ...)"]
-  vendor["vendored /assets/preact.mjs<br/>(htm/preact standalone)"]
-  testkit["test-kit<br/>(dev only: tests import it, nothing that ships)"]
+  contracts["contracts<br/>wire types, route table, schemas"]
+  subgraph floor["Floor: no arrows drawn, nearly every package imports it"]
+    domain["domain<br/>pure rules, imports nothing"]
+    vendor["vendored /assets/preact.mjs, the file packages/web/public/vendor/preact.mjs<br/>(panel, ui-kit, web, extension, bridge-client's poll hook)"]
+  end
   shell["bridge (the shell)<br/>bin/once-upon.ts"]
   subgraph serverApps["Server apps"]
     http["server (HTTP routes)"]
     cli["cli (commands)"]
   end
-  subgraph services["Core: tiers over adapters"]
-    svc["foundation · records · queues ·<br/>features · orchestration"]
-  end
-  subgraph adapters["Core adapters (all side effects)"]
-    ad["github · git · iterm · larmor ·<br/>claude-sessions · stores · os"]
-  end
+  core["core<br/>tiers: foundation · records · queues · features · orchestration<br/>over adapters (every side effect)"]
+  files[("~/.once-upon files<br/>builds · inbox · agents · backlog")]
+  testkit["test-kit<br/>(dev only: tests import it, nothing that ships)"]
 
-  web --> boardview
-  web --> api
-  web --> panel
-  web --> host
-  ext --> panel
-  ext --> host
-  boardview --> api
-  panel --> api
-  ext --> api
-  ext --> ui
-  web --> ui
+  clientApps --> libs
+  clientApps --> gp
+  clientApps --> contracts
+  gp --> panel
+  panel --> bc
   panel --> ui
-  ui --> protocol
-  api --> protocol
-  boardview --> protocol
-  panel --> protocol
-  protocol --> domain
-  http --> protocol
-  http --> svc
-  cli --> svc
-  svc --> domain
-  svc --> protocol
-  shell --> http
-  shell --> cli
-  shell --> svc
-  svc --> ad
-  boardview --> vendor
-  panel --> vendor
-  ui --> vendor
-  host --> panel
-  host --> protocol
-  boardview -. "HTTP (route table)" .-> http
-  ext -. "HTTP via service worker" .-> http
+  libs --> contracts
+  contracts --> domain
+  shell --> serverApps
+  shell --> core
+  serverApps --> core
+  serverApps --> contracts
+  core --> contracts
+  clientApps -. "HTTP (route table)" .-> http
+  cli -. "doctor: GET /api/health" .-> http
+  core -. "reads and writes" .-> files
 
 ```
 
-Solid arrows point from importer to imported. The dotted arrows are runtime HTTP calls, not imports. `github-page` imports only the panel's port (`host.ts`, `diff-types.ts`), never `overlay.ts` or a region. `test-kit` has no arrows because no shipped code may import it: every package's tests do, as a dev dependency.
+Solid arrows point from importer to imported, and one arrow from a group stands for each box in it (`web` and `extension` each import the panel, `bridge-client`, `ui-kit`, `github-page` and the contracts package; the server and the CLI each import `core` and the contracts package, the CLI for types only; every `core` import of the contracts package is a type). The three dotted arrows are not imports. The first is HTTP from the clients: the board page and the local page call the bridge, and the extension does through its service worker, never from a content script. The second is the one call the CLI makes to the server: `once-upon doctor` asks `GET /api/health` (`packages/core/src/orchestration/bridge/doctor.ts:70` (`fetchHealth(`), over the fetch at `packages/core/src/adapters/os.ts:116` (`/api/health`)). The third is the shared state: the server and the CLI run as separate processes and meet in the files under `~/.once-upon` that `core`'s adapters read and write (`builds.json` under a lock, and `inbox.jsonl`, `agents.jsonl` and `backlog.jsonl` as append-only logs that need none, by design: `packages/core/src/adapters/stores/fs/jsonl.ts:2` (`append-only JSONL log`)), so apart from the health check they do not call each other. `github-page` imports only the panel's `diff-types.ts` port, never `host.ts`, `overlay.ts` or a region. `domain` is imported by every package that ships except the shell, and the vendored Preact by the five named in its box. That file is served from `packages/web/public/vendor/preact.mjs`, so dependency-cruiser reports `panel`, `ui-kit`, `extension` and `bridge-client` importing `web`: the floor box stands for that file, not for a layer edge to the board and local pages. `test-kit` has no arrows because no shipped code may import it: every package's tests do, as a dev dependency.
 
 Rules:
 
-- **Only apps know their host.** Features don't import each other. Client and server meet only at `contracts`. The board page reaches the board's services only at runtime, through HTTP and the bridge's routes. The two share only the `BoardData` types in the contracts package.
+- **Only apps know their host.** Regions don't import each other (the board's and the panel's: the `*-regions-apart` rules). Client and server meet only at `contracts`. The board page reaches the board's services only at runtime, through HTTP and the bridge's routes. The two share only the `BoardData` types in the contracts package.
 - **A package only when it has its own runtime, its own dependencies, or a consumer outside its layer** (`ui` was the one exception, by decision on 11/4; `core`, `server` and `cli` became three more on 11/5, see below). Everything else is a folder with a lint rule. So the domain was `protocol/src/domain/` (a package since 11/4), the server split was folders inside `bridge` (apps `server/` and `cli/`, then `services/`, then `adapters/`, where every side effect goes), and the feature regions are folders inside `web` (the board page) and `panel` that don't import each other. The CLI is a server-side app beside HTTP, over the services, in-process (ADR-05), and stays in `bridge`. **Superseded by [ADR-20](adr-20-core-server-cli-split.md) (11/5):** the CLI is its own package, `cli`, and the server-side folders are packages: `server` and `cli` over `core`, whose `adapters/` sit under five tiers of services, with `bridge` as the shell (ADR-20, ADR-21). The decision to make them packages was Eric's, on 11/4, for the lint and the tiers, not for a runtime or a dependency.
 - **Enforced by lint and by compilers, not by habit.** As decided on 10/29, `eslint.boundaries.mjs` had one entry per layer and region, with `boundary-lint.test.ts` probing each rule, and `configs/.dependency-cruiser.mjs` checked the same layers over the whole import graph, with a `layer-rules-agree` test that failed when the two files disagreed. **Superseded 11/4 (8553da5): dependency-cruiser is the one home for layers, regions and cycles, and `eslint.boundaries.mjs` and the agree test are gone** (ADR-22). ESLint keeps style and `configs/eslint.side-effects.mjs`: only an adapter runs a program, writes a file or reaches the network, and dependency-cruiser's `browser-no-node` rule keeps Node built-ins out of code that ships to a browser (not ESLint). The contracts package's own tsconfig has no DOM and no Node types. `yarn lint` runs in the pre-commit hook and in CI.
 
