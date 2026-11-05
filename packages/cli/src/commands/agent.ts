@@ -17,11 +17,11 @@ import type { Config } from '@once-upon-a-diff/core/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
 
 const USAGE =
-  'usage: once-upon agent start NAME [--kind author|critic|helper|research|editor] [--standing] --task TEXT [--sid SID8] [--model M] [--effort E]\n' +
+  'usage: once-upon agent start NAME [--kind author|critic|helper|research|editor] [--standing] --task TEXT|--task-file PATH [--sid SID8] [--model M] [--effort E]\n' +
   '                             [--repo owner/name] [--branch NAME] [--pr N] [--cwd DIR] [--card ID] [--lane NAME] [--notes PATH] [--slots N]\n' +
-  '       once-upon agent state NAME --state running|waiting|review|plan|fixing [--outcome TEXT] [--findings N] [--notes PATH] [--sid SID8] [--run ID]\n' +
+  '       once-upon agent state NAME --state running|waiting|review|plan|fixing [--outcome TEXT|--outcome-file PATH] [--findings N] [--notes PATH] [--sid SID8] [--run ID]\n' +
   '       once-upon agent beat NAME N/M STEP [NOTE...] [--sid SID8] [--no-mirror]\n' +
-  '       once-upon agent finish NAME [--state done|failed|stopped] [--outcome TEXT] [--commit SHA] [--pr N] [--branch NAME] [--card ID] [--findings N] [--notes PATH] [--sid SID8] [--run ID]\n' +
+  '       once-upon agent finish NAME [--state done|failed|stopped] [--outcome TEXT|--outcome-file PATH] [--commit SHA] [--pr N] [--branch NAME] [--card ID] [--findings N] [--notes PATH] [--sid SID8] [--run ID]\n' +
   '                              with none of --commit, --pr, --branch and --card, a registered branch that moved since the start is recorded as the result\n' +
   '       once-upon agent list [--all] [--json]';
 

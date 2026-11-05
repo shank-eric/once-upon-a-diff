@@ -456,6 +456,12 @@ The bridge also checks each request:
 
 The other commands are `list`, `page --story`, `token --rotate`, `publish --dir`, `inbox`, `wait`, `answer`, `notes`, `working`, `fixed`, `builds` and `done`. Run `once-upon` with no arguments to see them all.
 
+### Long text on the command line
+
+Free text that may be long goes in a file or on stdin, never in one long argument. `--note`, `--outcome`, `--task`, `--title` and `--text` each take `--<flag>-file PATH` (the file's text, minus one trailing newline) or `--<flag> -` (read stdin); short values stay inline. So `once-upon backlog edit ID --note-file plan.md`, `once-upon backlog add "TITLE" --note -  < plan.md` and `once-upon agent finish NAME --outcome-file out.md` all work, and `--body-file` (`-` is stdin) already did for `comment` and `pr-draft`. Give a flag one form, not both, and only one flag per run may read stdin; stdin that is empty is refused (nothing changes), while an empty file clears the value on purpose; CRLF reads as LF. `backlog add` takes its title as words, `--title`, `--title-file` or `--title -`. A backlog note may be up to 5,000 characters; an agent's task and outcome stay capped at 1,000 and say so by name.
+
+The reason: some machines run endpoint security that SIGKILLs a `node` process (exit 137, no message) when a single argument passes about 1,000 bytes, before `once-upon` runs a line (seen with SentinelOne against the fnm-installed node: the same `node script.js "<1,000+ characters>"` dies, a copy of the binary at another path does not). Nothing in the CLI can catch that, so an agent or script that writes long text uses the `-file` form or stdin, with an argv of a few words.
+
 ### Personal settings
 
 `~/.once-upon/config.json` holds the port and token, and can also hold a few optional settings. All of them default to something neutral, so a fresh install needs none:

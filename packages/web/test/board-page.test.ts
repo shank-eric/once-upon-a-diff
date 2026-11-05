@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { document, root, saved, tick, fire, window } from './dom-env.ts';
 import { render } from '../public/vendor/preact.mjs';
+import { BACKLOG_NOTE_MAX } from '@once-upon-a-diff/domain/text';
 import type {
   BoardAgent,
   BoardCard,
@@ -390,6 +391,11 @@ test('Edit opens a form on the card with its title, note and repo; Save sends on
   const repo = form.querySelector('[name="repo"]') as HTMLInputElement;
   assert.equal(title.value, 'Item bl_1');
   assert.equal(repo.value, 'acme/widgets');
+  assert.equal(
+    note.getAttribute('maxlength'),
+    String(BACKLOG_NOTE_MAX),
+    'as long as the store allows',
+  );
   title.value = '  Better title ';
   note.value = 'a new note';
   await pollNow();
@@ -454,6 +460,11 @@ test('+ Add opens the panel with the title focused; typing and focus stay throug
   assert.ok(document.activeElement === title, 'the title has the focus');
   title.value = 'half typed';
   const note = $('[name="note"]') as HTMLInputElement;
+  assert.equal(
+    note.getAttribute('maxlength'),
+    String(BACKLOG_NOTE_MAX),
+    'as long as the store allows',
+  );
   note.value = 'and a note';
   await pollNow();
   assert.ok($('[data-backlog-title]') === title, 'the same input');

@@ -1097,3 +1097,54 @@ test('old agents.jsonl lines with kind builder or reviewer read as author and cr
   registry.finish('old-a', { outcome: 'nothing', at: minute(5) });
   assert.equal(finishedColumn(registry.agents().find((one) => one.name === 'old-a')!), 'waiting');
 });
+
+test('the CLI: a 1,000-character task and outcome go in through a file or stdin, and a 5,000-character one is refused by name, not killed', async () => {
+  // an outside watchdog SIGKILLs node (137) when one argument passes about 1,000 bytes, so long text never rides in argv
+  const home = tmp('reg-cli-long');
+  const env = { CLAUDE_CODE_SESSION_ID: `${SID}-0000-4000-8000-000000000000` };
+  const long = (mark: string, size: number) =>
+    `${mark} ${'word '.repeat(size / 4)}`.slice(0, size).trim();
+  const taskFile = path.join(tmp('reg-cli-long-files'), 'task.md');
+  writeFileSync(taskFile, long('task', 1000) + '\n');
+  const started = await runCli(
+    home,
+    ['agent', 'start', 'long-one', '--kind', 'helper', '--task-file', taskFile],
+    env,
+  );
+  assert.equal(started.code, 0, started.stderr);
+  // 5,000 characters on stdin reaches the registry's own 1,000-character cap
+  const tooLong = await runCli(
+    home,
+    ['agent', 'state', 'long-one', '--state', 'running', '--outcome', '-'],
+    env,
+    undefined,
+    long('big', 5000),
+  );
+  assert.equal(tooLong.code, 1);
+  assert.match(tooLong.stderr, /the outcome is longer than 1000 characters/);
+
+  const waiting = await runCli(
+    home,
+    ['agent', 'state', 'long-one', '--state', 'waiting', '--outcome', '-'],
+    env,
+    undefined,
+    long('waiting', 1000),
+  );
+  assert.equal(waiting.code, 0, waiting.stderr);
+  const outcomeFile = path.join(tmp('reg-cli-long-outcome'), 'outcome.md');
+  writeFileSync(outcomeFile, long('done', 1000));
+  const finished = await runCli(
+    home,
+    ['agent', 'finish', 'long-one', '--state', 'done', '--outcome-file', outcomeFile],
+    env,
+  );
+  assert.equal(finished.code, 0, finished.stderr);
+  const events = readFileSync(path.join(home, 'agents.jsonl'), 'utf8')
+    .trim()
+    .split('\n')
+    .map((line) => JSON.parse(line));
+  const field = (kind: string, key: string) => events.find((one) => one.op === kind)?.[key];
+  assert.equal(field('start', 'task'), long('task', 1000));
+  assert.equal(field('state', 'outcome'), long('waiting', 1000));
+  assert.equal(field('finish', 'outcome'), long('done', 1000));
+});

@@ -1,6 +1,6 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { appendFileSync, readFileSync } from 'node:fs';
+import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import {
   tmp,
@@ -102,7 +102,7 @@ test('the store refuses what is not valid, and a folded file skips lines that ar
   const store = new BacklogStore(tmp('backlog-invalid'));
   assert.throws(() => store.add({ title: '   ' }), /title is needed/);
   assert.throws(() => store.add({ title: 'x'.repeat(201) }), /longer than 200/);
-  assert.throws(() => store.add({ title: 'x', note: 'n'.repeat(1001) }), /longer than 1000/);
+  assert.throws(() => store.add({ title: 'x', note: 'n'.repeat(5001) }), /longer than 5000/);
   assert.throws(() => store.add({ title: 'x', repo: 'not a repo' }), /repo/);
   assert.throws(() => store.add({ title: 'x', branch: 'a b; rm' }), /branch/);
   assert.equal(store.add({ title: 'a\u0007b\nc' }).title, 'a b c', 'control characters go');
@@ -1303,4 +1303,117 @@ test('a someday card whose claimed agent finished: someday while its column is B
   // finished: the card is Done, and only a card in Backlog carries the flag
   assert.equal(cardFor('done').column, 'done');
   assert.equal(cardFor('done').backlog?.someday, undefined);
+});
+
+test('a 5,000-character note goes in through a file or stdin, with a short argv, on add and on edit', async () => {
+  // an outside watchdog SIGKILLs node (137) when one argument passes about 1,000 bytes, so long text never rides in argv
+  const home = tmp('backlog-long-note');
+  writeJson(path.join(home, 'config.json'), {
+    board_sessions_dir: tmp('backlog-long-note-sessions'),
+    board_status_source: 'registry',
+  });
+  const long = (mark: string) => `${mark} ${'word '.repeat(1000)}`.slice(0, 5000).trim();
+  const noteOf = async (id: string) =>
+    JSON.parse((await runCli(home, ['backlog', 'show', id])).stdout).note;
+
+  const fromFile = path.join(tmp('backlog-long-note-files'), 'note.md');
+  writeFileSync(fromFile, long('file') + '\n');
+  const added = await runCli(home, ['backlog', 'add', 'Long note', '--note-file', fromFile]);
+  assert.equal(added.code, 0, added.stderr);
+  const id = /^(bl_[a-z0-9]+) added/.exec(added.stdout)?.[1] as string;
+  assert.ok(id, added.stdout);
+  assert.equal(await noteOf(id), long('file'), 'one trailing newline is dropped');
+
+  const edited = await runCli(home, ['backlog', 'edit', id, '--note-file', fromFile]);
+  assert.equal(edited.code, 0, edited.stderr);
+  const viaStdin = await runCli(
+    home,
+    ['backlog', 'edit', id, '--note', '-'],
+    {},
+    undefined,
+    long('stdin'),
+  );
+  assert.equal(viaStdin.code, 0, viaStdin.stderr);
+  assert.equal(await noteOf(id), long('stdin'));
+  const addedStdin = await runCli(
+    home,
+    ['backlog', 'add', 'Long too', '--note', '-'],
+    {},
+    undefined,
+    long('add'),
+  );
+  assert.equal(addedStdin.code, 0, addedStdin.stderr);
+  const second = /^(bl_[a-z0-9]+) added/.exec(addedStdin.stdout)?.[1] as string;
+  assert.equal(await noteOf(second), long('add'));
+
+  // an empty file clears the note; a missing file and both forms at once are refused by name
+  const emptyFile = path.join(tmp('backlog-long-note-empty'), 'empty.md');
+  writeFileSync(emptyFile, '');
+  assert.equal((await runCli(home, ['backlog', 'edit', id, '--note-file', emptyFile])).code, 0);
+  assert.equal(await noteOf(id), null);
+  const missing = await runCli(home, ['backlog', 'edit', id, '--note-file', '/nonexistent/n.md']);
+  assert.notEqual(missing.code, 0);
+  assert.match(missing.stderr, /cannot read \/nonexistent\/n.md for --note/);
+  const both = await runCli(home, ['backlog', 'edit', id, '--note', 'x', '--note-file', fromFile]);
+  assert.match(both.stderr, /not both/);
+});
+
+test('a long card is added with --title-file or --title -, a CRLF note reads as LF, and empty stdin changes nothing', async () => {
+  const home = tmp('backlog-title-file');
+  writeJson(path.join(home, 'config.json'), {
+    board_sessions_dir: tmp('backlog-title-file-sessions'),
+    board_status_source: 'registry',
+  });
+  const dir = tmp('backlog-title-file-files');
+  const show = async (id: string) =>
+    JSON.parse((await runCli(home, ['backlog', 'show', id])).stdout);
+  const idOf = (result: { stdout: string }) =>
+    /^(bl_[a-z0-9]+) added/.exec(result.stdout)?.[1] as string;
+
+  // the title from a file, from stdin, or from words; words and a title flag together are an error
+  writeFileSync(path.join(dir, 'title.txt'), 'Title from a file\n');
+  const fromFile = await runCli(home, [
+    'backlog',
+    'add',
+    '--title-file',
+    path.join(dir, 'title.txt'),
+  ]);
+  assert.equal(fromFile.code, 0, fromFile.stderr);
+  assert.equal((await show(idOf(fromFile))).title, 'Title from a file');
+  const fromStdin = await runCli(
+    home,
+    ['backlog', 'add', '--title', '-'],
+    {},
+    undefined,
+    'Title from stdin',
+  );
+  assert.equal((await show(idOf(fromStdin))).title, 'Title from stdin');
+  const both = await runCli(home, [
+    'backlog',
+    'add',
+    'Z',
+    '--title-file',
+    path.join(dir, 'title.txt'),
+  ]);
+  assert.notEqual(both.code, 0);
+  assert.match(both.stderr, /words or as --title, not both/);
+
+  // CRLF: two lines, not "one \ntwo"
+  writeFileSync(path.join(dir, 'crlf.md'), 'one\r\ntwo\r\n');
+  const id = idOf(
+    await runCli(home, ['backlog', 'add', 'Has a note', '--note-file', path.join(dir, 'crlf.md')]),
+  );
+  assert.equal((await show(id)).note, 'one\ntwo');
+
+  // empty stdin (closed, never fed) is refused and the note stays; an empty file still clears it
+  const empty = await runCli(home, ['backlog', 'edit', id, '--note', '-'], {}, undefined, '');
+  assert.notEqual(empty.code, 0);
+  assert.match(empty.stderr, /stdin for --note was empty/);
+  assert.equal((await show(id)).note, 'one\ntwo');
+  writeFileSync(path.join(dir, 'empty.md'), '');
+  assert.equal(
+    (await runCli(home, ['backlog', 'edit', id, '--note-file', path.join(dir, 'empty.md')])).code,
+    0,
+  );
+  assert.equal((await show(id)).note, null);
 });

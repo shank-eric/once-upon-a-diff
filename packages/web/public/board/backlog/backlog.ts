@@ -17,7 +17,7 @@ import {
   pendingClaimChip,
   startedChips,
 } from '/assets/board/backlog/started-chips.ts';
-import { repoName } from '/assets/domain/text.ts';
+import { BACKLOG_NOTE_MAX, repoName } from '/assets/domain/text.ts';
 
 /** The ids of the Backlog cards in a card's lane, in the order the board shows them. */
 export function backlogLane(card: BoardCard, board: BoardData | null): string[] {
@@ -120,7 +120,7 @@ function EditForm(props: { card: BoardCard; id: string; api: Api; close: () => v
   };
   return html`<form class="ou-board-add" data-backlog-edit-form ref=${formRef} onSubmit=${submit}>
     <input type="text" name="title" placeholder="Title" maxlength="200" required aria-label="Backlog item title" />
-    <textarea name="note" rows="3" placeholder="Note (optional)" maxlength="1000" aria-label="Note"></textarea>
+    <textarea name="note" rows="3" placeholder="Note (optional)" maxlength=${BACKLOG_NOTE_MAX} aria-label="Note"></textarea>
     <input type="text" name="repo" placeholder="owner/name (empty for no repo)" aria-label="Repo" />
     <div class="ou-board-add-actions"><button type="submit" disabled=${busy !== null}>Save</button> <button type="button" data-backlog-edit-cancel onClick=${close}>Cancel</button></div>
   </form>`;
@@ -292,7 +292,7 @@ export function useAddPanel(api: Api) {
       ? html`<form class="ou-board-add" data-backlog-add onSubmit=${submit}>
     <input type="text" name="title" data-backlog-title placeholder="Keep something for later" maxlength="200" required aria-label="Backlog item title" ref=${focusIt} />
     <button type="button" class="ou-board-add-repo" data-backlog-repo aria-haspopup="menu" onClick=${chooseRepo} title="The repo the new item is for: its card goes in that repo's lane">Repo: ${repoLabel} ▾</button>
-    <input type="text" name="note" placeholder="Note (optional)" maxlength="1000" aria-label="Note" />
+    <input type="text" name="note" placeholder="Note (optional)" maxlength=${BACKLOG_NOTE_MAX} aria-label="Note" />
     <div class="ou-board-add-actions"><button type="submit" disabled=${adding !== null}>Add</button> <button type="button" data-backlog-cancel onClick=${() => setOpen(false)}>Cancel</button></div>
   </form>`
       : null,

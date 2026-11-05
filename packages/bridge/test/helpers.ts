@@ -115,20 +115,25 @@ export async function startBridge(opts: {
   };
 }
 
-/** Runs the once-upon CLI against `home`: {code, stdout, stderr}. */
+/** Runs the once-upon CLI against `home`, with `input` on its stdin: {code, stdout, stderr}. */
 export const runCli = (
   home: string,
   args: string[],
   env: Record<string, string> = {},
   cwd?: string,
+  input?: string,
 ): Promise<{ code: number | string | null | undefined; stdout: string; stderr: string }> =>
   new Promise((resolve) => {
-    execFile(
+    const child = execFile(
       process.execPath,
       [BIN, ...args],
       { env: { ...process.env, ONCE_UPON_HOME: home, ...env }, cwd },
       (err, stdout, stderr) => resolve({ code: err ? err.code : 0, stdout, stderr }),
     );
+    // `input` is the run's stdin (a flag that reads `-`); the run's argv stays short, as long text must
+    if (input !== undefined) {
+      child.stdin?.end(input);
+    }
   });
 
 /** startBridge's bridge, with `call` and `close`. */

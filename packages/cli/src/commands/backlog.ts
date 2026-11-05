@@ -14,10 +14,10 @@ import type { Config } from '@once-upon-a-diff/core/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
 
 const USAGE =
-  'usage: once-upon backlog add "TITLE" [--note TEXT] [--repo owner/name] [--branch NAME] [--by NAME]\n' +
+  'usage: once-upon backlog add ("TITLE" | --title TEXT | --title-file PATH | --title -) [--note TEXT | --note-file PATH | --note -] [--repo owner/name] [--branch NAME] [--by NAME]\n' +
   '       once-upon backlog list [--all] [--json] [--someday]\n' +
   '       once-upon backlog show ID\n' +
-  '       once-upon backlog edit ID [--title TEXT] [--note TEXT] [--repo owner/name]\n' +
+  '       once-upon backlog edit ID [--title TEXT] [--note TEXT | --note-file PATH | --note -] [--repo owner/name]\n' +
   '       once-upon backlog start ID [--branch NAME] [--repo owner/name] [--by NAME]\n' +
   '       once-upon backlog claim ID --agent NAME [--sid SID8] [--branch NAME] [--repo owner/name] [--by NAME]\n' +
   '       once-upon backlog move ID --before ID | --top | --bottom\n' +
@@ -65,8 +65,13 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     return item;
   };
   if (verb === 'add') {
+    // the title is the words after `add`, or --title / --title-file / --title - (not both)
+    const flagged = text(opts.title);
+    if (flagged !== null && words.length) {
+      throw new Error('give the title as words or as --title, not both');
+    }
     const item = store.add({
-      title: words.join(' '),
+      title: flagged ?? words.join(' '),
       note: text(opts.note),
       // the checkout the command runs in names the repo unless --repo says otherwise
       repo: text(opts.repo) ?? repoOfCheckout(process.cwd()),
@@ -273,7 +278,7 @@ export const backlogCommands: Command[] = [
     ],
     usage: [
       '  once-upon backlog add "TITLE" [--note TEXT] [--repo owner/name] [--branch NAME]  keep something for later: a card in the board\'s Backlog column',
-      '  once-upon backlog edit ID [--title TEXT] [--note TEXT] [--repo owner/name]      change an open card in place (an empty --note or --repo clears it)',
+      '  once-upon backlog edit ID [--title TEXT] [--note TEXT] [--repo owner/name]      change an open card in place (an empty --note or --repo clears it; a long note: --note-file PATH or --note -)',
       '  once-upon backlog list [--all] [--json] [--someday] | show ID | drop ID | reopen ID  the items in board order (open ones, or all), one item, drop one, or bring a dropped one back',
       '  once-upon backlog done ID [--sha SHA]                                            the work landed: the card goes to Done for an hour',
       '  once-upon backlog land [PICKED_SHA...] --from REF --to REF [--dry-run]           a deploy: mark done the cards whose recorded commit (agent finish --commit) is in the range',

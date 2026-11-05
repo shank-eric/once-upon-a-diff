@@ -5,6 +5,7 @@
  */
 import { homeDir, loadConfig } from '@once-upon-a-diff/core/foundation/settings';
 import { parseArgs } from './args.ts';
+import { resolveLongText } from './options.ts';
 import { bridgeCommands } from './commands/bridge.ts';
 import { storyCommands } from './commands/stories.ts';
 import { inboxCommands } from './commands/inbox.ts';
@@ -84,6 +85,9 @@ export function usageText() {
     '',
     ...lines,
     '',
+    'Long text (--note, --outcome, --task, --title, --text) goes in a file or on stdin, never in one long argument:',
+    '--note-file PATH reads a file, --note - reads stdin (the same for the other four). Short values stay inline.',
+    '',
     'ONCE_UPON_HOME moves ~/.once-upon. Personal settings (display name, time zone, checkout folders,',
     'opener, gh token handling) are optional keys in its config.json: see readSettings in core/src/foundation/settings.ts.',
     ' ',
@@ -102,7 +106,7 @@ export function main(argv: string[]): void {
   }
   const home = homeDir();
   Promise.resolve()
-    .then(() => entry.run(home, loadConfig(home), opts))
+    .then(() => entry.run(home, loadConfig(home), resolveLongText(opts)))
     .catch((err: Error) => {
       process.stderr.write(`once-upon: ${err.message}\n`);
       process.exitCode = 1;

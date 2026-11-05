@@ -59,3 +59,6 @@ export function sameSha(
 ): boolean {
   return !!first && !!second && (first.startsWith(second) || second.startsWith(first));
 }
+
+/** The longest a backlog card's note is: the store enforces it and the board's Add and Edit inputs match it. */
+export const BACKLOG_NOTE_MAX = 5000;

@@ -36,7 +36,7 @@ import {
   SESSION_RE,
   SID_RE,
 } from '@once-upon-a-diff/domain/patterns';
-import { SHA_RE, repoName } from '@once-upon-a-diff/domain/text';
+import { BACKLOG_NOTE_MAX, SHA_RE, repoName } from '@once-upon-a-diff/domain/text';
 import { jsonLines } from '../../adapters/stores/fs/jsonl.ts';
 import { appendBacklogEvent, readBacklogFile } from '../../adapters/stores/backlog-file.ts';
 import path from 'node:path';
@@ -56,7 +56,7 @@ export const ASSIGN_HOURS = 2;
 
 export const ID_PATTERN = BACKLOG_ID_RE;
 const TITLE_MAX = 200;
-const NOTE_MAX = 1000;
+const NOTE_MAX = BACKLOG_NOTE_MAX; // long enough for a plan or a repro: the CLI takes one from a file or stdin
 const BY_MAX = 40;
 
 /** Where a move puts an item: before another one, or at the top or the bottom. */
