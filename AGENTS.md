@@ -31,7 +31,8 @@ Standing rules for any agent working in Once Upon a Diff. A brief only needs to 
 
 ## Browsers
 
-- Never open a browser or drive one.
+- `yarn test:extension` is fine: it runs headless in a throwaway profile against its own bridge and a fake `gh`, never port 4823 or GitHub. Treat it as a heavy run (one at a time).
+- Claude in Chrome may be used to look at the board or a page, as long as Eric keeps control of his browser: open your own new tab and work only there, never touch his tabs, never resize or focus windows, never trigger dialogs, and close your tab when done.
 
 ## Structure
 
