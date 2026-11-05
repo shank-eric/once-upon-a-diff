@@ -209,6 +209,10 @@ Items 1 and 2 were closed by the request queue's lock (183210b, 11/4). Items 3 t
 14. `adr/adr-14-front-end-approach.md`: Preact and htm, vendored as one file, adopted one region at a time
 15. `adr/adr-15-layered-packages-and-protocol.md`: layered packages, with the contracts package (types, route table, schemas) as the only place client and server meet
 16. `adr/adr-16-what-the-rebuild-built.md`: what the 10/29 rebuild built under ADR-14 and ADR-15, and what it left
-17. `adr/adr-17-host-github-and-the-end-of-shared.md`: a `host-github` package, and the end of `shared`
+17. `adr/adr-17-host-github-and-the-end-of-shared.md`: a `host-github` package (`github-page` since 11/5), and the end of `shared`
 18. `adr/adr-18-usage-capture.md`: usage capture, counting what the tool actually uses, with names from closed lists only
 19. `adr/adr-19-parts-map.md`: a repo's parts map, read from its checkout and never stored
+20. `adr/adr-20-core-server-cli-split.md`: the bridge splits into core, server and cli, with `bridge` left as the shell
+21. `adr/adr-21-core-tiers-and-their-rules.md`: core's services sit in five tiers, and the folder order is the import order
+22. `adr/adr-22-dependency-cruiser-one-home-for-layer-rules.md`: dependency-cruiser is the one home for layer rules, and ESLint keeps style and side effects
+23. `adr/adr-23-pixel-checks.md`: pixel checks in the browser test, with strict thresholds and baselines in git

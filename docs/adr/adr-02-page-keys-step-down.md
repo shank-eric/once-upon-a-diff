@@ -1,6 +1,6 @@
 # ADR-02: Page keys and the step-down rule
 
-Descriptive, of the code on main at 0741c6c (10/29).
+Descriptive, of the code on main at 0741c6c (10/29). Since 11/5: the key code is `records/page-links/page-key.ts` in `packages/core` (the folder was `services/pages`, ADR-20), and the route table is in `packages/contracts` (it was `packages/protocol`, ADR-15). The rules are unchanged.
 
 ## Context
 
@@ -8,12 +8,12 @@ The bridge's own pages (a local story's diff page and the agent board) run in th
 
 ## Decision
 
-Every key is an HMAC under the bridge's token with its own label (`services/pages/page-key.ts`), so no key can be turned into another. A key rides in the link's `#fragment`, which the browser never sends, so a page shell (`/local/<id>/`, `/board/`) carries nothing.
+Every key is an HMAC under the bridge's token with its own label (`packages/core/src/records/page-links/page-key.ts`), so no key can be turned into another. A key rides in the link's `#fragment`, which the browser never sends, so a page shell (`/local/<id>/`, `/board/`) carries nothing.
 
 | Key | Label | Reaches | Can hand out |
 |---|---|---|---|
 | token | (none) | everything. The extension, the CLI and listeners use it | every link |
-| board key | `board-page` | the board routes (the `token+board` entries in the protocol's route table, `packages/protocol/src/board/routes.ts`): snapshot, type into a session's tab, focus a tab, stop a listener, Start, Pause, Resume and Stop voice, phone mode and Stop phone bridge, worktree Clean up, backlog add, move, drop and assign, mark a local story reviewed | a local story's **full** link (Open story) |
+| board key | `board-page` | the board routes (the `token+board` entries in the contracts package's route table, `packages/contracts/src/board/routes.ts`): snapshot, type into a session's tab, focus a tab, stop a listener, Start, Pause, Resume and Stop voice, phone mode and Stop phone bridge, worktree Clean up, backlog add, move, drop and assign, mark a local story reviewed | a local story's **full** link (Open story) |
 | story full key | `local-page:<id>` | every route of that one local story, including Approve, `POST …/pr` (Create pull request's `git push`, and Push for a branch behind its open PR) and `POST …/push` (Push to the default branch) | nothing |
 | story read-only key | `local-view:<id>` | an allowlist (`VIEW_KEY_MAY` in `page-key.ts`): read, Ask, Viewed, notes, Send fix requests, Rebuild, page prefs and UI state, `GET …/pr` | nothing |
 
