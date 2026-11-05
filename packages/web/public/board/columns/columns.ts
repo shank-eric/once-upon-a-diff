@@ -7,6 +7,7 @@
 import { html, useLayoutEffect, useRef, useState } from '/assets/preact.mjs';
 import type { BoardCard, BoardColumn, BoardData } from '/assets/types.ts';
 import { useSetting, type Api } from '/assets/board/shared.ts';
+import { Disclosure } from '/assets/ui-kit/components/disclosure.ts';
 import { COLUMNS, GROUPS, type Layout } from '/assets/board/columns/layout.ts';
 import { Blank } from '/assets/board/columns/blank.ts';
 import { Editors } from '/assets/board/columns/editors.ts';
@@ -55,8 +56,8 @@ function LaneHead(props: {
   const verb = folded ? 'Show' : 'Hide';
   const id = `${column.id}/${name}`;
   return html`<h3 class="ou-board-lane-label">
-    <button type="button" class="ou-board-lane-toggle" data-lane-toggle=${id} aria-expanded=${String(!folded)} onClick=${() => onFold(id)}
-      aria-label=${`${verb} ${name} cards in ${column.label}`} title=${`${verb} the ${name} cards`}><span aria-hidden="true">${folded ? '▸' : '▾'}</span> ${name}${folded && html` <span class="ou-board-lane-count">${total}</span>`}</button></h3>`;
+    <${Disclosure} open=${!folded} class="ou-board-lane-toggle" attrs=${{ 'data-lane-toggle': id }} onToggle=${() => onFold(id)}
+      label=${`${verb} ${name} cards in ${column.label}`} title=${`${verb} the ${name} cards`}>${' '}${name}${folded && html` <span class="ou-board-lane-count">${total}</span>`}</${Disclosure}></h3>`;
 }
 
 function Column(props: { column: (typeof COLUMNS)[number]; view: ColumnsView }) {
@@ -81,7 +82,7 @@ function Someday(props: { view: ColumnsView }) {
   const { view } = props;
   const { layout, somedayOpen } = view;
   return html`<div class="ou-board-someday" data-someday>
-    <h3 class="ou-board-lane-label"><button type="button" class="ou-board-lane-toggle" data-someday-toggle aria-expanded=${String(somedayOpen)} onClick=${view.onToggleSomeday} title="Cards kept for maybe someday, out of the main Backlog"><span aria-hidden="true">${somedayOpen ? '▾' : '▸'}</span> Someday <span class="ou-board-lane-count">${layout.somedayCount}</span></button></h3>
+    <h3 class="ou-board-lane-label"><${Disclosure} open=${somedayOpen} class="ou-board-lane-toggle" attrs=${{ 'data-someday-toggle': true }} onToggle=${view.onToggleSomeday} title="Cards kept for maybe someday, out of the main Backlog"> Someday <span class="ou-board-lane-count">${layout.somedayCount}</span></${Disclosure}></h3>
     ${somedayOpen && layout.someday.map((group) => html`<div class="ou-board-lane" key=${group.name}><h3 class="ou-board-lane-label">${group.name}</h3><ul class="ou-board-cards">${group.cards.map((card) => view.renderCard(card))}</ul></div>`)}
   </div>`;
 }

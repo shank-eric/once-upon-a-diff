@@ -13,6 +13,8 @@
  */
 import { html } from '/assets/preact.mjs';
 import { plural } from '@once-upon-a-diff/domain/text';
+import { Disclosure } from '@once-upon-a-diff/ui-kit/components/disclosure';
+import { createDrag } from '@once-upon-a-diff/ui-kit/drag';
 import type { PanelContext } from '../host/context.ts';
 import { dockHeightWithin } from '../shell/layout.ts';
 
@@ -102,31 +104,26 @@ export function createChatDock(context: PanelContext) {
     }
   }
 
-  // resize by dragging the top edge
-  function startDrag(event: PointerEvent) {
-    const dock = $('.ou-chat');
-    if (!state.chatOpen || !dock) {
-      return;
-    }
-    event.preventDefault();
-    const grip = event.currentTarget as HTMLElement;
-    grip.setPointerCapture(event.pointerId);
-    dock.classList.add('ou-chat-dragging');
-    const bottom = dock.getBoundingClientRect().bottom;
-    const onPointerMove = (moveEvent: PointerEvent) => {
-      state.chatHeight = showHeight(bottom - moveEvent.clientY);
-    };
-    const onPointerUp = () => {
+  // resize by dragging the top edge: a closed dock does not drag
+  let bottom = 0;
+  const drag = createDrag({
+    onStart: () => {
+      const dock = $('.ou-chat');
+      if (!state.chatOpen || !dock) {
+        return false;
+      }
+      dock.classList.add('ou-chat-dragging');
+      bottom = dock.getBoundingClientRect().bottom;
+    },
+    onMove: (event) => {
+      state.chatHeight = showHeight(bottom - event.clientY);
+    },
+    onEnd: () => {
       context.saveState();
       opts.onLayout?.({ chatHeight: state.chatHeight });
-      dock.classList.remove('ou-chat-dragging');
-      grip.removeEventListener('pointermove', onPointerMove);
-      grip.removeEventListener('pointerup', onPointerUp);
-    };
-    grip.addEventListener('pointermove', onPointerMove);
-    grip.addEventListener('pointerup', onPointerUp);
-  }
-
+      $('.ou-chat')?.classList.remove('ou-chat-dragging');
+    },
+  });
   const onResize = () => {
     if (state.chatOpen) {
       showHeight(state.chatHeight);
@@ -143,10 +140,10 @@ export function createChatDock(context: PanelContext) {
     const open = state.chatOpen;
     const line = countLine();
     return html`<section class=${open ? 'ou-chat ou-open' : 'ou-chat'} aria-label="Questions for Claude" hidden=${!opts.ask && !opts.loadQuestions}>
-      <div class="ou-chatgrip" title="Drag to resize" onPointerDown=${startDrag}></div>
-      <button type="button" class="ou-chathead" aria-expanded=${String(open)} title="Open or close the questions" onClick=${toggle}>
-        <span class="ou-chatarrow" aria-hidden="true">${open ? '▾' : '▸'}</span><span class="ou-chatlabel">Ask Claude</span><span class=${counts.unread > 0 ? 'ou-chatcount ou-unread' : 'ou-chatcount'}>${line || null}</span>
-      </button>
+      <div class="ou-chatgrip" title="Drag to resize" ...${drag.handlers}></div>
+      <${Disclosure} open=${open} class="ou-chathead" arrowClass="ou-chatarrow" title="Open or close the questions" onToggle=${toggle}>
+        <span class="ou-chatlabel">Ask Claude</span><span class=${counts.unread > 0 ? 'ou-chatcount ou-unread' : 'ou-chatcount'}>${line || null}</span>
+      </${Disclosure}>
       <div class="ou-chatbody"><div class="ou-questions">${context.questions ? context.questions.view() : null}</div></div>
       <div class="ou-chatfoot">
         ${context.statusLight ? context.statusLight.hintView() : null}

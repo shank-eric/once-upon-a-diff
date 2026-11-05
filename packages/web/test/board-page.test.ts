@@ -1424,6 +1424,39 @@ test('a click on a card’s body brings its session forward and says Switching�
   await pollNow();
 });
 
+test('the Blank chip’s menu sends every pick, even while an earlier focus request is still out', async () => {
+  requests.length = 0;
+  answer = () => ({
+    ...board(),
+    blank: [
+      {
+        key: 'widgets',
+        name: 'widgets',
+        sessions: [
+          { id: 'blank-1', title: 'First', can_focus: true, since: null },
+          { id: 'blank-2', title: 'Second', can_focus: true, since: null },
+        ],
+      },
+    ],
+  });
+  await pollNow();
+  let release = () => {};
+  held.set('/api/board/focus', new Promise<void>((resolve) => (release = resolve)));
+  await click($('[data-blank-group="widgets"]'));
+  await click(document.querySelectorAll('.ou-menu-item')[0] as HTMLElement);
+  await click($('[data-blank-group="widgets"]'));
+  await click(document.querySelectorAll('.ou-menu-item')[1] as HTMLElement);
+  assert.deepEqual(
+    sentTo('/api/board/focus').map((one) => one.body),
+    [{ session: 'blank-1' }, { session: 'blank-2' }],
+  );
+  release();
+  await idle();
+  held.clear();
+  answer = () => board();
+  await pollNow();
+});
+
 test('Build story and Start and Stop listening ask first, then type into the session or stop the listener', async () => {
   requests.length = 0;
   answer = () =>

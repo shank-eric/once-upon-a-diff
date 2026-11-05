@@ -19,16 +19,16 @@ const COMPONENTS = path.join(CONTENT, 'components');
 /** file (under content/components): [how many hand writes, why]. A count can only fall. */
 const ALLOWED: Record<string, [number, string]> = {
   'tag-host.ts': [
-    6,
-    'the tag’s host span on GitHub’s page: its attribute, shadow root and stylesheet, and the click listener on the shadow root',
+    3,
+    'the tag’s host span on GitHub’s page: its attribute, and the click listener on the shadow root (the shadow root and its stylesheet are ui-kit’s mountShadow)',
   ],
   'listen-notice.ts': [
-    9,
-    'the notice’s host div, its shadow root and stylesheet, the box Preact draws into, and the hide click and key isolation on it',
+    4,
+    'the notice’s host div and the hide click on the box Preact draws into (the shadow root, stylesheet, box and key isolation are ui-kit’s mountShadow)',
   ],
   'toast.ts': [
-    8,
-    'the toast’s host div on GitHub’s page, its shadow root, stylesheet and message, and its removal',
+    3,
+    'the toast’s host div on GitHub’s page, its message text, and its removal (the shadow root and stylesheet are ui-kit’s mountShadow)',
   ],
 };
 

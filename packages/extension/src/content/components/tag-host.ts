@@ -5,7 +5,7 @@
  * Conversation tab.
  */
 import { html, render } from '/assets/preact.mjs';
-import { hideUntilStyled, stopKeyEvents, stylesheetLink } from '@once-upon-a-diff/ui-kit/dom';
+import { mountShadow } from '@once-upon-a-diff/ui-kit/dom';
 import type { AnswersBadge, Tag } from '../tag-model.ts';
 import { TagView } from './story-tag.ts';
 
@@ -19,14 +19,14 @@ export function createTagHost(
 ): HTMLSpanElement {
   const host = document.createElement('span');
   host.setAttribute(attribute, key);
-  const shadow = host.attachShadow({ mode: 'open' });
-  const link = stylesheetLink(TAG_CSS_URL);
-  const slot = document.createElement('span');
-  slot.className = 'slot';
-  shadow.append(link, slot);
-  hideUntilStyled(host, [link]);
+  const { shadow } = mountShadow({
+    host,
+    stylesheets: [TAG_CSS_URL],
+    tag: 'span',
+    className: 'slot',
+    isolateKeys: 'shadow',
+  });
   shadow.addEventListener('click', onClick);
-  stopKeyEvents(shadow);
   return host;
 }
 

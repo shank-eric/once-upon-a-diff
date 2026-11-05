@@ -6,6 +6,7 @@
  */
 import { Fragment, html, render } from '/assets/preact.mjs';
 import { hideUntilStyled, stopKeyEvents, stylesheetLink } from '@once-upon-a-diff/ui-kit/dom';
+import { createDrag } from '@once-upon-a-diff/ui-kit/drag';
 import { createView } from '../state/store.ts';
 import type { PanelContext } from '../host/context.ts';
 
@@ -39,6 +40,17 @@ export function createShell(context: PanelContext) {
   let messageTimer: ReturnType<typeof setTimeout> | 0 = 0;
   let mounted = true;
 
+  // resize by dragging the left edge
+  const drag = createDrag({
+    onStart: () => root.classList.add('ou-dragging'),
+    onMove: (event) => setWidth(window.innerWidth - event.clientX),
+    onEnd: () => {
+      context.saveState();
+      opts.onLayout?.({ width: state.width });
+      root.classList.remove('ou-dragging');
+    },
+  });
+
   /** The toolbar, the note under it, the body, and the questions dock: all of the panel, drawn from the parts' data. */
   function frame() {
     const chapter = context.chapter();
@@ -46,7 +58,7 @@ export function createShell(context: PanelContext) {
     const lastStep = context.steps().length;
     const withBody = !!context.body?.ready();
     return html`<${Fragment}>
-      <div class="ou-grip" title="Drag to resize"></div>
+      <div class="ou-grip" title="Drag to resize" ...${drag.handlers}></div>
       <div class="ou-bar">
         ${context.statusLight ? context.statusLight.lightView() : null}
         <button class="ou-toggle" title="Collapse or expand the story panel" onClick=${toggleCollapsed}>${state.collapsed ? 'Show story' : 'Hide story'}</button>
@@ -121,24 +133,6 @@ export function createShell(context: PanelContext) {
     }
   }
 
-  // resize by dragging the left edge
-  $('.ou-grip')!.addEventListener('pointerdown', (event) => {
-    event.preventDefault();
-    const grip = event.currentTarget as HTMLElement;
-    grip.setPointerCapture(event.pointerId);
-    root.classList.add('ou-dragging');
-    const onPointerMove = (moveEvent: PointerEvent) =>
-      setWidth(window.innerWidth - moveEvent.clientX);
-    const onPointerUp = () => {
-      context.saveState();
-      opts.onLayout?.({ width: state.width });
-      root.classList.remove('ou-dragging');
-      grip.removeEventListener('pointermove', onPointerMove);
-      grip.removeEventListener('pointerup', onPointerUp);
-    };
-    grip.addEventListener('pointermove', onPointerMove);
-    grip.addEventListener('pointerup', onPointerUp);
-  });
   const onResize = () => setWidth(state.width);
   window.addEventListener('resize', onResize);
 

@@ -11,7 +11,10 @@
  */
 import { html, render, useEffect, useLayoutEffect, useRef, useState } from '/assets/preact.mjs';
 import { remember, stored } from '/assets/local/stored.ts';
-import { Meter } from '/assets/ui-kit/components/meter.ts';
+import { ActionButton } from '/assets/ui-kit/components/action-button.ts';
+import { ResizeGrip } from '/assets/ui-kit/components/resize-grip.ts';
+import { ContextMeter } from '/assets/ui-kit/components/meter.ts';
+import { createDrag } from '/assets/ui-kit/drag.ts';
 import type { BoardVoice, BoardVoiceLine } from '/assets/types.ts';
 import { repoName } from '/assets/domain/text.ts';
 
@@ -90,14 +93,11 @@ export function VoicePanel(props: VoicePanelProps) {
       return Number.isFinite(saved) ? saved : null;
     }),
   );
-  const [busy, setBusy] = useState(false);
-  const [switching, setSwitching] = useState(false);
   const panel = useRef<HTMLElement | null>(null);
   const grip = useRef<HTMLElement | null>(null);
   const lines = useRef<HTMLElement | null>(null);
   /** The conversation was at its bottom when last looked at, so a new line scrolls into view. */
   const stick = useRef(true);
-  const dragging = useRef(false);
   const widthNow = useRef(width);
 
   const collapsed = !!voice && isCollapsed(voice);
@@ -151,11 +151,17 @@ export function VoicePanel(props: VoicePanelProps) {
       remember(WIDTH_KEY, String(widthNow.current));
     }
   };
+  // one drag for the life of the panel; its end saves the width (what it calls is a setter and a ref, so the first render's closures stay right)
+  const drag = useRef<ReturnType<typeof createDrag> | null>(null);
+  drag.current ??= createDrag({
+    primary: true,
+    onMove: (event) => resize(clampWidth(window.innerWidth - event.clientX, window.innerWidth)),
+    onEnd: () => saveWidth(),
+  });
   // the grip is gone (voice paused, ended or off) mid-drag, so no pointerup will come: end the drag here
   useLayoutEffect(() => {
-    if (!shown && dragging.current) {
-      dragging.current = false;
-      saveWidth();
+    if (!shown) {
+      drag.current?.end();
     }
   }, [shown]);
 
@@ -171,26 +177,14 @@ export function VoicePanel(props: VoicePanelProps) {
       remember(OPEN_KEY, String(!open));
     }
   };
+  // the Pause button is busy until this is done, so a second click does not start another
   const pause = async (paused: boolean) => {
-    setBusy(true);
     try {
       await askPause(paused);
     } catch (err) {
       alert(`Couldn't ${paused ? 'pause' : 'resume'} voice: ${(err as Error).message}`);
     }
-    try {
-      await onChanged();
-    } finally {
-      setBusy(false);
-    }
-  };
-  const focusTab = async () => {
-    setSwitching(true);
-    try {
-      await onFocus(voice.session);
-    } finally {
-      setSwitching(false);
-    }
+    await onChanged();
   };
 
   const status = STATUS[voice.status];
@@ -217,7 +211,7 @@ export function VoicePanel(props: VoicePanelProps) {
       return null;
     }
     const paused = voice.status === 'paused';
-    return html`<button type="button" class="ou-board-voice-pause" disabled=${busy} onClick=${() => pause(!paused)} title=${paused ? resumeTitle : pauseTitle}>${paused ? 'Resume' : 'Pause'}</button>`;
+    return html`<${ActionButton} class="ou-board-voice-pause" onClick=${() => pause(!paused)} title=${paused ? resumeTitle : pauseTitle}>${paused ? 'Resume' : 'Pause'}</${ActionButton}>`;
   })();
 
   const gripKeys = (event: KeyboardEvent) => {
@@ -233,33 +227,6 @@ export function VoicePanel(props: VoicePanelProps) {
     );
     saveWidth();
   };
-  // pointer capture keeps a drag going when the pointer leaves the thin handle
-  const gripDown = (event: PointerEvent) => {
-    if (event.button !== 0) {
-      return;
-    }
-    event.preventDefault();
-    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
-    dragging.current = true;
-  };
-  const gripUp = () => {
-    if (dragging.current) {
-      dragging.current = false;
-      saveWidth();
-    }
-  };
-  const gripMove = (event: PointerEvent) => {
-    if (!dragging.current) {
-      return;
-    }
-    // the button came up where no pointerup reached us: the drag is over
-    if (event.buttons === 0) {
-      gripUp();
-      return;
-    }
-    resize(clampWidth(window.innerWidth - event.clientX, window.innerWidth));
-  };
-
   return html`<aside class=${`ou-board-voice ou-board-voice-${voice.status}${shown ? ' ou-board-voice-open' : ''}${collapsed ? ' ou-board-voice-collapsed' : ''}`} aria-label="Voice session">
     <button type="button" class="ou-board-voice-tab" onClick=${toggle} aria-expanded=${String(shown)} aria-controls="ou-board-voice-panel" title=${`${tabVerb} the voice session: ${voice.name}`}>
       <${MicIcon} /><span class="ou-board-voice-dot" aria-hidden="true"></span><span class="ou-board-voice-word">${status}</span>
@@ -267,15 +234,15 @@ export function VoicePanel(props: VoicePanelProps) {
     ${
       shown
         ? html`<div class="ou-board-voice-panel" id="ou-board-voice-panel" role="region" aria-label="Voice session panel" ref=${panel}>
-      <div class="ou-board-voice-grip" ref=${grip} role="separator" aria-orientation="vertical" aria-label="Resize the voice panel" aria-valuemin=${MIN_WIDTH} tabindex="0"
-        title="Drag to resize (or use the arrow keys)" onPointerDown=${gripDown} onPointerMove=${gripMove} onPointerUp=${gripUp} onPointerCancel=${gripUp} onLostPointerCapture=${gripUp} onKeyDown=${gripKeys}></div>
+      <${ResizeGrip} class="ou-board-voice-grip" gripRef=${grip} orientation="vertical" label="Resize the voice panel" min=${MIN_WIDTH}
+        title="Drag to resize (or use the arrow keys)" drag=${drag.current} onKeyDown=${gripKeys} />
       <div class="ou-board-voice-head">
         <strong class="ou-board-voice-name" title=${voice.title}>${voice.name}</strong>
         <button type="button" class="ou-board-voice-close" onClick=${toggle} aria-label="Close the voice panel" title="Close">✕</button>
       </div>
       ${where ? html`<div class="ou-local-muted">${where}</div>` : null}
       <div class="ou-board-voice-facts">
-        <span class="ou-board-voice-status"><span class="ou-board-voice-dot" aria-hidden="true"></span>${status}</span>${typeof voice.context === 'number' ? html` <${Meter} label="ctx" percent=${voice.context} title=${`The session's context window is ${Math.round(voice.context)}% full`} />` : null}${pauseButton}
+        <span class="ou-board-voice-status"><span class="ou-board-voice-dot" aria-hidden="true"></span>${status}</span><${ContextMeter} context=${voice.context} />${pauseButton}
       </div>
       <div class="ou-local-muted">${agents ? `agents: ${agents}` : 'no agents running'}</div>
       ${
@@ -288,7 +255,7 @@ export function VoicePanel(props: VoicePanelProps) {
             }}>${voice.lines.map((line, index) => html`<li key=${keys[index]} class=${`ou-board-voice-${line.who}`}><span class="ou-local-muted">${line.who === 'you' ? 'You' : 'Voice'}</span> ${line.text}</li>`)}</ol>`
           : html`<p class="ou-local-muted ou-board-voice-none">Nothing said yet.</p>`
       }
-      <button type="button" class="ou-board-focus" disabled=${!voice.can_focus || switching} onClick=${focusTab} title=${focusTitle}>${switching ? 'Switching…' : 'Open in iTerm'}</button>
+      <${ActionButton} class="ou-board-focus" disabled=${!voice.can_focus} busyLabel="Switching…" onClick=${() => onFocus(voice.session)} title=${focusTitle}>Open in iTerm</${ActionButton}>
     </div>`
         : null
     }

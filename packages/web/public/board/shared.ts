@@ -9,6 +9,7 @@ import type { Client } from '/assets/bridge-client/client.ts';
 import { ROUTES } from '/assets/contracts/routes.ts';
 import { remember, stored } from '/assets/local/stored.ts';
 import { compactAge } from '/assets/domain/time.ts';
+import { ActionButton, useBusy } from '/assets/ui-kit/components/action-button.ts';
 import { Chips } from '/assets/ui-kit/components/chip.ts';
 import { cleanupConfirm, worktreeChips } from '/assets/board/worktree-text.ts';
 import type { BoardCard, BoardData, BoardWorktree } from '/assets/types.ts';
@@ -69,13 +70,9 @@ export async function focusSession(bridge: Client, session: string) {
 
 /** `focus` brings a session's tab forward, and `switching` says so meanwhile (a button reads "Switching…"). */
 export function useFocus(bridge: Client) {
-  const [switching, setSwitching] = useState(false);
-  const focus = async (session: string) => {
-    setSwitching(true);
-    await focusSession(bridge, session);
-    setSwitching(false);
-  };
-  return { switching, focus };
+  const { busy, run } = useBusy();
+  const focus = (session: string) => run('focus', () => focusSession(bridge, session));
+  return { switching: busy !== null, focus };
 }
 
 /** A button that brings a session's iTerm tab forward, and says "Switching…" while the bridge does it. */
@@ -86,8 +83,8 @@ export function FocusButton(props: {
   title: string;
   children?: unknown;
 }) {
-  const { switching, focus } = useFocus(props.bridge);
-  return html`<button type="button" class=${props.class} data-focus=${props.session} disabled=${switching} onClick=${() => focus(props.session)} title=${props.title}>${switching ? 'Switching…' : props.children}</button>`;
+  const { bridge, session } = props;
+  return html`<${ActionButton} class=${props.class} attrs=${{ 'data-focus': session }} title=${props.title} busyLabel="Switching…" onClick=${() => focusSession(bridge, session)}>${props.children}</${ActionButton}>`;
 }
 
 /** A session's name as a link that brings its iTerm tab forward when the tab is known, else plain text. */
@@ -107,12 +104,10 @@ export function SessionLink(props: {
 /** Clean up: asks first (what goes and what stays), then has the bridge remove the worktree; the bridge looks again itself. */
 function CleanUp(props: { tree: BoardWorktree; api: Api }) {
   const { tree, api } = props;
-  const [busy, setBusy] = useState(false);
   const run = async () => {
     if (!window.confirm(cleanupConfirm(tree))) {
       return;
     }
-    setBusy(true);
     document.body.style.cursor = 'progress';
     try {
       const done = await api.bridge.ask(ROUTES.boardWorktreeClean, {
@@ -137,10 +132,9 @@ function CleanUp(props: { tree: BoardWorktree; api: Api }) {
     } finally {
       document.body.style.cursor = '';
       await api.refresh();
-      setBusy(false);
     }
   };
-  return html`<button type="button" data-worktree-clean=${tree.path} disabled=${busy} onClick=${run} title=${tree.deletes_branch ? 'Removes the folder and deletes the merged branch' : 'Removes the folder and keeps the branch'}>${busy ? 'Removing…' : 'Clean up'}</button>`;
+  return html`<${ActionButton} attrs=${{ 'data-worktree-clean': tree.path }} busyLabel="Removing…" onClick=${run} title=${tree.deletes_branch ? 'Removes the folder and deletes the merged branch' : 'Removes the folder and keeps the branch'}>Clean up</${ActionButton}>`;
 }
 
 /** One worktree: its name, where, the chips, why it is kept, and Clean up when the bridge offers it. */

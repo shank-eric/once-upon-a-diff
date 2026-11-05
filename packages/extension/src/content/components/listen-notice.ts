@@ -11,7 +11,7 @@
  */
 import { Fragment, html, render, useLayoutEffect, useRef } from '/assets/preact.mjs';
 import { wireStartListening, type ListenPort } from '@once-upon-a-diff/ui-kit/listen';
-import { hideUntilStyled, stopKeyEvents, stylesheetLink } from '@once-upon-a-diff/ui-kit/dom';
+import { mountShadow } from '@once-upon-a-diff/ui-kit/dom';
 import { bridge } from '../bridge.ts';
 import { createListenOption } from '../listen.ts';
 import { noticeRowTitle } from '../tag-model.ts';
@@ -100,21 +100,21 @@ export function listenNotice({ onStarted }: { onStarted?: () => void } = {}) {
     if (!host || !document.body.contains(host)) {
       host = document.createElement('div');
       host.id = HOST_ID;
-      const shadow = host.attachShadow({ mode: 'open' });
-      const link = stylesheetLink(NOTICE_CSS_URL);
-      root = document.createElement('div');
-      root.className = 'n';
-      root.setAttribute('role', 'status');
-      shadow.append(link, root);
-      hideUntilStyled(host, [link]);
-      root.addEventListener('click', (event) => {
+      const mounted = mountShadow({
+        host,
+        stylesheets: [NOTICE_CSS_URL],
+        className: 'n',
+        role: 'status',
+        isolateKeys: 'root',
+        into: document.body,
+      });
+      root = mounted.root as HTMLDivElement;
+      mounted.root.addEventListener('click', (event) => {
         if ((event.target as Element).closest('button.x')) {
           dismissed = true;
           remove();
         }
       });
-      stopKeyEvents(root);
-      document.body.appendChild(host);
     }
     // drawn again on every call, and only what changed is touched, so a row's note stays put
     render(

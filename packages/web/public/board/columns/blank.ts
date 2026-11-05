@@ -3,12 +3,11 @@ import { html } from '/assets/preact.mjs';
 import { openMenu } from '/assets/ui-kit/menu.ts';
 import type { BoardBlankSession, BoardData } from '/assets/types.ts';
 import { compactAge } from '/assets/domain/time.ts';
-import { FocusButton, useFocus, type Api } from '/assets/board/shared.ts';
+import { FocusButton, focusSession, type Api } from '/assets/board/shared.ts';
 
 /** One place's chip in the Blank strip: a session's tab to the front, or for several in one place a menu of them. */
 function BlankChip(props: { group: { name: string; sessions: BoardBlankSession[] }; api: Api }) {
   const { group, api } = props;
-  const { focus } = useFocus(api.bridge);
   const tabs = group.sessions.filter((session) => session.can_focus);
   const many = group.sessions.length > 1;
   const label = many ? `${group.name} ×${group.sessions.length}` : group.name;
@@ -26,7 +25,7 @@ function BlankChip(props: { group: { name: string; sessions: BoardBlankSession[]
         label: one.title,
         detail: `blank${one.since ? ` ${compactAge(one.since, Date.now())}` : ''} · ${group.name}`,
       })),
-      (id) => void focus(id),
+      (id) => void focusSession(api.bridge, id),
       { label: `Blank sessions in ${group.name}` },
     );
   return html`<button type="button" class="ou-ui-chip ou-board-blank-chip" data-blank-group=${group.name} aria-haspopup="menu" aria-expanded="false" onClick=${choose} title=${`Choose a blank session in ${group.name}`}>${label}</button>`;

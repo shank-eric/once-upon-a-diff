@@ -17,13 +17,13 @@ const SRC = path.join(path.dirname(fileURLToPath(import.meta.url)), '../src');
 /** file (under src): [how many hand writes, why]. A count can only fall. */
 const ALLOWED: Record<string, [number, string]> = {
   'shell/shell.ts': [
-    24,
-    'the frame: the host element and its stylesheets, the width grip’s drag, the root’s classes and key listener, docking the page',
+    21,
+    'the frame: the host element and its stylesheets, the width grip’s drag (its classes; the pointer work is ui-kit’s createDrag), the root’s classes and key listener, docking the page',
   ],
   'shell/overlay.ts': [1, 'the window’s focus'],
   'ask/chat-dock.ts': [
-    6,
-    'the dock’s height drag (a CSS property and a class written at each pointer move, so it is not a redraw) and the window’s resize',
+    4,
+    'the dock’s height drag (a CSS property and a class written at each pointer move, so it is not a redraw; the pointer work is ui-kit’s createDrag) and the window’s resize',
   ],
   'ask/questions.ts': [
     3,

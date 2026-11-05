@@ -26,9 +26,9 @@
 .ou-ui-meter.ou-ui-usage-warn { color: var(--fgColor-attention); }
 .ou-ui-meter.ou-ui-usage-warn .ou-ui-meter-bar span { background: var(--fgColor-attention); }
 .ou-ui-meter.ou-ui-usage-warn .ou-ui-meter-num { color: var(--fgColor-attention); }
-.ou-ui-meter.ou-ui-usage-high { color: var(--ou-local-del-fg); }
-.ou-ui-meter.ou-ui-usage-high .ou-ui-meter-bar span { background: var(--ou-local-del-fg); }
-.ou-ui-meter.ou-ui-usage-high .ou-ui-meter-num { color: var(--ou-local-del-fg); font-weight: 600; }
+.ou-ui-meter.ou-ui-usage-high { color: var(--fgColor-danger, var(--ou-local-del-fg, #cf222e)); }
+.ou-ui-meter.ou-ui-usage-high .ou-ui-meter-bar span { background: var(--fgColor-danger, var(--ou-local-del-fg, #cf222e)); }
+.ou-ui-meter.ou-ui-usage-high .ou-ui-meter-num { color: var(--fgColor-danger, var(--ou-local-del-fg, #cf222e)); font-weight: 600; }
 
 /* Busy: a spinner and a line of text (ui-kit/src/components/busy.ts) */
 .ou-ui-busy { display: inline-flex; align-items: center; gap: 6px; color: var(--fgColor-default, #1f2328); }

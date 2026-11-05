@@ -24,6 +24,7 @@
  * included, as before: a file's pill goes on its first mention in a step), and the Ask box by askView().
  */
 import { Fragment, html } from '/assets/preact.mjs';
+import { Disclosure } from '@once-upon-a-diff/ui-kit/components/disclosure';
 import { LinkButton } from '@once-upon-a-diff/ui-kit/components/link-button';
 import { baseName, plural } from '@once-upon-a-diff/domain/text';
 import { clockTime, shortDateTime } from '@once-upon-a-diff/domain/time';
@@ -262,9 +263,9 @@ export function createQuestions(context: PanelContext) {
   function rowView(row: Row) {
     const { question } = row;
     const id = question.id;
-    const toggle = row.collapsed
-      ? html`<button type="button" class="ou-qtoggle" data-qa-act="expand" aria-expanded="false" title="Show the answer" onClick=${() => act('expand', id)}>▸</button>`
-      : html`<button type="button" class="ou-qtoggle" data-qa-act="collapse" aria-expanded="true" title="Collapse to the question" onClick=${() => act('collapse', id)}>▾</button>`;
+    const verb = row.collapsed ? 'expand' : 'collapse';
+    const toggle = html`<${Disclosure} bare open=${!row.collapsed} class="ou-qtoggle" attrs=${{ 'data-qa-act': verb }}
+      title=${row.collapsed ? 'Show the answer' : 'Collapse to the question'} onToggle=${() => act(verb, id)} />`;
     const hide = question.dismissed
       ? html`<${LinkButton} type="button" data-qa-act="restore" title="Bring this question back" onClick=${() => act('restore', id)}>Restore</${LinkButton}>`
       : html`<${LinkButton} type="button" data-qa-act="dismiss" title="Hide this question and its answer. Show dismissed brings it back." onClick=${() => act('dismiss', id)}>Dismiss</${LinkButton}>`;

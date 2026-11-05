@@ -39,6 +39,38 @@ export function hideUntilStyled(element: HTMLElement, links: HTMLLinkElement[]):
   Promise.race([Promise.all(loads), waited]).then(() => element.style.removeProperty('visibility'));
 }
 
+/**
+ * Our own element in a shadow root of its own, on a page we do not control (GitHub's): the host's open shadow root gets a link for
+ * each stylesheet and then the root element the caller draws into, and the host stays hidden until the stylesheets are in. The host is
+ * made by the caller (a div with an id, a span with an attribute). `isolateKeys` keeps key events inside the root element or the
+ * shadow root; `into` puts the host on the page now (without it the caller places it).
+ */
+export function mountShadow(options: {
+  host: HTMLElement;
+  stylesheets: string[];
+  className: string;
+  tag?: string;
+  role?: string;
+  isolateKeys?: 'root' | 'shadow';
+  into?: Element;
+}): { host: HTMLElement; shadow: ShadowRoot; root: HTMLElement; links: HTMLLinkElement[] } {
+  const { host, stylesheets, className, tag = 'div', role, isolateKeys, into } = options;
+  const shadow = host.attachShadow({ mode: 'open' });
+  const links = stylesheets.map(stylesheetLink);
+  const root = document.createElement(tag);
+  root.className = className;
+  if (role) {
+    root.setAttribute('role', role);
+  }
+  shadow.append(...links, root);
+  hideUntilStyled(host, links);
+  if (isolateKeys) {
+    stopKeyEvents(isolateKeys === 'root' ? root : shadow);
+  }
+  into?.appendChild(host);
+  return { host, shadow, root, links };
+}
+
 /** Puts markup in element in place of its children: html`` markup as is, anything else (a plain string) as text. */
 export function setHtml(element: Element, markup: HtmlValue): void {
   element.innerHTML = html`${markup}`.markup;
