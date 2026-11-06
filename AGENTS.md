@@ -8,6 +8,7 @@ Standing rules for any agent working in Once Upon a Diff. A brief only needs to 
 - One commit per branch. Squash your own work before handing back.
 - Worktrees go in `../once-upon-a-diff-worktrees/<name>`, next to the main checkout, never inside it.
 - Never delete branches or worktrees.
+- An agent's notes file goes next to its worktree as `<branch>.notes.md`. Scratch text (a card note drafted before `backlog add`, logs) goes in the agent's scratchpad, never loose in the worktrees folder.
 
 ## Backlog cards
 
