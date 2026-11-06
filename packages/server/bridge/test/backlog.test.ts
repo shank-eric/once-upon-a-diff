@@ -1060,12 +1060,12 @@ test('an open item that landed with no start is Done for an hour', () => {
   );
 });
 
-test('finished, unmerged branch work is Ready, or Ready to ship for once-upon-a-diff and Larmor', () => {
+test('finished, unmerged branch work is Ready (once-upon-a-diff through its story), or Ready to ship for Larmor', () => {
   const store = new BacklogStore(tmp('backlog-ready-ship'));
   const ended = new Date(NOW - 60 * 1000).toISOString();
   for (const [repo, column] of [
     ['acme/widgets', 'ready'],
-    ['shank-eric/once-upon-a-diff', 'ship'],
+    ['shank-eric/once-upon-a-diff', 'ready'],
     ['naveenvasou/larmor', 'ship'],
   ] as const) {
     const item = store.add({ title: `Work in ${repo}`, repo });

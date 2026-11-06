@@ -17,6 +17,7 @@ import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import { STALE_MS } from '@once-upon-a-diff/state/records/agents/events';
 import {
   gateOf,
+  isStoryteller,
   lastActivity,
   type LedgerAgent,
 } from '@once-upon-a-diff/state/records/agents/ledger';
@@ -70,6 +71,7 @@ export function agentOf(
   const open = agent.state === 'running' || agent.state === 'plan' || agent.state === 'fixing';
   // its last sign of life is its latest event, a beat included
   const began = lastActivity(agent);
+  const stale = open && !!began && now - began.getTime() > STALE_MS;
   return {
     key: agentKey(agent),
     sid: agent.sid,
@@ -84,9 +86,10 @@ export function agentOf(
     started_at: agent.started?.toISOString() ?? null,
     ended_at: agent.ended?.toISOString() ?? null,
     outcome: agent.outcome,
-    stale: open && !!began && now - began.getTime() > STALE_MS,
+    stale,
     beat: agent.beat ?? null,
-    gate: gateOf(agent),
+    // a storyteller that went quiet for STALE_MS is dead and holds nothing (the sweep never closes it)
+    gate: stale && isStoryteller(agent) ? null : gateOf(agent),
     notes: agent.notes ?? null,
     clears_at: clearsAt?.toISOString() ?? null,
     summary: null,

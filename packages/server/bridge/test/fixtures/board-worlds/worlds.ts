@@ -228,7 +228,7 @@ function registry(
 interface Run {
   sid: string;
   name: string;
-  kind?: 'author' | 'critic' | 'helper' | 'research';
+  kind?: 'author' | 'critic' | 'helper' | 'research' | 'storyteller';
   model?: string;
   effort?: string;
   lane?: string;
@@ -1244,6 +1244,8 @@ async function record(
         'ou-built',
       ),
       ...card('bl_ccccc04', 'Old author, new critic', ONCE, 'mixed-rows', 'ou-old'),
+      ...card('bl_ccccc05', 'Larmor skips review', 'acme/larmor', 'larmor-built', 'lm-built'),
+      ...card('bl_ccccc06', 'Story being told', ONCE, 'story-told', 'ou-story'),
     ]
       .map((event) => JSON.stringify(event))
       .join('\n') + '\n',
@@ -1299,6 +1301,38 @@ async function record(
     kind: 'critic',
     task: 'review',
     card: 'bl_ccccc04',
+    at: et(13, 41),
+  });
+  // 5: a Larmor card whose critic passed is Ready to ship: Larmor skips review
+  author('lm-built', 'bl_ccccc05', et(13, 5));
+  runs.finish('lm-built', { sid: sid8, result: { branch: 'larmor-built' }, at: et(13, 40) });
+  runs.start({
+    sid: sid8,
+    name: 'review-lm',
+    kind: 'critic',
+    task: 'review',
+    card: 'bl_ccccc05',
+    at: et(13, 41),
+  });
+  runs.finish('review-lm', { sid: sid8, findings: 0, at: et(13, 50) });
+  // 6: once-upon-a-diff is reviewed through its story: the critic passed, and the storyteller still writing holds it in Agent checks
+  author('ou-story', 'bl_ccccc06', et(13, 5));
+  runs.finish('ou-story', { sid: sid8, result: { branch: 'story-told' }, at: et(13, 40) });
+  runs.start({
+    sid: sid8,
+    name: 'review-story',
+    kind: 'critic',
+    task: 'review',
+    card: 'bl_ccccc06',
+    at: et(13, 41),
+  });
+  runs.finish('review-story', { sid: sid8, findings: 0, at: et(13, 50) });
+  runs.start({
+    sid: sid8,
+    name: 'tell-story',
+    kind: 'storyteller',
+    task: 'tell the story',
+    card: 'bl_ccccc06',
     at: et(13, 41),
   });
   const { watcher } = fakeWatcher([], {});
@@ -1431,7 +1465,7 @@ async function record(
   const start = (
     name: string,
     card: string,
-    kind: 'author' | 'critic' | 'helper' | 'research',
+    kind: 'author' | 'critic' | 'helper' | 'research' | 'storyteller',
     at: Date,
     extra = {},
   ) => runs.start({ sid: sid8, name, kind, task: `${name}'s task`, card, at, ...extra });

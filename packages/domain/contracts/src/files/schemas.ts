@@ -68,11 +68,15 @@ const reader =
 
 // ---- agents.jsonl: the registry's events (state/src/records/agents) ----
 
-/**
- * What an agent is. `editor` is not an agent but a session that runs a repo's build queue (`/once-upon-editor`): it
- * registers itself so the board can show it with the authors it controls (the ones launched under its session id).
- */
-export const AGENT_KINDS = ['author', 'critic', 'helper', 'research', 'editor'] as const;
+/** What an agent is. `storyteller` writes a card's local story (old rows say `helper`). `editor` is a session, not an agent. */
+export const AGENT_KINDS = [
+  'author',
+  'critic',
+  'helper',
+  'research',
+  'storyteller',
+  'editor',
+] as const;
 export type AgentKind = (typeof AGENT_KINDS)[number];
 /** Old names for a kind, still read from old agents.jsonl lines and still accepted by `agent start --kind`. */
 export const KIND_ALIASES = { builder: 'author', reviewer: 'critic' } as const;

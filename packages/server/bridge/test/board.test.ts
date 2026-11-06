@@ -5731,6 +5731,77 @@ test('a started backlog item rides on a live session’s card on its new branch,
   assert.equal(seen.session.column, 'working', 'its column is the session’s own');
 });
 
+test('a card whose branch has a local story: an open storyteller holds it in Agent checks, then the story is Ready for your review, approved is Ready to ship, a new head is Ready again, and a silent storyteller holds nothing', async () => {
+  for (const name of ['once-upon-a-diff', 'widgets']) {
+    const home = tmp('board-storyteller');
+    const checkout = checkoutOf(name, 'feat/told');
+    const store = new BacklogStore(home);
+    const item = store.add({ title: 'Told', repo: `acme/${name}` });
+    store.start(item.id, { branch: 'feat/told' });
+    const registered = new AgentRegistry(home);
+    const later = (minutes: number) => new Date(NOW.getTime() + minutes * 60000);
+    registered.start({
+      name: 'tell-x',
+      sid: 'abcdef01',
+      kind: 'storyteller',
+      card: item.id,
+      task: 't',
+      at: later(-30),
+    });
+    builtLocal(home, 'local-told', checkout, 'feat/told', later(-20).toISOString(), {
+      head_oid: 'a'.repeat(40),
+    });
+    const stories = new StoryStore({ home });
+    const columnAt = async (minutes: number) => {
+      const cards = (
+        await new Board(home, stories, noPrWatcher, new Builds(home), {
+          source: registrySource,
+          now: () => later(minutes),
+        }).snapshot()
+      ).lanes.flatMap((lane) => lane.cards);
+      const mine = cards.filter((card) => card.story?.id === 'local-told');
+      assert.equal(mine.length, 1, name);
+      assert.deepEqual(
+        mine[0].from_backlog?.map((one) => one.id),
+        [item.id],
+      );
+      return mine[0].column;
+    };
+    // open and alive: the story is being told
+    assert.equal(await columnAt(0), 'checks', name);
+    // silent for over 24 hours: a dead storyteller holds nothing
+    assert.equal(await columnAt(24 * 60), 'ready', `${name}: dead`);
+    // finished: the story is up and not approved
+    registered.finish('tell-x', { sid: 'abcdef01', state: 'done', at: later(-5) });
+    assert.equal(await columnAt(0), 'ready', name);
+    // approved for the head
+    writeJson(path.join(home, 'state', 'local-told', 'approved.json'), {
+      at: later(-1).toISOString(),
+      head_oid: 'a'.repeat(40),
+      base_oid: null,
+      marked: true,
+    });
+    writeJson(path.join(home, 'state', 'local-told', 'reviewed.json'), {
+      at: later(-1).toISOString(),
+      by: 'approved',
+    });
+    assert.equal(await columnAt(0), 'ship', name);
+    // a new commit moves the head: back in Ready for your review
+    writeJson(path.join(home, 'local-told', 'meta.json'), {
+      kind: 'local',
+      repo_path: checkout,
+      repo_name: name,
+      base: 'origin/main',
+      head: 'HEAD',
+      branch: 'feat/told',
+      title: 'Local local-told',
+      built_at: later(-20).toISOString(),
+      head_oid: 'b'.repeat(40),
+    });
+    assert.equal(await columnAt(0), 'ready', name);
+  }
+});
+
 /** A local story whose checkout is a real repo (an origin of acme/<name>), told at `builtAt`, with the given heads. */
 function builtLocal(
   home: string,

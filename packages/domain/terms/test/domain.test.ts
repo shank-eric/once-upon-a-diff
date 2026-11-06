@@ -136,6 +136,10 @@ test('what an agent at a gate is doing', () => {
     gateText({ name: 'review-x', gate: { kind: 'review', findings: null } }),
     'agent review · review-x',
   );
+  assert.equal(
+    gateText({ name: 'tell-x', gate: { kind: 'story', findings: null } }),
+    'writing story · tell-x',
+  );
 });
 
 test('lane keys: a short label unless two lanes share it, and a tag resolves only when one repo has that name', () => {

@@ -3,7 +3,8 @@
  *
  *   waiting   a session or agent on it is blocked on a question (an agent parked on your story review is not: see ready), or
  *             an agent on it failed (after merged: a failure on a merged card is not news)
- *   checks    an agent on it is at an automated gate (a plan to check, a critic running, findings being fixed): the
+ *   checks    an agent on it is at an automated gate (a plan to check, a critic running, a storyteller writing the story,
+ *             findings being fixed): the
  *             launching session is the next actor, not you. Above working, because the session is busy exactly while it
  *             checks the plan or fixes the findings, and a running critic is a running agent
  *   working   a session or agent on it is busy, or a session is building, rebuilding or fixing its story
@@ -38,6 +39,8 @@ import type {
 export interface ColumnInput {
   sessions: Pick<BoardSession, 'status'>[];
   agents: (Pick<BoardAgent, 'status' | 'state'> & {
+    kind?: BoardAgent['kind'];
+    stale?: boolean;
     gate?: BoardAgent['gate'];
     review?: boolean;
   })[];
@@ -92,7 +95,10 @@ export function columnOf(input: ColumnInput): BoardColumn {
   if (
     building ||
     sessions.some((session) => session.status === 'working') ||
-    agents.some((agent) => agent.state === 'running')
+    // a storyteller silent for STALE_MS is dead: it is not working, and holds no gate (stages/agents.ts)
+    agents.some(
+      (agent) => agent.state === 'running' && !(agent.kind === 'storyteller' && agent.stale),
+    )
   ) {
     return 'working';
   }

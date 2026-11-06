@@ -24,7 +24,7 @@ import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
 
 const USAGE =
-  'usage: once-upon agent start NAME [--kind author|critic|helper|research | --role author|fixer|critic|storyteller|helper|research] [--standing] --task TEXT|--task-file PATH [--sid SID8] [--model M] [--effort E]\n' +
+  'usage: once-upon agent start NAME [--kind author|critic|helper|research|storyteller | --role author|fixer|critic|storyteller|helper|research] [--standing] --task TEXT|--task-file PATH [--sid SID8] [--model M] [--effort E]\n' +
   '                             [--repo owner/name] [--branch NAME] [--pr N (its head branch, read through gh)] [--cwd DIR] [--card ID | --new-card] [--lane NAME] [--notes PATH]\n' +
   '       once-upon agent state NAME --state running|waiting|review|plan|fixing [--outcome TEXT|--outcome-file PATH] [--findings N] [--notes PATH] [--sid SID8] [--run ID]\n' +
   '       once-upon agent beat NAME N/M STEP [NOTE...] [--sid SID8] [--no-mirror]\n' +
@@ -38,7 +38,7 @@ const ROLE_KIND: Record<string, string> = {
   author: 'author',
   fixer: 'author',
   critic: 'critic',
-  storyteller: 'helper',
+  storyteller: 'storyteller',
   helper: 'helper',
   research: 'research',
 };
@@ -267,15 +267,15 @@ export const agentCommands: Command[] = [
     name: 'agent',
     subs: ['start', 'state', 'beat', 'finish', 'sweep', 'list'],
     usage: [
-      '  once-upon agent start NAME --kind author|critic|helper|research --task TEXT   register an agent the board shows (its sid comes from the session; prints its id and run)',
-      "                                                                                   --card ID: the card it works on, whose repo and branch it takes (a critic or fixer needs one, a storyteller one or --pr N / --branch NAME; --role says which); --repo, --branch, --lane and --pr then say nothing the card does not, except --pr on a card with no branch: its head becomes the card's branch",
+      '  once-upon agent start NAME --kind author|critic|helper|research|storyteller --task TEXT   register an agent the board shows (its sid comes from the session; prints its id and run)',
+      "                                                                                   --card ID: the card it works on, whose repo and branch it takes (a critic, fixer or storyteller needs one; --role says which); --repo, --branch, --lane and --pr then say nothing the card does not, except --pr on a card with no branch: its head becomes the card's branch",
       '                                                                                   no --card: the run is its own card (an implicit card, in the registry only: its id is printed after the run id, for a critic of the work to pass as --card); a restart of the same name stays on it, --new-card starts another',
       '                                                                                   --standing: a long-lived helper (the backlog clerk), in the Helpers row, never a card; put it before another flag. A restart of the same name may leave out --kind and --standing: they carry over (--standing false clears it)',
       '  once-upon agent state NAME --state running|waiting|review|plan|fixing            move it: a plan to check, a question, parked on a story review, fixing findings',
       '  once-upon agent beat NAME N/M STEP [NOTE...]                                     a progress beat, and a sign of life',
       '  once-upon agent finish NAME [--state done|failed|stopped] [--outcome TEXT]       it is over: --commit, --pr, --branch and --card say what it made',
       '  once-upon agent sweep [--dry-run]                                                stop runs silent for 24 hours that owe beats (running or fixing); agent start does it as it writes',
-      '                                                                                   only authors and critics; never one parked on a question, plan or review, nor a helper of any kind or an editor',
+      '                                                                                   only authors and critics; never one parked on a question, plan or review, nor a helper of any kind, a storyteller or an editor',
       '  once-upon agent list [--all] [--json]                                            the registered agents (open ones, or all)',
     ],
     run: agent,

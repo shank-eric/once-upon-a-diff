@@ -94,6 +94,7 @@ test('agent sweep leaves every helper (standing or not) and an editor registered
   // the live editor skill registers the editor as a helper, and an editor never beats
   registry.start({ name: 'editor-abcdef01', sid: SID, kind: 'helper', task: 'q', at: ago(90) });
   registry.start({ name: 'a-scout', sid: SID, kind: 'research', task: 'x', at: ago(25) });
+  registry.start({ name: 'tell-quiet', sid: SID, kind: 'storyteller', task: 'x', at: ago(25) });
   registry.start({ name: 'ou-dead', sid: SID, kind: 'author', task: 'x', at: ago(25) });
   registry.start({ name: 'review-dead', sid: SID, kind: 'critic', task: 'x', at: ago(25) });
   const swept = await runCli(home, ['agent', 'sweep']);
@@ -104,6 +105,7 @@ test('agent sweep leaves every helper (standing or not) and an editor registered
       ['a-lookup', 'running'],
       ['editor-abcdef01', 'running'],
       ['a-scout', 'running'],
+      ['tell-quiet', 'running'],
       ['ou-dead', 'stopped'],
       ['review-dead', 'stopped'],
     ],

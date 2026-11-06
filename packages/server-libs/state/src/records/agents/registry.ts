@@ -114,7 +114,8 @@ export interface FinishInput extends Target {
 const SWEPT_STATES: LedgerAgent['state'][] = ['running', 'fixing'];
 /**
  * The kinds a sweep closes: work and check runs (an author's, a critic's), which beat. A helper of any kind is never swept: it
- * idles between requests, a storyteller registers as one, and the live editor skill still registers the editor as one.
+ * idles between requests, and the live editor skill still registers the editor as one. A storyteller is not swept either: the board
+ * drops its gate when it has been silent for STALE_MS (board/stages/agents.ts).
  */
 const SWEPT_KINDS: (LedgerAgent['kind'] & string)[] = ['author', 'critic'];
 
@@ -246,7 +247,7 @@ export class AgentRegistry {
    * Closes the runs that have gone quiet: open and `running` or `fixing` (they owe beats), with no event for STALE_MS, each by a
    * `finish --state stopped --by sweep` so the ledger's last line for it closes. Never a run parked on a person (waiting, review
    * or plan: a weekend over a question is not a dead run, and finishing it would refuse its own finish when it resumes), a
-   * helper of any kind, a researcher or an editor (an editor beats nothing while its authors work). Only authors and critics are
+   * helper of any kind, a storyteller, a researcher or an editor (an editor beats nothing while its authors work). Only authors and critics are
    * closed (SWEPT_KINDS). Returns the runs it
    * closed (or, with `dryRun`, would). Only the CLI calls it, on `agent start` and `agent sweep`: a board read never writes.
    */
@@ -348,7 +349,7 @@ export class AgentRegistry {
       !!this.cards &&
       !cardId &&
       !standing &&
-      !['critic', 'editor'].includes(kind) &&
+      !['critic', 'storyteller', 'editor'].includes(kind) &&
       !['critic', 'fixer', 'storyteller'].includes(input.role ?? '');
     if (mints && input.role === 'author' && !branch) {
       throw new Error(
@@ -361,6 +362,12 @@ export class AgentRegistry {
     if (this.cards && kind === 'critic' && !cardId) {
       throw new Error(
         'a critic reviews a card: pass --card ID (once-upon backlog list shows the ids). Without it the board cannot tie the review to its work',
+      );
+    }
+    // a storyteller with no card is let through when it has a branch to read (--pr N or --branch NAME): its story is the work card
+    if (this.cards && kind === 'storyteller' && !cardId && !branch) {
+      throw new Error(
+        'a storyteller tells a card’s story: pass --card ID (once-upon backlog list shows the ids), --pr N or --branch NAME. Without one the board cannot tie the story to its work',
       );
     }
     if (this.cards && cardId && !mints) {
@@ -413,7 +420,10 @@ export class AgentRegistry {
       pr = null;
       lane = null;
       // a critic or a storyteller has to have work to read: a card with no branch has none
-      if ((kind === 'critic' || input.role === 'storyteller') && !branch) {
+      if (
+        (kind === 'critic' || kind === 'storyteller' || input.role === 'storyteller') &&
+        !branch
+      ) {
         throw new Error(
           `no branch on ${cardId}: backlog branch ${cardId} <branch>, or agent start ${name} --card ${cardId} --pr N`,
         );

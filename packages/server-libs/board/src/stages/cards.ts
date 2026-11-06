@@ -303,7 +303,11 @@ function placeCard(card: BoardCard, byStory: Map<string, StoryFacts>): void {
       const gated = card.agents.filter((agent) => agent.gate);
       card.detail = gated.map(gateText).join(', ');
       card.since = earliest(
-        gated.map((agent) => (agent.gate?.kind === 'review' ? agent.started_at : agent.ended_at)),
+        gated.map((agent) =>
+          agent.gate?.kind === 'review' || agent.gate?.kind === 'story'
+            ? agent.started_at
+            : agent.ended_at,
+        ),
       );
       break;
     }

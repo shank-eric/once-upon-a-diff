@@ -51,7 +51,7 @@ import {
 } from '@once-upon-a-diff/adapters/stores/backlog-file';
 import path from 'node:path';
 import { OPEN, liveClaim, sameAgentView } from './claims.ts';
-import { DONE_HOURS, SKIPS_REVIEW, workAgent, type CardPhase } from './phase.ts';
+import { CRITIC_HOLD, DONE_HOURS, SKIPS_REVIEW, workAgent, type CardPhase } from './phase.ts';
 import { REPO_RE, sameRepo } from '@once-upon-a-diff/foundation/repos';
 import { newId } from '@once-upon-a-diff/foundation/ids';
 import { clean, optional } from '@once-upon-a-diff/foundation/input';
@@ -600,9 +600,9 @@ function endedColumn(
  *
  *   open agent         a question is Waiting, for you; a plan stop (the editor's plan check) is Agent checks;
  *                      otherwise Working, a fix round included (in progress until it lands)
- *   done, a branch     the work is not merged: Ready for review, or Ready to ship for once-upon-a-diff and Larmor, which
- *                      only once a critic has passed it with no fix round open (`hold`, claims.ts's criticHold: until then
- *                      it stays in Agent checks or Working, also with no critic yet)
+ *   done, a branch     the work is not merged: Ready for review (the story's review, for once-upon-a-diff), or Ready to ship for
+ *                      Larmor, which skips review, only once a critic has passed it with no fix round open (`hold`, claims.ts's
+ *                      criticHold). Once-upon-a-diff and Larmor stay in Agent checks or Working until then, also with no critic yet
  *   done, card only    Done for DONE_HOURS after it ended, then off the board (it stays done, never back in Backlog)
  *   failed or stopped  back in Backlog, marked tried by the agent
  *
@@ -630,8 +630,9 @@ function agentColumn(
     return { column: 'backlog', when, tried: true };
   }
   if (item.state === 'started' && item.branch) {
-    if (SKIPS_REVIEW.test(repoName(item.repo))) {
-      return { column: hold ?? 'ship', when, tried: false };
+    if (CRITIC_HOLD.test(repoName(item.repo))) {
+      const done = SKIPS_REVIEW.test(repoName(item.repo)) ? 'ship' : 'ready';
+      return { column: hold ?? done, when, tried: false };
     }
     return { column: 'ready', when, tried: false };
   }
@@ -680,7 +681,7 @@ export function cardOnBranch(
  *
  * A claimed card is one card: its claimed agent has no card of its own (stages/agents.ts holds it out) and shows on this
  * one, in `agents` (`views`, by item id). A claim whose agent has no registered event yet is Working, marked pending, for
- * CLAIM_GRACE_HOURS. Dropped items are not shown. `holds` (by item id) keeps a finished card out of Ready to ship while its
+ * CLAIM_GRACE_HOURS. Dropped items are not shown. `holds` (by item id) keeps a finished card of a critic-hold repo out of Ready for review or ship while its
  * critic runs or its fixes are pending (criticHold).
  */
 export function backlogCards(

@@ -6,7 +6,7 @@
 /** What gateText reads of a board agent (a BoardAgent fits): its name and the gate it is at, if any. */
 interface GatedAgent {
   name: string;
-  gate: { kind: 'plan' | 'review' | 'fixing'; findings: number | null } | null;
+  gate: { kind: 'plan' | 'review' | 'story' | 'fixing'; findings: number | null } | null;
 }
 
 /** The 7-character short form of a commit SHA ('' for none). */
@@ -29,7 +29,7 @@ export function plural(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`;
 }
 
-/** What an agent at a gate is doing, in a few words: "plan check", "fixing 5 findings", "agent review · review-x". */
+/** What an agent at a gate is doing, in a few words: "plan check", "fixing 5 findings", "agent review · review-x", "writing story · tell-x". */
 export function gateText(agent: GatedAgent): string {
   const gate = agent.gate;
   if (gate?.kind === 'plan') {
@@ -37,6 +37,9 @@ export function gateText(agent: GatedAgent): string {
   }
   if (gate?.kind === 'fixing') {
     return gate.findings === null ? 'fixing' : `fixing ${plural(gate.findings, 'finding')}`;
+  }
+  if (gate?.kind === 'story') {
+    return `writing story · ${agent.name}`;
   }
   return `agent review · ${agent.name}`;
 }

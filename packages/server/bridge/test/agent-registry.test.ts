@@ -1087,10 +1087,50 @@ test('author and critic are the kinds; builder and reviewer are accepted as alia
   assert.notEqual(bad.code, 0);
   assert.match(
     bad.stderr,
-    /author, critic, helper, research, editor \(builder and reviewer still work\)/,
+    /author, critic, helper, research, storyteller, editor \(builder and reviewer still work\)/,
   );
   // an author holds a build slot-style gate, a critic running is at the review gate, whichever name it came by
   assert.equal(registry.agents().filter((one) => one.kind === 'author').length, 2);
+});
+
+test('a storyteller is its own kind: it holds the story gate while running, and a helper, author or finished storyteller holds none', () => {
+  assert.deepEqual(gateOf({ state: 'running', kind: 'storyteller' }), {
+    kind: 'story',
+    findings: null,
+  });
+  assert.equal(gateOf({ state: 'running', kind: 'helper' }), null);
+  assert.equal(gateOf({ state: 'running', kind: 'author' }), null);
+  assert.equal(gateOf({ state: 'waiting', kind: 'storyteller' }), null);
+  assert.equal(gateOf({ state: 'done', kind: 'storyteller' }), null);
+});
+
+test('agent start --kind storyteller and --role storyteller both store kind storyteller; a storyteller with no card is refused like a critic', async () => {
+  const home = tmp('reg-storyteller');
+  const env = { CLAUDE_CODE_SESSION_ID: `${SID}-0000-4000-8000-000000000000` };
+  const card = new BacklogStore(home).add({ title: 'x', branch: 'x-branch' }).id;
+  for (const [name, flag] of [
+    ['tell-a', '--kind'],
+    ['tell-b', '--role'],
+  ]) {
+    const done = await runCli(
+      home,
+      ['agent', 'start', name, flag, 'storyteller', '--card', card, '--task', 'story'],
+      env,
+    );
+    assert.equal(done.code, 0, done.stderr);
+  }
+  assert.deepEqual(
+    new AgentRegistry(home).agents().map((one) => one.kind),
+    ['storyteller', 'storyteller'],
+  );
+  const bare = await runCli(
+    home,
+    ['agent', 'start', 'tell-c', '--kind', 'storyteller', '--task', 'story'],
+    env,
+  );
+  assert.notEqual(bare.code, 0);
+  assert.match(bare.stderr, /--card/);
+  assert.equal(new AgentRegistry(home).agents().length, 2, 'no implicit card minted');
 });
 
 test('old agents.jsonl lines with kind builder or reviewer read as author and critic; the file is not rewritten', () => {

@@ -137,6 +137,23 @@ test('a critic or storyteller on a card with no branch is refused, whether the c
   );
   assert.notEqual(story.code, 0);
   assert.match(story.stderr, /no branch/);
+  // the kind alone (no --role) is checked the same way: no card is refused, and a card with no branch has nothing to tell
+  const bareKind = await agent(home, 'start', 'tell-y', '--kind', 'storyteller', '--task', 'story');
+  assert.notEqual(bareKind.code, 0);
+  assert.match(bareKind.stderr, /--card/);
+  const kindNoBranch = await agent(
+    home,
+    'start',
+    'tell-z',
+    '--kind',
+    'storyteller',
+    '--card',
+    helper.card,
+    '--task',
+    'story',
+  );
+  assert.notEqual(kindNoBranch.code, 0);
+  assert.match(kindNoBranch.stderr, /no branch/);
   const card = new BacklogStore(home).add({ title: 'Open card', repo: 'acme/widgets' });
   const open = await agent(
     home,

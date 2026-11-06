@@ -16,7 +16,7 @@ import type { BoardCard } from '@once-upon-a-diff/contracts/types';
 // The 11/5 misses, as the rows the store held: one piece of work is one card, whatever its runs typed for repo, and a
 // fix round is the card's run, not a card of its own. The old-form rows (a run's `card` in agents.jsonl) must read as the
 // card's runs, so these fixtures are the proof that nothing needs rewriting.
-const REPO = 'shank-eric/once-upon-a-diff';
+const REPO = 'shank-eric/larmor';
 const SID = 'eeea873a';
 const START_MS = Date.parse('2026-11-06T00:38:00Z');
 const stamp = (minutes: number) => new Date(START_MS + minutes * 60000);
@@ -114,7 +114,7 @@ test('B. a critic that typed the wrong repo is on its card, not a card of its ow
     name: 'review-cli',
     sid: SID,
     card: item.id,
-    repo: 'esshank/once-upon-a-diff',
+    repo: 'esshank/larmor',
     kind: 'critic',
     task: 'review',
     at: stamp(11),
@@ -288,6 +288,7 @@ test('G. cardPhase: every row of the table', () => {
   const run = (card: string, name: string, kind: 'author' | 'critic', startMin: number) =>
     registry.start({ name, sid: SID, card, kind, task: 't', at: stamp(startMin) });
   const ONCE = 'acme/once-upon-a-diff';
+  const LARMOR = 'acme/larmor';
   const OTHER = 'acme/widgets';
   // 1: a work run open
   assert.equal(phase(OTHER, (card) => run(card, unique(), 'author', 0))?.column, 'working');
@@ -340,7 +341,10 @@ test('G. cardPhase: every row of the table', () => {
       }
     });
   assert.equal(built(ONCE, false)?.column, 'checks');
-  assert.equal(built(ONCE, true)?.column, 'ship');
+  assert.equal(built(LARMOR, false)?.column, 'checks');
+  // a passing critic: Ready to ship only where review is skipped (Larmor); once-upon-a-diff waits for your review of its story
+  assert.equal(built(LARMOR, true)?.column, 'ship');
+  assert.equal(built(ONCE, true)?.column, 'ready');
   assert.equal(built(OTHER, false)?.column, 'ready');
   // a critic running holds a skip-review repo's card in Agent checks, and no other
   const reviewing = (repo: string) =>
@@ -351,7 +355,64 @@ test('G. cardPhase: every row of the table', () => {
       run(card, unique(), 'critic', 6);
     })?.column;
   assert.equal(reviewing(ONCE), 'checks');
+  assert.equal(reviewing(LARMOR), 'checks');
   assert.equal(reviewing(OTHER), 'ready');
+  // an open, alive storyteller holds a built card in Agent checks, in every repo
+  const telling = (
+    repo: string,
+    kind: 'storyteller' | 'helper',
+    end?: 'done' | 'waiting' | 'quiet',
+  ) =>
+    phase(repo, (card) => {
+      const author = unique();
+      run(card, author, 'author', 0);
+      registry.finish(author, { sid: SID, result: { branch: 'x' }, at: stamp(5) });
+      // the critic has passed, so only the storyteller can hold the card
+      const critic = unique();
+      run(card, critic, 'critic', 6);
+      registry.finish(critic, { sid: SID, findings: 0, at: stamp(8) });
+      const name = unique();
+      registry.start({
+        name,
+        sid: SID,
+        card,
+        kind,
+        task: 't',
+        at: stamp(end === 'quiet' ? -2000 : 7),
+      });
+      if (end === 'done') {
+        registry.finish(name, { sid: SID, state: 'done', at: stamp(9) });
+      }
+      if (end === 'waiting') {
+        registry.state(name, { sid: SID, state: 'waiting', at: stamp(9) });
+      }
+    })?.column;
+  for (const repo of [ONCE, OTHER, LARMOR]) {
+    assert.equal(telling(repo, 'storyteller'), 'checks', repo);
+  }
+  assert.equal(telling(ONCE, 'helper'), 'ready', 'a lookup helper holds nothing');
+  assert.equal(telling(ONCE, 'storyteller', 'done'), 'ready');
+  assert.equal(telling(OTHER, 'storyteller', 'done'), 'ready');
+  assert.equal(telling(LARMOR, 'storyteller', 'done'), 'ship');
+  assert.equal(telling(ONCE, 'storyteller', 'waiting'), 'ready', 'a question is not Agent checks');
+  assert.equal(telling(OTHER, 'storyteller', 'quiet'), 'ready', 'a dead storyteller holds nothing');
+  // a failed build goes back to Backlog even with a storyteller open
+  assert.equal(
+    phase(ONCE, (card) => {
+      const author = unique();
+      run(card, author, 'author', 0);
+      registry.finish(author, { sid: SID, state: 'failed', at: stamp(5) });
+      registry.start({
+        name: unique(),
+        sid: SID,
+        card,
+        kind: 'storyteller',
+        task: 't',
+        at: stamp(6),
+      });
+    })?.column,
+    'backlog',
+  );
   // an author at its fixing state is working; at its plan check it is Agent checks
   const gate = (state: 'fixing' | 'plan') =>
     phase(OTHER, (card) => {
@@ -376,7 +437,7 @@ test('H. the registry checks a run that names a card: unknown, dropped, a second
     /no backlog card/,
   );
   registry.start(
-    { ...base, name: 'a', card: item.id, repo: 'esshank/once-upon-a-diff', branch: 'typed' },
+    { ...base, name: 'a', card: item.id, repo: 'esshank/larmor', branch: 'typed' },
     (line) => warnings.push(line),
   );
   assert.equal(warnings.filter((line) => /ignored/.test(line)).length, 2);

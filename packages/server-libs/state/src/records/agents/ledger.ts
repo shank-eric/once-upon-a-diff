@@ -6,7 +6,7 @@
  *
  * States: running; waiting (finished, but its result needs a decision; `review` set when it is parked on your story
  * review instead of a question); plan and fixing (the launching session, not you, is the next actor: a plan to check,
- * a critic's findings being fixed); done, failed and stopped. A running critic (kind `critic`) is a gate too.
+ * a critic's findings being fixed); done, failed and stopped. A running critic (kind `critic`) or storyteller (kind `storyteller`) is a gate too.
  *
  * A finished agent with no card to sit in is a card of its own, in the column finishedColumn (board/agent-home.ts) picks
  * from its fields, for board_finished_wait_minutes (30; an author in Waiting stays board_done_hours, 1 hour) after its
@@ -60,7 +60,7 @@ export interface LedgerAgent {
   lastEvent?: Date | null;
 }
 
-/** The gate an agent is at, or null: its plan to check, findings being fixed, or a critic running. The one place for the rule. */
+/** The gate an agent is at, or null: its plan to check, findings being fixed, or a critic or a storyteller running. The one place for the rule. */
 export function gateOf(
   agent: Pick<LedgerAgent, 'state'> & Partial<Pick<LedgerAgent, 'kind' | 'findings'>>,
 ): BoardGate | null {
@@ -70,12 +70,21 @@ export function gateOf(
   if (agent.state === 'fixing') {
     return { kind: 'fixing', findings: agent.findings ?? null };
   }
-  return agent.state === 'running' && isCritic(agent) ? { kind: 'review', findings: null } : null;
+  if (agent.state === 'running' && isCritic(agent)) {
+    return { kind: 'review', findings: null };
+  }
+  return agent.state === 'running' && isStoryteller(agent)
+    ? { kind: 'story', findings: null }
+    : null;
 }
 
 /** A critic: its registered kind says so. */
 export const isCritic = (agent: Partial<Pick<LedgerAgent, 'kind'>>): boolean =>
   agent.kind === 'critic';
+
+/** A storyteller: its registered kind says so. */
+export const isStoryteller = (agent: Partial<Pick<LedgerAgent, 'kind'>>): boolean =>
+  agent.kind === 'storyteller';
 
 /** When an agent last did anything: its latest event, a beat included, else its end or start. Null when it has none. */
 export function lastActivity(

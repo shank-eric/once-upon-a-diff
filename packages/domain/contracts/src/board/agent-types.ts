@@ -21,7 +21,7 @@ export interface BoardAgent {
   key: string;
   name: string;
   /** what the agent says it is, when it registered through `once-upon agent start` (null for an old event whose kind is unknown) */
-  kind: 'author' | 'critic' | 'helper' | 'research' | 'editor' | null;
+  kind: 'author' | 'critic' | 'helper' | 'research' | 'storyteller' | 'editor' | null;
   /** the editor that launched and controls it (an author launched under a live editor's session), else null */
   editor: BoardAgentEditor | null;
   /** its registered state */
@@ -86,10 +86,10 @@ export interface BoardEditor extends BoardAgentEditor {
 
 /**
  * A gate between "an agent is building" and "ready for your review": a build agent stopped at its plan (`plan`), a
- * critic agent running (`review`, a running agent of kind `critic`), or the findings being fixed (`fixing`, with the
- * count its state event gives).
+ * critic agent running (`review`, a running agent of kind `critic`), a storyteller writing the story (`story`, a running
+ * agent of kind `storyteller`), or the findings being fixed (`fixing`, with the count its state event gives).
  */
 export interface BoardGate {
-  kind: 'plan' | 'review' | 'fixing';
+  kind: 'plan' | 'review' | 'story' | 'fixing';
   findings: number | null;
 }

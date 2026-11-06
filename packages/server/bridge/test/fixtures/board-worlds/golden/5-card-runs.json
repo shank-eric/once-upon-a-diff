@@ -13,6 +13,108 @@
                 "beat": null,
                 "clears_at": null,
                 "editor": null,
+                "ended_at": "2026-10-26T17:40:00.000Z",
+                "gate": null,
+                "key": "cccccccc:lm-built",
+                "kind": "author",
+                "model": null,
+                "name": "lm-built",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "cccccccc",
+                "stale": false,
+                "started_at": "2026-10-26T17:05:00.000Z",
+                "state": "done",
+                "status": "done",
+                "summary": null,
+                "task": "build lm-built"
+              },
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": "2026-10-26T17:50:00.000Z",
+                "gate": null,
+                "key": "cccccccc:review-lm",
+                "kind": "critic",
+                "model": null,
+                "name": "review-lm",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "cccccccc",
+                "stale": false,
+                "started_at": "2026-10-26T17:41:00.000Z",
+                "state": "done",
+                "status": "done",
+                "summary": null,
+                "task": "review"
+              }
+            ],
+            "backlog": {
+              "added_by": "cli",
+              "agent": null,
+              "assign": null,
+              "assigned": null,
+              "claim": {
+                "agent": "lm-built",
+                "at": "2026-10-26T17:02:00.000Z",
+                "pending": false
+              },
+              "id": "bl_ccccc05",
+              "start_line": "once-upon backlog start bl_ccccc05 --branch larmor-built",
+              "started": {
+                "at": "2026-10-26T17:01:00.000Z",
+                "branch": "larmor-built",
+                "links": {
+                  "active": true,
+                  "agent": {
+                    "beat": null,
+                    "ended_at": "2026-10-26T17:40:00.000Z",
+                    "name": "lm-built",
+                    "outcome": null,
+                    "state": "done"
+                  },
+                  "merged": false,
+                  "merged_at": null,
+                  "sessions": [],
+                  "worktrees": []
+                },
+                "on": null
+              }
+            },
+            "branch": "larmor-built",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "ship",
+            "detail": null,
+            "focus_session": null,
+            "id": "backlog:bl_ccccc05",
+            "kind": "backlog",
+            "lane": "acme/larmor",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/larmor",
+            "sessions": [],
+            "since": "2026-10-26T17:40:00.000Z",
+            "story": null,
+            "title": "Larmor skips review"
+          }
+        ],
+        "key": "acme/larmor",
+        "name": "larmor"
+      },
+      {
+        "cards": [
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
                 "ended_at": "2026-10-26T17:56:00.000Z",
                 "gate": {
                   "findings": 2,
@@ -187,7 +289,7 @@
             "build": null,
             "building": null,
             "can_focus": false,
-            "column": "ship",
+            "column": "ready",
             "detail": null,
             "focus_session": null,
             "id": "backlog:bl_ccccc02",
@@ -300,6 +402,126 @@
             "since": "2026-10-26T17:01:00.000Z",
             "story": null,
             "title": "Old author, new critic"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": "2026-10-26T17:40:00.000Z",
+                "gate": null,
+                "key": "cccccccc:ou-story",
+                "kind": "author",
+                "model": null,
+                "name": "ou-story",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "cccccccc",
+                "stale": false,
+                "started_at": "2026-10-26T17:05:00.000Z",
+                "state": "done",
+                "status": "done",
+                "summary": null,
+                "task": "build ou-story"
+              },
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": "2026-10-26T17:50:00.000Z",
+                "gate": null,
+                "key": "cccccccc:review-story",
+                "kind": "critic",
+                "model": null,
+                "name": "review-story",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "cccccccc",
+                "stale": false,
+                "started_at": "2026-10-26T17:41:00.000Z",
+                "state": "done",
+                "status": "done",
+                "summary": null,
+                "task": "review"
+              },
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": null,
+                "gate": {
+                  "findings": null,
+                  "kind": "story"
+                },
+                "key": "cccccccc:tell-story",
+                "kind": "storyteller",
+                "model": null,
+                "name": "tell-story",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "cccccccc",
+                "stale": false,
+                "started_at": "2026-10-26T17:41:00.000Z",
+                "state": "running",
+                "status": "working",
+                "summary": null,
+                "task": "tell the story"
+              }
+            ],
+            "backlog": {
+              "added_by": "cli",
+              "agent": null,
+              "assign": null,
+              "assigned": null,
+              "claim": {
+                "agent": "ou-story",
+                "at": "2026-10-26T17:02:00.000Z",
+                "pending": false
+              },
+              "id": "bl_ccccc06",
+              "start_line": "once-upon backlog start bl_ccccc06 --branch story-told",
+              "started": {
+                "at": "2026-10-26T17:01:00.000Z",
+                "branch": "story-told",
+                "links": {
+                  "active": true,
+                  "agent": {
+                    "beat": null,
+                    "ended_at": "2026-10-26T17:40:00.000Z",
+                    "name": "ou-story",
+                    "outcome": null,
+                    "state": "done"
+                  },
+                  "merged": false,
+                  "merged_at": null,
+                  "sessions": [],
+                  "worktrees": []
+                },
+                "on": null
+              }
+            },
+            "branch": "story-told",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "checks",
+            "detail": null,
+            "focus_session": null,
+            "id": "backlog:bl_ccccc06",
+            "kind": "backlog",
+            "lane": "acme/once-upon-a-diff",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/once-upon-a-diff",
+            "sessions": [],
+            "since": "2026-10-26T17:01:00.000Z",
+            "story": null,
+            "title": "Story being told"
           }
         ],
         "key": "acme/once-upon-a-diff",

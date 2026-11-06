@@ -243,49 +243,54 @@ test('`backlog claim` writes the claim, and --branch also starts the card', asyn
   assert.match(missing.stderr, /agent/);
 });
 
-test('a finished card in a skip-review repo is Ready to ship only once its critic has passed and no fix round is open', async () => {
-  const { home, cards, store } = world();
-  const registry = new AgentRegistry(home);
-  const repo = 'shank-eric/once-upon-a-diff';
-  const stamp = (minutes: number) => new Date(Date.parse('2026-11-03T15:00:00Z') + minutes * 60000);
-  const item = store.add({ title: 'Build it', repo });
-  store.start(item.id, { branch: 'build-it' });
-  claimAt(store, item.id, 'ou-build', stamp(0).toISOString(), 'aaaaaaaa');
-  const author = { name: 'ou-build', sid: 'aaaaaaaa', repo, branch: 'build-it' } as const;
-  const critic = { name: 'review-build-it', sid: 'aaaaaaaa', repo, branch: 'build-it' } as const;
-  const columnAt = async (minutes: number) =>
-    (await cards(stamp(minutes))).find((one) => one.backlog?.id === item.id)?.column;
+test('a finished card in a critic-hold repo is held in Agent checks until its critic has passed and no fix round is open, then Ready to ship (Larmor) or Ready for review (once-upon-a-diff)', async () => {
+  for (const [repo, done] of [
+    ['naveenvasou/larmor', 'ship'],
+    ['shank-eric/once-upon-a-diff', 'ready'],
+  ] as const) {
+    const { home, cards, store } = world();
+    const registry = new AgentRegistry(home);
+    const stamp = (minutes: number) =>
+      new Date(Date.parse('2026-11-03T15:00:00Z') + minutes * 60000);
+    const item = store.add({ title: 'Build it', repo });
+    store.start(item.id, { branch: 'build-it' });
+    claimAt(store, item.id, 'ou-build', stamp(0).toISOString(), 'aaaaaaaa');
+    const author = { name: 'ou-build', sid: 'aaaaaaaa', repo, branch: 'build-it' } as const;
+    const critic = { name: 'review-build-it', sid: 'aaaaaaaa', repo, branch: 'build-it' } as const;
+    const columnAt = async (minutes: number) =>
+      (await cards(stamp(minutes))).find((one) => one.backlog?.id === item.id)?.column;
 
-  registry.start({ ...author, kind: 'author', task: 'build it', at: stamp(0) });
-  assert.equal(await columnAt(5), 'working');
-  registry.finish('ou-build', { sid: 'aaaaaaaa', result: { branch: 'build-it' }, at: stamp(10) });
-  assert.equal(await columnAt(11), 'checks', 'built, and no critic has said anything yet');
+    registry.start({ ...author, kind: 'author', task: 'build it', at: stamp(0) });
+    assert.equal(await columnAt(5), 'working');
+    registry.finish('ou-build', { sid: 'aaaaaaaa', result: { branch: 'build-it' }, at: stamp(10) });
+    assert.equal(await columnAt(11), 'checks', 'built, and no critic has said anything yet');
 
-  registry.start({ ...critic, kind: 'critic', task: 'review it', at: stamp(11) });
-  assert.equal(await columnAt(12), 'checks', 'the critic is running');
+    registry.start({ ...critic, kind: 'critic', task: 'review it', at: stamp(11) });
+    assert.equal(await columnAt(12), 'checks', 'the critic is running');
 
-  registry.finish('review-build-it', { sid: 'aaaaaaaa', findings: 2, at: stamp(15) });
-  assert.equal(
-    await columnAt(16),
-    'checks',
-    'the critic found things and no fix round has finished',
-  );
+    registry.finish('review-build-it', { sid: 'aaaaaaaa', findings: 2, at: stamp(15) });
+    assert.equal(
+      await columnAt(16),
+      'checks',
+      'the critic found things and no fix round has finished',
+    );
 
-  registry.start({ ...author, kind: 'author', task: 'fix the findings', at: stamp(17) });
-  assert.equal(await columnAt(18), 'working', 'the fix round is running');
-  registry.state('ou-build', { sid: 'aaaaaaaa', state: 'fixing', findings: 2, at: stamp(19) });
-  assert.equal(await columnAt(20), 'checks', 'the author is fixing');
+    registry.start({ ...author, kind: 'author', task: 'fix the findings', at: stamp(17) });
+    assert.equal(await columnAt(18), 'working', 'the fix round is running');
+    registry.state('ou-build', { sid: 'aaaaaaaa', state: 'fixing', findings: 2, at: stamp(19) });
+    assert.equal(await columnAt(20), 'checks', 'the author is fixing');
 
-  registry.finish('ou-build', { sid: 'aaaaaaaa', result: { branch: 'build-it' }, at: stamp(25) });
-  assert.equal(await columnAt(26), 'ship', 'the author finished after the critic');
+    registry.finish('ou-build', { sid: 'aaaaaaaa', result: { branch: 'build-it' }, at: stamp(25) });
+    assert.equal(await columnAt(26), done, 'the author finished after the critic');
+  }
 });
 
-test('a critic that passed with no findings leaves a finished card in Ready to ship, and other repos are unaffected', async () => {
+test('a critic that passed with no findings leaves a finished Larmor card in Ready to ship, and once-upon-a-diff and other repos wait for your review', async () => {
   const { home, cards, store } = world();
   const registry = new AgentRegistry(home);
   const stamp = (minutes: number) => new Date(Date.parse('2026-11-03T15:00:00Z') + minutes * 60000);
   const columns: Record<string, string | undefined> = {};
-  for (const repo of ['shank-eric/once-upon-a-diff', 'acme/widgets']) {
+  for (const repo of ['naveenvasou/larmor', 'shank-eric/once-upon-a-diff', 'acme/widgets']) {
     const name = `ou-${repo.split('/')[1]}`;
     const item = store.add({ title: `Work in ${repo}`, repo });
     store.start(item.id, { branch: 'feat-x' });
@@ -312,7 +317,11 @@ test('a critic that passed with no findings leaves a finished card in Ready to s
     registry.finish(`review-${name}`, { sid: 'bbbbbbbb', findings: 0, at: stamp(15) });
     columns[repo] = (await cards(stamp(16))).find((one) => one.backlog?.id === item.id)?.column;
   }
-  assert.deepEqual(columns, { 'shank-eric/once-upon-a-diff': 'ship', 'acme/widgets': 'ready' });
+  assert.deepEqual(columns, {
+    'naveenvasou/larmor': 'ship',
+    'shank-eric/once-upon-a-diff': 'ready',
+    'acme/widgets': 'ready',
+  });
 });
 
 test('a built card stays in Agent checks with no critic, or when its latest critic failed or was stopped, and ships once one passes', () => {
@@ -351,7 +360,7 @@ test('a critic that died (open, no sign of life for STALE_MS) has not passed the
 function builtCard(name: string) {
   const registry = new AgentRegistry(tmp(name));
   const store = new BacklogStore(tmp(`${name}-backlog`));
-  const repo = 'shank-eric/once-upon-a-diff';
+  const repo = 'naveenvasou/larmor';
   const stamp = (minutes: number) => new Date(Date.parse('2026-11-03T15:00:00Z') + minutes * 60000);
   const added = store.add({ title: 'Build it', repo });
   const item = store.start(added.id, { branch: 'feat-x' });
@@ -436,7 +445,7 @@ test('a critic registered for another card does not hold this one, even on the s
 test('a claimed author at a plan stop is in Agent checks with a plan check label, one asking is in Waiting, and one fixing stays in Working', async () => {
   const { home, cards, store } = world();
   const registry = new AgentRegistry(home);
-  const repo = 'shank-eric/once-upon-a-diff';
+  const repo = 'naveenvasou/larmor';
   const stamp = (minutes: number) => new Date(Date.parse('2026-11-05T15:00:00Z') + minutes * 60000);
   const item = store.add({ title: 'Plan it', repo });
   store.start(item.id, { branch: 'plan-it' });

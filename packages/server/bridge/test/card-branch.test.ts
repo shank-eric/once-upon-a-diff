@@ -328,7 +328,10 @@ test('--pr with no card and no branch is stamped from gh for any run; a gh failu
   assert.equal(warned.code, 0, warned.stderr);
   assert.match(warned.stderr, /gh could not read #91/);
   // a storyteller has nothing to read without the branch: refused with the one-line hint
-  const refused = await runCli(home, args('story-b', '--role', 'storyteller'), noGh);
+  // (a storyteller is its own kind now, so it is started by --role alone)
+  const storyArgs = args('story-b', '--role', 'storyteller');
+  storyArgs.splice(storyArgs.indexOf('--kind'), 2);
+  const refused = await runCli(home, storyArgs, noGh);
   assert.notEqual(refused.code, 0);
   assert.match(refused.stderr, /gh could not read #91/);
   assert.match(refused.stderr, /--branch NAME/);

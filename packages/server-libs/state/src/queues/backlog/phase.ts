@@ -13,15 +13,18 @@ import type { BoardColumn } from '@once-upon-a-diff/contracts/types';
 import { isImplicitCard, sameRepo } from '@once-upon-a-diff/terms/ids';
 import { repoName } from '@once-upon-a-diff/terms/text';
 import { STALE_MS } from '../../records/agents/events.ts';
-import { isCritic, type LedgerAgent } from '../../records/agents/ledger.ts';
+import { isCritic, isStoryteller, type LedgerAgent } from '../../records/agents/ledger.ts';
 import { CLAIM_GRACE_HOURS, OPEN, agentKey, claimedAgent } from './claims.ts';
 import type { BacklogItem } from './types.ts';
 
 /** A started item whose work merged or landed, or whose agent finished, stays in Done this long. */
 export const DONE_HOURS = 1;
 
-/** The repos whose finished work skips review for now and is Ready to ship (once-upon-a-diff and Larmor). */
-export const SKIPS_REVIEW = /^(once-upon-a-diff|larmor)$/i;
+/** The repos whose finished work skips review for now and is Ready to ship (Larmor only: once-upon-a-diff is reviewed through its story). */
+export const SKIPS_REVIEW = /^larmor$/i;
+
+/** The repos where a critic's run or findings hold the card in Agent checks (once-upon-a-diff and Larmor). */
+export const CRITIC_HOLD = /^(once-upon-a-diff|larmor)$/i;
 
 /** A run that changes the card's phase: an author's or fixer's (kind author), or an old row with no kind. A researcher's, a helper's or a storyteller's does not: a lookup is not the work. */
 export const isWorkRun = (run: Pick<LedgerAgent, 'kind'>): boolean =>
@@ -88,13 +91,14 @@ const msOf = (date: Date | null | undefined): number | null => (date ? date.getT
  *
  *   1  a work run is open        waiting (a question) is Waiting; plan is Agent checks (the plan to check); running or fixing is
  *                                Working. A fix round is the card's run, so it is Working here whether or not it was told `fixing`
- *   2  a critic is open          skip-review repos only: Agent checks (an open critic with no sign of life for STALE_MS is dead and holds nothing)
+ *   2  a critic is open          critic-hold repos only (once-upon-a-diff and Larmor): Agent checks (an open critic with no sign of life for STALE_MS is dead and holds nothing)
  *   3  the latest work run       failed or stopped: back in Backlog, tried
- *   4  fixes are due             skip-review repos only: the latest critic finished with findings above 0, after the latest work run
+ *   3b a storyteller is open     running with a sign of life in STALE_MS: Agent checks, in every repo (a failed build is read first; a waiting one, with a question, holds nothing)
+ *   4  fixes are due             critic-hold repos only: the latest critic finished with findings above 0, after the latest work run
  *                                ended (and under STALE_MS ago: findings nobody fixed lapse): Agent checks until a fix run opens (row 1).
  *                                Elsewhere findings are the story's fix-before-push comments and hold nothing
- *   5  skip-review repo, no pass no critic yet, or the latest failed, was stopped or died: Agent checks
- *   6  built                     skip-review repo: Ready to ship. Other repos with a branch: Ready for your review
+ *   5  critic-hold repo, no pass no critic yet, or the latest failed, was stopped or died: Agent checks
+ *   6  built                     Larmor (skip-review): Ready to ship. Other repos with a branch: Ready for your review
  *   7  no branch                 Done for DONE_HOURS after the work ended, then null (off the board)
  *
  * A critic that finished done with no findings count (an old row) reads as a pass, as it always did; `agent finish` no
@@ -125,12 +129,15 @@ export function cardPhase(
       tried: false,
     };
   }
-  const skips = SKIPS_REVIEW.test(repoName(item.repo));
-  if (skips && critics.some(alive)) {
+  const holds = CRITIC_HOLD.test(repoName(item.repo));
+  if (holds && critics.some(alive)) {
     return { column: 'checks', when: null, tried: false };
   }
   if (latestWork && (latestWork.state === 'failed' || latestWork.state === 'stopped')) {
     return { column: 'backlog', when: msOf(latestWork.ended), tried: true };
+  }
+  if (runs.some((run) => isStoryteller(run) && run.state === 'running' && alive(run))) {
+    return { column: 'checks', when: null, tried: false };
   }
   const built = item.state === 'started' && !!item.branch;
   if (!latestWork && !built) {
@@ -142,7 +149,7 @@ export function cardPhase(
     (first, second) => settledAt(second) - settledAt(first),
   )[0];
   if (
-    skips &&
+    holds &&
     latestCritic?.state === 'done' &&
     (latestCritic.findings ?? 0) > 0 &&
     nowMs - (msOf(latestCritic.ended) ?? nowMs) <= STALE_MS &&
@@ -150,11 +157,15 @@ export function cardPhase(
   ) {
     return { column: 'checks', when: msOf(latestCritic.ended), tried: false };
   }
-  if (skips && (!latestCritic || latestCritic.state !== 'done')) {
+  if (holds && (!latestCritic || latestCritic.state !== 'done')) {
     return { column: 'checks', when, tried: false };
   }
   if (built) {
-    return { column: skips ? 'ship' : 'ready', when, tried: false };
+    return {
+      column: SKIPS_REVIEW.test(repoName(item.repo)) ? 'ship' : 'ready',
+      when,
+      tried: false,
+    };
   }
   return when !== null && nowMs - when > DONE_HOURS * 3600 * 1000
     ? null
