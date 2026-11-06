@@ -379,7 +379,7 @@ export class AgentRegistry {
         );
         if (other) {
           throw new Error(
-            `${cardId} already has an open author run (${agentId(other.sid, other.name)}): finish it first, or restart it under its own name for a fix round`,
+            `${cardId} already has an open author run (${agentId(other.sid, other.name)}): finish it first, then start the fixer or the next author under a fresh name`,
           );
         }
         if (!card.claimed) {
