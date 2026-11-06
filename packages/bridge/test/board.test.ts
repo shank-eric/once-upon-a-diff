@@ -54,6 +54,7 @@ import {
   phoneReady,
   runVoiceCtl,
   voiceState,
+  setVoiceWaits,
   type CtlResult,
   type PhoneCommand,
 } from '@once-upon-a-diff/adapters/larmor';
@@ -2686,6 +2687,22 @@ test('a public host that does not resolve to this machine is not offered (a setu
   }
 });
 
+/**
+ * The fake voice_ctl is a node process, and a full run's load can slow its start past the board's one-second cold wait and
+ * its three-second call kill (cause not proven beyond that: a slow cold start of the fake under load). So every voice test
+ * waits up to 30 s, and the few that check the board's own cutoffs run under withBoardWaits.
+ */
+const WIDE_WAITS = { coldWaitMs: 30 * 1000, quickTimeoutMs: 30 * 1000 };
+setVoiceWaits(WIDE_WAITS);
+async function withBoardWaits(run: () => Promise<void>): Promise<void> {
+  setVoiceWaits(null);
+  try {
+    await run();
+  } finally {
+    setVoiceWaits(WIDE_WAITS);
+  }
+}
+
 /** voice_ctl's answer, for the functions that take it. */
 const ctl = (extra: Partial<CtlResult> = {}): CtlResult => ({
   ok: true,
@@ -3290,6 +3307,24 @@ test('voiceState says what voice_ctl status says, as Larmor’s voice_state does
   forgetProbes();
 });
 
+test('a cold voiceState read of a slow fake voice_ctl waits for it, as a loaded machine needs, and the board’s own waits give up on it', async () => {
+  const voiceDir = tmp('board-voice-late');
+  const larmor = fakeLarmor(voiceDir);
+  writeFileSync(path.join(larmor, 'status.late'), '1200');
+  assert.deepEqual(
+    await coldState(larmor),
+    ctl(),
+    'the fake took 1.2 s to answer: past the board’s second',
+  );
+  // the call's own kill is a wait too (3 s for the board)
+  writeFileSync(path.join(larmor, 'status.late'), '3500');
+  assert.deepEqual(await coldState(larmor), ctl(), 'and 3.5 s: past the board’s call timeout');
+  await withBoardWaits(async () => {
+    assert.equal(await coldState(larmor), null, 'the board’s own cold wait gives up on it');
+  });
+  forgetProbes();
+});
+
 test('voiceState carries the times, the name and the last session as voice_ctl status gives them', async () => {
   const voiceDir = tmp('board-voice-extras');
   const larmor = fakeLarmor(voiceDir);
@@ -3542,9 +3577,11 @@ test('voiceLines keeps its lines when voice_ctl log fails, and a hung one holds 
   const hung = fakeLarmor(voiceDir);
   writeFileSync(path.join(hung, 'log.hang'), '');
   forgetProbes();
-  const began = Date.now();
-  assert.deepEqual(await voiceLines(hung, session, true), []);
-  assert.ok(Date.now() - began < 2500, `${Date.now() - began} ms`);
+  await withBoardWaits(async () => {
+    const began = Date.now();
+    assert.deepEqual(await voiceLines(hung, session, true), []);
+    assert.ok(Date.now() - began < 2500, `${Date.now() - began} ms`);
+  });
   forgetProbes();
 });
 
@@ -3716,34 +3753,40 @@ test('a hung voice_ctl never holds up the board: the last answer is served, one 
   };
   forgetProbes();
   assert.equal((await timed()).data.voice?.session, fullId(child.pid), 'warm: voice is there');
-  writeFileSync(path.join(larmor, 'status.hang'), '');
-  await pause(STATUS_FRESH_MS + 100);
-  const calls = statusCalls(larmor);
-  const [first, second] = [await timed(), await timed()];
-  for (const one of [first, second]) {
-    assert.ok(one.ms < 1000, `served in ${one.ms} ms, not after the 3 s limit`);
-    assert.equal(one.data.voice?.session, fullId(child.pid), 'the last known voice state');
-  }
-  await until(
-    () => statusCalls(larmor),
-    (count) => count > calls,
-  );
-  await pause(300); // a second call, if there were one, would have started by now
-  assert.equal(statusCalls(larmor), calls + 1, 'one refresh in flight for both builds');
-  // the hung call is killed at its limit, and then voice is unknown
-  const later = await until(timed, (one) => one.data.voice === null);
-  assert.ok(later.ms < 1000);
-  assert.equal(later.data.voice, null, 'unknown once the call failed');
-  assert.equal(statusCalls(larmor), calls + 1, 'and not asked again for a while');
+  // the hung part is the board's own 3 s call kill
+  await withBoardWaits(async () => {
+    writeFileSync(path.join(larmor, 'status.hang'), '');
+    await pause(STATUS_FRESH_MS + 100);
+    const calls = statusCalls(larmor);
+    const [first, second] = [await timed(), await timed()];
+    for (const one of [first, second]) {
+      assert.ok(one.ms < 1000, `served in ${one.ms} ms, not after the 3 s limit`);
+      assert.equal(one.data.voice?.session, fullId(child.pid), 'the last known voice state');
+    }
+    await until(
+      () => statusCalls(larmor),
+      (count) => count > calls,
+    );
+    await pause(300); // a second call, if there were one, would have started by now
+    assert.equal(statusCalls(larmor), calls + 1, 'one refresh in flight for both builds');
+    // the hung call is killed at its limit, and then voice is unknown
+    const later = await until(timed, (one) => one.data.voice === null);
+    assert.ok(later.ms < 1000);
+    assert.equal(later.data.voice, null, 'unknown once the call failed');
+    assert.equal(statusCalls(larmor), calls + 1, 'and not asked again for a while');
+  });
   forgetProbes();
 });
 
 test('with no answer yet, a hung voice_ctl holds a build for a second at most', async () => {
   const larmor = fakeLarmor(tmp('board-voice-cold-hang'));
   writeFileSync(path.join(larmor, 'status.hang'), '');
-  const began = Date.now();
-  assert.equal(await coldState(larmor), null);
-  assert.ok(Date.now() - began < 2500, `${Date.now() - began} ms`);
+  await withBoardWaits(async () => {
+    const began = Date.now();
+    forgetProbes();
+    assert.equal(await voiceState(larmor), null);
+    assert.ok(Date.now() - began < 2500, `${Date.now() - began} ms`);
+  });
   forgetProbes();
 });
 

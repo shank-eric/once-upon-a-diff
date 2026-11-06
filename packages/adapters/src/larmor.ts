@@ -105,12 +105,28 @@ const QUICK_TIMEOUT_MS = 3 * 1000;
  */
 const START_TIMEOUT_MS = 70 * 1000;
 
+/**
+ * The two waits a test may widen with setVoiceWaits (production never calls it): how long a build with no answer yet waits for
+ * voice_ctl before going on without it, and the kill of each quick call (status, log, pause, resume). A test on a loaded
+ * machine can need longer than either for the fake voice_ctl, a node process, to start; the defaults are the board's own.
+ */
+export interface VoiceWaits {
+  coldWaitMs: number;
+  quickTimeoutMs: number;
+}
+const DEFAULT_WAITS: VoiceWaits = { coldWaitMs: 1000, quickTimeoutMs: QUICK_TIMEOUT_MS };
+let waits: VoiceWaits = DEFAULT_WAITS;
+/** For tests only: widen the cold wait and the quick-call kill, or pass null for the board's own. */
+export function setVoiceWaits(next: Partial<VoiceWaits> | null): void {
+  waits = next ? { ...DEFAULT_WAITS, ...next } : DEFAULT_WAITS;
+}
+
 function timeoutOf(command: VoiceCommand): number {
   if (command === 'start') {
     return START_TIMEOUT_MS;
   }
   return command === 'status' || command === 'pause' || command === 'resume'
-    ? QUICK_TIMEOUT_MS
+    ? waits.quickTimeoutMs
     : CTL_TIMEOUT_MS;
 }
 
@@ -251,8 +267,6 @@ export function runVoiceCtl(
 export const STATUS_FRESH_MS = 2 * 1000;
 /** After voice_ctl failed to answer status, how long the board does not ask again. */
 const STATUS_RETRY_MS = 10 * 1000;
-/** With no answer yet (first build, or just after the board changed voice), a build waits this long for one, then goes on without it. */
-const STATUS_COLD_WAIT_MS = 1000;
 
 /** The last answer (null for a failed call) and when it came in (the call's end, epoch ms). */
 const statusKept = new Map<string, { value: CtlResult | null; at: number }>();
@@ -285,7 +299,8 @@ function refreshStatus(larmorDir: string): Promise<void> {
  * What Larmor's voice_ctl last said voice and phone mode are doing, or null when it cannot say (no checkout, it failed, timed
  * out or printed nothing usable: the board then shows voice as off). The board does not wait for voice_ctl: a build uses the
  * last answer, and when that is older than a poll (a failure: 10 s) starts one refresh in the background, one at a time. Only
- * with no answer at all does a build wait, and for a second at most. Never rejects.
+ * with no answer at all does a build wait, and for a second at most (the cold wait, which a test may widen with
+ * setVoiceWaits). Never rejects.
  */
 export function voiceState(larmorDir: string): Promise<CtlResult | null> {
   const kept = statusKept.get(larmorDir);
@@ -297,7 +312,7 @@ export function voiceState(larmorDir: string): Promise<CtlResult | null> {
   }
   const call = refreshStatus(larmorDir);
   return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve(null), STATUS_COLD_WAIT_MS);
+    const timer = setTimeout(() => resolve(null), waits.coldWaitMs);
     void call.then(() => {
       clearTimeout(timer);
       resolve(statusKept.get(larmorDir)?.value ?? null);
@@ -361,7 +376,7 @@ export async function runVoiceLog(
       '--session',
       session,
     ],
-    QUICK_TIMEOUT_MS,
+    waits.quickTimeoutMs,
     'log',
   );
   if (!got.ok) {
@@ -456,8 +471,8 @@ function refreshLog(larmorDir: string, session: string, live: boolean): Promise<
 /**
  * The voice session's last few lines, oldest first, from `voice_ctl log` (what it said, and what you said since it first
  * spoke). Like the status, a build does not wait for it once there are lines: it gets the last ones, and one refresh runs in
- * the background when they are over a poll old (after a failure, 10 s). With no lines yet a build waits a second at most.
- * Never rejects; [] when voice_ctl cannot say.
+ * the background when they are over a poll old (after a failure, 10 s). With no lines yet a build waits a second at most
+ * (the cold wait, as for voiceState). Never rejects; [] when voice_ctl cannot say.
  */
 export function voiceLines(
   larmorDir: string,
@@ -476,7 +491,7 @@ export function voiceLines(
   }
   const call = refreshLog(larmorDir, session, live);
   return new Promise((resolve) => {
-    const timer = setTimeout(() => resolve([]), STATUS_COLD_WAIT_MS);
+    const timer = setTimeout(() => resolve([]), waits.coldWaitMs);
     void call.then(() => {
       clearTimeout(timer);
       resolve(logKept.get(key)?.lines ?? []);

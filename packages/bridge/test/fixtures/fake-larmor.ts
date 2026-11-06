@@ -16,6 +16,7 @@
  *   log.fail     log answers {ok: false}
  *   status.hang  status waits 20 s
  *   status.slow  the one status call that claims the marker (it is removed) reads the state, waits 0.8 s, then answers what it read
+ *   status.late  every status call waits before answering, as many ms as the file says (1500 when empty): a slow start under load
  *   status.fail  status fails with a traceback and exit 3
  */
 import { chmodSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -136,6 +137,7 @@ if (cmd === 'status') {
   const answer = state('');
   // the marker is claimed atomically, so only one of several overlapping calls sleeps
   try { fs.unlinkSync('status.slow'); wait(800); } catch (err) { if (err.code !== 'ENOENT') throw err; }
+  if (has('status.late')) wait(Number(fs.readFileSync('status.late', 'utf8')) || 1500);
   if (has('status.hang')) wait(20000);
   if (has('status.fail')) fail('Traceback (most recent call last):', "ModuleNotFoundError: No module named 'rumps'");
   if (has('status.raw')) { process.stdout.write(fs.readFileSync('status.raw', 'utf8')); process.exit(0); }
