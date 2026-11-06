@@ -61,11 +61,10 @@ That's the same as `once-upon serve`. Keep it in a terminal tab you leave open. 
 
 ### 6. Install the listener skill
 
-`/once-upon-listen` turns a Claude Code session into one repo's listener: it answers Ask-box questions and takes Build story requests. It ships in this repo's `skills/` folder. Link it into your Claude Code skills folder from the repo root:
+`/once-upon-listen` turns a Claude Code session into one repo's listener: it answers Ask-box questions and takes Build story requests. It ships in this repo's `skills/` folder. `scripts/install-cli.sh` linked it, along with the other skills. To do it again, run this from the repo root; it links every skill in `skills/` (`--relink` replaces a link that points elsewhere):
 
 ```bash
-mkdir -p ~/.claude/skills
-ln -s "$PWD/skills/once-upon-listen" ~/.claude/skills/once-upon-listen
+scripts/link-skills.sh
 ```
 
 It's a link, so a `git pull` updates the skill too. The skill finds the `once-upon` command through that link, so it doesn't need step 8's link on your `PATH`. Start a new Claude Code session to pick it up.
@@ -74,11 +73,7 @@ A listener reads PR text that anyone who can comment on a PR can write, so don't
 
 ### 7. Install the once-upon skill
 
-Building a story for a PR needs a second skill, **once-upon**, which also ships in `skills/`. The listener hands every Build story request to it, and its `build` step is what publishes the story where the bridge finds it. Link it the same way, from the repo root:
-
-```bash
-ln -s "$PWD/skills/once-upon" ~/.claude/skills/once-upon
-```
+Building a story for a PR needs a second skill, **once-upon**, which also ships in `skills/`. The listener hands every Build story request to it, and its `build` step is what publishes the story where the bridge finds it. The same `scripts/link-skills.sh` linked it, and a third skill, `once-upon-editor`, which runs a repo's build queue (see the README's "Running a build queue").
 
 It finds this repo through the link, so the checkout can live anywhere.
 

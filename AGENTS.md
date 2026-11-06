@@ -34,7 +34,7 @@ Standing rules for any agent working in Once Upon a Diff. A brief only needs to 
 
 ## Browsers
 
-- `yarn test:extension` is fine: it runs headless in a throwaway profile against its own bridge and a fake `gh`, never port 4823 or Eric's GitHub login. It does read public github.com, logged out: a PR of Eric's (`shank-eric/inbox-in-gmail#91`, and `#92` as the PR with no story; `--pr` and `--no-story-pr` pick others), so it needs the network. Treat it as a heavy run (one at a time), through `~/Configuration/scripts/heavy.sh`.
+- `yarn test:extension` is fine: it runs headless in a throwaway profile against its own bridge and a fake `gh`, never port 4823 or your GitHub login. It does read public github.com, logged out: a PR of Eric's (`shank-eric/inbox-in-gmail#91`, and `#92` as the PR with no story; `--pr` and `--no-story-pr` pick others), so it needs the network. Treat it as a heavy run (one at a time), through `<checkout>/scripts/heavy.sh` (run it from anywhere).
 - It ends its checks with pixel checks (`test/browser/pixels.ts`): 14 screenshots (the panel on the PR page, the local page, its Q&A and error state, the board, a toast and a story tag, each in light and dark) compared with the PNGs in `packages/bridge/test/browser/pixels/<platform>/`, strictly (a near-miss color fails). A miss writes `packages/bridge/test-results/pixel-diff/<name>-actual.png` and `-diff.png`. A change that should alter the look rewrites the baselines with `UPDATE_SNAPSHOTS=1 yarn test:extension`: review the PNG diff. A platform with no baseline folder skips the step with a `SKIP pixels` line.
 - Claude in Chrome may be used to look at the board or a page, as long as Eric keeps control of his browser: open your own new tab and work only there, never touch his tabs, never resize or focus windows, never trigger dialogs, and close your tab when done.
 
@@ -47,9 +47,13 @@ Standing rules for any agent working in Once Upon a Diff. A brief only needs to 
 - `packages/test-kit` holds the dev-only test helpers every package's tests share (`files`: `tmp`, `writeJson`; `git`: `git`, `localRepo`, `worktreeFixture`; `stories`: `githubStory`; `dom`: `installDom`; `env`: the isolation env a test of the bridge's files imports first). Add a helper there when a second package's tests need it. A package lists it under `devDependencies` only, and nothing that ships imports it (the layer rules refuse). The bridge-coupled helpers (`startBridge`, `runCli`) stay in `packages/bridge/test/helpers.ts`, which re-exports the kit's.
 - Prefer codemods for moves and renames: `git mv` plus ts-morph or sed, then check the diff is only the move.
 
+## Agent setup
+
+- `<checkout>/scripts/beat.sh` posts a progress beat (it writes the `board_progress_file` line and registers the beat with the CLI), `<checkout>/scripts/heavy.sh` is the machine-wide heavy-run lock, and `skills/once-upon-editor/` runs a repo's build queue. Per-user editor profiles live in `~/.once-upon/editor/`, never in the repo. The README's "Running a build queue" has the details.
+
 ## Reporting
 
-- Post progress beats with `~/Configuration/scripts/beat.sh <name> <N>/<M> <step> "<few words>"`.
+- Post progress beats with `<checkout>/scripts/beat.sh <name> <N>/<M> <step> "<few words>"`.
 - Ledger lines are the main session's job. Do not write to the ledger.
 - Pass long text to once-upon with `--<flag>-file PATH` or `--<flag> -` (stdin), never as one long argument: a watchdog on this Mac kills node when a single argument passes about 1,000 bytes.
 - Keep the final report short: what changed, the checks you ran, anything left open.

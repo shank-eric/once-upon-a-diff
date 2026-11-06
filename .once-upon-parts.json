@@ -167,7 +167,7 @@
       "paths": [
         "skills/"
       ],
-      "note": "The once-upon and once-upon-listen skills"
+      "note": "The once-upon, once-upon-listen and once-upon-editor skills"
     },
     {
       "id": "scripts-docs",
@@ -175,6 +175,7 @@
       "group": "Repo",
       "paths": [
         "scripts/",
+        "extras/",
         "docs/",
         "README.md",
         "docs/GETTING-STARTED.md",
@@ -182,7 +183,7 @@
         "AGENTS.md",
         "LICENSE"
       ],
-      "note": "Deploy and cleanup scripts, documents"
+      "note": "Deploy, beat, heavy-lock and cleanup scripts, optional extras, documents"
     },
     {
       "id": "tests",

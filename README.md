@@ -19,7 +19,7 @@ You need Node 24 or newer, the current LTS (`.nvmrc` says 24, so `fnm use` or `n
    ```bash
    yarn
    yarn build
-   scripts/install-cli.sh    # puts `once-upon` on your PATH (npm link on packages/bridge)
+   scripts/install-cli.sh    # puts `once-upon` on your PATH (npm link on packages/bridge) and links the skills
    once-upon setup
    ```
 2. In Chrome, go to `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick `packages/extension/.output/chrome-mv3`, the folder `yarn build` makes. Its ID is always `faaibhigocihefldbmdgchcnnclalkmo` (the manifest carries a fixed key), so its saved settings survive a rebuild, a reload or a new checkout.
@@ -28,15 +28,11 @@ You need Node 24 or newer, the current LTS (`.nvmrc` says 24, so `fnm use` or `n
    ```bash
    once-upon serve    # or: yarn bridge
    ```
-5. Install the `once-upon-listen` Claude Code skill by linking it into your skills folder. If `~/.claude/skills` is itself a link, `ln` puts it in the folder the link points at, which is what you want:
+5. Install the Claude Code skills (`once-upon-listen`, `once-upon` and `once-upon-editor`) by linking them into your skills folder. `scripts/install-cli.sh` already did this; to do it alone, or to repeat it, run:
    ```bash
-   ln -s "$PWD/skills/once-upon-listen" ~/.claude/skills/once-upon-listen
+   scripts/link-skills.sh    # links each skills/<name> into ~/.claude/skills (or $CLAUDE_SKILLS_DIR)
    ```
-   Start a new Claude Code session to pick it up. See [Listening from Claude Code](#listening-from-claude-code).
-6. Install the `once-upon` skill the same way. It builds the PR stories the listener is asked for, and finds this repo through the link:
-   ```bash
-   ln -s "$PWD/skills/once-upon" ~/.claude/skills/once-upon
-   ```
+   A link that is already right is left as it is, and one that points elsewhere is left alone with a notice (`--relink` replaces it). The skills are links into the checkout, so a `git pull` updates them. Start a new Claude Code session to pick them up. See [Listening from Claude Code](#listening-from-claude-code) and [Running a build queue](#running-a-build-queue).
 
 `scripts/install-cli.sh` runs `npm link` on `packages/bridge`, whose `package.json` `bin` is `once-upon`, so the command works from any folder and survives moving packages inside the repo (re-run it if you move the checkout, switch Node versions or upgrade Node, since under fnm or nvm the link lives in one version's bin). It runs under the first `node` on your `PATH`, so keep a Node 24 as your default (`fnm default 24`). Without the link, `node packages/bridge/bin/once-upon.mjs` is the same command.
 
@@ -354,7 +350,7 @@ At phone width (under 800 px) the board is one column ordered by what needs you 
 
 - **Sessions** come from Claude Code's live registry, `~/.claude/sessions/<pid>.json` (`$CLAUDE_CONFIG_DIR/sessions` when that is set). A file counts only while its pid runs (`ps` also confirms the process started when the file says, so a reused pid doesn't revive it). A session's branch is its checkout's current one; it joins the card for the PR whose story (or GitHub) names that branch.
 - **Status** comes from a status source. The registry alone says busy or idle. With iTerm2's `it2` CLI, the tab's own status (working, waiting, done, error, idle, with a detail line) is used instead, matched to a session by tty, and the tab's name becomes the session's title unless it's a generic one such as "Claude Code". The waiting column is whatever sets the tab's status to waiting, such as a `Stop` hook. The StatusSource shape lives in `src/adapters/status-source.ts`; another terminal is one more object like the one in `src/adapters/iterm.ts`, picked in `core/src/features/sessions/sources.ts`. With no useful tab name, the title Claude Code keeps in the session's transcript (its latest `ai-title` line) is used before the registry's name.
-- **Context and usage (board status line)** come from Claude Code's status line, which is the only place that has them. A status line script writes them on every render to `~/.once-upon/statusline/<session id>.json` as `{session_id, at, context, rate_limits}` (`at` in seconds, `context` the percent used). Each session then shows `ctx N%`, the voice strip included, and a strip under the header shows the 5-hour and weekly limits with when they reset, from the freshest file under 6 hours old. Values from 70% show yellow and from 90% red. A gone session's file is removed after a day. In a bash status line, after reading stdin into `$input`:
+- **Context and usage (board status line)** come from Claude Code's status line, which is the only place that has them. A status line script writes them (or pipe its JSON input to `extras/statusline-snippet.sh`, which does the same) on every render to `~/.once-upon/statusline/<session id>.json` as `{session_id, at, context, rate_limits}` (`at` in seconds, `context` the percent used). Each session then shows `ctx N%`, the voice strip included, and a strip under the header shows the 5-hour and weekly limits with when they reset, from the freshest file under 6 hours old. Values from 70% show yellow and from 90% red. A gone session's file is removed after a day. In a bash status line, after reading stdin into `$input`:
 
   ```bash
   ou="${ONCE_UPON_HOME:-$HOME/.once-upon}"; sid=$(printf '%s' "$input" | jq -r '.session_id // empty')
@@ -533,6 +529,15 @@ Once Upon a Diff doesn't need Refined GitHub and doesn't use anything it adds to
 
 - Everything above with Refined GitHub actually running.
 - The React `/changes` view while logged in. The test browser is logged out, so `/changes` redirected to `/files`.
+
+## Running a build queue
+
+`/once-upon-editor <slots>` (the third skill, linked by `scripts/link-skills.sh`) turns a Claude Code session in a repo into its build queue's editor: it takes cards from `once-upon backlog`, launches authors, critics and storytellers as background agents up to the slot count, plan-checks, deploys and refills, and edits nothing itself. The board shows the editor and its authors.
+
+- **Profiles.** The editor needs to know a repo's deploy command, claim command and card order. It reads `~/.once-upon/editor/<repo folder name>.md` (`$ONCE_UPON_HOME/editor/`), then `skills/once-upon-editor/repos/<repo folder name>.md`; with neither it copies `repos/_template.md` to the first and asks you to fill it in. `repos/once-upon-a-diff.md` ships for this repo. Your own profiles stay in `~/.once-upon/editor/`, never in the repo. An optional `~/.once-upon/editor/_user.md` (`repos/_user-template.md`) names a relay session and the folder for critic reports (default `~/.once-upon/reviews`).
+- **Beats.** `scripts/beat.sh <name> <N>/<M> <step> "<note>"` is the agent's progress beat. It appends `- 3:40 PM <name> 3/6 code: <note>` (Eastern time, as `once-upon agent beat` writes it) to the file `board_progress_file` names in `config.json` (no setting, no file) and registers the beat with the agent registry. For the registry it uses `$ONCE_UPON_CLI` if set, else `once-upon` on `PATH` or this checkout when the first `node` is 24 or newer, else fnm's Node 24; the call is silent, so keep a Node 24 as your default (`fnm default 24`) or set `ONCE_UPON_CLI`. An agent must be registered first (`once-upon agent start`) for the registry part.
+- **The heavy lock.** `scripts/heavy.sh <name> <command>` runs a heavy command (full test suite, browser run, whole-repo typecheck or lint, deploy gates) only when no other one holds the lock, so parallel agents in any repo take turns. The lock is the directory `${XDG_CACHE_HOME:-~/.cache}/heavy-run.lock` (set `ONCE_UPON_HEAVY_LOCK` to move it), a stale one is taken over, and it waits `ONCE_UPON_HEAVY_POLL` seconds (default 5) between tries.
+- **Extras** (optional, in `extras/`): `subagent-statusline.py` shows each subagent's newest beat in Claude Code's subagent panel (set it as `subagentStatusLine`; it reads `board_progress_file` and `board_ledger_file`), `hooks/require-beats.sh` is a `PreToolUse` hook for the Agent tool that stops a brief with no `beat.sh` line, and `statusline-snippet.sh` writes the board's context and usage file from your status line's JSON. An iTerm tab-status hook for the board's `iterm` source is coming as its own change.
 
 ## Development
 

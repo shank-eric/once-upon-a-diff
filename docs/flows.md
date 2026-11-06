@@ -19,7 +19,7 @@ Paths are from the repo root. After each `file:line` comes the name you'll find 
 | `contracts` | `packages/contracts`: the route table, the wire types and the schemas, over `packages/domain`, the pure rules that import nothing (the diagram's floor) |
 | `service` | the engine over the adapters, the diagram's one box, in packages (ADR-24, bottom to top): `foundation`, `stories`, `state` (`records/`, `queues/`), `core` (`features/`, `orchestration/`) and `board`, with `usage` beside them: the rules. No side effects of their own |
 | `adapter` | `packages/adapters/src/`, the bottom of that box: every file write, program run and network call. The files they write under `~/.once-upon` are where the server and the CLI meet |
-| `outside` | not this repo's code: a Claude Code session, a skill, `beat.sh`, `it2` |
+| `outside` | not this repo's code: a Claude Code session, a skill, `scripts/beat.sh`, `it2` |
 
 Two things every HTTP hop shares, written once here:
 
@@ -252,7 +252,7 @@ A launching session registers an agent and claims a Backlog card for it. The age
 flowchart LR
   start["agent start"] --> reg[("agents.jsonl")]
   claim["backlog claim"] --> bl[("backlog.jsonl")]
-  beats["beat.sh → agent beat"] --> reg
+  beats["scripts/beat.sh → agent beat"] --> reg
   finish["agent finish --commit"] --> reg
   board["board (flow 3)"] -.->|reads| reg
   board -.->|reads| bl
@@ -278,7 +278,7 @@ flowchart LR
 
 | # | Layer | Hop | At |
 |---|---|---|---|
-| 9 | `outside` | the agent runs `beat.sh <name> N/M <step> "<note>"`, which writes the progress line and calls `once-upon agent beat … --no-mirror` |  |
+| 9 | `outside` | the agent runs `scripts/beat.sh <name> N/M <step> "<note>"`, which writes the progress line and calls `once-upon agent beat … --no-mirror` |  |
 | 10 | `app` | `agent beat` | `packages/cli/src/commands/agent.ts:183` (`registry.beat(`) |
 | 11 | `service` | **appends a `beat` event** | `packages/state/src/records/agents/registry.ts:453` (`beat(name: string`) |
 | 12 | `service` | the board reads both files on each build (flow 3, hops 13–14 and 20): the card its runs name sits in the column its runs say, with its agents on it (`claimViews`) | `packages/board/src/stages/agents.ts:111` (`export function claimViews(`) |

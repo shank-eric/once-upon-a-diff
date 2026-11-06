@@ -2,8 +2,12 @@
 # Puts the `once-upon` command on your PATH from this checkout: `npm link` on packages/bridge,
 # whose package.json `bin` names bin/once-upon.mjs. The link points into the checkout, so moving
 # packages around inside the repo needs no change here. Re-run it after moving the checkout itself.
+# It then links the skills (scripts/link-skills.sh; `--no-skills` skips that).
 # Others who don't clone can use `npx`/`npm i -g` once the package is published.
 set -euo pipefail
+
+skills=1
+[ "${1:-}" = "--no-skills" ] && skills=""
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -26,3 +30,8 @@ fi
 echo "The link lives in this Node version's global bin: re-run this script after switching Node or upgrading it."
 echo "It runs under the \`node\` first on PATH, so keep a Node 24 as your default (fnm: \`fnm default 24\`)."
 echo "To remove it: npm unlink -g once-upon-a-diff"
+
+if [ -n "$skills" ]; then
+  "$root/scripts/link-skills.sh"
+fi
+echo "Agents post progress with scripts/beat.sh and take turns on heavy runs with scripts/heavy.sh (see the README's \"Running a build queue\")."
