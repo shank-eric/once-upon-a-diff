@@ -132,7 +132,7 @@ export function collectWorks(ctx: BuildContext): CollectedWorks {
     });
   }
   // PRs GitHub is waiting on your review for, and your own open ones, are units of work too, with or without a story
-  review.kickRequested();
+  review.kickRequested(nowMs);
   for (const request of review.requested()) {
     const key = prKey(request.repo, request.number);
     if (!works.has(key)) {
@@ -173,7 +173,7 @@ export function collectWorks(ctx: BuildContext): CollectedWorks {
   // local stories (a branch's story before any PR): the newest per repo and branch goes on that branch's work, or on a
   // branch-only work of its own; a PR story already on the branch is the card's story, so a local one is not
   const localEntryList = localEntries(ctx.stories, { now: nowMs });
-  review.kickLocal(localEntryList);
+  review.kickLocal(localEntryList, nowMs);
   // how each approved story ships (Push or Create pull request), for its Ready to ship card
   const shipById = new Map<string, ShipMode>(
     localEntryList

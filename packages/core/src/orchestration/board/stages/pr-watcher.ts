@@ -7,8 +7,8 @@ export interface PrWatcher {
   kick(stories: InboxStory[]): void;
   kickInfo(repo: string, number: number): void;
   kickBranch(repo: string, branch: string, checkout: string, now?: number, heads?: string[]): void;
-  kickLocal(list: LocalEntry[]): void;
-  kickRequested(): void;
+  kickLocal(list: LocalEntry[], now?: number): void;
+  kickRequested(now?: number): void;
   requested(): { repo: string; number: number }[];
   info(repo: string, number: number): PrInfo | null;
   branchPr(repo: string, branch: string): BranchPr | null | undefined;
