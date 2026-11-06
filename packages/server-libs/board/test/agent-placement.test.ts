@@ -4,7 +4,7 @@ import '@once-upon-a-diff/test-kit/env';
 import { tmp, writeJson } from '@once-upon-a-diff/test-kit/files';
 import path from 'node:path';
 import { readSettings } from '@once-upon-a-diff/foundation/settings';
-import { finishedColumn, homeOf } from '../src/agent-home.ts';
+import { finishedColumn } from '../src/agent-home.ts';
 import { NO_PARENT, placeAgents } from '../src/stages/agents.ts';
 import { columnOf } from '../src/columns.ts';
 import { worktreeSection } from '../src/stages/worktrees.ts';
@@ -103,136 +103,136 @@ test('an agent with no registered repo, branch or PR whose task names a card’s
   assert.equal(reviewer.length, 1);
 });
 
-test('a registered agent is nested by its repo and branch or PR, and what its task says is ignored', () => {
+test('a registered agent with no card is not nested by its repo, branch, PR or what its task says: it is a card of its own', () => {
   const featX = makeX();
   const featY = makeY();
   const cards = [featX, featY];
-  // gated (plan), task naming feat/x, registered on feat/y
-  const byBranch = registered({
-    name: 'ou-plan',
-    state: 'plan',
-    task: 'plan check for feat/x, PR #7',
-    repo: 'acme/widgets',
-    branch: 'feat/y',
-  });
-  // a reviewer (kind), task naming feat/y, registered on PR 7
-  const byPr = registered({
-    name: 'rv-seven',
-    kind: 'critic',
-    task: 'review feat/y',
-    repo: 'acme/widgets',
-    pr: 7,
-  });
-  assert.deepEqual(place([byBranch, byPr], cards), [], 'both nested, no card of their own');
-  assert.deepEqual(nestedIn(featY), ['ou-plan']);
-  assert.deepEqual(nestedIn(featX), ['rv-seven']);
-});
-
-test('a registered agent whose card is a started backlog item is nested on that item’s branch, with no repo of its own', () => {
-  const featX = makeX();
-  const featY = makeY();
   const item = { id: 'bl_aaaaaa111111', repo: 'acme/widgets', branch: 'feat/y' };
-  const cards = [featX, featY];
-  const added = place(
-    [registered({ name: 'ou-by-card', task: 'work on feat/x', card: 'bl_aaaaaa111111' })],
-    cards,
-    [item as BacklogItem],
-  );
-  assert.deepEqual(added, []);
-  assert.deepEqual(nestedIn(featY), ['ou-by-card']);
+  const runs = [
+    // gated (plan), task naming feat/x, registered on feat/y
+    registered({
+      name: 'ou-plan',
+      state: 'plan',
+      task: 'plan check for feat/x, PR #7',
+      repo: 'acme/widgets',
+      branch: 'feat/y',
+    }),
+    // a reviewer on PR 7
+    registered({ name: 'rv-seven', kind: 'critic', repo: 'acme/widgets', pr: 7 }),
+    // a finished research run on a registered branch
+    registered({
+      name: 'rs',
+      kind: 'research',
+      state: 'done',
+      repo: 'acme/widgets',
+      branch: 'feat/x',
+      ended: new Date(NOW - 60000),
+    }),
+    // a finished builder whose finish names a branch and a PR
+    registered({
+      name: 'ou-done',
+      state: 'done',
+      repo: 'acme/widgets',
+      result: { branch: 'feat/y', pr: 7 },
+      ended: new Date(NOW - 60000),
+    }),
+  ];
+  const added = place(runs, cards, [item as BacklogItem]);
   assert.deepEqual(nestedIn(featX), []);
-  // an item with no branch, or one the board doesn't have, gives no home
-  assert.equal(
-    homeOf(registered({ card: 'bl_aaaaaa111111' }), cards, [{ ...item, branch: null }]),
-    null,
-  );
-  assert.equal(homeOf(registered({ card: 'bl_missing' }), cards, [item]), null);
+  assert.deepEqual(nestedIn(featY), []);
+  assert.deepEqual(added.map((one) => one.title).sort(), ['ou-done', 'ou-plan', 'rs', 'rv-seven']);
 });
 
-test('a finished research agent on a registered branch is nested in its card, not in a Research card of its own', () => {
+test('an implicit card whose repo and branch have a work card rides on it; with no work card it is a card of its own', () => {
   const featX = makeX();
-  const added = place(
-    [
-      registered({
-        kind: 'research',
-        state: 'done',
-        repo: 'acme/widgets',
-        branch: 'feat/x',
-        ended: new Date(NOW - 60000),
-      }),
-    ],
-    [featX],
-  );
-  assert.equal(added.length, 0);
-  assert.equal(featX.agents.length, 1);
-  assert.equal(featX.agents[0].kind, 'research');
+  const sessionOnly = card({ kind: 'session', repo: 'acme/widgets', branch: 'feat/z' });
+  const author = registered({
+    name: 'ou-implicit',
+    card: 'ic_aaaaaaaaaaaa',
+    repo: 'acme/widgets',
+    branch: 'feat/x',
+  });
+  // a critic of the same implicit card: its own start carries the card's branch
+  const critic = registered({
+    name: 'rv-implicit',
+    kind: 'critic',
+    card: 'ic_aaaaaaaaaaaa',
+    repo: 'acme/widgets',
+    branch: 'feat/x',
+  });
+  assert.deepEqual(place([author, critic], [featX]), []);
+  assert.deepEqual(nestedIn(featX), ['ou-implicit', 'rv-implicit']);
+  // the branch's session card counts as a home too, a PR number alone does not
+  const onSession = place([{ ...author, branch: 'feat/z', name: 'ou-z' }], [sessionOnly]);
+  assert.deepEqual(onSession, []);
+  assert.deepEqual(nestedIn(sessionOnly), ['ou-z']);
+  const lone = place([{ ...author, name: 'ou-lone', branch: 'feat/none' }], [makeX()]);
+  assert.equal(lone.length, 1);
+  assert.equal(lone[0].title, 'ou-lone');
+  // another repo's branch of the same name is not its home, and neither is a run with no repo
+  assert.equal(place([{ ...author, repo: 'acme/other' }], [makeX()]).length, 1);
+  assert.equal(place([{ ...author, repo: null }], [makeX()]).length, 1);
 });
 
-test('a finished builder is nested by the branch or PR its finish event reports', () => {
-  const featX = makeX();
-  const featY = makeY();
-  const home = homeOf(
-    registered({ repo: 'acme/widgets', state: 'done', result: { branch: 'feat/y' } }),
-    [featX, featY],
+test('a storyteller silent for a day on an implicit card whose author finished does not hold the card in Working, placed before or after the author', () => {
+  const ago = (hours: number) => new Date(NOW - hours * 3600 * 1000);
+  const author = registered({
+    name: 'ou-author',
+    card: 'ic_bbbbbbbbbbbb',
+    state: 'done',
+    started: ago(30),
+    ended: ago(0.2),
+    lastEvent: ago(0.2),
+    result: { commit: 'abc1234' },
+  });
+  const storyteller = (name: string) =>
+    agent({
+      name,
+      kind: 'storyteller',
+      card: 'ic_bbbbbbbbbbbb',
+      state: 'running',
+      started: ago(30),
+      lastEvent: ago(28),
+    });
+  const helper = agent({
+    name: 'ou-help',
+    kind: 'helper',
+    card: 'ic_bbbbbbbbbbbb',
+    state: 'running',
+    started: ago(30),
+    lastEvent: ago(28),
+  });
+  for (const runs of [
+    [author, storyteller('story-x')],
+    [author, helper],
+  ]) {
+    const added = place(runs, []);
+    const label = runs.map((one) => one.name).join(' ');
+    assert.equal(added.length, 1, label);
+    assert.notEqual(added[0].column, 'working', label);
+    assert.equal(added[0].agents.length, 2, label);
+  }
+  // placed before the author, the silent run is the card's own head, but it never decides the column: the author's does
+  const first = place([storyteller('story-x'), author], []);
+  assert.equal(first.length, 1);
+  assert.equal(first[0].agents.length, 2);
+  assert.equal(first[0].column, place([author], [])[0].column);
+  assert.equal(first[0].column, 'done');
+  // and a live run placed after the silent head takes the column from it
+  const liveAfter = place(
+    [storyteller('story-x'), { ...helper, name: 'ou-live', lastEvent: ago(0.1), started: ago(1) }],
     [],
   );
-  assert.equal(home, featY);
-  assert.equal(
-    homeOf(
-      registered({ repo: 'acme/widgets', state: 'done', result: { pr: 7 } }),
-      [featX, featY],
-      [],
-    ),
-    featX,
+  assert.equal(liveAfter[0].column, 'working');
+  // a live helper still takes the column from a finished head
+  const live = place(
+    [author, { ...helper, name: 'ou-live', lastEvent: ago(0.1), started: ago(1) }],
+    [],
   );
-  // the branch it ended on wins over the one it began with
-  assert.equal(
-    homeOf(
-      registered({ repo: 'acme/widgets', branch: 'feat/x', result: { branch: 'feat/y' } }),
-      [featX, featY],
-      [],
-    ),
-    featY,
-  );
+  assert.equal(live[0].column, 'working');
 });
 
-test('the same branch in two repos: the registered repo decides; no repo, an unknown repo, or two cards named is no home', () => {
-  const featX = makeX();
-  const featY = makeY();
-  const gadgets = card({
-    repo: 'acme/gadgets',
-    branch: 'feat/x',
-    pr: { number: 3 } as BoardCard['pr'],
-  });
-  const cards = [featX, gadgets];
-  assert.equal(homeOf(registered({ repo: 'acme/gadgets', branch: 'feat/x' }), cards, []), gadgets);
-  assert.equal(homeOf(registered({ repo: 'Acme/Widgets', branch: 'feat/x' }), cards, []), featX);
-  assert.equal(homeOf(registered({ branch: 'feat/x' }), cards, []), null, 'no repo');
-  assert.equal(homeOf(registered({ repo: 'acme/other', branch: 'feat/x' }), cards, []), null);
-  assert.equal(
-    homeOf(registered({ repo: 'acme/widgets', branch: 'FEAT/X' }), cards, []),
-    null,
-    'exact branch',
-  );
-  assert.equal(
-    homeOf(registered({ repo: 'acme/widgets', branch: 'feat/x', pr: 8 }), [featX, featY], []),
-    null,
-    'the branch says one card and the PR another',
-  );
-  const sessionOnly = card({ kind: 'session', repo: 'acme/widgets', branch: 'feat/z' });
-  assert.equal(
-    homeOf(registered({ repo: 'acme/widgets', branch: 'feat/z' }), [sessionOnly], []),
-    sessionOnly,
-  );
-  assert.equal(homeOf(registered({ repo: 'acme/widgets', pr: 7 }), [sessionOnly], []), null);
-  assert.equal(
-    homeOf(registered({ repo: 'acme/widgets' }), [sessionOnly], []),
-    null,
-    'no branch, no PR, no card',
-  );
-});
-
-test('an agent’s lane is its tag, else its registered repo’s lane, else its launching session’s: never its task', () => {
+test('an agent’s lane is its registered repo’s lane, else its launching session’s: never a lane tag or its task', () => {
   const parentCard = card({
     kind: 'session',
     repo: 'acme/parent',
@@ -247,15 +247,10 @@ test('an agent’s lane is its tag, else its registered repo’s lane, else its 
       [agent({ sid, name: 'a', task: 'widgets-worktrees/x for widgets and larmor', ...over })],
       cards,
     )[0].lane;
-  assert.equal(lane({ lane: 'tagged' }), 'tagged');
-  assert.equal(
-    lane({ lane: 'widgets' }),
-    'acme/widgets',
-    'a short tag stands for the one known repo',
-  );
-  assert.equal(lane({ lane: 'Acme/Widgets' }), 'acme/widgets', 'a whole key, any case');
+  assert.equal(lane({ lane: 'tagged' }), 'acme/parent', 'a lane tag moves nothing');
+  assert.equal(lane({ lane: 'widgets' }), 'acme/parent');
   assert.equal(lane({ repo: 'acme/larmor', cwd: '/x/larmor-worktrees/y' }), 'acme/larmor');
-  assert.equal(lane({ repo: 'acme/larmor', lane: 'tagged' }), 'tagged');
+  assert.equal(lane({ repo: 'acme/larmor', lane: 'tagged' }), 'acme/larmor');
   // Eric, 11/6: shank-eric/larmor is a typo of naveenvasou/larmor, so a run typed with it sits on the naveenvasou lane
   assert.equal(
     lane({ repo: 'shank-eric/larmor', cwd: '/x/larmor' }),
@@ -266,6 +261,7 @@ test('an agent’s lane is its tag, else its registered repo’s lane, else its 
   assert.equal(lane({ cwd: '/x/y' }), 'acme/parent', 'a cwd alone is not a lane');
   assert.equal(lane({}, 'deadbeef'), NO_PARENT);
   assert.equal(lane({ kind: 'author' }, 'deadbeef'), NO_PARENT);
+  assert.equal(lane({ lane: 'tagged' }, 'deadbeef'), NO_PARENT, 'a tag is not a lane');
 });
 
 const started = (id: string, branch: string): BacklogItem =>
@@ -317,6 +313,7 @@ test('a finished agent stays inside its card for an hour by default, never less 
       name: 'ou-done',
       state: 'done',
       outcome: 'committed abc1234',
+      card: 'ic_cccccccccccc',
       repo: 'acme/widgets',
       branch: 'feat/x',
       ended: new Date(NOW - minutesAgo * 60000),
@@ -340,29 +337,12 @@ test('a finished agent stays inside its card for an hour by default, never less 
   assert.deepEqual(nestedAfter(readSettings(home).board, 120), ['ou-done']);
 });
 
-test('a --card home is a started or open item: a dropped or landed one is not a home', () => {
-  const featY = makeY();
-  const item = { id: 'bl_aaaaaa111111', repo: 'acme/widgets', branch: 'feat/y' };
-  const homeFor = (over: Partial<BacklogItem>) =>
-    homeOf(registered({ card: item.id }), [featY], [{ ...item, ...over } as BacklogItem]);
-  assert.equal(homeFor({ state: 'started', landed_at: null }), featY);
-  assert.equal(homeFor({ state: 'open', landed_at: null }), featY);
-  assert.equal(homeFor({ state: 'dropped', landed_at: null }), null, 'dropped');
-  assert.equal(homeFor({ state: 'started', landed_at: '2026-11-03T12:00:00Z' }), null, 'landed');
-  // a PR merged on GitHub leaves the item started with no landed_at, so the card's own PR says so
-  const merged = card({ branch: 'feat/y', pr: { number: 8, state: 'merged' } as BoardCard['pr'] });
-  assert.equal(
-    homeOf(registered({ card: item.id }), [merged], [{ ...item, state: 'started' } as BacklogItem]),
-    null,
-    'its PR merged',
-  );
-});
-
 test('Finish clears a finished agent nested in a card, and a new line brings it back', () => {
   const home = tmp('placement-finish-nested');
   const finished = registered({
     name: 'ou-done',
     state: 'done',
+    card: 'ic_cccccccccccc',
     repo: 'acme/widgets',
     branch: 'feat/x',
     ended: new Date(NOW - 5 * 60000),
@@ -397,6 +377,7 @@ test('a failed agent nested in a card puts the card in Waiting, not Error or Idl
       registered({
         name: 'ou-broke',
         state: 'failed',
+        card: 'ic_cccccccccccc',
         repo: 'acme/widgets',
         branch: 'feat/z',
         ended: new Date(NOW - 60000),
@@ -750,9 +731,12 @@ test('an author’s commit whose branch has a PR follows the PR’s rules', () =
     column: 'done',
     why: 'committed c80964d',
   });
-  // with the PR's card on the board, the author is nested in it, and the card's column is the PR's
+  // with the PR's card on the board, the author's implicit card rides on it, and the card's column is the PR's
   const prCard = card({ branch: 'feat/x', pr: { number: 9, state: 'open' } as BoardCard['pr'] });
-  assert.deepEqual(placeWith([committer()], { cards: [prCard], pr: open }), []);
+  assert.deepEqual(
+    placeWith([committer({ card: 'ic_dddddddddddd' })], { cards: [prCard], pr: open }),
+    [],
+  );
   assert.deepEqual(nestedIn(prCard), ['ou-commit']);
   assert.equal(
     columnOf({

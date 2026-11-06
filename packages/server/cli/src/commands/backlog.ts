@@ -123,9 +123,12 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     });
     // a card with a branch is started on it, as `claim --branch` does, so it reads as work done or under way: no Assign while its
     // author runs, and a built card on a branch reaches Ready instead of leaving the board. Start needs a branch, so a card with
-    // none stays open (its runs still decide its column)
+    // none stays open in the Backlog (its runs still decide its column), and is not claimed: a claim with no branch would show
+    // "claimed, pending" in Working for two hours with nobody on it. With a branch the card is claimed for its first run, so the
+    // same author can start a fix round on it (an author on a card with no claim is refused)
     if (card.branch) {
       store.start(adopted.id, { branch: card.branch, repo: card.repo, by: who ?? card.agent });
+      store.claim(adopted.id, { agent: card.agent, sid: card.sid, by: who ?? card.agent });
     }
     return out(`${adopted.id} adopted: ${adopted.title}`);
   }

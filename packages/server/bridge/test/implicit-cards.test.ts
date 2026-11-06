@@ -153,7 +153,7 @@ test('a critic or storyteller on a card with no branch is refused, whether the c
     'story',
   );
   assert.notEqual(kindNoBranch.code, 0);
-  assert.match(kindNoBranch.stderr, /no branch/);
+  assert.match(kindNoBranch.stderr, /--kind is not taken with --card/);
   const card = new BacklogStore(home).add({ title: 'Open card', repo: 'acme/widgets' });
   const open = await agent(
     home,
@@ -176,7 +176,7 @@ test('a typed --card ic_ id that no run minted is refused, and an author with a 
     home,
     'start',
     'x',
-    '--kind',
+    '--role',
     'helper',
     '--card',
     'ic_abcdef123456',
@@ -188,11 +188,10 @@ test('a typed --card ic_ id that no run minted is refused, and an author with a 
   const bare = await agent(home, 'start', 'ou-bare', '--role', 'author', '--task', 'build');
   assert.notEqual(bare.code, 0);
   assert.match(bare.stderr, /--branch/);
-  // an author with the old --kind and no branch still registers (old briefs)
-  assert.equal(
-    (await agent(home, 'start', 'ou-old', '--kind', 'author', '--task', 'build')).code,
-    0,
-  );
+  // so is an author with the old --kind and no branch (the flip: every run on work has a card)
+  const old = await agent(home, 'start', 'ou-old', '--kind', 'author', '--task', 'build');
+  assert.notEqual(old.code, 0);
+  assert.match(old.stderr, /--branch/);
 });
 
 test('backlog list hides implicit cards; --implicit lists the live ones and --all marks every one', async () => {
@@ -247,14 +246,15 @@ test('backlog adopt writes one add with the same id and the runs now name a real
     .map((line) => JSON.parse(line));
   assert.deepEqual(
     events.map((event) => event.op),
-    ['add', 'start'],
-    'the add, and the start a card with a branch gets',
+    ['add', 'start', 'claim'],
+    'the add, the start a card with a branch gets, and the claim its runs need for a fix round',
   );
   assert.equal(events[0].id, author.card);
   assert.equal(events[0].title, 'build the thing with more detail');
   assert.equal(events[0].repo, 'acme/widgets');
   assert.equal(events[0].branch, 'adhoc-x');
   assert.equal(events[1].branch, 'adhoc-x');
+  assert.equal(events[2].agent, 'ou-adhoc');
   const [item] = new BacklogStore(home).items();
   assert.equal(item.id, author.card);
   assert.equal(item.state, 'started', 'work under way: no Assign');
@@ -282,12 +282,16 @@ test('backlog adopt writes one add with the same id and the runs now name a real
   assert.match(late.stderr, /dropped/);
 });
 
-test('an implicit card with no branch is adopted as one open card: one write, no start', async () => {
+test('an implicit card with no branch is adopted as one open card: one add, no start and no claim, so it stays in the Backlog', async () => {
   const home = tmp('implicit-adopt-nobranch');
   const helper = await start(home, 'a-scout', '--kind', 'helper', '--task', 'look at the thing');
   assert.equal((await backlog(home, 'adopt', helper.card, '--title', 'Look at the thing')).code, 0);
   const events = readFileSync(path.join(home, 'backlog.jsonl'), 'utf8').trim().split('\n');
-  assert.equal(events.length, 1);
+  assert.deepEqual(
+    events.map((line) => JSON.parse(line).op),
+    ['add'],
+    'one add: no start, and no claim (a claim with no branch would sit in Working with nobody on it)',
+  );
   const [item] = new BacklogStore(home).items();
   assert.equal(item.title, 'Look at the thing');
   assert.equal(item.state, 'open');
@@ -394,4 +398,43 @@ test('Finish on the combined card clears the card’s other finished runs, so th
   assert.deepEqual(await agentCards(), [[`agent:${SID}:ou-adhoc`, ['ou-adhoc', 'review-adhoc']]]);
   board.finishAgent(SID, 'ou-adhoc');
   assert.deepEqual(await agentCards(), [], 'one Finish clears the piece of work');
+});
+
+test('a storyteller silent for a day takes nothing from the implicit card’s column, a fresh one holds it in Agent checks', async () => {
+  const home = tmp('implicit-stale-storyteller');
+  const author = await start(
+    home,
+    'ou-adhoc',
+    '--role',
+    'author',
+    '--repo',
+    'acme/widgets',
+    '--branch',
+    'adhoc-y',
+    '--task',
+    'build it',
+  );
+  assert.equal((await agent(home, 'finish', 'ou-adhoc', '--commit', 'abc1234')).code, 0);
+  const column = async () =>
+    (await cardsOf(home)).find((card) => card.kind === 'agent' && card.agents.length > 0)?.column;
+  const before = await column();
+  const teller = new AgentRegistry(home);
+  teller.start({
+    sid: SID,
+    name: 'tell-old',
+    kind: 'storyteller',
+    task: 'tell the story',
+    card: author.card,
+    at: new Date(Date.now() - 36 * 3600 * 1000),
+  });
+  assert.equal(await column(), before, 'a dead storyteller holds nothing');
+  teller.start({
+    sid: SID,
+    name: 'tell-new',
+    kind: 'storyteller',
+    task: 'tell the story',
+    card: author.card,
+    at: new Date(),
+  });
+  assert.equal(await column(), 'checks', 'a live one holds it');
 });

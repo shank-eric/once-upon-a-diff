@@ -1,14 +1,11 @@
 /**
- * Where a registered agent goes on the board, decided only by the fields it registered (`once-upon agent start`:
- * repo, branch, PR, card, and the branch and PR its finish event reports), never by its task, name or outcome. An
- * agent with a home is nested inside that card; every other agent is a card of its own (stages/agents.ts). An agent that claimed a backlog card is neither:
- * it is shown on that card (claims.ts), and so is an agent whose run names an existing card (`agent start --card`, ADR-25,
- * state/src/queues/backlog/phase.ts): it never reaches here, so its typed repo and branch decide nothing.
+ * What the board knows of an agent that is not on a card: the column of a finished one, its summary, and whether a finished
+ * author's commit waits on your review. Decided only by the fields the agent registered (`once-upon agent start`: repo, branch,
+ * card, and the branch and PR its finish event reports), never by its task, name or outcome. An agent whose run names a card
+ * (`agent start --card`, ADR-25) is shown on that card (state/src/queues/backlog/phase.ts) and never reaches here.
  */
-import type { BoardCard } from '@once-upon-a-diff/contracts/types';
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
-import { cardOnBranch } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import {
   isCritic,
   lastActivity,
@@ -79,54 +76,6 @@ export function pendingReview(
 }
 
 /**
- * The card an agent works on, or null: the one card that its registered fields point to. Three ways to point, each exact
- * (no text, no loose compare), and the agent has a home only when they all name the same card:
- *
- *   branch   its repo and branch (the finish event's branch when it has one): the branch's work card, else a session on it
- *   PR       its repo and PR number (the finish event's PR when it has one): that work card
- *   card     its backlog card (`--card`): the work or session card on that item's repo and branch, if the item has a branch.
- *            This needs no repo of the agent's own: the item supplies it. A dropped or landed item, or one whose card's PR merged,
- *            is not a home: the branch's card is someone else's now (a merged PR's card must not go back to Working for an old claim)
- *
- * Two different cards named, or none, is no home.
- */
-export function homeOf(
-  agent: Pick<LedgerAgent, 'repo' | 'branch' | 'pr' | 'card' | 'result'>,
-  cards: BoardCard[],
-  items: (Pick<BacklogItem, 'id' | 'repo' | 'branch'> &
-    Partial<Pick<BacklogItem, 'state' | 'landed_at'>>)[],
-): BoardCard | null {
-  const repo = agent.repo ?? null;
-  const branch = agent.result?.branch ?? agent.branch ?? null;
-  const pr = agent.result?.pr ?? agent.pr ?? null;
-  const found = new Set<BoardCard>();
-  const add = (card: BoardCard | undefined) => {
-    if (card) {
-      found.add(card);
-    }
-  };
-  if (repo && branch) {
-    add(cardOnBranch({ repo, branch }, cards));
-  }
-  if (repo && pr) {
-    add(
-      cards.find(
-        (card) => card.kind === 'work' && sameRepo(card.repo, repo) && card.pr?.number === pr,
-      ),
-    );
-  }
-  const item = agent.card ? items.find((one) => one.id === agent.card) : undefined;
-  if (item?.branch && item.state !== 'dropped' && !item.landed_at) {
-    // a card whose PR merged on GitHub is landed too, though its item is still `started`
-    const onItem = cardOnBranch(item, cards);
-    if (onItem?.pr?.state !== 'merged') {
-      add(onItem);
-    }
-  }
-  return found.size === 1 ? [...found][0] : null;
-}
-
-/**
  * The column of a finished agent that is not inside a card. No text is read: not the outcome, not the task, only what it
  * registered. In order:
  *
@@ -177,7 +126,7 @@ export function finishedColumn(
 
 /**
  * Whether an agent's registered card landed for this run: it has landed, is not dropped (a drop keeps the landing, and
- * dropped stays dropped, as in homeOf), and landed at or after the run started (an earlier landing is an earlier run's).
+ * dropped stays dropped), and landed at or after the run started (an earlier landing is an earlier run's).
  */
 export function landedFor(
   agent: Pick<LedgerAgent, 'started'>,

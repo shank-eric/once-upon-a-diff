@@ -188,19 +188,19 @@ flowchart LR
 | 7 | `app` | the route | `packages/server/server/src/routes/board.ts:58` (`app.board.snapshot()`) |
 | 8 | `service` | a 2 s cache, one build in flight for every caller, and a generation so a stale build can't refill it | `packages/server-libs/board/src/board.ts:210` (`async snapshot()`) |
 | 9 | `service` | the build gathers its context and runs the stages | `packages/server-libs/board/src/board.ts:395` (`buildBoard(ctx`) |
-| 10 | `service` | the stages, in order | `packages/server-libs/board/src/stages/index.ts:89` (`export async function buildBoard`) |
+| 10 | `service` | the stages, in order | `packages/server-libs/board/src/stages/index.ts:86` (`export async function buildBoard`) |
 | 11 | `service` | live sessions, their status, branches and repos | `packages/server-libs/board/src/stages/sessions.ts:59` (`liveSessions(settings.sessionsDir)`) |
 | 12 | `adapter` | **reads `~/.claude/sessions/<pid>.json`**, live pids only | `packages/server-libs/adapters/src/claude-sessions/live-sessions.ts:40` (`export async function liveSessions`) |
 | 13 | `service` | the agents, from the registry | `packages/server-libs/board/src/stages/sessions.ts:65` (`readAgents(`) |
 | 14 | `service` | **reads `agents.jsonl`** (only what was appended since this process last read it: `events-file.ts`) and folds its events into one view per agent. (Nothing else is read: the ledger and progress files are logs the registry writes, not input.) | `packages/server-libs/state/src/records/agents/read.ts:15` (`foldAgentEvents(agentEventsIn(`) |
-| 15 | `service` | the works: PR and local stories, pending builds | `packages/server-libs/board/src/stages/index.ts:98` (`collectWorks(ctx)`) |
-| 16 | `service` | what else is known of each session: listeners, voice, blank sessions, titles, status lines | `packages/server-libs/board/src/stages/index.ts:106` (`readSessionFacts(`) |
-| 17 | `service` | cards for the works, with PR details from what the GitHub watcher last heard | `packages/server-libs/board/src/stages/index.ts:133` (`buildCards(`) |
+| 15 | `service` | the works: PR and local stories, pending builds | `packages/server-libs/board/src/stages/index.ts:95` (`collectWorks(ctx)`) |
+| 16 | `service` | what else is known of each session: listeners, voice, blank sessions, titles, status lines | `packages/server-libs/board/src/stages/index.ts:103` (`readSessionFacts(`) |
+| 17 | `service` | cards for the works, with PR details from what the GitHub watcher last heard | `packages/server-libs/board/src/stages/index.ts:130` (`buildCards(`) |
 | 18 | `service` | each card's column | `packages/server-libs/board/src/stages/cards.ts:272` (`columnOf({`) |
 | 19 | `service` | the column rules | `packages/server-libs/board/src/columns.ts:84` (`export function columnOf`) |
-| 20 | `service` | the Backlog's items, folded from **`backlog.jsonl`** (claims included) | `packages/server-libs/board/src/stages/index.ts:136` (`state.backlog.items()`) |
-| 21 | `service` | which agent claimed which Backlog card | `packages/server-libs/board/src/stages/index.ts:154` (`claimViews(`) |
-| 22 | `service` | the lanes, by repo | `packages/server-libs/board/src/stages/index.ts:274` (`groupLanes(cards, labels)`) |
+| 20 | `service` | the Backlog's items, folded from **`backlog.jsonl`** (claims included) | `packages/server-libs/board/src/stages/index.ts:133` (`state.backlog.items()`) |
+| 21 | `service` | which agent claimed which Backlog card | `packages/server-libs/board/src/stages/index.ts:145` (`claimViews(`) |
+| 22 | `service` | the lanes, by repo | `packages/server-libs/board/src/stages/index.ts:244` (`groupLanes(cards, labels)`) |
 | 23 | `contracts` | back: the answer's shape | `packages/domain/contracts/src/board/types.ts:10` (`export interface BoardData`) |
 | 24 | `app` | the root component draws the regions, and Preact's keyed diff keeps focus, scroll and typed text | `packages/client/web/public/board.ts:261` (`<${Columns} view=${columns} />`) |
 
@@ -265,14 +265,14 @@ flowchart LR
 
 | # | Layer | Hop | At |
 |---|---|---|---|
-| 1 | `app` | `once-upon agent start <name> --kind author --card <id> …` | `packages/server/cli/src/commands/agent.ts:179` (`registry.start(`) |
-| 2 | `service` | `AgentRegistry.start` checks the fields (the card exists and is open, one author at a time, a critic names its card, the card's repo and branch replace typed ones: ADR-25) and gives the run an id | `packages/server-libs/state/src/records/agents/registry.ts:301` (`start(`) |
+| 1 | `app` | `once-upon agent start <name> --role author --card <id> …` | `packages/server/cli/src/commands/agent.ts:211` (`registry.start(`) |
+| 2 | `service` | `AgentRegistry.start` checks the fields (the card exists and is open and claimed, one author at a time, a critic or fixer names its card, the card's repo and branch are the run's and a typed `--kind`, `--repo`, `--branch`, `--pr` or `--lane` beside `--card` is refused: ADR-25) and gives the run an id | `packages/server-libs/state/src/records/agents/registry.ts:324` (`start(`) |
 | 3 | `adapter` | **appends a `start` event to `agents.jsonl`** | `packages/server-libs/adapters/src/stores/agents-file.ts:12` (`export function appendAgentEvent`) |
-| 4 | `service` | and a log line to the ledger file through the adapter's `appendLine`, when `board_ledger_file` is set (a mirror for the status line, the iTerm hook and people; the board never reads it) | `packages/server-libs/state/src/records/agents/registry.ts:187` (`appendLine(this.mirror.ledger`) |
-| 5 | `app` | `once-upon backlog claim <id> --agent <name> --branch <b>` | `packages/server/cli/src/commands/backlog.ts:274` (`store.claim(item.id`) |
+| 4 | `service` | and a log line to the ledger file through the adapter's `appendLine`, when `board_ledger_file` is set (a mirror for the status line, the iTerm hook and people; the board never reads it) | `packages/server-libs/state/src/records/agents/registry.ts:210` (`appendLine(this.mirror.ledger`) |
+| 5 | `app` | `once-upon backlog claim <id> --agent <name> --branch <b>` | `packages/server/cli/src/commands/backlog.ts:277` (`store.claim(item.id`) |
 | 6 | `service` | `BacklogStore.claim` refuses a dropped card | `packages/server-libs/state/src/queues/backlog/backlog.ts:355` (`claim(`) |
 | 7 | `adapter` | **appends a `claim` event to `backlog.jsonl`** | `packages/server-libs/adapters/src/stores/backlog-file.ts:12` (`export function appendBacklogEvent`) |
-| 8 | `app` | `--branch` also starts the card on that branch | `packages/server/cli/src/commands/backlog.ts:208` (`store.start(item.id`) |
+| 8 | `app` | `--branch` also starts the card on that branch | `packages/server/cli/src/commands/backlog.ts:286` (`store.start(item.id`) |
 
 **Work and beats**
 
@@ -280,23 +280,23 @@ flowchart LR
 |---|---|---|---|
 | 9 | `outside` | the agent runs `once-upon beat <name> N/M <step> "<note>"` (`fnm exec --using=24 once-upon beat …` from a shell not on Node 24) |  |
 | 10 | `app` | `beat`, which also writes the progress line for an agent that has no open run (`agent beat` is the same without that) | `packages/server/cli/src/commands/beat.ts:32` (`registry.beatOrLog(`) |
-| 11 | `service` | **appends a `beat` event** | `packages/server-libs/state/src/records/agents/registry.ts:470` (`beat(name: string`) |
-| 12 | `service` | the board reads both files on each build (flow 3, hops 13–14 and 20): the card its runs name sits in the column its runs say, with its agents on it (`claimViews`) | `packages/server-libs/board/src/stages/agents.ts:114` (`export function claimViews(`) |
-| 13 | `service` | once the author finishes, the card waits for its critic before Ready to ship, and an open fix round keeps it Working (the table: `packages/server-libs/state/src/queues/backlog/phase.ts:108` (`export function cardPhase(`)) | `packages/server-libs/board/src/stages/backlog.ts:241` (`cardPhase(item, runsOf(item, agents), nowMs)`) |
+| 11 | `service` | **appends a `beat` event** | `packages/server-libs/state/src/records/agents/registry.ts:498` (`beat(name: string`) |
+| 12 | `service` | the board reads both files on each build (flow 3, hops 13–14 and 20): the card its runs name sits in the column its runs say, with its agents on it (`claimViews`) | `packages/server-libs/board/src/stages/agents.ts:108` (`export function claimViews(`) |
+| 13 | `service` | once the author finishes, the card waits for its critic before Ready to ship, and an open fix round keeps it Working (the table: `packages/server-libs/state/src/queues/backlog/phase.ts:108` (`export function cardPhase(`)) | `packages/server-libs/board/src/stages/backlog.ts:235` (`cardPhase(item, runsOf(item, agents), nowMs)`) |
 
 **Finish and land**
 
 | # | Layer | Hop | At |
 |---|---|---|---|
-| 14 | `app` | `once-upon agent finish <name> --state done --commit <sha> --branch <b> --card <id>` | `packages/server/cli/src/commands/agent.ts:240` (`registry.finish(`) |
-| 15 | `service` | **appends a `finish` event** with the commit as its result | `packages/server-libs/state/src/records/agents/registry.ts:546` (`finish(name: string`) |
+| 14 | `app` | `once-upon agent finish <name> --state done --commit <sha> --branch <b> --card <id>` | `packages/server/cli/src/commands/agent.ts:272` (`registry.finish(`) |
+| 15 | `service` | **appends a `finish` event** with the commit as its result | `packages/server-libs/state/src/records/agents/registry.ts:574` (`finish(name: string`) |
 | 16 | `outside` | the main session deploys: `scripts/deploy-local.sh --yes <branch>` fast-forwards main and restarts the bridge |  |
 | 17 | `app` | after the deploy, the script runs `backlog land` over the range that went live | `scripts/deploy-local.sh:319` (`backlog land`) |
-| 18 | `app` | `land` reads the commit each agent's finish recorded | `packages/server/cli/src/commands/backlog.ts:327` (`recordedTips(registry.events())`) |
-| 19 | `service` | the last recorded commit per card | `packages/server-libs/state/src/queues/backlog/landing.ts:21` (`export function recordedTips`) |
-| 20 | `service` | which cards' commits went live: the recorded tip itself is in the range; or a commit with its patch id is (a rebase or a clean pick); or, for a batch deploy's picked sha whose patch changed, the commit with the tip's author stamp (`packages/server-libs/state/src/queues/backlog/landing.ts:117` (`const pickOf`)) | `packages/server-libs/state/src/queues/backlog/landing.ts:93` (`export function landItems(`) |
+| 18 | `app` | `land` reads the commit each agent's finish recorded | `packages/server/cli/src/commands/backlog.ts:330` (`recordedTips(registry.events())`) |
+| 19 | `service` | the last recorded commit per card | `packages/server-libs/state/src/queues/backlog/landing.ts:20` (`export function recordedTips`) |
+| 20 | `service` | which cards' commits went live: the recorded tip itself is in the range; or a commit with its patch id is (a rebase or a clean pick); or, for a batch deploy's picked sha whose patch changed, the commit with the tip's author stamp (`packages/server-libs/state/src/queues/backlog/landing.ts:107` (`const pickOf`)) | `packages/server-libs/state/src/queues/backlog/landing.ts:83` (`export function landItems(`) |
 | 21 | `adapter` | `git rev-list` over the range | `packages/server-libs/adapters/src/git.ts:290` (`export function commitsInRange(`) |
-| 22 | `app` | each matched card is marked done at its sha | `packages/server/cli/src/commands/backlog.ts:335` (`store.done(item.id, { sha`) |
+| 22 | `app` | each matched card is marked done at its sha | `packages/server/cli/src/commands/backlog.ts:338` (`store.done(item.id, { sha`) |
 | 23 | `service` | **appends a `done` event** to `backlog.jsonl` | `packages/server-libs/state/src/queues/backlog/backlog.ts:470` (`done(id: string`) |
 
 A card the script couldn't match is printed, to close by hand with `once-upon backlog done <id> --sha <sha>`. A card held with `backlog hold` is never marked by a deploy.

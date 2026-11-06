@@ -183,7 +183,7 @@ test('D. a carded critic’s `finish --state done` without --findings is refused
   const env = { CLAUDE_CODE_SESSION_ID: `${SID}-0000-4000-8000-000000000000` };
   const started = await runCli(
     home,
-    ['agent', 'start', 'review-me', '--kind', 'critic', '--card', item.id, '--task', 'review'],
+    ['agent', 'start', 'review-me', '--role', 'critic', '--card', item.id, '--task', 'review'],
     env,
   );
   assert.equal(started.code, 0, started.stderr);
@@ -430,17 +430,28 @@ test('H. the registry checks a run that names a card: unknown, dropped, a second
   const registry = new AgentRegistry(home, undefined, cardLookup(store));
   const item = store.add({ title: 'Checked', repo: REPO });
   store.start(item.id, { branch: 'checked' });
-  const warnings: string[] = [];
   const base = { sid: SID, task: 't', kind: 'author' as const };
   assert.throws(
     () => registry.start({ ...base, name: 'a', card: 'bl_missing1' }),
     /no backlog card/,
   );
-  registry.start(
-    { ...base, name: 'a', card: item.id, repo: 'esshank/larmor', branch: 'typed' },
-    (line) => warnings.push(line),
+  // an author starts on a claimed card (ADR-25, the flip)
+  assert.throws(() => registry.start({ ...base, name: 'a', card: item.id }), /has no claim/);
+  store.claim(item.id, { agent: 'a' });
+  // the card gives the run its repo and branch: typed ones are refused, naming each, and nothing is written
+  assert.throws(
+    () =>
+      registry.start({
+        ...base,
+        name: 'a',
+        card: item.id,
+        repo: 'esshank/larmor',
+        branch: 'typed',
+      }),
+    /--repo, --branch are not taken with --card/,
   );
-  assert.equal(warnings.filter((line) => /ignored/.test(line)).length, 2);
+  assert.deepEqual(registry.agents(), []);
+  registry.start({ ...base, name: 'a', card: item.id });
   assert.equal(registry.agents()[0].repo, REPO, 'the card’s repo is the run’s');
   assert.equal(registry.agents()[0].branch, 'checked');
   // a different author on the card is a second one; the same name starting again is the fix round
@@ -518,10 +529,10 @@ test('J. a fix round restarted without --card is still the card’s run: one car
   assert.equal(mine[0].column, 'working');
 });
 
-test('K. a cardless claimed author and a carded critic or helper: the card is read by its claim, and the author has no card of its own', async () => {
+test('K. a card’s author, critic and helper are one card; a cardless author on its branch is a card of its own and its claim finds no run', async () => {
   const { registry, cards, card } = world();
   const item = card('Mixed rows', 'mixed', 'ou-old');
-  // an old brief: the author registered with no card; the critic (now required to) names it
+  // an old brief: the author registered with no card, only a repo and branch. The claim no longer finds it
   registry.start({
     name: 'ou-old',
     sid: SID,
@@ -549,18 +560,29 @@ test('K. a cardless claimed author and a carded critic or helper: the card is re
   });
   let shownNow = await shown(cards, item.id, stamp(2));
   assert.equal(shownNow.mine.length, 1);
-  assert.deepEqual(shownNow.agentCards, [], 'the author is on the card, not a card of its own');
+  assert.deepEqual(
+    shownNow.agentCards.map((one) => one.agents[0].name),
+    ['ou-old'],
+  );
+  assert.deepEqual(shownNow.mine[0].agents.map((one) => one.name).sort(), ['review-m', 'tell-m']);
+  // a run that names the card is on it
+  registry.start({
+    name: 'ou-new',
+    sid: SID,
+    kind: 'author',
+    task: 'build',
+    card: item.id,
+    at: stamp(2),
+  });
+  registry.finish('review-m', { sid: SID, findings: 0, at: stamp(3) });
+  shownNow = await shown(cards, item.id, stamp(4));
   assert.deepEqual(shownNow.mine[0].agents.map((one) => one.name).sort(), [
-    'ou-old',
+    'ou-new',
     'review-m',
     'tell-m',
   ]);
   // the critic passes while the author still runs: not Ready to ship
-  registry.finish('review-m', { sid: SID, findings: 0, at: stamp(3) });
-  shownNow = await shown(cards, item.id, stamp(4));
-  assert.notEqual(shownNow.mine[0].column, 'ship');
   assert.equal(shownNow.mine[0].column, 'working');
-  assert.deepEqual(shownNow.agentCards, []);
 });
 
 test('L. a carded research run that fails does not send a finished card back to Backlog', async () => {
@@ -597,6 +619,7 @@ test('M. a second author is refused only while the first is working: one parked 
   const registry = new AgentRegistry(home, undefined, cardLookup(store));
   const item = store.add({ title: 'Parked', repo: REPO });
   const base = { sid: SID, task: 't', kind: 'author' as const, card: item.id };
+  store.claim(item.id, { agent: 'first' });
   registry.start({ ...base, name: 'first' });
   assert.throws(() => registry.start({ ...base, name: 'second' }), /already has an open author/);
   registry.state('first', { sid: SID, state: 'review' });
@@ -604,12 +627,15 @@ test('M. a second author is refused only while the first is working: one parked 
   assert.equal(runsOf(item, registry.agents()).length, 2);
 });
 
-test('N. `--role` and `--kind` agree through the aliases', async () => {
+test('N. a card takes --role alone: --kind beside it is refused, whether it agrees or not', async () => {
   const home = tmp('card-runs-role-alias');
   const item = new BacklogStore(home).add({ title: 'Alias', repo: REPO, branch: 'alias-branch' });
   const env = { CLAUDE_CODE_SESSION_ID: `${SID}-0000-4000-8000-000000000000` };
   const start = (name: string, ...flags: string[]) =>
     runCli(home, ['agent', 'start', name, ...flags, '--card', item.id, '--task', 'x'], env);
-  assert.equal((await start('a-one', '--role', 'critic', '--kind', 'reviewer')).code, 0);
-  assert.notEqual((await start('a-two', '--role', 'critic', '--kind', 'helper')).code, 0);
+  assert.equal((await start('a-one', '--role', 'critic')).code, 0);
+  const agrees = await start('a-two', '--role', 'critic', '--kind', 'reviewer');
+  assert.notEqual(agrees.code, 0);
+  assert.match(agrees.stderr, /--kind is not taken with --card/);
+  assert.notEqual((await start('a-three', '--role', 'critic', '--kind', 'helper')).code, 0);
 });

@@ -58,6 +58,7 @@ test('startedLinks: a worktree on the branch, a session in it, the agent that cl
   store.start(made.id, { branch: 'kill-inbox', by: 'Ou-Kill-Inbox' });
   store.claim(made.id, { agent: 'ou-kill-inbox' });
   const item = store.items()[0];
+  const card = made.id;
   const facts = {
     worktrees: new Map([
       [
@@ -85,6 +86,7 @@ test('startedLinks: a worktree on the branch, a session in it, the agent that cl
         sid: 'aaaaaaaa',
         name: 'ou-kill-inbox',
         kind: 'author',
+        card,
         started: STARTED,
         beat: { n: 3, of: 6, step: 'code', note: 'removing', at: '2026-10-26T18:50:00Z' },
       },
@@ -154,10 +156,13 @@ const backlogCard = async (board: Board, id: string): Promise<BoardCard | undefi
 test('the Retire-the-inbox case: a claimed, started card is one Working card with its agent, and is Ready (unmerged work) when the agent finishes', async () => {
   const home = tmp('links-board');
   const sessions = tmp('links-sessions');
+  const store = new BacklogStore(home);
+  const item = store.add({ title: 'Retire the inbox page?', repo: 'acme/widgets' });
   const registry = registerRuns(home, {
     sid: '54736864',
     name: 'ou-kill-inbox',
     kind: 'author',
+    card: item.id,
     task: 'remove the inbox',
     started: STARTED,
   });
@@ -177,8 +182,6 @@ test('the Retire-the-inbox case: a claimed, started card is one Working card wit
   });
   writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
   repoWithWorktree(home);
-  const store = new BacklogStore(home);
-  const item = store.add({ title: 'Retire the inbox page?', repo: 'acme/widgets' });
   claimAt(store, item.id, 'ou-kill-inbox', CLAIMED);
   store.start(item.id, { branch: 'kill-inbox', repo: 'acme/widgets', by: 'ou-kill-inbox' });
 
@@ -214,7 +217,7 @@ test('the Retire-the-inbox case: a claimed, started card is one Working card wit
   );
 });
 
-test('a claimed card (no start) is out of Backlog while its agent runs, and back in it when the agent fails', async () => {
+test('a claimed card (no start) is out of Backlog while the run that names it runs, and back in it when the run fails', async () => {
   const home = tmp('links-named');
   writeJson(path.join(home, 'config.json'), { board_sessions_dir: tmp('links-named-sessions') });
   const store = new BacklogStore(home);
@@ -223,7 +226,8 @@ test('a claimed card (no start) is out of Backlog while its agent runs, and back
   const registry = registerRuns(home, {
     sid: '54736864',
     name: 'ou-scout',
-    kind: 'research',
+    kind: 'author',
+    card: item.id,
     task: 'research',
     started: STARTED,
   });
@@ -247,7 +251,7 @@ test('a claimed card (no start) is out of Backlog while its agent runs, and back
   assert.equal(back?.column, 'backlog');
   assert.equal(back?.backlog?.agent?.tried, true);
   assert.equal(back?.backlog?.agent?.links.agent?.name, 'ou-scout');
-  // a task that names a card, for a reviewer or in passing, claims nothing
+  // a task that names a card, for a reviewer or in passing, claims nothing; neither does a claim no run names
   const other = store.add({ title: 'Another card', repo: 'acme/widgets' });
   registerRuns(
     home,
@@ -273,7 +277,7 @@ test('a claimed card (no start) is out of Backlog while its agent runs, and back
   );
 });
 
-test('research that finished is Done for an hour and then gone, never back in Backlog; an agent in a worktree makes its card Ready', async () => {
+test('a card whose run finished with nothing to show is Done for an hour and then gone, never back in Backlog', async () => {
   const home = tmp('links-research');
   writeJson(path.join(home, 'config.json'), { board_sessions_dir: tmp('links-research-sessions') });
   const store = new BacklogStore(home);
@@ -282,7 +286,8 @@ test('research that finished is Done for an hour and then gone, never back in Ba
   registerRuns(home, {
     sid: '54736864',
     name: 'ou-look',
-    kind: 'research',
+    kind: 'author',
+    card: item.id,
     task: 'look',
     started: STARTED,
     now: { state: 'done', at: '2026-10-26T19:00:00Z', outcome: 'it is fine', notes: 'notes/x.md' },
@@ -368,49 +373,62 @@ test('work fast-forwarded into the main checkout’s branch shows merged; a bran
   assert.equal(card?.column, 'done');
 });
 
-test('agentLinks: an open item is linked by the agent that claimed it, and by nothing else', () => {
+test('agentLinks: an open item is linked by the work run that names its card, and by nothing else', () => {
   const store = new BacklogStore(tmp('links-open'));
   const made = store.add({ title: 'Research a thing', repo: 'acme/widgets' });
-  const facts = (task: string, state = 'running') => ({
+  const run = (over: Partial<AgentRun> = {}): AgentRun => ({
+    sid: 'aaaaaaaa',
+    name: 'ou-kill-inbox',
+    kind: 'author',
+    task: 'research',
+    started: STARTED,
+    beat: { n: 2, of: 6, step: 'plan', at: '2026-10-26T18:40:00Z' },
+    ...over,
+  });
+  const facts = (agents: AgentRun[]) => ({
     worktrees: new Map(),
     sessions: [],
-    agents: agentsOf({
-      sid: 'aaaaaaaa',
-      name: 'ou-kill-inbox',
-      task,
-      started: STARTED,
-      beat: { n: 2, of: 6, step: 'plan', at: '2026-10-26T18:40:00Z' },
-      ...(state === 'running'
-        ? {}
-        : { now: { state, at: NOW, outcome: 'outcome' } as AgentRun['now'] }),
-    }),
+    agents: agentsOf(...agents),
     merged: () => null,
   });
-  // the task naming the id is not a claim
-  assert.equal(agentLinks(store.items()[0], facts(`card ${made.id} research`)), null);
+  // the task naming the id is not a link, and neither is a claim: no run names the card
+  assert.equal(
+    agentLinks(store.items()[0], facts([run({ task: `card ${made.id} research` })])),
+    null,
+  );
   claimAt(store, made.id, 'ou-kill-inbox', CLAIMED);
-  const found = agentLinks(store.items()[0], facts('research')) as BoardStartedLinks;
+  assert.equal(agentLinks(store.items()[0], facts([run()])), null, 'a claim finds no run');
+  // a run that names the card is its link, and a claim by another name changes nothing
+  const found = agentLinks(store.items()[0], facts([run({ card: made.id })])) as BoardStartedLinks;
   assert.equal(found.agent?.name, 'ou-kill-inbox');
   assert.deepEqual(found.agent?.beat, { n: 2, of: 6, step: 'plan', note: '' });
   assert.equal(found.active, true);
-  // a claim by another name finds no agent
   claimAt(store, made.id, 'ou-someone-else', CLAIMED);
-  assert.equal(agentLinks(store.items()[0], facts('research')), null);
-  claimAt(store, made.id, 'ou-kill-inbox', CLAIMED);
+  assert.equal(
+    (agentLinks(store.items()[0], facts([run({ card: made.id })])) as BoardStartedLinks).agent
+      ?.name,
+    'ou-kill-inbox',
+  );
+  // a research run on the card is not its work
+  assert.equal(
+    agentLinks(store.items()[0], facts([run({ card: made.id, kind: 'research' })])),
+    null,
+  );
   // a finished agent still says who worked it, and is not active
-  const done = agentLinks(store.items()[0], {
-    ...facts(''),
-    agents: agentsOf({
-      sid: 'aaaaaaaa',
-      name: 'ou-kill-inbox',
-      task: 'go',
-      started: STARTED,
-      now: { state: 'done', at: NOW, outcome: 'ok' },
-    }),
-  }) as BoardStartedLinks;
+  const done = agentLinks(
+    store.items()[0],
+    facts([
+      run({
+        card: made.id,
+        task: 'go',
+        now: { state: 'done', at: NOW, outcome: 'ok' } as AgentRun['now'],
+        beat: undefined,
+      }),
+    ]),
+  ) as BoardStartedLinks;
   assert.equal(done.agent?.state, 'done');
   assert.equal(done.active, false);
   // a started item is not an open item's link
   store.start(made.id, { branch: 'x' });
-  assert.equal(agentLinks(store.items()[0], facts('go')), null);
+  assert.equal(agentLinks(store.items()[0], facts([run({ card: made.id })])), null);
 });

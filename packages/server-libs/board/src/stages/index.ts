@@ -26,12 +26,10 @@
  * The board shows your own work: sessions on this Mac, and PRs you authored (isShown). Columns follow the work to
  * merge (columns.ts). A lane is keyed by the repo's owner/name (else the folder's name) and labeled by the short name unless two lanes share it: the page puts a lane's label right above its
  * cards inside each column. Sessions share a card only on the same live branch (a PR still open, or a story); any other
- * session is a card of its own, titled by the session. An agent is a card of its own, on its own lane (its `lane:<name>`
- * tag, else its registered repo's, else its parent's), with a "from <parent session>" link, only while it is running or
- * waiting; a finished one has no card. It is nested inside the card its registered repo and branch, PR or card point to,
- * if there is one (agent-home.ts), and never by what its task says.
+ * session is a card of its own, titled by the session. An agent is a card of its own, on its own lane (its registered
+ * repo's, else its parent's), with a "from <parent session>" link, only while it is running or waiting; a finished one has no
+ * card. It is nested inside the card its run names (`--card`), and never by what its task says.
  */
-import { agentWorkKey } from '@once-upon-a-diff/terms/ids';
 import { unreadAnswers } from '@once-upon-a-diff/state/queues/requests/conversation';
 import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
 import type { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
@@ -44,14 +42,13 @@ import type { WorktreeScanner } from '@once-upon-a-diff/state/records/worktrees/
 import type { BoardData, BoardStatus } from '@once-upon-a-diff/contracts/types';
 import { claimViews, placeAgents } from './agents.ts';
 import { editorsOf } from './editors.ts';
-import { heldKeys } from '@once-upon-a-diff/state/queues/backlog/claims';
-import { carriedKeys, namedByRuns } from '@once-upon-a-diff/state/queues/backlog/phase';
+import { carriedKeys } from '@once-upon-a-diff/state/queues/backlog/phase';
 import { addBacklogCards, nestClaimedAgents, readBacklogLinks } from './backlog.ts';
 import { buildCards, placeCards } from './cards.ts';
 import type { CardFacts } from './cards.ts';
 import { isStandingHelper, standingHelpers } from './helpers.ts';
 import { groupLanes } from './lanes.ts';
-import { laneLabels, resolveLane } from '@once-upon-a-diff/terms/lane-key';
+import { laneLabels } from '@once-upon-a-diff/terms/lane-key';
 import { markListening } from './listeners.ts';
 import { voiceLines } from '@once-upon-a-diff/adapters/larmor';
 import { placeSessions, readLive, readSessionFacts } from './sessions.ts';
@@ -132,16 +129,10 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   // cards for the works: PR details from what GitHub last said
   const cards = buildCards(ctx, cardFacts, works, sessionCards);
 
-  // the Backlog's items, and who claimed which: a claimed card shows its agent, so that agent has no card of its own
+  // the Backlog's items: a card shows the agents whose runs name it, so those agents have no card of their own
   const backlogItems = state.backlog.items();
-  // an agent whose run names a card that exists is that card's (phase.ts); a claim finds an agent only for a card no run names
-  const held = new Set([
-    ...carriedKeys(backlogItems, agents),
-    ...heldKeys(
-      backlogItems.filter((item) => !namedByRuns(item, agents)),
-      agents,
-    ),
-  ]);
+  // an agent whose run names a card that exists is that card's (phase.ts); a claim finds no agent
+  const held = carriedKeys(backlogItems, agents);
   // the editors, and which agent each controls: by the session an agent was launched from (editors.ts)
   const editing = editorsOf({
     editors: read.editors,
@@ -228,28 +219,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
       })
     : null;
 
-  // an agent's lane tag is a short name: now that every repo the board knows is in (cards, backlog cards, blank
-  // sessions, worktrees), it becomes the one owner/name that has that name, so a repo is one lane. A lane that came
-  // from anything else (the agent's registered repo, or its parent's lane, which may be a folder) is already a key and stays
-  const repoLanes = [
-    ...cards.map((card) => card.lane),
-    ...blankViews.map((one) => one.lane),
-    ...editing.editors.map((editor) => editor.lane),
-    ...(worktrees?.items ?? []).map((tree) => tree.lane),
-  ];
-  const tags = new Map(
-    agents.flatMap((agent) =>
-      agent.lane ? [[agentWorkKey(agent.sid, agent.name), agent.lane]] : [],
-    ),
-  );
-  for (const card of cards) {
-    const tag = card.kind === 'agent' ? tags.get(card.id) : undefined;
-    if (tag) {
-      card.lane = resolveLane(tag, repoLanes);
-    }
-  }
-
-  // lanes: one per repo (or lane tag), the cards grouped by the page into columns; the labels are the board's one
+  // lanes: one per repo, the cards grouped by the page into columns; the labels are the board's one
   // answer, the short name unless two lanes share it (the Worktrees lane's rows carry theirs)
   const labels = laneLabels([
     ...cards.map((card) => card.lane),

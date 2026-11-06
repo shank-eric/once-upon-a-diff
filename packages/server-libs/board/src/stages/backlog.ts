@@ -10,11 +10,7 @@ import {
   cardOnBranch,
 } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
-import {
-  claimedAgent,
-  criticHold,
-  sameAgentView,
-} from '@once-upon-a-diff/state/queues/backlog/claims';
+import { sameAgentView } from '@once-upon-a-diff/state/queues/backlog/claims';
 import {
   cardPhase,
   namedByRuns,
@@ -232,9 +228,7 @@ export function addBacklogCards(
     })),
     ...(pin ? [{ repo: pin.repo, branch: pin.view.branch, label: 'Voice session' }] : []),
   ];
-  // a finished card waits out its critic's run and its fix round before it can be Ready to ship
-  const holds = new Map<string, BoardCard['column']>();
-  // a card that runs name is read by those runs (cardPhase); one no run names, by its claim and criticHold (the old rules)
+  // a card that a work run names is read by its runs (cardPhase); one no run names is a started or pending card
   const phases = new Map<string, CardPhase | null>();
   for (const item of backlogItems) {
     if (item.state !== 'dropped' && namedByRuns(item, agents)) {
@@ -242,15 +236,9 @@ export function addBacklogCards(
       if (phase !== undefined) {
         phases.set(item.id, phase);
       }
-      continue;
-    }
-    const author = claimedAgent(item, agents);
-    const hold = author ? criticHold(item, author, agents, nowMs) : null;
-    if (hold) {
-      holds.set(item.id, hold);
     }
   }
-  const added = backlogCards(backlogItems, cards, nowMs, cardless, links, views, holds, phases);
+  const added = backlogCards(backlogItems, cards, nowMs, cardless, links, views, phases);
   const all = [...cards, ...added];
 
   // Assign: sends the voice session "Start backlog card ...", so every open item the board is not already working has it

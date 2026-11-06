@@ -155,6 +155,8 @@ test('agent start sweeps as it writes', async () => {
     'ou-new',
     '--kind',
     'author',
+    '--branch',
+    'ou-new',
     '--sid',
     SID,
     '--task',

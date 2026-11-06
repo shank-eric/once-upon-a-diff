@@ -426,6 +426,63 @@ test('refusals: a storyteller with nothing to read; a `story-` run with no role,
   assert.match(critic.stderr, /--pr N/);
 });
 
+test('--card with a typed --branch on a card with no branch stamps the card, and a critic can then start on it', async () => {
+  const home = tmp('card-branch-card-typed');
+  const store = new BacklogStore(home);
+  const item = store.add({ title: 'Typed branch', repo: REPO });
+  store.claim(item.id, { agent: 'ou-t' });
+  const started = await runCli(home, [
+    'agent',
+    'start',
+    'ou-t',
+    '--sid',
+    SID,
+    '--role',
+    'author',
+    '--card',
+    item.id,
+    '--branch',
+    'feat/typed',
+    '--task',
+    't',
+  ]);
+  assert.equal(started.code, 0, started.stderr);
+  assert.equal(cardOf(store, item.id)?.branch, 'feat/typed');
+  assert.equal(new AgentRegistry(home).agents()[0].branch, 'feat/typed');
+  const critic = await runCli(home, [
+    'agent',
+    'start',
+    'review-t',
+    '--sid',
+    SID,
+    '--role',
+    'critic',
+    '--card',
+    item.id,
+    '--task',
+    'review',
+  ]);
+  assert.equal(critic.code, 0, critic.stderr);
+  // a card that has a branch is not restamped, and the typed one is refused
+  const kept = await runCli(home, [
+    'agent',
+    'start',
+    'ou-u',
+    '--sid',
+    SID,
+    '--role',
+    'author',
+    '--card',
+    item.id,
+    '--branch',
+    'feat/other',
+    '--task',
+    't',
+  ]);
+  assert.notEqual(kept.code, 0);
+  assert.equal(cardOf(store, item.id)?.branch, 'feat/typed');
+});
+
 test('--card with --pr on a card with no branch stamps the card from the PR’s head, then the run takes it', async () => {
   const home = tmp('card-branch-card-pr');
   const store = new BacklogStore(home);
@@ -474,7 +531,9 @@ test('--card with --pr on a card with no branch stamps the card from the PR’s 
     ],
     fakeGh('feat/c'),
   );
-  assert.equal(kept.code, 0, kept.stderr);
+  // the card has a branch: --pr is refused (the card's branch is the run's), and the card is left alone
+  assert.notEqual(kept.code, 0);
+  assert.match(kept.stderr, /--pr is not taken with --card/);
   assert.equal(cardOf(store, other.id)?.branch, 'feat/own');
 });
 
@@ -505,6 +564,7 @@ test('fix 1: a renamed card whose earlier run finished on the old branch gets no
   const store = new BacklogStore(home);
   const item = store.add({ title: 'Renamed with history', repo: REPO });
   store.start(item.id, { branch: 'feat/old', repo: REPO });
+  store.claim(item.id, { agent: 'plan' });
   const registry = new AgentRegistry(home, { ledger: null, progress: null }, cardLookup(store));
   registry.start({ name: 'plan', sid: SID, kind: 'author', task: 'plan', card: item.id });
   registry.finish('plan', { sid: SID, outcome: 'planned' });

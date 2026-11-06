@@ -623,7 +623,7 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
     'merged.json': { at: hoursAgo(71), why: 'merged', merged_at: hoursAgo(72) },
   });
 
-  // two agents registered on PR 7's branch and PR: nested in its card, whatever their tasks say
+  // two cardless agents registered on PR 7's branch and PR: a card each, never nested (ADR-25)
   const registered = new AgentRegistry(home);
   registered.start({
     sid: sid(onStory),
@@ -666,7 +666,6 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
     {
       sid: sid(onStory),
       name: 'tagged-one',
-      lane: 'cross-cutting',
       task: 'tagged task',
       started: etAt(14, 55),
       beat: { n: 1, of: 6, step: 'read', note: 'reading', at: etAt(14, 56) },
@@ -782,6 +781,8 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
     [`agent:${sid(onStory)}:crosscut-note`]: 'working',
     [fullId(loose.pid)]: 'working',
     [`agent:${sid(onStory)}:tagged-one`]: 'working',
+    [`agent:${sid(onStory)}:nested-one`]: 'working', // cardless: its branch is no link to PR 7's card
+    [`agent:${sid(onStory)}:pr-agent`]: 'working',
     'agent:deadbeef:orphan': 'working',
     [`agent:${sid(onStory)}:nested-done`]: 'done', // a helper that finished 20 minutes ago: in Done for 30
     'agent:deadbeef:broke': 'waiting',
@@ -833,7 +834,7 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
   assert.equal(card(fullId(staleTwo.pid)).title, 'Tab title');
   assert.equal(card(fullId(staleOne.pid)).branch, 'old/merged');
   assert.equal(cards.filter((found) => found.branch === 'old/merged').length, 2);
-  // an agent's lane with no registered repo: its tag, else its parent's (its task text is not read)
+  // an agent's lane with no registered repo: its parent's (no tag, no task text is read)
   assert.equal(card(`agent:${sid(onStory)}:wt-agent`).lane, 'acme/widgets');
   assert.equal(card(`agent:${sid(onStory)}:crosscut-note`).lane, 'acme/widgets');
   assert.equal(card(`agent:${sid(onMain)}:needs-answer`).lane, 'acme/gadgets');
@@ -841,7 +842,7 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
   assert.equal(card(`agent:${sid(onStory)}:wt-agent`).parent, 'story-one');
   assert.deepEqual(
     data.lanes.map((lane) => lane.name).filter((name) => !name.startsWith('once-upon-')),
-    ['cross-cutting', 'gadgets', 'No live session', 'widgets'],
+    ['gadgets', 'No live session', 'widgets'],
   );
   assert.equal(card('pr:acme/widgets#9').lane, 'acme/widgets');
 
@@ -858,13 +859,15 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
   );
   assert.deepEqual(
     working.agents.map((agent) => [agent.name, agent.status]),
-    [
-      ['nested-one', 'working'],
-      ['pr-agent', 'working'],
-    ],
-    'only agents registered on the same branch or PR are nested; the rest have their own cards',
+    [],
+    'a card’s agents are the runs that name it; a branch or PR on a cardless run is no link',
   );
-  assert.deepEqual(working.agents[0].beat, { n: 3, of: 6, step: 'code', note: 'writing' });
+  assert.deepEqual(card(`agent:${sid(onStory)}:nested-one`).agents[0]?.beat ?? null, {
+    n: 3,
+    of: 6,
+    step: 'code',
+    note: 'writing',
+  });
   assert.deepEqual(working.pr, seven);
   assert.deepEqual(working.story?.reviewed, false);
 
@@ -893,7 +896,7 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
   assert.equal(needsAnswer.parent, 'main-one');
   assert.equal(card(fullId(loose.pid)).detail, 'compiling');
   assert.equal(card(`agent:${sid(onStory)}:tagged-one`).parent, 'story-one');
-  assert.equal(card(`agent:${sid(onStory)}:tagged-one`).lane, 'cross-cutting');
+  assert.equal(card(`agent:${sid(onStory)}:tagged-one`).lane, 'acme/widgets');
 
   // GitHub was asked in the background for what the board needs
   assert.deepEqual([...new Set(asked.branches)].sort(), [
@@ -2834,7 +2837,7 @@ test('the voice session is pinned above the columns, off every card, with its ag
   const twoDaysBack = new Date(Date.UTC(2026, 9, 24, 13, 0)); // 9:00 AM ET, 10/24
   registerRuns(
     home,
-    { sid: sid(voice), name: 'helper-one', lane: 'elsewhere', started: etAt(14, 50) },
+    { sid: sid(voice), name: 'helper-one', started: etAt(14, 50) },
     {
       sid: sid(voice),
       name: 'helper-two',
@@ -3004,7 +3007,8 @@ test('the voice session is pinned above the columns, off every card, with its ag
   assert.equal(helper?.lane, 'acme/widgets', 'in its parent’s lane');
   assert.equal(
     cards.find((card) => card.id === `agent:${sid(voice)}:helper-one`)?.lane,
-    'elsewhere',
+    'acme/widgets',
+    'no lane tag: its parent’s lane',
   );
   // with the setting unset, voice mode is not looked at: the session is a card like any other
   writeJson(path.join(home, 'config.json'), settings);
@@ -3070,7 +3074,7 @@ const CLAIM_WHILE_RUNNING = '2026-10-26T18:35:00Z';
 const holders = (cards: BoardCard[], name: string) =>
   cards.filter((card) => card.agents.some((agent) => agent.name === name));
 
-test('a claimed agent on its branch’s card sets that card’s column whatever it is doing (running, at its plan, asking)', async () => {
+test('an agent whose run names a card sets that card’s column whatever it is doing (running, at its plan, asking)', async () => {
   const running: AgentRun = {
     sid: '54736864',
     name: 'builder',
@@ -3092,10 +3096,11 @@ test('a claimed agent on its branch’s card sets that card’s column whatever 
     ],
   ];
   for (const [what, run, column] of cases) {
-    const { store, cards } = claimWorld([run]);
+    const { home, store, cards } = claimWorld([]);
     const item = store.add({ title: 'Build x', repo: 'acme/widgets' });
     store.start(item.id, { branch: 'feat/x', repo: 'acme/widgets' });
     claimAt(store, item.id, 'builder', CLAIM_WHILE_RUNNING);
+    registerRuns(home, { ...run, card: item.id });
     const all = await cards();
     const pr = all.find((card) => card.id === 'pr:acme/widgets#7') as BoardCard;
     assert.equal(pr.column, column, `${what}: the PR card is in ${column}`);
@@ -3109,66 +3114,75 @@ test('a claimed agent on its branch’s card sets that card’s column whatever 
   }
 });
 
-test('after the card is marked done a claimed agent shows once, not on the landed card and on its own', async () => {
-  const { store, cards } = claimWorld([
-    {
-      sid: '54736864',
-      name: 'builder',
-      kind: 'author',
-      task: 'build',
-      started: etAt(14, 30),
-      now: { state: 'done', at: etAt(14, 50), outcome: 'committed on feat/x, tests green' },
-    },
-  ]);
+test('after the card is marked done an agent whose run names it shows once, on the landed card', async () => {
+  const { home, store, cards } = claimWorld([]);
   const item = store.add({ title: 'Build x', repo: 'acme/widgets' });
   store.start(item.id, { branch: 'feat/x', repo: 'acme/widgets' });
   claimAt(store, item.id, 'builder', CLAIM_WHILE_RUNNING);
-  // before it lands: on the PR card, held out of its own card
+  registerRuns(home, {
+    sid: '54736864',
+    name: 'builder',
+    kind: 'author',
+    task: 'build',
+    started: etAt(14, 30),
+    now: { state: 'done', at: etAt(14, 50), outcome: 'committed on feat/x, tests green' },
+    card: item.id,
+  });
+  // before it lands: on the PR card
   assert.equal(holders(await cards(), 'builder').length, 1);
   store.done(item.id, { sha: 'abc1234', by: 'deploy-local' });
   const all = await cards();
   assert.equal(holders(all, 'builder').length, 1, 'once, in Done');
   assert.equal(
-    holders(all, 'builder')[0].kind,
-    'agent',
-    'on its own finished card, the claim being over',
+    holders(all, 'builder')[0].id,
+    'pr:acme/widgets#7',
+    'on the card its run names, which is the landed card',
   );
+  assert.equal(all.filter((card) => card.kind === 'agent').length, 0, 'no card of its own');
 });
 
-test('a claim is for one run: a rerun of the same agent under the same name does not pull the finished card back', async () => {
+test('a claim finds no run: a finished card stays Done beside a cardless run, and a claimed card is Working through a run naming it', async () => {
   const build: AgentRun = {
     sid: '54736864',
     name: 'ou-build',
     kind: 'author',
     started: etAt(14, 30),
   };
-  const { store, cards } = claimWorld(
-    [
-      {
-        ...build,
-        task: 'build',
-        now: { state: 'done', at: etAt(15, 50), outcome: 'committed abc1234' },
-      },
-      { ...build, task: 'fix other things', started: etAt(16, 0) },
-    ],
-    new Date('2026-10-26T20:30:00Z'),
-  );
+  const { home, store, cards } = claimWorld([], new Date('2026-10-26T20:15:00Z'));
   const item = store.add({ title: 'The first job', repo: 'acme/gadgets' });
-  claimAt(store, item.id, 'ou-build', '2026-10-26T18:40:00Z');
+  claimAt(store, item.id, 'ou-build', '2026-10-26T17:00:00Z');
+  registerRuns(
+    home,
+    {
+      ...build,
+      task: 'build',
+      card: item.id,
+      now: { state: 'done', at: etAt(15, 50), outcome: 'committed abc1234' },
+    },
+    {
+      ...build,
+      name: 'ou-other',
+      task: 'fix other things',
+      started: etAt(16, 0),
+      branch: 'fix/other',
+    },
+  );
   const all = await cards();
   const card = all.find((one) => one.backlog?.id === item.id) as BoardCard;
   assert.equal(card.column, 'done', 'the first run finished: the card does not go back to Working');
   assert.equal(card.agents[0].state, 'done');
   const own = all.filter((one) => one.kind === 'agent');
-  assert.equal(own.length, 1, 'the rerun has its own card');
+  assert.equal(own.length, 1, 'the other run names no card: a card of its own');
   assert.equal(own[0].column, 'working');
-  // and it holds no build slot of that card's: claimed keys come from the current run only
+  // a second card claimed by the same name is Working only through a run that names it
   const second = store.add({ title: 'The second job', repo: 'acme/gadgets' });
   claimAt(store, second.id, 'ou-build', '2026-10-26T20:05:00Z');
+  const pending = await cards();
+  assert.equal(pending.find((one) => one.backlog?.id === second.id)?.column, 'working', 'pending');
+  registerRuns(home, { ...build, task: 'second', card: second.id, started: etAt(16, 10) });
   const both = await cards();
   assert.equal(both.find((one) => one.backlog?.id === second.id)?.column, 'working');
   assert.equal(both.find((one) => one.backlog?.id === item.id)?.column, 'done');
-  assert.equal(both.filter((one) => one.kind === 'agent').length, 0, 'now it is the second card’s');
 });
 
 test('claiming before the agent’s run starts, with an older finished run of that name, leaves the card Working and pending', async () => {
@@ -4918,14 +4932,15 @@ test('the board: Agent checks holds a PR card with a gated agent in it, an agent
   );
   registry(sessions, onY.pid, { cwd: widgetsY, name: 'branch-y' }, onY.procStart);
   prStory(home, 'acme-widgets-7', 'acme/widgets', 7, 'feat/x');
-  // registered agents: a plan and a running reviewer for PR 7, launched by a session that is not on its branch
+  // registered agents on implicit cards: a plan and a running reviewer for PR 7, launched by a session that is not on its branch
   const registered = new AgentRegistry(home);
-  const launched = { sid: sid(launcher), lane: 'widgets', repo: 'acme/widgets' };
+  const launched = { sid: sid(launcher), repo: 'acme/widgets' };
   registered.start({
     ...launched,
     name: 'builder',
     kind: 'author',
     task: 'build on feat/x → notes/p.md',
+    card: 'ic_featxwork1',
     branch: 'feat/x',
     at: etAt(14, 0),
   });
@@ -4940,7 +4955,8 @@ test('the board: Agent checks holds a PR card with a gated agent in it, an agent
     name: 'review-seven',
     kind: 'critic',
     task: 'review of PR #7 diff',
-    pr: 7,
+    card: 'ic_featxwork1',
+    branch: 'feat/x',
     at: etAt(14, 20),
   });
   // findings being fixed on feat/y, and a reviewer for a branch that has no card
@@ -4949,6 +4965,7 @@ test('the board: Agent checks holds a PR card with a gated agent in it, an agent
     name: 'review-why',
     kind: 'critic',
     task: 'review of feat/y diff',
+    card: 'ic_featywork1',
     branch: 'feat/y',
     at: etAt(14, 0),
   });
@@ -4961,10 +4978,10 @@ test('the board: Agent checks holds a PR card with a gated agent in it, an agent
   });
   registered.start({
     ...launched,
-    lane: 'elsewhere',
     name: 'review-lost',
     kind: 'critic',
     task: 'review of feat/none',
+    card: 'ic_featnone01',
     branch: 'feat/none',
     at: etAt(14, 40),
   });
@@ -5022,10 +5039,10 @@ test('the board: Agent checks holds a PR card with a gated agent in it, an agent
     [{ kind: 'fixing', findings: 3 }],
   );
 
-  // a gated agent whose registered branch has no card has a card of its own, in the column, on its tag's lane
+  // a gated agent whose registered branch has no card has a card of its own, in the column, on its parent's lane
   const lost = card(`agent:${sid(launcher)}:review-lost`);
   assert.equal(lost.column, 'checks');
-  assert.equal(lost.lane, 'elsewhere');
+  assert.equal(lost.lane, 'acme/widgets');
   assert.equal(lost.parent, 'launcher');
   assert.equal(card(`agent:${sid(launcher)}:review-old`), undefined);
   // the launching session's own card is its own business
@@ -5078,7 +5095,8 @@ test('an agent parked on your story review is ready for review, not waiting; a q
     name: 'on-pr',
     kind: 'author',
     task: 'build on PR #7',
-    pr: 7,
+    card: 'ic_onprwork01',
+    branch: 'feat/x',
     at: etAt(13, 0),
   });
   registered.state('on-pr', {
@@ -5117,7 +5135,7 @@ test('an agent parked on your story review is ready for review, not waiting; a q
   assert.deepEqual(
     seven.agents.map((agent) => [agent.name, agent.review]),
     [['on-pr', true]],
-    'nested in the card its registered PR names',
+    'nested in the PR card its implicit card’s branch names',
   );
   assert.equal(card(`agent:${sid}:on-pr`), undefined);
   const lone = card(`agent:${sid}:on-nothing`);
@@ -5147,6 +5165,7 @@ test('a [review] agent naming a no-PR branch sits in its Ready card; one left a 
     name: 'on-x',
     kind: 'author',
     task: 'build on feat/x',
+    card: 'ic_onxwork0001',
     branch: 'feat/x',
     at: etAt(13, 0),
   });
@@ -7001,7 +7020,7 @@ test('a standing helper is a row at the bottom, never a card: gone with its sess
   assert.equal(agentCards(plain.cards, 'tagged-one').length, 1);
 });
 
-test('only a lane tag is resolved to an owner/name: an agent on its parent’s folder lane stays there', async () => {
+test('an agent is on its parent’s folder lane: a lane tag is not read, so it is never resolved to an owner/name', async () => {
   const home = tmp('board-folder-lane');
   const sessions = tmp('board-folder-lane-sessions');
   const parent = liveChild();
@@ -7022,7 +7041,7 @@ test('only a lane tag is resolved to an owner/name: an agent on its parent’s f
   board.addBacklog({ title: 'In eric/foo', repo: 'eric/foo', by: 'board' });
   const cards = (await board.snapshot()).lanes.flatMap((lane) => lane.cards);
   const lane = (title: string) => cards.find((card) => card.title === title)?.lane;
-  assert.equal(lane('tagged-agent'), 'eric/foo', 'a tag is the short name of the one repo');
+  assert.equal(lane('tagged-agent'), 'foo', 'a tag is not read: the parent’s lane');
   assert.equal(lane('folder-agent'), 'foo', 'a folder lane is already a key');
 });
 

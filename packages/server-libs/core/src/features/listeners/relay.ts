@@ -136,7 +136,7 @@ const refOf = (branch: string | null | undefined) =>
 const startAgain = (cli: string, agent: string, task: string) =>
   `If your run is over already (an earlier finish: \`${cli} agent list --json\` shows it), start a new one first, ` +
   'because a finish or state change on a finished run is refused and the commit would not be recorded: ' +
-  `${cli} agent start ${agent} --task "${task}" --sid <the sid your brief gave> --branch <branch> --card <your card>.`;
+  `${cli} agent start ${agent} --task "${task}" --sid <the sid your brief gave> --card <your card>.`;
 
 const quote = (text: string | null | undefined) => JSON.stringify(text ?? '');
 

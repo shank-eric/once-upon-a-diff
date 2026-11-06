@@ -167,8 +167,8 @@ test('the CLI round trip: start takes the sid from the session, beat and finish 
       'agent',
       'start',
       'ou-cli',
-      '--kind',
-      'reviewer',
+      '--role',
+      'critic',
       '--card',
       card,
       '--task',
@@ -252,7 +252,17 @@ test('--no-mirror: a beat from a caller that writes the progress line itself, is
   const env = { CLAUDE_CODE_SESSION_ID: `${SID}-0000-4000-8000-000000000000` };
   const started = await runCli(
     home,
-    ['agent', 'start', 'ou-once', '--kind', 'builder', '--task', 'one line'],
+    [
+      'agent',
+      'start',
+      'ou-once',
+      '--kind',
+      'builder',
+      '--branch',
+      'one-line',
+      '--task',
+      'one line',
+    ],
     env,
   );
   assert.equal(started.code, 0, started.stderr);
@@ -852,7 +862,19 @@ test('agent start stores --cwd as an absolute path', async () => {
   const env = { CLAUDE_CODE_SESSION_ID: `${SID}-0000-4000-8000-000000000000` };
   const started = await runCli(
     home,
-    ['agent', 'start', 'ou-rel', '--kind', 'builder', '--task', 'x', '--cwd', 'some/where/../here'],
+    [
+      'agent',
+      'start',
+      'ou-rel',
+      '--kind',
+      'builder',
+      '--branch',
+      'rel',
+      '--task',
+      'x',
+      '--cwd',
+      'some/where/../here',
+    ],
     env,
   );
   assert.equal(started.code, 0, started.stderr);
@@ -876,7 +898,7 @@ test('the mirror keeps the line format the scripts outside this repo parse (the 
   const progress = path.join(notes, 'progress.md');
   const registry = new AgentRegistry(tmp('reg-mirror'), { ledger, progress });
   // 10:00 AM ET on 11/3 is minute(0)
-  registry.start({ ...BUILD, model: 'sonnet', effort: 'high', lane: 'widgets', at: minute(0) });
+  registry.start({ ...BUILD, model: 'sonnet', effort: 'high', at: minute(0) });
   registry.beat('ou-thing', { n: 2, of: 6, step: 'plan', note: 'plan written', at: minute(5) });
   registry.state('ou-thing', {
     state: 'plan',
@@ -889,7 +911,7 @@ test('the mirror keeps the line format the scripts outside this repo parse (the 
   registry.state('ou-thing', { state: 'waiting', outcome: 'needs Eric: A or B', at: minute(9) });
   registry.state('ou-thing', { state: 'review', outcome: 'story abc up', at: minute(10) });
   registry.finish('ou-thing', { outcome: 'merged', at: minute(11) });
-  const head = `sid:${SID} lane:widgets ou-thing`;
+  const head = `sid:${SID} ou-thing`;
   assert.deepEqual(readFileSync(ledger, 'utf8').split('\n'), [
     `- [running] ${head} (sonnet, high) — build the thing — started 10:00 AM ET, 11/3`,
     `- [plan] ${head} — 10:06 AM ET, 11/3 — plan ready - see notes — notes/plan.md`,
@@ -1037,37 +1059,33 @@ test("a finish with no --sid never ends another session's run when the caller's 
   assert.equal(theirs?.result?.commit, undefined);
 });
 
-test('author and critic are the kinds; builder and reviewer are accepted as aliases and stored as the new names', async () => {
+test('author and critic are the kinds; builder is an accepted alias and stored as the new name, and a critic takes --role beside its card', async () => {
   const home = tmp('reg-alias');
   const registry = new AgentRegistry(home);
   const env = { CLAUDE_CODE_SESSION_ID: `${SID}-0000-4000-8000-000000000000` };
   const backlog = new BacklogStore(home);
-  // one card each: a second author on one card is refused
+  // no card: a run names its branch (a card refuses --kind), and each branch is its own card
   const start = async (name: string, kind: string) =>
     runCli(
       home,
-      [
-        'agent',
-        'start',
-        name,
-        '--kind',
-        kind,
-        '--card',
-        backlog.add({ title: name, branch: `${name}-branch` }).id,
-        '--task',
-        'x',
-      ],
+      ['agent', 'start', name, '--kind', kind, '--branch', `${name}-branch`, '--task', 'x'],
       env,
     );
   for (const [name, kind] of [
     ['ou-a', 'author'],
     ['ou-b', 'builder'],
-    ['rv-a', 'critic'],
-    ['rv-b', 'reviewer'],
   ]) {
     const done = await start(name, kind);
     assert.equal(done.code, 0, done.stderr);
   }
+  // a critic reviews a card, and a card takes --role
+  const card = backlog.add({ title: 'rv', branch: 'rv-branch' }).id;
+  const critic = await runCli(
+    home,
+    ['agent', 'start', 'rv-a', '--role', 'critic', '--card', card, '--task', 'x'],
+    env,
+  );
+  assert.equal(critic.code, 0, critic.stderr);
   const listed = JSON.parse((await runCli(home, ['agent', 'list', '--all', '--json'], env)).stdout);
   assert.deepEqual(
     listed.map((one: { name: string; kind: string }) => [one.name, one.kind]),
@@ -1075,21 +1093,19 @@ test('author and critic are the kinds; builder and reviewer are accepted as alia
       ['ou-a', 'author'],
       ['ou-b', 'author'],
       ['rv-a', 'critic'],
-      ['rv-b', 'critic'],
     ],
   );
   const stored = readFileSync(path.join(home, 'agents.jsonl'), 'utf8')
     .trim()
     .split('\n')
     .map((line) => JSON.parse(line).kind);
-  assert.deepEqual(stored, ['author', 'author', 'critic', 'critic']);
+  assert.deepEqual(stored, ['author', 'author', 'critic']);
   const bad = await start('ou-c', 'wizard');
   assert.notEqual(bad.code, 0);
   assert.match(
     bad.stderr,
     /author, critic, helper, research, storyteller, editor \(builder and reviewer still work\)/,
   );
-  // an author holds a build slot-style gate, a critic running is at the review gate, whichever name it came by
   assert.equal(registry.agents().filter((one) => one.kind === 'author').length, 2);
 });
 
@@ -1107,18 +1123,32 @@ test('a storyteller is its own kind: it holds the story gate while running, and 
 test('agent start --kind storyteller and --role storyteller both store kind storyteller; a storyteller with no card is refused like a critic', async () => {
   const home = tmp('reg-storyteller');
   const env = { CLAUDE_CODE_SESSION_ID: `${SID}-0000-4000-8000-000000000000` };
-  const card = new BacklogStore(home).add({ title: 'x', branch: 'x-branch' }).id;
-  for (const [name, flag] of [
-    ['tell-a', '--kind'],
-    ['tell-b', '--role'],
-  ]) {
-    const done = await runCli(
-      home,
-      ['agent', 'start', name, flag, 'storyteller', '--card', card, '--task', 'story'],
-      env,
-    );
-    assert.equal(done.code, 0, done.stderr);
-  }
+  const backlog = new BacklogStore(home);
+  const card = backlog.add({ title: 'x', branch: 'x-branch' }).id;
+  backlog.claim(card, { agent: 'tell-b' });
+  // --kind storyteller names a PR or branch (a card refuses --kind); --role storyteller names the card
+  const byKind = await runCli(
+    home,
+    [
+      'agent',
+      'start',
+      'tell-a',
+      '--kind',
+      'storyteller',
+      '--branch',
+      'x-branch',
+      '--task',
+      'story',
+    ],
+    env,
+  );
+  assert.equal(byKind.code, 0, byKind.stderr);
+  const byRole = await runCli(
+    home,
+    ['agent', 'start', 'tell-b', '--role', 'storyteller', '--card', card, '--task', 'story'],
+    env,
+  );
+  assert.equal(byRole.code, 0, byRole.stderr);
   assert.deepEqual(
     new AgentRegistry(home).agents().map((one) => one.kind),
     ['storyteller', 'storyteller'],

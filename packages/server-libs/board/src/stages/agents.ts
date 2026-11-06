@@ -1,18 +1,11 @@
 /**
- * The background agents on the board: which are shown, and where each goes. An agent is nested in the card its
- * registered repo, branch, PR or card point to (agent-home.ts), else it is a card of its own, on its own lane.
+ * The background agents on the board: which are shown, and where each goes. An agent whose run names a card is on that card
+ * (ADR-25); every other agent is a card of its own, on its own lane.
  */
 import { agentWorkKey, isImplicitCard } from '@once-upon-a-diff/terms/ids';
-import { resolveLane } from '@once-upon-a-diff/terms/lane-key';
-import {
-  finishedColumn,
-  finishedSummary,
-  homeOf,
-  landedFor,
-  pendingReview,
-} from '../agent-home.ts';
-import { agentKey, claimedAgent } from '@once-upon-a-diff/state/queues/backlog/claims';
-import { agentsOnCard, namedByRuns } from '@once-upon-a-diff/state/queues/backlog/phase';
+import { finishedColumn, finishedSummary, landedFor, pendingReview } from '../agent-home.ts';
+import { agentKey } from '@once-upon-a-diff/state/queues/backlog/claims';
+import { agentsOnCard } from '@once-upon-a-diff/state/queues/backlog/phase';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import { STALE_MS } from '@once-upon-a-diff/state/records/agents/events';
 import {
@@ -21,6 +14,7 @@ import {
   lastActivity,
   type LedgerAgent,
 } from '@once-upon-a-diff/state/records/agents/ledger';
+import { cardOnBranch } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { laneOf } from './lanes.ts';
 import { readFinished } from '@once-upon-a-diff/adapters/stores/finished-agents';
 import type { WorktreeFacts } from '@once-upon-a-diff/state/records/worktrees/worktrees';
@@ -109,7 +103,7 @@ export const AGENT_COLUMN: Record<LedgerAgent['state'], BoardColumn> = {
 /**
  * The views of the agents on each card, by the id of the card: what the card shows in place of agent cards of its own
  * (backlog.ts's backlogCards). A card named by runs (`card` on an agent's start) shows each of those agents, its latest run
- * on the card, critics and fix rounds included; a card no run names shows its claimed agent, if one is found (claims.ts).
+ * on the card, critics and fix rounds included; a claim finds none.
  */
 export function claimViews(
   items: BacklogItem[],
@@ -122,10 +116,8 @@ export function claimViews(
     if (item.state === 'dropped') {
       continue;
     }
-    // the agents whose runs name the card, and, while no work run does, its claimed (old, cardless) agent as well
-    const named = agentsOnCard(item, agents);
-    const claimed = namedByRuns(item, agents) ? null : claimedAgent(item, agents);
-    const found = claimed && !named.includes(claimed) ? [claimed, ...named] : named;
+    // the agents whose runs name the card
+    const found = agentsOnCard(item, agents);
     if (found.length) {
       views.set(
         item.id,
@@ -137,14 +129,10 @@ export function claimViews(
 }
 
 /**
- * The lane key for an agent with its own card: its explicit lane tag (resolved to the one known "owner/name" it is the short
- * name of), else the lane of its registered repo, else its launching session's lane (by sid), else "No live session".
- * Nothing is read from its task.
+ * The lane key for an agent with its own card: the lane of its registered repo, else its launching session's lane (by sid),
+ * else "No live session". Nothing is read from its task, and no lane tag is read.
  */
-function laneOfAgent(agent: LedgerAgent, knownLanes: string[], parentLane: string | null): string {
-  if (agent.lane) {
-    return resolveLane(agent.lane, knownLanes);
-  }
+function laneOfAgent(agent: LedgerAgent, parentLane: string | null): string {
   return (agent.repo ? laneOf(agent.cwd ?? '', agent.repo) : null) || parentLane || NO_PARENT;
 }
 
@@ -153,7 +141,7 @@ export interface AgentFacts {
   agents: LedgerAgent[];
   /** the voice session, pinned above the columns, whose agents keep a card of their own */
   pin: PinnedVoice | null;
-  /** the agents (agentKey) that are a claimed card: they have no card of their own, the claimed card shows them */
+  /** the agents (agentKey) whose run names a card: they have no card of their own, the card shows them */
   held?: Set<string>;
   /** the backlog's items, which an agent's registered `card` points into */
   items?: BacklogItem[];
@@ -165,8 +153,8 @@ export interface AgentFacts {
 
 /**
  * Places the agents the board shows (running, at a gate, waiting, or finished within the last few hours), except the held
- * ones: an agent that claimed a backlog card is shown on that card (claims.ts), never here. An agent with a home (agent-home.ts: the card its registered repo and branch, PR or card point to) is added to that card's `agents` (which changes the card
- * given). The rest get a card of their own, on their own lane while they run, wait or sit at a gate: these are returned,
+ * ones: an agent whose run names a card is shown on that card (phase.ts), never here. An implicit card whose repo and branch
+ * have a work card is added to that card's `agents` (which changes the card given). The rest get a card of their own, on their own lane while they run, wait or sit at a gate: these are returned,
  * to go after the others. A finished agent (done, failed or stopped) gets a card of its own for
  * `finishedWaitMinutes` after its last event, with its outcome, its notes path
  * and its parent session, until the card's Finish clears it: in Done when it made something (a finish
@@ -187,7 +175,7 @@ export function placeAgents(
   const cleared = readFinished(ctx.home);
   const added: BoardCard[] = [];
   // the first agent card of each implicit card (ADR-27): its other runs (a critic of the work) are views on it
-  const heads = new Map<string, { card: BoardCard; agent: LedgerAgent }>();
+  const heads = new Map<string, { card: BoardCard; agent: LedgerAgent; stale: boolean }>();
   const cardsBySid = new Map<string, BoardCard>();
   for (const card of cards) {
     for (const session of card.sessions) {
@@ -213,10 +201,6 @@ export function placeAgents(
         (agent.ended?.getTime() ?? 0) >=
           nowMs - Math.max(ctx.settings.doneHours * 3600 * 1000, waitMs)),
   );
-  // the lanes already on the board, which a lane tag (`lane:<name>`, usually a short name) can stand for
-  const knownLanes = [
-    ...new Set([...cards.map((card) => card.lane), ...agents.flatMap((agent) => agent.lane || [])]),
-  ].filter((lane) => lane !== NO_PARENT);
   for (const agent of shown) {
     const active = lastActivity(agent);
     // a finished agent waits until its card's Finish clears it, or `waitMs` after its last sign of life; an author (kind
@@ -246,12 +230,6 @@ export function placeAgents(
     if (wasCleared) {
       continue;
     }
-    // an agent belongs in the card its registered repo, branch, PR or card point to, wherever its launching session is
-    const home = homeOf(agent, cards, items);
-    if (home) {
-      home.agents.push(view);
-      continue;
-    }
     // a finished agent's own card is in its column for a while
     if (isFinished(agent) && !clearsAt && finishedIn !== 'ready') {
       continue;
@@ -268,11 +246,25 @@ export function placeAgents(
     // a run on an implicit card that already has its agent card goes on that card, not on a card of its own. The card keeps
     // the head's column, unless the head is over and this run is still going: then it is this run's
     const implicitId = agent.card && !item && isImplicitCard(agent.card) ? agent.card : null;
+    // an implicit card whose repo and branch already have a work (or session) card rides on it, as a backlog card does
+    // (cardOnBranch): one piece of work, one card. A storyteller started with --pr or --branch and no card joins its PR's
+    // work card the same way; any other run with no card never nests
+    const branch = agent.result?.branch ?? agent.branch;
+    const joins = implicitId || (!agent.card && isStoryteller(agent));
+    const home =
+      joins && agent.repo && branch ? cardOnBranch({ repo: agent.repo, branch }, cards) : null;
+    if (home) {
+      home.agents.push(view);
+      continue;
+    }
     const head = implicitId ? heads.get(implicitId) : undefined;
     if (head) {
       head.card.agents.push(view);
-      if (isFinished(head.agent) && !isFinished(agent)) {
+      // a run silent for STALE_MS (a storyteller the sweep never closes) never decides the card's column, as the head or
+      // not: a live run takes it from a finished or a silent head, and a finished run takes it from a silent head
+      if (!view.stale && (head.stale || (isFinished(head.agent) && !isFinished(agent)))) {
         head.card.column = view.gate ? 'checks' : column;
+        head.stale = false;
       }
       continue;
     }
@@ -282,7 +274,7 @@ export function placeAgents(
       title: agent.name,
       repo: null,
       branch: null,
-      lane: laneOfAgent(agent, knownLanes, parent?.lane ?? voiceParent?.lane ?? null),
+      lane: laneOfAgent(agent, parent?.lane ?? voiceParent?.lane ?? null),
       column: view.gate ? 'checks' : column,
       detail:
         agent.state === 'waiting' ||
@@ -309,7 +301,7 @@ export function placeAgents(
         : {}),
     };
     if (implicitId) {
-      heads.set(implicitId, { card: placed, agent });
+      heads.set(implicitId, { card: placed, agent, stale: view.stale });
     }
     added.push(placed);
   }

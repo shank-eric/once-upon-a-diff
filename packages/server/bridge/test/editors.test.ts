@@ -231,7 +231,11 @@ test('a resumed author for a fix round is an author again once the editor starts
     env,
   );
   assert.equal(registered.code, 0, registered.stderr);
-  assert.equal((await run('start', 'ou-a', '--kind', 'builder', '--task', 'build it')).code, 0);
+  assert.equal(
+    (await run('start', 'ou-a', '--kind', 'builder', '--branch', 'ou-a', '--task', 'build it'))
+      .code,
+    0,
+  );
   assert.equal((await run('finish', 'ou-a', '--state', 'done', '--outcome', 'built')).code, 0);
   // the author is over: a fix round cannot be announced on it
   const refused = await run('state', 'ou-a', '--state', 'fixing');
@@ -291,6 +295,8 @@ test('an editor registers through `editor start` without a ledger line (it is no
     'ou-a',
     '--kind',
     'builder',
+    '--branch',
+    'ou-a',
     '--sid',
     EDITOR_SID,
     '--task',
@@ -318,6 +324,8 @@ test('an editor registers through `editor start` without a ledger line (it is no
     'ou-b',
     '--kind',
     'builder',
+    '--branch',
+    'ou-b',
     '--slots',
     '2',
     '--sid',

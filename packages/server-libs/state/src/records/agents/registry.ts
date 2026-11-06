@@ -12,7 +12,7 @@ import {
 } from '@once-upon-a-diff/terms/patterns';
 import { SHA_RE } from '@once-upon-a-diff/terms/text';
 import { REPO_RE } from '@once-upon-a-diff/foundation/repos';
-import { agentId, isImplicitCard, sameRepo } from '@once-upon-a-diff/terms/ids';
+import { agentId, isImplicitCard } from '@once-upon-a-diff/terms/ids';
 import { newImplicitCardId, newRunId } from '@once-upon-a-diff/foundation/ids';
 import { appendAgentEvent } from '@once-upon-a-diff/adapters/stores/agents-file';
 import { agentEventsIn } from './events-file.ts';
@@ -136,6 +136,29 @@ export interface CardFacts {
   claimed: boolean;
 }
 export type CardLookup = (id: string) => CardFacts | null;
+
+/**
+ * The flags typed beside a card that the card already answers (ADR-25, the flip): its repo, its branch, a PR when it has a
+ * branch, and any lane (a lane tag is read by nothing). A card with no repo or branch yet keeps the typed one, which the stamp
+ * and the commit check need. The CLI adds `--kind`, which only it can tell from a role.
+ */
+export function flagsBesideCard(
+  card: Pick<CardFacts, 'repo' | 'branch'>,
+  typed: { repo?: string | null; branch?: string | null; pr?: unknown; lane?: string | null },
+): string[] {
+  return [
+    typed.repo && card.repo ? '--repo' : '',
+    typed.branch && card.branch ? '--branch' : '',
+    typed.pr && card.branch ? '--pr' : '',
+    typed.lane ? '--lane' : '',
+  ].filter(Boolean);
+}
+
+/** The refusal for those flags: what a run on a card takes from the card. */
+export const flagsBesideCardError = (flags: string[]): Error =>
+  new Error(
+    `${flags.join(', ')} ${flags.length > 1 ? 'are' : 'is'} not taken with --card: the card gives the run its repo and branch, and --role says what it does. Drop ${flags.length > 1 ? 'them' : 'it'} (--role author|fixer|critic|storyteller|helper|research; once-upon backlog branch <id> <name> changes the card's branch)`,
+  );
 
 export class AgentRegistry {
   declare file: string;
@@ -330,7 +353,7 @@ export class AgentRegistry {
     let pr = count(input.pr, 'the PR number');
     let repo = optional(input.repo, 'the repo', REPO_RE);
     let branch = optional(input.branch, 'the branch', CARD_BRANCH_RE);
-    let lane = optional(input.lane, 'the lane', AGENT_NAME_RE);
+    const typedLane = optional(input.lane, 'the lane', AGENT_NAME_RE);
     const cwd = clean(input.cwd, 'the cwd', 500) || null;
     // a restart of the same sid:name (a fix round) stays on the earlier run's card, as the kind does, while that card is open
     let cardId = optional(input.card, 'the card', BACKLOG_ID_RE);
@@ -351,10 +374,13 @@ export class AgentRegistry {
       !standing &&
       !['critic', 'storyteller', 'editor'].includes(kind) &&
       !['critic', 'fixer', 'storyteller'].includes(input.role ?? '');
-    if (mints && input.role === 'author' && !branch) {
+    if (mints && kind === 'author' && !branch) {
       throw new Error(
         'an author with no card needs --branch (the branch its work is on, which names its card) or --card ID',
       );
+    }
+    if (this.cards && input.role === 'fixer' && !cardId) {
+      throw new Error('a fixer works on a card: pass --card ID');
     }
     if (mints) {
       cardId = newImplicitCardId();
@@ -396,29 +422,27 @@ export class AgentRegistry {
             `${cardId} already has an open author run (${agentId(other.sid, other.name)}): finish it first, then start the fixer or the next author under a fresh name`,
           );
         }
+        // the claim comes before the first start: the launcher claims the card for the agent, then registers it
         if (!card.claimed) {
-          warn?.(
-            `once-upon: ${cardId} has no claim yet: once-upon backlog claim ${cardId} --agent ${name}`,
+          throw new Error(
+            `${cardId} has no claim: claim it first, once-upon backlog claim ${cardId} --agent ${name} (the claim comes before agent start)`,
           );
         }
       }
-      // the card's repo and branch are the run's: a typed one that differs is not used, and is said so
-      const typed = { repo, branch, pr, lane };
-      if (card.repo && repo && !sameRepo(repo, card.repo)) {
-        warn?.(`once-upon: --repo ${repo} ignored: ${cardId} is on ${card.repo}`);
-      }
-      if (card.branch && branch && branch !== card.branch) {
-        warn?.(`once-upon: --branch ${branch} ignored: ${cardId} is on ${card.branch}`);
-      }
-      if (typed.pr || typed.lane) {
-        warn?.(
-          'once-upon: --pr and --lane are ignored for a run on a card: they come from the card',
-        );
+      // the card's repo and branch are the run's: a typed one is refused, not guessed over. A card carried over from the
+      // earlier run takes no typed branch, PR or lane either; its repo is filled from the checkout, so it is not "typed"
+      const flags = flagsBesideCard(card, {
+        repo: input.card ? repo : null,
+        branch,
+        pr,
+        lane: typedLane,
+      });
+      if (flags.length) {
+        throw flagsBesideCardError(flags);
       }
       repo = card.repo ?? repo;
       branch = card.branch ?? branch;
       pr = null;
-      lane = null;
       // a critic or a storyteller has to have work to read: a card with no branch has none
       if (
         (kind === 'critic' || kind === 'storyteller' || input.role === 'storyteller') &&
@@ -428,6 +452,9 @@ export class AgentRegistry {
           `no branch on ${cardId}: backlog branch ${cardId} <branch>, or agent start ${name} --card ${cardId} --pr N`,
         );
       }
+    }
+    if (typedLane) {
+      warn?.('once-upon: --lane is ignored: a run’s lane is its repo’s');
     }
     this.append({
       ...this.base('start', name, sid, input),
@@ -444,7 +471,8 @@ export class AgentRegistry {
       pr: pr || null,
       cwd,
       card: cardId,
-      lane,
+      // nothing reads a lane tag (a run's lane is its repo's): it is not written
+      lane: null,
       notes: clean(input.notes, 'the notes path', 500) || null,
       // a restart that leaves --slots out keeps the editor's earlier slots
       ...(kind === 'editor' ? { slots: slots ?? earlier?.slots ?? DEFAULT_SLOTS } : {}),

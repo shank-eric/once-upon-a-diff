@@ -15,7 +15,11 @@ import { sweepStatusLines } from '@once-upon-a-diff/core/features/sessions/statu
 import type { AgentKind } from '@once-upon-a-diff/state/records/agents/agent-types';
 import { canonicalKind } from '@once-upon-a-diff/state/records/agents/events';
 import { lastActivity } from '@once-upon-a-diff/state/records/agents/ledger';
-import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
+import {
+  AgentRegistry,
+  flagsBesideCard,
+  flagsBesideCardError,
+} from '@once-upon-a-diff/state/records/agents/registry';
 import { agentKey } from '@once-upon-a-diff/state/queues/backlog/claims';
 import { BacklogStore, cardLookup } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { out } from '../output.ts';
@@ -25,7 +29,8 @@ import type { CliOpts, Command } from '../types.ts';
 
 const USAGE =
   'usage: once-upon agent start NAME [--kind author|critic|helper|research|storyteller | --role author|fixer|critic|storyteller|helper|research] [--standing] --task TEXT|--task-file PATH [--sid SID8] [--model M] [--effort E]\n' +
-  '                             [--repo owner/name] [--branch NAME] [--pr N (its head branch, read through gh)] [--cwd DIR] [--card ID | --new-card] [--lane NAME] [--notes PATH]\n' +
+  '                             [--repo owner/name] [--branch NAME] [--pr N (its head branch, read through gh)] [--cwd DIR] [--card ID | --new-card] [--notes PATH]\n' +
+  '                             with --card the card gives the repo and branch and --role says the kind: --kind, --lane, a --repo or --branch the card has, and a --pr when it has a branch, are refused (a card with no branch takes --pr or --branch and is stamped with it); --lane is ignored without a card\n' +
   '       once-upon agent state NAME --state running|waiting|review|plan|fixing [--outcome TEXT|--outcome-file PATH] [--findings N] [--notes PATH] [--sid SID8] [--run ID]\n' +
   '       once-upon agent beat NAME N/M STEP [NOTE...] [--sid SID8] [--no-mirror]\n' +
   '       once-upon agent finish NAME [--state done|failed|stopped] [--outcome TEXT|--outcome-file PATH] [--commit SHA] [--pr N] [--branch NAME] [--card ID] [--findings N] [--notes PATH] [--sid SID8] [--run ID]\n' +
@@ -122,6 +127,23 @@ async function agent(home: string, _cfg: Config, opts: CliOpts) {
     }
     const typedPr = text(opts.pr);
     const typedBranch = text(opts.branch);
+    // a run on a card takes its repo and branch from the card, and what it does from --role: the typed ones are refused
+    // (ADR-25, the flip), all named at once, before anything is written. An unknown card is the registry's to refuse
+    if (card) {
+      const item = cardLookup(new BacklogStore(home))(card);
+      const flags = [
+        ...(opts.kind ? ['--kind'] : []),
+        ...flagsBesideCard(item ?? { repo: null, branch: null }, {
+          repo: text(opts.repo),
+          branch: typedBranch,
+          pr: typedPr,
+          lane: text(opts.lane),
+        }),
+      ];
+      if (flags.length) {
+        throw flagsBesideCardError(flags);
+      }
+    }
     if (role === 'storyteller' && !card && !typedPr && !typedBranch) {
       throw new Error('a storyteller needs --pr N, --branch NAME or --card ID');
     }
@@ -141,7 +163,7 @@ async function agent(home: string, _cfg: Config, opts: CliOpts) {
     // storyteller: with no branch it has nothing to read
     let branch = typedBranch;
     let pr = typedPr;
-    let stamp: { branch: string; repo: string } | null = null;
+    let stamp: { branch: string; repo: string | null } | null = null;
     if (typedPr && !typedBranch) {
       const item = card ? cardLookup(new BacklogStore(home))(card) : null;
       const repo = (card ? item?.repo : null) ?? text(opts.repo) ?? repoOfCheckout(cwd);
@@ -168,6 +190,16 @@ async function agent(home: string, _cfg: Config, opts: CliOpts) {
           }
           warn(`once-upon: ${why}`);
         }
+      }
+    }
+    // a typed --branch on an open card with no branch stamps the card too, the same way
+    if (card && typedBranch && !stamp) {
+      const item = cardLookup(new BacklogStore(home))(card);
+      if (item && !item.closed && !item.branch) {
+        stamp = {
+          branch: typedBranch,
+          repo: item.repo ?? text(opts.repo) ?? repoOfCheckout(cwd),
+        };
       }
     }
     // a repo typed on a run that has no card (or whose card has no repo yet, so the typed one is kept) is checked; a run on a card
@@ -268,7 +300,7 @@ export const agentCommands: Command[] = [
     subs: ['start', 'state', 'beat', 'finish', 'sweep', 'list'],
     usage: [
       '  once-upon agent start NAME --kind author|critic|helper|research|storyteller --task TEXT   register an agent the board shows (its sid comes from the session; prints its id and run)',
-      "                                                                                   --card ID: the card it works on, whose repo and branch it takes (a critic, fixer or storyteller needs one; --role says which); --repo, --branch, --lane and --pr then say nothing the card does not, except --pr on a card with no branch: its head becomes the card's branch",
+      "                                                                                   --card ID: the card it works on, which gives it its repo and branch (a critic, fixer or storyteller needs one; --role says which, and --kind, --lane and a --repo, --branch or --pr the card already answers are refused, claim the card before an author starts); --pr or --branch on a card with no branch becomes the card's branch. --lane is ignored without a card",
       '                                                                                   no --card: the run is its own card (an implicit card, in the registry only: its id is printed after the run id, for a critic of the work to pass as --card); a restart of the same name stays on it, --new-card starts another',
       '                                                                                   --standing: a long-lived helper (the backlog clerk), in the Helpers row, never a card; put it before another flag. A restart of the same name may leave out --kind and --standing: they carry over (--standing false clears it)',
       '  once-upon agent state NAME --state running|waiting|review|plan|fixing            move it: a plan to check, a question, parked on a story review, fixing findings',

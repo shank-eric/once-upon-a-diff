@@ -44,17 +44,3 @@ export function laneLabels(keys: Iterable<string>): Map<string, string> {
     }),
   );
 }
-
-/**
- * The lane key for a lane tag (a ledger agent's `lane:<name>`, which is usually a short name): the one known "owner/name"
- * whose short name is the tag. A tag that names none of them, or more than one (two owners' repos of that name), stays
- * as it is, because nothing says which repo it meant.
- */
-export function resolveLane(tag: string, knownKeys: Iterable<string>): string {
-  const known = distinct(knownKeys).filter((key) => key.includes('/') && shortLane(key));
-  if (tag.includes('/')) {
-    return known.find((key) => sameLaneKey(key, tag)) ?? tag;
-  }
-  const named = known.filter((key) => sameLaneKey(shortLane(key), tag));
-  return named.length === 1 ? named[0] : tag;
-}

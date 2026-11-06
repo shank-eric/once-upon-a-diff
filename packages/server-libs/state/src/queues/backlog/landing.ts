@@ -10,8 +10,7 @@ import { sameRepo } from '@once-upon-a-diff/foundation/repos';
 import { STALE_MS, runIsOpen, type AgentEvent } from '../../records/agents/events.ts';
 import { lastActivity, type LedgerAgent } from '../../records/agents/ledger.ts';
 import type { BacklogItem } from './types.ts';
-import { claimedRun } from './claims.ts';
-import { isWorkRun, namedByRuns, runsOf } from './phase.ts';
+import { isWorkRun, runsOf } from './phase.ts';
 
 /**
  * Each card's tip from the raw finish events (the folded registry keeps only a run's last result, and a rerun hides the
@@ -40,22 +39,13 @@ export function recordedTips(events: AgentEvent[]): Map<string, string> {
 }
 
 /**
- * Whether the run that holds the item's claim is still going: that run (not a later run of the same name), open, and not
- * stale (no event for STALE_MS, the rule the registry and the board use), so a crashed agent does not hold its card forever.
+ * Whether a work run of the card is still going: an open run (a fix round included) that is not stale (no event for STALE_MS,
+ * the rule the registry and the board use), so a crashed agent does not hold its card forever.
  */
 function claimInProgress(item: BacklogItem, agents: LedgerAgent[], nowMs: number): boolean {
-  // a card its work runs name is read by them: any open, live run of the card (a fix round included) is in progress
-  if (namedByRuns(item, agents)) {
-    return runsOf(item, agents)
-      .filter(isWorkRun)
-      .some((run) => runIsOpen(run) && nowMs - (lastActivity(run)?.getTime() ?? nowMs) <= STALE_MS);
-  }
-  const held = claimedRun(item, agents);
-  return (
-    !!held?.current &&
-    runIsOpen(held.agent) &&
-    nowMs - (lastActivity(held.agent)?.getTime() ?? nowMs) <= STALE_MS
-  );
+  return runsOf(item, agents)
+    .filter(isWorkRun)
+    .some((run) => runIsOpen(run) && nowMs - (lastActivity(run)?.getTime() ?? nowMs) <= STALE_MS);
 }
 
 /** Why a card with work on it did not land. */

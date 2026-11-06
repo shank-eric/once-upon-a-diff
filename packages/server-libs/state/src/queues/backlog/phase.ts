@@ -5,8 +5,8 @@
  * run's. `runsOf` is the card's runs, and `cardPhase` is the one table that turns them into the column.
  *
  * A run of an agent restarted under the same sid and name (a fix round) is a second run of the card, kept in the agent's
- * `earlier` (events.ts). A run whose `card` is unknown or dropped is nobody's: it keeps the old placement (agent-home.ts).
- * Runs with no `card` at all, from before this, are read by the old rules in claims.ts until the flip deletes them.
+ * `earlier` (events.ts). A run whose `card` is unknown or dropped is nobody's: it is an agent card of its own (agent-home.ts).
+ * A run with no `card` at all (a row from before ADR-25, a helper) is read by nothing here: the claim finds no run.
  * Pure: the board gathers the facts.
  */
 import type { BoardColumn } from '@once-upon-a-diff/contracts/types';
@@ -14,7 +14,7 @@ import { isImplicitCard, sameRepo } from '@once-upon-a-diff/terms/ids';
 import { repoName } from '@once-upon-a-diff/terms/text';
 import { STALE_MS } from '../../records/agents/events.ts';
 import { isCritic, isStoryteller, type LedgerAgent } from '../../records/agents/ledger.ts';
-import { CLAIM_GRACE_HOURS, OPEN, agentKey, claimedAgent } from './claims.ts';
+import { CLAIM_GRACE_HOURS, OPEN, agentKey } from './claims.ts';
 import type { BacklogItem } from './types.ts';
 
 /** A started item whose work merged or landed, or whose agent finished, stays in Done this long. */
@@ -54,19 +54,19 @@ export function agentsOnCard(item: Pick<BacklogItem, 'id'>, agents: LedgerAgent[
 }
 
 /**
- * Whether a work run names the card: then the card is read by its runs (`cardPhase`), and never by its claim. A card that
- * only critics, helpers or researchers name is still read by its claim: its author is an old cardless run (claims.ts).
+ * Whether a work run names the card: then the card is read by its runs (`cardPhase`). A card no work run names is a started
+ * or pending card, not a phase: a critic, a helper or a researcher alone does not say where the card is.
  */
 export const namedByRuns = (item: Pick<BacklogItem, 'id'>, agents: LedgerAgent[]): boolean =>
   runsOf(item, agents).some(isWorkRun);
 
-/**
- * The agent whose run drives the card's column, as that run stood: the latest work run on the card, or, when no work run
- * names the card, the old claim's (claims.ts).
- */
-export function workAgent(item: BacklogItem, agents: LedgerAgent[]): LedgerAgent | null {
+/** The agent whose run drives the card's column, as that run stood: the latest work run on the card, or null when none names it. */
+export function workAgent(
+  item: Pick<BacklogItem, 'id'>,
+  agents: LedgerAgent[],
+): LedgerAgent | null {
   const work = runsOf(item, agents).filter(isWorkRun);
-  return work.length ? work[work.length - 1] : claimedAgent(item, agents);
+  return work.length ? work[work.length - 1] : null;
 }
 
 /** The keys of the agents whose latest run names a card that exists and is not dropped: the card shows them, so they have no card of their own. */
@@ -103,7 +103,7 @@ const msOf = (date: Date | null | undefined): number | null => (date ? date.getT
  *
  * A critic that finished done with no findings count (an old row) reads as a pass, as it always did; `agent finish` no
  * longer takes a carded critic's done without one. Null when the card is past its Done hour, or has nothing to say (no
- * work run and not started on a branch): the caller falls back to the claim.
+ * work run and not started on a branch): the card keeps its own state, or shows pending on its claim.
  */
 export function cardPhase(
   item: Pick<BacklogItem, 'state' | 'repo' | 'branch'>,

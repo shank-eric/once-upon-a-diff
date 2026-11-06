@@ -525,7 +525,8 @@ async function record(
     { 'approved.json': { at: '2026-10-26T15:00:00Z' } },
   );
   localStory(home, 'local-merged-branch', widgetsZ, 'feat/mb');
-  // agents registered on a branch or PR: nested in its card. The runs further down register none of those: cards of their own
+  // agents on an implicit card with a repo and branch: nested in the work card on that branch (ADR-27). A run that names no card
+  // never nests, whatever PR or branch it was registered on: `parked-review`, `fixer` and the runs further down are cards of their own
   const registered = new AgentRegistry(home);
   const et = (hour: number, minute: number) => new Date(Date.UTC(2026, 9, 26, hour + 4, minute));
   const widgets = { repo: 'acme/widgets', model: 'sonnet', effort: 'low' };
@@ -535,6 +536,7 @@ async function record(
     name: 'nested-one',
     kind: 'author',
     task: 'nested task',
+    card: 'ic_nestedone01',
     branch: 'feat/x',
     at: et(14, 50),
   });
@@ -545,7 +547,8 @@ async function record(
     name: 'pr-agent',
     kind: 'author',
     task: 'review fixes',
-    pr: 7,
+    card: 'ic_nestedpr0001',
+    branch: 'feat/x',
     at: et(14, 51),
   });
   registered.start({
@@ -554,6 +557,7 @@ async function record(
     name: 'gated-plan',
     kind: 'author',
     task: 'plan for feat/y',
+    card: 'ic_gatedplan001',
     branch: 'feat/y',
     at: et(14, 46),
   });
@@ -634,7 +638,6 @@ async function record(
       sid: sid(onStory),
       name: 'tagged-one',
       ...sonnet('high'),
-      lane: 'cross-cutting',
       task: 'tagged task',
       started: et(14, 55),
       beat: { n: 1, of: 6, step: 'read', note: 'reading', at: et(14, 56) },
@@ -841,7 +844,6 @@ async function record(
       name: 'helper-one',
       model: 'sonnet',
       effort: 'low',
-      lane: 'elsewhere',
       task: 'a task',
       started: et(14, 50),
     },
@@ -1182,6 +1184,7 @@ async function record(
     name: 'ou-tried',
     kind: 'author',
     task: 'try the set-aside card',
+    card: 'bl_aaaaaa9',
     repo: 'acme/widgets',
     model: 'sonnet',
     effort: 'low',
@@ -1293,8 +1296,9 @@ async function record(
     at: et(13, 41),
   });
   runs.finish('look-it-up', { sid: sid8, state: 'failed', at: et(13, 45) });
-  // 4: an old brief registered the author with no card; its critic names the card
-  author('ou-old', null, et(13, 5), { repo: ONCE, branch: 'mixed-rows' });
+  // 4: an old brief registered its author with no card, and the claim used to find it. A claim finds no run now (ADR-25), so
+  // the author names the card like every run; the cardless old-row case is gone
+  author('ou-old', 'bl_ccccc04', et(13, 5), { repo: ONCE, branch: 'mixed-rows' });
   runs.start({
     sid: sid8,
     name: 'review-old',

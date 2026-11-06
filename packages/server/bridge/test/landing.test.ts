@@ -4,7 +4,6 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { git, runCli, tmp } from './helpers.ts';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
-import { claimedRun } from '@once-upon-a-diff/state/queues/backlog/claims';
 import { landItems, recordedTips } from '@once-upon-a-diff/state/queues/backlog/landing';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 
@@ -444,18 +443,14 @@ test('a landed card is done with its claim ended, whether its agent is still wai
     assert.equal(item.state, 'done', `${id} reads done`);
     assert.equal(item.landed_sha, sha);
     assert.equal(item.claim, null, `${id}'s claim ended when it landed`);
-    const stored = lab.store.items().find((one) => one.id === id);
-    assert.ok(stored);
-    assert.equal(claimedRun(stored, lab.registry.agents()), null);
   }
-  // a fix round's claim after the landing is recorded, but holds nothing until a start reopens the work
+  // a fix round's claim after the landing is recorded, and a start reopens the work
   lab.store.claim(parked.id, { agent: 'ou-wait', sid: SID });
   const reclaimed = lab.store.items().find((one) => one.id === parked.id);
   assert.equal(reclaimed?.claim?.agent, 'ou-wait');
-  assert.ok(reclaimed);
-  assert.equal(claimedRun(reclaimed, lab.registry.agents()), null);
   const restarted = lab.store.start(parked.id, { branch: 'feat/w', repo: 'acme/widgets' });
-  assert.equal(claimedRun(restarted, lab.registry.agents())?.agent.name, 'ou-wait');
+  assert.equal(restarted.state, 'started', 'a start reopens the work');
+  assert.equal(restarted.claim?.agent, 'ou-wait');
 });
 
 test('the CLI reports a landed then dropped card as dropped, and the open list leaves out a card that landed with no start', async () => {

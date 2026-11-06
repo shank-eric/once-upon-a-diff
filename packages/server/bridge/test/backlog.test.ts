@@ -2,6 +2,7 @@ import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { appendFileSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import {
   tmp,
   writeJson,
@@ -24,6 +25,8 @@ import {
   foldBacklog,
   startLine,
 } from '@once-upon-a-diff/state/queues/backlog/backlog';
+import { cardPhase } from '@once-upon-a-diff/state/queues/backlog/phase';
+import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { Board, noPrWatcher } from '@once-upon-a-diff/board/board';
 import { registrySource } from '@once-upon-a-diff/core/features/sessions/sources';
@@ -303,6 +306,34 @@ const agentLink = (state: BoardAgentState, ended_at: string | null = null) =>
     ended_at,
   }) as BoardStartedLinks['agent'];
 
+/** What the card's one work run, in that state, gives it (`cardPhase`), in the shape the board hands to `backlogCards`. */
+const phaseFor = (
+  item: BacklogItem,
+  state: BoardAgentState,
+  endedAt: string | null,
+  nowMs: number,
+  passedCritic = false,
+) => {
+  const ended = endedAt ? new Date(endedAt) : null;
+  const run = {
+    kind: 'author',
+    state,
+    started: new Date(Date.parse(item.started_at ?? item.added_at) || nowMs),
+    ended,
+    lastEvent: ended ?? new Date(nowMs),
+  } as unknown as LedgerAgent;
+  // a critic-hold repo (Larmor, once-upon-a-diff) waits for its critic: one that passed, with no findings
+  const critic = {
+    kind: 'critic',
+    state: 'done',
+    started: ended,
+    ended,
+    lastEvent: ended,
+    findings: 0,
+  } as unknown as LedgerAgent;
+  return new Map([[item.id, cardPhase(item, passedCritic ? [run, critic] : [run], nowMs) ?? null]]);
+};
+
 test('a claimed started item is one Working card with its agent on it; with a work card on its branch it rides there', () => {
   const store = new BacklogStore(tmp('backlog-agent-fold'));
   const item = store.add({ title: 'Hold a spoken line', repo: 'acme/larmor' });
@@ -402,13 +433,19 @@ test('a started item with no card is Working until its work ends, then Ready, or
   store.start(item.id, { branch: 'feat/piece', by: 'builder' });
   const startedAt = Date.parse(store.items()[0].started_at as string);
   const hour = 3600 * 1000;
-  const columnOf = (links: BoardStartedLinks | undefined, now: number) => {
+  const columnOf = (
+    links: BoardStartedLinks | undefined,
+    now: number,
+    run?: [BoardAgentState, string],
+  ) => {
     const cards = backlogCards(
       store.items(),
       [],
       now,
       [],
       links ? new Map([[item.id, links]]) : new Map(),
+      new Map(),
+      run ? phaseFor(store.items()[0], run[0], run[1], now) : new Map(),
     );
     return cards.map((card) => card.column);
   };
@@ -423,18 +460,27 @@ test('a started item with no card is Working until its work ends, then Ready, or
   );
   const ended = new Date(startedAt + 2 * hour).toISOString();
   // finished with a branch and not merged: Ready for review (the repo here is not one that skips review)
-  assert.deepEqual(columnOf(linked({ agent: agentLink('done', ended) }), startedAt + 3 * hour), [
-    'ready',
-  ]);
-  // failed or stopped: back in Backlog, marked tried
-  assert.deepEqual(columnOf(linked({ agent: agentLink('stopped', ended) }), startedAt + 3 * hour), [
-    'backlog',
-  ]);
-  assert.deepEqual(columnOf(linked({ agent: agentLink('failed', ended) }), startedAt + 3 * hour), [
-    'backlog',
-  ]);
   assert.deepEqual(
-    columnOf(linked({ agent: agentLink('done', ended) }), startedAt + 27 * hour),
+    columnOf(linked({ agent: agentLink('done', ended) }), startedAt + 3 * hour, ['done', ended]),
+    ['ready'],
+  );
+  // failed or stopped: back in Backlog, marked tried
+  assert.deepEqual(
+    columnOf(linked({ agent: agentLink('stopped', ended) }), startedAt + 3 * hour, [
+      'stopped',
+      ended,
+    ]),
+    ['backlog'],
+  );
+  assert.deepEqual(
+    columnOf(linked({ agent: agentLink('failed', ended) }), startedAt + 3 * hour, [
+      'failed',
+      ended,
+    ]),
+    ['backlog'],
+  );
+  assert.deepEqual(
+    columnOf(linked({ agent: agentLink('done', ended) }), startedAt + 27 * hour, ['done', ended]),
     ['ready'],
     'unmerged work stays Ready until it merges, however long ago its agent ended',
   );
@@ -452,6 +498,8 @@ test('a started item with no card is Working until its work ends, then Ready, or
     startedAt + 3 * hour,
     [],
     new Map([[item.id, linked({ agent: agentLink('done', ended) })]]),
+    new Map(),
+    phaseFor(store.items()[0], 'done', ended, startedAt + 3 * hour),
   );
   assert.equal(card.backlog?.started?.links?.agent?.state, 'done');
   assert.equal(card.since, ended);
@@ -486,7 +534,7 @@ test('lanes are keyed by owner/name: two repos of one name are two lanes, a lone
   );
 });
 
-test('a lane tag joins the lane of the repo it names when that repo is only on the board as a backlog card', async () => {
+test('a lane tag moves nothing: the agent keeps its own lane, and the backlog card its repo’s', async () => {
   const home = tmp('backlog-lane-tag');
   registerRuns(home, {
     sid: 'deadbeef',
@@ -508,7 +556,10 @@ test('a lane tag joins the lane of the repo it names when that repo is only on t
   const lanes = (await board.snapshot()).lanes;
   assert.deepEqual(
     lanes.map((lane) => [lane.key, lane.name, lane.cards.map((card) => card.title)]),
-    [['eric/foo', 'foo', ['tagged-agent', 'In eric/foo']]],
+    [
+      ['eric/foo', 'foo', ['In eric/foo']],
+      ['No live session', 'No live session', ['tagged-agent']],
+    ],
   );
 });
 
@@ -972,6 +1023,8 @@ test('an open item with a claimed agent: one card in the agent’s column while 
       now,
       [],
       new Map([[item.id, linked({ agent: agentLink(state, endedAt) })]]),
+      new Map(),
+      phaseFor(store.items()[0], state, endedAt, now),
     );
   // running: one card in Working, with who holds it
   const running = cardsFor('running', null);
@@ -1060,7 +1113,7 @@ test('an open item that landed with no start is Done for an hour', () => {
   );
 });
 
-test('finished, unmerged branch work is Ready (once-upon-a-diff through its story), or Ready to ship for Larmor', () => {
+test('finished, unmerged branch work whose critic passed is Ready (once-upon-a-diff through its story), or Ready to ship for Larmor', () => {
   const store = new BacklogStore(tmp('backlog-ready-ship'));
   const ended = new Date(NOW - 60 * 1000).toISOString();
   for (const [repo, column] of [
@@ -1076,6 +1129,14 @@ test('finished, unmerged branch work is Ready (once-upon-a-diff through its stor
       NOW,
       [],
       new Map([[item.id, linked({ agent: agentLink('done', ended) })]]),
+      new Map(),
+      phaseFor(
+        store.items().find((one) => one.id === item.id) as BacklogItem,
+        'done',
+        ended,
+        NOW,
+        true,
+      ),
     );
     assert.deepEqual(
       cards.map((card) => card.column),
@@ -1171,7 +1232,7 @@ test('someday refuses a card whose claim is live, and takes one whose agent has 
     sid: 'aaaaaaaa',
     kind: 'author',
     task: 'try it',
-    repo: 'acme/widgets',
+    card: item.id,
   });
   assert.throws(() => store.someday(item.id, true, null, registry.agents()), /is working it/);
   registry.finish('ou-claimed', { sid: 'aaaaaaaa', state: 'failed' });
@@ -1299,6 +1360,8 @@ test('a someday card whose claimed agent finished: someday while its column is B
       NOW,
       [],
       new Map([[item.id, linked({ agent: agentLink(state, ended) })]]),
+      new Map(),
+      phaseFor(store.items()[0], state, ended, NOW),
     )[0];
   // failed: back in Backlog, tried, and in the Someday section
   assert.equal(cardFor('failed').column, 'backlog');

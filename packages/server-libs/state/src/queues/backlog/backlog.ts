@@ -43,7 +43,7 @@ import { canonicalRepo } from '@once-upon-a-diff/terms/ids';
 import { readBacklogEvent } from '@once-upon-a-diff/contracts/files/schemas';
 import { strictBacklogEvent } from '@once-upon-a-diff/contracts/files/strict';
 import { checkWrite } from '@once-upon-a-diff/foundation/shared-files';
-import { BACKLOG_NOTE_MAX, SHA_RE, repoName } from '@once-upon-a-diff/terms/text';
+import { BACKLOG_NOTE_MAX, SHA_RE } from '@once-upon-a-diff/terms/text';
 import { jsonLines } from '@once-upon-a-diff/adapters/stores/fs/jsonl';
 import {
   appendBacklogEvent,
@@ -51,7 +51,7 @@ import {
 } from '@once-upon-a-diff/adapters/stores/backlog-file';
 import path from 'node:path';
 import { OPEN, liveClaim, sameAgentView } from './claims.ts';
-import { CRITIC_HOLD, DONE_HOURS, SKIPS_REVIEW, workAgent, type CardPhase } from './phase.ts';
+import { DONE_HOURS, workAgent, type CardPhase } from './phase.ts';
 import { REPO_RE, sameRepo } from '@once-upon-a-diff/foundation/repos';
 import { newId } from '@once-upon-a-diff/foundation/ids';
 import { clean, optional } from '@once-upon-a-diff/foundation/input';
@@ -191,7 +191,7 @@ export function foldBacklog(text: string): BacklogItem[] {
       found.landed_at = when;
       found.landed_sha = event.sha || null;
       // the claim ends when the card lands, whatever its agent is doing. A later claim is recorded, but holds nothing
-      // until a `start` reopens the work (claimedRun and liveClaim ignore a landed card)
+      // until a `start` reopens the work (liveClaim ignores a landed card)
       found.claim = null;
       found.someday = false;
     } else if (found && found.state !== 'dropped' && event.op === 'claim') {
@@ -520,7 +520,7 @@ export const cardLookup =
       : null;
   };
 
-/** What to tell whoever takes a card: the board links a card to an agent only through its claim. */
+/** What to tell whoever takes a card: the claim says who took it, and comes before the agent's start. */
 export const claimHint = (id: string): string =>
   `Claim it first: once-upon backlog claim ${id} --agent NAME (the agent's name in the ledger), plus --branch BRANCH when it has one`;
 
@@ -577,7 +577,7 @@ export function assignLine(item: Pick<BacklogItem, 'id' | 'title'>): string {
 
 /**
  * Whether a started item's work has landed or merged, with when: landed (`done`, a local deploy) is Done at that time,
- * merged is Done at its merge time (else the start). Null while the work is going on. What its agent says is `agentColumn`.
+ * merged is Done at its merge time (else the start). Null while the work is going on. What its runs say is `cardPhase`.
  */
 function endedColumn(
   links: BoardStartedLinks | undefined,
@@ -594,53 +594,6 @@ function endedColumn(
   return null;
 }
 
-/**
- * Where an item goes by what its claimed registered agent has produced (the agent has no card of its own: the item is the
- * one card):
- *
- *   open agent         a question is Waiting, for you; a plan stop (the editor's plan check) is Agent checks;
- *                      otherwise Working, a fix round included (in progress until it lands)
- *   done, a branch     the work is not merged: Ready for review (the story's review, for once-upon-a-diff), or Ready to ship for
- *                      Larmor, which skips review, only once a critic has passed it with no fix round open (`hold`, claims.ts's
- *                      criticHold). Once-upon-a-diff and Larmor stay in Agent checks or Working until then, also with no critic yet
- *   done, card only    Done for DONE_HOURS after it ended, then off the board (it stays done, never back in Backlog)
- *   failed or stopped  back in Backlog, marked tried by the agent
- *
- * Null when the item is past its Done hour. `tried` marks the Backlog case: the card says who tried it.
- */
-function agentColumn(
-  item: BacklogItem,
-  agent: NonNullable<BoardStartedLinks['agent']>,
-  nowMs: number,
-  hold: BoardCard['column'] | null = null,
-): { column: BoardCard['column']; when: number | null; tried: boolean } | null {
-  const ended = Date.parse(agent.ended_at ?? '');
-  const when = Number.isNaN(ended) ? null : ended;
-  if (agent.state === 'waiting') {
-    return { column: 'waiting', when, tried: false };
-  }
-  // a plan stop waits on the editor's check, not on you: the editor sets `waiting` when it needs your call
-  if (agent.state === 'plan') {
-    return { column: 'checks', when, tried: false };
-  }
-  if (AGENT_OPEN.includes(agent.state)) {
-    return { column: 'working', when, tried: false };
-  }
-  if (agent.state === 'failed' || agent.state === 'stopped') {
-    return { column: 'backlog', when, tried: true };
-  }
-  if (item.state === 'started' && item.branch) {
-    if (CRITIC_HOLD.test(repoName(item.repo))) {
-      const done = SKIPS_REVIEW.test(repoName(item.repo)) ? 'ship' : 'ready';
-      return { column: hold ?? done, when, tried: false };
-    }
-    return { column: 'ready', when, tried: false };
-  }
-  return when !== null && nowMs - when > DONE_HOURS * 3600 * 1000
-    ? null
-    : { column: 'done', when, tried: false };
-}
-
 const lane = (repo: string | null) => canonicalRepo(repo) ?? 'General';
 
 /** A live session that is on no card (the voice session, or one only listening): what a started item can sit on. */
@@ -650,8 +603,6 @@ export interface CardlessSession {
   /** how the card names it: "Voice session", or the session's title */
   label: string;
 }
-
-const AGENT_OPEN: BoardAgent['state'][] = ['running', 'waiting', 'plan', 'fixing'];
 
 /** The card a started item rides on: the work card for its repo and branch, else a session card on it (a session on a new branch with no PR or story yet). */
 export function cardOnBranch(
@@ -669,20 +620,18 @@ export function cardOnBranch(
 
 /**
  * The cards the Backlog item column shows, and the work cards' "from backlog" marks. Open items are cards in Backlog,
- * except one whose claimed agent is in the registry (`once-upon backlog claim`, claims.ts), which goes where the agent's
- * work puts it (agentColumn). A started item is one piece of work, shown once:
+ * except one a work run names (`agent start --card`), which goes where its runs put it (`cardPhase`, phase.ts). A started item is one piece of work, shown once:
  *
- *   on a card    it rides on the work or session card for its repo and branch, with its claimed agent's view in that card's
+ *   on a card    it rides on the work or session card for its repo and branch, with its runs' views in that card's
  *                `agents`; that card's column carries on
  *   no card      it is a card of its own in Working ("started, no session yet" until `links` (backlog-links.ts) finds a
  *                worktree, session or agent), in Done once its work merged or landed (`once-upon backlog done`), and gone
- *                DONE_HOURS after that. Its agent's work decides the rest (agentColumn): finished with a branch, it is
+ *                DONE_HOURS after that. Its runs decide the rest (`cardPhase`): finished with a branch, it is
  *                Ready; failed or stopped, it is back in Backlog. An unlinked one is gone after STARTED_GRACE_HOURS
  *
- * A claimed card is one card: its claimed agent has no card of its own (stages/agents.ts holds it out) and shows on this
- * one, in `agents` (`views`, by item id). A claim whose agent has no registered event yet is Working, marked pending, for
- * CLAIM_GRACE_HOURS. Dropped items are not shown. `holds` (by item id) keeps a finished card of a critic-hold repo out of Ready for review or ship while its
- * critic runs or its fixes are pending (criticHold).
+ * A card is one card: the agents whose runs name it have no card of their own (stages/agents.ts holds them out) and show on
+ * this one, in `agents` (`views`, by item id). A claim no run names yet is Working, marked pending, for CLAIM_GRACE_HOURS.
+ * Dropped items are not shown.
  */
 export function backlogCards(
   items: BacklogItem[],
@@ -691,7 +640,6 @@ export function backlogCards(
   cardless: CardlessSession[] = [],
   links: Map<string, BoardStartedLinks> = new Map(),
   views: Map<string, BoardAgent[]> = new Map(),
-  holds: Map<string, BoardCard['column']> = new Map(),
   phases: Map<string, CardPhase | null> = new Map(),
 ): BoardCard[] {
   const shown: BoardCard[] = [];
@@ -725,15 +673,10 @@ export function backlogCards(
         continue;
       }
     }
-    if (
-      (agent || phases.has(item.id)) &&
-      !(item.state === 'started' && (link?.merged || item.landed_at))
-    ) {
-      // the card's runs decide the column (cardPhase), else the claimed agent does, whatever it is doing: Working while it
-      // runs, Agent checks at a plan stop, Waiting at a question, then by what it produced (agentColumn)
-      const placed = phases.has(item.id)
-        ? phases.get(item.id)
-        : agentColumn(item, agent as NonNullable<typeof agent>, nowMs, holds.get(item.id) ?? null);
+    if (phases.has(item.id) && !(item.state === 'started' && (link?.merged || item.landed_at))) {
+      // the card's runs decide the column (cardPhase): Working while the author runs, Agent checks at a plan stop, Waiting at
+      // a question, then by what it produced
+      const placed = phases.get(item.id);
       if (!placed) {
         continue;
       }

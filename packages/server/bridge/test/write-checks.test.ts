@@ -80,16 +80,18 @@ test('agent start --repo with a typo warns, names the nearest repo, exits 0 and 
   }
 });
 
-test('agent start on a card: a typed repo is checked only when the card has none; one the card has is "ignored" once', async () => {
+test('agent start on a card: a typed repo is checked only when the card has none; one the card has is refused', async () => {
   const { home, cli } = world();
   const store = new BacklogStore(home);
   const bare = store.add({ title: 'No repo yet' });
   const withRepo = store.add({ title: 'On widgets', repo: WIDGETS });
+  store.claim(bare.id, { agent: 'one' });
+  store.claim(withRepo.id, { agent: 'two' });
   const first = await cli(
     'agent',
     'start',
     'one',
-    '--kind',
+    '--role',
     'author',
     '--card',
     bare.id,
@@ -104,7 +106,7 @@ test('agent start on a card: a typed repo is checked only when the card has none
     'agent',
     'start',
     'two',
-    '--kind',
+    '--role',
     'author',
     '--card',
     withRepo.id,
@@ -113,13 +115,9 @@ test('agent start on a card: a typed repo is checked only when the card has none
     '--repo',
     'esshank/widgets',
   );
-  assert.equal(second.code, 0, second.stderr);
-  assert.equal(
-    second.stderr.match(/--repo esshank\/widgets ignored/g)?.length,
-    1,
-    'the registry says it once',
-  );
-  assert.doesNotMatch(second.stderr, NONE, 'and the typed-repo note does not say it twice');
+  assert.notEqual(second.code, 0);
+  assert.match(second.stderr, /--repo is not taken with --card/);
+  assert.doesNotMatch(second.stderr, NONE, 'the typed-repo note does not say it as well');
 });
 
 test('backlog add, start, edit and claim with a typed repo on no known lane warn and write; known, empty or no --repo say nothing', async () => {
@@ -196,9 +194,11 @@ test('editor start --repo with a typo warns and registers', async () => {
 test('agent finish naming another card than its start warns and writes; a start with no card, or the same card, says nothing', async () => {
   const { home, cli, rows } = world();
   const store = new BacklogStore(home);
-  const one = store.add({ title: 'One', repo: WIDGETS });
-  const two = store.add({ title: 'Two', repo: WIDGETS });
-  await cli('agent', 'start', 'ou-a', '--kind', 'author', '--card', one.id, '--task', 't');
+  const one = store.add({ title: 'One', repo: WIDGETS, branch: 'feat/one' });
+  const two = store.add({ title: 'Two', repo: WIDGETS, branch: 'feat/two' });
+  store.claim(one.id, { agent: 'ou-a' });
+  store.claim(two.id, { agent: 'ou-b' });
+  await cli('agent', 'start', 'ou-a', '--role', 'author', '--card', one.id, '--task', 't');
   const mismatch = await cli('agent', 'finish', 'ou-a', '--card', two.id, '--outcome', 'ok');
   assert.equal(mismatch.code, 0, mismatch.stderr);
   assert.match(
@@ -207,16 +207,27 @@ test('agent finish naming another card than its start warns and writes; a start 
   );
   assert.equal(rows('agents.jsonl').at(-1).result.card, two.id, 'written as given');
 
-  await cli('agent', 'start', 'ou-b', '--kind', 'author', '--card', one.id, '--task', 't');
-  const same = await cli('agent', 'finish', 'ou-b', '--card', one.id);
+  const startB = await cli(
+    'agent',
+    'start',
+    'ou-b',
+    '--role',
+    'critic',
+    '--card',
+    one.id,
+    '--task',
+    't',
+  );
+  assert.equal(startB.code, 0, startB.stderr);
+  const same = await cli('agent', 'finish', 'ou-b', '--card', one.id, '--findings', '0');
   assert.equal(same.stderr, '');
   // the 11/5 shape: no card at start, the card named on finish (the global rule), 17 of the live finishes
-  await cli('agent', 'start', 'ou-c', '--kind', 'author', '--task', 't');
+  await cli('agent', 'start', 'ou-c', '--kind', 'helper', '--task', 't');
   const later = await cli('agent', 'finish', 'ou-c', '--card', two.id, '--branch', 'feat/c');
   assert.equal(later.code, 0, later.stderr);
   assert.equal(later.stderr, '');
   // a card that is not one is said, and still written
-  await cli('agent', 'start', 'ou-d', '--kind', 'author', '--task', 't');
+  await cli('agent', 'start', 'ou-d', '--kind', 'helper', '--task', 't');
   const unknown = await cli('agent', 'finish', 'ou-d', '--card', 'bl_nothere123');
   assert.equal(unknown.code, 0, unknown.stderr);
   assert.match(unknown.stderr, /is not a backlog card/);
@@ -321,15 +332,15 @@ test('no live flow is refused: the agent and backlog row shapes of the 11/6 cens
   fail('drop', await cli('backlog', 'drop', other.id));
   fail('reopen', await cli('backlog', 'reopen', other.id));
 
-  // an author: the alias kind old skills still pass, restarts as a fix round, plan stop, a beat, finish with the 11/5 flags
+  // an author on its claimed card: restarts as a fix round, plan stop, a beat, finish with the 11/5 flags
   fail(
-    'start builder',
+    'start author',
     await cli(
       'agent',
       'start',
       'write-checks',
-      '--kind',
-      'builder',
+      '--role',
+      'author',
       '--card',
       id,
       '--task',
@@ -430,15 +441,15 @@ test('no live flow is refused: the agent and backlog row shapes of the 11/6 cens
     ),
   );
   fail(
-    'reviewer alias',
+    'second critic',
     await cli(
       'agent',
       'start',
       'old-reviewer',
-      '--kind',
-      'reviewer',
+      '--role',
+      'critic',
       '--task',
-      'old skill line',
+      'second critic on the card',
       '--card',
       id,
     ),

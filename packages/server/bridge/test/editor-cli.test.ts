@@ -58,13 +58,29 @@ test('editor slots --json counts the editor’s running, plan and fixing authors
   const home = tmp('editor-cli-slots');
   assert.equal((await editor(home, 'start', '--slots', '3')).code, 0);
   for (const name of ['ou-a', 'ou-b', 'ou-c']) {
-    assert.equal((await agent(home, 'start', name, '--kind', 'author', '--task', name)).code, 0);
+    assert.equal(
+      (await agent(home, 'start', name, '--kind', 'author', '--branch', name, '--task', name)).code,
+      0,
+    );
   }
   assert.equal((await agent(home, 'state', 'ou-b', '--state', 'plan')).code, 0);
   assert.equal((await agent(home, 'state', 'ou-c', '--state', 'waiting')).code, 0);
   assert.equal(
-    (await agent(home, 'start', 'ou-x', '--kind', 'author', '--sid', '12345678', '--task', 'x'))
-      .code,
+    (
+      await agent(
+        home,
+        'start',
+        'ou-x',
+        '--kind',
+        'author',
+        '--branch',
+        'ou-x',
+        '--sid',
+        '12345678',
+        '--task',
+        'x',
+      )
+    ).code,
     0,
   );
   const slots = await editor(home, 'slots', '--json');
@@ -94,7 +110,10 @@ test('editor slots is the board’s in_use for the same store', async () => {
   });
   assert.equal((await editor(home, 'start', '--slots', '4')).code, 0);
   for (const name of ['ou-a', 'ou-b']) {
-    assert.equal((await agent(home, 'start', name, '--kind', 'author', '--task', name)).code, 0);
+    assert.equal(
+      (await agent(home, 'start', name, '--kind', 'author', '--branch', name, '--task', name)).code,
+      0,
+    );
   }
   const data = await new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
     source: registrySource,

@@ -41,55 +41,6 @@
       {
         "cards": [
           {
-            "agents": [
-              {
-                "beat": null,
-                "clears_at": null,
-                "editor": null,
-                "ended_at": null,
-                "gate": null,
-                "key": "<PID:11>:helper-one",
-                "kind": "helper",
-                "model": "sonnet, low",
-                "name": "helper-one",
-                "notes": null,
-                "outcome": null,
-                "review": false,
-                "sid": "<PID:11>",
-                "stale": false,
-                "started_at": "2026-10-26T18:50:00.000Z",
-                "state": "running",
-                "status": "working",
-                "summary": null,
-                "task": "a task"
-              }
-            ],
-            "branch": null,
-            "build": null,
-            "building": null,
-            "can_focus": false,
-            "column": "working",
-            "detail": "a task",
-            "focus_session": "<PID:11>-aaaa-bbbb-cccc-dddddddddddd",
-            "id": "agent:<PID:11>:helper-one",
-            "kind": "agent",
-            "lane": "elsewhere",
-            "listening": null,
-            "parent": "Voice session",
-            "pr": null,
-            "repo": null,
-            "sessions": [],
-            "since": "2026-10-26T18:50:00.000Z",
-            "story": null,
-            "title": "helper-one"
-          }
-        ],
-        "key": "elsewhere",
-        "name": "elsewhere"
-      },
-      {
-        "cards": [
-          {
             "agents": [],
             "branch": "main",
             "build": null,
@@ -379,6 +330,49 @@
             "since": "2026-10-26T18:30:00.000Z",
             "story": null,
             "title": "ou-writer"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": null,
+                "gate": null,
+                "key": "<PID:11>:helper-one",
+                "kind": "helper",
+                "model": "sonnet, low",
+                "name": "helper-one",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "<PID:11>",
+                "stale": false,
+                "started_at": "2026-10-26T18:50:00.000Z",
+                "state": "running",
+                "status": "working",
+                "summary": null,
+                "task": "a task"
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "working",
+            "detail": "a task",
+            "focus_session": "<PID:11>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "agent:<PID:11>:helper-one",
+            "kind": "agent",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": "Voice session",
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T18:50:00.000Z",
+            "story": null,
+            "title": "helper-one"
           },
           {
             "agents": [
