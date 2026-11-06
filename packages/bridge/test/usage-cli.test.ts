@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { tmp, runCli, writeJson } from './helpers.ts';
+import { tmp, runCli } from './helpers.ts';
 import { assertPrivate } from './usage-helpers.ts';
 import { isLinkedWorktree } from '@once-upon-a-diff/core/adapters/usage/session';
 import { commandLabel } from '@once-upon-a-diff/core/records/usage/cli-log';
@@ -159,14 +159,4 @@ test('fix 1: `usage clear` clears the data and keeps the on/off choice, so off t
   await runCli(home, ['usage', 'clear'], FORCE);
   assert.ok(!existsSync(usageFile(home, 'cli-runs.log')));
   assert.match((await runCli(home, ['usage', 'status'], FORCE)).stdout, /line level/);
-});
-
-test('fix 2: `usage clear` leaves the pid file of a live bridge, so reports can still flush it', async () => {
-  const home = tmp('home');
-  const pid = { pid: process.pid, startedAt: new Date().toISOString() };
-  writeJson(usageFile(home, 'bridge-pid.json'), pid);
-  writeJson(usageFile(home, 'actions.json'), { days: {} });
-  await runCli(home, ['usage', 'clear'], FORCE);
-  assert.deepEqual(JSON.parse(readFileSync(usageFile(home, 'bridge-pid.json'), 'utf8')), pid);
-  assert.ok(!existsSync(usageFile(home, 'actions.json')));
 });

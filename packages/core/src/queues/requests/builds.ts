@@ -23,6 +23,7 @@ import { sameRepo, REPO_RE } from '../../foundation/repos.ts';
 import { SHA_RE, plural, shortSha } from '@once-upon-a-diff/domain/text';
 import { prKey } from '@once-upon-a-diff/domain/pr-key';
 import { readerOf } from '../../foundation/settings.ts';
+import { readBuild, type Build, type BuildRead } from '@once-upon-a-diff/contracts/files/schemas';
 import { RequestQueue } from './queue.ts';
 import { listeners } from '../../records/listeners/listeners.ts';
 import { STORY_ID_RE } from '@once-upon-a-diff/domain/patterns';
@@ -31,43 +32,8 @@ import type { Listener } from '../../records/listeners/listeners.ts';
 import type { StoryMeta } from '../../records/stories/types.ts';
 import { prUrl } from '@once-upon-a-diff/domain/github-urls';
 
-/** A chapter read before an update was asked for: where the reviewer's reading stopped. */
-export interface BuildRead {
-  chapter: string;
-  title: string | null;
-  sha: string | null;
-  at: string;
-}
-
-/** A build request, as builds.json keeps it (one per PR, or per local story for a rebuild). */
-export interface Build {
-  id: string;
-  repo?: string | null;
-  number: number | null;
-  url: string | null;
-  requested_at: string;
-  status: 'pending' | 'done' | 'failed';
-  mode?: 'update' | 'rebuild' | 'rebuild_from';
-  // an update
-  base_sha?: string;
-  retell?: boolean;
-  since_sha?: string;
-  since_source?: string | null;
-  reads?: BuildRead[];
-  story?: string | null;
-  // a rebuild
-  kind?: 'github' | 'local';
-  from_step?: number;
-  guidance?: string;
-  told_from?: string | null;
-  story_dir?: string | null;
-  local?: { repo_path?: string; base?: string; head?: string };
-  // its claim and how it ended
-  claimed_by?: string;
-  claimed_at?: string;
-  done_at?: string;
-  note?: string | null;
-}
+/** A build request, as builds.json keeps it: its format is the contracts package's (contracts/src/files/schemas.ts). */
+export type { Build, BuildRead };
 
 /** Where the reviewer's reading stopped, for an update (sinceOf() in reads.ts, plus the story id). */
 export interface UpdateSince {
@@ -243,7 +209,10 @@ export class Builds {
   constructor(home: string) {
     this.home = home;
     this.file = path.join(home, 'builds.json');
-    this.queue = new RequestQueue<Build>(this.file, { claimFreshMs: CLAIM_FRESH_MS });
+    this.queue = new RequestQueue<Build>(this.file, {
+      claimFreshMs: CLAIM_FRESH_MS,
+      check: readBuild,
+    });
   }
 
   all(): Record<string, Build> {
@@ -383,10 +352,11 @@ export class Builds {
         )) {
           return old;
         }
-        const next = { ...old };
-        delete next.retell;
-        all[key] = { ...next, ...(retell ? { retell: true } : {}) };
-        return all[key];
+        delete old.retell;
+        if (retell) {
+          old.retell = true;
+        }
+        return old;
       }
       const requestedAt = Number.isFinite(Date.parse(requested_at as string))
         ? new Date(requested_at as string).toISOString()

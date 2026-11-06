@@ -1,0 +1,45 @@
+{
+  "f_1": {
+    "id": "f_1",
+    "story": "acme-widgets-7",
+    "repo": "acme/widgets",
+    "kind": "github",
+    "title": "Fix it",
+    "url": null,
+    "branch": null,
+    "checkout": null,
+    "notes": [{ "id": "n_1", "path": "src/a.js", "side": "R", "line": 12, "body": "fix", "chapter": null, "from_draft": false }],
+    "to": null,
+    "requested_at": "2026-10-28T10:05:00.000Z",
+    "status": "done",
+    "claimed_by": "claude",
+    "claimed_at": "2026-10-28T10:05:30.000Z",
+    "done_at": "2026-10-28T10:06:00.000Z",
+    "sha": "0123456789abcdef0123456789abcdef01234567",
+    "fixed": ["n_1"],
+    "why": null,
+    "by": "claude"
+  },
+  "f_2": {
+    "id": "f_2",
+    "story": "local-x",
+    "repo": null,
+    "kind": "local",
+    "notes": [{ "id": "n_2", "path": "src/b.js", "side": "L", "line": 3, "body": "no chapter, no from_draft" }],
+    "requested_at": "2026-10-29T10:05:00.000Z",
+    "status": "taken_back"
+  },
+  "f_3": {
+    "id": "f_3",
+    "story": "acme-widgets-7",
+    "repo": "acme/widgets",
+    "kind": "github",
+    "notes": [
+      { "id": "n_3", "path": "src/a.js", "side": "R", "line": 3, "body": "on a line" },
+      { "id": "n_4", "path": "src/whole.js", "side": "R", "line": null, "body": "on a whole file" },
+      { "id": "n_5", "path": "src/odd.js", "side": "R", "line": "a newer writer's text", "body": "one a reader cannot take" }
+    ],
+    "requested_at": "2026-10-30T10:05:00.000Z",
+    "status": "pending"
+  }
+}

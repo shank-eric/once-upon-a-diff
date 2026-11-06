@@ -1,0 +1,7 @@
+half a line {"op":
+{"op":"add","id":"nope","title":"bad id","by":"cli","at":"2026-10-28T10:00:00.000Z"}
+{"op":"add","id":"bl_abc123","by":"cli","at":"2026-10-28T10:00:00.000Z"}
+{"op":"start","id":"bl_abc123","by":"cli","at":"2026-10-28T11:00:00.000Z"}
+{"op":"claim","id":"bl_abc123","agent":"has spaces","by":"cli","at":"2026-10-29T14:00:00.000Z"}
+{"op":"assign","id":"bl_abc123","session":"bad session!","by":"cli","at":"2026-10-28T11:30:00.000Z"}
+{"op":"vanish","id":"bl_abc123","by":"cli","at":"2026-10-28T11:30:00.000Z"}

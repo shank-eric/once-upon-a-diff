@@ -1,7 +1,8 @@
 /**
  * Registered agents: the events `once-upon agent start|state|beat|finish` append to <home>/agents.jsonl, and how they
  * fold into the board's agents (LedgerAgent). Nothing here is parsed from prose: a kind, a state, a time and a result
- * are fields. ledgerLine and beatLine write each event as a log line for people and scripts (registry.ts).
+ * are fields. The format (AgentEvent) is the contracts package's: contracts/src/files/schemas.ts.
+ * ledgerLine and beatLine write each event as a log line for people and scripts (registry.ts).
  *
  *   {op:'start',  v, id, sid8, session, name, at, by, run, kind, standing, task, model, effort, repo, branch, tip, pr, cwd, card, lane, notes}
  *   {op:'state',  ..., state: running|waiting|review|plan|fixing, outcome, findings, notes}
@@ -15,10 +16,14 @@
  */
 import { jsonLines } from '../../adapters/stores/fs/jsonl.ts';
 import { ledgerTime, type LedgerAgent } from './ledger.ts';
-import { AGENT_KINDS, type AgentKind, type AgentResult } from './agent-types.ts';
+import { AGENT_KINDS, type AgentKind } from './agent-types.ts';
+import {
+  KIND_ALIASES,
+  readAgentEvent,
+  type AgentEvent,
+} from '@once-upon-a-diff/contracts/files/schemas';
 
-/** Old names for a kind, still read from old agents.jsonl lines and still accepted by `agent start --kind`. */
-export const KIND_ALIASES = { builder: 'author', reviewer: 'critic' } as const;
+export { KIND_ALIASES, type AgentEvent };
 
 /** The canonical kind for a stored or typed value (an alias reads as its new name), or null when it is none. */
 export function canonicalKind(raw: unknown): AgentKind | null {
@@ -37,64 +42,9 @@ export const STALE_MS = 24 * 3600 * 1000;
 export const OPEN_STATES = ['running', 'waiting', 'review', 'plan', 'fixing'] as const;
 export const END_STATES = ['done', 'failed', 'stopped'] as const;
 
-/** One event line as stored. */
-export interface AgentEvent {
-  op: 'start' | 'state' | 'beat' | 'finish';
-  v?: number;
-  id: string;
-  sid8: string;
-  session?: string | null;
-  name: string;
-  at: string;
-  by?: string;
-  run?: string;
-  /** as stored: an old line may still say `builder` or `reviewer` (read through canonicalKind) */
-  kind?: AgentKind | keyof typeof KIND_ALIASES;
-  /** a long-lived agent reached by SendMessage, never finished between requests: the board's Helpers row, no card */
-  standing?: boolean;
-  task?: string;
-  model?: string | null;
-  effort?: string | null;
-  repo?: string | null;
-  branch?: string | null;
-  /** start only: the registered branch's tip then, or null */
-  tip?: string | null;
-  pr?: number | null;
-  cwd?: string | null;
-  card?: string | null;
-  lane?: string | null;
-  notes?: string | null;
-  /** an editor's build slots */
-  slots?: number | null;
-  state?: string;
-  outcome?: string | null;
-  findings?: number | null;
-  result?: AgentResult | null;
-  n?: number;
-  of?: number;
-  step?: string;
-  note?: string;
-}
-
 /** The events in a file's text, in order. Lines that aren't events are skipped. */
 export function parseAgentEvents(text: string): AgentEvent[] {
-  const events: AgentEvent[] = [];
-  for (const value of jsonLines(text)) {
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-      continue;
-    }
-    const event = value as AgentEvent;
-    if (
-      ['start', 'state', 'beat', 'finish'].includes(event.op) &&
-      typeof event.id === 'string' &&
-      typeof event.sid8 === 'string' &&
-      typeof event.name === 'string' &&
-      !Number.isNaN(Date.parse(event.at))
-    ) {
-      events.push(event);
-    }
-  }
-  return events;
+  return jsonLines(text).flatMap((value) => readAgentEvent(value) ?? []);
 }
 
 const isOpen = (agent: Pick<LedgerAgent, 'state'>) =>

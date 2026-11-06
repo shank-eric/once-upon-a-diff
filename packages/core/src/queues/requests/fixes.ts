@@ -28,9 +28,13 @@ import { newId } from '../../foundation/ids.ts';
 import { sameRepo } from '../../foundation/repos.ts';
 import { answeringOf, listeners } from '../../records/listeners/listeners.ts';
 import { withLock } from '../../adapters/stores/fs/lock.ts';
+import {
+  readFixRequest,
+  type FixRequest,
+  type RequestNote,
+} from '@once-upon-a-diff/contracts/files/schemas';
 import { RequestQueue } from './queue.ts';
 import type { LocalNote } from '@once-upon-a-diff/contracts/types';
-import type { Side } from '@once-upon-a-diff/domain/line-refs';
 import type { Inbox } from './inbox.ts';
 import type { Listener } from '../../records/listeners/listeners.ts';
 import type { StoryStore } from '../../records/stories/store.ts';
@@ -38,43 +42,8 @@ import type { ServedStory, StoryMeta } from '../../records/stories/types.ts';
 import { toSide } from '@once-upon-a-diff/domain/line-refs';
 import { fixState } from '@once-upon-a-diff/domain/fix-notes';
 
-/** A note as a fix request carries it to the session. */
-export interface RequestNote {
-  id: string;
-  path: string;
-  side: Side;
-  line: number;
-  body: string;
-  chapter: number | null;
-  /**
-   * True when the note came from a drafted comment (Add to fix before push). Claude wrote that text from the PR's
-   * content, so the session confirms it with the user before acting on it, and Auto-send never sends it.
-   */
-  from_draft: boolean;
-}
-
-/** A fix request, as fixes.json keeps it. */
-export interface FixRequest {
-  id: string;
-  story: string;
-  repo: string | null;
-  kind: StoryMeta['kind'];
-  title: string | null;
-  url: string | null;
-  branch: string | null;
-  checkout: string | null;
-  notes: RequestNote[];
-  to: string | null;
-  requested_at: string;
-  status: 'pending' | 'done' | 'failed' | 'taken_back';
-  claimed_by?: string;
-  claimed_at?: string;
-  done_at?: string;
-  sha?: string | null;
-  fixed?: string[];
-  why?: string | null;
-  by?: string | null;
-}
+/** A note as a fix request carries it to the session, and a fix request as fixes.json keeps it: the contracts package's formats (contracts/src/files/schemas.ts). */
+export type { RequestNote, FixRequest };
 
 /** The story a note or a request is about: its id, meta.json and ref. */
 type NoteStory = Pick<ServedStory, 'id' | 'meta' | 'ref'>;
@@ -89,7 +58,7 @@ const failure = (status: number, message: string) => Object.assign(new Error(mes
 const fixesFile = (home: string) => path.join(home, 'fixes.json');
 /** fixes.json as a queue: a wait's claim on a fix request lasts until it's reported on or taken back. */
 const fixesQueue = (home: string) =>
-  new RequestQueue<FixRequest>(fixesFile(home), { claimFreshMs: null });
+  new RequestQueue<FixRequest>(fixesFile(home), { claimFreshMs: null, check: readFixRequest });
 export const readFixes = (home: string): Record<string, FixRequest> => fixesQueue(home).all();
 /** Runs `work` under the lock that fixes.json and every story's notes.json are written under. */
 const locked = <T>(home: string, work: () => T): T => withLock(fixesFile(home), work);

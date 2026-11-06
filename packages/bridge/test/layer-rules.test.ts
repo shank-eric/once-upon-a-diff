@@ -51,6 +51,9 @@ const PAGES_APP = 'pages-are-an-app';
 const NO_NODE = 'browser-no-node';
 const FROM_ADAPTERS = 'only-adapters-run-programs-or-network';
 const FROM_ADAPTERS_HTTP = `${FROM_ADAPTERS}-http`;
+const HEALTH_ONLY = 'health-check-is-the-doctors';
+const NO_ROUTES = 'cli-and-core-have-no-route-table';
+const APPS_NOT_ADAPTERS = 'apps-use-core-not-adapters';
 
 // the packages the matrix crosses: each one's folder, and a `leaf.ts` in it for the others to import
 const PACKAGES: Record<string, string> = {
@@ -213,6 +216,22 @@ const PROBES: Probe[] = [
   ['server/src/ok-http.ts', spec('node:http'), null],
   ['core/src/adapters/ok-http.ts', spec('node:http'), null],
   ['server/src/ok-fs.ts', spec('node:fs'), null],
+
+  // --- the CLI never calls the server: the health check is the doctor's, and the route table is not the CLI's or core's ---
+  [`${QUEUES_A}/health.ts`, 'core/src/adapters/bridge-health.ts', HEALTH_ONLY],
+  [`${ORCHESTRATION_B}/health-too.ts`, 'core/src/adapters/bridge-health.ts', HEALTH_ONLY],
+  ['server/src/health.ts', 'core/src/adapters/bridge-health.ts', [HEALTH_ONLY, APPS_NOT_ADAPTERS]],
+  ['cli/src/health.ts', 'core/src/adapters/bridge-health.ts', [HEALTH_ONLY, APPS_NOT_ADAPTERS]],
+  ['bridge/bin/health.ts', 'core/src/adapters/bridge-health.ts', HEALTH_ONLY],
+  [`${ORCHESTRATION_B}/doctor.ts`, 'core/src/adapters/bridge-health.ts', null],
+  ['cli/src/to-routes.ts', 'contracts/src/routes.ts', NO_ROUTES],
+  ['cli/src/to-route-kit.ts', 'contracts/src/route-kit.ts', NO_ROUTES],
+  [`${RECORDS_A}/to-area-routes.ts`, 'contracts/src/story/routes.ts', NO_ROUTES],
+  [`${FOUNDATION}/to-routes.ts`, 'contracts/src/routes.ts', NO_ROUTES],
+  [`${RECORDS_A}/ok-route-type.ts`, 'contracts/src/routes.ts', null, 'type'],
+  ['cli/src/ok-contracts-types.ts', 'contracts/src/types.ts', null],
+  ['cli/src/ok-contracts-files.ts', 'contracts/src/files/schemas.ts', null],
+  ['server/src/ok-routes.ts', 'contracts/src/routes.ts', null],
 
   // --- instrumentation is for the shims ---
   [

@@ -13,8 +13,11 @@ import {
 } from '@once-upon-a-diff/domain/patterns';
 import { SHA_RE } from '@once-upon-a-diff/domain/text';
 import { REPO_RE } from '../../foundation/repos.ts';
-import { appendAgentEvent, readAgentsFile } from '../../adapters/stores/agents-file.ts';
+import { appendAgentEvent } from '../../adapters/stores/agents-file.ts';
+import { agentEventsIn } from './events-file.ts';
 import { appendLine } from '../../adapters/stores/fs/lines.ts';
+import { noteIfMalformed } from '../../foundation/shared-files.ts';
+import { readAgentEvent } from '@once-upon-a-diff/contracts/files/schemas';
 import { lastActivity } from './ledger.ts';
 import { AGENT_KINDS, type AgentKind, type AgentResult } from './agent-types.ts';
 import {
@@ -26,7 +29,6 @@ import {
   beatLine,
   foldAgentEvents,
   ledgerLine,
-  parseAgentEvents,
   runIsOpen,
   type AgentEvent,
 } from './events.ts';
@@ -117,7 +119,7 @@ export class AgentRegistry {
   }
 
   events(): AgentEvent[] {
-    return parseAgentEvents(readAgentsFile(this.file));
+    return agentEventsIn(this.file);
   }
 
   /** Every agent the events tell, with its latest run. */
@@ -127,7 +129,9 @@ export class AgentRegistry {
 
   /** Writes the event, then its log lines. Returns the run after the event. */
   private append(event: AgentEvent): LedgerAgent {
-    appendAgentEvent(this.file, { v: 1, ...event });
+    const line = { v: 1, ...event };
+    noteIfMalformed(this.file, line, readAgentEvent);
+    appendAgentEvent(this.file, line);
     const agent = foldAgentEvents(this.events()).find(
       (one) => `${one.sid}:${one.name}` === event.id,
     );

@@ -1,0 +1,47 @@
+{
+  "acme/widgets#7": {
+    "id": "b_1",
+    "repo": "acme/widgets",
+    "number": 7,
+    "url": "https://github.com/acme/widgets/pull/7",
+    "requested_at": "2026-10-21T19:10:00Z",
+    "status": "done",
+    "claimed_by": "claude",
+    "claimed_at": "2026-10-21T19:11:00Z",
+    "done_at": "2026-10-21T19:20:01Z",
+    "note": null,
+    "story": null
+  },
+  "acme/widgets#8": {
+    "id": "b_2",
+    "repo": "acme/widgets",
+    "number": 8,
+    "url": "https://github.com/acme/widgets/pull/8",
+    "requested_at": "2026-10-22T19:10:00Z",
+    "status": "done",
+    "mode": "update",
+    "base_sha": "0123456789abcdef0123456789abcdef01234567",
+    "since_sha": "0123456789abcdef0123456789abcdef01234567",
+    "since_source": null,
+    "reads": [{ "chapter": "ch-1", "title": null, "sha": "0123456789abcdef0123456789abcdef01234567", "at": "2026-10-22T19:00:00Z" }],
+    "started_at": "2026-10-22T19:11:00Z",
+    "story": "acme-widgets-8",
+    "done_at": "2026-10-22T19:20:01Z"
+  },
+  "story:local-x": {
+    "id": "b_3",
+    "number": null,
+    "url": null,
+    "requested_at": "2026-10-23T19:10:00Z",
+    "status": "pending",
+    "mode": "rebuild_from",
+    "kind": "local",
+    "from_step": 3,
+    "guidance": "tighter",
+    "told_from": null,
+    "story_dir": null,
+    "story": "local-x",
+    "local": { "repo_path": "/tmp/x", "base": "main", "head": "feat-x" }
+  },
+  "acme/widgets#9": { "id": "b_4", "requested_at": "2026-10-24T19:10:00Z", "status": "failed", "a_field_later_cards_add": [1, 2] }
+}

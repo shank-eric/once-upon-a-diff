@@ -4,6 +4,8 @@
  * a drop is recoverable by hand. Everything goes through BacklogStore, so the file can be swapped for another store
  * without touching the board or the CLI.
  *
+ * The format of each event is the contracts package's (contracts/src/files/schemas.ts); this lists them for the fold:
+ *
  *   {op:'add',   id, title, note, repo, branch, by, at}
  *   {op:'start', id, branch, repo, by, at}     work began on that branch
  *   {op:'done',  id, sha?, by, at}             the work landed (a local deploy: no PR ever merges it); an open item can land too
@@ -36,6 +38,8 @@ import {
   SESSION_RE,
   SID_RE,
 } from '@once-upon-a-diff/domain/patterns';
+import { readBacklogEvent } from '@once-upon-a-diff/contracts/files/schemas';
+import { noteIfMalformed } from '../../foundation/shared-files.ts';
 import { BACKLOG_NOTE_MAX, SHA_RE, repoName } from '@once-upon-a-diff/domain/text';
 import { jsonLines } from '../../adapters/stores/fs/jsonl.ts';
 import { appendBacklogEvent, readBacklogFile } from '../../adapters/stores/backlog-file.ts';
@@ -112,29 +116,23 @@ export function foldBacklog(text: string): BacklogItem[] {
   const added = new Map<string, { branch: string | null; repo: string | null }>();
   const order: string[] = [];
   for (const value of jsonLines(text)) {
-    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    const event = readBacklogEvent(value);
+    if (!event) {
       continue;
     }
-    const event = value as Record<string, unknown>;
-    const id = typeof event.id === 'string' ? event.id : '';
-    if (!ID_PATTERN.test(id)) {
-      continue;
-    }
-    const when = typeof event.at === 'string' ? event.at : '';
-    const who = typeof event.by === 'string' ? event.by : 'cli';
+    const id = event.id;
+    const when = event.at ?? '';
+    const who = event.by ?? 'cli';
     const found = items.get(id);
-    if (event.op === 'add' && !found && typeof event.title === 'string') {
+    if (event.op === 'add' && !found) {
       order.push(id);
-      added.set(id, {
-        branch: typeof event.branch === 'string' && event.branch ? event.branch : null,
-        repo: typeof event.repo === 'string' && event.repo ? event.repo : null,
-      });
+      added.set(id, { branch: event.branch || null, repo: event.repo || null });
       items.set(id, {
         id,
         title: event.title,
-        note: typeof event.note === 'string' && event.note ? event.note : null,
-        repo: typeof event.repo === 'string' && event.repo ? event.repo : null,
-        branch: typeof event.branch === 'string' && event.branch ? event.branch : null,
+        note: event.note || null,
+        repo: event.repo || null,
+        branch: event.branch || null,
         added_by: who,
         added_at: when,
         state: 'open',
@@ -148,34 +146,19 @@ export function foldBacklog(text: string): BacklogItem[] {
         hold: false,
         someday: false,
       });
-    } else if (
-      found &&
-      found.state !== 'dropped' &&
-      event.op === 'start' &&
-      typeof event.branch === 'string'
-    ) {
+    } else if (found && found.state !== 'dropped' && event.op === 'start') {
       // (a start that landed after a drop, from a writer that read before it, doesn't bring the item back)
       found.state = 'started';
       found.branch = event.branch;
-      found.repo = typeof event.repo === 'string' && event.repo ? event.repo : found.repo;
+      found.repo = event.repo || found.repo;
       found.started_at = when;
       found.started_by = who;
       // a new start is new work: an earlier landing no longer speaks for it
       found.landed_at = null;
       found.landed_sha = null;
       found.someday = false;
-    } else if (
-      found &&
-      found.state === 'open' &&
-      event.op === 'assign' &&
-      typeof event.session === 'string' &&
-      SESSION_RE.test(event.session)
-    ) {
-      found.assigned = {
-        session: event.session,
-        branch: typeof event.branch === 'string' && event.branch ? event.branch : null,
-        at: when,
-      };
+    } else if (found && found.state === 'open' && event.op === 'assign') {
+      found.assigned = { session: event.session, branch: event.branch || null, at: when };
     } else if (
       found &&
       (found.state === 'started' || found.state === 'open') &&
@@ -183,21 +166,15 @@ export function foldBacklog(text: string): BacklogItem[] {
     ) {
       // (an open item an agent works on is started by what the board finds, so it can land with no `start`)
       found.landed_at = when;
-      found.landed_sha = typeof event.sha === 'string' && event.sha ? event.sha : null;
+      found.landed_sha = event.sha || null;
       // the claim ends when the card lands, whatever its agent is doing. A later claim is recorded, but holds nothing
       // until a `start` reopens the work (claimedRun and liveClaim ignore a landed card)
       found.claim = null;
       found.someday = false;
-    } else if (
-      found &&
-      found.state !== 'dropped' &&
-      event.op === 'claim' &&
-      typeof event.agent === 'string' &&
-      AGENT_NAME_RE.test(event.agent)
-    ) {
+    } else if (found && found.state !== 'dropped' && event.op === 'claim') {
       found.claim = {
         agent: event.agent,
-        sid: typeof event.sid === 'string' && SID_RE.test(event.sid) ? event.sid : null,
+        sid: event.sid ?? null,
         by: who,
         at: when,
       };
@@ -226,7 +203,7 @@ export function foldBacklog(text: string): BacklogItem[] {
       found.someday = false;
     } else if (found && found.state === 'open' && !found.landed_at && event.op === 'edit') {
       // only the fields the event carries change (a note or repo of '' clears it); a title is never blanked
-      if (typeof event.title === 'string' && event.title) {
+      if (event.title) {
         found.title = event.title;
       }
       if (typeof event.note === 'string') {
@@ -239,8 +216,8 @@ export function foldBacklog(text: string): BacklogItem[] {
       }
     } else if (found && event.op === 'move') {
       // a target that is gone or unknown leaves the item where it was
-      const target = typeof event.before === 'string' ? order.indexOf(event.before) : -1;
-      if (event.edge === 'top' || event.edge === 'bottom' || (target >= 0 && event.before !== id)) {
+      const target = event.before ? order.indexOf(event.before) : -1;
+      if (event.edge || (target >= 0 && event.before !== id)) {
         order.splice(order.indexOf(id), 1);
         let place = event.edge === 'top' ? 0 : order.length;
         if (!event.edge) {
@@ -266,6 +243,7 @@ export class BacklogStore implements BacklogStorage {
   }
 
   private append(event: Record<string, unknown>): void {
+    noteIfMalformed(this.file, event, readBacklogEvent);
     appendBacklogEvent(this.file, event);
   }
 

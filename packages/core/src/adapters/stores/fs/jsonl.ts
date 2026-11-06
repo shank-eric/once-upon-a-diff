@@ -3,7 +3,7 @@
  * can both write without a lock. agents.jsonl and backlog.jsonl are built on it; what the lines mean, and how they fold,
  * is each store's service's.
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
 import { appendLine } from './lines.ts';
 
 /** The log's text, or '' when there is no file yet. */
@@ -27,4 +27,38 @@ export function jsonLines(text: string): unknown[] {
     }
   }
   return values;
+}
+
+/** An append-only log's identity and length (its inode changes when the file is replaced), or null when there is no file. */
+export function logState(file: string): { ino: number; size: number } | null {
+  try {
+    const { ino, size } = statSync(file);
+    return { ino, size };
+  } catch {
+    return null;
+  }
+}
+
+/** The first `count` bytes of the log (fewer when it is shorter). */
+export function readLogHead(file: string, count: number): Buffer {
+  const handle = openSync(file, 'r');
+  try {
+    const bytes = Buffer.alloc(count);
+    return bytes.subarray(0, readSync(handle, bytes, 0, count, 0));
+  } finally {
+    closeSync(handle);
+  }
+}
+
+/** The bytes of the log from `from` to its end, for a reader that has already taken what is before. */
+export function readLogFrom(file: string, from: number): Buffer {
+  const handle = openSync(file, 'r');
+  try {
+    const size = statSync(file).size;
+    const bytes = Buffer.alloc(Math.max(0, size - from));
+    readSync(handle, bytes, 0, bytes.length, from);
+    return bytes;
+  } finally {
+    closeSync(handle);
+  }
 }

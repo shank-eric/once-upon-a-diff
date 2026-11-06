@@ -1,0 +1,11 @@
+{"id":"q_1","at":"2026-10-28T10:00:00.000Z","type":"question","story":"acme-widgets-7","step":2,"chapter":"Chapter 2: x","file":"src/a.js","text":"why?","url":"https://example.com"}
+{"id":"q_2","at":"2026-10-28T10:01:00.000Z","type":"question","story":"acme-widgets-7","text":"no step, chapter or file","channel":"voice"}
+{"id":"a_1","at":"2026-10-28T10:02:00.000Z","type":"answer","question":"q_1","story":"acme-widgets-7","text":"because","by":"claude"}
+{"id":"a_2","at":"2026-10-28T10:03:00.000Z","type":"answer","question":"q_2","story":"acme-widgets-7","text":"see [it](ref:c1)","refs":[{"id":"c1","step":1}]}
+{"id":"n_1","at":"2026-10-28T10:04:00.000Z","type":"note","story":"acme-widgets-7","action":"added","note":{"id":"n_1","path":"src/a.js","side":"R","line":12,"body":"fix"}}
+{"id":"f_1","at":"2026-10-28T10:05:00.000Z","type":"fix","story":"acme-widgets-7","action":"sent","request":"f_1","notes":["n_1"],"to":null,"sha":null}
+{"id":"f_2","at":"2026-10-28T10:06:00.000Z","type":"fix","story":"acme-widgets-7","action":"fixed","request":"f_1","notes":["n_1"],"sha":"0123456789abcdef0123456789abcdef01234567","by":"claude"}
+{"id":"r_1","at":"2026-10-28T10:07:00.000Z","type":"read","story":"acme-widgets-7","chapter":"ch-1","step":1,"title":"Chapter 1","head_sha":null,"story_head":null,"reason":"time"}
+{"id":"p_1","at":"2026-10-28T10:08:00.000Z","type":"approved","story":"local-x","branch":"feat-x","checkout":"/tmp/x","base":null,"head_sha":"0123456789abcdef0123456789abcdef01234567"}
+{"id":"c_1","at":"2026-10-28T10:09:00.000Z","type":"review_comment","story":"acme-widgets-7","chapter":null,"path":"src/a.js","line":3}
+{"id":"c_2","at":"2026-10-28T10:10:00.000Z","type":"comment","story":"acme-widgets-7","chapter":2,"comment":{"path":"src/a.js","body":"x"}}

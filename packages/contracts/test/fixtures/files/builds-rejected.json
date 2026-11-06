@@ -1,0 +1,6 @@
+{
+  "acme/widgets#1": { "id": "b_9", "requested_at": "2026-10-24T19:10:00Z", "status": "someday" },
+  "acme/widgets#2": { "requested_at": "2026-10-24T19:10:00Z", "status": "done" },
+  "acme/widgets#3": "not a record",
+  "acme/widgets#4": null
+}

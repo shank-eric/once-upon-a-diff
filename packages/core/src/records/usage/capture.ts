@@ -1,8 +1,8 @@
 /*
  * The capture: orchestrates what the entry shim started (instrumentation/usage-probe.ts). It reduces V8's coverage of this
  * checkout's own files to uncovered-line bitsets, merges them into <home>/usage/coverage-bridge.json (the bridge) or
- * coverage-cli.json (a CLI run), and flushes: every 5 minutes, at the end of the process, on SIGUSR2 (a report asks the
- * bridge for fresh data), and on SIGTERM/SIGINT, which a deploy sends.
+ * coverage-cli.json (a CLI run), and flushes: every 5 minutes, at the end of the process, and on SIGTERM/SIGINT, which a
+ * deploy sends. A report reads the last flush: the CLI never signals or calls the bridge.
  *
  * A deploy switches the checkout to the new code BEFORE it stops the old bridge, so the files on disk are already the new
  * version when the old bridge's last flush runs. So the first time a script shows up, its text and sha are snapshotted
@@ -11,12 +11,7 @@
  */
 import path from 'node:path';
 import { onSignal } from '../../adapters/os.ts';
-import {
-  readUsageJson,
-  writeUsageJson,
-  clearUsageFile,
-  withUsageLock,
-} from '../../adapters/stores/usage-file.ts';
+import { readUsageJson, writeUsageJson, withUsageLock } from '../../adapters/stores/usage-file.ts';
 import {
   CHECKOUT,
   UNMEASURED,
@@ -41,13 +36,6 @@ export type Source = 'bridge' | 'cli';
 const FLUSH_MS = 5 * 60 * 1000;
 const FIRST_FLUSH_MS = 3000;
 const EXIT_CAP_MS = 2000;
-export const BRIDGE_PID_FILE = 'bridge-pid.json';
-
-/** What the bridge advertises once it will answer SIGUSR2 with a flush. A CLI signals only a process that wrote this. */
-export interface BridgePid {
-  pid: number;
-  startedAt: string;
-}
 
 export const coverageFileOf = (source: Source) => `coverage-${source}.json`;
 
@@ -61,7 +49,7 @@ export function onUsageFlush(hook: (stamp: boolean) => void): () => void {
 export interface Capture {
   /** Takes what ran since the last take and merges it. `stamp` writes the file even when nothing changed. */
   flush(stamp?: boolean): void;
-  /** The bridge's port is bound: only now does it advertise itself and count as a start. */
+  /** The bridge's port is bound: only now does it count as a start. */
   advertise(): void;
 }
 
@@ -102,7 +90,6 @@ export function installUsage(argv: string[]): Capture | null {
   }
   const home = homeDir();
   const source: Source = argv.find((word) => !word.startsWith('-')) === 'serve' ? 'bridge' : 'cli';
-  const startedAt = new Date(startedAtMs()).toISOString();
   const snapshots = createSnapshots(CHECKOUT, startedAtMs());
   let counted = false;
   let listening = false;
@@ -194,27 +181,7 @@ export function installUsage(argv: string[]): Capture | null {
     finished = true;
     flush();
     runHooks(false);
-    if (source === 'bridge') {
-      clearBridgePid();
-    }
   };
-
-  function writeBridgePid(): void {
-    try {
-      writeUsageJson(home, BRIDGE_PID_FILE, { pid: process.pid, startedAt } satisfies BridgePid);
-    } catch {
-      /* without it a report just reads the files as they are */
-    }
-  }
-  function clearBridgePid(): void {
-    try {
-      if (readUsageJson<BridgePid>(home, BRIDGE_PID_FILE)?.pid === process.pid) {
-        clearUsageFile(home, BRIDGE_PID_FILE);
-      }
-    } catch {
-      /* gone already */
-    }
-  }
 
   process.on('exit', finish);
   if (source === 'bridge') {
@@ -240,18 +207,12 @@ export function installUsage(argv: string[]): Capture | null {
     };
     onSignal('SIGTERM', end);
     onSignal('SIGINT', end);
-    // a report asks for fresh data: flush, keep running, and stamp the answer even when nothing changed
-    onSignal('SIGUSR2', () => {
-      flush(true);
-      runHooks(true);
-    });
   }
   installed = {
     flush,
     advertise() {
       if (source === 'bridge' && !listening) {
         listening = true;
-        writeBridgePid();
       }
     },
   };

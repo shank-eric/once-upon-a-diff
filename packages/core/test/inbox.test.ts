@@ -20,7 +20,10 @@ test('readers keep their own cursor', () => {
 test('a half-written last line waits for the next read', () => {
   const inbox = new Inbox(tmp('inbox'));
   inbox.append({ type: 'question', story: 's', text: 'one' });
-  appendFileSync(inbox.file, '{"type":"question","text":"tw');
+  appendFileSync(
+    inbox.file,
+    '{"type":"question","id":"q_2","at":"2026-11-05T00:00:00Z","story":"s","text":"tw',
+  );
   assert.equal(inbox.unread('c', { advance: true }).length, 1);
   appendFileSync(inbox.file, 'o"}\n');
   assert.deepEqual(

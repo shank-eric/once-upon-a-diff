@@ -11,11 +11,6 @@ import {
   writeMode,
   type UsageMode,
 } from '@once-upon-a-diff/core/records/usage/control';
-import {
-  askBridgeToFlush,
-  flushableBridge,
-  type FlushOutcome,
-} from '@once-upon-a-diff/core/records/usage/flush-request';
 import { buildReport, renderReport, sinceDay } from '@once-upon-a-diff/core/records/usage/report';
 import { coverageFileOf } from '@once-upon-a-diff/core/records/usage/capture';
 import { etClock } from '@once-upon-a-diff/core/records/usage/days';
@@ -27,33 +22,26 @@ import type { CliOpts, Command } from '../types.ts';
 const text = (value: unknown): string | undefined =>
   typeof value === 'string' ? value : undefined;
 
-/** What to say about the flush request: nothing when it worked. */
-function flushNote(asked: FlushOutcome, age: number | null): string | undefined {
-  if (asked === 'flushed') {
-    return undefined;
-  }
-  if (asked === 'no-answer') {
-    return 'The bridge did not answer the flush request in 1 s: its data may be a few minutes old.';
-  }
+/** What to say about the bridge's data: how old it is, when it has a time. */
+function bridgeNote(age: number | null): string | undefined {
   return age === null
-    ? 'No running bridge to flush (or it has not advertised the handler yet): the files are read as they are.'
-    : `No running bridge to flush: the bridge's data is ${Math.round(age / 60000)} min old.`;
+    ? undefined
+    : `The bridge flushes its data every 5 minutes: what it holds is ${Math.round(age / 60000)} min old.`;
 }
 
-async function report(home: string, opts: CliOpts) {
+function report(home: string, opts: CliOpts) {
   const now = new Date();
   const since = sinceDay(text(opts.since), text(opts.last), now);
   if ((opts.since || opts.last) && !since) {
     throw new Error('--since takes a day like 2026-11-04, --last takes 24h or 3d');
   }
-  // ask the running bridge for fresh files first: a signal it said it answers, never HTTP
-  const asked = await askBridgeToFlush(home);
+  // the report reads the files as the bridge last flushed them: the CLI never calls or signals the bridge
   const data = buildReport({ home, root: CHECKOUT, now, since, save: !opts['no-save'] });
   const age = data.sources.bridge.ageMs;
   out(
     opts.json
       ? JSON.stringify(data, null, 2)
-      : renderReport(data, { md: !!opts.md, bridgeNote: flushNote(asked, age) }),
+      : renderReport(data, { md: !!opts.md, bridgeNote: bridgeNote(age) }),
   );
 }
 
@@ -69,9 +57,7 @@ function status(home: string) {
   out(
     `This checkout ${isLinkedWorktree() ? 'is a linked worktree: runs here are not captured' : 'is captured'}.`,
   );
-  out(
-    `Bridge: ${flushableBridge(home) ? 'running and answers flush requests' : 'not running with capture'}; last flush ${when(bridge?.lastFlush)}, ${bridge?.starts ?? 0} start(s)`,
-  );
+  out(`Bridge: last flush ${when(bridge?.lastFlush)}, ${bridge?.starts ?? 0} start(s)`);
   out(
     `CLI coverage: last new data ${when(cli?.lastFlush)}. Counts: last flush ${when(actions?.lastFlush)}`,
   );

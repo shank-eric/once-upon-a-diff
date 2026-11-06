@@ -5,7 +5,7 @@
  */
 import { mkdirSync, readFileSync, rmdirSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { appendText, ensureDir, ownerOnly, removeDir, removeFile } from './fs/files.ts';
+import { appendText, ensureDir, ownerOnly, removeDir } from './fs/files.ts';
 import { readJson, writeJsonAtomic } from './fs/json-file.ts';
 
 export const usageDir = (home: string) => path.join(home, 'usage');
@@ -52,7 +52,6 @@ export function appendUsageLine(home: string, name: string, line: string, cap: n
 }
 
 const SETTINGS = 'settings.json';
-const PID_FILE = 'bridge-pid.json';
 
 /**
  * The count of times `usage clear` has run. A running bridge keeps action counts in memory, so it compares this with the
@@ -65,17 +64,13 @@ export function clearEpoch(home: string): number {
 
 /**
  * Removes what the capture counted. It keeps the settings (clearing data is not choosing on or off, and a missing file
- * reads as on) with the clear epoch moved up, and a live bridge's pid file (reports flush it by that, it is not data).
+ * reads as on) with the clear epoch moved up.
  */
 export function clearUsage(home: string): void {
   const settings = readUsageJson<Record<string, unknown>>(home, SETTINGS) ?? {};
   const epoch = clearEpoch(home) + 1;
-  const pid = readUsageJson(home, PID_FILE);
   removeDir(usageDir(home));
   writeUsageJson(home, SETTINGS, { ...settings, epoch });
-  if (pid) {
-    writeUsageJson(home, PID_FILE, pid);
-  }
 }
 
 const LOCK_WAIT_MS = 1500;
@@ -122,9 +117,4 @@ export function withUsageLock<T>(home: string, name: string, work: () => T): T {
       }
     }
   }
-}
-
-/** Removes one stored file. */
-export function clearUsageFile(home: string, name: string): void {
-  removeFile(fileOf(home, name));
 }

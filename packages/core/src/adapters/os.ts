@@ -103,27 +103,6 @@ export function listenerPid(port: number): { pid: string; command: string } | nu
   }
 }
 
-type Health = { status: number; body: { name?: string; version?: string } | null };
-
-/**
- * The bridge's /api/health answer, or null when nothing answered within 2s. This stays an HTTP call on purpose: it is
- * the one check that walks the same road as the browser (127.0.0.1, the port, the token), and a 401 can only come from
- * the running bridge, which holds the token it started with. Everything else on this machine that isn't a browser reads
- * and writes files and stores instead.
- */
-export async function fetchHealth(port: number, token: string | undefined): Promise<Health | null> {
-  try {
-    const response = await fetch(`http://127.0.0.1:${port}/api/health`, {
-      headers: { Authorization: `Bearer ${token}` },
-      signal: AbortSignal.timeout(2000),
-    });
-    const body = (await response.json().catch(() => null)) as Health['body'];
-    return { status: response.status, body };
-  } catch {
-    return null;
-  }
-}
-
 /** The pid's start time as `ps` says it, in the form the registry's procStart has, or null when ps can't say. */
 export function startOf(pid: number): string | null {
   try {
@@ -165,28 +144,7 @@ export async function addressesOf(host: string): Promise<string[]> {
   return (await lookup(host, { all: true })).map((entry) => entry.address);
 }
 
-/** Runs `fn` when this process gets the signal. A listener replaces the signal's default (SIGUSR2's default is to end the process). */
+/** Runs `fn` when this process gets the signal. A listener replaces the signal's default. */
 export function onSignal(signal: NodeJS.Signals, handler: () => void): void {
   process.on(signal, handler);
-}
-
-/** Sends a signal to a process, false when it could not be sent (gone, or not ours). */
-export function signalProcess(pid: number, signal: NodeJS.Signals): boolean {
-  try {
-    process.kill(pid, signal);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-/** A process's command line, or null when it is gone. */
-export function commandOf(pid: number): string | null {
-  try {
-    return (
-      execFileSync('ps', ['-o', 'command=', '-p', String(pid)], { encoding: 'utf8' }).trim() || null
-    );
-  } catch {
-    return null;
-  }
 }

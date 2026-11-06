@@ -2,7 +2,8 @@
  * The inbox: one JSONL file every reader can tail. The bridge appends
  * questions and fix-before-push notes from the panel, and the
  * `answer` command appends answers. Each line is a whole JSON object with an
- * `id`, `at` (ISO time), `type` and `story`.
+ * `id`, `at` (ISO time), `type` and `story`. The format of each entry is the contracts package's
+ * (contracts/src/files/schemas.ts); a line that isn't one of the types below is skipped.
  *
  *   {"type":"question","id":"q_…","story":"octo-org-web-app-42","step":2,"chapter":"Chapter 2: …","file":"…","text":"…","url":"…"}
  *   {"type":"answer","id":"a_…","question":"q_…","story":"…","text":"markdown","by":"<the consumer that answered>"}
@@ -20,101 +21,21 @@ import path from 'node:path';
 import { newId } from '../../foundation/ids.ts';
 import { readJson, writeFileAtomic, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { ownerOnly, ensureDir, appendText, writeText } from '../../adapters/stores/fs/files.ts';
-import type { ChapterRef, LocalNote } from '@once-upon-a-diff/contracts/types';
+import type { ChapterRef } from '@once-upon-a-diff/contracts/types';
+import { readInboxEntry, type InboxEntry } from '@once-upon-a-diff/contracts/files/schemas';
+import { noteIfMalformed } from '../../foundation/shared-files.ts';
 
-/** What every inbox line has, and what a story's ref adds (StoryRef). */
-interface EntryBase {
-  id: string;
-  at: string;
-  story?: string;
-  kind?: string;
-  title?: string | null;
-  repo?: string | null;
-}
-
-export interface QuestionEntry extends EntryBase {
-  type: 'question';
-  story: string;
-  step: number | null;
-  chapter: string | null;
-  file: string | null;
-  text: string;
-  url?: string | null;
-  /** asked by voice (`once-upon ask --voice`) rather than typed in the panel's Ask box */
-  channel?: 'voice';
-}
-
-export interface AnswerEntry extends EntryBase {
-  type: 'answer';
-  question: string;
-  text: string;
-  by?: string;
-  /** the places the text links to (`[text](ref:<id>)`) */
-  refs?: ChapterRef[];
-}
-
-export interface NoteEntry extends EntryBase {
-  type: 'note';
-  action: 'added' | 'updated' | 'deleted';
-  from_draft?: boolean;
-  note: LocalNote;
-}
-
-export interface FixEntry extends EntryBase {
-  type: 'fix';
-  action: 'sent' | 'fixed' | 'failed';
-  request: string;
-  notes: string[];
-  to?: string | null;
-  sha?: string | null;
-  by?: string | null;
-}
-
-export interface ReadEntry extends EntryBase {
-  type: 'read';
-  chapter: string;
-  step: number | null;
-  title: string | null;
-  head_sha: string | null;
-  story_head: string | null;
-  reason: string;
-}
-
-export interface ReviewCommentEntry extends EntryBase {
-  type: 'review_comment';
-  chapter: number | null;
-  path: string;
-  line: number;
-  url?: string | null;
-  started?: boolean;
-}
-
-export interface CommentEntry extends EntryBase {
-  type: 'comment';
-  chapter: number;
-  comment: unknown;
-}
-
+export type { InboxEntry };
+type Entry<T extends InboxEntry['type']> = Extract<InboxEntry, { type: T }>;
+export type QuestionEntry = Entry<'question'>;
+export type AnswerEntry = Entry<'answer'>;
+export type NoteEntry = Entry<'note'>;
+export type FixEntry = Entry<'fix'>;
+export type ReadEntry = Entry<'read'>;
+export type ReviewCommentEntry = Entry<'review_comment'>;
+export type CommentEntry = Entry<'comment'>;
 /** Approve was clicked on a local story's page (or `once-upon approve` ran): ready to ship at this head. */
-export interface ApprovedEntry extends EntryBase {
-  type: 'approved';
-  story: string;
-  branch: string | null;
-  checkout: string | null;
-  base: string | null;
-  head_sha: string;
-}
-
-/** One line of inbox.jsonl. */
-export type InboxEntry =
-  | QuestionEntry
-  | AnswerEntry
-  | NoteEntry
-  | FixEntry
-  | ReadEntry
-  | ApprovedEntry
-  | ReviewCommentEntry
-  | CommentEntry;
+export type ApprovedEntry = Entry<'approved'>;
 
 /** A question with its answers, as the panel and the CLI take it. */
 export interface QuestionWithAnswers {
@@ -152,6 +73,7 @@ export class Inbox {
       at: new Date().toISOString(),
       ...entry,
     };
+    noteIfMalformed(this.file, full, readInboxEntry);
     appendText(this.file, JSON.stringify(full) + '\n', 0o600);
     return full;
   }
@@ -182,10 +104,15 @@ export class Inbox {
       if (!line.trim()) {
         continue;
       }
+      let value: unknown;
       try {
-        entries.push(JSON.parse(line));
+        value = JSON.parse(line);
       } catch {
-        /* skip a bad line */
+        continue; // a bad line
+      }
+      const entry = readInboxEntry(value);
+      if (entry) {
+        entries.push(entry);
       }
     }
     return { entries, offset: offset + Buffer.byteLength(text.slice(0, end)) };

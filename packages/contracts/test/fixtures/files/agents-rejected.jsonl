@@ -1,0 +1,6 @@
+not json at all
+[1,2]
+{"op":"start","id":"abcd1234:x","sid8":"abcd1234","name":"x","at":"not a date"}
+{"op":"stop","id":"abcd1234:x","sid8":"abcd1234","name":"x","at":"2026-11-03T14:05:00.000Z"}
+{"op":"beat","sid8":"abcd1234","name":"x","at":"2026-11-03T14:05:00.000Z"}
+{"op":"beat","id":"abcd1234:x","sid8":7,"name":"x","at":"2026-11-03T14:05:00.000Z"}

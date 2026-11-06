@@ -10,7 +10,8 @@ import { formatTime } from '../../foundation/settings.ts';
 
 import { MIN_NODE_MAJOR, nodeVersionProblem } from '../../foundation/node-version.mjs';
 import type { Config } from '../../foundation/settings.ts';
-import { listenerPid, fetchHealth } from '../../adapters/os.ts';
+import { listenerPid } from '../../adapters/os.ts';
+import { fetchHealth } from '../../adapters/bridge-health.ts';
 import { readExtensionSeen } from './bridge.ts';
 
 type Level = 'PASS' | 'WARN' | 'FAIL';

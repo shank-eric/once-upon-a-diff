@@ -104,6 +104,7 @@ test('a story updated in place says what the update brought in; one with a "Sinc
     repo: 'acme/widgets',
     number: 7,
     url: 'https://github.com/acme/widgets/pull/7',
+    requested_at: '2026-10-21T19:10:00Z',
     status: 'done',
     mode: 'update',
     base_sha: SHA_A,

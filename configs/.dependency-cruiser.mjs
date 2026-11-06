@@ -32,6 +32,10 @@ const SERVER = '^packages/server/src/';
 const CLI = '^packages/cli/src/';
 const ROUTES = '^packages/server/src/routes/';
 const ADAPTERS = '^packages/core/src/adapters/';
+const HEALTH_CHECK = '^packages/core/src/adapters/bridge-health\\.ts$';
+const DOCTOR = '^packages/core/src/orchestration/bridge/doctor\\.ts$';
+// what a client needs to call the bridge: the route table (the routes, and the kit and each area's routes it is built from)
+const ROUTE_TABLE = '^packages/contracts/src/(routes|route-kit|[a-z-]+/routes)\\.ts$';
 const tierPath = (names) => `^packages/core/src/(${names.join('|')})/`;
 const TIER_FILES = tierPath(TIERS);
 const WEB = '^packages/web/public/';
@@ -181,6 +185,20 @@ export default {
       'only the HTTP app (server/, not server/routes/) has node:http, to listen',
       { path: [TIER_FILES, CLI, ROUTES] },
       { dependencyTypes: ['core'], path: '^(node:)?http$' },
+    ),
+    // the CLI never calls the server (ADR-15). Which imports could make a call are named here; what the graph cannot see (a
+    // fetch, a socket, a signal, a program) is packages/bridge/test/cli-never-calls-server.test.ts, the real guard
+    rule(
+      'health-check-is-the-doctors',
+      'the doctor’s health check (adapters/bridge-health.ts) is the one call the CLI or core makes to the running bridge, and orchestration/bridge/doctor.ts is its one importer: the CLI never calls the server (ADR-15), it reads and writes the shared files through core',
+      { pathNot: `${DOCTOR}|${HEALTH_CHECK}` },
+      { path: HEALTH_CHECK },
+    ),
+    rule(
+      'cli-and-core-have-no-route-table',
+      'the route table is how a client calls the bridge: the CLI and core never import it as a value (a type from it, such as RouteName, is fine). The CLI never calls the server (ADR-15)',
+      { path: `${CLI}|${CORE}` },
+      { path: ROUTE_TABLE, dependencyTypesNot: ['type-only'] },
     ),
     rule(
       'instrumentation-is-for-the-shims',

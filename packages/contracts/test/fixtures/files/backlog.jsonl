@@ -1,0 +1,16 @@
+{"op":"add","id":"bl_abc123","title":"first card","note":null,"repo":"acme/widgets","branch":null,"by":"cli","at":"2026-10-28T10:00:00.000Z"}
+{"op":"add","id":"bl_def456","title":"second card","note":"a note","repo":null,"branch":null,"by":"eric","at":"2026-10-28T10:01:00.000Z"}
+{"op":"add","id":"bl_ghi789","title":"third card","by":"cli","at":"2026-10-28T10:02:00.000Z"}
+{"op":"start","id":"bl_abc123","branch":"feat-x","repo":null,"by":"cli","at":"2026-10-28T11:00:00.000Z"}
+{"op":"assign","id":"bl_def456","session":"abcd1234-0000","branch":null,"by":"cli","at":"2026-10-28T11:30:00.000Z"}
+{"op":"claim","id":"bl_abc123","agent":"old-builder","sid":null,"by":"cli","at":"2026-10-29T14:00:00.000Z"}
+{"op":"claim","id":"bl_abc123","agent":"old-builder","sid":"abcd1234","by":"cli","at":"2026-10-29T14:00:01.000Z"}
+{"op":"hold","id":"bl_abc123","on":true,"by":"cli","at":"2026-10-29T14:01:00.000Z"}
+{"op":"move","id":"bl_ghi789","edge":"top","by":"cli","at":"2026-10-29T14:02:00.000Z"}
+{"op":"move","id":"bl_def456","before":"bl_ghi789","by":"cli","at":"2026-10-29T14:03:00.000Z"}
+{"op":"edit","id":"bl_def456","title":"second card, renamed","note":"","by":"cli","at":"2026-10-29T14:04:00.000Z"}
+{"op":"someday","id":"bl_ghi789","on":true,"by":"cli","at":"2026-10-29T14:05:00.000Z"}
+{"op":"done","id":"bl_abc123","sha":null,"by":"cli","at":"2026-10-29T15:00:00.000Z"}
+{"op":"done","id":"bl_abc123","sha":"0123456789abcdef0123456789abcdef01234567","by":"cli","at":"2026-10-29T15:01:00.000Z"}
+{"op":"drop","id":"bl_def456","by":"cli","at":"2026-10-29T16:00:00.000Z"}
+{"op":"reopen","id":"bl_def456","by":"cli","at":"2026-10-29T17:00:00.000Z"}

@@ -1,0 +1,3 @@
+{"id":"p_mvh6n2refdace6","at":"2026-10-20T21:15:41.882Z","type":"position","story":"local-x","kind":"local","title":"x","step":0,"chapter":"Overview","file":null}
+{"id":"b_1","at":"2026-10-20T21:15:41.882Z","type":"build_request","story":null,"repo":"acme/widgets","number":7}
+{"id":"b_2","at":"2026-10-20T21:15:41.882Z","type":"build_done","story":null,"repo":"acme/widgets","number":7}
