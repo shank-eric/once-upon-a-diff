@@ -13,9 +13,10 @@ Standing rules for any agent working in Once Upon a Diff. A brief only needs to 
 
 - When you take a backlog card, run `once-upon backlog claim <id> --agent <your name> [--branch <branch>]` first thing. `<your name>` is the name in your ledger line and beat lines, and `--branch` also starts the card on that branch.
 - Whoever launches an agent for a card runs the same claim right after launching it, with `--sid` (its own session id's first 8 characters), so the card is linked before the agent's first line.
-- A claim is for one run of the agent. It ends when that run finishes or the card lands (`done`) or is dropped, and a later run under the same name must claim again.
+- Start every run on a card with `once-upon agent start <name> --card <id> --role author|fixer|critic|storyteller --task ...` (ADR-25): the card owns its runs, and its repo and branch are the run's, so leave out `--repo`, `--branch` and `--lane` (they are ignored, with a warning). A critic, fixer or storyteller must name its card, and a critic finishes with `--findings N` (0 if none). A fix round is a restart of the same name on the same card.
+- A claim shows who took the card and holds it pending for 2 hours before the agent's first line. It ends when the card lands (`done`) or is dropped, and a claim alone no longer finds a card's runs.
 - A deploy marks a card done by the commit its agent recorded, never by a branch name: finish a card's run with `--commit <sha> --card <id>` (a fix round's new run records its new tip). `deploy-local.sh` runs `backlog land`, which prints the claimed cards it could not match, to close by hand with `backlog done <id> --sha <sha>`. A card whose work also lands outside the repo gets `backlog hold <id>` so a deploy never closes it.
-- The board links a card and an agent only through a claim, never by the task text, the agent's name or its worktree folder. A claimed card is one card in Working with its agent on it, and its agent holds a build slot.
+- The board links a card to its runs by the `card` each run named at start (ADR-25), never by the task text, the agent's name or its worktree folder. A card with runs is one card, in the column its runs say, with its agents on it, and an author's run holds a build slot. Runs from before ADR-25 that name no card are still read by their claim until the flip.
 
 ## The live bridge
 

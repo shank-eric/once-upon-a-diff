@@ -279,21 +279,28 @@ test('two agents of one name in different sessions are two agents on a card, and
   const item = started('bl_bbbbbb222222', 'feat/x');
   const target = card({ branch: 'feat/x', agents: [view('bbbbbbbb', 'ou-x')] });
   // the claimed agent of the same name, from another session
-  nestClaimedAgents([item], [target], new Map([[item.id, view('aaaaaaaa', 'ou-x')]]));
+  nestClaimedAgents([item], [target], new Map([[item.id, [view('aaaaaaaa', 'ou-x')]]]));
   assert.deepEqual(
     target.agents.map((one) => one.key),
     ['bbbbbbbb:ou-x', 'aaaaaaaa:ou-x'],
   );
-  nestClaimedAgents([item], [target], new Map([[item.id, view('aaaaaaaa', 'ou-x')]]));
+  nestClaimedAgents([item], [target], new Map([[item.id, [view('aaaaaaaa', 'ou-x')]]]));
   assert.equal(target.agents.length, 2, 'the same agent is not listed twice');
 
   // the Backlog column's own nesting (backlogCards) says the same
   const other = card({ branch: 'feat/x', agents: [view('bbbbbbbb', 'ou-x')] });
-  backlogCards([item], [other], NOW, [], new Map(), new Map([[item.id, view('aaaaaaaa', 'ou-x')]]));
+  backlogCards(
+    [item],
+    [other],
+    NOW,
+    [],
+    new Map(),
+    new Map([[item.id, [view('aaaaaaaa', 'ou-x')]]]),
+  );
   assert.equal(other.agents.length, 2);
   // a view with no key is nobody's twin
   const keyless = card({ branch: 'feat/x', agents: [{ name: 'ou-x' } as BoardAgent] });
-  nestClaimedAgents([item], [keyless], new Map([[item.id, { name: 'ou-x' } as BoardAgent]]));
+  nestClaimedAgents([item], [keyless], new Map([[item.id, [{ name: 'ou-x' } as BoardAgent]]]));
   assert.equal(keyless.agents.length, 2);
 });
 

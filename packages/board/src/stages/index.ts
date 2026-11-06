@@ -44,6 +44,7 @@ import type { BoardData, BoardStatus } from '@once-upon-a-diff/contracts/types';
 import { claimViews, placeAgents } from './agents.ts';
 import { editorsOf } from './editors.ts';
 import { heldKeys } from '@once-upon-a-diff/state/queues/backlog/claims';
+import { carriedKeys, namedByRuns } from '@once-upon-a-diff/state/queues/backlog/phase';
 import { addBacklogCards, nestClaimedAgents, readBacklogLinks } from './backlog.ts';
 import { buildCards, placeCards } from './cards.ts';
 import type { CardFacts } from './cards.ts';
@@ -132,7 +133,14 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
 
   // the Backlog's items, and who claimed which: a claimed card shows its agent, so that agent has no card of its own
   const backlogItems = state.backlog.items();
-  const held = heldKeys(backlogItems, agents);
+  // an agent whose run names a card that exists is that card's (phase.ts); a claim finds an agent only for a card no run names
+  const held = new Set([
+    ...carriedKeys(backlogItems, agents),
+    ...heldKeys(
+      backlogItems.filter((item) => !namedByRuns(item, agents)),
+      agents,
+    ),
+  ]);
   // the editors, and which agent each controls: by the session an agent was launched from (editors.ts)
   const editing = editorsOf({
     editors: read.editors,

@@ -3,7 +3,7 @@
  * (state/src/queues/backlog/backlog.ts) in-process, so nothing goes over HTTP; the board shows the items as its Backlog column.
  */
 import { formatTime, DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
-import { repoOfCheckout, currentBranch } from '@once-upon-a-diff/foundation/repos';
+import { repoOfCheckout, currentBranch, sameRepo } from '@once-upon-a-diff/foundation/repos';
 
 import { BacklogStore, claimHint } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { landItems, recordedTips } from '@once-upon-a-diff/state/queues/backlog/landing';
@@ -154,6 +154,13 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     const agent = text(opts.agent);
     if (!agent) {
       throw new Error('whose card? pass --agent NAME, the name the agent has in the ledger');
+    }
+    // a run takes its card's repo (ADR-25), so a claim cannot move the card to another one
+    const typedRepo = text(opts.repo);
+    if (typedRepo && item.repo && !sameRepo(typedRepo, item.repo)) {
+      throw new Error(
+        `${item.id} is on ${item.repo}, not ${typedRepo}: edit the card's repo first`,
+      );
     }
     const claimed = store.claim(item.id, { agent, sid: text(opts.sid), by: who ?? agent });
     const branch = text(opts.branch);

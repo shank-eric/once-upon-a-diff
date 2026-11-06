@@ -16,7 +16,8 @@ import type { BoardStartedLinks } from '@once-upon-a-diff/contracts/types';
 import { parseWorktreeEntries } from '../../records/worktrees/worktrees.ts';
 import type { LedgerAgent } from '../../records/agents/ledger.ts';
 import type { BacklogItem } from './types.ts';
-import { OPEN, claimedAgent } from './claims.ts';
+import { OPEN } from './claims.ts';
+import { workAgent } from './phase.ts';
 
 /** One checkout of a repo, as `git worktree list --porcelain` gives it. */
 export interface Worktree {
@@ -59,7 +60,7 @@ export function agentLinks(
   item: BacklogItem,
   facts: Pick<LinkFacts, 'agents'>,
 ): BoardStartedLinks | null {
-  const agent = item.state === 'open' ? claimedAgent(item, facts.agents) : null;
+  const agent = item.state === 'open' ? workAgent(item, facts.agents) : null;
   if (!agent) {
     return null;
   }
@@ -99,7 +100,7 @@ export function startedLinks(item: BacklogItem, facts: LinkFacts): BoardStartedL
         (session.branch === branch || worktrees.some((tree) => insideOf(session.cwd, tree.path))),
     )
     .map((session) => ({ id: session.id, title: session.title }));
-  const agent = claimedAgent(item, facts.agents);
+  const agent = workAgent(item, facts.agents);
   const merged = facts.merged(item.repo, branch);
   const linked = worktrees.length > 0 || sessions.length > 0 || !!agent;
   return {

@@ -252,6 +252,31 @@ test('a claimed card whose agent is still running is "still in progress", not "f
   assert.match(why.get(done.id) ?? '', /no recorded tip/);
 });
 
+test('"still in progress" reads the card’s runs: a fix round that is not the claimed run counts', () => {
+  const lab = world();
+  const { item, tip } = (() => {
+    const made = lab.store.add({ title: 'Fix round', repo: 'acme/widgets' });
+    lab.store.claim(made.id, { agent: 'ou-fix', sid: SID });
+    lab.branch('feat/f');
+    return { item: made, tip: lab.edit(3, 'f change') };
+  })();
+  const now = Date.now();
+  const run = (when: number) =>
+    lab.registry.start({
+      name: 'ou-fix',
+      sid: SID,
+      kind: 'author',
+      task: 'b',
+      card: item.id,
+      at: new Date(when),
+    });
+  run(now - 120000);
+  lab.registry.finish('ou-fix', { sid: SID, at: new Date(now - 60000) });
+  run(now);
+  const found = lab.land(lab.store, lab.base, tip);
+  assert.match(found.open.find((one) => one.item.id === item.id)?.why ?? '', /still in progress/);
+});
+
 /** a card claimed by `agent` (claim made now), with the deploy range ready so its reason can be read */
 function claimedCard(lab: ReturnType<typeof world>, agent: string) {
   const item = lab.store.add({ title: 'Claimed', repo: 'acme/widgets' });

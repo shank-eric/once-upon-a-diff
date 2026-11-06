@@ -14,6 +14,12 @@ import {
   criticHold,
   sameAgentView,
 } from '@once-upon-a-diff/state/queues/backlog/claims';
+import {
+  cardPhase,
+  namedByRuns,
+  runsOf,
+  type CardPhase,
+} from '@once-upon-a-diff/state/queues/backlog/phase';
 import { agentLinks, startedLinks } from '@once-upon-a-diff/state/queues/backlog/backlog-links';
 import type { Worktree } from '@once-upon-a-diff/state/queues/backlog/backlog-links';
 import { checkoutsOf } from '@once-upon-a-diff/state/records/worktrees/checkouts';
@@ -38,13 +44,14 @@ import { branchOfWork } from './works.ts';
 export function nestClaimedAgents(
   items: BacklogItem[],
   cards: BoardCard[],
-  views: Map<string, BoardAgent>,
+  views: Map<string, BoardAgent[]>,
 ): void {
   for (const item of items) {
-    const view = views.get(item.id);
-    const card = view && item.state === 'started' && item.branch ? cardOnBranch(item, cards) : null;
-    if (view && card && !card.agents.some((one) => sameAgentView(one, view))) {
-      card.agents.push(view);
+    const card = item.state === 'started' && item.branch ? cardOnBranch(item, cards) : null;
+    for (const view of card ? (views.get(item.id) ?? []) : []) {
+      if (card && !card.agents.some((one) => sameAgentView(one, view))) {
+        card.agents.push(view);
+      }
     }
   }
 }
@@ -215,7 +222,7 @@ export function addBacklogCards(
   backlogItems: BacklogItem[],
   links: Map<string, BoardStartedLinks>,
   { sessionViews, quietViews, pin, repoBySession }: AssignFacts,
-  views: Map<string, BoardAgent> = new Map(),
+  views: Map<string, BoardAgent[]> = new Map(),
   agents: LedgerAgent[] = [],
 ): BoardCard[] {
   const { nowMs } = ctx;
@@ -229,14 +236,23 @@ export function addBacklogCards(
   ];
   // a finished card waits out its critic's run and its fix round before it can be Ready to ship
   const holds = new Map<string, BoardCard['column']>();
+  // a card that runs name is read by those runs (cardPhase); one no run names, by its claim and criticHold (the old rules)
+  const phases = new Map<string, CardPhase | null>();
   for (const item of backlogItems) {
+    if (item.state !== 'dropped' && namedByRuns(item, agents)) {
+      const phase = cardPhase(item, runsOf(item, agents), nowMs);
+      if (phase !== undefined) {
+        phases.set(item.id, phase);
+      }
+      continue;
+    }
     const author = claimedAgent(item, agents);
     const hold = author ? criticHold(item, author, agents, nowMs) : null;
     if (hold) {
       holds.set(item.id, hold);
     }
   }
-  const added = backlogCards(backlogItems, cards, nowMs, cardless, links, views, holds);
+  const added = backlogCards(backlogItems, cards, nowMs, cardless, links, views, holds, phases);
   const all = [...cards, ...added];
 
   // Assign: sends the voice session "Start backlog card ...", so every open item the board is not already working has it

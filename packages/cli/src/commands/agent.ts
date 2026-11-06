@@ -10,20 +10,33 @@ import { repoOfCheckout } from '@once-upon-a-diff/foundation/repos';
 import { readSettings } from '@once-upon-a-diff/foundation/settings';
 import { ownSession } from '@once-upon-a-diff/core/features/listeners/service';
 import type { AgentKind } from '@once-upon-a-diff/state/records/agents/agent-types';
+import { canonicalKind } from '@once-upon-a-diff/state/records/agents/events';
 import { lastActivity } from '@once-upon-a-diff/state/records/agents/ledger';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
+import { BacklogStore, cardLookup } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { out } from '../output.ts';
 import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
 
 const USAGE =
-  'usage: once-upon agent start NAME [--kind author|critic|helper|research|editor] [--standing] --task TEXT|--task-file PATH [--sid SID8] [--model M] [--effort E]\n' +
+  'usage: once-upon agent start NAME [--kind author|critic|helper|research|editor | --role author|fixer|critic|storyteller|helper|research] [--standing] --task TEXT|--task-file PATH [--sid SID8] [--model M] [--effort E]\n' +
   '                             [--repo owner/name] [--branch NAME] [--pr N] [--cwd DIR] [--card ID] [--lane NAME] [--notes PATH] [--slots N]\n' +
   '       once-upon agent state NAME --state running|waiting|review|plan|fixing [--outcome TEXT|--outcome-file PATH] [--findings N] [--notes PATH] [--sid SID8] [--run ID]\n' +
   '       once-upon agent beat NAME N/M STEP [NOTE...] [--sid SID8] [--no-mirror]\n' +
   '       once-upon agent finish NAME [--state done|failed|stopped] [--outcome TEXT|--outcome-file PATH] [--commit SHA] [--pr N] [--branch NAME] [--card ID] [--findings N] [--notes PATH] [--sid SID8] [--run ID]\n' +
   '                              with none of --commit, --pr, --branch and --card, a registered branch that moved since the start is recorded as the result\n' +
   '       once-upon agent list [--all] [--json]';
+
+/** `--role` names what a run does on a card; the kind is what the board and the registry know it as. */
+const ROLE_KIND: Record<string, string> = {
+  author: 'author',
+  fixer: 'author',
+  critic: 'critic',
+  storyteller: 'helper',
+  helper: 'helper',
+  research: 'research',
+};
+const NEEDS_CARD = ['critic', 'fixer', 'storyteller'];
 
 const text = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
 
@@ -36,6 +49,8 @@ function agent(home: string, _cfg: Config, opts: CliOpts) {
     opts['no-mirror']
       ? { ledger: null, progress: null }
       : { ledger: board.ledgerFile, progress: board.progressFile },
+    // a run that names a card is checked against it (ADR-25)
+    cardLookup(new BacklogStore(home)),
   );
   const warn = (line: string) => process.stderr.write(line + '\n');
   const sid = text(opts.sid);
@@ -72,27 +87,42 @@ function agent(home: string, _cfg: Config, opts: CliOpts) {
   if (verb === 'start') {
     const session = ownSession();
     const cwd = path.resolve(text(opts.cwd) ?? process.cwd());
-    const started = registry.start({
-      name,
-      sid: sid ?? session?.slice(0, 8) ?? '',
-      session,
-      kind: (text(opts.kind) ?? undefined) as AgentKind | undefined,
-      // absent carries over from the earlier run; `--standing` or `--standing true` sets it, `--standing false` clears it
-      standing: opts.standing === undefined ? undefined : opts.standing !== 'false',
-      task: text(opts.task) ?? words.join(' '),
-      model: text(opts.model),
-      effort: text(opts.effort),
-      // the checkout the agent works in names the repo unless --repo says otherwise
-      repo: text(opts.repo) ?? repoOfCheckout(cwd),
-      branch: text(opts.branch),
-      pr: text(opts.pr),
-      cwd,
-      card: text(opts.card),
-      lane: text(opts.lane),
-      notes: text(opts.notes),
-      slots: text(opts.slots),
-      by: who,
-    });
+    const card = text(opts.card);
+    // a role is a kind with a rule: a critic, a fixer and a storyteller work on a card, so they name it
+    const role = text(opts.role);
+    if (role && !Object.hasOwn(ROLE_KIND, role)) {
+      throw new Error(`the role must be one of ${Object.keys(ROLE_KIND).join(', ')}`);
+    }
+    if (role && opts.kind && ROLE_KIND[role] !== canonicalKind(text(opts.kind))) {
+      throw new Error('--role and --kind disagree: pass --role alone');
+    }
+    if (role && NEEDS_CARD.includes(role) && !card) {
+      throw new Error(`a ${role} works on a card: pass --card ID`);
+    }
+    const started = registry.start(
+      {
+        name,
+        sid: sid ?? session?.slice(0, 8) ?? '',
+        session,
+        kind: ((role ? ROLE_KIND[role] : text(opts.kind)) ?? undefined) as AgentKind | undefined,
+        // absent carries over from the earlier run; `--standing` or `--standing true` sets it, `--standing false` clears it
+        standing: opts.standing === undefined ? undefined : opts.standing !== 'false',
+        task: text(opts.task) ?? words.join(' '),
+        model: text(opts.model),
+        effort: text(opts.effort),
+        // the checkout the agent works in names the repo unless --repo says otherwise; a run on a card takes the card's
+        repo: text(opts.repo) ?? (card ? null : repoOfCheckout(cwd)),
+        branch: text(opts.branch),
+        pr: text(opts.pr),
+        cwd,
+        card,
+        lane: text(opts.lane),
+        notes: text(opts.notes),
+        slots: text(opts.slots),
+        by: who,
+      },
+      warn,
+    );
     return out(`${started.id} ${started.run}`);
   }
   if (verb === 'state') {
@@ -154,6 +184,7 @@ export const agentCommands: Command[] = [
     subs: ['start', 'state', 'beat', 'finish', 'list'],
     usage: [
       '  once-upon agent start NAME --kind author|critic|helper|research|editor --task TEXT   register an agent the board shows (its sid comes from the session; prints its id and run)',
+      '                                                                                   --card ID: the card it works on, whose repo and branch it takes (a critic, fixer or storyteller needs one; --role says which); --repo, --branch, --lane and --pr then say nothing the card does not',
       '                                                                                   --standing: a long-lived helper (the backlog clerk), in the Helpers row, never a card; put it before another flag. A restart of the same name may leave out --kind and --standing: they carry over (--standing false clears it)',
       '  once-upon agent state NAME --state running|waiting|review|plan|fixing            move it: a plan to check, a question, parked on a story review, fixing findings',
       '  once-upon agent beat NAME N/M STEP [NOTE...]                                     a progress beat, and a sign of life',

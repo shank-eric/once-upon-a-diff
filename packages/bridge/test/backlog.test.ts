@@ -314,7 +314,7 @@ test('a claimed started item is one Working card with its agent on it; with a wo
     state: 'running',
   } as BoardCard['agents'][number];
   const links = new Map([[item.id, linked({ agent: agentLink('running') })]]);
-  const views = new Map([[item.id, view]]);
+  const views = new Map([[item.id, [view]]]);
   // no card for the agent: the backlog card is the one card, in Working, with the agent in it
   const shown = backlogCards(store.items(), [], NOW, [], links, views);
   assert.equal(shown.length, 1);

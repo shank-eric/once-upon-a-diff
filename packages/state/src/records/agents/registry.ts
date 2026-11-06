@@ -109,13 +109,36 @@ export interface Mirror {
   progress: string | null;
 }
 
+/** What the registry needs of a backlog card to check a run that names it (the backlog is a tier above the registry's, so the caller supplies it). */
+export interface CardFacts {
+  id: string;
+  /** dropped or landed: no run may start on it */
+  closed: 'dropped' | 'landed' | null;
+  repo: string | null;
+  branch: string | null;
+  /** whether an agent has claimed it */
+  claimed: boolean;
+}
+export type CardLookup = (id: string) => CardFacts | null;
+
 export class AgentRegistry {
   declare file: string;
   declare mirror: Mirror;
+  declare cards: CardLookup | null;
 
-  constructor(home: string, mirror: Mirror = { ledger: null, progress: null }) {
+  /**
+   * `cards` turns on the checks a run that names a card gets (ADR-25): the card must exist and be open, repo and branch come
+   * from the card, a critic needs a card, one author at a time per card, and a carded critic finishes with a findings count.
+   * Without it the registry only records, as it did before.
+   */
+  constructor(
+    home: string,
+    mirror: Mirror = { ledger: null, progress: null },
+    cards: CardLookup | null = null,
+  ) {
     this.file = agentsFile(home);
     this.mirror = mirror;
+    this.cards = cards;
   }
 
   events(): AgentEvent[] {
@@ -197,7 +220,7 @@ export class AgentRegistry {
     return best;
   }
 
-  start(input: StartInput): { id: string; run: string } {
+  start(input: StartInput, warn?: (text: string) => void): { id: string; run: string } {
     const name = optional(input.name, 'the name', AGENT_NAME_RE);
     if (!name) {
       throw new Error('a name is needed');
@@ -223,10 +246,71 @@ export class AgentRegistry {
       throw new Error('--slots is for an editor (--kind editor), 1 to 99');
     }
     const run = `r_${randomBytes(5).toString('hex')}`;
-    const pr = count(input.pr, 'the PR number');
-    const repo = optional(input.repo, 'the repo', REPO_RE);
-    const branch = optional(input.branch, 'the branch', CARD_BRANCH_RE);
+    let pr = count(input.pr, 'the PR number');
+    let repo = optional(input.repo, 'the repo', REPO_RE);
+    let branch = optional(input.branch, 'the branch', CARD_BRANCH_RE);
+    let lane = optional(input.lane, 'the lane', AGENT_NAME_RE);
     const cwd = clean(input.cwd, 'the cwd', 500) || null;
+    // a restart of the same sid:name (a fix round) stays on the earlier run's card, as the kind does, while that card is open
+    let cardId = optional(input.card, 'the card', BACKLOG_ID_RE);
+    if (!cardId && earlier?.card && (!this.cards || this.cards(earlier.card)?.closed === null)) {
+      cardId = earlier.card;
+    }
+    if (this.cards && kind === 'critic' && !cardId) {
+      throw new Error(
+        'a critic reviews a card: pass --card ID (once-upon backlog list shows the ids). Without it the board cannot tie the review to its work',
+      );
+    }
+    if (this.cards && cardId) {
+      const card = this.cards(cardId);
+      if (!card) {
+        throw new Error(`no backlog card ${cardId}`);
+      }
+      if (card.closed) {
+        throw new Error(`${cardId} is ${card.closed}: a run cannot start on it`);
+      }
+      if (kind === 'author') {
+        const key = `${sid}:${name}`;
+        const nowMs = (input.at ?? new Date()).getTime();
+        // a restart of the same sid:name is a fix round and ends the run before it; any other open author on the card is a second one
+        const other = this.agents().find(
+          (one) =>
+            one.card === cardId &&
+            one.kind === 'author' &&
+            `${one.sid}:${one.name}` !== key &&
+            // an author parked at a question or a story review is not working, so it does not block a fixer
+            ['running', 'plan', 'fixing'].includes(one.state) &&
+            nowMs - (lastActivity(one)?.getTime() ?? nowMs) <= STALE_MS,
+        );
+        if (other) {
+          throw new Error(
+            `${cardId} already has an open author run (${other.sid}:${other.name}): finish it first, or restart it under its own name for a fix round`,
+          );
+        }
+        if (!card.claimed) {
+          warn?.(
+            `once-upon: ${cardId} has no claim yet: once-upon backlog claim ${cardId} --agent ${name}`,
+          );
+        }
+      }
+      // the card's repo and branch are the run's: a typed one that differs is not used, and is said so
+      const typed = { repo, branch, pr, lane };
+      if (card.repo && repo && repo.toLowerCase() !== card.repo.toLowerCase()) {
+        warn?.(`once-upon: --repo ${repo} ignored: ${cardId} is on ${card.repo}`);
+      }
+      if (card.branch && branch && branch !== card.branch) {
+        warn?.(`once-upon: --branch ${branch} ignored: ${cardId} is on ${card.branch}`);
+      }
+      if (typed.pr || typed.lane) {
+        warn?.(
+          'once-upon: --pr and --lane are ignored for a run on a card: they come from the card',
+        );
+      }
+      repo = card.repo ?? repo;
+      branch = card.branch ?? branch;
+      pr = null;
+      lane = null;
+    }
     this.append({
       ...this.base('start', name, sid, input),
       session: clean(input.session, 'the session', 100) || null,
@@ -241,8 +325,8 @@ export class AgentRegistry {
       tip: branchTip(cwd, branch, repo),
       pr: pr || null,
       cwd,
-      card: optional(input.card, 'the card', BACKLOG_ID_RE),
-      lane: optional(input.lane, 'the lane', AGENT_NAME_RE),
+      card: cardId,
+      lane,
       notes: clean(input.notes, 'the notes path', 500) || null,
       ...(kind === 'editor' ? { slots: slots ?? DEFAULT_SLOTS } : {}),
     });
@@ -318,6 +402,18 @@ export class AgentRegistry {
       );
     }
     const agent = this.open(name, { ...input, sid: wanted }, warn);
+    // a null count reads as a pass, so a critic on a card must say how many (0 is fine)
+    if (
+      this.cards &&
+      agent.kind === 'critic' &&
+      agent.card &&
+      state === 'done' &&
+      count(input.findings, 'the findings count') === null
+    ) {
+      throw new Error(
+        'a critic finishes with its findings count: --findings N (0 if it found none). Without one the card would read as passed',
+      );
+    }
     const result: AgentResult = {};
     const given = input.result ?? {};
     const commit = optional(given.commit, 'the commit', SHA_RE);

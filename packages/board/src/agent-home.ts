@@ -2,7 +2,8 @@
  * Where a registered agent goes on the board, decided only by the fields it registered (`once-upon agent start`:
  * repo, branch, PR, card, and the branch and PR its finish event reports), never by its task, name or outcome. An
  * agent with a home is nested inside that card; every other agent is a card of its own (stages/agents.ts). An agent that claimed a backlog card is neither:
- * it is shown on that card (claims.ts).
+ * it is shown on that card (claims.ts), and so is an agent whose run names an existing card (`agent start --card`, ADR-25,
+ * state/src/queues/backlog/phase.ts): it never reaches here, so its typed repo and branch decide nothing.
  */
 import type { BoardCard } from '@once-upon-a-diff/contracts/types';
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';

@@ -47,17 +47,18 @@ import {
   readBacklogFile,
 } from '@once-upon-a-diff/adapters/stores/backlog-file';
 import path from 'node:path';
-import { OPEN, claimedAgent, liveClaim, sameAgentView } from './claims.ts';
+import { OPEN, liveClaim, sameAgentView } from './claims.ts';
+import { DONE_HOURS, SKIPS_REVIEW, workAgent, type CardPhase } from './phase.ts';
 import { REPO_RE, sameRepo } from '@once-upon-a-diff/foundation/repos';
 import { newId } from '@once-upon-a-diff/foundation/ids';
 import { clean, optional } from '@once-upon-a-diff/foundation/input';
 import type { BoardAgent, BoardCard, BoardStartedLinks } from '@once-upon-a-diff/contracts/types';
 import type { LedgerAgent } from '../../records/agents/ledger.ts';
+import type { CardLookup } from '../../records/agents/registry.ts';
 import type { BacklogItem } from './types.ts';
 
 export const STARTED_GRACE_HOURS = 24;
-/** A started item whose work merged or landed, or whose agent finished, stays in Done this long. */
-export const DONE_HOURS = 1;
+export { DONE_HOURS };
 /** An assignment that no `start` followed is a hint for this long, then the item is free to hand to another session. */
 export const ASSIGN_HOURS = 2;
 
@@ -371,7 +372,7 @@ export class BacklogStore implements BacklogStorage {
       );
     }
     // live: its run is open, or it was just made and the agent's first line has not landed (a finished run's card is free)
-    const run = claimedAgent(item, agents);
+    const run = workAgent(item, agents);
     if (aside && (run ? OPEN.includes(run.state) : liveClaim(item, null, nowMs))) {
       throw new Error(
         `${id} is claimed by ${item.claim?.agent}, who is working it: it can be someday once that run is over`,
@@ -468,6 +469,28 @@ export class BacklogStore implements BacklogStorage {
   }
 }
 
+/** The registry's view of the cards (registry.ts's CardLookup): a run that names a card is checked against it. */
+export const cardLookup =
+  (store: Pick<BacklogStore, 'items'>): CardLookup =>
+  (id) => {
+    const item = store.items().find((one) => one.id === id);
+    let closed: 'dropped' | 'landed' | null = null;
+    if (item?.state === 'dropped') {
+      closed = 'dropped';
+    } else if (item?.landed_at) {
+      closed = 'landed';
+    }
+    return item
+      ? {
+          id,
+          closed,
+          repo: item.repo,
+          branch: item.branch,
+          claimed: !!item.claim,
+        }
+      : null;
+  };
+
 /** What to tell whoever takes a card: the board links a card to an agent only through its claim. */
 export const claimHint = (id: string): string =>
   `Claim it first: once-upon backlog claim ${id} --agent NAME (the agent's name in the ledger), plus --branch BRANCH when it has one`;
@@ -541,9 +564,6 @@ function endedColumn(
   }
   return null;
 }
-
-/** The repos whose finished work skips review for now and is Ready to ship (once-upon-a-diff and Larmor). */
-const SKIPS_REVIEW = /^(once-upon-a-diff|larmor)$/i;
 
 /**
  * Where an item goes by what its claimed registered agent has produced (the agent has no card of its own: the item is the
@@ -640,8 +660,9 @@ export function backlogCards(
   nowMs: number,
   cardless: CardlessSession[] = [],
   links: Map<string, BoardStartedLinks> = new Map(),
-  views: Map<string, BoardAgent> = new Map(),
+  views: Map<string, BoardAgent[]> = new Map(),
   holds: Map<string, BoardCard['column']> = new Map(),
+  phases: Map<string, CardPhase | null> = new Map(),
 ): BoardCard[] {
   const shown: BoardCard[] = [];
   for (const original of items) {
@@ -657,14 +678,16 @@ export function backlogCards(
     let since: string | null = item.added_at || null;
     let tried = false;
     const agent = link?.agent ?? null;
-    const view = views.get(item.id);
+    const itemViews = views.get(item.id) ?? [];
     const claim = liveClaim(original, agent, nowMs);
     if (item.state === 'started' && item.branch) {
       const work = cardOnBranch(item, cards);
       if (work) {
         work.from_backlog = [...(work.from_backlog ?? []), { id: item.id, title: item.title }];
-        if (view && !work.agents.some((one) => sameAgentView(one, view))) {
-          work.agents.push(view);
+        for (const view of itemViews) {
+          if (!work.agents.some((one) => sameAgentView(one, view))) {
+            work.agents.push(view);
+          }
         }
         if (work.kind === 'work' && !work.pr && !work.story) {
           work.title = item.title;
@@ -672,10 +695,15 @@ export function backlogCards(
         continue;
       }
     }
-    if (agent && !(item.state === 'started' && (link?.merged || item.landed_at))) {
-      // the claimed agent decides the column, whatever it is doing: Working while it runs, Agent checks at a plan stop,
-      // Waiting at a question, then by what it produced (agentColumn)
-      const placed = agentColumn(item, agent, nowMs, holds.get(item.id) ?? null);
+    if (
+      (agent || phases.has(item.id)) &&
+      !(item.state === 'started' && (link?.merged || item.landed_at))
+    ) {
+      // the card's runs decide the column (cardPhase), else the claimed agent does, whatever it is doing: Working while it
+      // runs, Agent checks at a plan stop, Waiting at a question, then by what it produced (agentColumn)
+      const placed = phases.has(item.id)
+        ? phases.get(item.id)
+        : agentColumn(item, agent as NonNullable<typeof agent>, nowMs, holds.get(item.id) ?? null);
       if (!placed) {
         continue;
       }
@@ -735,7 +763,7 @@ export function backlogCards(
       story: null,
       building: null,
       sessions: [],
-      agents: view && column !== 'backlog' ? [view] : [],
+      agents: column !== 'backlog' ? itemViews : [],
       parent: null,
       focus_session: null,
       can_focus: false,

@@ -10,7 +10,8 @@ import {
   landedFor,
   pendingReview,
 } from '../agent-home.ts';
-import { agentKey, claimedAgents } from '@once-upon-a-diff/state/queues/backlog/claims';
+import { agentKey, claimedAgent } from '@once-upon-a-diff/state/queues/backlog/claims';
+import { agentsOnCard, namedByRuns } from '@once-upon-a-diff/state/queues/backlog/phase';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import { STALE_MS } from '@once-upon-a-diff/state/records/agents/events';
 import {
@@ -102,21 +103,33 @@ export const AGENT_COLUMN: Record<LedgerAgent['state'], BoardColumn> = {
 };
 
 /**
- * The views of the agents that hold a claim, by the id of the card they claimed: what the card shows in place of an
- * agent card of its own (backlog.ts's backlogCards).
+ * The views of the agents on each card, by the id of the card: what the card shows in place of agent cards of its own
+ * (backlog.ts's backlogCards). A card named by runs (`card` on an agent's start) shows each of those agents, its latest run
+ * on the card, critics and fix rounds included; a card no run names shows its claimed agent, if one is found (claims.ts).
  */
 export function claimViews(
   items: BacklogItem[],
   agents: LedgerAgent[],
   nowMs: number,
   editorOf: (agent: LedgerAgent) => BoardAgentEditor | null = () => null,
-): Map<string, BoardAgent> {
-  return new Map(
-    [...claimedAgents(items, agents)].map(([id, agent]) => [
-      id,
-      agentOf(agent, nowMs, null, editorOf(agent)),
-    ]),
-  );
+): Map<string, BoardAgent[]> {
+  const views = new Map<string, BoardAgent[]>();
+  for (const item of items) {
+    if (item.state === 'dropped') {
+      continue;
+    }
+    // the agents whose runs name the card, and, while no work run does, its claimed (old, cardless) agent as well
+    const named = agentsOnCard(item, agents);
+    const claimed = namedByRuns(item, agents) ? null : claimedAgent(item, agents);
+    const found = claimed && !named.includes(claimed) ? [claimed, ...named] : named;
+    if (found.length) {
+      views.set(
+        item.id,
+        found.map((agent) => agentOf(agent, nowMs, null, editorOf(agent))),
+      );
+    }
+  }
+  return views;
 }
 
 /**

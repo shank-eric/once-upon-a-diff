@@ -7,6 +7,7 @@ import { runGit } from '@once-upon-a-diff/adapters/git';
 import { branchTip } from '@once-upon-a-diff/state/records/agents/made';
 import { worktreeFixture } from '@once-upon-a-diff/test-kit/git';
 import { Board, noPrWatcher } from '@once-upon-a-diff/board/board';
+import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { runIsOpen } from '@once-upon-a-diff/state/records/agents/events';
 import { appendAgentEvent } from '@once-upon-a-diff/adapters/stores/agents-file';
@@ -159,9 +160,20 @@ test('the CLI round trip: start takes the sid from the session, beat and finish 
     board_progress_file: progress,
   });
   const env = { CLAUDE_CODE_SESSION_ID: `${SID}-0000-4000-8000-000000000000` };
+  const card = new BacklogStore(home).add({ title: 'Check the thing' }).id;
   const started = await runCli(
     home,
-    ['agent', 'start', 'ou-cli', '--kind', 'reviewer', '--task', 'check the thing — now'],
+    [
+      'agent',
+      'start',
+      'ou-cli',
+      '--kind',
+      'reviewer',
+      '--card',
+      card,
+      '--task',
+      'check the thing — now',
+    ],
     env,
   );
   assert.equal(started.code, 0, started.stderr);
@@ -186,6 +198,8 @@ test('the CLI round trip: start takes the sid from the session, beat and finish 
     'all done',
     '--commit',
     'abc1234',
+    '--findings',
+    '4',
   ]);
   assert.equal(finish.code, 0, finish.stderr);
 
@@ -1027,8 +1041,24 @@ test('author and critic are the kinds; builder and reviewer are accepted as alia
   const home = tmp('reg-alias');
   const registry = new AgentRegistry(home);
   const env = { CLAUDE_CODE_SESSION_ID: `${SID}-0000-4000-8000-000000000000` };
+  const backlog = new BacklogStore(home);
+  // one card each: a second author on one card is refused
   const start = async (name: string, kind: string) =>
-    runCli(home, ['agent', 'start', name, '--kind', kind, '--task', 'x'], env);
+    runCli(
+      home,
+      [
+        'agent',
+        'start',
+        name,
+        '--kind',
+        kind,
+        '--card',
+        backlog.add({ title: name }).id,
+        '--task',
+        'x',
+      ],
+      env,
+    );
   for (const [name, kind] of [
     ['ou-a', 'author'],
     ['ou-b', 'builder'],

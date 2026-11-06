@@ -1189,6 +1189,107 @@ async function record(
   results['4b-backlog-worktrees-again'] = { board: await board.snapshot(), asked: asked.slice() };
 }
 
+// ---- 5. the card owns its runs (ADR-25): a fix round restarted with no --card, a critic that typed the wrong repo, a
+// researcher that failed, and a carded critic beside an old cardless claimed author: each is one card, no agent card
+{
+  const home = tmp('home');
+  const sessions = tmp('sessions');
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  const et = (hour: number, minute: number) => new Date(Date.UTC(2026, 9, 26, hour + 4, minute));
+  const card = (id: string, title: string, repo: string, branch: string, agent: string) => [
+    {
+      op: 'add',
+      id,
+      title,
+      note: null,
+      repo,
+      branch: null,
+      by: 'cli',
+      at: et(13, 0).toISOString(),
+    },
+    { op: 'start', id, branch, repo, by: agent, at: et(13, 1).toISOString() },
+    { op: 'claim', id, agent, sid: 'cccccccc', by: agent, at: et(13, 2).toISOString() },
+  ];
+  const ONCE = 'acme/once-upon-a-diff';
+  writeFileSync(
+    path.join(home, 'backlog.jsonl'),
+    [
+      ...card('bl_ccccc01', 'Fix round, restarted bare', ONCE, 'fix-round', 'ou-fix'),
+      ...card('bl_ccccc02', 'Critic typed the wrong repo', ONCE, 'wrong-repo', 'ou-wrong'),
+      ...card(
+        'bl_ccccc03',
+        'A lookup failed after the build',
+        'acme/widgets',
+        'built-it',
+        'ou-built',
+      ),
+      ...card('bl_ccccc04', 'Old author, new critic', ONCE, 'mixed-rows', 'ou-old'),
+    ]
+      .map((event) => JSON.stringify(event))
+      .join('\n') + '\n',
+  );
+  const runs = new AgentRegistry(home);
+  const sid8 = 'cccccccc';
+  const author = (name: string, card: string | null, at: Date, extra = {}) =>
+    runs.start({ sid: sid8, name, kind: 'author', task: `build ${name}`, card, at, ...extra });
+  // 1: built, critic found two things, then a fix round started with no --card and told `fixing`
+  author('ou-fix', 'bl_ccccc01', et(13, 5));
+  runs.finish('ou-fix', { sid: sid8, result: { branch: 'fix-round' }, at: et(13, 40) });
+  runs.start({
+    sid: sid8,
+    name: 'review-fix',
+    kind: 'critic',
+    task: 'review',
+    card: 'bl_ccccc01',
+    at: et(13, 41),
+  });
+  runs.finish('review-fix', { sid: sid8, findings: 2, at: et(13, 50) });
+  author('ou-fix', null, et(13, 55));
+  runs.state('ou-fix', { sid: sid8, state: 'fixing', findings: 2, at: et(13, 56) });
+  // 2: the critic typed another repo, and passed it
+  author('ou-wrong', 'bl_ccccc02', et(13, 5));
+  runs.finish('ou-wrong', { sid: sid8, result: { branch: 'wrong-repo' }, at: et(13, 40) });
+  runs.start({
+    sid: sid8,
+    name: 'review-wrong',
+    kind: 'critic',
+    task: 'review',
+    card: 'bl_ccccc02',
+    repo: 'esshank/once-upon-a-diff',
+    at: et(13, 41),
+  });
+  runs.finish('review-wrong', { sid: sid8, findings: 0, at: et(13, 50) });
+  // 3: built, then a carded researcher failed: still Ready for your review
+  author('ou-built', 'bl_ccccc03', et(13, 5));
+  runs.finish('ou-built', { sid: sid8, result: { branch: 'built-it' }, at: et(13, 40) });
+  runs.start({
+    sid: sid8,
+    name: 'look-it-up',
+    kind: 'research',
+    task: 'look it up',
+    card: 'bl_ccccc03',
+    at: et(13, 41),
+  });
+  runs.finish('look-it-up', { sid: sid8, state: 'failed', at: et(13, 45) });
+  // 4: an old brief registered the author with no card; its critic names the card
+  author('ou-old', null, et(13, 5), { repo: ONCE, branch: 'mixed-rows' });
+  runs.start({
+    sid: sid8,
+    name: 'review-old',
+    kind: 'critic',
+    task: 'review',
+    card: 'bl_ccccc04',
+    at: et(13, 41),
+  });
+  const { watcher } = fakeWatcher([], {});
+  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+    source: sourceSaying({}),
+    now: () => NOW,
+    repoOf,
+  });
+  await record('5-card-runs', board);
+}
+
 // ---- normalize paths and pids
 export const snapshots: Record<string, string> = {};
 for (const [name, value] of Object.entries(results)) {

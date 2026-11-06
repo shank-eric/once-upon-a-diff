@@ -11,6 +11,7 @@ import { STALE_MS, runIsOpen, type AgentEvent } from '../../records/agents/event
 import { lastActivity, type LedgerAgent } from '../../records/agents/ledger.ts';
 import type { BacklogItem } from './types.ts';
 import { claimedRun } from './claims.ts';
+import { isWorkRun, namedByRuns, runsOf } from './phase.ts';
 
 /**
  * Each card's tip from the raw finish events (the folded registry keeps only a run's last result, and a rerun hides the
@@ -43,6 +44,12 @@ export function recordedTips(events: AgentEvent[]): Map<string, string> {
  * stale (no event for STALE_MS, the rule the registry and the board use), so a crashed agent does not hold its card forever.
  */
 function claimInProgress(item: BacklogItem, agents: LedgerAgent[], nowMs: number): boolean {
+  // a card its work runs name is read by them: any open, live run of the card (a fix round included) is in progress
+  if (namedByRuns(item, agents)) {
+    return runsOf(item, agents)
+      .filter(isWorkRun)
+      .some((run) => runIsOpen(run) && nowMs - (lastActivity(run)?.getTime() ?? nowMs) <= STALE_MS);
+  }
   const held = claimedRun(item, agents);
   return (
     !!held?.current &&

@@ -1,0 +1,430 @@
+{
+  "board": {
+    "at": "2026-10-26T19:00:00.000Z",
+    "blank": [],
+    "editors": [],
+    "helpers": [],
+    "lanes": [
+      {
+        "cards": [
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": "2026-10-26T17:56:00.000Z",
+                "gate": {
+                  "findings": 2,
+                  "kind": "fixing"
+                },
+                "key": "cccccccc:ou-fix",
+                "kind": "author",
+                "model": null,
+                "name": "ou-fix",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "cccccccc",
+                "stale": false,
+                "started_at": "2026-10-26T17:55:00.000Z",
+                "state": "fixing",
+                "status": "working",
+                "summary": null,
+                "task": "build ou-fix"
+              },
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": "2026-10-26T17:50:00.000Z",
+                "gate": null,
+                "key": "cccccccc:review-fix",
+                "kind": "critic",
+                "model": null,
+                "name": "review-fix",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "cccccccc",
+                "stale": false,
+                "started_at": "2026-10-26T17:41:00.000Z",
+                "state": "done",
+                "status": "done",
+                "summary": null,
+                "task": "review"
+              }
+            ],
+            "backlog": {
+              "added_by": "cli",
+              "agent": null,
+              "assign": null,
+              "assigned": null,
+              "claim": {
+                "agent": "ou-fix",
+                "at": "2026-10-26T17:02:00.000Z",
+                "pending": false
+              },
+              "id": "bl_ccccc01",
+              "start_line": "once-upon backlog start bl_ccccc01 --branch fix-round",
+              "started": {
+                "at": "2026-10-26T17:01:00.000Z",
+                "branch": "fix-round",
+                "links": {
+                  "active": true,
+                  "agent": {
+                    "beat": null,
+                    "ended_at": "2026-10-26T17:56:00.000Z",
+                    "name": "ou-fix",
+                    "outcome": null,
+                    "state": "fixing"
+                  },
+                  "merged": false,
+                  "merged_at": null,
+                  "sessions": [],
+                  "worktrees": []
+                },
+                "on": null
+              }
+            },
+            "branch": "fix-round",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "working",
+            "detail": null,
+            "focus_session": null,
+            "id": "backlog:bl_ccccc01",
+            "kind": "backlog",
+            "lane": "acme/once-upon-a-diff",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/once-upon-a-diff",
+            "sessions": [],
+            "since": "2026-10-26T17:56:00.000Z",
+            "story": null,
+            "title": "Fix round, restarted bare"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": "2026-10-26T17:40:00.000Z",
+                "gate": null,
+                "key": "cccccccc:ou-wrong",
+                "kind": "author",
+                "model": null,
+                "name": "ou-wrong",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "cccccccc",
+                "stale": false,
+                "started_at": "2026-10-26T17:05:00.000Z",
+                "state": "done",
+                "status": "done",
+                "summary": null,
+                "task": "build ou-wrong"
+              },
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": "2026-10-26T17:50:00.000Z",
+                "gate": null,
+                "key": "cccccccc:review-wrong",
+                "kind": "critic",
+                "model": null,
+                "name": "review-wrong",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "cccccccc",
+                "stale": false,
+                "started_at": "2026-10-26T17:41:00.000Z",
+                "state": "done",
+                "status": "done",
+                "summary": null,
+                "task": "review"
+              }
+            ],
+            "backlog": {
+              "added_by": "cli",
+              "agent": null,
+              "assign": null,
+              "assigned": null,
+              "claim": {
+                "agent": "ou-wrong",
+                "at": "2026-10-26T17:02:00.000Z",
+                "pending": false
+              },
+              "id": "bl_ccccc02",
+              "start_line": "once-upon backlog start bl_ccccc02 --branch wrong-repo",
+              "started": {
+                "at": "2026-10-26T17:01:00.000Z",
+                "branch": "wrong-repo",
+                "links": {
+                  "active": true,
+                  "agent": {
+                    "beat": null,
+                    "ended_at": "2026-10-26T17:40:00.000Z",
+                    "name": "ou-wrong",
+                    "outcome": null,
+                    "state": "done"
+                  },
+                  "merged": false,
+                  "merged_at": null,
+                  "sessions": [],
+                  "worktrees": []
+                },
+                "on": null
+              }
+            },
+            "branch": "wrong-repo",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "ship",
+            "detail": null,
+            "focus_session": null,
+            "id": "backlog:bl_ccccc02",
+            "kind": "backlog",
+            "lane": "acme/once-upon-a-diff",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/once-upon-a-diff",
+            "sessions": [],
+            "since": "2026-10-26T17:40:00.000Z",
+            "story": null,
+            "title": "Critic typed the wrong repo"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": null,
+                "gate": null,
+                "key": "cccccccc:ou-old",
+                "kind": "author",
+                "model": null,
+                "name": "ou-old",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "cccccccc",
+                "stale": false,
+                "started_at": "2026-10-26T17:05:00.000Z",
+                "state": "running",
+                "status": "working",
+                "summary": null,
+                "task": "build ou-old"
+              },
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": null,
+                "gate": {
+                  "findings": null,
+                  "kind": "review"
+                },
+                "key": "cccccccc:review-old",
+                "kind": "critic",
+                "model": null,
+                "name": "review-old",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "cccccccc",
+                "stale": false,
+                "started_at": "2026-10-26T17:41:00.000Z",
+                "state": "running",
+                "status": "working",
+                "summary": null,
+                "task": "review"
+              }
+            ],
+            "backlog": {
+              "added_by": "cli",
+              "agent": null,
+              "assign": null,
+              "assigned": null,
+              "claim": {
+                "agent": "ou-old",
+                "at": "2026-10-26T17:02:00.000Z",
+                "pending": false
+              },
+              "id": "bl_ccccc04",
+              "start_line": "once-upon backlog start bl_ccccc04 --branch mixed-rows",
+              "started": {
+                "at": "2026-10-26T17:01:00.000Z",
+                "branch": "mixed-rows",
+                "links": {
+                  "active": true,
+                  "agent": {
+                    "beat": null,
+                    "ended_at": null,
+                    "name": "ou-old",
+                    "outcome": null,
+                    "state": "running"
+                  },
+                  "merged": false,
+                  "merged_at": null,
+                  "sessions": [],
+                  "worktrees": []
+                },
+                "on": null
+              }
+            },
+            "branch": "mixed-rows",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "working",
+            "detail": null,
+            "focus_session": null,
+            "id": "backlog:bl_ccccc04",
+            "kind": "backlog",
+            "lane": "acme/once-upon-a-diff",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/once-upon-a-diff",
+            "sessions": [],
+            "since": "2026-10-26T17:01:00.000Z",
+            "story": null,
+            "title": "Old author, new critic"
+          }
+        ],
+        "key": "acme/once-upon-a-diff",
+        "name": "once-upon-a-diff"
+      },
+      {
+        "cards": [
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": "2026-10-26T17:40:00.000Z",
+                "gate": null,
+                "key": "cccccccc:ou-built",
+                "kind": "author",
+                "model": null,
+                "name": "ou-built",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "cccccccc",
+                "stale": false,
+                "started_at": "2026-10-26T17:05:00.000Z",
+                "state": "done",
+                "status": "done",
+                "summary": null,
+                "task": "build ou-built"
+              },
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": "2026-10-26T17:45:00.000Z",
+                "gate": null,
+                "key": "cccccccc:look-it-up",
+                "kind": "research",
+                "model": null,
+                "name": "look-it-up",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "cccccccc",
+                "stale": false,
+                "started_at": "2026-10-26T17:41:00.000Z",
+                "state": "failed",
+                "status": "error",
+                "summary": null,
+                "task": "look it up"
+              }
+            ],
+            "backlog": {
+              "added_by": "cli",
+              "agent": null,
+              "assign": null,
+              "assigned": null,
+              "claim": {
+                "agent": "ou-built",
+                "at": "2026-10-26T17:02:00.000Z",
+                "pending": false
+              },
+              "id": "bl_ccccc03",
+              "start_line": "once-upon backlog start bl_ccccc03 --branch built-it",
+              "started": {
+                "at": "2026-10-26T17:01:00.000Z",
+                "branch": "built-it",
+                "links": {
+                  "active": true,
+                  "agent": {
+                    "beat": null,
+                    "ended_at": "2026-10-26T17:40:00.000Z",
+                    "name": "ou-built",
+                    "outcome": null,
+                    "state": "done"
+                  },
+                  "merged": false,
+                  "merged_at": null,
+                  "sessions": [],
+                  "worktrees": []
+                },
+                "on": null
+              }
+            },
+            "branch": "built-it",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "ready",
+            "detail": null,
+            "focus_session": null,
+            "id": "backlog:bl_ccccc03",
+            "kind": "backlog",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": "2026-10-26T17:40:00.000Z",
+            "story": null,
+            "title": "A lookup failed after the build"
+          }
+        ],
+        "key": "acme/widgets",
+        "name": "widgets"
+      }
+    ],
+    "listeners": [],
+    "phone": null,
+    "status_source": "iterm",
+    "usage": null,
+    "voice": null,
+    "voice_paused": false,
+    "voice_start": null,
+    "warning": null,
+    "worktrees": {
+      "at": null,
+      "items": [],
+      "on_cards": 0,
+      "prunable": [],
+      "removable": 0,
+      "scanning": true,
+      "size_kb": "<kb>",
+      "total": 0
+    }
+  }
+}

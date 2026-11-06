@@ -4,6 +4,8 @@
  * task text, its name or its worktree folder. The claim names the agent, and is for one run of it: the first run of that
  * name (pinned to its launching session when the claim gives a sid) that had not ended when the claim was made. It ends
  * when that run finishes or the card lands or is dropped. A card has one claim and an agent may hold several.
+ * Since ADR-25 this is the old way, read only for cards no run names: a run that names its card (`agent start --card`) is that
+ * card's, and phase.ts reads the card from its runs. The flip deletes the claim-to-run window and criticHold here.
  * Pure: the board gathers the facts.
  */
 import type { BoardColumn } from '@once-upon-a-diff/contracts/types';

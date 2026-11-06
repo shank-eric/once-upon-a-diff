@@ -213,7 +213,7 @@ test('a claimed agent on a card whose branch has a work card rides on that card,
     NOW.getTime(),
     [],
     new Map(),
-    new Map([[item.id, view]]),
+    new Map([[item.id, [view]]]),
   );
   assert.deepEqual(shown, []);
   assert.deepEqual(workCard.agents, [view]);
@@ -400,8 +400,9 @@ test("an author run for another card is not this card's fix round", () => {
   assert.equal(hold(stamp(17)), 'checks', "its running is the other card's");
   registry.finish('ou-build', { sid: 'cccccccc', result: { branch: 'feat-x' }, at: stamp(25) });
   assert.equal(hold(stamp(26)), 'checks', "and its finish is not this card's fix");
+  // a restart keeps the earlier run's card, so it is still the other card's
   registry.start({ ...author, kind: 'author', task: 'fix', card: undefined, at: stamp(27) });
-  assert.equal(hold(stamp(28)), 'working', 'a run that names no card still counts');
+  assert.equal(hold(stamp(28)), 'checks', "a restart is the other card's run too");
 });
 
 test('a critic registered for another card does not hold this one, even on the same branch', () => {

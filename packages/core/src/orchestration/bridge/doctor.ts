@@ -13,6 +13,9 @@ import type { Config } from '@once-upon-a-diff/foundation/settings';
 import { listenerPid } from '@once-upon-a-diff/adapters/os';
 import { fetchHealth } from '@once-upon-a-diff/adapters/bridge-health';
 import { readExtensionSeen } from './bridge.ts';
+import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
+import { cardRunProblems } from '@once-upon-a-diff/state/queues/backlog/phase';
+import { readAgents } from '@once-upon-a-diff/state/records/agents/read';
 
 type Level = 'PASS' | 'WARN' | 'FAIL';
 
@@ -144,6 +147,19 @@ export async function doctor(
       'In Claude Code, in the repo you want to listen for: /once-upon-listen <owner/name>. Until then, questions wait in the inbox.',
     );
   }
+  // every run is a run of one card, and says nothing the card does not (ADR-25)
+  const problems = cardRunProblems(
+    new BacklogStore(home).items(),
+    readAgents(home).agents,
+    Date.now(),
+  );
+  add(
+    problems.length ? 'WARN' : 'PASS',
+    'Card runs',
+    problems.length
+      ? `${problems.length} to look at: ${problems.slice(0, 5).join('; ')}${problems.length > 5 ? '; ...' : ''}`
+      : 'every run names a card that holds',
+  );
   for (const result of results) {
     out(`${result.level.padEnd(4)}  ${result.name}: ${result.detail}`);
     if (result.fix) {
