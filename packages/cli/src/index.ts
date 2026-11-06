@@ -3,7 +3,7 @@
  * the help text and the commands can't drift apart. bin/once-upon.ts runs
  * main().
  */
-import { homeDir, loadConfig } from '@once-upon-a-diff/foundation/settings';
+import { homeDir, loadConfig, readConfig } from '@once-upon-a-diff/foundation/settings';
 import { parseArgs } from './args.ts';
 import { resolveLongText } from './options.ts';
 import { bridgeCommands } from './commands/bridge.ts';
@@ -106,7 +106,13 @@ export function main(argv: string[]): void {
   }
   const home = homeDir();
   Promise.resolve()
-    .then(() => entry.run(home, loadConfig(home), resolveLongText(opts)))
+    .then(() =>
+      entry.run(
+        home,
+        entry.needsConfig ? loadConfig(home) : readConfig(home),
+        resolveLongText(opts),
+      ),
+    )
     .catch((err: Error) => {
       process.stderr.write(`once-upon: ${err.message}\n`);
       process.exitCode = 1;

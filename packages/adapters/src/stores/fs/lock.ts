@@ -5,9 +5,10 @@
  * waits. A lock whose process is gone, or that is older than LOCK_STALE_MS, was left by a crash and is taken over.
  */
 import { closeSync, openSync, readFileSync, statSync, writeSync } from 'node:fs';
+import path from 'node:path';
 import { pidAlive } from '../../os.ts';
 import { readJson, writeJsonAtomic } from './json-file.ts';
-import { removeFile } from './files.ts';
+import { ensureDir, removeFile } from './files.ts';
 
 const LOCK_STALE_MS = 10_000;
 const STEP_MS = 5;
@@ -82,6 +83,7 @@ export function withLock<T>(file: string, work: () => T): T {
   const lock = `${file}.lock`;
   const depth = held.get(lock) || 0;
   if (!depth) {
+    ensureDir(path.dirname(file)); // the first write of a fresh home makes it (0700)
     acquire(lock);
   }
   held.set(lock, depth + 1);

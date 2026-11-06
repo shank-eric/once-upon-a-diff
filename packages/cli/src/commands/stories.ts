@@ -229,6 +229,7 @@ export const storyCommands: Command[] = [
   },
   {
     name: 'local',
+    needsConfig: true,
     usage: [
       '  once-upon local   --repo DIR --base REF [--head REF] [--chapters FILE] [--id ID] [--title T] [--agent NAME] [--no-open] [--allow-uncovered]',
       '                                                                 story over local commits, served at /local/<id>/; with a Rebuild',
@@ -247,6 +248,7 @@ export const storyCommands: Command[] = [
   },
   {
     name: 'page',
+    needsConfig: true,
     usage: [
       "  once-upon page    --story ID [--no-open]                      a local story's page link, with the key for that story only",
     ],

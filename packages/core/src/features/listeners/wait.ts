@@ -38,7 +38,6 @@ import {
   type Binding,
 } from '@once-upon-a-diff/state/records/listeners/binding';
 import { beat, listeners } from '@once-upon-a-diff/state/records/listeners/listeners';
-import { noteListener } from '@once-upon-a-diff/state/records/listeners/history';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
 import {
   idleMsOf,
@@ -275,9 +274,6 @@ export async function wait(home: string, opts: WaitOptions): Promise<WaitOutcome
   }
   // the heartbeat the panel's "Claude listening" light reads
   beat(home, consumer, 'waiting', scope);
-  if (opts.repo && !story) {
-    noteListener(home, String(opts.repo), consumer);
-  }
   const heartbeat = setInterval(() => beat(home, consumer, 'waiting', scope), BEAT_MS);
   // build requests come from builds.json (queued ones, claimed as they're handed over), so none are missed or given twice
   const builds = takesBuilds ? new Builds(home) : null;

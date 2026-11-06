@@ -10,6 +10,7 @@ import path from 'node:path';
 import { repoOfCheckout } from '@once-upon-a-diff/foundation/repos';
 import { readSettings } from '@once-upon-a-diff/foundation/settings';
 import { ownSession } from '@once-upon-a-diff/core/features/listeners/service';
+import { sweepStatusLines } from '@once-upon-a-diff/core/features/sessions/status-lines';
 import type { AgentKind } from '@once-upon-a-diff/state/records/agents/agent-types';
 import { canonicalKind } from '@once-upon-a-diff/state/records/agents/events';
 import { lastActivity } from '@once-upon-a-diff/state/records/agents/ledger';
@@ -44,7 +45,7 @@ const NEEDS_CARD = ['critic', 'fixer', 'storyteller'];
 
 const text = (value: unknown): string | null => (typeof value === 'string' && value ? value : null);
 
-function agent(home: string, _cfg: Config, opts: CliOpts) {
+async function agent(home: string, _cfg: Config, opts: CliOpts) {
   const [verb, name, ...words] = opts._ || [];
   const board = readSettings(home).board;
   // the caller already wrote the progress line (beat.sh echoes the progress line itself): the event is all this call adds
@@ -65,16 +66,16 @@ function agent(home: string, _cfg: Config, opts: CliOpts) {
   if (verb === 'sweep') {
     // runs silent for a day that owe beats are closed (registry.ts `sweep`); `agent start` does the same as it writes
     const swept = registry.sweep({ dryRun: !!opts['dry-run'] });
-    return out(
-      swept.length
-        ? swept
-            .map(
-              (one) =>
-                `${agentKey(one)} ${opts['dry-run'] ? 'would be stopped' : 'stopped'}: silent since ${lastActivity(one)?.toISOString() ?? 'its start'}`,
-            )
-            .join('\n')
-        : 'Nothing to sweep.',
-    );
+    // the day-old status line files of gone sessions go here too, not on the board's read
+    const lines = opts['dry-run'] ? [] : await sweepStatusLines(home);
+    const said = [
+      ...swept.map(
+        (one) =>
+          `${agentKey(one)} ${opts['dry-run'] ? 'would be stopped' : 'stopped'}: silent since ${lastActivity(one)?.toISOString() ?? 'its start'}`,
+      ),
+      ...(lines.length ? [`${lines.length} status line file(s) of gone sessions removed`] : []),
+    ];
+    return out(said.length ? said.join('\n') : 'Nothing to sweep.');
   }
   if (verb === 'list') {
     const now = Date.now();
@@ -122,6 +123,7 @@ function agent(home: string, _cfg: Config, opts: CliOpts) {
       throw new Error(`a ${role} works on a card: pass --card ID`);
     }
     registry.sweep();
+    await sweepStatusLines(home);
     // a repo typed on a run that has no card (or whose card has no repo yet, so the typed one is kept) is checked; a run on a card
     // that has a repo takes the card's, and the registry already says so
     const typedRepo = text(opts.repo);

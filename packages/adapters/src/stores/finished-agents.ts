@@ -4,6 +4,7 @@
  * or beat brings it back. Writes go through readJson and writeFileAtomic.
  */
 import path from 'node:path';
+import { ensureDir } from './fs/files.ts';
 import { readJson, writeJsonAtomic } from './fs/json-file.ts';
 
 const file = (home: string) => path.join(home, 'finished-agents.json');
@@ -27,5 +28,6 @@ export function readFinished(home: string): Map<string, number> {
 /** Records that the agent's card was cleared at `when` (ms), and forgets entries older than a week. */
 export function markFinished(home: string, key: string, when: number): void {
   const kept = [...readFinished(home)].filter(([, clearedAt]) => when - clearedAt < KEEP_MS);
+  ensureDir(home);
   writeJsonAtomic(file(home), Object.fromEntries([...kept, [key, when]]));
 }

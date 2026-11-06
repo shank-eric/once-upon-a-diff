@@ -14,6 +14,7 @@ import { serve } from '@once-upon-a-diff/core/orchestration/bridge/bridge';
 export const bridgeCommands: Command[] = [
   {
     name: 'serve',
+    needsConfig: true,
     usage: [
       '  once-upon serve   [--port N]                                  run the bridge on 127.0.0.1',
     ],
@@ -23,6 +24,7 @@ export const bridgeCommands: Command[] = [
   },
   {
     name: 'setup',
+    needsConfig: true,
     usage: [
       "  once-upon setup                                               print the port and token to paste into the extension's options",
     ],
@@ -38,6 +40,7 @@ export const bridgeCommands: Command[] = [
   },
   {
     name: 'token',
+    needsConfig: true,
     usage: [
       '  once-upon token   [--rotate]                                  print (or replace) the token',
     ],

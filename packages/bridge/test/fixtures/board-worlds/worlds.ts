@@ -6,6 +6,7 @@
  * `finish()` stops the child processes and removes the temp dir.
  */
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
+import { noteListener } from '@once-upon-a-diff/state/records/listeners/history';
 import { spawn, execFileSync } from 'node:child_process';
 import {
   mkdirSync,
@@ -927,6 +928,8 @@ async function record(
     at: NOW.toISOString(),
     repo: 'acme/widgets',
   });
+  // what the wait's own heartbeat notes (the board only reads the history)
+  noteListener(home, 'acme/widgets', 'repo-acme-widgets', NOW.getTime());
   writeJson(path.join(home, 'listeners', 'story-local-w.json'), {
     consumer: 'story-local-w',
     pid: tree2.child,

@@ -13,5 +13,7 @@ export interface Command {
   usage: string[];
   /** the verbs this command takes as its first word (`agent start`), the only first words the usage log may name */
   subs?: readonly string[];
+  /** the command hands out or uses the bridge's token, so it makes config.json (and the home) when there is none; the rest only read it (readConfig) */
+  needsConfig?: true;
   run(home: string, cfg: Config, opts: CliOpts): unknown;
 }

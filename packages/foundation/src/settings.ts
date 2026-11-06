@@ -92,7 +92,19 @@ export const newToken = () => randomBytes(24).toString('base64url');
 export const UNPACKED_EXTENSION_ID = 'faaibhigocihefldbmdgchcnnclalkmo';
 const EXTENSION_ID = /^[a-p]{32}$/;
 
-/** Reads config.json, creating it (with a fresh random token) the first time. */
+/**
+ * What config.json says now, for a command that only reads: the port defaults to DEFAULT_PORT and the token is '' when there
+ * is none. A missing, unparseable or non-object file reads as empty. Writes, makes and changes the mode of nothing:
+ * `loadConfig` is the writer, for the commands that hand out or use the token.
+ */
+export function readConfig(home = homeDir()): Config {
+  const cfg = readJson<unknown>(path.join(home, 'config.json'), null);
+  const saved =
+    cfg && typeof cfg === 'object' && !Array.isArray(cfg) ? (cfg as Partial<Config>) : {};
+  return { ...saved, token: saved.token || '', port: saved.port || DEFAULT_PORT };
+}
+
+/** Reads config.json, creating it (with a fresh random token) the first time. The writer: a read-only command uses `readConfig`. */
 export function loadConfig(home = homeDir()): Config {
   ownerOnly(home);
   const file = path.join(home, 'config.json');

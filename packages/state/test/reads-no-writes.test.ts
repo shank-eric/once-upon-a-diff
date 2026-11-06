@@ -52,3 +52,39 @@ test('the first write makes a home that is not there yet, the user alone', () =>
   assert.equal(modeOf(other), '700');
   assert.equal(fresh.getCursor('claude'), 0);
 });
+
+test('a repo listener’s heartbeat is what notes the listener history, not a read of the board', async () => {
+  const { beat, touchHandling } = await import('../src/records/listeners/listeners.ts');
+  const { readHistory } = await import('../src/records/listeners/history.ts');
+  const home = path.join(tmp('parent'), 'once-upon');
+  beat(home, 'repo-acme-widgets', 'waiting', { repo: 'acme/widgets' });
+  assert.equal(readHistory(home)['acme/widgets']?.consumer, 'repo-acme-widgets');
+  assert.equal(modeOf(home), '700', 'the first write made the home the user’s alone');
+  beat(home, 'story-s1', 'waiting', { story: 's1', repo: 'acme/other' });
+  assert.equal(readHistory(home)['acme/other'], undefined, 'a story’s listener is not a repo’s');
+  beat(home, 'repo-acme-gadgets', 'handling', { repo: 'acme/gadgets' });
+  const before = readHistory(home)['acme/gadgets'].last_seen;
+  await new Promise((resolve) => setTimeout(resolve, 30));
+  touchHandling(home, 'repo-acme-gadgets'); // inside the 20 s throttle: the entry stays
+  assert.equal(readHistory(home)['acme/gadgets'].last_seen, before);
+});
+
+test('a handover that takes minutes keeps the stretch: the next beat does not restart started_at', async () => {
+  const { beat } = await import('../src/records/listeners/listeners.ts');
+  const { readHistory } = await import('../src/records/listeners/history.ts');
+  const { writeJson } = await import('@once-upon-a-diff/test-kit/files');
+  const home = tmp('home');
+  const hourAgo = new Date(Date.now() - 3600_000).toISOString();
+  writeJson(path.join(home, 'listener-history.json'), {
+    'acme/widgets': {
+      repo: 'acme/widgets',
+      consumer: 'repo-acme-widgets',
+      started_at: hourAgo,
+      last_seen: new Date(Date.now() - 5 * 60_000).toISOString(),
+    },
+  });
+  beat(home, 'repo-acme-widgets', 'waiting', { repo: 'acme/widgets' });
+  const entry = readHistory(home)['acme/widgets'];
+  assert.equal(entry.started_at, hourAgo, 'five minutes of handling is the same stretch');
+  assert.ok(Date.now() - Date.parse(entry.last_seen) < 5000, 'and last_seen moved');
+});

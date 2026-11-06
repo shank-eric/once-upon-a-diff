@@ -5,9 +5,13 @@
  */
 import { appendFileSync, chmodSync, copyFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 
-/** Makes the folder (and its parents) if it is missing. `mode` applies to a folder this call makes. */
-export function ensureDir(dir: string, mode?: number): void {
-  mkdirSync(dir, mode === undefined ? { recursive: true } : { recursive: true, mode });
+/**
+ * Makes the folder (and its parents) if it is missing, the user's alone (0700) unless `mode` says otherwise. The mode applies
+ * only to a folder this call makes, so a reader that never calls this changes nothing, and the first write to a home that is
+ * not there yet makes it owner-only.
+ */
+export function ensureDir(dir: string, mode = 0o700): void {
+  mkdirSync(dir, { recursive: true, mode });
 }
 
 /** Makes the folder if it's missing, and makes it the user's alone (0700) even when it was there already. */

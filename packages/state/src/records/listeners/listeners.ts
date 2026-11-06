@@ -18,6 +18,7 @@ import path from 'node:path';
 import { sameRepo, checkoutFor, tilde } from '@once-upon-a-diff/foundation/repos';
 import { readJson, writeFileAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
 import { activeBinding, type Binding } from './binding.ts';
+import { noteListener } from './history.ts';
 import type { Answering } from '@once-upon-a-diff/contracts/types';
 import { onPath, pidAlive } from '@once-upon-a-diff/adapters/os';
 import { ensureDir } from '@once-upon-a-diff/adapters/stores/fs/files';
@@ -61,6 +62,8 @@ export interface Listener {
 
 export const WAITING_FRESH_MS = 15000;
 export const HANDLING_FRESH_MS = 10 * 60 * 1000;
+/** How long without a history note is still one stretch of listening: a whole handover, which is live that long, and a beat. */
+const STRETCH_GAP_MS = HANDLING_FRESH_MS + WAITING_FRESH_MS;
 
 export function beat(
   home: string,
@@ -75,6 +78,10 @@ export function beat(
     path.join(dir, `${safe}.json`),
     JSON.stringify({ consumer, pid: process.pid, state, at: new Date().toISOString(), ...extra }),
   );
+  // a repo-wide listener (not a story's) is what the board's Listeners lane remembers: the heartbeat is its writer
+  if (extra.repo && !extra.story) {
+    noteListener(home, extra.repo, consumer, Date.now(), STRETCH_GAP_MS);
+  }
 }
 
 /**
@@ -88,6 +95,9 @@ export function touchHandling(home: string, consumer: string): void {
   if (last?.state === 'handling') {
     try {
       writeFileAtomic(file, JSON.stringify({ ...last, at: new Date().toISOString() }));
+      if (last.repo && !last.story) {
+        noteListener(home, last.repo, last.consumer, Date.now(), STRETCH_GAP_MS);
+      }
     } catch {
       /* the beat stays as it was */
     }

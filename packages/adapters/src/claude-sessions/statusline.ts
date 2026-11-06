@@ -7,15 +7,17 @@
  *
  * (Claude Code gives the script these as `context_window.used_percentage` and `rate_limits` on stdin; the README's
  * "Board status line" has the lines to add.) The board reads the live sessions' files: each one's context goes on its
- * session, and the usage is the freshest file's. A file whose session is gone is removed once it is a day old.
+ * session, and the usage is the freshest file's. Reading changes nothing: a file whose session is gone is removed once it is a
+ * day old by `sweepStatusLines`, which `once-upon agent start` and `agent sweep` run.
  */
-import { readFileSync, readdirSync, statSync, unlinkSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 import type { BoardUsage } from '@once-upon-a-diff/contracts/types';
+import { removeFile } from '../stores/fs/files.ts';
 
 /** Usage older than this is not shown: no session has rendered its status line since. */
 const USAGE_FRESH_MS = 6 * 3600 * 1000;
-/** A gone session's file is removed after this. */
+/** A gone session's file is removed after this (by the sweep, never by a read). */
 const GONE_MS = 24 * 3600 * 1000;
 
 const SESSION_FILE = /^([A-Za-z0-9-]+)\.json$/;
@@ -67,13 +69,6 @@ export function readStatusLines(
     }
     const file = path.join(dir, name);
     if (!live.has(match[1])) {
-      try {
-        if (nowMs - statSync(file).mtimeMs > GONE_MS) {
-          unlinkSync(file);
-        }
-      } catch {
-        /* gone already */
-      }
       continue;
     }
     let line: Record<string, unknown>;
@@ -104,4 +99,46 @@ export function readStatusLines(
     }
   }
   return { context, usage };
+}
+
+/**
+ * Removes the status line files of sessions that are gone and a day old: the sweep that used to ride on the board's read.
+ * `live` is asked only when some file is that old, so the usual run never looks at the sessions. Returns the removed names.
+ */
+export async function sweepStatusLines(
+  home: string,
+  live: () => Promise<Set<string>>,
+  nowMs: number,
+): Promise<string[]> {
+  const dir = path.join(home, 'statusline');
+  let names: string[];
+  try {
+    names = readdirSync(dir);
+  } catch {
+    return [];
+  }
+  const old: { name: string; session: string; file: string }[] = [];
+  for (const name of names) {
+    const match = SESSION_FILE.exec(name);
+    const file = path.join(dir, name);
+    try {
+      if (match && nowMs - statSync(file).mtimeMs > GONE_MS) {
+        old.push({ name, session: match[1], file });
+      }
+    } catch {
+      /* gone already */
+    }
+  }
+  if (!old.length) {
+    return [];
+  }
+  const alive = await live();
+  const removed: string[] = [];
+  for (const one of old) {
+    if (!alive.has(one.session)) {
+      removeFile(one.file);
+      removed.push(one.name);
+    }
+  }
+  return removed;
 }

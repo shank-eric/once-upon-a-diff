@@ -4,6 +4,8 @@
  * is each store's service's.
  */
 import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
+import path from 'node:path';
+import { ensureDir } from './files.ts';
 import { appendLine } from './lines.ts';
 
 /** The log's text, or '' when there is no file yet. */
@@ -13,6 +15,7 @@ export function readLogText(file: string): string {
 
 /** Appends one value as a line, starting a new line first when the file doesn't end with one. The file is the user's alone (0600). */
 export function appendLogLine(file: string, value: unknown): void {
+  ensureDir(path.dirname(file)); // the first event of a fresh home makes it (0700)
   appendLine(file, JSON.stringify(value), 0o600);
 }
 

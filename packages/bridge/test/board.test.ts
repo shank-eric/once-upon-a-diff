@@ -4588,6 +4588,8 @@ test('listeners on the board: a story’s listener marks its card, repos get a l
       last_seen: '2026-10-01T00:00:00Z',
     },
   });
+  // the repo listener's own heartbeat notes it (the board only reads the history)
+  noteListener(home, 'acme/widgets', 'repo-acme-widgets', NOW.getTime());
   writeJson(path.join(home, 'handed.json'), {
     q1: {
       consumer: 'repo-acme-widgets',
@@ -4650,7 +4652,7 @@ test('listeners on the board: a story’s listener marks its card, repos get a l
     widgets.active?.last_handled_at,
     new Date(NOW.getTime() - 5 * 60 * 1000).toISOString(),
   );
-  assert.ok(widgets.active?.since, 'the board noted when it began');
+  assert.ok(widgets.active?.since, 'the listener noted when it began');
   assert.equal(gadgetsRow.last_seen, new Date(NOW.getTime() - 2 * 24 * 3600 * 1000).toISOString());
   // Start listening offers an idle session in that repo whose tab is known
   assert.deepEqual(

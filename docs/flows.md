@@ -57,8 +57,8 @@ flowchart LR
 | 5 | `service` | `Builds.request` checks the repo and number | `packages/state/src/queues/requests/builds.ts:320` (`request({`) |
 | 6 | `service` | and changes `builds.json` in one locked step | `packages/state/src/queues/requests/builds.ts:337` (`this.queue.update(`) |
 | 7 | `service` | `RequestQueue.update` | `packages/state/src/queues/requests/queue.ts:114` (`update<T>(`) |
-| 8 | `adapter` | reads, changes and writes the file under its `O_EXCL` lock | `packages/adapters/src/stores/fs/lock.ts:104` (`export function updateJson`) |
-| 9 | `adapter` | the lock: `builds.json.lock`, taken over when its pid is gone or it's 10 s old | `packages/adapters/src/stores/fs/lock.ts:81` (`export function withLock`) |
+| 8 | `adapter` | reads, changes and writes the file under its `O_EXCL` lock | `packages/adapters/src/stores/fs/lock.ts:106` (`export function updateJson`) |
+| 9 | `adapter` | the lock: `builds.json.lock`, taken over when its pid is gone or it's 10 s old | `packages/adapters/src/stores/fs/lock.ts:82` (`export function withLock`) |
 | 10 | `adapter` | **writes `builds.json`** through a temp file and a rename | `packages/adapters/src/stores/fs/json-file.ts:92` (`export function writeJsonAtomic`) |
 | 11 | `app` | back: the route answers the request's state, and the tag shows Queued | `packages/server/src/routes/builds.ts:42` (`send(200, { state: build!.state`) |
 
@@ -67,12 +67,12 @@ flowchart LR
 | # | Layer | Hop | At |
 |---|---|---|---|
 | 12 | `app` | `once-upon wait --repo` (started by the once-upon-listen skill) enters the CLI | `packages/bridge/bin/once-upon.ts:13` (`main(process.argv.slice(2))`) |
-| 13 | `app` | the command table runs `wait` | `packages/cli/src/index.ts:109` (`entry.run(home, loadConfig(home), resolveLongText(opts))`) |
-| 14 | `service` | each loop asks for build requests to hand over | `packages/core/src/features/listeners/wait.ts:319` (`builds.toHand(consumer`) |
+| 13 | `app` | the command table runs `wait` | `packages/cli/src/index.ts:110` (`entry.run(`) |
+| 14 | `service` | each loop asks for build requests to hand over | `packages/core/src/features/listeners/wait.ts:315` (`builds.toHand(consumer`) |
 | 15 | `service` | `Builds.toHand` picks this wait's requests | `packages/state/src/queues/requests/builds.ts:276` (`toHand(`) |
 | 16 | `service` | and claims them in the same locked write, so no other wait gets them | `packages/state/src/queues/requests/queue.ts:201` (`take(consumer: string`) |
 | 17 | `app` | the wait returns the request, the CLI prints it and exits, which wakes the session | `packages/cli/src/commands/inbox.ts:84` (`of outcome.items`) |
-| 18 | `service` | with nothing to hand, it sleeps until the inbox file changes or 2 s pass | `packages/core/src/features/listeners/wait.ts:180` (`watch(file`) |
+| 18 | `service` | with nothing to hand, it sleeps until the inbox file changes or 2 s pass | `packages/core/src/features/listeners/wait.ts:179` (`watch(file`) |
 
 **The story is written and published**
 
@@ -145,14 +145,14 @@ flowchart LR
 | 3 | `contracts` | the route: `POST /api/stories/<id>/questions`, any key of the story's | `packages/contracts/src/story/routes.ts:49` (`questionAsk:`) |
 | 4 | `app` | the story route checks the body and appends the question | `packages/server/src/routes/questions.ts:66` (`app.inbox.append(`) |
 | 5 | `service` | `Inbox.append` gives it an id and a time | `packages/state/src/queues/requests/inbox.ts:109` (`append<E`) |
-| 6 | `adapter` | **appends a line to `inbox.jsonl`** | `packages/adapters/src/stores/fs/files.ts:24` (`export function appendText`) |
-| 7 | `service` | a running `wait` wakes on the file change and reads past its cursor | `packages/core/src/features/listeners/wait.ts:286` (`messages.unread(consumer, { advance: true })`) |
+| 6 | `adapter` | **appends a line to `inbox.jsonl`** | `packages/adapters/src/stores/fs/files.ts:28` (`export function appendText`) |
+| 7 | `service` | a running `wait` wakes on the file change and reads past its cursor | `packages/core/src/features/listeners/wait.ts:282` (`messages.unread(consumer, { advance: true })`) |
 | 8 | `service` | `unread` reads from the cursor's byte offset and **writes the cursor** (`cursors/<consumer>.json`) | `packages/state/src/queues/requests/inbox.ts:211` (`unread(`) |
-| 9 | `service` | which questions this wait takes | `packages/core/src/features/listeners/wait.ts:119` (`function questionsToTake(`) |
-| 10 | `service` | routing, and **writes `handed.json`** under `handed.json.lock`: a question another wait has is skipped, a story's own live listener beats a repo listener (which defers to it), and each question taken is marked as this wait's in the same locked write, so two waits can't both take it | `packages/state/src/queues/requests/conversation.ts:341` (`updateJson<Handed, void>(handedFile(home)`) |
+| 9 | `service` | which questions this wait takes | `packages/core/src/features/listeners/wait.ts:118` (`function questionsToTake(`) |
+| 10 | `service` | routing, and **writes `handed.json`** under `handed.json.lock`: a question another wait has is skipped, a story's own live listener beats a repo listener (which defers to it), and each question taken is marked as this wait's in the same locked write, so two waits can't both take it | `packages/state/src/queues/requests/conversation.ts:343` (`updateJson<Handed, void>(handedFile(home)`) |
 | 11 | `service` | a story built by an agent this session launched is relayed to that agent | `packages/state/src/records/listeners/binding.ts:175` (`export function relayBinding`) |
-| 12 | `service` | marks again under the lock once the relays are known: a relayed question is noted as `via` the agent, so `answer` credits the right session | `packages/state/src/queues/requests/conversation.ts:148` (`export function noteHanded`) |
-| 13 | `service` | **writes the `handling` beat** (`listeners/<consumer>.json`) | `packages/state/src/records/listeners/listeners.ts:65` (`export function beat(`) |
+| 12 | `service` | marks again under the lock once the relays are known: a relayed question is noted as `via` the agent, so `answer` credits the right session | `packages/state/src/queues/requests/conversation.ts:149` (`export function noteHanded`) |
+| 13 | `service` | **writes the `handling` beat** (`listeners/<consumer>.json`) | `packages/state/src/records/listeners/listeners.ts:68` (`export function beat(`) |
 | 14 | `app` | prints the question (with the relay message when it has one) and exits | `packages/cli/src/commands/inbox.ts:84` (`of outcome.items`) |
 | 15 | `outside` | the session answers in chat and runs `once-upon answer --question <id> --file …` |  |
 | 16 | `app` | `answer` **appends an `answer` line** to `inbox.jsonl` | `packages/cli/src/commands/inbox.ts:137` (`messages.append({`) |
@@ -265,7 +265,7 @@ flowchart LR
 
 | # | Layer | Hop | At |
 |---|---|---|---|
-| 1 | `app` | `once-upon agent start <name> --kind author --card <id> …` | `packages/cli/src/commands/agent.ts:131` (`registry.start(`) |
+| 1 | `app` | `once-upon agent start <name> --kind author --card <id> …` | `packages/cli/src/commands/agent.ts:133` (`registry.start(`) |
 | 2 | `service` | `AgentRegistry.start` checks the fields (the card exists and is open, one author at a time, a critic names its card, the card's repo and branch replace typed ones: ADR-25) and gives the run an id | `packages/state/src/records/agents/registry.ts:293` (`start(`) |
 | 3 | `adapter` | **appends a `start` event to `agents.jsonl`** | `packages/adapters/src/stores/agents-file.ts:12` (`export function appendAgentEvent`) |
 | 4 | `service` | and a log line to the ledger file through the adapter's `appendLine`, when `board_ledger_file` is set (a mirror for the status line, the iTerm hook and people; the board never reads it) | `packages/state/src/records/agents/registry.ts:179` (`appendLine(this.mirror.ledger`) |
@@ -279,7 +279,7 @@ flowchart LR
 | # | Layer | Hop | At |
 |---|---|---|---|
 | 9 | `outside` | the agent runs `beat.sh <name> N/M <step> "<note>"`, which writes the progress line and calls `once-upon agent beat … --no-mirror` |  |
-| 10 | `app` | `agent beat` | `packages/cli/src/commands/agent.ts:181` (`registry.beat(`) |
+| 10 | `app` | `agent beat` | `packages/cli/src/commands/agent.ts:183` (`registry.beat(`) |
 | 11 | `service` | **appends a `beat` event** | `packages/state/src/records/agents/registry.ts:453` (`beat(name: string`) |
 | 12 | `service` | the board reads both files on each build (flow 3, hops 13–14 and 20): the card its runs name sits in the column its runs say, with its agents on it (`claimViews`) | `packages/board/src/stages/agents.ts:111` (`export function claimViews(`) |
 | 13 | `service` | once the author finishes, the card waits for its critic before Ready to ship, and an open fix round keeps it Working (the table: `packages/state/src/queues/backlog/phase.ts:104` (`export function cardPhase(`)) | `packages/board/src/stages/backlog.ts:241` (`cardPhase(item, runsOf(item, agents), nowMs)`) |
@@ -288,7 +288,7 @@ flowchart LR
 
 | # | Layer | Hop | At |
 |---|---|---|---|
-| 14 | `app` | `once-upon agent finish <name> --state done --commit <sha> --branch <b> --card <id>` | `packages/cli/src/commands/agent.ts:189` (`registry.finish(`) |
+| 14 | `app` | `once-upon agent finish <name> --state done --commit <sha> --branch <b> --card <id>` | `packages/cli/src/commands/agent.ts:191` (`registry.finish(`) |
 | 15 | `service` | **appends a `finish` event** with the commit as its result | `packages/state/src/records/agents/registry.ts:472` (`finish(name: string`) |
 | 16 | `outside` | the main session deploys: `scripts/deploy-local.sh --yes <branch>` fast-forwards main and restarts the bridge |  |
 | 17 | `app` | after the deploy, the script runs `backlog land` over the range that went live | `scripts/deploy-local.sh:287` (`backlog land`) |

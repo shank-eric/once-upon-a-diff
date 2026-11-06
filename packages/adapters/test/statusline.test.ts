@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, utimesSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import '@once-upon-a-diff/test-kit/env';
 import { tmp } from '@once-upon-a-diff/test-kit/files';
-import { readStatusLines } from '../src/claude-sessions/statusline.ts';
+import { readStatusLines, sweepStatusLines } from '../src/claude-sessions/statusline.ts';
 
 const NOW = Date.parse('2026-10-28T18:00:00Z');
 const LIVE = '11111111-aaaa-bbbb-cccc-dddddddddddd';
@@ -35,7 +35,7 @@ test('each live session’s context, and the freshest usage', () => {
   });
 });
 
-test('no folder, a broken file, no limits or stale limits: no usage; a gone session’s old file is removed', () => {
+test('no folder, a broken file, no limits or stale limits: no usage; reading removes nothing', () => {
   assert.deepEqual(readStatusLines(tmp('statusline-none'), new Set([LIVE]), NOW), {
     context: new Map(),
     usage: null,
@@ -50,6 +50,38 @@ test('no folder, a broken file, no limits or stale limits: no usage; a gone sess
   const read = readStatusLines(home, new Set([LIVE, OTHER]), NOW);
   assert.deepEqual(Object.fromEntries(read.context), { [OTHER]: 20 });
   assert.equal(read.usage, null, 'six hours old is stale');
-  assert.equal(existsSync(gone), false, 'a gone session’s day-old file is removed');
-  assert.equal(existsSync(fresh), true, 'a gone session’s recent file stays a while');
+  assert.equal(existsSync(gone), true, 'a read leaves a gone session’s day-old file alone');
+  assert.equal(existsSync(fresh), true);
+});
+
+test('the sweep removes a gone session’s day-old file, and looks at the sessions only when one is that old', async () => {
+  const home = tmp('statusline-sweep');
+  const old = new Date(NOW - 2 * 86400 * 1000);
+  const goneFile = put(home, GONE, { at: NOW / 1000 - 3 * 86400, context: 5 });
+  utimesSync(goneFile, old, old);
+  const liveFile = put(home, LIVE, { at: NOW / 1000 - 3 * 86400, context: 5 });
+  utimesSync(liveFile, old, old);
+  const fresh = put(home, OTHER, { at: NOW / 1000, context: 5 });
+  utimesSync(fresh, new Date(NOW), new Date(NOW));
+  assert.deepEqual(await sweepStatusLines(home, async () => new Set([LIVE]), NOW), [
+    `${GONE}.json`,
+  ]);
+  assert.equal(existsSync(goneFile), false);
+  assert.equal(existsSync(liveFile), true, 'a live session’s old file stays');
+  assert.equal(existsSync(fresh), true, 'a recent file stays');
+  let asked = 0;
+  const none = await sweepStatusLines(
+    home,
+    async () => {
+      asked += 1;
+      return new Set<string>();
+    },
+    NOW - 2 * 86400 * 1000,
+  );
+  assert.deepEqual(none, []);
+  assert.equal(asked, 0, 'nothing a day old: the sessions are not looked at');
+  assert.deepEqual(
+    await sweepStatusLines(tmp('statusline-no-folder'), async () => new Set(), NOW),
+    [],
+  );
 });

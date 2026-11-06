@@ -19,6 +19,7 @@
  */
 import path from 'node:path';
 import { readJson, writeJsonAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
+import { ensureDir } from '@once-upon-a-diff/adapters/stores/fs/files';
 import { updateJson } from '@once-upon-a-diff/adapters/stores/fs/lock';
 import { stateFile, stateFileToWrite } from '@once-upon-a-diff/foundation/settings';
 import { STORY_ID_RE } from '@once-upon-a-diff/domain/patterns';
@@ -216,6 +217,7 @@ export const readAsking = (home: string): Asking => readJson<Asking>(askingFile(
 export function noteAsking(home: string, id: string, note: string, session: string | null): void {
   const asking = readAsking(home);
   asking[id] = { note: note.trim().slice(0, 200), at: new Date().toISOString(), by: session };
+  ensureDir(home);
   writeJsonAtomic(askingFile(home), asking);
 }
 

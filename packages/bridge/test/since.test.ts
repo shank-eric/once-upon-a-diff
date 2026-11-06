@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { readJson } from '@once-upon-a-diff/adapters/stores/fs/json-file';
 import { tmp, githubStory, startBridge, writeJson, runCli } from './helpers.ts';
 import { Builds, buildText } from '@once-upon-a-diff/state/queues/requests/builds';
 import { noteRead } from '@once-upon-a-diff/stories/reads';
@@ -85,7 +86,7 @@ test('an update asks for a "Since you read it" chapter from where the reading st
     );
     // display_name in config.json names the reviewer
     writeJson(path.join(home, 'config.json'), {
-      ...JSON.parse(readFileSync(path.join(home, 'config.json'), 'utf8')),
+      ...readJson<Record<string, unknown>>(path.join(home, 'config.json'), {}),
       display_name: 'Sam',
     });
     assert.match(

@@ -17,11 +17,7 @@ import type { Listener } from '@once-upon-a-diff/state/records/listeners/listene
 import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
 import type { SourceStatus } from '@once-upon-a-diff/adapters/status-source';
 import type { LiveSession } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
-import {
-  noteListener,
-  readHistory,
-  type History,
-} from '@once-upon-a-diff/state/records/listeners/history';
+import { readHistory, type History } from '@once-upon-a-diff/state/records/listeners/history';
 import { run } from '@once-upon-a-diff/adapters/os';
 import type {
   BoardListenerRepo,
@@ -205,9 +201,6 @@ export function storyListening(
 /** The Listeners lane: a row per repo with a live listener, then those that had one in the last week. */
 export function listenersLane(live: Listener[], input: LaneInput): BoardListenerRepo[] {
   const repoListeners = live.filter((listener) => listener.repo && !listener.story);
-  for (const listener of repoListeners) {
-    noteListener(input.home, listener.repo as string, listener.consumer, input.now);
-  }
   // a history entry written under a named typo of a repo (ids.ts) is read as that repo's: the newest of the two
   const history: History = {};
   for (const [key, entry] of Object.entries(readHistory(input.home, input.now))) {
