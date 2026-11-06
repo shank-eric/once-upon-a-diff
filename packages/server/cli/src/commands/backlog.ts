@@ -12,6 +12,7 @@ import { ownSession } from '@once-upon-a-diff/core/features/listeners/service';
 import { landItems, recordedTips } from '@once-upon-a-diff/state/queues/backlog/landing';
 import { implicitCards } from '@once-upon-a-diff/state/records/agents/implicit';
 import { implicitItems, liveImplicitIds } from '@once-upon-a-diff/state/queues/backlog/implicit';
+import { runIsOpen } from '@once-upon-a-diff/state/records/agents/events';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { out } from '../output.ts';
 import { warnTypedRepo } from '../typed-repo.ts';
@@ -27,6 +28,7 @@ const USAGE =
   '       once-upon backlog edit ID [--title TEXT] [--note TEXT | --note-file PATH | --note -] [--repo owner/name]\n' +
   '       once-upon backlog start ID [--branch NAME] [--repo owner/name] [--by NAME]\n' +
   '       once-upon backlog claim ID --agent NAME [--sid SID8] [--branch NAME] [--worktree PATH] [--repo owner/name] [--by NAME]\n' +
+  '       once-upon backlog branch ID NEW-BRANCH [--by NAME]\n' +
   '       once-upon backlog move ID --before ID | --top | --bottom\n' +
   '       once-upon backlog done ID [--sha SHA] [--by NAME]\n' +
   '       once-upon backlog land [PICKED_SHA...] --from REF --to REF [--by NAME] [--dry-run]\n' +
@@ -212,6 +214,34 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
       `${started.id} started on ${started.branch}: ${started.title}\n${claimHint(started.id)}`,
     );
   }
+  if (verb === 'branch') {
+    // the author renamed or switched its branch: the card's branch is what the board reads, and each open run of the card
+    // keeps its own copy, so both move. The card is written first, then the runs: after a crash, running it again finishes
+    const item = found();
+    const branch = words[1];
+    if (!branch) {
+      throw new Error('a new branch is needed: once-upon backlog branch ID NEW-BRANCH');
+    }
+    if (item.landed_at) {
+      throw new Error(`${item.id} is done: its work landed, so it has no branch to move`);
+    }
+    const registry = new AgentRegistry(home);
+    const open = registry.agents().filter((one) => one.card === item.id && runIsOpen(one));
+    let moved = 0;
+    if (item.branch !== branch) {
+      store.start(item.id, { branch, repo: item.repo, by: who });
+    }
+    for (const run of open) {
+      if (run.branch !== branch) {
+        registry.setBranch(run.name, branch, { sid: run.sid, run: run.run, by: who });
+        moved++;
+      }
+    }
+    if (item.branch === branch && !moved) {
+      return out(`${item.id} already on ${branch}`);
+    }
+    return out(`${item.id} branch ${item.branch ?? 'none'} -> ${branch} (runs: ${moved})`);
+  }
   if (verb === 'claim') {
     // the agent (named as the ledger names it) owns the card: the board links the two by this and nothing else. --branch
     // also starts the card on that branch, so it rides on the branch's work card
@@ -360,6 +390,7 @@ export const backlogCommands: Command[] = [
       'edit',
       'start',
       'claim',
+      'branch',
       'adopt',
       'move',
       'done',
@@ -380,6 +411,7 @@ export const backlogCommands: Command[] = [
       '  once-upon backlog someday ID [--off]                                             maybe someday: out of the main list into a collapsed Someday section (list --someday shows it)',
       '  once-upon backlog move ID --before ID | --top | --bottom                        reorder: new items go to the bottom',
       "  once-upon backlog start ID [--branch NAME]                                       work began: the card moves onto that branch's work card",
+      '  once-upon backlog branch ID NEW-BRANCH                                           the branch was renamed or switched: the card and its open runs move to it, so the board keeps its worktree and story',
       '  once-upon backlog claim ID --agent NAME [--sid SID8] [--branch NAME]            an agent takes the card: the board links card and agent only by this (--branch also starts it)',
       "                                                                                   it records the claimer's full session (the editor's, whose slots count its cards) and --worktree PATH, checked against git worktree list when given",
     ],

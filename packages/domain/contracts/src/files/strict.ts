@@ -125,6 +125,7 @@ const StrictAgentEvent = pipe(
       step: text,
       note: maybe(text),
     }),
+    looseObject({ ...agentCommon, op: literal('branch'), branch }),
     looseObject({ ...agentCommon, op: literal('finish'), state: picklist(END_STATES) }),
   ]),
   check((event) => event.id === agentId(event.sid8, event.name), 'id is not sid8:name'),

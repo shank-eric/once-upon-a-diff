@@ -14,7 +14,7 @@ import { isImplicitCard, sameRepo } from '@once-upon-a-diff/terms/ids';
 import { repoName } from '@once-upon-a-diff/terms/text';
 import { STALE_MS } from '../../records/agents/events.ts';
 import { isCritic, type LedgerAgent } from '../../records/agents/ledger.ts';
-import { OPEN, agentKey, claimedAgent } from './claims.ts';
+import { CLAIM_GRACE_HOURS, OPEN, agentKey, claimedAgent } from './claims.ts';
 import type { BacklogItem } from './types.ts';
 
 /** A started item whose work merged or landed, or whose agent finished, stays in Done this long. */
@@ -192,7 +192,8 @@ export function cardRunProblems(
     if (run.repo && item.repo && !sameRepo(run.repo, item.repo)) {
       problems.push(`${label} typed repo ${run.repo}, its card ${item.id} is on ${item.repo}`);
     }
-    if (run.branch && item.branch && run.branch !== item.branch) {
+    // only an open run follows a rename (`backlog branch` moves those): a finished run's branch is the one it worked on
+    if (OPEN.includes(run.state) && run.branch && item.branch && run.branch !== item.branch) {
       problems.push(
         `${label} typed branch ${run.branch}, its card ${item.id} is on ${item.branch}`,
       );
@@ -214,6 +215,32 @@ export function cardRunProblems(
     if (open.length > 1) {
       problems.push(
         `${item.id} has ${open.length} open author runs (${open.map(agentKey).join(', ')})`,
+      );
+    }
+  }
+  return problems;
+}
+
+/**
+ * The cards past the backlog that carry no branch, one line each, for `once-upon doctor`: the board joins a card to its
+ * worktree, PR and story by the card's branch, so a card an agent holds with none is joined to nothing. A started card
+ * always has one (a start names it), so this finds a card claimed for longer than CLAIM_GRACE_HOURS that is still open with
+ * none: an agent that took it and never registered a branch. An open, someday or landed card is exempt; so is a fresh
+ * claim, whose author has not made its branch yet.
+ */
+export function cardBranchProblems(items: BacklogItem[], nowMs: number): string[] {
+  const problems: string[] = [];
+  for (const item of items) {
+    if (item.state === 'dropped' || item.landed_at || item.someday || item.branch) {
+      continue;
+    }
+    const since = item.claim ? Date.parse(item.claim.at) : Number.NaN;
+    if (
+      item.state === 'started' ||
+      (item.claim && !Number.isNaN(since) && nowMs - since > CLAIM_GRACE_HOURS * 3600 * 1000)
+    ) {
+      problems.push(
+        `${item.id} has no branch (${item.state === 'started' ? 'started' : `claimed by ${item.claim?.agent}`}): backlog branch ${item.id} <branch>`,
       );
     }
   }

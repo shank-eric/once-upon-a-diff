@@ -90,11 +90,12 @@ export type AgentResult = Listed<InferOutput<typeof AgentResultSchema>>;
  *   {op:'start',  v, id, sid8, session, name, at, by, run, kind, standing, task, model, effort, repo, branch, tip, pr, cwd, card, lane, notes, slots}
  *   {op:'state',  ..., state: running|waiting|review|plan|fixing, outcome, findings, notes}
  *   {op:'beat',   ..., n, of, step, note}                 also the heartbeat: it counts as the agent's last sign of life
+ *   {op:'branch', ..., run, branch}                       the open run's branch moved (a rename): `backlog branch` writes it with the card's
  *   {op:'finish', ..., state: done|failed|stopped, outcome, result: {commit, pr, branch, card}, findings, notes}
  * `id` is `<sid8>:<name>`. `kind` is as stored: an old line may still say `builder` or `reviewer`, and a kind nobody knows reads as none.
  */
 export const AgentEventSchema = looseObject({
-  op: picklist(['start', 'state', 'beat', 'finish']),
+  op: picklist(['start', 'state', 'beat', 'branch', 'finish']),
   v: lenient(number()),
   id: string(),
   sid8: string(),

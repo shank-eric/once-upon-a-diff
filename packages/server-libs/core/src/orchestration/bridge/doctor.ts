@@ -14,7 +14,7 @@ import { listenerPid } from '@once-upon-a-diff/adapters/os';
 import { fetchHealth } from '@once-upon-a-diff/adapters/bridge-health';
 import { readExtensionSeen } from './bridge.ts';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
-import { cardRunProblems } from '@once-upon-a-diff/state/queues/backlog/phase';
+import { cardBranchProblems, cardRunProblems } from '@once-upon-a-diff/state/queues/backlog/phase';
 import { claimWorktreeProblems } from '@once-upon-a-diff/state/queues/backlog/claim-worktree';
 import { readAgents } from '@once-upon-a-diff/state/records/agents/read';
 import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
@@ -218,6 +218,7 @@ export async function doctor(
   const items = new BacklogStore(home).items();
   const problems = [
     ...cardRunProblems(items, readAgents(home).agents, Date.now()),
+    ...cardBranchProblems(items, Date.now()),
     ...claimWorktreeProblems(items),
   ];
   add(
@@ -225,7 +226,7 @@ export async function doctor(
     'Card runs',
     problems.length
       ? `${problems.length} to look at: ${firstFive(problems)}`
-      : 'every run names a card that holds',
+      : 'every run names a card that holds, and every claimed card has a branch',
   );
 
   // state folders and inbox entries each belong to a story: one in stories.json or with a story folder on disk

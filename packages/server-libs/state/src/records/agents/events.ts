@@ -7,6 +7,7 @@
  *   {op:'start',  v, id, sid8, session, name, at, by, run, kind, standing, task, model, effort, repo, branch, tip, pr, cwd, card, lane, notes}
  *   {op:'state',  ..., state: running|waiting|review|plan|fixing, outcome, findings, notes}
  *   {op:'beat',   ..., n, of, step, note}                 also the heartbeat: it counts as the agent's last sign of life
+ *   {op:'branch', ..., run, branch}                       the open run's branch moved (a rename)
  *   {op:'finish', ..., state: done|failed|stopped, outcome, result: {commit, pr, branch, card}, findings, notes}
  *
  * `id` is `<sid8>:<name>`: the launching session's first 8 characters and the agent's name (agentKey). A `start` begins a
@@ -110,7 +111,10 @@ export function foldAgentEvents(events: AgentEvent[]): LedgerAgent[] {
     if (!agent || !isOpen(agent) || (event.run && agent.run && event.run !== agent.run)) {
       continue;
     }
-    agent.lastEvent = when;
+    // a rename is not the agent working, so it is no sign of life
+    if (event.op !== 'branch') {
+      agent.lastEvent = when;
+    }
     if (event.op === 'beat') {
       agent.beat = {
         n: event.n ?? 0,
@@ -118,6 +122,11 @@ export function foldAgentEvents(events: AgentEvent[]): LedgerAgent[] {
         step: event.step ?? '',
         note: event.note ?? '',
       };
+      continue;
+    }
+    if (event.op === 'branch') {
+      // a rename moves the run's branch and nothing else: the run goes on, and `result` is what a finish recorded
+      agent.branch = event.branch ?? agent.branch;
       continue;
     }
     agent.notes = event.notes || agent.notes;

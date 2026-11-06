@@ -166,11 +166,16 @@ export function foldBacklog(text: string): BacklogItem[] {
       });
     } else if (found && found.state !== 'dropped' && event.op === 'start') {
       // (a start that landed after a drop, from a writer that read before it, doesn't bring the item back)
+      // a start on a card already started and not landed is the same work on another branch (`backlog branch`): who started
+      // it and when stand, as the board's elapsed time reads them
+      const sameWork = found.state === 'started' && !found.landed_at && !!found.started_at;
       found.state = 'started';
       found.branch = event.branch;
       found.repo = event.repo || found.repo;
-      found.started_at = when;
-      found.started_by = who;
+      if (!sameWork) {
+        found.started_at = when;
+        found.started_by = who;
+      }
       // a new start is new work: an earlier landing no longer speaks for it
       found.landed_at = null;
       found.landed_sha = null;

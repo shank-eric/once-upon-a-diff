@@ -175,7 +175,14 @@ export class AgentRegistry {
     );
     try {
       // an editor is not an agent: a `[running]` line that never closes would read as a running agent in the ledger
-      if (agent && this.mirror.ledger && event.op !== 'beat' && agent.kind !== 'editor') {
+      // (a branch move is not a line either: the ledger tells what a run did, and a rename is not one of those)
+      if (
+        agent &&
+        this.mirror.ledger &&
+        event.op !== 'beat' &&
+        event.op !== 'branch' &&
+        agent.kind !== 'editor'
+      ) {
         appendLine(this.mirror.ledger, ledgerLine(event, agent));
       }
       if (this.mirror.progress && event.op === 'beat') {
@@ -408,7 +415,7 @@ export class AgentRegistry {
       // a critic or a storyteller has to have work to read: a card with no branch has none
       if ((kind === 'critic' || input.role === 'storyteller') && !branch) {
         throw new Error(
-          `${cardId} has no branch, so there is nothing to ${kind === 'critic' ? 'review' : 'tell the story of'}: the card's author registers its branch first (backlog claim --branch, or agent start --branch)`,
+          `no branch on ${cardId}: backlog branch ${cardId} <branch>, or agent start ${name} --card ${cardId} --pr N`,
         );
       }
     }
@@ -502,6 +509,27 @@ export class AgentRegistry {
       );
       return false;
     }
+  }
+
+  /**
+   * Moves the open run to another branch (its author renamed or switched it): the run's own `branch` is what the agent
+   * registered, and the card's is what the board reads (ADR-25), so `backlog branch` calls this for each open run of the card.
+   * The same branch writes nothing. A run that is over is refused, like any event.
+   */
+  setBranch(name: string, branch: string, target: Target = {}): LedgerAgent {
+    const next = optional(branch, 'the branch', CARD_BRANCH_RE);
+    if (!next) {
+      throw new Error('a branch is needed');
+    }
+    const agent = this.open(name, target);
+    if (agent.branch === next) {
+      return agent;
+    }
+    return this.append({
+      ...this.base('branch', name, agent.sid, target),
+      run: agent.run ?? undefined,
+      branch: next,
+    });
   }
 
   /** Ends the run. Finishing a run that is already over is refused: a fix round is a new run (`agent start`). */

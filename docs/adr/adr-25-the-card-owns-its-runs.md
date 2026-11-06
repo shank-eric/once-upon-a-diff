@@ -44,7 +44,7 @@ Nothing in `agents.jsonl` or `backlog.jsonl` is rewritten. An old start row with
 
 At `agent start` with a card (the CLI turns these on by giving the registry a view of the backlog, `cardLookup`; a registry made without one only records, as before):
 
-- **Refused:** a card that does not exist, was dropped or has landed; a second author on a card (a different sid and name, running, at its plan check or fixing, and not stale; one parked at a question or a story review does not block; a restart of the same sid and name is a fix round and ends its earlier run); a critic with no card, and `--role critic|fixer|storyteller` with no card.
+- **Refused:** a card that does not exist, was dropped or has landed; a second author on a card (a different sid and name, running, at its plan check or fixing, and not stale; one parked at a question or a story review does not block; a restart of the same sid and name is a fix round and ends its earlier run); a critic with no card, and `--role critic|fixer` with no card (a storyteller may instead give `--pr N` or `--branch NAME`; ADR-27). `--pr N` with `--card` on a card with no branch stamps the card with the PR's head branch (read through gh) before the run starts.
 - **Refused at `agent finish`:** a carded critic's `--state done` without `--findings N` (0 is fine).
 - **Refused at `backlog claim`:** a `--repo` that differs from the card's, which used to rewrite it.
 - **Warned and ignored:** `--repo` or `--branch` that differs from the card's, and `--pr` and `--lane` on a run with a card. The card's values are written. When the card has no repo or branch yet, the typed one is kept for the registry's commit-made check (`made.ts`).
@@ -61,7 +61,7 @@ At `agent start` with a card (the CLI turns these on by giving the registry a vi
 
 ## Consequences
 
-- An author, critic or storyteller gives a card id and a role, and the repo, branch and lane flags are dead letters (warned now, refused at the flip).
+- An author, critic or storyteller gives a card id and a role, and the repo, branch and lane flags are dead letters (warned now, refused at the flip), except `--pr N` on a card with no branch, which gives the card its branch.
 - A landed card's runs no longer get a "Done, landed" agent card of their own for 30 minutes: the landed card sits in Done for an hour and shows them. A card whose runs a finished author's own card used to show in Ready for your review (the commit on a branch with no PR) is now the backlog card's column (row 6).
 - A critic must say how many findings it has.
 - The editor skill and the `agent start` line in Eric's global CLAUDE.md should say `--card ID --role R` and drop `--repo`, `--branch` and `--lane` for card work, and critics pass `--findings N`. Neither file is in this repo.
