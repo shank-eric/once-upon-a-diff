@@ -19,13 +19,14 @@ You need Node 24 or newer, the current LTS (`.nvmrc` says 24, so `fnm use` or `n
    ```bash
    yarn
    yarn build
-   node packages/bridge/bin/once-upon.mjs setup
+   scripts/install-cli.sh    # puts `once-upon` on your PATH (npm link on packages/bridge)
+   once-upon setup
    ```
 2. In Chrome, go to `chrome://extensions`, turn on **Developer mode**, click **Load unpacked** and pick `packages/extension/.output/chrome-mv3`, the folder `yarn build` makes. Its ID is always `faaibhigocihefldbmdgchcnnclalkmo` (the manifest carries a fixed key), so its saved settings survive a rebuild, a reload or a new checkout.
 3. The options page opens on install. If it doesn't, go to Details → Extension options. Paste the port and token, then click **Save** and **Test connection**.
 4. Start the bridge and leave it running, or skip this and let `/once-upon-listen` start it for you:
    ```bash
-   node packages/bridge/bin/once-upon.mjs serve    # or: yarn bridge
+   once-upon serve    # or: yarn bridge
    ```
 5. Install the `once-upon-listen` Claude Code skill by linking it into your skills folder. If `~/.claude/skills` is itself a link, `ln` puts it in the folder the link points at, which is what you want:
    ```bash
@@ -37,7 +38,7 @@ You need Node 24 or newer, the current LTS (`.nvmrc` says 24, so `fnm use` or `n
    ln -s "$PWD/skills/once-upon" ~/.claude/skills/once-upon
    ```
 
-An alias saves typing: `alias once-upon="node /path/to/once-upon-a-diff/packages/bridge/bin/once-upon.mjs"`. The rest of this README uses `once-upon`.
+`scripts/install-cli.sh` runs `npm link` on `packages/bridge`, whose `package.json` `bin` is `once-upon`, so the command works from any folder and survives moving packages inside the repo (re-run it if you move the checkout, switch Node versions or upgrade Node, since under fnm or nvm the link lives in one version's bin). It runs under the first `node` on your `PATH`, so keep a Node 24 as your default (`fnm default 24`). Without the link, `node packages/bridge/bin/once-upon.mjs` is the same command.
 
 ## Is it set up?
 

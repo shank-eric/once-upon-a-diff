@@ -21,7 +21,10 @@ git clone <repo url> once-upon-a-diff
 cd once-upon-a-diff
 yarn
 yarn build
+scripts/install-cli.sh
 ```
+
+`scripts/install-cli.sh` puts the `once-upon` command on your `PATH`, so the rest of this guide can type `once-upon` from any folder (see step 8).
 
 `yarn` installs the tools and links the repo's ten packages (`domain`, `contracts`, `bridge-client`, `ui-kit`, `github-page`, `panel`, `web`, `bridge`, `extension` and the dev-only `test-kit`). `yarn build` builds the extension into `packages/extension/.output/chrome-mv3`, the folder you load in step 5. The bridge needs no build: Node 24 runs it as it is.
 
@@ -32,7 +35,7 @@ The repo uses Yarn 4 and carries its own copy (`.yarn/releases`), which any `yar
 ### 3. Make the bridge's config
 
 ```bash
-node packages/bridge/bin/once-upon.mjs setup
+once-upon setup
 ```
 
 The first run creates `~/.once-upon/config.json` (mode 600) with a port, 4823 by default, and a random token. It prints both. You'll paste them into the extension in step 5.
@@ -47,7 +50,7 @@ To start it yourself instead:
 yarn bridge
 ```
 
-That's the same as `node packages/bridge/bin/once-upon.mjs serve`. Keep it in a terminal tab you leave open. Either way it listens on `127.0.0.1` only, and the repo has no login item or launch agent, so after a reboot it needs starting again (by you or the skill).
+That's the same as `once-upon serve`. Keep it in a terminal tab you leave open. Either way it listens on `127.0.0.1` only, and the repo has no login item or launch agent, so after a reboot it needs starting again (by you or the skill).
 
 ### 5. Load the extension
 
@@ -65,7 +68,7 @@ mkdir -p ~/.claude/skills
 ln -s "$PWD/skills/once-upon-listen" ~/.claude/skills/once-upon-listen
 ```
 
-It's a link, so a `git pull` updates the skill too. The skill finds the `once-upon` command through that link, so it doesn't need the alias in step 8. Start a new Claude Code session to pick it up.
+It's a link, so a `git pull` updates the skill too. The skill finds the `once-upon` command through that link, so it doesn't need step 8's link on your `PATH`. Start a new Claude Code session to pick it up.
 
 A listener reads PR text that anyone who can comment on a PR can write, so don't run it in bypass-permissions mode (`--dangerously-skip-permissions`). Add the deny list in the README's [Keep listener sessions on a short leash](../README.md#keep-listener-sessions-on-a-short-leash) to the checkout's `.claude/settings.local.json` or your `~/.claude/settings.json`, so `git push`, `gh` writes, `curl` and WebFetch are refused outright.
 
@@ -83,13 +86,9 @@ It finds this repo through the link, so the checkout can live anywhere.
 
 What works without once-upon: local mode (step 10, which makes its own starting chapters), the panel and its Ask box on any story you have, and the listener answering questions. What doesn't: Build story on a PR, and a story's update after new commits.
 
-### 8. Add the `once-upon` alias (optional)
+### 8. The `once-upon` command
 
-```bash
-alias once-upon="node /path/to/once-upon-a-diff/packages/bridge/bin/once-upon.mjs"
-```
-
-Put it in your shell profile. The rest of this guide uses `once-upon`. Run it with no arguments to see every command.
+`scripts/install-cli.sh` (run in step 2) runs `npm link` on `packages/bridge`, whose `package.json` `bin` is `once-upon`. The command works from any folder and survives moving packages inside the repo. Re-run the script if you move the checkout itself, switch Node versions or upgrade Node, since under fnm or nvm the link lives in one version's bin. It runs under the first `node` on your `PATH`, so keep a Node 24 as your default (`fnm default 24`). Run `once-upon` with no arguments to see every command. Without the link, `node packages/bridge/bin/once-upon.mjs` is the same command.
 
 ## Using it
 
