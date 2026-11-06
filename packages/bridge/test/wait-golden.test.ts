@@ -6,13 +6,16 @@ import { fileURLToPath } from 'node:url';
 import {
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readFileSync,
   readdirSync,
   realpathSync,
   rmSync,
   statSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { tmp, githubStory, writeJson, TOKEN, CLAUDE_DIR } from './helpers.ts';
 import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
 import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
@@ -39,6 +42,11 @@ const ASKED_AT = '2026-11-05T15:00:00.000Z';
 // when a story's agent binding is written: a binding is fresh for 24 h (BINDING_FRESH_MS) by the real clock, so it is made
 // now, not at ASKED_AT (which a fixed date left stale a day after it, and the relay stopped). The text shows it as ASKED_AT.
 const BOUND_AT = Date.now();
+// the CLI's PATH: a folder holding only `node`, so `once-upon` is off PATH even where it is linked into the node's own bin
+// (scripts/install-cli.sh), and the commands print as `<NODE> <BIN>` on every machine
+const NODE_ONLY = mkdtempSync(path.join(tmpdir(), 'wait-golden-path-'));
+symlinkSync(process.execPath, path.join(NODE_ONLY, 'node'));
+process.on('exit', () => rmSync(NODE_ONLY, { recursive: true, force: true }));
 const BOUND_ISO = new Date(BOUND_AT).toISOString();
 
 interface Run {
@@ -67,7 +75,7 @@ function cli(
         ...clean,
         ONCE_UPON_HOME: home,
         TZ: 'UTC',
-        PATH: `${path.dirname(process.execPath)}:/usr/bin:/bin`,
+        PATH: `${NODE_ONLY}:/usr/bin:/bin`,
         ...env,
       },
     });
