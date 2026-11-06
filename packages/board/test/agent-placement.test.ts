@@ -256,6 +256,12 @@ test('an agent’s lane is its tag, else its registered repo’s lane, else its 
   assert.equal(lane({ lane: 'Acme/Widgets' }), 'acme/widgets', 'a whole key, any case');
   assert.equal(lane({ repo: 'acme/larmor', cwd: '/x/larmor-worktrees/y' }), 'acme/larmor');
   assert.equal(lane({ repo: 'acme/larmor', lane: 'tagged' }), 'tagged');
+  // Eric, 11/6: shank-eric/larmor is a typo of naveenvasou/larmor, so a run typed with it sits on the naveenvasou lane
+  assert.equal(
+    lane({ repo: 'shank-eric/larmor', cwd: '/x/larmor' }),
+    'naveenvasou/larmor',
+    'a named typo reads as its repo',
+  );
   assert.equal(lane({}), 'acme/parent', 'the task names widgets and a worktree, and is ignored');
   assert.equal(lane({ cwd: '/x/y' }), 'acme/parent', 'a cwd alone is not a lane');
   assert.equal(lane({}, 'deadbeef'), NO_PARENT);

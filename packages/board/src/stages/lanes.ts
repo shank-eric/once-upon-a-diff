@@ -1,4 +1,5 @@
 import type { BoardCard } from '@once-upon-a-diff/contracts/types';
+import { canonicalRepo, repoKey } from '@once-upon-a-diff/domain/ids';
 import { laneLabels } from '@once-upon-a-diff/domain/lane-key';
 import path from 'node:path';
 
@@ -12,7 +13,7 @@ export function groupLanes(
 ): { key: string; name: string; cards: BoardCard[] }[] {
   const lanes = new Map<string, { key: string; name: string; cards: BoardCard[] }>();
   for (const card of cards) {
-    const id = card.lane.toLowerCase();
+    const id = repoKey(card.lane);
     const lane = lanes.get(id) || {
       key: card.lane,
       name: labels.get(card.lane) ?? card.lane,
@@ -26,5 +27,5 @@ export function groupLanes(
 
 /** A lane's key for a folder, given the GitHub repo its origin points at (null when unknown): the repo's owner/name, else the folder's own name. */
 export function laneOf(cwd: string, repo: string | null): string {
-  return repo ?? (path.basename(cwd) || cwd);
+  return canonicalRepo(repo) ?? (path.basename(cwd) || cwd);
 }

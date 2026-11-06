@@ -14,6 +14,8 @@ import {
   prKeyPrefix,
   prWorkKey,
   repoKey,
+  canonicalRepo,
+  repoAlias,
   repoListenerName,
   sameRepo,
   slug,
@@ -51,6 +53,22 @@ test('sameRepo ignores case and is false when either side is empty', () => {
   assert.ok(!sameRepo('EverFi/Forge', 'everfi/furnace'));
   assert.ok(!sameRepo('', ''));
   assert.ok(!sameRepo(null, 'a/b'));
+});
+
+test('a named typo of a repo reads as that repo, and nothing else is aliased', () => {
+  // Eric, 11/6: shank-eric/larmor is a typo of naveenvasou/larmor, for now
+  assert.equal(repoKey('shank-eric/larmor'), 'naveenvasou/larmor');
+  assert.equal(repoKey('Shank-Eric/Larmor'), 'naveenvasou/larmor');
+  assert.ok(sameRepo('shank-eric/larmor', 'NaveenVasou/Larmor'));
+  assert.equal(canonicalRepo('shank-eric/larmor'), 'naveenvasou/larmor');
+  assert.equal(
+    canonicalRepo('Acme/Widgets'),
+    'Acme/Widgets',
+    'a repo that is no typo keeps its spelling',
+  );
+  assert.equal(canonicalRepo(null), null);
+  assert.equal(repoAlias('shank-eric/once-upon-a-diff'), null);
+  assert.ok(!sameRepo('shank-eric/larmor', 'shank-eric/other'));
 });
 
 test('prKey is the repo and number, lower-cased', () => {

@@ -39,6 +39,7 @@ import {
   SESSION_RE,
   SID_RE,
 } from '@once-upon-a-diff/domain/patterns';
+import { canonicalRepo } from '@once-upon-a-diff/domain/ids';
 import { readBacklogEvent } from '@once-upon-a-diff/contracts/files/schemas';
 import { strictBacklogEvent } from '@once-upon-a-diff/contracts/files/strict';
 import { checkWrite } from '@once-upon-a-diff/foundation/shared-files';
@@ -629,7 +630,7 @@ function agentColumn(
     : { column: 'done', when, tried: false };
 }
 
-const lane = (repo: string | null) => repo ?? 'General';
+const lane = (repo: string | null) => canonicalRepo(repo) ?? 'General';
 
 /** A live session that is on no card (the voice session, or one only listening): what a started item can sit on. */
 export interface CardlessSession {

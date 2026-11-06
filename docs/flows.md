@@ -270,7 +270,7 @@ flowchart LR
 | 3 | `adapter` | **appends a `start` event to `agents.jsonl`** | `packages/adapters/src/stores/agents-file.ts:12` (`export function appendAgentEvent`) |
 | 4 | `service` | and a log line to the ledger file through the adapter's `appendLine`, when `board_ledger_file` is set (a mirror for the status line, the iTerm hook and people; the board never reads it) | `packages/state/src/records/agents/registry.ts:174` (`appendLine(this.mirror.ledger`) |
 | 5 | `app` | `once-upon backlog claim <id> --agent <name> --branch <b>` | `packages/cli/src/commands/backlog.ts:186` (`store.claim(item.id`) |
-| 6 | `service` | `BacklogStore.claim` refuses a dropped card | `packages/state/src/queues/backlog/backlog.ts:344` (`claim(`) |
+| 6 | `service` | `BacklogStore.claim` refuses a dropped card | `packages/state/src/queues/backlog/backlog.ts:345` (`claim(`) |
 | 7 | `adapter` | **appends a `claim` event to `backlog.jsonl`** | `packages/adapters/src/stores/backlog-file.ts:12` (`export function appendBacklogEvent`) |
 | 8 | `app` | `--branch` also starts the card on that branch | `packages/cli/src/commands/backlog.ts:195` (`store.start(item.id`) |
 
@@ -297,6 +297,6 @@ flowchart LR
 | 20 | `service` | which cards' commits went live: the recorded tip itself is in the range; or a commit with its patch id is (a rebase or a clean pick); or, for a batch deploy's picked sha whose patch changed, the commit with the tip's author stamp (`packages/state/src/queues/backlog/landing.ts:117` (`const pickOf`)) | `packages/state/src/queues/backlog/landing.ts:93` (`export function landItems(`) |
 | 21 | `adapter` | `git rev-list` over the range | `packages/adapters/src/git.ts:290` (`export function commitsInRange(`) |
 | 22 | `app` | each matched card is marked done at its sha | `packages/cli/src/commands/backlog.ts:247` (`store.done(item.id, { sha`) |
-| 23 | `service` | **appends a `done` event** to `backlog.jsonl` | `packages/state/src/queues/backlog/backlog.ts:459` (`done(id: string`) |
+| 23 | `service` | **appends a `done` event** to `backlog.jsonl` | `packages/state/src/queues/backlog/backlog.ts:460` (`done(id: string`) |
 
 A card the script couldn't match is printed, to close by hand with `once-upon backlog done <id> --sha <sha>`. A card held with `backlog hold` is never marked by a deploy.

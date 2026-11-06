@@ -10,7 +10,7 @@ import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { REPO_RE } from '@once-upon-a-diff/domain/patterns';
-import { repoKey, repoProblem, sameRepo } from '@once-upon-a-diff/domain/ids';
+import { canonicalRepo, repoKey, repoProblem, sameRepo } from '@once-upon-a-diff/domain/ids';
 import { readSettings } from './settings.ts';
 import { runGitAsync, remoteUrl, topLevel, branchName } from '@once-upon-a-diff/adapters/git';
 import { readJson, writeJsonAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
@@ -236,7 +236,7 @@ export function knownRepos(
   const onCards = new Map<string, { repo: string; cards: number }>();
   for (const repo of cardRepos) {
     if (repo) {
-      const seen = onCards.get(repoKey(repo)) ?? { repo, cards: 0 };
+      const seen = onCards.get(repoKey(repo)) ?? { repo: canonicalRepo(repo), cards: 0 };
       seen.cards++;
       onCards.set(repoKey(repo), seen);
     }

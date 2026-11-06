@@ -19,7 +19,7 @@
  *
  * `judge` is the one place that decides whether a worktree may be cleaned up; the board and the cleanup endpoint share it.
  */
-import { agentId } from '@once-upon-a-diff/domain/ids';
+import { agentId, canonicalRepo } from '@once-upon-a-diff/domain/ids';
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -971,7 +971,7 @@ export function judge(facts: WorktreeFacts, context: JudgeContext): BoardWorktre
     path: facts.path,
     name: path.basename(facts.path),
     repo: facts.repo,
-    lane: facts.repo ?? path.basename(facts.main),
+    lane: canonicalRepo(facts.repo) ?? path.basename(facts.main),
     main: facts.main,
     branch: facts.branch,
     last_commit_at: facts.lastCommitMs ? new Date(facts.lastCommitMs).toISOString() : null,

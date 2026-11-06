@@ -125,6 +125,19 @@ test('two owners of one name are an info line, never a warning, and the exit cod
   assert.equal((all.at(-1) ?? '').includes('1 failing'), true);
 });
 
+test('a named typo of a repo is a warning even when no store vouches for either owner, and is no second owner', async () => {
+  const home = world();
+  const store = new BacklogStore(home);
+  store.add({ title: 'right', repo: 'naveenvasou/larmor' });
+  store.add({ title: 'wrong', repo: 'shank-eric/larmor' });
+  const { lines: all } = await lines(home);
+  const found = line(all, 'Repos');
+  assert.match(found, /^WARN/);
+  assert.match(found, /shank-eric\/larmor.*looks like naveenvasou\/larmor/);
+  assert.doesNotMatch(found, /^WARN.*naveenvasou\/larmor \(/);
+  assert.doesNotMatch(all.join('\n'), /Repo owners: larmor/);
+});
+
 test('doctor writes nothing: no file, folder, mode or time changes in the home', async () => {
   const home = world();
   // mkdtemp makes it 0700, which is what a chmod by `new Inbox(home)` would set: start apart from it so one would show

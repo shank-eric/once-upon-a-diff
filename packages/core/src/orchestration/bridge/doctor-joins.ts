@@ -3,7 +3,7 @@
  * touches a file, and nothing is fixed): a state folder that matches no story, an inbox story that is no story, and a repo on
  * a card or a cardless run that looks like a typo of a repo the machine otherwise knows. Keys are the id module's.
  */
-import { repoKey } from '@once-upon-a-diff/domain/ids';
+import { canonicalRepo, repoAlias, repoKey } from '@once-upon-a-diff/domain/ids';
 
 /** A state/ folder and how many files it holds. */
 export interface StateFolder {
@@ -97,12 +97,13 @@ export function repoProblems(
   const known = new Map<string, string>();
   for (const repo of anchored) {
     if (!known.has(repoKey(repo))) {
-      known.set(repoKey(repo), repo);
+      known.set(repoKey(repo), canonicalRepo(repo));
     }
   }
   const groups = new Map<string, { repo: string; uses: RepoUse[] }>();
   for (const use of uses) {
-    const key = repoKey(use.repo);
+    // grouped as spelled (lower-cased): a named typo reads as the repo it is a typo of everywhere else, but doctor flags it
+    const key = use.repo.toLowerCase();
     if (key) {
       const group = groups.get(key) ?? { repo: use.repo, uses: [] };
       group.uses.push(use);
@@ -122,6 +123,13 @@ export function repoProblems(
   const suspects: string[] = [];
   const settled: { repo: string; uses: RepoUse[]; key: string }[] = [];
   for (const [key, group] of groups) {
+    const typoOf = repoAlias(key);
+    if (typoOf) {
+      suspects.push(
+        `${group.repo} (${some(group.uses.map((use) => `${use.kind} ${use.label}`))}) looks like ${typoOf}`,
+      );
+      continue;
+    }
     if (known.has(key)) {
       settled.push({ ...group, key });
       continue;

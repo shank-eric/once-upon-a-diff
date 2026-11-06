@@ -1,4 +1,5 @@
 /** The strips around the columns: the pinned voice session above them, and the Blank sessions strip in the Idle lane. */
+import { repoKey } from '@once-upon-a-diff/domain/ids';
 import { voiceStatus } from '../voice.ts';
 import type { readVoice } from '@once-upon-a-diff/adapters/larmor';
 import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
@@ -47,7 +48,7 @@ export function blankStrip(
 ): BoardData['blank'] {
   const groups = new Map<string, BoardData['blank'][number]>();
   for (const { lane, view } of views) {
-    const group = groups.get(lane.toLowerCase()) || {
+    const group = groups.get(repoKey(lane)) || {
       key: lane,
       name: labels.get(lane) ?? lane,
       sessions: [],
@@ -58,7 +59,7 @@ export function blankStrip(
       can_focus: view.focus,
       since: view.since,
     });
-    groups.set(lane.toLowerCase(), group);
+    groups.set(repoKey(lane), group);
   }
   return [...groups.values()]
     .map((group) => ({

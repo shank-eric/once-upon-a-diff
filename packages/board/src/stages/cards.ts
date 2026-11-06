@@ -1,5 +1,5 @@
 /** The cards: a session that is not on a branch of its own, a work (PR or branch), and where each sits in the columns. */
-import { branchKey } from '@once-upon-a-diff/domain/ids';
+import { branchKey, canonicalRepo } from '@once-upon-a-diff/domain/ids';
 import { isAutoDone } from '@once-upon-a-diff/core/features/review/story-lists';
 import { requestFor } from '@once-upon-a-diff/state/queues/requests/progress';
 import { columnOf } from '../columns.ts';
@@ -187,7 +187,7 @@ export function workCard(ctx: BuildContext, facts: CardFacts, work: Work): Board
   }
   const sessions = work.sessions.map((view) => view.card);
   const repo = work.repo;
-  const lane = repo ?? NO_PARENT;
+  const lane = canonicalRepo(repo) ?? NO_PARENT;
   return {
     id: work.key,
     kind: 'work',

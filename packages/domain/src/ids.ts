@@ -9,16 +9,35 @@
  * repo) and the minting of a fresh id (foundation/ids.ts, it needs random bytes).
  */
 
-/** A repo as a lookup key: lower-cased, since GitHub's owner and repo names compare without case. Null reads as none (''). */
-export const repoKey = (repo: string | null | undefined): string => (repo ?? '').toLowerCase();
+/**
+ * Repo keys that are a typo of another repo, by lower-cased key, and the repo each reads as. Only the reading changes: a row
+ * on disk keeps the spelling it was written with, and `once-upon doctor` still warns on it. Eric, 11/6: `shank-eric/larmor`
+ * is a typo of `naveenvasou/larmor`, "let's use the naveenvasou name for now". Keep this to what he has named.
+ */
+const REPO_ALIASES = new Map<string, string>([['shank-eric/larmor', 'naveenvasou/larmor']]);
+
+/** The repo a typo reads as (lower-case), or null when `repo` is not a named typo. */
+export const repoAlias = (repo: string | null | undefined): string | null =>
+  REPO_ALIASES.get((repo ?? '').toLowerCase()) ?? null;
+
+/** The repo as the board and the cards name it: the repo it reads as when it is a named typo, else as given. */
+export const canonicalRepo = <T extends string | null | undefined>(repo: T): T =>
+  (repoAlias(repo) as T | null) ?? repo;
+
+/**
+ * A repo as a lookup key: lower-cased, since GitHub's owner and repo names compare without case, and a named typo reads as
+ * the repo it is a typo of. Null reads as none ('').
+ */
+export const repoKey = (repo: string | null | undefined): string =>
+  repoAlias(repo) ?? (repo ?? '').toLowerCase();
 
 /** Whether two repos (owner/name) are the same one. False when either is empty. */
 export const sameRepo = (first: unknown, second: unknown): boolean =>
-  !!first && !!second && String(first).toLowerCase() === String(second).toLowerCase();
+  !!first && !!second && repoKey(String(first)) === repoKey(String(second));
 
 /** The PR key stories and drafts are stored under and the builds file is keyed by: "owner/repo#12", lower-cased. */
 export const prKey = (repo: string, number: number | string): string =>
-  `${repo}#${number}`.toLowerCase();
+  `${canonicalRepo(repo)}#${number}`.toLowerCase();
 
 /** A branch of a repo, as a lookup key: the repo lower-cased, the branch as it is. */
 export const branchKey = (repo: string | null | undefined, branch: string): string =>
@@ -30,7 +49,7 @@ export const branchKeyPrefix = (repo: string | null | undefined): string => `${r
 
 /** What the board's works are keyed by: a PR, a local story and a branch with no PR. */
 export const prWorkKey = (repo: string, number: number | string): string =>
-  `pr:${repo.toLowerCase()}#${number}`;
+  `pr:${repoKey(repo)}#${number}`;
 export const storyWorkKey = (id: string): string => `story:${id}`;
 export const branchWorkKey = (repo: string, branch: string): string =>
   `branch:${branchKey(repo, branch)}`;
@@ -55,15 +74,15 @@ export const storyIdForPr = (repo: string, number: number | string): string =>
 
 /** The folder under state/ that holds a PR's per-PR files (what has been read, the drafts), lower-cased: "pr-owner-repo-12". */
 export const stateKeyForPr = (repo: string, number: number | string): string =>
-  `pr-${repo.replace('/', '-')}-${number}`.toLowerCase();
+  `pr-${canonicalRepo(repo).replace('/', '-')}-${number}`.toLowerCase();
 
 /** The name of a repo's listener (a cursor and a listener file, `repo-owner-name`), as `once-upon wait --repo` gives it. */
 export const repoListenerName = (repo: string): string =>
-  `repo-${String(repo).toLowerCase().replace('/', '-')}`;
+  `repo-${String(canonicalRepo(repo)).toLowerCase().replace('/', '-')}`;
 
 /** The name of a repo's parts file under parts/, `owner-name.json`. */
 export const partsFileName = (repo: string): string =>
-  `${repo.toLowerCase().replace(/\//g, '-')}.json`;
+  `${canonicalRepo(repo).toLowerCase().replace(/\//g, '-')}.json`;
 
 /** The PR a story id, `owner/name#N` or a PR URL names: {repo, number} with both as typed, else null. */
 export function parsePrRef(text: string): { repo: string; number: string } | null {
@@ -97,6 +116,11 @@ export function repoProblem(
     return null;
   }
   const all = [...known];
+  // a named typo reads as its repo everywhere, but a repo someone typed that way is still asked about
+  const typo = repoAlias(repo);
+  if (typo) {
+    return `repo ${repo} is on none of the repos this machine works in; did you mean ${typo}?`;
+  }
   if (all.some((one) => sameRepo(one, repo))) {
     return null;
   }
@@ -104,7 +128,7 @@ export function repoProblem(
   const alike = new Map<string, string>();
   for (const one of all) {
     if (one.slice(one.indexOf('/') + 1).toLowerCase() === name && !alike.has(repoKey(one))) {
-      alike.set(repoKey(one), one);
+      alike.set(repoKey(one), canonicalRepo(one));
     }
   }
   return alike.size

@@ -8,7 +8,7 @@
  * The lane reads only what `LaneInput` names, so the board's own ListeningInput (features/sessions/listening.ts) is passed as
  * it is, with `candidatesFor` added, and neither folder imports the other.
  */
-import { repoKey } from '@once-upon-a-diff/domain/ids';
+import { canonicalRepo, repoKey } from '@once-upon-a-diff/domain/ids';
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
 import { readFixes } from '@once-upon-a-diff/state/queues/requests/fixes';
 import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
@@ -17,7 +17,11 @@ import type { Listener } from '@once-upon-a-diff/state/records/listeners/listene
 import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
 import type { SourceStatus } from '@once-upon-a-diff/adapters/status-source';
 import type { LiveSession } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
-import { noteListener, readHistory } from '@once-upon-a-diff/state/records/listeners/history';
+import {
+  noteListener,
+  readHistory,
+  type History,
+} from '@once-upon-a-diff/state/records/listeners/history';
 import { run } from '@once-upon-a-diff/adapters/os';
 import type {
   BoardListenerRepo,
@@ -204,10 +208,17 @@ export function listenersLane(live: Listener[], input: LaneInput): BoardListener
   for (const listener of repoListeners) {
     noteListener(input.home, listener.repo as string, listener.consumer, input.now);
   }
-  const history = readHistory(input.home, input.now);
+  // a history entry written under a named typo of a repo (ids.ts) is read as that repo's: the newest of the two
+  const history: History = {};
+  for (const [key, entry] of Object.entries(readHistory(input.home, input.now))) {
+    const same = history[repoKey(key)];
+    if (!same || Date.parse(same.last_seen) < Date.parse(entry.last_seen)) {
+      history[repoKey(key)] = { ...entry, repo: canonicalRepo(entry.repo) };
+    }
+  }
   const repos = new Map<string, string>();
   for (const listener of repoListeners) {
-    repos.set(repoKey(listener.repo), listener.repo as string);
+    repos.set(repoKey(listener.repo), canonicalRepo(listener.repo as string));
   }
   for (const [key, entry] of Object.entries(history)) {
     repos.set(key, repos.get(key) ?? entry.repo);
