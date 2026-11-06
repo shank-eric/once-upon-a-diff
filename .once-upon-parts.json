@@ -166,9 +166,10 @@
       "name": "Skills",
       "group": "Repo",
       "paths": [
-        "skills/"
+        "skills/",
+        "agents/"
       ],
-      "note": "The once-upon, once-upon-listen and once-upon-editor skills"
+      "note": "The once-upon, once-upon-listen and once-upon-editor skills, and the agent types the editor launches"
     },
     {
       "id": "scripts-docs",

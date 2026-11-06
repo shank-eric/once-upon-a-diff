@@ -2,12 +2,17 @@
 # Puts the `once-upon` command on your PATH from this checkout: `npm link` on packages/server/bridge,
 # whose package.json `bin` names bin/once-upon.mjs. The link points into the checkout at that folder, so moving
 # the bridge package (it moved to packages/server/bridge when the packages were regrouped) or the checkout itself needs a re-run.
-# It then links the skills (scripts/link-skills.sh; `--no-skills` skips that).
+# It then links the skills (scripts/link-skills.sh; `--no-skills` skips that) and the agent definitions
+# (scripts/link-agents.sh; `--no-agents` skips that).
 # Others who don't clone can use `npx`/`npm i -g` once the package is published.
 set -euo pipefail
 
 skills=1
-[ "${1:-}" = "--no-skills" ] && skills=""
+agents=1
+for arg in "$@"; do
+  [ "$arg" = "--no-skills" ] && skills=""
+  [ "$arg" = "--no-agents" ] && agents=""
+done
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -33,5 +38,8 @@ echo "To remove it: npm unlink -g once-upon-a-diff"
 
 if [ -n "$skills" ]; then
   "$root/scripts/link-skills.sh"
+fi
+if [ -n "$agents" ]; then
+  "$root/scripts/link-agents.sh"
 fi
 echo "Agents post progress with once-upon beat and take turns on heavy runs with once-upon heavy (see the README's \"Running a build queue\")."

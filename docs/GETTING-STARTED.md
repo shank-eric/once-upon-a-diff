@@ -73,7 +73,7 @@ A listener reads PR text that anyone who can comment on a PR can write, so don't
 
 ### 7. Install the once-upon skill
 
-Building a story for a PR needs a second skill, **once-upon**, which also ships in `skills/`. The listener hands every Build story request to it, and its `build` step is what publishes the story where the bridge finds it. The same `scripts/link-skills.sh` linked it, and a third skill, `once-upon-editor`, which runs a repo's build queue (see the README's "Running a build queue").
+Building a story for a PR needs a second skill, **once-upon**, which also ships in `skills/`. The listener hands every Build story request to it, and its `build` step is what publishes the story where the bridge finds it. The same `scripts/link-skills.sh` linked it, and a third skill, `once-upon-editor`, which runs a repo's build queue (see the README's "Running a build queue"). The editor's lean agent types ship in `agents/`; `scripts/install-cli.sh` linked them too, and `scripts/link-agents.sh` does it again, one file at a time into `~/.claude/agents`. Start a new Claude Code session if that folder was new.
 
 It finds this repo through the link, so the checkout can live anywhere.
 

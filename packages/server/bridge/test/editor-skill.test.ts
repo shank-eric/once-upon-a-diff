@@ -48,6 +48,7 @@ test('the README and AGENTS.md name the link script, beats, the heavy lock and t
   const readme = read('README.md');
   for (const name of [
     'scripts/link-skills.sh',
+    'scripts/link-agents.sh',
     'once-upon beat',
     'once-upon heavy',
     'once-upon-editor',
@@ -63,4 +64,29 @@ test('the README and AGENTS.md name the link script, beats, the heavy lock and t
   // every skill in skills/ is one link-skills.sh links, because it links the folder's contents
   assert.match(read('scripts/link-skills.sh'), /skills\/\*\//);
   assert.match(read('scripts/install-cli.sh'), /link-skills\.sh/);
+  assert.match(read('scripts/install-cli.sh'), /link-agents\.sh/);
+  assert.match(read('scripts/install-cli.sh'), /--no-agents/);
+  assert.match(read('scripts/link-agents.sh'), /agents\/\*\.md/);
+});
+
+test('the editor skill launches each role by its type and keeps the general-purpose fallback and the per-call effort', () => {
+  const text = readFileSync(path.join(SKILL, 'SKILL.md'), 'utf8');
+  assert.match(text, /`general-purpose`/);
+  assert.match(text, /Pass effort on every Agent call/);
+  assert.match(text, /`scripts\/link-agents\.sh`/);
+  assert.match(text, /`once-upon-author` \(authors and fixers\)/);
+  assert.match(text, /`once-upon-helper` agent \(effort medium\)/);
+  assert.doesNotMatch(text, /`lookup`|`backlog-clerk`|`research`/);
+});
+
+test('the lean-types bullet sends a relaying role and a self-telling author to general-purpose', () => {
+  const text = readFileSync(path.join(SKILL, 'SKILL.md'), 'utf8');
+  assert.match(
+    text,
+    /relay session is on, a role whose brief carries the forwarding line launches as `general-purpose` at the same effort, because the lean types have no SendMessage/,
+  );
+  assert.match(
+    text,
+    /tells its own story launches its authors as `general-purpose`, because `once-upon-author` has no once-upon skill/,
+  );
 });
