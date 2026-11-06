@@ -12,7 +12,7 @@ import type { LedgerAgent } from '../../../records/agents/ledger.ts';
 import type { BlankSessions } from '../../../adapters/claude-sessions/blank-sessions.ts';
 import type { SessionTitles } from '../../../adapters/claude-sessions/titles.ts';
 import { readStatusLines } from '../../../adapters/claude-sessions/statusline.ts';
-import { lastVoice, phoneReady, readVoice, voiceState } from '../../../adapters/larmor.ts';
+import { phoneReady, readVoice, voiceState } from '../../../adapters/larmor.ts';
 import { adoptHandlers, listeningOnly, parentMap } from '../../../features/sessions/listening.ts';
 import { listeners, type Listener } from '../../../records/listeners/listeners.ts';
 import { pickSource } from '../../../features/sessions/sources.ts';
@@ -103,9 +103,8 @@ export async function readSessionFacts(
 
   // the voice session is pinned above the columns, so it is on no card (its agents keep theirs)
   // voice, pause, phone mode and the bridge all come from one `voice_ctl status`; null when Larmor cannot say, shown as off
-  const larmor =
-    settings.voiceDir && settings.larmorDir ? await voiceState(settings.larmorDir) : null;
-  const voiceFiles = settings.voiceDir ? readVoice(settings.voiceDir, larmor, nowMs) : null;
+  const larmor = settings.larmorDir ? await voiceState(settings.larmorDir) : null;
+  const voiceFiles = readVoice(larmor, nowMs);
   // the phone buttons need Larmor's checkout to run its voice_ctl, and its answer
   const phone: BoardData['phone'] =
     larmor && settings.larmorDir && phoneReady(settings.larmorDir)
@@ -155,7 +154,7 @@ export async function readSessionFacts(
   );
   // Start voice: the last voice session if it is still live, and each live session with whether it is at its prompt
   let voiceStart: BoardData['voice_start'] = null;
-  if (phone && settings.voiceDir) {
+  if (phone) {
     const candidates = live
       .filter((session) => !session.kind || session.kind === 'interactive')
       .map((session) => {
@@ -170,7 +169,7 @@ export async function readSessionFacts(
           idle: session.status !== 'busy' && (!status || status === 'idle' || status === 'done'),
         };
       });
-    const last = lastVoice(settings.voiceDir);
+    const last = larmor?.lastVoice;
     const lastLive = last ? candidates.find((one) => one.id === last.session) : undefined;
     voiceStart = { last: lastLive ? { id: lastLive.id, name: lastLive.name } : null, candidates };
   }

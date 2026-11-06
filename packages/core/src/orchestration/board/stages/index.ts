@@ -50,6 +50,7 @@ import { isStandingHelper, standingHelpers } from './helpers.ts';
 import { groupLanes } from './lanes.ts';
 import { laneLabels, resolveLane } from '@once-upon-a-diff/domain/lane-key';
 import { markListening } from './listeners.ts';
+import { voiceLines } from '../../../adapters/larmor.ts';
 import { placeSessions, readLive, readSessionFacts } from './sessions.ts';
 import { blankStrip, voiceOf } from './strips.ts';
 import type { BuildContext, StoryFacts } from './types.ts';
@@ -119,6 +120,11 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   const placed = placeSessions(ctx, liveFacts, facts, works, state.seen);
   const { sessionCards, quietViews, blankViews, repoBySession } = placed;
   const pin = placed.pin;
+  // the pinned voice session's last lines, from voice_ctl: asked only when the strip is shown
+  const lines =
+    pin && settings.larmorDir
+      ? await voiceLines(settings.larmorDir, pin.view.id, !!voiceFiles?.on)
+      : [];
 
   // cards for the works: PR details from what GitHub last said
   const cards = buildCards(ctx, cardFacts, works, sessionCards);
@@ -259,7 +265,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     at: now.toISOString(),
     status_source: picked.source.name,
     warning: picked.warning,
-    voice: voiceOf(pin, voiceFiles, agents, nowMs, settings.voiceDir as string),
+    voice: voiceOf(pin, voiceFiles, agents, nowMs, lines),
     phone,
     voice_start: voiceStart,
     voice_paused: voicePaused,

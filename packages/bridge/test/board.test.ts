@@ -53,6 +53,7 @@ import { voiceStatus } from '@once-upon-a-diff/core/orchestration/board/voice';
 import {
   forgetProbes,
   rememberVoiceState,
+  voiceLines,
   STATUS_FRESH_MS,
   readVoice,
   phoneReady,
@@ -274,13 +275,6 @@ test('valid JSON that is not the expected shape (null, a number, an object for a
     [process.pid],
     'the real session is still there',
   );
-
-  const voice = tmp('board-bad-voice');
-  for (const text of ['null', '3', '"on"', '[]']) {
-    writeFileSync(path.join(voice, 'session'), text);
-    assert.equal(readVoice(voice, ctl()), null, text);
-    assert.equal(readVoice(voice, ctl({ voiceOn: true, sessionId: 's1' }))?.lastListen, 0, text);
-  }
 
   // an it2 that answers `null` for the list, a list holding null, and `null` for a tab's status
   const live = (tty: string, session: string) => ({
@@ -2743,16 +2737,24 @@ const ctl = (extra: Partial<CtlResult> = {}): CtlResult => ({
   voiceOn: false,
   paused: false,
   sessionId: null,
+  since: null,
+  lastListen: null,
+  lastSpeak: null,
+  name: null,
+  lastVoice: null,
   ...extra,
 });
 
-test('the voice session: voice_ctl says on, paused and away, the folder the times and the name, nothing when voice is off', () => {
-  const dir = tmp('board-voice');
-  assert.equal(readVoice(dir, null), null, 'voice_ctl gave no answer');
-  assert.equal(readVoice(dir, ctl()), null, 'voice is off and never started today');
-  const live = ctl({ voiceOn: true, sessionId: 'abc12345-aaaa' });
-  writeJson(path.join(dir, 'session'), { on: true, last_listen: 1000, last_speak: 990 });
-  assert.deepEqual(readVoice(dir, live), {
+test('the voice session: voice_ctl says on, paused, away, the times, the name and the last session; nothing when voice is off', () => {
+  assert.equal(readVoice(null), null, 'voice_ctl gave no answer');
+  assert.equal(readVoice(ctl()), null, 'voice is off and never started today');
+  const live = ctl({
+    voiceOn: true,
+    sessionId: 'abc12345-aaaa',
+    lastListen: 1000000,
+    lastSpeak: 990000,
+  });
+  assert.deepEqual(readVoice(live), {
     session: 'abc12345-aaaa',
     on: true,
     name: null,
@@ -2763,13 +2765,14 @@ test('the voice session: voice_ctl says on, paused and away, the folder the time
     lastSpeak: 990000,
   });
   assert.equal(
-    readVoice(dir, ctl({ voiceOn: true }))?.on ?? false,
+    readVoice(ctl({ voiceOn: true }))?.on ?? false,
     false,
     'on with no session id yet is not pinned',
   );
-  writeFileSync(path.join(dir, 'voice-session-name'), 'clarifi-f9\n');
-  assert.equal(readVoice(dir, live)?.name, 'clarifi-f9');
-  const files = readVoice(dir, live) as NonNullable<ReturnType<typeof readVoice>>;
+  assert.equal(readVoice({ ...live, name: 'clarifi-f9' })?.name, 'clarifi-f9');
+  const files = readVoice({ ...live, name: 'clarifi-f9' }) as NonNullable<
+    ReturnType<typeof readVoice>
+  >;
   const now = 1000000 + 5000;
   assert.equal(voiceStatus(files, false, now), 'listening', 'it asked last and nothing is busy');
   assert.equal(voiceStatus({ ...files, lastSpeak: 1004000 }, false, now), 'speaking');
@@ -2781,48 +2784,61 @@ test('the voice session: voice_ctl says on, paused and away, the folder the time
   assert.equal(voiceStatus({ ...files, lastSpeak: 1004000 }, true, now + 60000), 'working');
   assert.equal(voiceStatus(files, true, now), 'working', 'busy is working');
   assert.equal(voiceStatus({ ...files, on: false }, false, now), 'ended', 'ended wins over all');
-  const paused = readVoice(dir, { ...live, paused: true }) as typeof files;
+  const paused = readVoice({ ...live, paused: true }) as typeof files;
   assert.equal(voiceStatus(paused, false, now), 'paused');
   assert.equal(
-    voiceStatus(readVoice(dir, { ...live, paused: true, away: true }) as typeof files, false, now),
+    voiceStatus(readVoice({ ...live, paused: true, away: true }) as typeof files, false, now),
     'paused',
     'paused wins over away, so Resume is offered',
   );
-  assert.equal(
-    voiceStatus(readVoice(dir, { ...live, away: true }) as typeof files, false, now),
-    'away',
+  assert.equal(voiceStatus(readVoice({ ...live, away: true }) as typeof files, false, now), 'away');
+  // voice off, the last session today: remembered as ended, with the times of an ended voice at zero
+  const ended = readVoice(
+    ctl({
+      name: 'clarifi-f9',
+      lastListen: 5,
+      since: Date.now(),
+      lastVoice: { session: 'abc12345-aaaa', cwd: '/x', at: Date.now() },
+    }),
+  );
+  assert.deepEqual(
+    [ended?.session, ended?.on, ended?.name, ended?.lastListen],
+    ['abc12345-aaaa', false, 'clarifi-f9', 0],
   );
 });
 
 test('the voice session counts as today by its last activity, at the local midnight edge, in any time zone', () => {
-  const dir = tmp('board-voice-midnight');
   const midnight = new Date(NOW);
   midnight.setHours(0, 0, 0, 0);
-  const stamp = (offsetSeconds: number) => midnight.getTime() / 1000 + offsetSeconds;
+  const stamp = (offsetSeconds: number) => midnight.getTime() + offsetSeconds * 1000;
   const noon = midnight.getTime() + 12 * 3600 * 1000;
-  const write = (started: number, session: Record<string, unknown>) => {
-    writeJson(path.join(dir, 'last-voice.json'), {
-      session_id: 'abc12345-aaaa',
-      cwd: '/x',
-      at: started,
-    });
-    writeJson(path.join(dir, 'session'), session);
-  };
+  const lastVoice = (started: number) => ({
+    session: 'abc12345-aaaa',
+    cwd: '/x',
+    at: stamp(started),
+  });
   // ended after midnight, started before it: today
-  write(stamp(-3600), { on: false, since: stamp(60) });
-  assert.equal(readVoice(dir, ctl(), noon)?.on, false);
+  assert.equal(readVoice(ctl({ lastVoice: lastVoice(-3600), since: stamp(60) }), noon)?.on, false);
   // started and ended before midnight: yesterday's, gone
-  write(stamp(-7200), { on: false, since: stamp(-1) });
-  assert.equal(readVoice(dir, ctl(), noon), null);
+  assert.equal(readVoice(ctl({ lastVoice: lastVoice(-7200), since: stamp(-1) }), noon), null);
   // started just after midnight, ended later today
-  write(stamp(1), { on: false, since: stamp(3600) });
-  assert.equal(readVoice(dir, ctl(), noon)?.session, 'abc12345-aaaa');
+  assert.equal(
+    readVoice(ctl({ lastVoice: lastVoice(1), since: stamp(3600) }), noon)?.session,
+    'abc12345-aaaa',
+  );
   // still on, started yesterday: on is always shown
-  write(stamp(-86400), { on: true, session_id: 'abc12345-aaaa' });
-  assert.equal(readVoice(dir, ctl({ voiceOn: true, sessionId: 'abc12345-aaaa' }), noon)?.on, true);
+  assert.equal(
+    readVoice(
+      ctl({ voiceOn: true, sessionId: 'abc12345-aaaa', lastVoice: lastVoice(-86400) }),
+      noon,
+    )?.on,
+    true,
+  );
   // tomorrow, with nothing since: gone
-  write(stamp(1), { on: false, since: stamp(3600) });
-  assert.equal(readVoice(dir, ctl(), noon + 24 * 3600 * 1000), null);
+  assert.equal(
+    readVoice(ctl({ lastVoice: lastVoice(1), since: stamp(3600) }), noon + 24 * 3600 * 1000),
+    null,
+  );
 });
 
 test('the voice session is pinned above the columns, off every card, with its agents keeping theirs', async () => {
@@ -2906,8 +2922,16 @@ test('the voice session is pinned above the columns, off every card, with its ag
       },
       {
         id: 'm2',
-        wall: wall(4),
+        wall: wall(10),
         text: 'Not this one.',
+        session_id: 'someone-else',
+        status: 'spoken',
+      },
+      {
+        // a later voice session: its lines, and the turns after it spoke, are not this session's
+        id: 'm4',
+        wall: wall(1),
+        text: 'Nor this.',
         session_id: 'someone-else',
         status: 'spoken',
       },
@@ -2934,6 +2958,13 @@ test('the voice session is pinned above the columns, off every card, with its ag
       },
       { type: 'turn', channel: 'mic', text: 'Is it green?', is_final: true, wall_clock: wall(3) },
       { type: 'turn', channel: 'mic', text: 'Is it', is_final: false, wall_clock: wall(3) },
+      {
+        type: 'turn',
+        channel: 'mic',
+        text: 'To the next one.',
+        is_final: true,
+        wall_clock: wall(0.5),
+      },
     ]
       .map((line) => JSON.stringify(line))
       .join('\n') + '\n',
@@ -2947,7 +2978,6 @@ test('the voice session is pinned above the columns, off every card, with its ag
   const settings = { board_sessions_dir: sessions };
   const withVoice = {
     ...settings,
-    board_voice_dir: voiceDir,
     board_larmor_dir: fakeLarmor(voiceDir),
   };
   writeJson(path.join(home, 'config.json'), withVoice);
@@ -3197,13 +3227,8 @@ test('POST /api/board/voice/pause asks voice_ctl to pause and resume, only with 
   const post = (body: unknown, key = boardKey(TOKEN)) =>
     bridge.call('POST', '/api/board/voice/pause', body, { Authorization: `Bearer ${key}` });
   const paused = path.join(voiceDir, 'paused');
-  assert.equal((await post({ paused: true })).status, 400, 'board_voice_dir is not set');
-  writeJson(path.join(home, 'config.json'), { board_voice_dir: voiceDir });
   assert.equal((await post({ paused: true })).status, 400, 'board_larmor_dir is not set');
-  writeJson(path.join(home, 'config.json'), {
-    board_voice_dir: voiceDir,
-    board_larmor_dir: fakeLarmor(voiceDir),
-  });
+  writeJson(path.join(home, 'config.json'), { board_larmor_dir: fakeLarmor(voiceDir) });
   assert.equal((await post({})).status, 400, 'paused is needed');
   assert.equal((await post({ paused: 'yes' })).status, 400);
   // voice is off: nothing to pause
@@ -3233,19 +3258,15 @@ test('POST /api/board/voice/pause asks voice_ctl to pause and resume, only with 
 });
 
 test('phone mode is voice_ctl’s away, and it is only “away” while voice is on', () => {
-  const dir = tmp('board-voice-away');
   const read = (extra: Partial<CtlResult>) =>
-    readVoice(dir, ctl({ voiceOn: true, sessionId: 'abc12345-aaaa', ...extra })) as NonNullable<
+    readVoice(ctl({ voiceOn: true, sessionId: 'abc12345-aaaa', ...extra })) as NonNullable<
       ReturnType<typeof readVoice>
     >;
   assert.deepEqual([read({}).phoneOn, read({}).away], [false, false]);
   assert.deepEqual([read({ away: true }).phoneOn, read({ away: true }).away], [true, true]);
-  writeJson(path.join(dir, 'last-voice.json'), {
-    session_id: 'abc12345-aaaa',
-    cwd: '/x',
-    at: Date.now() / 1000,
-  });
-  const ended = readVoice(dir, ctl({ away: true })) as NonNullable<ReturnType<typeof readVoice>>;
+  const ended = readVoice(
+    ctl({ away: true, lastVoice: { session: 'abc12345-aaaa', cwd: null, at: Date.now() } }),
+  ) as NonNullable<ReturnType<typeof readVoice>>;
   assert.deepEqual(
     [ended.phoneOn, ended.away],
     [true, false],
@@ -3309,6 +3330,294 @@ test('voiceState says what voice_ctl status says, as Larmor’s voice_state does
     assert.equal(await coldState(larmor), null, `bad output: ${text || '(empty)'}`);
   }
   forgetProbes();
+});
+
+test('voiceState carries the times, the name and the last session as voice_ctl status gives them', async () => {
+  const voiceDir = tmp('board-voice-extras');
+  const larmor = fakeLarmor(voiceDir);
+  assert.deepEqual(await coldState(larmor), ctl(), 'no files: every extra is null');
+  writeJson(path.join(voiceDir, 'session'), {
+    on: true,
+    session_id: 'abc12345-aaaa',
+    owner: process.pid,
+    since: 100,
+    last_listen: 1000,
+    last_speak: 990,
+  });
+  writeFileSync(path.join(voiceDir, 'voice-session-name'), 'clarifi-f9\nsecond line\n');
+  writeJson(path.join(voiceDir, 'last-voice.json'), {
+    session_id: 'abc12345-aaaa',
+    cwd: '/x',
+    at: 50,
+  });
+  assert.deepEqual(
+    await coldState(larmor),
+    ctl({
+      voiceOn: true,
+      sessionId: 'abc12345-aaaa',
+      since: 100000,
+      lastListen: 1000000,
+      lastSpeak: 990000,
+      name: 'clarifi-f9',
+      lastVoice: { session: 'abc12345-aaaa', cwd: '/x', at: 50000 },
+    }),
+  );
+  // voice ended: since is the end, listen and speak are null, name and the last session stay
+  writeJson(path.join(voiceDir, 'session'), { on: false, since: 200 });
+  assert.deepEqual(
+    await coldState(larmor),
+    ctl({
+      since: 200000,
+      name: 'clarifi-f9',
+      lastVoice: { session: 'abc12345-aaaa', cwd: '/x', at: 50000 },
+    }),
+  );
+  // a last voice with no time is unusable, and one with no session id is none
+  writeJson(path.join(voiceDir, 'last-voice.json'), {
+    session_id: 'abc12345-aaaa',
+    cwd: '/x',
+    at: null,
+  });
+  assert.equal((await coldState(larmor))?.lastVoice, null);
+  writeJson(path.join(voiceDir, 'last-voice.json'), { cwd: '/x', at: 5 });
+  assert.equal((await coldState(larmor))?.lastVoice, null);
+  forgetProbes();
+});
+
+/** A spoken.jsonl line, as Larmor writes one per state of a reply. */
+const spokenLine = (id: string, wall: number, text: string, session: string, status = 'queued') =>
+  JSON.stringify({ id, wall, text, session_id: session, status }) + '\n';
+const turnLine = (wall: number, text: string) =>
+  JSON.stringify({ type: 'turn', channel: 'mic', text, is_final: true, wall_clock: wall }) + '\n';
+const logCalls = (larmor: string) =>
+  existsSync(path.join(larmor, 'log.log'))
+    ? readFileSync(path.join(larmor, 'log.log'), 'utf8').trim().split('\n')
+    : [];
+
+test('voiceLines asks voice_ctl log, then re-reads the last few minutes in the background and merges by id', async () => {
+  const voiceDir = tmp('board-voice-log');
+  const larmor = fakeLarmor(voiceDir);
+  const session = 'abc12345-aaaa';
+  const now = Date.now() / 1000;
+  writeFileSync(
+    path.join(voiceDir, 'spoken.jsonl'),
+    spokenLine('m1', now - 3600, 'An hour ago.', session) +
+      spokenLine('x1', now - 7200, 'Another session.', 'other-session') +
+      spokenLine('m2', now - 30, 'One sec.', session),
+  );
+  writeFileSync(path.join(voiceDir, 'turns.jsonl'), turnLine(now - 20, 'Is it green?'));
+  forgetProbes();
+  const texts = (lines: { text: string }[]) => lines.map((line) => line.text);
+  assert.deepEqual(texts(await voiceLines(larmor, session, true)), [
+    'An hour ago.',
+    'One sec.',
+    'Is it green?',
+  ]);
+  assert.deepEqual(
+    logCalls(larmor),
+    [`--limit 60 --session ${session}`],
+    'the first call asks for no time',
+  );
+  // the reply m2 gets its status changed under its first time, and a new one is said
+  writeFileSync(
+    path.join(voiceDir, 'spoken.jsonl'),
+    spokenLine('m1', now - 3600, 'An hour ago.', session) +
+      spokenLine('x1', now - 7200, 'Another session.', 'other-session') +
+      spokenLine('m2', now - 30, 'One sec.', session) +
+      spokenLine('m2', now - 30, 'One sec.', session, 'spoken') +
+      spokenLine('m3', now - 5, 'It is green.', session),
+  );
+  assert.deepEqual(
+    texts(await voiceLines(larmor, session, true)).length,
+    3,
+    'within a poll: the last lines, no call',
+  );
+  assert.equal(logCalls(larmor).length, 1);
+  await pause(STATUS_FRESH_MS + 100);
+  await voiceLines(larmor, session, true); // the last lines now, and one refresh in the background
+  const merged = await until(
+    () => voiceLines(larmor, session, true),
+    (lines) => lines.length === 4,
+  );
+  assert.deepEqual(
+    texts(merged),
+    ['An hour ago.', 'One sec.', 'Is it green?', 'It is green.'],
+    'merged by id: m2 once, and the old line kept',
+  );
+  const second = logCalls(larmor)[1] ?? '';
+  assert.match(
+    second,
+    /^--since \d+(\.\d+)? --limit 200 --session abc12345-aaaa$/,
+    'later calls re-read a recent window',
+  );
+  assert.ok(
+    Number(second.split(' ')[1]) > now - 400 && Number(second.split(' ')[1]) < now - 200,
+    'about five minutes back, not from the last line seen',
+  );
+  assert.equal(logCalls(larmor).length, 2, 'one call for the refresh');
+  forgetProbes();
+});
+
+test('voiceLines: a click while a log call runs does not freeze the lines, and later polls make new calls', async () => {
+  const voiceDir = tmp('board-voice-log-click');
+  const larmor = fakeLarmor(voiceDir);
+  const session = 'abc12345-aaaa';
+  const now = Date.now() / 1000;
+  writeFileSync(path.join(voiceDir, 'spoken.jsonl'), spokenLine('m1', now - 60, 'One.', session));
+  forgetProbes();
+  assert.equal((await voiceLines(larmor, session, true)).length, 1);
+  writeFileSync(
+    path.join(voiceDir, 'spoken.jsonl'),
+    spokenLine('m1', now - 60, 'One.', session) + spokenLine('m2', now - 30, 'Two.', session),
+  );
+  writeFileSync(path.join(larmor, 'log.slow'), '');
+  await pause(STATUS_FRESH_MS + 100);
+  await voiceLines(larmor, session, true); // the refresh starts, and takes 0.8 s
+  await until(
+    () => logCalls(larmor).length,
+    (count) => count >= 2,
+  );
+  rememberVoiceState(larmor, ctl()); // a click: the call in flight is from before it
+  await pause(1500); // it ends
+  // later polls make new calls, and the line it would have brought arrives
+  const calls = logCalls(larmor).length;
+  await pause(STATUS_FRESH_MS + 100);
+  const lines = await until(
+    () => voiceLines(larmor, session, true),
+    (got) => got.length === 2,
+  );
+  assert.deepEqual(
+    lines.map((line) => line.text),
+    ['One.', 'Two.'],
+  );
+  assert.ok(logCalls(larmor).length > calls, 'a new call was made');
+  forgetProbes();
+});
+
+test('voiceLines: after a gap of ten minutes the window still overlaps the last good call, so no line in between is lost', async () => {
+  const voiceDir = tmp('board-voice-log-gap');
+  const larmor = fakeLarmor(voiceDir);
+  const session = 'abc12345-aaaa';
+  const now = Date.now() / 1000;
+  writeFileSync(
+    path.join(voiceDir, 'spoken.jsonl'),
+    spokenLine('m1', now - 900, 'Long ago.', session),
+  );
+  forgetProbes();
+  assert.equal((await voiceLines(larmor, session, true)).length, 1);
+  // 15 minutes ago was the last line seen; one came 11 minutes ago, one a minute ago
+  writeFileSync(
+    path.join(voiceDir, 'spoken.jsonl'),
+    spokenLine('m1', now - 900, 'Long ago.', session) +
+      spokenLine('m2', now - 660, 'In the gap.', session) +
+      spokenLine('m3', now - 60, 'Just now.', session),
+  );
+  await pause(STATUS_FRESH_MS + 100);
+  await voiceLines(larmor, session, true);
+  const lines = await until(
+    () => voiceLines(larmor, session, true),
+    (got) => got.length === 3,
+  );
+  assert.deepEqual(
+    lines.map((line) => line.text),
+    ['Long ago.', 'In the gap.', 'Just now.'],
+  );
+  const since = Number((logCalls(larmor)[1] ?? '').split(' ')[1]);
+  assert.ok(
+    since < now - 1100 && since > now - 1300,
+    `since ${now - since} s back: five minutes before the last good call's newest line`,
+  );
+  assert.match(logCalls(larmor)[1] ?? '', /--limit 200 /, 'a refresh may bring up to 200 lines');
+  forgetProbes();
+});
+
+test('voiceLines: once voice is off the log is fetched once and then left alone until voice is on again', async () => {
+  const voiceDir = tmp('board-voice-log-off');
+  const larmor = fakeLarmor(voiceDir);
+  const session = 'abc12345-aaaa';
+  const now = Date.now() / 1000;
+  writeFileSync(path.join(voiceDir, 'spoken.jsonl'), spokenLine('m1', now - 60, 'One.', session));
+  forgetProbes();
+  assert.equal((await voiceLines(larmor, session, true)).length, 1);
+  assert.equal(logCalls(larmor).length, 1);
+  // voice ends: one more call, and that is all
+  await pause(STATUS_FRESH_MS + 100);
+  await voiceLines(larmor, session, false);
+  await until(
+    () => logCalls(larmor).length,
+    (count) => count >= 2,
+  );
+  await pause(STATUS_FRESH_MS + 300);
+  await voiceLines(larmor, session, false);
+  await pause(STATUS_FRESH_MS + 300);
+  assert.equal((await voiceLines(larmor, session, false)).length, 1, 'the lines are still shown');
+  assert.equal(logCalls(larmor).length, 2, 'no more calls while voice stays off');
+  // voice is on again: polls resume
+  await voiceLines(larmor, session, true);
+  await until(
+    () => logCalls(larmor).length,
+    (count) => count >= 3,
+  );
+  forgetProbes();
+});
+
+test('voiceLines keeps its lines when voice_ctl log fails, and a hung one holds a build for a second at most', async () => {
+  const voiceDir = tmp('board-voice-log-fail');
+  const larmor = fakeLarmor(voiceDir);
+  const session = 'abc12345-aaaa';
+  writeFileSync(
+    path.join(voiceDir, 'spoken.jsonl'),
+    spokenLine('m1', Date.now() / 1000 - 30, 'One sec.', session),
+  );
+  forgetProbes();
+  assert.equal((await voiceLines(larmor, session, true)).length, 1);
+  writeFileSync(path.join(larmor, 'log.fail'), '');
+  await pause(STATUS_FRESH_MS + 100);
+  await voiceLines(larmor, session, true); // starts the refresh that fails
+  await until(
+    () => logCalls(larmor).length,
+    (count) => count >= 2,
+  );
+  await pause(300);
+  assert.equal((await voiceLines(larmor, session, true)).length, 1, 'the lines stay');
+  // no lines yet and a hung log: the build goes on without them
+  const hung = fakeLarmor(voiceDir);
+  writeFileSync(path.join(hung, 'log.hang'), '');
+  forgetProbes();
+  const began = Date.now();
+  assert.deepEqual(await voiceLines(hung, session, true), []);
+  assert.ok(Date.now() - began < 2500, `${Date.now() - began} ms`);
+  forgetProbes();
+});
+
+test('the voice strip’s lines are asked for only when a session is pinned', async () => {
+  const home = tmp('board-voice-nolog');
+  const sessions = tmp('board-sessions');
+  const voiceDir = tmp('board-voice');
+  const larmor = fakeLarmor(voiceDir);
+  writeJson(path.join(voiceDir, 'session'), {
+    on: true,
+    session_id: 'ghost-session-nobody-runs',
+    owner: process.pid,
+  });
+  writeFileSync(
+    path.join(voiceDir, 'spoken.jsonl'),
+    spokenLine('m1', Date.now() / 1000, 'Hello.', 'ghost-session-nobody-runs'),
+  );
+  const ledger = path.join(tmp('board-notes'), 'ledger.md');
+  writeFileSync(ledger, '');
+  writeJson(path.join(home, 'config.json'), {
+    board_ledger_file: ledger,
+    board_sessions_dir: sessions,
+    board_larmor_dir: larmor,
+  });
+  forgetProbes();
+  const data = await new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
+    source: sourceSaying({}),
+    now: () => NOW,
+  }).snapshot();
+  assert.equal(data.voice, null, 'its session is not running, so there is no strip');
+  assert.deepEqual(logCalls(larmor), [], 'and voice_ctl log was not run');
 });
 
 test('voiceState gives the last answer at once, refreshes it in the background one call at a time, and backs off after a failure', async () => {
@@ -3437,7 +3746,6 @@ test('a hung voice_ctl never holds up the board: the last answer is served, one 
   writeJson(path.join(home, 'config.json'), {
     board_ledger_file: ledger,
     board_sessions_dir: sessions,
-    board_voice_dir: voiceDir,
     board_larmor_dir: larmor,
   });
   const timed = async () => {
@@ -3493,7 +3801,6 @@ test('voice on with no session id yet shows no strip, and the strip appears with
   writeJson(path.join(home, 'config.json'), {
     board_ledger_file: ledger,
     board_sessions_dir: sessions,
-    board_voice_dir: voiceDir,
     board_larmor_dir: fakeLarmor(voiceDir),
   });
   const snap = () => {
@@ -3528,7 +3835,6 @@ test('Pause and Resume have their own guard: they work while a Start or a phone 
     owner: process.pid,
   });
   writeJson(path.join(home, 'config.json'), {
-    board_voice_dir: voiceDir,
     board_larmor_dir: larmor,
   });
   const bridge = await startBridge({ home });
@@ -3609,7 +3915,6 @@ test('the phone state: null without a ready board_larmor_dir, else phone mode an
   const settings = {
     board_ledger_file: ledger,
     board_sessions_dir: sessions,
-    board_voice_dir: voiceDir,
   };
   const make = () => {
     forgetProbes(); // each build asks voice_ctl itself, so it sees the files as they are now
@@ -3683,15 +3988,11 @@ test('POST /api/board/voice/phone and /phone/bridge-stop ask Larmor’s voice_ct
       ? readFileSync(path.join(larmor, 'calls.log'), 'utf8')
       : '';
   assert.equal((await post('phone', { on: true })).status, 400, 'no folders are set');
-  writeJson(path.join(home, 'config.json'), { board_voice_dir: voiceDir });
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: tmp('board-sessions') });
   assert.equal((await post('phone', { on: true })).status, 400, 'board_larmor_dir is not set');
-  writeJson(path.join(home, 'config.json'), {
-    board_voice_dir: voiceDir,
-    board_larmor_dir: tmp('board-larmor-bare'),
-  });
+  writeJson(path.join(home, 'config.json'), { board_larmor_dir: tmp('board-larmor-bare') });
   assert.equal((await post('phone', { on: false })).status, 400, 'no venv or voice_ctl to run');
   writeJson(path.join(home, 'config.json'), {
-    board_voice_dir: voiceDir,
     board_larmor_dir: larmor,
   });
   assert.equal((await post('phone', {})).status, 400, 'on is needed');
@@ -3755,7 +4056,6 @@ test('the voice state: a pause file shows with voice off, only interactive sessi
   writeJson(path.join(home, 'config.json'), {
     board_ledger_file: ledger,
     board_sessions_dir: sessions,
-    board_voice_dir: voiceDir,
     board_larmor_dir: fakeLarmor(voiceDir),
   });
   const snap = () => {
@@ -3801,7 +4101,6 @@ test('POST /api/board/voice/start and /stop ask Larmor’s voice_ctl with the bo
   const calls = () => readFileSync(path.join(larmor, 'calls.log'), 'utf8');
   assert.equal((await post('start', {})).status, 400, 'no folders are set');
   writeJson(path.join(home, 'config.json'), {
-    board_voice_dir: voiceDir,
     board_larmor_dir: larmor,
   });
   const bad = await post('start', { session: '--help' });
@@ -3850,7 +4149,6 @@ test('Board.setVoicePaused asks voice_ctl and drops the kept snapshot, so the re
   writeJson(path.join(home, 'config.json'), {
     board_ledger_file: ledger,
     board_sessions_dir: sessions,
-    board_voice_dir: voiceDir,
     board_larmor_dir: fakeLarmor(voiceDir),
   });
   const board = new Board(home, new StoryStore({ home }), noPrWatcher, new Builds(home), {
@@ -5810,7 +6108,7 @@ function fakeIt2(): string {
 }
 
 /** A voice folder saying voice is on in this session (it spoke a minute ago), named for the voice session. */
-function voiceOnIn(sessionId: string): { voiceDir: string; larmorDir: string } {
+function voiceOnIn(sessionId: string): string {
   const voiceDir = tmp('board-voice');
   writeJson(path.join(voiceDir, 'session'), {
     on: true,
@@ -5828,7 +6126,7 @@ function voiceOnIn(sessionId: string): { voiceDir: string; larmorDir: string } {
       status: 'spoken',
     }) + '\n',
   );
-  return { voiceDir, larmorDir: fakeLarmor(voiceDir) };
+  return fakeLarmor(voiceDir);
 }
 
 const statusOf = async (promise: Promise<unknown>) =>
@@ -5881,10 +6179,7 @@ test('Assign types "Start backlog card <id>: <title>" into the voice session eve
     board_sessions_dir: sessions,
     board_it2_path: fakeIt2(),
     board_status_source: 'iterm',
-    ...(({ voiceDir, larmorDir }) => ({
-      board_voice_dir: voiceDir,
-      board_larmor_dir: larmorDir,
-    }))(voiceOnIn(fullId(voice.pid))),
+    board_larmor_dir: voiceOnIn(fullId(voice.pid)),
   });
   const store = new BacklogStore(home);
   const item = store.add({
@@ -6048,7 +6343,6 @@ test('Assign’s fallback leaves out an ended voice session and a session that l
   });
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: sessions,
-    board_voice_dir: voiceDir,
     board_larmor_dir: fakeLarmor(voiceDir),
     board_it2_path: fakeIt2(),
     board_status_source: 'iterm',
@@ -6285,7 +6579,6 @@ test('Start listening and Assign leave out the voice session and a session that 
   });
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: sessions,
-    board_voice_dir: voiceDir,
     board_larmor_dir: fakeLarmor(voiceDir),
     board_it2_path: fakeIt2(),
     board_status_source: 'iterm',

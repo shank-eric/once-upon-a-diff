@@ -431,11 +431,8 @@ export class Board {
    */
   private async askLarmor(command: VoiceCommand, session?: string): Promise<{ result: CtlResult }> {
     const board = readSettings(this.home).board;
-    if (!board.voiceDir || !board.larmorDir) {
-      throw new BoardError(
-        400,
-        'board_voice_dir and board_larmor_dir are needed for the voice and phone buttons',
-      );
+    if (!board.larmorDir) {
+      throw new BoardError(400, 'board_larmor_dir is needed for the voice and phone buttons');
     }
     if (!phoneReady(board.larmorDir)) {
       throw new BoardError(

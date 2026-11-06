@@ -1,6 +1,6 @@
 /** The strips around the columns: the pinned voice session above them, and the Blank sessions strip in the Idle lane. */
 import { voiceStatus } from '../voice.ts';
-import { readVoice, voiceLines } from '../../../adapters/larmor.ts';
+import type { readVoice } from '../../../adapters/larmor.ts';
 import type { LedgerAgent } from '../../../records/agents/ledger.ts';
 import type { BoardData, BoardSession, BoardVoice } from '@once-upon-a-diff/contracts/types';
 import { forgotten } from './agents.ts';
@@ -12,7 +12,7 @@ export function voiceOf(
   files: ReturnType<typeof readVoice>,
   agents: LedgerAgent[],
   nowMs: number,
-  dir: string,
+  lines: BoardVoice['lines'],
 ): BoardVoice | null {
   if (!pinned || !files) {
     return null;
@@ -36,7 +36,7 @@ export function voiceOf(
     session: pinned.view.id,
     can_focus: pinned.view.focus,
     context: pinned.view.context ?? null,
-    lines: voiceLines(dir, pinned.view.id),
+    lines,
   };
 }
 

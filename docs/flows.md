@@ -188,19 +188,19 @@ flowchart LR
 | 7 | `app` | the route | `packages/server/src/routes/board.ts:58` (`app.board.snapshot()`) |
 | 8 | `service` | a 2 s cache, one build in flight for every caller, and a generation so a stale build can't refill it | `packages/core/src/orchestration/board/board.ts:193` (`async snapshot()`) |
 | 9 | `service` | the build gathers its context and runs the stages | `packages/core/src/orchestration/board/board.ts:378` (`buildBoard(ctx`) |
-| 10 | `service` | the stages, in order | `packages/core/src/orchestration/board/stages/index.ts:85` (`export async function buildBoard`) |
+| 10 | `service` | the stages, in order | `packages/core/src/orchestration/board/stages/index.ts:86` (`export async function buildBoard`) |
 | 11 | `service` | live sessions, their status, branches and repos | `packages/core/src/orchestration/board/stages/sessions.ts:53` (`liveSessions(settings.sessionsDir)`) |
 | 12 | `adapter` | **reads `~/.claude/sessions/<pid>.json`**, live pids only | `packages/core/src/adapters/claude-sessions/live-sessions.ts:40` (`export async function liveSessions`) |
 | 13 | `service` | the agents, from the registry | `packages/core/src/orchestration/board/stages/sessions.ts:59` (`readAgents(`) |
 | 14 | `service` | **reads `agents.jsonl`** and folds its events into one view per agent. (Nothing else is read: the ledger and progress files are logs the registry writes, not input.) | `packages/core/src/records/agents/read.ts:15` (`foldAgentEvents(parseAgentEvents(readAgentsFile(`) |
-| 15 | `service` | the works: PR and local stories, pending builds | `packages/core/src/orchestration/board/stages/index.ts:94` (`collectWorks(ctx)`) |
-| 16 | `service` | what else is known of each session: listeners, voice, blank sessions, titles, status lines | `packages/core/src/orchestration/board/stages/index.ts:102` (`readSessionFacts(`) |
-| 17 | `service` | cards for the works, with PR details from what the GitHub watcher last heard | `packages/core/src/orchestration/board/stages/index.ts:124` (`buildCards(`) |
+| 15 | `service` | the works: PR and local stories, pending builds | `packages/core/src/orchestration/board/stages/index.ts:95` (`collectWorks(ctx)`) |
+| 16 | `service` | what else is known of each session: listeners, voice, blank sessions, titles, status lines | `packages/core/src/orchestration/board/stages/index.ts:103` (`readSessionFacts(`) |
+| 17 | `service` | cards for the works, with PR details from what the GitHub watcher last heard | `packages/core/src/orchestration/board/stages/index.ts:130` (`buildCards(`) |
 | 18 | `service` | each card's column | `packages/core/src/orchestration/board/stages/cards.ts:271` (`columnOf({`) |
 | 19 | `service` | the column rules | `packages/core/src/orchestration/board/columns.ts:81` (`export function columnOf`) |
-| 20 | `service` | the Backlog's items, folded from **`backlog.jsonl`** (claims included) | `packages/core/src/orchestration/board/stages/index.ts:127` (`state.backlog.items()`) |
-| 21 | `service` | which agent claimed which Backlog card | `packages/core/src/orchestration/board/stages/index.ts:137` (`claimViews(`) |
-| 22 | `service` | the lanes, by repo | `packages/core/src/orchestration/board/stages/index.ts:257` (`groupLanes(cards, labels)`) |
+| 20 | `service` | the Backlog's items, folded from **`backlog.jsonl`** (claims included) | `packages/core/src/orchestration/board/stages/index.ts:133` (`state.backlog.items()`) |
+| 21 | `service` | which agent claimed which Backlog card | `packages/core/src/orchestration/board/stages/index.ts:143` (`claimViews(`) |
+| 22 | `service` | the lanes, by repo | `packages/core/src/orchestration/board/stages/index.ts:263` (`groupLanes(cards, labels)`) |
 | 23 | `contracts` | back: the answer's shape | `packages/contracts/src/board/types.ts:10` (`export interface BoardData`) |
 | 24 | `app` | the root component draws the regions, and Preact's keyed diff keeps focus, scroll and typed text | `packages/web/public/board.ts:261` (`<${Columns} view=${columns} />`) |
 

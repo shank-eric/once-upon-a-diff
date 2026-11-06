@@ -1,20 +1,19 @@
 /*
- * Larmor (voice mode for Claude Code), through its own `voice_ctl` script. The board asks it for what voice and phone mode
- * are doing and tells it to pause, resume, start, stop and run phone mode; Larmor owns the checks, the files and the bridge.
+ * Larmor (voice mode for Claude Code), through its own `voice_ctl` script, and nothing else of Larmor's: the board reads none
+ * of its files. It asks voice_ctl for what voice and phone mode are doing and what was said, and tells it to pause, resume,
+ * start, stop and run phone mode; Larmor owns the checks, the files and the bridge.
  *
- * `voice_ctl status` answers `{ok, why, away, bridge, voice: {on, paused, session_id}}`: voice on (its owner alive), paused,
- * the voice session's id, phone mode on and whether the phone bridge runs. The board reads no other file for those.
+ * `voice_ctl status` answers `{ok, why, away, bridge, voice: {on, paused, session_id, since, last_listen, last_speak, name,
+ * last_voice: {session_id, cwd, at}}}`: voice on (its owner alive), paused, the voice session's id, when voice started (ended,
+ * once it is off), when the session last listened and spoke (null while voice is off), the name the session answers to, the
+ * last session that took voice mode (it outlives the end of voice mode), phone mode on, and whether the phone bridge runs.
+ * Times are epoch seconds.
  *
- * What voice_ctl does not answer yet is still read from the folder the setting board_voice_dir names (off when unset):
- *
- *   session             {"since": <epoch s>, "last_listen": <epoch s>, "last_speak": <epoch s>} (the rest is voice_ctl's)
- *   voice-session-name  the name the voice session answers to, one line
- *   last-voice.json     {"session_id", "cwd", "at": <epoch s>}: the last session that took voice mode. It outlives the end
- *                       of voice mode, which rewrites `session` as {"on": false} without the session id
- *   spoken.jsonl        what a session said aloud, a line per state: {id, wall (epoch s), text, session_id, status}
- *   turns.jsonl         what the user said: {type: "turn", channel: "mic", text, is_final, wall_clock (epoch s)}
+ * `voice_ctl log [--since TS] [--limit N] [--session ID]` answers `{ok, why, lines: [...]}`, oldest first: what a session
+ * said aloud `{kind: "spoken", at, text, id, session_id, status}` (`at` is when it was queued, and its status changes later)
+ * and what you said `{kind: "turn", at, text, channel, id}`.
  */
-import { closeSync, existsSync, openSync, readFileSync, readSync, statSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { execFile } from 'node:child_process';
 import path from 'node:path';
 import type { BoardVoiceLine } from '@once-upon-a-diff/contracts/types';
@@ -39,83 +38,37 @@ function sameDay(first: number, second: number): boolean {
   return new Date(first).toDateString() === new Date(second).toDateString();
 }
 
-/** The session that last took voice mode and when (epoch ms), from last-voice.json, or null. */
-export function lastVoice(dir: string): { session: string; at: number } | null {
-  try {
-    const last = JSON.parse(readFileSync(path.join(dir, 'last-voice.json'), 'utf8'));
-    if (
-      last &&
-      typeof last.session_id === 'string' &&
-      last.session_id &&
-      typeof last.at === 'number'
-    ) {
-      return { session: last.session_id, at: last.at * 1000 };
-    }
-  } catch {
-    /* none */
-  }
-  return null;
-}
-
-/** When voice last ended, and when the session last listened and spoke (epoch ms, 0 for none), from the `session` file. */
-function sessionTimes(dir: string): { since: number; lastListen: number; lastSpeak: number } {
-  let state: { since?: unknown; last_listen?: unknown; last_speak?: unknown } | null = null;
-  try {
-    state = JSON.parse(readFileSync(path.join(dir, 'session'), 'utf8'));
-  } catch {
-    state = null;
-  }
-  const millis = (seconds: unknown) =>
-    state && typeof state === 'object' && typeof seconds === 'number' ? seconds * 1000 : 0;
-  return {
-    since: millis(state?.since),
-    lastListen: millis(state?.last_listen),
-    lastSpeak: millis(state?.last_speak),
-  };
-}
-
 /**
  * The voice session once voice has started in it: while voice mode is on (voice_ctl names it), and after it ends, for the
- * rest of that local day (last-voice.json), as `on: false`. Null before any voice today, and when voice_ctl gave no answer
- * (`state` null): voice is then unknown, which the board shows as off.
+ * rest of that local day (the last session that took voice mode), as `on: false`. Null before any voice today, and when
+ * voice_ctl gave no answer (`state` null): voice is then unknown, which the board shows as off.
  */
-export function readVoice(
-  dir: string,
-  state: CtlResult | null,
-  now: number = Date.now(),
-): VoiceFiles | null {
+export function readVoice(state: CtlResult | null, now: number = Date.now()): VoiceFiles | null {
   if (!state) {
     return null;
   }
-  const times = sessionTimes(dir);
   const live = state.voiceOn && !!state.sessionId;
   let session: string;
   if (live) {
     session = state.sessionId as string;
   } else {
-    const last = lastVoice(dir);
-    // today is judged by the last activity: voice ending writes `since` (its end time) into `session`, so a voice that
-    // started before midnight and ended after it still counts, while one on right now always does (the live branch)
-    if (!last || !sameDay(Math.max(last.at, times.since), now)) {
+    const last = state.lastVoice;
+    // today is judged by the last activity: voice ending sets `since` (its end time), so a voice that started before
+    // midnight and ended after it still counts, while one on right now always does (the live branch)
+    if (!last || !sameDay(Math.max(last.at, state.since ?? 0), now)) {
       return null;
     }
     session = last.session;
   }
-  let name: string | null = null;
-  try {
-    name = readFileSync(path.join(dir, 'voice-session-name'), 'utf8').trim() || null;
-  } catch {
-    name = null;
-  }
   return {
     session,
     on: live,
-    name,
+    name: state.name,
     away: live && state.away,
     phoneOn: state.away,
     paused: state.paused,
-    lastListen: live ? times.lastListen : 0,
-    lastSpeak: live ? times.lastSpeak : 0,
+    lastListen: live ? (state.lastListen ?? 0) : 0,
+    lastSpeak: live ? (state.lastSpeak ?? 0) : 0,
   };
 }
 
@@ -127,7 +80,7 @@ export function phoneReady(larmorDir: string): boolean {
   );
 }
 
-/** The subcommands of Larmor's `voice_ctl` the board runs, and nothing else. */
+/** The subcommands of Larmor's `voice_ctl` the board runs with runVoiceCtl, and `log`, which has its own function (runVoiceLog). */
 export type PhoneCommand = 'phone-on' | 'phone-off' | 'bridge-stop';
 export type VoiceCommand = PhoneCommand | 'start' | 'stop' | 'status' | 'pause' | 'resume';
 
@@ -182,6 +135,55 @@ export interface CtlResult {
   paused: boolean;
   /** the voice session's id while voice is on, once Larmor has recorded it */
   sessionId: string | null;
+  /** epoch ms: when voice started, or ended once it is off */
+  since: number | null;
+  /** epoch ms: null while voice is off */
+  lastListen: number | null;
+  lastSpeak: number | null;
+  /** the name the voice session answers to */
+  name: string | null;
+  /** the last session that took voice mode (it outlives the end of voice mode); null when Larmor has none usable */
+  lastVoice: { session: string; cwd: string | null; at: number } | null;
+}
+
+/** Epoch seconds from voice_ctl as epoch ms, null when it is not a finite number. */
+function millis(seconds: unknown): number | null {
+  return typeof seconds === 'number' && Number.isFinite(seconds) ? seconds * 1000 : null;
+}
+
+/** One voice_ctl call: runs the venv python from Larmor's checkout (no shell) and returns the JSON object on its last line. */
+function execCtl(
+  larmorDir: string,
+  args: string[],
+  timeoutMs: number,
+  label: string,
+): Promise<Record<string, unknown>> {
+  const python = path.join(larmorDir, '.venv-app', 'bin', 'python');
+  return new Promise((resolve, reject) => {
+    execFile(
+      python,
+      ['app/voice_ctl.py', ...args],
+      { cwd: larmorDir, timeout: timeoutMs, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024 },
+      (err, stdout, stderr) => {
+        const line = String(stdout).trim().split('\n').pop() ?? '';
+        try {
+          const got = JSON.parse(line) as Record<string, unknown> | null;
+          if (got && typeof got === 'object' && typeof got.ok === 'boolean') {
+            return resolve(got);
+          }
+        } catch {
+          /* no result line */
+        }
+        reject(
+          new VoiceCtlError(
+            err
+              ? `Larmor's voice_ctl ${label} failed: ${lastLine(String(stderr)) || err.message.split('\n')[0]}`
+              : `Larmor's voice_ctl ${label} printed no result`,
+          ),
+        );
+      },
+    );
+  });
 }
 
 /**
@@ -203,47 +205,45 @@ export function runVoiceCtl(
   ) {
     throw new Error(`not an allowed voice_ctl argument for ${command}`);
   }
-  const python = path.join(larmorDir, '.venv-app', 'bin', 'python');
-  return new Promise((resolve, reject) => {
-    execFile(
-      python,
-      ['app/voice_ctl.py', command, ...(session ? [session] : [])],
-      {
-        cwd: larmorDir,
-        timeout: timeoutOf(command),
-        killSignal: 'SIGKILL',
-        maxBuffer: 1024 * 1024,
-      },
-      (err, stdout, stderr) => {
-        const line = String(stdout).trim().split('\n').pop() ?? '';
-        try {
-          const got = JSON.parse(line) as Partial<Omit<CtlResult, 'voiceOn' | 'paused'>> & {
-            voice?: { on?: unknown; paused?: unknown; session_id?: unknown };
-          };
-          if (got && typeof got.ok === 'boolean') {
-            const id = got.voice?.session_id;
-            return resolve({
-              ok: got.ok,
-              why: typeof got.why === 'string' ? got.why : '',
-              away: got.away === true,
-              bridge: got.bridge === true,
-              voiceOn: got.voice?.on === true,
-              paused: got.voice?.paused === true,
-              sessionId: typeof id === 'string' && id ? id : null,
-            });
-          }
-        } catch {
-          /* no result line */
-        }
-        reject(
-          new VoiceCtlError(
-            err
-              ? `Larmor's voice_ctl ${command} failed: ${lastLine(String(stderr)) || err.message.split('\n')[0]}`
-              : `Larmor's voice_ctl ${command} printed no result`,
-          ),
-        );
-      },
-    );
+  return execCtl(
+    larmorDir,
+    [command, ...(session ? [session] : [])],
+    timeoutOf(command),
+    command,
+  ).then((got) => {
+    const voice = (got.voice && typeof got.voice === 'object' ? got.voice : {}) as Record<
+      string,
+      unknown
+    >;
+    const id = voice.session_id;
+    const last = voice.last_voice as Record<string, unknown> | null | undefined;
+    const lastAt = last && typeof last === 'object' ? millis(last.at) : null;
+    return {
+      ok: got.ok === true,
+      why: typeof got.why === 'string' ? got.why : '',
+      away: got.away === true,
+      bridge: got.bridge === true,
+      voiceOn: voice.on === true,
+      paused: voice.paused === true,
+      sessionId: typeof id === 'string' && id ? id : null,
+      since: millis(voice.since),
+      lastListen: millis(voice.last_listen),
+      lastSpeak: millis(voice.last_speak),
+      name: typeof voice.name === 'string' && voice.name.trim() ? voice.name.trim() : null,
+      // a last voice without a usable time is no last voice
+      lastVoice:
+        last &&
+        typeof last === 'object' &&
+        typeof last.session_id === 'string' &&
+        last.session_id &&
+        lastAt !== null
+          ? {
+              session: last.session_id,
+              cwd: typeof last.cwd === 'string' ? last.cwd : null,
+              at: lastAt,
+            }
+          : null,
+    };
   });
 }
 
@@ -266,12 +266,15 @@ function refreshStatus(larmorDir: string): Promise<void> {
     return running;
   }
   const generation = statusGeneration;
-  const call = runVoiceCtl(larmorDir, 'status')
+  const call: Promise<void> = runVoiceCtl(larmorDir, 'status')
     .catch(() => null)
     .then((value) => {
+      // the call's own entry always goes; its answer is kept only if the board did not forget or learn better meanwhile
+      if (statusRunning.get(larmorDir) === call) {
+        statusRunning.delete(larmorDir);
+      }
       if (generation === statusGeneration) {
         statusKept.set(larmorDir, { value, at: Date.now() });
-        statusRunning.delete(larmorDir);
       }
     });
   statusRunning.set(larmorDir, call);
@@ -317,77 +320,166 @@ export function forgetProbes(): void {
   statusGeneration += 1;
   statusKept.clear();
   statusRunning.clear();
+  logKept.clear();
+  logRunning.clear();
 }
-
-/** How much of each log's end is read for the last lines. */
-const TAIL_BYTES = 128 * 1024;
 
 /** How many lines the voice panel keeps (it scrolls). */
 const VOICE_LINES = 20;
+/** The first fetch asks for the newest lines up to this many, and later ones only for the last few minutes. */
+const LOG_FIRST_LIMIT = 60;
+const LOG_WINDOW_S = 5 * 60;
+/** The most lines a session's log keeps between fetches. */
+const LOG_KEEP = 200;
 
-/** The whole JSON lines in a file's last TAIL_BYTES (the first one, cut by the read, is skipped), or [] without it. */
-function tailLines(file: string): Record<string, unknown>[] {
-  let handle: number;
-  try {
-    handle = openSync(file, 'r');
-  } catch {
-    return [];
+/**
+ * Runs `voice_ctl log` for one session and returns its lines as the panel shows them (what it said, then what you said, by
+ * time, oldest first). `sinceSeconds` is epoch seconds: only lines after it.
+ */
+export async function runVoiceLog(
+  larmorDir: string,
+  session: string,
+  limit: number,
+  sinceSeconds?: number,
+): Promise<{ key: string; line: BoardVoiceLine }[]> {
+  if (!/^[A-Za-z0-9._][A-Za-z0-9._:-]{0,199}$/.test(session)) {
+    throw new Error('not an allowed voice_ctl log session');
   }
-  try {
-    const size = statSync(file).size;
-    const start = Math.max(0, size - TAIL_BYTES);
-    const buffer = Buffer.alloc(size - start);
-    const read = readSync(handle, buffer, 0, buffer.length, start);
-    const lines = buffer.subarray(0, read).toString('utf8').split('\n');
-    if (start > 0) {
-      lines.shift();
+  if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
+    throw new Error('not an allowed voice_ctl log limit');
+  }
+  if (sinceSeconds !== undefined && !Number.isFinite(sinceSeconds)) {
+    throw new Error('not an allowed voice_ctl log time');
+  }
+  const got = await execCtl(
+    larmorDir,
+    [
+      'log',
+      ...(sinceSeconds === undefined ? [] : ['--since', String(sinceSeconds)]),
+      '--limit',
+      String(limit),
+      '--session',
+      session,
+    ],
+    QUICK_TIMEOUT_MS,
+    'log',
+  );
+  if (!got.ok) {
+    throw new VoiceCtlError(`Larmor's voice_ctl log failed: ${String(got.why || 'no reason')}`);
+  }
+  const lines = Array.isArray(got.lines) ? (got.lines as Record<string, unknown>[]) : [];
+  const who: Record<string, BoardVoiceLine['who']> = { spoken: 'voice', turn: 'you' };
+  return lines.flatMap((one) => {
+    const when = one && typeof one === 'object' ? millis(one.at) : null;
+    const speaker = typeof one?.kind === 'string' ? who[one.kind] : undefined;
+    if (when === null || !speaker || typeof one.text !== 'string' || !one.text.trim()) {
+      return [];
     }
-    return lines.flatMap((text) => {
-      try {
-        const parsed: unknown = JSON.parse(text);
-        return parsed && typeof parsed === 'object' ? [parsed as Record<string, unknown>] : [];
-      } catch {
-        return [];
-      }
-    });
-  } finally {
-    closeSync(handle);
+    // a line is told by its id when it has one, since a spoken line's status changes under the same id
+    const key = `${one.kind}:${typeof one.id === 'string' && one.id ? one.id : `${when}|${one.text}`}`;
+    return [{ key, line: { who: speaker, text: one.text.trim(), at: when } }];
+  });
+}
+
+/** One session's lines kept between builds: by key, so a line that comes again (its status changed) replaces itself. */
+interface KeptLog {
+  entries: Map<string, BoardVoiceLine>;
+  lines: BoardVoiceLine[];
+  /** when the last call ended, epoch ms */
+  at: number;
+  failed: boolean;
+  /** the newest line's time, epoch s, as of the last good call (0 for none) */
+  newest: number;
+  /** the last good call ran with voice off: nothing new can come, so no more calls until voice is on again */
+  settled: boolean;
+}
+const logKept = new Map<string, KeptLog>();
+const logRunning = new Map<string, Promise<void>>();
+
+function refreshLog(larmorDir: string, session: string, live: boolean): Promise<void> {
+  const key = `${larmorDir}\n${session}`;
+  const running = logRunning.get(key);
+  if (running) {
+    return running;
   }
+  const generation = statusGeneration;
+  const kept = logKept.get(key);
+  // The first call takes the newest lines. Later ones re-read from five minutes before the newest line the last good call
+  // saw (and no later than five minutes ago), so the window always overlaps what is already kept even after a long gap
+  // with no polls or failing calls: a spoken line keeps the time it was queued while its status changes, so asking only
+  // after the last time seen would miss those changes.
+  const since = kept?.entries.size
+    ? Math.min(kept.newest - LOG_WINDOW_S, Date.now() / 1000 - LOG_WINDOW_S)
+    : undefined;
+  const call: Promise<void> = runVoiceLog(
+    larmorDir,
+    session,
+    since === undefined ? LOG_FIRST_LIMIT : LOG_KEEP,
+    since,
+  )
+    .then((got) => ({ got, failed: false }))
+    .catch(() => ({ got: [], failed: true }))
+    .then(({ got, failed }) => {
+      // the call's own entry always goes, so the next poll can make a new call; a stale call only loses its lines
+      if (logRunning.get(key) === call) {
+        logRunning.delete(key);
+      }
+      if (generation !== statusGeneration) {
+        return;
+      }
+      const entries = new Map(kept?.entries);
+      for (const { key: lineKey, line } of got) {
+        entries.set(lineKey, line);
+      }
+      const newest = [...entries.entries()].sort((first, second) => first[1].at - second[1].at);
+      const keptEntries = new Map(newest.slice(-LOG_KEEP));
+      for (const other of [...logKept.keys()]) {
+        // one voice session is pinned at a time: drop the lines of a session that came before
+        if (other.startsWith(`${larmorDir}\n`) && other !== key) {
+          logKept.delete(other);
+        }
+      }
+      const newestAt = newest.length ? newest[newest.length - 1][1].at / 1000 : 0;
+      logKept.set(key, {
+        entries: keptEntries,
+        lines: [...keptEntries.values()].slice(-VOICE_LINES),
+        at: Date.now(),
+        failed,
+        newest: failed ? (kept?.newest ?? 0) : newestAt,
+        settled: !failed && !live,
+      });
+    });
+  logRunning.set(key, call);
+  return call;
 }
 
 /**
- * The voice session's last few lines, oldest first: what it said (its own lines in spoken.jsonl, each at its latest
- * state) and what you said since it first spoke in the part read (turns.jsonl names no session, and one voice session
- * runs at a time).
+ * The voice session's last few lines, oldest first, from `voice_ctl log` (what it said, and what you said since it first
+ * spoke). Like the status, a build does not wait for it once there are lines: it gets the last ones, and one refresh runs in
+ * the background when they are over a poll old (after a failure, 10 s). With no lines yet a build waits a second at most.
+ * Never rejects; [] when voice_ctl cannot say.
  */
-export function voiceLines(dir: string, session: string): BoardVoiceLine[] {
-  const said = new Map<string, BoardVoiceLine>();
-  for (const line of tailLines(path.join(dir, 'spoken.jsonl'))) {
-    if (
-      line.session_id === session &&
-      typeof line.id === 'string' &&
-      typeof line.text === 'string' &&
-      line.text.trim() &&
-      typeof line.wall === 'number'
-    ) {
-      said.set(line.id, { who: 'voice', text: line.text.trim(), at: line.wall * 1000 });
+export function voiceLines(
+  larmorDir: string,
+  session: string,
+  live: boolean,
+): Promise<BoardVoiceLine[]> {
+  const key = `${larmorDir}\n${session}`;
+  const kept = logKept.get(key);
+  if (kept) {
+    // with voice off and the lines fetched once since it ended, nothing new can come: no more calls until voice is on again
+    const idle = kept.settled && !live;
+    if (!idle && Date.now() - kept.at >= (kept.failed ? STATUS_RETRY_MS : STATUS_FRESH_MS)) {
+      void refreshLog(larmorDir, session, live);
     }
+    return Promise.resolve(kept.lines);
   }
-  if (!said.size) {
-    return [];
-  }
-  const start = Math.min(...[...said.values()].map((line) => line.at));
-  const heard = tailLines(path.join(dir, 'turns.jsonl')).flatMap((line) =>
-    line.type === 'turn' &&
-    line.is_final === true &&
-    typeof line.text === 'string' &&
-    line.text.trim() &&
-    typeof line.wall_clock === 'number' &&
-    line.wall_clock * 1000 >= start
-      ? [{ who: 'you' as const, text: line.text.trim(), at: line.wall_clock * 1000 }]
-      : [],
-  );
-  return [...said.values(), ...heard]
-    .sort((first, second) => first.at - second.at)
-    .slice(-VOICE_LINES);
+  const call = refreshLog(larmorDir, session, live);
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => resolve([]), STATUS_COLD_WAIT_MS);
+    void call.then(() => {
+      clearTimeout(timer);
+      resolve(logKept.get(key)?.lines ?? []);
+    });
+  });
 }

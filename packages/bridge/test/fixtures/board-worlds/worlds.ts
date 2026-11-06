@@ -934,7 +934,6 @@ async function record(
   writeFileSync(path.join(larmor, 'bridge-up'), '');
   writeJson(path.join(home, 'config.json'), {
     board_sessions_dir: sessions,
-    board_voice_dir: voiceDir,
     board_larmor_dir: larmor,
     board_it2_path: it2,
     board_status_source: 'iterm',

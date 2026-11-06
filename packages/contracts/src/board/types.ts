@@ -13,11 +13,11 @@ export interface BoardData {
   status_source: 'iterm' | 'registry';
   /** something the page should say, such as the terminal's CLI not answering */
   warning: string | null;
-  /** the voice session when voice mode is on and board_voice_dir names its folder; it is not on a card */
+  /** the voice session when voice mode is on and board_larmor_dir names the Larmor checkout; it is not on a card */
   voice: BoardVoice | null;
   /**
    * The phone buttons' state, whether or not voice is on: phone mode (Larmor's away mode) and whether its phone bridge
-   * runs, both from `voice_ctl status`. Null unless board_voice_dir and board_larmor_dir are set and the checkout can run voice_ctl.
+   * runs, both from `voice_ctl status`. Null unless board_larmor_dir is set and the checkout can run voice_ctl.
    */
   phone: { on: boolean; bridge: boolean } | null;
   /**
