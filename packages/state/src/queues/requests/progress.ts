@@ -3,9 +3,10 @@
  * (fixes.ts) that a listener has taken ("building") or not yet ("queued"). The panel's pulse says it, so Update gives
  * way to an in-progress line, and the agent board puts the PR's card in Working.
  */
+import { storyBuildKey } from '@once-upon-a-diff/domain/ids';
 import { readFixes } from './fixes.ts';
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
-import { storyKey, type Build, type Builds } from './builds.ts';
+import { type Build, type Builds } from './builds.ts';
 import { isRebuild } from '@once-upon-a-diff/stories/rebuild';
 import type { StoryRequest } from '@once-upon-a-diff/contracts/types';
 
@@ -51,7 +52,7 @@ export function requestFor(
   if (repo && number) {
     build = builds.get(repo, number);
   } else if (story) {
-    build = builds.all()[storyKey(story)] || null;
+    build = builds.all()[storyBuildKey(story)] || null;
   }
   // a rebuild belongs to the story it was asked for (a PR can have more than one story); builds and updates are the PR's
   if (story && isRebuild(build) && build?.story !== story) {

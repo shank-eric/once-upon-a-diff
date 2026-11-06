@@ -3,6 +3,7 @@
  * session has claimed a build for, and the local stories (a branch's story before any PR). A work becomes a card in
  * cards.ts; a session on its branch joins it in sessions.ts.
  */
+import { branchKey, branchWorkKey, prWorkKey, storyWorkKey } from '@once-upon-a-diff/domain/ids';
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
 import { shipMode } from '@once-upon-a-diff/stories/push-default';
 import { DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
@@ -17,8 +18,6 @@ import type { BuildContext, Work } from './types.ts';
 
 /** A merged PR stays on the board this long. */
 export const MERGED_HOURS = 1;
-
-export const prKey = (repo: string, number: number) => `pr:${repo.toLowerCase()}#${number}`;
 
 /** Adds a work to the map, with no session and no local story yet. */
 export function startWork(works: Map<string, Work>, work: Omit<Work, 'sessions' | 'local'>): void {
@@ -65,7 +64,7 @@ function linkBranchWorks(
     if (!local.approved_at && local.reviewed_at) {
       continue;
     }
-    const checkout = checkouts.get(`${work.repo.toLowerCase()}@${work.branch}`);
+    const checkout = checkouts.get(branchKey(work.repo, work.branch));
     if (!checkout) {
       continue;
     }
@@ -75,7 +74,7 @@ function linkBranchWorks(
     if (!found) {
       continue;
     }
-    const there = works.get(prKey(work.repo, found.number));
+    const there = works.get(prWorkKey(work.repo, found.number));
     if (there) {
       // The PR already has a work of its own (one of yours, from GitHub's list, before GitHub has said which branch it is
       // from): the branch's card goes instead of staying as a second card with no PR in Ready to ship, and the local story
@@ -113,7 +112,7 @@ export function collectWorks(ctx: BuildContext): CollectedWorks {
   const start = (work: Omit<Work, 'sessions' | 'local'>) => startWork(works, work);
   for (const story of stories) {
     start({
-      key: prKey(story.repo, story.number),
+      key: prWorkKey(story.repo, story.number),
       repo: story.repo,
       number: story.number,
       branch: story.branch,
@@ -125,7 +124,7 @@ export function collectWorks(ctx: BuildContext): CollectedWorks {
   }
   for (const merged of mergedStories(ctx.stories, { hours: MERGED_HOURS, now: nowMs })) {
     start({
-      key: prKey(merged.repo, merged.number),
+      key: prWorkKey(merged.repo, merged.number),
       repo: merged.repo,
       number: merged.number,
       branch: merged.branch,
@@ -138,7 +137,7 @@ export function collectWorks(ctx: BuildContext): CollectedWorks {
   // PRs GitHub is waiting on your review for, and your own open ones, are units of work too, with or without a story
   review.kickRequested(nowMs);
   for (const request of review.requested()) {
-    const key = prKey(request.repo, request.number);
+    const key = prWorkKey(request.repo, request.number);
     if (!works.has(key)) {
       start({
         key,
@@ -154,7 +153,7 @@ export function collectWorks(ctx: BuildContext): CollectedWorks {
   }
   // a PR a session has claimed a build, rebuild or fix for is a unit of work even with no story yet
   for (const build of builds.pending()) {
-    const key = build.repo && build.number ? prKey(build.repo, build.number) : null;
+    const key = build.repo && build.number ? prWorkKey(build.repo, build.number) : null;
     if (
       key &&
       build.repo &&
@@ -200,7 +199,7 @@ export function collectWorks(ctx: BuildContext): CollectedWorks {
   for (const entry of localEntryList) {
     const { repo, branch } = entry.story;
     if (repo && branch && entry.repo_path) {
-      const key = `${repo.toLowerCase()}@${branch}`;
+      const key = branchKey(repo, branch);
       if (!localCheckouts.has(key)) {
         localCheckouts.set(key, { story: entry.story.id, checkout: entry.repo_path });
       }
@@ -210,13 +209,13 @@ export function collectWorks(ctx: BuildContext): CollectedWorks {
   const newestLocal = new Map<string, InboxLocalStory>();
   for (const local of localStoryList) {
     if (local.repo && local.branch && !DEFAULT_BRANCHES.has(local.branch)) {
-      const key = `${local.repo.toLowerCase()}@${local.branch}`;
+      const key = branchKey(local.repo, local.branch);
       newestLocal.set(key, newestLocal.get(key) ?? local);
     } else if (local.repo) {
       // a story of commits on a default branch, or of a commit range with no branch (one commit each, say): no
       // branch to share, so a card of its own, shown while it waits for review (workCard drops it after)
       start({
-        key: `story:${local.id}`,
+        key: storyWorkKey(local.id),
         repo: local.repo,
         number: null,
         branch: null,
@@ -225,7 +224,7 @@ export function collectWorks(ctx: BuildContext): CollectedWorks {
         title: local.title,
         built: true,
       });
-      (works.get(`story:${local.id}`) as Work).local = local;
+      (works.get(storyWorkKey(local.id)) as Work).local = local;
     }
   }
   for (const local of newestLocal.values()) {
@@ -236,7 +235,7 @@ export function collectWorks(ctx: BuildContext): CollectedWorks {
     );
     if (!there) {
       start({
-        key: `branch:${repo.toLowerCase()}@${local.branch}`,
+        key: branchWorkKey(repo, local.branch as string),
         repo,
         number: null,
         branch: local.branch,
@@ -245,7 +244,7 @@ export function collectWorks(ctx: BuildContext): CollectedWorks {
         title: local.title,
         built: true,
       });
-      (works.get(`branch:${repo.toLowerCase()}@${local.branch}`) as Work).local = local;
+      (works.get(branchWorkKey(repo, local.branch as string)) as Work).local = local;
     } else if (!there.story && !there.mergedAt) {
       there.local = local;
     }

@@ -11,6 +11,7 @@
  * The order inside one pass is the contract the once-upon-listen skill leans on: what was handed over wins over a due timeout,
  * a due timeout over a story's idle stop, and that over the repo's.
  */
+import { repoListenerName } from '@once-upon-a-diff/domain/ids';
 import { existsSync, statSync, watch } from 'node:fs';
 import {
   REPO_RE,
@@ -104,7 +105,7 @@ function consumerOf(opts: { consumer?: Flag; story?: Flag; repo?: Flag }): strin
   if (opts.story) {
     return `story-${opts.story}`;
   }
-  return opts.repo ? `repo-${String(opts.repo).toLowerCase().replace('/', '-')}` : 'default';
+  return opts.repo ? repoListenerName(String(opts.repo)) : 'default';
 }
 
 /** Questions a repo-wide wait left to a live story listener, kept beside its cursor to look at again. */

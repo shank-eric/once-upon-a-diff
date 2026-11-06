@@ -4,7 +4,7 @@
  */
 import { repoOfCheckout, checkoutRoot } from '@once-upon-a-diff/foundation/repos';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
-import { slug } from '@once-upon-a-diff/stories/local-story';
+import { parsePrRef, storyIdForPr } from '@once-upon-a-diff/domain/ids';
 
 /** The repo (owner/name) of the checkout that holds `cwd`, or null. */
 export function repoAt(cwd: string): string | null {
@@ -18,11 +18,9 @@ export function repoAt(cwd: string): string | null {
 /** `value` as a story id. `repoHere` says which repo a bare number means (the caller's checkout). */
 export function resolveStory(home: string, value: string, repoHere: () => string | null): string {
   const text = String(value).trim();
-  const pr =
-    /github\.com\/([^/\s]+\/[^/\s]+)\/pull\/(\d+)/.exec(text) ||
-    /^([^/#\s]+\/[^/#\s]+)#(\d+)$/.exec(text);
-  let repo: string | null = pr ? pr[1] : null;
-  const number = pr ? pr[2] : /^\d+$/.test(text) && text;
+  const pr = parsePrRef(text);
+  let repo: string | null = pr ? pr.repo : null;
+  const number = pr ? pr.number : /^\d+$/.test(text) && text;
   if (!number) {
     return text;
   }
@@ -31,5 +29,5 @@ export function resolveStory(home: string, value: string, repoHere: () => string
     throw new Error(`--story ${text}: run it in the repo's checkout, or say owner/name#${text}`);
   }
   const found = new StoryStore({ home }).find(repo, number);
-  return found ? found.id : slug(`${repo.replace('/', '-')}-${number}`);
+  return found ? found.id : storyIdForPr(repo, number);
 }

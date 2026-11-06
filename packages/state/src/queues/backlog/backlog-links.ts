@@ -10,6 +10,7 @@
  * and whether the branch's work has merged. An open item with a claim is linked by the agent alone (`agentLinks`). The
  * one place for those rules. Pure: board.ts gathers the facts.
  */
+import { repoKey } from '@once-upon-a-diff/domain/ids';
 import path from 'node:path';
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
 import type { BoardStartedLinks } from '@once-upon-a-diff/contracts/types';
@@ -90,7 +91,7 @@ export function startedLinks(item: BacklogItem, facts: LinkFacts): BoardStartedL
   if (item.state !== 'started' || !branch) {
     return null;
   }
-  const worktrees = (facts.worktrees.get((item.repo ?? '').toLowerCase()) ?? [])
+  const worktrees = (facts.worktrees.get(repoKey(item.repo)) ?? [])
     .filter((tree) => tree.branch === branch)
     .map((tree) => ({ path: tree.path, name: path.basename(tree.path) }));
   const sessions = facts.sessions

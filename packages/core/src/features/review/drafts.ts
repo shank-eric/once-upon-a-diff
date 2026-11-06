@@ -26,7 +26,7 @@
  */
 import { createHash } from 'node:crypto';
 import { runGh } from '@once-upon-a-diff/foundation/gh';
-import { prKey } from '@once-upon-a-diff/domain/pr-key';
+import { prKey } from '@once-upon-a-diff/domain/ids';
 import { readJson, writeJsonAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
 import { stateKeyOf } from '@once-upon-a-diff/stories/meta';
 import { stateFile } from '@once-upon-a-diff/foundation/settings';

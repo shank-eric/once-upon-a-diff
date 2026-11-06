@@ -3,6 +3,7 @@
  * what it's a story of (readMeta), and its version, which the pages poll to
  * redraw when a file changes.
  */
+import { stateKeyForPr } from '@once-upon-a-diff/domain/ids';
 import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { readJson } from '@once-upon-a-diff/adapters/stores/fs/json-file';
@@ -98,5 +99,5 @@ export function storyRepo(meta: StoryMeta | null | undefined): string | null {
 /** Where a story's reads, marks and drafts live: a PR story's own key, so every story of the PR shares them, else its id. */
 export const stateKeyOf = (id: string, meta: StoryMeta | null | undefined): string =>
   meta && meta.kind === 'github' && meta.repo && meta.number
-    ? `pr-${meta.repo.replace('/', '-')}-${meta.number}`.toLowerCase()
+    ? stateKeyForPr(meta.repo, meta.number)
     : id;

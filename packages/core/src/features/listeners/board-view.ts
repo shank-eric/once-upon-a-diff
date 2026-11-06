@@ -8,6 +8,7 @@
  * The lane reads only what `LaneInput` names, so the board's own ListeningInput (features/sessions/listening.ts) is passed as
  * it is, with `candidatesFor` added, and neither folder imports the other.
  */
+import { repoKey } from '@once-upon-a-diff/domain/ids';
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
 import { readFixes } from '@once-upon-a-diff/state/queues/requests/fixes';
 import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
@@ -206,7 +207,7 @@ export function listenersLane(live: Listener[], input: LaneInput): BoardListener
   const history = readHistory(input.home, input.now);
   const repos = new Map<string, string>();
   for (const listener of repoListeners) {
-    repos.set((listener.repo as string).toLowerCase(), listener.repo as string);
+    repos.set(repoKey(listener.repo), listener.repo as string);
   }
   for (const [key, entry] of Object.entries(history)) {
     repos.set(key, repos.get(key) ?? entry.repo);
@@ -216,7 +217,7 @@ export function listenersLane(live: Listener[], input: LaneInput): BoardListener
       const active = repoListeners.find(
         (listener) => listener.repo && sameRepo(listener.repo, repo),
       );
-      const entry = history[repo.toLowerCase()];
+      const entry = history[repoKey(repo)];
       const found = active ? listeningOf(active, input) : null;
       return {
         repo,

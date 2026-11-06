@@ -14,6 +14,7 @@
  * story's tab in the background doesn't lose the listener. Only a closed tab, or a browser that stops its timers, lets
  * the idle window run out.
  */
+import { repoKey } from '@once-upon-a-diff/domain/ids';
 import { readFixes } from '@once-upon-a-diff/state/queues/requests/fixes';
 import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
 import { readSettings } from '@once-upon-a-diff/foundation/settings';
@@ -180,11 +181,7 @@ export function requestStop(home: string, repo: string, now = Date.now()): void 
   ensureDir(home);
   const file = path.join(home, STOPS);
   const stops = readJson<Record<string, number>>(file, {}) ?? {};
-  writeFileAtomic(
-    file,
-    JSON.stringify({ ...stops, [repo.toLowerCase()]: now }, null, 2) + '\n',
-    0o600,
-  );
+  writeFileAtomic(file, JSON.stringify({ ...stops, [repoKey(repo)]: now }, null, 2) + '\n', 0o600);
 }
 
 /** Whether a stop was asked for the repo after this wait started. */
@@ -193,7 +190,7 @@ export function stopRequested(home: string, repo: string, startedAt: number): st
   if (stops == null) {
     return null; // no file, not JSON or null: no stop was asked for, whatever the start time
   }
-  return (stops[repo.toLowerCase()] ?? 0) >= startedAt ? 'stopped from the board' : null;
+  return (stops[repoKey(repo)] ?? 0) >= startedAt ? 'stopped from the board' : null;
 }
 
 /** One line in <home>/listeners.log when a listener stops by itself or is stopped. */

@@ -1,4 +1,5 @@
 /** What stands between a PR and its merge button, and how many approvals the base branch's rulesets require. */
+import { branchKey } from '@once-upon-a-diff/domain/ids';
 import { runGh } from '@once-upon-a-diff/foundation/gh';
 import type { PrInfo } from '@once-upon-a-diff/contracts/types';
 import { plural } from '@once-upon-a-diff/domain/text';
@@ -63,7 +64,7 @@ export function mergeSummary(input: {
 const rulesKept = new Map<string, { at: number; required: number | null }>();
 const RULES_MS = 30 * 60 * 1000;
 export async function rulesRequired(repo: string, base: string): Promise<number | null> {
-  const key = `${repo.toLowerCase()}@${base}`;
+  const key = branchKey(repo, base);
   const kept = rulesKept.get(key);
   if (kept && Date.now() - kept.at < RULES_MS) {
     return kept.required;

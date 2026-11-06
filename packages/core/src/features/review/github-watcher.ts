@@ -21,6 +21,13 @@
  * This file is the scheduler: when to ask and what to do with the answers. The asking is in github-checks.ts (with
  * pr-info.ts and merge-rules.ts for what the board shows) and default-branch.ts.
  */
+import {
+  branchKey,
+  branchKeyPrefix,
+  prKey,
+  prKeyPrefix,
+  repoKey,
+} from '@once-upon-a-diff/domain/ids';
 import { FULL_SHA_RE } from '@once-upon-a-diff/domain/patterns';
 import { runGitAsync } from '@once-upon-a-diff/adapters/git';
 import { readApproval } from '@once-upon-a-diff/stories/approval';
@@ -63,9 +70,6 @@ interface Check {
   facts: Promise<PrFacts | null>;
   applied: Set<string>;
 }
-
-const keyOf = (repo: string, number: number) => `${repo.toLowerCase()}#${number}`;
-const branchKey = (repo: string, branch: string) => `${repo.toLowerCase()}@${branch}`;
 
 export class AutoReview {
   /** One check per PR: when it was asked, what it found (null when GitHub couldn't say), and the stories it has been applied to. */
@@ -161,7 +165,7 @@ export class AutoReview {
 
   /** What GitHub last said about a PR, or null when it hasn't answered yet (or the check carries no detail). */
   info(repo: string, number: number): PrInfo | null {
-    return this.known.get(keyOf(repo, number)) || null;
+    return this.known.get(prKey(repo, number)) || null;
   }
 
   /** The PR GitHub last said a branch has: null when it has none, undefined when it hasn't answered yet. */
@@ -268,7 +272,7 @@ export class AutoReview {
 
   /** The PR's check for this window: asked now unless it was asked lately, and kept whole so every caller sees the same answer. */
   private ask(repo: string, number: number, now: number) {
-    const key = keyOf(repo, number);
+    const key = prKey(repo, number);
     const last = this.checked.get(key);
     if (last && now - last.at < this.cacheMs) {
       return last;
@@ -318,11 +322,13 @@ export class AutoReview {
   ): boolean {
     const { repo, number } = input;
     const branch = input.branch || null;
-    const lower = repo.toLowerCase();
+    const lower = repoKey(repo);
+    const branchPrefix = branchKeyPrefix(repo);
+    const prPrefix = prKeyPrefix(repo);
     const follows =
-      [...this.branches.keys()].some((key) => key.startsWith(`${lower}@`)) ||
-      [...this.known.keys(), ...this.checked.keys()].some((key) => key.startsWith(`${lower}#`)) ||
-      !!this.asked?.list.some((pr) => pr.repo.toLowerCase() === lower);
+      [...this.branches.keys()].some((key) => key.startsWith(branchPrefix)) ||
+      [...this.known.keys(), ...this.checked.keys()].some((key) => key.startsWith(prPrefix)) ||
+      !!this.asked?.list.some((pr) => repoKey(pr.repo) === lower);
     if (!follows) {
       return false;
     }
@@ -331,7 +337,7 @@ export class AutoReview {
         this.refreshedAt.delete(key);
       }
     }
-    const gapKey = `${repo.toLowerCase()}@${branch ?? ''}#${number ?? ''}`;
+    const gapKey = `${repoKey(repo)}@${branch ?? ''}#${number ?? ''}`;
     if (this.refreshedAt.has(gapKey)) {
       return false;
     }
@@ -339,7 +345,7 @@ export class AutoReview {
     const numbers = new Set<number>(number ? [number] : []);
     let named = branch;
     if (number) {
-      named = named ?? this.known.get(keyOf(repo, number))?.branch ?? null;
+      named = named ?? this.known.get(prKey(repo, number))?.branch ?? null;
     }
     if (named) {
       const found = this.branches.get(branchKey(repo, named));
@@ -350,7 +356,7 @@ export class AutoReview {
         }
       }
       for (const [key, info] of this.known) {
-        if (key.startsWith(`${repo.toLowerCase()}#`) && info.branch === named) {
+        if (key.startsWith(prKeyPrefix(repo)) && info.branch === named) {
           numbers.add(info.number);
         }
       }
@@ -358,13 +364,13 @@ export class AutoReview {
     if (number) {
       // a PR the branch check found, whose branch this ping didn't name
       for (const [key, found] of this.branches) {
-        if (key.startsWith(`${repo.toLowerCase()}@`) && found.pr?.number === number) {
+        if (key.startsWith(branchKeyPrefix(repo)) && found.pr?.number === number) {
           this.markBranchStale(key, found);
         }
       }
     }
     for (const one of numbers) {
-      this.checked.delete(keyOf(repo, one));
+      this.checked.delete(prKey(repo, one));
     }
     if (this.asked && now - this.listRefreshedAt >= LIST_GAP_MS) {
       this.listRefreshedAt = now;

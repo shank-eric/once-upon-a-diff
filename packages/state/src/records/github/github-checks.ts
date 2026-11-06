@@ -2,6 +2,7 @@
  * The read-only GraphQL checks through gh: a PR's facts (ghPrCheck), the open PRs waiting on you or yours
  * (ghRequestedCheck), and the PR a branch has (ghBranchCheck).
  */
+import { prKey } from '@once-upon-a-diff/domain/ids';
 import { FULL_SHA_RE } from '@once-upon-a-diff/domain/patterns';
 import { runGh } from '@once-upon-a-diff/foundation/gh';
 import { isAncestorAsync } from '@once-upon-a-diff/adapters/git';
@@ -159,7 +160,7 @@ export function requestedOf(data: {
     if (!node.number || !node.repository) {
       return [];
     }
-    const key = `${node.repository.nameWithOwner.toLowerCase()}#${node.number}`;
+    const key = prKey(node.repository.nameWithOwner, node.number);
     if (seen.has(key)) {
       return [];
     }

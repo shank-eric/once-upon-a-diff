@@ -4,7 +4,6 @@
  * progress file, appends the matching line to it, so those files stay readable logs for people and scripts, written by
  * the CLI and not typed by hand. The board never reads them back. A mirror that fails never fails the write.
  */
-import { randomBytes } from 'node:crypto';
 import {
   BACKLOG_ID_RE,
   AGENT_NAME_RE,
@@ -13,6 +12,8 @@ import {
 } from '@once-upon-a-diff/domain/patterns';
 import { SHA_RE } from '@once-upon-a-diff/domain/text';
 import { REPO_RE } from '@once-upon-a-diff/foundation/repos';
+import { agentId, sameRepo } from '@once-upon-a-diff/domain/ids';
+import { newRunId } from '@once-upon-a-diff/foundation/ids';
 import { appendAgentEvent } from '@once-upon-a-diff/adapters/stores/agents-file';
 import { agentEventsIn } from './events-file.ts';
 import { appendLine } from '@once-upon-a-diff/adapters/stores/fs/lines';
@@ -164,7 +165,7 @@ export class AgentRegistry {
     noteIfMalformed(this.file, line, readAgentEvent);
     appendAgentEvent(this.file, line);
     const agent = foldAgentEvents(this.events()).find(
-      (one) => `${one.sid}:${one.name}` === event.id,
+      (one) => agentId(one.sid, one.name) === event.id,
     );
     try {
       // an editor is not an agent: a `[running]` line that never closes would read as a running agent in the ledger
@@ -183,7 +184,7 @@ export class AgentRegistry {
   private base(kind: AgentEvent['op'], name: string, sid8: string, target: Target): AgentEvent {
     return {
       op: kind,
-      id: `${sid8}:${name}`,
+      id: agentId(sid8, name),
       sid8,
       name,
       at: (target.at ?? new Date()).toISOString(),
@@ -294,7 +295,7 @@ export class AgentRegistry {
     if (slots !== null && (kind !== 'editor' || slots < 1)) {
       throw new Error('--slots is for an editor (once-upon editor start --slots N), 1 to 99');
     }
-    const run = `r_${randomBytes(5).toString('hex')}`;
+    const run = newRunId();
     let pr = count(input.pr, 'the PR number');
     let repo = optional(input.repo, 'the repo', REPO_RE);
     let branch = optional(input.branch, 'the branch', CARD_BRANCH_RE);
@@ -319,21 +320,21 @@ export class AgentRegistry {
         throw new Error(`${cardId} is ${card.closed}: a run cannot start on it`);
       }
       if (kind === 'author') {
-        const key = `${sid}:${name}`;
+        const key = agentId(sid, name);
         const nowMs = (input.at ?? new Date()).getTime();
         // a restart of the same sid:name is a fix round and ends the run before it; any other open author on the card is a second one
         const other = this.agents().find(
           (one) =>
             one.card === cardId &&
             one.kind === 'author' &&
-            `${one.sid}:${one.name}` !== key &&
+            agentId(one.sid, one.name) !== key &&
             // an author parked at a question or a story review is not working, so it does not block a fixer
             ['running', 'plan', 'fixing'].includes(one.state) &&
             nowMs - (lastActivity(one)?.getTime() ?? nowMs) <= STALE_MS,
         );
         if (other) {
           throw new Error(
-            `${cardId} already has an open author run (${other.sid}:${other.name}): finish it first, or restart it under its own name for a fix round`,
+            `${cardId} already has an open author run (${agentId(other.sid, other.name)}): finish it first, or restart it under its own name for a fix round`,
           );
         }
         if (!card.claimed) {
@@ -344,7 +345,7 @@ export class AgentRegistry {
       }
       // the card's repo and branch are the run's: a typed one that differs is not used, and is said so
       const typed = { repo, branch, pr, lane };
-      if (card.repo && repo && repo.toLowerCase() !== card.repo.toLowerCase()) {
+      if (card.repo && repo && !sameRepo(repo, card.repo)) {
         warn?.(`once-upon: --repo ${repo} ignored: ${cardId} is on ${card.repo}`);
       }
       if (card.branch && branch && branch !== card.branch) {
@@ -380,7 +381,7 @@ export class AgentRegistry {
       // a restart that leaves --slots out keeps the editor's earlier slots
       ...(kind === 'editor' ? { slots: slots ?? earlier?.slots ?? DEFAULT_SLOTS } : {}),
     });
-    return { id: `${sid}:${name}`, run };
+    return { id: agentId(sid, name), run };
   }
 
   state(name: string, input: StateInput, warn?: (text: string) => void): LedgerAgent {

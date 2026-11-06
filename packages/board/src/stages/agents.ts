@@ -2,6 +2,7 @@
  * The background agents on the board: which are shown, and where each goes. An agent is nested in the card its
  * registered repo, branch, PR or card point to (agent-home.ts), else it is a card of its own, on its own lane.
  */
+import { agentWorkKey } from '@once-upon-a-diff/domain/ids';
 import { resolveLane } from '@once-upon-a-diff/domain/lane-key';
 import {
   finishedColumn,
@@ -260,7 +261,7 @@ export function placeAgents(
       column = 'ready';
     }
     added.push({
-      id: `agent:${agent.sid}:${agent.name}`,
+      id: agentWorkKey(agent.sid, agent.name),
       kind: 'agent',
       title: agent.name,
       repo: null,

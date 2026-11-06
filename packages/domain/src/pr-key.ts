@@ -1,15 +1,11 @@
 /*
- * The shapes of a GitHub PR the bridge, the panel and the extension all name: the PR key stories and drafts are stored
- * under, and the commit range in a PR's diff URL. The page routing that reads the rest of GitHub's URLs is github-page's
+ * The commit range in a PR's diff URL, which the panel and the extension read. The PR key stories and drafts are stored
+ * under is `prKey` in ids.ts. The page routing that reads the rest of GitHub's URLs is github-page's
  * (packages/github-page/src/pages.ts). Pure: no DOM and no browser API, so node can test it.
  */
 
 const COMMIT_RANGE =
   /^\/[^/]+\/[^/]+\/pull\/\d+\/(?:files|changes)\/([0-9a-f]{7,40})\.\.([0-9a-f]{7,40})\/?$/;
-
-/** The PR key the extension stores state under: "owner/repo#12", lower-cased. */
-export const prKey = (repo: string, number: number | string): string =>
-  `${repo}#${number}`.toLowerCase();
 
 /** GitHub's diff of a commit range in a PR: /owner/repo/pull/N/files/<from>..<to> (or /changes/…). {from, to} or null. */
 export function rangeOfPath(

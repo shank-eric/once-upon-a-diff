@@ -1,4 +1,5 @@
 /** The cards: a session that is not on a branch of its own, a work (PR or branch), and where each sits in the columns. */
+import { branchKey } from '@once-upon-a-diff/domain/ids';
 import { isAutoDone } from '@once-upon-a-diff/core/features/review/story-lists';
 import { requestFor } from '@once-upon-a-diff/state/queues/requests/progress';
 import { columnOf } from '../columns.ts';
@@ -113,7 +114,7 @@ function aheadFor(
   repo: string,
   branch: string,
 ): BoardCard['ahead'] {
-  const found = localCheckouts.get(`${repo.toLowerCase()}@${branch}`);
+  const found = localCheckouts.get(branchKey(repo, branch));
   return found ? ctx.lookups.aheadFor(found, branch) : null;
 }
 
@@ -239,7 +240,7 @@ function storylessCheckout(
   if (!story || 'number' in story || !story.storyless || pr || !repo || !branch) {
     return null;
   }
-  const local = facts.localCheckouts.get(`${repo.toLowerCase()}@${branch}`);
+  const local = facts.localCheckouts.get(branchKey(repo, branch));
   return local ? { review: { branch, path: local.checkout } } : null;
 }
 

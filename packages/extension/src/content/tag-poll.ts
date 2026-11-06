@@ -4,7 +4,7 @@
  * (no timer) otherwise; the tags call `reschedule` when a look or a click changes which of those it is.
  */
 import { createPoll } from '@once-upon-a-diff/bridge-client/poll';
-import { prKey } from '@once-upon-a-diff/domain/pr-key';
+import { prKey } from '@once-upon-a-diff/domain/ids';
 import type { PrRef, StoryStatus } from './tag-model.ts';
 
 export const LOOK_AGAIN_MS = 10000; // while a story is queued, building or updating

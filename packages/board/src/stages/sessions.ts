@@ -4,6 +4,7 @@
  * of its own (cards.ts); the voice session is pinned above the columns; a session that only listens is shown in the
  * Listeners lane; one with no prompt yet is a chip in the Blank strip.
  */
+import { prWorkKey } from '@once-upon-a-diff/domain/ids';
 import path from 'node:path';
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
 import { DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
@@ -33,7 +34,7 @@ import { sessionCard } from './cards.ts';
 import { laneOf } from './lanes.ts';
 import { liveSessions } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
 import type { BuildContext, PinnedVoice, SessionView, Work } from './types.ts';
-import { branchOfWork, prKey, startWork } from './works.ts';
+import { branchOfWork, startWork } from './works.ts';
 
 /** What the registry and the status source say of the live sessions and the agents. */
 export interface LiveFacts {
@@ -306,7 +307,7 @@ export function placeSessions(
       const found = ctx.review.branchPr(repo, branch);
       ctx.review.kickBranch(repo, branch, session.cwd, nowMs);
       if (found && found.state === 'open') {
-        const key = prKey(repo, found.number);
+        const key = prWorkKey(repo, found.number);
         if (!works.has(key)) {
           startWork(works, {
             key,
@@ -326,7 +327,7 @@ export function placeSessions(
       // a branch with a local story and no PR yet, until GitHub says it has one
       const found = ctx.review.branchPr(repo, branch);
       ctx.review.kickBranch(repo, branch, session.cwd, nowMs);
-      if (found && found.state === 'open' && !works.has(prKey(repo, found.number))) {
+      if (found && found.state === 'open' && !works.has(prWorkKey(repo, found.number))) {
         work.number = found.number;
       } else if (found?.state === 'merged') {
         // the branch's PR merged: its local story is done, so a session still on the branch is a card of its own

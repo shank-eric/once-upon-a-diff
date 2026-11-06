@@ -2,6 +2,7 @@
  * The Backlog column: open items, and started ones marked onto the work cards they became. A started item is linked to
  * what is working it: worktrees on its branch, sessions, its registered agent, and whether it merged (backlog-links.ts).
  */
+import { branchKey, repoKey } from '@once-upon-a-diff/domain/ids';
 import { checkoutFor, sameRepo, seenCheckouts } from '@once-upon-a-diff/foundation/repos';
 import {
   assignLine,
@@ -89,9 +90,9 @@ export async function readBacklogLinks(
   const wanted = startedItems;
   const treesByRepo = new Map<string, Worktree[]>();
   await Promise.all(
-    [...new Set(wanted.flatMap((item) => (item.repo ? [item.repo.toLowerCase()] : [])))].map(
+    [...new Set(wanted.flatMap((item) => (item.repo ? [repoKey(item.repo)] : [])))].map(
       async (key) => {
-        const repo = wanted.find((item) => item.repo?.toLowerCase() === key)?.repo as string;
+        const repo = wanted.find((item) => item.repo && repoKey(item.repo) === key)?.repo as string;
         // every checkout of the repo the board can learn of (checkouts.ts); checkout_dirs only when none turns up
         const dirs = new Set<string>(
           await checkoutsOf(repo, {
@@ -134,14 +135,13 @@ export async function readBacklogLinks(
   const landedBranches = new Map<string, { at: number | null }>();
   await Promise.all(
     worked.map(async (item) => {
-      const repoKey = (item.repo ?? '').toLowerCase();
       const landed = await ctx.lookups.mergedLocally(
-        treesByRepo.get(repoKey) ?? [],
+        treesByRepo.get(repoKey(item.repo)) ?? [],
         item.branch as string,
         nowMs,
       );
       if (landed) {
-        landedBranches.set(`${repoKey}@${item.branch}`, landed);
+        landedBranches.set(branchKey(item.repo, item.branch as string), landed);
       }
     }),
   );
@@ -157,7 +157,7 @@ export async function readBacklogLinks(
     })),
     agents,
     merged: (repo: string | null, branch: string) => {
-      const landed = landedBranches.get(`${(repo ?? '').toLowerCase()}@${branch}`);
+      const landed = landedBranches.get(branchKey(repo, branch));
       if (landed) {
         return landed;
       }
@@ -172,9 +172,7 @@ export async function readBacklogLinks(
         const when = Date.parse(mergedWork.mergedAt ?? '');
         return { at: Number.isNaN(when) ? null : when };
       }
-      const tree = treesByRepo
-        .get((repo ?? '').toLowerCase())
-        ?.find((one) => one.branch === branch);
+      const tree = treesByRepo.get(repoKey(repo))?.find((one) => one.branch === branch);
       if (repo && tree) {
         ctx.review.kickBranch(repo, branch, tree.path, nowMs);
       }

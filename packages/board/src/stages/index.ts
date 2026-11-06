@@ -31,6 +31,7 @@
  * waiting; a finished one has no card. It is nested inside the card its registered repo and branch, PR or card point to,
  * if there is one (agent-home.ts), and never by what its task says.
  */
+import { agentWorkKey } from '@once-upon-a-diff/domain/ids';
 import { unreadAnswers } from '@once-upon-a-diff/state/queues/requests/conversation';
 import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
 import type { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
@@ -238,7 +239,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   ];
   const tags = new Map(
     agents.flatMap((agent) =>
-      agent.lane ? [[`agent:${agent.sid}:${agent.name}`, agent.lane]] : [],
+      agent.lane ? [[agentWorkKey(agent.sid, agent.name), agent.lane]] : [],
     ),
   );
   for (const card of cards) {

@@ -7,7 +7,7 @@
  * One batched bridge call per page. The tags are our own elements in their
  * own shadow roots; nothing of GitHub's is clicked.
  */
-import { prKey } from '@once-upon-a-diff/domain/pr-key';
+import { prKey } from '@once-upon-a-diff/domain/ids';
 import { conversationPr, isPullListPage } from '@once-upon-a-diff/github-page/pages';
 import { extensionAlive } from '../bridge.ts';
 import { createPrTags } from '../pr-tags.ts';

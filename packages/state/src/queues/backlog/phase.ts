@@ -10,6 +10,7 @@
  * Pure: the board gathers the facts.
  */
 import type { BoardColumn } from '@once-upon-a-diff/contracts/types';
+import { sameRepo } from '@once-upon-a-diff/domain/ids';
 import { repoName } from '@once-upon-a-diff/domain/text';
 import { STALE_MS } from '../../records/agents/events.ts';
 import { isCritic, type LedgerAgent } from '../../records/agents/ledger.ts';
@@ -184,7 +185,7 @@ export function cardRunProblems(
     if (!item) {
       continue;
     }
-    if (run.repo && item.repo && run.repo.toLowerCase() !== item.repo.toLowerCase()) {
+    if (run.repo && item.repo && !sameRepo(run.repo, item.repo)) {
       problems.push(`${label} typed repo ${run.repo}, its card ${item.id} is on ${item.repo}`);
     }
     if (run.branch && item.branch && run.branch !== item.branch) {

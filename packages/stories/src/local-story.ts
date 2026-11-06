@@ -5,6 +5,7 @@
  * refs move) and chapters.json in once-upon's format, so the same panel and
  * the same chapters work on either.
  */
+import { slug } from '@once-upon-a-diff/domain/ids';
 import { existsSync, readFileSync } from 'node:fs';
 import {
   copyFileAtomic,
@@ -41,12 +42,6 @@ export interface VetInput {
   before: Plan;
   after: Plan;
 }
-
-export const slug = (text: string): string =>
-  String(text)
-    .replace(/[^A-Za-z0-9._-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, 100);
 
 const WORKSPACE_FOLDERS = ['apps', 'libs', 'packages', 'tools', 'services'];
 /** A file's group: its package in a monorepo (apps/x), else its top-level folder, else (root). */

@@ -10,6 +10,7 @@
  * is too big (over MAX_PARTS_BYTES) or doesn't check out is ignored with a warning on stderr, and the repo's file is used instead.
  * Files are cached by path and mtime: an edit is picked up on the next fetch, with no restart, and a bad file warns once.
  */
+import { partsFileName } from '@once-upon-a-diff/domain/ids';
 import path from 'node:path';
 import { statSync } from 'node:fs';
 import { readJson } from '@once-upon-a-diff/adapters/stores/fs/json-file';
@@ -28,7 +29,7 @@ export const PARTS_FILE = '.once-upon-parts.json';
 
 /** The reviewer's own file for a repo: `<home>/parts/<owner>-<name>.json`, the repo lowercased. */
 export const userPartsFile = (home: string, repo: string): string =>
-  path.join(home, 'parts', `${repo.toLowerCase().replace(/\//g, '-')}.json`);
+  path.join(home, 'parts', partsFileName(repo));
 
 /** The biggest parts file read: a real one is a few KB. */
 export const MAX_PARTS_BYTES = 256 * 1024;

@@ -3,6 +3,7 @@
  * a card is made is in stages/ (stages/index.ts has the stages and the sources). What a click on the board does to other
  * tools is in ADR-11: Board has the actions, which are the board's only writes.
  */
+import { agentId } from '@once-upon-a-diff/domain/ids';
 import path from 'node:path';
 import { readSettings } from '@once-upon-a-diff/foundation/settings';
 import { REPO_RE, lastKnownRepo, repoOfCheckoutAsync } from '@once-upon-a-diff/foundation/repos';
@@ -621,7 +622,7 @@ export class Board {
     }
     // the click counts as at least the agent's latest line, which may be ahead of this clock (a wrong zone, a typo), so the card goes either way
     const latest = lastActivity(agent)?.getTime() ?? 0;
-    markFinished(this.home, `${sid}:${name}`, Math.max(now.getTime(), latest));
+    markFinished(this.home, agentId(sid, name), Math.max(now.getTime(), latest));
     this.invalidate();
     return { ledger: open };
   }

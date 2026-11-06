@@ -8,6 +8,7 @@
  * card's, and phase.ts reads the card from its runs. The flip deletes the claim-to-run window and criticHold here.
  * Pure: the board gathers the facts.
  */
+import { agentId } from '@once-upon-a-diff/domain/ids';
 import type { BoardColumn } from '@once-upon-a-diff/contracts/types';
 import { sameRepo } from '@once-upon-a-diff/foundation/repos';
 import { STALE_MS } from '../../records/agents/events.ts';
@@ -21,7 +22,7 @@ export const OPEN: LedgerAgent['state'][] = ['running', 'waiting', 'plan', 'fixi
 
 /** The key an agent goes by on the board: its launching session and its name (the registry's key). */
 export const agentKey = (agent: Pick<LedgerAgent, 'sid' | 'name'>): string =>
-  `${agent.sid}:${agent.name}`;
+  agentId(agent.sid, agent.name);
 
 /** Whether two agent views are the same agent (a card lists each agent once). A view with no key is nobody's twin. */
 export const sameAgentView = (first: { key?: string }, second: { key?: string }): boolean =>

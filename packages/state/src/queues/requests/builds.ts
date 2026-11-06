@@ -21,7 +21,7 @@ import path from 'node:path';
 import { newId } from '@once-upon-a-diff/foundation/ids';
 import { sameRepo, REPO_RE } from '@once-upon-a-diff/foundation/repos';
 import { SHA_RE, plural, shortSha } from '@once-upon-a-diff/domain/text';
-import { prKey } from '@once-upon-a-diff/domain/pr-key';
+import { prKey, storyBuildKey } from '@once-upon-a-diff/domain/ids';
 import { readerOf } from '@once-upon-a-diff/foundation/settings';
 import { readBuild, type Build, type BuildRead } from '@once-upon-a-diff/contracts/files/schemas';
 import { RequestQueue } from './queue.ts';
@@ -97,8 +97,6 @@ export interface RebuildRequest {
 
 export const CLAIM_FRESH_MS = 30 * 60 * 1000;
 
-/** A local story's rebuild, which has no PR to key it by. */
-export const storyKey = (id: string): string => `story:${id}`;
 const MAX_GUIDANCE = 2000;
 
 /** What a rebuild is of, in words: owner/repo#N, or the local story and its range. */
@@ -234,7 +232,7 @@ export class Builds {
     const build =
       meta && meta.kind === 'github' && meta.repo && meta.number
         ? this.get(meta.repo, meta.number)
-        : this.all()[storyKey(id)] || null;
+        : this.all()[storyBuildKey(id)] || null;
     return isRebuild(build) && build!.story === id ? build : null;
   }
   pending(): Build[] {
@@ -424,7 +422,7 @@ export class Builds {
       throw bad("the story doesn't say which PR it is");
     }
     return this.queue.update((all) => {
-      const key = github ? prKey(meta.repo as string, Number(meta.number)) : storyKey(story);
+      const key = github ? prKey(meta.repo as string, Number(meta.number)) : storyBuildKey(story);
       const old = all[key];
       if (old && old.status === 'pending' && this.stateOf(old) !== 'queued') {
         return old;
@@ -489,7 +487,7 @@ export class Builds {
   }
   /** A local story was written again: finish its pending rebuild. */
   settleStory(id: string, { note = null }: { note?: string | null } = {}): Build | null {
-    return this.finishIf(storyKey(id), null, { published: true, story: id, note });
+    return this.finishIf(storyBuildKey(id), null, { published: true, story: id, note });
   }
   private finishIf(
     key: string,

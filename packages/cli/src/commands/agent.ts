@@ -5,6 +5,7 @@
  * log line to it, so those files stay logs written by this command, for people and scripts (the board never reads them).
  * `--no-mirror` skips those lines, for a caller that writes the progress line itself (beat.sh), so one beat is one line. It goes after the words: a flag takes the next word.
  */
+import { agentId } from '@once-upon-a-diff/domain/ids';
 import path from 'node:path';
 import { repoOfCheckout } from '@once-upon-a-diff/foundation/repos';
 import { readSettings } from '@once-upon-a-diff/foundation/settings';
@@ -89,7 +90,7 @@ function agent(home: string, _cfg: Config, opts: CliOpts) {
               const beat = one.beat ? `${one.beat.n}/${one.beat.of} ${one.beat.step}` : '-';
               const last = lastActivity(one);
               const quiet = last ? `${Math.round((now - last.getTime()) / 60000)}m ago` : '-';
-              return [`${one.sid}:${one.name}`, one.kind, one.state, beat, quiet, one.task].join(
+              return [agentId(one.sid, one.name), one.kind, one.state, beat, quiet, one.task].join(
                 '\t',
               );
             })

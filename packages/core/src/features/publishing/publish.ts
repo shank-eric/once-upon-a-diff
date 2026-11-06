@@ -11,7 +11,7 @@ import { parseUnifiedDiff } from '@once-upon-a-diff/stories/diff';
 import { stateKeyOf } from '@once-upon-a-diff/stories/meta';
 import { afterRebuild } from './after-rebuild.ts';
 import { vetRebuild } from '@once-upon-a-diff/stories/rebuild';
-import { slug } from '@once-upon-a-diff/stories/local-story';
+import { storyIdForPr } from '@once-upon-a-diff/domain/ids';
 import { storyDirFor } from '@once-upon-a-diff/stories/placement';
 import { noteSkeleton } from '@once-upon-a-diff/stories/skeleton';
 import { readyPlan } from '@once-upon-a-diff/stories/validate';
@@ -65,7 +65,7 @@ export function publishPrStory(
     throw new Error(`${source} doesn't say which PR it is (no pr.json naming it)`);
   }
   const prJson = pr as PrJson & { number: number }; // named above
-  const id = wantedId || slug(`${repo.replace('/', '-')}-${prJson.number}`);
+  const id = wantedId || storyIdForPr(repo, prJson.number);
   const builds = new Builds(home);
   const meta: StoryMeta = { kind: 'github', repo, number: prJson.number };
   const rebuild = pendingRebuild(builds, id, meta);

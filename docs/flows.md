@@ -54,8 +54,8 @@ flowchart LR
 | 2 | `contracts` | the route: `POST /api/builds`, token only | `packages/contracts/src/bridge/routes.ts:27` (`buildRequest:`) |
 | 3 | `app` | through the service worker to the bridge, as above | `packages/extension/src/entrypoints/background.ts:37` (`fetch(`) |
 | 4 | `app` | the route checks the body and asks for the build | `packages/server/src/routes/builds.ts:35` (`parseBody('buildRequest', raw)`) |
-| 5 | `service` | `Builds.request` checks the repo and number | `packages/state/src/queues/requests/builds.ts:320` (`request({`) |
-| 6 | `service` | and changes `builds.json` in one locked step | `packages/state/src/queues/requests/builds.ts:337` (`this.queue.update(`) |
+| 5 | `service` | `Builds.request` checks the repo and number | `packages/state/src/queues/requests/builds.ts:318` (`request({`) |
+| 6 | `service` | and changes `builds.json` in one locked step | `packages/state/src/queues/requests/builds.ts:335` (`this.queue.update(`) |
 | 7 | `service` | `RequestQueue.update` | `packages/state/src/queues/requests/queue.ts:103` (`update<T>(`) |
 | 8 | `adapter` | reads, changes and writes the file under its `O_EXCL` lock | `packages/adapters/src/stores/fs/lock.ts:104` (`export function updateJson`) |
 | 9 | `adapter` | the lock: `builds.json.lock`, taken over when its pid is gone or it's 10 s old | `packages/adapters/src/stores/fs/lock.ts:81` (`export function withLock`) |
@@ -68,11 +68,11 @@ flowchart LR
 |---|---|---|---|
 | 12 | `app` | `once-upon wait --repo` (started by the once-upon-listen skill) enters the CLI | `packages/bridge/bin/once-upon.ts:13` (`main(process.argv.slice(2))`) |
 | 13 | `app` | the command table runs `wait` | `packages/cli/src/index.ts:109` (`entry.run(home, loadConfig(home), resolveLongText(opts))`) |
-| 14 | `service` | each loop asks for build requests to hand over | `packages/core/src/features/listeners/wait.ts:318` (`builds.toHand(consumer`) |
-| 15 | `service` | `Builds.toHand` picks this wait's requests | `packages/state/src/queues/requests/builds.ts:276` (`toHand(`) |
+| 14 | `service` | each loop asks for build requests to hand over | `packages/core/src/features/listeners/wait.ts:319` (`builds.toHand(consumer`) |
+| 15 | `service` | `Builds.toHand` picks this wait's requests | `packages/state/src/queues/requests/builds.ts:274` (`toHand(`) |
 | 16 | `service` | and claims them in the same locked write, so no other wait gets them | `packages/state/src/queues/requests/queue.ts:175` (`take(consumer: string`) |
 | 17 | `app` | the wait returns the request, the CLI prints it and exits, which wakes the session | `packages/cli/src/commands/inbox.ts:84` (`of outcome.items`) |
-| 18 | `service` | with nothing to hand, it sleeps until the inbox file changes or 2 s pass | `packages/core/src/features/listeners/wait.ts:179` (`watch(file`) |
+| 18 | `service` | with nothing to hand, it sleeps until the inbox file changes or 2 s pass | `packages/core/src/features/listeners/wait.ts:180` (`watch(file`) |
 
 **The story is written and published**
 
@@ -84,7 +84,7 @@ flowchart LR
 | 22 | `service` | **copies `chapters.json` and `file-map.json`** into that folder, through the adapter's `copyFileAtomic` | `packages/core/src/features/publishing/publish.ts:106` (`copyFileAtomic(`) |
 | 23 | `service` | **writes `meta.json`** last, with the head it was told from, through the adapter's `writeJsonAtomic` | `packages/core/src/features/publishing/publish.ts:110` (`writeJsonAtomic(path.join(dest, 'meta.json')`) |
 | 24 | `service` | settles the build request | `packages/core/src/features/publishing/publish.ts:129` (`builds.settle(`) |
-| 25 | `service` | `settle` finishes it under the lock, if the story matches the request | `packages/state/src/queues/requests/builds.ts:478` (`settle(`) |
+| 25 | `service` | `settle` finishes it under the lock, if the story matches the request | `packages/state/src/queues/requests/builds.ts:476` (`settle(`) |
 
 **The tag sees it**
 
@@ -115,8 +115,8 @@ The click names its card (`card` in the body), so a session that builds for seve
 | R1 | `app` | the card's Review button | `packages/web/public/board/columns/actions.ts:51` (`reviewCard`) |
 | R2 | `contracts` | `POST /api/board/review {card}`, the board's key | `packages/contracts/src/board/routes.ts:59` (`boardReview:`) |
 | R3 | `app` | the route finds the card in the board's own snapshot. The branch and folder are the card's, never the body's | `packages/server/src/routes/board.ts:122` (`async function review`) |
-| R4 | `service` | the base is the merge-base with origin's default branch, the head the branch's name | `packages/stories/src/local-story.ts:240` (`export function reviewBranch`) |
-| R5 | `service` | **writes the story** in the checkout's `.once-upon/`, as `once-upon local` with no chapters does | `packages/stories/src/local-story.ts:122` (`export function createLocalStory`) |
+| R4 | `service` | the base is the merge-base with origin's default branch, the head the branch's name | `packages/stories/src/local-story.ts:235` (`export function reviewBranch`) |
+| R5 | `service` | **writes the story** in the checkout's `.once-upon/`, as `once-upon local` with no chapters does | `packages/stories/src/local-story.ts:117` (`export function createLocalStory`) |
 | R6 | `app` | Push on a storyless review sends the head the diff was drawn at, with no Approve. Create pull request refuses a branch that has moved past it | `packages/server/src/routes/push.ts:31` (`isStoryless(story.dir)`) |
 
 ## 2. Ask
@@ -146,9 +146,9 @@ flowchart LR
 | 4 | `app` | the story route checks the body and appends the question | `packages/server/src/routes/questions.ts:66` (`app.inbox.append(`) |
 | 5 | `service` | `Inbox.append` gives it an id and a time | `packages/state/src/queues/requests/inbox.ts:80` (`append<E`) |
 | 6 | `adapter` | **appends a line to `inbox.jsonl`** | `packages/adapters/src/stores/fs/files.ts:24` (`export function appendText`) |
-| 7 | `service` | a running `wait` wakes on the file change and reads past its cursor | `packages/core/src/features/listeners/wait.ts:285` (`messages.unread(consumer, { advance: true })`) |
+| 7 | `service` | a running `wait` wakes on the file change and reads past its cursor | `packages/core/src/features/listeners/wait.ts:286` (`messages.unread(consumer, { advance: true })`) |
 | 8 | `service` | `unread` reads from the cursor's byte offset and **writes the cursor** (`cursors/<consumer>.json`) | `packages/state/src/queues/requests/inbox.ts:185` (`unread(`) |
-| 9 | `service` | which questions this wait takes | `packages/core/src/features/listeners/wait.ts:118` (`function questionsToTake(`) |
+| 9 | `service` | which questions this wait takes | `packages/core/src/features/listeners/wait.ts:119` (`function questionsToTake(`) |
 | 10 | `service` | routing, and **writes `handed.json`** under `handed.json.lock`: a question another wait has is skipped, a story's own live listener beats a repo listener (which defers to it), and each question taken is marked as this wait's in the same locked write, so two waits can't both take it | `packages/state/src/queues/requests/conversation.ts:340` (`updateJson<Handed, void>(handedFile(home)`) |
 | 11 | `service` | a story built by an agent this session launched is relayed to that agent | `packages/state/src/records/listeners/binding.ts:171` (`export function relayBinding`) |
 | 12 | `service` | marks again under the lock once the relays are known: a relayed question is noted as `via` the agent, so `answer` credits the right session | `packages/state/src/queues/requests/conversation.ts:147` (`export function noteHanded`) |
@@ -186,21 +186,21 @@ flowchart LR
 | 5 | `app` | the page's transport sends its key (the `#key=` fragment, or the cookie on a proxy name) | `packages/web/public/board.ts:44` (`fetch(path`) |
 | 6 | `app` | the bridge recognizes the board's key (`packages/server/src/index.ts:302` (`sameToken(auth, boardKey(token))`)), and lets it reach only the routes whose table entry allows it; any other route is a 403 | `packages/server/src/index.ts:458` (`boardKeyMay(candidate.route)`) |
 | 7 | `app` | the route | `packages/server/src/routes/board.ts:58` (`app.board.snapshot()`) |
-| 8 | `service` | a 2 s cache, one build in flight for every caller, and a generation so a stale build can't refill it | `packages/board/src/board.ts:197` (`async snapshot()`) |
-| 9 | `service` | the build gathers its context and runs the stages | `packages/board/src/board.ts:382` (`buildBoard(ctx`) |
-| 10 | `service` | the stages, in order | `packages/board/src/stages/index.ts:88` (`export async function buildBoard`) |
-| 11 | `service` | live sessions, their status, branches and repos | `packages/board/src/stages/sessions.ts:58` (`liveSessions(settings.sessionsDir)`) |
+| 8 | `service` | a 2 s cache, one build in flight for every caller, and a generation so a stale build can't refill it | `packages/board/src/board.ts:198` (`async snapshot()`) |
+| 9 | `service` | the build gathers its context and runs the stages | `packages/board/src/board.ts:383` (`buildBoard(ctx`) |
+| 10 | `service` | the stages, in order | `packages/board/src/stages/index.ts:89` (`export async function buildBoard`) |
+| 11 | `service` | live sessions, their status, branches and repos | `packages/board/src/stages/sessions.ts:59` (`liveSessions(settings.sessionsDir)`) |
 | 12 | `adapter` | **reads `~/.claude/sessions/<pid>.json`**, live pids only | `packages/adapters/src/claude-sessions/live-sessions.ts:40` (`export async function liveSessions`) |
-| 13 | `service` | the agents, from the registry | `packages/board/src/stages/sessions.ts:64` (`readAgents(`) |
+| 13 | `service` | the agents, from the registry | `packages/board/src/stages/sessions.ts:65` (`readAgents(`) |
 | 14 | `service` | **reads `agents.jsonl`** (only what was appended since this process last read it: `events-file.ts`) and folds its events into one view per agent. (Nothing else is read: the ledger and progress files are logs the registry writes, not input.) | `packages/state/src/records/agents/read.ts:15` (`foldAgentEvents(agentEventsIn(`) |
-| 15 | `service` | the works: PR and local stories, pending builds | `packages/board/src/stages/index.ts:97` (`collectWorks(ctx)`) |
-| 16 | `service` | what else is known of each session: listeners, voice, blank sessions, titles, status lines | `packages/board/src/stages/index.ts:105` (`readSessionFacts(`) |
-| 17 | `service` | cards for the works, with PR details from what the GitHub watcher last heard | `packages/board/src/stages/index.ts:132` (`buildCards(`) |
-| 18 | `service` | each card's column | `packages/board/src/stages/cards.ts:271` (`columnOf({`) |
+| 15 | `service` | the works: PR and local stories, pending builds | `packages/board/src/stages/index.ts:98` (`collectWorks(ctx)`) |
+| 16 | `service` | what else is known of each session: listeners, voice, blank sessions, titles, status lines | `packages/board/src/stages/index.ts:106` (`readSessionFacts(`) |
+| 17 | `service` | cards for the works, with PR details from what the GitHub watcher last heard | `packages/board/src/stages/index.ts:133` (`buildCards(`) |
+| 18 | `service` | each card's column | `packages/board/src/stages/cards.ts:272` (`columnOf({`) |
 | 19 | `service` | the column rules | `packages/board/src/columns.ts:81` (`export function columnOf`) |
-| 20 | `service` | the Backlog's items, folded from **`backlog.jsonl`** (claims included) | `packages/board/src/stages/index.ts:135` (`state.backlog.items()`) |
-| 21 | `service` | which agent claimed which Backlog card | `packages/board/src/stages/index.ts:153` (`claimViews(`) |
-| 22 | `service` | the lanes, by repo | `packages/board/src/stages/index.ts:273` (`groupLanes(cards, labels)`) |
+| 20 | `service` | the Backlog's items, folded from **`backlog.jsonl`** (claims included) | `packages/board/src/stages/index.ts:136` (`state.backlog.items()`) |
+| 21 | `service` | which agent claimed which Backlog card | `packages/board/src/stages/index.ts:154` (`claimViews(`) |
+| 22 | `service` | the lanes, by repo | `packages/board/src/stages/index.ts:274` (`groupLanes(cards, labels)`) |
 | 23 | `contracts` | back: the answer's shape | `packages/contracts/src/board/types.ts:10` (`export interface BoardData`) |
 | 24 | `app` | the root component draws the regions, and Preact's keyed diff keeps focus, scroll and typed text | `packages/web/public/board.ts:261` (`<${Columns} view=${columns} />`) |
 
@@ -240,7 +240,7 @@ flowchart LR
 | 12 | `service` | the bridge makes the line itself, and the body never carries text: `/once-upon-listen <repo>` for the repo, or `--story <id>` for the story scope (`packages/core/src/features/sessions/listening.ts:198` (`export const listenStoryPromptFor`), chosen at `packages/core/src/features/sessions/sessions.ts:255` (`listenStoryPromptFor(story)`)) | `packages/core/src/features/sessions/listening.ts:195` (`export const listenPromptFor`) |
 | 13 | `adapter` | **types it** into the tab found from the session's tty | `packages/adapters/src/iterm.ts:150` (`export async function typeLine`) |
 | 14 | `outside` | the session runs the once-upon-listen skill, which starts `once-upon wait` in the background |  |
-| 15 | `service` | the wait **writes its `waiting` beat** every 5 s | `packages/core/src/features/listeners/wait.ts:276` (`beat(home, consumer, 'waiting', scope)`) |
+| 15 | `service` | the wait **writes its `waiting` beat** every 5 s | `packages/core/src/features/listeners/wait.ts:277` (`beat(home, consumer, 'waiting', scope)`) |
 | 16 | `app` | back: the pulse says whether a listener is live for the story or its repo | `packages/server/src/routes/story.ts:85` (`new Listening(app.home).listening(`) |
 | 17 | `library` | the light turns green | `packages/panel/src/shell/overlay.ts:265` (`moved('listening')`) |
 
@@ -265,10 +265,10 @@ flowchart LR
 
 | # | Layer | Hop | At |
 |---|---|---|---|
-| 1 | `app` | `once-upon agent start <name> --kind author --card <id> …` | `packages/cli/src/commands/agent.ts:123` (`registry.start(`) |
-| 2 | `service` | `AgentRegistry.start` checks the fields (the card exists and is open, one author at a time, a critic names its card, the card's repo and branch replace typed ones: ADR-25) and gives the run an id | `packages/state/src/records/agents/registry.ts:272` (`start(input: StartInput`) |
+| 1 | `app` | `once-upon agent start <name> --kind author --card <id> …` | `packages/cli/src/commands/agent.ts:124` (`registry.start(`) |
+| 2 | `service` | `AgentRegistry.start` checks the fields (the card exists and is open, one author at a time, a critic names its card, the card's repo and branch replace typed ones: ADR-25) and gives the run an id | `packages/state/src/records/agents/registry.ts:273` (`start(input: StartInput`) |
 | 3 | `adapter` | **appends a `start` event to `agents.jsonl`** | `packages/adapters/src/stores/agents-file.ts:12` (`export function appendAgentEvent`) |
-| 4 | `service` | and a log line to the ledger file through the adapter's `appendLine`, when `board_ledger_file` is set (a mirror for the status line, the iTerm hook and people; the board never reads it) | `packages/state/src/records/agents/registry.ts:172` (`appendLine(this.mirror.ledger`) |
+| 4 | `service` | and a log line to the ledger file through the adapter's `appendLine`, when `board_ledger_file` is set (a mirror for the status line, the iTerm hook and people; the board never reads it) | `packages/state/src/records/agents/registry.ts:173` (`appendLine(this.mirror.ledger`) |
 | 5 | `app` | `once-upon backlog claim <id> --agent <name> --branch <b>` | `packages/cli/src/commands/backlog.ts:180` (`store.claim(item.id`) |
 | 6 | `service` | `BacklogStore.claim` refuses a dropped card | `packages/state/src/queues/backlog/backlog.ts:337` (`claim(`) |
 | 7 | `adapter` | **appends a `claim` event to `backlog.jsonl`** | `packages/adapters/src/stores/backlog-file.ts:12` (`export function appendBacklogEvent`) |
@@ -279,17 +279,17 @@ flowchart LR
 | # | Layer | Hop | At |
 |---|---|---|---|
 | 9 | `outside` | the agent runs `beat.sh <name> N/M <step> "<note>"`, which writes the progress line and calls `once-upon agent beat … --no-mirror` |  |
-| 10 | `app` | `agent beat` | `packages/cli/src/commands/agent.ts:168` (`registry.beat(`) |
-| 11 | `service` | **appends a `beat` event** | `packages/state/src/records/agents/registry.ts:401` (`beat(name: string`) |
-| 12 | `service` | the board reads both files on each build (flow 3, hops 13–14 and 20): the card its runs name sits in the column its runs say, with its agents on it (`claimViews`) | `packages/board/src/stages/agents.ts:110` (`export function claimViews(`) |
-| 13 | `service` | once the author finishes, the card waits for its critic before Ready to ship, and an open fix round keeps it Working (the table: `packages/state/src/queues/backlog/phase.ts:103` (`export function cardPhase(`)) | `packages/board/src/stages/backlog.ts:243` (`cardPhase(item, runsOf(item, agents), nowMs)`) |
+| 10 | `app` | `agent beat` | `packages/cli/src/commands/agent.ts:169` (`registry.beat(`) |
+| 11 | `service` | **appends a `beat` event** | `packages/state/src/records/agents/registry.ts:402` (`beat(name: string`) |
+| 12 | `service` | the board reads both files on each build (flow 3, hops 13–14 and 20): the card its runs name sits in the column its runs say, with its agents on it (`claimViews`) | `packages/board/src/stages/agents.ts:111` (`export function claimViews(`) |
+| 13 | `service` | once the author finishes, the card waits for its critic before Ready to ship, and an open fix round keeps it Working (the table: `packages/state/src/queues/backlog/phase.ts:104` (`export function cardPhase(`)) | `packages/board/src/stages/backlog.ts:241` (`cardPhase(item, runsOf(item, agents), nowMs)`) |
 
 **Finish and land**
 
 | # | Layer | Hop | At |
 |---|---|---|---|
-| 14 | `app` | `once-upon agent finish <name> --state done --commit <sha> --branch <b> --card <id>` | `packages/cli/src/commands/agent.ts:176` (`registry.finish(`) |
-| 15 | `service` | **appends a `finish` event** with the commit as its result | `packages/state/src/records/agents/registry.ts:420` (`finish(name: string`) |
+| 14 | `app` | `once-upon agent finish <name> --state done --commit <sha> --branch <b> --card <id>` | `packages/cli/src/commands/agent.ts:177` (`registry.finish(`) |
+| 15 | `service` | **appends a `finish` event** with the commit as its result | `packages/state/src/records/agents/registry.ts:421` (`finish(name: string`) |
 | 16 | `outside` | the main session deploys: `scripts/deploy-local.sh --yes <branch>` fast-forwards main and restarts the bridge |  |
 | 17 | `app` | after the deploy, the script runs `backlog land` over the range that went live | `scripts/deploy-local.sh:287` (`backlog land`) |
 | 18 | `app` | `land` reads the commit each agent's finish recorded | `packages/cli/src/commands/backlog.ts:233` (`recordedTips(registry.events())`) |

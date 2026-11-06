@@ -4,6 +4,7 @@
  * and the board refreshes the entry of every repo with a live listener when it builds. `started_at` is when the repo went
  * from no listener to one, so the lane can say how long it has been listening. Entries older than HISTORY_DAYS are dropped.
  */
+import { repoKey } from '@once-upon-a-diff/domain/ids';
 import path from 'node:path';
 import { readJson, writeJsonAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
 
@@ -43,7 +44,7 @@ export function noteListener(
   gapMs = 60 * 1000,
 ): void {
   const all = readHistory(home, now);
-  const key = repo.toLowerCase();
+  const key = repoKey(repo);
   const before = all[key];
   if (before && before.consumer === consumer && now - Date.parse(before.last_seen) < 20 * 1000) {
     return; // noted a moment ago: the board asks every few seconds

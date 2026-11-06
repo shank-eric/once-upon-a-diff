@@ -8,7 +8,7 @@
  * when to look. It also owns the tags' poll (a createPoll): while a story is queued, building or updating it asks the page
  * to look again every 10 s, and every 30 s while the bridge doesn't answer, while the tab shows and when it gets focus.
  */
-import { prKey } from '@once-upon-a-diff/domain/pr-key';
+import { prKey } from '@once-upon-a-diff/domain/ids';
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { bridge, extensionAlive, usage, type BridgeAnswer } from './bridge.ts';
 import type { Listening, StatusMany } from '@once-upon-a-diff/contracts/types';

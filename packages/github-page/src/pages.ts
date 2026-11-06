@@ -2,7 +2,7 @@
  * What a github.com path says about the page: a PR's Files changed (/files or /changes), its Conversation tab, or a PR
  * list. The extension's content scripts route on these. No DOM or chrome.* here, so node can test it.
  */
-import { prKey } from '@once-upon-a-diff/domain/pr-key';
+import { prKey } from '@once-upon-a-diff/domain/ids';
 
 /** A PR's Files changed page. */
 export interface FilesChangedPr {

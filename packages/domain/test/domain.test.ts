@@ -1,6 +1,7 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { prKey, rangeOfPath } from '../src/pr-key.ts';
+import { rangeOfPath } from '../src/pr-key.ts';
+import { prKey } from '../src/ids.ts';
 import { laneLabels, resolveLane, sameLaneKey } from '../src/lane-key.ts';
 import { escapeHtml, unescapeHtml, html, raw, Html } from '../src/html.ts';
 import {

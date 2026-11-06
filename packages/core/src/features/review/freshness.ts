@@ -9,7 +9,7 @@
 import { diffText } from '@once-upon-a-diff/adapters/git';
 import { parseUnifiedDiff } from '@once-upon-a-diff/stories/diff';
 import { runGh } from '@once-upon-a-diff/foundation/gh';
-import { prKey } from '@once-upon-a-diff/domain/pr-key';
+import { prKey } from '@once-upon-a-diff/domain/ids';
 import { SHA_RE, sameSha } from '@once-upon-a-diff/domain/text';
 import type { DiffFile, FreshUpdate, Freshness } from '@once-upon-a-diff/contracts/types';
 import type { Build } from '@once-upon-a-diff/state/queues/requests/builds';

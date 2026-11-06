@@ -10,15 +10,14 @@ import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { REPO_RE } from '@once-upon-a-diff/domain/patterns';
+import { repoKey, sameRepo } from '@once-upon-a-diff/domain/ids';
 import { readSettings } from './settings.ts';
 import { runGitAsync, remoteUrl, topLevel, branchName } from '@once-upon-a-diff/adapters/git';
 import { readJson, writeJsonAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
 import { ensureDir } from '@once-upon-a-diff/adapters/stores/fs/files';
 import { baseName } from '@once-upon-a-diff/domain/text';
 
-export { REPO_RE };
-export const sameRepo = (first: unknown, second: unknown): boolean =>
-  !!first && !!second && String(first).toLowerCase() === String(second).toLowerCase();
+export { REPO_RE, sameRepo };
 
 const SEGMENT_RE = /^[A-Za-z0-9_.-]+$/;
 /** github.com and its subdomains (`ssh.github.com`, an ssh alias like `work.github.com`), never `github.example.com`. */
@@ -206,7 +205,7 @@ export function seenCheckout(
     return;
   }
   const all = readAll(home);
-  const key = repo.toLowerCase();
+  const key = repoKey(repo);
   if (all[key] === dir) {
     return;
   }
@@ -237,7 +236,7 @@ export function checkoutFor(
   if (!repo) {
     return null;
   }
-  const seen = readAll(home)[repo.toLowerCase()];
+  const seen = readAll(home)[repoKey(repo)];
   if (seen && existsSync(seen)) {
     return seen;
   }

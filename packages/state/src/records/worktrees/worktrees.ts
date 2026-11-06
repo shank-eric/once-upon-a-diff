@@ -19,6 +19,7 @@
  *
  * `judge` is the one place that decides whether a worktree may be cleaned up; the board and the cleanup endpoint share it.
  */
+import { agentId } from '@once-upon-a-diff/domain/ids';
 import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
 import { readdir } from 'node:fs/promises';
 import path from 'node:path';
@@ -863,7 +864,7 @@ export function workingIn(
       agent.branch === tree.branch &&
       (!agent.repo || !tree.repo || sameRepo(agent.repo, tree.repo));
     if (onBranch || (!!agent.cwd && within(agent.cwd))) {
-      who.push({ kind: 'agent', id: `${agent.sid}:${agent.name}`, label: agent.name });
+      who.push({ kind: 'agent', id: agentId(agent.sid, agent.name), label: agent.name });
     }
   }
   return who.filter(
