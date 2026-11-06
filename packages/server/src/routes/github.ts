@@ -30,11 +30,12 @@ function allowed(app: App, now: number): boolean {
 
 async function refresh({ app, body: raw, send }: Call) {
   const body = parseBody('githubRefresh', raw);
-  if (!allowed(app, Date.now())) {
+  const now = app.now();
+  if (!allowed(app, now)) {
     throw new HttpError(429, 'too many refreshes: the poll will catch up', 'rate_limited');
   }
   const what = body.branch ?? `#${body.number}`;
-  if (!app.autoReview.refresh({ repo: body.repo, branch: body.branch, number: body.number })) {
+  if (!app.autoReview.refresh({ repo: body.repo, branch: body.branch, number: body.number }, now)) {
     return send(200, { ok: true, refreshed: false, settled: true } satisfies GithubRefreshAnswer);
   }
   app.log(`github refresh ${body.repo} ${what} (${body.reason})`);

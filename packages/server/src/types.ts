@@ -37,6 +37,8 @@ export interface App {
   sessions: Sessions;
   /** marks PR stories reviewed when GitHub says you have */
   autoReview: AutoReview;
+  /** the clock the GitHub refresh route measures its gaps by: Date.now, or a test's */
+  now: () => number;
   /** page links with their keys: a local story's page and the agent board's */
   links: {
     /** a local story's page link; the full key (it can push), or with `readOnly` the one that reads but never pushes */

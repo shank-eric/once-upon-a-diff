@@ -62,7 +62,10 @@ const github = () => ({
 });
 
 /** A bridge over a home with an approved local story on BRANCH (Ready to ship until the branch has a PR), against `hub`. */
-async function world(hub: ReturnType<typeof github>, { prStory = false } = {}) {
+async function world(
+  hub: ReturnType<typeof github>,
+  { prStory = false, now }: { prStory?: boolean; now?: () => number } = {},
+) {
   const home = tmp('refresh-home');
   const checkout = tmp('refresh-checkout');
   git(checkout, 'init', '-q', '-b', BRANCH);
@@ -111,6 +114,7 @@ async function world(hub: ReturnType<typeof github>, { prStory = false } = {}) {
       hub.asked.requested += 1;
       return hub.requested;
     },
+    now,
   });
   const cards = async (): Promise<BoardCard[]> => {
     const board = await bridge.call<{ lanes: { cards: BoardCard[] }[] }>('GET', '/api/board');
@@ -185,7 +189,9 @@ test('a review: the PR check is asked again and its new facts show on the card',
 
 test('a burst is one refresh; the second ping after the gap asks again; the lists have their own gap', async () => {
   const hub = github();
-  const sim = await world(hub);
+  // the bridge's clock is held: the gap is measured from when the first ping arrived, and a first refresh (a board build
+  // and GitHub's answers) can take longer than REFRESH_GAP_MS on a loaded machine, which would make the repeat a new burst
+  const sim = await world(hub, { now: () => 1_000_000 });
   try {
     await sim.settle();
     const first = await sim.refresh({ repo: REPO, branch: BRANCH, reason: 'open' });

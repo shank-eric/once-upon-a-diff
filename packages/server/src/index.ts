@@ -143,6 +143,7 @@ export function createBridge({
   checkPr = ghPrCheck,
   checkBranch = ghBranchCheck,
   checkRequested = ghRequestedCheck,
+  now = Date.now,
 }: {
   home: string;
   token: string;
@@ -155,6 +156,8 @@ export function createBridge({
   checkBranch?: BranchCheck;
   /** how the board asks GitHub which PRs wait on your review (the tests' stand-in) */
   checkRequested?: RequestedCheck;
+  /** the clock the GitHub refresh route measures its gaps and per-minute cap by (the tests' stand-in) */
+  now?: () => number;
 }): Bridge {
   const extensionOrigins = new Set(extensionIds.map((id) => `chrome-extension://${id}`));
   if (!token) {
@@ -175,6 +178,7 @@ export function createBridge({
     board,
     sessions: board.sessions,
     autoReview,
+    now,
     links: {
       story: (id, readOnly = false) => localPageUrl(portOf(), id, token, readOnly),
       board: (origin) => boardPageUrl(portOf(), token, origin),

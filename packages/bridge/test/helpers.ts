@@ -72,6 +72,7 @@ export async function startBridge(opts: {
   checkPr?: PrCheck;
   checkBranch?: BranchCheck;
   checkRequested?: RequestedCheck;
+  now?: () => number;
 }) {
   // no test asks GitHub unless it brings its own check
   const server: Bridge = createBridge({
