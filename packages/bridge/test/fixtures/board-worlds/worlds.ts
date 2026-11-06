@@ -19,6 +19,7 @@ import {
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { voiceState } from '@once-upon-a-diff/adapters/larmor';
+import { runCommand } from '@once-upon-a-diff/adapters/os';
 import { fakeLarmorIn } from '../fake-larmor.ts';
 import path from 'node:path';
 
@@ -742,7 +743,16 @@ async function record(
     },
     [{ repo: 'acme/widgets', number: 19 }],
   );
+  // The first build kicks the worktree scan (real git, in the background) and the scan drops the board's kept answer
+  // whenever it lands, so how many builds the calls below make (and so how often the watcher is asked again, the
+  // `asked2` log) followed the machine's speed. Its git is held until the second build is done, then waited for.
+  let releaseScan = () => {};
+  const scanHeld = new Promise<void>((resolve) => (releaseScan = resolve));
   const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+    worktreeRun: async (cmd: string, args: string[], timeoutMs: number) => {
+      await scanHeld;
+      return runCommand(cmd, args, timeoutMs);
+    },
     source: sourceSaying({
       [sid(onBranch)]: { status: 'waiting', detail: 'asked you a question' },
       [sid(loose)]: { status: 'working', detail: 'compiling' },
@@ -756,7 +766,12 @@ async function record(
   });
   await record('2-busy-mix', board, {
     asked: async () => asked.slice(),
-    listenSessions: () => board.listenSessions('acme/widgets'),
+    listenSessions: async () => {
+      const out = await board.listenSessions('acme/widgets');
+      releaseScan();
+      await (board as any).scanner.idle();
+      return out;
+    },
     storyListen: () => board.storyListenSessions('local-y'),
   });
   // a second snapshot a moment later: the kept answer and `since`
