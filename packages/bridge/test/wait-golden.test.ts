@@ -36,6 +36,10 @@ const STORY = 'acme-widgets-7';
 const OWNER = 'session-owner-1111';
 const OTHER = 'session-other-2222';
 const ASKED_AT = '2026-11-05T15:00:00.000Z';
+// when a story's agent binding is written: a binding is fresh for 24 h (BINDING_FRESH_MS) by the real clock, so it is made
+// now, not at ASKED_AT (which a fixed date left stale a day after it, and the relay stopped). The text shows it as ASKED_AT.
+const BOUND_AT = Date.now();
+const BOUND_ISO = new Date(BOUND_AT).toISOString();
 
 interface Run {
   args: string[];
@@ -102,7 +106,7 @@ function normalise(text: string, dirs: string[]): string {
     .split(BIN)
     .join('<BIN>')
     .replace(/\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z/g, (match) =>
-      match === ASKED_AT ? match : '<ts>',
+      [BOUND_ISO, ASKED_AT].includes(match) ? ASKED_AT : '<ts>',
     )
     .replace(/\b([bq]_[0-9a-z]{9,})\b/g, (match) => (match.startsWith('q_') ? match : '<build>'))
     .replace(/"pid":\d+/g, '"pid":0')
@@ -531,7 +535,7 @@ describe('wait: what a session reads and what is left behind', { concurrency: 6 
     const make = (local: boolean) => {
       const world = homeWith({ local });
       register(world.home, 'ou-fix-cache');
-      writeBinding(world.home, STORY, 'ou-fix-cache', OWNER, Date.parse(ASKED_AT));
+      writeBinding(world.home, STORY, 'ou-fix-cache', OWNER, BOUND_AT);
       world.inbox.setCursor('story-x', 0);
       return world;
     };
@@ -603,7 +607,7 @@ describe('wait: what a session reads and what is left behind', { concurrency: 6 
     }
     // a stale binding is not used, a PR story's fix is not relayed, and a helper (not an author) does not get a fix
     const stale = make(true);
-    writeBinding(stale.home, STORY, 'ou-fix-cache', OWNER, Date.parse(ASKED_AT) - 48 * 3600 * 1000);
+    writeBinding(stale.home, STORY, 'ou-fix-cache', OWNER, BOUND_AT - 48 * 3600 * 1000);
     ask(stale.inbox, 'q_one');
     runs.push(
       section(
@@ -631,7 +635,7 @@ describe('wait: what a session reads and what is left behind', { concurrency: 6 
     );
     const helper = homeWith({ local: true });
     register(helper.home, 'ou-story-teller', 'helper');
-    writeBinding(helper.home, STORY, 'ou-story-teller', OWNER, Date.parse(ASKED_AT));
+    writeBinding(helper.home, STORY, 'ou-story-teller', OWNER, BOUND_AT);
     addFixes(helper.home, FIX('fx_1', { kind: 'local', url: null, to: 'story-x' }));
     runs.push(
       section(
