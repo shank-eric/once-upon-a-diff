@@ -47,4 +47,5 @@ Standing rules for any agent working in Once Upon a Diff. A brief only needs to 
 
 - Post progress beats with `~/Configuration/scripts/beat.sh <name> <N>/<M> <step> "<few words>"`.
 - Ledger lines are the main session's job. Do not write to the ledger.
+- Pass long text to once-upon with `--<flag>-file PATH` or `--<flag> -` (stdin), never as one long argument: a watchdog on this Mac kills node when a single argument passes about 1,000 bytes.
 - Keep the final report short: what changed, the checks you ran, anything left open.
