@@ -133,7 +133,7 @@ The bridge learns where your checkouts are from local stories and from where a l
 
 ## When something's off
 
-- **`once-upon doctor`** prints PASS, WARN or FAIL for the config, the token, the bridge, the extension's last contact, the stories, the listeners and pending builds, with a fix for anything that isn't passing.
+- **`once-upon doctor`** prints PASS, WARN or FAIL for the config, the token, the bridge, the extension's last contact, the stories, the listeners and pending builds, with a fix for anything that isn't passing. It also lists, read only, the joins between the stores that do not hold: state folders and inbox stories that match no story, and repos on cards or cardless runs that look like a typo of a known repo, with INFO lines for what it only notes (a repo name used under two owners, repos nothing vouches for).
 - **The light in the panel header**, left of "Hide story". Hover it for a summary or click it for details.
   - Green: the bridge works, the story's found, and a session is listening.
   - Amber: everything works, but no session is listening for this repo. Questions wait in a queue.

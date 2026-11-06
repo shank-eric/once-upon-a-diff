@@ -218,6 +218,9 @@ export function seenCheckout(
   }
 }
 
+/** The repos the bridge has recorded a checkout of (the keys of checkouts.json, lowercase), whether or not the folder is still there. */
+export const seenCheckoutRepos = (home: string): string[] => Object.keys(readAll(home));
+
 /** Every checkout folder the bridge has recorded, whatever its repo, that still exists. */
 export function seenCheckouts(home: string): string[] {
   return Object.values(readAll(home)).filter((dir) => typeof dir === 'string' && existsSync(dir));

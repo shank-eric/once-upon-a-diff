@@ -49,7 +49,7 @@ At `agent start` with a card (the CLI turns these on by giving the registry a vi
 - **Refused at `backlog claim`:** a `--repo` that differs from the card's, which used to rewrite it.
 - **Warned and ignored:** `--repo` or `--branch` that differs from the card's, and `--pr` and `--lane` on a run with a card. The card's values are written. When the card has no repo or branch yet, the typed one is kept for the registry's commit-made check (`made.ts`).
 - **Warned:** an author started on a card with no claim. The editor claims right after it launches an author, so the first `agent start` can come first.
-- **`once-upon doctor`** lists the joins that do not hold, read only: a run naming a missing or dropped card, a typed repo or branch that differs from the card's, a finish naming another card than its start, open runs silent for over 24 hours, and a card with two open authors.
+- **`once-upon doctor`** lists the joins that do not hold, read only: a run naming a missing or dropped card, a typed repo or branch that differs from the card's, a finish naming another card than its start, open runs silent for over 24 hours, and a card with two open authors. Built since (11/6): it also joins state folders and inbox story ids to stories, and the repos on cards and cardless runs to the repos a checkout, a build or a PR story vouches for (`orchestration/bridge/doctor-joins.ts`).
 
 ## Options considered
 

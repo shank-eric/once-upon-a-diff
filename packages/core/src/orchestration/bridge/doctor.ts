@@ -3,7 +3,7 @@
  * bridge, a Claude session listening, and the extension. Each check prints
  * PASS, WARN or FAIL with what it found and, when it isn't passing, the fix.
  */
-import { existsSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { Listening } from '../../features/listeners/service.ts';
 import { formatTime } from '@once-upon-a-diff/foundation/settings';
@@ -17,8 +17,74 @@ import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { cardRunProblems } from '@once-upon-a-diff/state/queues/backlog/phase';
 import { claimWorktreeProblems } from '@once-upon-a-diff/state/queues/backlog/claim-worktree';
 import { readAgents } from '@once-upon-a-diff/state/records/agents/read';
+import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
+import { readIndex } from '@once-upon-a-diff/stories/placement';
+import { readMeta, stateKeyOf } from '@once-upon-a-diff/stories/meta';
+import { seenCheckoutRepos } from '@once-upon-a-diff/foundation/repos';
+import { stateKeyForPr } from '@once-upon-a-diff/domain/ids';
+import {
+  inboxStoryProblems,
+  repoProblems,
+  stateFolderProblems,
+  type RepoUse,
+} from './doctor-joins.ts';
 
-type Level = 'PASS' | 'WARN' | 'FAIL';
+/** INFO says what doctor saw and asks nothing: it is not counted, and never fails. */
+type Level = 'PASS' | 'WARN' | 'FAIL' | 'INFO';
+
+const firstFive = (problems: string[]): string =>
+  `${problems.slice(0, 5).join('; ')}${problems.length > 5 ? '; ...' : ''}`;
+
+/**
+ * The folders under a folder with how many files each holds, and the ones that cannot be read: one folder that cannot be
+ * read is listed apart and does not stop the rest being looked at. A folder that is not there has none.
+ */
+function folderNames(dir: string): {
+  folders: { name: string; files: number }[];
+  unreadable: string[];
+} {
+  const folders: { name: string; files: number }[] = [];
+  const unreadable: string[] = [];
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      unreadable.push(path.basename(dir));
+    }
+    return { folders, unreadable };
+  }
+  for (const entry of entries.filter((one) => one.isDirectory())) {
+    try {
+      folders.push({ name: entry.name, files: readdirSync(path.join(dir, entry.name)).length });
+    } catch {
+      unreadable.push(entry.name);
+    }
+  }
+  return { folders, unreadable };
+}
+
+/**
+ * The `story` of each inbox line, read straight from the file: the Inbox class chmods the home when made, and its reader
+ * skips the types it no longer knows (`position`), which still name stories.
+ */
+function inboxStories(home: string): string[] {
+  try {
+    return readFileSync(path.join(home, 'inbox.jsonl'), 'utf8')
+      .split('\n')
+      .flatMap((text) => {
+        try {
+          const story: unknown = text.trim() ? JSON.parse(text)?.story : null;
+          return typeof story === 'string' ? [story] : [];
+        } catch {
+          return [];
+        }
+      });
+  } catch {
+    return [];
+  }
+}
 
 const localTime = (iso: string) => formatTime(iso);
 
@@ -158,9 +224,103 @@ export async function doctor(
     problems.length ? 'WARN' : 'PASS',
     'Card runs',
     problems.length
-      ? `${problems.length} to look at: ${problems.slice(0, 5).join('; ')}${problems.length > 5 ? '; ...' : ''}`
+      ? `${problems.length} to look at: ${firstFive(problems)}`
       : 'every run names a card that holds',
   );
+
+  // state folders and inbox entries each belong to a story: one in stories.json or with a story folder on disk
+  const stories = new StoryStore({ home })
+    .dirs()
+    .map(({ id, dir }) => ({ id, meta: readMeta(dir) }));
+  const indexed = Object.keys(readIndex(home));
+  const storyIds = new Set([...indexed, ...stories.map((story) => story.id)]);
+  const builds = Object.values(new Builds(home).all());
+  const stateKeys = new Set([
+    ...stories.map((story) => stateKeyOf(story.id, story.meta)),
+    ...builds.flatMap((build) =>
+      build.repo && build.number ? [stateKeyForPr(build.repo, build.number)] : [],
+    ),
+  ]);
+  const { folders, unreadable } = folderNames(path.join(home, 'state'));
+  const orphans = stateFolderProblems(folders, storyIds, stateKeys);
+  add(
+    orphans.length ? 'WARN' : 'PASS',
+    'State folders',
+    orphans.length
+      ? `${orphans.length} to look at, in no story of stories.json and with no story folder: ${firstFive(orphans)}`
+      : 'every folder in state/ is a story or a PR story',
+  );
+  if (unreadable.length) {
+    add(
+      'WARN',
+      'Unreadable state folders',
+      `${unreadable.length} that doctor could not read, so it did not check: ${firstFive(unreadable)}`,
+    );
+  }
+  const inbox = inboxStories(home);
+  const missing = inboxStoryProblems(inbox, storyIds);
+  add(
+    missing.length ? 'WARN' : 'PASS',
+    'Inbox stories',
+    missing.length
+      ? `${missing.length} to look at, in no story of stories.json and with no story folder: ${firstFive(missing)}`
+      : 'every story in inbox.jsonl is a story',
+  );
+  const goneIds = new Set(indexed.filter((id) => !stories.some((story) => story.id === id)));
+  const goneFolders = folders.filter((folder) => goneIds.has(folder.name)).length;
+  const goneEvents = inbox.filter((story) => goneIds.has(story)).length;
+  if (goneFolders || goneEvents) {
+    add(
+      'INFO',
+      'Index-only stories',
+      `${goneIds.size} ids in stories.json have no story folder now: ${goneFolders} state folders and ${goneEvents} inbox events belong to them`,
+    );
+  }
+
+  // a repo on a card or a cardless run is checked against the repos a store that takes no typed repo vouches for
+  const anchored = [
+    ...builds.map((build) => build.repo),
+    // a PR story's repo is the PR's; a local story's would come from running git, which a report does not
+    ...stories.map((story) => (story.meta.kind === 'github' ? story.meta.repo : null)),
+    ...seenCheckoutRepos(home),
+  ].filter((repo): repo is string => !!repo);
+  const uses: RepoUse[] = [
+    ...items.flatMap((item) =>
+      item.repo
+        ? [
+            {
+              repo: item.repo,
+              kind: 'card' as const,
+              label: `${item.id}${item.state === 'dropped' ? ' (dropped)' : ''}`,
+            },
+          ]
+        : [],
+    ),
+    // a run with a card is the card's, and "Card runs" has its typed repo
+    ...readAgents(home)
+      .agents.flatMap((agent) => [...(agent.earlier ?? []), agent])
+      .flatMap((run) =>
+        run.repo && !run.card ? [{ repo: run.repo, kind: 'run' as const, label: run.name }] : [],
+      ),
+  ];
+  const repos = repoProblems(anchored, uses);
+  add(
+    repos.suspects.length ? 'WARN' : 'PASS',
+    'Repos',
+    repos.suspects.length
+      ? `${repos.suspects.length} to look at: ${firstFive(repos.suspects)}`
+      : 'every repo on a card or a cardless run is known or looks like no known repo',
+  );
+  if (repos.owners.length) {
+    add('INFO', 'Repo owners', firstFive(repos.owners));
+  }
+  if (repos.unvouched.length) {
+    add(
+      'INFO',
+      'Unvouched repos',
+      `no checkout, build or story names ${firstFive(repos.unvouched)}`,
+    );
+  }
   for (const result of results) {
     out(`${result.level.padEnd(4)}  ${result.name}: ${result.detail}`);
     if (result.fix) {
