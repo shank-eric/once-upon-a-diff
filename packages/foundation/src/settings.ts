@@ -75,11 +75,15 @@ export function homeDir(): string {
   return process.env.ONCE_UPON_HOME || path.join(os.homedir(), '.once-upon');
 }
 
-/** One of a story's state files, <home>/state/<key>/<name>, with its folder made. */
+/** One of a story's state files, <home>/state/<key>/<name>. Only names the path: a read leaves no folder behind. */
 export function stateFile(home: string, key: string, name: string): string {
-  const dir = path.join(home, 'state', key);
-  ensureDir(dir);
-  return path.join(dir, name);
+  return path.join(home, 'state', key, name);
+}
+
+/** The same path, with its folder made, for a writer to write into. */
+export function stateFileToWrite(home: string, key: string, name: string): string {
+  ensureDir(path.join(home, 'state', key));
+  return stateFile(home, key, name);
 }
 
 export const newToken = () => randomBytes(24).toString('base64url');

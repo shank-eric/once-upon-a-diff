@@ -63,15 +63,24 @@ export interface QuestionWithAnswers {
 export class Inbox {
   declare home: string;
   declare file: string;
+  private homeMade = false;
   constructor(home: string) {
     this.home = home;
     this.file = path.join(home, 'inbox.jsonl');
-    ownerOnly(home);
+  }
+
+  /** Before this inbox's first write: makes the home and makes it the user's alone. A reader never calls it. */
+  private makeHome(): void {
+    if (!this.homeMade) {
+      ownerOnly(this.home);
+      this.homeMade = true;
+    }
   }
 
   /** Makes the inbox file when it is not there yet (a reader needs one to take a cursor from). */
   ensureFile(): void {
     if (!existsSync(this.file)) {
+      this.makeHome();
       writeText(this.file, '', 0o600);
     }
   }
@@ -84,6 +93,7 @@ export class Inbox {
       ...entry,
     };
     noteIfMalformed(this.file, full, readInboxEntry);
+    this.makeHome();
     appendText(this.file, JSON.stringify(full) + '\n', 0o600);
     return full;
   }
@@ -169,13 +179,14 @@ export class Inbox {
 
   cursorFile(consumer: string | null | undefined): string {
     const safe = String(consumer || 'default').replace(/[^A-Za-z0-9._-]/g, '_');
-    ensureDir(path.join(this.home, 'cursors'));
     return path.join(this.home, 'cursors', `${safe}.json`);
   }
   getCursor(consumer: string | null | undefined): number {
     return readJson<{ offset?: number }>(this.cursorFile(consumer), {})?.offset || 0;
   }
   setCursor(consumer: string | null | undefined, offset: number): void {
+    this.makeHome();
+    ensureDir(path.join(this.home, 'cursors'));
     writeFileAtomic(
       this.cursorFile(consumer),
       JSON.stringify({ offset, at: new Date().toISOString() }),

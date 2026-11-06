@@ -11,7 +11,7 @@
 import { STORY_ID_RE } from '@once-upon-a-diff/domain/patterns';
 import { listeners } from '../../records/listeners/listeners.ts';
 import { readJson, writeJsonAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
-import { stateFile } from '@once-upon-a-diff/foundation/settings';
+import { stateFile, stateFileToWrite } from '@once-upon-a-diff/foundation/settings';
 import type { LineRanges, WorkingMark } from '@once-upon-a-diff/contracts/types';
 import type { Listener } from '../../records/listeners/listeners.ts';
 
@@ -31,7 +31,8 @@ export const MARK_FRESH_MS = 30 * 60 * 1000;
 const DONE_KEPT = 5;
 const MAX_FILES = 200;
 
-const workingFile = (home: string, story: string) => stateFile(home, story, 'working.json');
+const WORKING = 'working.json';
+const workingFile = (home: string, story: string) => stateFile(home, story, WORKING);
 
 function readWorking(home: string, story: string): Working {
   if (!STORY_ID_RE.test(String(story || ''))) {
@@ -42,7 +43,7 @@ function readWorking(home: string, story: string): Working {
 }
 
 function saveWorking(home: string, story: string, working: Working): void {
-  writeJsonAtomic(workingFile(home, story), working);
+  writeJsonAtomic(stateFileToWrite(home, story, WORKING), working);
 }
 
 /**

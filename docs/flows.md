@@ -144,14 +144,14 @@ flowchart LR
 | 2' | `app` | on GitHub, the extension supplies its own `ask` over the service worker | `packages/extension/src/content/pages/files-changed.ts:174` (`ROUTES.questionAsk`) |
 | 3 | `contracts` | the route: `POST /api/stories/<id>/questions`, any key of the story's | `packages/contracts/src/story/routes.ts:49` (`questionAsk:`) |
 | 4 | `app` | the story route checks the body and appends the question | `packages/server/src/routes/questions.ts:66` (`app.inbox.append(`) |
-| 5 | `service` | `Inbox.append` gives it an id and a time | `packages/state/src/queues/requests/inbox.ts:80` (`append<E`) |
+| 5 | `service` | `Inbox.append` gives it an id and a time | `packages/state/src/queues/requests/inbox.ts:89` (`append<E`) |
 | 6 | `adapter` | **appends a line to `inbox.jsonl`** | `packages/adapters/src/stores/fs/files.ts:24` (`export function appendText`) |
 | 7 | `service` | a running `wait` wakes on the file change and reads past its cursor | `packages/core/src/features/listeners/wait.ts:286` (`messages.unread(consumer, { advance: true })`) |
-| 8 | `service` | `unread` reads from the cursor's byte offset and **writes the cursor** (`cursors/<consumer>.json`) | `packages/state/src/queues/requests/inbox.ts:185` (`unread(`) |
+| 8 | `service` | `unread` reads from the cursor's byte offset and **writes the cursor** (`cursors/<consumer>.json`) | `packages/state/src/queues/requests/inbox.ts:196` (`unread(`) |
 | 9 | `service` | which questions this wait takes | `packages/core/src/features/listeners/wait.ts:119` (`function questionsToTake(`) |
-| 10 | `service` | routing, and **writes `handed.json`** under `handed.json.lock`: a question another wait has is skipped, a story's own live listener beats a repo listener (which defers to it), and each question taken is marked as this wait's in the same locked write, so two waits can't both take it | `packages/state/src/queues/requests/conversation.ts:340` (`updateJson<Handed, void>(handedFile(home)`) |
-| 11 | `service` | a story built by an agent this session launched is relayed to that agent | `packages/state/src/records/listeners/binding.ts:171` (`export function relayBinding`) |
-| 12 | `service` | marks again under the lock once the relays are known: a relayed question is noted as `via` the agent, so `answer` credits the right session | `packages/state/src/queues/requests/conversation.ts:147` (`export function noteHanded`) |
+| 10 | `service` | routing, and **writes `handed.json`** under `handed.json.lock`: a question another wait has is skipped, a story's own live listener beats a repo listener (which defers to it), and each question taken is marked as this wait's in the same locked write, so two waits can't both take it | `packages/state/src/queues/requests/conversation.ts:341` (`updateJson<Handed, void>(handedFile(home)`) |
+| 11 | `service` | a story built by an agent this session launched is relayed to that agent | `packages/state/src/records/listeners/binding.ts:175` (`export function relayBinding`) |
+| 12 | `service` | marks again under the lock once the relays are known: a relayed question is noted as `via` the agent, so `answer` credits the right session | `packages/state/src/queues/requests/conversation.ts:148` (`export function noteHanded`) |
 | 13 | `service` | **writes the `handling` beat** (`listeners/<consumer>.json`) | `packages/state/src/records/listeners/listeners.ts:65` (`export function beat(`) |
 | 14 | `app` | prints the question (with the relay message when it has one) and exits | `packages/cli/src/commands/inbox.ts:84` (`of outcome.items`) |
 | 15 | `outside` | the session answers in chat and runs `once-upon answer --question <id> --file …` |  |

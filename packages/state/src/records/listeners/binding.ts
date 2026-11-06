@@ -16,7 +16,7 @@
 import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { readJson, writeJsonAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
-import { readSettings, stateFile } from '@once-upon-a-diff/foundation/settings';
+import { readSettings, stateFile, stateFileToWrite } from '@once-upon-a-diff/foundation/settings';
 import { STORY_ID_RE } from '@once-upon-a-diff/domain/patterns';
 import { collapse } from '@once-upon-a-diff/domain/text';
 import { startOf, pidAlive } from '@once-upon-a-diff/adapters/os';
@@ -34,7 +34,8 @@ export const BINDING_FRESH_MS = 24 * 3600 * 1000;
 /** An agent name as a brief gives it: short and kebab-case, safe to print into an instruction. */
 export const AGENT_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 
-const fileOf = (home: string, story: string) => stateFile(home, story, 'agent.json');
+const BINDING = 'agent.json';
+const fileOf = (home: string, story: string) => stateFile(home, story, BINDING);
 
 /** The story's binding as saved, whatever its age, or null. */
 export function readBinding(home: string, story: string | null | undefined): Binding | null {
@@ -67,7 +68,7 @@ export function writeBinding(
     throw new Error(`--agent is the agent's name, like ou-fix-thing (letters, digits, . _ -)`);
   }
   const binding = { agent, session, at: new Date(now).toISOString() };
-  writeJsonAtomic(fileOf(home, story), binding);
+  writeJsonAtomic(stateFileToWrite(home, story, BINDING), binding);
   return binding;
 }
 
@@ -157,7 +158,10 @@ export function activeBinding(
 export function touchBinding(home: string, story: string, now = Date.now()): void {
   const binding = readBinding(home, story);
   if (binding) {
-    writeJsonAtomic(fileOf(home, story), { ...binding, at: new Date(now).toISOString() });
+    writeJsonAtomic(stateFileToWrite(home, story, BINDING), {
+      ...binding,
+      at: new Date(now).toISOString(),
+    });
   }
 }
 

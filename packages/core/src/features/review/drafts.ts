@@ -29,7 +29,7 @@ import { runGh } from '@once-upon-a-diff/foundation/gh';
 import { prKey } from '@once-upon-a-diff/domain/ids';
 import { readJson, writeJsonAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
 import { stateKeyOf } from '@once-upon-a-diff/stories/meta';
-import { stateFile } from '@once-upon-a-diff/foundation/settings';
+import { stateFile, stateFileToWrite } from '@once-upon-a-diff/foundation/settings';
 import type { Chapter, DraftRow, LocalNote, StoryData } from '@once-upon-a-diff/contracts/types';
 import type { StoryStore } from '@once-upon-a-diff/stories/store';
 import type { StoryMeta } from '@once-upon-a-diff/stories/types';
@@ -290,13 +290,14 @@ export const forgetComments = (repo: string, number: number | string): void => {
 };
 
 // ---------- the reviewer's own calls, kept by the bridge
-const file = (home: string, key: string) => stateFile(home, key, 'drafts.json');
+const DRAFTS = 'drafts.json';
+const file = (home: string, key: string) => stateFile(home, key, DRAFTS);
 const EMPTY = (): DraftMarks => ({ dismissed: [], added: [] });
 export function readMarks(home: string, key: string): DraftMarks {
   return { ...EMPTY(), ...readJson<Partial<DraftMarks>>(file(home, key), {}) };
 }
 function writeMarks(home: string, key: string, marks: DraftMarks): void {
-  writeJsonAtomic(file(home, key), marks);
+  writeJsonAtomic(stateFileToWrite(home, key, DRAFTS), marks);
 }
 
 const entryOf = (draft: CommentLike): MarkEntry => ({

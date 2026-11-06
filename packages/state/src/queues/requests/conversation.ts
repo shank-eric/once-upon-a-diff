@@ -20,7 +20,7 @@
 import path from 'node:path';
 import { readJson, writeJsonAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
 import { updateJson } from '@once-upon-a-diff/adapters/stores/fs/lock';
-import { stateFile } from '@once-upon-a-diff/foundation/settings';
+import { stateFile, stateFileToWrite } from '@once-upon-a-diff/foundation/settings';
 import { STORY_ID_RE } from '@once-upon-a-diff/domain/patterns';
 import { listeners, type Listener } from '../../records/listeners/listeners.ts';
 import type { Inbox } from './inbox.ts';
@@ -51,7 +51,8 @@ export const QA_ACTIONS: string[] = [
   'unread',
 ] satisfies QaAction[];
 
-const marksFile = (home: string, story: string) => stateFile(home, story, 'questions.json');
+const MARKS = 'questions.json';
+const marksFile = (home: string, story: string) => stateFile(home, story, MARKS);
 
 /** The story's {dismissed, collapsed, moved} marks, empty for an unknown or odd id. */
 export function readQaMarks(home: string, story: string | null | undefined): QaMarks {
@@ -75,7 +76,7 @@ export function moveQuestions(home: string, story: string, moves: Record<string,
   }
   const marks = readQaMarks(home, story);
   Object.assign(marks.moved, moves);
-  writeJsonAtomic(marksFile(home, story), marks);
+  writeJsonAtomic(stateFileToWrite(home, story, MARKS), marks);
 }
 
 /** A time a client says it has seen up to, as the ISO string to keep, or null when it isn't one (or is in the future). */
@@ -134,7 +135,7 @@ export function markQuestions(
       delete marks.collapsed[id];
     }
   }
-  writeJsonAtomic(marksFile(home, story), marks);
+  writeJsonAtomic(stateFileToWrite(home, story, MARKS), marks);
   return marks;
 }
 

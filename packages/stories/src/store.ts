@@ -14,7 +14,7 @@ import { readdirSync } from 'node:fs';
 import path from 'node:path';
 import { readJson, writeJsonAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
 import { readIndex } from './placement.ts';
-import { stateFile } from '@once-upon-a-diff/foundation/settings';
+import { stateFile, stateFileToWrite } from '@once-upon-a-diff/foundation/settings';
 import { isStoryDir, readMeta, storyVersion } from './meta.ts';
 import { STORY_ID_RE } from '@once-upon-a-diff/domain/patterns';
 import { storyData } from './story-data.ts';
@@ -104,7 +104,7 @@ export class StoryStore {
     return readJson<T>(stateFile(this.home, id, name), fallback);
   }
   writeState(id: string, name: string, value: unknown): void {
-    writeJsonAtomic(stateFile(this.home, id, name), value);
+    writeJsonAtomic(stateFileToWrite(this.home, id, name), value);
   }
 
   /** The story as the panel takes it (the overlay's data), plus the diff and bridge state for a local story. */

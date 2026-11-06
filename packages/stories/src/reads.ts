@@ -22,7 +22,7 @@
  * "Since you read it" chapter (that chapter caught them up), and falling back
  * to the commit the story was told from.
  */
-import { stateFile } from '@once-upon-a-diff/foundation/settings';
+import { stateFile, stateFileToWrite } from '@once-upon-a-diff/foundation/settings';
 import { readJson, writeJsonAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
 import { chapterKeyOf } from '@once-upon-a-diff/domain/chapters';
 import { SHA_RE } from '@once-upon-a-diff/domain/text';
@@ -56,7 +56,8 @@ export const READ_MIN_SECONDS = 30;
 /** time: they stayed on it; viewed: they ticked its last file; inferred: its files were all Viewed already when the panel opened (a review before read tracking, or with the panel closed) */
 export const READ_REASONS = ['time', 'viewed', 'inferred'];
 
-const file = (home: string, key: string) => stateFile(home, key, 'read.json');
+const READS = 'read.json';
+const file = (home: string, key: string) => stateFile(home, key, READS);
 export function readReads(home: string, key: string): Reads {
   const reads = readJson<Reads>(file(home, key), {});
   return reads && typeof reads === 'object' && !Array.isArray(reads) ? reads : {};
@@ -95,7 +96,7 @@ export function noteRead(
       ? { seconds: Math.round(+(seconds as number)) }
       : {}),
   };
-  writeJsonAtomic(file(home, key), all);
+  writeJsonAtomic(stateFileToWrite(home, key, READS), all);
   return all[chapter];
 }
 
@@ -114,7 +115,7 @@ export function retireReads(home: string, key: string, chapterKeys: string[]): n
     delete all[chapter];
   }
   if (moving.length) {
-    writeJsonAtomic(file(home, key), all);
+    writeJsonAtomic(stateFileToWrite(home, key, READS), all);
   }
   return moving.length;
 }

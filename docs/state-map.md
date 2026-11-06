@@ -2,7 +2,7 @@
 
 This covers every file and in-memory cache that the bridge, the CLI, the extension and the skills read or write, as the code stands on main at 7fa8447 (11/4). Turn capture (`parked/turn-capture`) isn't mapped. Paths starting `core/src/` are under `packages/`; `server/...` and `cli/...` are `packages/server/src/...` and `packages/cli/src/...`; a bare `adapters/...` is `packages/adapters/src/...` (and likewise `foundation/`, `stories/`, `state/`, `usage/`, `board/`); any other starts with its package. The bridge's code is in packages (the split of 11/5, which replaces the layout in ADR-15): the apps `server` and `cli` over the engine (adapters, foundation, stories, state, core and board, bottom to top, ADR-24, with `usage` beside them), and only an adapter writes a file, runs a program or reaches the network. [`flows.md`](flows.md) follows five requests (Build a story, Ask, Board refresh, Start listening, and an agent's claim through to its card landing) through those layers, hop by hop with `file:line`.
 
-"Bridge" is the `once-upon serve` process. "CLI" is any other `once-upon` command, each a short-lived process (except `wait`). "Skills" are `once-upon` and `once-upon-listen` running inside a Claude Code session. `<home>` is `~/.once-upon` (`ONCE_UPON_HOME` moves it).
+"Bridge" is the `once-upon serve` process. "CLI" is any other `once-upon` command, each a short-lived process (except `wait`). "Skills" are `once-upon` and `once-upon-listen` running inside a Claude Code session. `<home>` is `~/.once-upon` (`ONCE_UPON_HOME` moves it). `main()`'s `loadConfig` (`cli/src/index.ts`) creates the home (0700) before any command runs, and `createBridge` relies on that: neither `new Inbox(home)` nor a read makes it.
 
 ## The short version
 
@@ -55,7 +55,7 @@ This covers every file and in-memory cache that the bridge, the CLI, the extensi
 
 ## 2. `<home>/state/<key>/`: per-story and per-PR state
 
-`stateFile` makes the folder on first use. `<key>` is the story id, except for `drafts.json` and `read.json`, which use `stateKeyOf` (`stories/src/meta.ts`): `pr-<owner>-<repo>-<N>` for a PR story, so a re-told story keeps them, or the story id for a local one. Folders keyed by an older id scheme (`repo-123`) are left behind with no story. **Nothing deletes a state folder.**
+`stateFile` is a pure path that makes no folder, so a read leaves nothing behind; `stateFileToWrite` makes the folder, and every writer uses it. `<key>` is the story id, except for `drafts.json` and `read.json`, which use `stateKeyOf` (`stories/src/meta.ts`): `pr-<owner>-<repo>-<N>` for a PR story, so a re-told story keeps them, or the story id for a local one. Folders keyed by an older id scheme (`repo-123`) are left behind with no story. **Nothing deletes a state folder.**
 
 | File | Writer | Readers | Format | Missing or stale |
 |---|---|---|---|---|
