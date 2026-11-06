@@ -1,0 +1,38 @@
+{
+  "name": "@once-upon-a-diff/server",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Once Upon a Diff's HTTP app: the bridge's routes, the pages' and the panel's assets, and the token and page-key checks, over the core",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "test": "node ../../server-libs/foundation/src/node-version.mjs && node --test --test-timeout=60000 test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json"
+  },
+  "dependencies": {
+    "@once-upon-a-diff/board": "workspace:*",
+    "@once-upon-a-diff/bridge-client": "workspace:*",
+    "@once-upon-a-diff/contracts": "workspace:*",
+    "@once-upon-a-diff/core": "workspace:*",
+    "@once-upon-a-diff/foundation": "workspace:*",
+    "@once-upon-a-diff/github-page": "workspace:*",
+    "@once-upon-a-diff/panel": "workspace:*",
+    "@once-upon-a-diff/state": "workspace:*",
+    "@once-upon-a-diff/stories": "workspace:*",
+    "@once-upon-a-diff/terms": "workspace:*",
+    "@once-upon-a-diff/ui-kit": "workspace:*",
+    "@once-upon-a-diff/usage": "workspace:*",
+    "@once-upon-a-diff/web": "workspace:*"
+  },
+  "devDependencies": {
+    "@once-upon-a-diff/test-kit": "workspace:*",
+    "@types/node": "24.19.1",
+    "typescript": "5.9.3"
+  }
+}

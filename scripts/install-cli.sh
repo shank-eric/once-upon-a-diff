@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Puts the `once-upon` command on your PATH from this checkout: `npm link` on packages/bridge,
-# whose package.json `bin` names bin/once-upon.mjs. The link points into the checkout, so moving
-# packages around inside the repo needs no change here. Re-run it after moving the checkout itself.
+# Puts the `once-upon` command on your PATH from this checkout: `npm link` on packages/server/bridge,
+# whose package.json `bin` names bin/once-upon.mjs. The link points into the checkout at that folder, so moving
+# the bridge package (it moved to packages/server/bridge when the packages were regrouped) or the checkout itself needs a re-run.
 # It then links the skills (scripts/link-skills.sh; `--no-skills` skips that).
 # Others who don't clone can use `npx`/`npm i -g` once the package is published.
 set -euo pipefail
@@ -20,7 +20,7 @@ fi
 # yarn installs the workspace's dependencies, which the command loads from the checkout
 [ -d "$root/node_modules" ] || (cd "$root" && yarn)
 
-(cd "$root/packages/bridge" && npm link)
+(cd "$root/packages/server/bridge" && npm link)
 
 if command -v once-upon >/dev/null 2>&1; then
   echo "once-upon is linked: $(command -v once-upon)"

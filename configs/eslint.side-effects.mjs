@@ -3,14 +3,14 @@
  * file or reaches the network. Which package, layer or region may import which, and import cycles, are dependency-cruiser's
  * (configs/.dependency-cruiser.mjs, `yarn depcruise`, run by `yarn lint`); this file holds no layer or package rule.
  *
- * Where it applies (the adapters, packages/adapters/src, and usage's own adapters folder, packages/usage/src/adapters, are the one
+ * Where it applies (the adapters, packages/server-libs/adapters/src, and usage's own adapters folder, packages/server-libs/usage/src/adapters, are the one
  * place that may do any of this):
- *   packages/server/src/         the HTTP app: it has node:http, to listen, and nothing else on the network
- *   packages/server/src/routes/  the HTTP app's handlers: not even node:http (they get a Call)
- *   packages/cli/src/            the CLI app
- *   packages/<package>/src/      every other engine package (named in configs/layers.mjs, and usage): no program, no file write and
+ *   packages/server/server/src/         the HTTP app: it has node:http, to listen, and nothing else on the network
+ *   packages/server/server/src/routes/  the HTTP app's handlers: not even node:http (they get a Call)
+ *   packages/server/cli/src/            the CLI app
+ *   packages/server-libs/<package>/src/  every other engine package (named in configs/layers.mjs, and usage): no program, no file write and
  *                                no network of their own
- * packages/bridge/test/side-effects-lint.test.ts probes every rule below.
+ * packages/server/bridge/test/side-effects-lint.test.ts probes every rule below.
  *
  * ESLint REPLACES a rule's options when a later block matches the same file, it does not merge them, so each file is in one
  * block and the lists below are built once and shared.
@@ -201,22 +201,22 @@ const sideEffectBlock = ({ files, ignores = [], networkBan }) => {
 export default [
   // the rules, over the adapters: every engine package but adapters, and usage but for its adapters folder
   sideEffectBlock({
-    files: [`packages/{${PACKAGES.slice(1).join(',')}}/src/**/*.ts`],
+    files: [`packages/server-libs/{${PACKAGES.slice(1).join(',')}}/src/**/*.ts`],
     networkBan: NO_NETWORK,
   }),
   sideEffectBlock({
-    files: ['packages/usage/src/**/*.ts'],
-    ignores: ['packages/usage/src/adapters/**'],
+    files: ['packages/server-libs/usage/src/**/*.ts'],
+    ignores: ['packages/server-libs/usage/src/adapters/**'],
     networkBan: NO_NETWORK,
   }),
   // the HTTP app, over the services only: node:http, to listen
   sideEffectBlock({
-    files: ['packages/server/src/**/*.ts'],
-    ignores: ['packages/server/src/routes/**'],
+    files: ['packages/server/server/src/**/*.ts'],
+    ignores: ['packages/server/server/src/routes/**'],
     networkBan: NO_NETWORK_BUT_HTTP,
   }),
   // the routes: the HTTP app's own handlers, which never touch node:http either (they get a Call)
-  sideEffectBlock({ files: ['packages/server/src/routes/**/*.ts'], networkBan: NO_NETWORK }),
+  sideEffectBlock({ files: ['packages/server/server/src/routes/**/*.ts'], networkBan: NO_NETWORK }),
   // the CLI app, over the services only
-  sideEffectBlock({ files: ['packages/cli/src/**/*.ts'], networkBan: NO_NETWORK }),
+  sideEffectBlock({ files: ['packages/server/cli/src/**/*.ts'], networkBan: NO_NETWORK }),
 ];

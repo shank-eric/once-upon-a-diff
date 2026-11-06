@@ -1,0 +1,24 @@
+{
+  "extends": "../../../../configs/tsconfig.base.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "types": ["node"],
+    "paths": {
+      "/assets/preact.mjs": ["../public/types/preact.d.ts"],
+      "/assets/local/*": ["../public/local/*"],
+      "/assets/board/*": ["../public/board/*"],
+      "/assets/types.ts": ["../../../domain/contracts/src/types.ts"],
+      "/assets/contracts/*": ["../../../domain/contracts/src/*"],
+      "/assets/terms/*": ["../../../domain/terms/src/*"],
+      "/assets/bridge-client/*": ["../../../client-libs/bridge-client/src/*"],
+      "/assets/github-page/*": ["../../github-page/src/*"],
+      "/assets/panel/*": ["../../panel/src/*"],
+      "/assets/ui-kit/*": ["../../../client-libs/ui-kit/src/*"],
+      "/assets/highlight.mjs": ["../public/types/highlight.d.ts"],
+      "/assets/*": ["../public/*"]
+    }
+  },
+  "include": [".", "../../panel/types"]
+}

@@ -305,57 +305,57 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@once-upon-a-diff/adapters@workspace:*, @once-upon-a-diff/adapters@workspace:packages/adapters":
+"@once-upon-a-diff/adapters@workspace:*, @once-upon-a-diff/adapters@workspace:packages/server-libs/adapters":
   version: 0.0.0-use.local
-  resolution: "@once-upon-a-diff/adapters@workspace:packages/adapters"
+  resolution: "@once-upon-a-diff/adapters@workspace:packages/server-libs/adapters"
   dependencies:
     "@once-upon-a-diff/contracts": "workspace:*"
-    "@once-upon-a-diff/domain": "workspace:*"
+    "@once-upon-a-diff/terms": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@types/node": "npm:24.19.1"
     typescript: "npm:5.9.3"
   languageName: unknown
   linkType: soft
 
-"@once-upon-a-diff/board@workspace:*, @once-upon-a-diff/board@workspace:packages/board":
+"@once-upon-a-diff/board@workspace:*, @once-upon-a-diff/board@workspace:packages/server-libs/board":
   version: 0.0.0-use.local
-  resolution: "@once-upon-a-diff/board@workspace:packages/board"
+  resolution: "@once-upon-a-diff/board@workspace:packages/server-libs/board"
   dependencies:
     "@once-upon-a-diff/adapters": "workspace:*"
     "@once-upon-a-diff/contracts": "workspace:*"
     "@once-upon-a-diff/core": "workspace:*"
-    "@once-upon-a-diff/domain": "workspace:*"
     "@once-upon-a-diff/foundation": "workspace:*"
     "@once-upon-a-diff/state": "workspace:*"
     "@once-upon-a-diff/stories": "workspace:*"
+    "@once-upon-a-diff/terms": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@types/node": "npm:24.19.1"
     typescript: "npm:5.9.3"
   languageName: unknown
   linkType: soft
 
-"@once-upon-a-diff/bridge-client@workspace:*, @once-upon-a-diff/bridge-client@workspace:packages/bridge-client":
+"@once-upon-a-diff/bridge-client@workspace:*, @once-upon-a-diff/bridge-client@workspace:packages/client-libs/bridge-client":
   version: 0.0.0-use.local
-  resolution: "@once-upon-a-diff/bridge-client@workspace:packages/bridge-client"
+  resolution: "@once-upon-a-diff/bridge-client@workspace:packages/client-libs/bridge-client"
   dependencies:
     "@once-upon-a-diff/contracts": "workspace:*"
-    "@once-upon-a-diff/domain": "workspace:*"
+    "@once-upon-a-diff/terms": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@types/node": "npm:24.19.1"
     typescript: "npm:5.9.3"
   languageName: unknown
   linkType: soft
 
-"@once-upon-a-diff/cli@workspace:*, @once-upon-a-diff/cli@workspace:packages/cli":
+"@once-upon-a-diff/cli@workspace:*, @once-upon-a-diff/cli@workspace:packages/server/cli":
   version: 0.0.0-use.local
-  resolution: "@once-upon-a-diff/cli@workspace:packages/cli"
+  resolution: "@once-upon-a-diff/cli@workspace:packages/server/cli"
   dependencies:
     "@once-upon-a-diff/contracts": "workspace:*"
     "@once-upon-a-diff/core": "workspace:*"
-    "@once-upon-a-diff/domain": "workspace:*"
     "@once-upon-a-diff/foundation": "workspace:*"
     "@once-upon-a-diff/state": "workspace:*"
     "@once-upon-a-diff/stories": "workspace:*"
+    "@once-upon-a-diff/terms": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@once-upon-a-diff/usage": "workspace:*"
     "@types/node": "npm:24.19.1"
@@ -363,51 +363,42 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@once-upon-a-diff/contracts@workspace:*, @once-upon-a-diff/contracts@workspace:packages/contracts":
+"@once-upon-a-diff/contracts@workspace:*, @once-upon-a-diff/contracts@workspace:packages/domain/contracts":
   version: 0.0.0-use.local
-  resolution: "@once-upon-a-diff/contracts@workspace:packages/contracts"
+  resolution: "@once-upon-a-diff/contracts@workspace:packages/domain/contracts"
   dependencies:
-    "@once-upon-a-diff/domain": "workspace:*"
+    "@once-upon-a-diff/terms": "workspace:*"
     "@types/node": "npm:24.19.1"
     typescript: "npm:5.9.3"
     valibot: "npm:1.5.0"
   languageName: unknown
   linkType: soft
 
-"@once-upon-a-diff/core@workspace:*, @once-upon-a-diff/core@workspace:packages/core":
+"@once-upon-a-diff/core@workspace:*, @once-upon-a-diff/core@workspace:packages/server-libs/core":
   version: 0.0.0-use.local
-  resolution: "@once-upon-a-diff/core@workspace:packages/core"
+  resolution: "@once-upon-a-diff/core@workspace:packages/server-libs/core"
   dependencies:
     "@once-upon-a-diff/adapters": "workspace:*"
     "@once-upon-a-diff/contracts": "workspace:*"
-    "@once-upon-a-diff/domain": "workspace:*"
     "@once-upon-a-diff/foundation": "workspace:*"
     "@once-upon-a-diff/state": "workspace:*"
     "@once-upon-a-diff/stories": "workspace:*"
+    "@once-upon-a-diff/terms": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@types/node": "npm:24.19.1"
     typescript: "npm:5.9.3"
   languageName: unknown
   linkType: soft
 
-"@once-upon-a-diff/domain@workspace:*, @once-upon-a-diff/domain@workspace:packages/domain":
+"@once-upon-a-diff/extension@workspace:packages/client/extension":
   version: 0.0.0-use.local
-  resolution: "@once-upon-a-diff/domain@workspace:packages/domain"
-  dependencies:
-    "@types/node": "npm:24.19.1"
-    typescript: "npm:5.9.3"
-  languageName: unknown
-  linkType: soft
-
-"@once-upon-a-diff/extension@workspace:packages/extension":
-  version: 0.0.0-use.local
-  resolution: "@once-upon-a-diff/extension@workspace:packages/extension"
+  resolution: "@once-upon-a-diff/extension@workspace:packages/client/extension"
   dependencies:
     "@once-upon-a-diff/bridge-client": "workspace:*"
     "@once-upon-a-diff/contracts": "workspace:*"
-    "@once-upon-a-diff/domain": "workspace:*"
     "@once-upon-a-diff/github-page": "workspace:*"
     "@once-upon-a-diff/panel": "workspace:*"
+    "@once-upon-a-diff/terms": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@once-upon-a-diff/ui-kit": "workspace:*"
     "@types/chrome": "npm:0.3.4"
@@ -418,36 +409,36 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@once-upon-a-diff/foundation@workspace:*, @once-upon-a-diff/foundation@workspace:packages/foundation":
+"@once-upon-a-diff/foundation@workspace:*, @once-upon-a-diff/foundation@workspace:packages/server-libs/foundation":
   version: 0.0.0-use.local
-  resolution: "@once-upon-a-diff/foundation@workspace:packages/foundation"
+  resolution: "@once-upon-a-diff/foundation@workspace:packages/server-libs/foundation"
   dependencies:
     "@once-upon-a-diff/adapters": "workspace:*"
     "@once-upon-a-diff/contracts": "workspace:*"
-    "@once-upon-a-diff/domain": "workspace:*"
+    "@once-upon-a-diff/terms": "workspace:*"
     "@types/node": "npm:24.19.1"
     typescript: "npm:5.9.3"
   languageName: unknown
   linkType: soft
 
-"@once-upon-a-diff/github-page@workspace:*, @once-upon-a-diff/github-page@workspace:packages/github-page":
+"@once-upon-a-diff/github-page@workspace:*, @once-upon-a-diff/github-page@workspace:packages/client/github-page":
   version: 0.0.0-use.local
-  resolution: "@once-upon-a-diff/github-page@workspace:packages/github-page"
+  resolution: "@once-upon-a-diff/github-page@workspace:packages/client/github-page"
   dependencies:
-    "@once-upon-a-diff/domain": "workspace:*"
     "@once-upon-a-diff/panel": "workspace:*"
+    "@once-upon-a-diff/terms": "workspace:*"
     "@types/node": "npm:24.19.1"
     typescript: "npm:5.9.3"
   languageName: unknown
   linkType: soft
 
-"@once-upon-a-diff/panel@workspace:*, @once-upon-a-diff/panel@workspace:packages/panel":
+"@once-upon-a-diff/panel@workspace:*, @once-upon-a-diff/panel@workspace:packages/client/panel":
   version: 0.0.0-use.local
-  resolution: "@once-upon-a-diff/panel@workspace:packages/panel"
+  resolution: "@once-upon-a-diff/panel@workspace:packages/client/panel"
   dependencies:
     "@once-upon-a-diff/bridge-client": "workspace:*"
     "@once-upon-a-diff/contracts": "workspace:*"
-    "@once-upon-a-diff/domain": "workspace:*"
+    "@once-upon-a-diff/terms": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@once-upon-a-diff/ui-kit": "workspace:*"
     "@types/node": "npm:24.19.1"
@@ -455,20 +446,20 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@once-upon-a-diff/server@workspace:*, @once-upon-a-diff/server@workspace:packages/server":
+"@once-upon-a-diff/server@workspace:*, @once-upon-a-diff/server@workspace:packages/server/server":
   version: 0.0.0-use.local
-  resolution: "@once-upon-a-diff/server@workspace:packages/server"
+  resolution: "@once-upon-a-diff/server@workspace:packages/server/server"
   dependencies:
     "@once-upon-a-diff/board": "workspace:*"
     "@once-upon-a-diff/bridge-client": "workspace:*"
     "@once-upon-a-diff/contracts": "workspace:*"
     "@once-upon-a-diff/core": "workspace:*"
-    "@once-upon-a-diff/domain": "workspace:*"
     "@once-upon-a-diff/foundation": "workspace:*"
     "@once-upon-a-diff/github-page": "workspace:*"
     "@once-upon-a-diff/panel": "workspace:*"
     "@once-upon-a-diff/state": "workspace:*"
     "@once-upon-a-diff/stories": "workspace:*"
+    "@once-upon-a-diff/terms": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@once-upon-a-diff/ui-kit": "workspace:*"
     "@once-upon-a-diff/usage": "workspace:*"
@@ -478,38 +469,47 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@once-upon-a-diff/state@workspace:*, @once-upon-a-diff/state@workspace:packages/state":
+"@once-upon-a-diff/state@workspace:*, @once-upon-a-diff/state@workspace:packages/server-libs/state":
   version: 0.0.0-use.local
-  resolution: "@once-upon-a-diff/state@workspace:packages/state"
+  resolution: "@once-upon-a-diff/state@workspace:packages/server-libs/state"
   dependencies:
     "@once-upon-a-diff/adapters": "workspace:*"
     "@once-upon-a-diff/contracts": "workspace:*"
-    "@once-upon-a-diff/domain": "workspace:*"
     "@once-upon-a-diff/foundation": "workspace:*"
     "@once-upon-a-diff/stories": "workspace:*"
+    "@once-upon-a-diff/terms": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@types/node": "npm:24.19.1"
     typescript: "npm:5.9.3"
   languageName: unknown
   linkType: soft
 
-"@once-upon-a-diff/stories@workspace:*, @once-upon-a-diff/stories@workspace:packages/stories":
+"@once-upon-a-diff/stories@workspace:*, @once-upon-a-diff/stories@workspace:packages/server-libs/stories":
   version: 0.0.0-use.local
-  resolution: "@once-upon-a-diff/stories@workspace:packages/stories"
+  resolution: "@once-upon-a-diff/stories@workspace:packages/server-libs/stories"
   dependencies:
     "@once-upon-a-diff/adapters": "workspace:*"
     "@once-upon-a-diff/contracts": "workspace:*"
-    "@once-upon-a-diff/domain": "workspace:*"
     "@once-upon-a-diff/foundation": "workspace:*"
+    "@once-upon-a-diff/terms": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@types/node": "npm:24.19.1"
     typescript: "npm:5.9.3"
   languageName: unknown
   linkType: soft
 
-"@once-upon-a-diff/test-kit@workspace:*, @once-upon-a-diff/test-kit@workspace:packages/test-kit":
+"@once-upon-a-diff/terms@workspace:*, @once-upon-a-diff/terms@workspace:packages/domain/terms":
   version: 0.0.0-use.local
-  resolution: "@once-upon-a-diff/test-kit@workspace:packages/test-kit"
+  resolution: "@once-upon-a-diff/terms@workspace:packages/domain/terms"
+  dependencies:
+    "@types/node": "npm:24.19.1"
+    typescript: "npm:5.9.3"
+  languageName: unknown
+  linkType: soft
+
+"@once-upon-a-diff/test-kit@workspace:*, @once-upon-a-diff/test-kit@workspace:packages/domain/test-kit":
+  version: 0.0.0-use.local
+  resolution: "@once-upon-a-diff/test-kit@workspace:packages/domain/test-kit"
   dependencies:
     "@types/node": "npm:24.19.1"
     linkedom: "npm:0.18.14"
@@ -517,41 +517,41 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@once-upon-a-diff/ui-kit@workspace:*, @once-upon-a-diff/ui-kit@workspace:packages/ui-kit":
+"@once-upon-a-diff/ui-kit@workspace:*, @once-upon-a-diff/ui-kit@workspace:packages/client-libs/ui-kit":
   version: 0.0.0-use.local
-  resolution: "@once-upon-a-diff/ui-kit@workspace:packages/ui-kit"
+  resolution: "@once-upon-a-diff/ui-kit@workspace:packages/client-libs/ui-kit"
   dependencies:
     "@once-upon-a-diff/contracts": "workspace:*"
-    "@once-upon-a-diff/domain": "workspace:*"
+    "@once-upon-a-diff/terms": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@types/node": "npm:24.19.1"
     typescript: "npm:5.9.3"
   languageName: unknown
   linkType: soft
 
-"@once-upon-a-diff/usage@workspace:*, @once-upon-a-diff/usage@workspace:packages/usage":
+"@once-upon-a-diff/usage@workspace:*, @once-upon-a-diff/usage@workspace:packages/server-libs/usage":
   version: 0.0.0-use.local
-  resolution: "@once-upon-a-diff/usage@workspace:packages/usage"
+  resolution: "@once-upon-a-diff/usage@workspace:packages/server-libs/usage"
   dependencies:
     "@once-upon-a-diff/adapters": "workspace:*"
     "@once-upon-a-diff/contracts": "workspace:*"
-    "@once-upon-a-diff/domain": "workspace:*"
     "@once-upon-a-diff/foundation": "workspace:*"
+    "@once-upon-a-diff/terms": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@types/node": "npm:24.19.1"
     typescript: "npm:5.9.3"
   languageName: unknown
   linkType: soft
 
-"@once-upon-a-diff/web@workspace:*, @once-upon-a-diff/web@workspace:packages/web":
+"@once-upon-a-diff/web@workspace:*, @once-upon-a-diff/web@workspace:packages/client/web":
   version: 0.0.0-use.local
-  resolution: "@once-upon-a-diff/web@workspace:packages/web"
+  resolution: "@once-upon-a-diff/web@workspace:packages/client/web"
   dependencies:
     "@once-upon-a-diff/bridge-client": "workspace:*"
     "@once-upon-a-diff/contracts": "workspace:*"
-    "@once-upon-a-diff/domain": "workspace:*"
     "@once-upon-a-diff/github-page": "workspace:*"
     "@once-upon-a-diff/panel": "workspace:*"
+    "@once-upon-a-diff/terms": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@once-upon-a-diff/ui-kit": "workspace:*"
     "@types/node": "npm:24.19.1"
@@ -4183,9 +4183,9 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"once-upon-a-diff@workspace:packages/bridge":
+"once-upon-a-diff@workspace:packages/server/bridge":
   version: 0.0.0-use.local
-  resolution: "once-upon-a-diff@workspace:packages/bridge"
+  resolution: "once-upon-a-diff@workspace:packages/server/bridge"
   dependencies:
     "@once-upon-a-diff/adapters": "workspace:*"
     "@once-upon-a-diff/board": "workspace:*"
@@ -4193,13 +4193,13 @@ __metadata:
     "@once-upon-a-diff/cli": "workspace:*"
     "@once-upon-a-diff/contracts": "workspace:*"
     "@once-upon-a-diff/core": "workspace:*"
-    "@once-upon-a-diff/domain": "workspace:*"
     "@once-upon-a-diff/foundation": "workspace:*"
     "@once-upon-a-diff/github-page": "workspace:*"
     "@once-upon-a-diff/panel": "workspace:*"
     "@once-upon-a-diff/server": "workspace:*"
     "@once-upon-a-diff/state": "workspace:*"
     "@once-upon-a-diff/stories": "workspace:*"
+    "@once-upon-a-diff/terms": "workspace:*"
     "@once-upon-a-diff/test-kit": "workspace:*"
     "@once-upon-a-diff/ui-kit": "workspace:*"
     "@once-upon-a-diff/usage": "workspace:*"

@@ -1,0 +1,20 @@
+{
+  "extends": "../../../../configs/tsconfig.base.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "types": ["node"],
+    "paths": {
+      "/assets/preact.mjs": ["../../../client/web/public/types/preact.d.ts"],
+      "/assets/local/*": ["../../../client/web/public/local/*"],
+      "/assets/types.ts": ["../../../domain/contracts/src/types.ts"],
+      "/assets/contracts/*": ["../../../domain/contracts/src/*"],
+      "/assets/terms/*": ["../../../domain/terms/src/*"],
+      "/assets/bridge-client/*": ["../../../client-libs/bridge-client/src/*"],
+      "/assets/github-page/*": ["../../../client/github-page/src/*"]
+    }
+  },
+  "include": [".", "../../../client/panel/types"],
+  "exclude": ["browser"]
+}

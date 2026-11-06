@@ -1,0 +1,22 @@
+{
+  "name": "@once-upon-a-diff/terms",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Once Upon a Diff's pure rules: id patterns, html, text, times, PR keys, line references, chapters and the parts file's rules. It imports nothing, so the bridge, the pages, the panel and the extension share it",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "test": "node ../../server-libs/foundation/src/node-version.mjs && node --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.1",
+    "typescript": "5.9.3"
+  }
+}

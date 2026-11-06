@@ -26,7 +26,7 @@ scripts/install-cli.sh
 
 `scripts/install-cli.sh` puts the `once-upon` command on your `PATH`, so the rest of this guide can type `once-upon` from any folder (see step 8).
 
-`yarn` installs the tools and links the repo's ten packages (`domain`, `contracts`, `bridge-client`, `ui-kit`, `github-page`, `panel`, `web`, `bridge`, `extension` and the dev-only `test-kit`). `yarn build` builds the extension into `packages/extension/.output/chrome-mv3`, the folder you load in step 5. The bridge needs no build: Node 24 runs it as it is.
+`yarn` installs the tools and links the repo's nineteen packages, which sit in five folders under `packages/` (`server`, `server-libs`, `client`, `client-libs` and `domain`: the server's apps and shell, its engine, the pages, panel and extension, what they share, and the pure `terms`, `contracts` and the dev-only `test-kit`). `yarn build` builds the extension into `packages/client/extension/.output/chrome-mv3`, the folder you load in step 5. The bridge needs no build: Node 24 runs it as it is.
 
 The repo uses Yarn 4 and carries its own copy (`.yarn/releases`), which any `yarn` on your PATH hands off to. If you don't have `yarn` at all, run `corepack enable` once. Corepack ships with Node 24, and it reads the `packageManager` field in `package.json` to fetch the same Yarn 4.
 
@@ -55,7 +55,7 @@ That's the same as `once-upon serve`. Keep it in a terminal tab you leave open. 
 ### 5. Load the extension
 
 1. Go to `chrome://extensions` and turn on **Developer mode**.
-2. Click **Load unpacked** and pick this repo's `packages/extension/.output/chrome-mv3` folder (or the unzipped release).
+2. Click **Load unpacked** and pick this repo's `packages/client/extension/.output/chrome-mv3` folder (or the unzipped release).
 3. The options page opens on install. If it doesn't, go to Once Upon a Diff → Details → Extension options.
 4. Paste the port and token from step 3, click **Save**, then **Test connection**.
 
@@ -83,7 +83,7 @@ What works without once-upon: local mode (step 10, which makes its own starting 
 
 ### 8. The `once-upon` command
 
-`scripts/install-cli.sh` (run in step 2) runs `npm link` on `packages/bridge`, whose `package.json` `bin` is `once-upon`. The command works from any folder and survives moving packages inside the repo. Re-run the script if you move the checkout itself, switch Node versions or upgrade Node, since under fnm or nvm the link lives in one version's bin. It runs under the first `node` on your `PATH`, so keep a Node 24 as your default (`fnm default 24`). Run `once-upon` with no arguments to see every command. Without the link, `node packages/bridge/bin/once-upon.mjs` is the same command.
+`scripts/install-cli.sh` (run in step 2) runs `npm link` on `packages/server/bridge`, whose `package.json` `bin` is `once-upon`. The command works from any folder and survives moving packages inside the repo. Re-run the script if you move the checkout itself, switch Node versions or upgrade Node, since under fnm or nvm the link lives in one version's bin. It runs under the first `node` on your `PATH`, so keep a Node 24 as your default (`fnm default 24`). Run `once-upon` with no arguments to see every command. Without the link, `node packages/server/bridge/bin/once-upon.mjs` is the same command.
 
 ## Using it
 

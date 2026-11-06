@@ -4,19 +4,19 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "paths": {
-      "/assets/types.ts": ["./packages/contracts/src/types.ts"],
-      "/assets/contracts/*": ["./packages/contracts/src/*"],
-      "/assets/domain/*": ["./packages/domain/src/*"],
-      "/assets/bridge-client/*": ["./packages/bridge-client/src/*"],
-      "/assets/github-page/*": ["./packages/github-page/src/*"],
-      "/assets/panel/*": ["./packages/panel/src/*"],
-      "/assets/ui-kit/*": ["./packages/ui-kit/src/*"],
-      "/assets/local/*": ["./packages/web/public/local/*"],
-      "/assets/highlight.mjs": ["./packages/web/public/vendor/highlight.mjs"],
-      "/assets/preact.mjs": ["./packages/web/public/vendor/preact.mjs"],
-      "/assets/board/*": ["./packages/web/public/board/*"],
-      "/assets/board.ts": ["./packages/web/public/board.ts"]
+      "/assets/types.ts": ["./packages/domain/contracts/src/types.ts"],
+      "/assets/contracts/*": ["./packages/domain/contracts/src/*"],
+      "/assets/terms/*": ["./packages/domain/terms/src/*"],
+      "/assets/bridge-client/*": ["./packages/client-libs/bridge-client/src/*"],
+      "/assets/github-page/*": ["./packages/client/github-page/src/*"],
+      "/assets/panel/*": ["./packages/client/panel/src/*"],
+      "/assets/ui-kit/*": ["./packages/client-libs/ui-kit/src/*"],
+      "/assets/local/*": ["./packages/client/web/public/local/*"],
+      "/assets/highlight.mjs": ["./packages/client/web/public/vendor/highlight.mjs"],
+      "/assets/preact.mjs": ["./packages/client/web/public/vendor/preact.mjs"],
+      "/assets/board/*": ["./packages/client/web/public/board/*"],
+      "/assets/board.ts": ["./packages/client/web/public/board.ts"]
     }
   },
-  "include": ["../packages/*/src", "../packages/web/public"]
+  "include": ["../packages/*/*/src", "../packages/client/web/public"]
 }

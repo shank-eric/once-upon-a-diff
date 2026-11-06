@@ -1,0 +1,336 @@
+/**
+ * `once-upon doctor`: is everything connected? The Node it runs on, the config and token, the
+ * bridge, a Claude session listening, and the extension. Each check prints
+ * PASS, WARN or FAIL with what it found and, when it isn't passing, the fix.
+ */
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import path from 'node:path';
+import { Listening } from '../../features/listeners/service.ts';
+import { formatTime } from '@once-upon-a-diff/foundation/settings';
+
+import { MIN_NODE_MAJOR, nodeVersionProblem } from '../../../../foundation/src/node-version.mjs';
+import type { Config } from '@once-upon-a-diff/foundation/settings';
+import { listenerPid } from '@once-upon-a-diff/adapters/os';
+import { fetchHealth } from '@once-upon-a-diff/adapters/bridge-health';
+import { readExtensionSeen } from './bridge.ts';
+import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
+import { cardRunProblems } from '@once-upon-a-diff/state/queues/backlog/phase';
+import { claimWorktreeProblems } from '@once-upon-a-diff/state/queues/backlog/claim-worktree';
+import { readAgents } from '@once-upon-a-diff/state/records/agents/read';
+import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
+import { readIndex } from '@once-upon-a-diff/stories/placement';
+import { readMeta, stateKeyOf } from '@once-upon-a-diff/stories/meta';
+import { seenCheckoutRepos } from '@once-upon-a-diff/foundation/repos';
+import { stateKeyForPr } from '@once-upon-a-diff/terms/ids';
+import {
+  inboxStoryProblems,
+  repoProblems,
+  stateFolderProblems,
+  type RepoUse,
+} from './doctor-joins.ts';
+
+/** INFO says what doctor saw and asks nothing: it is not counted, and never fails. */
+type Level = 'PASS' | 'WARN' | 'FAIL' | 'INFO';
+
+const firstFive = (problems: string[]): string =>
+  `${problems.slice(0, 5).join('; ')}${problems.length > 5 ? '; ...' : ''}`;
+
+/**
+ * The folders under a folder with how many files each holds, and the ones that cannot be read: one folder that cannot be
+ * read is listed apart and does not stop the rest being looked at. A folder that is not there has none.
+ */
+function folderNames(dir: string): {
+  folders: { name: string; files: number }[];
+  unreadable: string[];
+} {
+  const folders: { name: string; files: number }[] = [];
+  const unreadable: string[] = [];
+  let entries;
+  try {
+    entries = readdirSync(dir, { withFileTypes: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      unreadable.push(path.basename(dir));
+    }
+    return { folders, unreadable };
+  }
+  for (const entry of entries.filter((one) => one.isDirectory())) {
+    try {
+      folders.push({ name: entry.name, files: readdirSync(path.join(dir, entry.name)).length });
+    } catch {
+      unreadable.push(entry.name);
+    }
+  }
+  return { folders, unreadable };
+}
+
+/**
+ * The `story` of each inbox line, read straight from the file: the Inbox class chmods the home when made, and its reader
+ * skips the types it no longer knows (`position`), which still name stories.
+ */
+function inboxStories(home: string): string[] {
+  try {
+    return readFileSync(path.join(home, 'inbox.jsonl'), 'utf8')
+      .split('\n')
+      .flatMap((text) => {
+        try {
+          const story: unknown = text.trim() ? JSON.parse(text)?.story : null;
+          return typeof story === 'string' ? [story] : [];
+        } catch {
+          return [];
+        }
+      });
+  } catch {
+    return [];
+  }
+}
+
+const localTime = (iso: string) => formatTime(iso);
+
+/**
+ * Runs every check; resolves true when nothing FAILed. opts.port overrides the config's.
+ */
+export async function doctor(
+  home: string,
+  cfg: Pick<Config, 'port' | 'token'>,
+  {
+    port: portOpt,
+    wait = 0,
+    out = (text) => process.stdout.write(text + '\n'),
+    nodeVersion = process.versions.node,
+  }: {
+    port?: number | string;
+    wait?: number;
+    out?: (text: string) => unknown;
+    /** the Node to judge, for tests; the one running doctor by default */
+    nodeVersion?: string;
+  } = {},
+): Promise<boolean> {
+  const port = Number(portOpt || cfg.port);
+  const results: { level: Level; name: string; detail: string; fix?: string | null }[] = [];
+  const add = (level: Level, name: string, detail: string, fix?: string | null) =>
+    results.push({ level, name, detail, fix });
+
+  // Node: the CLI's entry stops an older one, but not a .ts file run directly with a type-stripping flag
+  const nodeProblem = nodeVersionProblem(nodeVersion);
+  add(
+    nodeProblem ? 'FAIL' : 'PASS',
+    'Node',
+    `v${nodeVersion} at ${process.execPath}${nodeProblem ? `, needs ${MIN_NODE_MAJOR} or newer` : ''}`,
+    nodeProblem
+      ? `Run fnm use or nvm use in the once-upon-a-diff repo (.nvmrc says ${MIN_NODE_MAJOR}), or fnm exec --using=${MIN_NODE_MAJOR} once-upon doctor`
+      : null,
+  );
+
+  // config and token
+  const cfgFile = path.join(home, 'config.json');
+  const mode = existsSync(cfgFile) ? (statSync(cfgFile).mode & 0o777).toString(8) : null;
+  if (!cfg.token) {
+    add('FAIL', 'Token', 'config.json has no token', 'Run: once-upon setup');
+  } else {
+    add(
+      mode === '600' ? 'PASS' : 'WARN',
+      'Config and token',
+      `${cfgFile} (mode ${mode}), port ${port}`,
+      mode === '600' ? null : `chmod 600 ${cfgFile}`,
+    );
+  }
+
+  // the bridge: process, port, token
+  let health = await fetchHealth(port, cfg.token);
+  // --wait N: a bridge that was just started may not be listening yet
+  const deadline = Date.now() + wait * 1000;
+  while (!health && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    health = await fetchHealth(port, cfg.token);
+  }
+  const proc = listenerPid(port);
+  if (!health) {
+    add(
+      'FAIL',
+      'Bridge',
+      proc
+        ? `port ${port} is taken by pid ${proc.pid} (${proc.command}), which didn't answer`
+        : `nothing is listening on 127.0.0.1:${port}`,
+      'Start it: once-upon serve (leave it running, or run it with nohup)',
+    );
+  } else if (health.status === 401) {
+    add(
+      'FAIL',
+      'Bridge token',
+      `the bridge on ${port} rejects this config's token${proc ? ` (pid ${proc.pid})` : ''}`,
+      'Restart the bridge so it reads config.json again, and paste the same token into the extension options',
+    );
+  } else if (health.body && health.body.name === 'once-upon-bridge') {
+    add(
+      'PASS',
+      'Bridge',
+      `running on 127.0.0.1:${port}, version ${health.body.version}${proc ? `, pid ${proc.pid}` : ''}`,
+    );
+  } else {
+    add(
+      'FAIL',
+      'Bridge',
+      `something else answers on port ${port} (HTTP ${health.status})`,
+      'Pick another port: set "port" in config.json, restart the bridge, and change it in the extension options',
+    );
+  }
+
+  // the extension: the bridge records when it last heard from it
+  const seen = readExtensionSeen(home);
+  if (seen) {
+    add('PASS', 'Extension', `last talked to the bridge ${localTime(seen.at)} (${seen.origin})`);
+  } else {
+    add(
+      'WARN',
+      'Extension',
+      'the bridge has never heard from the extension',
+      'yarn build, then chrome://extensions → Load unpacked → packages/client/extension/.output/chrome-mv3, then in its options paste the port and token and click Test connection',
+    );
+  }
+
+  // a Claude session listening for questions
+  const all = new Listening(home).all();
+  const live = all.filter((listener) => listener.live);
+  if (live.length) {
+    add(
+      'PASS',
+      'Claude listening',
+      live
+        .map((listener) => {
+          const covers = listener.story || listener.repo || 'everything';
+          return `${listener.consumer} (${covers}, ${listener.state}, ${listener.age_s}s ago)`;
+        })
+        .join(', '),
+    );
+  } else {
+    add(
+      'WARN',
+      'Claude listening',
+      all.length
+        ? `no live listener; last was ${all[0].consumer} ${localTime(all[0].at)}`
+        : 'no Claude session has ever listened',
+      'In Claude Code, in the repo you want to listen for: /once-upon-listen <owner/name>. Until then, questions wait in the inbox.',
+    );
+  }
+  // every run is a run of one card, and says nothing the card does not (ADR-25)
+  const items = new BacklogStore(home).items();
+  const problems = [
+    ...cardRunProblems(items, readAgents(home).agents, Date.now()),
+    ...claimWorktreeProblems(items),
+  ];
+  add(
+    problems.length ? 'WARN' : 'PASS',
+    'Card runs',
+    problems.length
+      ? `${problems.length} to look at: ${firstFive(problems)}`
+      : 'every run names a card that holds',
+  );
+
+  // state folders and inbox entries each belong to a story: one in stories.json or with a story folder on disk
+  const stories = new StoryStore({ home })
+    .dirs()
+    .map(({ id, dir }) => ({ id, meta: readMeta(dir) }));
+  const indexed = Object.keys(readIndex(home));
+  const storyIds = new Set([...indexed, ...stories.map((story) => story.id)]);
+  const builds = Object.values(new Builds(home).all());
+  const stateKeys = new Set([
+    ...stories.map((story) => stateKeyOf(story.id, story.meta)),
+    ...builds.flatMap((build) =>
+      build.repo && build.number ? [stateKeyForPr(build.repo, build.number)] : [],
+    ),
+  ]);
+  const { folders, unreadable } = folderNames(path.join(home, 'state'));
+  const orphans = stateFolderProblems(folders, storyIds, stateKeys);
+  add(
+    orphans.length ? 'WARN' : 'PASS',
+    'State folders',
+    orphans.length
+      ? `${orphans.length} to look at, in no story of stories.json and with no story folder: ${firstFive(orphans)}`
+      : 'every folder in state/ is a story or a PR story',
+  );
+  if (unreadable.length) {
+    add(
+      'WARN',
+      'Unreadable state folders',
+      `${unreadable.length} that doctor could not read, so it did not check: ${firstFive(unreadable)}`,
+    );
+  }
+  const inbox = inboxStories(home);
+  const missing = inboxStoryProblems(inbox, storyIds);
+  add(
+    missing.length ? 'WARN' : 'PASS',
+    'Inbox stories',
+    missing.length
+      ? `${missing.length} to look at, in no story of stories.json and with no story folder: ${firstFive(missing)}`
+      : 'every story in inbox.jsonl is a story',
+  );
+  const goneIds = new Set(indexed.filter((id) => !stories.some((story) => story.id === id)));
+  const goneFolders = folders.filter((folder) => goneIds.has(folder.name)).length;
+  const goneEvents = inbox.filter((story) => goneIds.has(story)).length;
+  if (goneFolders || goneEvents) {
+    add(
+      'INFO',
+      'Index-only stories',
+      `${goneIds.size} ids in stories.json have no story folder now: ${goneFolders} state folders and ${goneEvents} inbox events belong to them`,
+    );
+  }
+
+  // a repo on a card or a cardless run is checked against the repos a store that takes no typed repo vouches for
+  const anchored = [
+    ...builds.map((build) => build.repo),
+    // a PR story's repo is the PR's; a local story's would come from running git, which a report does not
+    ...stories.map((story) => (story.meta.kind === 'github' ? story.meta.repo : null)),
+    ...seenCheckoutRepos(home),
+  ].filter((repo): repo is string => !!repo);
+  const uses: RepoUse[] = [
+    ...items.flatMap((item) =>
+      item.repo
+        ? [
+            {
+              repo: item.repo,
+              kind: 'card' as const,
+              label: `${item.id}${item.state === 'dropped' ? ' (dropped)' : ''}`,
+            },
+          ]
+        : [],
+    ),
+    // a run with a card is the card's, and "Card runs" has its typed repo
+    ...readAgents(home)
+      .agents.flatMap((agent) => [...(agent.earlier ?? []), agent])
+      .flatMap((run) =>
+        run.repo && !run.card ? [{ repo: run.repo, kind: 'run' as const, label: run.name }] : [],
+      ),
+  ];
+  const repos = repoProblems(anchored, uses);
+  add(
+    repos.suspects.length ? 'WARN' : 'PASS',
+    'Repos',
+    repos.suspects.length
+      ? `${repos.suspects.length} to look at: ${firstFive(repos.suspects)}`
+      : 'every repo on a card or a cardless run is known or looks like no known repo',
+  );
+  if (repos.owners.length) {
+    add('INFO', 'Repo owners', firstFive(repos.owners));
+  }
+  if (repos.unvouched.length) {
+    add(
+      'INFO',
+      'Unvouched repos',
+      `no checkout, build or story names ${firstFive(repos.unvouched)}`,
+    );
+  }
+  for (const result of results) {
+    out(`${result.level.padEnd(4)}  ${result.name}: ${result.detail}`);
+    if (result.fix) {
+      out(`      fix: ${result.fix}`);
+    }
+  }
+  const fails = results.filter((result) => result.level === 'FAIL').length;
+  const warns = results.filter((result) => result.level === 'WARN').length;
+  out(
+    `\n${fails ? `${fails} failing` : 'Nothing failing'}${warns ? `, ${warns} to look at` : ''}.`,
+  );
+  return fails === 0;
+}

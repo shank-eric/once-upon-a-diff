@@ -1,0 +1,30 @@
+{
+  "name": "@once-upon-a-diff/stories",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Once Upon a Diff's stories: a story's files, its validation, reads, rebuilds and publishing rules, over the foundation",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "test": "node ../foundation/src/node-version.mjs && node --test --test-timeout=60000 test/*.test.ts",
+    "eval": "node ../foundation/src/node-version.mjs && node scripts/story-eval.ts",
+    "typecheck": "tsc -p tsconfig.json && tsc -p test/tsconfig.json && tsc -p scripts/tsconfig.json"
+  },
+  "dependencies": {
+    "@once-upon-a-diff/adapters": "workspace:*",
+    "@once-upon-a-diff/contracts": "workspace:*",
+    "@once-upon-a-diff/foundation": "workspace:*",
+    "@once-upon-a-diff/terms": "workspace:*"
+  },
+  "devDependencies": {
+    "@once-upon-a-diff/test-kit": "workspace:*",
+    "@types/node": "24.19.1",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "extends": "../../../../configs/tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["es2023", "dom", "dom.iterable"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "paths": {
+      "/assets/types.ts": ["../../../domain/contracts/src/types.ts"],
+      "/assets/contracts/*": ["../../../domain/contracts/src/*"],
+      "/assets/terms/*": ["../../../domain/terms/src/*"],
+      "/assets/bridge-client/*": ["../../../client-libs/bridge-client/src/*"],
+      "/assets/github-page/*": ["../../github-page/src/*"],
+      "/assets/panel/*": ["../../panel/src/*"],
+      "/assets/ui-kit/*": ["../../../client-libs/ui-kit/src/*"],
+      "/assets/local/*": ["./local/*"],
+      "/assets/highlight.mjs": ["./types/highlight.d.ts"],
+      "/assets/preact.mjs": ["./types/preact.d.ts"],
+      "/assets/*": ["./*"]
+    }
+  },
+  "include": [".", "../../panel/types"],
+  "exclude": ["vendor"]
+}

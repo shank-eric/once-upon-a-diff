@@ -4,25 +4,25 @@
     ".": {
       "entry": ["skills/**/*.ts", "configs/eslint.*.mjs"],
     },
-    "packages/extension": {
+    "packages/client/extension": {
       "entry": ["src/entrypoints/**/*.ts", "scripts/*.ts"],
     },
-    "packages/web": {
+    "packages/client/web": {
       "entry": ["public/local/diff/{split,narrow,syntax}.ts", "scripts/*.ts"],
       "ignore": ["public/vendor/**"],
       // the pages import these through /assets/bridge-client/*, /assets/github-page/* and /assets/panel/* URLs, which knip cannot follow: a real
       // false positive, but it also hides a genuinely unused entry, so drop one here if a page stops using it
       "ignoreDependencies": [
         "@once-upon-a-diff/bridge-client",
-        "@once-upon-a-diff/domain",
+        "@once-upon-a-diff/terms",
         "@once-upon-a-diff/github-page",
         "@once-upon-a-diff/panel",
       ],
     },
-    "packages/stories": {
+    "packages/server-libs/stories": {
       "entry": ["scripts/*.ts"],
     },
-    "packages/panel": {
+    "packages/client/panel": {
       "ignoreBinaries": ["jq"],
     },
   },

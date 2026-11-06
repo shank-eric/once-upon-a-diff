@@ -5,7 +5,7 @@
  * Source only: tests, scripts and config cross packages on purpose, so they are not cruised.
  *
  * The browser imports its modules by URL (`/assets/panel/shell/overlay.ts`). The bridge serves them from the packages, and
- * configs/tsconfig.depcruise.json maps each URL back to its file (the same `paths` as packages/web/public/tsconfig.json, except that the pages' own files are listed one by one, not by
+ * configs/tsconfig.depcruise.json maps each URL back to its file (the same `paths` as packages/client/web/public/tsconfig.json, except that the pages' own files are listed one by one, not by
  * an /assets/* catch-all, so /assets/vendor/preact.mjs resolves to nothing: the one Preact is /assets/preact.mjs; a new top-level page
  * needs a line there), so the cruise takes that tsconfig to resolve them. A package import (`@once-upon-a-diff/panel/shell/overlay`) resolves through the workspace
  * symlink and the package's `exports`.
@@ -13,52 +13,52 @@
  *
  * Packages and layers, as paths from the repo root (a rule's `from`/`to` match these):
  *   the engine, bottom to top (configs/layers.mjs, the one list): adapters (every side effect), foundation, stories, state,
- *   core, board (packages/<name>/src). A package imports only the ones under it. state keeps two tiers inside it (records, then
- *   queues) and core two (features, then orchestration), whose folders never import each other. usage (packages/usage/src) sits
+ *   core, board (packages/server-libs/<name>/src). A package imports only the ones under it. state keeps two tiers inside it (records, then
+ *   queues) and core two (features, then orchestration), whose folders never import each other. usage (packages/server-libs/usage/src) sits
  *   beside the stack: it imports adapters and foundation, and only the apps and the shell import it. board is the server's
  *   alone
- *   server   packages/server/src (the HTTP app, with routes/) and cli packages/cli/src (the CLI): apps over the engine, apart from each other
- *   bridge   packages/bridge (the shell): bin/once-upon.ts is the one file that knows both apps, instrumentation (the usage probe
+ *   server   packages/server/server/src (the HTTP app, with routes/) and cli packages/server/cli/src (the CLI): apps over the engine, apart from each other
+ *   bridge   packages/server/bridge (the shell): bin/once-upon.ts is the one file that knows both apps, instrumentation (the usage probe
  *            the entry shims preload) and the integration tests. BRIDGE below is the whole server side: the shell, the engine and both apps
- *   web      packages/web/public (the pages, an app)
- *   extension packages/extension/src (an app)
- *   panel, github-page, bridge-client, ui-kit, contracts, domain (imports nothing), test-kit
+ *   web      packages/client/web/public (the pages, an app)
+ *   extension packages/client/extension/src (an app)
+ *   panel, github-page, bridge-client, ui-kit, contracts, terms (imports nothing), test-kit
  */
 
 import { fileURLToPath } from 'node:url';
 import { PACKAGES, TIERS } from './layers.mjs';
 
 const ENGINE_NAMES = [...PACKAGES, 'usage'];
-const BRIDGE = `^packages/(bridge|${ENGINE_NAMES.join('|')}|server|cli)/`;
-const SHELL = '^packages/bridge/';
-const SERVER = '^packages/server/src/';
-const CLI = '^packages/cli/src/';
-const ROUTES = '^packages/server/src/routes/';
-const srcOf = (names) => `^packages/(${names.join('|')})/src/`;
+const BRIDGE = '^packages/(server|server-libs)/';
+const SHELL = '^packages/server/bridge/';
+const SERVER = '^packages/server/server/src/';
+const CLI = '^packages/server/cli/src/';
+const ROUTES = '^packages/server/server/src/routes/';
+const srcOf = (names) => `^packages/server-libs/(${names.join('|')})/src/`;
 // the engine libraries (every engine package, usage included): they sit under the apps
 const ENGINE = srcOf(ENGINE_NAMES);
 const ADAPTERS = srcOf(['adapters']);
 const USAGE = srcOf(['usage']);
-const USAGE_ADAPTERS = '^packages/usage/src/adapters/';
+const USAGE_ADAPTERS = '^packages/server-libs/usage/src/adapters/';
 // what only an adapter may do: every engine package but adapters, except usage's own adapters folder
 const NOT_ADAPTERS = `${srcOf(ENGINE_NAMES.filter((name) => name !== 'adapters'))}`;
-const HEALTH_CHECK = '^packages/adapters/src/bridge-health\\.ts$';
-const DOCTOR = '^packages/core/src/orchestration/bridge/doctor\\.ts$';
+const HEALTH_CHECK = '^packages/server-libs/adapters/src/bridge-health\\.ts$';
+const DOCTOR = '^packages/server-libs/core/src/orchestration/bridge/doctor\\.ts$';
 // what a client needs to call the bridge: the route table (the routes, and the kit and each area's routes it is built from)
-const ROUTE_TABLE = '^packages/contracts/src/(routes|route-kit|[a-z-]+/routes)\\.ts$';
-const WEB = '^packages/web/public/';
-const EXTENSION = '^packages/extension/';
-const PANEL = '^packages/panel/';
-const GITHUB_PAGE = '^packages/github-page/';
-const BRIDGE_CLIENT = '^packages/bridge-client/';
-const UI_PKG = '^packages/ui-kit/';
-const CONTRACTS = '^packages/contracts/';
-const DOMAIN = '^packages/domain/';
-const TEST_KIT = '^packages/test-kit/';
-const INSTRUMENTATION = '^packages/bridge/instrumentation/';
+const ROUTE_TABLE = '^packages/domain/contracts/src/(routes|route-kit|[a-z-]+/routes)\\.ts$';
+const WEB = '^packages/client/web/public/';
+const EXTENSION = '^packages/client/extension/';
+const PANEL = '^packages/client/panel/';
+const GITHUB_PAGE = '^packages/client/github-page/';
+const BRIDGE_CLIENT = '^packages/client-libs/bridge-client/';
+const UI_PKG = '^packages/client-libs/ui-kit/';
+const CONTRACTS = '^packages/domain/contracts/';
+const TERMS = '^packages/domain/terms/';
+const TEST_KIT = '^packages/domain/test-kit/';
+const INSTRUMENTATION = '^packages/server/bridge/instrumentation/';
 
 // code that ships to a browser (no Node built-ins)
-const BROWSER = `^packages/(panel|github-page|bridge-client|ui-kit|contracts|domain|extension/src)/|${WEB}`;
+const BROWSER = `^packages/(client/(panel|github-page|extension/src)|client-libs/(bridge-client|ui-kit)|domain/(contracts|terms))/|${WEB}`;
 
 const rule = (name, comment, importer, imported) => ({
   name,
@@ -74,15 +74,15 @@ const BOARD_REGIONS = ['header', 'columns', 'backlog', 'worktrees', 'voice'];
 const REGION_SETS = [
   {
     name: 'panel',
-    root: 'packages/panel/src',
+    root: 'packages/client/panel/src',
     regions: ['ask', 'drafts', 'fixes', 'reading', 'rebuild'],
-    top: 'packages/panel/src/shell/overlay\\.ts',
+    top: 'packages/client/panel/src/shell/overlay\\.ts',
   },
   {
     name: 'board',
-    root: 'packages/web/public/board',
+    root: 'packages/client/web/public/board',
     regions: BOARD_REGIONS,
-    top: 'packages/web/public/board\\.ts',
+    top: 'packages/client/web/public/board\\.ts',
   },
 ];
 const regionRules = REGION_SETS.flatMap(({ name, root, regions, top }) => {
@@ -107,9 +107,9 @@ const regionRules = REGION_SETS.flatMap(({ name, root, regions, top }) => {
 const boardSharedRule = rule(
   'board-shared-below-the-regions',
   'board/shared.ts and board/worktree-text.ts sit below the regions and board.ts, which import them',
-  { path: '^packages/web/public/board/(shared|worktree-text)\\.ts$' },
+  { path: '^packages/client/web/public/board/(shared|worktree-text)\\.ts$' },
   {
-    path: `^packages/web/public/board(\\.ts$|/(${BOARD_REGIONS.join('|')})/)`,
+    path: `^packages/client/web/public/board(\\.ts$|/(${BOARD_REGIONS.join('|')})/)`,
   },
 );
 
@@ -176,8 +176,8 @@ export default {
     rule(
       'board-is-the-servers',
       'board is the server’s alone: no cli, core or other engine file imports it (the shell reaches it only through the server, which the shell loads)',
-      { pathNot: [SERVER, '^packages/board/'] },
-      { path: '^packages/board/' },
+      { pathNot: [SERVER, '^packages/server-libs/board/'] },
+      { path: '^packages/server-libs/board/' },
     ),
     rule(
       'http-cli-apart',
@@ -205,25 +205,33 @@ export default {
           rule(
             `${pkg}-${name}-below`,
             `a tier imports only the tiers under it: in ${pkg}, ${name} never imports ${tiers.slice(index + 1).join(', ')}`,
-            { path: `^packages/${pkg}/src/${name}/` },
-            { path: `^packages/${pkg}/src/(${tiers.slice(index + 1).join('|')})/` },
+            { path: `^packages/server-libs/${pkg}/src/${name}/` },
+            { path: `^packages/server-libs/${pkg}/src/(${tiers.slice(index + 1).join('|')})/` },
           ),
         ),
       rule(
         `${pkg}-tier-siblings-apart`,
         `folders in one tier of ${pkg} do not import each other: move what both need down a tier`,
-        { path: `^packages/${pkg}/src/(${tiers.join('|')})/([^/]+)/` },
-        { path: `^packages/${pkg}/src/$1/`, pathNot: `^packages/${pkg}/src/$1/$2/` },
+        { path: `^packages/server-libs/${pkg}/src/(${tiers.join('|')})/([^/]+)/` },
+        {
+          path: `^packages/server-libs/${pkg}/src/$1/`,
+          pathNot: `^packages/server-libs/${pkg}/src/$1/$2/`,
+        },
       ),
     ]),
     rule(
       'listening-through-service',
       'listening has one way in: the CLI, the HTTP app and the board import features/listeners/service.ts, not the listener files behind it. The queues below it read heartbeats directly',
-      { path: ['^packages/(cli|server|board)/src/', '^packages/core/src/orchestration/'] },
       {
         path: [
-          '^packages/state/src/records/listeners/',
-          '^packages/core/src/features/listeners/(?!service\\.ts$)',
+          '^packages/(server/(cli|server)|server-libs/board)/src/',
+          '^packages/server-libs/core/src/orchestration/',
+        ],
+      },
+      {
+        path: [
+          '^packages/server-libs/state/src/records/listeners/',
+          '^packages/server-libs/core/src/features/listeners/(?!service\\.ts$)',
         ],
       },
     ),
@@ -243,7 +251,7 @@ export default {
       { dependencyTypes: ['core'], path: '^(node:)?http$' },
     ),
     // the CLI never calls the server (ADR-15). Which imports could make a call are named here; what the graph cannot see (a
-    // fetch, a socket, a signal, a program) is packages/bridge/test/cli-never-calls-server.test.ts, the real guard
+    // fetch, a socket, a signal, a program) is packages/server/bridge/test/cli-never-calls-server.test.ts, the real guard
     rule(
       'health-check-is-the-doctors',
       'the doctor’s health check (adapters/bridge-health.ts) is the one call the CLI or the engine makes to the running bridge, and orchestration/bridge/doctor.ts is its one importer: the CLI never calls the server (ADR-15), it reads and writes the shared files through core',
@@ -272,7 +280,7 @@ export default {
       'bridge-is-server-only',
       'the bridge is server code: only the server and Node tests import it',
       {
-        path: `${WEB}|${EXTENSION}|${PANEL}|${GITHUB_PAGE}|${BRIDGE_CLIENT}|${UI_PKG}|${CONTRACTS}|${DOMAIN}|${TEST_KIT}`,
+        path: `${WEB}|${EXTENSION}|${PANEL}|${GITHUB_PAGE}|${BRIDGE_CLIENT}|${UI_PKG}|${CONTRACTS}|${TERMS}|${TEST_KIT}`,
       },
       { path: BRIDGE },
     ),
@@ -286,7 +294,7 @@ export default {
     ),
     rule(
       'contracts-is-bottom',
-      'the contracts package is the bottom of the client and server: it imports no other package of this repo but the domain',
+      'the contracts package is the bottom of the client and server: it imports no other package of this repo but the terms package',
       { path: CONTRACTS },
       {
         path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${GITHUB_PAGE}|${BRIDGE_CLIENT}|${UI_PKG}|${TEST_KIT}`,
@@ -294,13 +302,13 @@ export default {
     ),
     rule(
       'contracts-names-itself-by-path',
-      'the contracts package names its own files by relative path: by name it imports valibot and the domain only',
+      'the contracts package names its own files by relative path: by name it imports valibot and the terms package only',
       { path: CONTRACTS },
       { path: CONTRACTS, dependencyTypesNot: ['local'] },
     ),
     rule(
       'contracts-imports-only-valibot',
-      'the contracts package imports nothing but itself, the domain and valibot (an npm package or an unresolved import is refused)',
+      'the contracts package imports nothing but itself, the terms package and valibot (an npm package or an unresolved import is refused)',
       { path: CONTRACTS },
       {
         dependencyTypes: [
@@ -316,32 +324,32 @@ export default {
     ),
     rule(
       'contracts-no-unresolved',
-      'the contracts package imports nothing but itself, the domain and valibot: an import that resolves to nothing is refused',
+      'the contracts package imports nothing but itself, the terms package and valibot: an import that resolves to nothing is refused',
       { path: CONTRACTS },
       { couldNotResolve: true },
     ),
     rule(
-      'domain-imports-nothing',
-      'the domain package is pure rules: it imports nothing, not another package of this repo, not npm, not even one of its own files by name',
-      { path: DOMAIN },
+      'terms-imports-nothing',
+      'the terms package is pure rules: it imports nothing, not another package of this repo, not npm, not even one of its own files by name',
+      { path: TERMS },
       {},
     ),
     rule(
       'bridge-client-below-panel-and-pages',
-      'the bridge-client imports the contracts package and the domain and nothing else of this repo',
+      'the bridge-client imports the contracts package and the terms package and nothing else of this repo',
       { path: BRIDGE_CLIENT },
       {
         path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${GITHUB_PAGE}|${UI_PKG}|${TEST_KIT}`,
-        pathNot: '^packages/web/public/vendor/preact\\.mjs$',
+        pathNot: '^packages/client/web/public/vendor/preact\\.mjs$',
       },
     ),
     rule(
       'ui-kit-below-panel-and-pages',
-      'ui-kit sits below the panel, the pages and the extension: it imports the contracts package, the domain and the vendored Preact, never an app, the server, the panel, a host adapter or the bridge-client',
+      'ui-kit sits below the panel, the pages and the extension: it imports the contracts package, the terms package and the vendored Preact, never an app, the server, the panel, a host adapter or the bridge-client',
       { path: UI_PKG },
       {
         path: `${BRIDGE}|${WEB}|${EXTENSION}|${PANEL}|${GITHUB_PAGE}|${BRIDGE_CLIENT}|${TEST_KIT}`,
-        pathNot: '^packages/web/public/vendor/preact\\.mjs$',
+        pathNot: '^packages/client/web/public/vendor/preact\\.mjs$',
       },
     ),
     rule(
@@ -369,7 +377,7 @@ export default {
       'poll-hook-is-the-pages',
       'use-poll.ts is the pages’ Preact hook: the panel, the extension and the host adapter use poll.ts',
       { path: `${PANEL}|${EXTENSION}|${GITHUB_PAGE}` },
-      { path: '^packages/bridge-client/src/use-poll\\.ts$' },
+      { path: '^packages/client-libs/bridge-client/src/use-poll\\.ts$' },
     ),
     rule(
       'panel-is-host-agnostic',
@@ -377,7 +385,7 @@ export default {
       { path: PANEL },
       {
         path: `${GITHUB_PAGE}|${WEB}|${EXTENSION}|${BRIDGE}|${TEST_KIT}`,
-        pathNot: '^packages/web/public/vendor/preact\\.mjs$',
+        pathNot: '^packages/client/web/public/vendor/preact\\.mjs$',
       },
     ),
     rule(
@@ -386,7 +394,7 @@ export default {
       { path: GITHUB_PAGE },
       {
         path: PANEL,
-        pathNot: '^packages/panel/src/host/(host|diff-types)\\.ts$',
+        pathNot: '^packages/client/panel/src/host/(host|diff-types)\\.ts$',
       },
     ),
     rule(
@@ -399,7 +407,7 @@ export default {
       'schemas-are-server-side',
       "the schema files (schemas.ts, schema-kit.ts and each area's schemas.ts) import valibot, which no page or extension loads: only the server and the contracts package itself import them",
       { path: `${WEB}|${EXTENSION}|${PANEL}|${GITHUB_PAGE}|${BRIDGE_CLIENT}|${UI_PKG}` },
-      { path: '^packages/contracts/src/(schemas|schema-kit|[a-z-]+/schemas)\\.ts$' },
+      { path: '^packages/domain/contracts/src/(schemas|schema-kit|[a-z-]+/schemas)\\.ts$' },
     ),
     rule(
       'pages-are-an-app',
@@ -413,7 +421,7 @@ export default {
       'the vendored Preact is named /assets/preact.mjs by the panel, ui-kit, the bridge-client hook and the extension’s components, so a page has one Preact: not by a relative path or a package name',
       { path: `${PANEL}|${UI_PKG}|${BRIDGE_CLIENT}|${EXTENSION}` },
       {
-        path: '^packages/web/public/vendor/preact\\.mjs$',
+        path: '^packages/client/web/public/vendor/preact\\.mjs$',
         dependencyTypesNot: ['aliased-tsconfig-paths'],
       },
     ),
@@ -433,22 +441,22 @@ export default {
       'extension-not-the-server',
       'the extension meets the server over HTTP, not by import (the vendored Preact, which its bundle names by URL like the panel does, is the one file of the pages it takes)',
       { path: EXTENSION },
-      { path: `${BRIDGE}|${WEB}`, pathNot: '^packages/web/public/vendor/preact\\.mjs$' },
+      { path: `${BRIDGE}|${WEB}`, pathNot: '^packages/client/web/public/vendor/preact\\.mjs$' },
     ),
     // the /assets/ spelling: the browser imports by URL, the extension's bundle and the packages by name
     rule(
       'client-names-packages-not-page-urls',
       'the panel, ui-kit and the bridge-client hook are shared by the extension and the pages: the one page URL they name is the vendored Preact (/assets/preact.mjs), and they import packages, never a page module',
-      { path: `${PANEL}|${UI_PKG}|^packages/bridge-client/src/use-poll\\.ts$` },
+      { path: `${PANEL}|${UI_PKG}|^packages/client-libs/bridge-client/src/use-poll\\.ts$` },
       {
         dependencyTypes: ['aliased-tsconfig-paths'],
-        pathNot: '^packages/web/public/vendor/preact\\.mjs$',
+        pathNot: '^packages/client/web/public/vendor/preact\\.mjs$',
       },
     ),
     rule(
       'no-page-urls-at-all',
       'github-page is served at /assets/ for the pages, and the bridge-client’s client.ts and poll.ts are shared with the panel and the extension: they name packages, not an /assets/ URL (use-poll.ts, the pages’ hook, may name the vendored Preact)',
-      { path: `${GITHUB_PAGE}|^packages/bridge-client/src/(?!use-poll\\.ts$)` },
+      { path: `${GITHUB_PAGE}|^packages/client-libs/bridge-client/src/(?!use-poll\\.ts$)` },
       { dependencyTypes: ['aliased-tsconfig-paths'] },
     ),
     rule(
@@ -463,10 +471,38 @@ export default {
       {},
       { couldNotResolve: true },
     ),
+    // the five folders (configs/layers.mjs GROUPS): domain is the floor, the client and the server never import each other, libs never import apps
+    rule(
+      'domain-is-the-floor',
+      'packages/domain (the terms, the contracts, the test kit) sits under every other group: it imports nothing from them, only its own folder and npm (valibot, linkedom)',
+      { path: '^packages/domain/' },
+      { path: '^packages/(server|server-libs|client|client-libs)/' },
+    ),
+    rule(
+      'client-side-not-server-side',
+      'the client side (client, client-libs) imports nothing of the server side (server, server-libs): they meet at the contracts package, and the bridge serves client files by name (import.meta.resolve), which is not an import',
+      { path: '^packages/(client|client-libs)/' },
+      { path: '^packages/(server|server-libs)/' },
+    ),
+    rule(
+      'server-side-not-client-side',
+      'the server side (server, server-libs) imports nothing of the client side (client, client-libs): it serves their files, it does not import them',
+      { path: '^packages/(server|server-libs)/' },
+      { path: '^packages/(client|client-libs)/' },
+    ),
+    rule(
+      'libs-not-apps',
+      'a libs folder sits under its apps: client-libs imports nothing in client (but the vendored Preact the pages serve) and server-libs nothing in server',
+      { path: '^packages/(client|server)-libs/' },
+      {
+        path: ['^packages/client/', '^packages/server/'],
+        pathNot: '^packages/client/web/public/vendor/preact\\.mjs$',
+      },
+    ),
     rule(
       'shipped-code-not-the-test-kit',
       'the test kit is dev-only: tests import it, nothing that ships does',
-      { path: '^packages/[^/]+/(src|public|bin)/', pathNot: TEST_KIT },
+      { path: '^packages/[^/]+/[^/]+/(src|public|bin)/', pathNot: TEST_KIT },
       { path: TEST_KIT },
     ),
     rule(

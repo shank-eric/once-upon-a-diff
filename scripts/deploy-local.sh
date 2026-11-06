@@ -155,7 +155,30 @@ listener_pid() { lsof -nP -iTCP:$PORT -sTCP:LISTEN -t 2>/dev/null | head -n 1 ||
 
 cwd_of() { lsof -a -p "$1" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p'; }
 
-# Kill the bridge on $PORT (only if it is a node process running from MAIN/packages/bridge) and respawn it there.
+# The bridge's folder in MAIN: packages/server/bridge, or packages/bridge while MAIN still has the layout from before the packages
+# were regrouped (the live bridge's cwd on the first deploy past the move, and after a rollback to before it). It is whichever
+# holds bin/once-upon.mjs: git leaves the old folder behind with its untracked node_modules after the move, so the bin decides.
+# The legacy branch goes in a later card, once no rollback target is older than the regroup.
+bridge_dir() {
+  if [ -f "$MAIN/packages/server/bridge/bin/once-upon.mjs" ]; then
+    echo "$MAIN/packages/server/bridge"
+  elif [ -f "$MAIN/packages/bridge/bin/once-upon.mjs" ]; then
+    echo "$MAIN/packages/bridge"
+  else
+    die "no bridge folder under $MAIN/packages (packages/server/bridge or packages/bridge)"
+  fi
+}
+
+# The vendored files' folder in MAIN, by the same rule.
+vendor_dir() {
+  if [ -d "$MAIN/packages/client/web/public/vendor" ]; then
+    echo "$MAIN/packages/client/web/public/vendor"
+  else
+    echo "$MAIN/packages/web/public/vendor"
+  fi
+}
+
+# Kill the bridge on $PORT (only if it is a node process running from MAIN's bridge folder, new or legacy) and respawn it from bridge_dir.
 respawn_bridge() {
   local pid cwd comm
   pid="$(listener_pid)"
@@ -166,7 +189,10 @@ respawn_bridge() {
       *node*once-upon*serve*) ;;
       *) die "the process on $PORT (pid $pid) is not the bridge ($comm). Not killing it." ;;
     esac
-    [ "$cwd" = "$MAIN/packages/bridge" ] || die "the bridge on $PORT (pid $pid) runs from $cwd, not $MAIN/packages/bridge. Not killing it. Stop it by hand and re-run."
+    case "$cwd" in
+      "$MAIN/packages/server/bridge" | "$MAIN/packages/bridge") ;;
+      *) die "the bridge on $PORT (pid $pid) runs from $cwd, not $MAIN/packages/server/bridge (or the old $MAIN/packages/bridge). Not killing it. Stop it by hand and re-run." ;;
+    esac
     say "killing bridge pid $pid"
     kill "$pid" || true
     for _ in 1 2 3 4 5 6 7 8 9 10; do
@@ -175,8 +201,10 @@ respawn_bridge() {
     done
     if kill -0 "$pid" 2>/dev/null; then die "bridge pid $pid did not exit"; fi
   fi
+  local dir
+  dir="$(bridge_dir)"
   (
-    cd "$MAIN/packages/bridge" || exit 1
+    cd "$dir" || exit 1
     nohup node bin/once-upon.mjs serve </dev/null >>"$BRIDGE_LOG" 2>&1 &
   )
   for _ in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
@@ -186,13 +214,13 @@ respawn_bridge() {
   pid="$(listener_pid)"
   [ -n "$pid" ] || die "bridge did not come up on $PORT (see $BRIDGE_LOG)"
   cwd="$(cwd_of "$pid")"
-  [ "$cwd" = "$MAIN/packages/bridge" ] || die "new bridge pid $pid runs from $cwd, expected $MAIN/packages/bridge"
+  [ "$cwd" = "$dir" ] || die "new bridge pid $pid runs from $cwd, expected $dir"
   say "bridge pid $pid, cwd verified: $cwd"
   BRIDGE_PID="$pid"
 }
 
 verify_live() {
-  local code type f name want got tok base="http://127.0.0.1:$PORT"
+  local code type f name want got tok terms base="http://127.0.0.1:$PORT"
   # /api/board wants the bridge token. It goes to curl on stdin (-K -), so it is never in argv, output or logs.
   tok="$(node -e 'process.stdout.write(String(JSON.parse(require("fs").readFileSync(process.env.HOME+"/.once-upon/config.json","utf8")).token||""))' 2>/dev/null)" || tok=""
   [ -n "$tok" ] || die "no token in ~/.once-upon/config.json for the /api/board check"
@@ -204,8 +232,12 @@ verify_live() {
   [ "$code" = 200 ] || die "/assets/preact.mjs returned $code"
   type="$(curl -s --max-time 10 -o /dev/null -w '%{content_type}' "$base/assets/preact.mjs")"
   case "$type" in text/javascript*) ;; *) die "/assets/preact.mjs content-type is '$type'" ;; esac
+  # the terms package is served as /assets/terms/ (it was /assets/domain/ before the regroup, which a rollback past it brings back)
+  if [ -d "$MAIN/packages/domain/terms" ]; then terms=terms; else terms=domain; fi
+  code="$(curl -s --max-time 10 -o /dev/null -w '%{http_code}' "$base/assets/$terms/patterns.ts")"
+  [ "$code" = 200 ] || die "/assets/$terms/patterns.ts returned $code"
   SERVED_N=0
-  for f in "$MAIN"/packages/web/public/vendor/*.sha256; do
+  for f in "$(vendor_dir)"/*.sha256; do
     [ -e "$f" ] || continue
     SERVED_N=$((SERVED_N + 1))
     name="$(basename "$f" .sha256)"
@@ -213,8 +245,8 @@ verify_live() {
     got="$(curl -s --max-time 10 "$base/assets/$name" | shasum -a 256 | awk '{print $1}')"
     [ "$want" = "$got" ] || die "served /assets/$name hashes $got, vendored says $want"
   done
-  [ "$SERVED_N" -gt 0 ] || die "no vendor .sha256 files found in $MAIN/packages/web/public/vendor, nothing to verify"
-  (cd "$MAIN/packages/bridge" && node bin/once-upon.mjs backlog list >/dev/null) || die "backlog list failed"
+  [ "$SERVED_N" -gt 0 ] || die "no vendor .sha256 files found in $(vendor_dir), nothing to verify"
+  (cd "$(bridge_dir)" && node bin/once-upon.mjs backlog list >/dev/null) || die "backlog list failed"
   say "verified: $PORT answers, /api/board 200, /assets/preact.mjs 200 $type, $SERVED_N served vendor file(s) match their sha256, backlog list ok"
 }
 
@@ -284,7 +316,7 @@ mark_landed() {
     LANDED_BRANCHES+=("$name")
   done < <(git -C "$MAIN" for-each-ref --format='%(refname:lstrip=2) %(objectname)' refs/heads 2>/dev/null) || true
   if [ "$BATCH" = 1 ]; then from="$BASE"; else from="$PREV"; fi
-  (cd "$MAIN/packages/bridge" && node bin/once-upon.mjs backlog land ${SHAS[@]+"${SHAS[@]}"} --from "$from" --to "$TIP" --by deploy-local </dev/null) || say "could not mark backlog items as done"
+  (cd "$(bridge_dir)" && node bin/once-upon.mjs backlog land ${SHAS[@]+"${SHAS[@]}"} --from "$from" --to "$TIP" --by deploy-local </dev/null) || say "could not mark backlog items as done"
 }
 
 go_live() {
@@ -337,7 +369,7 @@ if [ "$BATCH" != 1 ]; then
   echo "Plan"
   echo "  target     $(git -C "$MAIN" rev-parse --short "$TIP")  ($(git -C "$MAIN" log -1 --format=%s "$TIP"))"
   echo "  live now   $PREVS ($PREV)"
-  echo "  go live    fast-forward $MAIN to the target, yarn install, build, respawn bridge from $MAIN/packages/bridge, verify. No gates."
+  echo "  go live    fast-forward $MAIN to the target, yarn install, build, respawn bridge from $MAIN/packages/server/bridge, verify. No gates."
   echo "  rollback   $ROLLBACK_CMD"
   echo
   if [ "$YES" != 1 ]; then
@@ -392,7 +424,7 @@ if [ "$REUSED" = 0 ]; then
     git -C "$WT" checkout -q --detach "$BASE"
     git -C "$WT" reset -q --hard "$BASE"
     # Ignored build output from the last deploy must not leak into these gates.
-    rm -rf "$WT"/build "$WT"/packages/*/build "$WT"/packages/*/dist "$WT"/packages/*/.output
+    rm -rf "$WT"/build "$WT"/packages/*/*/build "$WT"/packages/*/*/dist "$WT"/packages/*/*/.output
   else
     mkdir -p "$MAIN-worktrees"
     git -C "$MAIN" worktree add -q --detach "$WT" "$BASE"
@@ -418,12 +450,12 @@ if [ "$REUSED" = 0 ]; then
   quiet "test" bash -c "cd '$WT' && yarn test"
   quiet "build" bash -c "cd '$WT' && yarn build"
   VENDOR_N=0
-  for f in "$WT"/packages/web/public/vendor/*.sha256; do
+  for f in "$WT"/packages/client/web/public/vendor/*.sha256; do
     [ -e "$f" ] || continue
     quiet "sha256 $(basename "$f")" bash -c "cd '$(dirname "$f")' && shasum -a 256 -c '$(basename "$f")'"
     VENDOR_N=$((VENDOR_N + 1))
   done
-  [ "$VENDOR_N" -gt 0 ] || die "no vendor .sha256 files found in $WT/packages/web/public/vendor, nothing was checked"
+  [ "$VENDOR_N" -gt 0 ] || die "no vendor .sha256 files found in $WT/packages/client/web/public/vendor, nothing was checked"
   say "vendor checksums verified: $VENDOR_N"
   printf '%s\n%s\n' "$TIP" "$KEY" >"$(stamp_of)"
 fi
@@ -433,7 +465,7 @@ echo "Plan"
 echo "  worktree   $WT (detached)"
 echo "  tip        $(git -C "$WT" rev-parse --short "$TIP")  ($(git -C "$WT" log -1 --format=%s "$TIP"))"
 echo "  live now   $PREVS ($PREV)"
-echo "  go live    detach $MAIN at the tip, yarn install, build, respawn bridge from $MAIN/packages/bridge, verify, fast-forward local main"
+echo "  go live    detach $MAIN at the tip, yarn install, build, respawn bridge from $MAIN/packages/server/bridge, verify, fast-forward local main"
 echo "  rollback   $ROLLBACK_CMD"
 echo
 if [ "$YES" != 1 ]; then

@@ -5,7 +5,7 @@
     "module": "esnext",
     "moduleResolution": "bundler",
     "paths": {
-      "/assets/preact.mjs": ["../packages/web/public/types/preact.d.ts"]
+      "/assets/preact.mjs": ["../packages/client/web/public/types/preact.d.ts"]
     }
   },
   "include": []

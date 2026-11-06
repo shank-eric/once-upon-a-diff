@@ -9,7 +9,7 @@
     "node": ">=24"
   },
   "workspaces": [
-    "packages/*"
+    "packages/*/*"
   ],
   "scripts": {
     "bridge": "yarn workspace once-upon-a-diff serve",
@@ -18,7 +18,7 @@
     "zip": "yarn workspace @once-upon-a-diff/extension zip",
     "lint": "eslint . --cache --cache-strategy content && yarn depcruise",
     "lint:fix": "eslint . --fix",
-    "depcruise": "depcruise --config configs/.dependency-cruiser.mjs packages/adapters/src packages/foundation/src packages/stories/src packages/usage/src packages/state/src packages/core/src packages/board/src packages/server/src packages/cli/src packages/bridge/bin packages/bridge/instrumentation packages/web/public packages/panel/src packages/panel/types packages/github-page/src packages/bridge-client/src packages/ui-kit/src packages/contracts/src packages/domain/src packages/extension/src packages/test-kit/src",
+    "depcruise": "depcruise --config configs/.dependency-cruiser.mjs packages/server-libs/adapters/src packages/server-libs/foundation/src packages/server-libs/stories/src packages/server-libs/usage/src packages/server-libs/state/src packages/server-libs/core/src packages/server-libs/board/src packages/server/server/src packages/server/cli/src packages/server/bridge/bin packages/server/bridge/instrumentation packages/client/web/public packages/client/panel/src packages/client/panel/types packages/client/github-page/src packages/client-libs/bridge-client/src packages/client-libs/ui-kit/src packages/domain/contracts/src packages/domain/terms/src packages/client/extension/src packages/domain/test-kit/src",
     "knip": "knip --config configs/knip.jsonc",
     "lint:sh": "shellcheck skills/once-upon/bin/*.sh",
     "typecheck": "yarn workspaces foreach --all --exclude once-upon-a-diff-workspace -v run typecheck && tsc -p tsconfig.json",

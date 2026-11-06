@@ -12,7 +12,7 @@
       "name": "Server",
       "group": "Bridge",
       "paths": [
-        "packages/server/src/"
+        "packages/server/server/src/"
       ],
       "note": "The HTTP app and its routes"
     },
@@ -21,9 +21,9 @@
       "name": "CLI",
       "group": "Bridge",
       "paths": [
-        "packages/cli/src/",
-        "packages/bridge/bin/",
-        "packages/bridge/instrumentation/"
+        "packages/server/cli/src/",
+        "packages/server/bridge/bin/",
+        "packages/server/bridge/instrumentation/"
       ],
       "note": "The once-upon command"
     },
@@ -32,9 +32,9 @@
       "name": "Story pipeline",
       "group": "Bridge",
       "paths": [
-        "packages/stories/src/",
-        "packages/stories/scripts/",
-        "packages/core/src/features/publishing/",
+        "packages/server-libs/stories/src/",
+        "packages/server-libs/stories/scripts/",
+        "packages/server-libs/core/src/features/publishing/",
         "skills/once-upon/bin/"
       ],
       "note": "Reading, placing, publishing and rebuilding stories"
@@ -44,9 +44,9 @@
       "name": "Review and inbox",
       "group": "Bridge",
       "paths": [
-        "packages/core/src/features/review/",
-        "packages/state/src/records/github/",
-        "packages/state/src/queues/requests/"
+        "packages/server-libs/core/src/features/review/",
+        "packages/server-libs/state/src/records/github/",
+        "packages/server-libs/state/src/queues/requests/"
       ],
       "note": "GitHub review sync, drafts, and the panel requests sessions answer"
     },
@@ -55,12 +55,12 @@
       "name": "Board services",
       "group": "Bridge",
       "paths": [
-        "packages/board/src/",
-        "packages/state/src/queues/backlog/",
-        "packages/state/src/records/agents/",
-        "packages/foundation/src/input.ts",
-        "packages/state/src/records/worktrees/",
-        "packages/usage/src/"
+        "packages/server-libs/board/src/",
+        "packages/server-libs/state/src/queues/backlog/",
+        "packages/server-libs/state/src/records/agents/",
+        "packages/server-libs/foundation/src/input.ts",
+        "packages/server-libs/state/src/records/worktrees/",
+        "packages/server-libs/usage/src/"
       ],
       "note": "What the board shows: cards, agents, worktrees, usage"
     },
@@ -69,14 +69,14 @@
       "name": "Sessions and config",
       "group": "Bridge",
       "paths": [
-        "packages/core/src/features/sessions/",
-        "packages/state/src/records/listeners/",
-        "packages/core/src/features/listeners/",
-        "packages/core/src/features/heavy/",
-        "packages/foundation/src/",
-        "packages/core/src/orchestration/bridge/",
-        "packages/state/src/records/page-links/",
-        "packages/board/src/voice.ts"
+        "packages/server-libs/core/src/features/sessions/",
+        "packages/server-libs/state/src/records/listeners/",
+        "packages/server-libs/core/src/features/listeners/",
+        "packages/server-libs/core/src/features/heavy/",
+        "packages/server-libs/foundation/src/",
+        "packages/server-libs/core/src/orchestration/bridge/",
+        "packages/server-libs/state/src/records/page-links/",
+        "packages/server-libs/board/src/voice.ts"
       ],
       "note": "Claude sessions, listeners, settings and the rest of the services"
     },
@@ -85,7 +85,7 @@
       "name": "Adapters",
       "group": "Bridge",
       "paths": [
-        "packages/adapters/src/"
+        "packages/server-libs/adapters/src/"
       ],
       "note": "Every side effect: programs, files, network"
     },
@@ -94,7 +94,7 @@
       "name": "Panel",
       "group": "Client",
       "paths": [
-        "packages/panel/"
+        "packages/client/panel/"
       ],
       "note": "The story panel"
     },
@@ -103,7 +103,7 @@
       "name": "Host adapter",
       "group": "Client",
       "paths": [
-        "packages/github-page/"
+        "packages/client/github-page/"
       ],
       "note": "GitHub diff-page reader and URL routing"
     },
@@ -112,7 +112,7 @@
       "name": "Pages",
       "group": "Client",
       "paths": [
-        "packages/web/"
+        "packages/client/web/"
       ],
       "note": "The board and local story pages"
     },
@@ -121,7 +121,7 @@
       "name": "Extension",
       "group": "Client",
       "paths": [
-        "packages/extension/"
+        "packages/client/extension/"
       ],
       "note": "The Chrome extension"
     },
@@ -130,7 +130,7 @@
       "name": "UI",
       "group": "Client",
       "paths": [
-        "packages/ui-kit/"
+        "packages/client-libs/ui-kit/"
       ],
       "note": "Shared components and helpers"
     },
@@ -139,7 +139,7 @@
       "name": "API client",
       "group": "Client",
       "paths": [
-        "packages/bridge-client/"
+        "packages/client-libs/bridge-client/"
       ],
       "note": "The typed client and the poll"
     },
@@ -148,7 +148,7 @@
       "name": "Contracts",
       "group": "Shared",
       "paths": [
-        "packages/contracts/"
+        "packages/domain/contracts/"
       ],
       "note": "Wire types, routes and schemas"
     },
@@ -157,7 +157,7 @@
       "name": "Domain",
       "group": "Shared",
       "paths": [
-        "packages/domain/"
+        "packages/domain/terms/"
       ],
       "note": "Pure rules that import nothing"
     },
@@ -191,26 +191,26 @@
       "name": "Tests",
       "group": "Repo",
       "paths": [
-        "packages/bridge/test/",
-        "packages/core/test/",
-        "packages/cli/test/",
-        "packages/server/test/",
-        "packages/panel/test/",
-        "packages/ui-kit/test/",
-        "packages/contracts/test/",
-        "packages/domain/test/",
-        "packages/web/test/",
-        "packages/extension/test/",
-        "packages/github-page/test/",
-        "packages/bridge-client/test/",
-        "packages/test-kit/test/",
-        "packages/test-kit/",
-        "packages/adapters/test/",
-        "packages/foundation/test/",
-        "packages/usage/test/",
-        "packages/stories/test/",
-        "packages/state/test/",
-        "packages/board/test/"
+        "packages/server/bridge/test/",
+        "packages/server-libs/core/test/",
+        "packages/server/cli/test/",
+        "packages/server/server/test/",
+        "packages/client/panel/test/",
+        "packages/client-libs/ui-kit/test/",
+        "packages/domain/contracts/test/",
+        "packages/domain/terms/test/",
+        "packages/client/web/test/",
+        "packages/client/extension/test/",
+        "packages/client/github-page/test/",
+        "packages/client-libs/bridge-client/test/",
+        "packages/domain/test-kit/test/",
+        "packages/domain/test-kit/",
+        "packages/server-libs/adapters/test/",
+        "packages/server-libs/foundation/test/",
+        "packages/server-libs/usage/test/",
+        "packages/server-libs/stories/test/",
+        "packages/server-libs/state/test/",
+        "packages/server-libs/board/test/"
       ],
       "note": "Every package's tests and the shared test helpers"
     },
@@ -220,14 +220,14 @@
       "group": "Repo",
       "paths": [
         ".once-upon-parts.json",
-        "packages/bridge/package.json",
-        "packages/bridge/tsconfig.json",
-        "packages/core/package.json",
-        "packages/core/tsconfig.json",
-        "packages/server/package.json",
-        "packages/server/tsconfig.json",
-        "packages/cli/package.json",
-        "packages/cli/tsconfig.json",
+        "packages/server/bridge/package.json",
+        "packages/server/bridge/tsconfig.json",
+        "packages/server-libs/core/package.json",
+        "packages/server-libs/core/tsconfig.json",
+        "packages/server/server/package.json",
+        "packages/server/server/tsconfig.json",
+        "packages/server/cli/package.json",
+        "packages/server/cli/tsconfig.json",
         "package.json",
         "tsconfig.json",
         "eslint.config.mjs",
@@ -242,18 +242,18 @@
         ".prettierignore",
         ".prettierrc.json",
         ".shellcheckrc",
-        "packages/adapters/package.json",
-        "packages/adapters/tsconfig.json",
-        "packages/foundation/package.json",
-        "packages/foundation/tsconfig.json",
-        "packages/usage/package.json",
-        "packages/usage/tsconfig.json",
-        "packages/stories/package.json",
-        "packages/stories/tsconfig.json",
-        "packages/state/package.json",
-        "packages/state/tsconfig.json",
-        "packages/board/package.json",
-        "packages/board/tsconfig.json"
+        "packages/server-libs/adapters/package.json",
+        "packages/server-libs/adapters/tsconfig.json",
+        "packages/server-libs/foundation/package.json",
+        "packages/server-libs/foundation/tsconfig.json",
+        "packages/server-libs/usage/package.json",
+        "packages/server-libs/usage/tsconfig.json",
+        "packages/server-libs/stories/package.json",
+        "packages/server-libs/stories/tsconfig.json",
+        "packages/server-libs/state/package.json",
+        "packages/server-libs/state/tsconfig.json",
+        "packages/server-libs/board/package.json",
+        "packages/server-libs/board/tsconfig.json"
       ],
       "note": "Build, lint and CI setup"
     }

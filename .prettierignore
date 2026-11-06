@@ -4,7 +4,7 @@ build/
 .wxt/
 .yarn/
 yarn.lock
-packages/web/public/vendor/
+packages/client/web/public/vendor/
 *.md
 *.json
 *.css

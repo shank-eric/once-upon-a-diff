@@ -14,18 +14,17 @@ import eslintPrettierConfig from 'eslint-config-prettier';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 import sideEffects from './configs/eslint.side-effects.mjs';
-import { PACKAGES } from './configs/layers.mjs';
 
 const NODE_FILES = [
-  `packages/{bridge,usage,server,cli,${PACKAGES.join(',')}}/**/*.{ts,mjs}`,
-  'packages/*/scripts/**/*.{ts,mjs}',
-  'packages/*/test/**/*.{ts,mjs}',
-  'packages/test-kit/src/**/*.{ts,mjs}',
-  'packages/*/*.config.{ts,mjs}',
+  'packages/{server,server-libs}/*/**/*.{ts,mjs}',
+  'packages/*/*/scripts/**/*.{ts,mjs}',
+  'packages/*/*/test/**/*.{ts,mjs}',
+  'packages/domain/test-kit/src/**/*.{ts,mjs}',
+  'packages/*/*/*.config.{ts,mjs}',
   'skills/**/*.{ts,mjs}',
   '*.config.{ts,mjs}',
 ];
-const LOCAL_PAGE = 'packages/web/public/**';
+const LOCAL_PAGE = 'packages/client/web/public/**';
 
 export default defineConfig(
   globalIgnores([
@@ -33,7 +32,7 @@ export default defineConfig(
     '**/.output/',
     '**/.wxt/',
     '.yarn/',
-    'packages/web/public/vendor/',
+    'packages/client/web/public/vendor/',
   ]),
   eslint.configs.recommended,
   importPlugin.flatConfigs.recommended,
@@ -91,7 +90,7 @@ export default defineConfig(
   },
   {
     // the extension: browser and chrome.* globals
-    files: ['packages/extension/src/**/*.{ts,js}'],
+    files: ['packages/client/extension/src/**/*.{ts,js}'],
     languageOptions: { globals: { ...globals.browser, ...globals.webextensions } },
   },
   {
@@ -110,7 +109,7 @@ export default defineConfig(
   },
   {
     // the fake gh the tests point ONCE_UPON_GH at is run as a program, so it keeps its shebang
-    files: ['packages/bridge/test/fixtures/*.{ts,mjs}'],
+    files: ['packages/server/bridge/test/fixtures/*.{ts,mjs}'],
     rules: { 'n/hashbang': 'off' },
   },
   // side effects (only adapters run programs, write files or reach the network): last, so nothing above loosens them
