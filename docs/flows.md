@@ -54,8 +54,8 @@ flowchart LR
 | 2 | `contracts` | the route: `POST /api/builds`, token only | `packages/contracts/src/bridge/routes.ts:27` (`buildRequest:`) |
 | 3 | `app` | through the service worker to the bridge, as above | `packages/extension/src/entrypoints/background.ts:37` (`fetch(`) |
 | 4 | `app` | the route checks the body and asks for the build | `packages/server/src/routes/builds.ts:35` (`parseBody('buildRequest', raw)`) |
-| 5 | `service` | `Builds.request` checks the repo and number | `packages/state/src/queues/requests/builds.ts:320` (`request({`) |
-| 6 | `service` | and changes `builds.json` in one locked step | `packages/state/src/queues/requests/builds.ts:337` (`this.queue.update(`) |
+| 5 | `service` | `Builds.request` checks the repo and number | `packages/state/src/queues/requests/builds.ts:332` (`request({`) |
+| 6 | `service` | and changes `builds.json` in one locked step | `packages/state/src/queues/requests/builds.ts:343` (`this.queue.update(`) |
 | 7 | `service` | `RequestQueue.update` | `packages/state/src/queues/requests/queue.ts:114` (`update<T>(`) |
 | 8 | `adapter` | reads, changes and writes the file under its `O_EXCL` lock | `packages/adapters/src/stores/fs/lock.ts:106` (`export function updateJson`) |
 | 9 | `adapter` | the lock: `builds.json.lock`, taken over when its pid is gone or it's 10 s old | `packages/adapters/src/stores/fs/lock.ts:82` (`export function withLock`) |
@@ -69,7 +69,7 @@ flowchart LR
 | 12 | `app` | `once-upon wait --repo` (started by the once-upon-listen skill) enters the CLI | `packages/bridge/bin/once-upon.ts:13` (`main(process.argv.slice(2))`) |
 | 13 | `app` | the command table runs `wait` | `packages/cli/src/index.ts:110` (`entry.run(`) |
 | 14 | `service` | each loop asks for build requests to hand over | `packages/core/src/features/listeners/wait.ts:315` (`builds.toHand(consumer`) |
-| 15 | `service` | `Builds.toHand` picks this wait's requests | `packages/state/src/queues/requests/builds.ts:276` (`toHand(`) |
+| 15 | `service` | `Builds.toHand` picks this wait's requests | `packages/state/src/queues/requests/builds.ts:288` (`toHand(`) |
 | 16 | `service` | and claims them in the same locked write, so no other wait gets them | `packages/state/src/queues/requests/queue.ts:201` (`take(consumer: string`) |
 | 17 | `app` | the wait returns the request, the CLI prints it and exits, which wakes the session | `packages/cli/src/commands/inbox.ts:84` (`of outcome.items`) |
 | 18 | `service` | with nothing to hand, it sleeps until the inbox file changes or 2 s pass | `packages/core/src/features/listeners/wait.ts:179` (`watch(file`) |
@@ -84,7 +84,7 @@ flowchart LR
 | 22 | `service` | **copies `chapters.json` and `file-map.json`** into that folder, through the adapter's `copyFileAtomic` | `packages/core/src/features/publishing/publish.ts:106` (`copyFileAtomic(`) |
 | 23 | `service` | **writes `meta.json`** last, with the head it was told from, through the adapter's `writeJsonAtomic` | `packages/core/src/features/publishing/publish.ts:110` (`writeJsonAtomic(path.join(dest, 'meta.json')`) |
 | 24 | `service` | settles the build request | `packages/core/src/features/publishing/publish.ts:129` (`builds.settle(`) |
-| 25 | `service` | `settle` finishes it under the lock, if the story matches the request | `packages/state/src/queues/requests/builds.ts:478` (`settle(`) |
+| 25 | `service` | `settle` finishes it under the lock, if the story matches the request | `packages/state/src/queues/requests/builds.ts:484` (`settle(`) |
 
 **The tag sees it**
 

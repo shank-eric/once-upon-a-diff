@@ -371,3 +371,233 @@ describe('once-upon wait hands over build requests, queued until claimed', () =>
     assert.equal((await runCli(home, ['wait', '--repo', 'not a repo'])).code, 1);
   });
 });
+
+describe('an agent that builds a story itself (builds --begin, no panel click)', () => {
+  const REPO = 'acme/widgets';
+  /** acme/widgets#7's line from status-many, from a bridge started now (it keeps its lists for 5s). */
+  const lineOf = async (home: string) => {
+    const bridge = await startBridge({ home });
+    try {
+      return (
+        await bridge.call<StatusMany>('POST', '/api/stories/status-many', {
+          prs: [{ repo: REPO, number: 7 }],
+        })
+      ).body.results[0];
+    } finally {
+      await bridge.close();
+    }
+  };
+  /** A scratch folder `once-upon publish` takes: the fixture story plus the PR's diff. */
+  const scratch = () => {
+    const src = tmp('scratch');
+    githubStory(src);
+    writeFileSync(
+      path.join(src, 'pr.diff'),
+      [
+        'diff --git a/src/a.js b/src/a.js',
+        '--- a/src/a.js',
+        '+++ b/src/a.js',
+        '@@ -1,3 +1,4 @@',
+        ' one',
+        '-two',
+        '+TWO',
+        '+two and a half',
+        ' three',
+        'diff --git a/src/b.js b/src/b.js',
+        '--- a/src/b.js',
+        '+++ b/src/b.js',
+        '@@ -10,2 +10,3 @@',
+        ' ten',
+        '+ten and a half',
+        ' eleven',
+        '',
+      ].join('\n'),
+    );
+    return src;
+  };
+  /** A `gh` that answers the PR's head with $FAKE_HEAD, and fails when that is not set (as with no network). */
+  const fakeGh = tmp('fake-gh');
+  writeFileSync(
+    path.join(fakeGh, 'gh'),
+    '#!/bin/sh\n[ -n "$FAKE_HEAD" ] && echo "{\\"head\\":{\\"sha\\":\\"$FAKE_HEAD\\"}}" || exit 1\n',
+    { mode: 0o755 },
+  );
+  const begin = (home: string, consumer = 'story-agent', head = '') =>
+    runCli(home, ['builds', '--begin', `${REPO}#7`, '--consumer', consumer], {
+      PATH: `${fakeGh}:${process.env.PATH}`,
+      FAKE_HEAD: head,
+    });
+
+  test('the PR page shows Building from the first poll, until the story is published', async () => {
+    const home = tmp('home');
+    assert.equal((await lineOf(home)).state, 'none');
+    const started = await begin(home);
+    assert.equal(started.code, 0, started.stderr);
+    assert.match(started.stdout, /building \(acme\/widgets#7\)/);
+    const line = await lineOf(home);
+    assert.equal(line.state, 'building');
+    assert.equal(line.request!.claimed_by, 'story-agent');
+    assert.deepEqual(
+      new Builds(home).toHand('a-listener'),
+      [],
+      'claimed, so no listener is handed it',
+    );
+    const id = new Builds(home).get(REPO, 7)!.id;
+    assert.equal((await begin(home)).code, 0);
+    assert.equal(new Builds(home).get(REPO, 7)!.id, id, 'again refreshes the one request');
+    const src = scratch();
+    const published = await runCli(home, ['publish', '--dir', src]);
+    assert.equal(published.code, 0, published.stderr);
+    assert.equal(
+      new Builds(home).get(REPO, 7)!.status,
+      'done',
+      'building ends at the first publish',
+    );
+    assert.equal((await lineOf(home)).state, 'ready');
+  });
+
+  test('takes a pending request a panel click made, and names who builds it', async () => {
+    const home = tmp('home');
+    const clicked = new Builds(home).request({ repo: REPO, number: 7 });
+    assert.equal((await lineOf(home)).state, 'queued');
+    assert.equal((await begin(home)).code, 0);
+    const taken = new Builds(home).get(REPO, 7)!;
+    assert.equal(taken.id, clicked.id);
+    assert.equal(taken.claimed_by, 'story-agent');
+    assert.equal((await lineOf(home)).state, 'building');
+  });
+
+  test('needs a PR and a --consumer', async () => {
+    const home = tmp('home');
+    assert.notEqual((await runCli(home, ['builds', '--begin', `${REPO}#7`])).code, 0);
+    assert.notEqual(
+      (await runCli(home, ['builds', '--begin', 'nonsense', '--consumer', 'x'])).code,
+      0,
+    );
+    assert.equal(new Builds(home).pending().length, 0);
+  });
+
+  test('for a PR that has a story, a re-told story at the same head ends it', async () => {
+    const home = tmp('home');
+    const src = scratch();
+    assert.equal((await runCli(home, ['publish', '--dir', src])).code, 0);
+    assert.equal((await begin(home)).code, 0);
+    const request = new Builds(home).get(REPO, 7)!;
+    assert.equal(request.mode, 'rebuild', 'an update at the same head would never be finished');
+    assert.equal(request.story, 'acme-widgets-7');
+    const line = await lineOf(home);
+    assert.equal(line.state, 'ready');
+    assert.equal(line.update_state, 'building');
+    assert.equal(
+      new Builds(home).get(REPO, 7)!.status,
+      'pending',
+      'the story being there is not enough',
+    );
+    const again = await runCli(home, ['publish', '--dir', src]);
+    assert.equal(again.code, 0, again.stderr);
+    assert.equal(new Builds(home).get(REPO, 7)!.status, 'done');
+    assert.equal((await lineOf(home)).updating, false);
+  });
+
+  test('keeps a Rebuild the panel asked for as a rebuild', async () => {
+    const home = tmp('home');
+    const src = scratch();
+    assert.equal((await runCli(home, ['publish', '--dir', src])).code, 0);
+    const asked = new Builds(home).requestRebuild({
+      story: 'acme-widgets-7',
+      meta: { kind: 'github', repo: REPO, number: 7 },
+      mode: 'rebuild_from',
+      from_step: 2,
+      chapters: 2,
+    });
+    assert.equal((await begin(home)).code, 0);
+    const taken = new Builds(home).get(REPO, 7)!;
+    assert.equal(taken.id, asked.id);
+    assert.equal(taken.mode, 'rebuild_from');
+    assert.equal(taken.from_step, 2);
+    assert.equal(taken.claimed_by, 'story-agent');
+  });
+
+  test('prints a rebuild from a chapter, with its guidance, so the agent does not tell a new story', async () => {
+    const home = tmp('home');
+    assert.equal((await runCli(home, ['publish', '--dir', scratch()])).code, 0);
+    new Builds(home).requestRebuild({
+      story: 'acme-widgets-7',
+      meta: { kind: 'github', repo: REPO, number: 7 },
+      mode: 'rebuild_from',
+      from_step: 2,
+      guidance: 'say less about the config',
+      chapters: 2,
+    });
+    const started = await begin(home);
+    assert.equal(started.code, 0, started.stderr);
+    assert.match(started.stdout, /building \(acme\/widgets#7\)/);
+    assert.match(started.stdout, /Rebuild request, not a new story/);
+    assert.match(started.stdout, /from chapter 2/);
+    assert.match(started.stdout, /say less about the config/);
+    assert.match(started.stdout, /"Rebuilding a story"/);
+  });
+
+  test('does not take a request another session is building, but refreshes its own and takes a stale one', async () => {
+    const home = tmp('home');
+    const builds = new Builds(home);
+    const request = builds.request({ repo: REPO, number: 7 });
+    builds.claim(request.id, 'repo-acme-widgets');
+    const refused = await begin(home);
+    assert.notEqual(refused.code, 0);
+    assert.match(refused.stderr, /already being built by repo-acme-widgets/);
+    assert.equal(builds.get(REPO, 7)!.claimed_by, 'repo-acme-widgets', 'the holder keeps it');
+    assert.equal((await begin(home, 'repo-acme-widgets')).code, 0, 'its own claim refreshes');
+    const all = builds.all();
+    const key = Object.keys(all)[0];
+    all[key].claimed_at = new Date(Date.now() - CLAIM_FRESH_MS - 1000).toISOString();
+    builds.save(all);
+    assert.equal((await begin(home)).code, 0, 'a stale claim is free');
+    assert.equal(builds.get(REPO, 7)!.claimed_by, 'story-agent');
+  });
+
+  test('for a PR whose head moved past its story, files an update from the story head', async () => {
+    const home = tmp('home');
+    const src = scratch();
+    const was = 'a'.repeat(40);
+    const prJson = path.join(src, 'pr.json');
+    writeFileSync(
+      prJson,
+      JSON.stringify({ ...JSON.parse(readFileSync(prJson, 'utf8')), headRefOid: was }),
+    );
+    assert.equal((await runCli(home, ['publish', '--dir', src])).code, 0);
+    const started = await begin(home, 'story-agent', 'b'.repeat(40));
+    assert.equal(started.code, 0, started.stderr);
+    assert.match(started.stdout, /Update request/);
+    assert.match(started.stdout, /"Updating a story"/);
+    const request = new Builds(home).get(REPO, 7)!;
+    assert.equal(request.mode, 'update');
+    assert.equal(request.base_sha, was);
+    assert.equal((await lineOf(home)).update_mode, 'update');
+    // at the same head it is a re-tell
+    const same = tmp('home');
+    assert.equal((await runCli(same, ['publish', '--dir', src])).code, 0);
+    assert.equal((await begin(same, 'story-agent', was)).code, 0);
+    assert.equal(new Builds(same).get(REPO, 7)!.mode, 'rebuild');
+  });
+
+  test('`done --failed` ends a build the agent gave up on', async () => {
+    const home = tmp('home');
+    assert.equal((await begin(home)).code, 0);
+    assert.equal(
+      (await runCli(home, ['done', `${REPO}#7`, '--failed', '--note', 'no checkout'])).code,
+      0,
+    );
+    assert.equal(new Builds(home).get(REPO, 7)!.status, 'failed');
+    assert.equal((await lineOf(home)).state, 'none');
+  });
+
+  test('the once-upon skill tells an agent to register its build first', () => {
+    const skill = readFileSync(
+      path.join(import.meta.dirname, '../../../skills/once-upon/SKILL.md'),
+      'utf8',
+    );
+    const gather = skill.slice(skill.indexOf('1. **Gather.'), skill.indexOf('2. **Plan chapters.'));
+    assert.match(gather, /builds --begin/);
+  });
+});

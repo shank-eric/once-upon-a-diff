@@ -20,7 +20,7 @@
 import path from 'node:path';
 import { newId } from '@once-upon-a-diff/foundation/ids';
 import { sameRepo, REPO_RE } from '@once-upon-a-diff/foundation/repos';
-import { SHA_RE, plural, shortSha } from '@once-upon-a-diff/domain/text';
+import { SHA_RE, plural, shortSha, sameSha } from '@once-upon-a-diff/domain/text';
 import { prKey, storyBuildKey } from '@once-upon-a-diff/domain/ids';
 import { readerOf } from '@once-upon-a-diff/foundation/settings';
 import { readBuild, type Build, type BuildRead } from '@once-upon-a-diff/contracts/files/schemas';
@@ -201,6 +201,18 @@ export const storyFinishes = (
   build.status === 'pending' &&
   (isRebuild(build) ? published : !(build.mode === 'update' && head === build.base_sha));
 
+/** The PR number, after checking `repo` and `number` (a bad one throws with status 400). */
+function checkedPr(repo: string, number: number | string): number {
+  if (!REPO_RE.test(String(repo || ''))) {
+    throw Object.assign(new Error('bad repo'), { status: 400 });
+  }
+  const prNumber = Number(number);
+  if (!Number.isInteger(prNumber) || prNumber < 1) {
+    throw Object.assign(new Error('bad number'), { status: 400 });
+  }
+  return prNumber;
+}
+
 export class Builds {
   declare home: string;
   declare file: string;
@@ -326,13 +338,7 @@ export class Builds {
     retell = false,
     since = null,
   }: BuildAsk): Build {
-    if (!REPO_RE.test(String(repo || ''))) {
-      throw Object.assign(new Error('bad repo'), { status: 400 });
-    }
-    const prNumber = Number(number);
-    if (!Number.isInteger(prNumber) || prNumber < 1) {
-      throw Object.assign(new Error('bad number'), { status: 400 });
-    }
+    const prNumber = checkedPr(repo, number);
     const url = prUrl(repo, prNumber); // always this PR's own URL, whatever the page sent
     return this.queue.update((all) => {
       const key = prKey(repo, Number(prNumber));
@@ -501,5 +507,69 @@ export class Builds {
         ? { status: 'done', story: story || build.story || null, note }
         : null,
     );
+  }
+  /**
+   * A session builds this PR's story by itself (the once-upon skill, no panel click): the PR's pending request is claimed
+   * for `consumer`, or one is filed already claimed, so the PR page shows Building from the first poll and no listener
+   * hands it out a second time. Calling it again refreshes the claim. A request another consumer holds a fresh claim on
+   * (a listener partway through it) is not taken: this throws, naming the holder.
+   * `story` is the PR's story when it has one, and `head` the PR's head when the caller knows it. A new request is then
+   * an update of the story when the head moved past the story's, else a rebuild of it: an update at the same head would
+   * never be finished by a republish, and a rebuild is finished by any publish (see storyFinishes).
+   * Like a button's request it ends at the first publish (the skeleton), or by `done`; a claim left to go stale reads Queued.
+   */
+  begin(
+    repo: string,
+    number: number | string,
+    {
+      consumer,
+      story = null,
+      head = null,
+    }: {
+      consumer: string;
+      story?: { id: string; dir: string | null; head_oid?: string | null } | null;
+      head?: string | null;
+    },
+  ): Build {
+    const prNumber = checkedPr(repo, number);
+    return this.queue.update((all) => {
+      const key = prKey(repo, prNumber);
+      const old = all[key];
+      const stamp = { claimed_by: consumer, claimed_at: new Date().toISOString() };
+      if (old && old.status === 'pending') {
+        if (old.claimed_by && old.claimed_by !== consumer && !this.queue.queued(old)) {
+          throw new Error(
+            `${repo}#${prNumber} is already being built by ${old.claimed_by} (claimed ${old.claimed_at}): ask the reviewer before taking it over`,
+          );
+        }
+        return Object.assign(old, stamp);
+      }
+      const told = story?.head_oid || null;
+      const moved = !!(story && told && SHA_RE.test(told) && head && !sameSha(head, told));
+      let asked: Partial<Build> = {};
+      if (story && moved) {
+        asked = { mode: 'update', base_sha: told as string, story: story.id };
+      } else if (story) {
+        asked = {
+          mode: 'rebuild',
+          story: story.id,
+          kind: 'github',
+          told_from: told,
+          story_dir: story.dir,
+        };
+      }
+      const build: Build = {
+        id: newId('b'),
+        repo,
+        number: prNumber,
+        url: prUrl(repo, prNumber),
+        requested_at: stamp.claimed_at,
+        status: 'pending',
+        ...asked,
+        ...stamp,
+      };
+      all[key] = build;
+      return build;
+    });
   }
 }
