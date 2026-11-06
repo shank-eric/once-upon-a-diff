@@ -2053,6 +2053,255 @@ test('Build story and Start and Stop listening ask first, then type into the ses
   await pollNow();
 });
 
+/*
+ * The popover menu behind every menu button on the board (the repo filter, the Add panel's repo, Start voice, Phone, a Blank chip and
+ * Start listening): it opens on its first (or ticked) item with the button saying it is expanded, the arrows move, Escape or Tab
+ * closes it and gives the focus back to the button, a click elsewhere or a second click on the button closes it, and a pick closes
+ * it, gives the focus back and sends the value.
+ */
+const menuEl = () => document.querySelector('.ou-menu') as HTMLElement | null;
+const menuItems = () => [...document.querySelectorAll('.ou-menu-item')] as HTMLElement[];
+const menuLabels = () => menuItems().map((one) => one.querySelector('.ou-menu-label')?.textContent);
+const press = (name: string) => fire(document as unknown as Element, 'keydown', { key: name });
+const focusedItem = () => menuItems().indexOf(document.activeElement as HTMLElement);
+
+/** Drives one menu button through everything a menu does, ending with a pick of `pick` (an item's position), which the caller then checks. */
+async function menuBehaves(
+  trigger: () => HTMLElement | null,
+  label: string,
+  labels: string[],
+  pick: number,
+  /** The menu is in a panel that also closes on Escape: a browser runs the menu's key first and the panel sees it marked, which linkedom's listener order can't show, so the keys that close are left to the end. */
+  inPanel = false,
+) {
+  assert.equal(menuEl(), null, 'no menu is open to begin with');
+  assert.equal(trigger()?.getAttribute('aria-haspopup'), 'menu');
+  assert.equal(trigger()?.getAttribute('aria-expanded'), 'false');
+  await click(trigger());
+  assert.equal(document.querySelectorAll('.ou-menu').length, 1);
+  assert.equal(menuEl()?.getAttribute('role'), 'menu');
+  assert.equal(menuEl()?.getAttribute('aria-label'), label);
+  assert.equal(trigger()?.getAttribute('aria-expanded'), 'true');
+  assert.deepEqual(menuLabels(), labels);
+  assert.ok(menuItems().every((one) => one.getAttribute('role') === 'menuitem'));
+  assert.equal(focusedItem(), 0, 'the first item has the focus');
+  press('ArrowDown');
+  assert.equal(focusedItem(), labels.length > 1 ? 1 : 0, 'the arrow moves down');
+  press('End');
+  assert.equal(focusedItem(), labels.length - 1);
+  press('ArrowDown');
+  assert.equal(focusedItem(), 0, 'and wraps');
+  press('ArrowUp');
+  assert.equal(focusedItem(), labels.length - 1, 'up from the first wraps to the last');
+  press('Home');
+  assert.equal(focusedItem(), 0);
+  if (!inPanel) {
+    // Escape closes it and the button has the focus again
+    const escape = press('Escape');
+    await tick();
+    assert.ok(
+      escape.defaultPrevented,
+      'the key is marked, so a panel under the menu keeps itself open',
+    );
+    assert.equal(menuEl(), null);
+    assert.equal(trigger()?.getAttribute('aria-expanded'), 'false');
+    assert.ok(document.activeElement === trigger(), 'Escape gives the focus back to the button');
+    // Tab closes it the same way
+    await click(trigger());
+    press('Tab');
+    await tick();
+    assert.equal(menuEl(), null);
+    assert.ok(document.activeElement === trigger(), 'Tab gives the focus back too');
+  }
+  // a click elsewhere closes it
+  await click(trigger());
+  fire(document.body as unknown as Element, 'pointerdown');
+  await tick();
+  assert.equal(menuEl(), null, 'a click elsewhere closes it');
+  assert.equal(trigger()?.getAttribute('aria-expanded'), 'false');
+  // a pointer down on the button itself is not "elsewhere": the click that follows closes it
+  await click(trigger());
+  fire(trigger() as Element, 'pointerdown');
+  await tick();
+  assert.ok(menuEl(), 'a pointer down on the button leaves it open');
+  await click(trigger());
+  assert.equal(menuEl(), null, 'a second click on the button closes it');
+  assert.equal(trigger()?.getAttribute('aria-expanded'), 'false');
+  // a pick closes it, gives the focus back to the button and says the value
+  await click(trigger());
+  await click(menuItems()[pick]);
+  assert.equal(menuEl(), null, 'a pick closes it');
+  assert.equal(trigger()?.getAttribute('aria-expanded'), 'false');
+  assert.ok(document.activeElement === trigger(), 'and gives the focus back');
+}
+
+test('the repo filter menu behaves as a menu', async () => {
+  await menuBehaves(
+    () => $('[data-board-filter]'),
+    'Show one repo',
+    ['All', 'widgets', 'gadgets'],
+    2,
+  );
+  assert.match($('[data-board-filter]')?.textContent as string, /Repo: gadgets/);
+  assert.equal(saved.get('ou-board-filter'), 'gadgets');
+  await click($('[data-board-filter]'));
+  await click(menuItems()[0]);
+  assert.equal(saved.get('ou-board-filter'), '');
+});
+
+test('the Add panel’s repo menu behaves as a menu', async () => {
+  await click($('[data-backlog-add-open]'));
+  // (the repo stays between adds, so start from none)
+  await click($('[data-backlog-repo]'));
+  await click(menuItems()[0]);
+  await menuBehaves(
+    () => $('[data-backlog-repo]'),
+    'Repo for the new item',
+    ['No repo', 'gadgets', 'widgets'],
+    2,
+    true,
+  );
+  assert.match($('[data-backlog-repo]')?.textContent as string, /Repo: widgets/);
+  await click($('[data-backlog-repo]'));
+  const escape = press('Escape');
+  await tick();
+  assert.ok(
+    escape.defaultPrevented,
+    'Escape is marked as the menu’s, so the panel keeps itself open',
+  );
+  assert.equal(menuEl(), null, 'and it closes the menu');
+});
+
+test('the voice header’s Start voice menus behave as menus', async () => {
+  requests.length = 0;
+  answer = () => board({ ...voiceOff, voice_start: START });
+  await pollNow();
+  await menuBehaves(
+    () => $('[data-voice-start-menu]'),
+    'Start voice in',
+    ['clarifi-f9', 'widgets-2'],
+    1,
+  );
+  assert.deepEqual(sentTo('/api/board/voice/start').at(-1)?.body, { session: 'sess-2' });
+  answer = () => board({ ...voiceOff, voice_start: { ...START, last: null } });
+  await pollNow();
+  await menuBehaves(
+    () => $('[data-voice-start="pick"]'),
+    'Start voice in',
+    ['clarifi-f9', 'widgets-2'],
+    0,
+  );
+  assert.deepEqual(sentTo('/api/board/voice/start').at(-1)?.body, { session: 'sess-1' });
+  // with no session at its prompt there is nothing to choose: it says so, and opens no menu
+  answer = () =>
+    board({
+      ...voiceOff,
+      voice_start: {
+        last: null,
+        candidates: START.candidates.map((one) => ({ ...one, idle: false })),
+      },
+    });
+  await pollNow();
+  alerts.length = 0;
+  await click($('[data-voice-start="pick"]'));
+  assert.equal(menuEl(), null);
+  assert.match(alerts[0], /no Claude Code session is waiting at its prompt/);
+  answer = () => board();
+  await pollNow();
+});
+
+test('the Phone menu behaves as a menu', async () => {
+  requests.length = 0;
+  answer = () => board({ phone: { on: false, bridge: true } });
+  await pollNow();
+  await menuBehaves(
+    () => $('[data-voice-phone-menu]'),
+    'Phone',
+    ['Turn on phone mode', 'Stop phone bridge'],
+    1,
+  );
+  assert.equal(sentTo('/api/board/voice/phone').length, 0);
+  assert.equal(sentTo('/api/board/voice/phone/bridge-stop').length, 1);
+  answer = () => board();
+  await pollNow();
+});
+
+test('the Blank chip’s menu behaves as a menu', async () => {
+  requests.length = 0;
+  answer = () => ({
+    ...board(),
+    blank: [
+      {
+        key: 'widgets',
+        name: 'widgets',
+        sessions: [
+          { id: 'blank-1', title: 'First', can_focus: true, since: null },
+          { id: 'blank-2', title: 'Second', can_focus: true, since: null },
+        ],
+      },
+    ],
+  });
+  await pollNow();
+  await menuBehaves(
+    () => $('[data-blank-group="widgets"]'),
+    'Blank sessions in widgets',
+    ['First', 'Second'],
+    1,
+  );
+  assert.deepEqual(sentTo('/api/board/focus').at(-1)?.body, { session: 'blank-2' });
+  answer = () => board();
+  await pollNow();
+});
+
+test('Start listening, with several idle sessions, is a menu of them; with one it is not', async () => {
+  requests.length = 0;
+  sure = true;
+  const listeners = (candidates: BoardData['listeners'][number]['candidates']) => () =>
+    ({
+      ...board(),
+      listeners: [{ repo: 'acme/widgets', active: null, last_seen: null, candidates }],
+    }) as BoardData;
+  answer = listeners([
+    { id: 'l-1', title: 'listener one', status: 'idle', since: null },
+    { id: 'l-2', title: 'listener two', status: 'idle', since: null },
+  ]);
+  await pollNow();
+  await menuBehaves(
+    () => $('[data-start-listening="acme/widgets"]'),
+    'Sessions in acme/widgets',
+    ['listener one', 'listener two'],
+    1,
+  );
+  assert.deepEqual(sentTo('/api/board/type').at(-1)?.body, {
+    kind: 'listen',
+    session: 'l-2',
+    repo: 'acme/widgets',
+  });
+  answer = listeners([{ id: 'l-1', title: 'listener one', status: 'idle', since: null }]);
+  await pollNow();
+  assert.equal($('[data-start-listening="acme/widgets"]')?.getAttribute('aria-haspopup'), null);
+  await click($('[data-start-listening="acme/widgets"]'));
+  assert.equal(menuEl(), null, 'one session is typed into at once, with no menu');
+  answer = () => board();
+  await pollNow();
+});
+
+test('only one menu is open at a time', async () => {
+  answer = () => board({ phone: { on: false, bridge: false } });
+  await pollNow();
+  await click($('[data-board-filter]'));
+  assert.equal(document.querySelectorAll('.ou-menu').length, 1);
+  await click($('[data-voice-phone-menu]'));
+  assert.equal(document.querySelectorAll('.ou-menu').length, 1, 'opening another closes the first');
+  assert.equal(menuEl()?.getAttribute('aria-label'), 'Phone');
+  assert.equal($('[data-board-filter]')?.getAttribute('aria-expanded'), 'false');
+  assert.equal($('[data-voice-phone-menu]')?.getAttribute('aria-expanded'), 'true');
+  press('Escape');
+  await tick();
+  answer = () => board();
+  await pollNow();
+});
+
 test('a Ready author’s card: Build story sends its own card, Copy offers the request when it is blocked, Review opens the storyless page', async () => {
   requests.length = 0;
   opened.length = 0;

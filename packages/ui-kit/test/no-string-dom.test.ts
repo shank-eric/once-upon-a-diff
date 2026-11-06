@@ -15,12 +15,12 @@ const SRC = path.join(path.dirname(fileURLToPath(import.meta.url)), '../src');
 /** file (under src): [how many hand writes, why]. A count can only fall. */
 const ALLOWED: Record<string, [number, string]> = {
   'dom.ts': [
-    16,
-    'the helpers the extension and the local page use (setHtml, insertHtml, key isolation, waiting for styles, a shadow root of our own)',
+    12,
+    'the helpers the extension and the local page use (key isolation, waiting for styles, a shadow root of our own)',
   ],
-  'menu.ts': [
-    16,
-    'the popover menu: it builds its own element under a button, and moves focus and listens for keys and clicks',
+  'components/menu.ts': [
+    9,
+    'the popover menu: it makes a root of its own at the end of the body, places the menu under its button, and listens for keys, clicks and scrolls elsewhere',
   ],
   'parse-markup.ts': [2, 'reads markup into a detached template'],
   'listen.ts': [

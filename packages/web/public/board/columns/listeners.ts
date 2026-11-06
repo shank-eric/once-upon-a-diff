@@ -1,7 +1,7 @@
 /** The Listeners lane: a row per repo, who listens (with Stop) or when it last did (with Start). */
 import { html } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/contracts/routes.ts';
-import { openMenu } from '/assets/ui-kit/menu.ts';
+import { MenuButton } from '/assets/ui-kit/components/menu.ts';
 import { ActionButton } from '/assets/ui-kit/components/action-button.ts';
 import type { BoardListenerRepo } from '/assets/types.ts';
 import { compactAge, since } from '/assets/domain/time.ts';
@@ -35,35 +35,32 @@ function Listener(props: { entry: BoardListenerRepo; now: number; api: Api }) {
       <${ActionButton} attrs=${{ 'data-stop-listening': entry.repo }} onClick=${stop}>Stop listening</${ActionButton}></li>`;
   }
   const seen = entry.last_seen ? ` · last listened ${since(entry.last_seen, now)} ago` : '';
-  // several idle sessions and no obvious one: the button opens a menu to pick from
-  const choosing = listenPlan(entry.candidates).kind === 'choose';
+  // one obvious session (the only one, or clearly the freshest): the button uses it; else it opens a menu of them, freshest first
+  const plan = listenPlan(entry.candidates);
+  const choosing = plan.kind === 'choose';
+  const line = `/once-upon-listen ${entry.repo}`;
   let title = 'No idle session in this repo has an iTerm tab';
   if (entry.candidates.length) {
     title = choosing
       ? 'Choose an idle session in the repo to type /once-upon-listen into'
       : `Types /once-upon-listen ${entry.repo} into an idle session in the repo`;
   }
-  const start = (event: MouseEvent) => {
-    // one obvious session (the only one, or clearly the freshest): use it; else a menu of them, freshest first
-    const plan = listenPlan(entry.candidates);
-    const line = `/once-upon-listen ${entry.repo}`;
+  const start = () => {
     if (plan.kind === 'one') {
       void typeInto(api, 'listen', plan.session.id, line, entry.repo);
-    } else if (plan.kind === 'choose') {
-      openMenu(
-        event.currentTarget as HTMLElement,
-        plan.sessions.map((one) => ({
-          value: one.id,
-          label: one.title,
-          detail: `${one.status}${one.since ? ` ${compactAge(one.since, Date.now())}` : ''} · ${entry.repo}`,
-        })),
-        (id) => void typeInto(api, 'listen', id, line, entry.repo),
-        { label: `Sessions in ${entry.repo}` },
-      );
     }
   };
+  const sessions = () =>
+    (plan.kind === 'choose' ? plan.sessions : []).map((one) => ({
+      value: one.id,
+      label: one.title,
+      detail: `${one.status}${one.since ? ` ${compactAge(one.since, Date.now())}` : ''} · ${entry.repo}`,
+    }));
+  const button = choosing
+    ? html`<${MenuButton} data-start-listening=${entry.repo} items=${sessions} onPick=${(id: string) => void typeInto(api, 'listen', id, line, entry.repo)} label=${`Sessions in ${entry.repo}`} title=${title}>Start listening ▾</${MenuButton}>`
+    : html`<button type="button" data-start-listening=${entry.repo} disabled=${!entry.candidates.length} onClick=${start} title=${title}>Start listening</button>`;
   return html`<li class="ou-board-listener"><strong>${entry.repo}</strong> <span class="ou-local-muted">not listening${seen}</span>${' '}
-    <button type="button" data-start-listening=${entry.repo} disabled=${!entry.candidates.length} ...${choosing ? { 'aria-haspopup': 'menu', 'aria-expanded': 'false' } : {}} onClick=${start} title=${title}>Start listening${choosing && ' ▾'}</button></li>`;
+    ${button}</li>`;
 }
 
 /** The Listeners lane: a row per repo, who listens (with Stop) or when it last did (with Start). */

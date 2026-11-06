@@ -1,8 +1,7 @@
 /*
  * Small DOM helpers shared by the panel, the local page and the content
- * scripts' own elements: key isolation, stylesheets and setting markup.
+ * scripts' own elements: key isolation, stylesheets and a shadow root of our own.
  */
-import { html, type HtmlValue } from '@once-upon-a-diff/domain/html';
 
 /** Keeps key events inside our element, so the host page's single-key shortcuts don't fire while typing in it. */
 export function stopKeyEvents(target: EventTarget): void {
@@ -69,14 +68,4 @@ export function mountShadow(options: {
   }
   into?.appendChild(host);
   return { host, shadow, root, links };
-}
-
-/** Puts markup in element in place of its children: html`` markup as is, anything else (a plain string) as text. */
-export function setHtml(element: Element, markup: HtmlValue): void {
-  element.innerHTML = html`${markup}`.markup;
-}
-
-/** Inserts markup at position ('beforeend', 'afterend'...) the way setHtml does. */
-export function insertHtml(element: Element, position: InsertPosition, markup: HtmlValue): void {
-  element.insertAdjacentHTML(position, html`${markup}`.markup);
 }

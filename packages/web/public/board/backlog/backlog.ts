@@ -6,7 +6,7 @@
 import { html, useEffect, useLayoutEffect, useRef, useState } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/contracts/routes.ts';
 import { sameLaneKey } from '/assets/domain/lane-key.ts';
-import { openMenu } from '/assets/ui-kit/menu.ts';
+import { MenuButton } from '/assets/ui-kit/components/menu.ts';
 import type { BoardCard, BoardData } from '/assets/types.ts';
 import { CardTrees, type Api } from '/assets/board/shared.ts';
 import { Chips } from '/assets/ui-kit/components/chip.ts';
@@ -227,7 +227,7 @@ export function useAddPanel(api: Api) {
     return () => document.removeEventListener('keydown', onKey);
   }, [open]);
 
-  const chooseRepo = (event: MouseEvent) => {
+  const repoItems = () => {
     const repos = [
       ...new Set(
         api.board.lanes
@@ -236,20 +236,15 @@ export function useAddPanel(api: Api) {
           .filter((one): one is string => !!one),
       ),
     ].sort();
-    openMenu(
-      event.currentTarget as HTMLElement,
-      [
-        { value: '', label: 'No repo', detail: 'in the General lane', checked: !repo },
-        ...repos.map((one) => ({
-          value: one,
-          label: repoName(one),
-          detail: one,
-          checked: one === repo,
-        })),
-      ],
-      (value) => setRepo(value),
-      { label: 'Repo for the new item' },
-    );
+    return [
+      { value: '', label: 'No repo', detail: 'in the General lane', checked: !repo },
+      ...repos.map((one) => ({
+        value: one,
+        label: repoName(one),
+        detail: one,
+        checked: one === repo,
+      })),
+    ];
   };
 
   const submit = (event: Event) => {
@@ -291,7 +286,7 @@ export function useAddPanel(api: Api) {
     form: open
       ? html`<form class="ou-board-add" data-backlog-add onSubmit=${submit}>
     <input type="text" name="title" data-backlog-title placeholder="Keep something for later" maxlength="200" required aria-label="Backlog item title" ref=${focusIt} />
-    <button type="button" class="ou-board-add-repo" data-backlog-repo aria-haspopup="menu" onClick=${chooseRepo} title="The repo the new item is for: its card goes in that repo's lane">Repo: ${repoLabel} ▾</button>
+    <${MenuButton} class="ou-board-add-repo" data-backlog-repo items=${repoItems} onPick=${setRepo} label="Repo for the new item" title="The repo the new item is for: its card goes in that repo's lane">Repo: ${repoLabel} ▾</${MenuButton}>
     <input type="text" name="note" placeholder="Note (optional)" maxlength=${BACKLOG_NOTE_MAX} aria-label="Note" />
     <div class="ou-board-add-actions"><button type="submit" disabled=${adding !== null}>Add</button> <button type="button" data-backlog-cancel onClick=${() => setOpen(false)}>Cancel</button></div>
   </form>`

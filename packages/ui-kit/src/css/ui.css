@@ -1,6 +1,6 @@
 /* ui-kit: the pieces the board and the panel share (packages/ui-kit), in the --ou-* theme tokens of tokens.css, which is linked before it. Linked before page.css and the pages' own sheets, and before panel.css (in the panel's shadow root), so a page can override one. */
 
-/* A popover menu in place of a native select (ui-kit/src/menu.ts) */
+/* A popover menu in place of a native select (ui-kit/src/components/menu.ts) */
 .ou-menu { position: fixed; z-index: 20; min-width: 220px; max-width: min(360px, calc(100vw - 16px)); max-height: 60vh; overflow-y: auto; padding: 4px; background: var(--ou-bg); color: var(--ou-fg); border: 1px solid var(--ou-border); border-radius: 8px; box-shadow: 0 8px 24px rgba(1, 4, 9, 0.3); }
 .ou-menu-item { display: flex; gap: 8px; align-items: flex-start; width: 100%; padding: 6px 8px; text-align: left; border: 0; border-radius: 6px; background: none; font-size: 13px; cursor: pointer; }
 .ou-menu-item:hover, .ou-menu-item:focus-visible { background: var(--ou-bg-muted); outline: none; }

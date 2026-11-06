@@ -4,7 +4,7 @@
  */
 import { html } from '/assets/preact.mjs';
 import { ROUTES } from '/assets/contracts/routes.ts';
-import { openMenu } from '/assets/ui-kit/menu.ts';
+import { MenuButton } from '/assets/ui-kit/components/menu.ts';
 import type { BoardData, BoardLimit, BoardUsage } from '/assets/types.ts';
 import { compactAge } from '/assets/domain/time.ts';
 import { plural } from '/assets/domain/text.ts';
@@ -105,51 +105,41 @@ function VoiceControls(props: {
           ? api.bridge.ask(ROUTES.boardVoiceBridgeStop)
           : api.bridge.ask(ROUTES.boardVoicePhone, { body: { on: action === 'on' } }),
     );
-  const pickSession = (event: MouseEvent) => {
-    const idle = (voiceStart?.candidates ?? []).filter((one) => one.idle);
-    if (idle.length === 0) {
+  // the sessions at their prompt, the last one ticked: with none there is nothing to choose, and the click says so
+  const idleSessions = () => (voiceStart?.candidates ?? []).filter((one) => one.idle);
+  const pickItems = () =>
+    idleSessions().map((one) => ({
+      value: one.id,
+      label: one.name,
+      checked: one.id === voiceStart?.last?.id,
+    }));
+  const pickOpen = () => {
+    if (idleSessions().length === 0) {
       alert("Couldn't start voice: no Claude Code session is waiting at its prompt");
-      return;
+      return false;
     }
-    openMenu(
-      event.currentTarget as HTMLElement,
-      idle.map((one) => ({
-        value: one.id,
-        label: one.name,
-        checked: one.id === voiceStart?.last?.id,
-      })),
-      (id) => void start(id),
-      { label: 'Start voice in' },
-    );
   };
-  const phoneMenu = (event: MouseEvent) => {
-    if (!phone) {
-      return;
-    }
-    openMenu(
-      event.currentTarget as HTMLElement,
-      [
-        phone.on
-          ? { value: 'off', label: 'Turn off phone mode', detail: 'Play lines on the Mac again' }
-          : {
-              value: 'on',
-              label: 'Turn on phone mode',
-              detail: "Send lines to your phone, free the Mac's mic",
-            },
-        ...(phone.bridge
-          ? [
-              {
-                value: 'bridge-stop',
-                label: 'Stop phone bridge',
-                detail: 'Also turns phone mode off',
+  const phoneItems = () =>
+    phone
+      ? [
+          phone.on
+            ? { value: 'off', label: 'Turn off phone mode', detail: 'Play lines on the Mac again' }
+            : {
+                value: 'on',
+                label: 'Turn on phone mode',
+                detail: "Send lines to your phone, free the Mac's mic",
               },
-            ]
-          : []),
-      ],
-      (value) => void phoneCall(value as 'on' | 'off' | 'bridge-stop'),
-      { label: 'Phone' },
-    );
-  };
+          ...(phone.bridge
+            ? [
+                {
+                  value: 'bridge-stop',
+                  label: 'Stop phone bridge',
+                  detail: 'Also turns phone mode off',
+                },
+              ]
+            : []),
+        ]
+      : [];
   const last = voiceStart?.last
     ? voiceStart.candidates.find((one) => one.id === voiceStart.last?.id)
     : undefined;
@@ -168,18 +158,18 @@ function VoiceControls(props: {
       voiceStart &&
       (last && voiceStart.last
         ? html`<button type="button" data-voice-start="last" disabled=${waiting || !last.idle} onClick=${() => start(voiceStart.last?.id)} title=${lastTitle}>${starting ? 'Starting…' : `Start voice in ${voiceStart.last.name}`}</button>`
-        : html`<button type="button" data-voice-start="pick" disabled=${waiting} onClick=${pickSession} aria-haspopup="menu" title="Choose a session to start voice in">${starting ? 'Starting…' : 'Start voice'} ▾</button>`),
+        : html`<${MenuButton} key="start-pick" data-voice-start="pick" disabled=${waiting} items=${pickItems} onOpen=${pickOpen} onPick=${(id: string) => void start(id)} label="Start voice in" title="Choose a session to start voice in">${starting ? 'Starting…' : 'Start voice'} ▾</${MenuButton}>`),
     !voiceOn &&
       voiceStart &&
       last &&
-      html`<button type="button" data-voice-start-menu disabled=${waiting} onClick=${pickSession} aria-haspopup="menu" aria-label="Start voice in another session">▾</button>`,
+      html`<${MenuButton} key="start-menu" data-voice-start-menu disabled=${waiting} items=${pickItems} onOpen=${pickOpen} onPick=${(id: string) => void start(id)} label="Start voice in" aria-label="Start voice in another session">▾</${MenuButton}>`,
     (voiceOn || voicePaused) &&
       html`<button type="button" data-voice-pause=${paused ? 'resume' : 'pause'} disabled=${waiting} onClick=${() => pause(!paused)} title=${pauseTitle}>${paused ? 'Resume' : 'Pause'}</button>`,
     voiceOn &&
       voiceStart &&
       html`<button type="button" data-voice-stop disabled=${waiting} onClick=${stop} title="Stop voice, as the menu bar's Stop voice does">${busy === 'stop' ? 'Stopping…' : 'Stop voice'}</button>`,
     phone &&
-      html`<button type="button" data-voice-phone-menu=${phone.on ? 'on' : 'off'} disabled=${waiting} onClick=${phoneMenu} aria-haspopup="menu" title=${phoneTitle}>Phone${phone.on ? ' ●' : ''} ▾</button>`,
+      html`<${MenuButton} key="phone" data-voice-phone-menu=${phone.on ? 'on' : 'off'} disabled=${waiting} items=${phoneItems} onPick=${(value: string) => void phoneCall(value as 'on' | 'off' | 'bridge-stop')} label="Phone" title=${phoneTitle}>Phone${phone.on ? ' ●' : ''} ▾</${MenuButton}>`,
   ].filter(Boolean);
   return buttons.length > 0
     ? html`<div class="ou-local-top-voice ou-board-voice-phone" role="group" aria-label="Voice controls">${buttons}</div>`
@@ -205,30 +195,23 @@ export type HeaderProps = {
 
 export function Header(props: HeaderProps) {
   const { summary, data, now, filter, filterOn, onFilter, tabs, onToggleTabs, api, busy } = props;
-  const chooseRepo = (event: MouseEvent) => {
-    const lanes = api.board.lanes;
-    openMenu(
-      event.currentTarget as HTMLElement,
-      [
-        { value: '', label: 'All', detail: plural(lanes.length, 'lane'), checked: !filter },
-        ...lanes.map((lane) => ({
-          value: lane.key,
-          label: lane.name,
-          detail: plural(lane.cards.length, 'card'),
-          checked: sameLaneKey(lane.key, filter),
-        })),
-      ],
-      (value: string) => {
-        api.count('board.filter.repo');
-        onFilter(value);
-      },
-      { label: 'Show one repo' },
-    );
+  const filterItems = () => [
+    { value: '', label: 'All', detail: plural(api.board.lanes.length, 'lane'), checked: !filter },
+    ...api.board.lanes.map((lane) => ({
+      value: lane.key,
+      label: lane.name,
+      detail: plural(lane.cards.length, 'card'),
+      checked: sameLaneKey(lane.key, filter),
+    })),
+  ];
+  const pickFilter = (value: string) => {
+    api.count('board.filter.repo');
+    onFilter(value);
   };
   return html`<header class="ou-local-top">
     <div class="ou-local-top-main"><h1>Agent board</h1><div class="ou-local-muted">${summary}</div></div>
     <${Usage} usage=${data.usage} now=${now} />
-    <button type="button" data-board-filter aria-haspopup="menu" onClick=${chooseRepo} title="Narrow the whole board to one repo's lane">Repo: ${filterOn ? (api.board.lanes.find((lane) => sameLaneKey(lane.key, filter))?.name ?? filter) : 'All'} ▾</button>
+    <${MenuButton} data-board-filter items=${filterItems} onPick=${pickFilter} label="Show one repo" title="Narrow the whole board to one repo's lane">Repo: ${filterOn ? (api.board.lanes.find((lane) => sameLaneKey(lane.key, filter))?.name ?? filter) : 'All'} ▾</${MenuButton}>
     <button type="button" data-board-tabs aria-pressed=${String(tabs)} onClick=${onToggleTabs} title="Show This Mac and GitHub as two tabs at any width (a narrow window always does)">Tabs${tabs ? ' ●' : ''}</button>
     <${VoiceControls} voice=${data.voice} phone=${data.phone} voiceStart=${data.voice_start} voicePaused=${data.voice_paused} api=${api} busy=${busy} />
   </header>`;
