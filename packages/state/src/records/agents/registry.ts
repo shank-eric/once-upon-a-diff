@@ -12,8 +12,8 @@ import {
 } from '@once-upon-a-diff/domain/patterns';
 import { SHA_RE } from '@once-upon-a-diff/domain/text';
 import { REPO_RE } from '@once-upon-a-diff/foundation/repos';
-import { agentId, sameRepo } from '@once-upon-a-diff/domain/ids';
-import { newRunId } from '@once-upon-a-diff/foundation/ids';
+import { agentId, isImplicitCard, sameRepo } from '@once-upon-a-diff/domain/ids';
+import { newImplicitCardId, newRunId } from '@once-upon-a-diff/foundation/ids';
 import { appendAgentEvent } from '@once-upon-a-diff/adapters/stores/agents-file';
 import { agentEventsIn } from './events-file.ts';
 import { appendLine } from '@once-upon-a-diff/adapters/stores/fs/lines';
@@ -34,6 +34,7 @@ import {
   runIsOpen,
   type AgentEvent,
 } from './events.ts';
+import { implicitCards } from './implicit.ts';
 import { branchTip, madeOnBranch } from './made.ts';
 import { agentsFile } from './read.ts';
 import { clean, count, optional } from '@once-upon-a-diff/foundation/input';
@@ -72,6 +73,10 @@ export interface StartInput extends Target {
   pr?: number | string | null;
   cwd?: string | null;
   card?: string | null;
+  /** with a card checked (ADR-25): no card named and none to carry over mints an implicit card, unless this says not to (ADR-27) */
+  newCard?: boolean;
+  /** what the run does on a card (`--role`), used for the checks only and never stored */
+  role?: 'author' | 'fixer' | 'critic' | 'storyteller' | 'helper' | 'research' | null;
   lane?: string | null;
   notes?: string | null;
   /** an editor's build slots (1..99, default 3); only an editor has them */
@@ -271,7 +276,24 @@ export class AgentRegistry {
     return swept;
   }
 
-  start(input: StartInput, warn?: (text: string) => void): { id: string; run: string } {
+  /**
+   * The card an id names, as a run on it needs it: the backlog's first (an adopted implicit card is a backlog item that can be
+   * dropped or landed, and then takes no runs), else, for an `ic_` id, the implicit card the registry's own runs made (always
+   * open, its first run's repo and its latest branch). Null when no card has the id, so a made-up `ic_` id is refused.
+   */
+  private cardFacts(id: string): CardFacts | null {
+    const real = this.cards?.(id) ?? null;
+    if (real || !isImplicitCard(id)) {
+      return real;
+    }
+    const card = implicitCards(this.agents()).find((one) => one.id === id);
+    return card ? { id, closed: null, repo: card.repo, branch: card.branch, claimed: true } : null;
+  }
+
+  start(
+    input: StartInput,
+    warn?: (text: string) => void,
+  ): { id: string; run: string; card: string | null } {
     const name = optional(input.name, 'the name', AGENT_NAME_RE);
     if (!name) {
       throw new Error('a name is needed');
@@ -304,16 +326,38 @@ export class AgentRegistry {
     const cwd = clean(input.cwd, 'the cwd', 500) || null;
     // a restart of the same sid:name (a fix round) stays on the earlier run's card, as the kind does, while that card is open
     let cardId = optional(input.card, 'the card', BACKLOG_ID_RE);
-    if (!cardId && earlier?.card && (!this.cards || this.cards(earlier.card)?.closed === null)) {
+    if (
+      !cardId &&
+      !input.newCard &&
+      earlier?.card &&
+      (!this.cards || this.cardFacts(earlier.card)?.closed === null)
+    ) {
       cardId = earlier.card;
+    }
+    const standing = input.standing ?? earlier?.standing === true;
+    // work that did not start in the backlog is its own card (ADR-27): the id goes on this start row and nowhere else. A critic,
+    // a fixer or a storyteller works on a card that already exists, so it never mints one
+    const mints =
+      !!this.cards &&
+      !cardId &&
+      !standing &&
+      !['critic', 'editor'].includes(kind) &&
+      !['critic', 'fixer', 'storyteller'].includes(input.role ?? '');
+    if (mints && input.role === 'author' && !branch) {
+      throw new Error(
+        'an author with no card needs --branch (the branch its work is on, which names its card) or --card ID',
+      );
+    }
+    if (mints) {
+      cardId = newImplicitCardId();
     }
     if (this.cards && kind === 'critic' && !cardId) {
       throw new Error(
         'a critic reviews a card: pass --card ID (once-upon backlog list shows the ids). Without it the board cannot tie the review to its work',
       );
     }
-    if (this.cards && cardId) {
-      const card = this.cards(cardId);
+    if (this.cards && cardId && !mints) {
+      const card = this.cardFacts(cardId);
       if (!card) {
         throw new Error(`no backlog card ${cardId}`);
       }
@@ -361,13 +405,19 @@ export class AgentRegistry {
       branch = card.branch ?? branch;
       pr = null;
       lane = null;
+      // a critic or a storyteller has to have work to read: a card with no branch has none
+      if ((kind === 'critic' || input.role === 'storyteller') && !branch) {
+        throw new Error(
+          `${cardId} has no branch, so there is nothing to ${kind === 'critic' ? 'review' : 'tell the story of'}: the card's author registers its branch first (backlog claim --branch, or agent start --branch)`,
+        );
+      }
     }
     this.append({
       ...this.base('start', name, sid, input),
       session: clean(input.session, 'the session', 100) || null,
       run,
       kind,
-      standing: input.standing ?? earlier?.standing === true,
+      standing,
       task,
       model: clean(input.model, 'the model', 60) || null,
       effort: clean(input.effort, 'the effort', 30) || null,
@@ -382,7 +432,7 @@ export class AgentRegistry {
       // a restart that leaves --slots out keeps the editor's earlier slots
       ...(kind === 'editor' ? { slots: slots ?? earlier?.slots ?? DEFAULT_SLOTS } : {}),
     });
-    return { id: agentId(sid, name), run };
+    return { id: agentId(sid, name), run, card: cardId };
   }
 
   state(name: string, input: StateInput, warn?: (text: string) => void): LedgerAgent {
@@ -472,10 +522,11 @@ export class AgentRegistry {
     const pr = count(given.pr, 'the PR number');
     const branch = optional(given.branch, 'the branch', CARD_BRANCH_RE);
     const card = optional(given.card, 'the card', BACKLOG_ID_RE);
-    // a run that started on a card finishes on it. One that started with none may name its card here, and nothing is said.
-    if (card && agent.card && card !== agent.card) {
+    // a run that started on a card finishes on it. One that started with none, or on an implicit card (it made its own, ADR-27),
+    // may name its card here, and nothing is said.
+    if (card && agent.card && !isImplicitCard(agent.card) && card !== agent.card) {
       warn?.(`once-upon: --card ${card} is not the card ${name} started on (${agent.card})`);
-    } else if (card && this.cards && !this.cards(card)) {
+    } else if (card && this.cards && !this.cardFacts(card)) {
       warn?.(`once-upon: --card ${card} is not a backlog card`);
     }
     if (commit) {

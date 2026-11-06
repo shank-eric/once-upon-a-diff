@@ -1,0 +1,310 @@
+{
+  "board": {
+    "at": "2026-10-26T19:00:00.000Z",
+    "blank": [],
+    "editors": [],
+    "helpers": [],
+    "lanes": [
+      {
+        "cards": [
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": null,
+                "gate": null,
+                "key": "eeeeeeee:a-helper",
+                "kind": "helper",
+                "model": null,
+                "name": "a-helper",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "eeeeeeee",
+                "stale": false,
+                "started_at": "2026-10-26T18:10:00.000Z",
+                "state": "running",
+                "status": "working",
+                "summary": null,
+                "task": "a-helper's task"
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "working",
+            "detail": "a-helper's task",
+            "focus_session": null,
+            "id": "agent:eeeeeeee:a-helper",
+            "kind": "agent",
+            "lane": "No live session",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T18:10:00.000Z",
+            "story": null,
+            "title": "a-helper"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": null,
+                "gate": null,
+                "key": "eeeeeeee:a-scout",
+                "kind": "research",
+                "model": null,
+                "name": "a-scout",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "eeeeeeee",
+                "stale": false,
+                "started_at": "2026-10-26T18:15:00.000Z",
+                "state": "running",
+                "status": "working",
+                "summary": null,
+                "task": "a-scout's task"
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "working",
+            "detail": "a-scout's task",
+            "focus_session": null,
+            "id": "agent:eeeeeeee:a-scout",
+            "kind": "agent",
+            "lane": "No live session",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T18:15:00.000Z",
+            "story": null,
+            "title": "a-scout"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": null,
+                "gate": null,
+                "key": "eeeeeeee:b-helper",
+                "kind": "helper",
+                "model": null,
+                "name": "b-helper",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "eeeeeeee",
+                "stale": false,
+                "started_at": "2026-10-26T18:20:00.000Z",
+                "state": "running",
+                "status": "working",
+                "summary": null,
+                "task": "b-helper's task"
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "working",
+            "detail": "b-helper's task",
+            "focus_session": null,
+            "id": "agent:eeeeeeee:b-helper",
+            "kind": "agent",
+            "lane": "No live session",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T18:20:00.000Z",
+            "story": null,
+            "title": "b-helper"
+          }
+        ],
+        "key": "No live session",
+        "name": "No live session"
+      },
+      {
+        "cards": [
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": "2026-10-26T19:10:00.000Z",
+                "editor": null,
+                "ended_at": "2026-10-26T18:40:00.000Z",
+                "gate": null,
+                "key": "eeeeeeee:ou-adhoc",
+                "kind": "author",
+                "model": null,
+                "name": "ou-adhoc",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "eeeeeeee",
+                "stale": false,
+                "started_at": "2026-10-26T18:20:00.000Z",
+                "state": "done",
+                "status": "done",
+                "summary": {
+                  "did": "ou-adhoc's task",
+                  "why": "committed abc1234"
+                },
+                "task": "ou-adhoc's task"
+              },
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": null,
+                "gate": {
+                  "findings": null,
+                  "kind": "review"
+                },
+                "key": "eeeeeeee:review-adhoc",
+                "kind": "critic",
+                "model": null,
+                "name": "review-adhoc",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "eeeeeeee",
+                "stale": false,
+                "started_at": "2026-10-26T18:45:00.000Z",
+                "state": "running",
+                "status": "working",
+                "summary": null,
+                "task": "review-adhoc's task"
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "checks",
+            "detail": null,
+            "focus_session": null,
+            "id": "agent:eeeeeeee:ou-adhoc",
+            "kind": "agent",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T18:40:00.000Z",
+            "story": null,
+            "title": "ou-adhoc"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": null,
+                "gate": null,
+                "key": "eeeeeeee:ou-adopted",
+                "kind": "author",
+                "model": null,
+                "name": "ou-adopted",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "eeeeeeee",
+                "stale": false,
+                "started_at": "2026-10-26T18:06:00.000Z",
+                "state": "running",
+                "status": "working",
+                "summary": null,
+                "task": "ou-adopted's task"
+              }
+            ],
+            "backlog": {
+              "added_by": "cli",
+              "agent": null,
+              "assign": null,
+              "assigned": null,
+              "claim": null,
+              "id": "ic_eeeee04",
+              "start_line": "once-upon backlog start ic_eeeee04 --branch adopted-work",
+              "started": {
+                "at": "2026-10-26T18:05:00.000Z",
+                "branch": "adopted-work",
+                "links": {
+                  "active": true,
+                  "agent": {
+                    "beat": null,
+                    "ended_at": null,
+                    "name": "ou-adopted",
+                    "outcome": null,
+                    "state": "running"
+                  },
+                  "merged": false,
+                  "merged_at": null,
+                  "sessions": [],
+                  "worktrees": []
+                },
+                "on": null
+              }
+            },
+            "branch": "adopted-work",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "working",
+            "detail": null,
+            "focus_session": null,
+            "id": "backlog:ic_eeeee04",
+            "kind": "backlog",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": "2026-10-26T18:05:00.000Z",
+            "story": null,
+            "title": "Adopted ad-hoc work"
+          }
+        ],
+        "key": "acme/widgets",
+        "name": "widgets"
+      }
+    ],
+    "listeners": [],
+    "phone": null,
+    "status_source": "iterm",
+    "usage": null,
+    "voice": null,
+    "voice_paused": false,
+    "voice_start": null,
+    "warning": null,
+    "worktrees": {
+      "at": null,
+      "items": [],
+      "on_cards": 0,
+      "prunable": [],
+      "removable": 0,
+      "scanning": true,
+      "size_kb": "<kb>",
+      "total": 0
+    }
+  }
+}

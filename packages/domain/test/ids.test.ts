@@ -4,6 +4,8 @@ import {
   RUN_ID_RE,
   agentId,
   agentWorkKey,
+  implicitCardId,
+  isImplicitCard,
   branchKey,
   branchKeyPrefix,
   branchWorkKey,
@@ -249,4 +251,12 @@ test('repoProblem: a repo on a known lane is not noted, in any case; a repo on n
   const none = repoProblem('eshank/unknown-thing', known) ?? '';
   assert.match(none, /is on none of the repos this machine works in \(checkouts, PRs, cards\)/);
   assert.doesNotMatch(none, /did you mean/);
+});
+
+test('an implicit card id is an ic_ card id, minted from a fresh suffix, and a backlog id is not one', () => {
+  assert.equal(implicitCardId('k3j9x2abc'), 'ic_k3j9x2abc');
+  assert.equal(isImplicitCard('ic_k3j9x2abc'), true);
+  assert.equal(isImplicitCard('bl_k3j9x2abc'), false);
+  assert.equal(isImplicitCard(null), false);
+  assert.equal(isImplicitCard(undefined), false);
 });

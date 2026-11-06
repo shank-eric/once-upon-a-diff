@@ -10,6 +10,8 @@ import { BacklogStore, claimHint } from '@once-upon-a-diff/state/queues/backlog/
 import { claimWorktreeProblem } from '@once-upon-a-diff/state/queues/backlog/claim-worktree';
 import { ownSession } from '@once-upon-a-diff/core/features/listeners/service';
 import { landItems, recordedTips } from '@once-upon-a-diff/state/queues/backlog/landing';
+import { implicitCards } from '@once-upon-a-diff/state/records/agents/implicit';
+import { implicitItems, liveImplicitIds } from '@once-upon-a-diff/state/queues/backlog/implicit';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { out } from '../output.ts';
 import { warnTypedRepo } from '../typed-repo.ts';
@@ -19,7 +21,8 @@ import type { CliOpts, Command } from '../types.ts';
 
 const USAGE =
   'usage: once-upon backlog add ("TITLE" | --title TEXT | --title-file PATH | --title -) [--note TEXT | --note-file PATH | --note -] [--repo owner/name] [--branch NAME] [--by NAME]\n' +
-  '       once-upon backlog list [--all] [--json] [--someday]\n' +
+  '       once-upon backlog list [--all] [--json] [--someday] [--implicit]\n' +
+  '       once-upon backlog adopt ID [--title TEXT] [--by NAME]\n' +
   '       once-upon backlog show ID\n' +
   '       once-upon backlog edit ID [--title TEXT] [--note TEXT | --note-file PATH | --note -] [--repo owner/name]\n' +
   '       once-upon backlog start ID [--branch NAME] [--repo owner/name] [--by NAME]\n' +
@@ -35,8 +38,12 @@ const USAGE =
 const text = (value: unknown): string | null => (typeof value === 'string' ? value : null);
 
 /** the state the CLI reports: done once it landed (the store keeps started or open), unless it was dropped after */
-const reported = (item: BacklogItem): string =>
-  item.landed_at && item.state !== 'dropped' ? 'done' : item.state;
+const reported = (item: BacklogItem): string => {
+  if (item.implicit) {
+    return 'implicit';
+  }
+  return item.landed_at && item.state !== 'dropped' ? 'done' : item.state;
+};
 
 /** the reported state (marked when a deploy leaves the card to be closed by hand) */
 const stateOf = (item: BacklogItem): string => {
@@ -61,9 +68,16 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
   const [verb, ...words] = opts._ || [];
   const store = new BacklogStore(home);
   const who = text(opts.by);
+  // the implicit cards (ADR-27) are the registry's runs: they are in no backlog file until adopted
+  const implicit = () => implicitItems(new AgentRegistry(home).agents(), store.items());
   const found = () => {
     const item = store.items().find((one) => one.id === words[0]);
     if (!item) {
+      if (implicit().some((one) => one.id === words[0])) {
+        throw new Error(
+          `${words[0]} is an implicit card (a run that did not start in the backlog): once-upon backlog adopt ${words[0]} first`,
+        );
+      }
       throw new Error(`no backlog item ${words[0] || ''}`.trim());
     }
     return item;
@@ -85,7 +99,48 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     });
     return out(`${item.id} added: ${item.title}`);
   }
+  if (verb === 'adopt') {
+    // an implicit card becomes a backlog card, with its own id: its runs already name it
+    const [id] = words;
+    if (store.items().some((one) => one.id === id)) {
+      throw new Error(`${id} is already a card`);
+    }
+    const card = implicitCards(new AgentRegistry(home).agents()).find((one) => one.id === id);
+    if (!card) {
+      throw new Error(
+        `no such card ${id ?? ''}: only an implicit card (ic_...) can be adopted`.trim(),
+      );
+    }
+    const adopted = store.add({
+      id: card.id,
+      title: text(opts.title) ?? card.title,
+      note: card.task && card.task !== card.title ? card.task : null,
+      repo: card.repo,
+      branch: card.branch,
+      by: who ?? card.agent,
+    });
+    // a card with a branch is started on it, as `claim --branch` does, so it reads as work done or under way: no Assign while its
+    // author runs, and a built card on a branch reaches Ready instead of leaving the board. Start needs a branch, so a card with
+    // none stays open (its runs still decide its column)
+    if (card.branch) {
+      store.start(adopted.id, { branch: card.branch, repo: card.repo, by: who ?? card.agent });
+    }
+    return out(`${adopted.id} adopted: ${adopted.title}`);
+  }
   if (verb === 'list') {
+    if (opts.implicit) {
+      // only the implicit cards: the live ones (a run open), or every one with --all
+      const live = liveImplicitIds(new AgentRegistry(home).agents(), Date.now());
+      const cards = implicit().filter((item) => opts.all || live.has(item.id));
+      if (opts.json) {
+        return out(JSON.stringify(cards, null, 2));
+      }
+      return out(
+        cards.length
+          ? cards.map((item, index) => `${index + 1}\t${describe(item, home)}`).join('\n')
+          : 'No implicit cards.',
+      );
+    }
     const all = store.items().filter((item) => opts.all || reported(item) === 'open');
     // the Someday section is collapsed: out of the main list, and printed (expanded) only by --someday
     // (--all is everything, someday cards marked in place)
@@ -96,11 +151,13 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     } else if (opts.all) {
       items = all;
     }
+    // --all is every card, the implicit ones too (marked)
+    const withImplicit = opts.all && !opts.someday ? [...items, ...implicit()] : items;
     if (opts.json) {
-      return out(JSON.stringify(items.map(shown), null, 2));
+      return out(JSON.stringify(withImplicit.map(shown), null, 2));
     }
     // in the board's order, numbered
-    const lines = items.map((item, index) => `${index + 1}\t${describe(item, home)}`);
+    const lines = withImplicit.map((item, index) => `${index + 1}\t${describe(item, home)}`);
     if (opts.someday) {
       return out(
         later.length ? [`Someday (${later.length})`, ...lines].join('\n') : 'Nothing is someday.',
@@ -112,7 +169,8 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     return out(items.length || later.length ? lines.join('\n') : 'No backlog items.');
   }
   if (verb === 'show') {
-    return out(JSON.stringify(shown(found()), null, 2));
+    const card = implicit().find((one) => one.id === words[0]);
+    return out(JSON.stringify(shown(card ?? found()), null, 2));
   }
   if (verb === 'edit') {
     const item = found();
@@ -302,6 +360,7 @@ export const backlogCommands: Command[] = [
       'edit',
       'start',
       'claim',
+      'adopt',
       'move',
       'done',
       'land',
@@ -316,6 +375,7 @@ export const backlogCommands: Command[] = [
       '  once-upon backlog list [--all] [--json] [--someday] | show ID | drop ID | reopen ID  the items in board order (open ones, or all), one item, drop one, or bring a dropped one back',
       '  once-upon backlog done ID [--sha SHA]                                            the work landed: the card goes to Done for an hour',
       '  once-upon backlog land [PICKED_SHA...] --from REF --to REF [--dry-run]           a deploy: mark done the cards whose recorded commit (agent finish --commit) is in the range',
+      '  once-upon backlog adopt ID [--title TEXT]                                        an implicit card (a run that did not start in the backlog; list --implicit shows them) becomes a backlog card with the same id',
       '  once-upon backlog hold ID [--off]                                                the card lands by hand: a deploy never marks it done',
       '  once-upon backlog someday ID [--off]                                             maybe someday: out of the main list into a collapsed Someday section (list --someday shows it)',
       '  once-upon backlog move ID --before ID | --top | --bottom                        reorder: new items go to the bottom',

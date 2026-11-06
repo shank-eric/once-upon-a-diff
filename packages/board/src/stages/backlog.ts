@@ -263,6 +263,11 @@ export function addBacklogCards(
     if (card.backlog.started || (card.backlog.claim && !card.backlog.agent?.tried)) {
       continue;
     }
+    // (a card whose runs are working it, an adopted implicit card with no branch yet, has nothing to assign either; one sent back to Backlog still does)
+    const phase = phases.get(item.id);
+    if (phase && phase.column !== 'backlog') {
+      continue;
+    }
     // (a someday card is out of the pick order: no Assign until it is back in the backlog)
     if (item.someday) {
       continue;

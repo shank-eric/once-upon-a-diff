@@ -3,7 +3,7 @@
  * a card is made is in stages/ (stages/index.ts has the stages and the sources). What a click on the board does to other
  * tools is in ADR-11: Board has the actions, which are the board's only writes.
  */
-import { agentId } from '@once-upon-a-diff/domain/ids';
+import { agentId, isImplicitCard } from '@once-upon-a-diff/domain/ids';
 import path from 'node:path';
 import { readSettings } from '@once-upon-a-diff/foundation/settings';
 import {
@@ -635,6 +635,19 @@ export class Board {
     // the click counts as at least the agent's latest line, which may be ahead of this clock (a wrong zone, a typo), so the card goes either way
     const latest = lastActivity(agent)?.getTime() ?? 0;
     markFinished(this.home, agentId(sid, name), Math.max(now.getTime(), latest));
+    // an implicit card's other finished runs (a critic of the work) are on this card: Finish clears the piece of work, not one run of it
+    if (agent.card && isImplicitCard(agent.card)) {
+      for (const other of agents) {
+        if (
+          other !== agent &&
+          other.card === agent.card &&
+          ['done', 'failed', 'stopped'].includes(other.state)
+        ) {
+          const seen = lastActivity(other)?.getTime() ?? 0;
+          markFinished(this.home, agentId(other.sid, other.name), Math.max(now.getTime(), seen));
+        }
+      }
+    }
     this.invalidate();
     return { ledger: open };
   }

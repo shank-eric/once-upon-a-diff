@@ -2,7 +2,7 @@
  * The background agents on the board: which are shown, and where each goes. An agent is nested in the card its
  * registered repo, branch, PR or card point to (agent-home.ts), else it is a card of its own, on its own lane.
  */
-import { agentWorkKey } from '@once-upon-a-diff/domain/ids';
+import { agentWorkKey, isImplicitCard } from '@once-upon-a-diff/domain/ids';
 import { resolveLane } from '@once-upon-a-diff/domain/lane-key';
 import {
   finishedColumn,
@@ -183,6 +183,8 @@ export function placeAgents(
   const waitMs = ctx.settings.finishedWaitMinutes * 60 * 1000;
   const cleared = readFinished(ctx.home);
   const added: BoardCard[] = [];
+  // the first agent card of each implicit card (ADR-27): its other runs (a critic of the work) are views on it
+  const heads = new Map<string, { card: BoardCard; agent: LedgerAgent }>();
   const cardsBySid = new Map<string, BoardCard>();
   for (const card of cards) {
     for (const session of card.sessions) {
@@ -260,7 +262,18 @@ export function placeAgents(
     if (agent.review) {
       column = 'ready';
     }
-    added.push({
+    // a run on an implicit card that already has its agent card goes on that card, not on a card of its own. The card keeps
+    // the head's column, unless the head is over and this run is still going: then it is this run's
+    const implicitId = agent.card && !item && isImplicitCard(agent.card) ? agent.card : null;
+    const head = implicitId ? heads.get(implicitId) : undefined;
+    if (head) {
+      head.card.agents.push(view);
+      if (isFinished(head.agent) && !isFinished(agent)) {
+        head.card.column = view.gate ? 'checks' : column;
+      }
+      continue;
+    }
+    const placed: BoardCard = {
       id: agentWorkKey(agent.sid, agent.name),
       kind: 'agent',
       title: agent.name,
@@ -291,7 +304,11 @@ export function placeAgents(
       ...(finishedIn === 'ready' && pending
         ? { review: { branch: pending.branch, path: pending.path } }
         : {}),
-    });
+    };
+    if (implicitId) {
+      heads.set(implicitId, { card: placed, agent });
+    }
+    added.push(placed);
   }
   return added;
 }

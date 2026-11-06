@@ -10,7 +10,7 @@
  * Pure: the board gathers the facts.
  */
 import type { BoardColumn } from '@once-upon-a-diff/contracts/types';
-import { sameRepo } from '@once-upon-a-diff/domain/ids';
+import { isImplicitCard, sameRepo } from '@once-upon-a-diff/domain/ids';
 import { repoName } from '@once-upon-a-diff/domain/text';
 import { STALE_MS } from '../../records/agents/events.ts';
 import { isCritic, type LedgerAgent } from '../../records/agents/ledger.ts';
@@ -178,6 +178,10 @@ export function cardRunProblems(
   for (const run of runs) {
     const label = `${agentKey(run)}${run.run ? ` ${run.run}` : ''}`;
     const item = run.card ? byId.get(run.card) : undefined;
+    // an implicit card (ADR-27) is its runs: no backlog item holds it until it is adopted
+    if (run.card && !item && isImplicitCard(run.card)) {
+      continue;
+    }
     if (run.card && (!item || item.state === 'dropped')) {
       problems.push(`${label} names ${run.card}, which ${item ? 'was dropped' : 'is not a card'}`);
       continue;

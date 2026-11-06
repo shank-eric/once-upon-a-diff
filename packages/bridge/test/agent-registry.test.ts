@@ -160,7 +160,7 @@ test('the CLI round trip: start takes the sid from the session, beat and finish 
     board_progress_file: progress,
   });
   const env = { CLAUDE_CODE_SESSION_ID: `${SID}-0000-4000-8000-000000000000` };
-  const card = new BacklogStore(home).add({ title: 'Check the thing' }).id;
+  const card = new BacklogStore(home).add({ title: 'Check the thing', branch: 'check-it' }).id;
   const started = await runCli(
     home,
     [
@@ -1053,7 +1053,7 @@ test('author and critic are the kinds; builder and reviewer are accepted as alia
         '--kind',
         kind,
         '--card',
-        backlog.add({ title: name }).id,
+        backlog.add({ title: name, branch: `${name}-branch` }).id,
         '--task',
         'x',
       ],

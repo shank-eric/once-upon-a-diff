@@ -90,6 +90,8 @@ export interface ClaimInput {
 }
 
 export interface AddInput {
+  /** an implicit card's id, kept when it is adopted (`backlog adopt`); a fresh `bl_` id when left out */
+  id?: string;
   title: string;
   note?: string | null;
   repo?: string | null;
@@ -284,7 +286,10 @@ export class BacklogStore implements BacklogStorage {
     if (!title) {
       throw new Error('a title is needed');
     }
-    const id = newId('bl');
+    const id = optional(input.id, 'the id', BACKLOG_ID_RE) ?? newId('bl');
+    if (input.id && this.items().some((one) => one.id === id)) {
+      throw new Error(`${id} is already a card`);
+    }
     this.append({
       op: 'add',
       id,

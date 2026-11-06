@@ -13,8 +13,11 @@ export const STORY_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,120}$/;
 /** A Claude Code session id as the board and the panel send it. */
 export const SESSION_RE = /^[A-Za-z0-9._-]{1,100}$/;
 
-/** A backlog item's id. */
-export const BACKLOG_ID_RE = /^bl_[a-z0-9]{6,24}$/;
+/**
+ * A card's id: `bl_` for a backlog item, `ic_` for an implicit card (a run that did not start in the backlog is its own card,
+ * `implicitCardId` in ids.ts). One regex, because an adopted implicit card is a backlog item that keeps its `ic_` id.
+ */
+export const BACKLOG_ID_RE = /^(?:bl|ic)_[a-z0-9]{6,24}$/;
 
 /** A full commit id: SHA-1 (40 characters) or SHA-256 (64). A commit abbreviated to 7 or more is `SHA_RE` in text.ts. */
 export const FULL_SHA_RE = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;

@@ -1,6 +1,6 @@
 /*
  * The keys a thing is called by, one function for each: a repo, a PR, a branch, a story and the folder its state is kept in,
- * the board's work keys, an agent and a run. Every store, the board and the extension build and read these through here, so
+ * the board's work keys, an agent, a run and an implicit card. Every store, the board and the extension build and read these through here, so
  * a key has one spelling. Pure, so the engine, the board and the extension share it. Each function returns exactly what the
  * code that built the key inline returned, because the keys are on disk (builds.json, the state/ folders, stories.json,
  * the cursors and listeners files) and in the extension's storage: a change to one is a migration.
@@ -97,6 +97,13 @@ export const agentId = (sid8: string, name: string): string => `${sid8}:${name}`
 
 /** An agent's card on the board. */
 export const agentWorkKey = (sid8: string, name: string): string => `agent:${agentId(sid8, name)}`;
+
+/** An implicit card's id: the card a run is when it did not start in the backlog, `ic_` and a fresh suffix (foundation/ids.ts mints it). */
+export const implicitCardId = (suffix: string): string => `ic_${suffix}`;
+
+/** Whether a card id is an implicit card's (an adopted one keeps its `ic_` id, so this says where it began, not whether it is in the backlog). */
+export const isImplicitCard = (id: string | null | undefined): boolean =>
+  !!id && id.startsWith('ic_');
 
 /** A run's id as `agent start` mints it: `r_` and 10 hex digits. A review draft's id is `r_` too, but longer. */
 export const RUN_ID_RE = /^r_[0-9a-f]{10}$/;

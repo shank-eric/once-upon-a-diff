@@ -5,7 +5,7 @@
  * log line to it, so those files stay logs written by this command, for people and scripts (the board never reads them).
  * `--no-mirror` skips those lines, for a caller that writes the progress line itself (beat.sh), so one beat is one line. It goes after the words: a flag takes the next word.
  */
-import { agentId } from '@once-upon-a-diff/domain/ids';
+import { agentId, isImplicitCard } from '@once-upon-a-diff/domain/ids';
 import path from 'node:path';
 import { repoOfCheckout } from '@once-upon-a-diff/foundation/repos';
 import { readSettings } from '@once-upon-a-diff/foundation/settings';
@@ -23,7 +23,7 @@ import type { CliOpts, Command } from '../types.ts';
 
 const USAGE =
   'usage: once-upon agent start NAME [--kind author|critic|helper|research | --role author|fixer|critic|storyteller|helper|research] [--standing] --task TEXT|--task-file PATH [--sid SID8] [--model M] [--effort E]\n' +
-  '                             [--repo owner/name] [--branch NAME] [--pr N] [--cwd DIR] [--card ID] [--lane NAME] [--notes PATH]\n' +
+  '                             [--repo owner/name] [--branch NAME] [--pr N] [--cwd DIR] [--card ID | --new-card] [--lane NAME] [--notes PATH]\n' +
   '       once-upon agent state NAME --state running|waiting|review|plan|fixing [--outcome TEXT|--outcome-file PATH] [--findings N] [--notes PATH] [--sid SID8] [--run ID]\n' +
   '       once-upon agent beat NAME N/M STEP [NOTE...] [--sid SID8] [--no-mirror]\n' +
   '       once-upon agent finish NAME [--state done|failed|stopped] [--outcome TEXT|--outcome-file PATH] [--commit SHA] [--pr N] [--branch NAME] [--card ID] [--findings N] [--notes PATH] [--sid SID8] [--run ID]\n' +
@@ -145,13 +145,18 @@ function agent(home: string, _cfg: Config, opts: CliOpts) {
         pr: text(opts.pr),
         cwd,
         card,
+        newCard: !!opts['new-card'],
+        role: role as NonNullable<Parameters<AgentRegistry['start']>[0]['role']> | null,
         lane: text(opts.lane),
         notes: text(opts.notes),
         by: who,
       },
       warn,
     );
-    return out(`${started.id} ${started.run}`);
+    // an implicit card's id is printed beside the run's, so a later run on the same work (a critic of it) can pass --card
+    return out(
+      `${started.id} ${started.run}${isImplicitCard(started.card) ? ` ${started.card}` : ''}`,
+    );
   }
   if (verb === 'state') {
     registry.state(
@@ -213,6 +218,7 @@ export const agentCommands: Command[] = [
     usage: [
       '  once-upon agent start NAME --kind author|critic|helper|research --task TEXT   register an agent the board shows (its sid comes from the session; prints its id and run)',
       '                                                                                   --card ID: the card it works on, whose repo and branch it takes (a critic, fixer or storyteller needs one; --role says which); --repo, --branch, --lane and --pr then say nothing the card does not',
+      '                                                                                   no --card: the run is its own card (an implicit card, in the registry only: its id is printed after the run id, for a critic of the work to pass as --card); a restart of the same name stays on it, --new-card starts another',
       '                                                                                   --standing: a long-lived helper (the backlog clerk), in the Helpers row, never a card; put it before another flag. A restart of the same name may leave out --kind and --standing: they carry over (--standing false clears it)',
       '  once-upon agent state NAME --state running|waiting|review|plan|fixing            move it: a plan to check, a question, parked on a story review, fixing findings',
       '  once-upon agent beat NAME N/M STEP [NOTE...]                                     a progress beat, and a sign of life',

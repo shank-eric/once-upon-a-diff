@@ -1415,6 +1415,85 @@ async function record(
   await record('6-editors', board);
 }
 
+// ---- 7. implicit cards (ADR-27): work that did not start in the backlog is its own card, held in agents.jsonl alone
+{
+  const home = tmp('home');
+  const sessions = tmp('sessions');
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  const et = (hour: number, minute: number) => new Date(Date.UTC(2026, 9, 26, hour + 4, minute));
+  const sid8 = 'eeeeeeee';
+  const runs = new AgentRegistry(home);
+  const start = (
+    name: string,
+    card: string,
+    kind: 'author' | 'critic' | 'helper' | 'research',
+    at: Date,
+    extra = {},
+  ) => runs.start({ sid: sid8, name, kind, task: `${name}'s task`, card, at, ...extra });
+  // a: an ad-hoc author that built something, and its critic, still running: one agent card with both
+  start('ou-adhoc', 'ic_eeeee01', 'author', et(14, 20), {
+    repo: 'acme/widgets',
+    branch: 'adhoc-a',
+  });
+  runs.finish('ou-adhoc', {
+    sid: sid8,
+    result: { commit: 'abc1234', branch: 'adhoc-a' },
+    at: et(14, 40),
+  });
+  start('review-adhoc', 'ic_eeeee01', 'critic', et(14, 45), {
+    repo: 'acme/widgets',
+    branch: 'adhoc-a',
+  });
+  // b: a helper restarted under its name: the same card, one agent card for the latest run
+  start('a-helper', 'ic_eeeee02', 'helper', et(13, 0));
+  runs.finish('a-helper', { sid: sid8, at: et(13, 10) });
+  start('a-helper', 'ic_eeeee02', 'helper', et(14, 10));
+  // c: a researcher on a card of its own, running
+  start('a-scout', 'ic_eeeee03', 'research', et(14, 15));
+  // d: adopted with a branch: the card is in the backlog under the same id and started on it (as `backlog adopt` writes), and
+  // its author's run is its run (a Working backlog card, no Assign)
+  writeFileSync(
+    path.join(home, 'backlog.jsonl'),
+    [
+      {
+        op: 'add',
+        id: 'ic_eeeee04',
+        title: 'Adopted ad-hoc work',
+        note: null,
+        repo: 'acme/widgets',
+        branch: 'adopted-work',
+        by: 'cli',
+        at: et(14, 5).toISOString(),
+      },
+      {
+        op: 'start',
+        id: 'ic_eeeee04',
+        branch: 'adopted-work',
+        repo: 'acme/widgets',
+        by: 'cli',
+        at: et(14, 5).toISOString(),
+      },
+    ]
+      .map((event) => JSON.stringify(event))
+      .join('\n') + '\n',
+  );
+  start('ou-adopted', 'ic_eeeee04', 'author', et(14, 6), { repo: 'acme/widgets' });
+  // c: `--new-card`: a helper restarted onto a card of its own again: the board shows its latest run, on the new card
+  start('b-helper', 'ic_eeeee06', 'helper', et(13, 20));
+  runs.finish('b-helper', { sid: sid8, at: et(13, 25) });
+  start('b-helper', 'ic_eeeee07', 'helper', et(14, 20));
+  // e: an implicit card whose last run ended hours ago is off the board
+  start('old-helper', 'ic_eeeee05', 'helper', et(10, 0));
+  runs.finish('old-helper', { sid: sid8, at: et(10, 30) });
+  const { watcher } = fakeWatcher([], {});
+  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+    source: sourceSaying({}),
+    now: () => NOW,
+    repoOf,
+  });
+  await record('7-implicit-cards', board);
+}
+
 // ---- normalize paths and pids
 export const snapshots: Record<string, string> = {};
 for (const [name, value] of Object.entries(results)) {

@@ -545,7 +545,7 @@ test('M. a second author is refused only while the first is working: one parked 
 
 test('N. `--role` and `--kind` agree through the aliases', async () => {
   const home = tmp('card-runs-role-alias');
-  const item = new BacklogStore(home).add({ title: 'Alias', repo: REPO });
+  const item = new BacklogStore(home).add({ title: 'Alias', repo: REPO, branch: 'alias-branch' });
   const env = { CLAUDE_CODE_SESSION_ID: `${SID}-0000-4000-8000-000000000000` };
   const start = (name: string, ...flags: string[]) =>
     runCli(home, ['agent', 'start', name, ...flags, '--card', item.id, '--task', 'x'], env);

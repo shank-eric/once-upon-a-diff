@@ -3351,9 +3351,9 @@
         "kind": "validation",
         "type": "regex",
         "async": false,
-        "expects": "/^bl_[a-z0-9]{6,24}$/",
+        "expects": "/^(?:bl|ic)_[a-z0-9]{6,24}$/",
         "requirement": {
-         "regex": "/^bl_[a-z0-9]{6,24}$/"
+         "regex": "/^(?:bl|ic)_[a-z0-9]{6,24}$/"
         }
        }
       ]
@@ -3457,9 +3457,9 @@
         "kind": "validation",
         "type": "regex",
         "async": false,
-        "expects": "/^bl_[a-z0-9]{6,24}$/",
+        "expects": "/^(?:bl|ic)_[a-z0-9]{6,24}$/",
         "requirement": {
-         "regex": "/^bl_[a-z0-9]{6,24}$/"
+         "regex": "/^(?:bl|ic)_[a-z0-9]{6,24}$/"
         }
        }
       ]
@@ -3497,9 +3497,9 @@
         "kind": "validation",
         "type": "regex",
         "async": false,
-        "expects": "/^bl_[a-z0-9]{6,24}$/",
+        "expects": "/^(?:bl|ic)_[a-z0-9]{6,24}$/",
         "requirement": {
-         "regex": "/^bl_[a-z0-9]{6,24}$/"
+         "regex": "/^(?:bl|ic)_[a-z0-9]{6,24}$/"
         }
        }
       ]

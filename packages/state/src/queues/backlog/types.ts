@@ -35,4 +35,6 @@ export interface BacklogItem {
   hold: boolean;
   /** maybe someday: out of the main list into the Someday section (an open card only; cleared when work starts on it) */
   someday: boolean;
+  /** an implicit card (ADR-27): derived from the registry's runs, not in backlog.jsonl until `backlog adopt` */
+  implicit?: true;
 }
