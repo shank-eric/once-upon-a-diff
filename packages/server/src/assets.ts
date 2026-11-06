@@ -62,14 +62,16 @@ const UI_MODULE = /^\/assets\/ui-kit\/([a-z0-9-]+(?:\/[a-z0-9-]+)*\.(?:ts|css))$
 const CONTRACTS_MODULE = /^\/assets\/contracts\/(routes|route-kit|[a-z0-9-]+\/routes)\.ts$/;
 /** The domain package's modules, all of them (pure rules that import nothing), which a page may load. */
 const DOMAIN_MODULE = /^\/assets\/domain\/([a-z0-9-]+)\.ts$/;
-/** The board page's own modules (its regions' folders), from public/board/. */
-const BOARD_MODULE = /^\/assets\/board\/([a-z0-9-]+(?:\/[a-z0-9-]+)*\.ts)$/;
-/** The local page's own modules and stylesheet (the shell, and its diff/ and ship/ folders), from public/local/. */
+/** The board page's own modules and stylesheets (board.css, and each region's folder), from public/board/. */
+const BOARD_MODULE = /^\/assets\/board\/([a-z0-9-]+(?:\/[a-z0-9-]+)*\.(?:ts|css))$/;
+/** The local page's own modules and stylesheets (the shell, and its diff/ and ship/ folders), from public/local/. */
 const LOCAL_MODULE = /^\/assets\/local\/([a-z0-9-]+(?:\/[a-z0-9-]+)*\.(?:ts|css))$/;
 
 const ASSETS: Record<string, string> = {
   '/assets/panel/shell/overlay.ts': path.join(PANEL, 'shell/overlay.ts'),
   '/assets/board.ts': path.join(PUBLIC, 'board.ts'),
+  // the base both pages link (the reset, the buttons, the top bar): shared by the board and the local page, so it is neither's folder
+  '/assets/page.css': path.join(PUBLIC, 'page.css'),
   '/assets/highlight.mjs': path.join(PUBLIC, 'vendor/highlight.mjs'),
   '/assets/preact.mjs': path.join(PUBLIC, 'vendor/preact.mjs'),
   // the extension's icon (a blue tile that reads on light and dark tabs); /favicon.ico is what a browser asks for with no <link>

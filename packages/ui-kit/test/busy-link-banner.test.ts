@@ -53,4 +53,6 @@ test('Banner carries its tone, adds the host class after its own, and passes oth
   assert.equal(banner.className, 'ou-ui-banner ou-ui-banner-warn ou-beingchg');
   assert.equal(banner.getAttribute('role'), 'status');
   assert.equal(document.querySelectorAll('.ou-ui-banner').length, 1);
+  await draw(html`<${Banner} tone="muted">Standing</${Banner}>`);
+  assert.equal(root.querySelector('div')?.className, 'ou-ui-banner ou-ui-banner-muted');
 });

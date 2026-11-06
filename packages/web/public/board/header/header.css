@@ -1,0 +1,8 @@
+/* The board header (board/header/): the usage meters and the voice buttons. The top bar itself is page.css. */
+.ou-local-top-voice { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.ou-local-top-voice button { padding: 2px 10px; white-space: nowrap; }
+/* The usage meters in the header (board.ts): thin bars, yellow from 70% and red from 90%; session ctx chips share them */
+.ou-board-meters { display: flex; gap: 14px; align-items: center; flex: none; }
+.ou-board-meter-reset { font-size: 11px; }
+@media (max-width: 1299px) { .ou-board-meter-reset { display: none; } }
+@media (max-width: 800px) { .ou-board-meters { flex: 1 1 100%; order: 3; } }

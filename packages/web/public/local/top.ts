@@ -5,6 +5,7 @@
  * header only asks the panel to run it. It is off with no note to send, and while the panel is closed.
  */
 import { html, useState } from '/assets/preact.mjs';
+import { useBusy } from '/assets/ui-kit/components/action-button.ts';
 import { plural } from '/assets/domain/text.ts';
 import { page, usage } from '/assets/local/page.ts';
 import { setPref } from '/assets/local/actions.ts';
@@ -67,14 +68,12 @@ const WS_TITLE =
 
 /** Hide whitespace: off while the change is being saved, and back on when it has been (or failed). */
 function WhitespaceToggle(props: { hide: boolean }) {
-  const [busy, setBusy] = useState(false);
-  const change = async (event: Event) => {
+  const { busy, run } = useBusy();
+  const change = (event: Event) => {
     const box = event.currentTarget as HTMLInputElement;
-    setBusy(true);
-    await setPref({ hideWhitespace: box.checked }, 'Hide whitespace');
-    setBusy(false);
+    return run('save', () => setPref({ hideWhitespace: box.checked }, 'Hide whitespace'));
   };
-  return html`<label class="ou-local-ws" title=${WS_TITLE}><input type="checkbox" class="ou-local-ws-toggle" checked=${props.hide} disabled=${busy} onChange=${change} /> Hide whitespace</label>`;
+  return html`<label class="ou-local-ws" title=${WS_TITLE}><input type="checkbox" class="ou-local-ws-toggle" checked=${props.hide} disabled=${busy !== null} onChange=${change} /> Hide whitespace</label>`;
 }
 
 /** A draft note: not sent to a session yet, and not fixed. */

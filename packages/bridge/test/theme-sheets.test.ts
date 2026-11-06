@@ -4,15 +4,22 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 
 const PACKAGES = new URL('../../', import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, PACKAGES), 'utf8');
+/** Every stylesheet under the web package's public/: the pages' base and each region's own. */
+const PAGE_SHEETS = readdirSync(new URL('web/public/', PACKAGES), {
+  recursive: true,
+  encoding: 'utf8',
+})
+  .filter((name) => name.endsWith('.css'))
+  .map((name) => `web/public/${name}`);
 const SHEETS = [
   'ui-kit/src/css/ui.css',
   'panel/src/css/panel.css',
   'panel/src/css/page.css',
-  'web/public/local/local.css',
+  ...PAGE_SHEETS,
   'extension/src/content/components/story-tag.css',
   'extension/src/content/components/listen-notice.css',
   'extension/src/content/components/toast.css',
@@ -46,5 +53,24 @@ test('a color or font stack a sheet writes out is not a copy of a token', () => 
       /BlinkMacSystemFont|ui-monospace/,
       `${sheet} has its own font stack`,
     );
+  }
+});
+
+test('the pages have their sheets split by owner: more than one, and no leftover local.css holding the board', () => {
+  assert.ok(PAGE_SHEETS.includes('web/public/page.css'));
+  assert.ok(PAGE_SHEETS.includes('web/public/board/board.css'));
+  assert.ok(PAGE_SHEETS.includes('web/public/local/diff/diff.css'));
+  assert.doesNotMatch(read('web/public/local/local.css'), /\.ou-board-/);
+});
+
+test('a page sheet names a colour only in a custom property (a palette, a named shadow), never in a rule: the rest are tokens', () => {
+  const COLOUR = /#[0-9a-fA-F]{3,8}\b|\brgba?\(|\bhsla?\(/;
+  for (const sheet of PAGE_SHEETS) {
+    const uncommented = read(sheet).replace(/\/\*[\s\S]*?\*\//g, '');
+    for (const declaration of uncommented.split(/[;{}]/)) {
+      if (COLOUR.test(declaration)) {
+        assert.match(declaration.trim(), /^--[\w-]+\s*:/, `${sheet}: ${declaration.trim()}`);
+      }
+    }
   }
 });

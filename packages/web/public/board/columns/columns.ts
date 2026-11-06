@@ -87,7 +87,7 @@ function Someday(props: { view: ColumnsView }) {
   </div>`;
 }
 
-/** What a column needs (local.css: 210px and a 12px gap), and what a group adds around its columns (padding, and the border between them). */
+/** What a column needs (board/board.css: 210px and a 12px gap), and what a group adds around its columns (padding, and the border between them). */
 const COLUMN_MIN = 210;
 const COLUMN_GAP = 12;
 const GROUPS_CHROME = 30;

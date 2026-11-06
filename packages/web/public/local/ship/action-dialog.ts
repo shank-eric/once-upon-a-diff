@@ -7,6 +7,7 @@
  * closed (Cancel, Close, Escape, a click on the backdrop).
  */
 import { html, useEffect, useMemo, useState } from '/assets/preact.mjs';
+import { Banner } from '/assets/ui-kit/components/banner.ts';
 import { Dialog } from '/assets/ui-kit/components/dialog.ts';
 import { shortSha } from '/assets/domain/text.ts';
 
@@ -93,7 +94,7 @@ function Form<V>(props: { spec: ActionSpec<V>; view: V; onClose: () => void }) {
   return html`<form class="ou-local-pr-form" onSubmit=${submit}>
     <h2>${body.title}</h2>
     ${body.lead}
-    <div class="ou-local-pr-standing">${body.standing}</div>
+    <${Banner} tone="muted" class="ou-local-pr-standing">${body.standing}</${Banner}>
     ${body.fields}
     <div class="ou-local-pr-result" role="status">${result}</div>
     <div class="ou-local-pr-buttons">

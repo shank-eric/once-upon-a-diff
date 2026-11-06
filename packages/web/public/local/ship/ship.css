@@ -1,0 +1,23 @@
+/* The ship buttons and dialogs (local/ship/): Approve, Push, Create pull request, and the confirm box they share. */
+/* Create pull request (local/ship/pull-request.ts) */
+.ou-local-pr-link { font-size: 12px; white-space: nowrap; }
+.ou-local-approved { font-size: 12px; white-space: nowrap; color: var(--ou-ok); }
+button.ou-local-approve, button.ou-local-unapprove { white-space: nowrap; }
+button.ou-local-pr, button.ou-local-push, button.ou-local-push-ahead { white-space: nowrap; }
+.ou-local-ahead { font-size: 12px; white-space: nowrap; color: var(--ou-fg-muted); }
+#ou-local-pr-box { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 64px); padding: 16px 20px; border: 1px solid var(--ou-border); border-radius: 8px; background: var(--ou-bg); color: var(--ou-fg); }
+#ou-local-pr-box::backdrop { --ou-local-scrim: rgba(0, 0, 0, 0.4); background: var(--ou-local-scrim); }
+#ou-local-pr-box h2 { font-size: 16px; margin: 0 0 6px; }
+#ou-local-pr-box p { margin: 6px 0; }
+#ou-local-pr-box label { display: block; margin: 10px 0 0; font-size: 12px; font-weight: 600; }
+#ou-local-pr-box input, #ou-local-pr-box textarea { display: block; width: 100%; margin-top: 4px; font: inherit; font-size: 13px; font-weight: 400; color: var(--ou-fg); background: var(--ou-bg); border: 1px solid var(--ou-border); border-radius: 6px; padding: 5px 8px; }
+#ou-local-pr-box textarea { resize: vertical; font: 12px/1.45 var(--ou-font-mono); }
+#ou-local-pr-box input.ou-local-pr-base { display: inline-block; width: auto; min-width: 10em; margin: 0 0 0 4px; padding: 1px 6px; font: 12px var(--ou-font-mono); }
+.ou-local-pr-standing { margin: 8px 0; font-size: inherit; }
+.ou-local-pr-commits { margin: 4px 0 0; padding-left: 18px; max-height: 9em; overflow: auto; font-size: 12px; }
+.ou-local-pr-stop { color: var(--ou-warn); }
+.ou-local-pr-ok { color: var(--ou-ok); }
+.ou-local-pr-output { max-height: 10em; overflow: auto; font: 11px/1.4 var(--ou-font-mono); background: var(--ou-bg-muted); border: 1px solid var(--ou-border); border-radius: 6px; padding: 6px 8px; white-space: pre-wrap; }
+.ou-local-pr-buttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.ou-local-pr-go:not(:disabled) { background: var(--ou-ok); border-color: var(--ou-ok); color: var(--ou-fg-on-emphasis); font-weight: 600; }
+.ou-local-pr-go:disabled { opacity: .5; cursor: default; }

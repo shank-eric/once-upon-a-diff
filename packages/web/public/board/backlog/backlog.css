@@ -1,0 +1,13 @@
+/* The backlog column (board/backlog/): the add form, the drag and the drop line. Its cards use board.css. */
+.ou-board-add { display: flex; flex-direction: column; gap: 4px; margin: 0 0 10px; }
+.ou-board-add input { font: inherit; font-size: 12px; min-width: 0; color: var(--ou-fg); background: var(--ou-bg); border: 1px solid var(--ou-border); border-radius: 6px; padding: 4px 8px; }
+.ou-board-add button { align-self: flex-start; }
+.ou-board-add .ou-board-add-repo { align-self: stretch; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ou-board-add-actions { display: flex; gap: 6px; }
+[data-backlog-card][draggable="true"] { cursor: grab; }
+[data-backlog-card].ou-board-dragging { opacity: 0.4; }
+/* where the dragged card lands: a line in the gap above or below a card, with a dot at its start */
+.ou-board-drop-before, .ou-board-drop-after { position: relative; }
+.ou-board-drop-before::before, .ou-board-drop-after::after { content: ""; position: absolute; left: -4px; right: -4px; height: 3px; border-radius: 2px; background: var(--ou-accent); pointer-events: none; }
+.ou-board-drop-before::before { top: -6px; }
+.ou-board-drop-after::after { bottom: -6px; }

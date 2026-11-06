@@ -1,0 +1,5 @@
+/* The worktrees lane (board/worktrees/): the trees grid. The tree rows are board.css's. */
+.ou-board-trees-grid { margin: 8px 0 0; padding: 0; border-top: 0; flex-direction: row; flex-wrap: wrap; align-items: flex-start; }
+.ou-board-trees-grid .ou-board-tree { flex: 0 0 280px; min-width: 0; padding: 6px 8px; border: 1px solid var(--ou-border); border-left: 3px solid var(--ou-board-idle); border-radius: 6px; background: var(--ou-bg-muted); }
+.ou-board-trees-grid .ou-board-tree-removable { border-left-color: var(--ou-ok); }
+.ou-board-trees-lane { margin-top: 16px; --ou-board-color: var(--ou-board-idle); }

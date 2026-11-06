@@ -5,6 +5,8 @@
  * data-ou-hidden, data-ou-hid, data-ou-flash); a file is keyed by its path and Preact never sets those, so its marks stay.
  */
 import { html, useMemo, useRef } from '/assets/preact.mjs';
+import { Chip } from '/assets/ui-kit/components/chip.ts';
+import { Disclosure } from '/assets/ui-kit/components/disclosure.ts';
 import { isFolded, toggleFold, toggleViewed } from '/assets/local/actions.ts';
 import { usage } from '/assets/local/page.ts';
 import { rowsFor, type RowsInput } from './rows.ts';
@@ -78,13 +80,13 @@ function FileDiff(props: FileProps) {
   const kind = kindOf(file);
   return html`<div class="ou-local-file-wrap"><section role="region" class=${folded ? 'ou-local-file ou-local-folded' : 'ou-local-file'} id=${`diff-${file.sha}`} data-path=${file.rel} aria-label=${file.rel}>
     <header class="ou-local-file-head">
-      <button class="ou-local-fold" type="button" aria-label="Fold or unfold this file" aria-expanded=${String(!folded)} onClick=${() => {
+      <${Disclosure} bare open=${!folded} class="ou-local-fold" label="Fold or unfold this file" onToggle=${() => {
         usage.count('local.fold.toggle');
         toggleFold(file.rel);
-      }}></button>
+      }} />
       <code class="ou-local-path">${file.rel}</code>
-      ${kind ? html`<span class="ou-local-kind">${kind}</span>` : null}
-      ${file.whitespace_only ? html`<span class="ou-local-kind" title="Hide whitespace is on">whitespace only</span>` : null}
+      ${kind ? html`<${Chip} class="ou-local-kind">${kind}</${Chip}>` : null}
+      ${file.whitespace_only ? html`<${Chip} class="ou-local-kind" title="Hide whitespace is on">whitespace only</${Chip}>` : null}
       <span class="ou-local-stat"><span class="ou-local-plus">+${file.stats.added}</span> <span class="ou-local-minus">−${file.stats.removed}</span></span>
       ${file.viewed_changed ? html`<span class="ou-local-changed" title="You marked this viewed, and its diff has changed since">changed since viewed</span>` : null}
       <button class="ou-local-viewed" type="button" aria-pressed=${file.viewed ? 'true' : 'false'} onClick=${() => toggleViewed(file.rel)}>Viewed</button>

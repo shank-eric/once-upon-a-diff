@@ -92,7 +92,7 @@ test('forBrowser spells the panel, the contracts package, the domain, the bridge
   );
 });
 
-test("the bridge serves ui-kit's stylesheet, and the board and local pages link it before local.css so the pages' own rules win", async () => {
+test("the bridge serves ui-kit's stylesheet, and the pages link tokens.css, ui.css and page.css first, then their own sheets, every one served", async () => {
   const found = assetFor('/assets/ui-kit/css/ui.css');
   assert.ok(found, 'ui.css is served');
   assert.match(found[1], /text\/css/);
@@ -102,10 +102,31 @@ test("the bridge serves ui-kit's stylesheet, and the board and local pages link 
   assert.match(tokens[1], /text\/css/);
   const { boardPage, localPage } = await import('@once-upon-a-diff/server/pages');
   for (const page of [String(boardPage()), String(localPage('s', { title: 't' }))]) {
-    const tokens = page.indexOf('/assets/ui-kit/css/tokens.css');
-    const first = page.indexOf('/assets/ui-kit/css/ui.css');
-    assert.ok(tokens > 0 && tokens < first, 'tokens.css comes before ui.css');
-    assert.ok(first < page.indexOf('/assets/local/local.css'), 'ui.css comes before local.css');
+    const sheets = [...page.matchAll(/<link rel="stylesheet" href="([^"]+)">/g)].map(
+      (match) => match[1],
+    );
+    assert.deepEqual(sheets.slice(0, 3), [
+      '/assets/ui-kit/css/tokens.css',
+      '/assets/ui-kit/css/ui.css',
+      '/assets/page.css',
+    ]);
+    assert.ok(sheets.length > 3, 'and the page has its own sheets');
+    for (const sheet of sheets) {
+      const served = assetFor(sheet);
+      assert.ok(served && /text\/css/.test(served[1]), `${sheet} is served as CSS`);
+    }
+  }
+});
+
+test('every stylesheet under the web package is linked by a page (a region sheet nobody links never loads)', async () => {
+  const { BOARD_SHEETS, LOCAL_SHEETS } = await import('@once-upon-a-diff/server/pages');
+  const linked = new Set([...BOARD_SHEETS, ...LOCAL_SHEETS]);
+  const publicDir = fileURLToPath(new URL('../../web/public/', import.meta.url));
+  for (const name of readdirSync(publicDir, { recursive: true, encoding: 'utf8' })) {
+    if (name.endsWith('.css')) {
+      const url = name === 'page.css' ? '/assets/page.css' : `/assets/${name}`;
+      assert.ok(linked.has(url), `${url} is linked by a page`);
+    }
   }
 });
 
@@ -157,6 +178,7 @@ test('every asset the local page and the board page load, and every module under
     }
     assert.ok(queue.includes('/assets/local/local.ts'), 'the local page loads its entry script');
     assert.ok(queue.includes('/assets/local/local.css'), 'and its stylesheet');
+    assert.ok(queue.includes('/assets/board/board.css'), 'the board loads its own');
     while (queue.length) {
       const url = queue.pop() as string;
       if (seen.has(url)) {

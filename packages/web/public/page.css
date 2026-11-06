@@ -1,0 +1,22 @@
+/* The bridge pages' shared base (the board and the local page link it after tokens.css and ui.css): the reset, body, buttons, links, the muted line, loading and error, and the sticky top bar both pages draw. Colours and fonts are ui-kit's --ou-* tokens. Class names keep their old ou-local- prefix. */
+:root { color-scheme: light dark; }
+* { box-sizing: border-box; }
+html { scroll-padding-top: 60px; }
+body { margin: 0; background: var(--ou-bg); color: var(--ou-fg); font: 14px/1.5 var(--ou-font-sans); }
+code { font: 12px var(--ou-font-mono); }
+button { font: inherit; font-size: 12px; color: var(--ou-fg); background: var(--ou-bg); border: 1px solid var(--ou-border); border-radius: 6px; padding: 3px 10px; cursor: pointer; }
+button:hover { border-color: var(--ou-accent); }
+a { color: var(--ou-accent); }
+.ou-local-muted { color: var(--ou-fg-muted); font-size: 12px; }
+.ou-local-loading, .ou-local-error { padding: 24px; }
+.ou-local-error { color: var(--ou-danger); }
+
+.ou-local-top { position: sticky; top: 0; z-index: 5; display: flex; gap: 12px; align-items: center; padding: 8px 16px; background: var(--ou-bg-muted); border-bottom: 1px solid var(--ou-border); }
+.ou-local-top-main { flex: 1; min-width: 90px; }
+.ou-local-top-main .ou-local-muted { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ou-local-top h1 { font-size: 16px; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 800px) {
+  .ou-ui-chips .ou-ui-chip { line-height: 18px; }
+  .ou-local-top button { min-height: 44px; min-width: 44px; }
+  .ou-local-top { padding: 8px 10px; flex-wrap: wrap; }
+}
