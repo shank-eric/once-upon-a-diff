@@ -145,6 +145,7 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
   const editing = editorsOf({
     editors: read.editors,
     agents,
+    items: backlogItems,
     live,
     canFocus: (session) => picked.source.name === 'iterm' && read.known.has(session),
     nowMs,

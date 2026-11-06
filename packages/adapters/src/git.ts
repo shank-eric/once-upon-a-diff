@@ -76,6 +76,10 @@ export function runGitAsync(
 export const revParse = (repo: string, ref: string): string =>
   runGit(repo, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]).trim();
 
+/** `git worktree list --porcelain` run in a folder (throws when it is no git folder): the worktrees of the repo it belongs to. */
+export const worktreeList = (dir: string): string =>
+  runGit(dir, ['worktree', 'list', '--porcelain'], { quiet: true, timeoutMs: 10000 });
+
 export const topLevel = (repo: string): string =>
   runGit(repo, ['rev-parse', '--show-toplevel']).trim();
 

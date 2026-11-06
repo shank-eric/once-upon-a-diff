@@ -1305,6 +1305,116 @@ async function record(
   await record('5-card-runs', board);
 }
 
+// ---- 6. editors: slots in use counted by the one function, a claim that names the editor's session, a run the sweep closed
+{
+  const home = tmp('home');
+  const sessions = tmp('sessions');
+  writeJson(path.join(home, 'config.json'), { board_sessions_dir: sessions });
+  const widgets = checkoutOf('widgets', 'main');
+  const editorChild = liveChild();
+  registry(sessions, editorChild, { cwd: widgets, name: 'editor-tab', status: 'busy' });
+  const et = (hour: number, minute: number) => new Date(Date.UTC(2026, 9, 26, hour + 4, minute));
+  const editorSid = sid(editorChild);
+  const runs = new AgentRegistry(home);
+  runs.start({
+    name: 'editor-widgets',
+    sid: editorSid,
+    session: fullId(editorChild.pid),
+    kind: 'editor',
+    slots: 4,
+    task: 'once-upon-editor, 4 slots',
+    repo: 'acme/widgets',
+    cwd: widgets,
+    at: et(9, 0),
+  });
+  const author = (name: string, extra: Record<string, unknown> = {}, at = et(13, 0)) =>
+    runs.start({
+      sid: editorSid,
+      name,
+      kind: 'author',
+      task: `build ${name}`,
+      repo: 'acme/widgets',
+      at,
+      ...extra,
+    });
+  // holding a slot: running (with a beat), at its plan check, fixing findings
+  author('e-run');
+  runs.beat('e-run', { sid: editorSid, n: 3, of: 6, step: 'code', note: '', at: et(14, 0) });
+  author('e-plan');
+  runs.state('e-plan', { sid: editorSid, state: 'plan', outcome: 'plan ready', at: et(13, 10) });
+  author('e-fix');
+  runs.state('e-fix', { sid: editorSid, state: 'fixing', findings: 2, at: et(13, 20) });
+  // handed back its slot: a question, a story review; and a critic, which is no author
+  author('e-ask');
+  runs.state('e-ask', { sid: editorSid, state: 'waiting', outcome: 'which one?', at: et(13, 30) });
+  author('e-story');
+  runs.state('e-story', { sid: editorSid, state: 'review', outcome: 'story abc', at: et(13, 31) });
+  runs.start({
+    sid: editorSid,
+    name: 'e-critic',
+    kind: 'critic',
+    task: 'review e-run',
+    repo: 'acme/widgets',
+    at: et(13, 40),
+  });
+  // silent for over a day while running: the real sweep (below) stops it, so it is no author and holds no slot
+  author('e-swept', {}, new Date(NOW.getTime() - 30 * 3600 * 1000));
+  // parked at its plan check for over a day: the sweep leaves it (it waits on a person), but it is stale, so it is no
+  // author of the editor's and holds no slot
+  author('e-stale', {}, new Date(NOW.getTime() - 31 * 3600 * 1000));
+  runs.state('e-stale', {
+    sid: editorSid,
+    state: 'plan',
+    outcome: 'plan ready',
+    at: new Date(NOW.getTime() - 30 * 3600 * 1000),
+  });
+  // an author launched from another session, on a card the editor's session claimed: the editor's too, through the claim
+  writeFileSync(
+    path.join(home, 'backlog.jsonl'),
+    [
+      {
+        op: 'add',
+        id: 'bl_ddddd01',
+        title: 'Claimed by the editor',
+        note: null,
+        repo: 'acme/widgets',
+        branch: null,
+        by: 'cli',
+        at: et(12, 0).toISOString(),
+      },
+      {
+        op: 'claim',
+        id: 'bl_ddddd01',
+        agent: 'e-claimed',
+        sid: editorSid,
+        session: fullId(editorChild.pid),
+        by: 'editor',
+        at: et(12, 1).toISOString(),
+      },
+    ]
+      .map((event) => JSON.stringify(event))
+      .join('\n') + '\n',
+  );
+  runs.start({
+    sid: '77777777',
+    name: 'e-claimed',
+    kind: 'author',
+    task: 'build e-claimed',
+    card: 'bl_ddddd01',
+    at: et(13, 5),
+  });
+  // the editor has 4 slots and 4 authors hold them (e-run, e-plan, e-fix and e-claimed, whose card its session claimed):
+  // `in_use` 4 of 4. Not counted: e-ask and e-story (handed back), e-critic, e-swept (stopped by the sweep) and e-stale
+  runs.sweep({ at: NOW });
+  const { watcher } = fakeWatcher([], {});
+  const board = new Board(home, new StoryStore({ home }), watcher, new Builds(home), {
+    source: sourceSaying({}),
+    now: () => NOW,
+    repoOf,
+  });
+  await record('6-editors', board);
+}
+
 // ---- normalize paths and pids
 export const snapshots: Record<string, string> = {};
 for (const [name, value] of Object.entries(results)) {

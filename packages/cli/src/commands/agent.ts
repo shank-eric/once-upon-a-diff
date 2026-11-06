@@ -13,18 +13,20 @@ import type { AgentKind } from '@once-upon-a-diff/state/records/agents/agent-typ
 import { canonicalKind } from '@once-upon-a-diff/state/records/agents/events';
 import { lastActivity } from '@once-upon-a-diff/state/records/agents/ledger';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
+import { agentKey } from '@once-upon-a-diff/state/queues/backlog/claims';
 import { BacklogStore, cardLookup } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { out } from '../output.ts';
 import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
 
 const USAGE =
-  'usage: once-upon agent start NAME [--kind author|critic|helper|research|editor | --role author|fixer|critic|storyteller|helper|research] [--standing] --task TEXT|--task-file PATH [--sid SID8] [--model M] [--effort E]\n' +
-  '                             [--repo owner/name] [--branch NAME] [--pr N] [--cwd DIR] [--card ID] [--lane NAME] [--notes PATH] [--slots N]\n' +
+  'usage: once-upon agent start NAME [--kind author|critic|helper|research | --role author|fixer|critic|storyteller|helper|research] [--standing] --task TEXT|--task-file PATH [--sid SID8] [--model M] [--effort E]\n' +
+  '                             [--repo owner/name] [--branch NAME] [--pr N] [--cwd DIR] [--card ID] [--lane NAME] [--notes PATH]\n' +
   '       once-upon agent state NAME --state running|waiting|review|plan|fixing [--outcome TEXT|--outcome-file PATH] [--findings N] [--notes PATH] [--sid SID8] [--run ID]\n' +
   '       once-upon agent beat NAME N/M STEP [NOTE...] [--sid SID8] [--no-mirror]\n' +
   '       once-upon agent finish NAME [--state done|failed|stopped] [--outcome TEXT|--outcome-file PATH] [--commit SHA] [--pr N] [--branch NAME] [--card ID] [--findings N] [--notes PATH] [--sid SID8] [--run ID]\n' +
   '                              with none of --commit, --pr, --branch and --card, a registered branch that moved since the start is recorded as the result\n' +
+  '       once-upon agent sweep [--dry-run]\n' +
   '       once-upon agent list [--all] [--json]';
 
 /** `--role` names what a run does on a card; the kind is what the board and the registry know it as. */
@@ -58,6 +60,20 @@ function agent(home: string, _cfg: Config, opts: CliOpts) {
   // a subagent's own session breaks a tie between two sessions' open runs of one name (its sid is unknown to it otherwise)
   const prefer = ownSession()?.slice(0, 8) ?? null;
   const who = text(opts.by);
+  if (verb === 'sweep') {
+    // runs silent for a day that owe beats are closed (registry.ts `sweep`); `agent start` does the same as it writes
+    const swept = registry.sweep({ dryRun: !!opts['dry-run'] });
+    return out(
+      swept.length
+        ? swept
+            .map(
+              (one) =>
+                `${agentKey(one)} ${opts['dry-run'] ? 'would be stopped' : 'stopped'}: silent since ${lastActivity(one)?.toISOString() ?? 'its start'}`,
+            )
+            .join('\n')
+        : 'Nothing to sweep.',
+    );
+  }
   if (verb === 'list') {
     const now = Date.now();
     const agents = registry
@@ -85,6 +101,10 @@ function agent(home: string, _cfg: Config, opts: CliOpts) {
     throw new Error(USAGE);
   }
   if (verb === 'start') {
+    // an editor is not an agent: it registers through `editor start`, where its slots are required
+    if (canonicalKind(text(opts.kind)) === 'editor' || opts.slots !== undefined) {
+      throw new Error('register an editor with: once-upon editor start --slots N');
+    }
     const session = ownSession();
     const cwd = path.resolve(text(opts.cwd) ?? process.cwd());
     const card = text(opts.card);
@@ -99,6 +119,7 @@ function agent(home: string, _cfg: Config, opts: CliOpts) {
     if (role && NEEDS_CARD.includes(role) && !card) {
       throw new Error(`a ${role} works on a card: pass --card ID`);
     }
+    registry.sweep();
     const started = registry.start(
       {
         name,
@@ -118,7 +139,6 @@ function agent(home: string, _cfg: Config, opts: CliOpts) {
         card,
         lane: text(opts.lane),
         notes: text(opts.notes),
-        slots: text(opts.slots),
         by: who,
       },
       warn,
@@ -181,14 +201,16 @@ function agent(home: string, _cfg: Config, opts: CliOpts) {
 export const agentCommands: Command[] = [
   {
     name: 'agent',
-    subs: ['start', 'state', 'beat', 'finish', 'list'],
+    subs: ['start', 'state', 'beat', 'finish', 'sweep', 'list'],
     usage: [
-      '  once-upon agent start NAME --kind author|critic|helper|research|editor --task TEXT   register an agent the board shows (its sid comes from the session; prints its id and run)',
+      '  once-upon agent start NAME --kind author|critic|helper|research --task TEXT   register an agent the board shows (its sid comes from the session; prints its id and run)',
       '                                                                                   --card ID: the card it works on, whose repo and branch it takes (a critic, fixer or storyteller needs one; --role says which); --repo, --branch, --lane and --pr then say nothing the card does not',
       '                                                                                   --standing: a long-lived helper (the backlog clerk), in the Helpers row, never a card; put it before another flag. A restart of the same name may leave out --kind and --standing: they carry over (--standing false clears it)',
       '  once-upon agent state NAME --state running|waiting|review|plan|fixing            move it: a plan to check, a question, parked on a story review, fixing findings',
       '  once-upon agent beat NAME N/M STEP [NOTE...]                                     a progress beat, and a sign of life',
       '  once-upon agent finish NAME [--state done|failed|stopped] [--outcome TEXT]       it is over: --commit, --pr, --branch and --card say what it made',
+      '  once-upon agent sweep [--dry-run]                                                stop runs silent for 24 hours that owe beats (running or fixing); agent start does it as it writes',
+      '                                                                                   only authors and critics; never one parked on a question, plan or review, nor a helper of any kind or an editor',
       '  once-upon agent list [--all] [--json]                                            the registered agents (open ones, or all)',
     ],
     run: agent,

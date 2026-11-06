@@ -208,6 +208,7 @@ export const COMMAND_AREAS: Record<string, Area> = {
   reviewed: 'Review',
   backlog: 'Backlog',
   agent: 'Ledger and agent registry',
+  editor: 'Ledger and agent registry',
   inbox: 'Inbox, Q&A, fix and build requests',
   wait: 'Inbox, Q&A, fix and build requests',
   ask: 'Inbox, Q&A, fix and build requests',

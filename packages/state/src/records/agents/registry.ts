@@ -103,6 +103,14 @@ export interface FinishInput extends Target {
   notes?: string | null;
 }
 
+/** The states a sweep closes: a run that owes beats. One parked on a person (waiting, review, plan) is never swept. */
+const SWEPT_STATES: LedgerAgent['state'][] = ['running', 'fixing'];
+/**
+ * The kinds a sweep closes: work and check runs (an author's, a critic's), which beat. A helper of any kind is never swept: it
+ * idles between requests, a storyteller registers as one, and the live editor skill still registers the editor as one.
+ */
+const SWEPT_KINDS: (LedgerAgent['kind'] & string)[] = ['author', 'critic'];
+
 /** The files the registry mirrors its events into as log lines, from the board settings. */
 export interface Mirror {
   ledger: string | null;
@@ -220,6 +228,47 @@ export class AgentRegistry {
     return best;
   }
 
+  /**
+   * Closes the runs that have gone quiet: open and `running` or `fixing` (they owe beats), with no event for STALE_MS, each by a
+   * `finish --state stopped --by sweep` so the ledger's last line for it closes. Never a run parked on a person (waiting, review
+   * or plan: a weekend over a question is not a dead run, and finishing it would refuse its own finish when it resumes), a
+   * helper of any kind, a researcher or an editor (an editor beats nothing while its authors work). Only authors and critics are
+   * closed (SWEPT_KINDS). Returns the runs it
+   * closed (or, with `dryRun`, would). Only the CLI calls it, on `agent start` and `agent sweep`: a board read never writes.
+   */
+  sweep(options: { at?: Date; dryRun?: boolean } = {}): LedgerAgent[] {
+    const now = options.at ?? new Date();
+    const swept: LedgerAgent[] = [];
+    for (const agent of this.agents()) {
+      const sign = lastActivity(agent)?.getTime() ?? now.getTime();
+      if (
+        !SWEPT_STATES.includes(agent.state) ||
+        !SWEPT_KINDS.includes(agent.kind as never) ||
+        agent.standing ||
+        now.getTime() - sign <= STALE_MS
+      ) {
+        continue;
+      }
+      if (!options.dryRun) {
+        try {
+          this.finish(agent.name, {
+            sid: agent.sid,
+            run: agent.run,
+            state: 'stopped',
+            outcome: 'no sign of life for 24 hours',
+            by: 'sweep',
+            at: now,
+          });
+        } catch {
+          // another writer closed it first: the run is over either way
+          continue;
+        }
+      }
+      swept.push(agent);
+    }
+    return swept;
+  }
+
   start(input: StartInput, warn?: (text: string) => void): { id: string; run: string } {
     const name = optional(input.name, 'the name', AGENT_NAME_RE);
     if (!name) {
@@ -243,7 +292,7 @@ export class AgentRegistry {
     }
     const slots = count(input.slots, 'the slots', 99);
     if (slots !== null && (kind !== 'editor' || slots < 1)) {
-      throw new Error('--slots is for an editor (--kind editor), 1 to 99');
+      throw new Error('--slots is for an editor (once-upon editor start --slots N), 1 to 99');
     }
     const run = `r_${randomBytes(5).toString('hex')}`;
     let pr = count(input.pr, 'the PR number');
@@ -328,7 +377,8 @@ export class AgentRegistry {
       card: cardId,
       lane,
       notes: clean(input.notes, 'the notes path', 500) || null,
-      ...(kind === 'editor' ? { slots: slots ?? DEFAULT_SLOTS } : {}),
+      // a restart that leaves --slots out keeps the editor's earlier slots
+      ...(kind === 'editor' ? { slots: slots ?? earlier?.slots ?? DEFAULT_SLOTS } : {}),
     });
     return { id: `${sid}:${name}`, run };
   }

@@ -15,6 +15,7 @@ import { fetchHealth } from '@once-upon-a-diff/adapters/bridge-health';
 import { readExtensionSeen } from './bridge.ts';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { cardRunProblems } from '@once-upon-a-diff/state/queues/backlog/phase';
+import { claimWorktreeProblems } from '@once-upon-a-diff/state/queues/backlog/claim-worktree';
 import { readAgents } from '@once-upon-a-diff/state/records/agents/read';
 
 type Level = 'PASS' | 'WARN' | 'FAIL';
@@ -148,11 +149,11 @@ export async function doctor(
     );
   }
   // every run is a run of one card, and says nothing the card does not (ADR-25)
-  const problems = cardRunProblems(
-    new BacklogStore(home).items(),
-    readAgents(home).agents,
-    Date.now(),
-  );
+  const items = new BacklogStore(home).items();
+  const problems = [
+    ...cardRunProblems(items, readAgents(home).agents, Date.now()),
+    ...claimWorktreeProblems(items),
+  ];
   add(
     problems.length ? 'WARN' : 'PASS',
     'Card runs',

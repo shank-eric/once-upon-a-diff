@@ -1,5 +1,5 @@
 /**
- * Editors and their authors: the board shows each editor (a session that registered with `agent start --kind editor`)
+ * Editors and their authors: the board shows each editor (a session that registered with `editor start --slots N`)
  * with the authors launched under its session, and says on each author which editor controls it. No overall agent
  * count: the header's author chip is gone, and a slot is the editor's own.
  */
@@ -215,23 +215,22 @@ test('a resumed author for a fix round is an author again once the editor starts
   const home = tmp('editors-fix-home');
   const env = { CLAUDE_CODE_SESSION_ID: EDITOR_SESSION };
   const run = (...args: string[]) => runCli(home, ['agent', ...args], env);
-  assert.equal(
-    (
-      await run(
-        'start',
-        'editor-widgets',
-        '--kind',
-        'editor',
-        '--slots',
-        '3',
-        '--task',
-        'editor',
-        '--repo',
-        'acme/widgets',
-      )
-    ).code,
-    0,
+  const registered = await runCli(
+    home,
+    [
+      'editor',
+      'start',
+      'editor-widgets',
+      '--slots',
+      '3',
+      '--task',
+      'editor',
+      '--repo',
+      'acme/widgets',
+    ],
+    env,
   );
+  assert.equal(registered.code, 0, registered.stderr);
   assert.equal((await run('start', 'ou-a', '--kind', 'builder', '--task', 'build it')).code, 0);
   assert.equal((await run('finish', 'ou-a', '--state', 'done', '--outcome', 'built')).code, 0);
   // the author is over: a fix round cannot be announced on it
@@ -269,23 +268,22 @@ test('a resumed author for a fix round is an author again once the editor starts
   );
 });
 
-test('an editor registers through the CLI without a ledger line (it is no agent), `agent list` shows it, --slots is refused for an author', async () => {
+test('an editor registers through `editor start` without a ledger line (it is no agent), `agent list` shows it, `agent start` refuses --slots and --kind editor', async () => {
   const home = tmp('editors-cli');
   const ledger = path.join(tmp('editors-cli-notes'), 'ledger.md');
   writeJson(path.join(home, 'config.json'), { board_ledger_file: ledger });
   const run = (...args: string[]) => runCli(home, ['agent', ...args]);
-  const started = await run(
+  const started = await runCli(home, [
+    'editor',
     'start',
     'editor-widgets',
-    '--kind',
-    'editor',
     '--slots',
     '4',
     '--sid',
     EDITOR_SID,
     '--task',
     'editor for widgets',
-  );
+  ]);
   assert.equal(started.code, 0, started.stderr);
   assert.match(started.stdout, new RegExp(`^${EDITOR_SID}:editor-widgets r_`));
   const built = await run(
@@ -329,6 +327,18 @@ test('an editor registers through the CLI without a ledger line (it is no agent)
   );
   assert.notEqual(refused.code, 0);
   assert.match(refused.stderr, /slots/);
+  const asEditor = await run(
+    'start',
+    'ou-c',
+    '--kind',
+    'editor',
+    '--sid',
+    EDITOR_SID,
+    '--task',
+    'x',
+  );
+  assert.notEqual(asEditor.code, 0);
+  assert.match(asEditor.stderr, /editor start/);
 });
 
 test('two editors on one repo are told apart by their sessions, each with its own authors and slots', async () => {

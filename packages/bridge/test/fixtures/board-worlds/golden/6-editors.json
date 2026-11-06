@@ -1,0 +1,621 @@
+{
+  "board": {
+    "at": "2026-10-26T19:00:00.000Z",
+    "blank": [],
+    "editors": [
+      {
+        "authors": [
+          {
+            "beat": {
+              "n": 3,
+              "note": "",
+              "of": 6,
+              "step": "code"
+            },
+            "key": "<PID:19>:e-run",
+            "name": "e-run",
+            "review": false,
+            "state": "running",
+            "task": "build e-run"
+          },
+          {
+            "beat": null,
+            "key": "<PID:19>:e-plan",
+            "name": "e-plan",
+            "review": false,
+            "state": "plan",
+            "task": "build e-plan"
+          },
+          {
+            "beat": null,
+            "key": "<PID:19>:e-fix",
+            "name": "e-fix",
+            "review": false,
+            "state": "fixing",
+            "task": "build e-fix"
+          },
+          {
+            "beat": null,
+            "key": "<PID:19>:e-ask",
+            "name": "e-ask",
+            "review": false,
+            "state": "waiting",
+            "task": "build e-ask"
+          },
+          {
+            "beat": null,
+            "key": "<PID:19>:e-story",
+            "name": "e-story",
+            "review": true,
+            "state": "waiting",
+            "task": "build e-story"
+          },
+          {
+            "beat": null,
+            "key": "77777777:e-claimed",
+            "name": "e-claimed",
+            "review": false,
+            "state": "running",
+            "task": "build e-claimed"
+          }
+        ],
+        "can_focus": false,
+        "in_use": 4,
+        "label": "widgets",
+        "lane": "acme/widgets",
+        "name": "editor-widgets",
+        "session": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
+        "since": "2026-10-26T13:00:00.000Z",
+        "slots": 4,
+        "title": "editor-tab"
+      }
+    ],
+    "helpers": [],
+    "lanes": [
+      {
+        "cards": [
+          {
+            "agents": [],
+            "branch": "main",
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "working",
+            "detail": null,
+            "focus_session": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
+            "kind": "session",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [
+              {
+                "branch": "main",
+                "context": null,
+                "cwd": "<WORK>/checkout-26",
+                "detail": null,
+                "focus": false,
+                "id": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
+                "rested_at": null,
+                "since": "2026-10-26T18:50:00.000Z",
+                "source": "registry",
+                "status": "working",
+                "title": "editor-tab"
+              }
+            ],
+            "since": "2026-10-26T18:50:00.000Z",
+            "story": null,
+            "title": "editor-tab"
+          },
+          {
+            "agents": [
+              {
+                "beat": {
+                  "n": 3,
+                  "note": "",
+                  "of": 6,
+                  "step": "code"
+                },
+                "clears_at": null,
+                "editor": {
+                  "can_focus": false,
+                  "label": "widgets",
+                  "lane": "acme/widgets",
+                  "session": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
+                  "title": "editor-tab"
+                },
+                "ended_at": null,
+                "gate": null,
+                "key": "<PID:19>:e-run",
+                "kind": "author",
+                "model": null,
+                "name": "e-run",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "<PID:19>",
+                "stale": false,
+                "started_at": "2026-10-26T17:00:00.000Z",
+                "state": "running",
+                "status": "working",
+                "summary": null,
+                "task": "build e-run"
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "working",
+            "detail": "build e-run",
+            "focus_session": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "agent:<PID:19>:e-run",
+            "kind": "agent",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": "Editor · widgets",
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T17:00:00.000Z",
+            "story": null,
+            "title": "e-run"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": {
+                  "can_focus": false,
+                  "label": "widgets",
+                  "lane": "acme/widgets",
+                  "session": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
+                  "title": "editor-tab"
+                },
+                "ended_at": "2026-10-26T17:10:00.000Z",
+                "gate": {
+                  "findings": null,
+                  "kind": "plan"
+                },
+                "key": "<PID:19>:e-plan",
+                "kind": "author",
+                "model": null,
+                "name": "e-plan",
+                "notes": null,
+                "outcome": "plan ready",
+                "review": false,
+                "sid": "<PID:19>",
+                "stale": false,
+                "started_at": "2026-10-26T17:00:00.000Z",
+                "state": "plan",
+                "status": "working",
+                "summary": null,
+                "task": "build e-plan"
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "checks",
+            "detail": "plan ready",
+            "focus_session": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "agent:<PID:19>:e-plan",
+            "kind": "agent",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": "Editor · widgets",
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T17:10:00.000Z",
+            "story": null,
+            "title": "e-plan"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": {
+                  "can_focus": false,
+                  "label": "widgets",
+                  "lane": "acme/widgets",
+                  "session": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
+                  "title": "editor-tab"
+                },
+                "ended_at": "2026-10-26T17:20:00.000Z",
+                "gate": {
+                  "findings": 2,
+                  "kind": "fixing"
+                },
+                "key": "<PID:19>:e-fix",
+                "kind": "author",
+                "model": null,
+                "name": "e-fix",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "<PID:19>",
+                "stale": false,
+                "started_at": "2026-10-26T17:00:00.000Z",
+                "state": "fixing",
+                "status": "working",
+                "summary": null,
+                "task": "build e-fix"
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "checks",
+            "detail": null,
+            "focus_session": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "agent:<PID:19>:e-fix",
+            "kind": "agent",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": "Editor · widgets",
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T17:20:00.000Z",
+            "story": null,
+            "title": "e-fix"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": {
+                  "can_focus": false,
+                  "label": "widgets",
+                  "lane": "acme/widgets",
+                  "session": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
+                  "title": "editor-tab"
+                },
+                "ended_at": "2026-10-26T17:30:00.000Z",
+                "gate": null,
+                "key": "<PID:19>:e-ask",
+                "kind": "author",
+                "model": null,
+                "name": "e-ask",
+                "notes": null,
+                "outcome": "which one?",
+                "review": false,
+                "sid": "<PID:19>",
+                "stale": false,
+                "started_at": "2026-10-26T17:00:00.000Z",
+                "state": "waiting",
+                "status": "waiting",
+                "summary": null,
+                "task": "build e-ask"
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "waiting",
+            "detail": "which one?",
+            "focus_session": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "agent:<PID:19>:e-ask",
+            "kind": "agent",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": "Editor · widgets",
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T17:30:00.000Z",
+            "story": null,
+            "title": "e-ask"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": {
+                  "can_focus": false,
+                  "label": "widgets",
+                  "lane": "acme/widgets",
+                  "session": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
+                  "title": "editor-tab"
+                },
+                "ended_at": "2026-10-26T17:31:00.000Z",
+                "gate": null,
+                "key": "<PID:19>:e-story",
+                "kind": "author",
+                "model": null,
+                "name": "e-story",
+                "notes": null,
+                "outcome": "story abc",
+                "review": true,
+                "sid": "<PID:19>",
+                "stale": false,
+                "started_at": "2026-10-26T17:00:00.000Z",
+                "state": "waiting",
+                "status": "waiting",
+                "summary": null,
+                "task": "build e-story"
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "ready",
+            "detail": "story abc",
+            "focus_session": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "agent:<PID:19>:e-story",
+            "kind": "agent",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": "Editor · widgets",
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T17:31:00.000Z",
+            "story": null,
+            "title": "e-story"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": null,
+                "ended_at": null,
+                "gate": {
+                  "findings": null,
+                  "kind": "review"
+                },
+                "key": "<PID:19>:e-critic",
+                "kind": "critic",
+                "model": null,
+                "name": "e-critic",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "<PID:19>",
+                "stale": false,
+                "started_at": "2026-10-26T17:40:00.000Z",
+                "state": "running",
+                "status": "working",
+                "summary": null,
+                "task": "review e-run"
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "checks",
+            "detail": "review e-run",
+            "focus_session": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "agent:<PID:19>:e-critic",
+            "kind": "agent",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": "editor-tab",
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T17:40:00.000Z",
+            "story": null,
+            "title": "e-critic"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": "2026-10-26T20:00:00.000Z",
+                "editor": {
+                  "can_focus": false,
+                  "label": "widgets",
+                  "lane": "acme/widgets",
+                  "session": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
+                  "title": "editor-tab"
+                },
+                "ended_at": "2026-10-26T19:00:00.000Z",
+                "gate": null,
+                "key": "<PID:19>:e-swept",
+                "kind": "author",
+                "model": null,
+                "name": "e-swept",
+                "notes": null,
+                "outcome": "no sign of life for 24 hours",
+                "review": false,
+                "sid": "<PID:19>",
+                "stale": false,
+                "started_at": "2026-10-25T13:00:00.000Z",
+                "state": "stopped",
+                "status": "done",
+                "summary": {
+                  "did": "build e-swept",
+                  "why": "stopped"
+                },
+                "task": "build e-swept"
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "waiting",
+            "detail": "no sign of life for 24 hours",
+            "focus_session": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "agent:<PID:19>:e-swept",
+            "kind": "agent",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": "Editor · widgets",
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-26T19:00:00.000Z",
+            "story": null,
+            "title": "e-swept"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": {
+                  "can_focus": false,
+                  "label": "widgets",
+                  "lane": "acme/widgets",
+                  "session": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
+                  "title": "editor-tab"
+                },
+                "ended_at": "2026-10-25T13:00:00.000Z",
+                "gate": {
+                  "findings": null,
+                  "kind": "plan"
+                },
+                "key": "<PID:19>:e-stale",
+                "kind": "author",
+                "model": null,
+                "name": "e-stale",
+                "notes": null,
+                "outcome": "plan ready",
+                "review": false,
+                "sid": "<PID:19>",
+                "stale": true,
+                "started_at": "2026-10-25T12:00:00.000Z",
+                "state": "plan",
+                "status": "working",
+                "summary": null,
+                "task": "build e-stale"
+              }
+            ],
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "checks",
+            "detail": "plan ready",
+            "focus_session": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
+            "id": "agent:<PID:19>:e-stale",
+            "kind": "agent",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": "Editor · widgets",
+            "pr": null,
+            "repo": null,
+            "sessions": [],
+            "since": "2026-10-25T13:00:00.000Z",
+            "story": null,
+            "title": "e-stale"
+          },
+          {
+            "agents": [
+              {
+                "beat": null,
+                "clears_at": null,
+                "editor": {
+                  "can_focus": false,
+                  "label": "widgets",
+                  "lane": "acme/widgets",
+                  "session": "<PID:19>-aaaa-bbbb-cccc-dddddddddddd",
+                  "title": "editor-tab"
+                },
+                "ended_at": null,
+                "gate": null,
+                "key": "77777777:e-claimed",
+                "kind": "author",
+                "model": null,
+                "name": "e-claimed",
+                "notes": null,
+                "outcome": null,
+                "review": false,
+                "sid": "77777777",
+                "stale": false,
+                "started_at": "2026-10-26T17:05:00.000Z",
+                "state": "running",
+                "status": "working",
+                "summary": null,
+                "task": "build e-claimed"
+              }
+            ],
+            "backlog": {
+              "added_by": "cli",
+              "agent": {
+                "links": {
+                  "active": true,
+                  "agent": {
+                    "beat": null,
+                    "ended_at": null,
+                    "name": "e-claimed",
+                    "outcome": null,
+                    "state": "running"
+                  },
+                  "merged": false,
+                  "merged_at": null,
+                  "sessions": [],
+                  "worktrees": []
+                },
+                "tried": false
+              },
+              "assign": null,
+              "assigned": null,
+              "claim": {
+                "agent": "e-claimed",
+                "at": "2026-10-26T16:01:00.000Z",
+                "pending": false
+              },
+              "id": "bl_ddddd01",
+              "start_line": "once-upon backlog start bl_ddddd01 --branch <branch>",
+              "started": null
+            },
+            "branch": null,
+            "build": null,
+            "building": null,
+            "can_focus": false,
+            "column": "working",
+            "detail": null,
+            "focus_session": null,
+            "id": "backlog:bl_ddddd01",
+            "kind": "backlog",
+            "lane": "acme/widgets",
+            "listening": null,
+            "parent": null,
+            "pr": null,
+            "repo": "acme/widgets",
+            "sessions": [],
+            "since": "2026-10-26T16:00:00.000Z",
+            "story": null,
+            "title": "Claimed by the editor"
+          }
+        ],
+        "key": "acme/widgets",
+        "name": "widgets"
+      }
+    ],
+    "listeners": [],
+    "phone": null,
+    "status_source": "iterm",
+    "usage": null,
+    "voice": null,
+    "voice_paused": false,
+    "voice_start": null,
+    "warning": null,
+    "worktrees": {
+      "at": null,
+      "items": [],
+      "on_cards": 0,
+      "prunable": [],
+      "removable": 0,
+      "scanning": true,
+      "size_kb": "<kb>",
+      "total": 0
+    }
+  }
+}

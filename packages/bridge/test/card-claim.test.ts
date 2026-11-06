@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { claimAt, registerRuns, runCli, tmp, writeJson, type AgentRun } from './helpers.ts';
+import { worktreeFixture } from '@once-upon-a-diff/test-kit/git';
+import { claimWorktreeProblems } from '@once-upon-a-diff/state/queues/backlog/claim-worktree';
 import { Board, noPrWatcher } from '@once-upon-a-diff/board/board';
 import { BacklogStore, backlogCards } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import {
@@ -512,4 +514,77 @@ test('a fix round at its plan stop holds the card in Agent checks, one asking ho
     at: stamp(20),
   });
   assert.equal(hold(stamp(21)), 'waiting', 'a question is for you');
+});
+
+const EDITOR_SESSION = 'abcdef01-1111-4222-8333-444444444444';
+
+test('a claim records the editor’s full session, and an old claim with none folds with a null one', async () => {
+  const home = tmp('claim-session');
+  const store = new BacklogStore(home);
+  const old = store.add({ title: 'Old style', repo: 'acme/widgets' });
+  store.claim(old.id, { agent: 'ou-old' });
+  assert.equal(store.items()[0].claim?.session ?? null, null);
+  assert.equal(store.items()[0].claim?.worktree ?? null, null);
+  const item = store.add({ title: 'Edited', repo: 'acme/widgets' });
+  const claimed = await runCli(
+    home,
+    ['backlog', 'claim', item.id, '--agent', 'ou-new', '--sid', 'abcdef01'],
+    { CLAUDE_CODE_SESSION_ID: EDITOR_SESSION },
+  );
+  assert.equal(claimed.code, 0, claimed.stderr);
+  const claim = store.items().find((one) => one.id === item.id)?.claim;
+  assert.equal(claim?.session, EDITOR_SESSION);
+  assert.equal(claim?.sid, 'abcdef01');
+  assert.equal(claim?.agent, 'ou-new');
+});
+
+test('claim --worktree must be a worktree on the claimed branch of the card’s repo; without it nothing is checked', async () => {
+  const home = tmp('claim-worktree');
+  const store = new BacklogStore(home);
+  const { main, add } = worktreeFixture();
+  const tree = add('feat-x');
+  add('other-branch');
+  const item = store.add({ title: 'Wt card', repo: 'acme/widgets' });
+  const claim = (...args: string[]) =>
+    runCli(home, ['backlog', 'claim', item.id, '--agent', 'ou-wt', ...args], {
+      CLAUDE_CODE_SESSION_ID: EDITOR_SESSION,
+    });
+  const notATree = await claim('--branch', 'feat-x', '--worktree', tmp('not-a-worktree'));
+  assert.notEqual(notATree.code, 0);
+  assert.match(notATree.stderr, /worktree/);
+  // a folder inside a worktree is not a worktree
+  const inside = await claim('--branch', 'feat-x', '--worktree', path.join(tree, 'sub'));
+  assert.notEqual(inside.code, 0);
+  const wrongBranch = await claim('--branch', 'feat-y', '--worktree', tree);
+  assert.notEqual(wrongBranch.code, 0);
+  assert.match(wrongBranch.stderr, /feat-x/);
+  assert.equal(store.items()[0].claim, null, 'a refused claim writes nothing');
+  const ok = await claim('--branch', 'feat-x', '--worktree', tree);
+  assert.equal(ok.code, 0, ok.stderr);
+  assert.equal(store.items()[0].claim?.worktree, tree);
+  // the main checkout is a worktree too, but of another repo's card it is refused
+  const other = store.add({ title: 'Other repo', repo: 'acme/gadgets' });
+  const wrongRepo = await runCli(
+    home,
+    ['backlog', 'claim', other.id, '--agent', 'ou-wt2', '--worktree', main],
+    { CLAUDE_CODE_SESSION_ID: EDITOR_SESSION },
+  );
+  assert.notEqual(wrongRepo.code, 0);
+  assert.match(wrongRepo.stderr, /acme\/gadgets/);
+  // no --worktree: nothing to check
+  const bare = await runCli(home, ['backlog', 'claim', other.id, '--agent', 'ou-wt2']);
+  assert.equal(bare.code, 0, bare.stderr);
+});
+
+test('doctor lists a live claim whose worktree git no longer knows, and none for one that is there', () => {
+  const store = new BacklogStore(tmp('claim-doctor'));
+  const { add } = worktreeFixture();
+  const tree = add('feat-x');
+  const here = store.add({ title: 'There', repo: 'acme/widgets' });
+  const gone = store.add({ title: 'Gone', repo: 'acme/widgets' });
+  store.claim(here.id, { agent: 'ou-a', worktree: tree });
+  store.claim(gone.id, { agent: 'ou-b', worktree: path.join(tree, '..', 'removed') });
+  const problems = claimWorktreeProblems(store.items());
+  assert.equal(problems.length, 1);
+  assert.match(problems[0], new RegExp(gone.id));
 });

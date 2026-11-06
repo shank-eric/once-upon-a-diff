@@ -2,10 +2,13 @@
  * The backlog from the terminal: `once-upon backlog add|list|show|edit|start|claim|done|land|hold|someday|drop|reopen`. It reads and writes the backlog file
  * (state/src/queues/backlog/backlog.ts) in-process, so nothing goes over HTTP; the board shows the items as its Backlog column.
  */
+import path from 'node:path';
 import { formatTime, DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
 import { repoOfCheckout, currentBranch, sameRepo } from '@once-upon-a-diff/foundation/repos';
 
 import { BacklogStore, claimHint } from '@once-upon-a-diff/state/queues/backlog/backlog';
+import { claimWorktreeProblem } from '@once-upon-a-diff/state/queues/backlog/claim-worktree';
+import { ownSession } from '@once-upon-a-diff/core/features/listeners/service';
 import { landItems, recordedTips } from '@once-upon-a-diff/state/queues/backlog/landing';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { out } from '../output.ts';
@@ -19,7 +22,7 @@ const USAGE =
   '       once-upon backlog show ID\n' +
   '       once-upon backlog edit ID [--title TEXT] [--note TEXT | --note-file PATH | --note -] [--repo owner/name]\n' +
   '       once-upon backlog start ID [--branch NAME] [--repo owner/name] [--by NAME]\n' +
-  '       once-upon backlog claim ID --agent NAME [--sid SID8] [--branch NAME] [--repo owner/name] [--by NAME]\n' +
+  '       once-upon backlog claim ID --agent NAME [--sid SID8] [--branch NAME] [--worktree PATH] [--repo owner/name] [--by NAME]\n' +
   '       once-upon backlog move ID --before ID | --top | --bottom\n' +
   '       once-upon backlog done ID [--sha SHA] [--by NAME]\n' +
   '       once-upon backlog land [PICKED_SHA...] --from REF --to REF [--by NAME] [--dry-run]\n' +
@@ -162,7 +165,25 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
         `${item.id} is on ${item.repo}, not ${typedRepo}: edit the card's repo first`,
       );
     }
-    const claimed = store.claim(item.id, { agent, sid: text(opts.sid), by: who ?? agent });
+    // the claimer's full session is the editor's: its slots count the cards it claimed (state/src/queues/backlog/slots.ts). A worktree is
+    // checked against git only when given: the author makes its worktree after the claim
+    const worktree = text(opts.worktree);
+    if (worktree) {
+      const problem = claimWorktreeProblem(worktree, {
+        repo: item.repo,
+        branch: text(opts.branch) ?? item.branch,
+      });
+      if (problem) {
+        throw new Error(problem);
+      }
+    }
+    const claimed = store.claim(item.id, {
+      agent,
+      sid: text(opts.sid),
+      session: ownSession(),
+      worktree: worktree ? path.resolve(worktree) : null,
+      by: who ?? agent,
+    });
     const branch = text(opts.branch);
     if (branch) {
       store.start(item.id, {
@@ -294,6 +315,7 @@ export const backlogCommands: Command[] = [
       '  once-upon backlog move ID --before ID | --top | --bottom                        reorder: new items go to the bottom',
       "  once-upon backlog start ID [--branch NAME]                                       work began: the card moves onto that branch's work card",
       '  once-upon backlog claim ID --agent NAME [--sid SID8] [--branch NAME]            an agent takes the card: the board links card and agent only by this (--branch also starts it)',
+      "                                                                                   it records the claimer's full session (the editor's, whose slots count its cards) and --worktree PATH, checked against git worktree list when given",
     ],
     run: backlog,
   },

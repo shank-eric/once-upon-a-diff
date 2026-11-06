@@ -13,8 +13,9 @@
  *   {op:'reopen', id, by, at}                  a dropped item is open again (a new `start` after a drop is still ignored)
  *   {op:'move',  id, before | edge, by, at}   `before` is another item's id; `edge` is 'top' or 'bottom'
  *   {op:'edit',  id, title?, note?, repo?, by, at}   only the fields that changed; an empty note or repo clears it. An open item only
- *   {op:'claim', id, agent, sid?, by, at}     an agent (named as it registered) owns the card: the one link from a card to an
- *                                              agent (claims.ts). The latest claim wins; a `done` or a reopen clears it
+ *   {op:'claim', id, agent, sid?, session?, worktree?, by, at}   an agent (named as it registered) owns the card: the one link from a card to an
+ *                                              agent (claims.ts). The latest claim wins; a `done` or a reopen clears it. `session` is the
+ *                                              claimer's full session id (the editor's: slots.ts) and `worktree` the checkout path
  *   {op:'hold',  id, on, by, at}              the card lands by hand: a deploy never marks it done (landing.ts), only `done ID` does.
  *                                              `on:false` clears it; a reopen clears it too. Sticky across claims
  *   {op:'someday', id, on, by, at}            maybe someday: an open card with no live claim leaves the main list for the Someday section,
@@ -77,6 +78,15 @@ export interface EditInput {
   repo?: string | null;
 }
 
+/** What a claim records: the agent, and who claimed it (its first 8 and full session) and where the work is, when known. */
+export interface ClaimInput {
+  agent: string;
+  sid?: string | null;
+  session?: string | null;
+  worktree?: string | null;
+  by?: string | null;
+}
+
 export interface AddInput {
   title: string;
   note?: string | null;
@@ -100,7 +110,7 @@ export interface BacklogStorage {
     id: string,
     input: { session: string; branch?: string | null; by?: string | null },
   ): BacklogItem;
-  claim(id: string, input: { agent: string; sid?: string | null; by?: string | null }): BacklogItem;
+  claim(id: string, input: ClaimInput): BacklogItem;
   hold(id: string, held: boolean, who?: string | null): BacklogItem;
   someday(
     id: string,
@@ -179,6 +189,8 @@ export function foldBacklog(text: string): BacklogItem[] {
       found.claim = {
         agent: event.agent,
         sid: event.sid ?? null,
+        session: event.session ?? null,
+        worktree: event.worktree ?? null,
         by: who,
         at: when,
       };
@@ -322,10 +334,7 @@ export class BacklogStore implements BacklogStorage {
   }
 
   /** Records that an agent owns the card: the board links the card to that agent and to nothing else. */
-  claim(
-    id: string,
-    input: { agent: string; sid?: string | null; by?: string | null },
-  ): BacklogItem {
+  claim(id: string, input: ClaimInput): BacklogItem {
     const item = this.find(id);
     if (item.state === 'dropped') {
       throw new Error(`${id} was dropped`);
@@ -339,6 +348,8 @@ export class BacklogStore implements BacklogStorage {
       id,
       agent,
       sid: optional(input.sid, 'the session id', SID_RE),
+      session: optional(input.session, 'the session', SESSION_RE),
+      worktree: clean(input.worktree, 'the worktree', 500) || null,
       by: clean(input.by, 'the name', BY_MAX) || 'cli',
     });
     return this.find(id);
