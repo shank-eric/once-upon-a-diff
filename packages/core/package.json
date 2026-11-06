@@ -2,7 +2,7 @@
   "name": "@once-upon-a-diff/core",
   "version": "0.1.0",
   "private": true,
-  "description": "Once Upon a Diff's core: what the reviewer does with the state and the stories: the features (listeners, publishing, review, sessions) and, over them, the bridge's own start-up and doctor. The HTTP app and the CLI sit on top",
+  "description": "Once Upon a Diff's core: what the reviewer does with the state and the stories: the features (heavy, listeners, publishing, review, sessions) and, over them, the bridge's own start-up and doctor. The HTTP app and the CLI sit on top",
   "license": "MIT",
   "type": "module",
   "engines": {

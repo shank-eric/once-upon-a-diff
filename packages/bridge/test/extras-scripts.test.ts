@@ -49,19 +49,22 @@ test(
 );
 
 test(
-  'require-beats.sh lets a brief with beat.sh or no-beats through and stops one without',
+  'require-beats.sh lets a brief with `once-upon beat` or no-beats through and stops one without',
   { skip: !has('python3') },
   async () => {
     const hook = path.join(ROOT, 'extras/hooks/require-beats.sh');
     const brief = (prompt: string) => JSON.stringify({ tool_input: { prompt } });
-    assert.equal(
-      (await runScript(hook, [], {}, brief('post beats with scripts/beat.sh x 1/6'))).code,
-      0,
-    );
+    for (const prompt of [
+      'post beats with once-upon beat x 1/6',
+      'run fnm exec --using=24 once-upon beat x 1/6 read',
+    ]) {
+      assert.equal((await runScript(hook, [], {}, brief(prompt))).code, 0, prompt);
+    }
     assert.equal((await runScript(hook, [], {}, brief('do it. no-beats'))).code, 0);
     const stopped = await runScript(hook, [], {}, brief('do it'));
     assert.equal(stopped.code, 2);
-    assert.ok(stopped.stderr.includes(path.join(ROOT, 'scripts/beat.sh')));
+    assert.match(stopped.stderr, /once-upon beat <tag> <N>\/<M>/);
+    assert.equal((await runScript(hook, [], {}, brief('use the shell script x 1/6'))).code, 2);
   },
 );
 
@@ -93,3 +96,16 @@ test(
     assert.match(out.content, /2\/5 40%/);
   },
 );
+
+test('the scripts and extras name no personal path', () => {
+  const files = [
+    'scripts/link-skills.sh',
+    'extras/subagent-statusline.py',
+    'extras/statusline-snippet.sh',
+    'extras/hooks/require-beats.sh',
+  ];
+  for (const rel of files) {
+    const text = readFileSync(path.join(ROOT, rel), 'utf8');
+    assert.doesNotMatch(text, /Configuration|ClariFi|\/Users\/|OneDrive|\.larmor|Eric/, rel);
+  }
+});

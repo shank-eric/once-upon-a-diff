@@ -321,7 +321,7 @@ test('no live flow is refused: the agent and backlog row shapes of the 11/6 cens
   fail('drop', await cli('backlog', 'drop', other.id));
   fail('reopen', await cli('backlog', 'reopen', other.id));
 
-  // an author: the alias kind old skills still pass, restarts as a fix round, plan stop, beat.sh's beat, finish with the 11/5 flags
+  // an author: the alias kind old skills still pass, restarts as a fix round, plan stop, a beat, finish with the 11/5 flags
   fail(
     'start builder',
     await cli(

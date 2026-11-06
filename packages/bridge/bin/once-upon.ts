@@ -7,7 +7,8 @@ import { createBridge } from '@once-upon-a-diff/server/index';
 import { setBridgeFactory } from '@once-upon-a-diff/core/orchestration/bridge/bridge';
 
 // what the CLI and the bridge write (~/.once-upon, a checkout's .once-upon) is the user's alone: 0600 files, 0700 folders
-process.umask(0o077);
+// (`once-upon heavy` runs another program: it gets the caller's umask back, so the command's own files keep their modes)
+process.env.ONCE_UPON_CALLER_UMASK = process.umask(0o077).toString(8);
 // the CLI starts the HTTP app (`serve`, and `local` when no bridge is up) without importing it: this is the one place that knows both
 setBridgeFactory(createBridge);
 main(process.argv.slice(2));

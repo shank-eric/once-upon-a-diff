@@ -3,7 +3,7 @@
  * registers an agent and reports on it; each call is an event in <home>/agents.jsonl (state/src/records/agents/events.ts), in-process,
  * and the board reads it from there. When the settings name a ledger or a progress file, each event also appends its
  * log line to it, so those files stay logs written by this command, for people and scripts (the board never reads them).
- * `--no-mirror` skips those lines, for a caller that writes the progress line itself (beat.sh), so one beat is one line. It goes after the words: a flag takes the next word.
+ * `--no-mirror` skips those lines, for a caller that writes the progress line itself, so one beat is one line. It goes after the words: a flag takes the next word.
  */
 import { agentId, isImplicitCard } from '@once-upon-a-diff/domain/ids';
 import path from 'node:path';
@@ -48,7 +48,7 @@ const text = (value: unknown): string | null => (typeof value === 'string' && va
 async function agent(home: string, _cfg: Config, opts: CliOpts) {
   const [verb, name, ...words] = opts._ || [];
   const board = readSettings(home).board;
-  // the caller already wrote the progress line (beat.sh echoes the progress line itself): the event is all this call adds
+  // the caller already wrote the progress line (the caller echoes the progress line itself): the event is all this call adds
   const registry = new AgentRegistry(
     home,
     opts['no-mirror']

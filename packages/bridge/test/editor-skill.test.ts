@@ -48,15 +48,15 @@ test('the README and AGENTS.md name the link script, beats, the heavy lock and t
   const readme = read('README.md');
   for (const name of [
     'scripts/link-skills.sh',
-    'scripts/beat.sh',
-    'scripts/heavy.sh',
+    'once-upon beat',
+    'once-upon heavy',
     'once-upon-editor',
     '~/.once-upon/editor/',
   ]) {
     assert.ok(readme.includes(name), `README names ${name}`);
   }
   const agents = read('AGENTS.md');
-  for (const name of ['scripts/beat.sh', 'scripts/heavy.sh']) {
+  for (const name of ['once-upon beat', 'once-upon heavy']) {
     assert.ok(agents.includes(name), `AGENTS.md names ${name}`);
   }
   assert.doesNotMatch(agents, /~\/Configuration/);

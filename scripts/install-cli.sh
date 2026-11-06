@@ -34,4 +34,4 @@ echo "To remove it: npm unlink -g once-upon-a-diff"
 if [ -n "$skills" ]; then
   "$root/scripts/link-skills.sh"
 fi
-echo "Agents post progress with scripts/beat.sh and take turns on heavy runs with scripts/heavy.sh (see the README's \"Running a build queue\")."
+echo "Agents post progress with once-upon beat and take turns on heavy runs with once-upon heavy (see the README's \"Running a build queue\")."

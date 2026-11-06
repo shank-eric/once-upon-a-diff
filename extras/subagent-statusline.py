@@ -3,7 +3,7 @@
 
 Claude Code runs this for subagentStatusLine with the panel's rows as JSON on
 stdin. Beats come from the file named by `board_progress_file` in Once Upon's config.json
-(<home>/config.json, <home> = $ONCE_UPON_HOME or ~/.once-upon; the CLI's `agent beat` and scripts/beat.sh write it), one line
+(<home>/config.json, <home> = $ONCE_UPON_HOME or ~/.once-upon; the CLI's `beat` and `agent beat` write it), one line
 each: "- 11:02 PM stage-b 4/7 tests: what's done", where 7 is the agent's own step
 count. A beat belongs to an agent when its tag (e.g. "stage-b") appears in the
 agent's name or description, and it isn't timed before the agent started.

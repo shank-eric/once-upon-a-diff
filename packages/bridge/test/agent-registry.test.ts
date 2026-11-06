@@ -239,7 +239,7 @@ test('the CLI round trip: start takes the sid from the session, beat and finish 
   assert.notEqual(noRun.code, 0);
 });
 
-test('--no-mirror: a beat from beat.sh, which writes the progress line itself, is one line and one event', async () => {
+test('--no-mirror: a beat from a caller that writes the progress line itself, is one line and one event', async () => {
   const home = tmp('reg-nomirror');
   const notes = tmp('reg-nomirror-notes');
   const ledger = path.join(notes, 'ledger.md');
@@ -256,7 +256,7 @@ test('--no-mirror: a beat from beat.sh, which writes the progress line itself, i
     env,
   );
   assert.equal(started.code, 0, started.stderr);
-  // beat.sh's own echo, then its detached call to the CLI
+  // the caller's own echo, then its call to the CLI
   const echoed = '- 3:40 PM ou-once 3/6 code: half done';
   writeFileSync(progress, echoed + '\n');
   const beat = await runCli(home, [
@@ -280,7 +280,7 @@ test('--no-mirror: a beat from beat.sh, which writes the progress line itself, i
   );
   // the ledger's start line is still the mirror's, written once
   assert.equal(readFileSync(ledger, 'utf8').trim().split('\n').length, 1);
-  // a note that starts with -- is the beat's note, passed after the -- marker as beat.sh does
+  // a note that starts with -- is the beat's note, passed after the -- marker
   const dashed = await runCli(home, [
     'agent',
     'beat',

@@ -468,6 +468,42 @@ export class AgentRegistry {
     });
   }
 
+  /**
+   * `beat`, except that a beat with no open run to land on (the agent was never registered, or its run is over) still goes to
+   * the progress file: the line is what the subagent panel shows, and a beat must not be lost for a missing registration.
+   * Returns whether the beat landed on a run; the reason it did not is passed to `warn`. A beat that is not a beat still throws.
+   */
+  beatOrLog(name: string, input: BeatInput, warn?: (text: string) => void): boolean {
+    if (!AGENT_NAME_RE.test(name)) {
+      throw new Error('the name is one word of letters, digits, . _ -');
+    }
+    try {
+      this.beat(name, input, warn);
+      return true;
+    } catch (err) {
+      if (!(err as Error).message.startsWith('no open run')) {
+        throw err;
+      }
+      if (this.mirror.progress) {
+        appendLine(
+          this.mirror.progress,
+          beatLine({
+            name,
+            n: Number(input.n),
+            of: Number(input.of),
+            step: input.step,
+            note: clean(input.note, 'the note') || '',
+            at: (input.at ?? new Date()).toISOString(),
+          }),
+        );
+      }
+      warn?.(
+        `once-upon: ${(err as Error).message}${this.mirror.progress ? '; the beat is in the progress file only' : ''}`,
+      );
+      return false;
+    }
+  }
+
   /** Ends the run. Finishing a run that is already over is refused: a fix round is a new run (`agent start`). */
   finish(name: string, input: FinishInput = {}, warn?: (text: string) => void): LedgerAgent {
     const state = input.state ?? 'done';

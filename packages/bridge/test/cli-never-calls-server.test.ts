@@ -147,6 +147,8 @@ const ALLOWED: Record<string, string> = {
     'the same call',
   'kill packages/adapters/src/claude-sessions/live-sessions.ts :: process.kill(live.pid, 0);':
     "signal 0 only asks whether a Claude session's process exists",
+  'kill packages/adapters/src/heavy-lock.ts :: child.kill(signal);':
+    'once-upon heavy hands a SIGINT, SIGTERM or SIGHUP it got to the command it runs, a child of its own (never the bridge)',
   'kill packages/adapters/src/os.ts :: process.kill(pid, 0);':
     'pidAlive: signal 0 only asks whether a process exists',
   "loopback packages/cli/src/commands/bridge.ts :: '  once-upon serve   [--port N]                                  run the bridge on 127.0.0.1',":

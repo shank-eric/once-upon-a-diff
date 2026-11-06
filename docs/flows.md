@@ -19,7 +19,7 @@ Paths are from the repo root. After each `file:line` comes the name you'll find 
 | `contracts` | `packages/contracts`: the route table, the wire types and the schemas, over `packages/domain`, the pure rules that import nothing (the diagram's floor) |
 | `service` | the engine over the adapters, the diagram's one box, in packages (ADR-24, bottom to top): `foundation`, `stories`, `state` (`records/`, `queues/`), `core` (`features/`, `orchestration/`) and `board`, with `usage` beside them: the rules. No side effects of their own |
 | `adapter` | `packages/adapters/src/`, the bottom of that box: every file write, program run and network call. The files they write under `~/.once-upon` are where the server and the CLI meet |
-| `outside` | not this repo's code: a Claude Code session, a skill, `scripts/beat.sh`, `it2` |
+| `outside` | not this repo's code: a Claude Code session, a skill, an agent's own `once-upon beat` call, `it2` |
 
 Two things every HTTP hop shares, written once here:
 
@@ -66,8 +66,8 @@ flowchart LR
 
 | # | Layer | Hop | At |
 |---|---|---|---|
-| 12 | `app` | `once-upon wait --repo` (started by the once-upon-listen skill) enters the CLI | `packages/bridge/bin/once-upon.ts:13` (`main(process.argv.slice(2))`) |
-| 13 | `app` | the command table runs `wait` | `packages/cli/src/index.ts:110` (`entry.run(`) |
+| 12 | `app` | `once-upon wait --repo` (started by the once-upon-listen skill) enters the CLI | `packages/bridge/bin/once-upon.ts:14` (`main(process.argv.slice(2))`) |
+| 13 | `app` | the command table runs `wait` | `packages/cli/src/index.ts:116` (`entry.run(`) |
 | 14 | `service` | each loop asks for build requests to hand over | `packages/core/src/features/listeners/wait.ts:315` (`builds.toHand(consumer`) |
 | 15 | `service` | `Builds.toHand` picks this wait's requests | `packages/state/src/queues/requests/builds.ts:288` (`toHand(`) |
 | 16 | `service` | and claims them in the same locked write, so no other wait gets them | `packages/state/src/queues/requests/queue.ts:201` (`take(consumer: string`) |
@@ -252,7 +252,7 @@ A launching session registers an agent and claims a Backlog card for it. The age
 flowchart LR
   start["agent start"] --> reg[("agents.jsonl")]
   claim["backlog claim"] --> bl[("backlog.jsonl")]
-  beats["scripts/beat.sh → agent beat"] --> reg
+  beats["once-upon beat"] --> reg
   finish["agent finish --commit"] --> reg
   board["board (flow 3)"] -.->|reads| reg
   board -.->|reads| bl
@@ -278,8 +278,8 @@ flowchart LR
 
 | # | Layer | Hop | At |
 |---|---|---|---|
-| 9 | `outside` | the agent runs `scripts/beat.sh <name> N/M <step> "<note>"`, which writes the progress line and calls `once-upon agent beat … --no-mirror` |  |
-| 10 | `app` | `agent beat` | `packages/cli/src/commands/agent.ts:183` (`registry.beat(`) |
+| 9 | `outside` | the agent runs `once-upon beat <name> N/M <step> "<note>"` (`fnm exec --using=24 once-upon beat …` from a shell not on Node 24) |  |
+| 10 | `app` | `beat`, which also writes the progress line for an agent that has no open run (`agent beat` is the same without that) | `packages/cli/src/commands/beat.ts:32` (`registry.beatOrLog(`) |
 | 11 | `service` | **appends a `beat` event** | `packages/state/src/records/agents/registry.ts:453` (`beat(name: string`) |
 | 12 | `service` | the board reads both files on each build (flow 3, hops 13–14 and 20): the card its runs name sits in the column its runs say, with its agents on it (`claimViews`) | `packages/board/src/stages/agents.ts:111` (`export function claimViews(`) |
 | 13 | `service` | once the author finishes, the card waits for its critic before Ready to ship, and an open fix round keeps it Working (the table: `packages/state/src/queues/backlog/phase.ts:104` (`export function cardPhase(`)) | `packages/board/src/stages/backlog.ts:241` (`cardPhase(item, runsOf(item, agents), nowMs)`) |
@@ -289,7 +289,7 @@ flowchart LR
 | # | Layer | Hop | At |
 |---|---|---|---|
 | 14 | `app` | `once-upon agent finish <name> --state done --commit <sha> --branch <b> --card <id>` | `packages/cli/src/commands/agent.ts:191` (`registry.finish(`) |
-| 15 | `service` | **appends a `finish` event** with the commit as its result | `packages/state/src/records/agents/registry.ts:472` (`finish(name: string`) |
+| 15 | `service` | **appends a `finish` event** with the commit as its result | `packages/state/src/records/agents/registry.ts:508` (`finish(name: string`) |
 | 16 | `outside` | the main session deploys: `scripts/deploy-local.sh --yes <branch>` fast-forwards main and restarts the bridge |  |
 | 17 | `app` | after the deploy, the script runs `backlog land` over the range that went live | `scripts/deploy-local.sh:287` (`backlog land`) |
 | 18 | `app` | `land` reads the commit each agent's finish recorded | `packages/cli/src/commands/backlog.ts:297` (`recordedTips(registry.events())`) |

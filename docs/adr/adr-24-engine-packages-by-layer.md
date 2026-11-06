@@ -14,11 +14,11 @@ Seven packages replace the one. Bottom to top (`configs/layers.mjs` is the one l
 
 | Package | Holds | Imports |
 |---|---|---|
-| `adapters` | every side effect, one module per outside system: files and locks (`stores/`), git, gh, the shell (`os.ts`), iTerm, Larmor, Claude's own files (`claude-sessions/`), `bridge-health.ts` | contracts, domain |
+| `adapters` | every side effect, one module per outside system: files and locks (`stores/`), git, gh, the shell (`os.ts`), iTerm, Larmor, Claude's own files (`claude-sessions/`), `bridge-health.ts`, `heavy-lock.ts` (the heavy-run lock) | contracts, domain |
 | `foundation` | settings, the repo list, ids, errors, input checks, `shared-files.ts`, `node-version.mjs` | adapters |
 | `stories` | what a story is on disk: placement, reads, validation, rebuilds, local stories, the push default | adapters, foundation |
 | `state` | what is stored and the work waiting on it, in two tiers: `records/` (agents, github, listeners, page-links, worktrees) under `queues/` (requests, backlog) | adapters, foundation, stories |
-| `core` | what the reviewer does with it, in two tiers: `features/` (listeners, publishing, review, sessions) under `orchestration/` (`bridge/`: serve, `setBridgeFactory`, `doctor.ts`) | adapters, foundation, stories, state |
+| `core` | what the reviewer does with it, in two tiers: `features/` (heavy, listeners, publishing, review, sessions) under `orchestration/` (`bridge/`: serve, `setBridgeFactory`, `doctor.ts`) | adapters, foundation, stories, state |
 | `board` | the agent board's data: `board.ts`, the columns, `stages/`, `agent-home.ts`, `voice.ts` | everything above |
 | `usage` | the usage capture of ADR-18: counters, the report, coverage; its own `src/adapters/` folder holds the files that touch the inspector and the usage files | adapters, foundation |
 

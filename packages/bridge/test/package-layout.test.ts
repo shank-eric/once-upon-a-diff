@@ -34,7 +34,7 @@ const UNITS: Record<string, Record<string, string[]>> = {
     queues: ['backlog', 'requests'],
   },
   core: {
-    features: ['listeners', 'publishing', 'review', 'sessions'],
+    features: ['heavy', 'listeners', 'publishing', 'review', 'sessions'],
     orchestration: ['bridge'],
   },
 };

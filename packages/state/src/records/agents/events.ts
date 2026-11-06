@@ -171,8 +171,10 @@ export function ledgerLine(event: AgentEvent, agent: LedgerAgent): string {
   return `- [${state}] ${head} — ${time}${rest ? ` — ${rest}` : ''}`;
 }
 
-/** The progress line for a beat, the form beat.sh writes. */
-export function beatLine(event: AgentEvent): string {
+/** The progress line for a beat (`once-upon beat` and `agent beat` write this one form). */
+export function beatLine(
+  event: Pick<AgentEvent, 'at' | 'name' | 'n' | 'of' | 'step' | 'note'>,
+): string {
   const time = ledgerTime(new Date(event.at)).replace(/ ET,.*$/, '');
   const note = event.note ? `: ${event.note}` : '';
   return `- ${time} ${event.name} ${event.n}/${event.of} ${event.step}${note}`;
