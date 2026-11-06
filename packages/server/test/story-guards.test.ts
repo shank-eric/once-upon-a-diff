@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { HttpError } from '../src/request.ts';
 import { localOnly, oncePerStory } from '../src/routes/story-guards.ts';
-import type { ServedStory } from '@once-upon-a-diff/core/records/stories/types';
+import type { ServedStory } from '@once-upon-a-diff/stories/types';
 
 const storyOf = (kind: string) => ({ meta: { kind } }) as unknown as ServedStory;
 

@@ -4,12 +4,12 @@ import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, writeJson, runCli } from './helpers.ts';
-import { Builds, buildText } from '@once-upon-a-diff/core/queues/requests/builds';
-import { noteRead } from '@once-upon-a-diff/core/records/stories/reads';
+import { Builds, buildText } from '@once-upon-a-diff/state/queues/requests/builds';
+import { noteRead } from '@once-upon-a-diff/stories/reads';
 import { clearFreshness } from '@once-upon-a-diff/core/features/review/freshness';
-import type { Build } from '@once-upon-a-diff/core/queues/requests/builds';
+import type { Build } from '@once-upon-a-diff/state/queues/requests/builds';
 import type { StoryData, StoryStatus } from '@once-upon-a-diff/contracts/types';
-import type { Plan } from '@once-upon-a-diff/core/records/stories/chapters';
+import type { Plan } from '@once-upon-a-diff/stories/chapters';
 
 /** What POST /api/builds answers. */
 type BuildAnswer = { state: string; request: Build };

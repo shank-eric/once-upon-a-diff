@@ -2,12 +2,12 @@
  * Turning a drafted comment into a fix-before-push note (the drafts route's `fix` action and the notes route's
  * add-from-a-draft), and finding the draft a request names. Shared by drafts.ts and fixes.ts so neither imports the other.
  */
-import { addNote, MAX_NOTE_BODY, readNotes } from '@once-upon-a-diff/core/queues/requests/fixes';
+import { addNote, MAX_NOTE_BODY, readNotes } from '@once-upon-a-diff/state/queues/requests/fixes';
 import { draftKey } from '@once-upon-a-diff/core/features/review/drafts';
-import { relOfPath } from '@once-upon-a-diff/core/records/stories/diff';
+import { relOfPath } from '@once-upon-a-diff/stories/diff';
 import { HttpError } from '../request.ts';
 import type { DraftComment, StoryData } from '@once-upon-a-diff/contracts/types';
-import type { ServedStory } from '@once-upon-a-diff/core/records/stories/types';
+import type { ServedStory } from '@once-upon-a-diff/stories/types';
 import type { App } from '../types.ts';
 
 /** The drafted comment a request names by chapter (1-based) and index, else 404. */

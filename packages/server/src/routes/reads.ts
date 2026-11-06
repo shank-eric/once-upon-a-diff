@@ -3,22 +3,22 @@
  * time (POST), and what changed after they read each chapter (GET).
  */
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
-import { readMeta, stateKeyOf } from '@once-upon-a-diff/core/records/stories/meta';
+import { readMeta, stateKeyOf } from '@once-upon-a-diff/stories/meta';
 import { currentHead, changesSince } from '@once-upon-a-diff/core/features/review/freshness';
-import { newId } from '@once-upon-a-diff/core/foundation/ids';
+import { newId } from '@once-upon-a-diff/foundation/ids';
 import {
   readReads,
   noteRead,
   sinceOf,
   readSha,
   changedSinceRead,
-} from '@once-upon-a-diff/core/records/stories/reads';
+} from '@once-upon-a-diff/stories/reads';
 import { SHA_RE, shortSha } from '@once-upon-a-diff/domain/text';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
 import type { StoryData } from '@once-upon-a-diff/contracts/types';
 import type { FileChange } from '@once-upon-a-diff/core/features/review/freshness';
-import type { ServedStory, StoryMeta } from '@once-upon-a-diff/core/records/stories/types';
+import type { ServedStory, StoryMeta } from '@once-upon-a-diff/stories/types';
 import type { App, Call, StoryRoute } from '../types.ts';
 
 type ReadBody = ReturnType<typeof parseBody<'readNote'>>;

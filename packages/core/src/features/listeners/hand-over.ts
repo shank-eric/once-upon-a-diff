@@ -3,9 +3,9 @@
  * notice that its wait stopped itself. The session acts on these words, so they live with the wait that decides when to print
  * them. The first line of each entry (`describe`) and the printing are the CLI's.
  */
-import type { InboxEntry } from '../../queues/requests/inbox.ts';
-import type { BuildRequestEntry } from '../../queues/requests/builds.ts';
-import type { fixesToHand } from '../../queues/requests/fixes.ts';
+import type { InboxEntry } from '@once-upon-a-diff/state/queues/requests/inbox';
+import type { BuildRequestEntry } from '@once-upon-a-diff/state/queues/requests/builds';
+import type { fixesToHand } from '@once-upon-a-diff/state/queues/requests/fixes';
 
 /** A fix request as `wait` hands it over (fixesToHand). */
 type FixRequestEntry = ReturnType<typeof fixesToHand>[number];

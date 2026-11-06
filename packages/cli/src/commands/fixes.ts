@@ -1,20 +1,20 @@
 /*
  * What a Claude session tells the panel while it fixes notes: which files it's changing (working, which the panel
- * shows as "Being changed by <session>"), and how a fix request ended (fixed). See core/src/queues/requests/fixes.ts and
- * core/src/queues/requests/working.ts.
+ * shows as "Being changed by <session>"), and how a fix request ended (fixed). See state/src/queues/requests/fixes.ts and
+ * state/src/queues/requests/working.ts.
  */
-import { readMeta, storyRepo } from '@once-upon-a-diff/core/records/stories/meta';
-import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
-import { Inbox } from '@once-upon-a-diff/core/queues/requests/inbox';
-import { readFixes, reportFix } from '@once-upon-a-diff/core/queues/requests/fixes';
+import { readMeta, storyRepo } from '@once-upon-a-diff/stories/meta';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
+import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
+import { readFixes, reportFix } from '@once-upon-a-diff/state/queues/requests/fixes';
 import { Listening, answeringOf } from '@once-upon-a-diff/core/features/listeners/service';
-import { clearMark, parseFiles, setMark } from '@once-upon-a-diff/core/queues/requests/working';
+import { clearMark, parseFiles, setMark } from '@once-upon-a-diff/state/queues/requests/working';
 import { storyIdOf } from './inbox.ts';
 import { out } from '../output.ts';
 import { given } from '../options.ts';
 import { plural } from '@once-upon-a-diff/domain/text';
-import type { FixRequest } from '@once-upon-a-diff/core/queues/requests/fixes';
-import type { Config } from '@once-upon-a-diff/core/foundation/settings';
+import type { FixRequest } from '@once-upon-a-diff/state/queues/requests/fixes';
+import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
 
 const WORKING_USAGE =

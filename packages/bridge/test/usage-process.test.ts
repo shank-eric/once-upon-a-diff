@@ -5,7 +5,7 @@ import { existsSync, mkdirSync, readFileSync, utimesSync, writeFileSync } from '
 import path from 'node:path';
 import { tmp, writeJson, runCli } from './helpers.ts';
 import { assertPrivate } from './usage-helpers.ts';
-import type { CoverageFile } from '@once-upon-a-diff/core/records/usage/merge';
+import type { CoverageFile } from '@once-upon-a-diff/usage/merge';
 
 const BIN = path.resolve(import.meta.dirname, '../bin/once-upon.mjs');
 const TOKEN = 'usage-process-token-0123456789';
@@ -180,7 +180,7 @@ test('fix 2: `usage clear` while the bridge runs: its old counts stay cleared', 
 test("fix 4: processes that read-merge-write coverage-cli.json at once keep each other's lines", () => {
   const home = tmp('home');
   const script = path.join(tmp('lock'), 'writer.ts');
-  const store = path.resolve(import.meta.dirname, '../../core/src/adapters/stores/usage-file.ts');
+  const store = path.resolve(import.meta.dirname, '../../usage/src/adapters/usage-file.ts');
   writeFileSync(
     script,
     `import { readUsageJson, writeUsageJson, withUsageLock } from ${JSON.stringify(store)};
@@ -214,7 +214,7 @@ test('fix 4: a lock a crashed run left behind is taken over, not waited on forev
   const old = new Date(Date.now() - 60000);
   utimesSync(lock, old, old);
   const started = Date.now();
-  const store = path.resolve(import.meta.dirname, '../../core/src/adapters/stores/usage-file.ts');
+  const store = path.resolve(import.meta.dirname, '../../usage/src/adapters/usage-file.ts');
   const out = execFileSync(
     process.execPath,
     [

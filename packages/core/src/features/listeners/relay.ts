@@ -3,11 +3,11 @@
  * `relay.message`). The session forwards the message with SendMessage and starts its wait again. The agent, resumed with
  * its context, answers with `once-upon answer` itself, so the panel shows its answer under the question.
  */
-import { cliCommand } from '../../records/listeners/listeners.ts';
-import { AgentRegistry } from '../../records/agents/registry.ts';
-import { StoryStore } from '../../records/stories/store.ts';
-import { readMeta } from '../../records/stories/meta.ts';
-import type { QuestionEntry } from '../../queues/requests/inbox.ts';
+import { cliCommand } from '@once-upon-a-diff/state/records/listeners/listeners';
+import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
+import { readMeta } from '@once-upon-a-diff/stories/meta';
+import type { QuestionEntry } from '@once-upon-a-diff/state/queues/requests/inbox';
 import { formatLineRef } from '@once-upon-a-diff/domain/line-refs';
 
 /** The message for `agent` about this question. `cli` is how to run once-upon from a shell. */

@@ -2,13 +2,14 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { tmp, writeJson } from './helpers.ts';
+import '@once-upon-a-diff/test-kit/env';
+import { tmp, writeJson } from '@once-upon-a-diff/test-kit/files';
 import { publishPrStory } from '../src/features/publishing/publish.ts';
-import { StoryStore } from '../src/records/stories/store.ts';
-import { Builds } from '../src/queues/requests/builds.ts';
-import { assignKeys, chapterProblems } from '../src/records/stories/validate.ts';
-import { parseUnifiedDiff } from '../src/records/stories/diff.ts';
-import type { Plan } from '../src/records/stories/chapters.ts';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
+import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
+import { assignKeys, chapterProblems } from '@once-upon-a-diff/stories/validate';
+import { parseUnifiedDiff } from '@once-upon-a-diff/stories/diff';
+import type { Plan } from '@once-upon-a-diff/stories/chapters';
 
 const DIFF = parseUnifiedDiff(
   [

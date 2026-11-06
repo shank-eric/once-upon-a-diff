@@ -25,14 +25,14 @@
  * page itself confirms it. A confirmed mark is dropped ("settle").
  */
 import { createHash } from 'node:crypto';
-import { runGh } from '../../foundation/gh.ts';
+import { runGh } from '@once-upon-a-diff/foundation/gh';
 import { prKey } from '@once-upon-a-diff/domain/pr-key';
-import { readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
-import { stateKeyOf } from '../../records/stories/meta.ts';
-import { stateFile } from '../../foundation/settings.ts';
+import { readJson, writeJsonAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
+import { stateKeyOf } from '@once-upon-a-diff/stories/meta';
+import { stateFile } from '@once-upon-a-diff/foundation/settings';
 import type { Chapter, DraftRow, LocalNote, StoryData } from '@once-upon-a-diff/contracts/types';
-import type { StoryStore } from '../../records/stories/store.ts';
-import type { StoryMeta } from '../../records/stories/types.ts';
+import type { StoryStore } from '@once-upon-a-diff/stories/store';
+import type { StoryMeta } from '@once-upon-a-diff/stories/types';
 import { toSide } from '@once-upon-a-diff/domain/line-refs';
 import { fixState } from '@once-upon-a-diff/domain/fix-notes';
 

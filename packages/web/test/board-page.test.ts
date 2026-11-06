@@ -2716,7 +2716,7 @@ test('with no key the page says how to connect, and fills in once the bridge ans
   await pollNow();
   assert.ok($('.ou-not-connected'), 'two in a row show the Not connected page');
   assert.match($('.ou-not-connected h1')?.textContent as string, /Not connected yet/);
-  assert.match($('.ou-not-connected')?.textContent as string, /once-upon board/);
+  assert.match($('.ou-not-connected')?.textContent as string, /once-upon serve/);
   assert.equal($('header h1'), null);
   refuse = 0;
   await pollNow();

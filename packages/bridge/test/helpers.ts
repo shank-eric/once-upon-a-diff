@@ -9,7 +9,7 @@ import type {
   BranchCheck,
   PrCheck,
   RequestedCheck,
-} from '@once-upon-a-diff/core/records/github/github-checks';
+} from '@once-upon-a-diff/state/records/github/github-checks';
 import {
   localEntries,
   localStory,
@@ -18,8 +18,8 @@ import {
   prStory,
 } from '@once-upon-a-diff/core/features/review/story-lists';
 import type { InboxLocalStory, InboxStory } from '@once-upon-a-diff/contracts/types';
-import type { Build } from '@once-upon-a-diff/core/queues/requests/builds';
-import type { listeningOf } from '@once-upon-a-diff/core/records/listeners/listeners';
+import type { Build } from '@once-upon-a-diff/state/queues/requests/builds';
+import type { listeningOf } from '@once-upon-a-diff/state/records/listeners/listeners';
 
 /** A build request as the bridge answers with it: the request and its state. */
 export type BuildView = Build & { state: string };
@@ -48,18 +48,13 @@ export type StatusMany = {
   listening: Record<string, ReturnType<typeof listeningOf>>;
 };
 
-// the helpers the core's tests share (isolation env, the test kit's helpers, claimAt) are re-exported so the tests keep importing them from here
-export {
-  CLAUDE_DIR,
-  claimAt,
-  registerRuns,
-  git,
-  githubStory,
-  localRepo,
-  tmp,
-  writeJson,
-} from '@once-upon-a-diff/core/test/helpers';
-export type { AgentRun } from '@once-upon-a-diff/core/test/helpers';
+// the helpers the engine's tests share (isolation env, the test kit's helpers, claimAt) are re-exported so the tests keep importing them from here
+export { CLAUDE_DIR } from '@once-upon-a-diff/test-kit/env';
+export { tmp, writeJson } from '@once-upon-a-diff/test-kit/files';
+export { git, localRepo } from '@once-upon-a-diff/test-kit/git';
+export { githubStory } from '@once-upon-a-diff/test-kit/stories';
+export { claimAt, registerRuns } from '@once-upon-a-diff/state/test/helpers';
+export type { AgentRun } from '@once-upon-a-diff/state/test/helpers';
 
 const BIN = fileURLToPath(new URL('../bin/once-upon.mjs', import.meta.url));
 

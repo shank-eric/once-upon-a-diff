@@ -1,4 +1,4 @@
-/** The words the board puts on a worktree (core/src/records/worktrees/worktrees.ts has the facts): its chips and Clean up's confirm. */
+/** The words the board puts on a worktree (state/src/records/worktrees/worktrees.ts has the facts): its chips and Clean up's confirm. */
 import type { BoardWorktree } from '@once-upon-a-diff/contracts/types';
 
 /** "1.2G", "340M", "12K" for a size in kilobytes. */

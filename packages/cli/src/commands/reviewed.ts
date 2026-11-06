@@ -3,10 +3,10 @@
  * "approved". It writes the story's reviewed.json in-process, the same file the board card's Mark
  * reviewed writes, so nothing goes over HTTP. A PR story is marked by reviewing it on GitHub.
  */
-import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
 import { localStory, markStoryReviewed } from '@once-upon-a-diff/core/features/review/story-lists';
 import { out } from '../output.ts';
-import type { Config } from '@once-upon-a-diff/core/foundation/settings';
+import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
 
 const USAGE = 'usage: once-upon reviewed ID [--undo]';

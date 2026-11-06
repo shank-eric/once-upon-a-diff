@@ -1,19 +1,19 @@
 /*
  * Agents from the terminal: `once-upon agent start|state|beat|finish|list`. The launching session (or the agent itself)
- * registers an agent and reports on it; each call is an event in <home>/agents.jsonl (core/src/records/agents/events.ts), in-process,
+ * registers an agent and reports on it; each call is an event in <home>/agents.jsonl (state/src/records/agents/events.ts), in-process,
  * and the board reads it from there. When the settings name a ledger or a progress file, each event also appends its
  * log line to it, so those files stay logs written by this command, for people and scripts (the board never reads them).
  * `--no-mirror` skips those lines, for a caller that writes the progress line itself (beat.sh), so one beat is one line. It goes after the words: a flag takes the next word.
  */
 import path from 'node:path';
-import { repoOfCheckout } from '@once-upon-a-diff/core/foundation/repos';
-import { readSettings } from '@once-upon-a-diff/core/foundation/settings';
+import { repoOfCheckout } from '@once-upon-a-diff/foundation/repos';
+import { readSettings } from '@once-upon-a-diff/foundation/settings';
 import { ownSession } from '@once-upon-a-diff/core/features/listeners/service';
-import type { AgentKind } from '@once-upon-a-diff/core/records/agents/agent-types';
-import { lastActivity } from '@once-upon-a-diff/core/records/agents/ledger';
-import { AgentRegistry } from '@once-upon-a-diff/core/records/agents/registry';
+import type { AgentKind } from '@once-upon-a-diff/state/records/agents/agent-types';
+import { lastActivity } from '@once-upon-a-diff/state/records/agents/ledger';
+import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { out } from '../output.ts';
-import type { Config } from '@once-upon-a-diff/core/foundation/settings';
+import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
 
 const USAGE =

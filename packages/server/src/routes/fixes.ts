@@ -1,7 +1,7 @@
 /*
  * Fix before push, on PR and local stories alike: the notes (a line note, or a drafted comment turned into one by
  * Add to fix before push), sending them to a Claude session as one fix request (Send N notes, or Auto-send), and the
- * story's "being changed" marks from `once-upon working`. See core/src/queues/requests/fixes.ts and core/src/queues/requests/working.ts.
+ * story's "being changed" marks from `once-upon working`. See state/src/queues/requests/fixes.ts and state/src/queues/requests/working.ts.
  */
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import {
@@ -12,15 +12,15 @@ import {
   setAutoSend,
   takeBack,
   updateNote,
-} from '@once-upon-a-diff/core/queues/requests/fixes';
+} from '@once-upon-a-diff/state/queues/requests/fixes';
 import { ghLogin } from '@once-upon-a-diff/core/features/review/drafts';
-import { workingOf } from '@once-upon-a-diff/core/queues/requests/working';
-import { prAuthorOf } from '@once-upon-a-diff/core/records/stories/meta';
+import { workingOf } from '@once-upon-a-diff/state/queues/requests/working';
+import { prAuthorOf } from '@once-upon-a-diff/stories/meta';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
 import { noteFromDraft } from './draft-notes.ts';
 import type { FixesView } from '@once-upon-a-diff/contracts/types';
-import type { ServedStory } from '@once-upon-a-diff/core/records/stories/types';
+import type { ServedStory } from '@once-upon-a-diff/stories/types';
 import type { App, Call, StoryRoute } from '../types.ts';
 
 /**

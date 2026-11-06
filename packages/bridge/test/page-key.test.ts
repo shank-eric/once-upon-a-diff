@@ -12,9 +12,9 @@ import {
   TOKEN,
   type TestBridge,
 } from './helpers.ts';
-import { createLocalStory } from '@once-upon-a-diff/core/records/stories/local-story';
-import { Inbox } from '@once-upon-a-diff/core/queues/requests/inbox';
-import { pageKey } from '@once-upon-a-diff/core/records/page-links/page-key';
+import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
+import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
+import { pageKey } from '@once-upon-a-diff/state/records/page-links/page-key';
 import type { Printable } from '@once-upon-a-diff/cli/output';
 
 /** A local story with one drafted comment, a PR story beside it, and a bridge serving both. */

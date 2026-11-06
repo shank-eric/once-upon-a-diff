@@ -18,7 +18,7 @@ import {
   repoOfCheckout,
   seenCheckout,
   checkoutRoot,
-} from '../../foundation/repos.ts';
+} from '@once-upon-a-diff/foundation/repos';
 import {
   Inbox,
   filterEntries,
@@ -26,19 +26,19 @@ import {
   writeIdList,
   type InboxEntry,
   type QuestionEntry,
-} from '../../queues/requests/inbox.ts';
-import { Builds } from '../../queues/requests/builds.ts';
-import { noteHanded, routeQuestions } from '../../queues/requests/conversation.ts';
-import { fixesToHand } from '../../queues/requests/fixes.ts';
+} from '@once-upon-a-diff/state/queues/requests/inbox';
+import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
+import { noteHanded, routeQuestions } from '@once-upon-a-diff/state/queues/requests/conversation';
+import { fixesToHand } from '@once-upon-a-diff/state/queues/requests/fixes';
 import {
   relayBinding,
   ownSession,
   touchBinding,
   type Binding,
-} from '../../records/listeners/binding.ts';
-import { beat, listeners } from '../../records/listeners/listeners.ts';
-import { noteListener } from '../../records/listeners/history.ts';
-import { StoryStore } from '../../records/stories/store.ts';
+} from '@once-upon-a-diff/state/records/listeners/binding';
+import { beat, listeners } from '@once-upon-a-diff/state/records/listeners/listeners';
+import { noteListener } from '@once-upon-a-diff/state/records/listeners/history';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
 import {
   idleMsOf,
   logStop,

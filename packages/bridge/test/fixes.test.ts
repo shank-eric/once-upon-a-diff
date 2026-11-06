@@ -4,22 +4,22 @@ import path from 'node:path';
 import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, githubStory, startBridge, runCli, localRepo, writeJson } from './helpers.ts';
-import { createLocalStory } from '@once-upon-a-diff/core/records/stories/local-story';
+import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
 import {
   beat,
   listenPrompt,
   type Listener,
-} from '@once-upon-a-diff/core/records/listeners/listeners';
-import { readFixes } from '@once-upon-a-diff/core/queues/requests/fixes';
+} from '@once-upon-a-diff/state/records/listeners/listeners';
+import { readFixes } from '@once-upon-a-diff/state/queues/requests/fixes';
 import {
   MARK_FRESH_MS,
   parseFiles,
   workingOf,
-} from '@once-upon-a-diff/core/queues/requests/working';
+} from '@once-upon-a-diff/state/queues/requests/working';
 import { fixSummary, takesNotes } from '@once-upon-a-diff/panel/fixes/fixes';
 import { clearCache } from '@once-upon-a-diff/core/features/review/drafts';
 import type { DraftsAnswer, FixNote, FixesView, Pulse } from '@once-upon-a-diff/contracts/types';
-import type { FixRequest } from '@once-upon-a-diff/core/queues/requests/fixes';
+import type { FixRequest } from '@once-upon-a-diff/state/queues/requests/fixes';
 import type { Printable } from '@once-upon-a-diff/cli/output';
 
 /** GET or POST .../fixes: fix before push as the panel shows it, and after a send the request it made. */

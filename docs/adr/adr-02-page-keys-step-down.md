@@ -8,7 +8,7 @@ The bridge's own pages (a local story's diff page and the agent board) run in th
 
 ## Decision
 
-Every key is an HMAC under the bridge's token with its own label (`packages/core/src/records/page-links/page-key.ts`), so no key can be turned into another. A key rides in the link's `#fragment`, which the browser never sends, so a page shell (`/local/<id>/`, `/board/`) carries nothing.
+Every key is an HMAC under the bridge's token with its own label (`packages/state/src/records/page-links/page-key.ts`), so no key can be turned into another. A key rides in the link's `#fragment`, which the browser never sends, so a page shell (`/local/<id>/`, `/board/`) carries nothing.
 
 | Key | Label | Reaches | Can hand out |
 |---|---|---|---|

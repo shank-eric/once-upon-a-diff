@@ -12,9 +12,9 @@ import {
   type TestBridge,
 } from './helpers.ts';
 import type { Printable } from '@once-upon-a-diff/cli/output';
-import { Builds, CLAIM_FRESH_MS } from '@once-upon-a-diff/core/queues/requests/builds';
-import { beat } from '@once-upon-a-diff/core/records/listeners/listeners';
-import { Inbox } from '@once-upon-a-diff/core/queues/requests/inbox';
+import { Builds, CLAIM_FRESH_MS } from '@once-upon-a-diff/state/queues/requests/builds';
+import { beat } from '@once-upon-a-diff/state/records/listeners/listeners';
+import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
 
 /** acme/widgets#7's line from status-many, as a PR page asks for it. */
 const prStatus = async (bridge: TestBridge) =>

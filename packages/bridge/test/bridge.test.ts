@@ -16,16 +16,16 @@ import {
 } from './helpers.ts';
 import type { AddressInfo } from 'node:net';
 import { REGION_SHEETS } from '@once-upon-a-diff/panel/shell/sheets';
-import { pathSha } from '@once-upon-a-diff/core/records/stories/diff';
-import { createLocalStory } from '@once-upon-a-diff/core/records/stories/local-story';
-import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
-import { beat } from '@once-upon-a-diff/core/records/listeners/listeners';
-import type { Prefs } from '@once-upon-a-diff/core/foundation/settings';
+import { pathSha } from '@once-upon-a-diff/stories/diff';
+import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
+import { beat } from '@once-upon-a-diff/state/records/listeners/listeners';
+import type { Prefs } from '@once-upon-a-diff/foundation/settings';
 import type {
   InboxEntry,
   NoteEntry,
   QuestionEntry,
-} from '@once-upon-a-diff/core/queues/requests/inbox';
+} from '@once-upon-a-diff/state/queues/requests/inbox';
 import type {
   DraftsAnswer,
   FixNote,

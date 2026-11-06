@@ -1,6 +1,6 @@
 # ADR-03: Story folders in each checkout's `.once-upon/`
 
-Descriptive draft, 10/27, of the code on `stack/5-board-checks` (8710395). Since 11/5: the placement code is `records/stories/placement.ts` in `packages/core` (it was `services/stories/`, ADR-20). The rules are unchanged.
+Descriptive draft, 10/27, of the code on `stack/5-board-checks` (8710395). Since 11/5: the placement code is `placement.ts` in `packages/stories` (it was `records/stories/` in `packages/core` and `services/stories/` before, ADR-20 and ADR-24). The rules are unchanged.
 
 ## Context
 
@@ -8,7 +8,7 @@ A story is a folder: `chapters.json` (the once-upon skill's format), `meta.json`
 
 ## Decision
 
-`packages/core/src/records/stories/placement.ts`:
+`packages/stories/src/placement.ts`:
 
 - **A PR story** goes in the repo's **main** checkout: `<main checkout>/.once-upon/<Owner>-<repo>-<N>/` (`mainCheckout` follows a worktree to the checkout its `.git` belongs to, since worktrees come and go).
 - **A local story** goes in the worktree it diffs: `<worktree>/.once-upon/local-<folder>-<branch>/`.

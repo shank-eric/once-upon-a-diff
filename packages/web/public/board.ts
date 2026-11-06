@@ -2,8 +2,8 @@
  * The agent board page: the Claude Code sessions running now, one card each, in a column for where they stand
  * (working, agent checks, waiting, done; research, idle and error when there are any, and sessions with no prompt yet as a Blank strip) and a lane for their repo, with the background agents
  * inside their parent's card or, when they registered a lane, on a card in that lane. The data is
- * GET /api/board (core/src/orchestration/board/board.ts), polled every few seconds. The page's key (the link's #key=, which
- * `once-upon board` prints) reaches the board's routes and nothing else.
+ * GET /api/board (board/src/board.ts), polled every few seconds. The page's key (the link's #key=, which
+ * the extension's Open board button opens) reaches the board's routes and nothing else.
  *
  * The page is one Preact tree (ADR-14) drawn into the app element. Its root polls (usePoll) and Preact redraws
  * with keys, so focus, scroll and half-typed text stay. The regions (public/board/<region>) are its components; the page

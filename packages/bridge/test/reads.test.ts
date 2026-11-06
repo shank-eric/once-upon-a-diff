@@ -12,13 +12,13 @@ import {
   type ReadRecord,
   type Reads,
   type Since,
-} from '@once-upon-a-diff/core/records/stories/reads';
-import type { ReadEntry } from '@once-upon-a-diff/core/queues/requests/inbox';
+} from '@once-upon-a-diff/stories/reads';
+import type { ReadEntry } from '@once-upon-a-diff/state/queues/requests/inbox';
 import type { Chapter, ReadChange, ReadInfo, StoryData } from '@once-upon-a-diff/contracts/types';
 import { chapterKeyOf, finishedInOf } from '@once-upon-a-diff/domain/chapters';
 import { inferReadSteps, viewedEarlyCheck } from '@once-upon-a-diff/panel/reading/read-checks';
 import { clearFreshness } from '@once-upon-a-diff/core/features/review/freshness';
-import { createLocalStory } from '@once-upon-a-diff/core/records/stories/local-story';
+import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
 
 /** POST .../read: the record kept, with its chapter key. */
 type ReadBody = ReadRecord & { chapter: string };
@@ -215,7 +215,7 @@ test('a local story records the head commit of its range', async () => {
 });
 
 test('chapters he read are marked when a newer commit changed their files, and drafts on a changed line', async () => {
-  const { changedSinceRead } = await import('@once-upon-a-diff/core/records/stories/reads');
+  const { changedSinceRead } = await import('@once-upon-a-diff/stories/reads');
   const chapters = [
     {
       key: 'since-x',

@@ -12,7 +12,7 @@ import {
   cliCommand,
   listenPrompt,
   type statusOf,
-} from '@once-upon-a-diff/core/records/listeners/listeners';
+} from '@once-upon-a-diff/state/records/listeners/listeners';
 import {
   repoOfCheckout,
   repoOfCheckoutAsync,
@@ -23,7 +23,7 @@ import {
   remoteNamed,
   checkoutFor,
   seenCheckout,
-} from '@once-upon-a-diff/core/foundation/repos';
+} from '@once-upon-a-diff/foundation/repos';
 import { doctor } from '@once-upon-a-diff/core/orchestration/bridge/doctor';
 
 /** GET /api/status. */

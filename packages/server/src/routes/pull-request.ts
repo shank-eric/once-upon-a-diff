@@ -1,5 +1,5 @@
 /*
- * Create pull request on a local story's page (core/src/records/stories/pull-request.ts): GET .../pr says where the branch
+ * Create pull request on a local story's page (stories/src/pull-request.ts): GET .../pr says where the branch
  * stands, and POST .../pr {action: 'push', head_sha} pushes it, only from the reviewer's click in the confirm box.
  * The page opens the PR itself on GitHub's compare page. {action: 'push-ahead', head_sha} is Push for a branch that
  * already has an open PR: the same click-only fast-forward of what the PR is behind on, refused when there is no open PR
@@ -12,7 +12,7 @@ import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { HttpError } from '../request.ts';
 import { localOnly, oncePerStory } from './story-guards.ts';
 import { parseBody } from '../validate.ts';
-import { storyRepo } from '@once-upon-a-diff/core/records/stories/meta';
+import { storyRepo } from '@once-upon-a-diff/stories/meta';
 import {
   DRAFT_FILE,
   prView,
@@ -20,10 +20,10 @@ import {
   pushAheadBlocker,
   pushBlocker,
   pushBranch,
-} from '@once-upon-a-diff/core/records/stories/pull-request';
+} from '@once-upon-a-diff/stories/pull-request';
 import type { PrDraft, PrPushAnswer } from '@once-upon-a-diff/contracts/types';
-import { isStoryless } from '@once-upon-a-diff/core/records/stories/local-story';
-import type { LocalMeta, ServedStory } from '@once-upon-a-diff/core/records/stories/types';
+import { isStoryless } from '@once-upon-a-diff/stories/local-story';
+import type { LocalMeta, ServedStory } from '@once-upon-a-diff/stories/types';
 import type { App, Call, StoryRoute } from '../types.ts';
 
 const NOT_LOCAL = 'a PR story already has its pull request';

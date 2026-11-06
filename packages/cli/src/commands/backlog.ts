@@ -1,16 +1,16 @@
 /*
  * The backlog from the terminal: `once-upon backlog add|list|show|edit|start|claim|done|land|hold|someday|drop|reopen`. It reads and writes the backlog file
- * (core/src/queues/backlog/backlog.ts) in-process, so nothing goes over HTTP; the board shows the items as its Backlog column.
+ * (state/src/queues/backlog/backlog.ts) in-process, so nothing goes over HTTP; the board shows the items as its Backlog column.
  */
-import { formatTime, DEFAULT_BRANCHES } from '@once-upon-a-diff/core/foundation/settings';
-import { repoOfCheckout, currentBranch } from '@once-upon-a-diff/core/foundation/repos';
+import { formatTime, DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
+import { repoOfCheckout, currentBranch } from '@once-upon-a-diff/foundation/repos';
 
-import { BacklogStore, claimHint } from '@once-upon-a-diff/core/queues/backlog/backlog';
-import { landItems, recordedTips } from '@once-upon-a-diff/core/queues/backlog/landing';
-import { AgentRegistry } from '@once-upon-a-diff/core/records/agents/registry';
+import { BacklogStore, claimHint } from '@once-upon-a-diff/state/queues/backlog/backlog';
+import { landItems, recordedTips } from '@once-upon-a-diff/state/queues/backlog/landing';
+import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { out } from '../output.ts';
-import type { BacklogItem } from '@once-upon-a-diff/core/queues/backlog/types';
-import type { Config } from '@once-upon-a-diff/core/foundation/settings';
+import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
+import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
 
 const USAGE =

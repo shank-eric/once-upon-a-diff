@@ -1,5 +1,5 @@
 /*
- * Push on a local story's page, for commits that go straight to the repo's default branch (core/src/records/stories/push-default.ts):
+ * Push on a local story's page, for commits that go straight to the repo's default branch (stories/src/push-default.ts):
  * GET .../push says what a push of the approved commit would do, and POST .../push {action: 'push', head_sha} does it,
  * only from the reviewer's click in the confirm box. head_sha is the approved commit the box showed. A storyless review
  * (made by the board's Review, no story told) has no Approve: the commit its diff was drawn at (the story's stored head) is
@@ -12,16 +12,12 @@ import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { HttpError } from '../request.ts';
 import { localOnly, oncePerStory } from './story-guards.ts';
 import { parseBody } from '../validate.ts';
-import {
-  approvedFor,
-  pushApproved,
-  pushView,
-} from '@once-upon-a-diff/core/records/stories/push-default';
+import { approvedFor, pushApproved, pushView } from '@once-upon-a-diff/stories/push-default';
 import { localEntries } from '@once-upon-a-diff/core/features/review/story-lists';
-import { refreshLocal } from '@once-upon-a-diff/core/records/stories/local-diff';
-import { isStoryless } from '@once-upon-a-diff/core/records/stories/local-story';
+import { refreshLocal } from '@once-upon-a-diff/stories/local-diff';
+import { isStoryless } from '@once-upon-a-diff/stories/local-story';
 import type { PushAnswer } from '@once-upon-a-diff/contracts/types';
-import type { LocalMeta, ServedStory } from '@once-upon-a-diff/core/records/stories/types';
+import type { LocalMeta, ServedStory } from '@once-upon-a-diff/stories/types';
 import type { App, Call, StoryRoute } from '../types.ts';
 import { shortSha } from '@once-upon-a-diff/domain/text';
 

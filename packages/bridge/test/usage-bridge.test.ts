@@ -4,14 +4,14 @@ import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { tmp, writeJson, githubStory, startBridge, TOKEN, localRepo } from './helpers.ts';
 import { assertPrivate } from './usage-helpers.ts';
-import { createLocalStory } from '@once-upon-a-diff/core/records/stories/local-story';
-import { pageKey, viewKey, boardKey } from '@once-upon-a-diff/core/records/page-links/page-key';
-import { UNPACKED_EXTENSION_ID } from '@once-upon-a-diff/core/foundation/settings';
+import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
+import { pageKey, viewKey, boardKey } from '@once-upon-a-diff/state/records/page-links/page-key';
+import { UNPACKED_EXTENSION_ID } from '@once-upon-a-diff/foundation/settings';
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { ACTIONS } from '@once-upon-a-diff/domain/usage-actions';
-import { ROUTE_AREAS } from '@once-upon-a-diff/core/records/usage/areas';
-import { UsageCounters } from '@once-upon-a-diff/core/records/usage/counters';
-import { clearUsage } from '@once-upon-a-diff/core/adapters/stores/usage-file';
+import { ROUTE_AREAS } from '@once-upon-a-diff/usage/areas';
+import { UsageCounters } from '@once-upon-a-diff/usage/counters';
+import { clearUsage } from '@once-upon-a-diff/usage/adapters/usage-file';
 import { API_ROUTES, STORY_ROUTES } from '@once-upon-a-diff/server/index';
 
 // the bridges here count even though no shim started the capture (a bridge in a test has its own temp home)

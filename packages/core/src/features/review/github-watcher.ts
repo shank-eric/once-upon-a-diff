@@ -22,8 +22,8 @@
  * pr-info.ts and merge-rules.ts for what the board shows) and default-branch.ts.
  */
 import { FULL_SHA_RE } from '@once-upon-a-diff/domain/patterns';
-import { runGitAsync } from '../../adapters/git.ts';
-import { readApproval } from '../../records/stories/approval.ts';
+import { runGitAsync } from '@once-upon-a-diff/adapters/git';
+import { readApproval } from '@once-upon-a-diff/stories/approval';
 import { clearApproval } from './approve.ts';
 import { inDefaultBranch } from './default-branch.ts';
 import {
@@ -35,15 +35,15 @@ import {
   type PrCheck,
   type PrFacts,
   type RequestedCheck,
-} from '../../records/github/github-checks.ts';
-import { DEFAULT_BRANCHES } from '../../foundation/settings.ts';
+} from '@once-upon-a-diff/state/records/github/github-checks';
+import { DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
 import { markStoryDone, markStoryReviewed, storyHasState, type LocalEntry } from './story-lists.ts';
-import type { StoryStore } from '../../records/stories/store.ts';
+import type { StoryStore } from '@once-upon-a-diff/stories/store';
 import {
   readGithubAnswers,
   writeGithubAnswers,
   type GithubAnswers,
-} from '../../adapters/stores/github-answers.ts';
+} from '@once-upon-a-diff/adapters/stores/github-answers';
 import type { InboxStory, PrInfo, ReviewedBy } from '@once-upon-a-diff/contracts/types';
 
 /** How long one PR's answer (including "nothing yet") is kept before asking GitHub again. */

@@ -188,7 +188,7 @@ export interface BoardCard {
   worktrees?: BoardWorktree[];
 }
 
-/** What git and GitHub say about one worktree (core/src/records/worktrees/worktrees.ts). */
+/** What git and GitHub say about one worktree (state/src/records/worktrees/worktrees.ts). */
 export interface BoardWorktree {
   path: string;
   /** the folder's name */
@@ -236,7 +236,7 @@ export interface BoardWorktree {
   deletes_branch: boolean;
 }
 
-/** What a started backlog item is being worked by (core/src/queues/backlog/backlog-links.ts). */
+/** What a started backlog item is being worked by (state/src/queues/backlog/backlog-links.ts). */
 export interface BoardStartedLinks {
   worktrees: { path: string; name: string }[];
   sessions: { id: string; title: string }[];

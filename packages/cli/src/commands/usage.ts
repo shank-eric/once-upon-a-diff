@@ -1,5 +1,5 @@
 /*
- * `once-upon usage`: the usage capture's report and switches. What it keeps, and why, is in core/src/records/usage/.
+ * `once-upon usage`: the usage capture's report and switches. What it keeps, and why, is in usage/src/.
  */
 import {
   CHECKOUT,
@@ -10,12 +10,12 @@ import {
   usageFileSize,
   writeMode,
   type UsageMode,
-} from '@once-upon-a-diff/core/records/usage/control';
-import { buildReport, renderReport, sinceDay } from '@once-upon-a-diff/core/records/usage/report';
-import { coverageFileOf } from '@once-upon-a-diff/core/records/usage/capture';
-import { etClock } from '@once-upon-a-diff/core/records/usage/days';
-import type { CoverageFile } from '@once-upon-a-diff/core/records/usage/merge';
-import type { ActionsFile } from '@once-upon-a-diff/core/records/usage/counters';
+} from '@once-upon-a-diff/usage/control';
+import { buildReport, renderReport, sinceDay } from '@once-upon-a-diff/usage/report';
+import { coverageFileOf } from '@once-upon-a-diff/usage/capture';
+import { etClock } from '@once-upon-a-diff/usage/days';
+import type { CoverageFile } from '@once-upon-a-diff/usage/merge';
+import type { ActionsFile } from '@once-upon-a-diff/usage/counters';
 import { out } from '../output.ts';
 import type { CliOpts, Command } from '../types.ts';
 

@@ -2,10 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 import { tmp, writeJson, githubStory, startBridge, runCli } from './helpers.ts';
-import { answerRefs, chapterProblems } from '@once-upon-a-diff/core/records/stories/validate';
-import { upgradePlan } from '@once-upon-a-diff/core/records/stories/legacy';
-import type { Plan } from '@once-upon-a-diff/core/records/stories/chapters';
-import type { QuestionEntry } from '@once-upon-a-diff/core/queues/requests/inbox';
+import { answerRefs, chapterProblems } from '@once-upon-a-diff/stories/validate';
+import { upgradePlan } from '@once-upon-a-diff/stories/legacy';
+import type { Plan } from '@once-upon-a-diff/stories/chapters';
+import type { QuestionEntry } from '@once-upon-a-diff/state/queues/requests/inbox';
 import type { StoryData } from '@once-upon-a-diff/contracts/types';
 
 const RELS = ['src/a.js', 'src/b.js'];

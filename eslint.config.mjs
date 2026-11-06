@@ -14,9 +14,10 @@ import eslintPrettierConfig from 'eslint-config-prettier';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 import sideEffects from './configs/eslint.side-effects.mjs';
+import { PACKAGES } from './configs/layers.mjs';
 
 const NODE_FILES = [
-  'packages/{bridge,core,server,cli}/**/*.{ts,mjs}',
+  `packages/{bridge,usage,server,cli,${PACKAGES.join(',')}}/**/*.{ts,mjs}`,
   'packages/*/scripts/**/*.{ts,mjs}',
   'packages/*/test/**/*.{ts,mjs}',
   'packages/test-kit/src/**/*.{ts,mjs}',

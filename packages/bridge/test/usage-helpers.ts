@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { ACTIONS } from '@once-upon-a-diff/domain/usage-actions';
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { commandNames } from '@once-upon-a-diff/cli/index';
-import { COMMAND_AREAS } from '@once-upon-a-diff/core/records/usage/areas';
+import { COMMAND_AREAS } from '@once-upon-a-diff/usage/areas';
 
 const SURFACES = new Set(['board', 'local', 'local-view', 'extension', 'token']);
 const ROUTE_KEYS = new Set([...Object.keys(ROUTES), 'unmatched']);

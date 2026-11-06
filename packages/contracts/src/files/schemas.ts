@@ -71,7 +71,7 @@ const reader =
     return result.success ? result.output : null;
   };
 
-// ---- agents.jsonl: the registry's events (core/src/records/agents) ----
+// ---- agents.jsonl: the registry's events (state/src/records/agents) ----
 
 /**
  * What an agent is. `editor` is not an agent but a session that runs a repo's build queue (`/once-upon-editor`): it
@@ -139,7 +139,7 @@ export const AgentEventSchema = looseObject({
 export type AgentEvent = Listed<InferOutput<typeof AgentEventSchema>>;
 export const readAgentEvent = reader(AgentEventSchema);
 
-// ---- backlog.jsonl: the Backlog column's events (core/src/queues/backlog) ----
+// ---- backlog.jsonl: the Backlog column's events (state/src/queues/backlog) ----
 
 const id = pipe(string(), regex(BACKLOG_ID_RE));
 /** What every event has: who (`cli` when absent) and when (stamped by the writer). */
@@ -155,7 +155,7 @@ const stamped = { id, at: lenient(string()), by: lenient(string()) };
  *   {op:'edit',  id, title?, note?, repo?, by, at}
  *   {op:'claim', id, agent, sid?, by, at}      an agent (named as it registered) owns the card
  *   {op:'hold' | 'someday', id, on, by, at}
- * What each means, and how they fold into items, is core/src/queues/backlog/backlog.ts.
+ * What each means, and how they fold into items, is state/src/queues/backlog/backlog.ts.
  */
 export const BacklogEventSchema = variant('op', [
   looseObject({
@@ -201,7 +201,7 @@ export const BacklogEventSchema = variant('op', [
 export type BacklogEvent = Listed<InferOutput<typeof BacklogEventSchema>>;
 export const readBacklogEvent = reader(BacklogEventSchema);
 
-// ---- inbox.jsonl: questions, answers, notes and the like (core/src/queues/requests/inbox.ts) ----
+// ---- inbox.jsonl: questions, answers, notes and the like (state/src/queues/requests/inbox.ts) ----
 
 const inboxEntry = <T extends string, E extends Record<string, GenericSchema>>(
   type: T,
@@ -297,7 +297,7 @@ export const InboxEntrySchema = variant('type', [
 export type InboxEntry = Listed<InferOutput<typeof InboxEntrySchema>>;
 export const readInboxEntry = reader(InboxEntrySchema);
 
-// ---- builds.json and fixes.json: request records by key (core/src/queues/requests) ----
+// ---- builds.json and fixes.json: request records by key (state/src/queues/requests) ----
 
 /** What every queued request has. */
 const queued = {

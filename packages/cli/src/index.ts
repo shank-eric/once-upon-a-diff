@@ -3,7 +3,7 @@
  * the help text and the commands can't drift apart. bin/once-upon.ts runs
  * main().
  */
-import { homeDir, loadConfig } from '@once-upon-a-diff/core/foundation/settings';
+import { homeDir, loadConfig } from '@once-upon-a-diff/foundation/settings';
 import { parseArgs } from './args.ts';
 import { resolveLongText } from './options.ts';
 import { bridgeCommands } from './commands/bridge.ts';
@@ -14,13 +14,12 @@ import { buildCommands } from './commands/builds.ts';
 import { checkCommands } from './commands/checks.ts';
 import { fixCommands } from './commands/fixes.ts';
 import { pullRequestCommands } from './commands/pull-request.ts';
-import { boardCommands } from './commands/board.ts';
 import { backlogCommands } from './commands/backlog.ts';
 import { agentCommands } from './commands/agent.ts';
 import { approveCommands } from './commands/approve.ts';
 import { reviewedCommands } from './commands/reviewed.ts';
 import { usageCommands } from './commands/usage.ts';
-import { commandLabel, noteCommand } from '@once-upon-a-diff/core/records/usage/cli-log';
+import { commandLabel, noteCommand } from '@once-upon-a-diff/usage/cli-log';
 import type { Command } from './types.ts';
 
 const COMMANDS = new Map<string, Command>(
@@ -33,7 +32,6 @@ const COMMANDS = new Map<string, Command>(
     ...checkCommands,
     ...fixCommands,
     ...pullRequestCommands,
-    ...boardCommands,
     ...backlogCommands,
     ...agentCommands,
     ...reviewedCommands,
@@ -51,7 +49,6 @@ const HELP_ORDER = [
   'local',
   'bind',
   'page',
-  'board',
   'backlog',
   'agent',
   'reviewed',
@@ -89,7 +86,7 @@ export function usageText() {
     '--note-file PATH reads a file, --note - reads stdin (the same for the other four). Short values stay inline.',
     '',
     'ONCE_UPON_HOME moves ~/.once-upon. Personal settings (display name, time zone, checkout folders,',
-    'opener, gh token handling) are optional keys in its config.json: see readSettings in core/src/foundation/settings.ts.',
+    'opener, gh token handling) are optional keys in its config.json: see readSettings in foundation/src/settings.ts.',
     ' ',
   ].join('\n');
 }

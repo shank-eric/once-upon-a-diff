@@ -10,13 +10,13 @@
  * retired turn capture (its meta names a `turn`) is left out.
  */
 import path from 'node:path';
-import { REPO_RE, sameRepo } from '../../foundation/repos.ts';
-import { readMeta, storyRepo, stateKeyOf } from '../../records/stories/meta.ts';
-import { readReads } from '../../records/stories/reads.ts';
-import { unwrittenCount } from '../../records/stories/skeleton.ts';
-import { isStoryless } from '../../records/stories/local-story.ts';
-import { approvalOf, readApproval, type Approval } from '../../records/stories/approval.ts';
-import type { StoryStore } from '../../records/stories/store.ts';
+import { REPO_RE, sameRepo } from '@once-upon-a-diff/foundation/repos';
+import { readMeta, storyRepo, stateKeyOf } from '@once-upon-a-diff/stories/meta';
+import { readReads } from '@once-upon-a-diff/stories/reads';
+import { unwrittenCount } from '@once-upon-a-diff/stories/skeleton';
+import { isStoryless } from '@once-upon-a-diff/stories/local-story';
+import { approvalOf, readApproval, type Approval } from '@once-upon-a-diff/stories/approval';
+import type { StoryStore } from '@once-upon-a-diff/stories/store';
 import type { InboxLocalStory, InboxStory, ReviewedBy } from '@once-upon-a-diff/contracts/types';
 import { prUrl } from '@once-upon-a-diff/domain/github-urls';
 

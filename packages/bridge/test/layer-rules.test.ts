@@ -12,7 +12,7 @@ import { existsSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmp } from '@once-upon-a-diff/test-kit/files';
-import { TIERS } from '../../../configs/core-tiers.mjs';
+import { PACKAGES as ENGINE, TIERS } from '../../../configs/layers.mjs';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const DEPCRUISE = path.join(ROOT, 'node_modules/dependency-cruiser/bin/dependency-cruiser.mjs');
@@ -24,20 +24,32 @@ type Target = string | { spec: string };
 /** [probe file, what it imports, the rule(s) that must fire (null: it is allowed), 'type' for `import type`]. Paths are under packages/. */
 type Probe = [string, Target, string | string[] | null, 'type'?];
 
-// the tier probes below name the five tiers by position (bottom to top, as core-tiers.mjs lists them), and two folders in each tier
-// that has folders: a new tier is a new probe, and this fails until it has one
-assert.equal(TIERS.length, 5, 'layer-rules.test.ts probes five tiers: add the new tier’s probes');
-const FOUNDATION = `core/src/${TIERS[0]}`;
-const [RECORDS_A, RECORDS_B] = ['stories', 'agents'].map((name) => `core/src/${TIERS[1]}/${name}`);
-const [QUEUES_A, QUEUES_B] = ['requests', 'backlog'].map((name) => `core/src/${TIERS[2]}/${name}`);
+// the engine probes below name the packages by position (bottom to top, as layers.mjs lists them) and two folders in each tier
+// that has folders: a new package or tier is a new probe, and this fails until it has one
+assert.equal(
+  ENGINE.length,
+  6,
+  'layer-rules.test.ts probes six engine packages: add the new one’s probes',
+);
+assert.deepEqual(
+  Object.keys(TIERS),
+  ['state', 'core'],
+  'a package with tiers needs its probes below',
+);
+const [ADAPTERS, FOUNDATION, STORIES, STATE, CORE, BOARD] = ENGINE.map((name) => `${name}/src`);
+const USAGE = 'usage/src';
+const [RECORDS_A, RECORDS_B] = ['agents', 'worktrees'].map(
+  (name) => `${STATE}/${TIERS.state[0]}/${name}`,
+);
+const [QUEUES_A, QUEUES_B] = ['requests', 'backlog'].map(
+  (name) => `${STATE}/${TIERS.state[1]}/${name}`,
+);
 const [FEATURES_A, FEATURES_B] = ['review', 'sessions'].map(
-  (name) => `core/src/${TIERS[3]}/${name}`,
+  (name) => `${CORE}/${TIERS.core[0]}/${name}`,
 );
-const [ORCHESTRATION_A, ORCHESTRATION_B] = ['board', 'bridge'].map(
-  (name) => `core/src/${TIERS[4]}/${name}`,
-);
-const TIER_FOLDERS = [FOUNDATION, RECORDS_A, QUEUES_A, FEATURES_A, ORCHESTRATION_A]; // one folder per tier, bottom to top
-const BELOW_RULES = TIERS.slice(0, -1).map((tier) => `core-${tier}-below`); // the top tier has none
+const ORCHESTRATION = `${CORE}/${TIERS.core[1]}/bridge`;
+const ENGINE_BELOW = ENGINE.slice(1, -1).map((name) => `${name}-imports-only-below`); // adapters has its own, board is the top
+const TIER_BELOW = Object.entries(TIERS).map(([pkg, tiers]) => `${pkg}-${tiers[0]}-below`);
 
 const SHIPPED = 'shipped-code-not-the-test-kit';
 const EXT_APP = 'extension-is-an-app';
@@ -53,7 +65,9 @@ const FROM_ADAPTERS = 'only-adapters-run-programs-or-network';
 const FROM_ADAPTERS_HTTP = `${FROM_ADAPTERS}-http`;
 const HEALTH_ONLY = 'health-check-is-the-doctors';
 const NO_ROUTES = 'cli-and-core-have-no-route-table';
-const APPS_NOT_ADAPTERS = 'apps-use-core-not-adapters';
+const APPS_NOT_ADAPTERS = 'apps-use-the-engine-not-adapters';
+const USAGE_APPS = 'usage-for-apps-only';
+const BOARD_SERVER = 'board-is-the-servers';
 
 // the packages the matrix crosses: each one's folder, and a `leaf.ts` in it for the others to import
 const PACKAGES: Record<string, string> = {
@@ -164,73 +178,113 @@ const MATRIX_PROBES: Probe[] = Object.keys(PACKAGES).flatMap((from) =>
 );
 
 const PROBES: Probe[] = [
-  // --- core: the tiers, adapters and the two apps ---
-  ...BELOW_RULES.map((rule, i): Probe => [
-    `${TIER_FOLDERS[i]}/up.ts`,
-    `${TIER_FOLDERS[i + 1]}/leaf.ts`,
+  // --- the engine: packages bottom to top, tiers inside state and core, and the two apps ---
+  // each package may not import the one above it (adapters-are-bottom, then the generated -imports-only-below rules)
+  [`${ADAPTERS}/up.ts`, `${FOUNDATION}/leaf.ts`, 'adapters-are-bottom'],
+  ...ENGINE_BELOW.map((rule, i): Probe => [
+    `${[FOUNDATION, STORIES, STATE, CORE][i]}/up.ts`,
+    `${[STORIES, STATE, CORE, BOARD][i]}/leaf.ts`,
+    i === 3 ? [rule, BOARD_SERVER] : rule, // core reaching for board is also the server's alone
+  ]),
+  // and may import every one under it
+  [`${FOUNDATION}/ok-down.ts`, `${ADAPTERS}/leaf.ts`, null],
+  [`${STORIES}/ok-down.ts`, `${FOUNDATION}/leaf.ts`, null],
+  [`${STATE}/ok-stories.ts`, `${STORIES}/leaf.ts`, null],
+  [`${CORE}/ok-state.ts`, `${STATE}/leaf.ts`, null],
+  [`${BOARD}/ok-core.ts`, `${CORE}/leaf.ts`, null],
+  // the tiers inside state and core
+  ...TIER_BELOW.map((rule, i): Probe => [
+    `${[RECORDS_A, FEATURES_A][i]}/up.ts`,
+    `${[QUEUES_A, ORCHESTRATION][i]}/leaf.ts`,
     rule,
   ]),
-  // a tier may import every tier under it, and an adapter, but never a folder of its own tier
-  [`${RECORDS_A}/side.ts`, `${RECORDS_B}/leaf.ts`, 'core-tier-siblings-apart'],
-  [`${QUEUES_A}/side.ts`, `${QUEUES_B}/leaf.ts`, 'core-tier-siblings-apart'],
+  [`${RECORDS_A}/side.ts`, `${RECORDS_B}/leaf.ts`, 'state-tier-siblings-apart'],
+  [`${QUEUES_A}/side.ts`, `${QUEUES_B}/leaf.ts`, 'state-tier-siblings-apart'],
   [`${FEATURES_A}/side.ts`, `${FEATURES_B}/leaf.ts`, 'core-tier-siblings-apart'],
-  [`${ORCHESTRATION_A}/side.ts`, `${ORCHESTRATION_B}/leaf.ts`, 'core-tier-siblings-apart'],
-  // listening has one way in, the service (features/listeners/service.ts); the queues below it read the heartbeats directly
-  ['cli/src/via.ts', 'core/src/records/listeners/leaf.ts', 'listening-through-service'],
-  ['server/src/via.ts', 'core/src/features/listeners/wait.ts', 'listening-through-service'],
-  [`${ORCHESTRATION_A}/via.ts`, 'core/src/features/listeners/wait.ts', 'listening-through-service'],
-  ['cli/src/ok.ts', 'core/src/features/listeners/service.ts', null],
-  [`${ORCHESTRATION_A}/ok.ts`, 'core/src/features/listeners/service.ts', null],
-  [`${QUEUES_A}/ok.ts`, 'core/src/records/listeners/leaf.ts', null],
   [`${RECORDS_A}/ok-self.ts`, `${RECORDS_A}/leaf.ts`, null],
-  [`${RECORDS_A}/ok-down.ts`, `${FOUNDATION}/leaf.ts`, null],
-  [`${RECORDS_A}/ok-adapter.ts`, 'core/src/adapters/leaf.ts', null],
   [`${QUEUES_A}/ok-down.ts`, `${RECORDS_A}/leaf.ts`, null],
-  [`${FEATURES_A}/ok-down.ts`, `${QUEUES_A}/leaf.ts`, null],
-  [`${ORCHESTRATION_A}/ok-down.ts`, `${RECORDS_A}/leaf.ts`, null],
-  [`${ORCHESTRATION_B}/ok-down.ts`, `${QUEUES_B}/leaf.ts`, null],
-  [`${FOUNDATION}/ok-sibling.ts`, `${FOUNDATION}/leaf.ts`, null], // the bottom tier is files that may import each other
-  [`core/src/adapters/up.ts`, `${RECORDS_A}/leaf.ts`, 'adapters-are-bottom'],
-  [`core/src/adapters/app.ts`, 'server/src/leaf.ts', ['adapters-are-bottom', 'core-below-apps']],
-  [`core/src/adapters/cli.ts`, 'cli/src/leaf.ts', ['adapters-are-bottom', 'core-below-apps']],
-  [`${ORCHESTRATION_B}/app.ts`, 'cli/src/leaf.ts', 'core-below-apps'],
+  [`${FEATURES_A}/ok-down.ts`, `${STATE}/queues/requests/leaf.ts`, null],
+  [`${ORCHESTRATION}/ok-down.ts`, `${FEATURES_A}/leaf.ts`, null],
+  // listening has one way in, the service (features/listeners/service.ts); the queues below it read the heartbeats directly
+  ['cli/src/via.ts', `${STATE}/records/listeners/leaf.ts`, 'listening-through-service'],
+  ['server/src/via.ts', `${CORE}/features/listeners/wait.ts`, 'listening-through-service'],
+  [`${BOARD}/via.ts`, `${CORE}/features/listeners/wait.ts`, 'listening-through-service'],
+  [`${BOARD}/via-records.ts`, `${STATE}/records/listeners/leaf.ts`, 'listening-through-service'],
+  [`${ORCHESTRATION}/via.ts`, `${CORE}/features/listeners/wait.ts`, 'listening-through-service'],
+  ['cli/src/ok.ts', `${CORE}/features/listeners/service.ts`, null],
+  [`${BOARD}/ok.ts`, `${CORE}/features/listeners/service.ts`, null],
+  [`${ORCHESTRATION}/ok.ts`, `${CORE}/features/listeners/service.ts`, null],
+  [`${QUEUES_A}/ok.ts`, `${STATE}/records/listeners/leaf.ts`, null],
+  [`${FOUNDATION}/ok-sibling.ts`, `${FOUNDATION}/leaf.ts`, null], // a package without tiers is files that may import each other
+  // the engine sits under the apps
+  [`${ADAPTERS}/app.ts`, 'server/src/leaf.ts', 'core-below-apps'],
+  [`${ADAPTERS}/cli.ts`, 'cli/src/leaf.ts', 'core-below-apps'],
+  [`${ORCHESTRATION}/app.ts`, 'cli/src/leaf.ts', 'core-below-apps'],
+  [`${BOARD}/app.ts`, 'server/src/leaf.ts', 'core-below-apps'],
   [`${RECORDS_B}/shell.ts`, 'bridge/bin/leaf.ts', 'core-below-apps'],
-  ['server/src/adapter.ts', 'core/src/adapters/leaf.ts', 'apps-use-core-not-adapters'],
-  ['cli/src/adapter.ts', 'core/src/adapters/leaf.ts', 'apps-use-core-not-adapters'],
-  ['server/src/ok-tier.ts', `${RECORDS_A}/leaf.ts`, null],
-  ['cli/src/ok-tier.ts', `${ORCHESTRATION_A}/leaf.ts`, null],
+  ['server/src/adapter.ts', `${ADAPTERS}/leaf.ts`, APPS_NOT_ADAPTERS],
+  ['cli/src/adapter.ts', `${ADAPTERS}/leaf.ts`, APPS_NOT_ADAPTERS],
+  ['server/src/ok-state.ts', `${RECORDS_A}/leaf.ts`, null],
+  ['server/src/ok-stories.ts', `${STORIES}/leaf.ts`, null],
+  ['cli/src/ok-core.ts', `${ORCHESTRATION}/leaf.ts`, null],
   ['server/src/cli.ts', 'cli/src/leaf.ts', 'http-cli-apart'],
   ['cli/src/server.ts', 'server/src/leaf.ts', 'cli-not-http'],
   ['server/src/shell.ts', 'bridge/bin/leaf.ts', 'apps-not-the-shell'],
   ['cli/src/shell.ts', 'bridge/bin/leaf.ts', 'apps-not-the-shell'],
   ['bridge/bin/ok-apps.ts', 'server/src/leaf.ts', null],
   ['bridge/bin/ok-cli.ts', 'cli/src/leaf.ts', null],
-  ['bridge/bin/ok-core.ts', `${ORCHESTRATION_A}/leaf.ts`, null],
+  ['bridge/bin/ok-core.ts', `${ORCHESTRATION}/leaf.ts`, null],
+  // usage sits beside the stack: the apps and the shell import it, no engine package does, and it imports the floor only
+  ...ENGINE.map((name): Probe => [`${name}/src/to-usage.ts`, `${USAGE}/leaf.ts`, USAGE_APPS]),
+  ['cli/src/ok-usage.ts', `${USAGE}/leaf.ts`, null],
+  ['server/src/ok-usage.ts', `${USAGE}/leaf.ts`, null],
+  ['bridge/bin/ok-usage.ts', `${USAGE}/leaf.ts`, null],
+  ...[STORIES, STATE, CORE, BOARD].map((dir, i): Probe => [
+    `${USAGE}/to-${ENGINE[i + 2]}.ts`,
+    `${dir}/leaf.ts`,
+    i === 3 ? ['usage-imports-only-the-floor', BOARD_SERVER] : 'usage-imports-only-the-floor',
+  ]),
+  [`${USAGE}/ok-adapters.ts`, `${ADAPTERS}/leaf.ts`, null],
+  [`${USAGE}/ok-foundation.ts`, `${FOUNDATION}/leaf.ts`, null],
+  [`${USAGE}/adapters/up.ts`, `${USAGE}/leaf.ts`, 'usage-adapters-are-bottom'],
+  [`${USAGE}/ok-adapter-folder.ts`, `${USAGE}/adapters/leaf.ts`, null],
+  [`${USAGE}/adapters/ok-floor.ts`, `${ADAPTERS}/leaf.ts`, null],
+  // board is the server's alone
+  ['cli/src/to-board.ts', `${BOARD}/leaf.ts`, BOARD_SERVER],
+  ['bridge/bin/to-board.ts', `${BOARD}/leaf.ts`, BOARD_SERVER],
+  ['server/src/ok-board.ts', `${BOARD}/leaf.ts`, null],
+  [`${BOARD}/ok-self.ts`, `${BOARD}/leaf.ts`, null],
 
   // --- only an adapter runs a program or reaches the network ---
   [`${RECORDS_A}/proc.ts`, spec('node:child_process'), FROM_ADAPTERS],
   [`${QUEUES_B}/net.ts`, spec('node:net'), FROM_ADAPTERS],
-  [`${ORCHESTRATION_B}/dns.ts`, spec('dns'), FROM_ADAPTERS],
+  [`${ORCHESTRATION}/dns.ts`, spec('dns'), FROM_ADAPTERS],
   ['server/src/threads.ts', spec('node:worker_threads'), FROM_ADAPTERS],
   ['server/src/routes/vm.ts', spec('node:vm'), FROM_ADAPTERS],
   ['cli/src/https.ts', spec('node:https'), FROM_ADAPTERS],
-  ['core/src/adapters/ok-proc.ts', spec('node:child_process'), null],
+  [`${ADAPTERS}/ok-proc.ts`, spec('node:child_process'), null],
   [`${RECORDS_A}/ok-fs.ts`, spec('node:fs'), null],
   [`${RECORDS_A}/http.ts`, spec('node:http'), FROM_ADAPTERS_HTTP],
   [`${FOUNDATION}/http.ts`, spec('node:http'), FROM_ADAPTERS_HTTP],
   ['cli/src/http.ts', spec('node:http'), FROM_ADAPTERS_HTTP],
   ['server/src/routes/http.ts', spec('node:http'), FROM_ADAPTERS_HTTP],
   ['server/src/ok-http.ts', spec('node:http'), null],
-  ['core/src/adapters/ok-http.ts', spec('node:http'), null],
+  [`${ADAPTERS}/ok-http.ts`, spec('node:http'), null],
   ['server/src/ok-fs.ts', spec('node:fs'), null],
+  [`${USAGE}/proc.ts`, spec('node:child_process'), FROM_ADAPTERS],
+  [`${USAGE}/http.ts`, spec('node:http'), FROM_ADAPTERS_HTTP],
+  [`${USAGE}/adapters/ok-proc.ts`, spec('node:child_process'), null],
+  [`${USAGE}/adapters/ok-http.ts`, spec('node:http'), null],
+  [`${BOARD}/proc.ts`, spec('node:child_process'), FROM_ADAPTERS],
+  [`${STORIES}/net.ts`, spec('node:net'), FROM_ADAPTERS],
 
   // --- the CLI never calls the server: the health check is the doctor's, and the route table is not the CLI's or core's ---
-  [`${QUEUES_A}/health.ts`, 'core/src/adapters/bridge-health.ts', HEALTH_ONLY],
-  [`${ORCHESTRATION_B}/health-too.ts`, 'core/src/adapters/bridge-health.ts', HEALTH_ONLY],
-  ['server/src/health.ts', 'core/src/adapters/bridge-health.ts', [HEALTH_ONLY, APPS_NOT_ADAPTERS]],
-  ['cli/src/health.ts', 'core/src/adapters/bridge-health.ts', [HEALTH_ONLY, APPS_NOT_ADAPTERS]],
-  ['bridge/bin/health.ts', 'core/src/adapters/bridge-health.ts', HEALTH_ONLY],
-  [`${ORCHESTRATION_B}/doctor.ts`, 'core/src/adapters/bridge-health.ts', null],
+  [`${QUEUES_A}/health.ts`, `${ADAPTERS}/bridge-health.ts`, HEALTH_ONLY],
+  [`${ORCHESTRATION}/health-too.ts`, `${ADAPTERS}/bridge-health.ts`, HEALTH_ONLY],
+  ['server/src/health.ts', `${ADAPTERS}/bridge-health.ts`, [HEALTH_ONLY, APPS_NOT_ADAPTERS]],
+  ['cli/src/health.ts', `${ADAPTERS}/bridge-health.ts`, [HEALTH_ONLY, APPS_NOT_ADAPTERS]],
+  ['bridge/bin/health.ts', `${ADAPTERS}/bridge-health.ts`, HEALTH_ONLY],
+  [`${ORCHESTRATION}/doctor.ts`, `${ADAPTERS}/bridge-health.ts`, null],
   ['cli/src/to-routes.ts', 'contracts/src/routes.ts', NO_ROUTES],
   ['cli/src/to-route-kit.ts', 'contracts/src/route-kit.ts', NO_ROUTES],
   [`${RECORDS_A}/to-area-routes.ts`, 'contracts/src/story/routes.ts', NO_ROUTES],
@@ -257,7 +311,18 @@ const PROBES: Probe[] = [
     ['instrumentation-is-for-the-shims', 'apps-not-the-shell'],
   ],
   ['bridge/bin/ok-instr.ts', 'bridge/instrumentation/leaf.ts', null],
-  ['bridge/instrumentation/ok-adapter.ts', 'core/src/adapters/leaf.ts', null],
+  [
+    `${USAGE}/instr.ts`,
+    'bridge/instrumentation/leaf.ts',
+    ['instrumentation-is-for-the-shims', 'core-below-apps'],
+  ],
+  [
+    `${BOARD}/instr.ts`,
+    'bridge/instrumentation/leaf.ts',
+    ['instrumentation-is-for-the-shims', 'core-below-apps'],
+  ],
+  ['bridge/instrumentation/ok-adapter.ts', `${ADAPTERS}/leaf.ts`, null],
+  ['bridge/instrumentation/ok-usage.ts', `${USAGE}/adapters/leaf.ts`, null],
 
   // --- the bridge serves the client packages, and only the server imports the bridge ---
   [`${RECORDS_A}/client.ts`, 'panel/src/leaf.ts', NOT_CLIENT],

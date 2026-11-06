@@ -14,15 +14,15 @@
  * story's tab in the background doesn't lose the listener. Only a closed tab, or a browser that stops its timers, lets
  * the idle window run out.
  */
-import { readFixes } from '../../queues/requests/fixes.ts';
-import { Builds } from '../../queues/requests/builds.ts';
-import { readSettings } from '../../foundation/settings.ts';
-import { readJson, writeFileAtomic } from '../../adapters/stores/fs/json-file.ts';
+import { readFixes } from '@once-upon-a-diff/state/queues/requests/fixes';
+import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
+import { readSettings } from '@once-upon-a-diff/foundation/settings';
+import { readJson, writeFileAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
 import { plural } from '@once-upon-a-diff/domain/text';
 import path from 'node:path';
-import { sameRepo } from '../../foundation/repos.ts';
-import type { StoryStore } from '../../records/stories/store.ts';
-import { ensureDir, appendText } from '../../adapters/stores/fs/files.ts';
+import { sameRepo } from '@once-upon-a-diff/foundation/repos';
+import type { StoryStore } from '@once-upon-a-diff/stories/store';
+import { ensureDir, appendText } from '@once-upon-a-diff/adapters/stores/fs/files';
 
 export const SEEN_FILE = 'seen.json';
 const SEEN_WRITE_MS = 30000;

@@ -12,32 +12,40 @@
  * Its `paths` are relative to the repo root, not to configs/: depcruise resolves them against the folder it runs from (`yarn depcruise` runs at the root).
  *
  * Packages and layers, as paths from the repo root (a rule's `from`/`to` match these):
- *   core     packages/core/src: adapters (every side effect) under five tiers, bottom to top (the names are in core-tiers.mjs,
- *            the one list). A tier imports only the tiers under it, and folders in one tier never import each other
- *   server   packages/server/src (the HTTP app, with routes/) and cli packages/cli/src (the CLI): apps over core, apart from each other
+ *   the engine, bottom to top (configs/layers.mjs, the one list): adapters (every side effect), foundation, stories, state,
+ *   core, board (packages/<name>/src). A package imports only the ones under it. state keeps two tiers inside it (records, then
+ *   queues) and core two (features, then orchestration), whose folders never import each other. usage (packages/usage/src) sits
+ *   beside the stack: it imports adapters and foundation, and only the apps and the shell import it. board is the server's
+ *   alone
+ *   server   packages/server/src (the HTTP app, with routes/) and cli packages/cli/src (the CLI): apps over the engine, apart from each other
  *   bridge   packages/bridge (the shell): bin/once-upon.ts is the one file that knows both apps, instrumentation (the usage probe
- *            the entry shims preload) and the integration tests. BRIDGE below is all four: the server side as a whole
+ *            the entry shims preload) and the integration tests. BRIDGE below is the whole server side: the shell, the engine and both apps
  *   web      packages/web/public (the pages, an app)
  *   extension packages/extension/src (an app)
  *   panel, github-page, bridge-client, ui-kit, contracts, domain (imports nothing), test-kit
  */
 
 import { fileURLToPath } from 'node:url';
-import { TIERS, TIERS_OF_FOLDERS } from './core-tiers.mjs';
+import { PACKAGES, TIERS } from './layers.mjs';
 
-const BRIDGE = '^packages/(bridge|core|server|cli)/';
+const ENGINE_NAMES = [...PACKAGES, 'usage'];
+const BRIDGE = `^packages/(bridge|${ENGINE_NAMES.join('|')}|server|cli)/`;
 const SHELL = '^packages/bridge/';
-const CORE = '^packages/core/src/';
 const SERVER = '^packages/server/src/';
 const CLI = '^packages/cli/src/';
 const ROUTES = '^packages/server/src/routes/';
-const ADAPTERS = '^packages/core/src/adapters/';
-const HEALTH_CHECK = '^packages/core/src/adapters/bridge-health\\.ts$';
+const srcOf = (names) => `^packages/(${names.join('|')})/src/`;
+// the engine libraries (every engine package, usage included): they sit under the apps
+const ENGINE = srcOf(ENGINE_NAMES);
+const ADAPTERS = srcOf(['adapters']);
+const USAGE = srcOf(['usage']);
+const USAGE_ADAPTERS = '^packages/usage/src/adapters/';
+// what only an adapter may do: every engine package but adapters, except usage's own adapters folder
+const NOT_ADAPTERS = `${srcOf(ENGINE_NAMES.filter((name) => name !== 'adapters'))}`;
+const HEALTH_CHECK = '^packages/adapters/src/bridge-health\\.ts$';
 const DOCTOR = '^packages/core/src/orchestration/bridge/doctor\\.ts$';
 // what a client needs to call the bridge: the route table (the routes, and the kit and each area's routes it is built from)
 const ROUTE_TABLE = '^packages/contracts/src/(routes|route-kit|[a-z-]+/routes)\\.ts$';
-const tierPath = (names) => `^packages/core/src/(${names.join('|')})/`;
-const TIER_FILES = tierPath(TIERS);
 const WEB = '^packages/web/public/';
 const EXTENSION = '^packages/extension/';
 const PANEL = '^packages/panel/';
@@ -119,24 +127,57 @@ export default {
     ...regionRules,
     boardSharedRule,
 
-    // core (adapters under five tiers), and the two apps over it
+    // the engine (configs/layers.mjs), bottom to top, and the two apps over it. A package imports only the ones under it; usage
+    // is beside them (usage-for-apps-only), and board is the server's alone
     rule(
       'adapters-are-bottom',
-      'the adapters sit below every tier and both apps: they import none of them',
+      'the adapters sit below every other engine package: they import none of them',
       { path: ADAPTERS },
-      { path: [TIER_FILES, SERVER, CLI] },
+      { path: srcOf(PACKAGES.slice(1)) },
+    ),
+    ...PACKAGES.slice(1, -1).map((name, index) =>
+      rule(
+        `${name}-imports-only-below`,
+        `an engine package imports only the packages under it: ${name} never imports ${PACKAGES.slice(index + 2).join(', ')}`,
+        { path: srcOf([name]) },
+        { path: srcOf(PACKAGES.slice(index + 2)) },
+      ),
     ),
     rule(
       'core-below-apps',
-      'core sits below the apps: it imports neither the HTTP app, the CLI nor the shell',
-      { path: CORE },
+      'the engine sits below the apps: no engine package imports the HTTP app, the CLI nor the shell',
+      { path: ENGINE },
       { path: [SERVER, CLI, SHELL] },
     ),
     rule(
-      'apps-use-core-not-adapters',
-      'the HTTP app and the CLI go through the tiers of core, and only the tiers call an adapter',
+      'apps-use-the-engine-not-adapters',
+      'the HTTP app and the CLI go through the packages over the adapters, and only those call an adapter',
       { path: [SERVER, CLI] },
       { path: ADAPTERS },
+    ),
+    rule(
+      'usage-for-apps-only',
+      'usage (the dev instrumentation) is imported by the apps and the shell, never by an engine package: it sits beside the stack, not in it',
+      { path: srcOf(PACKAGES) },
+      { path: USAGE },
+    ),
+    rule(
+      'usage-imports-only-the-floor',
+      'usage imports the adapters and the foundation and nothing above them',
+      { path: USAGE },
+      { path: srcOf(PACKAGES.slice(2)) },
+    ),
+    rule(
+      'usage-adapters-are-bottom',
+      'usage/src/adapters/ is the side-effect folder of usage and imports none of its other files (session.ts imports nothing of this repo at all: the shell preloads it)',
+      { path: USAGE_ADAPTERS },
+      { path: USAGE, pathNot: USAGE_ADAPTERS },
+    ),
+    rule(
+      'board-is-the-servers',
+      'board is the server’s alone: no cli, core or other engine file imports it (the shell reaches it only through the server, which the shell loads)',
+      { pathNot: [SERVER, '^packages/board/'] },
+      { path: '^packages/board/' },
     ),
     rule(
       'http-cli-apart',
@@ -156,28 +197,32 @@ export default {
       { path: [SERVER, CLI] },
       { path: SHELL },
     ),
-    // the tiers: each imports only the tiers under it, and the folders of one tier stay apart
-    ...TIERS.slice(0, -1).map((name, index) =>
+    // the tiers inside state and core: each imports only the tiers under it, and the folders of one tier stay apart
+    ...Object.entries(TIERS).flatMap(([pkg, tiers]) => [
+      ...tiers
+        .slice(0, -1)
+        .map((name, index) =>
+          rule(
+            `${pkg}-${name}-below`,
+            `a tier imports only the tiers under it: in ${pkg}, ${name} never imports ${tiers.slice(index + 1).join(', ')}`,
+            { path: `^packages/${pkg}/src/${name}/` },
+            { path: `^packages/${pkg}/src/(${tiers.slice(index + 1).join('|')})/` },
+          ),
+        ),
       rule(
-        `core-${name}-below`,
-        `a tier imports only the tiers under it: ${name} never imports ${TIERS.slice(index + 1).join(', ')}`,
-        { path: `^packages/core/src/${name}/` },
-        { path: tierPath(TIERS.slice(index + 1)) },
+        `${pkg}-tier-siblings-apart`,
+        `folders in one tier of ${pkg} do not import each other: move what both need down a tier`,
+        { path: `^packages/${pkg}/src/(${tiers.join('|')})/([^/]+)/` },
+        { path: `^packages/${pkg}/src/$1/`, pathNot: `^packages/${pkg}/src/$1/$2/` },
       ),
-    ),
-    rule(
-      'core-tier-siblings-apart',
-      'folders in one tier do not import each other: move what both need down a tier',
-      { path: `^packages/core/src/(${TIERS_OF_FOLDERS.join('|')})/([^/]+)/` },
-      { path: '^packages/core/src/$1/', pathNot: '^packages/core/src/$1/$2/' },
-    ),
+    ]),
     rule(
       'listening-through-service',
       'listening has one way in: the CLI, the HTTP app and the board import features/listeners/service.ts, not the listener files behind it. The queues below it read heartbeats directly',
-      { path: ['^packages/(cli|server)/src/', '^packages/core/src/orchestration/'] },
+      { path: ['^packages/(cli|server|board)/src/', '^packages/core/src/orchestration/'] },
       {
         path: [
-          '^packages/core/src/records/listeners/',
+          '^packages/state/src/records/listeners/',
           '^packages/core/src/features/listeners/(?!service\\.ts$)',
         ],
       },
@@ -185,7 +230,7 @@ export default {
     rule(
       'only-adapters-run-programs-or-network',
       'only an adapter runs a program or reaches the network (the HTTP app has node:http, to listen). Covers the imports a graph can see; the rest stays ESLint-only (configs/eslint.side-effects.mjs): fs writes (an import of node:fs cannot tell a read from a write), fetch, process.kill and module loaders',
-      { path: [TIER_FILES, SERVER, CLI] },
+      { path: [NOT_ADAPTERS, SERVER, CLI], pathNot: USAGE_ADAPTERS },
       {
         dependencyTypes: ['core'],
         path: '^(node:)?(child_process|net|https|http2|dgram|tls|dns|worker_threads|vm)(/|$)',
@@ -194,27 +239,27 @@ export default {
     rule(
       'only-adapters-run-programs-or-network-http',
       'only the HTTP app (server/, not server/routes/) has node:http, to listen',
-      { path: [TIER_FILES, CLI, ROUTES] },
+      { path: [NOT_ADAPTERS, CLI, ROUTES], pathNot: USAGE_ADAPTERS },
       { dependencyTypes: ['core'], path: '^(node:)?http$' },
     ),
     // the CLI never calls the server (ADR-15). Which imports could make a call are named here; what the graph cannot see (a
     // fetch, a socket, a signal, a program) is packages/bridge/test/cli-never-calls-server.test.ts, the real guard
     rule(
       'health-check-is-the-doctors',
-      'the doctor’s health check (adapters/bridge-health.ts) is the one call the CLI or core makes to the running bridge, and orchestration/bridge/doctor.ts is its one importer: the CLI never calls the server (ADR-15), it reads and writes the shared files through core',
+      'the doctor’s health check (adapters/bridge-health.ts) is the one call the CLI or the engine makes to the running bridge, and orchestration/bridge/doctor.ts is its one importer: the CLI never calls the server (ADR-15), it reads and writes the shared files through core',
       { pathNot: `${DOCTOR}|${HEALTH_CHECK}` },
       { path: HEALTH_CHECK },
     ),
     rule(
       'cli-and-core-have-no-route-table',
-      'the route table is how a client calls the bridge: the CLI and core never import it as a value (a type from it, such as RouteName, is fine). The CLI never calls the server (ADR-15)',
-      { path: `${CLI}|${CORE}` },
+      'the route table is how a client calls the bridge: the CLI and the engine never import it as a value (a type from it, such as RouteName, is fine). The CLI never calls the server (ADR-15)',
+      { path: `${CLI}|${ENGINE}` },
       { path: ROUTE_TABLE, dependencyTypesNot: ['type-only'] },
     ),
     rule(
       'instrumentation-is-for-the-shims',
       'instrumentation (the usage probe) is preloaded by the entry shims (bin/once-upon.mjs, skills/once-upon/bin/story.mjs) and by tests: nothing in src/ imports it (it imports the session adapter, never the other way)',
-      { path: '^packages/(core|server|cli)/src/' },
+      { path: [ENGINE, SERVER, CLI] },
       { path: INSTRUMENTATION },
     ),
     rule(

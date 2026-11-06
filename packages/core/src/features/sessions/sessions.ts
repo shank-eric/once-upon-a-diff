@@ -8,16 +8,19 @@
  * It asks the board for two things it does not own (the last snapshot, and what that build knew of the sessions) through
  * `SessionsFeed`, so nothing here imports the Board.
  */
-import { readSettings } from '../../foundation/settings.ts';
-import { REPO_RE, repoOfCheckoutAsync, sameRepo } from '../../foundation/repos.ts';
-import { readMeta, storyRepo } from '../../records/stories/meta.ts';
+import { readSettings } from '@once-upon-a-diff/foundation/settings';
+import { REPO_RE, repoOfCheckoutAsync, sameRepo } from '@once-upon-a-diff/foundation/repos';
+import { readMeta, storyRepo } from '@once-upon-a-diff/stories/meta';
 import { STORY_ID_RE } from '@once-upon-a-diff/domain/patterns';
-import type { StoryStore } from '../../records/stories/store.ts';
-import { findIt2, focusTab, typeLine } from '../../adapters/iterm.ts';
-import type { StatusSource } from '../../adapters/status-source.ts';
-import { liveSessions, type LiveSession } from '../../adapters/claude-sessions/live-sessions.ts';
+import type { StoryStore } from '@once-upon-a-diff/stories/store';
+import { findIt2, focusTab, typeLine } from '@once-upon-a-diff/adapters/iterm';
+import type { StatusSource } from '@once-upon-a-diff/adapters/status-source';
+import {
+  liveSessions,
+  type LiveSession,
+} from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
 import { pickSource } from './sources.ts';
-import { BoardError } from '../../foundation/errors.ts';
+import { BoardError } from '@once-upon-a-diff/foundation/errors';
 import {
   listenCandidates,
   listenCandidatesIn,

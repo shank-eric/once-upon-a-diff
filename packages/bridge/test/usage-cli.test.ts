@@ -4,11 +4,11 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { tmp, runCli } from './helpers.ts';
 import { assertPrivate } from './usage-helpers.ts';
-import { isLinkedWorktree } from '@once-upon-a-diff/core/adapters/usage/session';
-import { commandLabel } from '@once-upon-a-diff/core/records/usage/cli-log';
-import { COMMAND_AREAS } from '@once-upon-a-diff/core/records/usage/areas';
+import { isLinkedWorktree } from '@once-upon-a-diff/usage/adapters/session';
+import { commandLabel } from '@once-upon-a-diff/usage/cli-log';
+import { COMMAND_AREAS } from '@once-upon-a-diff/usage/areas';
 import { commandNames } from '@once-upon-a-diff/cli/index';
-import type { CoverageFile } from '@once-upon-a-diff/core/records/usage/merge';
+import type { CoverageFile } from '@once-upon-a-diff/usage/merge';
 
 /** `force` captures even when these tests run in a linked worktree (an agent's checkout is skipped otherwise). */
 const FORCE = { ONCE_UPON_USAGE: 'force' };
@@ -27,7 +27,7 @@ test('a CLI run is captured: coverage per file, a command line, and nothing else
   assert.match(index[0].sha, /^[0-9a-f]{8}$/);
   // the report's own command never counts itself, and the capture's bootstrap is not measured
   assert.ok(!coverage.files['packages/bridge/instrumentation/usage-probe.ts']);
-  assert.ok(!coverage.files['packages/core/src/adapters/usage/session.ts']);
+  assert.ok(!coverage.files['packages/usage/src/adapters/session.ts']);
   assert.ok(!coverage.files['packages/bridge/bin/once-upon.mjs']);
   assert.equal(
     readFileSync(usageFile(home, 'cli-runs.log'), 'utf8').trim().split(' ')[1],

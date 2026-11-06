@@ -13,19 +13,19 @@ import {
   type TestBridge,
 } from './helpers.ts';
 import { worktreeFixture as fixture } from '@once-upon-a-diff/test-kit/git';
-import { Board, noPrWatcher } from '@once-upon-a-diff/core/orchestration/board/board';
+import { Board, noPrWatcher } from '@once-upon-a-diff/board/board';
 import { registrySource } from '@once-upon-a-diff/core/features/sessions/sources';
-import { seenCheckout } from '@once-upon-a-diff/core/foundation/repos';
-import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
-import { Builds } from '@once-upon-a-diff/core/queues/requests/builds';
-import { AgentRegistry } from '@once-upon-a-diff/core/records/agents/registry';
+import { seenCheckout } from '@once-upon-a-diff/foundation/repos';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
+import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
+import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import {
   cleanWorktree,
   type CleanInput,
-} from '@once-upon-a-diff/core/records/worktrees/worktree-clean';
-import { WorktreeScanner } from '@once-upon-a-diff/core/records/worktrees/worktrees';
-import { boardKey, pageKey } from '@once-upon-a-diff/core/records/page-links/page-key';
-import { BoardError } from '@once-upon-a-diff/core/foundation/errors';
+} from '@once-upon-a-diff/state/records/worktrees/worktree-clean';
+import { WorktreeScanner } from '@once-upon-a-diff/state/records/worktrees/worktrees';
+import { boardKey, pageKey } from '@once-upon-a-diff/state/records/page-links/page-key';
+import { BoardError } from '@once-upon-a-diff/foundation/errors';
 
 const open: TestBridge[] = [];
 after(() => Promise.all(open.map((bridge) => bridge.close())));

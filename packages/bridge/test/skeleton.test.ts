@@ -3,12 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmp, writeJson, githubStory, startBridge } from './helpers.ts';
-import {
-  noteSkeleton,
-  skeletonKeys,
-  unwrittenCount,
-} from '@once-upon-a-diff/core/records/stories/skeleton';
-import type { Plan } from '@once-upon-a-diff/core/records/stories/chapters';
+import { noteSkeleton, skeletonKeys, unwrittenCount } from '@once-upon-a-diff/stories/skeleton';
+import type { Plan } from '@once-upon-a-diff/stories/chapters';
 import type { StoryData } from '@once-upon-a-diff/contracts/types';
 
 const plan = (dir: string): Plan =>

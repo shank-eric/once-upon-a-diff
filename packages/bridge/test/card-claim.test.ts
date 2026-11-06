@@ -3,19 +3,19 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { claimAt, registerRuns, runCli, tmp, writeJson, type AgentRun } from './helpers.ts';
-import { Board, noPrWatcher } from '@once-upon-a-diff/core/orchestration/board/board';
-import { BacklogStore, backlogCards } from '@once-upon-a-diff/core/queues/backlog/backlog';
+import { Board, noPrWatcher } from '@once-upon-a-diff/board/board';
+import { BacklogStore, backlogCards } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import {
   CLAIM_GRACE_HOURS,
   claimedAgents,
   criticHold,
-} from '@once-upon-a-diff/core/queues/backlog/claims';
-import { startedLinks } from '@once-upon-a-diff/core/queues/backlog/backlog-links';
-import { STALE_MS } from '@once-upon-a-diff/core/records/agents/events';
-import { AgentRegistry } from '@once-upon-a-diff/core/records/agents/registry';
+} from '@once-upon-a-diff/state/queues/backlog/claims';
+import { startedLinks } from '@once-upon-a-diff/state/queues/backlog/backlog-links';
+import { STALE_MS } from '@once-upon-a-diff/state/records/agents/events';
+import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { registrySource } from '@once-upon-a-diff/core/features/sessions/sources';
-import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
-import { Builds } from '@once-upon-a-diff/core/queues/requests/builds';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
+import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
 import type { BoardCard } from '@once-upon-a-diff/contracts/types';
 
 const NOW = new Date('2026-10-26T19:00:00Z');

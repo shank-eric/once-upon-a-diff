@@ -1,18 +1,22 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { StoryStore } from '../../records/stories/store.ts';
-import { Builds, type Build } from '../../queues/requests/builds.ts';
-import { copyFileAtomic, readJson, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
-import { parseUnifiedDiff } from '../../records/stories/diff.ts';
-import { stateKeyOf } from '../../records/stories/meta.ts';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
+import { Builds, type Build } from '@once-upon-a-diff/state/queues/requests/builds';
+import {
+  copyFileAtomic,
+  readJson,
+  writeJsonAtomic,
+} from '@once-upon-a-diff/adapters/stores/fs/json-file';
+import { parseUnifiedDiff } from '@once-upon-a-diff/stories/diff';
+import { stateKeyOf } from '@once-upon-a-diff/stories/meta';
 import { afterRebuild } from './after-rebuild.ts';
-import { vetRebuild } from '../../records/stories/rebuild.ts';
-import { slug } from '../../records/stories/local-story.ts';
-import { storyDirFor } from '../../records/stories/placement.ts';
-import { noteSkeleton } from '../../records/stories/skeleton.ts';
-import { readyPlan } from '../../records/stories/validate.ts';
-import type { Plan } from '../../records/stories/chapters.ts';
-import type { StoryMeta } from '../../records/stories/types.ts';
+import { vetRebuild } from '@once-upon-a-diff/stories/rebuild';
+import { slug } from '@once-upon-a-diff/stories/local-story';
+import { storyDirFor } from '@once-upon-a-diff/stories/placement';
+import { noteSkeleton } from '@once-upon-a-diff/stories/skeleton';
+import { readyPlan } from '@once-upon-a-diff/stories/validate';
+import type { Plan } from '@once-upon-a-diff/stories/chapters';
+import type { StoryMeta } from '@once-upon-a-diff/stories/types';
 
 /** A rebuild that's being published: its request, the chapters before and after, and the drafts carried over. */
 export type Rebuilt = {

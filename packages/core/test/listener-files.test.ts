@@ -2,9 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { tmp } from './helpers.ts';
+import '@once-upon-a-diff/test-kit/env';
+import { tmp } from '@once-upon-a-diff/test-kit/files';
 import { requestStop, stopRequested } from '../src/features/listeners/auto-stop.ts';
-import { listeners, touchHandling } from '../src/records/listeners/listeners.ts';
+import { listeners, touchHandling } from '@once-upon-a-diff/state/records/listeners/listeners';
 
 test('stopRequested: no usable stops file is null even for a wait that started at 0', () => {
   const home = tmp('stops');

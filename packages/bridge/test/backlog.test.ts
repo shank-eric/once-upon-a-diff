@@ -23,13 +23,13 @@ import {
   backlogCards,
   foldBacklog,
   startLine,
-} from '@once-upon-a-diff/core/queues/backlog/backlog';
-import { AgentRegistry } from '@once-upon-a-diff/core/records/agents/registry';
-import { Board, noPrWatcher } from '@once-upon-a-diff/core/orchestration/board/board';
+} from '@once-upon-a-diff/state/queues/backlog/backlog';
+import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
+import { Board, noPrWatcher } from '@once-upon-a-diff/board/board';
 import { registrySource } from '@once-upon-a-diff/core/features/sessions/sources';
-import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
-import { Builds } from '@once-upon-a-diff/core/queues/requests/builds';
-import { boardKey, pageKey, viewKey } from '@once-upon-a-diff/core/records/page-links/page-key';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
+import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
+import { boardKey, pageKey, viewKey } from '@once-upon-a-diff/state/records/page-links/page-key';
 import type {
   BoardAgent,
   BoardCard,

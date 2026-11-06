@@ -1,5 +1,5 @@
 /** Whether a local story's commit has shipped to its checkout's default branch, asked through git. */
-import { defaultBranchOf, isAncestorAsync, runGitAsync } from '../../adapters/git.ts';
+import { defaultBranchOf, isAncestorAsync, runGitAsync } from '@once-upon-a-diff/adapters/git';
 
 /**
  * Whether a commit is already in the checkout's default branch (origin's, as last fetched): the commit is the branch's tip

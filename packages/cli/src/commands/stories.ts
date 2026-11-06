@@ -4,21 +4,21 @@
  */
 
 import path from 'node:path';
-import { openTarget } from '@once-upon-a-diff/core/foundation/settings';
-import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
-import { Builds } from '@once-upon-a-diff/core/queues/requests/builds';
+import { openTarget } from '@once-upon-a-diff/foundation/settings';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
+import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
 import { AGENT_RE, Listening, ownSession } from '@once-upon-a-diff/core/features/listeners/service';
 import { storyIdOf } from './inbox.ts';
 
 import { afterRebuild } from '@once-upon-a-diff/core/features/publishing/after-rebuild';
-import { vetRebuild } from '@once-upon-a-diff/core/records/stories/rebuild';
-import { createLocalStory } from '@once-upon-a-diff/core/records/stories/local-story';
+import { vetRebuild } from '@once-upon-a-diff/stories/rebuild';
+import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
 
 import { out } from '../output.ts';
 import { portState, serve } from '@once-upon-a-diff/core/orchestration/bridge/bridge';
-import { localPageUrl } from '@once-upon-a-diff/core/records/page-links/page-key';
+import { localPageUrl } from '@once-upon-a-diff/state/records/page-links/page-key';
 
-import type { Config } from '@once-upon-a-diff/core/foundation/settings';
+import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
 import {
   type Rebuilt,

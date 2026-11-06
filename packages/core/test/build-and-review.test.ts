@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import { buildFor, reviewFor } from '../src/features/sessions/listening.ts';
-import { createLocalStory, isStoryless, reviewBranch } from '../src/records/stories/local-story.ts';
-import { git, tmp, writeJson } from './helpers.ts';
+import { createLocalStory, isStoryless, reviewBranch } from '@once-upon-a-diff/stories/local-story';
+import '@once-upon-a-diff/test-kit/env';
+import { git } from '@once-upon-a-diff/test-kit/git';
+import { tmp, writeJson } from '@once-upon-a-diff/test-kit/files';
 import { worktreeFixture } from '@once-upon-a-diff/test-kit/git';
 import type { BoardCard } from '@once-upon-a-diff/contracts/types';
 

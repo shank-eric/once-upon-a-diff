@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { tmp, git, githubStory, localRepo, writeJson, startBridge, TOKEN } from './helpers.ts';
-import { createLocalStory } from '@once-upon-a-diff/core/records/stories/local-story';
-import { refreshLocal, movedSince } from '@once-upon-a-diff/core/records/stories/local-diff';
-import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
-import { pageKey } from '@once-upon-a-diff/core/records/page-links/page-key';
+import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
+import { refreshLocal, movedSince } from '@once-upon-a-diff/stories/local-diff';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
+import { pageKey } from '@once-upon-a-diff/state/records/page-links/page-key';
 import { prStories, localStories } from '@once-upon-a-diff/core/features/review/story-lists';
-import type { LocalMeta } from '@once-upon-a-diff/core/records/stories/types';
+import type { LocalMeta } from '@once-upon-a-diff/stories/types';
 
 const metaOf = (dir: string) =>
   JSON.parse(readFileSync(path.join(dir, 'meta.json'), 'utf8')) as LocalMeta;

@@ -1,14 +1,14 @@
 /*
  * pr-draft: a session hands over the title and body for a local story's PR, for the page's Create pull request
- * button (core/src/records/stories/pull-request.ts). It only saves them: the reviewer pushes and opens the PR from the page.
+ * button (stories/src/pull-request.ts). It only saves them: the reviewer pushes and opens the PR from the page.
  */
-import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
-import { readMeta } from '@once-upon-a-diff/core/records/stories/meta';
-import { DRAFT_FILE } from '@once-upon-a-diff/core/records/stories/pull-request';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
+import { readMeta } from '@once-upon-a-diff/stories/meta';
+import { DRAFT_FILE } from '@once-upon-a-diff/stories/pull-request';
 import { out } from '../output.ts';
 import { bodyText, given } from '../options.ts';
 import type { PrDraft } from '@once-upon-a-diff/contracts/types';
-import type { Config } from '@once-upon-a-diff/core/foundation/settings';
+import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
 
 const USAGE =

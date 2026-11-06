@@ -5,7 +5,7 @@
  * of listening (configs/.dependency-cruiser.mjs, `listening-through-service`).
  *
  * What sits behind it:
- *   records/listeners/   the files: heartbeats (listeners/<consumer>.json), the binding (state/<id>/agent.json), the history.
+ *   state/records/listeners/   the files: heartbeats (listeners/<consumer>.json), the binding (state/<id>/agent.json), the history.
  *                        They stay a tier down because the request queues read heartbeats to route a claim, and a queue can't
  *                        import a feature.
  *   wait.ts              the loop: take or defer, approvals, relays, the stops.  hand-over.ts: what the session reads after it.
@@ -13,7 +13,7 @@
  *   relay.ts             the messages for the agent that built a story.
  *   board-view.ts        which session listens, and the Listeners lane.
  */
-import type { StoryStore } from '../../records/stories/store.ts';
+import type { StoryStore } from '@once-upon-a-diff/stories/store';
 import {
   AGENT_RE,
   activeBinding,
@@ -23,7 +23,7 @@ import {
   sessionLive,
   writeBinding,
   type Binding,
-} from '../../records/listeners/binding.ts';
+} from '@once-upon-a-diff/state/records/listeners/binding';
 import {
   answeringOf,
   cliCommand,
@@ -33,7 +33,7 @@ import {
   statusOf,
   touchHandling,
   type Listener,
-} from '../../records/listeners/listeners.ts';
+} from '@once-upon-a-diff/state/records/listeners/listeners';
 import { noteSeen, requestStop } from './auto-stop.ts';
 import { resolveStory, repoAt } from './story-ref.ts';
 import { wait, type WaitOptions, type WaitOutcome } from './wait.ts';

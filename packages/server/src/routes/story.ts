@@ -10,25 +10,21 @@ import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { readPrefs } from '@once-upon-a-diff/core/foundation/settings';
-import { seenCheckout } from '@once-upon-a-diff/core/foundation/repos';
+import { readPrefs } from '@once-upon-a-diff/foundation/settings';
+import { seenCheckout } from '@once-upon-a-diff/foundation/repos';
 import { freshness } from '@once-upon-a-diff/core/features/review/freshness';
 import { readMarks } from '@once-upon-a-diff/core/features/review/drafts';
 import { Listening } from '@once-upon-a-diff/core/features/listeners/service';
-import { refreshLocal, movedSince } from '@once-upon-a-diff/core/records/stories/local-diff';
-import {
-  storyVersion,
-  localVersion,
-  stateKeyOf,
-} from '@once-upon-a-diff/core/records/stories/meta';
+import { refreshLocal, movedSince } from '@once-upon-a-diff/stories/local-diff';
+import { storyVersion, localVersion, stateKeyOf } from '@once-upon-a-diff/stories/meta';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
 import { questionsOf } from './questions.ts';
 import { fixesViewOf } from './fixes.ts';
-import { requestFor } from '@once-upon-a-diff/core/queues/requests/progress';
-import { workingOf } from '@once-upon-a-diff/core/queues/requests/working';
+import { requestFor } from '@once-upon-a-diff/state/queues/requests/progress';
+import { workingOf } from '@once-upon-a-diff/state/queues/requests/working';
 import type { RebuildView, StoryData } from '@once-upon-a-diff/contracts/types';
-import type { LocalMeta, ServedStory } from '@once-upon-a-diff/core/records/stories/types';
+import type { LocalMeta, ServedStory } from '@once-upon-a-diff/stories/types';
 import type { App, Call, StoryRoute } from '../types.ts';
 
 function load({ app, send, readOnly }: Call, story: ServedStory) {

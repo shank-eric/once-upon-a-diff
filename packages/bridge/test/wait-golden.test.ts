@@ -14,11 +14,11 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmp, githubStory, writeJson, TOKEN, CLAUDE_DIR } from './helpers.ts';
-import { Inbox } from '@once-upon-a-diff/core/queues/requests/inbox';
-import { Builds } from '@once-upon-a-diff/core/queues/requests/builds';
-import { AgentRegistry } from '@once-upon-a-diff/core/records/agents/registry';
-import { writeBinding } from '@once-upon-a-diff/core/records/listeners/binding';
-import { beat } from '@once-upon-a-diff/core/records/listeners/listeners';
+import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
+import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
+import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
+import { writeBinding } from '@once-upon-a-diff/state/records/listeners/binding';
+import { beat } from '@once-upon-a-diff/state/records/listeners/listeners';
 
 /*
  * What `once-upon wait` prints, returns and leaves behind, recorded as golden text from the code before `wait` moved into

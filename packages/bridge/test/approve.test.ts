@@ -12,15 +12,15 @@ import {
   writeJson,
   TOKEN,
 } from './helpers.ts';
-import { createLocalStory } from '@once-upon-a-diff/core/records/stories/local-story';
-import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
-import { Inbox } from '@once-upon-a-diff/core/queues/requests/inbox';
+import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
+import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
 import { AutoReview } from '@once-upon-a-diff/core/features/review/github-watcher';
-import type { BranchCheck } from '@once-upon-a-diff/core/records/github/github-checks';
-import { APPROVED_DAYS, approvalOf } from '@once-upon-a-diff/core/records/stories/approval';
+import type { BranchCheck } from '@once-upon-a-diff/state/records/github/github-checks';
+import { APPROVED_DAYS, approvalOf } from '@once-upon-a-diff/stories/approval';
 import { localEntries, localStories } from '@once-upon-a-diff/core/features/review/story-lists';
-import { columnOf } from '@once-upon-a-diff/core/orchestration/board/columns';
-import { boardKey, pageKey, viewKey } from '@once-upon-a-diff/core/records/page-links/page-key';
+import { columnOf } from '@once-upon-a-diff/board/columns';
+import { boardKey, pageKey, viewKey } from '@once-upon-a-diff/state/records/page-links/page-key';
 import type { Printable } from '@once-upon-a-diff/cli/output';
 import type { BoardData, StoryData } from '@once-upon-a-diff/contracts/types';
 

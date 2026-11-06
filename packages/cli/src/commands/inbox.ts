@@ -7,27 +7,27 @@
  * and this prints it, line for line what the once-upon-listen skill acts on.
  */
 import { readFileSync } from 'node:fs';
-import { newId } from '@once-upon-a-diff/core/foundation/ids';
-import { Inbox, filterEntries } from '@once-upon-a-diff/core/queues/requests/inbox';
+import { newId } from '@once-upon-a-diff/foundation/ids';
+import { Inbox, filterEntries } from '@once-upon-a-diff/state/queues/requests/inbox';
 import {
   clearAsking,
   noteAsking,
   readHanded,
   readQaMarks,
-} from '@once-upon-a-diff/core/queues/requests/conversation';
+} from '@once-upon-a-diff/state/queues/requests/conversation';
 import {
   Listening,
   repoAt,
   stoppedEvent,
   stoppedLines,
 } from '@once-upon-a-diff/core/features/listeners/service';
-import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
-import { readMeta, storyRepo } from '@once-upon-a-diff/core/records/stories/meta';
-import { answerRefs } from '@once-upon-a-diff/core/records/stories/validate';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
+import { readMeta, storyRepo } from '@once-upon-a-diff/stories/meta';
+import { answerRefs } from '@once-upon-a-diff/stories/validate';
 
 import { out, describe } from '../output.ts';
 import { given } from '../options.ts';
-import type { Config } from '@once-upon-a-diff/core/foundation/settings';
+import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
 
 function inbox(home: string, cfg: Config, opts: CliOpts) {

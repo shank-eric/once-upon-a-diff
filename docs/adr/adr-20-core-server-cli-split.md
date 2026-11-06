@@ -1,5 +1,7 @@
 # ADR-20: The bridge splits into core, server and cli, with `bridge` left as the shell
 
+> Superseded in part by [ADR-24](adr-24-engine-packages-by-layer.md) (11/5): what `packages/core` holds and what imports what. The rest of this ADR stands.
+
 Decided 11/4 by Eric. Built in 168b6b1 (11/5), and descriptive of the code on main at that commit. It supersedes the bridge's four-folder layout in [ADR-15](adr-15-layered-packages-and-protocol.md) and [ADR-16](adr-16-what-the-rebuild-built.md) (`server/` and `cli/` over `services/` over `adapters/`, all in one package) and the rule there that the CLI "stays in `bridge`". The research of 11/4 (`notes/research/2026-11-04-ou-core-split.md`) recommended skipping a core package until a second consumer appeared. Eric decided otherwise, for the reasons under Context. How core is laid out inside is [ADR-21](adr-21-core-tiers-and-their-rules.md), and the lint that holds all of it is [ADR-22](adr-22-dependency-cruiser-one-home-for-layer-rules.md).
 
 ## Context

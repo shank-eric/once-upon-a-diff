@@ -6,12 +6,12 @@
 import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { Listening } from '../../features/listeners/service.ts';
-import { formatTime } from '../../foundation/settings.ts';
+import { formatTime } from '@once-upon-a-diff/foundation/settings';
 
-import { MIN_NODE_MAJOR, nodeVersionProblem } from '../../foundation/node-version.mjs';
-import type { Config } from '../../foundation/settings.ts';
-import { listenerPid } from '../../adapters/os.ts';
-import { fetchHealth } from '../../adapters/bridge-health.ts';
+import { MIN_NODE_MAJOR, nodeVersionProblem } from '../../../../foundation/src/node-version.mjs';
+import type { Config } from '@once-upon-a-diff/foundation/settings';
+import { listenerPid } from '@once-upon-a-diff/adapters/os';
+import { fetchHealth } from '@once-upon-a-diff/adapters/bridge-health';
 import { readExtensionSeen } from './bridge.ts';
 
 type Level = 'PASS' | 'WARN' | 'FAIL';

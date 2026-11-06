@@ -29,8 +29,8 @@
     "./public/*": "./public/*"
   },
   "scripts": {
-    "vendor": "node ../core/src/foundation/node-version.mjs && node scripts/vendor-hljs.ts && node scripts/vendor-preact.ts",
-    "test": "node ../core/src/foundation/node-version.mjs && node --test --test-timeout=60000 test/*.test.ts",
+    "vendor": "node ../foundation/src/node-version.mjs && node scripts/vendor-hljs.ts && node scripts/vendor-preact.ts",
+    "test": "node ../foundation/src/node-version.mjs && node --test --test-timeout=60000 test/*.test.ts",
     "typecheck": "tsc -p public/tsconfig.json && tsc -p test/tsconfig.json"
   }
 }

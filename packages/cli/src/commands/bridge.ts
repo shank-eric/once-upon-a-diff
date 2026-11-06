@@ -4,7 +4,7 @@
  */
 
 import path from 'node:path';
-import { saveConfig, newToken } from '@once-upon-a-diff/core/foundation/settings';
+import { saveConfig, newToken } from '@once-upon-a-diff/foundation/settings';
 
 import { out } from '../output.ts';
 

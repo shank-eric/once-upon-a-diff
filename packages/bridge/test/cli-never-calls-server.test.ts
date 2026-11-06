@@ -1,6 +1,6 @@
 /*
  * The CLI never calls the server (ADR-15): it reads and writes the shared files through core, and `serve` is the process becoming
- * the server. The one exception is the doctor's health check (core/src/adapters/bridge-health.ts). dependency-cruiser names the
+ * the server. The one exception is the doctor's health check (adapters/src/bridge-health.ts). dependency-cruiser names the
  * imports that could make a call (`health-check-is-the-doctors`, `cli-and-core-have-no-route-table`), but a graph cannot see a
  * `fetch`, a socket, a signal, or a program run as `curl`, so this test is the real guard. It reads every source file the CLI
  * process can run (cli, core, the shell's bin and instrumentation) and lists each line that could reach the bridge. The list
@@ -20,6 +20,11 @@ const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 const SCANNED = [
   'packages/cli/src',
   'packages/core/src',
+  'packages/state/src',
+  'packages/stories/src',
+  'packages/usage/src',
+  'packages/foundation/src',
+  'packages/adapters/src',
   'packages/bridge/bin',
   'packages/bridge/instrumentation',
 ];
@@ -132,23 +137,23 @@ const scan = (): string[] =>
  * not one; a call to the server is the doctor's health check and nothing else.
  */
 const ALLOWED: Record<string, string> = {
-  'connect packages/core/src/adapters/usage/session.ts :: session.connect();':
+  'connect packages/usage/src/adapters/session.ts :: session.connect();':
     'the V8 inspector session of the usage capture: in this process, no socket',
-  'api-path packages/core/src/adapters/bridge-health.ts :: const response = await fetch(`http://127.0.0.1:${port}/api/health`, {':
+  'api-path packages/adapters/src/bridge-health.ts :: const response = await fetch(`http://127.0.0.1:${port}/api/health`, {':
     "the doctor's health check: the one allowed call to the server",
-  'loopback packages/core/src/adapters/bridge-health.ts :: const response = await fetch(`http://127.0.0.1:${port}/api/health`, {':
+  'loopback packages/adapters/src/bridge-health.ts :: const response = await fetch(`http://127.0.0.1:${port}/api/health`, {':
     'the same call',
-  'network-global packages/core/src/adapters/bridge-health.ts :: const response = await fetch(`http://127.0.0.1:${port}/api/health`, {':
+  'network-global packages/adapters/src/bridge-health.ts :: const response = await fetch(`http://127.0.0.1:${port}/api/health`, {':
     'the same call',
-  'kill packages/core/src/adapters/claude-sessions/live-sessions.ts :: process.kill(live.pid, 0);':
+  'kill packages/adapters/src/claude-sessions/live-sessions.ts :: process.kill(live.pid, 0);':
     "signal 0 only asks whether a Claude session's process exists",
-  'kill packages/core/src/adapters/os.ts :: process.kill(pid, 0);':
+  'kill packages/adapters/src/os.ts :: process.kill(pid, 0);':
     'pidAlive: signal 0 only asks whether a process exists',
   "loopback packages/cli/src/commands/bridge.ts :: '  once-upon serve   [--port N]                                  run the bridge on 127.0.0.1',":
     'the usage text of `serve`',
-  "loopback packages/core/src/adapters/os.ts :: probe.listen(port, '127.0.0.1', () => probe.close(() => resolve(false)));":
+  "loopback packages/adapters/src/os.ts :: probe.listen(port, '127.0.0.1', () => probe.close(() => resolve(false)));":
     'portTaken binds the port to see whether it is free: it connects to nothing',
-  "network-module packages/core/src/adapters/os.ts :: import net from 'node:net';":
+  "network-module packages/adapters/src/os.ts :: import net from 'node:net';":
     "the import behind portTaken's bind (no connect call is allowed: see the `connect` kind)",
   'loopback packages/core/src/orchestration/bridge/bridge.ts :: `listening on http://127.0.0.1:${port}, pid ${process.pid} (stories: ${server.stories.list().length}, inbox: ${server.inbox.file})`,':
     'a log line of the bridge itself',
@@ -158,13 +163,11 @@ const ALLOWED: Record<string, string> = {
     "the doctor's message",
   "loopback packages/core/src/orchestration/bridge/doctor.ts :: `running on 127.0.0.1:${port}, version ${health.body.version}${proc ? `, pid ${proc.pid}` : ''}`,":
     "the doctor's message",
-  "loopback packages/core/src/records/page-links/address.ts :: const LOOPBACK = new Set(['127.0.0.1', '::1']);":
+  "loopback packages/state/src/records/page-links/address.ts :: const LOOPBACK = new Set(['127.0.0.1', '::1']);":
     'a set of names to recognise, not an address to reach',
-  'loopback packages/core/src/records/page-links/address.ts :: return (local ? undefined : await publicOriginOf(home)) ?? `http://127.0.0.1:${port}`;':
+  'loopback packages/state/src/records/page-links/page-key.ts :: `http://127.0.0.1:${port}/local/${encodeURIComponent(story)}/#key=${(readOnly ? viewKey : pageKey)(token, story)}`;':
     'the address printed in a link for the user',
-  'loopback packages/core/src/records/page-links/page-key.ts :: `http://127.0.0.1:${port}/local/${encodeURIComponent(story)}/#key=${(readOnly ? viewKey : pageKey)(token, story)}`;':
-    'the address printed in a link for the user',
-  'loopback packages/core/src/records/page-links/page-key.ts :: origin = `http://127.0.0.1:${port}`,':
+  'loopback packages/state/src/records/page-links/page-key.ts :: origin = `http://127.0.0.1:${port}`,':
     'the address printed in a link for the user',
 };
 
@@ -229,7 +232,7 @@ test('a second call in a file that already has an allowed one is a new line, so 
     '}',
     "const socket = net.connect(4823, '127.0.0.1');",
   ].join('\n');
-  const found = reachesFor('packages/core/src/adapters/os.ts', os);
+  const found = reachesFor('packages/adapters/src/os.ts', os);
   const fresh = found.filter((one) => !(one in ALLOWED));
   assert.deepEqual(
     fresh.map((one) => one.split(' ')[0]),
@@ -237,7 +240,7 @@ test('a second call in a file that already has an allowed one is a new line, so 
     'the signal and the connect are not the allowed lines',
   );
   const health = reachesFor(
-    'packages/core/src/adapters/bridge-health.ts',
+    'packages/adapters/src/bridge-health.ts',
     'const board = await fetch(`http://127.0.0.1:${port}/api/board`);',
   );
   assert.ok(

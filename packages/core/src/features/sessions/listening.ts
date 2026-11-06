@@ -3,8 +3,8 @@
  * type, and a card's Build story and Review. What listeners there are and the Listeners lane are features/listeners/board-view.ts.
  */
 import path from 'node:path';
-import { sameRepo } from '../../foundation/repos.ts';
-import { DEFAULT_BRANCHES } from '../../foundation/settings.ts';
+import { sameRepo } from '@once-upon-a-diff/foundation/repos';
+import { DEFAULT_BRANCHES } from '@once-upon-a-diff/foundation/settings';
 import type {
   BoardBuild,
   BoardCard,

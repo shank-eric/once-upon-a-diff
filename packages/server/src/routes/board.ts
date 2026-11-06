@@ -1,5 +1,5 @@
 /*
- * The agent board (core/src/orchestration/board/board.ts): the live Claude Code sessions and the registered background agents.
+ * The agent board (board/src/board.ts): the live Claude Code sessions and the registered background agents.
  *
  *   GET /api/board              the lanes and their cards
  *   GET /api/board/link         the board page's link, with the board's key. Only the bridge's token (the extension, the CLI) gets it
@@ -34,7 +34,7 @@
  *   POST /api/board/agent/finish {sid, name}: Finish on a finished agent's card in Waiting: the card leaves the board now and
  *                               returns only if the agent does something more. The agent is looked up in the registry; a
  *                               waiting one is finished there (and gets its `[done]` ledger line). 409 for one still working or parked on your story review
- *   POST /api/board/worktree/clean {path, ack?, ignored?}: Clean up a worktree (core/src/records/worktrees/worktree-clean.ts): `git worktree remove` without
+ *   POST /api/board/worktree/clean {path, ack?, ignored?}: Clean up a worktree (state/src/records/worktrees/worktree-clean.ts): `git worktree remove` without
  *                               --force, and `git branch -d` for a branch merged into the default branch (never an everfi-frontend one).
  *                               The bridge re-checks the worktree itself and refuses (409) anything dirty, in use, locked, new,
  *                               a detached HEAD no branch reaches, ignored files not confirmed, or unpushed commits not in the main line; ack "superseded" and "ignored-files" (with ignored, the names) are the page saying its confirm named those
@@ -43,15 +43,15 @@
  */
 import path from 'node:path';
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
-import { REPO_RE } from '@once-upon-a-diff/core/foundation/repos';
-import { readSettings } from '@once-upon-a-diff/core/foundation/settings';
-import { publicOriginOf } from '@once-upon-a-diff/core/records/page-links/address';
-import { BoardError } from '@once-upon-a-diff/core/foundation/errors';
+import { REPO_RE } from '@once-upon-a-diff/foundation/repos';
+import { readSettings } from '@once-upon-a-diff/foundation/settings';
+import { publicOriginOf } from '@once-upon-a-diff/state/records/page-links/address';
+import { BoardError } from '@once-upon-a-diff/foundation/errors';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
 import { localStory, markStoryReviewed } from '@once-upon-a-diff/core/features/review/story-lists';
-import { reviewBranch } from '@once-upon-a-diff/core/records/stories/local-story';
-import type { MoveTo } from '@once-upon-a-diff/core/queues/backlog/backlog';
+import { reviewBranch } from '@once-upon-a-diff/stories/local-story';
+import type { MoveTo } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import type { ApiRoute, Call } from '../types.ts';
 
 async function data({ app, send }: Call) {

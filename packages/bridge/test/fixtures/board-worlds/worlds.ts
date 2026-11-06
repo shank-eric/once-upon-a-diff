@@ -5,7 +5,7 @@
  * GitHub watcher. Importing this file builds them. `snapshots` maps a world name to its normalized JSON text and
  * `finish()` stops the child processes and removes the temp dir.
  */
-import { AgentRegistry } from '@once-upon-a-diff/core/records/agents/registry';
+import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { spawn, execFileSync } from 'node:child_process';
 import {
   mkdirSync,
@@ -18,7 +18,7 @@ import {
 } from 'node:fs';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { voiceState } from '@once-upon-a-diff/core/adapters/larmor';
+import { voiceState } from '@once-upon-a-diff/adapters/larmor';
 import { fakeLarmorIn } from '../fake-larmor.ts';
 import path from 'node:path';
 
@@ -79,11 +79,11 @@ class FrozenDate extends RealDate {
 }
 globalThis.Date = FrozenDate as unknown as DateConstructor;
 
-const src = (file: string) => import(path.join(ROOT, 'packages/core/src', file));
-const { Board, noPrWatcher } = await src('orchestration/board/board.ts');
-const { StoryStore } = await src('records/stories/store.ts');
-const { Builds } = await src('queues/requests/builds.ts');
-const { seenCheckout, repoOfCheckoutAsync } = await src('foundation/repos.ts');
+const src = (pkg: string, file: string) => import(path.join(ROOT, 'packages', pkg, 'src', file));
+const { Board, noPrWatcher } = await src('board', 'board.ts');
+const { StoryStore } = await src('stories', 'store.ts');
+const { Builds } = await src('state', 'queues/requests/builds.ts');
+const { seenCheckout, repoOfCheckoutAsync } = await src('foundation', 'repos.ts');
 // the repo of a folder, already answered: the board waits only 500 ms for a lookup and falls back to what it knew
 // (the real async lookup, with git run in-process so its answer, and the board's last-known repo, are there at once)
 const gitNow = (repo: string, args: string[]) => {

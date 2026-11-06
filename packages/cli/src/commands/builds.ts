@@ -2,10 +2,10 @@
  * Build requests from the terminal: list the pending ones and claim one as
  * it's built (builds), and finish one (done).
  */
-import { formatTime, readerOf } from '@once-upon-a-diff/core/foundation/settings';
-import { Builds, updateOf } from '@once-upon-a-diff/core/queues/requests/builds';
+import { formatTime, readerOf } from '@once-upon-a-diff/foundation/settings';
+import { Builds, updateOf } from '@once-upon-a-diff/state/queues/requests/builds';
 import { out } from '../output.ts';
-import type { Config } from '@once-upon-a-diff/core/foundation/settings';
+import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
 
 function builds(home: string, cfg: Config, opts: CliOpts) {

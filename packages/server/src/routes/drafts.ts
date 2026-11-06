@@ -7,8 +7,8 @@
  * Q&A comes in through `once-upon comment`.
  */
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
-import { newId } from '@once-upon-a-diff/core/foundation/ids';
-import { stateKeyOf } from '@once-upon-a-diff/core/records/stories/meta';
+import { newId } from '@once-upon-a-diff/foundation/ids';
+import { stateKeyOf } from '@once-upon-a-diff/stories/meta';
 import {
   readMarks,
   mark,
@@ -17,12 +17,12 @@ import {
   addedMark,
   noteAdded,
 } from '@once-upon-a-diff/core/features/review/drafts';
-import { addToPendingReview } from '@once-upon-a-diff/core/records/github/pending-review';
+import { addToPendingReview } from '@once-upon-a-diff/state/records/github/pending-review';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
 import { draftOf, noteFromDraft } from './draft-notes.ts';
 import type { DraftComment, StoryData } from '@once-upon-a-diff/contracts/types';
-import type { ServedStory } from '@once-upon-a-diff/core/records/stories/types';
+import type { ServedStory } from '@once-upon-a-diff/stories/types';
 import type { App, Call, StoryRoute } from '../types.ts';
 
 /** Add to my review: the draft goes into their pending review on GitHub, once. */

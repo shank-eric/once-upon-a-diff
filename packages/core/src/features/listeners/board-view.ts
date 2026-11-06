@@ -8,16 +8,16 @@
  * The lane reads only what `LaneInput` names, so the board's own ListeningInput (features/sessions/listening.ts) is passed as
  * it is, with `candidatesFor` added, and neither folder imports the other.
  */
-import { sameRepo } from '../../foundation/repos.ts';
-import { readFixes } from '../../queues/requests/fixes.ts';
-import { Builds } from '../../queues/requests/builds.ts';
-import { readHanded } from '../../queues/requests/conversation.ts';
-import type { Listener } from '../../records/listeners/listeners.ts';
-import type { LedgerAgent } from '../../records/agents/ledger.ts';
-import type { SourceStatus } from '../../adapters/status-source.ts';
-import type { LiveSession } from '../../adapters/claude-sessions/live-sessions.ts';
-import { noteListener, readHistory } from '../../records/listeners/history.ts';
-import { run } from '../../adapters/os.ts';
+import { sameRepo } from '@once-upon-a-diff/foundation/repos';
+import { readFixes } from '@once-upon-a-diff/state/queues/requests/fixes';
+import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
+import { readHanded } from '@once-upon-a-diff/state/queues/requests/conversation';
+import type { Listener } from '@once-upon-a-diff/state/records/listeners/listeners';
+import type { LedgerAgent } from '@once-upon-a-diff/state/records/agents/ledger';
+import type { SourceStatus } from '@once-upon-a-diff/adapters/status-source';
+import type { LiveSession } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
+import { noteListener, readHistory } from '@once-upon-a-diff/state/records/listeners/history';
+import { run } from '@once-upon-a-diff/adapters/os';
 import type {
   BoardListenerRepo,
   BoardListening,

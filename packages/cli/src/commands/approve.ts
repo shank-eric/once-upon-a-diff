@@ -4,16 +4,16 @@
  * the story at its head as it is now, marks it reviewed, and appends the `approved` event a listening session hears.
  * --undo clears the approval.
  */
-import { Inbox } from '@once-upon-a-diff/core/queues/requests/inbox';
-import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
-import { readMeta, storyRepo } from '@once-upon-a-diff/core/records/stories/meta';
-import { refreshLocal } from '@once-upon-a-diff/core/records/stories/local-diff';
+import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
+import { readMeta, storyRepo } from '@once-upon-a-diff/stories/meta';
+import { refreshLocal } from '@once-upon-a-diff/stories/local-diff';
 import { approveStory, clearApproval } from '@once-upon-a-diff/core/features/review/approve';
 import { localStory } from '@once-upon-a-diff/core/features/review/story-lists';
 import { out } from '../output.ts';
-import type { Config } from '@once-upon-a-diff/core/foundation/settings';
+import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
-import type { LocalMeta } from '@once-upon-a-diff/core/records/stories/types';
+import type { LocalMeta } from '@once-upon-a-diff/stories/types';
 import { shortSha } from '@once-upon-a-diff/domain/text';
 
 const USAGE = 'usage: once-upon approve ID [--undo]';

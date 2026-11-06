@@ -4,14 +4,14 @@
  */
 import type { IncomingMessage } from 'node:http';
 import type { AnyRoute } from '@once-upon-a-diff/contracts/routes';
-import type { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
-import type { Inbox } from '@once-upon-a-diff/core/queues/requests/inbox';
-import type { Build, Builds } from '@once-upon-a-diff/core/queues/requests/builds';
+import type { StoryStore } from '@once-upon-a-diff/stories/store';
+import type { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
+import type { Build, Builds } from '@once-upon-a-diff/state/queues/requests/builds';
 import type { AutoReview } from '@once-upon-a-diff/core/features/review/github-watcher';
-import type { Board } from '@once-upon-a-diff/core/orchestration/board/board';
+import type { Board } from '@once-upon-a-diff/board/board';
 import type { Sessions } from '@once-upon-a-diff/core/features/sessions/sessions';
-import type { ServedStory } from '@once-upon-a-diff/core/records/stories/types';
-import type { Surface, UsageCounters } from '@once-upon-a-diff/core/records/usage/counters';
+import type { ServedStory } from '@once-upon-a-diff/stories/types';
+import type { Surface, UsageCounters } from '@once-upon-a-diff/usage/counters';
 
 /** A JSON request body: whatever the page sent, for the route to check. */
 export type Body = Record<string, unknown>;

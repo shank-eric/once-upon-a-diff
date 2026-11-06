@@ -3,21 +3,21 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { tmp, writeJson, githubStory, startBridge, runCli, localRepo } from './helpers.ts';
-import { Builds } from '@once-upon-a-diff/core/queues/requests/builds';
-import { Inbox } from '@once-upon-a-diff/core/queues/requests/inbox';
-import { withMarks } from '@once-upon-a-diff/core/queues/requests/conversation';
-import { parseUnifiedDiff } from '@once-upon-a-diff/core/records/stories/diff';
-import { noteRead, readReads } from '@once-upon-a-diff/core/records/stories/reads';
-import { createLocalStory } from '@once-upon-a-diff/core/records/stories/local-story';
+import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
+import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
+import { withMarks } from '@once-upon-a-diff/state/queues/requests/conversation';
+import { parseUnifiedDiff } from '@once-upon-a-diff/stories/diff';
+import { noteRead, readReads } from '@once-upon-a-diff/stories/reads';
+import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
 import {
   rebuildProblems,
   carryDrafts,
   questionMoves,
   readsToRetire,
-} from '@once-upon-a-diff/core/records/stories/rebuild';
-import type { Plan } from '@once-upon-a-diff/core/records/stories/chapters';
-import type { StoryMeta } from '@once-upon-a-diff/core/records/stories/types';
-import type { Listener } from '@once-upon-a-diff/core/records/listeners/listeners';
+} from '@once-upon-a-diff/stories/rebuild';
+import type { Plan } from '@once-upon-a-diff/stories/chapters';
+import type { StoryMeta } from '@once-upon-a-diff/stories/types';
+import type { Listener } from '@once-upon-a-diff/state/records/listeners/listeners';
 import type { Pulse, RebuildView, StoryStatus } from '@once-upon-a-diff/contracts/types';
 
 /** What POST .../rebuild answers. */

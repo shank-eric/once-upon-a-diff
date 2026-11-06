@@ -24,17 +24,17 @@ import http, { type IncomingMessage } from 'node:http';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
-import { readMeta, storyRepo } from '@once-upon-a-diff/core/records/stories/meta';
-import { Inbox } from '@once-upon-a-diff/core/queues/requests/inbox';
-import { Builds } from '@once-upon-a-diff/core/queues/requests/builds';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
+import { readMeta, storyRepo } from '@once-upon-a-diff/stories/meta';
+import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
+import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
 import {
   announceBridge,
   retireBridge,
   writeExtensionSeen,
 } from '@once-upon-a-diff/core/orchestration/bridge/bridge';
-import { Board } from '@once-upon-a-diff/core/orchestration/board/board';
-import { BoardError } from '@once-upon-a-diff/core/foundation/errors';
+import { Board } from '@once-upon-a-diff/board/board';
+import { BoardError } from '@once-upon-a-diff/foundation/errors';
 import { codeOfStatus } from '@once-upon-a-diff/domain/error-code';
 import { HttpError, sameToken, readBody } from './request.ts';
 import { COOKIE_NAMES, cookieFor, cookiesOf } from './session-cookie.ts';
@@ -50,17 +50,13 @@ import {
   pageKey,
   viewKey,
   viewKeyMay,
-} from '@once-upon-a-diff/core/records/page-links/page-key';
+} from '@once-upon-a-diff/state/records/page-links/page-key';
 import { statusRoutes, storyStatusRoutes } from './routes/status.ts';
 import { usageRoutes, storyUsageRoutes } from './routes/usage.ts';
 import { ROUTES, type AnyRoute } from '@once-upon-a-diff/contracts/routes';
-import {
-  UNMATCHED,
-  UsageCounters,
-  type Surface,
-} from '@once-upon-a-diff/core/records/usage/counters';
-import { bridgeListening, onUsageFlush } from '@once-upon-a-diff/core/records/usage/capture';
-import { countingEnabled } from '@once-upon-a-diff/core/records/usage/enabled';
+import { UNMATCHED, UsageCounters, type Surface } from '@once-upon-a-diff/usage/counters';
+import { bridgeListening, onUsageFlush } from '@once-upon-a-diff/usage/capture';
+import { countingEnabled } from '@once-upon-a-diff/usage/enabled';
 import { catalogRoutes } from './routes/catalog.ts';
 import { buildRoutes } from './routes/builds.ts';
 import { questionRoutes } from './routes/questions.ts';
@@ -81,11 +77,11 @@ import {
   type BranchCheck,
   type PrCheck,
   type RequestedCheck,
-} from '@once-upon-a-diff/core/records/github/github-checks';
-import { UNPACKED_EXTENSION_ID, readSettings } from '@once-upon-a-diff/core/foundation/settings';
+} from '@once-upon-a-diff/state/records/github/github-checks';
+import { UNPACKED_EXTENSION_ID, readSettings } from '@once-upon-a-diff/foundation/settings';
 import type { ApiRoute, App, Body, Call, Send, StoryRoute } from './types.ts';
 
-export { relOfPath } from '@once-upon-a-diff/core/records/stories/diff';
+export { relOfPath } from '@once-upon-a-diff/stories/diff';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const VERSION: string = JSON.parse(
@@ -479,7 +475,7 @@ export function createBridge({
       return await storyCall(call, storyMatch, scope);
     } catch (caught) {
       const err = caught as Error & { status?: number };
-      // an HttpError carries its status; so does a BoardError, the board's own refusal (core/src/foundation/errors.ts)
+      // an HttpError carries its status; so does a BoardError, the board's own refusal (foundation/src/errors.ts)
       const status =
         (caught instanceof HttpError || caught instanceof BoardError
           ? caught.status

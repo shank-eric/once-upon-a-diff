@@ -3,11 +3,12 @@
  * file or reaches the network. Which package, layer or region may import which, and import cycles, are dependency-cruiser's
  * (configs/.dependency-cruiser.mjs, `yarn depcruise`, run by `yarn lint`); this file holds no layer or package rule.
  *
- * Where it applies (the adapters, packages/core/src/adapters, are the one place that may do any of this):
+ * Where it applies (the adapters, packages/adapters/src, and usage's own adapters folder, packages/usage/src/adapters, are the one
+ * place that may do any of this):
  *   packages/server/src/         the HTTP app: it has node:http, to listen, and nothing else on the network
  *   packages/server/src/routes/  the HTTP app's handlers: not even node:http (they get a Call)
  *   packages/cli/src/            the CLI app
- *   packages/core/src/<tier>/    the tiers (named in configs/core-tiers.mjs), over the adapters: no program, no file write and
+ *   packages/<package>/src/      every other engine package (named in configs/layers.mjs, and usage): no program, no file write and
  *                                no network of their own
  * packages/bridge/test/side-effects-lint.test.ts probes every rule below.
  *
@@ -22,7 +23,7 @@
  *   - no-restricted-globals and no-restricted-properties catch fetch (bare, or through globalThis) and process.kill.
  */
 
-import { TIERS } from './core-tiers.mjs';
+import { PACKAGES } from './layers.mjs';
 
 // what only an adapter may do (the services, the apps and the routes go through one)
 const NO_CHILD_PROCESS = {
@@ -198,9 +199,14 @@ const sideEffectBlock = ({ files, ignores = [], networkBan }) => {
 };
 
 export default [
-  // the rules, over the adapters
+  // the rules, over the adapters: every engine package but adapters, and usage but for its adapters folder
   sideEffectBlock({
-    files: [`packages/core/src/{${TIERS.join(',')}}/**/*.ts`],
+    files: [`packages/{${PACKAGES.slice(1).join(',')}}/src/**/*.ts`],
+    networkBan: NO_NETWORK,
+  }),
+  sideEffectBlock({
+    files: ['packages/usage/src/**/*.ts'],
+    ignores: ['packages/usage/src/adapters/**'],
     networkBan: NO_NETWORK,
   }),
   // the HTTP app, over the services only: node:http, to listen

@@ -30,11 +30,11 @@ import { readFileSync, existsSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { tmp, writeJson, TOKEN, startBridge, localRepo, runCli } from '../helpers.ts';
 import { SCHEMES, createPixels, primerRule, type ShotOptions } from './pixels.ts';
-import { createLocalStory } from '@once-upon-a-diff/core/records/stories/local-story';
-import { boardPageUrl, localPageUrl } from '@once-upon-a-diff/core/records/page-links/page-key';
-import { beat } from '@once-upon-a-diff/core/records/listeners/listeners';
-import { Builds, type Build } from '@once-upon-a-diff/core/queues/requests/builds';
-import type { InboxEntry, QuestionEntry } from '@once-upon-a-diff/core/queues/requests/inbox';
+import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
+import { boardPageUrl, localPageUrl } from '@once-upon-a-diff/state/records/page-links/page-key';
+import { beat } from '@once-upon-a-diff/state/records/listeners/listeners';
+import { Builds, type Build } from '@once-upon-a-diff/state/queues/requests/builds';
+import type { InboxEntry, QuestionEntry } from '@once-upon-a-diff/state/queues/requests/inbox';
 import type { LocalNote } from '@once-upon-a-diff/contracts/types';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../extension');

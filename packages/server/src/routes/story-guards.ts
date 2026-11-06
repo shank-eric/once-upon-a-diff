@@ -1,6 +1,6 @@
 /* What the story routes check before they act: a local story only, and one push at a time for a story. */
 import { HttpError } from '../request.ts';
-import type { ServedStory } from '@once-upon-a-diff/core/records/stories/types';
+import type { ServedStory } from '@once-upon-a-diff/stories/types';
 
 /** Refuses (400, with the route's own words) a story that isn't a local one. */
 export function localOnly(story: ServedStory, why: string): void {

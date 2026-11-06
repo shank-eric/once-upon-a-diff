@@ -7,12 +7,12 @@
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
-import { unwrittenCount } from '@once-upon-a-diff/core/records/stories/skeleton';
-import { approvalOf } from '@once-upon-a-diff/core/records/stories/approval';
+import { unwrittenCount } from '@once-upon-a-diff/stories/skeleton';
+import { approvalOf } from '@once-upon-a-diff/stories/approval';
 import { approveStory, clearApproval } from '@once-upon-a-diff/core/features/review/approve';
 import type { LocalStory, StoryData } from '@once-upon-a-diff/contracts/types';
-import { refreshLocal } from '@once-upon-a-diff/core/records/stories/local-diff';
-import type { LocalMeta, ServedStory } from '@once-upon-a-diff/core/records/stories/types';
+import { refreshLocal } from '@once-upon-a-diff/stories/local-diff';
+import type { LocalMeta, ServedStory } from '@once-upon-a-diff/stories/types';
 import type { Call, StoryRoute } from '../types.ts';
 import { localOnly } from './story-guards.ts';
 

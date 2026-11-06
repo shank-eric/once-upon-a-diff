@@ -32,7 +32,7 @@
       "name": "Story pipeline",
       "group": "Bridge",
       "paths": [
-        "packages/core/src/records/stories/",
+        "packages/stories/src/",
         "packages/core/src/features/publishing/",
         "skills/once-upon/bin/"
       ],
@@ -44,8 +44,8 @@
       "group": "Bridge",
       "paths": [
         "packages/core/src/features/review/",
-        "packages/core/src/records/github/",
-        "packages/core/src/queues/requests/"
+        "packages/state/src/records/github/",
+        "packages/state/src/queues/requests/"
       ],
       "note": "GitHub review sync, drafts, and the panel requests sessions answer"
     },
@@ -54,12 +54,12 @@
       "name": "Board services",
       "group": "Bridge",
       "paths": [
-        "packages/core/src/orchestration/board/",
-        "packages/core/src/queues/backlog/",
-        "packages/core/src/records/agents/",
-        "packages/core/src/foundation/input.ts",
-        "packages/core/src/records/worktrees/",
-        "packages/core/src/records/usage/"
+        "packages/board/src/",
+        "packages/state/src/queues/backlog/",
+        "packages/state/src/records/agents/",
+        "packages/foundation/src/input.ts",
+        "packages/state/src/records/worktrees/",
+        "packages/usage/src/"
       ],
       "note": "What the board shows: cards, agents, worktrees, usage"
     },
@@ -69,12 +69,12 @@
       "group": "Bridge",
       "paths": [
         "packages/core/src/features/sessions/",
-        "packages/core/src/records/listeners/",
+        "packages/state/src/records/listeners/",
         "packages/core/src/features/listeners/",
-        "packages/core/src/foundation/",
+        "packages/foundation/src/",
         "packages/core/src/orchestration/bridge/",
-        "packages/core/src/records/page-links/",
-        "packages/core/src/orchestration/board/voice.ts"
+        "packages/state/src/records/page-links/",
+        "packages/board/src/voice.ts"
       ],
       "note": "Claude sessions, listeners, settings and the rest of the services"
     },
@@ -83,7 +83,7 @@
       "name": "Adapters",
       "group": "Bridge",
       "paths": [
-        "packages/core/src/adapters/"
+        "packages/adapters/src/"
       ],
       "note": "Every side effect: programs, files, network"
     },
@@ -201,7 +201,13 @@
         "packages/github-page/test/",
         "packages/bridge-client/test/",
         "packages/test-kit/test/",
-        "packages/test-kit/"
+        "packages/test-kit/",
+        "packages/adapters/test/",
+        "packages/foundation/test/",
+        "packages/usage/test/",
+        "packages/stories/test/",
+        "packages/state/test/",
+        "packages/board/test/"
       ],
       "note": "Every package's tests and the shared test helpers"
     },
@@ -232,7 +238,19 @@
         ".nvmrc",
         ".prettierignore",
         ".prettierrc.json",
-        ".shellcheckrc"
+        ".shellcheckrc",
+        "packages/adapters/package.json",
+        "packages/adapters/tsconfig.json",
+        "packages/foundation/package.json",
+        "packages/foundation/tsconfig.json",
+        "packages/usage/package.json",
+        "packages/usage/tsconfig.json",
+        "packages/stories/package.json",
+        "packages/stories/tsconfig.json",
+        "packages/state/package.json",
+        "packages/state/tsconfig.json",
+        "packages/board/package.json",
+        "packages/board/tsconfig.json"
       ],
       "note": "Build, lint and CI setup"
     }

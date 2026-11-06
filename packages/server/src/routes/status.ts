@@ -3,13 +3,13 @@
  * listener check) and /api/prefs (settings kept across stories, such as Hide
  * whitespace).
  */
-import { readPrefs, writePrefs } from '@once-upon-a-diff/core/foundation/settings';
-import { REPO_RE } from '@once-upon-a-diff/core/foundation/repos';
+import { readPrefs, writePrefs } from '@once-upon-a-diff/foundation/settings';
+import { REPO_RE } from '@once-upon-a-diff/foundation/repos';
 import { Listening } from '@once-upon-a-diff/core/features/listeners/service';
-import { readMeta, storyRepo } from '@once-upon-a-diff/core/records/stories/meta';
+import { readMeta, storyRepo } from '@once-upon-a-diff/stories/meta';
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { parseBody } from '../validate.ts';
-import type { ServedStory } from '@once-upon-a-diff/core/records/stories/types';
+import type { ServedStory } from '@once-upon-a-diff/stories/types';
 import type { ApiRoute, Call, StoryRoute } from '../types.ts';
 
 /** The status light: bridge, story, and a Claude session listening. */

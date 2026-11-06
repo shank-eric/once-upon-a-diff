@@ -1,7 +1,7 @@
 /*
  * The usage probe: what the entry shims (bin/once-upon.mjs, skills/once-upon/bin/story.mjs) start before any other module of
  * this repo runs, so their top-level code is counted too. It is instrumentation, not a layer: only the shims load it, and
- * nothing in src/ imports it. It starts the coverage session in adapters/usage/session.ts, which the services use to take,
+ * nothing in src/ imports it. It starts the coverage session in usage/src/adapters/session.ts, which the services use to take,
  * stop and restart it.
  */
 import {
@@ -10,7 +10,7 @@ import {
   isRunning,
   readMode,
   startCounting,
-} from '@once-upon-a-diff/core/adapters/usage/session';
+} from '@once-upon-a-diff/usage/adapters/session';
 
 /**
  * Starts counting for this process, unless the capture is off (ONCE_UPON_USAGE=0 or the settings file), the command is

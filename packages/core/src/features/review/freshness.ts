@@ -6,15 +6,15 @@
  *   repos/{o}/{r}/pulls/{n}                       head.sha
  *   repos/{o}/{r}/compare/{story head}...{head}   commits and files since
  */
-import { diffText } from '../../adapters/git.ts';
-import { parseUnifiedDiff } from '../../records/stories/diff.ts';
-import { runGh } from '../../foundation/gh.ts';
+import { diffText } from '@once-upon-a-diff/adapters/git';
+import { parseUnifiedDiff } from '@once-upon-a-diff/stories/diff';
+import { runGh } from '@once-upon-a-diff/foundation/gh';
 import { prKey } from '@once-upon-a-diff/domain/pr-key';
 import { SHA_RE, sameSha } from '@once-upon-a-diff/domain/text';
 import type { DiffFile, FreshUpdate, Freshness } from '@once-upon-a-diff/contracts/types';
-import type { Build } from '../../queues/requests/builds.ts';
-import type { PlanFile } from '../../records/stories/chapters.ts';
-import type { StoryMeta } from '../../records/stories/types.ts';
+import type { Build } from '@once-upon-a-diff/state/queues/requests/builds';
+import type { PlanFile } from '@once-upon-a-diff/stories/chapters';
+import type { StoryMeta } from '@once-upon-a-diff/stories/types';
 
 /** GitHub's compare of two commits: just what's read here. */
 interface GhCompare {

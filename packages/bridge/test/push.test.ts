@@ -4,16 +4,16 @@ import path from 'node:path';
 import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { tmp, git, startBridge, localRepo, writeJson, fakeGitPush, TOKEN } from './helpers.ts';
-import { createLocalStory, reviewBranch } from '@once-upon-a-diff/core/records/stories/local-story';
-import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
-import { readSettings, shipRuleFor } from '@once-upon-a-diff/core/foundation/settings';
-import { shipMode } from '@once-upon-a-diff/core/records/stories/push-default';
+import { createLocalStory, reviewBranch } from '@once-upon-a-diff/stories/local-story';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
+import { readSettings, shipRuleFor } from '@once-upon-a-diff/foundation/settings';
+import { shipMode } from '@once-upon-a-diff/stories/push-default';
 import {
   boardKey,
   pageKey,
   viewKey,
   viewKeyMay,
-} from '@once-upon-a-diff/core/records/page-links/page-key';
+} from '@once-upon-a-diff/state/records/page-links/page-key';
 import type { BoardData, PushAnswer, PushView, StoryData } from '@once-upon-a-diff/contracts/types';
 
 const GITHUB_URL = 'https://github.com/acme/widgets.git';

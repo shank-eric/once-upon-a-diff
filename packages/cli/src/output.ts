@@ -2,13 +2,13 @@
  * What the CLI prints: a line to stdout, and inbox entries as `inbox` and
  * `wait` show them.
  */
-import { formatTime, readerOf } from '@once-upon-a-diff/core/foundation/settings';
-import { updateOf } from '@once-upon-a-diff/core/queues/requests/builds';
+import { formatTime, readerOf } from '@once-upon-a-diff/foundation/settings';
+import { updateOf } from '@once-upon-a-diff/state/queues/requests/builds';
 import { plural, shortSha } from '@once-upon-a-diff/domain/text';
 import type { Printable } from '@once-upon-a-diff/core/features/listeners/service';
 export type { Printable };
-import type { Build } from '@once-upon-a-diff/core/queues/requests/builds';
-import type { RequestNote } from '@once-upon-a-diff/core/queues/requests/fixes';
+import type { Build } from '@once-upon-a-diff/state/queues/requests/builds';
+import type { RequestNote } from '@once-upon-a-diff/state/queues/requests/fixes';
 import { formatLineRef } from '@once-upon-a-diff/domain/line-refs';
 
 export const out = (text: string): boolean => process.stdout.write(text + '\n');

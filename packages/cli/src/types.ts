@@ -1,5 +1,5 @@
 /* The CLI's parsed command line and the shape of one command. Types only. */
-import type { Config } from '@once-upon-a-diff/core/foundation/settings';
+import type { Config } from '@once-upon-a-diff/foundation/settings';
 
 /** The parsed command line: a value per flag (true for a bare flag), and the bare words in `_`. */
 export interface CliOpts {

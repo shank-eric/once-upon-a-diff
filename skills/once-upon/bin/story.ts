@@ -22,29 +22,19 @@ import { fileURLToPath } from 'node:url';
 // This skill ships in the Once Upon a Diff repo (skills/once-upon/bin), and Node resolves the skill link, so it
 // imports the bridge's and the panel's own helpers from the checkout it's linked from.
 import { parseArgs } from '../../../packages/cli/src/args.ts';
-import { diffText } from '../../../packages/core/src/adapters/git.ts';
-import { parseUnifiedDiff } from '../../../packages/core/src/records/stories/diff.ts';
-import { writeJsonAtomic } from '../../../packages/core/src/adapters/stores/fs/json-file.ts';
-import { chaptersOf } from '../../../packages/core/src/records/stories/chapters.ts';
-import {
-  mergeFragments,
-  sliceOf,
-  type Points,
-} from '../../../packages/core/src/records/stories/fragments.ts';
-import { lintTextRefs } from '../../../packages/core/src/records/stories/text-refs.ts';
-import { upgradePlan } from '../../../packages/core/src/records/stories/legacy.ts';
-import {
-  assignKeys,
-  chapterProblems,
-} from '../../../packages/core/src/records/stories/validate.ts';
-import {
-  uncoveredHunks,
-  SMALL_FILE_LINES,
-} from '../../../packages/core/src/records/stories/hunk-coverage.ts';
+import { diffText } from '../../../packages/adapters/src/git.ts';
+import { parseUnifiedDiff } from '../../../packages/stories/src/diff.ts';
+import { writeJsonAtomic } from '../../../packages/adapters/src/stores/fs/json-file.ts';
+import { chaptersOf } from '../../../packages/stories/src/chapters.ts';
+import { mergeFragments, sliceOf, type Points } from '../../../packages/stories/src/fragments.ts';
+import { lintTextRefs } from '../../../packages/stories/src/text-refs.ts';
+import { upgradePlan } from '../../../packages/stories/src/legacy.ts';
+import { assignKeys, chapterProblems } from '../../../packages/stories/src/validate.ts';
+import { uncoveredHunks, SMALL_FILE_LINES } from '../../../packages/stories/src/hunk-coverage.ts';
 import { finishedInOf } from '../../../packages/domain/src/chapters.ts';
 
 import type { DiffFile, UncoveredFile } from '../../../packages/contracts/src/types.ts';
-import type { Plan } from '../../../packages/core/src/records/stories/chapters.ts';
+import type { Plan } from '../../../packages/stories/src/chapters.ts';
 import type { CliOpts } from '../../../packages/cli/src/types.ts';
 
 /** pr.json, from `gh pr view --json` in gather.sh: just what's read here. */
@@ -433,7 +423,7 @@ async function cmdMerge(opts: CliOpts) {
  * seconds. It also prints the story id, and the line that makes this session
  * the story's own listener. While the panel's Rebuild is pending for the story,
  * publish refuses chapters that change the ones it keeps or leave a file or
- * hunk untold, and keeps the drafts the new chapters dropped (packages/core/src/records/stories/rebuild.ts).
+ * hunk untold, and keeps the drafts the new chapters dropped (packages/stories/src/rebuild.ts).
  */
 async function cmdPublish(opts: CliOpts) {
   const dest = execFileSync(

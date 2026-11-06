@@ -2,9 +2,9 @@
  * The story a `--story` flag names. It takes the id itself, a PR (owner/name#N or its URL), or a bare PR number in the repo of
  * the checkout the command runs in. A PR's story is the one the bridge has for it, else the id `once-upon publish` will give it.
  */
-import { repoOfCheckout, checkoutRoot } from '../../foundation/repos.ts';
-import { StoryStore } from '../../records/stories/store.ts';
-import { slug } from '../../records/stories/local-story.ts';
+import { repoOfCheckout, checkoutRoot } from '@once-upon-a-diff/foundation/repos';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
+import { slug } from '@once-upon-a-diff/stories/local-story';
 
 /** The repo (owner/name) of the checkout that holds `cwd`, or null. */
 export function repoAt(cwd: string): string | null {

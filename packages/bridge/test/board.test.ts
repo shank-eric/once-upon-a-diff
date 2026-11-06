@@ -30,26 +30,21 @@ import {
   type AgentRun,
   type TestBridge,
 } from './helpers.ts';
-import { Builds } from '@once-upon-a-diff/core/queues/requests/builds';
+import { Builds } from '@once-upon-a-diff/state/queues/requests/builds';
 import { Sessions, type SessionsFeed } from '@once-upon-a-diff/core/features/sessions/sessions';
 import { worktreeFixture } from '@once-upon-a-diff/test-kit/git';
-import { Inbox } from '@once-upon-a-diff/core/queues/requests/inbox';
-import { markQuestions } from '@once-upon-a-diff/core/queues/requests/conversation';
-import {
-  Board,
-  liveSessions,
-  noPrWatcher,
-  type PrWatcher,
-} from '@once-upon-a-diff/core/orchestration/board/board';
-import { columnOf, isBackToYou } from '@once-upon-a-diff/core/orchestration/board/columns';
+import { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
+import { markQuestions } from '@once-upon-a-diff/state/queues/requests/conversation';
+import { Board, liveSessions, noPrWatcher, type PrWatcher } from '@once-upon-a-diff/board/board';
+import { columnOf, isBackToYou } from '@once-upon-a-diff/board/columns';
 import { answerBits } from '@once-upon-a-diff/web/public/board/columns/story-answers.ts';
 import {
   BacklogStore,
   assignBranch,
   assignLine,
   backlogCards,
-} from '@once-upon-a-diff/core/queues/backlog/backlog';
-import { voiceStatus } from '@once-upon-a-diff/core/orchestration/board/voice';
+} from '@once-upon-a-diff/state/queues/backlog/backlog';
+import { voiceStatus } from '@once-upon-a-diff/board/voice';
 import {
   forgetProbes,
   rememberVoiceState,
@@ -61,7 +56,7 @@ import {
   voiceState,
   type CtlResult,
   type PhoneCommand,
-} from '@once-upon-a-diff/core/adapters/larmor';
+} from '@once-upon-a-diff/adapters/larmor';
 import { fakeLarmorIn } from './fixtures/fake-larmor.ts';
 import {
   listenCandidates,
@@ -69,38 +64,38 @@ import {
   type ListeningInput,
 } from '@once-upon-a-diff/core/features/sessions/listening';
 import { adoptHandlers, sessionOfPid } from '@once-upon-a-diff/core/features/listeners/board-view';
-import { listenPrompt, type Listener } from '@once-upon-a-diff/core/records/listeners/listeners';
-import type { LiveSession } from '@once-upon-a-diff/core/adapters/claude-sessions/live-sessions';
-import { noteListener, readHistory } from '@once-upon-a-diff/core/records/listeners/history';
+import { listenPrompt, type Listener } from '@once-upon-a-diff/state/records/listeners/listeners';
+import type { LiveSession } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
+import { noteListener, readHistory } from '@once-upon-a-diff/state/records/listeners/history';
 import {
   repoStopReason,
   requestStop,
   stopRequested,
 } from '@once-upon-a-diff/core/features/listeners/auto-stop';
-import { AgentRegistry } from '@once-upon-a-diff/core/records/agents/registry';
-import { gateOf } from '@once-upon-a-diff/core/records/agents/ledger';
+import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
+import { gateOf } from '@once-upon-a-diff/state/records/agents/ledger';
 import { pickSource, registrySource } from '@once-upon-a-diff/core/features/sessions/sources';
-import { findIt2, focusTab, itermSource, typeLine } from '@once-upon-a-diff/core/adapters/iterm';
-import { boardKey, pageKey, viewKey } from '@once-upon-a-diff/core/records/page-links/page-key';
-import { readSettings } from '@once-upon-a-diff/core/foundation/settings';
-import type { StatusSource } from '@once-upon-a-diff/core/adapters/status-source';
+import { findIt2, focusTab, itermSource, typeLine } from '@once-upon-a-diff/adapters/iterm';
+import { boardKey, pageKey, viewKey } from '@once-upon-a-diff/state/records/page-links/page-key';
+import { readSettings } from '@once-upon-a-diff/foundation/settings';
+import type { StatusSource } from '@once-upon-a-diff/adapters/status-source';
 import {
   ghBranchCheck,
   ghPrCheck,
   ghRequestedCheck,
   type BranchPr,
-} from '@once-upon-a-diff/core/records/github/github-checks';
-import { mergeSummary } from '@once-upon-a-diff/core/records/github/merge-rules';
+} from '@once-upon-a-diff/state/records/github/github-checks';
+import { mergeSummary } from '@once-upon-a-diff/state/records/github/merge-rules';
 import { AutoReview } from '@once-upon-a-diff/core/features/review/github-watcher';
-import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
+import { StoryStore } from '@once-upon-a-diff/stories/store';
 import {
   localEntries,
   localStories,
   LOCAL_IDLE_DAYS,
 } from '@once-upon-a-diff/core/features/review/story-lists';
-import { createLocalStory } from '@once-upon-a-diff/core/records/stories/local-story';
-import { refreshLocal } from '@once-upon-a-diff/core/records/stories/local-diff';
-import type { LocalMeta } from '@once-upon-a-diff/core/records/stories/types';
+import { createLocalStory } from '@once-upon-a-diff/stories/local-story';
+import { refreshLocal } from '@once-upon-a-diff/stories/local-diff';
+import type { LocalMeta } from '@once-upon-a-diff/stories/types';
 import type {
   BoardCard,
   BoardData,
@@ -1095,42 +1090,6 @@ test('the board page and its key: the board routes only, the other pages’ link
   assert.equal(page.status, 200);
   assert.ok(!(await page.text()).includes(key));
   assert.equal((await fetch(`${bridge.base}/assets/board.ts`)).status, 200);
-});
-
-test('`once-upon board` prints the board link', async () => {
-  const home = tmp('board-cli');
-  const sessions = tmp('board-sessions');
-  mkdirSync(sessions, { recursive: true });
-  writeJson(path.join(home, 'config.json'), {
-    port: 48998,
-    token: TOKEN,
-    board_sessions_dir: sessions,
-    board_status_source: 'registry',
-  });
-  const ran = await runCli(home, ['board', '--no-open']);
-  assert.equal(ran.code, 0);
-  assert.equal(ran.stdout.trim(), `https://once-upon.test/board/#key=${boardKey(TOKEN)}`);
-  assert.match(ran.stderr, /0 cards/);
-  const local = await runCli(home, ['board', '--no-open', '--local']);
-  assert.equal(local.stdout.trim(), `http://127.0.0.1:48998/board/#key=${boardKey(TOKEN)}`);
-  // the name is a setting, and "none" goes back to the bridge's own address
-  writeJson(path.join(home, 'config.json'), {
-    port: 48998,
-    token: TOKEN,
-    board_sessions_dir: sessions,
-    board_status_source: 'registry',
-    allowed_hosts: ['board.example.test', 'once-upon.test'],
-    public_host: 'board.example.test',
-  });
-  assert.match(
-    (await runCli(home, ['board', '--no-open'])).stdout,
-    /^https:\/\/board\.example\.test\/board\//,
-  );
-  writeJson(path.join(home, 'config.json'), { port: 48998, token: TOKEN, public_host: 'none' });
-  assert.match(
-    (await runCli(home, ['board', '--no-open'])).stdout,
-    /^http:\/\/127\.0\.0\.1:48998\/board\//,
-  );
 });
 
 test('the bridge lists built PR stories apart from local stories, and a PR story can be marked reviewed', async () => {
@@ -2717,7 +2676,7 @@ test('a public host that does not resolve to this machine is not offered (a setu
     });
     const set = await bridge.call<{ url: string }>('GET', '/api/board/link?public=1');
     assert.equal(set.body.url, `https://nowhere.invalid/board/#key=${boardKey(TOKEN)}`);
-    const { resolvesHere } = await import('@once-upon-a-diff/core/records/page-links/address');
+    const { resolvesHere } = await import('@once-upon-a-diff/state/records/page-links/address');
     assert.equal(await resolvesHere('localhost'), true);
     assert.equal(await resolvesHere('nowhere.invalid'), false);
   } finally {

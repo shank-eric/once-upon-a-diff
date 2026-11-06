@@ -1,5 +1,7 @@
 # ADR-21: Core's services sit in five tiers, and the folder order is the import order
 
+> Superseded in part by [ADR-24](adr-24-engine-packages-by-layer.md) (11/5): the five tiers as folders of one package. The rest of this ADR stands.
+
 Decided 11/4 by Eric, from the research of that day (`notes/research/2026-11-04-ou-services-tiers.md`). Built in 168b6b1 (11/5) together with the package split ([ADR-20](adr-20-core-server-cli-split.md)), after the import cycles were broken in dd272df, 82bc676 and a0036f5. Descriptive, of the code on main at 168b6b1. It replaces the flat `services/` list of 15 folders (14 when the research measured it) that [ADR-15](adr-15-layered-packages-and-protocol.md) and [ADR-16](adr-16-what-the-rebuild-built.md) describe, and ADR-15's rule that a service may import any other. The lint that enforces it is [ADR-22](adr-22-dependency-cruiser-one-home-for-layer-rules.md).
 
 ## Context

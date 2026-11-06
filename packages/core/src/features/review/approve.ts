@@ -9,10 +9,10 @@
  * already marked reviewed keeps that mark.
  */
 import { markStoryReviewed, storyHasState } from './story-lists.ts';
-import { APPROVAL_FILE, readApproval, type Approval } from '../../records/stories/approval.ts';
-import type { Inbox } from '../../queues/requests/inbox.ts';
-import type { StoryRef } from '../../records/stories/types.ts';
-import type { StoryStore } from '../../records/stories/store.ts';
+import { APPROVAL_FILE, readApproval, type Approval } from '@once-upon-a-diff/stories/approval';
+import type { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
+import type { StoryRef } from '@once-upon-a-diff/stories/types';
+import type { StoryStore } from '@once-upon-a-diff/stories/store';
 
 /** What the event tells a listener about the story. */
 export interface ApproveInput {

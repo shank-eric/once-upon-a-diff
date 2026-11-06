@@ -3,7 +3,7 @@
  */
 import { doctor } from '@once-upon-a-diff/core/orchestration/bridge/doctor';
 import { out } from '../output.ts';
-import type { Config } from '@once-upon-a-diff/core/foundation/settings';
+import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
 
 async function runDoctor(home: string, cfg: Config, opts: CliOpts) {

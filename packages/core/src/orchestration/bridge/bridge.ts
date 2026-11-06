@@ -1,17 +1,17 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import { readSettings, type Config } from '../../foundation/settings.ts';
-import { writeFileAtomic, readJson } from '../../adapters/stores/fs/json-file.ts';
-import type { StoryStore } from '../../records/stories/store.ts';
-import type { Inbox } from '../../queues/requests/inbox.ts';
+import { readSettings, type Config } from '@once-upon-a-diff/foundation/settings';
+import { writeFileAtomic, readJson } from '@once-upon-a-diff/adapters/stores/fs/json-file';
+import type { StoryStore } from '@once-upon-a-diff/stories/store';
+import type { Inbox } from '@once-upon-a-diff/state/queues/requests/inbox';
 import {
   readBridgeFile,
   removeBridgeFile,
   tokenFingerprint,
   writeBridgeFile,
-} from '../../adapters/stores/bridge-file.ts';
-import { pidAlive, portTaken } from '../../adapters/os.ts';
-import { restrictFile, appendText } from '../../adapters/stores/fs/files.ts';
+} from '@once-upon-a-diff/adapters/stores/bridge-file';
+import { pidAlive, portTaken } from '@once-upon-a-diff/adapters/os';
+import { restrictFile, appendText } from '@once-upon-a-diff/adapters/stores/fs/files';
 
 /*
  * The bridge as a process: which one is running on a port, its log file, what it records about the extension, and starting

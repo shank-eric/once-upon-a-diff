@@ -5,11 +5,11 @@
  * in state/<id>/questions.json, so a reload or another tab shows the same.
  */
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
-import { newId } from '@once-upon-a-diff/core/foundation/ids';
-import { markQuestions, withMarks } from '@once-upon-a-diff/core/queues/requests/conversation';
+import { newId } from '@once-upon-a-diff/foundation/ids';
+import { markQuestions, withMarks } from '@once-upon-a-diff/state/queues/requests/conversation';
 import { HttpError } from '../request.ts';
 import { parseBody } from '../validate.ts';
-import type { ServedStory } from '@once-upon-a-diff/core/records/stories/types';
+import type { ServedStory } from '@once-upon-a-diff/stories/types';
 import type { App, Call, StoryRoute } from '../types.ts';
 
 /** The story's questions, oldest first, each with its answers and marks. */
