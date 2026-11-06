@@ -10,6 +10,7 @@ import { tmp, git, writeJson } from './helpers.ts';
 import { Board } from '../src/orchestration/board/board.ts';
 import { Builds } from '../src/queues/requests/builds.ts';
 import { StoryStore } from '../src/records/stories/store.ts';
+import { seenCheckout } from '../src/foundation/repos.ts';
 import { AutoReview } from '../src/features/review/github-watcher.ts';
 import type {
   BranchCheck,
@@ -65,7 +66,8 @@ function world(
     older = false,
     prStory = false,
     mergedStory = false,
-  }: { older?: boolean; prStory?: boolean; mergedStory?: boolean } = {},
+    seen = false,
+  }: { older?: boolean; prStory?: boolean; mergedStory?: boolean; seen?: boolean } = {},
 ) {
   const home = tmp('github-sync-home');
   const checkout = tmp('github-sync-checkout');
@@ -127,6 +129,16 @@ function world(
       });
     }
   }
+  if (seen) {
+    // the checkout is one the board has seen, and the branch has a worktree of its own, so the worktree scan (the
+    // worktrees stage) asks about the branch too
+    git(checkout, 'commit', '-q', '--allow-empty', '-m', 'work');
+    git(checkout, 'branch', '-q', 'main');
+    git(checkout, 'checkout', '-q', 'main');
+    git(checkout, 'worktree', 'add', '-q', `${checkout}-wt`, BRANCH);
+    git(`${checkout}-wt`, 'commit', '-q', '--allow-empty', '-m', 'more work'); // not merged into main
+    seenCheckout(home, REPO, checkout);
+  }
   const stories = new StoryStore({ home });
   const wait = async () => {
     await github.hold;
@@ -164,6 +176,7 @@ function world(
   const board = new Board(home, stories, review, new Builds(home), { now: () => new Date(now) });
   return {
     review,
+    board,
     /** a snapshot, then the GitHub asks it started finished, then the snapshot that reads their answers */
     async settle(): Promise<BoardCard[]> {
       await board.snapshot();
@@ -448,4 +461,28 @@ test('an open PR whose work carries a stale merged mark: the branch card goes an
     cards.map((card) => [card.pr?.number, card.story?.id, card.column === 'ship']),
     [[3092, 'local-dot-prop', false]],
   );
+});
+
+test('a branch ask stamped by one stage is asked again by another once the board’s clock passes the window', async () => {
+  // the board's clock starts days before the real one. The works stage and the worktrees stage ask about the same branch
+  // and share its answer: if either stamped its ask on the real clock, the branch would look asked in the future to the
+  // other, and nobody would ask again until the real window passed
+  const hub = github({ branch: { number: 3092, state: 'open', merged_at: null } });
+  const sim = world(hub, { seen: true });
+  for (let tries = 0; tries < 200; tries++) {
+    await sim.later();
+    const data = await sim.board.snapshot(); // the same instant, so the one just built
+    if (data.worktrees && !data.worktrees.scanning && data.worktrees.total) {
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  await sim.review.idle();
+  assert.ok(hub.asked.branch > 0, 'the board asked about the branch');
+  for (let round = 0; round < 4; round++) {
+    const before = hub.asked.branch;
+    await sim.later(); // the fake clock moves past the cache window
+    await sim.review.idle();
+    assert.ok(hub.asked.branch > before, `round ${round}: the branch was not asked again`);
+  }
 });

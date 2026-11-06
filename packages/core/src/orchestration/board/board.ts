@@ -479,6 +479,7 @@ export class Board {
     if (!settings.worktrees) {
       throw new BoardError(404, 'the board does not show worktrees');
     }
+    const clock = () => (this.options.now || (() => new Date()))().getTime();
     const result = await cleanWorktree({
       scanner: this.scanner,
       dir,
@@ -486,7 +487,7 @@ export class Board {
       seen,
       home: this.home,
       keepBranches: settings.keepBranches,
-      now: () => (this.options.now || (() => new Date()))().getTime(),
+      now: clock,
       contextOf: async (facts) => {
         const sessions = (await liveSessions(settings.sessionsDir)).map((session) => ({
           id: session.session,
@@ -496,7 +497,7 @@ export class Board {
         const { agents } = readAgents(this.home);
         return {
           inUse: workingIn(facts.path, sessions, agents, facts),
-          pr: prOfFacts(this.review, facts),
+          pr: prOfFacts(this.review, facts, clock()),
         };
       },
     });

@@ -175,7 +175,7 @@ export class AutoReview {
   }
 
   /** Asks GitHub which open PRs wait on your review or are yours, unless it was asked lately. Doesn't wait. */
-  kickRequested(now = Date.now()): void {
+  kickRequested(now: number): void {
     if (this.asked && now - this.asked.at < this.cacheMs) {
       return;
     }
@@ -200,7 +200,7 @@ export class AutoReview {
     repo: string,
     branch: string,
     checkout: string,
-    now = Date.now(),
+    now: number,
     heads: string[] = [],
   ): void {
     const key = branchKey(repo, branch);
@@ -300,7 +300,7 @@ export class AutoReview {
   }
 
   /** Asks about a PR that has no story in the inbox (the board's), for its details only. Shares the check a story's PR already has. */
-  kickInfo(repo: string, number: number, now = Date.now()): void {
+  kickInfo(repo: string, number: number, now: number): void {
     this.ask(repo, number, now);
   }
 
@@ -385,7 +385,7 @@ export class AutoReview {
   }
 
   /** Starts a check for each story's PR that wasn't asked about lately, and applies what it found to every listed story of that PR. Doesn't wait. */
-  kick(list: InboxStory[], now = Date.now()): void {
+  kick(list: InboxStory[], now: number): void {
     for (const story of list) {
       const entry = this.ask(story.repo, story.number, now);
       if (entry.applied.has(story.id)) {
@@ -422,7 +422,7 @@ export class AutoReview {
    * with a reviewed.json (marked or unmarked by hand) as it is. The default branch is the checkout's last fetch of
    * origin, which the bridge never refreshes, so `delivered` can lag a fetch. A squash merge shows as a merged PR.
    */
-  kickLocal(list: LocalEntry[], now = Date.now()): void {
+  kickLocal(list: LocalEntry[], now: number): void {
     for (const entry of list) {
       const { story } = entry;
       if (entry.approval) {

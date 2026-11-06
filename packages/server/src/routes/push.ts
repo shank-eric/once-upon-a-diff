@@ -79,7 +79,10 @@ async function push({ app, body: raw, send }: Call, story: ServedStory) {
     // check (AutoReview.kickLocal), which finds the commit in origin's default branch and clears the card
     refreshLocal(story.dir, story.meta as LocalMeta);
     app.autoReview.forget(story.id);
-    app.autoReview.kickLocal(localEntries(app.stories).filter((one) => one.story.id === story.id));
+    app.autoReview.kickLocal(
+      localEntries(app.stories).filter((one) => one.story.id === story.id),
+      Date.now(),
+    );
     await Promise.race([
       app.autoReview.idle(),
       new Promise((resolve) => setTimeout(resolve, CHECK_WAIT_MS).unref()),

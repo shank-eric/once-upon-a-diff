@@ -153,8 +153,8 @@ export function storyList(bridge: TestBridge): StoryList {
   const { stories, autoReview } = bridge.server;
   const everything = prStories(stories);
   const localList = localEntries(stories);
-  autoReview.kick(everything);
-  autoReview.kickLocal(localList);
+  autoReview.kick(everything, Date.now());
+  autoReview.kickLocal(localList, Date.now());
   return { stories: everything, local_stories: localList.map((entry) => entry.story) };
 }
 

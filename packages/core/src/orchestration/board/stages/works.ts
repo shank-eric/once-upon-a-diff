@@ -104,7 +104,7 @@ export function collectWorks(ctx: BuildContext): CollectedWorks {
   const { home, nowMs, review, builds } = ctx;
   // the units of work: every built PR story, and the PRs merged in the last day
   const stories = prStories(ctx.stories, { now: nowMs });
-  review.kick(stories);
+  review.kick(stories, nowMs);
   const works = new Map<string, Work>();
   const start = (work: Omit<Work, 'sessions' | 'local'>) => startWork(works, work);
   for (const story of stories) {

@@ -161,7 +161,7 @@ export async function readBacklogLinks(
         .get((repo ?? '').toLowerCase())
         ?.find((one) => one.branch === branch);
       if (repo && tree) {
-        ctx.review.kickBranch(repo, branch, tree.path);
+        ctx.review.kickBranch(repo, branch, tree.path, nowMs);
       }
       const found = repo ? ctx.review.branchPr(repo, branch) : null;
       if (found?.state !== 'merged') {

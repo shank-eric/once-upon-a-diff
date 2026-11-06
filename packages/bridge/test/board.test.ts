@@ -1566,8 +1566,8 @@ test('the board and the story list share one check per PR, in either order, and 
   };
 
   // the board asks about 1 and 2 first: a story-list read in the same window neither asks again nor loses the answer
-  review.kickInfo('acme/widgets', 1);
-  review.kickInfo('acme/widgets', 2);
+  review.kickInfo('acme/widgets', 1, Date.now());
+  review.kickInfo('acme/widgets', 2, Date.now());
   assert.equal(await marks(), 3);
   assert.deepEqual(asked.sort(), [1, 2], 'one check per PR');
   const after = storyList(bridge).stories;
@@ -1595,7 +1595,7 @@ test('the board and the story list share one check per PR, in either order, and 
   });
   open.push(other);
   storyList(other);
-  other.server.autoReview.kickInfo('acme/widgets', 5);
+  other.server.autoReview.kickInfo('acme/widgets', 5, Date.now());
   await other.server.autoReview.idle();
   assert.deepEqual(asked5, [5]);
   assert.equal(other.server.autoReview.info('acme/widgets', 5)?.number, 5);

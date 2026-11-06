@@ -70,7 +70,7 @@ export function worktreeSection({
   const judged = scan.items.map((facts) =>
     judge(facts, {
       inUse: workingIn(facts.path, sessions, agents, facts),
-      pr: prOfFacts(review, facts),
+      pr: prOfFacts(review, facts, nowMs),
       keepBranches,
       now: nowMs,
     }),
@@ -122,11 +122,15 @@ function usedBy(tree: BoardWorktree, agent: BoardAgent): boolean {
 }
 
 /** What GitHub last said of the worktree's branch (asked in the background for a branch not yet in live or main). */
-export function prOfFacts(review: PrWatcher, facts: WorktreeFacts): BoardWorktree['pr'] {
+export function prOfFacts(
+  review: PrWatcher,
+  facts: WorktreeFacts,
+  nowMs: number,
+): BoardWorktree['pr'] {
   if (!facts.repo || !facts.branch || facts.merged || facts.superseded) {
     return { number: null, state: 'unknown' };
   }
-  review.kickBranch(facts.repo, facts.branch, facts.path);
+  review.kickBranch(facts.repo, facts.branch, facts.path, nowMs);
   const found = review.branchPr(facts.repo, facts.branch);
   if (found === undefined) {
     return { number: null, state: 'unknown' };

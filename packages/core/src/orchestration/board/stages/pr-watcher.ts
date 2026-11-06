@@ -2,13 +2,16 @@ import type { LocalEntry } from '../../../features/review/story-lists.ts';
 import type { BranchPr } from '../../../records/github/github-checks.ts';
 import type { InboxStory, PrInfo } from '@once-upon-a-diff/contracts/types';
 
-/** What the board asks of the GitHub watcher (review/github-watcher.ts's AutoReview): it reads what it has and never waits. */
+/**
+ * What the board asks of the GitHub watcher (review/github-watcher.ts's AutoReview): it reads what it has and never waits.
+ * Every kick takes the caller's clock (the board's `nowMs`), so a board on a fake clock never stamps an ask on the real one.
+ */
 export interface PrWatcher {
-  kick(stories: InboxStory[]): void;
-  kickInfo(repo: string, number: number): void;
-  kickBranch(repo: string, branch: string, checkout: string, now?: number, heads?: string[]): void;
-  kickLocal(list: LocalEntry[], now?: number): void;
-  kickRequested(now?: number): void;
+  kick(stories: InboxStory[], now: number): void;
+  kickInfo(repo: string, number: number, now: number): void;
+  kickBranch(repo: string, branch: string, checkout: string, now: number, heads?: string[]): void;
+  kickLocal(list: LocalEntry[], now: number): void;
+  kickRequested(now: number): void;
   requested(): { repo: string; number: number }[];
   info(repo: string, number: number): PrInfo | null;
   branchPr(repo: string, branch: string): BranchPr | null | undefined;

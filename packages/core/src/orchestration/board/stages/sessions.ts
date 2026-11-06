@@ -304,7 +304,7 @@ export function placeSessions(
     );
     if (!work) {
       const found = ctx.review.branchPr(repo, branch);
-      ctx.review.kickBranch(repo, branch, session.cwd);
+      ctx.review.kickBranch(repo, branch, session.cwd, nowMs);
       if (found && found.state === 'open') {
         const key = prKey(repo, found.number);
         if (!works.has(key)) {
@@ -325,7 +325,7 @@ export function placeSessions(
     if (work && !work.number && work.local) {
       // a branch with a local story and no PR yet, until GitHub says it has one
       const found = ctx.review.branchPr(repo, branch);
-      ctx.review.kickBranch(repo, branch, session.cwd);
+      ctx.review.kickBranch(repo, branch, session.cwd, nowMs);
       if (found && found.state === 'open' && !works.has(prKey(repo, found.number))) {
         work.number = found.number;
       } else if (found?.state === 'merged') {
