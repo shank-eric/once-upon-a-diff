@@ -45,7 +45,7 @@ export interface EditorFacts {
 /**
  * The editors to show, and the link from an agent to its editor. An editor's authors are its open authors (not stale:
  * an agent silent past the stale mark is likely dead). Its `in_use` count is the slots in use: only an author that is
- * working (running, or fixing findings) holds one, so one at a plan, a question or a story review does not. `label` starts as the lane's short name and the
+ * working (running, at its plan check, or fixing findings) holds one, as the editor counts them, so one at a question or a story review does not. `label` starts as the lane's short name and the
  * board sets it to the lane label once all the lanes are known (index.ts).
  */
 export function editorsOf(facts: EditorFacts): {
@@ -81,8 +81,9 @@ export function editorsOf(facts: EditorFacts): {
       ...link,
       name: editor.name,
       slots: editor.slots ?? 3,
-      in_use: authors.filter((agent) => agent.state === 'running' || agent.state === 'fixing')
-        .length,
+      in_use: authors.filter(
+        (agent) => agent.state === 'running' || agent.state === 'plan' || agent.state === 'fixing',
+      ).length,
       since: editor.started?.toISOString() ?? null,
       authors: authors.map((agent) => ({
         key: agentKey(agent),

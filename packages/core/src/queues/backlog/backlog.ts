@@ -546,7 +546,8 @@ const SKIPS_REVIEW = /^(once-upon-a-diff|larmor)$/i;
  * Where an item goes by what its claimed registered agent has produced (the agent has no card of its own: the item is the
  * one card):
  *
- *   open agent         a plan stop or a question is Waiting, for you; otherwise Working
+ *   open agent         a question is Waiting, for you; a plan stop (the editor's plan check) is Agent checks;
+ *                      otherwise Working, a fix round included (in progress until it lands)
  *   done, a branch     the work is not merged: Ready for review, or Ready to ship for once-upon-a-diff and Larmor, which
  *                      only once a critic has passed it with no fix round open (`hold`, claims.ts's criticHold: until then
  *                      it stays in Agent checks or Working, also with no critic yet)
@@ -563,8 +564,12 @@ function agentColumn(
 ): { column: BoardCard['column']; when: number | null; tried: boolean } | null {
   const ended = Date.parse(agent.ended_at ?? '');
   const when = Number.isNaN(ended) ? null : ended;
-  if (agent.state === 'plan' || agent.state === 'waiting') {
+  if (agent.state === 'waiting') {
     return { column: 'waiting', when, tried: false };
+  }
+  // a plan stop waits on the editor's check, not on you: the editor sets `waiting` when it needs your call
+  if (agent.state === 'plan') {
+    return { column: 'checks', when, tried: false };
   }
   if (AGENT_OPEN.includes(agent.state)) {
     return { column: 'working', when, tried: false };
@@ -665,8 +670,8 @@ export function backlogCards(
       }
     }
     if (agent && !(item.state === 'started' && (link?.merged || item.landed_at))) {
-      // the claimed agent decides the column, whatever it is doing: Working while it runs, Waiting at a plan stop or a
-      // question, then by what it produced (agentColumn)
+      // the claimed agent decides the column, whatever it is doing: Working while it runs, Agent checks at a plan stop,
+      // Waiting at a question, then by what it produced (agentColumn)
       const placed = agentColumn(item, agent, nowMs, holds.get(item.id) ?? null);
       if (!placed) {
         continue;

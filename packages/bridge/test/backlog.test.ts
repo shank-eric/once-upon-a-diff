@@ -981,11 +981,14 @@ test('an open item with a claimed agent: one card in the agent’s column while 
   );
   assert.equal(running[0].backlog?.claim?.agent, 'hold-speech');
   assert.equal(running[0].backlog?.claim?.pending, false);
-  // a plan stop or a question waits on you
-  for (const state of ['plan', 'waiting'] as const) {
+  // a question waits on you; a plan stop waits on the editor's check, so it is in Agent checks
+  for (const [state, column] of [
+    ['plan', 'checks'],
+    ['waiting', 'waiting'],
+  ] as const) {
     assert.deepEqual(
       cardsFor(state, ended).map((card) => card.column),
-      ['waiting'],
+      [column],
       state,
     );
   }

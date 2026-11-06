@@ -1695,7 +1695,7 @@ const EDITOR: BoardEditor = {
   can_focus: true,
   name: 'editor-widgets',
   slots: 3,
-  in_use: 1,
+  in_use: 2,
   since: '2026-10-29T10:00:00Z',
   authors: [
     {
@@ -1733,7 +1733,7 @@ test('no overall builder count in the header; the editors strip shows each edito
   );
   assert.match(row.textContent ?? '', /widgets/);
   assert.equal(
-    row.querySelector('[data-editor-slots]')?.textContent?.startsWith('1 of 3 slots · 2 authors'),
+    row.querySelector('[data-editor-slots]')?.textContent?.startsWith('2 of 3 slots · 2 authors'),
     true,
   );
   const authors = [...row.querySelectorAll('[data-author]')].map((one) =>

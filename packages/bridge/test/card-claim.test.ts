@@ -429,3 +429,86 @@ test('a critic registered for another card does not hold this one, even on the s
   });
   assert.equal(hold(stamp(14)), 'checks', 'its own critic holds it');
 });
+
+test('a claimed author at a plan stop is in Agent checks with a plan check label, one asking is in Waiting, and one fixing stays in Working', async () => {
+  const { home, cards, store } = world();
+  const registry = new AgentRegistry(home);
+  const repo = 'shank-eric/once-upon-a-diff';
+  const stamp = (minutes: number) => new Date(Date.parse('2026-11-05T15:00:00Z') + minutes * 60000);
+  const item = store.add({ title: 'Plan it', repo });
+  store.start(item.id, { branch: 'plan-it' });
+  claimAt(store, item.id, 'ou-plan', stamp(0).toISOString(), 'cccccccc');
+  registry.start({
+    name: 'ou-plan',
+    sid: 'cccccccc',
+    repo,
+    branch: 'plan-it',
+    kind: 'author',
+    task: 'plan it',
+    at: stamp(0),
+  });
+  const cardAt = async (minutes: number) =>
+    (await cards(stamp(minutes))).find((one) => one.backlog?.id === item.id);
+  assert.equal((await cardAt(5))?.column, 'working');
+
+  registry.state('ou-plan', {
+    sid: 'cccccccc',
+    state: 'plan',
+    outcome: 'plan ready',
+    at: stamp(10),
+  });
+  const planned = await cardAt(11);
+  assert.equal(planned?.column, 'checks', 'a plan stop waits on the editor, not on you');
+  // the card's chip reads the agent's gate (gateText): `plan check`, not `agent review`
+  assert.deepEqual(
+    planned?.agents.map((agent) => agent.gate),
+    [{ kind: 'plan', findings: null }],
+  );
+
+  registry.state('ou-plan', {
+    sid: 'cccccccc',
+    state: 'waiting',
+    outcome: 'needs you: which one',
+    at: stamp(15),
+  });
+  assert.equal((await cardAt(16))?.column, 'waiting', 'a question for you stays in Waiting');
+
+  registry.state('ou-plan', { sid: 'cccccccc', state: 'fixing', findings: 2, at: stamp(20) });
+  const fixing = await cardAt(21);
+  // (unchanged by the plan column: a claimed run's fix round shows its fixing chip on the card in Working)
+  assert.equal(fixing?.column, 'working');
+  assert.deepEqual(
+    fixing?.agents.map((agent) => agent.gate),
+    [{ kind: 'fixing', findings: 2 }],
+  );
+});
+
+test('a fix round at its plan stop holds the card in Agent checks, one asking holds it in Waiting, and one running holds it in Working', () => {
+  const { registry, repo, stamp, author, hold } = builtCard('hold-fix-plan');
+  registry.start({
+    name: 'review-x',
+    sid: 'cccccccc',
+    kind: 'critic',
+    task: 'review',
+    repo,
+    branch: 'feat-x',
+    at: stamp(11),
+  });
+  registry.finish('review-x', { sid: 'cccccccc', findings: 2, at: stamp(15) });
+  registry.start({ ...author, kind: 'author', task: 'fix', at: stamp(16) });
+  assert.equal(hold(stamp(17)), 'working', 'the fix round is running');
+  registry.state('ou-build', {
+    sid: 'cccccccc',
+    state: 'plan',
+    outcome: 'plan ready',
+    at: stamp(18),
+  });
+  assert.equal(hold(stamp(19)), 'checks', 'its plan stop waits on the editor, not on you');
+  registry.state('ou-build', {
+    sid: 'cccccccc',
+    state: 'waiting',
+    outcome: 'needs you: which one',
+    at: stamp(20),
+  });
+  assert.equal(hold(stamp(21)), 'waiting', 'a question is for you');
+});

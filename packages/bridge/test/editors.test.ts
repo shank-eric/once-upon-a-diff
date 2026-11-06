@@ -87,13 +87,13 @@ const viewsOf = (data: BoardData): Map<string, BoardAgent> =>
       .map((one) => [one.name, one]),
   );
 
-test('an editor shows with the authors it controls: running ones hold its slots, the other kinds and sessions are no authors', async () => {
+test('an editor shows with the authors it controls: running, plan and fixing ones hold its slots, the other kinds and sessions are no authors', async () => {
   const { registry, live, snapshot } = world();
   registry.start({ ...EDITOR, slots: 3, at: ago(300) });
   live(EDITOR_SESSION);
   registry.start({ ...build('ou-a'), at: ago(60) });
   registry.beat('ou-a', { n: 3, of: 6, step: 'code', at: ago(5) });
-  // at its plan: an author, but it holds no slot
+  // at its plan check: an author, and it holds a slot
   registry.start({ ...build('ou-b'), at: ago(50) });
   registry.state('ou-b', { state: 'plan', outcome: 'plan ready', at: ago(40) });
   // at a question, and parked on a story review: authors, holding no slot
@@ -126,8 +126,8 @@ test('an editor shows with the authors it controls: running ones hold its slots,
   assert.deepEqual(editor.authors.map((one) => one.name).sort(), ['ou-a', 'ou-b', 'ou-q', 'ou-r']);
   assert.equal(
     editor.in_use,
-    1,
-    'a running author holds a slot; one at its plan, a question or a story review does not',
+    2,
+    'a running author and one at its plan hold a slot; one at a question or a story review does not',
   );
   assert.deepEqual(editor.authors.find((one) => one.name === 'ou-a')?.beat, {
     n: 3,

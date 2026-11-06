@@ -69,7 +69,7 @@ export interface BoardEditor extends BoardAgentEditor {
   name: string;
   /** its build slots (`agent start --kind editor --slots N`) */
   slots: number;
-  /** the slots in use: its authors that are working (running, or fixing findings). One at a plan, a question or a story review holds none */
+  /** the slots in use: its authors that are working (running, at its plan check, or fixing findings). One at a question or a story review holds none */
   in_use: number;
   since: string | null;
   authors: {

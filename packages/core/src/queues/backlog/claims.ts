@@ -154,8 +154,8 @@ export function liveClaim(
  *   critic running        a critic is open (running, or at its fixing gate)
  *   critic did not pass   the latest critic failed or was stopped, or died (open with no sign of life for STALE_MS)
  *   fixes pending         the latest finished critic reported findings (`--findings` above 0) and the author has not finished
- *                         since: Working while the author runs (Agent checks at its fixing gate, Waiting at a question or
- *                         plan), else Agent checks, for the fix round yet to start
+ *                         since: Working while the author runs (Agent checks at its fixing or plan gate, Waiting at a
+ *                         question), else Agent checks, for the fix round yet to start
  *
  * The author is the claimed agent's latest run (by sid and name) on this card (a run with another `--card` is not): the claim
  * holds the run it was made for, and a fix round is a later run of the same agent. Findings the editor dropped (no fix round)
@@ -210,7 +210,7 @@ export function criticHold(
     return 'working';
   }
   if (author && OPEN.includes(author.state)) {
-    return author.state === 'fixing' ? 'checks' : 'waiting';
+    return author.state === 'waiting' ? 'waiting' : 'checks';
   }
   const fixedAt = author?.ended?.getTime() ?? 0;
   return fixedAt > (latest.ended?.getTime() ?? 0) ? null : 'checks';
