@@ -1,0 +1,301 @@
+diff --git a/src/js/outlook/bundle.js b/src/js/outlook/bundle.js
+index 17c136d..6172e52 100644
+--- a/src/js/outlook/bundle.js
++++ b/src/js/outlook/bundle.js
+@@ -30,25 +30,32 @@ export default class Bundle {
+   constructor(attrs) {
+     this.attrs = attrs;
+     this.element = document.querySelector(`${EMAIL_CONTAINER} .${BUNDLE_WRAPPER_CLASS}[data-inbox="${attrs.encodedId}"]`);
+-    if (attrs.count === 0 && this.element) {
+-      this.element.parentNode.remove();
++    if (attrs.count === 0 || this.showsSingleEmail()) {
++      // nothing to bundle: drop a row left over from when the bundle had more emails
++      this.element?.parentNode.remove();
++      this.element = null;
++      // a lone email sits in the list as itself
++      document.querySelectorAll(`[data-inbox="bundled"][data-${attrs.encodedId}]`).forEach(emailRow => {
++        emailRow.setAttribute('data-inbox', 'show-bundled');
++      });
+     } else if (!this.element) {
+       this.element = this.buildBundleWrapper();
+     }
+   }
+ 
++  // a bundle of one shows the email itself unless the user asked to bundle single emails too
++  showsSingleEmail() {
++    return this.attrs.count === 1 && !getOptions().bundleOne;
++  }
++
+   buildBundleWrapper() {
+     const { email, emailEl, encodedId, title } = this.attrs;
+     const labels = email.getLabels();
+     const label = labels.find(lab => lab.encodedId === encodedId);
+-    const options = getOptions();
+-    const showEmail = this.attrs.count === 1 && !options.bundleOne;
+-    if (showEmail) {
+-      document.querySelectorAll(`[data-inbox="bundled"][data-${encodedId}]`).forEach(emailRow => {
+-        emailRow.setAttribute('data-inbox', 'show-bundled');
+-      });
+-      return;
+-    }
++    // a new bundle row starts collapsed, so tuck away emails that were on show before it existed
++    document.querySelectorAll(`[data-inbox="show-bundled"][data-${encodedId}]`).forEach(emailRow => {
++      emailRow.setAttribute('data-inbox', 'bundled');
++    });
+ 
+     emailEl.style.width = '100%';
+ 
+@@ -234,6 +241,11 @@ export default class Bundle {
+   updateStats({ email, emailEl }) {
+     this.email = email;
+     this.emailEl = emailEl;
++    if (!this.element) {
++      // no bundle row: a lone email takes its natural place in the list
++      emailEl.parentNode.style.order = email.order;
++      return;
++    }
+     this.element.parentNode.style.order = email.order - 1;
+     const { encodedId } = this.attrs;
+     const order = parseInt(this.element.parentNode.style.order);
+@@ -241,11 +253,6 @@ export default class Bundle {
+       emailRow.parentNode.style.order = order + index + 1;
+     });
+ 
+-    const options = getOptions();
+-    const showEmail = this.attrs.count === 1 && !options.bundleOne;
+-    if (this.attrs.count === 0 || showEmail) {
+-      return;
+-    }
+     this.addCount();
+     this.addSenders();
+     this.checkUnread();
+diff --git a/src/js/outlook/email.js b/src/js/outlook/email.js
+index e08fd8e..9ececea 100644
+--- a/src/js/outlook/email.js
++++ b/src/js/outlook/email.js
+@@ -3,7 +3,7 @@ import { OUTLOOK_CLASSES, OUTLOOK_SELECTORS } from './constants.js';
+ import { getOptions } from '../shared/options.js';
+ import emailPreview from './emailPreview.js';
+ import { isInInbox, isProgrammaticSelection, isSearchResults, matchesMyEmail, setSelectedRow } from './outlookUtils.js';
+-import { encodeBundleId, querySelectorText, querySelectorWithText, hasClass, queryParentSelector } from '../shared/utils.js';
++import { encodeBundleId, querySelectorText, querySelectorWithText, hasClass, queryParentSelector, removeClass } from '../shared/utils.js';
+ 
+ const { REMINDER_EMAIL_CLASS } = CLASSES;
+ const { UNREAD_EMAIL_ROW } = OUTLOOK_CLASSES;
+@@ -99,24 +99,37 @@ export default class Email {
+     const isStarred = this.emailEl.querySelector('[data-icon-name="PinFilled"]');
+     const isUnbundled = labels.some(label => label.title.includes(CLASSES.UNBUNDLED_PARENT_LABEL));
+ 
+-    if (labels.length && !isStarred && !isUnbundled) {
+-      let showEmail = this.emailEl.getAttribute('data-inbox') === 'show-bundled';
+-      const bundles = labels
+-        .map(label => {
+-          const bundleId = encodeBundleId(label.title);
+-          this.emailEl.setAttribute(`data-${bundleId}`, true);
+-          const bundle = document.querySelector(`[data-inbox="${bundleId}"]`);
+-          if (bundle && !showEmail) {
+-            showEmail = bundle.getAttribute('data-show-emails') === 'true';
+-          }
+-          return bundleId;
+-        })
+-        .join('||');
++    const bundleIds = labels.length && !isStarred && !isUnbundled ? labels.map(label => encodeBundleId(label.title)) : [];
++    const bundles = bundleIds.join('||');
++    const previousBundles = this.emailEl.getAttribute('data-bundles') || '';
++    const bundlesChanged = bundles !== previousBundles;
++
++    // the email left a bundle (category removed or changed): drop that bundle's markers so its
++    // stats, checkbox and row ordering stop treating the email as one of theirs
++    previousBundles
++      .split('||')
++      .filter(bundleId => bundleId && !bundleIds.includes(bundleId))
++      .forEach(bundleId => this.emailEl.removeAttribute(`data-${bundleId}`));
++    if (bundlesChanged) {
++      removeClass(this.emailEl, 'bundle-last-email');
++    }
++
++    if (bundleIds.length) {
++      // an expanded email stays visible only while it stays in the same bundle; a moved email follows its new bundle's state
++      let showEmail = !bundlesChanged && this.emailEl.getAttribute('data-inbox') === 'show-bundled';
++      bundleIds.forEach(bundleId => {
++        this.emailEl.setAttribute(`data-${bundleId}`, true);
++        const bundle = document.querySelector(`[data-inbox="${bundleId}"]`);
++        if (bundle && !showEmail) {
++          showEmail = bundle.getAttribute('data-show-emails') === 'true';
++        }
++      });
+ 
+       this.emailEl.setAttribute('data-inbox', showEmail ? 'show-bundled' : 'bundled');
+-      this.emailEl.setAttribute('data-bundles', bundles); // labels.map(label => encodeBundleId(label.title)).join('||'));
++      this.emailEl.setAttribute('data-bundles', bundles);
+     } else {
+       this.emailEl.setAttribute('data-inbox', 'email');
++      this.emailEl.removeAttribute('data-bundles');
+       this.emailEl.parentNode.style.order = this.order;
+       if (isUnbundled) {
+         labels.forEach(label => {
+diff --git a/src/js/outlook/keyboard.js b/src/js/outlook/keyboard.js
+index e55c62c..6c90ad8 100644
+--- a/src/js/outlook/keyboard.js
++++ b/src/js/outlook/keyboard.js
+@@ -1,16 +1,13 @@
+-import { addClass, hasClass, isTypable, observeForElement, removeClass } from '../shared/utils.js';
++import { addClass, isTypable, observeForElement, removeClass } from '../shared/utils.js';
+ import emailPreview from './emailPreview.js';
+-import { CLASSES } from '../shared/constants.js';
+ import { OUTLOOK_SELECTORS } from './constants.js';
+-import { findNextVisibleRow } from './outlookUtils.js';
++import { bundleWrapperFor, findNextVisibleRow, isBundleWrapper, setSelectedRow, visibleRows } from './outlookUtils.js';
+ 
+-const { BUNDLE_WRAPPER_CLASS } = CLASSES;
+ const {
+   COMPOSE_NEW_MAIL_BUTTON,
+   COMPOSE_SUBJECT_LINE,
+   COMPOSE_TO_ADDRESS_CONTAINER,
+   LIST_SCROLL_CONTAINER,
+-  SELECTED_EMAIL,
+   EMAIL_ROW,
+   EMAIL_ROW_OUTER_CONTAINER,
+ } = OUTLOOK_SELECTORS;
+@@ -21,11 +18,9 @@ export default {
+   },
+   handleKeyboardEvents(event) {
+     const currentRow = document.querySelector(`${EMAIL_ROW}[data-selected="true"]`);
+-    const currentBundle = document.querySelector(`${SELECTED_EMAIL}.${BUNDLE_WRAPPER_CLASS}`);
+     const mainContainer = document.querySelector(LIST_SCROLL_CONTAINER);
+     const parameters = {
+       ...this,
+-      currentBundle,
+       currentRow,
+       currentTarget: event.currentTarget,
+       event,
+@@ -49,22 +44,19 @@ export default {
+     }
+   },
+   handlers: {
+-    Enter: ({ currentRow, currentBundle }) => {
+-      if (currentRow.getAttribute('data-inbox') === 'bundled') {
+-        currentBundle.click();
+-      } else {
+-        currentRow.click();
++    // opens the email; on a bundle row (or an email hidden behind one) expands or collapses the bundle
++    Enter: ({ currentRow }) => {
++      if (!currentRow) {
++        return;
+       }
++      const row = currentRow.getAttribute('data-inbox') === 'bundled' ? bundleWrapperFor(currentRow) : currentRow;
++      row?.click();
+     },
+     Escape: ({ currentRow }) => {
+       if (emailPreview.previewShowing) {
+         emailPreview.emailClicked(currentRow);
+-      } else {
+-        const currentBundle = currentRow?.getAttribute('data-bundles');
+-        if (currentBundle) {
+-          const bundleRow = document.querySelector(`[data-inbox="${currentBundle}"]`);
+-          bundleRow.click();
+-        }
++      } else if (currentRow) {
++        bundleWrapperFor(currentRow)?.click();
+       }
+     },
+     KeyC: ({ removeReminderClass }) => removeReminderClass(),
+@@ -96,9 +88,15 @@ export default {
+   },
+   async navigate({ currentRow, keyCode }) {
+     const searchNext = ['ArrowDown', 'KeyJ'].includes(keyCode);
+-    const rowToSelect = currentRow ? findNextVisibleRow(currentRow, searchNext) : document.querySelector(`${EMAIL_ROW}:not(.${BUNDLE_WRAPPER_CLASS})`);
+-    if (hasClass(rowToSelect, BUNDLE_WRAPPER_CLASS)) {
+-      rowToSelect.click();
++    // nothing selected yet: start from the first row on screen
++    const rowToSelect = currentRow ? findNextVisibleRow(currentRow, searchNext) : visibleRows()[0];
++    if (!rowToSelect) {
++      return;
++    }
++    if (isBundleWrapper(rowToSelect)) {
++      // highlight the bundle row without toggling it; enter expands or collapses
++      emailPreview.hidePreview();
++      setSelectedRow(rowToSelect);
+       return;
+     }
+     const convId = rowToSelect ? rowToSelect.querySelector('[data-convid]')?.getAttribute('data-convid') : null;
+diff --git a/src/js/outlook/outlookUtils.js b/src/js/outlook/outlookUtils.js
+index 689da52..0ba2828 100644
+--- a/src/js/outlook/outlookUtils.js
++++ b/src/js/outlook/outlookUtils.js
+@@ -1,8 +1,10 @@
+ import { OUTLOOK_CLASSES, OUTLOOK_SELECTORS } from './constants.js';
+ import { addClass, hasClass, removeClass } from '../shared/utils.js';
+ import { getOptions } from '../shared/options.js';
++import { CLASSES } from '../shared/constants.js';
+ 
+-const { SELECTED_ROW, EMAIL_ROW: EMAIL_ROW_CLASS, BUNDLE_WRAPPER_CLASS } = OUTLOOK_CLASSES;
++const { SELECTED_ROW, EMAIL_ROW: EMAIL_ROW_CLASS } = OUTLOOK_CLASSES;
++const { BUNDLE_WRAPPER_CLASS } = CLASSES;
+ const { EMAIL_ROW_OUTER_CONTAINER } = OUTLOOK_SELECTORS;
+ 
+ let foundEmail;
+@@ -114,28 +116,50 @@ export const setSelectedRow = row => {
+   addClass(outerContainer, SELECTED_ROW);
+ };
+ 
+-const selectableRow = (row, currentBundle) => {
+-  const isSameBundle = row.getAttribute('data-bundles') === currentBundle;
+-  const isInCollapsedBundle = row.getAttribute('data-inbox') === 'bundled';
+-  const isEmail = hasClass(row, EMAIL_ROW_CLASS) && !hasClass(row, BUNDLE_WRAPPER_CLASS);
+-  const hasOuterContainer = row.querySelector(EMAIL_ROW_OUTER_CONTAINER);
+-  return row && isEmail && hasOuterContainer && isSameBundle && !isInCollapsedBundle;
++export const isBundleWrapper = row => hasClass(row, BUNDLE_WRAPPER_CLASS);
++// hidden behind a collapsed bundle row
++const isCollapsedEmail = row => row.getAttribute('data-inbox') === 'bundled';
++const isEmailRow = row => hasClass(row, EMAIL_ROW_CLASS) && !isBundleWrapper(row) && !!row.querySelector(EMAIL_ROW_OUTER_CONTAINER);
++
++// the bundle row a bundled email belongs to (the first of its labels)
++export const bundleWrapperFor = row => {
++  const [bundleId] = (row.getAttribute('data-bundles') || '').split('||');
++  return bundleId ? document.querySelector(`.${BUNDLE_WRAPPER_CLASS}[data-inbox="${bundleId}"]`) : null;
+ };
+ 
+ // rows are laid out by flex order, not dom order (outlook appends new mail at the end of the dom)
+ export const rowOrder = row => parseFloat(row.parentNode?.style.order) || 0;
++const byOrder = rows => rows.sort((a, b) => rowOrder(a) - rowOrder(b));
++const allRows = () => Array.from(document.querySelectorAll(`.${EMAIL_ROW_CLASS}`));
++
++// every row the user can see, in visual order: loose emails, bundle rows and the emails of expanded bundles
++export const visibleRows = () =>
++  byOrder(allRows().filter(row => (isBundleWrapper(row) ? row.style.display !== 'none' : isEmailRow(row) && !isCollapsedEmail(row))));
+ 
++// the visible neighbour of a row; a collapsed email navigates from the bundle row hiding it.
++// neighbours are taken by position so rows sharing a flex order are not skipped
+ export const findNextVisibleRow = (currentRow, searchNext = true) => {
+-  const currentBundle = currentRow.getAttribute('data-bundles');
+-  const currentOrder = rowOrder(currentRow);
+-  const rows = Array.from(document.querySelectorAll(`.${EMAIL_ROW_CLASS}`))
+-    .filter(row => selectableRow(row, currentBundle))
+-    .sort((a, b) => rowOrder(a) - rowOrder(b));
+-  return searchNext ? rows.find(row => rowOrder(row) > currentOrder) : rows.filter(row => rowOrder(row) < currentOrder).pop();
++  const rows = visibleRows();
++  const anchor = (isCollapsedEmail(currentRow) && bundleWrapperFor(currentRow)) || currentRow;
++  const index = rows.indexOf(anchor);
++  if (index >= 0) {
++    return rows[index + (searchNext ? 1 : -1)];
++  }
++  // the anchor is not visible (e.g. removed): fall back to the nearest row by order
++  const anchorOrder = rowOrder(anchor);
++  return searchNext ? rows.find(row => rowOrder(row) > anchorOrder) : rows.filter(row => rowOrder(row) < anchorOrder).pop();
++};
++
++// the visible email neighbour of a row within the same bundle (or among loose emails)
++const findNeighbourInBundle = (row, searchNext) => {
++  const bundles = row.getAttribute('data-bundles');
++  const order = rowOrder(row);
++  const rows = byOrder(allRows().filter(r => isEmailRow(r) && !isCollapsedEmail(r) && r.getAttribute('data-bundles') === bundles));
++  return searchNext ? rows.find(r => rowOrder(r) > order) : rows.filter(r => rowOrder(r) < order).pop();
+ };
+ 
+ // the neighbour that takes a removed (archived, deleted) row's place within its bundle
+-export const findReplacementRow = removedRow => findNextVisibleRow(removedRow, true) || findNextVisibleRow(removedRow, false);
++export const findReplacementRow = removedRow => findNeighbourInBundle(removedRow, true) || findNeighbourInBundle(removedRow, false);
+ 
+ // true while selectRow dispatches its click, so the row's click handler can leave the preview alone
+ let programmaticSelection = false;

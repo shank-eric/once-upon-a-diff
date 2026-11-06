@@ -27,6 +27,7 @@
     "format:check": "prettier --cache --cache-location=.prettiercache --check .",
     "postinstall": "husky",
     "test": "yarn workspaces foreach --all --exclude once-upon-a-diff-workspace -v run test",
+    "eval:stories": "yarn workspace @once-upon-a-diff/stories eval",
     "test:extension": "yarn workspace once-upon-a-diff test:extension",
     "test:expand": "yarn workspace once-upon-a-diff test:expand"
   },

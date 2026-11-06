@@ -31,7 +31,7 @@ import type { Side } from '@once-upon-a-diff/domain/line-refs';
 import { formatLineRef, toSide } from '@once-upon-a-diff/domain/line-refs';
 
 export const SMALL_FILE_LINES = 40;
-const LOCKFILES =
+export const LOCKFILES =
   /(^|\/)(yarn\.lock|package-lock\.json|npm-shrinkwrap\.json|pnpm-lock\.yaml|Gemfile\.lock|Cargo\.lock|poetry\.lock|composer\.lock|go\.sum|Podfile\.lock|bun\.lockb?)$/;
 
 /** A hunk's lines on each side, context included: {L: {start, end}, R: {start, end}}. An empty side is its one anchor line. */

@@ -1,0 +1,38 @@
+{
+  "number": 87,
+  "title": "fix: improvements to preview logic",
+  "body": "- use the focused preview thread row to manage show/hide of the preview and scrolling\n- need to collapse preview rows because we style the area with more height and outlook thinks it should expand them all\n- fix search results check\n- rework height styling of the inbox/preview to make it work\n- set bundled emails to 1px height so outlook doesn't lose the element\n- add space for copilot message in the preview",
+  "url": "https://github.com/shank-eric/inbox-in-gmail/pull/87",
+  "author": {
+    "login": "shank-eric"
+  },
+  "baseRefName": "develop",
+  "headRefName": "fix/outlook-dom-repair",
+  "commits": [
+    {
+      "oid": "7d09e55fd5a9e6e2a03b1ed5a65102faae07bbc6",
+      "messageHeadline": "fix: improvements to preview logic",
+      "messageBody": "- use the focused preview thread row to manage show/hide of the preview and scrolling\n- need to collapse preview rows because we style the area with more height and outlook thinks it should expand them all\n- fix search results check\n- rework height styling of the inbox/preview to make it work\n- set bundled emails to 1px height so outlook doesn't lose the element\n- add space for copilot message in the preview"
+    },
+    {
+      "oid": "07f657c773bd6907a98fe5494e136916f130c633",
+      "messageHeadline": "fix: update email row class",
+      "messageBody": "- tweak z-index for preview to show"
+    },
+    {
+      "oid": "643de6bf4f3414397b4b2a371032dca277ae6644",
+      "messageHeadline": "fix: repair inline preview for outlook's updated DOM",
+      "messageBody": "- pin previewed row correctly: fix sticky scrollport (.zXLz3 overflow) and\n  lift the list stacking wrapper (.rRhzD) above the preview pane\n- clean up sticky classes and data-previewing when the preview closes\n- scroll opened email below the pinned row (scroll-margin-top) instead of\n  centering it behind the header; fall back to the placeholder target when\n  the focused row is zero-size\n- keep thread history collapsed via CSS instead of double-clicking every row;\n  covers messages loaded by \"see more messages\"\n- add native-list-fallback kill-switch if outlook floods the full-height list\n- update bundle row markup for outlook's new list DOM"
+    },
+    {
+      "oid": "53c021d4c8a2fcb8d0439eb95cdff4f0ae1313fd",
+      "messageHeadline": "fix: run on outlook.cloud.microsoft and repair selectors for the upda…",
+      "messageBody": "…ted DOM\n\nOutlook now redirects to outlook.cloud.microsoft. The content script's\nmodule import was refused there because the domain was missing from\nweb_accessible_resources, so only the CSS ran.\n\n- add the new domain to content script matches and web_accessible_resources\n- update hashed classes that changed: subject, participants, preview\n  background, date column, hover actions, preview scroll wrapper,\n  multi-select buttons; drop constants for elements outlook no longer renders\n- selection is now a single class on the outer row container; follow that in\n  setSelectedRow and the bundle expand/collapse handlers\n- rebuild the bundle row markup to mirror the current row structure and give\n  it outlook's row-background class so it paints like a native row\n- stable selectors for time group headers (id prefix) and the compose \"To\"\n  row (aria-label); fall back to the folder pane for the account email now\n  that the brand link is gone; detect \"nothing selected\" via the conversation\n  container instead of a removed placeholder class\n- keyboard scroll shortcuts target the list scroll container; pinned email\n  offset follows the new 37px row height"
+    },
+    {
+      "oid": "a781410e92f1ea3b0bd67f73d3250d03a59dc946",
+      "messageHeadline": "fix: clear stale bundle-last-email markers and tolerate an invalidate…",
+      "messageBody": "…d extension context\n\n- inbox: outlook appends new mail at the end of the dom and reorders it later,\n  so a row that was briefly last kept its bundle-last-email class and its 12px\n  spacing; clear the class from every other row of the label instead of only\n  the first match\n- options: after the extension is reloaded, content scripts still running in\n  open tabs lose their chrome.* apis and every option read rejected with\n  \"Extension context invalidated\"; check the context first, catch storage\n  errors, and keep the last known options"
+    }
+  ]
+}

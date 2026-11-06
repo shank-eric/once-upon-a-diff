@@ -1,0 +1,818 @@
+diff --git a/src/js/outlook/bundle.js b/src/js/outlook/bundle.js
+index 7fc93f1..17c136d 100644
+--- a/src/js/outlook/bundle.js
++++ b/src/js/outlook/bundle.js
+@@ -10,19 +10,19 @@ const { BUNDLE_WRAPPER_CLASS } = CLASSES;
+ const {
+   EMAIL_ROW_OUTER_CONTAINER_PRIMARY,
+   EMAIL_ROW_OUTER_CONTAINER_SECONDARY,
++  EMAIL_ROW_OUTER_CONTAINER_BACKGROUND,
+   EMAIL_ROW_INNER_CONTAINER,
+   EMAIL_COLUMN_CONTAINER,
+   EMAIL_DATE,
+   EMAIL_PARTICIPANT_CONTAINERS,
+   EMAIL_ROW,
+-  HIDE_AVATAR,
+   SELECTED_ROW,
+-  UNSELECTED_ROW,
+   UNREAD_EMAIL_ROW,
+ } = OUTLOOK_CLASSES;
+ const {
+   EMAIL_COLUMN_CONTAINER: EMAIL_COLUMN_CONTAINER_SELECTOR,
+   EMAIL_ROW_INNER_CONTAINER: EMAIL_ROW_INNER_CONTAINER_SELECTOR,
++  EMAIL_ROW_OUTER_CONTAINER,
+   EMAIL_CONTAINER,
+ } = OUTLOOK_SELECTORS;
+ 
+@@ -81,21 +81,19 @@ export default class Bundle {
+         data-inbox=${encodedId}
+         data-show-emails="false"
+       >
+-        <div class="${EMAIL_ROW_OUTER_CONTAINER_PRIMARY} ${EMAIL_ROW_OUTER_CONTAINER_SECONDARY}">
++        <div class="${EMAIL_ROW_OUTER_CONTAINER_PRIMARY} ${EMAIL_ROW_OUTER_CONTAINER_SECONDARY} ${EMAIL_ROW_OUTER_CONTAINER_BACKGROUND}">
+           <div draggable="true">
+             <div
+-              class="${EMAIL_ROW_INNER_CONTAINER} G1NES lHRXq IjQyD JCRRb DLvHz hDNlA"
++              class="${EMAIL_ROW_INNER_CONTAINER} CgZeR DLvHz"
+               tabindex="-1"
+             >
+               <div class="X1bn0"><button tabindex="-1" class="Es7y_" title="Mark as unread"></button></div>
+-              <div class="ZTnQq">
+-                <div class="${EMAIL_COLUMN_CONTAINER} XG5Jd zItCb">
+-                  <div class="DMjcl BevFE XG5Jd gi0cv" style="width: ${columnWidths[0].width}; max-width: ${columnWidths[0].width};">
+-                    <div class="XG5Jd XJ3XJ q0f8X XW8cf"
++              <div class="XG5Jd ap3u6 WO8ox Yhp01 ORB1S jO6nB">
++                    <div class="XG5Jd XJ3XJ q0f8X XW8cf DoCKv vbEPJ"
+                       tabindex="-1" role="checkbox" aria-checked="false" aria-label="Select a conversation"
+                     >
+                       <span
+-                        role="img" id="avatar-${encodedId}" class="fui-Avatar r81b29z mP9b0 oWYiS BQOiO ___15c0rxp f1w9dchk fxldao9 fy9rknc" aria-label="${title}"
++                        role="img" id="avatar-${encodedId}" class="fui-Avatar r81b29z mP9b0 ___15c0rxp f1w9dchk fxldao9 fy9rknc" aria-label="${title}"
+                       >
+                         <span id="avatar-${encodedId}__initials" class="fui-Avatar__initials rip04v ___456t1b0"
+                         style="color: ${label.textColor}; background-color: ${label.backgroundColor}; border-color: ${label.borderColor}"
+@@ -111,21 +109,25 @@ export default class Bundle {
+                         </label>
+                       </div>
+                     </div>
+-                    <div class="${EMAIL_PARTICIPANT_CONTAINERS} W3BHj Dc0o9 Ejrkd">
++                  </div>
++              <div class="ZTnQq XG5Jd Wamaz ap3u6 WO8ox">
++                <div class="${EMAIL_COLUMN_CONTAINER} XG5Jd hQj7T">
++                  <div class="mn28d BevFE XG5Jd mXLG_" style="width: ${columnWidths[0].width}; max-width: ${columnWidths[0].width};">
++                    <div class="${EMAIL_PARTICIPANT_CONTAINERS} gy2aJ Ejrkd">
+                       <span class="label-link"
+                       style="color: ${label.textColor}; background-color: ${label.backgroundColor}; border-color: ${label.borderColor}">
+                         ${title}
+                       </span>
+                     </div>
+                   </div>
+-                  <div class="dTBo0 XW8cf XG5Jd oegl4"
++                  <div class="dTBo0 XW8cf XG5Jd Gts_D"
+                     style="width: ${columnWidths[1].width}; max-width: ${columnWidths[1].width}; padding-left: ${columnWidths[1].paddingLeft};">
+                     <div class="gmffI ovvvr">
+                       <div class="gy2aJ Ejrkd bundle-senders">
+                       </div>
+                       <div class="YH9yX">
+-                        <div class="Zgp3k">
+-                          <span class="FqgPc gy2aJ Ejrkd"></span>
++                        <div class="En7p5">
++                          <span class="ASFJj gy2aJ Ejrkd"></span>
+                         </div>
+                       </div>
+                     </div>
+@@ -133,7 +135,7 @@ export default class Bundle {
+                   <div class="VuThs" style="width: ${columnWidths[2].width}; max-width: ${columnWidths[2].width}; margin-left: ${columnWidths[2].marginLeft};">
+                     <div class="lulAg">
+                       <span
+-                        class="${EMAIL_DATE} B3KmY qq2gS IHjSF D8iyG _rWRU Ejrkd hwyHQ B3KmY"
++                        class="${EMAIL_DATE} qq2gS _rWRU Ejrkd cbNn0"
+                       >
+                         ${email.getDate()}
+                       </span>
+@@ -141,7 +143,6 @@ export default class Bundle {
+                   </div>
+                 </div>
+               </div>
+-              <div class="QpoLy"></div>
+             </div>
+           </div>
+           <span class="hidden-selector"></span>
+@@ -178,7 +179,7 @@ export default class Bundle {
+         });
+         bundleRow.setAttribute('data-show-emails', !currentlyShowing);
+         setSelectedRow(bundleRow);
+-        replaceClass(bundleRow.querySelector(EMAIL_ROW_INNER_CONTAINER_SELECTOR), SELECTED_ROW, UNSELECTED_ROW);
++        removeClass(bundleRow.querySelector(EMAIL_ROW_OUTER_CONTAINER), SELECTED_ROW);
+       }
+     } else {
+       const bundledEmails = document.querySelectorAll(`[data-inbox="bundled"][data-${encodedId}]`);
+@@ -189,7 +190,7 @@ export default class Bundle {
+           setSelectedRow(emailRow);
+         }
+       });
+-      replaceClass(bundleRow.querySelector(EMAIL_ROW_INNER_CONTAINER_SELECTOR), UNSELECTED_ROW, SELECTED_ROW);
++      addClass(bundleRow.querySelector(EMAIL_ROW_OUTER_CONTAINER), SELECTED_ROW);
+       bundleRow.setAttribute('data-show-emails', !currentlyShowing);
+     }
+   }
+@@ -213,12 +214,6 @@ export default class Bundle {
+ 
+     const checkboxContainer = this.element.querySelector('[role="checkbox"]');
+     checkboxContainer.setAttribute('aria-checked', anyEmailsChecked);
+-    const avatarContainer = this.element.querySelector('.fui-Avatar');
+-    if (anyEmailsChecked) {
+-      addClass(avatarContainer, HIDE_AVATAR);
+-    } else {
+-      removeClass(avatarContainer, HIDE_AVATAR);
+-    }
+     const { CHECKED_CHECKBOX_CLASSES, UNCHECKED_CHECKBOX_CLASSES } = getCheckboxClasses();
+     const addClasses = allEmailsChecked ? CHECKED_CHECKBOX_CLASSES : UNCHECKED_CHECKBOX_CLASSES;
+     const removeClasses = allEmailsChecked ? UNCHECKED_CHECKBOX_CLASSES : CHECKED_CHECKBOX_CLASSES;
+diff --git a/src/js/outlook/constants.js b/src/js/outlook/constants.js
+index 3d228c0..c301577 100644
+--- a/src/js/outlook/constants.js
++++ b/src/js/outlook/constants.js
+@@ -3,32 +3,36 @@ import { CLASSES } from '../shared/constants.js';
+ 
+ export const DEFAULT_PROFILE_URL = '';
+ export const OUTLOOK_CLASSES = {
+-  EMAIL_ROW: 'EeHm8',
++  EMAIL_ROW: 'l8vF9',
+   EMAIL_ROW_OUTER_CONTAINER_PRIMARY: 'gDC9O',
+   EMAIL_ROW_OUTER_CONTAINER_SECONDARY: 'jGG6V',
++  // paints row background/hover from outlook's variables
++  EMAIL_ROW_OUTER_CONTAINER_BACKGROUND: 'UWKUc',
+   EMAIL_ROW_INNER_CONTAINER: 'lHRXq',
+   EMAIL_COLUMN_CONTAINER: 'hQj7T',
+   EMAIL_CONTAINER: 'q9iRC',
+   EMAIL_DATE: 'hwyHQ',
+   EMAIL_LABEL_CONTAINERS: 'F6Q1l',
+   EMAIL_LABEL_TEXTS: 'cFOen',
+-  EMAIL_PARTICIPANT_CONTAINERS: 'JBWmn',
+-  EMAIL_SUBJECT: 'vTzd2',
++  EMAIL_PARTICIPANT_CONTAINERS: 'DOWm0',
++  // container of the subject text in the email row
++  EMAIL_SUBJECT: 'yg0l0',
+   HIDDEN_EMAIL_ROW: 'l9cM7',
+-  HIDE_AVATAR: 'oWYiS',
+-  INBOX: 'mKBmm',
++  // list + preview wrapper; our scroll container
++  LIST_SCROLL_CONTAINER: 'G8_Dc',
+   PREVIEW_WRAPPER: 'Q8TCC',
+   PREVIEW_CONTAINER: 'Mq3cC',
+   PREVIEW_COMPOSE: 'FXtdL',
+-  PREVIEW_THREAD_ROW: 'aVla3',
++  PREVIEW_CONVERSATION_CONTAINER: 'MtujV',
++  PREVIEW_THREAD_ROW: 'SlLx9',
++  // conversation subject header
+   PREVIEW_CALENDAR_CONFLICT_CONTAINER: 'NTPm6',
+   SCROLLBAR_ELEMENT: 'zXLz3',
+-  SELECTED_ROW: 'vl1wI',
++  // set on the outer row container
++  SELECTED_ROW: 'epBmH',
+   SELECTED_EMAILS_MENU_CONTAINER: 'DPXAn',
+   TOP_BAR_CONTAINER: 'bkYAr',
+-  TIME_ROW: 'Cnnoo',
+   UNREAD_EMAIL_ROW: 'DLvHz',
+-  UNSELECTED_ROW: 'IjQyD',
+ };
+ 
+ const CLASS_SELECTORS = buildSelectors(OUTLOOK_CLASSES);
+@@ -37,8 +41,11 @@ export const OUTLOOK_SELECTORS = {
+   ...CLASS_SELECTORS,
+   COMPOSE_SUBJECT_LINE: '.Ut9Zz input',
+   COMPOSE_NEW_MAIL_BUTTON: 'button[data-unique-id=Ribbon-588]',
+-  COMPOSE_TO_ADDRESS_CONTAINER: '.sEpHx',
++  // "To" row: button + recipient editor
++  COMPOSE_TO_ADDRESS_CONTAINER: `${CLASS_SELECTORS.PREVIEW_COMPOSE} .fui-Input:has([aria-label="To"])`,
+   PREVIEW_PANE: `${CLASS_SELECTORS.PREVIEW_CONTAINER} #ReadingPaneContainerId`,
++  // date group headers ("Today", "Yesterday", ...)
++  TIME_ROW: '[id^="groupHeader"]',
+   SELECTED_EMAIL: `${CLASS_SELECTORS.EMAIL_ROW}[aria-selected="true"]`,
+   EMAIL_PARTICIPANTS: `${CLASS_SELECTORS.EMAIL_PARTICIPANT_CONTAINERS} span, .ESO13 span, .uSUBc span, .DOWm0 span`,
+   EMAIL_LABELS: `${CLASS_SELECTORS.EMAIL_LABEL_CONTAINERS} ${CLASS_SELECTORS.EMAIL_LABEL_TEXTS}`,
+diff --git a/src/js/outlook/emailPreview.js b/src/js/outlook/emailPreview.js
+index 401f43f..4b455c2 100644
+--- a/src/js/outlook/emailPreview.js
++++ b/src/js/outlook/emailPreview.js
+@@ -5,7 +5,6 @@ import {
+   hasClass,
+   htmlToElements,
+   observeForElement,
+-  observeForRemoval,
+   removeClass,
+   runObserver,
+ } from '../shared/utils.js';
+@@ -18,6 +17,7 @@ const {
+   PREVIEW_COMPOSE,
+   PREVIEW_PANE,
+   PREVIEW_THREAD_ROW,
++  PREVIEW_CONVERSATION_CONTAINER,
+   PREVIEW_WRAPPER,
+   EMAIL_CONTAINER,
+   SELECTED_EMAILS_MENU_CONTAINER,
+@@ -52,7 +52,8 @@ export default {
+       // clicking the email changes the selected email automatically
+       // set showPreview so that checkPreview will make it visible
+       // when it processes the new selected email
+-      await observeForRemoval(previewPane, '.QYrHp');
++      await observeForElement(previewPane, PREVIEW_CONVERSATION_CONTAINER);
++      this.previewShowing = false;
+       this.showPreview = true;
+     }
+   },
+@@ -70,10 +71,12 @@ export default {
+   showPreviewPane(previewPane) {
+     this.movePreviewPane(previewPane);
+     const previewPlaceholder = document.querySelector('.preview-placeholder');
+-    const previewScrollTarget = document.querySelector('.preview-scroll-target');
+-    addClass(previewPane, 'show-preview');
+-    this.previewShowing = true;
+-    const adjustPreviewSize = () => {
++    if (!this.previewShowing) {
++      addClass(previewPane, 'show-preview');
++      this.previewShowing = true;
++    }
++
++    const adjustPreviewSize = async () => {
+       if (hasClass(previewPane, 'preview-compose')) {
+         document.querySelectorAll('[data-previewing="true"]').forEach(el => el.setAttribute('data-previewing', false));
+         previewPlaceholder.style.height = null;
+@@ -82,7 +85,7 @@ export default {
+         return;
+       }
+       const previewEls = Array.from(previewPane.querySelectorAll(`${PREVIEW_WRAPPER} > div,${PREVIEW_CALENDAR_CONFLICT_CONTAINER}`));
+-      const previewHeight = addPixels(...previewEls.map(el => el.offsetHeight), 12);
++      const previewHeight = addPixels(...previewEls.map(el => el.offsetHeight), 12, 60); //42 for the copilot summary button
+       // width is controlled by the window size, not by the email preview
+       const placeholderWidth = getComputedStyle(previewPlaceholder).width;
+       const { height: placeholderHeight } = previewPlaceholder.style;
+@@ -91,8 +94,6 @@ export default {
+         previewPlaceholder.style.height = previewHeight;
+         previewPane.style.height = previewHeight;
+         previewPane.style.width = placeholderWidth;
+-        const expandedEmails = Array.from(previewPane.querySelectorAll(`${PREVIEW_THREAD_ROW} div[aria-expanded="true"]`));
+-        previewScrollTarget.style.top = addPixels(previewHeight, ...expandedEmails.map(el => -el.offsetHeight), -12, -44, -80);
+         if (this.currentEmail.getAttribute('data-previewing') !== 'true') {
+           document.querySelectorAll('[data-previewing="true"]').forEach(el => el.setAttribute('data-previewing', false));
+           this.currentEmail.setAttribute('data-previewing', true);
+@@ -100,7 +101,10 @@ export default {
+           document.querySelectorAll('.sticky-bundle-email').forEach(el => removeClass(el, 'sticky-bundle-email'));
+           const isBundled = this.currentEmail.parentNode.getAttribute('data-inbox') === 'show-bundled';
+           addClass(this.currentEmail.parentNode.parentNode, isBundled ? 'sticky-bundle-email' : 'sticky-email');
+-          setTimeout(() => previewScrollTarget.scrollIntoViewIfNeeded({ behavior: 'smooth' }), 0);
++          const focusedEmail = await observeForElement(document, `${PREVIEW_THREAD_ROW}#focused`);
++          // the focused row is zero-size when its message renders expanded
++          const scrollTarget = focusedEmail.offsetHeight ? focusedEmail : document.querySelector('.preview-scroll-target');
++          scrollTarget.scrollIntoView({ behavior: 'smooth', block: 'start' });
+         }
+       }
+       this.previewObserver.observe(previewPane, { subtree: true, attributes: true });
+@@ -124,12 +128,15 @@ export default {
+     }
+   },
+   hidePreviewPane(previewPane) {
+-    const previewingEmail = document.querySelector('[data-previewing]');
+-    if (previewingEmail) {
+-      previewingEmail.removeAttribute('data-previewing');
+-    }
++    document.querySelectorAll('[data-previewing]').forEach(el => el.removeAttribute('data-previewing'));
++    document.querySelectorAll('.sticky-email').forEach(el => removeClass(el, 'sticky-email'));
++    document.querySelectorAll('.sticky-bundle-email').forEach(el => removeClass(el, 'sticky-bundle-email'));
+     if (previewPane) {
+       removeClass(previewPane, 'show-preview');
++      // clear inline sizing so the native reading pane isn't constrained while our styling is inactive
++      previewPane.style.height = null;
++      previewPane.style.width = null;
++      previewPane.style.top = null;
+     }
+     this.previewShowing = false;
+     const previewPlaceholder = document.querySelector('.preview-placeholder');
+@@ -173,7 +180,8 @@ export default {
+     replaceClass(previewPane, 'show-preview', 'preview-compose');
+     this.hideIfCurrentEmailRemoved(previewPane);
+ 
+-    const nothingSelected = previewPane.querySelector('.QYrHp');
++    // the conversation container only exists once an email is selected
++    const nothingSelected = !previewPane.querySelector(PREVIEW_CONVERSATION_CONTAINER);
+     const selectedEmails = document.querySelectorAll(`${EMAIL_CONTAINER} [aria-selected="true"]:not(.${BUNDLE_WRAPPER_CLASS}):not(button)`);
+     if (selectedEmails.length === 1 && !nothingSelected) {
+       const selectedEmail = selectedEmails[0];
+diff --git a/src/js/outlook/inbox.js b/src/js/outlook/inbox.js
+index a806955..3a8e6b3 100644
+--- a/src/js/outlook/inbox.js
++++ b/src/js/outlook/inbox.js
+@@ -1,4 +1,4 @@
+-import { addClass, encodeBundleId, hasClass, removeClass, runObserver } from '../shared/utils.js';
++import { addClass, encodeBundleId, removeClass, runObserver } from '../shared/utils.js';
+ import { getOptions, reloadOptions } from '../shared/options.js';
+ 
+ import { isInInbox, isSearchResults } from './outlookUtils.js';
+@@ -22,7 +22,14 @@ export default {
+       options,
+       async () => {
+         reloadOptions();
+-        await emailPreview.checkPreview();
++        // kill-switch: if outlook floods our full-height list with rows, fall back to its native list before the page locks up
++        const runawayRows = document.querySelectorAll(EMAIL_ROW).length > 300;
++        document.body.classList.toggle('native-list-fallback', runawayRows);
++        if (runawayRows) {
++          await emailPreview.hidePreview();
++        } else {
++          await emailPreview.checkPreview();
++        }
+         this.processEmails();
+       },
+       true
+@@ -73,10 +80,13 @@ export default {
+                 },
+               ],
+             };
+-            if (!hasClass(email.emailEl, 'bundle-last-email')) {
+-              removeClass(document.querySelector(`[data-${encodedId}].bundle-last-email`), 'bundle-last-email');
+-              addClass(email.emailEl, 'bundle-last-email');
+-            }
++            // new mail lands last in the dom and moves later; clear the class from every other row
++            document.querySelectorAll(`[data-${encodedId}].bundle-last-email`).forEach(el => {
++              if (el !== email.emailEl) {
++                removeClass(el, 'bundle-last-email');
++              }
++            });
++            addClass(email.emailEl, 'bundle-last-email');
+           } else {
+             labelStats[encodedId].count++;
+             labelStats[encodedId].senders.push({
+diff --git a/src/js/outlook/keyboard.js b/src/js/outlook/keyboard.js
+index 3368887..68e2580 100644
+--- a/src/js/outlook/keyboard.js
++++ b/src/js/outlook/keyboard.js
+@@ -5,7 +5,15 @@ import { OUTLOOK_SELECTORS } from './constants.js';
+ import { findNextVisibleRow } from './outlookUtils.js';
+ 
+ const { BUNDLE_WRAPPER_CLASS } = CLASSES;
+-const { COMPOSE_NEW_MAIL_BUTTON, COMPOSE_SUBJECT_LINE, COMPOSE_TO_ADDRESS_CONTAINER, SELECTED_EMAIL, EMAIL_ROW, EMAIL_ROW_OUTER_CONTAINER } = OUTLOOK_SELECTORS;
++const {
++  COMPOSE_NEW_MAIL_BUTTON,
++  COMPOSE_SUBJECT_LINE,
++  COMPOSE_TO_ADDRESS_CONTAINER,
++  LIST_SCROLL_CONTAINER,
++  SELECTED_EMAIL,
++  EMAIL_ROW,
++  EMAIL_ROW_OUTER_CONTAINER,
++} = OUTLOOK_SELECTORS;
+ 
+ export default {
+   init() {
+@@ -14,7 +22,7 @@ export default {
+   handleKeyboardEvents(event) {
+     const currentRow = document.querySelector(`${EMAIL_ROW}[data-selected="true"]`);
+     const currentBundle = document.querySelector(`${SELECTED_EMAIL}.${BUNDLE_WRAPPER_CLASS}`);
+-    const mainContainer = document.querySelector('.AO');
++    const mainContainer = document.querySelector(LIST_SCROLL_CONTAINER);
+     const parameters = {
+       ...this,
+       currentBundle,
+@@ -82,8 +90,8 @@ export default {
+         }, 0);
+       }, 500);
+     },
+-    Quote: ({ mainContainer, shiftKey }) => mainContainer.scrollBy(0, shiftKey ? -250 : -25),
+-    Semicolon: ({ mainContainer, shiftKey }) => mainContainer.scrollBy(0, shiftKey ? 250 : 25),
++    Quote: ({ mainContainer, shiftKey }) => mainContainer?.scrollBy(0, shiftKey ? -250 : -25),
++    Semicolon: ({ mainContainer, shiftKey }) => mainContainer?.scrollBy(0, shiftKey ? 250 : 25),
+     // Space: ({ currentRow }) => currentRow.querySelector('.aid [role="checkbox"]').click()
+   },
+   async navigate({ currentRow, keyCode }) {
+diff --git a/src/js/outlook/outlookUtils.js b/src/js/outlook/outlookUtils.js
+index 715fc3b..12b2e08 100644
+--- a/src/js/outlook/outlookUtils.js
++++ b/src/js/outlook/outlookUtils.js
+@@ -1,11 +1,12 @@
+ import { OUTLOOK_CLASSES, OUTLOOK_SELECTORS } from './constants.js';
+-import { hasClass, replaceClass } from '../shared/utils.js';
++import { addClass, hasClass, removeClass } from '../shared/utils.js';
+ import { getOptions } from '../shared/options.js';
+ 
+-const { SELECTED_ROW, UNSELECTED_ROW, EMAIL_ROW: EMAIL_ROW_CLASS, BUNDLE_WRAPPER_CLASS } = OUTLOOK_CLASSES;
+-const { EMAIL_ROW_INNER_CONTAINER, EMAIL_ROW_OUTER_CONTAINER } = OUTLOOK_SELECTORS;
++const { SELECTED_ROW, EMAIL_ROW: EMAIL_ROW_CLASS, BUNDLE_WRAPPER_CLASS } = OUTLOOK_CLASSES;
++const { EMAIL_ROW_OUTER_CONTAINER } = OUTLOOK_SELECTORS;
+ 
+ let foundEmail;
++const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+ const findEmailInLink = () => {
+   const brandLink = document.querySelector('#O365_AppName');
+   if (brandLink) {
+@@ -13,10 +14,16 @@ const findEmailInLink = () => {
+     return brandUrl.searchParams.get('login_hint');
+   }
+ };
++// the folder pane's mailbox root is titled with the account email
++const findEmailInFolderPane = () => {
++  const mailboxRoot = document.querySelector('[id^="primaryMailboxRoot"]');
++  const title = mailboxRoot?.getAttribute('title') || mailboxRoot?.textContent.trim();
++  return EMAIL_REGEX.test(title || '') ? title : undefined;
++};
+ 
+ export const getMyEmailAddress = () => {
+   if (!foundEmail) {
+-    foundEmail = findEmailInLink();
++    foundEmail = findEmailInLink() || findEmailInFolderPane();
+   }
+   return foundEmail;
+ };
+@@ -46,7 +53,7 @@ export const matchesMyEmail = email => {
+   return emails.some(e => matchEmails(e, email));
+ };
+ 
+-export const isSearchResults = () => !!document.querySelector('#owaSearchBox [data-icon-name="ArrowLeftRegular"]');
++export const isSearchResults = () => !!document.querySelector('#searchBoxId-Mail [data-icon-name="ArrowLeftRegular"]');
+ export const isInInbox = () => document.location.pathname === '/mail/' || document.location.pathname.match(/mail\/inbox/g);
+ 
+ // export const openReminder = async () => {
+@@ -88,7 +95,7 @@ export const isInInbox = () => document.location.pathname === '/mail/' || docume
+ export const setSelectedRow = row => {
+   document.querySelectorAll('[data-selected]').forEach(selectedEl => {
+     selectedEl.setAttribute('data-selected', false);
+-    replaceClass(selectedEl.querySelector(EMAIL_ROW_INNER_CONTAINER), UNSELECTED_ROW, SELECTED_ROW);
++    removeClass(selectedEl.querySelector(EMAIL_ROW_OUTER_CONTAINER), SELECTED_ROW);
+   });
+   // document.querySelectorAll('[aria-selected]').forEach(selectedEl => {
+   //   selectedEl.setAttribute('aria-selected', false);
+@@ -102,7 +109,7 @@ export const setSelectedRow = row => {
+   // });
+   const outerContainer = row.querySelector(EMAIL_ROW_OUTER_CONTAINER);
+   outerContainer.focus();
+-  replaceClass(row.querySelector(EMAIL_ROW_INNER_CONTAINER), SELECTED_ROW, UNSELECTED_ROW);
++  addClass(outerContainer, SELECTED_ROW);
+ };
+ 
+ const selectableRow = (row, currentBundle) => {
+diff --git a/src/js/shared/options.js b/src/js/shared/options.js
+index 09865b8..e5c6400 100644
+--- a/src/js/shared/options.js
++++ b/src/js/shared/options.js
+@@ -3,9 +3,31 @@ import { addClass, removeClass } from './utils.js';
+ 
+ let options = {};
+ export const getOptions = () => options;
++
++// after an extension reload, scripts still running in open tabs lose their chrome.* APIs
++const isExtensionContextValid = () => !!chrome.runtime?.id;
++const readStoredOptions = async () => {
++  if (!isExtensionContextValid()) {
++    return null;
++  }
++  if (!chrome.storage?.local) {
++    return {};
++  }
++  try {
++    const storage = await chrome.storage.local.get('options');
++    return storage.options || {};
++  } catch (error) {
++    return null;
++  }
++};
++
+ export const reloadOptions = async () => {
+-  const storage = !!chrome.storage?.local ? await chrome.storage?.local.get('options') : {};
+-  options = storage.options || {};
++  const storedOptions = await readStoredOptions();
++  if (!storedOptions) {
++    // keep the last known options
++    return;
++  }
++  options = storedOptions;
+   options.reminderTreatment = options.reminderTreatment || 'containing-word';
+   options.emailBundling = options.emailBundling || 'enabled';
+   options.showAvatar = options.showAvatar || 'enabled';
+diff --git a/src/manifest.json b/src/manifest.json
+index d3cab5d..e1021e7 100644
+--- a/src/manifest.json
++++ b/src/manifest.json
+@@ -36,6 +36,7 @@
+       "matches": [
+         "https://outlook.office.com/mail/*",
+         "https://outlook.office365.com/mail/*",
++        "https://outlook.cloud.microsoft/mail/*",
+         "https://outlook.office.com.mcas.ms/mail/*"
+       ],
+       "css": [
+@@ -57,6 +58,7 @@
+         "https://mail.google.com/*",
+         "https://outlook.office.com/*",
+         "https://outlook.office365.com/*",
++        "https://outlook.cloud.microsoft/*",
+         "https://outlook.office.com.mcas.ms/*"
+       ]
+     }
+diff --git a/src/scss/outlook/email-list.scss b/src/scss/outlook/email-list.scss
+index 2db699f..39dd094 100644
+--- a/src/scss/outlook/email-list.scss
++++ b/src/scss/outlook/email-list.scss
+@@ -1,17 +1,9 @@
+ html[dir='ltr'] {
+-  body {
++  //native-list-fallback is a kill-switch: restores outlook's fixed-height list
++  //if it floods our full-height list with rows
++  body:not(.native-list-fallback) {
+     //main inbox element, has data-max-width on it
+     .q9iRC {
+-      .G8_Dc {
+-        overflow-y: auto;
+-        height: auto;
+-        .rRhzD {
+-          height: unset;
+-          max-height: unset;
+-          // min-height: calc(100vh - 140px);
+-        }
+-      }
+-
+       // element directly inside of data-max-width
+       .HOVUa {
+         max-width: 2400px;
+@@ -20,6 +12,17 @@ html[dir='ltr'] {
+ 
+         //wrapper around email list and preview pane
+         .G8_Dc {
++          overflow-y: auto;
++          height: auto;
++          //email list stacking wrapper: above the preview pane (z-index: 10) so
++          //pinned rows can cover it, below the compose popup (z-index: 15);
++          //click-transparent so its box doesn't eat clicks where it overlaps
++          //the top of the preview (email rows re-enable pointer events)
++          .rRhzD {
++            z-index: 11;
++            pointer-events: none;
++          }
++
+           //main email list
+           .XW2m0 {
+             // min-height: calc(100% - 41px);
+@@ -39,6 +42,13 @@ html[dir='ltr'] {
+               overflow: visible;
+               background: transparent;
+             }
++
++            //scrollbar wrapper: its overflow: hidden breaks pinned rows (wrong
++            //sticky scrollport) and its background covers the email preview
++            .zXLz3 {
++              overflow: visible;
++              background: transparent;
++            }
+             // #MailList {
+             //   min-height: calc(100vh - 170px);
+             // }
+@@ -62,7 +72,7 @@ html[dir='ltr'] {
+             }
+ 
+             // background covering the email preview
+-            .X4w2q {
++            .Xhguk {
+               overflow: visible;
+               background: transparent;
+             }
+@@ -79,11 +89,12 @@ html[dir='ltr'] {
+ 
+               //email rows container
+               > div {
+-                display: flex;
++                min-height: calc(100vh - 170px);
+                 height: unset !important;
+-                flex-direction: column;
+-                position: initial;
++                position: initial !important;
+                 > div {
++                  display: flex;
++                  flex-direction: column;
+                   position: unset !important;
+                 }
+               }
+@@ -96,13 +107,14 @@ html[dir='ltr'] {
+                 z-index: 10;
+               }
+               .sticky-bundle-email {
+-                top: 36px !important;
++                top: 37px !important;
+               }
+             }
+ 
+             // email column headers
+             > div:nth-child(2) {
+               box-shadow: rgb(0 0 0 / 24%) -2px -2px 4px;
++              // fallback; emailPreview.js sets the measured height inline
+               padding: 0 !important;
+             }
+ 
+diff --git a/src/scss/outlook/email-preview.scss b/src/scss/outlook/email-preview.scss
+index 32d0875..30e033d 100644
+--- a/src/scss/outlook/email-preview.scss
++++ b/src/scss/outlook/email-preview.scss
+@@ -14,8 +14,6 @@
+ .Mq3cC {
+   //preview elements have margin-left: 8px and margin-right: 19px
+   //make this preview container wider so that the right margin looks like it's 8px
+-  left: 0;
+-  right: 0;
+   position: static;
+ 
+   //menu when multiple items selected
+@@ -56,7 +54,7 @@
+     }
+ 
+     // container for extra buttons
+-    .VmtpC {
++    .xLoCf {
+       display: none;
+       margin: 0;
+ 
+@@ -72,10 +70,24 @@
+ 
+     &:not(.show-preview):not(.preview-compose) {
+       display: none;
++      height: 0;
+     }
+ 
+     &.show-preview {
+       left: 0px;
++      z-index: 10;
++    }
++
++    // focused thread message: scroll to just below the pinned email row
++    .SlLx9#focused {
++      scroll-margin-top: 45px;
++    }
++
++    // bodies of non-focused thread messages: outlook mounts collapsed messages
++    // with bodies rendered because our pane looks tall enough to fit everything;
++    // clicking a row still expands it (#focused follows the click)
++    .SlLx9:not(#focused) .XbIp4 {
++      display: none;
+     }
+ 
+     // message header
+@@ -100,22 +112,22 @@
+     .PCN7W {
+       margin: 0 !important;
+       border-radius: 0;
+-      //keeps ,argins from collapsing
++      //keeps margins from collapsing
+       border: 1px solid transparent;
+       border-bottom-color: var(--themeLighter);
+     }
+ 
+     // messages in the thread
+-    ._xWdq,
+-    .eIxcM,
+-    .SlLx9,
+-    .GjFKx {
+-      width: calc(100% - 24px) !important;
+-      margin: 0 !important;
+-      border-radius: 0;
+-      border: none;
+-      border-bottom: 1px solid var(--themeLighter);
+-    }
++    // ._xWdq,
++    // .eIxcM,
++    // .SlLx9,
++    // .GjFKx {
++    //   width: calc(100% - 24px) !important;
++    //   margin: 0 !important;
++    //   border-radius: 0;
++    //   border: none;
++    //   border-bottom: 1px solid var(--themeLighter);
++    // }
+ 
+     &.preview-compose {
+       bottom: 41px;
+@@ -133,22 +145,25 @@
+         .to-address {
+           // to address
+           position: absolute;
+-          top: 35px;
+-          left: 0;
++          top: 25px;
++          right: 0;
++          width: auto;
+           min-height: 0;
+           height: 0;
+           border-bottom: none;
++          text-align: right;
++          z-index: 100;
+           .fui-Input__contentBefore {
+             display: none;
+           }
+-          [contenteditable='true'] {
+-            width: 200px;
+-            z-index: 100;
++          .LCArn {
++            display: inline;
+           }
+         }
+         .infoBarDivClass, // sensitivity bar
+         .YNxxt, // bcc button
+         .SZoKq, // to button
++        .g9LP8, // from address
+         .hIf0n, // a border under the to address
+         .iP72H, // CC button
+         .zjzhQ, // CC address
+@@ -165,6 +180,11 @@
+         left: 12px;
+       }
+ 
++      // taller pinned stack: bundle header + email row
++      .SlLx9#focused {
++        scroll-margin-top: 81px;
++      }
++
+       .AJYpX,
+       .g_zET {
+         background-color: var(--neutralLighter);
+@@ -180,13 +200,12 @@
+   }
+ 
+   // preview container
+-  .MtujV,
+-  .c2xp6 {
++  .MtujV {
+     height: auto;
+     background-color: var(--themeLighter);
+     box-shadow: rgba(0, 0, 0, 0.24) 0px 3px 4px;
+ 
+-    .rNszf {
++    .L72vd {
+       overflow: visible;
+       height: auto;
+ 
+diff --git a/src/scss/outlook/email-row.scss b/src/scss/outlook/email-row.scss
+index 5df6948..a8fad91 100644
+--- a/src/scss/outlook/email-row.scss
++++ b/src/scss/outlook/email-row.scss
+@@ -1,5 +1,5 @@
+ //email row
+-.EeHm8 {
++.l8vF9 {
+   box-shadow: rgb(0 0 0 / 24%) 0px 3px 4px;
+ 
+   .gDC9O,
+@@ -13,7 +13,7 @@
+   }
+ 
+   &[data-inbox='bundled'] {
+-    display: none !important;
++    height: 1px;
+     opacity: 0;
+   }
+ 
+@@ -33,8 +33,8 @@
+       }
+     }
+ 
+-    .uu6rV, // expand emails button
+-    .FqgPc // email subject
++    .uu6rV // expand emails button
++    // .yg0l0 // email subject
+     {
+       visibility: hidden;
+     }
+@@ -56,36 +56,15 @@
+   }
+ 
+   // date container
+-  .WP8_u {
++  .VuThs {
+     justify-content: right;
+     span {
+       text-align: right;
+     }
+   }
+ 
+-  // pin/unread buttons container
+-  .gaDEX button {
++  // hover actions (mark read / pin / archive)
++  .bvdCQ button {
+     margin-bottom: 0;
+   }
+-
+-  // archive button container
+-  .QpoLy {
+-    align-items: center;
+-    height: 36px;
+-
+-    button {
+-      background-color: transparent;
+-      color: unset;
+-      width: 24px;
+-      height: 24px;
+-
+-      i {
+-        margin: 0;
+-      }
+-    }
+-
+-    &:hover button {
+-      background-color: var(--neutralLight);
+-    }
+-  }
+ }

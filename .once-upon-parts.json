@@ -33,6 +33,7 @@
       "group": "Bridge",
       "paths": [
         "packages/stories/src/",
+        "packages/stories/scripts/",
         "packages/core/src/features/publishing/",
         "skills/once-upon/bin/"
       ],

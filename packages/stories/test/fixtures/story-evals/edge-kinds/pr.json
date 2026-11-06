@@ -1,0 +1,18 @@
+{
+  "number": 1,
+  "title": "Widgets: three steps, a rename and some cleanup",
+  "body": "A synthetic PR: a big file with three hunks, a small file, a deleted file, a rename, a lockfile and a binary.",
+  "url": "https://github.com/acme/widgets/pull/1",
+  "author": {
+    "login": "acme-dev"
+  },
+  "baseRefName": "main",
+  "headRefName": "widgets",
+  "commits": [
+    {
+      "oid": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "messageHeadline": "Widgets",
+      "messageBody": ""
+    }
+  ]
+}

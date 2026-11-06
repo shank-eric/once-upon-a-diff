@@ -1,0 +1,96 @@
+{
+  "mode": "journey",
+  "title": "Outlook: j/k step onto bundle rows",
+  "summary": "Bundle rows are told apart from emails, so j/k lands on them, enter toggles them and a bundle of one gives way to its email.",
+  "plan": "A reader meets the bundle row first, then moves through the list with the keyboard, then sees what happens when a bundle shrinks.",
+  "overview": "This PR fixes keyboard navigation in the Outlook list. The wrapper class bundle rows are recognised by was read from the wrong table, so they looked like emails.\n\n1. **Bundle rows are told apart** (`bundle.js`, `email.js`)\n2. **Keyboard walks the visible rows** (`keyboard.js`, `outlookUtils.js`)\n\n4 files in 2 chapters.",
+  "refs": [],
+  "chapters": [
+    {
+      "key": "bundle rows are told apart",
+      "title": "Chapter 1: Bundle rows are told apart",
+      "headline": "A bundle row is now recognised as a bundle, and a bundle of one gives way to its email.",
+      "scenario": "You open the inbox with a bundled label and a label with a single email.",
+      "summary": "The wrapper class comes from the shared table, and bundle upkeep follows category changes.",
+      "answer": "BUNDLE_WRAPPER_CLASS is read from CLASSES instead of OUTLOOK_CLASSES, so bundle rows are no longer mistaken for emails; a bundle of one is removed and an email that changes category follows its new bundle.",
+      "narrative": "### Chapter 1: Bundle rows are told apart\n\nThe scenario: you open the inbox with one bundled label and one label that has a single email.\n\n1. The email class reads its wrapper class from [the shared table](ref:email-import), because the Outlook table never defined it. That is why bundle rows were never told apart from emails.\n2. [The bundle upkeep](ref:bundle-sync) removes a leftover bundle row when only one email is left and shows the email in its natural place. A new bundle row starts collapsed and tucks away the emails that were already on show.\n3. [The email side](ref:email-category) clears the old bundle's markers when a category changes and follows the new bundle's expanded state.\n\nWhat to check: the three changes share one idea (a row knows which bundle it is in), so reading them together is easier than file by file.\n\nOne question worth asking: does a bundle of one still show when the bundle-one option is on? The text says it does not remove it then, which I would confirm in the options code.\n\nNext is chapter 2, Keyboard walks the visible rows.",
+      "files": [
+        {
+          "rel": "src/js/outlook/bundle.js",
+          "whole": true
+        },
+        "src/js/outlook/email.js"
+      ],
+      "refs": [
+        {
+          "id": "bundle-sync",
+          "path": "src/js/outlook/bundle.js",
+          "side": "R",
+          "start": 30,
+          "end": 61,
+          "label": "the bundle upkeep"
+        },
+        {
+          "id": "email-import",
+          "path": "src/js/outlook/email.js",
+          "side": "R",
+          "start": 3,
+          "end": 9,
+          "label": "the wrapper class import"
+        },
+        {
+          "id": "email-category",
+          "path": "src/js/outlook/email.js",
+          "side": "R",
+          "start": 99,
+          "end": 135,
+          "label": "category changes"
+        }
+      ],
+      "comments": []
+    },
+    {
+      "key": "keyboard walks the visible rows",
+      "title": "Chapter 2: Keyboard walks the visible rows",
+      "headline": "j and k step through every visible row in visual order, and enter and escape work on bundles.",
+      "scenario": "You press j and k down the list, then enter on a bundle row and escape inside it.",
+      "summary": "Navigation lands on bundle rows without toggling them; enter expands or collapses, escape collapses the selected email's bundle.",
+      "answer": "Navigation walks all visible rows in visual order and highlights a bundle row it lands on; enter toggles it and escape collapses the bundle of the selected email; findReplacementRow keeps its same-bundle search for archive.",
+      "narrative": "### Chapter 2: Keyboard walks the visible rows\n\nThe scenario: you press j and k down the list, then enter on a bundle row and escape inside it.\n\n1. [The key handlers](ref:keys) now walk every visible row in visual order. Landing on a bundle row highlights it and does not toggle it.\n2. Enter on a bundle row expands or collapses it, and escape collapses the bundle of the selected email.\n3. [visibleRows and findNextVisibleRow](ref:walk) in the utilities file are the walk the handlers use, with [the bundle helpers](ref:helpers) above them. [findReplacementRow](ref:walk) keeps its own same-bundle search, so an archive keeps the selection inside the bundle.\n\nWhat to check: that archiving the last email of a bundle still selects something sensible.\n\nWhat to raise: nothing blocking. Optional: a short comment on why findReplacementRow does not use the new walk.\n\nThat is the whole story; nothing is left to check beyond the archive case.",
+      "files": [
+        {
+          "rel": "src/js/outlook/keyboard.js",
+          "whole": true
+        },
+        "src/js/outlook/outlookUtils.js"
+      ],
+      "refs": [
+        {
+          "id": "keys",
+          "path": "src/js/outlook/keyboard.js",
+          "side": "R",
+          "start": 44,
+          "end": 62,
+          "label": "the key handlers"
+        },
+        {
+          "id": "walk",
+          "path": "src/js/outlook/outlookUtils.js",
+          "side": "R",
+          "start": 116,
+          "end": 165,
+          "label": "the row walk and findReplacementRow"
+        },
+        {
+          "id": "helpers",
+          "path": "src/js/outlook/outlookUtils.js",
+          "side": "R",
+          "start": 1,
+          "end": 10,
+          "label": "the bundle helpers"
+        }
+      ],
+      "comments": []
+    }
+  ]
+}

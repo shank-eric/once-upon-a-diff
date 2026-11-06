@@ -1,0 +1,212 @@
+{
+  "mode": "journey",
+  "title": "Outlook: improvements to preview logic",
+  "summary": "The extension loads on outlook.cloud.microsoft, rows and previews follow the new list markup, and keyboard scrolling and options reads survive the change.",
+  "plan": "Follow a reader from the page loading on the new domain, through the list, the preview pane and the keyboard, to the options that all of it reads.",
+  "overview": "Outlook moved to a new domain and a new list markup, and the extension's selectors and styles had to follow.\n\n1. **The extension loads on the new domain** (`manifest.json`, `constants.js`)\n2. **The list paints like a native row** (`email-list.scss`, `email-row.scss`, `bundle.js`, `inbox.js`)\n3. **The preview pane pins the opened row** (`emailPreview.js`, `email-preview.scss`)\n4. **Keyboard and selection follow the new row** (`keyboard.js`, `outlookUtils.js`)\n5. **Options survive a reloaded extension** (`options.js`)\n\n11 files in 5 chapters.",
+  "refs": [],
+  "chapters": [
+    {
+      "key": "the extension loads on the new domain",
+      "title": "Chapter 1: The extension loads on the new domain",
+      "headline": "Outlook now lives on outlook.cloud.microsoft, so the content script and its class table must know it.",
+      "scenario": "you open Outlook after it redirects to its new domain.",
+      "summary": "The new domain is in the manifest, and the hashed class names that changed are updated.",
+      "answer": "The manifest adds outlook.cloud.microsoft to the content script matches and to web_accessible_resources, and constants.js updates the hashed classes that changed and drops the ones Outlook no longer renders.",
+      "narrative": "### Chapter 1: The extension loads on the new domain\n\nThe scenario: you open Outlook after it redirects to its new domain.\n\n1. [The manifest](ref:manifest) adds the new domain to the content script matches and to `web_accessible_resources`. Without the second, the content script's module import was refused and only the CSS ran.\n2. [The class table](ref:classes) updates the hashed classes that changed (subject, participants, preview background, date column, hover actions, multi-select buttons) and drops constants for elements Outlook no longer renders.\n\nWhat to check: that no code still reads a dropped constant, which a search for each removed name settles.\n\nOne question worth asking: are the hashed class names stable between Outlook builds? They changed here, so a comment pointing at a fallback selector would help the next person.\n\nNext is chapter 2, The list paints like a native row.",
+      "files": [
+        {
+          "rel": "src/manifest.json",
+          "whole": true
+        },
+        {
+          "rel": "src/js/outlook/constants.js",
+          "whole": true
+        }
+      ],
+      "refs": [
+        {
+          "id": "manifest",
+          "path": "src/manifest.json",
+          "side": "R",
+          "start": 36,
+          "end": 42,
+          "label": "content script matches"
+        },
+        {
+          "id": "classes",
+          "path": "src/js/outlook/constants.js",
+          "side": "R",
+          "start": 3,
+          "end": 38,
+          "label": "the class table"
+        }
+      ],
+      "comments": []
+    },
+    {
+      "key": "the list paints like a native row",
+      "title": "Chapter 2: The list paints like a native row",
+      "headline": "Rows, bundle rows and the list wrapper follow Outlook's current markup and background class.",
+      "scenario": "you scroll the message list with a bundled label on screen.",
+      "summary": "The list and row styles follow the new structure, and the bundle row mirrors a native row.",
+      "answer": "The list and row styles are rewritten for the new markup, bundle.js rebuilds the bundle row to mirror the current row structure with Outlook's row-background class, and inbox.js clears bundle-last-email from every other row of the label.",
+      "narrative": "### Chapter 2: The list paints like a native row\n\nThe scenario: you scroll the message list with a bundled label on screen.\n\n1. [The list styles](ref:list) drop selectors for markup that is gone and add the wrapper rules, and [the row styles](ref:row) follow the single class that now marks selection on the outer row container.\n2. [The bundle row](ref:bundle) is rebuilt to mirror the current row structure and given Outlook's row-background class, so it paints like a native row. The expand and collapse handlers follow the same selection class.\n3. [The inbox loop](ref:inbox) fixes a stale spacing bug: Outlook appends new mail at the end of the DOM and reorders it later, so a row that was briefly last kept its `bundle-last-email` class. The class is now cleared from every other row of the label.\n\nWhat to check: a bundle with a newly arrived email, which is the case the inbox fix exists for.\n\nWhat to raise: optional, whether the 12px spacing belongs in a constant.\n\nNext is chapter 3, The preview pane pins the opened row.",
+      "files": [
+        {
+          "rel": "src/js/outlook/bundle.js",
+          "whole": true
+        },
+        {
+          "rel": "src/scss/outlook/email-list.scss",
+          "whole": true
+        },
+        {
+          "rel": "src/scss/outlook/email-row.scss",
+          "whole": true
+        },
+        {
+          "rel": "src/js/outlook/inbox.js",
+          "whole": true
+        }
+      ],
+      "refs": [
+        {
+          "id": "list",
+          "path": "src/scss/outlook/email-list.scss",
+          "side": "R",
+          "start": 12,
+          "end": 28,
+          "label": "the wrapper rules"
+        },
+        {
+          "id": "row",
+          "path": "src/scss/outlook/email-row.scss",
+          "side": "R",
+          "start": 1,
+          "end": 5,
+          "label": "the row selection class"
+        },
+        {
+          "id": "bundle",
+          "path": "src/js/outlook/bundle.js",
+          "side": "R",
+          "start": 81,
+          "end": 99,
+          "label": "the bundle row markup"
+        },
+        {
+          "id": "inbox",
+          "path": "src/js/outlook/inbox.js",
+          "side": "R",
+          "start": 22,
+          "end": 35,
+          "label": "clearing the last-email class"
+        }
+      ],
+      "comments": []
+    },
+    {
+      "key": "the preview pane pins the opened row",
+      "title": "Chapter 3: The preview pane pins the opened row",
+      "headline": "The opened email scrolls below its pinned row, and the preview styles follow the new scroll wrapper.",
+      "scenario": "you click a row and the email opens in the preview pane.",
+      "summary": "The pinned row, the scroll offset and the collapsed thread history are fixed.",
+      "answer": "emailPreview.js pins the previewed row, scrolls the email below it with scroll-margin-top and keeps thread history collapsed through CSS, and email-preview.scss lifts the list stacking wrapper above the preview pane.",
+      "narrative": "### Chapter 3: The preview pane pins the opened row\n\nThe scenario: you click a row and the email opens in the preview pane.\n\n1. [The preview logic](ref:preview-js) pins the previewed row correctly, cleans up the sticky classes and `data-previewing` when the preview closes, and scrolls the opened email below the pinned row instead of centering it behind the header. It falls back to the placeholder target when the focused row is zero-size.\n2. [The preview styles](ref:preview-css) fix the sticky scrollport, lift the list stacking wrapper above the preview pane, and keep thread history collapsed with CSS rather than by double-clicking every row, which also covers messages loaded by \"see more messages\".\n3. A native-list fallback kill-switch is added in case Outlook floods the full-height list.\n\nWhat to check: the zero-size fallback, since it only runs in an unusual state.\n\nOne question worth asking: how will we notice when the kill-switch has fired? Nothing in the diff says.\n\nNext is chapter 4, Keyboard and selection follow the new row.",
+      "files": [
+        {
+          "rel": "src/js/outlook/emailPreview.js",
+          "whole": true
+        },
+        {
+          "rel": "src/scss/outlook/email-preview.scss",
+          "whole": true
+        }
+      ],
+      "refs": [
+        {
+          "id": "preview-js",
+          "path": "src/js/outlook/emailPreview.js",
+          "side": "R",
+          "start": 52,
+          "end": 59,
+          "label": "the pinning logic"
+        },
+        {
+          "id": "preview-css",
+          "path": "src/scss/outlook/email-preview.scss",
+          "side": "R",
+          "start": 70,
+          "end": 93,
+          "label": "the stacking and scroll rules"
+        }
+      ],
+      "comments": []
+    },
+    {
+      "key": "keyboard and selection follow the new row",
+      "title": "Chapter 4: Keyboard and selection follow the new row",
+      "headline": "Scroll shortcuts target the list container and selection follows the single outer-row class.",
+      "scenario": "you press the scroll shortcuts and move the selection with the keyboard.",
+      "summary": "Keyboard scrolling and selection helpers follow the new row structure.",
+      "answer": "keyboard.js scrolls the list scroll container with the pinned email offset at the new 37px row height, and outlookUtils.js uses stable selectors, the folder pane for the account email and the conversation container to detect nothing selected.",
+      "narrative": "### Chapter 4: Keyboard and selection follow the new row\n\nThe scenario: you press the scroll shortcuts and move the selection with the keyboard.\n\n1. [The keyboard handlers](ref:keys) target the list scroll container, and the pinned email offset follows the new 37px row height.\n2. [The utilities](ref:utils) use stable selectors for time group headers (an id prefix) and the compose \"To\" row (an aria-label), fall back to the folder pane for the account email now that the brand link is gone, and detect \"nothing selected\" through the conversation container instead of a removed placeholder class. `setSelectedRow` follows the single selection class.\n\nWhat to check: the account email fallback, because a wrong match would silently change which messages count as mine.\n\nThis chapter has nothing I would raise.\n\nNext is chapter 5, Options survive a reloaded extension.",
+      "files": [
+        {
+          "rel": "src/js/outlook/keyboard.js",
+          "whole": true
+        },
+        {
+          "rel": "src/js/outlook/outlookUtils.js",
+          "whole": true
+        }
+      ],
+      "refs": [
+        {
+          "id": "keys",
+          "path": "src/js/outlook/keyboard.js",
+          "side": "R",
+          "start": 5,
+          "end": 19,
+          "label": "the scroll handlers"
+        },
+        {
+          "id": "utils",
+          "path": "src/js/outlook/outlookUtils.js",
+          "side": "R",
+          "start": 14,
+          "end": 29,
+          "label": "the selectors and the account email"
+        }
+      ],
+      "comments": []
+    },
+    {
+      "key": "options survive a reloaded extension",
+      "title": "Chapter 5: Options survive a reloaded extension",
+      "headline": "Content scripts in open tabs keep the last known options after the extension reloads.",
+      "scenario": "you reload the extension while Outlook tabs stay open.",
+      "summary": "Options reads check the extension context first and keep the last known values.",
+      "answer": "options.js checks the extension context before reading, catches storage errors and keeps the last known options, so an invalidated context no longer rejects every read.",
+      "narrative": "### Chapter 5: Options survive a reloaded extension\n\nThe scenario: you reload the extension while Outlook tabs stay open.\n\n1. [The options reads](ref:options) check that the extension context is still valid, catch storage errors and keep the last known options. After a reload, content scripts still running in open tabs lose their `chrome.*` APIs, and every read used to reject with \"Extension context invalidated\".\n\nWhat to check: that the fallback is the last value actually read, not defaults, which the diff shows.\n\nThat is the last chapter. Left to check: the 12px spacing in chapter 2 and the kill-switch visibility in chapter 3.",
+      "files": [
+        {
+          "rel": "src/js/shared/options.js",
+          "whole": true
+        }
+      ],
+      "refs": [
+        {
+          "id": "options",
+          "path": "src/js/shared/options.js",
+          "side": "R",
+          "start": 3,
+          "end": 33,
+          "label": "the options reads"
+        }
+      ],
+      "comments": []
+    }
+  ]
+}

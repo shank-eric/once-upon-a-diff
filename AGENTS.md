@@ -29,6 +29,7 @@ Standing rules for any agent working in Once Upon a Diff. A brief only needs to 
 - Run quiet. Targeted first (`node --test test/<file>.test.ts` from the package that holds the test: an engine package (`adapters`, `foundation`, `stories`, `usage`, `state`, `core` or `board`), `cli` or `server` for the pure ones, `packages/bridge` for the ones that start a bridge or run the CLI (`startBridge`, `runCli` and the fixtures live there), then the full suite once. Print failures only.
 - One heavy test run at a time. Check the load before starting a second one.
 - Before handing back: `yarn lint`, `yarn typecheck`, `yarn format:check`, `yarn test`.
+- Story quality: `packages/stories/src/quality.ts` checks a story (placement, hunk coverage, refs inside hunks, chapter length and shape) and `yarn test` runs it over the recorded fixture stories in `packages/stories/test/fixtures/story-evals/`. When you change the story rules in `skills/once-upon/SKILL.md` (step 2 or "How the story sounds"), `yarn test` prints which fixtures were recorded under older rules. Re-tell them by hand with `yarn eval:stories` (calls a model, costs money, never run by `yarn test`; `--record` keeps a passing telling for review in git).
 - The `/api/board` goldens live in `packages/bridge/test/fixtures/board-worlds/golden/`. A change that should alter the board rewrites them with `UPDATE_SNAPSHOTS=1 node --test test/board-snapshot.test.ts`. Review the diff.
 
 ## Browsers

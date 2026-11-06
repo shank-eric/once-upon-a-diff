@@ -19,6 +19,9 @@
         "@once-upon-a-diff/panel",
       ],
     },
+    "packages/stories": {
+      "entry": ["scripts/*.ts"],
+    },
     "packages/panel": {
       "ignoreBinaries": ["jq"],
     },

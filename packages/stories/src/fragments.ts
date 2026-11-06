@@ -38,7 +38,7 @@ export interface FragmentOutcome {
 }
 
 /** Whether a comment's line is in one of the file's hunks, on the side it names. */
-function lineInDiff(file: DiffFile, line: number, side: string | undefined): boolean {
+export function lineInDiff(file: DiffFile, line: number, side: string | undefined): boolean {
   return file.hunks.some((hunk) =>
     side === 'L'
       ? line >= hunk.oldStart && line < hunk.oldStart + Math.max(hunk.oldLines, 1)

@@ -1,0 +1,23 @@
+{
+  "number": 91,
+  "title": "fix: j/k step onto bundle rows without toggling them, enter and escap…",
+  "body": "…e find the right bundle\n\n- BUNDLE_WRAPPER_CLASS came from OUTLOOK_CLASSES, which doesn't define it, so bundle rows were never told apart from emails; take it from CLASSES\n- navigation walks every visible row in visual order; landing on a bundle row highlights it, enter expands or collapses it, escape collapses the selected email's bundle\n- findReplacementRow keeps its own same-bundle search so an archive still keeps the selection inside the bundle",
+  "url": "https://github.com/shank-eric/inbox-in-gmail/pull/91",
+  "author": {
+    "login": "shank-eric"
+  },
+  "baseRefName": "develop",
+  "headRefName": "fix/outlook-bundle-rows",
+  "commits": [
+    {
+      "oid": "d81a6524c31c6a21a17d2fa2c5a3a2a8be32edda",
+      "messageHeadline": "fix: j/k step onto bundle rows without toggling them, enter and escap…",
+      "messageBody": "…e find the right bundle\n\n- BUNDLE_WRAPPER_CLASS came from OUTLOOK_CLASSES, which doesn't define it, so bundle rows were never told apart from emails; take it from CLASSES\n- navigation walks every visible row in visual order; landing on a bundle row highlights it, enter expands or collapses it, escape collapses the selected email's bundle\n- findReplacementRow keeps its own same-bundle search so an archive still keeps the selection inside the bundle"
+    },
+    {
+      "oid": "71930ceb4c11abebe021d5fca855daf97a1c3003",
+      "messageHeadline": "fix: a bundle that drops to one email gives way to the email, and ema…",
+      "messageBody": "…ils follow category changes\n\n- a bundle of one (without the bundle-one option) removes a leftover bundle row and shows the email itself in its natural place; a new bundle row starts collapsed and tucks away emails that were on show before it existed\n- an email whose category is removed or changed drops the old bundle's markers and bundle-last-email, and follows its new bundle's expanded state"
+    }
+  ]
+}

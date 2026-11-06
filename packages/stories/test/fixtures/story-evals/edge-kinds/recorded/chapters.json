@@ -1,0 +1,87 @@
+{
+  "mode": "journey",
+  "title": "Widgets: three steps and some cleanup",
+  "summary": "Widgets get three new steps, a rename and a cleanup of what they replace.",
+  "plan": "The reader meets the widgets first, then the rename, then the cleanup.",
+  "overview": "A synthetic PR for the story evals.\n\n1. **The widgets** (`widgets.js`, `small.js`)\n2. **The rename and the cleanup** (`new-name.js`, `gone.js`, `yarn.lock`, `logo.png`)\n\n6 files in 2 chapters.",
+  "refs": [],
+  "chapters": [
+    {
+      "key": "the widgets",
+      "title": "Chapter 1: The widgets",
+      "headline": "The widget function gains three blocks of steps.",
+      "scenario": "you call widget() in the app.",
+      "summary": "Three blocks of steps in one file, and a small helper.",
+      "answer": "widgets.js gains three blocks of steps around lines 10, 100 and 200, and small.js gains a short helper.",
+      "narrative": "### Chapter 1: The widgets\n\nThe scenario: you call widget() in the app.\n\n1. [The first block](ref:first) runs the opening steps.\n2. [The second block](ref:second) and [the third block](ref:third) continue them further down the file.\n3. [The small helper](ref:helper) is used by all three.\n\nWhat to check: that the three blocks run in the order the file lists them.\n\nNext is chapter 2, The rename and the cleanup.",
+      "files": [
+        {
+          "rel": "src/widgets.js",
+          "whole": true
+        },
+        "src/small.js"
+      ],
+      "refs": [
+        {
+          "id": "first",
+          "path": "src/widgets.js",
+          "side": "R",
+          "start": 10,
+          "end": 31,
+          "label": "the first block"
+        },
+        {
+          "id": "second",
+          "path": "src/widgets.js",
+          "side": "R",
+          "start": 100,
+          "end": 121,
+          "label": "the second block"
+        },
+        {
+          "id": "third",
+          "path": "src/widgets.js",
+          "side": "R",
+          "start": 200,
+          "end": 221,
+          "label": "the third block"
+        },
+        {
+          "id": "helper",
+          "path": "src/small.js",
+          "side": "R",
+          "start": 1,
+          "end": 7,
+          "label": "the helper"
+        }
+      ],
+      "comments": []
+    },
+    {
+      "key": "the rename and the cleanup",
+      "title": "Chapter 2: The rename and the cleanup",
+      "headline": "One file is renamed and what the widgets replace is removed.",
+      "scenario": "you build the app after the change.",
+      "summary": "A rename, a deleted file, a lockfile bump and a new logo.",
+      "answer": "old-name.js becomes new-name.js with one constant changed, legacy/gone.js is deleted, yarn.lock moves its packages and the logo image is replaced.",
+      "narrative": "### Chapter 2: The rename and the cleanup\n\nThe scenario: you build the app after the change.\n\n1. [The renamed file](ref:renamed) keeps its content apart from one constant.\n2. The legacy file is deleted, since the widgets replace it.\n3. The lockfile moves its packages and the logo image is replaced; neither needs a closer read.\n\nThat is the whole story; nothing is left to check.",
+      "files": [
+        "src/new-name.js",
+        "legacy/gone.js",
+        "yarn.lock",
+        "assets/logo.png"
+      ],
+      "refs": [
+        {
+          "id": "renamed",
+          "path": "src/new-name.js",
+          "side": "R",
+          "start": 1,
+          "end": 3,
+          "label": "the renamed constant"
+        }
+      ],
+      "comments": []
+    }
+  ]
+}
