@@ -72,6 +72,7 @@
         "packages/core/src/features/sessions/",
         "packages/state/src/records/listeners/",
         "packages/core/src/features/listeners/",
+        "packages/core/src/features/heavy/",
         "packages/foundation/src/",
         "packages/core/src/orchestration/bridge/",
         "packages/state/src/records/page-links/",
