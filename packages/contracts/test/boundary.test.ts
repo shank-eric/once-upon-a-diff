@@ -16,9 +16,9 @@ const importsOf = (code: string): string[] =>
     ...code.matchAll(/(?:^|\n)\s*(?:import|export)\b(?!\s+type\b)[^;]*?\bfrom\s+['"]([^'"]+)['"]/g),
   ].map((hit) => hit[1]);
 
-/** The files that may import valibot: the schema index, the readers they share and each area's schemas. */
+/** The files that may import valibot: the schema index, the readers they share, each area's schemas and the files' strict checks. */
 const isSchemaFile = (name: string): boolean =>
-  /^(schemas|schema-kit|[a-z-]+\/schemas)\.ts$/.test(name);
+  /^(schemas|schema-kit|[a-z-]+\/schemas|files\/strict)\.ts$/.test(name);
 
 test('the contracts package imports only itself, the domain and valibot, and only the schema files import valibot', () => {
   for (const file of files(SRC)) {

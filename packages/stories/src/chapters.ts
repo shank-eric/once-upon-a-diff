@@ -174,7 +174,8 @@ export function chaptersOf(plan: Plan): Chapter[] {
       refs,
       comments: (chapter.comments || []).map((comment) => ({
         path: comment.path || '',
-        line: comment.line || 0,
+        // a hand-written chapters.json may say "42": the line is a number from here on, 0 when it is none
+        line: Number(comment.line) || 0,
         body: comment.body || '',
         ...(comment.side === 'L' ? { side: 'L' as const } : {}), // a comment on a removed line
         // a rebuild kept it from the earlier telling: its line is still in the diff (carried) or isn't (unmapped)

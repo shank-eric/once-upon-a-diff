@@ -40,7 +40,8 @@ import {
   SID_RE,
 } from '@once-upon-a-diff/domain/patterns';
 import { readBacklogEvent } from '@once-upon-a-diff/contracts/files/schemas';
-import { noteIfMalformed } from '@once-upon-a-diff/foundation/shared-files';
+import { strictBacklogEvent } from '@once-upon-a-diff/contracts/files/strict';
+import { checkWrite } from '@once-upon-a-diff/foundation/shared-files';
 import { BACKLOG_NOTE_MAX, SHA_RE, repoName } from '@once-upon-a-diff/domain/text';
 import { jsonLines } from '@once-upon-a-diff/adapters/stores/fs/jsonl';
 import {
@@ -259,7 +260,13 @@ export class BacklogStore implements BacklogStorage {
   }
 
   private append(event: Record<string, unknown>): void {
-    noteIfMalformed(this.file, event, readBacklogEvent);
+    // the line is stamped with its time as it is appended; the check sees the same
+    checkWrite(
+      this.file,
+      { ...event, at: new Date().toISOString() },
+      readBacklogEvent,
+      strictBacklogEvent,
+    );
     appendBacklogEvent(this.file, event);
   }
 

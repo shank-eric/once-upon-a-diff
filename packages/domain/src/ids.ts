@@ -81,3 +81,33 @@ export const agentWorkKey = (sid8: string, name: string): string => `agent:${age
 
 /** A run's id as `agent start` mints it: `r_` and 10 hex digits. A review draft's id is `r_` too, but longer. */
 export const RUN_ID_RE = /^r_[0-9a-f]{10}$/;
+
+/**
+ * Why a repo someone typed is probably wrong, or null: it is on none of the `known` repos (the ones this machine already works
+ * in), ignoring case. The note names the known repo with the same name under another owner, when there is one. Pure: the caller
+ * builds `known` from its files, and a repo it did not type (the checkout's origin) is never asked about. Case is not judged:
+ * every key compares by `repoKey`, and a known repo's spelling is not always known.
+ */
+export function repoProblem(
+  typed: string | null | undefined,
+  known: Iterable<string>,
+): string | null {
+  const repo = (typed ?? '').trim();
+  if (!repo) {
+    return null;
+  }
+  const all = [...known];
+  if (all.some((one) => sameRepo(one, repo))) {
+    return null;
+  }
+  const name = repo.slice(repo.indexOf('/') + 1).toLowerCase();
+  const alike = new Map<string, string>();
+  for (const one of all) {
+    if (one.slice(one.indexOf('/') + 1).toLowerCase() === name && !alike.has(repoKey(one))) {
+      alike.set(repoKey(one), one);
+    }
+  }
+  return alike.size
+    ? `repo ${repo} is on none of the repos this machine works in; did you mean ${[...alike.values()].join(' or ')}?`
+    : `repo ${repo} is on none of the repos this machine works in (checkouts, PRs, cards)`;
+}

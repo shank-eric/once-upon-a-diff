@@ -41,6 +41,19 @@ async function addToReview(
   if (addedMark(readMarks(app.home, key), comment)) {
     throw new HttpError(409, "it's already in your pending review");
   }
+  if (!Number.isFinite(comment.line)) {
+    throw new HttpError(400, 'that comment has no line to put in a review');
+  }
+  // the line is checked before the comment goes to GitHub: a refusal after it would report a failure for a comment that was added
+  const entry = {
+    type: 'review_comment' as const,
+    id: newId('r'),
+    ...story.ref,
+    chapter,
+    path: comment.path,
+    line: comment.line,
+  };
+  app.inbox.check({ ...entry, url: null, started: false });
   let added;
   try {
     added = await addToPendingReview(meta.repo, meta.number, comment);
@@ -50,16 +63,7 @@ async function addToReview(
   }
   noteAdded(app.home, key, comment, added); // the panel shows it as added until the page or gh shows it
   forgetComments(meta.repo, meta.number);
-  app.inbox.append({
-    type: 'review_comment',
-    id: newId('r'),
-    ...story.ref,
-    chapter,
-    path: comment.path,
-    line: comment.line,
-    url: added.url,
-    started: added.started,
-  });
+  app.inbox.append({ ...entry, url: added.url, started: added.started });
   return added;
 }
 

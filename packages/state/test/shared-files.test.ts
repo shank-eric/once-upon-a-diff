@@ -1,7 +1,8 @@
 /*
  * The four files the CLI and the bridge share, plus fixes.json, read through core's stores against the old-form files the
  * contracts package keeps (contracts/test/fixtures/files): what a reader takes is what the formats accept, a record the
- * queue's check refuses is carried through every write, and a writer's malformed line is written anyway and logged.
+ * queue's check refuses is carried through every write, and a writer's line that no reader would take, or that fails the strict
+ * check, is refused and not written.
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -16,7 +17,8 @@ import { RequestQueue } from '../src/queues/requests/queue.ts';
 import { BacklogStore, foldBacklog } from '../src/queues/backlog/backlog.ts';
 import { foldAgentEvents, parseAgentEvents } from '../src/records/agents/events.ts';
 import { AgentRegistry } from '../src/records/agents/registry.ts';
-import { noteIfMalformed } from '@once-upon-a-diff/foundation/shared-files';
+import { checkWrite } from '@once-upon-a-diff/foundation/shared-files';
+import { strictBuild } from '@once-upon-a-diff/contracts/files/strict';
 import { readBuild, readFixRequest, type Build } from '@once-upon-a-diff/contracts/files/schemas';
 
 const FIXTURES = path.resolve(import.meta.dirname, '../../contracts/test/fixtures/files');
@@ -267,18 +269,153 @@ test('everything the stores write reads back through the formats, and none of it
   assert.deepEqual(logged, []);
 });
 
-test('a writer’s malformed line is written anyway, and logged', () => {
-  const logged: string[] = [];
-  const original = console.error;
-  console.error = (message: string) => logged.push(message);
-  try {
-    noteIfMalformed('/x/agents.jsonl', { op: 'beat' }, () => null);
-    noteIfMalformed('/x/agents.jsonl', { op: 'beat' }, () => ({}));
-  } finally {
-    console.error = original;
+test('a line the readers would skip, or that fails the strict check, is refused and nothing is written', () => {
+  const home = tmp('shared-files');
+  const inbox = new Inbox(home);
+  inbox.append({ type: 'question', story: 's', text: 'why?' });
+  const file = inbox.file;
+  const before = readFileSync(file, 'utf8');
+  for (const entry of [
+    { type: 'position', story: 's' }, // a type no reader takes (an older writer's)
+    { type: 'question', story: '../x', text: 'why?' }, // not a story id
+    { type: 'question', story: 's' }, // no text
+    { type: 'question', story: 's', text: 'why?', step: 'one' }, // a wrong-typed field a reader would drop
+    { type: 'approved', story: 's' }, // no head
+  ]) {
+    assert.throws(
+      () => inbox.append(entry as never),
+      /inbox\.jsonl: refused/,
+      JSON.stringify(entry),
+    );
+    assert.throws(() => inbox.check(entry as never), /inbox\.jsonl: refused/);
   }
-  assert.equal(logged.length, 1);
-  assert.match(logged[0], /agents\.jsonl: a line was written/);
+  assert.equal(readFileSync(file, 'utf8'), before, 'not a byte of it written');
+  inbox.check({ type: 'question', story: 's', text: 'fine' });
+  assert.equal(readFileSync(file, 'utf8'), before, 'a check writes nothing either');
+  assert.throws(
+    () => checkWrite('/x/agents.jsonl', { op: 'beat' }, () => null),
+    /agents\.jsonl: refused, no reader would take this line/,
+  );
+  assert.throws(
+    () =>
+      checkWrite(
+        '/x/agents.jsonl',
+        { op: 'beat' },
+        () => ({}),
+        () => ['id: is not sid8:name'],
+      ),
+    /refused, id: is not sid8:name/,
+  );
+  assert.doesNotThrow(() =>
+    checkWrite(
+      '/x/agents.jsonl',
+      { op: 'beat' },
+      () => ({}),
+      () => [],
+    ),
+  );
+});
+
+test('an agents line that fails the strict check is refused with the file untouched, and an old kind is written as the kind it names', () => {
+  const home = tmp('shared-files');
+  const registry = new AgentRegistry(home);
+  const sid = 'abcd1234';
+  registry.start({ name: 'a-run', sid, kind: 'builder' as never, task: 't' });
+  assert.equal(registry.events()[0].kind, 'author', 'an alias is written as the kind it names');
+  const file = path.join(home, 'agents.jsonl');
+  const before = readFileSync(file, 'utf8');
+  // a writer bug the writers' own checks would not catch: a time that is not an ISO string with milliseconds
+  assert.throws(
+    () =>
+      registry.beat('a-run', {
+        sid,
+        n: 1,
+        of: 2,
+        step: 'read',
+        at: Object.assign(new Date(), { toISOString: () => '2026-11-06 09:00' }),
+      }),
+    /agents\.jsonl: refused.*at: is not an ISO time/,
+  );
+  assert.equal(readFileSync(file, 'utf8'), before);
+});
+
+test('a queue write refuses a request it makes that fails the strict check, leaves the file alone and lets go of the lock', () => {
+  const { file, queue } = queueWithJunk();
+  const strict = new RequestQueue<Build>(file, {
+    claimFreshMs: null,
+    check: readBuild,
+    strict: strictBuild,
+  });
+  const before = readFileSync(file, 'utf8');
+  const bad = { id: 'b_9', requested_at: '2026-10-25T19:10:00.000Z', status: 'pending' } as never;
+  assert.throws(
+    () =>
+      strict.update((all) => {
+        all['acme/widgets#9'] = bad; // a key that is not a PR's, and no number
+      }),
+    /builds\.json: refused.*no PR number/,
+  );
+  assert.throws(
+    () =>
+      strict.update((all) => {
+        all['acme/widgets#5'] = {
+          id: 'b_5',
+          repo: 'acme/widgets',
+          number: 5,
+          requested_at: 'yesterday',
+          status: 'pending',
+        } as never;
+      }),
+    /requested_at: is not an ISO time/,
+  );
+  assert.equal(readFileSync(file, 'utf8'), before, 'nothing written');
+  strict.update((all) => {
+    all['acme/widgets#6'] = {
+      id: 'b_6',
+      repo: 'acme/widgets',
+      number: 6,
+      requested_at: '2026-10-25T19:10:00.000Z',
+      status: 'pending',
+    } as never;
+  });
+  assert.ok(
+    keysOf(file).includes('acme/widgets#6'),
+    'the lock was let go and the next write works',
+  );
+  assert.ok(queue);
+});
+
+test('a record that fails the strict check on disk never stops a claim, a take or a finish of others', () => {
+  const home = tmp('shared-files');
+  const file = path.join(home, 'builds.json');
+  const stale = (id: string, number: number) => ({
+    id,
+    repo: 'acme/widgets',
+    number,
+    // the old form: no milliseconds, which strict refuses on a new record
+    requested_at: '2026-10-24T19:10:00Z',
+    status: 'pending',
+  });
+  writeFileSync(
+    file,
+    JSON.stringify({ 'acme/widgets#1': stale('b_1', 1), 'acme/widgets#2': stale('b_2', 2) }),
+  );
+  const queue = new RequestQueue<Build>(file, {
+    claimFreshMs: null,
+    check: readBuild,
+    strict: strictBuild,
+  });
+  const taken = queue.take('wait-1', () => true);
+  assert.deepEqual(taken.map((one) => one.id).sort(), ['b_1', 'b_2'], 'one take claims both');
+  assert.equal(queue.claim('b_1', 'someone')?.claimed_by, 'someone');
+  assert.equal(queue.finish('b_2', () => ({ status: 'done' }))?.status, 'done');
+  const after = JSON.parse(readFileSync(file, 'utf8'));
+  assert.equal(after['acme/widgets#2'].status, 'done');
+  assert.equal(
+    after['acme/widgets#1'].requested_at,
+    '2026-10-24T19:10:00Z',
+    'stamped in place, not rewritten',
+  );
 });
 
 test('a record from a newer writer keeps the fields this reader does not take through a write of another field', () => {

@@ -10,6 +10,7 @@ import { MenuButton } from '/assets/ui-kit/components/menu.ts';
 import type { BoardCard, BoardData } from '/assets/types.ts';
 import { CardTrees, type Api } from '/assets/board/shared.ts';
 import { Chips } from '/assets/ui-kit/components/chip.ts';
+import { Banner } from '/assets/ui-kit/components/banner.ts';
 import { ActionButton, useBusy } from '/assets/ui-kit/components/action-button.ts';
 import { ago } from '/assets/domain/time.ts';
 import {
@@ -81,6 +82,8 @@ function EditForm(props: { card: BoardCard; id: string; api: Api; close: () => v
   const { card, id, api, close } = props;
   const { busy, run } = useBusy();
   const formRef = useRef<HTMLFormElement | null>(null);
+  // what the bridge said about the repo typed here, when the edit was saved anyway (it only warns)
+  const [warning, setWarning] = useState<string | null>(null);
   // filled once, as it opens: setting the value on each draw would put back what a poll's redraw found, over what is typed
   useLayoutEffect(() => {
     const fields = { title: card.title, note: card.detail ?? '', repo: card.repo ?? '' };
@@ -110,8 +113,13 @@ function EditForm(props: { card: BoardCard; id: string; api: Api; close: () => v
     }
     return run('save', async () => {
       try {
-        await api.bridge.ask(ROUTES.boardBacklogEdit, { body: { id, ...changes } });
-        close();
+        setWarning(null);
+        const saved = await api.bridge.ask(ROUTES.boardBacklogEdit, { body: { id, ...changes } });
+        if (saved.warnings?.length) {
+          setWarning(saved.warnings.join(' '));
+        } else {
+          close();
+        }
       } catch (err) {
         alert(`Couldn't save it: ${(err as Error).message}`);
       }
@@ -122,7 +130,8 @@ function EditForm(props: { card: BoardCard; id: string; api: Api; close: () => v
     <input type="text" name="title" placeholder="Title" maxlength="200" required aria-label="Backlog item title" />
     <textarea name="note" rows="3" placeholder="Note (optional)" maxlength=${BACKLOG_NOTE_MAX} aria-label="Note"></textarea>
     <input type="text" name="repo" placeholder="owner/name (empty for no repo)" aria-label="Repo" />
-    <div class="ou-board-add-actions"><button type="submit" disabled=${busy !== null}>Save</button> <button type="button" data-backlog-edit-cancel onClick=${close}>Cancel</button></div>
+    ${warning && html`<${Banner} tone="warn" role="status" data-backlog-edit-warning>Saved. ${warning}</${Banner}>`}
+    <div class="ou-board-add-actions"><button type="submit" disabled=${busy !== null}>Save</button> <button type="button" data-backlog-edit-cancel onClick=${close}>${warning ? 'Done' : 'Cancel'}</button></div>
   </form>`;
 }
 

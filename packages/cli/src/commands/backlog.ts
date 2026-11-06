@@ -12,6 +12,7 @@ import { ownSession } from '@once-upon-a-diff/core/features/listeners/service';
 import { landItems, recordedTips } from '@once-upon-a-diff/state/queues/backlog/landing';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { out } from '../output.ts';
+import { warnTypedRepo } from '../typed-repo.ts';
 import type { BacklogItem } from '@once-upon-a-diff/state/queues/backlog/types';
 import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
@@ -73,6 +74,7 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     if (flagged !== null && words.length) {
       throw new Error('give the title as words or as --title, not both');
     }
+    warnTypedRepo(home, text(opts.repo), process.cwd());
     const item = store.add({
       title: flagged ?? words.join(' '),
       note: text(opts.note),
@@ -119,6 +121,7 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     if (changes.title === null && changes.note === null && changes.repo === null) {
       throw new Error('change something: --title, --note or --repo');
     }
+    warnTypedRepo(home, changes.repo, process.cwd());
     const edited = store.edit(
       item.id,
       {
@@ -141,6 +144,7 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
     if (!branch) {
       throw new Error('this checkout is not on a work branch: pass --branch NAME');
     }
+    warnTypedRepo(home, item.repo ? null : text(opts.repo), process.cwd());
     const started = store.start(item.id, {
       branch,
       repo: text(opts.repo) ?? item.repo ?? repoOfCheckout(process.cwd()),
@@ -177,6 +181,8 @@ function backlog(home: string, cfg: Config, opts: CliOpts) {
         throw new Error(problem);
       }
     }
+    // --repo cannot differ from a card that has one (refused above); on a card with none it is kept by --branch's start
+    warnTypedRepo(home, item.repo || !text(opts.branch) ? null : typedRepo, process.cwd());
     const claimed = store.claim(item.id, {
       agent,
       sid: text(opts.sid),

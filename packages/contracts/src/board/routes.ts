@@ -72,7 +72,7 @@ export const BOARD_ROUTES = {
     '/api/board/backlog/move',
     'token+board',
   ),
-  boardBacklogEdit: api<In<'boardBacklogEdit'>, Ok>(
+  boardBacklogEdit: api<In<'boardBacklogEdit'>, Ok & { warnings?: string[] }>(
     'POST',
     '/api/board/backlog/edit',
     'token+board',

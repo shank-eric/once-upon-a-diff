@@ -17,6 +17,7 @@ import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { agentKey } from '@once-upon-a-diff/state/queues/backlog/claims';
 import { BacklogStore, cardLookup } from '@once-upon-a-diff/state/queues/backlog/backlog';
 import { out } from '../output.ts';
+import { warnTypedRepo } from '../typed-repo.ts';
 import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
 
@@ -121,6 +122,12 @@ function agent(home: string, _cfg: Config, opts: CliOpts) {
       throw new Error(`a ${role} works on a card: pass --card ID`);
     }
     registry.sweep();
+    // a repo typed on a run that has no card (or whose card has no repo yet, so the typed one is kept) is checked; a run on a card
+    // that has a repo takes the card's, and the registry already says so
+    const typedRepo = text(opts.repo);
+    if (typedRepo && !(card && cardLookup(new BacklogStore(home))(card)?.repo)) {
+      warnTypedRepo(home, typedRepo, cwd);
+    }
     const started = registry.start(
       {
         name,

@@ -17,8 +17,9 @@ import { newRunId } from '@once-upon-a-diff/foundation/ids';
 import { appendAgentEvent } from '@once-upon-a-diff/adapters/stores/agents-file';
 import { agentEventsIn } from './events-file.ts';
 import { appendLine } from '@once-upon-a-diff/adapters/stores/fs/lines';
-import { noteIfMalformed } from '@once-upon-a-diff/foundation/shared-files';
+import { checkWrite } from '@once-upon-a-diff/foundation/shared-files';
 import { readAgentEvent } from '@once-upon-a-diff/contracts/files/schemas';
+import { strictAgentEvent } from '@once-upon-a-diff/contracts/files/strict';
 import { lastActivity } from './ledger.ts';
 import { AGENT_KINDS, type AgentKind, type AgentResult } from './agent-types.ts';
 import {
@@ -162,7 +163,7 @@ export class AgentRegistry {
   /** Writes the event, then its log lines. Returns the run after the event. */
   private append(event: AgentEvent): LedgerAgent {
     const line = { v: 1, ...event };
-    noteIfMalformed(this.file, line, readAgentEvent);
+    checkWrite(this.file, line, readAgentEvent, strictAgentEvent);
     appendAgentEvent(this.file, line);
     const agent = foldAgentEvents(this.events()).find(
       (one) => agentId(one.sid, one.name) === event.id,
@@ -471,6 +472,12 @@ export class AgentRegistry {
     const pr = count(given.pr, 'the PR number');
     const branch = optional(given.branch, 'the branch', CARD_BRANCH_RE);
     const card = optional(given.card, 'the card', BACKLOG_ID_RE);
+    // a run that started on a card finishes on it. One that started with none may name its card here, and nothing is said.
+    if (card && agent.card && card !== agent.card) {
+      warn?.(`once-upon: --card ${card} is not the card ${name} started on (${agent.card})`);
+    } else if (card && this.cards && !this.cards(card)) {
+      warn?.(`once-upon: --card ${card} is not a backlog card`);
+    }
     if (commit) {
       result.commit = commit;
     }

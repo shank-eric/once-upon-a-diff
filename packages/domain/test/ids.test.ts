@@ -10,6 +10,7 @@ import {
   parsePrRef,
   partsFileName,
   prKey,
+  repoProblem,
   prKeyPrefix,
   prWorkKey,
   repoKey,
@@ -208,4 +209,26 @@ test("a repo's key prefixes are what its prKey and branchKey start with, as gith
     assert.ok(branchKey(repo, 'main').startsWith(branchKeyPrefix(repo)));
   }
   assert.ok(!prKey('everfi/forge-extra', 1).startsWith(prKeyPrefix('EverFi/Forge')));
+});
+
+test('repoProblem: a repo on a known lane is not noted, in any case; a repo on none is, with the known repo of its name', () => {
+  const known = ['everfi/clarifi', 'shank-eric/once-upon-a-diff', 'naveenvasou/larmor'];
+  assert.equal(repoProblem('EverFi/ClariFi', known), null);
+  assert.equal(repoProblem('shank-eric/once-upon-a-diff', known), null);
+  assert.equal(repoProblem('', known), null);
+  assert.equal(repoProblem(null, known), null);
+  assert.match(
+    repoProblem('esshank/once-upon-a-diff', known) ?? '',
+    /esshank\/once-upon-a-diff is on none of the repos this machine works in; did you mean shank-eric\/once-upon-a-diff\?/,
+  );
+  assert.match(repoProblem('shank-eric/larmor', known) ?? '', /did you mean naveenvasou\/larmor\?/);
+  // two known owners of one name (a real fork) are both named, once each
+  assert.match(
+    repoProblem('x/larmor', [...known, 'Davidbujok/larmor', 'NaveenVasou/Larmor']) ?? '',
+    /did you mean naveenvasou\/larmor or Davidbujok\/larmor\?/,
+  );
+  // no repo of that name: said without a guess
+  const none = repoProblem('eshank/unknown-thing', known) ?? '';
+  assert.match(none, /is on none of the repos this machine works in \(checkouts, PRs, cards\)/);
+  assert.doesNotMatch(none, /did you mean/);
 });

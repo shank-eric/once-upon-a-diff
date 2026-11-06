@@ -6,7 +6,12 @@
 import { agentId } from '@once-upon-a-diff/domain/ids';
 import path from 'node:path';
 import { readSettings } from '@once-upon-a-diff/foundation/settings';
-import { REPO_RE, lastKnownRepo, repoOfCheckoutAsync } from '@once-upon-a-diff/foundation/repos';
+import {
+  REPO_RE,
+  lastKnownRepo,
+  repoOfCheckoutAsync,
+  typedRepoNote,
+} from '@once-upon-a-diff/foundation/repos';
 import { branchNameAsync, isAncestorAsync, runGitAsync } from '@once-upon-a-diff/adapters/git';
 import { aheadOf } from '@once-upon-a-diff/stories/pull-request';
 import { lastActivity } from '@once-upon-a-diff/state/records/agents/ledger';
@@ -177,6 +182,13 @@ export class Board {
     const item = this.backlog.edit(id, input, who);
     this.invalidate();
     return item;
+  }
+
+  /** Why a repo typed in a card's Edit looks wrong, or null. It only warns: the edit is saved either way (ADR-25's flip refuses). */
+  typedRepoNote(repo: string): string | null {
+    return typedRepoNote(this.home, repo, {
+      cardRepos: this.backlog.items().map((item) => item.repo),
+    });
   }
 
   /** Puts an open backlog item in the Someday section, or back (a card's Someday button). The registry says whether its claim is live. */

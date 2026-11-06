@@ -24,6 +24,7 @@ import { SHA_RE, plural, shortSha } from '@once-upon-a-diff/domain/text';
 import { prKey, storyBuildKey } from '@once-upon-a-diff/domain/ids';
 import { readerOf } from '@once-upon-a-diff/foundation/settings';
 import { readBuild, type Build, type BuildRead } from '@once-upon-a-diff/contracts/files/schemas';
+import { strictBuild } from '@once-upon-a-diff/contracts/files/strict';
 import { RequestQueue } from './queue.ts';
 import { listeners } from '../../records/listeners/listeners.ts';
 import { STORY_ID_RE } from '@once-upon-a-diff/domain/patterns';
@@ -210,6 +211,7 @@ export class Builds {
     this.queue = new RequestQueue<Build>(this.file, {
       claimFreshMs: CLAIM_FRESH_MS,
       check: readBuild,
+      strict: strictBuild,
     });
   }
 

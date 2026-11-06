@@ -34,6 +34,17 @@ export function approveStory(stories: StoryStore, inbox: Inbox, input: ApproveIn
   if (before && before.head_oid === input.headOid) {
     return false;
   }
+  // the line is checked before anything is saved: a refusal is then an approval that never happened
+  const entry = {
+    type: 'approved' as const,
+    ...input.ref,
+    story: input.id,
+    branch: input.branch,
+    checkout: input.checkout,
+    base: input.base,
+    head_sha: input.headOid,
+  };
+  inbox.check(entry);
   const state = stories.readState<{ at?: string | null } | null>(input.id, 'reviewed.json', null);
   const marked = !state?.at;
   const unmarked = before ? before.unmarked : state !== null && !state.at;
@@ -48,15 +59,7 @@ export function approveStory(stories: StoryStore, inbox: Inbox, input: ApproveIn
     marked: before ? before.marked || marked : marked,
     ...(unmarked ? { unmarked: true } : {}),
   } satisfies Approval);
-  inbox.append({
-    type: 'approved',
-    ...input.ref,
-    story: input.id,
-    branch: input.branch,
-    checkout: input.checkout,
-    base: input.base,
-    head_sha: input.headOid,
-  });
+  inbox.append(entry);
   return true;
 }
 

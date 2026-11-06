@@ -33,6 +33,7 @@ import {
   type FixRequest,
   type RequestNote,
 } from '@once-upon-a-diff/contracts/files/schemas';
+import { strictFixRequest } from '@once-upon-a-diff/contracts/files/strict';
 import { RequestQueue } from './queue.ts';
 import type { LocalNote } from '@once-upon-a-diff/contracts/types';
 import type { Inbox } from './inbox.ts';
@@ -58,7 +59,11 @@ const failure = (status: number, message: string) => Object.assign(new Error(mes
 const fixesFile = (home: string) => path.join(home, 'fixes.json');
 /** fixes.json as a queue: a wait's claim on a fix request lasts until it's reported on or taken back. */
 const fixesQueue = (home: string) =>
-  new RequestQueue<FixRequest>(fixesFile(home), { claimFreshMs: null, check: readFixRequest });
+  new RequestQueue<FixRequest>(fixesFile(home), {
+    claimFreshMs: null,
+    check: readFixRequest,
+    strict: strictFixRequest,
+  });
 export const readFixes = (home: string): Record<string, FixRequest> => fixesQueue(home).all();
 /** Runs `work` under the lock that fixes.json and every story's notes.json are written under. */
 const locked = <T>(home: string, work: () => T): T => withLock(fixesFile(home), work);

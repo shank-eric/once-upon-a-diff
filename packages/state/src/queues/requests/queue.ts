@@ -53,22 +53,33 @@ export class RequestQueue<R extends Queued> {
   declare file: string;
   declare claimFreshMs: number | null;
   declare check: ((value: unknown) => R | null) | null;
+  declare strict: ((value: unknown, key: string) => string[]) | null;
   /**
    * `claimFreshMs`: how long a claim lasts with no refresh before the request is queued again; null, for good.
    * `check`: one of the contracts package's readers for the file's record (contracts/src/files/schemas.ts). A record it
    * refuses is invisible to this queue (never listed, claimed or finished) and is carried through every write untouched,
    * since a write rewrites the whole file. With no `check` every record is taken as it is.
+   * `strict`: one of the contracts package's strict checks (files/strict.ts). It is run, on the value as it is written, on
+   * each record a write creates or replaces with another object, and a problem refuses the whole write (nothing is written
+   * and the lock is let go). A stamp on a record already in the file (a claim, a status, `done_at`) is not checked, and neither
+   * is a record the write did not touch, so a record that fails it can never stop `take`, `claim` or `finish` of the others.
    */
   constructor(
     file: string,
     {
       claimFreshMs,
       check = null,
-    }: { claimFreshMs: number | null; check?: ((value: unknown) => R | null) | null },
+      strict = null,
+    }: {
+      claimFreshMs: number | null;
+      check?: ((value: unknown) => R | null) | null;
+      strict?: ((value: unknown, key: string) => string[]) | null;
+    },
   ) {
     this.file = file;
     this.claimFreshMs = claimFreshMs;
     this.check = check;
+    this.strict = strict;
   }
 
   /** The records the check accepts, by key, from the file's parsed JSON (all of them with no check). */
@@ -114,6 +125,8 @@ export class RequestQueue<R extends Queued> {
       const held = Object.fromEntries(first.map((key) => [key, taken[key]]));
       const result = change(taken);
       const written: Record<string, unknown> = {};
+      /** the records this write made or replaced: the only ones the strict check is for */
+      const made: string[] = [];
       let changed = false;
       for (const key of Object.keys(raw)) {
         if (!(key in taken)) {
@@ -124,6 +137,7 @@ export class RequestQueue<R extends Queued> {
           }
         } else if (!(key in before)) {
           written[key] = taken[key]; // a new request under the key of a refused record replaces it
+          made.push(key);
           changed = true;
         } else if (JSON.stringify(taken[key]) === before[key]) {
           written[key] = raw[key];
@@ -132,13 +146,25 @@ export class RequestQueue<R extends Queued> {
             taken[key] === held[key]
               ? merged(raw[key], JSON.parse(before[key]), taken[key])
               : taken[key];
+          if (taken[key] !== held[key]) {
+            made.push(key); // replaced with another object, not stamped in place
+          }
           changed = true;
         }
       }
       for (const key of Object.keys(taken)) {
         if (!(key in written) && !(key in raw)) {
           written[key] = taken[key];
+          made.push(key);
           changed = true;
+        }
+      }
+      for (const key of made) {
+        const problems = this.strict?.(written[key], key) ?? [];
+        if (problems.length) {
+          throw new Error(
+            `${path.basename(this.file)}: refused, ${problems.join('; ')}: ${JSON.stringify(written[key]).slice(0, 300)}`,
+          );
         }
       }
       if (changed) {

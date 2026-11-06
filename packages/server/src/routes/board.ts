@@ -180,10 +180,12 @@ function moveBacklog({ app, body: raw, send }: Call) {
 /** POST {id, title?, note?, repo?}: change an open backlog item's title, note or repo (only what is sent changes). */
 function editBacklog({ app, body: raw, send }: Call) {
   const { id, title, note, repo } = parseBody('boardBacklogEdit', raw);
+  // a repo typed in the form is saved, and the page is told when it looks wrong (asked before the edit: the edit would make it a card's)
+  const warning = repo ? app.board.typedRepoNote(repo) : null;
   asBadRequest(() =>
     app.board.editBacklog(id, { title, note: note ?? undefined, repo: repo ?? undefined }, 'board'),
   );
-  return send(200, { ok: true });
+  return send(200, { ok: true, ...(warning ? { warnings: [warning] } : {}) });
 }
 
 /** POST {id, on}: a card to the Someday section (or back). The ledger says whether an agent is working it (the store refuses then). */

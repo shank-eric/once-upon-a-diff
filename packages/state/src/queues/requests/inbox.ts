@@ -33,7 +33,8 @@ import {
 } from '@once-upon-a-diff/adapters/stores/fs/files';
 import type { ChapterRef } from '@once-upon-a-diff/contracts/types';
 import { readInboxEntry, type InboxEntry } from '@once-upon-a-diff/contracts/files/schemas';
-import { noteIfMalformed } from '@once-upon-a-diff/foundation/shared-files';
+import { strictInboxEntry } from '@once-upon-a-diff/contracts/files/strict';
+import { checkWrite } from '@once-upon-a-diff/foundation/shared-files';
 
 export type { InboxEntry };
 type Entry<T extends InboxEntry['type']> = Extract<InboxEntry, { type: T }>;
@@ -85,14 +86,28 @@ export class Inbox {
     }
   }
 
-  /** Appends the entry with an id (unless it has one) and the time. */
-  append<E extends { type: string; id?: string }>(entry: E): E & { id: string; at: string } {
+  /** The entry as it will be written, with an id (unless it has one) and the time. Throws when it may not be written. */
+  prepare<E extends { type: string; id?: string }>(entry: E): E & { id: string; at: string } {
     const full = {
       id: entry.id || newId(entry.type ? entry.type[0] : 'e'),
       at: new Date().toISOString(),
       ...entry,
     };
-    noteIfMalformed(this.file, full, readInboxEntry);
+    checkWrite(this.file, full, readInboxEntry, strictInboxEntry);
+    return full;
+  }
+
+  /**
+   * Checks what `append` of this entry would write, and writes nothing: a route that acts and then logs it (a read noted, a
+   * comment added to GitHub) asks first, so it refuses before it has done anything.
+   */
+  check(entry: { type: string; id?: string; [field: string]: unknown }): void {
+    this.prepare(entry);
+  }
+
+  /** Appends the entry with an id (unless it has one) and the time. Throws, writing nothing, when it may not be written. */
+  append<E extends { type: string; id?: string }>(entry: E): E & { id: string; at: string } {
+    const full = this.prepare(entry);
     this.makeHome();
     appendText(this.file, JSON.stringify(full) + '\n', 0o600);
     return full;

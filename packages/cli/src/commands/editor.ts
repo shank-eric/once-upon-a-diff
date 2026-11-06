@@ -14,6 +14,7 @@ import { runIsOpen } from '@once-upon-a-diff/state/records/agents/events';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { agentKey } from '@once-upon-a-diff/state/queues/backlog/claims';
 import { out } from '../output.ts';
+import { warnTypedRepo } from '../typed-repo.ts';
 import type { Config } from '@once-upon-a-diff/foundation/settings';
 import type { CliOpts, Command } from '../types.ts';
 
@@ -41,6 +42,7 @@ function editor(home: string, _cfg: Config, opts: CliOpts) {
     }
     const slots = text(opts.slots) as string;
     const cwd = path.resolve(text(opts.cwd) ?? process.cwd());
+    warnTypedRepo(home, text(opts.repo), cwd);
     const started = registry.start({
       name: given ?? `editor-${sid}`,
       sid,

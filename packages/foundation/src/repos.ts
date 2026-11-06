@@ -10,7 +10,7 @@ import { existsSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { REPO_RE } from '@once-upon-a-diff/domain/patterns';
-import { repoKey, sameRepo } from '@once-upon-a-diff/domain/ids';
+import { repoKey, repoProblem, sameRepo } from '@once-upon-a-diff/domain/ids';
 import { readSettings } from './settings.ts';
 import { runGitAsync, remoteUrl, topLevel, branchName } from '@once-upon-a-diff/adapters/git';
 import { readJson, writeJsonAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
@@ -220,6 +220,46 @@ export function seenCheckout(
 
 /** The repos the bridge has recorded a checkout of (the keys of checkouts.json, lowercase), whether or not the folder is still there. */
 export const seenCheckoutRepos = (home: string): string[] => Object.keys(readAll(home));
+
+/**
+ * The repos this machine already works in: the checkouts the bridge has seen, the repos of the PRs it has built (builds.json),
+ * the checkout's own origin when given, and any repo that two or more backlog cards (`cardRepos`, one entry a card) are on.
+ * A repo on one card alone is not known by that card: a typo would pass itself.
+ */
+export function knownRepos(
+  home: string,
+  { cardRepos = [], origin = null }: { cardRepos?: (string | null)[]; origin?: string | null } = {},
+): string[] {
+  const built = Object.values(
+    readJson<Record<string, { repo?: unknown } | null>>(path.join(home, 'builds.json'), {}) || {},
+  ).map((build) => build?.repo);
+  const onCards = new Map<string, { repo: string; cards: number }>();
+  for (const repo of cardRepos) {
+    if (repo) {
+      const seen = onCards.get(repoKey(repo)) ?? { repo, cards: 0 };
+      seen.cards++;
+      onCards.set(repoKey(repo), seen);
+    }
+  }
+  return [
+    ...seenCheckoutRepos(home),
+    ...built,
+    origin,
+    ...[...onCards.values()].filter((seen) => seen.cards >= 2).map((seen) => seen.repo),
+  ].filter((repo): repo is string => typeof repo === 'string' && !!repo);
+}
+
+/**
+ * What to warn about a repo someone typed (a flag or a form), or null when it is on a known repo or nothing was typed. Only a
+ * typed repo is asked about: one taken from a checkout's origin is the checkout's. Warns now; the flip (ADR-25) refuses.
+ */
+export function typedRepoNote(
+  home: string,
+  typed: string | null | undefined,
+  known: { cardRepos?: (string | null)[]; origin?: string | null } = {},
+): string | null {
+  return typed ? repoProblem(typed, knownRepos(home, known)) : null;
+}
 
 /** Every checkout folder the bridge has recorded, whatever its repo, that still exists. */
 export function seenCheckouts(home: string): string[] {

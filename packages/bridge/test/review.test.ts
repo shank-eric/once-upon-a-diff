@@ -154,6 +154,47 @@ function onceUpon(home: string): void {
   });
 }
 
+test('Add to my review takes a draft whose line the story file wrote as a numeric string, and refuses one with no line as a 400, never a 500', () =>
+  withBridgeGh({}, async () => {
+    clearCache();
+    const home = tmp('home');
+    githubStory(path.join(home, 'acme-widgets-7'));
+    writeJson(path.join(home, 'acme-widgets-7', 'chapters.json'), {
+      title: 'Widgets',
+      chapters: [
+        {
+          title: 'Chapter 1: Start',
+          files: ['README.md'],
+          comments: [
+            { path: 'README.md', line: '4', body: 'Typo: "teh".' },
+            { path: 'README.md', line: 'four', body: 'No line here.' },
+          ],
+        },
+      ],
+    });
+    const bridge = await startBridge({ home });
+    try {
+      const add = (index: number) =>
+        bridge.call<DraftsAnswer>('POST', '/api/stories/acme-widgets-7/drafts', {
+          chapter: 1,
+          index,
+          action: 'review',
+        });
+      const first = await add(0);
+      assert.equal(first.status, 200, first.text);
+      const logged = readFileSync(path.join(home, 'inbox.jsonl'), 'utf8')
+        .split('\n')
+        .filter(Boolean)
+        .map((line) => JSON.parse(line));
+      assert.equal(logged.at(-1).type, 'review_comment');
+      assert.equal(logged.at(-1).line, 4, 'logged as the number it is');
+      const second = await add(1);
+      assert.ok(second.status < 500, second.text);
+    } finally {
+      await bridge.close();
+    }
+  }));
+
 test('a draft added to the review is kept as added across calls and a bridge restart, and settles once', () =>
   withBridgeGh({}, async () => {
     clearCache();

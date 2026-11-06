@@ -50,6 +50,19 @@ async function noteChapterRead(
     throw new HttpError(404, 'no chapter with that key');
   }
   const head = await headOf(body, now);
+  // the line is checked before the read is noted: a refusal is then a read that was never noted, not one noted and not logged
+  const entry = {
+    type: 'read' as const,
+    id: newId('rd'),
+    ...story.ref,
+    chapter: chapterKey as string,
+    step: body.step,
+    title: chapter.title,
+    head_sha: head,
+    story_head: now.head_oid || head,
+    reason: body.reason as string,
+  };
+  app.inbox.check(entry);
   const record = noteRead(app.home, key, chapterKey as string, {
     head_sha: head,
     story_head: now.head_oid || head,
@@ -59,10 +72,7 @@ async function noteChapterRead(
     seconds: body.seconds ?? null,
   });
   app.inbox.append({
-    type: 'read',
-    id: newId('rd'),
-    ...story.ref,
-    chapter: chapterKey as string,
+    ...entry,
     step: record.step,
     title: record.title,
     head_sha: record.head_sha,
