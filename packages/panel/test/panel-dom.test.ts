@@ -202,7 +202,13 @@ async function mount(
   };
 }
 const bare = (): PanelOptions => ({
-  stylesheets: { page: '/p.css', panel: '/q.css', ui: '/u.css', tokens: '/t.css' },
+  stylesheets: {
+    page: '/p.css',
+    panel: '/q.css',
+    regions: ['/r.css'],
+    ui: '/u.css',
+    tokens: '/t.css',
+  },
 });
 const full = (calls: unknown[][]) => fullOptions(calls);
 
@@ -793,7 +799,7 @@ const withStatus = (status: () => unknown) => (calls: unknown[][]) =>
   fullOptions(calls, { status: (async () => status()) as never });
 const SESSION = { id: 's1', title: 'api-1', status: 'idle' as const, since: null };
 
-await test("the theme tokens' sheet is linked first, in the shadow root and in the page's head, and the head's copy goes when the panel closes", async () => {
+await test("the theme tokens' sheet is linked first, in the shadow root (then ui, the base, the region sheets) and in the page's head, and the head's copy goes when the panel closes", async () => {
   const panel = await mount(story(), bare);
   try {
     const hrefs = (links: Iterable<Element>) => [...links].map((link) => link.getAttribute('href'));
@@ -802,6 +808,7 @@ await test("the theme tokens' sheet is linked first, in the shadow root and in t
       '/t.css',
       '/u.css',
       '/q.css',
+      '/r.css',
     ]);
     assert.deepEqual(hrefs(document.head.querySelectorAll('link')), ['/t.css', '/p.css']);
     panel.overlay.destroy();
@@ -1787,6 +1794,8 @@ await test('every file and line link in the body, the drafts, the fixes and the 
     panel.world.viewed.set('src/a.ts', true);
     panel.world.viewed.set('src/c.ts', true);
     panel.overlay.apply();
+    // the early box sits in .ou-md, so .ou-md p sets its paragraphs' margin (and no sheet has an .ou-early-box p rule: sheets.test.ts)
+    assert.ok($('.ou-early-box').closest('.ou-md'));
     await jump('.ou-early-box code[data-rel]');
     await jump('.ou-progress code[data-rel]');
   } finally {

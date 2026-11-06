@@ -15,10 +15,16 @@ const PAGE_SHEETS = readdirSync(new URL('web/public/', PACKAGES), {
 })
   .filter((name) => name.endsWith('.css'))
   .map((name) => `web/public/${name}`);
+/** Every stylesheet under the panel's src/: the base and page sheets in css/ and each region's own. */
+const PANEL_SHEETS = readdirSync(new URL('panel/src/', PACKAGES), {
+  recursive: true,
+  encoding: 'utf8',
+})
+  .filter((name) => name.endsWith('.css'))
+  .map((name) => `panel/src/${name}`);
 const SHEETS = [
   'ui-kit/src/css/ui.css',
-  'panel/src/css/panel.css',
-  'panel/src/css/page.css',
+  ...PANEL_SHEETS,
   ...PAGE_SHEETS,
   'extension/src/content/components/story-tag.css',
   'extension/src/content/components/listen-notice.css',

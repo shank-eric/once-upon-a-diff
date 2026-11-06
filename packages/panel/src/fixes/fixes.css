@@ -1,0 +1,49 @@
+/* The panel's fix-before-push notes (fixes/): the tools row, a note's sent and fixed looks and its editor. Linked after panel.css. */
+#ou-panel .ou-beingchg {
+  margin: 8px 0 0;
+}
+#ou-panel .ou-chgby {
+  font-size: 11px;
+  color: var(--ou-warn);
+  margin-left: 4px;
+  white-space: nowrap;
+}
+#ou-panel .ou-fixtools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  margin: -2px 0 8px;
+}
+#ou-panel .ou-fixauto {
+  font-size: 12px;
+  color: var(--ou-fg-muted);
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+}
+#ou-panel .ou-fixnote.ou-fx-sent {
+  border-left: 3px solid var(--ou-warn);
+  padding-left: 8px;
+}
+#ou-panel .ou-fixnote.ou-fx-fixed {
+  opacity: 0.7;
+}
+#ou-panel .ou-fixnote.ou-fx-fixed pre {
+  max-height: 3em;
+  overflow: hidden;
+}
+#ou-panel .ou-fixedit {
+  width: 100%;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ou-fg);
+  background: var(--ou-bg);
+  border: 1px solid var(--ou-border);
+  border-radius: 6px;
+  padding: 5px 8px;
+  resize: vertical;
+}
+#ou-panel .ou-fixeditbtns {
+  margin: 4px 0;
+}

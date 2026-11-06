@@ -82,7 +82,7 @@ test('the Primer palette has every variable the story UI CSS reads from GitHub, 
   const packages = path.resolve(import.meta.dirname, '../..');
   const names = primerNames(
     cssFilesUnder(
-      path.join(packages, 'panel/src/css'),
+      path.join(packages, 'panel/src'),
       path.join(packages, 'ui-kit/src/css'),
       path.join(packages, 'extension/src/content/components'),
     ),

@@ -141,7 +141,7 @@ flowchart LR
 |---|---|---|---|
 | 1 | `library` | the Ask form's submit calls the host's `ask` | `packages/panel/src/ask/questions.ts:524` (`await opts.ask({`) |
 | 2 | `library` | on the local page, `ask` is the panel's shared bridge option | `packages/panel/src/host/bridge-options.ts:41` (`ask: (question) =>`) |
-| 2' | `app` | on GitHub, the extension supplies its own `ask` over the service worker | `packages/extension/src/content/pages/files-changed.ts:172` (`ROUTES.questionAsk`) |
+| 2' | `app` | on GitHub, the extension supplies its own `ask` over the service worker | `packages/extension/src/content/pages/files-changed.ts:174` (`ROUTES.questionAsk`) |
 | 3 | `contracts` | the route: `POST /api/stories/<id>/questions`, any key of the story's | `packages/contracts/src/story/routes.ts:49` (`questionAsk:`) |
 | 4 | `app` | the story route checks the body and appends the question | `packages/server/src/routes/questions.ts:66` (`app.inbox.append(`) |
 | 5 | `service` | `Inbox.append` gives it an id and a time | `packages/core/src/queues/requests/inbox.ts:70` (`append<E`) |
@@ -226,7 +226,7 @@ flowchart LR
 | 1 | `library` | the panel's button asks the host for sessions | `packages/panel/src/components/status-light-part.ts:111` (`opts.listen!.sessions(target)`) |
 | 2 | `library` | none, one, or a chooser | `packages/ui-kit/src/listen.ts:20` (`export function listenPlan`) |
 | 3 | `app` | on GitHub: `GET /api/board/listen-sessions`, with the token through the service worker | `packages/extension/src/content/listen.ts:50` (`ROUTES.boardListenSessions`) |
-| 3' | `app` | on the local page: the story's own route, with the story's key (the board's routes need the board's key) | `packages/web/public/local/mount.ts:108` (`ROUTES.storyListenSessions`) |
+| 3' | `app` | on the local page: the story's own route, with the story's key (the board's routes need the board's key) | `packages/web/public/local/mount.ts:110` (`ROUTES.storyListenSessions`) |
 | 4 | `app` | the board route | `packages/server/src/routes/board.ts:96` (`app.sessions.storyListenSessions(storyId)`) |
 | 4' | `app` | the story route, still through `Board`'s one-line delegate (ADR-16) | `packages/server/src/routes/story.ts:205` (`app.board.storyListenSessions(story.id)`) |
 | 5 | `service` | the story's repo, then the idle sessions in its checkout | `packages/core/src/features/sessions/sessions.ts:167` (`async storyListenSessions(`) |

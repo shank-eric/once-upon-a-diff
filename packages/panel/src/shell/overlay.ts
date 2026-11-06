@@ -29,7 +29,7 @@
  * panel's events, and bridgeOptions(host) (bridge-options.ts) fills in the calls every host makes the same way.
  *
  * opts:
- *   stylesheets    {page, panel, ui, tokens}: the URLs of the panel's page.css and panel.css (src/css/), ui-kit/ui.css and ui-kit/tokens.css as the host serves them (required)
+ *   stylesheets    {page, panel, regions, ui, tokens}: the URLs of the panel's page.css and panel.css (src/css/), the region sheets (sheets.ts's REGION_SHEETS, in order), ui-kit/ui.css and ui-kit/tokens.css as the host serves them (required)
  * and all optional:
  *   initial        {n, all, collapsed, width, chatOpen, chatHeight, ...} to start from (a saved step)
  *   onState(s)     called with {n, all, collapsed, width, chatOpen, chatHeight, ...} whenever they change
@@ -126,7 +126,7 @@ export { rebuildAsk, rebuildLine } from '../rebuild/rebuild.ts';
 export { expandDirOf, expandStep, EXPAND_ALL_FAR } from '../reading/expand.ts';
 
 const HOST_ID = 'once-upon-panel'; // the element on the page; the panel itself lives in its shadow root
-const PANEL_ID = 'ou-panel'; // both are spelled out in panel/css/page.css and panel/css/panel.css
+const PANEL_ID = 'ou-panel'; // both are spelled out in panel/css/page.css, panel/css/panel.css and the region sheets
 // the panel's one clock (a createPoll): a tick every 5s while the tab shows, with one pulse call. Without a pulse, questions take
 // every tick while one waits for its answer (else every 6th) and the status light every 6th (30s). Drafts, freshness
 // and reads look every 12th tick (a minute) either way.

@@ -6,6 +6,7 @@
  */
 import { storyOverlay, type InitialUi } from '/assets/panel/shell/overlay.ts';
 import { bridgeOptions } from '/assets/panel/host/bridge-options.ts';
+import { REGION_SHEETS } from '/assets/panel/shell/sheets.ts';
 import { createHostPage } from '/assets/github-page/diff-dom.ts';
 import type { PanelHost } from '/assets/panel/host/host.ts';
 import type { LocalNote } from '/assets/types.ts';
@@ -55,6 +56,7 @@ export function mount(initial: InitialUi) {
       stylesheets: {
         page: '/assets/panel/css/page.css',
         panel: '/assets/panel/css/panel.css',
+        regions: REGION_SHEETS.map((sheet) => `/assets/panel/${sheet}`),
         ui: '/assets/ui-kit/css/ui.css',
         tokens: '/assets/ui-kit/css/tokens.css',
       },

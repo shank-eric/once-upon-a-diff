@@ -1,0 +1,79 @@
+/* The panel's reading checks (reading/): the file list, the lines list and the viewed marks and early-read notice. Linked after panel.css. */
+#ou-panel .ou-progress {
+  margin: 0 0 10px;
+  padding: 4px 8px;
+  font-size: 12px;
+  color: var(--ou-fg-muted);
+  border-left: 3px solid var(--ou-border);
+}
+#ou-panel .ou-progress:empty {
+  display: none;
+}
+#ou-panel .ou-progress.ou-complete {
+  border-left-color: var(--ou-ok);
+}
+#ou-panel .ou-early-box {
+  margin: 0 0 10px;
+  padding: 6px 8px;
+  font-size: 12px;
+  border: 1px solid var(--ou-warn);
+  border-radius: 6px;
+}
+#ou-panel .ou-early-box:empty {
+  display: none;
+}
+#ou-panel .ou-viewed.ou-early {
+  color: var(--ou-warn);
+}
+#ou-panel .ou-progress .ou-done {
+  color: var(--ou-ok);
+  font-weight: 600;
+}
+#ou-panel .ou-progress b {
+  color: var(--ou-fg);
+}
+#ou-panel details.ou-filesbox > summary .ou-sum {
+  font-size: 12px;
+  color: var(--ou-fg-muted);
+  margin-left: 6px;
+}
+#ou-panel ul.ou-files button.ou-mark {
+  margin: 2px 0 0;
+}
+#ou-panel .ou-viewed {
+  color: var(--ou-ok);
+  font-size: 12px;
+  margin-left: 4px;
+  white-space: nowrap;
+}
+#ou-panel .ou-viewed:empty {
+  display: none;
+}
+#ou-panel ul.ou-files {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 12px;
+}
+#ou-panel ul.ou-files > li {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--ou-border);
+}
+#ou-panel ul.ou-files > li:last-child {
+  border-bottom: 0;
+}
+#ou-panel ul.ou-files .ou-why {
+  color: var(--ou-fg-muted);
+  display: block;
+}
+#ou-panel ul.ou-files .ou-missing {
+  opacity: 0.6;
+}
+#ou-panel ul.ou-lines {
+  list-style: none;
+  margin: 2px 0 0 12px;
+  padding: 0;
+}
+#ou-panel ul.ou-lines li {
+  padding: 1px 0;
+}

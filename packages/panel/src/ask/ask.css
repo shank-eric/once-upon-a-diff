@@ -1,0 +1,221 @@
+/* The panel's questions dock (ask/): the chat dock and its questions list. Linked after panel.css, which has the base rules these build on. */
+#ou-panel .ou-chat {
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--ou-border);
+  background: var(--ou-bg-muted);
+}
+#ou-panel .ou-chat[hidden] {
+  display: none;
+}
+#ou-panel .ou-chat.ou-open {
+  height: var(--ou-chat-h, 280px);
+}
+#ou-panel .ou-chatgrip {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -4px;
+  height: 8px;
+  z-index: 1;
+}
+#ou-panel .ou-chat.ou-open .ou-chatgrip {
+  cursor: row-resize;
+}
+#ou-panel .ou-chat.ou-open .ou-chatgrip:hover,
+#ou-panel .ou-chat.ou-chat-dragging .ou-chatgrip {
+  background: var(--ou-accent);
+  opacity: 0.35;
+}
+#ou-panel button.ou-chathead {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--ou-fg-muted);
+}
+#ou-panel button.ou-chathead:hover {
+  color: var(--ou-accent);
+}
+#ou-panel .ou-chatarrow {
+  font-size: 11px;
+}
+#ou-panel .ou-chatcount {
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+#ou-panel .ou-chatcount.ou-unread {
+  color: var(--ou-accent);
+  font-weight: 600;
+}
+#ou-panel .ou-chat.ou-open .ou-chathead {
+  border-bottom: 1px solid var(--ou-border);
+}
+#ou-panel .ou-chatbody {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 12px 4px;
+  background: var(--ou-bg);
+}
+#ou-panel .ou-chatfoot {
+  flex: none;
+  max-height: 60%;
+  overflow: auto;
+}
+#ou-panel .ou-chat:not(.ou-open) .ou-chatbody,
+#ou-panel .ou-chat:not(.ou-open) .ou-chatfoot {
+  display: none;
+}
+#ou-panel .ou-qa {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--ou-border);
+  border-radius: 6px;
+}
+#ou-panel .ou-qa .ou-qhead {
+  display: flex;
+  gap: 4px;
+  align-items: flex-start;
+}
+#ou-panel .ou-qa .ou-q {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  white-space: pre-wrap;
+}
+#ou-panel .ou-qa-here {
+  border-left: 3px solid var(--ou-accent);
+}
+#ou-panel .ou-qa-collapsed {
+  padding: 4px 10px;
+  margin-bottom: 6px;
+}
+#ou-panel .ou-qa-collapsed .ou-q {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#ou-panel .ou-qa-dismissed {
+  opacity: 0.6;
+}
+#ou-panel .ou-qa .ou-qtoggle {
+  border: 0;
+  background: none;
+  padding: 0 2px;
+  color: var(--ou-fg-muted);
+  font-size: 13px;
+  line-height: 18px;
+  cursor: pointer;
+}
+#ou-panel .ou-qa .ou-qmeta {
+  font-size: 11px;
+  color: var(--ou-fg-muted);
+}
+#ou-panel .ou-qa .ou-aby {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--ou-border);
+  font-size: 11px;
+  color: var(--ou-fg-muted);
+}
+#ou-panel .ou-qa .ou-a {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--ou-border);
+}
+#ou-panel .ou-qa .ou-aby + .ou-a {
+  margin-top: 2px;
+  padding-top: 0;
+  border-top: 0;
+}
+#ou-panel .ou-qtools {
+  margin: -2px 0 8px;
+}
+#ou-panel .ou-qundo {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--ou-fg-muted);
+}
+#ou-panel .ou-qa .ou-wait {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--ou-fg-muted);
+  font-style: italic;
+}
+#ou-panel .ou-qa .ou-wait-stalled {
+  color: var(--ou-warn, var(--ou-fg-muted));
+}
+#ou-panel .ou-qa .ou-wnote {
+  margin-top: 2px;
+  font-style: normal;
+}
+#ou-panel .ou-qa .ou-pulse {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--ou-accent);
+  vertical-align: 1px;
+  animation: ou-pulse 1.4s ease-in-out infinite;
+}
+@keyframes ou-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #ou-panel .ou-qa .ou-pulse {
+    animation: none;
+  }
+}
+#ou-panel .ou-qa-new {
+  border-left: 3px solid var(--ou-accent);
+  padding-left: 8px;
+}
+#ou-panel .ou-qa-new .ou-qmeta {
+  color: var(--ou-accent);
+  font-weight: 600;
+}
+#ou-panel .ou-ask {
+  border-top: 1px solid var(--ou-border);
+  padding: 8px 10px;
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  background: var(--ou-bg-muted);
+}
+#ou-panel .ou-ask textarea {
+  flex: 1;
+  min-height: 34px;
+  max-height: 160px;
+  resize: vertical;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ou-fg);
+  background: var(--ou-bg);
+  border: 1px solid var(--ou-border);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+#ou-panel .ou-ask.ou-off {
+  display: none;
+}

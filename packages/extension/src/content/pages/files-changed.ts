@@ -16,6 +16,7 @@ import { storyOverlay, rangeStepOf } from '@once-upon-a-diff/panel/shell/overlay
 import { bridgeOptions } from '@once-upon-a-diff/panel/host/bridge-options';
 import { createHostPage } from '@once-upon-a-diff/github-page/diff-dom';
 import { filesChangedPr } from '@once-upon-a-diff/github-page/pages';
+import { REGION_SHEETS } from '@once-upon-a-diff/panel/shell/sheets';
 import { withLayout, type Layout } from '@once-upon-a-diff/panel/shell/layout';
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { bridgeProblem } from '@once-upon-a-diff/bridge-client/client';
@@ -142,6 +143,7 @@ export function createFilesChangedPage() {
       stylesheets: {
         page: chrome.runtime.getURL('panel/page.css'),
         panel: chrome.runtime.getURL('panel/panel.css'),
+        regions: REGION_SHEETS.map((sheet) => chrome.runtime.getURL(`panel/${sheet}`)),
         ui: chrome.runtime.getURL('ui-kit/ui.css'),
         tokens: chrome.runtime.getURL('ui-kit/tokens.css'),
       },

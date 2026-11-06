@@ -1,0 +1,45 @@
+/* The panel's drafted comments (drafts/): the all-comments section and the drafts' own look. The comment vocabulary both drafts and fixes use is in css/panel.css. Linked after panel.css. */
+#ou-panel .ou-allc .ou-cgh {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 10px 0 4px;
+}
+#ou-panel .ou-allc .ou-comment {
+  margin-bottom: 8px;
+}
+#ou-panel .ou-allc .ou-comment pre {
+  max-height: 5.5em;
+  overflow: auto;
+}
+#ou-panel .ou-comment.ou-c-done {
+  margin: 0 0 6px;
+  padding: 4px 8px;
+  border: 1px dashed var(--ou-border);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--ou-fg-muted);
+}
+#ou-panel .ou-comment.ou-c-done pre,
+#ou-panel .ou-comment.ou-c-done .ou-copy {
+  display: none;
+}
+#ou-panel .ou-comment.ou-c-pending {
+  border-color: var(--ou-warn);
+}
+#ou-panel .ou-cstate .ou-cerr {
+  color: var(--ou-danger);
+}
+#ou-panel .ou-cstate .ou-cnote {
+  display: block;
+}
+#ou-panel .ou-drafttoggles {
+  margin: -2px 0 6px;
+}
+#ou-panel .ou-drafttoggles:empty {
+  display: none;
+}
+#ou-panel pre.ou-script {
+  max-height: 160px;
+  overflow: auto;
+  font-size: 11px;
+}

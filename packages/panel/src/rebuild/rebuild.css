@@ -1,0 +1,53 @@
+/* The panel's rebuild (rebuild/): the freshness line, the rebuilding note and the rebuild form. Linked after panel.css. */
+#ou-panel .ou-fresh {
+  flex-basis: 100%;
+  font-size: 12px;
+}
+#ou-panel .ou-fresh:empty {
+  display: none;
+}
+#ou-panel .ou-fresh.ou-stale {
+  color: var(--ou-warn);
+}
+#ou-panel .ou-fresh button {
+  margin-left: 6px;
+}
+#ou-panel .ou-ui-busy {
+  margin-left: 6px;
+}
+#ou-panel .ou-rebuilding {
+  flex-basis: 100%;
+  font-size: 12px;
+  color: var(--ou-fg-muted);
+}
+#ou-panel .ou-rebuilding.ou-failed {
+  color: var(--ou-warn);
+}
+#ou-panel .ou-rebuild-form textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 54px;
+  resize: vertical;
+  font: inherit;
+  font-size: 13px;
+  color: var(--ou-fg);
+  background: var(--ou-bg);
+  border: 1px solid var(--ou-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+#ou-panel .ou-rebuild-btns {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 6px;
+}
+#ou-panel .ou-chg {
+  font-size: 11px;
+  color: var(--ou-warn);
+  margin-left: 4px;
+  white-space: nowrap;
+}
+#ou-panel .ou-since {
+  margin: 10px 0;
+}

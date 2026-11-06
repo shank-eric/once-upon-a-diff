@@ -18,8 +18,8 @@ const COLLAPSED_WIDTH = 36;
 export function createShell(context: PanelContext) {
   const { hostId, panelId, opts, state } = context;
   // tokens.css (the --ou-* theme tokens) and page.css go in the page's head, tokens.css (a second link, a link sits in one place),
-  // ui.css (the shared pieces) and panel.css in the shadow root, in that order, from where the host says (opts.stylesheets): the
-  // extension's copies on GitHub, the bridge's /assets/ on the local page.
+  // ui.css (the shared pieces), panel.css and then each region's sheet in the shadow root, in that order, from where the host says
+  // (opts.stylesheets): the extension's copies on GitHub, the bridge's /assets/ on the local page.
   const pageTokens = stylesheetLink(opts.stylesheets.tokens);
   pageTokens.id = hostId + '-tokens';
   const pageStyle = stylesheetLink(opts.stylesheets.page);
@@ -27,10 +27,11 @@ export function createShell(context: PanelContext) {
   const shadowTokens = stylesheetLink(opts.stylesheets.tokens);
   const uiStyle = stylesheetLink(opts.stylesheets.ui);
   const panelStyle = stylesheetLink(opts.stylesheets.panel);
+  const regionStyles = opts.stylesheets.regions.map(stylesheetLink);
   const host = document.createElement('div');
   host.id = hostId;
   const shadow = host.attachShadow({ mode: 'open' });
-  shadow.append(shadowTokens, uiStyle, panelStyle);
+  shadow.append(shadowTokens, uiStyle, panelStyle, ...regionStyles);
   const root = document.createElement('aside');
   root.id = panelId;
   // focusable, so a click anywhere in the panel moves focus off the page and the page's single-key shortcuts (GitHub's, Refined GitHub's j/k/x) don't fire while you read
@@ -158,7 +159,7 @@ export function createShell(context: PanelContext) {
 
   /** Put the panel on the page and dock it. */
   function mount() {
-    hideUntilStyled(host, [shadowTokens, pageStyle, uiStyle, panelStyle]);
+    hideUntilStyled(host, [shadowTokens, pageStyle, uiStyle, panelStyle, ...regionStyles]);
     document.head.append(pageTokens, pageStyle);
     shadow.appendChild(root);
     document.body.appendChild(host);

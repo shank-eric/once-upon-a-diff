@@ -16,6 +16,7 @@ import type {
 } from '@once-upon-a-diff/contracts/types';
 import type { HostPage, FileBlock, PanelHost } from '../src/host/host.ts';
 import type { PanelOptions } from '../src/host/context.ts';
+import { REGION_SHEETS } from '../src/shell/sheets.ts';
 
 const sha = (rel: string) => createHash('sha256').update(rel).digest('hex');
 export const RELS = ['src/a.ts', 'src/b.ts', 'src/c.ts', 'README.md'];
@@ -378,6 +379,7 @@ export function fullOptions(
     stylesheets: {
       page: '/panel/page.css',
       panel: '/panel/panel.css',
+      regions: REGION_SHEETS.map((sheet) => `/panel/${sheet}`),
       ui: '/ui-kit/ui.css',
       tokens: '/ui-kit/tokens.css',
     },
