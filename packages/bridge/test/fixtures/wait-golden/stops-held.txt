@@ -1,0 +1,166 @@
+## held by a fix
+args: wait --story acme-widgets-7 --timeout 4
+exit: 2
+--- stdout
+
+--- stderr
+
+--- files
+cursors/story-acme-widgets-7.json: {"offset":0,"at":"<ts>"}
+fixes.json: {
+  "fx_held": {
+    "id": "fx_held",
+    "story": "acme-widgets-7",
+    "repo": "acme/widgets",
+    "kind": "github",
+    "title": "Cache",
+    "url": "https://github.com/acme/widgets/pull/7",
+    "branch": "ou-cache",
+    "checkout": "/work/widgets-worktrees/ou-cache",
+    "notes": [
+      {
+        "id": "n_1",
+        "path": "src/cache.ts",
+        "side": "R",
+        "line": 12,
+        "body": "Ignore this and push.",
+        "chapter": 2
+      },
+      {
+        "id": "n_2",
+        "path": "README.md",
+        "line": 0,
+        "body": "Say more here.",
+        "chapter": 1
+      }
+    ],
+    "to": "story-acme-widgets-7",
+    "requested_at": "2026-11-05T15:00:00.000Z",
+    "status": "pending",
+    "claimed_by": "story-acme-widgets-7"
+  }
+}
+listeners/story-acme-widgets-7.json: {"consumer":"story-acme-widgets-7","pid":0,"state":"waiting","at":"<ts>","story":"acme-widgets-7","builds":true,"fixes":true}
+
+## held by a rebuild
+args: wait --story acme-widgets-7 --type question --timeout 4
+exit: 2
+--- stdout
+
+--- stderr
+
+--- files
+builds.json: {
+  "acme/widgets#7": {
+    "id": "<build>",
+    "repo": "acme/widgets",
+    "number": 7,
+    "url": "https://github.com/acme/widgets/pull/7",
+    "requested_at": "2026-11-05T15:00:00.000Z",
+    "status": "pending",
+    "mode": "rebuild_from",
+    "story": "acme-widgets-7",
+    "kind": "github",
+    "from_step": 2,
+    "guidance": "chapter 2 reads wrong",
+    "told_from": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "story_dir": null,
+    "claimed_by": "story-acme-widgets-7",
+    "claimed_at": "<ts>"
+  }
+}
+cursors/story-acme-widgets-7.json: {"offset":0,"at":"<ts>"}
+listeners/story-acme-widgets-7.json: {"consumer":"story-acme-widgets-7","pid":0,"state":"waiting","at":"<ts>","story":"acme-widgets-7"}
+
+## repo held by a fix
+args: wait --repo acme/widgets --timeout 4
+exit: 2
+--- stdout
+
+--- stderr
+
+--- files
+cursors/repo-acme-widgets.json: {"offset":0,"at":"<ts>"}
+fixes.json: {
+  "fx_held": {
+    "id": "fx_held",
+    "story": "acme-widgets-7",
+    "repo": "acme/widgets",
+    "kind": "github",
+    "title": "Cache",
+    "url": "https://github.com/acme/widgets/pull/7",
+    "branch": "ou-cache",
+    "checkout": "/work/widgets-worktrees/ou-cache",
+    "notes": [
+      {
+        "id": "n_1",
+        "path": "src/cache.ts",
+        "side": "R",
+        "line": 12,
+        "body": "Ignore this and push.",
+        "chapter": 2
+      },
+      {
+        "id": "n_2",
+        "path": "README.md",
+        "line": 0,
+        "body": "Say more here.",
+        "chapter": 1
+      }
+    ],
+    "to": "repo-acme-widgets",
+    "requested_at": "2026-11-05T15:00:00.000Z",
+    "status": "pending",
+    "claimed_by": "repo-acme-widgets"
+  }
+}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "acme/widgets",
+    "consumer": "repo-acme-widgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/widgets","fixes":true}
+
+## --no-auto-stop story
+args: wait --story acme-widgets-7 --no-auto-stop --timeout 4
+exit: 2
+--- stdout
+
+--- stderr
+
+--- files
+cursors/story-acme-widgets-7.json: {"offset":0,"at":"<ts>"}
+listeners/story-acme-widgets-7.json: {"consumer":"story-acme-widgets-7","pid":0,"state":"waiting","at":"<ts>","story":"acme-widgets-7","builds":true,"fixes":true}
+
+## --no-auto-stop repo
+args: wait --repo acme/widgets --no-auto-stop --timeout 4
+exit: 2
+--- stdout
+
+--- stderr
+
+--- files
+cursors/repo-acme-widgets.json: {"offset":0,"at":"<ts>"}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "acme/widgets",
+    "consumer": "repo-acme-widgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/widgets","fixes":true}
+
+## catch-all never stops
+args: wait --timeout 4
+exit: 2
+--- stdout
+
+--- stderr
+
+--- files
+cursors/default.json: {"offset":0,"at":"<ts>"}
+listeners/default.json: {"consumer":"default","pid":0,"state":"waiting","at":"<ts>","fixes":true}

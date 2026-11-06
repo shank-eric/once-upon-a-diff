@@ -172,6 +172,17 @@ export default {
       { path: '^packages/core/src/$1/', pathNot: '^packages/core/src/$1/$2/' },
     ),
     rule(
+      'listening-through-service',
+      'listening has one way in: the CLI, the HTTP app and the board import features/listeners/service.ts, not the listener files behind it. The queues below it read heartbeats directly',
+      { path: ['^packages/(cli|server)/src/', '^packages/core/src/orchestration/'] },
+      {
+        path: [
+          '^packages/core/src/records/listeners/',
+          '^packages/core/src/features/listeners/(?!service\\.ts$)',
+        ],
+      },
+    ),
+    rule(
       'only-adapters-run-programs-or-network',
       'only an adapter runs a program or reaches the network (the HTTP app has node:http, to listen). Covers the imports a graph can see; the rest stays ESLint-only (configs/eslint.side-effects.mjs): fs writes (an import of node:fs cannot tell a read from a write), fetch, process.kill and module loaders',
       { path: [TIER_FILES, SERVER, CLI] },

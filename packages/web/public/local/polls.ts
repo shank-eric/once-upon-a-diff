@@ -1,7 +1,7 @@
 /*
  * The local page's two timers, both createPolls (/assets/bridge-client/poll.ts): the version check while the panel is closed
  * (the open panel's own tick looks then), every 5 s while the tab shows and when it gets focus; and the "still open" keepalive,
- * about once a minute while the tab is hidden (core/src/queues/requests/auto-stop.ts).
+ * about once a minute while the tab is hidden (core/src/features/listeners/auto-stop.ts).
  */
 import { createPoll } from '/assets/bridge-client/poll.ts';
 

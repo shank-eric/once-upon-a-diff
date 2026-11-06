@@ -5,7 +5,7 @@
  */
 import { readPrefs, writePrefs } from '@once-upon-a-diff/core/foundation/settings';
 import { REPO_RE } from '@once-upon-a-diff/core/foundation/repos';
-import { statusOf } from '@once-upon-a-diff/core/records/listeners/listeners';
+import { Listening } from '@once-upon-a-diff/core/features/listeners/service';
 import { readMeta, storyRepo } from '@once-upon-a-diff/core/records/stories/meta';
 import { ROUTES } from '@once-upon-a-diff/contracts/routes';
 import { parseBody } from '../validate.ts';
@@ -28,7 +28,10 @@ function status({ app, url, send }: Call) {
     }
   }
   const { home, version } = app;
-  return send(200, statusOf({ home, version, story, repo, extensionSeen: app.extensionSeen }));
+  return send(
+    200,
+    new Listening(home).status({ version, story, repo, extensionSeen: app.extensionSeen }),
+  );
 }
 
 /** GET or POST page settings: what /api/prefs answers. A POST's body is checked here, after the guards. */
@@ -47,8 +50,7 @@ export const storyStatusRoutes: StoryRoute[] = [
     handle: ({ app, send }: Call, story: ServedStory) =>
       send(
         200,
-        statusOf({
-          home: app.home,
+        new Listening(app.home).status({
           version: app.version,
           story: story.id,
           repo: storyRepo(story.meta),

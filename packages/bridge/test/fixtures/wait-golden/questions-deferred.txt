@@ -1,0 +1,132 @@
+## deferred
+args: wait --repo acme/widgets --timeout 1
+exit: 2
+--- stdout
+
+--- stderr
+
+--- files
+cursors/default.deferred.json: [
+  "q_two"
+]
+cursors/default.json: {"offset":392,"at":"<ts>"}
+cursors/repo-acme-widgets.deferred.json: []
+cursors/repo-acme-widgets.json: {"offset":196,"at":"<ts>"}
+handed.json: {
+  "q_one": {
+    "consumer": "repo-acme-widgets",
+    "at": "<ts>"
+  }
+}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "acme/widgets",
+    "consumer": "repo-acme-widgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listeners/default.json: {"consumer":"default","pid":0,"state":"waiting","at":"<ts>","fixes":true}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/widgets","fixes":true}
+listeners/story-x.json: {"consumer":"story-x","pid":0,"state":"waiting","at":"<ts>","story":"acme-widgets-7"}
+
+## taken
+args: wait --repo acme/widgets --timeout 1
+exit: 0
+--- stdout
+[11/5, 3:00 PM UTC] question q_one (acme-widgets-7 · Chapter 2: The cache · src/cache.ts)
+Why q_one?
+Tell the panel what you're doing as you go: once-upon asking --question q_one --note "<few words>"
+Answer with: once-upon answer --question q_one --text "…"
+
+
+--- stderr
+
+--- files
+cursors/default.deferred.json: [
+  "q_two"
+]
+cursors/default.json: {"offset":392,"at":"<ts>"}
+cursors/repo-acme-widgets.deferred.json: []
+cursors/repo-acme-widgets.json: {"offset":196,"at":"<ts>"}
+handed.json: {
+  "q_one": {
+    "consumer": "repo-acme-widgets",
+    "at": "<ts>"
+  }
+}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "acme/widgets",
+    "consumer": "repo-acme-widgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listeners/default.json: {"consumer":"default","pid":0,"state":"waiting","at":"<ts>","fixes":true}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/widgets","fixes":true}
+listeners/story-x.json: {"consumer":"story-x","pid":0,"state":"waiting","at":"<ts>","story":"acme-widgets-7"}
+
+## nothing left
+args: wait --repo acme/widgets --timeout 1
+exit: 2
+--- stdout
+
+--- stderr
+
+--- files
+cursors/default.deferred.json: [
+  "q_two"
+]
+cursors/default.json: {"offset":392,"at":"<ts>"}
+cursors/repo-acme-widgets.deferred.json: []
+cursors/repo-acme-widgets.json: {"offset":196,"at":"<ts>"}
+handed.json: {
+  "q_one": {
+    "consumer": "repo-acme-widgets",
+    "at": "<ts>"
+  }
+}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "acme/widgets",
+    "consumer": "repo-acme-widgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listeners/default.json: {"consumer":"default","pid":0,"state":"waiting","at":"<ts>","fixes":true}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/widgets","fixes":true}
+listeners/story-x.json: {"consumer":"story-x","pid":0,"state":"waiting","at":"<ts>","story":"acme-widgets-7"}
+
+## catch-all with a story listener live
+args: wait --timeout 1
+exit: 2
+--- stdout
+
+--- stderr
+
+--- files
+cursors/default.deferred.json: [
+  "q_two"
+]
+cursors/default.json: {"offset":392,"at":"<ts>"}
+cursors/repo-acme-widgets.deferred.json: []
+cursors/repo-acme-widgets.json: {"offset":196,"at":"<ts>"}
+handed.json: {
+  "q_one": {
+    "consumer": "repo-acme-widgets",
+    "at": "<ts>"
+  }
+}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "acme/widgets",
+    "consumer": "repo-acme-widgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listeners/default.json: {"consumer":"default","pid":0,"state":"waiting","at":"<ts>","fixes":true}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/widgets","fixes":true}
+listeners/story-x.json: {"consumer":"story-x","pid":0,"state":"waiting","at":"<ts>","story":"acme-widgets-7"}

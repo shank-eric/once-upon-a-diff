@@ -18,7 +18,7 @@ const UNITS: Record<string, string[]> = {
   foundation: [],
   records: ['agents', 'github', 'listeners', 'page-links', 'stories', 'usage', 'worktrees'],
   queues: ['backlog', 'requests'],
-  features: ['publishing', 'review', 'sessions'],
+  features: ['listeners', 'publishing', 'review', 'sessions'],
   orchestration: ['board', 'bridge'],
 };
 const entries = (dir: string) => readdirSync(dir).sort();

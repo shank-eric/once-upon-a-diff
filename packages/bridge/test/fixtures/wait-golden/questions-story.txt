@@ -1,0 +1,104 @@
+## id
+args: wait --story acme-widgets-7 --type question --timeout 1
+exit: 0
+--- stdout
+[11/5, 3:00 PM UTC] question q_mine (acme-widgets-7 · Chapter 2: The cache · src/cache.ts)
+Why q_mine?
+Tell the panel what you're doing as you go: once-upon asking --question q_mine --note "<few words>"
+Answer with: once-upon answer --question q_mine --text "…"
+
+
+--- stderr
+
+--- files
+cursors/story-acme-widgets-7.json: {"offset":397,"at":"<ts>"}
+cursors/story-acme-widgets-8.json: {"offset":0,"at":"<ts>"}
+handed.json: {
+  "q_mine": {
+    "consumer": "story-acme-widgets-7",
+    "at": "<ts>"
+  }
+}
+listeners/story-acme-widgets-7.json: {"consumer":"story-acme-widgets-7","pid":0,"state":"handling","at":"<ts>","story":"acme-widgets-7","question":"q_mine","questions":["q_mine"]}
+
+## owner/name#N
+args: wait --story acme/widgets#7 --type question --timeout 1
+exit: 0
+--- stdout
+[11/5, 3:00 PM UTC] question q_mine (acme-widgets-7 · Chapter 2: The cache · src/cache.ts)
+Why q_mine?
+Tell the panel what you're doing as you go: once-upon asking --question q_mine --note "<few words>"
+Answer with: once-upon answer --question q_mine --text "…"
+
+
+--- stderr
+
+--- files
+cursors/story-acme-widgets-7.json: {"offset":397,"at":"<ts>"}
+cursors/story-acme-widgets-8.json: {"offset":0,"at":"<ts>"}
+handed.json: {
+  "q_mine": {
+    "consumer": "story-acme-widgets-7",
+    "at": "<ts>"
+  }
+}
+listeners/story-acme-widgets-7.json: {"consumer":"story-acme-widgets-7","pid":0,"state":"handling","at":"<ts>","story":"acme-widgets-7","question":"q_mine","questions":["q_mine"]}
+
+## url
+args: wait --story https://github.com/acme/widgets/pull/7/files --type question --timeout 1
+exit: 0
+--- stdout
+[11/5, 3:00 PM UTC] question q_mine (acme-widgets-7 · Chapter 2: The cache · src/cache.ts)
+Why q_mine?
+Tell the panel what you're doing as you go: once-upon asking --question q_mine --note "<few words>"
+Answer with: once-upon answer --question q_mine --text "…"
+
+
+--- stderr
+
+--- files
+cursors/story-acme-widgets-7.json: {"offset":397,"at":"<ts>"}
+cursors/story-acme-widgets-8.json: {"offset":0,"at":"<ts>"}
+handed.json: {
+  "q_mine": {
+    "consumer": "story-acme-widgets-7",
+    "at": "<ts>"
+  }
+}
+listeners/story-acme-widgets-7.json: {"consumer":"story-acme-widgets-7","pid":0,"state":"handling","at":"<ts>","story":"acme-widgets-7","question":"q_mine","questions":["q_mine"]}
+
+## number in the checkout
+args: wait --story 7 --type question --timeout 1
+exit: 0
+--- stdout
+[11/5, 3:00 PM UTC] question q_mine (acme-widgets-7 · Chapter 2: The cache · src/cache.ts)
+Why q_mine?
+Tell the panel what you're doing as you go: once-upon asking --question q_mine --note "<few words>"
+Answer with: once-upon answer --question q_mine --text "…"
+
+
+--- stderr
+
+--- files
+cursors/story-acme-widgets-7.json: {"offset":397,"at":"<ts>"}
+cursors/story-acme-widgets-8.json: {"offset":0,"at":"<ts>"}
+handed.json: {
+  "q_mine": {
+    "consumer": "story-acme-widgets-7",
+    "at": "<ts>"
+  }
+}
+listeners/story-acme-widgets-7.json: {"consumer":"story-acme-widgets-7","pid":0,"state":"handling","at":"<ts>","story":"acme-widgets-7","question":"q_mine","questions":["q_mine"]}
+
+## unknown number in the checkout
+args: wait --story 8 --type question --timeout 1
+exit: 2
+--- stdout
+
+--- stderr
+
+--- files
+cursors/story-acme-widgets-7.json: {"offset":0,"at":"<ts>"}
+cursors/story-acme-widgets-8.json: {"offset":397,"at":"<ts>"}
+listeners/story-acme-widgets-7.json: {"consumer":"story-acme-widgets-7","pid":0,"state":"handling","at":"<ts>","story":"acme-widgets-7","question":"q_mine","questions":["q_mine"]}
+listeners/story-acme-widgets-8.json: {"consumer":"story-acme-widgets-8","pid":0,"state":"waiting","at":"<ts>","story":"acme-widgets-8"}

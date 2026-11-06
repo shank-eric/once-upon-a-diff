@@ -9,7 +9,7 @@ import { parseBody } from '../validate.ts';
 import { storyFinishes } from '@once-upon-a-diff/core/queues/requests/builds';
 import { isRebuild } from '@once-upon-a-diff/core/records/stories/rebuild';
 import { currentHead, newerCount } from '@once-upon-a-diff/core/features/review/freshness';
-import { listeningOf } from '@once-upon-a-diff/core/records/listeners/listeners';
+import { Listening } from '@once-upon-a-diff/core/features/listeners/service';
 import { readReads } from '@once-upon-a-diff/core/records/stories/reads';
 import { unreadAnswers } from '@once-upon-a-diff/core/queues/requests/conversation';
 import { prKey } from '@once-upon-a-diff/domain/pr-key';
@@ -138,7 +138,7 @@ async function statusMany({ app, body, send }: Call) {
     ...new Map(results.map((result) => [result.repo.toLowerCase(), result.repo])).values(),
   ];
   const listening = Object.fromEntries(
-    repos.map((repo) => [repo, listeningOf(app.home, { repo })]),
+    repos.map((repo) => [repo, new Listening(app.home).listening({ repo })]),
   );
   return send(200, { results, listening });
 }

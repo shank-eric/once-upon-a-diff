@@ -35,7 +35,8 @@ import { unreadAnswers } from '../../../queues/requests/conversation.ts';
 import { Inbox } from '../../../queues/requests/inbox.ts';
 import type { BacklogStore } from '../../../queues/backlog/backlog.ts';
 import type { BlankSessions } from '../../../adapters/claude-sessions/blank-sessions.ts';
-import { listenersLane } from '../../../features/sessions/listening.ts';
+import { listenersLane } from '../../../features/listeners/service.ts';
+import { listenCandidates } from '../../../features/sessions/listening.ts';
 import type { ListeningInput } from '../../../features/sessions/listening.ts';
 import type { SessionTitles } from '../../../adapters/claude-sessions/titles.ts';
 import type { WorktreeScanner } from '../../../records/worktrees/worktrees.ts';
@@ -270,7 +271,10 @@ export async function buildBoard(ctx: BuildContext, state: BoardState): Promise<
     voice_start: voiceStart,
     voice_paused: voicePaused,
     editors: editing.editors,
-    listeners: listenersLane(waits, listening),
+    listeners: listenersLane(waits, {
+      ...listening,
+      candidatesFor: (repo) => listenCandidates(repo, listening),
+    }),
     helpers: standingHelpers(standing, live, sessionViews, nowMs),
     blank: blankStrip(blankViews, labels),
     lanes,

@@ -1,0 +1,33 @@
+## repo wait
+args: wait --repo acme/widgets --timeout 1
+exit: 0
+--- stdout
+[11/5, 3:00 PM UTC] question q_mine (acme-widgets-7 · Chapter 2: The cache · src/cache.ts)
+Why q_mine?
+Tell the panel what you're doing as you go: once-upon asking --question q_mine --note "<few words>"
+Answer with: once-upon answer --question q_mine --text "…"
+
+
+--- stderr
+
+--- files
+cursors/repo-acme-widgets.json: {"offset":614,"at":"<ts>"}
+handed.json: {
+  "q_elsewhere": {
+    "consumer": "other",
+    "at": "2026-11-05T15:00:00.000Z"
+  },
+  "q_mine": {
+    "consumer": "repo-acme-widgets",
+    "at": "<ts>"
+  }
+}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "acme/widgets",
+    "consumer": "repo-acme-widgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"handling","at":"<ts>","repo":"acme/widgets","fixes":true,"question":"q_mine","questions":["q_mine"]}

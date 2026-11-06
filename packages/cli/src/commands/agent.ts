@@ -8,7 +8,7 @@
 import path from 'node:path';
 import { repoOfCheckout } from '@once-upon-a-diff/core/foundation/repos';
 import { readSettings } from '@once-upon-a-diff/core/foundation/settings';
-import { ownSession } from '@once-upon-a-diff/core/records/listeners/binding';
+import { ownSession } from '@once-upon-a-diff/core/features/listeners/service';
 import type { AgentKind } from '@once-upon-a-diff/core/records/agents/agent-types';
 import { lastActivity } from '@once-upon-a-diff/core/records/agents/ledger';
 import { AgentRegistry } from '@once-upon-a-diff/core/records/agents/registry';

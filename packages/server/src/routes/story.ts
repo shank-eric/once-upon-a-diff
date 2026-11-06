@@ -14,8 +14,7 @@ import { readPrefs } from '@once-upon-a-diff/core/foundation/settings';
 import { seenCheckout } from '@once-upon-a-diff/core/foundation/repos';
 import { freshness } from '@once-upon-a-diff/core/features/review/freshness';
 import { readMarks } from '@once-upon-a-diff/core/features/review/drafts';
-import { listeningOf } from '@once-upon-a-diff/core/records/listeners/listeners';
-import { noteSeen } from '@once-upon-a-diff/core/queues/requests/auto-stop';
+import { Listening } from '@once-upon-a-diff/core/features/listeners/service';
 import { refreshLocal, movedSince } from '@once-upon-a-diff/core/records/stories/local-diff';
 import {
   storyVersion,
@@ -52,14 +51,14 @@ function versionOf(app: App, story: ServedStory): string {
 
 // the local page's own poll while its panel is closed: a page shows the story
 function version({ app, send }: Call, story: ServedStory) {
-  noteSeen(app.stories, story.id);
+  new Listening(app.home).seen(app.stories, story.id);
   return send(200, { version: versionOf(app, story) });
 }
 
-// a hidden tab's page is still open: it says so about once a minute, and that is all it does (core/src/queues/requests/auto-stop.ts)
+// a hidden tab's page is still open: it says so about once a minute, and that is all it does (core/src/features/listeners/auto-stop.ts)
 function seen({ app, body, send }: Call, story: ServedStory) {
   parseBody('seen', body);
-  noteSeen(app.stories, story.id, Date.now(), 0); // rare by design, so no write throttle
+  new Listening(app.home).seen(app.stories, story.id, Date.now(), 0); // rare by design, so no write throttle
   return send(200, { ok: true });
 }
 
@@ -74,7 +73,7 @@ const revOf = (value: unknown) =>
  * fix before push, and working_rev the "being changed" marks.
  */
 async function pulse({ app, send }: Call, story: ServedStory) {
-  noteSeen(app.stories, story.id); // a panel shows the story (for a story listener's natural end)
+  new Listening(app.home).seen(app.stories, story.id); // a panel shows the story (for a story listener's natural end)
   const questionList = questionsOf(app, story);
   const questions = questionList.map((question) => [
     question.id,
@@ -87,7 +86,7 @@ async function pulse({ app, send }: Call, story: ServedStory) {
     question.status?.note ?? null,
     question.status?.via ?? null,
   ]);
-  const listening = listeningOf(app.home, { repo: story.ref.repo, story: story.id });
+  const listening = new Listening(app.home).listening({ repo: story.ref.repo, story: story.id });
   const comments = (app.stories.load(story.id) as StoryData).chapters.map(
     (chapter) => chapter.comments || [],
   );

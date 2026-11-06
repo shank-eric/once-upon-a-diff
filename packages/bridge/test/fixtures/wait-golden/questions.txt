@@ -1,0 +1,115 @@
+## plain
+args: wait --repo acme/widgets --timeout 1
+exit: 0
+--- stdout
+[11/5, 3:00 PM UTC] question q_one (acme-widgets-7 · Chapter 2: The cache · src/cache.ts)
+Why q_one?
+Tell the panel what you're doing as you go: once-upon asking --question q_one --note "<few words>"
+Answer with: once-upon answer --question q_one --text "…"
+
+[11/5, 3:00 PM UTC] question q_two (acme-widgets-7 · step 0)
+Why q_two?
+Tell the panel what you're doing as you go: once-upon asking --question q_two --note "<few words>"
+Answer with: once-upon answer --question q_two --text "…"
+
+
+--- stderr
+
+--- files
+cursors/brand-new.json: {"offset":564,"at":"<ts>"}
+cursors/repo-acme-widgets.json: {"offset":564,"at":"<ts>"}
+handed.json: {
+  "q_one": {
+    "consumer": "repo-acme-widgets",
+    "at": "<ts>"
+  },
+  "q_two": {
+    "consumer": "repo-acme-widgets",
+    "at": "<ts>"
+  },
+  "q_three": {
+    "consumer": "repo-acme-widgets",
+    "at": "<ts>"
+  }
+}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "acme/widgets",
+    "consumer": "brand-new",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listeners/brand-new.json: {"consumer":"brand-new","pid":0,"state":"waiting","at":"<ts>","repo":"acme/widgets","fixes":true}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"handling","at":"<ts>","repo":"acme/widgets","fixes":true,"question":"q_three","questions":["q_three"]}
+
+## json
+args: wait --repo acme/widgets --timeout 1 --json
+exit: 0
+--- stdout
+{"type":"question","id":"q_three","at":"2026-11-05T15:00:00.000Z","repo":"acme/widgets","story":"acme-widgets-7","step":2,"chapter":"Chapter 2: The cache","file":"src/cache.ts","text":"Why q_three?"}
+
+--- stderr
+
+--- files
+cursors/brand-new.json: {"offset":564,"at":"<ts>"}
+cursors/repo-acme-widgets.json: {"offset":564,"at":"<ts>"}
+handed.json: {
+  "q_one": {
+    "consumer": "repo-acme-widgets",
+    "at": "<ts>"
+  },
+  "q_two": {
+    "consumer": "repo-acme-widgets",
+    "at": "<ts>"
+  },
+  "q_three": {
+    "consumer": "repo-acme-widgets",
+    "at": "<ts>"
+  }
+}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "acme/widgets",
+    "consumer": "brand-new",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listeners/brand-new.json: {"consumer":"brand-new","pid":0,"state":"waiting","at":"<ts>","repo":"acme/widgets","fixes":true}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"handling","at":"<ts>","repo":"acme/widgets","fixes":true,"question":"q_three","questions":["q_three"]}
+
+## new consumer
+args: wait --repo acme/widgets --consumer brand-new --timeout 1
+exit: 2
+--- stdout
+
+--- stderr
+
+--- files
+cursors/brand-new.json: {"offset":564,"at":"<ts>"}
+cursors/repo-acme-widgets.json: {"offset":564,"at":"<ts>"}
+handed.json: {
+  "q_one": {
+    "consumer": "repo-acme-widgets",
+    "at": "<ts>"
+  },
+  "q_two": {
+    "consumer": "repo-acme-widgets",
+    "at": "<ts>"
+  },
+  "q_three": {
+    "consumer": "repo-acme-widgets",
+    "at": "<ts>"
+  }
+}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "acme/widgets",
+    "consumer": "brand-new",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listeners/brand-new.json: {"consumer":"brand-new","pid":0,"state":"waiting","at":"<ts>","repo":"acme/widgets","fixes":true}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"handling","at":"<ts>","repo":"acme/widgets","fixes":true,"question":"q_three","questions":["q_three"]}

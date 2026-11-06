@@ -66,10 +66,9 @@ import { fakeLarmorIn } from './fixtures/fake-larmor.ts';
 import {
   listenCandidates,
   listenStoryPromptFor,
-  adoptHandlers,
-  sessionOfPid,
   type ListeningInput,
 } from '@once-upon-a-diff/core/features/sessions/listening';
+import { adoptHandlers, sessionOfPid } from '@once-upon-a-diff/core/features/listeners/board-view';
 import { listenPrompt, type Listener } from '@once-upon-a-diff/core/records/listeners/listeners';
 import type { LiveSession } from '@once-upon-a-diff/core/adapters/claude-sessions/live-sessions';
 import { noteListener, readHistory } from '@once-upon-a-diff/core/records/listeners/history';
@@ -77,7 +76,7 @@ import {
   repoStopReason,
   requestStop,
   stopRequested,
-} from '@once-upon-a-diff/core/queues/requests/auto-stop';
+} from '@once-upon-a-diff/core/features/listeners/auto-stop';
 import { AgentRegistry } from '@once-upon-a-diff/core/records/agents/registry';
 import { gateOf } from '@once-upon-a-diff/core/records/agents/ledger';
 import { pickSource, registrySource } from '@once-upon-a-diff/core/features/sessions/sources';

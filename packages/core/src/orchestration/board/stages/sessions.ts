@@ -13,8 +13,13 @@ import type { BlankSessions } from '../../../adapters/claude-sessions/blank-sess
 import type { SessionTitles } from '../../../adapters/claude-sessions/titles.ts';
 import { readStatusLines } from '../../../adapters/claude-sessions/statusline.ts';
 import { phoneReady, readVoice, voiceState } from '../../../adapters/larmor.ts';
-import { adoptHandlers, listeningOnly, parentMap } from '../../../features/sessions/listening.ts';
-import { listeners, type Listener } from '../../../records/listeners/listeners.ts';
+import {
+  Listening,
+  adoptHandlers,
+  listeningOnly,
+  parentMap,
+  type Listener,
+} from '../../../features/listeners/service.ts';
 import { pickSource } from '../../../features/sessions/sources.ts';
 import { type SourceStatus, type StatusSource } from '../../../adapters/status-source.ts';
 import { type LiveSession } from '../../../adapters/claude-sessions/live-sessions.ts';
@@ -95,7 +100,7 @@ export async function readSessionFacts(
 ): Promise<SessionFacts> {
   const { settings, nowMs } = ctx;
   // a session that listens is shown in the Listeners lane alone, not as a card too (busy or not)
-  const waits = listeners(ctx.home, nowMs).filter((wait) => wait.live);
+  const waits = new Listening(ctx.home).live(nowMs);
   const parents = waits.length ? await parentMap() : new Map<number, number>();
   const sessionByPid = new Map(live.map((one) => [one.pid, one.session]));
   adoptHandlers(waits, live, parents, sessionByPid, trackers.listenerSessions);

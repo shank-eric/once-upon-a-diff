@@ -1,0 +1,69 @@
+## story idle
+args: wait --story acme-widgets-7 --timeout 20
+exit: 0
+--- stdout
+Stopped listening for acme-widgets-7: no page has shown the story for 1 second.
+Don't start this wait again. Its questions go to the repo's listener, if one is running, and the panel's Start listening for this story starts a story listener again.
+
+--- stderr
+
+--- files
+cursors/story-acme-widgets-7.json: {"offset":0,"at":"<ts>"}
+listeners/story-acme-widgets-7.json: {"consumer":"story-acme-widgets-7","pid":0,"state":"waiting","at":"<ts>","story":"acme-widgets-7","builds":true,"fixes":true}
+listeners.log: <ts> story-acme-widgets-7 stopped listening for story acme-widgets-7: no page has shown the story for 1 second
+
+## story idle, json
+args: wait --story acme-widgets-7 --timeout 20 --json
+exit: 0
+--- stdout
+{"type":"listen_stopped","story":"acme-widgets-7","reason":"no page has shown the story for 1 second","at":"<ts>"}
+
+--- stderr
+
+--- files
+cursors/story-acme-widgets-7.json: {"offset":0,"at":"<ts>"}
+listeners/story-acme-widgets-7.json: {"consumer":"story-acme-widgets-7","pid":0,"state":"waiting","at":"<ts>","story":"acme-widgets-7","builds":true,"fixes":true}
+listeners.log: <ts> story-acme-widgets-7 stopped listening for story acme-widgets-7: no page has shown the story for 1 second
+
+## repo idle
+args: wait --repo acme/widgets --timeout 20
+exit: 0
+--- stdout
+Stopped listening for acme/widgets: no page has shown one of its stories for 1 second.
+Don't start this wait again. Start listening (the panel, the PR pages or the board) starts a repo listener again.
+
+--- stderr
+
+--- files
+cursors/repo-acme-widgets.json: {"offset":0,"at":"<ts>"}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "acme/widgets",
+    "consumer": "repo-acme-widgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/widgets","fixes":true}
+listeners.log: <ts> repo-acme-widgets stopped listening for acme/widgets: no page has shown one of its stories for 1 second
+
+## repo idle, json
+args: wait --repo acme/widgets --timeout 20 --json
+exit: 0
+--- stdout
+{"type":"listen_stopped","repo":"acme/widgets","reason":"no page has shown one of its stories for 1 second","at":"<ts>"}
+
+--- stderr
+
+--- files
+cursors/repo-acme-widgets.json: {"offset":0,"at":"<ts>"}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "acme/widgets",
+    "consumer": "repo-acme-widgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/widgets","fixes":true}
+listeners.log: <ts> repo-acme-widgets stopped listening for acme/widgets: no page has shown one of its stories for 1 second

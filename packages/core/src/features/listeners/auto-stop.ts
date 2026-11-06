@@ -14,8 +14,8 @@
  * story's tab in the background doesn't lose the listener. Only a closed tab, or a browser that stops its timers, lets
  * the idle window run out.
  */
-import { readFixes } from './fixes.ts';
-import { Builds } from './builds.ts';
+import { readFixes } from '../../queues/requests/fixes.ts';
+import { Builds } from '../../queues/requests/builds.ts';
 import { readSettings } from '../../foundation/settings.ts';
 import { readJson, writeFileAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { plural } from '@once-upon-a-diff/domain/text';

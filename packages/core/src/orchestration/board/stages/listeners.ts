@@ -2,13 +2,12 @@
  * Listeners: a story's own listener marks its card with the session that listens; repos get the Listeners lane. A
  * session can be typed into (Build story, Start listening) when it is at its prompt: not working, not waiting on you.
  */
-import type { Listener } from '../../../records/listeners/listeners.ts';
 import {
-  buildFor,
-  reviewFor,
   sessionOfPid,
   storyListening,
-} from '../../../features/sessions/listening.ts';
+  type Listener,
+} from '../../../features/listeners/service.ts';
+import { buildFor, reviewFor } from '../../../features/sessions/listening.ts';
 import type { ListeningInput } from '../../../features/sessions/listening.ts';
 import type { BoardCard, BoardSession } from '@once-upon-a-diff/contracts/types';
 import type { BuildContext, PinnedVoice } from './types.ts';

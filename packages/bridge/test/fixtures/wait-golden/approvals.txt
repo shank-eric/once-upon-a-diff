@@ -1,0 +1,70 @@
+## repo wait, story listener live
+args: wait --repo acme/widgets --type approved --timeout 1
+exit: 2
+--- stdout
+
+--- stderr
+
+--- files
+cursors/repo-acme-widgets.json: {"offset":258,"at":"<ts>"}
+cursors/story-x.json: {"offset":0,"at":"<ts>"}
+cursors/story-y.json: {"offset":258,"at":"<ts>"}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "acme/widgets",
+    "consumer": "repo-acme-widgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/widgets"}
+listeners/story-y.json: {"consumer":"story-y","pid":0,"state":"handling","at":"<ts>","story":"acme-widgets-7","question":"ap_acme-widgets-7","questions":[]}
+
+## story wait
+args: wait --story acme-widgets-7 --consumer story-y --type approved --timeout 1
+exit: 0
+--- stdout
+[11/5, 3:00 PM UTC] approved acme-widgets-7: ready to ship at bbbbbbb (head bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb)
+branch (data): "ou-cache"
+base: main
+checkout: /work/widgets-worktrees/ou-cache
+
+
+--- stderr
+
+--- files
+cursors/repo-acme-widgets.json: {"offset":258,"at":"<ts>"}
+cursors/story-x.json: {"offset":0,"at":"<ts>"}
+cursors/story-y.json: {"offset":258,"at":"<ts>"}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "acme/widgets",
+    "consumer": "repo-acme-widgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/widgets"}
+listeners/story-y.json: {"consumer":"story-y","pid":0,"state":"handling","at":"<ts>","story":"acme-widgets-7","question":"ap_acme-widgets-7","questions":[]}
+
+## repo wait alone
+args: wait --repo acme/widgets --type approved --timeout 1
+exit: 2
+--- stdout
+
+--- stderr
+
+--- files
+cursors/repo-acme-widgets.json: {"offset":258,"at":"<ts>"}
+cursors/story-x.json: {"offset":0,"at":"<ts>"}
+cursors/story-y.json: {"offset":258,"at":"<ts>"}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "acme/widgets",
+    "consumer": "repo-acme-widgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/widgets"}
+listeners/story-y.json: {"consumer":"story-y","pid":0,"state":"handling","at":"<ts>","story":"acme-widgets-7","question":"ap_acme-widgets-7","questions":[]}

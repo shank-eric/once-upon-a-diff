@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { tmp } from './helpers.ts';
-import { requestStop, stopRequested } from '../src/queues/requests/auto-stop.ts';
+import { requestStop, stopRequested } from '../src/features/listeners/auto-stop.ts';
 import { listeners, touchHandling } from '../src/records/listeners/listeners.ts';
 
 test('stopRequested: no usable stops file is null even for a wait that started at 0', () => {

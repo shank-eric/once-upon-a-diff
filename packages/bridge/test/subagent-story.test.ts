@@ -18,7 +18,7 @@ import {
 import { Inbox } from '@once-upon-a-diff/core/queues/requests/inbox';
 import { Builds } from '@once-upon-a-diff/core/queues/requests/builds';
 import { readFixes } from '@once-upon-a-diff/core/queues/requests/fixes';
-import { inHand } from '@once-upon-a-diff/core/queues/requests/auto-stop';
+import { inHand } from '@once-upon-a-diff/core/features/listeners/auto-stop';
 import { AgentRegistry } from '@once-upon-a-diff/core/records/agents/registry';
 import {
   RELAY_STALL_MS,
@@ -37,7 +37,7 @@ import {
   relayBinding,
   writeBinding,
 } from '@once-upon-a-diff/core/records/listeners/binding';
-import { relayMessage } from '@once-upon-a-diff/core/queues/requests/relay';
+import { relayMessage } from '@once-upon-a-diff/core/features/listeners/relay';
 import { beat, listeningOf } from '@once-upon-a-diff/core/records/listeners/listeners';
 import { waitingText } from '@once-upon-a-diff/panel/ask/question-list';
 import { askWhoHtml, healthChecks } from '@once-upon-a-diff/panel/components/status-light';

@@ -7,15 +7,7 @@ import path from 'node:path';
 import { openTarget } from '@once-upon-a-diff/core/foundation/settings';
 import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
 import { Builds } from '@once-upon-a-diff/core/queues/requests/builds';
-import {
-  AGENT_RE,
-  activeBinding,
-  clearBinding,
-  ownSession,
-  readBinding,
-  sessionLive,
-  writeBinding,
-} from '@once-upon-a-diff/core/records/listeners/binding';
+import { AGENT_RE, Listening, ownSession } from '@once-upon-a-diff/core/features/listeners/service';
 import { storyIdOf } from './inbox.ts';
 
 import { afterRebuild } from '@once-upon-a-diff/core/features/publishing/after-rebuild';
@@ -61,8 +53,8 @@ function agentOf(opts: CliOpts): string | null {
  */
 function bindStory(home: string, id: string, agent: string | null): void {
   if (!agent) {
-    const before = readBinding(home, id);
-    if (before && clearBinding(home, id)) {
+    const before = new Listening(home).binding(id);
+    if (before && new Listening(home).unbind(id)) {
       process.stderr.write(
         `Story ${id}: no longer bound to ${before.agent} (it was built again without --agent)\n`,
       );
@@ -70,7 +62,7 @@ function bindStory(home: string, id: string, agent: string | null): void {
     return;
   }
   const session = ownSession();
-  writeBinding(home, id, agent, session);
+  new Listening(home).bind(id, agent, session);
   process.stderr.write(`${bindingLine(home, id, agent, session)}\n`);
 }
 
@@ -79,7 +71,7 @@ function bindingLine(home: string, id: string, agent: string, session: string | 
   if (!session) {
     return `Story ${id}: bound to ${agent}, but no CLAUDE_CODE_SESSION_ID says which session owns it, so nothing will relay (once-upon bind --story ${id} --agent ${agent} --session <id>)`;
   }
-  if (!sessionLive(home, session)) {
+  if (!new Listening(home).sessionLive(session)) {
     return `Story ${id}: bound to ${agent}, but session ${session} isn't in Claude Code's session registry as running, so nothing will relay until it is`;
   }
   return `Story ${id}: its questions go to ${agent}, relayed by the session that launched it (once-upon wait there)`;
@@ -95,23 +87,23 @@ function bind(home: string, cfg: Config, opts: CliOpts) {
     throw new Error(`no story ${id}: once-upon list shows them`);
   }
   if (opts.clear) {
-    out(clearBinding(home, id) ? `${id}: unbound` : `${id}: wasn't bound`);
+    out(new Listening(home).unbind(id) ? `${id}: unbound` : `${id}: wasn't bound`);
     return;
   }
   const agent = agentOf(opts);
   if (!agent) {
-    const bound = readBinding(home, id);
+    const bound = new Listening(home).binding(id);
     out(
       bound
-        ? `${id}: ${bound.agent}, session ${bound.session || '(unknown)'}, ${activeBinding(home, id) ? 'in use' : 'stale or its session has ended'}`
+        ? `${id}: ${bound.agent}, session ${bound.session || '(unknown)'}, ${new Listening(home).activeBinding(id) ? 'in use' : 'stale or its session has ended'}`
         : `${id}: not bound`,
     );
     return;
   }
   const session = typeof opts.session === 'string' && opts.session ? opts.session : ownSession();
-  writeBinding(home, id, agent, session);
+  new Listening(home).bind(id, agent, session);
   out(`${id}: ${agent}, session ${session || '(unknown)'}`);
-  if (!session || !sessionLive(home, session)) {
+  if (!session || !new Listening(home).sessionLive(session)) {
     process.stderr.write(`${bindingLine(home, id, agent, session)}\n`);
   }
 }
@@ -201,7 +193,7 @@ function page(home: string, cfg: Config, opts: CliOpts) {
   }
   const url = localPageUrl(Number(opts.port || cfg.port), id, cfg.token);
   out(url);
-  const bound = activeBinding(home, id);
+  const bound = new Listening(home).activeBinding(id);
   if (bound) {
     process.stderr.write(
       `Built by the agent ${bound.agent}: run once-upon wait --story ${id} in the session that launched it, and its questions go to the agent\n`,

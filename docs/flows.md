@@ -68,18 +68,18 @@ flowchart LR
 |---|---|---|---|
 | 12 | `app` | `once-upon wait --repo` (started by the once-upon-listen skill) enters the CLI | `packages/bridge/bin/once-upon.ts:13` (`main(process.argv.slice(2))`) |
 | 13 | `app` | the command table runs `wait` | `packages/cli/src/index.ts:109` (`entry.run(home, loadConfig(home), resolveLongText(opts))`) |
-| 14 | `app` | each loop asks for build requests to hand over | `packages/cli/src/commands/inbox.ts:428` (`builds.toHand(consumer`) |
+| 14 | `service` | each loop asks for build requests to hand over | `packages/core/src/features/listeners/wait.ts:318` (`builds.toHand(consumer`) |
 | 15 | `service` | `Builds.toHand` picks this wait's requests | `packages/core/src/queues/requests/builds.ts:276` (`toHand(`) |
 | 16 | `service` | and claims them in the same locked write, so no other wait gets them | `packages/core/src/queues/requests/queue.ts:175` (`take(consumer: string`) |
-| 17 | `app` | the wait prints the request and exits, which wakes the session | `packages/cli/src/commands/inbox.ts:469` (`printHandOver(entries, opts, relays, consumer)`) |
-| 18 | `app` | with nothing to hand, it sleeps until the inbox file changes or 2 s pass | `packages/cli/src/commands/inbox.ts:315` (`watch(file`) |
+| 17 | `app` | the wait returns the request, the CLI prints it and exits, which wakes the session | `packages/cli/src/commands/inbox.ts:84` (`of outcome.items`) |
+| 18 | `service` | with nothing to hand, it sleeps until the inbox file changes or 2 s pass | `packages/core/src/features/listeners/wait.ts:179` (`watch(file`) |
 
 **The story is written and published**
 
 | # | Layer | Hop | At |
 |---|---|---|---|
 | 19 | `outside` | the once-upon skill gathers the PR with `gh`, writes the chapters and runs `story.mjs build`, which checks them and runs `once-upon publish` itself | `skills/once-upon/bin/story.ts:443` (`'publish',`) |
-| 20 | `app` | `publish`, run by `story.ts build` | `packages/cli/src/commands/stories.ts:215` (`function publish(`) |
+| 20 | `app` | `publish`, run by `story.ts build` | `packages/cli/src/commands/stories.ts:207` (`function publish(`) |
 | 21 | `service` | places the story's folder: `.once-upon/<id>/` in the repo's checkout when the bridge knows it, else `~/.once-upon/<id>/` | `packages/core/src/features/publishing/publish.ts:87` (`storyDirFor(home, id, { repo })`) |
 | 22 | `service` | **copies `chapters.json` and `file-map.json`** into that folder, through the adapter's `copyFileAtomic` | `packages/core/src/features/publishing/publish.ts:102` (`copyFileAtomic(`) |
 | 23 | `service` | **writes `meta.json`** last, with the head it was told from, through the adapter's `writeJsonAtomic` | `packages/core/src/features/publishing/publish.ts:106` (`writeJsonAtomic(path.join(dest, 'meta.json')`) |
@@ -106,7 +106,7 @@ The tag turns to Ready. On `/changes` the panel loads `GET /api/stories/<id>` an
 | B4 | `service` | checks the session is at its prompt, and takes the prompt from the card the board built | `packages/core/src/features/sessions/sessions.ts:264` (`build?.session === sessionId`) |
 | B5 | `adapter` | **types the line** into the tab: `it2 session run` | `packages/core/src/adapters/iterm.ts:159` (`'session', 'run'`) |
 
-The click names its card (`card` in the body), so a session that builds for several cards, such as a launcher with three finished authors, gets the clicked card's line (`packages/core/src/features/sessions/sessions.ts:264` (`one.id === card`)). On a finished author's own card in Ready for your review, the line is a plain request naming the branch and its worktree, typed into the session that launched the author, never the slash command: that session decides who runs the skill (`packages/core/src/features/sessions/listening.ts:363` (`function authorBuild`)). When it can't be typed, the card's Copy hands over the line.
+The click names its card (`card` in the body), so a session that builds for several cards, such as a launcher with three finished authors, gets the clicked card's line (`packages/core/src/features/sessions/sessions.ts:264` (`one.id === card`)). On a finished author's own card in Ready for your review, the line is a plain request naming the branch and its worktree, typed into the session that launched the author, never the slash command: that session decides who runs the skill (`packages/core/src/features/sessions/listening.ts:149` (`function authorBuild`)). When it can't be typed, the card's Copy hands over the line.
 
 **Review, without a story.** A card with a branch and no story or PR, whose work hasn't shipped (a finished author's commit, or a session alone on an unmerged branch), has **Review**. The bridge makes a storyless review: a by-folder local story over the branch's own commits. It opens on the local page, which has the diff, Create pull request and Push, and no Approve. There, seeing the diff and clicking Push or Create pull request is the approval. A told story keeps Approve before Push.
 
@@ -144,21 +144,21 @@ flowchart LR
 | 2' | `app` | on GitHub, the extension supplies its own `ask` over the service worker | `packages/extension/src/content/pages/files-changed.ts:174` (`ROUTES.questionAsk`) |
 | 3 | `contracts` | the route: `POST /api/stories/<id>/questions`, any key of the story's | `packages/contracts/src/story/routes.ts:49` (`questionAsk:`) |
 | 4 | `app` | the story route checks the body and appends the question | `packages/server/src/routes/questions.ts:66` (`app.inbox.append(`) |
-| 5 | `service` | `Inbox.append` gives it an id and a time | `packages/core/src/queues/requests/inbox.ts:70` (`append<E`) |
+| 5 | `service` | `Inbox.append` gives it an id and a time | `packages/core/src/queues/requests/inbox.ts:71` (`append<E`) |
 | 6 | `adapter` | **appends a line to `inbox.jsonl`** | `packages/core/src/adapters/stores/fs/files.ts:24` (`export function appendText`) |
-| 7 | `app` | a running `wait` wakes on the file change and reads past its cursor | `packages/cli/src/commands/inbox.ts:398` (`messages.unread(consumer, { advance: true })`) |
-| 8 | `service` | `unread` reads from the cursor's byte offset and **writes the cursor** (`cursors/<consumer>.json`) | `packages/core/src/queues/requests/inbox.ts:175` (`unread(`) |
-| 9 | `app` | which questions this wait takes | `packages/cli/src/commands/inbox.ts:152` (`function questionsToTake(`) |
+| 7 | `service` | a running `wait` wakes on the file change and reads past its cursor | `packages/core/src/features/listeners/wait.ts:285` (`messages.unread(consumer, { advance: true })`) |
+| 8 | `service` | `unread` reads from the cursor's byte offset and **writes the cursor** (`cursors/<consumer>.json`) | `packages/core/src/queues/requests/inbox.ts:176` (`unread(`) |
+| 9 | `service` | which questions this wait takes | `packages/core/src/features/listeners/wait.ts:118` (`function questionsToTake(`) |
 | 10 | `service` | routing, and **writes `handed.json`** under `handed.json.lock`: a question another wait has is skipped, a story's own live listener beats a repo listener (which defers to it), and each question taken is marked as this wait's in the same locked write, so two waits can't both take it | `packages/core/src/queues/requests/conversation.ts:340` (`updateJson<Handed, void>(handedFile(home)`) |
 | 11 | `service` | a story built by an agent this session launched is relayed to that agent | `packages/core/src/records/listeners/binding.ts:171` (`export function relayBinding`) |
 | 12 | `service` | marks again under the lock once the relays are known: a relayed question is noted as `via` the agent, so `answer` credits the right session | `packages/core/src/queues/requests/conversation.ts:147` (`export function noteHanded`) |
 | 13 | `service` | **writes the `handling` beat** (`listeners/<consumer>.json`) | `packages/core/src/records/listeners/listeners.ts:65` (`export function beat(`) |
-| 14 | `app` | prints the question (with the relay message when it has one) and exits | `packages/cli/src/commands/inbox.ts:469` (`printHandOver(entries, opts, relays, consumer)`) |
+| 14 | `app` | prints the question (with the relay message when it has one) and exits | `packages/cli/src/commands/inbox.ts:84` (`of outcome.items`) |
 | 15 | `outside` | the session answers in chat and runs `once-upon answer --question <id> --file …` |  |
-| 16 | `app` | `answer` **appends an `answer` line** to `inbox.jsonl` | `packages/cli/src/commands/inbox.ts:539` (`messages.append({`) |
+| 16 | `app` | `answer` **appends an `answer` line** to `inbox.jsonl` | `packages/cli/src/commands/inbox.ts:137` (`messages.append({`) |
 | 17 | `library` | back: the panel's one clock, every 5 s while the tab shows | `packages/panel/src/shell/overlay.ts:169` (`const pulsePoll = createPoll`) |
 | 18 | `library` | one pulse call a tick | `packages/panel/src/host/bridge-options.ts:66` (`ROUTES.storyPulse`) |
-| 19 | `app` | the pulse rereads the inbox and answers a rev per part | `packages/server/src/routes/story.ts:97` (`questions_rev: revOf(questions)`) |
+| 19 | `app` | the pulse rereads the inbox and answers a rev per part | `packages/server/src/routes/story.ts:96` (`questions_rev: revOf(questions)`) |
 | 20 | `library` | the rev moved, so only the questions are fetched again | `packages/panel/src/shell/overlay.ts:253` (`moved('questions_rev')`) |
 
 ## 3. Board refresh
@@ -188,19 +188,19 @@ flowchart LR
 | 7 | `app` | the route | `packages/server/src/routes/board.ts:58` (`app.board.snapshot()`) |
 | 8 | `service` | a 2 s cache, one build in flight for every caller, and a generation so a stale build can't refill it | `packages/core/src/orchestration/board/board.ts:193` (`async snapshot()`) |
 | 9 | `service` | the build gathers its context and runs the stages | `packages/core/src/orchestration/board/board.ts:378` (`buildBoard(ctx`) |
-| 10 | `service` | the stages, in order | `packages/core/src/orchestration/board/stages/index.ts:86` (`export async function buildBoard`) |
-| 11 | `service` | live sessions, their status, branches and repos | `packages/core/src/orchestration/board/stages/sessions.ts:53` (`liveSessions(settings.sessionsDir)`) |
+| 10 | `service` | the stages, in order | `packages/core/src/orchestration/board/stages/index.ts:87` (`export async function buildBoard`) |
+| 11 | `service` | live sessions, their status, branches and repos | `packages/core/src/orchestration/board/stages/sessions.ts:58` (`liveSessions(settings.sessionsDir)`) |
 | 12 | `adapter` | **reads `~/.claude/sessions/<pid>.json`**, live pids only | `packages/core/src/adapters/claude-sessions/live-sessions.ts:40` (`export async function liveSessions`) |
-| 13 | `service` | the agents, from the registry | `packages/core/src/orchestration/board/stages/sessions.ts:59` (`readAgents(`) |
+| 13 | `service` | the agents, from the registry | `packages/core/src/orchestration/board/stages/sessions.ts:64` (`readAgents(`) |
 | 14 | `service` | **reads `agents.jsonl`** (only what was appended since this process last read it: `events-file.ts`) and folds its events into one view per agent. (Nothing else is read: the ledger and progress files are logs the registry writes, not input.) | `packages/core/src/records/agents/read.ts:15` (`foldAgentEvents(agentEventsIn(`) |
-| 15 | `service` | the works: PR and local stories, pending builds | `packages/core/src/orchestration/board/stages/index.ts:95` (`collectWorks(ctx)`) |
-| 16 | `service` | what else is known of each session: listeners, voice, blank sessions, titles, status lines | `packages/core/src/orchestration/board/stages/index.ts:103` (`readSessionFacts(`) |
-| 17 | `service` | cards for the works, with PR details from what the GitHub watcher last heard | `packages/core/src/orchestration/board/stages/index.ts:130` (`buildCards(`) |
+| 15 | `service` | the works: PR and local stories, pending builds | `packages/core/src/orchestration/board/stages/index.ts:96` (`collectWorks(ctx)`) |
+| 16 | `service` | what else is known of each session: listeners, voice, blank sessions, titles, status lines | `packages/core/src/orchestration/board/stages/index.ts:104` (`readSessionFacts(`) |
+| 17 | `service` | cards for the works, with PR details from what the GitHub watcher last heard | `packages/core/src/orchestration/board/stages/index.ts:131` (`buildCards(`) |
 | 18 | `service` | each card's column | `packages/core/src/orchestration/board/stages/cards.ts:271` (`columnOf({`) |
 | 19 | `service` | the column rules | `packages/core/src/orchestration/board/columns.ts:81` (`export function columnOf`) |
-| 20 | `service` | the Backlog's items, folded from **`backlog.jsonl`** (claims included) | `packages/core/src/orchestration/board/stages/index.ts:133` (`state.backlog.items()`) |
-| 21 | `service` | which agent claimed which Backlog card | `packages/core/src/orchestration/board/stages/index.ts:143` (`claimViews(`) |
-| 22 | `service` | the lanes, by repo | `packages/core/src/orchestration/board/stages/index.ts:263` (`groupLanes(cards, labels)`) |
+| 20 | `service` | the Backlog's items, folded from **`backlog.jsonl`** (claims included) | `packages/core/src/orchestration/board/stages/index.ts:134` (`state.backlog.items()`) |
+| 21 | `service` | which agent claimed which Backlog card | `packages/core/src/orchestration/board/stages/index.ts:144` (`claimViews(`) |
+| 22 | `service` | the lanes, by repo | `packages/core/src/orchestration/board/stages/index.ts:264` (`groupLanes(cards, labels)`) |
 | 23 | `contracts` | back: the answer's shape | `packages/contracts/src/board/types.ts:10` (`export interface BoardData`) |
 | 24 | `app` | the root component draws the regions, and Preact's keyed diff keeps focus, scroll and typed text | `packages/web/public/board.ts:261` (`<${Columns} view=${columns} />`) |
 
@@ -228,20 +228,20 @@ flowchart LR
 | 3 | `app` | on GitHub: `GET /api/board/listen-sessions`, with the token through the service worker | `packages/extension/src/content/listen.ts:50` (`ROUTES.boardListenSessions`) |
 | 3' | `app` | on the local page: the story's own route, with the story's key (the board's routes need the board's key) | `packages/web/public/local/mount.ts:110` (`ROUTES.storyListenSessions`) |
 | 4 | `app` | the board route | `packages/server/src/routes/board.ts:96` (`app.sessions.storyListenSessions(storyId)`) |
-| 4' | `app` | the story route, still through `Board`'s one-line delegate (ADR-16) | `packages/server/src/routes/story.ts:205` (`app.board.storyListenSessions(story.id)`) |
+| 4' | `app` | the story route, still through `Board`'s one-line delegate (ADR-16) | `packages/server/src/routes/story.ts:204` (`app.board.storyListenSessions(story.id)`) |
 | 5 | `service` | the story's repo, then the idle sessions in its checkout | `packages/core/src/features/sessions/sessions.ts:167` (`async storyListenSessions(`) |
-| 6 | `service` | candidates from the last board snapshot: never the voice session or one already listening | `packages/core/src/features/sessions/listening.ts:207` (`export function listenCandidates`) |
+| 6 | `service` | candidates from the last board snapshot: never the voice session or one already listening | `packages/core/src/features/sessions/listening.ts:58` (`export function listenCandidates`) |
 | 7 | `library` | the reviewer picks (or there's one): the host's `start` | `packages/panel/src/components/status-light-part.ts:90` (`opts.listen!.start(`) |
 | 8 | `app` | on GitHub: `POST /api/board/type {kind: 'listen'}` | `packages/extension/src/content/listen.ts:59` (`ROUTES.boardType`) |
 | 8' | `app` | on the local page: `POST /api/stories/<id>/listen`, then the delegate | `packages/server/src/routes/story.ts:216` (`app.board.type('listen'`) |
 | 9 | `app` | the board route | `packages/server/src/routes/board.ts:86` (`app.sessions.type(`) |
 | 10 | `service` | `Sessions.type`: is the session at its prompt | `packages/core/src/features/sessions/sessions.ts:224` (`this.typeable(sessionId)`) |
 | 11 | `service` | the same rule as the offer, against a fresh snapshot | `packages/core/src/features/sessions/sessions.ts:227` (`await this.feed.snapshot()`) |
-| 12 | `service` | the bridge makes the line itself, and the body never carries text: `/once-upon-listen <repo>` for the repo, or `--story <id>` for the story scope (`packages/core/src/features/sessions/listening.ts:412` (`export const listenStoryPromptFor`), chosen at `packages/core/src/features/sessions/sessions.ts:252` (`listenStoryPromptFor(story)`)) | `packages/core/src/features/sessions/listening.ts:409` (`export const listenPromptFor`) |
+| 12 | `service` | the bridge makes the line itself, and the body never carries text: `/once-upon-listen <repo>` for the repo, or `--story <id>` for the story scope (`packages/core/src/features/sessions/listening.ts:198` (`export const listenStoryPromptFor`), chosen at `packages/core/src/features/sessions/sessions.ts:252` (`listenStoryPromptFor(story)`)) | `packages/core/src/features/sessions/listening.ts:195` (`export const listenPromptFor`) |
 | 13 | `adapter` | **types it** into the tab found from the session's tty | `packages/core/src/adapters/iterm.ts:150` (`export async function typeLine`) |
 | 14 | `outside` | the session runs the once-upon-listen skill, which starts `once-upon wait` in the background |  |
-| 15 | `app` | the wait **writes its `waiting` beat** every 5 s | `packages/cli/src/commands/inbox.ts:393` (`beat(home, consumer, 'waiting', scope)`) |
-| 16 | `app` | back: the pulse says whether a listener is live for the story or its repo | `packages/server/src/routes/story.ts:90` (`listeningOf(app.home`) |
+| 15 | `service` | the wait **writes its `waiting` beat** every 5 s | `packages/core/src/features/listeners/wait.ts:276` (`beat(home, consumer, 'waiting', scope)`) |
+| 16 | `app` | back: the pulse says whether a listener is live for the story or its repo | `packages/server/src/routes/story.ts:89` (`new Listening(app.home).listening(`) |
 | 17 | `library` | the light turns green | `packages/panel/src/shell/overlay.ts:265` (`moved('listening')`) |
 
 ## 5. An agent's claim, through to its card landing

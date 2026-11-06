@@ -5,7 +5,7 @@
  */
 import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
-import { listeners } from '../../records/listeners/listeners.ts';
+import { Listening } from '../../features/listeners/service.ts';
 import { formatTime } from '../../foundation/settings.ts';
 
 import { MIN_NODE_MAJOR, nodeVersionProblem } from '../../foundation/node-version.mjs';
@@ -121,7 +121,7 @@ export async function doctor(
   }
 
   // a Claude session listening for questions
-  const all = listeners(home);
+  const all = new Listening(home).all();
   const live = all.filter((listener) => listener.live);
   if (live.length) {
     add(

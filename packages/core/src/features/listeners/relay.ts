@@ -7,7 +7,7 @@ import { cliCommand } from '../../records/listeners/listeners.ts';
 import { AgentRegistry } from '../../records/agents/registry.ts';
 import { StoryStore } from '../../records/stories/store.ts';
 import { readMeta } from '../../records/stories/meta.ts';
-import type { QuestionEntry } from './inbox.ts';
+import type { QuestionEntry } from '../../queues/requests/inbox.ts';
 import { formatLineRef } from '@once-upon-a-diff/domain/line-refs';
 
 /** The message for `agent` about this question. `cli` is how to run once-upon from a shell. */

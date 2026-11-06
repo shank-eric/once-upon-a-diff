@@ -1,0 +1,35 @@
+/*
+ * The story a `--story` flag names. It takes the id itself, a PR (owner/name#N or its URL), or a bare PR number in the repo of
+ * the checkout the command runs in. A PR's story is the one the bridge has for it, else the id `once-upon publish` will give it.
+ */
+import { repoOfCheckout, checkoutRoot } from '../../foundation/repos.ts';
+import { StoryStore } from '../../records/stories/store.ts';
+import { slug } from '../../records/stories/local-story.ts';
+
+/** The repo (owner/name) of the checkout that holds `cwd`, or null. */
+export function repoAt(cwd: string): string | null {
+  try {
+    return repoOfCheckout(checkoutRoot(cwd));
+  } catch {
+    return null;
+  }
+}
+
+/** `value` as a story id. `repoHere` says which repo a bare number means (the caller's checkout). */
+export function resolveStory(home: string, value: string, repoHere: () => string | null): string {
+  const text = String(value).trim();
+  const pr =
+    /github\.com\/([^/\s]+\/[^/\s]+)\/pull\/(\d+)/.exec(text) ||
+    /^([^/#\s]+\/[^/#\s]+)#(\d+)$/.exec(text);
+  let repo: string | null = pr ? pr[1] : null;
+  const number = pr ? pr[2] : /^\d+$/.test(text) && text;
+  if (!number) {
+    return text;
+  }
+  repo ||= repoHere();
+  if (!repo) {
+    throw new Error(`--story ${text}: run it in the repo's checkout, or say owner/name#${text}`);
+  }
+  const found = new StoryStore({ home }).find(repo, number);
+  return found ? found.id : slug(`${repo.replace('/', '-')}-${number}`);
+}

@@ -38,7 +38,7 @@ function stepNamer(chapters: LocalStoryData['chapters']) {
 /** Follows the story and the commits: the polls (the open panel's own tick looks while it's open), and the PR look when the tab gets focus. */
 function Follow() {
   useEffect(() => {
-    // a hidden tab says it is still open (core/src/queues/requests/auto-stop.ts)
+    // a hidden tab says it is still open (core/src/features/listeners/auto-stop.ts)
     const stop = startLocalPolls({
       closed: () => store.get().hidden,
       reload: (signal) => reloadIfChanged(undefined, signal),

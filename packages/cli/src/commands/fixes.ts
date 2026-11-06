@@ -7,11 +7,7 @@ import { readMeta, storyRepo } from '@once-upon-a-diff/core/records/stories/meta
 import { StoryStore } from '@once-upon-a-diff/core/records/stories/store';
 import { Inbox } from '@once-upon-a-diff/core/queues/requests/inbox';
 import { readFixes, reportFix } from '@once-upon-a-diff/core/queues/requests/fixes';
-import {
-  answeringOf,
-  listeners,
-  touchHandling,
-} from '@once-upon-a-diff/core/records/listeners/listeners';
+import { Listening, answeringOf } from '@once-upon-a-diff/core/features/listeners/service';
 import { clearMark, parseFiles, setMark } from '@once-upon-a-diff/core/queues/requests/working';
 import { storyIdOf } from './inbox.ts';
 import { out } from '../output.ts';
@@ -44,7 +40,7 @@ function consumerFor(
   }
   const dir = new StoryStore({ home }).dirOf(story);
   const repo = dir ? storyRepo(readMeta(dir)) : null;
-  const live = listeners(home).filter((listener) => listener.live);
+  const live = new Listening(home).live();
   const goTo = answeringOf(live, { repo, story });
   return goTo ? goTo.consumer : 'a Claude session';
 }
@@ -80,7 +76,7 @@ function working(home: string, cfg: Config, opts: CliOpts) {
   }
   const files = given(opts.files) ? parseFiles(opts.files) : null;
   const mark = setMark(home, story, consumer, { files, request: request && request.id });
-  touchHandling(home, consumer); // a long change keeps its listener live
+  new Listening(home).touchHandling(consumer); // a long change keeps its listener live
   out(
     `${files ? 'Marked' : 'Still marked'}: ${mark.files.map((file) => file.path).join(', ')} on ${story}, being changed by ${consumer}. ` +
       'Run it again on a long change, and clear it with --done <sha>.',

@@ -175,6 +175,13 @@ const PROBES: Probe[] = [
   [`${QUEUES_A}/side.ts`, `${QUEUES_B}/leaf.ts`, 'core-tier-siblings-apart'],
   [`${FEATURES_A}/side.ts`, `${FEATURES_B}/leaf.ts`, 'core-tier-siblings-apart'],
   [`${ORCHESTRATION_A}/side.ts`, `${ORCHESTRATION_B}/leaf.ts`, 'core-tier-siblings-apart'],
+  // listening has one way in, the service (features/listeners/service.ts); the queues below it read the heartbeats directly
+  ['cli/src/via.ts', 'core/src/records/listeners/leaf.ts', 'listening-through-service'],
+  ['server/src/via.ts', 'core/src/features/listeners/wait.ts', 'listening-through-service'],
+  [`${ORCHESTRATION_A}/via.ts`, 'core/src/features/listeners/wait.ts', 'listening-through-service'],
+  ['cli/src/ok.ts', 'core/src/features/listeners/service.ts', null],
+  [`${ORCHESTRATION_A}/ok.ts`, 'core/src/features/listeners/service.ts', null],
+  [`${QUEUES_A}/ok.ts`, 'core/src/records/listeners/leaf.ts', null],
   [`${RECORDS_A}/ok-self.ts`, `${RECORDS_A}/leaf.ts`, null],
   [`${RECORDS_A}/ok-down.ts`, `${FOUNDATION}/leaf.ts`, null],
   [`${RECORDS_A}/ok-adapter.ts`, 'core/src/adapters/leaf.ts', null],

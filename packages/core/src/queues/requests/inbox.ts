@@ -19,6 +19,7 @@
 import { existsSync, openSync, readSync, closeSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { newId } from '../../foundation/ids.ts';
+import { sameRepo } from '../../foundation/repos.ts';
 import { readJson, writeFileAtomic, writeJsonAtomic } from '../../adapters/stores/fs/json-file.ts';
 import { ownerOnly, ensureDir, appendText, writeText } from '../../adapters/stores/fs/files.ts';
 import type { ChapterRef } from '@once-upon-a-diff/contracts/types';
@@ -185,3 +186,16 @@ export class Inbox {
 export const readIdList = (file: string): string[] => readJson<string[]>(file, []) || [];
 
 export const writeIdList = (file: string, ids: string[]): void => writeJsonAtomic(file, ids);
+
+/** The entries a --type, --story or --repo flag asks for (`inbox` and `wait` both filter this way). */
+export function filterEntries<
+  E extends { type: string; story?: string | null; repo?: string | null },
+>(entries: E[], opts: Record<string, unknown>): E[] {
+  const types = opts.type ? String(opts.type).split(',') : null;
+  return entries.filter(
+    (entry) =>
+      (!types || types.includes(entry.type)) &&
+      (!opts.story || entry.story === opts.story) &&
+      (!opts.repo || sameRepo(entry.repo, opts.repo)),
+  );
+}

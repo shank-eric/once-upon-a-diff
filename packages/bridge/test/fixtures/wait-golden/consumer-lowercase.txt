@@ -1,0 +1,18 @@
+## mixed-case repo, no --consumer
+args: wait --repo Acme/Widgets --timeout 1
+exit: 2
+--- stdout
+
+--- stderr
+
+--- files
+cursors/repo-acme-widgets.json: {"offset":0,"at":"<ts>"}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "Acme/Widgets",
+    "consumer": "repo-acme-widgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"waiting","at":"<ts>","repo":"Acme/Widgets","fixes":true}

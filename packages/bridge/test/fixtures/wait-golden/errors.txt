@@ -1,0 +1,21 @@
+## bad repo
+args: wait --repo nonsense --timeout 1
+exit: 1
+--- stdout
+
+--- stderr
+once-upon: usage: once-upon wait --repo owner/name
+
+--- files
+
+
+## number, no checkout
+args: wait --story 8 --timeout 1
+exit: 1
+--- stdout
+
+--- stderr
+once-upon: --story 8: run it in the repo's checkout, or say owner/name#8
+
+--- files
+

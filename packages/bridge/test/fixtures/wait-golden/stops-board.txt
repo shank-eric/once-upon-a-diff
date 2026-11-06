@@ -1,0 +1,24 @@
+## board stop
+args: wait --repo acme/widgets --timeout 20
+exit: 0
+--- stdout
+Stopped listening for acme/widgets: stopped from the board.
+Don't start this wait again. Start listening (the panel, the PR pages or the board) starts a repo listener again.
+
+--- stderr
+
+--- files
+cursors/repo-acme-widgets.json: {"offset":0,"at":"<ts>"}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "acme/widgets",
+    "consumer": "repo-acme-widgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listener-stops.json: {
+  "acme/widgets": <ms>
+}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/widgets","fixes":true}
+listeners.log: <ts> repo-acme-widgets stopped listening for acme/widgets: stopped from the board

@@ -1,0 +1,15 @@
+## note and read
+args: wait --type note,read --timeout 1
+exit: 0
+--- stdout
+[11/5, 3:00 PM UTC] note added (acme-widgets-7) src/a.js:3
+tidy this
+
+[11/5, 3:00 PM UTC] read {"type":"read","id":"r_a","at":"2026-11-05T15:00:00.000Z","story":"acme-widgets-7","chapter":"c1","step":1}
+
+
+--- stderr
+
+--- files
+cursors/default.json: {"offset":471,"at":"<ts>"}
+listeners/default.json: {"consumer":"default","pid":0,"state":"handling","at":"<ts>","question":"n_a","questions":[]}

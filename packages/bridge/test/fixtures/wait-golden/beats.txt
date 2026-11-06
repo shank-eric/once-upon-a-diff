@@ -1,0 +1,189 @@
+## repo wait in its checkout
+args: wait --repo acme/widgets --timeout 1
+exit: 2
+--- stdout
+
+--- stderr
+
+--- files
+checkouts.json: {
+  "acme/widgets": "/private<DIR>"
+}
+cursors/repo-acme-widgets.json: {"offset":0,"at":"<ts>"}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "acme/widgets",
+    "consumer": "repo-acme-widgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/widgets","fixes":true}
+
+## repo wait in another repo
+args: wait --repo acme/gadgets --timeout 1
+exit: 2
+--- stdout
+
+--- stderr
+
+--- files
+checkouts.json: {
+  "acme/widgets": "/private<DIR>"
+}
+cursors/repo-acme-gadgets.json: {"offset":0,"at":"<ts>"}
+cursors/repo-acme-widgets.json: {"offset":0,"at":"<ts>"}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "acme/widgets",
+    "consumer": "repo-acme-widgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  },
+  "acme/gadgets": {
+    "repo": "acme/gadgets",
+    "consumer": "repo-acme-gadgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listeners/repo-acme-gadgets.json: {"consumer":"repo-acme-gadgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/gadgets","fixes":true}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/widgets","fixes":true}
+
+## story wait: no history
+args: wait --story acme-widgets-7 --timeout 1
+exit: 2
+--- stdout
+
+--- stderr
+
+--- files
+checkouts.json: {
+  "acme/widgets": "/private<DIR>"
+}
+cursors/repo-acme-gadgets.json: {"offset":0,"at":"<ts>"}
+cursors/repo-acme-widgets.json: {"offset":0,"at":"<ts>"}
+cursors/story-acme-widgets-7.json: {"offset":0,"at":"<ts>"}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "acme/widgets",
+    "consumer": "repo-acme-widgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  },
+  "acme/gadgets": {
+    "repo": "acme/gadgets",
+    "consumer": "repo-acme-gadgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listeners/repo-acme-gadgets.json: {"consumer":"repo-acme-gadgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/gadgets","fixes":true}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/widgets","fixes":true}
+listeners/story-acme-widgets-7.json: {"consumer":"story-acme-widgets-7","pid":0,"state":"waiting","at":"<ts>","story":"acme-widgets-7","builds":true,"fixes":true}
+
+## catch-all
+args: wait --timeout 1
+exit: 2
+--- stdout
+
+--- stderr
+
+--- files
+checkouts.json: {
+  "acme/widgets": "/private<DIR>"
+}
+cursors/default.json: {"offset":0,"at":"<ts>"}
+cursors/repo-acme-gadgets.json: {"offset":0,"at":"<ts>"}
+cursors/repo-acme-widgets.json: {"offset":0,"at":"<ts>"}
+cursors/story-acme-widgets-7.json: {"offset":0,"at":"<ts>"}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "acme/widgets",
+    "consumer": "repo-acme-widgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  },
+  "acme/gadgets": {
+    "repo": "acme/gadgets",
+    "consumer": "repo-acme-gadgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listeners/default.json: {"consumer":"default","pid":0,"state":"waiting","at":"<ts>","fixes":true}
+listeners/repo-acme-gadgets.json: {"consumer":"repo-acme-gadgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/gadgets","fixes":true}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/widgets","fixes":true}
+listeners/story-acme-widgets-7.json: {"consumer":"story-acme-widgets-7","pid":0,"state":"waiting","at":"<ts>","story":"acme-widgets-7","builds":true,"fixes":true}
+
+## --consumer
+args: wait --repo Acme/Widgets --consumer mine --timeout 1
+exit: 2
+--- stdout
+
+--- stderr
+
+--- files
+checkouts.json: {
+  "acme/widgets": "/private<DIR>"
+}
+cursors/default.json: {"offset":0,"at":"<ts>"}
+cursors/mine.json: {"offset":0,"at":"<ts>"}
+cursors/repo-acme-gadgets.json: {"offset":0,"at":"<ts>"}
+cursors/repo-acme-widgets.json: {"offset":0,"at":"<ts>"}
+cursors/story-acme-widgets-7.json: {"offset":0,"at":"<ts>"}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "Acme/Widgets",
+    "consumer": "mine",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  },
+  "acme/gadgets": {
+    "repo": "acme/gadgets",
+    "consumer": "repo-acme-gadgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listeners/default.json: {"consumer":"default","pid":0,"state":"waiting","at":"<ts>","fixes":true}
+listeners/mine.json: {"consumer":"mine","pid":0,"state":"waiting","at":"<ts>","repo":"Acme/Widgets","fixes":true}
+listeners/repo-acme-gadgets.json: {"consumer":"repo-acme-gadgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/gadgets","fixes":true}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/widgets","fixes":true}
+listeners/story-acme-widgets-7.json: {"consumer":"story-acme-widgets-7","pid":0,"state":"waiting","at":"<ts>","story":"acme-widgets-7","builds":true,"fixes":true}
+
+## session and --no-relay in the beat
+args: wait --story acme-widgets-7 --no-relay --type question,build_request,fix_request,approved --timeout 1
+exit: 2
+--- stdout
+
+--- stderr
+
+--- files
+checkouts.json: {
+  "acme/widgets": "/private<DIR>"
+}
+cursors/default.json: {"offset":0,"at":"<ts>"}
+cursors/mine.json: {"offset":0,"at":"<ts>"}
+cursors/repo-acme-gadgets.json: {"offset":0,"at":"<ts>"}
+cursors/repo-acme-widgets.json: {"offset":0,"at":"<ts>"}
+cursors/story-acme-widgets-7.json: {"offset":0,"at":"<ts>"}
+listener-history.json: {
+  "acme/widgets": {
+    "repo": "Acme/Widgets",
+    "consumer": "mine",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  },
+  "acme/gadgets": {
+    "repo": "acme/gadgets",
+    "consumer": "repo-acme-gadgets",
+    "started_at": "<ts>",
+    "last_seen": "<ts>"
+  }
+}
+listeners/default.json: {"consumer":"default","pid":0,"state":"waiting","at":"<ts>","fixes":true}
+listeners/mine.json: {"consumer":"mine","pid":0,"state":"waiting","at":"<ts>","repo":"Acme/Widgets","fixes":true}
+listeners/repo-acme-gadgets.json: {"consumer":"repo-acme-gadgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/gadgets","fixes":true}
+listeners/repo-acme-widgets.json: {"consumer":"repo-acme-widgets","pid":0,"state":"waiting","at":"<ts>","repo":"acme/widgets","fixes":true}
+listeners/story-acme-widgets-7.json: {"consumer":"story-acme-widgets-7","pid":0,"state":"waiting","at":"<ts>","story":"acme-widgets-7","builds":true,"fixes":true,"session":"session-owner-1111","norelay":true}

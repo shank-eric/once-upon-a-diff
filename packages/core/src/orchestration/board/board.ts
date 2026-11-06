@@ -34,7 +34,7 @@ import {
   VoiceCtlError,
 } from '../../adapters/larmor.ts';
 import type { ListeningInput } from '../../features/sessions/listening.ts';
-import { requestStop } from '../../queues/requests/auto-stop.ts';
+import { Listening } from '../../features/listeners/service.ts';
 import { typeLine } from '../../adapters/iterm.ts';
 import type { StatusSource } from '../../adapters/status-source.ts';
 import { BoardError } from '../../foundation/errors.ts';
@@ -626,7 +626,7 @@ export class Board {
     if (!REPO_RE.test(repo)) {
       throw new BoardError(400, 'a repo (owner/name) is needed');
     }
-    requestStop(this.home, repo);
+    new Listening(this.home).stop(repo);
     this.invalidate();
   }
 }

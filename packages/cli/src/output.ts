@@ -3,21 +3,13 @@
  * `wait` show them.
  */
 import { formatTime, readerOf } from '@once-upon-a-diff/core/foundation/settings';
-import { sameRepo } from '@once-upon-a-diff/core/foundation/repos';
 import { updateOf } from '@once-upon-a-diff/core/queues/requests/builds';
 import { plural, shortSha } from '@once-upon-a-diff/domain/text';
-import type { InboxEntry } from '@once-upon-a-diff/core/queues/requests/inbox';
-import type { Build, BuildRequestEntry } from '@once-upon-a-diff/core/queues/requests/builds';
+import type { Printable } from '@once-upon-a-diff/core/features/listeners/service';
+export type { Printable };
+import type { Build } from '@once-upon-a-diff/core/queues/requests/builds';
 import type { RequestNote } from '@once-upon-a-diff/core/queues/requests/fixes';
-import type { CliOpts } from './types.ts';
 import { formatLineRef } from '@once-upon-a-diff/domain/line-refs';
-
-/** A fix request as `wait` hands it over (fixesToHand). */
-type FixRequestEntry = ReturnType<
-  typeof import('@once-upon-a-diff/core/queues/requests/fixes').fixesToHand
->[number];
-/** What `inbox` and `wait` print: an inbox line, or a request handed over. */
-export type Printable = InboxEntry | BuildRequestEntry | FixRequestEntry;
 
 export const out = (text: string): boolean => process.stdout.write(text + '\n');
 
@@ -83,19 +75,6 @@ export function describe(entry: Printable): string {
     return `[${when}] note ${entry.action} (${entry.story}) ${notePlace(entry.note)}${entry.note.done ? ' [done]' : ''}\n${entry.note.body}`;
   }
   return `[${when}] ${entry.type} ${JSON.stringify(entry)}`;
-}
-
-/** The entries a --type, --story or --repo flag asks for. */
-export function filterEntries<
-  E extends { type: string; story?: string | null; repo?: string | null },
->(entries: E[], opts: CliOpts): E[] {
-  const types = opts.type ? String(opts.type).split(',') : null;
-  return entries.filter(
-    (entry) =>
-      (!types || types.includes(entry.type)) &&
-      (!opts.story || entry.story === opts.story) &&
-      (!opts.repo || sameRepo(entry.repo, opts.repo)),
-  );
 }
 
 export { notePlace };
