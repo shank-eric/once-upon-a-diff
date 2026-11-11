@@ -9,7 +9,7 @@ import { agentId, isImplicitCard } from '@once-upon-a-diff/terms/ids';
 import path from 'node:path';
 import { repoOfCheckout } from '@once-upon-a-diff/foundation/repos';
 import { readSettings } from '@once-upon-a-diff/foundation/settings';
-import { prHeadBranch } from '@once-upon-a-diff/state/records/github/pr-head';
+import { prHeadBranch } from '@once-upon-a-diff/foundation/gh';
 import { ownSession } from '@once-upon-a-diff/core/features/listeners/service';
 import { sweepStatusLines } from '@once-upon-a-diff/core/features/sessions/status-lines';
 import type { AgentKind } from '@once-upon-a-diff/state/records/agents/agent-types';

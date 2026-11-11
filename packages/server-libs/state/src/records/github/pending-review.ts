@@ -10,20 +10,13 @@
  * Runs `gh api graphql` as the logged-in gh user (GITHUB_TOKEN is dropped first when
  * config.json sets gh_unset_github_token).
  */
-import { runGh } from '@once-upon-a-diff/foundation/gh';
+import { ghGraphql } from '@once-upon-a-diff/foundation/gh';
 
 async function graphql<T>(query: string, variables: Record<string, string | number>): Promise<T> {
-  const args = ['api', 'graphql', '-f', `query=${query}`];
-  for (const [name, value] of Object.entries(variables)) {
-    args.push(typeof value === 'number' ? '-F' : '-f', `${name}=${value}`);
-  }
-  const stdout = await runGh(args, { timeout: 30000, maxBuffer: 8 * 1024 * 1024 });
-  let out: { data: T; errors?: { message: string }[] };
-  try {
-    out = JSON.parse(stdout);
-  } catch {
-    throw new Error("gh returned something that isn't JSON");
-  }
+  const out = await ghGraphql<{ data: T; errors?: { message: string }[] }>(query, variables, {
+    timeout: 30000,
+    maxBuffer: 8 * 1024 * 1024,
+  });
   if (out.errors && out.errors.length) {
     throw new Error(out.errors.map((e) => e.message).join('; '));
   }

@@ -8,7 +8,7 @@
  */
 import { diffText } from '@once-upon-a-diff/adapters/git';
 import { parseUnifiedDiff } from '@once-upon-a-diff/stories/diff';
-import { runGh } from '@once-upon-a-diff/foundation/gh';
+import { ghApiJson } from '@once-upon-a-diff/foundation/gh';
 import { prKey } from '@once-upon-a-diff/terms/ids';
 import { SHA_RE, sameSha } from '@once-upon-a-diff/terms/text';
 import type { DiffFile, FreshUpdate, Freshness } from '@once-upon-a-diff/contracts/types';
@@ -36,9 +36,6 @@ type ChapterFiles = { files?: PlanFile[]; since?: { to: string } };
 const TTL_MS = 60000;
 const cache = new Map<string, { at: number; value: unknown }>();
 
-async function ghApiJson<T>(args: string[]): Promise<T> {
-  return JSON.parse(await runGh(['api', ...args]));
-}
 async function cached<T>(key: string, compute: () => Promise<T>): Promise<T> {
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < TTL_MS) {
@@ -86,7 +83,7 @@ export async function changesSince(
     return out;
   }
   const cmp = await cached(`cmp ${meta.repo} ${sha} ${meta.head_oid}`, () =>
-    ghApiJson<GhCompare>([`repos/${meta.repo}/compare/${sha}...${meta.head_oid}`]),
+    ghApiJson<GhCompare>(`repos/${meta.repo}/compare/${sha}...${meta.head_oid}`),
   );
   for (const file of cmp.files || []) {
     out.set(file.previous_filename || file.filename, {
@@ -104,7 +101,7 @@ export async function newerCount(
   toSha: string,
 ): Promise<number | null> {
   const cmp = await cached(`cmp ${repo} ${from} ${toSha}`, () =>
-    ghApiJson<GhCompare>([`repos/${repo}/compare/${from}...${toSha}`]),
+    ghApiJson<GhCompare>(`repos/${repo}/compare/${from}...${toSha}`),
   );
   if (Number.isFinite(cmp.ahead_by)) {
     return cmp.ahead_by as number;
@@ -116,7 +113,7 @@ export const currentHead = (repo: string, number: number | string): Promise<stri
   cached(
     `head ${prKey(repo, number)}`,
     async () =>
-      (await ghApiJson<{ head: { sha: string } }>([`repos/${repo}/pulls/${Number(number)}`])).head
+      (await ghApiJson<{ head: { sha: string } }>(`repos/${repo}/pulls/${Number(number)}`)).head
         .sha,
   );
 
@@ -150,7 +147,7 @@ export async function updatedInPlace(
   let cmp: GhCompare;
   try {
     cmp = await cached(`cmp ${meta.repo} ${build.base_sha} ${story}`, () =>
-      ghApiJson<GhCompare>([`repos/${meta.repo}/compare/${build.base_sha}...${story}`]),
+      ghApiJson<GhCompare>(`repos/${meta.repo}/compare/${build.base_sha}...${story}`),
     );
   } catch {
     return null;
@@ -220,7 +217,7 @@ export async function freshness(
   let cmp: GhCompare;
   try {
     cmp = await cached(`cmp ${meta.repo} ${story} ${head}`, () =>
-      ghApiJson<GhCompare>([`repos/${meta.repo}/compare/${story}...${head}`]),
+      ghApiJson<GhCompare>(`repos/${meta.repo}/compare/${story}...${head}`),
     );
   } catch (e) {
     return {

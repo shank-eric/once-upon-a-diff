@@ -1,6 +1,6 @@
 /** What stands between a PR and its merge button, and how many approvals the base branch's rulesets require. */
 import { branchKey } from '@once-upon-a-diff/terms/ids';
-import { runGh } from '@once-upon-a-diff/foundation/gh';
+import { ghApiJson } from '@once-upon-a-diff/foundation/gh';
 import type { PrInfo } from '@once-upon-a-diff/contracts/types';
 import { plural } from '@once-upon-a-diff/terms/text';
 
@@ -71,11 +71,9 @@ export async function rulesRequired(repo: string, base: string): Promise<number 
   }
   let required: number | null = null;
   try {
-    const rules: unknown = JSON.parse(
-      await runGh(
-        ['api', `repos/${repo}/rules/branches/${encodeURIComponent(base)}?per_page=100`],
-        { timeout: 20000 },
-      ),
+    const rules = await ghApiJson(
+      `repos/${repo}/rules/branches/${encodeURIComponent(base)}?per_page=100`,
+      { timeout: 20000 },
     );
     const counts = (Array.isArray(rules) ? rules : [])
       .filter((rule) => rule?.type === 'pull_request')

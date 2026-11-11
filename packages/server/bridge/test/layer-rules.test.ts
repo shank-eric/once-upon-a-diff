@@ -64,6 +64,7 @@ const NO_NODE = 'browser-no-node';
 const FROM_ADAPTERS = 'only-adapters-run-programs-or-network';
 const FROM_ADAPTERS_HTTP = `${FROM_ADAPTERS}-http`;
 const HEALTH_ONLY = 'health-check-is-the-doctors';
+const GH_ONLY = 'gh-reads-are-adapters';
 const NO_ROUTES = 'cli-and-core-have-no-route-table';
 const APPS_NOT_ADAPTERS = 'apps-use-the-engine-not-adapters';
 const USAGE_APPS = 'usage-for-apps-only';
@@ -285,6 +286,13 @@ const PROBES: Probe[] = [
   ['cli/src/health.ts', `${ADAPTERS}/bridge-health.ts`, [HEALTH_ONLY, APPS_NOT_ADAPTERS]],
   ['bridge/bin/health.ts', `${ADAPTERS}/bridge-health.ts`, HEALTH_ONLY],
   [`${ORCHESTRATION}/doctor.ts`, `${ADAPTERS}/bridge-health.ts`, null],
+
+  // --- every gh call is built in adapters/github.ts, imported only by foundation/gh.ts ---
+  [`${STORIES}/gh-run.ts`, `${ADAPTERS}/github.ts`, GH_ONLY],
+  [`${FOUNDATION}/gh-other.ts`, `${ADAPTERS}/github.ts`, GH_ONLY],
+  ['cli/src/gh-run.ts', `${ADAPTERS}/github.ts`, [GH_ONLY, APPS_NOT_ADAPTERS]],
+  [`${FOUNDATION}/gh.ts`, `${ADAPTERS}/github.ts`, null],
+  [`${STORIES}/ok-foundation-gh.ts`, `${FOUNDATION}/gh.ts`, null],
   ['cli/src/to-routes.ts', 'contracts/src/routes.ts', NO_ROUTES],
   ['cli/src/to-route-kit.ts', 'contracts/src/route-kit.ts', NO_ROUTES],
   [`${RECORDS_A}/to-area-routes.ts`, 'contracts/src/story/routes.ts', NO_ROUTES],

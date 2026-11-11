@@ -43,6 +43,8 @@ const USAGE_ADAPTERS = '^packages/server-libs/usage/src/adapters/';
 // what only an adapter may do: every engine package but adapters, except usage's own adapters folder
 const NOT_ADAPTERS = `${srcOf(ENGINE_NAMES.filter((name) => name !== 'adapters'))}`;
 const HEALTH_CHECK = '^packages/server-libs/adapters/src/bridge-health\\.ts$';
+const GH_ADAPTER = '^packages/server-libs/adapters/src/github\\.ts$';
+const GH_WRAPPER = '^packages/server-libs/foundation/src/gh\\.ts$';
 const DOCTOR = '^packages/server-libs/core/src/orchestration/bridge/doctor\\.ts$';
 // what a client needs to call the bridge: the route table (the routes, and the kit and each area's routes it is built from)
 const ROUTE_TABLE = '^packages/domain/contracts/src/(routes|route-kit|[a-z-]+/routes)\\.ts$';
@@ -257,6 +259,12 @@ export default {
       'the doctor’s health check (adapters/bridge-health.ts) is the one call the CLI or the engine makes to the running bridge, and orchestration/bridge/doctor.ts is its one importer: the CLI never calls the server (ADR-15), it reads and writes the shared files through core',
       { pathNot: `${DOCTOR}|${HEALTH_CHECK}` },
       { path: HEALTH_CHECK },
+    ),
+    rule(
+      'gh-reads-are-adapters',
+      'every gh call is built in adapters/github.ts, and foundation/gh.ts is its one importer (it adds the environment config.json asks for): everything else imports foundation/gh and never assembles gh arguments',
+      { pathNot: `${GH_WRAPPER}|${GH_ADAPTER}` },
+      { path: GH_ADAPTER },
     ),
     rule(
       'cli-and-core-have-no-route-table',

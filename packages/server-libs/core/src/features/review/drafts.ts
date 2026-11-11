@@ -25,7 +25,7 @@
  * page itself confirms it. A confirmed mark is dropped ("settle").
  */
 import { createHash } from 'node:crypto';
-import { runGh } from '@once-upon-a-diff/foundation/gh';
+import { ghApiJson } from '@once-upon-a-diff/foundation/gh';
 import { prKey } from '@once-upon-a-diff/terms/ids';
 import { readJson, writeJsonAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
 import { stateKeyOf } from '@once-upon-a-diff/stories/meta';
@@ -166,14 +166,11 @@ export function bestMatch<C extends CommentLike>(
   return best;
 }
 
-function ghApi(args: string[]): Promise<string> {
-  return runGh(['api', ...args]);
-}
-const ghJson = async (args: string[]): Promise<GhItem[]> => {
-  const out = await ghApi(args);
-  // --paginate prints one JSON array per page
-  return JSON.parse(`[${out.trim().replace(/\]\s*\[/g, '],[')}]`).flat();
-};
+/** Every page of a list endpoint. */
+const ghList = async (path: string): Promise<GhItem[]> =>
+  ghApiJson<GhItem[]>(path, { paginate: true });
+const viewerLogin = async (): Promise<string | null> =>
+  (await ghApiJson<{ login?: string } | null>('user'))?.login || null;
 
 let login: string | null = null;
 let loginFailedAt = 0;
@@ -191,7 +188,7 @@ export async function ghLogin(): Promise<string | null> {
     return null;
   }
   try {
-    login = JSON.parse(await ghApi(['user'])).login || null;
+    login = await viewerLogin();
   } catch {
     loginFailedAt = Date.now();
   }
@@ -213,13 +210,13 @@ export async function githubComments(
     return hit.value;
   }
   if (!login) {
-    login = JSON.parse(await ghApi(['user'])).login;
+    login = await viewerLogin();
   }
   const base = `repos/${repo}/pulls/${Number(number)}`;
   const [reviewComments, reviews, issueComments] = await Promise.all([
-    ghJson([`${base}/comments?per_page=100`, '--paginate']),
-    ghJson([`${base}/reviews?per_page=100`, '--paginate']),
-    ghJson([`repos/${repo}/issues/${Number(number)}/comments?per_page=100`, '--paginate']),
+    ghList(`${base}/comments?per_page=100`),
+    ghList(`${base}/reviews?per_page=100`),
+    ghList(`repos/${repo}/issues/${Number(number)}/comments?per_page=100`),
   ]);
   const mine = (item: GhItem) => item && item.user && item.user.login === login;
   const out: GithubComment[] = [];
@@ -243,10 +240,7 @@ export async function githubComments(
   }
   for (const review of reviews.filter(mine)) {
     if (review.state === 'PENDING') {
-      const pending = await ghJson([
-        `${base}/reviews/${review.id}/comments?per_page=100`,
-        '--paginate',
-      ]);
+      const pending = await ghList(`${base}/reviews/${review.id}/comments?per_page=100`);
       for (const comment of pending) {
         out.push({
           state: 'pending',

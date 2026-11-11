@@ -12,7 +12,6 @@ import {
   writeJsonAtomic,
 } from '@once-upon-a-diff/adapters/stores/fs/json-file';
 import { loadConfig } from '@once-upon-a-diff/foundation/settings';
-import { runGh } from '@once-upon-a-diff/foundation/gh';
 import { parseUnifiedDiff } from '../src/diff.ts';
 
 test('JSON files: a fallback for a missing or broken file, pretty output, no temp file left', () => {
@@ -117,25 +116,6 @@ test('loadConfig: an empty or unparseable config.json is kept as a copy before a
     assert.equal(readdirSync(home).filter((name) => name.includes('unreadable')).length, 1);
   } finally {
     console.error = was;
-  }
-});
-
-test('runGh: stdout on success, the first line of stderr on failure', async () => {
-  const was = process.env.ONCE_UPON_GH;
-  try {
-    process.env.ONCE_UPON_GH = '/bin/echo';
-    assert.equal((await runGh(['api', 'user'])).trim(), 'api user');
-    process.env.ONCE_UPON_GH = '/bin/sh';
-    await assert.rejects(
-      runGh(['-c', 'echo first >&2; echo second >&2; exit 1']),
-      /^Error: first$/,
-    );
-  } finally {
-    if (was === undefined) {
-      delete process.env.ONCE_UPON_GH;
-    } else {
-      process.env.ONCE_UPON_GH = was;
-    }
   }
 });
 

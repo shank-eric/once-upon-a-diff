@@ -18,7 +18,7 @@
 import { FULL_SHA_RE } from '@once-upon-a-diff/terms/patterns';
 import { homeDir, readSettings, shipRuleFor } from '@once-upon-a-diff/foundation/settings';
 import { storyRepo } from './meta.ts';
-import { runGh } from '@once-upon-a-diff/foundation/gh';
+import { ghApiJson } from '@once-upon-a-diff/foundation/gh';
 import {
   commitLogAsync,
   defaultBranchOf,
@@ -80,16 +80,16 @@ export async function protectionOf(repo: string, branch: string): Promise<PushVi
   const name = encodeURIComponent(branch);
   let reason: string | undefined;
   try {
-    const info: { protected?: unknown; protection?: { enabled?: unknown } } = JSON.parse(
-      await runGh(['api', `repos/${repo}/branches/${name}`]),
+    const info = await ghApiJson<{ protected?: unknown; protection?: { enabled?: unknown } }>(
+      `repos/${repo}/branches/${name}`,
     );
     // `protected` is also true for a branch only a ruleset covers (rulesets are weighed below), so classic protection is
     // `protection.enabled`; an answer that doesn't say counts as protected
     if (info.protected === true && info.protection?.enabled !== false) {
       reason = `GitHub protects ${branch}`;
       try {
-        const rules: { required_pull_request_reviews?: unknown } = JSON.parse(
-          await runGh(['api', `repos/${repo}/branches/${name}/protection`]),
+        const rules = await ghApiJson<{ required_pull_request_reviews?: unknown }>(
+          `repos/${repo}/branches/${name}/protection`,
         );
         if (rules.required_pull_request_reviews) {
           reason = `GitHub's branch protection on ${branch} requires pull requests`;
@@ -111,9 +111,7 @@ export async function protectionOf(repo: string, branch: string): Promise<PushVi
   }
   // rulesets are separate from branch protection, and an active one can require pull requests as well
   try {
-    const rules: unknown = JSON.parse(
-      await runGh(['api', `repos/${repo}/rules/branches/${name}?per_page=100`]),
-    );
+    const rules = await ghApiJson(`repos/${repo}/rules/branches/${name}?per_page=100`);
     const blocking = (Array.isArray(rules) ? rules : []).find((rule) =>
       BLOCKING_RULES.has(String(rule?.type)),
     );

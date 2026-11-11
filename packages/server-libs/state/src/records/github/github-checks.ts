@@ -4,7 +4,7 @@
  */
 import { prKey } from '@once-upon-a-diff/terms/ids';
 import { FULL_SHA_RE } from '@once-upon-a-diff/terms/patterns';
-import { runGh } from '@once-upon-a-diff/foundation/gh';
+import { ghGraphql } from '@once-upon-a-diff/foundation/gh';
 import { isAncestorAsync } from '@once-upon-a-diff/adapters/git';
 import { rulesRequired } from './merge-rules.ts';
 import { infoOf, latest, type PrNode } from './pr-info.ts';
@@ -59,21 +59,14 @@ export const ghPrCheck: PrCheck = async (repo, number) => {
   let info: PrInfo | undefined;
   let reviewedAt: string | null = null;
   for (let pages = 0; pages < 50; pages++) {
-    const args = [
-      'api',
-      'graphql',
-      '-f',
-      `query=${QUERY}`,
-      '-f',
-      `owner=${owner}`,
-      '-f',
-      `name=${name}`,
-    ];
-    args.push('-F', `pr=${number}`);
+    const variables: Record<string, string | number> = { owner, name, pr: number };
     if (after) {
-      args.push('-f', `after=${after}`);
+      variables.after = after;
     }
-    const out: Page = JSON.parse(await runGh(args, { timeout: 30000, maxBuffer: 8 * 1024 * 1024 }));
+    const out = await ghGraphql<Page>(QUERY, variables, {
+      timeout: 30000,
+      maxBuffer: 8 * 1024 * 1024,
+    });
     const pr = out.data?.repository?.pullRequest;
     if (out.errors?.length || !out.data || !pr) {
       throw new Error(out.errors?.map((e) => e.message).join('; ') || 'no such PR');
@@ -170,12 +163,10 @@ export function requestedOf(data: {
 }
 
 export const ghRequestedCheck: RequestedCheck = async () => {
-  const out: {
+  const out = await ghGraphql<{
     data?: { requested?: { nodes: SearchNode[] }; mine?: { nodes: SearchNode[] } };
     errors?: { message: string }[];
-  } = JSON.parse(
-    await runGh(['api', 'graphql', '-f', `query=${REQUESTED_QUERY}`], { timeout: 30000 }),
-  );
+  }>(REQUESTED_QUERY, {}, { timeout: 30000 });
   if (out.errors?.length || !out.data) {
     throw new Error(out.errors?.map((e) => e.message).join('; ') || 'no answer');
   }
@@ -241,28 +232,12 @@ async function onBranch(checkout: string, branch: string, oid: string): Promise<
  */
 export const ghBranchCheck: BranchCheck = async (repo, branch, checkout, heads = []) => {
   const [owner, name] = repo.split('/');
-  const out: {
+  const out = await ghGraphql<{
     data?: {
       repository: { open: { nodes: BranchNode[] }; merged: { nodes: BranchNode[] } } | null;
     };
     errors?: { message: string }[];
-  } = JSON.parse(
-    await runGh(
-      [
-        'api',
-        'graphql',
-        '-f',
-        `query=${BRANCH_QUERY}`,
-        '-f',
-        `owner=${owner}`,
-        '-f',
-        `name=${name}`,
-        '-f',
-        `branch=${branch}`,
-      ],
-      { timeout: 30000 },
-    ),
-  );
+  }>(BRANCH_QUERY, { owner, name, branch }, { timeout: 30000 });
   if (out.errors?.length || !out.data?.repository) {
     throw new Error(out.errors?.map((e) => e.message).join('; ') || 'no such repo');
   }

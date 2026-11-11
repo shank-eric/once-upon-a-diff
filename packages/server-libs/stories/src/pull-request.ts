@@ -14,7 +14,7 @@
  * doesn't (pushAheadBlocker).
  */
 import { FULL_SHA_RE } from '@once-upon-a-diff/terms/patterns';
-import { runGh } from '@once-upon-a-diff/foundation/gh';
+import { ghOpenPullList } from '@once-upon-a-diff/foundation/gh';
 import {
   commitLog,
   defaultBranchOf,
@@ -95,21 +95,7 @@ async function remoteOf(
 /** The branch's open PR, from a read-only gh call, or null (none, or gh couldn't say). */
 async function openPull(repo: string, branch: string): Promise<PrView['pull']> {
   try {
-    const text = await runGh([
-      'pr',
-      'list',
-      '--repo',
-      repo,
-      '--head',
-      branch,
-      '--state',
-      'open',
-      '--json',
-      'number,url',
-      '--limit',
-      '1',
-    ]);
-    const found = JSON.parse(text) as { number: number; url: string }[];
+    const found = await ghOpenPullList(repo, branch);
     return found.length ? { number: found[0].number, url: found[0].url } : null;
   } catch {
     return null;
