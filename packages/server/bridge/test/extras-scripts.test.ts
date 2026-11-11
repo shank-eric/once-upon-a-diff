@@ -97,6 +97,49 @@ test(
   },
 );
 
+test(
+  'subagent-statusline.py names the model from the ledger on a row with a beat, and nothing extra with no model',
+  { skip: !has('python3') },
+  async () => {
+    const home = tmp('substatus-model');
+    const progress = path.join(home, 'progress.md');
+    const ledger = path.join(home, 'ledger.md');
+    writeJson(path.join(home, 'config.json'), {
+      board_progress_file: progress,
+      board_ledger_file: ledger,
+    });
+    writeFileSync(
+      progress,
+      '- 1:00 PM with-model 2/5 tests: halfway\n- 1:00 PM no-model 2/5 tests: halfway\n- 1:00 PM effort-only 2/5 tests: halfway\n',
+    );
+    writeFileSync(
+      ledger,
+      '- [running] sid:abcdef01 with-model (sonnet, high) — build it — started 1:00 PM ET, 11/11\n' +
+        '- [running] sid:abcdef01 no-model — build it — started 1:00 PM ET, 11/11\n' +
+        '- [running] sid:abcdef01 effort-only (high) — build it — started 1:00 PM ET, 11/11\n',
+    );
+    const content = async (name: string) => {
+      const run = await runScript(
+        '/usr/bin/env',
+        ['python3', path.join(ROOT, 'extras/subagent-statusline.py')],
+        { ONCE_UPON_HOME: home },
+        JSON.stringify({
+          id: 't1',
+          name,
+          description: name,
+          status: 'running',
+          session_id: 'abcdef01xyz',
+        }),
+      );
+      assert.equal(run.code, 0, run.stderr);
+      return JSON.parse(run.stdout.trim().split('\n')[0]).content as string;
+    };
+    assert.match(await content('with-model'), /^with-model · sonnet · tests/);
+    assert.match(await content('no-model'), /^no-model · tests/);
+    assert.match(await content('effort-only'), /^effort-only · tests/);
+  },
+);
+
 test('the scripts and extras name no personal path', () => {
   const files = [
     'scripts/link-skills.sh',

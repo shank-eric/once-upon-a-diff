@@ -1829,6 +1829,56 @@ test('an author’s row says which editor controls it', async () => {
   await pollNow();
 });
 
+test('an agent’s line on a card names its model, and says nothing when no model was recorded', async () => {
+  const withModel = (model: string | null) =>
+    board({
+      lanes: [
+        {
+          key: 'widgets',
+          name: 'widgets',
+          cards: [
+            card({
+              id: 'w-3',
+              kind: 'work',
+              title: 'Building',
+              agents: [
+                {
+                  key: 'abcdef01:ou-m',
+                  sid: 'abcdef01',
+                  name: 'ou-m',
+                  kind: 'author',
+                  editor: null,
+                  state: 'running',
+                  review: false,
+                  status: 'working',
+                  task: 'build m',
+                  model,
+                  started_at: null,
+                  ended_at: null,
+                  outcome: null,
+                  stale: false,
+                  beat: null,
+                  gate: null,
+                  notes: null,
+                  clears_at: null,
+                  summary: null,
+                },
+              ],
+            }),
+          ],
+        },
+      ],
+    });
+  answer = () => withModel('sonnet');
+  await pollNow();
+  assert.equal($('[data-card="w-3"] [data-agent-model]')?.textContent, 'sonnet');
+  answer = () => withModel(null);
+  await pollNow();
+  assert.equal($('[data-card="w-3"] [data-agent-model]'), null);
+  answer = () => board();
+  await pollNow();
+});
+
 test('clicks in the panel are the panel’s own: they ask the bridge for nothing', async () => {
   requests.length = 0;
   fire($('.ou-board-voice-tab') as HTMLElement, 'click');

@@ -9,6 +9,10 @@ count. A beat belongs to an agent when its tag (e.g. "stage-b") appears in the
 agent's name or description, and it isn't timed before the agent started.
 Rows with no beat print nothing, so Claude Code shows its default row.
 
+A row with a beat also names the agent's model, read from the newest ledger
+"- [running] sid:<8hex> <name> (<model>[, <effort>]) — ..." line for that name: "<name> · <model> · <step>".
+No model on the line, no extra text.
+
 Agents that finished but need the user's decision stay listed. Their newest ledger
 line for this session (the file named by `board_ledger_file`) is
 "- [waiting] sid:<8hex> [lane:<name>] <name> — <time ET>, <M/D> — needs <name>: <question> — <notes path>",
@@ -45,6 +49,8 @@ LEDGER_PATTERN = re.compile(
 WAITING_PATTERN = re.compile(
     r"^ — (?P<time>\d{1,2}:\d{2}(?: [AP]M)?)(?: ET)?, (?P<date>\d{1,2}/\d{1,2}) — needs [^:]+:\s*(?P<question>.*?)(?: — \S.*)?$"
 )
+MODEL_PATTERN = re.compile(r"^ \((?P<model>[^)]*)\)")
+EFFORT_WORDS = ("low", "medium", "high", "xhigh", "max")
 WAITING_BLUE = "\x1b[38;2;95;135;255m"  # #5f87ff, iTerm's waiting color
 RESET = "\x1b[0m"
 BEAT_PATTERN = re.compile(
@@ -99,6 +105,26 @@ def waiting_agents(session_id):
             "question": details["question"].strip() if details else match["rest"].strip(" —"),
         }
     return list(state.values())
+
+
+def model_of(name, session_id=None):
+    """The model on the newest [running] ledger line for `name` (this session's when `session_id` is given), or ""."""
+    try:
+        lines = LEDGER_FILE.read_text().splitlines()
+    except (OSError, AttributeError):
+        return ""
+    model = ""
+    for line in lines:
+        match = LEDGER_PATTERN.match(line.strip())
+        if not match or match["kind"] != "running" or match["name"] != name:
+            continue
+        if session_id and match["sid"] != str(session_id)[:8]:
+            continue
+        found = MODEL_PATTERN.match(match["rest"])
+        model = found["model"].split(",")[0].strip() if found else ""
+        if model in EFFORT_WORDS:
+            model = ""  # a lone effort word: the run named an effort and no model
+    return model
 
 
 def format_waiting_row(agent, columns):
@@ -162,7 +188,7 @@ def format_elapsed(start_ms):
     return "%ds" % seconds
 
 
-def format_row(row, beat, columns):
+def format_row(row, beat, columns, model=""):
     """Description, step name and current activity on the left; step count,
     percentage, elapsed time and tokens right-justified, like the built-in row."""
     step, of = int(beat["step"]), int(beat["of"])
@@ -172,7 +198,10 @@ def format_row(row, beat, columns):
             right_parts.append(part)
     right = " · ".join(right_parts)
 
-    left = "%s · %s" % (row.get("description") or row.get("name") or "agent", beat["label"])
+    left = row.get("description") or row.get("name") or "agent"
+    if model:
+        left = "%s · %s" % (left, model)
+    left = "%s · %s" % (left, beat["label"])
     activity = str(row.get("label") or "").strip()
     if activity:
         left = "%s · %s" % (left, activity)
@@ -192,6 +221,7 @@ def main():
     beats = read_beats()
     rows = payload.get("tasks") if isinstance(payload, dict) and "tasks" in payload else [payload]
     columns = payload.get("columns") if isinstance(payload, dict) else None
+    session_id = payload.get("session_id") if isinstance(payload, dict) else None
     if isinstance(payload, dict):
         listed = [slugify(" ".join(str(row.get(key) or "") for key in ("name", "description", "label"))) for row in rows if isinstance(row, dict) and row.get("status", "running") == "running"]
         for agent in waiting_agents(payload.get("session_id")):
@@ -204,7 +234,7 @@ def main():
         beat = newest_beat_for(row, beats) if beats else None
         if beat is None:
             continue
-        print(json.dumps({"id": row.get("id"), "content": format_row(row, beat, columns)}, ensure_ascii=False))
+        print(json.dumps({"id": row.get("id"), "content": format_row(row, beat, columns, model_of(beat["tag"], session_id))}, ensure_ascii=False))
 
 
 if __name__ == "__main__":

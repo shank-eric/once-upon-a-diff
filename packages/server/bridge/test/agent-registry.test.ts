@@ -892,6 +892,19 @@ test('a registered agent works in the worktree its cwd is in', () => {
   assert.deepEqual(workingIn(dir, [], registry.agents()), []);
 });
 
+test('an agent carries its model alone: the effort rides only the joined string, and an effort-only run has no model', () => {
+  const registry = new AgentRegistry(tmp('reg-model-name'));
+  registry.start({ ...BUILD, name: 'with-both', model: 'sonnet', effort: 'high', at: minute(0) });
+  registry.start({ ...BUILD, name: 'effort-only', effort: 'high', at: minute(1) });
+  registry.start({ ...BUILD, name: 'neither', at: minute(2) });
+  const byName = Object.fromEntries(registry.agents().map((agent) => [agent.name, agent]));
+  assert.deepEqual(
+    ['with-both', 'effort-only', 'neither'].map((name) => byName[name].modelName),
+    ['sonnet', null, null],
+  );
+  assert.equal(byName['with-both'].model, 'sonnet, high');
+});
+
 test('the mirror keeps the line format the scripts outside this repo parse (the subagent status line, the iTerm hook)', () => {
   const notes = tmp('reg-mirror-notes');
   const ledger = path.join(notes, 'ledger.md');

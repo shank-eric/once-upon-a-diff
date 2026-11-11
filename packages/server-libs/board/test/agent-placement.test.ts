@@ -52,6 +52,7 @@ const agent = (over: Partial<LedgerAgent> = {}): LedgerAgent => ({
   state: 'running',
   lane: null,
   model: null,
+  modelName: null,
   task: null,
   started: new Date(NOW - 600000),
   ended: null,

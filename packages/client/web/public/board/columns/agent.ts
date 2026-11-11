@@ -35,6 +35,7 @@ export function Agent(props: { agent: BoardAgent; now: number; api: Api; byEdito
   const time = compactAge(agent.ended_at || agent.started_at, now);
   return html`<li class=${`ou-board-agent ou-board-s-${agent.status}`} title=${agent.task || ''}>
     <div class="ou-board-agent-line"><span class="ou-board-mark" aria-hidden="true">${agentMark(agent)}</span> <strong>${agent.name}</strong>${' '}
+      ${agent.model && html`<span class="ou-local-muted" data-agent-model>${agent.model}</span>${' '}`}
       <span class="ou-local-muted">${note}${agent.stale && ' (no done line yet)'}${time && ` · ${time}`}</span></div>
     ${byEditor && agent.editor && html`<div class="ou-local-muted ou-board-agent-editor">by <${SessionLink} bridge=${api.bridge} session=${agent.editor.session} canFocus=${agent.editor.can_focus} name=${`Editor · ${agent.editor.label}`} title="The editor that launched this builder: bring its iTerm tab to the front" /></div>`}
     ${beat && agent.state === 'running' && html`<div class="ou-board-bar" aria-hidden="true"><span style=${`width:${percent}%`}></span></div>`}

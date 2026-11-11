@@ -862,6 +862,11 @@ test('the board: a card per branch or PR with its sessions and agents, columns t
     [],
     'a card’s agents are the runs that name it; a branch or PR on a cardless run is no link',
   );
+  assert.equal(
+    card(`agent:${sid(onStory)}:nested-one`).agents[0]?.model,
+    'sonnet',
+    'the board shows the model alone, not "sonnet, low"',
+  );
   assert.deepEqual(card(`agent:${sid(onStory)}:nested-one`).agents[0]?.beat ?? null, {
     n: 3,
     of: 6,

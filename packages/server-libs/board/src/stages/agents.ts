@@ -76,7 +76,7 @@ export function agentOf(
     review: !!agent.review,
     status: AGENT_STATUS[agent.state],
     task: agent.task,
-    model: agent.model,
+    model: agent.modelName,
     started_at: agent.started?.toISOString() ?? null,
     ended_at: agent.ended?.toISOString() ?? null,
     outcome: agent.outcome,

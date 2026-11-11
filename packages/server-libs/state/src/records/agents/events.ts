@@ -83,6 +83,7 @@ export function foldAgentEvents(events: AgentEvent[]): LedgerAgent[] {
         review: false,
         lane: event.lane ?? null,
         model: model || null,
+        modelName: event.model || null,
         task: event.task ?? null,
         started: when,
         ended: null,
