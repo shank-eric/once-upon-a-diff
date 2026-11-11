@@ -12,7 +12,8 @@
  * network calls of its own: everything goes through the service worker to the
  * bridge on 127.0.0.1.
  */
-import { storyOverlay, rangeStepOf } from '@once-upon-a-diff/panel/shell/overlay';
+import { storyOverlay } from '@once-upon-a-diff/panel/shell/overlay';
+import { GITHUB_HOST_LINKS, rangeStepOf } from '@once-upon-a-diff/github-page/ranges';
 import { bridgeOptions } from '@once-upon-a-diff/panel/host/bridge-options';
 import { createHostPage } from '@once-upon-a-diff/github-page/diff-dom';
 import { filesChangedPr } from '@once-upon-a-diff/github-page/pages';
@@ -130,6 +131,7 @@ export function createFilesChangedPage() {
       client: bridge,
       storyId,
       pageUrl: () => location.href,
+      ...GITHUB_HOST_LINKS,
       count: usage.count,
     };
   }

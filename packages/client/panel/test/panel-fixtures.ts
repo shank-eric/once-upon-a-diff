@@ -176,6 +176,8 @@ export function pageWorld(
     rowModel: () => ({ n: null }),
     treeRows: () => [],
     fileAtTop: () => data.chapters[0]?.files[0]?.rel ?? null,
+    fileOfHash: () => null,
+    hashToFile: () => {},
   });
   return {
     ...world,
@@ -184,6 +186,14 @@ export function pageWorld(
       client: { ask: (() => Promise.reject(new Error('no bridge in this test'))) as never },
       storyId: data.id,
       pageUrl: () => 'https://github.com/acme/widgets/pull/7/changes',
+      // GitHub's side, as the github-page package has it (its own tests hold the real ones)
+      rangeLink: (prUrl, since) =>
+        prUrl && since ? `${prUrl.replace(/\/+$/, '')}/changes/${since.from}..${since.to}` : null,
+      backFromRange: (prUrl, since) =>
+        location.pathname.endsWith(`/changes/${since.from}..${since.to}`)
+          ? `${prUrl}/changes`
+          : null,
+      canPostDrafts: true,
       count: () => {},
     },
   };

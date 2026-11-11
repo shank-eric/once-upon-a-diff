@@ -1,44 +1,11 @@
 /*
- * What the panel knows about GitHub's commit ranges and a story's requests, with no DOM and no Preact (freshness-part.ts draws
- * the line under the toolbar and the "Since you read it" banner): which chapter a range page is, the link to a range's diff,
- * and what to say while a session has a request for the story.
+ * What the panel knows about a story's requests, with no DOM and no Preact (freshness-part.ts draws
+ * the line under the toolbar and the "Since you read it" banner): what to say while a session has a request for the story.
  *
  * Node tests use these.
  */
-import { sameSha } from '@once-upon-a-diff/terms/text';
 import { clockTime, minutesSince } from '@once-upon-a-diff/terms/time';
-import { rangeOfPath } from '@once-upon-a-diff/terms/pr-key';
 import type { StoryRequest } from '@once-upon-a-diff/contracts/types';
-
-export { rangeOfPath };
-
-/** The step (1-based) of the "Since you read it" chapter for the range this page shows, or null. */
-export function rangeStepOf(
-  chapters: { since?: { from: string; to: string } }[],
-  pathname: string,
-): number | null {
-  const range = rangeOfPath(pathname);
-  if (!range) {
-    return null;
-  }
-  const index = chapters.findIndex(
-    (chapter) =>
-      chapter.since &&
-      sameSha(chapter.since.from, range.from) &&
-      sameSha(chapter.since.to, range.to),
-  );
-  return index < 0 ? null : index + 1;
-}
-
-/**
- * The link to GitHub's diff of just a chapter's commits. /changes/<from>..<to> loads as is logged in
- * (checked 2026-10-22) and redirects to /files/<from>..<to> logged out.
- */
-export const rangeUrl = (
-  prUrl: string | null | undefined,
-  since: { from: string; to: string } | null | undefined,
-): string | null =>
-  prUrl && since ? `${String(prUrl).replace(/\/+$/, '')}/changes/${since.from}..${since.to}` : null;
 
 const DOING: Record<StoryRequest['kind'], string> = {
   build: 'Building the story for you…',

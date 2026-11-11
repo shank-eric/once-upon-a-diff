@@ -141,7 +141,7 @@ flowchart LR
 |---|---|---|---|
 | 1 | `library` | the Ask form's submit calls the host's `ask` | `packages/client/panel/src/ask/questions.ts:524` (`await opts.ask({`) |
 | 2 | `library` | on the local page, `ask` is the panel's shared bridge option | `packages/client/panel/src/host/bridge-options.ts:41` (`ask: (question) =>`) |
-| 2' | `app` | on GitHub, the extension supplies its own `ask` over the service worker | `packages/client/extension/src/content/pages/files-changed.ts:174` (`ROUTES.questionAsk`) |
+| 2' | `app` | on GitHub, the extension supplies its own `ask` over the service worker | `packages/client/extension/src/content/pages/files-changed.ts:176` (`ROUTES.questionAsk`) |
 | 3 | `contracts` | the route: `POST /api/stories/<id>/questions`, any key of the story's | `packages/domain/contracts/src/story/routes.ts:49` (`questionAsk:`) |
 | 4 | `app` | the story route checks the body and appends the question | `packages/server/server/src/routes/questions.ts:66` (`app.inbox.append(`) |
 | 5 | `service` | `Inbox.append` gives it an id and a time | `packages/server-libs/state/src/queues/requests/inbox.ts:109` (`append<E`) |
@@ -156,10 +156,10 @@ flowchart LR
 | 14 | `app` | prints the question (with the relay message when it has one) and exits | `packages/server/cli/src/commands/inbox.ts:84` (`of outcome.items`) |
 | 15 | `outside` | the session answers in chat and runs `once-upon answer --question <id> --file …` |  |
 | 16 | `app` | `answer` **appends an `answer` line** to `inbox.jsonl` | `packages/server/cli/src/commands/inbox.ts:137` (`messages.append({`) |
-| 17 | `library` | back: the panel's one clock, every 5 s while the tab shows | `packages/client/panel/src/shell/overlay.ts:169` (`const pulsePoll = createPoll`) |
+| 17 | `library` | back: the panel's one clock, every 5 s while the tab shows | `packages/client/panel/src/shell/overlay.ts:172` (`const pulsePoll = createPoll`) |
 | 18 | `library` | one pulse call a tick | `packages/client/panel/src/host/bridge-options.ts:66` (`ROUTES.storyPulse`) |
 | 19 | `app` | the pulse rereads the inbox and answers a rev per part | `packages/server/server/src/routes/story.ts:92` (`questions_rev: revOf(questions)`) |
-| 20 | `library` | the rev moved, so only the questions are fetched again | `packages/client/panel/src/shell/overlay.ts:253` (`moved('questions_rev')`) |
+| 20 | `library` | the rev moved, so only the questions are fetched again | `packages/client/panel/src/shell/overlay.ts:256` (`moved('questions_rev')`) |
 
 ## 3. Board refresh
 
@@ -226,7 +226,7 @@ flowchart LR
 | 1 | `library` | the panel's button asks the host for sessions | `packages/client/panel/src/components/status-light-part.ts:111` (`opts.listen!.sessions(target)`) |
 | 2 | `library` | none, one, or a chooser | `packages/client-libs/ui-kit/src/listen.ts:20` (`export function listenPlan`) |
 | 3 | `app` | on GitHub: `GET /api/board/listen-sessions`, with the token through the service worker | `packages/client/extension/src/content/listen.ts:50` (`ROUTES.boardListenSessions`) |
-| 3' | `app` | on the local page: the story's own route, with the story's key (the board's routes need the board's key) | `packages/client/web/public/local/mount.ts:110` (`ROUTES.storyListenSessions`) |
+| 3' | `app` | on the local page: the story's own route, with the story's key (the board's routes need the board's key) | `packages/client/web/public/local/mount.ts:112` (`ROUTES.storyListenSessions`) |
 | 4 | `app` | the board route | `packages/server/server/src/routes/board.ts:96` (`app.sessions.storyListenSessions(storyId)`) |
 | 4' | `app` | the story route, still through `Board`'s one-line delegate (ADR-16) | `packages/server/server/src/routes/story.ts:200` (`app.board.storyListenSessions(story.id)`) |
 | 5 | `service` | the story's repo, then the idle sessions in its checkout | `packages/server-libs/core/src/features/sessions/sessions.ts:170` (`async storyListenSessions(`) |
@@ -242,7 +242,7 @@ flowchart LR
 | 14 | `outside` | the session runs the once-upon-listen skill, which starts `once-upon wait` in the background |  |
 | 15 | `service` | the wait **writes its `waiting` beat** every 5 s | `packages/server-libs/core/src/features/listeners/wait.ts:277` (`beat(home, consumer, 'waiting', scope)`) |
 | 16 | `app` | back: the pulse says whether a listener is live for the story or its repo | `packages/server/server/src/routes/story.ts:85` (`new Listening(app.home).listening(`) |
-| 17 | `library` | the light turns green | `packages/client/panel/src/shell/overlay.ts:265` (`moved('listening')`) |
+| 17 | `library` | the light turns green | `packages/client/panel/src/shell/overlay.ts:268` (`moved('listening')`) |
 
 ## 5. An agent's claim, through to its card landing
 

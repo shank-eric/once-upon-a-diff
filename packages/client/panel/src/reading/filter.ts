@@ -164,14 +164,13 @@ export function createFilter(context: PanelContext) {
     });
   }
 
-  // ---------- a #diff-<sha> jump to a file outside the chapter
+  // ---------- a hash jump to a file outside the chapter
   // Refined GitHub's j/k and "jump to first unviewed file" set the hash to the
   // next file in page order without checking it's visible. Step on, in the same
   // direction, to the next file that is in the chapter.
   let lastHashIndex = -1;
   function onHashChange() {
-    const match = /^#diff-([0-9a-f]{64})/.exec(location.hash);
-    const rel = match && story.shaToPath.get(match[1]);
+    const rel = page.fileOfHash();
     if (!rel) {
       return;
     }
@@ -188,7 +187,7 @@ export function createFilter(context: PanelContext) {
         continue;
       }
       lastHashIndex = i;
-      location.replace('#diff-' + story.pathToSha.get(blocks[i].rel));
+      page.hashToFile(blocks[i].rel);
       return;
     }
     const where = story.chaptersOf(rel);

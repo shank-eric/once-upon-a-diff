@@ -8,6 +8,7 @@ import { storyOverlay, type InitialUi } from '/assets/panel/shell/overlay.ts';
 import { bridgeOptions } from '/assets/panel/host/bridge-options.ts';
 import { REGION_SHEETS } from '/assets/panel/shell/sheets.ts';
 import { createHostPage } from '/assets/github-page/diff-dom.ts';
+import { LOCAL_HOST_LINKS } from './host.ts';
 import type { PanelHost } from '/assets/panel/host/host.ts';
 import type { LocalNote } from '/assets/types.ts';
 import { ROUTES } from '/assets/contracts/routes.ts';
@@ -22,6 +23,7 @@ const host: PanelHost = {
   client: bridge,
   storyId: STORY_ID,
   pageUrl,
+  ...LOCAL_HOST_LINKS,
   count: usage.count,
 };
 

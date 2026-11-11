@@ -124,7 +124,12 @@ export interface PanelContext {
   opts: PanelOptions;
   story: StoryModel;
   state: PanelState;
+  /** the host as the reader sees it in text ("GitHub", "this page") */
   hostName: string;
+  /** the host's link and posting members (host.ts), copied from the PanelHost */
+  rangeLink: PanelHost['rangeLink'];
+  backFromRange: PanelHost['backFromRange'];
+  canPostDrafts: boolean;
   /** counts one UI-only action for the usage capture (the host's counter: host.ts) */
   count: PanelHost['count'];
   pageLoadedAt: number;

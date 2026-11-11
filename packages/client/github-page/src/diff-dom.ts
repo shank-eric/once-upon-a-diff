@@ -292,6 +292,17 @@ export function createHostPage({
     return best && best.top < window.innerHeight ? best.rel : null;
   }
 
+  /** The file the page's URL hash (#diff-<sha256 of its path>, maybe with a line after it) points at, or null. */
+  function fileOfHash(): string | null {
+    const match = /^#diff-([0-9a-f]{64})/.exec(location.hash);
+    return (match && shaToPath.get(match[1])) || null;
+  }
+
+  /** Points the URL hash at a file, in place (no new history entry). */
+  function hashToFile(rel: string) {
+    location.replace('#diff-' + pathToSha.get(rel));
+  }
+
   return {
     isDrawn,
     labelOf,
@@ -308,6 +319,8 @@ export function createHostPage({
     rowModel,
     treeRows,
     fileAtTop,
+    fileOfHash,
+    hashToFile,
   };
 }
 

@@ -28,6 +28,7 @@ import {
   story,
 } from './panel-fixtures.ts';
 import type { PanelOptions } from '../src/host/context.ts';
+import type { PanelHost } from '../src/host/host.ts';
 import type {
   DraftRow,
   DraftsAnswer,
@@ -183,12 +184,16 @@ async function mount(
   input: StoryData,
   options: (calls: unknown[][]) => PanelOptions,
   initial: PanelOptions['initial'] = {},
-  { onPage, wait = settle }: { onPage?: string[]; wait?: () => Promise<void> } = {},
+  {
+    onPage,
+    wait = settle,
+    host,
+  }: { onPage?: string[]; wait?: () => Promise<void>; host?: Partial<PanelHost> } = {},
 ): Promise<Mounted> {
   const world = pageWorld(input, { onPage });
   const calls: unknown[][] = [];
   const opts = { ...options(calls), initial };
-  const overlay = storyOverlay(input, opts, world.host);
+  const overlay = storyOverlay(input, opts, { ...world.host, ...host });
   await wait();
   return {
     overlay,
@@ -218,9 +223,10 @@ async function scenario(
   options: (calls: unknown[][]) => PanelOptions,
   initial?: PanelOptions['initial'],
   extra?: (panel: Mounted) => Promise<void> | void,
+  host?: Partial<PanelHost>,
 ) {
   await test(name, async () => {
-    const panel = await mount(input, options, initial);
+    const panel = await mount(input, options, initial, { host });
     try {
       await extra?.(panel);
       check(name, panel.shot());
@@ -325,6 +331,9 @@ await scenario(
     return opts;
   },
   { n: 1, chatOpen: true },
+  undefined,
+  // the local page's side of the host port
+  { rangeLink: () => null, backFromRange: () => null, canPostDrafts: false },
 );
 
 // ---------- viewed marks: from the page's Viewed toggles

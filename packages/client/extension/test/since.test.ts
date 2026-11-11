@@ -59,46 +59,6 @@ test('"Since you read it" chapters finish their files and are not numbered', asy
   );
 });
 
-test('GitHub\'s diff of a "Since you read it" chapter\'s commits opens on that chapter', async () => {
-  const { rangeOfPath, rangeStepOf, rangeUrl } =
-    await import('@once-upon-a-diff/panel/rebuild/freshness');
-  const chapters = [
-    { title: 'Since you read it', since: { from: SHA_A, to: SHA_B } },
-    { title: 'Chapter 1: Start' },
-  ];
-  assert.deepEqual(rangeOfPath(`/acme/widgets/pull/7/files/${SHA_A}..${SHA_B}`), {
-    from: SHA_A,
-    to: SHA_B,
-  });
-  assert.deepEqual(rangeOfPath('/acme/widgets/pull/7/changes/aaaaaaa..bbbbbbb/'), {
-    from: 'aaaaaaa',
-    to: 'bbbbbbb',
-  });
-  for (const prCase of [
-    '/acme/widgets/pull/7/files',
-    '/acme/widgets/pull/7/changes',
-    `/acme/widgets/pull/7/commits/${SHA_A}`,
-  ]) {
-    assert.equal(rangeOfPath(prCase), null, prCase);
-  }
-  assert.equal(
-    rangeStepOf(chapters, '/acme/widgets/pull/7/files/aaaaaaa..bbbbbbb'),
-    1,
-    'short SHAs match the full ones',
-  );
-  assert.equal(rangeStepOf(chapters, `/acme/widgets/pull/7/files/${SHA_B}..${SHA_A}`), null);
-  assert.equal(rangeStepOf(chapters, '/acme/widgets/pull/7/files'), null);
-  assert.equal(
-    rangeUrl('https://github.com/acme/widgets/pull/7', { from: SHA_A, to: SHA_B }),
-    `https://github.com/acme/widgets/pull/7/changes/${SHA_A}..${SHA_B}`,
-  );
-  assert.equal(
-    rangeUrl(null, { from: SHA_A, to: SHA_B }),
-    null,
-    'a local story has no GitHub link',
-  );
-});
-
 test('the PR-list tag says how much of the story he has read', () => {
   const pr = { repo: 'acme/widgets', number: 7 };
   const href = 'https://github.com/acme/widgets/pull/7/changes';

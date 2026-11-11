@@ -321,8 +321,7 @@ export function createDrafts(context: PanelContext) {
 
   /** The PR's line drafts still to post, for Copy as gh script: null where there's no PR or gh hasn't been asked yet. */
   function scriptable() {
-    const onPr =
-      context.hostName === 'GitHub' && data.kind !== 'local' && data.pr.repo && data.pr.number;
+    const onPr = context.canPostDrafts && data.kind !== 'local' && data.pr.repo && data.pr.number;
     if (!onPr || !opts.drafts || !checked || loadError) {
       return null; // without gh's posted state, the script could post one twice
     }
@@ -513,7 +512,7 @@ export function createDrafts(context: PanelContext) {
         );
         showError();
       }
-      if (context.hostName === 'GitHub' && onLine) {
+      if (context.canPostDrafts && onLine) {
         addButton(
           'review',
           'Add to my review',

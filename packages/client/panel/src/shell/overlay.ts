@@ -121,7 +121,7 @@ export { chapterKeyOf, finishedInOf, chapterNumbers } from '@once-upon-a-diff/te
 export { READ_MS } from '../reading/reading.ts';
 export { inferReadSteps, viewedEarlyCheck } from '../reading/read-checks.ts';
 export { placePills, pillMarker } from '../components/file-refs.ts';
-export { rangeOfPath, rangeStepOf, rangeUrl, requestLine } from '../rebuild/freshness.ts';
+export { requestLine } from '../rebuild/freshness.ts';
 export { rebuildAsk, rebuildLine } from '../rebuild/rebuild.ts';
 export { expandDirOf, expandStep, EXPAND_ALL_FAR } from '../reading/expand.ts';
 
@@ -152,11 +152,14 @@ export function storyOverlay(input: StoryData, opts: PanelOptions, host: PanelHo
     opts,
     story,
     state: createPanelState(story, initial),
-    hostName: opts.host || 'GitHub',
+    hostName: opts.host || 'the host page',
     // when this page loaded: a draft added after it isn't on the page yet
     pageLoadedAt: (globalThis.performance && performance.timeOrigin) || Date.now(),
     commentsTitle: opts.commentsTitle || 'Draft comments',
     count: (name) => host.count(name),
+    rangeLink: (prUrl, since) => host.rangeLink(prUrl, since),
+    backFromRange: (prUrl, since) => host.backFromRange(prUrl, since),
+    canPostDrafts: host.canPostDrafts,
   } as PanelContext;
   Object.assign(context, stateHelpers(context));
   const { state } = context;

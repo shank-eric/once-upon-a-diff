@@ -10,7 +10,7 @@ import { html } from '/assets/preact.mjs';
 import { Banner } from '@once-upon-a-diff/ui-kit/components/banner';
 import { Busy } from '@once-upon-a-diff/ui-kit/components/busy';
 import { plural, shortSha } from '@once-upon-a-diff/terms/text';
-import { rangeStepOf, rangeUrl, requestLine } from './freshness.ts';
+import { requestLine } from './freshness.ts';
 import type { PanelContext } from '../host/context.ts';
 import type { Chapter, Freshness, StoryRequest } from '@once-upon-a-diff/contracts/types';
 
@@ -137,7 +137,7 @@ export function createFreshness(context: PanelContext) {
     const changed = files
       ? `. They changed ${plural(files, 'file')}${inChapters(updated.chapters_touched || [])}`
       : '';
-    const url = context.hostName === 'GitHub' ? rangeUrl(data.pr && data.pr.url, updated) : null;
+    const url = context.rangeLink(data.pr && data.pr.url, updated);
     const how = updated.retold
       ? 're-told from scratch'
       : 'updated in place, with no “Since you read it” chapter';
@@ -200,13 +200,12 @@ export function createFreshness(context: PanelContext) {
       ? ' The chapters after this one are as you read them.'
       : '';
     // GitHub's diff of just these commits (the filter here shows the files they touched, but each file's whole PR diff)
-    const url =
-      context.hostName === 'GitHub' ? rangeUrl(data.pr && data.pr.url, chapter.since) : null;
-    const here = url && rangeStepOf([chapter], location.pathname) === 1;
+    const url = context.rangeLink(data.pr && data.pr.url, chapter.since);
+    const all = url && context.backFromRange(data.pr && data.pr.url, chapter.since);
     const range = `${shortSha(chapter.since.from)}..${shortSha(chapter.since.to)}`;
     let link: SinceModel['link'] = null;
-    if (url && here) {
-      link = { kind: 'here', all: `${data.pr.url}/changes` };
+    if (url && all) {
+      link = { kind: 'here', all };
     } else if (url) {
       link = { kind: 'url', url, range };
     }

@@ -7,6 +7,7 @@
  *               page's is a fetch with its page key
  *   storyId     the story the panel is showing (its routes' :id)
  *   pageUrl     the page's address as the bridge should record it (no key)
+ *   rangeLink, backFromRange, canPostDrafts  what the host's own pages offer: the diff of just some commits, and posting drafts
  */
 import type { Client } from '@once-upon-a-diff/bridge-client/client';
 import type { Side } from '@once-upon-a-diff/terms/line-refs';
@@ -46,6 +47,10 @@ export interface HostPage {
   treeRows(): TreeRow[];
   /** The file at the top of the screen, else the next one down that shows. */
   fileAtTop(): string | null;
+  /** The story file the page's current URL hash points at, or null. */
+  fileOfHash(): string | null;
+  /** Points the page's URL hash at a story file, in place. */
+  hashToFile(rel: string): void;
 }
 
 /** The app's side of the panel. */
@@ -54,6 +59,18 @@ export interface PanelHost {
   client: Pick<Client, 'ask'>;
   storyId: string;
   pageUrl(): string;
+  /** The link to the host's view of just the changes in `since` (a PR at `prUrl`), or null when the host has none. */
+  rangeLink(
+    prUrl: string | null | undefined,
+    since: { from: string; to: string } | null | undefined,
+  ): string | null;
+  /** On the host's own view of `since`, the link back to all of the PR's changes; null anywhere else. */
+  backFromRange(
+    prUrl: string | null | undefined,
+    since: { from: string; to: string },
+  ): string | null;
+  /** Whether drafted comments can be placed on the host's page (a PR's pending review, a gh script). */
+  canPostDrafts: boolean;
   /** counts one UI-only action for the usage capture (the host sends the batch; the panel only names the action) */
   count(name: ActionName): void;
 }
