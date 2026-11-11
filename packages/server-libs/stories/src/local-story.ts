@@ -147,7 +147,7 @@ export function createLocalStory({
   if (!STORY_ID_RE.test(id)) {
     throw new Error(`bad story id: ${id}`);
   }
-  const dir = storyDirFor(home, id, { checkout: top });
+  const dir = storyDirFor(home, id, { checkout: top, kind: 'local' });
   const origin = repoOfCheckout(top);
   if (origin) {
     seenCheckout(home, origin, top);

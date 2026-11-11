@@ -13,6 +13,9 @@ import type { Prefs } from '@once-upon-a-diff/foundation/settings';
 import type { StoryMeta } from './types.ts';
 import { prUrl } from '@once-upon-a-diff/terms/github-urls';
 import { shortSha } from '@once-upon-a-diff/terms/text';
+import { FULL_SHA_RE } from '@once-upon-a-diff/terms/patterns';
+import { inCheckout, realPathOf, recordKind, recordedKind } from './placement.ts';
+import { homeDir } from '@once-upon-a-diff/foundation/settings';
 
 /** A file's modification time in ms, or 0 when it's missing. */
 export function modifiedAt(file: string): number {
@@ -26,11 +29,118 @@ export function modifiedAt(file: string): number {
 export const isStoryDir = (dir: string): boolean =>
   existsSync(path.join(dir, 'chapters.json')) && existsSync(path.join(dir, 'meta.json'));
 
-/** What a story folder is about, from its meta.json: {kind, repo, number, title, url, head_oid, ...}. */
+export const STORY_KINDS = ['github', 'local'];
+
+/**
+ * A ref or branch a meta.json may name: what git allows in a ref name or a revision like `HEAD~1` (letters, digits and
+ * `. _ / + - ~ ^ @`) and nothing a shell reads specially: no dollar, backtick, quote, backslash, `;`, `&`, `|`, `<`, `>`,
+ * parentheses, braces, `*` or space. Not an
+ * option (no leading `-`), no `..`, no `@{`, no `//`, and no empty, `.`-led or `.lock`-ended path part.
+ */
+export const isSafeRef = (value: unknown): value is string =>
+  typeof value === 'string' &&
+  value.length > 0 &&
+  value.length <= 255 &&
+  /^[A-Za-z0-9._/+~^@-]+$/.test(value) &&
+  !value.startsWith('-') &&
+  !value.includes('..') &&
+  !value.includes('@{') &&
+  !value.endsWith('/') &&
+  !value.endsWith('.') &&
+  value.split('/').every((part) => part !== '' && !part.startsWith('.') && !part.endsWith('.lock'));
+
+/**
+ * What a meta.json may be trusted to say. A folder in a checkout's .once-upon/ can be overwritten by a branch that tracks
+ * files there, so its meta.json is checked before any field reaches git: an oid must be a full sha and a ref or branch
+ * must not be an option (either is dropped), `kind` must be one of STORY_KINDS, and a local story's `repo_path` must
+ * be the checkout that holds its folder (<repo_path>/.once-upon/<id>; both compared by real path). A story in the
+ * bridge's own folder (`home`: told by its path, see placement.ts inCheckout; no branch can write it) keeps whatever
+ * checkout it names, as long as it is an absolute path.
+ * `meta` is the cleaned copy (bad fields dropped, `repo_path` too when it is not the folder's checkout); `problem` says
+ * why the story is not to be served or diffed, null when there is none.
+ */
+export function checkedMeta(
+  dir: string,
+  raw: Partial<StoryMeta> | null | undefined,
+  home: string = homeDir(),
+): { meta: StoryMeta; problem: string | null } {
+  const isObject = !!raw && typeof raw === 'object' && !Array.isArray(raw);
+  const meta: StoryMeta = { ...(isObject ? raw : {}), kind: 'github' };
+  const kind = (isObject && raw.kind) || 'github';
+  let problem: string | null = isObject ? null : 'meta.json is not an object';
+  if (typeof kind === 'string' && STORY_KINDS.includes(kind)) {
+    meta.kind = kind as StoryMeta['kind'];
+  } else {
+    problem = problem || `kind ${JSON.stringify(kind)} is not one of ${STORY_KINDS.join(', ')}`;
+  }
+  for (const field of ['base_oid', 'head_oid'] as const) {
+    if (
+      meta[field] != null &&
+      !(typeof meta[field] === 'string' && FULL_SHA_RE.test(meta[field]))
+    ) {
+      meta[field] = null;
+    }
+  }
+  for (const field of ['head_ref', 'branch'] as const) {
+    if (meta[field] != null && !isSafeRef(meta[field])) {
+      meta[field] = null;
+    }
+  }
+  for (const field of ['base', 'head'] as const) {
+    if (meta[field] !== undefined && !isSafeRef(meta[field])) {
+      delete meta[field];
+      problem = problem || `${field} is not a ref`;
+    }
+  }
+  if (meta.kind === 'local') {
+    const held = inCheckout(dir, home);
+    const holder = held ? realPathOf(path.dirname(path.dirname(dir))) : null;
+    if (typeof meta.repo_path !== 'string' || !path.isAbsolute(meta.repo_path)) {
+      delete meta.repo_path;
+      problem = problem || 'repo_path is not a folder';
+    } else if (held && (!holder || realPathOf(meta.repo_path) !== holder)) {
+      delete meta.repo_path;
+      problem = problem || "repo_path is not the checkout that holds the story's folder";
+    }
+    if (!meta.base || !meta.head) {
+      problem = problem || 'a local story needs base and head';
+    }
+  }
+  return { meta, problem };
+}
+
+/**
+ * Why a story is not to be served, or null. Its meta.json is checked (checkedMeta), and for a folder in a checkout its
+ * `kind` must be the one recorded when the story was made (placement.ts recordKind): a story made before the record is
+ * taken as it is the first time it is seen, and that is the kind recorded.
+ */
+export function refusalOf(home: string, id: string, dir: string): string | null {
+  if (!inCheckout(dir, home)) {
+    return null; // the bridge's own folder (<home>/<id>, told by its path, not its name): no branch writes there
+  }
+  const { meta, problem } = checkedMeta(
+    dir,
+    readJson<Partial<StoryMeta>>(path.join(dir, 'meta.json'), {}),
+    home,
+  );
+  if (problem) {
+    return problem;
+  }
+  const recorded = recordedKind(home, id);
+  if (recorded && recorded !== meta.kind) {
+    return `kind ${meta.kind} is not the ${recorded} this story was made as`;
+  }
+  if (!recorded) {
+    recordKind(home, id, meta.kind);
+  }
+  return null;
+}
+
+/** What a story folder is about, from its meta.json (checked: see checkedMeta): {kind, repo, number, title, url, head_oid, ...}. */
 export function readMeta(dir: string): StoryMeta & { title: string } {
-  const meta = readJson<Partial<StoryMeta>>(path.join(dir, 'meta.json'), {}) || {};
+  const raw = readJson<Partial<StoryMeta>>(path.join(dir, 'meta.json'), {}) || {};
   const plan = readJson<{ title?: string }>(path.join(dir, 'chapters.json'), {}) || {};
-  const out: StoryMeta = { kind: meta.kind || 'github', ...meta };
+  const out: StoryMeta = checkedMeta(dir, raw).meta;
   if (out.kind === 'github' && out.repo && out.number && !out.url) {
     out.url = prUrl(out.repo, out.number);
   }

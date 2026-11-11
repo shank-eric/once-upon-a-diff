@@ -6,7 +6,7 @@
 import { cliCommand } from '@once-upon-a-diff/state/records/listeners/listeners';
 import { AgentRegistry } from '@once-upon-a-diff/state/records/agents/registry';
 import { StoryStore } from '@once-upon-a-diff/stories/store';
-import { readMeta } from '@once-upon-a-diff/stories/meta';
+import { isSafeRef, readMeta } from '@once-upon-a-diff/stories/meta';
 import type { QuestionEntry } from '@once-upon-a-diff/state/queues/requests/inbox';
 import { formatLineRef } from '@once-upon-a-diff/terms/line-refs';
 
@@ -140,6 +140,13 @@ const startAgain = (cli: string, agent: string, task: string) =>
 
 const quote = (text: string | null | undefined) => JSON.stringify(text ?? '');
 
+/**
+ * A story's checkout path as the rebuild message prints it: the message is text an author runs in its shell, and a double
+ * quote does not stop `$(...)` or a backtick, so a path with a character the shell reads specially is left out.
+ */
+const shellSafePath = (value: string | null | undefined) =>
+  value && /^[\w ./@+:=,~-]+$/.test(value) ? quote(value) : null;
+
 /** The message for a fix request: the author fixes it in its own worktree, amends its one commit and tells the story again. */
 export function fixRelayMessage(
   request: RelayedFix,
@@ -183,8 +190,8 @@ export function rebuildRelayMessage(
   const pr = build.kind === 'github';
   const where = build.local;
   const local = [
-    `${cli} local --repo ${where?.repo_path ? quote(where.repo_path) : '<your worktree>'}`,
-    `--base ${where?.base ? quote(where.base) : '<base>'} --head ${where?.head ? quote(where.head) : '<branch name>'}`,
+    `${cli} local --repo ${shellSafePath(where?.repo_path) ?? '<your worktree>'}`,
+    `--base ${isSafeRef(where?.base) ? quote(where.base) : '<base>'} --head ${isSafeRef(where?.head) ? quote(where.head) : '<branch name>'}`,
     `--id ${build.story} --agent ${agent} --chapters <D>/chapters.json --no-open`,
   ].join(' ');
   const publish = pr

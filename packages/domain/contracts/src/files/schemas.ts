@@ -14,7 +14,7 @@
  *   - an event or entry that fails (an unknown op or type, a missing id) is skipped by the readers, as a line that isn't
  *     JSON always was. The three logs are never rewritten, so skipping loses nothing; a whole record of the two queues that
  *     fails is carried through a write untouched.
- * The readers below return the value or null, so core needs no valibot of its own.
+ * The readers below return the value or null, so core needs no valibot of its own. story-kinds.json's format is in story-kinds.ts.
  */
 import {
   array,

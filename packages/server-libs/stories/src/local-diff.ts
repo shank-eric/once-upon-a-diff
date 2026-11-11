@@ -9,6 +9,7 @@ import { parseUnifiedDiff, pathSha } from './diff.ts';
 import { revParse, diffText, commitsBetween } from '@once-upon-a-diff/adapters/git';
 import type { DiffFile, LocalFile, LocalMoved } from '@once-upon-a-diff/contracts/types';
 import type { LocalMeta, StoryMeta } from './types.ts';
+import { checkedMeta } from './meta.ts';
 import { removeFile } from '@once-upon-a-diff/adapters/stores/fs/files';
 
 /**
@@ -18,7 +19,7 @@ import { removeFile } from '@once-upon-a-diff/adapters/stores/fs/files';
 export function diffIgnoringWhitespace(dir: string, meta: StoryMeta): Map<string, DiffFile> | null {
   const file = path.join(dir, 'local-w.diff');
   if (!existsSync(file)) {
-    if (!meta.repo_path || !meta.base_oid || !meta.head_oid) {
+    if (!meta.repo_path || !meta.base_oid || !meta.head_oid || checkedMeta(dir, meta).problem) {
       return null;
     }
     try {
@@ -59,11 +60,19 @@ export const followsHead = (meta: Pick<LocalMeta, 'head'>): boolean => meta.head
  * moved since the diff was made, remake local.diff. Viewed marks are kept per file diff, so a file whose diff
  * changed shows as unviewed again.
  *
+ * `meta` is checked first (checkedMeta): a meta.json a checked-out branch has overwritten reaches no git call. A
+ * problem leaves the story as it is (no diff made, nothing written) and returns the cleaned meta.
+ *
  * Any other `--head` (a branch, a commit, HEAD~1) is pinned to the base_oid and head_oid stored when it was told:
  * a restack or a new commit on that branch does not change the story (movedSince says it did). Telling it again
  * (`once-upon local`) pins it to the tips as they are then.
  */
-export function refreshLocal(dir: string, meta: LocalMeta): LocalMeta {
+export function refreshLocal(dir: string, given: LocalMeta): LocalMeta {
+  const checked = checkedMeta(dir, given);
+  if (checked.problem || checked.meta.kind !== 'local') {
+    return checked.meta as LocalMeta; // a bad field is already dropped from it
+  }
+  const meta = checked.meta as LocalMeta;
   const hasDiff = existsSync(path.join(dir, 'local.diff'));
   if (!followsHead(meta) && meta.base_oid && meta.head_oid) {
     if (!hasDiff) {

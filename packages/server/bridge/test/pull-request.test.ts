@@ -173,7 +173,7 @@ describe('Create pull request on a local story', () => {
         pushes.calls().map((args) => args.slice(2)),
         [
           ['push', 'origin', `${shown}:refs/heads/feature`],
-          ['branch', '--set-upstream-to=origin/feature', 'feature'],
+          ['branch', '--set-upstream-to=origin/feature', '--end-of-options', 'feature'],
         ],
         'the shown sha, never the branch ref, then the upstream the fix-round relay reads',
       );

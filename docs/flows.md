@@ -80,7 +80,7 @@ flowchart LR
 |---|---|---|---|
 | 19 | `outside` | the once-upon skill gathers the PR with `gh`, writes the chapters and runs `story.mjs build`, which checks them and runs `once-upon publish` itself | `skills/once-upon/bin/story.ts:474` (`'publish',`) |
 | 20 | `app` | `publish`, run by `story.ts build` | `packages/server/cli/src/commands/stories.ts:214` (`function publish(`) |
-| 21 | `service` | places the story's folder: `.once-upon/<id>/` in the repo's checkout when the bridge knows it, else `~/.once-upon/<id>/` | `packages/server-libs/core/src/features/publishing/publish.ts:91` (`storyDirFor(home, id, { repo })`) |
+| 21 | `service` | places the story's folder: `.once-upon/<id>/` in the repo's checkout when the bridge knows it, else `~/.once-upon/<id>/` | `packages/server-libs/core/src/features/publishing/publish.ts:91` (`storyDirFor(home, id, { repo, kind: 'github' })`) |
 | 22 | `service` | **copies `chapters.json` and `file-map.json`** into that folder, through the adapter's `copyFileAtomic` | `packages/server-libs/core/src/features/publishing/publish.ts:106` (`copyFileAtomic(`) |
 | 23 | `service` | **writes `meta.json`** last, with the head it was told from, through the adapter's `writeJsonAtomic` | `packages/server-libs/core/src/features/publishing/publish.ts:110` (`writeJsonAtomic(path.join(dest, 'meta.json')`) |
 | 24 | `service` | settles the build request | `packages/server-libs/core/src/features/publishing/publish.ts:129` (`builds.settle(`) |
@@ -295,7 +295,7 @@ flowchart LR
 | 18 | `app` | `land` reads the commit each agent's finish recorded | `packages/server/cli/src/commands/backlog.ts:330` (`recordedTips(registry.events())`) |
 | 19 | `service` | the last recorded commit per card | `packages/server-libs/state/src/queues/backlog/landing.ts:20` (`export function recordedTips`) |
 | 20 | `service` | which cards' commits went live: the recorded tip itself is in the range; or a commit with its patch id is (a rebase or a clean pick); or, for a batch deploy's picked sha whose patch changed, the commit with the tip's author stamp (`packages/server-libs/state/src/queues/backlog/landing.ts:107` (`const pickOf`)) | `packages/server-libs/state/src/queues/backlog/landing.ts:83` (`export function landItems(`) |
-| 21 | `adapter` | `git rev-list` over the range | `packages/server-libs/adapters/src/git.ts:290` (`export function commitsInRange(`) |
+| 21 | `adapter` | `git rev-list` over the range | `packages/server-libs/adapters/src/git.ts:326` (`export function commitsInRange(`) |
 | 22 | `app` | each matched card is marked done at its sha | `packages/server/cli/src/commands/backlog.ts:338` (`store.done(item.id, { sha`) |
 | 23 | `service` | **appends a `done` event** to `backlog.jsonl` | `packages/server-libs/state/src/queues/backlog/backlog.ts:478` (`done(id: string`) |
 

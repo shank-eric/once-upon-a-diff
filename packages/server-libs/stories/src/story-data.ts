@@ -9,7 +9,7 @@ import path from 'node:path';
 import { pathSha } from './diff.ts';
 import { readPrefs } from '@once-upon-a-diff/foundation/settings';
 import { readJson } from '@once-upon-a-diff/adapters/stores/fs/json-file';
-import { readMeta, storyVersion, localVersion } from './meta.ts';
+import { checkedMeta, readMeta, storyVersion, localVersion } from './meta.ts';
 import { chaptersOf, addLeftoverChapter, markUnwritten, refOf } from './chapters.ts';
 import { upgradePlan } from './legacy.ts';
 import { uncoveredHunks } from './hunk-coverage.ts';
@@ -48,6 +48,14 @@ function relsOf(map: FileMap | null, diff: Map<string, DiffFile> | null): string
 }
 
 export function storyData(store: StoryStateReader, id: string, dir: string): StoryData {
+  const refused = checkedMeta(
+    dir,
+    readJson<LocalMeta>(path.join(dir, 'meta.json'), null),
+    store.home,
+  ).problem;
+  if (refused) {
+    throw new Error(`story ${id} is not served: its meta.json is not trusted (${refused})`);
+  }
   let meta = readMeta(dir);
   if (meta.kind === 'local') {
     refreshLocal(

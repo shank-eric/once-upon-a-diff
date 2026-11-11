@@ -16,11 +16,14 @@
  * one the bridge knows for the repo, from local stories, `wait --repo` run in
  * a checkout, checkouts.json, or ~/Development/<name> with that origin.
  */
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { checkoutFor } from '@once-upon-a-diff/foundation/repos';
+import { homeDir } from '@once-upon-a-diff/foundation/settings';
 import { ownerOnly, ensureDir, appendText } from '@once-upon-a-diff/adapters/stores/fs/files';
 import { readJson, writeJsonAtomic } from '@once-upon-a-diff/adapters/stores/fs/json-file';
+import { updateJson } from '@once-upon-a-diff/adapters/stores/fs/lock';
+import { readStoryKinds } from '@once-upon-a-diff/contracts/files/story-kinds';
 import { runGit } from '@once-upon-a-diff/adapters/git';
 
 export const STORY_FOLDER = '.once-upon';
@@ -78,6 +81,30 @@ export function excludeStories(dir: string): boolean {
   return true;
 }
 
+/** A path with symlinks resolved, or null when it is not there. */
+export const realPathOf = (file: string): string | null => {
+  try {
+    return realpathSync(file);
+  } catch {
+    return null;
+  }
+};
+
+/**
+ * Whether a story folder is in a checkout (<checkout>/.once-upon/<id>, where a checked-out branch can replace it) rather
+ * than in the bridge's own folder (<home>/<id>, where no branch can write). The home is told apart by its path, never by
+ * its name: the default home is ~/.once-upon, which is named like a checkout's story folder.
+ */
+export function inCheckout(dir: string, home: string = homeDir()): boolean {
+  const parent = path.dirname(dir);
+  if (path.basename(parent) !== STORY_FOLDER) {
+    return false;
+  }
+  const here = realPathOf(parent);
+  const homePath = realPathOf(home);
+  return !(here && homePath && here === homePath);
+}
+
 // ---------- the index
 const indexFile = (home: string) => path.join(home, 'stories.json');
 export function readIndex(home: string): Record<string, string> {
@@ -93,12 +120,36 @@ export function indexStory(home: string, id: string, dir: string): void {
   writeJsonAtomic(indexFile(home), all);
 }
 
-/** The folder a new story goes in: <checkout>/.once-upon/<id>, made and excluded, or <home>/<id>. */
+// ---------- the kinds
+// What kind each story was made as, kept in the bridge's own folder: a story folder in a checkout can be overwritten by a branch
+// that tracks files there, so its meta.json cannot be the one to say what it is (meta.ts refusalOf).
+const kindsFile = (home: string) => path.join(home, 'story-kinds.json');
+export const recordedKind = (home: string, id: string): string | null =>
+  (readStoryKinds(readJson<unknown>(kindsFile(home), {})) ?? {})[id] ?? null;
+/** Written under the file's lock: the bridge and the CLI both record kinds, and two at once must both land. */
+export function recordKind(home: string, id: string, kind: string): void {
+  if (recordedKind(home, id) === kind) {
+    return;
+  }
+  ensureDir(home);
+  updateJson(kindsFile(home), {} as Record<string, unknown>, (all) => {
+    all[id] = kind;
+  });
+}
+
+/** The folder a new story goes in: <checkout>/.once-upon/<id>, made and excluded, or <home>/<id>. `kind` is recorded for the id. */
 export function storyDirFor(
   home: string,
   id: string,
-  { checkout = null, repo = null }: { checkout?: string | null; repo?: string | null } = {},
+  {
+    checkout = null,
+    repo = null,
+    kind = null,
+  }: { checkout?: string | null; repo?: string | null; kind?: 'github' | 'local' | null } = {},
 ): string {
+  if (kind) {
+    recordKind(home, id, kind);
+  }
   const top =
     checkout ||
     (repo ? checkoutFor(home, repo) && mainCheckout(checkoutFor(home, repo) as string) : null);

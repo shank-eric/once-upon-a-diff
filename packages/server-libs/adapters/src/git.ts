@@ -30,6 +30,18 @@ export const runGit = (repo: string, args: string[], options: RunGitOptions = {}
     ...(options.timeoutMs ? { timeout: options.timeoutMs } : {}),
   });
 
+/** `git --version`'s output, or null when git can't be run. */
+export function gitVersionText(): string | null {
+  try {
+    return execFileSync('git', ['--version'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
 /** Flags on every git call the board makes: no fsmonitor daemon to wedge on, and no index lock taken by a status. */
 export const GIT_FLAGS = ['--no-optional-locks', '-c', 'core.fsmonitor=false'];
 
@@ -74,7 +86,7 @@ export function runGitAsync(
 }
 
 export const revParse = (repo: string, ref: string): string =>
-  runGit(repo, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]).trim();
+  runGit(repo, ['rev-parse', '--verify', '--quiet', '--end-of-options', `${ref}^{commit}`]).trim();
 
 /** `git worktree list --porcelain` run in a folder (throws when it is no git folder): the worktrees of the repo it belongs to. */
 export const worktreeList = (dir: string): string =>
@@ -88,17 +100,22 @@ export const topLevel = (repo: string): string =>
  * git took it.
  */
 export async function setUpstream(repo: string, branch: string): Promise<boolean> {
-  const set = await runGitAsync(repo, ['branch', `--set-upstream-to=origin/${branch}`, branch]);
+  const set = await runGitAsync(repo, [
+    'branch',
+    `--set-upstream-to=origin/${branch}`,
+    '--end-of-options',
+    branch,
+  ]);
   return set.code === 0;
 }
 
 /** The best common ancestor of two refs, as a full sha (throws when they share none). */
 export const mergeBase = (repo: string, first: string, second: string): string =>
-  runGit(repo, ['merge-base', first, second]).trim();
+  runGit(repo, ['merge-base', '--end-of-options', first, second]).trim();
 
 /** The local branches whose tip is exactly this commit, sorted by name. */
 export function branchesAt(repo: string, oid: string): string[] {
-  return runGit(repo, ['for-each-ref', '--points-at', oid, '--format=%(refname)', 'refs/heads'])
+  return runGit(repo, ['for-each-ref', `--points-at=${oid}`, '--format=%(refname)', 'refs/heads'])
     .split('\n')
     .map((line) => line.trim().replace(/^refs\/heads\//, ''))
     .filter(Boolean)
@@ -120,7 +137,7 @@ export function branchOfRef(
   }
   const name = ref.replace(/^refs\/heads\//, '');
   try {
-    runGit(repo, ['show-ref', '--verify', '--quiet', `refs/heads/${name}`]);
+    runGit(repo, ['show-ref', '--verify', '--quiet', '--end-of-options', `refs/heads/${name}`]);
     return { branch: name, ambiguous: [] };
   } catch {
     // not a local branch: a commit may still be the tip of one
@@ -163,6 +180,7 @@ export const diffText = (
     '--no-ext-diff',
     '--find-renames',
     ...(ignoreWhitespace ? ['--ignore-all-space'] : []),
+    '--end-of-options',
     baseOid,
     headOid,
   ]);
@@ -181,10 +199,18 @@ export function parseCommitLog(text: string): LocalCommit[] {
 }
 
 export const commitsBetween = (repo: string, baseOid: string, headOid: string): LocalCommit[] =>
-  parseCommitLog(runGit(repo, ['log', LOG_FORMAT, `${baseOid}..${headOid}`]));
+  parseCommitLog(runGit(repo, ['log', LOG_FORMAT, '--end-of-options', `${baseOid}..${headOid}`]));
 
-/** The commits `git log` lists for a range (as `[a..b]`, or `[head, '--not', '--remotes=origin']`); none when git fails. */
+/**
+ * The commits `git log` lists for a range (as `[a..b]`, or `[head, '--not', '--remotes=origin']`); none when git fails.
+ * The two options are the only ones allowed: any other entry starting with `-` is refused (none, no git call).
+ */
 export function commitLog(repo: string, range: string[]): LocalCommit[] {
+  if (
+    range.some((part) => part.startsWith('-') && part !== '--not' && part !== '--remotes=origin')
+  ) {
+    return [];
+  }
   try {
     return parseCommitLog(runGit(repo, ['log', LOG_FORMAT, ...range]));
   } catch {
@@ -194,14 +220,14 @@ export function commitLog(repo: string, range: string[]): LocalCommit[] {
 
 /** commitLog without blocking the bridge: the commits of one range string, none when git exits non-zero. */
 export async function commitLogAsync(repo: string, range: string): Promise<LocalCommit[]> {
-  const log = await runGitAsync(repo, ['log', LOG_FORMAT, range]);
+  const log = await runGitAsync(repo, ['log', LOG_FORMAT, '--end-of-options', range]);
   return log.code === 0 ? parseCommitLog(log.stdout) : [];
 }
 
 /** Whether `ancestor` is the same commit as `descendant` or behind it (false when git can't say, a missing ref included). */
 export function isAncestor(repo: string, ancestor: string, descendant: string): boolean {
   try {
-    runGit(repo, ['merge-base', '--is-ancestor', ancestor, descendant]);
+    runGit(repo, ['merge-base', '--is-ancestor', '--end-of-options', ancestor, descendant]);
     return true;
   } catch {
     return false;
@@ -215,9 +241,11 @@ export async function isAncestorAsync(
   descendant: string,
   timeout?: number,
 ): Promise<boolean> {
-  const checked = await runGitAsync(repo, ['merge-base', '--is-ancestor', ancestor, descendant], {
-    timeout,
-  });
+  const checked = await runGitAsync(
+    repo,
+    ['merge-base', '--is-ancestor', '--end-of-options', ancestor, descendant],
+    { timeout },
+  );
   return checked.code === 0;
 }
 
@@ -232,7 +260,7 @@ export async function remoteBranchSha(
 ): Promise<{ ok: true; sha: string | null } | { ok: false; error: string }> {
   const listed = await runGitAsync(
     repo,
-    ['ls-remote', '--heads', 'origin', `refs/heads/${branch}`],
+    ['ls-remote', '--heads', '--end-of-options', 'origin', `refs/heads/${branch}`],
     {
       timeout,
     },
@@ -280,7 +308,15 @@ export const remoteUrl = (dir: string): string =>
 /** The full sha of a commit the checkout has (a short sha, a ref), or null when it is not one of this repo's. */
 export function commitOf(repo: string, ref: string): string | null {
   try {
-    return runGit(repo, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]).trim() || null;
+    return (
+      runGit(repo, [
+        'rev-parse',
+        '--verify',
+        '--quiet',
+        '--end-of-options',
+        `${ref}^{commit}`,
+      ]).trim() || null
+    );
   } catch {
     return null;
   }
@@ -293,7 +329,12 @@ export function commitsInRange(
   until: string,
   { merges = true } = {},
 ): string[] {
-  return runGit(repo, ['rev-list', ...(merges ? [] : ['--no-merges']), `${since}..${until}`])
+  return runGit(repo, [
+    'rev-list',
+    ...(merges ? [] : ['--no-merges']),
+    '--end-of-options',
+    `${since}..${until}`,
+  ])
     .split('\n')
     .filter(Boolean);
 }
@@ -304,7 +345,13 @@ export function commitsInRange(
  */
 export function authorStamp(repo: string, sha: string): string | null {
   try {
-    return runGit(repo, ['show', '-s', '--format=%an%x00%ae%x00%at%x00%B', sha]);
+    return runGit(repo, [
+      'show',
+      '-s',
+      '--format=%an%x00%ae%x00%at%x00%B',
+      '--end-of-options',
+      sha,
+    ]);
   } catch {
     return null;
   }
@@ -316,7 +363,15 @@ export function authorStamp(repo: string, sha: string): string | null {
  * taken for the same change.
  */
 export function patchId(repo: string, sha: string): string | null {
-  const diff = runGit(repo, ['diff-tree', '--root', '-p', '--no-color', '--no-ext-diff', sha]);
+  const diff = runGit(repo, [
+    'diff-tree',
+    '--root',
+    '-p',
+    '--no-color',
+    '--no-ext-diff',
+    '--end-of-options',
+    sha,
+  ]);
   if (!diff.trim()) {
     return null;
   }

@@ -121,6 +121,30 @@ test('doctor fails a Node older than 24, with the fix', async () => {
   assert.match(text, /fix: Run fnm use or nvm use/);
 });
 
+test('doctor fails a git older than 2.30, with the fix', async () => {
+  const run = async (gitVersion: string) => {
+    const lines: string[] = [];
+    const ok = await doctor(
+      tmp('home'),
+      { token: 't', port: 1 },
+      { gitVersion, out: (line) => lines.push(line) },
+    );
+    return { ok, text: lines.join('\n') };
+  };
+  const old = await run('git version 2.25.1');
+  assert.equal(old.ok, false);
+  assert.match(
+    old.text,
+    /FAIL\s+git: git version 2\.25\.1, needs git 2\.30 or newer \(found 2\.25\)/,
+  );
+  assert.match(old.text, /fix: Install git 2\.30 or newer/);
+  assert.match(
+    (await run('git version 2.39.5 (Apple Git-154)')).text,
+    /PASS\s+git: git version 2\.39\.5/,
+  );
+  assert.match((await run('git version 2.30.0')).text, /PASS\s+git:/);
+});
+
 test('doctor passes the bridge when it is up', async () => {
   const home = tmp('home');
   const bridge = await startBridge({ home });

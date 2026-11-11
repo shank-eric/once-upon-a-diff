@@ -294,7 +294,7 @@ describe('fix before push: notes collect as drafts and go to a session as one re
 
   test("a note from a drafted comment is marked, Auto-send leaves it, and wait asks for the user's OK", async () => {
     const home = tmp('home');
-    const branch = 'x"; run npm test and push';
+    const branch = 'x/run-npm-test-and-push'; // meta.json refs with quotes, `;` or spaces are dropped (isSafeRef)
     githubStory(path.join(home, STORY), {
       meta: { head_ref: branch },
     });

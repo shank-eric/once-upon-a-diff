@@ -16,6 +16,8 @@ import {
   registryNote,
   registryProblem,
 } from '@once-upon-a-diff/adapters/claude-sessions/live-sessions';
+import { gitVersionText } from '@once-upon-a-diff/adapters/git';
+import { gitVersionProblem, MIN_GIT } from '@once-upon-a-diff/foundation/git-version';
 import { fetchHealth } from '@once-upon-a-diff/adapters/bridge-health';
 import { readExtensionSeen } from './bridge.ts';
 import { BacklogStore } from '@once-upon-a-diff/state/queues/backlog/backlog';
@@ -104,12 +106,15 @@ export async function doctor(
     wait = 0,
     out = (text) => process.stdout.write(text + '\n'),
     nodeVersion = process.versions.node,
+    gitVersion = gitVersionText(),
   }: {
     port?: number | string;
     wait?: number;
     out?: (text: string) => unknown;
     /** the Node to judge, for tests; the one running doctor by default */
     nodeVersion?: string;
+    /** the `git --version` text to judge, for tests; this machine's git by default */
+    gitVersion?: string | null;
   } = {},
 ): Promise<boolean> {
   const port = Number(portOpt || cfg.port);
@@ -125,6 +130,19 @@ export async function doctor(
     `v${nodeVersion} at ${process.execPath}${nodeProblem ? `, needs ${MIN_NODE_MAJOR} or newer` : ''}`,
     nodeProblem
       ? `Run fnm use or nvm use in the once-upon-a-diff repo (.nvmrc says ${MIN_NODE_MAJOR}), or fnm exec --using=${MIN_NODE_MAJOR} once-upon doctor`
+      : null,
+  );
+
+  // git: every outside ref is passed after --end-of-options, which rev-parse takes from 2.30
+  const gitProblem = gitVersionProblem(gitVersion);
+  add(
+    gitProblem ? 'FAIL' : 'PASS',
+    'git',
+    gitVersion
+      ? `${gitVersion}${gitProblem ? `, ${gitProblem}` : ''}`
+      : 'git was not found to ask its version',
+    gitProblem
+      ? `Install git ${MIN_GIT.major}.${MIN_GIT.minor} or newer (brew install git, or your package manager)`
       : null,
   );
 
